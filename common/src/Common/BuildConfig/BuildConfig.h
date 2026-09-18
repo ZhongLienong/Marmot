@@ -169,7 +169,7 @@ namespace MidoriBuild
 
     [[nodiscard]] bool ShouldEmitInternalDiagnostics() noexcept;
 
-    // The configuration MidoriCore itself was compiled with. Defined out of line
+    // The configuration MarmotCommon itself was compiled with. Defined out of line
     // in BuildConfig.cpp on purpose: a translation unit compares these against
     // its OWN MIDORI_DEBUG_LEVEL, MIDORI_VERSION_STRING and endianness to detect
     // that it read this header differently from the library it links. An inline

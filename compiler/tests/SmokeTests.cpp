@@ -6,7 +6,7 @@
 
 #include "support/CompileHelpers.h"
 
-TEST_CASE("MidoriCore links into the unit test target", "[smoke]")
+TEST_CASE("The Marmot libraries link into the unit test target", "[smoke]")
 {
 	std::string source_code =
 		"module Main\n"

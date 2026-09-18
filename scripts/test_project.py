@@ -232,9 +232,20 @@ def main(argv: list[str]) -> int:
         action="store_true",
         help="Skip compiling the programs under benchmarks/, which normally runs with full regression passes.",
     )
+    parser.add_argument(
+        "--skip-layering-check",
+        action="store_true",
+        help="Skip the include check that keeps the compiler, runtime and common libraries apart.",
+    )
     args = parser.parse_args(argv)
 
     root = repo_root()
+
+    # Needs no build, so it runs first and fails fast.
+    if args.skip_layering_check is False:
+        layering_exit_code = run_command([sys.executable, str(root / "scripts" / "check_layering.py")], root)
+        if layering_exit_code != 0:
+            return layering_exit_code
     presets = load_cmake_presets(root)
     preset_name = args.preset if args.preset else default_preset_name(args.build, presets)
     binary_dir = resolve_binary_dir(preset_name, presets, root)

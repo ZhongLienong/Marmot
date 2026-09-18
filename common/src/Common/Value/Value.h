@@ -27,7 +27,7 @@ class MidoriValue
 public:
 	constexpr static inline int DATA_BUFFER_SIZE = sizeof(double);
 
-	// sizeof(MidoriValue) as compiled inside MidoriCore. Out of line on purpose,
+	// sizeof(MidoriValue) as compiled inside MarmotCommon. Out of line on purpose,
 	// so a consumer can compare it with its own sizeof(MidoriValue): the layout
 	// below depends on MIDORI_DEBUG_FULL, and a mismatch means objects passed
 	// across the library boundary are read with the wrong size.

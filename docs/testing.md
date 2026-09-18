@@ -2,7 +2,7 @@
 
 Marmot has two complementary test layers:
 
-- `tests/` contains in-process implementation tests built with Catch2 and linked against `MidoriCore`.
+- `common/tests/`, `runtime/tests/` and `compiler/tests/` contain in-process implementation tests built with Catch2 and linked against the Marmot libraries.
 - `test/` contains file-based language regression tests run through `Marmot.exe test` and the legacy Python runners.
 
 Use the smallest layer that proves the behavior you are changing. If a regression is important at both the subsystem and CLI level, add both.
@@ -25,7 +25,7 @@ Add a test under `test/` when the behavior is best validated as a user-visible p
 
 Default rule:
 
-- if the subsystem is directly reachable through `MidoriCore` or `compiler/tests/support`, prefer a C++ unit test in the component's `tests/` folder
+- if the subsystem is directly reachable through the Marmot libraries or `compiler/tests/support`, prefer a C++ unit test in the component's `tests/` folder
 - if the value comes from a full-program fixture and black-box execution, prefer `test/`
 
 ## Layout and Conventions
@@ -217,6 +217,22 @@ benchmark stopped compiling when v2 removed `loop`, assignment and in-place
 with a Release build. `python scripts/test_project.py --mode regression` runs
 the compile check unless you pass `--skip-benchmark-check`, and
 `--category benchmarks` runs it alone.
+
+Check that the components keep their dependency direction:
+
+```powershell
+python scripts/check_layering.py
+```
+
+The C++ code builds as four libraries: `MarmotCommon` (`common/src`),
+`MarmotRuntime` (`runtime/src`, links Common), `MarmotCompiler`
+(`compiler/src`, links Common, never Runtime) and `MarmotDriver` (the CLI,
+driver and test runner under `compiler/src/Utility`, links Compiler and
+Runtime). Each library exports only its own include root, so most wrong
+includes already fail to compile; the script also catches the ones a shared
+include path would let through, such as compiler code including a driver
+header. It needs no build, and `python scripts/test_project.py` runs it first
+unless you pass `--skip-layering-check`.
 
 Configure and build implementation tests on Windows:
 

@@ -97,12 +97,11 @@ set(MIDORI_ENDIAN_DEFINES
     $<IF:$<BOOL:${IS_BIG_ENDIAN}>,,MIDORI_LITTLE_ENDIAN>
 )
 
+# Settings every Marmot library and executable shares. Include directories are
+# not set here: each component library exports only its own src/ root, so a
+# target can include a header only from the components it links (see the
+# dependency graph below and scripts/check_layering.py).
 function(midori_configure_target target_name)
-    target_include_directories(${target_name} PUBLIC
-        ${CMAKE_SOURCE_DIR}/common/src
-        ${CMAKE_SOURCE_DIR}/runtime/src
-        ${CMAKE_SOURCE_DIR}/compiler/src
-    )
     # PUBLIC because headers read them: BuildConfig.h defines an inline constexpr
     # VersionString from MIDORI_VERSION_STRING, and falls back to its own endian
     # detection when neither endian macro is set. Every translation unit that
@@ -118,44 +117,73 @@ function(midori_configure_target target_name)
 endfunction()
 
 # ============================================================================
-# Source File Collection
+# Component Libraries
 # ============================================================================
-# Collect common source files
-# common/ holds the shared foundation (values, errors, bytecode format),
-# runtime/ the VM and builtin library, compiler/ everything that turns source
-# into bytecode. For now they still build as one library; the entry points
-# (compiler/src/Marmot.cpp, web/src) are excluded here and added per target.
-file(GLOB_RECURSE COMMON_HEADERS CONFIGURE_DEPENDS
+# One library per component, linked in one direction only:
+#
+#   MarmotCommon    common/src     values, errors, the bytecode format, the
+#                                  builtin table's names and signatures
+#   MarmotRuntime   runtime/src    the VM and builtin library     -> Common
+#   MarmotCompiler  compiler/src   source to bytecode             -> Common
+#   MarmotDriver    compiler/src/Utility/{CLI,Driver,TestRunner,OutputCapture}
+#                                  the application layer          -> Compiler, Runtime
+#
+# The compiler never links the runtime. The entry points (compiler/src/Marmot.cpp,
+# web/src) are added per build below.
+set(MIDORI_DRIVER_DIRS CLI Driver TestRunner OutputCapture)
+
+file(GLOB_RECURSE MARMOT_COMMON_SOURCES CONFIGURE_DEPENDS
     "common/src/*.h"
-    "compiler/src/Compiler/*.h"
-    "compiler/src/Utility/*.h"
-    "runtime/src/Interpreter/*.h"
-)
-
-file(GLOB_RECURSE COMMON_SOURCES CONFIGURE_DEPENDS
+    "common/src/*.def"
     "common/src/*.cpp"
+)
+
+file(GLOB_RECURSE MARMOT_RUNTIME_SOURCES CONFIGURE_DEPENDS
+    "runtime/src/*.h"
+    "runtime/src/*.cpp"
+)
+
+file(GLOB_RECURSE MARMOT_COMPILER_SOURCES CONFIGURE_DEPENDS
+    "compiler/src/Compiler/*.h"
     "compiler/src/Compiler/*.cpp"
+    "compiler/src/Utility/*.h"
     "compiler/src/Utility/*.cpp"
-    "runtime/src/Interpreter/*.cpp"
 )
 
-file(GLOB_RECURSE LIBRARY_SOURCES CONFIGURE_DEPENDS
-    "runtime/src/Library/*.cpp"
-)
+set(MARMOT_DRIVER_SOURCES)
+foreach(driver_dir IN LISTS MIDORI_DRIVER_DIRS)
+    file(GLOB_RECURSE driver_dir_sources CONFIGURE_DEPENDS
+        "compiler/src/Utility/${driver_dir}/*.h"
+        "compiler/src/Utility/${driver_dir}/*.cpp"
+    )
+    list(APPEND MARMOT_DRIVER_SOURCES ${driver_dir_sources})
+    list(FILTER MARMOT_COMPILER_SOURCES EXCLUDE REGEX "/compiler/src/Utility/${driver_dir}/")
+endforeach()
 
-file(GLOB_RECURSE LIBRARY_HEADERS CONFIGURE_DEPENDS
-    "runtime/src/Library/*.h"
-)
+add_library(MarmotCommon STATIC ${MARMOT_COMMON_SOURCES})
+target_include_directories(MarmotCommon PUBLIC ${CMAKE_SOURCE_DIR}/common/src)
 
-add_library(MidoriCore STATIC
-    ${COMMON_HEADERS}
-    ${COMMON_SOURCES}
-    ${LIBRARY_HEADERS}
-    ${LIBRARY_SOURCES}
-)
+add_library(MarmotRuntime STATIC ${MARMOT_RUNTIME_SOURCES})
+target_include_directories(MarmotRuntime PUBLIC ${CMAKE_SOURCE_DIR}/runtime/src)
+target_link_libraries(MarmotRuntime PUBLIC MarmotCommon)
 
-midori_configure_target(MidoriCore)
-target_link_libraries(MidoriCore PRIVATE toml11::toml11)
+add_library(MarmotCompiler STATIC ${MARMOT_COMPILER_SOURCES})
+target_include_directories(MarmotCompiler PUBLIC ${CMAKE_SOURCE_DIR}/compiler/src)
+target_link_libraries(MarmotCompiler PUBLIC MarmotCommon)
+target_link_libraries(MarmotCompiler PRIVATE toml11::toml11)
+
+add_library(MarmotDriver STATIC ${MARMOT_DRIVER_SOURCES})
+target_link_libraries(MarmotDriver PUBLIC MarmotCompiler MarmotRuntime)
+
+set(MIDORI_LIBRARY_TARGETS
+    MarmotCommon
+    MarmotRuntime
+    MarmotCompiler
+    MarmotDriver
+)
+foreach(target_name IN LISTS MIDORI_LIBRARY_TARGETS)
+    midori_configure_target(${target_name})
+endforeach()
 
 # The interpreter dispatch loop is compiled without whole-program optimization:
 # its hot dependencies are all force-inlined from headers, and opting out of
@@ -167,7 +195,8 @@ if(MSVC)
 endif()
 
 if(UNIX)
-    target_link_libraries(MidoriCore PUBLIC ${CMAKE_DL_LIBS})
+    target_link_libraries(MarmotCommon PUBLIC ${CMAKE_DL_LIBS})
+    target_link_libraries(MarmotCompiler PUBLIC ${CMAKE_DL_LIBS})
 endif()
 
 # ============================================================================
@@ -192,10 +221,10 @@ if(EMSCRIPTEN)
     add_executable(Marmot
         ${WASM_FILES}
     )
-    target_link_libraries(Marmot PRIVATE MidoriCore)
+    target_link_libraries(Marmot PRIVATE MarmotCompiler MarmotRuntime)
 
     set(MIDORI_WASM_COMPILE_TARGETS
-        MidoriCore
+        ${MIDORI_LIBRARY_TARGETS}
         Marmot
     )
 
@@ -249,13 +278,13 @@ if(EMSCRIPTEN)
 else()
     message(STATUS "Configuring for native build")
 
-    # Create the thin CLI executable that links against MidoriCore
+    # The thin CLI executable over the driver
     add_executable(Marmot
         "compiler/src/Marmot.cpp"
     )
-    target_link_libraries(Marmot PRIVATE MidoriCore)
+    target_link_libraries(Marmot PRIVATE MarmotDriver)
     set(MIDORI_NATIVE_COMPILE_TARGETS
-        MidoriCore
+        ${MIDORI_LIBRARY_TARGETS}
         Marmot
     )
     set(MIDORI_NATIVE_LINK_TARGETS Marmot)
@@ -287,11 +316,11 @@ else()
         message(WARNING "Experimental config requested but compiler does not support ${MIDORI_AVX2_FLAG}. Building without AVX2.")
     endif()
 
-    # PUBLIC, so every target that links MidoriCore inherits them. They select
+    # PUBLIC, so every target that links a Marmot library inherits them. They select
     # MIDORI_DEBUG_LEVEL in BuildConfig.h, which changes type layouts in headers
     # (sizeof(MidoriValue) is 8 at levels 1-2 and 16 at level 3). Before these were
     # PUBLIC, the unit test targets compiled those headers at a different level
-    # from MidoriCore, which in x64-debug was a live out-of-bounds read. Pinned by
+    # from the library, which in x64-debug was a live out-of-bounds read. Pinned by
     # common/tests/common/AbiConsistencyTests.cpp.
     foreach(target_name IN LISTS MIDORI_NATIVE_COMPILE_TARGETS)
         target_compile_definitions(${target_name} PUBLIC

@@ -1,5 +1,5 @@
 # Each component keeps its unit tests in <component>/tests. They still build as
-# one executable; the shared helpers in compiler/tests/support are included as
+# one executable, linked against every component through MarmotDriver; the shared helpers in compiler/tests/support are included as
 # "support/...".
 file(GLOB_RECURSE MIDORI_UNIT_TEST_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_SOURCE_DIR}/common/tests/*.cpp"
@@ -26,7 +26,7 @@ target_include_directories(MidoriTestSupport PUBLIC
 )
 
 target_link_libraries(MidoriTestSupport PUBLIC
-    MidoriCore
+    MarmotDriver
 )
 
 add_executable(MarmotUnitTests
@@ -37,12 +37,12 @@ target_include_directories(MarmotUnitTests PRIVATE
     ${CMAKE_SOURCE_DIR}/compiler/tests
 )
 
-# No build-configuration defines here on purpose. MidoriCore declares
+# No build-configuration defines here on purpose. The Marmot libraries declare
 # MIDORI_BUILD_*, NDEBUG, the endian macros and MIDORI_VERSION_STRING as PUBLIC,
-# so both test targets inherit them through the link to MidoriCore and see
-# BuildConfig.h exactly as the library does. Copying them here instead is what
+# so both test targets inherit them through the link to MarmotDriver and see
+# BuildConfig.h exactly as the libraries do. Copying them here instead is what
 # let them drift before; common/tests/common/AbiConsistencyTests.cpp fails if a
-# target ever compiles those headers differently from MidoriCore again.
+# target ever compiles those headers differently from the libraries again.
 
 target_link_libraries(MarmotUnitTests PRIVATE
     Catch2::Catch2WithMain
