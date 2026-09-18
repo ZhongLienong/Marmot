@@ -11,7 +11,7 @@ use List.{List, ListToArray}
 
 // v2 port: in-place Append into the three partitions is replaced by a
 // tail-recursive walk that prepends into cons lists, converted to arrays once.
-// See benchmark/sorting.mmt for the same shape at 5000 elements.
+// See benchmarks/sorting.mmt for the same shape at 5000 elements.
 def Partition = fn(arr : Array<Int>, index : Int, pivot : Int, less : List<Int>, equal : List<Int>, greater : List<Int>) -> (List<Int>, List<Int>, List<Int>) =>
 	if index < 0
 	then (less, equal, greater)

@@ -152,7 +152,7 @@ with it.
    Cancellation is cooperative, so it is bounded by whatever the worker is
    currently doing. Blocking calls that do not consult the stop token — stdin
    reads and third-party dynamic FFI — still run to completion first. See
-   `src/Common/Cancellation/Cancellation.h`.
+   `common/src/Common/Cancellation/Cancellation.h`.
 
 4. **Poll**: `Concurrency::IsDone(w)` checks if the worker has completed without blocking.
 

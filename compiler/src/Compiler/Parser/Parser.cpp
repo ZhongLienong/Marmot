@@ -2295,7 +2295,7 @@ bool Parser::ProbeRecordUpdate()
 	//
 	// The pending-match counter is load-bearing, not defensive padding: `{ match x with
 	// case ... }` is a block whose 'with' sits at depth 0. Simulating this probe over the
-	// 352 .mmt files in test/, MarmotPrelude/, benchmark/, reference_package/ and tests/
+	// 352 .mmt files in test/, MarmotPrelude/, benchmarks/, examples/ and the unit tests
 	// misclassifies 0 braces with the counter and 51 without it - most of
 	// MarmotPrelude/Prelude/Result.mmt and Option.mmt among them.
 	int offset = 0;

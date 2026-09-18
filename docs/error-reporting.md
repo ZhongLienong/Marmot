@@ -8,10 +8,10 @@ Marmot's diagnostic pipeline is structured. Compiler stages produce
 
 Source:
 
-- `src/Common/Error/Error.h`
-- `src/Common/Error/Error.cpp`
-- `src/Compiler/Result/Result.h`
-- `src/Utility/Driver/MidoriDriver.cpp`
+- `common/src/Common/Error/Error.h`
+- `common/src/Common/Error/Error.cpp`
+- `compiler/src/Compiler/Result/Result.h`
+- `compiler/src/Utility/Driver/MidoriDriver.cpp`
 
 Main types:
 
@@ -194,8 +194,8 @@ Important behavior from the current pipeline:
 
 That ordering is tested in:
 
-- `tests/unit/common/ErrorFormattingTests.cpp`
-- `tests/unit/compiler/CompilerWarningAggregationTests.cpp`
+- `common/tests/common/ErrorFormattingTests.cpp`
+- `compiler/tests/compiler/CompilerWarningAggregationTests.cpp`
 
 ## Driver Behavior
 

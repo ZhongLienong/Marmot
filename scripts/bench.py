@@ -23,10 +23,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 WORKLOADS = [
-    ROOT / "benchmark" / "all.mmt",
-    ROOT / "benchmark" / "perf_sort_100k.mmt",
-    ROOT / "benchmark" / "perf_text_midsize.mmt",
-    ROOT / "benchmark" / "gc_churn.mmt",
+    ROOT / "benchmarks" / "all.mmt",
+    ROOT / "benchmarks" / "perf_sort_100k.mmt",
+    ROOT / "benchmarks" / "perf_text_midsize.mmt",
+    ROOT / "benchmarks" / "gc_churn.mmt",
 ]
 
 RESULT_PATTERN = re.compile(r"^(.*?)(?: benchmark)? took (\d+) milliseconds", re.MULTILINE)

@@ -42,7 +42,7 @@ private:
 	// would have given a test TU a smaller object than MidoriCore, and CollectNow (in core)
 	// would have written these counters past its end. The cause is now fixed at the root --
 	// MidoriCore's build-level definitions are PUBLIC and every consumer inherits them,
-	// checked by tests/unit/common/AbiConsistencyTests.cpp -- but a layout that does not
+	// checked by common/tests/common/AbiConsistencyTests.cpp -- but a layout that does not
 	// depend on the debug level is still the safer default for a type shared across that
 	// boundary. Only the increments/telemetry are guarded.
 	size_t m_minor_collection_count = 0uz;

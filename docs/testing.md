@@ -25,14 +25,14 @@ Add a test under `test/` when the behavior is best validated as a user-visible p
 
 Default rule:
 
-- if the subsystem is directly reachable through `MidoriCore` or `tests/support`, prefer `tests/`
+- if the subsystem is directly reachable through `MidoriCore` or `compiler/tests/support`, prefer a C++ unit test in the component's `tests/` folder
 - if the value comes from a full-program fixture and black-box execution, prefer `test/`
 
 ## Layout and Conventions
 
 Implementation tests:
 
-- place files under `tests/unit/<area>/`
+- place files under the owning component's `tests/<area>/` folder: `common/tests/`, `runtime/tests/` or `compiler/tests/`
 - name files `<Subsystem>Tests.cpp`
 - use behavior-focused `TEST_CASE` names
 - tag by area first, then by narrower slice when useful, for example `[module][import]` or `[runtime][vm][error]`
@@ -88,9 +88,9 @@ Documentation examples:
 
 ## Support Helpers
 
-The helpers in `tests/support/` exist to keep new tests short and deterministic.
+The helpers in `compiler/tests/support/` exist to keep new tests short and deterministic.
 
-`CompileHelpers` in [`tests/support/CompileHelpers.h`](../tests/support/CompileHelpers.h):
+`CompileHelpers` in [`compiler/tests/support/CompileHelpers.h`](../compiler/tests/support/CompileHelpers.h):
 
 - `LexSnippet(source, file_name)` returns `std::expected<LexedSnippet, CompilerError>`
 - `ParseSnippet(source, file_name)` returns parsed statements, module declaration metadata, and collected `use` imports
@@ -106,14 +106,14 @@ The helpers in `tests/support/` exist to keep new tests short and deterministic.
 
 Filesystem and environment helpers:
 
-- [`tests/support/TempDir.h`](../tests/support/TempDir.h) creates an isolated temporary directory and removes it on scope exit
-- [`tests/support/TempProject.h`](../tests/support/TempProject.h) builds small module trees for import and build-graph tests
-- [`tests/support/ScopedEnvVar.h`](../tests/support/ScopedEnvVar.h) sets and restores environment variables such as `MARMOT_PATH`
-- [`tests/support/OutputCapture.h`](../tests/support/OutputCapture.h) captures native stdout/stderr when a test cannot use `ExecuteSnippet`
+- [`compiler/tests/support/TempDir.h`](../compiler/tests/support/TempDir.h) creates an isolated temporary directory and removes it on scope exit
+- [`compiler/tests/support/TempProject.h`](../compiler/tests/support/TempProject.h) builds small module trees for import and build-graph tests
+- [`compiler/tests/support/ScopedEnvVar.h`](../compiler/tests/support/ScopedEnvVar.h) sets and restores environment variables such as `MARMOT_PATH`
+- [`compiler/tests/support/OutputCapture.h`](../compiler/tests/support/OutputCapture.h) captures native stdout/stderr when a test cannot use `ExecuteSnippet`
 
 Diagnostic helpers:
 
-- [`tests/support/DiagnosticMatchers.h`](../tests/support/DiagnosticMatchers.h) matches warnings and errors by stage, code, line, and message fragments
+- [`compiler/tests/support/DiagnosticMatchers.h`](../compiler/tests/support/DiagnosticMatchers.h) matches warnings and errors by stage, code, line, and message fragments
 - `FindWarning(...)` and `FindError(...)` work on raw vectors, diagnostic collections, and top-level compiler reports
 - prefer these matchers over exact full-render snapshots when only part of the diagnostic matters
 
@@ -208,7 +208,7 @@ python scripts/check_benchmarks.py --build Development
 python scripts/check_benchmarks.py --build Release --run
 ```
 
-The programs under `benchmark/` print timings, so they have no snapshots and
+The programs under `benchmarks/` print timings, so they have no snapshots and
 are not part of the regression suite. `scripts/check_benchmarks.py` runs
 `marmot check` on each one and fails on any compile error or warning, so a
 language change cannot leave them uncompilable unnoticed (it did once: every

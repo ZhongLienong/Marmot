@@ -23,7 +23,7 @@ The top-level driver preserves warnings and errors in a shared `CompilerReport`;
 
 ## Phase 1: Lexical Analysis
 
-Source: `src/Compiler/Lexer/`
+Source: `compiler/src/Compiler/Lexer/`
 
 The lexer converts raw source text into a `TokenStream`.
 
@@ -45,7 +45,7 @@ Current token inventory includes:
 
 ## Phase 2: Module Resolution
 
-Source: `src/Compiler/ModuleManager/`
+Source: `compiler/src/Compiler/ModuleManager/`
 
 `ModuleManager` scans top-level module statements, resolves imports, and builds a dependency graph.
 
@@ -79,7 +79,7 @@ The build graph stores:
 
 ## Phase 3: Syntax Analysis
 
-Source: `src/Compiler/Parser/`
+Source: `compiler/src/Compiler/Parser/`
 
 The parser converts each module's `TokenStream` into a `MidoriProgramTree`.
 
@@ -147,7 +147,7 @@ Current parser features include:
 
 ## Phase 4: Type Checking
 
-Source: `src/Compiler/TypeChecker/`
+Source: `compiler/src/Compiler/TypeChecker/`
 
 See [Type System](type-system.md) for the language-level surface.
 
@@ -169,7 +169,7 @@ It also records whether some operators should lower through typeclass dispatch, 
 
 ## Phase 5: Static Analysis
 
-Source: `src/Compiler/StaticAnalyzerManager/`
+Source: `compiler/src/Compiler/StaticAnalyzerManager/`
 
 Static analysis runs after type checking and before optimization. It emits warnings without mutating the AST.
 
@@ -183,7 +183,7 @@ Warnings remain structured as `CompilerWarning` values and are appended to the c
 
 ## Phase 6: Optimization
 
-Source: `src/Compiler/OptimizerManager/`
+Source: `compiler/src/Compiler/OptimizerManager/`
 
 Optimization is AST-based and iterative.
 
@@ -207,7 +207,7 @@ The current fixpoint cap is `8`.
 
 ## Phase 7: Code Generation
 
-Source: `src/Compiler/CodeGenerator/`
+Source: `compiler/src/Compiler/CodeGenerator/`
 
 The code generator lowers the optimized typed AST into a per-module `BytecodeModule`.
 
@@ -234,7 +234,7 @@ Generic functions are specialized at call sites; the emitted module keeps specia
 
 ## Phase 8: Linking
 
-Source: `src/Compiler/BytecodeLinker/`
+Source: `compiler/src/Compiler/BytecodeLinker/`
 
 `BytecodeLinker` merges per-module bytecode into a single `MidoriExecutable`.
 
@@ -251,7 +251,7 @@ The linker works on modules in build-schedule order, which is deterministic even
 
 ## Scheduling Model
 
-Source: `src/Compiler/Compiler.cpp`
+Source: `compiler/src/Compiler/Compiler.cpp`
 
 The compiler derives stable compilation tiers from the dependency graph, but the actual scheduler is dependency-driven rather than tier-blocked.
 

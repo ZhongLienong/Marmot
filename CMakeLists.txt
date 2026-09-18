@@ -99,7 +99,9 @@ set(MIDORI_ENDIAN_DEFINES
 
 function(midori_configure_target target_name)
     target_include_directories(${target_name} PUBLIC
-        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/common/src
+        ${CMAKE_SOURCE_DIR}/runtime/src
+        ${CMAKE_SOURCE_DIR}/compiler/src
     )
     # PUBLIC because headers read them: BuildConfig.h defines an inline constexpr
     # VersionString from MIDORI_VERSION_STRING, and falls back to its own endian
@@ -119,26 +121,30 @@ endfunction()
 # Source File Collection
 # ============================================================================
 # Collect common source files
+# common/ holds the shared foundation (values, errors, bytecode format),
+# runtime/ the VM and builtin library, compiler/ everything that turns source
+# into bytecode. For now they still build as one library; the entry points
+# (compiler/src/Marmot.cpp, web/src) are excluded here and added per target.
 file(GLOB_RECURSE COMMON_HEADERS CONFIGURE_DEPENDS
-    "src/Common/*.h"
-    "src/Compiler/*.h"
-    "src/Interpreter/*.h"
-    "src/Utility/*.h"
+    "common/src/*.h"
+    "compiler/src/Compiler/*.h"
+    "compiler/src/Utility/*.h"
+    "runtime/src/Interpreter/*.h"
 )
 
 file(GLOB_RECURSE COMMON_SOURCES CONFIGURE_DEPENDS
-    "src/Common/*.cpp"
-    "src/Compiler/*.cpp"
-    "src/Interpreter/*.cpp"
-    "src/Utility/*.cpp"
+    "common/src/*.cpp"
+    "compiler/src/Compiler/*.cpp"
+    "compiler/src/Utility/*.cpp"
+    "runtime/src/Interpreter/*.cpp"
 )
 
 file(GLOB_RECURSE LIBRARY_SOURCES CONFIGURE_DEPENDS
-    "src/Library/*.cpp"
+    "runtime/src/Library/*.cpp"
 )
 
 file(GLOB_RECURSE LIBRARY_HEADERS CONFIGURE_DEPENDS
-    "src/Library/*.h"
+    "runtime/src/Library/*.h"
 )
 
 add_library(MidoriCore STATIC
@@ -156,7 +162,7 @@ target_link_libraries(MidoriCore PRIVATE toml11::toml11)
 # LTCG keeps its codegen stable instead of shifting with unrelated changes in
 # other translation units.
 if(MSVC)
-    set_source_files_properties(src/Interpreter/VirtualMachine/VirtualMachine.cpp
+    set_source_files_properties(runtime/src/Interpreter/VirtualMachine/VirtualMachine.cpp
         PROPERTIES COMPILE_OPTIONS "/GL-")
 endif()
 
@@ -178,8 +184,8 @@ if(EMSCRIPTEN)
 
     # Collect WASM-specific files
     file(GLOB_RECURSE WASM_FILES CONFIGURE_DEPENDS
-        "src/WASM/*.h"
-        "src/WASM/*.cpp"
+        "web/src/WASM/*.h"
+        "web/src/WASM/*.cpp"
     )
 
     # Create WASM executable (no main() needed)
@@ -245,7 +251,7 @@ else()
 
     # Create the thin CLI executable that links against MidoriCore
     add_executable(Marmot
-        "src/Marmot.cpp"
+        "compiler/src/Marmot.cpp"
     )
     target_link_libraries(Marmot PRIVATE MidoriCore)
     set(MIDORI_NATIVE_COMPILE_TARGETS
@@ -286,7 +292,7 @@ else()
     # (sizeof(MidoriValue) is 8 at levels 1-2 and 16 at level 3). Before these were
     # PUBLIC, the unit test targets compiled those headers at a different level
     # from MidoriCore, which in x64-debug was a live out-of-bounds read. Pinned by
-    # tests/unit/common/AbiConsistencyTests.cpp.
+    # common/tests/common/AbiConsistencyTests.cpp.
     foreach(target_name IN LISTS MIDORI_NATIVE_COMPILE_TARGETS)
         target_compile_definitions(${target_name} PUBLIC
             $<$<CONFIG:Debug>:MIDORI_BUILD_DEBUG>
@@ -378,5 +384,5 @@ else()
 endif()
 
 if(MIDORI_BUILD_TESTS AND NOT EMSCRIPTEN)
-    add_subdirectory(tests)
+    include(cmake/UnitTests.cmake)
 endif()

@@ -14,8 +14,8 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_PROGRAM = REPO_ROOT / "misc" / "mandelbrot.mmt"
-DEFAULT_IMAGE_PACKAGE = REPO_ROOT / "reference_package" / "Image"
+DEFAULT_PROGRAM = REPO_ROOT / "benchmarks" / "mandelbrot.mmt"
+DEFAULT_IMAGE_PACKAGE = REPO_ROOT / "examples" / "Image"
 
 
 def find_midori_exe(repo: Path) -> Path | None:

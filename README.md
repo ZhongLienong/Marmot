@@ -742,4 +742,4 @@ See the [docs](docs/) folder for detailed technical documentation:
 
 Editor assets:
 
-- `tools/vscode/marmot-lang/` - sample VSCode extension with syntax highlighting and on-save diagnostics
+- `editors/vscode/` - sample VSCode extension with syntax highlighting and on-save diagnostics

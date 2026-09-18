@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Compile every program under benchmark/ and misc/ so neither can silently rot.
+Compile every program under benchmarks/ so neither can silently rot.
 
 Neither directory is part of the regression suite: the benchmarks print timings
-and the misc/ programs write image files, so neither has a stable snapshot.
+and some write image files, so none has a stable snapshot.
 Nothing used to compile them, and on the v2 branch every one of them stopped
 compiling unnoticed when the language dropped `loop`, assignment and in-place
 `Appendable`. This check runs `marmot check` (the full compile pipeline, without
@@ -33,7 +33,7 @@ def repo_root() -> Path:
 
 
 def discover_benchmarks(root: Path) -> list[Path]:
-    return sorted((root / "benchmark").glob("*.mmt")) + sorted((root / "misc").glob("*.mmt"))
+    return sorted((root / "benchmarks").glob("*.mmt"))
 
 
 def build_environment(root: Path) -> dict[str, str]:
@@ -104,7 +104,7 @@ def run_benchmark(root: Path, midori_exe: Path, benchmark: Path, env: dict[str, 
 
 
 def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(description="Compile (and optionally run) every program under benchmark/ and misc/.")
+    parser = argparse.ArgumentParser(description="Compile (and optionally run) every program under benchmarks/.")
     parser.add_argument(
         "--build",
         default="Development",
@@ -132,7 +132,7 @@ def main(argv: list[str]) -> int:
     root = repo_root()
     benchmarks = discover_benchmarks(root)
     if len(benchmarks) == 0:
-        print("[FAIL] No programs found under benchmark/ or misc/.")
+        print("[FAIL] No programs found under benchmarks/.")
         return 1
 
     runner = TestRunner(build_config=args.build, verbose=args.verbose)

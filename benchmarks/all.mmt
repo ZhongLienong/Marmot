@@ -10,7 +10,7 @@ import
 
 use List.{List, ListLength, ListToArray}
 
-// v2 port of the suite mirrored by benchmark/reference/all.py. Loops that
+// v2 port of the suite mirrored by benchmarks/reference/all.py. Loops that
 // assigned to counters are tail-recursive walks carrying them; arrays filled by
 // in-place `Appendable::Append` are built by comprehensions or cons lists. The
 // walks are top-level functions so their tail calls cannot grow the stack.
@@ -62,7 +62,7 @@ def AppendA = fn(count : Int, limit : Int, acc : Text) -> Text =>
 	if count >= limit then acc else AppendA(count + 1, limit, acc ++ "a");
 
 // v2 port: this used in-place `Appendable::Append` on a text, which no longer
-// exists. It now appends with `acc ++ "a"`, like benchmark/str_concat.mmt and
+// exists. It now appends with `acc ++ "a"`, like benchmarks/str_concat.mmt and
 // the `test_string += "a"` in reference/all.py.
 def TestStringManipulation = fn() -> Unit =>
 {
@@ -123,7 +123,7 @@ def TestAckermann = fn(m : Int, n : Int) -> Unit =>
 };
 
 // Partitions by prepending into cons lists while walking from the last element
-// down; see benchmark/sorting.mmt.
+// down; see benchmarks/sorting.mmt.
 def Partition = fn(arr : Array<Int>, index : Int, pivot : Int, less : List<Int>, equal : List<Int>, greater : List<Int>) -> (List<Int>, List<Int>, List<Int>) =>
 	if index < 0
 	then (less, equal, greater)

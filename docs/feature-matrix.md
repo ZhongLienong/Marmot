@@ -19,9 +19,9 @@ See [Versioning Policy](versioning-policy.md) for how `Stable`,
 
 | Feature | Status | Primary Coverage | Notes |
 |---------|--------|------------------|-------|
-| Primitive values: `Int`, `Float`, `Byte`, `Word`, `Bool`, `Text`, `Unit` | Stable | `test/literal/`, `test/ffi/`, `tests/unit/runtime/` | `Text` is UTF-8 and remains the only built-in string type. |
+| Primitive values: `Int`, `Float`, `Byte`, `Word`, `Bool`, `Text`, `Unit` | Stable | `test/literal/`, `test/ffi/`, `runtime/tests/runtime/` | `Text` is UTF-8 and remains the only built-in string type. |
 | Bottom type: `Never` | Stable | `test/prelude/`, `test/hashmap/` | Mostly exercised through `Prelude/Panic` and bottom-type unification rather than a dedicated `Never` fixture. |
-| Arrays and tuples | Stable | `test/literal/`, `test/expression/`, `tests/unit/parser/`, `tests/unit/runtime/` | Tuple literals and tuple destructuring both have dedicated regression coverage, with parser/runtime unit tests still covering AST and VM details. |
+| Arrays and tuples | Stable | `test/literal/`, `test/expression/`, `compiler/tests/parser/`, `runtime/tests/runtime/` | Tuple literals and tuple destructuring both have dedicated regression coverage, with parser/runtime unit tests still covering AST and VM details. |
 | Structs and unions | Stable | `test/struct/`, `test/union/`, `test/match/` | Product and sum types both compile through the normal end-to-end path. |
 | Type aliases | Stable | `test/type_alias/`, `test/generics/` | `alias X = Y` is transparent. The older transparent `type X = Y` has been migrated; `type` is now nominal. Parameterised aliases are limited — see the type-declaration row. |
 | `type` declarations | Stable | `test/type_declaration/`, `test/newtype/` | One keyword for three shapes: `type P = { x: Int }` record, `type O<T> = A \| B(T)` sum, `type Meters = Int` newtype. The right-hand side selects the kind. `struct` and `union` have been removed; a file still using either gets a parser diagnostic naming the replacement. |
@@ -32,21 +32,21 @@ See [Versioning Policy](versioning-policy.md) for how `Stable`,
 
 | Feature | Status | Primary Coverage | Notes |
 |---------|--------|------------------|-------|
-| Pattern guards | Stable | `test/match/`, `tests/unit/` | `case P if cond => e`. A failed guard falls through to the next arm, including one with the same constructor. A guarded arm does **not** count toward exhaustiveness, since the guard is a runtime test. |
+| Pattern guards | Stable | `test/match/`, `compiler/tests/` | `case P if cond => e`. A failed guard falls through to the next arm, including one with the same constructor. A guarded arm does **not** count toward exhaustiveness, since the guard is a runtime test. |
 | Record update | Stable | `test/struct/` | `{ s with f = v, g = w }` copies a record with fields replaced. Simultaneous — right-hand sides see the original. Duplicate fields are an error, nested paths are not supported. Works inside generic functions, taking its type from the already-resolved source record. |
-| `if`, block expressions, `match`, `for` | Stable | `test/expression/`, `test/for_loop/`, `tests/unit/runtime/` | Every control-flow form is an expression. `return`, `loop`, `break` and `continue` were removed; using one is a compile error naming the replacement. |
+| `if`, block expressions, `match`, `for` | Stable | `test/expression/`, `test/for_loop/`, `runtime/tests/runtime/` | Every control-flow form is an expression. `return`, `loop`, `break` and `continue` were removed; using one is a compile error naming the replacement. |
 | `for ... in` over ranges, arrays, and `Iterable` implementations | Stable | `test/for_loop/`, `test/prelude/` | `Iterable`-backed loops use `Iterable::Next` at type-check and codegen time. |
-| Binary and ternary ranges | Stable | `test/range/`, `test/for_loop/`, `tests/unit/runtime/` | Both `start..end` and `start..step..end` are implemented. |
-| Array comprehensions | Stable | `test/array_comprehension/`, `tests/unit/parser/` | Supports range, array, and `Iterable` inputs. |
+| Binary and ternary ranges | Stable | `test/range/`, `test/for_loop/`, `runtime/tests/runtime/` | Both `start..end` and `start..step..end` are implemented. |
+| Array comprehensions | Stable | `test/array_comprehension/`, `compiler/tests/parser/` | Supports range, array, and `Iterable` inputs. |
 | Pipe operator: `|>` and `|> match with` | Stable | `test/pipe/` | Pipe rewriting is handled in the parser. |
-| Closures and captured mutation | Stable | `test/closure/`, `tests/unit/runtime/`, `tests/unit/static_analyzer/` | Captured locals are boxed so nested closures preserve by-reference semantics. |
+| Closures and captured mutation | Stable | `test/closure/`, `runtime/tests/runtime/`, `compiler/tests/static_analyzer/` | Captured locals are boxed so nested closures preserve by-reference semantics. |
 
 ## Pattern Matching
 
 | Feature | Status | Primary Coverage | Notes |
 |---------|--------|------------------|-------|
-| `match` with binding, wildcard, literal, tuple, array, and constructor patterns | Stable | `test/match/`, `tests/unit/parser/`, `tests/unit/typechecker/` | The current pattern inventory is six variants. |
-| Exhaustiveness checking | Stable | `test/match/`, `tests/unit/typechecker/` | Exhaustiveness is currently top-level only. |
+| `match` with binding, wildcard, literal, tuple, array, and constructor patterns | Stable | `test/match/`, `compiler/tests/parser/`, `compiler/tests/typechecker/` | The current pattern inventory is six variants. |
+| Exhaustiveness checking | Stable | `test/match/`, `compiler/tests/typechecker/` | Exhaustiveness is currently top-level only. |
 
 ## Generics and Typeclasses
 
@@ -55,7 +55,7 @@ See [Versioning Policy](versioning-policy.md) for how `Stable`,
 | Generic functions, structs, unions, and aliases | Stable | `test/generics/`, `test/type_alias/` | Includes nested generics and multi-parameter definitions. |
 | `where` constraints and type-definition constraints | Stable | `test/generics/`, `test/typeclass/` | Constraints work on functions and type definitions. |
 | Constructor inference and context-sensitive lambda typing | Stable | `test/generics/`, `test/pipe/` | The type checker uses bidirectional context here. |
-| Classes, instances, and associated types | Stable | `test/typeclass/`, `tests/unit/typechecker/` | Includes associated type declarations and instance bindings. |
+| Classes, instances, and associated types | Stable | `test/typeclass/`, `compiler/tests/typechecker/` | Includes associated type declarations and instance bindings. |
 | Cross-module typeclass metadata and imports | Stable | `test/typeclass/`, `test/module/` | Typeclass/import metadata survives module boundaries. |
 | Deriving: `Equatable`, `Hashable`, `Map`, `Bind`, `Unwrap` | Stable | `test/deriving/` | Structural deriving is limited to focused non-generic, non-recursive shapes; container deriving supports focused union shapes. |
 | Operator-backed typeclass dispatch: `Convertable`, `Concatenable`, `Countable`, `Equatable`, `Orderable` | Stable | `test/typeclass/`, `test/prelude/`, `test/as_operator/` | The implementation mixes builtin lowering with constrained dispatch depending on the concrete types. |
@@ -64,24 +64,24 @@ See [Versioning Policy](versioning-policy.md) for how `Stable`,
 
 | Feature | Status | Primary Coverage | Notes |
 |---------|--------|------------------|-------|
-| Arithmetic, logical, bitwise, and comparison operators | Stable | `test/expression/`, `test/typeclass/`, `tests/unit/lexer/` | User-defined equality and ordering rely on `Equatable` and `Orderable`. |
+| Arithmetic, logical, bitwise, and comparison operators | Stable | `test/expression/`, `test/typeclass/`, `compiler/tests/lexer/` | User-defined equality and ordering rely on `Equatable` and `Orderable`. |
 | Cast operator: `as` | Stable | `test/as_operator/`, `test/typeclass/` | Covers builtin primitive casts and constrained generic conversions. |
 | Concatenation: `++` for `Text` and `Array<T>` | Stable | `test/expression/`, `test/prelude/`, `test/typeclass/` | Constrained generic code can lower through `Concatenable<T>`. |
 | Length operator: `#` | Stable | `test/for_loop/`, `test/prelude/`, `test/hashmap/`, `test/hashset/` | Arrays are builtin; `List`, `Map`, `Set`, and generic `Countable` paths also exist. |
-| Compound assignment: `+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `|=`, `^=`, `<<=`, `>>=` | Stable | `test/expression/`, `tests/unit/lexer/` | End-to-end regression coverage now exercises numeric and bitwise compound assignment on locals and struct members, plus type-check failures for unsupported targets. |
+| Compound assignment: `+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `|=`, `^=`, `<<=`, `>>=` | Stable | `test/expression/`, `compiler/tests/lexer/` | End-to-end regression coverage now exercises numeric and bitwise compound assignment on locals and struct members, plus type-check failures for unsupported targets. |
 
 ## Modules, FFI, Packages, and Diagnostics
 
 | Feature | Status | Primary Coverage | Notes |
 |---------|--------|------------------|-------|
-| Modules, path imports, system imports, `use`, exports, privacy, and qualified access | Stable | `test/module/`, `tests/unit/module/`, `tests/unit/parser/` | `module` must be first; import/use/export blocks can appear later and be scattered. |
-| Module diagnostics: circular imports, unresolved imports, missing exports, duplicate modules | Stable | `test/module/`, `tests/unit/module/`, `tests/unit/compiler/` | The compiler emits stable module error codes for these cases. |
+| Modules, path imports, system imports, `use`, exports, privacy, and qualified access | Stable | `test/module/`, `compiler/tests/module/`, `compiler/tests/parser/` | `module` must be first; import/use/export blocks can appear later and be scattered. |
+| Module diagnostics: circular imports, unresolved imports, missing exports, duplicate modules | Stable | `test/module/`, `compiler/tests/module/`, `compiler/tests/compiler/` | The compiler emits stable module error codes for these cases. |
 | `foreign` declarations and builtin runtime FFI (`CALL_FOREIGN_INDEXED`) | Stable | `test/ffi/`, `test/prelude/` | This is the richer built-in FFI path backed by `MidoriFFIRegistry`. |
 | Dynamic package FFI (`CALL_FOREIGN`) | Experimental | `none yet` | The generic ABI exists, but package-specific automated coverage is still thin and the dynamic path does not expose the full builtin typed-FFI metadata. |
 | `package.marmot` manifest discovery and dynamic library loading | Experimental | `none yet` | Current support is an early manifest-driven loader, not a full package manager; dependency resolution and version solving are not implemented. |
-| Structured compiler warnings/errors and stable diagnostic codes | Stable | `tests/unit/common/`, `tests/unit/compiler/`, `test/static_analyzer/` | Warnings and errors are aggregated in `CompilerReport` instead of being printed ad hoc. |
-| Machine-readable warnings and compiler-report JSON | Stable | `tests/unit/common/`, `test/static_analyzer/`, `scripts/check_cli_contracts.py` | `*.warnings.json` fixtures exercise the warning-stream path, and CLI contract checks cover `Marmot.exe check --format json`. |
-| Static-analyzer warnings: `UnusedLocal`, `ShadowingPolicy`, `CaptureEscape`, `IntegerOverflow` | Stable | `tests/unit/static_analyzer/`, `test/static_analyzer/` | Warnings are preserved even when a later compile stage fails. |
+| Structured compiler warnings/errors and stable diagnostic codes | Stable | `common/tests/common/`, `compiler/tests/compiler/`, `test/static_analyzer/` | Warnings and errors are aggregated in `CompilerReport` instead of being printed ad hoc. |
+| Machine-readable warnings and compiler-report JSON | Stable | `common/tests/common/`, `test/static_analyzer/`, `scripts/check_cli_contracts.py` | `*.warnings.json` fixtures exercise the warning-stream path, and CLI contract checks cover `Marmot.exe check --format json`. |
+| Static-analyzer warnings: `UnusedLocal`, `ShadowingPolicy`, `CaptureEscape`, `IntegerOverflow` | Stable | `compiler/tests/static_analyzer/`, `test/static_analyzer/` | Warnings are preserved even when a later compile stage fails. |
 | Project manifests (`project.marmot` and `[project]` fallback) and `Marmot.exe init` scaffolding | Experimental | `scripts/check_cli_contracts.py` | CLI contract checks cover project-manifest lookup, `package.marmot` fallback, manifest precedence, and init scaffolding. |
 
 ## Standard Library
@@ -109,5 +109,5 @@ See [Versioning Policy](versioning-policy.md) for how `Stable`,
 | `deriving (Transferable)` | Stable | `test/concurrency/` | Generates field-by-field serialization for structs and tag+payload serialization for unions. |
 | Auxiliary operations: `close`, `is_done`, `cancel` | Stable | `test/concurrency/` | Parsed as normal function calls; emit dedicated opcodes. |
 | Non-blocking / bounded receive (`try_receive`, `select`, timeouts) | Not implemented | — | `Channel::TryReceive` exists in the runtime but has no opcode or syntax; `try_receive(ch)` is an undefined name. |
-| Worker cancellation (`cancel`) | Stable | `test/concurrency/`, `tests/unit/runtime/WorkerCancellationTests.cpp` | Cooperative: observed at loop back-edges, tail calls, foreign-call returns, and blocking channel waits. Blocking stdin and third-party FFI are not interruptible. |
-| Isolated-worker runtime | Stable | `test/concurrency/`, `tests/unit/runtime/` | Per-VM isolation of heap, GC, stack, globals, and string cache. Single-threaded cost is one never-taken branch at cancellation safepoints. |
+| Worker cancellation (`cancel`) | Stable | `test/concurrency/`, `runtime/tests/runtime/WorkerCancellationTests.cpp` | Cooperative: observed at loop back-edges, tail calls, foreign-call returns, and blocking channel waits. Blocking stdin and third-party FFI are not interruptible. |
+| Isolated-worker runtime | Stable | `test/concurrency/`, `runtime/tests/runtime/` | Per-VM isolation of heap, GC, stack, globals, and string cache. Single-threaded cost is one never-taken branch at cancellation safepoints. |

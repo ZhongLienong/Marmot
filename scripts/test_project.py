@@ -230,7 +230,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument(
         "--skip-benchmark-check",
         action="store_true",
-        help="Skip compiling the programs under benchmark/, which normally runs with full regression passes.",
+        help="Skip compiling the programs under benchmarks/, which normally runs with full regression passes.",
     )
     args = parser.parse_args(argv)
 

@@ -503,7 +503,7 @@ During parsing, omitted annotations can temporarily be represented as undecided 
 
 ## Implementation Architecture
 
-The type system is implemented primarily in `src/Compiler/TypeChecker/` and the shared type representation in `src/Common/`.
+The type system is implemented primarily in `compiler/src/Compiler/TypeChecker/` and the shared type representation in `common/src/Common/`.
 
 ### Type Representation
 
