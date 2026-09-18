@@ -1,9 +1,0 @@
-module RecursiveAppendGenericStruct
-
-import { "./recursive-append-generic-struct-lib.mdr", "../../../MidoriPrelude/IO.mdr" }
-
-// Prints 2.
-IO::PrintLine(#RecursiveAppendGenericStructLib::RecPlain(1) as Text);
-
-// Code Generator Error: Unresolved method 'Appendable::Append'.
-IO::PrintLine(#RecursiveAppendGenericStructLib::RecStruct(1, "a") as Text);

@@ -1,8 +1,0 @@
-module GenericCallInInstance
-
-import { "./generic-call-in-instance-lib.mdr", "./generic-call-in-instance-class.mdr", "../../../MidoriPrelude/IO.mdr" }
-
-def h = GenericCallInInstanceLib::MakeH();
-
-// Prints 0. Should print 4.
-IO::PrintLine(G::Gg(h) as Text);

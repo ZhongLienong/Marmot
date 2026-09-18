@@ -1,4 +1,0 @@
-module ShadowedGenericLib
-public export { Pick }
-def PickFrom = fn < T >(items: Array < T >, index: Int) -> Int => 100;
-def Pick = fn < T >(items: Array < T >, value: T) -> Int => PickFrom(items, 0);

@@ -1,6 +1,0 @@
-module PlainCallInGeneric
-
-import { "./plain-call-in-generic-lib.mdr", "../../../MidoriPrelude/IO.mdr" }
-
-// panic[MemoryAccessViolation]. Should print 42.
-IO::PrintLine(PlainCallInGenericLib::CallsPlain(0) as Text);

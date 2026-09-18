@@ -1,6 +1,0 @@
-module ShadowedGenericMid
-import { "./shadowed-generic-lib.mdr" }
-public export { Box, Pick }
-type Box < K > = { k: K };
-// Same name as the imported generic, different parameter types.
-def Pick = fn < K >(box: Box < K >, key: K) -> Int => 200;

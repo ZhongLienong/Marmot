@@ -1,4 +1,0 @@
-module TinyLib2
-public export { Flat, Wrap }
-type Flat = { a: Int, b: Int };
-type Wrap < T > = { v: T };

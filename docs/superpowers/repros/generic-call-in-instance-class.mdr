@@ -1,5 +1,0 @@
-module GenericCallInInstanceClass
-public export { G }
-class G < S > {
-    Gg: fn(s: S) -> Int;
-};

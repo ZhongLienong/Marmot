@@ -1,9 +1,0 @@
-module RecursiveUnionThroughArrayRepro
-import { "../../../MidoriPrelude/IO.mdr" }
-type Tree < T > = Tip | Fork(Array < Tree >);
-def Depth = fn < T >(t: Tree < T >, d: Int) -> Int =>
-    match t with
-        case Tree::Tip() => d
-        case Tree::Fork(kids) => Depth(kids[0], d + 1);
-def t : Tree < Int > = Tree::Tip ();
-IO::PrintLine(Depth(t, 0) as Text);

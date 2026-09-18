@@ -1,7 +1,0 @@
-module PlainCallInGenericLib
-public export { CallsPlain }
-
-def Plain = fn(n: Int) -> Int => n + 1;
-
-// Crashes only when the caller is in another module.
-def CallsPlain = fn < T >(x: T) -> Int => Plain(41);

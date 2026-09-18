@@ -1,6 +1,0 @@
-module ShadowedGenericUse
-import { "./shadowed-generic-mid.mdr", "../../../MidoriPrelude/IO.mdr" }
-def b : ShadowedGenericMid::Box < Int > = ShadowedGenericMid::Box (1);
-IO::PrintLine(ShadowedGenericMid::Pick(b, 1) as Text);
-
-// Prints 100. Should print 200 -- the module's own Pick, not the imported one.

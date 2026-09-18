@@ -1,5 +1,0 @@
-module ImportedStructConstruction
-import { "./imported-struct-construction-lib.mdr", "../../../MidoriPrelude/IO.mdr" }
-use TinyLib2.{ Flat }
-def f : Flat = Flat (1, 2);
-IO::PrintLine(f.a as Text);
