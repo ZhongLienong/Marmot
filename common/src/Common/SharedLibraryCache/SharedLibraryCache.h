@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Library/MidoriBuiltinFFIRegistry/MidoriFFIRegistry.h"
+#include "Common/Builtins/BuiltinTable.h"
 
 #include <expected>
 #include <filesystem>

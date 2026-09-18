@@ -2,7 +2,7 @@
 
 #include "Common/BuildConfig/BuildConfig.h"
 #include "Common/Printer/Printer.h"
-#include "Library/MidoriBuiltinFFIRegistry/MidoriFFIRegistry.h"
+#include "Common/Builtins/BuiltinTable.h"
 
 #include <format>
 #include <toml.hpp>
@@ -261,13 +261,13 @@ namespace
 			return std::unexpected(ffi.error());
 		}
 
-		if (ffi->m_enabled && ffi->m_abi_version != MidoriFFIRegistry::ABI_VERSION)
+		if (ffi->m_enabled && ffi->m_abi_version != MarmotBuiltins::ABI_VERSION)
 		{
 			return std::unexpected(std::format(
 				"Package '{}' targets FFI ABI v{}, but this Marmot runtime supports FFI ABI v{}.",
 				info->m_name,
 				ffi->m_abi_version,
-				MidoriFFIRegistry::ABI_VERSION));
+				MarmotBuiltins::ABI_VERSION));
 		}
 
 		return PackageManifest::Create(packageDirectory)

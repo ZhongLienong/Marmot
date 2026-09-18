@@ -4,7 +4,7 @@
 
 #include "Common/Executable/Executable.h"
 #include "Common/Printer/Printer.h"
-#include "Library/MidoriBuiltinFFIRegistry/MidoriFFIRegistry.h"
+#include "Common/Builtins/BuiltinTable.h"
 #include "Disassembler.h"
 
 #if MIDORI_ENABLE_DISASSEMBLY
@@ -358,8 +358,8 @@ namespace
 		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(arity));
 		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(return_type));
 
-		std::string ffi_name = (static_cast<size_t>(ffi_index) < MidoriFFIRegistry::BUILTIN_COUNT)
-			? MidoriFFIRegistry::GetEntry(static_cast<size_t>(ffi_index)).m_name
+		std::string ffi_name = (static_cast<size_t>(ffi_index) < MarmotBuiltins::COUNT)
+			? std::string(MarmotBuiltins::At(static_cast<size_t>(ffi_index)).m_name)
 			: "unknown";
 		std::string return_type_str = (return_type == 0) ? "primitive" : (return_type == 1) ? "text" : (return_type == 2) ? "array" : "unknown";
 

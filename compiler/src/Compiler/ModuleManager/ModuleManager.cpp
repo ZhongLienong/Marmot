@@ -5,7 +5,7 @@
 #include "Compiler/Token/Token.h"
 #include "Compiler/ImportResolver/ImportResolver.h"
 #include "Compiler/PackageManager/PackageManifest.h"
-#include "Library/SharedLibraryCache/SharedLibraryCache.h"
+#include "Common/SharedLibraryCache/SharedLibraryCache.h"
 
 #include <filesystem>
 #include <expected>

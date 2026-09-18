@@ -7,8 +7,13 @@
 #include <string_view>
 #include <vector>
 
-#include "Compiler/AbstractSyntaxTree/Type.h"
-#include "Compiler/Token/Token.h"
+#include <memory>
+
+// Defined by the compiler. The members that take them are defined in
+// compiler/src/Compiler/Error/CompilerErrorContext.cpp, so this header, shared
+// with the runtime, needs only the names.
+struct Token;
+class MidoriType;
 
 enum class CompilerStage
 {
@@ -257,30 +262,15 @@ public:
 
 		if constexpr (sizeof...(expected) > 0)
 		{
-			std::array<std::string, sizeof...(expected)> expected_names{ expected->ToString()... };
-			std::string expected_types;
-
-			if constexpr (expected_names.size() > 1u)
-			{
-				for (size_t i = 0u; i < expected_names.size(); i += 1u)
-				{
-					expected_types.append(expected_names[i]);
-					if (i != expected_names.size() - 1u)
-					{
-						expected_types.append(" or ");
-					}
-				}
-			}
-			else
-			{
-				expected_types = expected_names[0u];
-			}
-
-			full_message = std::format("{}\nExpected {}, but got {}", message, expected_types, actual->ToString());
+			const std::vector<std::string> expected_names{ expected->ToString()... };
+			full_message = FormatTypeMismatch(message, expected_names, actual);
 		}
 
 		return GenerateRichError(CompilerStage::TypeChecker, full_message, token, file_name, source_lines, std::nullopt, code);
 	}
+
+	// "<message>\nExpected A or B, but got C". Defined with the compiler (it prints types).
+	static std::string FormatTypeMismatch(std::string_view message, const std::vector<std::string>& expected_names, const std::shared_ptr<MidoriType>& actual);
 
 	static RuntimeError GenerateRuntimeError(RuntimeErrorCode code, std::string_view message, std::optional<CompilerErrorLocation> location = std::nullopt, std::vector<RuntimeStackFrame>&& stack = {}, std::optional<RuntimeDiagnosticKind> kind = std::nullopt);
 };

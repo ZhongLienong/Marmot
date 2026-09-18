@@ -2554,7 +2554,7 @@ void CodeGenerator::operator()(MidoriStatement::ForeignDefinition& foreign)
 		return;
 	}
 
-	std::optional<size_t> ffi_index = MidoriFFIRegistry::FindIndex(foreign.m_foreign_name);
+	std::optional<size_t> ffi_index = MarmotBuiltins::FindIndex(foreign.m_foreign_name);
 	if (ffi_index.has_value())
 	{
 		m_ffi_indices[foreign.m_function_name.m_lexeme] = ffi_index.value();

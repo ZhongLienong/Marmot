@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Library/MidoriBuiltinFFIRegistry/MidoriFFIRegistry.h"
-#include "Library/SharedLibraryCache/SharedLibraryCache.h"
+#include "Common/SharedLibraryCache/SharedLibraryCache.h"
 
 #include <optional>
 #include <string>

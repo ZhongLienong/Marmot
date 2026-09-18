@@ -157,13 +157,6 @@ namespace
 		Warning
 	};
 
-	struct TokenLocationContext
-	{
-		std::optional<int> m_column = std::nullopt;
-		std::optional<size_t> m_caret_length = std::nullopt;
-		std::optional<std::string_view> m_source_line = std::nullopt;
-	};
-
 	std::string NormalizeDiagnosticPath(std::string_view path)
 	{
 		std::string normalized(path);
@@ -719,24 +712,6 @@ namespace
 		return oss.str();
 	}
 
-	TokenLocationContext GetTokenLocationContext(const Token& token, const std::vector<std::string>& source_lines)
-	{
-		TokenLocationContext context;
-		if (token.m_line <= 0 || static_cast<size_t>(token.m_line) > source_lines.size())
-		{
-			return context;
-		}
-
-		context.m_source_line = source_lines[static_cast<size_t>(token.m_line - 1)];
-		if (!token.m_column.has_value())
-		{
-			return context;
-		}
-
-		context.m_column = token.m_column;
-		context.m_caret_length = std::max(token.m_source_length.value_or(size_t(0u)), size_t(1u));
-		return context;
-	}
 }
 
 std::string RenderWarningGroupHeader(size_t warning_count, std::string_view file_path)
@@ -888,12 +863,6 @@ CompilerError CompilerError::WithContext(CompilerStage stage, std::string_view m
 	return error;
 }
 
-CompilerError CompilerError::WithToken(CompilerStage stage, std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion, CompilerErrorCode code)
-{
-	const TokenLocationContext context = GetTokenLocationContext(token, source_lines);
-	return WithContext(stage, message, token.m_line, file_name, context.m_column, context.m_caret_length, suggestion, context.m_source_line, code);
-}
-
 bool CompilerError::IsNoMatch() const
 {
 	return m_code == CompilerErrorCode::NoMatch;
@@ -1014,12 +983,6 @@ CompilerWarning CompilerWarning::WithContext(CompilerStage stage, std::string_vi
 	return warning;
 }
 
-CompilerWarning CompilerWarning::WithToken(CompilerStage stage, std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion, CompilerWarningCode code)
-{
-	const TokenLocationContext context = GetTokenLocationContext(token, source_lines);
-	return WithContext(stage, message, token.m_line, file_name, context.m_column, context.m_caret_length, suggestion, context.m_source_line, code);
-}
-
 std::string_view CompilerWarning::Rendered() const
 {
 	return m_rendered.empty() ? std::string_view(m_message) : std::string_view(m_rendered);
@@ -1034,21 +997,6 @@ CompilerError MidoriError::GenerateRichError(CompilerStage stage, std::string_vi
 	}
 
 	return CompilerError::WithContext(stage, message, line, file_name, column, caret_length, suggestion, source_line, code);
-}
-
-CompilerError MidoriError::GenerateRichError(CompilerStage stage, std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion, CompilerErrorCode code)
-{
-	return CompilerError::WithToken(stage, message, token, file_name, source_lines, suggestion, code);
-}
-
-CompilerError MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode code, std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion)
-{
-	return GenerateRichError(CompilerStage::CodeGenerator, message, token, file_name, source_lines, suggestion, code);
-}
-
-CompilerError MidoriError::GenerateCodeGeneratorErrorWithContext(std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion)
-{
-	return GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::None, message, token, file_name, source_lines, suggestion);
 }
 
 CompilerError MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode code, std::string_view message, int line, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion)
@@ -1076,26 +1024,6 @@ CompilerError MidoriError::GenerateModuleErrorWithContext(std::string_view messa
 CompilerError MidoriError::GenerateModuleErrorWithContext(CompilerErrorCode code, std::string_view message, int line, std::string_view file_name, std::optional<std::string_view> suggestion)
 {
 	return CompilerError::WithContext(CompilerStage::Module, message, line, file_name, std::nullopt, std::nullopt, suggestion, std::nullopt, code);
-}
-
-CompilerError MidoriError::GenerateParserErrorWithContext(std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion)
-{
-	return GenerateParserErrorWithContext(CompilerErrorCode::None, message, token, file_name, source_lines, suggestion);
-}
-
-CompilerError MidoriError::GenerateParserErrorWithContext(CompilerErrorCode code, std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion)
-{
-	return GenerateRichError(CompilerStage::Parser, message, token, file_name, source_lines, suggestion, code);
-}
-
-CompilerError MidoriError::GenerateTypeCheckerErrorWithContext(std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion)
-{
-	return GenerateTypeCheckerErrorWithContext(CompilerErrorCode::None, message, token, file_name, source_lines, suggestion);
-}
-
-CompilerError MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode code, std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion)
-{
-	return GenerateRichError(CompilerStage::TypeChecker, message, token, file_name, source_lines, suggestion, code);
 }
 
 RuntimeError MidoriError::GenerateRuntimeError(RuntimeErrorCode code, std::string_view message, std::optional<CompilerErrorLocation> location, std::vector<RuntimeStackFrame>&& stack, std::optional<RuntimeDiagnosticKind> kind)
