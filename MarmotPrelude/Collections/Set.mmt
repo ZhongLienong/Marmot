@@ -9,8 +9,8 @@ use Option.{
 //
 // The operations are prefixed rather than named Empty, Count and so on. This
 // module imports Map, which exports those names, and a definition
-// that collides with an import silently loses to it -- see
-// docs/superpowers/repros/shadowed-generic-*.mmt.
+// that collides with an import silently loses to it (a known compiler
+// limitation).
 type Set < T > = {
     entries: Map::Map < T, Unit >
 };

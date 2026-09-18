@@ -201,8 +201,7 @@ Channels provide typed message passing between workers:
 There is no bounded or non-blocking receive at the language level: a receive
 waits until a value arrives, the channel closes, or the worker is cancelled.
 `Channel::TryReceive` exists in the runtime but has no opcode or syntax, so it
-is currently unreachable from Marmot code. See
-`docs/plan/concurrency-backlog.md`.
+is currently unreachable from Marmot code.
 
 Internally: `std::mutex` + `std::condition_variable_any` +
 `std::deque<SerializedValue>`. The waits are stop-token-aware, which is what
@@ -242,8 +241,7 @@ VM instance (equal or cheaper).
 
 ## Future Extensibility
 
-Tracked with triggers in `docs/plan/concurrency-backlog.md`; none of it is
-scheduled work.
+None of the following is scheduled work.
 
 - Bounded and multi-channel waiting (`try_receive`, `select`, timeouts)
 - M:N scheduling (green threads mapped to a thread pool)
