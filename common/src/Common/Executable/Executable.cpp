@@ -168,6 +168,16 @@ void MidoriExecutable::AttachSourceFiles(SourceFileTable&& source_files)
 	m_source_files = std::move(source_files);
 }
 
+void MidoriExecutable::AttachNativeLibraries(std::vector<NativeLibraryImport>&& native_libraries)
+{
+	m_native_libraries = std::move(native_libraries);
+}
+
+const std::vector<NativeLibraryImport>& MidoriExecutable::GetNativeLibraries() const
+{
+	return m_native_libraries;
+}
+
 void MidoriExecutable::SetFileName(std::string&& file_name)
 {
 	m_file_name = std::move(file_name);

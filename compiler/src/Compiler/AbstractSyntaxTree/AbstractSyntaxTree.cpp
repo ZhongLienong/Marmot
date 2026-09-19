@@ -415,11 +415,12 @@ MidoriStatement::TupleDefinition::TupleDefinition(std::vector<Token>&& names, st
 {
 }
 
-MidoriStatement::ForeignDefinition::ForeignDefinition(const Token& function_name, const std::string& foreign_name, std::shared_ptr<MidoriType>&& type, std::optional<int>&& local_index)
+MidoriStatement::ForeignDefinition::ForeignDefinition(const Token& function_name, const std::string& foreign_name, std::shared_ptr<MidoriType>&& type, std::optional<int>&& local_index, std::optional<std::string> library)
 	: m_function_name(function_name),
 	m_foreign_name(foreign_name),
 	m_type(std::move(type)),
-	m_local_index(std::move(local_index))
+	m_local_index(std::move(local_index)),
+	m_library(std::move(library))
 {
 }
 

@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace
 {
@@ -18,7 +19,7 @@ namespace
 		({
 			MidoriTest::TempProjectFile("src/Main.mmt", "module Main\nimport { \"<Greeting>\" }\ndef main = fn() -> Int => Greeting::Answer();\n"),
 			MidoriTest::TempProjectFile("lib/Greeting.mmt", "module Greeting\npublic export { Answer }\ndef Answer = fn() -> Int => 42;\n"),
-			MidoriTest::TempProjectFile("native/Native.mmt", "module Native\n"),
+			MidoriTest::TempProjectFile("native/bin/native.dll", "not a library\n"),
 		});
 	}
 
@@ -37,15 +38,15 @@ TEST_CASE("A build plan resolves its paths against the plan's directory", "[plan
 		"version": 1,
 		"entry": "src/Main.mmt",
 		"search_paths": ["lib"],
-		"native_packages": [
+		"library_paths": ["native/bin"],
+		"native_libraries": [
 			{
-				"name": "Native",
-				"root": "native",
-				"library": "native/native.dll",
-				"functions": { "MIDORI_FFI_Native_Answer": "native_answer" },
+				"name": "native",
+				"path": "native/bin/native.dll",
 				"thread_safe": true,
 				"checksum": "sha256:00"
-			}
+			},
+			{ "name": "plain" }
 		]
 	})", project.Root());
 	REQUIRE(plan.has_value());
@@ -54,14 +55,16 @@ TEST_CASE("A build plan resolves its paths against the plan's directory", "[plan
 	REQUIRE(plan->m_inputs.SearchPaths().size() == 1u);
 	CHECK(plan->m_inputs.SearchPaths().front() == std::filesystem::weakly_canonical(project.Path("lib")));
 
-	const std::optional<NativePackage> package = plan->m_inputs.FindNativePackage(project.Path("native"));
-	REQUIRE(package.has_value());
-	CHECK(package->m_name == "Native");
-	CHECK(package->m_library == project.Path("native/native.dll"));
-	CHECK(package->m_functions.at("MIDORI_FFI_Native_Answer") == "native_answer");
-	CHECK(package->m_thread_safe);
-	CHECK(package->m_checksum == std::optional<std::string>("sha256:00"));
-	CHECK_FALSE(plan->m_inputs.FindNativePackage(project.Path("lib")).has_value());
+	CHECK(plan->m_native.m_search_paths == std::vector<std::filesystem::path>{ project.Path("native/bin") });
+	REQUIRE(plan->m_native.m_libraries.size() == 2u);
+	const NativeLibrarySettings& native = plan->m_native.m_libraries.at("native");
+	CHECK(native.m_path == std::optional<std::filesystem::path>(project.Path("native/bin/native.dll")));
+	CHECK(native.m_thread_safe);
+	CHECK(native.m_checksum == std::optional<std::string>("sha256:00"));
+	const NativeLibrarySettings& plain = plan->m_native.m_libraries.at("plain");
+	CHECK_FALSE(plain.m_path.has_value());
+	CHECK_FALSE(plain.m_thread_safe);
+	CHECK_FALSE(plain.m_checksum.has_value());
 }
 
 TEST_CASE("A build plan rejects what it does not understand", "[plan]")
@@ -79,14 +82,13 @@ TEST_CASE("A build plan rejects what it does not understand", "[plan]")
 	CHECK(CheckError(R"({"version": 1, "entry": "src/Main.mmt", "serach_paths": []})", base) == "plan: unknown member \"serach_paths\"");
 	CHECK(CheckError(R"({"version": 1, "entry": "src/Main.mmt", "search_paths": ["lib", 3]})", base) == "search_paths[1]: expected a string, found number");
 	CHECK(CheckError(R"({"version": 1, "entry": "src/Main.mmt", "search_paths": ["nowhere"]})", base).starts_with("search_paths[0]: not a directory: "));
-	CHECK(CheckError(R"({"version": 1, "entry": "src/Main.mmt", "native_packages": [{"name": "N", "root": "native", "library": "n.dll"}]})", base)
-		== "native_packages[0]: missing \"functions\"");
-	CHECK(CheckError(R"({"version": 1, "entry": "src/Main.mmt", "native_packages": [{"name": "N", "root": "native", "library": "n.dll", "functions": {}, "threadsafe": true}]})", base)
-		== "native_packages[0]: unknown member \"threadsafe\"");
-	CHECK(CheckError(R"({"version": 1, "entry": "src/Main.mmt", "native_packages": [
-		{"name": "N", "root": "native", "library": "n.dll", "functions": {}},
-		{"name": "N", "root": "lib", "library": "m.dll", "functions": {}}]})", base)
-		== "native_packages[1]: a second package named \"N\"");
+	CHECK(CheckError(R"({"version": 1, "native_libraries": [{"path": "n.dll"}]})", base) == "native_libraries[0]: missing \"name\"");
+	CHECK(CheckError(R"({"version": 1, "native_libraries": [{"name": "n", "threadsafe": true}]})", base)
+		== "native_libraries[0]: unknown member \"threadsafe\"");
+	CHECK(CheckError(R"({"version": 1, "native_libraries": [{"name": "n"}, {"name": "n"}]})", base)
+		== "native_libraries[1]: a second library named \"n\"");
+	CHECK(CheckError(R"({"version": 1, "library_paths": ["nowhere"]})", base).starts_with("library_paths[0]: not a directory: "));
+	CHECK(CheckError(R"({"version": 1, "native_packages": []})", base) == "plan: unknown member \"native_packages\"");
 	CHECK(CheckError(R"({"version": 1,)", base).starts_with("line 1, column "));
 }
 

@@ -76,7 +76,7 @@ void Worker::Execute(std::stop_token stop_token)
 		worker_vm.SetStopToken(stop_token);
 		ThreadCancellation::SetCurrentThreadStopToken(stop_token);
 
-		std::expected<void, std::string> safety_check = worker_vm.GetDynamicFFIRegistry().ValidateWorkerSafety();
+		std::expected<void, std::string> safety_check = DynamicFFIRegistry::ValidateWorkerSafety(m_executable->GetNativeLibraries());
 		if (!safety_check.has_value())
 		{
 			std::lock_guard<std::mutex> lock(m_result_mutex);

@@ -2043,11 +2043,10 @@ void CodeGenerator::DispatchExpression(MidoriExpression& expression)
 	std::visit(ExpressionDispatcher{ this }, *expression);
 }
 
-CodeGenerator::CodeGenerator(MidoriProgramTree&& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines, std::string module_name, std::unordered_set<std::string> export_symbols, const TypeclassMethodMap& imported_class_methods, const TypeclassInstanceMap& imported_class_instances, const TypeclassInstanceTypeMap& imported_class_instance_type_args, const std::unordered_map<std::string, GenericFunctionInfo>& imported_generic_functions, std::optional<NativePackage> native_package)
+CodeGenerator::CodeGenerator(MidoriProgramTree&& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines, std::string module_name, std::unordered_set<std::string> export_symbols, const TypeclassMethodMap& imported_class_methods, const TypeclassInstanceMap& imported_class_instances, const TypeclassInstanceTypeMap& imported_class_instance_type_args, const std::unordered_map<std::string, GenericFunctionInfo>& imported_generic_functions)
 	: m_program_tree(std::move(program_tree)),
 	m_file_name(file_name),
 	m_source_lines(source_lines),
-	m_native_package(std::move(native_package)),
 	m_module_name(std::move(module_name)),
 	m_export_symbols(std::move(export_symbols)),
 	m_generic_functions(imported_generic_functions),
@@ -2197,6 +2196,17 @@ MidoriResult::CodeGeneratorResult CodeGenerator::GenerateModuleBytecode() &&
 	module.m_exports = std::move(m_tracked_exports);
 	module.m_imports = std::move(m_tracked_imports);
 	module.m_generic_functions = std::move(m_generic_functions);
+	for (const auto& [library, symbols] : m_native_imports)
+	{
+		std::error_code directory_error;
+		const std::filesystem::path module_directory = std::filesystem::absolute(std::filesystem::path(m_file_name), directory_error).parent_path();
+		module.m_native_libraries.push_back(NativeLibraryImport
+		{
+			.m_name = library,
+			.m_symbols = std::vector<std::string>(symbols.begin(), symbols.end()),
+			.m_hint_directories = { directory_error ? std::filesystem::path(m_file_name).parent_path().string() : module_directory.string() }
+		});
+	}
 	if (!m_file_name.empty() && !m_source_lines.empty())
 	{
 		module.m_source_files.emplace(m_file_name, m_source_lines);
@@ -2413,15 +2423,21 @@ void CodeGenerator::operator()(MidoriStatement::ForeignDefinition& foreign)
 		return;
 	}
 
-	std::optional<size_t> ffi_index = MarmotBuiltins::FindIndex(foreign.m_foreign_name);
-	if (ffi_index.has_value())
+	std::string foreign_value = foreign.m_foreign_name;
+	if (foreign.m_library.has_value())
 	{
-		m_ffi_indices[foreign.m_function_name.m_lexeme] = ffi_index.value();
+		m_native_imports[foreign.m_library.value()].insert(foreign.m_foreign_name);
+		foreign_value = foreign.m_library.value() + NATIVE_SYMBOL_SEPARATOR + foreign.m_foreign_name;
 	}
-	else if (!m_native_package.has_value() || !m_native_package->m_functions.contains(foreign.m_foreign_name))
+	else
 	{
-		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorUnknownForeignFunction, std::format("Unknown foreign function '{}': it is not a Marmot builtin, and no native package in the build plan provides it to this file.", foreign.m_foreign_name), foreign.m_function_name, m_file_name, m_source_lines));
-		return;
+		std::optional<size_t> ffi_index = MarmotBuiltins::FindIndex(foreign.m_foreign_name);
+		if (!ffi_index.has_value())
+		{
+			AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorUnknownForeignFunction, std::format("Unknown foreign function '{}': it is not a Marmot builtin. Name the library that exports it: foreign \"{}\" ... from \"library\";", foreign.m_foreign_name, foreign.m_foreign_name), foreign.m_function_name, m_file_name, m_source_lines));
+			return;
+		}
+		m_ffi_indices[foreign.m_function_name.m_lexeme] = ffi_index.value();
 	}
 
 	bool is_global = !foreign.m_local_index.has_value();
@@ -2433,7 +2449,7 @@ void CodeGenerator::operator()(MidoriStatement::ForeignDefinition& foreign)
 		m_global_variables[foreign.m_function_name.m_lexeme] = index.value();
 	}
 
-	EmitTextConstant(foreign.m_foreign_name, line);
+	EmitTextConstant(foreign_value, line);
 
 	if (is_global)
 	{

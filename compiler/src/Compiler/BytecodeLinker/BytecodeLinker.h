@@ -53,6 +53,8 @@ private:
 
 	void MergeGlobalVariables();
 
+	std::vector<NativeLibraryImport> MergeNativeLibraries() const;
+
 	MidoriResult::VoidResult ResolveImportsAndPatch();
 
 	void ConcatenateBytecode();

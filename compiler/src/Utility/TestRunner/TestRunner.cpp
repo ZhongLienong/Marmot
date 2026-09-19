@@ -735,7 +735,7 @@ namespace
 		const std::filesystem::path& root,
 		const std::filesystem::path& test_directory,
 		const std::filesystem::path& test_path,
-		const std::optional<CompilationInputs>& inputs)
+		const std::optional<BuildPlan>& plan)
 	{
 		const auto start = std::chrono::steady_clock::now();
 		std::error_code error_code;
@@ -754,12 +754,15 @@ namespace
 		const std::string expected_output = ReadTextFile(expected_output_path);
 		const std::string expected_warnings = ReadTextFile(expected_warnings_path);
 
-		MidoriDriver::CompileFileWithReportResult compile_result = inputs.has_value()
-			? MidoriDriver::CompileFileWithReport(test_path, inputs.value())
+		MidoriDriver::CompileFileWithReportResult compile_result = plan.has_value()
+			? MidoriDriver::CompileFileWithReport(test_path, plan->m_inputs)
 			: MidoriDriver::CompileFileWithReport(test_path);
 		if (compile_result.has_value())
 		{
-			std::expected<void, MidoriDriver::DriverError> load_result = MidoriDriver::LoadNativePackages(compile_result.value());
+			NativeLibraryOptions native_options = plan.has_value() ? plan->m_native : NativeLibraryOptions{};
+			const std::vector<std::filesystem::path> environment_library_paths = MidoriDriver::EnvironmentLibraryPaths();
+			native_options.m_search_paths.insert(native_options.m_search_paths.end(), environment_library_paths.begin(), environment_library_paths.end());
+			std::expected<void, MidoriDriver::DriverError> load_result = MidoriDriver::LoadNativeLibraries(compile_result->m_executable, native_options);
 			if (!load_result.has_value())
 			{
 				compile_result = std::unexpected(std::move(load_result.error()));
@@ -1075,7 +1078,6 @@ namespace MidoriTestRunner
 			std::error_code error;
 			const std::filesystem::path absolute = std::filesystem::absolute(plan_file.value(), error);
 			options.m_plan_file = error ? plan_file.value() : absolute;
-			options.m_inputs = std::move(plan->m_inputs);
 		}
 
 		return options;
@@ -1116,19 +1118,19 @@ namespace MidoriTestRunner
 			project_context.m_test_directory = std::filesystem::absolute(options.m_test_directory);
 			project_context.m_root = project_context.m_test_directory.parent_path();
 		}
-		std::optional<CompilationInputs> inputs = std::nullopt;
+		std::optional<BuildPlan> plan = std::nullopt;
 		if (options.m_plan_file.has_value())
 		{
-			std::expected<BuildPlan, std::string> plan = MidoriBuildPlan::ReadFile(options.m_plan_file.value());
-			if (!plan.has_value())
+			std::expected<BuildPlan, std::string> read = MidoriBuildPlan::ReadFile(options.m_plan_file.value());
+			if (!read.has_value())
 			{
-				std::print("Invalid build plan: {}\n", plan.error());
+				std::print("Invalid build plan: {}\n", read.error());
 				return EXIT_FAILURE;
 			}
-			inputs = std::move(plan->m_inputs);
+			plan = std::move(read.value());
 		}
 
-		MidoriTestRunner::TestResult result = RunOneTestInProcess(project_context.m_root, project_context.m_test_directory, absolute_test_path, inputs);
+		MidoriTestRunner::TestResult result = RunOneTestInProcess(project_context.m_root, project_context.m_test_directory, absolute_test_path, plan);
 		if (!WriteWorkerResult(result, options.m_result_directory))
 		{
 			return EXIT_FAILURE;

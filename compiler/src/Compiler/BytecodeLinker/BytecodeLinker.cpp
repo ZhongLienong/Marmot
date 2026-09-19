@@ -1,6 +1,8 @@
 #include "BytecodeLinker.h"
 #include "Common/Constant/Constant.h"
 
+#include <map>
+#include <set>
 #include <algorithm>
 #include <cctype>
 #include <format>
@@ -303,6 +305,7 @@ MidoriResult::BytecodeLinkerResult BytecodeLinker::Link()
 	executable.AttachProcedureNames(std::move(m_global_procedure_names));
 	executable.AttachProcedureSourcePaths(std::move(m_global_procedure_source_paths));
 	executable.AttachSourceFiles(std::move(m_global_source_files));
+	executable.AttachNativeLibraries(MergeNativeLibraries());
 	executable.AddStringPool(std::move(m_global_string_pool));
 	executable.SetFileName(EntrySourcePathForModule(m_modules, m_entry_module_name));
 
@@ -409,6 +412,34 @@ void BytecodeLinker::MergeFunctionNames()
 			std::ranges::copy(module.m_procedure_names, std::back_inserter(m_global_procedure_names));
 		}
 	);
+}
+
+// One entry per library, in name order, with every module's symbols and
+// directories, each once and sorted.
+std::vector<NativeLibraryImport> BytecodeLinker::MergeNativeLibraries() const
+{
+	std::map<std::string, std::pair<std::set<std::string>, std::set<std::string>>> merged;
+	for (const BytecodeModule& module : m_modules)
+	{
+		for (const NativeLibraryImport& library : module.m_native_libraries)
+		{
+			std::pair<std::set<std::string>, std::set<std::string>>& entry = merged[library.m_name];
+			entry.first.insert(library.m_symbols.begin(), library.m_symbols.end());
+			entry.second.insert(library.m_hint_directories.begin(), library.m_hint_directories.end());
+		}
+	}
+
+	std::vector<NativeLibraryImport> libraries;
+	for (const auto& [name, entry] : merged)
+	{
+		libraries.push_back(NativeLibraryImport
+		{
+			.m_name = name,
+			.m_symbols = std::vector<std::string>(entry.first.begin(), entry.first.end()),
+			.m_hint_directories = std::vector<std::string>(entry.second.begin(), entry.second.end())
+		});
+	}
+	return libraries;
 }
 
 void BytecodeLinker::MergeGlobalVariables()

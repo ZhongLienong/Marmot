@@ -8,6 +8,7 @@
 
 #include "Compiler/CompilationInputs/CompilationInputs.h"
 #include "Compiler/Result/Result.h"
+#include "Utility/BuildPlan/BuildPlan.h"
 
 namespace MidoriDriver
 {
@@ -49,11 +50,15 @@ namespace MidoriDriver
 	[[nodiscard]] CompileFileWithReportResult CompileFileWithReport(const std::filesystem::path& file_path, CompilationInputs inputs);
 	[[nodiscard]] CompileFileResult CompileFile(const std::filesystem::path& file_path);
 	[[nodiscard]] LoadArtifactResult LoadArtifact(const std::filesystem::path& path);
-	// Loads the native libraries a compiled program needs, before it runs. A
-	// package whose library file is missing is skipped: its functions then fail
-	// when called, as before. Loading is what runs a library's own code, so
-	// only commands that run the program call this.
-	[[nodiscard]] std::expected<void, DriverError> LoadNativePackages(const MidoriResult::CompiledProgram& program);
+	// The directories in MARMOT_LIBRARY_PATH, in order.
+	[[nodiscard]] std::vector<std::filesystem::path> EnvironmentLibraryPaths();
+	// Loads every native library the executable names (`foreign ... from
+	// "library"`), before it runs. Each is looked for at its configured path,
+	// then in each search path, then beside the modules that declared it (in
+	// lib/<platform>/, then the directory itself). A library that is missing,
+	// fails to load, or lacks a symbol is an error. Loading runs a library's own
+	// code, so only commands that run the program call this.
+	[[nodiscard]] std::expected<void, DriverError> LoadNativeLibraries(const MidoriExecutable& executable, const NativeLibraryOptions& options);
 	[[nodiscard]] RunResult RunExecutable(MidoriExecutable&& executable);
 	[[nodiscard]] DriverResult CompileAndRunFile(const std::filesystem::path& file_path);
 }

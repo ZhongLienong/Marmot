@@ -73,6 +73,7 @@ struct BytecodeModule
 	GlobalVariableList m_global_variables;
 	GenericFunctionMap m_generic_functions;
 	SourceFileTable m_source_files;
+	std::vector<NativeLibraryImport> m_native_libraries;
 
 	BytecodeModule() = default;
 	BytecodeModule(std::string module_name, std::filesystem::path source_path);

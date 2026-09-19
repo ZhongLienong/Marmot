@@ -1,7 +1,10 @@
+#include <filesystem>
 #include <string>
+#include <vector>
 
 #include <catch2/catch_test_macros.hpp>
 
+#include "Compiler/BytecodeModule/BytecodeModule.h"
 #include "support/CompileHelpers.h"
 #include "support/DiagnosticMatchers.h"
 
@@ -34,25 +37,6 @@ def main = fn() -> Int => {
 };
 )";
 	}
-
-	std::string PackageForeignSource()
-	{
-		return
-			R"(module Image
-foreign "MIDORI_FFI_Image_ReadInfo" ReadInfo : fn(Text) -> Array<Int>;
-foreign "MIDORI_FFI_Image_ReadInfoo" ReadInfoTypo : fn(Text) -> Array<Int>;
-)";
-	}
-
-	NativePackage ImagePackage()
-	{
-		NativePackage package;
-		package.m_name = "Image";
-		package.m_root = "pkg";
-		package.m_library = "pkg/marmot_image.dll";
-		package.m_functions = { { "MIDORI_FFI_Image_ReadInfo", "marmot_image_read_info" } };
-		return package;
-	}
 }
 
 TEST_CASE("CodeGenerator rejects a foreign name that is neither builtin nor package-declared", "[compiler][codegen][diagnostics][ffi]")
@@ -77,41 +61,73 @@ foreign "MIDORI_FFI_PrintLin" PrintTypo : fn(Text) -> Unit;
 	RequireErrorMatches(bytecode_result.error().m_errors[0u], expectation);
 }
 
-TEST_CASE("CodeGenerator accepts exactly the foreign names the module's native package declares", "[compiler][codegen][diagnostics][ffi]")
+TEST_CASE("CodeGenerator records the native libraries that foreign declarations name", "[compiler][codegen][ffi]")
 {
+	const std::string source =
+		R"(module Image
+foreign "image_write" Write : fn(Text) -> Bool from "marmot_image";
+foreign "marmot_image"
+{
+	"image_read_info" ReadInfo : fn(Text) -> Array<Int>;
+	"image_version" Version : fn() -> Int;
+}
+foreign "MIDORI_FFI_Print" Print : fn(Text) -> Unit;
+foreign "helper" Helper : fn() -> Int from "other";
+)";
+
 	std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> bytecode_result =
-		MidoriTest::GenerateBytecodeSnippetWithDiagnostics(PackageForeignSource(), "pkg/Image.mmt", ImagePackage());
+		MidoriTest::GenerateBytecodeSnippetWithDiagnostics(source, "pkg/Image.mmt");
+	REQUIRE(bytecode_result.has_value());
+
+	const std::vector<NativeLibraryImport>& libraries = bytecode_result->m_native_libraries;
+	REQUIRE(libraries.size() == 2u);
+	CHECK(libraries[0u].m_name == "marmot_image");
+	CHECK(libraries[0u].m_symbols == std::vector<std::string>{ "image_read_info", "image_version", "image_write" });
+	REQUIRE(libraries[0u].m_hint_directories.size() == 1u);
+	CHECK(std::filesystem::path(libraries[0u].m_hint_directories[0u]).filename() == "pkg");
+	CHECK(libraries[1u].m_name == "other");
+	CHECK(libraries[1u].m_symbols == std::vector<std::string>{ "helper" });
+}
+
+TEST_CASE("CodeGenerator asks for the library of a foreign function that is not a builtin", "[compiler][codegen][diagnostics][ffi]")
+{
+	const std::string source =
+		R"(module Image
+foreign "image_read_info" ReadInfo : fn(Text) -> Array<Int>;
+)";
+
+	std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> bytecode_result =
+		MidoriTest::GenerateBytecodeSnippetWithDiagnostics(source, "Image.mmt");
 	REQUIRE_FALSE(bytecode_result.has_value());
 	REQUIRE(bytecode_result.error().Size() == 1u);
 
 	MidoriTest::ErrorExpectation expectation;
 	expectation.m_stage = CompilerStage::CodeGenerator;
 	expectation.m_code = CompilerErrorCode::CodeGeneratorUnknownForeignFunction;
-	expectation.m_line = 3;
-	expectation.m_message_substrings = { "Unknown foreign function 'MIDORI_FFI_Image_ReadInfoo'" };
+	expectation.m_line = 2;
+	expectation.m_message_substrings = { "Unknown foreign function 'image_read_info'", "from \"library\"" };
 	RequireErrorMatches(bytecode_result.error().m_errors[0u], expectation);
 }
 
-TEST_CASE("CodeGenerator accepts no package foreign names in a module without a native package", "[compiler][codegen][diagnostics][ffi]")
+TEST_CASE("A foreign block is only for the top level and must declare something", "[compiler][parser][ffi]")
 {
-	std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> bytecode_result =
-		MidoriTest::GenerateBytecodeSnippetWithDiagnostics(PackageForeignSource(), "pkg/Image.mmt");
-	REQUIRE_FALSE(bytecode_result.has_value());
-	REQUIRE(bytecode_result.error().Size() == 2u);
+	const std::string local_block =
+		R"(module Local
+def main = fn() -> Int => {
+	foreign "lib" { "f" F : fn() -> Int; }
+	0
+};
+)";
+	std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> local_result =
+		MidoriTest::GenerateBytecodeSnippetWithDiagnostics(local_block, "Local.mmt");
+	REQUIRE_FALSE(local_result.has_value());
+	CHECK(local_result.error().m_errors[0u].m_message.find("top level") != std::string::npos);
 
-	MidoriTest::ErrorExpectation declared_expectation;
-	declared_expectation.m_stage = CompilerStage::CodeGenerator;
-	declared_expectation.m_code = CompilerErrorCode::CodeGeneratorUnknownForeignFunction;
-	declared_expectation.m_line = 2;
-	declared_expectation.m_message_substrings = { "Unknown foreign function 'MIDORI_FFI_Image_ReadInfo'" };
-	RequireErrorMatches(bytecode_result.error().m_errors[0u], declared_expectation);
-
-	MidoriTest::ErrorExpectation typo_expectation;
-	typo_expectation.m_stage = CompilerStage::CodeGenerator;
-	typo_expectation.m_code = CompilerErrorCode::CodeGeneratorUnknownForeignFunction;
-	typo_expectation.m_line = 3;
-	typo_expectation.m_message_substrings = { "Unknown foreign function 'MIDORI_FFI_Image_ReadInfoo'" };
-	RequireErrorMatches(bytecode_result.error().m_errors[1u], typo_expectation);
+	const std::string empty_block = "module Empty\nforeign \"lib\" { }\n";
+	std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> empty_result =
+		MidoriTest::GenerateBytecodeSnippetWithDiagnostics(empty_block, "Empty.mmt");
+	REQUIRE_FALSE(empty_result.has_value());
+	CHECK(empty_result.error().m_errors[0u].m_message.find("declares no functions") != std::string::npos);
 }
 
 TEST_CASE("CodeGenerator preserves structured diagnostics for recoverable lowering failures", "[compiler][codegen][diagnostics]")

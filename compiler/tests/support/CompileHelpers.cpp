@@ -231,7 +231,7 @@ namespace MidoriTest
 		return std::move(typed_result.value());
 	}
 
-	std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> GenerateBytecodeSnippetWithDiagnostics(std::string source_code, std::string file_name, std::optional<NativePackage> native_package)
+	std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> GenerateBytecodeSnippetWithDiagnostics(std::string source_code, std::string file_name)
 	{
 		std::expected<PreparedModule, CompilerError> prepared_result = PrepareSingleModule(SourceFixture(std::move(source_code), std::move(file_name)));
 		if (!prepared_result.has_value())
@@ -256,12 +256,7 @@ namespace MidoriTest
 			typed.m_source.FileName(),
 			typed.m_source.SourceLines(),
 			std::move(module_name),
-			CollectExports(typed.m_module_declaration),
-			{},
-			{},
-			{},
-			{},
-			std::move(native_package)).GenerateModuleBytecode();
+			CollectExports(typed.m_module_declaration)).GenerateModuleBytecode();
 		if (!codegen_result.has_value())
 		{
 			return std::unexpected(std::move(codegen_result.error()));
@@ -270,7 +265,7 @@ namespace MidoriTest
 		return std::move(codegen_result).value();
 	}
 
-	std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> GenerateOptimizedBytecodeSnippetWithDiagnostics(std::string source_code, std::string file_name, std::optional<NativePackage> native_package)
+	std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> GenerateOptimizedBytecodeSnippetWithDiagnostics(std::string source_code, std::string file_name)
 	{
 		std::expected<PreparedModule, CompilerError> prepared_result = PrepareSingleModule(SourceFixture(std::move(source_code), std::move(file_name)));
 		if (!prepared_result.has_value())
@@ -311,12 +306,7 @@ namespace MidoriTest
 			typed.m_source.FileName(),
 			typed.m_source.SourceLines(),
 			std::move(module_name),
-			CollectExports(typed.m_module_declaration),
-			{},
-			{},
-			{},
-			{},
-			std::move(native_package)).GenerateModuleBytecode();
+			CollectExports(typed.m_module_declaration)).GenerateModuleBytecode();
 		if (!codegen_result.has_value())
 		{
 			return std::unexpected(std::move(codegen_result.error()));

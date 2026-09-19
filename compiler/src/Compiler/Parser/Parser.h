@@ -701,6 +701,10 @@ private:
 
 	MidoriResult::StatementResult ParseForeignStatement();
 
+	MidoriResult::StatementResult ParseForeignBlock(const Token& library);
+
+	MidoriResult::StatementResult ParseForeignDeclaration(const Token& foreign_name, const std::optional<std::string>& block_library);
+
 	std::expected<std::vector<MidoriType::ClassConstraint>, CompilerError> ParseClassConstraints(const Token& context_token);
 
 	void PushActiveConstraints(const std::vector<MidoriType::ClassConstraint>& constraints);

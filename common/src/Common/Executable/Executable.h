@@ -101,6 +101,21 @@ public:
 	static BytecodeStream FromRaw(std::vector<OpCode>&& bytecode, std::vector<std::pair<int, int>>&& line_info);
 };
 
+// A native library the program calls into. Symbols are what the program's
+// `foreign ... from "library"` declarations name; hint directories are the
+// directories of the modules that declared them, searched after the library
+// path when the program runs.
+struct NativeLibraryImport
+{
+	std::string m_name;
+	std::vector<std::string> m_symbols;
+	std::vector<std::string> m_hint_directories;
+};
+
+// The value a library foreign function holds: its library and symbol, joined by
+// NATIVE_SYMBOL_SEPARATOR. A builtin's value is its bare name.
+inline constexpr char NATIVE_SYMBOL_SEPARATOR = '\x1f';
+
 class MidoriExecutable
 {
 public:
@@ -118,6 +133,7 @@ private:
 	ProcedureSourcePaths m_procedure_source_paths;
 	StringPool m_string_pool;
 	SourceFileTable m_source_files;
+	std::vector<NativeLibraryImport> m_native_libraries;
 
 public:
 
@@ -156,4 +172,8 @@ public:
 	const StringPool& GetStringPool() const;
 
 	const std::vector<std::string>* FindSourceLines(std::string_view file_name) const;
+
+	void AttachNativeLibraries(std::vector<NativeLibraryImport>&& native_libraries);
+
+	const std::vector<NativeLibraryImport>& GetNativeLibraries() const;
 };

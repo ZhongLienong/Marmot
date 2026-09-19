@@ -18,7 +18,6 @@ namespace MidoriTestRunner
 		int m_timeout_ms = 30000;
 		// A build plan's inputs, for every test; without one, MARMOT_PATH.
 		std::optional<std::filesystem::path> m_plan_file = std::nullopt;
-		std::optional<CompilationInputs> m_inputs = std::nullopt;
 		std::optional<std::string> m_filter = std::nullopt;
 		std::optional<std::string> m_pattern = std::nullopt;
 		std::optional<std::string> m_test_file = std::nullopt;

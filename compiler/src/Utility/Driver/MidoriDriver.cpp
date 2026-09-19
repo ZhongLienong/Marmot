@@ -1,5 +1,6 @@
 #include "Utility/Driver/MidoriDriver.h"
 
+#include <algorithm>
 #include <cstdlib>
 #include <format>
 #include <fstream>
@@ -9,6 +10,7 @@
 #include <sstream>
 #include <string_view>
 #include <system_error>
+#include <unordered_map>
 #include <utility>
 
 #include "Common/BytecodeArtifact/BinaryArtifact.h"
@@ -36,6 +38,25 @@ namespace
 		const char* value = std::getenv(name);
 		return value == nullptr || value[0] == '\0' ? std::nullopt : std::optional<std::string>(value);
 #endif
+	}
+
+	// A PATH-style list: `;` separated on Windows, `:` elsewhere.
+	[[nodiscard]] std::vector<std::filesystem::path> SplitPathList(const std::string& value)
+	{
+#ifdef _WIN32
+		const char separator = ';';
+#else
+		const char separator = ':';
+#endif
+		std::vector<std::filesystem::path> paths;
+		for (const std::ranges::subrange<std::string::const_iterator> segment : value | std::views::split(separator))
+		{
+			if (!segment.empty())
+			{
+				paths.emplace_back(std::string(segment.begin(), segment.end()));
+			}
+		}
+		return paths;
 	}
 
 	[[nodiscard]] bool ShouldEmitMachineReadableWarnings()
@@ -146,28 +167,16 @@ namespace MidoriDriver
 		return buffer.str();
 	}
 
+	std::vector<std::filesystem::path> EnvironmentLibraryPaths()
+	{
+		const std::optional<std::string> value = ReadEnvironmentVariable("MARMOT_LIBRARY_PATH");
+		return value.has_value() ? SplitPathList(value.value()) : std::vector<std::filesystem::path>{};
+	}
+
 	std::vector<std::filesystem::path> EnvironmentSearchPaths()
 	{
 		const std::optional<std::string> value = ReadEnvironmentVariable("MARMOT_PATH");
-		if (!value.has_value())
-		{
-			return {};
-		}
-
-#ifdef _WIN32
-		const char separator = ';';
-#else
-		const char separator = ':';
-#endif
-		std::vector<std::filesystem::path> paths;
-		for (const std::ranges::subrange<std::string::const_iterator> segment : value.value() | std::views::split(separator))
-		{
-			if (!segment.empty())
-			{
-				paths.emplace_back(std::string(segment.begin(), segment.end()));
-			}
-		}
-		return paths;
+		return value.has_value() ? SplitPathList(value.value()) : std::vector<std::filesystem::path>{};
 	}
 
 	CompilationInputs EnvironmentCompilationInputs()
@@ -241,25 +250,82 @@ namespace MidoriDriver
 		return std::move(load_result.value());
 	}
 
-	std::expected<void, DriverError> LoadNativePackages(const MidoriResult::CompiledProgram& program)
+	std::expected<void, DriverError> LoadNativeLibraries(const MidoriExecutable& executable, const NativeLibraryOptions& options)
 	{
+#ifdef _WIN32
+		const std::string prefix;
+		const std::string extension = ".dll";
+		const std::filesystem::path platform_directory = std::filesystem::path("lib") / "windows" / "x64";
+#elif defined(__APPLE__)
+		const std::string prefix = "lib";
+		const std::string extension = ".dylib";
+		const std::filesystem::path platform_directory = std::filesystem::path("lib") / "macos";
+#else
+		const std::string prefix = "lib";
+		const std::string extension = ".so";
+		const std::filesystem::path platform_directory = std::filesystem::path("lib") / "linux" / "x86_64";
+#endif
+
 		SharedLibraryCache& cache = SharedLibraryCache::GetInstance();
-		for (const NativePackage& package : program.NativePackages())
+		for (const NativeLibraryImport& library : executable.GetNativeLibraries())
 		{
-			std::error_code error;
-			if (!std::filesystem::exists(package.m_library, error) || cache.IsLibraryLoaded(package.m_name))
+			if (cache.IsLibraryLoaded(library.m_name))
 			{
 				continue;
 			}
 
-			std::optional<std::string_view> expected_checksum = std::nullopt;
-			if (package.m_checksum.has_value())
+			const std::unordered_map<std::string, NativeLibrarySettings>::const_iterator configured = options.m_libraries.find(library.m_name);
+			const NativeLibrarySettings settings = configured != options.m_libraries.end() ? configured->second : NativeLibrarySettings{};
+			const std::string file_name = prefix + library.m_name + extension;
+
+			std::vector<std::filesystem::path> candidates;
+			if (settings.m_path.has_value())
 			{
-				expected_checksum = package.m_checksum.value();
+				candidates.push_back(settings.m_path.value());
+			}
+			for (const std::filesystem::path& directory : options.m_search_paths)
+			{
+				candidates.push_back(directory / file_name);
+			}
+			for (const std::string& directory : library.m_hint_directories)
+			{
+				candidates.push_back(std::filesystem::path(directory) / platform_directory / file_name);
+				candidates.push_back(std::filesystem::path(directory) / file_name);
+			}
+
+			const std::vector<std::filesystem::path>::const_iterator found = std::ranges::find_if(
+				candidates,
+				[](const std::filesystem::path& candidate)
+				{
+					std::error_code error;
+					return std::filesystem::is_regular_file(candidate, error);
+				});
+			if (found == candidates.end())
+			{
+				std::string searched;
+				for (const std::filesystem::path& candidate : candidates)
+				{
+					searched += std::format("\n  {}", candidate.string());
+				}
+				return std::unexpected(DriverError::Compilation(MidoriResult::CompilerDiagnostics(CompilerError::Simple(
+					CompilerStage::Module,
+					std::format("FFI error: native library '{}' not found. Looked for:{}\nPass --library-path <dir>, set MARMOT_LIBRARY_PATH, or run through `marmot run`.", library.m_name, searched)))));
+			}
+
+			std::unordered_map<std::string, std::string> functions;
+			for (const std::string& symbol : library.m_symbols)
+			{
+				functions.emplace(library.m_name + NATIVE_SYMBOL_SEPARATOR + symbol, symbol);
+			}
+
+			std::optional<std::string_view> expected_checksum = std::nullopt;
+			if (settings.m_checksum.has_value())
+			{
+				expected_checksum = settings.m_checksum.value();
 			}
 
 			const std::expected<void, std::string> load_result =
-				cache.LoadLibraryWithFunctions(package.m_library, package.m_name, package.m_functions, package.m_thread_safe, expected_checksum);
+				cache.LoadLibraryWithFunctions(*found, library.m_name, functions, settings.m_thread_safe, expected_checksum);
 			if (!load_result.has_value())
 			{
 				return std::unexpected(DriverError::Compilation(MidoriResult::CompilerDiagnostics(CompilerError::Simple(CompilerStage::Module, load_result.error()))));
@@ -288,7 +354,7 @@ namespace MidoriDriver
 		MidoriResult::CompiledProgram compiled_program = std::move(compile_result).value();
 		EmitWarnings(compiled_program.Report());
 
-		std::expected<void, DriverError> load_result = LoadNativePackages(compiled_program);
+		std::expected<void, DriverError> load_result = LoadNativeLibraries(compiled_program.m_executable, NativeLibraryOptions{ .m_search_paths = EnvironmentLibraryPaths() });
 		if (!load_result.has_value())
 		{
 			return std::unexpected(std::move(load_result.error()));

@@ -120,7 +120,7 @@ namespace MidoriBuild
     //
     // Bumped 2026-09-17 (9): MAKE_CELL, READ_CELL and WRITE_CELL were inserted
     // after SET_CELL for Cell<T>, which renumbered every later opcode.
-    inline constexpr uint32_t MbcFormatVersion = 9u;
+    inline constexpr uint32_t MbcFormatVersion = 10u;
 
     [[nodiscard]] inline bool EnvironmentFlagEnabledUncached(const char* name) noexcept
     {

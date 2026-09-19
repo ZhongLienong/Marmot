@@ -293,6 +293,24 @@ namespace
 			}
 		}
 
+		// native_libraries: name, symbols, hint directories
+		const std::vector<NativeLibraryImport>& native_libraries = executable.GetNativeLibraries();
+		writer.WriteU32(static_cast<uint32_t>(native_libraries.size()));
+		for (const NativeLibraryImport& library : native_libraries)
+		{
+			writer.WriteString(library.m_name);
+			writer.WriteU32(static_cast<uint32_t>(library.m_symbols.size()));
+			for (const std::string& symbol : library.m_symbols)
+			{
+				writer.WriteString(symbol);
+			}
+			writer.WriteU32(static_cast<uint32_t>(library.m_hint_directories.size()));
+			for (const std::string& directory : library.m_hint_directories)
+			{
+				writer.WriteString(directory);
+			}
+		}
+
 		// source_files (only when embed_sources flag is set)
 		if (embed_sources)
 		{
@@ -610,6 +628,49 @@ namespace MidoriBinaryArtifact
 		executable.AttachProcedures(std::move(procedures));
 		executable.AttachProcedureNames(std::move(procedure_names));
 		executable.AttachProcedureSourcePaths(std::move(procedure_source_paths));
+
+		uint32_t native_library_count;
+		if (!payload_reader.ReadU32(native_library_count))
+		{
+			return std::unexpected("Corrupt artifact: could not read native library count.");
+		}
+
+		std::vector<NativeLibraryImport> native_libraries;
+		for (uint32_t library_index = 0u; library_index < native_library_count; library_index += 1u)
+		{
+			NativeLibraryImport library;
+			uint32_t symbol_count;
+			if (!payload_reader.ReadString(library.m_name) || !payload_reader.ReadU32(symbol_count))
+			{
+				return std::unexpected(std::format("Corrupt artifact: could not read native library {}.", library_index));
+			}
+			for (uint32_t symbol_index = 0u; symbol_index < symbol_count; symbol_index += 1u)
+			{
+				std::string symbol;
+				if (!payload_reader.ReadString(symbol))
+				{
+					return std::unexpected(std::format("Corrupt artifact: could not read symbol {} of native library {}.", symbol_index, library_index));
+				}
+				library.m_symbols.push_back(std::move(symbol));
+			}
+
+			uint32_t directory_count;
+			if (!payload_reader.ReadU32(directory_count))
+			{
+				return std::unexpected(std::format("Corrupt artifact: could not read native library {}.", library_index));
+			}
+			for (uint32_t directory_index = 0u; directory_index < directory_count; directory_index += 1u)
+			{
+				std::string directory;
+				if (!payload_reader.ReadString(directory))
+				{
+					return std::unexpected(std::format("Corrupt artifact: could not read a directory of native library {}.", library_index));
+				}
+				library.m_hint_directories.push_back(std::move(directory));
+			}
+			native_libraries.push_back(std::move(library));
+		}
+		executable.AttachNativeLibraries(std::move(native_libraries));
 
 		// source_files (optional, only when flag bit 0 is set)
 		if (flags & k_flag_embed_sources)

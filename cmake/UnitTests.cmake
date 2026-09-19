@@ -7,6 +7,7 @@ file(GLOB_RECURSE MIDORI_UNIT_TEST_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_SOURCE_DIR}/compiler/tests/*.cpp"
 )
 list(FILTER MIDORI_UNIT_TEST_SOURCES EXCLUDE REGEX "/compiler/tests/support/")
+list(FILTER MIDORI_UNIT_TEST_SOURCES EXCLUDE REGEX "/compiler/tests/native/")
 
 file(GLOB_RECURSE MIDORI_TEST_SUPPORT_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_SOURCE_DIR}/compiler/tests/support/*.cpp"
@@ -53,6 +54,12 @@ if(MSVC)
     target_compile_options(MidoriTestSupport PRIVATE /EHsc)
     target_compile_options(MarmotUnitTests PRIVATE /EHsc)
 endif()
+
+# A native library for the `foreign ... from "library"` tests, built next to
+# the test executable. The tests find it through MARMOT_TEST_NATIVE_DIR.
+add_library(marmot_test_native SHARED "${CMAKE_SOURCE_DIR}/compiler/tests/native/TestNative.cpp")
+add_dependencies(MarmotUnitTests marmot_test_native)
+target_compile_definitions(MarmotUnitTests PRIVATE MARMOT_TEST_NATIVE_DIR="$<TARGET_FILE_DIR:marmot_test_native>")
 
 include(${catch2_SOURCE_DIR}/extras/Catch.cmake)
 catch_discover_tests(MarmotUnitTests)

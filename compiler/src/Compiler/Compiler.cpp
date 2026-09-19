@@ -582,9 +582,9 @@ namespace
 		return export_info;
 	}
 
-	static MidoriResult::CodeGeneratorResult GenerateModuleBytecode(MidoriProgramTree&& optimized_ast, const std::string& file_path, const std::vector<std::string>& module_source_lines, const std::string& module_name, const std::unordered_set<std::string>& export_set, const ImportContext& import_context, const std::optional<NativePackage>& native_package)
+	static MidoriResult::CodeGeneratorResult GenerateModuleBytecode(MidoriProgramTree&& optimized_ast, const std::string& file_path, const std::vector<std::string>& module_source_lines, const std::string& module_name, const std::unordered_set<std::string>& export_set, const ImportContext& import_context)
 	{
-		return CodeGenerator(std::move(optimized_ast), file_path, module_source_lines, module_name, export_set, import_context.m_imported_typeclass_methods, import_context.m_imported_typeclass_instances, import_context.m_imported_typeclass_instance_types, import_context.m_imported_generic_functions, native_package).GenerateModuleBytecode();
+		return CodeGenerator(std::move(optimized_ast), file_path, module_source_lines, module_name, export_set, import_context.m_imported_typeclass_methods, import_context.m_imported_typeclass_instances, import_context.m_imported_typeclass_instance_types, import_context.m_imported_generic_functions).GenerateModuleBytecode();
 	}
 
 	static CompileStateResult ValidateExports(CompileState state);
@@ -669,7 +669,7 @@ namespace
 		state.m_module_name = state.m_module_decl ? state.m_module_decl->ModuleName() : std::filesystem::path(state.m_file_path).stem().string();
 
 		MidoriResult::CodeGeneratorResult bytecode_result =
-			GenerateModuleBytecode(std::move(state.m_ast), state.m_file_path, state.m_source_lines, state.m_module_name, state.m_export_info.m_export_set, state.m_import_context, state.m_node->m_native_package);
+			GenerateModuleBytecode(std::move(state.m_ast), state.m_file_path, state.m_source_lines, state.m_module_name, state.m_export_info.m_export_set, state.m_import_context);
 		if (!bytecode_result.has_value())
 		{
 			return std::unexpected(MakeStateErrorReport(std::move(state), std::move(bytecode_result.error())));
@@ -1313,30 +1313,6 @@ namespace
 		return std::filesystem::path(entry_file_name).stem().string();
 	}
 
-	// One entry per package, in name order so the load order does not depend
-	// on hash-map iteration.
-	static std::vector<NativePackage> CollectNativePackages(const BuildGraph& build_graph)
-	{
-		std::vector<NativePackage> packages;
-		for (const std::pair<const std::string, BuildGraph::BuildNode>& entry : build_graph.m_nodes)
-		{
-			const std::optional<NativePackage>& package = entry.second.m_native_package;
-			if (!package.has_value())
-			{
-				continue;
-			}
-
-			const bool seen = std::ranges::any_of(packages, [&package](const NativePackage& existing) { return existing.m_name == package->m_name; });
-			if (!seen)
-			{
-				packages.push_back(package.value());
-			}
-		}
-
-		std::ranges::sort(packages, [](const NativePackage& left, const NativePackage& right) { return left.m_name < right.m_name; });
-		return packages;
-	}
-
 	static MidoriResult::CompilationResult LinkBytecodeModules(BuildGraphArtifacts&& build_graph_artifacts, const std::string& entry_module_name)
 	{
 		MidoriResult::BytecodeLinkerResult link_result = BytecodeLinker(std::move(build_graph_artifacts.m_bytecode_modules), entry_module_name).Link();
@@ -1526,7 +1502,6 @@ MidoriResult::CompilationResult Compiler::CompileWithReport()
 
 	BuildGraph build_graph = std::move(build_graph_result.value());
 	const std::string entry_module_name = ResolveEntryModuleName(build_graph, m_file_name);
-	std::vector<NativePackage> native_packages = CollectNativePackages(build_graph);
 
 	MidoriResult::ReportResult<BuildGraphArtifacts> bytecode_result = CompileBuildGraph(std::move(build_graph));
 	if (!bytecode_result.has_value())
@@ -1534,12 +1509,7 @@ MidoriResult::CompilationResult Compiler::CompileWithReport()
 		return std::unexpected(std::move(bytecode_result.error()));
 	}
 
-	MidoriResult::CompilationResult link_result = LinkBytecodeModules(std::move(bytecode_result).value(), entry_module_name);
-	if (link_result.has_value())
-	{
-		link_result.value().m_native_packages = std::move(native_packages);
-	}
-	return link_result;
+	return LinkBytecodeModules(std::move(bytecode_result).value(), entry_module_name);
 }
 
 MidoriResult::CompilerResult Compiler::Compile()

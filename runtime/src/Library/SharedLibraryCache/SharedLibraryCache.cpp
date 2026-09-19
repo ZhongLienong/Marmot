@@ -61,9 +61,8 @@ std::expected<void, std::string> SharedLibraryCache::LoadLibraryWithFunctions(
 		{
 			UnloadPlatformLibrary(handle);
 			return std::unexpected(std::format(
-				"FFI error: package '{}' declares function '{}' but symbol '{}' was not found in {}",
+				"FFI error: native library '{}' does not export '{}' ({})",
 				package_name,
-				midori_name,
 				native_name,
 				library_path.string()));
 		}
@@ -102,15 +101,16 @@ std::unordered_map<std::string, FFIFunction> SharedLibraryCache::SnapshotAllFunc
 	return snapshot;
 }
 
-std::vector<std::string> SharedLibraryCache::GetNonThreadSafePackages() const
+std::vector<std::string> SharedLibraryCache::GetNonThreadSafeLibraries(const std::vector<std::string>& library_names) const
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
 	std::vector<std::string> result;
-	for (const std::pair<const std::string, SharedLibraryEntry>& lib : m_libraries)
+	for (const std::string& name : library_names)
 	{
-		if (!lib.second.m_thread_safe)
+		const std::unordered_map<std::string, SharedLibraryEntry>::const_iterator it = m_libraries.find(name);
+		if (it != m_libraries.end() && !it->second.m_thread_safe)
 		{
-			result.push_back(lib.second.m_package_name);
+			result.push_back(name);
 		}
 	}
 	return result;

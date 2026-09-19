@@ -53,6 +53,9 @@ namespace
 		// Set by --plan: the plan's inputs replace all discovery, and its entry
 		// becomes m_source_file.
 		std::optional<CompilationInputs> m_plan_inputs = std::nullopt;
+		// run: how the program's native libraries are found (--library-path and
+		// the plan's).
+		NativeLibraryOptions m_native_options;
 		std::filesystem::path m_target_path;
 		std::filesystem::path m_worker_result_directory;
 		bool m_fmt_write = false;
@@ -225,9 +228,12 @@ namespace
 		if (command_name == "run")
 		{
 			return
-				"Usage: marmotc run (<file> | --plan <plan.json>) [--format json]\n"
+				"Usage: marmotc run (<file> | --plan <plan.json>) [--library-path <dir>]... [--format json]\n"
 				"Compile and execute a .mmt source file, or load and execute a .mmc artifact.\n"
-				"With --plan, compile the plan's entry from exactly the plan's inputs.\n\n"
+				"With --plan, compile the plan's entry from exactly the plan's inputs.\n"
+				"Native libraries (foreign ... from \"library\") are looked for in each\n"
+				"--library-path, the plan's library_paths, MARMOT_LIBRARY_PATH, then beside\n"
+				"the module that declared them.\n\n"
 				"Examples:\n"
 				"  marmotc run src/Main.mmt\n"
 				"  marmotc run src/Main.mmc\n"
@@ -440,6 +446,11 @@ namespace
 
 		invocation.m_source_file = plan->m_entry.value();
 		invocation.m_plan_inputs = std::move(plan->m_inputs);
+		invocation.m_native_options.m_libraries = std::move(plan->m_native.m_libraries);
+		invocation.m_native_options.m_search_paths.insert(
+			invocation.m_native_options.m_search_paths.end(),
+			plan->m_native.m_search_paths.begin(),
+			plan->m_native.m_search_paths.end());
 		return {};
 	}
 
@@ -465,6 +476,16 @@ namespace
 				{
 					return std::unexpected(error);
 				}
+				continue;
+			}
+
+			if (arg == "--library-path" && kind == CommandKind::Run)
+			{
+				if (index + 1u >= args.size())
+				{
+					return std::unexpected("Missing value for --library-path.");
+				}
+				invocation.m_native_options.m_search_paths.emplace_back(args[++index]);
 				continue;
 			}
 
@@ -1118,10 +1139,22 @@ namespace
 
 		const MidoriBuild::ScopedTestModeOverride suppress_internal_diagnostics(true);
 
+		NativeLibraryOptions native_options = invocation.m_native_options;
+		const std::vector<std::filesystem::path> environment_library_paths = MidoriDriver::EnvironmentLibraryPaths();
+		native_options.m_search_paths.insert(native_options.m_search_paths.end(), environment_library_paths.begin(), environment_library_paths.end());
+
 		if (!invocation.m_plan_inputs.has_value() && invocation.m_source_file.extension() == ".mmc")
 		{
 			// Load-and-run path for pre-built binary artifacts
 			MidoriDriver::LoadArtifactResult load_result = MidoriDriver::LoadArtifact(invocation.m_source_file);
+			if (load_result.has_value())
+			{
+				std::expected<void, MidoriDriver::DriverError> native_result = MidoriDriver::LoadNativeLibraries(load_result.value(), native_options);
+				if (!native_result.has_value())
+				{
+					load_result = std::unexpected(std::move(native_result.error()));
+				}
+			}
 			if (!load_result.has_value())
 			{
 				const MidoriResult::CompilerReport report = WrapDriverErrorAsReport(load_result.error());
@@ -1169,7 +1202,7 @@ namespace
 		MidoriDriver::CompileFileWithReportResult compile_result = CompileInvocation(invocation);
 		if (compile_result.has_value())
 		{
-			std::expected<void, MidoriDriver::DriverError> load_result = MidoriDriver::LoadNativePackages(compile_result.value());
+			std::expected<void, MidoriDriver::DriverError> load_result = MidoriDriver::LoadNativeLibraries(compile_result->m_executable, native_options);
 			if (!load_result.has_value())
 			{
 				compile_result = std::unexpected(std::move(load_result.error()));

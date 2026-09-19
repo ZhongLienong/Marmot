@@ -36,7 +36,8 @@ public:
 
 	std::unordered_map<std::string, FFIFunction> SnapshotAllFunctions() const;
 
-	std::vector<std::string> GetNonThreadSafePackages() const;
+	// Of the named libraries, those loaded without thread_safe.
+	std::vector<std::string> GetNonThreadSafeLibraries(const std::vector<std::string>& library_names) const;
 
 	void Clear();
 

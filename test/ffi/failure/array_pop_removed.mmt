@@ -2,8 +2,8 @@ module ArrayPopRemoved
 
 // MIDORI_FFI_ArrayPop mutated its argument array in place and was deleted
 // along with MidoriArray::Pop(). This asserts the FFI entry is genuinely
-// gone: the compiler checks every foreign name against the builtin registry
-// (and the declaring file's package manifest), so declaring it is rejected
+// gone: a foreign declaration without `from "library"` must name a builtin,
+// so declaring it is rejected
 // at compile time instead of failing later at the call site.
 
 foreign "MIDORI_FFI_ArrayPop" Pop : fn(Array<Int>) -> Int;

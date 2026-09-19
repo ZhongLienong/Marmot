@@ -136,7 +136,6 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraphImpl(BuildGra
 		main_node.m_file_name = m_main_file_name;
 		main_node.m_source_lines = m_main_source_lines;
 		main_node.m_use_imports = std::move(use_imports);
-		main_node.m_native_package = m_inputs.FindNativePackage(std::filesystem::path(m_main_file_name).parent_path());
 
 		ImportResolver resolver(m_main_file_name, m_inputs.SearchPaths());
 

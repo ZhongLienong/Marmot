@@ -268,10 +268,11 @@ def scenario_build_command_compiles_without_running(runner: TestRunner) -> None:
 
 
 def scenario_native_library_loads_only_to_run(runner: TestRunner) -> None:
-    # A plan names a native package whose library is not a loadable library.
-    # Checking a program that imports it must not touch the library (loading one
-    # runs its code); running the program must stop before it starts, with the
-    # load failure reported like a compile error.
+    # A module names a native library in source; the plan says where its file
+    # is, and that file is not a loadable library. Checking a program that
+    # imports the module must not touch the library (loading one runs its
+    # code); running it must stop before it starts, with the load failure
+    # reported like a compile error.
     with tempfile.TemporaryDirectory(prefix="marmot-cli-native-") as temp_dir_raw:
         temp_dir = Path(temp_dir_raw)
         package_dir = temp_dir / "Native"
@@ -279,9 +280,9 @@ def scenario_native_library_loads_only_to_run(runner: TestRunner) -> None:
             package_dir / "Native.mmt",
             "module Native\n"
             "public export { Answer }\n"
-            "foreign \"MIDORI_FFI_Native_Answer\" Answer : fn() -> Int;\n",
+            "foreign \"native_answer\" Answer : fn() -> Int from \"native_stub\";\n",
         )
-        write_text(package_dir / "native_stub.dll", "not a library\n")
+        write_text(temp_dir / "stub" / "native_stub.dll", "not a library\n")
         write_text(
             temp_dir / "app" / "Main.mmt",
             "module Main\n"
@@ -295,12 +296,7 @@ def scenario_native_library_loads_only_to_run(runner: TestRunner) -> None:
                 "version": 1,
                 "entry": "app/Main.mmt",
                 "search_paths": ["Native"],
-                "native_packages": [{
-                    "name": "Native",
-                    "root": "Native",
-                    "library": "Native/native_stub.dll",
-                    "functions": {"MIDORI_FFI_Native_Answer": "native_answer"},
-                }],
+                "native_libraries": [{"name": "native_stub", "path": "stub/native_stub.dll"}],
             }),
         )
 
@@ -315,12 +311,15 @@ def scenario_native_library_loads_only_to_run(runner: TestRunner) -> None:
         assert_condition(len(errors) == 1, f"Expected one load error, got: {errors}")
         assert_condition("FFI error" in str(errors[0]["message"]), f"Expected an FFI load error, got: {errors[0]}")
 
-        # Without the plan the package's functions are unknown: marmotc reads no
-        # package manifests.
-        unplanned = run_midori(runner, ["check", str(temp_dir / "app" / "Main.mmt"), "--format", "json"], env_overrides={"MARMOT_PATH": str(package_dir)})
+        # Without the plan nothing says where the library is: the program still
+        # compiles, and the run stops because the library is not found.
+        unplanned_env = {"MARMOT_PATH": str(package_dir), "MARMOT_LIBRARY_PATH": None}
+        unplanned_check = run_midori(runner, ["check", str(temp_dir / "app" / "Main.mmt"), "--format", "json"], env_overrides=unplanned_env)
+        assert_condition(unplanned_check.returncode == 0, f"Without a plan, the program should still compile: {unplanned_check.stdout}{unplanned_check.stderr}")
+        unplanned = run_midori(runner, ["run", str(temp_dir / "app" / "Main.mmt"), "--format", "json"], env_overrides=unplanned_env)
         unplanned_report = require_report(parse_command_json("native_library_loads_only_to_run", unplanned), "native_library_loads_only_to_run")
-        assert_condition(unplanned.returncode != 0, "Without a plan, a package foreign function should be unknown.")
-        assert_condition(any(error["code"] == "CodeGeneratorUnknownForeignFunction" for error in unplanned_report["errors"]), f"Unexpected errors: {unplanned_report['errors']}")
+        assert_condition(unplanned.returncode != 0, "Without a plan, the run should not find the library.")
+        assert_condition(any("native library 'native_stub' not found" in str(error["message"]) for error in unplanned_report["errors"]), f"Unexpected errors: {unplanned_report['errors']}")
 
 
 def scenario_plan_replaces_discovery(runner: TestRunner) -> None:

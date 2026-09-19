@@ -66,7 +66,7 @@ namespace
 		return path.is_absolute() ? path : base_directory / path;
 	}
 
-	PlanResult<std::vector<std::filesystem::path>> ReadSearchPaths(const JsonValue* value, const std::filesystem::path& base_directory)
+	PlanResult<std::vector<std::filesystem::path>> ReadDirectories(const JsonValue* value, std::string_view member, const std::filesystem::path& base_directory)
 	{
 		std::vector<std::filesystem::path> search_paths;
 		if (value == nullptr)
@@ -76,12 +76,12 @@ namespace
 
 		if (!value->IsArray())
 		{
-			return std::unexpected(std::format("search_paths: expected an array, found {}", value->KindName()));
+			return std::unexpected(std::format("{}: expected an array, found {}", member, value->KindName()));
 		}
 
 		for (size_t index = 0uz; index < value->AsArray().size(); index += 1uz)
 		{
-			const std::string where = std::format("search_paths[{}]", index);
+			const std::string where = std::format("{}[{}]", member, index);
 			PlanResult<std::string> text = RequireString(value->AsArray()[index], where);
 			if (!text.has_value())
 			{
@@ -100,74 +100,39 @@ namespace
 		return search_paths;
 	}
 
-	PlanResult<NativePackage> ReadNativePackage(const JsonValue& value, std::string_view where, const std::filesystem::path& base_directory)
+	PlanResult<std::pair<std::string, NativeLibrarySettings>> ReadNativeLibrary(const JsonValue& value, std::string_view where, const std::filesystem::path& base_directory)
 	{
 		if (!value.IsObject())
 		{
 			return std::unexpected(std::format("{}: expected an object, found {}", where, value.KindName()));
 		}
 
-		PlanResult<void> members = RequireOnlyMembers(value, where, { "name", "root", "library", "functions", "thread_safe", "checksum" });
+		PlanResult<void> members = RequireOnlyMembers(value, where, { "name", "path", "checksum", "thread_safe" });
 		if (!members.has_value())
 		{
 			return std::unexpected(members.error());
 		}
 
-		NativePackage package;
-		for (std::string_view field : { "name", "root", "library" })
+		PlanResult<const JsonValue*> name = RequireMember(value, where, "name");
+		if (!name.has_value())
 		{
-			PlanResult<const JsonValue*> member = RequireMember(value, where, field);
-			if (!member.has_value())
-			{
-				return std::unexpected(member.error());
-			}
+			return std::unexpected(name.error());
+		}
+		PlanResult<std::string> name_text = RequireString(*name.value(), std::format("{}.name", where));
+		if (!name_text.has_value())
+		{
+			return std::unexpected(name_text.error());
+		}
 
-			PlanResult<std::string> text = RequireString(*member.value(), std::format("{}.{}", where, field));
+		NativeLibrarySettings settings;
+		if (const JsonValue* path = value.Find("path"); path != nullptr)
+		{
+			PlanResult<std::string> text = RequireString(*path, std::format("{}.path", where));
 			if (!text.has_value())
 			{
 				return std::unexpected(text.error());
 			}
-
-			if (field == "name")
-			{
-				package.m_name = text.value();
-			}
-			else if (field == "root")
-			{
-				package.m_root = Resolve(base_directory, text.value());
-			}
-			else
-			{
-				package.m_library = Resolve(base_directory, text.value());
-			}
-		}
-
-		PlanResult<const JsonValue*> functions = RequireMember(value, where, "functions");
-		if (!functions.has_value())
-		{
-			return std::unexpected(functions.error());
-		}
-		if (!functions.value()->IsObject())
-		{
-			return std::unexpected(std::format("{}.functions: expected an object, found {}", where, functions.value()->KindName()));
-		}
-		for (const std::pair<std::string, JsonValue>& function : functions.value()->AsObject())
-		{
-			PlanResult<std::string> symbol = RequireString(function.second, std::format("{}.functions.{}", where, function.first));
-			if (!symbol.has_value())
-			{
-				return std::unexpected(symbol.error());
-			}
-			package.m_functions.emplace(function.first, symbol.value());
-		}
-
-		if (const JsonValue* thread_safe = value.Find("thread_safe"); thread_safe != nullptr)
-		{
-			if (!thread_safe->IsBool())
-			{
-				return std::unexpected(std::format("{}.thread_safe: expected a boolean, found {}", where, thread_safe->KindName()));
-			}
-			package.m_thread_safe = thread_safe->AsBool();
+			settings.m_path = Resolve(base_directory, text.value());
 		}
 
 		if (const JsonValue* checksum = value.Find("checksum"); checksum != nullptr)
@@ -177,44 +142,49 @@ namespace
 			{
 				return std::unexpected(text.error());
 			}
-			package.m_checksum = text.value();
+			settings.m_checksum = text.value();
 		}
 
-		return package;
+		if (const JsonValue* thread_safe = value.Find("thread_safe"); thread_safe != nullptr)
+		{
+			if (!thread_safe->IsBool())
+			{
+				return std::unexpected(std::format("{}.thread_safe: expected a boolean, found {}", where, thread_safe->KindName()));
+			}
+			settings.m_thread_safe = thread_safe->AsBool();
+		}
+
+		return std::pair<std::string, NativeLibrarySettings>(name_text.value(), std::move(settings));
 	}
 
-	PlanResult<std::vector<NativePackage>> ReadNativePackages(const JsonValue* value, const std::filesystem::path& base_directory)
+	PlanResult<std::unordered_map<std::string, NativeLibrarySettings>> ReadNativeLibraries(const JsonValue* value, const std::filesystem::path& base_directory)
 	{
-		std::vector<NativePackage> packages;
+		std::unordered_map<std::string, NativeLibrarySettings> libraries;
 		if (value == nullptr)
 		{
-			return packages;
+			return libraries;
 		}
 
 		if (!value->IsArray())
 		{
-			return std::unexpected(std::format("native_packages: expected an array, found {}", value->KindName()));
+			return std::unexpected(std::format("native_libraries: expected an array, found {}", value->KindName()));
 		}
 
 		for (size_t index = 0uz; index < value->AsArray().size(); index += 1uz)
 		{
-			PlanResult<NativePackage> package = ReadNativePackage(value->AsArray()[index], std::format("native_packages[{}]", index), base_directory);
-			if (!package.has_value())
+			PlanResult<std::pair<std::string, NativeLibrarySettings>> library = ReadNativeLibrary(value->AsArray()[index], std::format("native_libraries[{}]", index), base_directory);
+			if (!library.has_value())
 			{
-				return std::unexpected(package.error());
+				return std::unexpected(library.error());
 			}
 
-			for (const NativePackage& existing : packages)
+			if (!libraries.emplace(library->first, std::move(library->second)).second)
 			{
-				if (existing.m_name == package->m_name)
-				{
-					return std::unexpected(std::format("native_packages[{}]: a second package named \"{}\"", index, package->m_name));
-				}
+				return std::unexpected(std::format("native_libraries[{}]: a second library named \"{}\"", index, library->first));
 			}
-			packages.push_back(std::move(package.value()));
 		}
 
-		return packages;
+		return libraries;
 	}
 }
 
@@ -234,7 +204,7 @@ namespace MidoriBuildPlan
 			return std::unexpected(std::format("the plan must be a JSON object, found {}", root.KindName()));
 		}
 
-		PlanResult<void> members = RequireOnlyMembers(root, "plan", { "version", "entry", "search_paths", "native_packages" });
+		PlanResult<void> members = RequireOnlyMembers(root, "plan", { "version", "entry", "search_paths", "library_paths", "native_libraries" });
 		if (!members.has_value())
 		{
 			return std::unexpected(members.error());
@@ -269,21 +239,27 @@ namespace MidoriBuildPlan
 			}
 		}
 
-		PlanResult<std::vector<std::filesystem::path>> search_paths = ReadSearchPaths(root.Find("search_paths"), base_directory);
+		PlanResult<std::vector<std::filesystem::path>> search_paths = ReadDirectories(root.Find("search_paths"), "search_paths", base_directory);
 		if (!search_paths.has_value())
 		{
 			return std::unexpected(search_paths.error());
 		}
 
-		PlanResult<std::vector<NativePackage>> native_packages = ReadNativePackages(root.Find("native_packages"), base_directory);
-		if (!native_packages.has_value())
+		PlanResult<std::vector<std::filesystem::path>> library_paths = ReadDirectories(root.Find("library_paths"), "library_paths", base_directory);
+		if (!library_paths.has_value())
 		{
-			return std::unexpected(native_packages.error());
+			return std::unexpected(library_paths.error());
 		}
 
-		plan.m_inputs = CompilationInputs()
-			.WithSearchPaths(search_paths.value())
-			.WithNativePackages(std::move(native_packages.value()));
+		PlanResult<std::unordered_map<std::string, NativeLibrarySettings>> native_libraries = ReadNativeLibraries(root.Find("native_libraries"), base_directory);
+		if (!native_libraries.has_value())
+		{
+			return std::unexpected(native_libraries.error());
+		}
+
+		plan.m_inputs = CompilationInputs().WithSearchPaths(search_paths.value());
+		plan.m_native.m_search_paths = std::move(library_paths.value());
+		plan.m_native.m_libraries = std::move(native_libraries.value());
 		return plan;
 	}
 

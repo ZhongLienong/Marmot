@@ -4058,69 +4058,136 @@ MidoriResult::StatementResult Parser::ParseSimpleStatement()
 
 MidoriResult::StatementResult Parser::ParseForeignStatement()
 {
-	return Consume(Token::Name::TEXT_LITERAL, "Expected name used in library.")
+	return Consume(Token::Name::TEXT_LITERAL, "Expected the foreign symbol, or the library of a foreign block.")
 		.and_then
 		(
-			[this](Token&& foreign_name) ->MidoriResult::StatementResult
+			[this](Token&& name) -> MidoriResult::StatementResult
 			{
-				return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected foreign function name.")
+				if (Match(Token::Name::LEFT_BRACE))
+				{
+					return ParseForeignBlock(name);
+				}
+
+				return ParseForeignDeclaration(name, std::nullopt);
+			}
+		);
+}
+
+// foreign "library" { "symbol" Name : Type; ... } declares each function as if
+// it were written `foreign "symbol" Name : Type from "library";`.
+MidoriResult::StatementResult Parser::ParseForeignBlock(const Token& library)
+{
+	std::vector<std::unique_ptr<MidoriStatement>> declarations;
+	while (!Check(Token::Name::RIGHT_BRACE, 0) && !IsAtEnd())
+	{
+		MidoriResult::TokenResult symbol = Consume(Token::Name::TEXT_LITERAL, "Expected the symbol of a foreign function in the foreign block.");
+		if (!symbol.has_value())
+		{
+			return std::unexpected(std::move(symbol.error()));
+		}
+
+		MidoriResult::StatementResult declaration = ParseForeignDeclaration(symbol.value(), library.m_lexeme);
+		if (!declaration.has_value())
+		{
+			return declaration;
+		}
+
+		if (declaration.value()->GetStatement<MidoriStatement::ForeignDefinition>().m_local_index.has_value())
+		{
+			return std::unexpected(GenerateParserError("A foreign block can only appear at the top level of a module.", library));
+		}
+
+		declarations.emplace_back(std::move(declaration.value()));
+	}
+
+	MidoriResult::TokenResult closing = Consume(Token::Name::RIGHT_BRACE, "Expected '}' after the foreign block.");
+	if (!closing.has_value())
+	{
+		return std::unexpected(std::move(closing.error()));
+	}
+
+	if (declarations.empty())
+	{
+		return std::unexpected(GenerateParserError(std::format("The foreign block for \"{}\" declares no functions.", library.m_lexeme), library));
+	}
+
+	for (size_t index = 1uz; index < declarations.size(); index += 1uz)
+	{
+		m_pending_statements.push(std::move(declarations[index]));
+	}
+	return std::move(declarations.front());
+}
+
+MidoriResult::StatementResult Parser::ParseForeignDeclaration(const Token& foreign_name, const std::optional<std::string>& block_library)
+{
+	return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected foreign function name.")
+		.and_then
+		(
+			[this, &foreign_name, &block_library](Token&& function_name) ->MidoriResult::StatementResult
+			{
+				function_name.m_lexeme = Mangle(function_name.m_lexeme);
+
+				return Consume(Token::Name::SINGLE_COLON, "Expected ':' before foreign function type.")
 					.and_then
 					(
-						[this, &foreign_name](Token&& function_name) ->MidoriResult::StatementResult
+						[&foreign_name, &function_name, &block_library, this](Token&&) ->MidoriResult::StatementResult
 						{
-							function_name.m_lexeme = Mangle(function_name.m_lexeme);
-
-							return Consume(Token::Name::SINGLE_COLON, "Expected ':' before foreign function type.")
+							constexpr bool is_variable = true;
+							return DefineName(function_name, is_variable)
 								.and_then
 								(
-									[&foreign_name, &function_name, this](Token&&) ->MidoriResult::StatementResult
+									[&foreign_name, &function_name, &block_library, this](Token&& name) ->MidoriResult::StatementResult
 									{
-										constexpr bool is_variable = true;
-										return DefineName(function_name, is_variable)
+										std::optional<int> local_index = RegisterOrUpdateLocalVariable(name.m_lexeme);
+										constexpr bool is_foreign = true;
+										BeginScope();
+										struct ForeignTypeScopeGuard
+										{
+											Parser* m_parser;
+											bool m_prev_allow_implicit_generic_params;
+
+											explicit ForeignTypeScopeGuard(Parser* parser)
+												: m_parser(parser),
+												  m_prev_allow_implicit_generic_params(parser->m_state.m_allow_implicit_generic_params)
+											{
+												m_parser->m_state.m_allow_implicit_generic_params = true;
+											}
+
+											~ForeignTypeScopeGuard()
+											{
+												m_parser->m_state.m_allow_implicit_generic_params = m_prev_allow_implicit_generic_params;
+												m_parser->EndScope();
+											}
+										} foreign_type_scope_guard(this);
+
+										return ParseType(is_foreign)
 											.and_then
 											(
-												[&foreign_name, &function_name, this](Token&& name) ->MidoriResult::StatementResult
+												[&foreign_name, &function_name, &local_index, &block_library, this](std::shared_ptr<MidoriType>&& type)->MidoriResult::StatementResult
 												{
-													std::optional<int> local_index = RegisterOrUpdateLocalVariable(name.m_lexeme);
-													constexpr bool is_foreign = true;
-													BeginScope();
-													struct ForeignTypeScopeGuard
+													if (!type->IsType<MidoriType::FunctionType>())
 													{
-														Parser* m_parser;
-														bool m_prev_allow_implicit_generic_params;
+														return std::unexpected(GenerateParserError("'foreign' only applies to function types.", function_name));
+													}
 
-														explicit ForeignTypeScopeGuard(Parser* parser)
-															: m_parser(parser),
-															  m_prev_allow_implicit_generic_params(parser->m_state.m_allow_implicit_generic_params)
+													std::optional<std::string> library = block_library;
+													if (!block_library.has_value() && Check(Token::Name::IDENTIFIER_LITERAL, 0) && Peek(0).m_lexeme == "from")
+													{
+														Advance();
+														MidoriResult::TokenResult library_name = Consume(Token::Name::TEXT_LITERAL, "Expected the library name after 'from'.");
+														if (!library_name.has_value())
 														{
-															m_parser->m_state.m_allow_implicit_generic_params = true;
+															return std::unexpected(std::move(library_name.error()));
 														}
+														library = library_name->m_lexeme;
+													}
 
-														~ForeignTypeScopeGuard()
-														{
-															m_parser->m_state.m_allow_implicit_generic_params = m_prev_allow_implicit_generic_params;
-															m_parser->EndScope();
-														}
-													} foreign_type_scope_guard(this);
-
-													return ParseType(is_foreign)
+													return Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after foreign function type.")
 														.and_then
 														(
-															[&foreign_name, &function_name, &local_index, this](std::shared_ptr<MidoriType>&& type)->MidoriResult::StatementResult
+															[&foreign_name, &function_name, &type, &local_index, &library](Token&&) ->MidoriResult::StatementResult
 															{
-																if (!type->IsType<MidoriType::FunctionType>())
-																{
-																	return std::unexpected(GenerateParserError("'foreign' only applies to function types.", function_name));
-																}
-
-																return Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after foreign function type.")
-																	.and_then
-																	(
-																		[&foreign_name, &function_name, &type, &local_index](Token&&) ->MidoriResult::StatementResult
-																		{
-																			return std::make_unique<MidoriStatement>(MidoriStatement::ForeignDefinition(function_name, foreign_name.m_lexeme, std::move(type), std::move(local_index)));
-																		}
-																	);
+																return std::make_unique<MidoriStatement>(MidoriStatement::ForeignDefinition(function_name, foreign_name.m_lexeme, std::move(type), std::move(local_index), std::move(library)));
 															}
 														);
 												}

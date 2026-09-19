@@ -23,9 +23,16 @@ std::optional<FFIFunction> DynamicFFIRegistry::FindFunction(std::string_view fun
 	return std::nullopt;
 }
 
-std::expected<void, std::string> DynamicFFIRegistry::ValidateWorkerSafety() const
+std::expected<void, std::string> DynamicFFIRegistry::ValidateWorkerSafety(const std::vector<NativeLibraryImport>& libraries)
 {
-	const std::vector<std::string> non_thread_safe = SharedLibraryCache::GetInstance().GetNonThreadSafePackages();
+	std::vector<std::string> library_names;
+	library_names.reserve(libraries.size());
+	for (const NativeLibraryImport& library : libraries)
+	{
+		library_names.push_back(library.m_name);
+	}
+
+	const std::vector<std::string> non_thread_safe = SharedLibraryCache::GetInstance().GetNonThreadSafeLibraries(library_names);
 	if (non_thread_safe.empty())
 	{
 		return {};
@@ -42,7 +49,7 @@ std::expected<void, std::string> DynamicFFIRegistry::ValidateWorkerSafety() cons
 	}
 
 	return std::unexpected(std::format(
-		"Cannot spawn worker: the following FFI packages are not declared thread_safe: {}. "
-		"Set thread_safe = true in each package's package.marmot [ffi] section if the native code is safe for concurrent use.",
+		"Cannot spawn worker: the following native libraries are not declared thread_safe: {}. "
+		"Set thread_safe = true in the [ffi] section of the package.marmot that ships each one if its native code is safe for concurrent use.",
 		package_list));
 }

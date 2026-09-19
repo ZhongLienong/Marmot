@@ -87,11 +87,14 @@ public:
 	struct ForeignDefinition
 	{
 		Token m_function_name;
+		// The symbol the library exports, or a builtin's name.
 		std::string m_foreign_name;
 		std::shared_ptr<MidoriType> m_type;
 		std::optional<int> m_local_index;
+		// The native library that exports m_foreign_name; none for a builtin.
+		std::optional<std::string> m_library;
 
-		ForeignDefinition(const Token& function_name, const std::string& foreign_name, std::shared_ptr<MidoriType>&& type, std::optional<int>&& local_index);
+		ForeignDefinition(const Token& function_name, const std::string& foreign_name, std::shared_ptr<MidoriType>&& type, std::optional<int>&& local_index, std::optional<std::string> library = std::nullopt);
 	};
 
 	struct Struct
