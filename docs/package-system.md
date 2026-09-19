@@ -187,20 +187,26 @@ Recognized fields:
 - `enabled`
 - `library_name`
 - `abi_version`
-- `functions`
+- `thread_safe`
 
-`functions` maps Marmot foreign names to concrete exported symbol names inside
-the shared library.
+`library_name` is the name the package's source uses for its library:
+
+```marmot
+foreign "marmot_image_read_info" ReadInfo : fn(Text) -> Int from "marmot_image";
+```
+
+The functions themselves are declared in source, not in the manifest; a
+manifest that still has an `[ffi.functions]` table is reported and provides no
+library.
 
 Current validation:
 
 - `abi_version` must be a positive integer
 - enabled packages must target the current runtime ABI version
-- declared symbols are validated against the loaded library before registration
-- at compile time, a `foreign "Name"` declaration must name either a builtin
-  runtime function or a key of `functions` of the native package the build
-  plan associates with the declaring file's directory; anything else is the
-  compile error
+- the symbols a program declares are looked up in the loaded library before it
+  runs
+- at compile time, a `foreign "Name"` declaration without `from` must name a
+  builtin runtime function; anything else is the compile error
   `CodeGeneratorUnknownForeignFunction`, rather than a failed call at run time
 
 ### `[build]`
@@ -263,8 +269,7 @@ checksums drift, Marmot emits warnings.
 
 ## Native Library Selection And Verification
 
-For FFI-enabled packages, `PackageManifest::GetFFILibraryPath()` chooses the
-library path like this:
+For FFI-enabled packages, the `marmot` tool chooses the library path like this:
 
 1. use the matching `[prebuilt]` entry for the current platform when present
 2. otherwise fall back to the conventional `lib/` path
@@ -275,7 +280,7 @@ Fallback paths:
 - macOS: `lib/macos/lib<library_name>.dylib`
 - Linux: `lib/linux/x86_64/lib<library_name>.so`
 
-`DynamicFFIRegistry` verifies the selected prebuilt checksum before loading:
+`marmotc run` verifies the selected prebuilt checksum before loading:
 
 - matching checksum: load continues
 - checksum mismatch: load fails
@@ -287,13 +292,17 @@ is available.
 ## Native Packages At Build And Run Time
 
 The `marmot` tool resolves packages before anything compiles. In the build plan
-it names every native package the program can reach: the entry file's own
-package and any package that is itself a search path.
+it lists the library of every native package the program can reach (the entry
+file's own package and any package that is itself a search path) with its path,
+`thread_safe` and checksum.
 
 1. an import resolves to an `.mmt` file on the plan's search paths
-2. a file whose directory is a native package's root may declare that
-   package's foreign functions
-3. `marmotc run` selects each package's library and registers the declared
-   functions through `DynamicFFIRegistry` just before the program starts;
-   `check` and `build` never load a library
-4. a library that fails to load, or lacks a declared symbol, stops the run
+2. a `foreign ... from "name"` declaration names a library; the compiler
+   records it in the program and its `.mmc`
+3. `marmotc run` finds each library the program names, through the plan or a
+   library search path, and loads it just before the program starts; `check`
+   and `build` never load a library
+4. a library that is not found, fails to load, or lacks a declared symbol
+   stops the run
+
+See [Build Plans](plan-file.md#native-libraries) for the search order.

@@ -197,8 +197,9 @@ pub struct PackageManifest {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeLibrary {
+    /// The name source code gives the library: `foreign ... from "name"`.
+    pub name: String,
     pub library: PathBuf,
-    pub functions: BTreeMap<String, String>,
     pub thread_safe: bool,
     pub checksum: Option<String>,
 }
@@ -277,19 +278,15 @@ fn native_library(
         return Ok(None);
     };
 
-    let mut functions = BTreeMap::new();
-    if let Some(table) = ffi.get("functions").and_then(Value::as_table) {
-        for (key, value) in table {
-            let symbol = value
-                .as_str()
-                .ok_or_else(|| format!("[ffi.functions].{key} is not a string"))?;
-            functions.insert(key.clone(), symbol.to_string());
-        }
+    if ffi.contains_key("functions") {
+        return Err(format!(
+            "Package '{name}' has an [ffi.functions] table, which is no longer read. Declare each function in source instead: foreign \"symbol\" Name : fn(...) -> T from \"{library_name}\";"
+        ));
     }
 
     Ok(Some(NativeLibrary {
+        name: library_name.to_string(),
         library: prebuilt_path.unwrap_or_else(|| default_library_path(directory, library_name)),
-        functions,
         thread_safe: ffi
             .get("thread_safe")
             .and_then(Value::as_bool)

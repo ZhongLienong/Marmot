@@ -18,7 +18,9 @@ compiles every test file with the plan's inputs, so its plan has no entry.
 The `marmot` tool writes the plan: it resolves a project and its dependencies,
 and the compiler only compiles. `marmot plan [file]` prints the plan it would
 use. Without a plan, `marmotc` finds `<Name>` imports through `MARMOT_PATH` and
-knows no native packages (see [Import Resolution](module-system.md#import-resolution)).
+native libraries through `--library-path`, `MARMOT_LIBRARY_PATH` and the
+declaring module's directory (see [Import Resolution](module-system.md#import-resolution)
+and [Native libraries](#native-libraries)).
 
 ## Format
 
@@ -27,14 +29,11 @@ knows no native packages (see [Import Resolution](module-system.md#import-resolu
   "version": 1,
   "entry": "src/Main.mmt",
   "search_paths": ["src", "packages/Image", "MarmotPrelude"],
-  "native_packages": [
+  "library_paths": ["native/bin"],
+  "native_libraries": [
     {
-      "name": "Image",
-      "root": "packages/Image",
-      "library": "packages/Image/lib/windows/x64/marmot_image.dll",
-      "functions": {
-        "MIDORI_FFI_Image_ReadInfo": "marmot_image_read_info"
-      },
+      "name": "marmot_image",
+      "path": "packages/Image/lib/windows/x64/marmot_image.dll",
       "thread_safe": true,
       "checksum": "sha256:..."
     }
@@ -47,16 +46,15 @@ knows no native packages (see [Import Resolution](module-system.md#import-resolu
 | `version` | yes | Plan format version. This compiler reads `1`. |
 | `entry` | for run, check, build | The file to compile. Absent in a plan for `test`. |
 | `search_paths` | no | Directories searched, in order, for `<Name>` imports. Each must exist. |
-| `native_packages` | no | Packages that ship a native library (below). |
+| `library_paths` | no | Directories searched for native libraries. Each must exist. |
+| `native_libraries` | no | Settings for libraries that source names with `from "name"` (below). |
 
-Each native package:
+Each native library:
 
 | Member | Required | Meaning |
 |---|---|---|
-| `name` | yes | Package name; unique within the plan. |
-| `root` | yes | The package's directory. Source files directly in it may declare the package's foreign functions. |
-| `library` | yes | The shared library. If the file is missing, the program still compiles and runs, and calls into it fail. |
-| `functions` | yes | Foreign name used in Marmot mapped to the symbol exported by the library. |
+| `name` | yes | The name source gives the library in `foreign ... from "name"`; unique within the plan. |
+| `path` | no | The library file, tried before any search. |
 | `thread_safe` | no | Whether workers may call the library concurrently. Default `false`. |
 | `checksum` | no | Expected checksum of the library, verified before it loads. |
 
@@ -70,7 +68,32 @@ than silently left out.
 
 ## Native libraries
 
+Source names the library a foreign function comes from:
+
+```marmot
+foreign "marmot_image_read_info" ReadInfo : fn(Text) -> Int from "marmot_image";
+
+foreign "marmot_image"
+{
+    "marmot_image_width" Width : fn(Int) -> Int;
+    "marmot_image_height" Height : fn(Int) -> Int;
+}
+```
+
+The quoted name before the Marmot name is the symbol the library exports. The
+compiler records each library, the symbols used from it and the directory of
+the module that declared it, in the program and in its `.mmc`.
+
 Checking or building a program never loads its native libraries; loading one
-runs the library's own code. `marmotc run` loads the libraries of every native
-package the program's files belong to just before the program starts, and a
-library that fails to load stops the run with an error.
+runs the library's own code. `marmotc run` loads them just before the program
+starts. For a library named `name` it looks for `name.dll` on Windows,
+`libname.dylib` on macOS and `libname.so` on Linux, trying in order:
+
+1. the plan's `path` for the library
+2. `--library-path` directories, then the plan's `library_paths`, then
+   `MARMOT_LIBRARY_PATH`
+3. the declaring module's `lib/<platform>/` directory, then the module's own
+   directory, where `<platform>` is `windows/x64`, `macos` or `linux/x86_64`
+
+A library that is not found, fails to load, or lacks a symbol the program uses
+stops the run with an error before the program starts.

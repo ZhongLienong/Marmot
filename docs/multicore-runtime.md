@@ -184,8 +184,9 @@ thread_safe = true
 
 - Default: `thread_safe = false` (safe by default)
 - Validation happens at worker construction time, before `ExecuteLoop()`
-- If any loaded package has `thread_safe = false`, worker creation fails with
-  a clear error naming the offending packages
+- If any native library the program imports has `thread_safe = false`,
+  worker creation fails with a clear error naming the offending libraries.
+  Libraries loaded for another program in the same process do not count
 - `thread_safe = true` means the native code uses no global mutable state, or
   manages its own synchronization
 

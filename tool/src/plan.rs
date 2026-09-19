@@ -3,7 +3,6 @@ use crate::packages::{self, Mode};
 use crate::paths::{self, DirectoryList};
 use crate::version::Version;
 use serde::Serialize;
-use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 pub const PLAN_VERSION: u32 = 1;
@@ -16,15 +15,14 @@ pub struct Plan {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub entry: Option<String>,
     pub search_paths: Vec<String>,
-    pub native_packages: Vec<PlanNativePackage>,
+    pub native_libraries: Vec<PlanNativeLibrary>,
 }
 
+/// Where a library that source names with `from "name"` is, and how to load it.
 #[derive(Debug, Serialize, PartialEq, Eq)]
-pub struct PlanNativePackage {
+pub struct PlanNativeLibrary {
     pub name: String,
-    pub root: String,
-    pub library: String,
-    pub functions: BTreeMap<String, String>,
+    pub path: String,
     pub thread_safe: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub checksum: Option<String>,
@@ -36,17 +34,17 @@ impl Plan {
     }
 }
 
-/// Native packages a program compiled from these directories can reach: the
-/// entry's own package and any package that is itself a search path. The
-/// compiler associates a file with the package whose manifest sits in the
-/// file's directory, and a `<Name>` import finds `Name.mmt` directly in a
-/// search path.
-fn native_packages(
+/// The native libraries of the packages a program compiled from these
+/// directories can reach: the entry's own package and any package that is
+/// itself a search path.
+fn native_libraries(
     entry_directory: &Path,
     search_paths: &[PathBuf],
     compiler: &Version,
-) -> Result<Vec<PlanNativePackage>, String> {
-    let mut packages: Vec<PlanNativePackage> = Vec::new();
+    warnings: &mut Vec<String>,
+) -> Result<Vec<PlanNativeLibrary>, String> {
+    let mut libraries: Vec<PlanNativeLibrary> = Vec::new();
+    let mut providers: Vec<String> = Vec::new();
     let mut seen_roots: Vec<String> = Vec::new();
     for directory in
         std::iter::once(entry_directory).chain(search_paths.iter().map(PathBuf::as_path))
@@ -57,36 +55,42 @@ fn native_packages(
         }
         seen_roots.push(key);
 
-        // A manifest that does not load is not a native package, as in the compiler.
-        let Ok(package) = manifest::read_package(directory, compiler) else {
-            continue;
+        // A manifest that does not load provides no library; say why.
+        let package = match manifest::read_package(directory, compiler) {
+            Ok(package) => package,
+            Err(error) => {
+                warnings.push(format!(
+                    "{}: {error}",
+                    paths::display(&directory.join(PACKAGE_MANIFEST))
+                ));
+                continue;
+            }
         };
         let Some(native) = package.native else {
             continue;
         };
-        if let Some(existing) = packages
+        if let Some(index) = libraries
             .iter()
-            .find(|existing| existing.name == package.name)
+            .position(|existing| existing.name == native.name)
         {
             return Err(format!(
-                "two native packages are named '{}': {} and {}",
-                package.name,
-                existing.root,
+                "two packages provide the native library '{}': {} and {}",
+                native.name,
+                providers[index],
                 paths::display(directory)
             ));
         }
 
-        packages.push(PlanNativePackage {
-            name: package.name,
-            root: paths::display(directory),
-            library: paths::display(&native.library),
-            functions: native.functions,
+        providers.push(paths::display(directory));
+        libraries.push(PlanNativeLibrary {
+            name: native.name,
+            path: paths::display(&native.library),
             thread_safe: native.thread_safe,
             checksum: native.checksum,
         });
     }
 
-    Ok(packages)
+    Ok(libraries)
 }
 
 /// Search paths for sources under `directory`, and any warnings about the
@@ -118,11 +122,12 @@ fn assemble(
     directory: &Path,
     search_paths: Vec<PathBuf>,
     compiler: &Version,
+    warnings: &mut Vec<String>,
 ) -> Result<Plan, String> {
     Ok(Plan {
         version: PLAN_VERSION,
         entry: entry.map(paths::display),
-        native_packages: native_packages(directory, &search_paths, compiler)?,
+        native_libraries: native_libraries(directory, &search_paths, compiler, warnings)?,
         search_paths: search_paths
             .iter()
             .map(|path| paths::display(path))
@@ -141,11 +146,15 @@ pub fn make_plan(
         return Err(format!("no such file: {}", entry.display()));
     }
     let entry_directory = entry.parent().map(Path::to_path_buf).unwrap_or_default();
-    let (search_paths, warnings) = inputs(&entry_directory, environment, compiler)?;
-    Ok((
-        assemble(Some(&entry), &entry_directory, search_paths, compiler)?,
-        warnings,
-    ))
+    let (search_paths, mut warnings) = inputs(&entry_directory, environment, compiler)?;
+    let plan = assemble(
+        Some(&entry),
+        &entry_directory,
+        search_paths,
+        compiler,
+        &mut warnings,
+    )?;
+    Ok((plan, warnings))
 }
 
 /// A plan with no entry, for compiling every file under `directory` (tests).
@@ -155,9 +164,7 @@ pub fn inputs_plan(
     compiler: &Version,
 ) -> Result<(Plan, Vec<String>), String> {
     let directory = paths::absolute(directory);
-    let (search_paths, warnings) = inputs(&directory, environment, compiler)?;
-    Ok((
-        assemble(None, &directory, search_paths, compiler)?,
-        warnings,
-    ))
+    let (search_paths, mut warnings) = inputs(&directory, environment, compiler)?;
+    let plan = assemble(None, &directory, search_paths, compiler, &mut warnings)?;
+    Ok((plan, warnings))
 }

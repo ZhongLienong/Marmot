@@ -271,10 +271,11 @@ PackageName/
 The `marmot` tool reads the manifests: `marmot install PackageName` adds the
 dependency, resolves it and vendors it into `packages/`, and `marmot run` hands
 the compiler a [build plan](docs/plan-file.md) with the package on the search
-path and its native library named. Exported symbols still come from the
+path and its native library's location. Exported symbols still come from the
 module's `public export` / `private export` blocks. `marmotc` on its own reads
-no manifests: it finds `<Name>` imports through `MARMOT_PATH` and knows no
-native packages.
+no manifests: it finds `<Name>` imports through `MARMOT_PATH`, and native
+libraries through `--library-path`, `MARMOT_LIBRARY_PATH` and the declaring
+module's directory.
 
 **Using a package:**
 ```bash
@@ -457,7 +458,21 @@ foreign "MIDORI_FFI_WriteFile" WriteFile : fn(Text, Text) -> Bool;
 
 // Returning complex types
 foreign "MIDORI_FFI_ReadBinaryFile" ReadBinaryFile : fn(Text) -> Array<Byte>;
+
+// From a native library: the symbol, then the library that exports it
+foreign "marmot_image_width" Width : fn(Int) -> Int from "marmot_image";
+
+// Several functions from one library
+foreign "marmot_image"
+{
+    "marmot_image_width" ImageWidth : fn(Int) -> Int;
+    "marmot_image_height" ImageHeight : fn(Int) -> Int;
+}
 ```
+
+A declaration without `from` must name a builtin. See
+[Build Plans](docs/plan-file.md#native-libraries) for how `marmotc run` finds a
+library.
 
 ### Supported Surface
 

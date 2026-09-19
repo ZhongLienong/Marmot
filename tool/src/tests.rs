@@ -1,7 +1,7 @@
 use crate::manifest;
 use crate::packages::{self, Mode};
 use crate::paths;
-use crate::plan::{self, Plan};
+use crate::plan::{self, Plan, PlanNativeLibrary};
 use crate::resolver::{self, Graph, Index, ResolvedPackage};
 use crate::version::{Constraint, Version};
 use std::collections::BTreeMap;
@@ -105,7 +105,7 @@ fn without_a_manifest_the_search_paths_are_marmot_path() {
 
     assert_eq!(plan.entry, Some(shown(&tree.path("app/Main.mmt"))));
     assert_eq!(plan.search_paths, vec![shown(&tree.path("lib"))]);
-    assert!(plan.native_packages.is_empty());
+    assert!(plan.native_libraries.is_empty());
 }
 
 #[test]
@@ -252,8 +252,7 @@ fn a_package_manifest_is_a_workspace_rooted_at_itself() {
     let tree = TempTree::new(&[
         (
             "Pkg/package.marmot",
-            &(package("Pkg", "1.0.0", &[])
-                + "\n[ffi]\nenabled = true\nlibrary_name = \"pkg\"\n\n[ffi.functions]\n\"F\" = \"f\"\n"),
+            &(package("Pkg", "1.0.0", &[]) + "\n[ffi]\nenabled = true\nlibrary_name = \"pkg\"\n"),
         ),
         ("Pkg/Pkg.mmt", "module Pkg\n"),
     ]);
@@ -261,37 +260,32 @@ fn a_package_manifest_is_a_workspace_rooted_at_itself() {
     let plan = plan_for(&tree, "Pkg/Pkg.mmt", &[]);
 
     assert_eq!(plan.search_paths, vec![shown(&tree.path("Pkg"))]);
-    assert_eq!(plan.native_packages.len(), 1);
-    assert_eq!(plan.native_packages[0].name, "Pkg");
+    assert_eq!(plan.native_libraries.len(), 1);
+    assert_eq!(plan.native_libraries[0].name, "pkg");
     assert!(tree.path("Pkg/marmot.lock").exists());
 }
 
 #[test]
-fn native_packages_come_from_installed_packages() {
+fn native_libraries_come_from_installed_packages() {
     let tree = TempTree::new(&[
         ("project.marmot", &project(&[("Native", "^1.0.0")])),
         ("src/Main.mmt", "module Main\n"),
         (
             "registry/Native/package.marmot",
             &(package("Native", "1.0.0", &[])
-                + "\n[ffi]\nenabled = true\nlibrary_name = \"native\"\nthread_safe = true\n\n[ffi.functions]\n\"MIDORI_FFI_Native_Answer\" = \"native_answer\"\n\n[prebuilt.windows_x64]\npath = \"bin/native.dll\"\nchecksum = \"sha256:ab\"\n"),
+                + "\n[ffi]\nenabled = true\nlibrary_name = \"native\"\nthread_safe = true\n\n[prebuilt.windows_x64]\npath = \"bin/native.dll\"\nchecksum = \"sha256:ab\"\n"),
         ),
     ]);
 
     let plan = plan_for(&tree, "src/Main.mmt", &[]);
 
-    assert_eq!(plan.native_packages.len(), 1);
-    let native = &plan.native_packages[0];
-    assert_eq!(native.name, "Native");
-    assert_eq!(native.root, shown(&tree.path("packages/Native-1.0.0")));
+    assert_eq!(plan.native_libraries.len(), 1);
+    let native = &plan.native_libraries[0];
+    assert_eq!(native.name, "native");
     assert!(native.thread_safe);
-    assert_eq!(
-        native.functions["MIDORI_FFI_Native_Answer"],
-        "native_answer"
-    );
     if cfg!(windows) {
         assert_eq!(
-            native.library,
+            native.path,
             shown(&tree.path("packages/Native-1.0.0/bin/native.dll"))
         );
         assert_eq!(native.checksum.as_deref(), Some("sha256:ab"));
@@ -317,7 +311,31 @@ fn a_package_without_ffi_or_with_another_abi_is_not_native() {
     );
 
     assert_eq!(plan.search_paths.len(), 2);
-    assert!(plan.native_packages.is_empty());
+    assert!(plan.native_libraries.is_empty());
+}
+
+#[test]
+fn a_package_that_still_lists_ffi_functions_is_named_in_a_warning() {
+    let tree = TempTree::new(&[
+        ("app/Main.mmt", "module Main\n"),
+        (
+            "legacy/package.marmot",
+            &(package("Legacy", "1.0.0", &[])
+                + "\n[ffi]\nenabled = true\nlibrary_name = \"legacy\"\n\n[ffi.functions]\n\"F\" = \"f\"\n"),
+        ),
+    ]);
+
+    let (plan, warnings) = plan::make_plan(
+        &tree.path("app/Main.mmt"),
+        &[tree.path("legacy")],
+        &compiler(),
+    )
+    .unwrap();
+
+    assert!(plan.native_libraries.is_empty());
+    assert_eq!(warnings.len(), 1, "{warnings:?}");
+    assert!(warnings[0].contains("[ffi.functions]"), "{}", warnings[0]);
+    assert!(warnings[0].contains("from \"legacy\""), "{}", warnings[0]);
 }
 
 #[test]
@@ -475,11 +493,21 @@ fn the_plan_serialises_as_the_compiler_expects() {
         version: 1,
         entry: Some("E".into()),
         search_paths: vec!["S".into()],
-        native_packages: Vec::new(),
+        native_libraries: vec![PlanNativeLibrary {
+            name: "n".into(),
+            path: "P".into(),
+            thread_safe: false,
+            checksum: None,
+        }],
     };
     let json: serde_json::Value = serde_json::from_str(&plan.to_json()).unwrap();
     assert_eq!(
         json,
-        serde_json::json!({ "version": 1, "entry": "E", "search_paths": ["S"], "native_packages": [] })
+        serde_json::json!({
+            "version": 1,
+            "entry": "E",
+            "search_paths": ["S"],
+            "native_libraries": [{ "name": "n", "path": "P", "thread_safe": false }]
+        })
     );
 }

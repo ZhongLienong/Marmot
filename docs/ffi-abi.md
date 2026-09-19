@@ -9,9 +9,12 @@ Dynamic native packages must declare the ABI they target in `package.marmot`:
 enabled = true
 library_name = "marmot_image"
 abi_version = 1
+```
 
-[ffi.functions]
-"Image::ReadInfo" = "marmot_image_read_info"
+The package's source declares the functions it uses, naming the library:
+
+```marmot
+foreign "marmot_image_read_info" ReadInfo : fn(Text) -> Int from "marmot_image";
 ```
 
 If `abi_version` does not match the runtime's current ABI version, manifest load
@@ -139,11 +142,11 @@ The runtime uses `FFIReturnKind` to describe how `ret` is interpreted.
 
 ## Load-Time Validation
 
-For manifest-driven dynamic packages, Marmot validates at load time:
+The `marmot` tool rejects a package whose `abi_version` does not match the
+runtime's. Before a program runs, `marmotc` validates:
 
-- `abi_version` matches the runtime's supported ABI version
-- the native library can be loaded
-- every declared symbol in `[ffi.functions]` exists in the loaded library
+- each native library the program names can be found and loaded
+- every symbol the program declares from it exists in the loaded library
 - selected prebuilt library checksums match when provided
 
 These checks happen before user code can call the package's native functions.
