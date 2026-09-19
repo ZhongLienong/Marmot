@@ -197,9 +197,8 @@ python scripts/check_format.py --build Development --enforce-clean
 ```
 
 `python scripts/test_project.py --mode regression` also runs `scripts/check_format.py` unless you pass `--skip-format-check`. The check verifies that
-`marmot fmt` is idempotent across the test corpus, the prelude, and the
-reference package. The optional `--enforce-clean` flag additionally requires
-`marmot fmt --check` to pass on each scanned root.
+`marmotc fmt` is idempotent across the test corpus and the prelude. The optional `--enforce-clean` flag additionally requires
+`marmotc fmt --check` to pass on each scanned root.
 
 Compile every benchmark program, and optionally run them:
 

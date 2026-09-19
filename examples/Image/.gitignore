@@ -1,4 +1,0 @@
-/native/target/
-/lib/windows/x64/*.dll
-/lib/linux/x86_64/*.so
-/lib/macos/*.dylib

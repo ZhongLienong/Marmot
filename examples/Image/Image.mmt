@@ -1,8 +1,0 @@
-module Image
-public export { ReadInfo, ReadRGBA, WriteRGBA }
-// Returns [width, height]
-foreign "MIDORI_FFI_Image_ReadInfo" ReadInfo: fn(Text) -> Array < Int >;
-// Returns RGBA bytes (width * height * 4) as integer values 0..255
-foreign "MIDORI_FFI_Image_ReadRGBA" ReadRGBA: fn(Text) -> Array < Int >;
-// Writes RGBA bytes to the target path
-foreign "MIDORI_FFI_Image_WriteRGBA" WriteRGBA: fn(Text, Int, Int, Array < Int >) -> Bool;

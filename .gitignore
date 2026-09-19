@@ -375,12 +375,7 @@ AGENTS.md
 build/
 build-wasm/
 
-# Reference packages (local build artifacts)
-examples/Image/native/target/
 tool/target/
-examples/Image/lib/windows/x64/*.dll
-examples/Image/lib/linux/x86_64/*.so
-examples/Image/lib/macos/*.dylib
 
 # Generated doc-example compile sandboxes
 .doc_examples/

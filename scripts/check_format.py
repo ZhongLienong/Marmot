@@ -34,7 +34,6 @@ from run_tests import TestRunner
 DEFAULT_ROOTS: tuple[str, ...] = (
     "test",
     "MarmotPrelude",
-    "examples",
 )
 
 
