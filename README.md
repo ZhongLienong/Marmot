@@ -46,10 +46,14 @@ marmot init hello-world
 cd hello-world
 
 marmot check src/Main.mmt
-marmot fmt src -w
+marmot fmt
 marmot run src/Main.mmt
 marmot test
 ```
+
+Inside a project, `marmot fmt` formats the project's sources (`--check` only
+checks them), leaving installed packages, the prelude and `marmot_path`
+registries alone; `marmot fmt <file|dir>...` formats just those.
 
 Every `.mmt` source file must begin with an explicit `module` declaration. Short snippets below may omit it for brevity, but complete file examples include it.
 

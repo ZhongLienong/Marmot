@@ -400,6 +400,16 @@ def scenario_fmt_check_and_write(runner: TestRunner) -> None:
         assert_condition(check_after.returncode == 0, f"fmt_check_after_write: expected exit code 0, got {check_after.returncode}.")
         assert_condition(check_after_payload.get("changedCount") == 0, f"Expected no changed files after write, got: {check_after_payload}")
 
+        # Several paths in one call: a file and a directory, checked together.
+        write_text(temp_dir / "lib" / "Lib.mmt", "module Lib\ndef x = fn()->Int=>1;\n")
+        several = run_midori(runner, ["fmt", str(source_path), str(temp_dir / "lib"), "--check", "--format", "json"], env_overrides={"MARMOT_PATH": None})
+        several_payload = parse_command_json("fmt_several_paths", several)
+        assert_condition(several.returncode != 0, "fmt_several_paths: the unformatted file in lib should fail the check.")
+        assert_condition(len(several_payload.get("files", [])) == 2 and several_payload.get("changedCount") == 1, f"Expected two files, one changed, got: {several_payload}")
+
+        printed = run_midori(runner, ["fmt", str(source_path), str(temp_dir / "lib")], env_overrides={"MARMOT_PATH": None})
+        assert_condition(printed.returncode != 0 and "requires --write or --check" in printed.stdout + printed.stderr, f"fmt_several_paths: printing several paths should be refused: {printed.stdout}{printed.stderr}")
+
 
 def scenario_test_command_discovers_tests(runner: TestRunner) -> None:
     with tempfile.TemporaryDirectory(prefix="marmot-cli-test-") as temp_dir_raw:

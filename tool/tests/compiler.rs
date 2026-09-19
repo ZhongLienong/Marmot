@@ -562,3 +562,41 @@ fn fmt_is_the_compilers() {
         &["fmt", "Main.mmt", "--check"],
     ));
 }
+
+#[test]
+fn fmt_without_a_path_formats_the_project_but_not_other_peoples_code() {
+    let Some(compiler) = compiler() else { return };
+    let project = greeter_project("fmt-project");
+    succeeded(&marmot(&compiler, &project.0, &["install"]));
+    let messy = "module Main\ndef   main = fn() -> Int => 0;\n";
+    project.write("src/Main.mmt", messy);
+    project.write("test/Smoke.mmt", messy);
+    project.write(".hidden/Skip.mmt", messy);
+    project.write("registry/Punctuation/Extra.mmt", messy);
+    project.write("MarmotPrelude/Extra.mmt", messy);
+    let installed = project.read("packages/Greeter-1.2.0/Greeter.mmt");
+    project.write(
+        "packages/Greeter-1.2.0/Greeter.mmt",
+        &(installed.clone() + "def   x = 1;\n"),
+    );
+
+    let checked = marmot(&compiler, &project.0, &["fmt", "--check"]);
+    assert!(!checked.status.success());
+    assert_eq!(
+        project.read("src/Main.mmt"),
+        messy,
+        "--check must not write"
+    );
+
+    succeeded(&marmot(&compiler, &project.path("src"), &["fmt"]));
+    assert_ne!(project.read("src/Main.mmt"), messy);
+    assert_ne!(project.read("test/Smoke.mmt"), messy);
+    assert_eq!(project.read(".hidden/Skip.mmt"), messy);
+    assert_eq!(project.read("MarmotPrelude/Extra.mmt"), messy);
+    assert_eq!(project.read("registry/Punctuation/Extra.mmt"), messy);
+    assert_eq!(
+        project.read("packages/Greeter-1.2.0/Greeter.mmt"),
+        installed + "def   x = 1;\n"
+    );
+    succeeded(&marmot(&compiler, &project.0, &["fmt", "--check"]));
+}

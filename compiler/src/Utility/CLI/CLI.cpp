@@ -57,6 +57,7 @@ namespace
 		// the plan's).
 		NativeLibraryOptions m_native_options;
 		std::filesystem::path m_target_path;
+		std::vector<std::filesystem::path> m_fmt_paths;
 		std::filesystem::path m_worker_result_directory;
 		bool m_fmt_write = false;
 		bool m_fmt_check = false;
@@ -273,12 +274,12 @@ namespace
 		if (command_name == "fmt")
 		{
 			return
-				"Usage: marmotc fmt <file|dir> [--write|-w] [--check] [--format json]\n"
+				"Usage: marmotc fmt <file|dir>... [--write|-w] [--check] [--format json]\n"
 				"Format Marmot source files using the canonical CLI style.\n\n"
 				"Examples:\n"
 				"  marmotc fmt src/Main.mmt\n"
 				"  marmotc fmt src -w\n"
-				"  marmotc fmt test --check\n";
+				"  marmotc fmt src test --check\n";
 		}
 
 		if (command_name == "test")
@@ -625,15 +626,10 @@ namespace
 				return std::unexpected(std::format("Unknown option: {}", arg));
 			}
 
-			if (!invocation.m_target_path.empty())
-			{
-				return std::unexpected("Only one target path is allowed for fmt.");
-			}
-
-			invocation.m_target_path = std::filesystem::path(arg);
+			invocation.m_fmt_paths.emplace_back(arg);
 		}
 
-		if (!invocation.m_show_help && invocation.m_target_path.empty())
+		if (!invocation.m_show_help && invocation.m_fmt_paths.empty())
 		{
 			return std::unexpected("Missing file or directory for fmt.");
 		}
@@ -1265,27 +1261,32 @@ namespace
 		}
 
 		std::error_code error_code;
-		const bool is_directory = std::filesystem::is_directory(invocation.m_target_path, error_code);
-		if (is_directory && !invocation.m_fmt_write && !invocation.m_fmt_check)
+		for (const std::filesystem::path& path : invocation.m_fmt_paths)
 		{
-			PrintCliError("Formatting a directory requires --write or --check.");
+			if (!std::filesystem::is_directory(path, error_code) && !std::filesystem::is_regular_file(path, error_code))
+			{
+				PrintCliError(std::format("Could not find target for fmt: {}", path.string()));
+				return EXIT_FAILURE;
+			}
+		}
+
+		// Only a single file can be printed; anything more is checked or written.
+		const std::filesystem::path& first_path = invocation.m_fmt_paths.front();
+		const bool prints_one_file = invocation.m_fmt_paths.size() == 1u && std::filesystem::is_regular_file(first_path, error_code);
+		if (!prints_one_file && !invocation.m_fmt_write && !invocation.m_fmt_check)
+		{
+			PrintCliError("Formatting a directory or several files requires --write or --check.");
 			return EXIT_FAILURE;
 		}
 
-		if (!is_directory && !std::filesystem::is_regular_file(invocation.m_target_path, error_code))
-		{
-			PrintCliError(std::format("Could not find target for fmt: {}", invocation.m_target_path.string()));
-			return EXIT_FAILURE;
-		}
-
-		if (!is_directory && !invocation.m_fmt_write && !invocation.m_fmt_check)
+		if (prints_one_file && !invocation.m_fmt_write && !invocation.m_fmt_check)
 		{
 			const std::expected<std::string, std::string> read_result = [&]() -> std::expected<std::string, std::string>
 			{
-				std::ifstream input(invocation.m_target_path, std::ios::binary);
+				std::ifstream input(first_path, std::ios::binary);
 				if (!input.is_open())
 				{
-					return std::unexpected(std::format("Could not open file: {}", invocation.m_target_path.string()));
+					return std::unexpected(std::format("Could not open file: {}", first_path.string()));
 				}
 
 				std::string text((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
@@ -1297,7 +1298,7 @@ namespace
 				return EXIT_FAILURE;
 			}
 
-			const std::expected<std::string, CompilerError> format_result = MidoriFormatter::FormatSource(read_result.value(), invocation.m_target_path.string());
+			const std::expected<std::string, CompilerError> format_result = MidoriFormatter::FormatSource(read_result.value(), first_path.string());
 			if (!format_result.has_value())
 			{
 				PrintCliError(format_result.error().Rendered());
@@ -1312,7 +1313,7 @@ namespace
 				MidoriJson::AppendStringField(payload, "source", "marmot", first_field);
 				MidoriJson::AppendStringField(payload, "command", "fmt", first_field);
 				MidoriJson::AppendBoolField(payload, "success", true, first_field);
-				MidoriJson::AppendStringField(payload, "target", invocation.m_target_path.generic_string(), first_field);
+				MidoriJson::AppendStringField(payload, "target", first_path.generic_string(), first_field);
 				MidoriJson::AppendStringField(payload, "formattedText", format_result.value(), first_field);
 				payload.push_back('}');
 				std::print("{}", payload);
@@ -1324,9 +1325,14 @@ namespace
 			return EXIT_SUCCESS;
 		}
 
-		const MidoriFormatter::RunResult result = MidoriFormatter::FormatPath(
-			invocation.m_target_path,
-			MidoriFormatter::Options{ invocation.m_fmt_write, invocation.m_fmt_check });
+		MidoriFormatter::RunResult result;
+		for (const std::filesystem::path& path : invocation.m_fmt_paths)
+		{
+			MidoriFormatter::RunResult path_result = MidoriFormatter::FormatPath(
+				path,
+				MidoriFormatter::Options{ invocation.m_fmt_write, invocation.m_fmt_check });
+			std::ranges::move(path_result.m_files, std::back_inserter(result.m_files));
+		}
 
 		if (invocation.m_format == OutputFormat::Json)
 		{

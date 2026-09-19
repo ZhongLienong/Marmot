@@ -1,5 +1,6 @@
 mod checksum;
 mod edit;
+mod fmt;
 mod init;
 mod lockfile;
 mod manifest;
@@ -34,7 +35,8 @@ Commands:
   remove <package>      Drop a dependency and its installed copies
   list                  Show the resolved dependency tree
   test [filter]         Run the project's tests (the [test] directory)
-  fmt <file|dir> ...    Format sources (options as for marmotc fmt)
+  fmt [file|dir...]     Format sources (options as for marmotc fmt); without
+                        a path, write the project's, or --check them
   init [path]           Create a project; with --package, a package
 
 Without [file], the entry named by the nearest project.marmot or
@@ -549,7 +551,14 @@ fn execute(kind: CommandKind, options: Options) -> Result<ExitCode, String> {
     let compiler = find_compiler(options.marmotc.as_deref());
     if kind == CommandKind::Fmt {
         let mut command = Command::new(&compiler);
-        command.arg("fmt").args(&options.raw);
+        command.arg("fmt");
+        if !fmt::names_a_path(&options.raw) {
+            command.args(fmt::project_sources(&current_workspace()?)?);
+            if fmt::writes_by_default(&options.raw) {
+                command.arg("--write");
+            }
+        }
+        command.args(&options.raw);
         return run_compiler(command, &compiler);
     }
 
