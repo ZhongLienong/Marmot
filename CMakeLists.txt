@@ -118,12 +118,13 @@ endfunction()
 #                                  builtin table's names and signatures
 #   MarmotRuntime   runtime/src    the VM and builtin library     -> Common
 #   MarmotCompiler  compiler/src   source to bytecode             -> Common
-#   MarmotDriver    compiler/src/Utility/{CLI,Driver,TestRunner}
-#                                  the application layer          -> Compiler, Runtime
+#   MarmotDriver    compiler/src/Utility/{CLI,Driver}
+#                                  marmotc's command line         -> Compiler
 #
-# The compiler never links the runtime. The entry points (compiler/src/Marmot.cpp,
-# web/src) are added per build below.
-set(MIDORI_DRIVER_DIRS CLI Driver TestRunner)
+# The compiler never links the runtime: marmotc compiles, and marmotvm
+# (vm/src, -> Runtime) runs what it builds. The entry points
+# (compiler/src/Marmot.cpp, vm/src, web/src) are added per build below.
+set(MIDORI_DRIVER_DIRS CLI Driver)
 
 file(GLOB_RECURSE MARMOT_COMMON_SOURCES CONFIGURE_DEPENDS
     "common/src/*.h"
@@ -165,7 +166,7 @@ target_include_directories(MarmotCompiler PUBLIC ${CMAKE_SOURCE_DIR}/compiler/sr
 target_link_libraries(MarmotCompiler PUBLIC MarmotCommon)
 
 add_library(MarmotDriver STATIC ${MARMOT_DRIVER_SOURCES})
-target_link_libraries(MarmotDriver PUBLIC MarmotCompiler MarmotRuntime)
+target_link_libraries(MarmotDriver PUBLIC MarmotCompiler)
 
 set(MIDORI_LIBRARY_TARGETS
     MarmotCommon

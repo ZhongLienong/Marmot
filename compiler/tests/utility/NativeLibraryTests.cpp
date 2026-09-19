@@ -62,7 +62,7 @@ namespace
 	{
 		const MidoriBuild::ScopedTestModeOverride quiet(true);
 		MidoriTest::OutputCapture capture;
-		const MidoriDriver::RunResult result = MidoriProgramLoader::Run(std::move(executable));
+		const std::expected<int, RuntimeError> result = MidoriProgramLoader::Run(std::move(executable));
 		const std::string output = capture.Stop().m_stdout;
 		REQUIRE(result.has_value());
 		return output;

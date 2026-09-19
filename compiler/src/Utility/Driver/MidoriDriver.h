@@ -30,8 +30,6 @@ namespace MidoriDriver
 	using SourceReadResult = std::expected<std::string, DriverError>;
 	using CompileFileWithReportResult = std::expected<MidoriResult::CompiledProgram, DriverError>;
 	using CompileFileResult = std::expected<MidoriExecutable, DriverError>;
-	using RunResult = std::expected<int, RuntimeError>;
-	using DriverResult = std::expected<int, DriverError>;
 
 	[[nodiscard]] SourceReadResult ReadSourceFile(const std::filesystem::path& file_path);
 	// The directories in MARMOT_PATH, in order.
@@ -48,8 +46,4 @@ namespace MidoriDriver
 	// Compiles with exactly `inputs` (a build plan's).
 	[[nodiscard]] CompileFileWithReportResult CompileFileWithReport(const std::filesystem::path& file_path, CompilationInputs inputs);
 	[[nodiscard]] CompileFileResult CompileFile(const std::filesystem::path& file_path);
-	// A native library that did not load, reported like a compile error: the
-	// program never starts.
-	[[nodiscard]] DriverError NativeLibraryError(std::string message);
-	[[nodiscard]] DriverResult CompileAndRunFile(const std::filesystem::path& file_path);
 }

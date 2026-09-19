@@ -106,6 +106,6 @@ TEST_CASE("A program compiled from a plan sees only the plan's search paths", "[
 	REQUIRE(compiled.has_value());
 
 	MidoriResult::CompiledProgram program = std::move(compiled).value();
-	const MidoriDriver::RunResult run_result = MidoriProgramLoader::Run(std::move(program).TakeExecutable());
+	const std::expected<int, RuntimeError> run_result = MidoriProgramLoader::Run(std::move(program).TakeExecutable());
 	CHECK(run_result.has_value());
 }

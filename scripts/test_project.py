@@ -131,8 +131,8 @@ def build_targets_for_mode(mode: str) -> list[str]:
     if mode == "unit":
         return ["MarmotUnitTests"]
     if mode == "regression":
-        return ["marmotc"]
-    return ["marmotc", "MarmotUnitTests"]
+        return ["marmotc", "marmotvm"]
+    return ["marmotc", "marmotvm", "MarmotUnitTests"]
 
 
 def unit_test_executable(binary_dir: Path) -> Path:

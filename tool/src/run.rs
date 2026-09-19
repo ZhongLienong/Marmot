@@ -33,6 +33,12 @@ pub fn find_vm(explicit: Option<&Path>, compiler: &Path) -> PathBuf {
 /// A directory removed when dropped.
 pub struct TemporaryDirectory(PathBuf);
 
+impl TemporaryDirectory {
+    pub fn new(path: PathBuf) -> TemporaryDirectory {
+        TemporaryDirectory(path)
+    }
+}
+
 impl Drop for TemporaryDirectory {
     fn drop(&mut self) {
         let _ = std::fs::remove_dir_all(&self.0);

@@ -697,3 +697,65 @@ fn run_hands_the_vm_a_packages_native_library() {
     let ran = marmot(&compiler, &project.0, &["run"]);
     assert_eq!(text(&succeeded(&ran).stdout), "42\n");
 }
+
+#[test]
+fn test_checks_exit_status_and_snapshots_outside_a_project() {
+    let Some(compiler) = compiler() else { return };
+    let project = Project::new("test-snapshots");
+    let hello = "module Hello\nimport { \"<IO>\" }\nIO::PrintLine(\"hello\");\n";
+    project.write("test/hello.mmt", hello);
+    project.write("test/hello.expected", "hello\n");
+    project.write("test/wrong.mmt", hello);
+    project.write("test/wrong.expected", "goodbye\n");
+    // A failure test passes by failing to compile, and its snapshot is the error.
+    project.write("test/failure/broken.mmt", "module Broken\ndef broken = ;\n");
+    project.write(
+        "test/warns.mmt",
+        "module Warns\ndef main = fn() -> Int => {\n    def unused = 1;\n    0\n};\n",
+    );
+    project.write(
+        "test/warns.warnings.json",
+        "[{\"code\": \"UnusedLocal\"}]\n",
+    );
+    project.write("test/doc_examples/skipped.mmt", "module Skipped\ndef broken = ;\n");
+
+    let tested = marmot(&compiler, &project.0, &["test", "--format", "json"]);
+    let payload: serde_json::Value = serde_json::from_slice(&tested.stdout)
+        .unwrap_or_else(|_| panic!("{}{}", text(&tested.stdout), text(&tested.stderr)));
+    let results: BTreeMap<String, serde_json::Value> = payload["results"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|result| (result["name"].as_str().unwrap().to_string(), result.clone()))
+        .collect();
+    assert_eq!(
+        results.keys().cloned().collect::<Vec<_>>(),
+        ["failure/broken.mmt", "hello.mmt", "warns.mmt", "wrong.mmt"],
+        "{payload}"
+    );
+    assert_eq!(results["hello.mmt"]["passed"], true, "{payload}");
+    assert_eq!(results["failure/broken.mmt"]["passed"], true, "{payload}");
+    assert_eq!(results["failure/broken.mmt"]["expectedToFail"], true);
+    assert_eq!(results["wrong.mmt"]["passed"], false);
+    assert!(
+        results["wrong.mmt"]["error"]
+            .as_str()
+            .unwrap()
+            .starts_with("Output snapshot mismatch.")
+    );
+    // The warning snapshot names only the code; the rest of the warning differs.
+    assert_eq!(results["warns.mmt"]["passed"], false, "{payload}");
+    assert!(
+        results["warns.mmt"]["error"]
+            .as_str()
+            .unwrap()
+            .starts_with("Warning snapshot mismatch.")
+    );
+    assert!(!tested.status.success());
+    // Outside a project the tests are built somewhere temporary.
+    assert!(!project.path("target").exists());
+
+    let one = marmot(&compiler, &project.0, &["test", "hello"]);
+    let rendered = text(&succeeded(&one).stdout);
+    assert!(rendered.contains("Total: 1/1 passed"), "{rendered}");
+}

@@ -28,6 +28,7 @@ target_include_directories(MidoriTestSupport PUBLIC
 
 target_link_libraries(MidoriTestSupport PUBLIC
     MarmotDriver
+    MarmotRuntime
 )
 
 add_executable(MarmotUnitTests

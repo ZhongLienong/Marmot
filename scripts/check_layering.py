@@ -3,7 +3,7 @@
     common    -> common
     runtime   -> common, runtime
     compiler  -> common, compiler
-    driver    -> common, runtime, compiler, driver   (the application layer)
+    driver    -> common, compiler, driver            (marmotc: compiles, never runs)
     web       -> common, runtime, compiler
     vm        -> common, runtime, vm             (marmotvm: runs, never compiles)
 
@@ -31,7 +31,7 @@ INCLUDE_ROOTS = {
 # The folders of compiler/src that form the driver, not the compiler library.
 DRIVER_DIRS = [
     ROOT / 'compiler' / 'src' / 'Utility' / name
-    for name in ('CLI', 'Driver', 'TestRunner')
+    for name in ('CLI', 'Driver')
 ]
 DRIVER_FILES = [ROOT / 'compiler' / 'src' / 'Marmot.cpp']
 
@@ -39,7 +39,7 @@ ALLOWED = {
     'common': {'common'},
     'runtime': {'common', 'runtime'},
     'compiler': {'common', 'compiler'},
-    'driver': {'common', 'runtime', 'compiler', 'driver'},
+    'driver': {'common', 'compiler', 'driver'},
     'web': {'common', 'runtime', 'compiler'},
     'vm': {'common', 'runtime', 'vm'},
 }

@@ -17,13 +17,10 @@
 #include "Common/BuildConfig/BuildConfig.h"
 #include "Common/BytecodeArtifact/BinaryArtifact.h"
 #include "Common/Json/Json.h"
-#include "Common/OutputCapture/OutputCapture.h"
 #include "Common/Printer/Printer.h"
-#include "Loader/ProgramLoader.h"
 #include "Utility/BuildPlan/BuildPlan.h"
 #include "Utility/Driver/MidoriDriver.h"
 #include "Utility/Formatter/Formatter.h"
-#include "Utility/TestRunner/TestRunner.h"
 
 namespace
 {
@@ -37,12 +34,9 @@ namespace
 	{
 		Overview,
 		Version,
-		Run,
 		Check,
 		Build,
-		Fmt,
-		Test,
-		TestWorker
+		Fmt
 	};
 
 	struct Invocation
@@ -54,25 +48,13 @@ namespace
 		// Set by --plan: the plan's inputs replace all discovery, and its entry
 		// becomes m_source_file.
 		std::optional<CompilationInputs> m_plan_inputs = std::nullopt;
-		// run: where the program's native libraries are (--library-path).
-		MidoriProgramLoader::NativeLibraryLocations m_native_locations;
-		std::filesystem::path m_target_path;
 		std::vector<std::filesystem::path> m_fmt_paths;
-		std::filesystem::path m_worker_result_directory;
 		bool m_fmt_write = false;
 		bool m_fmt_check = false;
 		bool m_embed_sources = false;
 		// build: where the .mmc goes (-o), and whether to leave out the summary.
 		std::optional<std::filesystem::path> m_output_path = std::nullopt;
 		bool m_quiet = false;
-		std::optional<std::string> m_test_filter = std::nullopt;
-		std::optional<std::string> m_test_pattern = std::nullopt;
-		std::optional<std::string> m_test_file = std::nullopt;
-		// test: the test directory, the per-test timeout, and the plan whose
-		// inputs every test compiles with.
-		std::optional<std::filesystem::path> m_test_directory = std::nullopt;
-		std::optional<int> m_test_timeout_ms = std::nullopt;
-		std::optional<std::filesystem::path> m_plan_file = std::nullopt;
 	};
 
 	using ParseResult = std::expected<Invocation, std::string>;
@@ -111,23 +93,6 @@ namespace
 
 	[[nodiscard]] std::string CommandHelp(std::string_view command_name)
 	{
-		if (command_name == "run")
-		{
-			return
-				"Usage: marmotc run (<file> | --plan <plan.json>) [--library-path <dir>]... [--format json]\n"
-				"Compile and execute a .mmt source file, or load and execute a .mmc artifact.\n"
-				"With --plan, compile the plan's entry from exactly the plan's inputs.\n"
-				"Native libraries (foreign ... from \"library\") are looked for in each\n"
-				"--library-path, MARMOT_LIBRARY_PATH, then beside\n"
-				"the module that declared them.\n\n"
-				"Examples:\n"
-				"  marmotc run src/Main.mmt\n"
-				"  marmotc run src/Main.mmc\n"
-				"  marmotc src/Main.mmt\n"
-				"  marmotc run src/Main.mmt --format json\n"
-				"  marmotc run --plan build/plan.json\n";
-		}
-
 		if (command_name == "check")
 		{
 			return
@@ -170,22 +135,6 @@ namespace
 				"  marmotc fmt src test --check\n";
 		}
 
-		if (command_name == "test")
-		{
-			return
-				"Usage: marmotc test [filter] [--pattern <value>] [--test <file>] [--format json]\n"
-				"                    [--dir <test_dir>] [--timeout-ms <ms>] [--plan <plan.json>]\n"
-				"Discover and run the tests under the test directory (default: ./test),\n"
-				"each with a time limit (default: 30000 ms). With --plan, every test compiles\n"
-				"from the plan's search paths and native packages; the plan needs no entry.\n"
-				"`marmot test` runs this for a project, from its [test] settings.\n\n"
-				"Examples:\n"
-				"  marmotc test\n"
-				"  marmotc test closure\n"
-				"  marmotc test --pattern loop\n"
-				"  marmotc test --test closure/simple.mmt\n";
-		}
-
 		return {};
 	}
 
@@ -194,14 +143,11 @@ namespace
 		return
 			"Marmot CLI\n\n"
 			"Usage:\n"
-			"  marmotc <file>\n"
 			"  marmotc <command> [options]\n\n"
 			"Commands:\n"
-			"  run      Compile and execute a source file\n"
 			"  check    Type-check a source file without executing it\n"
-			"  build    Compile a source file and emit a bytecode artifact\n"
+			"  build    Compile a source file to a .mmc program\n"
 			"  fmt      Format one file or a directory of .mmt files\n"
-			"  test     Discover and run tests\n"
 			"  help     Show general or per-command help\n\n"
 			"Global flags:\n"
 			"  --help      Show help\n"
@@ -209,11 +155,11 @@ namespace
 			"Examples:\n"
 			"  marmotc fmt src -w\n"
 			"  marmotc check src/Main.mmt --format json\n"
-			"  marmotc run src/Main.mmt\n"
-			"  marmotc run --plan plan.json\n"
-			"  marmotc test closure\n\n"
+			"  marmotc build src/Main.mmt -o target/Main.mmc\n"
+			"  marmotvm target/Main.mmc\n\n"
 			"marmotc compiles what it is given: a file, with <Name> imports found through\n"
-			"MARMOT_PATH, or a build plan. Projects and packages are the marmot tool's job:\n"
+			"MARMOT_PATH, or a build plan. It never runs a program: marmotvm runs what it\n"
+			"builds. Projects, packages, running and testing are the marmot tool's job:\n"
 			"  marmot run, marmot test, marmot install, marmot init\n";
 	}
 
@@ -244,7 +190,7 @@ namespace
 
 	[[nodiscard]] std::optional<std::string_view> SuggestCommand(std::string_view input)
 	{
-		static constexpr std::string_view commands[] = { "run", "check", "build", "fmt", "test", "help" };
+		static constexpr std::string_view commands[] = { "check", "build", "fmt", "help" };
 		std::optional<std::string_view> best_match = std::nullopt;
 		int best_distance = 1000;
 		for (const std::string_view command : commands)
@@ -317,23 +263,29 @@ namespace
 			return {};
 		}
 
-		if (!invocation.m_source_file.empty())
-		{
-			return std::unexpected(std::format("Pass either a source file or --plan to {}, not both.", command));
-		}
-
 		std::expected<BuildPlan, std::string> plan = MidoriBuildPlan::ReadFile(plan_file.value());
 		if (!plan.has_value())
 		{
 			return std::unexpected(std::format("Invalid build plan: {}", plan.error()));
 		}
 
-		if (!plan->m_entry.has_value())
+		// A plan without an entry gives only the inputs, and the file given
+		// with it is the entry (the marmot tool compiles tests this way). A plan
+		// with an entry is the whole compile.
+		if (plan->m_entry.has_value() && !invocation.m_source_file.empty())
 		{
-			return std::unexpected(std::format("Invalid build plan: {}: {} needs an \"entry\"", plan_file->string(), command));
+			return std::unexpected(std::format("Pass either a source file or a plan with an entry to {}, not both.", command));
 		}
 
-		invocation.m_source_file = plan->m_entry.value();
+		if (!plan->m_entry.has_value() && invocation.m_source_file.empty())
+		{
+			return std::unexpected(std::format("Invalid build plan: {}: {} needs an \"entry\", or a source file", plan_file->string(), command));
+		}
+
+		if (plan->m_entry.has_value())
+		{
+			invocation.m_source_file = plan->m_entry.value();
+		}
 		invocation.m_plan_inputs = std::move(plan->m_inputs);
 		return {};
 	}
@@ -363,16 +315,6 @@ namespace
 				continue;
 			}
 
-			if (arg == "--library-path" && kind == CommandKind::Run)
-			{
-				if (index + 1u >= args.size())
-				{
-					return std::unexpected("Missing value for --library-path.");
-				}
-				invocation.m_native_locations.m_search_paths.emplace_back(args[++index]);
-				continue;
-			}
-
 			if (arg == "--format")
 			{
 				std::string error;
@@ -390,13 +332,13 @@ namespace
 
 			if (!invocation.m_source_file.empty())
 			{
-				return std::unexpected(std::format("Only one source file is allowed for {}.", kind == CommandKind::Run ? "run" : kind == CommandKind::Check ? "check" : "build"));
+				return std::unexpected(std::format("Only one source file is allowed for {}.", kind == CommandKind::Check ? "check" : "build"));
 			}
 
 			invocation.m_source_file = std::filesystem::path(arg);
 		}
 
-		const std::expected<void, std::string> plan_result = ApplyPlan(invocation, plan_file, kind == CommandKind::Run ? "run" : kind == CommandKind::Check ? "check" : "build");
+		const std::expected<void, std::string> plan_result = ApplyPlan(invocation, plan_file, kind == CommandKind::Check ? "check" : "build");
 		if (!plan_result.has_value())
 		{
 			return std::unexpected(plan_result.error());
@@ -537,125 +479,6 @@ namespace
 		return invocation;
 	}
 
-	[[nodiscard]] ParseResult ParseTest(const std::vector<std::string_view>& args)
-	{
-		Invocation invocation;
-		invocation.m_kind = CommandKind::Test;
-
-		for (size_t index = 0u; index < args.size(); index += 1u)
-		{
-			const std::string_view arg = args[index];
-			if (arg == "-h" || arg == "--help")
-			{
-				invocation.m_show_help = true;
-				continue;
-			}
-
-			if (arg == "--pattern")
-			{
-				if (index + 1u >= args.size())
-				{
-					return std::unexpected("Missing value for --pattern.");
-				}
-				invocation.m_test_pattern = std::string(args[++index]);
-				continue;
-			}
-
-			if (arg == "--test")
-			{
-				if (index + 1u >= args.size())
-				{
-					return std::unexpected("Missing value for --test.");
-				}
-				invocation.m_test_file = std::string(args[++index]);
-				continue;
-			}
-
-			if (arg == "--dir")
-			{
-				if (index + 1u >= args.size())
-				{
-					return std::unexpected("Missing value for --dir.");
-				}
-				invocation.m_test_directory = std::filesystem::path(args[++index]);
-				continue;
-			}
-
-			if (arg == "--timeout-ms")
-			{
-				if (index + 1u >= args.size())
-				{
-					return std::unexpected("Missing value for --timeout-ms.");
-				}
-				const std::string_view text = args[++index];
-				int timeout_ms = 0;
-				const std::from_chars_result parsed = std::from_chars(text.data(), text.data() + text.size(), timeout_ms);
-				if (parsed.ec != std::errc() || parsed.ptr != text.data() + text.size() || timeout_ms <= 0)
-				{
-					return std::unexpected(std::format("Invalid --timeout-ms: {}", text));
-				}
-				invocation.m_test_timeout_ms = timeout_ms;
-				continue;
-			}
-
-			if (arg == "--plan")
-			{
-				if (index + 1u >= args.size())
-				{
-					return std::unexpected("Missing value for --plan.");
-				}
-				invocation.m_plan_file = std::filesystem::path(args[++index]);
-				continue;
-			}
-
-			if (arg == "--format")
-			{
-				std::string error;
-				if (!ParseFormatValue(args, index, invocation.m_format, error))
-				{
-					return std::unexpected(error);
-				}
-				continue;
-			}
-
-			if (!arg.empty() && arg.front() == '-')
-			{
-				return std::unexpected(std::format("Unknown option: {}", arg));
-			}
-
-			if (invocation.m_test_filter.has_value())
-			{
-				return std::unexpected("Only one positional filter is allowed for test.");
-			}
-
-			invocation.m_test_filter = std::string(arg);
-		}
-
-		return invocation;
-	}
-
-	[[nodiscard]] ParseResult ParseTestWorker(const std::vector<std::string_view>& args)
-	{
-		if (args.size() < 2u || args.size() > 4u)
-		{
-			return std::unexpected("Usage: marmotc __test-worker <test_file> <result_dir> [test_dir [plan]]");
-		}
-
-		Invocation invocation;
-		invocation.m_kind = CommandKind::TestWorker;
-		invocation.m_source_file = std::filesystem::path(args[0u]);
-		invocation.m_worker_result_directory = std::filesystem::path(args[1u]);
-		if (args.size() >= 3u)
-		{
-			invocation.m_target_path = std::filesystem::path(args[2u]);
-		}
-		if (args.size() == 4u)
-		{
-			invocation.m_plan_file = std::filesystem::path(args[3u]);
-		}
-		return invocation;
-	}
-
 	[[nodiscard]] ParseResult ParseInvocation(int argc, char* argv[])
 	{
 		if (argc < 2)
@@ -713,11 +536,7 @@ namespace
 			}
 
 			Invocation invocation;
-			if (rest[0] == "run")
-			{
-				invocation.m_kind = CommandKind::Run;
-			}
-			else if (rest[0] == "check")
+			if (rest[0] == "check")
 			{
 				invocation.m_kind = CommandKind::Check;
 			}
@@ -728,10 +547,6 @@ namespace
 			else if (rest[0] == "fmt")
 			{
 				invocation.m_kind = CommandKind::Fmt;
-			}
-			else if (rest[0] == "test")
-			{
-				invocation.m_kind = CommandKind::Test;
 			}
 			else
 			{
@@ -744,11 +559,7 @@ namespace
 		}
 
 		ParseResult parsed;
-		if (head == "run")
-		{
-			parsed = ParseCompileLike(CommandKind::Run, rest);
-		}
-		else if (head == "check")
+		if (head == "check")
 		{
 			parsed = ParseCompileLike(CommandKind::Check, rest);
 		}
@@ -760,14 +571,6 @@ namespace
 		{
 			parsed = ParseFmt(rest);
 		}
-		else if (head == "test")
-		{
-			parsed = ParseTest(rest);
-		}
-		else if (head == "__test-worker")
-		{
-			parsed = ParseTestWorker(rest);
-		}
 		else
 		{
 			if (!head.empty() && head.front() == '-')
@@ -775,7 +578,17 @@ namespace
 				return std::unexpected(std::format("Unknown option: {}", head));
 			}
 
-			parsed = ParseCompileLike(CommandKind::Run, args);
+			if (head == "run" || head == "test" || head.ends_with(".mmt") || head.ends_with(".mmc"))
+			{
+				return std::unexpected(std::format(
+					"marmotc compiles and never runs a program. Run one with `marmot {} <file>`, or build it with `marmotc build` and run the .mmc with marmotvm.",
+					head == "test" ? "test" : "run"));
+			}
+
+			const std::optional<std::string_view> suggestion = SuggestCommand(head);
+			return std::unexpected(suggestion.has_value()
+				? std::format("Unknown command: {}. Did you mean `{}`?", head, suggestion.value())
+				: std::format("Unknown command: {}", head));
 		}
 
 		if (!parsed.has_value())
@@ -818,64 +631,6 @@ namespace
 		}
 		payload.push_back('}');
 		return payload;
-	}
-
-	[[nodiscard]] std::string SerializeRunReportJson(const MidoriResult::CompilerReport& report, const RuntimeError* runtime_error)
-	{
-		const std::string warnings_json = report.Warnings().MachineReadableJson();
-		const std::string compiler_errors_json = report.Errors().MachineReadableJson();
-		const std::string runtime_error_json = runtime_error != nullptr ? SerializeMachineReadableRuntimeError(*runtime_error) : std::string();
-
-		std::string errors_json = compiler_errors_json;
-		if (runtime_error != nullptr)
-		{
-			if (errors_json == "[]")
-			{
-				errors_json = "[" + runtime_error_json + "]";
-			}
-			else
-			{
-				errors_json.pop_back();
-				errors_json.push_back(',');
-				errors_json += runtime_error_json;
-				errors_json.push_back(']');
-			}
-		}
-
-		std::string diagnostics_json = "[";
-		const std::vector<CompilerWarning>& warnings = report.Warnings().Warnings();
-		for (size_t index = 0u; index < warnings.size(); index += 1u)
-		{
-			if (index > 0u)
-			{
-				diagnostics_json.push_back(',');
-			}
-			diagnostics_json += SerializeMachineReadableWarningPayload(warnings[index]);
-		}
-
-		const std::vector<CompilerError>& errors = report.Errors().Errors();
-		for (size_t index = 0u; index < errors.size(); index += 1u)
-		{
-			if (diagnostics_json.size() > 1u)
-			{
-				diagnostics_json.push_back(',');
-			}
-			diagnostics_json += SerializeMachineReadableError(errors[index]);
-		}
-
-		if (runtime_error != nullptr)
-		{
-			if (diagnostics_json.size() > 1u)
-			{
-				diagnostics_json.push_back(',');
-			}
-			diagnostics_json += runtime_error_json;
-		}
-		diagnostics_json.push_back(']');
-
-		return std::string("{\"version\":1,\"source\":\"marmot\",\"diagnostics\":") + diagnostics_json
-			+ ",\"warnings\":" + warnings_json
-			+ ",\"errors\":" + errors_json + "}";
 	}
 
 	int HandleOverview(const Invocation&)
@@ -1033,6 +788,10 @@ namespace
 		}
 
 		std::print("{}", compiled_program.Report().RenderedWarnings());
+		if (ShouldEmitMachineReadableWarnings())
+		{
+			std::print("{}", compiled_program.Report().MachineReadableWarnings());
+		}
 		if (!invocation.m_quiet)
 		{
 			std::print(
@@ -1044,138 +803,6 @@ namespace
 				executable.GetStringPool().size());
 		}
 		return EXIT_SUCCESS;
-	}
-
-	int HandleRun(const Invocation& invocation)
-	{
-		if (invocation.m_show_help)
-		{
-			std::print("{}", CommandHelp("run"));
-			return EXIT_SUCCESS;
-		}
-
-		const MidoriBuild::ScopedTestModeOverride suppress_internal_diagnostics(true);
-
-		MidoriProgramLoader::NativeLibraryLocations native_locations = invocation.m_native_locations;
-		const std::vector<std::filesystem::path> environment_library_paths = MidoriProgramLoader::EnvironmentLibraryPaths();
-		native_locations.m_search_paths.insert(native_locations.m_search_paths.end(), environment_library_paths.begin(), environment_library_paths.end());
-
-		if (!invocation.m_plan_inputs.has_value() && invocation.m_source_file.extension() == ".mmc")
-		{
-			// Load-and-run path for pre-built binary artifacts
-			std::expected<MidoriExecutable, MidoriDriver::DriverError> load_result = [&]() -> std::expected<MidoriExecutable, MidoriDriver::DriverError>
-			{
-				std::expected<MidoriExecutable, std::string> program = MidoriProgramLoader::ReadProgram(invocation.m_source_file);
-				if (!program.has_value())
-				{
-					return std::unexpected(MidoriDriver::DriverError::FileSystem(program.error()));
-				}
-				const std::expected<void, std::string> native_result = MidoriProgramLoader::LoadNativeLibraries(program.value(), native_locations);
-				if (!native_result.has_value())
-				{
-					return std::unexpected(MidoriDriver::NativeLibraryError(native_result.error()));
-				}
-				return std::move(program).value();
-			}();
-			if (!load_result.has_value())
-			{
-				const MidoriResult::CompilerReport report = WrapDriverErrorAsReport(load_result.error());
-				if (invocation.m_format == OutputFormat::Json)
-				{
-					std::print("{}", CommandJson("run", false, report, EXIT_FAILURE));
-				}
-				else
-				{
-					PrintCliError(load_result.error().m_message);
-				}
-				return EXIT_FAILURE;
-			}
-
-			MidoriResult::CompilerReport empty_report;
-			if (invocation.m_format == OutputFormat::Json)
-			{
-				MidoriUtility::OutputCapture capture;
-				MidoriDriver::RunResult run_result = MidoriProgramLoader::Run(std::move(load_result.value()));
-				MidoriUtility::CapturedOutput captured_output = capture.Stop();
-				if (!run_result.has_value())
-				{
-					const RuntimeError runtime_error = run_result.error();
-					const std::string runtime_report_json = SerializeRunReportJson(empty_report, &runtime_error);
-					std::print("{}", CommandJson("run", false, empty_report, runtime_error.ExitCode(), captured_output.m_stdout, captured_output.m_stderr, std::nullopt, runtime_report_json));
-					return runtime_error.ExitCode();
-				}
-
-				std::print("{}", CommandJson("run", run_result.value() == 0, empty_report, run_result.value(), captured_output.m_stdout, captured_output.m_stderr));
-				return run_result.value() == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
-			}
-
-			MidoriDriver::RunResult run_result = MidoriProgramLoader::Run(std::move(load_result.value()));
-			if (!run_result.has_value())
-			{
-				std::print("{}", run_result.error().Rendered());
-				return run_result.error().ExitCode();
-			}
-
-			return run_result.value();
-		}
-
-		// Compile-and-run path for .mmt source files. A native library that fails
-		// to load is reported like a compile error: the program never starts.
-		MidoriDriver::CompileFileWithReportResult compile_result = CompileInvocation(invocation);
-		if (compile_result.has_value())
-		{
-			const std::expected<void, std::string> load_result = MidoriProgramLoader::LoadNativeLibraries(compile_result->m_executable, native_locations);
-			if (!load_result.has_value())
-			{
-				compile_result = std::unexpected(MidoriDriver::NativeLibraryError(load_result.error()));
-			}
-		}
-		if (!compile_result.has_value())
-		{
-			const MidoriResult::CompilerReport report = WrapDriverErrorAsReport(compile_result.error());
-			if (invocation.m_format == OutputFormat::Json)
-			{
-				std::print("{}", CommandJson("run", false, report, EXIT_FAILURE));
-			}
-			else
-			{
-				std::print("{}", compile_result.error().Rendered());
-			}
-			return EXIT_FAILURE;
-		}
-
-		MidoriResult::CompiledProgram compiled_program = std::move(compile_result).value();
-		MidoriResult::CompilerReport report = compiled_program.Report();
-		if (invocation.m_format == OutputFormat::Json)
-		{
-			MidoriUtility::OutputCapture capture;
-			MidoriDriver::RunResult run_result = MidoriProgramLoader::Run(std::move(compiled_program).TakeExecutable());
-			MidoriUtility::CapturedOutput captured_output = capture.Stop();
-			if (!run_result.has_value())
-			{
-				const RuntimeError runtime_error = run_result.error();
-				const std::string runtime_report_json = SerializeRunReportJson(report, &runtime_error);
-				std::print("{}", CommandJson("run", false, report, runtime_error.ExitCode(), captured_output.m_stdout, captured_output.m_stderr, std::nullopt, runtime_report_json));
-				return runtime_error.ExitCode();
-			}
-
-			std::print("{}", CommandJson("run", run_result.value() == 0, report, run_result.value(), captured_output.m_stdout, captured_output.m_stderr));
-			return run_result.value() == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
-		}
-
-		std::print("{}", report.RenderedWarnings());
-		if (ShouldEmitMachineReadableWarnings())
-		{
-			std::print("{}", report.MachineReadableWarnings());
-		}
-		MidoriDriver::RunResult run_result = MidoriProgramLoader::Run(std::move(compiled_program).TakeExecutable());
-		if (!run_result.has_value())
-		{
-			std::print("{}", run_result.error().Rendered());
-			return run_result.error().ExitCode();
-		}
-
-		return run_result.value();
 	}
 
 	int HandleFmt(const Invocation& invocation)
@@ -1337,58 +964,6 @@ namespace
 		return EXIT_SUCCESS;
 	}
 
-	int HandleTest(const Invocation& invocation)
-	{
-		if (invocation.m_show_help)
-		{
-			std::print("{}", CommandHelp("test"));
-			return EXIT_SUCCESS;
-		}
-
-		std::expected<MidoriTestRunner::Options, std::string> options = MidoriTestRunner::Options::Create(
-			std::filesystem::current_path(),
-			invocation.m_test_directory,
-			invocation.m_test_timeout_ms,
-			invocation.m_plan_file);
-		if (!options.has_value())
-		{
-			PrintCliError(options.error());
-			return EXIT_FAILURE;
-		}
-		options->m_filter = invocation.m_test_filter;
-		options->m_pattern = invocation.m_test_pattern;
-		options->m_test_file = invocation.m_test_file;
-
-		MidoriTestRunner::RunResult result = MidoriTestRunner::Run(options.value());
-
-		if (invocation.m_format == OutputFormat::Json)
-		{
-			std::print("{}", result.MachineReadableJson());
-		}
-		else if (result.TotalCount() == 0)
-		{
-			std::print("No tests found in {}\n", result.m_test_directory.string());
-		}
-		else
-		{
-			std::print("{}", result.Rendered());
-		}
-
-		return result.Succeeded() ? EXIT_SUCCESS : EXIT_FAILURE;
-	}
-
-	int HandleTestWorker(const Invocation& invocation)
-	{
-		return MidoriTestRunner::RunWorker(
-			MidoriTestRunner::WorkerOptions
-			{
-				.m_test_path = invocation.m_source_file,
-				.m_result_directory = invocation.m_worker_result_directory,
-				.m_test_directory = invocation.m_target_path,
-				.m_plan_file = invocation.m_plan_file
-			});
-	}
-
 	int HandleUnsupportedJson(const Invocation& invocation)
 	{
 		if (invocation.m_format == OutputFormat::Json)
@@ -1404,11 +979,9 @@ namespace
 	{
 		static const std::vector<CommandSpec> table
 		{
-			{ "run", "Compile and execute a source file", CommandKind::Run, &HandleRun },
 			{ "check", "Type-check a source file without executing it", CommandKind::Check, &HandleCheck },
 			{ "build", "Compile a source file and report bytecode stats", CommandKind::Build, &HandleBuild },
-			{ "fmt", "Format one file or a directory of .mmt files", CommandKind::Fmt, &HandleFmt },
-			{ "test", "Discover and run tests", CommandKind::Test, &HandleTest }
+			{ "fmt", "Format one file or a directory of .mmt files", CommandKind::Fmt, &HandleFmt }
 		};
 		return table;
 	}
@@ -1422,10 +995,6 @@ namespace
 		if (kind == CommandKind::Version)
 		{
 			return &HandleVersion;
-		}
-		if (kind == CommandKind::TestWorker)
-		{
-			return &HandleTestWorker;
 		}
 
 		for (const CommandSpec& spec : CommandTable())

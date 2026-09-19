@@ -15,7 +15,6 @@
 
 #include "Common/Environment/Environment.h"
 #include "Compiler/Compiler.h"
-#include "Loader/ProgramLoader.h"
 
 namespace
 {
@@ -37,20 +36,6 @@ namespace
 		const char* warning_format = std::getenv("MARMOT_TEST_WARNING_FORMAT");
 		return warning_format != nullptr && std::string_view(warning_format) == "machine";
 #endif
-	}
-
-	void EmitWarnings(const MidoriResult::CompilerReport& report)
-	{
-		if (!report.HasWarnings())
-		{
-			return;
-		}
-
-		std::print("{}", report.RenderedWarnings());
-		if (ShouldEmitMachineReadableWarnings())
-		{
-			std::print("{}", report.MachineReadableWarnings());
-		}
 	}
 }
 
@@ -107,11 +92,6 @@ namespace MidoriDriver
 		}
 
 		return m_message;
-	}
-
-	DriverError NativeLibraryError(std::string message)
-	{
-		return DriverError::Compilation(MidoriResult::CompilerDiagnostics(CompilerError::Simple(CompilerStage::Module, std::move(message))));
 	}
 
 	SourceReadResult ReadSourceFile(const std::filesystem::path& file_path)
@@ -196,33 +176,5 @@ namespace MidoriDriver
 		}
 
 		return std::move(compile_result.value()).TakeExecutable();
-	}
-
-	DriverResult CompileAndRunFile(const std::filesystem::path& file_path)
-	{
-		CompileFileWithReportResult compile_result = CompileFileWithReport(file_path);
-		if (!compile_result.has_value())
-		{
-			return std::unexpected(std::move(compile_result.error()));
-		}
-
-		MidoriResult::CompiledProgram compiled_program = std::move(compile_result).value();
-		EmitWarnings(compiled_program.Report());
-
-		std::expected<void, std::string> load_result = MidoriProgramLoader::LoadNativeLibraries(
-			compiled_program.m_executable,
-			MidoriProgramLoader::NativeLibraryLocations{ .m_search_paths = MidoriProgramLoader::EnvironmentLibraryPaths() });
-		if (!load_result.has_value())
-		{
-			return std::unexpected(NativeLibraryError(load_result.error()));
-		}
-
-		RunResult run_result = MidoriProgramLoader::Run(std::move(compiled_program).TakeExecutable());
-		if (!run_result.has_value())
-		{
-			return std::unexpected(DriverError::Diagnostics(MidoriResult::CompilerDiagnostics(run_result.error().ToCompilerError())));
-		}
-
-		return run_result.value();
 	}
 }

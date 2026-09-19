@@ -48,7 +48,7 @@ namespace
 	[[nodiscard]] std::pair<int, std::string> RunArtifact(MidoriExecutable executable)
 	{
 		MidoriTest::OutputCapture capture;
-		MidoriDriver::RunResult run_result = MidoriProgramLoader::Run(std::move(executable));
+		std::expected<int, RuntimeError> run_result = MidoriProgramLoader::Run(std::move(executable));
 		if (!run_result.has_value())
 		{
 			const RuntimeError& error = run_result.error();

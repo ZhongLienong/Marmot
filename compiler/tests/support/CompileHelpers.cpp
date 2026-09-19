@@ -364,7 +364,7 @@ namespace MidoriTest
 		}
 
 		OutputCapture capture;
-		MidoriDriver::RunResult run_result = MidoriProgramLoader::Run(std::move(compile_result.value()));
+		std::expected<int, RuntimeError> run_result = MidoriProgramLoader::Run(std::move(compile_result.value()));
 		if (!run_result.has_value())
 		{
 			const RuntimeError runtime_error = run_result.error();

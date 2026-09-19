@@ -5,10 +5,12 @@ Marmot installer.
 Installs MarmotPrelude to a local directory and configures MARMOT_PATH so system imports
 like `import { <IO> }` can be resolved.
 
-Optionally installs the compiler (marmotc) and the project tool (marmot), and
-updates PATH so both are callable from a new cmd/PowerShell session.
+Optionally installs the compiler (marmotc), the VM that runs what it builds
+(marmotvm, from beside marmotc) and the project tool (marmot), and updates PATH
+so they are callable from a new cmd/PowerShell session.
 
-Note: FFI functions are statically linked into marmotc.exe, so no separate DLL is needed.
+Note: builtin FFI functions are statically linked into marmotvm.exe, so no
+separate DLL is needed.
 """
 
 from __future__ import annotations
@@ -246,7 +248,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--install-dir", default="", help="Installation directory (defaults to LocalAppData/ProgramFiles based on scope).")
     parser.add_argument("--preset", default="auto", help="CMake preset to locate marmotc.exe (default: auto).")
     parser.add_argument("--marmot-exe", default="", help="Explicit path to marmotc.exe (overrides --preset).")
-    parser.add_argument("--copy-binaries", action="store_true", help="Install marmotc and the marmot tool, and add the bin dir to PATH.")
+    parser.add_argument("--copy-binaries", action="store_true", help="Install marmotc, marmotvm and the marmot tool, and add the bin dir to PATH.")
     args = parser.parse_args(argv)
 
     require_admin_for_machine(args.scope)
@@ -281,6 +283,12 @@ def main(argv: list[str]) -> int:
 
         target_layout.bin_dir.mkdir(parents=True, exist_ok=True)
         shutil.copy2(exe_path, target_layout.bin_dir / "marmotc.exe")
+
+        vm_path = exe_path.with_name("marmotvm.exe")
+        if not vm_path.is_file():
+            raise RuntimeError(f"marmotvm.exe not found beside {exe_path}; build the marmotvm target.")
+        print(f"Using marmotvm.exe from: {vm_path}")
+        shutil.copy2(vm_path, target_layout.bin_dir / "marmotvm.exe")
 
         tool_path = find_tool_exe(repo)
         if tool_path is None:

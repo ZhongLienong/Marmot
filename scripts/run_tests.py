@@ -30,6 +30,7 @@ from pathlib import Path
 from dataclasses import dataclass
 from typing import List, Optional
 import re
+import tempfile
 
 # Color codes
 class Color:
@@ -43,6 +44,36 @@ class Color:
     GRAY = '\033[90m'
     BOLD = '\033[1m'
     RESET = '\033[0m'
+
+def vm_beside(compiler: Path) -> Path:
+    """marmotvm, built beside marmotc."""
+    return compiler.with_name("marmotvm" + compiler.suffix)
+
+
+def build_and_run(
+    compiler: Path,
+    source: str,
+    *,
+    cwd: Path,
+    env: dict,
+    timeout: float,
+) -> subprocess.CompletedProcess:
+    """Build `source` with marmotc and run it in marmotvm, as `marmot run` does.
+
+    The result's output is the build's, then the run's; its exit code is the
+    build's when the build failed. A timeout covers each step.
+    """
+    with tempfile.TemporaryDirectory(prefix="marmot-run-") as directory:
+        program = Path(directory) / (Path(source).stem + ".mmc")
+        options = dict(capture_output=True, text=True, encoding='utf-8', errors='replace',
+                       timeout=timeout, cwd=cwd, env=env, check=False)
+        built = subprocess.run([str(compiler), "build", source, "-o", str(program), "--quiet"], **options)
+        if built.returncode != 0:
+            return built
+        ran = subprocess.run([str(vm_beside(compiler)), str(program)], **options)
+        return subprocess.CompletedProcess(
+            ran.args, ran.returncode, built.stdout + ran.stdout, built.stderr + ran.stderr)
+
 
 @dataclass
 class TestResult:
@@ -258,16 +289,7 @@ class TestRunner:
             if expected_warnings is not None:
                 env["MARMOT_TEST_WARNING_FORMAT"] = "machine"
 
-            result = subprocess.run(
-                [str(self.midori_exe), command_path],
-                capture_output=True,
-                text=True,
-                encoding='utf-8',
-                errors='replace',
-                timeout=30,
-                env=env,
-                cwd=self.root_dir
-            )
+            result = build_and_run(self.midori_exe, command_path, cwd=self.root_dir, env=env, timeout=30)
 
             duration_ms = (time.time() - start) * 1000
 

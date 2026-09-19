@@ -4,14 +4,13 @@ Run CLI-facing contract checks that are not represented as plain .mmt fixtures.
 
 Covers:
 - `marmotc.exe check <file> --format json`, with MARMOT_PATH
-- `marmotc.exe run <file>` and `build <file>`
-- `marmotc.exe run|check|build --plan`, and native packages from a plan
+- `marmotc.exe build <file>`, and `marmotvm.exe` running what it built
+- `marmotc.exe check|build --plan`, and native libraries loaded by marmotvm
 - `marmotc.exe fmt --check`
-- `marmotc.exe test` with --dir, --timeout-ms and --plan
-- `marmotc.exe --version` and `help <command>`
+- `marmotc.exe --version` and `help <command>`, and marmotvm's command line
 
-Projects (manifests, lockfiles, packages, init) belong to the marmot tool and
-are covered by its tests (tool/tests).
+Projects (manifests, lockfiles, packages, init) and `marmot run`/`marmot test`
+belong to the marmot tool and are covered by its tests (tool/tests).
 """
 
 from __future__ import annotations
@@ -26,7 +25,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from run_tests import TestRunner
+from run_tests import TestRunner, vm_beside
 
 
 def repo_root() -> Path:
@@ -64,6 +63,31 @@ def run_midori(
         errors="replace",
         timeout=30,
         cwd=cwd or repo_root(),
+        env=env,
+        check=False,
+    )
+
+
+def run_vm(
+    runner: TestRunner,
+    args: list[str],
+    env_overrides: dict[str, str | None] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """marmotvm, beside the marmotc under test."""
+    env = os.environ.copy()
+    for key, value in (env_overrides or {}).items():
+        if value is None:
+            env.pop(key, None)
+        else:
+            env[key] = value
+    return subprocess.run(
+        [str(vm_beside(runner.midori_exe)), *args],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=30,
+        cwd=repo_root(),
         env=env,
         check=False,
     )
@@ -196,20 +220,21 @@ def scenario_version_output_format(runner: TestRunner) -> None:
 def scenario_help_lists_new_commands(runner: TestRunner) -> None:
     completed = run_midori(runner, [], env_overrides={"MARMOT_PATH": None})
     assert_condition(completed.returncode == 0, f"help_lists_new_commands: expected exit code 0, got {completed.returncode}.")
-    assert_condition("fmt" in completed.stdout and "test" in completed.stdout and "build" in completed.stdout, f"Unexpected help output:\n{completed.stdout}")
+    assert_condition("fmt" in completed.stdout and "check" in completed.stdout and "build" in completed.stdout, f"Unexpected help output:\n{completed.stdout}")
 
-    for removed in ("init", "install", "update", "remove", "list"):
-        assert_condition(f"  {removed} " not in completed.stdout, f"help should not list {removed}, which moved to the marmot tool:\n{completed.stdout}")
-    moved = run_midori(runner, ["install"], env_overrides={"MARMOT_PATH": None})
-    assert_condition(moved.returncode != 0, "marmotc install should be an unknown command.")
+    # Projects moved to the marmot tool; running and testing to marmotvm and the tool.
+    for removed in ("init", "install", "update", "remove", "list", "run", "test"):
+        assert_condition(f"  {removed} " not in completed.stdout, f"help should not list {removed}:\n{completed.stdout}")
+        moved = run_midori(runner, [removed], env_overrides={"MARMOT_PATH": None})
+        assert_condition(moved.returncode != 0, f"marmotc {removed} should be an unknown command.")
 
-    per_command = run_midori(runner, ["help", "test"], env_overrides={"MARMOT_PATH": None})
-    assert_condition(per_command.returncode == 0, f"help_test: expected exit code 0, got {per_command.returncode}.")
-    for flag in ("--pattern", "--test", "--dir", "--timeout-ms", "--plan"):
-        assert_condition(flag in per_command.stdout, f"Expected {flag} in the test help:\n{per_command.stdout}")
+    per_command = run_midori(runner, ["help", "build"], env_overrides={"MARMOT_PATH": None})
+    assert_condition(per_command.returncode == 0, f"help_build: expected exit code 0, got {per_command.returncode}.")
+    for flag in ("--plan", "-o", "--embed-sources", "--quiet"):
+        assert_condition(flag in per_command.stdout, f"Expected {flag} in the build help:\n{per_command.stdout}")
 
 
-def scenario_run_command_executes_program(runner: TestRunner) -> None:
+def scenario_marmotvm_runs_what_marmotc_built(runner: TestRunner) -> None:
     with tempfile.TemporaryDirectory(prefix="marmot-cli-run-") as temp_dir_raw:
         temp_dir = Path(temp_dir_raw)
         source_path = temp_dir / "Main.mmt"
@@ -218,19 +243,39 @@ def scenario_run_command_executes_program(runner: TestRunner) -> None:
             "module Main\n"
             "def main = fn() -> Int => 0;\n",
         )
+        program = temp_dir / "Main.mmc"
+        built = run_midori(runner, ["build", str(source_path), "-o", str(program), "--quiet"], env_overrides={"MARMOT_PATH": None})
+        assert_condition(built.returncode == 0 and program.exists(), f"build: expected {program}: {built.stdout}{built.stderr}")
 
-        completed = run_midori(
-            runner,
-            ["run", str(source_path), "--format", "json"],
-            env_overrides={"MARMOT_PATH": None},
-        )
-        payload = parse_command_json("run_command_executes_program", completed)
-        report = require_report(payload, "run_command_executes_program")
-
-        assert_condition(completed.returncode == 0, f"run_command_executes_program: expected exit code 0, got {completed.returncode}. Errors: {report['errors']}")
-        assert_condition(payload.get("command") == "run", f"Unexpected command payload: {payload}")
+        completed = run_vm(runner, [str(program), "--format", "json"])
+        payload = parse_command_json("marmotvm_runs_what_marmotc_built", completed)
+        report = require_report(payload, "marmotvm_runs_what_marmotc_built")
+        assert_condition(completed.returncode == 0, f"marmotvm: expected exit code 0, got {completed.returncode}. Errors: {report['errors']}")
+        assert_condition(payload.get("source") == "marmotvm" and payload.get("command") == "run", f"Unexpected payload: {payload}")
         assert_condition(payload.get("success") is True, f"Expected run success payload, got {payload}")
         assert_condition(report["errors"] == [], f"Expected no run errors, got: {report['errors']}")
+
+        # A runtime error is the run's report and its exit status.
+        write_text(source_path, "module Main\ndef xs = [1];\ndef x = xs[5];\n")
+        run_midori(runner, ["build", str(source_path), "-o", str(program), "--quiet"], env_overrides={"MARMOT_PATH": None})
+        failed = run_vm(runner, [str(program), "--format", "json"])
+        payload = parse_command_json("marmotvm_runs_what_marmotc_built", failed)
+        assert_condition(failed.returncode != 0 and payload.get("success") is False, f"Expected a failed run: {payload}")
+        assert_condition(payload["report"]["errors"][0]["code"] == "IndexOutOfBounds", f"Unexpected errors: {payload['report']}")
+
+
+def scenario_marmotvm_command_line(runner: TestRunner) -> None:
+    version = run_vm(runner, ["--version"])
+    assert_condition(version.returncode == 0 and re.fullmatch(r"marmotvm \d+\.\d+\.\d+\s*", version.stdout) is not None, f"Unexpected version output:\n{version.stdout}{version.stderr}")
+
+    missing = run_vm(runner, [])
+    assert_condition(missing.returncode != 0 and "Missing the program to run" in missing.stderr, f"marmotvm without a program: {missing.stdout}{missing.stderr}")
+
+    unreadable = run_vm(runner, [str(repo_root() / "no-such-program.mmc")])
+    assert_condition(unreadable.returncode != 0 and unreadable.stderr.strip() != "", f"marmotvm with no such file: {unreadable.stdout}{unreadable.stderr}")
+
+    malformed = run_vm(runner, ["x.mmc", "--library", "no-equals-sign"])
+    assert_condition(malformed.returncode != 0 and "--library takes <name>=<file>" in malformed.stderr, f"marmotvm --library: {malformed.stdout}{malformed.stderr}")
 
 
 def scenario_build_command_compiles_without_running(runner: TestRunner) -> None:
@@ -308,7 +353,11 @@ def scenario_native_library_loads_only_to_run(runner: TestRunner) -> None:
         check_report = require_report(parse_command_json("native_library_loads_only_to_run", checked), "native_library_loads_only_to_run")
         assert_condition(checked.returncode == 0, f"native_library_loads_only_to_run: check should not load the library, got exit {checked.returncode}: {check_report['errors']}")
 
-        ran = run_midori(runner, ["run", "--plan", str(plan_path), "--library-path", str(temp_dir / "stub"), "--format", "json"], env_overrides={"MARMOT_PATH": None})
+        program = temp_dir / "Main.mmc"
+        built = run_midori(runner, ["build", "--plan", str(plan_path), "-o", str(program), "--quiet"], env_overrides={"MARMOT_PATH": None})
+        assert_condition(built.returncode == 0, f"native_library_loads_only_to_run: build should not load the library: {built.stdout}{built.stderr}")
+
+        ran = run_vm(runner, [str(program), "--library-path", str(temp_dir / "stub"), "--format", "json"])
         run_report = require_report(parse_command_json("native_library_loads_only_to_run", ran), "native_library_loads_only_to_run")
         assert_condition(ran.returncode != 0, "native_library_loads_only_to_run: run should fail to load the library.")
         errors = run_report["errors"]
@@ -320,7 +369,9 @@ def scenario_native_library_loads_only_to_run(runner: TestRunner) -> None:
         unplanned_env = {"MARMOT_PATH": str(package_dir), "MARMOT_LIBRARY_PATH": None}
         unplanned_check = run_midori(runner, ["check", str(temp_dir / "app" / "Main.mmt"), "--format", "json"], env_overrides=unplanned_env)
         assert_condition(unplanned_check.returncode == 0, f"Without a plan, the program should still compile: {unplanned_check.stdout}{unplanned_check.stderr}")
-        unplanned = run_midori(runner, ["run", str(temp_dir / "app" / "Main.mmt"), "--format", "json"], env_overrides=unplanned_env)
+        unplanned_program = temp_dir / "Unplanned.mmc"
+        run_midori(runner, ["build", str(temp_dir / "app" / "Main.mmt"), "-o", str(unplanned_program), "--quiet"], env_overrides=unplanned_env)
+        unplanned = run_vm(runner, [str(unplanned_program), "--format", "json"], env_overrides=unplanned_env)
         unplanned_report = require_report(parse_command_json("native_library_loads_only_to_run", unplanned), "native_library_loads_only_to_run")
         assert_condition(unplanned.returncode != 0, "Without a plan, the run should not find the library.")
         assert_condition(any("native library 'native_stub' not found" in str(error["message"]) for error in unplanned_report["errors"]), f"Unexpected errors: {unplanned_report['errors']}")
@@ -356,7 +407,7 @@ def scenario_plan_replaces_discovery(runner: TestRunner) -> None:
         )
         env = {"MARMOT_PATH": str(temp_dir / "decoy")}
 
-        for command in ("check", "run"):
+        for command in ("check", "build"):
             completed = run_midori(runner, [command, "--plan", str(plan_path), "--format", "json"], env_overrides=env)
             report = require_report(parse_command_json("plan_replaces_discovery", completed), "plan_replaces_discovery")
             assert_condition(completed.returncode == 0, f"plan_replaces_discovery: {command} --plan failed with exit {completed.returncode}: {report['errors']}")
@@ -415,89 +466,17 @@ def scenario_fmt_check_and_write(runner: TestRunner) -> None:
         assert_condition(printed.returncode != 0 and "requires --write or --check" in printed.stdout + printed.stderr, f"fmt_several_paths: printing several paths should be refused: {printed.stdout}{printed.stderr}")
 
 
-def scenario_test_command_discovers_tests(runner: TestRunner) -> None:
-    with tempfile.TemporaryDirectory(prefix="marmot-cli-test-") as temp_dir_raw:
-        temp_dir = Path(temp_dir_raw)
-        write_text(
-            temp_dir / "test" / "smoke.mmt",
-            "module Smoke\n"
-            "def main = fn() -> Int => 0;\n",
-        )
-        write_text(
-            temp_dir / "checks" / "uses_lib.mmt",
-            "module UsesLib\n"
-            "import { <Support> }\n"
-            "def main = fn() -> Int => Support::Value();\n",
-        )
-        write_text(
-            temp_dir / "lib" / "Support.mmt",
-            "module Support\n"
-            "public export { Value }\n"
-            "def Value = fn() -> Int => 0;\n",
-        )
-        write_text(temp_dir / "plan.json", json.dumps({"version": 1, "search_paths": ["lib"]}))
-
-        # Default: ./test under the current directory.
-        completed = run_midori(runner, ["test", "--format", "json"], env_overrides={"MARMOT_PATH": None}, cwd=temp_dir)
-        payload = parse_command_json("test_command_discovers_tests", completed)
-        summary = payload.get("summary")
-        assert_condition(completed.returncode == 0, f"test_command_discovers_tests: expected exit code 0, got {completed.returncode}. Payload: {payload}")
-        assert_condition(payload.get("command") == "test", f"Unexpected command payload: {payload}")
-        assert_condition(isinstance(summary, dict) and summary.get("total") == 1 and summary.get("passed") == 1, f"Expected one passing test, got: {payload}")
-
-        # --dir and --plan: every test compiles with the plan's search paths,
-        # in the worker processes too.
-        completed = run_midori(runner, ["test", "--dir", "checks", "--plan", str(temp_dir / "plan.json"), "--format", "json"], env_overrides={"MARMOT_PATH": None}, cwd=temp_dir)
-        payload = parse_command_json("test_command_discovers_tests", completed)
-        summary = payload.get("summary")
-        assert_condition(completed.returncode == 0, f"test_command_discovers_tests: --plan run failed. Payload: {payload}")
-        assert_condition(isinstance(summary, dict) and summary.get("total") == 1 and summary.get("passed") == 1, f"Expected one passing test, got: {payload}")
-
-
-def scenario_test_command_enforces_timeout(runner: TestRunner) -> None:
-    with tempfile.TemporaryDirectory(prefix="marmot-cli-test-timeout-") as temp_dir_raw:
-        temp_dir = Path(temp_dir_raw)
-        project_dir = temp_dir / "Project"
-        test_dir = project_dir / "test"
-        test_dir.mkdir(parents=True)
-
-        write_text(
-            test_dir / "hang.mmt",
-            "module Hang\n"
-            "// `loop` was removed in v2; a tail call recurses forever without growing the stack.\n"
-            "def Spin = fn(n: Int) -> Int => Spin(n + 1);\n"
-            "Spin(0);\n",
-        )
-
-        completed = run_midori(
-            runner,
-            ["test", "--timeout-ms", "50", "--format", "json"],
-            env_overrides={"MARMOT_PATH": None},
-            cwd=project_dir,
-        )
-        payload = parse_command_json("test_command_enforces_timeout", completed)
-        summary = payload.get("summary")
-        results = payload.get("results")
-
-        assert_condition(completed.returncode != 0, "test_command_enforces_timeout: expected non-zero exit code.")
-        assert_condition(isinstance(summary, dict), f"Expected summary object, got: {payload}")
-        assert_condition(summary.get("total") == 1, f"Expected one discovered test, got: {payload}")
-        assert_condition(summary.get("timedOut") == 1, f"Expected one timed out test, got: {payload}")
-        assert_condition(isinstance(results, list) and len(results) == 1, f"Expected one result entry, got: {payload}")
-        assert_condition(results[0].get("timedOut") is True, f"Expected timedOut=true on the test result, got: {results[0]}")
-
 SCENARIOS: list[tuple[str, Any]] = [
     ("check_json_success_finds_imports_through_marmot_path", scenario_check_json_success_finds_imports_through_marmot_path),
     ("check_json_failure_reports_parser_errors", scenario_check_json_failure_reports_parser_errors),
     ("version_output_format", scenario_version_output_format),
     ("help_lists_new_commands", scenario_help_lists_new_commands),
-    ("run_command_executes_program", scenario_run_command_executes_program),
+    ("marmotvm_runs_what_marmotc_built", scenario_marmotvm_runs_what_marmotc_built),
+    ("marmotvm_command_line", scenario_marmotvm_command_line),
     ("build_command_compiles_without_running", scenario_build_command_compiles_without_running),
     ("native_library_loads_only_to_run", scenario_native_library_loads_only_to_run),
     ("plan_replaces_discovery", scenario_plan_replaces_discovery),
     ("fmt_check_and_write", scenario_fmt_check_and_write),
-    ("test_command_discovers_tests", scenario_test_command_discovers_tests),
-    ("test_command_enforces_timeout", scenario_test_command_enforces_timeout),
 ]
 
 

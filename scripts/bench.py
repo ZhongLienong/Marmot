@@ -18,6 +18,7 @@ import re
 import statistics
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -45,13 +46,18 @@ def find_executable() -> Path:
 
 
 def run_workload(exe: Path, workload: Path) -> dict[str, int]:
-    proc = subprocess.run(
-        [str(exe), "run", str(workload)],
-        capture_output=True,
-        text=True,
-        cwd=ROOT,
-        timeout=600,
-    )
+    # marmotc builds the workload; marmotvm (beside it) runs what is measured.
+    with tempfile.TemporaryDirectory(prefix="marmot-bench-") as directory:
+        program = Path(directory) / (workload.stem + ".mmc")
+        subprocess.run([str(exe), "build", str(workload), "-o", str(program), "--quiet"],
+                       cwd=ROOT, timeout=600, check=True, capture_output=True)
+        proc = subprocess.run(
+            [str(exe.with_name("marmotvm" + exe.suffix)), str(program)],
+            capture_output=True,
+            text=True,
+            cwd=ROOT,
+            timeout=600,
+        )
     results = {}
     for match in RESULT_PATTERN.finditer(proc.stdout):
         label = re.sub(r"\x1b\[[0-9;]*m", "", match.group(1)).strip()

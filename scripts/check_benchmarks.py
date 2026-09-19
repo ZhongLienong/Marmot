@@ -25,7 +25,7 @@ import time
 from pathlib import Path
 from typing import Optional
 
-from run_tests import TestRunner
+from run_tests import TestRunner, build_and_run
 
 
 def repo_root() -> Path:
@@ -80,17 +80,7 @@ def run_benchmark(root: Path, midori_exe: Path, benchmark: Path, env: dict[str, 
     relative_path = str(benchmark.relative_to(root))
     start = time.perf_counter()
     try:
-        completed = subprocess.run(
-            [str(midori_exe), "run", relative_path],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=timeout,
-            cwd=root,
-            env=env,
-            check=False,
-        )
+        completed = build_and_run(midori_exe, relative_path, cwd=root, env=env, timeout=timeout)
     except subprocess.TimeoutExpired:
         return f"did not finish within {timeout:.0f}s"
 

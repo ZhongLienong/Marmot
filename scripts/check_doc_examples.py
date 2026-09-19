@@ -32,7 +32,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from run_tests import TestRunner
+from run_tests import TestRunner, build_and_run
 
 
 @dataclass(frozen=True)
@@ -326,17 +326,7 @@ def run_example(root: Path, runner: TestRunner, example: DocExample, verbose: bo
 
     command_path = str(compile_path.relative_to(root))
     try:
-        completed = subprocess.run(
-            [str(runner.midori_exe), command_path],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=30,
-            cwd=root,
-            env=env,
-            check=False,
-        )
+        completed = build_and_run(runner.midori_exe, command_path, cwd=root, env=env, timeout=30)
     finally:
         cleanup_temp_file(root, compile_path)
 

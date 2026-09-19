@@ -9,6 +9,7 @@ mod paths;
 mod plan;
 mod resolver;
 mod run;
+mod test;
 mod version;
 
 #[cfg(test)]
@@ -35,7 +36,8 @@ Commands:
   update [package]      Resolve every package afresh and report what changed
   remove <package>      Drop a dependency and its installed copies
   list                  Show the resolved dependency tree
-  test [filter]         Run the project's tests (the [test] directory)
+  test [filter]         Build and run the project's tests (the [test]
+                        directory) in marmotvm, in parallel
   fmt [file|dir...]     Format sources (options as for marmotc fmt); without
                         a path, write the project's, or --check them
   init [path]           Create a project; with --package, a package
@@ -56,7 +58,7 @@ Options:
   --name NAME           The project or package name (init)
   --marmotc PATH        The compiler to run; otherwise MARMOTC, then marmotc
                         next to this program, then marmotc on PATH
-  --marmotvm PATH       The VM to run programs in (run); otherwise MARMOTVM,
+  --marmotvm PATH       The VM to run programs in (run, test); otherwise MARMOTVM,
                         then marmotvm next to the compiler or this program,
                         then marmotvm on PATH
   -h, --help            Show this help
@@ -185,7 +187,7 @@ fn parse_options(kind: CommandKind, args: &[String]) -> Result<Options, String> 
             "--package" if kind == CommandKind::Init => options.package = true,
             "--name" if kind == CommandKind::Init => options.name = Some(value()?),
             "--marmotc" => options.marmotc = Some(PathBuf::from(value()?)),
-            "--marmotvm" if kind == CommandKind::Run => {
+            "--marmotvm" if matches!(kind, CommandKind::Run | CommandKind::Test) => {
                 options.marmotvm = Some(PathBuf::from(value()?))
             }
             _ if arg.starts_with('-') => {
@@ -482,29 +484,58 @@ fn test(options: &Options, compiler: &Path, version: &Version) -> Result<ExitCod
     std::fs::write(&plan_file.0, plan.to_json())
         .map_err(|error| format!("cannot write {}: {error}", plan_file.0.display()))?;
 
-    let mut command = Command::new(compiler);
-    command
-        .current_dir(&root)
-        .arg("test")
-        .arg("--plan")
-        .arg(&plan_file.0)
-        .arg("--dir")
-        .arg(&test_directory)
-        .arg("--timeout-ms")
-        .arg(timeout_ms.to_string());
-    if let Some(filter) = &options.argument {
-        command.arg(filter);
-    }
-    if let Some(pattern) = &options.pattern {
-        command.args(["--pattern", pattern]);
-    }
-    if let Some(test_file) = &options.test_file {
-        command.args(["--test", test_file]);
-    }
+    // In a project the tests are built into target/, mirroring where they are;
+    // outside one, somewhere temporary.
+    let mut _temporary = None;
+    let target_directory = match &workspace {
+        Some(workspace) => {
+            let relative = test_directory
+                .strip_prefix(&workspace.root)
+                .map(Path::to_path_buf)
+                .unwrap_or_else(|_| PathBuf::from("test"));
+            workspace.root.join("target").join(relative)
+        }
+        None => {
+            let directory =
+                std::env::temp_dir().join(format!("marmot-test-{}", std::process::id()));
+            _temporary = Some(run::TemporaryDirectory::new(directory.clone()));
+            directory
+        }
+    };
+
+    let vm = run::find_vm(options.marmotvm.as_deref(), compiler);
+    let timeout = std::time::Duration::from_millis(timeout_ms.max(1) as u64);
+    let request = test::TestRequest {
+        root: &root,
+        test_directory: &test_directory,
+        target_directory: &target_directory,
+        timeout,
+        filter: options.argument.as_deref(),
+        pattern: options.pattern.as_deref(),
+        test_file: options.test_file.as_deref(),
+        plan: &plan,
+        plan_file: &plan_file.0,
+        compiler,
+        vm: &vm,
+    };
+    let tests = test::discover(
+        &test_directory,
+        request.filter,
+        request.pattern,
+        request.test_file,
+    );
+    let results = test::run_all(&request, &tests);
+
     if options.json {
-        command.args(["--format", "json"]);
+        println!("{}", test::json(&root, &test_directory, &results));
+    } else {
+        print!("{}", test::rendered(&root, timeout, &results));
     }
-    run_compiler(command, compiler)
+    Ok(if results.iter().all(|result| result.passed) {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
+    })
 }
 
 fn run_compiler(mut command: Command, compiler: &Path) -> Result<ExitCode, String> {

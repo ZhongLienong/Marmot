@@ -126,7 +126,7 @@ def main = fn() -> Int => {
 	REQUIRE(MidoriTest::FindError(report.Errors(), CompilerStage::CodeGenerator, CompilerErrorCode::CodeGeneratorUnsupportedLowering) != nullptr);
 }
 
-TEST_CASE("CompileAndRunFile renders successful warnings from the final report", "[compiler][warning][driver]")
+TEST_CASE("A successful compile renders its warnings from the final report", "[compiler][warning][driver]")
 {
 	const MidoriTest::TempProject project
 	({
@@ -145,12 +145,10 @@ def main = fn() -> Int => {
 
 	const std::filesystem::path main_file_path = std::filesystem::weakly_canonical(project.Path("Main.mmt"));
 
-	MidoriTest::OutputCapture capture;
-	MidoriDriver::DriverResult run_result = MidoriDriver::CompileAndRunFile(main_file_path);
-	const MidoriTest::CapturedOutput output = capture.Stop();
-	REQUIRE(run_result.has_value());
+	const MidoriDriver::CompileFileWithReportResult compiled = MidoriDriver::CompileFileWithReport(main_file_path);
+	REQUIRE(compiled.has_value());
 
-	const std::string rendered_output = MidoriTest::StripAnsiCodes(output.m_stdout);
+	const std::string rendered_output = MidoriTest::StripAnsiCodes(compiled->Report().RenderedWarnings());
 	const size_t summary_position = rendered_output.find("[warning] 1 warning(s) in Main.mmt");
 	const size_t warning_position = rendered_output.find("Static Analyzer Warning at");
 	REQUIRE(summary_position != std::string::npos);
