@@ -476,6 +476,9 @@ namespace MidoriResult
 	{
 		MidoriExecutable m_executable;
 		CompilerReport m_report;
+		// The native packages the program's modules belong to. Running the
+		// program needs their libraries loaded first; compiling it does not.
+		std::vector<NativePackage> m_native_packages;
 
 		CompiledProgram(MidoriExecutable executable, CompilerReport report = {})
 			: m_executable(std::move(executable)),
@@ -486,6 +489,11 @@ namespace MidoriResult
 		[[nodiscard]] const CompilerReport& Report() const
 		{
 			return m_report;
+		}
+
+		[[nodiscard]] const std::vector<NativePackage>& NativePackages() const
+		{
+			return m_native_packages;
 		}
 
 		[[nodiscard]] MidoriExecutable TakeExecutable() &&

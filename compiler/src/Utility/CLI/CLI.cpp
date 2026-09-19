@@ -1671,8 +1671,17 @@ namespace
 			return run_result.value();
 		}
 
-		// Compile-and-run path for .mmt source files
-		const MidoriDriver::CompileFileWithReportResult compile_result = MidoriDriver::CompileFileWithReport(invocation.m_source_file);
+		// Compile-and-run path for .mmt source files. A native library that fails
+		// to load is reported like a compile error: the program never starts.
+		MidoriDriver::CompileFileWithReportResult compile_result = MidoriDriver::CompileFileWithReport(invocation.m_source_file);
+		if (compile_result.has_value())
+		{
+			std::expected<void, MidoriDriver::DriverError> load_result = MidoriDriver::LoadNativePackages(compile_result.value());
+			if (!load_result.has_value())
+			{
+				compile_result = std::unexpected(std::move(load_result.error()));
+			}
+		}
 		if (!compile_result.has_value())
 		{
 			const MidoriResult::CompilerReport report = WrapDriverErrorAsReport(compile_result.error());

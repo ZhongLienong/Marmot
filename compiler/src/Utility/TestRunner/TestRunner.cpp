@@ -756,6 +756,14 @@ namespace
 		const std::string expected_warnings = ReadTextFile(expected_warnings_path);
 
 		MidoriDriver::CompileFileWithReportResult compile_result = MidoriDriver::CompileFileWithReport(test_path);
+		if (compile_result.has_value())
+		{
+			std::expected<void, MidoriDriver::DriverError> load_result = MidoriDriver::LoadNativePackages(compile_result.value());
+			if (!load_result.has_value())
+			{
+				compile_result = std::unexpected(std::move(load_result.error()));
+			}
+		}
 		if (!compile_result.has_value())
 		{
 			result.m_output = HumanReadableOutputForFailure(compile_result.error());

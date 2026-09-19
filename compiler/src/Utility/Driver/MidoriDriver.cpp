@@ -13,6 +13,7 @@
 #include "Compiler/Compiler.h"
 #include "Interpreter/VirtualMachine/VirtualMachine.h"
 #include "Interpreter/Worker/Worker.h"
+#include "Library/SharedLibraryCache/SharedLibraryCache.h"
 #include "Utility/Project/ProjectManifest.h"
 
 namespace
@@ -201,6 +202,34 @@ namespace MidoriDriver
 		return std::move(load_result.value());
 	}
 
+	std::expected<void, DriverError> LoadNativePackages(const MidoriResult::CompiledProgram& program)
+	{
+		SharedLibraryCache& cache = SharedLibraryCache::GetInstance();
+		for (const NativePackage& package : program.NativePackages())
+		{
+			std::error_code error;
+			if (!std::filesystem::exists(package.m_library, error) || cache.IsLibraryLoaded(package.m_name))
+			{
+				continue;
+			}
+
+			std::optional<std::string_view> expected_checksum = std::nullopt;
+			if (package.m_checksum.has_value())
+			{
+				expected_checksum = package.m_checksum.value();
+			}
+
+			const std::expected<void, std::string> load_result =
+				cache.LoadLibraryWithFunctions(package.m_library, package.m_name, package.m_functions, package.m_thread_safe, expected_checksum);
+			if (!load_result.has_value())
+			{
+				return std::unexpected(DriverError::Compilation(MidoriResult::CompilerDiagnostics(CompilerError::Simple(CompilerStage::Module, load_result.error()))));
+			}
+		}
+
+		return {};
+	}
+
 	RunResult RunExecutable(MidoriExecutable&& executable)
 	{
 		VirtualMachine vm(std::move(executable));
@@ -219,6 +248,12 @@ namespace MidoriDriver
 
 		MidoriResult::CompiledProgram compiled_program = std::move(compile_result).value();
 		EmitWarnings(compiled_program.Report());
+
+		std::expected<void, DriverError> load_result = LoadNativePackages(compiled_program);
+		if (!load_result.has_value())
+		{
+			return std::unexpected(std::move(load_result.error()));
+		}
 
 		RunResult run_result = RunExecutable(std::move(compiled_program).TakeExecutable());
 		if (!run_result.has_value())

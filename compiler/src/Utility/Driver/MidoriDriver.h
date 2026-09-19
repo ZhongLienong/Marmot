@@ -40,6 +40,11 @@ namespace MidoriDriver
 	[[nodiscard]] CompileFileWithReportResult CompileFileWithReport(const std::filesystem::path& file_path);
 	[[nodiscard]] CompileFileResult CompileFile(const std::filesystem::path& file_path);
 	[[nodiscard]] LoadArtifactResult LoadArtifact(const std::filesystem::path& path);
+	// Loads the native libraries a compiled program needs, before it runs. A
+	// package whose library file is missing is skipped: its functions then fail
+	// when called, as before. Loading is what runs a library's own code, so
+	// only commands that run the program call this.
+	[[nodiscard]] std::expected<void, DriverError> LoadNativePackages(const MidoriResult::CompiledProgram& program);
 	[[nodiscard]] RunResult RunExecutable(MidoriExecutable&& executable);
 	[[nodiscard]] DriverResult CompileAndRunFile(const std::filesystem::path& file_path);
 }

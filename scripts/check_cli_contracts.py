@@ -439,6 +439,62 @@ def scenario_build_command_compiles_without_running(runner: TestRunner) -> None:
         assert_condition(artifact_payload.get("entryFile", "").endswith("Main.mmt"), f"Unexpected artifact entry file: {artifact_payload}")
 
 
+def scenario_native_library_loads_only_to_run(runner: TestRunner) -> None:
+    # A package whose native library is not a loadable library. Checking a
+    # program that imports it must not touch the library (loading one runs its
+    # code); running the program must stop before it starts, with the load
+    # failure reported like a compile error.
+    with tempfile.TemporaryDirectory(prefix="marmot-cli-native-") as temp_dir_raw:
+        temp_dir = Path(temp_dir_raw)
+        package_dir = temp_dir / "Native"
+        write_text(
+            package_dir / "package.marmot",
+            "[package]\n"
+            "name = \"Native\"\n"
+            "version = \"0.1.0\"\n"
+            "marmot_version = \">=1.0.0\"\n"
+            "\n"
+            "[package.modules]\n"
+            "main = \"Native.mmt\"\n"
+            "exports = [\"Native\"]\n"
+            "\n"
+            "[ffi]\n"
+            "enabled = true\n"
+            "library_name = \"native_stub\"\n"
+            "\n"
+            "[ffi.functions]\n"
+            "\"MIDORI_FFI_Native_Answer\" = \"native_answer\"\n",
+        )
+        write_text(
+            package_dir / "Native.mmt",
+            "module Native\n"
+            "public export { Answer }\n"
+            "foreign \"MIDORI_FFI_Native_Answer\" Answer : fn() -> Int;\n",
+        )
+        for library in ("lib/windows/x64/native_stub.dll", "lib/linux/x86_64/libnative_stub.so", "lib/macos/libnative_stub.dylib"):
+            write_text(package_dir / library, "not a library\n")
+
+        source_path = temp_dir / "app" / "Main.mmt"
+        write_text(
+            source_path,
+            "module Main\n"
+            "import { \"<Native>\" }\n"
+            "def main = fn() -> Int => 0;\n",
+        )
+        env = {"MARMOT_PATH": str(package_dir)}
+
+        checked = run_midori(runner, ["check", str(source_path), "--format", "json"], env_overrides=env)
+        check_report = require_report(parse_command_json("native_library_loads_only_to_run", checked), "native_library_loads_only_to_run")
+        assert_condition(checked.returncode == 0, f"native_library_loads_only_to_run: check should not load the library, got exit {checked.returncode}: {check_report['errors']}")
+
+        ran = run_midori(runner, ["run", str(source_path), "--format", "json"], env_overrides=env)
+        run_report = require_report(parse_command_json("native_library_loads_only_to_run", ran), "native_library_loads_only_to_run")
+        assert_condition(ran.returncode != 0, "native_library_loads_only_to_run: run should fail to load the library.")
+        errors = run_report["errors"]
+        assert_condition(len(errors) == 1, f"Expected one load error, got: {errors}")
+        assert_condition("FFI error" in str(errors[0]["message"]), f"Expected an FFI load error, got: {errors[0]}")
+
+
 def scenario_fmt_check_and_write(runner: TestRunner) -> None:
     with tempfile.TemporaryDirectory(prefix="marmot-cli-fmt-") as temp_dir_raw:
         temp_dir = Path(temp_dir_raw)
@@ -561,6 +617,7 @@ SCENARIOS: list[tuple[str, Any]] = [
     ("help_lists_new_commands", scenario_help_lists_new_commands),
     ("run_command_executes_program", scenario_run_command_executes_program),
     ("build_command_compiles_without_running", scenario_build_command_compiles_without_running),
+    ("native_library_loads_only_to_run", scenario_native_library_loads_only_to_run),
     ("fmt_check_and_write", scenario_fmt_check_and_write),
     ("test_command_discovers_project_tests", scenario_test_command_discovers_project_tests),
     ("test_command_enforces_timeout", scenario_test_command_enforces_timeout),

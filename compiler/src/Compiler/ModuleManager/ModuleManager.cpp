@@ -4,7 +4,6 @@
 #include "Compiler/Lexer/Lexer.h"
 #include "Compiler/Token/Token.h"
 #include "Compiler/ImportResolver/ImportResolver.h"
-#include "Common/SharedLibraryCache/SharedLibraryCache.h"
 
 #include <filesystem>
 #include <expected>
@@ -152,27 +151,6 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraphImpl(BuildGra
 			std::string include_absolute_path_str = resolved_opt->m_absolute_path;
 
 			m_dependency_graph[m_main_file_name].emplace_back(include_absolute_path_str);
-
-			const std::optional<NativePackage> native_package = m_inputs.FindNativePackage(std::filesystem::path(include_absolute_path_str).parent_path());
-			if (native_package.has_value() && std::filesystem::exists(native_package->m_library))
-			{
-				SharedLibraryCache& cache = SharedLibraryCache::GetInstance();
-				if (!cache.IsLibraryLoaded(native_package->m_name))
-				{
-					std::optional<std::string_view> expected_checksum = std::nullopt;
-					if (native_package->m_checksum.has_value())
-					{
-						expected_checksum = native_package->m_checksum.value();
-					}
-
-					const std::expected<void, std::string> load_result =
-						cache.LoadLibraryWithFunctions(native_package->m_library, native_package->m_name, native_package->m_functions, native_package->m_thread_safe, expected_checksum);
-					if (!load_result.has_value())
-					{
-						return std::unexpected(MidoriError::GenerateModuleErrorWithContext(load_result.error(), line, m_main_file_name));
-					}
-				}
-			}
 
 			if (build_graph.m_nodes.contains(include_absolute_path_str))
 			{
