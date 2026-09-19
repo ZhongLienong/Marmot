@@ -1,5 +1,6 @@
 #include "Utility/Project/ProjectManifest.h"
 
+#include "Compiler/PackageManager/PackageManifest.h"
 #include "Compiler/PackageManager/PackageWorkspace.h"
 #include "Common/Printer/Printer.h"
 
@@ -391,29 +392,6 @@ namespace
 		return paths;
 	}
 
-	std::string JoinSearchPaths(const std::vector<std::filesystem::path>& paths, char separator)
-	{
-		std::string result;
-		for (size_t i = 0uz; i < paths.size(); i += 1uz)
-		{
-			if (i != 0uz)
-			{
-				result.push_back(separator);
-			}
-			result.append(paths[i].string());
-		}
-		return result;
-	}
-
-	void SetEnvironmentVariable(const char* name, const std::string& value)
-	{
-	#ifdef _WIN32
-		_putenv_s(name, value.c_str());
-	#else
-		setenv(name, value.c_str(), 1);
-	#endif
-	}
-
 	std::string DeriveProjectName(const std::filesystem::path& root)
 	{
 		const std::string name = root.filename().string();
@@ -560,12 +538,63 @@ namespace MidoriProject
 		return configuration;
 	}
 
-	void ApplyProjectManifestToEnvironment(const std::filesystem::path& input_path)
+	std::vector<std::filesystem::path> EnvironmentSearchPaths()
+	{
+		const std::optional<std::string> value = ReadEnvironmentVariable("MARMOT_PATH");
+		if (!value.has_value())
+		{
+			return {};
+		}
+
+	#ifdef _WIN32
+		const char separator = ';';
+	#else
+		const char separator = ':';
+	#endif
+		return SplitSearchPaths(value.value(), separator);
+	}
+
+	std::optional<NativePackage> ReadNativePackage(const std::filesystem::path& directory)
+	{
+		std::error_code error;
+		if (!std::filesystem::exists(directory / PackageManifestFileName, error))
+		{
+			return std::nullopt;
+		}
+
+		const std::optional<PackageManifest> manifest = PackageManifest::Load(directory);
+		if (!manifest.has_value() || !manifest->GetFFI().m_enabled)
+		{
+			return std::nullopt;
+		}
+
+		NativePackage package;
+		package.m_name = manifest->GetInfo().m_name;
+		package.m_root = directory;
+		package.m_library = manifest->GetFFILibraryPath();
+		package.m_functions = manifest->GetFFI().m_functions;
+		package.m_thread_safe = manifest->GetFFI().m_thread_safe;
+		const std::optional<PrebuiltBinary> prebuilt = manifest->GetSelectedPrebuiltBinary();
+		if (prebuilt.has_value() && !prebuilt->m_checksum.empty())
+		{
+			package.m_checksum = prebuilt->m_checksum;
+		}
+		return package;
+	}
+
+	CompilationInputs EnvironmentCompilationInputs()
+	{
+		return CompilationInputs()
+			.WithSearchPaths(EnvironmentSearchPaths())
+			.WithNativePackageLookup(&ReadNativePackage);
+	}
+
+	CompilationInputs DiscoverCompilationInputs(const std::filesystem::path& input_path)
 	{
 		const std::optional<ManifestConfiguration> configuration = FindManifestConfiguration(input_path);
 		if (!configuration.has_value())
 		{
-			return;
+			return EnvironmentCompilationInputs();
 		}
 
 		const std::expected<MidoriPackageManager::PackageEnvironment, std::string> package_environment =
@@ -574,23 +603,24 @@ namespace MidoriProject
 		{
 			Printer::Print<Printer::Color::RED>(
 				std::format("[ProjectManifest] Failed to prepare package environment: {}\n", package_environment.error()));
-			return;
+			return EnvironmentCompilationInputs();
 		}
 
-	#ifdef _WIN32
-		const char separator = ';';
-	#else
-		const char separator = ':';
-	#endif
 		for (const std::string& warning : package_environment->m_warnings)
 		{
 			Printer::Print<Printer::Color::YELLOW>(std::format("[ProjectManifest] {}\n", warning));
 		}
 
-		if (!package_environment->m_search_paths.empty())
+		if (package_environment->m_search_paths.empty())
 		{
-			SetEnvironmentVariable("MARMOT_PATH", JoinSearchPaths(package_environment->m_search_paths, separator));
+			return EnvironmentCompilationInputs();
 		}
+
+		// PreparePackageEnvironment already appends MARMOT_PATH after the
+		// project's own directories.
+		return CompilationInputs()
+			.WithSearchPaths(package_environment->m_search_paths)
+			.WithNativePackageLookup(&ReadNativePackage);
 	}
 
 	bool InitializeProject(const std::filesystem::path& target_dir, std::string_view project_name, std::string& error_message)

@@ -582,9 +582,9 @@ namespace
 		return export_info;
 	}
 
-	static MidoriResult::CodeGeneratorResult GenerateModuleBytecode(MidoriProgramTree&& optimized_ast, const std::string& file_path, const std::vector<std::string>& module_source_lines, const std::string& module_name, const std::unordered_set<std::string>& export_set, const ImportContext& import_context)
+	static MidoriResult::CodeGeneratorResult GenerateModuleBytecode(MidoriProgramTree&& optimized_ast, const std::string& file_path, const std::vector<std::string>& module_source_lines, const std::string& module_name, const std::unordered_set<std::string>& export_set, const ImportContext& import_context, const std::optional<NativePackage>& native_package)
 	{
-		return CodeGenerator(std::move(optimized_ast), file_path, module_source_lines, module_name, export_set, import_context.m_imported_typeclass_methods, import_context.m_imported_typeclass_instances, import_context.m_imported_typeclass_instance_types, import_context.m_imported_generic_functions).GenerateModuleBytecode();
+		return CodeGenerator(std::move(optimized_ast), file_path, module_source_lines, module_name, export_set, import_context.m_imported_typeclass_methods, import_context.m_imported_typeclass_instances, import_context.m_imported_typeclass_instance_types, import_context.m_imported_generic_functions, native_package).GenerateModuleBytecode();
 	}
 
 	static CompileStateResult ValidateExports(CompileState state);
@@ -669,7 +669,7 @@ namespace
 		state.m_module_name = state.m_module_decl ? state.m_module_decl->ModuleName() : std::filesystem::path(state.m_file_path).stem().string();
 
 		MidoriResult::CodeGeneratorResult bytecode_result =
-			GenerateModuleBytecode(std::move(state.m_ast), state.m_file_path, state.m_source_lines, state.m_module_name, state.m_export_info.m_export_set, state.m_import_context);
+			GenerateModuleBytecode(std::move(state.m_ast), state.m_file_path, state.m_source_lines, state.m_module_name, state.m_export_info.m_export_set, state.m_import_context, state.m_node->m_native_package);
 		if (!bytecode_result.has_value())
 		{
 			return std::unexpected(MakeStateErrorReport(std::move(state), std::move(bytecode_result.error())));
@@ -1463,9 +1463,10 @@ bool Compiler::TypeclassDefinitionsMatch(const CompiledModule::TypeclassMetadata
 	return true;
 }
 
-Compiler::Compiler(std::string&& source_code, std::string&& file_name)
-	: m_source_code(std::move(source_code)), 
-	m_file_name(std::move(file_name))
+Compiler::Compiler(std::string&& source_code, std::string&& file_name, CompilationInputs inputs)
+	: m_source_code(std::move(source_code)),
+	m_file_name(std::move(file_name)),
+	m_inputs(std::move(inputs))
 {
 	std::istringstream stream(m_source_code);
 	std::string line;
@@ -1493,7 +1494,7 @@ MidoriResult::CompilationResult Compiler::CompileWithReport()
 	}
 
 	MidoriResult::ModuleManagerResult build_graph_result =
-		ModuleManager(std::move(lex_result.value()), m_file_name, m_source_lines).GenerateBuildGraph();
+		ModuleManager(std::move(lex_result.value()), m_file_name, m_source_lines, m_inputs).GenerateBuildGraph();
 	if (!build_graph_result.has_value())
 	{
 		return std::unexpected(MidoriResult::CompilerReport(std::move(build_graph_result.error())));

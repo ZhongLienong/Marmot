@@ -10,6 +10,7 @@
 #include "Compiler/StaticAnalyzerManager/StaticAnalyzerManager.h"
 #include "Compiler/TypeChecker/TypeChecker.h"
 #include "Utility/Driver/MidoriDriver.h"
+#include "Utility/Project/ProjectManifest.h"
 
 #include <filesystem>
 #include <print>
@@ -59,7 +60,7 @@ namespace
 			return std::unexpected(std::move(lex_result.error()));
 		}
 
-		MidoriResult::ModuleManagerResult build_graph_result = ModuleManager(std::move(lex_result.value()), source.FileName(), source.SourceLines()).GenerateBuildGraph();
+		MidoriResult::ModuleManagerResult build_graph_result = ModuleManager(std::move(lex_result.value()), source.FileName(), source.SourceLines(), MidoriProject::EnvironmentCompilationInputs()).GenerateBuildGraph();
 		if (!build_graph_result.has_value())
 		{
 			return std::unexpected(std::move(build_graph_result.error()));
@@ -120,6 +121,13 @@ namespace
 		}
 
 		return export_set;
+	}
+
+	// The package the compiler would associate with the file: the one whose
+	// manifest sits in the file's directory.
+	std::optional<NativePackage> NativePackageFor(const std::string& file_name)
+	{
+		return MidoriProject::EnvironmentCompilationInputs().FindNativePackage(std::filesystem::absolute(file_name).parent_path());
 	}
 }
 
@@ -256,7 +264,12 @@ namespace MidoriTest
 			typed.m_source.FileName(),
 			typed.m_source.SourceLines(),
 			std::move(module_name),
-			CollectExports(typed.m_module_declaration)).GenerateModuleBytecode();
+			CollectExports(typed.m_module_declaration),
+			{},
+			{},
+			{},
+			{},
+			NativePackageFor(typed.m_source.FileName())).GenerateModuleBytecode();
 		if (!codegen_result.has_value())
 		{
 			return std::unexpected(std::move(codegen_result.error()));
@@ -306,7 +319,12 @@ namespace MidoriTest
 			typed.m_source.FileName(),
 			typed.m_source.SourceLines(),
 			std::move(module_name),
-			CollectExports(typed.m_module_declaration)).GenerateModuleBytecode();
+			CollectExports(typed.m_module_declaration),
+			{},
+			{},
+			{},
+			{},
+			NativePackageFor(typed.m_source.FileName())).GenerateModuleBytecode();
 		if (!codegen_result.has_value())
 		{
 			return std::unexpected(std::move(codegen_result.error()));

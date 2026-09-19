@@ -9,7 +9,6 @@
 
 #include "CodeGenerator.h"
 #include "Common/Constant/Constant.h"
-#include "Compiler/PackageManager/PackageManifest.h"
 
 using namespace std::string_literals;
 
@@ -137,36 +136,6 @@ namespace
 				return ContainsFreeTypeParameter(type_arg, visited);
 			}
 		);
-	}
-
-	// A foreign name that is not a builtin can only be provided by a package
-	// library. ModuleManager loads a package's library from the package.marmot
-	// beside the imported file and binds exactly the names listed under
-	// [ffi.functions], so that same manifest is the whole set of names such a
-	// file can call. Anything else would fail at the call site at run time.
-	bool IsDeclaredByOwningPackage(std::string_view file_name, const std::string& foreign_name)
-	{
-		std::error_code error;
-		const std::filesystem::path file_path = std::filesystem::absolute(std::filesystem::path(file_name), error);
-		if (error)
-		{
-			return false;
-		}
-
-		const std::filesystem::path package_directory = file_path.parent_path();
-		if (!std::filesystem::exists(package_directory / "package.marmot", error))
-		{
-			return false;
-		}
-
-		const std::optional<PackageManifest> manifest = PackageManifest::Load(package_directory);
-		if (!manifest.has_value())
-		{
-			return false;
-		}
-
-		const PackageFFI& ffi = manifest->GetFFI();
-		return ffi.m_enabled && ffi.m_functions.contains(foreign_name);
 	}
 }
 
@@ -2074,10 +2043,11 @@ void CodeGenerator::DispatchExpression(MidoriExpression& expression)
 	std::visit(ExpressionDispatcher{ this }, *expression);
 }
 
-CodeGenerator::CodeGenerator(MidoriProgramTree&& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines, std::string module_name, std::unordered_set<std::string> export_symbols, const TypeclassMethodMap& imported_class_methods, const TypeclassInstanceMap& imported_class_instances, const TypeclassInstanceTypeMap& imported_class_instance_type_args, const std::unordered_map<std::string, GenericFunctionInfo>& imported_generic_functions)
+CodeGenerator::CodeGenerator(MidoriProgramTree&& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines, std::string module_name, std::unordered_set<std::string> export_symbols, const TypeclassMethodMap& imported_class_methods, const TypeclassInstanceMap& imported_class_instances, const TypeclassInstanceTypeMap& imported_class_instance_type_args, const std::unordered_map<std::string, GenericFunctionInfo>& imported_generic_functions, std::optional<NativePackage> native_package)
 	: m_program_tree(std::move(program_tree)),
 	m_file_name(file_name),
 	m_source_lines(source_lines),
+	m_native_package(std::move(native_package)),
 	m_module_name(std::move(module_name)),
 	m_export_symbols(std::move(export_symbols)),
 	m_generic_functions(imported_generic_functions),
@@ -2448,7 +2418,7 @@ void CodeGenerator::operator()(MidoriStatement::ForeignDefinition& foreign)
 	{
 		m_ffi_indices[foreign.m_function_name.m_lexeme] = ffi_index.value();
 	}
-	else if (!IsDeclaredByOwningPackage(m_file_name, foreign.m_foreign_name))
+	else if (!m_native_package.has_value() || !m_native_package->m_functions.contains(foreign.m_foreign_name))
 	{
 		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorUnknownForeignFunction, std::format("Unknown foreign function '{}': it is not a Marmot builtin, and no package.marmot in this file's directory lists it under [ffi.functions].", foreign.m_foreign_name), foreign.m_function_name, m_file_name, m_source_lines));
 		return;

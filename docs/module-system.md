@@ -115,12 +115,19 @@ This matches the current implementation and the regression fixtures under `test/
 
 `ImportResolver` resolves:
 
-- `<Module.Name>` by converting it to `Module/Name.mmt` and searching `MARMOT_PATH`
+- `<Module.Name>` by converting it to `Module/Name.mmt` and trying each search path in order
 - `"relative/path.mmt"` relative to the importing file
+
+The compiler does not find the search paths itself; it is given them. When
+the CLI compiles a file inside a project (a `project.marmot` or
+`package.marmot` above it), the search paths are the project's source
+directory, its resolved dependencies, its extra paths, its prelude directory,
+then `MARMOT_PATH`. Outside a project they are `MARMOT_PATH` alone.
 
 Platform notes:
 
 - `MARMOT_PATH` uses `;` on Windows and `:` on Unix-like systems.
+- Search paths that do not exist are skipped.
 - Resolved import paths are normalized to absolute paths.
 
 ### Build Graph Construction

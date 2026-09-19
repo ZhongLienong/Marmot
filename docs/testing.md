@@ -231,8 +231,12 @@ driver and test runner under `compiler/src/Utility`, links Compiler and
 Runtime). Each library exports only its own include root, so most wrong
 includes already fail to compile; the script also catches the ones a shared
 include path would let through, such as compiler code including a driver
-header. It needs no build, and `python scripts/test_project.py` runs it first
-unless you pass `--skip-layering-check`.
+header. It also keeps the compiler pipeline (`compiler/src/Compiler`, apart
+from the package manager) free of project discovery: those files may not
+include the package manager or `Utility/Project`, or read environment
+variables, because the compiler compiles from the `CompilationInputs` its
+caller passes. It needs no build, and `python scripts/test_project.py` runs it
+first unless you pass `--skip-layering-check`.
 
 Configure and build implementation tests on Windows:
 

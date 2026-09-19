@@ -8,6 +8,7 @@
 #include <set>
 
 #include "Common/Error/Error.h"
+#include "Compiler/CompilationInputs/CompilationInputs.h"
 #include "Compiler/Result/Result.h"
 #include "Compiler/BytecodeModule/BytecodeModule.h"
 #include "Common/Builtins/BuiltinTable.h"
@@ -78,6 +79,9 @@ private:
 	MidoriProgramTree m_program_tree;
 	std::string m_file_name;
 	const std::vector<std::string>& m_source_lines;
+	// The native package this module belongs to; its functions are the only
+	// non-builtin foreign names the module may declare.
+	std::optional<NativePackage> m_native_package;
 	std::optional<std::string> m_module_name;
 	// While specializing a generic declared in another module, the body's
 	// unqualified global references belong to that module, not this one.
@@ -113,7 +117,7 @@ private:
 
 public:
 
-	CodeGenerator(MidoriProgramTree&& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines, std::string module_name, std::unordered_set<std::string> export_symbols, const TypeclassMethodMap& imported_class_methods = {}, const TypeclassInstanceMap& imported_class_instances = {}, const TypeclassInstanceTypeMap& imported_class_instance_type_args = {}, const std::unordered_map<std::string, GenericFunctionInfo>& imported_generic_functions = {});
+	CodeGenerator(MidoriProgramTree&& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines, std::string module_name, std::unordered_set<std::string> export_symbols, const TypeclassMethodMap& imported_class_methods = {}, const TypeclassInstanceMap& imported_class_instances = {}, const TypeclassInstanceTypeMap& imported_class_instance_type_args = {}, const std::unordered_map<std::string, GenericFunctionInfo>& imported_generic_functions = {}, std::optional<NativePackage> native_package = std::nullopt);
 
 	MidoriResult::CodeGeneratorResult GenerateModuleBytecode() &;
 	MidoriResult::CodeGeneratorResult GenerateModuleBytecode() &&;

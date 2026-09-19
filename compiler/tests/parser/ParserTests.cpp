@@ -6,6 +6,7 @@
 #include "Compiler/ModuleManager/ModuleManager.h"
 #include "Compiler/Parser/Parser.h"
 #include "Compiler/Token/Token.h"
+#include "Utility/Project/ProjectManifest.h"
 #include "support/CompileHelpers.h"
 #include "support/DiagnosticMatchers.h"
 #include "support/TempProject.h"
@@ -105,7 +106,7 @@ namespace
 			return std::unexpected(std::move(lex_result.error()));
 		}
 
-		MidoriResult::ModuleManagerResult build_graph_result = ModuleManager(std::move(lex_result.value()), source.FileName(), source.SourceLines()).GenerateBuildGraph();
+		MidoriResult::ModuleManagerResult build_graph_result = ModuleManager(std::move(lex_result.value()), source.FileName(), source.SourceLines(), MidoriProject::EnvironmentCompilationInputs()).GenerateBuildGraph();
 		if (!build_graph_result.has_value())
 		{
 			return std::unexpected(std::move(build_graph_result.error()));

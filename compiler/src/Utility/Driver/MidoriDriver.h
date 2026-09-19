@@ -5,6 +5,7 @@
 #include <optional>
 #include <string>
 
+#include "Compiler/CompilationInputs/CompilationInputs.h"
 #include "Compiler/Result/Result.h"
 
 namespace MidoriDriver
@@ -32,7 +33,9 @@ namespace MidoriDriver
 	using DriverResult = std::expected<int, DriverError>;
 
 	[[nodiscard]] SourceReadResult ReadSourceFile(const std::filesystem::path& file_path);
+	// Compiles with MARMOT_PATH and on-demand package manifests as inputs.
 	[[nodiscard]] MidoriResult::CompilationResult CompileSourceWithReport(std::string source_code, std::string file_name);
+	[[nodiscard]] MidoriResult::CompilationResult CompileSourceWithReport(std::string source_code, std::string file_name, CompilationInputs inputs);
 	[[nodiscard]] MidoriResult::CompilerResult CompileSource(std::string source_code, std::string file_name);
 	[[nodiscard]] CompileFileWithReportResult CompileFileWithReport(const std::filesystem::path& file_path);
 	[[nodiscard]] CompileFileResult CompileFile(const std::filesystem::path& file_path);

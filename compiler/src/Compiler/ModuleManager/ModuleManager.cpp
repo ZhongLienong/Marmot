@@ -4,7 +4,6 @@
 #include "Compiler/Lexer/Lexer.h"
 #include "Compiler/Token/Token.h"
 #include "Compiler/ImportResolver/ImportResolver.h"
-#include "Compiler/PackageManager/PackageManifest.h"
 #include "Common/SharedLibraryCache/SharedLibraryCache.h"
 
 #include <filesystem>
@@ -49,10 +48,11 @@ namespace
 	}
 }
 
-ModuleManager::ModuleManager(TokenStream&& main_file_tokens, std::string_view main_file_name, std::vector<std::string> main_source_lines)
+ModuleManager::ModuleManager(TokenStream&& main_file_tokens, std::string_view main_file_name, std::vector<std::string> main_source_lines, CompilationInputs inputs)
 	: m_main_token_stream(std::move(main_file_tokens)),
 	m_main_file_name(main_file_name),
-	m_main_source_lines(std::move(main_source_lines))
+	m_main_source_lines(std::move(main_source_lines)),
+	m_inputs(std::move(inputs))
 {
 }
 
@@ -137,8 +137,9 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraphImpl(BuildGra
 		main_node.m_file_name = m_main_file_name;
 		main_node.m_source_lines = m_main_source_lines;
 		main_node.m_use_imports = std::move(use_imports);
+		main_node.m_native_package = m_inputs.FindNativePackage(std::filesystem::path(m_main_file_name).parent_path());
 
-		ImportResolver resolver(m_main_file_name);
+		ImportResolver resolver(m_main_file_name, m_inputs.SearchPaths());
 
 		for (const auto& [import_specifier, line] : import_paths)
 		{
@@ -152,41 +153,23 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraphImpl(BuildGra
 
 			m_dependency_graph[m_main_file_name].emplace_back(include_absolute_path_str);
 
-			std::filesystem::path import_path(include_absolute_path_str);
-			std::filesystem::path package_dir = import_path.parent_path();
-			std::filesystem::path package_manifest_path = package_dir / "package.marmot";
-
-			if (std::filesystem::exists(package_manifest_path))
+			const std::optional<NativePackage> native_package = m_inputs.FindNativePackage(std::filesystem::path(include_absolute_path_str).parent_path());
+			if (native_package.has_value() && std::filesystem::exists(native_package->m_library))
 			{
-				std::optional<PackageManifest> manifest_opt = PackageManifest::Load(package_dir);
-				if (manifest_opt.has_value())
+				SharedLibraryCache& cache = SharedLibraryCache::GetInstance();
+				if (!cache.IsLibraryLoaded(native_package->m_name))
 				{
-					const PackageManifest& manifest = manifest_opt.value();
-					const PackageFFI& ffi = manifest.GetFFI();
-
-					if (ffi.m_enabled)
+					std::optional<std::string_view> expected_checksum = std::nullopt;
+					if (native_package->m_checksum.has_value())
 					{
-						std::filesystem::path library_path = manifest.GetFFILibraryPath();
-						std::optional<std::string_view> expected_checksum = std::nullopt;
-						const std::optional<PrebuiltBinary> selected_prebuilt = manifest.GetSelectedPrebuiltBinary();
-						if (selected_prebuilt.has_value() && !selected_prebuilt->m_checksum.empty())
-						{
-							expected_checksum = selected_prebuilt->m_checksum;
-						}
+						expected_checksum = native_package->m_checksum.value();
+					}
 
-						if (std::filesystem::exists(library_path))
-						{
-							SharedLibraryCache& cache = SharedLibraryCache::GetInstance();
-							if (!cache.IsLibraryLoaded(manifest.GetInfo().m_name))
-							{
-								const std::expected<void, std::string> load_result =
-									cache.LoadLibraryWithFunctions(library_path, manifest.GetInfo().m_name, ffi.m_functions, ffi.m_thread_safe, expected_checksum);
-								if (!load_result.has_value())
-								{
-									return std::unexpected(MidoriError::GenerateModuleErrorWithContext(load_result.error(), line, m_main_file_name));
-								}
-							}
-						}
+					const std::expected<void, std::string> load_result =
+						cache.LoadLibraryWithFunctions(native_package->m_library, native_package->m_name, native_package->m_functions, native_package->m_thread_safe, expected_checksum);
+					if (!load_result.has_value())
+					{
+						return std::unexpected(MidoriError::GenerateModuleErrorWithContext(load_result.error(), line, m_main_file_name));
 					}
 				}
 			}
@@ -220,7 +203,7 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraphImpl(BuildGra
 
 			TokenStream imported_token_stream = std::move(lex_result.value());
 
-			ModuleManager module_manager(std::move(imported_token_stream), std::move(include_absolute_path_str), std::move(include_source_lines));
+			ModuleManager module_manager(std::move(imported_token_stream), std::move(include_absolute_path_str), std::move(include_source_lines), m_inputs);
 			MidoriResult::ModuleManagerResult nested_build_graph_result = module_manager.GenerateBuildGraphImpl(build_graph);
 			if (!nested_build_graph_result.has_value())
 			{

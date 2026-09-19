@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Common/Version/Version.h"
+#include "Compiler/CompilationInputs/CompilationInputs.h"
 
 #include <filesystem>
 #include <optional>
@@ -34,7 +35,23 @@ namespace MidoriProject
 
 	[[nodiscard]] std::optional<ManifestConfiguration> FindManifestConfiguration(const std::filesystem::path& input_path);
 
-	void ApplyProjectManifestToEnvironment(const std::filesystem::path& input_path);
+	// The directories in MARMOT_PATH, in order.
+	[[nodiscard]] std::vector<std::filesystem::path> EnvironmentSearchPaths();
+
+	// The native package described by `directory`/package.marmot: one whose
+	// [ffi] section is enabled. Anything else, including a manifest that does
+	// not parse, is no native package.
+	[[nodiscard]] std::optional<NativePackage> ReadNativePackage(const std::filesystem::path& directory);
+
+	// Compiler inputs when no project applies: MARMOT_PATH, and native packages
+	// read from package.marmot files as imports reach them.
+	[[nodiscard]] CompilationInputs EnvironmentCompilationInputs();
+
+	// Compiler inputs for `input_path` as the CLI has always found them: the
+	// project or package manifest above it, its resolved dependencies, the
+	// prelude, then MARMOT_PATH. Without a manifest, EnvironmentCompilationInputs.
+	// This is the discovery a build plan replaces.
+	[[nodiscard]] CompilationInputs DiscoverCompilationInputs(const std::filesystem::path& input_path);
 
 	bool InitializeProject(const std::filesystem::path& target_dir, std::string_view project_name, std::string& error_message);
 

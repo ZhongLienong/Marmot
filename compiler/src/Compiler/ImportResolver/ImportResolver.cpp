@@ -1,17 +1,11 @@
 #include "ImportResolver.h"
 #include <algorithm>
-#include <cstdlib>
 #include <utility>
-
-#ifdef _WIN32
-#include <stdlib.h>
-#endif
 
 using namespace std::string_literals;
 
-ImportResolver::ImportResolver(const std::string& current_file_path)
-	: ImportResolver(ResolveCurrentFileDir(std::filesystem::path(current_file_path)),
-		CollectSystemSearchPaths())
+ImportResolver::ImportResolver(const std::string& current_file_path, std::vector<std::filesystem::path> system_search_paths)
+	: ImportResolver(ResolveCurrentFileDir(std::filesystem::path(current_file_path)), std::move(system_search_paths))
 {
 }
 
@@ -44,93 +38,6 @@ std::filesystem::path ImportResolver::ResolveCurrentFileDir(const std::filesyste
 	}
 
 	return std::filesystem::current_path();
-}
-
-std::vector<std::filesystem::path> ImportResolver::CollectSystemSearchPaths()
-{
-	std::optional<std::string> env_value = ReadEnvironmentVariable("MARMOT_PATH");
-	if (!env_value.has_value())
-	{
-		return {};
-	}
-
-#ifdef _WIN32
-	const char separator = ';';
-#else
-	const char separator = ':';
-#endif
-
-	std::vector<std::filesystem::path> split_paths = SplitSearchPaths(env_value.value(), separator);
-	return CanonicalizeDirectories(split_paths);
-}
-
-std::optional<std::string> ImportResolver::ReadEnvironmentVariable(const char* name)
-{
-#ifdef _WIN32
-	char* value = nullptr;
-	size_t len = 0u;
-	if (_dupenv_s(&value, &len, name) != 0 || value == nullptr)
-	{
-		return std::nullopt;
-	}
-
-	std::string result(value);
-	std::free(value);
-	if (result.empty())
-	{
-		return std::nullopt;
-	}
-
-	return result;
-#else
-	const char* value = std::getenv(name);
-	if (value == nullptr || value[0] == '\0')
-	{
-		return std::nullopt;
-	}
-
-	return std::string(value);
-#endif
-}
-
-std::vector<std::filesystem::path> ImportResolver::SplitSearchPaths(const std::string& path_str, char separator)
-{
-	std::vector<std::filesystem::path> paths;
-	size_t start = 0u;
-	size_t end = path_str.find(separator);
-
-	while (end != std::string::npos)
-	{
-		std::string path_segment = path_str.substr(start, end - start);
-		if (!path_segment.empty())
-		{
-			paths.emplace_back(path_segment);
-		}
-		start = end + 1u;
-		end = path_str.find(separator, start);
-	}
-
-	std::string last_segment = path_str.substr(start);
-	if (!last_segment.empty())
-	{
-		paths.emplace_back(last_segment);
-	}
-
-	return paths;
-}
-
-std::vector<std::filesystem::path> ImportResolver::CanonicalizeDirectories(const std::vector<std::filesystem::path>& paths)
-{
-	std::vector<std::filesystem::path> directories;
-	for (const std::filesystem::path& path : paths)
-	{
-		if (std::filesystem::exists(path) && std::filesystem::is_directory(path))
-		{
-			directories.push_back(std::filesystem::weakly_canonical(path));
-		}
-	}
-
-	return directories;
 }
 
 std::optional<ImportResolver::ResolvedImport> ImportResolver::Resolve(const std::string& import_specifier) const

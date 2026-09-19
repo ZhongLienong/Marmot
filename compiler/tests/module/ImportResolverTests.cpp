@@ -1,6 +1,8 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include "Compiler/CompilationInputs/CompilationInputs.h"
 #include "Compiler/ImportResolver/ImportResolver.h"
+#include "Utility/Project/ProjectManifest.h"
 #include "support/ScopedEnvVar.h"
 #include "support/TempProject.h"
 
@@ -29,7 +31,7 @@ TEST_CASE("ImportResolver resolves relative path imports against the current fil
 	const std::filesystem::path main_file_path = std::filesystem::weakly_canonical(project.Path("src/Main.mmt"));
 	const std::filesystem::path helper_file_path = std::filesystem::weakly_canonical(project.Path("src/lib/Helper.mmt"));
 
-	const ImportResolver resolver(main_file_path.string());
+	const ImportResolver resolver(main_file_path.string(), {});
 	const std::optional<ImportResolver::ResolvedImport> resolved_import = resolver.Resolve("./lib/Helper.mmt");
 
 	REQUIRE(resolved_import.has_value());
@@ -49,7 +51,7 @@ TEST_CASE("ImportResolver resolves dotted system imports from explicit search pa
 	const std::filesystem::path main_file_path = std::filesystem::weakly_canonical(project.Path("Main.mmt"));
 	const std::filesystem::path io_module_path = std::filesystem::weakly_canonical(project.Path("stdlib/Std/IO.mmt"));
 
-	const ImportResolver resolver(main_file_path.string());
+	const ImportResolver resolver(main_file_path.string(), {});
 	const ImportResolver configured_resolver = resolver.WithSystemSearchPaths({ project.Path("stdlib") });
 	const std::optional<ImportResolver::ResolvedImport> resolved_import = configured_resolver.Resolve("<Std.IO>");
 
@@ -59,7 +61,7 @@ TEST_CASE("ImportResolver resolves dotted system imports from explicit search pa
 	CHECK(resolved_import->m_absolute_path == io_module_path.string());
 }
 
-TEST_CASE("ImportResolver canonicalizes MARMOT_PATH entries and ignores missing directories", "[module][import]")
+TEST_CASE("MARMOT_PATH entries become canonical search paths and missing directories are dropped", "[module][import]")
 {
 	const MidoriTest::TempProject project
 	({
@@ -73,14 +75,26 @@ TEST_CASE("ImportResolver canonicalizes MARMOT_PATH entries and ignores missing 
 	const std::string marmot_path_value = project.Path("missing").string() + std::string(1, s_search_path_separator) + project.Path("stdlib").string();
 	const MidoriTest::ScopedEnvVar marmot_path("MARMOT_PATH", marmot_path_value);
 
-	const ImportResolver resolver(main_file_path.string());
+	const CompilationInputs inputs = MidoriProject::EnvironmentCompilationInputs();
 
-	REQUIRE(resolver.GetSystemSearchPaths().size() == 1);
-	CHECK(resolver.GetSystemSearchPaths().front() == stdlib_path);
+	REQUIRE(inputs.SearchPaths().size() == 1);
+	CHECK(inputs.SearchPaths().front() == stdlib_path);
 
+	const ImportResolver resolver(main_file_path.string(), inputs.SearchPaths());
 	const std::optional<ImportResolver::ResolvedImport> resolved_import = resolver.Resolve("<Std.Math>");
 	REQUIRE(resolved_import.has_value());
 	CHECK(resolved_import->m_absolute_path == math_module_path.string());
+}
+
+TEST_CASE("The compiler's inputs ignore MARMOT_PATH unless the caller reads it", "[module][import]")
+{
+	const MidoriTest::TempProject project
+	({
+		MidoriTest::TempProjectFile("stdlib/Std/Math.mmt", "module Std.Math\n")
+	});
+	const MidoriTest::ScopedEnvVar marmot_path("MARMOT_PATH", project.Path("stdlib").string());
+
+	CHECK(CompilationInputs().SearchPaths().empty());
 }
 
 TEST_CASE("ImportResolver returns nullopt for missing imports", "[module][import]")
@@ -92,8 +106,8 @@ TEST_CASE("ImportResolver returns nullopt for missing imports", "[module][import
 
 	const std::filesystem::path main_file_path = std::filesystem::weakly_canonical(project.Path("Main.mmt"));
 
-	const ImportResolver resolver(main_file_path.string());
-	const ImportResolver configured_resolver = resolver.WithSystemSearchPaths({ project.Root() / "stdlib" });
+	const ImportResolver resolver(main_file_path.string(), { project.Root() / "stdlib" });
+	const ImportResolver& configured_resolver = resolver;
 
 	CHECK_FALSE(configured_resolver.Resolve("./Missing.mmt").has_value());
 	CHECK_FALSE(configured_resolver.Resolve("<Std.Missing>").has_value());

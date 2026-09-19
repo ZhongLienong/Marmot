@@ -1,8 +1,10 @@
 #pragma once
 
+#include "Compiler/CompilationInputs/CompilationInputs.h"
 #include "Compiler/Token/Token.h"
 #include "Compiler/Module/Module.h"
 
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -16,6 +18,7 @@ struct BuildGraph
 		std::vector<std::string> m_source_lines;
 		std::vector<std::string> m_dependencies;
 		std::vector<UseImport> m_use_imports;  // Symbols brought into scope via 'use' statements
+		std::optional<NativePackage> m_native_package;  // The native package this file belongs to, if any
 		int m_in_degree = 0;
 		bool m_processed = false;
 	};

@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "Compiler/ImportResolver/ImportResolver.h"
+#include "Utility/Project/ProjectManifest.h"
 #include "support/ScopedEnvVar.h"
 #include "support/TempProject.h"
 
@@ -16,7 +17,7 @@ TEST_CASE("TempProject and ScopedEnvVar make system import resolution determinis
 	const std::filesystem::path module_file_path = std::filesystem::weakly_canonical(project.Path("stdlib/Std/IO.mmt"));
 	const MidoriTest::ScopedEnvVar marmot_path("MARMOT_PATH", project.Path("stdlib").string());
 
-	const ImportResolver resolver(main_file_path.string());
+	const ImportResolver resolver(main_file_path.string(), MidoriProject::EnvironmentCompilationInputs().SearchPaths());
 	const std::optional<ImportResolver::ResolvedImport> resolved_import = resolver.Resolve("<Std.IO>");
 
 	REQUIRE(resolved_import.has_value());

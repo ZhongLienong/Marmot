@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Compiler/CompilationInputs/CompilationInputs.h"
 #include "Compiler/Module/Module.h"
 #include "Compiler/Result/Result.h"
 #include "Compiler/Token/Token.h"
@@ -30,9 +31,10 @@ private:
 	TokenStream m_main_token_stream;
 	std::string m_main_file_name;
 	std::vector<std::string> m_main_source_lines;
+	CompilationInputs m_inputs;
 
 public:
-	ModuleManager(TokenStream&& main_file_tokens, std::string_view main_file_name, std::vector<std::string> main_source_lines = {});
+	ModuleManager(TokenStream&& main_file_tokens, std::string_view main_file_name, std::vector<std::string> main_source_lines = {}, CompilationInputs inputs = {});
 
 	MidoriResult::ModuleManagerResult GenerateBuildGraph();
 

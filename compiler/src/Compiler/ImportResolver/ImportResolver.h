@@ -11,7 +11,7 @@ public:
 	enum class ImportType
 	{
 		PATH,    // Relative or absolute file path
-		SYSTEM   // System module (uses MARMOT_PATH)
+		SYSTEM   // System module, found in the search paths
 	};
 
 	struct ResolvedImport
@@ -26,7 +26,7 @@ private:
 	std::vector<std::filesystem::path> m_system_search_paths;
 
 public:
-	explicit ImportResolver(const std::string& current_file_path);
+	ImportResolver(const std::string& current_file_path, std::vector<std::filesystem::path> system_search_paths);
 
 	std::optional<ResolvedImport> Resolve(const std::string& import_specifier) const;
 
@@ -40,14 +40,6 @@ private:
 	ImportResolver(std::filesystem::path current_file_dir, std::vector<std::filesystem::path> system_search_paths);
 
 	static std::filesystem::path ResolveCurrentFileDir(const std::filesystem::path& current_file_path);
-
-	static std::vector<std::filesystem::path> CollectSystemSearchPaths();
-
-	static std::optional<std::string> ReadEnvironmentVariable(const char* name);
-
-	static std::vector<std::filesystem::path> SplitSearchPaths(const std::string& path_str, char separator);
-
-	static std::vector<std::filesystem::path> CanonicalizeDirectories(const std::vector<std::filesystem::path>& paths);
 
 	static bool IsSystemImport(const std::string& import_specifier);
 

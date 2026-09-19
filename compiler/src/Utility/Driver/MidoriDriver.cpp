@@ -152,13 +152,18 @@ namespace MidoriDriver
 
 	MidoriResult::CompilationResult CompileSourceWithReport(std::string source_code, std::string file_name)
 	{
-		return Compiler(std::move(source_code), std::move(file_name)).CompileWithReport();
+		return CompileSourceWithReport(std::move(source_code), std::move(file_name), MidoriProject::EnvironmentCompilationInputs());
+	}
+
+	MidoriResult::CompilationResult CompileSourceWithReport(std::string source_code, std::string file_name, CompilationInputs inputs)
+	{
+		return Compiler(std::move(source_code), std::move(file_name), std::move(inputs)).CompileWithReport();
 	}
 
 	CompileFileWithReportResult CompileFileWithReport(const std::filesystem::path& file_path)
 	{
 		const std::filesystem::path manifest_input_path = ResolveManifestInputPath(file_path);
-		MidoriProject::ApplyProjectManifestToEnvironment(manifest_input_path);
+		CompilationInputs inputs = MidoriProject::DiscoverCompilationInputs(manifest_input_path);
 
 		SourceReadResult source_result = ReadSourceFile(file_path);
 		if (!source_result.has_value())
@@ -166,7 +171,7 @@ namespace MidoriDriver
 			return std::unexpected(std::move(source_result.error()));
 		}
 
-		MidoriResult::CompilationResult compile_result = CompileSourceWithReport(std::move(source_result.value()), file_path.string());
+		MidoriResult::CompilationResult compile_result = CompileSourceWithReport(std::move(source_result.value()), file_path.string(), std::move(inputs));
 		if (!compile_result.has_value())
 		{
 			return std::unexpected(DriverError::Compilation(std::move(compile_result.error())));

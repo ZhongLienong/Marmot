@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Compiler/CompilationInputs/CompilationInputs.h"
 #include "Compiler/Module/CompiledModule.h"
 #include "Compiler/Result/Result.h"
 #include <memory>
@@ -14,6 +15,7 @@ private:
 	std::string m_source_code;
 	std::string m_file_name;
 	std::vector<std::string> m_source_lines;
+	CompilationInputs m_inputs;
 
 	static bool InstanceTypeArgsEqual(const std::vector<std::shared_ptr<MidoriType>>& left, const std::vector<std::shared_ptr<MidoriType>>& right);
 
@@ -29,7 +31,7 @@ protected:
 	static bool TypeclassDefinitionsMatch(const CompiledModule::TypeclassMetadata& left, const CompiledModule::TypeclassMetadata& right);
 
 public:
-	Compiler(std::string&& source_code, std::string&& file_name);
+	Compiler(std::string&& source_code, std::string&& file_name, CompilationInputs inputs = {});
 
 	MidoriResult::CompilationResult CompileWithReport();
 	MidoriResult::CompilerResult Compile();
