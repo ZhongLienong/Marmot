@@ -19,6 +19,7 @@ import argparse
 import json
 import os
 import shlex
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -139,6 +140,24 @@ def unit_test_executable(binary_dir: Path) -> Path:
     return binary_dir / "out" / executable_name
 
 
+def compiler_executable(binary_dir: Path) -> Path:
+    executable_name = "Marmot.exe" if is_windows() else "Marmot"
+    return binary_dir / "out" / executable_name
+
+
+def run_tool_tests(root: Path, binary_dir: Path) -> int:
+    # The Rust `marmot` tool: its unit tests, plus end-to-end runs against the
+    # compiler just built.
+    if shutil.which("cargo") is None:
+        print("\nSkipping the marmot tool tests: cargo is not installed.")
+        return 0
+
+    command = ["cargo", "test", "--manifest-path", str(root / "tool" / "Cargo.toml")]
+    print(f"\n> MARMOTC={compiler_executable(binary_dir)} {format_command(command)}")
+    completed = subprocess.run(command, cwd=root, check=False, env={**os.environ, "MARMOTC": str(compiler_executable(binary_dir))})
+    return completed.returncode
+
+
 def build_config_for_regressions(build_config: str) -> str:
     supported = {"Debug", "Development", "Release"}
     if build_config in supported:
@@ -233,6 +252,11 @@ def main(argv: list[str]) -> int:
         help="Skip compiling the programs under benchmarks/, which normally runs with full regression passes.",
     )
     parser.add_argument(
+        "--skip-tool-tests",
+        action="store_true",
+        help="Skip the Rust marmot tool's tests, which normally run with full regression passes.",
+    )
+    parser.add_argument(
         "--skip-layering-check",
         action="store_true",
         help="Skip the include check that keeps the compiler, runtime and common libraries apart.",
@@ -292,11 +316,13 @@ def main(argv: list[str]) -> int:
         should_run_cli_contracts = not args.skip_cli_contracts
         should_run_format_check = not args.skip_format_check
         should_run_benchmark_check = not args.skip_benchmark_check
+        should_run_tool_tests = not args.skip_tool_tests
         if args.category or args.pattern or args.test:
             should_run_doc_examples = False
             should_run_cli_contracts = False
             should_run_format_check = False
             should_run_benchmark_check = False
+            should_run_tool_tests = False
 
         if args.category == "doc_examples":
             doc_examples_command = [sys.executable, str(root / "scripts" / "check_doc_examples.py"), "--build", regression_build]
@@ -357,6 +383,11 @@ def main(argv: list[str]) -> int:
             benchmark_check_exit_code = run_command(benchmark_check_command, root)
             if benchmark_check_exit_code != 0:
                 return benchmark_check_exit_code
+
+        if should_run_tool_tests:
+            tool_tests_exit_code = run_tool_tests(root, binary_dir)
+            if tool_tests_exit_code != 0:
+                return tool_tests_exit_code
 
         regression_command = [sys.executable, str(root / "scripts" / "run_tests.py"), "--build", regression_build]
         if args.category:
