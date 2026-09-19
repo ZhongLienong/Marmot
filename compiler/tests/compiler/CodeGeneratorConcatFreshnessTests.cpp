@@ -54,22 +54,24 @@ namespace
 		return std::nullopt;
 	}
 
-	// Walks every byte of the procedure and compares it to `target`. This is a
-	// raw byte scan, not a decoded instruction walk: an operand byte that
-	// happens to equal `target`'s ordinal would read as a match. The snippets
-	// below are small enough that their operands are small indices unlikely to
-	// collide with EXTEND_TEXT/CONCAT_TEXT's ordinals in practice, and a
-	// correct decoded walk would mean duplicating a large part of
-	// Disassembler.cpp's per-opcode operand-width switch, which is not worth
-	// it here.
+	// Steps through the procedure instruction by instruction, so an operand byte
+	// that happens to equal `target`'s ordinal is never mistaken for it.
 	[[nodiscard]] bool ContainsOpCode(const BytecodeStream& procedure, OpCode target)
 	{
-		for (BytecodeStream::const_iterator it = procedure.cbegin(); it != procedure.cend(); ++it)
+		for (int offset = 0; offset < procedure.GetByteCodeSize();)
 		{
-			if (*it == target)
+			const OpCode opcode = procedure.ReadByteCode(offset);
+			if (opcode == target)
 			{
 				return true;
 			}
+
+			const int length = OpCodeTable::Length(opcode);
+			if (length == 0)
+			{
+				FAIL("Byte " + std::to_string(static_cast<int>(opcode)) + " at offset " + std::to_string(offset) + " is not an opcode.");
+			}
+			offset += length;
 		}
 
 		return false;

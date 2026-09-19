@@ -488,7 +488,7 @@ void BytecodeLinker::PatchBootstrapOffsets()
 			for (int offset = 0; offset < bytecode_size; )
 			{
 				OpCode opcode = procedure.ReadByteCode(offset);
-				int advance = CalculateInstructionSize(opcode);
+				int advance = OpCodeTable::Length(opcode);
 
 				if (opcode == OpCode::MAKE_CLOSURE || opcode == OpCode::MAKE_FUNCTION)
 				{
@@ -724,7 +724,7 @@ void BytecodeLinker::PatchProcedure(
 	for (int offset = 0; offset < bytecode_size; )
 	{
 		const OpCode opcode = procedure.ReadByteCode(offset);
-		const int advance = CalculateInstructionSize(opcode);
+		const int advance = OpCodeTable::Length(opcode);
 
 		if (opcode == OpCode::MAKE_CLOSURE || opcode == OpCode::MAKE_FUNCTION || opcode == OpCode::CALL_PROC ||
 			opcode == OpCode::CALL_PROC_0 || opcode == OpCode::CALL_PROC_1 || opcode == OpCode::CALL_PROC_2 || opcode == OpCode::CALL_PROC_3)
@@ -801,121 +801,5 @@ void BytecodeLinker::PatchProcedure(
 		}
 
 		offset += advance;
-	}
-}
-
-int BytecodeLinker::CalculateInstructionSize(OpCode opcode) const
-{
-	switch (opcode)
-	{
-		case OpCode::ADD_LOCAL_INT:
-		case OpCode::IF_LOCAL_LE_INT:
-			return 6;
-		case OpCode::IF_LOCAL_GE_LOCAL:
-			return 7;
-		case OpCode::PUSH_LOCAL_SUB_INT:
-		case OpCode::GET_LOCAL2:
-			return 4;
-		case OpCode::INTEGER_CONSTANT:
-		case OpCode::FLOAT_CONSTANT:
-		case OpCode::WORD_CONSTANT:
-			return 9;
-		case OpCode::BYTE_CONSTANT:
-			return 2;
-		case OpCode::CREATE_ARRAY:
-		case OpCode::CREATE_TUPLE:
-			return 4;
-		case OpCode::LOAD_STRING_WIDE:
-			return 3;
-		case OpCode::JUMP:
-		case OpCode::JUMP_IF_FALSE:
-		case OpCode::JUMP_IF_TRUE:
-		case OpCode::JUMP_BACK:
-		case OpCode::IF_INTEGER_EQUAL:
-		case OpCode::IF_INTEGER_NOT_EQUAL:
-		case OpCode::IF_INTEGER_GREATER:
-		case OpCode::IF_INTEGER_GREATER_EQUAL:
-		case OpCode::IF_INTEGER_LESS:
-		case OpCode::IF_INTEGER_LESS_EQUAL:
-		case OpCode::IF_FLOAT_EQUAL:
-		case OpCode::IF_FLOAT_NOT_EQUAL:
-		case OpCode::IF_FLOAT_GREATER:
-		case OpCode::IF_FLOAT_GREATER_EQUAL:
-		case OpCode::IF_FLOAT_LESS:
-		case OpCode::IF_FLOAT_LESS_EQUAL:
-			return 3;
-		case OpCode::SPAWN_WORKER:
-			return 2;  // opcode + argument count; the function comes off the stack
-		case OpCode::JOIN_WORKER:
-			return 5;  // opcode + ok, err, cancelled and failed tags
-		case OpCode::CHANNEL_CREATE:
-		case OpCode::CHANNEL_SEND:
-		case OpCode::CHANNEL_RECEIVE:
-		case OpCode::CHANNEL_CLOSE:
-		case OpCode::WORKER_IS_DONE:
-		case OpCode::WORKER_CANCEL:
-		case OpCode::MAKE_CELL:
-		case OpCode::READ_CELL:
-		case OpCode::WRITE_CELL:
-			return 1;
-		case OpCode::CALL_FOREIGN:
-			return 3;
-		case OpCode::CALL_FOREIGN_INDEXED:
-			return 4;  // opcode + ffi_index + arity + return_type
-		case OpCode::CALL_PROC:
-			return 3;  // opcode + proc_index + arity
-		case OpCode::CALL_PROC_0:
-		case OpCode::CALL_PROC_1:
-		case OpCode::CALL_PROC_2:
-		case OpCode::CALL_PROC_3:
-			return 2;  // opcode + proc_index
-		case OpCode::CALL_GLOBAL:
-			return 3;  // opcode + global_index + arity
-		case OpCode::CALL_GLOBAL_WIDE:
-			return 4;  // opcode + global_index(2) + arity
-		case OpCode::DEFINE_GLOBAL_WIDE:
-		case OpCode::GET_GLOBAL_WIDE:
-		case OpCode::SET_GLOBAL_WIDE:
-		case OpCode::GET_LOCAL_WIDE:
-		case OpCode::SET_LOCAL_WIDE:
-		case OpCode::GET_LOCAL_CELL_WIDE:
-		case OpCode::SET_LOCAL_CELL_WIDE:
-		case OpCode::GET_CELL_WIDE:
-		case OpCode::SET_CELL_WIDE:
-			return 3;
-		case OpCode::MAKE_CLOSURE:
-		case OpCode::MAKE_FUNCTION:
-		case OpCode::LOAD_STRING:
-		case OpCode::DEFINE_GLOBAL:
-		case OpCode::GET_GLOBAL:
-		case OpCode::SET_GLOBAL:
-		case OpCode::GET_LOCAL:
-		case OpCode::SET_LOCAL:
-		case OpCode::GET_LOCAL_CELL:
-		case OpCode::SET_LOCAL_CELL:
-		case OpCode::GET_CELL:
-		case OpCode::SET_CELL:
-		case OpCode::CALL:
-		case OpCode::BIND_CAPTURES:
-		case OpCode::GET_MEMBER:
-		case OpCode::POP_VALUES:
-		case OpCode::POP_LOCAL_SCOPE:
-		case OpCode::POP_BLOCK_SCOPE:
-		case OpCode::POP_MATCH_SCOPE:
-		case OpCode::TAIL_CALL:
-		case OpCode::CONSTRUCT_STRUCT:
-		case OpCode::CONSTRUCT_UNION:
-		case OpCode::LOAD_EMPTY_UNION:
-		case OpCode::SET_TAG:
-			return 2;
-		case OpCode::CALL_0:
-		case OpCode::CALL_1:
-		case OpCode::CALL_2:
-		case OpCode::CALL_3:
-		case OpCode::GET_ARRAY:
-		case OpCode::GET_TUPLE:
-			return 1;
-		default:
-			return 1;
 	}
 }

@@ -514,7 +514,6 @@ void CodeGenerator::RewriteEmittedLocalOps(int variable_index, LocalStorageKind 
 	for (int offset = 0; offset < procedure.GetByteCodeSize();)
 	{
 		const OpCode opcode = procedure.ReadByteCode(offset);
-		int advance = 1;
 
 		switch (opcode)
 		{
@@ -528,7 +527,6 @@ void CodeGenerator::RewriteEmittedLocalOps(int variable_index, LocalStorageKind 
 			{
 				procedure.SetByteCode(offset, map_opcode(opcode));
 			}
-			advance = 2;
 			break;
 		}
 		case OpCode::GET_LOCAL_WIDE:
@@ -541,7 +539,6 @@ void CodeGenerator::RewriteEmittedLocalOps(int variable_index, LocalStorageKind 
 			{
 				procedure.SetByteCode(offset, map_opcode(opcode));
 			}
-			advance = 3;
 			break;
 		}
 		case OpCode::ADD_LOCAL_INT:
@@ -555,7 +552,6 @@ void CodeGenerator::RewriteEmittedLocalOps(int variable_index, LocalStorageKind 
 				procedure.SetByteCode(offset + 3, imm < 0 ? OpCode::SUB_ASSIGN_INT : OpCode::ADD_ASSIGN_INT);
 				procedure.SetByteCode(offset + 4, map_opcode(OpCode::SET_LOCAL));
 			}
-			advance = 6;
 			break;
 		}
 		case OpCode::PUSH_LOCAL_SUB_INT:
@@ -568,7 +564,6 @@ void CodeGenerator::RewriteEmittedLocalOps(int variable_index, LocalStorageKind 
 				procedure.SetByteCode(offset + 2, GetSmallIntOpcode(imm));
 				procedure.SetByteCode(offset + 3, OpCode::SUBTRACT_INTEGER);
 			}
-			advance = 4;
 			break;
 		}
 		case OpCode::IF_LOCAL_LE_INT:
@@ -581,7 +576,6 @@ void CodeGenerator::RewriteEmittedLocalOps(int variable_index, LocalStorageKind 
 				procedure.SetByteCode(offset + 2, GetSmallIntOpcode(imm));
 				procedure.SetByteCode(offset + 3, OpCode::IF_INTEGER_LESS_EQUAL);
 			}
-			advance = 6;
 			break;
 		}
 		case OpCode::IF_LOCAL_GE_LOCAL:
@@ -594,7 +588,6 @@ void CodeGenerator::RewriteEmittedLocalOps(int variable_index, LocalStorageKind 
 				procedure.SetByteCode(offset + 2, right == target_index ? map_opcode(OpCode::GET_LOCAL) : OpCode::GET_LOCAL);
 				procedure.SetByteCode(offset + 4, OpCode::IF_INTEGER_GREATER_EQUAL);
 			}
-			advance = 7;
 			break;
 		}
 		case OpCode::GET_LOCAL2:
@@ -606,117 +599,13 @@ void CodeGenerator::RewriteEmittedLocalOps(int variable_index, LocalStorageKind 
 				procedure.SetByteCode(offset, first == target_index ? map_opcode(OpCode::GET_LOCAL) : OpCode::GET_LOCAL);
 				procedure.SetByteCode(offset + 2, second == target_index ? map_opcode(OpCode::GET_LOCAL) : OpCode::GET_LOCAL);
 			}
-			advance = 4;
 			break;
 		}
-		case OpCode::INTEGER_CONSTANT:
-		case OpCode::FLOAT_CONSTANT:
-		case OpCode::WORD_CONSTANT:
-			advance = 9;
-			break;
-		case OpCode::BYTE_CONSTANT:
-			advance = 2;
-			break;
-		case OpCode::CREATE_ARRAY:
-		case OpCode::CREATE_TUPLE:
-			advance = 4;
-			break;
-		case OpCode::LOAD_STRING_WIDE:
-			advance = 3;
-			break;
-		case OpCode::JUMP:
-		case OpCode::JUMP_IF_FALSE:
-		case OpCode::JUMP_IF_TRUE:
-		case OpCode::JUMP_BACK:
-		case OpCode::IF_INTEGER_EQUAL:
-		case OpCode::IF_INTEGER_NOT_EQUAL:
-		case OpCode::IF_INTEGER_GREATER:
-		case OpCode::IF_INTEGER_GREATER_EQUAL:
-		case OpCode::IF_INTEGER_LESS:
-		case OpCode::IF_INTEGER_LESS_EQUAL:
-		case OpCode::IF_FLOAT_EQUAL:
-		case OpCode::IF_FLOAT_NOT_EQUAL:
-		case OpCode::IF_FLOAT_GREATER:
-		case OpCode::IF_FLOAT_GREATER_EQUAL:
-		case OpCode::IF_FLOAT_LESS:
-		case OpCode::IF_FLOAT_LESS_EQUAL:
-			advance = 3;
-			break;
-		case OpCode::SPAWN_WORKER:
-			advance = 2;
-			break;
-		case OpCode::JOIN_WORKER:
-			advance = 5;
-			break;
-		case OpCode::CHANNEL_CREATE:
-		case OpCode::CHANNEL_SEND:
-		case OpCode::CHANNEL_RECEIVE:
-		case OpCode::CHANNEL_CLOSE:
-		case OpCode::WORKER_IS_DONE:
-		case OpCode::WORKER_CANCEL:
-		case OpCode::MAKE_CELL:
-		case OpCode::READ_CELL:
-		case OpCode::WRITE_CELL:
-			advance = 1;
-			break;
-		case OpCode::CALL_FOREIGN:
-			advance = 3;
-			break;
-		case OpCode::CALL_FOREIGN_INDEXED:
-			advance = 4;
-			break;
-		case OpCode::CALL_PROC:
-		case OpCode::CALL_GLOBAL:
-			advance = 3;
-			break;
-		case OpCode::CALL_PROC_0:
-		case OpCode::CALL_PROC_1:
-		case OpCode::CALL_PROC_2:
-		case OpCode::CALL_PROC_3:
-			advance = 2;
-			break;
-		case OpCode::CALL_GLOBAL_WIDE:
-			advance = 4;
-			break;
-		case OpCode::GET_ARRAY:
-		case OpCode::GET_TUPLE:
-			advance = 1;
-			break;
-		case OpCode::DEFINE_GLOBAL:
-		case OpCode::GET_GLOBAL:
-		case OpCode::SET_GLOBAL:
-		case OpCode::GET_CELL:
-		case OpCode::SET_CELL:
-		case OpCode::MAKE_CLOSURE:
-		case OpCode::MAKE_FUNCTION:
-		case OpCode::LOAD_STRING:
-		case OpCode::CALL:
-		case OpCode::BIND_CAPTURES:
-		case OpCode::GET_MEMBER:
-		case OpCode::POP_VALUES:
-		case OpCode::POP_LOCAL_SCOPE:
-		case OpCode::POP_BLOCK_SCOPE:
-		case OpCode::POP_MATCH_SCOPE:
-		case OpCode::TAIL_CALL:
-		case OpCode::CONSTRUCT_STRUCT:
-		case OpCode::CONSTRUCT_UNION:
-		case OpCode::LOAD_EMPTY_UNION:
-		case OpCode::SET_TAG:
-			advance = 2;
-			break;
-		case OpCode::DEFINE_GLOBAL_WIDE:
-		case OpCode::GET_GLOBAL_WIDE:
-		case OpCode::SET_GLOBAL_WIDE:
-		case OpCode::GET_CELL_WIDE:
-		case OpCode::SET_CELL_WIDE:
-			advance = 3;
-			break;
 		default:
-			advance = 1;
 			break;
 		}
 
-		offset += advance;
+		offset += OpCodeTable::Length(opcode);
 	}
 }
 
