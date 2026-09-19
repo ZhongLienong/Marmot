@@ -717,7 +717,10 @@ fn test_checks_exit_status_and_snapshots_outside_a_project() {
         "test/warns.warnings.json",
         "[{\"code\": \"UnusedLocal\"}]\n",
     );
-    project.write("test/doc_examples/skipped.mmt", "module Skipped\ndef broken = ;\n");
+    project.write(
+        "test/doc_examples/skipped.mmt",
+        "module Skipped\ndef broken = ;\n",
+    );
 
     let tested = marmot(&compiler, &project.0, &["test", "--format", "json"]);
     let payload: serde_json::Value = serde_json::from_slice(&tested.stdout)

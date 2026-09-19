@@ -11,7 +11,8 @@ pub const PLAN_VERSION: u32 = 1;
 #[derive(Debug, Serialize, PartialEq, Eq)]
 pub struct Plan {
     pub version: u32,
-    /// Absent in a plan for `marmotc test`, which compiles many files.
+    /// Absent in the plan for `marmot test`, whose tests are each compiled
+    /// with the plan's inputs and their own entry.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub entry: Option<String>,
     pub search_paths: Vec<String>,

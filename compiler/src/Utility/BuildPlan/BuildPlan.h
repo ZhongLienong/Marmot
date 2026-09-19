@@ -12,8 +12,8 @@
 
 // A build plan names everything a compile needs, so the compiler does no
 // discovery of its own: no manifests, no lockfile, no MARMOT_PATH. The marmot
-// tool resolves a project and writes one; `marmotc run|check|build|test
-// --plan FILE` reads it.
+// tool resolves a project and writes one; `marmotc check|build --plan FILE`
+// reads it.
 //
 //   {
 //     "version": 1,
@@ -25,8 +25,9 @@
 //   }
 //
 // Relative paths are relative to the plan file's directory. "version" is
-// required; "entry" is required to run, check or build, and absent for `test`,
-// which compiles every test file with the plan's inputs. A native library's
+// required; "entry" names the file to compile, and a plan without one gives
+// only the inputs, for a file named on the command line (`marmot test` builds
+// each test that way). A native library's
 // checksum and thread_safe flag are recorded in the program; where its file is
 // belongs to the machine that runs it, so a plan has no library paths. Unknown
 // members are errors, so a misspelt input is reported rather than silently left

@@ -23,8 +23,8 @@ Current scope note: there is no `async` / `await` surface in the current languag
 
 ## Installation (Windows)
 ```powershell
-# From the repo root, after building marmotc.exe and the marmot tool
-# (cargo build --release --manifest-path tool/Cargo.toml):
+# From the repo root, after building marmotc.exe and marmotvm.exe and the
+# marmot tool (cargo build --release --manifest-path tool/Cargo.toml):
 python .\scripts\install.py --copy-binaries
 
 # This prefers a Release preset build if present,
@@ -37,9 +37,15 @@ python .\scripts\install.py --copy-binaries
 
 ## Getting Started
 
-Marmot has two programs: `marmot`, the project tool (Rust, in `tool/`), and
-`marmotc`, the compiler and VM. After both are on your `PATH`, a basic workflow
-uses the tool:
+Marmot has three programs:
+
+- `marmot`, the project tool (Rust, in `tool/`): projects, packages, running and
+  testing
+- `marmotc`, the compiler: it compiles a program to a `.mmc` file and never runs
+  one
+- `marmotvm`, the virtual machine: it runs a `.mmc` file and compiles nothing
+
+After all three are on your `PATH`, a basic workflow uses the tool:
 
 ```powershell
 marmot init hello-world
@@ -51,6 +57,8 @@ marmot run src/Main.mmt
 marmot test
 ```
 
+`marmot run` builds the program into `target/` at the project root and runs it
+in `marmotvm`; `marmot test` does the same for every test, in parallel.
 Inside a project, `marmot fmt` formats the project's sources (`--check` only
 checks them), leaving installed packages, the prelude and `marmot_path`
 registries alone; `marmot fmt <file|dir>...` formats just those.
@@ -475,7 +483,7 @@ foreign "marmot_image"
 ```
 
 A declaration without `from` must name a builtin. See
-[Build Plans](docs/plan-file.md#native-libraries) for how `marmotc run` finds a
+[Build Plans](docs/plan-file.md#native-libraries) for how `marmotvm` finds a
 library.
 
 ### Supported Surface
@@ -605,36 +613,33 @@ Marmot uses CMake presets for native builds.
 Configure and build a Development binary:
 ```bash
 cmake --preset x64-development
-cmake --build --preset x64-development --target marmotc
+cmake --build --preset x64-development --target marmotc marmotvm
 ```
 
 Other common presets:
 ```bash
 cmake --preset x64-debug
-cmake --build --preset x64-debug --target marmotc
+cmake --build --preset x64-debug --target marmotc marmotvm
 
 cmake --preset x64-release
-cmake --build --preset x64-release --target marmotc
+cmake --build --preset x64-release --target marmotc marmotvm
 ```
 
-Native preset builds write the executable to `out/build/ninja/<preset>/out/marmotc.exe`.
+Native preset builds write the executables to `out/build/ninja/<preset>/out/`.
 
 ### Running Programs
 
+`marmot run path\to\program.mmt` builds and runs a program in one step. By hand:
+
 ```bash
-# Run a Marmot program built with the Development preset
-.\out\build\ninja\x64-development\out\marmotc.exe run path\to\program.mmt
-
-# Shorthand form
-.\out\build\ninja\x64-development\out\marmotc.exe path\to\program.mmt
-
 # Type-check only
 .\out\build\ninja\x64-development\out\marmotc.exe check path\to\program.mmt
 
-# Compile without executing
+# Compile to path\to\program.mmc (or anywhere, with -o)
 .\out\build\ninja\x64-development\out\marmotc.exe build path\to\program.mmt
 
-# This emits path\to\program.mmc.json next to the source file
+# Run the compiled program
+.\out\build\ninja\x64-development\out\marmotvm.exe path\to\program.mmc
 ```
 
 ### Running Unit Tests
@@ -670,17 +675,19 @@ ctest --test-dir out/build/ninja/x64-development --output-on-failure
 
 See [Testing Guide](docs/testing.md) for when a new test should go in `tests/` instead of `test/`, plus filtering examples for both harnesses.
 
-Run all file-based language regression tests:
+Run all file-based language regression tests from the repository root, with
+`MARMOTC` naming the compiler (marmotvm is found beside it) and `MARMOT_PATH`
+the prelude:
 ```bash
-.\out\build\ninja\x64-development\out\marmotc.exe test
+marmot test
 ```
 
 Run specific regression tests:
 ```bash
-.\out\build\ninja\x64-development\out\marmotc.exe test --test closure/simple.mmt
-.\out\build\ninja\x64-development\out\marmotc.exe test typeclass
-.\out\build\ninja\x64-development\out\marmotc.exe test static_analyzer
-.\out\build\ninja\x64-development\out\marmotc.exe test --pattern recursive
+marmot test --test closure/simple.mmt
+marmot test typeclass
+marmot test static_analyzer
+marmot test --pattern recursive
 ```
 
 Legacy Python runners are still available:

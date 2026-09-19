@@ -143,7 +143,7 @@ The runtime uses `FFIReturnKind` to describe how `ret` is interpreted.
 ## Load-Time Validation
 
 The `marmot` tool rejects a package whose `abi_version` does not match the
-runtime's. Before a program runs, `marmotc` validates:
+runtime's. Before a program runs, `marmotvm` validates:
 
 - each native library the program names can be found and loaded
 - every symbol the program declares from it exists in the loaded library

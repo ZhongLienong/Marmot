@@ -280,7 +280,8 @@ Fallback paths:
 - macOS: `lib/macos/lib<library_name>.dylib`
 - Linux: `lib/linux/x86_64/lib<library_name>.so`
 
-`marmotc run` verifies the selected prebuilt checksum before loading:
+`marmotvm` verifies the selected prebuilt checksum, which the compiler records
+in the program, before loading:
 
 - matching checksum: load continues
 - checksum mismatch: load fails
@@ -299,9 +300,9 @@ file's own package and any package that is itself a search path) with its path,
 1. an import resolves to an `.mmt` file on the plan's search paths
 2. a `foreign ... from "name"` declaration names a library; the compiler
    records it in the program and its `.mmc`
-3. `marmotc run` finds each library the program names, through the plan or a
-   library search path, and loads it just before the program starts; `check`
-   and `build` never load a library
+3. `marmotvm` finds each library the program names, through the `--library`
+   files `marmot run` passes or a library search path, and loads it just before
+   the program starts; `marmotc` never loads a library
 4. a library that is not found, fails to load, or lacks a declared symbol
    stops the run
 

@@ -199,9 +199,11 @@ fn run_until(mut command: Command, deadline: Instant) -> Result<Finished, String
     })
 }
 
-/// The canonical root with a trailing `/`, as snapshots strip it.
+/// The canonical root with a trailing `/`, as snapshots strip it. Its case is
+/// kept: it must match the paths the compiler prints.
 fn root_prefix(root: &Path) -> String {
-    let mut prefix = paths::identity_key(root).replace('\\', "/");
+    let canonical = std::fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
+    let mut prefix = paths::display(&canonical).replace('\\', "/");
     if !prefix.ends_with('/') {
         prefix.push('/');
     }
@@ -228,10 +230,27 @@ fn strip_ansi(text: &str) -> String {
 }
 
 /// Output as a snapshot compares it: no colour, no root, `/` separators, `\n`
-/// line ends, no trailing blanks on a line, and no final newline.
+/// line ends, no trailing blanks on a line, and no final newline. A run of `\r`
+/// is one line end, with or without a `\n` after it: a source line read with
+/// its `\r` and written through a text-mode stream ends in `\r\r\n`.
 fn snapshot_text(text: &str, root_prefix: &str) -> String {
-    let clean = without_root(&strip_ansi(text), root_prefix);
-    let clean = clean.replace("\r\n", "\n").replace('\r', "\n");
+    let stripped = without_root(&strip_ansi(text), root_prefix);
+    let mut clean = String::with_capacity(stripped.len());
+    let mut after_carriage_return = false;
+    for character in stripped.chars() {
+        if character == '\r' {
+            after_carriage_return = true;
+            continue;
+        }
+        if after_carriage_return && character != '\n' {
+            clean.push('\n');
+        }
+        after_carriage_return = false;
+        clean.push(character);
+    }
+    if after_carriage_return {
+        clean.push('\n');
+    }
     let lines: Vec<&str> = clean
         .split('\n')
         .map(|line| line.trim_end_matches([' ', '\t']))
@@ -573,6 +592,22 @@ mod tests {
             ),
             "error at src/A.mmt:1\nnext"
         );
+        assert_eq!(
+            snapshot_text("9 | line;\r\r\n  |\r\n", prefix),
+            "9 | line;\n  |"
+        );
+        assert_eq!(snapshot_text("a\rb", prefix), "a\nb");
+    }
+
+    #[test]
+    fn the_root_prefix_keeps_the_case_the_compiler_prints() {
+        let root = std::env::current_dir().unwrap();
+        let prefix = root_prefix(&root);
+        let printed = format!(
+            "{}/src/A.mmt",
+            paths::display(&std::fs::canonicalize(&root).unwrap())
+        );
+        assert_eq!(without_root(&printed, &prefix), "src/A.mmt");
     }
 
     #[test]

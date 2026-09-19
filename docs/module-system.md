@@ -262,4 +262,4 @@ The declared entry module name is preserved for bootstrap and debug labeling whe
 
 ## Package Interaction
 
-A module belongs to a native package when the build plan names one whose root is the module's directory. Such a module may declare the package's foreign functions. `marmotc run` loads the package's library just before the program starts; `check` and `build` never load it. See [Package System](package-system.md) and [Build Plans](plan-file.md).
+A module names the native library its foreign functions come from (`foreign ... from "library"`), and the compiler records the library and the module's directory in the program. `marmotvm` loads the library just before the program starts; `marmotc` never loads it. See [Package System](package-system.md) and [Build Plans](plan-file.md#native-libraries).

@@ -6,12 +6,14 @@ on CLI commands such as:
 ```powershell
 marmotc.exe check src/Main.mmt --format json
 marmotc.exe build src/Main.mmt --format json
-marmotc.exe run src/Main.mmt --format json
+marmotvm.exe src/Main.mmc --format json
+marmot run src/Main.mmt --format json
 ```
 
 ## Top-Level Envelope
 
-`check`, `build`, and `run` return a command envelope with a nested `report`:
+`check`, `build` and `run` return a command envelope with a nested `report`
+(`marmotvm` sets `"source": "marmotvm"`):
 
 ```json
 {
@@ -43,9 +45,10 @@ Stable fields:
 - `stderr`: captured command stderr.
 - `report`: compiler/runtime diagnostics for the command.
 
-`run --format json` uses the same envelope. If execution fails at runtime, the
-runtime diagnostic is appended to `report.diagnostics` and `report.errors`.
-Compiler warnings remain in `report.warnings`.
+`marmotvm --format json` uses the same envelope. If execution fails at runtime,
+the runtime diagnostic is in `report.diagnostics` and `report.errors`.
+`marmot run --format json` merges the two: the build's warnings stay in
+`report.warnings`, and the run's output and errors follow.
 
 ## Compiler Diagnostic Object
 
@@ -96,7 +99,7 @@ is currently emitted as an empty array when no related locations exist.
 
 ## Runtime Diagnostic Object
 
-Runtime failures produced by `run --format json` use the same report envelope,
+Runtime failures produced by `marmotvm --format json` use the same report envelope,
 but the diagnostic object includes runtime-specific fields:
 
 ```json

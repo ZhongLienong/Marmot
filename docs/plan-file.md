@@ -5,15 +5,15 @@ plan, the compiler looks nothing up for itself: it reads no `project.marmot`,
 `package.marmot` or `marmot.lock`, and ignores `MARMOT_PATH`.
 
 ```powershell
-marmotc run --plan build/plan.json
 marmotc check --plan build/plan.json --format json
-marmotc build --plan build/plan.json
-marmotc test --plan build/plan.json --dir test
+marmotc build --plan build/plan.json -o target/Main.mmc
+marmotc build --plan build/inputs.json test/smoke.mmt -o target/test/smoke.mmc
 ```
 
-The plan replaces the source-file argument; passing both is an error. `build`
-writes the artifact beside the plan's entry, as it would for that file. `test`
-compiles every test file with the plan's inputs, so its plan has no entry.
+A plan with an entry replaces the source-file argument; passing both is an
+error. A plan without an entry gives only the inputs, and the source file given
+with it is the entry: `marmot test` builds each test that way. `build` writes
+the `.mmc` beside the entry, or to `-o`; `marmotvm` runs it.
 
 The `marmot` tool writes the plan: it resolves a project and its dependencies,
 and the compiler only compiles. `marmot plan [file]` prints the plan it would
