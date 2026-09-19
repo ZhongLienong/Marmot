@@ -157,36 +157,6 @@ namespace
 		}
 	};
 
-	[[nodiscard]] std::vector<std::filesystem::path> CollectPackageFiles(const std::filesystem::path& package_directory)
-	{
-		std::vector<std::filesystem::path> files;
-		const std::filesystem::path manifest_path = package_directory / "package.marmot";
-		if (std::filesystem::exists(manifest_path))
-		{
-			files.push_back(manifest_path);
-		}
-
-		if (!std::filesystem::exists(package_directory))
-		{
-			return files;
-		}
-
-		for (const std::filesystem::directory_entry& entry : std::filesystem::recursive_directory_iterator(package_directory))
-		{
-			if (!entry.is_regular_file())
-			{
-				continue;
-			}
-
-			if (entry.path().extension() == ".mmt")
-			{
-				files.push_back(entry.path());
-			}
-		}
-
-		std::sort(files.begin(), files.end());
-		return files;
-	}
 }
 
 namespace MidoriChecksum
@@ -224,52 +194,6 @@ namespace MidoriChecksum
 		}
 
 		return hash.Finalize();
-	}
-
-	std::expected<std::string, std::string> HashFiles(const std::vector<std::filesystem::path>& files, const std::filesystem::path& root)
-	{
-		Sha256 hash;
-		for (const std::filesystem::path& file : files)
-		{
-			std::error_code error_code;
-			const std::filesystem::path relative_path = std::filesystem::relative(file, root, error_code);
-			const std::string path_text = error_code ? file.lexically_normal().generic_string() : relative_path.generic_string();
-			hash.Update(path_text.data(), path_text.size());
-			static constexpr char separator = '\n';
-			hash.Update(&separator, 1u);
-
-			std::ifstream input(file, std::ios::binary);
-			if (!input.is_open())
-			{
-				return std::unexpected(std::format("Failed to open file for hashing: {}", file.string()));
-			}
-
-			std::array<char, 4096u> buffer{};
-			while (input.good())
-			{
-				input.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
-				const std::streamsize count = input.gcount();
-				if (count > 0)
-				{
-					hash.Update(buffer.data(), static_cast<size_t>(count));
-				}
-			}
-
-			if (!input.eof())
-			{
-				return std::unexpected(std::format("Failed while reading file for hashing: {}", file.string()));
-			}
-
-			hash.Update(&separator, 1u);
-		}
-
-		return hash.Finalize();
-	}
-
-	std::expected<std::string, std::string> HashPackageSources(const std::filesystem::path& package_directory)
-	{
-		const std::vector<std::filesystem::path> files = CollectPackageFiles(package_directory);
-		return HashFiles(files, package_directory);
 	}
 
 	std::expected<bool, std::string> VerifyFileChecksum(const std::filesystem::path& path, std::string_view expected_checksum)

@@ -5,7 +5,8 @@ package workspace.
 
 ## Active Manifest
 
-Marmot looks for `project.marmot` first.
+The `marmot` tool looks for `project.marmot` first, walking up from the file
+it compiles (or from the current directory for project commands).
 
 If no project manifest exists, a package root with `package.marmot` is treated
 as the active manifest instead. In that mode:
@@ -105,12 +106,11 @@ Module names should mirror paths relative to `source_dir`:
 
 If you keep modules at the project root, set `source_dir = "."`.
 
-## MARMOT_PATH Behavior
+## Search Paths
 
-When Marmot operates inside a project, it prepares an effective `MARMOT_PATH`
-from the resolved package graph and the active manifest.
-
-The effective search path order is:
+Inside a project, the `marmot` tool gives the compiler its search paths in a
+build plan, built from the resolved package graph and the active manifest, in
+this order:
 
 1. `source_dir`
 2. resolved package directories in dependency order

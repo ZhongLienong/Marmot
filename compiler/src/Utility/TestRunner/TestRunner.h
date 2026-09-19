@@ -1,21 +1,35 @@
 #pragma once
 
+#include <expected>
 #include <filesystem>
 #include <optional>
 #include <string>
 #include <vector>
 
+#include "Compiler/CompilationInputs/CompilationInputs.h"
 #include "Compiler/Result/Result.h"
-#include "Utility/Project/ProjectManifest.h"
 
 namespace MidoriTestRunner
 {
 	struct Options
 	{
-		std::filesystem::path m_start_path = ".";
+		std::filesystem::path m_root;
+		std::filesystem::path m_test_directory;
+		int m_timeout_ms = 30000;
+		// A build plan's inputs, for every test; without one, MARMOT_PATH.
+		std::optional<std::filesystem::path> m_plan_file = std::nullopt;
+		std::optional<CompilationInputs> m_inputs = std::nullopt;
 		std::optional<std::string> m_filter = std::nullopt;
 		std::optional<std::string> m_pattern = std::nullopt;
 		std::optional<std::string> m_test_file = std::nullopt;
+
+		// The test directory defaults to root/test (a relative one is under the
+		// root), the timeout to 30000 ms. A plan that does not read is an error.
+		[[nodiscard]] static std::expected<Options, std::string> Create(
+			const std::filesystem::path& root,
+			const std::optional<std::filesystem::path>& test_directory,
+			const std::optional<int>& timeout_ms,
+			const std::optional<std::filesystem::path>& plan_file);
 	};
 
 	struct TestResult
@@ -38,6 +52,7 @@ namespace MidoriTestRunner
 		std::filesystem::path m_test_path;
 		std::filesystem::path m_result_directory;
 		std::filesystem::path m_test_directory;
+		std::optional<std::filesystem::path> m_plan_file = std::nullopt;
 	};
 
 	struct RunResult

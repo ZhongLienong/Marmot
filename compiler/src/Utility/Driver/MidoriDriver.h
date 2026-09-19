@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "Compiler/CompilationInputs/CompilationInputs.h"
 #include "Compiler/Result/Result.h"
@@ -33,13 +34,18 @@ namespace MidoriDriver
 	using DriverResult = std::expected<int, DriverError>;
 
 	[[nodiscard]] SourceReadResult ReadSourceFile(const std::filesystem::path& file_path);
-	// Compiles with MARMOT_PATH and on-demand package manifests as inputs.
+	// The directories in MARMOT_PATH, in order.
+	[[nodiscard]] std::vector<std::filesystem::path> EnvironmentSearchPaths();
+	// What marmotc compiles with when it is given a file and no build plan:
+	// `<Name>` imports through MARMOT_PATH, and no native packages.
+	[[nodiscard]] CompilationInputs EnvironmentCompilationInputs();
+	// Compiles with EnvironmentCompilationInputs().
 	[[nodiscard]] MidoriResult::CompilationResult CompileSourceWithReport(std::string source_code, std::string file_name);
 	[[nodiscard]] MidoriResult::CompilationResult CompileSourceWithReport(std::string source_code, std::string file_name, CompilationInputs inputs);
 	[[nodiscard]] MidoriResult::CompilerResult CompileSource(std::string source_code, std::string file_name);
-	// Finds the inputs the way the CLI always has (project manifest, MARMOT_PATH).
+	// Compiles with EnvironmentCompilationInputs().
 	[[nodiscard]] CompileFileWithReportResult CompileFileWithReport(const std::filesystem::path& file_path);
-	// Uses exactly `inputs`; nothing is discovered (a build plan).
+	// Compiles with exactly `inputs` (a build plan's).
 	[[nodiscard]] CompileFileWithReportResult CompileFileWithReport(const std::filesystem::path& file_path, CompilationInputs inputs);
 	[[nodiscard]] CompileFileResult CompileFile(const std::filesystem::path& file_path);
 	[[nodiscard]] LoadArtifactResult LoadArtifact(const std::filesystem::path& path);

@@ -5,17 +5,20 @@ plan, the compiler looks nothing up for itself: it reads no `project.marmot`,
 `package.marmot` or `marmot.lock`, and ignores `MARMOT_PATH`.
 
 ```powershell
-marmot run --plan build/plan.json
-marmot check --plan build/plan.json --format json
-marmot build --plan build/plan.json
+marmotc run --plan build/plan.json
+marmotc check --plan build/plan.json --format json
+marmotc build --plan build/plan.json
+marmotc test --plan build/plan.json --dir test
 ```
 
 The plan replaces the source-file argument; passing both is an error. `build`
-writes the artifact beside the plan's entry, as it would for that file.
+writes the artifact beside the plan's entry, as it would for that file. `test`
+compiles every test file with the plan's inputs, so its plan has no entry.
 
-Plans are meant to be written by tools: something that resolves a project and
-its dependencies writes the plan, and the compiler only compiles. Without a
-plan, the CLI resolves inputs itself (see [Import Resolution](module-system.md#import-resolution)).
+The `marmot` tool writes the plan: it resolves a project and its dependencies,
+and the compiler only compiles. `marmot plan [file]` prints the plan it would
+use. Without a plan, `marmotc` finds `<Name>` imports through `MARMOT_PATH` and
+knows no native packages (see [Import Resolution](module-system.md#import-resolution)).
 
 ## Format
 
@@ -42,7 +45,7 @@ plan, the CLI resolves inputs itself (see [Import Resolution](module-system.md#i
 | Member | Required | Meaning |
 |---|---|---|
 | `version` | yes | Plan format version. This compiler reads `1`. |
-| `entry` | yes | The file to compile. |
+| `entry` | for run, check, build | The file to compile. Absent in a plan for `test`. |
 | `search_paths` | no | Directories searched, in order, for `<Name>` imports. Each must exist. |
 | `native_packages` | no | Packages that ship a native library (below). |
 
@@ -68,6 +71,6 @@ than silently left out.
 ## Native libraries
 
 Checking or building a program never loads its native libraries; loading one
-runs the library's own code. `marmot run` loads the libraries of every native
+runs the library's own code. `marmotc run` loads the libraries of every native
 package the program's files belong to just before the program starts, and a
 library that fails to load stops the run with an error.

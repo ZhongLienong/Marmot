@@ -3,7 +3,9 @@
 #include <cstdlib>
 #include <format>
 #include <fstream>
+#include <optional>
 #include <print>
+#include <ranges>
 #include <sstream>
 #include <string_view>
 #include <system_error>
@@ -14,20 +16,26 @@
 #include "Interpreter/VirtualMachine/VirtualMachine.h"
 #include "Interpreter/Worker/Worker.h"
 #include "Library/SharedLibraryCache/SharedLibraryCache.h"
-#include "Utility/Project/ProjectManifest.h"
 
 namespace
 {
-	[[nodiscard]] std::filesystem::path ResolveManifestInputPath(const std::filesystem::path& file_path)
+	[[nodiscard]] std::optional<std::string> ReadEnvironmentVariable(const char* name)
 	{
-		std::error_code path_error;
-		std::filesystem::path resolved_path = std::filesystem::absolute(file_path, path_error);
-		if (path_error)
+#ifdef _WIN32
+		char* value = nullptr;
+		size_t length = 0u;
+		if (_dupenv_s(&value, &length, name) != 0 || value == nullptr)
 		{
-			return file_path;
+			return std::nullopt;
 		}
 
-		return resolved_path;
+		std::string result(value);
+		free(value);
+		return result.empty() ? std::nullopt : std::optional<std::string>(std::move(result));
+#else
+		const char* value = std::getenv(name);
+		return value == nullptr || value[0] == '\0' ? std::nullopt : std::optional<std::string>(value);
+#endif
 	}
 
 	[[nodiscard]] bool ShouldEmitMachineReadableWarnings()
@@ -138,6 +146,35 @@ namespace MidoriDriver
 		return buffer.str();
 	}
 
+	std::vector<std::filesystem::path> EnvironmentSearchPaths()
+	{
+		const std::optional<std::string> value = ReadEnvironmentVariable("MARMOT_PATH");
+		if (!value.has_value())
+		{
+			return {};
+		}
+
+#ifdef _WIN32
+		const char separator = ';';
+#else
+		const char separator = ':';
+#endif
+		std::vector<std::filesystem::path> paths;
+		for (const std::ranges::subrange<std::string::const_iterator> segment : value.value() | std::views::split(separator))
+		{
+			if (!segment.empty())
+			{
+				paths.emplace_back(std::string(segment.begin(), segment.end()));
+			}
+		}
+		return paths;
+	}
+
+	CompilationInputs EnvironmentCompilationInputs()
+	{
+		return CompilationInputs().WithSearchPaths(EnvironmentSearchPaths());
+	}
+
 	MidoriResult::CompilerResult CompileSource(std::string source_code, std::string file_name)
 	{
 		MidoriResult::CompilationResult compile_result = CompileSourceWithReport(std::move(source_code), std::move(file_name));
@@ -153,7 +190,7 @@ namespace MidoriDriver
 
 	MidoriResult::CompilationResult CompileSourceWithReport(std::string source_code, std::string file_name)
 	{
-		return CompileSourceWithReport(std::move(source_code), std::move(file_name), MidoriProject::EnvironmentCompilationInputs());
+		return CompileSourceWithReport(std::move(source_code), std::move(file_name), EnvironmentCompilationInputs());
 	}
 
 	MidoriResult::CompilationResult CompileSourceWithReport(std::string source_code, std::string file_name, CompilationInputs inputs)
@@ -163,8 +200,7 @@ namespace MidoriDriver
 
 	CompileFileWithReportResult CompileFileWithReport(const std::filesystem::path& file_path)
 	{
-		const std::filesystem::path manifest_input_path = ResolveManifestInputPath(file_path);
-		return CompileFileWithReport(file_path, MidoriProject::DiscoverCompilationInputs(manifest_input_path));
+		return CompileFileWithReport(file_path, EnvironmentCompilationInputs());
 	}
 
 	CompileFileWithReportResult CompileFileWithReport(const std::filesystem::path& file_path, CompilationInputs inputs)

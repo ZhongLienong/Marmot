@@ -103,7 +103,7 @@ fn without_a_manifest_the_search_paths_are_marmot_path() {
 
     let plan = plan_for(&tree, "app/Main.mmt", &environment);
 
-    assert_eq!(plan.entry, shown(&tree.path("app/Main.mmt")));
+    assert_eq!(plan.entry, Some(shown(&tree.path("app/Main.mmt"))));
     assert_eq!(plan.search_paths, vec![shown(&tree.path("lib"))]);
     assert!(plan.native_packages.is_empty());
 }
@@ -473,7 +473,7 @@ fn packages_in_a_cycle_are_left_out_like_the_compiler_does() {
 fn the_plan_serialises_as_the_compiler_expects() {
     let plan = Plan {
         version: 1,
-        entry: "E".into(),
+        entry: Some("E".into()),
         search_paths: vec!["S".into()],
         native_packages: Vec::new(),
     };

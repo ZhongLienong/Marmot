@@ -67,13 +67,6 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${MIDORI_OUTPUT_DIR}")
 # ============================================================================
 include(FetchContent)
 
-FetchContent_Declare(
-    toml11
-    GIT_REPOSITORY https://github.com/ToruNiina/toml11.git
-    GIT_TAG v4.2.0
-)
-FetchContent_MakeAvailable(toml11)
-
 if(MIDORI_BUILD_TESTS AND NOT EMSCRIPTEN)
     enable_testing()
 
@@ -170,7 +163,6 @@ target_link_libraries(MarmotRuntime PUBLIC MarmotCommon)
 add_library(MarmotCompiler STATIC ${MARMOT_COMPILER_SOURCES})
 target_include_directories(MarmotCompiler PUBLIC ${CMAKE_SOURCE_DIR}/compiler/src)
 target_link_libraries(MarmotCompiler PUBLIC MarmotCommon)
-target_link_libraries(MarmotCompiler PRIVATE toml11::toml11)
 
 add_library(MarmotDriver STATIC ${MARMOT_DRIVER_SOURCES})
 target_link_libraries(MarmotDriver PUBLIC MarmotCompiler MarmotRuntime)
@@ -354,7 +346,6 @@ else()
             /W4             # Warning level 4
             /EHsc           # Enable exception handling
             /bigobj         # Allow large object files
-            /wd5311         # Suppress deprecated string-literal operator warning (from toml11)
 
             # Debug configuration - best debuggability, no optimization
             $<$<CONFIG:Debug>:/Od>      # No optimization

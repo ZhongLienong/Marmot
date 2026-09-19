@@ -13,6 +13,7 @@
 
 #include "Common/BuildConfig/BuildConfig.h"
 #include "Common/Json/Json.h"
+#include "Utility/BuildPlan/BuildPlan.h"
 #include "Utility/Driver/MidoriDriver.h"
 #include "Utility/OutputCapture/OutputCapture.h"
 
@@ -180,7 +181,8 @@ namespace
 		const std::filesystem::path& executable_path,
 		const std::filesystem::path& test_path,
 		const std::filesystem::path& result_directory,
-		const std::filesystem::path& test_directory)
+		const std::filesystem::path& test_directory,
+		const std::optional<std::filesystem::path>& plan_file)
 	{
 #ifdef _WIN32
 		STARTUPINFOW startup_info{};
@@ -194,6 +196,11 @@ namespace
 		command_line += QuoteWindowsArgument(result_directory);
 		command_line += L" ";
 		command_line += QuoteWindowsArgument(test_directory);
+		if (plan_file.has_value())
+		{
+			command_line += L" ";
+			command_line += QuoteWindowsArgument(plan_file.value());
+		}
 
 		std::vector<wchar_t> mutable_command_line(command_line.begin(), command_line.end());
 		mutable_command_line.push_back(L'\0');
@@ -234,6 +241,7 @@ namespace
 			test_path.c_str(),
 			result_directory.c_str(),
 			test_directory.c_str(),
+			plan_file.has_value() ? plan_file->c_str() : static_cast<const char*>(nullptr),
 			static_cast<char*>(nullptr));
 			_Exit(127);
 		}
@@ -686,16 +694,6 @@ namespace
 
 	[[nodiscard]] ProjectContext ResolveProjectContext(const std::filesystem::path& test_path)
 	{
-		const std::optional<MidoriProject::ManifestConfiguration> manifest = MidoriProject::FindManifestConfiguration(test_path);
-		if (manifest.has_value())
-		{
-			return ProjectContext
-			{
-				.m_root = manifest->m_root,
-				.m_test_directory = manifest->m_root / manifest->m_test.m_directory
-			};
-		}
-
 		return ProjectContext
 		{
 			.m_root = test_path.parent_path(),
@@ -736,7 +734,8 @@ namespace
 	[[nodiscard]] MidoriTestRunner::TestResult RunOneTestInProcess(
 		const std::filesystem::path& root,
 		const std::filesystem::path& test_directory,
-		const std::filesystem::path& test_path)
+		const std::filesystem::path& test_path,
+		const std::optional<CompilationInputs>& inputs)
 	{
 		const auto start = std::chrono::steady_clock::now();
 		std::error_code error_code;
@@ -755,7 +754,9 @@ namespace
 		const std::string expected_output = ReadTextFile(expected_output_path);
 		const std::string expected_warnings = ReadTextFile(expected_warnings_path);
 
-		MidoriDriver::CompileFileWithReportResult compile_result = MidoriDriver::CompileFileWithReport(test_path);
+		MidoriDriver::CompileFileWithReportResult compile_result = inputs.has_value()
+			? MidoriDriver::CompileFileWithReport(test_path, inputs.value())
+			: MidoriDriver::CompileFileWithReport(test_path);
 		if (compile_result.has_value())
 		{
 			std::expected<void, MidoriDriver::DriverError> load_result = MidoriDriver::LoadNativePackages(compile_result.value());
@@ -852,7 +853,8 @@ namespace
 		const std::filesystem::path& executable_path,
 		const std::filesystem::path& test_directory,
 		const std::filesystem::path& test_path,
-		int timeout_ms)
+		int timeout_ms,
+		const std::optional<std::filesystem::path>& plan_file)
 	{
 		const std::filesystem::path result_directory = MakeWorkerResultDirectory();
 		if (result_directory.empty())
@@ -860,7 +862,7 @@ namespace
 			return MakeWorkerFailureResult(test_directory, test_path, "Failed to allocate a worker result directory.");
 		}
 
-		std::optional<ChildProcess> process = StartWorkerProcess(executable_path, test_path, result_directory, test_directory);
+		std::optional<ChildProcess> process = StartWorkerProcess(executable_path, test_path, result_directory, test_directory, plan_file);
 		if (!process.has_value())
 		{
 			std::error_code cleanup_error;
@@ -1050,17 +1052,43 @@ namespace MidoriTestRunner
 		return payload;
 	}
 
+	std::expected<Options, std::string> Options::Create(
+		const std::filesystem::path& root,
+		const std::optional<std::filesystem::path>& test_directory,
+		const std::optional<int>& timeout_ms,
+		const std::optional<std::filesystem::path>& plan_file)
+	{
+		Options options;
+		options.m_root = root;
+		options.m_test_directory = test_directory.has_value()
+			? (test_directory->is_absolute() ? test_directory.value() : root / test_directory.value())
+			: root / "test";
+		options.m_timeout_ms = timeout_ms.value_or(30000);
+
+		if (plan_file.has_value())
+		{
+			std::expected<BuildPlan, std::string> plan = MidoriBuildPlan::ReadFile(plan_file.value());
+			if (!plan.has_value())
+			{
+				return std::unexpected(std::format("Invalid build plan: {}", plan.error()));
+			}
+			std::error_code error;
+			const std::filesystem::path absolute = std::filesystem::absolute(plan_file.value(), error);
+			options.m_plan_file = error ? plan_file.value() : absolute;
+			options.m_inputs = std::move(plan->m_inputs);
+		}
+
+		return options;
+	}
+
 	RunResult Run(const Options& options)
 	{
 		const MidoriBuild::ScopedTestModeOverride test_mode_override(true);
 		RunResult run_result;
 
-		const std::filesystem::path resolved_start_path =
-			options.m_start_path.empty() ? std::filesystem::current_path() : options.m_start_path;
-		const std::optional<MidoriProject::ManifestConfiguration> manifest = MidoriProject::FindManifestConfiguration(resolved_start_path);
-		run_result.m_root = manifest.has_value() ? manifest->m_root : resolved_start_path;
-		run_result.m_timeout_ms = manifest.has_value() ? manifest->m_test.m_timeout_ms : 30000;
-		run_result.m_test_directory = run_result.m_root / (manifest.has_value() ? manifest->m_test.m_directory : std::filesystem::path("test"));
+		run_result.m_root = options.m_root;
+		run_result.m_timeout_ms = options.m_timeout_ms;
+		run_result.m_test_directory = options.m_test_directory;
 		const std::filesystem::path executable_path = CurrentExecutablePath();
 
 		const std::vector<std::filesystem::path> tests = DiscoverTests(run_result.m_test_directory, options);
@@ -1072,7 +1100,7 @@ namespace MidoriTestRunner
 				continue;
 			}
 
-			run_result.m_results.push_back(RunOneTest(executable_path, run_result.m_test_directory, test_path, run_result.m_timeout_ms));
+			run_result.m_results.push_back(RunOneTest(executable_path, run_result.m_test_directory, test_path, run_result.m_timeout_ms, options.m_plan_file));
 		}
 
 		return run_result;
@@ -1088,7 +1116,19 @@ namespace MidoriTestRunner
 			project_context.m_test_directory = std::filesystem::absolute(options.m_test_directory);
 			project_context.m_root = project_context.m_test_directory.parent_path();
 		}
-		MidoriTestRunner::TestResult result = RunOneTestInProcess(project_context.m_root, project_context.m_test_directory, absolute_test_path);
+		std::optional<CompilationInputs> inputs = std::nullopt;
+		if (options.m_plan_file.has_value())
+		{
+			std::expected<BuildPlan, std::string> plan = MidoriBuildPlan::ReadFile(options.m_plan_file.value());
+			if (!plan.has_value())
+			{
+				std::print("Invalid build plan: {}\n", plan.error());
+				return EXIT_FAILURE;
+			}
+			inputs = std::move(plan->m_inputs);
+		}
+
+		MidoriTestRunner::TestResult result = RunOneTestInProcess(project_context.m_root, project_context.m_test_directory, absolute_test_path, inputs);
 		if (!WriteWorkerResult(result, options.m_result_directory))
 		{
 			return EXIT_FAILURE;

@@ -118,11 +118,12 @@ This matches the current implementation and the regression fixtures under `test/
 - `<Module.Name>` by converting it to `Module/Name.mmt` and trying each search path in order
 - `"relative/path.mmt"` relative to the importing file
 
-The compiler does not find the search paths itself; it is given them. When
-the CLI compiles a file inside a project (a `project.marmot` or
-`package.marmot` above it), the search paths are the project's source
+The compiler does not find the search paths itself; it is given them. For a
+file inside a project (a `project.marmot` or `package.marmot` above it), the
+`marmot` tool passes, in a [build plan](plan-file.md), the project's source
 directory, its resolved dependencies, its extra paths, its prelude directory,
-then `MARMOT_PATH`. Outside a project they are `MARMOT_PATH` alone.
+then `MARMOT_PATH`. Outside a project, and for `marmotc` given a file on its
+own, they are `MARMOT_PATH` alone.
 
 Platform notes:
 
@@ -261,4 +262,4 @@ The declared entry module name is preserved for bootstrap and debug labeling whe
 
 ## Package Interaction
 
-If an imported module's directory contains `package.marmot`, `ModuleManager` loads that manifest during graph construction. If `[ffi].enabled = true` and the declared library exists, the dynamic FFI registry loads it before compilation continues. See [Package System](package-system.md).
+A module belongs to a native package when the build plan names one whose root is the module's directory. Such a module may declare the package's foreign functions. `marmotc run` loads the package's library just before the program starts; `check` and `build` never load it. See [Package System](package-system.md) and [Build Plans](plan-file.md).

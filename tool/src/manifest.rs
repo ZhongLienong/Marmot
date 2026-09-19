@@ -23,6 +23,10 @@ pub struct Workspace {
     pub prelude_dir: PathBuf,
     pub extra_paths: Vec<PathBuf>,
     pub dependencies: BTreeMap<String, Constraint>,
+    /// `[test].dir`, relative to the root.
+    pub test_dir: PathBuf,
+    /// `[test].timeout_ms`, per test.
+    pub test_timeout_ms: i64,
 }
 
 impl Workspace {
@@ -34,6 +38,10 @@ impl Workspace {
 
     pub fn packages_path(&self) -> PathBuf {
         paths::under(&self.root, &self.packages_dir)
+    }
+
+    pub fn test_path(&self) -> PathBuf {
+        paths::under(&self.root, &self.test_dir)
     }
 }
 
@@ -80,8 +88,22 @@ fn dependencies(data: &Table, context: &Path) -> Result<BTreeMap<String, Constra
         .collect()
 }
 
+fn test_settings(data: &Table) -> (PathBuf, i64) {
+    let test = data.get("test").and_then(Value::as_table);
+    (
+        PathBuf::from(
+            test.and_then(|test| string_at(test, "dir"))
+                .unwrap_or("test"),
+        ),
+        test.and_then(|test| test.get("timeout_ms"))
+            .and_then(Value::as_integer)
+            .unwrap_or(30_000),
+    )
+}
+
 fn load_workspace(manifest_path: &Path, root: &Path) -> Result<Option<Workspace>, String> {
     let data = read_toml(manifest_path)?;
+    let (test_dir, test_timeout_ms) = test_settings(&data);
 
     if let Some(project) = data.get("project").and_then(Value::as_table) {
         let extra_paths = project
@@ -104,6 +126,8 @@ fn load_workspace(manifest_path: &Path, root: &Path) -> Result<Option<Workspace>
             prelude_dir: directory_or(project, "prelude_dir", "MarmotPrelude"),
             extra_paths,
             dependencies: dependencies(&data, manifest_path)?,
+            test_dir: test_dir.clone(),
+            test_timeout_ms,
         }));
     }
 
@@ -128,6 +152,8 @@ fn load_workspace(manifest_path: &Path, root: &Path) -> Result<Option<Workspace>
             prelude_dir: PathBuf::from("MarmotPrelude"),
             extra_paths: Vec::new(),
             dependencies: dependencies(&data, manifest_path)?,
+            test_dir: test_dir.clone(),
+            test_timeout_ms,
         }));
     }
 

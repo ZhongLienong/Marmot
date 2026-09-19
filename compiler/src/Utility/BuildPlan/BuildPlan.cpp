@@ -252,23 +252,21 @@ namespace MidoriBuildPlan
 				BuildPlan::VERSION, version_value.IsNumber() ? std::format("{}", version_value.AsNumber()) : std::string(version_value.KindName())));
 		}
 
-		PlanResult<const JsonValue*> entry = RequireMember(root, "plan", "entry");
-		if (!entry.has_value())
-		{
-			return std::unexpected(entry.error());
-		}
-		PlanResult<std::string> entry_text = RequireString(*entry.value(), "entry");
-		if (!entry_text.has_value())
-		{
-			return std::unexpected(entry_text.error());
-		}
-
 		BuildPlan plan;
-		plan.m_entry = Resolve(base_directory, entry_text.value());
-		std::error_code error;
-		if (!std::filesystem::is_regular_file(plan.m_entry, error))
+		if (const JsonValue* entry = root.Find("entry"); entry != nullptr)
 		{
-			return std::unexpected(std::format("entry: no such file: {}", plan.m_entry.string()));
+			PlanResult<std::string> entry_text = RequireString(*entry, "entry");
+			if (!entry_text.has_value())
+			{
+				return std::unexpected(entry_text.error());
+			}
+
+			plan.m_entry = Resolve(base_directory, entry_text.value());
+			std::error_code error;
+			if (!std::filesystem::is_regular_file(plan.m_entry.value(), error))
+			{
+				return std::unexpected(std::format("entry: no such file: {}", plan.m_entry->string()));
+			}
 		}
 
 		PlanResult<std::vector<std::filesystem::path>> search_paths = ReadSearchPaths(root.Find("search_paths"), base_directory);

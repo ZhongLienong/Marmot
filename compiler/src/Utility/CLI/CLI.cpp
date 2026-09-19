@@ -1,6 +1,7 @@
 #include "Utility/CLI/CLI.h"
 
 #include <algorithm>
+#include <charconv>
 #include <cstdlib>
 #include <expected>
 #include <filesystem>
@@ -18,12 +19,9 @@
 #include "Common/Json/Json.h"
 #include "Common/Printer/Printer.h"
 #include "Utility/BuildPlan/BuildPlan.h"
-#include "Compiler/PackageManager/Lockfile.h"
-#include "Compiler/PackageManager/PackageWorkspace.h"
 #include "Utility/Driver/MidoriDriver.h"
 #include "Utility/Formatter/Formatter.h"
 #include "Utility/OutputCapture/OutputCapture.h"
-#include "Utility/Project/ProjectManifest.h"
 #include "Utility/TestRunner/TestRunner.h"
 
 namespace
@@ -43,12 +41,7 @@ namespace
 		Build,
 		Fmt,
 		Test,
-		TestWorker,
-		Init,
-		Install,
-		Update,
-		Remove,
-		List
+		TestWorker
 	};
 
 	struct Invocation
@@ -62,16 +55,17 @@ namespace
 		std::optional<CompilationInputs> m_plan_inputs = std::nullopt;
 		std::filesystem::path m_target_path;
 		std::filesystem::path m_worker_result_directory;
-		std::optional<std::string> m_name = std::nullopt;
-		bool m_init_package = false;
 		bool m_fmt_write = false;
 		bool m_fmt_check = false;
 		bool m_embed_sources = false;
 		std::optional<std::string> m_test_filter = std::nullopt;
 		std::optional<std::string> m_test_pattern = std::nullopt;
 		std::optional<std::string> m_test_file = std::nullopt;
-		std::optional<std::string> m_package_name = std::nullopt;
-		std::optional<std::string> m_package_version_constraint = std::nullopt;
+		// test: the test directory, the per-test timeout, and the plan whose
+		// inputs every test compiles with.
+		std::optional<std::filesystem::path> m_test_directory = std::nullopt;
+		std::optional<int> m_test_timeout_ms = std::nullopt;
+		std::optional<std::filesystem::path> m_plan_file = std::nullopt;
 	};
 
 	using ParseResult = std::expected<Invocation, std::string>;
@@ -285,53 +279,16 @@ namespace
 		{
 			return
 				"Usage: marmotc test [filter] [--pattern <value>] [--test <file>] [--format json]\n"
-				"Discover and run project tests from the configured test directory.\n\n"
+				"                    [--dir <test_dir>] [--timeout-ms <ms>] [--plan <plan.json>]\n"
+				"Discover and run the tests under the test directory (default: ./test),\n"
+				"each with a time limit (default: 30000 ms). With --plan, every test compiles\n"
+				"from the plan's search paths and native packages; the plan needs no entry.\n"
+				"`marmot test` runs this for a project, from its [test] settings.\n\n"
 				"Examples:\n"
 				"  marmotc test\n"
 				"  marmotc test closure\n"
 				"  marmotc test --pattern loop\n"
 				"  marmotc test --test closure/simple.mmt\n";
-		}
-
-		if (command_name == "init")
-		{
-			return
-				"Usage: marmotc init [path] [--name <project_name>]\n"
-				"       marmotc init --package [path] [--name <package_name>]\n"
-				"Initialize a Marmot project or package scaffold.\n\n"
-				"Examples:\n"
-				"  marmotc init my-app --name MyApp\n"
-				"  marmotc init --package packages/Greeter --name greeter\n\n"
-				"Project manifests use project.marmot and packages use package.marmot.\n";
-		}
-
-		if (command_name == "install")
-		{
-			return
-				"Usage: marmotc install\n"
-				"       marmotc install <package> [--version <constraint>]\n"
-				"Resolve project dependencies, vendor packages into packages/, and update marmot.lock.\n";
-		}
-
-		if (command_name == "update")
-		{
-			return
-				"Usage: marmotc update [package]\n"
-				"Re-resolve dependencies ignoring the current lockfile and write an updated marmot.lock.\n";
-		}
-
-		if (command_name == "remove")
-		{
-			return
-				"Usage: marmotc remove <package>\n"
-				"Remove a direct dependency from the active manifest and refresh the lockfile.\n";
-		}
-
-		if (command_name == "list")
-		{
-			return
-				"Usage: marmotc list\n"
-				"Show the resolved dependency tree from marmot.lock or from a fresh resolution.\n";
 		}
 
 		return {};
@@ -349,26 +306,20 @@ namespace
 			"  check    Type-check a source file without executing it\n"
 			"  build    Compile a source file and emit a bytecode artifact\n"
 			"  fmt      Format one file or a directory of .mmt files\n"
-			"  test     Discover and run project tests\n"
-			"  init     Initialize a project or package scaffold\n"
-			"  install  Resolve and vendor package dependencies\n"
-			"  update   Refresh resolved package versions\n"
-			"  remove   Remove a direct package dependency\n"
-			"  list     Print the resolved dependency tree\n"
+			"  test     Discover and run tests\n"
 			"  help     Show general or per-command help\n\n"
 			"Global flags:\n"
 			"  --help      Show help\n"
 			"  --version   Show the Marmot version\n\n"
 			"Examples:\n"
-			"  marmotc init hello-world\n"
 			"  marmotc fmt src -w\n"
 			"  marmotc check src/Main.mmt --format json\n"
 			"  marmotc run src/Main.mmt\n"
-			"  marmotc test closure\n"
-			"  marmotc install\n\n"
-			"Relevant project manifests:\n"
-			"  project.marmot\n"
-			"  package.marmot\n";
+			"  marmotc run --plan plan.json\n"
+			"  marmotc test closure\n\n"
+			"marmotc compiles what it is given: a file, with <Name> imports found through\n"
+			"MARMOT_PATH, or a build plan. Projects and packages are the marmot tool's job:\n"
+			"  marmot run, marmot test, marmot install, marmot init\n";
 	}
 
 	[[nodiscard]] int EditDistance(std::string_view left, std::string_view right)
@@ -398,7 +349,7 @@ namespace
 
 	[[nodiscard]] std::optional<std::string_view> SuggestCommand(std::string_view input)
 	{
-		static constexpr std::string_view commands[] = { "run", "check", "build", "fmt", "test", "init", "install", "update", "remove", "list", "help" };
+		static constexpr std::string_view commands[] = { "run", "check", "build", "fmt", "test", "help" };
 		std::optional<std::string_view> best_match = std::nullopt;
 		int best_distance = 1000;
 		for (const std::string_view command : commands)
@@ -482,7 +433,12 @@ namespace
 			return std::unexpected(std::format("Invalid build plan: {}", plan.error()));
 		}
 
-		invocation.m_source_file = plan->m_entry;
+		if (!plan->m_entry.has_value())
+		{
+			return std::unexpected(std::format("Invalid build plan: {}: {} needs an \"entry\"", plan_file->string(), command));
+		}
+
+		invocation.m_source_file = plan->m_entry.value();
 		invocation.m_plan_inputs = std::move(plan->m_inputs);
 		return {};
 	}
@@ -698,6 +654,43 @@ namespace
 				continue;
 			}
 
+			if (arg == "--dir")
+			{
+				if (index + 1u >= args.size())
+				{
+					return std::unexpected("Missing value for --dir.");
+				}
+				invocation.m_test_directory = std::filesystem::path(args[++index]);
+				continue;
+			}
+
+			if (arg == "--timeout-ms")
+			{
+				if (index + 1u >= args.size())
+				{
+					return std::unexpected("Missing value for --timeout-ms.");
+				}
+				const std::string_view text = args[++index];
+				int timeout_ms = 0;
+				const std::from_chars_result parsed = std::from_chars(text.data(), text.data() + text.size(), timeout_ms);
+				if (parsed.ec != std::errc() || parsed.ptr != text.data() + text.size() || timeout_ms <= 0)
+				{
+					return std::unexpected(std::format("Invalid --timeout-ms: {}", text));
+				}
+				invocation.m_test_timeout_ms = timeout_ms;
+				continue;
+			}
+
+			if (arg == "--plan")
+			{
+				if (index + 1u >= args.size())
+				{
+					return std::unexpected("Missing value for --plan.");
+				}
+				invocation.m_plan_file = std::filesystem::path(args[++index]);
+				continue;
+			}
+
 			if (arg == "--format")
 			{
 				std::string error;
@@ -724,189 +717,25 @@ namespace
 		return invocation;
 	}
 
-	[[nodiscard]] ParseResult ParseInit(const std::vector<std::string_view>& args)
-	{
-		Invocation invocation;
-		invocation.m_kind = CommandKind::Init;
-
-		for (size_t index = 0u; index < args.size(); index += 1u)
-		{
-			const std::string_view arg = args[index];
-			if (arg == "-h" || arg == "--help")
-			{
-				invocation.m_show_help = true;
-				continue;
-			}
-
-			if (arg == "--package")
-			{
-				invocation.m_init_package = true;
-				continue;
-			}
-
-			if (arg == "--name")
-			{
-				if (index + 1u >= args.size())
-				{
-					return std::unexpected("Missing value for --name.");
-				}
-				invocation.m_name = std::string(args[++index]);
-				continue;
-			}
-
-			if (!arg.empty() && arg.front() == '-')
-			{
-				return std::unexpected(std::format("Unknown option: {}", arg));
-			}
-
-			if (!invocation.m_target_path.empty())
-			{
-				return std::unexpected("Only one target directory is allowed for init.");
-			}
-
-			invocation.m_target_path = std::filesystem::path(arg);
-		}
-
-		return invocation;
-	}
-
 	[[nodiscard]] ParseResult ParseTestWorker(const std::vector<std::string_view>& args)
 	{
-		if (args.size() != 2u && args.size() != 3u)
+		if (args.size() < 2u || args.size() > 4u)
 		{
-			return std::unexpected("Usage: marmotc __test-worker <test_file> <result_dir> [test_dir]");
+			return std::unexpected("Usage: marmotc __test-worker <test_file> <result_dir> [test_dir [plan]]");
 		}
 
 		Invocation invocation;
 		invocation.m_kind = CommandKind::TestWorker;
 		invocation.m_source_file = std::filesystem::path(args[0u]);
 		invocation.m_worker_result_directory = std::filesystem::path(args[1u]);
-		if (args.size() == 3u)
+		if (args.size() >= 3u)
 		{
 			invocation.m_target_path = std::filesystem::path(args[2u]);
 		}
-		return invocation;
-	}
-
-	[[nodiscard]] ParseResult ParseInstall(const std::vector<std::string_view>& args)
-	{
-		Invocation invocation;
-		invocation.m_kind = CommandKind::Install;
-
-		for (size_t index = 0u; index < args.size(); index += 1u)
+		if (args.size() == 4u)
 		{
-			const std::string_view arg = args[index];
-			if (arg == "-h" || arg == "--help")
-			{
-				invocation.m_show_help = true;
-				continue;
-			}
-
-			if (arg == "--version")
-			{
-				if (index + 1u >= args.size())
-				{
-					return std::unexpected("Missing value for --version.");
-				}
-				invocation.m_package_version_constraint = std::string(args[++index]);
-				continue;
-			}
-
-			if (!arg.empty() && arg.front() == '-')
-			{
-				return std::unexpected(std::format("Unknown option: {}", arg));
-			}
-
-			if (invocation.m_package_name.has_value())
-			{
-				return std::unexpected("Only one package name is allowed for install.");
-			}
-
-			invocation.m_package_name = std::string(arg);
+			invocation.m_plan_file = std::filesystem::path(args[3u]);
 		}
-
-		return invocation;
-	}
-
-	[[nodiscard]] ParseResult ParseUpdate(const std::vector<std::string_view>& args)
-	{
-		Invocation invocation;
-		invocation.m_kind = CommandKind::Update;
-
-		for (const std::string_view arg : args)
-		{
-			if (arg == "-h" || arg == "--help")
-			{
-				invocation.m_show_help = true;
-				continue;
-			}
-
-			if (!arg.empty() && arg.front() == '-')
-			{
-				return std::unexpected(std::format("Unknown option: {}", arg));
-			}
-
-			if (invocation.m_package_name.has_value())
-			{
-				return std::unexpected("Only one package name is allowed for update.");
-			}
-
-			invocation.m_package_name = std::string(arg);
-		}
-
-		return invocation;
-	}
-
-	[[nodiscard]] ParseResult ParseRemove(const std::vector<std::string_view>& args)
-	{
-		Invocation invocation;
-		invocation.m_kind = CommandKind::Remove;
-
-		for (const std::string_view arg : args)
-		{
-			if (arg == "-h" || arg == "--help")
-			{
-				invocation.m_show_help = true;
-				continue;
-			}
-
-			if (!arg.empty() && arg.front() == '-')
-			{
-				return std::unexpected(std::format("Unknown option: {}", arg));
-			}
-
-			if (invocation.m_package_name.has_value())
-			{
-				return std::unexpected("Only one package name is allowed for remove.");
-			}
-
-			invocation.m_package_name = std::string(arg);
-		}
-
-		if (!invocation.m_show_help && !invocation.m_package_name.has_value())
-		{
-			return std::unexpected("Missing package name for remove.");
-		}
-
-		return invocation;
-	}
-
-	[[nodiscard]] ParseResult ParseList(const std::vector<std::string_view>& args)
-	{
-		Invocation invocation;
-		invocation.m_kind = CommandKind::List;
-
-		for (const std::string_view arg : args)
-		{
-			if (arg == "-h" || arg == "--help")
-			{
-				invocation.m_show_help = true;
-				continue;
-			}
-
-			return std::unexpected(std::format("Unexpected argument for list: {}", arg));
-		}
-
 		return invocation;
 	}
 
@@ -987,26 +816,6 @@ namespace
 			{
 				invocation.m_kind = CommandKind::Test;
 			}
-			else if (rest[0] == "init")
-			{
-				invocation.m_kind = CommandKind::Init;
-			}
-			else if (rest[0] == "install")
-			{
-				invocation.m_kind = CommandKind::Install;
-			}
-			else if (rest[0] == "update")
-			{
-				invocation.m_kind = CommandKind::Update;
-			}
-			else if (rest[0] == "remove")
-			{
-				invocation.m_kind = CommandKind::Remove;
-			}
-			else if (rest[0] == "list")
-			{
-				invocation.m_kind = CommandKind::List;
-			}
 			else
 			{
 				return std::unexpected(std::format("Unknown help topic: {}", rest[0]));
@@ -1037,26 +846,6 @@ namespace
 		else if (head == "test")
 		{
 			parsed = ParseTest(rest);
-		}
-		else if (head == "init")
-		{
-			parsed = ParseInit(rest);
-		}
-		else if (head == "install")
-		{
-			parsed = ParseInstall(rest);
-		}
-		else if (head == "update")
-		{
-			parsed = ParseUpdate(rest);
-		}
-		else if (head == "remove")
-		{
-			parsed = ParseRemove(rest);
-		}
-		else if (head == "list")
-		{
-			parsed = ParseList(rest);
 		}
 		else if (head == "__test-worker")
 		{
@@ -1172,103 +961,6 @@ namespace
 			+ ",\"errors\":" + errors_json + "}";
 	}
 
-	[[nodiscard]] std::expected<MidoriProject::ManifestConfiguration, std::string> RequireManifestConfiguration()
-	{
-		const std::optional<MidoriProject::ManifestConfiguration> configuration =
-			MidoriProject::FindManifestConfiguration(std::filesystem::current_path());
-		if (!configuration.has_value())
-		{
-			return std::unexpected("Could not find project.marmot or package.marmot from the current directory.");
-		}
-
-		return configuration.value();
-	}
-
-	void PrintPackageWarnings(const std::vector<std::string>& warnings)
-	{
-		for (const std::string& warning : warnings)
-		{
-			Printer::Print<Printer::Color::YELLOW>(std::format("[packages] {}\n", warning));
-		}
-	}
-
-	[[nodiscard]] std::optional<MidoriPackageManager::ResolvedPackageGraph> LoadExistingLockfileGraph(
-		const MidoriProject::ManifestConfiguration& configuration)
-	{
-		const std::filesystem::path lockfile_path = configuration.m_root / "marmot.lock";
-		if (!std::filesystem::exists(lockfile_path))
-		{
-			return std::nullopt;
-		}
-
-		const std::expected<MidoriPackageManager::LockfileLoadResult, std::string> lockfile =
-			MidoriPackageManager::ReadLockfile(lockfile_path, "");
-		if (!lockfile.has_value())
-		{
-			return std::nullopt;
-		}
-
-		return lockfile->m_graph;
-	}
-
-	[[nodiscard]] std::string RenderVersionChanges(
-		const std::optional<MidoriPackageManager::ResolvedPackageGraph>& before,
-		const MidoriPackageManager::ResolvedPackageGraph& after)
-	{
-		std::vector<std::string> package_names;
-		if (before.has_value())
-		{
-			for (const auto& [package_name, _] : before->m_packages)
-			{
-				package_names.push_back(package_name);
-			}
-		}
-		for (const auto& [package_name, _] : after.m_packages)
-		{
-			if (std::ranges::find(package_names, package_name) == package_names.end())
-			{
-				package_names.push_back(package_name);
-			}
-		}
-		std::ranges::sort(package_names);
-
-		std::string output;
-		for (const std::string& package_name : package_names)
-		{
-			const auto before_it = before.has_value() ? before->m_packages.find(package_name) : after.m_packages.end();
-			const auto after_it = after.m_packages.find(package_name);
-			const std::string before_version =
-				before.has_value() && before_it != before->m_packages.end()
-					? before_it->second.m_manifest.GetInfo().m_version
-					: "<none>";
-			const std::string after_version =
-				after_it != after.m_packages.end()
-					? after_it->second.m_manifest.GetInfo().m_version
-					: "<none>";
-
-			if (before_version != after_version)
-			{
-				output.append(std::format("{}: {} -> {}\n", package_name, before_version, after_version));
-			}
-		}
-
-		return output;
-	}
-
-	[[nodiscard]] std::expected<std::string, std::string> ResolveDefaultInstallConstraint(
-		const MidoriProject::ManifestConfiguration& configuration,
-		std::string_view package_name)
-	{
-		const std::expected<MidoriVersion::SemanticVersion, std::string> latest_version =
-			MidoriPackageManager::FindLatestAvailableVersion(configuration, package_name);
-		if (!latest_version.has_value())
-		{
-			return std::unexpected(latest_version.error());
-		}
-
-		return "^" + latest_version->ToString();
-	}
-
 	int HandleOverview(const Invocation&)
 	{
 		std::print("{}", GeneralHelp());
@@ -1293,299 +985,6 @@ namespace
 		{
 			std::print("marmotc {}\n", MidoriBuild::VersionString);
 		}
-		return EXIT_SUCCESS;
-	}
-
-	int HandleInit(const Invocation& invocation)
-	{
-		if (invocation.m_show_help)
-		{
-			std::print("{}", CommandHelp("init"));
-			return EXIT_SUCCESS;
-		}
-
-		std::string error_message;
-		const bool succeeded = invocation.m_init_package
-			? MidoriPackage::InitializePackage(invocation.m_target_path, invocation.m_name.value_or(""), error_message)
-			: MidoriProject::InitializeProject(invocation.m_target_path, invocation.m_name.value_or(""), error_message);
-		if (!succeeded)
-		{
-			if (invocation.m_format == OutputFormat::Json)
-			{
-				std::string payload = "{";
-				bool first_field = true;
-				MidoriJson::AppendNumberField(payload, "version", 1, first_field);
-				MidoriJson::AppendStringField(payload, "source", "marmot", first_field);
-				MidoriJson::AppendStringField(payload, "command", "init", first_field);
-				MidoriJson::AppendBoolField(payload, "success", false, first_field);
-				MidoriJson::AppendStringField(payload, "kind", invocation.m_init_package ? "package" : "project", first_field);
-				MidoriJson::AppendStringField(payload, "error", error_message, first_field);
-				payload.push_back('}');
-				std::print("{}", payload);
-				return EXIT_FAILURE;
-			}
-
-			PrintCliError(std::format("{} init failed: {}", invocation.m_init_package ? "Package" : "Project", error_message));
-			return EXIT_FAILURE;
-		}
-
-		std::error_code error_code;
-		std::filesystem::path resolved_target = invocation.m_target_path.empty()
-			? std::filesystem::current_path(error_code)
-			: invocation.m_target_path;
-		if (!error_code && !resolved_target.empty())
-		{
-			resolved_target = std::filesystem::absolute(resolved_target, error_code);
-		}
-
-		if (invocation.m_format == OutputFormat::Json)
-		{
-			std::string payload = "{";
-			bool first_field = true;
-			MidoriJson::AppendNumberField(payload, "version", 1, first_field);
-			MidoriJson::AppendStringField(payload, "source", "marmot", first_field);
-			MidoriJson::AppendStringField(payload, "command", "init", first_field);
-			MidoriJson::AppendBoolField(payload, "success", true, first_field);
-			MidoriJson::AppendStringField(payload, "kind", invocation.m_init_package ? "package" : "project", first_field);
-			MidoriJson::AppendStringField(payload, "path", resolved_target.empty() ? std::string(".") : resolved_target.generic_string(), first_field);
-			payload.push_back('}');
-			std::print("{}", payload);
-		}
-		else
-		{
-			std::print(
-				"Initialized Marmot {} at {}\n",
-				invocation.m_init_package ? "package" : "project",
-				resolved_target.empty() ? "." : resolved_target.string());
-		}
-		return EXIT_SUCCESS;
-	}
-
-	int HandleInstall(const Invocation& invocation)
-	{
-		if (invocation.m_show_help)
-		{
-			std::print("{}", CommandHelp("install"));
-			return EXIT_SUCCESS;
-		}
-
-		if (invocation.m_format == OutputFormat::Json)
-		{
-			PrintCliError("JSON output is not supported for this command.");
-			return EXIT_FAILURE;
-		}
-
-		const std::expected<MidoriProject::ManifestConfiguration, std::string> manifest = RequireManifestConfiguration();
-		if (!manifest.has_value())
-		{
-			PrintCliError(manifest.error());
-			return EXIT_FAILURE;
-		}
-
-		MidoriProject::ManifestConfiguration configuration = manifest.value();
-		if (invocation.m_package_name.has_value())
-		{
-			const std::expected<std::string, std::string> constraint = invocation.m_package_version_constraint.has_value()
-				? std::expected<std::string, std::string>(*invocation.m_package_version_constraint)
-				: ResolveDefaultInstallConstraint(configuration, *invocation.m_package_name);
-			if (!constraint.has_value())
-			{
-				PrintCliError(constraint.error());
-				return EXIT_FAILURE;
-			}
-
-			std::string error_message;
-			if (!MidoriProject::AddDependency(configuration.m_root, *invocation.m_package_name, *constraint, error_message))
-			{
-				PrintCliError(error_message);
-				return EXIT_FAILURE;
-			}
-
-			const std::expected<MidoriProject::ManifestConfiguration, std::string> refreshed = RequireManifestConfiguration();
-			if (!refreshed.has_value())
-			{
-				PrintCliError(refreshed.error());
-				return EXIT_FAILURE;
-			}
-			configuration = refreshed.value();
-		}
-
-		const std::expected<MidoriPackageManager::PackageEnvironment, std::string> package_environment =
-			MidoriPackageManager::PreparePackageEnvironment(configuration, MidoriPackageManager::ResolveMode::ForceRefresh);
-		if (!package_environment.has_value())
-		{
-			PrintCliError(package_environment.error());
-			return EXIT_FAILURE;
-		}
-
-		PrintPackageWarnings(package_environment->m_warnings);
-		std::print(
-			"Installed {} package(s); lockfile updated at {}\n",
-			package_environment->m_graph.m_packages.size(),
-			package_environment->m_lockfile_path.string());
-		if (invocation.m_package_name.has_value())
-		{
-			std::print(
-				"Added dependency {} {}\n",
-				*invocation.m_package_name,
-				configuration.m_dependencies.at(*invocation.m_package_name));
-		}
-		if (!package_environment->m_graph.m_root_dependencies.empty())
-		{
-			std::print("{}", MidoriPackageManager::RenderDependencyTree(package_environment->m_graph));
-		}
-
-		return EXIT_SUCCESS;
-	}
-
-	int HandleUpdate(const Invocation& invocation)
-	{
-		if (invocation.m_show_help)
-		{
-			std::print("{}", CommandHelp("update"));
-			return EXIT_SUCCESS;
-		}
-
-		if (invocation.m_format == OutputFormat::Json)
-		{
-			PrintCliError("JSON output is not supported for this command.");
-			return EXIT_FAILURE;
-		}
-
-		const std::expected<MidoriProject::ManifestConfiguration, std::string> manifest = RequireManifestConfiguration();
-		if (!manifest.has_value())
-		{
-			PrintCliError(manifest.error());
-			return EXIT_FAILURE;
-		}
-
-		if (invocation.m_package_name.has_value() && !manifest->m_dependencies.contains(*invocation.m_package_name))
-		{
-			PrintCliError(std::format("Package '{}' is not a direct dependency.", *invocation.m_package_name));
-			return EXIT_FAILURE;
-		}
-
-		const std::optional<MidoriPackageManager::ResolvedPackageGraph> before = LoadExistingLockfileGraph(*manifest);
-		const std::expected<MidoriPackageManager::PackageEnvironment, std::string> package_environment =
-			MidoriPackageManager::PreparePackageEnvironment(*manifest, MidoriPackageManager::ResolveMode::ForceRefresh);
-		if (!package_environment.has_value())
-		{
-			PrintCliError(package_environment.error());
-			return EXIT_FAILURE;
-		}
-
-		PrintPackageWarnings(package_environment->m_warnings);
-		const std::string changes = RenderVersionChanges(before, package_environment->m_graph);
-		if (changes.empty())
-		{
-			std::print("No package versions changed.\n");
-		}
-		else
-		{
-			std::print("Updated packages:\n{}", changes);
-		}
-
-		return EXIT_SUCCESS;
-	}
-
-	int HandleRemove(const Invocation& invocation)
-	{
-		if (invocation.m_show_help)
-		{
-			std::print("{}", CommandHelp("remove"));
-			return EXIT_SUCCESS;
-		}
-
-		if (invocation.m_format == OutputFormat::Json)
-		{
-			PrintCliError("JSON output is not supported for this command.");
-			return EXIT_FAILURE;
-		}
-
-		const std::expected<MidoriProject::ManifestConfiguration, std::string> manifest = RequireManifestConfiguration();
-		if (!manifest.has_value())
-		{
-			PrintCliError(manifest.error());
-			return EXIT_FAILURE;
-		}
-
-		std::string error_message;
-		if (!MidoriProject::RemoveDependency(manifest->m_root, *invocation.m_package_name, error_message))
-		{
-			PrintCliError(error_message);
-			return EXIT_FAILURE;
-		}
-
-		const std::expected<MidoriProject::ManifestConfiguration, std::string> refreshed = RequireManifestConfiguration();
-		if (!refreshed.has_value())
-		{
-			PrintCliError(refreshed.error());
-			return EXIT_FAILURE;
-		}
-
-		const std::expected<MidoriPackageManager::PackageEnvironment, std::string> package_environment =
-			MidoriPackageManager::PreparePackageEnvironment(*refreshed, MidoriPackageManager::ResolveMode::ForceRefresh);
-		if (!package_environment.has_value())
-		{
-			PrintCliError(package_environment.error());
-			return EXIT_FAILURE;
-		}
-
-		const std::expected<void, std::string> cleanup =
-			MidoriPackageManager::RemoveUnusedInstalledPackages(*refreshed, package_environment->m_graph, *invocation.m_package_name);
-		if (!cleanup.has_value())
-		{
-			PrintCliError(cleanup.error());
-			return EXIT_FAILURE;
-		}
-
-		PrintPackageWarnings(package_environment->m_warnings);
-		std::print("Removed dependency {}\n", *invocation.m_package_name);
-		if (!package_environment->m_graph.m_root_dependencies.empty())
-		{
-			std::print("{}", MidoriPackageManager::RenderDependencyTree(package_environment->m_graph));
-		}
-
-		return EXIT_SUCCESS;
-	}
-
-	int HandleList(const Invocation& invocation)
-	{
-		if (invocation.m_show_help)
-		{
-			std::print("{}", CommandHelp("list"));
-			return EXIT_SUCCESS;
-		}
-
-		if (invocation.m_format == OutputFormat::Json)
-		{
-			PrintCliError("JSON output is not supported for this command.");
-			return EXIT_FAILURE;
-		}
-
-		const std::expected<MidoriProject::ManifestConfiguration, std::string> manifest = RequireManifestConfiguration();
-		if (!manifest.has_value())
-		{
-			PrintCliError(manifest.error());
-			return EXIT_FAILURE;
-		}
-
-		const std::expected<MidoriPackageManager::PackageEnvironment, std::string> package_environment =
-			MidoriPackageManager::PreparePackageEnvironment(*manifest, MidoriPackageManager::ResolveMode::PreferLockfile);
-		if (!package_environment.has_value())
-		{
-			PrintCliError(package_environment.error());
-			return EXIT_FAILURE;
-		}
-
-		PrintPackageWarnings(package_environment->m_warnings);
-		if (package_environment->m_graph.m_root_dependencies.empty())
-		{
-			std::print("No dependencies resolved.\n");
-			return EXIT_SUCCESS;
-		}
-
-		std::print("{}", MidoriPackageManager::RenderDependencyTree(package_environment->m_graph));
 		return EXIT_SUCCESS;
 	}
 
@@ -1981,14 +1380,21 @@ namespace
 			return EXIT_SUCCESS;
 		}
 
-		MidoriTestRunner::RunResult result = MidoriTestRunner::Run(
-			MidoriTestRunner::Options
-			{
-				.m_start_path = std::filesystem::current_path(),
-				.m_filter = invocation.m_test_filter,
-				.m_pattern = invocation.m_test_pattern,
-				.m_test_file = invocation.m_test_file
-			});
+		std::expected<MidoriTestRunner::Options, std::string> options = MidoriTestRunner::Options::Create(
+			std::filesystem::current_path(),
+			invocation.m_test_directory,
+			invocation.m_test_timeout_ms,
+			invocation.m_plan_file);
+		if (!options.has_value())
+		{
+			PrintCliError(options.error());
+			return EXIT_FAILURE;
+		}
+		options->m_filter = invocation.m_test_filter;
+		options->m_pattern = invocation.m_test_pattern;
+		options->m_test_file = invocation.m_test_file;
+
+		MidoriTestRunner::RunResult result = MidoriTestRunner::Run(options.value());
 
 		if (invocation.m_format == OutputFormat::Json)
 		{
@@ -2013,7 +1419,8 @@ namespace
 			{
 				.m_test_path = invocation.m_source_file,
 				.m_result_directory = invocation.m_worker_result_directory,
-				.m_test_directory = invocation.m_target_path
+				.m_test_directory = invocation.m_target_path,
+				.m_plan_file = invocation.m_plan_file
 			});
 	}
 
@@ -2036,12 +1443,7 @@ namespace
 			{ "check", "Type-check a source file without executing it", CommandKind::Check, &HandleCheck },
 			{ "build", "Compile a source file and report bytecode stats", CommandKind::Build, &HandleBuild },
 			{ "fmt", "Format one file or a directory of .mmt files", CommandKind::Fmt, &HandleFmt },
-			{ "test", "Discover and run project tests", CommandKind::Test, &HandleTest },
-			{ "init", "Initialize a project or package scaffold", CommandKind::Init, &HandleInit },
-			{ "install", "Resolve and vendor package dependencies", CommandKind::Install, &HandleInstall },
-			{ "update", "Refresh resolved package versions", CommandKind::Update, &HandleUpdate },
-			{ "remove", "Remove a direct package dependency", CommandKind::Remove, &HandleRemove },
-			{ "list", "Print the resolved dependency tree", CommandKind::List, &HandleList }
+			{ "test", "Discover and run tests", CommandKind::Test, &HandleTest }
 		};
 		return table;
 	}

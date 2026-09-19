@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Common/Error/Error.h"
+#include "Compiler/CompilationInputs/CompilationInputs.h"
 #include "Compiler/Module/Module.h"
 #include "Compiler/Result/Result.h"
 #include "Compiler/Token/Token.h"
@@ -69,7 +70,7 @@ namespace MidoriTest
 
 	[[nodiscard]] std::expected<TypedSnippet, CompilerError> TypeCheckSnippet(std::string source_code, std::string file_name = "Test.mmt");
 
-	[[nodiscard]] std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> GenerateBytecodeSnippetWithDiagnostics(std::string source_code, std::string file_name = "Test.mmt");
+	[[nodiscard]] std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> GenerateBytecodeSnippetWithDiagnostics(std::string source_code, std::string file_name = "Test.mmt", std::optional<NativePackage> native_package = std::nullopt);
 
 	// Identical to GenerateBytecodeSnippetWithDiagnostics, except it runs
 	// OptimizerManager between type checking and code generation, the way the
@@ -77,7 +78,7 @@ namespace MidoriTest
 	// test needs to know what the optimizer pipeline does to codegen output -
 	// GenerateBytecodeSnippetWithDiagnostics alone cannot detect a regression
 	// that only shows up after optimisation, because it never runs one.
-	[[nodiscard]] std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> GenerateOptimizedBytecodeSnippetWithDiagnostics(std::string source_code, std::string file_name = "Test.mmt");
+	[[nodiscard]] std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> GenerateOptimizedBytecodeSnippetWithDiagnostics(std::string source_code, std::string file_name = "Test.mmt", std::optional<NativePackage> native_package = std::nullopt);
 
 	[[nodiscard]] std::expected<AnalyzedSnippet, CompilerError> AnalyzeSnippet(std::string source_code, std::string file_name = "Test.mmt");
 

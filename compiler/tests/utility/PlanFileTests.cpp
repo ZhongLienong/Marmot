@@ -50,7 +50,7 @@ TEST_CASE("A build plan resolves its paths against the plan's directory", "[plan
 	})", project.Root());
 	REQUIRE(plan.has_value());
 
-	CHECK(plan->m_entry == project.Path("src/Main.mmt"));
+	CHECK(plan->m_entry == std::optional<std::filesystem::path>(project.Path("src/Main.mmt")));
 	REQUIRE(plan->m_inputs.SearchPaths().size() == 1u);
 	CHECK(plan->m_inputs.SearchPaths().front() == std::filesystem::weakly_canonical(project.Path("lib")));
 
@@ -72,7 +72,9 @@ TEST_CASE("A build plan rejects what it does not understand", "[plan]")
 	CHECK(CheckError(R"([])", base) == "the plan must be a JSON object, found array");
 	CHECK(CheckError(R"({"entry": "src/Main.mmt"})", base) == "plan: missing \"version\"");
 	CHECK(CheckError(R"({"version": 2, "entry": "src/Main.mmt"})", base) == "version: this compiler reads plan version 1; the plan says 2");
-	CHECK(CheckError(R"({"version": 1})", base) == "plan: missing \"entry\"");
+	const std::expected<BuildPlan, std::string> without_entry = MidoriBuildPlan::Parse(R"({"version": 1, "search_paths": ["lib"]})", base);
+	REQUIRE(without_entry.has_value());
+	CHECK_FALSE(without_entry->m_entry.has_value());
 	CHECK(CheckError(R"({"version": 1, "entry": "src/Missing.mmt"})", base).starts_with("entry: no such file: "));
 	CHECK(CheckError(R"({"version": 1, "entry": "src/Main.mmt", "serach_paths": []})", base) == "plan: unknown member \"serach_paths\"");
 	CHECK(CheckError(R"({"version": 1, "entry": "src/Main.mmt", "search_paths": ["lib", 3]})", base) == "search_paths[1]: expected a string, found number");
@@ -97,13 +99,13 @@ TEST_CASE("A program compiled from a plan sees only the plan's search paths", "[
 
 	const std::expected<BuildPlan, std::string> without_lib = MidoriBuildPlan::Parse(R"({"version": 1, "entry": "src/Main.mmt"})", project.Root());
 	REQUIRE(without_lib.has_value());
-	const MidoriDriver::CompileFileWithReportResult failed = MidoriDriver::CompileFileWithReport(without_lib->m_entry, without_lib->m_inputs);
+	const MidoriDriver::CompileFileWithReportResult failed = MidoriDriver::CompileFileWithReport(without_lib->m_entry.value(), without_lib->m_inputs);
 	REQUIRE_FALSE(failed.has_value());
 	CHECK(failed.error().Rendered().find("Could not resolve import: <Greeting>") != std::string::npos);
 
 	const std::expected<BuildPlan, std::string> with_lib = MidoriBuildPlan::Parse(R"({"version": 1, "entry": "src/Main.mmt", "search_paths": ["lib"]})", project.Root());
 	REQUIRE(with_lib.has_value());
-	MidoriDriver::CompileFileWithReportResult compiled = MidoriDriver::CompileFileWithReport(with_lib->m_entry, with_lib->m_inputs);
+	MidoriDriver::CompileFileWithReportResult compiled = MidoriDriver::CompileFileWithReport(with_lib->m_entry.value(), with_lib->m_inputs);
 	REQUIRE(compiled.has_value());
 
 	MidoriResult::CompiledProgram program = std::move(compiled).value();

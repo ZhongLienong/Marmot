@@ -4,7 +4,7 @@
 #include "Compiler/Lexer/Lexer.h"
 #include "Compiler/ModuleManager/ModuleManager.h"
 #include "Compiler/Token/Token.h"
-#include "Utility/Project/ProjectManifest.h"
+#include "Utility/Driver/MidoriDriver.h"
 #include "support/CompileHelpers.h"
 #include "support/DiagnosticMatchers.h"
 #include "support/SourceFixture.h"
@@ -38,7 +38,7 @@ namespace
 			return std::unexpected(std::move(lex_result.error()));
 		}
 
-		return ModuleManager(std::move(lex_result.value()), source_fixture.FileName(), source_fixture.SourceLines(), MidoriProject::EnvironmentCompilationInputs()).GenerateBuildGraph();
+		return ModuleManager(std::move(lex_result.value()), source_fixture.FileName(), source_fixture.SourceLines(), MidoriDriver::EnvironmentCompilationInputs()).GenerateBuildGraph();
 	}
 
 	void CheckDiagnosticLocation(const CompilerError& error, const std::filesystem::path& expected_file_path, int expected_line)

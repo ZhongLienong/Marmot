@@ -2,7 +2,7 @@
 
 #include "Compiler/CompilationInputs/CompilationInputs.h"
 #include "Compiler/ImportResolver/ImportResolver.h"
-#include "Utility/Project/ProjectManifest.h"
+#include "Utility/Driver/MidoriDriver.h"
 #include "support/ScopedEnvVar.h"
 #include "support/TempProject.h"
 
@@ -75,7 +75,7 @@ TEST_CASE("MARMOT_PATH entries become canonical search paths and missing directo
 	const std::string marmot_path_value = project.Path("missing").string() + std::string(1, s_search_path_separator) + project.Path("stdlib").string();
 	const MidoriTest::ScopedEnvVar marmot_path("MARMOT_PATH", marmot_path_value);
 
-	const CompilationInputs inputs = MidoriProject::EnvironmentCompilationInputs();
+	const CompilationInputs inputs = MidoriDriver::EnvironmentCompilationInputs();
 
 	REQUIRE(inputs.SearchPaths().size() == 1);
 	CHECK(inputs.SearchPaths().front() == stdlib_path);

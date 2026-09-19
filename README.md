@@ -23,7 +23,8 @@ Current scope note: there is no `async` / `await` surface in the current languag
 
 ## Installation (Windows)
 ```powershell
-# From the repo root (after building marmotc.exe):
+# From the repo root, after building marmotc.exe and the marmot tool
+# (cargo build --release --manifest-path tool/Cargo.toml):
 python .\scripts\install.py --copy-binaries
 
 # This prefers a Release preset build if present,
@@ -36,7 +37,9 @@ python .\scripts\install.py --copy-binaries
 
 ## Getting Started
 
-After `marmotc.exe` is on your `PATH`, a basic workflow uses only the CLI:
+Marmot has two programs: `marmot`, the project tool (Rust, in `tool/`), and
+`marmotc`, the compiler and VM. After both are on your `PATH`, a basic workflow
+uses the tool:
 
 ```powershell
 marmot init hello-world
@@ -254,7 +257,7 @@ def result = MyModule::add(5, 3);
 
 ### Package System
 
-Marmot has early package support for manifest-discovered modules and optional native FFI libraries loaded at import time. This is not yet a full package manager.
+Marmot has local packages: versioned dependencies resolved from package directories on disk, vendored into the project, and locked in `marmot.lock`, with optional native FFI libraries. There is no remote registry yet.
 
 **Package structure:**
 ```text
@@ -265,13 +268,18 @@ PackageName/
     windows/x64/packagename.dll
 ```
 
-`ModuleManager` discovers `package.marmot` next to the imported module file. Actual exported symbols still come from the module's `public export` / `private export` blocks.
+The `marmot` tool reads the manifests: `marmot install PackageName` adds the
+dependency, resolves it and vendors it into `packages/`, and `marmot run` hands
+the compiler a [build plan](docs/plan-file.md) with the package on the search
+path and its native library named. Exported symbols still come from the
+module's `public export` / `private export` blocks. `marmotc` on its own reads
+no manifests: it finds `<Name>` imports through `MARMOT_PATH` and knows no
+native packages.
 
 **Using a package:**
 ```bash
-# Set MARMOT_PATH to include package roots.
-# Use ';' on Windows and ':' on Unix-like systems.
-export MARMOT_PATH="/path/to/packages/PackageName:/path/to/MarmotPrelude"
+marmot install PackageName
+marmot run
 ```
 
 ```marmot

@@ -1,5 +1,6 @@
 mod checksum;
 mod edit;
+mod init;
 mod lockfile;
 mod manifest;
 mod packages;
@@ -32,17 +33,24 @@ Commands:
   update [package]      Resolve every package afresh and report what changed
   remove <package>      Drop a dependency and its installed copies
   list                  Show the resolved dependency tree
+  test [filter]         Run the project's tests (the [test] directory)
+  fmt <file|dir> ...    Format sources (options as for marmotc fmt)
+  init [path]           Create a project; with --package, a package
 
 Without [file], the entry named by the nearest project.marmot or
 package.marmot is used. Package commands act on the manifest found from the
 current directory.
 
 Options:
-  --format json         Machine-readable output (run, check, build)
+  --format json         Machine-readable output (run, check, build, test, init)
   --embed-sources       Embed sources in the artifact (build)
   -o, --output FILE     Write the plan to FILE (plan)
   --version CONSTRAINT  The constraint to record (install <package>); the
                         default is ^ the newest version available
+  --pattern TEXT        Run tests whose path contains TEXT (test)
+  --test FILE           Run one test file (test)
+  --package             Create a package instead of a project (init)
+  --name NAME           The project or package name (init)
   --marmotc PATH        The compiler to run; otherwise MARMOTC, then marmotc
                         next to this program, then marmotc on PATH
   -h, --help            Show this help
@@ -59,6 +67,9 @@ enum CommandKind {
     Update,
     Remove,
     List,
+    Test,
+    Fmt,
+    Init,
 }
 
 impl CommandKind {
@@ -72,6 +83,9 @@ impl CommandKind {
             "update" => Some(CommandKind::Update),
             "remove" => Some(CommandKind::Remove),
             "list" => Some(CommandKind::List),
+            "test" => Some(CommandKind::Test),
+            "fmt" => Some(CommandKind::Fmt),
+            "init" => Some(CommandKind::Init),
             _ => None,
         }
     }
@@ -86,14 +100,10 @@ impl CommandKind {
             CommandKind::Update => "update",
             CommandKind::Remove => "remove",
             CommandKind::List => "list",
+            CommandKind::Test => "test",
+            CommandKind::Fmt => "fmt",
+            CommandKind::Init => "init",
         }
-    }
-
-    fn compiles(self) -> bool {
-        matches!(
-            self,
-            CommandKind::Run | CommandKind::Check | CommandKind::Build | CommandKind::Plan
-        )
     }
 }
 
@@ -106,10 +116,32 @@ struct Options {
     output: Option<PathBuf>,
     constraint: Option<String>,
     marmotc: Option<PathBuf>,
+    pattern: Option<String>,
+    test_file: Option<String>,
+    package: bool,
+    name: Option<String>,
+    /// Everything after the command, for commands passed through as they are.
+    raw: Vec<String>,
 }
 
 fn parse_options(kind: CommandKind, args: &[String]) -> Result<Options, String> {
     let mut options = Options::default();
+    if kind == CommandKind::Fmt {
+        let mut index = 0;
+        while index < args.len() {
+            if args[index] == "--marmotc" {
+                options.marmotc = Some(PathBuf::from(
+                    args.get(index + 1).ok_or("missing value for --marmotc")?,
+                ));
+                index += 2;
+            } else {
+                options.raw.push(args[index].clone());
+                index += 1;
+            }
+        }
+        return Ok(options);
+    }
+
     let mut index = 0;
     while index < args.len() {
         let arg = args[index].as_str();
@@ -120,7 +152,16 @@ fn parse_options(kind: CommandKind, args: &[String]) -> Result<Options, String> 
                 .ok_or_else(|| format!("missing value for {arg}"))
         };
         match arg {
-            "--format" if kind.compiles() && kind != CommandKind::Plan => {
+            "--format"
+                if matches!(
+                    kind,
+                    CommandKind::Run
+                        | CommandKind::Check
+                        | CommandKind::Build
+                        | CommandKind::Test
+                        | CommandKind::Init
+                ) =>
+            {
                 let format = value()?;
                 if format != "json" {
                     return Err(format!("unsupported --format '{format}'; expected 'json'"));
@@ -132,6 +173,10 @@ fn parse_options(kind: CommandKind, args: &[String]) -> Result<Options, String> 
                 options.output = Some(PathBuf::from(value()?))
             }
             "--version" if kind == CommandKind::Install => options.constraint = Some(value()?),
+            "--pattern" if kind == CommandKind::Test => options.pattern = Some(value()?),
+            "--test" if kind == CommandKind::Test => options.test_file = Some(value()?),
+            "--package" if kind == CommandKind::Init => options.package = true,
+            "--name" if kind == CommandKind::Init => options.name = Some(value()?),
             "--marmotc" => options.marmotc = Some(PathBuf::from(value()?)),
             _ if arg.starts_with('-') => {
                 return Err(format!("unknown option for {}: {arg}", kind.name()));
@@ -169,9 +214,7 @@ fn find_compiler(explicit: Option<&Path>) -> PathBuf {
         .ok()
         .and_then(|exe| exe.parent().map(Path::to_path_buf))
         .into_iter()
-        .flat_map(|directory| {
-            [format!("marmotc{suffix}")].map(|name| directory.join(name))
-        });
+        .flat_map(|directory| [format!("marmotc{suffix}")].map(|name| directory.join(name)));
     for candidate in siblings {
         if candidate.is_file() && Some(paths::identity_key(&candidate)) != current {
             return candidate;
@@ -273,13 +316,7 @@ fn compile(
         command.arg("--embed-sources");
     }
 
-    let status = command
-        .status()
-        .map_err(|error| format!("cannot run {}: {error}", compiler.display()))?;
-    Ok(status
-        .code()
-        .map(|code| ExitCode::from((code & 0xFF) as u8))
-        .unwrap_or(ExitCode::FAILURE))
+    run_compiler(command, compiler)
 }
 
 fn install(options: &Options, version: &Version) -> Result<(), String> {
@@ -402,8 +439,120 @@ fn list(version: &Version) -> Result<(), String> {
     Ok(())
 }
 
+fn test(options: &Options, compiler: &Path, version: &Version) -> Result<ExitCode, String> {
+    let current = std::env::current_dir()
+        .map_err(|error| format!("cannot read the current directory: {error}"))?;
+    let workspace = manifest::find_workspace(&current)?;
+    let (root, test_directory, timeout_ms) = match &workspace {
+        Some(workspace) => (
+            workspace.root.clone(),
+            workspace.test_path(),
+            workspace.test_timeout_ms,
+        ),
+        None => (current.clone(), current.join("test"), 30_000),
+    };
+
+    let (plan, warnings) = plan::inputs_plan(&root, &paths::marmot_path(), version)?;
+    print_warnings(&warnings);
+    let plan_file = TemporaryFile(
+        std::env::temp_dir().join(format!("marmot-plan-{}.json", std::process::id())),
+    );
+    std::fs::write(&plan_file.0, plan.to_json())
+        .map_err(|error| format!("cannot write {}: {error}", plan_file.0.display()))?;
+
+    let mut command = Command::new(compiler);
+    command
+        .current_dir(&root)
+        .arg("test")
+        .arg("--plan")
+        .arg(&plan_file.0)
+        .arg("--dir")
+        .arg(&test_directory)
+        .arg("--timeout-ms")
+        .arg(timeout_ms.to_string());
+    if let Some(filter) = &options.argument {
+        command.arg(filter);
+    }
+    if let Some(pattern) = &options.pattern {
+        command.args(["--pattern", pattern]);
+    }
+    if let Some(test_file) = &options.test_file {
+        command.args(["--test", test_file]);
+    }
+    if options.json {
+        command.args(["--format", "json"]);
+    }
+    run_compiler(command, compiler)
+}
+
+fn run_compiler(mut command: Command, compiler: &Path) -> Result<ExitCode, String> {
+    let status = command
+        .status()
+        .map_err(|error| format!("cannot run {}: {error}", compiler.display()))?;
+    Ok(status
+        .code()
+        .map(|code| ExitCode::from((code & 0xFF) as u8))
+        .unwrap_or(ExitCode::FAILURE))
+}
+
+fn init(options: &Options) -> ExitCode {
+    let target = options.argument.as_deref().map(Path::new);
+    let kind = if options.package {
+        "package"
+    } else {
+        "project"
+    };
+    let result = if options.package {
+        init::package(target, options.name.as_deref())
+    } else {
+        init::project(target, options.name.as_deref())
+    };
+
+    match (result, options.json) {
+        (Ok(root), true) => {
+            let payload = serde_json::json!({
+                "version": 1, "source": "marmot", "command": "init", "success": true,
+                "kind": kind, "path": paths::generic(&root),
+            });
+            println!("{payload}");
+            ExitCode::SUCCESS
+        }
+        (Ok(root), false) => {
+            println!("Initialized Marmot {kind} at {}", root.display());
+            ExitCode::SUCCESS
+        }
+        (Err(error), true) => {
+            let payload = serde_json::json!({
+                "version": 1, "source": "marmot", "command": "init", "success": false,
+                "kind": kind, "error": error,
+            });
+            println!("{payload}");
+            ExitCode::FAILURE
+        }
+        (Err(error), false) => {
+            let what = if options.package {
+                "Package"
+            } else {
+                "Project"
+            };
+            eprintln!("marmot: error: {what} init failed: {error}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
 fn execute(kind: CommandKind, options: Options) -> Result<ExitCode, String> {
+    if kind == CommandKind::Init {
+        return Ok(init(&options));
+    }
+
     let compiler = find_compiler(options.marmotc.as_deref());
+    if kind == CommandKind::Fmt {
+        let mut command = Command::new(&compiler);
+        command.arg("fmt").args(&options.raw);
+        return run_compiler(command, &compiler);
+    }
+
     let version = compiler_version(&compiler)?;
     match kind {
         CommandKind::Run | CommandKind::Check | CommandKind::Build | CommandKind::Plan => {
@@ -413,6 +562,8 @@ fn execute(kind: CommandKind, options: Options) -> Result<ExitCode, String> {
         CommandKind::Update => update(&options, &version).map(|()| ExitCode::SUCCESS),
         CommandKind::Remove => remove(&options, &version).map(|()| ExitCode::SUCCESS),
         CommandKind::List => list(&version).map(|()| ExitCode::SUCCESS),
+        CommandKind::Test => test(&options, &compiler, &version),
+        CommandKind::Fmt | CommandKind::Init => unreachable!("handled above"),
     }
 }
 

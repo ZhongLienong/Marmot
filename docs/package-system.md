@@ -1,7 +1,9 @@
 # Package System
 
-Marmot now has a local package dependency system built around `package.marmot`,
+Marmot has a local package dependency system built around `package.marmot`,
 `project.marmot`, `marmot.lock`, and project-local vendoring into `packages/`.
+It lives in the `marmot` project tool (`tool/`); the compiler, `marmotc`, reads
+no manifests and is given its inputs in a [build plan](plan-file.md).
 The current implementation resolves from package directories that already exist
 on disk. Remote registry fetch and publish support are still deferred.
 
@@ -61,7 +63,7 @@ available. On other systems Marmot falls back to `~/.marmot/cache`.
 
 ## Resolution And Installation
 
-When Marmot prepares a project package environment, it:
+When the `marmot` tool prepares a project package environment, it:
 
 1. loads the active manifest from `project.marmot`, or from `package.marmot`
    when no project manifest exists
@@ -71,7 +73,8 @@ When Marmot prepares a project package environment, it:
 4. otherwise scans the local index, resolves the highest compatible versions,
    and vendors them into `packages/<name>-<version>/`
 5. writes a new `marmot.lock`
-6. rebuilds `MARMOT_PATH` from the resolved package graph and project settings
+6. writes the build plan's search paths from the resolved package graph and
+   project settings
 
 The effective search path order inside a project is:
 
@@ -128,7 +131,7 @@ All four commands operate on the active manifest from the current directory:
 
 ## Manifest Format
 
-`package.marmot` is parsed by `PackageManifest`.
+`package.marmot` is read by the `marmot` tool.
 
 ### `[package]`
 
@@ -195,8 +198,9 @@ Current validation:
 - enabled packages must target the current runtime ABI version
 - declared symbols are validated against the loaded library before registration
 - at compile time, a `foreign "Name"` declaration must name either a builtin
-  runtime function or a key of `functions` in the `package.marmot` in the same
-  directory as the declaring file; anything else is the compile error
+  runtime function or a key of `functions` of the native package the build
+  plan associates with the declaring file's directory; anything else is the
+  compile error
   `CodeGeneratorUnknownForeignFunction`, rather than a failed call at run time
 
 ### `[build]`
@@ -280,18 +284,16 @@ Fallback paths:
 Marmot does not yet build native libraries automatically when no prebuilt binary
 is available.
 
-## Import-Time Package Loading
+## Native Packages At Build And Run Time
 
-Package resolution happens before compilation by preparing the project search
-path. During compilation, `ModuleManager` still loads dynamic FFI libraries on
-demand:
+The `marmot` tool resolves packages before anything compiles. In the build plan
+it names every native package the program can reach: the entry file's own
+package and any package that is itself a search path.
 
-1. an import resolves to an `.mmt` file on the effective `MARMOT_PATH`
-2. `ModuleManager` checks that module's directory for `package.marmot`
-3. if `ffi.enabled = true`, Marmot selects the library path and registers the
-   declared functions through `DynamicFFIRegistry`
-4. Marmot rejects the package if `abi_version` mismatches or a declared symbol
-   is missing
-
-This keeps module import behavior file-based while the search path itself is now
-lockfile-backed and package-aware.
+1. an import resolves to an `.mmt` file on the plan's search paths
+2. a file whose directory is a native package's root may declare that
+   package's foreign functions
+3. `marmotc run` selects each package's library and registers the declared
+   functions through `DynamicFFIRegistry` just before the program starts;
+   `check` and `build` never load a library
+4. a library that fails to load, or lacks a declared symbol, stops the run

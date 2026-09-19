@@ -78,11 +78,11 @@ See [Versioning Policy](versioning-policy.md) for how `Stable`,
 | Module diagnostics: circular imports, unresolved imports, missing exports, duplicate modules | Stable | `test/module/`, `compiler/tests/module/`, `compiler/tests/compiler/` | The compiler emits stable module error codes for these cases. |
 | `foreign` declarations and builtin runtime FFI (`CALL_FOREIGN_INDEXED`) | Stable | `test/ffi/`, `test/prelude/` | This is the richer built-in FFI path backed by `MidoriFFIRegistry`. |
 | Dynamic package FFI (`CALL_FOREIGN`) | Experimental | `none yet` | The generic ABI exists, but package-specific automated coverage is still thin and the dynamic path does not expose the full builtin typed-FFI metadata. |
-| `package.marmot` manifest discovery and dynamic library loading | Experimental | `none yet` | Current support is an early manifest-driven loader, not a full package manager; dependency resolution and version solving are not implemented. |
+| Native packages (`package.marmot` `[ffi]`) and dynamic library loading | Experimental | `tool/tests/`, `scripts/check_cli_contracts.py` | The `marmot` tool reads the manifests and names native packages in the build plan; `marmotc run` loads their libraries before the program starts, `check` and `build` never do. |
 | Structured compiler warnings/errors and stable diagnostic codes | Stable | `common/tests/common/`, `compiler/tests/compiler/`, `test/static_analyzer/` | Warnings and errors are aggregated in `CompilerReport` instead of being printed ad hoc. |
 | Machine-readable warnings and compiler-report JSON | Stable | `common/tests/common/`, `test/static_analyzer/`, `scripts/check_cli_contracts.py` | `*.warnings.json` fixtures exercise the warning-stream path, and CLI contract checks cover `marmotc.exe check --format json`. |
 | Static-analyzer warnings: `UnusedLocal`, `ShadowingPolicy`, `CaptureEscape`, `IntegerOverflow` | Stable | `compiler/tests/static_analyzer/`, `test/static_analyzer/` | Warnings are preserved even when a later compile stage fails. |
-| Project manifests (`project.marmot` and `[project]` fallback) and `marmotc.exe init` scaffolding | Experimental | `scripts/check_cli_contracts.py` | CLI contract checks cover project-manifest lookup, `package.marmot` fallback, manifest precedence, and init scaffolding. |
+| Projects (`project.marmot`, `[project]` fallback, `marmot.lock`), package resolution and `marmot init` | Experimental | `tool/tests/` | The `marmot` tool's tests cover manifest lookup and precedence, resolution, vendoring, lockfiles, test discovery and scaffolding. |
 
 ## Standard Library
 

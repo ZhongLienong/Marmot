@@ -10,10 +10,9 @@ Every quoted #include is resolved against the three include roots
 (common/src, runtime/src, compiler/src). Includes that resolve nowhere (system
 and third-party headers) are ignored. Exit status 1 lists each forbidden edge.
 
-Inside the compiler, the pipeline (compiler/src/Compiler, except the package
-manager) compiles from the CompilationInputs it is given: it may not include
-the package manager or the project layer, and may not read environment
-variables. Project and package discovery happen before the compiler is called.
+Inside the compiler, the pipeline (compiler/src/Compiler) compiles from the
+CompilationInputs it is given and may not read environment variables. Projects
+and packages are resolved by the marmot tool before the compiler is called.
 """
 
 import pathlib
@@ -46,30 +45,16 @@ ALLOWED = {
 INCLUDE = re.compile(r'^\s*#\s*include\s+"([^"]+)"', re.MULTILINE)
 
 PIPELINE_DIR = ROOT / 'compiler' / 'src' / 'Compiler'
-DISCOVERY_DIRS = [
-    ROOT / 'compiler' / 'src' / 'Compiler' / 'PackageManager',
-    ROOT / 'compiler' / 'src' / 'Utility' / 'Project',
-]
 ENVIRONMENT_READ = re.compile(r'\b(getenv|_dupenv_s|_wgetenv|secure_getenv)\s*\(')
-
-
-def in_any(path, directories):
-    path = path.resolve()
-    return any(directory in path.parents for directory in directories)
 
 
 def pipeline_violations(source, text):
     """The compiler pipeline takes its inputs; it does not go looking for them."""
-    if PIPELINE_DIR not in source.resolve().parents or in_any(source, DISCOVERY_DIRS[:1]):
+    if PIPELINE_DIR not in source.resolve().parents:
         return []
 
     violations = []
     relative = source.relative_to(ROOT).as_posix()
-    for match in INCLUDE.finditer(text):
-        resolved = resolve(source, match.group(1))
-        if resolved is not None and in_any(resolved, DISCOVERY_DIRS):
-            line = text.count('\n', 0, match.start()) + 1
-            violations.append(f'{relative}:{line}: the compiler pipeline includes project discovery "{match.group(1)}"')
     for match in ENVIRONMENT_READ.finditer(text):
         line = text.count('\n', 0, match.start()) + 1
         violations.append(f'{relative}:{line}: the compiler pipeline reads the environment ({match.group(1)})')

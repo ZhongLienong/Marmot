@@ -12,7 +12,9 @@ pub const PLAN_VERSION: u32 = 1;
 #[derive(Debug, Serialize, PartialEq, Eq)]
 pub struct Plan {
     pub version: u32,
-    pub entry: String,
+    /// Absent in a plan for `marmotc test`, which compiles many files.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entry: Option<String>,
     pub search_paths: Vec<String>,
     pub native_packages: Vec<PlanNativePackage>,
 }
@@ -87,9 +89,48 @@ fn native_packages(
     Ok(packages)
 }
 
-/// The plan for compiling `entry`, and any warnings about the project's
-/// packages. Inside a project this resolves and installs packages when the
-/// lockfile is missing or out of date.
+/// Search paths for sources under `directory`, and any warnings about the
+/// project's packages. Inside a project this resolves and installs packages
+/// when the lockfile is missing or out of date.
+fn inputs(
+    directory: &Path,
+    environment: &[PathBuf],
+    compiler: &Version,
+) -> Result<(Vec<PathBuf>, Vec<String>), String> {
+    match manifest::find_workspace(directory)? {
+        Some(workspace) => {
+            let prepared =
+                packages::prepare(&workspace, Mode::PreferLockfile, environment, compiler)?;
+            Ok((prepared.search_paths, prepared.warnings))
+        }
+        None => {
+            let mut directories = DirectoryList::default();
+            for path in environment {
+                directories.push(path.clone());
+            }
+            Ok((directories.into_vec(), Vec::new()))
+        }
+    }
+}
+
+fn assemble(
+    entry: Option<&Path>,
+    directory: &Path,
+    search_paths: Vec<PathBuf>,
+    compiler: &Version,
+) -> Result<Plan, String> {
+    Ok(Plan {
+        version: PLAN_VERSION,
+        entry: entry.map(paths::display),
+        native_packages: native_packages(directory, &search_paths, compiler)?,
+        search_paths: search_paths
+            .iter()
+            .map(|path| paths::display(path))
+            .collect(),
+    })
+}
+
+/// The plan for compiling `entry`, and any warnings about its project's packages.
 pub fn make_plan(
     entry: &Path,
     environment: &[PathBuf],
@@ -100,30 +141,23 @@ pub fn make_plan(
         return Err(format!("no such file: {}", entry.display()));
     }
     let entry_directory = entry.parent().map(Path::to_path_buf).unwrap_or_default();
+    let (search_paths, warnings) = inputs(&entry_directory, environment, compiler)?;
+    Ok((
+        assemble(Some(&entry), &entry_directory, search_paths, compiler)?,
+        warnings,
+    ))
+}
 
-    let (search_paths, warnings) = match manifest::find_workspace(&entry_directory)? {
-        Some(workspace) => {
-            let prepared =
-                packages::prepare(&workspace, Mode::PreferLockfile, environment, compiler)?;
-            (prepared.search_paths, prepared.warnings)
-        }
-        None => {
-            let mut directories = DirectoryList::default();
-            for path in environment {
-                directories.push(path.clone());
-            }
-            (directories.into_vec(), Vec::new())
-        }
-    };
-
-    let plan = Plan {
-        version: PLAN_VERSION,
-        entry: paths::display(&entry),
-        native_packages: native_packages(&entry_directory, &search_paths, compiler)?,
-        search_paths: search_paths
-            .iter()
-            .map(|path| paths::display(path))
-            .collect(),
-    };
-    Ok((plan, warnings))
+/// A plan with no entry, for compiling every file under `directory` (tests).
+pub fn inputs_plan(
+    directory: &Path,
+    environment: &[PathBuf],
+    compiler: &Version,
+) -> Result<(Plan, Vec<String>), String> {
+    let directory = paths::absolute(directory);
+    let (search_paths, warnings) = inputs(&directory, environment, compiler)?;
+    Ok((
+        assemble(None, &directory, search_paths, compiler)?,
+        warnings,
+    ))
 }

@@ -3,16 +3,15 @@
 Run CLI-facing contract checks that are not represented as plain .mmt fixtures.
 
 Covers:
-- `marmotc.exe check <file> --format json`
-- `marmotc.exe run <file>`
-- `marmotc.exe build <file>`
+- `marmotc.exe check <file> --format json`, with MARMOT_PATH
+- `marmotc.exe run <file>` and `build <file>`
+- `marmotc.exe run|check|build --plan`, and native packages from a plan
 - `marmotc.exe fmt --check`
-- `marmotc.exe test`
-- `marmotc.exe --version`
-- `marmotc.exe help <command>`
-- `project.marmot` lookup and source-dir precedence
-- `[project]` fallback inside `package.marmot`
-- `marmotc.exe init` project/package scaffolding
+- `marmotc.exe test` with --dir, --timeout-ms and --plan
+- `marmotc.exe --version` and `help <command>`
+
+Projects (manifests, lockfiles, packages, init) belong to the marmot tool and
+are covered by its tests (tool/tests).
 """
 
 from __future__ import annotations
@@ -102,37 +101,17 @@ def assert_condition(condition: bool, message: str) -> None:
         raise AssertionError(message)
 
 
-def scenario_check_json_success_uses_project_manifest(runner: TestRunner) -> None:
+def scenario_check_json_success_finds_imports_through_marmot_path(runner: TestRunner) -> None:
     with tempfile.TemporaryDirectory(prefix="marmot-cli-success-") as temp_dir_raw:
         temp_dir = Path(temp_dir_raw)
-        external_dir = temp_dir / "external"
-        project_dir = temp_dir / "Project"
-        source_dir = project_dir / "src"
-
-        external_dir.mkdir(parents=True)
-        source_dir.mkdir(parents=True)
-
-        # If MARMOT_PATH wins over the project manifest, Support::Value() becomes a
-        # non-callable variable and compilation fails.
+        library_dir = temp_dir / "lib"
         write_text(
-            external_dir / "Support.mmt",
-            "module Support\n"
-            "public export { Value }\n"
-            "def Value = 7;\n",
-        )
-        write_text(
-            project_dir / "project.marmot",
-            "[project]\n"
-            "name = \"CliCheck\"\n"
-            "source_dir = \"src\"\n",
-        )
-        write_text(
-            source_dir / "Support.mmt",
+            library_dir / "Support.mmt",
             "module Support\n"
             "public export { Value }\n"
             "def Value = fn() -> Int => 41;\n",
         )
-        main_path = source_dir / "Main.mmt"
+        main_path = temp_dir / "src" / "Main.mmt"
         write_text(
             main_path,
             "module Main\n"
@@ -142,24 +121,25 @@ def scenario_check_json_success_uses_project_manifest(runner: TestRunner) -> Non
             "    Support::Value()\n"
             "};\n",
         )
+        # A project manifest is not marmotc's business: it must not change what
+        # the import finds.
+        write_text(temp_dir / "project.marmot", "[project]\nsource_dir = \"nowhere\"\n")
 
         completed = run_midori(
             runner,
             ["check", str(main_path), "--format", "json"],
-            env_overrides={"MARMOT_PATH": str(external_dir)},
+            env_overrides={"MARMOT_PATH": str(library_dir)},
         )
-        payload = parse_command_json("check_json_success_uses_project_manifest", completed)
-        report = require_report(payload, "check_json_success_uses_project_manifest")
+        payload = parse_command_json("check_json_success_finds_imports_through_marmot_path", completed)
+        report = require_report(payload, "check_json_success_finds_imports_through_marmot_path")
 
         assert_condition(
             completed.returncode == 0,
-            f"check_json_success_uses_project_manifest: expected exit code 0, got {completed.returncode}. Errors: {report['errors']}",
+            f"check_json_success_finds_imports_through_marmot_path: expected exit code 0, got {completed.returncode}. Errors: {report['errors']}",
         )
         assert_condition(payload.get("command") == "check", f"Unexpected command payload: {payload}")
         warnings = report["warnings"]
         errors = report["errors"]
-        assert_condition(isinstance(warnings, list), "Expected warnings to be a JSON array.")
-        assert_condition(isinstance(errors, list), "Expected errors to be a JSON array.")
         assert_condition(len(errors) == 0, f"Expected no errors, got: {errors}")
         assert_condition(len(warnings) == 1, f"Expected exactly one warning, got: {warnings}")
         warning = warnings[0]
@@ -203,164 +183,6 @@ def scenario_check_json_failure_reports_parser_errors(runner: TestRunner) -> Non
         assert_condition(str(error["file_path"]).endswith("Broken.mmt"), f"Unexpected file_path: {error}")
 
 
-def scenario_package_manifest_project_fallback(runner: TestRunner) -> None:
-    with tempfile.TemporaryDirectory(prefix="marmot-cli-package-fallback-") as temp_dir_raw:
-        temp_dir = Path(temp_dir_raw)
-        external_dir = temp_dir / "external"
-        project_dir = temp_dir / "Fallback"
-        source_dir = project_dir / "libsrc"
-
-        external_dir.mkdir(parents=True)
-        source_dir.mkdir(parents=True)
-
-        write_text(
-            external_dir / "Support.mmt",
-            "module Support\n"
-            "public export { Value }\n"
-            "def Value = 0;\n",
-        )
-        write_text(
-            project_dir / "package.marmot",
-            "[project]\n"
-            "source_dir = \"libsrc\"\n",
-        )
-        write_text(
-            source_dir / "Support.mmt",
-            "module Support\n"
-            "public export { Value }\n"
-            "def Value = fn() -> Int => 99;\n",
-        )
-        main_path = source_dir / "Main.mmt"
-        write_text(
-            main_path,
-            "module Main\n"
-            "import { <Support> }\n"
-            "def main = fn() -> Int => Support::Value();\n",
-        )
-
-        completed = run_midori(
-            runner,
-            ["check", str(main_path), "--format", "json"],
-            env_overrides={"MARMOT_PATH": str(external_dir)},
-        )
-        payload = parse_command_json("package_manifest_project_fallback", completed)
-        report = require_report(payload, "package_manifest_project_fallback")
-
-        assert_condition(
-            completed.returncode == 0,
-            f"package_manifest_project_fallback: expected exit code 0, got {completed.returncode}. Errors: {report['errors']}",
-        )
-        assert_condition(report["warnings"] == [], f"Expected no warnings, got: {report['warnings']}")
-        assert_condition(report["errors"] == [], f"Expected no errors, got: {report['errors']}")
-
-
-def scenario_project_manifest_takes_precedence_over_package_fallback(runner: TestRunner) -> None:
-    with tempfile.TemporaryDirectory(prefix="marmot-cli-project-precedence-") as temp_dir_raw:
-        temp_dir = Path(temp_dir_raw)
-        project_dir = temp_dir / "Precedence"
-        preferred_source_dir = project_dir / "src"
-        package_source_dir = project_dir / "pkgsrc"
-
-        preferred_source_dir.mkdir(parents=True)
-        package_source_dir.mkdir(parents=True)
-
-        write_text(
-            project_dir / "project.marmot",
-            "[project]\n"
-            "source_dir = \"src\"\n",
-        )
-        write_text(
-            project_dir / "package.marmot",
-            "[project]\n"
-            "source_dir = \"pkgsrc\"\n",
-        )
-        write_text(
-            preferred_source_dir / "Support.mmt",
-            "module Support\n"
-            "public export { Value }\n"
-            "def Value = fn() -> Int => 5;\n",
-        )
-        write_text(
-            package_source_dir / "Support.mmt",
-            "module Support\n"
-            "public export { Value }\n"
-            "def Value = 5;\n",
-        )
-        main_path = preferred_source_dir / "Main.mmt"
-        write_text(
-            main_path,
-            "module Main\n"
-            "import { <Support> }\n"
-            "def main = fn() -> Int => Support::Value();\n",
-        )
-
-        completed = run_midori(
-            runner,
-            ["check", str(main_path), "--format", "json"],
-            env_overrides={"MARMOT_PATH": None},
-        )
-        payload = parse_command_json("project_manifest_takes_precedence_over_package_fallback", completed)
-        report = require_report(payload, "project_manifest_takes_precedence_over_package_fallback")
-
-        assert_condition(
-            completed.returncode == 0,
-            f"project_manifest_takes_precedence_over_package_fallback: expected exit code 0, got {completed.returncode}. Errors: {report['errors']}",
-        )
-        assert_condition(report["warnings"] == [], f"Expected no warnings, got: {report['warnings']}")
-        assert_condition(report["errors"] == [], f"Expected no errors, got: {report['errors']}")
-
-
-def scenario_init_project_scaffolds_files(runner: TestRunner) -> None:
-    with tempfile.TemporaryDirectory(prefix="marmot-cli-init-project-") as temp_dir_raw:
-        temp_dir = Path(temp_dir_raw)
-        project_root = temp_dir / "CliProject"
-
-        completed = run_midori(
-            runner,
-            ["init", str(project_root), "--name", "CliProject"],
-            env_overrides={"MARMOT_PATH": None},
-        )
-
-        assert_condition(
-            completed.returncode == 0,
-            f"init_project_scaffolds_files: expected exit code 0, got {completed.returncode}.",
-        )
-        assert_condition(completed.stderr.strip() == "", f"Expected empty stderr, got:\n{completed.stderr}")
-        assert_condition("Initialized Marmot project" in completed.stdout, f"Unexpected stdout:\n{completed.stdout}")
-        assert_condition((project_root / "project.marmot").exists(), "Expected project.marmot to be created.")
-        assert_condition((project_root / "src" / "Main.mmt").exists(), "Expected src/Main.mmt to be created.")
-        assert_condition((project_root / "packages").is_dir(), "Expected packages/ directory to be created.")
-
-        manifest_contents = read_text(project_root / "project.marmot")
-        assert_condition("name = \"CliProject\"" in manifest_contents, "Expected project name in project.marmot.")
-        assert_condition("entry = \"src/Main.mmt\"" in manifest_contents, "Expected entry in project.marmot.")
-
-
-def scenario_init_package_scaffolds_files(runner: TestRunner) -> None:
-    with tempfile.TemporaryDirectory(prefix="marmot-cli-init-package-") as temp_dir_raw:
-        temp_dir = Path(temp_dir_raw)
-        package_root = temp_dir / "CliPackage"
-
-        completed = run_midori(
-            runner,
-            ["init", "--package", str(package_root), "--name", "123-demo"],
-            env_overrides={"MARMOT_PATH": None},
-        )
-
-        assert_condition(
-            completed.returncode == 0,
-            f"init_package_scaffolds_files: expected exit code 0, got {completed.returncode}.",
-        )
-        assert_condition(completed.stderr.strip() == "", f"Expected empty stderr, got:\n{completed.stderr}")
-        assert_condition("Initialized Marmot package" in completed.stdout, f"Unexpected stdout:\n{completed.stdout}")
-        assert_condition((package_root / "package.marmot").exists(), "Expected package.marmot to be created.")
-        assert_condition((package_root / "Package123_demo.mmt").exists(), "Expected sanitized package module file.")
-
-        manifest_contents = read_text(package_root / "package.marmot")
-        assert_condition("main = \"Package123_demo.mmt\"" in manifest_contents, "Expected main module entry in package.marmot.")
-        assert_condition("exports = [\"Package123_demo\"]" in manifest_contents, "Expected sanitized export entry in package.marmot.")
-
-
 def scenario_version_output_format(runner: TestRunner) -> None:
     completed = run_midori(runner, ["--version"], env_overrides={"MARMOT_PATH": None})
     assert_condition(completed.returncode == 0, f"version_output_format: expected exit code 0, got {completed.returncode}.")
@@ -376,9 +198,15 @@ def scenario_help_lists_new_commands(runner: TestRunner) -> None:
     assert_condition(completed.returncode == 0, f"help_lists_new_commands: expected exit code 0, got {completed.returncode}.")
     assert_condition("fmt" in completed.stdout and "test" in completed.stdout and "build" in completed.stdout, f"Unexpected help output:\n{completed.stdout}")
 
+    for removed in ("init", "install", "update", "remove", "list"):
+        assert_condition(f"  {removed} " not in completed.stdout, f"help should not list {removed}, which moved to the marmot tool:\n{completed.stdout}")
+    moved = run_midori(runner, ["install"], env_overrides={"MARMOT_PATH": None})
+    assert_condition(moved.returncode != 0, "marmotc install should be an unknown command.")
+
     per_command = run_midori(runner, ["help", "test"], env_overrides={"MARMOT_PATH": None})
     assert_condition(per_command.returncode == 0, f"help_test: expected exit code 0, got {per_command.returncode}.")
-    assert_condition("--pattern" in per_command.stdout and "--test" in per_command.stdout, f"Unexpected test help output:\n{per_command.stdout}")
+    for flag in ("--pattern", "--test", "--dir", "--timeout-ms", "--plan"):
+        assert_condition(flag in per_command.stdout, f"Expected {flag} in the test help:\n{per_command.stdout}")
 
 
 def scenario_run_command_executes_program(runner: TestRunner) -> None:
@@ -440,59 +268,59 @@ def scenario_build_command_compiles_without_running(runner: TestRunner) -> None:
 
 
 def scenario_native_library_loads_only_to_run(runner: TestRunner) -> None:
-    # A package whose native library is not a loadable library. Checking a
-    # program that imports it must not touch the library (loading one runs its
-    # code); running the program must stop before it starts, with the load
-    # failure reported like a compile error.
+    # A plan names a native package whose library is not a loadable library.
+    # Checking a program that imports it must not touch the library (loading one
+    # runs its code); running the program must stop before it starts, with the
+    # load failure reported like a compile error.
     with tempfile.TemporaryDirectory(prefix="marmot-cli-native-") as temp_dir_raw:
         temp_dir = Path(temp_dir_raw)
         package_dir = temp_dir / "Native"
-        write_text(
-            package_dir / "package.marmot",
-            "[package]\n"
-            "name = \"Native\"\n"
-            "version = \"0.1.0\"\n"
-            "marmot_version = \">=1.0.0\"\n"
-            "\n"
-            "[package.modules]\n"
-            "main = \"Native.mmt\"\n"
-            "exports = [\"Native\"]\n"
-            "\n"
-            "[ffi]\n"
-            "enabled = true\n"
-            "library_name = \"native_stub\"\n"
-            "\n"
-            "[ffi.functions]\n"
-            "\"MIDORI_FFI_Native_Answer\" = \"native_answer\"\n",
-        )
         write_text(
             package_dir / "Native.mmt",
             "module Native\n"
             "public export { Answer }\n"
             "foreign \"MIDORI_FFI_Native_Answer\" Answer : fn() -> Int;\n",
         )
-        for library in ("lib/windows/x64/native_stub.dll", "lib/linux/x86_64/libnative_stub.so", "lib/macos/libnative_stub.dylib"):
-            write_text(package_dir / library, "not a library\n")
-
-        source_path = temp_dir / "app" / "Main.mmt"
+        write_text(package_dir / "native_stub.dll", "not a library\n")
         write_text(
-            source_path,
+            temp_dir / "app" / "Main.mmt",
             "module Main\n"
             "import { \"<Native>\" }\n"
             "def main = fn() -> Int => 0;\n",
         )
-        env = {"MARMOT_PATH": str(package_dir)}
+        plan_path = temp_dir / "plan.json"
+        write_text(
+            plan_path,
+            json.dumps({
+                "version": 1,
+                "entry": "app/Main.mmt",
+                "search_paths": ["Native"],
+                "native_packages": [{
+                    "name": "Native",
+                    "root": "Native",
+                    "library": "Native/native_stub.dll",
+                    "functions": {"MIDORI_FFI_Native_Answer": "native_answer"},
+                }],
+            }),
+        )
 
-        checked = run_midori(runner, ["check", str(source_path), "--format", "json"], env_overrides=env)
+        checked = run_midori(runner, ["check", "--plan", str(plan_path), "--format", "json"], env_overrides={"MARMOT_PATH": None})
         check_report = require_report(parse_command_json("native_library_loads_only_to_run", checked), "native_library_loads_only_to_run")
         assert_condition(checked.returncode == 0, f"native_library_loads_only_to_run: check should not load the library, got exit {checked.returncode}: {check_report['errors']}")
 
-        ran = run_midori(runner, ["run", str(source_path), "--format", "json"], env_overrides=env)
+        ran = run_midori(runner, ["run", "--plan", str(plan_path), "--format", "json"], env_overrides={"MARMOT_PATH": None})
         run_report = require_report(parse_command_json("native_library_loads_only_to_run", ran), "native_library_loads_only_to_run")
         assert_condition(ran.returncode != 0, "native_library_loads_only_to_run: run should fail to load the library.")
         errors = run_report["errors"]
         assert_condition(len(errors) == 1, f"Expected one load error, got: {errors}")
         assert_condition("FFI error" in str(errors[0]["message"]), f"Expected an FFI load error, got: {errors[0]}")
+
+        # Without the plan the package's functions are unknown: marmotc reads no
+        # package manifests.
+        unplanned = run_midori(runner, ["check", str(temp_dir / "app" / "Main.mmt"), "--format", "json"], env_overrides={"MARMOT_PATH": str(package_dir)})
+        unplanned_report = require_report(parse_command_json("native_library_loads_only_to_run", unplanned), "native_library_loads_only_to_run")
+        assert_condition(unplanned.returncode != 0, "Without a plan, a package foreign function should be unknown.")
+        assert_condition(any(error["code"] == "CodeGeneratorUnknownForeignFunction" for error in unplanned_report["errors"]), f"Unexpected errors: {unplanned_report['errors']}")
 
 
 def scenario_plan_replaces_discovery(runner: TestRunner) -> None:
@@ -574,43 +402,43 @@ def scenario_fmt_check_and_write(runner: TestRunner) -> None:
         assert_condition(check_after_payload.get("changedCount") == 0, f"Expected no changed files after write, got: {check_after_payload}")
 
 
-def scenario_test_command_discovers_project_tests(runner: TestRunner) -> None:
+def scenario_test_command_discovers_tests(runner: TestRunner) -> None:
     with tempfile.TemporaryDirectory(prefix="marmot-cli-test-") as temp_dir_raw:
         temp_dir = Path(temp_dir_raw)
-        project_dir = temp_dir / "Project"
-        test_dir = project_dir / "test"
-        test_dir.mkdir(parents=True)
-
         write_text(
-            project_dir / "project.marmot",
-            "[project]\n"
-            "name = \"CliTest\"\n"
-            "source_dir = \"src\"\n"
-            "\n"
-            "[test]\n"
-            "dir = \"test\"\n"
-            "timeout_ms = 30000\n",
-        )
-        write_text(
-            test_dir / "smoke.mmt",
+            temp_dir / "test" / "smoke.mmt",
             "module Smoke\n"
             "def main = fn() -> Int => 0;\n",
         )
-
-        completed = run_midori(
-            runner,
-            ["test", "--format", "json"],
-            env_overrides={"MARMOT_PATH": None},
-            cwd=project_dir,
+        write_text(
+            temp_dir / "checks" / "uses_lib.mmt",
+            "module UsesLib\n"
+            "import { <Support> }\n"
+            "def main = fn() -> Int => Support::Value();\n",
         )
-        payload = parse_command_json("test_command_discovers_project_tests", completed)
-        summary = payload.get("summary")
+        write_text(
+            temp_dir / "lib" / "Support.mmt",
+            "module Support\n"
+            "public export { Value }\n"
+            "def Value = fn() -> Int => 0;\n",
+        )
+        write_text(temp_dir / "plan.json", json.dumps({"version": 1, "search_paths": ["lib"]}))
 
-        assert_condition(completed.returncode == 0, f"test_command_discovers_project_tests: expected exit code 0, got {completed.returncode}. Payload: {payload}")
+        # Default: ./test under the current directory.
+        completed = run_midori(runner, ["test", "--format", "json"], env_overrides={"MARMOT_PATH": None}, cwd=temp_dir)
+        payload = parse_command_json("test_command_discovers_tests", completed)
+        summary = payload.get("summary")
+        assert_condition(completed.returncode == 0, f"test_command_discovers_tests: expected exit code 0, got {completed.returncode}. Payload: {payload}")
         assert_condition(payload.get("command") == "test", f"Unexpected command payload: {payload}")
-        assert_condition(isinstance(summary, dict), f"Expected summary object, got: {summary}")
-        assert_condition(summary.get("total") == 1, f"Expected one discovered test, got: {payload}")
-        assert_condition(summary.get("passed") == 1, f"Expected one passing test, got: {payload}")
+        assert_condition(isinstance(summary, dict) and summary.get("total") == 1 and summary.get("passed") == 1, f"Expected one passing test, got: {payload}")
+
+        # --dir and --plan: every test compiles with the plan's search paths,
+        # in the worker processes too.
+        completed = run_midori(runner, ["test", "--dir", "checks", "--plan", str(temp_dir / "plan.json"), "--format", "json"], env_overrides={"MARMOT_PATH": None}, cwd=temp_dir)
+        payload = parse_command_json("test_command_discovers_tests", completed)
+        summary = payload.get("summary")
+        assert_condition(completed.returncode == 0, f"test_command_discovers_tests: --plan run failed. Payload: {payload}")
+        assert_condition(isinstance(summary, dict) and summary.get("total") == 1 and summary.get("passed") == 1, f"Expected one passing test, got: {payload}")
 
 
 def scenario_test_command_enforces_timeout(runner: TestRunner) -> None:
@@ -621,16 +449,6 @@ def scenario_test_command_enforces_timeout(runner: TestRunner) -> None:
         test_dir.mkdir(parents=True)
 
         write_text(
-            project_dir / "project.marmot",
-            "[project]\n"
-            "name = \"CliTimeout\"\n"
-            "source_dir = \"src\"\n"
-            "\n"
-            "[test]\n"
-            "dir = \"test\"\n"
-            "timeout_ms = 50\n",
-        )
-        write_text(
             test_dir / "hang.mmt",
             "module Hang\n"
             "// `loop` was removed in v2; a tail call recurses forever without growing the stack.\n"
@@ -640,7 +458,7 @@ def scenario_test_command_enforces_timeout(runner: TestRunner) -> None:
 
         completed = run_midori(
             runner,
-            ["test", "--format", "json"],
+            ["test", "--timeout-ms", "50", "--format", "json"],
             env_overrides={"MARMOT_PATH": None},
             cwd=project_dir,
         )
@@ -656,12 +474,8 @@ def scenario_test_command_enforces_timeout(runner: TestRunner) -> None:
         assert_condition(results[0].get("timedOut") is True, f"Expected timedOut=true on the test result, got: {results[0]}")
 
 SCENARIOS: list[tuple[str, Any]] = [
-    ("check_json_success_uses_project_manifest", scenario_check_json_success_uses_project_manifest),
+    ("check_json_success_finds_imports_through_marmot_path", scenario_check_json_success_finds_imports_through_marmot_path),
     ("check_json_failure_reports_parser_errors", scenario_check_json_failure_reports_parser_errors),
-    ("package_manifest_project_fallback", scenario_package_manifest_project_fallback),
-    ("project_manifest_takes_precedence_over_package_fallback", scenario_project_manifest_takes_precedence_over_package_fallback),
-    ("init_project_scaffolds_files", scenario_init_project_scaffolds_files),
-    ("init_package_scaffolds_files", scenario_init_package_scaffolds_files),
     ("version_output_format", scenario_version_output_format),
     ("help_lists_new_commands", scenario_help_lists_new_commands),
     ("run_command_executes_program", scenario_run_command_executes_program),
@@ -669,7 +483,7 @@ SCENARIOS: list[tuple[str, Any]] = [
     ("native_library_loads_only_to_run", scenario_native_library_loads_only_to_run),
     ("plan_replaces_discovery", scenario_plan_replaces_discovery),
     ("fmt_check_and_write", scenario_fmt_check_and_write),
-    ("test_command_discovers_project_tests", scenario_test_command_discovers_project_tests),
+    ("test_command_discovers_tests", scenario_test_command_discovers_tests),
     ("test_command_enforces_timeout", scenario_test_command_enforces_timeout),
 ]
 

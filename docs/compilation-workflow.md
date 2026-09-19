@@ -63,11 +63,11 @@ Import forms:
 
 Resolution behavior:
 
-- System imports are resolved through `MARMOT_PATH`.
+- System imports are resolved through the search paths the compiler is given: a build plan's, or `MARMOT_PATH` when `marmotc` compiles a file on its own.
 - Path imports are resolved relative to the importing file.
 - Duplicate module names are rejected.
 - Circular dependencies are rejected.
-- If an imported file lives beside a `package.marmot`, the package manifest is loaded and any declared dynamic FFI library is registered before compilation continues.
+- A file belongs to a native package when the build plan names one whose root is the file's directory; it may then declare that package's foreign functions. The library itself is loaded only when the program runs.
 
 The build graph stores:
 

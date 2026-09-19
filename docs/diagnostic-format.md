@@ -328,7 +328,7 @@ are emitted with the same shape as the full examples above.
 | `CodeGeneratorUnresolvedMethodResolution` | `CodeGenerator` | `Could not resolve method 'show' for type 'T'.` |
 | `CodeGeneratorAmbiguousMethodResolution` | `CodeGenerator` | `Ambiguous method 'show' for type 'T'.` |
 | `CodeGeneratorUnsupportedLowering` | `CodeGenerator` | `Cannot lower expression to bytecode.` |
-| `CodeGeneratorUnknownForeignFunction` | `CodeGenerator` | `Unknown foreign function 'MIDORI_FFI_Foo': it is not a Marmot builtin, and no package.marmot in this file's directory lists it under [ffi.functions].` |
+| `CodeGeneratorUnknownForeignFunction` | `CodeGenerator` | `Unknown foreign function 'MIDORI_FFI_Foo': it is not a Marmot builtin, and no native package in the build plan provides it to this file.` |
 | `BytecodeLinkerNoModulesToLink` | `BytecodeLinker` | `No modules to link.` |
 | `BytecodeLinkerDuplicateExportedSymbol` | `BytecodeLinker` | `Duplicate exported symbol 'main' in 'A' and 'B'.` |
 | `BytecodeLinkerUnresolvedImport` | `BytecodeLinker` | `Unresolved import 'foo' from module 'A'.` |

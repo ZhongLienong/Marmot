@@ -2,5 +2,5 @@ Compilation failed :(
 Code Generator Error at test/ffi/failure/array_pop_removed.mmt:9
   |
 9 | foreign "MIDORI_FFI_ArrayPop" Pop : fn(Array<Int>) -> Int;
-  |                               ^^^ Unknown foreign function 'MIDORI_FFI_ArrayPop': it is not a Marmot builtin, and no package.marmot in this file's directory lists it under [ffi.functions].
+  |                               ^^^ Unknown foreign function 'MIDORI_FFI_ArrayPop': it is not a Marmot builtin, and no native package in the build plan provides it to this file.
   |
