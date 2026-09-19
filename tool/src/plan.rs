@@ -18,10 +18,14 @@ pub struct Plan {
     pub native_libraries: Vec<PlanNativeLibrary>,
 }
 
-/// Where a library that source names with `from "name"` is, and how to load it.
+/// How a library that source names with `from "name"` may be used, which the
+/// compiler records in the program, and where the tool found its file.
 #[derive(Debug, Serialize, PartialEq, Eq)]
 pub struct PlanNativeLibrary {
     pub name: String,
+    /// Not part of the plan: where a file is belongs to the run, which the tool
+    /// passes to marmotvm.
+    #[serde(skip)]
     pub path: String,
     pub thread_safe: bool,
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -10,6 +10,7 @@
 #include "Compiler/StaticAnalyzerManager/StaticAnalyzerManager.h"
 #include "Compiler/TypeChecker/TypeChecker.h"
 #include "Utility/Driver/MidoriDriver.h"
+#include "Loader/ProgramLoader.h"
 
 #include <filesystem>
 #include <print>
@@ -363,7 +364,7 @@ namespace MidoriTest
 		}
 
 		OutputCapture capture;
-		MidoriDriver::RunResult run_result = MidoriDriver::RunExecutable(std::move(compile_result.value()));
+		MidoriDriver::RunResult run_result = MidoriProgramLoader::Run(std::move(compile_result.value()));
 		if (!run_result.has_value())
 		{
 			const RuntimeError runtime_error = run_result.error();

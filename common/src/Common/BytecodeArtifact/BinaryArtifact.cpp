@@ -293,7 +293,7 @@ namespace
 			}
 		}
 
-		// native_libraries: name, symbols, hint directories
+		// native_libraries: name, symbols, hint directories, thread_safe, checksum
 		const std::vector<NativeLibraryImport>& native_libraries = executable.GetNativeLibraries();
 		writer.WriteU32(static_cast<uint32_t>(native_libraries.size()));
 		for (const NativeLibraryImport& library : native_libraries)
@@ -308,6 +308,12 @@ namespace
 			for (const std::string& directory : library.m_hint_directories)
 			{
 				writer.WriteString(directory);
+			}
+			writer.WriteU8(library.m_policy.m_thread_safe ? 1u : 0u);
+			writer.WriteU8(library.m_policy.m_checksum.has_value() ? 1u : 0u);
+			if (library.m_policy.m_checksum.has_value())
+			{
+				writer.WriteString(library.m_policy.m_checksum.value());
 			}
 		}
 
@@ -667,6 +673,23 @@ namespace MidoriBinaryArtifact
 					return std::unexpected(std::format("Corrupt artifact: could not read a directory of native library {}.", library_index));
 				}
 				library.m_hint_directories.push_back(std::move(directory));
+			}
+
+			uint8_t thread_safe;
+			uint8_t has_checksum;
+			if (!payload_reader.ReadU8(thread_safe) || !payload_reader.ReadU8(has_checksum))
+			{
+				return std::unexpected(std::format("Corrupt artifact: could not read native library {}.", library_index));
+			}
+			library.m_policy.m_thread_safe = thread_safe != 0u;
+			if (has_checksum != 0u)
+			{
+				std::string checksum;
+				if (!payload_reader.ReadString(checksum))
+				{
+					return std::unexpected(std::format("Corrupt artifact: could not read the checksum of native library {}.", library_index));
+				}
+				library.m_policy.m_checksum = std::move(checksum);
 			}
 			native_libraries.push_back(std::move(library));
 		}

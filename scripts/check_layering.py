@@ -5,6 +5,7 @@
     compiler  -> common, compiler
     driver    -> common, runtime, compiler, driver   (the application layer)
     web       -> common, runtime, compiler
+    vm        -> common, runtime, vm             (marmotvm: runs, never compiles)
 
 Every quoted #include is resolved against the three include roots
 (common/src, runtime/src, compiler/src). Includes that resolve nowhere (system
@@ -30,7 +31,7 @@ INCLUDE_ROOTS = {
 # The folders of compiler/src that form the driver, not the compiler library.
 DRIVER_DIRS = [
     ROOT / 'compiler' / 'src' / 'Utility' / name
-    for name in ('CLI', 'Driver', 'TestRunner', 'OutputCapture')
+    for name in ('CLI', 'Driver', 'TestRunner')
 ]
 DRIVER_FILES = [ROOT / 'compiler' / 'src' / 'Marmot.cpp']
 
@@ -40,6 +41,7 @@ ALLOWED = {
     'compiler': {'common', 'compiler'},
     'driver': {'common', 'runtime', 'compiler', 'driver'},
     'web': {'common', 'runtime', 'compiler'},
+    'vm': {'common', 'runtime', 'vm'},
 }
 
 INCLUDE = re.compile(r'^\s*#\s*include\s+"([^"]+)"', re.MULTILINE)
@@ -67,6 +69,8 @@ def component_of(path):
         return 'driver'
     if (ROOT / 'web' / 'src') in path.parents:
         return 'web'
+    if (ROOT / 'vm' / 'src') in path.parents:
+        return 'vm'
     for name, include_root in INCLUDE_ROOTS.items():
         if include_root in path.parents:
             return name
@@ -86,7 +90,7 @@ def resolve(including_file, target):
 
 def main():
     sources = []
-    for folder in (ROOT / 'common' / 'src', ROOT / 'runtime' / 'src', ROOT / 'compiler' / 'src', ROOT / 'web' / 'src'):
+    for folder in (ROOT / 'common' / 'src', ROOT / 'runtime' / 'src', ROOT / 'compiler' / 'src', ROOT / 'web' / 'src', ROOT / 'vm' / 'src'):
         for pattern in ('*.h', '*.cpp', '*.def'):
             sources.extend(folder.rglob(pattern))
 

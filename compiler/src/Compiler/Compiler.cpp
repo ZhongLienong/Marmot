@@ -1509,7 +1509,22 @@ MidoriResult::CompilationResult Compiler::CompileWithReport()
 		return std::unexpected(std::move(bytecode_result.error()));
 	}
 
-	return LinkBytecodeModules(std::move(bytecode_result).value(), entry_module_name);
+	MidoriResult::CompilationResult linked = LinkBytecodeModules(std::move(bytecode_result).value(), entry_module_name);
+	if (linked.has_value() && !m_inputs.NativeLibraryPolicies().empty())
+	{
+		std::vector<NativeLibraryImport> libraries = linked->m_executable.GetNativeLibraries();
+		for (NativeLibraryImport& library : libraries)
+		{
+			const std::unordered_map<std::string, NativeLibraryPolicy>::const_iterator policy = m_inputs.NativeLibraryPolicies().find(library.m_name);
+			if (policy != m_inputs.NativeLibraryPolicies().end())
+			{
+				library.m_policy = policy->second;
+			}
+		}
+		linked->m_executable.AttachNativeLibraries(std::move(libraries));
+	}
+
+	return linked;
 }
 
 MidoriResult::CompilerResult Compiler::Compile()

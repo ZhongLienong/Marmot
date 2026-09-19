@@ -507,7 +507,7 @@ fn the_plan_serialises_as_the_compiler_expects() {
             "version": 1,
             "entry": "E",
             "search_paths": ["S"],
-            "native_libraries": [{ "name": "n", "path": "P", "thread_safe": false }]
+            "native_libraries": [{ "name": "n", "thread_safe": false }]
         })
     );
 }

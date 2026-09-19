@@ -4,6 +4,7 @@
 
 #include <array>
 #include <cinttypes>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -101,6 +102,15 @@ public:
 	static BytecodeStream FromRaw(std::vector<OpCode>&& bytecode, std::vector<std::pair<int, int>>&& line_info);
 };
 
+// How a native library may be used, as the package that ships it declares.
+struct NativeLibraryPolicy
+{
+	// Verified before the library loads.
+	std::optional<std::string> m_checksum = std::nullopt;
+	// Whether workers may call it concurrently.
+	bool m_thread_safe = false;
+};
+
 // A native library the program calls into. Symbols are what the program's
 // `foreign ... from "library"` declarations name; hint directories are the
 // directories of the modules that declared them, searched after the library
@@ -110,6 +120,7 @@ struct NativeLibraryImport
 	std::string m_name;
 	std::vector<std::string> m_symbols;
 	std::vector<std::string> m_hint_directories;
+	NativeLibraryPolicy m_policy;
 };
 
 // The value a library foreign function holds: its library and symbol, joined by

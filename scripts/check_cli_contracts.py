@@ -268,8 +268,8 @@ def scenario_build_command_compiles_without_running(runner: TestRunner) -> None:
 
 
 def scenario_native_library_loads_only_to_run(runner: TestRunner) -> None:
-    # A module names a native library in source; the plan says where its file
-    # is, and that file is not a loadable library. Checking a program that
+    # A module names a native library in source; the run is told where its
+    # file is, and that file is not a loadable library. Checking a program that
     # imports the module must not touch the library (loading one runs its
     # code); running it must stop before it starts, with the load failure
     # reported like a compile error.
@@ -296,7 +296,7 @@ def scenario_native_library_loads_only_to_run(runner: TestRunner) -> None:
                 "version": 1,
                 "entry": "app/Main.mmt",
                 "search_paths": ["Native"],
-                "native_libraries": [{"name": "native_stub", "path": "stub/native_stub.dll"}],
+                "native_libraries": [{"name": "native_stub", "thread_safe": True}],
             }),
         )
 
@@ -304,14 +304,14 @@ def scenario_native_library_loads_only_to_run(runner: TestRunner) -> None:
         check_report = require_report(parse_command_json("native_library_loads_only_to_run", checked), "native_library_loads_only_to_run")
         assert_condition(checked.returncode == 0, f"native_library_loads_only_to_run: check should not load the library, got exit {checked.returncode}: {check_report['errors']}")
 
-        ran = run_midori(runner, ["run", "--plan", str(plan_path), "--format", "json"], env_overrides={"MARMOT_PATH": None})
+        ran = run_midori(runner, ["run", "--plan", str(plan_path), "--library-path", str(temp_dir / "stub"), "--format", "json"], env_overrides={"MARMOT_PATH": None})
         run_report = require_report(parse_command_json("native_library_loads_only_to_run", ran), "native_library_loads_only_to_run")
         assert_condition(ran.returncode != 0, "native_library_loads_only_to_run: run should fail to load the library.")
         errors = run_report["errors"]
         assert_condition(len(errors) == 1, f"Expected one load error, got: {errors}")
         assert_condition("FFI error" in str(errors[0]["message"]), f"Expected an FFI load error, got: {errors[0]}")
 
-        # Without the plan nothing says where the library is: the program still
+        # Without --library-path nothing says where the library is: the program still
         # compiles, and the run stops because the library is not found.
         unplanned_env = {"MARMOT_PATH": str(package_dir), "MARMOT_LIBRARY_PATH": None}
         unplanned_check = run_midori(runner, ["check", str(temp_dir / "app" / "Main.mmt"), "--format", "json"], env_overrides=unplanned_env)

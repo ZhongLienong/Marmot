@@ -118,12 +118,12 @@ endfunction()
 #                                  builtin table's names and signatures
 #   MarmotRuntime   runtime/src    the VM and builtin library     -> Common
 #   MarmotCompiler  compiler/src   source to bytecode             -> Common
-#   MarmotDriver    compiler/src/Utility/{CLI,Driver,TestRunner,OutputCapture}
+#   MarmotDriver    compiler/src/Utility/{CLI,Driver,TestRunner}
 #                                  the application layer          -> Compiler, Runtime
 #
 # The compiler never links the runtime. The entry points (compiler/src/Marmot.cpp,
 # web/src) are added per build below.
-set(MIDORI_DRIVER_DIRS CLI Driver TestRunner OutputCapture)
+set(MIDORI_DRIVER_DIRS CLI Driver TestRunner)
 
 file(GLOB_RECURSE MARMOT_COMMON_SOURCES CONFIGURE_DEPENDS
     "common/src/*.h"
@@ -276,11 +276,19 @@ else()
         "compiler/src/Marmot.cpp"
     )
     target_link_libraries(marmotc PRIVATE MarmotDriver)
+
+    # marmotvm, the virtual machine: runs a compiled program (.mmc). It links
+    # the runtime only, never the compiler.
+    add_executable(marmotvm
+        "vm/src/MarmotVM.cpp"
+    )
+    target_link_libraries(marmotvm PRIVATE MarmotRuntime)
     set(MIDORI_NATIVE_COMPILE_TARGETS
         ${MIDORI_LIBRARY_TARGETS}
         marmotc
+        marmotvm
     )
-    set(MIDORI_NATIVE_LINK_TARGETS marmotc)
+    set(MIDORI_NATIVE_LINK_TARGETS marmotc marmotvm)
 
     # Detect AVX2 compiler flag for Experimental configuration
     set(MIDORI_HAS_AVX2_FLAG FALSE)

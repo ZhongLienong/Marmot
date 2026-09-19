@@ -100,14 +100,14 @@ namespace
 		return search_paths;
 	}
 
-	PlanResult<std::pair<std::string, NativeLibrarySettings>> ReadNativeLibrary(const JsonValue& value, std::string_view where, const std::filesystem::path& base_directory)
+	PlanResult<std::pair<std::string, NativeLibraryPolicy>> ReadNativeLibrary(const JsonValue& value, std::string_view where)
 	{
 		if (!value.IsObject())
 		{
 			return std::unexpected(std::format("{}: expected an object, found {}", where, value.KindName()));
 		}
 
-		PlanResult<void> members = RequireOnlyMembers(value, where, { "name", "path", "checksum", "thread_safe" });
+		PlanResult<void> members = RequireOnlyMembers(value, where, { "name", "checksum", "thread_safe" });
 		if (!members.has_value())
 		{
 			return std::unexpected(members.error());
@@ -124,16 +124,7 @@ namespace
 			return std::unexpected(name_text.error());
 		}
 
-		NativeLibrarySettings settings;
-		if (const JsonValue* path = value.Find("path"); path != nullptr)
-		{
-			PlanResult<std::string> text = RequireString(*path, std::format("{}.path", where));
-			if (!text.has_value())
-			{
-				return std::unexpected(text.error());
-			}
-			settings.m_path = Resolve(base_directory, text.value());
-		}
+		NativeLibraryPolicy settings;
 
 		if (const JsonValue* checksum = value.Find("checksum"); checksum != nullptr)
 		{
@@ -154,12 +145,12 @@ namespace
 			settings.m_thread_safe = thread_safe->AsBool();
 		}
 
-		return std::pair<std::string, NativeLibrarySettings>(name_text.value(), std::move(settings));
+		return std::pair<std::string, NativeLibraryPolicy>(name_text.value(), std::move(settings));
 	}
 
-	PlanResult<std::unordered_map<std::string, NativeLibrarySettings>> ReadNativeLibraries(const JsonValue* value, const std::filesystem::path& base_directory)
+	PlanResult<std::unordered_map<std::string, NativeLibraryPolicy>> ReadNativeLibraries(const JsonValue* value)
 	{
-		std::unordered_map<std::string, NativeLibrarySettings> libraries;
+		std::unordered_map<std::string, NativeLibraryPolicy> libraries;
 		if (value == nullptr)
 		{
 			return libraries;
@@ -172,7 +163,7 @@ namespace
 
 		for (size_t index = 0uz; index < value->AsArray().size(); index += 1uz)
 		{
-			PlanResult<std::pair<std::string, NativeLibrarySettings>> library = ReadNativeLibrary(value->AsArray()[index], std::format("native_libraries[{}]", index), base_directory);
+			PlanResult<std::pair<std::string, NativeLibraryPolicy>> library = ReadNativeLibrary(value->AsArray()[index], std::format("native_libraries[{}]", index));
 			if (!library.has_value())
 			{
 				return std::unexpected(library.error());
@@ -204,7 +195,7 @@ namespace MidoriBuildPlan
 			return std::unexpected(std::format("the plan must be a JSON object, found {}", root.KindName()));
 		}
 
-		PlanResult<void> members = RequireOnlyMembers(root, "plan", { "version", "entry", "search_paths", "library_paths", "native_libraries" });
+		PlanResult<void> members = RequireOnlyMembers(root, "plan", { "version", "entry", "search_paths", "native_libraries" });
 		if (!members.has_value())
 		{
 			return std::unexpected(members.error());
@@ -245,21 +236,15 @@ namespace MidoriBuildPlan
 			return std::unexpected(search_paths.error());
 		}
 
-		PlanResult<std::vector<std::filesystem::path>> library_paths = ReadDirectories(root.Find("library_paths"), "library_paths", base_directory);
-		if (!library_paths.has_value())
-		{
-			return std::unexpected(library_paths.error());
-		}
-
-		PlanResult<std::unordered_map<std::string, NativeLibrarySettings>> native_libraries = ReadNativeLibraries(root.Find("native_libraries"), base_directory);
+		PlanResult<std::unordered_map<std::string, NativeLibraryPolicy>> native_libraries = ReadNativeLibraries(root.Find("native_libraries"));
 		if (!native_libraries.has_value())
 		{
 			return std::unexpected(native_libraries.error());
 		}
 
-		plan.m_inputs = CompilationInputs().WithSearchPaths(search_paths.value());
-		plan.m_native.m_search_paths = std::move(library_paths.value());
-		plan.m_native.m_libraries = std::move(native_libraries.value());
+		plan.m_inputs = CompilationInputs()
+			.WithSearchPaths(search_paths.value())
+			.WithNativeLibraryPolicies(std::move(native_libraries.value()));
 		return plan;
 	}
 

@@ -30,7 +30,6 @@ namespace MidoriDriver
 	using SourceReadResult = std::expected<std::string, DriverError>;
 	using CompileFileWithReportResult = std::expected<MidoriResult::CompiledProgram, DriverError>;
 	using CompileFileResult = std::expected<MidoriExecutable, DriverError>;
-	using LoadArtifactResult = std::expected<MidoriExecutable, DriverError>;
 	using RunResult = std::expected<int, RuntimeError>;
 	using DriverResult = std::expected<int, DriverError>;
 
@@ -49,16 +48,8 @@ namespace MidoriDriver
 	// Compiles with exactly `inputs` (a build plan's).
 	[[nodiscard]] CompileFileWithReportResult CompileFileWithReport(const std::filesystem::path& file_path, CompilationInputs inputs);
 	[[nodiscard]] CompileFileResult CompileFile(const std::filesystem::path& file_path);
-	[[nodiscard]] LoadArtifactResult LoadArtifact(const std::filesystem::path& path);
-	// The directories in MARMOT_LIBRARY_PATH, in order.
-	[[nodiscard]] std::vector<std::filesystem::path> EnvironmentLibraryPaths();
-	// Loads every native library the executable names (`foreign ... from
-	// "library"`), before it runs. Each is looked for at its configured path,
-	// then in each search path, then beside the modules that declared it (in
-	// lib/<platform>/, then the directory itself). A library that is missing,
-	// fails to load, or lacks a symbol is an error. Loading runs a library's own
-	// code, so only commands that run the program call this.
-	[[nodiscard]] std::expected<void, DriverError> LoadNativeLibraries(const MidoriExecutable& executable, const NativeLibraryOptions& options);
-	[[nodiscard]] RunResult RunExecutable(MidoriExecutable&& executable);
+	// A native library that did not load, reported like a compile error: the
+	// program never starts.
+	[[nodiscard]] DriverError NativeLibraryError(std::string message);
 	[[nodiscard]] DriverResult CompileAndRunFile(const std::filesystem::path& file_path);
 }

@@ -4,6 +4,7 @@
 #include "Utility/Driver/MidoriDriver.h"
 #include "support/ScopedEnvVar.h"
 #include "support/TempProject.h"
+#include "Loader/ProgramLoader.h"
 
 #include <expected>
 #include <filesystem>
@@ -38,14 +39,8 @@ TEST_CASE("A build plan resolves its paths against the plan's directory", "[plan
 		"version": 1,
 		"entry": "src/Main.mmt",
 		"search_paths": ["lib"],
-		"library_paths": ["native/bin"],
 		"native_libraries": [
-			{
-				"name": "native",
-				"path": "native/bin/native.dll",
-				"thread_safe": true,
-				"checksum": "sha256:00"
-			},
+			{ "name": "native", "thread_safe": true, "checksum": "sha256:00" },
 			{ "name": "plain" }
 		]
 	})", project.Root());
@@ -55,14 +50,11 @@ TEST_CASE("A build plan resolves its paths against the plan's directory", "[plan
 	REQUIRE(plan->m_inputs.SearchPaths().size() == 1u);
 	CHECK(plan->m_inputs.SearchPaths().front() == std::filesystem::weakly_canonical(project.Path("lib")));
 
-	CHECK(plan->m_native.m_search_paths == std::vector<std::filesystem::path>{ project.Path("native/bin") });
-	REQUIRE(plan->m_native.m_libraries.size() == 2u);
-	const NativeLibrarySettings& native = plan->m_native.m_libraries.at("native");
-	CHECK(native.m_path == std::optional<std::filesystem::path>(project.Path("native/bin/native.dll")));
+	REQUIRE(plan->m_inputs.NativeLibraryPolicies().size() == 2u);
+	const NativeLibraryPolicy& native = plan->m_inputs.NativeLibraryPolicies().at("native");
 	CHECK(native.m_thread_safe);
 	CHECK(native.m_checksum == std::optional<std::string>("sha256:00"));
-	const NativeLibrarySettings& plain = plan->m_native.m_libraries.at("plain");
-	CHECK_FALSE(plain.m_path.has_value());
+	const NativeLibraryPolicy& plain = plan->m_inputs.NativeLibraryPolicies().at("plain");
 	CHECK_FALSE(plain.m_thread_safe);
 	CHECK_FALSE(plain.m_checksum.has_value());
 }
@@ -82,12 +74,15 @@ TEST_CASE("A build plan rejects what it does not understand", "[plan]")
 	CHECK(CheckError(R"({"version": 1, "entry": "src/Main.mmt", "serach_paths": []})", base) == "plan: unknown member \"serach_paths\"");
 	CHECK(CheckError(R"({"version": 1, "entry": "src/Main.mmt", "search_paths": ["lib", 3]})", base) == "search_paths[1]: expected a string, found number");
 	CHECK(CheckError(R"({"version": 1, "entry": "src/Main.mmt", "search_paths": ["nowhere"]})", base).starts_with("search_paths[0]: not a directory: "));
-	CHECK(CheckError(R"({"version": 1, "native_libraries": [{"path": "n.dll"}]})", base) == "native_libraries[0]: missing \"name\"");
+	CHECK(CheckError(R"({"version": 1, "native_libraries": [{"checksum": "sha256:00"}]})", base) == "native_libraries[0]: missing \"name\"");
+	// Where a library's file is belongs to the machine that runs the program.
+	CHECK(CheckError(R"({"version": 1, "native_libraries": [{"name": "n", "path": "n.dll"}]})", base)
+		== "native_libraries[0]: unknown member \"path\"");
+	CHECK(CheckError(R"({"version": 1, "library_paths": ["lib"]})", base) == "plan: unknown member \"library_paths\"");
 	CHECK(CheckError(R"({"version": 1, "native_libraries": [{"name": "n", "threadsafe": true}]})", base)
 		== "native_libraries[0]: unknown member \"threadsafe\"");
 	CHECK(CheckError(R"({"version": 1, "native_libraries": [{"name": "n"}, {"name": "n"}]})", base)
 		== "native_libraries[1]: a second library named \"n\"");
-	CHECK(CheckError(R"({"version": 1, "library_paths": ["nowhere"]})", base).starts_with("library_paths[0]: not a directory: "));
 	CHECK(CheckError(R"({"version": 1, "native_packages": []})", base) == "plan: unknown member \"native_packages\"");
 	CHECK(CheckError(R"({"version": 1,)", base).starts_with("line 1, column "));
 }
@@ -111,6 +106,6 @@ TEST_CASE("A program compiled from a plan sees only the plan's search paths", "[
 	REQUIRE(compiled.has_value());
 
 	MidoriResult::CompiledProgram program = std::move(compiled).value();
-	const MidoriDriver::RunResult run_result = MidoriDriver::RunExecutable(std::move(program).TakeExecutable());
+	const MidoriDriver::RunResult run_result = MidoriProgramLoader::Run(std::move(program).TakeExecutable());
 	CHECK(run_result.has_value());
 }

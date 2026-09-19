@@ -2,6 +2,7 @@
 
 #include "Common/BuildConfig/BuildConfig.h"
 #include "Common/BytecodeArtifact/BinaryArtifact.h"
+#include "Loader/ProgramLoader.h"
 #include "Utility/Driver/MidoriDriver.h"
 #include "support/OutputCapture.h"
 #include "support/TempProject.h"
@@ -49,10 +50,10 @@ namespace
 			library);
 	}
 
-	MidoriExecutable Compile(const MidoriTest::TempProject& project, std::string_view file)
+	MidoriExecutable Compile(const MidoriTest::TempProject& project, std::string_view file, CompilationInputs inputs = CompilationInputs())
 	{
 		const MidoriBuild::ScopedTestModeOverride quiet(true);
-		MidoriDriver::CompileFileWithReportResult compiled = MidoriDriver::CompileFileWithReport(project.Path(std::string(file)), CompilationInputs());
+		MidoriDriver::CompileFileWithReportResult compiled = MidoriDriver::CompileFileWithReport(project.Path(std::string(file)), std::move(inputs));
 		REQUIRE(compiled.has_value());
 		return std::move(compiled).value().TakeExecutable();
 	}
@@ -61,7 +62,7 @@ namespace
 	{
 		const MidoriBuild::ScopedTestModeOverride quiet(true);
 		MidoriTest::OutputCapture capture;
-		const MidoriDriver::RunResult result = MidoriDriver::RunExecutable(std::move(executable));
+		const MidoriDriver::RunResult result = MidoriProgramLoader::Run(std::move(executable));
 		const std::string output = capture.Stop().m_stdout;
 		REQUIRE(result.has_value());
 		return output;
@@ -89,11 +90,21 @@ namespace
 			library);
 	}
 
-	std::string LoadError(const MidoriExecutable& executable, const NativeLibraryOptions& options)
+	std::string LoadError(const MidoriExecutable& executable, const MidoriProgramLoader::NativeLibraryLocations& locations)
 	{
-		const std::expected<void, MidoriDriver::DriverError> loaded = MidoriDriver::LoadNativeLibraries(executable, options);
+		const std::expected<void, std::string> loaded = MidoriProgramLoader::LoadNativeLibraries(executable, locations);
 		REQUIRE_FALSE(loaded.has_value());
-		return loaded.error().Rendered();
+		return loaded.error();
+	}
+
+	bool Loads(const MidoriExecutable& executable, const MidoriProgramLoader::NativeLibraryLocations& locations)
+	{
+		const std::expected<void, std::string> loaded = MidoriProgramLoader::LoadNativeLibraries(executable, locations);
+		if (!loaded.has_value())
+		{
+			UNSCOPED_INFO(loaded.error());
+		}
+		return loaded.has_value();
 	}
 }
 
@@ -106,7 +117,7 @@ TEST_CASE("A foreign function from a native library runs when found through the 
 	CHECK(executable.GetNativeLibraries()[0u].m_name == "marmot_test_native");
 	CHECK(executable.GetNativeLibraries()[0u].m_symbols == std::vector<std::string>{ "marmot_test_add", "marmot_test_answer" });
 
-	REQUIRE(MidoriDriver::LoadNativeLibraries(executable, NativeLibraryOptions{ .m_search_paths = { MARMOT_TEST_NATIVE_DIR } }).has_value());
+	REQUIRE(Loads(executable, MidoriProgramLoader::NativeLibraryLocations{ .m_search_paths = { MARMOT_TEST_NATIVE_DIR } }));
 	CHECK(Run(std::move(executable)) == "ok");
 }
 
@@ -124,7 +135,7 @@ TEST_CASE("A native library beside the declaring module is found without a libra
 	std::filesystem::copy_file(TestLibraryFile("marmot_test_native"), project.Path("pkg") / platform_directory / PlatformFileName("marmot_test_native_beside"));
 
 	MidoriExecutable executable = Compile(project, "pkg/Main.mmt");
-	REQUIRE(MidoriDriver::LoadNativeLibraries(executable, NativeLibraryOptions{}).has_value());
+	REQUIRE(Loads(executable, MidoriProgramLoader::NativeLibraryLocations{}));
 	CHECK(Run(std::move(executable)) == "ok");
 }
 
@@ -133,7 +144,10 @@ TEST_CASE("A .mmc records its native libraries and runs from them", "[ffi][nativ
 	const MidoriTest::TempProject project({ MidoriTest::TempProjectFile("Main.mmt", AddingProgram("marmot_test_native_artifact")) });
 	// Beside the module: the .mmc finds it through the module's directory.
 	std::filesystem::copy_file(TestLibraryFile("marmot_test_native"), project.Root() / PlatformFileName("marmot_test_native_artifact"));
-	const MidoriExecutable executable = Compile(project, "Main.mmt");
+	const MidoriExecutable executable = Compile(
+		project,
+		"Main.mmt",
+		CompilationInputs().WithNativeLibraryPolicies({ { "marmot_test_native_artifact", NativeLibraryPolicy{ .m_thread_safe = true } } }));
 
 	std::stringstream artifact;
 	REQUIRE(MidoriBinaryArtifact::WriteExecutable(executable, artifact, false).has_value());
@@ -145,15 +159,17 @@ TEST_CASE("A .mmc records its native libraries and runs from them", "[ffi][nativ
 	CHECK(library.m_name == "marmot_test_native_artifact");
 	CHECK(library.m_symbols == executable.GetNativeLibraries()[0u].m_symbols);
 	CHECK(library.m_hint_directories == executable.GetNativeLibraries()[0u].m_hint_directories);
+	CHECK(library.m_policy.m_thread_safe);
+	CHECK_FALSE(library.m_policy.m_checksum.has_value());
 
-	REQUIRE(MidoriDriver::LoadNativeLibraries(reloaded.value(), NativeLibraryOptions{}).has_value());
+	REQUIRE(Loads(reloaded.value(), MidoriProgramLoader::NativeLibraryLocations{}));
 	CHECK(Run(std::move(reloaded).value()) == "ok");
 }
 
 TEST_CASE("A native library that cannot be found or lacks a symbol stops the run", "[ffi][native]")
 {
 	const MidoriTest::TempProject missing({ MidoriTest::TempProjectFile("Main.mmt", AddingProgram("marmot_no_such_library")) });
-	const std::string not_found = LoadError(Compile(missing, "Main.mmt"), NativeLibraryOptions{ .m_search_paths = { MARMOT_TEST_NATIVE_DIR } });
+	const std::string not_found = LoadError(Compile(missing, "Main.mmt"), MidoriProgramLoader::NativeLibraryLocations{ .m_search_paths = { MARMOT_TEST_NATIVE_DIR } });
 	CHECK(not_found.find("native library 'marmot_no_such_library' not found") != std::string::npos);
 	CHECK(not_found.find(PlatformFileName("marmot_no_such_library").string()) != std::string::npos);
 
@@ -163,7 +179,7 @@ TEST_CASE("A native library that cannot be found or lacks a symbol stops the run
 		"foreign \"marmot_test_nothing\" Nothing : fn() -> Int from \"marmot_test_native_lacking\";\n"
 		"Nothing();\n") });
 	std::filesystem::copy_file(TestLibraryFile("marmot_test_native"), lacking.Root() / PlatformFileName("marmot_test_native_lacking"));
-	const std::string no_symbol = LoadError(Compile(lacking, "Main.mmt"), NativeLibraryOptions{});
+	const std::string no_symbol = LoadError(Compile(lacking, "Main.mmt"), MidoriProgramLoader::NativeLibraryLocations{});
 	CHECK(no_symbol.find("native library 'marmot_test_native_lacking' does not export 'marmot_test_nothing'") != std::string::npos);
 }
 
@@ -177,15 +193,30 @@ TEST_CASE("Only the libraries a program imports decide whether it may spawn work
 	std::filesystem::copy_file(TestLibraryFile("marmot_test_native"), project.Root() / PlatformFileName("marmot_test_native_safe"));
 
 	MidoriExecutable unsafe = Compile(project, "Unsafe.mmt");
-	REQUIRE(MidoriDriver::LoadNativeLibraries(unsafe, NativeLibraryOptions{}).has_value());
+	REQUIRE(Loads(unsafe, MidoriProgramLoader::NativeLibraryLocations{}));
 	const std::string refused = Run(std::move(unsafe));
 	CHECK(refused.find("native libraries are not declared thread_safe: 'marmot_test_native_unsafe'") != std::string::npos);
 
 	// The unsafe library is still loaded in this process; it must not stop a
 	// program that does not import it.
-	MidoriExecutable safe = Compile(project, "Safe.mmt");
-	NativeLibraryOptions options;
-	options.m_libraries.emplace("marmot_test_native_safe", NativeLibrarySettings{ .m_thread_safe = true });
-	REQUIRE(MidoriDriver::LoadNativeLibraries(safe, options).has_value());
+	// thread_safe comes from the build plan and is recorded in the program.
+	MidoriExecutable safe = Compile(
+		project,
+		"Safe.mmt",
+		CompilationInputs().WithNativeLibraryPolicies({ { "marmot_test_native_safe", NativeLibraryPolicy{ .m_thread_safe = true } } }));
+	REQUIRE(safe.GetNativeLibraries()[0u].m_policy.m_thread_safe);
+	REQUIRE(Loads(safe, MidoriProgramLoader::NativeLibraryLocations{}));
 	CHECK(Run(std::move(safe)) == "ok 42\n");
+}
+
+TEST_CASE("A native library's file can be named directly, whatever it is called", "[ffi][native]")
+{
+	const MidoriTest::TempProject project({ MidoriTest::TempProjectFile("Main.mmt", AddingProgram("marmot_test_native_named")) });
+	// Not the platform's file name for the library, and nowhere it is searched for.
+	std::filesystem::create_directories(project.Path("bin"));
+	std::filesystem::copy_file(TestLibraryFile("marmot_test_native"), project.Path("bin") / "renamed.bin");
+
+	MidoriExecutable executable = Compile(project, "Main.mmt");
+	REQUIRE(Loads(executable, MidoriProgramLoader::NativeLibraryLocations{ .m_files = { { "marmot_test_native_named", project.Path("bin") / "renamed.bin" } } }));
+	CHECK(Run(std::move(executable)) == "ok");
 }

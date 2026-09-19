@@ -29,3 +29,14 @@ const std::vector<std::filesystem::path>& CompilationInputs::SearchPaths() const
 {
 	return m_search_paths;
 }
+
+CompilationInputs CompilationInputs::WithNativeLibraryPolicies(std::unordered_map<std::string, NativeLibraryPolicy> policies) &&
+{
+	m_native_library_policies = std::move(policies);
+	return std::move(*this);
+}
+
+const std::unordered_map<std::string, NativeLibraryPolicy>& CompilationInputs::NativeLibraryPolicies() const
+{
+	return m_native_library_policies;
+}

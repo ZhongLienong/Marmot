@@ -15,7 +15,8 @@
 #include "Common/Json/Json.h"
 #include "Utility/BuildPlan/BuildPlan.h"
 #include "Utility/Driver/MidoriDriver.h"
-#include "Utility/OutputCapture/OutputCapture.h"
+#include "Loader/ProgramLoader.h"
+#include "Common/OutputCapture/OutputCapture.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -759,13 +760,12 @@ namespace
 			: MidoriDriver::CompileFileWithReport(test_path);
 		if (compile_result.has_value())
 		{
-			NativeLibraryOptions native_options = plan.has_value() ? plan->m_native : NativeLibraryOptions{};
-			const std::vector<std::filesystem::path> environment_library_paths = MidoriDriver::EnvironmentLibraryPaths();
-			native_options.m_search_paths.insert(native_options.m_search_paths.end(), environment_library_paths.begin(), environment_library_paths.end());
-			std::expected<void, MidoriDriver::DriverError> load_result = MidoriDriver::LoadNativeLibraries(compile_result->m_executable, native_options);
+			const std::expected<void, std::string> load_result = MidoriProgramLoader::LoadNativeLibraries(
+				compile_result->m_executable,
+				MidoriProgramLoader::NativeLibraryLocations{ .m_search_paths = MidoriProgramLoader::EnvironmentLibraryPaths() });
 			if (!load_result.has_value())
 			{
-				compile_result = std::unexpected(std::move(load_result.error()));
+				compile_result = std::unexpected(MidoriDriver::NativeLibraryError(load_result.error()));
 			}
 		}
 		if (!compile_result.has_value())
@@ -786,7 +786,7 @@ namespace
 			result.m_output = result.m_report.RenderedWarnings();
 
 			MidoriUtility::OutputCapture capture;
-			MidoriDriver::RunResult run_result = MidoriDriver::RunExecutable(std::move(compiled_program).TakeExecutable());
+			MidoriDriver::RunResult run_result = MidoriProgramLoader::Run(std::move(compiled_program).TakeExecutable());
 			if (!run_result.has_value())
 			{
 				const RuntimeError runtime_error = run_result.error();

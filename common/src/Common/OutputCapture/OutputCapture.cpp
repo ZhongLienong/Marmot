@@ -1,4 +1,4 @@
-#include "Utility/OutputCapture/OutputCapture.h"
+#include "Common/OutputCapture/OutputCapture.h"
 
 #include <atomic>
 #include <chrono>

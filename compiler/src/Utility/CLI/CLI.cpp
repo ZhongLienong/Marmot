@@ -17,11 +17,12 @@
 #include "Common/BuildConfig/BuildConfig.h"
 #include "Common/BytecodeArtifact/BinaryArtifact.h"
 #include "Common/Json/Json.h"
+#include "Common/OutputCapture/OutputCapture.h"
 #include "Common/Printer/Printer.h"
+#include "Loader/ProgramLoader.h"
 #include "Utility/BuildPlan/BuildPlan.h"
 #include "Utility/Driver/MidoriDriver.h"
 #include "Utility/Formatter/Formatter.h"
-#include "Utility/OutputCapture/OutputCapture.h"
 #include "Utility/TestRunner/TestRunner.h"
 
 namespace
@@ -53,9 +54,8 @@ namespace
 		// Set by --plan: the plan's inputs replace all discovery, and its entry
 		// becomes m_source_file.
 		std::optional<CompilationInputs> m_plan_inputs = std::nullopt;
-		// run: how the program's native libraries are found (--library-path and
-		// the plan's).
-		NativeLibraryOptions m_native_options;
+		// run: where the program's native libraries are (--library-path).
+		MidoriProgramLoader::NativeLibraryLocations m_native_locations;
 		std::filesystem::path m_target_path;
 		std::vector<std::filesystem::path> m_fmt_paths;
 		std::filesystem::path m_worker_result_directory;
@@ -233,7 +233,7 @@ namespace
 				"Compile and execute a .mmt source file, or load and execute a .mmc artifact.\n"
 				"With --plan, compile the plan's entry from exactly the plan's inputs.\n"
 				"Native libraries (foreign ... from \"library\") are looked for in each\n"
-				"--library-path, the plan's library_paths, MARMOT_LIBRARY_PATH, then beside\n"
+				"--library-path, MARMOT_LIBRARY_PATH, then beside\n"
 				"the module that declared them.\n\n"
 				"Examples:\n"
 				"  marmotc run src/Main.mmt\n"
@@ -447,11 +447,6 @@ namespace
 
 		invocation.m_source_file = plan->m_entry.value();
 		invocation.m_plan_inputs = std::move(plan->m_inputs);
-		invocation.m_native_options.m_libraries = std::move(plan->m_native.m_libraries);
-		invocation.m_native_options.m_search_paths.insert(
-			invocation.m_native_options.m_search_paths.end(),
-			plan->m_native.m_search_paths.begin(),
-			plan->m_native.m_search_paths.end());
 		return {};
 	}
 
@@ -486,7 +481,7 @@ namespace
 				{
 					return std::unexpected("Missing value for --library-path.");
 				}
-				invocation.m_native_options.m_search_paths.emplace_back(args[++index]);
+				invocation.m_native_locations.m_search_paths.emplace_back(args[++index]);
 				continue;
 			}
 
@@ -1135,22 +1130,27 @@ namespace
 
 		const MidoriBuild::ScopedTestModeOverride suppress_internal_diagnostics(true);
 
-		NativeLibraryOptions native_options = invocation.m_native_options;
-		const std::vector<std::filesystem::path> environment_library_paths = MidoriDriver::EnvironmentLibraryPaths();
-		native_options.m_search_paths.insert(native_options.m_search_paths.end(), environment_library_paths.begin(), environment_library_paths.end());
+		MidoriProgramLoader::NativeLibraryLocations native_locations = invocation.m_native_locations;
+		const std::vector<std::filesystem::path> environment_library_paths = MidoriProgramLoader::EnvironmentLibraryPaths();
+		native_locations.m_search_paths.insert(native_locations.m_search_paths.end(), environment_library_paths.begin(), environment_library_paths.end());
 
 		if (!invocation.m_plan_inputs.has_value() && invocation.m_source_file.extension() == ".mmc")
 		{
 			// Load-and-run path for pre-built binary artifacts
-			MidoriDriver::LoadArtifactResult load_result = MidoriDriver::LoadArtifact(invocation.m_source_file);
-			if (load_result.has_value())
+			std::expected<MidoriExecutable, MidoriDriver::DriverError> load_result = [&]() -> std::expected<MidoriExecutable, MidoriDriver::DriverError>
 			{
-				std::expected<void, MidoriDriver::DriverError> native_result = MidoriDriver::LoadNativeLibraries(load_result.value(), native_options);
+				std::expected<MidoriExecutable, std::string> program = MidoriProgramLoader::ReadProgram(invocation.m_source_file);
+				if (!program.has_value())
+				{
+					return std::unexpected(MidoriDriver::DriverError::FileSystem(program.error()));
+				}
+				const std::expected<void, std::string> native_result = MidoriProgramLoader::LoadNativeLibraries(program.value(), native_locations);
 				if (!native_result.has_value())
 				{
-					load_result = std::unexpected(std::move(native_result.error()));
+					return std::unexpected(MidoriDriver::NativeLibraryError(native_result.error()));
 				}
-			}
+				return std::move(program).value();
+			}();
 			if (!load_result.has_value())
 			{
 				const MidoriResult::CompilerReport report = WrapDriverErrorAsReport(load_result.error());
@@ -1169,7 +1169,7 @@ namespace
 			if (invocation.m_format == OutputFormat::Json)
 			{
 				MidoriUtility::OutputCapture capture;
-				MidoriDriver::RunResult run_result = MidoriDriver::RunExecutable(std::move(load_result.value()));
+				MidoriDriver::RunResult run_result = MidoriProgramLoader::Run(std::move(load_result.value()));
 				MidoriUtility::CapturedOutput captured_output = capture.Stop();
 				if (!run_result.has_value())
 				{
@@ -1183,7 +1183,7 @@ namespace
 				return run_result.value() == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 			}
 
-			MidoriDriver::RunResult run_result = MidoriDriver::RunExecutable(std::move(load_result.value()));
+			MidoriDriver::RunResult run_result = MidoriProgramLoader::Run(std::move(load_result.value()));
 			if (!run_result.has_value())
 			{
 				std::print("{}", run_result.error().Rendered());
@@ -1198,10 +1198,10 @@ namespace
 		MidoriDriver::CompileFileWithReportResult compile_result = CompileInvocation(invocation);
 		if (compile_result.has_value())
 		{
-			std::expected<void, MidoriDriver::DriverError> load_result = MidoriDriver::LoadNativeLibraries(compile_result->m_executable, native_options);
+			const std::expected<void, std::string> load_result = MidoriProgramLoader::LoadNativeLibraries(compile_result->m_executable, native_locations);
 			if (!load_result.has_value())
 			{
-				compile_result = std::unexpected(std::move(load_result.error()));
+				compile_result = std::unexpected(MidoriDriver::NativeLibraryError(load_result.error()));
 			}
 		}
 		if (!compile_result.has_value())
@@ -1223,7 +1223,7 @@ namespace
 		if (invocation.m_format == OutputFormat::Json)
 		{
 			MidoriUtility::OutputCapture capture;
-			MidoriDriver::RunResult run_result = MidoriDriver::RunExecutable(std::move(compiled_program).TakeExecutable());
+			MidoriDriver::RunResult run_result = MidoriProgramLoader::Run(std::move(compiled_program).TakeExecutable());
 			MidoriUtility::CapturedOutput captured_output = capture.Stop();
 			if (!run_result.has_value())
 			{
@@ -1242,7 +1242,7 @@ namespace
 		{
 			std::print("{}", report.MachineReadableWarnings());
 		}
-		MidoriDriver::RunResult run_result = MidoriDriver::RunExecutable(std::move(compiled_program).TakeExecutable());
+		MidoriDriver::RunResult run_result = MidoriProgramLoader::Run(std::move(compiled_program).TakeExecutable());
 		if (!run_result.has_value())
 		{
 			std::print("{}", run_result.error().Rendered());
