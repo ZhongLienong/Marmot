@@ -107,6 +107,11 @@ pub fn project(target: Option<&Path>, name: Option<&str>) -> Result<PathBuf, Str
         ),
     )?;
     write(&main_path, "module Main\n\ndef main = fn() -> Int => 0;\n")?;
+    // `marmot run` builds into target/.
+    let gitignore = root.join(".gitignore");
+    if !gitignore.exists() {
+        write(&gitignore, "/target/\n")?;
+    }
     Ok(root)
 }
 

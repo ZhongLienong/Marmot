@@ -8,6 +8,7 @@ mod packages;
 mod paths;
 mod plan;
 mod resolver;
+mod run;
 mod version;
 
 #[cfg(test)]
@@ -25,7 +26,7 @@ Usage: marmot <command> [arguments] [options]
 Resolves a Marmot project and runs the compiler on it through a build plan.
 
 Commands:
-  run [file]            Compile and run the program
+  run [file]            Build the program into target/ and run it in marmotvm
   check [file]          Type-check without running
   build [file]          Compile to a .mmc artifact
   plan [file]           Print the build plan instead of compiling
@@ -55,6 +56,9 @@ Options:
   --name NAME           The project or package name (init)
   --marmotc PATH        The compiler to run; otherwise MARMOTC, then marmotc
                         next to this program, then marmotc on PATH
+  --marmotvm PATH       The VM to run programs in (run); otherwise MARMOTVM,
+                        then marmotvm next to the compiler or this program,
+                        then marmotvm on PATH
   -h, --help            Show this help
   -V                    Show the version
 ";
@@ -118,6 +122,7 @@ struct Options {
     output: Option<PathBuf>,
     constraint: Option<String>,
     marmotc: Option<PathBuf>,
+    marmotvm: Option<PathBuf>,
     pattern: Option<String>,
     test_file: Option<String>,
     package: bool,
@@ -180,6 +185,9 @@ fn parse_options(kind: CommandKind, args: &[String]) -> Result<Options, String> 
             "--package" if kind == CommandKind::Init => options.package = true,
             "--name" if kind == CommandKind::Init => options.name = Some(value()?),
             "--marmotc" => options.marmotc = Some(PathBuf::from(value()?)),
+            "--marmotvm" if kind == CommandKind::Run => {
+                options.marmotvm = Some(PathBuf::from(value()?))
+            }
             _ if arg.starts_with('-') => {
                 return Err(format!("unknown option for {}: {arg}", kind.name()));
             }
@@ -308,6 +316,18 @@ fn compile(
     );
     std::fs::write(&plan_file.0, plan.to_json())
         .map_err(|error| format!("cannot write {}: {error}", plan_file.0.display()))?;
+
+    if kind == CommandKind::Run {
+        let vm = run::find_vm(options.marmotvm.as_deref(), compiler);
+        return run::run(&run::RunRequest {
+            plan: &plan,
+            plan_file: &plan_file.0,
+            entry: &entry,
+            compiler,
+            vm: &vm,
+            json: options.json,
+        });
+    }
 
     let mut command = Command::new(compiler);
     command.arg(kind.name()).arg("--plan").arg(&plan_file.0);

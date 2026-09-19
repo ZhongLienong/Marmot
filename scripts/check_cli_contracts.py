@@ -261,10 +261,14 @@ def scenario_build_command_compiles_without_running(runner: TestRunner) -> None:
         artifact_path = artifact.get("path")
         assert_condition(isinstance(artifact_path, str) and artifact_path != "", f"Expected artifact path, got: {artifact}")
         artifact_file = Path(artifact_path)
-        assert_condition(artifact_file.exists(), f"Expected artifact file to exist: {artifact_file}")
-        artifact_payload = json.loads(read_text(artifact_file))
-        assert_condition(isinstance(artifact_payload.get("procedures"), list), f"Expected serialized procedures in artifact: {artifact_payload}")
-        assert_condition(artifact_payload.get("entryFile", "").endswith("Main.mmt"), f"Unexpected artifact entry file: {artifact_payload}")
+        assert_condition(artifact_file.suffix == ".mmc" and artifact_file.exists(), f"Expected the .mmc to exist: {artifact_file}")
+        assert_condition(artifact.get("entryFile", "").endswith("Main.mmt"), f"Unexpected artifact entry file: {artifact}")
+
+        # -o puts the program anywhere, making the directories it needs.
+        elsewhere = temp_dir / "target" / "deep" / "Main.mmc"
+        built_elsewhere = run_midori(runner, ["build", str(source_path), "-o", str(elsewhere), "--quiet"], env_overrides={"MARMOT_PATH": None})
+        assert_condition(built_elsewhere.returncode == 0 and elsewhere.exists(), f"build -o: expected {elsewhere}: {built_elsewhere.stdout}{built_elsewhere.stderr}")
+        assert_condition(built_elsewhere.stdout.strip() == "", f"build --quiet: expected no summary, got: {built_elsewhere.stdout}")
 
 
 def scenario_native_library_loads_only_to_run(runner: TestRunner) -> None:

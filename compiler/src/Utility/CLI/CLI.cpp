@@ -62,6 +62,9 @@ namespace
 		bool m_fmt_write = false;
 		bool m_fmt_check = false;
 		bool m_embed_sources = false;
+		// build: where the .mmc goes (-o), and whether to leave out the summary.
+		std::optional<std::filesystem::path> m_output_path = std::nullopt;
+		bool m_quiet = false;
 		std::optional<std::string> m_test_filter = std::nullopt;
 		std::optional<std::string> m_test_pattern = std::nullopt;
 		std::optional<std::string> m_test_file = std::nullopt;
@@ -98,124 +101,6 @@ namespace
 	{
 		const char* warning_format = std::getenv("MARMOT_TEST_WARNING_FORMAT");
 		return warning_format != nullptr && std::string_view(warning_format) == "machine";
-	}
-
-	struct BuildArtifactResult
-	{
-		std::filesystem::path m_path;
-		std::string m_json;
-	};
-
-	[[nodiscard]] std::string SerializeStringArray(const std::vector<std::string>& values)
-	{
-		std::string serialized = "[";
-		for (size_t index = 0u; index < values.size(); index += 1u)
-		{
-			if (index > 0u)
-			{
-				serialized.push_back(',');
-			}
-
-			serialized.push_back('\"');
-			serialized += MidoriJson::EscapeString(values[index]);
-			serialized.push_back('\"');
-		}
-		serialized.push_back(']');
-		return serialized;
-	}
-
-	[[nodiscard]] std::string SerializeProcedureArtifact(const MidoriExecutable& executable, int proc_index)
-	{
-		const int instruction_count = executable.GetByteCodeSize(proc_index);
-		std::string opcodes_json = "[";
-		std::string lines_json = "[";
-		for (int instruction_index = 0; instruction_index < instruction_count; instruction_index += 1)
-		{
-			if (instruction_index > 0)
-			{
-				opcodes_json.push_back(',');
-				lines_json.push_back(',');
-			}
-
-			opcodes_json += std::to_string(static_cast<int>(executable.ReadByteCode(instruction_index, proc_index)));
-			lines_json += std::to_string(executable.GetLine(instruction_index, proc_index));
-		}
-		opcodes_json.push_back(']');
-		lines_json.push_back(']');
-
-		std::string object = "{";
-		bool first_field = true;
-		MidoriJson::AppendNumberField(object, "index", proc_index, first_field);
-		MidoriJson::AppendStringField(object, "name", executable.m_procedure_names[static_cast<size_t>(proc_index)], first_field);
-		MidoriJson::AppendNumberField(object, "instructionCount", instruction_count, first_field);
-		MidoriJson::AppendRawField(object, "opcodes", opcodes_json, first_field);
-		MidoriJson::AppendRawField(object, "lines", lines_json, first_field);
-		object.push_back('}');
-		return object;
-	}
-
-	[[nodiscard]] std::expected<BuildArtifactResult, std::string> WriteBuildArtifact(
-		const MidoriExecutable& executable,
-		const std::filesystem::path& source_file)
-	{
-		std::filesystem::path artifact_path = source_file;
-		artifact_path.replace_extension(".mmc.json");
-
-		std::vector<std::string> globals;
-		globals.reserve(static_cast<size_t>(executable.GetGlobalVariableCount()));
-		for (int index = 0; index < executable.GetGlobalVariableCount(); index += 1)
-		{
-			globals.emplace_back(executable.GetGlobalVariable(index));
-		}
-
-		const std::vector<std::string> strings = executable.GetStringPool();
-
-		int total_instruction_count = 0;
-		std::string procedures_json = "[";
-		for (int proc_index = 0; proc_index < executable.GetProcedureCount(); proc_index += 1)
-		{
-			if (proc_index > 0u)
-			{
-				procedures_json.push_back(',');
-			}
-
-			total_instruction_count += executable.GetByteCodeSize(proc_index);
-			procedures_json += SerializeProcedureArtifact(executable, proc_index);
-		}
-		procedures_json.push_back(']');
-
-		std::string artifact_json = "{";
-		bool first_field = true;
-		MidoriJson::AppendNumberField(artifact_json, "version", 1, first_field);
-		MidoriJson::AppendStringField(artifact_json, "kind", "marmot-bytecode", first_field);
-		MidoriJson::AppendStringField(artifact_json, "path", artifact_path.generic_string(), first_field);
-		MidoriJson::AppendStringField(artifact_json, "entryFile", source_file.generic_string(), first_field);
-		MidoriJson::AppendNumberField(artifact_json, "procedureCount", executable.GetProcedureCount(), first_field);
-		MidoriJson::AppendNumberField(artifact_json, "globalCount", executable.GetGlobalVariableCount(), first_field);
-		MidoriJson::AppendNumberField(artifact_json, "stringCount", static_cast<int>(strings.size()), first_field);
-		MidoriJson::AppendNumberField(artifact_json, "instructionCount", total_instruction_count, first_field);
-		MidoriJson::AppendRawField(artifact_json, "globals", SerializeStringArray(globals), first_field);
-		MidoriJson::AppendRawField(artifact_json, "strings", SerializeStringArray(strings), first_field);
-		MidoriJson::AppendRawField(artifact_json, "procedures", procedures_json, first_field);
-		artifact_json.push_back('}');
-
-		std::ofstream output(artifact_path, std::ios::binary | std::ios::trunc);
-		if (!output.is_open())
-		{
-			return std::unexpected(std::format("Could not open bytecode artifact for writing: {}", artifact_path.string()));
-		}
-
-		output.write(artifact_json.data(), static_cast<std::streamsize>(artifact_json.size()));
-		if (!output)
-		{
-			return std::unexpected(std::format("Could not write bytecode artifact: {}", artifact_path.string()));
-		}
-
-		return BuildArtifactResult
-		{
-			.m_path = artifact_path,
-			.m_json = artifact_json
-		};
 	}
 
 	void PrintCliError(std::string_view message)
@@ -258,14 +143,17 @@ namespace
 		if (command_name == "build")
 		{
 			return
-				"Usage: marmotc build (<file> | --plan <plan.json>) [--embed-sources] [--format json]\n"
-				"Compile a Marmot source file and emit a .mmc binary artifact.\n"
-				"With --format json, emit a .mmc.json disassembly instead.\n"
+				"Usage: marmotc build (<file> | --plan <plan.json>) [-o <file.mmc>] [--embed-sources]\n"
+				"                     [--quiet] [--format json]\n"
+				"Compile a Marmot source file to a .mmc program, which marmotvm runs.\n"
+				"The .mmc goes beside the source file, or to -o.\n"
 				"With --embed-sources, embed source file content in the artifact for\n"
 				"richer runtime error reporting without the original .mmt on disk.\n"
-				"With --plan, build the plan's entry from exactly the plan's inputs.\n\n"
+				"With --plan, build the plan's entry from exactly the plan's inputs.\n"
+				"With --quiet, print only diagnostics.\n\n"
 				"Examples:\n"
 				"  marmotc build src/Main.mmt\n"
+				"  marmotc build src/Main.mmt -o target/Main.mmc\n"
 				"  marmotc build src/Main.mmt --embed-sources\n"
 				"  marmotc build src/Main.mmt --format json\n"
 				"  marmotc build --plan build/plan.json\n";
@@ -545,6 +433,23 @@ namespace
 			if (arg == "--embed-sources")
 			{
 				invocation.m_embed_sources = true;
+				continue;
+			}
+
+			if (arg == "--quiet")
+			{
+				invocation.m_quiet = true;
+				continue;
+			}
+
+			if (arg == "-o" || arg == "--output")
+			{
+				if (index + 1u >= args.size())
+				{
+					return std::unexpected(std::format("Missing value for {}.", arg));
+				}
+				index += 1u;
+				invocation.m_output_path = std::filesystem::path(args[index]);
 				continue;
 			}
 
@@ -1076,47 +981,68 @@ namespace
 		const MidoriResult::CompiledProgram& compiled_program = *compile_result;
 		const MidoriExecutable& executable = compiled_program.m_executable;
 
-		if (invocation.m_format == OutputFormat::Json)
+		std::filesystem::path artifact_path = invocation.m_output_path.value_or(invocation.m_source_file);
+		if (!invocation.m_output_path.has_value())
 		{
-			// --format json: emit the existing .mmc.json disassembly format
-			const std::expected<BuildArtifactResult, std::string> artifact_result =
-				WriteBuildArtifact(executable, invocation.m_source_file);
-			if (!artifact_result.has_value())
-			{
-				MidoriResult::CompilerReport report = compiled_program.Report();
-				report.AppendErrors(MidoriResult::CompilerDiagnostics(
-					CompilerError::Simple(CompilerStage::Compiler, artifact_result.error())));
-				std::print("{}", CommandJson("build", false, report, EXIT_FAILURE));
-				return EXIT_FAILURE;
-			}
-
-			std::print("{}", CommandJson("build", true, compiled_program.Report(), EXIT_SUCCESS, {}, {}, artifact_result->m_json));
-			return EXIT_SUCCESS;
+			artifact_path.replace_extension(".mmc");
 		}
 
-		// Default: write .mmc binary artifact
-		std::filesystem::path artifact_path = invocation.m_source_file;
-		artifact_path.replace_extension(".mmc");
+		std::expected<void, std::string> write_result = {};
+		std::error_code directory_error;
+		if (artifact_path.has_parent_path())
+		{
+			std::filesystem::create_directories(artifact_path.parent_path(), directory_error);
+		}
+		if (directory_error)
+		{
+			write_result = std::unexpected(std::format("Could not create {}: {}", artifact_path.parent_path().string(), directory_error.message()));
+		}
+		else
+		{
+			write_result = MidoriBinaryArtifact::WriteExecutableToFile(executable, artifact_path, invocation.m_embed_sources);
+		}
 
-		const std::expected<void, std::string> write_result =
-			MidoriBinaryArtifact::WriteExecutableToFile(executable, artifact_path, invocation.m_embed_sources);
 		if (!write_result.has_value())
 		{
 			MidoriResult::CompilerReport report = compiled_program.Report();
 			report.AppendErrors(MidoriResult::CompilerDiagnostics(
 				CompilerError::Simple(CompilerStage::Compiler, write_result.error())));
-			std::print("{}", report.Rendered());
+			if (invocation.m_format == OutputFormat::Json)
+			{
+				std::print("{}", CommandJson("build", false, report, EXIT_FAILURE));
+			}
+			else
+			{
+				std::print("{}", report.Rendered());
+			}
 			return EXIT_FAILURE;
 		}
 
+		if (invocation.m_format == OutputFormat::Json)
+		{
+			std::string artifact_json = "{";
+			bool first_field = true;
+			MidoriJson::AppendStringField(artifact_json, "path", artifact_path.generic_string(), first_field);
+			MidoriJson::AppendStringField(artifact_json, "entryFile", invocation.m_source_file.generic_string(), first_field);
+			MidoriJson::AppendNumberField(artifact_json, "procedureCount", executable.GetProcedureCount(), first_field);
+			MidoriJson::AppendNumberField(artifact_json, "globalCount", executable.GetGlobalVariableCount(), first_field);
+			MidoriJson::AppendNumberField(artifact_json, "stringCount", static_cast<int>(executable.GetStringPool().size()), first_field);
+			artifact_json.push_back('}');
+			std::print("{}", CommandJson("build", true, compiled_program.Report(), EXIT_SUCCESS, {}, {}, artifact_json));
+			return EXIT_SUCCESS;
+		}
+
 		std::print("{}", compiled_program.Report().RenderedWarnings());
-		std::print(
-			"Built {} -> {} (procedures={}, globals={}, strings={})\n",
-			invocation.m_source_file.string(),
-			artifact_path.string(),
-			executable.GetProcedureCount(),
-			executable.GetGlobalVariableCount(),
-			executable.GetStringPool().size());
+		if (!invocation.m_quiet)
+		{
+			std::print(
+				"Built {} -> {} (procedures={}, globals={}, strings={})\n",
+				invocation.m_source_file.string(),
+				artifact_path.string(),
+				executable.GetProcedureCount(),
+				executable.GetGlobalVariableCount(),
+				executable.GetStringPool().size());
+		}
 		return EXIT_SUCCESS;
 	}
 

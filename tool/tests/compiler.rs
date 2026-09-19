@@ -125,6 +125,11 @@ fn marmot(compiler: &Path, directory: &Path, args: &[&str]) -> Output {
     )
 }
 
+/// marmotvm, which the tool finds beside the compiler.
+fn vm(compiler: &Path) -> PathBuf {
+    compiler.with_file_name(format!("marmotvm{}", std::env::consts::EXE_SUFFIX))
+}
+
 fn marmotc(compiler: &Path, directory: &Path, args: &[&str]) -> Output {
     run(compiler, directory, args, compiler)
 }
@@ -331,12 +336,20 @@ fn run_check_build_and_the_plan_handoff() {
     let Some(compiler) = compiler() else { return };
     let project = greeter_project("run");
 
+    // marmotc builds into target/, mirroring the entry's path, and marmotvm runs it.
     let ran = marmot(&compiler, &project.0, &["run"]);
     assert_eq!(text(&succeeded(&ran).stdout), "hello, plan!\n");
+    assert!(project.path("target/src/Main.mmc").exists());
+    assert!(!project.path("src/Main.mmc").exists());
 
-    // The tool's plan is all the compiler needs.
+    // The tool's plan is all the compiler needs, and the .mmc all the VM needs.
     succeeded(&marmot(&compiler, &project.0, &["plan", "-o", "plan.json"]));
-    let direct = marmotc(&compiler, &project.0, &["run", "--plan", "plan.json"]);
+    succeeded(&marmotc(
+        &compiler,
+        &project.0,
+        &["build", "--plan", "plan.json", "-o", "direct.mmc"],
+    ));
+    let direct = run(&vm(&compiler), &project.0, &["direct.mmc"], &compiler);
     assert_eq!(text(&succeeded(&direct).stdout), "hello, plan!\n");
 
     // Without the plan, the compiler knows nothing of the project's packages.
@@ -481,7 +494,9 @@ fn init_scaffolds_projects_and_packages() {
     assert!(
         project.path("CliProject/packages").is_dir() && project.path("CliProject/test").is_dir()
     );
+    assert_eq!(project.read("CliProject/.gitignore"), "/target/\n");
     succeeded(&marmot(&compiler, &project.path("CliProject"), &["run"]));
+    assert!(project.path("CliProject/target/src/Main.mmc").exists());
 
     let again = marmot(&compiler, &project.0, &["init", "CliProject"]);
     assert!(!again.status.success());
@@ -599,4 +614,86 @@ fn fmt_without_a_path_formats_the_project_but_not_other_peoples_code() {
         installed + "def   x = 1;\n"
     );
     succeeded(&marmot(&compiler, &project.0, &["fmt", "--check"]));
+}
+
+#[test]
+fn run_in_json_reports_the_builds_warnings_and_the_runs_errors() {
+    let Some(compiler) = compiler() else { return };
+    let project = Project::new("run-json");
+    project.write(
+        "Main.mmt",
+        "module Main\nimport { \"<IO>\" }\ndef main = fn() -> Int => {\n    def unused = 1;\n    0\n};\nIO::PrintLine(\"before\");\ndef xs = [1];\nIO::PrintLine((xs[3]) as Text);\n",
+    );
+
+    let ran = marmot(
+        &compiler,
+        &project.0,
+        &["run", "Main.mmt", "--format", "json"],
+    );
+    assert!(!ran.status.success());
+    let payload: serde_json::Value = serde_json::from_slice(&ran.stdout)
+        .unwrap_or_else(|_| panic!("{}{}", text(&ran.stdout), text(&ran.stderr)));
+    assert_eq!(payload["command"], "run");
+    assert_eq!(payload["success"], false);
+    assert_eq!(payload["stdout"], "before\n");
+    assert_eq!(payload["report"]["warnings"][0]["code"], "UnusedLocal");
+    assert_eq!(payload["report"]["errors"][0]["code"], "IndexOutOfBounds");
+    // Outside a project the program is built somewhere temporary.
+    assert!(!project.path("target").exists());
+    assert!(!project.path("Main.mmc").exists());
+
+    project.write("Broken.mmt", "module Broken\ndef broken = ;\n");
+    let broken = marmot(
+        &compiler,
+        &project.0,
+        &["run", "Broken.mmt", "--format", "json"],
+    );
+    let payload: serde_json::Value = serde_json::from_slice(&broken.stdout).unwrap();
+    assert_eq!(payload["command"], "run");
+    assert_eq!(payload["report"]["errors"][0]["stage"], "Parser");
+}
+
+#[test]
+fn run_hands_the_vm_a_packages_native_library() {
+    let Some(compiler) = compiler() else { return };
+    // The test library the compiler's build makes beside it.
+    let library = if cfg!(windows) {
+        compiler.with_file_name("marmot_test_native.dll")
+    } else if cfg!(target_os = "macos") {
+        compiler.with_file_name("libmarmot_test_native.dylib")
+    } else {
+        compiler.with_file_name("libmarmot_test_native.so")
+    };
+    if !library.is_file() {
+        eprintln!("skipped: no test library at {}", library.display());
+        return;
+    }
+
+    let project = Project::new("run-native");
+    project.write(
+        "project.marmot",
+        "[project]\nentry = \"src/Main.mmt\"\nmarmot_path = [\"registry\"]\n\n[dependencies]\nNative = \"^1.0.0\"\n",
+    );
+    project.write(
+        "src/Main.mmt",
+        "module Main\nimport { \"<IO>\", \"<Native>\" }\nIO::PrintLine((Native::Answer()) as Text);\n",
+    );
+    // A prebuilt library under a name no search would find: only the tool's
+    // --library can hand it over.
+    let prebuilt = "path = \"bin/prebuilt.bin\"\n";
+    project.write(
+        "registry/Native/package.marmot",
+        &format!(
+            "[package]\nname = \"Native\"\nversion = \"1.0.0\"\n\n[ffi]\nenabled = true\nlibrary_name = \"marmot_test_native\"\n\n[prebuilt.windows_x64]\n{prebuilt}\n[prebuilt.linux_x86_64]\n{prebuilt}\n[prebuilt.macos_arm64]\n{prebuilt}\n[prebuilt.macos_x86_64]\n{prebuilt}"
+        ),
+    );
+    project.write(
+        "registry/Native/Native.mmt",
+        "module Native\npublic export { Answer }\nforeign \"marmot_test_answer\" Answer : fn() -> Int from \"marmot_test_native\";\n",
+    );
+    std::fs::create_dir_all(project.path("registry/Native/bin")).unwrap();
+    std::fs::copy(&library, project.path("registry/Native/bin/prebuilt.bin")).unwrap();
+
+    let ran = marmot(&compiler, &project.0, &["run"]);
+    assert_eq!(text(&succeeded(&ran).stdout), "42\n");
 }
