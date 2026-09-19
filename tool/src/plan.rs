@@ -1,6 +1,7 @@
-use crate::lockfile::{self, Lock};
-use crate::manifest::{self, Workspace};
+use crate::manifest::{self, PACKAGE_MANIFEST};
+use crate::packages::{self, Mode};
 use crate::paths::{self, DirectoryList};
+use crate::version::Version;
 use serde::Serialize;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -33,51 +34,6 @@ impl Plan {
     }
 }
 
-/// Brings a stale lockfile up to date. Until the package manager moves into
-/// this tool, that is the compiler's `install`.
-pub trait Resolver {
-    fn resolve(&self, workspace: &Workspace, reason: &str) -> Result<(), String>;
-}
-
-/// Search paths for a project, in the compiler CLI's order: the source
-/// directory, locked packages in dependency order, `marmot_path` entries, the
-/// prelude directory, then MARMOT_PATH.
-fn workspace_search_paths(
-    workspace: &Workspace,
-    environment: &[PathBuf],
-    resolver: &dyn Resolver,
-) -> Result<Vec<PathBuf>, String> {
-    let packages = match lockfile::read(&workspace.root, &workspace.manifest_path)? {
-        Lock::Usable(packages) => packages,
-        Lock::Stale(reason) => {
-            resolver.resolve(workspace, &reason)?;
-            match lockfile::read(&workspace.root, &workspace.manifest_path)? {
-                Lock::Usable(packages) => packages,
-                Lock::Stale(reason) => {
-                    return Err(format!(
-                        "{} is still unusable after resolving: {reason}",
-                        lockfile::LOCKFILE
-                    ));
-                }
-            }
-        }
-    };
-
-    let mut directories = DirectoryList::default();
-    directories.push(paths::under(&workspace.root, &workspace.source_dir));
-    for package in lockfile::topological_order(&packages) {
-        directories.push(package.directory.clone());
-    }
-    for extra in &workspace.extra_paths {
-        directories.push(paths::under(&workspace.root, extra));
-    }
-    directories.push(paths::under(&workspace.root, &workspace.prelude_dir));
-    for path in environment {
-        directories.push(path.clone());
-    }
-    Ok(directories.into_vec())
-}
-
 /// Native packages a program compiled from these directories can reach: the
 /// entry's own package and any package that is itself a search path. The
 /// compiler associates a file with the package whose manifest sits in the
@@ -86,6 +42,7 @@ fn workspace_search_paths(
 fn native_packages(
     entry_directory: &Path,
     search_paths: &[PathBuf],
+    compiler: &Version,
 ) -> Result<Vec<PlanNativePackage>, String> {
     let mut packages: Vec<PlanNativePackage> = Vec::new();
     let mut seen_roots: Vec<String> = Vec::new();
@@ -93,30 +50,26 @@ fn native_packages(
         std::iter::once(entry_directory).chain(search_paths.iter().map(PathBuf::as_path))
     {
         let key = paths::identity_key(directory);
-        if seen_roots.contains(&key) || !directory.join(manifest::PACKAGE_MANIFEST).exists() {
+        if seen_roots.contains(&key) || !directory.join(PACKAGE_MANIFEST).exists() {
             continue;
         }
         seen_roots.push(key);
 
         // A manifest that does not load is not a native package, as in the compiler.
-        let Ok(package) = manifest::read_package(directory) else {
+        let Ok(package) = manifest::read_package(directory, compiler) else {
             continue;
         };
         let Some(native) = package.native else {
             continue;
         };
-        if packages
+        if let Some(existing) = packages
             .iter()
-            .any(|existing| existing.name == package.name)
+            .find(|existing| existing.name == package.name)
         {
             return Err(format!(
                 "two native packages are named '{}': {} and {}",
                 package.name,
-                packages
-                    .iter()
-                    .find(|existing| existing.name == package.name)
-                    .map(|existing| existing.root.as_str())
-                    .unwrap_or(""),
+                existing.root,
                 paths::display(directory)
             ));
         }
@@ -134,35 +87,43 @@ fn native_packages(
     Ok(packages)
 }
 
+/// The plan for compiling `entry`, and any warnings about the project's
+/// packages. Inside a project this resolves and installs packages when the
+/// lockfile is missing or out of date.
 pub fn make_plan(
     entry: &Path,
     environment: &[PathBuf],
-    resolver: &dyn Resolver,
-) -> Result<Plan, String> {
+    compiler: &Version,
+) -> Result<(Plan, Vec<String>), String> {
     let entry = paths::absolute(entry);
     if !entry.is_file() {
         return Err(format!("no such file: {}", entry.display()));
     }
     let entry_directory = entry.parent().map(Path::to_path_buf).unwrap_or_default();
 
-    let search_paths = match manifest::find_workspace(&entry_directory)? {
-        Some(workspace) => workspace_search_paths(&workspace, environment, resolver)?,
+    let (search_paths, warnings) = match manifest::find_workspace(&entry_directory)? {
+        Some(workspace) => {
+            let prepared =
+                packages::prepare(&workspace, Mode::PreferLockfile, environment, compiler)?;
+            (prepared.search_paths, prepared.warnings)
+        }
         None => {
             let mut directories = DirectoryList::default();
             for path in environment {
                 directories.push(path.clone());
             }
-            directories.into_vec()
+            (directories.into_vec(), Vec::new())
         }
     };
 
-    Ok(Plan {
+    let plan = Plan {
         version: PLAN_VERSION,
         entry: paths::display(&entry),
-        native_packages: native_packages(&entry_directory, &search_paths)?,
+        native_packages: native_packages(&entry_directory, &search_paths, compiler)?,
         search_paths: search_paths
             .iter()
             .map(|path| paths::display(path))
             .collect(),
-    })
+    };
+    Ok((plan, warnings))
 }

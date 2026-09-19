@@ -1,8 +1,10 @@
-use crate::lockfile::{self, LockedPackage};
-use crate::manifest::Workspace;
+use crate::manifest;
+use crate::packages::{self, Mode};
 use crate::paths;
-use crate::plan::{self, Plan, Resolver};
-use std::cell::Cell;
+use crate::plan::{self, Plan};
+use crate::resolver::{self, Graph, Index, ResolvedPackage};
+use crate::version::{Constraint, Version};
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -17,13 +19,12 @@ impl TempTree {
             COUNTER.fetch_add(1, Ordering::SeqCst)
         ));
         let _ = std::fs::remove_dir_all(&root);
-        for (relative, contents) in files {
-            let path = root.join(relative);
-            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-            std::fs::write(path, contents).unwrap();
-        }
         std::fs::create_dir_all(&root).unwrap();
-        TempTree(root)
+        let tree = TempTree(root);
+        for (relative, contents) in files {
+            tree.write(relative, contents);
+        }
+        tree
     }
 
     fn path(&self, relative: &str) -> PathBuf {
@@ -35,6 +36,10 @@ impl TempTree {
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(path, contents).unwrap();
     }
+
+    fn read(&self, relative: &str) -> String {
+        std::fs::read_to_string(self.path(relative)).unwrap()
+    }
 }
 
 impl Drop for TempTree {
@@ -43,49 +48,45 @@ impl Drop for TempTree {
     }
 }
 
-/// Stands in for `marmotc install`: counts calls and optionally writes a lockfile.
-struct FakeResolver<F: Fn(&Workspace)> {
-    calls: Cell<usize>,
-    action: F,
+fn compiler() -> Version {
+    Version::parse("1.0.0").unwrap()
 }
 
-impl<F: Fn(&Workspace)> Resolver for FakeResolver<F> {
-    fn resolve(&self, workspace: &Workspace, _reason: &str) -> Result<(), String> {
-        self.calls.set(self.calls.get() + 1);
-        (self.action)(workspace);
-        Ok(())
+fn package(name: &str, version: &str, dependencies: &[(&str, &str)]) -> String {
+    let mut text = format!("[package]\nname = \"{name}\"\nversion = \"{version}\"\n");
+    if !dependencies.is_empty() {
+        text += "\n[dependencies]\n";
+        for (dependency, constraint) in dependencies {
+            text += &format!("{dependency} = \"{constraint}\"\n");
+        }
     }
+    text
 }
 
-fn no_resolution() -> FakeResolver<impl Fn(&Workspace)> {
-    FakeResolver {
-        calls: Cell::new(0),
-        action: |_: &Workspace| {},
-    }
-}
-
-fn package_manifest(name: &str, ffi: &str) -> String {
-    format!("[package]\nname = \"{name}\"\nversion = \"1.0.0\"\n{ffi}")
-}
-
-fn lockfile(tree: &TempTree, manifest: &str, packages: &[(&str, &str, &[&str])]) -> String {
-    let checksum = lockfile::file_checksum(&tree.path(manifest)).unwrap();
-    let mut text = format!("[metadata]\nmanifest_checksum = \"{checksum}\"\n");
-    for (name, source, dependencies) in packages {
-        let dependencies: Vec<String> = dependencies
-            .iter()
-            .map(|dependency| format!("\"{dependency}@1.0.0\""))
-            .collect();
-        text += &format!(
-            "\n[[package]]\nname = \"{name}\"\nversion = \"1.0.0\"\nsource = \"{source}\"\nchecksum = \"\"\ndependencies = [{}]\n",
-            dependencies.join(", ")
-        );
+fn project(dependencies: &[(&str, &str)]) -> String {
+    let mut text =
+        "[project]\nentry = \"src/Main.mmt\"\nmarmot_path = [\"registry\"]\n".to_string();
+    if !dependencies.is_empty() {
+        text += "\n[dependencies]\n";
+        for (dependency, constraint) in dependencies {
+            text += &format!("{dependency} = \"{constraint}\"\n");
+        }
     }
     text
 }
 
 fn shown(path: &Path) -> String {
     paths::display(path)
+}
+
+fn plan_for(tree: &TempTree, entry: &str, environment: &[PathBuf]) -> Plan {
+    plan::make_plan(&tree.path(entry), environment, &compiler())
+        .unwrap()
+        .0
+}
+
+fn workspace(tree: &TempTree) -> manifest::Workspace {
+    manifest::find_workspace(&tree.0).unwrap().unwrap()
 }
 
 #[test]
@@ -100,7 +101,7 @@ fn without_a_manifest_the_search_paths_are_marmot_path() {
         tree.path("lib/../lib"),
     ];
 
-    let plan = plan::make_plan(&tree.path("app/Main.mmt"), &environment, &no_resolution()).unwrap();
+    let plan = plan_for(&tree, "app/Main.mmt", &environment);
 
     assert_eq!(plan.entry, shown(&tree.path("app/Main.mmt")));
     assert_eq!(plan.search_paths, vec![shown(&tree.path("lib"))]);
@@ -108,52 +109,30 @@ fn without_a_manifest_the_search_paths_are_marmot_path() {
 }
 
 #[test]
-fn a_project_orders_source_packages_extra_paths_prelude_then_marmot_path() {
+fn resolving_installs_packages_and_orders_the_search_paths() {
     let tree = TempTree::new(&[
-        (
-            "project.marmot",
-            "[project]\nentry = \"src/Main.mmt\"\nmarmot_path = [\"shared\"]\n\n[dependencies]\nApp = \"^1.0.0\"\n",
-        ),
+        ("project.marmot", &project(&[("App", "^1.0.0")])),
         ("src/Main.mmt", "module Main\n"),
-        ("shared/Shared.mmt", "module Shared\n"),
+        (
+            "registry/App/package.marmot",
+            &package("App", "1.0.0", &[("Zeta", "^1.0.0"), ("Alpha", "^1.0.0")]),
+        ),
+        ("registry/App/App.mmt", "module App\n"),
+        (
+            "registry/Zeta/package.marmot",
+            &package("Zeta", "1.0.0", &[]),
+        ),
+        (
+            "registry/Alpha/package.marmot",
+            &package("Alpha", "1.0.0", &[]),
+        ),
         ("MarmotPrelude/IO.mmt", "module IO\n"),
-        (
-            "packages/Zeta-1.0.0/package.marmot",
-            &package_manifest("Zeta", ""),
-        ),
-        (
-            "packages/Alpha-1.0.0/package.marmot",
-            &package_manifest("Alpha", ""),
-        ),
-        (
-            "packages/App-1.0.0/package.marmot",
-            &package_manifest("App", ""),
-        ),
         ("env/Env.mmt", "module Env\n"),
     ]);
-    // App depends on Zeta and Alpha; with both ready, Alpha sorts first.
-    tree.write(
-        "marmot.lock",
-        &lockfile(
-            &tree,
-            "project.marmot",
-            &[
-                ("App", "local:packages/App-1.0.0", &["Zeta", "Alpha"]),
-                ("Zeta", "local:packages/Zeta-1.0.0", &[]),
-                ("Alpha", "local:packages/Alpha-1.0.0", &[]),
-            ],
-        ),
-    );
 
-    let resolver = no_resolution();
-    let plan = plan::make_plan(
-        &tree.path("src/Main.mmt"),
-        &[tree.path("env"), tree.path("src")],
-        &resolver,
-    )
-    .unwrap();
+    let plan = plan_for(&tree, "src/Main.mmt", &[tree.path("env"), tree.path("src")]);
 
-    assert_eq!(resolver.calls.get(), 0);
+    // App depends on Zeta and Alpha; with both ready, Alpha goes first.
     assert_eq!(
         plan.search_paths,
         vec![
@@ -161,64 +140,154 @@ fn a_project_orders_source_packages_extra_paths_prelude_then_marmot_path() {
             shown(&tree.path("packages/Alpha-1.0.0")),
             shown(&tree.path("packages/Zeta-1.0.0")),
             shown(&tree.path("packages/App-1.0.0")),
-            shown(&tree.path("shared")),
+            shown(&tree.path("registry")),
             shown(&tree.path("MarmotPrelude")),
             shown(&tree.path("env")),
         ]
     );
+    assert_eq!(tree.read("packages/App-1.0.0/App.mmt"), "module App\n");
+
+    let lock = tree.read("marmot.lock");
+    assert!(
+        lock.starts_with("# Auto-generated by Marmot. Do not edit manually.\n[metadata]\n"),
+        "{lock}"
+    );
+    assert!(
+        lock.contains("source = \"local:packages/App-1.0.0\""),
+        "{lock}"
+    );
+    assert!(
+        lock.contains("dependencies = [\"Alpha@1.0.0\", \"Zeta@1.0.0\"]"),
+        "{lock}"
+    );
+    let alpha = lock.find("name = \"Alpha\"").unwrap();
+    let app = lock.find("name = \"App\"").unwrap();
+    assert!(
+        alpha < app,
+        "dependencies are written before dependents:\n{lock}"
+    );
+
+    // The lockfile is current, so a second plan reads it and writes nothing.
+    let again = plan_for(&tree, "src/Main.mmt", &[tree.path("env"), tree.path("src")]);
+    assert_eq!(again, plan);
+    assert_eq!(tree.read("marmot.lock"), lock);
 }
 
 #[test]
-fn a_stale_lockfile_is_resolved_once_and_then_read() {
+fn editing_the_manifest_resolves_again() {
     let tree = TempTree::new(&[
-        (
-            "project.marmot",
-            "[project]\n\n[dependencies]\nNative = \"^1.0.0\"\n",
-        ),
+        ("project.marmot", &project(&[("Lib", "^1.0.0")])),
         ("src/Main.mmt", "module Main\n"),
         (
-            "packages/Native-1.0.0/package.marmot",
-            &package_manifest(
-                "Native",
-                "\n[ffi]\nenabled = true\nlibrary_name = \"native\"\nthread_safe = true\n\n[ffi.functions]\n\"MIDORI_FFI_Native_Answer\" = \"native_answer\"\n\n[prebuilt.windows_x64]\npath = \"bin/native.dll\"\nchecksum = \"sha256:ab\"\n",
-            ),
+            "registry/Lib1/package.marmot",
+            &package("Lib", "1.0.0", &[]),
+        ),
+        (
+            "registry/Lib2/package.marmot",
+            &package("Lib", "2.1.0", &[]),
+        ),
+    ]);
+    let first = plan_for(&tree, "src/Main.mmt", &[]);
+    assert!(
+        first
+            .search_paths
+            .contains(&shown(&tree.path("packages/Lib-1.0.0")))
+    );
+
+    tree.write("project.marmot", &project(&[("Lib", "^2.0.0")]));
+    let second = plan_for(&tree, "src/Main.mmt", &[]);
+    assert!(
+        second
+            .search_paths
+            .contains(&shown(&tree.path("packages/Lib-2.1.0")))
+    );
+    assert!(tree.read("marmot.lock").contains("version = \"2.1.0\""));
+}
+
+#[test]
+fn a_changed_installed_copy_is_replaced_from_the_index() {
+    let tree = TempTree::new(&[
+        ("project.marmot", &project(&[("Lib", "^1.0.0")])),
+        ("src/Main.mmt", "module Main\n"),
+        ("registry/Lib/package.marmot", &package("Lib", "1.0.0", &[])),
+        ("registry/Lib/Lib.mmt", "module Lib\n"),
+    ]);
+    plan_for(&tree, "src/Main.mmt", &[]);
+
+    // Someone edits the installed copy's version: the lock no longer holds, and
+    // resolving again restores the copy from the registry.
+    tree.write(
+        "packages/Lib-1.0.0/package.marmot",
+        &package("Lib", "3.0.0", &[]),
+    );
+    plan_for(&tree, "src/Main.mmt", &[]);
+    assert_eq!(
+        tree.read("packages/Lib-1.0.0/package.marmot"),
+        package("Lib", "1.0.0", &[])
+    );
+}
+
+#[test]
+fn a_changed_package_source_is_a_warning_not_a_resolution() {
+    let tree = TempTree::new(&[
+        ("project.marmot", &project(&[("Lib", "^1.0.0")])),
+        ("src/Main.mmt", "module Main\n"),
+        ("registry/Lib/package.marmot", &package("Lib", "1.0.0", &[])),
+        ("registry/Lib/Lib.mmt", "module Lib\n"),
+    ]);
+    plan_for(&tree, "src/Main.mmt", &[]);
+    let lock = tree.read("marmot.lock");
+
+    tree.write("packages/Lib-1.0.0/Lib.mmt", "module Lib\n// edited\n");
+    let (_, warnings) = plan::make_plan(&tree.path("src/Main.mmt"), &[], &compiler()).unwrap();
+    assert_eq!(
+        warnings,
+        vec!["Package 'Lib' has changed since the lockfile was generated.".to_string()]
+    );
+    assert_eq!(tree.read("marmot.lock"), lock);
+}
+
+#[test]
+fn a_package_manifest_is_a_workspace_rooted_at_itself() {
+    let tree = TempTree::new(&[
+        (
+            "Pkg/package.marmot",
+            &(package("Pkg", "1.0.0", &[])
+                + "\n[ffi]\nenabled = true\nlibrary_name = \"pkg\"\n\n[ffi.functions]\n\"F\" = \"f\"\n"),
+        ),
+        ("Pkg/Pkg.mmt", "module Pkg\n"),
+    ]);
+
+    let plan = plan_for(&tree, "Pkg/Pkg.mmt", &[]);
+
+    assert_eq!(plan.search_paths, vec![shown(&tree.path("Pkg"))]);
+    assert_eq!(plan.native_packages.len(), 1);
+    assert_eq!(plan.native_packages[0].name, "Pkg");
+    assert!(tree.path("Pkg/marmot.lock").exists());
+}
+
+#[test]
+fn native_packages_come_from_installed_packages() {
+    let tree = TempTree::new(&[
+        ("project.marmot", &project(&[("Native", "^1.0.0")])),
+        ("src/Main.mmt", "module Main\n"),
+        (
+            "registry/Native/package.marmot",
+            &(package("Native", "1.0.0", &[])
+                + "\n[ffi]\nenabled = true\nlibrary_name = \"native\"\nthread_safe = true\n\n[ffi.functions]\n\"MIDORI_FFI_Native_Answer\" = \"native_answer\"\n\n[prebuilt.windows_x64]\npath = \"bin/native.dll\"\nchecksum = \"sha256:ab\"\n"),
         ),
     ]);
 
-    let resolver = FakeResolver {
-        calls: Cell::new(0),
-        action: |workspace: &Workspace| {
-            let checksum = lockfile::file_checksum(&workspace.manifest_path).unwrap();
-            std::fs::write(
-                workspace.root.join("marmot.lock"),
-                format!(
-                    "[metadata]\nmanifest_checksum = \"{checksum}\"\n\n[[package]]\nname = \"Native\"\nversion = \"1.0.0\"\nsource = \"local:packages/Native-1.0.0\"\n"
-                ),
-            )
-            .unwrap();
-        },
-    };
-    let plan = plan::make_plan(&tree.path("src/Main.mmt"), &[], &resolver).unwrap();
+    let plan = plan_for(&tree, "src/Main.mmt", &[]);
 
-    assert_eq!(resolver.calls.get(), 1);
-    assert_eq!(
-        plan.search_paths,
-        vec![
-            shown(&tree.path("src")),
-            shown(&tree.path("packages/Native-1.0.0"))
-        ]
-    );
     assert_eq!(plan.native_packages.len(), 1);
     let native = &plan.native_packages[0];
     assert_eq!(native.name, "Native");
     assert_eq!(native.root, shown(&tree.path("packages/Native-1.0.0")));
     assert!(native.thread_safe);
     assert_eq!(
-        native
-            .functions
-            .get("MIDORI_FFI_Native_Answer")
-            .map(String::as_str),
-        Some("native_answer")
+        native.functions["MIDORI_FFI_Native_Answer"],
+        "native_answer"
     );
     if cfg!(windows) {
         assert_eq!(
@@ -227,101 +296,25 @@ fn a_stale_lockfile_is_resolved_once_and_then_read() {
         );
         assert_eq!(native.checksum.as_deref(), Some("sha256:ab"));
     }
-
-    // Unchanged manifest and lockfile: no second resolution.
-    let again = plan::make_plan(&tree.path("src/Main.mmt"), &[], &resolver).unwrap();
-    assert_eq!(resolver.calls.get(), 1);
-    assert_eq!(again, plan);
-}
-
-#[test]
-fn editing_the_manifest_makes_the_lockfile_stale() {
-    let tree = TempTree::new(&[
-        ("project.marmot", "[project]\n"),
-        ("src/Main.mmt", "module Main\n"),
-    ]);
-    tree.write("marmot.lock", &lockfile(&tree, "project.marmot", &[]));
-    tree.write("project.marmot", "[project]\nname = \"Edited\"\n");
-
-    let resolver = no_resolution();
-    let error = plan::make_plan(&tree.path("src/Main.mmt"), &[], &resolver).unwrap_err();
-
-    assert_eq!(resolver.calls.get(), 1);
-    assert!(error.contains("still unusable"), "{error}");
-}
-
-#[test]
-fn a_locked_package_at_the_wrong_version_makes_the_lockfile_stale() {
-    let tree = TempTree::new(&[
-        ("project.marmot", "[project]\n"),
-        ("src/Main.mmt", "module Main\n"),
-        (
-            "packages/Lib/package.marmot",
-            "[package]\nname = \"Lib\"\nversion = \"2.0.0\"\n",
-        ),
-    ]);
-    tree.write(
-        "marmot.lock",
-        &lockfile(
-            &tree,
-            "project.marmot",
-            &[("Lib", "local:packages/Lib", &[])],
-        ),
-    );
-
-    let resolver = no_resolution();
-    let error = plan::make_plan(&tree.path("src/Main.mmt"), &[], &resolver).unwrap_err();
-    assert_eq!(resolver.calls.get(), 1);
-    assert!(
-        error.contains("expected version 1.0.0, but found 2.0.0"),
-        "{error}"
-    );
-}
-
-#[test]
-fn a_package_manifest_is_a_workspace_rooted_at_itself() {
-    let tree = TempTree::new(&[
-        (
-            "Pkg/package.marmot",
-            &package_manifest(
-                "Pkg",
-                "\n[ffi]\nenabled = true\nlibrary_name = \"pkg\"\n\n[ffi.functions]\n\"F\" = \"f\"\n",
-            ),
-        ),
-        ("Pkg/Pkg.mmt", "module Pkg\n"),
-    ]);
-    tree.write(
-        "Pkg/marmot.lock",
-        &lockfile(&tree, "Pkg/package.marmot", &[]),
-    );
-
-    let plan = plan::make_plan(&tree.path("Pkg/Pkg.mmt"), &[], &no_resolution()).unwrap();
-
-    assert_eq!(plan.search_paths, vec![shown(&tree.path("Pkg"))]);
-    assert_eq!(plan.native_packages.len(), 1);
-    assert_eq!(plan.native_packages[0].name, "Pkg");
 }
 
 #[test]
 fn a_package_without_ffi_or_with_another_abi_is_not_native() {
     let tree = TempTree::new(&[
         ("app/Main.mmt", "module Main\n"),
-        ("plain/package.marmot", &package_manifest("Plain", "")),
+        ("plain/package.marmot", &package("Plain", "1.0.0", &[])),
         (
             "old/package.marmot",
-            &package_manifest(
-                "Old",
-                "\n[ffi]\nenabled = true\nlibrary_name = \"old\"\nabi_version = 2\n",
-            ),
+            &(package("Old", "1.0.0", &[])
+                + "\n[ffi]\nenabled = true\nlibrary_name = \"old\"\nabi_version = 2\n"),
         ),
     ]);
 
-    let plan = plan::make_plan(
-        &tree.path("app/Main.mmt"),
+    let plan = plan_for(
+        &tree,
+        "app/Main.mmt",
         &[tree.path("plain"), tree.path("old")],
-        &no_resolution(),
-    )
-    .unwrap();
+    );
 
     assert_eq!(plan.search_paths.len(), 2);
     assert!(plan.native_packages.is_empty());
@@ -333,32 +326,147 @@ fn project_manifest_without_a_project_table_is_an_error() {
         ("project.marmot", "[dependencies]\n"),
         ("src/Main.mmt", "module Main\n"),
     ]);
-    let error = plan::make_plan(&tree.path("src/Main.mmt"), &[], &no_resolution()).unwrap_err();
+    let error = plan::make_plan(&tree.path("src/Main.mmt"), &[], &compiler()).unwrap_err();
     assert!(error.contains("missing [project] table"), "{error}");
+}
+
+fn index(tree: &TempTree) -> Index {
+    Index::scan(&[tree.path("registry"), tree.path("second")], &compiler()).unwrap()
+}
+
+fn roots(entries: &[(&str, &str)]) -> BTreeMap<String, Constraint> {
+    entries
+        .iter()
+        .map(|(name, constraint)| (name.to_string(), Constraint::parse(constraint).unwrap()))
+        .collect()
+}
+
+#[test]
+fn the_resolver_picks_the_newest_match_and_prefers_earlier_roots() {
+    let tree = TempTree::new(&[
+        ("registry/A1/package.marmot", &package("A", "1.2.0", &[])),
+        ("registry/A2/package.marmot", &package("A", "1.9.0", &[])),
+        ("registry/A3/package.marmot", &package("A", "2.0.0", &[])),
+        ("second/A/package.marmot", &package("A", "1.9.0", &[])),
+    ]);
+
+    let graph = resolver::resolve(&index(&tree), &roots(&[("A", "^1.0.0")])).unwrap();
+    let chosen = &graph.packages["A"].manifest;
+    assert_eq!(chosen.version_text, "1.9.0");
+    assert_eq!(
+        paths::identity_key(&chosen.directory),
+        paths::identity_key(&tree.path("registry/A2"))
+    );
+}
+
+#[test]
+fn the_resolver_reports_conflicts_missing_packages_and_cycles() {
+    let tree = TempTree::new(&[
+        (
+            "registry/A/package.marmot",
+            &package("A", "1.0.0", &[("C", "^1.0.0")]),
+        ),
+        (
+            "registry/B/package.marmot",
+            &package("B", "1.0.0", &[("C", "^2.0.0")]),
+        ),
+        ("registry/C/package.marmot", &package("C", "1.0.0", &[])),
+        (
+            "registry/X/package.marmot",
+            &package("X", "1.0.0", &[("Y", "^1.0.0")]),
+        ),
+        (
+            "registry/Y/package.marmot",
+            &package("Y", "1.0.0", &[("X", "^1.0.0")]),
+        ),
+    ]);
+    let index = index(&tree);
+
+    let conflict =
+        resolver::resolve(&index, &roots(&[("A", "^1.0.0"), ("B", "^1.0.0")])).unwrap_err();
+    assert_eq!(
+        conflict,
+        "Version conflict for package 'C': B requires '^2.0.0', but the resolved version is 1.0.0."
+    );
+
+    let missing = resolver::resolve(&index, &roots(&[("Nope", "^1.0.0")])).unwrap_err();
+    assert_eq!(
+        missing,
+        "Could not resolve package 'Nope' required by <root> with constraint '^1.0.0'."
+    );
+
+    let cycle = resolver::resolve(&index, &roots(&[("X", "^1.0.0")])).unwrap_err();
+    assert_eq!(cycle, "Detected a package dependency cycle: X -> Y -> X");
+}
+
+#[test]
+fn a_package_for_another_compiler_version_stops_the_scan() {
+    let tree = TempTree::new(&[(
+        "registry/Future/package.marmot",
+        "[package]\nname = \"Future\"\nversion = \"1.0.0\"\nmarmot_version = \">=2.0.0\"\n",
+    )]);
+    let error = Index::scan(&[tree.path("registry")], &compiler())
+        .err()
+        .unwrap();
+    assert_eq!(
+        error,
+        "Package 'Future' requires Marmot >=2.0.0, but the current compiler version is 1.0.0."
+    );
+}
+
+#[test]
+fn removing_unused_packages_keeps_the_active_versions() {
+    let tree = TempTree::new(&[
+        ("project.marmot", &project(&[("Lib", "^1.0.0")])),
+        ("src/Main.mmt", "module Main\n"),
+        ("registry/Lib/package.marmot", &package("Lib", "1.0.0", &[])),
+        (
+            "packages/Lib-0.9.0/package.marmot",
+            &package("Lib", "0.9.0", &[]),
+        ),
+        (
+            "packages/Other-1.0.0/package.marmot",
+            &package("Other", "1.0.0", &[]),
+        ),
+    ]);
+    let workspace = workspace(&tree);
+    let prepared = packages::prepare(&workspace, Mode::ForceRefresh, &[], &compiler()).unwrap();
+
+    packages::remove_unused(&workspace, &prepared.graph, Some("Lib"), &compiler()).unwrap();
+
+    assert!(tree.path("packages/Lib-1.0.0").exists());
+    assert!(!tree.path("packages/Lib-0.9.0").exists());
+    assert!(tree.path("packages/Other-1.0.0").exists());
 }
 
 #[test]
 fn packages_in_a_cycle_are_left_out_like_the_compiler_does() {
-    let package = |name: &str, dependencies: &[&str]| LockedPackage {
-        name: name.to_string(),
-        directory: PathBuf::from(name),
-        dependencies: dependencies
-            .iter()
-            .map(|dependency| dependency.to_string())
-            .collect(),
+    let tree = TempTree::new(&[("p/package.marmot", &package("P", "1.0.0", &[]))]);
+    let manifest = manifest::read_package(&tree.path("p"), &compiler()).unwrap();
+    let entry = |dependencies: &[&str]| ResolvedPackage {
+        manifest: manifest.clone(),
+        dependencies: dependencies.iter().map(|name| name.to_string()).collect(),
+        source: String::new(),
+        checksum: String::new(),
     };
-    let packages = vec![
-        package("C", &["B"]),
-        package("B", &["C"]),
-        package("A", &["Missing"]),
-        package("D", &["A"]),
-    ];
+    let graph = Graph {
+        packages: [
+            ("C", entry(&["B"])),
+            ("B", entry(&["C"])),
+            ("A", entry(&["Missing"])),
+            ("D", entry(&["A"])),
+        ]
+        .into_iter()
+        .map(|(name, package)| (name.to_string(), package))
+        .collect(),
+        roots: vec!["D".to_string(), "C".to_string()],
+    };
 
-    let order: Vec<&str> = lockfile::topological_order(&packages)
-        .iter()
-        .map(|package| package.name.as_str())
-        .collect();
-    assert_eq!(order, vec!["A", "D"]);
+    assert_eq!(graph.topological_order(), vec!["A", "D"]);
+    assert_eq!(
+        graph.render_tree(),
+        "D@1.0.0\n  A@1.0.0\n    Missing (missing)\nC@1.0.0\n  B@1.0.0\n    C@1.0.0\n      (cycle)\n"
+    );
 }
 
 #[test]
