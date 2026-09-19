@@ -3,7 +3,7 @@
 Marmot has two complementary test layers:
 
 - `common/tests/`, `runtime/tests/` and `compiler/tests/` contain in-process implementation tests built with Catch2 and linked against the Marmot libraries.
-- `test/` contains file-based language regression tests run through `Marmot.exe test` and the legacy Python runners.
+- `test/` contains file-based language regression tests run through `marmotc.exe test` and the legacy Python runners.
 
 Use the smallest layer that proves the behavior you are changing. If a regression is important at both the subsystem and CLI level, add both.
 
@@ -21,7 +21,7 @@ Add a test under `test/` when the behavior is best validated as a user-visible p
 - the scenario naturally lives as one or more `.mmt` files on disk
 - the regression depends on the executable boundary, startup behavior, or file layout
 - the assertion is exit status, `.expected` output, or `.warnings.json`
-- the test should exercise the same path that `Marmot.exe` users take
+- the test should exercise the same path that `marmotc.exe` users take
 
 Default rule:
 
@@ -45,8 +45,8 @@ Regression tests:
 - add `<name>.expected` when stdout/stderr or compile-fail diagnostics must match a snapshot
 - `.expected` snapshots are compared after stripping ANSI color codes and repo-root path prefixes
 - add `<name>.warnings.json` when warnings need structured assertions
-- when a `.warnings.json` file is present, `Marmot.exe test` compares the emitted warning JSON against that snapshot
-- `Marmot.exe test` enforces `[test].timeout_ms` by running each fixture in an isolated worker process
+- when a `.warnings.json` file is present, `marmotc.exe test` compares the emitted warning JSON against that snapshot
+- `marmotc.exe test` enforces `[test].timeout_ms` by running each fixture in an isolated worker process
 - `scripts/run_tests.py` still supports the legacy `MARMOT_TEST_WARNING_FORMAT=machine` path during the transition
 - CLI contract checks that do not fit the plain `test/<category>/*.mmt` model run through `scripts/check_cli_contracts.py`
 
@@ -294,9 +294,9 @@ Run the Catch2 executable directly when you want tag filtering:
 Run the file-based regression suite through the native CLI:
 
 ```powershell
-.\out\build\ninja\x64-development\out\Marmot.exe test
-.\out\build\ninja\x64-development\out\Marmot.exe test closure
-.\out\build\ninja\x64-development\out\Marmot.exe test --pattern recursive
+.\out\build\ninja\x64-development\out\marmotc.exe test
+.\out\build\ninja\x64-development\out\marmotc.exe test closure
+.\out\build\ninja\x64-development\out\marmotc.exe test --pattern recursive
 ```
 
 Legacy Python runner:

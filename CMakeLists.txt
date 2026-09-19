@@ -278,16 +278,17 @@ if(EMSCRIPTEN)
 else()
     message(STATUS "Configuring for native build")
 
-    # The thin CLI executable over the driver
-    add_executable(Marmot
+    # marmotc, the compiler: the thin CLI executable over the driver. The
+    # `marmot` project tool (tool/) runs it.
+    add_executable(marmotc
         "compiler/src/Marmot.cpp"
     )
-    target_link_libraries(Marmot PRIVATE MarmotDriver)
+    target_link_libraries(marmotc PRIVATE MarmotDriver)
     set(MIDORI_NATIVE_COMPILE_TARGETS
         ${MIDORI_LIBRARY_TARGETS}
-        Marmot
+        marmotc
     )
-    set(MIDORI_NATIVE_LINK_TARGETS Marmot)
+    set(MIDORI_NATIVE_LINK_TARGETS marmotc)
 
     # Detect AVX2 compiler flag for Experimental configuration
     set(MIDORI_HAS_AVX2_FLAG FALSE)

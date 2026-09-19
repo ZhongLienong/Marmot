@@ -23,7 +23,7 @@ Current scope note: there is no `async` / `await` surface in the current languag
 
 ## Installation (Windows)
 ```powershell
-# From the repo root (after building Marmot.exe):
+# From the repo root (after building marmotc.exe):
 python .\scripts\install.py --copy-binaries
 
 # This prefers a Release preset build if present,
@@ -36,7 +36,7 @@ python .\scripts\install.py --copy-binaries
 
 ## Getting Started
 
-After `Marmot.exe` is on your `PATH`, a basic workflow uses only the CLI:
+After `marmotc.exe` is on your `PATH`, a basic workflow uses only the CLI:
 
 ```powershell
 marmot init hello-world
@@ -578,34 +578,34 @@ Marmot uses CMake presets for native builds.
 Configure and build a Development binary:
 ```bash
 cmake --preset x64-development
-cmake --build --preset x64-development --target Marmot
+cmake --build --preset x64-development --target marmotc
 ```
 
 Other common presets:
 ```bash
 cmake --preset x64-debug
-cmake --build --preset x64-debug --target Marmot
+cmake --build --preset x64-debug --target marmotc
 
 cmake --preset x64-release
-cmake --build --preset x64-release --target Marmot
+cmake --build --preset x64-release --target marmotc
 ```
 
-Native preset builds write the executable to `out/build/ninja/<preset>/out/Marmot.exe`.
+Native preset builds write the executable to `out/build/ninja/<preset>/out/marmotc.exe`.
 
 ### Running Programs
 
 ```bash
 # Run a Marmot program built with the Development preset
-.\out\build\ninja\x64-development\out\Marmot.exe run path\to\program.mmt
+.\out\build\ninja\x64-development\out\marmotc.exe run path\to\program.mmt
 
 # Shorthand form
-.\out\build\ninja\x64-development\out\Marmot.exe path\to\program.mmt
+.\out\build\ninja\x64-development\out\marmotc.exe path\to\program.mmt
 
 # Type-check only
-.\out\build\ninja\x64-development\out\Marmot.exe check path\to\program.mmt
+.\out\build\ninja\x64-development\out\marmotc.exe check path\to\program.mmt
 
 # Compile without executing
-.\out\build\ninja\x64-development\out\Marmot.exe build path\to\program.mmt
+.\out\build\ninja\x64-development\out\marmotc.exe build path\to\program.mmt
 
 # This emits path\to\program.mmc.json next to the source file
 ```
@@ -645,15 +645,15 @@ See [Testing Guide](docs/testing.md) for when a new test should go in `tests/` i
 
 Run all file-based language regression tests:
 ```bash
-.\out\build\ninja\x64-development\out\Marmot.exe test
+.\out\build\ninja\x64-development\out\marmotc.exe test
 ```
 
 Run specific regression tests:
 ```bash
-.\out\build\ninja\x64-development\out\Marmot.exe test --test closure/simple.mmt
-.\out\build\ninja\x64-development\out\Marmot.exe test typeclass
-.\out\build\ninja\x64-development\out\Marmot.exe test static_analyzer
-.\out\build\ninja\x64-development\out\Marmot.exe test --pattern recursive
+.\out\build\ninja\x64-development\out\marmotc.exe test --test closure/simple.mmt
+.\out\build\ninja\x64-development\out\marmotc.exe test typeclass
+.\out\build\ninja\x64-development\out\marmotc.exe test static_analyzer
+.\out\build\ninja\x64-development\out\marmotc.exe test --pattern recursive
 ```
 
 Legacy Python runners are still available:

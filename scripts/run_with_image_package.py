@@ -20,8 +20,8 @@ DEFAULT_IMAGE_PACKAGE = REPO_ROOT / "examples" / "Image"
 
 def find_midori_exe(repo: Path) -> Path | None:
     candidates = [
-        repo / "out" / "build" / "ninja" / "x64-release" / "out" / "Marmot.exe",
-        repo / "out" / "build" / "x64-release" / "out" / "Marmot.exe",
+        repo / "out" / "build" / "ninja" / "x64-release" / "out" / "marmotc.exe",
+        repo / "out" / "build" / "x64-release" / "out" / "marmotc.exe",
     ]
     for candidate in candidates:
         if candidate.is_file():
@@ -54,13 +54,13 @@ def build_midori_path(image_package: Path, prelude_dir: Path) -> str:
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="Run Marmot with a temporary MARMOT_PATH.")
     parser.add_argument("program", nargs="?", default=str(DEFAULT_PROGRAM), help="Marmot program to run.")
-    parser.add_argument("--marmot-exe", default="", help="Path to Marmot.exe.")
+    parser.add_argument("--marmot-exe", default="", help="Path to marmotc.exe.")
     parser.add_argument("--image-package", default=str(DEFAULT_IMAGE_PACKAGE), help="Path to Image package root.")
     args = parser.parse_args(argv)
 
     midori_exe = Path(args.marmot_exe).expanduser().resolve() if args.marmot_exe else find_midori_exe(REPO_ROOT)
     if midori_exe is None or not midori_exe.is_file():
-        print("Marmot.exe not found. Build Marmot or pass --marmot-exe.", file=sys.stderr)
+        print("marmotc.exe not found. Build Marmot or pass --marmot-exe.", file=sys.stderr)
         return 1
 
     program_path = Path(args.program).expanduser().resolve()

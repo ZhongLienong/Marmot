@@ -3,7 +3,7 @@
 Marmot ships a first-party formatter through:
 
 ```powershell
-Marmot.exe fmt <file|dir>
+marmotc.exe fmt <file|dir>
 ```
 
 ## Commands
@@ -11,31 +11,31 @@ Marmot.exe fmt <file|dir>
 Format a single file to stdout:
 
 ```powershell
-Marmot.exe fmt src/Main.mmt
+marmotc.exe fmt src/Main.mmt
 ```
 
 Rewrite files in place:
 
 ```powershell
-Marmot.exe fmt src -w
+marmotc.exe fmt src -w
 ```
 
 Check whether formatting would change anything:
 
 ```powershell
-Marmot.exe fmt test --check
+marmotc.exe fmt test --check
 ```
 
 Machine-readable summary:
 
 ```powershell
-Marmot.exe fmt src --check --format json
+marmotc.exe fmt src --check --format json
 ```
 
 ## Canonical Style
 
 The canonical Marmot style is opinionated and not configurable. The formatter is
-the source of truth; the rules below document what `Marmot.exe fmt` produces.
+the source of truth; the rules below document what `marmotc.exe fmt` produces.
 
 ### Indentation
 
@@ -152,7 +152,7 @@ Attachment rules:
 - **inline block comments** that sit between tokens on the same line stay
   inline, surrounded by single spaces
 
-`Marmot.exe fmt` is intended to be idempotent for both comment-free and
+`marmotc.exe fmt` is intended to be idempotent for both comment-free and
 comment-bearing source files. Any non-idempotent output is treated as a bug.
 
 ## CI Integration
@@ -161,8 +161,8 @@ To enforce formatting in CI, run the formatter in `--check` mode against the
 source tree:
 
 ```powershell
-Marmot.exe fmt src --check
-Marmot.exe fmt test --check
+marmotc.exe fmt src --check
+marmotc.exe fmt test --check
 ```
 
 `--check` exits with a non-zero status when any file would change. Combine with

@@ -4,9 +4,9 @@ Marmot's machine-readable diagnostic contract is exposed through `--format json`
 on CLI commands such as:
 
 ```powershell
-Marmot.exe check src/Main.mmt --format json
-Marmot.exe build src/Main.mmt --format json
-Marmot.exe run src/Main.mmt --format json
+marmotc.exe check src/Main.mmt --format json
+marmotc.exe build src/Main.mmt --format json
+marmotc.exe run src/Main.mmt --format json
 ```
 
 ## Top-Level Envelope

@@ -189,7 +189,7 @@ def safe_remove_install_dir(target_layout: InstallLayout, scope: str, force: boo
     marker_path = target_layout.root / INSTALL_MARKER_FILENAME
     has_marker = marker_path.is_file()
     default_root = default_install_root(scope).resolve()
-    has_expected_files = target_layout.prelude_dir.is_dir() or (target_layout.bin_dir / "Marmot.exe").is_file()
+    has_expected_files = target_layout.prelude_dir.is_dir() or (target_layout.bin_dir / "marmotc.exe").is_file()
 
     if not force and not (has_marker or (resolved_root == default_root and has_expected_files)):
         raise RuntimeError(

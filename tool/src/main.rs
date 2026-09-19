@@ -44,7 +44,7 @@ Options:
   --version CONSTRAINT  The constraint to record (install <package>); the
                         default is ^ the newest version available
   --marmotc PATH        The compiler to run; otherwise MARMOTC, then marmotc
-                        or Marmot next to this program, then Marmot on PATH
+                        next to this program, then marmotc on PATH
   -h, --help            Show this help
   -V                    Show the version
 ";
@@ -170,7 +170,7 @@ fn find_compiler(explicit: Option<&Path>) -> PathBuf {
         .and_then(|exe| exe.parent().map(Path::to_path_buf))
         .into_iter()
         .flat_map(|directory| {
-            [format!("marmotc{suffix}"), format!("Marmot{suffix}")].map(|name| directory.join(name))
+            [format!("marmotc{suffix}")].map(|name| directory.join(name))
         });
     for candidate in siblings {
         if candidate.is_file() && Some(paths::identity_key(&candidate)) != current {
@@ -178,10 +178,10 @@ fn find_compiler(explicit: Option<&Path>) -> PathBuf {
         }
     }
 
-    PathBuf::from("Marmot")
+    PathBuf::from("marmotc")
 }
 
-/// The compiler's version, from `marmotc --version` ("marmot 1.2.3").
+/// The compiler's version, from `marmotc --version` ("marmotc 1.2.3").
 /// Packages declare which compiler versions they work with.
 fn compiler_version(compiler: &Path) -> Result<Version, String> {
     let output = Command::new(compiler)

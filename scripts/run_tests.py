@@ -121,8 +121,8 @@ class TestRunner:
     def get_executable_candidates(self, build_config: str) -> List[Path]:
         build_name = build_config.lower()
         return [
-            self.root_dir / f"out/build/ninja/x64-{build_name}/out/Marmot.exe",
-            self.root_dir / f"out/build/x64-{build_name}/out/Marmot.exe",
+            self.root_dir / f"out/build/ninja/x64-{build_name}/out/marmotc.exe",
+            self.root_dir / f"out/build/x64-{build_name}/out/marmotc.exe",
         ]
 
     def validate_executable(self, path: Path, expected_build_config: Optional[str] = None) -> Optional[str]:

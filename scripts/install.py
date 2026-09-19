@@ -5,10 +5,10 @@ Marmot installer.
 Installs MarmotPrelude to a local directory and configures MARMOT_PATH so system imports
 like `import { <IO> }` can be resolved.
 
-Optionally installs Marmot.exe and updates PATH so `Marmot` is callable
-from a new cmd/PowerShell session.
+Optionally installs the compiler (marmotc) and the project tool (marmot), and
+updates PATH so both are callable from a new cmd/PowerShell session.
 
-Note: FFI functions are statically linked into Marmot.exe, so no separate DLL is needed.
+Note: FFI functions are statically linked into marmotc.exe, so no separate DLL is needed.
 """
 
 from __future__ import annotations
@@ -96,8 +96,8 @@ def append_unique_path(existing: str, to_append: Path) -> str:
 
 def get_preset_executable_candidates(repo: Path, preset_name: str) -> list[Path]:
     return [
-        repo / "out" / "build" / "ninja" / preset_name / "out" / "Marmot.exe",
-        repo / "out" / "build" / preset_name / "out" / "Marmot.exe",
+        repo / "out" / "build" / "ninja" / preset_name / "out" / "marmotc.exe",
+        repo / "out" / "build" / preset_name / "out" / "marmotc.exe",
     ]
 
 
@@ -126,9 +126,9 @@ def list_available_midori_exes(repo: Path) -> list[tuple[str, Path]]:
     # Check build/out/ first (CMake command-line builds)
     for label, subdir in [("build/out", "out"), ("build/Release", "Release"), ("build", "")]:
         if subdir:
-            candidate = repo / "build" / subdir / "Marmot.exe"
+            candidate = repo / "build" / subdir / "marmotc.exe"
         else:
-            candidate = repo / "build" / "Marmot.exe"
+            candidate = repo / "build" / "marmotc.exe"
         if candidate.is_file():
             results.append((label, candidate.resolve()))
 
@@ -231,13 +231,22 @@ def write_install_marker(target_layout: InstallLayout, scope: str) -> None:
     marker_path.write_text(json.dumps(marker, indent=2) + "\n", encoding="utf-8")
 
 
+def find_tool_exe(repo: Path) -> Optional[Path]:
+    executable_name = "marmot.exe" if is_windows() else "marmot"
+    for profile in ["release", "debug"]:
+        candidate = repo / "tool" / "target" / profile / executable_name
+        if candidate.is_file():
+            return candidate.resolve()
+    return None
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="Install Marmot and configure MARMOT_PATH / PATH.")
     parser.add_argument("--scope", choices=["user", "machine"], default="user", help="Target environment scope (default: user).")
     parser.add_argument("--install-dir", default="", help="Installation directory (defaults to LocalAppData/ProgramFiles based on scope).")
-    parser.add_argument("--preset", default="auto", help="CMake preset to locate Marmot.exe (default: auto).")
-    parser.add_argument("--marmot-exe", default="", help="Explicit path to Marmot.exe (overrides --preset).")
-    parser.add_argument("--copy-binaries", action="store_true", help="Install Marmot.exe and add bin dir to PATH.")
+    parser.add_argument("--preset", default="auto", help="CMake preset to locate marmotc.exe (default: auto).")
+    parser.add_argument("--marmot-exe", default="", help="Explicit path to marmotc.exe (overrides --preset).")
+    parser.add_argument("--copy-binaries", action="store_true", help="Install marmotc and the marmot tool, and add the bin dir to PATH.")
     args = parser.parse_args(argv)
 
     require_admin_for_machine(args.scope)
@@ -255,7 +264,7 @@ def main(argv: list[str]) -> int:
     if args.copy_binaries:
         exe_path = resolve_midori_exe(repo, args.preset, args.marmot_exe if args.marmot_exe != "" else None)
         if exe_path is None or not exe_path.is_file():
-            raise RuntimeError("Marmot.exe not found (build first, pass --marmot-exe, or use --preset).")
+            raise RuntimeError("marmotc.exe not found (build first, pass --marmot-exe, or use --preset).")
 
         if args.preset == "auto" and args.marmot_exe == "":
             available = list_available_midori_exes(repo)
@@ -268,10 +277,21 @@ def main(argv: list[str]) -> int:
                     file=sys.stderr,
                 )
 
-        print(f"Using Marmot.exe from: {exe_path}")
+        print(f"Using marmotc.exe from: {exe_path}")
 
         target_layout.bin_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(exe_path, target_layout.bin_dir / "Marmot.exe")
+        shutil.copy2(exe_path, target_layout.bin_dir / "marmotc.exe")
+
+        tool_path = find_tool_exe(repo)
+        if tool_path is None:
+            print(
+                "Note: the marmot project tool is not built, so only marmotc was installed. "
+                "Build it with: cargo build --release --manifest-path tool/Cargo.toml",
+                file=sys.stderr,
+            )
+        else:
+            print(f"Using marmot from: {tool_path}")
+            shutil.copy2(tool_path, target_layout.bin_dir / tool_path.name)
 
     write_install_marker(target_layout, args.scope)
 

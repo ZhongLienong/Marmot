@@ -231,106 +231,106 @@ namespace
 		if (command_name == "run")
 		{
 			return
-				"Usage: marmot run (<file> | --plan <plan.json>) [--format json]\n"
+				"Usage: marmotc run (<file> | --plan <plan.json>) [--format json]\n"
 				"Compile and execute a .mmt source file, or load and execute a .mmc artifact.\n"
 				"With --plan, compile the plan's entry from exactly the plan's inputs.\n\n"
 				"Examples:\n"
-				"  marmot run src/Main.mmt\n"
-				"  marmot run src/Main.mmc\n"
-				"  marmot src/Main.mmt\n"
-				"  marmot run src/Main.mmt --format json\n"
-				"  marmot run --plan build/plan.json\n";
+				"  marmotc run src/Main.mmt\n"
+				"  marmotc run src/Main.mmc\n"
+				"  marmotc src/Main.mmt\n"
+				"  marmotc run src/Main.mmt --format json\n"
+				"  marmotc run --plan build/plan.json\n";
 		}
 
 		if (command_name == "check")
 		{
 			return
-				"Usage: marmot check (<file> | --plan <plan.json>) [--format json]\n"
+				"Usage: marmotc check (<file> | --plan <plan.json>) [--format json]\n"
 				"Type-check a Marmot source file without executing it.\n"
 				"With --plan, check the plan's entry from exactly the plan's inputs.\n\n"
 				"Examples:\n"
-				"  marmot check src/Main.mmt\n"
-				"  marmot check src/Main.mmt --format json\n"
-				"  marmot check --plan build/plan.json\n";
+				"  marmotc check src/Main.mmt\n"
+				"  marmotc check src/Main.mmt --format json\n"
+				"  marmotc check --plan build/plan.json\n";
 		}
 
 		if (command_name == "build")
 		{
 			return
-				"Usage: marmot build (<file> | --plan <plan.json>) [--embed-sources] [--format json]\n"
+				"Usage: marmotc build (<file> | --plan <plan.json>) [--embed-sources] [--format json]\n"
 				"Compile a Marmot source file and emit a .mmc binary artifact.\n"
 				"With --format json, emit a .mmc.json disassembly instead.\n"
 				"With --embed-sources, embed source file content in the artifact for\n"
 				"richer runtime error reporting without the original .mmt on disk.\n"
 				"With --plan, build the plan's entry from exactly the plan's inputs.\n\n"
 				"Examples:\n"
-				"  marmot build src/Main.mmt\n"
-				"  marmot build src/Main.mmt --embed-sources\n"
-				"  marmot build src/Main.mmt --format json\n"
-				"  marmot build --plan build/plan.json\n";
+				"  marmotc build src/Main.mmt\n"
+				"  marmotc build src/Main.mmt --embed-sources\n"
+				"  marmotc build src/Main.mmt --format json\n"
+				"  marmotc build --plan build/plan.json\n";
 		}
 
 		if (command_name == "fmt")
 		{
 			return
-				"Usage: marmot fmt <file|dir> [--write|-w] [--check] [--format json]\n"
+				"Usage: marmotc fmt <file|dir> [--write|-w] [--check] [--format json]\n"
 				"Format Marmot source files using the canonical CLI style.\n\n"
 				"Examples:\n"
-				"  marmot fmt src/Main.mmt\n"
-				"  marmot fmt src -w\n"
-				"  marmot fmt test --check\n";
+				"  marmotc fmt src/Main.mmt\n"
+				"  marmotc fmt src -w\n"
+				"  marmotc fmt test --check\n";
 		}
 
 		if (command_name == "test")
 		{
 			return
-				"Usage: marmot test [filter] [--pattern <value>] [--test <file>] [--format json]\n"
+				"Usage: marmotc test [filter] [--pattern <value>] [--test <file>] [--format json]\n"
 				"Discover and run project tests from the configured test directory.\n\n"
 				"Examples:\n"
-				"  marmot test\n"
-				"  marmot test closure\n"
-				"  marmot test --pattern loop\n"
-				"  marmot test --test closure/simple.mmt\n";
+				"  marmotc test\n"
+				"  marmotc test closure\n"
+				"  marmotc test --pattern loop\n"
+				"  marmotc test --test closure/simple.mmt\n";
 		}
 
 		if (command_name == "init")
 		{
 			return
-				"Usage: marmot init [path] [--name <project_name>]\n"
-				"       marmot init --package [path] [--name <package_name>]\n"
+				"Usage: marmotc init [path] [--name <project_name>]\n"
+				"       marmotc init --package [path] [--name <package_name>]\n"
 				"Initialize a Marmot project or package scaffold.\n\n"
 				"Examples:\n"
-				"  marmot init my-app --name MyApp\n"
-				"  marmot init --package packages/Greeter --name greeter\n\n"
+				"  marmotc init my-app --name MyApp\n"
+				"  marmotc init --package packages/Greeter --name greeter\n\n"
 				"Project manifests use project.marmot and packages use package.marmot.\n";
 		}
 
 		if (command_name == "install")
 		{
 			return
-				"Usage: marmot install\n"
-				"       marmot install <package> [--version <constraint>]\n"
+				"Usage: marmotc install\n"
+				"       marmotc install <package> [--version <constraint>]\n"
 				"Resolve project dependencies, vendor packages into packages/, and update marmot.lock.\n";
 		}
 
 		if (command_name == "update")
 		{
 			return
-				"Usage: marmot update [package]\n"
+				"Usage: marmotc update [package]\n"
 				"Re-resolve dependencies ignoring the current lockfile and write an updated marmot.lock.\n";
 		}
 
 		if (command_name == "remove")
 		{
 			return
-				"Usage: marmot remove <package>\n"
+				"Usage: marmotc remove <package>\n"
 				"Remove a direct dependency from the active manifest and refresh the lockfile.\n";
 		}
 
 		if (command_name == "list")
 		{
 			return
-				"Usage: marmot list\n"
+				"Usage: marmotc list\n"
 				"Show the resolved dependency tree from marmot.lock or from a fresh resolution.\n";
 		}
 
@@ -342,8 +342,8 @@ namespace
 		return
 			"Marmot CLI\n\n"
 			"Usage:\n"
-			"  marmot <file>\n"
-			"  marmot <command> [options]\n\n"
+			"  marmotc <file>\n"
+			"  marmotc <command> [options]\n\n"
 			"Commands:\n"
 			"  run      Compile and execute a source file\n"
 			"  check    Type-check a source file without executing it\n"
@@ -360,12 +360,12 @@ namespace
 			"  --help      Show help\n"
 			"  --version   Show the Marmot version\n\n"
 			"Examples:\n"
-			"  marmot init hello-world\n"
-			"  marmot fmt src -w\n"
-			"  marmot check src/Main.mmt --format json\n"
-			"  marmot run src/Main.mmt\n"
-			"  marmot test closure\n"
-			"  marmot install\n\n"
+			"  marmotc init hello-world\n"
+			"  marmotc fmt src -w\n"
+			"  marmotc check src/Main.mmt --format json\n"
+			"  marmotc run src/Main.mmt\n"
+			"  marmotc test closure\n"
+			"  marmotc install\n\n"
 			"Relevant project manifests:\n"
 			"  project.marmot\n"
 			"  package.marmot\n";
@@ -774,7 +774,7 @@ namespace
 	{
 		if (args.size() != 2u && args.size() != 3u)
 		{
-			return std::unexpected("Usage: marmot __test-worker <test_file> <result_dir> [test_dir]");
+			return std::unexpected("Usage: marmotc __test-worker <test_file> <result_dir> [test_dir]");
 		}
 
 		Invocation invocation;
@@ -1291,7 +1291,7 @@ namespace
 		}
 		else
 		{
-			std::print("marmot {}\n", MidoriBuild::VersionString);
+			std::print("marmotc {}\n", MidoriBuild::VersionString);
 		}
 		return EXIT_SUCCESS;
 	}

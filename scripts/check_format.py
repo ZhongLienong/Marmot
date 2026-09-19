@@ -2,7 +2,7 @@
 """
 Format-idempotency check for the Marmot source tree.
 
-For every `.mmt` file under the configured roots, runs `Marmot.exe fmt <file>`
+For every `.mmt` file under the configured roots, runs `marmotc.exe fmt <file>`
 twice and verifies that:
 
 - the formatter succeeds on the original source
@@ -10,7 +10,7 @@ twice and verifies that:
   (`fmt(fmt(x)) == fmt(x)`)
 
 Exits with a non-zero status when any file fails either check. Optionally also
-runs `Marmot.exe fmt <root> --check` to enforce that the corpus is already
+runs `marmotc.exe fmt <root> --check` to enforce that the corpus is already
 formatted - controlled by `--enforce-clean`.
 
 Usage:
@@ -153,7 +153,7 @@ def main(argv: list[str]) -> int:
         "--build",
         default="Development",
         choices=["Debug", "Development", "Release"],
-        help="Build configuration used to locate Marmot.exe (default: Development).",
+        help="Build configuration used to locate marmotc.exe (default: Development).",
     )
     parser.add_argument(
         "--root",

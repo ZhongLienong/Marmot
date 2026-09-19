@@ -1,6 +1,6 @@
 //! End-to-end runs of `marmot` against a real compiler, and against the
 //! compiler's own package commands, which the tool must match. Set MARMOTC to
-//! the compiler (Marmot.exe) to run them; without it they are skipped.
+//! the compiler (marmotc) to run them; without it they are skipped.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};

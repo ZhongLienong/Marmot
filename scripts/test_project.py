@@ -131,8 +131,8 @@ def build_targets_for_mode(mode: str) -> list[str]:
     if mode == "unit":
         return ["MarmotUnitTests"]
     if mode == "regression":
-        return ["Marmot"]
-    return ["Marmot", "MarmotUnitTests"]
+        return ["marmotc"]
+    return ["marmotc", "MarmotUnitTests"]
 
 
 def unit_test_executable(binary_dir: Path) -> Path:
@@ -141,7 +141,7 @@ def unit_test_executable(binary_dir: Path) -> Path:
 
 
 def compiler_executable(binary_dir: Path) -> Path:
-    executable_name = "Marmot.exe" if is_windows() else "Marmot"
+    executable_name = "marmotc.exe" if is_windows() else "marmotc"
     return binary_dir / "out" / executable_name
 
 

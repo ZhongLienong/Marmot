@@ -388,7 +388,7 @@ def main(argv: list[str]) -> int:
         "--build",
         default="Development",
         choices=["Debug", "Development", "Release"],
-        help="Build configuration used to locate Marmot.exe (default: Development).",
+        help="Build configuration used to locate marmotc.exe (default: Development).",
     )
     parser.add_argument(
         "--sync",

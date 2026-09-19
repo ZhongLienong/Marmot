@@ -80,9 +80,9 @@ See [Versioning Policy](versioning-policy.md) for how `Stable`,
 | Dynamic package FFI (`CALL_FOREIGN`) | Experimental | `none yet` | The generic ABI exists, but package-specific automated coverage is still thin and the dynamic path does not expose the full builtin typed-FFI metadata. |
 | `package.marmot` manifest discovery and dynamic library loading | Experimental | `none yet` | Current support is an early manifest-driven loader, not a full package manager; dependency resolution and version solving are not implemented. |
 | Structured compiler warnings/errors and stable diagnostic codes | Stable | `common/tests/common/`, `compiler/tests/compiler/`, `test/static_analyzer/` | Warnings and errors are aggregated in `CompilerReport` instead of being printed ad hoc. |
-| Machine-readable warnings and compiler-report JSON | Stable | `common/tests/common/`, `test/static_analyzer/`, `scripts/check_cli_contracts.py` | `*.warnings.json` fixtures exercise the warning-stream path, and CLI contract checks cover `Marmot.exe check --format json`. |
+| Machine-readable warnings and compiler-report JSON | Stable | `common/tests/common/`, `test/static_analyzer/`, `scripts/check_cli_contracts.py` | `*.warnings.json` fixtures exercise the warning-stream path, and CLI contract checks cover `marmotc.exe check --format json`. |
 | Static-analyzer warnings: `UnusedLocal`, `ShadowingPolicy`, `CaptureEscape`, `IntegerOverflow` | Stable | `compiler/tests/static_analyzer/`, `test/static_analyzer/` | Warnings are preserved even when a later compile stage fails. |
-| Project manifests (`project.marmot` and `[project]` fallback) and `Marmot.exe init` scaffolding | Experimental | `scripts/check_cli_contracts.py` | CLI contract checks cover project-manifest lookup, `package.marmot` fallback, manifest precedence, and init scaffolding. |
+| Project manifests (`project.marmot` and `[project]` fallback) and `marmotc.exe init` scaffolding | Experimental | `scripts/check_cli_contracts.py` | CLI contract checks cover project-manifest lookup, `package.marmot` fallback, manifest precedence, and init scaffolding. |
 
 ## Standard Library
 

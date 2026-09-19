@@ -39,8 +39,8 @@
       "properties": {
         "marmot.executablePath": {
           "type": "string",
-          "default": "Marmot.exe",
-          "description": "Path to the Marmot CLI executable used for diagnostics."
+          "default": "marmot.exe",
+          "description": "Path to the marmot project tool used for diagnostics."
         }
       }
     },

@@ -34,14 +34,14 @@ RESULT_PATTERN = re.compile(r"^(.*?)(?: benchmark)? took (\d+) milliseconds", re
 
 def find_executable() -> Path:
     candidates = [
-        ROOT / "out/build/ninja/x64-release/out/Marmot.exe",
-        ROOT / "out/build/x64-release/out/Marmot.exe",
-        ROOT / "build/out/Marmot.exe",
+        ROOT / "out/build/ninja/x64-release/out/marmotc.exe",
+        ROOT / "out/build/x64-release/out/marmotc.exe",
+        ROOT / "build/out/marmotc.exe",
     ]
     for candidate in candidates:
         if candidate.exists():
             return candidate
-    sys.exit("No Release Marmot.exe found; pass --exe explicitly.")
+    sys.exit("No Release marmotc.exe found; pass --exe explicitly.")
 
 
 def run_workload(exe: Path, workload: Path) -> dict[str, int]:

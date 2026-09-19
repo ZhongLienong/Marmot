@@ -26,7 +26,7 @@ function diagnosticSeverity(value) {
 
 function midoriExecutablePath() {
     const config = vscode.workspace.getConfiguration("marmot");
-    return config.get("executablePath", process.platform === "win32" ? "Marmot.exe" : "marmot");
+    return config.get("executablePath", process.platform === "win32" ? "marmot.exe" : "marmot");
 }
 
 function refreshDiagnostics(document, collection) {

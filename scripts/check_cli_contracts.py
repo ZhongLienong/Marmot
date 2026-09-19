@@ -3,16 +3,16 @@
 Run CLI-facing contract checks that are not represented as plain .mmt fixtures.
 
 Covers:
-- `Marmot.exe check <file> --format json`
-- `Marmot.exe run <file>`
-- `Marmot.exe build <file>`
-- `Marmot.exe fmt --check`
-- `Marmot.exe test`
-- `Marmot.exe --version`
-- `Marmot.exe help <command>`
+- `marmotc.exe check <file> --format json`
+- `marmotc.exe run <file>`
+- `marmotc.exe build <file>`
+- `marmotc.exe fmt --check`
+- `marmotc.exe test`
+- `marmotc.exe --version`
+- `marmotc.exe help <command>`
 - `project.marmot` lookup and source-dir precedence
 - `[project]` fallback inside `package.marmot`
-- `Marmot.exe init` project/package scaffolding
+- `marmotc.exe init` project/package scaffolding
 """
 
 from __future__ import annotations
@@ -366,7 +366,7 @@ def scenario_version_output_format(runner: TestRunner) -> None:
     assert_condition(completed.returncode == 0, f"version_output_format: expected exit code 0, got {completed.returncode}.")
     assert_condition(completed.stderr.strip() == "", f"Expected empty stderr, got:\n{completed.stderr}")
     assert_condition(
-        re.fullmatch(r"marmot \d+\.\d+\.\d+\s*", completed.stdout) is not None,
+        re.fullmatch(r"marmotc \d+\.\d+\.\d+\s*", completed.stdout) is not None,
         f"Unexpected version output:\n{completed.stdout}",
     )
 
@@ -680,7 +680,7 @@ def main(argv: list[str]) -> int:
         "--build",
         default="Development",
         choices=["Debug", "Development", "Release"],
-        help="Build configuration used to locate Marmot.exe (default: Development).",
+        help="Build configuration used to locate marmotc.exe (default: Development).",
     )
     parser.add_argument(
         "--verbose",
