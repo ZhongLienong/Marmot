@@ -495,6 +495,55 @@ def scenario_native_library_loads_only_to_run(runner: TestRunner) -> None:
         assert_condition("FFI error" in str(errors[0]["message"]), f"Expected an FFI load error, got: {errors[0]}")
 
 
+def scenario_plan_replaces_discovery(runner: TestRunner) -> None:
+    # A build plan is the whole input: its search paths are used, MARMOT_PATH is
+    # not, and a misspelt member is an error rather than a silently lost input.
+    with tempfile.TemporaryDirectory(prefix="marmot-cli-plan-") as temp_dir_raw:
+        temp_dir = Path(temp_dir_raw)
+        write_text(
+            temp_dir / "src" / "Main.mmt",
+            "module Main\n"
+            "import { \"<Greeting>\" }\n"
+            "def main = fn() -> Int => Greeting::Answer();\n",
+        )
+        write_text(
+            temp_dir / "lib" / "Greeting.mmt",
+            "module Greeting\n"
+            "public export { Answer }\n"
+            "def Answer = fn() -> Int => 0;\n",
+        )
+        # A decoy that would satisfy the import if MARMOT_PATH were read.
+        write_text(
+            temp_dir / "decoy" / "Greeting.mmt",
+            "module Greeting\n"
+            "def broken = ;\n",
+        )
+        plan_path = temp_dir / "plan.json"
+        write_text(
+            plan_path,
+            json.dumps({"version": 1, "entry": "src/Main.mmt", "search_paths": ["lib"]}),
+        )
+        env = {"MARMOT_PATH": str(temp_dir / "decoy")}
+
+        for command in ("check", "run"):
+            completed = run_midori(runner, [command, "--plan", str(plan_path), "--format", "json"], env_overrides=env)
+            report = require_report(parse_command_json("plan_replaces_discovery", completed), "plan_replaces_discovery")
+            assert_condition(completed.returncode == 0, f"plan_replaces_discovery: {command} --plan failed with exit {completed.returncode}: {report['errors']}")
+
+        built = run_midori(runner, ["build", "--plan", str(plan_path)], env_overrides=env)
+        assert_condition(built.returncode == 0, f"plan_replaces_discovery: build --plan failed: {built.stdout}{built.stderr}")
+        assert_condition((temp_dir / "src" / "Main.mmc").exists(), "plan_replaces_discovery: build --plan should write src/Main.mmc beside the entry.")
+
+        both = run_midori(runner, ["check", str(temp_dir / "src" / "Main.mmt"), "--plan", str(plan_path)], env_overrides=env)
+        assert_condition(both.returncode != 0 and "not both" in both.stdout + both.stderr, f"plan_replaces_discovery: a file and --plan together should be refused: {both.stdout}{both.stderr}")
+
+        write_text(plan_path, json.dumps({"version": 1, "entry": "src/Main.mmt", "serach_paths": ["lib"]}))
+        misspelt = run_midori(runner, ["check", "--plan", str(plan_path)], env_overrides=env)
+        output = misspelt.stdout + misspelt.stderr
+        assert_condition(misspelt.returncode != 0, "plan_replaces_discovery: a misspelt plan member should fail.")
+        assert_condition("unknown member \"serach_paths\"" in output, f"plan_replaces_discovery: expected the misspelt member to be named, got: {output}")
+
+
 def scenario_fmt_check_and_write(runner: TestRunner) -> None:
     with tempfile.TemporaryDirectory(prefix="marmot-cli-fmt-") as temp_dir_raw:
         temp_dir = Path(temp_dir_raw)
@@ -618,6 +667,7 @@ SCENARIOS: list[tuple[str, Any]] = [
     ("run_command_executes_program", scenario_run_command_executes_program),
     ("build_command_compiles_without_running", scenario_build_command_compiles_without_running),
     ("native_library_loads_only_to_run", scenario_native_library_loads_only_to_run),
+    ("plan_replaces_discovery", scenario_plan_replaces_discovery),
     ("fmt_check_and_write", scenario_fmt_check_and_write),
     ("test_command_discovers_project_tests", scenario_test_command_discovers_project_tests),
     ("test_command_enforces_timeout", scenario_test_command_enforces_timeout),

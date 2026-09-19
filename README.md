@@ -737,6 +737,7 @@ See the [docs](docs/) folder for detailed technical documentation:
 - [Formatting](docs/formatting.md) - Canonical formatter usage and current scope
 - [Package System](docs/package-system.md) - Creating and using packages with native FFI bindings
 - [Project Standard](docs/project-standard.md) - Standard project layout and manifest
+- [Build Plans](docs/plan-file.md) - Compiling from an explicit JSON list of inputs instead of project discovery
 - [Runtime Architecture](docs/runtime-architecture.md) - VM execution, closure capture, and garbage collection
 - [Testing Guide](docs/testing.md) - Choosing between implementation tests and regression tests, with helper and command references
 

@@ -37,7 +37,10 @@ namespace MidoriDriver
 	[[nodiscard]] MidoriResult::CompilationResult CompileSourceWithReport(std::string source_code, std::string file_name);
 	[[nodiscard]] MidoriResult::CompilationResult CompileSourceWithReport(std::string source_code, std::string file_name, CompilationInputs inputs);
 	[[nodiscard]] MidoriResult::CompilerResult CompileSource(std::string source_code, std::string file_name);
+	// Finds the inputs the way the CLI always has (project manifest, MARMOT_PATH).
 	[[nodiscard]] CompileFileWithReportResult CompileFileWithReport(const std::filesystem::path& file_path);
+	// Uses exactly `inputs`; nothing is discovered (a build plan).
+	[[nodiscard]] CompileFileWithReportResult CompileFileWithReport(const std::filesystem::path& file_path, CompilationInputs inputs);
 	[[nodiscard]] CompileFileResult CompileFile(const std::filesystem::path& file_path);
 	[[nodiscard]] LoadArtifactResult LoadArtifact(const std::filesystem::path& path);
 	// Loads the native libraries a compiled program needs, before it runs. A

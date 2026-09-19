@@ -17,6 +17,7 @@
 #include "Common/BytecodeArtifact/BinaryArtifact.h"
 #include "Common/Json/Json.h"
 #include "Common/Printer/Printer.h"
+#include "Utility/BuildPlan/BuildPlan.h"
 #include "Compiler/PackageManager/Lockfile.h"
 #include "Compiler/PackageManager/PackageWorkspace.h"
 #include "Utility/Driver/MidoriDriver.h"
@@ -56,6 +57,9 @@ namespace
 		OutputFormat m_format = OutputFormat::Text;
 		bool m_show_help = false;
 		std::filesystem::path m_source_file;
+		// Set by --plan: the plan's inputs replace all discovery, and its entry
+		// becomes m_source_file.
+		std::optional<CompilationInputs> m_plan_inputs = std::nullopt;
 		std::filesystem::path m_target_path;
 		std::filesystem::path m_worker_result_directory;
 		std::optional<std::string> m_name = std::nullopt;
@@ -227,37 +231,43 @@ namespace
 		if (command_name == "run")
 		{
 			return
-				"Usage: marmot run <file> [--format json]\n"
-				"Compile and execute a .mmt source file, or load and execute a .mmc artifact.\n\n"
+				"Usage: marmot run (<file> | --plan <plan.json>) [--format json]\n"
+				"Compile and execute a .mmt source file, or load and execute a .mmc artifact.\n"
+				"With --plan, compile the plan's entry from exactly the plan's inputs.\n\n"
 				"Examples:\n"
 				"  marmot run src/Main.mmt\n"
 				"  marmot run src/Main.mmc\n"
 				"  marmot src/Main.mmt\n"
-				"  marmot run src/Main.mmt --format json\n";
+				"  marmot run src/Main.mmt --format json\n"
+				"  marmot run --plan build/plan.json\n";
 		}
 
 		if (command_name == "check")
 		{
 			return
-				"Usage: marmot check <file> [--format json]\n"
-				"Type-check a Marmot source file without executing it.\n\n"
+				"Usage: marmot check (<file> | --plan <plan.json>) [--format json]\n"
+				"Type-check a Marmot source file without executing it.\n"
+				"With --plan, check the plan's entry from exactly the plan's inputs.\n\n"
 				"Examples:\n"
 				"  marmot check src/Main.mmt\n"
-				"  marmot check src/Main.mmt --format json\n";
+				"  marmot check src/Main.mmt --format json\n"
+				"  marmot check --plan build/plan.json\n";
 		}
 
 		if (command_name == "build")
 		{
 			return
-				"Usage: marmot build <file> [--embed-sources] [--format json]\n"
+				"Usage: marmot build (<file> | --plan <plan.json>) [--embed-sources] [--format json]\n"
 				"Compile a Marmot source file and emit a .mmc binary artifact.\n"
 				"With --format json, emit a .mmc.json disassembly instead.\n"
 				"With --embed-sources, embed source file content in the artifact for\n"
-				"richer runtime error reporting without the original .mmt on disk.\n\n"
+				"richer runtime error reporting without the original .mmt on disk.\n"
+				"With --plan, build the plan's entry from exactly the plan's inputs.\n\n"
 				"Examples:\n"
 				"  marmot build src/Main.mmt\n"
 				"  marmot build src/Main.mmt --embed-sources\n"
-				"  marmot build src/Main.mmt --format json\n";
+				"  marmot build src/Main.mmt --format json\n"
+				"  marmot build --plan build/plan.json\n";
 		}
 
 		if (command_name == "fmt")
@@ -429,10 +439,59 @@ namespace
 		return true;
 	}
 
+	// Reads the value of --plan at args[index + 1].
+	[[nodiscard]] bool ParsePlanValue(const std::vector<std::string_view>& args, size_t& index, std::optional<std::filesystem::path>& plan_file, std::string& error)
+	{
+		if (index + 1u >= args.size())
+		{
+			error = "Missing value for --plan.";
+			return false;
+		}
+
+		if (plan_file.has_value())
+		{
+			error = "Only one --plan is allowed.";
+			return false;
+		}
+
+		plan_file = std::filesystem::path(args[index + 1u]);
+		index += 1u;
+		return true;
+	}
+
+	// A plan names its own entry, so it replaces the source-file argument.
+	[[nodiscard]] std::expected<void, std::string> ApplyPlan(Invocation& invocation, const std::optional<std::filesystem::path>& plan_file, std::string_view command)
+	{
+		if (!plan_file.has_value())
+		{
+			if (!invocation.m_show_help && invocation.m_source_file.empty())
+			{
+				return std::unexpected(std::format("Missing source file for {}.", command));
+			}
+			return {};
+		}
+
+		if (!invocation.m_source_file.empty())
+		{
+			return std::unexpected(std::format("Pass either a source file or --plan to {}, not both.", command));
+		}
+
+		std::expected<BuildPlan, std::string> plan = MidoriBuildPlan::ReadFile(plan_file.value());
+		if (!plan.has_value())
+		{
+			return std::unexpected(std::format("Invalid build plan: {}", plan.error()));
+		}
+
+		invocation.m_source_file = plan->m_entry;
+		invocation.m_plan_inputs = std::move(plan->m_inputs);
+		return {};
+	}
+
 	[[nodiscard]] ParseResult ParseCompileLike(CommandKind kind, const std::vector<std::string_view>& args)
 	{
 		Invocation invocation;
 		invocation.m_kind = kind;
+		std::optional<std::filesystem::path> plan_file = std::nullopt;
 
 		for (size_t index = 0u; index < args.size(); index += 1u)
 		{
@@ -440,6 +499,16 @@ namespace
 			if (arg == "-h" || arg == "--help")
 			{
 				invocation.m_show_help = true;
+				continue;
+			}
+
+			if (arg == "--plan")
+			{
+				std::string error;
+				if (!ParsePlanValue(args, index, plan_file, error))
+				{
+					return std::unexpected(error);
+				}
 				continue;
 			}
 
@@ -466,9 +535,10 @@ namespace
 			invocation.m_source_file = std::filesystem::path(arg);
 		}
 
-		if (!invocation.m_show_help && invocation.m_source_file.empty())
+		const std::expected<void, std::string> plan_result = ApplyPlan(invocation, plan_file, kind == CommandKind::Run ? "run" : kind == CommandKind::Check ? "check" : "build");
+		if (!plan_result.has_value())
 		{
-			return std::unexpected(std::format("Missing source file for {}.", kind == CommandKind::Run ? "run" : kind == CommandKind::Check ? "check" : "build"));
+			return std::unexpected(plan_result.error());
 		}
 
 		return invocation;
@@ -478,6 +548,7 @@ namespace
 	{
 		Invocation invocation;
 		invocation.m_kind = CommandKind::Build;
+		std::optional<std::filesystem::path> plan_file = std::nullopt;
 
 		for (size_t index = 0u; index < args.size(); index += 1u)
 		{
@@ -485,6 +556,16 @@ namespace
 			if (arg == "-h" || arg == "--help")
 			{
 				invocation.m_show_help = true;
+				continue;
+			}
+
+			if (arg == "--plan")
+			{
+				std::string error;
+				if (!ParsePlanValue(args, index, plan_file, error))
+				{
+					return std::unexpected(error);
+				}
 				continue;
 			}
 
@@ -517,9 +598,10 @@ namespace
 			invocation.m_source_file = std::filesystem::path(arg);
 		}
 
-		if (!invocation.m_show_help && invocation.m_source_file.empty())
+		const std::expected<void, std::string> plan_result = ApplyPlan(invocation, plan_file, "build");
+		if (!plan_result.has_value())
 		{
-			return std::unexpected("Missing source file for build.");
+			return std::unexpected(plan_result.error());
 		}
 
 		return invocation;
@@ -1507,6 +1589,18 @@ namespace
 		return EXIT_SUCCESS;
 	}
 
+	// Compiles the invocation's source file from its plan's inputs, or from the
+	// inputs the CLI discovers when there is no plan.
+	[[nodiscard]] MidoriDriver::CompileFileWithReportResult CompileInvocation(const Invocation& invocation)
+	{
+		if (invocation.m_plan_inputs.has_value())
+		{
+			return MidoriDriver::CompileFileWithReport(invocation.m_source_file, invocation.m_plan_inputs.value());
+		}
+
+		return MidoriDriver::CompileFileWithReport(invocation.m_source_file);
+	}
+
 	int HandleCheck(const Invocation& invocation)
 	{
 		if (invocation.m_show_help)
@@ -1516,7 +1610,7 @@ namespace
 		}
 
 		const MidoriBuild::ScopedTestModeOverride suppress_internal_diagnostics(true);
-		const MidoriDriver::CompileFileWithReportResult compile_result = MidoriDriver::CompileFileWithReport(invocation.m_source_file);
+		const MidoriDriver::CompileFileWithReportResult compile_result = CompileInvocation(invocation);
 		if (!compile_result.has_value())
 		{
 			const MidoriResult::CompilerReport report = WrapDriverErrorAsReport(compile_result.error());
@@ -1553,7 +1647,7 @@ namespace
 		}
 
 		const MidoriBuild::ScopedTestModeOverride suppress_internal_diagnostics(true);
-		const MidoriDriver::CompileFileWithReportResult compile_result = MidoriDriver::CompileFileWithReport(invocation.m_source_file);
+		const MidoriDriver::CompileFileWithReportResult compile_result = CompileInvocation(invocation);
 		if (!compile_result.has_value())
 		{
 			const MidoriResult::CompilerReport report = WrapDriverErrorAsReport(compile_result.error());
@@ -1625,7 +1719,7 @@ namespace
 
 		const MidoriBuild::ScopedTestModeOverride suppress_internal_diagnostics(true);
 
-		if (invocation.m_source_file.extension() == ".mmc")
+		if (!invocation.m_plan_inputs.has_value() && invocation.m_source_file.extension() == ".mmc")
 		{
 			// Load-and-run path for pre-built binary artifacts
 			MidoriDriver::LoadArtifactResult load_result = MidoriDriver::LoadArtifact(invocation.m_source_file);
@@ -1673,7 +1767,7 @@ namespace
 
 		// Compile-and-run path for .mmt source files. A native library that fails
 		// to load is reported like a compile error: the program never starts.
-		MidoriDriver::CompileFileWithReportResult compile_result = MidoriDriver::CompileFileWithReport(invocation.m_source_file);
+		MidoriDriver::CompileFileWithReportResult compile_result = CompileInvocation(invocation);
 		if (compile_result.has_value())
 		{
 			std::expected<void, MidoriDriver::DriverError> load_result = MidoriDriver::LoadNativePackages(compile_result.value());

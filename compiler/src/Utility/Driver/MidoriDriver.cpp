@@ -164,8 +164,11 @@ namespace MidoriDriver
 	CompileFileWithReportResult CompileFileWithReport(const std::filesystem::path& file_path)
 	{
 		const std::filesystem::path manifest_input_path = ResolveManifestInputPath(file_path);
-		CompilationInputs inputs = MidoriProject::DiscoverCompilationInputs(manifest_input_path);
+		return CompileFileWithReport(file_path, MidoriProject::DiscoverCompilationInputs(manifest_input_path));
+	}
 
+	CompileFileWithReportResult CompileFileWithReport(const std::filesystem::path& file_path, CompilationInputs inputs)
+	{
 		SourceReadResult source_result = ReadSourceFile(file_path);
 		if (!source_result.has_value())
 		{
