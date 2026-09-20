@@ -24,7 +24,8 @@
         ],
         "extensions": [
           ".mmt"
-        ]
+        ],
+        "configuration": "./language-configuration.json"
       }
     ],
     "grammars": [

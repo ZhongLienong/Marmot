@@ -84,7 +84,7 @@
       "patterns": [
         {
           "name": "storage.type.marmot",
-          "match": "\\b(?:Float|Int|Byte|Word|Text|Bool|Unit|Array|Never)\\b"
+          "match": "\\b(?:Float|Int|Byte|Word|Text|Bool|Unit|Array|Never|Range|Channel|Worker)\\b"
         }
       ]
     },
@@ -120,7 +120,7 @@
       "patterns": [
         {
           "name": "keyword.operator.marmot",
-          "match": "(?:\\|>|::|\\.\\.|=>|->|==|!=|<=|>=|<<=|>>=|<<|>>|\\+=|-=|\\*=|/=|%=|&=|\\|=|\\^=|\\+\\+|=\\+\\+|[+\\-*/%&|^=<>!#.,;{}()\\[\\]])"
+          "match": "(?:\\|>|::|\\.\\.|=>|->|<-|==|!=|<=|>=|<<|>>|\\+\\+|&&|\\|\\||[+\\-*/%&|^~=<>!#.,;:{}()\\[\\]])"
         }
       ]
     }

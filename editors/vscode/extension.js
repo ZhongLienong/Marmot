@@ -39,12 +39,9 @@ function refreshDiagnostics(document, collection) {
         executable,
         ["check", document.fileName, "--format", "json"],
         { cwd: path.dirname(document.fileName) },
-        (error, stdout, stderr) => {
-            if (stderr && stderr.trim() !== "") {
-                collection.set(document.uri, []);
-                return;
-            }
-
+        (error, stdout) => {
+            // Whatever the tool says on stderr - a package warning, say - the
+            // report is on stdout.
             let payload;
             try {
                 payload = JSON.parse(stdout);
