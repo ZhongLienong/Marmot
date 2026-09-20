@@ -3186,6 +3186,11 @@ TypeChecker::TypeChecker(
 	}
 }
 
+const TypeChecker::TypeEnvironment& TypeChecker::ModuleTypes() const noexcept
+{
+	return m_module_types;
+}
+
 MidoriResult::TypeCheckerResult TypeChecker::TypeCheck()
 {
 	return ScopeSession(*this).Then([&]() -> MidoriResult::TypeCheckerResult
@@ -3207,6 +3212,7 @@ MidoriResult::TypeCheckerResult TypeChecker::TypeCheck()
 
 		if (errors.empty())
 		{
+			m_module_types = m_name_type_table.back();
 			return std::move(m_program_tree);
 		}
 		return std::unexpected(MidoriResult::CompilerDiagnostics(std::move(errors)));

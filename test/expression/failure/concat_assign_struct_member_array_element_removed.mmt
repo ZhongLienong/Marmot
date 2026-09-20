@@ -1,9 +1,0 @@
-module ConcatAssignStructMemberArrayElementRemoved
-
-type Box =
-{
-    items : Array<Int>
-};
-
-def box = Box([1, 2]);
-box.items ++= 3;

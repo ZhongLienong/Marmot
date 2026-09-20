@@ -80,6 +80,13 @@ namespace
 	struct CompileState;
 	using CompileStateResult = MidoriResult::ReportResult<CompileState>;
 
+	struct TypeCheckedModule
+	{
+		MidoriProgramTree m_ast;
+		// What checking inferred for the module's own names.
+		TypeChecker::TypeEnvironment m_module_types;
+	};
+
 	struct CompileState
 	{
 		CompileEnv* m_env = nullptr;
@@ -183,6 +190,32 @@ namespace
 	static CompileState ApplyAst(CompileState state, MidoriProgramTree&& ast)
 	{
 		state.m_ast = std::move(ast);
+		return std::move(state);
+	}
+
+	// An exported name whose type only inference knows - an un-annotated `def`
+	// - has no signature before the module is checked. Now that it is checked,
+	// record it, so a module that imports the name can see its type.
+	static CompileState ApplyTypeCheckedModule(CompileState state, TypeCheckedModule&& checked)
+	{
+		if (state.m_module_decl != nullptr)
+		{
+			for (const ModuleExport& exported : state.m_module_decl->Exports())
+			{
+				if (state.m_parsed_module.m_type_signatures.contains(exported.m_symbol_name))
+				{
+					continue;
+				}
+
+				const TypeChecker::TypeEnvironment::const_iterator inferred = checked.m_module_types.find(exported.m_symbol_name);
+				if (inferred != checked.m_module_types.end())
+				{
+					state.m_parsed_module.m_type_signatures[exported.m_symbol_name] = inferred->second;
+				}
+			}
+		}
+
+		state.m_ast = std::move(checked.m_ast);
 		return std::move(state);
 	}
 
@@ -529,15 +562,16 @@ namespace
 		};
 	}
 
-	static MidoriResult::DiagnosticsResult<MidoriProgramTree> TypeCheckModule(MidoriProgramTree&& ast, const std::string& file_path, const std::vector<std::string>& module_source_lines, const ImportContext& import_context)
+	static MidoriResult::DiagnosticsResult<TypeCheckedModule> TypeCheckModule(MidoriProgramTree&& ast, const std::string& file_path, const std::vector<std::string>& module_source_lines, const ImportContext& import_context)
 	{
-		MidoriResult::TypeCheckerResult typecheck_result = TypeChecker(std::move(ast), file_path, module_source_lines, import_context.m_imported_types, import_context.m_imported_typeclass_infos, import_context.m_imported_typeclass_instance_types, import_context.m_imported_typeclass_instance_associated_type_bindings).TypeCheck();
+		TypeChecker type_checker(std::move(ast), file_path, module_source_lines, import_context.m_imported_types, import_context.m_imported_typeclass_infos, import_context.m_imported_typeclass_instance_types, import_context.m_imported_typeclass_instance_associated_type_bindings);
+		MidoriResult::TypeCheckerResult typecheck_result = type_checker.TypeCheck();
 		if (!typecheck_result.has_value())
 		{
 			return std::unexpected(std::move(typecheck_result.error()));
 		}
 
-		return std::move(typecheck_result.value());
+		return TypeCheckedModule{ std::move(typecheck_result.value()), type_checker.ModuleTypes() };
 	}
 
 	static StaticAnalysisResult StaticAnalyzeModule(MidoriProgramTree& ast, const std::string& file_path, const std::vector<std::string>& module_source_lines)
@@ -628,7 +662,7 @@ namespace
 	CompileStateResult CompileState::WithTypeCheckedAst() &&
 	{
 		CompileState state = std::move(*this);
-		return ApplyToState<MidoriProgramTree, ApplyAst>
+		return ApplyToState<TypeCheckedModule, ApplyTypeCheckedModule>
 		(
 			TypeCheckModule(std::move(state.m_ast), state.m_file_path, state.m_source_lines, state.m_import_context),
 			std::move(state)

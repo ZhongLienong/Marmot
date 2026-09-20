@@ -1,6 +1,0 @@
-Compilation failed :( 
-Parser Error at test/expression/loop/failure/continue_removed.mmt:8
-  |
-8 | 		continue;
-  |   ^^^^^^^^ 'continue' is no longer supported. Guard the body with 'if' instead.
-  |

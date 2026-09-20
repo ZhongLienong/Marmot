@@ -1,6 +1,0 @@
-Compilation failed :( 
-Parser Error at test/expression/failure/return_removed.mmt:10
-   |
-10 | 	return n * n;
-   |  ^^^^^^ 'return' is no longer supported. A function's value is its body's value, and a block's value is its last expression, so drop 'return'. To leave early, make the rest of the body an 'if'/'else' or a 'match' branch.
-   |

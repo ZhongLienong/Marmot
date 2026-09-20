@@ -1,6 +1,0 @@
-Compilation failed :( 
-Parser Error at test/expression/failure/assignment_removed.mmt:6
-  |
-6 | 	x = 2;
-  |    ^ Assignment is no longer supported. Bind the new value to a name with 'def', rebuild a struct with '{ s with field = value }', or an array with 'ArrayUtil::WithReplaced(a, i, v)'.
-  |

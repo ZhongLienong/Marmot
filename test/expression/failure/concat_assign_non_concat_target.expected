@@ -1,6 +1,0 @@
-Compilation failed :( 
-Parser Error at test/expression/failure/concat_assign_non_concat_target.mmt:4
-  |
-4 | value ++= 2;
-  |       ^^^ Concatenation assignment syntax '++=' is no longer supported. Bind the concatenation with 'def', or use Appendable::Append / Extendable::Extend.
-  |

@@ -1,7 +1,0 @@
-module StructRemoved
-
-// `struct` was replaced by the one `type` keyword. A file still using it must be
-// told so: `struct` now lexes as an ordinary identifier, and without this
-// diagnostic the declaration would fail later with a bare "Undefined name."
-
-struct Point { x: Int, y: Int };

@@ -1,6 +1,0 @@
-Compilation failed :( 
-Parser Error at test/expression/loop/failure/loop_removed.mmt:5
-  |
-5 | 	loop
-  |  ^^^^ 'loop' is no longer supported. Write a recursive function, or 'for x in iterable { ... }' to consume an iterable for its effects.
-  |

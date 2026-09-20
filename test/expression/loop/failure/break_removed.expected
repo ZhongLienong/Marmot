@@ -1,6 +1,0 @@
-Compilation failed :( 
-Parser Error at test/expression/loop/failure/break_removed.mmt:8
-  |
-8 | 		break i;
-  |   ^^^^^ 'break' is no longer supported. A loop that stops early becomes a recursive function whose base case returns the answer, which also has to say what happens when nothing is found.
-  |

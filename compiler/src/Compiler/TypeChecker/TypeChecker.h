@@ -95,6 +95,7 @@ private:
 
 	MidoriProgramTree m_program_tree;
 	TypeEnvironmentStack m_name_type_table;
+	TypeEnvironment m_module_types;
 	TypeSubstitution m_type_substitution;
 	std::unordered_map<std::string, ClassInfo> m_classes;
 	std::unordered_map<InstanceKey, InstanceInfo, InstanceKeyHash> m_instances;
@@ -132,6 +133,11 @@ public:
 	TypeChecker(MidoriProgramTree&& parser_result, std::string_view file_name, const std::vector<std::string>& source_lines, TypeEnvironment imported_types = {}, const std::unordered_map<std::string, ClassInfo>& imported_typeclasses = {}, TypeclassInstanceTypeMap imported_instance_types = {}, TypeclassInstanceAssociatedTypeBindingMap imported_instance_associated_type_bindings = {});
 
 	MidoriResult::TypeCheckerResult TypeCheck();
+
+	// The module's own names with the types checking gave them, kept after a
+	// successful TypeCheck(). A name whose type only inference knows - an
+	// un-annotated `def` - has one here and nowhere else.
+	[[nodiscard]] const TypeEnvironment& ModuleTypes() const noexcept;
 
 	// Extract type signatures from parsed AST (for parallel type checking)
 	static TypeEnvironment ExtractTypeSignatures(const MidoriProgramTree& ast, const std::unordered_set<std::string>* exported_symbols = nullptr);

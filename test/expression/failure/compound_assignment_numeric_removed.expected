@@ -1,6 +1,0 @@
-Compilation failed :( 
-Parser Error at test/expression/failure/compound_assignment_numeric_removed.mmt:6
-  |
-6 | 	total += 2;
-  |        ^^ Compound assignment '+=' is no longer supported. Compute the value and bind it with 'def'; a loop that accumulates becomes a comprehension or a recursive helper.
-  |

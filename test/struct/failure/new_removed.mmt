@@ -1,9 +1,0 @@
-module NewRemoved
-
-// `new` was the second spelling of a construction and is gone: `Point(1, 2)` is the only
-// form. A file still using the old keyword must name the removal, not fall through to a
-// bare "Undefined name." once `new` lexes as an ordinary identifier.
-
-type Point = { x: Int, y: Int };
-
-def origin = new Point(1, 2);

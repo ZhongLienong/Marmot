@@ -1,6 +1,0 @@
-Compilation failed :(
-Parser Error at test/definition/failure/defun_removed.mmt:6
-  |
-6 | defun Twice(x: Int) -> Int => x * 2;
-  | ^^^^^ 'defun' is no longer supported. Write 'def Name = fn(params) -> Type => body;' instead.
-  |

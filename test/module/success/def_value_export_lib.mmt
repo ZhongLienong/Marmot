@@ -1,0 +1,12 @@
+module DefValueExportLib
+
+// A `def` that is not a function and carries no type annotation: only checking
+// the module knows what type it has.
+
+public export { Answer, Computed, Greeting }
+
+def Double = fn(n : Int) -> Int => n * 2;
+
+def Answer = 42;
+def Computed = Double(21);
+def Greeting = "hello";

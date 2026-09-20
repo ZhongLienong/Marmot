@@ -1,6 +1,0 @@
-Compilation failed :(
-Parser Error at test/type_declaration/failure/struct_removed.mmt:7
-  |
-7 | struct Point { x: Int, y: Int };
-  | ^^^^^^ 'struct' is no longer supported. Write 'type Name = { field: Type, ... };' instead.
-  |

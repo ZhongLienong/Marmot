@@ -1,0 +1,9 @@
+module DefValueExport
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"./def_value_export_lib.mmt"
+}
+
+IO::PrintLine(DefValueExportLib::Greeting ++ " " ++ ((DefValueExportLib::Answer + DefValueExportLib::Computed) as Text));

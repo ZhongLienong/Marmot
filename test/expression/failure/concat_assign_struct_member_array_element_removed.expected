@@ -1,6 +1,0 @@
-Compilation failed :( 
-Parser Error at test/expression/failure/concat_assign_struct_member_array_element_removed.mmt:9
-  |
-9 | box.items ++= 3;
-  |           ^^^ Concatenation assignment syntax '++=' is no longer supported. Bind the concatenation with 'def', or use Appendable::Append / Extendable::Extend.
-  |

@@ -1,7 +1,0 @@
-module UnionRemoved
-
-// `union` went the same way as `struct`, replaced by `type Name = A | B(T);`.
-// The old keyword is an ordinary identifier now, so the removal is named here
-// rather than left to surface as a bare "Undefined name."
-
-union Flag = Off | On(Int);

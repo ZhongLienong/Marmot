@@ -1,6 +1,0 @@
-Compilation failed :( 
-Parser Error at test/concurrency/failure/spawn_keyword_removed.mmt:11
-   |
-11 | def worker = spawn Add(1, 2);
-   |              ^^^^^ 'spawn' is no longer supported. Write 'Concurrency::Spawn(argument, F)', passing several arguments as one tuple: 'spawn F(a, b)' becomes 'Concurrency::Spawn((a, b), F)'.
-   |

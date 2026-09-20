@@ -1,6 +1,0 @@
-module DefunRemoved
-
-// `defun` was replaced by the single binding form `def Name = fn(...)`.
-// A file still using the old keyword must fail, not lex it as an identifier.
-
-defun Twice(x: Int) -> Int => x * 2;

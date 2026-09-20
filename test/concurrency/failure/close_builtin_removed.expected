@@ -1,6 +1,0 @@
-Compilation failed :( 
-Parser Error at test/concurrency/failure/close_builtin_removed.mmt:11
-   |
-11 | def closed = close(channel);
-   |              ^^^^^ 'close' is no longer supported. Write 'Concurrency::Close', which needs "MarmotPrelude/Concurrency.mmt" imported like the rest of the concurrency surface.
-   |

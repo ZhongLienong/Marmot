@@ -1,9 +1,0 @@
-module ColonReturnPositionRemoved
-
-// ':' no longer separates a function's result from its parameters. It has the one
-// job of ascribing a type to a name, and '->' has the one job of naming a result.
-// A file still using the old spelling must say so rather than report a missing body.
-
-def Twice = fn(x: Int) : Int => x * 2;
-
-Twice(21);

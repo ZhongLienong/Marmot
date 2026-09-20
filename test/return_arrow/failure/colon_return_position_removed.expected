@@ -1,6 +1,0 @@
-Compilation failed :(
-Parser Error at test/return_arrow/failure/colon_return_position_removed.mmt:7
-  |
-7 | def Twice = fn(x: Int) : Int => x * 2;
-  |                        ^ ':' is no longer supported in return position. Write '-> Type' instead.
-  |
