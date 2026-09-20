@@ -1198,61 +1198,6 @@ def inferred = fn(x) => x;
 	REQUIRE(inferred.m_return_type->ToString() != "Int");
 }
 
-TEST_CASE("Parser names the removal for ':' in return position", "[parser][diagnostic]")
-{
-	SECTION("function expression")
-	{
-		const std::string source_code =
-			R"(module ColonReturnRemoved
-def Twice = fn(x: Int) : Int => x * 2;
-)";
-
-		std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ColonReturnRemoved.mmt");
-		REQUIRE_FALSE(parse_result.has_value());
-
-		const CompilerError& error = parse_result.error();
-		RequireErrorMatches(
-			error,
-			MidoriTest::ErrorExpectation
-			{
-				.m_stage = CompilerStage::Parser,
-				.m_line = 2,
-				.m_message_substrings = { "':' is no longer supported in return position. Write '-> Type' instead." },
-				.m_rendered_substrings = { "ColonReturnRemoved.mmt:2" }
-			});
-
-		// The old spelling must not degrade into a report about the missing body.
-		CHECK(error.m_message.find("Expected '=>'") == std::string::npos);
-	}
-
-	SECTION("instance method definition")
-	{
-		const std::string source_code =
-			R"(module ColonReturnRemovedInstance
-class Show<T> {
-	show: fn(value: T) -> Text;
-};
-instance Show<Int> {
-	def show = fn(value: Int) : Text => value as Text;
-};
-)";
-
-		std::expected<MidoriTest::ParsedSnippet, CompilerError> parse_result = MidoriTest::ParseSnippet(source_code, "ColonReturnRemovedInstance.mmt");
-		REQUIRE_FALSE(parse_result.has_value());
-
-		const CompilerError& error = parse_result.error();
-		RequireErrorMatches(
-			error,
-			MidoriTest::ErrorExpectation
-			{
-				.m_stage = CompilerStage::Parser,
-				.m_line = 6,
-				.m_message_substrings = { "':' is no longer supported in return position. Write '-> Type' instead." },
-				.m_rendered_substrings = { "ColonReturnRemovedInstance.mmt:6" }
-			});
-	}
-}
-
 TEST_CASE("Parser leaves ':' alone wherever it ascribes a type to a name", "[parser]")
 {
 	// The removal diagnostic fires on a ':' that follows a parameter list. Every other

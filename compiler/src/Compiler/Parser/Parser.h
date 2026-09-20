@@ -552,7 +552,6 @@ private:
 
 	MidoriResult::TokenResult ConsumeTypeRightAngle(std::string_view message);
 
-	CompilerError GenerateRemovedReturnTypeColonError();
 
 	MidoriResult::TokenResult ConsumeReturnTypeSeparator(std::string_view message);
 
@@ -600,7 +599,6 @@ private:
 
 	MidoriResult::ExpressionResult ParseBitwiseOr();
 
-	MidoriResult::ExpressionResult ParseBind();
 
 	MidoriResult::ExpressionResult ParseUnaryLogicalBitwise();
 
@@ -614,7 +612,6 @@ private:
 
 	MidoriResult::ExpressionResult ParseAs();
 
-	MidoriResult::ExpressionResult ParseConstruct();
 
 	MidoriResult::ExpressionResult FinishCall(std::unique_ptr<MidoriExpression>&& callee);
 

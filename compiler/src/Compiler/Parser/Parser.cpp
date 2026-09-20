@@ -155,11 +155,6 @@ namespace
 		return constructor.m_name + "(" + join(constructor.m_args) + ")";
 	}
 
-	bool IsRemovedConcurrencyBuiltin(std::string_view name)
-	{
-		return name == "close" || name == "is_done" || name == "cancel";
-	}
-
 	// Concurrency::Spawn, Join and MakeChannel are written as calls but have no
 	// declaration in Concurrency.mmt: the parser turns each call into the node the
 	// compiler already checks and lowers, as it resolves Result for Join by name.
@@ -682,50 +677,6 @@ MidoriResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 		);
 	}
 
-	if (IsRemovedConcurrencyBuiltin(lookup_name))
-	{
-		static const std::unordered_map<std::string_view, std::string_view> replacements
-		{
-			{ "close", "Concurrency::Close" },
-			{ "is_done", "Concurrency::IsDone" },
-			{ "cancel", "Concurrency::Cancel" }
-		};
-		return std::unexpected(GenerateParserError(std::format("'{}' is no longer supported. Write '{}', which needs \"MarmotPrelude/Concurrency.mmt\" imported like the rest of the concurrency surface.", lookup_name, replacements.at(lookup_name)), name_token));
-	}
-
-	// `loop`, `break`, `continue` and `return` are no longer keywords, so a file
-	// still using them lexes them as ordinary identifiers and would fail with a bare
-	// "Undefined name." Name the removal instead. Reached only when the name does not
-	// resolve, so a binding actually called `loop` is untouched.
-	if (lookup_name == "return")
-	{
-		return std::unexpected(GenerateParserError("'return' is no longer supported. A function's value is its body's value, and a block's value is its last expression, so drop 'return'. To leave early, make the rest of the body an 'if'/'else' or a 'match' branch.", name_token));
-	}
-	if (lookup_name == "loop")
-	{
-		return std::unexpected(GenerateParserError("'loop' is no longer supported. Write a recursive function, or 'for x in iterable { ... }' to consume an iterable for its effects.", name_token));
-	}
-	if (lookup_name == "break")
-	{
-		return std::unexpected(GenerateParserError("'break' is no longer supported. A loop that stops early becomes a recursive function whose base case returns the answer, which also has to say what happens when nothing is found.", name_token));
-	}
-	if (lookup_name == "continue")
-	{
-		return std::unexpected(GenerateParserError("'continue' is no longer supported. Guard the body with 'if' instead.", name_token));
-	}
-	if (lookup_name == "spawn")
-	{
-		return std::unexpected(GenerateParserError("'spawn' is no longer supported. Write 'Concurrency::Spawn(argument, F)', passing several arguments as one tuple: 'spawn F(a, b)' becomes 'Concurrency::Spawn((a, b), F)'.", name_token));
-	}
-	if (lookup_name == "join")
-	{
-		return std::unexpected(GenerateParserError("'join' is no longer supported. Write 'Concurrency::Join(w)' or 'w |> Concurrency::Join'.", name_token));
-	}
-	if (lookup_name == "channel")
-	{
-		return std::unexpected(GenerateParserError("'channel' is no longer supported. Write 'Concurrency::MakeChannel(capacity)' where the element type is known, as in 'def ch : Channel<Int> = Concurrency::MakeChannel(4);'.", name_token));
-	}
-
 	return std::unexpected(GenerateParserError(CompilerErrorCode::TypeUndefinedName, "Undefined name.", name_token));
 }
 
@@ -1240,27 +1191,11 @@ MidoriResult::TokenResult Parser::ConsumeTypeRightAngle(std::string_view message
 	return std::unexpected(GenerateParserError(std::string(message), Peek(0)));
 }
 
-CompilerError Parser::GenerateRemovedReturnTypeColonError()
-{
-	return GenerateParserError("':' is no longer supported in return position. Write '-> Type' instead.", Peek(0));
-}
-
 MidoriResult::TokenResult Parser::ConsumeReturnTypeSeparator(std::string_view message)
 {
 	if (Check(Token::Name::THIN_ARROW, 0))
 	{
 		return Advance();
-	}
-
-	// ':' used to be accepted here as well. It now has the one job of ascribing a type
-	// to a name, so name the removal rather than report a missing '->'. Every caller
-	// reaches this immediately after a parameter list, where only '->', 'where' or '=>'
-	// is legal, so a ':' at this point can only ever be the old return spelling - it can
-	// never be the ascription in `def x : Int`, a record field, or a parameter, each of
-	// which is consumed by a different site well before this one.
-	if (Check(Token::Name::SINGLE_COLON, 0))
-	{
-		return std::unexpected(GenerateRemovedReturnTypeColonError());
 	}
 
 	return std::unexpected(GenerateParserError(std::string(message), Peek(0)));
@@ -1511,38 +1446,6 @@ MidoriResult::ExpressionResult Parser::ParseBitwiseOr()
 	return ParseBinary(&Parser::ParseBitwiseXor, Token::Name::SINGLE_BAR);
 }
 
-// Assignment is not grammar. ParseBind survives only to reject the forms that
-// used to parse here, each naming what replaces it.
-MidoriResult::ExpressionResult Parser::ParseBind()
-{
-	return ParseLogicalOr()
-		.and_then
-		(
-			[this](std::unique_ptr<MidoriExpression>&& left_expr) -> MidoriResult::ExpressionResult
-			{
-				if (Match(Token::Name::SINGLE_EQUAL))
-				{
-					return std::unexpected(GenerateParserError("Assignment is no longer supported. Bind the new value to a name with 'def', rebuild a struct with '{ s with field = value }', or an array with 'ArrayUtil::WithReplaced(a, i, v)'.", Previous()));
-				}
-				else if (Match(Token::Name::PLUS_EQUAL, Token::Name::MINUS_EQUAL, Token::Name::STAR_EQUAL, Token::Name::SLASH_EQUAL, Token::Name::PERCENT_EQUAL, Token::Name::AMPERSAND_EQUAL, Token::Name::BAR_EQUAL, Token::Name::CARET_EQUAL, Token::Name::LEFT_SHIFT_EQUAL, Token::Name::RIGHT_SHIFT_EQUAL))
-				{
-					const Token& op = Previous();
-					return std::unexpected(GenerateParserError(std::format("Compound assignment '{}' is no longer supported. Compute the value and bind it with 'def'; a loop that accumulates becomes a comprehension or a recursive helper.", op.m_lexeme), op));
-				}
-				else if (Match(Token::Name::PLUS_PLUS_EQUAL))
-				{
-					return std::unexpected(GenerateParserError("Concatenation assignment syntax '++=' is no longer supported. Bind the concatenation with 'def', or use Appendable::Append / Extendable::Extend.", Previous()));
-				}
-				else if (Match(Token::Name::EQUAL_PLUS_PLUS))
-				{
-					return std::unexpected(GenerateParserError("Prepend assignment syntax '=++' is no longer supported. Bind the concatenation with 'def', or use Prependable::Prepend.", Previous()));
-				}
-
-				return left_expr;
-			}
-		);
-}
-
 MidoriResult::ExpressionResult Parser::ParseUnaryLogicalBitwise()
 {
 	if (Match(Token::Name::BANG, Token::Name::TILDE, Token::Name::HASH))
@@ -1582,7 +1485,7 @@ MidoriResult::ExpressionResult Parser::ParseUnaryArithmetic()
 	}
 	else
 	{
-		return ParseConstruct();
+		return ParseCall();
 	}
 }
 
@@ -1593,7 +1496,7 @@ MidoriResult::ExpressionResult Parser::ParseExpression()
 
 MidoriResult::ExpressionResult Parser::ParseAs()
 {
-	return ParseBind()
+	return ParseLogicalOr()
 		.and_then
 		(
 			[this](std::unique_ptr<MidoriExpression>&& expr) ->MidoriResult::ExpressionResult
@@ -1624,7 +1527,7 @@ MidoriResult::ExpressionResult Parser::ParseArrayAccessHelper(std::unique_ptr<Mi
 		(
 			[&op, &arr_var, this](Token&&) ->MidoriResult::ExpressionResult
 			{
-				return ParseBind()
+				return ParseLogicalOr()
 					.and_then
 					(
 						[&op, &arr_var, this](std::unique_ptr<MidoriExpression>&& index) ->MidoriResult::ExpressionResult
@@ -1711,21 +1614,6 @@ MidoriResult::ExpressionResult Parser::ParseCall()
 				return ParsePostfixChain(std::move(expr));
 			}
 		);
-}
-
-MidoriResult::ExpressionResult Parser::ParseConstruct()
-{
-	// `new` was the second spelling of a construction and is gone: `Point(1, 2)` is the only
-	// form, and it is told from an ordinary call by the constructor lookup in ParseCall. The
-	// word lexes as an ordinary identifier now, so name the removal here rather than let it
-	// fall through to a bare "Undefined name.". Guarded on a following identifier, so a value
-	// named `new` is left alone.
-	if (Check(Token::Name::IDENTIFIER_LITERAL, 0) && Peek(0).m_lexeme == "new" && Check(Token::Name::IDENTIFIER_LITERAL, 1))
-	{
-		return std::unexpected(GenerateParserError("'new' is no longer supported. Write 'Name(args)' instead.", Peek(0)));
-	}
-
-	return ParseCall();
 }
 
 MidoriResult::ExpressionResult Parser::FinishCall(std::unique_ptr<MidoriExpression>&& callee)
@@ -4226,11 +4114,6 @@ MidoriResult::ExpressionResult Parser::ParseMatchExpressionWithScrutinee(Token& 
 					cases.emplace_back(std::move(case_result.value()));
 				}
 
-				if (Check(Token::Name::IDENTIFIER_LITERAL, 0) && Peek(0).m_lexeme == "default")
-				{
-					return std::unexpected(GenerateParserError("'default' is no longer supported. Write 'case _ =>' instead; '_' is a wildcard pattern, so it also works nested inside other patterns.", Peek(0)));
-				}
-
 				if (cases.empty())
 				{
 					return std::unexpected(GenerateParserError("Expected at least one case.", match_keyword));
@@ -4370,16 +4253,7 @@ MidoriResult::ExpressionResult Parser::ParseFunctionExpression()
 	std::vector<Token> params = std::move(split.m_params);
 	std::vector<std::shared_ptr<MidoriType>> param_types = std::move(split.m_types);
 
-	// The return type stays optional - `fn(x) => e` is still a whole function. Only the
-	// ':' spelling of the separator goes. It is checked before the '->' match rather than
-	// left to fall through to the '=>' consume below, which would report a missing body.
 	std::shared_ptr<MidoriType> return_type = MidoriType::MakeUndecidedType();
-	if (Check(Token::Name::SINGLE_COLON, 0))
-	{
-		unwind_function_state();
-		return std::unexpected(GenerateRemovedReturnTypeColonError());
-	}
-
 	if (Match(Token::Name::THIN_ARROW))
 	{
 		MidoriResult::TypeResult return_type_result = ParseType();
@@ -5462,28 +5336,6 @@ MidoriResult::StatementResult Parser::ParseDeclaration()
 	if (Check(Token::Name::RIGHT_BRACE, 0))
 	{
 		return NoMatch<std::unique_ptr<MidoriStatement>>();
-	}
-
-	// `defun` is no longer a keyword, so it now lexes as an ordinary identifier and a
-	// file still using it would fail with a bare "Undefined name." Name the removal
-	// instead, but only for `defun Name`, so an identifier spelled `defun` is untouched.
-	if (Check(Token::Name::IDENTIFIER_LITERAL, 0) && Peek(0).m_lexeme == "defun" && Check(Token::Name::IDENTIFIER_LITERAL, 1))
-	{
-		return std::unexpected(GenerateParserError("'defun' is no longer supported. Write 'def Name = fn(params) -> Type => body;' instead.", Peek(0)));
-	}
-
-	// `struct` and `union` went the same way, replaced by the one `type` keyword. Both
-	// now lex as ordinary identifiers, so name the removal here rather than let the
-	// declaration fall through to a bare "Undefined name." Guarded on a following
-	// identifier, so a value named `struct` or `union` is left alone.
-	if (Check(Token::Name::IDENTIFIER_LITERAL, 0) && Peek(0).m_lexeme == "struct" && Check(Token::Name::IDENTIFIER_LITERAL, 1))
-	{
-		return std::unexpected(GenerateParserError("'struct' is no longer supported. Write 'type Name = { field: Type, ... };' instead.", Peek(0)));
-	}
-
-	if (Check(Token::Name::IDENTIFIER_LITERAL, 0) && Peek(0).m_lexeme == "union" && Check(Token::Name::IDENTIFIER_LITERAL, 1))
-	{
-		return std::unexpected(GenerateParserError("'union' is no longer supported. Write 'type Name = A | B(Type);' instead.", Peek(0)));
 	}
 
 	return ParseChoice<std::unique_ptr<MidoriStatement>>(m_state,

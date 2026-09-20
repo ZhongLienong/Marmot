@@ -493,15 +493,8 @@ MidoriResult::TokenResult Lexer::MatchDot()
 
 MidoriResult::TokenResult Lexer::MatchPlus()
 {
-	if (MatchNext('+'))
-	{
-		return MatchNext('=')
-			? MakeTokenResult(Token::Name::PLUS_PLUS_EQUAL)
-			: MakeTokenResult(Token::Name::DOUBLE_PLUS);
-	}
-
-	return MatchNext('=')
-		? MakeTokenResult(Token::Name::PLUS_EQUAL)
+	return MatchNext('+')
+		? MakeTokenResult(Token::Name::DOUBLE_PLUS)
 		: MakeTokenResult(Token::Name::SINGLE_PLUS);
 }
 
@@ -512,14 +505,7 @@ MidoriResult::TokenResult Lexer::MatchMinus()
 		return MakeTokenResult(Token::Name::THIN_ARROW);
 	}
 
-	if (MatchNext('-'))
-	{
-		return MakeTokenResult(Token::Name::DOUBLE_MINUS);
-	}
-
-	return MatchNext('=')
-		? MakeTokenResult(Token::Name::MINUS_EQUAL)
-		: MakeTokenResult(Token::Name::SINGLE_MINUS);
+	return MakeTokenResult(Token::Name::SINGLE_MINUS);
 }
 
 MidoriResult::TokenResult Lexer::MatchColon()
@@ -531,16 +517,12 @@ MidoriResult::TokenResult Lexer::MatchColon()
 
 MidoriResult::TokenResult Lexer::MatchPercent()
 {
-	return MatchNext('=')
-		? MakeTokenResult(Token::Name::PERCENT_EQUAL)
-		: MakeTokenResult(Token::Name::PERCENT);
+	return MakeTokenResult(Token::Name::PERCENT);
 }
 
 MidoriResult::TokenResult Lexer::MatchStar()
 {
-	return MatchNext('=')
-		? MakeTokenResult(Token::Name::STAR_EQUAL)
-		: MakeTokenResult(Token::Name::STAR);
+	return MakeTokenResult(Token::Name::STAR);
 }
 
 MidoriResult::TokenResult Lexer::MatchSlash()
@@ -555,9 +537,7 @@ MidoriResult::TokenResult Lexer::MatchSlash()
 		return MatchBlockComment();
 	}
 
-	return MatchNext('=')
-		? MakeTokenResult(Token::Name::SLASH_EQUAL)
-		: MakeTokenResult(Token::Name::SLASH);
+	return MakeTokenResult(Token::Name::SLASH);
 }
 
 MidoriResult::TokenResult Lexer::MatchLineComment()
@@ -608,16 +588,12 @@ MidoriResult::TokenResult Lexer::MatchPipe()
 		return MakeTokenResult(Token::Name::BAR_BRACKET);
 	}
 
-	return MatchNext('=')
-		? MakeTokenResult(Token::Name::BAR_EQUAL)
-		: MakeTokenResult(Token::Name::SINGLE_BAR);
+	return MakeTokenResult(Token::Name::SINGLE_BAR);
 }
 
 MidoriResult::TokenResult Lexer::MatchCaret()
 {
-	return MatchNext('=')
-		? MakeTokenResult(Token::Name::CARET_EQUAL)
-		: MakeTokenResult(Token::Name::CARET);
+	return MakeTokenResult(Token::Name::CARET);
 }
 
 MidoriResult::TokenResult Lexer::MatchAmpersand()
@@ -627,9 +603,7 @@ MidoriResult::TokenResult Lexer::MatchAmpersand()
 		return MakeTokenResult(Token::Name::DOUBLE_AMPERSAND);
 	}
 
-	return MatchNext('=')
-		? MakeTokenResult(Token::Name::AMPERSAND_EQUAL)
-		: MakeTokenResult(Token::Name::SINGLE_AMPERSAND);
+	return MakeTokenResult(Token::Name::SINGLE_AMPERSAND);
 }
 
 MidoriResult::TokenResult Lexer::MatchBang()
@@ -651,19 +625,7 @@ MidoriResult::TokenResult Lexer::MatchEqual()
 		return MakeTokenResult(Token::Name::FAT_ARROW);
 	}
 
-	if (MatchNext('+'))
-	{
-		return MatchEqualPlusPlus();
-	}
-
 	return MakeTokenResult(Token::Name::SINGLE_EQUAL);
-}
-
-MidoriResult::TokenResult Lexer::MatchEqualPlusPlus()
-{
-	return MatchNext('+')
-		? MakeTokenResult(Token::Name::EQUAL_PLUS_PLUS)
-		: std::unexpected(MidoriError::GenerateLexerErrorWithContext("Unexpected character '=+' (did you mean '=++'?)", m_cursor.m_line, BeginColumn(), m_source.m_file_name, m_source.m_lines));
 }
 
 MidoriResult::TokenResult Lexer::MatchGreater()
@@ -690,13 +652,6 @@ MidoriResult::TokenResult Lexer::MatchLess()
 		return MatchLeftShift();
 	}
 
-	if (LookAhead(0) == '~')
-	{
-		return MakeLegacyShiftSyntaxError(
-			LookAhead(1) == '=' ? "<~=" : "<~",
-			LookAhead(1) == '=' ? "<<=" : "<<");
-	}
-
 	if (MatchNext('='))
 	{
 		return MakeTokenResult(Token::Name::LESS_EQUAL);
@@ -707,40 +662,17 @@ MidoriResult::TokenResult Lexer::MatchLess()
 
 MidoriResult::TokenResult Lexer::MatchLeftShift()
 {
-	return MatchNext('=')
-		? MakeTokenResult(Token::Name::LEFT_SHIFT_EQUAL)
-		: MakeTokenResult(Token::Name::LEFT_SHIFT);
+	return MakeTokenResult(Token::Name::LEFT_SHIFT);
 }
 
 MidoriResult::TokenResult Lexer::MatchTilde()
 {
-	if (LookAhead(0) == '>')
-	{
-		return MakeLegacyShiftSyntaxError(
-			LookAhead(1) == '=' ? "~>=" : "~>",
-			LookAhead(1) == '=' ? ">>=" : ">>");
-	}
-
 	return MakeTokenResult(Token::Name::TILDE);
 }
 
 MidoriResult::TokenResult Lexer::MatchRightShift()
 {
-	return MatchNext('=')
-		? MakeTokenResult(Token::Name::RIGHT_SHIFT_EQUAL)
-		: MakeTokenResult(Token::Name::RIGHT_SHIFT);
-}
-
-MidoriResult::TokenResult Lexer::MakeLegacyShiftSyntaxError(std::string_view legacy_operator, std::string_view replacement_operator) const
-{
-	return std::unexpected(
-		MidoriError::GenerateLexerErrorWithContext(
-			"Legacy shift operator '"s + std::string(legacy_operator) + "' is no longer supported.",
-			m_cursor.m_line,
-			BeginColumn(),
-			m_source.m_file_name,
-			m_source.m_lines,
-			"Use '"s + std::string(replacement_operator) + "' instead."));
+	return MakeTokenResult(Token::Name::RIGHT_SHIFT);
 }
 
 MidoriResult::TokenResult Lexer::MatchLiteralOrIdentifier(char next_char)

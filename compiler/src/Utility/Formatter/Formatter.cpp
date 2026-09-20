@@ -185,7 +185,6 @@ namespace
 		case TokenName::SINGLE_PLUS:
 		case TokenName::DOUBLE_PLUS:
 		case TokenName::SINGLE_MINUS:
-		case TokenName::DOUBLE_MINUS:
 		case TokenName::LEFT_SHIFT:
 		case TokenName::RIGHT_SHIFT:
 		case TokenName::PERCENT:
@@ -205,18 +204,6 @@ namespace
 		case TokenName::GREATER_EQUAL:
 		case TokenName::LEFT_ANGLE:
 		case TokenName::LESS_EQUAL:
-		case TokenName::PLUS_PLUS_EQUAL:
-		case TokenName::EQUAL_PLUS_PLUS:
-		case TokenName::PLUS_EQUAL:
-		case TokenName::MINUS_EQUAL:
-		case TokenName::STAR_EQUAL:
-		case TokenName::SLASH_EQUAL:
-		case TokenName::PERCENT_EQUAL:
-		case TokenName::AMPERSAND_EQUAL:
-		case TokenName::BAR_EQUAL:
-		case TokenName::CARET_EQUAL:
-		case TokenName::LEFT_SHIFT_EQUAL:
-		case TokenName::RIGHT_SHIFT_EQUAL:
 		case TokenName::AS:
 		case TokenName::IN:
 		case TokenName::THEN:

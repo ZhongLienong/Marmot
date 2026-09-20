@@ -129,7 +129,6 @@ private:
 
 	MidoriResult::TokenResult MatchEqual();
 
-	MidoriResult::TokenResult MatchEqualPlusPlus();
 
 	MidoriResult::TokenResult MatchGreater();
 
@@ -141,7 +140,6 @@ private:
 
 	MidoriResult::TokenResult MatchRightShift();
 
-	MidoriResult::TokenResult MakeLegacyShiftSyntaxError(std::string_view legacy_operator, std::string_view replacement_operator) const;
 
 	MidoriResult::TokenResult MatchLiteralOrIdentifier(char next_char);
 

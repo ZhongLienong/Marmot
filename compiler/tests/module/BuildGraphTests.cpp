@@ -363,7 +363,7 @@ TEST_CASE("ModuleManager preserves imported child lexer diagnostics across recur
 		(
 			"Broken.mmt",
 			"module Broken\n"
-			"def value =+ 1;\n"
+			"def value = @;\n"
 		)
 	});
 
@@ -377,7 +377,7 @@ TEST_CASE("ModuleManager preserves imported child lexer diagnostics across recur
 	const CompilerError& error = graph_result.error();
 	CHECK(error.m_stage == CompilerStage::Lexer);
 	CheckDiagnosticLocation(error, broken_file_path, 2);
-	CHECK(error.m_message.find("Unexpected character '=+'") != std::string::npos);
+	CHECK(error.m_message.find("Invalid character: @") != std::string::npos);
 	CHECK(error.m_location->m_file_name != main_file_path.string());
 	CHECK(error.m_location->m_file_name != parent_file_path.string());
 }

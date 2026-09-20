@@ -180,14 +180,11 @@ TEST_CASE("Lexer records exact token columns and source spans", "[lexer]")
 TEST_CASE("Lexer recognizes compound operator tokens used by later stages", "[lexer]")
 {
 	const std::string source_code =
-		R"(value =++ next;
-total += 1;
-bits << 2;
+		R"(bits << 2;
 bits >> 1;
-mask <<= 2;
-flags >>= 3;
 inverted = ~mask;
 stream |> sink;
+joined = left ++ right;
 )";
 
 	std::expected<MidoriTest::LexedSnippet, CompilerError> lex_result = MidoriTest::LexSnippet(source_code, "Operators.mmt");
@@ -199,27 +196,11 @@ stream |> sink;
 	const std::vector<Token::Name> expected_names
 	{
 		Token::Name::IDENTIFIER_LITERAL,
-		Token::Name::EQUAL_PLUS_PLUS,
-		Token::Name::IDENTIFIER_LITERAL,
-		Token::Name::SINGLE_SEMICOLON,
-		Token::Name::IDENTIFIER_LITERAL,
-		Token::Name::PLUS_EQUAL,
-		Token::Name::INTEGER_LITERAL,
-		Token::Name::SINGLE_SEMICOLON,
-		Token::Name::IDENTIFIER_LITERAL,
 		Token::Name::LEFT_SHIFT,
 		Token::Name::INTEGER_LITERAL,
 		Token::Name::SINGLE_SEMICOLON,
 		Token::Name::IDENTIFIER_LITERAL,
 		Token::Name::RIGHT_SHIFT,
-		Token::Name::INTEGER_LITERAL,
-		Token::Name::SINGLE_SEMICOLON,
-		Token::Name::IDENTIFIER_LITERAL,
-		Token::Name::LEFT_SHIFT_EQUAL,
-		Token::Name::INTEGER_LITERAL,
-		Token::Name::SINGLE_SEMICOLON,
-		Token::Name::IDENTIFIER_LITERAL,
-		Token::Name::RIGHT_SHIFT_EQUAL,
 		Token::Name::INTEGER_LITERAL,
 		Token::Name::SINGLE_SEMICOLON,
 		Token::Name::IDENTIFIER_LITERAL,
@@ -230,93 +211,29 @@ stream |> sink;
 		Token::Name::IDENTIFIER_LITERAL,
 		Token::Name::BAR_BRACKET,
 		Token::Name::IDENTIFIER_LITERAL,
+		Token::Name::SINGLE_SEMICOLON,
+		Token::Name::IDENTIFIER_LITERAL,
+		Token::Name::SINGLE_EQUAL,
+		Token::Name::IDENTIFIER_LITERAL,
+		Token::Name::DOUBLE_PLUS,
+		Token::Name::IDENTIFIER_LITERAL,
 		Token::Name::SINGLE_SEMICOLON
 	};
 
 	const TokenStream& tokens = lex_result->m_tokens;
 	const Token* left_shift_token = FindTokenByLexeme(tokens, "<<");
 	const Token* right_shift_token = FindTokenByLexeme(tokens, ">>");
-	const Token* left_shift_equal_token = FindTokenByLexeme(tokens, "<<=");
-	const Token* right_shift_equal_token = FindTokenByLexeme(tokens, ">>=");
+	const Token* concat_token = FindTokenByLexeme(tokens, "++");
 	const Token* tilde_token = FindTokenByLexeme(tokens, "~");
 
 	REQUIRE(MidoriTest::CollectTokenNames(tokens) == expected_names);
 	REQUIRE(left_shift_token != nullptr);
 	REQUIRE(right_shift_token != nullptr);
-	REQUIRE(left_shift_equal_token != nullptr);
-	REQUIRE(right_shift_equal_token != nullptr);
+	REQUIRE(concat_token != nullptr);
 	REQUIRE(tilde_token != nullptr);
 	CHECK(left_shift_token->m_token_name == Token::Name::LEFT_SHIFT);
 	CHECK(right_shift_token->m_token_name == Token::Name::RIGHT_SHIFT);
-	CHECK(left_shift_equal_token->m_token_name == Token::Name::LEFT_SHIFT_EQUAL);
-	CHECK(right_shift_equal_token->m_token_name == Token::Name::RIGHT_SHIFT_EQUAL);
+	CHECK(concat_token->m_token_name == Token::Name::DOUBLE_PLUS);
 	CHECK(tilde_token->m_token_name == Token::Name::TILDE);
 }
 
-TEST_CASE("Lexer reports dedicated migration diagnostics for legacy shift operators", "[lexer]")
-{
-	struct LegacyShiftCase
-	{
-		std::string_view m_legacy_operator;
-		std::string_view m_replacement_operator;
-	};
-
-	const std::vector<LegacyShiftCase> cases
-	{
-		{"<~", "<<"},
-		{"<~=", "<<="},
-		{"~>", ">>"},
-		{"~>=", ">>="}
-	};
-
-	for (const LegacyShiftCase& test_case : cases)
-	{
-		CAPTURE(test_case.m_legacy_operator);
-
-		const std::string source_code = "def value = bits " + std::string(test_case.m_legacy_operator) + " 1;\n";
-		std::expected<MidoriTest::LexedSnippet, CompilerError> lex_result = MidoriTest::LexSnippet(source_code, "LegacyShiftSyntax.mmt");
-
-		REQUIRE_FALSE(lex_result.has_value());
-
-		const CompilerError& error = lex_result.error();
-		const std::string expected_message = "Legacy shift operator '" + std::string(test_case.m_legacy_operator) + "' is no longer supported.";
-		const std::string expected_suggestion = "Use '" + std::string(test_case.m_replacement_operator) + "' instead.";
-
-		REQUIRE(error.m_stage == CompilerStage::Lexer);
-		REQUIRE(error.m_location.has_value());
-		REQUIRE(error.m_suggestion.has_value());
-		CHECK(error.m_location->m_file_name == "LegacyShiftSyntax.mmt");
-		CHECK(error.m_location->m_line == 1);
-		CHECK(error.m_message == expected_message);
-		CHECK(*error.m_suggestion == expected_suggestion);
-
-		const std::string rendered_error = std::string(error.Rendered());
-		CHECK_THAT(rendered_error, ContainsSubstring("Lexer Error"));
-		CHECK_THAT(rendered_error, ContainsSubstring(expected_message));
-		CHECK_THAT(rendered_error, ContainsSubstring(expected_suggestion));
-		CHECK_THAT(rendered_error, ContainsSubstring("def value = bits " + std::string(test_case.m_legacy_operator) + " 1;"));
-	}
-}
-
-TEST_CASE("Lexer reports the dedicated =+ typo diagnostic", "[lexer]")
-{
-	const std::string source_code =
-		R"(def value =+ 1;
-)";
-
-	std::expected<MidoriTest::LexedSnippet, CompilerError> lex_result = MidoriTest::LexSnippet(source_code, "EqualPlusTypo.mmt");
-
-	REQUIRE_FALSE(lex_result.has_value());
-
-	const CompilerError& error = lex_result.error();
-	REQUIRE(error.m_stage == CompilerStage::Lexer);
-	REQUIRE(error.m_location.has_value());
-	CHECK(error.m_location->m_file_name == "EqualPlusTypo.mmt");
-	CHECK(error.m_location->m_line == 1);
-
-	const std::string rendered_error = std::string(error.Rendered());
-	CHECK_THAT(rendered_error, ContainsSubstring("Lexer Error"));
-	CHECK_THAT(rendered_error, ContainsSubstring("Unexpected character '=+' (did you mean '=++'?)"));
-	CHECK_THAT(rendered_error, ContainsSubstring("EqualPlusTypo.mmt:1"));
-	CHECK_THAT(rendered_error, ContainsSubstring("def value =+ 1;"));
-}
