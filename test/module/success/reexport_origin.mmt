@@ -1,0 +1,11 @@
+module ReexportOrigin
+
+public export { Point, Shade, Double, Identity }
+
+type Point = { x: Int, y: Int };
+
+type Shade = Light | Dark(Int);
+
+def Double = fn(n: Int) -> Int => n * 2;
+
+def Identity = fn<T>(value: T) -> T => value;

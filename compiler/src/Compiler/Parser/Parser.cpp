@@ -283,16 +283,6 @@ namespace
 		return constraints;
 	}
 
-	std::string_view TopLevelNamespace(std::string_view full_name)
-	{
-		size_t pos = full_name.find('.');
-		if (pos != std::string_view::npos)
-		{
-			return full_name.substr(0u, pos);
-		}
-		return full_name;
-	}
-
 	bool IsExportedInAnyModule(const std::unordered_map<std::string, ModuleDeclaration>& modules, const std::string& symbol_name)
 	{
 		for (const std::pair<const std::string, ModuleDeclaration>& entry : modules)
@@ -514,29 +504,6 @@ Parser::Parser(TokenStream&& tokens,std::string_view file_name, const std::vecto
 		m_state.m_class_instance_associated_type_bindings[tc_name] = metadata.m_instance_associated_type_bindings;
 		m_state.m_typeclass_method_types[tc_name] = metadata.m_method_types;
 	}
-}
-
-bool Parser::SharesNamespace(const std::string& namespace1, const std::string& namespace2) const
-{
-	std::string_view top_ns1 = TopLevelNamespace(namespace1);
-	std::string_view top_ns2 = TopLevelNamespace(namespace2);
-
-	// Both in global namespace (empty module names)
-	if (top_ns1.empty() && top_ns2.empty())
-	{
-		return true;
-	}
-
-	// One is in global, other is not
-	if (top_ns1.empty() || top_ns2.empty())
-	{
-		return false;
-	}
-
-	// Check if they share the same top-level namespace
-	// Math.Vector and Math.Matrix both share "Math"
-	// Math.Vector.Internal and Math.Utils both share "Math"
-	return top_ns1 == top_ns2;
 }
 
 std::string Parser::ExtractSymbolName(const std::string& qualified_name) const

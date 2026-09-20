@@ -1,0 +1,12 @@
+module ReexportAmbiguous
+
+// A re-export aliases one origin. Two imports exporting the name leave nothing
+// to alias, so `use` has to pick one.
+
+import
+{
+	"../success/shared_name_lib.mmt",
+	"../success/shared_name_other.mmt"
+}
+
+public export { Shared }

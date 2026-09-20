@@ -17,6 +17,13 @@ enum class VisibilityLevel : std::uint8_t
 	Internal     // Not exported (module-internal only)
 };
 
+// `Math.Vector` lives in the `Math` namespace; a module with no dots is its own.
+[[nodiscard]] std::string_view TopLevelNamespace(std::string_view module_name);
+
+// What `private export` is measured against: `Math.Vector` and `Math.Matrix`
+// share a namespace, `Math.Vector` and `App.Main` do not.
+[[nodiscard]] bool SharesNamespace(std::string_view first_module_name, std::string_view second_module_name);
+
 struct ModuleExport
 {
 	std::string m_symbol_name;

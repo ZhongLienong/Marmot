@@ -540,8 +540,6 @@ private:
 
 	bool ResolveQualifiedSymbol(const std::string& module_name, const std::string& symbol_name) const;
 
-	bool SharesNamespace(const std::string& namespace1, const std::string& namespace2) const;
-
 	std::string ExtractSymbolName(const std::string& qualified_name) const;
 
 	std::string ExtractQualifier(const std::string& qualified_name) const;

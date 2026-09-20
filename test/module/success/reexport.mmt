@@ -1,0 +1,19 @@
+module Reexport
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"./reexport_facade.mmt"
+}
+
+use ReexportFacade.{Shade, Double}
+
+def Level = fn(shade: Shade) -> Int =>
+	match shade with
+	case Shade::Light() => 0
+	case Shade::Dark(level) => level
+;
+
+def Origin = fn() -> ReexportFacade::Point => ReexportFacade::Point(3, 4);
+
+IO::PrintLine((Double(Origin().y) + Level(Shade::Dark(5))) as Text);

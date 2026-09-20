@@ -3,6 +3,30 @@
 #include <algorithm>
 #include <utility>
 
+std::string_view TopLevelNamespace(std::string_view module_name)
+{
+	const size_t dot_position = module_name.find('.');
+	return dot_position != std::string_view::npos ? module_name.substr(0u, dot_position) : module_name;
+}
+
+bool SharesNamespace(std::string_view first_module_name, std::string_view second_module_name)
+{
+	const std::string_view first_namespace = TopLevelNamespace(first_module_name);
+	const std::string_view second_namespace = TopLevelNamespace(second_module_name);
+
+	if (first_namespace.empty() && second_namespace.empty())
+	{
+		return true;
+	}
+
+	if (first_namespace.empty() || second_namespace.empty())
+	{
+		return false;
+	}
+
+	return first_namespace == second_namespace;
+}
+
 ModuleExport::ModuleExport(std::string_view symbol_name, VisibilityLevel visibility)
 	: m_symbol_name(symbol_name),
 	m_visibility(visibility)

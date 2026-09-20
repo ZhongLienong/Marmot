@@ -1,0 +1,9 @@
+module ReexportHidden
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"./reexport_hidden_facade.mmt"
+}
+
+IO::PrintLine(Hidden.Facade::Answer() as Text);

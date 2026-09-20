@@ -625,6 +625,23 @@ size_t BytecodeLinker::MergeString(const std::string& str)
 	return new_index;
 }
 
+const BytecodeModule* BytecodeLinker::DefiningModule(const std::string& module_name, const std::string& symbol_name) const
+{
+	const BytecodeModule* module = FindModule(module_name);
+	while (module != nullptr)
+	{
+		const BytecodeModule::ReexportMap::const_iterator reexport_it = module->m_reexports.find(symbol_name);
+		if (reexport_it == module->m_reexports.cend())
+		{
+			return module;
+		}
+
+		module = FindModule(reexport_it->second);
+	}
+
+	return nullptr;
+}
+
 std::optional<size_t> BytecodeLinker::FindSymbolInExports(const BytecodeModule& module, const std::string& symbol_name) const
 {
 	std::vector<BytecodeModule::ExportedSymbol>::const_iterator it = std::ranges::find_if
@@ -663,8 +680,8 @@ std::optional<size_t> BytecodeLinker::FindSymbolInGlobals(const BytecodeModule& 
 
 MidoriResult::VoidResult BytecodeLinker::ValidateImport(const BytecodeModule& module, const BytecodeModule::ImportedSymbol& import) const
 {
-	const std::string symbol_key = MakeSymbolKey(import.m_from_module, import.m_name);
-	if (m_global_symbol_table.contains(symbol_key))
+	const BytecodeModule* imported_module = DefiningModule(import.m_from_module, import.m_name);
+	if (imported_module != nullptr && m_global_symbol_table.contains(MakeSymbolKey(imported_module->m_module_name, import.m_name)))
 	{
 		return {};
 	}
@@ -676,7 +693,6 @@ MidoriResult::VoidResult BytecodeLinker::ValidateImport(const BytecodeModule& mo
 		FormatModuleOrigin(module, import.m_source_provenance));
 	const std::string contextual_message = std::format("Unresolved import: {} from module {}.", import.m_name, import.m_from_module);
 
-	const BytecodeModule* imported_module = FindModule(import.m_from_module);
 	if (imported_module == nullptr)
 	{
 		if (std::optional<CompilerError> contextual_error = MakeContextualLinkerError(CompilerErrorCode::BytecodeLinkerUnresolvedImport, contextual_message, module, import.m_source_provenance))
@@ -713,7 +729,7 @@ std::vector<size_t> BytecodeLinker::ResolveImports(const BytecodeModule& module)
 		std::back_inserter(import_resolved_indices),
 		[this, &module](const BytecodeModule::ImportedSymbol& import)
 		{
-			const BytecodeModule* imported_module = FindModule(import.m_from_module);
+			const BytecodeModule* imported_module = DefiningModule(import.m_from_module, import.m_name);
 			if (imported_module == nullptr)
 			{
 				m_unresolved_imports.emplace_back(std::format("'{}' from unknown module '{}', imported by '{}'", import.m_name, import.m_from_module, module.m_module_name));

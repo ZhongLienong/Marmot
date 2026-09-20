@@ -757,6 +757,69 @@ namespace
 			.and_then(BuildCompiledModule);
 	}
 
+	// A name a module exports without defining it may be one of its imports.
+	// These are the modules that export it to this one.
+	static std::vector<std::string> ReexportOrigins(const CompileState& state, const std::string& exported_name)
+	{
+		std::vector<std::string> origins;
+		for (const std::pair<const std::string, CompiledModule::SymbolTable>& imported : state.m_import_context.m_imported_symbols)
+		{
+			const VisibilityLevel* visibility = imported.second.FindExportVisibility(exported_name);
+			if (visibility == nullptr)
+			{
+				continue;
+			}
+
+			if (*visibility == VisibilityLevel::Public || SharesNamespace(state.m_module_name, imported.first))
+			{
+				origins.push_back(imported.first);
+			}
+		}
+
+		// `use` already says which module a name came from, so it is also how a
+		// facade picks between two imports that export the same one.
+		const std::vector<UseImport>::const_iterator used = std::ranges::find_if
+		(
+			state.m_node->m_use_imports,
+			[&exported_name, &origins](const UseImport& use_import)
+			{
+				return use_import.m_symbol_name == exported_name && std::ranges::find(origins, use_import.m_module_name) != origins.cend();
+			}
+		);
+		if (used != state.m_node->m_use_imports.cend())
+		{
+			return { used->m_module_name };
+		}
+
+		std::ranges::sort(origins);
+		return origins;
+	}
+
+	// The re-export aliases the original: `Facade::Value` and `Origin::Value`
+	// are one symbol, so the type, the generic body and the global all stay the
+	// origin's.
+	static void AliasReexport(CompileState& state, const std::string& exported_name, const std::string& origin_module)
+	{
+		state.m_bytecode.m_reexports[exported_name] = origin_module;
+
+		// The name itself, and a union's constructors, which are keyed under it.
+		const std::string member_prefix = exported_name + NameSeparator.data();
+		for (const std::pair<const std::string, std::shared_ptr<MidoriType>>& origin_type : state.m_import_context.m_imported_type_signatures.at(origin_module))
+		{
+			if (origin_type.first == exported_name || origin_type.first.starts_with(member_prefix))
+			{
+				state.m_parsed_module.m_type_signatures[origin_type.first] = origin_type.second;
+			}
+		}
+
+		const std::unordered_map<std::string, GenericFunctionInfo>::const_iterator generic_it =
+			state.m_import_context.m_imported_generic_functions.find(origin_module + NameSeparator.data() + exported_name);
+		if (generic_it != state.m_import_context.m_imported_generic_functions.cend())
+		{
+			state.m_bytecode.m_generic_functions[exported_name] = generic_it->second;
+		}
+	}
+
 	static CompileStateResult ValidateExports(CompileState state)
 	{
 		const std::unordered_set<std::string>& export_set = state.m_export_info.m_export_set;
@@ -789,17 +852,30 @@ namespace
 
 		for (const std::string& exported_name : export_set)
 		{
-			if (!defined_exports.contains(exported_name))
+			if (defined_exports.contains(exported_name))
 			{
-				return std::unexpected(MakeStateErrorReport(
-					std::move(state),
-					MidoriResult::CompilerDiagnostics(
-					MidoriError::GenerateModuleErrorWithContext(
-						CompilerErrorCode::ModuleMissingExportedSymbol,
-						"Symbol '"s + exported_name + "' is exported but not defined in module '"s + module_name + "'",
-						0,
-						file_path))));
+				continue;
 			}
+
+			const std::vector<std::string> origins = ReexportOrigins(state, exported_name);
+			if (origins.size() == 1u)
+			{
+				AliasReexport(state, exported_name, origins.front());
+				continue;
+			}
+
+			const std::string message = origins.empty()
+				? "Symbol '"s + exported_name + "' is exported but not defined in module '"s + module_name + "'"s
+				: std::format("Symbol '{}' is re-exported by module '{}', but '{}' and '{}' both export it. Write 'use {}.{{{}}}' to say which one.", exported_name, module_name, origins.front(), origins[1u], origins.front(), exported_name);
+
+			return std::unexpected(MakeStateErrorReport(
+				std::move(state),
+				MidoriResult::CompilerDiagnostics(
+				MidoriError::GenerateModuleErrorWithContext(
+					CompilerErrorCode::ModuleMissingExportedSymbol,
+					message,
+					0,
+					file_path))));
 		}
 
 		return state;

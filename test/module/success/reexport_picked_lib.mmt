@@ -1,0 +1,13 @@
+module ReexportPickedLib
+
+// Both imports export `Shared`; `use` says which one this module re-exports.
+
+import
+{
+	"./shared_name_lib.mmt",
+	"./shared_name_other.mmt"
+}
+
+use SharedNameOther.{Shared}
+
+public export { Shared }

@@ -77,6 +77,10 @@ private:
 
 	size_t MergeString(const std::string& str);
 
+	// A re-exported name is an alias, so the module that answers for it is the
+	// one at the end of the chain.
+	const BytecodeModule* DefiningModule(const std::string& module_name, const std::string& symbol_name) const;
+
 	std::optional<size_t> FindSymbolInExports(const BytecodeModule& module, const std::string& symbol_name) const;
 
 	std::optional<size_t> FindSymbolInGlobals(const BytecodeModule& module, const std::string& symbol_name, size_t base_global_offset) const;

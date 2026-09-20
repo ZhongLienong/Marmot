@@ -1,0 +1,19 @@
+module ReexportChain
+
+// The re-exported name is the origin's own: a `ReexportOuter::Point` is a
+// `ReexportOrigin::Point`, two facades away.
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"./reexport_outer.mmt",
+	"./reexport_origin.mmt"
+}
+
+use ReexportOuter.{Double, Identity}
+
+def Sum = fn(point: ReexportOrigin::Point) -> Int => point.x + point.y;
+
+def Far = fn() -> ReexportOuter::Point => ReexportOuter::Point(1, 2);
+
+IO::PrintLine((Double(Sum(Far())) as Text) ++ Identity("!"));

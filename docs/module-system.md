@@ -227,6 +227,39 @@ type InternalType =
 
 When a union type is exported, its constructors become available with it.
 
+### Re-exports
+
+A module may export a name it imported rather than defined. The export is an
+alias: the name stays the origin's, so `Facade::Point` and `Origin::Point` are
+one type, one instance set, one global.
+
+```marmot
+module Shapes
+
+import { "./shapes/point.mmt", "./shapes/shade.mmt" }
+
+public export { Point, Shade }
+```
+
+An importer of `Shapes` reaches `Shapes::Point` without importing the file that
+declares it, and may pass it to anything expecting `Point` from its own module.
+Re-exports chain, so a facade may stand in front of another facade.
+
+The origin has to be reachable: a `private export` can only be re-exported by a
+module in its namespace, which is how a library keeps internals private and
+still publishes what it chooses through one facade.
+
+A name two imported modules both export has no single origin to alias, and the
+re-export is an error naming both. `use` settles it:
+
+```marmot
+import { "./fast.mmt", "./small.mmt" }
+
+use Fast.{Encode}
+
+public export { Encode }
+```
+
 ## Compilation Scheduling
 
 The module system computes stable tiers, but compilation itself is dependency-driven.

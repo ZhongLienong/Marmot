@@ -61,6 +61,8 @@ struct BytecodeModule
 	using ProcedureNameList = std::vector<std::string>;
 	using GlobalVariableList = std::vector<std::string>;
 	using GenericFunctionMap = std::unordered_map<std::string, GenericFunctionInfo>;
+	// An exported name this module does not define: the module it came from.
+	using ReexportMap = std::unordered_map<std::string, std::string>;
 	using SourceFileTable = MidoriExecutable::SourceFileTable;
 
 	std::string m_module_name;
@@ -72,6 +74,7 @@ struct BytecodeModule
 	ProcedureNameList m_procedure_names;
 	GlobalVariableList m_global_variables;
 	GenericFunctionMap m_generic_functions;
+	ReexportMap m_reexports;
 	SourceFileTable m_source_files;
 	std::vector<NativeLibraryImport> m_native_libraries;
 

@@ -1,0 +1,9 @@
+module ReexportPicked
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"./reexport_picked_lib.mmt"
+}
+
+IO::PrintLine(ReexportPickedLib::Shared() as Text);
