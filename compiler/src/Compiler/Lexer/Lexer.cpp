@@ -1,4 +1,7 @@
 #include "Lexer.h"
+
+#include "Common/Source/Source.h"
+
 #include <sstream>
 
 using namespace std::string_literals;
@@ -815,6 +818,7 @@ std::vector<std::string> Lexer::SplitIntoLines(const std::string& source)
 
 Lexer::Source Lexer::BuildSource(std::string&& source_code, std::string_view file_name)
 {
+	MidoriSource::RemoveByteOrderMark(source_code);
 	std::vector<std::string> lines = SplitIntoLines(source_code);
 	return Source{ std::move(source_code), std::string(file_name), std::move(lines) };
 }

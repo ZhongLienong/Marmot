@@ -1,6 +1,7 @@
 #include "Common/BuildConfig/BuildConfig.h"
 #include "Common/Constant/Constant.h"
 #include "Common/Printer/Printer.h"
+#include "Common/Source/Source.h"
 #include "Compiler.h"
 #include "Compiler/BuildGraph/BuildGraph.h"
 #include "Compiler/BytecodeLinker/BytecodeLinker.h"
@@ -1468,6 +1469,7 @@ Compiler::Compiler(std::string&& source_code, std::string&& file_name, Compilati
 	m_file_name(std::move(file_name)),
 	m_inputs(std::move(inputs))
 {
+	MidoriSource::RemoveByteOrderMark(m_source_code);
 	std::istringstream stream(m_source_code);
 	std::string line;
 	while (std::getline(stream, line))

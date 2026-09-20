@@ -6,6 +6,7 @@
 #include <sstream>
 #include <string_view>
 
+#include "Common/Source/Source.h"
 #include "Compiler/Lexer/Lexer.h"
 
 namespace
@@ -902,7 +903,11 @@ namespace MidoriFormatter
 				continue;
 			}
 
-			file_result.m_formatted_text = format_result.value();
+			// A file keeps the byte order mark it came with: formatting a file is
+			// not a decision about its encoding.
+			file_result.m_formatted_text = MidoriSource::StartsWithByteOrderMark(file_result.m_original_text)
+				? std::string(MidoriSource::UTF8_BYTE_ORDER_MARK) + format_result.value()
+				: format_result.value();
 			file_result.m_changed = file_result.m_formatted_text != file_result.m_original_text;
 			if (options.m_write_in_place && file_result.m_changed)
 			{
