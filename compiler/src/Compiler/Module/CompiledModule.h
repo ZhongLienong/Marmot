@@ -43,6 +43,8 @@ struct CompiledModule
 		std::vector<std::string> m_associated_type_names;
 		std::vector<std::string> m_instance_methods;  // Mangled instance method names (e.g., show_Show_Int)
 		std::vector<std::vector<std::shared_ptr<MidoriType>>> m_instance_type_args;
+		// Of those, the ones this module declares itself.
+		std::vector<std::vector<std::shared_ptr<MidoriType>>> m_declared_instance_type_args;
 		std::vector<std::unordered_map<std::string, std::shared_ptr<MidoriType>>> m_instance_associated_type_bindings;
 	};
 	using TypeclassMethodMap = std::unordered_map<std::string, std::unordered_set<std::string>>;

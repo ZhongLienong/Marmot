@@ -1,0 +1,13 @@
+module UnimportedName
+
+// An imported module's name is reached by qualifying it or by `use`. Two
+// imported modules exporting the same name bind nothing: the error names both.
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../success/shared_name_lib.mmt",
+	"../success/shared_name_other.mmt"
+}
+
+IO::PrintLine((Shared()) as Text);

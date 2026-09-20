@@ -114,6 +114,8 @@ private:
 		TypeclassAssociatedTypeMap m_typeclass_associated_types;
 		TypeclassInstanceMap m_class_instances;
 		TypeclassInstanceTypeMap m_class_instance_type_args;
+		// The subset declared in the file being parsed.
+		TypeclassInstanceTypeMap m_declared_class_instance_type_args;
 		TypeclassInstanceAssociatedTypeBindingMap m_class_instance_associated_type_bindings;
 		TypeclassMethodTypeMap m_typeclass_method_types;
 		Scopes m_scopes{ Scope() };
@@ -514,6 +516,12 @@ private:
 	bool IsInUseImports(const std::string& symbol_name, std::string& out_module_name) const;
 
 	UseImportResolution ResolveUseImport(const std::string& symbol_name) const;
+
+	// The imported modules that export `symbol_name` and would let this module
+	// see it, in name order.
+	std::vector<std::string> ModulesExporting(const std::string& symbol_name) const;
+
+	std::string BuildUnimportedSymbolError(const std::string& symbol_name, const std::vector<std::string>& module_names) const;
 
 	std::string BuildAmbiguousUseImportError(const std::string& symbol_name, const std::vector<std::string>& module_names) const;
 

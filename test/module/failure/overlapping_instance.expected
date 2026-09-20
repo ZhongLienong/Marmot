@@ -1,0 +1,3 @@
+Compilation failed :( 
+Module Error at test/module/failure/overlapping_instance.mmt:0
+  Typeclass 'Describe' has two instances for 'Int': one in module 'DescribeIntOne', one in module 'DescribeIntTwo'. An instance belongs in the module that declares the class or the module that declares the type.

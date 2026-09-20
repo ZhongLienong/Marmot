@@ -1,0 +1,18 @@
+module OverlappingInstance
+
+// Two imported modules each declare an instance for Describe<Int>. Picking one
+// would make the program's meaning depend on import order.
+
+import
+{
+	"../success/describe_class.mmt",
+	"../success/describe_int_one.mmt",
+	"../success/describe_int_two.mmt"
+}
+
+def Show = fn<T>(value: T) -> Text where Describe<T> => Describe::describe(value);
+
+def main = fn() -> Int => {
+	def shown = Show(1);
+	0
+};

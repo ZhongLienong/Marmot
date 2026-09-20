@@ -140,6 +140,22 @@ namespace
 		using Compiler::TypeclassDefinitionsMatch;
 	};
 
+	// One instance's type arguments, as text: `Describe<Int>` is "Int", and a
+	// multi-parameter class joins them.
+	static std::string InstanceSignature(const std::vector<std::shared_ptr<MidoriType>>& type_args)
+	{
+		std::string signature;
+		for (const std::shared_ptr<MidoriType>& type_arg : type_args)
+		{
+			if (!signature.empty())
+			{
+				signature.append(", ");
+			}
+			signature.append(type_arg->ToString());
+		}
+		return signature;
+	}
+
 	static MidoriResult::CompilerReport MakeStateErrorReport(CompileState&& state, MidoriResult::CompilerDiagnostics diagnostics)
 	{
 		return MidoriResult::CompilerReport(std::move(state.m_warnings), std::move(diagnostics));
@@ -456,6 +472,9 @@ namespace
 		context.m_imported_typeclass_instance_types.reserve(imported_typeclass_count);
 		context.m_imported_generic_functions.reserve(imported_generic_function_count);
 		imported_typeclass_sources.reserve(imported_typeclass_count);
+		// Which module each instance came from, so two instances for the same
+		// type can name both.
+		std::unordered_map<std::string, std::unordered_map<std::string, std::string>> instance_sources;
 
 		for (const CompiledModule* dep : dependency_modules)
 		{
@@ -473,6 +492,20 @@ namespace
 						return std::unexpected(MidoriError::GenerateModuleErrorWithContext(std::format("Typeclass '{}' is defined in multiple imported modules ('{}' and '{}')", tc_name, imported_typeclass_sources.at(tc_name), dep_module_name), 0, file_path));
 					}
 
+					for (const std::vector<std::shared_ptr<MidoriType>>& type_args : metadata.m_declared_instance_type_args)
+					{
+						const std::string signature = InstanceSignature(type_args);
+						const std::unordered_map<std::string, std::string>::const_iterator previous = instance_sources[tc_name].find(signature);
+						if (previous != instance_sources[tc_name].cend() && previous->second != dep_module_name)
+						{
+							return std::unexpected(MidoriError::GenerateModuleErrorWithContext(
+								std::format("Typeclass '{}' has two instances for '{}': one in module '{}', one in module '{}'. An instance belongs in the module that declares the class or the module that declares the type.",
+									tc_name, signature, previous->second, dep_module_name),
+								0,
+								file_path));
+						}
+					}
+
 					CompilerAccess::MergeInstanceMethods(existing_it->second.m_instance_methods, metadata.m_instance_methods);
 					CompilerAccess::MergeInstanceAssociatedTypeBindings(
 						existing_it->second.m_instance_associated_type_bindings,
@@ -486,6 +519,11 @@ namespace
 				{
 					context.m_imported_typeclass_metadata[tc_name] = metadata;
 					imported_typeclass_sources[tc_name] = dep_module_name;
+				}
+
+				for (const std::vector<std::shared_ptr<MidoriType>>& type_args : metadata.m_declared_instance_type_args)
+				{
+					instance_sources[tc_name].emplace(InstanceSignature(type_args), dep_module_name);
 				}
 			}
 

@@ -66,25 +66,25 @@ Multiple imports can share a block:
 import { <IO>, "./helpers.mmt" }
 ```
 
-### Use Forms
-
-Single imported symbol:
-
-```marmot
-use Math.Vector.add
-```
-
-Braced list:
+### Use Form
 
 ```marmot
 use Math.Vector.{add, multiply}
 ```
+
+One name is written the same way: `use Math.Vector.{add}`.
 
 Without `use`, cross-module access stays qualified:
 
 ```marmot
 def result = Math.Vector::add(v1, v2);
 ```
+
+A bare name is a local binding or one a `use` brought into scope. Importing a
+module does not put its names in scope on their own: a name that only an
+imported module exports is an error that says which modules export it, and how
+to reach it. Two imported modules exporting the same name therefore collide only
+if you `use` both, which is an error naming both.
 
 ## Flexible Placement
 
@@ -154,6 +154,14 @@ Errors raised here include:
 ### Duplicate Module Names
 
 Two different files cannot declare the same module name. The build graph rejects the second declaration before parsing proceeds.
+
+## Typeclass Instances
+
+An instance belongs in the module that declares its class or the module that
+declares its type. Two imported modules declaring an instance for the same type
+is an error naming both: which one a call used would otherwise depend on the
+order of imports. The same instance reached through several import paths is one
+instance, not a conflict.
 
 ## Symbol Visibility
 

@@ -1,0 +1,6 @@
+Compilation failed :( 
+Parser Error at test/module/failure/unimported_name.mmt:13
+   |
+13 | IO::PrintLine((Shared()) as Text);
+   |                ^^^^^^ 'Shared' is not in scope. It is exported by 'SharedNameLib' and 'SharedNameOther': write 'SharedNameLib::Shared', or bring it into scope with 'use SharedNameLib.{Shared}'.
+   |

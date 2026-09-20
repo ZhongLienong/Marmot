@@ -41,17 +41,18 @@ Whitespace separates tokens and is otherwise insignificant.
 
 ```
 program      = module? item* ;
-module       = 'module' IDENTIFIER ;
+module       = 'module' IDENTIFIER ('.' IDENTIFIER)* ;
 item         = import | use | export | declaration | expression ';' ;
 import       = 'import' '{' importPath (',' importPath)* ','? '}' ;
-importPath   = TEXT | '<' IDENTIFIER '>' ; // "<Name>", <Name>, or "./path.mmt"
-use          = 'use' IDENTIFIER '.' '{' IDENTIFIER (',' IDENTIFIER)* '}' ;
+importPath   = TEXT | systemName ;         // "<Name>", <Name>, or "./path.mmt"
+systemName   = '<' IDENTIFIER ('.' IDENTIFIER)* '>' ;
+use          = 'use' IDENTIFIER ('.' IDENTIFIER)* '.' '{' IDENTIFIER (',' IDENTIFIER)* '}' ;
 export       = ('public' | 'private') 'export' '{' IDENTIFIER (',' IDENTIFIER)* '}' ;
 ```
 
 An import names either a module to find on the search paths, written
-`"<Name>"`, or a file, written as a path. `use` brings exported names into
-scope unqualified.
+`"<Name>"`, or a file, written as a path. Importing a module lets you write
+`Module::name`; `use` is what puts a name in scope on its own.
 
 ## Declarations
 
@@ -135,6 +136,7 @@ Precedence, loosest first. Each level is left-associative unless noted.
 ```
 primary      = INTEGER | FLOAT | TEXT | 'true' | 'false'
              | IDENTIFIER
+             | IDENTIFIER ('.' IDENTIFIER)* '::' IDENTIFIER   // a module's name
              | '(' expression ')'
              | '(' expression (',' expression)+ ')'        // a tuple
              | array | comprehension | block | function

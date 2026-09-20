@@ -1,0 +1,17 @@
+module DottedQualifiedAccess
+
+// A dotted module name qualifies with '::' like any other. The dots belong to
+// the module only when '::' follows them, so field access is untouched.
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"./dotted/vector.mmt"
+}
+
+type Point = { x: Int, y: Int };
+
+def p = Point(1, 2);
+
+IO::PrintLine((Dotted.Vector::Add(40, 2)) as Text);
+IO::PrintLine((p.x + p.y) as Text);

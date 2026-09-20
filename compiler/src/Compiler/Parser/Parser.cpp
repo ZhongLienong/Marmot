@@ -615,22 +615,10 @@ MidoriResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 		return std::unexpected(GenerateParserError(BuildImportedSymbolAccessError(imported_module_name, lookup_name, access), name_token));
 	}
 
-	for (const auto& [imported_module_name, symbol_table] : m_context.m_imported_symbols)
+	const std::vector<std::string> exporting_modules = ModulesExporting(lookup_name);
+	if (!exporting_modules.empty())
 	{
-		if (symbol_table.HasExport(lookup_name))
-		{
-			const ImportedSymbolAccess access = ResolveImportedSymbolAccess(imported_module_name, lookup_name);
-			if (access == ImportedSymbolAccess::Accessible)
-			{
-				Token qualified_token = name_token;
-				qualified_token.m_lexeme = imported_module_name + NameSeparator.data() + lookup_name;
-				return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(qualified_token, MidoriExpression::NameContext::Global()));
-			}
-			else if (access == ImportedSymbolAccess::PrivateInaccessible)
-			{
-				return std::unexpected(GenerateParserError(BuildImportedSymbolAccessError(imported_module_name, lookup_name, access), name_token));
-			}
-		}
+		return std::unexpected(GenerateParserError(BuildUnimportedSymbolError(lookup_name, exporting_modules), name_token));
 	}
 
 	std::vector<std::string> matching_typeclasses;
@@ -883,6 +871,37 @@ std::string Parser::BuildTypeArgumentCountMismatchMessage(const std::string& typ
 	}
 
 	return std::format("Type argument count mismatch for alias '{}': expected {}, got {}", type_name, expected_count, actual_count);
+}
+
+std::vector<std::string> Parser::ModulesExporting(const std::string& symbol_name) const
+{
+	std::vector<std::string> modules;
+	for (const std::pair<const std::string, CompiledModule::SymbolTable>& imported : m_context.m_imported_symbols)
+	{
+		if (imported.second.HasExport(symbol_name) && ResolveImportedSymbolAccess(imported.first, symbol_name) == ImportedSymbolAccess::Accessible)
+		{
+			modules.push_back(imported.first);
+		}
+	}
+	std::ranges::sort(modules);
+	return modules;
+}
+
+std::string Parser::BuildUnimportedSymbolError(const std::string& symbol_name, const std::vector<std::string>& module_names) const
+{
+	std::string message = std::format("'{}' is not in scope. It is exported by ", symbol_name);
+	for (size_t index = 0u; index < module_names.size(); index += 1u)
+	{
+		if (index > 0u)
+		{
+			message += index + 1u == module_names.size() ? " and " : ", ";
+		}
+		message += std::format("'{}'", module_names[index]);
+	}
+
+	message += std::format(": write '{}{}{}', or bring it into scope with 'use {}.{{{}}}'.",
+		module_names.front(), NameSeparator, symbol_name, module_names.front(), symbol_name);
+	return message;
 }
 
 std::string Parser::BuildAmbiguousUseImportError(const std::string& symbol_name, const std::vector<std::string>& module_names) const
@@ -3881,6 +3900,7 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 	}
 
 	std::vector<std::shared_ptr<MidoriType>> type_args_copy = type_args;
+	m_state.m_declared_class_instance_type_args[typeclass_name.m_lexeme].push_back(type_args_copy);
 	m_state.m_class_instance_type_args[typeclass_name.m_lexeme].push_back(std::move(type_args_copy));
 
 	std::unordered_map<std::string, std::shared_ptr<MidoriType>> associated_type_bindings;
@@ -5441,6 +5461,26 @@ MidoriResult::TokenResult Parser::MatchNameResolution()
 	Token resolved_name = Previous();
 	std::string& resolved_name_str = resolved_name.m_lexeme;
 
+	// A module's name may be dotted, and then the dots are part of the
+	// qualifier: `Math.Vector::Add`. They belong to a module only when '::'
+	// follows them; otherwise each dot is a field access on a value.
+	int dotted_segments = 0;
+	while (Check(Token::Name::SINGLE_DOT, dotted_segments) && Check(Token::Name::IDENTIFIER_LITERAL, dotted_segments + 1))
+	{
+		dotted_segments += 2;
+	}
+
+	if (dotted_segments > 0 && Check(Token::Name::DOUBLE_COLON, dotted_segments))
+	{
+		for (int consumed = 0; consumed < dotted_segments; consumed += 2)
+		{
+			Advance();
+			Advance();
+			resolved_name_str.push_back('.');
+			resolved_name_str.append(Previous().m_lexeme);
+		}
+	}
+
 	while (Match(Token::Name::DOUBLE_COLON))
 	{
 		// We found the separator, now we must have an identifier
@@ -5673,6 +5713,7 @@ void Parser::RegisterSyntheticInstanceMetadata(const std::string& class_name, co
 {
 	if (m_state.m_class_methods.contains(class_name))
 	{
+		m_state.m_declared_class_instance_type_args[class_name].push_back(type_args);
 		m_state.m_class_instance_type_args[class_name].push_back(type_args);
 		m_state.m_class_instance_associated_type_bindings[class_name].emplace_back();
 	}
@@ -6463,6 +6504,10 @@ CompiledModule::TypeclassMetadataMap Parser::GetTypeclassMetadata() const
 		if (m_state.m_class_instance_type_args.contains(tc_name))
 		{
 			metadata.m_instance_type_args = m_state.m_class_instance_type_args.at(tc_name);
+		}
+		if (m_state.m_declared_class_instance_type_args.contains(tc_name))
+		{
+			metadata.m_declared_instance_type_args = m_state.m_declared_class_instance_type_args.at(tc_name);
 		}
 		if (m_state.m_class_instance_associated_type_bindings.contains(tc_name))
 		{
