@@ -6,6 +6,13 @@ The authoritative status of any user-visible feature lives in
 [Feature Matrix](feature-matrix.md). This policy explains what those statuses
 mean for compatibility, deprecation, and releases.
 
+## The Grammar
+
+[Grammar](grammar.md) is the language's syntax as of v1, and it is a contract:
+no rule in it is removed. Later versions add rules; a program written against
+that document keeps compiling. The syntax earlier versions dropped is gone from
+the compiler entirely, so those words are ordinary identifiers now.
+
 ## Public Surface
 
 Marmot treats the following as public surface when they are documented and

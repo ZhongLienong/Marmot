@@ -766,6 +766,7 @@ See [Runtime Architecture](docs/runtime-architecture.md) for details on VM execu
 See the [docs](docs/) folder for detailed technical documentation:
 
 - [Type System](docs/type-system.md) - Type inference, type classes, and algebraic data types
+- [Grammar](docs/grammar.md) - the language's syntax, fixed at v1
 - [Prelude](docs/prelude.md) - Standard-library module map and typed wrapper examples
 - [Compilation Workflow](docs/compilation-workflow.md) - Complete pipeline from lexing to linking
 - [Feature Matrix](docs/feature-matrix.md) - Current feature status, stability levels, and primary automated coverage
