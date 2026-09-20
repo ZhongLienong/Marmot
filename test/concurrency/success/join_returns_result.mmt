@@ -8,6 +8,9 @@ import
 	"../../../MarmotPrelude/Prelude/Result.mmt"
 }
 
+use Result.{Result}
+use Concurrency.{WorkerError}
+
 // `Concurrency::Join(w)` evaluates to Result<Int, WorkerError>. A worker that fails or is
 // cancelled used to terminate the joining program with the worker's error; now
 // the joiner receives Err(...) and carries on, which is what worker isolation is

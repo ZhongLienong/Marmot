@@ -39,7 +39,10 @@ namespace
 			MidoriPathLiteral(prelude / "System.mmt"),
 			MidoriPathLiteral(prelude / "IO.mmt"),
 			MidoriPathLiteral(prelude / "Concurrency.mmt"),
-			MidoriPathLiteral(prelude / "Prelude" / "Result.mmt"));
+			MidoriPathLiteral(prelude / "Prelude" / "Result.mmt"))
+			+ R"(
+use Result.{Result}
+use Concurrency.{WorkerError})";
 	}
 
 	// Prints "join: cancelled", "join: failed: <message>" or "join: ok <value>".

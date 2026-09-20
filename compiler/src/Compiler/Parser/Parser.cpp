@@ -722,27 +722,18 @@ Parser::ConstructorResolutionResult Parser::ResolveConstructorName(const Token& 
 		}
 	}
 
+	// `Module::Record(...)`: the qualifier names an imported module, and the
+	// record it exports is the constructor.
 	if (separator_pos != std::string::npos)
 	{
-		for (const std::pair<const std::string, TypeEnvironment>& imported : m_context.m_imported_type_signatures)
+		const std::unordered_map<std::string, TypeEnvironment>::const_iterator module_it = m_context.m_imported_type_signatures.find(lookup_base);
+		if (module_it != m_context.m_imported_type_signatures.cend())
 		{
-			const TypeEnvironment& env = imported.second;
-			if (!env.contains(lookup_base))
+			std::string symbol_name = mangled_name.substr(separator_pos + NameSeparator.length());
+			const TypeEnvironment::const_iterator type_it = module_it->second.find(symbol_name);
+			if (type_it != module_it->second.cend() && type_it->second->IsType<MidoriType::StructType>())
 			{
-				continue;
-			}
-
-			std::shared_ptr<MidoriType> type = env.at(lookup_base);
-			if (!type->IsType<MidoriType::UnionType>())
-			{
-				continue;
-			}
-
-			const MidoriType::UnionType& union_type = type->GetType<MidoriType::UnionType>();
-			std::string member_key = union_type.m_name + NameSeparator.data() + mangled_name.substr(separator_pos + NameSeparator.length());
-			if (union_type.m_member_info.contains(member_key))
-			{
-				return ConstructorResolution(std::move(type), std::move(member_key), false);
+				return ConstructorResolution(std::shared_ptr<MidoriType>(type_it->second), std::move(symbol_name), true);
 			}
 		}
 	}
@@ -5196,18 +5187,6 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 
 									if (base_type == nullptr)
 									{
-										for (const auto& [mod_name, env] : m_context.m_imported_type_signatures)
-										{
-											if (env.contains(type_name.m_lexeme))
-											{
-												base_type = env.at(type_name.m_lexeme);
-												break;
-											}
-										}
-									}
-
-									if (base_type == nullptr)
-									{
 										std::string associated_type_qualifier = ExtractQualifier(type_name.m_lexeme);
 										if (!associated_type_qualifier.empty())
 										{
@@ -5217,6 +5196,12 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 											{
 												return try_parse_associated_type();
 											}
+										}
+
+										const std::vector<std::string> exporting_modules = ModulesExporting(type_name.m_lexeme);
+										if (!exporting_modules.empty())
+										{
+											return std::unexpected(GenerateParserError(BuildUnimportedSymbolError(type_name.m_lexeme, exporting_modules), type_name));
 										}
 
 										if (m_state.m_allow_implicit_generic_params && type_name.m_lexeme.find(NameSeparator) == std::string::npos)

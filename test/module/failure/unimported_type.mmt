@@ -1,0 +1,7 @@
+module UnimportedType
+
+// Importing a module does not put its type names in scope.
+
+import { "../success/shapes_lib.mmt" }
+
+def Origin = fn(p: Point) -> Int => p.x;

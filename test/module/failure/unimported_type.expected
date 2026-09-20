@@ -1,0 +1,6 @@
+Compilation failed :( 
+Parser Error at test/module/failure/unimported_type.mmt:7
+  |
+7 | def Origin = fn(p: Point) -> Int => p.x;
+  |                    ^^^^^ 'Point' is not in scope. It is exported by 'ShapesLib': write 'ShapesLib::Point', or bring it into scope with 'use ShapesLib.{Point}'.
+  |

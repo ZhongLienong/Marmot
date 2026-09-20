@@ -1,0 +1,22 @@
+module QualifiedTypeAccess
+
+// An imported type is named the way an imported value is: qualified, or brought
+// into scope with `use`. A union's constructors follow its type.
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"./shapes_lib.mmt"
+}
+
+use ShapesLib.{Shade}
+
+def Origin = fn() -> ShapesLib::Point => ShapesLib::Point(0, 0);
+
+def Level = fn(shade: Shade) -> Int =>
+	match shade with
+	case Shade::Light() => 0
+	case Shade::Dark(level) => level
+;
+
+IO::PrintLine((Origin().x + Level(Shade::Dark(7))) as Text);

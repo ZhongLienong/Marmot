@@ -86,6 +86,11 @@ imported module exports is an error that says which modules export it, and how
 to reach it. Two imported modules exporting the same name therefore collide only
 if you `use` both, which is an error naming both.
 
+The rule is the same for type names and for a union's constructors. A type an
+imported module exports is written `Shapes::Point` or brought in with
+`use Shapes.{Point}`; the constructors of a union come into scope with the union
+itself, so `use Result.{Result}` is what makes `Result::Ok` mean something.
+
 ## Flexible Placement
 
 Only `module` is fixed in position. Other module statements can be scattered:
