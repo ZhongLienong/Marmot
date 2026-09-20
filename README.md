@@ -58,7 +58,11 @@ marmot test
 ```
 
 `marmot run` builds the program into `target/` at the project root and runs it
-in `marmotvm`; `marmot test` does the same for every test, in parallel.
+in `marmotvm`; `marmot test` does the same for every test, in parallel. A second
+`marmot run` skips the build when the plan, the compiler and every file the
+program was built from are unchanged, and `--rebuild` builds anyway. A second
+`marmot run` skips the build when the plan, the compiler and every file the
+program was built from are unchanged, and `--rebuild` builds anyway.
 Inside a project, `marmot fmt` formats the project's sources (`--check` only
 checks them), leaving installed packages, the prelude and `marmot_path`
 registries alone; `marmot fmt <file|dir>...` formats just those.

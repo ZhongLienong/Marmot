@@ -315,6 +315,28 @@ def scenario_build_command_compiles_without_running(runner: TestRunner) -> None:
         assert_condition(built_elsewhere.returncode == 0 and elsewhere.exists(), f"build -o: expected {elsewhere}: {built_elsewhere.stdout}{built_elsewhere.stderr}")
         assert_condition(built_elsewhere.stdout.strip() == "", f"build --quiet: expected no summary, got: {built_elsewhere.stdout}")
 
+        # --deps lists what the program was built from: the entry and its imports.
+        deps = temp_dir / "Main.deps"
+        write_text(
+            temp_dir / "lib" / "Support.mmt",
+            "module Support\n"
+            "public export { Value }\n"
+            "def Value = fn() -> Int => 1;\n",
+        )
+        write_text(
+            source_path,
+            "module Main\n"
+            "import { <Support> }\n"
+            "def main = fn() -> Int => Support::Value();\n",
+        )
+        listed = run_midori(
+            runner,
+            ["build", str(source_path), "--deps", str(deps), "--quiet"],
+            env_overrides={"MARMOT_PATH": str(temp_dir / "lib")},
+        )
+        assert_condition(listed.returncode == 0, f"build --deps failed: {listed.stdout}{listed.stderr}")
+        built_from = sorted(Path(line).name for line in read_text(deps).splitlines() if line.strip() != "")
+        assert_condition(built_from == ["Main.mmt", "Support.mmt"], f"Expected the entry and its import, got: {built_from}")
 
 def scenario_native_library_loads_only_to_run(runner: TestRunner) -> None:
     # A module names a native library in source; the run is told where its

@@ -29,6 +29,13 @@ pub fn file(path: &Path) -> Result<String, String> {
     Ok(render(hash))
 }
 
+/// `sha256:<hex>` of some text.
+pub fn text(value: &str) -> String {
+    let mut hash = Sha256::new();
+    hash.update(value.as_bytes());
+    render(hash)
+}
+
 fn collect_sources(directory: &Path, files: &mut Vec<PathBuf>) {
     let Ok(entries) = std::fs::read_dir(directory) else {
         return;

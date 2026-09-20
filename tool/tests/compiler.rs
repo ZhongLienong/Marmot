@@ -762,3 +762,94 @@ fn test_checks_exit_status_and_snapshots_outside_a_project() {
     let rendered = text(&succeeded(&one).stdout);
     assert!(rendered.contains("Total: 1/1 passed"), "{rendered}");
 }
+
+/// When a file was last written, to see whether a build happened.
+fn written_at(path: &Path) -> std::time::SystemTime {
+    std::fs::metadata(path).unwrap().modified().unwrap()
+}
+
+#[test]
+fn run_builds_again_only_when_an_input_changed() {
+    let Some(compiler) = compiler() else { return };
+    let project = greeter_project("run-cache");
+    let program = project.path("target/src/Main.mmc");
+
+    succeeded(&marmot(&compiler, &project.0, &["run"]));
+    let first = written_at(&program);
+    assert!(project.path("target/src/Main.mmc.stamp").exists());
+    assert!(!project.path("target/src/Main.mmc.deps").exists());
+
+    // Nothing changed: the program is not built again, and still runs.
+    let again = marmot(&compiler, &project.0, &["run"]);
+    assert_eq!(text(&succeeded(&again).stdout), "hello, plan!\n");
+    assert_eq!(written_at(&program), first);
+
+    // --rebuild builds anyway.
+    succeeded(&marmot(&compiler, &project.0, &["run", "--rebuild"]));
+    let rebuilt = written_at(&program);
+    assert_ne!(rebuilt, first);
+
+    // A changed entry is a changed input.
+    project.write(
+        "src/Main.mmt",
+        "module Main\n\nimport\n{\n    \"<IO>\",\n    \"<Greeter>\",\n}\n\nIO::PrintLine(Greeter::Hello(\"edited\"));\n",
+    );
+    let edited = marmot(&compiler, &project.0, &["run"]);
+    assert_eq!(text(&succeeded(&edited).stdout), "hello, edited!\n");
+    let after_entry = written_at(&program);
+    assert_ne!(after_entry, rebuilt);
+
+    // So is a changed module in an installed package, which the entry imports.
+    project.write(
+        "packages/Greeter-1.2.0/Greeter.mmt",
+        "module Greeter\npublic export { Hello }\n\nimport { \"<Punctuation>\" }\n\ndef Hello = fn(name: Text) -> Text => \"HELLO, \" ++ name ++ Punctuation::Mark();\n",
+    );
+    let package_edited = marmot(&compiler, &project.0, &["run"]);
+    assert_eq!(text(&succeeded(&package_edited).stdout), "HELLO, edited!\n");
+    assert_ne!(written_at(&program), after_entry);
+}
+
+#[test]
+fn a_skipped_build_still_reports_its_warnings() {
+    let Some(compiler) = compiler() else { return };
+    let project = Project::new("run-cache-warnings");
+    project.write(
+        "Main.mmt",
+        "module Main\nimport { \"<IO>\" }\ndef main = fn() -> Int => {\n    def unused = 1;\n    0\n};\nIO::PrintLine(\"hi\");\n",
+    );
+    // Outside a project the program is temporary, so build into a project here.
+    project.write("project.marmot", "[project]\nentry = \"Main.mmt\"\n");
+
+    let first = marmot(&compiler, &project.0, &["run"]);
+    let warning = "Static Analyzer Warning";
+    assert!(
+        text(&succeeded(&first).stdout).contains(warning),
+        "{}",
+        text(&first.stdout)
+    );
+
+    let again = marmot(&compiler, &project.0, &["run"]);
+    assert!(
+        text(&succeeded(&again).stdout).contains(warning),
+        "{}",
+        text(&again.stdout)
+    );
+    assert_eq!(text(&again.stdout), text(&first.stdout));
+
+    let json = marmot(&compiler, &project.0, &["run", "--format", "json"]);
+    let payload: serde_json::Value = serde_json::from_slice(&succeeded(&json).stdout).unwrap();
+    assert_eq!(payload["command"], "run");
+    assert_eq!(
+        payload["report"]["warnings"][0]["code"], "UnusedLocal",
+        "{payload}"
+    );
+
+    // The json run rebuilt to record its report; a second one replays it.
+    let json_again = marmot(&compiler, &project.0, &["run", "--format", "json"]);
+    let payload: serde_json::Value =
+        serde_json::from_slice(&succeeded(&json_again).stdout).unwrap();
+    assert_eq!(
+        payload["report"]["warnings"][0]["code"], "UnusedLocal",
+        "{payload}"
+    );
+}

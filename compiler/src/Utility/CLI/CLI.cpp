@@ -52,8 +52,10 @@ namespace
 		bool m_fmt_write = false;
 		bool m_fmt_check = false;
 		bool m_embed_sources = false;
-		// build: where the .mmc goes (-o), and whether to leave out the summary.
+		// build: where the .mmc goes (-o), where to list the files it was built
+		// from (--deps), and whether to leave out the summary.
 		std::optional<std::filesystem::path> m_output_path = std::nullopt;
+		std::optional<std::filesystem::path> m_deps_path = std::nullopt;
 		bool m_quiet = false;
 	};
 
@@ -108,14 +110,16 @@ namespace
 		if (command_name == "build")
 		{
 			return
-				"Usage: marmotc build (<file> | --plan <plan.json>) [-o <file.mmc>] [--embed-sources]\n"
-				"                     [--quiet] [--format json]\n"
+				"Usage: marmotc build (<file> | --plan <plan.json>) [-o <file.mmc>] [--deps <file>]\n"
+				"                     [--embed-sources] [--quiet] [--format json]\n"
 				"Compile a Marmot source file to a .mmc program, which marmotvm runs.\n"
 				"The .mmc goes beside the source file, or to -o.\n"
 				"With --embed-sources, embed source file content in the artifact for\n"
 				"richer runtime error reporting without the original .mmt on disk.\n"
 				"With --plan, build the plan's entry from exactly the plan's inputs.\n"
-				"With --quiet, print only diagnostics.\n\n"
+				"With --quiet, print only diagnostics.\n"
+				"With --deps, list every file the program was built from, one per line:\n"
+				"what the build depends on.\n\n"
 				"Examples:\n"
 				"  marmotc build src/Main.mmt\n"
 				"  marmotc build src/Main.mmt -o target/Main.mmc\n"
@@ -392,6 +396,17 @@ namespace
 				}
 				index += 1u;
 				invocation.m_output_path = std::filesystem::path(args[index]);
+				continue;
+			}
+
+			if (arg == "--deps")
+			{
+				if (index + 1u >= args.size())
+				{
+					return std::unexpected("Missing value for --deps.");
+				}
+				index += 1u;
+				invocation.m_deps_path = std::filesystem::path(args[index]);
 				continue;
 			}
 
@@ -755,6 +770,23 @@ namespace
 		else
 		{
 			write_result = MidoriBinaryArtifact::WriteExecutableToFile(executable, artifact_path, invocation.m_embed_sources);
+		}
+
+		if (write_result.has_value() && invocation.m_deps_path.has_value())
+		{
+			std::string listing;
+			for (const std::string& source_file : compiled_program.m_source_files)
+			{
+				listing += source_file;
+				listing.push_back('\n');
+			}
+
+			std::ofstream deps(invocation.m_deps_path.value(), std::ios::binary | std::ios::trunc);
+			deps.write(listing.data(), static_cast<std::streamsize>(listing.size()));
+			if (!deps)
+			{
+				write_result = std::unexpected(std::format("Could not write {}", invocation.m_deps_path->string()));
+			}
 		}
 
 		if (!write_result.has_value())

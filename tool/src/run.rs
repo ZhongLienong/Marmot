@@ -1,6 +1,7 @@
 //! `marmot run`: marmotc builds the program into the project's `target/`, and
 //! marmotvm runs it.
 
+use crate::cache;
 use crate::manifest;
 use crate::paths;
 use crate::plan::Plan;
@@ -127,10 +128,53 @@ pub struct RunRequest<'a> {
     pub compiler: &'a Path,
     pub vm: &'a Path,
     pub json: bool,
+    /// Build even when the program in target/ is still current.
+    pub rebuild: bool,
+}
+
+/// The build's report when it was skipped: the stamp replays it, and an older
+/// stamp that recorded none reports nothing.
+fn replayed_report(stamp: &cache::Stamp) -> Value {
+    stamp.report.clone().unwrap_or_else(|| {
+        serde_json::json!({
+            "version": 1, "source": "marmot",
+            "diagnostics": [], "warnings": [], "errors": [],
+        })
+    })
+}
+
+/// Records what the build produced, so the next run can skip it and still say
+/// what the build said.
+fn remember(
+    request: &RunRequest,
+    program: &Path,
+    plan_json: &str,
+    output: Option<String>,
+    report: Option<Value>,
+) -> Result<(), String> {
+    let deps = cache::deps_path(program);
+    let files = cache::read_deps(&deps)?;
+    let _ = std::fs::remove_file(&deps);
+    let stamp = cache::stamp(plan_json, request.compiler, &files, output, report)?;
+    cache::write(program, &stamp)
 }
 
 pub fn run(request: &RunRequest) -> Result<ExitCode, String> {
     let (program, _temporary) = program_path(request.entry)?;
+    let plan_json = request.plan.to_json();
+    // A stamp replays one form of what the build said, so it serves the mode it
+    // was recorded in; the other mode builds once and records its own.
+    let current = if request.rebuild {
+        None
+    } else {
+        cache::fresh(&program, &plan_json, request.compiler).filter(|stamp| {
+            if request.json {
+                stamp.report.is_some()
+            } else {
+                stamp.output.is_some()
+            }
+        })
+    };
 
     let mut build = Command::new(request.compiler);
     build
@@ -138,7 +182,9 @@ pub fn run(request: &RunRequest) -> Result<ExitCode, String> {
         .arg("--plan")
         .arg(request.plan_file)
         .arg("-o")
-        .arg(&program);
+        .arg(&program)
+        .arg("--deps")
+        .arg(cache::deps_path(&program));
 
     let mut vm = Command::new(request.vm);
     vm.arg(&program);
@@ -148,26 +194,52 @@ pub fn run(request: &RunRequest) -> Result<ExitCode, String> {
     }
 
     if !request.json {
-        let built = build
-            .arg("--quiet")
-            .status()
-            .map_err(|error| format!("cannot run {}: {error}", request.compiler.display()))?;
-        if !built.success() {
-            return Ok(exit_code(built.code()));
+        match &current {
+            Some(stamp) => print!("{}", stamp.output.clone().unwrap_or_default()),
+            None => {
+                let built = output_of(build.arg("--quiet"), request.compiler)?;
+                print!("{}", String::from_utf8_lossy(&built.stdout));
+                eprint!("{}", String::from_utf8_lossy(&built.stderr));
+                if !built.status.success() {
+                    return Ok(exit_code(built.status.code()));
+                }
+                remember(
+                    request,
+                    &program,
+                    &plan_json,
+                    Some(String::from_utf8_lossy(&built.stdout).into_owned()),
+                    None,
+                )?;
+            }
         }
+
         let ran = vm
             .status()
             .map_err(|error| format!("cannot run {}: {error}", request.vm.display()))?;
         return Ok(exit_code(ran.code()));
     }
 
-    let built = output_of(build.args(["--format", "json"]), request.compiler)?;
-    let mut build_payload = json_of(&built, request.compiler)?;
-    if !built.status.success() {
-        build_payload["command"] = Value::from("run");
-        println!("{build_payload}");
-        return Ok(exit_code(built.status.code()));
-    }
+    let mut build_payload = match &current {
+        Some(stamp) => serde_json::json!({ "report": replayed_report(stamp) }),
+        None => {
+            let built = output_of(build.args(["--format", "json"]), request.compiler)?;
+            let mut payload = json_of(&built, request.compiler)?;
+            if !built.status.success() {
+                payload["command"] = Value::from("run");
+                println!("{payload}");
+                return Ok(exit_code(built.status.code()));
+            }
+            remember(
+                request,
+                &program,
+                &plan_json,
+                None,
+                Some(payload["report"].clone()),
+            )?;
+            payload
+        }
+    };
+    build_payload["command"] = Value::from("run");
 
     let ran = output_of(vm.args(["--format", "json"]), request.vm)?;
     let run_payload = json_of(&ran, request.vm)?;

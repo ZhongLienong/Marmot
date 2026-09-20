@@ -1503,6 +1503,14 @@ MidoriResult::CompilationResult Compiler::CompileWithReport()
 	BuildGraph build_graph = std::move(build_graph_result.value());
 	const std::string entry_module_name = ResolveEntryModuleName(build_graph, m_file_name);
 
+	std::vector<std::string> source_files;
+	source_files.reserve(build_graph.m_nodes.size());
+	for (const std::pair<const std::string, BuildGraph::BuildNode>& node : build_graph.m_nodes)
+	{
+		source_files.push_back(node.first);
+	}
+	std::ranges::sort(source_files);
+
 	MidoriResult::ReportResult<BuildGraphArtifacts> bytecode_result = CompileBuildGraph(std::move(build_graph));
 	if (!bytecode_result.has_value())
 	{
@@ -1510,6 +1518,10 @@ MidoriResult::CompilationResult Compiler::CompileWithReport()
 	}
 
 	MidoriResult::CompilationResult linked = LinkBytecodeModules(std::move(bytecode_result).value(), entry_module_name);
+	if (linked.has_value())
+	{
+		linked->m_source_files = std::move(source_files);
+	}
 	if (linked.has_value() && !m_inputs.NativeLibraryPolicies().empty())
 	{
 		std::vector<NativeLibraryImport> libraries = linked->m_executable.GetNativeLibraries();

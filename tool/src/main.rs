@@ -1,3 +1,4 @@
+mod cache;
 mod checksum;
 mod edit;
 mod fmt;
@@ -27,7 +28,8 @@ Usage: marmot <command> [arguments] [options]
 Resolves a Marmot project and runs the compiler on it through a build plan.
 
 Commands:
-  run [file]            Build the program into target/ and run it in marmotvm
+  run [file]            Build the program into target/ and run it in marmotvm;
+                        an unchanged program is not built again
   check [file]          Type-check without running
   build [file]          Compile to a .mmc artifact
   plan [file]           Print the build plan instead of compiling
@@ -58,6 +60,7 @@ Options:
   --name NAME           The project or package name (init)
   --marmotc PATH        The compiler to run; otherwise MARMOTC, then marmotc
                         next to this program, then marmotc on PATH
+  --rebuild             Build even if the program is unchanged (run)
   --marmotvm PATH       The VM to run programs in (run, test); otherwise MARMOTVM,
                         then marmotvm next to the compiler or this program,
                         then marmotvm on PATH
@@ -128,6 +131,7 @@ struct Options {
     pattern: Option<String>,
     test_file: Option<String>,
     package: bool,
+    rebuild: bool,
     name: Option<String>,
     /// Everything after the command, for commands passed through as they are.
     raw: Vec<String>,
@@ -187,6 +191,7 @@ fn parse_options(kind: CommandKind, args: &[String]) -> Result<Options, String> 
             "--package" if kind == CommandKind::Init => options.package = true,
             "--name" if kind == CommandKind::Init => options.name = Some(value()?),
             "--marmotc" => options.marmotc = Some(PathBuf::from(value()?)),
+            "--rebuild" if kind == CommandKind::Run => options.rebuild = true,
             "--marmotvm" if matches!(kind, CommandKind::Run | CommandKind::Test) => {
                 options.marmotvm = Some(PathBuf::from(value()?))
             }
@@ -328,6 +333,7 @@ fn compile(
             compiler,
             vm: &vm,
             json: options.json,
+            rebuild: options.rebuild,
         });
     }
 

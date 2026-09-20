@@ -476,10 +476,14 @@ namespace MidoriResult
 	{
 		MidoriExecutable m_executable;
 		CompilerReport m_report;
+		// Every file the program was compiled from, sorted: the entry and every
+		// module it reached. What a build depends on.
+		std::vector<std::string> m_source_files;
 
-		CompiledProgram(MidoriExecutable executable, CompilerReport report = {})
+		CompiledProgram(MidoriExecutable executable, CompilerReport report = {}, std::vector<std::string> source_files = {})
 			: m_executable(std::move(executable)),
-			m_report(std::move(report))
+			m_report(std::move(report)),
+			m_source_files(std::move(source_files))
 		{
 		}
 
