@@ -107,6 +107,18 @@ private:
 		ParseContext(TokenStream&& tokens, std::string_view file_name, const std::vector<std::string>& source_lines, const std::unordered_map<std::string, CompiledModule::SymbolTable>& imports, const std::unordered_map<std::string, TypeEnvironment>& imported_type_signatures, const ModuleDeclaration* module_decl);
 	};
 
+	// A `def` whose initializer is being parsed. Until it finishes, the name has
+	// no value, so a read at the same function depth would read nothing; a read
+	// deeper than that is inside a function body, which runs later, and is how a
+	// definition calls itself.
+	struct PendingDefinition
+	{
+		std::string m_name;
+		int m_function_depth = 0;
+
+		PendingDefinition(std::string name, int function_depth);
+	};
+
 	struct ParseState
 	{
 		TypeclassMethodMap m_class_methods;
@@ -124,6 +136,7 @@ private:
 		std::vector<std::string> m_namespaces;
 		std::vector<MidoriType::ClassConstraint> m_active_constraints;
 		std::vector<std::shared_ptr<MidoriType>> m_active_union_types;
+		std::vector<PendingDefinition> m_pending_definitions;
 		int m_function_depth = 0;
 		int m_current_token_index = 0;
 		int m_total_locals_in_curr_scope = 0;
@@ -144,6 +157,20 @@ private:
 
 		ActiveConstraintGuard(const ActiveConstraintGuard&) = delete;
 		ActiveConstraintGuard& operator=(const ActiveConstraintGuard&) = delete;
+	};
+
+	struct PendingDefinitionGuard
+	{
+		Parser* m_parser = nullptr;
+
+		size_t m_count = 0u;
+
+		PendingDefinitionGuard(Parser* parser, std::vector<std::string> names);
+
+		~PendingDefinitionGuard();
+
+		PendingDefinitionGuard(const PendingDefinitionGuard&) = delete;
+		PendingDefinitionGuard& operator=(const PendingDefinitionGuard&) = delete;
 	};
 
 	struct ArrayComprehensionProbe
@@ -539,6 +566,8 @@ private:
 	std::string BuildImportedSymbolAccessError(const std::string& module_name, const std::string& symbol_name, ImportedSymbolAccess access) const;
 
 	std::string CurrentModuleName() const;
+
+	bool IsBeingDefined(const std::string& name) const;
 
 	bool ResolveQualifiedSymbol(const std::string& module_name, const std::string& symbol_name) const;
 

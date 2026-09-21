@@ -1,0 +1,6 @@
+Compilation failed :( 
+Parser Error at test/expression/failure/read_name_being_defined.mmt:12
+   |
+12 | 	def outer = outer ++ "!";
+   |              ^^^^^ 'outer' has no value here: a definition cannot read the name it is defining. Rename one of the two, or read it inside a function, which runs after the definition finishes.
+   |

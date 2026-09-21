@@ -1,0 +1,13 @@
+module RecursiveLocalDefinition
+
+// A definition may read itself from inside a function body, which runs after
+// the definition finishes. That is how a local definition recurses.
+
+import { <IO> }
+
+def Test = fn() -> Int => {
+	def Sum = fn(n: Int) -> Int => if n <= 0 then 0 else n + Sum(n - 1);
+	Sum(4)
+};
+
+IO::PrintLine(Test() as Text);

@@ -1,0 +1,16 @@
+module ReadNameBeingDefined
+
+// The initializer runs before the name has a value, so reading it here reads
+// nothing -- it used to read an uninitialized slot, which for a Text was a
+// memory fault.
+
+import { <IO> }
+
+def outer = "seven";
+
+def Test = fn() -> Text => {
+	def outer = outer ++ "!";
+	outer
+};
+
+IO::PrintLine(Test());

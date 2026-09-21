@@ -476,6 +476,28 @@ Parser::ParseState::ParseState(const std::vector<UseImport>& use_imports)
 {
 }
 
+Parser::PendingDefinition::PendingDefinition(std::string name, int function_depth)
+	: m_name(std::move(name)),
+	m_function_depth(function_depth)
+{
+}
+
+Parser::PendingDefinitionGuard::PendingDefinitionGuard(Parser* parser, std::vector<std::string> names)
+	: m_parser(parser),
+	m_count(names.size())
+{
+	for (std::string& name : names)
+	{
+		m_parser->m_state.m_pending_definitions.emplace_back(std::move(name), m_parser->m_state.m_function_depth);
+	}
+}
+
+Parser::PendingDefinitionGuard::~PendingDefinitionGuard()
+{
+	std::vector<PendingDefinition>& pending = m_parser->m_state.m_pending_definitions;
+	pending.erase(std::prev(pending.end(), static_cast<std::ptrdiff_t>(m_count)), pending.end());
+}
+
 Parser::ActiveConstraintGuard::ActiveConstraintGuard(Parser* parser, size_t prev_size)
 	: m_parser(parser),
 	m_prev_size(prev_size)
@@ -970,6 +992,18 @@ std::string Parser::BuildImportedSymbolAccessError(const std::string& module_nam
 	}
 
 	return std::format("Symbol '{}' is not accessible from module '{}'.", symbol_name, module_name);
+}
+
+bool Parser::IsBeingDefined(const std::string& name) const
+{
+	return std::ranges::any_of
+	(
+		m_state.m_pending_definitions,
+		[&name, this](const PendingDefinition& pending)
+		{
+			return pending.m_name == name && pending.m_function_depth == m_state.m_function_depth;
+		}
+	);
 }
 
 std::string Parser::CurrentModuleName() const
@@ -1784,6 +1818,18 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 					std::string mangled_name = Mangle(variable.m_lexeme);
 					std::string symbol_name = ExtractSymbolName(variable.m_lexeme);
 					std::string qualifier = ExtractQualifier(variable.m_lexeme);
+
+					if (qualifier.empty() && (IsBeingDefined(symbol_name) || IsBeingDefined(mangled_name)))
+					{
+						return std::unexpected
+						(
+							GenerateParserError
+							(
+								std::format("'{}' has no value here: a definition cannot read the name it is defining. Rename one of the two, or read it inside a function, which runs after the definition finishes.", symbol_name),
+								variable
+							)
+						);
+					}
 
 					// Only check CanAccessSymbol for unqualified names
 					// Qualified names (Module::Symbol) bypass this check and are validated below
@@ -2689,6 +2735,11 @@ MidoriResult::StatementResult Parser::ParseDefineStatement()
 						(
 							[&names, &local_indices, this](Token&&) -> MidoriResult::StatementResult
 							{
+								std::vector<std::string> pending_names;
+								pending_names.reserve(names.size());
+								std::ranges::transform(names, std::back_inserter(pending_names), [](const Token& name) { return name.m_lexeme; });
+								const PendingDefinitionGuard pending(this, std::move(pending_names));
+
 								return ParseExpression()
 									.and_then
 									(
@@ -2731,6 +2782,7 @@ MidoriResult::StatementResult Parser::ParseDefineStatement()
 										(
 											[&define_name, &type_annotation, &local_index, this](Token&&) -> MidoriResult::StatementResult
 											{
+												const PendingDefinitionGuard pending(this, { define_name.m_lexeme });
 												return ParseExpression()
 													.and_then
 													(
