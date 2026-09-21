@@ -59,7 +59,8 @@ Options:
   --package             Create a package instead of a project (init)
   --name NAME           The project or package name (init)
   --marmotc PATH        The compiler to run; otherwise MARMOTC, then marmotc
-                        next to this program, then marmotc on PATH
+                        next to this program, then (for a debug build) the one
+                        built last in this checkout, then marmotc on PATH
   --rebuild             Build even if the program is unchanged (run)
   --marmotvm PATH       The VM to run programs in (run, test); otherwise MARMOTVM,
                         then marmotvm next to the compiler or this program,
@@ -238,7 +239,33 @@ fn find_compiler(explicit: Option<&Path>) -> PathBuf {
         }
     }
 
-    PathBuf::from("marmotc")
+    checkout_compiler().unwrap_or_else(|| PathBuf::from("marmotc"))
+}
+
+/// A debug build of this tool comes from a Marmot checkout, and wants the
+/// compiler built there rather than whichever one is installed on PATH. With
+/// several presets built, the one built last is the one being worked on.
+fn checkout_compiler() -> Option<PathBuf> {
+    if !cfg!(debug_assertions) {
+        return None;
+    }
+
+    let builds = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()?
+        .join("out")
+        .join("build")
+        .join("ninja");
+    let name = format!("marmotc{}", std::env::consts::EXE_SUFFIX);
+    std::fs::read_dir(builds)
+        .ok()?
+        .filter_map(Result::ok)
+        .map(|preset| preset.path().join("out").join(&name))
+        .filter_map(|candidate| {
+            let modified = candidate.metadata().ok()?.modified().ok()?;
+            Some((modified, candidate))
+        })
+        .max_by_key(|(modified, _)| *modified)
+        .map(|(_, candidate)| candidate)
 }
 
 /// The compiler's version, from `marmotc --version` ("marmotc 1.2.3").
