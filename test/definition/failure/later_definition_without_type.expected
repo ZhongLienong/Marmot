@@ -1,0 +1,6 @@
+Compilation failed :( 
+Type Checker Error at test/definition/failure/later_definition_without_type.mmt:8
+  |
+8 | def Greeting = fn() -> Text => "hello, " ++ Audience;
+  |                                             ^^^^^^^^ 'Audience' is defined further down, and its type is not written on it, so it is not known here. Give it a type -- its parameter and return types, for a function -- or move it above this.
+  |

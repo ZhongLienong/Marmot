@@ -3216,8 +3216,67 @@ const TypeChecker::TypeEnvironment& TypeChecker::ModuleTypes() const noexcept
 	return m_module_types;
 }
 
+namespace
+{
+	bool IsWrittenDown(const std::shared_ptr<MidoriType>& type)
+	{
+		return !type->IsType<MidoriType::UndecidedType>();
+	}
+}
+
+void TypeChecker::CollectLaterDefinitions()
+{
+	for (const std::unique_ptr<MidoriStatement>& statement : m_program_tree)
+	{
+		if (statement->IsStatement<MidoriStatement::VariableDefinition>())
+		{
+			const MidoriStatement::VariableDefinition& def = statement->GetStatement<MidoriStatement::VariableDefinition>();
+			if (def.m_annotated_type.has_value())
+			{
+				m_later_definitions[def.m_name.m_lexeme] = def.m_annotated_type.value();
+				continue;
+			}
+
+			if ((def.m_value != nullptr) && def.m_value->IsExpression<MidoriExpression::Function>())
+			{
+				const MidoriExpression::Function& function = def.m_value->GetExpression<MidoriExpression::Function>();
+				if (std::ranges::all_of(function.m_param_types, IsWrittenDown) && IsWrittenDown(function.m_return_type))
+				{
+					std::shared_ptr<MidoriType> function_type = MidoriType::MakeFunctionType(function.m_param_types, std::shared_ptr<MidoriType>(function.m_return_type));
+					function_type->GetType<MidoriType::FunctionType>().m_constraints = function.m_constraints;
+					m_later_definitions[def.m_name.m_lexeme] = std::move(function_type);
+					continue;
+				}
+			}
+
+			m_later_unannotated.insert(def.m_name.m_lexeme);
+		}
+		else if (statement->IsStatement<MidoriStatement::FunctionDefinition>())
+		{
+			const MidoriStatement::FunctionDefinition& defun = statement->GetStatement<MidoriStatement::FunctionDefinition>();
+			std::shared_ptr<MidoriType> function_type = MidoriType::MakeFunctionType(defun.m_param_types, std::shared_ptr<MidoriType>(defun.m_return_type));
+			function_type->GetType<MidoriType::FunctionType>().m_constraints = defun.m_constraints;
+			m_later_definitions[defun.m_name.m_lexeme] = std::move(function_type);
+		}
+		else if (statement->IsStatement<MidoriStatement::ForeignDefinition>())
+		{
+			const MidoriStatement::ForeignDefinition& foreign = statement->GetStatement<MidoriStatement::ForeignDefinition>();
+			m_later_definitions[foreign.m_function_name.m_lexeme] = foreign.m_type;
+		}
+		else if (statement->IsStatement<MidoriStatement::TupleDefinition>())
+		{
+			for (const Token& name : statement->GetStatement<MidoriStatement::TupleDefinition>().m_names)
+			{
+				m_later_unannotated.insert(name.m_lexeme);
+			}
+		}
+	}
+}
+
 MidoriResult::TypeCheckerResult TypeChecker::TypeCheck()
 {
+	CollectLaterDefinitions();
+
 	return ScopeSession(*this).Then([&]() -> MidoriResult::TypeCheckerResult
 	{
 		std::vector<CompilerError> errors;
@@ -6282,6 +6341,20 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::NameAccess& v
 				return variable.m_type_data;
 			}
 		}
+	}
+
+	// A top-level definition the checker has not reached yet: its type is the
+	// one written on it.
+	const TypeEnvironment::const_iterator later = m_later_definitions.find(variable.m_name.m_lexeme);
+	if (later != m_later_definitions.cend())
+	{
+		variable.m_type_data = Freshen(later->second);
+		return variable.m_type_data;
+	}
+
+	if (m_later_unannotated.contains(variable.m_name.m_lexeme))
+	{
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUndefinedName, std::format("'{}' is defined further down, and its type is not written on it, so it is not known here. Give it a type -- its parameter and return types, for a function -- or move it above this.", variable.m_name.m_lexeme), variable.m_name, m_file_name, m_source_lines));
 	}
 
 	return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUndefinedName, "Name access expression type error: variable not found", variable.m_name, m_file_name, m_source_lines));

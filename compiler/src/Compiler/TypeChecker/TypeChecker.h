@@ -96,6 +96,11 @@ private:
 	MidoriProgramTree m_program_tree;
 	TypeEnvironmentStack m_name_type_table;
 	TypeEnvironment m_module_types;
+	// The written-down types of this module's top-level definitions, for a
+	// body that names one before the checker has reached it. A definition
+	// without a complete signature is in m_later_unannotated instead.
+	TypeEnvironment m_later_definitions;
+	std::unordered_set<std::string> m_later_unannotated;
 	TypeSubstitution m_type_substitution;
 	std::unordered_map<std::string, ClassInfo> m_classes;
 	std::unordered_map<InstanceKey, InstanceInfo, InstanceKeyHash> m_instances;
@@ -133,6 +138,9 @@ public:
 	TypeChecker(MidoriProgramTree&& parser_result, std::string_view file_name, const std::vector<std::string>& source_lines, TypeEnvironment imported_types = {}, const std::unordered_map<std::string, ClassInfo>& imported_typeclasses = {}, TypeclassInstanceTypeMap imported_instance_types = {}, TypeclassInstanceAssociatedTypeBindingMap imported_instance_associated_type_bindings = {});
 
 	MidoriResult::TypeCheckerResult TypeCheck();
+
+
+	void CollectLaterDefinitions();
 
 	// The module's own names with the types checking gave them, kept after a
 	// successful TypeCheck(). A name whose type only inference knows - an

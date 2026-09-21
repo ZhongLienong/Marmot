@@ -482,6 +482,19 @@ Parser::PendingDefinition::PendingDefinition(std::string name, int function_dept
 {
 }
 
+Parser::TopLevelDefinition::TopLevelDefinition(int statement, int line, bool is_function)
+	: m_statement(statement),
+	m_line(line),
+	m_is_function(is_function)
+{
+}
+
+Parser::TopLevelReference::TopLevelReference(int statement, const Token& name)
+	: m_statement(statement),
+	m_name(name)
+{
+}
+
 Parser::PendingDefinitionGuard::PendingDefinitionGuard(Parser* parser, std::vector<std::string> names)
 	: m_parser(parser),
 	m_count(names.size())
@@ -566,6 +579,7 @@ MidoriResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 		// Global
 		if (IsGlobalName(found_scope_it))
 		{
+			RecordTopLevelReference(name_token);
 			return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(name_token, MidoriExpression::NameContext::Global()));
 		}
 		// Local
@@ -581,6 +595,13 @@ MidoriResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 			int cell_index = find_result->second.m_absolute_index.value() - parent_base;
 			return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(name_token, MidoriExpression::NameContext::Cell(cell_index)));
 		}
+	}
+
+	// Defined further down this module.
+	if (m_state.m_top_level_names.contains(lookup_name))
+	{
+		RecordTopLevelReference(name_token);
+		return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(name_token, MidoriExpression::NameContext::Global()));
 	}
 
 	// Not found in local scopes - check imported modules (for bare imports)
@@ -775,8 +796,8 @@ bool Parser::CanAccessSymbol(const std::string& symbol_name) const
 		}
 	);
 
-	// If symbol is defined in current scope, always allow access
-	if (found_scope_it != m_state.m_scopes.rend())
+	// If symbol is defined in current scope, or further down this module, always allow access
+	if ((found_scope_it != m_state.m_scopes.rend()) || m_state.m_top_level_names.contains(symbol_name))
 	{
 		return true;
 	}
@@ -1004,6 +1025,172 @@ bool Parser::IsBeingDefined(const std::string& name) const
 			return pending.m_name == name && pending.m_function_depth == m_state.m_function_depth;
 		}
 	);
+}
+
+void Parser::CollectTopLevelNames()
+{
+	int depth = 0;
+	bool in_tuple_definition = false;
+	const TokenStream::const_iterator end = m_context.m_tokens.cend();
+	for (TokenStream::const_iterator it = m_context.m_tokens.cbegin(); it != end; ++it)
+	{
+		const Token::Name name = it->m_token_name;
+		if (in_tuple_definition)
+		{
+			if (name == Token::Name::IDENTIFIER_LITERAL)
+			{
+				m_state.m_top_level_names.insert(it->m_lexeme);
+			}
+			else if (name == Token::Name::RIGHT_PAREN)
+			{
+				in_tuple_definition = false;
+				depth -= 1;
+			}
+			continue;
+		}
+
+		if ((name == Token::Name::LEFT_BRACE) || (name == Token::Name::LEFT_PAREN) || (name == Token::Name::LEFT_BRACKET))
+		{
+			depth += 1;
+		}
+		else if ((name == Token::Name::RIGHT_BRACE) || (name == Token::Name::RIGHT_PAREN) || (name == Token::Name::RIGHT_BRACKET))
+		{
+			depth -= 1;
+		}
+		else if ((depth == 0) && (name == Token::Name::DEF) && (std::next(it) != end))
+		{
+			const Token& following = *std::next(it);
+			if (following.m_token_name == Token::Name::IDENTIFIER_LITERAL)
+			{
+				m_state.m_top_level_names.insert(following.m_lexeme);
+			}
+			else if (following.m_token_name == Token::Name::LEFT_PAREN)
+			{
+				in_tuple_definition = true;
+				depth += 1;
+				++it;
+			}
+		}
+	}
+}
+
+void Parser::RecordTopLevelDefinition(const MidoriStatement& statement, int statement_index)
+{
+	if (statement.IsStatement<MidoriStatement::VariableDefinition>())
+	{
+		const MidoriStatement::VariableDefinition& def = statement.GetStatement<MidoriStatement::VariableDefinition>();
+		const bool is_function = (def.m_value != nullptr) && def.m_value->IsExpression<MidoriExpression::Function>();
+		m_state.m_top_level_definitions.insert_or_assign(def.m_name.m_lexeme, TopLevelDefinition(statement_index, def.m_name.m_line, is_function));
+	}
+	else if (statement.IsStatement<MidoriStatement::TupleDefinition>())
+	{
+		for (const Token& name : statement.GetStatement<MidoriStatement::TupleDefinition>().m_names)
+		{
+			m_state.m_top_level_definitions.insert_or_assign(name.m_lexeme, TopLevelDefinition(statement_index, name.m_line, false));
+		}
+	}
+	else if (statement.IsStatement<MidoriStatement::FunctionDefinition>())
+	{
+		const MidoriStatement::FunctionDefinition& defun = statement.GetStatement<MidoriStatement::FunctionDefinition>();
+		m_state.m_top_level_definitions.insert_or_assign(defun.m_name.m_lexeme, TopLevelDefinition(statement_index, defun.m_name.m_line, true));
+	}
+	else if (statement.IsStatement<MidoriStatement::ForeignDefinition>())
+	{
+		const MidoriStatement::ForeignDefinition& foreign = statement.GetStatement<MidoriStatement::ForeignDefinition>();
+		m_state.m_top_level_definitions.insert_or_assign(foreign.m_function_name.m_lexeme, TopLevelDefinition(statement_index, foreign.m_function_name.m_line, false));
+	}
+}
+
+void Parser::RecordTopLevelReference(const Token& name)
+{
+	if (m_state.m_top_level_names.contains(name.m_lexeme))
+	{
+		m_state.m_top_level_references.emplace_back(m_state.m_statement_index, name);
+	}
+}
+
+// Top-level statements run in order, and a function's body runs when it is
+// called. So a statement may use a definition only if it, and everything the
+// functions it reaches go on to read, is defined above the statement. That is
+// what makes naming a later definition from inside a function safe.
+std::optional<CompilerError> Parser::CheckDefinitionOrder()
+{
+	std::unordered_map<int, std::vector<const TopLevelReference*>> references_by_statement;
+	for (const TopLevelReference& reference : m_state.m_top_level_references)
+	{
+		references_by_statement[reference.m_statement].push_back(&reference);
+	}
+
+	const std::unordered_set<int> function_statements = [this]()
+	{
+		std::unordered_set<int> statements;
+		for (const std::pair<const std::string, TopLevelDefinition>& definition : m_state.m_top_level_definitions)
+		{
+			if (definition.second.m_is_function)
+			{
+				statements.insert(definition.second.m_statement);
+			}
+		}
+		return statements;
+	}();
+
+	std::vector<int> executed_statements;
+	for (const std::pair<const int, std::vector<const TopLevelReference*>>& entry : references_by_statement)
+	{
+		if (!function_statements.contains(entry.first))
+		{
+			executed_statements.push_back(entry.first);
+		}
+	}
+	std::ranges::sort(executed_statements);
+
+	for (const int statement : executed_statements)
+	{
+		for (const TopLevelReference* reference : references_by_statement.at(statement))
+		{
+			// Walk what this use reaches: the definition itself, then, through
+			// each function on the way, whatever that function names.
+			std::vector<std::string> pending{ reference->m_name.m_lexeme };
+			std::unordered_set<std::string> visited;
+			while (!pending.empty())
+			{
+				const std::string name = std::move(pending.back());
+				pending.pop_back();
+				if (!visited.insert(name).second)
+				{
+					continue;
+				}
+
+				const std::unordered_map<std::string, TopLevelDefinition>::const_iterator definition = m_state.m_top_level_definitions.find(name);
+				if (definition == m_state.m_top_level_definitions.cend())
+				{
+					continue;
+				}
+
+				if (definition->second.m_statement >= statement)
+				{
+					std::string message = (name == reference->m_name.m_lexeme)
+						? std::format("'{}' is used here before its definition on line {} has run. Move the definition above this.", name, definition->second.m_line)
+						: std::format("'{}' is used here, and it reaches '{}', which is not defined until line {}. Move that definition above this.", reference->m_name.m_lexeme, name, definition->second.m_line);
+					return GenerateParserError(std::move(message), reference->m_name);
+				}
+
+				if (definition->second.m_is_function)
+				{
+					const std::unordered_map<int, std::vector<const TopLevelReference*>>::const_iterator body = references_by_statement.find(definition->second.m_statement);
+					if (body != references_by_statement.cend())
+					{
+						for (const TopLevelReference* inner : body->second)
+						{
+							pending.push_back(inner->m_name.m_lexeme);
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return std::nullopt;
 }
 
 std::string Parser::CurrentModuleName() const
@@ -5459,6 +5646,7 @@ MidoriResult::StatementResult Parser::ParseDeclaration()
 MidoriResult::ParserResult Parser::Parse()
 {
 	MidoriProgramTree programTree;
+	CollectTopLevelNames();
 
 	while (!IsAtEnd() || !m_pending_statements.empty())
 	{
@@ -5469,9 +5657,11 @@ MidoriResult::ParserResult Parser::Parse()
 			continue;
 		}
 
+		m_state.m_statement_index = static_cast<int>(programTree.size());
 		MidoriResult::StatementResult result = ParseDeclaration();
 		if (result.has_value())
 		{
+			RecordTopLevelDefinition(*result.value(), m_state.m_statement_index);
 			programTree.emplace_back(std::move(result.value()));
 		}
 		else
@@ -5481,6 +5671,11 @@ MidoriResult::ParserResult Parser::Parse()
 			Synchronize();
 			return std::unexpected(MidoriResult::CompilerDiagnostics(std::move(result.error())));
 		}
+	}
+
+	if (std::optional<CompilerError> order_error = CheckDefinitionOrder())
+	{
+		return std::unexpected(MidoriResult::CompilerDiagnostics(std::move(order_error.value())));
 	}
 
 	return MidoriResult::ParserResult(std::move(programTree));

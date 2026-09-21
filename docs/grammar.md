@@ -87,6 +87,14 @@ constraints  = 'where' constraint (',' constraint)* ;
 constraint   = IDENTIFIER '<' type (',' type)* '>' ;
 ```
 
+A module's top-level statements run in order, and a function's body runs when
+it is called. So a function may name a top-level definition that comes after
+it -- which is how two functions call each other -- and a statement may use a
+definition only once it, and everything the functions it reaches go on to
+read, has run. A definition named before the checker reaches it needs its type
+written down: a function's parameter and return types, a value's annotation.
+Inside its own initializer a `def` may name itself only from within a function.
+
 In a `foreign` declaration the first TEXT is the symbol the library exports;
 `from` names the library, and the block form names it once for several
 functions. Without `from`, the symbol must be a runtime builtin.

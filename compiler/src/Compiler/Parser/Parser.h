@@ -1,9 +1,11 @@
 #pragma once
 
 #include <expected>
+#include <optional>
 #include <queue>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "Common/Error/Error.h"
 #include "Compiler/AbstractSyntaxTree/AbstractSyntaxTree.h"
@@ -119,6 +121,28 @@ private:
 		PendingDefinition(std::string name, int function_depth);
 	};
 
+	// A top-level definition: which statement makes it, and whether it is a
+	// function, whose body runs only when called.
+	struct TopLevelDefinition
+	{
+		int m_statement = 0;
+		int m_line = 0;
+		bool m_is_function = false;
+
+		TopLevelDefinition(int statement, int line, bool is_function);
+	};
+
+	// A read of one of this module's top-level names, and the statement it sits
+	// in. Checked once the whole module is parsed, so a definition may name one
+	// that comes after it.
+	struct TopLevelReference
+	{
+		int m_statement = 0;
+		Token m_name;
+
+		TopLevelReference(int statement, const Token& name);
+	};
+
 	struct ParseState
 	{
 		TypeclassMethodMap m_class_methods;
@@ -137,6 +161,10 @@ private:
 		std::vector<MidoriType::ClassConstraint> m_active_constraints;
 		std::vector<std::shared_ptr<MidoriType>> m_active_union_types;
 		std::vector<PendingDefinition> m_pending_definitions;
+		std::unordered_set<std::string> m_top_level_names;
+		std::unordered_map<std::string, TopLevelDefinition> m_top_level_definitions;
+		std::vector<TopLevelReference> m_top_level_references;
+		int m_statement_index = 0;
 		int m_function_depth = 0;
 		int m_current_token_index = 0;
 		int m_total_locals_in_curr_scope = 0;
@@ -568,6 +596,14 @@ private:
 	std::string CurrentModuleName() const;
 
 	bool IsBeingDefined(const std::string& name) const;
+
+	void CollectTopLevelNames();
+
+	void RecordTopLevelDefinition(const MidoriStatement& statement, int statement_index);
+
+	void RecordTopLevelReference(const Token& name);
+
+	std::optional<CompilerError> CheckDefinitionOrder();
 
 	bool ResolveQualifiedSymbol(const std::string& module_name, const std::string& symbol_name) const;
 

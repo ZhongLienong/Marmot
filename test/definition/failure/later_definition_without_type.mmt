@@ -1,0 +1,12 @@
+module LaterDefinitionWithoutType
+
+// A definition named before the checker reaches it must carry its type: here
+// `Audience` has none written on it.
+
+import { <IO> }
+
+def Greeting = fn() -> Text => "hello, " ++ Audience;
+
+def Audience = "world";
+
+IO::PrintLine(Greeting());

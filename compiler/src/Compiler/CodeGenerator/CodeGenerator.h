@@ -405,6 +405,10 @@ private:
 
 	std::optional<std::string> ResolveInstanceName(const std::string& class_name, const std::string& base_name) const;
 
+	int GlobalSlot(const std::string& name);
+
+	void ReserveTopLevelGlobals();
+
 	std::optional<std::string> GenericKeyIn(const std::string& module_name, const std::string& symbol_name) const;
 
 

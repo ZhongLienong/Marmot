@@ -1307,6 +1307,85 @@ bool CodeGenerator::RejectGenericFunctionValueUse(const Token& name)
 	return true;
 }
 
+int CodeGenerator::GlobalSlot(const std::string& name)
+{
+	const std::unordered_map<std::string, int>::const_iterator existing = m_global_variables.find(name);
+	if (existing != m_global_variables.cend())
+	{
+		return existing->second;
+	}
+
+	std::string variable_name(name);
+	const int index = m_executable.AddGlobalVariable(std::move(variable_name));
+	m_global_variables[name] = index;
+	return index;
+}
+
+// A body may name a top-level definition that comes after it, so every one has
+// its global before any body is emitted, and every generic its template.
+void CodeGenerator::ReserveTopLevelGlobals()
+{
+	for (std::unique_ptr<MidoriStatement>& statement : m_program_tree)
+	{
+		if (statement->IsStatement<MidoriStatement::VariableDefinition>())
+		{
+			MidoriStatement::VariableDefinition& def = statement->GetStatement<MidoriStatement::VariableDefinition>();
+			if (def.m_local_index.has_value() || def.m_is_elided)
+			{
+				continue;
+			}
+
+			const bool is_generic = (def.m_value != nullptr)
+				&& def.m_value->IsExpression<MidoriExpression::Function>()
+				&& !def.m_value->GetExpression<MidoriExpression::Function>().m_generic_params.empty();
+			if (is_generic)
+			{
+				Visit(statement);
+			}
+			else
+			{
+				static_cast<void>(GlobalSlot(def.m_name.m_lexeme));
+			}
+		}
+		else if (statement->IsStatement<MidoriStatement::TupleDefinition>())
+		{
+			MidoriStatement::TupleDefinition& def_tuple = statement->GetStatement<MidoriStatement::TupleDefinition>();
+			for (size_t index = 0u; index < def_tuple.m_names.size(); index += 1u)
+			{
+				if (!def_tuple.m_local_indices[index].has_value())
+				{
+					static_cast<void>(GlobalSlot(def_tuple.m_names[index].m_lexeme));
+				}
+			}
+		}
+		else if (statement->IsStatement<MidoriStatement::FunctionDefinition>())
+		{
+			MidoriStatement::FunctionDefinition& defun = statement->GetStatement<MidoriStatement::FunctionDefinition>();
+			if (defun.m_local_index.has_value())
+			{
+				continue;
+			}
+
+			if (!defun.m_generic_params.empty() || m_generic_instance_methods.contains(defun.m_name.m_lexeme))
+			{
+				Visit(statement);
+			}
+			else
+			{
+				static_cast<void>(GlobalSlot(defun.m_name.m_lexeme));
+			}
+		}
+		else if (statement->IsStatement<MidoriStatement::ForeignDefinition>())
+		{
+			MidoriStatement::ForeignDefinition& foreign = statement->GetStatement<MidoriStatement::ForeignDefinition>();
+			if (!foreign.m_local_index.has_value())
+			{
+				static_cast<void>(GlobalSlot(foreign.m_function_name.m_lexeme));
+			}
+		}
+	}
+}
+
 // This module's generics are keyed by their bare names and an imported one by
 // `Module::name`, so a name never reaches a generic of another module that
 // happens to share it.
@@ -2213,6 +2292,8 @@ MidoriResult::CodeGeneratorResult CodeGenerator::GenerateModuleBytecode() &&
 		void operator()(const MidoriStatement::TypeAlias&) const {}
 	};
 
+	ReserveTopLevelGlobals();
+
 	std::ranges::for_each
 	(
 		m_program_tree,
@@ -2309,9 +2390,7 @@ void CodeGenerator::operator()(MidoriStatement::VariableDefinition& def)
 
 	if (is_global)
 	{
-		std::string variable_name(def.m_name.m_lexeme);
-		index.emplace(m_executable.AddGlobalVariable(std::move(variable_name)));
-		m_global_variables[def.m_name.m_lexeme] = index.value();
+		index.emplace(GlobalSlot(def.m_name.m_lexeme));
 	}
 
 	if (is_global)
@@ -2399,9 +2478,7 @@ void CodeGenerator::operator()(MidoriStatement::TupleDefinition& def_tuple)
 
 	for (int i = static_cast<int>(def_tuple.m_names.size()) - 1; i >= 0; i -= 1)
 	{
-		std::string variable_name(def_tuple.m_names[static_cast<size_t>(i)].m_lexeme);
-		int index = m_executable.AddGlobalVariable(std::move(variable_name));
-		m_global_variables[def_tuple.m_names[static_cast<size_t>(i)].m_lexeme] = index;
+		int index = GlobalSlot(def_tuple.m_names[static_cast<size_t>(i)].m_lexeme);
 		EmitVariable(index, OpCode::DEFINE_GLOBAL, line);
 	}
 }
@@ -2437,9 +2514,7 @@ void CodeGenerator::operator()(MidoriStatement::FunctionDefinition& defun)
 
 	if (is_global)
 	{
-		std::string variable_name(defun.m_name.m_lexeme);
-		index.emplace(m_executable.AddGlobalVariable(std::move(variable_name)));
-		m_global_variables[defun.m_name.m_lexeme] = index.value();
+		index.emplace(GlobalSlot(defun.m_name.m_lexeme));
 	}
 
 	const int direct_proc_global_index =
@@ -2491,9 +2566,7 @@ void CodeGenerator::operator()(MidoriStatement::ForeignDefinition& foreign)
 	std::optional<int> index = std::nullopt;
 	if (is_global)
 	{
-		std::string foreign_function_name(foreign.m_function_name.m_lexeme);
-		index.emplace(m_executable.AddGlobalVariable(std::move(foreign_function_name)));
-		m_global_variables[foreign.m_function_name.m_lexeme] = index.value();
+		index.emplace(GlobalSlot(foreign.m_function_name.m_lexeme));
 	}
 
 	EmitTextConstant(foreign_value, line);

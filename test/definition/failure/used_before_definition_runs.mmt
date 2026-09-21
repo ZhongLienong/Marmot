@@ -1,0 +1,13 @@
+module UsedBeforeDefinitionRuns
+
+// Top-level statements run in order. `Greeting` is defined above this call,
+// but it reads `Audience`, which is not defined until after it, so the call
+// would read a value that does not exist yet.
+
+import { <IO> }
+
+def Greeting = fn() -> Text => "hello, " ++ Audience;
+
+IO::PrintLine(Greeting());
+
+def Audience: Text = "world";

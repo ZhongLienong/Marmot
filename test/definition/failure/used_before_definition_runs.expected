@@ -1,0 +1,6 @@
+Compilation failed :( 
+Parser Error at test/definition/failure/used_before_definition_runs.mmt:11
+   |
+11 | IO::PrintLine(Greeting());
+   |               ^^^^^^^^ 'Greeting' is used here, and it reaches 'Audience', which is not defined until line 13. Move that definition above this.
+   |

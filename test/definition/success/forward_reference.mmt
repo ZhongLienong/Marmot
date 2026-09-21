@@ -1,0 +1,21 @@
+module ForwardReference
+
+// A function may name a top-level definition that comes after it: its body
+// runs when it is called, and by then that definition has run. That is what
+// mutual recursion needs.
+
+import { <IO>, <Convertable> }
+
+def IsEven = fn(n: Int) -> Bool => if n == 0 then true else IsOdd(n - 1);
+def IsOdd = fn(n: Int) -> Bool => if n == 0 then false else IsEven(n - 1);
+
+def First = fn<T>(values: Array<T>) -> T => Pick(values, 0);
+def Pick = fn<T>(values: Array<T>, index: Int) -> T => values[index];
+
+def Greeting = fn() -> Text => Salutation ++ ", " ++ Audience;
+def Salutation: Text = "hello";
+def Audience: Text = "world";
+
+IO::PrintLine((IsEven(10) as Text) ++ " " ++ (IsOdd(7) as Text));
+IO::PrintLine(First(["first", "second"]));
+IO::PrintLine(Greeting());
