@@ -1307,34 +1307,38 @@ bool CodeGenerator::RejectGenericFunctionValueUse(const Token& name)
 	return true;
 }
 
+// This module's generics are keyed by their bare names and an imported one by
+// `Module::name`, so a name never reaches a generic of another module that
+// happens to share it.
+std::optional<std::string> CodeGenerator::GenericKeyIn(const std::string& module_name, const std::string& symbol_name) const
+{
+	const std::string key = (m_module_name.has_value() && m_module_name.value() == module_name)
+		? symbol_name
+		: module_name + std::string(NameSeparator) + symbol_name;
+	return m_generic_functions.contains(key) ? std::optional<std::string>(key) : std::nullopt;
+}
+
 std::optional<std::string> CodeGenerator::FindGenericFunctionKey(const std::string& resolved_name) const
 {
-	if (m_generic_functions.contains(resolved_name))
-	{
-		return resolved_name;
-	}
-
 	const size_t at_pos = resolved_name.find(ModuleSeparator);
-	if (at_pos == std::string::npos)
+	if (at_pos != std::string::npos)
 	{
-		return std::nullopt;
+		return GenericKeyIn(resolved_name.substr(at_pos + 1u), resolved_name.substr(0u, at_pos));
 	}
 
-	const std::string symbol_name = resolved_name.substr(0u, at_pos);
-	const std::string module_name = resolved_name.substr(at_pos + 1u);
-
-	const std::string qualified_name = module_name + std::string(NameSeparator) + symbol_name;
-	if (m_generic_functions.contains(qualified_name))
+	const size_t separator_pos = resolved_name.rfind(NameSeparator);
+	if (separator_pos != std::string::npos)
 	{
-		return qualified_name;
+		return GenericKeyIn(resolved_name.substr(0u, separator_pos), resolved_name.substr(separator_pos + NameSeparator.length()));
 	}
 
-	if (m_generic_functions.contains(symbol_name))
+	// A bare name inside another module's generic is one of that module's.
+	if (m_specialization_source_module.has_value())
 	{
-		return symbol_name;
+		return GenericKeyIn(m_specialization_source_module.value(), resolved_name);
 	}
 
-	return std::nullopt;
+	return m_generic_functions.contains(resolved_name) ? std::optional<std::string>(resolved_name) : std::nullopt;
 }
 
 int CodeGenerator::GetImportPlaceholder(const std::string& module_name, const std::string& symbol_name, int line, const std::optional<BytecodeModule::SourceProvenance>& source_provenance)
@@ -1482,6 +1486,47 @@ bool CodeGenerator::EmitConcatenableConcat(const std::shared_ptr<MidoriType>& op
 
 	EmitCall(2, line);
 	return true;
+}
+
+// `==` and `!=` choose their comparison in one place. They used to choose it
+// in two, and `!=` had no case for Text, so it compared the two strings'
+// addresses.
+void CodeGenerator::EmitEquality(const std::shared_ptr<MidoriType>& operand_type, bool uses_equatable, bool negated, int line)
+{
+	if (uses_equatable || operand_type->IsType<MidoriType::TextType>())
+	{
+		if (uses_equatable)
+		{
+			EmitEquatableEquals(operand_type, line);
+		}
+		else
+		{
+			EmitByte(OpCode::EQUAL_TEXT, line);
+		}
+
+		if (negated)
+		{
+			EmitByte(OpCode::NOT, line);
+		}
+		return;
+	}
+
+	if (operand_type->IsType<MidoriType::FloatType>())
+	{
+		EmitByte(negated ? OpCode::NOT_EQUAL_FLOAT : OpCode::EQUAL_FLOAT, line);
+	}
+	else if (operand_type->IsType<MidoriType::ByteType>())
+	{
+		EmitByte(negated ? OpCode::NOT_EQUAL_BYTE : OpCode::EQUAL_BYTE, line);
+	}
+	else if (operand_type->IsType<MidoriType::WordType>())
+	{
+		EmitByte(negated ? OpCode::NOT_EQUAL_WORD : OpCode::EQUAL_WORD, line);
+	}
+	else
+	{
+		EmitByte(negated ? OpCode::NOT_EQUAL_INTEGER : OpCode::EQUAL_INTEGER, line);
+	}
 }
 
 void CodeGenerator::EmitEquatableEquals(const std::shared_ptr<MidoriType>& operand_type, int line)
@@ -3381,65 +3426,12 @@ void CodeGenerator::operator()(MidoriExpression::Binary& binary)
 		}
 		case Token::Name::BANG_EQUAL:
 		{
-			if (binary.m_uses_equatable)
-			{
-				EmitEquatableEquals(operand_type, line);
-				EmitByte(OpCode::NOT, line);
-			}
-			else
-			{
-				if (operand_type->IsType<MidoriType::FloatType>())
-				{
-					EmitByte(OpCode::NOT_EQUAL_FLOAT, line);
-				}
-				else if (operand_type->IsType<MidoriType::ByteType>())
-				{
-					EmitByte(OpCode::NOT_EQUAL_BYTE, line);
-				}
-				else if (operand_type->IsType<MidoriType::WordType>())
-				{
-					EmitByte(OpCode::NOT_EQUAL_WORD, line);
-				}
-				else
-				{
-					EmitByte(OpCode::NOT_EQUAL_INTEGER, line);
-				}
-			}
+			EmitEquality(operand_type, binary.m_uses_equatable, true, line);
 			break;
 		}
 		case Token::Name::DOUBLE_EQUAL:
 		{
-			if (binary.m_uses_equatable)
-			{
-				EmitEquatableEquals(operand_type, line);
-			}
-			else
-			{
-				if (operand_type->IsType<MidoriType::FloatType>())
-				{
-					EmitByte(OpCode::EQUAL_FLOAT, line);
-				}
-				else if (operand_type->IsType<MidoriType::IntegerType>())
-				{
-					EmitByte(OpCode::EQUAL_INTEGER, line);
-				}
-				else if (operand_type->IsType<MidoriType::ByteType>())
-				{
-					EmitByte(OpCode::EQUAL_BYTE, line);
-				}
-				else if (operand_type->IsType<MidoriType::WordType>())
-				{
-					EmitByte(OpCode::EQUAL_WORD, line);
-				}
-				else if (operand_type->IsType<MidoriType::TextType>())
-				{
-					EmitByte(OpCode::EQUAL_TEXT, line);
-				}
-				else
-				{
-					EmitByte(OpCode::EQUAL_INTEGER, line);
-				}
-			}
+			EmitEquality(operand_type, binary.m_uses_equatable, false, line);
 			break;
 		}
 		case Token::Name::SINGLE_AMPERSAND:
@@ -3778,16 +3770,6 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 		{
 			is_generic_call = true;
 			function_name = std::move(generic_key.value());
-		}
-		else if (function_name.find(NameSeparator) != std::string::npos)
-		{
-			// Try suffix lookup for qualified names
-			std::string suffix = function_name.substr(function_name.rfind(NameSeparator.data()) + NameSeparator.length());
-			if (m_generic_functions.contains(suffix))
-			{
-				is_generic_call = true;
-				function_name = suffix;
-			}
 		}
 	}
 

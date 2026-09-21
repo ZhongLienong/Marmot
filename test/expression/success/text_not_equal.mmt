@@ -1,0 +1,15 @@
+module TextNotEqual
+
+// `!=` compares text by its characters, as `==` does. It had no case for Text
+// and compared the two strings' addresses, so equal text built two ways was
+// "not equal".
+
+import { <IO>, <Convertable>, <TextUtil> }
+
+def built = "a" ++ "b";
+def split = TextUtil::Split("\"x", "");
+
+IO::PrintLine((built != "ab") as Text);
+IO::PrintLine((built == "ab") as Text);
+IO::PrintLine((split[0] != "\"") as Text);
+IO::PrintLine((built != "ba") as Text);

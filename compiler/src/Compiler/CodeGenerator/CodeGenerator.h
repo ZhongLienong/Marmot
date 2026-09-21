@@ -198,6 +198,8 @@ private:
 
 	bool EmitConcatenableConcat(const std::shared_ptr<MidoriType>& operand_type, int line);
 
+	void EmitEquality(const std::shared_ptr<MidoriType>& operand_type, bool uses_equatable, bool negated, int line);
+
 	void EmitEquatableEquals(const std::shared_ptr<MidoriType>& operand_type, int line);
 
 	void EmitOrderableCompare(const std::shared_ptr<MidoriType>& operand_type, int line);
@@ -402,6 +404,9 @@ private:
 	std::optional<int> ResolveResolvedNameGlobalIndex(const std::string& resolved_name, int line);
 
 	std::optional<std::string> ResolveInstanceName(const std::string& class_name, const std::string& base_name) const;
+
+	std::optional<std::string> GenericKeyIn(const std::string& module_name, const std::string& symbol_name) const;
+
 
 	std::optional<std::string> FindGenericFunctionKey(const std::string& resolved_name) const;
 
