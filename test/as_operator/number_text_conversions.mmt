@@ -1,0 +1,14 @@
+module NumberTextConversions
+
+// A Float is written as the shortest text that reads back as the same Float,
+// still looking like a Float when it is whole. A Bool converts to Text with no
+// import, as the other primitives do. Text converts to a number only when the
+// whole text is one.
+
+import { <IO> }
+
+IO::PrintLine((0.1 as Text) ++ " " ++ (3.0 as Text) ++ " " ++ (-2.5 as Text) ++ " " ++ (0.0000001 as Text));
+IO::PrintLine((("0.1" as Float) == 0.1) as Text);
+IO::PrintLine(((("123.456" as Float) as Text) as Float) as Text);
+IO::PrintLine((true as Text) ++ " " ++ (false as Text));
+IO::PrintLine((("-42" as Int) + 1) as Text);

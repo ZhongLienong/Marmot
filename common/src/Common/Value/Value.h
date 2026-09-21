@@ -6,6 +6,7 @@
 #include <functional>
 #include <list>
 #include <memory>
+#include <optional>
 #include <unordered_set>
 #include <variant>
 #include <vector>
@@ -296,9 +297,11 @@ public:
 
 	bool operator!=(const MidoriText& other) const;
 
-	MidoriInteger ToInteger() const;
+	// The number the whole text spells, or nothing: "12abc", " 12" and "" are
+	// not numbers.
+	std::optional<MidoriInteger> ParseInteger() const;
 
-	MidoriFloat ToFloat() const;
+	std::optional<MidoriFloat> ParseFloat() const;
 
 	static MidoriText FromInteger(MidoriInteger value);
 

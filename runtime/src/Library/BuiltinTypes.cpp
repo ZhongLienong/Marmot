@@ -239,6 +239,71 @@ extern "C"
 		WritePointerResult(ret, AllocateCString(reversed));
 	}
 
+	// The UTF-8 for one Unicode scalar value. The caller has checked it is one,
+	// and that it is not U+0000, which text cannot hold.
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextFromCodePoint)(void** args, void* ret) noexcept
+	{
+		const std::uint32_t code_point = static_cast<std::uint32_t>(ReadInt(args, 0u));
+		char encoded[5] = {};
+		if (code_point < 0x80u)
+		{
+			encoded[0] = static_cast<char>(code_point);
+		}
+		else if (code_point < 0x800u)
+		{
+			encoded[0] = static_cast<char>(0xC0u | (code_point >> 6u));
+			encoded[1] = static_cast<char>(0x80u | (code_point & 0x3Fu));
+		}
+		else if (code_point < 0x10000u)
+		{
+			encoded[0] = static_cast<char>(0xE0u | (code_point >> 12u));
+			encoded[1] = static_cast<char>(0x80u | ((code_point >> 6u) & 0x3Fu));
+			encoded[2] = static_cast<char>(0x80u | (code_point & 0x3Fu));
+		}
+		else
+		{
+			encoded[0] = static_cast<char>(0xF0u | (code_point >> 18u));
+			encoded[1] = static_cast<char>(0x80u | ((code_point >> 12u) & 0x3Fu));
+			encoded[2] = static_cast<char>(0x80u | ((code_point >> 6u) & 0x3Fu));
+			encoded[3] = static_cast<char>(0x80u | (code_point & 0x3Fu));
+		}
+		WritePointerResult(ret, AllocateCString(MidoriText(encoded)));
+	}
+
+	// The code point at a code-point index, or -1 past the end.
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextCodePointAt)(void** args, void* ret) noexcept
+	{
+		const MidoriInteger index = ReadInt(args, 1u);
+		const MidoriText character = RequireText(args[0u]).Substring(static_cast<int>(index), static_cast<int>(index) + 1);
+		const unsigned char* bytes = reinterpret_cast<const unsigned char*>(character.GetCString());
+		if ((index < 0) || (bytes[0] == 0u))
+		{
+			WriteInt(ret, -1);
+			return;
+		}
+
+		const int length = character.GetByteLength();
+		std::uint32_t code_point = (length == 1) ? bytes[0]
+			: (length == 2) ? (bytes[0] & 0x1Fu)
+			: (length == 3) ? (bytes[0] & 0x0Fu)
+			: (bytes[0] & 0x07u);
+		for (int continuation = 1; continuation < length; continuation += 1)
+		{
+			code_point = (code_point << 6u) | (bytes[continuation] & 0x3Fu);
+		}
+		WriteInt(ret, static_cast<MidoriInteger>(code_point));
+	}
+
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextIsInteger)(void** args, void* ret) noexcept
+	{
+		WriteBool(ret, RequireText(args[0u]).ParseInteger().has_value());
+	}
+
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextIsFloat)(void** args, void* ret) noexcept
+	{
+		WriteBool(ret, RequireText(args[0u]).ParseFloat().has_value());
+	}
+
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextContains)(void** args, void* ret) noexcept
 	{
 		WriteBool(ret, RequireText(args[0u]).Contains(RequireText(args[1u])));

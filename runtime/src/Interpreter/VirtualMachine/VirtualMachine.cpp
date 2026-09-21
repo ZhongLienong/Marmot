@@ -1390,7 +1390,17 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::TEXT_TO_FLOAT:
 		{
-			Peek(sp) = static_cast<MidoriFloat>(Peek(sp).GetPointer()->GetTraceable<MidoriText>().ToFloat());
+			const MidoriText& text = Peek(sp).GetPointer()->GetTraceable<MidoriText>();
+			const std::optional<MidoriFloat> parsed = text.ParseFloat();
+			if (!parsed.has_value())
+			{
+				m_instruction_pointer = inst_ip;
+				m_value_stack_pointer = sp;
+				m_value_stack_base_pointer = bp;
+				m_curr_environment = env;
+				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InvalidConversion, std::format("'{}' is not a Float.", text.GetCString()), GetLine()));
+			}
+			Peek(sp) = parsed.value();
 			break;
 		}
 		case OpCode::FLOAT_TO_INT:
@@ -1400,7 +1410,17 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::TEXT_TO_INT:
 		{
-			Peek(sp) = static_cast<MidoriInteger>(Peek(sp).GetPointer()->GetTraceable<MidoriText>().ToInteger());
+			const MidoriText& text = Peek(sp).GetPointer()->GetTraceable<MidoriText>();
+			const std::optional<MidoriInteger> parsed = text.ParseInteger();
+			if (!parsed.has_value())
+			{
+				m_instruction_pointer = inst_ip;
+				m_value_stack_pointer = sp;
+				m_value_stack_base_pointer = bp;
+				m_curr_environment = env;
+				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InvalidConversion, std::format("'{}' is not an Int.", text.GetCString()), GetLine()));
+			}
+			Peek(sp) = parsed.value();
 			break;
 		}
 		case OpCode::FLOAT_TO_TEXT:

@@ -1,0 +1,9 @@
+module TextThatIsNotANumber
+
+// `as` from Text to a number used to read "12abc" as 12 and "abc" as 0. Text
+// that is not a number is now an error when it runs; `TextUtil::ParseInt`
+// and `TextUtil::ParseFloat` ask without failing.
+
+import { <IO> }
+
+IO::PrintLine((("12abc" as Int) + 1) as Text);

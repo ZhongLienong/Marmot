@@ -101,6 +101,7 @@ Current `RuntimeErrorCode` values:
 - `InternalTypeError`
 - `WorkerCancelled`
 - `WorkerExited`
+- `InvalidConversion`
 - `InternalFFITypeError`
 
 `RuntimeErrorCodeName(...)` provides the stable string form used in rendered and

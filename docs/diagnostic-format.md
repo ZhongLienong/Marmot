@@ -215,6 +215,7 @@ Current `RuntimeErrorCode` values:
 - `InternalTypeError`
 - `WorkerCancelled`
 - `WorkerExited`
+- `InvalidConversion`
 - `InternalFFITypeError`
 
 ## Warning Codes
@@ -354,6 +355,7 @@ are emitted with the same shape as the full examples above.
 | `InternalFFITypeError` | `Runtime` | `panic` | `Internal FFI type error.` |
 | `UnsupportedPlatformOperation` | `Runtime` | `error` | `Operation not supported on this platform.` |
 | `WorkerCancelled` | `Runtime` | `error` | `Worker cancelled.` |
+| `InvalidConversion` | `Runtime` | `error` | `'abc' is not a Float.` |
 
 ## Stability
 

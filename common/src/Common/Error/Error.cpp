@@ -144,6 +144,8 @@ std::string_view RuntimeErrorCodeName(RuntimeErrorCode code)
 		return "WorkerCancelled";
 	case RuntimeErrorCode::WorkerExited:
 		return "WorkerExited";
+	case RuntimeErrorCode::InvalidConversion:
+		return "InvalidConversion";
 	default:
 		return "None";
 	}
@@ -359,6 +361,7 @@ namespace
 		case RuntimeErrorCode::FFIFunctionNotFound:
 		case RuntimeErrorCode::DivisionByZero:
 		case RuntimeErrorCode::WorkerCancelled:
+		case RuntimeErrorCode::InvalidConversion:
 		default:
 			return false;
 		}

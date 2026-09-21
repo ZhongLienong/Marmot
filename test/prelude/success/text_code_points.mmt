@@ -1,0 +1,32 @@
+module TextCodePoints
+
+// Text from a code point and back, and asking whether text is a number.
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/TextUtil.mmt",
+	"../../../MarmotPrelude/Prelude/Option.mmt"
+}
+
+use Option.{Option}
+
+def ShowText = fn(found: Option<Text>) -> Text => Option::OptionUnwrap(found, "(none)");
+
+def ShowInt = fn(found: Option<Int>) -> Text =>
+	match found with
+	case Option::Some(value) => value as Text
+	case Option::None() => "(none)"
+;
+
+def ShowFloat = fn(found: Option<Float>) -> Text =>
+	match found with
+	case Option::Some(value) => value as Text
+	case Option::None() => "(none)"
+;
+
+IO::PrintLine(ShowText(TextUtil::FromCodePoint(65)) ++ ShowText(TextUtil::FromCodePoint(233)) ++ ShowText(TextUtil::FromCodePoint(0x4E2D)) ++ ShowText(TextUtil::FromCodePoint(0x1F600)));
+IO::PrintLine(ShowText(TextUtil::FromCodePoint(0)) ++ " " ++ ShowText(TextUtil::FromCodePoint(0xD800)) ++ " " ++ ShowText(TextUtil::FromCodePoint(0x110000)) ++ " " ++ ShowText(TextUtil::FromCodePoint(-1)));
+IO::PrintLine(ShowInt(TextUtil::CodePointAt("aé中😀", 0)) ++ " " ++ ShowInt(TextUtil::CodePointAt("aé中😀", 1)) ++ " " ++ ShowInt(TextUtil::CodePointAt("aé中😀", 2)) ++ " " ++ ShowInt(TextUtil::CodePointAt("aé中😀", 3)) ++ " " ++ ShowInt(TextUtil::CodePointAt("aé中😀", 4)) ++ " " ++ ShowInt(TextUtil::CodePointAt("aé", -1)));
+IO::PrintLine(ShowInt(TextUtil::ParseInt("42")) ++ " " ++ ShowInt(TextUtil::ParseInt("-7")) ++ " " ++ ShowInt(TextUtil::ParseInt("12abc")) ++ " " ++ ShowInt(TextUtil::ParseInt(" 1")) ++ " " ++ ShowInt(TextUtil::ParseInt("")));
+IO::PrintLine(ShowFloat(TextUtil::ParseFloat("2.5")) ++ " " ++ ShowFloat(TextUtil::ParseFloat("1e3")) ++ " " ++ ShowFloat(TextUtil::ParseFloat("1.2.3")) ++ " " ++ ShowFloat(TextUtil::ParseFloat("abc")));

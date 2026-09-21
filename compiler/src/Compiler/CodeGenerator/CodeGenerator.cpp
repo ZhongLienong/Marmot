@@ -2923,6 +2923,17 @@ void CodeGenerator::operator()(MidoriExpression::As& as)
 		{
 			EmitByte(OpCode::WORD_TO_TEXT, line);
 		}
+		else if (from_type->IsType<MidoriType::BoolType>())
+		{
+			const int when_false = EmitJump(OpCode::JUMP_IF_FALSE, line);
+			EmitByte(OpCode::POP, line);
+			EmitTextConstant("true", line);
+			const int past_false = EmitJump(OpCode::JUMP, line);
+			PatchJump(when_false, line);
+			EmitByte(OpCode::POP, line);
+			EmitTextConstant("false", line);
+			PatchJump(past_false, line);
+		}
 		else if (from_type->IsType<MidoriType::TextType>())
 		{
 			// Do nothing

@@ -172,6 +172,9 @@ Public text helpers:
 
 - `Length`, `Contains`, `Substring`
 - `Split`, `Replace`, `Trim`, `Reverse`
+- `FromCodePoint(Int) -> Option<Text>`: the text of one Unicode scalar value; `None` for a surrogate, anything past U+10FFFF, and U+0000, which text cannot hold
+- `CodePointAt(Text, Int) -> Option<Int>`: the code point at a code-point index, `None` past the end
+- `ParseInt(Text) -> Option<Int>`, `ParseFloat(Text) -> Option<Float>`: the number the whole text spells, or `None`. `text as Int` and `text as Float` are the same conversions, but stop the program with `InvalidConversion` when the text is not a number
 
 Public array helpers:
 

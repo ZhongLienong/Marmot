@@ -1768,14 +1768,30 @@ bool MidoriText::operator!=(const MidoriText& other) const
 	return !(*this == other);
 }
 
-MidoriInteger MidoriText::ToInteger() const
+std::optional<MidoriInteger> MidoriText::ParseInteger() const
 {
-	return std::atoll(GetCString());
+	const char* begin = GetCString();
+	const char* end = begin + GetByteLength();
+	MidoriInteger value = 0;
+	const std::from_chars_result result = std::from_chars(begin, end, value);
+	if ((begin == end) || (result.ec != std::errc()) || (result.ptr != end))
+	{
+		return std::nullopt;
+	}
+	return value;
 }
 
-MidoriFloat MidoriText::ToFloat() const
+std::optional<MidoriFloat> MidoriText::ParseFloat() const
 {
-	return std::atof(GetCString());
+	const char* begin = GetCString();
+	const char* end = begin + GetByteLength();
+	MidoriFloat value = 0.0;
+	const std::from_chars_result result = std::from_chars(begin, end, value);
+	if ((begin == end) || (result.ec != std::errc()) || (result.ptr != end))
+	{
+		return std::nullopt;
+	}
+	return value;
 }
 
 MidoriText MidoriText::FromInteger(MidoriInteger value)
@@ -1802,10 +1818,20 @@ MidoriText MidoriText::FromWord(MidoriWord value)
 	return MidoriText(buffer);
 }
 
+// The shortest text that reads back as the same Float, and one that still
+// looks like a Float when the value is whole: 3.0, not 3.
 MidoriText MidoriText::FromFloat(MidoriFloat value)
 {
-	char buffer[32];
-	std::snprintf(buffer, 32, "%f", value);
+	char buffer[64];
+	const std::to_chars_result result = std::to_chars(std::begin(buffer), std::end(buffer) - 3, value);
+	std::string_view written(std::begin(buffer), result.ptr);
+	char* end = result.ptr;
+	if (written.find_first_of(".eEni") == std::string_view::npos)
+	{
+		*end++ = '.';
+		*end++ = '0';
+	}
+	*end = '\0';
 	return MidoriText(buffer);
 }
 

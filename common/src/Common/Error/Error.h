@@ -84,7 +84,8 @@ enum class RuntimeErrorCode
 	InternalFFITypeError,
 	UnsupportedPlatformOperation,
 	WorkerCancelled,
-	WorkerExited
+	WorkerExited,
+	InvalidConversion
 };
 
 enum class RuntimeDiagnosticKind

@@ -1,5 +1,9 @@
 module TextUtil
-public export { Length, Contains, Substring, Split, Replace, Trim, Reverse }
+import { "./Prelude/Option.mmt" }
+use Option.{
+    Option
+}
+public export { Length, Contains, Substring, Split, Replace, Trim, Reverse, FromCodePoint, CodePointAt, ParseInt, ParseFloat }
 foreign "MIDORI_FFI_TextLength" TextLengthRaw: fn(Text) -> Int;
 foreign "MIDORI_FFI_TextSubstring" TextSubstringRaw: fn(Text, Int, Int) -> Text;
 foreign "MIDORI_FFI_TextSplit" TextSplitRaw: fn(Text, Text) -> Array < Text >;
@@ -7,6 +11,10 @@ foreign "MIDORI_FFI_TextReverse" TextReverseRaw: fn(Text) -> Text;
 foreign "MIDORI_FFI_TextContains" TextContainsRaw: fn(Text, Text) -> Bool;
 foreign "MIDORI_FFI_TextReplace" TextReplaceRaw: fn(Text, Text, Text) -> Text;
 foreign "MIDORI_FFI_TextTrim" TextTrimRaw: fn(Text) -> Text;
+foreign "MIDORI_FFI_TextFromCodePoint" TextFromCodePointRaw: fn(Int) -> Text;
+foreign "MIDORI_FFI_TextCodePointAt" TextCodePointAtRaw: fn(Text, Int) -> Int;
+foreign "MIDORI_FFI_TextIsInteger" TextIsIntegerRaw: fn(Text) -> Bool;
+foreign "MIDORI_FFI_TextIsFloat" TextIsFloatRaw: fn(Text) -> Bool;
 def Length = fn(text: Text) -> Int => TextLengthRaw(text);
 def Contains = fn(text: Text, substring: Text) -> Bool => TextContainsRaw(text, substring);
 def Substring = fn(text: Text, start: Int, end: Int) -> Text => TextSubstringRaw(text, start, end);
@@ -14,3 +22,11 @@ def Split = fn(text: Text, delimiter: Text) -> Array < Text > => TextSplitRaw(te
 def Replace = fn(text: Text, target: Text, replacement: Text) -> Text => TextReplaceRaw(text, target, replacement);
 def Trim = fn(text: Text) -> Text => TextTrimRaw(text);
 def Reverse = fn(text: Text) -> Text => TextReverseRaw(text);
+def IsScalarValue = fn(code_point: Int) -> Bool => ((code_point >= 1) && (code_point <= 0x10FFFF)) && ((code_point < 0xD800) || (code_point > 0xDFFF));
+def FromCodePoint = fn(code_point: Int) -> Option < Text > => if IsScalarValue(code_point) then Option::Some(TextFromCodePointRaw(code_point)) else Option::None();
+def CodePointAt = fn(text: Text, index: Int) -> Option < Int > => {
+    def code_point = TextCodePointAtRaw(text, index);
+    if code_point < 0 then Option::None() else Option::Some(code_point)
+};
+def ParseInt = fn(text: Text) -> Option < Int > => if TextIsIntegerRaw(text) then Option::Some(text as Int) else Option::None();
+def ParseFloat = fn(text: Text) -> Option < Float > => if TextIsFloatRaw(text) then Option::Some(text as Float) else Option::None();

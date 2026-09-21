@@ -5003,6 +5003,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::As& as)
 				bool const is_from_text = expr_type->IsType<MidoriType::TextType>();
 				bool const is_from_byte = expr_type->IsType<MidoriType::ByteType>();
 				bool const is_from_word = expr_type->IsType<MidoriType::WordType>();
+				bool const is_from_bool = expr_type->IsType<MidoriType::BoolType>();
 
 				bool const is_to_int = as.m_to_type->IsType<MidoriType::IntegerType>();
 				bool const is_to_float = as.m_to_type->IsType<MidoriType::FloatType>();
@@ -5014,7 +5015,8 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::As& as)
 					(is_from_float && (is_to_int || is_to_text || is_to_byte || is_to_word)) ||
 					(is_from_text && (is_to_int || is_to_float)) ||
 					(is_from_byte && (is_to_int || is_to_float || is_to_word || is_to_text)) ||
-					(is_from_word && (is_to_int || is_to_float || is_to_byte || is_to_text)))
+					(is_from_word && (is_to_int || is_to_float || is_to_byte || is_to_text)) ||
+					(is_from_bool && is_to_text))
 				{
 					is_builtin_conversion = true;
 				}
