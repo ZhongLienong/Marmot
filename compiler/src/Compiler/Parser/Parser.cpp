@@ -689,18 +689,39 @@ Parser::ConstructorResolutionResult Parser::ResolveConstructorName(const Token& 
 		}
 	}
 
-	// `Module::Record(...)`: the qualifier names an imported module, and the
-	// record it exports is the constructor.
+	// `Module::Record(...)` and `Module::Union::Member(...)`: the qualifier names
+	// an imported module, and the type it exports carries the constructor.
 	if (separator_pos != std::string::npos)
 	{
 		const std::unordered_map<std::string, TypeEnvironment>::const_iterator module_it = m_context.m_imported_type_signatures.find(lookup_base);
 		if (module_it != m_context.m_imported_type_signatures.cend())
 		{
-			std::string symbol_name = mangled_name.substr(separator_pos + NameSeparator.length());
-			const TypeEnvironment::const_iterator type_it = module_it->second.find(symbol_name);
-			if (type_it != module_it->second.cend() && type_it->second->IsType<MidoriType::StructType>())
+			const std::string symbol_name = mangled_name.substr(separator_pos + NameSeparator.length());
+			const size_t member_pos = symbol_name.find(NameSeparator);
+			std::string type_name = member_pos == std::string::npos ? symbol_name : symbol_name.substr(0u, member_pos);
+			const TypeEnvironment::const_iterator type_it = module_it->second.find(type_name);
+			if (type_it != module_it->second.cend())
 			{
-				return ConstructorResolution(std::shared_ptr<MidoriType>(type_it->second), std::move(symbol_name), true);
+				const ImportedSymbolAccess access = ResolveImportedSymbolAccess(lookup_base, type_name);
+				if (access != ImportedSymbolAccess::Accessible)
+				{
+					return std::unexpected(GenerateParserError(BuildImportedSymbolAccessError(lookup_base, type_name, access), name_token));
+				}
+
+				if (member_pos == std::string::npos && type_it->second->IsType<MidoriType::StructType>())
+				{
+					return ConstructorResolution(std::shared_ptr<MidoriType>(type_it->second), std::move(type_name), true);
+				}
+
+				if (member_pos != std::string::npos && type_it->second->IsType<MidoriType::UnionType>())
+				{
+					const MidoriType::UnionType& union_type = type_it->second->GetType<MidoriType::UnionType>();
+					std::string member_key = union_type.m_name + NameSeparator.data() + symbol_name.substr(member_pos + NameSeparator.length());
+					if (union_type.m_member_info.contains(member_key))
+					{
+						return ConstructorResolution(std::shared_ptr<MidoriType>(type_it->second), std::move(member_key), false);
+					}
+				}
 			}
 		}
 	}
@@ -949,6 +970,11 @@ std::string Parser::BuildImportedSymbolAccessError(const std::string& module_nam
 	}
 
 	return std::format("Symbol '{}' is not accessible from module '{}'.", symbol_name, module_name);
+}
+
+std::string Parser::CurrentModuleName() const
+{
+	return m_context.m_current_module != nullptr ? m_context.m_current_module->ModuleName() : std::string();
 }
 
 bool Parser::ResolveQualifiedSymbol(const std::string& module_name, const std::string& symbol_name) const
@@ -2872,7 +2898,7 @@ MidoriResult::StatementResult Parser::ParseStructBody(TypeDeclarationHeader&& he
 	std::vector<std::string> generic_param_names;
 	std::ranges::transform(header.m_generic_params, std::back_inserter(generic_param_names), [](const Token& tok) { return tok.m_lexeme; });
 
-	std::shared_ptr<MidoriType> struct_type = MidoriType::MakeStructType(header.m_name.m_lexeme, std::move(member_split.m_types), std::move(member_split.m_names), std::move(generic_param_names));
+	std::shared_ptr<MidoriType> struct_type = MidoriType::MakeStructType(header.m_name.m_lexeme, CurrentModuleName(), std::move(member_split.m_types), std::move(member_split.m_names), std::move(generic_param_names));
 	struct_type->GetType<MidoriType::StructType>().m_constraints = header.m_constraints;
 
 	// End the generic param scope if it was created
@@ -2904,7 +2930,7 @@ MidoriResult::StatementResult Parser::ParseUnionBody(TypeDeclarationHeader&& hea
 	std::vector<std::string> generic_param_names;
 	std::ranges::transform(header.m_generic_params, std::back_inserter(generic_param_names), [](const Token& tok) { return tok.m_lexeme; });
 
-	std::shared_ptr<MidoriType> union_type = MidoriType::MakeUnionType(header.m_name.m_lexeme, std::move(generic_param_names));
+	std::shared_ptr<MidoriType> union_type = MidoriType::MakeUnionType(header.m_name.m_lexeme, CurrentModuleName(), std::move(generic_param_names));
 	MidoriType::UnionType& union_type_ref = union_type->GetType<MidoriType::UnionType>();
 	union_type_ref.m_constraints = header.m_constraints;
 
@@ -3155,7 +3181,7 @@ MidoriResult::StatementResult Parser::ParseNewTypeBody(TypeDeclarationHeader&& h
 	std::vector<std::string> generic_param_names;
 	std::ranges::transform(header.m_generic_params, std::back_inserter(generic_param_names), [](const Token& generic_param) { return generic_param.m_lexeme; });
 
-	std::shared_ptr<MidoriType> new_type = MidoriType::MakeNewType(header.m_name.m_lexeme, representation, std::move(generic_param_names));
+	std::shared_ptr<MidoriType> new_type = MidoriType::MakeNewType(header.m_name.m_lexeme, CurrentModuleName(), representation, std::move(generic_param_names));
 	new_type->GetType<MidoriType::NewType>().m_constraints = header.m_constraints;
 
 	if (header.m_has_generic_params)

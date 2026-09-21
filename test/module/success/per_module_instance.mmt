@@ -1,0 +1,13 @@
+module PerModuleInstance
+
+// An instance belongs to the module that declares its type. Two modules
+// declaring `Wrap` declare two types, so each instance is for its own.
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"./identity_lib_a.mmt",
+	"./identity_lib_b.mmt"
+}
+
+IO::PrintLine(Describe::describe(IdentityLibA::Wrap(1)) ++ Describe::describe(IdentityLibB::Wrap(2)));

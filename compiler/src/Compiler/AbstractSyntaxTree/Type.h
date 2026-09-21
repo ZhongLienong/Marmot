@@ -118,6 +118,9 @@ public:
 		std::vector<std::shared_ptr<MidoriType>> m_member_types;
 		std::vector<std::string> m_member_names;
 		std::string m_name;
+		// The module that declared it. Two modules may declare a type of the
+		// same name, and those are two types.
+		std::string m_module_name;
 		std::vector<std::string> m_generic_params;
 		std::vector<std::shared_ptr<MidoriType>> m_type_arguments;
 		std::vector<ClassConstraint> m_constraints;
@@ -134,17 +137,19 @@ public:
 
 		std::unordered_map<std::string, UnionMemberContext> m_member_info;
 		std::string m_name;
+		std::string m_module_name;
 		std::vector<std::string> m_generic_params;
 		std::vector<std::shared_ptr<MidoriType>> m_type_arguments;
 		std::vector<ClassConstraint> m_constraints;
 		bool m_is_generic_instantiation = false;
 
-		UnionType(const std::string& name);
+		UnionType(const std::string& name, const std::string& module_name);
 	};
 
 	struct NewType
 	{
 		std::string m_name;
+		std::string m_module_name;
 		std::shared_ptr<MidoriType> m_representation;
 		std::vector<std::string> m_generic_params;
 		std::vector<std::shared_ptr<MidoriType>> m_type_arguments;
@@ -228,9 +233,9 @@ public:
 	static std::shared_ptr<MidoriType> MakeRangeType(const std::shared_ptr<MidoriType>& element_type);
 	static std::shared_ptr<MidoriType> MakeTupleType(std::vector<std::shared_ptr<MidoriType>>&& element_types);
 	static std::shared_ptr<MidoriType> MakeFunctionType(const std::vector<std::shared_ptr<MidoriType>>& param_types, std::shared_ptr<MidoriType>&& return_type, bool is_foreign = false);
-	static std::shared_ptr<MidoriType> MakeStructType(const std::string& name, std::vector<std::shared_ptr<MidoriType>>&& member_types, std::vector<std::string>&& member_names, std::vector<std::string>&& generic_params = {});
-	static std::shared_ptr<MidoriType> MakeUnionType(const std::string& name, std::vector<std::string>&& generic_params = {});
-	static std::shared_ptr<MidoriType> MakeNewType(const std::string& name, const std::shared_ptr<MidoriType>& representation, std::vector<std::string>&& generic_params = {});
+	static std::shared_ptr<MidoriType> MakeStructType(const std::string& name, const std::string& module_name, std::vector<std::shared_ptr<MidoriType>>&& member_types, std::vector<std::string>&& member_names, std::vector<std::string>&& generic_params = {});
+	static std::shared_ptr<MidoriType> MakeUnionType(const std::string& name, const std::string& module_name, std::vector<std::string>&& generic_params = {});
+	static std::shared_ptr<MidoriType> MakeNewType(const std::string& name, const std::string& module_name, const std::shared_ptr<MidoriType>& representation, std::vector<std::string>&& generic_params = {});
 
 	static std::shared_ptr<MidoriType> SubstituteTypeParams(const std::shared_ptr<MidoriType>& type, const std::unordered_map<std::string, std::shared_ptr<MidoriType>>& substitutions);
 
@@ -238,7 +243,12 @@ public:
 
 	static std::vector<std::shared_ptr<MidoriType>> InstantiateTypeArguments(const std::vector<std::string>& generic_params, const std::vector<std::shared_ptr<MidoriType>>& type_arguments, const TypeArgumentSubstituteFn& substitute);
 
+	// What identifies the type: a declared type's module is part of it, so an
+	// instance keyed on one module's `Wrap` is not the other module's.
 	std::string ToString() const;
+
+	// What a diagnostic shows: the name as written, without the module.
+	std::string DisplayString() const;
 
 	static std::string MangleInstanceMethodName(const std::string& method_name, const std::string& typeclass_name, const std::vector<std::shared_ptr<MidoriType>>& type_args);
 
@@ -249,6 +259,8 @@ public:
 	friend bool operator==(const MidoriType& lhs, const MidoriType& rhs);
 
 private:
+	std::string Stringify(bool qualify) const;
+
 	struct TypeEqualityVisitor;
 	static bool CompareStructTypes(const StructType& a, const StructType& b);
 	static bool CompareUnionTypes(const UnionType& a, const UnionType& b);

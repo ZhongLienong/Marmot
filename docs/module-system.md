@@ -88,8 +88,15 @@ if you `use` both, which is an error naming both.
 
 The rule is the same for type names and for a union's constructors. A type an
 imported module exports is written `Shapes::Point` or brought in with
-`use Shapes.{Point}`; the constructors of a union come into scope with the union
-itself, so `use Result.{Result}` is what makes `Result::Ok` mean something.
+`use Shapes.{Point}`. A constructor is qualified the same way, naming the module,
+the union and the variant -- `Shapes::Shade::Dark(1)` -- and a `use` of the union
+brings its constructors with it, so after `use Result.{Result}` the variant is
+written `Result::Ok`.
+
+A type's identity includes the module that declared it. Two modules may each
+declare a `Point`, and those are two types: one is not accepted where the other
+is expected, each has its own typeclass instances, and a diagnostic names the
+module of each when the short names would read the same.
 
 ## Flexible Placement
 

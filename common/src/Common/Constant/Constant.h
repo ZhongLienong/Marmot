@@ -76,31 +76,24 @@ constexpr std::string_view MATCH_VALUE_PREFIX = "$match_value_";
 // Typeclass names
 constexpr std::string_view CONVERTABLE_CLASS_NAME = "Convertable";
 constexpr std::string_view CONVERT_METHOD_NAME = "Convert";
-constexpr std::string_view CONVERT_MANGLED_PREFIX = "Convert_Convertable_";
 
 constexpr std::string_view EQUATABLE_CLASS_NAME = "Equatable";
 constexpr std::string_view EQUALS_METHOD_NAME = "Equals";
-constexpr std::string_view EQUALS_MANGLED_PREFIX = "Equals_Equatable_";
 
 constexpr std::string_view ORDERABLE_CLASS_NAME = "Orderable";
 constexpr std::string_view COMPARE_METHOD_NAME = "Compare";
-constexpr std::string_view COMPARE_MANGLED_PREFIX = "Compare_Orderable_";
 
 constexpr std::string_view CONCATENABLE_CLASS_NAME = "Concatenable";
 constexpr std::string_view CONCAT_METHOD_NAME = "Concat";
-constexpr std::string_view CONCAT_MANGLED_PREFIX = "Concat_Concatenable_";
 
 constexpr std::string_view COUNTABLE_CLASS_NAME = "Countable";
 constexpr std::string_view COUNT_METHOD_NAME = "Count";
-constexpr std::string_view COUNT_MANGLED_PREFIX = "Count_Countable_";
 
 constexpr std::string_view ITERABLE_CLASS_NAME = "Iterable";
 constexpr std::string_view NEXT_METHOD_NAME = "Next";
-constexpr std::string_view NEXT_MANGLED_PREFIX = "Next_Iterable_";
 
 constexpr std::string_view INDEXABLE_CLASS_NAME = "Indexable";
 constexpr std::string_view GET_METHOD_NAME = "Get";
-constexpr std::string_view GET_MANGLED_PREFIX = "Get_Indexable_";
 constexpr std::string_view ELEMENT_ASSOCIATED_TYPE_NAME = "Element";
 
 // Standard library paths

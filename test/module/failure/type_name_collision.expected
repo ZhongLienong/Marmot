@@ -1,0 +1,6 @@
+Compilation failed :( 
+Type Checker Error at test/module/failure/type_name_collision.mmt:13
+   |
+13 | IO::PrintLine(IdentityLibA::TakesWrap(IdentityLibB::Wrap(7)) as Text);
+   |                                       ^^^^^^^^^^^^ Expected type 'IdentityLibA::Wrap' but got 'IdentityLibB::Wrap'
+   |

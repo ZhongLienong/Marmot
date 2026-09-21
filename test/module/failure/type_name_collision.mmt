@@ -1,0 +1,13 @@
+module TypeNameCollision
+
+// A type's name is not its identity: `IdentityLibB::Wrap` is not the `Wrap`
+// that `IdentityLibA` declares, so the error names the module of each.
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../success/identity_lib_a.mmt",
+	"../success/identity_lib_b.mmt"
+}
+
+IO::PrintLine(IdentityLibA::TakesWrap(IdentityLibB::Wrap(7)) as Text);

@@ -1,0 +1,16 @@
+module IdentityLibA
+
+// Its own `Wrap`, and its own instance for it.
+
+import { "./describe_class.mmt" }
+
+public export { Wrap, TakesWrap, Describe }
+
+type Wrap = { value: Int };
+
+def TakesWrap = fn(wrap: Wrap) -> Int => wrap.value;
+
+instance Describe<Wrap>
+{
+	def describe = fn(value: Wrap) -> Text => "A";
+};

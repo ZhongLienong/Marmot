@@ -106,7 +106,7 @@ namespace
 				std::vector<TypePtr> empty_member_types;
 				std::vector<std::string> member_names_copy = type_variant.m_member_names;
 				std::vector<std::string> instantiated_generic_params;
-				TypePtr new_struct = MidoriType::MakeStructType(type_variant.m_name, std::move(empty_member_types), std::move(member_names_copy), std::move(instantiated_generic_params));
+				TypePtr new_struct = MidoriType::MakeStructType(type_variant.m_name, type_variant.m_module_name, std::move(empty_member_types), std::move(member_names_copy), std::move(instantiated_generic_params));
 				cache[current_type.get()] = new_struct;
 
 				std::vector<TypePtr> new_member_types;
@@ -129,7 +129,7 @@ namespace
 			else if constexpr (std::is_same_v<T, MidoriType::UnionType>)
 			{
 				std::vector<std::string> instantiated_generic_params;
-				TypePtr new_union_type = MidoriType::MakeUnionType(type_variant.m_name, std::move(instantiated_generic_params));
+				TypePtr new_union_type = MidoriType::MakeUnionType(type_variant.m_name, type_variant.m_module_name, std::move(instantiated_generic_params));
 				MidoriType::UnionType& new_union_ref = new_union_type->GetType<MidoriType::UnionType>();
 				std::vector<MidoriType::ClassConstraint> new_constraints;
 				new_constraints.reserve(type_variant.m_constraints.size());
@@ -165,7 +165,7 @@ namespace
 			else if constexpr (std::is_same_v<T, MidoriType::NewType>)
 			{
 				std::vector<std::string> preserved_generic_params = type_variant.m_generic_params;
-				TypePtr new_newtype = MidoriType::MakeNewType(type_variant.m_name, type_variant.m_representation, std::move(preserved_generic_params));
+				TypePtr new_newtype = MidoriType::MakeNewType(type_variant.m_name, type_variant.m_module_name, type_variant.m_representation, std::move(preserved_generic_params));
 				cache[current_type.get()] = new_newtype;
 
 				MidoriType::NewType& new_ref = new_newtype->GetType<MidoriType::NewType>();
@@ -200,11 +200,19 @@ namespace
 		}
 	};
 
+	// A declared type is `Module::Name` when the string has to identify it, and
+	// the bare name when a person is going to read it.
+	std::string NominalName(const std::string& name, const std::string& module_name, bool qualify)
+	{
+		return (qualify && !module_name.empty()) ? module_name + std::string(NameSeparator) + name : name;
+	}
+
 	template<typename ToStringCallback>
 	struct ToStringVisitor
 	{
 		const JoinWithCommaFn& join_with_comma;
 		const ToStringCallback& stringify;
+		bool qualify;
 
 		std::string StringifyTypeArguments(const std::string& name, const std::vector<TypePtr>& type_arguments) const
 		{
@@ -322,13 +330,14 @@ namespace
 			}
 			else if constexpr (std::is_same_v<Type, MidoriType::StructType>)
 			{
+				const std::string type_name = NominalName(type_variant.m_name, type_variant.m_module_name, qualify);
 				if (!type_variant.m_generic_params.empty())
 				{
-					return type_variant.m_name + "<"s + std::accumulate(std::next(type_variant.m_generic_params.begin()), type_variant.m_generic_params.end(), type_variant.m_generic_params.front(), join_with_comma) + ">"s;
+					return type_name + "<"s + std::accumulate(std::next(type_variant.m_generic_params.begin()), type_variant.m_generic_params.end(), type_variant.m_generic_params.front(), join_with_comma) + ">"s;
 				}
 				else if (type_variant.m_is_generic_instantiation && !type_variant.m_type_arguments.empty())
 				{
-					return StringifyTypeArguments(type_variant.m_name, type_variant.m_type_arguments);
+					return StringifyTypeArguments(type_name, type_variant.m_type_arguments);
 				}
 				else if (type_variant.m_is_generic_instantiation && !type_variant.m_member_types.empty())
 				{
@@ -340,22 +349,23 @@ namespace
 						[this](const TypePtr& member_type) { return stringify(*member_type); }
 					);
 
-					return type_variant.m_name + "<"s + std::accumulate(std::next(member_type_strings.begin()), member_type_strings.end(), member_type_strings.front(), join_with_comma) + ">"s;
+					return type_name + "<"s + std::accumulate(std::next(member_type_strings.begin()), member_type_strings.end(), member_type_strings.front(), join_with_comma) + ">"s;
 				}
 				else
 				{
-					return type_variant.m_name;
+					return type_name;
 				}
 			}
 			else if constexpr (std::is_same_v<Type, MidoriType::UnionType>)
 			{
+				const std::string type_name = NominalName(type_variant.m_name, type_variant.m_module_name, qualify);
 				if (!type_variant.m_generic_params.empty())
 				{
-					return type_variant.m_name + "<"s + std::accumulate(std::next(type_variant.m_generic_params.begin()), type_variant.m_generic_params.end(), type_variant.m_generic_params.front(), join_with_comma) + ">"s;
+					return type_name + "<"s + std::accumulate(std::next(type_variant.m_generic_params.begin()), type_variant.m_generic_params.end(), type_variant.m_generic_params.front(), join_with_comma) + ">"s;
 				}
 				else if (type_variant.m_is_generic_instantiation && !type_variant.m_type_arguments.empty())
 				{
-					return StringifyTypeArguments(type_variant.m_name, type_variant.m_type_arguments);
+					return StringifyTypeArguments(type_name, type_variant.m_type_arguments);
 				}
 				else if (type_variant.m_is_generic_instantiation)
 				{
@@ -367,7 +377,7 @@ namespace
 					}
 					std::sort(member_keys.begin(), member_keys.end());
 					
-					std::string sig = type_variant.m_name + "<"s;
+					std::string sig = type_name + "<"s;
 					bool first = true;
 					for (const std::string& key : member_keys)
 					{
@@ -399,7 +409,7 @@ namespace
 				}
 				else
 				{
-					return type_variant.m_name;
+					return type_name;
 				}
 			}
 			else if constexpr (std::is_same_v<Type, MidoriType::NewType>)
@@ -408,17 +418,18 @@ namespace
 				// MangleInstanceMethodName key on this string, so rendering the
 				// representation here would collapse Hashable<Meters> into
 				// Hashable<Int>.
+				const std::string type_name = NominalName(type_variant.m_name, type_variant.m_module_name, qualify);
 				if (type_variant.m_is_generic_instantiation && !type_variant.m_type_arguments.empty())
 				{
-					return StringifyTypeArguments(type_variant.m_name, type_variant.m_type_arguments);
+					return StringifyTypeArguments(type_name, type_variant.m_type_arguments);
 				}
 
 				if (!type_variant.m_generic_params.empty())
 				{
-					return type_variant.m_name + "<"s + std::accumulate(std::next(type_variant.m_generic_params.begin()), type_variant.m_generic_params.end(), type_variant.m_generic_params.front(), join_with_comma) + ">"s;
+					return type_name + "<"s + std::accumulate(std::next(type_variant.m_generic_params.begin()), type_variant.m_generic_params.end(), type_variant.m_generic_params.front(), join_with_comma) + ">"s;
 				}
 
-				return type_variant.m_name;
+				return type_name;
 			}
 			else if constexpr (std::is_same_v<Type, MidoriType::AssociatedType>)
 			{
@@ -547,7 +558,7 @@ struct MidoriType::TypeEqualityVisitor
 				return true;
 			}
 			s_visiting.insert(key);
-			bool result = a.m_name == b.m_name && MidoriType::CompareTypeArguments(a.m_type_arguments, b.m_type_arguments);
+			bool result = a.m_name == b.m_name && a.m_module_name == b.m_module_name && MidoriType::CompareTypeArguments(a.m_type_arguments, b.m_type_arguments);
 			s_visiting.erase(key);
 			return result;
 		}
@@ -588,7 +599,7 @@ bool MidoriType::TypeVariable::operator==(const TypeVariable& other) const
 	return m_id == other.m_id;
 }
 
-MidoriType::UnionType::UnionType(const std::string& name) : m_name(name)
+MidoriType::UnionType::UnionType(const std::string& name, const std::string& module_name) : m_name(name), m_module_name(module_name)
 {
 }
 
@@ -719,22 +730,22 @@ std::shared_ptr<MidoriType> MidoriType::MakeFunctionType(const std::vector<std::
 	return std::make_shared<MidoriType>(MidoriTypeUnion(FunctionType{.m_param_types = param_types, .m_return_type = return_type, .m_constraints = {}, .m_is_foreign = is_foreign}));
 }
 
-std::shared_ptr<MidoriType> MidoriType::MakeStructType(const std::string& name, std::vector<std::shared_ptr<MidoriType>>&& member_types, std::vector<std::string>&& member_names, std::vector<std::string>&& generic_params)
+std::shared_ptr<MidoriType> MidoriType::MakeStructType(const std::string& name, const std::string& module_name, std::vector<std::shared_ptr<MidoriType>>&& member_types, std::vector<std::string>&& member_names, std::vector<std::string>&& generic_params)
 {
-	return std::make_shared<MidoriType>(MidoriTypeUnion(StructType{.m_member_types = std::move(member_types), .m_member_names = std::move(member_names), .m_name = name, .m_generic_params = std::move(generic_params), .m_constraints = {}}));
+	return std::make_shared<MidoriType>(MidoriTypeUnion(StructType{.m_member_types = std::move(member_types), .m_member_names = std::move(member_names), .m_name = name, .m_module_name = module_name, .m_generic_params = std::move(generic_params), .m_constraints = {}}));
 }
 
-std::shared_ptr<MidoriType> MidoriType::MakeUnionType(const std::string& name, std::vector<std::string>&& generic_params)
+std::shared_ptr<MidoriType> MidoriType::MakeUnionType(const std::string& name, const std::string& module_name, std::vector<std::string>&& generic_params)
 {
-	UnionType union_type(name);
+	UnionType union_type(name, module_name);
 	union_type.m_generic_params = std::move(generic_params);
 	union_type.m_constraints = {};
 	return std::make_shared<MidoriType>(MidoriTypeUnion(std::move(union_type)));
 }
 
-std::shared_ptr<MidoriType> MidoriType::MakeNewType(const std::string& name, const std::shared_ptr<MidoriType>& representation, std::vector<std::string>&& generic_params)
+std::shared_ptr<MidoriType> MidoriType::MakeNewType(const std::string& name, const std::string& module_name, const std::shared_ptr<MidoriType>& representation, std::vector<std::string>&& generic_params)
 {
-	return std::make_shared<MidoriType>(MidoriTypeUnion(NewType{.m_name = name, .m_representation = representation, .m_generic_params = std::move(generic_params), .m_type_arguments = {}, .m_constraints = {}}));
+	return std::make_shared<MidoriType>(MidoriTypeUnion(NewType{.m_name = name, .m_module_name = module_name, .m_representation = representation, .m_generic_params = std::move(generic_params), .m_type_arguments = {}, .m_constraints = {}}));
 }
 
 std::shared_ptr<MidoriType> MidoriType::SubstituteTypeParams(const std::shared_ptr<MidoriType>& type, const std::unordered_map<std::string, std::shared_ptr<MidoriType>>& substitutions)
@@ -781,6 +792,16 @@ std::vector<std::shared_ptr<MidoriType>> MidoriType::InstantiateTypeArguments(co
 
 std::string MidoriType::ToString() const
 {
+	return Stringify(true);
+}
+
+std::string MidoriType::DisplayString() const
+{
+	return Stringify(false);
+}
+
+std::string MidoriType::Stringify(bool qualify) const
+{
 	JoinWithCommaFn join_with_comma = [](const std::string& acc, const std::string& elem)
 		{
 			return acc.empty() ? elem : acc + ", "s + elem;
@@ -789,28 +810,28 @@ std::string MidoriType::ToString() const
 	std::unordered_set<const MidoriType*> visited;
 
 	ToStringFn stringify;
-	stringify = [&visited, &join_with_comma, &stringify](const MidoriType& type) -> std::string
+	stringify = [&visited, &join_with_comma, &stringify, qualify](const MidoriType& type) -> std::string
 	{
 		if (visited.contains(&type))
 		{
 			if (type.IsType<StructType>())
 			{
-					return type.GetType<StructType>().m_name;
+					return NominalName(type.GetType<StructType>().m_name, type.GetType<StructType>().m_module_name, qualify);
 				}
 				else if (type.IsType<UnionType>())
 				{
-					return type.GetType<UnionType>().m_name;
+					return NominalName(type.GetType<UnionType>().m_name, type.GetType<UnionType>().m_module_name, qualify);
 				}
 				else if (type.IsType<NewType>())
 				{
-					return type.GetType<NewType>().m_name;
+					return NominalName(type.GetType<NewType>().m_name, type.GetType<NewType>().m_module_name, qualify);
 				}
 				return "Recursive"s;
 			}
 
 			visited.insert(&type);
 
-			const std::string result = std::visit(ToStringVisitor<ToStringFn>{join_with_comma, stringify}, type.m_type);
+			const std::string result = std::visit(ToStringVisitor<ToStringFn>{join_with_comma, stringify, qualify}, type.m_type);
 
 			visited.erase(&type);
 			return result;
@@ -916,7 +937,7 @@ bool MidoriType::CompareInstantiatedStructs(const StructType& a, const StructTyp
 
 bool MidoriType::CompareStructTypes(const StructType& a, const StructType& b)
 {
-	if (a.m_name != b.m_name)
+	if (a.m_name != b.m_name || a.m_module_name != b.m_module_name)
 	{
 		return false;
 	}
@@ -1015,7 +1036,7 @@ bool MidoriType::CompareInstantiatedUnions(const UnionType& a, const UnionType& 
 
 bool MidoriType::CompareUnionTypes(const UnionType& a, const UnionType& b)
 {
-	if (a.m_name != b.m_name)
+	if (a.m_name != b.m_name || a.m_module_name != b.m_module_name)
 	{
 		return false;
 	}

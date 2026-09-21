@@ -742,6 +742,10 @@ std::vector<size_t> BytecodeLinker::ResolveImports(const BytecodeModule& module)
 				return export_result.value();
 			}
 
+			// An instance method is a global the module never lists as an export:
+			// nothing writes its mangled name, so the export list is not where it
+			// is found. A name a program can write has already been checked
+			// against the export list by the parser.
 			const size_t base_offset = m_module_base_global_indices.at(imported_module->m_module_name);
 			const std::optional<size_t> global_result = FindSymbolInGlobals(*imported_module, import.m_name, base_offset);
 			if (!global_result.has_value())

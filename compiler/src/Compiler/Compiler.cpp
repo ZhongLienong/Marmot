@@ -432,6 +432,28 @@ namespace
 		return node_it->second.m_source_lines;
 	}
 
+	// Which module declared a nominal type. Anything else has no module of its
+	// own, so it answers with nothing.
+	static std::string DeclaringModuleName(const std::shared_ptr<MidoriType>& type)
+	{
+		if (type->IsType<MidoriType::StructType>())
+		{
+			return type->GetType<MidoriType::StructType>().m_module_name;
+		}
+
+		if (type->IsType<MidoriType::UnionType>())
+		{
+			return type->GetType<MidoriType::UnionType>().m_module_name;
+		}
+
+		if (type->IsType<MidoriType::NewType>())
+		{
+			return type->GetType<MidoriType::NewType>().m_module_name;
+		}
+
+		return std::string();
+	}
+
 	static MidoriResult::Result<ImportContext> BuildImportContext(CompileEnv& env, const BuildGraph::BuildNode& node, const std::string& file_path)
 	{
 		ImportContext context;
@@ -527,10 +549,30 @@ namespace
 				}
 			}
 
+			// A type is also known by the module that declared it, which a
+			// re-export is not: a constructor is looked up by the type's own
+			// identity, and a union's members go with their union.
+			std::unordered_map<std::string, std::string> declaring_modules;
+			for (const auto& [name, type] : dep->TypeSignatures())
+			{
+				const std::string declaring_module_name = DeclaringModuleName(type);
+				if (!declaring_module_name.empty())
+				{
+					declaring_modules.emplace(name, declaring_module_name);
+				}
+			}
+
 			for (const auto& [name, type] : dep->TypeSignatures())
 			{
 				context.m_imported_types[name] = type;
 				context.m_imported_types[dep_module_name + NameSeparator.data() + name] = type;
+
+				const std::unordered_map<std::string, std::string>::const_iterator declaring_it =
+					declaring_modules.find(name.substr(0u, name.find(NameSeparator)));
+				if (declaring_it != declaring_modules.cend() && declaring_it->second != dep_module_name)
+				{
+					context.m_imported_types[declaring_it->second + NameSeparator.data() + name] = type;
+				}
 			}
 
 			const std::optional<BytecodeModule>& dep_bytecode = dep->Bytecode();

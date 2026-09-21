@@ -13,16 +13,17 @@ TEST_CASE("A newtype renders as its own name, never its representation", "[type]
 	// instances. If it ever renders as "Int", Hashable<Meters> collapses into
 	// Hashable<Int> and the feature is gone.
 	const std::shared_ptr<MidoriType> representation = MidoriType::MakeLiteralType<MidoriType::IntegerType>();
-	const std::shared_ptr<MidoriType> meters = MidoriType::MakeNewType("Meters", representation, {});
+	const std::shared_ptr<MidoriType> meters = MidoriType::MakeNewType("Meters", "TypeTests", representation, {});
 
-	REQUIRE(meters->ToString() == "Meters");
+	REQUIRE(meters->ToString() == "TypeTests::Meters");
+	REQUIRE(meters->DisplayString() == "Meters");
 	REQUIRE(meters->ToString() != representation->ToString());
 }
 
 TEST_CASE("A newtype is unequal to its representation in both directions", "[type]")
 {
 	const std::shared_ptr<MidoriType> representation = MidoriType::MakeLiteralType<MidoriType::IntegerType>();
-	const std::shared_ptr<MidoriType> meters = MidoriType::MakeNewType("Meters", representation, {});
+	const std::shared_ptr<MidoriType> meters = MidoriType::MakeNewType("Meters", "TypeTests", representation, {});
 
 	REQUIRE_FALSE(*meters == *representation);
 	REQUIRE_FALSE(*representation == *meters);
@@ -33,8 +34,8 @@ TEST_CASE("Two newtypes over one representation are distinct from each other", "
 	// Without this, `Meters` and `Seconds` would silently interconvert, which is
 	// the exact confusion the feature exists to prevent.
 	const std::shared_ptr<MidoriType> representation = MidoriType::MakeLiteralType<MidoriType::IntegerType>();
-	const std::shared_ptr<MidoriType> meters = MidoriType::MakeNewType("Meters", representation, {});
-	const std::shared_ptr<MidoriType> seconds = MidoriType::MakeNewType("Seconds", representation, {});
+	const std::shared_ptr<MidoriType> meters = MidoriType::MakeNewType("Meters", "TypeTests", representation, {});
+	const std::shared_ptr<MidoriType> seconds = MidoriType::MakeNewType("Seconds", "TypeTests", representation, {});
 
 	REQUIRE_FALSE(*meters == *seconds);
 }
@@ -42,10 +43,38 @@ TEST_CASE("Two newtypes over one representation are distinct from each other", "
 TEST_CASE("A newtype equals another newtype with the same name", "[type]")
 {
 	const std::shared_ptr<MidoriType> representation = MidoriType::MakeLiteralType<MidoriType::IntegerType>();
-	const std::shared_ptr<MidoriType> left = MidoriType::MakeNewType("Meters", representation, {});
-	const std::shared_ptr<MidoriType> right = MidoriType::MakeNewType("Meters", representation, {});
+	const std::shared_ptr<MidoriType> left = MidoriType::MakeNewType("Meters", "TypeTests", representation, {});
+	const std::shared_ptr<MidoriType> right = MidoriType::MakeNewType("Meters", "TypeTests", representation, {});
 
 	REQUIRE(*left == *right);
+}
+
+TEST_CASE("Two modules' types of the same name are two types", "[type]")
+{
+	// The name alone is not the identity: a module may declare `Wrap` while an
+	// imported module declares its own, and a value of one is not a value of
+	// the other. The rendering says which is which.
+	const std::shared_ptr<MidoriType> representation = MidoriType::MakeLiteralType<MidoriType::IntegerType>();
+	const std::shared_ptr<MidoriType> mine = MidoriType::MakeNewType("Wrap", "Mine", representation, {});
+	const std::shared_ptr<MidoriType> theirs = MidoriType::MakeNewType("Wrap", "Theirs", representation, {});
+
+	REQUIRE_FALSE(*mine == *theirs);
+	REQUIRE(mine->ToString() != theirs->ToString());
+	REQUIRE(mine->DisplayString() == theirs->DisplayString());
+
+	std::vector<std::shared_ptr<MidoriType>> member_types{ representation };
+	std::vector<std::string> member_names{ "value" };
+	std::vector<std::shared_ptr<MidoriType>> other_member_types{ representation };
+	std::vector<std::string> other_member_names{ "value" };
+	const std::shared_ptr<MidoriType> my_struct = MidoriType::MakeStructType("Point", "Mine", std::move(member_types), std::move(member_names));
+	const std::shared_ptr<MidoriType> their_struct = MidoriType::MakeStructType("Point", "Theirs", std::move(other_member_types), std::move(other_member_names));
+
+	REQUIRE_FALSE(*my_struct == *their_struct);
+
+	const std::shared_ptr<MidoriType> my_union = MidoriType::MakeUnionType("Shade", "Mine");
+	const std::shared_ptr<MidoriType> their_union = MidoriType::MakeUnionType("Shade", "Theirs");
+
+	REQUIRE_FALSE(*my_union == *their_union);
 }
 
 TEST_CASE("A self-referential newtype's ToString recursion guard preserves nominal identity", "[type]")
@@ -67,18 +96,18 @@ TEST_CASE("A self-referential newtype's ToString recursion guard preserves nomin
 	// generic instantiation, which StringifyTypeArguments does recurse into, so
 	// that is what this test constructs -- directly through the public API, no
 	// undefined behaviour.
-	const std::shared_ptr<MidoriType> meters = MidoriType::MakeNewType("Meters", MidoriType::MakeLiteralType<MidoriType::IntegerType>(), {});
+	const std::shared_ptr<MidoriType> meters = MidoriType::MakeNewType("Meters", "TypeTests", MidoriType::MakeLiteralType<MidoriType::IntegerType>(), {});
 	MidoriType::NewType& meters_data = meters->GetType<MidoriType::NewType>();
 	meters_data.m_is_generic_instantiation = true;
 	meters_data.m_type_arguments = { meters };
 
-	const std::shared_ptr<MidoriType> seconds = MidoriType::MakeNewType("Seconds", MidoriType::MakeLiteralType<MidoriType::IntegerType>(), {});
+	const std::shared_ptr<MidoriType> seconds = MidoriType::MakeNewType("Seconds", "TypeTests", MidoriType::MakeLiteralType<MidoriType::IntegerType>(), {});
 	MidoriType::NewType& seconds_data = seconds->GetType<MidoriType::NewType>();
 	seconds_data.m_is_generic_instantiation = true;
 	seconds_data.m_type_arguments = { seconds };
 
-	REQUIRE(meters->ToString() == "Meters<Meters>");
-	REQUIRE(seconds->ToString() == "Seconds<Seconds>");
+	REQUIRE(meters->ToString() == "TypeTests::Meters<TypeTests::Meters>");
+	REQUIRE(seconds->ToString() == "TypeTests::Seconds<TypeTests::Seconds>");
 	REQUIRE(meters->ToString() != seconds->ToString());
 }
 
@@ -86,7 +115,7 @@ TEST_CASE("Substituting a newtype's parameter rewrites its representation", "[ty
 {
 	const std::shared_ptr<MidoriType> element = MidoriType::MakeGenericType("T");
 	const std::shared_ptr<MidoriType> representation = MidoriType::MakeArrayType(element);
-	const std::shared_ptr<MidoriType> boxed = MidoriType::MakeNewType("Boxed", representation, {"T"});
+	const std::shared_ptr<MidoriType> boxed = MidoriType::MakeNewType("Boxed", "TypeTests", representation, {"T"});
 
 	std::unordered_map<std::string, std::shared_ptr<MidoriType>> substitutions;
 	substitutions["T"] = MidoriType::MakeLiteralType<MidoriType::IntegerType>();
@@ -108,7 +137,7 @@ TEST_CASE("Substituting a newtype with an empty map preserves its parameters", "
 	// NewType arm must not inherit that behaviour.
 	const std::shared_ptr<MidoriType> element = MidoriType::MakeGenericType("T");
 	const std::shared_ptr<MidoriType> representation = MidoriType::MakeArrayType(element);
-	const std::shared_ptr<MidoriType> boxed = MidoriType::MakeNewType("Boxed", representation, {"T"});
+	const std::shared_ptr<MidoriType> boxed = MidoriType::MakeNewType("Boxed", "TypeTests", representation, {"T"});
 
 	const std::unordered_map<std::string, std::shared_ptr<MidoriType>> empty;
 	const std::shared_ptr<MidoriType> result = MidoriType::SubstituteTypeParams(boxed, empty);
@@ -127,14 +156,15 @@ TEST_CASE("A substituted newtype renders its type argument, not its parameter na
 	// instance slot.
 	const std::shared_ptr<MidoriType> element = MidoriType::MakeGenericType("T");
 	const std::shared_ptr<MidoriType> representation = MidoriType::MakeArrayType(element);
-	const std::shared_ptr<MidoriType> boxed = MidoriType::MakeNewType("Boxed", representation, {"T"});
+	const std::shared_ptr<MidoriType> boxed = MidoriType::MakeNewType("Boxed", "TypeTests", representation, {"T"});
 
 	std::unordered_map<std::string, std::shared_ptr<MidoriType>> substitutions;
 	substitutions["T"] = MidoriType::MakeLiteralType<MidoriType::IntegerType>();
 
 	const std::shared_ptr<MidoriType> instantiated = MidoriType::SubstituteTypeParams(boxed, substitutions);
 
-	REQUIRE(instantiated->ToString() == "Boxed<Int>");
+	REQUIRE(instantiated->ToString() == "TypeTests::Boxed<Int>");
+	REQUIRE(instantiated->DisplayString() == "Boxed<Int>");
 }
 
 TEST_CASE("Two distinct newtype instantiations render differently", "[type]")
@@ -144,7 +174,7 @@ TEST_CASE("Two distinct newtype instantiations render differently", "[type]")
 	// other shared string, so long as it wasn't "Boxed<T>".
 	const std::shared_ptr<MidoriType> element = MidoriType::MakeGenericType("T");
 	const std::shared_ptr<MidoriType> representation = MidoriType::MakeArrayType(element);
-	const std::shared_ptr<MidoriType> boxed = MidoriType::MakeNewType("Boxed", representation, {"T"});
+	const std::shared_ptr<MidoriType> boxed = MidoriType::MakeNewType("Boxed", "TypeTests", representation, {"T"});
 
 	std::unordered_map<std::string, std::shared_ptr<MidoriType>> int_substitutions;
 	int_substitutions["T"] = MidoriType::MakeLiteralType<MidoriType::IntegerType>();

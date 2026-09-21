@@ -17,6 +17,28 @@ namespace
 	template <typename>
 	inline constexpr bool AlwaysFalse = false;
 
+	// Two types as a person reads them. The module comes back only when the
+	// short names are the same, which is the one case where a short name says
+	// nothing.
+	std::pair<std::string, std::string> DescribeTypePair(const MidoriType& first, const MidoriType& second)
+	{
+		std::string first_name = first.DisplayString();
+		std::string second_name = second.DisplayString();
+		if (first_name == second_name)
+		{
+			return { first.ToString(), second.ToString() };
+		}
+
+		return { std::move(first_name), std::move(second_name) };
+	}
+
+	// A constructor belongs to the module that declared its type: two modules
+	// may each declare a `Wrap`, and `Wrap(1)` in one is not the other's.
+	std::string ConstructorKey(const std::string& module_name, const std::string& constructor_name)
+	{
+		return module_name.empty() ? constructor_name : module_name + std::string(NameSeparator) + constructor_name;
+	}
+
 	const Token& GetPatternToken(const MidoriPattern& pattern)
 	{
 		return std::visit
@@ -730,6 +752,7 @@ namespace
 			const MidoriType::StructType& pattern_struct = pattern->GetType<MidoriType::StructType>();
 			const MidoriType::StructType& concrete_struct = concrete->GetType<MidoriType::StructType>();
 			if (pattern_struct.m_name != concrete_struct.m_name ||
+				pattern_struct.m_module_name != concrete_struct.m_module_name ||
 				pattern_struct.m_member_types.size() != concrete_struct.m_member_types.size())
 			{
 				return false;
@@ -760,6 +783,7 @@ namespace
 			const MidoriType::UnionType& pattern_union = pattern->GetType<MidoriType::UnionType>();
 			const MidoriType::UnionType& concrete_union = concrete->GetType<MidoriType::UnionType>();
 			if (pattern_union.m_name != concrete_union.m_name ||
+				pattern_union.m_module_name != concrete_union.m_module_name ||
 				pattern_union.m_member_info.size() != concrete_union.m_member_info.size())
 			{
 				return false;
@@ -942,7 +966,7 @@ std::string TypeChecker::DescribeConstraint(const MidoriType::ClassConstraint& c
 {
 	if (constraint.IsEquality())
 	{
-		return constraint.m_equality_lhs->ToString() + " ~ "s + constraint.m_equality_rhs->ToString();
+		return constraint.m_equality_lhs->DisplayString() + " ~ "s + constraint.m_equality_rhs->DisplayString();
 	}
 
 	if (constraint.m_type_args.empty())
@@ -957,7 +981,7 @@ std::string TypeChecker::DescribeConstraint(const MidoriType::ClassConstraint& c
 		{
 			rendered += ", "s;
 		}
-		rendered += constraint.m_type_args[idx]->ToString();
+		rendered += constraint.m_type_args[idx]->DisplayString();
 	}
 	rendered += ">"s;
 	return rendered;
@@ -971,7 +995,7 @@ CompilerError TypeChecker::MakeConstraintFailureError(const Token& token, const 
 		message = std::format
 		(
 			"Type {} does not satisfy constraint {} - no matching instance found",
-			constraint.m_type_args[0u]->ToString(),
+			constraint.m_type_args[0u]->DisplayString(),
 			DescribeConstraint(constraint)
 		);
 	}
@@ -1288,7 +1312,7 @@ std::optional<CompilerError> TypeChecker::DischargeEqualityConstraint(const Toke
 		}
 	}
 
-	return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnsatisfiedConstraint, std::format("Equality constraint is not satisfied: '{}' resolves to '{}', not '{}'", constraint.m_equality_lhs->ToString(), resolved_lhs->ToString(), resolved_rhs->ToString()), token, m_file_name, m_source_lines);
+	return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnsatisfiedConstraint, std::format("Equality constraint is not satisfied: '{}' resolves to '{}', not '{}'", constraint.m_equality_lhs->DisplayString(), DescribeTypePair(*resolved_lhs, *resolved_rhs).first, DescribeTypePair(*resolved_lhs, *resolved_rhs).second), token, m_file_name, m_source_lines);
 }
 
 bool TypeChecker::IsSatisfiedByActiveConstraint(const MidoriType::ClassConstraint& resolved_constraint)
@@ -1476,12 +1500,12 @@ std::optional<CompilerError> TypeChecker::TryMakeGenericParameterMismatchError(c
 	{
 		const MidoriType::StructType& left_struct = left->GetType<MidoriType::StructType>();
 		const MidoriType::StructType& right_struct = right->GetType<MidoriType::StructType>();
-		if (left_struct.m_name != right_struct.m_name)
+		if (left_struct.m_name != right_struct.m_name || left_struct.m_module_name != right_struct.m_module_name)
 		{
 			return std::nullopt;
 		}
 
-		type_name = left_struct.m_name;
+		type_name = ConstructorKey(left_struct.m_module_name, left_struct.m_name);
 		TypeDefinitionMap::const_iterator it = m_struct_type_definitions.find(type_name);
 		if (it == m_struct_type_definitions.cend())
 		{
@@ -1493,12 +1517,12 @@ std::optional<CompilerError> TypeChecker::TryMakeGenericParameterMismatchError(c
 	{
 		const MidoriType::UnionType& left_union = left->GetType<MidoriType::UnionType>();
 		const MidoriType::UnionType& right_union = right->GetType<MidoriType::UnionType>();
-		if (left_union.m_name != right_union.m_name)
+		if (left_union.m_name != right_union.m_name || left_union.m_module_name != right_union.m_module_name)
 		{
 			return std::nullopt;
 		}
 
-		type_name = left_union.m_name;
+		type_name = ConstructorKey(left_union.m_module_name, left_union.m_name);
 		TypeDefinitionMap::const_iterator it = m_union_type_definitions.find(type_name);
 		if (it == m_union_type_definitions.cend())
 		{
@@ -1563,8 +1587,8 @@ std::optional<CompilerError> TypeChecker::TryMakeGenericParameterMismatchError(c
 			"In type {}: parameter '{}' is {} in one context but {} in another",
 			type_signature,
 			param_name,
-			left_arg->ToString(),
-			right_arg->ToString()
+			DescribeTypePair(*left_arg, *right_arg).first,
+			DescribeTypePair(*left_arg, *right_arg).second
 		);
 		return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, message, token, m_file_name, m_source_lines);
 	}
@@ -1581,7 +1605,8 @@ CompilerError TypeChecker::MakeUnificationError(const Token& token, const std::s
 
 	auto build_expected_message = [](const std::shared_ptr<MidoriType>& expected, const std::shared_ptr<MidoriType>& actual)
 	{
-		return std::format("Expected type '{}' but got '{}'", expected->ToString(), actual->ToString());
+		const std::pair<std::string, std::string> described = DescribeTypePair(*expected, *actual);
+		return std::format("Expected type '{}' but got '{}'", described.first, described.second);
 	};
 
 	if (diagnostic_mode == UnifyDiagnosticMode::ActualExpected)
@@ -1596,7 +1621,7 @@ CompilerError TypeChecker::MakeUnificationError(const Token& token, const std::s
 	return MidoriError::GenerateTypeCheckerErrorWithContext
 	(
 		CompilerErrorCode::TypeMismatch,
-		std::format("Type mismatch between '{}' and '{}'", left->ToString(), right->ToString()),
+		std::format("Type mismatch between '{}' and '{}'", DescribeTypePair(*left, *right).first, DescribeTypePair(*left, *right).second),
 		token,
 		m_file_name,
 		m_source_lines
@@ -1802,7 +1827,7 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 		MidoriType::StructType& right_struct = right_subst->GetType<MidoriType::StructType>();
 
 		// Struct types must have the same name and same number of members
-		if (left_struct.m_name != right_struct.m_name || left_struct.m_member_types.size() != right_struct.m_member_types.size())
+		if (left_struct.m_name != right_struct.m_name || left_struct.m_module_name != right_struct.m_module_name || left_struct.m_member_types.size() != right_struct.m_member_types.size())
 		{
 			return std::unexpected(MakeUnificationError(token, left_subst, right_subst, diagnostic_mode));
 		}
@@ -1836,7 +1861,7 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 		MidoriType::UnionType& right_union = right_subst->GetType<MidoriType::UnionType>();
 
 		// Union types must have the same name and same members
-		if (left_union.m_name != right_union.m_name || left_union.m_member_info.size() != right_union.m_member_info.size())
+		if (left_union.m_name != right_union.m_name || left_union.m_module_name != right_union.m_module_name || left_union.m_member_info.size() != right_union.m_member_info.size())
 		{
 			return std::unexpected(MakeUnificationError(token, left_subst, right_subst, diagnostic_mode));
 		}
@@ -2358,7 +2383,7 @@ std::shared_ptr<MidoriType> TypeChecker::Freshen(const std::shared_ptr<MidoriTyp
 		std::vector<std::shared_ptr<MidoriType>> empty_member_types;
 		std::vector<std::string> member_names_copy = struct_type.m_member_names;
 		std::vector<std::string> instantiated_generic_params;
-		std::shared_ptr<MidoriType> fresh_struct = MidoriType::MakeStructType(struct_type.m_name, std::move(empty_member_types), std::move(member_names_copy), std::move(instantiated_generic_params));
+		std::shared_ptr<MidoriType> fresh_struct = MidoriType::MakeStructType(struct_type.m_name, struct_type.m_module_name, std::move(empty_member_types), std::move(member_names_copy), std::move(instantiated_generic_params));
 		fresh_struct->GetType<MidoriType::StructType>().m_is_generic_instantiation = struct_type.m_is_generic_instantiation || !struct_type.m_generic_params.empty();
 		context.m_type_cache[type.get()] = fresh_struct;
 
@@ -2413,7 +2438,7 @@ std::shared_ptr<MidoriType> TypeChecker::Freshen(const std::shared_ptr<MidoriTyp
 
 		// Create fresh union and add to cache BEFORE recursing to handle cycles
 		std::vector<std::string> instantiated_generic_params;
-		std::shared_ptr<MidoriType> fresh_union = MidoriType::MakeUnionType(union_type.m_name, std::move(instantiated_generic_params));
+		std::shared_ptr<MidoriType> fresh_union = MidoriType::MakeUnionType(union_type.m_name, union_type.m_module_name, std::move(instantiated_generic_params));
 		context.m_type_cache[type.get()] = fresh_union;
 		MidoriType::UnionType& fresh_union_ref = fresh_union->GetType<MidoriType::UnionType>();
 		fresh_union_ref.m_is_generic_instantiation = union_type.m_is_generic_instantiation || !union_type.m_generic_params.empty();
@@ -2744,7 +2769,7 @@ std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr
 		std::vector<std::shared_ptr<MidoriType>> empty_member_types;
 		std::vector<std::string> member_names_copy = struct_type.m_member_names;
 		std::vector<std::string> instantiated_generic_params;
-		std::shared_ptr<MidoriType> new_struct = MidoriType::MakeStructType(struct_type.m_name, std::move(empty_member_types), std::move(member_names_copy), std::move(instantiated_generic_params));
+		std::shared_ptr<MidoriType> new_struct = MidoriType::MakeStructType(struct_type.m_name, struct_type.m_module_name, std::move(empty_member_types), std::move(member_names_copy), std::move(instantiated_generic_params));
 		cache[type.get()] = new_struct;
 
 		bool changed = false;
@@ -2821,7 +2846,7 @@ std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr
 
 		// Create new union and add to cache BEFORE recursing to handle cycles
 		std::vector<std::string> instantiated_generic_params;
-		std::shared_ptr<MidoriType> new_union = MidoriType::MakeUnionType(union_type.m_name, std::move(instantiated_generic_params));
+		std::shared_ptr<MidoriType> new_union = MidoriType::MakeUnionType(union_type.m_name, union_type.m_module_name, std::move(instantiated_generic_params));
 		cache[type.get()] = new_union;
 		MidoriType::UnionType& new_union_ref = new_union->GetType<MidoriType::UnionType>();
 
@@ -3629,7 +3654,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::VariableDefini
 					{
 						return std::unexpected(
 							MidoriError::GenerateTypeCheckerErrorWithContext(
-								"Cannot assign a never-returning expression to a variable with type " + annotated_type->ToString(),
+								"Cannot assign a never-returning expression to a variable with type " + annotated_type->DisplayString(),
 								def.m_name,
 								m_file_name,
 								m_source_lines
@@ -3896,10 +3921,12 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Struct& struct
 	}
 
 	struct_stmt.m_self_type->GetType<MidoriType::StructType>().m_constraints = struct_stmt.m_constraints;
+	const std::string struct_module_name = struct_stmt.m_self_type->GetType<MidoriType::StructType>().m_module_name;
 	std::shared_ptr<MidoriType> struct_constructor_type = MidoriType::MakeFunctionType(struct_stmt.m_self_type->GetType<MidoriType::StructType>().m_member_types, std::move(struct_stmt.m_self_type));
 	struct_constructor_type->GetType<MidoriType::FunctionType>().m_constraints = struct_stmt.m_constraints;
 	m_name_type_table.back()[struct_stmt.m_name.m_lexeme] = struct_constructor_type;
-	m_struct_type_definitions[struct_stmt.m_name.m_lexeme] = struct_constructor_type->GetType<MidoriType::FunctionType>().m_return_type;
+	m_name_type_table.back()[ConstructorKey(struct_module_name, struct_stmt.m_name.m_lexeme)] = struct_constructor_type;
+	m_struct_type_definitions[ConstructorKey(struct_module_name, struct_stmt.m_name.m_lexeme)] = struct_constructor_type->GetType<MidoriType::FunctionType>().m_return_type;
 
 	return MidoriType::MakeUndecidedType();
 }
@@ -3957,8 +3984,9 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Union& union_s
 		std::shared_ptr<MidoriType> union_constructor_type = MidoriType::MakeFunctionType(std::move(member_types_copy), std::shared_ptr(union_stmt.m_self_type));
 		union_constructor_type->GetType<MidoriType::FunctionType>().m_constraints = union_stmt.m_constraints;
 		m_name_type_table.back()[member_name] = union_constructor_type;
+		m_name_type_table.back()[ConstructorKey(union_type.m_module_name, member_name)] = union_constructor_type;
 	}
-	m_union_type_definitions[union_stmt.m_name.m_lexeme] = union_stmt.m_self_type;
+	m_union_type_definitions[ConstructorKey(union_type.m_module_name, union_stmt.m_name.m_lexeme)] = union_stmt.m_self_type;
 
 	return MidoriType::MakeUndecidedType();
 }
@@ -4939,7 +4967,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::As& as)
 				if (!has_convertable_instance && !has_convertable_constraint && !is_builtin_conversion && !is_identity_conversion)
 				{
 					MidoriType::ClassConstraint constraint("Convertable", { expr_type, as.m_to_type });
-					const std::string suggestion = std::format("Define 'instance Convertable<{}, {}>' to enable this conversion.", expr_type->ToString(), as.m_to_type->ToString());
+					const std::string suggestion = std::format("Define 'instance Convertable<{}, {}>' to enable this conversion.", expr_type->DisplayString(), as.m_to_type->DisplayString());
 					return std::unexpected(MakeConstraintFailureError(as.m_as_keyword, constraint, suggestion));
 				}
 
@@ -5817,12 +5845,12 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 
 					if (selected_constraints.empty())
 					{
-						std::string first_arg_name = arg_results.empty() ? std::string("no arguments") : ApplySubstitution(arg_results[0u])->ToString();
+						std::string first_arg_name = arg_results.empty() ? std::string("no arguments") : ApplySubstitution(arg_results[0u])->DisplayString();
 						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: no matching class constraint for '" + qualifier + NameSeparator.data() + method_name + "' and argument type '" + first_arg_name + "'", call.m_paren, m_file_name, m_source_lines));
 					}
 					if (selected_constraints.size() != 1u)
 					{
-						std::string first_arg_name = arg_results.empty() ? std::string("no arguments") : ApplySubstitution(arg_results[0u])->ToString();
+						std::string first_arg_name = arg_results.empty() ? std::string("no arguments") : ApplySubstitution(arg_results[0u])->DisplayString();
 						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: ambiguous class method '" + qualifier + NameSeparator.data() + method_name + "' for argument type '" + first_arg_name + "'", call.m_paren, m_file_name, m_source_lines));
 					}
 
@@ -6431,20 +6459,25 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Construct& co
 {
 	const std::shared_ptr<MidoriType>& return_type = construct.m_return_type;
 	std::string constructor_name;
-	std::string actual_type_name; 
+	std::string actual_type_name;
+	std::string declaring_module_name;
 
 	if (construct.IsConstructTypeOf<MidoriExpression::Construct::Struct>())
 	{
-		actual_type_name = return_type->GetType<MidoriType::StructType>().m_name;
+		const MidoriType::StructType& struct_type = return_type->GetType<MidoriType::StructType>();
+		actual_type_name = struct_type.m_name;
 		constructor_name = actual_type_name;
+		declaring_module_name = struct_type.m_module_name;
 	}
 	else
 	{
+		const MidoriType::UnionType& union_type = return_type->GetType<MidoriType::UnionType>();
 		constructor_name = construct.m_data_name.m_lexeme;
-		actual_type_name = return_type->GetType<MidoriType::UnionType>().m_name;
+		actual_type_name = union_type.m_name;
+		declaring_module_name = union_type.m_module_name;
 	}
 
-	const std::shared_ptr<MidoriType>* constructor_type_ptr = FindNameType(constructor_name);
+	const std::shared_ptr<MidoriType>* constructor_type_ptr = FindNameType(ConstructorKey(declaring_module_name, constructor_name));
 	if (constructor_type_ptr == nullptr)
 	{
 		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Construct expression type error: struct or union not found", construct.m_data_name, m_file_name, m_source_lines));
@@ -6467,7 +6500,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Construct& co
 	// itself, and reading it as a function would be undefined rather than an error.
 	if (!constructor_type_shared->IsType<MidoriType::FunctionType>())
 	{
-		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Construct expression type error: '" + constructor_name + "' does not name a constructor here (it resolved to '" + constructor_type_shared->ToString() + "')", construct.m_data_name, m_file_name, m_source_lines));
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Construct expression type error: '" + constructor_name + "' does not name a constructor here (it resolved to '" + constructor_type_shared->DisplayString() + "')", construct.m_data_name, m_file_name, m_source_lines));
 	}
 
 	MidoriType::FunctionType& constructor_type = constructor_type_shared->GetType<MidoriType::FunctionType>();

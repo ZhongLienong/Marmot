@@ -538,6 +538,8 @@ private:
 
 	std::string BuildImportedSymbolAccessError(const std::string& module_name, const std::string& symbol_name, ImportedSymbolAccess access) const;
 
+	std::string CurrentModuleName() const;
+
 	bool ResolveQualifiedSymbol(const std::string& module_name, const std::string& symbol_name) const;
 
 	std::string ExtractSymbolName(const std::string& qualified_name) const;

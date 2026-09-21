@@ -1011,6 +1011,7 @@ bool CodeGenerator::MatchInstanceTypeArg(const std::shared_ptr<MidoriType>& patt
 		const MidoriType::StructType& pattern_struct = pattern->GetType<MidoriType::StructType>();
 		const MidoriType::StructType& concrete_struct = concrete->GetType<MidoriType::StructType>();
 		if (pattern_struct.m_name != concrete_struct.m_name ||
+			pattern_struct.m_module_name != concrete_struct.m_module_name ||
 			pattern_struct.m_member_types.size() != concrete_struct.m_member_types.size())
 		{
 			return false;
@@ -1036,6 +1037,7 @@ bool CodeGenerator::MatchInstanceTypeArg(const std::shared_ptr<MidoriType>& patt
 		const MidoriType::UnionType& pattern_union = pattern->GetType<MidoriType::UnionType>();
 		const MidoriType::UnionType& concrete_union = concrete->GetType<MidoriType::UnionType>();
 		if (pattern_union.m_name != concrete_union.m_name ||
+			pattern_union.m_module_name != concrete_union.m_module_name ||
 			pattern_union.m_member_info.size() != concrete_union.m_member_info.size())
 		{
 			return false;
@@ -1198,7 +1200,7 @@ bool CodeGenerator::EmitIterableNextCall(const std::shared_ptr<MidoriType>& iter
 
 				if (resolved_name.has_value() && resolved_name.value() != candidate_name.value())
 				{
-					AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Iterable instance method resolution is ambiguous for iterator type '"s + iter_type->ToString() + "'"s, line, m_file_name, m_source_lines));
+					AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Iterable instance method resolution is ambiguous for iterator type '"s + iter_type->DisplayString() + "'"s, line, m_file_name, m_source_lines));
 					return false;
 				}
 
@@ -1211,7 +1213,7 @@ bool CodeGenerator::EmitIterableNextCall(const std::shared_ptr<MidoriType>& iter
 			return EmitIterableNextInvocation(resolved_name.value(), iter_type, line);
 		}
 
-		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Iterable::Next instance for iterator type '"s + iter_type->ToString() + "' not found"s, line, m_file_name, m_source_lines));
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Iterable::Next instance for iterator type '"s + iter_type->DisplayString() + "' not found"s, line, m_file_name, m_source_lines));
 		return false;
 	}
 
@@ -1456,7 +1458,7 @@ bool CodeGenerator::EmitConcatenableConcat(const std::shared_ptr<MidoriType>& op
 
 				if (found && resolved_method_name != candidate_name.value())
 				{
-					AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Concatenable instance method resolution is ambiguous for type '"s + operand_type->ToString() + "'"s, line, m_file_name, m_source_lines));
+					AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Concatenable instance method resolution is ambiguous for type '"s + operand_type->DisplayString() + "'"s, line, m_file_name, m_source_lines));
 					return false;
 				}
 
@@ -1468,7 +1470,7 @@ bool CodeGenerator::EmitConcatenableConcat(const std::shared_ptr<MidoriType>& op
 
 	if (!found)
 	{
-		std::string mangled_name = INTERNAL_NAME_PREFIX + std::string(CONCAT_MANGLED_PREFIX) + operand_type->ToString();
+		std::string mangled_name = MidoriType::MangleInstanceMethodName(std::string(CONCAT_METHOD_NAME), std::string(CONCATENABLE_CLASS_NAME), { operand_type });
 		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Concatenable instance method '"s + mangled_name + "' not found"s, line, m_file_name, m_source_lines));
 		return false;
 	}
@@ -1484,7 +1486,7 @@ bool CodeGenerator::EmitConcatenableConcat(const std::shared_ptr<MidoriType>& op
 
 void CodeGenerator::EmitEquatableEquals(const std::shared_ptr<MidoriType>& operand_type, int line)
 {
-	std::string mangled_name = INTERNAL_NAME_PREFIX + std::string(EQUALS_MANGLED_PREFIX) + operand_type->ToString();
+	std::string mangled_name = MidoriType::MangleInstanceMethodName(std::string(EQUALS_METHOD_NAME), std::string(EQUATABLE_CLASS_NAME), { operand_type });
 	std::unordered_map<std::string, int>::iterator it = m_global_variables.find(mangled_name);
 	if (it != m_global_variables.end())
 	{
@@ -1499,7 +1501,7 @@ void CodeGenerator::EmitEquatableEquals(const std::shared_ptr<MidoriType>& opera
 
 void CodeGenerator::EmitOrderableCompare(const std::shared_ptr<MidoriType>& operand_type, int line)
 {
-	std::string mangled_name = INTERNAL_NAME_PREFIX + std::string(COMPARE_MANGLED_PREFIX) + operand_type->ToString();
+	std::string mangled_name = MidoriType::MangleInstanceMethodName(std::string(COMPARE_METHOD_NAME), std::string(ORDERABLE_CLASS_NAME), { operand_type });
 	std::unordered_map<std::string, int>::iterator it = m_global_variables.find(mangled_name);
 	if (it != m_global_variables.end())
 	{
@@ -2629,7 +2631,7 @@ void CodeGenerator::operator()(MidoriExpression::As& as)
 
 					if (resolved_name.has_value() && resolved_name.value() != candidate_name.value())
 					{
-						AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Convertable instance method resolution is ambiguous for types '"s + from_type->ToString() + "' -> '"s + target_type->ToString() + "'"s, as.m_as_keyword, m_file_name, m_source_lines));
+						AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Convertable instance method resolution is ambiguous for types '"s + from_type->DisplayString() + "' -> '"s + target_type->DisplayString() + "'"s, as.m_as_keyword, m_file_name, m_source_lines));
 						return;
 					}
 
@@ -3536,7 +3538,7 @@ bool CodeGenerator::EmitCountableCall(const MidoriExpression::UnaryPrefix& unary
 
 		if (unary.m_uses_countable)
 		{
-			std::string mangled_name = INTERNAL_NAME_PREFIX + std::string(COUNT_MANGLED_PREFIX) + count_type->ToString();
+			std::string mangled_name = MidoriType::MangleInstanceMethodName(std::string(COUNT_METHOD_NAME), std::string(COUNTABLE_CLASS_NAME), { count_type });
 			AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Countable instance method '"s + mangled_name + "' not found"s, unary.m_op, m_file_name, m_source_lines));
 		}
 	}
@@ -4369,7 +4371,7 @@ bool CodeGenerator::EmitIndexableCall(MidoriExpression::IndexAccess& array_get, 
 		return true;
 	}
 
-	std::string mangled_name = INTERNAL_NAME_PREFIX + std::string(GET_MANGLED_PREFIX) + container_type->ToString();
+	std::string mangled_name = MidoriType::MangleInstanceMethodName(std::string(GET_METHOD_NAME), std::string(INDEXABLE_CLASS_NAME), { container_type });
 	AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Indexable instance method '"s + mangled_name + "' not found"s, array_get.m_op, m_file_name, m_source_lines));
 	return false;
 }
@@ -6176,7 +6178,7 @@ std::shared_ptr<MidoriType> CodeGenerator::SubstituteGenericTypes(const std::sha
 			std::vector<std::shared_ptr<MidoriType>> empty_member_types;
 			std::vector<std::string> member_names_copy = type_variant.m_member_names;
 			std::vector<std::string> instantiated_generic_params;
-			std::shared_ptr<MidoriType> new_struct = MidoriType::MakeStructType(type_variant.m_name, std::move(empty_member_types), std::move(member_names_copy), std::move(instantiated_generic_params));
+			std::shared_ptr<MidoriType> new_struct = MidoriType::MakeStructType(type_variant.m_name, type_variant.m_module_name, std::move(empty_member_types), std::move(member_names_copy), std::move(instantiated_generic_params));
 			m_cache[m_current.get()] = new_struct;
 
 			std::vector<std::shared_ptr<MidoriType>> substituted_members;
@@ -6203,7 +6205,7 @@ std::shared_ptr<MidoriType> CodeGenerator::SubstituteGenericTypes(const std::sha
 		std::shared_ptr<MidoriType> operator()(const MidoriType::UnionType& type_variant) const
 		{
 			std::vector<std::string> instantiated_generic_params;
-			std::shared_ptr<MidoriType> new_union = MidoriType::MakeUnionType(type_variant.m_name, std::move(instantiated_generic_params));
+			std::shared_ptr<MidoriType> new_union = MidoriType::MakeUnionType(type_variant.m_name, type_variant.m_module_name, std::move(instantiated_generic_params));
 			m_cache[m_current.get()] = new_union;
 			MidoriType::UnionType& new_union_ref = new_union->GetType<MidoriType::UnionType>();
 			std::vector<MidoriType::ClassConstraint> substituted_constraints;
@@ -6254,7 +6256,7 @@ std::shared_ptr<MidoriType> CodeGenerator::SubstituteGenericTypes(const std::sha
 		{
 			std::shared_ptr<MidoriType> substituted_representation = m_substitute(type_variant.m_representation);
 			std::vector<std::string> instantiated_generic_params;
-			std::shared_ptr<MidoriType> new_newtype = MidoriType::MakeNewType(type_variant.m_name, substituted_representation, std::move(instantiated_generic_params));
+			std::shared_ptr<MidoriType> new_newtype = MidoriType::MakeNewType(type_variant.m_name, type_variant.m_module_name, substituted_representation, std::move(instantiated_generic_params));
 			m_cache[m_current.get()] = new_newtype;
 			MidoriType::NewType& new_newtype_ref = new_newtype->GetType<MidoriType::NewType>();
 			std::vector<MidoriType::ClassConstraint> substituted_constraints;

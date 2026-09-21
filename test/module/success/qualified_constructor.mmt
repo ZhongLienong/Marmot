@@ -1,0 +1,21 @@
+module QualifiedConstructor
+
+// A constructor is reached the way anything else in a module is: qualified, or
+// brought into scope with `use`. `ShapesLib::Shade::Dark` names the union's
+// module, the union, and the variant.
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"./shapes_lib.mmt"
+}
+
+def Level = fn(shade: ShapesLib::Shade) -> Int =>
+	match shade with
+	case Shade::Light() => 0
+	case Shade::Dark(level) => level
+;
+
+def Origin = fn() -> ShapesLib::Point => ShapesLib::Point(0, 0);
+
+IO::PrintLine((Level(ShapesLib::Shade::Dark(7)) + Level(ShapesLib::Shade::Light()) + Origin().x) as Text);
