@@ -12,10 +12,18 @@ pub fn split_search_paths(value: &str) -> Vec<PathBuf> {
         .collect()
 }
 
+/// MARMOT_PATH, after -- for a debug build of this tool, which comes from a
+/// Marmot checkout -- that checkout's prelude, so `<IO>` means the prelude
+/// being worked on rather than whichever one is installed.
 pub fn marmot_path() -> Vec<PathBuf> {
-    std::env::var("MARMOT_PATH")
+    let checkout_prelude = cfg!(debug_assertions)
+        .then(|| Path::new(env!("CARGO_MANIFEST_DIR")).parent().map(|root| root.join("MarmotPrelude")))
+        .flatten()
+        .filter(|prelude| prelude.is_dir());
+    let environment = std::env::var("MARMOT_PATH")
         .map(|value| split_search_paths(&value))
-        .unwrap_or_default()
+        .unwrap_or_default();
+    checkout_prelude.into_iter().chain(environment).collect()
 }
 
 pub fn absolute(path: &Path) -> PathBuf {

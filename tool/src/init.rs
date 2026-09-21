@@ -106,7 +106,15 @@ pub fn project(target: Option<&Path>, name: Option<&str>) -> Result<PathBuf, Str
             escape_toml(&name)
         ),
     )?;
-    write(&main_path, "module Main\n\ndef main = fn() -> Int => 0;\n")?;
+    // A program is its top-level statements; nothing named `main` is called.
+    // TOML's string escapes are Marmot's too.
+    write(
+        &main_path,
+        &format!(
+            "module Main\n\nimport {{ <IO> }}\n\nIO::PrintLine(\"Hello from {}\");\n",
+            escape_toml(&name)
+        ),
+    )?;
     // `marmot run` builds into target/.
     let gitignore = root.join(".gitignore");
     if !gitignore.exists() {

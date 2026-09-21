@@ -489,7 +489,7 @@ fn init_scaffolds_projects_and_packages() {
     );
     assert_eq!(
         project.read("CliProject/src/Main.mmt"),
-        "module Main\n\ndef main = fn() -> Int => 0;\n"
+        "module Main\n\nimport { <IO> }\n\nIO::PrintLine(\"Hello from CliProject\");\n"
     );
     assert!(
         project.path("CliProject/packages").is_dir() && project.path("CliProject/test").is_dir()

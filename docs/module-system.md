@@ -109,14 +109,11 @@ def LocalHelper = fn(x: Int) -> Int => x + 1;
 
 import { <IO> }
 
-public export { main }
+public export { LocalHelper }
 
 use IO.{PrintLine}
 
-def main = fn() -> Int => {
-    PrintLine((LocalHelper(41)) as Text);
-    0
-};
+PrintLine((LocalHelper(41)) as Text);
 ```
 
 This matches the current implementation and the regression fixtures under `test/module/success/`.
@@ -184,10 +181,7 @@ Cross-module names use `::`:
 ```marmot-test name=module-system/qualified_access path=.doc_examples/module_system/qualified_access.mmt module=ModuleQualifiedAccess
 import { <IO> }
 
-def main = fn() -> Int => {
-    IO::PrintLine("Hello");
-    0
-};
+IO::PrintLine("Hello");
 ```
 
 ### Unqualified Access via `use`
@@ -196,10 +190,7 @@ def main = fn() -> Int => {
 import { <IO> }
 use IO.{PrintLine}
 
-def main = fn() -> Int => {
-    PrintLine("Hello");
-    0
-};
+PrintLine("Hello");
 ```
 
 ### Privacy

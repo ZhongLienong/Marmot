@@ -50,6 +50,9 @@ use          = 'use' IDENTIFIER ('.' IDENTIFIER)* '.' '{' IDENTIFIER (',' IDENTI
 export       = ('public' | 'private') 'export' '{' IDENTIFIER (',' IDENTIFIER)* '}' ;
 ```
 
+A program is its top-level items, run in order; there is no entry function, and
+a definition named `main` is an ordinary one.
+
 An import names either a module to find on the search paths, written
 `"<Name>"`, or a file, written as a path. Importing a module lets you write
 `Module::name`; `use` is what puts a name in scope on its own.

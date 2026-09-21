@@ -4,11 +4,8 @@ def LocalHelper = fn(x: Int) -> Int => x + 1;
 
 import { <IO> }
 
-public export { main }
+public export { LocalHelper }
 
 use IO.{PrintLine}
 
-def main = fn() -> Int => {
-    PrintLine((LocalHelper(41)) as Text);
-    0
-};
+PrintLine((LocalHelper(41)) as Text);
