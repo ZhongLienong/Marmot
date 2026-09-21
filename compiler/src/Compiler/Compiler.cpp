@@ -578,10 +578,23 @@ namespace
 			const std::optional<BytecodeModule>& dep_bytecode = dep->Bytecode();
 			if (dep_bytecode.has_value())
 			{
+				// A dependency's own generics go under the module it was reached
+				// through and the module that defined it, never under the bare
+				// name, which belongs to this module's own. The ones it imported
+				// are already `Module::name`, and its generics may call them.
 				for (const auto& [name, info] : dep_bytecode.value().m_generic_functions)
 				{
-					context.m_imported_generic_functions[name] = info;
-					context.m_imported_generic_functions[dep_module_name + "::" + name] = info;
+					if (name.find(NameSeparator) != std::string::npos)
+					{
+						context.m_imported_generic_functions[name] = info;
+						continue;
+					}
+
+					context.m_imported_generic_functions[dep_module_name + NameSeparator.data() + name] = info;
+					if (!info.m_defining_module.empty() && info.m_defining_module != dep_module_name)
+					{
+						context.m_imported_generic_functions[info.m_defining_module + NameSeparator.data() + name] = info;
+					}
 				}
 			}
 		}
