@@ -231,7 +231,9 @@ std::expected<SerializedValue, WorkerError> WorkerRegistry::JoinWorkerValue(int 
 		std::unordered_map<int, std::unique_ptr<Worker>>::iterator worker_it = m_workers.find(worker_id);
 		if (worker_it == m_workers.end())
 		{
-			return std::unexpected(WorkerError{ RuntimeErrorCode::InternalTypeError, "Worker not found: " + std::to_string(worker_id) });
+			// A worker leaves the registry when it is joined, and a handle only
+			// ever comes from a spawn, so this is a second join of the same one.
+			return std::unexpected(WorkerError{ RuntimeErrorCode::WorkerExited, "This worker was already joined; its result was returned to the first join." });
 		}
 
 		worker = std::move(worker_it->second);

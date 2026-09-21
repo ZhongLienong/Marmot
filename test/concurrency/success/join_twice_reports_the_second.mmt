@@ -1,0 +1,30 @@
+module JoinTwiceReportsTheSecond
+
+// A worker leaves the registry when it is joined. The second join of the same
+// worker is an error that says so, rather than one naming an internal id.
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/Concurrency.mmt",
+	"../../../MarmotPrelude/Prelude/Result.mmt"
+}
+
+use Result.{Result}
+use Concurrency.{WorkerError}
+
+def Double = fn(n: Int) -> Int => n * 2;
+
+def Show = fn(result: Result<Int, WorkerError>) -> Text =>
+	match result with
+	case Result::Ok(value) => "ok " ++ (value as Text)
+	case Result::Err(error) =>
+		match error with
+		case WorkerError::Cancelled() => "cancelled"
+		case WorkerError::Failed(message) => "failed: " ++ message
+;
+
+def worker = Concurrency::Spawn(21, Double);
+
+IO::PrintLine(Show(Concurrency::Join(worker)));
+IO::PrintLine(Show(Concurrency::Join(worker)));

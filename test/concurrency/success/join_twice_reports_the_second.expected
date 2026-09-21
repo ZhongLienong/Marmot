@@ -1,0 +1,2 @@
+ok 42
+failed: This worker was already joined; its result was returned to the first join.
