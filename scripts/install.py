@@ -108,16 +108,15 @@ def resolve_midori_exe(repo: Path, preset: str, explicit_exe: Optional[str]) -> 
         exe_path = Path(explicit_exe).expanduser().resolve()
         return exe_path if exe_path.is_file() else None
 
-    presets: list[str]
     if preset == "auto":
-        presets = ["x64-release", "x64-development", "x64-debug"]
-    else:
-        presets = [preset]
+        # The build made last is the one being worked on. Preferring release
+        # installed a compiler days older than the tool beside it.
+        available = [path for _, path in list_available_midori_exes(repo)]
+        return max(available, key=lambda path: path.stat().st_mtime, default=None)
 
-    for preset_name in presets:
-        for candidate in get_preset_executable_candidates(repo, preset_name):
-            if candidate.is_file():
-                return candidate.resolve()
+    for candidate in get_preset_executable_candidates(repo, preset):
+        if candidate.is_file():
+            return candidate.resolve()
 
     return None
 
@@ -275,7 +274,7 @@ def main(argv: list[str]) -> int:
                 print(
                     "Note: multiple builds found ("
                     + ", ".join(available_presets)
-                    + "); auto selected the first match. Use --preset to force a specific build.",
+                    + "); auto selected the one built last. Use --preset to force a specific build.",
                     file=sys.stderr,
                 )
 
@@ -299,6 +298,13 @@ def main(argv: list[str]) -> int:
             )
         else:
             print(f"Using marmot from: {tool_path}")
+            newest_source = max((source.stat().st_mtime for source in (repo / "tool" / "src").rglob("*.rs")), default=0.0)
+            if tool_path.stat().st_mtime < newest_source:
+                print(
+                    "Warning: the marmot tool was built before its latest source change. "
+                    "Rebuild it with: cargo build --release --manifest-path tool/Cargo.toml",
+                    file=sys.stderr,
+                )
             shutil.copy2(tool_path, target_layout.bin_dir / tool_path.name)
 
     write_install_marker(target_layout, args.scope)
