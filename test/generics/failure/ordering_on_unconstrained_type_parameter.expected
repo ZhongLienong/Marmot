@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/generics/failure/ordering_on_unconstrained_type_parameter.mmt:8
+  |
+8 | def Pick = fn<T>(a: T, b: T) -> Bool => a < b;
+  |                                           ^ '<' on type parameter T needs Orderable<T>: T may be any type. Add `where Orderable<T>` to the definition.
+  |

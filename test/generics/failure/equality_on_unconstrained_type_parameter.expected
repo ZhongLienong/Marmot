@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/generics/failure/equality_on_unconstrained_type_parameter.mmt:8
+  |
+8 | def Pick = fn<T>(a: T, b: T) -> Bool => a == b;
+  |                                           ^^ '==' on type parameter T needs Equatable<T>: T may be any type. Add `where Equatable<T>` to the definition.
+  |

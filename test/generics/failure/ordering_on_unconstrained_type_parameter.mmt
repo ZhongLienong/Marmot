@@ -1,0 +1,10 @@
+module OrderingOnUnconstrainedTypeParameter
+
+// '<' on a type parameter compiled without a constraint and ran the Int instruction on
+// whatever T was. Less on two texts returned false both ways round: it compared something other than the text.
+
+import { "../../../MarmotPrelude/IO.mmt" }
+
+def Pick = fn<T>(a: T, b: T) -> Bool => a < b;
+
+IO::PrintLine(Pick("aaa", "zzz") as Text);

@@ -20,6 +20,7 @@ class TypeChecker
 	friend class ExpectedTypeGuard;
 	friend class NominalUnifyGuard;
 	friend class DefiningGenericGuard;
+	friend class RigidTypeVariablesGuard;
 
 public:
 	using TypeEnvironment = std::unordered_map<std::string, std::shared_ptr<MidoriType>>;
@@ -120,6 +121,9 @@ private:
 	// A call to one of these from inside its own body must not be freshened: it is
 	// recursion, not a fresh instantiation.
 	std::vector<std::string> m_defining_generic_names;
+	// The type variables a generic definition's own parameters were freshened to, by
+	// name, while its body is checked: any type may stand for them.
+	std::vector<std::pair<int, std::string>> m_rigid_type_variables;
 	std::string m_file_name;
 	const std::vector<std::string>& m_source_lines;
 	std::shared_ptr<MidoriType> m_expected_return_type;
@@ -175,6 +179,7 @@ private:
 	const std::shared_ptr<MidoriType>* FindNameType(const std::string& name) const;
 
 	std::shared_ptr<MidoriType> FreshTypeVar();
+	std::optional<std::string> RigidTypeVariableName(const std::shared_ptr<MidoriType>& type) const;
 
 	std::shared_ptr<MidoriType> Freshen(const std::shared_ptr<MidoriType>& type);
 
@@ -199,6 +204,7 @@ private:
 	std::string DescribeConstraint(const MidoriType::ClassConstraint& constraint) const;
 
 	CompilerError MakeConstraintFailureError(const Token& token, const MidoriType::ClassConstraint& constraint, std::optional<std::string_view> suggestion = std::nullopt) const;
+	CompilerError TypeParameterNeedsConstraintError(const Token& op, const std::string& parameter_name, std::string_view class_name) const;
 
 	CompilerError MakeUnificationError(const Token& token, const std::shared_ptr<MidoriType>& left, const std::shared_ptr<MidoriType>& right, UnifyDiagnosticMode diagnostic_mode) const;
 

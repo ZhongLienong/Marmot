@@ -877,6 +877,31 @@ public:
 	DefiningGenericGuard& operator=(const DefiningGenericGuard&) = delete;
 };
 
+class RigidTypeVariablesGuard
+{
+private:
+	TypeChecker& m_type_checker;
+	size_t m_previous_size;
+
+public:
+	RigidTypeVariablesGuard(TypeChecker& tc, const std::vector<Token>& generic_params, const TypeChecker::FresheningContext& context) : m_type_checker(tc), m_previous_size(tc.m_rigid_type_variables.size())
+	{
+		for (const Token& generic_param : generic_params)
+		{
+			const std::shared_ptr<MidoriType>& variable = context.m_generic_params.at(generic_param.m_lexeme);
+			m_type_checker.m_rigid_type_variables.emplace_back(variable->GetType<MidoriType::TypeVariable>().m_id, generic_param.m_lexeme);
+		}
+	}
+
+	~RigidTypeVariablesGuard()
+	{
+		m_type_checker.m_rigid_type_variables.resize(m_previous_size);
+	}
+
+	RigidTypeVariablesGuard(const RigidTypeVariablesGuard&) = delete;
+	RigidTypeVariablesGuard& operator=(const RigidTypeVariablesGuard&) = delete;
+};
+
 class NominalUnifyGuard
 {
 private:
@@ -1006,6 +1031,12 @@ CompilerError TypeChecker::MakeConstraintFailureError(const Token& token, const 
 	}
 
 	return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnsatisfiedConstraint, message, token, m_file_name, m_source_lines, suggestion);
+}
+
+CompilerError TypeChecker::TypeParameterNeedsConstraintError(const Token& op, const std::string& parameter_name, std::string_view class_name) const
+{
+	std::string message = std::format("'{0}' on type parameter {1} needs {2}<{1}>: {1} may be any type. Add `where {2}<{1}>` to the definition.", op.m_lexeme, parameter_name, class_name);
+	return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnsatisfiedConstraint, message, op, m_file_name, m_source_lines);
 }
 
 bool TypeChecker::HasActiveConstraint(const std::string& class_name, const std::shared_ptr<MidoriType>& type)
@@ -2278,6 +2309,18 @@ bool TypeChecker::IsIrrefutablePattern(const MidoriPattern& pattern, const std::
 std::shared_ptr<MidoriType> TypeChecker::FreshTypeVar()
 {
 	return MidoriType::MakeTypeVariable(m_next_type_var_id++);
+}
+
+std::optional<std::string> TypeChecker::RigidTypeVariableName(const std::shared_ptr<MidoriType>& type) const
+{
+	if (!type->IsType<MidoriType::TypeVariable>())
+	{
+		return std::nullopt;
+	}
+
+	const int id = type->GetType<MidoriType::TypeVariable>().m_id;
+	std::vector<std::pair<int, std::string>>::const_iterator found = std::ranges::find(m_rigid_type_variables, id, &std::pair<int, std::string>::first);
+	return found == m_rigid_type_variables.cend() ? std::nullopt : std::optional<std::string>(found->second);
 }
 
 std::shared_ptr<MidoriType> TypeChecker::Freshen(const std::shared_ptr<MidoriType>& type)
@@ -3579,6 +3622,7 @@ MidoriResult::TypeResult TypeChecker::TypeCheckGenericLambdaDefinition(MidoriSta
 
 		// Inside its own body, a recursive call is not a fresh instantiation.
 		DefiningGenericGuard defining_guard(*this, def.m_name.m_lexeme);
+		RigidTypeVariablesGuard rigid_guard(*this, function.m_generic_params, freshening_context);
 		ExpectedTypeGuard expected_expr_guard(*this, function.m_return_type);
 		return Evaluate(function.m_body)
 			.and_then
@@ -5180,7 +5224,8 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Binary& binar
 										if (std::ranges::contains(kBinaryPartialOrderComparisonOperators.cbegin(), kBinaryPartialOrderComparisonOperators.cend(), binary.m_op.m_token_name))
 										{
 											std::shared_ptr<MidoriType> resolved_self = ApplySubstitution(self_type);
-											bool is_builtin = resolved_self->IsNumericType() || resolved_self->IsType<MidoriType::TypeVariable>();
+											const std::optional<std::string> type_parameter = RigidTypeVariableName(resolved_self);
+											bool is_builtin = resolved_self->IsNumericType() || (resolved_self->IsType<MidoriType::TypeVariable>() && !type_parameter.has_value());
 
 											if (!is_builtin)
 											{
@@ -5203,6 +5248,10 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Binary& binar
 													}
 												}
 
+												if (!has_orderable_instance && !has_orderable_constraint && type_parameter.has_value())
+												{
+													return std::unexpected(TypeParameterNeedsConstraintError(binary.m_op, type_parameter.value(), ORDERABLE_CLASS_NAME));
+												}
 												if (!has_orderable_instance && !has_orderable_constraint)
 												{
 													MidoriType::ClassConstraint constraint(std::string(ORDERABLE_CLASS_NAME), { resolved_self });
@@ -5218,6 +5267,11 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Binary& binar
 										{
 											// Allow type variables (will be constrained by usage) or concrete numeric types
 											std::shared_ptr<MidoriType> resolved_self = ApplySubstitution(self_type);
+											const std::optional<std::string> type_parameter = RigidTypeVariableName(resolved_self);
+											if (type_parameter.has_value())
+											{
+												return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(std::format("'{0}' needs a numeric type, and type parameter {1} may be any type.", binary.m_op.m_lexeme, type_parameter.value()), binary.m_op, m_file_name, m_source_lines));
+											}
 											if (!resolved_self->IsNumericType() && !resolved_self->IsType<MidoriType::TypeVariable>())
 											{
 												return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Binary expression type error: expected numeric type", binary.m_op, m_file_name, m_source_lines, resolved_self, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::FloatType>()));
@@ -5226,6 +5280,11 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Binary& binar
 										else if (std::ranges::contains(kBinaryBitwiseOperators.cbegin(), kBinaryBitwiseOperators.cend(), binary.m_op.m_token_name))
 										{
 											std::shared_ptr<MidoriType> resolved_self = ApplySubstitution(self_type);
+											const std::optional<std::string> type_parameter = RigidTypeVariableName(resolved_self);
+											if (type_parameter.has_value())
+											{
+												return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(std::format("'{0}' needs an Int, Byte or Word, and type parameter {1} may be any type.", binary.m_op.m_lexeme, type_parameter.value()), binary.m_op, m_file_name, m_source_lines));
+											}
 											if (!resolved_self->IsType<MidoriType::IntegerType>() && !resolved_self->IsType<MidoriType::ByteType>() && !resolved_self->IsType<MidoriType::WordType>() && !resolved_self->IsType<MidoriType::TypeVariable>())
 											{
 												return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Binary expression type error: expected integer, byte, or word type", binary.m_op, m_file_name, m_source_lines, resolved_self, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::ByteType>(), MidoriType::MakeLiteralType<MidoriType::WordType>()));
@@ -5234,7 +5293,8 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Binary& binar
 										else if (std::ranges::contains(kBinaryEqualityOperators.cbegin(), kBinaryEqualityOperators.cend(), binary.m_op.m_token_name))
 										{
 											std::shared_ptr<MidoriType> resolved_self = ApplySubstitution(self_type);
-											bool is_builtin = resolved_self->IsNumericType() || resolved_self->IsType<MidoriType::TextType>() || resolved_self->IsType<MidoriType::BoolType>() || resolved_self->IsType<MidoriType::TypeVariable>();
+											const std::optional<std::string> type_parameter = RigidTypeVariableName(resolved_self);
+											bool is_builtin = resolved_self->IsNumericType() || resolved_self->IsType<MidoriType::TextType>() || resolved_self->IsType<MidoriType::BoolType>() || (resolved_self->IsType<MidoriType::TypeVariable>() && !type_parameter.has_value());
 
 											if (!is_builtin)
 											{
@@ -5257,6 +5317,10 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Binary& binar
 													}
 												}
 
+												if (!has_equatable_instance && !has_equatable_constraint && type_parameter.has_value())
+												{
+													return std::unexpected(TypeParameterNeedsConstraintError(binary.m_op, type_parameter.value(), EQUATABLE_CLASS_NAME));
+												}
 												if (!has_equatable_instance && !has_equatable_constraint)
 												{
 													MidoriType::ClassConstraint constraint(std::string(EQUATABLE_CLASS_NAME), { resolved_self });

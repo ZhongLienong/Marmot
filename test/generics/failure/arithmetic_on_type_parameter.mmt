@@ -1,0 +1,10 @@
+module ArithmeticOnTypeParameter
+
+// '+' on a type parameter compiled without a constraint and ran the Int instruction on
+// whatever T was. Adding two texts crashed the VM with a memory access violation.
+
+import { "../../../MarmotPrelude/IO.mmt" }
+
+def Pick = fn<T>(a: T, b: T) -> T => a + b;
+
+IO::PrintLine(Pick("x", "y"));

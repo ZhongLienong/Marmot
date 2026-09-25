@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/generics/failure/arithmetic_on_type_parameter.mmt:8
+  |
+8 | def Pick = fn<T>(a: T, b: T) -> T => a + b;
+  |                                        ^ '+' needs a numeric type, and type parameter T may be any type.
+  |

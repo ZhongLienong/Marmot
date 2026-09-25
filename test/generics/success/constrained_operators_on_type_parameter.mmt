@@ -1,0 +1,40 @@
+module ConstrainedOperatorsOnTypeParameter
+
+// `<` and `==` on a type parameter go through its constraint's instance, and a type the
+// operator handles itself still uses the instruction once specialized. The checker used
+// to take a type parameter for a built-in operand, so on a record `<` compared the two
+// references and `==` compared addresses whatever the instance said.
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/Orderable.mmt",
+	"../../../MarmotPrelude/Equatable.mmt",
+}
+
+type Version = { major: Int, minor: Int };
+
+instance Orderable<Version>
+{
+	def Compare = fn(a: Version, b: Version) -> Int =>
+		if a.major != b.major then a.major - b.major else a.minor - b.minor;
+};
+
+instance Equatable<Version>
+{
+	def Equals = fn(a: Version, b: Version) -> Bool => (a.major == b.major) && (a.minor == b.minor);
+};
+
+def Less = fn<T>(a: T, b: T) -> Bool where Orderable<T> => a < b;
+def AtMost = fn<T>(a: T, b: T) -> Bool where Orderable<T> => a <= b;
+def Same = fn<T>(a: T, b: T) -> Bool where Equatable<T> => a == b;
+def Differ = fn<T>(a: T, b: T) -> Bool where Equatable<T> => a != b;
+
+IO::PrintLine(Less(Version(2, 0), Version(1, 9)) as Text);
+IO::PrintLine(Less(Version(1, 9), Version(2, 0)) as Text);
+IO::PrintLine(AtMost(Version(1, 2), Version(1, 2)) as Text);
+IO::PrintLine(Same(Version(3, 1), Version(3, 1)) as Text);
+IO::PrintLine(Differ(Version(3, 1), Version(3, 2)) as Text);
+IO::PrintLine(Same("ab", "a" ++ "b") as Text);
+IO::PrintLine(Differ(1.5, 1.5) as Text);
+IO::PrintLine(Same(true, true) as Text);

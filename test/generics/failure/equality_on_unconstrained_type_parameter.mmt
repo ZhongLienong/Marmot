@@ -1,0 +1,10 @@
+module EqualityOnUnconstrainedTypeParameter
+
+// '==' on a type parameter compiled without a constraint and ran the Int instruction on
+// whatever T was. Equal arrays compared unequal: without Equatable it compared references.
+
+import { "../../../MarmotPrelude/IO.mmt" }
+
+def Pick = fn<T>(a: T, b: T) -> Bool => a == b;
+
+IO::PrintLine(Pick([1, 2], [1, 2]) as Text);

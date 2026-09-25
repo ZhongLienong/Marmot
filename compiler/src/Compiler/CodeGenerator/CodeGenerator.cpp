@@ -3211,12 +3211,17 @@ void CodeGenerator::operator()(MidoriExpression::Binary& binary)
 			m_operand_depth -= 1;
 		}
 		const std::shared_ptr<MidoriType> nominal_operand_type = GetConcreteTypeForExpression(binary.m_left);
+		// Inside a specialization the checker saw only a constrained type parameter, so it
+		// routed the operator through the class. A type the operator handles directly
+		// still uses the instruction, as it would written out concretely.
+		const bool uses_orderable = binary.m_uses_orderable && !nominal_operand_type->IsNumericType();
+		const bool uses_equatable = binary.m_uses_equatable && !(nominal_operand_type->IsNumericType() || nominal_operand_type->IsType<MidoriType::TextType>() || nominal_operand_type->IsType<MidoriType::BoolType>());
 
 		// When the type checker routed this operator through a typeclass instance the
 		// operand type is a dispatch key and must stay nominal, or a hand-written
 		// instance Orderable<Meters> would resolve to Int's implementation. Otherwise the
 		// operand type only picks a machine instruction, so the newtype is erased.
-		const bool uses_instance_dispatch = binary.m_uses_orderable || binary.m_uses_equatable || binary.m_uses_concatenable;
+		const bool uses_instance_dispatch = uses_orderable || uses_equatable || binary.m_uses_concatenable;
 		const std::shared_ptr<MidoriType> operand_type = uses_instance_dispatch ? nominal_operand_type : RepresentationOf(nominal_operand_type);
 
 		switch (binary.m_op.m_token_name)
@@ -3403,7 +3408,7 @@ void CodeGenerator::operator()(MidoriExpression::Binary& binary)
 		}
 		case Token::Name::LEFT_ANGLE:
 		{
-			if (binary.m_uses_orderable)
+			if (uses_orderable)
 			{
 				EmitOrderableCompare(operand_type, line);
 				EmitIntegerConstant(0, line);
@@ -3432,7 +3437,7 @@ void CodeGenerator::operator()(MidoriExpression::Binary& binary)
 		}
 		case Token::Name::LESS_EQUAL:
 		{
-			if (binary.m_uses_orderable)
+			if (uses_orderable)
 			{
 				EmitOrderableCompare(operand_type, line);
 				EmitIntegerConstant(0, line);
@@ -3461,7 +3466,7 @@ void CodeGenerator::operator()(MidoriExpression::Binary& binary)
 		}
 		case Token::Name::RIGHT_ANGLE:
 		{
-			if (binary.m_uses_orderable)
+			if (uses_orderable)
 			{
 				EmitOrderableCompare(operand_type, line);
 				EmitIntegerConstant(0, line);
@@ -3490,7 +3495,7 @@ void CodeGenerator::operator()(MidoriExpression::Binary& binary)
 		}
 		case Token::Name::GREATER_EQUAL:
 		{
-			if (binary.m_uses_orderable)
+			if (uses_orderable)
 			{
 				EmitOrderableCompare(operand_type, line);
 				EmitIntegerConstant(0, line);
@@ -3519,12 +3524,12 @@ void CodeGenerator::operator()(MidoriExpression::Binary& binary)
 		}
 		case Token::Name::BANG_EQUAL:
 		{
-			EmitEquality(operand_type, binary.m_uses_equatable, true, line);
+			EmitEquality(operand_type, uses_equatable, true, line);
 			break;
 		}
 		case Token::Name::DOUBLE_EQUAL:
 		{
-			EmitEquality(operand_type, binary.m_uses_equatable, false, line);
+			EmitEquality(operand_type, uses_equatable, false, line);
 			break;
 		}
 		case Token::Name::SINGLE_AMPERSAND:
