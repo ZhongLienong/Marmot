@@ -2,6 +2,7 @@
 #include "Common/BuildConfig/BuildConfig.h"
 
 #include "StrengthReduction.h"
+#include "Compiler/Analysis/SemanticFacts.h"
 #include "Compiler/Token/Token.h"
 #include <stdexcept>
 #include <optional>
@@ -48,10 +49,7 @@ void StrengthReduction::operator()(MidoriExpression::Binary& binary)
 	MidoriExpression::Literal* left_int = binary.m_left->IsLiteral(MidoriExpression::LiteralKind::Integer) ? &binary.m_left->GetExpression<MidoriExpression::Literal>() : nullptr;
 	MidoriExpression::Literal* right_int = binary.m_right->IsLiteral(MidoriExpression::LiteralKind::Integer) ? &binary.m_right->GetExpression<MidoriExpression::Literal>() : nullptr;
 
-	MidoriExpression::Literal* left_float = binary.m_left->IsLiteral(MidoriExpression::LiteralKind::Float) ? &binary.m_left->GetExpression<MidoriExpression::Literal>() : nullptr;
-	MidoriExpression::Literal* right_float = binary.m_right->IsLiteral(MidoriExpression::LiteralKind::Float) ? &binary.m_right->GetExpression<MidoriExpression::Literal>() : nullptr;
-
-	std::unique_ptr<MidoriExpression> reduced = TryReduceBinary(binary, binary.m_op, left_int, right_int, left_float, right_float);
+	std::unique_ptr<MidoriExpression> reduced = TryReduceBinary(binary, binary.m_op, left_int, right_int);
 
 	if (reduced)
 	{
@@ -59,11 +57,6 @@ void StrengthReduction::operator()(MidoriExpression::Binary& binary)
 		// Note: TryReduceBinary returns either newly created literals (which inherit correct type)
 		// or moved sub-expressions (which already have correct type), so we don't overwrite type here
 	}
-}
-
-double StrengthReduction::GetFloatValue(MidoriExpression::Literal* float_lit)
-{
-	return std::stod(float_lit->m_token.m_lexeme);
 }
 
 int64_t StrengthReduction::IsPowerOfTwo(MidoriInteger value)
@@ -88,66 +81,22 @@ int64_t StrengthReduction::IsPowerOfTwo(MidoriInteger value)
 	return exponent;
 }
 
-std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpression::Binary& binary, const Token& op, MidoriExpression::Literal* left_int, MidoriExpression::Literal* right_int, MidoriExpression::Literal* left_float, MidoriExpression::Literal* right_float)
+std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpression::Binary& binary, const Token& op, MidoriExpression::Literal* left_int, MidoriExpression::Literal* right_int)
 {
 	if (left_int || right_int)
 	{
-		// x * 0 -> 0
+		// x * 0 -> 0, when dropping x drops nothing it does.
 		if (op.m_token_name == Token::Name::STAR)
 		{
-			if (right_int && IntegerEquals(right_int->m_token.m_lexeme, 0ll))
+			if (right_int && IntegerEquals(right_int->m_token.m_lexeme, 0ll) && MidoriAnalysis::IsPure(*binary.m_left))
 			{
 				Token zero_token("0", Token::Name::INTEGER_LITERAL, op.m_line, op.m_file_name);
 				return std::make_unique<MidoriExpression>(MidoriExpression::Literal(zero_token, MidoriExpression::LiteralKind::Integer));
 			}
-			if (left_int && IntegerEquals(left_int->m_token.m_lexeme, 0ll))
+			if (left_int && IntegerEquals(left_int->m_token.m_lexeme, 0ll) && MidoriAnalysis::IsPure(*binary.m_right))
 			{
 				Token zero_token("0", Token::Name::INTEGER_LITERAL, op.m_line, op.m_file_name);
 				return std::make_unique<MidoriExpression>(MidoriExpression::Literal(zero_token, MidoriExpression::LiteralKind::Integer));
-			}
-		}
-
-		// x * 1 -> x
-		if (op.m_token_name == Token::Name::STAR)
-		{
-			if (right_int && IntegerEquals(right_int->m_token.m_lexeme, 1ll))
-			{
-				return std::move(binary.m_left);
-			}
-			if (left_int && IntegerEquals(left_int->m_token.m_lexeme, 1ll))
-			{
-				return std::move(binary.m_right);
-			}
-		}
-
-		// x / 1 -> x
-		if (op.m_token_name == Token::Name::SLASH)
-		{
-			if (right_int && IntegerEquals(right_int->m_token.m_lexeme, 1ll))
-			{
-				return std::move(binary.m_left);
-			}
-		}
-
-		// x + 0 -> x
-		if (op.m_token_name == Token::Name::SINGLE_PLUS)
-		{
-			if (right_int && IntegerEquals(right_int->m_token.m_lexeme, 0ll))
-			{
-				return std::move(binary.m_left);
-			}
-			if (left_int && IntegerEquals(left_int->m_token.m_lexeme, 0ll))
-			{
-				return std::move(binary.m_right);
-			}
-		}
-
-		// x - 0 -> x
-		if (op.m_token_name == Token::Name::SINGLE_MINUS)
-		{
-			if (right_int && IntegerEquals(right_int->m_token.m_lexeme, 0ll))
-			{
-				return std::move(binary.m_left);
 			}
 		}
 
@@ -192,69 +141,6 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 				Token shift_token("<<", Token::Name::LEFT_SHIFT, op.m_line, op.m_file_name);
 				Token exp_token(std::to_string(exponent), Token::Name::INTEGER_LITERAL, op.m_line, op.m_file_name);
 				return std::make_unique<MidoriExpression>(MidoriExpression::Binary(shift_token, std::move(binary.m_left), std::make_unique<MidoriExpression>(MidoriExpression::Literal(exp_token, MidoriExpression::LiteralKind::Integer))));
-			}
-		}
-	}
-
-	// Float operations
-	if (left_float || right_float)
-	{
-		// x * 0.0 -> 0.0
-		if (op.m_token_name == Token::Name::STAR)
-		{
-			if (right_float && GetFloatValue(right_float) == 0.0)
-			{
-				Token zero_token("0.0", Token::Name::FLOAT_LITERAL, op.m_line, op.m_file_name);
-				return std::make_unique<MidoriExpression>(MidoriExpression::Literal(zero_token, MidoriExpression::LiteralKind::Float));
-			}
-			if (left_float && GetFloatValue(left_float) == 0.0)
-			{
-				Token zero_token("0.0", Token::Name::FLOAT_LITERAL, op.m_line, op.m_file_name);
-				return std::make_unique<MidoriExpression>(MidoriExpression::Literal(zero_token, MidoriExpression::LiteralKind::Float));
-			}
-		}
-
-		// x * 1.0 -> x
-		if (op.m_token_name == Token::Name::STAR)
-		{
-			if (right_float && GetFloatValue(right_float) == 1.0)
-			{
-				return std::move(binary.m_left);
-			}
-			if (left_float && GetFloatValue(left_float) == 1.0)
-			{
-				return std::move(binary.m_right);
-			}
-		}
-
-		// x / 1.0 -> x
-		if (op.m_token_name == Token::Name::SLASH)
-		{
-			if (right_float && GetFloatValue(right_float) == 1.0)
-			{
-				return std::move(binary.m_left);
-			}
-		}
-
-		// x + 0.0 -> x
-		if (op.m_token_name == Token::Name::SINGLE_PLUS)
-		{
-			if (right_float && GetFloatValue(right_float) == 0.0)
-			{
-				return std::move(binary.m_left);
-			}
-			if (left_float && GetFloatValue(left_float) == 0.0)
-			{
-				return std::move(binary.m_right);
-			}
-		}
-
-		// x - 0.0 -> x
-		if (op.m_token_name == Token::Name::SINGLE_MINUS)
-		{
-			if (right_float && GetFloatValue(right_float) == 0.0)
-			{
-				return std::move(binary.m_left);
 			}
 		}
 	}

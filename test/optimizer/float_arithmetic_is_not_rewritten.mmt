@@ -1,0 +1,42 @@
+module FloatArithmeticIsNotRewritten
+
+// Each line printed something else once the optimizer had been at it.
+//
+// A folded Float was written back as a literal through std::to_string, which keeps six
+// decimals: 0.1 + 0.2 became 0.3, and 1.0 / 3.0 became 0.333333. x * 0.0 was rewritten to
+// 0.0, which is wrong for a NaN or infinite x, loses the sign of a negative one, and skipped
+// evaluating x; x * 0 did the same for an Int. x + 0.0 was rewritten to x, which is wrong
+// for x = -0.0.
+
+import
+{
+	"../../MarmotPrelude/IO.mmt",
+	"../../MarmotPrelude/Math.mmt",
+}
+
+def Loud = fn(x: Float) -> Float =>
+{
+	IO::PrintLine("float evaluated");
+	x
+};
+
+def LoudInt = fn(x: Int) -> Int =>
+{
+	IO::PrintLine("int evaluated");
+	x
+};
+
+def Id = fn(x: Float) -> Float => x;
+
+IO::PrintLine(((0.1 + 0.2) == 0.3) as Text);
+IO::PrintLine((0.1 + 0.2) as Text);
+IO::PrintLine((1.0 / 3.0) as Text);
+IO::PrintLine((((1.0 / 3.0) * 3000000.0) - 1000000.0) as Text);
+IO::PrintLine(Math::IsNaN(Math::SquareRoot(-1.0) * 0.0) as Text);
+IO::PrintLine(Math::IsNaN(Math::Pow(10.0, 400.0) * 0.0) as Text);
+IO::PrintLine((Id(-5.0) * 0.0) as Text);
+IO::PrintLine((Loud(2.0) * 0.0) as Text);
+IO::PrintLine((LoudInt(2) * 0) as Text);
+IO::PrintLine((Id(-0.0) + 0.0) as Text);
+IO::PrintLine((Id(-0.0) - 0.0) as Text);
+IO::PrintLine((Id(2.5) * 1.0) as Text);

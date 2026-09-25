@@ -16,9 +16,8 @@ protected:
 	void operator()(MidoriExpression::Binary& binary) override;
 
 private:
-	static double GetFloatValue(MidoriExpression::Literal* float_lit);
 
 	static int64_t IsPowerOfTwo(MidoriInteger value);
 
-	std::unique_ptr<MidoriExpression> TryReduceBinary(MidoriExpression::Binary& binary, const Token& op, MidoriExpression::Literal* left_int, MidoriExpression::Literal* right_int, MidoriExpression::Literal* left_float, MidoriExpression::Literal* right_float);
+	std::unique_ptr<MidoriExpression> TryReduceBinary(MidoriExpression::Binary& binary, const Token& op, MidoriExpression::Literal* left_int, MidoriExpression::Literal* right_int);
 };

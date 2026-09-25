@@ -1,3 +1,4 @@
+#include <cmath>
 #include "CanonicalizationCleanup.h"
 
 #include "Compiler/Analysis/SharedAnalysis.h"
@@ -67,6 +68,23 @@ namespace
 	bool IsPureOne(const MidoriExpression& expr)
 	{
 		return TryGetPureNumericConstant(expr, false);
+	}
+
+	// x + 0 and x - 0 are x for the integer types. For a Float, x + 0.0 is 0.0 when x is
+	// -0.0, and x - 0.0 is x only when the zero is +0.0.
+	bool IsAdditiveIdentity(const MidoriExpression& expr, bool subtracted)
+	{
+		if (!IsPureZero(expr))
+		{
+			return false;
+		}
+
+		const std::optional<MidoriAnalysis::ConstantValue> constant_value = MidoriAnalysis::TryEvalConstant(expr);
+		if (!constant_value->Is<MidoriFloat>())
+		{
+			return true;
+		}
+		return subtracted && !std::signbit(constant_value->Get<MidoriFloat>());
 	}
 
 	bool IsPureEmptyText(const MidoriExpression& expr)
@@ -240,21 +258,21 @@ void CanonicalizationCleanup::operator()(MidoriExpression::Binary& binary)
 	switch (binary.m_op.m_token_name)
 	{
 	case Token::Name::SINGLE_PLUS:
-		if (IsPureZero(*binary.m_right))
+		if (IsAdditiveIdentity(*binary.m_right, false))
 		{
 			m_pending_replacement = MidoriAnalysis::StripRedundantGroups(std::move(binary.m_left));
 			SetReplacementType(m_pending_replacement, binary.m_type_data);
 			return;
 		}
 
-		if (IsPureZero(*binary.m_left))
+		if (IsAdditiveIdentity(*binary.m_left, false))
 		{
 			m_pending_replacement = MidoriAnalysis::StripRedundantGroups(std::move(binary.m_right));
 			SetReplacementType(m_pending_replacement, binary.m_type_data);
 		}
 		return;
 	case Token::Name::SINGLE_MINUS:
-		if (IsPureZero(*binary.m_right))
+		if (IsAdditiveIdentity(*binary.m_right, true))
 		{
 			m_pending_replacement = MidoriAnalysis::StripRedundantGroups(std::move(binary.m_left));
 			SetReplacementType(m_pending_replacement, binary.m_type_data);
