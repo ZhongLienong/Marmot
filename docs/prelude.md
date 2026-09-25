@@ -170,7 +170,7 @@ def window = ArrayUtil::Slice(replaced, 1, 3);
 
 Public text helpers:
 
-- `Length`, `Contains`, `Substring`
+- `Length`, `Contains`, `Substring`; `Substring(text, start, end)` counts code points from `start` up to `end`, clamps both to the text, and is empty when `end` is not after `start`, where indexing past the end stops the program
 - `Split`, `Replace`, `Trim`, `Reverse`
 - `FromCodePoint(Int) -> Option<Text>`: the text of one Unicode scalar value; `None` for a surrogate, anything past U+10FFFF, and U+0000, which text cannot hold
 - `CodePointAt(Text, Int) -> Option<Int>`: the code point at a code-point index, `None` past the end
@@ -179,7 +179,7 @@ Public text helpers:
 Public array helpers:
 
 - `Length`, `Contains`
-- `Slice`, `Reverse`, `Copy`, `Concat`
+- `Slice`, `Reverse`, `Copy`, `Concat`; `Slice(items, start, end)` takes the elements from `start` up to `end`, clamps both to the array, and is empty when `end` is not after `start`
 - `WithAppended`, `WithReplaced`, `WithInserted`, `WithRemoved`
 
 ## Core ADTs and Collections
