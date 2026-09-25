@@ -1,0 +1,6 @@
+Compilation failed :(
+Code Generator Error at test/literal/failure/int_literal_too_large.mmt:5
+  |
+5 | def big = 9223372036854775808;
+  |           ^^^^^^^^^^^^^^^^^^^ Integer literal '9223372036854775808' is larger than the largest Int, 9223372036854775807. The smallest Int is -9223372036854775808; a Word past the Int range is written in hex, like 0xFFFFFFFFFFFFFFFF.
+  |

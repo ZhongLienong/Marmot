@@ -1,0 +1,12 @@
+module MinimumIntLiteral
+
+// -9223372036854775808 is the smallest Int. It could not be written: the minus applied to
+// 9223372036854775808, which is out of range on its own.
+
+import { "../../../MarmotPrelude/IO.mmt" }
+
+def smallest = -9223372036854775808;
+
+IO::PrintLine(smallest as Text);
+IO::PrintLine((smallest - 1) as Text);
+IO::PrintLine(match smallest with case -9223372036854775808 => "matched" case _ => "missed");

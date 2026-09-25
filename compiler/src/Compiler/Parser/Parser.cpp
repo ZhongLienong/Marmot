@@ -2212,6 +2212,16 @@ MidoriResult::ExpressionResult Parser::ParseUnaryLogicalBitwise()
 
 MidoriResult::ExpressionResult Parser::ParseUnaryArithmetic()
 {
+	// The smallest Int has no positive counterpart, so it is written as one literal:
+	// 9223372036854775808 alone is out of range.
+	if (Peek(0).m_token_name == Token::Name::SINGLE_MINUS && Peek(1).m_token_name == Token::Name::INTEGER_LITERAL && Peek(1).m_lexeme == "9223372036854775808")
+	{
+		Advance();
+		Token literal = Advance();
+		literal.m_lexeme = "-"s + literal.m_lexeme;
+		return std::make_unique<MidoriExpression>(MidoriExpression::Literal(literal, MidoriExpression::LiteralKind::Integer));
+	}
+
 	if (Match(Token::Name::LEFT_ARROW, Token::Name::SINGLE_MINUS, Token::Name::SINGLE_PLUS))
 	{
 		Token& op = Previous();

@@ -5,8 +5,7 @@ import
     <IO>
 }
 
-// This should fail with a clear error message about integer overflow
-// The literal 9223372036854775808 is INT64_MAX + 1, which overflows
-def overflow_test = -9223372036854775808;
+// -9223372036854775808 is the smallest Int; one below it is out of range.
+def overflow_test = -9223372036854775809;
 
 IO::PrintLine("This should not print");

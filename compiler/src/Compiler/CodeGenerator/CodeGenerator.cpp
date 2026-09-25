@@ -4255,7 +4255,7 @@ void CodeGenerator::EmitIntegerLiteral(const MidoriExpression::Literal& integer)
 	const std::optional<MidoriInteger> value = ParseIntegerLiteral(integer.m_token.m_lexeme);
 	if (!value.has_value())
 	{
-		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Integer literal '" + integer.m_token.m_lexeme + "' is out of range. Maximum value is 9223372036854775807 (2^63 - 1), minimum value is -9223372036854775807.", integer.m_token, m_file_name, m_source_lines));
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Integer literal '" + integer.m_token.m_lexeme + "' is larger than the largest Int, 9223372036854775807. The smallest Int is -9223372036854775808; a Word past the Int range is written in hex, like 0xFFFFFFFFFFFFFFFF.", integer.m_token, m_file_name, m_source_lines));
 		return;
 	}
 
