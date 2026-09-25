@@ -1,0 +1,6 @@
+Compilation failed :(
+Lexer Error at test/literal/failure/exponent_without_digits.mmt:5
+  |
+5 | def big = 2e;
+  |           ^ An exponent needs digits after the 'e': 1.5e3, 2e-7.
+  |

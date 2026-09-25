@@ -64,7 +64,7 @@
       "patterns": [
         {
           "name": "constant.numeric.marmot",
-          "match": "\\b(?:0[xX][0-9A-Fa-f]+|0[bB][01]+|\\d+\\.\\d+|\\d+)\\b"
+          "match": "\\b(?:0[xX][0-9A-Fa-f]+|0[bB][01]+|\\d+(?:\\.\\d+)?[eE][+-]?\\d+|\\d+\\.\\d+|\\d+)\\b"
         },
         {
           "name": "constant.language.boolean.marmot",

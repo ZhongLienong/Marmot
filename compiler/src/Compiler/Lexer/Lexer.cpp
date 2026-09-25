@@ -355,10 +355,8 @@ MidoriResult::TokenResult Lexer::MatchNumber()
 	const char next = LookAhead(0);
 	if (number.has_value() && (IsAlpha(next) || next == '_'))
 	{
-		const char after = LookAhead(1);
-		const bool looks_like_exponent = (next == 'e' || next == 'E') && (IsDigit(after) || after == '+' || after == '-');
-		const std::string message = looks_like_exponent
-			? "A Float literal has no exponent: write the digits out, like 1500.0 or 0.0015."s
+		const std::string message = next == 'e' || next == 'E'
+			? "An exponent needs digits after the 'e': 1.5e3, 2e-7."s
 			: "A number runs straight into a letter here. Put a space or an operator between them."s;
 		return std::unexpected(MidoriError::GenerateLexerErrorWithContext(message, m_cursor.m_line, BeginColumn(), m_source.m_file_name, m_source.m_lines));
 	}
@@ -369,16 +367,27 @@ MidoriResult::TokenResult Lexer::MatchDecimalNumber()
 {
 	ConsumeDigits();
 
-	const bool is_float = LookAhead(0) == '.' && IsDigit(LookAhead(1));
-
-	if (!is_float)
+	const bool has_fraction = LookAhead(0) == '.' && IsDigit(LookAhead(1));
+	if (has_fraction)
 	{
-		return MakeTokenResult(Token::Name::INTEGER_LITERAL);
+		Advance();
+		ConsumeDigits();
 	}
 
-	Advance();
-	ConsumeDigits();
-	return MakeTokenResult(Token::Name::FLOAT_LITERAL);
+	// An exponent makes a Float, with or without a fraction: 1.5e3, 2e-7.
+	const bool has_sign = LookAhead(1) == '+' || LookAhead(1) == '-';
+	const bool has_exponent = (LookAhead(0) == 'e' || LookAhead(0) == 'E') && IsDigit(LookAhead(has_sign ? 2 : 1));
+	if (has_exponent)
+	{
+		Advance();
+		if (has_sign)
+		{
+			Advance();
+		}
+		ConsumeDigits();
+	}
+
+	return MakeTokenResult(has_fraction || has_exponent ? Token::Name::FLOAT_LITERAL : Token::Name::INTEGER_LITERAL);
 }
 
 MidoriResult::TokenResult Lexer::MatchPrefixedInteger(bool (*predicate)(char))

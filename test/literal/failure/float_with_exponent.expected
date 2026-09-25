@@ -1,6 +1,0 @@
-Compilation failed :(
-Lexer Error at test/literal/failure/float_with_exponent.mmt:5
-  |
-5 | def big = 1.5e3;
-  |           ^ A Float literal has no exponent: write the digits out, like 1500.0 or 0.0015.
-  |

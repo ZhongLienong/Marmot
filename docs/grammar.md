@@ -19,10 +19,16 @@ The notation: `X?` optional, `X*` zero or more, `X+` one or more,
 ```
 IDENTIFIER   letter or '_', then letters, digits or '_'
 INTEGER      decimal digits, or 0x / 0X hex, or 0b / 0B binary
-FLOAT        digits '.' digits
+FLOAT        digits '.' digits exponent?, or digits exponent
+exponent     ('e' | 'E') ('+' | '-')? digits          // added after v1
 TEXT         '"' characters '"', with \n \t \r \\ \" \0 escapes
 COMMENT      '//' to end of line, or '/*' to the first '*/' (no nesting)
 ```
+
+A number with an exponent is a `Float` whether or not it has a fraction: `1.5e3`
+is `1500.0`, `2e3` is `2000.0` and `2e-7` is `0.0000002`. The exponent was added
+after v1; in v1 a number could not be followed directly by a letter, so no v1
+program reads differently.
 
 A file may start with a UTF-8 byte order mark, which is not part of the program.
 Whitespace separates tokens and is otherwise insignificant.

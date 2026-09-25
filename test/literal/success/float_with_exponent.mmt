@@ -1,0 +1,12 @@
+module FloatWithExponent
+
+// A number with an exponent is a Float, with or without a fraction. Before the exponent
+// was added, `1.5e3` lexed as 1.5 followed by a name `e3`.
+
+import { "../../../MarmotPrelude/IO.mmt" }
+
+IO::PrintLine(1.5e3 as Text);
+IO::PrintLine(2e3 as Text);
+IO::PrintLine(2E-7 as Text);
+IO::PrintLine(1e+21 as Text);
+IO::PrintLine(((6.02214076e23 / 1e23) > 6.0) as Text);
