@@ -1,0 +1,4 @@
+module ConversionAcrossModulesLib
+public export { Meters, Double }
+type Meters = Int;
+def Double = fn(distance : Meters) -> Meters => ((distance as Int) * 2) as Meters;

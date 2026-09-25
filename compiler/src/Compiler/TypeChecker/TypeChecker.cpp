@@ -3160,6 +3160,15 @@ TypeChecker::TypeChecker(
 				continue;
 			}
 
+			// The declaring module derives a newtype's conversions to and from its
+			// representation itself, so they are not among the instances it
+			// exports; without them `4 as Module::Meters` found no instance.
+			if (type->IsType<MidoriType::NewType>())
+			{
+				RegisterIdentityConversion(type, type->GetType<MidoriType::NewType>().m_representation);
+				RegisterIdentityConversion(type->GetType<MidoriType::NewType>().m_representation, type);
+			}
+
 			if (type->IsType<MidoriType::UnionType>())
 			{
 				const MidoriType::UnionType& union_type = type->GetType<MidoriType::UnionType>();
