@@ -5385,9 +5385,9 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::UnaryPrefix& 
 				}
 				else if (unary.m_op.m_token_name == Token::Name::TILDE)
 				{
-					if (!actual_type->IsType<MidoriType::IntegerType>())
+					if (!actual_type->IsType<MidoriType::IntegerType>() && !actual_type->IsType<MidoriType::ByteType>() && !actual_type->IsType<MidoriType::WordType>())
 					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Bitwise NOT operator requires integer type", unary.m_op, m_file_name, m_source_lines, actual_type, MidoriType::MakeLiteralType<MidoriType::IntegerType>()));
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Bitwise NOT operator requires an integer, byte, or word type", unary.m_op, m_file_name, m_source_lines, actual_type, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::ByteType>(), MidoriType::MakeLiteralType<MidoriType::WordType>()));
 					}
 				}
 				else if (unary.m_op.m_token_name == Token::Name::HASH)

@@ -3665,6 +3665,11 @@ void CodeGenerator::operator()(MidoriExpression::UnaryPrefix& unary)
 	case Token::Name::TILDE:
 	{
 		EmitByte(OpCode::BITWISE_NOT, unary.m_op.m_line);
+		// BITWISE_NOT flips all 64 bits; a Byte keeps the low eight.
+		if (RepresentationOf(GetConcreteTypeForExpression(unary.m_expr))->IsType<MidoriType::ByteType>())
+		{
+			EmitByte(OpCode::INT_TO_BYTE, unary.m_op.m_line);
+		}
 		break;
 	}
 	case Token::Name::HASH:
@@ -4224,7 +4229,7 @@ void CodeGenerator::EmitIntegerLiteral(const MidoriExpression::Literal& integer)
 	const std::optional<MidoriInteger> value = ParseIntegerLiteral(integer.m_token.m_lexeme);
 	if (!value.has_value())
 	{
-		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Integer literal '" + integer.m_token.m_lexeme + "' is out of range. Maximum value is 9223372036854775807 (2^63 - 1), minimum value is -9223372036854775807.", integer.m_token, m_file_name, m_source_lines));
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Integer literal '" + integer.m_token.m_lexeme + "' is out of range. Maximum value is 9223372036854775807 (2^63 - 1), minimum value is -9223372036854775808 (-2^63).", integer.m_token, m_file_name, m_source_lines));
 		return;
 	}
 

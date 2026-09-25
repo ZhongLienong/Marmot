@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cctype>
 #include <format>
 #include <fstream>
 #include <limits>
@@ -343,6 +344,19 @@ namespace
 			return total;
 		}
 	};
+
+	bool IsDecimalIntegerLiteral(const MidoriExpression& expr)
+	{
+		if (!expr.IsLiteral(MidoriExpression::LiteralKind::Integer))
+		{
+			return false;
+		}
+
+		const std::string& lexeme = expr.GetExpression<MidoriExpression::Literal>().m_token.m_lexeme;
+		return !lexeme.empty()
+			&& std::isdigit(static_cast<unsigned char>(lexeme[0u])) != 0
+			&& !(lexeme.size() >= 2u && lexeme[0u] == '0' && (lexeme[1u] == 'x' || lexeme[1u] == 'X' || lexeme[1u] == 'b' || lexeme[1u] == 'B'));
+	}
 
 	std::unique_ptr<MidoriPattern> MakeNumericLiteralPattern(Token token)
 	{
@@ -2140,6 +2154,15 @@ MidoriResult::ExpressionResult Parser::ParseUnaryArithmetic()
 					if (op.m_token_name == Token::Name::LEFT_ARROW)
 					{
 						return std::make_unique<MidoriExpression>(MidoriExpression::Receive(op, std::move(right)));
+					}
+
+					// The smallest Int has no positive counterpart, so `-9223372036854775808` is one
+					// literal rather than a negation of a literal that is out of range.
+					if (op.m_token_name == Token::Name::SINGLE_MINUS && IsDecimalIntegerLiteral(*right))
+					{
+						MidoriExpression::Literal& literal = right->GetExpression<MidoriExpression::Literal>();
+						literal.m_token.m_lexeme.insert(0u, 1u, '-');
+						return std::move(right);
 					}
 
 					return std::make_unique<MidoriExpression>(MidoriExpression::UnaryPrefix(op, std::move(right)));
