@@ -1,0 +1,50 @@
+module SpecializationsDoNotShareCallTypes
+
+// A generic's body is one tree shared by all its specializations. Generating Sort<Box>
+// wrote Array<Box> onto the recursive calls inside Sort's body, so Sort<Int>, generated
+// after it, called Merge<Box> on integers and crashed with a memory access violation.
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/ArrayUtil.mmt",
+	"../../../MarmotPrelude/Orderable.mmt",
+}
+
+type Box = { n: Int };
+
+instance Orderable<Box>
+{
+	def Compare = fn(a: Box, b: Box) -> Int => b.n - a.n;
+};
+
+instance Orderable<Int>
+{
+	def Compare = fn(a: Int, b: Int) -> Int => a - b;
+};
+
+def Merge = fn<T>(left: Array<T>, right: Array<T>, i: Int, j: Int, out: Array<T>) -> Array<T> where Orderable<T> =>
+	if i >= #left then ArrayUtil::Concat(out, ArrayUtil::Slice(right, j, #right))
+	else if j >= #right then ArrayUtil::Concat(out, ArrayUtil::Slice(left, i, #left))
+	else if Orderable::Compare(left[i], right[j]) <= 0 then Merge(left, right, i + 1, j, ArrayUtil::WithAppended(out, left[i]))
+	else Merge(left, right, i, j + 1, ArrayUtil::WithAppended(out, right[j]));
+
+def Sort = fn<T>(values: Array<T>) -> Array<T> where Orderable<T> =>
+	if #values <= 1 then values
+	else
+	{
+		def middle = #values / 2;
+		Merge(Sort(ArrayUtil::Slice(values, 0, middle)), Sort(ArrayUtil::Slice(values, middle, #values)), 0, 0, [])
+	};
+
+for box in Sort([Box(1), Box(3), Box(2), Box(5)])
+{
+	IO::Print((box.n as Text) ++ " ");
+};
+IO::PrintLine("");
+
+for n in Sort([3, 1, 2, -4, 8])
+{
+	IO::Print((n as Text) ++ " ");
+};
+IO::PrintLine("");

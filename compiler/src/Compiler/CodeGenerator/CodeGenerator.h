@@ -99,6 +99,9 @@ private:
 	std::unordered_map<FunctionSignature, int, FunctionSignatureHash> m_specialized_functions;
 	TypeEnvironment m_param_type_map;
 	TypeEnvironment m_generic_type_substitution;
+	// A generic's body is one AST shared by all its specializations; a call's type
+	// rewritten for one is restored before the next is generated.
+	std::vector<std::pair<MidoriExpression::Call*, std::shared_ptr<MidoriType>>> m_rewritten_call_types;
 	TypeclassMethodMap m_class_methods;
 	TypeclassInstanceMap m_class_instances;
 	TypeclassInstanceTypeMap m_class_instance_type_args;

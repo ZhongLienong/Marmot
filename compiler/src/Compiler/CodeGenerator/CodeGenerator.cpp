@@ -3885,6 +3885,7 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 		GenericFunctionInfo& generic_info = m_generic_functions[function_name];
 		if (generic_info.m_generic_return_type)
 		{
+			m_rewritten_call_types.emplace_back(&call, call.m_type_data);
 			TypeEnvironment local_type_map;
 			std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash> visited;
 			for (size_t i = 0u; i < generic_info.m_param_types.size() && i < concrete_arg_types.size(); i += 1u)
@@ -5750,7 +5751,13 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 	m_operand_depth = 0;
 	m_operand_block_shifts.clear();
 
+	const size_t rewritten_call_types_before = m_rewritten_call_types.size();
 	Visit(generic_info.m_body);
+	while (m_rewritten_call_types.size() > rewritten_call_types_before)
+	{
+		m_rewritten_call_types.back().first->m_type_data = std::move(m_rewritten_call_types.back().second);
+		m_rewritten_call_types.pop_back();
+	}
 
 	m_operand_depth = saved_operand_depth;
 	m_operand_block_shifts = std::move(saved_shifts);
