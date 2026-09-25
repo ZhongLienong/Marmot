@@ -120,8 +120,9 @@ def broadcast_environment_change() -> None:
     from ctypes import wintypes
 
     send = ctypes.windll.user32.SendMessageTimeoutW
-    send.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPCWSTR, wintypes.UINT, wintypes.UINT, ctypes.POINTER(wintypes.DWORD)]
+    send.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPCWSTR, wintypes.UINT, wintypes.UINT, ctypes.POINTER(ctypes.c_size_t)]
     send.restype = wintypes.LPARAM
-    result = wintypes.DWORD(0)
+    # lpdwResult is a PDWORD_PTR: pointer-sized, so a DWORD would be overrun on x64.
+    result = ctypes.c_size_t(0)
     hwnd_broadcast, wm_settingchange, smto_abortifhung = 0xFFFF, 0x001A, 0x0002
     send(hwnd_broadcast, wm_settingchange, 0, "Environment", smto_abortifhung, 5000, ctypes.byref(result))
