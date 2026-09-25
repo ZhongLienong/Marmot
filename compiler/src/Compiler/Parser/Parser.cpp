@@ -7019,11 +7019,14 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 				? make_local_name("field" + std::to_string(mapped_field_index), case_binding_base_index + mapped_field_index)
 				: make_local_name("default_value", 1);
 
+			// A variant that falls back to the default reads none of its fields; the
+			// leading underscore is what keeps the unused-binding warning off code the
+			// program never wrote.
 			cases.emplace_back
 			(
 				make_case
 				(
-					make_constructor_pattern(ctor_name.m_lexeme, case_binding_base_index, member_ctx.m_member_types.size(), "field"),
+					make_constructor_pattern(ctor_name.m_lexeme, case_binding_base_index, member_ctx.m_member_types.size(), mapped_field_index >= 0 ? "field" : "_field"),
 					std::move(case_body),
 					static_cast<int>(member_ctx.m_member_types.size())
 				)
