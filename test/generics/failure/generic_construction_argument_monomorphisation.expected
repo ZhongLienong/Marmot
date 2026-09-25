@@ -1,6 +1,0 @@
-Compilation failed :(
-Code Generator Error at test/generics/failure/generic_construction_argument_monomorphisation.mmt:27
-   |
-27 | // the file name and quoted source text were taken from whichever file was compiling, so
-   | Unresolved method 'Growable::Append': no matching concrete instance found.
-   |

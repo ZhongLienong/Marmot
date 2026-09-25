@@ -1716,7 +1716,11 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 	{
 		return left_subst;
 	}
-	else if (left_subst->IsType<MidoriType::TypeVariable>())
+	// Of two variables, the newer is bound to the older. A generic function's own
+	// parameters are the oldest variables in its body, so a call's freshened ones
+	// resolve to them; binding the other way round left the result of a nested
+	// generic call typed by a variable the specialization had never heard of.
+	else if (left_subst->IsType<MidoriType::TypeVariable>() && !(right_subst->IsType<MidoriType::TypeVariable>() && right_subst->GetType<MidoriType::TypeVariable>().m_id > left_subst->GetType<MidoriType::TypeVariable>().m_id))
 	{
 		int var_id = left_subst->GetType<MidoriType::TypeVariable>().m_id;
 		if (OccursCheck(var_id, right_subst))
