@@ -83,6 +83,8 @@ private:
 	// While specializing a generic declared in another module, the body's
 	// unqualified global references belong to that module, not this one.
 	std::optional<std::string> m_specialization_source_module;
+	// And the foreign functions it calls are that module's.
+	std::shared_ptr<const std::unordered_map<std::string, size_t>> m_specialization_builtin_foreign_indices;
 	std::unordered_set<std::string> m_export_symbols;
 
 	BytecodeBuilder m_builder;
@@ -101,7 +103,7 @@ private:
 	TypeclassInstanceMap m_class_instances;
 	TypeclassInstanceTypeMap m_class_instance_type_args;
 	std::unordered_map<std::string, std::vector<ResolvedMethodCandidate>> m_method_resolution_map;
-	std::unordered_map<std::string, size_t> m_ffi_indices;
+	std::shared_ptr<std::unordered_map<std::string, size_t>> m_ffi_indices = std::make_shared<std::unordered_map<std::string, size_t>>();
 	// library -> symbols this module's `foreign ... from` declarations name.
 	std::map<std::string, std::set<std::string>> m_native_imports;
 	std::vector<std::vector<LocalStorageKind>> m_procedure_local_kinds{ std::vector<LocalStorageKind>() };

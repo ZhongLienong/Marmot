@@ -2383,7 +2383,7 @@ void CodeGenerator::operator()(MidoriStatement::VariableDefinition& def)
 		MidoriExpression::Function& function = def.m_value->GetExpression<MidoriExpression::Function>();
 		if (!function.m_generic_params.empty() && is_global)
 		{
-			m_generic_functions.emplace(def.m_name.m_lexeme, GenericFunctionInfo(def.m_name.m_lexeme, function.m_params, function.m_param_types, function.m_generic_params, function.m_constraints, function.m_return_type, std::shared_ptr<MidoriExpression>(std::move(function.m_body)), function.m_captured_count, m_module_name.has_value() ? m_module_name.value() : std::string()));
+			m_generic_functions.emplace(def.m_name.m_lexeme, GenericFunctionInfo(def.m_name.m_lexeme, function.m_params, function.m_param_types, function.m_generic_params, function.m_constraints, function.m_return_type, std::shared_ptr<MidoriExpression>(std::move(function.m_body)), function.m_captured_count, m_module_name.has_value() ? m_module_name.value() : std::string(), m_ffi_indices));
 			return;
 		}
 	}
@@ -2508,7 +2508,7 @@ void CodeGenerator::operator()(MidoriStatement::FunctionDefinition& defun)
 
 	if (is_generic && is_global)
 	{
-		m_generic_functions.emplace(defun.m_name.m_lexeme, GenericFunctionInfo(defun.m_name.m_lexeme, defun.m_params, defun.m_param_types, defun.m_generic_params, defun.m_constraints, defun.m_return_type, std::shared_ptr<MidoriExpression>(std::move(defun.m_body)), defun.m_captured_count, m_module_name.has_value() ? m_module_name.value() : std::string()));
+		m_generic_functions.emplace(defun.m_name.m_lexeme, GenericFunctionInfo(defun.m_name.m_lexeme, defun.m_params, defun.m_param_types, defun.m_generic_params, defun.m_constraints, defun.m_return_type, std::shared_ptr<MidoriExpression>(std::move(defun.m_body)), defun.m_captured_count, m_module_name.has_value() ? m_module_name.value() : std::string(), m_ffi_indices));
 		return;
 	}
 
@@ -2559,7 +2559,7 @@ void CodeGenerator::operator()(MidoriStatement::ForeignDefinition& foreign)
 			AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorUnknownForeignFunction, std::format("Unknown foreign function '{}': it is not a Marmot builtin. Name the library that exports it: foreign \"{}\" ... from \"library\";", foreign.m_foreign_name, foreign.m_foreign_name), foreign.m_function_name, m_file_name, m_source_lines));
 			return;
 		}
-		m_ffi_indices[foreign.m_function_name.m_lexeme] = ffi_index.value();
+		(*m_ffi_indices)[foreign.m_function_name.m_lexeme] = ffi_index.value();
 	}
 
 	bool is_global = !foreign.m_local_index.has_value();
@@ -3966,8 +3966,11 @@ void CodeGenerator::operator()(MidoriExpression::Call& call)
 		std::optional<size_t> ffi_index_opt = std::nullopt;
 		if (call.m_is_foreign && call.m_callee->IsExpression<MidoriExpression::NameAccess>())
 		{
-			std::unordered_map<std::string, size_t>::iterator ffi_it = m_ffi_indices.find(function_name);
-			if (ffi_it != m_ffi_indices.end())
+			// Not found, the call would take the dynamic path, which hands a
+			// builtin its arguments marshalled for a native library.
+			const std::unordered_map<std::string, size_t>& ffi_indices = m_specialization_builtin_foreign_indices != nullptr ? *m_specialization_builtin_foreign_indices : *m_ffi_indices;
+			std::unordered_map<std::string, size_t>::const_iterator ffi_it = ffi_indices.find(function_name);
+			if (ffi_it != ffi_indices.cend())
 			{
 				ffi_index_opt = ffi_it->second;
 			}
@@ -5715,9 +5718,11 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 	size_t prev_index = m_builder.m_current_procedure_index;
 	// A generic declared elsewhere carries that module's globals in its body.
 	const std::optional<std::string> prev_specialization_module = m_specialization_source_module;
+	const std::shared_ptr<const std::unordered_map<std::string, size_t>> prev_specialization_foreign_indices = m_specialization_builtin_foreign_indices;
 	m_specialization_source_module = (!generic_info.m_defining_module.empty() && (!m_module_name.has_value() || generic_info.m_defining_module != m_module_name.value()))
 		? std::optional<std::string>(generic_info.m_defining_module)
 		: std::nullopt;
+	m_specialization_builtin_foreign_indices = m_specialization_source_module.has_value() ? generic_info.m_builtin_foreign_indices : nullptr;
 
 	const size_t specialized_proc_index = m_builder.m_procedures.size();
 	m_builder.m_current_procedure_index = specialized_proc_index;
@@ -5748,6 +5753,7 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 
 	m_builder.m_current_procedure_index = prev_index;
 	m_specialization_source_module = prev_specialization_module;
+	m_specialization_builtin_foreign_indices = prev_specialization_foreign_indices;
 
 	m_param_type_map = std::move(prev_param_map);
 	m_method_resolution_map = std::move(prev_resolution_map);
