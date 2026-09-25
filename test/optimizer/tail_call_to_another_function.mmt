@@ -1,0 +1,39 @@
+module TailCallToAnotherFunction
+
+// Test: a call in tail position runs without a frame whatever it calls, not
+// only when a function calls itself. Each chain below is 100,000 calls deep,
+// far past the few thousand frames the stack holds.
+
+import
+{
+	"../../MarmotPrelude/IO.mmt"
+}
+
+def IsEven = fn(n : Int) -> Bool => if n == 0 then true else IsOdd(n - 1);
+def IsOdd = fn(n : Int) -> Bool => if n == 0 then false else IsEven(n - 1);
+
+def Ping = fn(n : Int, acc : Int) -> Int =>
+	match n with
+		case 0 => acc
+		case _ => Pong(n - 1, acc + 1)
+;
+def Pong = fn(n : Int, acc : Int) -> Int => { def next = acc + 1; Ping(n, next - 1) };
+
+def Hop = fn(step : fn(Int, Int) -> Int, n : Int, acc : Int) -> Int =>
+	if n == 0 then acc else step(n - 1, acc + n);
+def ViaValue = fn(n : Int, acc : Int) -> Int => Hop(ViaValue, n, acc);
+
+def Relay = fn<T>(value : T, n : Int) -> T => if n == 0 then value else RelayBack(value, n - 1);
+def RelayBack = fn<T>(value : T, n : Int) -> T => Relay(value, n);
+
+def CountWithLambda = fn(n : Int) -> Int =>
+{
+	def Down = fn(k : Int, acc : Int) -> Int => if k == 0 then acc else (fn(j : Int) -> Int => Down(j, acc + 1))(k - 1);
+	Down(n, 0)
+};
+
+IO::PrintLine("even=" ++ (IsEven(100000) as Text));
+IO::PrintLine("ping=" ++ (Ping(100000, 0) as Text));
+IO::PrintLine("value=" ++ (ViaValue(100000, 0) as Text));
+IO::PrintLine("generic=" ++ Relay("relayed", 100000));
+IO::PrintLine("lambda=" ++ (CountWithLambda(100000) as Text));

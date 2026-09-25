@@ -2,35 +2,25 @@
 
 #include "Compiler/OptimizerManager/Optimizers/BaseOptimizer/BaseOptimizer.h"
 
+// Marks every call in a function body's tail position, whatever it calls: with
+// no loops in the language, mutual recursion and one function handing off to
+// another are how a program iterates, and each would otherwise keep a frame.
 class TailCallOptimization : public MidoriOptimizer
 {
-private:
-	std::string m_current_function;
-	bool m_has_tail_recursion = false;
-	bool m_marked_new_tail_call = false;
-
 public:
 
 	MidoriResult::OptimizerResult Optimize(MidoriProgramTree program_tree) override;
 
-	std::string_view GetName() const override; 
+	std::string_view GetName() const override;
 
 protected:
 	using MidoriOptimizer::operator();
 
 	void operator()(MidoriStatement::FunctionDefinition& defun) override;
 
-	void operator()(MidoriStatement::VariableDefinition& def) override;
-
-	void operator()(MidoriExpression::Block& block) override;
+	void operator()(MidoriExpression::Function& function) override;
 
 private:
 
-	void MarkTailRecursion(const std::string& function_name, std::unique_ptr<MidoriExpression>& body);
-
-	bool IsTailCall(std::unique_ptr<MidoriExpression>& expr, std::string_view function_name);
-
-	bool IsTailRecursive(std::unique_ptr<MidoriExpression>& expr, std::string_view function_name);
-
-	bool ContainsRecursiveCall(std::unique_ptr<MidoriExpression>& expr, std::string_view function_name);
+	void MarkTailCalls(MidoriExpression& expr);
 };

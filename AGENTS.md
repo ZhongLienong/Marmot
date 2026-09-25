@@ -93,6 +93,10 @@ often got wrong:
   use definitions that have already run, including through the functions it
   calls, and the compiler checks that. A definition used before the checker
   reaches it needs its type written on it.
+- **Iteration is recursion.** A call in tail position — the last thing a
+  function does, through `if` branches, `match` arms and a block's final
+  expression — runs without a new frame, whatever it calls. Anything else
+  recursing deeper than a few thousand calls overflows the stack.
 - **Mixing operators of different precedence needs parentheses**:
   `(index >= 0) && (index < #items)`.
 - **A bare name is local or `use`d.** Anything else is qualified —
