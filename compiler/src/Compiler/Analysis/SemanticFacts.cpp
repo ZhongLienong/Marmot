@@ -1394,7 +1394,9 @@ namespace MidoriAnalysis
 				}
 				else if constexpr (std::is_same_v<T, MidoriFloat>)
 				{
-					return std::make_unique<MidoriExpression>(MidoriExpression::Literal(Token(std::to_string(literal_value), Token::Name::FLOAT_LITERAL, source_token), MidoriExpression::LiteralKind::Float));
+					// The literal is read back with std::stod, so its text must name exactly this
+					// value; std::to_string keeps six decimals and folded 1.0 / 3.0 to 0.333333.
+					return std::make_unique<MidoriExpression>(MidoriExpression::Literal(Token(std::format("{}", literal_value), Token::Name::FLOAT_LITERAL, source_token), MidoriExpression::LiteralKind::Float));
 				}
 				else if constexpr (std::is_same_v<T, MidoriByte>)
 				{
