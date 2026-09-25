@@ -1,0 +1,20 @@
+module LaterDefinitionNamedLikeAnImport
+
+// Concat below shares its name with ArrayUtil::Concat. Imports were also registered under
+// their bare names, so until the checker reached this module's own Concat, a call to it
+// from an earlier function was checked against ArrayUtil's two-parameter one: "incorrect
+// arity". A bare name is this module's or a `use`d one; an import is `ArrayUtil::Concat`.
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/ArrayUtil.mmt",
+}
+
+def Joined = fn(parts: Array<Text>) -> Text => Concat(parts, 0, "");
+
+def Concat = fn(parts: Array<Text>, index: Int, joined: Text) -> Text =>
+	if index >= #parts then joined else Concat(parts, index + 1, joined ++ parts[index]);
+
+IO::PrintLine(Joined(["mar", "mot"]));
+IO::PrintLine(#ArrayUtil::Concat([1, 2], [3]) as Text);

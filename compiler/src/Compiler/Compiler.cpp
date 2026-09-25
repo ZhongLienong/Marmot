@@ -564,7 +564,6 @@ namespace
 
 			for (const auto& [name, type] : dep->TypeSignatures())
 			{
-				context.m_imported_types[name] = type;
 				context.m_imported_types[dep_module_name + NameSeparator.data() + name] = type;
 
 				const std::unordered_map<std::string, std::string>::const_iterator declaring_it =
