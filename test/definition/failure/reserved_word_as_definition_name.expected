@@ -1,0 +1,6 @@
+Compilation failed :(
+Parser Error at test/definition/failure/reserved_word_as_definition_name.mmt:5
+  |
+5 | def Worker = fn(n: Int) -> Int => n;
+  |     ^^^^^^ 'Worker' is a built-in type name, so it cannot name a definition.
+  |

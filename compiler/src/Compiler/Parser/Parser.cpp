@@ -3432,6 +3432,12 @@ MidoriResult::StatementResult Parser::ParseDefineStatement()
 	}
 
 	// Single variable: def x = ...
+	const Token& name_token = Peek(0);
+	if (name_token.m_token_name != Token::Name::IDENTIFIER_LITERAL && !name_token.m_lexeme.empty() && std::isalpha(static_cast<unsigned char>(name_token.m_lexeme.front())) != 0)
+	{
+		const std::string_view kind = std::isupper(static_cast<unsigned char>(name_token.m_lexeme.front())) != 0 ? "a built-in type name" : "a keyword";
+		return std::unexpected(GenerateParserError(std::format("'{}' is {}, so it cannot name a definition.", name_token.m_lexeme, kind), name_token));
+	}
 	return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected name.")
 		.and_then
 		(
