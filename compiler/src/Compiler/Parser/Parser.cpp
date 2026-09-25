@@ -3205,7 +3205,7 @@ MidoriResult::StatementResult Parser::ParseUnionBody(TypeDeclarationHeader&& hea
 	{
 		ActiveUnionScope scope(m_state.m_active_union_types, union_type);
 
-		return ParseDelimitedZeroOrMoreUnlimited<UnionMemberTuple>
+		return ParseDelimitedOneOrMoreUnlimited<UnionMemberTuple>
 		(
 			[&constructor_names, &tag, this]() -> std::expected<UnionMemberTuple, CompilerError>
 			{
@@ -5844,7 +5844,7 @@ std::expected<std::vector<MidoriType::ClassConstraint>, CompilerError> Parser::P
 				);
 		};
 
-	std::expected<std::vector<MidoriType::ClassConstraint>, CompilerError> constraints_result = ParseDelimitedZeroOrMoreUnlimited<MidoriType::ClassConstraint>
+	std::expected<std::vector<MidoriType::ClassConstraint>, CompilerError> constraints_result = ParseDelimitedOneOrMoreUnlimited<MidoriType::ClassConstraint>
 	(
 		parse_constraint,
 		[this]() { return Consume(Token::Name::COMMA, "Expected ',' between constraints."); }
@@ -5855,13 +5855,7 @@ std::expected<std::vector<MidoriType::ClassConstraint>, CompilerError> Parser::P
 		return std::unexpected(std::move(constraints_result.error()));
 	}
 
-	std::vector<MidoriType::ClassConstraint> constraints = std::move(constraints_result.value());
-	if (constraints.empty())
-	{
-		return std::unexpected(GenerateParserError("Expected at least one constraint after 'where' keyword.", context_token));
-	}
-
-	return constraints;
+	return std::move(constraints_result.value());
 }
 
 std::expected<std::vector<Token>, CompilerError> Parser::ParseDerivingTargets(const Token& context_token)

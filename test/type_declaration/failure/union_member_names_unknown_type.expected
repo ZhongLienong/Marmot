@@ -1,0 +1,6 @@
+Compilation failed :(
+Parser Error at test/type_declaration/failure/union_member_names_unknown_type.mmt:5
+  |
+5 | type Value = Nil | Number(Int) | Closure(Environment);
+  |                                          ^^^^^^^^^^^ Undefined struct or union.
+  |

@@ -415,39 +415,25 @@ private:
 			);
 	}
 
+	// Every caller needs at least one element, and an element that fails after a
+	// delimiter is an error in that element: swallowing it left the list's caller
+	// to report a missing terminator at the element's first token.
 	template<typename OutputType, typename ParseFunc, typename Delim>
-	std::expected<std::vector<OutputType>, CompilerError> ParseDelimitedZeroOrMoreUnlimited(ParseFunc&& func, Delim&& delim, std::vector<OutputType>&& acc = {})
+	std::expected<std::vector<OutputType>, CompilerError> ParseDelimitedOneOrMoreUnlimited(ParseFunc&& func, Delim&& delim, std::vector<OutputType>&& acc = {})
 	{
-		return TryParser<OutputType>(std::forward<ParseFunc>(func))
-			.and_then
-			(
-				[&func, &delim, &acc, this](OutputType&& elem)
-				{
-					acc.emplace_back(std::move(elem));
-					return delim()
-						.and_then
-						(
-							[&func, &delim, &acc, this](Token&&) -> std::expected<std::vector<OutputType>, CompilerError>
-							{
-								return ParseDelimitedZeroOrMoreUnlimited(std::forward<ParseFunc>(func), std::forward<Delim>(delim), std::move(acc));
-							}
-						)
-						.or_else
-						(
-							[&acc](CompilerError&&) -> std::expected<std::vector<OutputType>, CompilerError>
-							{
-								return std::move(acc);
-							}
-						);
-				}
-			)
-			.or_else
-			(
-				[&acc](CompilerError&&) -> std::expected<std::vector<OutputType>, CompilerError>
-				{
-					return std::move(acc);
-				}
-			);
+		std::expected<OutputType, CompilerError> elem = func();
+		if (!elem.has_value())
+		{
+			return std::unexpected(std::move(elem.error()));
+		}
+
+		acc.emplace_back(std::move(elem.value()));
+		if (!delim().has_value())
+		{
+			return std::move(acc);
+		}
+
+		return ParseDelimitedOneOrMoreUnlimited(std::forward<ParseFunc>(func), std::forward<Delim>(delim), std::move(acc));
 	}
 
 	template<typename OutputType, typename ParseFunc, typename EndCond>

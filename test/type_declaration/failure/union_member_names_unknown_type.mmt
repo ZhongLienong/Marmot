@@ -1,0 +1,5 @@
+module UnionMemberNamesUnknownType
+
+// The error is the unknown type, reported where it is named, and not a
+// missing ';' at the start of the member that names it.
+type Value = Nil | Number(Int) | Closure(Environment);

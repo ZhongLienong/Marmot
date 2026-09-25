@@ -1,0 +1,6 @@
+Compilation failed :(
+Parser Error at test/type_declaration/failure/where_constraint_malformed.mmt:7
+  |
+7 | def Same = fn<T>(left: T, right: T) -> Bool where Equatable<T>, Equatable<T => Equatable::Equals(left, right);
+  |                                                                             ^^ Expected ',' between type arguments.
+  |
