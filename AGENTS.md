@@ -93,6 +93,9 @@ often got wrong:
   use definitions that have already run, including through the functions it
   calls, and the compiler checks that. A definition used before the checker
   reaches it needs its type written on it.
+- **Types and instances may be declared in any order.** A type may name one
+  declared below it, and two types may hold each other; generic ones that do
+  use the same parameter names (`Tree<T>` and `Forest<T>`).
 - **Iteration is recursion.** A call in tail position — the last thing a
   function does, through `if` branches, `match` arms and a block's final
   expression — runs without a new frame, whatever it calls. Any other

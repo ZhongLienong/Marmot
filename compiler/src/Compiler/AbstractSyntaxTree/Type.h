@@ -239,6 +239,10 @@ public:
 
 	static std::shared_ptr<MidoriType> SubstituteTypeParams(const std::shared_ptr<MidoriType>& type, const std::unordered_map<std::string, std::shared_ptr<MidoriType>>& substitutions);
 
+	// The same instantiation of a declared type, built in `target`, which a
+	// program may already name.
+	static void SubstituteTypeParamsInto(const std::shared_ptr<MidoriType>& target, const std::shared_ptr<MidoriType>& type, const std::unordered_map<std::string, std::shared_ptr<MidoriType>>& substitutions);
+
 	using TypeArgumentSubstituteFn = std::function<std::shared_ptr<MidoriType>(const std::shared_ptr<MidoriType>&)>;
 
 	static std::vector<std::shared_ptr<MidoriType>> InstantiateTypeArguments(const std::vector<std::string>& generic_params, const std::vector<std::shared_ptr<MidoriType>>& type_arguments, const TypeArgumentSubstituteFn& substitute);

@@ -253,6 +253,8 @@ private:
 
 	MidoriResult::TypeResult operator()(MidoriStatement::Instance& instance_stmt);
 
+	MidoriResult::TypeResult RegisterInstance(MidoriStatement::Instance& instance_stmt);
+
 	MidoriResult::TypeResult operator()(MidoriStatement::TypeAlias& type_alias);
 
 	MidoriResult::TypeResult operator()(MidoriExpression::As& as);

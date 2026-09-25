@@ -4,6 +4,7 @@
 #include <optional>
 #include <queue>
 #include <string_view>
+#include <functional>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -60,6 +61,9 @@ private:
 		std::vector<Token> m_generic_params;
 		std::vector<std::shared_ptr<MidoriType>> m_generic_param_types;
 		std::vector<MidoriType::ClassConstraint> m_constraints;
+		// The type CollectTopLevelNames registered for this declaration, which
+		// earlier declarations and signatures may already name.
+		std::shared_ptr<MidoriType> m_predeclared_type;
 		bool m_has_generic_params = false;
 
 		TypeDeclarationHeader(Token&& name, std::string&& name_before_mangle)
@@ -159,7 +163,8 @@ private:
 		std::vector<UseImport> m_current_use_imports;
 		std::vector<std::string> m_namespaces;
 		std::vector<MidoriType::ClassConstraint> m_active_constraints;
-		std::vector<std::shared_ptr<MidoriType>> m_active_union_types;
+		// The types whose bodies are being parsed, innermost last.
+		std::vector<std::shared_ptr<MidoriType>> m_types_being_declared;
 		std::vector<PendingDefinition> m_pending_definitions;
 		std::unordered_set<std::string> m_top_level_names;
 		std::unordered_map<std::string, TopLevelDefinition> m_top_level_definitions;
@@ -233,6 +238,36 @@ private:
 	ParseState m_state;
 	std::vector<CompilerWarning> m_warnings;
 	std::queue<std::unique_ptr<MidoriStatement>> m_pending_statements;
+	// By name: a module's top-level type names are unique.
+	std::unordered_map<std::string, std::shared_ptr<MidoriType>> m_predeclared_types;
+	// Registered, and not declared yet.
+	std::unordered_set<const MidoriType*> m_undeclared_types;
+
+	// An instantiation of a type that was not whole when it was named: filled
+	// in place once every declaration is parsed.
+	struct DeferredInstantiation
+	{
+		std::shared_ptr<MidoriType> m_target;
+		std::shared_ptr<MidoriType> m_template;
+		std::unordered_map<std::string, std::shared_ptr<MidoriType>> m_substitutions;
+		Token m_reference;
+
+		DeferredInstantiation(std::shared_ptr<MidoriType> target, std::shared_ptr<MidoriType> type_template, std::unordered_map<std::string, std::shared_ptr<MidoriType>> substitutions, Token reference);
+	};
+	std::vector<DeferredInstantiation> m_deferred_instantiations;
+	std::unordered_set<const MidoriType*> m_unfilled_instantiations;
+
+	class DeclaringTypeScope
+	{
+	private:
+		std::vector<std::shared_ptr<MidoriType>>& m_stack;
+
+	public:
+		DeclaringTypeScope(std::vector<std::shared_ptr<MidoriType>>& stack, const std::shared_ptr<MidoriType>& type);
+		~DeclaringTypeScope();
+		DeclaringTypeScope(const DeclaringTypeScope&) = delete;
+		DeclaringTypeScope& operator=(const DeclaringTypeScope&) = delete;
+	};
 
 	friend struct ParserTestAccess;
 
@@ -584,6 +619,24 @@ private:
 	bool IsBeingDefined(const std::string& name) const;
 
 	void CollectTopLevelNames();
+
+	void PredeclareType(int type_keyword_index);
+
+	void PredeclareVariants(const std::shared_ptr<MidoriType>& union_type, int body_index);
+
+	std::shared_ptr<MidoriType> DeclaredTypeFor(const TypeDeclarationHeader& header, std::shared_ptr<MidoriType>&& fresh_type);
+
+	void CompleteType(const std::shared_ptr<MidoriType>& type);
+
+	static bool RepresentationNames(const std::shared_ptr<MidoriType>& type, const MidoriType* newtype, std::unordered_set<const MidoriType*>& visited);
+
+	static bool Reaches(const std::shared_ptr<MidoriType>& type, const std::function<bool(const MidoriType*)>& is_sought, std::unordered_set<const MidoriType*>& visited);
+
+	bool ReachesUnfinishedType(const std::shared_ptr<MidoriType>& type) const;
+
+	std::optional<CompilerError> FillDeferredInstantiations();
+
+	MidoriResult::TypeResult InstantiateUnfinishedType(const Token& type_name, const std::shared_ptr<MidoriType>& type_template, const std::vector<std::string>& generic_params, std::vector<std::shared_ptr<MidoriType>>&& type_args);
 
 	void RecordTopLevelDefinition(const MidoriStatement& statement, int statement_index);
 

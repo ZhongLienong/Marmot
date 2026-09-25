@@ -98,6 +98,14 @@ read, has run. A definition named before the checker reaches it needs its type
 written down: a function's parameter and return types, a value's annotation.
 Inside its own initializer a `def` may name itself only from within a function.
 
+Types, classes and instances declare; nothing runs. A module's types may be
+named, constructed and matched anywhere in it, above their declarations too,
+and an instance serves the whole module -- which is how two types hold each
+other. Two generic types that name each other do so with the same parameter
+names, `Tree<T>` holding `Forest<T>` and `Forest<T>` holding `Tree<T>`: a type
+cannot be built from one that holds it back with other arguments. A newtype
+cannot contain itself.
+
 In a `foreign` declaration the first TEXT is the symbol the library exports;
 `from` names the library, and the block form names it once for several
 functions. Without `from`, the symbol must be a runtime builtin.

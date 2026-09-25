@@ -1,0 +1,5 @@
+module InstantiationWithoutEnd
+
+// Each level would hold the next with a longer argument: Nested<Int> holds
+// Nested<Array<Int>>, which holds Nested<Array<Array<Int>>>, and so on.
+type Nested<T> = Flat(T) | Deep(Nested<Array<T>>);

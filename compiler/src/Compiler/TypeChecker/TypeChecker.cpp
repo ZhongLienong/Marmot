@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <algorithm>
 #include <format>
+#include <functional>
 #include <iterator>
 #include <ranges>
 #include <unordered_set>
@@ -3281,18 +3282,44 @@ MidoriResult::TypeCheckerResult TypeChecker::TypeCheck()
 	{
 		std::vector<CompilerError> errors;
 
-		std::ranges::for_each
-		(
-			m_program_tree,
-			[&errors, this](std::unique_ptr<MidoriStatement>& statement)
+		// Declarations first: a type may be named and constructed, and an
+		// instance selected, anywhere in its module, and declaring one runs
+		// nothing. An instance's method bodies are code, checked in order.
+		const std::function<bool(const std::unique_ptr<MidoriStatement>&)> is_declaration = [](const std::unique_ptr<MidoriStatement>& statement)
 			{
-				MidoriResult::TypeResult result = Evaluate(statement);
+				return statement->IsStatement<MidoriStatement::Class>()
+					|| statement->IsStatement<MidoriStatement::Struct>()
+					|| statement->IsStatement<MidoriStatement::Union>()
+					|| statement->IsStatement<MidoriStatement::TypeAlias>();
+			};
+		const std::function<void(MidoriResult::TypeResult&&)> collect = [&errors](MidoriResult::TypeResult&& result)
+			{
 				if (!result.has_value())
 				{
 					errors.emplace_back(std::move(result.error()));
 				}
+			};
+
+		for (std::unique_ptr<MidoriStatement>& statement : m_program_tree | std::views::filter(is_declaration))
+		{
+			collect(Evaluate(statement));
+		}
+		for (std::unique_ptr<MidoriStatement>& statement : m_program_tree)
+		{
+			if (statement->IsStatement<MidoriStatement::Instance>())
+			{
+				collect(RegisterInstance(statement->GetStatement<MidoriStatement::Instance>()));
 			}
-		);
+		}
+		if (!errors.empty())
+		{
+			return std::unexpected(MidoriResult::CompilerDiagnostics(std::move(errors)));
+		}
+
+		for (std::unique_ptr<MidoriStatement>& statement : m_program_tree | std::views::filter(std::not_fn(is_declaration)))
+		{
+			collect(Evaluate(statement));
+		}
 
 		if (errors.empty())
 		{
@@ -4123,7 +4150,9 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Class& class_s
 	return MidoriType::MakeUndecidedType();
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Instance& instance_stmt)
+// An instance is registered with the declarations, so code anywhere in the
+// module can select it; its method bodies are checked where it stands.
+MidoriResult::TypeResult TypeChecker::RegisterInstance(MidoriStatement::Instance& instance_stmt)
 {
 	std::unordered_map<std::string, ClassInfo>::iterator tc_it = m_classes.find(instance_stmt.m_class_name.m_lexeme);
 	if (tc_it == m_classes.end())
@@ -4302,6 +4331,12 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Instance& inst
 		}
 	}
 
+	registration_guard.m_keep = true;
+	return MidoriType::MakeUndecidedType();
+}
+
+MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Instance& instance_stmt)
+{
 	// AppendUniqueConstraint does NOT make this append idempotent: on a second visit the stored
 	// constraint has been freshened in place by the function-definition path while the incoming one has not,
 	// so they compare unequal and a duplicate would accumulate. Safety comes instead from this
@@ -4324,7 +4359,6 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Instance& inst
 		}
 	}
 
-	registration_guard.m_keep = true;
 	return MidoriType::MakeUndecidedType();
 }
 

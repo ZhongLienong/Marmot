@@ -1057,6 +1057,10 @@ void Parser::CollectTopLevelNames()
 		{
 			depth -= 1;
 		}
+		else if ((depth == 0) && (name == Token::Name::TYPE) && (std::next(it) != end) && (std::next(it)->m_token_name == Token::Name::IDENTIFIER_LITERAL))
+		{
+			PredeclareType(static_cast<int>(std::distance(m_context.m_tokens.cbegin(), it)));
+		}
 		else if ((depth == 0) && (name == Token::Name::DEF) && (std::next(it) != end))
 		{
 			const Token& following = *std::next(it);
@@ -1072,6 +1076,383 @@ void Parser::CollectTopLevelNames()
 			}
 		}
 	}
+}
+
+// A type may be named before its declaration, which is how two types refer to
+// each other. The kind is read from the body the way ParseTypeDeclaration will
+// read it, and the declaration fills this same object in, so what was named
+// earlier is the finished type.
+void Parser::PredeclareType(int type_keyword_index)
+{
+	const TokenStream& tokens = m_context.m_tokens;
+	const Token& name = tokens[static_cast<size_t>(type_keyword_index + 1)];
+	int cursor = type_keyword_index + 2;
+
+	std::vector<std::string> generic_params;
+	if (tokens[static_cast<size_t>(cursor)].m_token_name == Token::Name::LEFT_ANGLE)
+	{
+		for (cursor += 1; tokens[static_cast<size_t>(cursor)].m_token_name == Token::Name::IDENTIFIER_LITERAL; cursor += 2)
+		{
+			generic_params.emplace_back(tokens[static_cast<size_t>(cursor)].m_lexeme);
+			if (tokens[static_cast<size_t>(cursor + 1)].m_token_name != Token::Name::COMMA)
+			{
+				break;
+			}
+		}
+	}
+
+	// Past any where clause. A declaration without its '=' is left for the
+	// declaration's own parse to report.
+	while (tokens[static_cast<size_t>(cursor)].m_token_name != Token::Name::SINGLE_EQUAL)
+	{
+		const Token::Name token_name = tokens[static_cast<size_t>(cursor)].m_token_name;
+		if ((token_name == Token::Name::SINGLE_SEMICOLON) || (token_name == Token::Name::END_OF_FILE))
+		{
+			return;
+		}
+		cursor += 1;
+	}
+
+	const int body_index = cursor + 1;
+	Scope& module_scope = m_state.m_scopes.front();
+	std::shared_ptr<MidoriType> placeholder;
+	if (tokens[static_cast<size_t>(body_index)].m_token_name == Token::Name::LEFT_BRACE)
+	{
+		placeholder = MidoriType::MakeStructType(name.m_lexeme, CurrentModuleName(), {}, {}, std::move(generic_params));
+		module_scope.m_struct_constructors[name.m_lexeme] = placeholder;
+	}
+	else
+	{
+		const int resume_index = m_state.m_current_token_index;
+		m_state.m_current_token_index = body_index;
+		const bool is_union = TypeBodyHasTopLevelBar();
+		m_state.m_current_token_index = resume_index;
+		if (is_union)
+		{
+			placeholder = MidoriType::MakeUnionType(name.m_lexeme, CurrentModuleName(), std::move(generic_params));
+			PredeclareVariants(placeholder, body_index);
+		}
+		else
+		{
+			placeholder = MidoriType::MakeNewType(name.m_lexeme, CurrentModuleName(), MidoriType::MakeLiteralType<MidoriType::UnitType>(), std::move(generic_params));
+		}
+	}
+
+	module_scope.m_defined_types[name.m_lexeme] = placeholder;
+	m_undeclared_types.insert(placeholder.get());
+	m_predeclared_types.emplace(name.m_lexeme, std::move(placeholder));
+}
+
+// A constructor is resolved, and a construction given its tag, while parsing,
+// so the variants' names and tags are registered with the type: the
+// declaration replaces them with the same ones and their field types.
+void Parser::PredeclareVariants(const std::shared_ptr<MidoriType>& union_type, int body_index)
+{
+	const TokenStream& tokens = m_context.m_tokens;
+	MidoriType::UnionType& union_type_ref = union_type->GetType<MidoriType::UnionType>();
+	int cursor = tokens[static_cast<size_t>(body_index)].m_token_name == Token::Name::SINGLE_BAR ? body_index + 1 : body_index;
+	for (int tag = 0; tokens[static_cast<size_t>(cursor)].m_token_name == Token::Name::IDENTIFIER_LITERAL; tag += 1)
+	{
+		const std::string member_name = union_type_ref.m_name + std::string(NameSeparator) + tokens[static_cast<size_t>(cursor)].m_lexeme;
+		union_type_ref.m_member_info.emplace(member_name, MidoriType::UnionType::UnionMemberContext{ {}, tag });
+		m_state.m_scopes.front().m_union_constructors[member_name] = union_type;
+
+		cursor += 1;
+		if (tokens[static_cast<size_t>(cursor)].m_token_name == Token::Name::LEFT_PAREN)
+		{
+			for (int depth = 0; ; cursor += 1)
+			{
+				const Token::Name token_name = tokens[static_cast<size_t>(cursor)].m_token_name;
+				depth += (token_name == Token::Name::LEFT_PAREN) ? 1 : ((token_name == Token::Name::RIGHT_PAREN) ? -1 : 0);
+				if ((depth == 0) || (token_name == Token::Name::END_OF_FILE))
+				{
+					break;
+				}
+			}
+			cursor += 1;
+		}
+
+		if (tokens[static_cast<size_t>(cursor)].m_token_name != Token::Name::SINGLE_BAR)
+		{
+			return;
+		}
+		cursor += 1;
+	}
+}
+
+// The object a declaration fills: the one registered for it before parsing
+// began, or, for a type declared inside a block, the one it just made.
+std::shared_ptr<MidoriType> Parser::DeclaredTypeFor(const TypeDeclarationHeader& header, std::shared_ptr<MidoriType>&& fresh_type)
+{
+	if (header.m_predeclared_type == nullptr)
+	{
+		return std::move(fresh_type);
+	}
+
+	header.m_predeclared_type->m_type = std::move(fresh_type->m_type);
+	return header.m_predeclared_type;
+}
+
+void Parser::CompleteType(const std::shared_ptr<MidoriType>& type)
+{
+	m_undeclared_types.erase(type.get());
+}
+
+// Whether `type` names `newtype` without a record's or union's fields in
+// between: those are nominal, and nothing that erases a newtype looks inside them.
+bool Parser::RepresentationNames(const std::shared_ptr<MidoriType>& type, const MidoriType* newtype, std::unordered_set<const MidoriType*>& visited)
+{
+	if (type.get() == newtype)
+	{
+		return true;
+	}
+	if (!visited.insert(type.get()).second)
+	{
+		return false;
+	}
+
+	const auto names_any = [newtype, &visited](const std::vector<std::shared_ptr<MidoriType>>& types)
+		{
+			return std::ranges::any_of(types, [newtype, &visited](const std::shared_ptr<MidoriType>& inner) { return RepresentationNames(inner, newtype, visited); });
+		};
+
+	if (type->IsType<MidoriType::NewType>())
+	{
+		const MidoriType::NewType& inner = type->GetType<MidoriType::NewType>();
+		return RepresentationNames(inner.m_representation, newtype, visited) || names_any(inner.m_type_arguments);
+	}
+	if (type->IsType<MidoriType::StructType>())
+	{
+		return names_any(type->GetType<MidoriType::StructType>().m_type_arguments);
+	}
+	if (type->IsType<MidoriType::UnionType>())
+	{
+		return names_any(type->GetType<MidoriType::UnionType>().m_type_arguments);
+	}
+	if (type->IsType<MidoriType::ArrayType>())
+	{
+		return RepresentationNames(type->GetType<MidoriType::ArrayType>().m_element_type, newtype, visited);
+	}
+	if (type->IsType<MidoriType::CellType>())
+	{
+		return RepresentationNames(type->GetType<MidoriType::CellType>().m_element_type, newtype, visited);
+	}
+	if (type->IsType<MidoriType::ChannelType>())
+	{
+		return RepresentationNames(type->GetType<MidoriType::ChannelType>().m_element_type, newtype, visited);
+	}
+	if (type->IsType<MidoriType::RangeType>())
+	{
+		return RepresentationNames(type->GetType<MidoriType::RangeType>().m_element_type, newtype, visited);
+	}
+	if (type->IsType<MidoriType::WorkerType>())
+	{
+		return RepresentationNames(type->GetType<MidoriType::WorkerType>().m_result_type, newtype, visited);
+	}
+	if (type->IsType<MidoriType::TupleType>())
+	{
+		return names_any(type->GetType<MidoriType::TupleType>().m_element_types);
+	}
+	if (type->IsType<MidoriType::FunctionType>())
+	{
+		const MidoriType::FunctionType& function = type->GetType<MidoriType::FunctionType>();
+		return names_any(function.m_param_types) || RepresentationNames(function.m_return_type, newtype, visited);
+	}
+	return false;
+}
+
+bool Parser::Reaches(const std::shared_ptr<MidoriType>& type, const std::function<bool(const MidoriType*)>& is_sought, std::unordered_set<const MidoriType*>& visited)
+{
+	if (is_sought(type.get()))
+	{
+		return true;
+	}
+	if (!visited.insert(type.get()).second)
+	{
+		return false;
+	}
+
+	const auto reaches_any = [&is_sought, &visited](const std::vector<std::shared_ptr<MidoriType>>& types)
+		{
+			return std::ranges::any_of(types, [&is_sought, &visited](const std::shared_ptr<MidoriType>& inner) { return Reaches(inner, is_sought, visited); });
+		};
+
+	if (type->IsType<MidoriType::StructType>())
+	{
+		const MidoriType::StructType& struct_type = type->GetType<MidoriType::StructType>();
+		return reaches_any(struct_type.m_member_types) || reaches_any(struct_type.m_type_arguments);
+	}
+	if (type->IsType<MidoriType::UnionType>())
+	{
+		const MidoriType::UnionType& union_type = type->GetType<MidoriType::UnionType>();
+		return reaches_any(union_type.m_type_arguments) || std::ranges::any_of
+		(
+			union_type.m_member_info | std::views::values,
+			[&reaches_any](const MidoriType::UnionType::UnionMemberContext& member) { return reaches_any(member.m_member_types); }
+		);
+	}
+	if (type->IsType<MidoriType::NewType>())
+	{
+		const MidoriType::NewType& new_type = type->GetType<MidoriType::NewType>();
+		return Reaches(new_type.m_representation, is_sought, visited) || reaches_any(new_type.m_type_arguments);
+	}
+	if (type->IsType<MidoriType::ArrayType>())
+	{
+		return Reaches(type->GetType<MidoriType::ArrayType>().m_element_type, is_sought, visited);
+	}
+	if (type->IsType<MidoriType::CellType>())
+	{
+		return Reaches(type->GetType<MidoriType::CellType>().m_element_type, is_sought, visited);
+	}
+	if (type->IsType<MidoriType::ChannelType>())
+	{
+		return Reaches(type->GetType<MidoriType::ChannelType>().m_element_type, is_sought, visited);
+	}
+	if (type->IsType<MidoriType::RangeType>())
+	{
+		return Reaches(type->GetType<MidoriType::RangeType>().m_element_type, is_sought, visited);
+	}
+	if (type->IsType<MidoriType::WorkerType>())
+	{
+		return Reaches(type->GetType<MidoriType::WorkerType>().m_result_type, is_sought, visited);
+	}
+	if (type->IsType<MidoriType::TupleType>())
+	{
+		return reaches_any(type->GetType<MidoriType::TupleType>().m_element_types);
+	}
+	if (type->IsType<MidoriType::FunctionType>())
+	{
+		const MidoriType::FunctionType& function = type->GetType<MidoriType::FunctionType>();
+		return reaches_any(function.m_param_types) || Reaches(function.m_return_type, is_sought, visited);
+	}
+	return false;
+}
+
+// Not whole: undeclared, being declared, or an instantiation not yet filled.
+bool Parser::ReachesUnfinishedType(const std::shared_ptr<MidoriType>& type) const
+{
+	if (m_undeclared_types.empty() && m_state.m_types_being_declared.empty() && m_unfilled_instantiations.empty())
+	{
+		return false;
+	}
+
+	std::unordered_set<const MidoriType*> visited;
+	return Reaches
+	(
+		type,
+		[this](const MidoriType* candidate)
+		{
+			return m_undeclared_types.contains(candidate)
+				|| m_unfilled_instantiations.contains(candidate)
+				|| std::ranges::any_of(m_state.m_types_being_declared, [candidate](const std::shared_ptr<MidoriType>& declaring) { return declaring.get() == candidate; });
+		},
+		visited
+	);
+}
+
+// Each instantiation is filled once nothing its template reaches is still
+// waiting. Those left waiting on each other are a type instantiated, through
+// the types it holds, inside its own instantiation with other arguments, which
+// has no finite form.
+std::optional<CompilerError> Parser::FillDeferredInstantiations()
+{
+	std::vector<const DeferredInstantiation*> waiting;
+	std::ranges::transform(m_deferred_instantiations, std::back_inserter(waiting), [](const DeferredInstantiation& deferred) { return &deferred; });
+
+	while (!waiting.empty())
+	{
+		const std::vector<const DeferredInstantiation*>::iterator ready = std::ranges::find_if
+		(
+			waiting,
+			[this](const DeferredInstantiation* deferred)
+			{
+				std::unordered_set<const MidoriType*> visited;
+				return !Reaches(deferred->m_template, [this](const MidoriType* candidate) { return m_unfilled_instantiations.contains(candidate); }, visited);
+			}
+		);
+		if (ready == waiting.end())
+		{
+			const DeferredInstantiation& stuck = *waiting.front();
+			std::vector<std::string> own_parameters;
+			if (stuck.m_template->IsType<MidoriType::UnionType>())
+			{
+				own_parameters = stuck.m_template->GetType<MidoriType::UnionType>().m_generic_params;
+			}
+			else if (stuck.m_template->IsType<MidoriType::StructType>())
+			{
+				own_parameters = stuck.m_template->GetType<MidoriType::StructType>().m_generic_params;
+			}
+			else
+			{
+				own_parameters = stuck.m_template->GetType<MidoriType::NewType>().m_generic_params;
+			}
+			const std::string parameter_list = std::ranges::fold_left
+			(
+				own_parameters | std::views::drop(1),
+				own_parameters.front(),
+				[](std::string joined, const std::string& parameter) { return std::move(joined) + ", " + parameter; }
+			);
+			return GenerateParserError(std::format("'{0}' and the types it holds instantiate each other with arguments other than their own type parameters, which cannot be built. Name it here with its own type parameters, {0}<{1}>, and use the same parameter names in the declarations that name each other.", stuck.m_reference.m_lexeme, parameter_list), stuck.m_reference);
+		}
+
+		MidoriType::SubstituteTypeParamsInto((*ready)->m_target, (*ready)->m_template, (*ready)->m_substitutions);
+		m_unfilled_instantiations.erase((*ready)->m_target.get());
+		waiting.erase(ready);
+	}
+
+	return std::nullopt;
+}
+
+// A type whose body is not parsed yet, or that holds one, cannot be copied
+// with its parameters substituted: the copy would keep the unfinished part
+// empty. In a type's body, named with its own parameters, it is the template
+// itself, as a union names itself. Otherwise the instantiation is made at the
+// end of the parse, when every type is whole.
+MidoriResult::TypeResult Parser::InstantiateUnfinishedType(const Token& type_name, const std::shared_ptr<MidoriType>& type_template, const std::vector<std::string>& generic_params, std::vector<std::shared_ptr<MidoriType>>&& type_args)
+{
+	if (!m_state.m_types_being_declared.empty())
+	{
+		const bool names_own_parameters = std::ranges::equal
+		(
+			type_args,
+			generic_params,
+			[](const std::shared_ptr<MidoriType>& type_arg, const std::string& generic_param)
+			{
+				return type_arg->IsType<MidoriType::GenericParam>() && (type_arg->GetType<MidoriType::GenericParam>().m_name == generic_param);
+			}
+		);
+		if (names_own_parameters)
+		{
+			return type_template;
+		}
+	}
+
+	std::unordered_map<std::string, std::shared_ptr<MidoriType>> substitutions;
+	for (size_t index = 0uz; index < generic_params.size(); index += 1uz)
+	{
+		substitutions.emplace(generic_params[index], std::move(type_args[index]));
+	}
+
+	std::shared_ptr<MidoriType> instantiation = std::make_shared<MidoriType>(*type_template);
+	m_unfilled_instantiations.insert(instantiation.get());
+	m_deferred_instantiations.emplace_back(instantiation, type_template, std::move(substitutions), type_name);
+	return instantiation;
+}
+
+Parser::DeferredInstantiation::DeferredInstantiation(std::shared_ptr<MidoriType> target, std::shared_ptr<MidoriType> type_template, std::unordered_map<std::string, std::shared_ptr<MidoriType>> substitutions, Token reference)
+	: m_target(std::move(target)), m_template(std::move(type_template)), m_substitutions(std::move(substitutions)), m_reference(std::move(reference))
+{
+}
+
+Parser::DeclaringTypeScope::DeclaringTypeScope(std::vector<std::shared_ptr<MidoriType>>& stack, const std::shared_ptr<MidoriType>& type)
+	: m_stack(stack)
+{
+	m_stack.push_back(type);
+}
+
+Parser::DeclaringTypeScope::~DeclaringTypeScope()
+{
+	m_stack.pop_back();
 }
 
 void Parser::RecordTopLevelDefinition(const MidoriStatement& statement, int statement_index)
@@ -3080,6 +3461,17 @@ MidoriResult::StatementResult Parser::ParseStructBody(TypeDeclarationHeader&& he
 		return std::unexpected(brace_result.error());
 	}
 
+	std::vector<std::string> generic_param_names;
+	std::ranges::transform(header.m_generic_params, std::back_inserter(generic_param_names), [](const Token& tok) { return tok.m_lexeme; });
+
+	// Registered before the fields are parsed, as a union is before its variants,
+	// so a field can name the record it belongs to.
+	std::shared_ptr<MidoriType> struct_type = DeclaredTypeFor(header, MidoriType::MakeStructType(header.m_name.m_lexeme, CurrentModuleName(), {}, {}, std::move(generic_param_names)));
+	struct_type->GetType<MidoriType::StructType>().m_constraints = header.m_constraints;
+	const size_t type_scope_idx = header.m_has_generic_params ? m_state.m_scopes.size() - 2uz : m_state.m_scopes.size() - 1uz;
+	m_state.m_scopes[type_scope_idx].m_defined_types[header.m_name.m_lexeme] = struct_type;
+
+	DeclaringTypeScope declaring_scope(m_state.m_types_being_declared, struct_type);
 	std::expected<std::vector<StructMemberTuple>, CompilerError> members_result = ParseDelimitedZeroOrMoreLimited<StructMemberTuple>
 	(
 		[this]() -> std::expected<StructMemberTuple, CompilerError>
@@ -3133,12 +3525,9 @@ MidoriResult::StatementResult Parser::ParseStructBody(TypeDeclarationHeader&& he
 	}
 
 	StructMemberSplit member_split = SplitStructMemberTuples(std::move(members_result.value()));
-
-	std::vector<std::string> generic_param_names;
-	std::ranges::transform(header.m_generic_params, std::back_inserter(generic_param_names), [](const Token& tok) { return tok.m_lexeme; });
-
-	std::shared_ptr<MidoriType> struct_type = MidoriType::MakeStructType(header.m_name.m_lexeme, CurrentModuleName(), std::move(member_split.m_types), std::move(member_split.m_names), std::move(generic_param_names));
-	struct_type->GetType<MidoriType::StructType>().m_constraints = header.m_constraints;
+	struct_type->GetType<MidoriType::StructType>().m_member_types = std::move(member_split.m_types);
+	struct_type->GetType<MidoriType::StructType>().m_member_names = std::move(member_split.m_names);
+	CompleteType(struct_type);
 
 	// End the generic param scope if it was created
 	if (header.m_has_generic_params)
@@ -3147,7 +3536,6 @@ MidoriResult::StatementResult Parser::ParseStructBody(TypeDeclarationHeader&& he
 	}
 
 	m_state.m_scopes.back().m_struct_constructors[header.m_name.m_lexeme] = struct_type;
-	m_state.m_scopes.back().m_defined_types[header.m_name.m_lexeme] = struct_type;
 
 	MidoriStatement::Struct struct_stmt(header.m_name, std::vector<Token>(header.m_generic_params), std::vector<MidoriType::ClassConstraint>(header.m_constraints), std::shared_ptr<MidoriType>(struct_type));
 	if (!deriving_targets.empty())
@@ -3169,7 +3557,7 @@ MidoriResult::StatementResult Parser::ParseUnionBody(TypeDeclarationHeader&& hea
 	std::vector<std::string> generic_param_names;
 	std::ranges::transform(header.m_generic_params, std::back_inserter(generic_param_names), [](const Token& tok) { return tok.m_lexeme; });
 
-	std::shared_ptr<MidoriType> union_type = MidoriType::MakeUnionType(header.m_name.m_lexeme, CurrentModuleName(), std::move(generic_param_names));
+	std::shared_ptr<MidoriType> union_type = DeclaredTypeFor(header, MidoriType::MakeUnionType(header.m_name.m_lexeme, CurrentModuleName(), std::move(generic_param_names)));
 	MidoriType::UnionType& union_type_ref = union_type->GetType<MidoriType::UnionType>();
 	union_type_ref.m_constraints = header.m_constraints;
 
@@ -3179,31 +3567,12 @@ MidoriResult::StatementResult Parser::ParseUnionBody(TypeDeclarationHeader&& hea
 	m_state.m_scopes[type_scope_idx].m_defined_types[header.m_name.m_lexeme] = union_type;
 	m_state.m_namespaces.emplace_back(header.m_name_before_mangle);
 
-	struct ActiveUnionScope
-	{
-		std::vector<std::shared_ptr<MidoriType>>& m_stack;
-
-		ActiveUnionScope(std::vector<std::shared_ptr<MidoriType>>& stack, const std::shared_ptr<MidoriType>& type)
-			: m_stack(stack)
-		{
-			m_stack.push_back(type);
-		}
-
-		~ActiveUnionScope()
-		{
-			m_stack.pop_back();
-		}
-
-		ActiveUnionScope(const ActiveUnionScope&) = delete;
-		ActiveUnionScope& operator=(const ActiveUnionScope&) = delete;
-	};
-
 	std::vector<Token> constructor_names;
 	int tag = 0;
 
 	std::expected<std::vector<UnionMemberTuple>, CompilerError> members_result = [&constructor_names, &tag, &union_type, this]()
 	{
-		ActiveUnionScope scope(m_state.m_active_union_types, union_type);
+		DeclaringTypeScope scope(m_state.m_types_being_declared, union_type);
 
 		return ParseDelimitedOneOrMoreUnlimited<UnionMemberTuple>
 		(
@@ -3259,6 +3628,7 @@ MidoriResult::StatementResult Parser::ParseUnionBody(TypeDeclarationHeader&& hea
 	}
 
 	union_type_ref.m_member_info = BuildUnionMemberInfo(std::move(members_result.value()));
+	CompleteType(union_type);
 
 	// Store constructors in the parent scope (where the union is declared)
 	// If we have generic params, we're one scope level deeper, so go back one
@@ -3403,25 +3773,38 @@ bool Parser::TypeBodyHasTopLevelBar()
 
 MidoriResult::StatementResult Parser::ParseNewTypeBody(TypeDeclarationHeader&& header)
 {
-	MidoriResult::TypeResult representation_result = ParseType();
+	std::vector<std::string> generic_param_names;
+	std::ranges::transform(header.m_generic_params, std::back_inserter(generic_param_names), [](const Token& generic_param) { return generic_param.m_lexeme; });
+
+	std::shared_ptr<MidoriType> new_type = DeclaredTypeFor(header, MidoriType::MakeNewType(header.m_name.m_lexeme, CurrentModuleName(), MidoriType::MakeLiteralType<MidoriType::UnitType>(), std::move(generic_param_names)));
+	new_type->GetType<MidoriType::NewType>().m_constraints = header.m_constraints;
+
+	MidoriResult::TypeResult representation_result = [&new_type, this]()
+		{
+			DeclaringTypeScope declaring_scope(m_state.m_types_being_declared, new_type);
+			return ParseType();
+		}();
 	if (!representation_result.has_value())
 	{
 		return std::unexpected(representation_result.error());
 	}
 
-	std::shared_ptr<MidoriType> representation = std::move(representation_result.value());
+	new_type->GetType<MidoriType::NewType>().m_representation = std::move(representation_result.value());
+	CompleteType(new_type);
+
+	// A newtype is its representation wherever it is erased, so one that
+	// contains itself, directly or through another newtype, never ends.
+	std::unordered_set<const MidoriType*> visited;
+	if (RepresentationNames(new_type->GetType<MidoriType::NewType>().m_representation, new_type.get(), visited))
+	{
+		return std::unexpected(GenerateParserError(std::format("A newtype cannot contain itself: '{}' is represented by {}.", header.m_name.m_lexeme, new_type->GetType<MidoriType::NewType>().m_representation->DisplayString()), header.m_name));
+	}
 
 	MidoriResult::TokenResult semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after newtype definition.");
 	if (!semicolon_result.has_value())
 	{
 		return std::unexpected(semicolon_result.error());
 	}
-
-	std::vector<std::string> generic_param_names;
-	std::ranges::transform(header.m_generic_params, std::back_inserter(generic_param_names), [](const Token& generic_param) { return generic_param.m_lexeme; });
-
-	std::shared_ptr<MidoriType> new_type = MidoriType::MakeNewType(header.m_name.m_lexeme, CurrentModuleName(), representation, std::move(generic_param_names));
-	new_type->GetType<MidoriType::NewType>().m_constraints = header.m_constraints;
 
 	if (header.m_has_generic_params)
 	{
@@ -3437,6 +3820,7 @@ MidoriResult::StatementResult Parser::ParseNewTypeBody(TypeDeclarationHeader&& h
 
 MidoriResult::StatementResult Parser::ParseTypeDeclaration()
 {
+	const bool is_top_level = m_state.m_scopes.size() == 1uz;
 	std::expected<TypeDeclarationHeader, CompilerError> header_result = ParseTypeDeclarationHeader("type", "Type");
 	if (!header_result.has_value())
 	{
@@ -3447,6 +3831,11 @@ MidoriResult::StatementResult Parser::ParseTypeDeclaration()
 	if (!equal_result.has_value())
 	{
 		return std::unexpected(equal_result.error());
+	}
+
+	if (is_top_level)
+	{
+		header_result.value().m_predeclared_type = m_predeclared_types.at(header_result.value().m_name.m_lexeme);
 	}
 
 	// The token after '=' decides the kind. '{' opens a record body and ParseType
@@ -5499,42 +5888,9 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 											BuildTypeArgumentCountMismatchMessage(type_name.m_lexeme, alias_generic_params != nullptr, generic_params.size(), type_args.size()), type_name));
 									}
 
-									if (base_type->IsType<MidoriType::UnionType>())
+									if (ReachesUnfinishedType(base_type))
 									{
-										bool is_active_union = false;
-										for (const std::shared_ptr<MidoriType>& active_union : m_state.m_active_union_types)
-										{
-											if (active_union.get() == base_type.get())
-											{
-												is_active_union = true;
-												break;
-											}
-										}
-
-										if (is_active_union)
-										{
-											bool type_args_match = true;
-											for (size_t i = 0u; i < type_args.size(); i += 1u)
-											{
-												if (!type_args[i]->IsType<MidoriType::GenericParam>())
-												{
-													type_args_match = false;
-													break;
-												}
-
-												const std::string& param_name = type_args[i]->GetType<MidoriType::GenericParam>().m_name;
-												if (param_name != generic_params[i])
-												{
-													type_args_match = false;
-													break;
-												}
-											}
-
-											if (type_args_match)
-											{
-												return base_type;
-											}
-										}
+										return InstantiateUnfinishedType(type_name, base_type, generic_params, std::move(type_args));
 									}
 
 									std::unordered_map<std::string, std::shared_ptr<MidoriType>> substitutions;
@@ -5671,6 +6027,11 @@ MidoriResult::ParserResult Parser::Parse()
 			Synchronize();
 			return std::unexpected(MidoriResult::CompilerDiagnostics(std::move(result.error())));
 		}
+	}
+
+	if (std::optional<CompilerError> instantiation_error = FillDeferredInstantiations())
+	{
+		return std::unexpected(MidoriResult::CompilerDiagnostics(std::move(instantiation_error.value())));
 	}
 
 	if (std::optional<CompilerError> order_error = CheckDefinitionOrder())

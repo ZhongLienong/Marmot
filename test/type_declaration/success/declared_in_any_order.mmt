@@ -1,0 +1,76 @@
+module DeclaredInAnyOrder
+
+// Test: a module's types, and its instances, may be named before they are
+// declared. Two types may hold each other, a record may hold itself, and code
+// above a type may construct and match it. Before, a type could name only the
+// types above it, so an interpreter's values and environments could not refer
+// to each other.
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/Cell.mmt",
+	"../../../MarmotPrelude/Equatable.mmt"
+}
+
+def Describe = fn(value : Value) -> Text =>
+	match value with
+		case Value::Number(n) => n as Text
+		case Value::Closure(env) => "closure over " ++ (Depth(env) as Text) ++ " frames";
+
+def Depth = fn(env : Env) -> Int =>
+	match env with
+		case Env::Root() => 0
+		case Env::Frame(_, parent) => 1 + Depth(parent);
+
+def FirstOf = fn(pair : Later<Int, Text>) -> Int => pair.first;
+
+def Size = fn<T>(tree : Tree<T>) -> Int =>
+	match tree with
+		case Tree::Leaf() => 0
+		case Tree::Node(_, children) => 1 + ForestSize(children);
+
+def ForestSize = fn<T>(forest : Forest<T>) -> Int =>
+	match forest with
+		case Forest::Empty() => 0
+		case Forest::More(tree, rest) => Size(tree) + ForestSize(rest);
+
+def Same = fn(left : Tagged, right : Tagged) -> Bool => Equatable::Equals(left, right);
+
+type Value = Number(Int) | Closure(Env);
+type Env = Root | Frame(Cell<Value>, Env);
+
+type Tree<T> = Leaf | Node(T, Forest<T>);
+type Forest<T> = Empty | More(Tree<T>, Forest<T>);
+
+type Chain = { value : Int, next : Maybe<Chain> };
+type Maybe<T> = Nothing | Just(T);
+
+type Later<A, B> = { first : A, second : B };
+
+type Tagged = { tag : Label } deriving (Equatable);
+type Label = | Label(Text);
+instance Equatable<Label> {
+	def Equals = fn(left : Label, right : Label) -> Bool =>
+		match (left, right) with
+			case (Label::Label(a), Label::Label(b)) => a == b
+			case _ => false;
+};
+
+def distance : Meters = 12 as Meters;
+type Meters = Int;
+
+def env = Env::Frame(Cell::New(Value::Number(1)), Env::Frame(Cell::New(Value::Number(2)), Env::Root()));
+IO::PrintLine(Describe(Value::Closure(env)));
+
+def forest = Tree::Node(1, Forest::More(Tree::Node(2, Forest::Empty()), Forest::More(Tree::Leaf(), Forest::Empty())));
+IO::PrintLine("tree size " ++ (Size(forest) as Text));
+
+def chain = Chain(1, Maybe::Just(Chain(2, Maybe::Nothing())));
+match chain.next with
+	case Maybe::Just(second) => IO::PrintLine("second link " ++ (second.value as Text))
+	case Maybe::Nothing() => IO::PrintLine("one link");
+
+IO::PrintLine("first " ++ (FirstOf(Later(7, "seven")) as Text));
+IO::PrintLine("same " ++ (Same(Tagged(Label::Label("a")), Tagged(Label::Label("a"))) as Text));
+IO::PrintLine("meters " ++ ((distance as Int) as Text));

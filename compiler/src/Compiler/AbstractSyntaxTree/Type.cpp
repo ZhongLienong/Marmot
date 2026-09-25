@@ -52,6 +52,19 @@ namespace
 		SubstituteFn& substitute;
 		TypeCache& cache;
 		const TypePtr& current_type;
+		const MidoriType* root = nullptr;
+		const TypePtr* root_target = nullptr;
+
+		TypePtr InRootTarget(TypePtr&& fresh) const
+		{
+			if ((root_target == nullptr) || (current_type.get() != root))
+			{
+				return std::move(fresh);
+			}
+
+			(*root_target)->m_type = std::move(fresh->m_type);
+			return *root_target;
+		}
 
 		template<typename T>
 		TypePtr operator()(const T& type_variant) const
@@ -106,7 +119,7 @@ namespace
 				std::vector<TypePtr> empty_member_types;
 				std::vector<std::string> member_names_copy = type_variant.m_member_names;
 				std::vector<std::string> instantiated_generic_params;
-				TypePtr new_struct = MidoriType::MakeStructType(type_variant.m_name, type_variant.m_module_name, std::move(empty_member_types), std::move(member_names_copy), std::move(instantiated_generic_params));
+				TypePtr new_struct = InRootTarget(MidoriType::MakeStructType(type_variant.m_name, type_variant.m_module_name, std::move(empty_member_types), std::move(member_names_copy), std::move(instantiated_generic_params)));
 				cache[current_type.get()] = new_struct;
 
 				std::vector<TypePtr> new_member_types;
@@ -129,7 +142,7 @@ namespace
 			else if constexpr (std::is_same_v<T, MidoriType::UnionType>)
 			{
 				std::vector<std::string> instantiated_generic_params;
-				TypePtr new_union_type = MidoriType::MakeUnionType(type_variant.m_name, type_variant.m_module_name, std::move(instantiated_generic_params));
+				TypePtr new_union_type = InRootTarget(MidoriType::MakeUnionType(type_variant.m_name, type_variant.m_module_name, std::move(instantiated_generic_params)));
 				MidoriType::UnionType& new_union_ref = new_union_type->GetType<MidoriType::UnionType>();
 				std::vector<MidoriType::ClassConstraint> new_constraints;
 				new_constraints.reserve(type_variant.m_constraints.size());
@@ -165,7 +178,7 @@ namespace
 			else if constexpr (std::is_same_v<T, MidoriType::NewType>)
 			{
 				std::vector<std::string> preserved_generic_params = type_variant.m_generic_params;
-				TypePtr new_newtype = MidoriType::MakeNewType(type_variant.m_name, type_variant.m_module_name, type_variant.m_representation, std::move(preserved_generic_params));
+				TypePtr new_newtype = InRootTarget(MidoriType::MakeNewType(type_variant.m_name, type_variant.m_module_name, type_variant.m_representation, std::move(preserved_generic_params)));
 				cache[current_type.get()] = new_newtype;
 
 				MidoriType::NewType& new_ref = new_newtype->GetType<MidoriType::NewType>();
@@ -766,6 +779,26 @@ std::shared_ptr<MidoriType> MidoriType::SubstituteTypeParams(const std::shared_p
 		};
 
 	return substitute(type);
+}
+
+void MidoriType::SubstituteTypeParamsInto(const std::shared_ptr<MidoriType>& target, const std::shared_ptr<MidoriType>& type, const std::unordered_map<std::string, std::shared_ptr<MidoriType>>& substitutions)
+{
+	using SubstituteFn = std::function<TypePtr(const TypePtr&)>;
+	TypeCache cache;
+
+	SubstituteFn substitute = [&substitutions, &substitute, &cache, &target, &type](const TypePtr& t) -> TypePtr
+		{
+			TypeCache::iterator cache_it = cache.find(t.get());
+			if (cache_it != cache.end())
+			{
+				return cache_it->second;
+			}
+
+			const SubstitutionVisitor<SubstituteFn> visitor{substitutions, substitute, cache, t, type.get(), &target};
+			return std::visit(visitor, t->m_type);
+		};
+
+	substitute(type);
 }
 
 std::vector<std::shared_ptr<MidoriType>> MidoriType::InstantiateTypeArguments(const std::vector<std::string>& generic_params, const std::vector<std::shared_ptr<MidoriType>>& type_arguments, const TypeArgumentSubstituteFn& substitute)

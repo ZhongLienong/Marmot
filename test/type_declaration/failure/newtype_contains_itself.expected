@@ -1,0 +1,6 @@
+Compilation failed :(
+Parser Error at test/type_declaration/failure/newtype_contains_itself.mmt:6
+  |
+6 | type Height = Array<Width>;
+  |      ^^^^^^ A newtype cannot contain itself: 'Height' is represented by Array<Width>.
+  |

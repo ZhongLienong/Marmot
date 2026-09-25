@@ -1,0 +1,6 @@
+Compilation failed :(
+Parser Error at test/type_declaration/failure/instantiation_without_end.mmt:5
+  |
+5 | type Nested<T> = Flat(T) | Deep(Nested<Array<T>>);
+  |                                 ^^^^^^ 'Nested' and the types it holds instantiate each other with arguments other than their own type parameters, which cannot be built. Name it here with its own type parameters, Nested<T>, and use the same parameter names in the declarations that name each other.
+  |

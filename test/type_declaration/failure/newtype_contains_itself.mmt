@@ -1,0 +1,6 @@
+module NewtypeContainsItself
+
+// A newtype is its representation wherever it is erased, so one that holds
+// itself, here through another newtype, would never end.
+type Width = Height;
+type Height = Array<Width>;
