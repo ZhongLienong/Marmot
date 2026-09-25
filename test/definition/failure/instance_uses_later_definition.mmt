@@ -1,0 +1,24 @@
+module InstanceUsesLaterDefinition
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/Equatable.mmt"
+}
+
+// An instance's methods are checked as if they ran where the instance is
+// declared. A statement anywhere in the module can reach them through the class
+// - `Equatable::Equals`, `==` - without naming anything the definition-order
+// check can follow, so what they use must already be defined above the instance.
+// A plain function may name a later definition; an instance method may not.
+
+type Box = { value: Int };
+
+instance Equatable<Box>
+{
+	def Equals = fn(a: Box, b: Box) -> Bool => SameValue(a, b);
+};
+
+def SameValue = fn(a: Box, b: Box) -> Bool => a.value == b.value;
+
+IO::PrintLine(Equatable::Equals(Box(1), Box(1)) as Text);

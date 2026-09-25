@@ -1,0 +1,6 @@
+Compilation failed :(
+Parser Error at test/definition/failure/instance_uses_later_definition.mmt:19
+   |
+19 | 	def Equals = fn(a: Box, b: Box) -> Bool => SameValue(a, b);
+   |                                             ^^^^^^^^^ 'SameValue' is used here before its definition on line 22 has run. Move the definition above this.
+   |
