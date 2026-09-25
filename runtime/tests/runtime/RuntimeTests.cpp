@@ -268,6 +268,31 @@ def main = fn() -> Int => 0;
 	REQUIRE(executed.m_output.m_stdout.find("recursive calls]") != std::string::npos);
 }
 
+TEST_CASE("VM reports a stack overflow in the function that overflowed", "[runtime][vm][error][stack]")
+{
+	// The overflow was reported at the last place the dispatch loop had stored
+	// its instruction pointer: here, inside Helper, which had already returned.
+	const MidoriTest::TempDir temp_dir("marmot-runtime-stack-overflow-location");
+	const std::filesystem::path source_file_path = temp_dir.Path() / "RuntimeStackOverflowLocation.mmt";
+	const std::string source_code =
+		R"(module RuntimeStackOverflowLocation
+def Helper = fn(values: Array<Int>) -> Int => values[0];
+def helped = Helper([1, 2]);
+def Deep = fn(n: Int) -> Int => if n == 0 then 0 else 1 + Deep(n - 1);
+def value = Deep(1000000);
+)";
+	std::ofstream(source_file_path) << source_code;
+
+	const std::expected<MidoriTest::ExecutedSnippet, CompilerError> run_result =
+		MidoriTest::ExecuteSnippet(source_code, source_file_path.string());
+	const MidoriTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
+
+	REQUIRE(executed.m_exit_code == 2);
+	REQUIRE(executed.m_output.m_stdout.find("panic[StackOverflow]") != std::string::npos);
+	REQUIRE(executed.m_output.m_stdout.find("RuntimeStackOverflowLocation.mmt:4") != std::string::npos);
+	REQUIRE(executed.m_output.m_stdout.find("Helper") == std::string::npos);
+}
+
 TEST_CASE("VM renders runtime source context from embedded executable metadata", "[runtime][vm][error][embedded]")
 {
 	const std::string source_code =

@@ -850,6 +850,22 @@ bool VirtualMachine::IsStackGuardFault(uintptr_t fault_address) const noexcept
 	return fault_address >= call_guard_begin && fault_address < call_guard_end;
 }
 
+// The dispatch loop keeps its instruction pointer in a local and stores it only
+// where a runtime error can be raised, so after a guard-page fault
+// m_instruction_pointer is wherever it was last stored, possibly in a function
+// that has since returned. The call stack is written through the member, so its
+// innermost frame is the call that overflowed.
+void VirtualMachine::LocateStackOverflowAtInnermostCall() noexcept
+{
+	if (m_call_stack_pointer == m_call_stack_begin)
+	{
+		return;
+	}
+
+	--m_call_stack_pointer;
+	m_instruction_pointer = m_call_stack_pointer->m_return_ip;
+}
+
 int VirtualMachine::CheckIndexBounds(MidoriValue index, MidoriInteger size) noexcept
 {
 	MidoriInteger val = index.GetInteger();
@@ -3324,6 +3340,7 @@ VirtualMachine::ExecuteResult VirtualMachine::Execute() noexcept
 
 	if (IsStackGuardFault(fault_address))
 	{
+		LocateStackOverflowAtInnermostCall();
 		static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::StackOverflow, "Stack overflow - exceeded maximum call depth.", GetLine())));
 		return std::unexpected(std::move(*m_last_error));
 	}
@@ -3373,6 +3390,7 @@ VirtualMachine::ExecuteResult VirtualMachine::Execute() noexcept
 
 	if (IsStackGuardFault(signal_info.m_fault_address))
 	{
+		LocateStackOverflowAtInnermostCall();
 		static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::StackOverflow, "Stack overflow - exceeded maximum call depth.", GetLine())));
 		return std::unexpected(std::move(*m_last_error));
 	}

@@ -424,6 +424,8 @@ private:
 
 	bool IsStackGuardFault(uintptr_t fault_address) const noexcept;
 
+	void LocateStackOverflowAtInnermostCall() noexcept;
+
 	template<typename T>
         requires MidoriValueConstructible<T>
 	MIDORI_FORCE_INLINE void Push(T val) noexcept
