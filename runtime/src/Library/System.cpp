@@ -16,6 +16,7 @@
 #endif
 #include <windows.h>
 #else
+#include <sys/wait.h>
 #include <unistd.h>
 #endif
 
@@ -216,8 +217,8 @@ extern "C"
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(Execute)(void** args, void* ret) noexcept
 	{
 		const char* command = reinterpret_cast<const char*>(args[0u]);
-		const int exit_code = std::system(command);
-		if (exit_code == -1)
+		const int status = std::system(command);
+		if (status == -1)
 		{
 			SetLastSystemError(SystemErrorKind::Unknown, "Failed to execute command.");
 		}
@@ -226,6 +227,13 @@ extern "C"
 			ClearLastSystemError();
 		}
 
+#ifdef _WIN32
+		const int exit_code = status;
+#else
+		// std::system returns a wait status here, not the exit code Windows returns: `exit 3`
+		// is 768. A command a signal killed exits as a shell reports it, 128 plus the signal.
+		const int exit_code = status == -1 ? status : WIFEXITED(status) ? WEXITSTATUS(status) : 128 + WTERMSIG(status);
+#endif
 		const int64_t result = static_cast<int64_t>(exit_code);
 		std::memcpy(ret, &result, sizeof(int64_t));
 	}

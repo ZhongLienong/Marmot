@@ -1,0 +1,21 @@
+module RunReportsExitCode
+
+// On Linux System::Run reported the wait status std::system returns, not the exit
+// code: `exit 3` failed with 768, where Windows reports 3.
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/System.mmt",
+	"../../../MarmotPrelude/Prelude/Result.mmt",
+}
+
+use Result.{Result}
+
+for command in ["exit 0", "exit 3", "exit 255"]
+{
+	match System::Run(command) with
+		case Result::Ok(result) => IO::PrintLine(command ++ ": ok " ++ (result.exit_code as Text))
+		case Result::Err(System::SystemError::CommandFailed(code)) => IO::PrintLine(command ++ ": failed " ++ (code as Text))
+		case Result::Err(_) => IO::PrintLine(command ++ ": could not run");
+};
