@@ -5,15 +5,10 @@ import { "../../MarmotPrelude/ArrayUtil.mmt" }
 public export { Growable, AppendTo }
 
 // A minimal two-parameter class with one instance, forwarded through a generic function
-// that carries no `where` clause - the same shape the old ArrayUtil forwarder for Append
-// had before it was deleted for mutating in place. The missing constraint is deliberate:
-// it is what forces monomorphisation, rather than the type checker, to resolve
-// Growable::Append's concrete instance. See
-// test/generics/failure/generic_construction_argument_monomorphisation.mmt, which imports
-// this module specifically so that the forwarder call crosses a module boundary. This file
-// lives one directory up from that test, not alongside it, because a .mmt placed directly
-// under a `failure/` directory is itself auto-discovered and run as its own
-// expected-to-fail test - and this module compiles and runs fine on its own.
+// that carries no `where` clause. The missing constraint is deliberate: it is what forces
+// monomorphisation, rather than the type checker, to resolve Growable::Append's concrete
+// instance. See test/generics/success/generic_construction_argument_monomorphisation.mmt,
+// which imports this module so that the forwarder call crosses a module boundary.
 class Growable < C, Elem >
 {
 	Append: fn(container: C, elem: Elem) -> C;

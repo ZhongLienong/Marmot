@@ -1,0 +1,31 @@
+module RecursiveCallOnImportedGenericResult
+
+// Two recursive calls, each passing what an imported generic returned, inside a function
+// whose class constraint is used. The first call's argument was recorded with a type
+// variable that the second call's checking then bound away, so monomorphisation deduced
+// T from it, found no Orderable instance for a bare variable, and stopped with
+// "Unresolved method 'Orderable::Compare'".
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/ArrayUtil.mmt",
+	"../../../MarmotPrelude/Orderable.mmt",
+}
+
+instance Orderable<Int>
+{
+	def Compare = fn(a: Int, b: Int) -> Int => a - b;
+};
+
+def Merge = fn<T>(left: Array<T>, right: Array<T>, i: Int, j: Int, out: Array<T>) -> Array<T> where Orderable<T> =>
+	if i >= #left then ArrayUtil::Concat(out, ArrayUtil::Slice(right, j, #right))
+	else if j >= #right then ArrayUtil::Concat(out, ArrayUtil::Slice(left, i, #left))
+	else if Orderable::Compare(left[i], right[j]) <= 0 then Merge(left, right, i + 1, j, ArrayUtil::WithAppended(out, left[i]))
+	else Merge(left, right, i, j + 1, ArrayUtil::WithAppended(out, right[j]));
+
+for n in Merge([1, 4, 9], [2, 3, 10], 0, 0, [])
+{
+	IO::Print((n as Text) ++ " ");
+};
+IO::PrintLine("");

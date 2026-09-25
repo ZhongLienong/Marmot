@@ -1716,7 +1716,11 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 	{
 		return left_subst;
 	}
-	else if (left_subst->IsType<MidoriType::TypeVariable>())
+	// Between two variables the newer is bound to the older. The older is usually a
+	// generic's own parameter, and a type recorded on a node while the other was
+	// still free stays resolvable only through the variable that survives.
+	else if (left_subst->IsType<MidoriType::TypeVariable>()
+		&& !(right_subst->IsType<MidoriType::TypeVariable>() && right_subst->GetType<MidoriType::TypeVariable>().m_id > left_subst->GetType<MidoriType::TypeVariable>().m_id))
 	{
 		int var_id = left_subst->GetType<MidoriType::TypeVariable>().m_id;
 		if (OccursCheck(var_id, right_subst))

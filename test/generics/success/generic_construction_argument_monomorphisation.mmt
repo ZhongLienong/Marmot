@@ -1,0 +1,35 @@
+module GenericConstructionArgumentMonomorphisation
+
+// A construction in argument position inside a generic function, passed to a forwarder
+// with no `where` clause, so monomorphisation rather than the type checker has to find
+// `Growable::Append`'s instance.
+//
+// This failed to compile once. Unifying the construction's type with the forwarder's
+// fresh parameter bound the enclosing definition's own type variable to the fresh one,
+// so the type recorded on the call named a variable that monomorphisation never maps to
+// a generic parameter, and `Growable::Append` over it had no instance. Between two type
+// variables the checker now binds the newer to the older.
+//
+// `Growable` and `AppendTo` live one directory up in
+// ../generic_construction_argument_monomorphisation_lib.mmt, so the call crosses a module
+// boundary.
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../generic_construction_argument_monomorphisation_lib.mmt",
+}
+
+type Slot<K, V> = Empty | Occupied(K, V);
+
+def CountSlots = fn<K, V>(slots : Array<Slot<K, V>>) -> Int => #slots;
+
+def FillGeneric = fn<K, V>(slots : Array<Slot<K, V>>) -> Int =>
+{
+	def appended = GenericConstructionArgumentMonomorphisationLib::AppendTo(slots, Slot::Empty());
+	CountSlots(appended)
+};
+
+def texts : Array<Slot<Text, Int>> = [];
+
+IO::PrintLine(FillGeneric(texts) as Text);
