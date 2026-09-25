@@ -207,6 +207,24 @@ def scenario_check_json_failure_reports_parser_errors(runner: TestRunner) -> Non
         assert_condition(str(error["file_path"]).endswith("Broken.mmt"), f"Unexpected file_path: {error}")
 
 
+def scenario_check_reads_only_regular_files(runner: TestRunner) -> None:
+    # Linux opens a directory as an empty stream, and inserting an empty file's
+    # buffer set failbit: an empty file was "Could not read file to buffer".
+    with tempfile.TemporaryDirectory(prefix="marmot-cli-read-") as temp_dir_raw:
+        temp_dir = Path(temp_dir_raw)
+        empty_path = temp_dir / "Empty.mmt"
+        write_text(empty_path, "")
+        empty = run_midori(runner, ["check", str(empty_path)], env_overrides={"MARMOT_PATH": None})
+        empty_output = empty.stdout + empty.stderr
+        assert_condition(empty.returncode != 0 and "Module declaration required" in empty_output, f"check_reads_only_regular_files: an empty file should reach the module check:\n{empty_output}")
+
+        directory_path = temp_dir / "Folder.mmt"
+        directory_path.mkdir()
+        directory = run_midori(runner, ["check", str(directory_path)], env_overrides={"MARMOT_PATH": None})
+        directory_output = directory.stdout + directory.stderr
+        assert_condition(directory.returncode != 0 and "Could not open file" in directory_output, f"check_reads_only_regular_files: a directory should not open:\n{directory_output}")
+
+
 def scenario_version_output_format(runner: TestRunner) -> None:
     completed = run_midori(runner, ["--version"], env_overrides={"MARMOT_PATH": None})
     assert_condition(completed.returncode == 0, f"version_output_format: expected exit code 0, got {completed.returncode}.")
@@ -491,6 +509,7 @@ def scenario_fmt_check_and_write(runner: TestRunner) -> None:
 SCENARIOS: list[tuple[str, Any]] = [
     ("check_json_success_finds_imports_through_marmot_path", scenario_check_json_success_finds_imports_through_marmot_path),
     ("check_json_failure_reports_parser_errors", scenario_check_json_failure_reports_parser_errors),
+    ("check_reads_only_regular_files", scenario_check_reads_only_regular_files),
     ("version_output_format", scenario_version_output_format),
     ("help_lists_new_commands", scenario_help_lists_new_commands),
     ("marmotvm_runs_what_marmotc_built", scenario_marmotvm_runs_what_marmotc_built),

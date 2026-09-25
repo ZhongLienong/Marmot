@@ -96,6 +96,41 @@ def main = fn() -> Int => 0;
 	REQUIRE(ReadFileContents(data_file_path) == "alpha");
 }
 
+TEST_CASE("VM reports reading a directory as an IO error", "[runtime][vm][filesystem]")
+{
+	// Linux opens a directory as a stream that reads nothing, which read back as
+	// an empty file.
+	const std::filesystem::path io_module_path = RepositoryRoot() / "MarmotPrelude" / "IO.mmt";
+	const std::filesystem::path result_module_path = RepositoryRoot() / "MarmotPrelude" / "Prelude" / "Result.mmt";
+	const MidoriTest::TempDir temp_dir("marmot-runtime-directory");
+	const std::filesystem::path directory_path = temp_dir.Path() / "folder";
+	std::filesystem::create_directories(directory_path);
+	const std::filesystem::path source_file_path = temp_dir.Path() / "RuntimeDirectoryRead.mmt";
+
+	const std::string source_code = std::format(
+		R"(module RuntimeDirectoryRead
+import {{ "{}", "{}" }}
+use Result.{{Result}}
+match IO::TryReadFile("{}") with
+    case Result::Ok(_) => IO::PrintLine("text read")
+    case Result::Err(_) => IO::PrintLine("text failed");
+match IO::TryReadBinaryFile("{}") with
+    case Result::Ok(_) => IO::PrintLine("bytes read")
+    case Result::Err(_) => IO::PrintLine("bytes failed");
+)",
+		MidoriPathLiteral(io_module_path),
+		MidoriPathLiteral(result_module_path),
+		MidoriPathLiteral(directory_path),
+		MidoriPathLiteral(directory_path));
+
+	const std::expected<MidoriTest::ExecutedSnippet, CompilerError> run_result =
+		MidoriTest::ExecuteSnippet(source_code, source_file_path.string());
+	const MidoriTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
+
+	REQUIRE(executed.m_exit_code == EXIT_SUCCESS);
+	REQUIRE(executed.m_output.m_stdout == "text failed\nbytes failed\n");
+}
+
 TEST_CASE("VM captures stderr emitted by runtime code", "[runtime][vm][stderr]")
 {
 	const std::filesystem::path io_module_path = RepositoryRoot() / "MarmotPrelude" / "IO.mmt";

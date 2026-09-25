@@ -96,15 +96,18 @@ namespace MidoriDriver
 
 	SourceReadResult ReadSourceFile(const std::filesystem::path& file_path)
 	{
+		// Linux opens a directory as a stream that reads nothing.
 		std::ifstream file(file_path, std::ios::binary);
-		if (!file.is_open())
+		if (std::filesystem::is_directory(file_path) || !file.is_open())
 		{
 			return std::unexpected(DriverError::FileSystem(std::format("Could not open file: {}\n", file_path.string())));
 		}
 
+		// Not `!buffer`: inserting an empty file's rdbuf sets failbit, and an
+		// empty file is a program.
 		std::ostringstream buffer;
 		buffer << file.rdbuf();
-		if (!buffer)
+		if (file.bad())
 		{
 			return std::unexpected(DriverError::FileSystem(std::format("Could not read file to buffer: {}\n", file_path.string())));
 		}

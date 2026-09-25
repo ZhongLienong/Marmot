@@ -242,8 +242,9 @@ extern "C"
 		const char* file_path = reinterpret_cast<const char*>(args[0u]);
 		const std::filesystem::path path(file_path);
 
+		// Linux opens a directory as a stream that reads nothing.
 		std::ifstream file(path, std::ios::in | std::ios::binary);
-		if (!file.is_open())
+		if (std::filesystem::is_directory(path) || !file.is_open())
 		{
 			SetLastIOErrorFromCode(DiagnoseReadOpenFailure(path));
 			char* empty = AllocateEmptyString();
@@ -340,8 +341,9 @@ extern "C"
 		const char* file_path = reinterpret_cast<const char*>(args[0u]);
 		const std::filesystem::path path(file_path);
 
+		// Linux opens a directory as a stream that reads nothing.
 		std::ifstream file(path, std::ios::in | std::ios::binary);
-		if (!file.is_open())
+		if (std::filesystem::is_directory(path) || !file.is_open())
 		{
 			SetLastIOErrorFromCode(DiagnoseReadOpenFailure(path));
 			const int64_t null_ptr = 0;

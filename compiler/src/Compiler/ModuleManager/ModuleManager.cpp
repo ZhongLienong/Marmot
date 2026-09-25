@@ -156,8 +156,9 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraphImpl(BuildGra
 				continue;
 			}
 
+			// Linux opens a directory as a stream that reads nothing.
 			std::ifstream include_file(include_absolute_path_str);
-			if (!include_file.is_open())
+			if (std::filesystem::is_directory(include_absolute_path_str) || !include_file.is_open())
 			{
 				return std::unexpected(MidoriError::GenerateModuleErrorWithContext(CompilerErrorCode::ModuleImportFileOpenFailed, "Could not open import file: "s + include_absolute_path_str, line, m_main_file_name));
 			}
