@@ -1,0 +1,8 @@
+module ForeignUsedBeforeItRuns
+
+import { "../../../MarmotPrelude/IO.mmt" }
+
+// The statement runs before the declaration that binds Cut.
+IO::PrintLine(#Cut([1, 2, 3], 0, 1) as Text);
+
+foreign "MIDORI_FFI_ArraySlice" Cut: fn(Array<Int>, Int, Int) -> Array<Int>;

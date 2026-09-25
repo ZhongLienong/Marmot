@@ -1057,6 +1057,10 @@ void Parser::CollectTopLevelNames()
 		{
 			depth -= 1;
 		}
+		else if ((depth == 0) && (name == Token::Name::FOREIGN))
+		{
+			CollectForeignNames(it);
+		}
 		else if ((depth == 0) && (name == Token::Name::TYPE) && (std::next(it) != end) && (std::next(it)->m_token_name == Token::Name::IDENTIFIER_LITERAL))
 		{
 			PredeclareType(static_cast<int>(std::distance(m_context.m_tokens.cbegin(), it)));
@@ -1074,6 +1078,38 @@ void Parser::CollectTopLevelNames()
 				depth += 1;
 				++it;
 			}
+		}
+	}
+}
+
+// `foreign "symbol" Name: ...;` names one function, and
+// `foreign "library" { "symbol" Name: ...; ... }` one per entry.
+void Parser::CollectForeignNames(TokenStream::const_iterator foreign_keyword)
+{
+	const TokenStream::const_iterator end = m_context.m_tokens.cend();
+	TokenStream::const_iterator it = std::next(foreign_keyword);
+	if ((it == end) || (it->m_token_name != Token::Name::TEXT_LITERAL) || (std::next(it) == end))
+	{
+		return;
+	}
+
+	++it;
+	if (it->m_token_name == Token::Name::IDENTIFIER_LITERAL)
+	{
+		m_state.m_top_level_names.insert(it->m_lexeme);
+		return;
+	}
+
+	if (it->m_token_name != Token::Name::LEFT_BRACE)
+	{
+		return;
+	}
+
+	for (++it; (it != end) && (it->m_token_name != Token::Name::RIGHT_BRACE); ++it)
+	{
+		if ((it->m_token_name == Token::Name::TEXT_LITERAL) && (std::next(it) != end) && (std::next(it)->m_token_name == Token::Name::IDENTIFIER_LITERAL))
+		{
+			m_state.m_top_level_names.insert(std::next(it)->m_lexeme);
 		}
 	}
 }

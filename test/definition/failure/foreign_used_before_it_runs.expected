@@ -1,0 +1,6 @@
+Compilation failed :(
+Parser Error at test/definition/failure/foreign_used_before_it_runs.mmt:6
+  |
+6 | IO::PrintLine(#Cut([1, 2, 3], 0, 1) as Text);
+  |                ^^^ 'Cut' is used here before its definition on line 8 has run. Move the definition above this.
+  |

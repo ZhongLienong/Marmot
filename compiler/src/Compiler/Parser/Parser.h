@@ -620,6 +620,8 @@ private:
 
 	void CollectTopLevelNames();
 
+	void CollectForeignNames(TokenStream::const_iterator foreign_keyword);
+
 	void PredeclareType(int type_keyword_index);
 
 	void PredeclareVariants(const std::shared_ptr<MidoriType>& union_type, int body_index);

@@ -1382,6 +1382,15 @@ void CodeGenerator::ReserveTopLevelGlobals()
 			{
 				static_cast<void>(GlobalSlot(foreign.m_function_name.m_lexeme));
 			}
+
+			// A call emitted before this declaration would otherwise take the
+			// dynamic path, which marshals a builtin's arguments for a native library.
+			// An unknown builtin is reported where the declaration is emitted.
+			const std::optional<size_t> ffi_index = foreign.m_library.has_value() ? std::nullopt : MarmotBuiltins::FindIndex(foreign.m_foreign_name);
+			if (ffi_index.has_value())
+			{
+				(*m_ffi_indices)[foreign.m_function_name.m_lexeme] = ffi_index.value();
+			}
 		}
 	}
 }
