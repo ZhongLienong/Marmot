@@ -91,7 +91,7 @@ See [Versioning Policy](versioning-policy.md) for how `Stable`,
 | Prelude ADTs: `Option`, `Result`, `List` | Stable | `test/prelude/`, `test/match/` | These are the core public prelude data types. |
 | Typed `IO`, `System`, and `DateTime` wrappers | Stable | `test/prelude/` | The public surface prefers `Option` and `Result` wrappers over sentinel values. |
 | `TextUtil`, `ArrayUtil`, and `Math` helpers | Stable | `test/prelude/`, `test/ffi/` | These sit above the lower-level builtin FFI helpers. |
-| `Collections/Map` and `Collections/Set` | Stable | `test/hashmap/`, `test/hashset/` | Current APIs rely on `Hashable` and `Equatable`; `MapInsert` is insert-only and `MapUpdate` only updates existing entries. |
+| `Collections/Map` and `Collections/Set` | Stable | `test/hashmap/`, `test/hashset/` | Persistent: `With` and `Without` return a new collection. Keys rely on `Hashable` and `Equatable`. |
 | Helper/typeclass modules: `Concatenable`, `Convertable`, `Countable`, `Equatable`, `Hashable`, `Iterable`, `Orderable`, `Prelude/Panic` | Stable | `test/prelude/`, `test/typeclass/`, `test/hashmap/`, `test/hashset/` | Some modules mostly define reusable class surfaces and expect user code to supply instances. |
 
 ## Concurrency

@@ -11,7 +11,7 @@ The documented examples in this file are mirrored by `test/prelude/success/docum
 ## Module Map
 
 - `Prelude/Option.mmt`, `Prelude/Result.mmt`, and `Prelude/List.mmt` provide the core ADTs and helper functions used throughout the rest of the prelude.
-- `Collections/Map.mmt` and `Collections/Set.mmt` provide hash-based collections. `MapInsert` is insert-only, `MapUpdate` updates existing keys only, and `SetInsert` is idempotent.
+- `Collections/Map.mmt` and `Collections/Set.mmt` provide persistent hash-based collections: `Map::With` adds a key or replaces its value and returns a new map, `Map::Without` removes one, and `Set::SetWith` of a value already present changes nothing.
 - `IO.mmt`, `System.mmt`, and `DateTime.mmt` are the effectful modules. Their public surface favors `Option` and `Result` wrappers rather than sentinel return values.
 - `TextUtil.mmt`, `ArrayUtil.mmt`, and `Math.mmt` provide the common text, array, and numeric helpers that sit above the raw runtime builtins.
 - `Concatenable.mmt`, `Convertable.mmt`, `Countable.mmt`, `Equatable.mmt`, `Hashable.mmt`, `Indexable.mmt`, `Iterable.mmt`, `Orderable.mmt`, and `Transferable.mmt` expose the helper and typeclass surface used by operators, collections, and concurrency.
@@ -189,8 +189,8 @@ The core prelude modules stay intentionally small:
 - `Prelude/Option.mmt`: `Option`, `OptionMap`, `OptionBind`, `OptionIsSome`, `OptionIsNone`, `OptionOrElse`, `OptionUnwrap`, `OptionUnwrapOrElse`, `OptionUnwrapOrPanic`
 - `Prelude/Result.mmt`: `Result`, `ResultMap`, `ResultBind`, `ResultMapError`, `ResultIsOk`, `ResultIsError`, `ResultUnwrap`, `ResultUnwrapOrElse`, `ResultUnwrapOrPanic`
 - `Prelude/List.mmt`: `List`, `ListMap`, `ListLength`, `ListAppend`, `ListFilter`, `ListReverse`, `ListFold`, `ListFromArray`, `ListToArray`
-- `Collections/Map.mmt`: `MapNew`, `MapInsert`, `MapGet`, `MapGetOr`, `MapUpdate`, `MapRemove`, `MapContains`, `MapKeys`, `MapValues`, `MapEntries`
-- `Collections/Set.mmt`: `SetNew`, `SetInsert`, `SetContains`, `SetRemove`, `SetUnion`, `SetIntersection`, `SetDifference`, `SetToArray`
+- `Collections/Map.mmt`: `Empty`, `Count`, `IsEmpty`, `Get`, `GetOr`, `ContainsKey`, `With`, `Without`, `Entries`, `Keys`, `Values`, `IterNew`
+- `Collections/Set.mmt`: `SetEmpty`, `SetCount`, `SetIsEmpty`, `SetWith`, `SetWithout`, `SetHas`, `SetToArray`, `SetIterNew`
 
 ## Math
 

@@ -143,22 +143,17 @@ def ContainsKey = fn < K, V >(map: Map < K, V >, key: K) -> Bool where Hashable 
     match Get(map, key) with
         case Option::Some(_) => true
         case Option::None() => false;
-// One self-recursive walk over an explicit worklist: Marmot has no mutual
-// recursion, so a node function and a children function could not call each
-// other.
-def CollectFrom = fn < K, V >(pending: Array < Node < K, V > >, collected: Array < Entry < K, V > >) -> Array < Entry < K, V > > =>
-    if ArrayUtil::Length(pending) == 0
+def CollectNode = fn < K, V >(node: Node < K, V >, collected: Array < Entry < K, V > >) -> Array < Entry < K, V > > =>
+    match node with
+        case Node::Nothing() => collected
+        case Node::Leaf(_, leaf_key, leaf_value) => ArrayUtil::WithAppended(collected, Entry (leaf_key, leaf_value))
+        case Node::Collision(_, entries) => ArrayUtil::Concat(collected, entries)
+        case Node::Branch(_, children) => CollectChildren(children, 0, collected);
+def CollectChildren = fn < K, V >(children: Array < Node < K, V > >, index: Int, collected: Array < Entry < K, V > >) -> Array < Entry < K, V > > =>
+    if index >= ArrayUtil::Length(children)
     then collected
-    else {
-        def head = pending[0];
-        def rest = ArrayUtil::WithRemoved(pending, 0);
-        match head with
-            case Node::Nothing() => CollectFrom(rest, collected)
-            case Node::Leaf(_, leaf_key, leaf_value) => CollectFrom(rest, ArrayUtil::WithAppended(collected, Entry (leaf_key, leaf_value)))
-            case Node::Collision(_, entries) => CollectFrom(rest, ArrayUtil::Concat(collected, entries))
-            case Node::Branch(_, children) => CollectFrom(ArrayUtil::Concat(rest, children), collected)
-    };
-def Entries = fn < K, V >(map: Map < K, V >) -> Array < Entry < K, V > > => CollectFrom([map.root], []);
+    else CollectChildren(children, index + 1, CollectNode(children[index], collected));
+def Entries = fn < K, V >(map: Map < K, V >) -> Array < Entry < K, V > > => CollectNode(map.root, []);
 def Keys = fn < K, V >(map: Map < K, V >) -> Array < K > => {
     def pairs = Entries(map);
     [pairs[slot].key for slot in 0..1..ArrayUtil::Length(pairs)]

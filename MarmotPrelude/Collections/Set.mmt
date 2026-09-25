@@ -6,11 +6,6 @@ use Option.{
 }
 // Its own type rather than an alias for Map<T, Unit>: spec section 5 wants a
 // Set's Hashable instance not to collapse into the map's.
-//
-// The operations are prefixed rather than named Empty, Count and so on. This
-// module imports Map, which exports those names, and a definition
-// that collides with an import silently loses to it (a known compiler
-// limitation).
 type Set < T > = {
     entries: Map::Map < T, Unit >
 };
