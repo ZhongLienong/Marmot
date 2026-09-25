@@ -75,6 +75,8 @@ namespace
 		return std::format(
 			"module Main\n"
 			"import {{ \"{}\", \"{}\", \"{}\" }}\n"
+			"use Result.{{Result}}\n"
+			"use Concurrency.{{WorkerError}}\n"
 			"foreign \"marmot_test_answer\" Answer : fn() -> Int from \"{}\";\n"
 			"def Work = fn(dummy: Int) -> Int => Answer();\n"
 			"def r = Concurrency::Join(Concurrency::Spawn(0, Work));\n"
