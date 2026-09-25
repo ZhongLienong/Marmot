@@ -120,7 +120,10 @@ namespace MidoriBuild
     //
     // Bumped 2026-09-17 (9): MAKE_CELL, READ_CELL and WRITE_CELL were inserted
     // after SET_CELL for Cell<T>, which renumbered every later opcode.
-    inline constexpr uint32_t MbcFormatVersion = 11u;
+    //
+    // Bumped 2026-09-25 (12): the Min, Max and Clamp builtins were removed from
+    // the middle of the table when Math's became generic over Orderable.
+    inline constexpr uint32_t MbcFormatVersion = 12u;
 
     [[nodiscard]] inline bool EnvironmentFlagEnabledUncached(const char* name) noexcept
     {

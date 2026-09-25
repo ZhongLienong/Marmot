@@ -30,7 +30,7 @@ The prelude is not only collections and IO wrappers. It also ships the public he
 - `Equatable` and `Hashable` provide the comparison and hashing surface used by derived code and collections.
 - `Indexable` backs `x[i]`. It takes two type parameters, `Indexable<C, I>`, so the index type is not fixed to `Int`, and exposes an `Element` associated type. The prelude ships an `Array<T>` instance; arrays also keep a direct lowering path in the compiler, which the instance body itself relies on. `Text` has no instance yet - its element type follows from the planned newtype over `Array<Byte>`.
 - `Iterable` provides the `Item` associated type and `Next` method used by `for` loops and iterable-based comprehensions.
-- `Orderable` defines the ordering interface used by comparison operators for user-defined types. The module exports the class surface; concrete instances are typically user-defined.
+- `Orderable` defines the ordering interface that `<`, `<=`, `>` and `>=` use for types that are not numbers, and that generic code names with `where Orderable<T>`. `Compare` returns a negative `Int`, zero or a positive `Int`. The module ships instances for `Int`, `Float`, `Byte`, `Word` and `Text`; `Text` orders by code point, and a `Float` NaN compares equal to everything. Other types bring their own instance.
 - `Transferable` is the marker typeclass for values that can cross worker boundaries in the concurrency system. Built-in instances cover all primitive types, `Array<T>`, `Channel<T>`, and function types — a function crosses as its procedure index plus a copy of its captured cells, which is what lets `Concurrency::Spawn` take a function value and `ParallelMap` be written in Marmot. A closure's captures are not part of its type, so they are not checked: a closure that captured a `Worker<T>` crosses with a handle that means nothing on the other side. User-defined structs and unions can `deriving (Transferable)`. Transferability is enforced at compile time by `Concurrency::Spawn`, `Concurrency::Join`, `Concurrency::MakeChannel`, `->`, and `<-`. `Concurrency::Close`, `Concurrency::IsDone` and `Concurrency::Cancel` complete that surface.
 - `Prelude/Panic` provides `Panic::Panic`, which is used heavily by the regression tests and small examples.
 
@@ -198,6 +198,6 @@ The core prelude modules stay intentionally small:
 
 - constants such as `Pi`, `E`, and `Tau`
 - transcendental and trigonometric helpers such as `SquareRoot`, `Pow`, `Sin`, and `Atan2`
-- bounds helpers such as `Min`, `Max`, `Clamp`, `Sign`, and `Hypot`
+- bounds helpers such as `Min`, `Max`, `Clamp`, `Sign`, and `Hypot`; `Min`, `Max` and `Clamp` take any `Orderable` type, and return their first argument when neither is less
 - randomness helpers such as `Random`, `RandomInt`, and `RandomFloat`
 - unit-conversion helpers such as `ToRadians` and `ToDegrees`

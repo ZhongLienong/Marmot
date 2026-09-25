@@ -201,6 +201,7 @@ private:
 
 	void EmitLoop(int loop_start, int line);
 
+	bool EmitOperatorInstanceCall(std::string_view class_name, std::string_view method_name, const std::shared_ptr<MidoriType>& operand_type, int line);
 	bool EmitConcatenableConcat(const std::shared_ptr<MidoriType>& operand_type, int line);
 
 	void EmitEquality(const std::shared_ptr<MidoriType>& operand_type, bool uses_equatable, bool negated, int line);

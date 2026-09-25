@@ -1,0 +1,21 @@
+module OperatorInstanceLib
+
+import
+{
+	"../../MarmotPrelude/Orderable.mmt",
+	"../../MarmotPrelude/Equatable.mmt",
+}
+
+public export { Cents }
+
+type Cents = { amount: Int };
+
+instance Orderable<Cents>
+{
+	def Compare = fn(a: Cents, b: Cents) -> Int => a.amount - b.amount;
+};
+
+instance Equatable<Cents>
+{
+	def Equals = fn(a: Cents, b: Cents) -> Bool => a.amount == b.amount;
+};

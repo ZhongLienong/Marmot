@@ -1,0 +1,20 @@
+module OrderingOfBuiltinTypes
+
+// Orderable ships instances for Int, Float, Byte, Word and Text, so `<` on Text and
+// generic code over Orderable work without an instance of your own. Text orders by code
+// point. Math::Min, Max and Clamp are generic over Orderable, not Float only.
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/Math.mmt",
+	"../../../MarmotPrelude/Orderable.mmt",
+}
+
+def Less = fn<T>(a: T, b: T) -> Bool where Orderable<T> => a < b;
+
+IO::PrintLine((("apple" < "banana") && ("ab" < "abc") && ("z" < "é") && !("b" <= "a")) as Text);
+IO::PrintLine((Orderable::Compare("x", "x") as Text) ++ " " ++ (Orderable::Compare(3, 1) as Text) ++ " " ++ (Orderable::Compare(0.5, 1.5) as Text));
+IO::PrintLine((Less(1 as Byte, 2 as Byte) && Less(0xFFFFFFFFFFFFFFFE, 0xFFFFFFFFFFFFFFFF) && !Less("pear", "peach")) as Text);
+IO::PrintLine((Math::Min(3, 7) as Text) ++ " " ++ (Math::Max(3, 7) as Text) ++ " " ++ Math::Min("kiwi", "fig") ++ " " ++ (Math::Clamp(15, 0, 10) as Text));
+IO::PrintLine((Math::Min(2.5, 1.5) as Text) ++ " " ++ (Math::Clamp(-1.0, 0.0, 1.0) as Text));

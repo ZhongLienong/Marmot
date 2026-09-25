@@ -309,6 +309,16 @@ extern "C"
 		WriteBool(ret, RequireText(args[0u]).Contains(RequireText(args[1u])));
 	}
 
+	// UTF-8 compared byte by byte, as unsigned, is code point order.
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextCompare)(void** args, void* ret) noexcept
+	{
+		const MidoriText& left = RequireText(args[0u]);
+		const MidoriText& right = RequireText(args[1u]);
+		const int order = std::string_view(left.GetCString(), static_cast<size_t>(left.GetByteLength()))
+			.compare(std::string_view(right.GetCString(), static_cast<size_t>(right.GetByteLength())));
+		WriteInt(ret, order < 0 ? -1 : (order > 0 ? 1 : 0));
+	}
+
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextReplace)(void** args, void* ret) noexcept
 	{
 		MidoriText replaced = RequireText(args[0u]).Replace(RequireText(args[1u]), RequireText(args[2u]));

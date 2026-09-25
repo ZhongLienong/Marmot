@@ -428,7 +428,7 @@ The shipped prelude provides the following related modules:
 - `Equatable`
 - `Orderable`
 
-The concrete coverage is intentionally uneven today. For example, `Orderable` is provided as a class surface, but most interesting instances are still expected to come from user code rather than the prelude.
+The prelude ships the instances the built-in types need: `Orderable` for `Int`, `Float`, `Byte`, `Word` and `Text`, `Equatable` and `Hashable` for the primitives, `Concatenable` and `Countable` for `Text` and arrays. Instances for other types come from user code or `deriving`.
 
 ### No Assignment Operators
 

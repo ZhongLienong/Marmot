@@ -13,11 +13,6 @@ import
 	"../../../MarmotPrelude/Orderable.mmt",
 }
 
-instance Orderable<Int>
-{
-	def Compare = fn(a: Int, b: Int) -> Int => a - b;
-};
-
 def Merge = fn<T>(left: Array<T>, right: Array<T>, i: Int, j: Int, out: Array<T>) -> Array<T> where Orderable<T> =>
 	if i >= #left then ArrayUtil::Concat(out, ArrayUtil::Slice(right, j, #right))
 	else if j >= #right then ArrayUtil::Concat(out, ArrayUtil::Slice(left, i, #left))

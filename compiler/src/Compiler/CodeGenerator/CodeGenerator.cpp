@@ -1496,12 +1496,14 @@ void CodeGenerator::EmitLoop(int loop_start, int line)
 	EmitByte(static_cast<OpCode>((offset >> SHIFT_8_BITS) & BYTE_MASK), line);
 }
 
-bool CodeGenerator::EmitConcatenableConcat(const std::shared_ptr<MidoriType>& operand_type, int line)
+// An operator routed through a class calls the instance method for the operand type,
+// declared in this module or imported with its type.
+bool CodeGenerator::EmitOperatorInstanceCall(std::string_view class_name, std::string_view method_name, const std::shared_ptr<MidoriType>& operand_type, int line)
 {
 	std::string resolved_method_name;
 	bool found = false;
 
-	std::string qualified_method_name = std::string(CONCATENABLE_CLASS_NAME) + std::string(NameSeparator) + std::string(CONCAT_METHOD_NAME);
+	std::string qualified_method_name = std::string(class_name) + std::string(NameSeparator) + std::string(method_name);
 	std::unordered_map<std::string, std::vector<ResolvedMethodCandidate>>::iterator resolution_it = m_method_resolution_map.find(qualified_method_name);
 	if (resolution_it != m_method_resolution_map.end())
 	{
@@ -1512,7 +1514,7 @@ bool CodeGenerator::EmitConcatenableConcat(const std::shared_ptr<MidoriType>& op
 			{
 				if (found && resolved_method_name != candidate.m_resolved_name)
 				{
-					AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Concatenable instance method resolution is ambiguous for type '"s + operand_type_name + "'"s, line, m_file_name, m_source_lines));
+					AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::string(class_name) + " instance method resolution is ambiguous for type '"s + operand_type_name + "'"s, line, m_file_name, m_source_lines));
 					return false;
 				}
 
@@ -1524,7 +1526,7 @@ bool CodeGenerator::EmitConcatenableConcat(const std::shared_ptr<MidoriType>& op
 
 	if (!found)
 	{
-		TypeclassInstanceTypeMap::iterator instance_args_it = m_class_instance_type_args.find(std::string(CONCATENABLE_CLASS_NAME));
+		TypeclassInstanceTypeMap::iterator instance_args_it = m_class_instance_type_args.find(std::string(class_name));
 		if (instance_args_it != m_class_instance_type_args.end())
 		{
 			for (const std::vector<std::shared_ptr<MidoriType>>& candidate_args : instance_args_it->second)
@@ -1541,8 +1543,8 @@ bool CodeGenerator::EmitConcatenableConcat(const std::shared_ptr<MidoriType>& op
 					continue;
 				}
 
-				std::string candidate_base = MidoriType::MangleInstanceMethodName(std::string(CONCAT_METHOD_NAME), std::string(CONCATENABLE_CLASS_NAME), candidate_args);
-				std::optional<std::string> candidate_name = ResolveInstanceName(std::string(CONCATENABLE_CLASS_NAME), candidate_base);
+				std::string candidate_base = MidoriType::MangleInstanceMethodName(std::string(method_name), std::string(class_name), candidate_args);
+				std::optional<std::string> candidate_name = ResolveInstanceName(std::string(class_name), candidate_base);
 				if (!candidate_name.has_value())
 				{
 					continue;
@@ -1550,7 +1552,7 @@ bool CodeGenerator::EmitConcatenableConcat(const std::shared_ptr<MidoriType>& op
 
 				if (found && resolved_method_name != candidate_name.value())
 				{
-					AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Concatenable instance method resolution is ambiguous for type '"s + operand_type->DisplayString() + "'"s, line, m_file_name, m_source_lines));
+					AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::string(class_name) + " instance method resolution is ambiguous for type '"s + operand_type->DisplayString() + "'"s, line, m_file_name, m_source_lines));
 					return false;
 				}
 
@@ -1562,8 +1564,8 @@ bool CodeGenerator::EmitConcatenableConcat(const std::shared_ptr<MidoriType>& op
 
 	if (!found)
 	{
-		std::string mangled_name = MidoriType::MangleInstanceMethodName(std::string(CONCAT_METHOD_NAME), std::string(CONCATENABLE_CLASS_NAME), { operand_type });
-		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Concatenable instance method '"s + mangled_name + "' not found"s, line, m_file_name, m_source_lines));
+		std::string mangled_name = MidoriType::MangleInstanceMethodName(std::string(method_name), std::string(class_name), { operand_type });
+		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(std::string(class_name) + " instance method '"s + mangled_name + "' not found"s, line, m_file_name, m_source_lines));
 		return false;
 	}
 
@@ -1574,6 +1576,11 @@ bool CodeGenerator::EmitConcatenableConcat(const std::shared_ptr<MidoriType>& op
 
 	EmitCall(2, line);
 	return true;
+}
+
+bool CodeGenerator::EmitConcatenableConcat(const std::shared_ptr<MidoriType>& operand_type, int line)
+{
+	return EmitOperatorInstanceCall(CONCATENABLE_CLASS_NAME, CONCAT_METHOD_NAME, operand_type, line);
 }
 
 // `==` and `!=` choose their comparison in one place. They used to choose it
@@ -1619,32 +1626,12 @@ void CodeGenerator::EmitEquality(const std::shared_ptr<MidoriType>& operand_type
 
 void CodeGenerator::EmitEquatableEquals(const std::shared_ptr<MidoriType>& operand_type, int line)
 {
-	std::string mangled_name = MidoriType::MangleInstanceMethodName(std::string(EQUALS_METHOD_NAME), std::string(EQUATABLE_CLASS_NAME), { operand_type });
-	std::unordered_map<std::string, int>::iterator it = m_global_variables.find(mangled_name);
-	if (it != m_global_variables.end())
-	{
-		EmitVariable(it->second, OpCode::GET_GLOBAL, line);
-		EmitCall(2, line);
-	}
-	else
-	{
-		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Equatable instance method '"s + mangled_name + "' not found"s, line, m_file_name, m_source_lines));
-	}
+	static_cast<void>(EmitOperatorInstanceCall(EQUATABLE_CLASS_NAME, EQUALS_METHOD_NAME, operand_type, line));
 }
 
 void CodeGenerator::EmitOrderableCompare(const std::shared_ptr<MidoriType>& operand_type, int line)
 {
-	std::string mangled_name = MidoriType::MangleInstanceMethodName(std::string(COMPARE_METHOD_NAME), std::string(ORDERABLE_CLASS_NAME), { operand_type });
-	std::unordered_map<std::string, int>::iterator it = m_global_variables.find(mangled_name);
-	if (it != m_global_variables.end())
-	{
-		EmitVariable(it->second, OpCode::GET_GLOBAL, line);
-		EmitCall(2, line);
-	}
-	else
-	{
-		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext("Orderable instance method '"s + mangled_name + "' not found"s, line, m_file_name, m_source_lines));
-	}
+	static_cast<void>(EmitOperatorInstanceCall(ORDERABLE_CLASS_NAME, COMPARE_METHOD_NAME, operand_type, line));
 }
 
 void CodeGenerator::EmitPopCount(int count, int line)

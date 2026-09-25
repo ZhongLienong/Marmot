@@ -61,9 +61,6 @@ extern "C"
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(Trunc)(void** args, void* ret) noexcept;
 
 	// Math - Other
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(Min)(void** args, void* ret) noexcept;
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(Max)(void** args, void* ret) noexcept;
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(Clamp)(void** args, void* ret) noexcept;
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(Sign)(void** args, void* ret) noexcept;
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(Fmod)(void** args, void* ret) noexcept;
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(Hypot)(void** args, void* ret) noexcept;
@@ -130,6 +127,7 @@ extern "C"
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextSplit)(void** args, void* ret) noexcept;
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextReverse)(void** args, void* ret) noexcept;
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextContains)(void** args, void* ret) noexcept;
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextCompare)(void** args, void* ret) noexcept;
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextReplace)(void** args, void* ret) noexcept;
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextTrim)(void** args, void* ret) noexcept;
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextFromCodePoint)(void** args, void* ret) noexcept;

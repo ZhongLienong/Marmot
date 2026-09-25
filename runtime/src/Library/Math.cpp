@@ -2,7 +2,6 @@
 
 #include <cmath>
 #include <cstring>
-#include <algorithm>
 #include <random>
 
 namespace
@@ -143,24 +142,6 @@ extern "C"
 	}
 
 	// Other
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(Min)(void** args, void* ret) noexcept
-	{
-		WriteDouble(ret, std::min(ReadDouble(args, 0u), ReadDouble(args, 1u)));
-	}
-
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(Max)(void** args, void* ret) noexcept
-	{
-		WriteDouble(ret, std::max(ReadDouble(args, 0u), ReadDouble(args, 1u)));
-	}
-
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(Clamp)(void** args, void* ret) noexcept
-	{
-		const double value = ReadDouble(args, 0u);
-		const double min_val = ReadDouble(args, 1u);
-		const double max_val = ReadDouble(args, 2u);
-		WriteDouble(ret, std::clamp(value, min_val, max_val));
-	}
-
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(Sign)(void** args, void* ret) noexcept
 	{
 		const double value = ReadDouble(args);

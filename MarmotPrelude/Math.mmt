@@ -1,4 +1,5 @@
 module Math
+import { "Orderable.mmt" }
 public export { Pi, E, Tau, SquareRoot, Abs, Pow, Exp, Log, Log10, Log2, Sin, Cos, Tan, Asin, Acos, Atan, Atan2, Sinh, Cosh, Tanh, Floor, Ceil, Round, Trunc, Min, Max, Clamp, Sign, Fmod, Hypot, Random, RandomInt, RandomFloat, ToRadians, ToDegrees, IsNaN, IsInf, IsFinite }
 def Pi: Float = 3.14159265358979323846;
 def E: Float = 2.71828182845904523536;
@@ -24,9 +25,9 @@ foreign "MIDORI_FFI_Floor" Floor: fn(Float) -> Float;
 foreign "MIDORI_FFI_Ceil" Ceil: fn(Float) -> Float;
 foreign "MIDORI_FFI_Round" Round: fn(Float) -> Float;
 foreign "MIDORI_FFI_Trunc" Trunc: fn(Float) -> Float;
-foreign "MIDORI_FFI_Min" Min: fn(Float, Float) -> Float;
-foreign "MIDORI_FFI_Max" Max: fn(Float, Float) -> Float;
-foreign "MIDORI_FFI_Clamp" Clamp: fn(Float, Float, Float) -> Float;
+def Min = fn < T >(a: T, b: T) -> T where Orderable < T > => if b < a then b else a;
+def Max = fn < T >(a: T, b: T) -> T where Orderable < T > => if a < b then b else a;
+def Clamp = fn < T >(value: T, low: T, high: T) -> T where Orderable < T > => if value < low then low else if high < value then high else value;
 foreign "MIDORI_FFI_Sign" Sign: fn(Float) -> Float;
 foreign "MIDORI_FFI_Fmod" Fmod: fn(Float, Float) -> Float;
 foreign "MIDORI_FFI_Hypot" Hypot: fn(Float, Float) -> Float;

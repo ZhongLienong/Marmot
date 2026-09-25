@@ -1,0 +1,18 @@
+module OperatorInstanceFromAnotherModule
+
+// `<` and `==` on a type whose Orderable and Equatable instances live in another module.
+// Code generation looked those instances up among this module's own definitions only and
+// failed with "Orderable instance method '$Compare_Orderable_...' not found".
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/Orderable.mmt",
+	"../../../MarmotPrelude/Equatable.mmt",
+	"../operator_instance_lib.mmt",
+}
+
+def five = OperatorInstanceLib::Cents(5);
+def nine = OperatorInstanceLib::Cents(9);
+
+IO::PrintLine(((five < nine) && (nine >= five) && (five == OperatorInstanceLib::Cents(5)) && (five != nine)) as Text);
