@@ -211,3 +211,21 @@ TEST_CASE("Formatter is idempotent for newtype declarations", "[formatter]")
 
 	CHECK(once == twice);
 }
+
+TEST_CASE("Formatter keeps a prefix operator against its operand", "[formatter]")
+{
+	const std::string source_code =
+		"module Main\n"
+		"def a = -1;\n"
+		"def b = (-1, -2);\n"
+		"def c = if true then -1 else [-2][0];\n"
+		"def d = 3 - -1;\n"
+		"def e = 3 * (-1);\n"
+		"def f = !true;\n"
+		"def g = fn(x: Int) -> Int => -x;\n"
+		"def h = f(1)[0];\n";
+
+	const std::string formatted = FormatOrFail(source_code, "PrefixOperators.mmt");
+
+	CHECK(formatted == source_code);
+}

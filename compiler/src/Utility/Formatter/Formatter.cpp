@@ -300,6 +300,9 @@ namespace
 		bool m_at_line_start = true;
 		TopLevelCategory m_last_top_level_category = TopLevelCategory::None;
 		std::optional<TokenName> m_previous_token;
+		bool m_prefix_operator_written = false;
+		// The last token that was code, which a comment does not reset.
+		std::optional<TokenName> m_previous_code_token;
 		std::vector<Context> m_contexts;
 		std::vector<MatchContext> m_match_contexts;
 
@@ -537,7 +540,10 @@ namespace
 				return;
 			}
 
-			if (current == TokenName::LEFT_PAREN || current == TokenName::LEFT_BRACKET)
+			// A call or an index sits against what it applies to; a group, a tuple or an
+			// array where an operand starts does not. `>` closes a type's arguments.
+			if ((current == TokenName::LEFT_PAREN || current == TokenName::LEFT_BRACKET)
+				&& (!IsInPrefixPosition() || previous == TokenName::RIGHT_ANGLE))
 			{
 				return;
 			}
@@ -552,19 +558,8 @@ namespace
 				return;
 			}
 
-			if (IsUnaryPrefix(current)
-				&& (IsOperator(previous)
-					|| previous == TokenName::LEFT_PAREN
-					|| previous == TokenName::LEFT_BRACKET
-					|| previous == TokenName::LEFT_BRACE
-					|| previous == TokenName::COMMA
-					|| previous == TokenName::SINGLE_SEMICOLON
-					|| previous == TokenName::THEN
-					|| previous == TokenName::ELSE
-					|| previous == TokenName::FAT_ARROW
-					|| previous == TokenName::WITH
-					|| previous == TokenName::CASE
-					|| previous == TokenName::IN))
+			// A prefix operator sits against its operand: `-1`, `!done`.
+			if (m_prefix_operator_written && IsUnaryPrefix(previous))
 			{
 				return;
 			}
@@ -572,13 +567,44 @@ namespace
 			m_output.push_back(' ');
 		}
 
+		// `-` and `+` are prefix operators where an operand, not an operator, would end
+		// what came before them.
+		void RememberToken(TokenName token_name)
+		{
+			m_previous_token = token_name;
+			m_previous_code_token = token_name;
+		}
+
+		[[nodiscard]] bool IsInPrefixPosition() const
+		{
+			if (!m_previous_code_token.has_value())
+			{
+				return true;
+			}
+
+			const TokenName previous = *m_previous_code_token;
+			return IsOperator(previous)
+				|| previous == TokenName::LEFT_PAREN
+				|| previous == TokenName::LEFT_BRACKET
+				|| previous == TokenName::LEFT_BRACE
+				|| previous == TokenName::COMMA
+				|| previous == TokenName::SINGLE_SEMICOLON
+				|| previous == TokenName::SINGLE_COLON
+				|| previous == TokenName::CASE
+				|| previous == TokenName::IF
+				|| previous == TokenName::MATCH
+				|| previous == TokenName::LEFT_ARROW;
+		}
+
 		void WriteTokenText(const Token& token)
 		{
+			const bool prefix_operator = IsUnaryPrefix(token.m_token_name) && IsInPrefixPosition();
 			WriteCurrentIndent();
 			MaybeWriteSpace(token.m_token_name);
 			m_output += TokenText(token);
 			m_at_line_start = false;
-			m_previous_token = token.m_token_name;
+			RememberToken(token.m_token_name);
+			m_prefix_operator_written = prefix_operator;
 		}
 
 		void FormatToken(const std::vector<Token>& tokens, size_t index)
@@ -606,7 +632,7 @@ namespace
 				MaybeWriteSpace(token_name);
 				m_output.push_back('{');
 				m_at_line_start = false;
-				m_previous_token = token_name;
+				RememberToken(token_name);
 				if (inline_brace)
 				{
 					m_contexts.push_back(Context{ ContextKind::InlineBrace, m_paren_depth, m_bracket_depth, m_block_depth });
@@ -634,7 +660,7 @@ namespace
 					}
 					m_output += " }";
 					m_at_line_start = false;
-					m_previous_token = token_name;
+					RememberToken(token_name);
 					m_contexts.pop_back();
 					return;
 				}
@@ -648,7 +674,7 @@ namespace
 				WriteCurrentIndent();
 				m_output.push_back('}');
 				m_at_line_start = false;
-				m_previous_token = token_name;
+				RememberToken(token_name);
 				if (!m_contexts.empty())
 				{
 					m_contexts.pop_back();
@@ -724,7 +750,7 @@ namespace
 				m_output += TokenText(token);
 				m_output.push_back(' ');
 				m_at_line_start = false;
-				m_previous_token = token_name;
+				RememberToken(token_name);
 				return;
 			case TokenName::WITH:
 				WriteTokenText(token);
