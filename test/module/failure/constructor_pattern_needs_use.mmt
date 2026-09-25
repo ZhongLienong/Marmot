@@ -1,0 +1,18 @@
+module ConstructorPatternNeedsUse
+
+// In an expression `Shade::Dark(1)` needs `use ShapesLib.{Shade}`; a pattern found the
+// union by searching every imported module and took it without one.
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../success/shapes_lib.mmt"
+}
+
+def Level = fn(shade: ShapesLib::Shade) -> Int =>
+	match shade with
+	case Shade::Dark(level) => level
+	case _ => 0
+;
+
+IO::PrintLine(Level(ShapesLib::Shade::Dark(7)) as Text);

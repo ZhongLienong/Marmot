@@ -12,8 +12,8 @@ import
 
 def Level = fn(shade: ShapesLib::Shade) -> Int =>
 	match shade with
-	case Shade::Light() => 0
-	case Shade::Dark(level) => level
+	case ShapesLib::Shade::Light() => 0
+	case ShapesLib::Shade::Dark(level) => level
 ;
 
 def Origin = fn() -> ShapesLib::Point => ShapesLib::Point(0, 0);

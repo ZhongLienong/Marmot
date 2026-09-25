@@ -1,0 +1,6 @@
+Compilation failed :(
+Parser Error at test/module/failure/constructor_pattern_needs_use.mmt:14
+   |
+14 | 	case Shade::Dark(level) => level
+   |       ^^^^^ 'Shade' is not in scope. It is exported by 'ShapesLib': write 'ShapesLib::Shade', or bring it into scope with 'use ShapesLib.{Shade}'.
+   |

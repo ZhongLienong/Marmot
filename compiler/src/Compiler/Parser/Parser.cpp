@@ -5438,14 +5438,19 @@ MidoriResult::PatternResult Parser::ParsePattern()
 							}
 						}
 
-						if (!is_constructor)
+						// `Module::Type::Member`, as an expression names it: the type is looked
+						// up in that module only. A bare `Type::Member` needs the type to be this
+						// module's or `use`d, as it does in an expression.
+						const size_t member_separator = raw_name.rfind(NameSeparator);
+						if (!is_constructor && member_separator != separator_pos)
 						{
-							for (const auto& [mod_name, env] : m_context.m_imported_type_signatures)
+							const std::string type_path = raw_name.substr(0, member_separator);
+							const std::string module_name = ExtractQualifier(type_path);
+							if (m_context.m_imported_type_signatures.contains(module_name))
 							{
-								if (resolve_imported_constructor(env))
-								{
-									break;
-								}
+								lookup_base = ExtractSymbolName(type_path);
+								separator_pos = member_separator;
+								static_cast<void>(resolve_imported_constructor(m_context.m_imported_type_signatures.at(module_name)));
 							}
 						}
 					}
