@@ -3118,6 +3118,37 @@ MidoriResult::ExpressionResult Parser::ParseForExpression()
 		);
 }
 
+// A second `for` at the comprehension's own level, before its closing bracket.
+std::optional<int> Parser::FindSecondComprehensionFor(int offset)
+{
+	int depth = 0;
+	while (true)
+	{
+		const Token::Name current = Peek(offset).m_token_name;
+		if (current == Token::Name::END_OF_FILE || offset > MAX_ARRAY_SIZE)
+		{
+			return std::nullopt;
+		}
+		if (current == Token::Name::LEFT_BRACKET || current == Token::Name::LEFT_PAREN || current == Token::Name::LEFT_BRACE)
+		{
+			depth += 1;
+		}
+		else if (current == Token::Name::RIGHT_BRACKET || current == Token::Name::RIGHT_PAREN || current == Token::Name::RIGHT_BRACE)
+		{
+			if (depth == 0)
+			{
+				return std::nullopt;
+			}
+			depth -= 1;
+		}
+		else if (current == Token::Name::FOR && depth == 0)
+		{
+			return offset;
+		}
+		offset += 1;
+	}
+}
+
 Parser::ArrayComprehensionProbe Parser::ProbeArrayComprehension()
 {
 	// Look ahead for a likely comprehension boundary at bracket depth 0.
@@ -3187,6 +3218,7 @@ Parser::ArrayComprehensionProbe Parser::ProbeArrayComprehension()
 			{
 				probe.m_loop_variable_offset = offset + 1;
 			}
+			probe.m_second_for_offset = FindSecondComprehensionFor(offset + 1);
 			return probe;
 		}
 		else if (current == Token::Name::IDENTIFIER_LITERAL && at_top_level && offset > 0 && Peek(offset + 1).m_token_name == Token::Name::IN)
@@ -3219,6 +3251,10 @@ MidoriResult::ExpressionResult Parser::ParseArrayComprehension(Token& bracket, c
 
 	// Without a name after `for` the element cannot be read either: it would report the
 	// names it uses as undefined, far from the mistake.
+	if (probe.m_second_for_offset.has_value())
+	{
+		return std::unexpected(GenerateParserError("A comprehension has one 'for'. For every pair of items, put one comprehension inside another and flatten, or recurse over the outer items.", Peek(probe.m_second_for_offset.value())));
+	}
 	if (probe.m_for_offset.has_value() && !probe.m_loop_variable_offset.has_value())
 	{
 		return std::unexpected(GenerateParserError("A comprehension's 'for' binds one name. To take each item apart, destructure it in the element: '[{ def (a, b) = pair; a + b } for pair in pairs]'.", Peek(probe.m_for_offset.value() + 1)));

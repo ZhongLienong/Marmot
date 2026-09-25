@@ -211,6 +211,7 @@ private:
 		bool m_is_candidate = false;
 		std::optional<int> m_loop_variable_offset = std::nullopt;
 		std::optional<int> m_for_offset = std::nullopt;
+		std::optional<int> m_second_for_offset = std::nullopt;
 	};
 
 	enum class ImportedSymbolAccess
@@ -693,6 +694,7 @@ private:
 	std::optional<int> RegisterHiddenLocal(const std::string&);
 
 	ArrayComprehensionProbe ProbeArrayComprehension();
+	std::optional<int> FindSecondComprehensionFor(int offset);
 
 	MidoriResult::TypeResult ParseType(bool is_foreign = false);
 
