@@ -526,6 +526,17 @@ SCENARIOS: list[tuple[str, Any]] = [
 ]
 
 
+def cleanup_cli_artifacts(root: Path) -> None:
+    patterns = ("*.ppm", "*.mmc", "*.mmc.json")
+    for pattern in patterns:
+        for path in root.glob(pattern):
+            if path.is_file():
+                try:
+                    path.unlink()
+                except OSError:
+                    pass
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="Run Marmot CLI contract checks.")
     add_build_arguments(parser)
@@ -541,25 +552,28 @@ def main(argv: list[str]) -> int:
     print(f"Build: {runner.build_config}")
 
     failures: list[tuple[str, str]] = []
-    for name, scenario in SCENARIOS:
-        try:
-            scenario(runner)
-            print(f"[OK] {name}")
-        except AssertionError as exc:
-            print(f"[FAIL] {name}")
-            if args.verbose:
-                print(str(exc))
-            failures.append((name, str(exc)))
+    try:
+        for name, scenario in SCENARIOS:
+            try:
+                scenario(runner)
+                print(f"[OK] {name}")
+            except AssertionError as exc:
+                print(f"[FAIL] {name}")
+                if args.verbose:
+                    print(str(exc))
+                failures.append((name, str(exc)))
 
-    if failures:
-        print(f"\n[FAILED] {len(failures)} CLI contract check(s) failed.")
-        if not args.verbose:
-            for name, message in failures:
-                print(f"- {name}: {message}")
-        return 1
+        if failures:
+            print(f"\n[FAILED] {len(failures)} CLI contract check(s) failed.")
+            if not args.verbose:
+                for name, message in failures:
+                    print(f"- {name}: {message}")
+            return 1
 
-    print(f"\n[SUCCESS] {len(SCENARIOS)} CLI contract check(s) passed.")
-    return 0
+        print(f"\n[SUCCESS] {len(SCENARIOS)} CLI contract check(s) passed.")
+        return 0
+    finally:
+        cleanup_cli_artifacts(repo_root())
 
 
 if __name__ == "__main__":

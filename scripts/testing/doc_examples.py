@@ -26,6 +26,7 @@ import argparse
 import json
 import os
 import shlex
+import shutil
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -37,6 +38,20 @@ from lib.host import REPO_ROOT, prelude_search_path
 from lib.presets import BuildTree, add_build_arguments
 from lib.program import build_and_run
 from testing.language import TestRunner
+
+
+def cleanup_doc_artifacts(root: Path) -> None:
+    patterns = (".doc_example_*.mmt", "*.ppm", "*.mmc", "*.mmc.json")
+    for pattern in patterns:
+        for file in root.glob(pattern):
+            if file.is_file():
+                try:
+                    file.unlink()
+                except OSError:
+                    pass
+    doc_examples_dir = root / ".doc_examples"
+    if doc_examples_dir.is_dir():
+        shutil.rmtree(doc_examples_dir, ignore_errors=True)
 
 
 @dataclass(frozen=True)
@@ -407,7 +422,12 @@ def main(argv: list[str]) -> int:
     print(f"Executable: {runner.midori_exe}")
     print(f"Build: {runner.build_config}")
 
-    failures = [error for example in examples if (error := run_example(root, runner, example, args.verbose)) is not None]
+    failures = []
+    try:
+        failures = [error for example in examples if (error := run_example(root, runner, example, args.verbose)) is not None]
+    finally:
+        cleanup_doc_artifacts(root)
+
     if failures:
         print(f"\n[FAILED] {len(failures)} doc example(s) failed.")
         return 1

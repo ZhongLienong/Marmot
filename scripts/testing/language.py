@@ -18,6 +18,7 @@ Usage:
 import argparse
 import json
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -33,6 +34,37 @@ from lib.presets import BuildTree, add_build_arguments
 from lib.program import build_and_run
 
 TIMEOUT_SECONDS = 30
+
+
+def cleanup_language_test_artifacts(root: Path, extra_files: set[Path] | None = None) -> None:
+    patterns = (
+        "*.ppm",
+        "*.mmc",
+        "*.mmc.json",
+        "midori_phase3_io_*",
+        "midori_phase8_doc_*",
+    )
+    for pattern in patterns:
+        for path in root.glob(pattern):
+            if path.is_file():
+                try:
+                    path.unlink()
+                except OSError:
+                    pass
+            elif path.is_dir():
+                shutil.rmtree(path, ignore_errors=True)
+    for dir_path in root.glob("midori_phase3_missing_dir_*"):
+        if dir_path.is_dir():
+            shutil.rmtree(dir_path, ignore_errors=True)
+    if extra_files:
+        for path in extra_files:
+            try:
+                if path.is_file():
+                    path.unlink()
+                elif path.is_dir():
+                    shutil.rmtree(path, ignore_errors=True)
+            except OSError:
+                pass
 
 
 @dataclass
@@ -139,7 +171,12 @@ class TestRunner:
             MARMOT_TEST_WARNING_FORMAT="machine" if machine_warnings else None,
         )
         command_path = test_path.resolve().relative_to(self.root_dir).as_posix()
-        return build_and_run(self.midori_exe, command_path, cwd=self.root_dir, env=environment, timeout=TIMEOUT_SECONDS)
+        files_before = {p for p in self.root_dir.iterdir() if p.is_file()}
+        try:
+            return build_and_run(self.midori_exe, command_path, cwd=self.root_dir, env=environment, timeout=TIMEOUT_SECONDS)
+        finally:
+            files_after = {p for p in self.root_dir.iterdir() if p.is_file()}
+            cleanup_language_test_artifacts(self.root_dir, extra_files=files_after - files_before)
 
     def run_test(self, test_path: Path) -> TestResult:
         """Run a single test file."""
@@ -379,7 +416,10 @@ def main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
 
     runner = TestRunner(BuildTree.from_args(args), verbose=args.verbose)
-    return runner.run_all_tests(category=args.category, pattern=args.pattern, test_file=args.test)
+    try:
+        return runner.run_all_tests(category=args.category, pattern=args.pattern, test_file=args.test)
+    finally:
+        cleanup_language_test_artifacts(REPO_ROOT)
 
 
 if __name__ == "__main__":

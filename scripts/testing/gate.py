@@ -23,6 +23,7 @@ Examples:
 from __future__ import annotations
 
 import argparse
+import shutil
 import sys
 import time
 from pathlib import Path
@@ -31,10 +32,43 @@ from typing import Callable
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from lib import console
+from lib.host import REPO_ROOT
 from lib.presets import BuildTree, add_build_arguments
 from testing import benchmarks, cli_contracts, doc_examples, formatting, language, layering, tool, unit
 
 STEPS = ["layering", "build", "unit", "docs", "cli", "format", "benchmarks", "tool", "language"]
+
+
+def cleanup_all_artifacts(root: Path) -> None:
+    patterns = (
+        "*.ppm",
+        "*.mmc",
+        "*.mmc.json",
+        ".doc_example_*.mmt",
+        "midori_phase3_io_*",
+        "midori_phase8_doc_*",
+    )
+    for pattern in patterns:
+        for path in root.glob(pattern):
+            if path.is_file():
+                try:
+                    path.unlink()
+                except OSError:
+                    pass
+            elif path.is_dir():
+                shutil.rmtree(path, ignore_errors=True)
+        for path in (root / "benchmarks").glob(pattern):
+            if path.is_file():
+                try:
+                    path.unlink()
+                except OSError:
+                    pass
+    for dir_path in root.glob("midori_phase3_missing_dir_*"):
+        if dir_path.is_dir():
+            shutil.rmtree(dir_path, ignore_errors=True)
+    doc_examples_dir = root / ".doc_examples"
+    if doc_examples_dir.is_dir():
+        shutil.rmtree(doc_examples_dir, ignore_errors=True)
 
 
 def tree_arguments(args: argparse.Namespace) -> list[str]:
@@ -78,20 +112,23 @@ def main(argv: list[str]) -> int:
     chosen = [step for step in STEPS if (not args.only or step in args.only) and step not in args.skip]
     runners = steps(args, tree)
     timings: list[tuple[str, float]] = []
-    for step in chosen:
-        print(f"\n{console.Color.BOLD}{console.Color.BLUE}== {step} =={console.Color.RESET}", flush=True)
-        start = time.perf_counter()
-        exit_code = runners[step]()
-        timings.append((step, time.perf_counter() - start))
-        if exit_code != 0:
-            console.fail(f"gate stopped at '{step}' (exit {exit_code})")
-            return exit_code
+    try:
+        for step in chosen:
+            print(f"\n{console.Color.BOLD}{console.Color.BLUE}== {step} =={console.Color.RESET}", flush=True)
+            start = time.perf_counter()
+            exit_code = runners[step]()
+            timings.append((step, time.perf_counter() - start))
+            if exit_code != 0:
+                console.fail(f"gate stopped at '{step}' (exit {exit_code})")
+                return exit_code
 
-    print()
-    for step, seconds in timings:
-        console.ok(f"{step:<12}{seconds:7.1f}s")
-    console.ok(f"gate passed on {tree.preset}")
-    return 0
+        print()
+        for step, seconds in timings:
+            console.ok(f"{step:<12}{seconds:7.1f}s")
+        console.ok(f"gate passed on {tree.preset}")
+        return 0
+    finally:
+        cleanup_all_artifacts(REPO_ROOT)
 
 
 if __name__ == "__main__":

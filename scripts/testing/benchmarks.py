@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import subprocess
 import sys
 import time
@@ -30,6 +31,32 @@ from lib.host import REPO_ROOT, checkout_environment
 from lib.presets import BuildTree, add_build_arguments
 from lib.program import build_and_run
 from testing.language import TestRunner
+
+
+def cleanup_benchmark_artifacts(root: Path, extra_files: set[Path] | None = None) -> None:
+    patterns = ("*.ppm", "*.mmc", "*.mmc.json")
+    for pattern in patterns:
+        for path in root.glob(pattern):
+            if path.is_file():
+                try:
+                    path.unlink()
+                except OSError:
+                    pass
+        for path in (root / "benchmarks").glob(pattern):
+            if path.is_file():
+                try:
+                    path.unlink()
+                except OSError:
+                    pass
+    if extra_files:
+        for path in extra_files:
+            try:
+                if path.is_file():
+                    path.unlink()
+                elif path.is_dir():
+                    shutil.rmtree(path, ignore_errors=True)
+            except OSError:
+                pass
 
 
 def repo_root() -> Path:
@@ -74,10 +101,14 @@ def check_benchmark(root: Path, midori_exe: Path, benchmark: Path, env: dict[str
 def run_benchmark(root: Path, midori_exe: Path, benchmark: Path, env: dict[str, str], timeout: float) -> Optional[str]:
     relative_path = str(benchmark.relative_to(root))
     start = time.perf_counter()
+    files_before = {p for p in root.iterdir() if p.is_file()}
     try:
         completed = build_and_run(midori_exe, relative_path, cwd=root, env=env, timeout=timeout)
     except subprocess.TimeoutExpired:
         return f"did not finish within {timeout:.0f}s"
+    finally:
+        files_after = {p for p in root.iterdir() if p.is_file()}
+        cleanup_benchmark_artifacts(root, extra_files=files_after - files_before)
 
     elapsed = time.perf_counter() - start
     for line in (completed.stdout + completed.stderr).splitlines():
@@ -121,25 +152,28 @@ def main(argv: list[str]) -> int:
 
     env = checkout_environment()
     failures = 0
-    for benchmark in benchmarks:
-        name = benchmark.relative_to(root).as_posix()
-        failure = check_benchmark(root, runner.midori_exe, benchmark, env)
-        if failure is None and args.run:
-            print(f"[RUN] {name}")
-            failure = run_benchmark(root, runner.midori_exe, benchmark, env, args.timeout)
-        if failure is None:
-            print(f"[OK] {name}")
-        else:
-            failures += 1
-            print(f"[FAIL] {name} {failure}")
+    try:
+        for benchmark in benchmarks:
+            name = benchmark.relative_to(root).as_posix()
+            failure = check_benchmark(root, runner.midori_exe, benchmark, env)
+            if failure is None and args.run:
+                print(f"[RUN] {name}")
+                failure = run_benchmark(root, runner.midori_exe, benchmark, env, args.timeout)
+            if failure is None:
+                print(f"[OK] {name}")
+            else:
+                failures += 1
+                print(f"[FAIL] {name} {failure}")
 
-    if failures:
-        print(f"\n[FAILED] {failures} of {len(benchmarks)} program(s) failed.")
-        return 1
+        if failures:
+            print(f"\n[FAILED] {failures} of {len(benchmarks)} program(s) failed.")
+            return 1
 
-    action = "compiled and ran" if args.run else "compiled cleanly"
-    print(f"\n[SUCCESS] {len(benchmarks)} program(s) {action}.")
-    return 0
+        action = "compiled and ran" if args.run else "compiled cleanly"
+        print(f"\n[SUCCESS] {len(benchmarks)} program(s) {action}.")
+        return 0
+    finally:
+        cleanup_benchmark_artifacts(root)
 
 
 if __name__ == "__main__":
