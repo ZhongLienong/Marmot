@@ -5670,16 +5670,6 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 	}
 
 	GenericFunctionInfo& generic_info = generic_it->second;
-	std::string specialized_name = base_name + "<"s;
-	for (size_t i = 0u; i < concrete_type_names.size(); i += 1u)
-	{
-		if (i > 0u)
-		{
-			specialized_name += ","s;
-		}
-		specialized_name += concrete_type_names[i];
-	}
-	specialized_name += ">"s;
 
 	// Build parameter name -> concrete type map
 	TypeEnvironment prev_param_map = m_param_type_map;
@@ -5702,6 +5692,14 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 	{
 		DeduceGenericTypesRecursive(generic_info.m_param_types[i], concrete_arg_types[i], generic_type_map, visited);
 	}
+
+	// Named by its type arguments, as the source writes it: Sort<Int>. The type
+	// variables were made in the order the parameters were declared.
+	std::vector<std::pair<std::string, std::shared_ptr<MidoriType>>> type_arguments(generic_type_map.cbegin(), generic_type_map.cend());
+	std::ranges::sort(type_arguments, std::less<>(), [](const std::pair<std::string, std::shared_ptr<MidoriType>>& argument) { return std::pair(argument.first.size(), argument.first); });
+	const std::string specialized_name = base_name + "<"s
+		+ (type_arguments | std::views::transform([](const std::pair<std::string, std::shared_ptr<MidoriType>>& argument) { return argument.second->DisplayString(); }) | std::views::join_with(", "s) | std::ranges::to<std::string>())
+		+ ">"s;
 
 	std::unordered_map<std::string, std::vector<ResolvedMethodCandidate>> prev_resolution_map = m_method_resolution_map;
 	m_method_resolution_map.clear();
@@ -5954,17 +5952,6 @@ std::optional<std::string> CodeGenerator::ResolveMethodNameForCall(const std::st
 	const std::vector<ResolvedMethodCandidate>& candidates = it->second;
 	if (candidates.empty())
 	{
-		return std::nullopt;
-	}
-
-	if (call.m_arguments.empty())
-	{
-		if (candidates.size() == 1u && candidates[0u].m_has_instance)
-		{
-			return candidates[0u].m_resolved_name;
-		}
-
-		AddError(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorAmbiguousMethodResolution, std::format("Ambiguous method '{}': cannot resolve a method call with no arguments.", callee_name), line, m_file_name, m_source_lines));
 		return std::nullopt;
 	}
 

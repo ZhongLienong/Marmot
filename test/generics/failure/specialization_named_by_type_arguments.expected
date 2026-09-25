@@ -1,0 +1,11 @@
+error[IndexOutOfBounds]: Index out of bounds at index: 2.
+ --> test/generics/failure/specialization_named_by_type_arguments.mmt:9
+  |
+9 | 	if items[index] == wanted then index else Find(items, wanted, index + 1);
+  | Index out of bounds at index: 2.
+  |
+stack trace:
+  at Find<Text> [module SpecializationNamedByTypeArguments] in test/generics/failure/specialization_named_by_type_arguments.mmt:9
+    	if items[index] == wanted then index else Find(items, wanted, index + 1);
+  at main [module SpecializationNamedByTypeArguments] in test/generics/failure/specialization_named_by_type_arguments.mmt:11
+    IO::PrintLine(Find(["a", "b"], "z", 0) as Text);

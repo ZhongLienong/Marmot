@@ -1,0 +1,11 @@
+module SpecializationNamedByTypeArguments
+
+// A stack trace names a specialization by its type arguments. It was named by its
+// argument types: Find<Array<Text>,Text,Int> for Find<Text>.
+
+import { "../../../MarmotPrelude/IO.mmt", "../../../MarmotPrelude/Equatable.mmt" }
+
+def Find = fn<T>(items: Array<T>, wanted: T, index: Int) -> Int where Equatable<T> =>
+	if items[index] == wanted then index else Find(items, wanted, index + 1);
+
+IO::PrintLine(Find(["a", "b"], "z", 0) as Text);
