@@ -102,6 +102,8 @@ private:
 	// without a complete signature is in m_later_unannotated instead.
 	TypeEnvironment m_later_definitions;
 	std::unordered_set<std::string> m_later_unannotated;
+	// Top-level definitions whose own check failed: they have no type to use.
+	std::unordered_set<std::string> m_failed_definitions;
 	TypeSubstitution m_type_substitution;
 	std::unordered_map<std::string, ClassInfo> m_classes;
 	std::unordered_map<InstanceKey, InstanceInfo, InstanceKeyHash> m_instances;

@@ -1,0 +1,11 @@
+Compilation failed :(
+Type Checker Error at test/definition/failure/use_of_a_definition_that_failed.mmt:8
+  |
+8 | def AddOne = fn(x) => x + 1;
+  |              ^^ Function expression type error: could not infer all lambda parameter or return types
+  |
+Type Checker Error at test/definition/failure/use_of_a_definition_that_failed.mmt:10
+   |
+10 | IO::PrintLine(AddOne(4) as Text);
+   |               ^^^^^^ 'AddOne' has no type here: its definition did not type-check. Fix the error reported there.
+   |

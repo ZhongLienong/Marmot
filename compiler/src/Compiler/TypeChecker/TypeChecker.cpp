@@ -3459,6 +3459,17 @@ MidoriResult::TypeCheckerResult TypeChecker::TypeCheck()
 			else
 			{
 				m_pending_constructions.clear();
+				if (statement->IsStatement<MidoriStatement::VariableDefinition>())
+				{
+					m_failed_definitions.insert(statement->GetStatement<MidoriStatement::VariableDefinition>().m_name.m_lexeme);
+				}
+				else if (statement->IsStatement<MidoriStatement::TupleDefinition>())
+				{
+					for (const Token& name : statement->GetStatement<MidoriStatement::TupleDefinition>().m_names)
+					{
+						m_failed_definitions.insert(name.m_lexeme);
+					}
+				}
 			}
 			collect(std::move(result));
 		}
@@ -6615,6 +6626,11 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::NameAccess& v
 	{
 		variable.m_type_data = Freshen(later->second);
 		return variable.m_type_data;
+	}
+
+	if (m_failed_definitions.contains(variable.m_name.m_lexeme))
+	{
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUndefinedName, std::format("'{}' has no type here: its definition did not type-check. Fix the error reported there.", variable.m_name.m_lexeme), variable.m_name, m_file_name, m_source_lines));
 	}
 
 	if (m_later_unannotated.contains(variable.m_name.m_lexeme))

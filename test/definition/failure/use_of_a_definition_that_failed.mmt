@@ -1,0 +1,10 @@
+module UseOfADefinitionThatFailed
+
+// AddOne's parameter type cannot be inferred, so its definition fails. The use below it
+// then said AddOne "is defined further down", which it is not.
+
+import { "../../../MarmotPrelude/IO.mmt" }
+
+def AddOne = fn(x) => x + 1;
+
+IO::PrintLine(AddOne(4) as Text);
