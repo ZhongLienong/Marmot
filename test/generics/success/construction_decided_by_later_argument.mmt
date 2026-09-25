@@ -1,0 +1,48 @@
+module ConstructionDecidedByLaterArgument
+
+// A construction whose type arguments only a later argument decides. `Slot::Empty()` and
+// `Heap::Leaf()` are checked before the array or the value that fixes their parameters,
+// and were rejected there as uninferred. A construction is now judged at the end of its
+// top-level statement, and is an error only if it is still undecided then.
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/ArrayUtil.mmt",
+}
+
+type Slot<K, V> = Empty | Occupied(K, V);
+
+def PrependTo = fn<T>(value : T, items : Array<T>) -> Array<T> => ArrayUtil::Concat([value], items);
+
+def slots : Array<Slot<Int, Text>> = [Slot::Occupied(1, "one")];
+
+def grown = PrependTo(Slot::Empty(), slots);
+IO::PrintLine(#grown as Text);
+
+type Heap<T> = Leaf | Node(T, Heap<T>);
+
+def Push = fn<T>(heap : Heap<T>, value : T) -> Heap<T> => Heap::Node(value, heap);
+
+def Size = fn<T>(heap : Heap<T>) -> Int =>
+	match heap with
+		case Heap::Leaf() => 0
+		case Heap::Node(_, rest) => 1 + Size(rest);
+
+IO::PrintLine(Size(Push(Push(Heap::Leaf(), "a"), "b")) as Text);
+
+// An `if` whose first branch constructs and whose second decides the type.
+type Outcome<T, E> = Done(T) | Failed(E);
+
+def Check = fn(n : Int) -> Outcome<Int, Text> => if n > 0 then Outcome::Done(n) else Outcome::Failed("negative");
+
+def Pick = fn(n : Int) -> Int =>
+{
+	def picked = if n > 5 then Outcome::Done(n) else Check(n);
+	match picked with
+		case Outcome::Done(value) => value
+		case Outcome::Failed(_) => 0
+};
+
+IO::PrintLine(Pick(7) as Text);
+IO::PrintLine(Pick(-2) as Text);

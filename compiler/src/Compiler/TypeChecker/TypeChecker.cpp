@@ -2652,6 +2652,31 @@ TypeChecker::FresheningContext TypeChecker::MakeLambdaFresheningContext()
 // Deliberately excludes m_expected_expr_type: that is the type demanded of the expression
 // being checked, and it has already been unified into that expression's own type, so
 // feeding it back in would let an expression vouch for itself.
+std::vector<CompilerError> TypeChecker::SettlePendingConstructions()
+{
+	std::vector<CompilerError> errors;
+	for (PendingConstruction& pending : m_pending_constructions)
+	{
+		// What the enclosing definitions owned where the construction was checked, as
+		// those variables have since been decided.
+		std::unordered_set<int> owned_type_vars;
+		for (int type_var_id : pending.m_enclosing_type_variables)
+		{
+			std::unordered_set<int> resolved = CollectTypeVariableIds(ApplySubstitution(MidoriType::MakeTypeVariable(type_var_id)));
+			owned_type_vars.insert(resolved.cbegin(), resolved.cend());
+		}
+
+		pending.m_construct->m_type_data = ApplySubstitution(pending.m_construct->m_type_data);
+		const std::unordered_set<int> unresolved_type_vars = CollectTypeVariableIds(pending.m_construct->m_type_data);
+		if (!std::ranges::all_of(unresolved_type_vars, [&owned_type_vars](int type_var_id) { return owned_type_vars.contains(type_var_id); }))
+		{
+			errors.emplace_back(MidoriError::GenerateTypeCheckerErrorWithContext(std::format("Construct expression type error: could not infer all type arguments for '{}'", pending.m_type_name), pending.m_construct->m_data_name, m_file_name, m_source_lines));
+		}
+	}
+	m_pending_constructions.clear();
+	return errors;
+}
+
 std::unordered_set<int> TypeChecker::CollectEnclosingTypeVariableIds()
 {
 	std::unordered_set<int> enclosing_type_vars;
@@ -3426,8 +3451,18 @@ MidoriResult::TypeCheckerResult TypeChecker::TypeCheck()
 
 		for (std::unique_ptr<MidoriStatement>& statement : m_program_tree | std::views::filter(std::not_fn(is_declaration)))
 		{
-			collect(Evaluate(statement));
+			MidoriResult::TypeResult result = Evaluate(statement);
+			if (result.has_value())
+			{
+				std::ranges::move(SettlePendingConstructions(), std::back_inserter(errors));
+			}
+			else
+			{
+				m_pending_constructions.clear();
+			}
+			collect(std::move(result));
 		}
+		std::ranges::move(SettlePendingConstructions(), std::back_inserter(errors));
 
 		if (errors.empty())
 		{
@@ -6877,14 +6912,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Construct& co
 
 		if (!only_enclosing_type_vars_remain)
 		{
-			return std::unexpected(
-				MidoriError::GenerateTypeCheckerErrorWithContext(
-					std::format("Construct expression type error: could not infer all type arguments for '{}'", actual_type_name),
-					construct.m_data_name,
-					m_file_name,
-					m_source_lines
-				)
-			);
+			m_pending_constructions.emplace_back(&construct, actual_type_name, std::move(enclosing_type_vars));
 		}
 	}
 

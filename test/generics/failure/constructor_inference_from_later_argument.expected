@@ -1,6 +1,0 @@
-Compilation failed :(
-Type Checker Error at test/generics/failure/constructor_inference_from_later_argument.mmt:21
-   |
-21 | PrependTo(Slot::Empty(), slots);
-   |           ^^^^ Construct expression type error: could not infer all type arguments for 'Slot'
-   |

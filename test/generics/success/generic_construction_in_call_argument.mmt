@@ -13,10 +13,9 @@ module GenericConstructionInCallArgument
 // This is the shape the prelude's bucket tables use - MarmotPrelude/Collections/Map.mmt
 // and Set.mmt both append a fresh empty slot to an array of slots.
 //
-// A construction that nothing decides is still an error, and a later argument does not
-// decide an earlier one - see
-// test/generics/failure/constructor_inference_unowned_type_var.mmt and
-// test/generics/failure/constructor_inference_from_later_argument.mmt.
+// A construction that nothing decides is still an error - see
+// test/generics/failure/constructor_inference_unowned_type_var.mmt. A later argument may
+// decide an earlier one - see construction_decided_by_later_argument.mmt.
 
 import
 {

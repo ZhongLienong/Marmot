@@ -124,6 +124,15 @@ private:
 	// The type variables a generic definition's own parameters were freshened to, by
 	// name, while its body is checked: any type may stand for them.
 	std::vector<std::pair<int, std::string>> m_rigid_type_variables;
+	// Constructions whose type arguments were not yet known where they were checked; a
+	// later argument may still decide them. Settled after each top-level statement.
+	struct PendingConstruction
+	{
+		MidoriExpression::Construct* m_construct;
+		std::string m_type_name;
+		std::unordered_set<int> m_enclosing_type_variables;
+	};
+	std::vector<PendingConstruction> m_pending_constructions;
 	std::string m_file_name;
 	const std::vector<std::string>& m_source_lines;
 	std::shared_ptr<MidoriType> m_expected_return_type;
@@ -189,6 +198,7 @@ private:
 	FresheningContext MakeLambdaFresheningContext();
 
 	std::unordered_set<int> CollectEnclosingTypeVariableIds();
+	std::vector<CompilerError> SettlePendingConstructions();
 
 	MidoriResult::TypeResult TypeCheckGenericLambdaDefinition(MidoriStatement::VariableDefinition& def, MidoriExpression::Function& function);
 
