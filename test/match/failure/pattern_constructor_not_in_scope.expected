@@ -1,0 +1,6 @@
+Compilation failed :(
+Parser Error at test/match/failure/pattern_constructor_not_in_scope.mmt:14
+   |
+14 | 		case Shade::Light() => 0
+   |        ^^^^^ 'Shade' is not in scope. It is exported by 'ShapesLib': write 'ShapesLib::Shade', or bring it into scope with 'use ShapesLib.{Shade}'.
+   |

@@ -5302,104 +5302,18 @@ MidoriResult::PatternResult Parser::ParsePattern()
 				{
 					resolved.m_lexeme = Mangle(resolved.m_lexeme);
 
-					bool is_union = false;
-					bool is_constructor = false;
-					for (Parser::Scopes::reverse_iterator it = m_state.m_scopes.rbegin(); it != m_state.m_scopes.rend(); ++it)
+					// A pattern names a constructor by the rule an expression does: in scope,
+					// through a `use`, or as Module::Record and Module::Union::Member.
+					ConstructorResolutionResult resolution = ResolveConstructorName(resolved, resolved.m_lexeme);
+					if (!resolution.has_value())
 					{
-						if (it->m_union_constructors.contains(resolved.m_lexeme))
-						{
-							is_union = true;
-							is_constructor = true;
-							break;
-						}
-						if (it->m_struct_constructors.contains(resolved.m_lexeme))
-						{
-							is_union = false;
-							is_constructor = true;
-							break;
-						}
+						return std::unexpected(resolution.error());
 					}
 
-					if (!is_constructor)
+					if (resolution.value().has_value())
 					{
-						std::string raw_name = resolved.m_lexeme;
-						std::string lookup_base = raw_name;
-						size_t separator_pos = raw_name.find(NameSeparator);
-						if (separator_pos != std::string::npos)
-						{
-							lookup_base = raw_name.substr(0, separator_pos);
-						}
-
-						const std::function<bool(const TypeEnvironment&)> resolve_imported_constructor = [&](const TypeEnvironment& env) -> bool
-						{
-							std::string type_name = lookup_base;
-							if (!env.contains(type_name))
-							{
-								return false;
-							}
-
-							std::shared_ptr<MidoriType> type = env.at(type_name);
-							if (type->IsType<MidoriType::UnionType>())
-							{
-								if (separator_pos == std::string::npos)
-								{
-									return false;
-								}
-
-								std::string constructor_part = raw_name.substr(separator_pos + NameSeparator.length());
-								const MidoriType::UnionType& union_type = type->GetType<MidoriType::UnionType>();
-								std::string member_key = union_type.m_name + NameSeparator.data() + constructor_part;
-
-								if (union_type.m_member_info.contains(member_key))
-								{
-									resolved.m_lexeme = member_key;
-									is_union = true;
-									is_constructor = true;
-									return true;
-								}
-							}
-							else if (type->IsType<MidoriType::StructType>())
-							{
-								if (raw_name == type_name)
-								{
-									is_union = false;
-									is_constructor = true;
-									return true;
-								}
-							}
-
-							return false;
-						};
-
-						const UseImportResolution use_import_resolution = ResolveUseImport(lookup_base);
-						if (use_import_resolution.m_status == UseImportResolutionStatus::Ambiguous)
-						{
-							return std::unexpected(GenerateParserError(BuildAmbiguousUseImportError(lookup_base, use_import_resolution.m_conflicting_modules), identifier));
-						}
-
-						if (use_import_resolution.m_status == UseImportResolutionStatus::Resolved)
-						{
-							const std::string& module_name = use_import_resolution.m_module_name;
-							if (m_context.m_imported_type_signatures.contains(module_name))
-							{
-								static_cast<void>(resolve_imported_constructor(m_context.m_imported_type_signatures.at(module_name)));
-							}
-						}
-
-						if (!is_constructor)
-						{
-							for (const auto& [mod_name, env] : m_context.m_imported_type_signatures)
-							{
-								if (resolve_imported_constructor(env))
-								{
-									break;
-								}
-							}
-						}
-					}
-
-					if (is_constructor)
-					{
+						const bool is_union = !resolution.value()->m_is_struct;
+						resolved.m_lexeme = resolution.value()->m_constructor_name;
 						if (Match(Token::Name::LEFT_PAREN))
 						{
 							std::vector<std::unique_ptr<MidoriPattern>> args;
