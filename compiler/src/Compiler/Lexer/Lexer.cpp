@@ -346,17 +346,23 @@ MidoriResult::TokenResult Lexer::MatchString()
 
 MidoriResult::TokenResult Lexer::MatchNumber()
 {
-	if (IsHexPrefix())
-	{
-		return MatchPrefixedInteger(IsHexDigit);
-	}
+	MidoriResult::TokenResult number = IsHexPrefix()
+		? MatchPrefixedInteger(IsHexDigit)
+		: IsBinaryPrefix() ? MatchPrefixedInteger(IsBinaryDigit) : MatchDecimalNumber();
 
-	if (IsBinaryPrefix())
+	// A letter straight after a number would lex as a separate name, and the parser would
+	// report a missing comma or operator instead of the literal the author meant.
+	const char next = LookAhead(0);
+	if (number.has_value() && (IsAlpha(next) || next == '_'))
 	{
-		return MatchPrefixedInteger(IsBinaryDigit);
+		const char after = LookAhead(1);
+		const bool looks_like_exponent = (next == 'e' || next == 'E') && (IsDigit(after) || after == '+' || after == '-');
+		const std::string message = looks_like_exponent
+			? "A Float literal has no exponent: write the digits out, like 1500.0 or 0.0015."s
+			: "A number runs straight into a letter here. Put a space or an operator between them."s;
+		return std::unexpected(MidoriError::GenerateLexerErrorWithContext(message, m_cursor.m_line, BeginColumn(), m_source.m_file_name, m_source.m_lines));
 	}
-
-	return MatchDecimalNumber();
+	return number;
 }
 
 MidoriResult::TokenResult Lexer::MatchDecimalNumber()

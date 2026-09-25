@@ -1,0 +1,6 @@
+Compilation failed :(
+Lexer Error at test/literal/failure/number_runs_into_letters.mmt:5
+  |
+5 | def n = 12abc;
+  |         ^ A number runs straight into a letter here. Put a space or an operator between them.
+  |
