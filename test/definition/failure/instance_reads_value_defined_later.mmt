@@ -1,0 +1,21 @@
+module InstanceReadsValueDefinedLater
+
+// An instance method can be reached from any statement that dispatches, so the `<` below
+// may run Compare, which reads `factor` before its definition has run.
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/Orderable.mmt",
+}
+
+type Box = { n : Int };
+
+instance Orderable<Box>
+{
+	def Compare = fn(a : Box, b : Box) -> Int => (a.n - b.n) * factor;
+};
+
+IO::PrintLine((Box(1) < Box(2)) as Text);
+
+def factor = 3;

@@ -1,0 +1,29 @@
+module FunctionsAndInstancesExistBeforeStatementsRun
+
+// Every top-level function and instance method exists before the first statement runs.
+// An instance method could not name a helper defined below it, and a statement could
+// use `<` on Box above the instance: the checker allowed that, and the program read an
+// instance method that had not been made yet and crashed.
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/Orderable.mmt",
+}
+
+type Box = { n : Int };
+
+def factor = 3;
+
+IO::PrintLine((Box(1) < Box(2)) as Text);
+IO::PrintLine(Twice(21) as Text);
+
+instance Orderable<Box>
+{
+	def Compare = fn(a : Box, b : Box) -> Int => Scaled(a.n) - Scaled(b.n);
+};
+
+def Scaled = fn(n : Int) -> Int => n * factor;
+def Twice = fn(n : Int) -> Int => n * 2;
+
+IO::PrintLine((Box(3) < Box(2)) as Text);

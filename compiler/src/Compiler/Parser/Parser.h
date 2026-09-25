@@ -170,6 +170,11 @@ private:
 		std::unordered_map<std::string, TopLevelDefinition> m_top_level_definitions;
 		std::vector<TopLevelReference> m_top_level_references;
 		int m_statement_index = 0;
+		// Instances, whose methods exist before any statement runs, and the statements
+		// that may call one: anything but a definition built of literals and names.
+		std::unordered_set<int> m_instance_statements;
+		std::unordered_set<int> m_dispatching_statements;
+		std::unordered_map<int, Token> m_statement_tokens;
 		int m_function_depth = 0;
 		int m_current_token_index = 0;
 		int m_total_locals_in_curr_scope = 0;
@@ -645,6 +650,7 @@ private:
 	MidoriResult::TypeResult InstantiateUnfinishedType(const Token& type_name, const std::shared_ptr<MidoriType>& type_template, const std::vector<std::string>& generic_params, std::vector<std::shared_ptr<MidoriType>>&& type_args);
 
 	void RecordTopLevelDefinition(const MidoriStatement& statement, int statement_index);
+	static bool MayDispatch(const MidoriExpression& expression);
 
 	void RecordTopLevelReference(const Token& name);
 

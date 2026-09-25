@@ -213,6 +213,8 @@ private:
 	void EmitPopCount(int count, int line);
 
 	void EmitInstanceMethodDefinitions();
+	void HoistFunctionDefinitions();
+	static int HoistRank(const std::unique_ptr<MidoriStatement>& statement);
 
 	int CountPatternBindings(const MidoriPattern& pattern) const;
 

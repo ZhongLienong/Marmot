@@ -1732,6 +1732,43 @@ void CodeGenerator::EmitInstanceMethodDefinitions()
 	m_program_tree = std::move(rewritten);
 }
 
+// A top-level function and an instance's methods exist before any statement runs:
+// making one only builds a closure, which reads the globals it names when called. So
+// an instance can be used above its declaration, and a function called above its
+// definition, as the checker allows.
+void CodeGenerator::HoistFunctionDefinitions()
+{
+	std::ranges::stable_sort(m_program_tree, std::less<int>(), &CodeGenerator::HoistRank);
+}
+
+// Declarations and instances first, so a function's body can resolve the classes and
+// class methods it names, then top-level functions, then everything else in its
+// written order.
+int CodeGenerator::HoistRank(const std::unique_ptr<MidoriStatement>& statement)
+{
+	if (statement->IsStatement<MidoriStatement::Class>()
+		|| statement->IsStatement<MidoriStatement::Struct>()
+		|| statement->IsStatement<MidoriStatement::Union>()
+		|| statement->IsStatement<MidoriStatement::TypeAlias>()
+		|| statement->IsStatement<MidoriStatement::FunctionDefinition>()
+		|| statement->IsStatement<MidoriStatement::Instance>())
+	{
+		return 0;
+	}
+	if (!statement->IsStatement<MidoriStatement::VariableDefinition>())
+	{
+		return 2;
+	}
+
+	const MidoriStatement::VariableDefinition& def = statement->GetStatement<MidoriStatement::VariableDefinition>();
+	const bool is_function = !def.m_local_index.has_value()
+		&& !def.m_is_elided
+		&& def.m_value != nullptr
+		&& def.m_value->IsExpression<MidoriExpression::Function>()
+		&& def.m_value->GetExpression<MidoriExpression::Function>().m_generic_params.empty();
+	return is_function ? 1 : 2;
+}
+
 int CodeGenerator::CountPatternBindings(const MidoriPattern& pattern) const
 {
 	if (pattern.IsPattern<MidoriPattern::Binding>())
@@ -2188,6 +2225,7 @@ MidoriResult::CodeGeneratorResult CodeGenerator::GenerateModuleBytecode() &
 MidoriResult::CodeGeneratorResult CodeGenerator::GenerateModuleBytecode() &&
 {
 	EmitInstanceMethodDefinitions();
+	HoistFunctionDefinitions();
 	EnsureProcedureMetadataSize(0u);
 
 	struct ExportTracker

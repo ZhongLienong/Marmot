@@ -1,0 +1,6 @@
+Compilation failed :(
+Parser Error at test/definition/failure/instance_reads_value_defined_later.mmt:19
+   |
+19 | IO::PrintLine((Box(1) < Box(2)) as Text);
+   | ^^ This may use an instance method, and instance methods read 'factor', which is not defined until line 21. An instance can be used from any statement, so define 'factor' above the first statement that could use one.
+   |

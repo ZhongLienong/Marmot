@@ -1,3 +1,4 @@
+#include <set>
 #include <algorithm>
 #include <format>
 #include <fstream>
@@ -1513,6 +1514,35 @@ Parser::DeclaringTypeScope::~DeclaringTypeScope()
 	m_stack.pop_back();
 }
 
+// Whether evaluating this can call an instance method: through an operator, a call, a
+// conversion, an index, a loop or a match. Literals, names and the arrays and tuples
+// built of them cannot.
+bool Parser::MayDispatch(const MidoriExpression& expression)
+{
+	if (expression.IsExpression<MidoriExpression::Literal>() || expression.IsExpression<MidoriExpression::NameAccess>())
+	{
+		return false;
+	}
+	if (expression.IsExpression<MidoriExpression::Group>())
+	{
+		return MayDispatch(*expression.GetExpression<MidoriExpression::Group>().m_expr_in);
+	}
+	if (expression.IsExpression<MidoriExpression::UnaryPrefix>())
+	{
+		const MidoriExpression::UnaryPrefix& unary = expression.GetExpression<MidoriExpression::UnaryPrefix>();
+		return unary.m_op.m_token_name == Token::Name::HASH || MayDispatch(*unary.m_expr);
+	}
+	if (expression.IsExpression<MidoriExpression::Tuple>())
+	{
+		return std::ranges::any_of(expression.GetExpression<MidoriExpression::Tuple>().m_elements, [](const std::unique_ptr<MidoriExpression>& element) { return MayDispatch(*element); });
+	}
+	if (expression.IsExpression<MidoriExpression::Array>())
+	{
+		return std::ranges::any_of(expression.GetExpression<MidoriExpression::Array>().m_elems, [](const std::unique_ptr<MidoriExpression>& element) { return MayDispatch(*element); });
+	}
+	return !expression.IsExpression<MidoriExpression::Function>();
+}
+
 void Parser::RecordTopLevelDefinition(const MidoriStatement& statement, int statement_index)
 {
 	if (statement.IsStatement<MidoriStatement::VariableDefinition>())
@@ -1520,13 +1550,30 @@ void Parser::RecordTopLevelDefinition(const MidoriStatement& statement, int stat
 		const MidoriStatement::VariableDefinition& def = statement.GetStatement<MidoriStatement::VariableDefinition>();
 		const bool is_function = (def.m_value != nullptr) && def.m_value->IsExpression<MidoriExpression::Function>();
 		m_state.m_top_level_definitions.insert_or_assign(def.m_name.m_lexeme, TopLevelDefinition(statement_index, def.m_name.m_line, is_function));
+		if (def.m_value != nullptr && MayDispatch(*def.m_value))
+		{
+			m_state.m_dispatching_statements.insert(statement_index);
+		}
 	}
 	else if (statement.IsStatement<MidoriStatement::TupleDefinition>())
 	{
-		for (const Token& name : statement.GetStatement<MidoriStatement::TupleDefinition>().m_names)
+		const MidoriStatement::TupleDefinition& def_tuple = statement.GetStatement<MidoriStatement::TupleDefinition>();
+		for (const Token& name : def_tuple.m_names)
 		{
 			m_state.m_top_level_definitions.insert_or_assign(name.m_lexeme, TopLevelDefinition(statement_index, name.m_line, false));
 		}
+		if (MayDispatch(*def_tuple.m_value))
+		{
+			m_state.m_dispatching_statements.insert(statement_index);
+		}
+	}
+	else if (statement.IsStatement<MidoriStatement::Instance>())
+	{
+		m_state.m_instance_statements.insert(statement_index);
+	}
+	else if (statement.IsStatement<MidoriStatement::ExpressionStatement>())
+	{
+		m_state.m_dispatching_statements.insert(statement_index);
 	}
 	else if (statement.IsStatement<MidoriStatement::FunctionDefinition>())
 	{
@@ -1548,10 +1595,11 @@ void Parser::RecordTopLevelReference(const Token& name)
 	}
 }
 
-// Top-level statements run in order, and a function's body runs when it is
-// called. So a statement may use a definition only if it, and everything the
-// functions it reaches go on to read, is defined above the statement. That is
-// what makes naming a later definition from inside a function safe.
+// Top-level statements run in order. A function's body runs when it is called, and
+// every function and instance method exists before the first statement runs. So a
+// statement may use a value only if it, and every value the functions it reaches go
+// on to read, is defined above the statement. An instance method can be reached from
+// any statement that dispatches, so what instances read counts for all of those.
 std::optional<CompilerError> Parser::CheckDefinitionOrder()
 {
 	std::unordered_map<int, std::vector<const TopLevelReference*>> references_by_statement;
@@ -1560,72 +1608,107 @@ std::optional<CompilerError> Parser::CheckDefinitionOrder()
 		references_by_statement[reference.m_statement].push_back(&reference);
 	}
 
-	const std::unordered_set<int> function_statements = [this]()
+	std::unordered_set<int> not_executed = m_state.m_instance_statements;
+	for (const std::pair<const std::string, TopLevelDefinition>& definition : m_state.m_top_level_definitions)
 	{
-		std::unordered_set<int> statements;
-		for (const std::pair<const std::string, TopLevelDefinition>& definition : m_state.m_top_level_definitions)
+		if (definition.second.m_is_function)
 		{
-			if (definition.second.m_is_function)
-			{
-				statements.insert(definition.second.m_statement);
-			}
-		}
-		return statements;
-	}();
-
-	std::vector<int> executed_statements;
-	for (const std::pair<const int, std::vector<const TopLevelReference*>>& entry : references_by_statement)
-	{
-		if (!function_statements.contains(entry.first))
-		{
-			executed_statements.push_back(entry.first);
+			not_executed.insert(definition.second.m_statement);
 		}
 	}
-	std::ranges::sort(executed_statements);
+
+	std::vector<const TopLevelReference*> instance_references;
+	for (const int instance : m_state.m_instance_statements)
+	{
+		const std::unordered_map<int, std::vector<const TopLevelReference*>>::const_iterator body = references_by_statement.find(instance);
+		if (body != references_by_statement.cend())
+		{
+			instance_references.insert(instance_references.end(), body->second.cbegin(), body->second.cend());
+		}
+	}
+
+	std::set<int> executed_statements;
+	for (const std::pair<const int, std::vector<const TopLevelReference*>>& entry : references_by_statement)
+	{
+		if (!not_executed.contains(entry.first))
+		{
+			executed_statements.insert(entry.first);
+		}
+	}
+	if (!instance_references.empty())
+	{
+		executed_statements.insert(m_state.m_dispatching_statements.cbegin(), m_state.m_dispatching_statements.cend());
+	}
 
 	for (const int statement : executed_statements)
 	{
-		for (const TopLevelReference* reference : references_by_statement.at(statement))
+		// What this statement reaches: the names it uses, through each function on the
+		// way whatever that function names, and, if it may dispatch, what instances name.
+		struct Pending
 		{
-			// Walk what this use reaches: the definition itself, then, through
-			// each function on the way, whatever that function names.
-			std::vector<std::string> pending{ reference->m_name.m_lexeme };
-			std::unordered_set<std::string> visited;
-			while (!pending.empty())
+			std::string m_name;
+			const TopLevelReference* m_origin;
+			bool m_through_instance;
+		};
+		std::vector<Pending> pending;
+		const std::unordered_map<int, std::vector<const TopLevelReference*>>::const_iterator own = references_by_statement.find(statement);
+		if (own != references_by_statement.cend())
+		{
+			for (const TopLevelReference* reference : own->second)
 			{
-				const std::string name = std::move(pending.back());
-				pending.pop_back();
-				if (!visited.insert(name).second)
-				{
-					continue;
-				}
+				pending.push_back(Pending{ reference->m_name.m_lexeme, reference, false });
+			}
+		}
+		if (m_state.m_dispatching_statements.contains(statement))
+		{
+			for (const TopLevelReference* reference : instance_references)
+			{
+				pending.push_back(Pending{ reference->m_name.m_lexeme, reference, true });
+			}
+		}
 
-				const std::unordered_map<std::string, TopLevelDefinition>::const_iterator definition = m_state.m_top_level_definitions.find(name);
-				if (definition == m_state.m_top_level_definitions.cend())
-				{
-					continue;
-				}
+		std::unordered_set<std::string> visited;
+		while (!pending.empty())
+		{
+			const Pending current = std::move(pending.back());
+			pending.pop_back();
+			if (!visited.insert(current.m_name).second)
+			{
+				continue;
+			}
 
-				if (definition->second.m_statement >= statement)
-				{
-					std::string message = (name == reference->m_name.m_lexeme)
-						? std::format("'{}' is used here before its definition on line {} has run. Move the definition above this.", name, definition->second.m_line)
-						: std::format("'{}' is used here, and it reaches '{}', which is not defined until line {}. Move that definition above this.", reference->m_name.m_lexeme, name, definition->second.m_line);
-					return GenerateParserError(std::move(message), reference->m_name);
-				}
+			const std::unordered_map<std::string, TopLevelDefinition>::const_iterator definition = m_state.m_top_level_definitions.find(current.m_name);
+			if (definition == m_state.m_top_level_definitions.cend())
+			{
+				continue;
+			}
 
-				if (definition->second.m_is_function)
+			if (definition->second.m_is_function)
+			{
+				const std::unordered_map<int, std::vector<const TopLevelReference*>>::const_iterator body = references_by_statement.find(definition->second.m_statement);
+				if (body != references_by_statement.cend())
 				{
-					const std::unordered_map<int, std::vector<const TopLevelReference*>>::const_iterator body = references_by_statement.find(definition->second.m_statement);
-					if (body != references_by_statement.cend())
+					for (const TopLevelReference* inner : body->second)
 					{
-						for (const TopLevelReference* inner : body->second)
-						{
-							pending.push_back(inner->m_name.m_lexeme);
-						}
+						pending.push_back(Pending{ inner->m_name.m_lexeme, current.m_origin, current.m_through_instance });
 					}
 				}
+				continue;
 			}
+
+			if (definition->second.m_statement < statement)
+			{
+				continue;
+			}
+
+			if (current.m_through_instance)
+			{
+				return GenerateParserError(std::format("This may use an instance method, and instance methods read '{}', which is not defined until line {}. An instance can be used from any statement, so define '{}' above the first statement that could use one.", current.m_name, definition->second.m_line, current.m_name), m_state.m_statement_tokens.at(statement));
+			}
+			std::string message = (current.m_name == current.m_origin->m_name.m_lexeme)
+				? std::format("'{}' is used here before its definition on line {} has run. Move the definition above this.", current.m_name, definition->second.m_line)
+				: std::format("'{}' is used here, and it reaches '{}', which is not defined until line {}. Move that definition above this.", current.m_origin->m_name.m_lexeme, current.m_name, definition->second.m_line);
+			return GenerateParserError(std::move(message), current.m_origin->m_name);
 		}
 	}
 
@@ -6163,6 +6246,7 @@ MidoriResult::ParserResult Parser::Parse()
 		}
 
 		m_state.m_statement_index = static_cast<int>(programTree.size());
+		m_state.m_statement_tokens.insert_or_assign(m_state.m_statement_index, Peek(0));
 		MidoriResult::StatementResult result = ParseDeclaration();
 		if (result.has_value())
 		{

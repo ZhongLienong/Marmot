@@ -89,11 +89,13 @@ often got wrong:
 
 - **There is no entry function.** A program is its top-level statements, run in
   order. A definition named `main` is an ordinary definition and never runs.
-- **A function may name a definition that comes after it**, which is how two
-  functions call each other. Nothing is hoisted: a statement that runs may only
-  use definitions that have already run, including through the functions it
-  calls, and the compiler checks that. A definition used before the checker
-  reaches it needs its type written on it.
+- **Functions and instance methods exist before anything runs**, so a function,
+  an instance method or a statement may name a function defined below it. A
+  *value* is different: a statement may only use values that have already been
+  defined, including through the functions it calls, and the compiler checks
+  that. An instance can be used from any statement, so a value an instance
+  method reads must be defined above every statement that could use one. A
+  function used before the checker reaches it needs its types written on it.
 - **Types and instances may be declared in any order.** A type may name one
   declared below it, and two types may hold each other; generic ones that do
   use the same parameter names (`Tree<T>` and `Forest<T>`).

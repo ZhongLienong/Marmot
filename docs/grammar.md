@@ -97,12 +97,16 @@ constraint   = IDENTIFIER '<' type (',' type)* '>' ;
 ```
 
 A module's top-level statements run in order, and a function's body runs when
-it is called. So a function may name a top-level definition that comes after
-it -- which is how two functions call each other -- and a statement may use a
-definition only once it, and everything the functions it reaches go on to
-read, has run. A definition named before the checker reaches it needs its type
-written down: a function's parameter and return types, a value's annotation.
-Inside its own initializer a `def` may name itself only from within a function.
+it is called. Every top-level function and every instance method exists before
+the first statement runs, since making one runs nothing. So a function may be
+named anywhere, above its definition too -- which is how two functions call each
+other. A value may be used only once it, and every value the functions it
+reaches go on to read, has been defined. An instance method can be reached from
+any statement that calls, converts, indexes or uses an operator, so a value it
+reads must be defined above all of those. A definition named before the checker
+reaches it needs its type written down: a function's parameter and return types,
+a value's annotation. Inside its own initializer a `def` may name itself only
+from within a function.
 
 Types, classes and instances declare; nothing runs. A module's types may be
 named, constructed and matched anywhere in it, above their declarations too,
