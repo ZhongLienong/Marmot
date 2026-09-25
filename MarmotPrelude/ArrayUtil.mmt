@@ -7,34 +7,17 @@ def ContainsFrom = fn < T >(array: Array < T >, value: T, index: Int) -> Bool wh
     then false
     else if Equatable::Equals(array[index], value) then true else ContainsFrom(array, value, index + 1);
 def Contains = fn < T >(array: Array < T >, value: T) -> Bool where Equatable < T > => ContainsFrom(array, value, 0);
-def Clamp = fn(value: Int, low: Int, high: Int) -> Int => if value < low then low else if value > high then high else value;
-def Copy = fn < T >(array: Array < T >) -> Array < T > => [array[slot] for slot in 0..1..Length(array)];
-def Concat = fn < T >(first: Array < T >, second: Array < T >) -> Array < T > => {
-    def split = Length(first);
-    [if slot < split then first[slot] else second[slot - split] for slot in 0..1..(split + Length(second))]
-};
-def WithAppended = fn < T >(array: Array < T >, value: T) -> Array < T > => {
-    def count = Length(array);
-    [if slot < count then array[slot] else value for slot in 0..1..(count + 1)]
-};
+// The copies are the runtime's: element by element in Marmot, WithAppended
+// in a loop was about thirty times slower, on top of being quadratic.
+foreign "MIDORI_FFI_ArraySlice" ArraySlice: fn(Array < T >, Int, Int) -> Array < T >;
+foreign "MIDORI_FFI_ArrayReverse" ArrayReverse: fn(Array < T >) -> Array < T >;
+def Copy = fn < T >(array: Array < T >) -> Array < T > => ArraySlice(array, 0, Length(array));
+def Concat = fn < T >(first: Array < T >, second: Array < T >) -> Array < T > => first ++ second;
+def WithAppended = fn < T >(array: Array < T >, value: T) -> Array < T > => array ++ [value];
 def WithReplaced = fn < T >(array: Array < T >, index: Int, value: T) -> Array < T > =>
-    [if slot == index then value else array[slot] for slot in 0..1..Length(array)];
-def WithInserted = fn < T >(array: Array < T >, index: Int, value: T) -> Array < T > => {
-    def count = Length(array);
-    def at = if index < 0 then 0 else if index > count then count else index;
-    [if slot < at then array[slot] else if slot == at then value else array[slot - 1] for slot in 0..1..(count + 1)]
-};
-def WithRemoved = fn < T >(array: Array < T >, index: Int) -> Array < T > => {
-    def count = Length(array);
-    if index < 0 then Copy(array) else if index >= count then Copy(array) else [if slot < index then array[slot] else array[slot + 1] for slot in 0..1..(count - 1)]
-};
-def Slice = fn < T >(array: Array < T >, start: Int, end: Int) -> Array < T > => {
-    def array_length = Length(array);
-    def slice_start = Clamp(start, 0, array_length);
-    def slice_end = Clamp(end, 0, array_length);
-    [array[index] for index in slice_start..1..slice_end]
-};
-def Reverse = fn < T >(array: Array < T >) -> Array < T > => {
-    def last_index = Length(array) - 1;
-    [array[last_index - offset] for offset in 0..1..Length(array)]
-};
+    if (index < 0) || (index >= Length(array)) then Copy(array) else ArraySlice(array, 0, index) ++ [value] ++ ArraySlice(array, index + 1, Length(array));
+def WithInserted = fn < T >(array: Array < T >, index: Int, value: T) -> Array < T > => ArraySlice(array, 0, index) ++ [value] ++ ArraySlice(array, index, Length(array));
+def WithRemoved = fn < T >(array: Array < T >, index: Int) -> Array < T > =>
+    if (index < 0) || (index >= Length(array)) then Copy(array) else ArraySlice(array, 0, index) ++ ArraySlice(array, index + 1, Length(array));
+def Slice = fn < T >(array: Array < T >, start: Int, end: Int) -> Array < T > => ArraySlice(array, start, end);
+def Reverse = fn < T >(array: Array < T >) -> Array < T > => ArrayReverse(array);

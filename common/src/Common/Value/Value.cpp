@@ -1634,10 +1634,14 @@ MidoriText MidoriText::Substring(int start, int end) const
 		return MidoriText();
 	}
 
+	// The length is cached, and a text as long in code points as in bytes is
+	// ASCII, where an index is its own byte offset. Walking to the offset made
+	// reading a text one code point at a time quadratic.
 	const char* source = GetCString();
 	const int byte_len = GetByteLength();
-	const int start_offset = UTF8::GetByteOffsetOfCodePoint(source, byte_len, start);
-	const int end_offset = UTF8::GetByteOffsetOfCodePoint(source, byte_len, end);
+	const bool is_ascii = len == byte_len;
+	const int start_offset = is_ascii ? start : UTF8::GetByteOffsetOfCodePoint(source, byte_len, start);
+	const int end_offset = is_ascii ? end : UTF8::GetByteOffsetOfCodePoint(source, byte_len, end);
 	std::string slice(source + start_offset, source + end_offset);
 	return MidoriText(slice.c_str());
 }
