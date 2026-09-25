@@ -1,11 +1,10 @@
 module Bits
-public export { PopCount, BitAt, HasBit, SparseIndex, HashChunk, ChunkBits, BranchFactor, MaxDepth }
+public export { PopCount, BitAt, HasBit, SparseIndex, HashChunk, ChunkBits, BranchFactor }
 
 // Five bits per level, so 32 children and a bitmap that stays clear of the sign
 // bit of a 64-bit signed Int.
 def ChunkBits : Int = 5;
 def BranchFactor : Int = 32;
-def MaxDepth : Int = 12;
 
 def BitAt = fn(index: Int) -> Int => 1 << index;
 

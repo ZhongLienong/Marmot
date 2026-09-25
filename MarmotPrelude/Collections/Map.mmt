@@ -36,19 +36,19 @@ def NodeGet = fn < K, V >(node: Node < K, V >, hash: Int, key: K, depth: Int) ->
             then NodeGet(children[Bits::SparseIndex(bitmap, chunk)], hash, key, depth + 1)
             else Option::None ()
         };
-def MergeNodes = fn < K, V >(node_a: Node < K, V >, hash_a: Int, node_b: Node < K, V >, hash_b: Int, depth: Int) -> Node < K, V > =>
-    if depth >= Bits::MaxDepth
-    then Node::Branch (Bits::BitAt(Bits::HashChunk(hash_a, depth)), [node_a, node_b])
+// The two hashes differ, and the chunks of depths 0 to 12 cover all 64 bits, so they
+// part before the chunks run out. A depth limit of 12 once cut the top four bits off
+// and filed both nodes under one bit: keys 0 and 1 << 60 could not both be found.
+def MergeNodes = fn < K, V >(node_a: Node < K, V >, hash_a: Int, node_b: Node < K, V >, hash_b: Int, depth: Int) -> Node < K, V > => {
+    def chunk_a = Bits::HashChunk(hash_a, depth);
+    def chunk_b = Bits::HashChunk(hash_b, depth);
+    if chunk_a == chunk_b
+    then Node::Branch (Bits::BitAt(chunk_a), [MergeNodes(node_a, hash_a, node_b, hash_b, depth + 1)])
     else {
-        def chunk_a = Bits::HashChunk(hash_a, depth);
-        def chunk_b = Bits::HashChunk(hash_b, depth);
-        if chunk_a == chunk_b
-        then Node::Branch (Bits::BitAt(chunk_a), [MergeNodes(node_a, hash_a, node_b, hash_b, depth + 1)])
-        else {
-            def bitmap = Bits::BitAt(chunk_a) | Bits::BitAt(chunk_b);
-            if chunk_a < chunk_b then Node::Branch (bitmap, [node_a, node_b]) else Node::Branch (bitmap, [node_b, node_a])
-        }
-    };
+        def bitmap = Bits::BitAt(chunk_a) | Bits::BitAt(chunk_b);
+        if chunk_a < chunk_b then Node::Branch (bitmap, [node_a, node_b]) else Node::Branch (bitmap, [node_b, node_a])
+    }
+};
 def EntryIndexOf = fn < K, V >(entries: Array < Entry < K, V > >, key: K, index: Int) -> Int where Equatable < K > =>
     if index >= ArrayUtil::Length(entries)
     then - 1
