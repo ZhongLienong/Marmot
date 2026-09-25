@@ -2031,7 +2031,7 @@ std::optional<CompilerError> Parser::CheckOperatorMixing(const Token& op, const 
 
 MidoriResult::ExpressionResult Parser::ParseFactor()
 {
-	return ParseBinary(&Parser::ParseUnaryLogicalBitwise, Token::Name::STAR, Token::Name::SLASH, Token::Name::PERCENT);
+	return ParseBinary(&Parser::ParseAs, Token::Name::STAR, Token::Name::SLASH, Token::Name::PERCENT);
 }
 
 MidoriResult::ExpressionResult Parser::ParseShift()
@@ -2154,37 +2154,14 @@ MidoriResult::ExpressionResult Parser::ParseUnaryArithmetic()
 
 MidoriResult::ExpressionResult Parser::ParseExpression()
 {
-	return ParseAs();
+	return ParseLogicalOr();
 }
 
-// An argument or element ends at ',' or its closing bracket. After a conversion, an
-// operator there means the author expected `as` to bind tighter than it does.
-MidoriResult::ExpressionResult Parser::ParseListElement()
-{
-	MidoriResult::ExpressionResult element = ParseExpression();
-	if (!element.has_value() || !element.value()->IsExpression<MidoriExpression::As>())
-	{
-		return element;
-	}
-
-	constexpr std::array s_operators =
-	{
-		Token::Name::SINGLE_PLUS, Token::Name::DOUBLE_PLUS, Token::Name::SINGLE_MINUS, Token::Name::STAR, Token::Name::SLASH,
-		Token::Name::PERCENT, Token::Name::DOUBLE_EQUAL, Token::Name::BANG_EQUAL, Token::Name::LEFT_ANGLE, Token::Name::LESS_EQUAL,
-		Token::Name::RIGHT_ANGLE, Token::Name::GREATER_EQUAL, Token::Name::DOUBLE_AMPERSAND, Token::Name::DOUBLE_BAR,
-		Token::Name::BAR_BRACKET, Token::Name::LEFT_SHIFT, Token::Name::RIGHT_SHIFT, Token::Name::SINGLE_AMPERSAND,
-		Token::Name::SINGLE_BAR, Token::Name::CARET,
-	};
-	if (std::ranges::contains(s_operators, Peek(0).m_token_name))
-	{
-		return std::unexpected(GenerateParserError(std::format("'as' binds looser than '{0}', so the conversion must be in parentheses: '(x as T) {0} y'.", Peek(0).m_lexeme), Peek(0)));
-	}
-	return element;
-}
-
+// `as` binds tighter than every binary operator and looser than the prefix ones:
+// `n as Text ++ "!"` converts n, and `-x as Float` converts -x.
 MidoriResult::ExpressionResult Parser::ParseAs()
 {
-	return ParseLogicalOr()
+	return ParseUnaryLogicalBitwise()
 		.and_then
 		(
 			[this](std::unique_ptr<MidoriExpression>&& expr) ->MidoriResult::ExpressionResult
@@ -2308,7 +2285,7 @@ MidoriResult::ExpressionResult Parser::FinishCall(std::unique_ptr<MidoriExpressi
 {
 	return ParseDelimitedZeroOrMoreLimited<std::unique_ptr<MidoriExpression>>
 		(
-			[this]() { return ParseListElement(); },
+			[this]() { return ParseExpression(); },
 			[this]() { return Consume(Token::Name::COMMA, "Expected ',' after expression."); },
 			[this]() { return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after arguments."); }
 		)
@@ -2378,7 +2355,7 @@ MidoriResult::ExpressionResult Parser::FinishConstruct(Token&& constructor_token
 
 	MidoriResult::Result<std::vector<std::unique_ptr<MidoriExpression>>> arguments = ParseDelimitedZeroOrMoreLimited<std::unique_ptr<MidoriExpression>>
 		(
-			[this]() { return ParseListElement(); },
+			[this]() { return ParseExpression(); },
 			[this]() { return Consume(Token::Name::COMMA, "Expected ',' after expression."); },
 			[this]() { return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after arguments."); }
 		);
@@ -2680,7 +2657,7 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 						// Parse remaining elements
 						return ParseDelimitedZeroOrMoreLimited<std::unique_ptr<MidoriExpression>>
 							(
-								[this]() { return ParseListElement(); },
+								[this]() { return ParseExpression(); },
 								[this]() { return Consume(Token::Name::COMMA, "Expected ',' after expression."); },
 								[this]() -> MidoriResult::TokenResult
 								{

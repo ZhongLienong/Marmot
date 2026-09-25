@@ -103,6 +103,8 @@ often got wrong:
   recursion overflows the stack at about 500,000 calls.
 - **Mixing operators of different precedence needs parentheses**:
   `(index >= 0) && (index < #items)`.
+- **`as` binds tighter than binary operators**: `n as Text ++ "!"` converts `n`;
+  converting a whole expression needs parentheses, `(a + b) as Text`.
 - **A bare name is local or `use`d.** Anything else is qualified —
   `Module::name`, `Module::Type`, `Module::Union::Member`. This holds for
   values, types and constructors alike.

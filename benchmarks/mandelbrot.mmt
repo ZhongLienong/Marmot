@@ -40,7 +40,7 @@ def EscapeCount = fn(z : Complex, c : Complex, iterations : Int, limit : Int) ->
 def ColorOf = fn(iterations : Int, limit : Int) -> Text =>
 	if iterations >= limit
 	then "0 0 0\n"
-	else ((iterations * 5) % 256 as Text) ++ " " ++ ((iterations * 10) % 256 as Text) ++ " " ++ ((iterations * 15) % 256 as Text) ++ "\n";
+	else (((iterations * 5) % 256) as Text) ++ " " ++ (((iterations * 10) % 256) as Text) ++ " " ++ (((iterations * 15) % 256) as Text) ++ "\n";
 
 def Join = fn(pieces : Array<Text>) -> Text => Iter::Fold(Iter::OfArray(pieces), "", fn(acc : Text, piece : Text) -> Text => acc ++ piece);
 

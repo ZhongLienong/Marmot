@@ -1,6 +1,0 @@
-Compilation failed :(
-Parser Error at test/as_operator/failure/as_in_argument_before_operator.mmt:8
-  |
-8 | IO::PrintLine(42 as Text ++ "!");
-  |                          ^^ 'as' binds looser than '++', so the conversion must be in parentheses: '(x as T) ++ y'.
-  |

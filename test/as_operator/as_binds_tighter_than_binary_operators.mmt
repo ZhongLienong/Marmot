@@ -1,0 +1,17 @@
+module AsBindsTighterThanBinaryOperators
+
+// `as` binds tighter than every binary operator and looser than the prefix ones. It used
+// to bind loosest, so `n as Text ++ "!"` was a syntax error in an argument, and after
+// `else` it ended the branch: `if c then a else n as Text ++ ":"` applied `++ ":"` to the
+// whole `if`, and only the `else` side was converted.
+
+import { "../../MarmotPrelude/IO.mmt" }
+
+def Label = fn(n : Int) -> Text => if n == 0 then "none" else n as Text ++ " items";
+
+IO::PrintLine(42 as Text ++ "!");
+IO::PrintLine(Label(0));
+IO::PrintLine(Label(3));
+IO::PrintLine((-7 as Float / 2.0) as Text);
+IO::PrintLine((#[1, 2, 3] as Float * 1.5) as Text);
+IO::PrintLine((2 * 3 as Float as Int) as Text);

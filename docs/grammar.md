@@ -140,23 +140,30 @@ Precedence, loosest first. Each level is left-associative unless noted.
 
 | Level | Form |
 |---|---|
-| 1 | `e as Type` |
-| 2 | `e \|\| e` |
-| 3 | `e && e` |
-| 4 | `ch -> e` (send on a channel) |
-| 5 | `e \|> e` (pipe; `\|> match ...` is allowed) |
-| 6 | `e \| e` |
-| 7 | `e ^ e` |
-| 8 | `e & e` |
-| 9 | `e == e`, `e != e` |
-| 10 | `e < e`, `e <= e`, `e > e`, `e >= e` |
-| 11 | `start..end`, `start..step..end` |
-| 12 | `e << e`, `e >> e` |
-| 13 | `e + e`, `e - e`, `e ++ e` (concatenation) |
-| 14 | `e * e`, `e / e`, `e % e` |
+| 1 | `e \|\| e` |
+| 2 | `e && e` |
+| 3 | `ch -> e` (send on a channel) |
+| 4 | `e \|> e` (pipe; `\|> match ...` is allowed) |
+| 5 | `e \| e` |
+| 6 | `e ^ e` |
+| 7 | `e & e` |
+| 8 | `e == e`, `e != e` |
+| 9 | `e < e`, `e <= e`, `e > e`, `e >= e` |
+| 10 | `start..end`, `start..step..end` |
+| 11 | `e << e`, `e >> e` |
+| 12 | `e + e`, `e - e`, `e ++ e` (concatenation) |
+| 13 | `e * e`, `e / e`, `e % e` |
+| 14 | `e as Type` |
 | 15 | `!e`, `~e`, `#e` (length), `-e`, `<- ch` (receive) |
 | 16 | `f(args)`, `e[index]`, `e.field`, `Module::name` |
 | 17 | primary |
+
+`as` converts the operand next to it: `n as Text ++ "!"` is `(n as Text) ++ "!"`,
+and `-x as Float` is `(-x) as Float`. This is the one change to v1's rules: `as`
+was the loosest level, which made `if c then a else n as Text ++ ":"` apply
+`++ ":"` to the whole `if` rather than to its `else` branch. A v1 program that
+converted a whole expression without parentheses, like `a + b as Text`, now
+fails to type-check instead of changing meaning; write `(a + b) as Text`.
 
 ```
 primary      = INTEGER | FLOAT | TEXT | 'true' | 'false'

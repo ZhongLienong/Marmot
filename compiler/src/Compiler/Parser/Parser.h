@@ -730,7 +730,6 @@ private:
 	MidoriResult::ExpressionResult ParseCall();
 
 	MidoriResult::ExpressionResult ParseAs();
-	MidoriResult::ExpressionResult ParseListElement();
 
 
 	MidoriResult::ExpressionResult FinishCall(std::unique_ptr<MidoriExpression>&& callee);
