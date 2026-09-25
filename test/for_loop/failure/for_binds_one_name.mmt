@@ -1,0 +1,8 @@
+module ForBindsOneName
+
+import { "../../../MarmotPrelude/IO.mmt" }
+
+def pairs = [(1, 2), (3, 4)];
+for (a, b) in pairs {
+    IO::PrintLine((a + b) as Text);
+};

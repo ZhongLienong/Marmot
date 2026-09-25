@@ -1,0 +1,6 @@
+Compilation failed :(
+Parser Error at test/for_loop/failure/for_binds_one_name.mmt:6
+  |
+6 | for (a, b) in pairs {
+  |     ^ 'for' binds one name. To take each item apart, destructure it in the body: 'for pair in pairs { def (a, b) = pair; ... }'.
+  |

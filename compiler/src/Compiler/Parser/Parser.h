@@ -210,6 +210,7 @@ private:
 	{
 		bool m_is_candidate = false;
 		std::optional<int> m_loop_variable_offset = std::nullopt;
+		std::optional<int> m_for_offset = std::nullopt;
 	};
 
 	enum class ImportedSymbolAccess

@@ -1,0 +1,6 @@
+Compilation failed :(
+Parser Error at test/array_comprehension/failure/for_binds_one_name.mmt:9
+  |
+9 | def sums = [a + b for (a, b) in pairs];
+  |                       ^ A comprehension's 'for' binds one name. To take each item apart, destructure it in the element: '[{ def (a, b) = pair; a + b } for pair in pairs]'.
+  |

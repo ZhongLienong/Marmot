@@ -1,0 +1,9 @@
+module ForBindsOneName
+
+// A comprehension over pairs with a tuple after `for` reported `a` as an undefined name,
+// at the element, because the element is read before the binding.
+
+import { "../../../MarmotPrelude/IO.mmt" }
+
+def pairs = [(1, 2), (3, 4)];
+def sums = [a + b for (a, b) in pairs];

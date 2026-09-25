@@ -3059,7 +3059,7 @@ MidoriResult::ExpressionResult Parser::ParseForExpression()
 
 	if (!Match(Token::Name::IDENTIFIER_LITERAL))
 	{
-		return std::unexpected(GenerateParserError("Expected identifier after 'for'.", Peek(0)));
+		return std::unexpected(GenerateParserError("'for' binds one name. To take each item apart, destructure it in the body: 'for pair in pairs { def (a, b) = pair; ... }'.", Peek(0)));
 	}
 	Token loop_variable = Previous();
 
@@ -3182,6 +3182,7 @@ Parser::ArrayComprehensionProbe Parser::ProbeArrayComprehension()
 
 			ArrayComprehensionProbe probe;
 			probe.m_is_candidate = true;
+			probe.m_for_offset = offset;
 			if (Peek(offset + 1).m_token_name == Token::Name::IDENTIFIER_LITERAL)
 			{
 				probe.m_loop_variable_offset = offset + 1;
@@ -3215,6 +3216,13 @@ MidoriResult::ExpressionResult Parser::ParseArrayComprehension(Token& bracket, c
 				scope_open = false;
 			}
 		};
+
+	// Without a name after `for` the element cannot be read either: it would report the
+	// names it uses as undefined, far from the mistake.
+	if (probe.m_for_offset.has_value() && !probe.m_loop_variable_offset.has_value())
+	{
+		return std::unexpected(GenerateParserError("A comprehension's 'for' binds one name. To take each item apart, destructure it in the element: '[{ def (a, b) = pair; a + b } for pair in pairs]'.", Peek(probe.m_for_offset.value() + 1)));
+	}
 
 	int var_index = -1;
 	int hidden_step_index = -1;
