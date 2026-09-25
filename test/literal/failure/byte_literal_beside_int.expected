@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/literal/failure/byte_literal_beside_int.mmt:7
+  |
+7 | def low = value & 0xFF;
+  |                   ^^^^ '0xFF' is a Byte: a hex or binary literal up to 0xFF is how a Byte is written. For an Int here, write 255, or 0xFF as Int.
+  |

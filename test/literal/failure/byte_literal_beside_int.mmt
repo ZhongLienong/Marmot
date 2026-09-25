@@ -1,0 +1,7 @@
+module ByteLiteralBesideInt
+
+// A hex or binary literal up to 0xFF is a Byte. Masking an Int with one is
+// the likeliest way to meet that, and the error says so at the literal.
+
+def value : Int = 1000;
+def low = value & 0xFF;

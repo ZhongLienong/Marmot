@@ -255,6 +255,8 @@ private:
 
 	MidoriResult::TypeResult RegisterInstance(MidoriStatement::Instance& instance_stmt);
 
+	std::optional<CompilerError> ByteLiteralBesideInt(const MidoriExpression::Binary& binary, const std::shared_ptr<MidoriType>& left_type, const std::shared_ptr<MidoriType>& right_type);
+
 	MidoriResult::TypeResult operator()(MidoriStatement::TypeAlias& type_alias);
 
 	MidoriResult::TypeResult operator()(MidoriExpression::As& as);

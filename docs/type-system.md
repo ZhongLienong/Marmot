@@ -30,6 +30,11 @@ The type system provides:
 | `Text` | UTF-8 string |
 | `Unit` | Unit value type |
 
+A decimal integer literal is an `Int`. A hex or binary literal is a `Byte` up to
+`0xFF`, an `Int` above it, and a `Word` past the largest `Int`, so `0x0F` is a
+`Byte` and `0x100` an `Int`; a smaller `Word` is written with `as Word`. Literals do not take their type from where
+they are used: to mask an `Int`, write `value & 255` or `value & (0xFF as Int)`.
+
 Integer arithmetic wraps: `Int` in two's complement, `Byte` and `Word` modulo
 2^8 and 2^64, so `9223372036854775807 + 1` is `-9223372036854775808`. Division
 truncates toward zero, and the one quotient that overflows, the minimum `Int`

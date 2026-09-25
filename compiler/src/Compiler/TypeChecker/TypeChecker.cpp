@@ -5079,6 +5079,38 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::As& as)
 		);
 }
 
+// A hex or binary literal up to 0xFF is a Byte: it is how a Byte is written.
+// Beside an Int, the plain mismatch reads as a mistake in the other operand.
+std::optional<CompilerError> TypeChecker::ByteLiteralBesideInt(const MidoriExpression::Binary& binary, const std::shared_ptr<MidoriType>& left_type, const std::shared_ptr<MidoriType>& right_type)
+{
+	const std::shared_ptr<MidoriType> resolved_left = ApplySubstitution(left_type);
+	const std::shared_ptr<MidoriType> resolved_right = ApplySubstitution(right_type);
+	const std::function<const MidoriExpression::Literal*(const std::unique_ptr<MidoriExpression>&, const std::shared_ptr<MidoriType>&)> byte_literal_facing_int =
+		[](const std::unique_ptr<MidoriExpression>& operand, const std::shared_ptr<MidoriType>& other_type) -> const MidoriExpression::Literal*
+		{
+			if (!other_type->IsType<MidoriType::IntegerType>() || !operand->IsExpression<MidoriExpression::Literal>())
+			{
+				return nullptr;
+			}
+
+			const MidoriExpression::Literal& literal = operand->GetExpression<MidoriExpression::Literal>();
+			return literal.m_kind == MidoriExpression::LiteralKind::Byte ? &literal : nullptr;
+		};
+
+	const MidoriExpression::Literal* literal = byte_literal_facing_int(binary.m_left, resolved_right);
+	if (literal == nullptr)
+	{
+		literal = byte_literal_facing_int(binary.m_right, resolved_left);
+	}
+	if (literal == nullptr)
+	{
+		return std::nullopt;
+	}
+
+	const std::string& lexeme = literal->m_token.m_lexeme;
+	return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, std::format("'{0}' is a Byte: a hex or binary literal up to 0xFF is how a Byte is written. For an Int here, write {1}, or {0} as Int.", lexeme, ParseUnsignedLiteral(lexeme).value()), literal->m_token, m_file_name, m_source_lines);
+}
+
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Binary& binary)
 {
 	return Evaluate(binary.m_left)
@@ -5112,6 +5144,11 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Binary& binar
 								// Result type is the same as left operand type
 								binary.m_type_data = left_type;
 								return binary.m_type_data;
+							}
+
+							if (std::optional<CompilerError> byte_literal_error = ByteLiteralBesideInt(binary, left_type, right_type))
+							{
+								return std::unexpected(std::move(byte_literal_error.value()));
 							}
 
 							return Unify(binary.m_op, left_type, right_type)
