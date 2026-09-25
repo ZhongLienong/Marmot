@@ -1,0 +1,38 @@
+[warning] 5 warning(s) in integer_wrapping.mmt
+Static Analyzer Warning at test/expression/success/integer_wrapping.mmt:21
+   |
+21 | Show("max+1", 9223372036854775807 + 1, Opaque(maximum) + Opaque(1));
+   |                                   ^ Literal integer addition overflows Int.
+   |
+Static Analyzer Warning at test/expression/success/integer_wrapping.mmt:23
+   |
+23 | Show("max*2", 9223372036854775807 * 2, Opaque(maximum) * Opaque(2));
+   |                                   ^ Literal integer multiplication overflows Int.
+   |
+Static Analyzer Warning at test/expression/success/integer_wrapping.mmt:29
+   |
+29 | Show("1<<63", 1 << 63, Opaque(1) << Opaque(63));
+   |                 ^^ Literal left shift overflows Int or exceeds the Int bit width.
+   |
+Static Analyzer Warning at test/expression/success/integer_wrapping.mmt:30
+   |
+30 | Show("1<<64", 1 << 64, Opaque(1) << Opaque(64));
+   |                 ^^ Literal left shift overflows Int or exceeds the Int bit width.
+   |
+Static Analyzer Warning at test/expression/success/integer_wrapping.mmt:32
+   |
+32 | Show("1<<-1", 1 << -1, Opaque(1) << Opaque(-1));
+   |                 ^^ Literal left shift overflows Int or exceeds the Int bit width.
+   |
+max+1 -9223372036854775808 -9223372036854775808
+min-1 9223372036854775807 9223372036854775807
+max*2 -2 -2
+-min -9223372036854775808 -9223372036854775808
+min/-1 -9223372036854775808 -9223372036854775808
+min%-1 0 0
+-7/2 -3 -3
+-7%4 -3 -3
+1<<63 -9223372036854775808 -9223372036854775808
+1<<64 0 0
+-8>>70 -1 -1
+1<<-1 0 0

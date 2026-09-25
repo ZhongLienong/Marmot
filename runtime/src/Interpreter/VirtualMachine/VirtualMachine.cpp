@@ -1,6 +1,7 @@
 #include "Common/Constant/Constant.h"
 #include "Common/BuildConfig/BuildConfig.h"
 #include "Common/Printer/Printer.h"
+#include "Common/Value/IntegerArithmetic.h"
 #include "Interpreter/Channel/Channel.h"
 #include "Interpreter/ValueTransfer/ValueTransfer.h"
 #include "Interpreter/Worker/Worker.h"
@@ -1509,7 +1510,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
 
-			left = left.GetInteger() << right.GetInteger();
+			left = MidoriIntegerArithmetic::ShiftLeft(left.GetInteger(), static_cast<uint64_t>(right.GetInteger()));
 			break;
 		}
 		case OpCode::RIGHT_SHIFT:
@@ -1517,7 +1518,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
 
-			left = left.GetInteger() >> right.GetInteger();
+			left = MidoriIntegerArithmetic::ShiftRight(left.GetInteger(), static_cast<uint64_t>(right.GetInteger()));
 
 			break;
 		}
@@ -1526,7 +1527,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
 
-			left = static_cast<MidoriByte>(left.GetByte() << right.GetByte());
+			left = MidoriIntegerArithmetic::ShiftLeft(left.GetByte(), right.GetByte());
 
 			break;
 		}
@@ -1535,7 +1536,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
 
-			left = static_cast<MidoriByte>(left.GetByte() >> right.GetByte());
+			left = MidoriIntegerArithmetic::ShiftRight(left.GetByte(), right.GetByte());
 
 			break;
 		}
@@ -1544,7 +1545,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
 
-			left = left.GetWord() << right.GetWord();
+			left = MidoriIntegerArithmetic::ShiftLeft(left.GetWord(), right.GetWord());
 
 			break;
 		}
@@ -1553,7 +1554,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
 
-			left = left.GetWord() >> right.GetWord();
+			left = MidoriIntegerArithmetic::ShiftRight(left.GetWord(), right.GetWord());
 
 			break;
 		}
@@ -1642,7 +1643,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
 
-			left = left.GetInteger() + right.GetInteger();
+			left = MidoriIntegerArithmetic::Add(left.GetInteger(), right.GetInteger());
 
 			break;
 		}
@@ -1651,7 +1652,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
 
-			left = left.GetInteger() - right.GetInteger();
+			left = MidoriIntegerArithmetic::Subtract(left.GetInteger(), right.GetInteger());
 
 			break;
 		}
@@ -1660,7 +1661,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
 
-			left = left.GetInteger() * right.GetInteger();
+			left = MidoriIntegerArithmetic::Multiply(left.GetInteger(), right.GetInteger());
 
 			break;
 		}
@@ -1670,7 +1671,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
 
-			left = left.GetInteger() / right.GetInteger();
+			left = MidoriIntegerArithmetic::Divide(left.GetInteger(), right.GetInteger());
 
 			break;
 		}
@@ -1680,7 +1681,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
 
-			left = left.GetInteger() % right.GetInteger();
+			left = MidoriIntegerArithmetic::Remainder(left.GetInteger(), right.GetInteger());
 
 			break;
 		}
@@ -1831,7 +1832,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			ip += 3;
 
 			MidoriValue& slot = *(bp + local_index);
-			MidoriInteger result = slot.GetInteger() + imm;
+			MidoriInteger result = MidoriIntegerArithmetic::Add(slot.GetInteger(), imm);
 			slot = result;
 			Push(sp, result);
 			break;
@@ -1842,7 +1843,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriInteger imm = static_cast<MidoriInteger>(static_cast<int8_t>(ReadByte(ip)));
 			ip += 1;
 
-			Push(sp, (bp + local_index)->GetInteger() - imm);
+			Push(sp, MidoriIntegerArithmetic::Subtract((bp + local_index)->GetInteger(), imm));
 			break;
 		}
 		case OpCode::IF_LOCAL_LE_INT:
@@ -1886,14 +1887,14 @@ int VirtualMachine::ExecuteLoop() noexcept
 		{
 			MidoriValue value = Pop(sp);
 			MidoriValue& var = Peek(sp);
-			var = var.GetInteger() + value.GetInteger();
+			var = MidoriIntegerArithmetic::Add(var.GetInteger(), value.GetInteger());
 			break;
 		}
 		case OpCode::SUB_ASSIGN_INT:
 		{
 			MidoriValue value = Pop(sp);
 			MidoriValue& var = Peek(sp);
-			var = var.GetInteger() - value.GetInteger();
+			var = MidoriIntegerArithmetic::Subtract(var.GetInteger(), value.GetInteger());
 			break;
 		}
 		case OpCode::EQUAL_FLOAT:
@@ -2136,7 +2137,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 		case OpCode::NEGATE_INTEGER:
 		{
 			MidoriValue& value = Peek(sp);
-			value = -value.GetInteger();
+			value = MidoriIntegerArithmetic::Negate(value.GetInteger());
 			break;
 		}
 		case OpCode::JUMP_IF_FALSE:

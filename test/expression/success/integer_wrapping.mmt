@@ -1,0 +1,32 @@
+module IntegerWrapping
+
+// Test: Int arithmetic wraps in two's complement, the same whether the
+// optimizer folds an expression or the VM computes it. `Opaque` hides a value
+// from the folder. The overflowing quotient, minimum / -1, used to trap in
+// hardware and was reported as a division by zero. Division by a power of two
+// was rewritten to a shift and a mask, which round a negative number the
+// wrong way.
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt"
+}
+
+def Opaque = fn(n : Int) -> Int => n;
+def Show = fn(label : Text, folded : Int, computed : Int) -> Unit => IO::PrintLine(label ++ " " ++ (folded as Text) ++ " " ++ (computed as Text));
+
+def maximum = 9223372036854775807;
+def minimum = -9223372036854775807 - 1;
+
+Show("max+1", 9223372036854775807 + 1, Opaque(maximum) + Opaque(1));
+Show("min-1", (-9223372036854775807 - 1) - 1, Opaque(minimum) - Opaque(1));
+Show("max*2", 9223372036854775807 * 2, Opaque(maximum) * Opaque(2));
+Show("-min", -(-9223372036854775807 - 1), -Opaque(minimum));
+Show("min/-1", (-9223372036854775807 - 1) / -1, Opaque(minimum) / Opaque(-1));
+Show("min%-1", (-9223372036854775807 - 1) % -1, Opaque(minimum) % Opaque(-1));
+Show("-7/2", -7 / 2, Opaque(-7) / 2);
+Show("-7%4", -7 % 4, Opaque(-7) % 4);
+Show("1<<63", 1 << 63, Opaque(1) << Opaque(63));
+Show("1<<64", 1 << 64, Opaque(1) << Opaque(64));
+Show("-8>>70", -8 >> 70, Opaque(-8) >> Opaque(70));
+Show("1<<-1", 1 << -1, Opaque(1) << Opaque(-1));

@@ -1,4 +1,5 @@
 #include "SemanticFacts.h"
+#include "Common/Value/IntegerArithmetic.h"
 
 #include <optional>
 #include <stdexcept>
@@ -359,27 +360,27 @@ namespace
 			switch (op)
 			{
 			case Token::Name::SINGLE_PLUS:
-				return ConstantValue{ left + right };
+				return ConstantValue{ MidoriIntegerArithmetic::Add(left, right) };
 			case Token::Name::SINGLE_MINUS:
-				return ConstantValue{ left - right };
+				return ConstantValue{ MidoriIntegerArithmetic::Subtract(left, right) };
 			case Token::Name::STAR:
-				return ConstantValue{ left * right };
+				return ConstantValue{ MidoriIntegerArithmetic::Multiply(left, right) };
 			case Token::Name::SLASH:
 				if (right == 0ll)
 				{
 					return std::nullopt;
 				}
-				return ConstantValue{ left / right };
+				return ConstantValue{ MidoriIntegerArithmetic::Divide(left, right) };
 			case Token::Name::PERCENT:
 				if (right == 0ll)
 				{
 					return std::nullopt;
 				}
-				return ConstantValue{ left % right };
+				return ConstantValue{ MidoriIntegerArithmetic::Remainder(left, right) };
 			case Token::Name::LEFT_SHIFT:
-				return ConstantValue{ left << right };
+				return ConstantValue{ MidoriIntegerArithmetic::ShiftLeft(left, static_cast<uint64_t>(right)) };
 			case Token::Name::RIGHT_SHIFT:
-				return ConstantValue{ left >> right };
+				return ConstantValue{ MidoriIntegerArithmetic::ShiftRight(left, static_cast<uint64_t>(right)) };
 			case Token::Name::SINGLE_AMPERSAND:
 				return ConstantValue{ left & right };
 			case Token::Name::SINGLE_BAR:
@@ -453,9 +454,9 @@ namespace
 				}
 				return ConstantValue{ static_cast<MidoriByte>(left % right) };
 			case Token::Name::LEFT_SHIFT:
-				return ConstantValue{ static_cast<MidoriByte>(left << right) };
+				return ConstantValue{ MidoriIntegerArithmetic::ShiftLeft(left, right) };
 			case Token::Name::RIGHT_SHIFT:
-				return ConstantValue{ static_cast<MidoriByte>(left >> right) };
+				return ConstantValue{ MidoriIntegerArithmetic::ShiftRight(left, right) };
 			case Token::Name::SINGLE_AMPERSAND:
 				return ConstantValue{ static_cast<MidoriByte>(left & right) };
 			case Token::Name::SINGLE_BAR:
@@ -505,9 +506,9 @@ namespace
 				}
 				return ConstantValue{ left % right };
 			case Token::Name::LEFT_SHIFT:
-				return ConstantValue{ left << right };
+				return ConstantValue{ MidoriIntegerArithmetic::ShiftLeft(left, right) };
 			case Token::Name::RIGHT_SHIFT:
-				return ConstantValue{ left >> right };
+				return ConstantValue{ MidoriIntegerArithmetic::ShiftRight(left, right) };
 			case Token::Name::SINGLE_AMPERSAND:
 				return ConstantValue{ left & right };
 			case Token::Name::SINGLE_BAR:
@@ -577,7 +578,7 @@ namespace
 		case Token::Name::SINGLE_MINUS:
 			if (inner_value->Is<MidoriInteger>())
 			{
-				return ConstantValue{ -inner_value->Get<MidoriInteger>() };
+				return ConstantValue{ MidoriIntegerArithmetic::Negate(inner_value->Get<MidoriInteger>()) };
 			}
 			if (inner_value->Is<MidoriFloat>())
 			{

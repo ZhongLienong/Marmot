@@ -176,7 +176,8 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 			}
 		}
 
-		// x * 2^n -> x << n (only if right side is power of 2)
+		// x * 2^n -> x << n. Not x / 2^n -> x >> n or x % 2^n -> x & (2^n - 1):
+		// division truncates toward zero, so both are wrong for a negative x.
 		if (op.m_token_name == Token::Name::STAR && right_int)
 		{
 			std::optional<MidoriInteger> right_val_opt = SafeParseInteger(right_int->m_token.m_lexeme);
@@ -191,43 +192,6 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 				Token shift_token("<<", Token::Name::LEFT_SHIFT, op.m_line, op.m_file_name);
 				Token exp_token(std::to_string(exponent), Token::Name::INTEGER_LITERAL, op.m_line, op.m_file_name);
 				return std::make_unique<MidoriExpression>(MidoriExpression::Binary(shift_token, std::move(binary.m_left), std::make_unique<MidoriExpression>(MidoriExpression::Literal(exp_token, MidoriExpression::LiteralKind::Integer))));
-			}
-		}
-
-		// x / 2^n -> x >> n (only if right side is power of 2)
-		if (op.m_token_name == Token::Name::SLASH && right_int)
-		{
-			std::optional<MidoriInteger> right_val_opt = SafeParseInteger(right_int->m_token.m_lexeme);
-			if (!right_val_opt.has_value())
-			{
-				return nullptr;
-			}
-			MidoriInteger right_val = right_val_opt.value();
-			int64_t exponent = IsPowerOfTwo(right_val);
-			if (exponent >= 0ll)
-			{
-				Token shift_token(">>", Token::Name::RIGHT_SHIFT, op.m_line, op.m_file_name);
-				Token exp_token(std::to_string(exponent), Token::Name::INTEGER_LITERAL, op.m_line, op.m_file_name);
-				return std::make_unique<MidoriExpression>(MidoriExpression::Binary(shift_token, std::move(binary.m_left), std::make_unique<MidoriExpression>(MidoriExpression::Literal(exp_token, MidoriExpression::LiteralKind::Integer))));
-			}
-		}
-
-		// x % 2^n -> x & (2^n - 1)
-		if (op.m_token_name == Token::Name::PERCENT && right_int)
-		{
-			std::optional<MidoriInteger> right_val_opt = SafeParseInteger(right_int->m_token.m_lexeme);
-			if (!right_val_opt.has_value())
-			{
-				return nullptr;
-			}
-			MidoriInteger right_val = right_val_opt.value();
-			int64_t exponent = IsPowerOfTwo(right_val);
-			if (exponent >= 0ll)
-			{
-				Token and_token("&", Token::Name::SINGLE_AMPERSAND, op.m_line, op.m_file_name);
-				MidoriInteger mask = right_val - 1;
-				Token mask_token(std::to_string(mask), Token::Name::INTEGER_LITERAL, op.m_line, op.m_file_name);
-				return std::make_unique<MidoriExpression>(MidoriExpression::Binary(and_token, std::move(binary.m_left), std::make_unique<MidoriExpression>(MidoriExpression::Literal(mask_token, MidoriExpression::LiteralKind::Integer))));
 			}
 		}
 	}

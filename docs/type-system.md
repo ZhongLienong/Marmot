@@ -30,6 +30,14 @@ The type system provides:
 | `Text` | UTF-8 string |
 | `Unit` | Unit value type |
 
+Integer arithmetic wraps: `Int` in two's complement, `Byte` and `Word` modulo
+2^8 and 2^64, so `9223372036854775807 + 1` is `-9223372036854775808`. Division
+truncates toward zero, and the one quotient that overflows, the minimum `Int`
+divided by `-1`, wraps to itself with a remainder of `0`. Dividing by zero stops
+the program with `DivisionByZero`. A shift by the type's width or more, or by a
+negative count, shifts every bit out: `0`, or `-1` for a negative `Int` shifted
+right. A compile-time constant is folded by the same rules the program runs by.
+
 ## Composite Types
 
 ### Arrays
