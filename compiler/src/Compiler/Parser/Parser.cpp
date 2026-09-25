@@ -4768,13 +4768,13 @@ MidoriResult::ExpressionResult Parser::ParseMatchExpressionWithScrutinee(Token& 
 		(
 			[expr = std::move(expr), &match_keyword, this, match_value_index, match_value_index_opt](Token&&) mutable ->MidoriResult::ExpressionResult
 			{
-				std::unordered_set<std::string> visited_names;
+				MatchCoverage coverage;
 				std::vector<std::unique_ptr<MidoriExpression>> cases;
 
 				while (Match(Token::Name::CASE))
 				{
 					Token& case_keyword = Previous();
-					MidoriResult::ExpressionResult case_result = ParseCaseExpression(visited_names, case_keyword);
+					MidoriResult::ExpressionResult case_result = ParseCaseExpression(coverage, case_keyword);
 					if (!case_result.has_value())
 					{
 						return std::unexpected(std::move(case_result.error()));
@@ -5005,8 +5005,9 @@ MidoriResult::ExpressionResult Parser::ParseFunctionExpression()
 	return std::make_unique<MidoriExpression>(MidoriExpression::Function(keyword, std::move(generic_params), std::move(params), std::move(param_types), std::move(return_type), std::move(body_result.value()), m_state.m_total_variables, std::move(constraints)));
 }
 
-MidoriResult::ExpressionResult Parser::ParseCaseExpression(std::unordered_set<std::string>& visited_members, Token& keyword)
+MidoriResult::ExpressionResult Parser::ParseCaseExpression(MatchCoverage& coverage, Token& keyword)
 {
+	std::unordered_set<std::string>& visited_members = coverage.m_visited;
 	BeginScope();
 	MidoriResult::PatternResult pattern_result = ParsePattern();
 	if (!pattern_result.has_value())
@@ -5029,32 +5030,57 @@ MidoriResult::ExpressionResult Parser::ParseCaseExpression(std::unordered_set<st
 		guard = std::move(guard_result.value());
 	}
 
-	if (guard == nullptr && pattern->IsPattern<MidoriPattern::Constructor>())
+	const bool is_unguarded_union_constructor = (guard == nullptr)
+		&& pattern->IsPattern<MidoriPattern::Constructor>()
+		&& pattern->GetPattern<MidoriPattern::Constructor>().m_is_union;
+
+	if (is_unguarded_union_constructor)
 	{
 		const MidoriPattern::Constructor& constructor = pattern->GetPattern<MidoriPattern::Constructor>();
-		if (constructor.m_is_union)
+		if (visited_members.contains(constructor.m_name))
 		{
-			const bool covers_constructor = std::ranges::all_of(constructor.m_args, [](const std::unique_ptr<MidoriPattern>& arg) { return IsCatchAllPattern(*arg); });
-			const std::string signature = PatternSignature(*pattern);
+			EndScope();
+			return std::unexpected(GenerateParserError(std::format("An earlier case already matches every '{}', so this one can never run.", constructor.m_name), constructor.m_name_token));
+		}
 
-			if (visited_members.contains(constructor.m_name))
-			{
-				EndScope();
-				return std::unexpected(GenerateParserError(std::format("An earlier case already matches every '{}', so this one can never run.", constructor.m_name), constructor.m_name_token));
-			}
+		if (visited_members.contains(PatternSignature(*pattern)))
+		{
+			EndScope();
+			return std::unexpected(GenerateParserError("Duplicate case in match statement.", constructor.m_name_token));
+		}
+	}
 
-			if (visited_members.contains(signature))
-			{
-				EndScope();
-				return std::unexpected(GenerateParserError("Duplicate case in match statement.", constructor.m_name_token));
-			}
+	// A match's cases run to the first one that is not a `case`, so a match
+	// nested in an arm without braces takes the outer match's later cases for
+	// its own: they are the likeliest cases here.
+	if (coverage.m_is_exhausted)
+	{
+		EndScope();
+		return std::unexpected(GenerateParserError("The cases above already match every value, so this one can never run. If it belongs to an enclosing match, put the match above it in braces.", keyword));
+	}
 
-			visited_members.emplace(signature);
-			if (covers_constructor)
+	if (is_unguarded_union_constructor)
+	{
+		const MidoriPattern::Constructor& constructor = pattern->GetPattern<MidoriPattern::Constructor>();
+		visited_members.emplace(PatternSignature(*pattern));
+		if (std::ranges::all_of(constructor.m_args, [](const std::unique_ptr<MidoriPattern>& arg) { return IsCatchAllPattern(*arg); }))
+		{
+			visited_members.emplace(constructor.m_name);
+		}
+
+		if (coverage.m_variants.empty())
+		{
+			ConstructorResolutionResult resolution = ResolveConstructorName(constructor.m_name_token, constructor.m_name);
+			if (resolution.has_value() && resolution.value().has_value())
 			{
-				visited_members.emplace(constructor.m_name);
+				std::ranges::copy(resolution.value()->m_type->GetType<MidoriType::UnionType>().m_member_info | std::views::keys, std::back_inserter(coverage.m_variants));
 			}
 		}
+		coverage.m_is_exhausted = !coverage.m_variants.empty() && std::ranges::all_of(coverage.m_variants, [&visited_members](const std::string& variant) { return visited_members.contains(variant); });
+	}
+	else if ((guard == nullptr) && IsCatchAllPattern(*pattern))
+	{
+		coverage.m_is_exhausted = true;
 	}
 
 	int binding_count = PatternBindingCounter::Count(*pattern);

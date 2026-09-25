@@ -1,0 +1,19 @@
+module NestedMatchTakesOuterCase
+
+import { "../../../MarmotPrelude/Prelude/Option.mmt" }
+
+use Option.{ Option }
+
+type Shape = Circle(Int) | Square(Int) | Dot;
+
+// The inner match has no braces, so it takes `case _` for its own. Some and
+// None already cover every Option, so that case could never run: the outer
+// match was meant to have it, and without it the outer match is not
+// exhaustive either.
+def Radius = fn(shape : Shape, fallback : Option<Int>) -> Int =>
+	match shape with
+		case Shape::Circle(r) =>
+			match fallback with
+				case Option::Some(f) => r + f
+				case Option::None() => r
+		case _ => 0;

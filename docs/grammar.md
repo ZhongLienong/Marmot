@@ -191,3 +191,7 @@ pattern      = '_'                                        // wildcard
 
 A `case` may carry a guard: `case n if n > 10 => ...`. The catch-all arm is
 `case _ =>`; `_` is a pattern, so it nests inside the others.
+
+A match's cases run to the first token that is not `case`, so a match in an
+arm without braces takes the arm's following cases for its own. A case that
+the cases above it already cover can never run, and is an error.

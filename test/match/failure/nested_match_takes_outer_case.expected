@@ -1,0 +1,6 @@
+Compilation failed :(
+Parser Error at test/match/failure/nested_match_takes_outer_case.mmt:19
+   |
+19 | 		case _ => 0;
+   |   ^^^^ The cases above already match every value, so this one can never run. If it belongs to an enclosing match, put the match above it in braces.
+   |
