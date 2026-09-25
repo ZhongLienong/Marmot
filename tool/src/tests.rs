@@ -511,3 +511,39 @@ fn the_plan_serialises_as_the_compiler_expects() {
         })
     );
 }
+
+#[test]
+fn the_checkout_build_is_the_one_whose_compiler_or_vm_was_written_last() {
+    let suffix = std::env::consts::EXE_SUFFIX;
+    let tree = TempTree::new(&[
+        (&format!("development/out/marmotc{suffix}"), ""),
+        (&format!("development/out/marmotvm{suffix}"), ""),
+        (&format!("release/out/marmotc{suffix}"), ""),
+        (&format!("release/out/marmotvm{suffix}"), ""),
+    ]);
+    let stamp = |relative: &str, seconds: u64| {
+        std::fs::File::options()
+            .write(true)
+            .open(tree.path(&format!("{relative}{suffix}")))
+            .unwrap()
+            .set_modified(std::time::UNIX_EPOCH + std::time::Duration::from_secs(seconds))
+            .unwrap();
+    };
+
+    // A change to the VM relinks only marmotvm: that build is still the newest,
+    // though its compiler is older than the other build's.
+    stamp("development/out/marmotc", 100);
+    stamp("development/out/marmotvm", 300);
+    stamp("release/out/marmotc", 200);
+    stamp("release/out/marmotvm", 200);
+    assert_eq!(
+        crate::newest_build(&tree.0),
+        Some(tree.path(&format!("development/out/marmotc{suffix}")))
+    );
+
+    stamp("release/out/marmotc", 400);
+    assert_eq!(
+        crate::newest_build(&tree.0),
+        Some(tree.path(&format!("release/out/marmotc{suffix}")))
+    );
+}

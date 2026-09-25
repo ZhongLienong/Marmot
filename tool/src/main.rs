@@ -244,7 +244,9 @@ fn find_compiler(explicit: Option<&Path>) -> PathBuf {
 
 /// A debug build of this tool comes from a Marmot checkout, and wants the
 /// compiler built there rather than whichever one is installed on PATH. With
-/// several presets built, the one built last is the one being worked on.
+/// several presets built, the one built last is the one being worked on:
+/// last by either program, since a change to the VM relinks only marmotvm,
+/// and the VM run is the one beside the compiler.
 fn checkout_compiler() -> Option<PathBuf> {
     if !cfg!(debug_assertions) {
         return None;
@@ -255,17 +257,29 @@ fn checkout_compiler() -> Option<PathBuf> {
         .join("out")
         .join("build")
         .join("ninja");
-    let name = format!("marmotc{}", std::env::consts::EXE_SUFFIX);
+    newest_build(&builds)
+}
+
+/// The marmotc of the preset under `builds` whose marmotc or marmotvm was
+/// written last.
+fn newest_build(builds: &Path) -> Option<PathBuf> {
+    let suffix = std::env::consts::EXE_SUFFIX;
+    let modified = |path: PathBuf| path.metadata().ok()?.modified().ok();
     std::fs::read_dir(builds)
         .ok()?
         .filter_map(Result::ok)
-        .map(|preset| preset.path().join("out").join(&name))
-        .filter_map(|candidate| {
-            let modified = candidate.metadata().ok()?.modified().ok()?;
-            Some((modified, candidate))
+        .map(|preset| preset.path().join("out"))
+        .filter_map(|directory| {
+            let compiler = directory.join(format!("marmotc{suffix}"));
+            let compiler_modified = modified(compiler.clone())?;
+            let built = modified(directory.join(format!("marmotvm{suffix}")))
+                .map_or(compiler_modified, |vm_modified| {
+                    vm_modified.max(compiler_modified)
+                });
+            Some((built, compiler))
         })
-        .max_by_key(|(modified, _)| *modified)
-        .map(|(_, candidate)| candidate)
+        .max_by_key(|(built, _)| *built)
+        .map(|(_, compiler)| compiler)
 }
 
 /// The compiler's version, from `marmotc --version` ("marmotc 1.2.3").
