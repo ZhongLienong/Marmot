@@ -311,7 +311,7 @@ VirtualMachine::VirtualMachine(std::shared_ptr<const MidoriExecutable> shared_ex
 
 	m_instruction_pointer = GetProcEntry(proc_index);
 
-	PushCallFrame(m_value_stack_begin, &s_halt_bytecode[0], nullptr);
+	PushCallFrame(m_value_stack_begin, &s_halt_bytecode[0], nullptr, nullptr);
 	m_value_stack_base_pointer = m_value_stack_pointer;
 }
 
@@ -334,7 +334,7 @@ void VirtualMachine::PrepareWorkerCall(MidoriValue worker_function) noexcept
 
 	m_instruction_pointer = GetProcEntry(closure.m_proc_index);
 
-	PushCallFrame(m_value_stack_begin, &s_halt_bytecode[0], m_curr_environment);
+	PushCallFrame(m_value_stack_begin, &s_halt_bytecode[0], m_curr_environment, m_curr_closure_traceable);
 	m_value_stack_base_pointer = m_value_stack_pointer;
 }
 
@@ -924,7 +924,7 @@ void VirtualMachine::BuildGarbageCollectionRoots(GarbageCollector::GarbageCollec
 		global_count = m_global_vars->size();
 	}
 
-	roots.reserve(stack_count + global_count + m_string_literal_cache.size() + m_small_string_pool.size() + 1uz);
+	roots.reserve(stack_count + global_count + static_cast<size_t>(m_call_stack_pointer - m_call_stack_begin) + m_string_literal_cache.size() + m_small_string_pool.size() + 1uz);
 
 	if (stack_count > 0uz)
 	{
@@ -950,9 +950,17 @@ void VirtualMachine::BuildGarbageCollectionRoots(GarbageCollector::GarbageCollec
 		}
 	}
 
-	if (m_curr_closure_traceable != nullptr)
+	if (m_curr_closure_traceable != nullptr && m_gc.Contains(m_curr_closure_traceable))
 	{
 		roots.emplace_back(m_curr_closure_traceable);
+	}
+
+	for (CallStackPointer frame = m_call_stack_begin; frame != m_call_stack_pointer; ++frame)
+	{
+		if (frame->m_closure != nullptr && m_gc.Contains(frame->m_closure))
+		{
+			roots.emplace_back(frame->m_closure);
+		}
 	}
 
 	for (MidoriTraceable* cached_string : m_string_literal_cache)
@@ -1048,6 +1056,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 	ValueStackPointer sp = m_value_stack_pointer;
 	ValueStackPointer bp = m_value_stack_base_pointer;
 	MidoriTuple* env = m_curr_environment;
+	MidoriTraceable* closure = m_curr_closure_traceable;
 
 	while (true)
 	{
@@ -1788,7 +1797,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriArray result = MidoriArray::Concatenate(left_value_vector_ref, right_value_vector_ref);
 
 			left = AllocateTraceable(std::move(result));
-			TryCollect(ip, sp, bp, env);
+			TryCollect(ip, sp, bp, env, closure);
 			break;
 		}
 		case OpCode::CONCAT_TEXT:
@@ -1802,7 +1811,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriText result = MidoriText::Concatenate(left_value_string_ref, right_value_string_ref);
 
 			left = AllocateTraceable(std::move(result));
-			TryCollect(ip, sp, bp, env);
+			TryCollect(ip, sp, bp, env, closure);
 			break;
 		}
 		case OpCode::EXTEND_ARRAY:
@@ -2173,10 +2182,10 @@ int VirtualMachine::ExecuteLoop() noexcept
 			ip -= offset;
 			if (IsCancellationRequested()) [[unlikely]]
 			{
-				SyncMachineState(ip, sp, bp, env);
+				SyncMachineState(ip, sp, bp, env, closure);
 				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::WorkerCancelled, "Worker cancelled.", GetLine()));
 			}
-			TryCollect(ip, sp, bp, env);
+			TryCollect(ip, sp, bp, env, closure);
 			break;
 		}
 		case OpCode::IF_INTEGER_LESS:
@@ -2359,7 +2368,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 #if MIDORI_DEBUG_FULL
 			if (!foreign_function_name.IsPointer())
 			{
-				SyncMachineState(ip, sp, bp, env);
+				SyncMachineState(ip, sp, bp, env, closure);
 				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalFFITypeError, std::format("Type error: expected function name (Text), but got {}.", foreign_function_name.ToText().GetCString()), GetLine()));
 			}
 #endif
@@ -2372,7 +2381,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			{
 				if (m_is_worker && ffi_idx.value() == MidoriFFIRegistry::ExitBuiltinIndex())
 				{
-					SyncMachineState(ip, sp, bp, env);
+					SyncMachineState(ip, sp, bp, env, closure);
 					return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::WorkerExited, "Worker exited. Exiting the process from a worker would end the whole program, so the worker fails instead and the joiner receives Err(Failed(...)). A panic inside a worker takes this path.", GetLine()));
 				}
 
@@ -2389,7 +2398,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			if (proc == nullptr)
 			{
-				SyncMachineState(ip, sp, bp, env);
+				SyncMachineState(ip, sp, bp, env, closure);
 				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::FFIFunctionNotFound, std::format("Failed to load foreign function '{}'.", foreign_function_name_ref.GetCString()), GetLine()));
 			}
 
@@ -2480,7 +2489,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			if (IsCancellationRequested()) [[unlikely]]
 			{
-				SyncMachineState(ip, sp, bp, env);
+				SyncMachineState(ip, sp, bp, env, closure);
 				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::WorkerCancelled, "Worker cancelled.", GetLine()));
 			}
 
@@ -2494,7 +2503,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			if (m_is_worker && static_cast<size_t>(ffi_index) == MidoriFFIRegistry::ExitBuiltinIndex())
 			{
-				SyncMachineState(ip, sp, bp, env);
+				SyncMachineState(ip, sp, bp, env, closure);
 				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::WorkerExited, "Worker exited. Exiting the process from a worker would end the whole program, so the worker fails instead and the joiner receives Err(Failed(...)). A panic inside a worker takes this path.", GetLine()));
 			}
 
@@ -2650,7 +2659,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			if (IsCancellationRequested()) [[unlikely]]
 			{
-				SyncMachineState(ip, sp, bp, env);
+				SyncMachineState(ip, sp, bp, env, closure);
 				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::WorkerCancelled, "Worker cancelled.", GetLine()));
 			}
 
@@ -2664,18 +2673,19 @@ int VirtualMachine::ExecuteLoop() noexcept
 #if MIDORI_DEBUG_FULL
 			if (!callable.IsPointer())
 			{
-				SyncMachineState(ip, sp, bp, env);
+				SyncMachineState(ip, sp, bp, env, closure);
 				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, std::format("Type error: expected callable (function/closure), but got {}.", callable.ToText().GetCString()), GetLine()));
 			}
 #endif
 
 			// Save caller's frame before switching to callee
-			PushCallFrame(bp, ip, env);
+			PushCallFrame(bp, ip, env, closure);
 
-			MidoriClosure& closure = callable.GetPointer()->GetTraceable<MidoriClosure>();
-			env = &closure.m_cell_values;
+			closure = callable.GetPointer();
+			MidoriClosure& callee = closure->GetTraceable<MidoriClosure>();
+			env = &callee.m_cell_values;
 
-			ip = GetProcEntry(closure.m_proc_index);
+			ip = GetProcEntry(callee.m_proc_index);
 			bp = sp - arity;
 
 			break;
@@ -2691,18 +2701,19 @@ int VirtualMachine::ExecuteLoop() noexcept
 #if MIDORI_DEBUG_FULL
 			if (!callable.IsPointer())
 			{
-				SyncMachineState(ip, sp, bp, env);
+				SyncMachineState(ip, sp, bp, env, closure);
 				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, std::format("Type error: expected callable (function/closure), but got {}.", callable.ToText().GetCString()), GetLine()));
 			}
 #endif
 
 			// Save caller's frame before switching to callee
-			PushCallFrame(bp, ip, env);
+			PushCallFrame(bp, ip, env, closure);
 
-			MidoriClosure& closure = callable.GetPointer()->GetTraceable<MidoriClosure>();
-			env = &closure.m_cell_values;
+			closure = callable.GetPointer();
+			MidoriClosure& callee = closure->GetTraceable<MidoriClosure>();
+			env = &callee.m_cell_values;
 
-			ip = GetProcEntry(closure.m_proc_index);
+			ip = GetProcEntry(callee.m_proc_index);
 			bp = sp - arity;
 
 			break;
@@ -2712,10 +2723,11 @@ int VirtualMachine::ExecuteLoop() noexcept
 			int proc_index = static_cast<int>(ReadByte(ip));
 			int arity = static_cast<int>(ReadByte(ip));
 
-			PushCallFrame(bp, ip, env);
+			PushCallFrame(bp, ip, env, closure);
 
 			// Static functions have no captures, so no environment needed
 			env = nullptr;
+			closure = nullptr;
 			ip = GetProcEntry(proc_index);
 			bp = sp - arity;
 
@@ -2729,10 +2741,11 @@ int VirtualMachine::ExecuteLoop() noexcept
 			int proc_index = static_cast<int>(ReadByte(ip));
 			int arity = static_cast<int>(instruction) - static_cast<int>(OpCode::CALL_PROC_0);
 
-			PushCallFrame(bp, ip, env);
+			PushCallFrame(bp, ip, env, closure);
 
 			// Static functions have no captures, so no environment needed
 			env = nullptr;
+			closure = nullptr;
 			ip = GetProcEntry(proc_index);
 			bp = sp - arity;
 
@@ -2747,17 +2760,18 @@ int VirtualMachine::ExecuteLoop() noexcept
 #if MIDORI_DEBUG_FULL
 			if (!callable.IsPointer())
 			{
-				SyncMachineState(ip, sp, bp, env);
+				SyncMachineState(ip, sp, bp, env, closure);
 				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, std::format("Type error: expected callable (function/closure), but got {}.", callable.ToText().GetCString()), GetLine()));
 			}
 #endif
 
-			PushCallFrame(bp, ip, env);
+			PushCallFrame(bp, ip, env, closure);
 
-			MidoriClosure& closure = callable.GetPointer()->GetTraceable<MidoriClosure>();
-			env = &closure.m_cell_values;
+			closure = callable.GetPointer();
+			MidoriClosure& callee = closure->GetTraceable<MidoriClosure>();
+			env = &callee.m_cell_values;
 
-			ip = GetProcEntry(closure.m_proc_index);
+			ip = GetProcEntry(callee.m_proc_index);
 			bp = sp - arity;
 
 			break;
@@ -2773,17 +2787,18 @@ int VirtualMachine::ExecuteLoop() noexcept
 #if MIDORI_DEBUG_FULL
 			if (!callable.IsPointer())
 			{
-				SyncMachineState(ip, sp, bp, env);
+				SyncMachineState(ip, sp, bp, env, closure);
 				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, std::format("Type error: expected callable (function/closure), but got {}.", callable.ToText().GetCString()), GetLine()));
 			}
 #endif
 
-			PushCallFrame(bp, ip, env);
+			PushCallFrame(bp, ip, env, closure);
 
-			MidoriClosure& closure = callable.GetPointer()->GetTraceable<MidoriClosure>();
-			env = &closure.m_cell_values;
+			closure = callable.GetPointer();
+			MidoriClosure& callee = closure->GetTraceable<MidoriClosure>();
+			env = &callee.m_cell_values;
 
-			ip = GetProcEntry(closure.m_proc_index);
+			ip = GetProcEntry(callee.m_proc_index);
 			bp = sp - arity;
 
 			break;
@@ -2796,7 +2811,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 #if MIDORI_DEBUG_FULL
 			if (!callable.IsPointer())
 			{
-				SyncMachineState(ip, sp, bp, env);
+				SyncMachineState(ip, sp, bp, env, closure);
 				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, std::format("Type error: expected callable (function/closure), but got {}.", callable.ToText().GetCString()), GetLine()));
 			}
 #endif
@@ -2809,15 +2824,16 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			sp = bp + arity;
 
-			MidoriClosure& closure = callable.GetPointer()->GetTraceable<MidoriClosure>();
-			env = &closure.m_cell_values;
+			closure = callable.GetPointer();
+			MidoriClosure& callee = closure->GetTraceable<MidoriClosure>();
+			env = &callee.m_cell_values;
 
 			// Jump to the start of the function without creating a new call frame
-			ip = GetProcEntry(closure.m_proc_index);
+			ip = GetProcEntry(callee.m_proc_index);
 
 			if (IsCancellationRequested()) [[unlikely]]
 			{
-				SyncMachineState(ip, sp, bp, env);
+				SyncMachineState(ip, sp, bp, env, closure);
 				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::WorkerCancelled, "Worker cancelled.", GetLine()));
 			}
 
@@ -3003,7 +3019,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 #if MIDORI_DEBUG_FULL
 			if (!env)
 			{
-				SyncMachineState(ip, sp, bp, env);
+				SyncMachineState(ip, sp, bp, env, closure);
 				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, "GET_CELL called with null environment - function has captures but was called via CALL_PROC", GetLine()));
 			}
 #endif
@@ -3025,7 +3041,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			// cell holding it replaces it.
 			MidoriValue& top = Peek(sp);
 			top = AllocateTraceable(MidoriMutableCell(top));
-			TryCollect(ip, sp, bp, env);
+			TryCollect(ip, sp, bp, env, closure);
 			break;
 		}
 		case OpCode::READ_CELL:
@@ -3203,6 +3219,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			sp = return_point;
 			ip = frame.m_return_ip;
 			env = frame.m_closure_ptr;
+			closure = frame.m_closure;
 
 			Push(sp, value);
 
@@ -3213,7 +3230,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 #if MIDORI_PROFILE_OPCODES
 			DumpOpcodeProfile();
 #endif
-			SyncMachineState(ip, sp, bp, env);
+			SyncMachineState(ip, sp, bp, env, closure);
 			return 0;
 		}
 		case OpCode::PUSH_PLACEHOLDER:
@@ -3230,7 +3247,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 		case OpCode::WORKER_IS_DONE:
 		case OpCode::WORKER_CANCEL:
 		{
-			SyncMachineState(ip, sp, bp, env);
+			SyncMachineState(ip, sp, bp, env, closure);
 			if (!ExecuteConcurrencyInstruction(instruction, ip))
 			{
 				return EXIT_FAILURE;

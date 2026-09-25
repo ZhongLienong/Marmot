@@ -50,6 +50,10 @@ private:
 		ValueStackPointer m_return_bp;
 		InstructionPointer m_return_ip;
 		MidoriTuple* m_closure_ptr;
+		// The closure m_closure_ptr points into. A frame is often the only thing that
+		// still holds its closure - `Make(x)(n)` calls one nothing else names - so the
+		// collector roots it through here, or frees it under a running call.
+		MidoriTraceable* m_closure;
 	};
 	using CallStackPointer = CallFrame*;
 
@@ -154,12 +158,13 @@ public:
     MidoriTraceable* InternSmallString(const MidoriText& text) noexcept;
 
 private:
-	MIDORI_FORCE_INLINE void SyncMachineState(InstructionPointer ip, ValueStackPointer sp, ValueStackPointer bp, MidoriTuple* env) noexcept
+	MIDORI_FORCE_INLINE void SyncMachineState(InstructionPointer ip, ValueStackPointer sp, ValueStackPointer bp, MidoriTuple* env, MidoriTraceable* closure) noexcept
 	{
 		m_instruction_pointer = ip;
 		m_value_stack_pointer = sp;
 		m_value_stack_base_pointer = bp;
 		m_curr_environment = env;
+		m_curr_closure_traceable = closure;
 	}
 
 	MIDORI_FORCE_INLINE bool IsCancellationRequested() const noexcept
@@ -167,11 +172,11 @@ private:
 		return m_stop_possible && m_stop_token.stop_requested();
 	}
 
-	MIDORI_FORCE_INLINE void TryCollect(InstructionPointer ip, ValueStackPointer sp, ValueStackPointer bp, MidoriTuple* env) noexcept
+	MIDORI_FORCE_INLINE void TryCollect(InstructionPointer ip, ValueStackPointer sp, ValueStackPointer bp, MidoriTuple* env, MidoriTraceable* closure) noexcept
 	{
 		if (m_gc.ShouldCollect())
 		{
-			SyncMachineState(ip, sp, bp, env);
+			SyncMachineState(ip, sp, bp, env, closure);
 			BuildGarbageCollectionRoots(m_gc_roots_scratch);
 			m_gc.ReclaimMemory(m_gc_roots_scratch, m_allocator);
 		}
@@ -382,9 +387,9 @@ private:
 		return m_proc_entry_cache[static_cast<size_t>(proc_index)];
 	}
 
-	MIDORI_FORCE_INLINE void PushCallFrame(ValueStackPointer m_return_bp, InstructionPointer m_return_ip, MidoriTuple* m_closure_ptr) noexcept
+	MIDORI_FORCE_INLINE void PushCallFrame(ValueStackPointer m_return_bp, InstructionPointer m_return_ip, MidoriTuple* m_closure_ptr, MidoriTraceable* m_closure) noexcept
 	{
-		*m_call_stack_pointer = CallFrame{m_return_bp, m_return_ip, m_closure_ptr};
+		*m_call_stack_pointer = CallFrame{m_return_bp, m_return_ip, m_closure_ptr, m_closure};
 		++m_call_stack_pointer;
 	}
 
