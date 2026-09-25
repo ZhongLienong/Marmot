@@ -11,12 +11,15 @@ def BitAt = fn(index: Int) -> Int => 1 << index;
 
 def HasBit = fn(bitmap: Int, index: Int) -> Bool => ((bitmap >> index) & 1) == 1;
 
-// Counts over a fixed 32-bit window rather than shifting until zero: an
-// arithmetic right shift of a negative value never reaches zero.
-def PopCountFrom = fn(value: Int, bit: Int) -> Int =>
-    if bit >= BranchFactor then 0 else ((value >> bit) & 1) + PopCountFrom(value, bit + 1);
-
-def PopCount = fn(value: Int) -> Int => PopCountFrom(value, 0);
+// Counts over a fixed 32-bit window, in parallel within the word: the bitmap
+// is read on every map access, and counting one bit per call was 32 calls.
+def PopCount = fn(value: Int) -> Int => {
+    def window = value & 0xFFFFFFFF;
+    def pairs = window - ((window >> 1) & 0x55555555);
+    def nibbles = (pairs & 0x33333333) + ((pairs >> 2) & 0x33333333);
+    def bytes = (nibbles + (nibbles >> 4)) & 0x0F0F0F0F;
+    ((bytes * 0x01010101) >> 24) & 255
+};
 
 // Where a child sits in the sparse array: the number of occupied slots below it.
 def SparseIndex = fn(bitmap: Int, index: Int) -> Int => PopCount(bitmap & (BitAt(index) - 1));
