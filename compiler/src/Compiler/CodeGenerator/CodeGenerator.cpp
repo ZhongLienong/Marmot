@@ -5743,7 +5743,7 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 
 	EmitByte(OpCode::RETURN, line);
 
-	std::string full_specialized_name = specialized_name + "@"s + (m_module_name.has_value() ? m_module_name.value() : m_file_name);
+	std::string full_specialized_name = specialized_name + "@"s + ProcedureOwnerName();
 	m_builder.m_procedure_names[specialized_proc_index] = full_specialized_name;
 
 	m_builder.m_current_procedure_index = prev_index;
@@ -5753,6 +5753,19 @@ int CodeGenerator::SpecializeGenericFunction(const std::string& base_name, const
 	m_method_resolution_map = std::move(prev_resolution_map);
 	m_generic_type_substitution = std::move(prev_generic_type_map);
 	return static_cast<int>(specialized_proc_index);
+}
+
+// The module whose source a procedure's body is. A specialization of another
+// module's generic is emitted here, but a runtime error inside it happened in
+// that module's file, at a line of that file.
+std::string CodeGenerator::ProcedureOwnerName() const
+{
+	if (m_specialization_source_module.has_value())
+	{
+		return m_specialization_source_module.value();
+	}
+
+	return m_module_name.has_value() ? m_module_name.value() : m_file_name;
 }
 
 std::optional<std::string> CodeGenerator::ResolveConcreteTypeclassMethodName(const std::string& callee_name, const MidoriExpression::Call& call, int line)
@@ -6432,7 +6445,7 @@ int CodeGenerator::EmitFunction(const std::vector<Token>& params, std::unique_pt
 
 	EmitByte(OpCode::RETURN, line);
 
-	std::string full_name = debug_name + "@"s + (m_module_name.has_value() ? m_module_name.value() : m_file_name);
+	std::string full_name = debug_name + "@"s + ProcedureOwnerName();
 	m_builder.m_procedure_names[closure_proc_index] = full_name;
 
 	m_builder.m_current_procedure_index = prev_index;

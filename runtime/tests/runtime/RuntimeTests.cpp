@@ -293,6 +293,33 @@ def value = Deep(1000000);
 	REQUIRE(executed.m_output.m_stdout.find("Helper") == std::string::npos);
 }
 
+TEST_CASE("VM reports an error inside an imported generic in the generic's own file", "[runtime][vm][error][stack]")
+{
+	// The specialization is emitted in the importing module, and was reported
+	// in that module's file at a line of the generic's.
+	const MidoriTest::TempDir temp_dir("marmot-runtime-generic-origin");
+	const std::filesystem::path library_path = temp_dir.Path() / "GenericOriginLib.mmt";
+	std::ofstream(library_path) << "module GenericOriginLib\npublic export { Sixth }\n\ndef Sixth = fn<T>(values: Array<T>) -> T => values[5];\n";
+	const std::filesystem::path source_file_path = temp_dir.Path() / "GenericOriginMain.mmt";
+	const std::string source_code = std::format(
+		R"(module GenericOriginMain
+import {{ "{}" }}
+def value = GenericOriginLib::Sixth([1, 2]);
+)",
+		MidoriPathLiteral(library_path));
+	std::ofstream(source_file_path) << source_code;
+
+	const std::expected<MidoriTest::ExecutedSnippet, CompilerError> run_result =
+		MidoriTest::ExecuteSnippet(source_code, source_file_path.string());
+	const MidoriTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
+
+	REQUIRE(executed.m_exit_code == 1);
+	REQUIRE(executed.m_output.m_stdout.find("error[IndexOutOfBounds]") != std::string::npos);
+	REQUIRE(executed.m_output.m_stdout.find("GenericOriginLib.mmt:4") != std::string::npos);
+	REQUIRE(executed.m_output.m_stdout.find("[module GenericOriginLib]") != std::string::npos);
+	REQUIRE(executed.m_output.m_stdout.find("values[5]") != std::string::npos);
+}
+
 TEST_CASE("VM renders runtime source context from embedded executable metadata", "[runtime][vm][error][embedded]")
 {
 	const std::string source_code =

@@ -482,10 +482,16 @@ MidoriResult::VoidResult BytecodeLinker::ResolveImportsAndPatch()
 
 void BytecodeLinker::ConcatenateBytecode()
 {
+	std::unordered_map<std::string, std::string> source_path_by_module;
+	for (const BytecodeModule& module : m_modules)
+	{
+		source_path_by_module.emplace(module.m_module_name, module.m_source_path.string());
+	}
+
 	std::ranges::for_each
 	(
 		m_modules,
-		[this](BytecodeModule& module)
+		[this, &source_path_by_module](BytecodeModule& module)
 		{
 			const size_t module_proc_base_offset = m_module_base_procedure_indices.at(module.m_module_name);
 			const size_t module_global_base_offset = m_module_base_global_indices.at(module.m_module_name);
@@ -494,11 +500,16 @@ void BytecodeLinker::ConcatenateBytecode()
 
 			std::ranges::for_each
 			(
-				module.m_procedures,
-				[this, &module, module_proc_base_offset, module_global_base_offset, &import_resolved_indices, &string_mapping](BytecodeStream& procedure)
+				std::views::iota(0uz, module.m_procedures.size()),
+				[this, &module, &source_path_by_module, module_proc_base_offset, module_global_base_offset, &import_resolved_indices, &string_mapping](size_t proc_index)
 				{
+					BytecodeStream& procedure = module.m_procedures[proc_index];
 					PatchProcedure(procedure, module_proc_base_offset, module_global_base_offset, import_resolved_indices, string_mapping);
-					m_global_procedure_source_paths.emplace_back(module.m_source_path.string());
+
+					// A specialization of an imported generic is named for the module it came from.
+					const std::string& proc_name = module.m_procedure_names[proc_index];
+					const std::unordered_map<std::string, std::string>::const_iterator owner = source_path_by_module.find(proc_name.substr(proc_name.rfind(ModuleSeparator) + 1u));
+					m_global_procedure_source_paths.emplace_back(owner != source_path_by_module.cend() ? owner->second : module.m_source_path.string());
 					m_global_procedures.push_back(std::move(procedure));
 				}
 			);

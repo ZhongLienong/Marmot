@@ -387,6 +387,8 @@ private:
 
 	int SpecializeGenericFunction(const std::string& base_name, const std::vector<std::shared_ptr<MidoriType>>& concrete_arg_types, int line);
 
+	std::string ProcedureOwnerName() const;
+
 	std::shared_ptr<MidoriType> GetConcreteTypeForExpression(const std::unique_ptr<MidoriExpression>& expr);
 
 	static std::shared_ptr<MidoriType> RepresentationOf(const std::shared_ptr<MidoriType>& type);
