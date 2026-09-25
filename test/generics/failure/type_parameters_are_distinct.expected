@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/generics/failure/type_parameters_are_distinct.mmt:9
+  |
+9 | def Swap = fn<A, B>(first: A, second: B) -> (B, A) => (first, second);
+  |            ^^ Type parameters B and A may be different types, so one cannot stand for the other.
+  |

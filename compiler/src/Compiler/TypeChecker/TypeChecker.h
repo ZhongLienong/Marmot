@@ -180,6 +180,7 @@ private:
 
 	std::shared_ptr<MidoriType> FreshTypeVar();
 	std::optional<std::string> RigidTypeVariableName(const std::shared_ptr<MidoriType>& type) const;
+	std::shared_ptr<MidoriType> WithTypeParametersResolved(const std::shared_ptr<MidoriType>& type) const;
 
 	std::shared_ptr<MidoriType> Freshen(const std::shared_ptr<MidoriType>& type);
 

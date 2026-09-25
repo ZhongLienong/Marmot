@@ -1747,6 +1747,36 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 	{
 		return left_subst;
 	}
+	// A type parameter stands for whatever type a caller picks, so inside its own body it
+	// is only ever itself: it can absorb an inference variable but not become a type.
+	else if (RigidTypeVariableName(left_subst).has_value() || RigidTypeVariableName(right_subst).has_value())
+	{
+		const std::optional<std::string> left_parameter = RigidTypeVariableName(left_subst);
+		const std::optional<std::string> right_parameter = RigidTypeVariableName(right_subst);
+		if (left_parameter.has_value() && right_parameter.has_value())
+		{
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, std::format("Type parameters {} and {} may be different types, so one cannot stand for the other.", left_parameter.value(), right_parameter.value()), token, m_file_name, m_source_lines));
+		}
+
+		std::shared_ptr<MidoriType>& parameter = left_parameter.has_value() ? left : right;
+		const std::shared_ptr<MidoriType>& parameter_subst = left_parameter.has_value() ? left_subst : right_subst;
+		std::shared_ptr<MidoriType>& other = left_parameter.has_value() ? right : left;
+		const std::shared_ptr<MidoriType>& other_subst = left_parameter.has_value() ? right_subst : left_subst;
+		if (other_subst->IsType<MidoriType::TypeVariable>())
+		{
+			m_type_substitution[other_subst->GetType<MidoriType::TypeVariable>().m_id] = parameter_subst;
+			*other = *parameter_subst;
+			return parameter;
+		}
+		if (other_subst->IsType<MidoriType::UndecidedType>())
+		{
+			*other = *parameter_subst;
+			return parameter;
+		}
+
+		const std::string& parameter_name = left_parameter.has_value() ? left_parameter.value() : right_parameter.value();
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, std::format("Type parameter {0} may be any type, so it cannot be used as {1} here.", parameter_name, other_subst->DisplayString()), token, m_file_name, m_source_lines));
+	}
 	// Between two variables the newer is bound to the older. The older is usually a
 	// generic's own parameter, and a type recorded on a node while the other was
 	// still free stays resolvable only through the variable that survives.
@@ -2323,6 +2353,23 @@ std::optional<std::string> TypeChecker::RigidTypeVariableName(const std::shared_
 	return found == m_rigid_type_variables.cend() ? std::nullopt : std::optional<std::string>(found->second);
 }
 
+// Inside a generic body a written type names the definition's type parameters; they are
+// the variables the parameters were freshened to, not types of their own.
+std::shared_ptr<MidoriType> TypeChecker::WithTypeParametersResolved(const std::shared_ptr<MidoriType>& type) const
+{
+	if (m_rigid_type_variables.empty())
+	{
+		return type;
+	}
+
+	TypeEnvironment parameters;
+	for (const std::pair<int, std::string>& rigid : m_rigid_type_variables)
+	{
+		parameters.insert_or_assign(rigid.second, MidoriType::MakeTypeVariable(rigid.first));
+	}
+	return MidoriType::SubstituteTypeParams(type, parameters);
+}
+
 std::shared_ptr<MidoriType> TypeChecker::Freshen(const std::shared_ptr<MidoriType>& type)
 {
 	FresheningContext context;
@@ -2338,6 +2385,11 @@ std::shared_ptr<MidoriType> TypeChecker::Freshen(const std::shared_ptr<MidoriTyp
 		return cache_it->second;
 	}
 
+	// An enclosing definition's type parameter is one type throughout its body.
+	if (RigidTypeVariableName(type).has_value())
+	{
+		return type;
+	}
 	if (type->IsType<MidoriType::UndecidedType>() || type->IsType<MidoriType::TypeVariable>())
 	{
 		std::shared_ptr<MidoriType> fresh_var = FreshTypeVar();
@@ -3655,6 +3707,11 @@ MidoriResult::TypeResult TypeChecker::TypeCheckGenericLambdaDefinition(MidoriSta
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::VariableDefinition& def)
 {
+	if (def.m_annotated_type.has_value())
+	{
+		def.m_annotated_type = WithTypeParametersResolved(def.m_annotated_type.value());
+	}
+
 	// Special handling for functions (scope management required)
 	if (def.m_value->IsExpression<MidoriExpression::Function>())
 	{
@@ -3693,9 +3750,9 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::VariableDefini
 		// Freshen any UndecidedType parameters to TypeVariables
 		for (std::shared_ptr<MidoriType>& param_type : function.m_param_types)
 		{
-			param_type = Freshen(param_type);
+			param_type = Freshen(WithTypeParametersResolved(param_type));
 		}
-		function.m_return_type = Freshen(function.m_return_type);
+		function.m_return_type = Freshen(WithTypeParametersResolved(function.m_return_type));
 
 		std::shared_ptr<MidoriType> return_type_copy = function.m_return_type;
 		std::shared_ptr<MidoriType> function_type = MidoriType::MakeFunctionType(function.m_param_types, std::move(return_type_copy));
@@ -3748,7 +3805,15 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::VariableDefini
 							function.m_return_type = resolved_signature.m_return_type;
 						}
 
-						if (HasTypeVariables(resolved_function_type))
+						// The enclosing generic's own parameters are not left to infer.
+						std::unordered_set<int> variable_ids;
+						std::unordered_set<const MidoriType*> visited;
+						CollectTypeVariableIds(resolved_function_type, variable_ids, visited);
+						const bool has_free_variables = std::ranges::any_of(variable_ids, [this](int id) -> bool
+							{
+								return !std::ranges::contains(m_rigid_type_variables, id, &std::pair<int, std::string>::first);
+							});
+						if (has_free_variables)
 						{
 							return std::unexpected
 							(

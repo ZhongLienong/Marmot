@@ -1,0 +1,12 @@
+module TypeParametersAreDistinct
+
+// Swapping in the wrong order made A and B one type in the body, but callers still saw
+// fn<A, B>(A, B) -> (B, A): Swap(1, "one") compiled, and printing its first element read
+// an Int as Text and crashed the VM.
+
+import { "../../../MarmotPrelude/IO.mmt" }
+
+def Swap = fn<A, B>(first: A, second: B) -> (B, A) => (first, second);
+
+def (text, number) = Swap(1, "one");
+IO::PrintLine(text);

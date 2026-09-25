@@ -1,0 +1,10 @@
+module TypeParameterUsedAsConcreteType
+
+// A type parameter used as Int in its own body compiled: T was quietly taken to be Int,
+// and the error surfaced only at a call with anything else, far from the mistake.
+
+import { "../../../MarmotPrelude/IO.mmt" }
+
+def AsInt = fn<T>(value: T) -> Int => value;
+
+IO::PrintLine(AsInt(3) as Text);

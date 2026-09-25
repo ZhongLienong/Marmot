@@ -1,0 +1,23 @@
+module TypeParameterInBodyAnnotations
+
+// Inside a generic body, a written type names the definition's type parameter: an
+// annotated local and a nested lambda's parameter and result are that same type. The
+// lambda's K used to become a fresh variable of its own, and the definition failed with
+// "could not infer all lambda parameter or return types".
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/ArrayUtil.mmt",
+}
+
+def Wrap = fn<K>(key: K) -> Array<K> =>
+{
+	def copy: K = key;
+	def twice = fn(item: K) -> Array<K> => [item, item];
+	ArrayUtil::Concat(twice(copy), [key])
+};
+
+IO::PrintLine(#Wrap("a") as Text);
+IO::PrintLine(Wrap(2)[1] as Text);
+IO::PrintLine(Wrap(true)[2] as Text);

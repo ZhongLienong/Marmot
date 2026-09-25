@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/generics/failure/type_parameter_used_as_concrete_type.mmt:8
+  |
+8 | def AsInt = fn<T>(value: T) -> Int => value;
+  |             ^^ Type parameter T may be any type, so it cannot be used as Int here.
+  |
