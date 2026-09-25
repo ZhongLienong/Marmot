@@ -79,6 +79,9 @@ def check_idempotency(runner: TestRunner, files: Sequence[Path], verbose: bool) 
             check=False,
         )
         if completed_first.returncode != 0:
+            # A fixture that must fail to lex cannot be formatted: the formatter works on tokens.
+            if "failure" in path.parts and "Lexer Error" in completed_first.stdout + completed_first.stderr:
+                continue
             failures.append((path, f"first format failed: {completed_first.stderr.strip()}"))
             continue
 

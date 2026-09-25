@@ -1,0 +1,8 @@
+module AsInArgumentBeforeOperator
+
+// `as` binds loosest, so in an argument `x as Text ++ y` ends at the type, and the
+// error asked for a comma after it.
+
+import { "../../../MarmotPrelude/IO.mmt" }
+
+IO::PrintLine(42 as Text ++ "!");
