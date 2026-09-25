@@ -1,0 +1,61 @@
+module Shop.Money
+
+import
+{
+	"../../../MarmotPrelude/Equatable.mmt",
+	"../../../MarmotPrelude/Hashable.mmt",
+	"../../../MarmotPrelude/Orderable.mmt",
+	"../../../MarmotPrelude/Convertable.mmt"
+}
+
+public export { Cents, Currency, Price, FromUnits, Add, Scale, Format, Zero }
+private export { RoundHalfUp }
+
+type Cents = Int;
+
+type Currency = Eur | Usd | Jpy deriving (Equatable, Hashable);
+
+type Price = { amount: Cents, currency: Currency };
+
+instance Equatable<Price>
+{
+	def Equals = fn(a: Price, b: Price) -> Bool => ((a.amount as Int) == (b.amount as Int)) && (a.currency == b.currency);
+};
+
+instance Orderable<Price>
+{
+	def Compare = fn(a: Price, b: Price) -> Int => (a.amount as Int) - (b.amount as Int);
+};
+
+def Zero = fn(currency: Currency) -> Price => Price(0 as Cents, currency);
+
+def FromUnits = fn(units: Int, cents: Int, currency: Currency) -> Price => Price(((units * 100) + cents) as Cents, currency);
+
+def Add = fn(a: Price, b: Price) -> Price => Price(((a.amount as Int) + (b.amount as Int)) as Cents, a.currency);
+
+def RoundHalfUp = fn(numerator: Int, denominator: Int) -> Int => ((numerator * 2) + denominator) / (denominator * 2);
+
+def Scale = fn(price: Price, percent: Int) -> Price => { price with amount = RoundHalfUp((price.amount as Int) * percent, 100) as Cents };
+
+def Symbol = fn(currency: Currency) -> Text =>
+	match currency with
+		case Currency::Eur() => "EUR"
+		case Currency::Usd() => "USD"
+		case Currency::Jpy() => "JPY";
+
+def Pad = fn(value: Int) -> Text => if value < 10 then "0" ++ (value as Text) else value as Text;
+
+def Format = fn(price: Price) -> Text =>
+{
+	def raw = price.amount as Int;
+	def sign = if raw < 0 then "-" else "";
+	def magnitude = if raw < 0 then -raw else raw;
+	match price.currency with
+		case Currency::Jpy() => sign ++ (magnitude as Text) ++ " " ++ Symbol(price.currency)
+		case _ => sign ++ ((magnitude / 100) as Text) ++ "." ++ Pad(magnitude % 100) ++ " " ++ Symbol(price.currency)
+};
+
+instance Convertable<Price, Text>
+{
+	def Convert = fn(price: Price) -> Text => Format(price);
+};

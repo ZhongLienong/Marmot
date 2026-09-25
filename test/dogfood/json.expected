@@ -1,0 +1,13 @@
+doc => {"name":"marmot","version":1.5,"tags":["lang","vm",null,true],"nested":{"a":[1,2,[3,4,{"name":"deep"}]],"b":-2500,"quote":"say /"hi/"/n"}} depth=5
+empty-array => [] depth=1
+empty-object => {} depth=1
+scalar => 42 depth=0
+bad !! expected , or ] at 4
+bad2 !! expected : at 2
+bad3 !! unexpected '@' at 4
+unterminated !! unterminated string
+nested.b = -2500
+name keys: 2, distinct keys: 7
+round trip equal: true
+deep => 200 depth=0
+big array length 2000

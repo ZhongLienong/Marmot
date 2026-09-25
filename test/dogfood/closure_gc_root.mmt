@@ -1,0 +1,31 @@
+module ClosureGcRoot
+
+import
+{
+	"../../MarmotPrelude/IO.mmt"
+}
+
+// A closure called straight from the expression that built it is referenced by
+// nothing but its own frame. A frame keeps only a pointer to the closure's
+// cells, so a collection during the call freed the closure under it.
+
+def Churn = fn(n: Int, keep: Array<Text>) -> Array<Text> =>
+	if n == 0 then keep else Churn(n - 1, [(n as Text) ++ "x" for _ in 0..1..200]);
+
+def Make = fn(label: Text) -> fn(Int) -> Text => fn(n: Int) -> Text =>
+{
+	def garbage = Churn(n, []);
+	label ++ " " ++ garbage[0] ++ " " ++ label
+};
+
+IO::PrintLine(Make("captured-" ++ ("text" ++ "!"))(20000));
+
+// A generic that tail-calls itself and is re-entered from inside one of its own
+// calls: the specialization's closure is equally unrooted.
+def Walk = fn<T>(values: Array<T>, index: Int, acc: Array<T>, depth: Int) -> Array<T> =>
+	if index >= #values then acc else Walk(values, index + 1, Descend(values, acc, depth), depth);
+
+def Descend = fn(values: Array<Int>, acc: Array<Int>, depth: Int) -> Array<Int> =>
+	if depth == 0 then acc ++ [1] else Walk(values, 0, acc, depth - 1);
+
+IO::PrintLine((#Walk([i for i in 0..1..32], 0, [], 2)) as Text);

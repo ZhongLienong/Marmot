@@ -1,0 +1,120 @@
+module Shop.Main
+
+import
+{
+	"./Money.mmt",
+	"./Catalog.mmt",
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/Iter.mmt",
+	"../../../MarmotPrelude/Iterable.mmt",
+	"../../../MarmotPrelude/Equatable.mmt",
+	"../../../MarmotPrelude/Convertable.mmt",
+	"../../../MarmotPrelude/Prelude/Option.mmt",
+	"../../../MarmotPrelude/Prelude/Result.mmt"
+}
+
+use Option.{ Option }
+use Result.{ Result }
+use Shop.Money.{ Price, Currency, FromUnits, Format }
+use Shop.Catalog.{ Stock }
+
+// Same short name as Shop.Catalog::Item, a different type.
+type Item = { sku: Text, quantity: Int };
+
+// Written out rather than derived: derived_container_warning.mmt covers deriving.
+type Checked<T> = Fine(T) | Broken(Text);
+
+def CheckedMap = fn<A, B>(checked: Checked<A>, f: fn(A) -> B) -> Checked<B> =>
+	match checked with
+		case Checked::Fine(value) => Checked::Fine(f(value))
+		case Checked::Broken(reason) => Checked::Broken(reason);
+
+def CheckedBind = fn<A, B>(checked: Checked<A>, f: fn(A) -> Checked<B>) -> Checked<B> =>
+	match checked with
+		case Checked::Fine(value) => f(value)
+		case Checked::Broken(reason) => Checked::Broken(reason);
+
+def CheckedUnwrap = fn<A>(checked: Checked<A>, fallback: A) -> A =>
+	match checked with
+		case Checked::Fine(value) => value
+		case Checked::Broken(_) => fallback;
+
+type Line = { item: Shop.Catalog::Item, quantity: Int, total: Price };
+
+def JoinText = fn(parts: Array<Text>, separator: Text) -> Text => JoinFrom(parts, separator, 0, "");
+def JoinFrom = fn(parts: Array<Text>, separator: Text, index: Int, built: Text) -> Text =>
+	if index >= #parts then built else JoinFrom(parts, separator, index + 1, if index == 0 then parts[index] else built ++ separator ++ parts[index]);
+
+def eur = Currency::Eur();
+
+def catalog = Shop.Catalog::Empty()
+	|> fn(empty: Shop.Catalog::Catalog) -> Shop.Catalog::Catalog => Shop.Catalog::Add(empty, Shop.Catalog::Item("A1" as Shop.Catalog::Sku, "Apple", FromUnits(0, 45, eur)), 100)
+	|> fn(one: Shop.Catalog::Catalog) -> Shop.Catalog::Catalog => Shop.Catalog::Add(one, Shop.Catalog::Item("B2" as Shop.Catalog::Sku, "Bread", FromUnits(2, 99, eur)), 3)
+	|> fn(two: Shop.Catalog::Catalog) -> Shop.Catalog::Catalog => Shop.Catalog::Add(two, Shop.Catalog::Item("C3" as Shop.Catalog::Sku, "Cheese", FromUnits(7, 50, eur)), 0)
+	|> fn(three: Shop.Catalog::Catalog) -> Shop.Catalog::Catalog => Shop.Catalog::Add(three, Shop.Catalog::Item("D4" as Shop.Catalog::Sku, "Dates", FromUnits(4, 5, eur)), 12);
+
+def PriceLine = fn(stock: Shop.Catalog::Catalog, wanted: Item) -> Checked<Line> =>
+	match Shop.Catalog::Find(stock, wanted.sku as Shop.Catalog::Sku) with
+		case Option::None() => Checked::Broken("unknown " ++ wanted.sku)
+		case Option::Some(found) => Checked::Fine(Line(found, wanted.quantity, Shop.Money::Scale(found.price, wanted.quantity * 100)));
+
+def Reserve = fn(stock: Shop.Catalog::Catalog, line: Line) -> Checked<Shop.Catalog::Catalog> =>
+	match Shop.Catalog::Take(stock, line.item.sku, line.quantity) with
+		case Option::Some(next) => Checked::Fine(next)
+		case Option::None() => Checked::Broken("out of stock " ++ (line.item.sku as Text));
+
+def Checkout = fn(stock: Shop.Catalog::Catalog, basket: Array<Item>, index: Int, total: Price) -> Checked<(Shop.Catalog::Catalog, Price)> =>
+	if index >= #basket
+	then Checked::Fine((stock, total))
+	else CheckedBind(PriceLine(stock, basket[index]), fn(line: Line) -> Checked<(Shop.Catalog::Catalog, Price)> =>
+		CheckedBind(Reserve(stock, line), fn(next: Shop.Catalog::Catalog) -> Checked<(Shop.Catalog::Catalog, Price)> =>
+			Checkout(next, basket, index + 1, Shop.Money::Add(total, line.total))));
+
+def Report = fn(label: Text, result: Checked<(Shop.Catalog::Catalog, Price)>) -> Unit =>
+	match result with
+		case Checked::Fine(pair) =>
+		{
+			def (_, total) = pair;
+			IO::PrintLine(label ++ ": total " ++ (total as Text))
+		}
+		case Checked::Broken(reason) => IO::PrintLine(label ++ ": " ++ reason);
+
+Report("small", Checkout(catalog, [Item("A1", 4), Item("D4", 1)], 0, Shop.Money::Zero(eur)));
+Report("too much bread", Checkout(catalog, [Item("B2", 2), Item("B2", 2)], 0, Shop.Money::Zero(eur)));
+Report("cheese", Checkout(catalog, [Item("C3", 1)], 0, Shop.Money::Zero(eur)));
+Report("mystery", Checkout(catalog, [Item("Z9", 1)], 0, Shop.Money::Zero(eur)));
+
+def names = Shop.Catalog::Items(catalog)
+	|> Iter::Map(fn(item: Shop.Catalog::Item) -> Text => item.name)
+	|> Iter::ToArray;
+IO::PrintLine("catalog: " ++ JoinText(names, ", "));
+
+def expensive = Shop.Catalog::Items(catalog)
+	|> Iter::Filter(fn(item: Shop.Catalog::Item) -> Bool => (item.price.amount as Int) > 300)
+	|> Iter::Map(fn(item: Shop.Catalog::Item) -> Text => item.name ++ "@" ++ Format(item.price))
+	|> Iter::ToArray;
+IO::PrintLine("expensive: " ++ JoinText(expensive, ", "));
+
+def stocked = Iter::Count(Shop.Catalog::Items(catalog) |> Iter::Filter(fn(item: Shop.Catalog::Item) -> Bool =>
+	match Shop.Catalog::Level(catalog, item.sku) with
+		case Stock::Available(n) => n > 0
+		case _ => false));
+IO::PrintLine("in stock: " ++ (stocked as Text));
+
+def mixed = [FromUnits(1, 5, Currency::Usd()), FromUnits(-3, -7, Currency::Eur()), FromUnits(1200, 0, Currency::Jpy())];
+for price in mixed {
+	IO::PrintLine(Format(price));
+};
+
+def a = FromUnits(1, 0, eur);
+def b = FromUnits(0, 100, eur);
+IO::PrintLine("equal prices: " ++ (Equatable::Equals(a, b) as Text));
+IO::PrintLine("scaled: " ++ Format(Shop.Money::Scale(FromUnits(0, 99, eur), 150)));
+
+def doubled = CheckedMap(Checked::Fine(21), fn(x: Int) -> Int => x * 2);
+IO::PrintLine("checked map: " ++ (CheckedUnwrap(doubled, 0) as Text));
+def failed : Checked<Int> = Checked::Broken("nope");
+IO::PrintLine("checked unwrap default: " ++ (CheckedUnwrap(CheckedMap(failed, fn(x: Int) -> Int => x * 2), -1) as Text));
+
+def local_item = Item("A1", 2);
+IO::PrintLine("local item " ++ local_item.sku ++ " x" ++ (local_item.quantity as Text));

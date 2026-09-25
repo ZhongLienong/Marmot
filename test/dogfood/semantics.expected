@@ -1,0 +1,64 @@
+[warning] 8 warning(s) in semantics.mmt
+Static Analyzer Warning at test/dogfood/semantics.mmt:83
+   |
+83 | def Shadow = fn(x: Int) -> Int =>
+   |                 ^ Name 'x' shadows a variable from an outer scope.
+   |
+Static Analyzer Warning at test/dogfood/semantics.mmt:86
+   |
+86 | 	def z = { def x = y * 10; x + 1 };
+   |                ^ Name 'x' shadows a variable from an outer scope.
+   |
+Static Analyzer Warning at test/dogfood/semantics.mmt:28
+   |
+28 | def Ignore = fn(a: Int, b: Int) -> Int => 7;
+   |                 ^ Binding 'a' is never read.
+   |
+Static Analyzer Warning at test/dogfood/semantics.mmt:28
+   |
+28 | def Ignore = fn(a: Int, b: Int) -> Int => 7;
+   |                         ^ Binding 'b' is never read.
+   |
+Static Analyzer Warning at test/dogfood/semantics.mmt:29
+   |
+29 | def First = fn(a: Int, b: Int) -> Int => a;
+   |                        ^ Binding 'b' is never read.
+   |
+Static Analyzer Warning at test/dogfood/semantics.mmt:106
+    |
+106 | def Compose = fn(f: fn(Int) -> Int, g: fn(Int) -> Int) -> fn(Int) -> Int => fn(v: Int) -> Int => g(f(v));
+    |                                                                             ^^ Captured anonymous closure escapes its defining scope as a return value.
+    |
+Static Analyzer Warning at test/dogfood/semantics.mmt:110
+    |
+110 | def Curry = fn(a: Int) -> fn(Int) -> fn(Int) -> Int => fn(b: Int) -> fn(Int) -> Int => fn(c: Int) -> Int => (a * 100) + (b * 10) + c;
+    |                                                                                        ^^ Captured anonymous closure escapes its defining scope as a return value.
+    |
+Static Analyzer Warning at test/dogfood/semantics.mmt:110
+    |
+110 | def Curry = fn(a: Int) -> fn(Int) -> fn(Int) -> Int => fn(b: Int) -> fn(Int) -> Int => fn(c: Int) -> Int => (a * 100) + (b * 10) + c;
+    |                                                        ^^ Captured anonymous closure escapes its defining scope as a return value.
+    |
+args 123: abc
+unused args still run 7: xy
+inlined first 1: pq
+binary 7: lmn
+short-circuit or true: t
+short-circuit and false: f
+array 3: 123
+tuple: LR
+unused def still runs: dead-def
+if 10: condthen
+match 2: scrutineeguardsmall
+block 6: block
+comprehension 3: makemakemake
+captured loop vars 100 104
+ticks 1..10 final 10
+shadow 66 outer 1
+mutual tail false
+tail through match 4500000
+tail through closure 200000
+composed 1000
+curried 123
+man or boy -67
+deep 100000 100000

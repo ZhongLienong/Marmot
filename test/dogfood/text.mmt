@@ -1,0 +1,150 @@
+module TextDogfood
+
+import
+{
+	"../../MarmotPrelude/IO.mmt",
+	"../../MarmotPrelude/TextUtil.mmt",
+	"../../MarmotPrelude/ArrayUtil.mmt",
+	"../../MarmotPrelude/Countable.mmt",
+	"../../MarmotPrelude/System.mmt",
+	"../../MarmotPrelude/Prelude/Option.mmt",
+	"../../MarmotPrelude/Prelude/Result.mmt"
+}
+
+use Option.{ Option }
+use Result.{ Result }
+use IO.{ IOError }
+use System.{ SystemError }
+
+def Show = fn(label: Text, value: Text) -> Unit => IO::PrintLine(label ++ " [" ++ value ++ "]");
+
+def CodeText = fn(code: Option<Int>) -> Text =>
+	match code with
+		case Option::Some(c) => c as Text
+		case Option::None() => "none";
+
+def OptionText = fn(text: Option<Text>) -> Text =>
+	match text with
+		case Option::Some(t) => t
+		case Option::None() => "<none>";
+
+def JoinWith = fn(parts: Array<Text>, separator: Text) -> Text => JoinFrom(parts, separator, 0, "");
+
+def JoinFrom = fn(parts: Array<Text>, separator: Text, index: Int, built: Text) -> Text =>
+	if index >= #parts then built else JoinFrom(parts, separator, index + 1, if index == 0 then parts[index] else built ++ separator ++ parts[index]);
+
+def PairText = fn(pair: (Text, Int)) -> Text =>
+{
+	def (w, n) = pair;
+	w ++ "=" ++ (n as Text)
+};
+
+def IOErrorText = fn(error: IOError) -> Text =>
+	match error with
+		case IOError::NotFound(p) => "NotFound " ++ p
+		case IOError::PermissionDenied(p) => "PermissionDenied " ++ p
+		case IOError::InvalidPath(p) => "InvalidPath " ++ p
+		case IOError::UnknownIO(p) => "UnknownIO " ++ p;
+
+def greek = "αβγ δέλτα";
+def mixed = "naïve café 日本語 🦫!";
+
+Show("length ascii", TextUtil::Length("hello") as Text);
+Show("length greek", TextUtil::Length(greek) as Text);
+Show("length mixed", TextUtil::Length(mixed) as Text);
+Show("count mixed", (#mixed) as Text);
+Show("substring greek", TextUtil::Substring(greek, 4, 9));
+Show("substring emoji", TextUtil::Substring(mixed, 15, 17));
+Show("reverse", TextUtil::Reverse(mixed));
+Show("upper bound substring", TextUtil::Substring("abc", 1, 99));
+Show("empty substring", TextUtil::Substring("abc", 2, 1));
+Show("split", JoinWith(TextUtil::Split("a,,b,c,", ","), "|"));
+Show("split multi", JoinWith(TextUtil::Split("one--two----three", "--"), "|"));
+Show("split empty delim", JoinWith(TextUtil::Split("abc", ""), "|"));
+Show("split unicode", JoinWith(TextUtil::Split(mixed, " "), "|"));
+Show("replace", TextUtil::Replace("banana", "an", "AN"));
+Show("replace empty target", TextUtil::Replace("abc", "", "-"));
+Show("replace grows", TextUtil::Replace("aaa", "a", "aa"));
+Show("trim", TextUtil::Trim("  \t spaced out \n "));
+Show("contains", (TextUtil::Contains(mixed, "日本") as Text) ++ " " ++ (TextUtil::Contains(mixed, "") as Text));
+Show("code points", JoinWith([CodeText(TextUtil::CodePointAt("aé日🦫", i)) for i in 0..1..5], ","));
+Show("from code point", OptionText(TextUtil::FromCodePoint(0x1F9AB)) ++ OptionText(TextUtil::FromCodePoint(0xD800)) ++ OptionText(TextUtil::FromCodePoint(0x10FFFF + 1)));
+Show("escapes", "tab\there \"quoted\" back\\slash");
+Show("text eq", ("café" == ("caf" ++ "é")) as Text);
+Show("text neq", ("abc" != ("ab" ++ "c")) as Text);
+
+
+
+
+def Caesar = fn(text: Text, shift: Int) -> Text =>
+	JoinWith([ShiftChar(TextUtil::Substring(text, i, i + 1), shift) for i in 0..1..TextUtil::Length(text)], "");
+
+def ShiftChar = fn(c: Text, shift: Int) -> Text =>
+	match TextUtil::CodePointAt(c, 0) with
+		case Option::Some(code) if (code >= 97) && (code <= 122) => OptionText(TextUtil::FromCodePoint((((code - 97) + shift + 26) % 26) + 97))
+		case Option::Some(code) if (code >= 65) && (code <= 90) => OptionText(TextUtil::FromCodePoint((((code - 65) + shift + 26) % 26) + 65))
+		case _ => c;
+
+Show("caesar", Caesar("Hello, Wörld!", 3));
+Show("caesar back", Caesar(Caesar("Hello, Wörld!", 3), -3));
+
+def WordFrequency = fn(text: Text) -> Array<(Text, Int)> => Tally(TextUtil::Split(text, " "), 0, []);
+def Tally = fn(words: Array<Text>, index: Int, counts: Array<(Text, Int)>) -> Array<(Text, Int)> =>
+	if index >= #words then counts else Tally(words, index + 1, Bump(counts, words[index], 0));
+def Bump = fn(counts: Array<(Text, Int)>, word: Text, at: Int) -> Array<(Text, Int)> =>
+	if at >= #counts
+	then counts ++ [(word, 1)]
+	else
+	{
+		def (seen, n) = counts[at];
+		if seen == word then ArrayUtil::WithReplaced(counts, at, (seen, n + 1)) else Bump(counts, word, at + 1)
+	};
+
+Show("tally", JoinWith([PairText(p) for p in WordFrequency("to be or not to be")], " "));
+
+def BuildLong = fn(n: Int, built: Text) -> Text => if n == 0 then built else BuildLong(n - 1, built ++ "ab");
+def long = BuildLong(5000, "");
+Show("long length", TextUtil::Length(long) as Text);
+Show("long replace", TextUtil::Length(TextUtil::Replace(long, "ab", "日")) as Text);
+
+def path = "dogfood_text_io.tmp";
+def content = "line one\nlíne two 日本\n\nlast";
+match IO::TryWriteFile(path, content) with
+	case Result::Ok(_) => Show("write", "ok")
+	case Result::Err(_) => Show("write", "failed");
+match IO::TryAppendToFile(path, "\nappended") with
+	case Result::Ok(_) => Show("append", "ok")
+	case Result::Err(_) => Show("append", "failed");
+match IO::TryReadFile(path) with
+	case Result::Ok(text) =>
+	{
+		def lines = TextUtil::Split(text, "\n");
+		Show("read lines", (#lines) as Text);
+		Show("second line", lines[1]);
+		Show("round trip", (text == (content ++ "\nappended")) as Text)
+	}
+	case Result::Err(_) => Show("read", "failed");
+match IO::TryGetFileSize(path) with
+	case Result::Ok(size) => Show("size", size as Text)
+	case Result::Err(_) => Show("size", "failed");
+match IO::TryReadBinaryFile(path) with
+	case Result::Ok(bytes) => Show("bytes", ((#bytes) as Text) ++ " first " ++ (bytes[0] as Text))
+	case Result::Err(_) => Show("bytes", "failed");
+match IO::TryDeleteFile(path) with
+	case Result::Ok(_) => Show("delete", IO::FileExists(path) as Text)
+	case Result::Err(_) => Show("delete", "failed");
+match IO::TryReadFile(path) with
+	case Result::Ok(_) => Show("read deleted", "unexpected")
+	case Result::Err(IOError::NotFound(p)) => Show("read deleted", "not found " ++ p)
+	case Result::Err(_) => Show("read deleted", "other error");
+match IO::TryReadFile("/definitely/not/here.txt") with
+	case Result::Ok(_) => Show("missing dir", "unexpected")
+	case Result::Err(e) => Show("missing dir", IOErrorText(e));
+
+
+match System::TryGetEnv("DOGFOOD_SURELY_UNSET") with
+	case Option::Some(v) => Show("env", "set to " ++ v)
+	case Option::None() => Show("env", "unset");
+match System::SetEnv("DOGFOOD_VAR", "hé") with
+	case Result::Ok(_) => Show("env roundtrip", OptionText(System::TryGetEnv("DOGFOOD_VAR")))
+	case Result::Err(_) => Show("env roundtrip", "failed");

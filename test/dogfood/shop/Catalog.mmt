@@ -1,0 +1,64 @@
+module Shop.Catalog
+
+import
+{
+	"./Money.mmt",
+	"../../../MarmotPrelude/Equatable.mmt",
+	"../../../MarmotPrelude/Hashable.mmt",
+	"../../../MarmotPrelude/Iterable.mmt",
+	"../../../MarmotPrelude/Prelude/Option.mmt",
+	"../../../MarmotPrelude/Collections/Map.mmt"
+}
+
+use Option.{ Option }
+
+public export { Sku, Item, Catalog, Stock, Empty, Add, Find, Items, ItemCursor, Restock, Take, Level }
+
+type Sku = Text;
+
+// Same short name as the order module's Item: the two must stay distinct types.
+type Item = { sku: Sku, name: Text, price: Shop.Money::Price };
+
+type Stock = Available(Int) | Discontinued deriving (Equatable, Hashable);
+
+type Catalog = { items: Map::Map<Text, Item>, stock: Map::Map<Text, Stock>, order: Array<Text> };
+
+def Empty = fn() -> Catalog => Catalog(Map::Empty(), Map::Empty(), []);
+
+def Add = fn(catalog: Catalog, item: Item, count: Int) -> Catalog =>
+	Catalog(
+		Map::With(catalog.items, item.sku as Text, item),
+		Map::With(catalog.stock, item.sku as Text, Stock::Available(count)),
+		catalog.order ++ [item.sku as Text]);
+
+def Find = fn(catalog: Catalog, sku: Sku) -> Option<Item> => Map::Get(catalog.items, sku as Text);
+
+def Level = fn(catalog: Catalog, sku: Sku) -> Stock => Map::GetOr(catalog.stock, sku as Text, Stock::Discontinued());
+
+def Restock = fn(catalog: Catalog, sku: Sku, count: Int) -> Catalog =>
+	match Level(catalog, sku) with
+		case Stock::Available(have) => { catalog with stock = Map::With(catalog.stock, sku as Text, Stock::Available(have + count)) }
+		case Stock::Discontinued() => catalog;
+
+def Take = fn(catalog: Catalog, sku: Sku, count: Int) -> Option<Catalog> =>
+	match Level(catalog, sku) with
+		case Stock::Available(have) if have >= count => Option::Some({ catalog with stock = Map::With(catalog.stock, sku as Text, Stock::Available(have - count)) })
+		case _ => Option::None();
+
+type ItemCursor = { catalog: Catalog, index: Int };
+
+def Items = fn(catalog: Catalog) -> ItemCursor => ItemCursor(catalog, 0);
+
+instance Iterable<ItemCursor>
+{
+	type Item = Item;
+	def Next = fn(cursor: ItemCursor) -> Option<(Item, ItemCursor)> =>
+		if cursor.index >= #cursor.catalog.order
+		then Option::None()
+		else
+		{
+			match Map::Get(cursor.catalog.items, cursor.catalog.order[cursor.index]) with
+				case Option::Some(item) => Option::Some((item, ItemCursor(cursor.catalog, cursor.index + 1)))
+				case Option::None() => Option::None()
+		};
+};

@@ -1,0 +1,17 @@
+15
+2432902008176640000
+2584
+(1 4 9 16 25)
+(3 2)
+41
+44850
+"n=42"
+error: car of empty
+error: division by zero
+error: unbound undefined-thing
+error: arity: expected 2 got 1
+error: + expects numbers
+2001000
+error: set! of unbound nowhere
+read error: missing )
+read error: unexpected )

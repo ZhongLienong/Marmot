@@ -1,0 +1,126 @@
+module Semantics
+
+import
+{
+	"../../MarmotPrelude/IO.mmt",
+	"../../MarmotPrelude/Cell.mmt",
+	"../../MarmotPrelude/Prelude/Option.mmt"
+}
+
+use Option.{ Option }
+
+def log = Cell::New("");
+
+def Note = fn(tag: Text, value: Int) -> Int =>
+{
+	Cell::Set(log, Cell::Get(log) ++ tag);
+	value
+};
+
+def Flush = fn(label: Text) -> Unit =>
+{
+	IO::PrintLine(label ++ ": " ++ Cell::Get(log));
+	Cell::Set(log, "");
+	()
+};
+
+def Three = fn(a: Int, b: Int, c: Int) -> Int => (a * 100) + (b * 10) + c;
+def Ignore = fn(a: Int, b: Int) -> Int => 7;
+def First = fn(a: Int, b: Int) -> Int => a;
+
+def r1 = Three(Note("a", 1), Note("b", 2), Note("c", 3));
+Flush("args " ++ (r1 as Text));
+
+def r2 = Ignore(Note("x", 1), Note("y", 2));
+Flush("unused args still run " ++ (r2 as Text));
+
+def r3 = First(Note("p", 1), Note("q", 2));
+Flush("inlined first " ++ (r3 as Text));
+
+def r4 = Note("l", 1) + (Note("m", 2) * Note("n", 3));
+Flush("binary " ++ (r4 as Text));
+
+def r5 = (Note("t", 1) > 0) || (Note("never", 1) > 0);
+Flush("short-circuit or " ++ (r5 as Text));
+
+def r6 = (Note("f", 0) > 0) && (Note("never", 1) > 0);
+Flush("short-circuit and " ++ (r6 as Text));
+
+def r7 = [Note("1", 1), Note("2", 2), Note("3", 3)];
+Flush("array " ++ (#r7 as Text));
+
+def r8 = (Note("L", 1), Note("R", 2));
+Flush("tuple");
+
+def unused = Note("dead-def", 0);
+Flush("unused def still runs");
+
+def r9 = if Note("cond", 1) == 1 then Note("then", 10) else Note("else", 20);
+Flush("if " ++ (r9 as Text));
+
+def r10 = match Note("scrutinee", 2) with
+	case 1 => Note("one", 1)
+	case n if Note("guard", n) > 5 => Note("big", n)
+	case n => Note("small", n);
+Flush("match " ++ (r10 as Text));
+
+def r11 = { def inner = Note("block", 5); inner + 1 };
+Flush("block " ++ (r11 as Text));
+
+def Make = fn(n: Int) -> Int => Note("make", n);
+def r12 = [Make(i) for i in 0..1..3];
+Flush("comprehension " ++ (#r12 as Text));
+
+def adders = [fn(x: Int) -> Int => x + i for i in 0..1..5];
+IO::PrintLine("captured loop vars " ++ (adders[0](100) as Text) ++ " " ++ (adders[4](100) as Text));
+
+def counter = Cell::New(0);
+def Tick = fn() -> Int => Cell::Set(counter, Cell::Get(counter) + 1);
+def ticks = [Tick() for _ in 0..1..10];
+IO::PrintLine("ticks " ++ (ticks[0] as Text) ++ ".." ++ (ticks[9] as Text) ++ " final " ++ (Cell::Get(counter) as Text));
+
+def x = 1;
+def Shadow = fn(x: Int) -> Int =>
+{
+	def y = x + 1;
+	def z = { def x = y * 10; x + 1 };
+	x + z
+};
+IO::PrintLine("shadow " ++ (Shadow(5) as Text) ++ " outer " ++ (x as Text));
+
+def IsEven = fn(n: Int) -> Bool => if n == 0 then true else IsOdd(n - 1);
+def IsOdd = fn(n: Int) -> Bool => if n == 0 then false else IsEven(n - 1);
+IO::PrintLine("mutual tail " ++ (IsEven(1000001) as Text));
+
+def CountDown = fn(n: Int, acc: Int) -> Int =>
+	match n with
+		case 0 => acc
+		case m if (m % 2) == 0 => CountDown(m - 1, acc + 2)
+		case m => { def next = m - 1; CountDown(next, acc + 1) };
+IO::PrintLine("tail through match " ++ (CountDown(3000000, 0) as Text));
+
+def Pick = fn(flag: Bool, a: fn(Int) -> Int, b: fn(Int) -> Int, n: Int) -> Int => if flag then a(n) else b(n);
+def Loop = fn(n: Int, acc: Int) -> Int => if n == 0 then acc else Pick(true, fn(k: Int) -> Int => Loop(k - 1, acc + 1), fn(k: Int) -> Int => k, n);
+IO::PrintLine("tail through closure " ++ (Loop(200000, 0) as Text));
+
+def Compose = fn(f: fn(Int) -> Int, g: fn(Int) -> Int) -> fn(Int) -> Int => fn(v: Int) -> Int => g(f(v));
+def ComposeMany = fn(n: Int, acc: fn(Int) -> Int) -> fn(Int) -> Int => if n == 0 then acc else ComposeMany(n - 1, Compose(acc, fn(v: Int) -> Int => v + 1));
+IO::PrintLine("composed " ++ (ComposeMany(1000, fn(v: Int) -> Int => v)(0) as Text));
+
+def Curry = fn(a: Int) -> fn(Int) -> fn(Int) -> Int => fn(b: Int) -> fn(Int) -> Int => fn(c: Int) -> Int => (a * 100) + (b * 10) + c;
+IO::PrintLine("curried " ++ (Curry(1)(2)(3) as Text));
+
+def ManOrBoy = fn(k: Int, x1: fn() -> Int, x2: fn() -> Int, x3: fn() -> Int, x4: fn() -> Int, x5: fn() -> Int) -> Int =>
+{
+	def kc = Cell::New(k);
+	def B : fn() -> Int = fn() -> Int =>
+	{
+		Cell::Set(kc, Cell::Get(kc) - 1);
+		ManOrBoy(Cell::Get(kc), B, x1, x2, x3, x4)
+	};
+	if Cell::Get(kc) <= 0 then x4() + x5() else B()
+};
+IO::PrintLine("man or boy " ++ (ManOrBoy(10, fn() -> Int => 1, fn() -> Int => -1, fn() -> Int => -1, fn() -> Int => 1, fn() -> Int => 0) as Text));
+
+def Deep = fn(n: Int) -> Int => if n == 0 then 0 else 1 + Deep(n - 1);
+IO::PrintLine("deep 100000 " ++ (Deep(100000) as Text));

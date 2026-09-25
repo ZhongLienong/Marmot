@@ -1,0 +1,297 @@
+module Lisp
+
+import
+{
+	"../../MarmotPrelude/IO.mmt",
+	"../../MarmotPrelude/TextUtil.mmt",
+	"../../MarmotPrelude/Cell.mmt",
+	"../../MarmotPrelude/Prelude/Option.mmt",
+	"../../MarmotPrelude/Prelude/Result.mmt",
+	"../../MarmotPrelude/Collections/Map.mmt",
+	"../../MarmotPrelude/Hashable.mmt",
+	"../../MarmotPrelude/Equatable.mmt"
+}
+
+use Option.{ Option }
+use Result.{ Result }
+
+type Value =
+	Num(Int)
+	| Sym(Text)
+	| Str(Text)
+	| List(Array<Value>)
+	| Lambda(Array<Text>, Value, Env)
+	| Builtin(Text)
+	| Nil;
+
+type Env = { frames: Array<Cell<Map::Map<Text, Value>>> };
+
+alias Eval = Result<Value, Text>;
+
+def Tokenize = fn(source: Text) -> Array<Text> =>
+{
+	def spaced = source
+		|> fn(raw: Text) -> Text => TextUtil::Replace(raw, "(", " ( ")
+		|> fn(opened: Text) -> Text => TextUtil::Replace(opened, ")", " ) ")
+		|> fn(closed: Text) -> Text => TextUtil::Replace(closed, "\n", " ");
+	def parts = TextUtil::Split(spaced, " ");
+	[part for part in parts] |> fn(all: Array<Text>) -> Array<Text> => KeepNonEmpty(all, 0, [])
+};
+
+def KeepNonEmpty = fn(parts: Array<Text>, index: Int, kept: Array<Text>) -> Array<Text> =>
+	if index >= #parts then kept else KeepNonEmpty(parts, index + 1, if parts[index] == "" then kept else kept ++ [parts[index]]);
+
+def ReadForm : fn(Array<Text>, Int) -> Result<(Value, Int), Text> = fn(tokens: Array<Text>, at: Int) -> Result<(Value, Int), Text> =>
+	if at >= #tokens
+	then Result::Err("unexpected end of input")
+	else match tokens[at] with
+		case "(" => ReadList(tokens, at + 1, [])
+		case ")" => Result::Err("unexpected )")
+		case token => Result::Ok((Atom(token), at + 1));
+
+def ReadList = fn(tokens: Array<Text>, at: Int, items: Array<Value>) -> Result<(Value, Int), Text> =>
+	if at >= #tokens
+	then Result::Err("missing )")
+	else if tokens[at] == ")"
+	then Result::Ok((Value::List(items), at + 1))
+	else match ReadForm(tokens, at) with
+		case Result::Ok(pair) =>
+		{
+			def (item, next) = pair;
+			ReadList(tokens, next, items ++ [item])
+		}
+		case Result::Err(e) => Result::Err(e);
+
+def Atom = fn(token: Text) -> Value =>
+	match TextUtil::ParseInt(token) with
+		case Option::Some(n) => Value::Num(n)
+		case Option::None() =>
+			if TextUtil::Substring(token, 0, 1) == "\""
+			then Value::Str(TextUtil::Substring(token, 1, TextUtil::Length(token) - 1))
+			else Value::Sym(token);
+
+def ReadAll = fn(tokens: Array<Text>, at: Int, forms: Array<Value>) -> Result<Array<Value>, Text> =>
+	if at >= #tokens
+	then Result::Ok(forms)
+	else match ReadForm(tokens, at) with
+		case Result::Ok(pair) =>
+		{
+			def (form, next) = pair;
+			ReadAll(tokens, next, forms ++ [form])
+		}
+		case Result::Err(e) => Result::Err(e);
+
+def Lookup = fn(env: Env, name: Text, depth: Int) -> Option<Value> =>
+	if depth < 0
+	then Option::None()
+	else match Map::Get(Cell::Get(env.frames[depth]), name) with
+		case Option::Some(v) => Option::Some(v)
+		case Option::None() => Lookup(env, name, depth - 1);
+
+def Define = fn(env: Env, name: Text, value: Value) -> Value =>
+{
+	def top = env.frames[#env.frames - 1];
+	Cell::Set(top, Map::With(Cell::Get(top), name, value));
+	value
+};
+
+def Assign = fn(env: Env, name: Text, value: Value, depth: Int) -> Eval =>
+	if depth < 0
+	then Result::Err("set! of unbound " ++ name)
+	else
+	{
+		def frame = env.frames[depth];
+		if Map::ContainsKey(Cell::Get(frame), name)
+		then
+		{
+			Cell::Set(frame, Map::With(Cell::Get(frame), name, value));
+			Result::Ok(value)
+		}
+		else Assign(env, name, value, depth - 1)
+	};
+
+def Extend = fn(env: Env, names: Array<Text>, values: Array<Value>) -> Env =>
+	Env(env.frames ++ [Cell::New(BindAll(names, values, 0, Map::Empty()))]);
+
+def BindAll = fn(names: Array<Text>, values: Array<Value>, index: Int, frame: Map::Map<Text, Value>) -> Map::Map<Text, Value> =>
+	if index >= #names then frame else BindAll(names, values, index + 1, Map::With(frame, names[index], values[index]));
+
+def Show : fn(Value) -> Text = fn(value: Value) -> Text =>
+	match value with
+		case Value::Num(n) => n as Text
+		case Value::Sym(s) => s
+		case Value::Str(s) => "\"" ++ s ++ "\""
+		case Value::List(items) => "(" ++ JoinShown(items, 0, "") ++ ")"
+		case Value::Lambda(params, _, _) => "<lambda/" ++ ((#params) as Text) ++ ">"
+		case Value::Builtin(name) => "<builtin " ++ name ++ ">"
+		case Value::Nil() => "nil";
+
+def JoinShown = fn(items: Array<Value>, index: Int, built: Text) -> Text =>
+	if index >= #items then built else JoinShown(items, index + 1, if index == 0 then Show(items[index]) else built ++ " " ++ Show(items[index]));
+
+def Truthy = fn(value: Value) -> Bool =>
+	match value with
+		case Value::Nil() => false
+		case Value::Num(0) => false
+		case Value::List([]) => false
+		case _ => true;
+
+def EvalAll = fn(forms: Array<Value>, index: Int, env: Env, last: Value) -> Eval =>
+	if index >= #forms
+	then Result::Ok(last)
+	else match Evaluate(forms[index], env) with
+		case Result::Ok(v) => EvalAll(forms, index + 1, env, v)
+		case Result::Err(e) => Result::Err(e);
+
+def EvalArgs = fn(forms: Array<Value>, index: Int, env: Env, done: Array<Value>) -> Result<Array<Value>, Text> =>
+	if index >= #forms
+	then Result::Ok(done)
+	else match Evaluate(forms[index], env) with
+		case Result::Ok(v) => EvalArgs(forms, index + 1, env, done ++ [v])
+		case Result::Err(e) => Result::Err(e);
+
+def SymbolNames = fn(forms: Array<Value>) -> Array<Text> =>
+	[match form with case Value::Sym(s) => s case _ => "?" for form in forms];
+
+def Evaluate : fn(Value, Env) -> Eval = fn(form: Value, env: Env) -> Eval =>
+	match form with
+		case Value::Sym(name) =>
+		{
+			match Lookup(env, name, #env.frames - 1) with
+				case Option::Some(v) => Result::Ok(v)
+				case Option::None() => Result::Err("unbound " ++ name)
+		}
+		case Value::List([]) => Result::Ok(Value::Nil())
+		case Value::List([Value::Sym("quote"), quoted]) => Result::Ok(quoted)
+		case Value::List([Value::Sym("if"), test, yes, no]) =>
+		{
+			match Evaluate(test, env) with
+				case Result::Ok(t) => if Truthy(t) then Evaluate(yes, env) else Evaluate(no, env)
+				case Result::Err(e) => Result::Err(e)
+		}
+		case Value::List([Value::Sym("define"), Value::Sym(name), body]) =>
+			Result::ResultMap(Evaluate(body, env), fn(v: Value) -> Value => Define(env, name, v))
+		case Value::List([Value::Sym("set!"), Value::Sym(name), body]) =>
+			Result::ResultBind(Evaluate(body, env), fn(v: Value) -> Eval => Assign(env, name, v, #env.frames - 1))
+		case Value::List([Value::Sym("lambda"), Value::List(params), body]) =>
+			Result::Ok(Value::Lambda(SymbolNames(params), body, env))
+		case Value::List(items) if (#items > 0) && IsSym(items[0], "begin") =>
+			EvalAll(Rest(items), 0, env, Value::Nil())
+		case Value::List(items) =>
+		{
+			match EvalArgs(items, 0, env, []) with
+				case Result::Ok(values) => ApplyValue(values[0], Rest(values))
+				case Result::Err(e) => Result::Err(e)
+		}
+		case other => Result::Ok(other);
+
+def IsSym = fn(value: Value, name: Text) -> Bool =>
+	match value with
+		case Value::Sym(s) => s == name
+		case _ => false;
+
+def Rest = fn(items: Array<Value>) -> Array<Value> => [items[i] for i in 1..1..#items];
+
+def ApplyValue = fn(callee: Value, args: Array<Value>) -> Eval =>
+	match callee with
+		case Value::Builtin(name) => ApplyBuiltin(name, args)
+		case Value::Lambda(params, body, closure) =>
+			if #params != #args
+			then Result::Err("arity: expected " ++ ((#params) as Text) ++ " got " ++ ((#args) as Text))
+			else Evaluate(body, Extend(closure, params, args))
+		case other => Result::Err("not callable: " ++ Show(other));
+
+def Nums = fn(args: Array<Value>, index: Int, out: Array<Int>) -> Option<Array<Int>> =>
+	if index >= #args
+	then Option::Some(out)
+	else match args[index] with
+		case Value::Num(n) => Nums(args, index + 1, out ++ [n])
+		case _ => Option::None();
+
+def Fold = fn(values: Array<Int>, index: Int, acc: Int, step: fn(Int, Int) -> Int) -> Int =>
+	if index >= #values then acc else Fold(values, index + 1, step(acc, values[index]), step);
+
+def Arith = fn(name: Text, ns: Array<Int>) -> Eval =>
+	match name with
+		case "+" => Result::Ok(Value::Num(Fold(ns, 0, 0, fn(a: Int, b: Int) -> Int => a + b)))
+		case "*" => Result::Ok(Value::Num(Fold(ns, 0, 1, fn(a: Int, b: Int) -> Int => a * b)))
+		case "-" => if #ns == 1 then Result::Ok(Value::Num(-ns[0])) else Result::Ok(Value::Num(Fold(ns, 1, ns[0], fn(a: Int, b: Int) -> Int => a - b)))
+		case "/" => if Fold(ns, 1, 1, fn(a: Int, b: Int) -> Int => a * b) == 0 then Result::Err("division by zero") else Result::Ok(Value::Num(Fold(ns, 1, ns[0], fn(a: Int, b: Int) -> Int => a / b)))
+		case "<" => Result::Ok(if ns[0] < ns[1] then Value::Num(1) else Value::Nil())
+		case "=" => Result::Ok(if ns[0] == ns[1] then Value::Num(1) else Value::Nil())
+		case "mod" => Result::Ok(Value::Num(ns[0] % ns[1]))
+		case _ => Result::Err("unknown arithmetic " ++ name);
+
+def ApplyBuiltin = fn(name: Text, args: Array<Value>) -> Eval =>
+	match name with
+		case "list" => Result::Ok(Value::List(args))
+		case "car" =>
+		{
+			match args with
+				case [Value::List(items)] => if #items == 0 then Result::Err("car of empty") else Result::Ok(items[0])
+				case _ => Result::Err("car expects a list")
+		}
+		case "cdr" =>
+		{
+			match args with
+				case [Value::List(items)] => Result::Ok(Value::List(Rest(items)))
+				case _ => Result::Err("cdr expects a list")
+		}
+		case "cons" =>
+		{
+			match args with
+				case [head, Value::List(items)] => Result::Ok(Value::List([head] ++ items))
+				case _ => Result::Err("cons expects a list")
+		}
+		case "null?" =>
+		{
+			match args with
+				case [Value::List([])] => Result::Ok(Value::Num(1))
+				case [Value::Nil()] => Result::Ok(Value::Num(1))
+				case _ => Result::Ok(Value::Nil())
+		}
+		case "concat" => Result::Ok(Value::Str(ConcatStrings(args, 0, "")))
+		case _ =>
+		{
+			match Nums(args, 0, []) with
+				case Option::Some(ns) => Arith(name, ns)
+				case Option::None() => Result::Err(name ++ " expects numbers")
+		}
+		;
+
+def ConcatStrings = fn(args: Array<Value>, index: Int, built: Text) -> Text =>
+	if index >= #args
+	then built
+	else ConcatStrings(args, index + 1, built ++ (match args[index] with case Value::Str(s) => s case other => Show(other)));
+
+def builtin_names = ["+", "-", "*", "/", "<", "=", "mod", "list", "car", "cdr", "cons", "null?", "concat"];
+def global = Env([Cell::New(BindAll(builtin_names, [Value::Builtin(n) for n in builtin_names], 0, Map::Empty()))]);
+
+def Run = fn(source: Text) -> Unit =>
+	match ReadAll(Tokenize(source), 0, []) with
+		case Result::Err(e) => IO::PrintLine("read error: " ++ e)
+		case Result::Ok(forms) =>
+		{
+			match EvalAll(forms, 0, global, Value::Nil()) with
+				case Result::Ok(v) => IO::PrintLine(Show(v))
+				case Result::Err(e) => IO::PrintLine("error: " ++ e)
+		};
+
+Run("(+ 1 2 (* 3 4))");
+Run("(define fact (lambda (n) (if (< n 2) 1 (* n (fact (- n 1)))))) (fact 20)");
+Run("(define fib (lambda (n) (if (< n 2) n (+ (fib (- n 1)) (fib (- n 2)))))) (fib 18)");
+Run("(define map (lambda (f xs) (if (null? xs) (quote ()) (cons (f (car xs)) (map f (cdr xs)))))) (map (lambda (x) (* x x)) (list 1 2 3 4 5))");
+Run("(define make-counter (lambda () (begin (define count 0) (lambda () (begin (set! count (+ count 1)) count)))))
+     (define c1 (make-counter)) (define c2 (make-counter)) (c1) (c1) (c2) (list (c1) (c2))");
+Run("(define compose (lambda (f g) (lambda (x) (f (g x))))) ((compose (lambda (x) (+ x 1)) (lambda (x) (* x 2))) 20)");
+Run("(define range (lambda (a b) (if (< a b) (cons a (range (+ a 1) b)) (quote ())))) (define sum (lambda (xs) (if (null? xs) 0 (+ (car xs) (sum (cdr xs)))))) (sum (range 0 300))");
+Run("(concat \"n=\" (+ 40 2))");
+Run("(car (quote ()))");
+Run("(/ 10 0)");
+Run("(undefined-thing 1)");
+Run("((lambda (x y) x) 1)");
+Run("(+ 1 (quote a))");
+Run("(define loop (lambda (n acc) (if (= n 0) acc (loop (- n 1) (+ acc n))))) (loop 2000 0)");
+Run("(set! nowhere 1)");
+Run("(1 2");
+Run(")");

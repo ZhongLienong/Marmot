@@ -1,0 +1,27 @@
+module QualifiedConstructorPattern
+
+import
+{
+	"../../MarmotPrelude/IO.mmt",
+	"../../MarmotPrelude/Prelude/Option.mmt",
+	"./lib/Shapes.mmt"
+}
+
+use Option.{ Option }
+
+// A constructor from another module is written Module::Union::Member, in an
+// expression and in a pattern alike. The pattern took everything before the
+// first '::' as the type name, so it looked for a type called 'Shapes'.
+
+def Area = fn(shape: Shapes::Shape) -> Int =>
+	match shape with
+		case Shapes::Shape::Dot() => 0
+		case Shapes::Shape::Circle(r) => 3 * r * r
+		case Shapes::Shape::Rect(w, h) => w * h;
+
+IO::PrintLine(Area(Shapes::Shape::Circle(2)) as Text);
+IO::PrintLine(Area(Shapes::Shape::Rect(3, 4)) as Text);
+
+match Option::Some(Shapes::Shape::Dot()) with
+	case Option::Some(Shapes::Shape::Dot()) => IO::PrintLine("nested dot")
+	case _ => IO::PrintLine("other");

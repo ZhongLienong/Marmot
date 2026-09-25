@@ -1,0 +1,17 @@
+module DerivedContainerWarning
+
+import
+{
+	"../../MarmotPrelude/IO.mmt"
+}
+
+// Deriving Map, Bind and Unwrap generates code; a warning about a binding in
+// that code names nothing the program wrote.
+
+type Checked<T> = Fine(T) | Broken(Text) deriving (Map, Bind, Unwrap);
+
+def doubled = CheckedMap(Checked::Fine(21), fn(x: Int) -> Int => x * 2);
+IO::PrintLine(CheckedUnwrap(doubled, 0) as Text);
+
+def failed : Checked<Int> = Checked::Broken("nope");
+IO::PrintLine(CheckedUnwrap(CheckedBind(failed, fn(x: Int) -> Checked<Int> => Checked::Fine(x)), -1) as Text);

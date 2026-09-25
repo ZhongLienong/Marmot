@@ -1,0 +1,301 @@
+module Json
+
+import
+{
+	"../../MarmotPrelude/IO.mmt",
+	"../../MarmotPrelude/TextUtil.mmt",
+	"../../MarmotPrelude/ArrayUtil.mmt",
+	"../../MarmotPrelude/Prelude/Option.mmt",
+	"../../MarmotPrelude/Prelude/Result.mmt",
+	"../../MarmotPrelude/Collections/Map.mmt",
+	"../../MarmotPrelude/Hashable.mmt",
+	"../../MarmotPrelude/Equatable.mmt"
+}
+
+use Option.{ Option }
+use Result.{ Result }
+
+type Json =
+	JNull
+	| JBool(Bool)
+	| JNumber(Float)
+	| JString(Text)
+	| JArray(Array<Json>)
+	| JObject(Array<(Text, Json)>);
+
+type Token =
+	LBrace | RBrace | LBracket | RBracket | Colon | Comma
+	| TString(Text) | TNumber(Float) | TTrue | TFalse | TNull | Eof;
+
+alias Tokens = Array<Token>;
+
+def IsDigit = fn(c: Text) -> Bool => TextUtil::Contains("0123456789", c) && (c != "");
+def IsSpace = fn(c: Text) -> Bool => (c == " ") || (c == "\n") || (c == "\t") || (c == "\r");
+
+def CharAt = fn(source: Text, index: Int) -> Text => TextUtil::Substring(source, index, index + 1);
+
+def ScanWhile = fn(source: Text, index: Int, keep: fn(Text) -> Bool) -> Int =>
+	if (index < TextUtil::Length(source)) && keep(CharAt(source, index))
+	then ScanWhile(source, index + 1, keep)
+	else index;
+
+def ScanString = fn(source: Text, index: Int, built: Text) -> Result<(Text, Int), Text> =>
+	if index >= TextUtil::Length(source)
+	then Result::Err("unterminated string")
+	else
+	{
+		def c = CharAt(source, index);
+		match c with
+			case "\"" => Result::Ok((built, index + 1))
+			case "\\" =>
+			{
+				def next = CharAt(source, index + 1);
+				def decoded = match next with
+					case "n" => "\n"
+					case "t" => "\t"
+					case "\"" => "\""
+					case "\\" => "\\"
+					case other => other;
+				ScanString(source, index + 2, built ++ decoded)
+			}
+			case _ => ScanString(source, index + 1, built ++ c)
+	};
+
+def IsNumberChar = fn(c: Text) -> Bool => IsDigit(c) || (c == ".") || (c == "-") || (c == "e") || (c == "E") || (c == "+");
+
+def Lex = fn(source: Text, index: Int, tokens: Array<Token>) -> Result<Tokens, Text> =>
+	if index >= TextUtil::Length(source)
+	then Result::Ok(tokens ++ [Token::Eof()])
+	else
+	{
+		def c = CharAt(source, index);
+		if IsSpace(c)
+		then Lex(source, index + 1, tokens)
+		else match c with
+			case "{" => Lex(source, index + 1, tokens ++ [Token::LBrace()])
+			case "}" => Lex(source, index + 1, tokens ++ [Token::RBrace()])
+			case "[" => Lex(source, index + 1, tokens ++ [Token::LBracket()])
+			case "]" => Lex(source, index + 1, tokens ++ [Token::RBracket()])
+			case ":" => Lex(source, index + 1, tokens ++ [Token::Colon()])
+			case "," => Lex(source, index + 1, tokens ++ [Token::Comma()])
+			case "\"" =>
+			{
+				match ScanString(source, index + 1, "") with
+					case Result::Ok(pair) =>
+					{
+						def (text, next) = pair;
+						Lex(source, next, tokens ++ [Token::TString(text)])
+					}
+					case Result::Err(message) => Result::Err(message)
+			}
+			case _ =>
+				if IsNumberChar(c)
+				then
+				{
+					def end = ScanWhile(source, index, IsNumberChar);
+					def literal = TextUtil::Substring(source, index, end);
+					match TextUtil::ParseFloat(literal) with
+						case Option::Some(value) => Lex(source, end, tokens ++ [Token::TNumber(value)])
+						case Option::None() =>
+						{
+							match TextUtil::ParseInt(literal) with
+								case Option::Some(whole) => Lex(source, end, tokens ++ [Token::TNumber(whole as Float)])
+								case Option::None() => Result::Err("bad number '" ++ literal ++ "' at " ++ (index as Text))
+						}
+				}
+				else
+				{
+					def end = ScanWhile(source, index, fn(x: Text) -> Bool => TextUtil::Contains("abcdefghijklmnopqrstuvwxyz", x) && (x != ""));
+					def word = TextUtil::Substring(source, index, end);
+					match word with
+						case "true" => Lex(source, end, tokens ++ [Token::TTrue()])
+						case "false" => Lex(source, end, tokens ++ [Token::TFalse()])
+						case "null" => Lex(source, end, tokens ++ [Token::TNull()])
+						case _ => Result::Err("unexpected '" ++ c ++ "' at " ++ (index as Text))
+				}
+	};
+
+alias Parsed = Result<(Json, Int), Text>;
+
+def ParseValue : fn(Tokens, Int) -> Parsed = fn(tokens: Tokens, at: Int) -> Parsed =>
+	match tokens[at] with
+		case Token::Eof() => Result::Err("unexpected end")
+		case Token::TNull() => Result::Ok((Json::JNull(), at + 1))
+		case Token::TTrue() => Result::Ok((Json::JBool(true), at + 1))
+		case Token::TFalse() => Result::Ok((Json::JBool(false), at + 1))
+		case Token::TNumber(n) => Result::Ok((Json::JNumber(n), at + 1))
+		case Token::TString(s) => Result::Ok((Json::JString(s), at + 1))
+		case Token::LBracket() => ParseArray(tokens, at + 1, [])
+		case Token::LBrace() => ParseObject(tokens, at + 1, [])
+		case _ => Result::Err("unexpected token at " ++ (at as Text));
+
+def ParseArray = fn(tokens: Tokens, at: Int, items: Array<Json>) -> Parsed =>
+	match tokens[at] with
+		case Token::RBracket() => Result::Ok((Json::JArray(items), at + 1))
+		case _ =>
+			match ParseValue(tokens, at) with
+				case Result::Err(e) => Result::Err(e)
+				case Result::Ok(pair) =>
+				{
+					def (value, next) = pair;
+					match tokens[next] with
+						case Token::Comma() => ParseArray(tokens, next + 1, items ++ [value])
+						case Token::RBracket() => Result::Ok((Json::JArray(items ++ [value]), next + 1))
+						case _ => Result::Err("expected , or ] at " ++ (next as Text))
+				};
+
+def ParseObject = fn(tokens: Tokens, at: Int, fields: Array<(Text, Json)>) -> Parsed =>
+	match tokens[at] with
+		case Token::RBrace() => Result::Ok((Json::JObject(fields), at + 1))
+		case Token::TString(key) =>
+		{
+			match tokens[at + 1] with
+				case Token::Colon() =>
+				{
+					match ParseValue(tokens, at + 2) with
+						case Result::Err(e) => Result::Err(e)
+						case Result::Ok(pair) =>
+						{
+							def (value, next) = pair;
+							def grown = fields ++ [(key, value)];
+							match tokens[next] with
+								case Token::Comma() => ParseObject(tokens, next + 1, grown)
+								case Token::RBrace() => Result::Ok((Json::JObject(grown), next + 1))
+								case _ => Result::Err("expected , or } at " ++ (next as Text))
+						}
+				}
+				case _ => Result::Err("expected : at " ++ ((at + 1) as Text))
+		}
+		case _ => Result::Err("expected key at " ++ (at as Text));
+
+def Parse = fn(source: Text) -> Result<Json, Text> =>
+	Result::ResultBind(Lex(source, 0, []), fn(tokens: Tokens) -> Result<Json, Text> =>
+		match ParseValue(tokens, 0) with
+			case Result::Ok(pair) =>
+			{
+				def (value, next) = pair;
+				if next == (#tokens - 1) then Result::Ok(value) else Result::Err("trailing tokens")
+			}
+			case Result::Err(e) => Result::Err(e));
+
+def Escape = fn(text: Text) -> Text =>
+	text
+	|> fn(raw: Text) -> Text => TextUtil::Replace(raw, "\\", "\\\\")
+	|> fn(slashed: Text) -> Text => TextUtil::Replace(slashed, "\"", "\\\"")
+	|> fn(quoted: Text) -> Text => TextUtil::Replace(quoted, "\n", "\\n");
+
+def JoinWith = fn(parts: Array<Text>, separator: Text, index: Int, built: Text) -> Text =>
+	if index >= #parts
+	then built
+	else JoinWith(parts, separator, index + 1, if index == 0 then parts[index] else built ++ separator ++ parts[index]);
+
+def Render : fn(Json) -> Text = fn(value: Json) -> Text =>
+	match value with
+		case Json::JNull() => "null"
+		case Json::JBool(b) => if b then "true" else "false"
+		case Json::JNumber(n) => if Math_IsWhole(n) then ((n as Int) as Text) else (n as Text)
+		case Json::JString(s) => "\"" ++ Escape(s) ++ "\""
+		case Json::JArray(items) => "[" ++ JoinWith([Render(item) for item in items], ",", 0, "") ++ "]"
+		case Json::JObject(fields) => "{" ++ JoinWith([RenderField(field) for field in fields], ",", 0, "") ++ "}";
+
+def RenderField = fn(field: (Text, Json)) -> Text =>
+{
+	def (key, value) = field;
+	"\"" ++ Escape(key) ++ "\":" ++ Render(value)
+};
+
+def Math_IsWhole = fn(n: Float) -> Bool => ((n as Int) as Float) == n;
+
+def Lookup = fn(value: Json, key: Text) -> Option<Json> =>
+	match value with
+		case Json::JObject(fields) =>
+		{
+			def hits = [field for field in fields];
+			FindField(hits, key, 0)
+		}
+		case _ => Option::None();
+
+def FindField = fn(fields: Array<(Text, Json)>, key: Text, index: Int) -> Option<Json> =>
+	if index >= #fields
+	then Option::None()
+	else
+	{
+		def (name, value) = fields[index];
+		if name == key then Option::Some(value) else FindField(fields, key, index + 1)
+	};
+
+def Depth : fn(Json) -> Int = fn(value: Json) -> Int =>
+	match value with
+		case Json::JArray(items) => 1 + MaxOf([Depth(item) for item in items], 0, 0)
+		case Json::JObject(fields) => 1 + MaxOf([Depth(FieldValue(field)) for field in fields], 0, 0)
+		case _ => 0;
+
+def FieldValue = fn(field: (Text, Json)) -> Json =>
+{
+	def (_, value) = field;
+	value
+};
+
+def MaxOf = fn(values: Array<Int>, index: Int, best: Int) -> Int =>
+	if index >= #values then best else MaxOf(values, index + 1, if values[index] > best then values[index] else best);
+
+def CountKeys = fn(value: Json, counts: Map::Map<Text, Int>) -> Map::Map<Text, Int> =>
+	match value with
+		case Json::JObject(fields) => CountFieldKeys(fields, 0, counts)
+		case Json::JArray(items) => CountItemKeys(items, 0, counts)
+		case _ => counts;
+
+def CountFieldKeys = fn(fields: Array<(Text, Json)>, index: Int, counts: Map::Map<Text, Int>) -> Map::Map<Text, Int> =>
+	if index >= #fields
+	then counts
+	else
+	{
+		def (key, value) = fields[index];
+		def bumped = Map::With(counts, key, Map::GetOr(counts, key, 0) + 1);
+		CountFieldKeys(fields, index + 1, CountKeys(value, bumped))
+	};
+
+def CountItemKeys = fn(items: Array<Json>, index: Int, counts: Map::Map<Text, Int>) -> Map::Map<Text, Int> =>
+	if index >= #items then counts else CountItemKeys(items, index + 1, CountKeys(items[index], counts));
+
+def Show = fn(label: Text, result: Result<Json, Text>) -> Unit =>
+	match result with
+		case Result::Ok(value) => IO::PrintLine(label ++ " => " ++ Render(value) ++ " depth=" ++ (Depth(value) as Text))
+		case Result::Err(e) => IO::PrintLine(label ++ " !! " ++ e);
+
+def document = "{\"name\": \"marmot\", \"version\": 1.5, \"tags\": [\"lang\", \"vm\", null, true],
+  \"nested\": {\"a\": [1, 2, [3, 4, {\"name\": \"deep\"}]], \"b\": -2.5e3, \"quote\": \"say \\\"hi\\\"\\n\"}}";
+
+Show("doc", Parse(document));
+Show("empty-array", Parse("[]"));
+Show("empty-object", Parse("{}"));
+Show("scalar", Parse("  42  "));
+Show("bad", Parse("[1, 2"));
+Show("bad2", Parse("{\"a\" 1}"));
+Show("bad3", Parse("[1, @]"));
+Show("unterminated", Parse("\"abc"));
+
+match Parse(document) with
+	case Result::Ok(value) =>
+	{
+		match Lookup(value, "nested") with
+			case Option::Some(nested) => IO::PrintLine("nested.b = " ++ Render(Option::OptionUnwrap(Lookup(nested, "b"), Json::JNull())))
+			case Option::None() => IO::PrintLine("no nested");
+		def counts = CountKeys(value, Map::Empty());
+		IO::PrintLine("name keys: " ++ (Map::GetOr(counts, "name", 0) as Text) ++ ", distinct keys: " ++ (Map::Count(counts) as Text));
+		def round_trip = Parse(Render(value));
+		match round_trip with
+			case Result::Ok(again) => IO::PrintLine("round trip equal: " ++ ((Render(again) == Render(value)) as Text))
+			case Result::Err(e) => IO::PrintLine("round trip failed: " ++ e)
+	}
+	case Result::Err(e) => IO::PrintLine("parse failed: " ++ e);
+
+def BuildNested = fn(depth: Int, inner: Text) -> Text =>
+	if depth == 0 then inner else BuildNested(depth - 1, "[" ++ inner ++ "]");
+
+Show("deep", Result::ResultMap(Parse(BuildNested(200, "0")), fn(j: Json) -> Json => Json::JNumber(Depth(j) as Float)));
+
+def BigArray = fn(count: Int) -> Text => "[" ++ JoinWith([(i * 3) as Text for i in 0..1..count], ",", 0, "") ++ "]";
+match Parse(BigArray(2000)) with
+	case Result::Ok(Json::JArray(items)) => IO::PrintLine("big array length " ++ ((#items) as Text))
+	case _ => IO::PrintLine("big array failed");

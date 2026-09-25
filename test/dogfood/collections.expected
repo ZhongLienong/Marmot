@@ -1,0 +1,19 @@
+inserted 50000 count via # 50000
+after removing every third 33333 original still 50000
+sum present 27776944461111
+lookups false true true
+overwrite count 50000 value -2 old 49
+negative keys 1 2
+collisions 400 -> 200 get 399=399 get 398=-1
+deep 3 two gone three
+entries 33333
+keys sum 833316667
+unique 4 has fig true has plum false
+without pear 3
+list length 200000
+list fold 19999900000
+reversed head 199999
+list to array 200000
+list map length 3
+churn survivors 1-1 2-2
+nested maps 2000 inner 49

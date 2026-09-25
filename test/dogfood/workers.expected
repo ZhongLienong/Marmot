@@ -1,0 +1,13 @@
+done 34 rejected 6 checksum 828
+handled total 40
+the=5
+fox=3
+lazy=3
+quick=4
+dog=3
+cat=0
+parallel 50 first 1000 last 3401
+failed: index out of bounds
+spinner cancelled
+applied 340
+ring token 300

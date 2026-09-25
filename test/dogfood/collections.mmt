@@ -1,0 +1,99 @@
+module Collections
+
+import
+{
+	"../../MarmotPrelude/IO.mmt",
+	"../../MarmotPrelude/Countable.mmt",
+	"../../MarmotPrelude/Hashable.mmt",
+	"../../MarmotPrelude/Equatable.mmt",
+	"../../MarmotPrelude/Iterable.mmt",
+	"../../MarmotPrelude/Prelude/Option.mmt",
+	"../../MarmotPrelude/Prelude/List.mmt",
+	"../../MarmotPrelude/Collections/Map.mmt",
+	"../../MarmotPrelude/Collections/Set.mmt"
+}
+
+use Option.{ Option }
+use List.{ List }
+
+// Every key hashes to one of four buckets, so the map is almost all collision nodes.
+type Clumsy = { id: Int };
+
+instance Hashable<Clumsy> { def Hash = fn(value: Clumsy) -> Int => value.id % 4; };
+instance Equatable<Clumsy> { def Equals = fn(a: Clumsy, b: Clumsy) -> Bool => a.id == b.id; };
+
+// Keys that agree on the low 60 bits share every chunk down to the maximum depth.
+type Deep = { id: Int };
+
+instance Hashable<Deep> { def Hash = fn(value: Deep) -> Int => (value.id << 60) | 12345; };
+instance Equatable<Deep> { def Equals = fn(a: Deep, b: Deep) -> Bool => a.id == b.id; };
+
+def InsertRange = fn(map: Map::Map<Int, Int>, next: Int, end: Int) -> Map::Map<Int, Int> =>
+	if next >= end then map else InsertRange(Map::With(map, next, next * next), next + 1, end);
+
+def RemoveEvery = fn(map: Map::Map<Int, Int>, next: Int, end: Int, step: Int) -> Map::Map<Int, Int> =>
+	if next >= end then map else RemoveEvery(Map::Without(map, next), next + step, end, step);
+
+def SumPresent = fn(map: Map::Map<Int, Int>, next: Int, end: Int, total: Int) -> Int =>
+	if next >= end then total else SumPresent(map, next + 1, end, total + Map::GetOr(map, next, 0));
+
+def count = 50000;
+def big = InsertRange(Map::Empty(), 0, count);
+IO::PrintLine("inserted " ++ (Map::Count(big) as Text) ++ " count via # " ++ ((#big) as Text));
+def thinned = RemoveEvery(big, 0, count, 3);
+IO::PrintLine("after removing every third " ++ (Map::Count(thinned) as Text) ++ " original still " ++ (Map::Count(big) as Text));
+IO::PrintLine("sum present " ++ (SumPresent(thinned, 0, count, 0) as Text));
+IO::PrintLine("lookups " ++ (Map::ContainsKey(thinned, 3) as Text) ++ " " ++ (Map::ContainsKey(thinned, 4) as Text) ++ " " ++ (Map::ContainsKey(big, 3) as Text));
+def overwritten = Map::With(Map::With(big, 7, -1), 7, -2);
+IO::PrintLine("overwrite count " ++ (Map::Count(overwritten) as Text) ++ " value " ++ (Map::GetOr(overwritten, 7, 0) as Text) ++ " old " ++ (Map::GetOr(big, 7, 0) as Text));
+def negatives = Map::With(Map::With(Map::Empty(), -1, 1), -9223372036854775807, 2);
+IO::PrintLine("negative keys " ++ (Map::GetOr(negatives, -1, 0) as Text) ++ " " ++ (Map::GetOr(negatives, -9223372036854775807, 0) as Text));
+
+def ClumsyRange = fn(map: Map::Map<Clumsy, Int>, next: Int, end: Int) -> Map::Map<Clumsy, Int> =>
+	if next >= end then map else ClumsyRange(Map::With(map, Clumsy(next), next), next + 1, end);
+def ClumsyRemove = fn(map: Map::Map<Clumsy, Int>, next: Int, end: Int) -> Map::Map<Clumsy, Int> =>
+	if next >= end then map else ClumsyRemove(Map::Without(map, Clumsy(next)), next + 2, end);
+def clumsy = ClumsyRange(Map::Empty(), 0, 400);
+def clumsy_thin = ClumsyRemove(clumsy, 0, 400);
+IO::PrintLine("collisions " ++ (Map::Count(clumsy) as Text) ++ " -> " ++ (Map::Count(clumsy_thin) as Text) ++ " get 399=" ++ (Map::GetOr(clumsy_thin, Clumsy(399), -1) as Text) ++ " get 398=" ++ (Map::GetOr(clumsy_thin, Clumsy(398), -1) as Text));
+
+def deep = Map::With(Map::With(Map::With(Map::Empty(), Deep(1), "one"), Deep(2), "two"), Deep(3), "three");
+IO::PrintLine("deep " ++ (Map::Count(deep) as Text) ++ " " ++ Map::GetOr(deep, Deep(2), "?") ++ " " ++ Map::GetOr(Map::Without(deep, Deep(2)), Deep(2), "gone") ++ " " ++ Map::GetOr(Map::Without(deep, Deep(2)), Deep(3), "?"));
+
+def entries = Map::Entries(thinned);
+IO::PrintLine("entries " ++ ((#entries) as Text));
+def Fold = fn(values: Array<Int>, index: Int, total: Int) -> Int => if index >= #values then total else Fold(values, index + 1, total + values[index]);
+def keys_sum = Fold([e.key for e in Map::IterNew(thinned)], 0, 0);
+IO::PrintLine("keys sum " ++ (keys_sum as Text));
+
+def words = ["pear", "fig", "pear", "kiwi", "fig", "pear", "lime"];
+def AddAll = fn(set: Set::Set<Text>, index: Int) -> Set::Set<Text> => if index >= #words then set else AddAll(Set::SetWith(set, words[index]), index + 1);
+def unique = AddAll(Set::SetEmpty(), 0);
+IO::PrintLine("unique " ++ ((#unique) as Text) ++ " has fig " ++ (Set::SetHas(unique, "fig") as Text) ++ " has plum " ++ (Set::SetHas(unique, "plum") as Text));
+IO::PrintLine("without pear " ++ (Set::SetCount(Set::SetWithout(unique, "pear")) as Text));
+
+def long_list = List::ListFromArray([i for i in 0..1..200000]);
+IO::PrintLine("list length " ++ ((#long_list) as Text));
+IO::PrintLine("list fold " ++ (List::ListFold(long_list, 0, fn(acc: Int, v: Int) -> Int => acc + v) as Text));
+def reversed = List::ListReverse(long_list);
+match reversed with
+	case List::Cons(head, _) => IO::PrintLine("reversed head " ++ (head as Text))
+	case List::Nil() => IO::PrintLine("empty");
+IO::PrintLine("list to array " ++ ((#List::ListToArray(reversed)) as Text));
+IO::PrintLine("list map length " ++ ((#List::ListMap(List::ListFromArray([1, 2, 3]), fn(v: Int) -> Int => v * 2)) as Text));
+
+def Churn = fn(round: Int, keep: Array<Text>) -> Array<Text> =>
+	if round == 0
+	then keep
+	else
+	{
+		def garbage = [(i as Text) ++ "-" ++ (round as Text) for i in 0..1..2000];
+		Churn(round - 1, [garbage[round % 2000]] ++ [keep[0]])
+	};
+def survivors = Churn(300, ["seed"]);
+IO::PrintLine("churn survivors " ++ survivors[0] ++ " " ++ survivors[1]);
+
+def Nest = fn(depth: Int, value: Map::Map<Int, Map::Map<Int, Int>>) -> Map::Map<Int, Map::Map<Int, Int>> =>
+	if depth == 0 then value else Nest(depth - 1, Map::With(value, depth, InsertRange(Map::Empty(), 0, depth % 50)));
+def nested = Nest(2000, Map::Empty());
+IO::PrintLine("nested maps " ++ (Map::Count(nested) as Text) ++ " inner " ++ (Map::Count(Option::OptionUnwrap(Map::Get(nested, 1999), Map::Empty())) as Text));

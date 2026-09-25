@@ -1,0 +1,200 @@
+module Graph
+
+import
+{
+	"../../MarmotPrelude/IO.mmt",
+	"../../MarmotPrelude/ArrayUtil.mmt",
+	"../../MarmotPrelude/Prelude/Option.mmt",
+	"../../MarmotPrelude/Collections/Map.mmt",
+	"../../MarmotPrelude/Collections/Set.mmt",
+	"../../MarmotPrelude/Hashable.mmt",
+	"../../MarmotPrelude/Equatable.mmt"
+}
+
+use Option.{ Option }
+
+type Node = { row: Int, col: Int } deriving (Equatable, Hashable);
+
+type Edge = { to: Node, weight: Int };
+
+type Heap<T> = Empty | Branch(Int, T, Heap<T>, Heap<T>);
+
+type Visit = { node: Node, distance: Int };
+
+def ByDistance = fn(a: Visit, b: Visit) -> Int => a.distance - b.distance;
+
+def Ascending = fn(a: Int, b: Int) -> Int => if a < b then -1 else if a > b then 1 else 0;
+
+def Rank = fn<T>(heap: Heap<T>) -> Int =>
+	match heap with
+		case Heap::Empty() => 0
+		case Heap::Branch(rank, _, _, _) => rank;
+
+def MakeBranch = fn<T>(value: T, left: Heap<T>, right: Heap<T>) -> Heap<T> =>
+	if Rank(left) >= Rank(right)
+	then Heap::Branch(Rank(right) + 1, value, left, right)
+	else Heap::Branch(Rank(left) + 1, value, right, left);
+
+def Merge = fn<T>(a: Heap<T>, b: Heap<T>, order: fn(T, T) -> Int) -> Heap<T> =>
+	match (a, b) with
+		case (Heap::Empty(), _) => b
+		case (_, Heap::Empty()) => a
+		case (Heap::Branch(_, x, a_left, a_right), Heap::Branch(_, y, b_left, b_right)) =>
+			if order(x, y) <= 0
+			then MakeBranch(x, a_left, Merge(a_right, b, order))
+			else MakeBranch(y, b_left, Merge(a, b_right, order))
+		case _ => a;
+
+def Push = fn<T>(heap: Heap<T>, value: T, order: fn(T, T) -> Int) -> Heap<T> =>
+	Merge(heap, Heap::Branch(1, value, Heap::Empty(), Heap::Empty()), order);
+
+def Pop = fn<T>(heap: Heap<T>, order: fn(T, T) -> Int) -> Option<(T, Heap<T>)> =>
+	match heap with
+		case Heap::Empty() => Option::None()
+		case Heap::Branch(_, value, left, right) => Option::Some((value, Merge(left, right, order)));
+
+def HeapSortInto = fn<T>(heap: Heap<T>, out: Array<T>, order: fn(T, T) -> Int) -> Array<T> =>
+	match Pop(heap, order) with
+		case Option::None() => out
+		case Option::Some(step) =>
+		{
+			def (value, rest) = step;
+			HeapSortInto(rest, out ++ [value], order)
+		};
+
+def HeapSort = fn<T>(values: Array<T>, order: fn(T, T) -> Int) -> Array<T> =>
+{
+	if #values == 0
+	then values
+	else HeapSortInto(BuildHeap(values, 1, Heap::Branch(1, values[0], Heap::Empty(), Heap::Empty()), order), [], order)
+};
+
+def BuildHeap = fn<T>(values: Array<T>, index: Int, heap: Heap<T>, order: fn(T, T) -> Int) -> Heap<T> =>
+	if index >= #values then heap else BuildHeap(values, index + 1, Push(heap, values[index], order), order);
+
+def grid = [
+	"S.#.....",
+	".##.###.",
+	"....#...",
+	"#.#.#.#.",
+	"..#...#E"
+];
+
+def Cost = fn(cell: Text) -> Int =>
+	match cell with
+		case "#" => -1
+		case "~" => 5
+		case _ => 1;
+
+def CellAt = fn(node: Node) -> Text =>
+	if (node.row < 0) || (node.row >= #grid)
+	then "#"
+	else
+	{
+		def line = grid[node.row];
+		if (node.col < 0) || (node.col >= TextUtilLength(line)) then "#" else TextUtilSubstring(line, node.col, node.col + 1)
+	};
+
+foreign "MIDORI_FFI_TextLength" TextUtilLength: fn(Text) -> Int;
+foreign "MIDORI_FFI_TextSubstring" TextUtilSubstring: fn(Text, Int, Int) -> Text;
+
+def Neighbours = fn(node: Node) -> Array<Edge> =>
+{
+	def candidates = [
+		{ node with row = node.row - 1 },
+		{ node with row = node.row + 1 },
+		{ node with col = node.col - 1 },
+		{ node with col = node.col + 1 }
+	];
+	def edges = [Edge(next, Cost(CellAt(next))) for next in candidates];
+	FilterEdges(edges, 0, [])
+};
+
+def FilterEdges = fn(edges: Array<Edge>, index: Int, kept: Array<Edge>) -> Array<Edge> =>
+	if index >= #edges
+	then kept
+	else FilterEdges(edges, index + 1, if edges[index].weight < 0 then kept else kept ++ [edges[index]]);
+
+def FindCell = fn(target: Text, row: Int, col: Int) -> Option<Node> =>
+	if row >= #grid
+	then Option::None()
+	else if col >= TextUtilLength(grid[row])
+	then FindCell(target, row + 1, 0)
+	else if CellAt(Node(row, col)) == target
+	then Option::Some(Node(row, col))
+	else FindCell(target, row, col + 1);
+
+alias Distances = Map::Map<Node, Int>;
+
+def Relax = fn(from: Visit, edges: Array<Edge>, index: Int, dist: Distances, frontier: Heap<Visit>, parents: Map::Map<Node, Node>) -> (Distances, Heap<Visit>, Map::Map<Node, Node>) =>
+	if index >= #edges
+	then (dist, frontier, parents)
+	else
+	{
+		def edge = edges[index];
+		def candidate = from.distance + edge.weight;
+		def known = Map::GetOr(dist, edge.to, 1000000);
+		if candidate < known
+		then Relax(from, edges, index + 1, Map::With(dist, edge.to, candidate), Push(frontier, Visit(edge.to, candidate), ByDistance), Map::With(parents, edge.to, from.node))
+		else Relax(from, edges, index + 1, dist, frontier, parents)
+	};
+
+def Dijkstra = fn(frontier: Heap<Visit>, dist: Distances, done: Set::Set<Node>, parents: Map::Map<Node, Node>) -> (Distances, Map::Map<Node, Node>) =>
+	match Pop(frontier, ByDistance) with
+		case Option::None() => (dist, parents)
+		case Option::Some(step) =>
+		{
+			def (visit, rest) = step;
+			if Set::SetHas(done, visit.node)
+			then Dijkstra(rest, dist, done, parents)
+			else
+			{
+				def (next_dist, next_frontier, next_parents) = Relax(visit, Neighbours(visit.node), 0, dist, rest, parents);
+				Dijkstra(next_frontier, next_dist, Set::SetWith(done, visit.node), next_parents)
+			}
+		};
+
+def PathTo = fn(parents: Map::Map<Node, Node>, node: Node, path: Array<Node>) -> Array<Node> =>
+	match Map::Get(parents, node) with
+		case Option::Some(parent) => PathTo(parents, parent, [node] ++ path)
+		case Option::None() => [node] ++ path;
+
+def ShowNode = fn(node: Node) -> Text => "(" ++ (node.row as Text) ++ "," ++ (node.col as Text) ++ ")";
+
+def JoinNodes = fn(nodes: Array<Node>, index: Int, built: Text) -> Text =>
+	if index >= #nodes then built else JoinNodes(nodes, index + 1, built ++ (if index == 0 then "" else " ") ++ ShowNode(nodes[index]));
+
+def JoinInts = fn(values: Array<Int>, index: Int, built: Text) -> Text =>
+	if index >= #values then built else JoinInts(values, index + 1, built ++ (if index == 0 then "" else ",") ++ (values[index] as Text));
+
+def IsSorted = fn(values: Array<Int>, index: Int) -> Bool =>
+	if index >= #values then true else if values[index - 1] > values[index] then false else IsSorted(values, index + 1);
+
+def start = Option::OptionUnwrapOrPanic(FindCell("S", 0, 0), "no start");
+def goal = Option::OptionUnwrapOrPanic(FindCell("E", 0, 0), "no goal");
+
+IO::PrintLine("start " ++ ShowNode(start) ++ " goal " ++ ShowNode(goal));
+
+def no_visits : Heap<Visit> = Heap::Empty();
+def (distances, parents) = Dijkstra(Push(no_visits, Visit(start, 0), ByDistance), Map::With(Map::Empty(), start, 0), Set::SetEmpty(), Map::Empty());
+
+IO::PrintLine("reachable " ++ (Map::Count(distances) as Text));
+IO::PrintLine("distance " ++ (Map::GetOr(distances, goal, -1) as Text));
+def path = PathTo(parents, goal, []);
+IO::PrintLine("path " ++ (#path as Text) ++ ": " ++ JoinNodes(path, 0, ""));
+
+def sorted = HeapSort([5, 3, 9, 1, 5, 8, -2, 7, 0, 3], Ascending);
+IO::PrintLine("sorted " ++ JoinInts(sorted, 0, ""));
+
+
+def visits = HeapSort([Visit(Node(0, 0), 9), Visit(Node(1, 1), 2), Visit(Node(2, 2), 5)], ByDistance);
+IO::PrintLine("visits " ++ JoinInts([v.distance for v in visits], 0, ""));
+
+def a = Node(1, 2);
+def b = { a with col = 2 };
+def c = { a with row = 7, col = 9 };
+IO::PrintLine("eq " ++ ((a == b) as Text) ++ " " ++ ((a != c) as Text) ++ " hash " ++ ((Hashable::Hash(a) == Hashable::Hash(b)) as Text));
+
+def big = HeapSort([(i * 7919) % 1009 for i in 0..1..3000], Ascending);
+IO::PrintLine("big sorted ok " ++ (IsSorted(big, 1) as Text) ++ " len " ++ (#big as Text));
+

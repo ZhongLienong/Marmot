@@ -1,0 +1,18 @@
+module SystemRunExitCode
+
+import
+{
+	"../../MarmotPrelude/IO.mmt",
+	"../../MarmotPrelude/System.mmt",
+	"../../MarmotPrelude/Prelude/Result.mmt"
+}
+
+use Result.{ Result }
+use System.{ SystemError }
+
+// CommandFailed carries the command's exit code. On POSIX std::system returns a
+// wait status, which is the exit code shifted left by eight.
+
+match System::Run("exit 3") with
+	case Result::Err(SystemError::CommandFailed(code)) => IO::PrintLine("exit " ++ (code as Text))
+	case _ => IO::PrintLine("other");

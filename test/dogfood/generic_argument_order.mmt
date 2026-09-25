@@ -1,0 +1,25 @@
+module GenericArgumentOrder
+
+import
+{
+	"../../MarmotPrelude/IO.mmt"
+}
+
+// A zero-arity constructor takes its type from context. The same T is fixed by
+// the other argument whichever side it is on, and by the annotated result.
+
+type Box<T> = Empty | Full(T);
+
+def Put = fn<T>(box: Box<T>, value: T) -> Box<T> => Box::Full(value);
+def PutFlipped = fn<T>(value: T, box: Box<T>) -> Box<T> => Box::Full(value);
+def Merge = fn<T>(a: Box<T>, b: Box<T>) -> Box<T> => a;
+
+def Show = fn(box: Box<Int>) -> Text =>
+	match box with
+		case Box::Full(v) => v as Text
+		case Box::Empty() => "empty";
+
+IO::PrintLine(Show(PutFlipped(3, Box::Empty())));
+IO::PrintLine(Show(Put(Box::Empty(), 4)));
+def merged : Box<Int> = Merge(Box::Empty(), Box::Empty());
+IO::PrintLine(Show(merged));

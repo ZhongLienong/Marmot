@@ -1,0 +1,27 @@
+module MapDeepHash
+
+import
+{
+	"../../MarmotPrelude/IO.mmt",
+	"../../MarmotPrelude/Collections/Map.mmt",
+	"../../MarmotPrelude/Hashable.mmt",
+	"../../MarmotPrelude/Equatable.mmt"
+}
+
+// Two different hashes that agree on their low 60 bits: the map runs out of
+// levels before the hashes part, and every key must still be found.
+
+type Key = { id: Int };
+
+instance Hashable<Key> { def Hash = fn(value: Key) -> Int => (value.id << 60) | 12345; };
+instance Equatable<Key> { def Equals = fn(a: Key, b: Key) -> Bool => a.id == b.id; };
+
+def map = Map::With(Map::With(Map::With(Map::Empty(), Key(1), "one"), Key(2), "two"), Key(3), "three");
+
+IO::PrintLine(Map::GetOr(map, Key(1), "missing"));
+IO::PrintLine(Map::GetOr(map, Key(2), "missing"));
+IO::PrintLine(Map::GetOr(map, Key(3), "missing"));
+IO::PrintLine(Map::Count(map) as Text);
+
+def plain = Map::With(Map::With(Map::Empty(), 0, "zero"), 1 << 60, "far");
+IO::PrintLine(Map::GetOr(plain, 0, "missing") ++ " " ++ Map::GetOr(plain, 1 << 60, "missing"));

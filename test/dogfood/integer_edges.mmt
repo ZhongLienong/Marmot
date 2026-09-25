@@ -1,0 +1,16 @@
+module IntegerEdges
+
+import
+{
+	"../../MarmotPrelude/IO.mmt"
+}
+
+// Byte and Word take &, |, ^ and << like Int, so they take ~ too. The smallest
+// Int is a literal that can be written.
+
+def byte_value : Byte = 0xF0;
+def word_value : Word = 0xFFFFFFFFFFFFFFF0;
+
+IO::PrintLine((~byte_value) as Text);
+IO::PrintLine((~word_value) as Text);
+IO::PrintLine((-9223372036854775808) as Text);

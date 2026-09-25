@@ -1,0 +1,22 @@
+module InstanceForwardReference
+
+import
+{
+	"../../MarmotPrelude/IO.mmt",
+	"../../MarmotPrelude/Equatable.mmt"
+}
+
+// An instance method is a function, and a function may name a definition that
+// comes after it. Nothing calls the method before SameValue has run.
+
+type Box = { value: Int };
+
+instance Equatable<Box>
+{
+	def Equals = fn(a: Box, b: Box) -> Bool => SameValue(a, b);
+};
+
+def SameValue = fn(a: Box, b: Box) -> Bool => a.value == b.value;
+
+IO::PrintLine(Equatable::Equals(Box(1), Box(1)) as Text);
+IO::PrintLine(Equatable::Equals(Box(1), Box(2)) as Text);
