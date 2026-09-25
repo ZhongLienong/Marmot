@@ -1,8 +1,8 @@
 module TailCallToAnotherFunction
 
 // Test: a call in tail position runs without a frame whatever it calls, not
-// only when a function calls itself. Each chain below is 100,000 calls deep,
-// far past the few thousand frames the stack holds.
+// only when a function calls itself. Each chain below is 2,000,000 calls deep,
+// past the roughly 500,000 frames the stack holds.
 
 import
 {
@@ -32,8 +32,8 @@ def CountWithLambda = fn(n : Int) -> Int =>
 	Down(n, 0)
 };
 
-IO::PrintLine("even=" ++ (IsEven(100000) as Text));
-IO::PrintLine("ping=" ++ (Ping(100000, 0) as Text));
-IO::PrintLine("value=" ++ (ViaValue(100000, 0) as Text));
-IO::PrintLine("generic=" ++ Relay("relayed", 100000));
-IO::PrintLine("lambda=" ++ (CountWithLambda(100000) as Text));
+IO::PrintLine("even=" ++ (IsEven(2000000) as Text));
+IO::PrintLine("ping=" ++ (Ping(2000000, 0) as Text));
+IO::PrintLine("value=" ++ (ViaValue(2000000, 0) as Text));
+IO::PrintLine("generic=" ++ Relay("relayed", 2000000));
+IO::PrintLine("lambda=" ++ (CountWithLambda(2000000) as Text));

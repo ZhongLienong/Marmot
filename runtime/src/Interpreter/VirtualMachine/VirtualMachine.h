@@ -58,8 +58,11 @@ private:
 	// translation units.
 	static constexpr size_t s_cache_line_size = 64uz;
 
-    static constexpr size_t s_value_stack_size = 10000u;
-    static constexpr size_t s_call_stack_size = 10000u;
+    // Iteration is recursion, and anything not in tail position keeps a frame:
+    // 10,000 values stopped plain recursion near 5,000 calls. The pages are
+    // only touched as the stack grows.
+    static constexpr size_t s_value_stack_size = 1uz << 20;
+    static constexpr size_t s_call_stack_size = 1uz << 19;
     static constexpr int s_max_stack_trace_depth = 20;
 
     struct FFIArrayArgument

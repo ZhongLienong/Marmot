@@ -1,5 +1,5 @@
 even=true
-ping=100000
-value=5000050000
+ping=2000000
+value=2000001000000
 generic=relayed
-lambda=100000
+lambda=2000000
