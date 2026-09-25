@@ -6118,7 +6118,15 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 		}
 	}
 
-	if (call.m_callee->IsExpression<MidoriExpression::Function>())
+	// A lambda is called directly only from inside parentheses: `fn(x) => x(3)`
+	// would put the call in its body.
+	const MidoriExpression* callee_inside_groups = call.m_callee.get();
+	while (callee_inside_groups->IsExpression<MidoriExpression::Group>())
+	{
+		callee_inside_groups = callee_inside_groups->GetExpression<MidoriExpression::Group>().m_expr_in.get();
+	}
+
+	if (callee_inside_groups->IsExpression<MidoriExpression::Function>())
 	{
 		std::vector<std::shared_ptr<MidoriType>> arg_results;
 		arg_results.reserve(call.m_arguments.size());
@@ -6171,7 +6179,14 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 			);
 	}
 
-	return Evaluate(call.m_callee)
+	// The type expected of the call is its result's, not the callee's.
+	MidoriResult::TypeResult callee_result = [&call, this]() -> MidoriResult::TypeResult
+		{
+			ExpectedTypeGuard guard(*this, nullptr);
+			return Evaluate(call.m_callee);
+		}();
+
+	return std::move(callee_result)
 		.and_then
 		(
 			[&call, this](std::shared_ptr<MidoriType>&& actual_type) ->MidoriResult::TypeResult
