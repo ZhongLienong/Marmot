@@ -63,7 +63,7 @@ void StrengthReduction::operator()(MidoriExpression::Binary& binary)
 
 double StrengthReduction::GetFloatValue(MidoriExpression::Literal* float_lit)
 {
-	return std::stod(float_lit->m_token.m_lexeme);
+	return ParseFloatLiteral(float_lit->m_token.m_lexeme).value();
 }
 
 int64_t StrengthReduction::IsPowerOfTwo(MidoriInteger value)

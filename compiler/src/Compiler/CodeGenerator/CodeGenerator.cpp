@@ -1805,7 +1805,7 @@ void CodeGenerator::EmitPatternLiteralConstant(const MidoriPattern::Literal& lit
 			EmitByte(lexeme == "true"s ? OpCode::OP_TRUE : OpCode::OP_FALSE, line);
 			break;
 		case MidoriPattern::LiteralKind::Float:
-			EmitFloatConstant(std::stod(lexeme), line);
+			EmitFloatConstant(ParseFloatLiteral(lexeme).value(), line);
 			break;
 		case MidoriPattern::LiteralKind::Integer:
 		{
@@ -4216,7 +4216,7 @@ void CodeGenerator::EmitBoolLiteral(const MidoriExpression::Literal& bool_expr)
 void CodeGenerator::EmitFloatLiteral(const MidoriExpression::Literal& float_literal)
 {
 	int line = float_literal.m_token.m_line;
-	EmitFloatConstant(std::stod(float_literal.m_token.m_lexeme), line);
+	EmitFloatConstant(ParseFloatLiteral(float_literal.m_token.m_lexeme).value(), line);
 }
 
 void CodeGenerator::EmitIntegerLiteral(const MidoriExpression::Literal& integer)

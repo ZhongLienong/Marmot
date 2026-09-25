@@ -2,7 +2,6 @@
 #include "Common/Value/IntegerArithmetic.h"
 
 #include <optional>
-#include <stdexcept>
 #include <type_traits>
 #include <utility>
 
@@ -18,22 +17,6 @@ namespace
 	std::optional<MidoriInteger> SafeParseInteger(const std::string& lexeme)
 	{
 		return ParseIntegerLiteral(lexeme);
-	}
-
-	std::optional<MidoriFloat> SafeParseFloat(const std::string& lexeme)
-	{
-		try
-		{
-			return std::stod(lexeme);
-		}
-		catch (const std::invalid_argument&)
-		{
-			return std::nullopt;
-		}
-		catch (const std::out_of_range&)
-		{
-			return std::nullopt;
-		}
 	}
 
 	std::optional<MidoriByte> SafeParseByte(const std::string& lexeme)
@@ -83,7 +66,7 @@ namespace
 		}
 		case MidoriPattern::LiteralKind::Float:
 		{
-			const std::optional<MidoriFloat> value = SafeParseFloat(literal.m_token.m_lexeme);
+			const std::optional<MidoriFloat> value = ParseFloatLiteral(literal.m_token.m_lexeme);
 			return value.has_value() ? std::optional<ConstantValue>{ ConstantValue{ value.value() } } : std::nullopt;
 		}
 		case MidoriPattern::LiteralKind::Text:
@@ -637,7 +620,7 @@ namespace
 					}
 					case MidoriExpression::LiteralKind::Float:
 					{
-						std::optional<MidoriFloat> value = SafeParseFloat(node.m_token.m_lexeme);
+						std::optional<MidoriFloat> value = ParseFloatLiteral(node.m_token.m_lexeme);
 						return value.has_value() ? std::optional<ConstantValue>{ ConstantValue{ value.value() } } : std::nullopt;
 					}
 					case MidoriExpression::LiteralKind::Byte:
@@ -1394,7 +1377,7 @@ namespace MidoriAnalysis
 				}
 				else if constexpr (std::is_same_v<T, MidoriFloat>)
 				{
-					return std::make_unique<MidoriExpression>(MidoriExpression::Literal(Token(std::to_string(literal_value), Token::Name::FLOAT_LITERAL, source_token), MidoriExpression::LiteralKind::Float));
+					return std::make_unique<MidoriExpression>(MidoriExpression::Literal(Token(FloatLiteralLexeme(literal_value), Token::Name::FLOAT_LITERAL, source_token), MidoriExpression::LiteralKind::Float));
 				}
 				else if constexpr (std::is_same_v<T, MidoriByte>)
 				{

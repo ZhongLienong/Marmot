@@ -50,6 +50,25 @@ std::optional<int64_t> ParseIntegerLiteral(std::string_view lexeme)
 	return static_cast<int64_t>(value.value());
 }
 
+std::optional<double> ParseFloatLiteral(std::string_view lexeme)
+{
+	double value = 0.0;
+	const std::from_chars_result result = std::from_chars(lexeme.data(), lexeme.data() + lexeme.size(), value);
+	if (lexeme.empty() || result.ec != std::errc() || result.ptr != lexeme.data() + lexeme.size())
+	{
+		return std::nullopt;
+	}
+
+	return value;
+}
+
+std::string FloatLiteralLexeme(double value)
+{
+	char buffer[64];
+	const std::to_chars_result result = std::to_chars(std::begin(buffer), std::end(buffer), value);
+	return std::string(std::begin(buffer), result.ptr);
+}
+
 namespace
 {
 	struct TypeDataAccessor

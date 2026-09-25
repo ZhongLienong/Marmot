@@ -36,6 +36,14 @@ std::optional<uint64_t> ParseUnsignedLiteral(std::string_view lexeme);
 // does not fit in a signed 64-bit integer.
 std::optional<int64_t> ParseIntegerLiteral(std::string_view lexeme);
 
+// Value of a Float literal lexeme, including the forms FloatLiteralLexeme writes: an
+// exponent, a sign, "inf" and "nan". Nothing when the lexeme is malformed.
+std::optional<double> ParseFloatLiteral(std::string_view lexeme);
+
+// The lexeme the optimizer writes for a folded Float: the shortest text that reads back
+// as exactly this value, so a folded constant is the value the program would compute.
+std::string FloatLiteralLexeme(double value);
+
 class MidoriStatement
 {
 public:
