@@ -987,6 +987,28 @@ Parser::ImportedSymbolAccess Parser::ResolveImportedSymbolAccess(const std::stri
 	return ImportedSymbolAccess::SymbolNotExported;
 }
 
+// `Qualifier::Name` in a pattern named no constructor. Say which half is wrong,
+// as an expression's lookup of the same name does.
+std::string Parser::DescribeUnknownConstructor(const std::string& qualified_name)
+{
+	std::string qualifier = ExtractQualifier(qualified_name);
+	const std::string constructor = ExtractSymbolName(qualified_name);
+	const std::unordered_map<std::string, TypeEnvironment>::const_iterator module_types = m_context.m_imported_type_signatures.find(ExtractQualifier(qualifier));
+	const bool is_imported_type = (module_types != m_context.m_imported_type_signatures.cend()) && module_types->second.contains(ExtractSymbolName(qualifier));
+	if ((FindTypeScope(qualifier) != m_state.m_scopes.crend()) || is_imported_type || IsModuleVisible(qualifier))
+	{
+		return std::format("'{}' has no constructor '{}'.", qualifier, constructor);
+	}
+
+	const std::vector<std::string> exporting_modules = ModulesExporting(qualifier);
+	if (!exporting_modules.empty())
+	{
+		return BuildUnimportedSymbolError(qualifier, exporting_modules);
+	}
+
+	return std::format("'{}' is not a type or an imported module here, so '{}' names no constructor.", qualifier, qualified_name);
+}
+
 std::string Parser::BuildImportedSymbolAccessError(const std::string& module_name, const std::string& symbol_name, ImportedSymbolAccess access) const
 {
 	switch (access)
@@ -4605,6 +4627,14 @@ MidoriResult::StatementResult Parser::ParseSimpleStatement()
 			return NoMatch<std::unique_ptr<MidoriStatement>>();
 		}
 
+		// A for loop ends in a block, so it reads as finished, but it is an
+		// expression like any other: the missing ';' belongs after its '}',
+		// not before the line that follows.
+		if (expr->IsExpression<MidoriExpression::For>())
+		{
+			return std::unexpected(GenerateParserError("Expected ';' after the for loop: it is an expression, and as a statement it ends with ';'.", Previous()));
+		}
+
 		return std::unexpected(std::move(semicolon_result.error()));
 	}
 
@@ -5376,7 +5406,7 @@ MidoriResult::PatternResult Parser::ParsePattern()
 
 					if (resolved.m_lexeme.find(NameSeparator) != std::string::npos)
 					{
-						return std::unexpected(GenerateParserError("Unknown constructor in pattern.", resolved));
+						return std::unexpected(GenerateParserError(DescribeUnknownConstructor(resolved.m_lexeme), resolved));
 					}
 
 					Token binding_name = std::move(identifier);

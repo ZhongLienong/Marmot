@@ -1,0 +1,11 @@
+module PatternNamesMissingVariant
+
+// The pattern names a type that exists and a variant it does not have.
+// "Unknown constructor in pattern" did not say which half was wrong.
+
+type Shape = Dot | Line;
+
+def Corners = fn(shape : Shape) -> Int =>
+	match shape with
+		case Shape::Square() => 4
+		case _ => 0;

@@ -1,0 +1,6 @@
+Compilation failed :(
+Parser Error at test/match/failure/pattern_names_missing_variant.mmt:10
+   |
+10 | 		case Shape::Square() => 4
+   |        ^^^^^ 'Shape' has no constructor 'Square'.
+   |

@@ -1,0 +1,10 @@
+module ForStatementWithoutSemicolon
+
+import { "../../../MarmotPrelude/IO.mmt" }
+
+// A for loop is an expression, so as a statement it needs a ;. The error
+// used to point at the start of the next line.
+def Count = fn() -> Int => {
+	for item in [1, 2] { IO::PrintLine(item as Text); }
+	2
+};

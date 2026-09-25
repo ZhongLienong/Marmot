@@ -1,0 +1,6 @@
+Compilation failed :(
+Parser Error at test/expression/failure/for_statement_without_semicolon.mmt:8
+  |
+8 | 	for item in [1, 2] { IO::PrintLine(item as Text); }
+  |                                                    ^ Expected ';' after the for loop: it is an expression, and as a statement it ends with ';'.
+  |

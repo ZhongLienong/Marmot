@@ -599,6 +599,8 @@ private:
 
 	std::string BuildUnimportedSymbolError(const std::string& symbol_name, const std::vector<std::string>& module_names) const;
 
+	std::string DescribeUnknownConstructor(const std::string& qualified_name);
+
 	std::string BuildAmbiguousUseImportError(const std::string& symbol_name, const std::vector<std::string>& module_names) const;
 
 	static std::string BuildTypeArgumentCountMismatchMessage(const std::string& type_name, bool is_alias, size_t expected_count, size_t actual_count);
