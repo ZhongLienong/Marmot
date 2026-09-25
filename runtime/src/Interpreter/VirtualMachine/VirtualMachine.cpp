@@ -605,15 +605,16 @@ void VirtualMachine::InitializeStacks() noexcept
 	const size_t value_total_size = value_usable_bytes + m_stack_page_size;
 
 #ifdef _WIN32
-	m_value_stack_region = VirtualAlloc(nullptr, value_total_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+	// Only reserved: committing the whole region would charge every VM, workers
+	// included, its full size up front. The page after the region stays reserved
+	// and PAGE_NOACCESS as the guard.
+	m_value_stack_region = VirtualAlloc(nullptr, value_total_size, MEM_RESERVE, PAGE_NOACCESS);
 	if (m_value_stack_region != nullptr)
 	{
 		char* value_region = static_cast<char*>(m_value_stack_region);
 		m_value_stack_begin = reinterpret_cast<MidoriValue*>(value_region + (value_usable_bytes - value_stack_bytes));
 		m_value_stack_region_size = value_total_size;
-
-		DWORD old_protect = 0;
-		static_cast<void>(VirtualProtect(value_region + value_usable_bytes, m_stack_page_size, PAGE_NOACCESS, &old_protect));
+		static_cast<void>(CommitStackPages(reinterpret_cast<uintptr_t>(m_value_stack_begin)));
 	}
 	else
 	{
@@ -640,15 +641,13 @@ void VirtualMachine::InitializeStacks() noexcept
 	const size_t call_total_size = call_usable_bytes + m_stack_page_size;
 
 #ifdef _WIN32
-	m_call_stack_region = VirtualAlloc(nullptr, call_total_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+	m_call_stack_region = VirtualAlloc(nullptr, call_total_size, MEM_RESERVE, PAGE_NOACCESS);
 	if (m_call_stack_region != nullptr)
 	{
 		char* call_region = static_cast<char*>(m_call_stack_region);
 		m_call_stack_begin = reinterpret_cast<CallFrame*>(call_region + (call_usable_bytes - call_stack_bytes));
 		m_call_stack_region_size = call_total_size;
-
-		DWORD old_protect = 0;
-		static_cast<void>(VirtualProtect(call_region + call_usable_bytes, m_stack_page_size, PAGE_NOACCESS, &old_protect));
+		static_cast<void>(CommitStackPages(reinterpret_cast<uintptr_t>(m_call_stack_begin)));
 	}
 	else
 	{
@@ -3257,9 +3256,15 @@ struct ExceptionInfo
 	bool captured;
 };
 
-static int CaptureExceptionFilter(EXCEPTION_POINTERS* ex_info, ExceptionInfo* out_info)
+template<typename CommitPages>
+static int CaptureExceptionFilter(EXCEPTION_POINTERS* ex_info, ExceptionInfo* out_info, CommitPages commit_pages)
 {
 	const DWORD exception_code = ex_info->ExceptionRecord->ExceptionCode;
+	if (exception_code == EXCEPTION_ACCESS_VIOLATION && commit_pages(ex_info->ExceptionRecord->ExceptionInformation[1]))
+	{
+		return EXCEPTION_CONTINUE_EXECUTION;
+	}
+
 	if (exception_code == EXCEPTION_ACCESS_VIOLATION || exception_code == EXCEPTION_INT_DIVIDE_BY_ZERO)
 	{
 		out_info->exception_code = exception_code;
@@ -3285,7 +3290,7 @@ int VirtualMachine::ExecuteLoopWithStructuredExceptionHandling(uintptr_t& except
 		execute_result = ExecuteLoop();
 		completed = true;
 	}
-	__except (CaptureExceptionFilter(GetExceptionInformation(), &ex_info))
+	__except (CaptureExceptionFilter(GetExceptionInformation(), &ex_info, [this](uintptr_t fault_address) -> bool { return CommitStackPages(fault_address); }))
 	{
 	}
 
@@ -3300,6 +3305,37 @@ int VirtualMachine::ExecuteLoopWithStructuredExceptionHandling(uintptr_t& except
 	}
 
 	return EXIT_FAILURE;
+}
+
+// Commits the chunk from the page holding fault_address when that page lies in
+// a stack region below its guard page; a fault on the guard page is an overflow.
+bool VirtualMachine::CommitStackPages(uintptr_t fault_address) noexcept
+{
+	static constexpr size_t s_commit_chunk_size = 64uz * 1024uz;
+	const std::array<std::pair<void*, size_t>, 2u> regions =
+	{
+		std::pair<void*, size_t>(m_value_stack_region, m_value_stack_region_size),
+		std::pair<void*, size_t>(m_call_stack_region, m_call_stack_region_size),
+	};
+
+	return std::ranges::any_of(regions, [this, fault_address](const std::pair<void*, size_t>& region) -> bool
+	{
+		if (region.first == nullptr)
+		{
+			return false;
+		}
+
+		const uintptr_t region_begin = reinterpret_cast<uintptr_t>(region.first);
+		const uintptr_t usable_end = region_begin + region.second - m_stack_page_size;
+		if (fault_address < region_begin || fault_address >= usable_end)
+		{
+			return false;
+		}
+
+		const uintptr_t commit_begin = fault_address & ~(static_cast<uintptr_t>(m_stack_page_size) - 1u);
+		const size_t commit_size = (std::min)(s_commit_chunk_size, static_cast<size_t>(usable_end - commit_begin));
+		return VirtualAlloc(reinterpret_cast<void*>(commit_begin), commit_size, MEM_COMMIT, PAGE_READWRITE) != nullptr;
+	});
 }
 #endif
 

@@ -60,7 +60,8 @@ private:
 
     // Iteration is recursion, and anything not in tail position keeps a frame:
     // 10,000 values stopped plain recursion near 5,000 calls. The pages are
-    // only touched as the stack grows.
+    // only touched as the stack grows; Windows reserves them and commits them
+    // as the stack reaches them.
     static constexpr size_t s_value_stack_size = 1uz << 20;
     static constexpr size_t s_call_stack_size = 1uz << 19;
     static constexpr int s_max_stack_trace_depth = 20;
@@ -184,6 +185,8 @@ private:
 
 #ifdef _WIN32
 	int ExecuteLoopWithStructuredExceptionHandling(uintptr_t& exception_code, uintptr_t& exception_address, uintptr_t& fault_address, bool& captured) noexcept;
+
+	bool CommitStackPages(uintptr_t fault_address) noexcept;
 #endif
 
 	int GetLine() noexcept;
