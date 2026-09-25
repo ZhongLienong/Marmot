@@ -1,0 +1,27 @@
+module FloatToIntegerTypes
+
+// A Float converts to Int, Byte or Word by truncating toward zero. A value the Int range
+// cannot hold, or NaN, becomes the minimum Int; Byte and Word then wrap from the Int, as
+// `Int as Byte` and `Int as Word` do, except that Word keeps its whole range. These were
+// C++ casts undefined outside the target's range.
+
+import { "../../MarmotPrelude/IO.mmt" }
+
+def Keep = fn(x : Float) -> Float => x;
+def nan = Keep(0.0) / Keep(0.0);
+
+IO::PrintLine((Keep(3.99) as Int) as Text);
+IO::PrintLine((Keep(-3.99) as Int) as Text);
+IO::PrintLine((Keep(9000000000000000000.0) as Int) as Text);
+IO::PrintLine((Keep(1000000000000000000000.0) as Int) as Text);
+IO::PrintLine((Keep(-1000000000000000000000.0) as Int) as Text);
+IO::PrintLine((nan as Int) as Text);
+
+IO::PrintLine((Keep(200.7) as Byte) as Text);
+IO::PrintLine((Keep(300.0) as Byte) as Text);
+IO::PrintLine((Keep(-1.0) as Byte) as Text);
+IO::PrintLine((nan as Byte) as Text);
+
+IO::PrintLine((Keep(18000000000000000000.0) as Word) as Text);
+IO::PrintLine((Keep(-1.0) as Word) as Text);
+IO::PrintLine((Keep(20000000000000000000.0) as Word) as Text);

@@ -43,6 +43,16 @@ the program with `DivisionByZero`. A shift by the type's width or more, or by a
 negative count, shifts every bit out: `0`, or `-1` for a negative `Int` shifted
 right. A compile-time constant is folded by the same rules the program runs by.
 
+A `Float` converts to an integer type with `as` by truncating toward zero:
+`3.99 as Int` is `3` and `-3.99 as Int` is `-3`. A `Float` that `Int` cannot
+hold, or a NaN, becomes the minimum `Int`, `-9223372036854775808`; the program
+does not stop. That is what the x86-64 conversion instruction produces, so the
+conversion costs nothing there, and other targets check the range to give the
+same result. `as Byte` converts to `Int` first and then wraps as `Int as Byte`
+does, so `-1.0 as Byte` is `255` and `300.0 as Byte` is `44`. `as Word` is exact
+for every value in `Word`'s range and otherwise goes through `Int` the same way,
+so `-1.0 as Word` is `18446744073709551615`.
+
 ## Composite Types
 
 ### Arrays

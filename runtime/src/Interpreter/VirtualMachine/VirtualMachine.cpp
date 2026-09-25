@@ -1,6 +1,7 @@
 #include "Common/Constant/Constant.h"
 #include "Common/BuildConfig/BuildConfig.h"
 #include "Common/Printer/Printer.h"
+#include "Common/Value/FloatConversion.h"
 #include "Common/Value/IntegerArithmetic.h"
 #include "Interpreter/Channel/Channel.h"
 #include "Interpreter/ValueTransfer/ValueTransfer.h"
@@ -1421,7 +1422,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::FLOAT_TO_INT:
 		{
-			Peek(sp) = static_cast<MidoriInteger>(Peek(sp).GetFloat());
+			Peek(sp) = MidoriFloatConversion::ToInteger(Peek(sp).GetFloat());
 			break;
 		}
 		case OpCode::TEXT_TO_INT:
@@ -1491,7 +1492,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::FLOAT_TO_BYTE:
 		{
-			Peek(sp) = static_cast<MidoriByte>(Peek(sp).GetFloat());
+			Peek(sp) = MidoriFloatConversion::ToByte(Peek(sp).GetFloat());
 			break;
 		}
 		case OpCode::WORD_TO_FLOAT:
@@ -1501,7 +1502,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::FLOAT_TO_WORD:
 		{
-			Peek(sp) = static_cast<MidoriWord>(Peek(sp).GetFloat());
+			Peek(sp) = MidoriFloatConversion::ToWord(Peek(sp).GetFloat());
 			break;
 		}
 		case OpCode::LEFT_SHIFT:
