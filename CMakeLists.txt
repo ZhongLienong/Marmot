@@ -28,6 +28,30 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# The sources use <print>, <expected> and std::ranges::to. GCC 13 and Clang's
+# default libstdc++ on older distributions accept -std=c++23 but lack them, and
+# the failure otherwise surfaces as a missing header deep in the build.
+include(CheckCXXSourceCompiles)
+check_cxx_source_compiles("
+#include <expected>
+#include <print>
+#include <ranges>
+#include <vector>
+int main()
+{
+    std::vector<int> values = std::views::iota(0, 3) | std::ranges::to<std::vector<int>>();
+    std::expected<int, int> result = values.front();
+    std::print(\"{}\", result.value());
+}
+" MIDORI_HAS_CXX23_LIBRARY)
+if(NOT MIDORI_HAS_CXX23_LIBRARY)
+    message(FATAL_ERROR
+        "Marmot needs a C++23 standard library with <print>, <expected> and std::ranges::to.\n"
+        "Detected compiler: ${CMAKE_CXX_COMPILER} (${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION})\n"
+        "Use MSVC 19.37+, GCC 14+, or Clang 19+ (Clang 18 cannot use libstdc++'s std::expected); "
+        "on Linux, for example: CXX=g++-14 cmake --preset linux-development")
+endif()
+
 # Define build configurations (multi-config) or default build type (single-config)
 if(CMAKE_GENERATOR_MULTI_CONFIG)
     set(CMAKE_CONFIGURATION_TYPES "Debug;Development;Release;Experimental" CACHE STRING "" FORCE)
@@ -391,12 +415,19 @@ else()
     endif()
 
     if(NOT MSVC)
+        # GCC's plain -flto runs the link-time step on one thread and warns so.
+        if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+            set(MIDORI_LTO_FLAG "-flto=auto")
+        else()
+            set(MIDORI_LTO_FLAG "-flto")
+        endif()
+
         foreach(target_name IN LISTS MIDORI_NATIVE_COMPILE_TARGETS)
             target_compile_options(${target_name} PRIVATE
                 $<$<CONFIG:Development>:-O2>
                 $<$<CONFIG:Development>:-g>
                 $<$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>:-O3>
-                $<$<AND:$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>,$<BOOL:${MIDORI_ENABLE_LTO}>>:-flto>
+                $<$<AND:$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>,$<BOOL:${MIDORI_ENABLE_LTO}>>:${MIDORI_LTO_FLAG}>
                 $<$<AND:$<CONFIG:Experimental>,$<BOOL:${MIDORI_HAS_AVX2_FLAG}>>:${MIDORI_AVX2_FLAG}>
                 $<$<CONFIG:Experimental>:-fomit-frame-pointer>
                 $<$<CONFIG:Experimental>:-funroll-loops>
@@ -406,7 +437,7 @@ else()
 
         foreach(target_name IN LISTS MIDORI_NATIVE_LINK_TARGETS)
             target_link_options(${target_name} PRIVATE
-                $<$<AND:$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>,$<BOOL:${MIDORI_ENABLE_LTO}>>:-flto>
+                $<$<AND:$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>,$<BOOL:${MIDORI_ENABLE_LTO}>>:${MIDORI_LTO_FLAG}>
             )
         endforeach()
     endif()

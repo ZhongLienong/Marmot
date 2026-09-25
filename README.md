@@ -35,6 +35,15 @@ python .\scripts\install.py --copy-binaries
 # python .\scripts\uninstall.py
 ```
 
+## Installation (Linux)
+```bash
+# After building the linux-release preset and the marmot tool:
+python3 scripts/install.py --copy-binaries
+
+# Installs to ~/.local/share/marmot (or $XDG_DATA_HOME/marmot) and prints the
+# MARMOT_PATH and PATH lines to add to your shell configuration.
+```
+
 ## Getting Started
 
 Marmot has three programs:
@@ -627,6 +636,16 @@ cmake --build --preset x64-debug --target marmotc marmotvm
 
 cmake --preset x64-release
 cmake --build --preset x64-release --target marmotc marmotvm
+```
+
+On Linux the same four configurations are the `linux-debug`,
+`linux-development`, `linux-release` and `linux-experimental` presets. The
+compiler needs a C++23 standard library with `<print>`, `<expected>` and
+`std::ranges::to`: MSVC 19.37+, GCC 14+, or Clang 19+. Configuring stops with a
+clear message on an older one; choose the compiler with `CXX`:
+```bash
+CXX=g++-14 cmake --preset linux-development
+cmake --build --preset linux-development --target marmotc marmotvm
 ```
 
 Native preset builds write the executables to `out/build/ninja/<preset>/out/`.

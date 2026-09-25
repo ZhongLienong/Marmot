@@ -38,6 +38,10 @@ def default_install_root(scope: str) -> Path:
             raise RuntimeError("ProgramFiles is not set.")
         return Path(program_files) / "Marmot"
 
+    if not is_windows():
+        data_home = os.environ.get("XDG_DATA_HOME", "")
+        return (Path(data_home) if data_home != "" else Path.home() / ".local" / "share") / "marmot"
+
     local_appdata = os.environ.get("LOCALAPPDATA", "")
     if local_appdata == "":
         raise RuntimeError("LOCALAPPDATA is not set.")
@@ -189,7 +193,7 @@ def safe_remove_install_dir(target_layout: InstallLayout, scope: str, force: boo
     marker_path = target_layout.root / INSTALL_MARKER_FILENAME
     has_marker = marker_path.is_file()
     default_root = default_install_root(scope).resolve()
-    has_expected_files = target_layout.prelude_dir.is_dir() or (target_layout.bin_dir / "marmotc.exe").is_file()
+    has_expected_files = target_layout.prelude_dir.is_dir() or (target_layout.bin_dir / ("marmotc.exe" if is_windows() else "marmotc")).is_file()
 
     if not force and not (has_marker or (resolved_root == default_root and has_expected_files)):
         raise RuntimeError(
@@ -203,7 +207,7 @@ def safe_remove_install_dir(target_layout: InstallLayout, scope: str, force: boo
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="Uninstall Marmot and remove MARMOT_PATH / PATH entries.")
     parser.add_argument("--scope", choices=["user", "machine"], default="user", help="Target environment scope (default: user).")
-    parser.add_argument("--install-dir", default="", help="Installation directory (defaults to LocalAppData/ProgramFiles based on scope).")
+    parser.add_argument("--install-dir", default="", help="Installation directory (defaults to LocalAppData/ProgramFiles based on scope, or ~/.local/share/marmot off Windows).")
     parser.add_argument("--keep-files", action="store_true", help="Do not remove installed files; only update env vars.")
     parser.add_argument("--force", action="store_true", help="Remove install directory even if it does not look like Marmot.")
     args = parser.parse_args(argv)

@@ -9,8 +9,8 @@ Optionally installs the compiler (marmotc), the VM that runs what it builds
 (marmotvm, from beside marmotc) and the project tool (marmot), and updates PATH
 so they are callable from a new cmd/PowerShell session.
 
-Note: builtin FFI functions are statically linked into marmotvm.exe, so no
-separate DLL is needed.
+Note: builtin FFI functions are statically linked into marmotvm, so no
+separate shared library is needed.
 """
 
 from __future__ import annotations
@@ -50,10 +50,18 @@ def default_install_root(scope: str) -> Path:
             raise RuntimeError("ProgramFiles is not set.")
         return Path(program_files) / "Marmot"
 
+    if not is_windows():
+        data_home = os.environ.get("XDG_DATA_HOME", "")
+        return (Path(data_home) if data_home != "" else Path.home() / ".local" / "share") / "marmot"
+
     local_appdata = os.environ.get("LOCALAPPDATA", "")
     if local_appdata == "":
         raise RuntimeError("LOCALAPPDATA is not set.")
     return Path(local_appdata) / "Marmot"
+
+
+def executable_name(stem: str) -> str:
+    return stem + (".exe" if is_windows() else "")
 
 
 def layout(scope: str, install_dir: Optional[str]) -> InstallLayout:
@@ -98,8 +106,8 @@ def append_unique_path(existing: str, to_append: Path) -> str:
 
 def get_preset_executable_candidates(repo: Path, preset_name: str) -> list[Path]:
     return [
-        repo / "out" / "build" / "ninja" / preset_name / "out" / "marmotc.exe",
-        repo / "out" / "build" / preset_name / "out" / "marmotc.exe",
+        repo / "out" / "build" / "ninja" / preset_name / "out" / executable_name("marmotc"),
+        repo / "out" / "build" / preset_name / "out" / executable_name("marmotc"),
     ]
 
 
@@ -127,13 +135,14 @@ def list_available_midori_exes(repo: Path) -> list[tuple[str, Path]]:
     # Check build/out/ first (CMake command-line builds)
     for label, subdir in [("build/out", "out"), ("build/Release", "Release"), ("build", "")]:
         if subdir:
-            candidate = repo / "build" / subdir / "marmotc.exe"
+            candidate = repo / "build" / subdir / executable_name("marmotc")
         else:
-            candidate = repo / "build" / "marmotc.exe"
+            candidate = repo / "build" / executable_name("marmotc")
         if candidate.is_file():
             results.append((label, candidate.resolve()))
 
-    for preset_name in ["x64-release", "x64-development", "x64-debug"]:
+    preset_prefix = "x64-" if is_windows() else "linux-"
+    for preset_name in [preset_prefix + build for build in ["release", "development", "debug"]]:
         for candidate in get_preset_executable_candidates(repo, preset_name):
             if candidate.is_file():
                 results.append((preset_name, candidate.resolve()))
@@ -233,9 +242,8 @@ def write_install_marker(target_layout: InstallLayout, scope: str) -> None:
 
 
 def find_tool_exe(repo: Path) -> Optional[Path]:
-    executable_name = "marmot.exe" if is_windows() else "marmot"
     for profile in ["release", "debug"]:
-        candidate = repo / "tool" / "target" / profile / executable_name
+        candidate = repo / "tool" / "target" / profile / executable_name("marmot")
         if candidate.is_file():
             return candidate.resolve()
     return None
@@ -244,9 +252,9 @@ def find_tool_exe(repo: Path) -> Optional[Path]:
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="Install Marmot and configure MARMOT_PATH / PATH.")
     parser.add_argument("--scope", choices=["user", "machine"], default="user", help="Target environment scope (default: user).")
-    parser.add_argument("--install-dir", default="", help="Installation directory (defaults to LocalAppData/ProgramFiles based on scope).")
-    parser.add_argument("--preset", default="auto", help="CMake preset to locate marmotc.exe (default: auto).")
-    parser.add_argument("--marmot-exe", default="", help="Explicit path to marmotc.exe (overrides --preset).")
+    parser.add_argument("--install-dir", default="", help="Installation directory (defaults to LocalAppData/ProgramFiles based on scope, or ~/.local/share/marmot off Windows).")
+    parser.add_argument("--preset", default="auto", help="CMake preset to locate marmotc (default: auto).")
+    parser.add_argument("--marmot-exe", default="", help="Explicit path to marmotc (overrides --preset).")
     parser.add_argument("--copy-binaries", action="store_true", help="Install marmotc, marmotvm and the marmot tool, and add the bin dir to PATH.")
     args = parser.parse_args(argv)
 
@@ -265,7 +273,7 @@ def main(argv: list[str]) -> int:
     if args.copy_binaries:
         exe_path = resolve_midori_exe(repo, args.preset, args.marmot_exe if args.marmot_exe != "" else None)
         if exe_path is None or not exe_path.is_file():
-            raise RuntimeError("marmotc.exe not found (build first, pass --marmot-exe, or use --preset).")
+            raise RuntimeError(f"{executable_name('marmotc')} not found (build first, pass --marmot-exe, or use --preset).")
 
         if args.preset == "auto" and args.marmot_exe == "":
             available = list_available_midori_exes(repo)
@@ -278,16 +286,16 @@ def main(argv: list[str]) -> int:
                     file=sys.stderr,
                 )
 
-        print(f"Using marmotc.exe from: {exe_path}")
+        print(f"Using {exe_path.name} from: {exe_path}")
 
         target_layout.bin_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(exe_path, target_layout.bin_dir / "marmotc.exe")
+        shutil.copy2(exe_path, target_layout.bin_dir / executable_name("marmotc"))
 
-        vm_path = exe_path.with_name("marmotvm.exe")
+        vm_path = exe_path.with_name(executable_name("marmotvm"))
         if not vm_path.is_file():
-            raise RuntimeError(f"marmotvm.exe not found beside {exe_path}; build the marmotvm target.")
-        print(f"Using marmotvm.exe from: {vm_path}")
-        shutil.copy2(vm_path, target_layout.bin_dir / "marmotvm.exe")
+            raise RuntimeError(f"{vm_path.name} not found beside {exe_path}; build the marmotvm target.")
+        print(f"Using {vm_path.name} from: {vm_path}")
+        shutil.copy2(vm_path, target_layout.bin_dir / executable_name("marmotvm"))
 
         tool_path = find_tool_exe(repo)
         if tool_path is None:

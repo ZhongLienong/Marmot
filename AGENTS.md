@@ -50,8 +50,17 @@ cargo run --quiet --manifest-path tool/Cargo.toml -- test module/      # one fol
 ```
 
 Only `out/build/ninja/x64-development` and `out/build/ninja/x64-release` are
-valid preset directories. The others still point at a pre-rename path and will
-fail to configure.
+valid Windows preset directories. The others still point at a pre-rename path
+and will fail to configure.
+
+On Linux, use the `linux-*` presets with GCC 14+ or Clang 19+ (GCC 13 has no
+`<print>`, and Clang 18 cannot use libstdc++'s `std::expected`):
+
+```
+CXX=g++-14 cmake --preset linux-development
+cmake --build --preset linux-development --target marmotc marmotvm
+python3 scripts/test_project.py --mode all --skip-configure
+```
 
 Run the gate before committing. Do not commit or push unless asked.
 

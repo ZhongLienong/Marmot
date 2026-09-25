@@ -5,7 +5,7 @@
 #include <ranges>
 
 #include "AbstractSyntaxTreePrinter.h"
-#include "Common\Printer\Printer.h"
+#include "Common/Printer/Printer.h"
 
 void PrintAbstractSyntaxTree::PrintWithIndentation(int depth, std::string_view text) const
 {

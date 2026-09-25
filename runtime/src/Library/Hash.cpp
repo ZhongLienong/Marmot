@@ -1,5 +1,6 @@
 #include "Library/MidoriStdLibExports.h"
 
+#include <cstring>
 #include <string>
 
 extern "C"

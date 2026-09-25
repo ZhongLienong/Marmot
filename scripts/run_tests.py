@@ -45,6 +45,15 @@ class Color:
     BOLD = '\033[1m'
     RESET = '\033[0m'
 
+def executable_name(stem: str) -> str:
+    return stem + (".exe" if os.name == "nt" else "")
+
+
+def preset_prefix() -> str:
+    """The CMakePresets.json family for this host: x64-* on Windows, linux-* elsewhere."""
+    return "x64-" if os.name == "nt" else "linux-"
+
+
 def vm_beside(compiler: Path) -> Path:
     """marmotvm, built beside marmotc."""
     return compiler.with_name("marmotvm" + compiler.suffix)
@@ -150,10 +159,10 @@ class TestRunner:
         return None
 
     def get_executable_candidates(self, build_config: str) -> List[Path]:
-        build_name = build_config.lower()
+        preset = preset_prefix() + build_config.lower()
         return [
-            self.root_dir / f"out/build/ninja/x64-{build_name}/out/marmotc.exe",
-            self.root_dir / f"out/build/x64-{build_name}/out/marmotc.exe",
+            self.root_dir / f"out/build/ninja/{preset}/out/{executable_name('marmotc')}",
+            self.root_dir / f"out/build/{preset}/out/{executable_name('marmotc')}",
         ]
 
     def validate_executable(self, path: Path, expected_build_config: Optional[str] = None) -> Optional[str]:
@@ -286,6 +295,10 @@ class TestRunner:
             start = time.time()
             env = os.environ.copy()
             env["MARMOT_TEST_MODE"] = "1"
+            # This checkout's prelude first: an installed one may be older.
+            env["MARMOT_PATH"] = os.pathsep.join(
+                entry for entry in [str(self.root_dir / "MarmotPrelude"), os.environ.get("MARMOT_PATH", "")] if entry != ""
+            )
             if expected_warnings is not None:
                 env["MARMOT_TEST_WARNING_FORMAT"] = "machine"
 

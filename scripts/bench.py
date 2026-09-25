@@ -14,6 +14,7 @@ Usage:
 """
 
 import argparse
+import os
 import re
 import statistics
 import subprocess
@@ -34,15 +35,17 @@ RESULT_PATTERN = re.compile(r"^(.*?)(?: benchmark)? took (\d+) milliseconds", re
 
 
 def find_executable() -> Path:
+    preset = ("x64-" if os.name == "nt" else "linux-") + "release"
+    name = "marmotc" + (".exe" if os.name == "nt" else "")
     candidates = [
-        ROOT / "out/build/ninja/x64-release/out/marmotc.exe",
-        ROOT / "out/build/x64-release/out/marmotc.exe",
-        ROOT / "build/out/marmotc.exe",
+        ROOT / "out/build/ninja" / preset / "out" / name,
+        ROOT / "out/build" / preset / "out" / name,
+        ROOT / "build/out" / name,
     ]
     for candidate in candidates:
         if candidate.exists():
             return candidate
-    sys.exit("No Release marmotc.exe found; pass --exe explicitly.")
+    sys.exit(f"No Release {name} found; pass --exe explicitly.")
 
 
 def run_workload(exe: Path, workload: Path) -> dict[str, int]:

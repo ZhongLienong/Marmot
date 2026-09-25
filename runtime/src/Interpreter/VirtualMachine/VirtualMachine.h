@@ -53,11 +53,10 @@ private:
 	};
 	using CallStackPointer = CallFrame*;
 
-#if defined(__cpp_lib_hardware_interference_size)
-	static constexpr size_t s_cache_line_size = std::hardware_destructive_interference_size;
-#else
+	// Not std::hardware_destructive_interference_size: GCC warns that its value
+	// follows -mtune, which would let the layout of this header differ between
+	// translation units.
 	static constexpr size_t s_cache_line_size = 64uz;
-#endif
 
     static constexpr size_t s_value_stack_size = 10000u;
     static constexpr size_t s_call_stack_size = 10000u;

@@ -7,7 +7,7 @@
 #include <optional>
 
 #if MIDORI_DEBUG_INFO
-#include "Common\Printer\Printer.h"
+#include "Common/Printer/Printer.h"
 
 #include <chrono>
 #include <format>

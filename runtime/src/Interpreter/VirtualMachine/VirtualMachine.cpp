@@ -1182,42 +1182,42 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::INT_MINUS_1:
 		{
-			Push(sp, -1LL);
+			Push(sp, MidoriInteger{-1});
 			break;
 		}
 		case OpCode::INT_0:
 		{
-			Push(sp, 0LL);
+			Push(sp, MidoriInteger{0});
 			break;
 		}
 		case OpCode::INT_1:
 		{
-			Push(sp, 1LL);
+			Push(sp, MidoriInteger{1});
 			break;
 		}
 		case OpCode::INT_2:
 		{
-			Push(sp, 2LL);
+			Push(sp, MidoriInteger{2});
 			break;
 		}
 		case OpCode::INT_3:
 		{
-			Push(sp, 3LL);
+			Push(sp, MidoriInteger{3});
 			break;
 		}
 		case OpCode::INT_4:
 		{
-			Push(sp, 4LL);
+			Push(sp, MidoriInteger{4});
 			break;
 		}
 		case OpCode::INT_5:
 		{
-			Push(sp, 5LL);
+			Push(sp, MidoriInteger{5});
 			break;
 		}
 		case OpCode::INT_10:
 		{
-			Push(sp, 10LL);
+			Push(sp, MidoriInteger{10});
 			break;
 		}
 		case OpCode::CREATE_ARRAY:
