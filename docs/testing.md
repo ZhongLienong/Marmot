@@ -47,8 +47,9 @@ Regression tests:
 - add `<name>.warnings.json` when warnings need structured assertions
 - when a `.warnings.json` file is present, `marmot test` compares the emitted warning JSON against that snapshot
 - `marmot test` builds each fixture with `marmotc` into `target/` and runs it in its own `marmotvm` process, in parallel, enforcing `[test].timeout_ms` on each
-- `scripts/run_tests.py` still supports the legacy `MARMOT_TEST_WARNING_FORMAT=machine` path during the transition
-- CLI contract checks that do not fit the plain `test/<category>/*.mmt` model run through `scripts/check_cli_contracts.py`
+- `python scripts/dev.py test` runs the same suite through `scripts/testing/language.py`, which asks for warnings through `MARMOT_TEST_WARNING_FORMAT=machine`
+- `python scripts/dev.py snapshot <test>` writes a test's `.expected` (and `.warnings.json`, when it has one or with `--warnings`) from its current output; `--force` rewrites existing ones. Read the diff before committing: a snapshot rewritten to match a regression hides it
+- CLI contract checks that do not fit the plain `test/<category>/*.mmt` model run through `scripts/testing/cli_contracts.py`
 
 `<name>.warnings.json` fixtures use one ordered JSON array whose entries mirror the machine-readable warning objects emitted by the CLI diagnostic schema:
 
@@ -78,9 +79,9 @@ Keep the object order stable when warning order matters; the runner compares the
 Documentation examples:
 
 - runnable Markdown examples use fenced blocks whose info string starts with `marmot-test`
-- `scripts/check_doc_examples.py` extracts those fences, verifies their mirrors under `test/doc_examples/`, and compiles them from repo-aware temporary paths
-- the tracked mirrors under `test/doc_examples/` are sync targets for review; `scripts/run_tests.py` does not execute them directly
-- `python scripts/check_doc_examples.py --sync` rewrites current mirrors and removes orphaned mirror artifacts that no longer correspond to any `marmot-test` fence
+- `scripts/testing/doc_examples.py` extracts those fences, verifies their mirrors under `test/doc_examples/`, and compiles them from repo-aware temporary paths
+- the tracked mirrors under `test/doc_examples/` are sync targets for review; the language suite does not execute them directly
+- `python scripts/dev.py check docs --sync` rewrites current mirrors and removes orphaned mirror artifacts that no longer correspond to any `marmot-test` fence
 - use `name=<category>/<example>` for the stable mirror path under `test/doc_examples/<kind>/`
 - use `path=<repo-relative-temp-file>` for the actual extraction target used during compilation
 - use `module=<ModuleName>` when the snippet intentionally omits the required `module` declaration
@@ -160,69 +161,44 @@ REQUIRE(MidoriTest::Matches(
 
 ## Command Matrix
 
-One-command entry point from the repo root:
+`scripts/dev.py` runs every check, on Windows and Linux alike, and builds what
+a check needs first (`--no-build` skips that). `--build` picks the
+configuration, Development by default.
 
-```powershell
-python scripts/test_project.py
-python scripts/test_project.py --mode unit --build Debug
-python scripts/test_project.py --mode unit --unit-tag "[runtime]"
-python scripts/test_project.py --mode regression --category closure
-python scripts/test_project.py --mode regression --category doc_examples
-python scripts/test_project.py --mode regression --category cli_contracts
+The full gate, stopping at the first failure:
+
+```bash
+python scripts/dev.py gate
+python scripts/dev.py gate --build Release
+python scripts/dev.py gate --skip unit tool
+python scripts/dev.py gate --only docs cli format
 ```
 
-Run the runnable Markdown examples directly:
+Its steps, in order, are `layering`, `build`, `unit`, `docs`, `cli`, `format`,
+`benchmarks`, `tool` and `language`. Each check also runs alone:
 
-```powershell
-python scripts/check_doc_examples.py --build Development
-python scripts/check_doc_examples.py --build Development --sync
+```bash
+python scripts/dev.py check layering
+python scripts/dev.py check docs              # --sync rewrites the mirrors
+python scripts/dev.py check cli
+python scripts/dev.py check format            # --root DIR, --enforce-clean
+python scripts/dev.py check benchmarks        # --run executes them too
+python scripts/dev.py check tool              # the marmot tool's cargo tests
 ```
 
-`python scripts/test_project.py --mode regression` runs the doc-example check automatically before the file-based regression suite unless you pass `--skip-doc-examples`.
-
-Run the CLI contract checks directly:
-
-```powershell
-python scripts/check_cli_contracts.py --build Development
-```
-
-`python scripts/test_project.py --mode regression` also runs `scripts/check_cli_contracts.py` unless you pass `--skip-cli-contracts`.
-
-Run the formatter idempotency check directly:
-
-```powershell
-python scripts/check_format.py --build Development
-python scripts/check_format.py --build Development --root test --root MarmotPrelude
-python scripts/check_format.py --build Development --enforce-clean
-```
-
-`python scripts/test_project.py --mode regression` also runs `scripts/check_format.py` unless you pass `--skip-format-check`. The check verifies that
-`marmotc fmt` is idempotent across the test corpus and the prelude. The optional `--enforce-clean` flag additionally requires
-`marmotc fmt --check` to pass on each scanned root.
-
-Compile every benchmark program, and optionally run them:
-
-```powershell
-python scripts/check_benchmarks.py --build Development
-python scripts/check_benchmarks.py --build Release --run
-```
+The format check verifies that `marmotc fmt` is idempotent across the test
+corpus and the prelude. The optional `--enforce-clean` flag additionally
+requires `marmotc fmt --check` to pass on each scanned root.
 
 The programs under `benchmarks/` print timings, so they have no snapshots and
-are not part of the regression suite. `scripts/check_benchmarks.py` runs
-`marmot check` on each one and fails on any compile error or warning, so a
-language change cannot leave them uncompilable unnoticed (it did once: every
-benchmark stopped compiling when v2 removed `loop`, assignment and in-place
-`Appendable`). `--run` also executes each one; its timings are only meaningful
-with a Release build. `python scripts/test_project.py --mode regression` runs
-the compile check unless you pass `--skip-benchmark-check`, and
-`--category benchmarks` runs it alone.
+are not part of the regression suite. The benchmarks check runs `marmot check`
+on each one and fails on any compile error or warning, so a language change
+cannot leave them uncompilable unnoticed (it did once: every benchmark stopped
+compiling when v2 removed `loop`, assignment and in-place `Appendable`). `--run`
+also executes each one; its timings are only meaningful with a Release build,
+and `python scripts/dev.py bench` measures them properly.
 
-Check that the components keep their dependency direction:
-
-```powershell
-python scripts/check_layering.py
-```
-
+The layering check keeps the components' dependency direction.
 The C++ code builds as four libraries: `MarmotCommon` (`common/src`),
 `MarmotRuntime` (`runtime/src`, links Common), `MarmotCompiler`
 (`compiler/src`, links Common, never Runtime) and `MarmotDriver` (the CLI,
@@ -234,65 +210,41 @@ header. It also keeps the compiler pipeline (`compiler/src/Compiler`, apart
 from the package manager) free of project discovery: those files may not
 include the package manager or `Utility/Project`, or read environment
 variables, because the compiler compiles from the `CompilationInputs` its
-caller passes. It needs no build, and `python scripts/test_project.py` runs it
-first unless you pass `--skip-layering-check`.
+caller passes. It needs no build, and the gate runs it first.
 
-Configure and build implementation tests on Windows:
+Run the implementation tests:
 
-```powershell
-cmake --preset x64-debug
-cmake --build --preset x64-debug --target MarmotUnitTests
-
-cmake --preset x64-development
-cmake --build --preset x64-development --target MarmotUnitTests
+```bash
+python scripts/dev.py unit                        # every suite, through CTest
+python scripts/dev.py unit --regex TypeChecker    # CTest names
+python scripts/dev.py unit --tag "[runtime]"      # Catch2 tags
+python scripts/dev.py unit --tag "[module][import]" --build Debug
 ```
 
-Configure and build implementation tests on Linux:
+Release builds leave `MIDORI_BUILD_TESTS` off by default;
+`python scripts/dev.py configure --build Release --unit-tests` opts in, and the
+Release gate does that itself. By hand, the presets are `x64-*` on Windows and
+`linux-*` on Linux:
 
 ```bash
 cmake --preset linux-debug
 cmake --build --preset linux-debug --target MarmotUnitTests
-```
-
-Release builds leave `MIDORI_BUILD_TESTS` off by default. Opt in explicitly when needed:
-
-```powershell
-cmake --preset x64-release -DMIDORI_BUILD_TESTS=ON
-cmake --build --preset x64-release --target MarmotUnitTests
-```
-
-Run all registered Catch2 suites through CTest:
-
-```powershell
-ctest --test-dir out/build/ninja/x64-debug --output-on-failure
-ctest --test-dir out/build/ninja/x64-development --output-on-failure
-```
-
-```bash
 ctest --test-dir out/build/ninja/linux-debug --output-on-failure
-```
-
-Filter implementation tests by discovered test name. For area tags such as `[runtime]`, running the Catch2 executable directly is usually simpler:
-
-```powershell
-ctest --test-dir out/build/ninja/x64-debug --output-on-failure -R TypeChecker
-ctest --test-dir out/build/ninja/x64-debug --output-on-failure -R ImportResolver
-```
-
-Run the Catch2 executable directly when you want tag filtering:
-
-```powershell
-.\out\build\ninja\x64-debug\out\MarmotUnitTests.exe [runtime]
-.\out\build\ninja\x64-debug\out\MarmotUnitTests.exe [module][import]
-```
-
-```bash
 ./out/build/ninja/linux-debug/out/MarmotUnitTests [runtime]
 ```
 
-Run the file-based regression suite through the marmot tool, from the
-repository root, with `MARMOTC` naming the compiler and `MARMOT_PATH` the
-prelude:
+Run the file-based regression suite:
+
+```bash
+python scripts/dev.py test
+python scripts/dev.py test --category closure
+python scripts/dev.py test --category static_analyzer --build Debug
+python scripts/dev.py test --pattern recursive
+python scripts/dev.py test --test closure/simple.mmt --verbose
+```
+
+The marmot tool runs it too, from the repository root, with `MARMOTC` naming
+the compiler and `MARMOT_PATH` the prelude:
 
 ```powershell
 $env:MARMOTC = ".\out\build\ninja\x64-development\out\marmotc.exe"
@@ -300,28 +252,6 @@ $env:MARMOT_PATH = "$PWD\MarmotPrelude"
 marmot test
 marmot test closure
 marmot test --pattern recursive
-```
-
-Legacy Python runner:
-
-```powershell
-python scripts/run_tests.py --build Development
-python scripts/run_tests.py --build Debug
-```
-
-The native command does not replace `scripts/run_tests.py` yet.
-The Python runner remains useful for existing developer workflows and for
-cross-checking CLI behavior during the transition.
-For full regression runs without filters, `scripts/test_project.py` also runs `scripts/check_doc_examples.py` before `scripts/run_tests.py`.
-For full regression runs without filters, `scripts/test_project.py` also runs `scripts/check_cli_contracts.py`.
-
-Filter regression tests:
-
-```powershell
-python scripts/run_tests.py --category closure --build Development
-python scripts/run_tests.py --category static_analyzer --build Development
-python scripts/run_tests.py --pattern recursive --build Development
-python scripts/run_tests.py --test closure/simple.mmt --build Development
 ```
 
 ## Authoring Checklist

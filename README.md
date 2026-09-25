@@ -21,28 +21,21 @@ Current scope note: there is no `async` / `await` surface in the current languag
 
 ## Quick Start
 
-## Installation (Windows)
-```powershell
-# From the repo root, after building marmotc.exe and marmotvm.exe and the
-# marmot tool (cargo build --release --manifest-path tool/Cargo.toml):
-python .\scripts\install.py --copy-binaries
+## Installation
 
-# This prefers a Release preset build if present,
-# otherwise falls back to Development/Debug. Use --preset to force:
-# python .\scripts\install.py --copy-binaries --preset x64-release
-
-# Uninstall:
-# python .\scripts\uninstall.py
-```
-
-## Installation (Linux)
+From the repository root, on Windows or Linux:
 ```bash
-# After building the linux-release preset and the marmot tool:
-python3 scripts/install.py --copy-binaries
-
-# Installs to ~/.local/share/marmot (or $XDG_DATA_HOME/marmot) and prints the
-# MARMOT_PATH and PATH lines to add to your shell configuration.
+python scripts/dev.py doctor               # check the toolchain
+python scripts/dev.py install --rebuild    # build Release and the marmot tool, then install
+python scripts/dev.py uninstall
 ```
+
+`install` copies `marmotc`, `marmotvm`, the `marmot` tool and the prelude. On
+Windows it goes to `%LOCALAPPDATA%\Marmot` and sets `MARMOT_PATH` and `PATH` for
+new terminals. On Linux it goes to `~/.local/share/marmot` (or
+`$XDG_DATA_HOME/marmot`) and writes an `env.sh` there for your shell profile to
+source. Without `--rebuild` it installs the build made last; `--build` picks
+one.
 
 ## Getting Started
 
@@ -68,8 +61,6 @@ marmot test
 
 `marmot run` builds the program into `target/` at the project root and runs it
 in `marmotvm`; `marmot test` does the same for every test, in parallel. A second
-`marmot run` skips the build when the plan, the compiler and every file the
-program was built from are unchanged, and `--rebuild` builds anyway. A second
 `marmot run` skips the build when the plan, the compiler and every file the
 program was built from are unchanged, and `--rebuild` builds anyway.
 Inside a project, `marmot fmt` formats the project's sources (`--check` only
@@ -621,103 +612,67 @@ See [Package System](docs/package-system.md) for the current manifest-driven loa
 
 ### Building Marmot
 
-Marmot uses CMake presets for native builds.
+`scripts/dev.py` runs every everyday task the same way on Windows and Linux;
+`python scripts/dev.py` lists its commands and `<command> --help` explains one.
+On Windows it loads the MSVC environment itself, so any terminal will do.
 
-Configure and build a Development binary:
 ```bash
-cmake --preset x64-development
-cmake --build --preset x64-development --target marmotc marmotvm
+python scripts/dev.py doctor                    # toolchain check, and what is built
+python scripts/dev.py build                     # marmotc and marmotvm (Development)
+python scripts/dev.py build all --build Release # plus the unit tests and the marmot tool
+python scripts/dev.py configure --fresh         # reconfigure, e.g. after changing CXX
+python scripts/dev.py clean
 ```
 
-Other common presets:
+Underneath are CMake presets: `x64-debug`, `x64-development`, `x64-release` and
+`x64-experimental` on Windows, and the same four as `linux-*` on Linux. Builds
+write the executables to `out/build/ninja/<preset>/out/`. The compiler needs a
+C++23 standard library with `<print>`, `<expected>` and `std::ranges::to`: MSVC
+19.37+, GCC 14+, or Clang 19+. On Linux the scripts pick one that is new enough
+when a build tree is first configured; `CXX` overrides the choice. By hand:
 ```bash
-cmake --preset x64-debug
-cmake --build --preset x64-debug --target marmotc marmotvm
-
-cmake --preset x64-release
-cmake --build --preset x64-release --target marmotc marmotvm
-```
-
-On Linux the same four configurations are the `linux-debug`,
-`linux-development`, `linux-release` and `linux-experimental` presets. The
-compiler needs a C++23 standard library with `<print>`, `<expected>` and
-`std::ranges::to`: MSVC 19.37+, GCC 14+, or Clang 19+. Configuring stops with a
-clear message on an older one; choose the compiler with `CXX`:
-```bash
-CXX=g++-14 cmake --preset linux-development
+cmake --preset linux-development
 cmake --build --preset linux-development --target marmotc marmotvm
 ```
 
-Native preset builds write the executables to `out/build/ninja/<preset>/out/`.
-
 ### Running Programs
 
-`marmot run path\to\program.mmt` builds and runs a program in one step. By hand:
+`python scripts/dev.py run path/to/program.mmt` builds a program with the
+checkout's compiler and runs it, with the checkout's prelude first on
+`MARMOT_PATH`; `--check` only type-checks it. `marmot run` does the same with
+the installed tools. By hand:
 
 ```bash
-# Type-check only
-.\out\build\ninja\x64-development\out\marmotc.exe check path\to\program.mmt
-
-# Compile to path\to\program.mmc (or anywhere, with -o)
-.\out\build\ninja\x64-development\out\marmotc.exe build path\to\program.mmt
-
-# Run the compiled program
-.\out\build\ninja\x64-development\out\marmotvm.exe path\to\program.mmc
+marmotc check path/to/program.mmt    # type-check only
+marmotc build path/to/program.mmt    # compile to path/to/program.mmc (or -o)
+marmotvm path/to/program.mmc         # run the compiled program
 ```
 
-### Running Unit Tests
+### Running Tests
 
-Debug and Development preset builds enable `MIDORI_BUILD_TESTS` by default. Release preset builds leave unit tests off unless you opt in with `-DMIDORI_BUILD_TESTS=ON`.
+See [Testing Guide](docs/testing.md) for the `tests/` vs `test/` split, helper
+usage, and every check.
 
-See [Testing Guide](docs/testing.md) for the `tests/` vs `test/` split, helper usage, and the full command matrix.
-
-For a single entry point that configures, builds, and runs tests, use:
 ```bash
-python scripts/test_project.py
+python scripts/dev.py gate                      # everything a commit must pass
+python scripts/dev.py test                      # the language suite under test/
+python scripts/dev.py test --category closure
+python scripts/dev.py test --test closure/simple.mmt
+python scripts/dev.py unit --tag "[runtime]"    # the C++ unit tests
+python scripts/dev.py snapshot closure/new_test.mmt
 ```
 
-Configure and build the unit test target:
-```bash
-cmake --preset x64-debug
-cmake --build --preset x64-debug --target MarmotUnitTests
-```
+Debug and Development builds include the unit tests. Release builds leave them
+out unless configured with them (`dev.py configure --build Release --unit-tests`;
+`dev.py gate --build Release` does that itself).
 
-Run the registered Catch2 suites through CTest:
-```bash
-ctest --test-dir out/build/ninja/x64-debug --output-on-failure
-```
-
-You can also build and run the Development preset:
-```bash
-cmake --preset x64-development
-cmake --build --preset x64-development --target MarmotUnitTests
-ctest --test-dir out/build/ninja/x64-development --output-on-failure
-```
-
-### Running Regression Tests
-
-See [Testing Guide](docs/testing.md) for when a new test should go in `tests/` instead of `test/`, plus filtering examples for both harnesses.
-
-Run all file-based language regression tests from the repository root, with
+The `marmot` tool runs the language suite too, from the repository root, with
 `MARMOTC` naming the compiler (marmotvm is found beside it) and `MARMOT_PATH`
 the prelude:
 ```bash
 marmot test
-```
-
-Run specific regression tests:
-```bash
-marmot test --test closure/simple.mmt
-marmot test typeclass
 marmot test static_analyzer
 marmot test --pattern recursive
-```
-
-Legacy Python runners are still available:
-
-```bash
-python scripts/run_tests.py --build Development
-python scripts/test_project.py
 ```
 
 Test fixtures are file-based:

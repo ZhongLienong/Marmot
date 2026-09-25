@@ -26,13 +26,17 @@ import argparse
 import json
 import os
 import shlex
-import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from run_tests import TestRunner, build_and_run
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from lib.host import REPO_ROOT, prelude_search_path
+from lib.presets import BuildTree, add_build_arguments
+from lib.program import build_and_run
+from testing.language import TestRunner
 
 
 @dataclass(frozen=True)
@@ -59,7 +63,7 @@ class DocExample:
 
 
 def repo_root() -> Path:
-    return Path(__file__).resolve().parent.parent
+    return REPO_ROOT
 
 
 def docs_to_scan(root: Path) -> list[Path]:
@@ -245,7 +249,7 @@ def sync_check_or_update(root: Path, examples: list[DocExample], sync: bool) -> 
         if target_path.exists() is False:
             errors.append(
                 f"Missing mirrored doc example: {target_path}. "
-                "Run scripts/check_doc_examples.py --sync after updating docs."
+                "Run python scripts/dev.py check docs --sync after updating docs."
             )
             continue
 
@@ -253,7 +257,7 @@ def sync_check_or_update(root: Path, examples: list[DocExample], sync: bool) -> 
         if actual_text != expected_text:
             errors.append(
                 f"Stale mirrored doc example: {target_path}. "
-                "Run scripts/check_doc_examples.py --sync after updating docs."
+                "Run python scripts/dev.py check docs --sync after updating docs."
             )
 
     orphaned_artifacts = find_orphaned_artifacts(root, examples)
@@ -266,19 +270,10 @@ def sync_check_or_update(root: Path, examples: list[DocExample], sync: bool) -> 
     for path in orphaned_artifacts:
         errors.append(
             f"Orphaned doc example artifact: {path}. "
-            "Run scripts/check_doc_examples.py --sync after updating docs."
+            "Run python scripts/dev.py check docs --sync after updating docs."
         )
 
     return errors
-
-
-def build_midori_path(root: Path) -> str:
-    separator = ";" if os.name == "nt" else ":"
-    prelude_path = str((root / "MarmotPrelude").resolve())
-    existing = os.environ.get("MARMOT_PATH", "")
-    if existing == "":
-        return prelude_path
-    return separator.join([prelude_path, existing])
 
 
 def cleanup_temp_file(root: Path, compile_path: Path) -> None:
@@ -320,7 +315,7 @@ def run_example(root: Path, runner: TestRunner, example: DocExample, verbose: bo
     write_text(compile_path, compile_source)
     env = os.environ.copy()
     env["MARMOT_TEST_MODE"] = "1"
-    env["MARMOT_PATH"] = build_midori_path(root)
+    env["MARMOT_PATH"] = prelude_search_path()
     if expected_warnings is not None:
         env["MARMOT_TEST_WARNING_FORMAT"] = "machine"
 
@@ -374,12 +369,7 @@ def run_example(root: Path, runner: TestRunner, example: DocExample, verbose: bo
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="Sync-check and compile runnable Markdown Marmot examples.")
-    parser.add_argument(
-        "--build",
-        default="Development",
-        choices=["Debug", "Development", "Release"],
-        help="Build configuration used to locate marmotc.exe (default: Development).",
-    )
+    add_build_arguments(parser)
     parser.add_argument(
         "--sync",
         action="store_true",
@@ -413,11 +403,9 @@ def main(argv: list[str]) -> int:
     if args.skip_run:
         return 0
 
-    runner = TestRunner(build_config=args.build, verbose=args.verbose)
+    runner = TestRunner(BuildTree.from_args(args), verbose=args.verbose)
     print(f"Executable: {runner.midori_exe}")
     print(f"Build: {runner.build_config}")
-    if runner.executable_notice:
-        print(f"Notice: {runner.executable_notice}")
 
     failures = [error for example in examples if (error := run_example(root, runner, example, args.verbose)) is not None]
     if failures:

@@ -17,7 +17,7 @@ if(NOT EMSCRIPTEN AND CMAKE_SIZEOF_VOID_P EQUAL 4)
         "Marmot requires a 64-bit toolchain (sizeof(void*) == 8).\n"
         "Detected compiler: ${CMAKE_CXX_COMPILER}\n"
         "On Windows with Ninja, run from a 'x64 Native Tools Command Prompt' "
-        "or use vcvarsall.bat x64 before configuring.")
+        "or build through python scripts/dev.py, which loads that environment.")
 endif()
 
 # ============================================================================
@@ -117,7 +117,7 @@ set(MIDORI_ENDIAN_DEFINES
 # Settings every Marmot library and executable shares. Include directories are
 # not set here: each component library exports only its own src/ root, so a
 # target can include a header only from the components it links (see the
-# dependency graph below and scripts/check_layering.py).
+# dependency graph below and scripts/testing/layering.py).
 function(midori_configure_target target_name)
     # PUBLIC because headers read them: BuildConfig.h defines an inline constexpr
     # VersionString from MIDORI_VERSION_STRING, and falls back to its own endian

@@ -13,7 +13,7 @@ Marmot is a language with three binaries:
 - `marmot` — the project tool, written in Rust (`tool/`). Resolves projects and
   packages and drives the other two through a build plan.
 
-Layering, enforced by `scripts/check_layering.py`: `common` → `runtime` and
+Layering, enforced by `scripts/testing/layering.py`: `common` → `runtime` and
 `compiler` → the driver (`compiler/src/Utility/{CLI,Driver}`) → `vm/src`. The
 driver does not link the runtime.
 
@@ -30,37 +30,38 @@ driver does not link the runtime.
 
 ## Build and test
 
-```
-cmd /c "\"C:\Program Files\Microsoft Visual Studio\18\Community\VC\Auxiliary\Build\vcvars64.bat\" >nul && cmake --build out/build/ninja/x64-development --target marmotc marmotvm"
-```
-
-The full gate, which is what "green" means here — language suite, C++ unit
-tests, doc examples, CLI contracts, formatting, benchmarks, and the tool's
-cargo tests:
+`scripts/dev.py` is the front door, the same on Windows and Linux; it loads
+MSVC's environment itself on Windows and picks a new enough GCC or Clang on
+Linux. `python scripts/dev.py` lists the commands.
 
 ```
-cmd /c "\"...vcvars64.bat\" >nul && python scripts/test_project.py --mode all --skip-configure"
+python scripts/dev.py build                 # marmotc and marmotvm, Development
+python scripts/dev.py gate                  # the full gate
+python scripts/dev.py test --category module
+python scripts/dev.py run scratch.mmt
 ```
 
-The language suite alone, in about thirteen seconds:
+The gate is what "green" means here: layering, the build, C++ unit tests, doc
+examples, CLI contracts, formatting, benchmarks, the tool's cargo tests and the
+language suite, stopping at the first failure. `--skip` and `--only` take step
+names. Commands that need a build bring it up to date first.
+
+The language suite through the tool, in about thirteen seconds:
 
 ```
 cargo run --quiet --manifest-path tool/Cargo.toml -- test
 cargo run --quiet --manifest-path tool/Cargo.toml -- test module/      # one folder
 ```
 
-Only `out/build/ninja/x64-development` and `out/build/ninja/x64-release` are
-valid Windows preset directories. The others still point at a pre-rename path
-and will fail to configure.
+The scripts are grouped by purpose under `scripts/`: `make/` (doctor, configure,
+build, clean, wasm), `testing/` (the gate and each check), `program/` (run,
+fmt), `bench/`, `install/`, with shared helpers in `lib/`. Each runs on its own
+too, e.g. `python scripts/testing/language.py --category closure`.
 
-On Linux, use the `linux-*` presets with GCC 14+ or Clang 19+ (GCC 13 has no
-`<print>`, and Clang 18 cannot use libstdc++'s `std::expected`):
-
-```
-CXX=g++-14 cmake --preset linux-development
-cmake --build --preset linux-development --target marmotc marmotvm
-python3 scripts/test_project.py --mode all --skip-configure
-```
+On Linux the sources need GCC 14+ or Clang 19+ (GCC 13 has no `<print>`, and
+Clang 18 cannot use libstdc++'s `std::expected`). `CXX` overrides the compiler
+the scripts pick; a build tree keeps the compiler it was configured with, so
+switch with `dev.py configure --fresh`.
 
 Run the gate before committing. Do not commit or push unless asked.
 
@@ -149,12 +150,11 @@ Worth knowing before editing the front end, because each was a bug once:
 - A developer's `MARMOT_PATH` usually points at the installed prelude in
   `AppData\Local\Marmot`. A debug build of `marmot` prefers its own checkout's
   compiler and prelude; an installed one uses whatever was last installed.
-  Reinstall with `python scripts/install.py --copy-binaries` — without that flag
-  it only copies the prelude.
+  Reinstall with `python scripts/dev.py install --rebuild`.
 - Adding a `RuntimeErrorCode` means touching `Common/Error/Error.{h,cpp}` and the
   lists in `docs/diagnostic-format.md` and `docs/error-reporting.md`.
 - Doc examples marked `marmot-test` are mirrored into `test/doc_examples/`. After
-  editing one, run `python scripts/check_doc_examples.py --sync --build Development`.
+  editing one, run `python scripts/dev.py check docs --sync`.
 
 ## Finding bugs
 

@@ -2,7 +2,7 @@
 """
 Format-idempotency check for the Marmot source tree.
 
-For every `.mmt` file under the configured roots, runs `marmotc.exe fmt <file>`
+For every `.mmt` file under the configured roots, runs `marmotc fmt <file>`
 twice and verifies that:
 
 - the formatter succeeds on the original source
@@ -10,14 +10,14 @@ twice and verifies that:
   (`fmt(fmt(x)) == fmt(x)`)
 
 Exits with a non-zero status when any file fails either check. Optionally also
-runs `marmotc.exe fmt <root> --check` to enforce that the corpus is already
+runs `marmotc fmt <root> --check` to enforce that the corpus is already
 formatted - controlled by `--enforce-clean`.
 
 Usage:
-    python scripts/check_format.py
-    python scripts/check_format.py --build Debug
-    python scripts/check_format.py --root test --root MarmotPrelude
-    python scripts/check_format.py --enforce-clean
+    python scripts/dev.py check format
+    python scripts/dev.py check format --build Debug
+    python scripts/dev.py check format --root test --root MarmotPrelude
+    python scripts/dev.py check format --enforce-clean
 """
 
 from __future__ import annotations
@@ -28,7 +28,11 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
-from run_tests import TestRunner
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from lib.host import REPO_ROOT
+from lib.presets import BuildTree, add_build_arguments
+from testing.language import TestRunner
 
 
 DEFAULT_ROOTS: tuple[str, ...] = (
@@ -38,7 +42,7 @@ DEFAULT_ROOTS: tuple[str, ...] = (
 
 
 def repo_root() -> Path:
-    return Path(__file__).resolve().parent.parent
+    return REPO_ROOT
 
 
 def collect_mdr_files(roots: Sequence[Path]) -> list[Path]:
@@ -148,12 +152,7 @@ def enforce_clean(runner: TestRunner, roots: Sequence[Path]) -> int:
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="Run formatter idempotency checks.")
-    parser.add_argument(
-        "--build",
-        default="Development",
-        choices=["Debug", "Development", "Release"],
-        help="Build configuration used to locate marmotc.exe (default: Development).",
-    )
+    add_build_arguments(parser)
     parser.add_argument(
         "--root",
         action="append",
@@ -172,11 +171,9 @@ def main(argv: list[str]) -> int:
     )
     args = parser.parse_args(argv)
 
-    runner = TestRunner(build_config=args.build, verbose=args.verbose)
+    runner = TestRunner(BuildTree.from_args(args), verbose=args.verbose)
     print(f"Executable: {runner.midori_exe}")
     print(f"Build: {runner.build_config}")
-    if runner.executable_notice:
-        print(f"Notice: {runner.executable_notice}")
 
     raw_roots = args.root if args.root else list(DEFAULT_ROOTS)
     roots: list[Path] = []

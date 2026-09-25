@@ -20,7 +20,9 @@ import pathlib
 import re
 import sys
 
-ROOT = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+
+from lib.host import REPO_ROOT as ROOT
 
 INCLUDE_ROOTS = {
     'common': ROOT / 'common' / 'src',
@@ -88,7 +90,7 @@ def resolve(including_file, target):
     return None
 
 
-def main():
+def main(argv: list[str]) -> int:
     sources = []
     for folder in (ROOT / 'common' / 'src', ROOT / 'runtime' / 'src', ROOT / 'compiler' / 'src', ROOT / 'web' / 'src', ROOT / 'vm' / 'src'):
         for pattern in ('*.h', '*.cpp', '*.def'):
@@ -124,4 +126,4 @@ def main():
 
 
 if __name__ == '__main__':
-    sys.exit(main())
+    sys.exit(main(sys.argv[1:]))

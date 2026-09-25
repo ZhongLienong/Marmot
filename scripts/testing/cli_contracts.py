@@ -3,11 +3,11 @@
 Run CLI-facing contract checks that are not represented as plain .mmt fixtures.
 
 Covers:
-- `marmotc.exe check <file> --format json`, with MARMOT_PATH
-- `marmotc.exe build <file>`, and `marmotvm.exe` running what it built
-- `marmotc.exe check|build --plan`, and native libraries loaded by marmotvm
-- `marmotc.exe fmt --check`
-- `marmotc.exe --version` and `help <command>`, and marmotvm's command line
+- `marmotc check <file> --format json`, with MARMOT_PATH
+- `marmotc build <file>`, and `marmotvm` running what it built
+- `marmotc check|build --plan`, and native libraries loaded by marmotvm
+- `marmotc fmt --check`
+- `marmotc --version` and `help <command>`, and marmotvm's command line
 
 Projects (manifests, lockfiles, packages, init) and `marmot run`/`marmot test`
 belong to the marmot tool and are covered by its tests (tool/tests).
@@ -25,11 +25,16 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from run_tests import TestRunner, vm_beside
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from lib.host import REPO_ROOT
+from lib.presets import BuildTree, add_build_arguments
+from lib.program import vm_beside
+from testing.language import TestRunner
 
 
 def repo_root() -> Path:
-    return Path(__file__).resolve().parent.parent
+    return REPO_ROOT
 
 
 def write_text(path: Path, text: str) -> None:
@@ -523,12 +528,7 @@ SCENARIOS: list[tuple[str, Any]] = [
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="Run Marmot CLI contract checks.")
-    parser.add_argument(
-        "--build",
-        default="Development",
-        choices=["Debug", "Development", "Release"],
-        help="Build configuration used to locate marmotc.exe (default: Development).",
-    )
+    add_build_arguments(parser)
     parser.add_argument(
         "--verbose",
         action="store_true",
@@ -536,11 +536,9 @@ def main(argv: list[str]) -> int:
     )
     args = parser.parse_args(argv)
 
-    runner = TestRunner(build_config=args.build, verbose=args.verbose)
+    runner = TestRunner(BuildTree.from_args(args), verbose=args.verbose)
     print(f"Executable: {runner.midori_exe}")
     print(f"Build: {runner.build_config}")
-    if runner.executable_notice:
-        print(f"Notice: {runner.executable_notice}")
 
     failures: list[tuple[str, str]] = []
     for name, scenario in SCENARIOS:

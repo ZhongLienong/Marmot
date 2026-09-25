@@ -1,87 +1,38 @@
 #!/usr/bin/env python3
 """
-Marmot Test Runner
+The language suite: every .mmt under test/, built with marmotc and run in marmotvm.
 
-Runs all tests in the test/ directory and reports results.
-Supports:
-- Expected output verification (.expected files)
-- Structured warning verification (.warnings.json files)
-- Failure tests (tests in failure/ directories should fail compilation)
-- Success tests (tests in success/ directories should succeed)
-- Colored output with detailed reporting
-- Test filtering by category, pattern, or specific test file
-- Automatic detailed output for single/few tests
+- A test under a failure/ folder must fail; any other must succeed.
+- A .expected beside a test is its output, compared after stripping colour and
+  this checkout's path.
+- A .warnings.json beside a test is its warnings, compared as JSON.
 
 Usage:
-    python scripts/run_tests.py                          # Run all tests
-    python scripts/run_tests.py --category closure       # Run only closure tests
-    python scripts/run_tests.py --pattern loop           # Run tests matching 'loop'
-    python scripts/run_tests.py --test closure/simple    # Run specific test
-    python scripts/run_tests.py --verbose                # Show detailed output
-    python scripts/run_tests.py --build Debug            # Use Debug build
+    python scripts/testing/language.py                          # every test
+    python scripts/testing/language.py --category closure       # one folder
+    python scripts/testing/language.py --pattern loop           # names containing 'loop'
+    python scripts/testing/language.py --test closure/simple    # one test
+    python scripts/testing/language.py --build Debug            # another build
 """
 
-import os
-import sys
-import subprocess
 import argparse
 import json
-from pathlib import Path
-from dataclasses import dataclass
-from typing import List, Optional
 import re
-import tempfile
+import subprocess
+import sys
+import time
+from dataclasses import dataclass
+from pathlib import Path
+from typing import List, Optional
 
-# Color codes
-class Color:
-    RED = '\033[91m'
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    BLUE = '\033[94m'
-    MAGENTA = '\033[95m'
-    CYAN = '\033[96m'
-    WHITE = '\033[97m'
-    GRAY = '\033[90m'
-    BOLD = '\033[1m'
-    RESET = '\033[0m'
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-def executable_name(stem: str) -> str:
-    return stem + (".exe" if os.name == "nt" else "")
+from lib.console import Color
+from lib.host import REPO_ROOT, TEST_DIR, checkout_environment
+from lib.presets import BuildTree, add_build_arguments
+from lib.program import build_and_run
 
-
-def preset_prefix() -> str:
-    """The CMakePresets.json family for this host: x64-* on Windows, linux-* elsewhere."""
-    return "x64-" if os.name == "nt" else "linux-"
-
-
-def vm_beside(compiler: Path) -> Path:
-    """marmotvm, built beside marmotc."""
-    return compiler.with_name("marmotvm" + compiler.suffix)
-
-
-def build_and_run(
-    compiler: Path,
-    source: str,
-    *,
-    cwd: Path,
-    env: dict,
-    timeout: float,
-) -> subprocess.CompletedProcess:
-    """Build `source` with marmotc and run it in marmotvm, as `marmot run` does.
-
-    The result's output is the build's, then the run's; its exit code is the
-    build's when the build failed. A timeout covers each step.
-    """
-    with tempfile.TemporaryDirectory(prefix="marmot-run-") as directory:
-        program = Path(directory) / (Path(source).stem + ".mmc")
-        options = dict(capture_output=True, text=True, encoding='utf-8', errors='replace',
-                       timeout=timeout, cwd=cwd, env=env, check=False)
-        built = subprocess.run([str(compiler), "build", source, "-o", str(program), "--quiet"], **options)
-        if built.returncode != 0:
-            return built
-        ran = subprocess.run([str(vm_beside(compiler)), str(program)], **options)
-        return subprocess.CompletedProcess(
-            ran.args, ran.returncode, built.stdout + ran.stdout, built.stderr + ran.stderr)
+TIMEOUT_SECONDS = 30
 
 
 @dataclass
@@ -97,112 +48,13 @@ class TestResult:
     duration_ms: float = 0.0
 
 class TestRunner:
-    def __init__(self, build_config: str = "Development", verbose: bool = False):
-        self.root_dir = Path(__file__).parent.parent
-        self.test_dir = self.root_dir / "test"
-        self.requested_build_config = build_config
-        self.build_config = build_config
+    def __init__(self, tree: BuildTree, verbose: bool = False):
+        self.root_dir = REPO_ROOT
+        self.test_dir = TEST_DIR
+        self.build_config = tree.build_type
         self.verbose = verbose
-        self.executable_notice: Optional[str] = None
-        self.executable_search_errors: List[str] = []
-
-        # Find the Marmot executable
-        self.midori_exe = self.find_executable()
-        if not self.midori_exe:
-            print(f"{Color.RED}Error: Could not find Marmot executable{Color.RESET}")
-            for message in self.executable_search_errors:
-                print(f"{Color.YELLOW}  - {message}{Color.RESET}")
-            sys.exit(1)
-
-        # Test results
+        self.midori_exe = tree.require_compiler()
         self.results: List[TestResult] = []
-
-    def find_executable(self) -> Optional[Path]:
-        """Find the Marmot executable based on build configuration."""
-        requested_candidates = self.get_executable_candidates(self.requested_build_config)
-        requested_errors: List[str] = []
-
-        for path in requested_candidates:
-            if not path.exists():
-                continue
-
-            validation_error = self.validate_executable(path, self.requested_build_config)
-            if validation_error is None:
-                return path
-            if validation_error.startswith("configured as "):
-                self.executable_notice = (
-                    f"Requested {self.requested_build_config} build tree reports a different CMake build type; "
-                    f"using {path} anyway because the executable exists."
-                )
-                self.executable_search_errors = [f"{path} ({validation_error})"]
-                return path
-            requested_errors.append(f"{path} ({validation_error})")
-
-        if requested_errors and self.requested_build_config != "Debug":
-            debug_candidates = self.get_executable_candidates("Debug")
-            for path in debug_candidates:
-                if not path.exists():
-                    continue
-
-                validation_error = self.validate_executable(path, "Debug")
-                if validation_error is None:
-                    self.build_config = "Debug"
-                    self.executable_notice = (
-                        f"Requested {self.requested_build_config} build is unavailable or invalid; "
-                        f"using Debug executable instead."
-                    )
-                    self.executable_search_errors = requested_errors
-                    return path
-
-        self.executable_search_errors = requested_errors
-
-        return None
-
-    def get_executable_candidates(self, build_config: str) -> List[Path]:
-        preset = preset_prefix() + build_config.lower()
-        return [
-            self.root_dir / f"out/build/ninja/{preset}/out/{executable_name('marmotc')}",
-            self.root_dir / f"out/build/{preset}/out/{executable_name('marmotc')}",
-        ]
-
-    def validate_executable(self, path: Path, expected_build_config: Optional[str] = None) -> Optional[str]:
-        build_dir = path.parent.parent
-        cache_path = build_dir / "CMakeCache.txt"
-        if not cache_path.exists():
-            return None
-
-        try:
-            cache_text = cache_path.read_text(encoding='utf-8', errors='replace')
-        except OSError as exc:
-            return f"could not read CMakeCache.txt: {exc}"
-
-        build_match = re.search(r'^CMAKE_BUILD_TYPE:STRING=(.+)$', cache_text, re.MULTILINE)
-        if expected_build_config is not None and build_match is not None:
-            actual_build_config = build_match.group(1).strip()
-            if actual_build_config.lower() != expected_build_config.lower():
-                return f"configured as {actual_build_config}, expected {expected_build_config}"
-
-        generator_match = re.search(r'^CMAKE_GENERATOR:INTERNAL=(.+)$', cache_text, re.MULTILINE)
-        if generator_match is None:
-            return None
-
-        generator = generator_match.group(1).strip()
-        if generator == "Ninja":
-            missing_files: List[str] = []
-            if not (build_dir / "build.ninja").exists():
-                missing_files.append("build.ninja")
-            if not (build_dir / "CMakeFiles" / "rules.ninja").exists():
-                missing_files.append("CMakeFiles/rules.ninja")
-            if missing_files:
-                return f"Ninja build tree is incomplete (missing {', '.join(missing_files)})"
-            return None
-
-        if generator == "NMake Makefiles":
-            if not (build_dir / "Makefile").exists():
-                return "NMake build tree is incomplete (missing Makefile)"
-            return None
-
-        return None
 
     def is_failure_test(self, test_path: Path) -> bool:
         """Check if test is expected to fail based on directory name."""
@@ -280,29 +132,27 @@ class TestRunner:
 
         return warning_records, '\n'.join(non_warning_lines)
 
+    def execute(self, test_path: Path, *, machine_warnings: bool) -> subprocess.CompletedProcess:
+        """Build and run one test as the suite does, from the checkout root."""
+        environment = checkout_environment(
+            MARMOT_TEST_MODE="1",
+            MARMOT_TEST_WARNING_FORMAT="machine" if machine_warnings else None,
+        )
+        command_path = test_path.resolve().relative_to(self.root_dir).as_posix()
+        return build_and_run(self.midori_exe, command_path, cwd=self.root_dir, env=environment, timeout=TIMEOUT_SECONDS)
+
     def run_test(self, test_path: Path) -> TestResult:
         """Run a single test file."""
         relative_path = test_path.relative_to(self.test_dir)
         test_name = str(relative_path)
-        command_path = str(test_path.relative_to(self.root_dir))
 
         expected_to_fail = self.is_failure_test(test_path)
         expected_output = self.get_expected_output(test_path)
 
         try:
             expected_warnings = self.get_expected_warnings(test_path)
-            import time
             start = time.time()
-            env = os.environ.copy()
-            env["MARMOT_TEST_MODE"] = "1"
-            # This checkout's prelude first: an installed one may be older.
-            env["MARMOT_PATH"] = os.pathsep.join(
-                entry for entry in [str(self.root_dir / "MarmotPrelude"), os.environ.get("MARMOT_PATH", "")] if entry != ""
-            )
-            if expected_warnings is not None:
-                env["MARMOT_TEST_WARNING_FORMAT"] = "machine"
-
-            result = build_and_run(self.midori_exe, command_path, cwd=self.root_dir, env=env, timeout=30)
+            result = self.execute(test_path, machine_warnings=expected_warnings is not None)
 
             duration_ms = (time.time() - start) * 1000
 
@@ -361,8 +211,8 @@ class TestRunner:
                 passed=False,
                 expected_to_fail=expected_to_fail,
                 output="",
-                error="Test timed out (30s)",
-                duration_ms=30000
+                error=f"Test timed out ({TIMEOUT_SECONDS}s)",
+                duration_ms=TIMEOUT_SECONDS * 1000
             )
         except Exception as e:
             return TestResult(
@@ -400,7 +250,7 @@ class TestRunner:
         for test_file in self.test_dir.rglob("*.mmt"):
             relative_test_path = test_file.relative_to(self.test_dir)
 
-            # Documentation examples are compiled through scripts/check_doc_examples.py
+            # Documentation examples are compiled through scripts/testing/doc_examples.py
             # because their extracted temp paths may differ from their tracked mirrors.
             if relative_test_path.parts and relative_test_path.parts[0] == "doc_examples":
                 continue
@@ -449,7 +299,7 @@ class TestRunner:
 
         if not tests:
             print(f"{Color.YELLOW}No tests found matching criteria{Color.RESET}")
-            return
+            return 1
 
         # Auto-enable verbose output for single/few tests
         show_full_output = len(tests) <= 3
@@ -458,8 +308,6 @@ class TestRunner:
         print(f"{Color.GRAY}{'=' * 60}{Color.RESET}")
         print(f"Executable: {Color.CYAN}{self.midori_exe}{Color.RESET}")
         print(f"Build: {Color.CYAN}{self.build_config}{Color.RESET}")
-        if self.executable_notice:
-            print(f"Notice: {Color.YELLOW}{self.executable_notice}{Color.RESET}")
         print(f"Tests: {Color.CYAN}{len(tests)}{Color.RESET}")
         if show_full_output:
             print(f"Mode: {Color.CYAN}Detailed output enabled{Color.RESET}")
@@ -482,10 +330,9 @@ class TestRunner:
                 self.results.append(result)
                 self.print_result(result, show_output=show_full_output)
 
-        # Print summary
-        self.print_summary()
+        return self.print_summary()
 
-    def print_summary(self):
+    def print_summary(self) -> int:
         """Print test summary statistics."""
         total = len(self.results)
         passed = sum(1 for r in self.results if r.passed)
@@ -520,23 +367,20 @@ class TestRunner:
 
         print(f"{Color.GRAY}{'=' * 60}{Color.RESET}")
 
-        # Exit with appropriate code
-        sys.exit(0 if failed == 0 else 1)
+        return 0 if failed == 0 else 1
 
-def main():
-    parser = argparse.ArgumentParser(description='Run Marmot test suite')
-    parser.add_argument('--build', default='Development',
-                        choices=['Debug', 'Development', 'Release'],
-                        help='Build configuration to use (default: Development)')
-    parser.add_argument('--category', help='Run only tests in specified category (e.g., closure)')
-    parser.add_argument('--pattern', help='Run only tests matching pattern')
-    parser.add_argument('--test', help='Run specific test file (e.g., closure/simple.mmt or just simple)')
-    parser.add_argument('--verbose', '-v', action='store_true', help='Show detailed output')
+def main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(description="Run the Marmot language suite.")
+    add_build_arguments(parser)
+    parser.add_argument("--category", help="Only tests under this folder of test/ (e.g. closure)")
+    parser.add_argument("--pattern", help="Only tests whose file name contains this")
+    parser.add_argument("--test", help="One test (e.g. closure/simple.mmt or just simple)")
+    parser.add_argument("--verbose", "-v", action="store_true", help="Show each failure's output")
+    args = parser.parse_args(argv)
 
-    args = parser.parse_args()
+    runner = TestRunner(BuildTree.from_args(args), verbose=args.verbose)
+    return runner.run_all_tests(category=args.category, pattern=args.pattern, test_file=args.test)
 
-    runner = TestRunner(build_config=args.build, verbose=args.verbose)
-    runner.run_all_tests(category=args.category, pattern=args.pattern, test_file=args.test)
 
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
