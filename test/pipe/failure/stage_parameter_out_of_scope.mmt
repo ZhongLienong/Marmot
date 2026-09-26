@@ -1,0 +1,13 @@
+module StageParameterOutOfScope
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt"
+}
+
+// A lambda stage ends before the next `|>`, so a later stage cannot see its
+// parameter. To use both, write the stages in one body.
+
+def total = 5 |> fn(first: Int) -> Int => first + 1 |> fn(second: Int) -> Int => first + second;
+
+IO::PrintLine(total as Text);

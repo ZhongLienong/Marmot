@@ -2810,6 +2810,7 @@ MidoriResult::ExpressionResult Parser::ParsePipe()
 						continue;
 					}
 
+					m_state.m_next_function_is_pipe_stage = Peek(0).m_token_name == Token::Name::FUNCTION;
 					MidoriResult::ExpressionResult right = ParseBitwiseOr();
 					if (!right.has_value())
 					{
@@ -4930,6 +4931,9 @@ MidoriResult::ExpressionResult Parser::ParseIfElseExpression()
 MidoriResult::ExpressionResult Parser::ParseFunctionExpression()
 {
 	Token& keyword = Previous();
+	// In `x |> fn(a) => f(a) |> g` the lambda is one stage: its body stops before the
+	// next `|>`, as any pipe operand does, rather than taking the rest of the pipeline.
+	const bool is_pipe_stage = std::exchange(m_state.m_next_function_is_pipe_stage, false);
 
 	// Parse optional generic parameters <T, U, ...>
 	// Create scope BEFORE parsing so DefineName() in ParseGenericParameters adds them to this scope
@@ -5044,11 +5048,11 @@ MidoriResult::ExpressionResult Parser::ParseFunctionExpression()
 	// or call straight away, so `=> { c with p = 1 }.port` must behave exactly as it does
 	// in expression position. It therefore does continue through the postfix chain. The
 	// asymmetry is deliberate - the two constructs genuinely differ.
-	MidoriResult::ExpressionResult body_result = [this]() -> MidoriResult::ExpressionResult
+	MidoriResult::ExpressionResult body_result = [this, is_pipe_stage]() -> MidoriResult::ExpressionResult
 		{
 			if (!Match(Token::Name::LEFT_BRACE))
 			{
-				return ParseExpression();
+				return is_pipe_stage ? ParseBitwiseOr() : ParseExpression();
 			}
 
 			if (!ProbeRecordUpdate())

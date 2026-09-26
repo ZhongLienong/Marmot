@@ -166,6 +166,9 @@ private:
 		// The types whose bodies are being parsed, innermost last.
 		std::vector<std::shared_ptr<MidoriType>> m_types_being_declared;
 		std::vector<PendingDefinition> m_pending_definitions;
+		// Set by `|>` when its stage is a lambda, whose body then ends where a pipe
+		// operand does, so the next `|>` is the pipeline's next stage.
+		bool m_next_function_is_pipe_stage = false;
 		std::unordered_set<std::string> m_top_level_names;
 		std::unordered_map<std::string, TopLevelDefinition> m_top_level_definitions;
 		std::vector<TopLevelReference> m_top_level_references;

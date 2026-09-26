@@ -178,6 +178,11 @@ case         = 'case' pattern ('if' expression)? '=>' expression ;
 A record is built by calling its type's name: `Point(1, 2)`. `for` evaluates
 its body for each element and has no value of its own.
 
+A `function` that is the right operand of `|>` is one stage of the pipeline: its
+body is parsed as a pipe operand (level 6 and tighter), so it ends before the
+next `|>`. `x |> fn(a) => f(a) |> g` is `g(f(x))`, and a later stage cannot name
+`a`. Any other function's body is a whole `expression`.
+
 ## Patterns
 
 ```

@@ -1,0 +1,27 @@
+module LambdaStages
+
+import
+{
+	"../../MarmotPrelude/IO.mmt",
+	"../../MarmotPrelude/TextUtil.mmt"
+}
+
+// A lambda written as a pipeline stage is one stage: its body ends before the next
+// `|>`, as any pipe operand does. The stages below each take the value the stage
+// before produced, and each may name its parameter `t` without shadowing another.
+
+def Shout = fn(text: Text) -> Text =>
+	text
+	|> fn(t: Text) -> Text => TextUtil::Replace(t, "hi", "HI")
+	|> fn(t: Text) -> Text => TextUtil::Replace(t, "say", "SAY")
+	|> fn(t: Text) -> Text => "<" ++ t ++ ">";
+
+IO::PrintLine(Shout("say hi"));
+
+def Double = fn(n: Int) -> Int => n * 2;
+
+// The body of a stage still takes everything a pipe operand takes.
+IO::PrintLine((3 |> fn(n: Int) -> Int => (n * 10) + 1 |> Double) as Text);
+
+// A braced body was always one stage; a braced body can hold its own pipeline.
+IO::PrintLine((4 |> fn(n: Int) -> Int => { n |> Double |> Double } |> fn(n: Int) -> Int => n + 1) as Text);
