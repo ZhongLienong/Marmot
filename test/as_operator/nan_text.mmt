@@ -1,0 +1,19 @@
+module NanText
+
+import
+{
+	"../../MarmotPrelude/IO.mmt",
+	"../../MarmotPrelude/TextUtil.mmt",
+	"../../MarmotPrelude/Prelude/Option.mmt"
+}
+
+use Option.{ Option }
+
+// A NaN prints as nan whatever its sign bit: 0.0 / 0.0 sets it on x86 and not on
+// ARM, so printing the sign made one program's output differ by machine.
+
+def Id = fn(x: Float) -> Float => x;
+
+IO::PrintLine((Id(0.0) / 0.0) as Text);
+IO::PrintLine((-(Id(0.0) / 0.0)) as Text);
+IO::PrintLine(Option::OptionUnwrap(TextUtil::ParseFloat("nan"), 0.0) as Text);

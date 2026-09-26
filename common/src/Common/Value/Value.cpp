@@ -6,6 +6,7 @@
 #include <array>
 #include <bit>
 #include <cctype>
+#include <cmath>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
@@ -1826,6 +1827,13 @@ MidoriText MidoriText::FromWord(MidoriWord value)
 // looks like a Float when the value is whole: 3.0, not 3.
 MidoriText MidoriText::FromFloat(MidoriFloat value)
 {
+	// A NaN's sign bit means nothing, and 0.0 / 0.0 sets it on x86 but not on
+	// ARM, so printing it made the same program's output differ by machine.
+	if (std::isnan(value))
+	{
+		return MidoriText("nan");
+	}
+
 	char buffer[64];
 	const std::to_chars_result result = std::to_chars(std::begin(buffer), std::end(buffer) - 3, value);
 	std::string_view written(std::begin(buffer), result.ptr);
