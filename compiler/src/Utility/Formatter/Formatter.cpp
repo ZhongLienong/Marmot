@@ -1,10 +1,12 @@
 #include "Utility/Formatter/Formatter.h"
 
 #include <algorithm>
+#include <cctype>
 #include <format>
 #include <fstream>
 #include <sstream>
 #include <string_view>
+#include <unordered_set>
 
 #include "Common/Source/Source.h"
 #include "Compiler/Lexer/Lexer.h"
@@ -33,6 +35,10 @@ namespace
 		int m_paren_depth = 0;
 		int m_bracket_depth = 0;
 		int m_block_depth = 0;
+		// The indentation the brace's `}` is written at, and the one restored after it.
+		// They differ for a match arm's body, which aligns with its `case`.
+		int m_outer_indent = 0;
+		int m_restore_indent = 0;
 	};
 
 	struct MatchContext
@@ -278,6 +284,127 @@ namespace
 		}
 	}
 
+	// Whether `<` at `index` opens a type's arguments - `Array<Text>`, `fn<T>`,
+	// `Map::Map<K, V>` - rather than comparing. It does when it follows a type-like
+	// name and closes before anything a type cannot hold.
+	[[nodiscard]] bool IsTypeLikeName(const Token& token)
+	{
+		switch (token.m_token_name)
+		{
+		case TokenName::FUNCTION:
+		case TokenName::ARRAY:
+		case TokenName::FLOAT:
+		case TokenName::INTEGER:
+		case TokenName::BYTE:
+		case TokenName::WORD:
+		case TokenName::TEXT:
+		case TokenName::BOOL:
+		case TokenName::UNIT:
+		case TokenName::NEVER:
+			return true;
+		case TokenName::IDENTIFIER_LITERAL:
+			return !token.m_lexeme.empty() && std::isupper(static_cast<unsigned char>(token.m_lexeme[0u])) != 0;
+		default:
+			return false;
+		}
+	}
+
+	[[nodiscard]] bool CanAppearInTypeArguments(const Token& token)
+	{
+		switch (token.m_token_name)
+		{
+		case TokenName::IDENTIFIER_LITERAL:
+		case TokenName::COMMA:
+		case TokenName::DOUBLE_COLON:
+		case TokenName::SINGLE_DOT:
+		case TokenName::LEFT_PAREN:
+		case TokenName::RIGHT_PAREN:
+		case TokenName::THIN_ARROW:
+		case TokenName::LEFT_ANGLE:
+		case TokenName::RIGHT_ANGLE:
+		case TokenName::RIGHT_SHIFT:
+			return true;
+		default:
+			return IsTypeLikeName(token);
+		}
+	}
+
+	// The indices of the `<` and closing `>` (or `>>`) tokens that bracket type arguments.
+	[[nodiscard]] std::unordered_set<size_t> FindTypeArgumentBrackets(const std::vector<Token>& tokens)
+	{
+		std::unordered_set<size_t> brackets;
+		for (size_t open = 0u; open < tokens.size(); open += 1u)
+		{
+			if (tokens[open].m_token_name != TokenName::LEFT_ANGLE || brackets.contains(open))
+			{
+				continue;
+			}
+
+			const Token* previous = PreviousNonCommentToken(tokens, open);
+			if (previous == nullptr)
+			{
+				continue;
+			}
+
+			// `import { <IO>, <Math.Vector> }`: nothing else puts `<` after `{` or `,`.
+			if (previous->m_token_name == TokenName::LEFT_BRACE || previous->m_token_name == TokenName::COMMA)
+			{
+				size_t close = open + 1u;
+				while (close < tokens.size() && (tokens[close].m_token_name == TokenName::IDENTIFIER_LITERAL || tokens[close].m_token_name == TokenName::SINGLE_DOT))
+				{
+					close += 1u;
+				}
+				if (close > open + 1u && close < tokens.size() && tokens[close].m_token_name == TokenName::RIGHT_ANGLE)
+				{
+					brackets.insert(open);
+					brackets.insert(close);
+				}
+				continue;
+			}
+
+			if (!IsTypeLikeName(*previous))
+			{
+				continue;
+			}
+
+			std::vector<size_t> opened{ open };
+			std::vector<size_t> found{ open };
+			for (size_t index = open + 1u; index < tokens.size() && !opened.empty(); index += 1u)
+			{
+				const Token& token = tokens[index];
+				if (IsComment(token.m_token_name))
+				{
+					continue;
+				}
+				if (!CanAppearInTypeArguments(token))
+				{
+					break;
+				}
+				if (token.m_token_name == TokenName::LEFT_ANGLE)
+				{
+					opened.push_back(index);
+					found.push_back(index);
+				}
+				else if (token.m_token_name == TokenName::RIGHT_ANGLE || token.m_token_name == TokenName::RIGHT_SHIFT)
+				{
+					const size_t closes = token.m_token_name == TokenName::RIGHT_SHIFT ? 2u : 1u;
+					if (closes > opened.size())
+					{
+						break;
+					}
+					opened.resize(opened.size() - closes);
+					found.push_back(index);
+				}
+			}
+
+			if (opened.empty())
+			{
+				brackets.insert(found.begin(), found.end());
+			}
+		}
+		return brackets;
+	}
+
 	[[nodiscard]] bool IsInlineBraceOpen(const std::vector<Token>& tokens, size_t index)
 	{
 		const Token* previous = PreviousNonCommentToken(tokens, index);
@@ -300,12 +427,24 @@ namespace
 		bool m_at_line_start = true;
 		TopLevelCategory m_last_top_level_category = TopLevelCategory::None;
 		std::optional<TokenName> m_previous_token;
+		// Whether the token written last was a unary prefix or a type-argument bracket,
+		// which are spaced unlike the same token as an infix operator.
+		bool m_previous_was_unary = false;
+		// The last token that was code, which a comment does not reset: whether an
+		// operator is unary depends on it even across `1 /* note */ + 2`.
+		std::optional<TokenName> m_last_code_token;
+		bool m_previous_was_type_bracket = false;
+		std::unordered_set<size_t> m_type_brackets;
+		// Type-argument brackets open around the current token: a comma inside them
+		// separates type arguments, never record fields.
+		int m_type_bracket_depth = 0;
 		std::vector<Context> m_contexts;
 		std::vector<MatchContext> m_match_contexts;
 
 	public:
 		[[nodiscard]] std::string Format(const std::vector<Token>& tokens)
 		{
+			m_type_brackets = FindTypeArgumentBrackets(tokens);
 			for (size_t index = 0u; index < tokens.size(); index += 1u)
 			{
 				FormatToken(tokens, index);
@@ -357,6 +496,41 @@ namespace
 			m_at_line_start = true;
 		}
 
+		// Ends the output with exactly `count` newlines, so `2` leaves one blank line.
+		void EnsureTrailingNewlines(int count)
+		{
+			while (!m_output.empty() && m_output.back() == ' ')
+			{
+				m_output.pop_back();
+			}
+
+			int trailing = 0;
+			for (std::string::const_reverse_iterator it = m_output.crbegin(); it != m_output.crend() && *it == '\n'; ++it)
+			{
+				trailing += 1;
+			}
+			for (; trailing < count; trailing += 1)
+			{
+				m_output.push_back('\n');
+			}
+			m_at_line_start = true;
+		}
+
+		// A blank line the author left between two lines is kept, collapsed to one,
+		// except just inside an opening brace.
+		void KeepAuthorBlankLine(const std::vector<Token>& tokens, size_t index)
+		{
+			if (index == 0u || !m_at_line_start || m_output.empty() || m_output.ends_with("{\n"))
+			{
+				return;
+			}
+
+			if (tokens[index].m_line - EndSourceLine(tokens[index - 1u]) >= 2)
+			{
+				EnsureTrailingNewlines(2);
+			}
+		}
+
 		void WriteCommentLexeme(std::string_view lexeme)
 		{
 			for (size_t index = 0u; index < lexeme.size(); index += 1u)
@@ -384,6 +558,23 @@ namespace
 			const Token* previous = PreviousNonCommentToken(tokens, index);
 			const Token* next = NextNonCommentToken(tokens, index);
 			const bool previous_same_line = previous != nullptr && EndSourceLine(*previous) == token.m_line;
+			m_previous_was_unary = false;
+			m_previous_was_type_bracket = false;
+			if (!previous_same_line)
+			{
+				KeepAuthorBlankLine(tokens, index);
+				// The first comment above a top-level declaration takes the blank line
+				// that separates the declaration from what comes before it.
+				const bool opens_declaration_comment = next != nullptr
+					&& m_block_depth == 0 && m_paren_depth == 0 && m_bracket_depth == 0
+					&& IsTopLevelStart(next->m_token_name)
+					&& ClassifyTopLevel(next->m_token_name) == TopLevelCategory::Declaration
+					&& !(index > 0u && IsComment(tokens[index - 1u].m_token_name));
+				if (opens_declaration_comment && m_previous_token.has_value())
+				{
+					EnsureTrailingNewlines(2);
+				}
+			}
 			const bool next_same_line = next != nullptr
 				&& token.m_token_name == TokenName::BLOCK_COMMENT
 				&& CountEmbeddedNewlines(token.m_lexeme) == 0
@@ -458,24 +649,36 @@ namespace
 			}
 		}
 
-		void EnsureSeparatedTopLevel(TokenName token_name)
+		// One blank line between top-level declarations, none inside the header of
+		// module, import, use and export directives. A comment directly above a
+		// declaration belongs to it, so the blank line goes above the comment.
+		void EnsureSeparatedTopLevel(const std::vector<Token>& tokens, size_t index)
 		{
+			const TokenName token_name = tokens[index].m_token_name;
 			if (m_block_depth != 0 || m_paren_depth != 0 || m_bracket_depth != 0 || !IsTopLevelStart(token_name))
 			{
 				return;
 			}
 
-			if (!m_at_line_start && m_previous_token.has_value())
+			const TopLevelCategory category = ClassifyTopLevel(token_name);
+			const bool in_header = category != TopLevelCategory::Declaration && m_last_top_level_category != TopLevelCategory::Declaration;
+			const bool after_own_comment = index > 0u && IsComment(tokens[index - 1u].m_token_name) && m_at_line_start;
+			if (m_previous_token.has_value() && !after_own_comment)
 			{
-				const TopLevelCategory category = ClassifyTopLevel(token_name);
-				const int newline_count =
-					(m_last_top_level_category == TopLevelCategory::ImportLike && category == TopLevelCategory::ImportLike)
-					? 1
-					: 2;
-				WriteNewline(newline_count);
+				if (in_header)
+				{
+					if (!m_at_line_start)
+					{
+						WriteNewline();
+					}
+				}
+				else
+				{
+					EnsureTrailingNewlines(2);
+				}
 			}
 
-			m_last_top_level_category = ClassifyTopLevel(token_name);
+			m_last_top_level_category = category;
 		}
 
 		[[nodiscard]] bool IsAtTopLevelOfBlock() const
@@ -492,7 +695,7 @@ namespace
 				&& context.m_block_depth == m_block_depth;
 		}
 
-		void MaybeWriteSpace(TokenName current)
+		void MaybeWriteSpace(TokenName current, bool is_type_bracket)
 		{
 			if (m_at_line_start)
 			{
@@ -515,6 +718,11 @@ namespace
 			}
 
 			const TokenName previous = *m_previous_token;
+			if (is_type_bracket || (m_previous_was_type_bracket && previous == TokenName::LEFT_ANGLE))
+			{
+				return;
+			}
+
 			if (current == TokenName::COMMA
 				|| current == TokenName::SINGLE_SEMICOLON
 				|| current == TokenName::RIGHT_PAREN
@@ -537,7 +745,15 @@ namespace
 				return;
 			}
 
-			if (current == TokenName::LEFT_PAREN || current == TokenName::LEFT_BRACKET)
+			// A call or an index hugs what it applies to; after an infix operator the
+			// parenthesis opens an operand and is spaced like one.
+			// After `def`, `if`, `case` and `match` a parenthesis opens an operand, not a call.
+			const bool opens_operand = (IsOperator(previous) && !m_previous_was_unary && !m_previous_was_type_bracket)
+				|| previous == TokenName::DEF
+				|| previous == TokenName::IF
+				|| previous == TokenName::CASE
+				|| previous == TokenName::MATCH;
+			if ((current == TokenName::LEFT_PAREN || current == TokenName::LEFT_BRACKET) && !opens_operand)
 			{
 				return;
 			}
@@ -552,19 +768,8 @@ namespace
 				return;
 			}
 
-			if (IsUnaryPrefix(current)
-				&& (IsOperator(previous)
-					|| previous == TokenName::LEFT_PAREN
-					|| previous == TokenName::LEFT_BRACKET
-					|| previous == TokenName::LEFT_BRACE
-					|| previous == TokenName::COMMA
-					|| previous == TokenName::SINGLE_SEMICOLON
-					|| previous == TokenName::THEN
-					|| previous == TokenName::ELSE
-					|| previous == TokenName::FAT_ARROW
-					|| previous == TokenName::WITH
-					|| previous == TokenName::CASE
-					|| previous == TokenName::IN))
+			// A unary operator hugs its operand: `-x`, `!done`, `-(a - b)`.
+			if (m_previous_was_unary)
 			{
 				return;
 			}
@@ -572,13 +777,38 @@ namespace
 			m_output.push_back(' ');
 		}
 
-		void WriteTokenText(const Token& token)
+		[[nodiscard]] bool IsUnaryHere(TokenName current) const
 		{
+			if (!IsUnaryPrefix(current))
+			{
+				return false;
+			}
+			if (!m_last_code_token.has_value())
+			{
+				return true;
+			}
+			const TokenName previous = *m_last_code_token;
+			return (IsOperator(previous) && !m_previous_was_type_bracket)
+				|| previous == TokenName::LEFT_PAREN
+				|| previous == TokenName::LEFT_BRACKET
+				|| previous == TokenName::LEFT_BRACE
+				|| previous == TokenName::COMMA
+				|| previous == TokenName::SINGLE_SEMICOLON
+				|| previous == TokenName::CASE
+				|| previous == TokenName::HASH;
+		}
+
+		void WriteTokenText(const Token& token, bool is_type_bracket = false)
+		{
+			const bool is_unary = IsUnaryHere(token.m_token_name);
 			WriteCurrentIndent();
-			MaybeWriteSpace(token.m_token_name);
+			MaybeWriteSpace(token.m_token_name, is_type_bracket);
 			m_output += TokenText(token);
 			m_at_line_start = false;
 			m_previous_token = token.m_token_name;
+			m_last_code_token = token.m_token_name;
+			m_previous_was_unary = is_unary;
+			m_previous_was_type_bracket = is_type_bracket;
 		}
 
 		void FormatToken(const std::vector<Token>& tokens, size_t index)
@@ -595,7 +825,9 @@ namespace
 				return;
 			}
 
-			EnsureSeparatedTopLevel(token_name);
+			KeepAuthorBlankLine(tokens, index);
+			EnsureSeparatedTopLevel(tokens, index);
+			const bool is_type_bracket = m_type_brackets.contains(index);
 
 			switch (token_name)
 			{
@@ -603,10 +835,13 @@ namespace
 			{
 				const bool inline_brace = IsInlineBraceOpen(tokens, index);
 				WriteCurrentIndent();
-				MaybeWriteSpace(token_name);
+				MaybeWriteSpace(token_name, false);
 				m_output.push_back('{');
 				m_at_line_start = false;
 				m_previous_token = token_name;
+				m_last_code_token = token_name;
+				m_previous_was_unary = false;
+				m_previous_was_type_bracket = false;
 				if (inline_brace)
 				{
 					m_contexts.push_back(Context{ ContextKind::InlineBrace, m_paren_depth, m_bracket_depth, m_block_depth });
@@ -617,9 +852,16 @@ namespace
 				}
 				else
 				{
+					// A block that is a match arm's body indents from its `case`, not from
+					// the line that opened the match.
+					const bool is_arm_body = !m_match_contexts.empty()
+						&& m_match_contexts.back().m_paren_depth == m_paren_depth
+						&& m_match_contexts.back().m_bracket_depth == m_bracket_depth
+						&& m_match_contexts.back().m_block_depth == m_block_depth;
+					const int outer_indent = is_arm_body ? m_match_contexts.back().m_indent : m_indent;
 					m_block_depth += 1;
-					m_contexts.push_back(Context{ ContextKind::BlockBrace, m_paren_depth, m_bracket_depth, m_block_depth });
-					m_indent += 1;
+					m_contexts.push_back(Context{ ContextKind::BlockBrace, m_paren_depth, m_bracket_depth, m_block_depth, outer_indent, m_indent });
+					m_indent = outer_indent + 1;
 					WriteNewline();
 				}
 				return;
@@ -634,7 +876,15 @@ namespace
 					}
 					m_output += " }";
 					m_at_line_start = false;
+					// An import or export block ends its directive's line.
+					if (next_raw_token == nullptr || !IsComment(next_raw_token->m_token_name) || next_raw_token->m_line != token.m_line)
+					{
+						WriteNewline();
+					}
 					m_previous_token = token_name;
+					m_last_code_token = token_name;
+					m_previous_was_unary = false;
+					m_previous_was_type_bracket = false;
 					m_contexts.pop_back();
 					return;
 				}
@@ -643,12 +893,17 @@ namespace
 				{
 					WriteNewline();
 				}
-				m_indent = std::max(m_indent - 1, 0);
+				const int restore_indent = m_contexts.empty() ? std::max(m_indent - 1, 0) : m_contexts.back().m_restore_indent;
+				m_indent = m_contexts.empty() ? restore_indent : m_contexts.back().m_outer_indent;
 				m_block_depth = std::max(m_block_depth - 1, 0);
 				WriteCurrentIndent();
+				m_indent = restore_indent;
 				m_output.push_back('}');
 				m_at_line_start = false;
 				m_previous_token = token_name;
+				m_last_code_token = token_name;
+				m_previous_was_unary = false;
+				m_previous_was_type_bracket = false;
 				if (!m_contexts.empty())
 				{
 					m_contexts.pop_back();
@@ -680,7 +935,7 @@ namespace
 				return;
 			case TokenName::COMMA:
 				WriteTokenText(token);
-				if (IsAtTopLevelOfBlock())
+				if (IsAtTopLevelOfBlock() && m_type_bracket_depth == 0)
 				{
 					WriteNewline();
 				}
@@ -725,6 +980,9 @@ namespace
 				m_output.push_back(' ');
 				m_at_line_start = false;
 				m_previous_token = token_name;
+				m_last_code_token = token_name;
+				m_previous_was_unary = false;
+				m_previous_was_type_bracket = false;
 				return;
 			case TokenName::WITH:
 				WriteTokenText(token);
@@ -749,7 +1007,11 @@ namespace
 				m_last_top_level_category = ClassifyTopLevel(token_name);
 				return;
 			default:
-				WriteTokenText(token);
+				WriteTokenText(token, is_type_bracket);
+				if (is_type_bracket)
+				{
+					m_type_bracket_depth += token_name == TokenName::LEFT_ANGLE ? 1 : (token_name == TokenName::RIGHT_SHIFT ? -2 : -1);
+				}
 				if ((token_name == TokenName::THIN_ARROW || token_name == TokenName::FAT_ARROW) && next_token == TokenName::LEFT_BRACE)
 				{
 					m_output.push_back(' ');

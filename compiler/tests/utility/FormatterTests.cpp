@@ -41,6 +41,7 @@ TEST_CASE("Formatter preserves comments while normalizing spacing", "[formatter]
 
 	const std::string expected =
 		"module Main\n"
+		"\n"
 		"// heading\n"
 		"def main = fn() -> Int => {\n"
 		"    def value = /*inline*/ 1;  // trailing\n"
@@ -193,7 +194,9 @@ TEST_CASE("Formatter round-trips newtype declarations and leading-bar sums", "[f
 
 	const std::string expected =
 		"module Main\n"
+		"\n"
 		"type Meters = Int;\n"
+		"\n"
 		"type Solo = | Only(Int);\n";
 
 	CHECK(formatted == expected);
@@ -210,4 +213,100 @@ TEST_CASE("Formatter is idempotent for newtype declarations", "[formatter]")
 	const std::string twice = FormatOrFail(once, "NewtypeIdempotent.mmt");
 
 	CHECK(once == twice);
+}
+
+TEST_CASE("Formatter spaces a parenthesis after an infix operator but not after a unary one", "[formatter]")
+{
+	const std::string source_code =
+		"module Main\n"
+		"def a = 10 /(5 - 5);\n"
+		"def b = \"x\" ++(\"y\" ++ \"z\");\n"
+		"def c = -(1 - 2) + - 3;\n"
+		"def (d, e) = (1, 2);\n"
+		"def f = if(a == 0) && true then 1 else 2;\n";
+
+	const std::string formatted = FormatOrFail(source_code, "OperandParens.mmt");
+	CHECK(formatted.find("def a = 10 / (5 - 5);") != std::string::npos);
+	CHECK(formatted.find("def b = \"x\" ++ (\"y\" ++ \"z\");") != std::string::npos);
+	CHECK(formatted.find("def c = -(1 - 2) + -3;") != std::string::npos);
+	CHECK(formatted.find("def (d, e) = (1, 2);") != std::string::npos);
+	CHECK(formatted.find("def f = if (a == 0) && true then 1 else 2;") != std::string::npos);
+	RequireIdempotent(source_code, "OperandParens.mmt");
+}
+
+TEST_CASE("Formatter writes type arguments without spaces and comparisons with them", "[formatter]")
+{
+	const std::string source_code =
+		"module Main\n"
+		"import { <IO>, <Math.Vector> }\n"
+		"type Holder = { entries: Array < Map::Map < Text, Array < Int > > >, count: Int };\n"
+		"def Pick = fn < T >(values: Array < T >, limit: Int) -> Bool => (#values < limit) && (limit > 0);\n";
+
+	const std::string formatted = FormatOrFail(source_code, "TypeArguments.mmt");
+	CHECK(formatted.find("import { <IO>, <Math.Vector> }\n") != std::string::npos);
+	CHECK(formatted.find("    entries: Array<Map::Map<Text, Array<Int>>>,\n") != std::string::npos);
+	CHECK(formatted.find("def Pick = fn<T>(values: Array<T>, limit: Int) -> Bool => (#values < limit) && (limit > 0);") != std::string::npos);
+	RequireIdempotent(source_code, "TypeArguments.mmt");
+}
+
+TEST_CASE("Formatter separates declarations by one blank line and keeps the author's", "[formatter]")
+{
+	const std::string source_code =
+		"module Main\n"
+		"import { \"./A.mmt\" }\n"
+		"def a = 1;\n"
+		"// about b\n"
+		"def b = 2;\n"
+		"IO::PrintLine(\"one\");\n"
+		"\n"
+		"\n"
+		"\n"
+		"IO::PrintLine(\"two\");\n";
+
+	const std::string formatted = FormatOrFail(source_code, "BlankLines.mmt");
+
+	const std::string expected =
+		"module Main\n"
+		"import { \"./A.mmt\" }\n"
+		"\n"
+		"def a = 1;\n"
+		"\n"
+		"// about b\n"
+		"def b = 2;\n"
+		"IO::PrintLine(\"one\");\n"
+		"\n"
+		"IO::PrintLine(\"two\");\n";
+
+	CHECK(formatted == expected);
+	RequireIdempotent(source_code, "BlankLines.mmt");
+}
+
+TEST_CASE("Formatter indents a match arm's block from its case", "[formatter]")
+{
+	const std::string source_code =
+		"module Main\n"
+		"def f = fn(x: Int) -> Int => match x with\n"
+		"case 0 => {\n"
+		"def y = 1;\n"
+		"y\n"
+		"}\n"
+		"case _ => 2;\n"
+		"def g = 3;\n";
+
+	const std::string formatted = FormatOrFail(source_code, "ArmBlock.mmt");
+
+	const std::string expected =
+		"module Main\n"
+		"\n"
+		"def f = fn(x: Int) -> Int => match x with\n"
+		"    case 0 => {\n"
+		"        def y = 1;\n"
+		"        y\n"
+		"    }\n"
+		"    case _ => 2;\n"
+		"\n"
+		"def g = 3;\n";
+
+	CHECK(formatted == expected);
+	RequireIdempotent(source_code, "ArmBlock.mmt");
 }

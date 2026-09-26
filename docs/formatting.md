@@ -52,7 +52,7 @@ with the line that owns the brace.
 |------------|----------------------------------------------------------------|
 | `def` (function) | `def name = fn(args) -> Type => { ... };`                  |
 | `def`      | `def name = expr;` or `def name = { ... };`                     |
-| `if`       | `if(cond) then { ... } else { ... };`                           |
+| `if`       | `if cond then { ... } else { ... };`                            |
 | `for`      | `for x in iter { ... };`                                        |
 | `match`    | `match value with case <pattern> => expr case _ => expr;`      |
 | `type` (record) | `type Name = { field: Type, ... };`                        |
@@ -121,7 +121,12 @@ long as they sit between the pattern and the arrow.
 - one space around `=`, `=>`, `->`, `::=`, and infix operators
 - no space inside `(`, `[`, or after `.`, `..`, `::`, `#`
 - no space before `,`, `;`, `)`, `]`, `.`, `..`, `::`
-- no space between a function name and its `(` argument list
+- no space between a function name and its `(` argument list; a `(` or `[`
+  that opens an operand after an infix operator, `def`, `if`, `case` or
+  `match` is spaced like any operand: `a / (b - c)`, `def (x, y) = pair`
+- no space around the angle brackets of type arguments: `Array<Text>`,
+  `fn<T>(value: T)`, `Map::Map<Text, Int>`
+- no space after a unary operator: `-x`, `!done`, `-(a - b)`
 - one space between `}` and a following `else` or other continuation keyword
 
 ### Blank lines
