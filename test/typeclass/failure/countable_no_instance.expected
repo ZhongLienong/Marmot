@@ -4,3 +4,4 @@ Type Checker Error at test/typeclass/failure/countable_no_instance.mmt:15
 15 | IO::PrintLine(#value as Text);
    |               ^ Type MapData does not satisfy constraint Countable<MapData> - no matching instance found
    |
+  | Define 'instance Countable<MapData>' to give it a length.

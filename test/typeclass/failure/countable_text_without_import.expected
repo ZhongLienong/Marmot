@@ -1,0 +1,7 @@
+Compilation failed :(
+Type Checker Error at test/typeclass/failure/countable_text_without_import.mmt:11
+   |
+11 | IO::PrintLine((#"marmot") as Text);
+   |                ^ Type Text does not satisfy constraint Countable<Text> - no matching instance found
+   |
+  | Import MarmotPrelude/Countable.mmt: it declares Countable and its instance for Text.

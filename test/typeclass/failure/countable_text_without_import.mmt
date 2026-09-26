@@ -1,0 +1,11 @@
+module CountableTextWithoutImport
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt"
+}
+
+// `#` on Text comes from the prelude's Countable instance, so the error says which
+// module to import.
+
+IO::PrintLine((#"marmot") as Text);

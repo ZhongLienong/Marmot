@@ -5446,7 +5446,12 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::UnaryPrefix& 
 					if (!has_countable_instance && !has_countable_constraint)
 					{
 						MidoriType::ClassConstraint constraint(std::string(COUNTABLE_CLASS_NAME), { resolved_type });
-						return std::unexpected(MakeConstraintFailureError(unary.m_op, constraint));
+						const std::string suggestion = m_classes.contains(std::string(COUNTABLE_CLASS_NAME))
+							? std::format("Define 'instance Countable<{}>' to give it a length.", resolved_type->DisplayString())
+							: resolved_type->IsType<MidoriType::TextType>()
+							? std::string("Import MarmotPrelude/Countable.mmt: it declares Countable and its instance for Text.")
+							: std::format("Import MarmotPrelude/Countable.mmt, which declares Countable, and define 'instance Countable<{}>'.", resolved_type->DisplayString());
+						return std::unexpected(MakeConstraintFailureError(unary.m_op, constraint, suggestion));
 					}
 
 					unary.m_uses_countable = has_countable_instance || has_countable_constraint;
