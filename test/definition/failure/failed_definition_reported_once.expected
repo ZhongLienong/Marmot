@@ -1,0 +1,11 @@
+Compilation failed :(
+Type Checker Error at test/definition/failure/failed_definition_reported_once.mmt:13
+   |
+13 | def (left, right) = Pair(1);
+   |                           ^ Call expression type error: incorrect arity: expected 0 argument(s), got 1
+   |
+Type Checker Error at test/definition/failure/failed_definition_reported_once.mmt:16
+   |
+16 | def broken = 4 + "four";
+   |                ^ Type mismatch between 'Int' and 'Text'
+   |

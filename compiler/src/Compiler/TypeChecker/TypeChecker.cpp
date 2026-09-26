@@ -3287,6 +3287,21 @@ void TypeChecker::CollectLaterDefinitions()
 	}
 }
 
+void TypeChecker::RecordFailedDefinition(const MidoriStatement& statement)
+{
+	if (statement.IsStatement<MidoriStatement::VariableDefinition>())
+	{
+		m_failed_definitions.insert(statement.GetStatement<MidoriStatement::VariableDefinition>().m_name.m_lexeme);
+	}
+	else if (statement.IsStatement<MidoriStatement::TupleDefinition>())
+	{
+		for (const Token& name : statement.GetStatement<MidoriStatement::TupleDefinition>().m_names)
+		{
+			m_failed_definitions.insert(name.m_lexeme);
+		}
+	}
+}
+
 MidoriResult::TypeCheckerResult TypeChecker::TypeCheck()
 {
 	CollectLaterDefinitions();
@@ -3331,7 +3346,17 @@ MidoriResult::TypeCheckerResult TypeChecker::TypeCheck()
 
 		for (std::unique_ptr<MidoriStatement>& statement : m_program_tree | std::views::filter(std::not_fn(is_declaration)))
 		{
-			collect(Evaluate(statement));
+			m_used_failed_definition = false;
+			MidoriResult::TypeResult result = Evaluate(statement);
+			if (!result.has_value())
+			{
+				RecordFailedDefinition(*statement);
+				if (m_used_failed_definition)
+				{
+					continue;
+				}
+			}
+			collect(std::move(result));
 		}
 
 		if (errors.empty())
@@ -6022,7 +6047,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 					MidoriType::FunctionType& function_type = resolved_method_type->GetType<MidoriType::FunctionType>();
 					if (function_type.m_param_types.size() != arg_results.size())
 					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, "Call expression type error: incorrect arity", call.m_paren, m_file_name, m_source_lines));
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, std::format("Call expression type error: incorrect arity: expected {} argument(s), got {}", function_type.m_param_types.size(), arg_results.size()), call.m_paren, m_file_name, m_source_lines));
 					}
 
 					std::vector<std::shared_ptr<MidoriType>>& param_types = function_type.m_param_types;
@@ -6242,7 +6267,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 					MidoriType::FunctionType& function_type = resolved_type->GetType<MidoriType::FunctionType>();
 					if (function_type.m_param_types.size() != call.m_arguments.size())
 					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, "Call expression type error: incorrect arity", call.m_paren, m_file_name, m_source_lines));
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, std::format("Call expression type error: incorrect arity: expected {} argument(s), got {}", function_type.m_param_types.size(), call.m_arguments.size()), call.m_paren, m_file_name, m_source_lines));
 					}
 
 					for (size_t idx : std::views::iota(0u, arg_results.size()))
@@ -6285,7 +6310,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 				MidoriType::FunctionType& function_type = resolved_type->GetType<MidoriType::FunctionType>();
 				if (function_type.m_param_types.size() != call.m_arguments.size())
 				{
-					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, "Call expression type error: incorrect arity", call.m_paren, m_file_name, m_source_lines));
+					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, std::format("Call expression type error: incorrect arity: expected {} argument(s), got {}", function_type.m_param_types.size(), call.m_arguments.size()), call.m_paren, m_file_name, m_source_lines));
 				}
 
 				for (size_t idx : std::views::iota(0u, call.m_arguments.size()))
@@ -6450,6 +6475,13 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::NameAccess& v
 	if (later != m_later_definitions.cend())
 	{
 		variable.m_type_data = Freshen(later->second);
+		return variable.m_type_data;
+	}
+
+	if (m_failed_definitions.contains(variable.m_name.m_lexeme))
+	{
+		m_used_failed_definition = true;
+		variable.m_type_data = FreshTypeVar();
 		return variable.m_type_data;
 	}
 
@@ -6699,7 +6731,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Construct& co
 
 	if (constructor_type.m_param_types.size() != construct.m_params.size())
 	{
-		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, "Construct expression type error: incorrect arity", construct.m_data_name, m_file_name, m_source_lines));
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, std::format("Construct expression type error: incorrect arity: expected {} argument(s), got {}", constructor_type.m_param_types.size(), construct.m_params.size()), construct.m_data_name, m_file_name, m_source_lines));
 	}
 
 	for (size_t idx : std::views::iota(0u, construct.m_params.size()))

@@ -2,5 +2,5 @@ Compilation failed :(
 Type Checker Error at test/pipe/failure/pipe_construct_arity.mmt:13
    |
 13 | def bad = 2 |> Point(1, 2, 3);
-   |                ^^^^^ Construct expression type error: incorrect arity
+   |                ^^^^^ Construct expression type error: incorrect arity: expected 2 argument(s), got 4
    |

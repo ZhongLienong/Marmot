@@ -101,6 +101,11 @@ private:
 	// without a complete signature is in m_later_unannotated instead.
 	TypeEnvironment m_later_definitions;
 	std::unordered_set<std::string> m_later_unannotated;
+	// Top-level definitions whose own check failed. A use of one takes an unknown
+	// type, and the errors of the statement that used it are dropped: they would
+	// be about that unknown type, and the error shown should be the real one.
+	std::unordered_set<std::string> m_failed_definitions;
+	bool m_used_failed_definition = false;
 	TypeSubstitution m_type_substitution;
 	std::unordered_map<std::string, ClassInfo> m_classes;
 	std::unordered_map<InstanceKey, InstanceInfo, InstanceKeyHash> m_instances;
@@ -141,6 +146,7 @@ public:
 
 
 	void CollectLaterDefinitions();
+	void RecordFailedDefinition(const MidoriStatement& statement);
 
 	// The module's own names with the types checking gave them, kept after a
 	// successful TypeCheck(). A name whose type only inference knows - an

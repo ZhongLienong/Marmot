@@ -1,0 +1,17 @@
+module FailedDefinitionReportedOnce
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt"
+}
+
+// A definition that fails to type-check is reported once. Its uses below took the
+// error "is defined further down" as well, which named the wrong problem and
+// pointed at lines that were fine.
+
+def Pair = fn() -> (Int, Int) => (1, 2);
+def (left, right) = Pair(1);
+IO::PrintLine((left + right) as Text);
+
+def broken = 4 + "four";
+IO::PrintLine(broken as Text);
