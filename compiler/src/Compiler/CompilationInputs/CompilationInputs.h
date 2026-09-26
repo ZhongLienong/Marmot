@@ -26,6 +26,7 @@ private:
 	std::vector<std::filesystem::path> m_search_paths;
 	std::unordered_map<std::string, NativeLibraryPolicy> m_native_library_policies;
 	CompilerBackend m_backend = CompilerBackend::Ast;
+	bool m_emit_midori_ir = false;
 
 public:
 	// Directories searched, in order, for `<Name>` imports. Directories that do
@@ -43,4 +44,9 @@ public:
 	CompilationInputs WithBackend(CompilerBackend backend) &&;
 
 	CompilerBackend Backend() const;
+
+	// Keep each module's MidoriIR as text in the compiled program.
+	CompilationInputs WithEmitMidoriIR(bool emit_midori_ir) &&;
+
+	bool EmitsMidoriIR() const;
 };

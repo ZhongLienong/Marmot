@@ -54,6 +54,11 @@ BytecodeModule CompiledModule::TakeBytecode() &&
 	return bytecode;
 }
 
+const std::string& CompiledModule::MidoriIR() const
+{
+	return m_midori_ir;
+}
+
 bool CompiledModule::SymbolTable::HasExport(std::string_view name) const
 {
 	return m_exports.contains(std::string(name));
@@ -120,5 +125,11 @@ CompiledModule CompiledModule::WithWarnings(std::vector<CompilerWarning> warning
 CompiledModule CompiledModule::WithBytecode(BytecodeModule bytecode) &&
 {
 	m_bytecode = std::move(bytecode);
+	return std::move(*this);
+}
+
+CompiledModule CompiledModule::WithMidoriIR(std::string midori_ir) &&
+{
+	m_midori_ir = std::move(midori_ir);
 	return std::move(*this);
 }

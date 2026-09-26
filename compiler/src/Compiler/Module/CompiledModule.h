@@ -74,6 +74,9 @@ struct CompiledModule
 
 	[[nodiscard]] BytecodeModule TakeBytecode() &&;
 
+	// The module's MidoriIR as text, when --emit-ir asked for it; empty otherwise.
+	[[nodiscard]] const std::string& MidoriIR() const;
+
 	[[nodiscard]] CompiledModule WithSymbols(SymbolTable symbols) &&;
 
 	[[nodiscard]] CompiledModule WithTypeSignatures(TypeEnvironment type_signatures) &&;
@@ -84,6 +87,8 @@ struct CompiledModule
 
 	[[nodiscard]] CompiledModule WithBytecode(BytecodeModule bytecode) &&;
 
+	[[nodiscard]] CompiledModule WithMidoriIR(std::string midori_ir) &&;
+
 private:
 	std::string m_module_name;
 	std::filesystem::path m_file_path;
@@ -92,4 +97,5 @@ private:
 	TypeclassMetadataMap m_typeclass_metadata;
 	std::vector<CompilerWarning> m_warnings;
 	std::optional<BytecodeModule> m_bytecode;        // Per-module bytecode for incremental compilation
+	std::string m_midori_ir;
 };

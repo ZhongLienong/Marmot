@@ -61,6 +61,9 @@ namespace
 		// check and build: set by the hidden --backend, for testing MidoriIR
 		// before it replaces the AST path.
 		CompilerBackend m_backend = CompilerBackend::Ast;
+		// check and build: the hidden --emit-ir, which prints each module's
+		// MidoriIR. It needs --backend ir, and text output.
+		bool m_emit_ir = false;
 	};
 
 	using ParseResult = std::expected<Invocation, std::string>;
@@ -350,6 +353,12 @@ namespace
 				continue;
 			}
 
+			if (arg == "--emit-ir")
+			{
+				invocation.m_emit_ir = true;
+				continue;
+			}
+
 			if (arg == "--backend")
 			{
 				std::string error;
@@ -448,6 +457,12 @@ namespace
 				}
 				index += 1u;
 				invocation.m_deps_path = std::filesystem::path(args[index]);
+				continue;
+			}
+
+			if (arg == "--emit-ir")
+			{
+				invocation.m_emit_ir = true;
 				continue;
 			}
 
@@ -667,6 +682,15 @@ namespace
 		{
 			invocation.m_format = global_format;
 		}
+
+		if (invocation.m_emit_ir && invocation.m_backend != CompilerBackend::MidoriIR)
+		{
+			return std::unexpected("--emit-ir needs --backend ir.");
+		}
+		if (invocation.m_emit_ir && invocation.m_format == OutputFormat::Json)
+		{
+			return std::unexpected("--emit-ir prints text, so it cannot be used with --format json.");
+		}
 		return invocation;
 	}
 
@@ -731,7 +755,15 @@ namespace
 	[[nodiscard]] MidoriDriver::CompileFileWithReportResult CompileInvocation(const Invocation& invocation)
 	{
 		CompilationInputs inputs = invocation.m_plan_inputs.value_or(MidoriDriver::EnvironmentCompilationInputs());
-		return MidoriDriver::CompileFileWithReport(invocation.m_source_file, std::move(inputs).WithBackend(invocation.m_backend));
+		return MidoriDriver::CompileFileWithReport(invocation.m_source_file, std::move(inputs).WithBackend(invocation.m_backend).WithEmitMidoriIR(invocation.m_emit_ir));
+	}
+
+	void PrintMidoriIR(const MidoriResult::CompiledProgram& compiled_program)
+	{
+		for (const std::string& module_ir : compiled_program.m_midori_ir)
+		{
+			std::print("{}\n", module_ir);
+		}
 	}
 
 	int HandleCheck(const Invocation& invocation)
@@ -758,6 +790,7 @@ namespace
 			return EXIT_FAILURE;
 		}
 
+		PrintMidoriIR(*compile_result);
 		const MidoriResult::CompilerReport& report = compile_result->Report();
 		if (invocation.m_format == OutputFormat::Json)
 		{
@@ -796,6 +829,7 @@ namespace
 		}
 
 		const MidoriResult::CompiledProgram& compiled_program = *compile_result;
+		PrintMidoriIR(compiled_program);
 		const MidoriExecutable& executable = compiled_program.m_executable;
 
 		std::filesystem::path artifact_path = invocation.m_output_path.value_or(invocation.m_source_file);

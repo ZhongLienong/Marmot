@@ -257,11 +257,12 @@ def scenario_help_lists_new_commands(runner: TestRunner) -> None:
         assert_condition(flag in per_command.stdout, f"Expected {flag} in the build help:\n{per_command.stdout}")
 
 
-def scenario_backend_option_is_hidden(runner: TestRunner) -> None:
-    # --backend selects MidoriIR while it is being built; it stays out of the help.
+def scenario_backend_options_are_hidden(runner: TestRunner) -> None:
+    # --backend and --emit-ir are for building MidoriIR; they stay out of the help.
     for command in ("check", "build"):
         help_output = run_midori(runner, ["help", command], env_overrides={"MARMOT_PATH": None})
-        assert_condition("--backend" not in help_output.stdout, f"help {command} should not list --backend:\n{help_output.stdout}")
+        for flag in ("--backend", "--emit-ir"):
+            assert_condition(flag not in help_output.stdout, f"help {command} should not list {flag}:\n{help_output.stdout}")
 
     with tempfile.TemporaryDirectory(prefix="marmot-cli-backend-") as temp_dir_raw:
         temp_dir = Path(temp_dir_raw)
@@ -272,7 +273,7 @@ def scenario_backend_option_is_hidden(runner: TestRunner) -> None:
         assert_condition(ast.returncode == 0, f"check --backend ast should succeed:\n{ast.stdout}{ast.stderr}")
 
         ir = run_midori(runner, ["check", str(source_path), "--backend", "ir", "--format", "json"], env_overrides={"MARMOT_PATH": None})
-        errors = require_report(parse_command_json("backend_option_is_hidden", ir), "backend_option_is_hidden")["errors"]
+        errors = require_report(parse_command_json("backend_options_are_hidden", ir), "backend_options_are_hidden")["errors"]
         assert_condition(ir.returncode != 0, "check --backend ir should fail until MidoriIR lowers modules.")
         assert_condition(
             len(errors) == 1 and errors[0]["code"] == "CodeGeneratorUnsupportedLowering",
@@ -282,6 +283,15 @@ def scenario_backend_option_is_hidden(runner: TestRunner) -> None:
         unknown = run_midori(runner, ["build", str(source_path), "--backend", "llvm"], env_overrides={"MARMOT_PATH": None})
         unknown_output = unknown.stdout + unknown.stderr
         assert_condition(unknown.returncode != 0 and "Unknown backend: llvm" in unknown_output, f"build --backend llvm should be rejected:\n{unknown_output}")
+
+        # The AST path has no MidoriIR to print, and the IR is text, not JSON.
+        for args, message in (
+            (["check", str(source_path), "--emit-ir"], "--emit-ir needs --backend ir."),
+            (["check", str(source_path), "--emit-ir", "--backend", "ir", "--format", "json"], "--emit-ir prints text"),
+        ):
+            rejected = run_midori(runner, args, env_overrides={"MARMOT_PATH": None})
+            rejected_output = rejected.stdout + rejected.stderr
+            assert_condition(rejected.returncode != 0 and message in rejected_output, f"{' '.join(args[2:])} should be rejected with '{message}':\n{rejected_output}")
 
 
 def scenario_marmotvm_runs_what_marmotc_built(runner: TestRunner) -> None:
@@ -544,7 +554,7 @@ SCENARIOS: list[tuple[str, Any]] = [
     ("check_reads_only_regular_files", scenario_check_reads_only_regular_files),
     ("version_output_format", scenario_version_output_format),
     ("help_lists_new_commands", scenario_help_lists_new_commands),
-    ("backend_option_is_hidden", scenario_backend_option_is_hidden),
+    ("backend_options_are_hidden", scenario_backend_options_are_hidden),
     ("marmotvm_runs_what_marmotc_built", scenario_marmotvm_runs_what_marmotc_built),
     ("marmotvm_command_line", scenario_marmotvm_command_line),
     ("build_command_compiles_without_running", scenario_build_command_compiles_without_running),

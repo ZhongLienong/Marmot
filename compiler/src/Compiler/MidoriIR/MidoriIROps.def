@@ -1,0 +1,176 @@
+// Every MidoriIR instruction. Include this after defining the macros you need;
+// any left undefined expands to nothing.
+//
+// MIDORI_IR_UNARY(name, operand, result, effect, fault)
+// MIDORI_IR_BINARY(name, operand, result, effect, fault)
+//     A fixed signature over scalar types, checked by the verifier from here.
+// MIDORI_IR_SPECIAL(name, effect, fault)
+//     A signature that depends on the operands' types, checked by hand.
+// MIDORI_IR_TERMINATOR(name)
+//     Ends a block. Defines no value.
+//
+// `effect` and `fault` are what the builder gives the instruction; a pass may
+// weaken them once it proves more, as DCE does for a non-zero constant divisor.
+
+#ifndef MIDORI_IR_UNARY
+#define MIDORI_IR_UNARY(name, operand, result, effect, fault)
+#endif
+#ifndef MIDORI_IR_BINARY
+#define MIDORI_IR_BINARY(name, operand, result, effect, fault)
+#endif
+#ifndef MIDORI_IR_SPECIAL
+#define MIDORI_IR_SPECIAL(name, effect, fault)
+#endif
+#ifndef MIDORI_IR_TERMINATOR
+#define MIDORI_IR_TERMINATOR(name)
+#endif
+
+MIDORI_IR_SPECIAL(Const, Pure, None)
+
+MIDORI_IR_BINARY(AddInt, Int, Int, Pure, None)
+MIDORI_IR_BINARY(SubInt, Int, Int, Pure, None)
+MIDORI_IR_BINARY(MulInt, Int, Int, Pure, None)
+MIDORI_IR_BINARY(DivInt, Int, Int, Fault, DivisionByZero)
+MIDORI_IR_BINARY(ModInt, Int, Int, Fault, DivisionByZero)
+MIDORI_IR_UNARY(NegInt, Int, Int, Pure, None)
+MIDORI_IR_BINARY(AddFloat, Float, Float, Pure, None)
+MIDORI_IR_BINARY(SubFloat, Float, Float, Pure, None)
+MIDORI_IR_BINARY(MulFloat, Float, Float, Pure, None)
+MIDORI_IR_BINARY(DivFloat, Float, Float, Pure, None)
+MIDORI_IR_BINARY(ModFloat, Float, Float, Pure, None)
+MIDORI_IR_UNARY(NegFloat, Float, Float, Pure, None)
+MIDORI_IR_BINARY(AddByte, Byte, Byte, Pure, None)
+MIDORI_IR_BINARY(SubByte, Byte, Byte, Pure, None)
+MIDORI_IR_BINARY(MulByte, Byte, Byte, Pure, None)
+MIDORI_IR_BINARY(DivByte, Byte, Byte, Fault, DivisionByZero)
+MIDORI_IR_BINARY(ModByte, Byte, Byte, Fault, DivisionByZero)
+MIDORI_IR_BINARY(AddWord, Word, Word, Pure, None)
+MIDORI_IR_BINARY(SubWord, Word, Word, Pure, None)
+MIDORI_IR_BINARY(MulWord, Word, Word, Pure, None)
+MIDORI_IR_BINARY(DivWord, Word, Word, Fault, DivisionByZero)
+MIDORI_IR_BINARY(ModWord, Word, Word, Fault, DivisionByZero)
+
+MIDORI_IR_BINARY(BitAndInt, Int, Int, Pure, None)
+MIDORI_IR_BINARY(BitOrInt, Int, Int, Pure, None)
+MIDORI_IR_BINARY(BitXorInt, Int, Int, Pure, None)
+MIDORI_IR_UNARY(BitNotInt, Int, Int, Pure, None)
+MIDORI_IR_BINARY(ShlInt, Int, Int, Pure, None)
+MIDORI_IR_BINARY(ShrInt, Int, Int, Pure, None)
+MIDORI_IR_BINARY(BitAndByte, Byte, Byte, Pure, None)
+MIDORI_IR_BINARY(BitOrByte, Byte, Byte, Pure, None)
+MIDORI_IR_BINARY(BitXorByte, Byte, Byte, Pure, None)
+MIDORI_IR_UNARY(BitNotByte, Byte, Byte, Pure, None)
+MIDORI_IR_BINARY(ShlByte, Byte, Byte, Pure, None)
+MIDORI_IR_BINARY(ShrByte, Byte, Byte, Pure, None)
+MIDORI_IR_BINARY(BitAndWord, Word, Word, Pure, None)
+MIDORI_IR_BINARY(BitOrWord, Word, Word, Pure, None)
+MIDORI_IR_BINARY(BitXorWord, Word, Word, Pure, None)
+MIDORI_IR_UNARY(BitNotWord, Word, Word, Pure, None)
+MIDORI_IR_BINARY(ShlWord, Word, Word, Pure, None)
+MIDORI_IR_BINARY(ShrWord, Word, Word, Pure, None)
+
+MIDORI_IR_BINARY(EqInt, Int, Bool, Pure, None)
+MIDORI_IR_BINARY(NeInt, Int, Bool, Pure, None)
+MIDORI_IR_BINARY(LtInt, Int, Bool, Pure, None)
+MIDORI_IR_BINARY(LeInt, Int, Bool, Pure, None)
+MIDORI_IR_BINARY(GtInt, Int, Bool, Pure, None)
+MIDORI_IR_BINARY(GeInt, Int, Bool, Pure, None)
+MIDORI_IR_BINARY(EqFloat, Float, Bool, Pure, None)
+MIDORI_IR_BINARY(NeFloat, Float, Bool, Pure, None)
+MIDORI_IR_BINARY(LtFloat, Float, Bool, Pure, None)
+MIDORI_IR_BINARY(LeFloat, Float, Bool, Pure, None)
+MIDORI_IR_BINARY(GtFloat, Float, Bool, Pure, None)
+MIDORI_IR_BINARY(GeFloat, Float, Bool, Pure, None)
+MIDORI_IR_BINARY(EqByte, Byte, Bool, Pure, None)
+MIDORI_IR_BINARY(NeByte, Byte, Bool, Pure, None)
+MIDORI_IR_BINARY(LtByte, Byte, Bool, Pure, None)
+MIDORI_IR_BINARY(LeByte, Byte, Bool, Pure, None)
+MIDORI_IR_BINARY(GtByte, Byte, Bool, Pure, None)
+MIDORI_IR_BINARY(GeByte, Byte, Bool, Pure, None)
+MIDORI_IR_BINARY(EqWord, Word, Bool, Pure, None)
+MIDORI_IR_BINARY(NeWord, Word, Bool, Pure, None)
+MIDORI_IR_BINARY(LtWord, Word, Bool, Pure, None)
+MIDORI_IR_BINARY(LeWord, Word, Bool, Pure, None)
+MIDORI_IR_BINARY(GtWord, Word, Bool, Pure, None)
+MIDORI_IR_BINARY(GeWord, Word, Bool, Pure, None)
+MIDORI_IR_BINARY(EqBool, Bool, Bool, Pure, None)
+MIDORI_IR_BINARY(NeBool, Bool, Bool, Pure, None)
+MIDORI_IR_UNARY(NotBool, Bool, Bool, Pure, None)
+MIDORI_IR_BINARY(EqText, Text, Bool, Pure, None)
+MIDORI_IR_BINARY(NeText, Text, Bool, Pure, None)
+
+MIDORI_IR_UNARY(IntToFloat, Int, Float, Pure, None)
+MIDORI_IR_UNARY(FloatToInt, Float, Int, Pure, None)
+MIDORI_IR_UNARY(IntToText, Int, Text, Alloc, None)
+MIDORI_IR_UNARY(FloatToText, Float, Text, Alloc, None)
+MIDORI_IR_UNARY(WordToText, Word, Text, Alloc, None)
+MIDORI_IR_UNARY(TextToInt, Text, Int, Fault, Conversion)
+MIDORI_IR_UNARY(TextToFloat, Text, Float, Fault, Conversion)
+MIDORI_IR_UNARY(ByteToInt, Byte, Int, Pure, None)
+MIDORI_IR_UNARY(IntToByte, Int, Byte, Pure, None)
+MIDORI_IR_UNARY(ByteToWord, Byte, Word, Pure, None)
+MIDORI_IR_UNARY(WordToByte, Word, Byte, Pure, None)
+MIDORI_IR_UNARY(WordToInt, Word, Int, Pure, None)
+MIDORI_IR_UNARY(IntToWord, Int, Word, Pure, None)
+MIDORI_IR_UNARY(ByteToFloat, Byte, Float, Pure, None)
+MIDORI_IR_UNARY(FloatToByte, Float, Byte, Pure, None)
+MIDORI_IR_UNARY(WordToFloat, Word, Float, Pure, None)
+MIDORI_IR_UNARY(FloatToWord, Float, Word, Pure, None)
+
+MIDORI_IR_SPECIAL(MakeTuple, Alloc, None)
+MIDORI_IR_SPECIAL(TupleGet, Pure, None)
+MIDORI_IR_SPECIAL(MakeArray, Alloc, None)
+MIDORI_IR_SPECIAL(ArrayGet, Fault, Index)
+MIDORI_IR_SPECIAL(ArrayLength, Pure, None)
+MIDORI_IR_SPECIAL(Construct, Alloc, None)
+MIDORI_IR_SPECIAL(GetMember, Pure, None)
+MIDORI_IR_SPECIAL(RecordUpdate, Alloc, None)
+MIDORI_IR_SPECIAL(MakeRange, Alloc, None)
+MIDORI_IR_SPECIAL(RangeStart, Pure, None)
+MIDORI_IR_SPECIAL(RangeEnd, Pure, None)
+MIDORI_IR_SPECIAL(RangeStep, Pure, None)
+
+MIDORI_IR_SPECIAL(MakeUnion, Alloc, None)
+MIDORI_IR_SPECIAL(GetTag, Pure, None)
+MIDORI_IR_SPECIAL(UnionField, Pure, None)
+
+MIDORI_IR_SPECIAL(Concat, Alloc, None)
+MIDORI_IR_SPECIAL(Extend, Alloc, None)
+
+MIDORI_IR_SPECIAL(Call, Call, None)
+MIDORI_IR_SPECIAL(CallGlobal, Call, None)
+MIDORI_IR_SPECIAL(CallForeign, Io, None)
+MIDORI_IR_SPECIAL(CallValue, Call, None)
+
+MIDORI_IR_SPECIAL(MakeClosure, Alloc, None)
+MIDORI_IR_SPECIAL(BindCaptures, Io, None)
+MIDORI_IR_SPECIAL(GetCapture, Pure, None)
+
+MIDORI_IR_SPECIAL(CellNew, Alloc, None)
+MIDORI_IR_SPECIAL(CellRead, Read, None)
+MIDORI_IR_SPECIAL(CellWrite, Io, None)
+
+MIDORI_IR_SPECIAL(GlobalDefine, Io, None)
+MIDORI_IR_SPECIAL(GlobalGet, Read, None)
+MIDORI_IR_SPECIAL(GlobalSet, Io, None)
+
+MIDORI_IR_SPECIAL(Spawn, Io, None)
+MIDORI_IR_SPECIAL(Join, Io, None)
+MIDORI_IR_SPECIAL(WorkerCancel, Io, None)
+MIDORI_IR_SPECIAL(WorkerIsDone, Io, None)
+MIDORI_IR_SPECIAL(ChannelNew, Io, None)
+MIDORI_IR_SPECIAL(Send, Io, None)
+MIDORI_IR_SPECIAL(Receive, Io, None)
+MIDORI_IR_SPECIAL(ChannelClose, Io, None)
+
+MIDORI_IR_TERMINATOR(Jump)
+MIDORI_IR_TERMINATOR(Branch)
+MIDORI_IR_TERMINATOR(Switch)
+MIDORI_IR_TERMINATOR(Return)
+MIDORI_IR_TERMINATOR(TailCall)
+MIDORI_IR_TERMINATOR(Halt)
+
+#undef MIDORI_IR_UNARY
+#undef MIDORI_IR_BINARY
+#undef MIDORI_IR_SPECIAL
+#undef MIDORI_IR_TERMINATOR

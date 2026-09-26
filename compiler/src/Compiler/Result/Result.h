@@ -479,6 +479,8 @@ namespace MidoriResult
 		// Every file the program was compiled from, sorted: the entry and every
 		// module it reached. What a build depends on.
 		std::vector<std::string> m_source_files;
+		// Each module's MidoriIR as text, in link order, when --emit-ir asked.
+		std::vector<std::string> m_midori_ir;
 
 		CompiledProgram(MidoriExecutable executable, CompilerReport report = {}, std::vector<std::string> source_files = {})
 			: m_executable(std::move(executable)),

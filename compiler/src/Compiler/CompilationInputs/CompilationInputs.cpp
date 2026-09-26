@@ -51,3 +51,14 @@ CompilerBackend CompilationInputs::Backend() const
 {
 	return m_backend;
 }
+
+CompilationInputs CompilationInputs::WithEmitMidoriIR(bool emit_midori_ir) &&
+{
+	m_emit_midori_ir = emit_midori_ir;
+	return std::move(*this);
+}
+
+bool CompilationInputs::EmitsMidoriIR() const
+{
+	return m_emit_midori_ir;
+}

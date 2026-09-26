@@ -743,6 +743,7 @@ See the [docs](docs/) folder for detailed technical documentation:
 - [Grammar](docs/grammar.md) - the language's syntax, fixed at v1
 - [Prelude](docs/prelude.md) - Standard-library module map and typed wrapper examples
 - [Compilation Workflow](docs/compilation-workflow.md) - Complete pipeline from lexing to linking
+- [MidoriIR](docs/midori-ir.md) - The typed SSA IR replacing the AST optimizer and code generator: structure, instructions, effects, verifier rules
 - [Feature Matrix](docs/feature-matrix.md) - Current feature status, stability levels, and primary automated coverage
 - [Versioning Policy](docs/versioning-policy.md) - Compatibility rules for releases, deprecation, and breaking changes
 - [Error Reporting](docs/error-reporting.md) - Structured diagnostics, warning/error codes, and machine-readable output

@@ -78,6 +78,7 @@ namespace
 		const std::vector<std::vector<std::string>>& m_tiers;
 		size_t m_total_modules;
 		CompilerBackend m_backend;
+		bool m_emit_midori_ir;
 	};
 
 	struct CompileState;
@@ -106,6 +107,7 @@ namespace
 		MidoriProgramTree m_ast;
 		ModuleExportInfo m_export_info;
 		BytecodeModule m_bytecode;
+		std::string m_midori_ir;
 #if MIDORI_ENABLE_OPTIMIZER_STATS
 		OptimizerLog m_optimizer_log;
 #endif
@@ -124,6 +126,7 @@ namespace
 	struct BuildGraphArtifacts
 	{
 		std::vector<BytecodeModule> m_bytecode_modules;
+		std::vector<std::string> m_midori_ir;
 		MidoriResult::CompilerWarnings m_warnings;
 	};
 
@@ -953,7 +956,8 @@ namespace
 			.WithTypeSignatures(std::move(state.m_parsed_module.m_type_signatures))
 			.WithTypeclassMetadata(std::move(state.m_parsed_module.m_typeclass_metadata))
 			.WithWarnings(std::move(state.m_warnings).TakeAll())
-			.WithBytecode(std::move(state.m_bytecode));
+			.WithBytecode(std::move(state.m_bytecode))
+			.WithMidoriIR(std::move(state.m_midori_ir));
 
 		ReportCompiled
 		(
@@ -1468,9 +1472,9 @@ namespace
 		return duration;
 	}
 
-	static CompileEnv MakeCompileEnv(BuildGraph& build_graph, std::unordered_map<std::string, CompiledModule>& compiled_modules, std::mutex& modules_mutex, std::mutex& print_mutex, std::atomic<size_t>& completed_modules, const CompilationSchedule& schedule, size_t total_modules, CompilerBackend backend)
+	static CompileEnv MakeCompileEnv(BuildGraph& build_graph, std::unordered_map<std::string, CompiledModule>& compiled_modules, std::mutex& modules_mutex, std::mutex& print_mutex, std::atomic<size_t>& completed_modules, const CompilationSchedule& schedule, size_t total_modules, const CompilationInputs& inputs)
 	{
-		return CompileEnv{ build_graph, compiled_modules, modules_mutex, print_mutex, completed_modules, schedule.m_tiers, total_modules, backend };
+		return CompileEnv{ build_graph, compiled_modules, modules_mutex, print_mutex, completed_modules, schedule.m_tiers, total_modules, inputs.Backend(), inputs.EmitsMidoriIR() };
 	}
 
 	static MidoriResult::ReportResult<BuildGraphArtifacts> CollectBytecodeModules(const CompilationSchedule& schedule, std::unordered_map<std::string, CompiledModule>& compiled_modules)
@@ -1491,6 +1495,10 @@ namespace
 				}
 
 				artifacts.m_warnings.Append(it->second.Warnings());
+				if (!it->second.MidoriIR().empty())
+				{
+					artifacts.m_midori_ir.push_back(it->second.MidoriIR());
+				}
 				artifacts.m_bytecode_modules.emplace_back(std::move(it->second).TakeBytecode());
 			}
 		}
@@ -1498,7 +1506,7 @@ namespace
 		return artifacts;
 	}
 
-	static MidoriResult::ReportResult<BuildGraphArtifacts> CompileBuildGraph(BuildGraph&& build_graph, CompilerBackend backend)
+	static MidoriResult::ReportResult<BuildGraphArtifacts> CompileBuildGraph(BuildGraph&& build_graph, const CompilationInputs& inputs)
 	{
 		std::chrono::high_resolution_clock::time_point compile_start = std::chrono::high_resolution_clock::now();
 		CompilationSchedule schedule = BuildCompilationSchedule(build_graph);
@@ -1515,7 +1523,7 @@ namespace
 			ReportCompilationStart(print_mutex, schedule, total_modules);
 		}
 
-		CompileEnv env = MakeCompileEnv(build_graph, compiled_modules, modules_mutex, print_mutex, completed_modules, schedule, total_modules, backend);
+		CompileEnv env = MakeCompileEnv(build_graph, compiled_modules, modules_mutex, print_mutex, completed_modules, schedule, total_modules, inputs);
 		ModuleCompiler module_compiler;
 		MidoriResult::ReportResult<size_t> compile_result = CompileModulesReadyQueue(env, module_compiler, schedule);
 		if (!compile_result.has_value())
@@ -1750,16 +1758,18 @@ MidoriResult::CompilationResult Compiler::CompileWithReport()
 	}
 	std::ranges::sort(source_files);
 
-	MidoriResult::ReportResult<BuildGraphArtifacts> bytecode_result = CompileBuildGraph(std::move(build_graph), m_inputs.Backend());
+	MidoriResult::ReportResult<BuildGraphArtifacts> bytecode_result = CompileBuildGraph(std::move(build_graph), m_inputs);
 	if (!bytecode_result.has_value())
 	{
 		return std::unexpected(std::move(bytecode_result.error()));
 	}
 
+	std::vector<std::string> midori_ir = std::move(bytecode_result->m_midori_ir);
 	MidoriResult::CompilationResult linked = LinkBytecodeModules(std::move(bytecode_result).value(), entry_module_name);
 	if (linked.has_value())
 	{
 		linked->m_source_files = std::move(source_files);
+		linked->m_midori_ir = std::move(midori_ir);
 	}
 	if (linked.has_value() && !m_inputs.NativeLibraryPolicies().empty())
 	{
