@@ -4,16 +4,16 @@ class Orderable < T > {
     Compare: fn(a: T, b: T) -> Int;
 };
 instance Orderable < Int > {
-    def Compare = fn(a: Int, b: Int) -> Int => if a < b then- 1 else if a > b then 1 else 0;
+    def Compare = fn(a: Int, b: Int) -> Int => if a < b then -1 else if a > b then 1 else 0;
 };
 instance Orderable < Float > {
-    def Compare = fn(a: Float, b: Float) -> Int => if a < b then- 1 else if a > b then 1 else 0;
+    def Compare = fn(a: Float, b: Float) -> Int => if a < b then -1 else if a > b then 1 else 0;
 };
 instance Orderable < Byte > {
-    def Compare = fn(a: Byte, b: Byte) -> Int => if a < b then- 1 else if a > b then 1 else 0;
+    def Compare = fn(a: Byte, b: Byte) -> Int => if a < b then -1 else if a > b then 1 else 0;
 };
 instance Orderable < Word > {
-    def Compare = fn(a: Word, b: Word) -> Int => if a < b then- 1 else if a > b then 1 else 0;
+    def Compare = fn(a: Word, b: Word) -> Int => if a < b then -1 else if a > b then 1 else 0;
 };
 foreign "MIDORI_FFI_TextCompare" TextCompare: fn(Text, Text) -> Int;
 instance Orderable < Text > {
