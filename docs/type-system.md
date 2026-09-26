@@ -341,7 +341,7 @@ Associated types let a class determine a related type from its instance head:
 class Iterable<Iter>
 {
     type Item;
-    Next: fn(iter: Iter) -> Option<Item>;
+    Next: fn(iter: Iter) -> Option<(Item, Iter)>;
 };
 ```
 
@@ -358,22 +358,17 @@ instance Iterable<Counter>
 {
     type Item = Int;
 
-    def Next = fn(counter: Counter) -> Option<Int> => {
+    def Next = fn(counter: Counter) -> Option<(Int, Counter)> =>
         if counter.current >= counter.end
         then Option::None()
-        else {
-            def value = counter.current;
-            counter.current = counter.current + 1;
-            Option::Some(value)
-        }
-    };
+        else Option::Some((counter.current, { counter with current = counter.current + 1 }));
 };
 ```
 
 Use projection syntax to refer to an associated type in other signatures:
 
 ```marmot
-def NextValue = fn<Iter>(iter: Iter) -> Option<Iterable::Item<Iter>>
+def NextValue = fn<Iter>(iter: Iter) -> Option<(Iterable::Item<Iter>, Iter)>
     where Iterable<Iter> => Iterable::Next(iter);
 ```
 
