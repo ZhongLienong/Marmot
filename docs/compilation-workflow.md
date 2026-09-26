@@ -191,13 +191,14 @@ Optimization is AST-based and iterative.
 Current pass order:
 
 1. `ConstantFolding`
-2. `StrengthReduction`
-3. `ConstantBranchElimination`
-4. `LocalConstantPropagation`
-5. `DeadCodeElimination`
-6. `CanonicalizationCleanup`
-7. `ClosureLifting`
-8. `TailCallOptimization`
+2. `FunctionInlining`
+3. `StrengthReduction`
+4. `ConstantBranchElimination`
+5. `LocalConstantPropagation`
+6. `DeadCodeElimination`
+7. `CanonicalizationCleanup`
+8. `ClosureLifting`
+9. `TailCallOptimization`
 
 The optimizer does not run just once. It reruns the pass list until either:
 

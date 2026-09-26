@@ -12,6 +12,7 @@
 #include <print>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "Common/BuildConfig/BuildConfig.h"
@@ -57,6 +58,9 @@ namespace
 		std::optional<std::filesystem::path> m_output_path = std::nullopt;
 		std::optional<std::filesystem::path> m_deps_path = std::nullopt;
 		bool m_quiet = false;
+		// check and build: set by the hidden --backend, for testing MidoriIR
+		// before it replaces the AST path.
+		CompilerBackend m_backend = CompilerBackend::Ast;
 	};
 
 	using ParseResult = std::expected<Invocation, std::string>;
@@ -235,6 +239,33 @@ namespace
 		return true;
 	}
 
+	[[nodiscard]] bool ParseBackendValue(const std::vector<std::string_view>& args, size_t& index, CompilerBackend& backend, std::string& error)
+	{
+		if (index + 1u >= args.size())
+		{
+			error = "Missing value for --backend.";
+			return false;
+		}
+
+		const std::string_view backend_value = args[index + 1u];
+		if (backend_value == "ast")
+		{
+			backend = CompilerBackend::Ast;
+		}
+		else if (backend_value == "ir")
+		{
+			backend = CompilerBackend::MidoriIR;
+		}
+		else
+		{
+			error = std::format("Unknown backend: {}", backend_value);
+			return false;
+		}
+
+		index += 1u;
+		return true;
+	}
+
 	// Reads the value of --plan at args[index + 1].
 	[[nodiscard]] bool ParsePlanValue(const std::vector<std::string_view>& args, size_t& index, std::optional<std::filesystem::path>& plan_file, std::string& error)
 	{
@@ -313,6 +344,16 @@ namespace
 			{
 				std::string error;
 				if (!ParsePlanValue(args, index, plan_file, error))
+				{
+					return std::unexpected(error);
+				}
+				continue;
+			}
+
+			if (arg == "--backend")
+			{
+				std::string error;
+				if (!ParseBackendValue(args, index, invocation.m_backend, error))
 				{
 					return std::unexpected(error);
 				}
@@ -407,6 +448,16 @@ namespace
 				}
 				index += 1u;
 				invocation.m_deps_path = std::filesystem::path(args[index]);
+				continue;
+			}
+
+			if (arg == "--backend")
+			{
+				std::string error;
+				if (!ParseBackendValue(args, index, invocation.m_backend, error))
+				{
+					return std::unexpected(error);
+				}
 				continue;
 			}
 
@@ -679,12 +730,8 @@ namespace
 	// inputs the CLI discovers when there is no plan.
 	[[nodiscard]] MidoriDriver::CompileFileWithReportResult CompileInvocation(const Invocation& invocation)
 	{
-		if (invocation.m_plan_inputs.has_value())
-		{
-			return MidoriDriver::CompileFileWithReport(invocation.m_source_file, invocation.m_plan_inputs.value());
-		}
-
-		return MidoriDriver::CompileFileWithReport(invocation.m_source_file);
+		CompilationInputs inputs = invocation.m_plan_inputs.value_or(MidoriDriver::EnvironmentCompilationInputs());
+		return MidoriDriver::CompileFileWithReport(invocation.m_source_file, std::move(inputs).WithBackend(invocation.m_backend));
 	}
 
 	int HandleCheck(const Invocation& invocation)

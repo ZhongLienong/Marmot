@@ -21,6 +21,7 @@ enum class CompilerStage
 	Parser,
 	TypeChecker,
 	StaticAnalyzer,
+	Lowering,
 	CodeGenerator,
 	Module,
 	Optimizer,

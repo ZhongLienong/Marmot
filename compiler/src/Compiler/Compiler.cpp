@@ -22,9 +22,11 @@
 #include <deque>
 #include <filesystem>
 #include <mutex>
+#include <span>
 #include <sstream>
 #include <exception>
 #include <thread>
+#include <utility>
 
 using namespace std::string_literals;
 
@@ -75,6 +77,7 @@ namespace
 		std::atomic<size_t>& m_completed_modules;
 		const std::vector<std::vector<std::string>>& m_tiers;
 		size_t m_total_modules;
+		CompilerBackend m_backend;
 	};
 
 	struct CompileState;
@@ -114,6 +117,7 @@ namespace
 		CompileStateResult WithStaticAnalysis() &&;
 		CompileStateResult WithOptimizedAst() &&;
 		CompileStateResult WithBytecode() &&;
+		CompileStateResult WithMidoriIR() &&;
 		MidoriResult::CompiledModuleReportResult Finalize() &&;
 	};
 
@@ -806,6 +810,13 @@ namespace
 		return ApplyBytecode(std::move(state), std::move(bytecode_result).value());
 	}
 
+	CompileStateResult CompileState::WithMidoriIR() &&
+	{
+		CompileState state = std::move(*this);
+		CompilerError error = CompilerError::WithFile(CompilerStage::CodeGenerator, "The MidoriIR backend cannot lower this module yet.\n", state.m_file_path, CompilerErrorCode::CodeGeneratorUnsupportedLowering);
+		return std::unexpected(MakeStateErrorReport(std::move(state), MidoriResult::CompilerDiagnostics(std::move(error))));
+	}
+
 	MidoriResult::CompiledModuleReportResult CompileState::Finalize() &&
 	{
 		return ValidateExports(std::move(*this))
@@ -1007,6 +1018,11 @@ namespace
 		return std::move(state).WithBytecode();
 	}
 
+	static CompileStateResult StageMidoriIR(CompileState state)
+	{
+		return std::move(state).WithMidoriIR();
+	}
+
 	class ModuleCompiler
 	{
 	public:
@@ -1035,31 +1051,49 @@ namespace
 			return message;
 		}
 
+		struct NamedStage
+		{
+			Stage m_stage;
+			std::string_view m_name;
+		};
+
+		static std::span<const NamedStage> Pipeline(CompilerBackend backend)
+		{
+			static const std::array<NamedStage, 7u> s_ast_pipeline =
+			{
+				NamedStage{ StageImportContext, "import context" },
+				NamedStage{ StageSourceLines, "source lines" },
+				NamedStage{ StageParsedModule, "parser" },
+				NamedStage{ StageTypeCheckedAst, "type checker" },
+				NamedStage{ StageStaticAnalysis, "static analyzer" },
+				NamedStage{ StageOptimizedAst, "optimizer" },
+				NamedStage{ StageBytecode, "code generator" }
+			};
+
+			static const std::array<NamedStage, 6u> s_midori_ir_pipeline =
+			{
+				NamedStage{ StageImportContext, "import context" },
+				NamedStage{ StageSourceLines, "source lines" },
+				NamedStage{ StageParsedModule, "parser" },
+				NamedStage{ StageTypeCheckedAst, "type checker" },
+				NamedStage{ StageStaticAnalysis, "static analyzer" },
+				NamedStage{ StageMidoriIR, "lowering" }
+			};
+
+			switch (backend)
+			{
+			case CompilerBackend::Ast:
+				return s_ast_pipeline;
+			case CompilerBackend::MidoriIR:
+				return s_midori_ir_pipeline;
+			}
+			std::unreachable();
+		}
+
 		static CompileStateResult RunStages(CompileState state)
 		{
-			static const std::array<Stage, 7u> stages =
-			{
-				StageImportContext,
-				StageSourceLines,
-				StageParsedModule,
-				StageTypeCheckedAst,
-				StageStaticAnalysis,
-				StageOptimizedAst,
-				StageBytecode
-			};
-
-			static const std::array<std::string_view, 7u> stage_names =
-			{
-				"import context",
-				"source lines",
-				"parser",
-				"type checker",
-				"static analyzer",
-				"optimizer",
-				"code generator"
-			};
-
-			for (size_t stage_index = 0u; stage_index < stages.size(); stage_index += 1u)
+			const std::span<const NamedStage> stages = Pipeline(state.m_env->m_backend);
+			for (const NamedStage& stage : stages)
 			{
 				// An exception escaping a stage reaches a worker thread with no
 				// handler, so it must be turned into a diagnostic here while the
@@ -1068,15 +1102,15 @@ namespace
 				{
 					try
 					{
-						return stages[stage_index](std::move(state));
+						return stage.m_stage(std::move(state));
 					}
 					catch (const std::exception& e)
 					{
-						return std::unexpected(MidoriResult::CompilerReport(CompilerError::Simple(CompilerStage::Compiler, MakeStageFailureMessage(stage_names[stage_index], e.what()), CompilerErrorCode::CompilerInternalError)));
+						return std::unexpected(MidoriResult::CompilerReport(CompilerError::Simple(CompilerStage::Compiler, MakeStageFailureMessage(stage.m_name, e.what()), CompilerErrorCode::CompilerInternalError)));
 					}
 					catch (...)
 					{
-						return std::unexpected(MidoriResult::CompilerReport(CompilerError::Simple(CompilerStage::Compiler, MakeStageFailureMessage(stage_names[stage_index], "unknown exception"), CompilerErrorCode::CompilerInternalError)));
+						return std::unexpected(MidoriResult::CompilerReport(CompilerError::Simple(CompilerStage::Compiler, MakeStageFailureMessage(stage.m_name, "unknown exception"), CompilerErrorCode::CompilerInternalError)));
 					}
 				}();
 
@@ -1434,9 +1468,9 @@ namespace
 		return duration;
 	}
 
-	static CompileEnv MakeCompileEnv(BuildGraph& build_graph, std::unordered_map<std::string, CompiledModule>& compiled_modules, std::mutex& modules_mutex, std::mutex& print_mutex, std::atomic<size_t>& completed_modules, const CompilationSchedule& schedule, size_t total_modules)
+	static CompileEnv MakeCompileEnv(BuildGraph& build_graph, std::unordered_map<std::string, CompiledModule>& compiled_modules, std::mutex& modules_mutex, std::mutex& print_mutex, std::atomic<size_t>& completed_modules, const CompilationSchedule& schedule, size_t total_modules, CompilerBackend backend)
 	{
-		return CompileEnv{ build_graph, compiled_modules, modules_mutex, print_mutex, completed_modules, schedule.m_tiers, total_modules };
+		return CompileEnv{ build_graph, compiled_modules, modules_mutex, print_mutex, completed_modules, schedule.m_tiers, total_modules, backend };
 	}
 
 	static MidoriResult::ReportResult<BuildGraphArtifacts> CollectBytecodeModules(const CompilationSchedule& schedule, std::unordered_map<std::string, CompiledModule>& compiled_modules)
@@ -1464,7 +1498,7 @@ namespace
 		return artifacts;
 	}
 
-	static MidoriResult::ReportResult<BuildGraphArtifacts> CompileBuildGraph(BuildGraph&& build_graph)
+	static MidoriResult::ReportResult<BuildGraphArtifacts> CompileBuildGraph(BuildGraph&& build_graph, CompilerBackend backend)
 	{
 		std::chrono::high_resolution_clock::time_point compile_start = std::chrono::high_resolution_clock::now();
 		CompilationSchedule schedule = BuildCompilationSchedule(build_graph);
@@ -1481,7 +1515,7 @@ namespace
 			ReportCompilationStart(print_mutex, schedule, total_modules);
 		}
 
-		CompileEnv env = MakeCompileEnv(build_graph, compiled_modules, modules_mutex, print_mutex, completed_modules, schedule, total_modules);
+		CompileEnv env = MakeCompileEnv(build_graph, compiled_modules, modules_mutex, print_mutex, completed_modules, schedule, total_modules, backend);
 		ModuleCompiler module_compiler;
 		MidoriResult::ReportResult<size_t> compile_result = CompileModulesReadyQueue(env, module_compiler, schedule);
 		if (!compile_result.has_value())
@@ -1716,7 +1750,7 @@ MidoriResult::CompilationResult Compiler::CompileWithReport()
 	}
 	std::ranges::sort(source_files);
 
-	MidoriResult::ReportResult<BuildGraphArtifacts> bytecode_result = CompileBuildGraph(std::move(build_graph));
+	MidoriResult::ReportResult<BuildGraphArtifacts> bytecode_result = CompileBuildGraph(std::move(build_graph), m_inputs.Backend());
 	if (!bytecode_result.has_value())
 	{
 		return std::unexpected(std::move(bytecode_result.error()));

@@ -17,6 +17,8 @@ std::string_view CompilerStageName(CompilerStage stage)
 		return "TypeChecker";
 	case CompilerStage::StaticAnalyzer:
 		return "StaticAnalyzer";
+	case CompilerStage::Lowering:
+		return "Lowering";
 	case CompilerStage::CodeGenerator:
 		return "CodeGenerator";
 	case CompilerStage::Module:
@@ -178,6 +180,8 @@ namespace
 				return "Type Checker Error";
 			case CompilerStage::StaticAnalyzer:
 				return "Static Analyzer Error";
+			case CompilerStage::Lowering:
+				return "Lowering Error";
 			case CompilerStage::CodeGenerator:
 				return "Code Generator Error";
 			case CompilerStage::Module:
@@ -206,6 +210,8 @@ namespace
 			return "Type Checker Warning";
 		case CompilerStage::StaticAnalyzer:
 			return "Static Analyzer Warning";
+		case CompilerStage::Lowering:
+			return "Lowering Warning";
 		case CompilerStage::CodeGenerator:
 			return "Code Generator Warning";
 		case CompilerStage::Module:

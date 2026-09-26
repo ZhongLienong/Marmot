@@ -165,6 +165,7 @@ Current `stage` values:
 - `Parser`
 - `TypeChecker`
 - `StaticAnalyzer`
+- `Lowering`
 - `CodeGenerator`
 - `Module`
 - `Optimizer`

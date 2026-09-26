@@ -13,6 +13,7 @@ Usage:
     python scripts/testing/language.py --pattern loop           # names containing 'loop'
     python scripts/testing/language.py --test closure/simple    # one test
     python scripts/testing/language.py --build Debug            # another build
+    python scripts/testing/language.py --backend ir             # through MidoriIR
 """
 
 import argparse
@@ -80,8 +81,9 @@ class TestResult:
     duration_ms: float = 0.0
 
 class TestRunner:
-    def __init__(self, tree: BuildTree, verbose: bool = False):
+    def __init__(self, tree: BuildTree, verbose: bool = False, backend: str = "ast"):
         self.root_dir = REPO_ROOT
+        self.backend = backend
         self.test_dir = TEST_DIR
         self.build_config = tree.build_type
         self.verbose = verbose
@@ -173,7 +175,8 @@ class TestRunner:
         command_path = test_path.resolve().relative_to(self.root_dir).as_posix()
         files_before = {p for p in self.root_dir.iterdir() if p.is_file()}
         try:
-            return build_and_run(self.midori_exe, command_path, cwd=self.root_dir, env=environment, timeout=TIMEOUT_SECONDS)
+            return build_and_run(self.midori_exe, command_path, cwd=self.root_dir, env=environment, timeout=TIMEOUT_SECONDS,
+                                 compiler_args=["--backend", self.backend])
         finally:
             files_after = {p for p in self.root_dir.iterdir() if p.is_file()}
             cleanup_language_test_artifacts(self.root_dir, extra_files=files_after - files_before)
@@ -413,9 +416,10 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--pattern", help="Only tests whose file name contains this")
     parser.add_argument("--test", help="One test (e.g. closure/simple.mmt or just simple)")
     parser.add_argument("--verbose", "-v", action="store_true", help="Show each failure's output")
+    parser.add_argument("--backend", choices=["ast", "ir"], default="ast", help="The path marmotc compiles through (default: ast)")
     args = parser.parse_args(argv)
 
-    runner = TestRunner(BuildTree.from_args(args), verbose=args.verbose)
+    runner = TestRunner(BuildTree.from_args(args), verbose=args.verbose, backend=args.backend)
     try:
         return runner.run_all_tests(category=args.category, pattern=args.pattern, test_file=args.test)
     finally:

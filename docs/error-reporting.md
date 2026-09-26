@@ -34,6 +34,7 @@ Diagnostics carry a `CompilerStage`:
 - `Parser`
 - `TypeChecker`
 - `StaticAnalyzer`
+- `Lowering`
 - `CodeGenerator`
 - `Module`
 - `Optimizer`

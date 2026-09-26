@@ -7,6 +7,14 @@
 #include <unordered_map>
 #include <vector>
 
+// Which path turns a checked module into bytecode. MidoriIR replaces the AST
+// optimizer and code generator; until it is complete the AST path is the default.
+enum class CompilerBackend
+{
+	Ast,
+	MidoriIR
+};
+
 // Everything the compiler learns from outside the source it is given: where
 // `<Name>` imports are found, and how the native libraries the source names
 // (`foreign ... from "library"`) may be used. The compiler reads no environment
@@ -17,6 +25,7 @@ class CompilationInputs
 private:
 	std::vector<std::filesystem::path> m_search_paths;
 	std::unordered_map<std::string, NativeLibraryPolicy> m_native_library_policies;
+	CompilerBackend m_backend = CompilerBackend::Ast;
 
 public:
 	// Directories searched, in order, for `<Name>` imports. Directories that do
@@ -30,4 +39,8 @@ public:
 	CompilationInputs WithNativeLibraryPolicies(std::unordered_map<std::string, NativeLibraryPolicy> policies) &&;
 
 	const std::unordered_map<std::string, NativeLibraryPolicy>& NativeLibraryPolicies() const;
+
+	CompilationInputs WithBackend(CompilerBackend backend) &&;
+
+	CompilerBackend Backend() const;
 };

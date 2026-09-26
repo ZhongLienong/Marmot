@@ -40,3 +40,14 @@ const std::unordered_map<std::string, NativeLibraryPolicy>& CompilationInputs::N
 {
 	return m_native_library_policies;
 }
+
+CompilationInputs CompilationInputs::WithBackend(CompilerBackend backend) &&
+{
+	m_backend = backend;
+	return std::move(*this);
+}
+
+CompilerBackend CompilationInputs::Backend() const
+{
+	return m_backend;
+}
