@@ -2175,6 +2175,25 @@ MidoriResult::ExpressionResult Parser::ParseUnaryArithmetic()
 	}
 }
 
+MidoriResult::ExpressionResult Parser::RejectExponent(std::unique_ptr<MidoriExpression>&& literal)
+{
+	const Token& number = literal->GetExpression<MidoriExpression::Literal>().m_token;
+	const Token& next = Peek(0);
+	const bool adjacent = next.m_token_name == Token::Name::IDENTIFIER_LITERAL
+		&& next.m_line == number.m_line
+		&& number.m_column.has_value() && next.m_column.has_value()
+		&& next.m_column.value() == number.m_column.value() + static_cast<int>(number.m_source_length.value_or(number.m_lexeme.size()));
+	const bool looks_like_exponent = !next.m_lexeme.empty()
+		&& (next.m_lexeme[0u] == 'e' || next.m_lexeme[0u] == 'E')
+		&& std::all_of(next.m_lexeme.begin() + 1, next.m_lexeme.end(), [](char ch) { return std::isdigit(static_cast<unsigned char>(ch)) != 0; });
+	if (adjacent && looks_like_exponent)
+	{
+		return std::unexpected(GenerateParserError("A number has no exponent form: write the digits out, as in 1000000.0 or 0.000001, or compute it with Math::Pow.", next));
+	}
+
+	return std::move(literal);
+}
+
 MidoriResult::ExpressionResult Parser::ParseExpression()
 {
 	return ParseAs();
@@ -2608,7 +2627,7 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 	}
 	else if (Match(Token::Name::FLOAT_LITERAL))
 	{
-		return std::make_unique<MidoriExpression>(MidoriExpression::Literal(Previous(), MidoriExpression::LiteralKind::Float));
+		return RejectExponent(std::make_unique<MidoriExpression>(MidoriExpression::Literal(Previous(), MidoriExpression::LiteralKind::Float)));
 	}
 	else if (Match(Token::Name::INTEGER_LITERAL))
 	{
@@ -2641,7 +2660,7 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 		else
 		{
 			// Decimal literal - an Integer literal
-			return std::make_unique<MidoriExpression>(MidoriExpression::Literal(token, MidoriExpression::LiteralKind::Integer));
+			return RejectExponent(std::make_unique<MidoriExpression>(MidoriExpression::Literal(token, MidoriExpression::LiteralKind::Integer)));
 		}
 	}
 	else if (Match(Token::Name::TEXT_LITERAL))

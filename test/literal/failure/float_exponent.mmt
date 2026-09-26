@@ -1,0 +1,12 @@
+module FloatExponent
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt"
+}
+
+// A number has no exponent form. `2.5e-3` read as the number 2.5 followed by the
+// name e, and the parser asked for a comma.
+
+def small = 2.5e-3;
+IO::PrintLine(small as Text);

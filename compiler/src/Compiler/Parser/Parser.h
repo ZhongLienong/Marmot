@@ -747,6 +747,10 @@ private:
 
 	MidoriResult::ExpressionResult ParsePrimary();
 
+	// `1e300` lexes as the number 1 and the name e300; say that a number has no exponent
+	// form rather than asking for the comma the parser would otherwise want.
+	MidoriResult::ExpressionResult RejectExponent(std::unique_ptr<MidoriExpression>&& literal);
+
 	MidoriResult::ExpressionResult ParseLogicalAnd();
 
 	MidoriResult::ExpressionResult ParseLogicalOr();

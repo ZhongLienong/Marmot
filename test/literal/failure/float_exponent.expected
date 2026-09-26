@@ -1,0 +1,6 @@
+Compilation failed :(
+Parser Error at test/literal/failure/float_exponent.mmt:11
+   |
+11 | def small = 2.5e-3;
+   |                ^ A number has no exponent form: write the digits out, as in 1000000.0 or 0.000001, or compute it with Math::Pow.
+   |
