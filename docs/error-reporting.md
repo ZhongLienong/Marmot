@@ -83,8 +83,8 @@ Current `CompilerWarningCode` values:
 - `None`
 - `NameShadowing`
 - `UnusedLocal`
-- `CaptureEscape`
 - `IntegerOverflow`
+- `CellCrossesWorker`
 
 ### Runtime Error Codes
 

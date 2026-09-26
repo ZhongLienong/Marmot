@@ -1,8 +1,2 @@
-[warning] 1 warning(s) in closure_gc_root.mmt
-Static Analyzer Warning at test/dogfood/closure_gc_root.mmt:15
-   |
-15 | def Make = fn(label: Text) -> fn(Int) -> Text => fn(n: Int) -> Text =>
-   |                                                  ^^ Captured anonymous closure escapes its defining scope as a return value.
-   |
 captured-text! 1x captured-text!
 32768

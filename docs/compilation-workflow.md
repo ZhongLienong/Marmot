@@ -177,7 +177,8 @@ Current warning passes:
 
 - `UnusedLocalDiagnostic`
 - `ShadowingPolicyDiagnostic`
-- `CaptureEscapeDiagnostic`
+- `CellCrossesWorkerDiagnostic`
+- `IntegerOverflowDiagnostic`
 
 Warnings remain structured as `CompilerWarning` values and are appended to the compile-wide report.
 

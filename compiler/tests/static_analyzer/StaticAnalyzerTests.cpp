@@ -84,8 +84,10 @@ def Compute = fn(value : Int) -> Int => {
 		});
 }
 
-TEST_CASE("StaticAnalyzer reports captured closures that escape as return values", "[static-analyzer]")
+TEST_CASE("StaticAnalyzer does not warn when a closure is returned", "[static-analyzer]")
 {
+	// Bindings are immutable and a closure keeps what it captured alive, so a
+	// closure outliving its scope is how currying and counters work, not a mistake.
 	const std::string source_code =
 		R"(module AnalyzerCapture
 def MakeCounter = fn() -> fn() -> Int => {
@@ -93,6 +95,7 @@ def MakeCounter = fn() -> fn() -> Int => {
 	def next = fn() -> Int => value;
 	next
 };
+def Add = fn(a: Int) -> fn(Int) -> Int => fn(b: Int) -> Int => a + b;
 )";
 
 	std::expected<MidoriTest::AnalyzedSnippet, CompilerError> analyze_result = MidoriTest::AnalyzeSnippet(source_code, "AnalyzerCapture.mmt");
@@ -102,17 +105,7 @@ def MakeCounter = fn() -> fn() -> Int => {
 	}
 
 	REQUIRE(analyze_result->m_errors.empty());
-	RequireWarningMatches(
-		analyze_result->m_warnings,
-		CompilerWarningCode::CaptureEscape,
-		MidoriTest::WarningExpectation
-		{
-			.m_stage = CompilerStage::StaticAnalyzer,
-			.m_code = CompilerWarningCode::CaptureEscape,
-			.m_line = 5,
-			.m_message_substrings = { "Captured closure 'next' escapes its defining scope as a return value." },
-			.m_rendered_substrings = { "AnalyzerCapture.mmt:5", "next" }
-		});
+	CHECK(analyze_result->m_warnings.empty());
 }
 
 TEST_CASE("StaticAnalyzer warns on literal integer overflow patterns", "[static-analyzer]")

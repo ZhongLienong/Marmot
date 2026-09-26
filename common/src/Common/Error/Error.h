@@ -65,7 +65,6 @@ enum class CompilerWarningCode
 	None,
 	NameShadowing,
 	UnusedLocal,
-	CaptureEscape,
 	IntegerOverflow,
 	CellCrossesWorker
 };

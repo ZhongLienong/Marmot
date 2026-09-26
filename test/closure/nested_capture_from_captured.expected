@@ -1,8 +1,2 @@
-[warning] 1 warning(s) in nested_capture_from_captured.mmt
-Static Analyzer Warning at test/closure/nested_capture_from_captured.mmt:15
-   |
-15 | 	fn() -> Int => child() + value
-   |  ^^ Captured anonymous closure escapes its defining scope as a return value.
-   |
 21
 21

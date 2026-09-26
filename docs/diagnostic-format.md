@@ -225,8 +225,8 @@ Current `CompilerWarningCode` values:
 - `None`
 - `NameShadowing`
 - `UnusedLocal`
-- `CaptureEscape`
 - `IntegerOverflow`
+- `CellCrossesWorker`
 
 ## Examples by Severity
 
@@ -308,8 +308,8 @@ are emitted with the same shape as the full examples above.
 |------|-------|-----------------|
 | `NameShadowing` | `StaticAnalyzer` | `Binding 'count' shadows an earlier definition.` |
 | `UnusedLocal` | `StaticAnalyzer` | `Binding 'unused' is never read.` |
-| `CaptureEscape` | `StaticAnalyzer` | `Captured local 'state' escapes its defining scope.` |
 | `IntegerOverflow` | `StaticAnalyzer` | `Integer literal '9999999999' overflows 'Int'.` |
+| `CellCrossesWorker` | `StaticAnalyzer` | `This Cell is copied into the worker; writes on either side are not seen by the other.` |
 
 ### Compiler error codes
 

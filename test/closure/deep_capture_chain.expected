@@ -1,9 +1,3 @@
-[warning] 1 warning(s) in deep_capture_chain.mmt
-Static Analyzer Warning at test/closure/deep_capture_chain.mmt:19
-   |
-19 | 	fn(extra : Int) -> Int => here + extra
-   |  ^^ Captured anonymous closure escapes its defining scope as a return value.
-   |
 101
 202
 303

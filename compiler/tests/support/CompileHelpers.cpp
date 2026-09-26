@@ -285,7 +285,7 @@ namespace MidoriTest
 
 		// The real pipeline also runs StaticAnalyzerManager here (Compiler.cpp's
 		// WithStaticAnalysis, between WithTypeCheckedAst and WithOptimizedAst).
-		// Its four passes (ShadowingPolicy, UnusedLocal, CaptureEscape,
+		// Its passes (ShadowingPolicy, UnusedLocal, CellCrossesWorker,
 		// IntegerOverflow) only read the tree and write into a
 		// DiagnosticSink for warnings/errors; none of them mutates the AST, so
 		// no optimizer pass can depend on their output. It is intentionally

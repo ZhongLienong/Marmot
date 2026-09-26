@@ -195,14 +195,14 @@ TEST_CASE("Compiler report renders grouped warnings and structured machine-reada
 
 	CompilerWarning second_alpha_warning = CompilerWarning::WithContext(
 		CompilerStage::StaticAnalyzer,
-		"Captured closure escapes",
+		"Literal shift overflows",
 		5,
 		"C:/repo/Alpha.mmt",
 		1,
 		6u,
 		std::nullopt,
 		"next",
-		CompilerWarningCode::CaptureEscape);
+		CompilerWarningCode::IntegerOverflow);
 
 	CompilerWarning beta_warning = CompilerWarning::WithContext(
 		CompilerStage::Parser,
@@ -237,7 +237,7 @@ TEST_CASE("Compiler report renders grouped warnings and structured machine-reada
 	const std::string machine_json = report.MachineReadableJson();
 	CHECK(machine_json.find("\"warnings\":[{") != std::string::npos);
 	CHECK(machine_json.find("\"errors\":[]") != std::string::npos);
-	CHECK(machine_json.find("\"code\":\"CaptureEscape\"") != std::string::npos);
+	CHECK(machine_json.find("\"code\":\"IntegerOverflow\"") != std::string::npos);
 	CHECK(machine_json.find("\"message\":\"Shadowed name\"") != std::string::npos);
 }
 

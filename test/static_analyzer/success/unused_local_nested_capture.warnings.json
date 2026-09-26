@@ -14,53 +14,5 @@
     "caret_length": 7,
     "suggestion": null,
     "relatedInformation": []
-  },
-  {
-    "source": "marmot",
-    "severity": "warning",
-    "stage": "StaticAnalyzer",
-    "code": "CaptureEscape",
-    "message": "Captured anonymous closure escapes its defining scope as a return value.",
-    "file": "test/static_analyzer/success/unused_local_nested_capture.mmt",
-    "file_path": "test/static_analyzer/success/unused_local_nested_capture.mmt",
-    "line": 11,
-    "column": 2,
-    "endLine": 11,
-    "endColumn": 4,
-    "caret_length": 2,
-    "suggestion": null,
-    "relatedInformation": []
-  },
-  {
-    "source": "marmot",
-    "severity": "warning",
-    "stage": "StaticAnalyzer",
-    "code": "CaptureEscape",
-    "message": "Captured anonymous closure escapes its defining scope as a return value.",
-    "file": "test/static_analyzer/success/unused_local_nested_capture.mmt",
-    "file_path": "test/static_analyzer/success/unused_local_nested_capture.mmt",
-    "line": 7,
-    "column": 1,
-    "endLine": 7,
-    "endColumn": 3,
-    "caret_length": 2,
-    "suggestion": null,
-    "relatedInformation": []
-  },
-  {
-    "source": "marmot",
-    "severity": "warning",
-    "stage": "StaticAnalyzer",
-    "code": "CaptureEscape",
-    "message": "Captured anonymous closure escapes its defining scope as a return value.",
-    "file": "test/static_analyzer/success/unused_local_nested_capture.mmt",
-    "file_path": "test/static_analyzer/success/unused_local_nested_capture.mmt",
-    "line": 17,
-    "column": 1,
-    "endLine": 17,
-    "endColumn": 3,
-    "caret_length": 2,
-    "suggestion": null,
-    "relatedInformation": []
   }
 ]

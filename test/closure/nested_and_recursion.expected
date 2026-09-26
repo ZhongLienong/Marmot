@@ -1,12 +1,1 @@
-[warning] 2 warning(s) in nested_and_recursion.mmt
-Static Analyzer Warning at test/closure/nested_and_recursion.mmt:16
-   |
-16 |     fn() -> Int => total
-   |     ^^ Captured anonymous closure escapes its defining scope as a return value.
-   |
-Static Analyzer Warning at test/closure/nested_and_recursion.mmt:18
-   |
-18 |   counter
-   |   ^^^^^^^ Captured closure 'counter' escapes its defining scope as a return value.
-   |
 8
