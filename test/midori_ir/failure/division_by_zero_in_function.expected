@@ -1,0 +1,12 @@
+5
+error[DivisionByZero]: Division by zero.
+ --> test/midori_ir/failure/division_by_zero_in_function.mmt:10
+   |
+10 | def Divide = fn(total: Int, parts: Int) -> Int => total / parts;
+   | Division by zero.
+   |
+stack trace:
+  at Divide [module DivisionByZeroInFunction] in test/midori_ir/failure/division_by_zero_in_function.mmt:10
+    def Divide = fn(total: Int, parts: Int) -> Int => total / parts;
+  at main [module DivisionByZeroInFunction] in test/midori_ir/failure/division_by_zero_in_function.mmt:15
+    Print((Divide(10, parts) as Text) ++ "/n");

@@ -1,0 +1,16 @@
+module ImportedGlobals
+
+// Test: another module's globals, read and called by their qualified names,
+// including a tail call to one of its functions.
+
+import { "./imported_globals_lib.mmt" }
+
+foreign "MIDORI_FFI_Print" Print: fn(Text) -> Unit;
+
+def PrintLine = fn(text: Text) -> Unit => Print(text ++ "\n");
+def ScaleTwice = fn(n: Int) -> Int => ImportedGlobalsLib::Scale(ImportedGlobalsLib::Scale(n));
+def Greet = fn(name: Text) -> Text => ImportedGlobalsLib::Greeting(name);
+
+PrintLine(ImportedGlobalsLib::factor as Text);
+PrintLine(ScaleTwice(2) as Text);
+PrintLine(Greet("marmot"));

@@ -155,10 +155,16 @@ std::vector<std::shared_ptr<MidoriType>> MidoriIRFunction::ParameterTypes() cons
 		| std::ranges::to<std::vector>();
 }
 
-MidoriIRGlobal::MidoriIRGlobal(std::string name, std::shared_ptr<MidoriType> type)
+MidoriIRGlobal::MidoriIRGlobal(std::string name, std::shared_ptr<MidoriType> type, std::string module)
 	: m_name(std::move(name)),
-	m_type(std::move(type))
+	m_type(std::move(type)),
+	m_module(std::move(module))
 {
+}
+
+bool MidoriIRGlobal::IsImported() const
+{
+	return !m_module.empty();
 }
 
 MidoriIRModule::MidoriIRModule(std::string name)
@@ -169,6 +175,12 @@ MidoriIRModule::MidoriIRModule(std::string name)
 MidoriIRGlobalSlot MidoriIRModule::ReserveGlobal(std::string name, std::shared_ptr<MidoriType> type)
 {
 	m_globals.emplace_back(std::move(name), std::move(type));
+	return MidoriIRGlobalSlot{ static_cast<uint32_t>(m_globals.size() - 1u) };
+}
+
+MidoriIRGlobalSlot MidoriIRModule::ReserveImport(std::string module, std::string name, std::shared_ptr<MidoriType> type)
+{
+	m_globals.emplace_back(std::move(name), std::move(type), std::move(module));
 	return MidoriIRGlobalSlot{ static_cast<uint32_t>(m_globals.size() - 1u) };
 }
 

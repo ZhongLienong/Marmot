@@ -1,0 +1,9 @@
+error[DivisionByZero]: Division by zero.
+ --> test/midori_ir/failure/division_by_zero_at_top_level.mmt:10
+   |
+10 | def remainder = total %
+   | Division by zero.
+   |
+stack trace:
+  at main [module DivisionByZeroAtTopLevel] in test/midori_ir/failure/division_by_zero_at_top_level.mmt:10
+    def remainder = total %

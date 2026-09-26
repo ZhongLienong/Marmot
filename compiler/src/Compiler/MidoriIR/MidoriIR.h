@@ -248,12 +248,17 @@ struct MidoriIRFunction
 	std::vector<std::shared_ptr<MidoriType>> ParameterTypes() const;
 };
 
+// A global this module defines, or, when m_module names another module, one
+// it imports from there, which it may read and call but not define or set.
 struct MidoriIRGlobal
 {
 	std::string m_name;
 	std::shared_ptr<MidoriType> m_type;
+	std::string m_module;
 
-	MidoriIRGlobal(std::string name, std::shared_ptr<MidoriType> type);
+	MidoriIRGlobal(std::string name, std::shared_ptr<MidoriType> type, std::string module = {});
+
+	bool IsImported() const;
 };
 
 // One module: each specialization, instance method and lambda is its own
@@ -269,6 +274,7 @@ struct MidoriIRModule
 	explicit MidoriIRModule(std::string name);
 
 	MidoriIRGlobalSlot ReserveGlobal(std::string name, std::shared_ptr<MidoriType> type);
+	MidoriIRGlobalSlot ReserveImport(std::string module, std::string name, std::shared_ptr<MidoriType> type);
 	MidoriIRFunctionId AddFunction(MidoriIRFunction function);
 	const MidoriIRFunction& Function(MidoriIRFunctionId function) const;
 	MidoriIRFunction& Function(MidoriIRFunctionId function);

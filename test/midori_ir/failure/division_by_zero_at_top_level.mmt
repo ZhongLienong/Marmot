@@ -1,0 +1,12 @@
+module DivisionByZeroAtTopLevel
+
+// Test: a runtime error in a module's top-level statements reports its line.
+
+foreign "MIDORI_FFI_Print" Print: fn(Text) -> Unit;
+
+def Opaque = fn(n: Int) -> Int => n;
+
+def total = 12;
+def remainder = total %
+    Opaque(0);
+Print((remainder as Text) ++ "\n");

@@ -1,0 +1,43 @@
+module TailCalls
+
+// Test: a call in tail position runs without a new frame, whatever it calls:
+// itself, another function, a global holding a function, or a function passed
+// as a value. Each recurses a million times, twice the depth at which a call
+// that took a frame would overflow the stack.
+
+foreign "MIDORI_FFI_Print" Print: fn(Text) -> Unit;
+
+def PrintLine = fn(text: Text) -> Unit => Print(text ++ "\n");
+
+def CountDown = fn(n: Int, total: Int) -> Int => if n == 0 then total else CountDown(n - 1, total + 2);
+
+def IsEven = fn(n: Int) -> Bool => if n == 0 then true else IsOdd(n - 1);
+def IsOdd = fn(n: Int) -> Bool => if n == 0 then false else IsEven(n - 1);
+
+def Finish = fn(acc: Int) -> Int => acc * 10;
+def FinishAlias = Finish;
+def Step = fn(n: Int, acc: Int) -> Int => {
+    def next = n - 1;
+    if next < 0 then FinishAlias(acc) else {
+        def added = acc + (n % 3);
+        Step(next, added)
+    }
+};
+
+def Repeat = fn(f: fn(Int) -> Int, times: Int, value: Int) -> Int => if times == 0 then value else Repeat(f, times - 1, f(value));
+def Bump = fn(n: Int) -> Int => n + 1;
+
+def Apply = fn(f: fn(Int, Int) -> Int, n: Int) -> Int => f(n, 0);
+def Loop = fn(n: Int, acc: Int) -> Int => if n == 0 then acc else Apply(Loop, n - 1) + 0;
+def Via = fn(n: Int, acc: Int) -> Int => if n == 0 then acc else Hop(Via, n - 1, acc + 1);
+def Hop = fn(f: fn(Int, Int) -> Int, n: Int, acc: Int) -> Int => f(n, acc);
+
+def depth = 1000000;
+
+PrintLine(CountDown(depth, 0) as Text);
+PrintLine(IsEven(depth) as Text);
+PrintLine(IsOdd(depth + 1) as Text);
+PrintLine(Step(depth, 0) as Text);
+PrintLine(Repeat(Bump, depth, 0) as Text);
+PrintLine(Via(depth, 0) as Text);
+PrintLine(Loop(1000, 7) as Text);

@@ -1,0 +1,16 @@
+module DivisionByZeroInFunction
+
+// Test: a runtime error inside a small function reports the line of the
+// division in that function, and the call that reached it, on either backend.
+// The function is small enough that an optimizer may inline it; the line it
+// reports must not change when one does.
+
+foreign "MIDORI_FFI_Print" Print: fn(Text) -> Unit;
+
+def Divide = fn(total: Int, parts: Int) -> Int => total / parts;
+
+def parts = 0;
+
+Print((Divide(10, 2) as Text) ++ "\n");
+Print((Divide(10, parts) as Text) ++ "\n");
+Print("not reached\n");

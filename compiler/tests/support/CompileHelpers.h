@@ -1,6 +1,8 @@
 #pragma once
 
 #include "Common/Error/Error.h"
+#include "Compiler/CompilationInputs/CompilationInputs.h"
+#include "Compiler/Lowering/Lowering.h"
 #include "Compiler/Module/Module.h"
 #include "Compiler/Result/Result.h"
 #include "Compiler/Token/Token.h"
@@ -79,6 +81,9 @@ namespace MidoriTest
 	// that only shows up after optimisation, because it never runs one.
 	[[nodiscard]] std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> GenerateOptimizedBytecodeSnippetWithDiagnostics(std::string source_code, std::string file_name = "Test.mmt");
 
+	// Lowers one module to MidoriIR, as the compiler's lowering stage does.
+	[[nodiscard]] std::expected<LoweredModule, MidoriResult::CompilerDiagnostics> LowerSnippetWithDiagnostics(std::string source_code, std::string file_name = "Test.mmt");
+
 	[[nodiscard]] std::expected<AnalyzedSnippet, CompilerError> AnalyzeSnippet(std::string source_code, std::string file_name = "Test.mmt");
 
 	[[nodiscard]] MidoriResult::CompilationResult CompileSnippetWithReport(std::string source_code, std::string file_name = "Test.mmt");
@@ -87,6 +92,7 @@ namespace MidoriTest
 	[[nodiscard]] MidoriResult::CompilerResult CompileSnippet(std::string source_code, std::string file_name = "Test.mmt");
 
 	[[nodiscard]] std::expected<ExecutedSnippet, CompilerError> ExecuteSnippet(std::string source_code, std::string file_name = "Test.mmt");
+	[[nodiscard]] std::expected<ExecutedSnippet, CompilerError> ExecuteSnippet(std::string source_code, std::string file_name, CompilerBackend backend);
 
 	[[nodiscard]] std::vector<Token::Name> CollectTokenNames(const TokenStream& tokens, bool include_whitespace = false, bool include_end_of_file = false);
 }

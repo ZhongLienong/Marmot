@@ -316,6 +316,30 @@ namespace MidoriTest
 		return std::move(codegen_result).value();
 	}
 
+	std::expected<LoweredModule, MidoriResult::CompilerDiagnostics> LowerSnippetWithDiagnostics(std::string source_code, std::string file_name)
+	{
+		std::expected<PreparedModule, CompilerError> prepared_result = PrepareSingleModule(SourceFixture(std::move(source_code), std::move(file_name)));
+		if (!prepared_result.has_value())
+		{
+			return std::unexpected(MidoriResult::CompilerDiagnostics(std::move(prepared_result.error())));
+		}
+
+		std::expected<PreparedTypedModule, MidoriResult::CompilerDiagnostics> typed_result =
+			TypeCheckPreparedModuleWithDiagnostics(std::move(prepared_result.value()));
+		if (!typed_result.has_value())
+		{
+			return std::unexpected(std::move(typed_result.error()));
+		}
+
+		PreparedTypedModule typed = std::move(typed_result.value());
+		const std::string module_name = typed.m_module_declaration.has_value()
+			? typed.m_module_declaration->ModuleName()
+			: std::filesystem::path(typed.m_source.FileName()).stem().string();
+		const std::unordered_set<std::string> exports = CollectExports(typed.m_module_declaration);
+		const LoweringImports imports;
+		return Lowering(typed.m_program, typed.m_source.FileName(), typed.m_source.SourceLines(), module_name, exports, imports).Lower();
+	}
+
 	std::expected<AnalyzedSnippet, CompilerError> AnalyzeSnippet(std::string source_code, std::string file_name)
 	{
 		std::expected<TypedSnippet, CompilerError> typed_result = TypeCheckSnippet(std::move(source_code), std::move(file_name));
@@ -353,18 +377,23 @@ namespace MidoriTest
 
 	std::expected<ExecutedSnippet, CompilerError> ExecuteSnippet(std::string source_code, std::string file_name)
 	{
+		return ExecuteSnippet(std::move(source_code), std::move(file_name), CompilerBackend::Ast);
+	}
+
+	std::expected<ExecutedSnippet, CompilerError> ExecuteSnippet(std::string source_code, std::string file_name, CompilerBackend backend)
+	{
 		SourceFixture source(std::move(source_code), std::move(file_name));
 		const MidoriBuild::ScopedTestModeOverride test_mode_override(true);
-		MidoriResult::CompilerResult compile_result = MidoriDriver::CompileSource(std::string(source.SourceCode()), source.FileName());
+		MidoriResult::CompilationResult compile_result = MidoriDriver::CompileSourceWithReport(std::string(source.SourceCode()), source.FileName(), MidoriDriver::EnvironmentCompilationInputs().WithBackend(backend));
 		if (!compile_result.has_value())
 		{
 			// Execution helpers keep a single-error surface for legacy tests; compile-time
 			// collections are narrowed explicitly at this boundary.
-			return std::unexpected(std::move(compile_result.error()).TakeFirst());
+			return std::unexpected(std::move(compile_result.error()).TakeErrors().TakeFirst());
 		}
 
 		OutputCapture capture;
-		std::expected<int, RuntimeError> run_result = MidoriProgramLoader::Run(std::move(compile_result.value()));
+		std::expected<int, RuntimeError> run_result = MidoriProgramLoader::Run(std::move(compile_result.value()).TakeExecutable());
 		if (!run_result.has_value())
 		{
 			const RuntimeError runtime_error = run_result.error();

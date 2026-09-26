@@ -1,4 +1,5 @@
 #include "MidoriIRPrinter.h"
+#include "Common/Constant/Constant.h"
 
 #include <algorithm>
 #include <cctype>
@@ -95,7 +96,8 @@ std::string MidoriIRPrinter::Print() const
 	for (size_t slot = 0u; slot < m_module.m_globals.size(); slot += 1u)
 	{
 		const MidoriIRGlobal& global = m_module.m_globals[slot];
-		text.append(std::format("global @{} {}: {}\n", slot, global.m_name, global.m_type->ToString()));
+		const std::string name = global.IsImported() ? std::format("{}{}{}", global.m_module, NameSeparator, global.m_name) : global.m_name;
+		text.append(std::format("global @{} {}: {}\n", slot, name, global.m_type->ToString()));
 	}
 	if (m_module.m_top_level.has_value())
 	{

@@ -1,0 +1,80 @@
+module ScalarOperations
+
+// Test: the operators and conversions on Int, Float, Byte, Word, Bool and
+// Text. This folder's tests declare their own Print instead of importing IO,
+// so each also runs through MidoriIR's first lowering subset. `Opaque` keeps a
+// value away from the AST optimizer's folding, so the VM computes it.
+
+foreign "MIDORI_FFI_Print" Print: fn(Text) -> Unit;
+
+def Show = fn(label: Text, value: Text) -> Unit => Print(label ++ " " ++ value ++ "\n");
+def Opaque = fn(n: Int) -> Int => n;
+def OpaqueFloat = fn(x: Float) -> Float => x;
+def OpaqueByte = fn(b: Byte) -> Byte => b;
+def OpaqueWord = fn(w: Word) -> Word => w;
+
+Show("int +", (Opaque(7) + 5) as Text);
+Show("int -", (Opaque(7) - 12) as Text);
+Show("int *", (Opaque(7) * -3) as Text);
+Show("int /", (Opaque(-7) / 2) as Text);
+Show("int %", (Opaque(-7) % 4) as Text);
+Show("int neg", (-Opaque(9)) as Text);
+Show("int &", (Opaque(12) & 10) as Text);
+Show("int |", (Opaque(12) | 3) as Text);
+Show("int ^", (Opaque(12) ^ 5) as Text);
+Show("int ~", (~Opaque(0)) as Text);
+Show("int <<", (Opaque(1) << 10) as Text);
+Show("int >>", (Opaque(-64) >> 3) as Text);
+Show("int wraps", (Opaque(9223372036854775807) + 1) as Text);
+
+Show("float +", (OpaqueFloat(1.5) + 2.25) as Text);
+Show("float -", (OpaqueFloat(1.5) - 2.25) as Text);
+Show("float *", (OpaqueFloat(1.5) * 4.0) as Text);
+Show("float /", (OpaqueFloat(1.0) / 3.0) as Text);
+Show("float %", (OpaqueFloat(7.5) % 2.0) as Text);
+Show("float neg", (-OpaqueFloat(0.5)) as Text);
+
+Show("byte +", (OpaqueByte(0xFF) + 0x02) as Text);
+Show("byte -", (OpaqueByte(0x01) - 0x02) as Text);
+Show("byte *", (OpaqueByte(0x10) * 0x11) as Text);
+Show("byte /", (OpaqueByte(0xC8) / 0x07) as Text);
+Show("byte ~", (~OpaqueByte(0x0F)) as Text);
+Show("byte <<", (OpaqueByte(0x81) << 1) as Text);
+
+def max_word: Word = 0xFFFFFFFFFFFFFFFF;
+def two_words: Word = 0x2 as Word;
+
+Show("word +", (OpaqueWord(max_word) + two_words) as Text);
+Show("word *", (OpaqueWord(4294967296 as Word) * (3 as Word)) as Text);
+Show("word ~", (~OpaqueWord(0 as Word)) as Text);
+Show("word >>", (OpaqueWord(max_word) >> 60) as Text);
+
+Show("int <", (Opaque(3) < 4) as Text);
+Show("int >=", (Opaque(3) >= 4) as Text);
+Show("float <=", (OpaqueFloat(2.0) <= 2.0) as Text);
+Show("float ==", ((OpaqueFloat(0.1) + 0.2) == 0.3) as Text);
+Show("byte >", (OpaqueByte(0x80) > 0x7F) as Text);
+Show("word !=", (OpaqueWord(1 as Word) != two_words) as Text);
+Show("bool ==", ((Opaque(1) == 1) == (Opaque(2) == 2)) as Text);
+Show("bool !=", ((Opaque(1) == 1) != (Opaque(2) == 3)) as Text);
+Show("bool !", (!(Opaque(1) == 1)) as Text);
+Show("text ==", (("ab" ++ "c") == "abc") as Text);
+Show("text !=", ("ab" != "abc") as Text);
+Show("and", ((Opaque(1) == 1) && (Opaque(2) == 3)) as Text);
+Show("or", ((Opaque(1) == 2) || (Opaque(2) == 2)) as Text);
+
+Show("int as float", (Opaque(3) as Float) as Text);
+Show("float as int", (OpaqueFloat(-3.75) as Int) as Text);
+Show("text as int", ("42" as Int) as Text);
+Show("text as float", ("2.5" as Float) as Text);
+Show("int as byte", (Opaque(300) as Byte) as Text);
+Show("byte as int", (OpaqueByte(0xFE) as Int) as Text);
+Show("int as word", (Opaque(-1) as Word) as Text);
+Show("word as int", (OpaqueWord(max_word) as Int) as Text);
+Show("byte as word", (OpaqueByte(0x7F) as Word) as Text);
+Show("word as byte", (OpaqueWord(511 as Word) as Byte) as Text);
+Show("byte as float", (OpaqueByte(0x03) as Float) as Text);
+Show("float as byte", (OpaqueFloat(250.9) as Byte) as Text);
+Show("word as float", (OpaqueWord(two_words) as Float) as Text);
+Show("float as word", (OpaqueFloat(6.5) as Word) as Text);
+Show("int as int", (Opaque(8) as Int) as Text);

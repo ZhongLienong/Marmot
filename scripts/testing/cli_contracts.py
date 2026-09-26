@@ -272,9 +272,21 @@ def scenario_backend_options_are_hidden(runner: TestRunner) -> None:
         ast = run_midori(runner, ["check", str(source_path), "--backend", "ast"], env_overrides={"MARMOT_PATH": None})
         assert_condition(ast.returncode == 0, f"check --backend ast should succeed:\n{ast.stdout}{ast.stderr}")
 
-        ir = run_midori(runner, ["check", str(source_path), "--backend", "ir", "--format", "json"], env_overrides={"MARMOT_PATH": None})
-        errors = require_report(parse_command_json("backend_options_are_hidden", ir), "backend_options_are_hidden")["errors"]
-        assert_condition(ir.returncode != 0, "check --backend ir should fail until MidoriIR lowers modules.")
+        ir = run_midori(runner, ["check", str(source_path), "--backend", "ir"], env_overrides={"MARMOT_PATH": None})
+        assert_condition(ir.returncode == 0, f"check --backend ir should succeed:\n{ir.stdout}{ir.stderr}")
+
+        emitted = run_midori(runner, ["check", str(source_path), "--backend", "ir", "--emit-ir"], env_overrides={"MARMOT_PATH": None})
+        assert_condition(
+            emitted.returncode == 0 and "module Backend\nglobal @0 value: Int\n" in emitted.stdout and "fn $main$() -> Unit" in emitted.stdout,
+            f"check --backend ir --emit-ir should print the module's MidoriIR:\n{emitted.stdout}{emitted.stderr}",
+        )
+
+        # A construct lowering does not handle yet stops the module on the IR path only.
+        unsupported_path = temp_dir / "Unsupported.mmt"
+        write_text(unsupported_path, "module Unsupported\ndef pair = (1, 2);\n")
+        unsupported = run_midori(runner, ["check", str(unsupported_path), "--backend", "ir", "--format", "json"], env_overrides={"MARMOT_PATH": None})
+        errors = require_report(parse_command_json("backend_options_are_hidden", unsupported), "backend_options_are_hidden")["errors"]
+        assert_condition(unsupported.returncode != 0, "check --backend ir should fail on a construct lowering does not handle.")
         assert_condition(
             len(errors) == 1 and errors[0]["code"] == "CodeGeneratorUnsupportedLowering",
             f"check --backend ir: expected CodeGeneratorUnsupportedLowering, got: {errors}",

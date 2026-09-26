@@ -1,0 +1,56 @@
+module DefinitionsAndCalls
+
+// Test: top-level and block definitions, `if` as a value, and every way a
+// call reaches its callee: a function by name, a global holding a function, a
+// function passed as a value, and a function named before its definition.
+
+foreign "MIDORI_FFI_Print" Print: fn(Text) -> Unit;
+
+def PrintLine = fn(text: Text) -> Unit => Print(text ++ "\n");
+
+// Names a definition that comes after it; by the time it runs, that has run.
+def Describe = fn(n: Int) -> Text => Sign(n) ++ " " ++ Parity(n);
+def Sign = fn(n: Int) -> Text => if n < 0 then "negative" else if n == 0 then "zero" else "positive";
+def Parity = fn(n: Int) -> Text => if (n % 2) == 0 then "even" else "odd";
+
+def Twice = fn(f: fn(Int) -> Int, n: Int) -> Int => f(f(n));
+def Increment = fn(n: Int) -> Int => n + 1;
+def AlsoIncrement = Increment;
+
+def base = 40;
+def answer = Twice(Increment, base);
+
+PrintLine(Describe(-3));
+PrintLine(Describe(0));
+PrintLine(Describe(8));
+PrintLine(answer as Text);
+PrintLine(AlsoIncrement(1) as Text);
+PrintLine(Twice(AlsoIncrement, 5) as Text);
+PrintLine(Twice(fn(n: Int) -> Int => n * 3, 2) as Text);
+
+def area = {
+    def width = 6;
+    def height = {
+        def half = width / 2;
+        half + 1
+    };
+    width * height
+};
+PrintLine("area " ++ (area as Text));
+
+def label = if area > 20 then {
+    def excess = area - 20;
+    "large by " ++ (excess as Text)
+} else "small";
+PrintLine(label);
+
+if base > 0 then {
+    PrintLine("positive base");
+} else {
+    PrintLine("non-positive base");
+};
+
+def unit = PrintLine("a Unit value");
+def Pass = fn(value: Unit) -> Unit => value;
+Pass(unit);
+PrintLine("passed a Unit");

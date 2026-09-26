@@ -23,7 +23,7 @@ Every generic specialization, instance method and lambda is its own function. Ev
 - **Block parameters instead of phi nodes.** A value that differs by the path taken is a parameter of the block where paths meet, and each jump passes it as an argument.
 - **Every instruction but a terminator defines exactly one value.** An instruction run only for its effect, such as `GlobalSet`, defines a `Unit`.
 - **Definitions are found from the blocks.** The value table does not record where a value is defined, so a pass that moves an instruction has nothing else to update.
-- **Globals.** A global's slot is its index in the module's global table. Lowering reserves the slot of every top-level definition before it lowers any function.
+- **Globals.** A global's slot is its index in the module's global table. Lowering reserves the slot of every top-level definition before it lowers any function. A global whose `m_module` names another module is imported from there: this module may read and call it, but not define or set it.
 - **Source lines.** Every instruction keeps the line it came from, including after it is inlined into another function. The backend uses it for runtime error locations.
 
 Functions, blocks and globals are kept in vectors, in the order lowering creates them, so output never depends on hash order.
@@ -38,7 +38,7 @@ Functions, blocks and globals are kept in vectors, in the order lowering creates
 | Int arithmetic | `AddInt` `SubInt` `MulInt` `DivInt` `ModInt` `NegInt` | Int wraps |
 | Float arithmetic | `AddFloat` `SubFloat` `MulFloat` `DivFloat` `ModFloat` `NegFloat` | |
 | Byte and Word arithmetic | `AddByte` ... `ModByte`, `AddWord` ... `ModWord` | |
-| Bit operations | `BitAnd` `BitOr` `BitXor` `BitNot` `Shl` `Shr`, each for `Int`, `Byte` and `Word` | |
+| Bit operations | `BitAnd` `BitOr` `BitXor` `BitNot` `Shl` `Shr`, each for `Int`, `Byte` and `Word` | A shift's amount is always an Int |
 | Comparisons | `Eq` `Ne` `Lt` `Le` `Gt` `Ge` for `Int`, `Float`, `Byte` and `Word`; `EqBool` `NeBool` `NotBool`; `EqText` `NeText` | Give Bool |
 | Conversions | `IntToFloat` `FloatToInt` `IntToText` `FloatToText` `WordToText` `TextToInt` `TextToFloat` `ByteToInt` `IntToByte` `ByteToWord` `WordToByte` `WordToInt` `IntToWord` `ByteToFloat` `FloatToByte` `WordToFloat` `FloatToWord` | |
 | Tuples | `MakeTuple`, `TupleGet #i` | |
@@ -89,7 +89,7 @@ Every instruction has one effect. The builder takes it from `MidoriIROps.def`, a
 3. **Successor arguments.** Every successor names an existing block. Its arguments match that block's parameters in number and type.
 4. **Operand types.** Each instruction's operands, immediate and result have the types it expects: `AddInt` takes two Ints and gives an Int, a `Call` matches its callee's parameters and return type, a `Return` gives the function's return type, and so on. An instruction's type is its value's type. Only terminators have successors. The concurrency instructions, `BindCaptures` and `CallForeign` are not checked yet.
 5. **Switch coverage.** A `Switch` takes a union, has at most one case per tag and at most one default, and names only tags of that union. With no default, it covers every member.
-6. **Global slots.** Every `GlobalDefine`, `GlobalGet`, `GlobalSet`, `CallGlobal` and global `TailCall` names a reserved slot.
+6. **Global slots.** Every `GlobalDefine`, `GlobalGet`, `GlobalSet`, `CallGlobal` and global `TailCall` names a reserved slot, and no `GlobalDefine` or `GlobalSet` names an imported global.
 
 ## Textual form
 
@@ -116,7 +116,7 @@ bb3:
   return acc
 ```
 
-- **The module header.** The module's name comes first. Then come its globals by slot, as `global @0 total: Int`, and, if it has one, the function that runs its top-level statements, as `top-level Sum$top`.
+- **The module header.** The module's name comes first. Then come its globals by slot, as `global @0 total: Int`, with an imported global's module before its name, as `global @1 Lib::Scale: fn(Int) -> Int`, and, if it has one, the function that runs its top-level statements, as `top-level Sum$top`.
 - **Function headers.** Each function starts with `fn`, its name, its parameter types and its return type, followed by `captures(...)` when it has captures.
 - **Blocks.** A block is `bbN`, with its parameters and their types when it has any.
 - **Instructions.** An instruction reads `value: Type = Op immediate, operands`. A terminator is written in lower case and defines no value. Any effect other than pure follows two spaces later.
@@ -124,9 +124,34 @@ bb3:
 - **Types.** Types print as `MidoriType::ToString()` does, so a declared type carries its module: `Shapes::Circle`.
 - **Constants.** Text constants are quoted, with `\"`, `\\`, `\n`, `\t`, `\r` and `\xNN` escapes. A Float always shows a point or an exponent.
 
+## Lowering
+
+`Lowering` (`compiler/src/Compiler/Lowering/`) turns the checked AST of one module into a `LoweredModule`: its MidoriIR, and the names it exports and imports, which the linker needs and the IR does not carry. The verifier then checks the module; a violation stops it with `CompilerInternalError`.
+
+- **The top-level function.** The module's top-level statements become the function `$main$`, which returns `Unit`.
+- **Top-level definitions.** Every one gets its global first. A `def f = fn ...` also gets its function, so a call of `f` anywhere in the module is a direct `Call f` or `tailcall f`, and a call of any other global is a `CallGlobal`.
+- **Tail position.** A call that is the last thing a function does, through `if` branches and a block's final expression, becomes a `tailcall`.
+- **Locals.** A local is the value its definition computed. A value that depends on the path taken, as an `if`'s does, is a parameter of the block where the paths meet.
+- **Foreign functions.** A builtin foreign function's global holds its name, as the code generator's does, and a call of it is a `CallForeign` by that name.
+
+Lowering handles literals, arithmetic, comparisons, bit operations, conversions between scalar types, `if`, `&&` and `||`, blocks with definitions, top-level definitions, lambdas written where no local or parameter is in scope, calls and tail calls, builtin foreign functions, and globals imported from other modules. Any other construct stops the module with `CodeGeneratorUnsupportedLowering`, which names it.
+
+## Bytecode backend
+
+`BytecodeBackend` (`compiler/src/Compiler/BytecodeBackend/`) turns a `LoweredModule` into the same `BytecodeModule` the code generator produces, so the linker takes either. `$main$` is procedure 0 and every other function follows in order, named `name@Module`. Imported globals become the placeholders the linker resolves.
+
+Each value lives in one of four places:
+
+- **A frame slot.** A function's parameters are its first slots. A block parameter, and a value used more than once or in another block, is stored in its own slot when it is made and read at each use.
+- **The operand stack.** A value used once, in the block that makes it, stays where its instruction left it, if its use takes it from there: its use's other stack operands come after it, and nothing made between is left above it.
+- **Nowhere, pushed again at each use.** A constant other than Text, and every `Unit` value.
+- **Nowhere at all.** A value nothing uses is popped as soon as it is made.
+
+A jump pushes all of its arguments before it stores any, so passing a block's parameters back to it in another order is safe. The backend chooses no superinstructions yet. Its only diagnostics are the bytecode encoding's limits, as `CodeGeneratorLimitExceeded`.
+
 ## Command line
 
 Both options are hidden from `marmotc --help`, and both go away once MidoriIR is the only path.
 
-- **`--backend ast|ir`** is accepted by `marmotc check` and `marmotc build`. It picks the path after static analysis: `ast` (the default) runs the AST optimizer and the code generator, and `ir` runs lowering, the MidoriIR optimizer and the backend. Until lowering exists, `ir` stops every module with `CodeGeneratorUnsupportedLowering`. `python scripts/testing/language.py --backend ir` runs the language suite through it.
-- **`--emit-ir`** prints each module's MidoriIR, after optimization, in the textual form above. It needs `--backend ir` and cannot be combined with `--format json`.
+- **`--backend ast|ir`** is accepted by `marmotc check` and `marmotc build`. It picks the path after static analysis: `ast` (the default) runs the AST optimizer and the code generator, and `ir` runs lowering, the MidoriIR optimizer and the backend. On `ir`, a module that uses a construct lowering does not handle yet stops with `CodeGeneratorUnsupportedLowering`; there is no MidoriIR optimizer yet. `python scripts/testing/language.py --backend ir` runs the language suite through it, and `test/midori_ir/` holds the tests written for it.
+- **`--emit-ir`** prints each module's MidoriIR, after optimization, in the textual form above, in link order. It needs `--backend ir` and cannot be combined with `--format json`.

@@ -1,0 +1,7 @@
+module ImportedGlobalsLib
+
+public export { Scale, factor, Greeting }
+
+def factor = 3;
+def Scale = fn(n: Int) -> Int => n * factor;
+def Greeting = fn(name: Text) -> Text => "hello, " ++ name;

@@ -1,0 +1,57 @@
+int + 12
+int - -5
+int * -21
+int / -3
+int % -3
+int neg -9
+int & 8
+int | 15
+int ^ 9
+int ~ -1
+int << 1024
+int >> -8
+int wraps -9223372036854775808
+float + 3.75
+float - -0.75
+float * 6.0
+float / 0.3333333333333333
+float % 1.5
+float neg -0.5
+byte + 1
+byte - 255
+byte * 16
+byte / 28
+byte ~ 240
+byte << 2
+word + 1
+word * 12884901888
+word ~ 18446744073709551615
+word >> 15
+int < true
+int >= false
+float <= true
+float == false
+byte > true
+word != true
+bool == true
+bool != true
+bool ! false
+text == true
+text != true
+and false
+or true
+int as float 3.0
+float as int -3
+text as int 42
+text as float 2.5
+int as byte 44
+byte as int 254
+int as word 18446744073709551615
+word as int -1
+byte as word 127
+word as byte 255
+byte as float 3.0
+float as byte 250
+word as float 2.0
+float as word 6
+int as int 8

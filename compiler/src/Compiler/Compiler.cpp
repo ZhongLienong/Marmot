@@ -4,9 +4,13 @@
 #include "Common/Source/Source.h"
 #include "Compiler.h"
 #include "Compiler/BuildGraph/BuildGraph.h"
+#include "Compiler/BytecodeBackend/BytecodeBackend.h"
 #include "Compiler/BytecodeLinker/BytecodeLinker.h"
 #include "Compiler/CodeGenerator/CodeGenerator.h"
 #include "Compiler/Lexer/Lexer.h"
+#include "Compiler/Lowering/Lowering.h"
+#include "Compiler/MidoriIR/MidoriIRPrinter.h"
+#include "Compiler/MidoriIR/MidoriIRVerifier.h"
 #include "Compiler/Module/CompiledModule.h"
 #include "Compiler/ModuleManager/ModuleManager.h"
 #include "Compiler/OptimizerManager/OptimizerManager.h"
@@ -22,6 +26,7 @@
 #include <deque>
 #include <filesystem>
 #include <mutex>
+#include <ranges>
 #include <span>
 #include <sstream>
 #include <exception>
@@ -107,6 +112,7 @@ namespace
 		MidoriProgramTree m_ast;
 		ModuleExportInfo m_export_info;
 		BytecodeModule m_bytecode;
+		std::optional<LoweredModule> m_lowered;
 		std::string m_midori_ir;
 #if MIDORI_ENABLE_OPTIMIZER_STATS
 		OptimizerLog m_optimizer_log;
@@ -119,7 +125,8 @@ namespace
 		CompileStateResult WithStaticAnalysis() &&;
 		CompileStateResult WithOptimizedAst() &&;
 		CompileStateResult WithBytecode() &&;
-		CompileStateResult WithMidoriIR() &&;
+		CompileStateResult WithLoweredModule() &&;
+		CompileStateResult WithBackendBytecode() &&;
 		MidoriResult::CompiledModuleReportResult Finalize() &&;
 	};
 
@@ -813,11 +820,71 @@ namespace
 		return ApplyBytecode(std::move(state), std::move(bytecode_result).value());
 	}
 
-	CompileStateResult CompileState::WithMidoriIR() &&
+	static LoweringImports MakeLoweringImports(const ImportContext& import_context)
+	{
+		LoweringImports imports;
+		imports.m_generic_functions = import_context.m_imported_generic_functions
+			| std::views::keys
+			| std::ranges::to<std::unordered_set<std::string>>();
+		imports.m_class_methods = import_context.m_imported_typeclass_methods;
+		return imports;
+	}
+
+	// A violation is the compiler's bug, not the program's, so every one is
+	// reported and the module stops.
+	static std::optional<CompilerError> VerifyMidoriIR(const MidoriIRModule& module, const std::string& file_path)
+	{
+		const std::vector<MidoriIRViolation> violations = MidoriIRVerifier(module).Verify();
+		if (violations.empty())
+		{
+			return std::nullopt;
+		}
+
+		const std::string message = violations
+			| std::views::transform([](const MidoriIRViolation& violation) { return violation.ToString(); })
+			| std::views::join_with('\n')
+			| std::ranges::to<std::string>();
+		return CompilerError::WithFile(CompilerStage::Lowering, std::format("Lowering produced invalid MidoriIR:\n{}\n", message), file_path, CompilerErrorCode::CompilerInternalError);
+	}
+
+	CompileStateResult CompileState::WithLoweredModule() &&
 	{
 		CompileState state = std::move(*this);
-		CompilerError error = CompilerError::WithFile(CompilerStage::CodeGenerator, "The MidoriIR backend cannot lower this module yet.\n", state.m_file_path, CompilerErrorCode::CodeGeneratorUnsupportedLowering);
-		return std::unexpected(MakeStateErrorReport(std::move(state), MidoriResult::CompilerDiagnostics(std::move(error))));
+		state.m_export_info = BuildModuleExports(state.m_module_decl, state.m_parsed_module.m_typeclass_metadata);
+		state.m_module_name = state.m_module_decl ? state.m_module_decl->ModuleName() : std::filesystem::path(state.m_file_path).stem().string();
+
+		const LoweringImports imports = MakeLoweringImports(state.m_import_context);
+		MidoriResult::DiagnosticsResult<LoweredModule> lowered = Lowering(state.m_ast, state.m_file_path, state.m_source_lines, state.m_module_name, state.m_export_info.m_export_set, imports).Lower();
+		if (!lowered.has_value())
+		{
+			return std::unexpected(MakeStateErrorReport(std::move(state), std::move(lowered.error())));
+		}
+
+		std::optional<CompilerError> violation = VerifyMidoriIR(lowered->m_module, state.m_file_path);
+		if (violation.has_value())
+		{
+			return std::unexpected(MakeStateErrorReport(std::move(state), MidoriResult::CompilerDiagnostics(std::move(violation).value())));
+		}
+
+		if (state.m_env->m_emit_midori_ir)
+		{
+			state.m_midori_ir = MidoriIRPrinter(lowered->m_module).Print();
+		}
+		state.m_lowered.emplace(std::move(lowered).value());
+		return state;
+	}
+
+	CompileStateResult CompileState::WithBackendBytecode() &&
+	{
+		CompileState state = std::move(*this);
+		MidoriResult::CodeGeneratorResult bytecode_result = BytecodeBackend(state.m_lowered.value(), state.m_file_path, state.m_source_lines).Emit();
+		if (!bytecode_result.has_value())
+		{
+			return std::unexpected(MakeStateErrorReport(std::move(state), std::move(bytecode_result.error())));
+		}
+
+		state.m_lowered.reset();
+		return ApplyBytecode(std::move(state), std::move(bytecode_result).value());
 	}
 
 	MidoriResult::CompiledModuleReportResult CompileState::Finalize() &&
@@ -1022,9 +1089,14 @@ namespace
 		return std::move(state).WithBytecode();
 	}
 
-	static CompileStateResult StageMidoriIR(CompileState state)
+	static CompileStateResult StageLowering(CompileState state)
 	{
-		return std::move(state).WithMidoriIR();
+		return std::move(state).WithLoweredModule();
+	}
+
+	static CompileStateResult StageBytecodeBackend(CompileState state)
+	{
+		return std::move(state).WithBackendBytecode();
 	}
 
 	class ModuleCompiler
@@ -1074,14 +1146,15 @@ namespace
 				NamedStage{ StageBytecode, "code generator" }
 			};
 
-			static const std::array<NamedStage, 6u> s_midori_ir_pipeline =
+			static const std::array<NamedStage, 7u> s_midori_ir_pipeline =
 			{
 				NamedStage{ StageImportContext, "import context" },
 				NamedStage{ StageSourceLines, "source lines" },
 				NamedStage{ StageParsedModule, "parser" },
 				NamedStage{ StageTypeCheckedAst, "type checker" },
 				NamedStage{ StageStaticAnalysis, "static analyzer" },
-				NamedStage{ StageMidoriIR, "lowering" }
+				NamedStage{ StageLowering, "lowering" },
+				NamedStage{ StageBytecodeBackend, "bytecode backend" }
 			};
 
 			switch (backend)

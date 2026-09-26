@@ -477,6 +477,20 @@ namespace
 				Expect(matches, block, instruction, std::format("its constant is not a {}", result->ToString()));
 				return;
 			}
+			case MidoriIROp::ShlByte:
+			case MidoriIROp::ShrByte:
+			case MidoriIROp::ShlWord:
+			case MidoriIROp::ShrWord:
+			{
+				const bool is_byte = instruction.m_op == MidoriIROp::ShlByte || instruction.m_op == MidoriIROp::ShrByte;
+				const TypeRef& shifted = MidoriIRScalarType(is_byte ? MidoriIRScalar::Byte : MidoriIRScalar::Word);
+				if (operand_count(2u))
+				{
+					Expect(SameType(TypeOf(operands[0u]), shifted) && SameType(result, shifted), block, instruction, std::format("shifts a {} to a {}", shifted->ToString(), shifted->ToString()));
+					Expect(TypeOf(operands[1u])->IsType<MidoriType::IntegerType>(), block, instruction, "its shift amount is not an Int");
+				}
+				return;
+			}
 			case MidoriIROp::MakeTuple:
 			{
 				if (Expect(result->IsType<MidoriType::TupleType>(), block, instruction, "gives a tuple"))
@@ -693,6 +707,10 @@ namespace
 			case MidoriIROp::GlobalSet:
 			{
 				const MidoriIRGlobal* global = Global(block, instruction);
+				if (global != nullptr && global->IsImported())
+				{
+					Report(MidoriIRRule::GlobalSlot, block, std::format("{} writes global @{}, which {} defines", info.m_name, std::get<MidoriIRGlobalSlot>(instruction.m_immediate).m_value, global->m_module));
+				}
 				if (global != nullptr && operand_count(1u))
 				{
 					Expect(SameType(TypeOf(operands[0u]), global->m_type), block, instruction, std::format("stores a {} in {}, a {}", TypeOf(operands[0u])->ToString(), global->m_name, global->m_type->ToString()));
