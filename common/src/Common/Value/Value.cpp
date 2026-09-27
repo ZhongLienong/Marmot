@@ -367,7 +367,7 @@ MidoriTraceable::MidoriTraceable(std::in_place_type_t<MidoriStruct>, std::span<c
 {
 }
 
-MidoriTraceable::MidoriTraceable(std::in_place_type_t<MidoriUnion>, std::span<const MidoriValue> values) noexcept : m_union{ .m_values = MidoriTuple(values) }, m_type(TraceableType::Union)
+MidoriTraceable::MidoriTraceable(std::in_place_type_t<MidoriUnion>, std::span<const MidoriValue> values, int index) noexcept : m_union{ .m_values = MidoriTuple(values), .m_index = index }, m_type(TraceableType::Union)
 {
 }
 

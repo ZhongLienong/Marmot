@@ -22,7 +22,7 @@ public:
 
 	void* Allocate();
 
-	MidoriAllocator& Free(size_t slot_index) &;
+	MidoriAllocator& Free(void* slot, size_t slot_index) &;
 
 	bool Contains(const void* ptr) const noexcept;
 
@@ -35,9 +35,12 @@ public:
 	size_t LiveSlotCount() const noexcept;
 
 private:
+	// A free slot knows its index, so allocating one sets its live bit
+	// without working the index out from its address.
 	struct FreeNode
 	{
 		FreeNode* m_next;
+		size_t m_slot_index;
 	};
 
 	static constexpr size_t USABLE_BLOCK_BYTES = SLOTS_PER_BLOCK * SLOT_SIZE;
@@ -73,6 +76,14 @@ public:
 		return (offset / BLOCK_SIZE) * BITS_PER_BLOCK + slot_in_block;
 	}
 
+	// The index of a slot Allocate returned, which TryGetSlotIndex would
+	// check first.
+	MIDORI_FORCE_INLINE size_t SlotIndexOf(const void* slot) const noexcept
+	{
+		const size_t offset = static_cast<size_t>(reinterpret_cast<uintptr_t>(slot) - reinterpret_cast<uintptr_t>(m_region_base));
+		return (offset / BLOCK_SIZE) * BITS_PER_BLOCK + (offset % BLOCK_SIZE) / SLOT_SIZE;
+	}
+
 private:
 	static constexpr size_t RESERVED_REGION_SIZE = 1uz << 30uz;
 #ifdef _WIN32
@@ -93,6 +104,8 @@ private:
 #else
 public:
 	std::optional<size_t> TryGetSlotIndex(const void* ptr) const noexcept;
+
+	size_t SlotIndexOf(const void* slot) const noexcept;
 
 private:
 	std::vector<uint8_t*> m_blocks;

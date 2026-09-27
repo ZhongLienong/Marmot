@@ -10,6 +10,7 @@
 #include "support/CompileHelpers.h"
 #include "support/OutputCapture.h"
 
+#include <format>
 #include <ranges>
 #include <string>
 #include <vector>
@@ -183,4 +184,131 @@ TEST_CASE("The backend moves a jump's arguments into its target's parameters all
 
 	const LoweredModule lowered(std::move(module));
 	CHECK(RunModule(RequireBytecode(lowered)) == "ab ba ab ");
+}
+
+TEST_CASE("The backend reads a union's tag and fields straight from its slot in a loop", "[midori_ir][backend]")
+{
+	std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> bytecode = MidoriTest::GenerateBytecodeSnippetWithDiagnostics(R"(module Walk
+type Chain = End | Link(Int, Chain);
+def Sum = fn(chain: Chain, total: Int) -> Int => match chain with
+	case Chain::Link(value, rest) => Sum(rest, total + value)
+	case Chain::End => total;
+)");
+	REQUIRE(bytecode.has_value());
+
+	// The match's last arm needs no test of its own, so the tag is read once,
+	// from the slot, and not kept.
+	REQUIRE(bytecode->m_procedure_names[1u] == "Sum@Walk");
+	CHECK(Opcodes(bytecode->m_procedures[1u]) == std::vector<OpCode>
+	{
+		OpCode::PUSH_PLACEHOLDER,
+		OpCode::IF_LOCAL_TAG_NOT,
+		OpCode::LOCAL_UNION_FIELD,
+		OpCode::GET_LOCAL,
+		OpCode::GET_UNION_FIELD,
+		OpCode::GET_LOCAL2,
+		OpCode::ADD_INTEGER,
+		OpCode::STORE_LOCAL,
+		OpCode::STORE_LOCAL,
+		OpCode::JUMP_BACK,
+		OpCode::GET_LOCAL,
+		OpCode::RETURN
+	});
+}
+
+TEST_CASE("The backend compares, steps and builds from slots in a loop without the stack", "[midori_ir][backend]")
+{
+	std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> bytecode = MidoriTest::GenerateBytecodeSnippetWithDiagnostics(R"(module Split
+type Chain = End | Link(Int, Chain);
+def Keep = fn(values: Array<Int>, index: Int, pivot: Int, below: Chain) -> Chain =>
+	if index < 0
+	then below
+	else
+	{
+		def value = values[index];
+		if value < pivot
+		then Keep(values, index - 1, pivot, Chain::Link(value, below))
+		else if value == pivot
+		then Keep(values, index - 1, pivot, below)
+		else Keep(values, index - 1, pivot, Chain::Link(value * 2, below))
+	};
+def Doubles = fn(n: Int) -> Array<Int> => [i * 2 for i in 0..1..n];
+)");
+	REQUIRE(bytecode.has_value());
+
+	// A union made of two locals is one instruction; one made of a value
+	// computed on the stack is built there.
+	REQUIRE(bytecode->m_procedure_names[1u] == "Keep@Split");
+	CHECK(Opcodes(bytecode->m_procedures[1u]) == std::vector<OpCode>
+	{
+		OpCode::PUSH_PLACEHOLDER,
+		OpCode::IF_LOCAL_LT_INT,
+		OpCode::GET_LOCAL,
+		OpCode::RETURN,
+		OpCode::LOCAL_ARRAY_GET,
+		OpCode::IF_LOCAL_LT_LOCAL,
+		OpCode::STEP_LOCAL,
+		OpCode::LOCAL_UNION2,
+		OpCode::JUMP_BACK,
+		OpCode::IF_LOCAL_EQ_LOCAL,
+		OpCode::STEP_LOCAL,
+		OpCode::JUMP_BACK,
+		OpCode::STEP_LOCAL,
+		OpCode::GET_LOCAL,
+		OpCode::INT_1,
+		OpCode::LEFT_SHIFT,
+		OpCode::GET_LOCAL,
+		OpCode::CONSTRUCT_UNION,
+		OpCode::STORE_LOCAL,
+		OpCode::JUMP_BACK
+	});
+	REQUIRE(bytecode->m_procedure_names[2u] == "Doubles@Split");
+	CHECK(Opcodes(bytecode->m_procedures[2u]) == std::vector<OpCode>
+	{
+		OpCode::PUSH_PLACEHOLDER,
+		OpCode::CREATE_ARRAY,
+		OpCode::STORE_LOCAL,
+		OpCode::INT_0,
+		OpCode::STORE_LOCAL,
+		OpCode::IF_LOCAL_LT_LOCAL,
+		OpCode::GET_LOCAL,
+		OpCode::INT_1,
+		OpCode::LEFT_SHIFT,
+		OpCode::STORE_LOCAL,
+		OpCode::APPEND_LOCAL,
+		OpCode::STEP_LOCAL,
+		OpCode::JUMP_BACK,
+		OpCode::GET_LOCAL,
+		OpCode::RETURN
+	});
+}
+
+TEST_CASE("A frame of more than 255 slots pushes its placeholders in several instructions", "[midori_ir][backend]")
+{
+	constexpr int s_count = 300;
+	const std::string definitions = std::views::iota(0, s_count)
+		| std::views::transform([](int index) { return std::format("\tdef v{} = n + {};\n", index, index); })
+		| std::views::join
+		| std::ranges::to<std::string>();
+	const std::string sum = std::views::iota(0, s_count)
+		| std::views::transform([](int index) { return std::format("v{}", index); })
+		| std::views::join_with(std::string_view(" + "))
+		| std::ranges::to<std::string>();
+	std::expected<LoweredModule, MidoriResult::CompilerDiagnostics> lowered = MidoriTest::LowerSnippetWithDiagnostics(std::format(R"(module Wide
+foreign "MIDORI_FFI_Print" Print: fn(Text) -> Unit;
+def Total = fn(n: Int) -> Int => {{
+{}	{}
+}};
+Print(Total(1) as Text);
+)", definitions, sum));
+	REQUIRE(lowered.has_value());
+
+	BytecodeModule bytecode = RequireBytecode(lowered.value());
+	REQUIRE(bytecode.m_procedure_names[1u] == "Total@Wide");
+	const BytecodeStream& total = bytecode.m_procedures[1u];
+	REQUIRE(total.ReadByteCode(0) == OpCode::PUSH_PLACEHOLDER);
+	CHECK(static_cast<int>(total.ReadByteCode(1)) == 255);
+	REQUIRE(total.ReadByteCode(2) == OpCode::PUSH_PLACEHOLDER);
+	CHECK(static_cast<int>(total.ReadByteCode(3)) > 0);
+	CHECK(RunModule(std::move(bytecode)) == std::to_string(s_count + s_count * (s_count - 1) / 2));
 }

@@ -188,7 +188,7 @@ TEST_CASE("BinaryArtifact ReadExecutable rejects a version 11 artifact", "[bytec
 	const std::expected<MidoriExecutable, std::string> result = MidoriBinaryArtifact::ReadExecutable(in);
 
 	REQUIRE_FALSE(result.has_value());
-	REQUIRE(result.error() == "Bytecode artifact format version mismatch: expected 12, got 11. Rebuild the artifact.");
+	REQUIRE(result.error() == "Bytecode artifact format version mismatch: expected 13, got 11. Rebuild the artifact.");
 }
 
 TEST_CASE("BinaryArtifact ReadExecutable rejects corrupt payload (CRC mismatch)", "[bytecode-artifact]")

@@ -97,14 +97,9 @@ void GarbageCollector::WriteBarrier(MidoriTraceable* target) noexcept
 		return;
 	}
 
-	const std::optional<size_t> slot_index = m_allocator->TryGetSlotIndex(target);
-	if (!slot_index.has_value())
-	{
-		return;
-	}
-
-	const size_t word_index = *slot_index / 64uz;
-	const uint64_t mask = 1ull << (*slot_index % 64uz);
+	const size_t slot_index = m_allocator->SlotIndexOf(target);
+	const size_t word_index = slot_index / 64uz;
+	const uint64_t mask = 1ull << (slot_index % 64uz);
 	if (word_index >= m_mark_bits.size() || (m_mark_bits[word_index] & mask) == 0ull)
 	{
 		return;
@@ -113,7 +108,11 @@ void GarbageCollector::WriteBarrier(MidoriTraceable* target) noexcept
 	{
 		return;
 	}
+	Remember(target, word_index, mask);
+}
 
+void GarbageCollector::Remember(MidoriTraceable* target, size_t word_index, uint64_t mask) noexcept
+{
 	if (m_logged_bits.size() < m_mark_bits.size())
 	{
 		m_logged_bits.resize(m_mark_bits.size(), 0ull);
@@ -232,7 +231,7 @@ void GarbageCollector::Sweep(MidoriAllocator& allocator, size_t& sweep_count, si
 			sweep_count += 1uz;
 
 			ptr->~MidoriTraceable();
-			allocator.Free(slot_index);
+			allocator.Free(ptr, slot_index);
 		}
 	}
 }

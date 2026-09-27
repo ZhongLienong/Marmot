@@ -302,15 +302,17 @@ namespace
 		Printer::Print(formated_str.str());
 	}
 
-	void SetTagInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
+	void ConstructUnionInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
 	{
-		int operand = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
-		offset += 2;
+		int size = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
+		int tag = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
+		offset += 3;
 		std::ostringstream formated_str;
 
 		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
-		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(operand));
-		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// union tag: " + std::to_string(operand));
+		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(size));
+		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(tag));
+		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// data size: " + std::to_string(size) + ", union tag: " + std::to_string(tag));
 		formated_str << '\n';
 		Printer::Print(formated_str.str());
 	}
@@ -734,9 +736,6 @@ namespace Disassembler
 		case OpCode::GET_TAG:
 			SimpleInstruction("GET_TAG", offset);
 			break;
-		case OpCode::SET_TAG:
-			SetTagInstruction("SET_TAG", executable, proc_index, offset);
-			break;
 		case OpCode::SPAWN_WORKER:
 			SpawnWorkerInstruction("SPAWN_WORKER", executable, proc_index, offset);
 			break;
@@ -814,6 +813,93 @@ namespace Disassembler
 			offset += 3;
 			break;
 		}
+		case OpCode::STORE_LOCAL:
+			LocalOrCellVariableInstruction("STORE_LOCAL", executable, proc_index, offset);
+			break;
+		case OpCode::IF_LOCAL_TAG_NOT:
+		{
+			const int local_index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
+			const int tag = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
+			const int low = static_cast<int>(executable.ReadByteCode(offset + 3, proc_index));
+			const int high = static_cast<int>(executable.ReadByteCode(offset + 4, proc_index));
+			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("IF_LOCAL_TAG_NOT")) + " local=" + std::to_string(local_index) + " tag=" + std::to_string(tag) + " -> " + std::to_string(offset + 5 + (low | (high << 8))) + "\n");
+			offset += 5;
+			break;
+		}
+		case OpCode::LOCAL_UNION_FIELD:
+		{
+			const int union_index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
+			const int field_index = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
+			const int target_index = static_cast<int>(executable.ReadByteCode(offset + 3, proc_index));
+			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("LOCAL_UNION_FIELD")) + " union=" + std::to_string(union_index) + " index=" + std::to_string(field_index) + " target=" + std::to_string(target_index) + "\n");
+			offset += 4;
+			break;
+		}
+		case OpCode::IF_LOCAL_LT_INT:
+		{
+			const int local_index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
+			const int imm = static_cast<int>(static_cast<int8_t>(executable.ReadByteCode(offset + 2, proc_index)));
+			const int low = static_cast<int>(executable.ReadByteCode(offset + 3, proc_index));
+			const int high = static_cast<int>(executable.ReadByteCode(offset + 4, proc_index));
+			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("IF_LOCAL_LT_INT")) + " local=" + std::to_string(local_index) + " imm=" + std::to_string(imm) + " -> " + std::to_string(offset + 5 + (low | (high << 8))) + "\n");
+			offset += 5;
+			break;
+		}
+		case OpCode::IF_LOCAL_LT_LOCAL:
+		{
+			const int left = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
+			const int right = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
+			const int low = static_cast<int>(executable.ReadByteCode(offset + 3, proc_index));
+			const int high = static_cast<int>(executable.ReadByteCode(offset + 4, proc_index));
+			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("IF_LOCAL_LT_LOCAL")) + " left=" + std::to_string(left) + " right=" + std::to_string(right) + " -> " + std::to_string(offset + 5 + (low | (high << 8))) + "\n");
+			offset += 5;
+			break;
+		}
+		case OpCode::IF_LOCAL_EQ_LOCAL:
+		{
+			const int left = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
+			const int right = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
+			const int low = static_cast<int>(executable.ReadByteCode(offset + 3, proc_index));
+			const int high = static_cast<int>(executable.ReadByteCode(offset + 4, proc_index));
+			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("IF_LOCAL_EQ_LOCAL")) + " left=" + std::to_string(left) + " right=" + std::to_string(right) + " -> " + std::to_string(offset + 5 + (low | (high << 8))) + "\n");
+			offset += 5;
+			break;
+		}
+		case OpCode::STEP_LOCAL:
+		{
+			const int local_index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
+			const int imm = static_cast<int>(static_cast<int8_t>(executable.ReadByteCode(offset + 2, proc_index)));
+			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("STEP_LOCAL")) + " local=" + std::to_string(local_index) + " imm=" + std::to_string(imm) + "\n");
+			offset += 3;
+			break;
+		}
+		case OpCode::LOCAL_ARRAY_GET:
+		{
+			const int array_index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
+			const int index = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
+			const int target_index = static_cast<int>(executable.ReadByteCode(offset + 3, proc_index));
+			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("LOCAL_ARRAY_GET")) + " array=" + std::to_string(array_index) + " index=" + std::to_string(index) + " target=" + std::to_string(target_index) + "\n");
+			offset += 4;
+			break;
+		}
+		case OpCode::LOCAL_UNION2:
+		{
+			const int tag = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
+			const int first = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
+			const int second = static_cast<int>(executable.ReadByteCode(offset + 3, proc_index));
+			const int target_index = static_cast<int>(executable.ReadByteCode(offset + 4, proc_index));
+			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("LOCAL_UNION2")) + " tag=" + std::to_string(tag) + " first=" + std::to_string(first) + " second=" + std::to_string(second) + " target=" + std::to_string(target_index) + "\n");
+			offset += 5;
+			break;
+		}
+		case OpCode::APPEND_LOCAL:
+		{
+			const int array_index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
+			const int value_index = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
+			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("APPEND_LOCAL")) + " array=" + std::to_string(array_index) + " value=" + std::to_string(value_index) + "\n");
+			offset += 3;
+			break;
+		}
 		case OpCode::MAKE_CLOSURE_OF:
 		{
 			const int code_index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index)) | (static_cast<int>(executable.ReadByteCode(offset + 2, proc_index)) << 8);
@@ -877,7 +963,7 @@ namespace Disassembler
 			DataInstruction("CONSTRUCT_STRUCT", executable, proc_index, offset);
 			break;
 		case OpCode::CONSTRUCT_UNION:
-			DataInstruction("CONSTRUCT_UNION", executable, proc_index, offset);
+			ConstructUnionInstruction("CONSTRUCT_UNION", executable, proc_index, offset);
 			break;
 		case OpCode::LOAD_EMPTY_UNION:
 			DataInstruction("LOAD_EMPTY_UNION", executable, proc_index, offset);
@@ -925,8 +1011,12 @@ namespace Disassembler
 			SimpleInstruction("HALT", offset);
 			break;
 		case OpCode::PUSH_PLACEHOLDER:
-			SimpleInstruction("PUSH_PLACEHOLDER", offset);
+		{
+			const int count = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
+			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("PUSH_PLACEHOLDER")) + " count=" + std::to_string(count) + "\n");
+			offset += 2;
 			break;
+		}
 		default:
 #ifdef _MSC_VER
 			__assume(0);

@@ -103,4 +103,7 @@ private:
 	void TryMark(MidoriTraceable* child_ptr);
 	void Sweep(MidoriAllocator& allocator, size_t& sweep_count, size_t& bytes_reclaimed);
 	void ClearRememberedSet() noexcept;
+	// Apart from WriteBarrier's checks, so the barrier saves no registers on
+	// the path nearly every call takes.
+	MIDORI_NOINLINE void Remember(MidoriTraceable* target, size_t word_index, uint64_t mask) noexcept;
 };

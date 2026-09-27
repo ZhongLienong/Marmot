@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <utility>
 #include <vector>
 
 TEST_CASE("Slot index round-trips through SlotAt", "[allocator][gc]")
@@ -23,8 +24,23 @@ TEST_CASE("Slot index round-trips through SlotAt", "[allocator][gc]")
 	REQUIRE(allocator.SlotAt(*first_index) == first);
 	REQUIRE(allocator.SlotAt(*second_index) == second);
 
-	allocator.Free(*first_index);
-	allocator.Free(*second_index);
+	allocator.Free(first, *first_index);
+	allocator.Free(second, *second_index);
+}
+
+TEST_CASE("A freed slot is allocated again under its own index", "[allocator][gc]")
+{
+	MidoriAllocator allocator;
+
+	void* slot = allocator.Allocate();
+	const std::optional<size_t> index = allocator.TryGetSlotIndex(slot);
+	REQUIRE(index.has_value());
+	allocator.Free(slot, *index);
+
+	REQUIRE(allocator.Allocate() == slot);
+	const uint64_t* words = allocator.LiveBitWords();
+	REQUIRE((words[*index / 64uz] & (1ull << (*index % 64uz))) != 0ull);
+	REQUIRE(allocator.LiveSlotCount() == 1uz);
 }
 
 TEST_CASE("Slot index rejects foreign and misaligned pointers", "[allocator][gc]")
@@ -59,7 +75,7 @@ TEST_CASE("Live bit words reflect allocation state", "[allocator][gc]")
 	REQUIRE(allocator.SlotWordCount() > *index / 64uz);
 	REQUIRE((words[*index / 64uz] & (1ull << (*index % 64uz))) != 0ull);
 
-	allocator.Free(*index);
+	allocator.Free(slot, *index);
 	REQUIRE((words[*index / 64uz] & (1ull << (*index % 64uz))) == 0ull);
 }
 
@@ -69,7 +85,7 @@ TEST_CASE("Slot indices stay valid past the first commit granules", "[allocator]
 
 	// 5 MB of slots spans three 2 MB granules on POSIX and 80 blocks everywhere.
 	constexpr size_t SLOT_COUNT = (5uz << 20uz) / MidoriAllocator::SLOT_SIZE;
-	std::vector<size_t> indices;
+	std::vector<std::pair<void*, size_t>> slots;
 	for (size_t i = 0uz; i < SLOT_COUNT; i += 1uz)
 	{
 		void* slot = allocator.Allocate();
@@ -79,13 +95,13 @@ TEST_CASE("Slot indices stay valid past the first commit granules", "[allocator]
 		REQUIRE(index.has_value());
 		REQUIRE(allocator.SlotAt(*index) == slot);
 		REQUIRE(allocator.Contains(slot));
-		indices.emplace_back(*index);
+		slots.emplace_back(slot, *index);
 	}
 	REQUIRE(allocator.LiveSlotCount() == SLOT_COUNT);
 
-	for (size_t index : indices)
+	for (const auto& [slot, index] : slots)
 	{
-		allocator.Free(index);
+		allocator.Free(slot, index);
 	}
 	REQUIRE(allocator.LiveSlotCount() == 0uz);
 }

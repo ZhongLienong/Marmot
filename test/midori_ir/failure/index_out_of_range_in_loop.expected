@@ -1,0 +1,12 @@
+30
+error[IndexOutOfBounds]: Index out of bounds at index: 3.
+ --> test/midori_ir/failure/index_out_of_range_in_loop.mmt:14
+   |
+14 | 		def value = values[index];
+   | Index out of bounds at index: 3.
+   |
+stack trace:
+  at SumSquares [module IndexOutOfRangeInLoop] in test/midori_ir/failure/index_out_of_range_in_loop.mmt:14
+    		def value = values[index];
+  at main [module IndexOutOfRangeInLoop] in test/midori_ir/failure/index_out_of_range_in_loop.mmt:19
+    Print((SumSquares([1, 2, 3], 0, 0) as Text) ++ "/n");

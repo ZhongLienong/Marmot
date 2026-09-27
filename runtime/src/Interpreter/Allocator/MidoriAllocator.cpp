@@ -38,6 +38,7 @@ bool MidoriAllocator::AllocateBlock()
 	{
 		FreeNode* node = reinterpret_cast<FreeNode*>(slot_ptr);
 		node->m_next = m_free_list;
+		node->m_slot_index = (m_blocks.size() - 1uz) * BITS_PER_BLOCK + i;
 		m_free_list = node;
 		slot_ptr += SLOT_SIZE;
 	}
@@ -77,6 +78,11 @@ std::optional<size_t> MidoriAllocator::TryGetSlotIndex(const void* ptr) const no
 	}
 
 	return *block_index * BITS_PER_BLOCK + block_offset / SLOT_SIZE;
+}
+
+size_t MidoriAllocator::SlotIndexOf(const void* slot) const noexcept
+{
+	return TryGetSlotIndex(slot).value();
 }
 
 // Precondition: slot_index must correspond to a set live bit (callers derive indices
@@ -175,6 +181,7 @@ bool MidoriAllocator::AllocateBlock()
 	}
 
 	uint8_t* block_base = m_region_base + m_block_bytes;
+	const size_t first_slot_index = (m_block_bytes / BLOCK_SIZE) * BITS_PER_BLOCK;
 	m_block_bytes += BLOCK_SIZE;
 	m_live_bits.insert(m_live_bits.end(), LIVE_WORDS_PER_BLOCK, 0ull);
 
@@ -183,6 +190,7 @@ bool MidoriAllocator::AllocateBlock()
 	{
 		FreeNode* node = reinterpret_cast<FreeNode*>(slot_ptr);
 		node->m_next = m_free_list;
+		node->m_slot_index = first_slot_index + i;
 		m_free_list = node;
 		slot_ptr += SLOT_SIZE;
 	}
@@ -221,17 +229,18 @@ void* MidoriAllocator::Allocate()
 	FreeNode* node = m_free_list;
 	m_free_list = node->m_next;
 
-	const size_t slot_index = *TryGetSlotIndex(node);
+	const size_t slot_index = node->m_slot_index;
 	m_live_bits[slot_index / 64uz] |= 1ull << (slot_index % 64uz);
 	return node;
 }
 
-MidoriAllocator& MidoriAllocator::Free(size_t slot_index) &
+MidoriAllocator& MidoriAllocator::Free(void* slot, size_t slot_index) &
 {
 	m_live_bits[slot_index / 64uz] &= ~(1ull << (slot_index % 64uz));
 
-	FreeNode* node = static_cast<FreeNode*>(SlotAt(slot_index));
+	FreeNode* node = static_cast<FreeNode*>(slot);
 	node->m_next = m_free_list;
+	node->m_slot_index = slot_index;
 	m_free_list = node;
 	return *this;
 }

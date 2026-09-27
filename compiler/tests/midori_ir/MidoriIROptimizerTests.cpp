@@ -100,6 +100,31 @@ bb0(x: Int):
 )");
 }
 
+TEST_CASE("DeadCodeElimination drops the test an exhaustive match leaves for its last arm", "[midori_ir][optimizer]")
+{
+	const MidoriIRModule module = Optimize<DeadCodeEliminationPass>(R"(module Exhaustive
+type Opt = None | Some(Int);
+def Get = fn(o: Opt) -> Int => match o with
+	case Opt::Some(v) => v
+	case Opt::None => 0;
+Get(Opt::Some(3));
+)");
+
+	CHECK(PrintFunction(module, "Get") == R"(fn Get(Exhaustive::Opt) -> Int
+bb0(o: Exhaustive::Opt):
+  %1: Int = GetTag o
+  %2: Int = Const 1
+  %3: Bool = EqInt %1, %2
+  branch %3, bb1, bb2
+bb1:
+  %4: Int = UnionField tag 1 #0, o
+  return %4
+bb2:
+  %8: Int = Const 0
+  return %8
+)");
+}
+
 TEST_CASE("SelfTailCall turns a tail call of the function itself into a loop", "[midori_ir][optimizer]")
 {
 	const MidoriIRModule module = Optimize<SelfTailCallPass>(R"(module Countdown
@@ -395,26 +420,19 @@ bb0(n: Int):
   branch %2, bb1, bb2
 bb1:
   %3: Mixed::Opt = MakeUnion tag 1, n  !alloc
-  jump bb4(%3)
+  jump bb3(%3)
 bb2:
   %4: Mixed::Opt = Call Make, n  !call
   %6: Int = GetTag %4
   %7: Int = Const 1
   %8: Bool = EqInt %6, %7
-  branch %8, bb4(%4), bb3
-bb3:
-  %12: Int = GetTag %4
-  %13: Int = Const 0
-  %14: Bool = EqInt %12, %13
-  branch %14, bb6, bb5
-bb4(%19: Mixed::Opt):
+  branch %8, bb3(%4), bb4
+bb3(%19: Mixed::Opt):
   %9: Int = UnionField tag 1 #0, %19
   %10: Int = Const 1
   %11: Int = AddInt %9, %10
   return %11
-bb5:
-  unreachable
-bb6:
+bb4:
   %15: Int = Const 0
   return %15
 )");

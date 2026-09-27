@@ -812,7 +812,7 @@ public:
 	MidoriTraceable(MidoriUnion&& midori_union) noexcept;
 	MidoriTraceable(std::in_place_type_t<MidoriTuple>, std::span<const MidoriValue> values) noexcept;
 	MidoriTraceable(std::in_place_type_t<MidoriStruct>, std::span<const MidoriValue> values) noexcept;
-	MidoriTraceable(std::in_place_type_t<MidoriUnion>, std::span<const MidoriValue> values) noexcept;
+	MidoriTraceable(std::in_place_type_t<MidoriUnion>, std::span<const MidoriValue> values, int index) noexcept;
 
 private:
 	MidoriTraceable() = delete;

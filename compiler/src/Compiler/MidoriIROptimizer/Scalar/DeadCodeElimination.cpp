@@ -185,7 +185,35 @@ namespace
 		return left.m_block == right.m_block && left.m_arguments == right.m_arguments;
 	}
 
-	// A branch on a constant, or whose two edges are one, is a jump.
+	bool IsOnlyUnreachable(const MidoriIRFunction& function, const MidoriIRSuccessor& successor)
+	{
+		const std::vector<MidoriIRInstruction>& instructions = function.Block(successor.m_block).m_instructions;
+		return instructions.size() == 1u && instructions.front().m_op == MidoriIROp::Unreachable;
+	}
+
+	// The edge a branch always takes: the one its constant condition picks,
+	// or the other when one edge reaches only `unreachable`, as an exhaustive
+	// match's last test does.
+	std::optional<bool> TakenEdge(const MidoriIRFunction& function, const std::vector<std::optional<MidoriIRSite>>& sites, const MidoriIRInstruction& branch)
+	{
+		const std::optional<bool> condition = ConstantCondition(function, sites, branch.m_operands.front());
+		if (condition.has_value())
+		{
+			return condition;
+		}
+		if (IsOnlyUnreachable(function, branch.m_successors[1u]))
+		{
+			return true;
+		}
+		if (IsOnlyUnreachable(function, branch.m_successors[0u]))
+		{
+			return false;
+		}
+		return std::nullopt;
+	}
+
+	// A branch that always takes one edge, or whose two edges are one, is a
+	// jump.
 	bool FoldBranches(MidoriIRFunction& function)
 	{
 		const std::vector<std::optional<MidoriIRSite>> sites = MidoriIRAnalysis::DefinitionSites(function);
@@ -197,7 +225,7 @@ namespace
 			{
 				continue;
 			}
-			const std::optional<bool> condition = ConstantCondition(function, sites, terminator.m_operands.front());
+			const std::optional<bool> condition = TakenEdge(function, sites, terminator);
 			if (!condition.has_value() && !SameSuccessor(terminator.m_successors[0u], terminator.m_successors[1u]))
 			{
 				continue;

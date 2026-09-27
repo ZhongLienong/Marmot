@@ -411,7 +411,19 @@ private:
         ++sp;
     }
 
-	int CheckIndexBounds(const MidoriValue index, MidoriInteger size) noexcept;
+	// Inline, since the out-of-line call cost more than the comparison; only
+	// the error is outlined.
+	MIDORI_FORCE_INLINE int CheckIndexBounds(const MidoriValue index, MidoriInteger size) noexcept
+	{
+		const MidoriInteger at = index.GetInteger();
+		if (at < 0ll || at >= size) [[unlikely]]
+		{
+			return IndexOutOfBounds(at);
+		}
+		return 0;
+	}
+
+	MIDORI_NOINLINE int IndexOutOfBounds(MidoriInteger index) noexcept;
 
 	int CheckNewArraySize(MidoriInteger size) noexcept;
 

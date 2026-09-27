@@ -126,7 +126,11 @@ namespace MidoriBuild
     // opcodes, the one-byte procedure, global and text forms, the scope pops
     // and others), and the local-operand superinstructions lost the padding
     // that let the old code generator rewrite them in place.
-    inline constexpr uint32_t MbcFormatVersion = 12u;
+    //
+    // Bumped 2026-09-27 (13): CONSTRUCT_UNION carries the tag SET_TAG used to
+    // set after it, and SET_TAG, which nothing else emitted, was deleted.
+    // PUSH_PLACEHOLDER carries how many to push.
+    inline constexpr uint32_t MbcFormatVersion = 13u;
 
     [[nodiscard]] inline bool EnvironmentFlagEnabledUncached(const char* name) noexcept
     {

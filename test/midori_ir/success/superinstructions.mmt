@@ -1,0 +1,77 @@
+module Superinstructions
+
+// Test: loops the backend emits as instructions that read and write frame
+// slots directly. Each line changes if the instruction takes the wrong
+// branch, tag, field or slot.
+
+foreign "MIDORI_FFI_Print" Print: fn(Text) -> Unit;
+
+type Shape = Dot | Line(Int) | Box(Int, Int);
+
+type Pair = Left(Int, Int) | Right(Int, Int);
+
+type Chain = End | Link(Int, Chain);
+
+// A tag test per tag, and each field of a union read into a slot.
+def Measure = fn(shapes: Array<Shape>, index: Int, total: Int) -> Int =>
+	if index == #shapes
+	then total
+	else match shapes[index] with
+		case Shape::Dot => Measure(shapes, index + 1, total + 1)
+		case Shape::Line(length) => Measure(shapes, index + 1, total + (length * 10))
+		case Shape::Box(width, height) => Measure(shapes, index + 1, total + (width * 1000) + (height * 100000));
+
+// An element read into a slot, compared with a local by < and by ==.
+def Classify = fn(values: Array<Int>, index: Int, pivot: Int, less: Int, equal: Int, greater: Int) -> Text =>
+	if index < 0
+	then (less as Text) ++ "/" ++ (equal as Text) ++ "/" ++ (greater as Text)
+	else
+	{
+		def value = values[index];
+		if value < pivot
+		then Classify(values, index - 1, pivot, less + 1, equal, greater)
+		else if value == pivot
+		then Classify(values, index - 1, pivot, less, equal + 1, greater)
+		else Classify(values, index - 1, pivot, less, equal, greater + 1)
+	};
+
+// A local compared with a negative constant, stepped down each time.
+def Down = fn(n: Int, seen: Text) -> Text =>
+	if n < -2
+	then seen
+	else Down(n - 1, seen ++ (n as Text) ++ " ");
+
+// A union of two locals made into a slot, in the order its fields are written.
+def Build = fn(n: Int, chain: Chain) -> Chain =>
+	if n == 0
+	then chain
+	else Build(n - 1, Chain::Link(n, chain));
+
+def Show = fn(chain: Chain, shown: Text) -> Text => match chain with
+	case Chain::Link(value, rest) => Show(rest, shown ++ (value as Text) ++ " ")
+	case Chain::End => shown;
+
+// Two-field unions of each tag, their fields swapped on every step.
+def Swap = fn(n: Int, a: Int, b: Int, last: Pair) -> Pair =>
+	if n == 0
+	then last
+	else if a < b
+	then Swap(n - 1, b, a, Pair::Left(a, b))
+	else Swap(n - 1, b, a, Pair::Right(a, b));
+
+def Describe = fn(pair: Pair) -> Text => match pair with
+	case Pair::Left(first, second) => "Left(" ++ (first as Text) ++ ", " ++ (second as Text) ++ ")"
+	case Pair::Right(first, second) => "Right(" ++ (first as Text) ++ ", " ++ (second as Text) ++ ")";
+
+// An array appended to in the slot it is stored back in.
+def Join = fn(values: Array<Int>, index: Int, joined: Text) -> Text =>
+	if index == #values
+	then joined
+	else Join(values, index + 1, joined ++ (values[index] as Text) ++ " ");
+
+Print((Measure([Shape::Dot(), Shape::Box(2, 3), Shape::Line(4), Shape::Dot(), Shape::Box(5, 7)], 0, 0) as Text) ++ "\n");
+Print(Classify([5, 1, 9, 5, 3, 7, 5, 2], 7, 5, 0, 0, 0) ++ "\n");
+Print(Down(5, "") ++ "\n");
+Print(Show(Build(5, Chain::End()), "") ++ "\n");
+Print(Describe(Swap(4, 1, 2, Pair::Left(0, 0))) ++ " " ++ Describe(Swap(3, 1, 2, Pair::Left(0, 0))) ++ "\n");
+Print(Join([i * 3 for i in 0..1..6], 0, "") ++ "\n");

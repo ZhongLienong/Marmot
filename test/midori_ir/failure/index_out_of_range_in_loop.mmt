@@ -1,0 +1,20 @@
+module IndexOutOfRangeInLoop
+
+// Test: an index past an array's end in a loop, where the element is read
+// straight into a slot, reports the line of the index and the call that
+// reached it.
+
+foreign "MIDORI_FFI_Print" Print: fn(Text) -> Unit;
+
+def SumSquares = fn(values: Array<Int>, index: Int, total: Int) -> Int =>
+	if index > 3
+	then total
+	else
+	{
+		def value = values[index];
+		SumSquares(values, index + 1, total + (value * value))
+	};
+
+Print((SumSquares([1, 2, 3, 4], 0, 0) as Text) ++ "\n");
+Print((SumSquares([1, 2, 3], 0, 0) as Text) ++ "\n");
+Print("not reached\n");

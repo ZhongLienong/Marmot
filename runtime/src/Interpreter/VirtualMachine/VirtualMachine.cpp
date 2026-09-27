@@ -866,17 +866,9 @@ void VirtualMachine::LocateStackOverflowAtInnermostCall() noexcept
 	m_instruction_pointer = m_call_stack_pointer->m_return_ip;
 }
 
-int VirtualMachine::CheckIndexBounds(MidoriValue index, MidoriInteger size) noexcept
+int VirtualMachine::IndexOutOfBounds(MidoriInteger index) noexcept
 {
-	MidoriInteger val = index.GetInteger();
-	if (val < 0ll || val >= size)
-	{
-		return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::IndexOutOfBounds, std::format("Index out of bounds at index: {}.", val), GetLine()));
-	}
-	else
-	{
-		return 0;
-	}
+	return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::IndexOutOfBounds, std::format("Index out of bounds at index: {}.", index), GetLine()));
 }
 
 int VirtualMachine::CheckNewArraySize(MidoriInteger size) noexcept
@@ -1844,6 +1836,115 @@ int VirtualMachine::ExecuteLoop() noexcept
 			Push(sp, *(bp + second_index));
 			break;
 		}
+		case OpCode::STORE_LOCAL:
+		{
+			int offset = static_cast<int>(ReadByte(ip));
+			*(bp + offset) = Pop(sp);
+			break;
+		}
+		case OpCode::IF_LOCAL_TAG_NOT:
+		{
+			int local_index = static_cast<int>(ReadByte(ip));
+			int tag = static_cast<int>(ReadByte(ip));
+			int offset = ReadShort(ip);
+
+			if ((bp + local_index)->GetPointer()->GetTraceable<MidoriUnion>().m_index != tag)
+			{
+				ip += offset;
+			}
+			break;
+		}
+		case OpCode::LOCAL_UNION_FIELD:
+		{
+			int union_index = static_cast<int>(ReadByte(ip));
+			int field_index = static_cast<int>(ReadByte(ip));
+			int target_index = static_cast<int>(ReadByte(ip));
+
+			*(bp + target_index) = (bp + union_index)->GetPointer()->GetTraceable<MidoriUnion>().m_values[field_index];
+			break;
+		}
+		case OpCode::IF_LOCAL_LT_INT:
+		{
+			int local_index = static_cast<int>(ReadByte(ip));
+			MidoriInteger imm = static_cast<MidoriInteger>(static_cast<int8_t>(ReadByte(ip)));
+			int offset = ReadShort(ip);
+
+			if (!((bp + local_index)->GetInteger() < imm))
+			{
+				ip += offset;
+			}
+			break;
+		}
+		case OpCode::IF_LOCAL_LT_LOCAL:
+		{
+			int left_index = static_cast<int>(ReadByte(ip));
+			int right_index = static_cast<int>(ReadByte(ip));
+			int offset = ReadShort(ip);
+
+			if (!((bp + left_index)->GetInteger() < (bp + right_index)->GetInteger()))
+			{
+				ip += offset;
+			}
+			break;
+		}
+		case OpCode::IF_LOCAL_EQ_LOCAL:
+		{
+			int left_index = static_cast<int>(ReadByte(ip));
+			int right_index = static_cast<int>(ReadByte(ip));
+			int offset = ReadShort(ip);
+
+			if (!((bp + left_index)->GetInteger() == (bp + right_index)->GetInteger()))
+			{
+				ip += offset;
+			}
+			break;
+		}
+		case OpCode::STEP_LOCAL:
+		{
+			int local_index = static_cast<int>(ReadByte(ip));
+			MidoriInteger imm = static_cast<MidoriInteger>(static_cast<int8_t>(ReadByte(ip)));
+
+			MidoriValue& slot = *(bp + local_index);
+			slot = MidoriIntegerArithmetic::Add(slot.GetInteger(), imm);
+			break;
+		}
+		case OpCode::LOCAL_ARRAY_GET:
+		{
+			MidoriArray& arr_ref = (bp + static_cast<int>(ReadByte(ip)))->GetPointer()->GetTraceable<MidoriArray>();
+			MidoriValue& index = *(bp + static_cast<int>(ReadByte(ip)));
+			int target_index = static_cast<int>(ReadByte(ip));
+			m_instruction_pointer = inst_ip;
+
+			int return_code = CheckIndexBounds(index, static_cast<MidoriInteger>(arr_ref.GetLength()));
+			if (return_code != 0)
+			{
+				m_value_stack_pointer = sp;
+				m_value_stack_base_pointer = bp;
+				m_curr_environment = env;
+				return return_code;
+			}
+
+			*(bp + target_index) = arr_ref[static_cast<int>(index.GetInteger())];
+			break;
+		}
+		case OpCode::LOCAL_UNION2:
+		{
+			int tag = static_cast<int>(ReadByte(ip));
+			const std::array<MidoriValue, 2uz> fields{ *(bp + static_cast<int>(ReadByte(ip))), *(bp + static_cast<int>(ReadByte(ip))) };
+			int target_index = static_cast<int>(ReadByte(ip));
+
+			*(bp + target_index) = AllocateTraceable(std::in_place_type<MidoriUnion>, std::span<const MidoriValue>(fields), tag);
+			break;
+		}
+		case OpCode::APPEND_LOCAL:
+		{
+			MidoriTraceable* arr = (bp + static_cast<int>(ReadByte(ip)))->GetPointer();
+			MidoriValue val = *(bp + static_cast<int>(ReadByte(ip)));
+
+			m_gc.WriteBarrier(arr);
+			arr->GetTraceable<MidoriArray>().AddBack(val);
+			break;
+		}
 		case OpCode::EQUAL_FLOAT:
 		{
 			MidoriValue right = Pop(sp);
@@ -2265,13 +2366,6 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriValue union_val = Pop(sp);
 			MidoriUnion& union_ref = union_val.GetPointer()->GetTraceable<MidoriUnion>();
 			Push(sp, static_cast<MidoriInteger>(union_ref.m_index));
-			break;
-		}
-		case OpCode::SET_TAG:
-		{
-			int tag = static_cast<int>(ReadByte(ip));
-			MidoriUnion& union_ref = Peek(sp).GetPointer()->GetTraceable<MidoriUnion>();
-			union_ref.m_index = tag;
 			break;
 		}
 		case OpCode::CALL_FOREIGN:
@@ -2721,8 +2815,9 @@ int VirtualMachine::ExecuteLoop() noexcept
 		case OpCode::CONSTRUCT_UNION:
 		{
 			int size = static_cast<int>(ReadByte(ip));
+			int tag = static_cast<int>(ReadByte(ip));
 			sp -= size;
-			Push(sp, AllocateTraceable(std::in_place_type<MidoriUnion>, std::span<const MidoriValue>(sp, static_cast<size_t>(size))));
+			Push(sp, AllocateTraceable(std::in_place_type<MidoriUnion>, std::span<const MidoriValue>(sp, static_cast<size_t>(size)), tag));
 			break;
 		}
 		case OpCode::LOAD_EMPTY_UNION:
@@ -2939,7 +3034,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::PUSH_PLACEHOLDER:
 		{
-			Push(sp, MidoriValue());
+			int count = static_cast<int>(ReadByte(ip));
+			sp = std::fill_n(sp, count, MidoriValue());
 			break;
 		}
 		case OpCode::SPAWN_WORKER:
@@ -2952,10 +3048,13 @@ int VirtualMachine::ExecuteLoop() noexcept
 		case OpCode::WORKER_CANCEL:
 		{
 			SyncMachineState(ip, sp, bp, env, closure);
-			if (!ExecuteConcurrencyInstruction(instruction, ip))
+			// Through a copy: once ip's address escapes, every dispatch stores it.
+			InstructionPointer operands = ip;
+			if (!ExecuteConcurrencyInstruction(instruction, operands))
 			{
 				return EXIT_FAILURE;
 			}
+			ip = operands;
 			sp = m_value_stack_pointer;
 			break;
 		}
