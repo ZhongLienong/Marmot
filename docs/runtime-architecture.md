@@ -50,8 +50,8 @@ out moving/copying collection — Marmot's collector is strictly non-moving.
 
 - Native: blocks are carved from one contiguous reserved virtual-memory
   region. On POSIX the region is committed 2 MB at a time, aligned so that
-  every granule after the first can be backed by a transparent huge page; a
-  growing heap would otherwise take one page fault per 4 KB.
+  every granule, the first included, can be backed by a transparent huge
+  page; a growing heap would otherwise take one page fault per 4 KB.
 - Emscripten/WASM: blocks are individually `malloc`-backed and appended to a
   block table (never sorted — slot indices must stay stable for the
   lifetime of the allocator, since the generational collector keys

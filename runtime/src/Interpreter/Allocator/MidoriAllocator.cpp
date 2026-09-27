@@ -155,12 +155,11 @@ bool MidoriAllocator::CommitGranule()
 		return false;
 	}
 #ifdef MADV_HUGEPAGE
-	// The first granule stays on small pages, so a program (or worker) that
-	// allocates little does not fault in and zero a whole 2 MB page.
-	if (m_committed_bytes != 0uz)
-	{
-		static_cast<void>(madvise(granule, COMMIT_GRANULE, MADV_HUGEPAGE));
-	}
+	// The first granule too: on small pages a short program pays about 400
+	// faults over its first 1.6 MB of slots, which costs more than faulting
+	// in and zeroing one 2 MB page, at the price of about 2 MB more RSS per
+	// VM. Pre-faulting small pages with MADV_POPULATE_WRITE measured worse.
+	static_cast<void>(madvise(granule, COMMIT_GRANULE, MADV_HUGEPAGE));
 #endif
 #endif
 
