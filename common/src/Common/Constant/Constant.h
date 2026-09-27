@@ -62,17 +62,6 @@ constexpr std::string_view MAIN_PROCEDURE_PREFIX = "$main$";
 constexpr std::string_view MODULE_BOOTSTRAP_PREFIX = "$module_bootstrap$";
 constexpr std::string_view MODULE_SEPARATOR_STR = "@";
 
-// For-loop hidden variable prefixes
-constexpr std::string_view FOR_STEP_PREFIX = "$for_step_";
-constexpr std::string_view FOR_END_PREFIX = "$for_end_";
-constexpr std::string_view FOR_ARRAY_PREFIX = "$for_array_";
-
-// Array comprehension hidden variable prefix
-constexpr std::string_view COMPREHENSION_RESULT_PREFIX = "$comp_result_";
-
-// Match expression hidden variable prefix
-constexpr std::string_view MATCH_VALUE_PREFIX = "$match_value_";
-
 // Typeclass names
 constexpr std::string_view CONVERTABLE_CLASS_NAME = "Convertable";
 constexpr std::string_view CONVERT_METHOD_NAME = "Convert";

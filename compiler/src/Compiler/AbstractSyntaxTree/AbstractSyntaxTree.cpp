@@ -312,11 +312,10 @@ MidoriExpression::RangeTernary::RangeTernary(const Token& first_op, const Token&
 {
 }
 
-MidoriExpression::Block::Block(const Token& right_brace, std::vector<std::unique_ptr<MidoriStatement>>&& stmts, int local_count, std::unique_ptr<MidoriExpression>&& final_expr)
+MidoriExpression::Block::Block(const Token& right_brace, std::vector<std::unique_ptr<MidoriStatement>>&& stmts, std::unique_ptr<MidoriExpression>&& final_expr)
 	: m_right_brace(right_brace),
 	m_stmts(std::move(stmts)),
-	m_final_expr(MakeOptionalExpression(std::move(final_expr))),
-	m_local_count(local_count)
+	m_final_expr(MakeOptionalExpression(std::move(final_expr)))
 {
 }
 
@@ -327,12 +326,11 @@ MidoriExpression::Match::Match(const Token& switch_keyword, std::unique_ptr<Mido
 {
 }
 
-MidoriExpression::Case::Case(const Token& keyword, std::unique_ptr<MidoriPattern>&& pattern, std::unique_ptr<MidoriExpression>&& expr, int binding_count, std::unique_ptr<MidoriExpression>&& guard)
+MidoriExpression::Case::Case(const Token& keyword, std::unique_ptr<MidoriPattern>&& pattern, std::unique_ptr<MidoriExpression>&& expr, std::unique_ptr<MidoriExpression>&& guard)
 	: m_keyword(keyword),
 	m_pattern(std::move(pattern)),
 	m_expr(std::move(expr)),
-	m_guard(MakeOptionalExpression(std::move(guard))),
-	m_binding_count(binding_count)
+	m_guard(MakeOptionalExpression(std::move(guard)))
 {
 }
 

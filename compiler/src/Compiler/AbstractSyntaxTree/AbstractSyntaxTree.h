@@ -576,10 +576,6 @@ public:
 		// What Iterable::Next returns for this iterator: Option<(Item, Iter)>.
 		std::shared_ptr<MidoriType> m_iterable_next_type = nullptr;
 		int m_loop_variable_index = -1;
-		int m_hidden_step_index = -1;    
-		int m_hidden_end_index = -1;  
-		int m_hidden_array_index = -1;
-		int m_result_array_index = -1;  
 		int m_iterable_some_tag = -1;
 		bool m_is_array_iteration = false;
 		bool m_is_iterable_iteration = false;
@@ -612,9 +608,8 @@ public:
 		Token m_right_brace;
 		std::vector<std::unique_ptr<MidoriStatement>> m_stmts;
 		std::optional<std::unique_ptr<MidoriExpression>> m_final_expr = std::nullopt;
-		int m_local_count = 0;
 
-		Block(const Token& right_brace, std::vector<std::unique_ptr<MidoriStatement>>&& stmts, int local_count, std::unique_ptr<MidoriExpression>&& final_expr = nullptr);
+		Block(const Token& right_brace, std::vector<std::unique_ptr<MidoriStatement>>&& stmts, std::unique_ptr<MidoriExpression>&& final_expr = nullptr);
 
 		bool HasDefine() const;
 	};
@@ -624,7 +619,6 @@ public:
 		Token m_match_keyword;
 		std::unique_ptr<MidoriExpression> m_arg_expr;
 		std::vector<std::unique_ptr<MidoriExpression>> m_cases;
-		int m_match_value_index = -1;
 
 		Match(const Token& match_keyword, std::unique_ptr<MidoriExpression>&& arg_expr, std::vector<std::unique_ptr<MidoriExpression>>&& cases);
 	};
@@ -635,9 +629,8 @@ public:
 		std::unique_ptr<MidoriPattern> m_pattern;
 		std::unique_ptr<MidoriExpression> m_expr;
 		std::optional<std::unique_ptr<MidoriExpression>> m_guard = std::nullopt;
-		int m_binding_count = 0;
 
-		Case(const Token& keyword, std::unique_ptr<MidoriPattern>&& pattern, std::unique_ptr<MidoriExpression>&& expr, int binding_count, std::unique_ptr<MidoriExpression>&& guard = nullptr);
+		Case(const Token& keyword, std::unique_ptr<MidoriPattern>&& pattern, std::unique_ptr<MidoriExpression>&& expr, std::unique_ptr<MidoriExpression>&& guard = nullptr);
 
 		bool HasGuard() const;
 	};
@@ -653,9 +646,6 @@ public:
 		// What Iterable::Next returns for this iterator: Option<(Item, Iter)>.
 		std::shared_ptr<MidoriType> m_iterable_next_type = nullptr;
 		int m_loop_variable_index = -1;
-		int m_hidden_step_index = -1;   // For range: step; For array: current index
-		int m_hidden_end_index = -1;    // For range: end; For array: length
-		int m_hidden_array_index = -1;  // For array iteration: stores array reference
 		int m_iterable_some_tag = -1;
 		bool m_is_array_iteration = false;
 		bool m_is_iterable_iteration = false;

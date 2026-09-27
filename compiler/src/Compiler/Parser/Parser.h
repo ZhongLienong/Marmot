@@ -684,7 +684,7 @@ private:
 
 	Parser&& BeginScope() &&;
 
-	int EndScope();
+	void EndScope();
 
 	std::string Mangle(std::string_view name);
 
@@ -692,7 +692,6 @@ private:
 
 	std::optional<int> RegisterOrUpdateLocalVariable(const std::string& name);
 
-	std::optional<int> RegisterHiddenLocal(const std::string&);
 
 	ArrayComprehensionProbe ProbeArrayComprehension();
 

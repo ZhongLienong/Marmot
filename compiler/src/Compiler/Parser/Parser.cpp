@@ -296,55 +296,6 @@ namespace
 		return false;
 	}
 
-	struct PatternBindingCounter
-	{
-		static int Count(const MidoriPattern& pattern)
-		{
-			return std::visit(PatternBindingCounter{}, *pattern);
-		}
-
-		int operator()(const MidoriPattern::Binding&) const
-		{
-			return 1;
-		}
-
-		int operator()(const MidoriPattern::Wildcard&) const
-		{
-			return 0;
-		}
-
-		int operator()(const MidoriPattern::Literal&) const
-		{
-			return 0;
-		}
-
-		int operator()(const MidoriPattern::Tuple& tuple) const
-		{
-			return CountElements(tuple.m_elements);
-		}
-
-		int operator()(const MidoriPattern::Array& array) const
-		{
-			return CountElements(array.m_elements);
-		}
-
-		int operator()(const MidoriPattern::Constructor& constructor) const
-		{
-			return CountElements(constructor.m_args);
-		}
-
-	private:
-		static int CountElements(const std::vector<std::unique_ptr<MidoriPattern>>& elements)
-		{
-			int total = 0;
-			for (const std::unique_ptr<MidoriPattern>& elem : elements)
-			{
-				total += Count(*elem);
-			}
-			return total;
-		}
-	};
-
 	bool IsDecimalIntegerLiteral(const MidoriExpression& expr)
 	{
 		if (!expr.IsLiteral(MidoriExpression::LiteralKind::Integer))
@@ -1890,14 +1841,12 @@ Parser&& Parser::BeginScope() &&
 	return std::move(*this);
 }
 
-int Parser::EndScope()
+void Parser::EndScope()
 {
-	const Scope& scope = m_state.m_scopes.back();
-	int block_local_count = static_cast<int>(scope.m_variables.size());
-	m_state.m_total_locals_in_curr_scope -= block_local_count;
-	m_state.m_total_variables -= block_local_count;
+	const int scope_local_count = static_cast<int>(m_state.m_scopes.back().m_variables.size());
+	m_state.m_total_locals_in_curr_scope -= scope_local_count;
+	m_state.m_total_variables -= scope_local_count;
 	m_state.m_scopes.pop_back();
-	return block_local_count;
 }
 
 std::string Parser::Mangle(std::string_view name)
@@ -1972,13 +1921,6 @@ std::optional<int> Parser::RegisterOrUpdateLocalVariable(const std::string& name
 		local_index.emplace(m_state.m_scopes.back().m_variables[name].m_relative_index.value());
 	}
 
-	return local_index;
-}
-
-std::optional<int> Parser::RegisterHiddenLocal(const std::string&)
-{
-	int local_index = m_state.m_total_locals_in_curr_scope++;
-	m_state.m_total_variables += 1;
 	return local_index;
 }
 
@@ -3043,10 +2985,10 @@ MidoriResult::ExpressionResult Parser::ParseBlockExpression()
 				(
 					[&stmts, &final_expr, this](Token&& right_brace)
 					{
-						int block_local_count = EndScope();
+						EndScope();
 						return final_expr != nullptr
-							? MidoriResult::ExpressionResult(std::make_unique<MidoriExpression>(MidoriExpression::Block(right_brace, std::move(stmts), block_local_count, std::move(final_expr))))
-							: MidoriResult::ExpressionResult(std::make_unique<MidoriExpression>(MidoriExpression::Block(right_brace, std::move(stmts), block_local_count)));
+							? MidoriResult::ExpressionResult(std::make_unique<MidoriExpression>(MidoriExpression::Block(right_brace, std::move(stmts), std::move(final_expr))))
+							: MidoriResult::ExpressionResult(std::make_unique<MidoriExpression>(MidoriExpression::Block(right_brace, std::move(stmts))));
 					}
 				);
 		};
@@ -3117,7 +3059,6 @@ MidoriResult::ExpressionResult Parser::ParseForExpression()
 		(
 			[&for_keyword, &loop_variable, &in_keyword, this](std::unique_ptr<MidoriExpression>&& range)->MidoriResult::ExpressionResult
 			{
-				static int s_for_counter = 0;
 				BeginScope();
 
 				// Add loop variable to scope. Every index here is the slot within this
@@ -3128,32 +3069,16 @@ MidoriResult::ExpressionResult Parser::ParseForExpression()
 				std::optional<int> local_index = RegisterOrUpdateLocalVariable(var_name);
 				int var_index = local_index.value_or(m_state.m_total_variables - 1);
 
-				// Reserve additional local variable slots for hidden loop state values
-				// These are not actual variables that can be referenced by name, but they need
-				// to occupy local variable slots to prevent conflicts with body variables
-				// For range iteration: step and end
-				// For array iteration: current index, length, and array reference
-				// Names use '$' prefix which is not valid in user identifiers
-				int hidden_step_index = RegisterOrUpdateLocalVariable(std::string(FOR_STEP_PREFIX) + std::to_string(s_for_counter)).value_or(m_state.m_total_variables - 1);
-
-				int hidden_end_index = RegisterOrUpdateLocalVariable(std::string(FOR_END_PREFIX) + std::to_string(s_for_counter)).value_or(m_state.m_total_variables - 1);
-
-				int hidden_array_index = RegisterOrUpdateLocalVariable(std::string(FOR_ARRAY_PREFIX) + std::to_string(s_for_counter)).value_or(m_state.m_total_variables - 1);
-				s_for_counter += 1;
-
 				return ParseExpression()
 					.and_then
 					(
-						[&for_keyword, &loop_variable, &in_keyword, range = std::move(range), var_index, hidden_step_index, hidden_end_index, hidden_array_index, this](std::unique_ptr<MidoriExpression>&& body) mutable ->MidoriResult::ExpressionResult
+						[&for_keyword, &loop_variable, &in_keyword, range = std::move(range), var_index, this](std::unique_ptr<MidoriExpression>&& body) mutable ->MidoriResult::ExpressionResult
 						{
 							EndScope();
 
 							std::unique_ptr<MidoriExpression> for_expr = std::make_unique<MidoriExpression>(MidoriExpression::For(for_keyword, loop_variable, in_keyword, std::move(range), std::move(body)));
 							MidoriExpression::For& for_expr_ref = for_expr->GetExpression<MidoriExpression::For>();
 							for_expr_ref.m_loop_variable_index = var_index;
-							for_expr_ref.m_hidden_step_index = hidden_step_index;
-							for_expr_ref.m_hidden_end_index = hidden_end_index;
-							for_expr_ref.m_hidden_array_index = hidden_array_index;
 							return for_expr;
 						}
 					);
@@ -3248,7 +3173,6 @@ Parser::ArrayComprehensionProbe Parser::ProbeArrayComprehension()
 
 MidoriResult::ExpressionResult Parser::ParseArrayComprehension(Token& bracket, const ArrayComprehensionProbe& probe)
 {
-	static int s_comp_counter = 0;
 	bool scope_open = false;
 	auto close_scope = [this, &scope_open]()
 		{
@@ -3260,10 +3184,6 @@ MidoriResult::ExpressionResult Parser::ParseArrayComprehension(Token& bracket, c
 		};
 
 	int var_index = -1;
-	int hidden_step_index = -1;
-	int hidden_end_index = -1;
-	int hidden_array_index = -1;
-	int result_array_index = -1;
 
 	if (probe.m_loop_variable_offset.has_value())
 	{
@@ -3276,22 +3196,12 @@ MidoriResult::ExpressionResult Parser::ParseArrayComprehension(Token& bracket, c
 		// the slot within this function's frame; m_total_variables counts across nested
 		// functions, so using it addressed slots past the frame from inside a lambda.
 		var_index = RegisterOrUpdateLocalVariable(std::string(loop_variable.m_lexeme)).value_or(m_state.m_total_variables - 1);
-
-		hidden_step_index = RegisterOrUpdateLocalVariable(std::string(FOR_STEP_PREFIX) + std::to_string(s_comp_counter)).value_or(m_state.m_total_variables - 1);
-
-		hidden_end_index = RegisterOrUpdateLocalVariable(std::string(FOR_END_PREFIX) + std::to_string(s_comp_counter)).value_or(m_state.m_total_variables - 1);
-
-		hidden_array_index = RegisterOrUpdateLocalVariable(std::string(FOR_ARRAY_PREFIX) + std::to_string(s_comp_counter)).value_or(m_state.m_total_variables - 1);
-
-		result_array_index = RegisterOrUpdateLocalVariable(std::string(COMPREHENSION_RESULT_PREFIX) + std::to_string(s_comp_counter)).value_or(m_state.m_total_variables - 1);
-
-		s_comp_counter += 1;
 	}
 
 	return ParseExpression()
 		.and_then
 		(
-			[&bracket, &close_scope, var_index, hidden_step_index, hidden_end_index, hidden_array_index, result_array_index, this](std::unique_ptr<MidoriExpression>&& transform_expr) -> MidoriResult::ExpressionResult
+			[&bracket, &close_scope, var_index, this](std::unique_ptr<MidoriExpression>&& transform_expr) -> MidoriResult::ExpressionResult
 			{
 				if (!Match(Token::Name::FOR))
 				{
@@ -3316,7 +3226,7 @@ MidoriResult::ExpressionResult Parser::ParseArrayComprehension(Token& bracket, c
 				return ParseExpression()
 					.and_then
 					(
-						[&bracket, &actual_loop_var, &in_keyword, &close_scope, var_index, hidden_step_index, hidden_end_index, hidden_array_index, result_array_index, transform_expr = std::move(transform_expr), this](std::unique_ptr<MidoriExpression>&& range) mutable -> MidoriResult::ExpressionResult
+						[&bracket, &actual_loop_var, &in_keyword, &close_scope, var_index, transform_expr = std::move(transform_expr), this](std::unique_ptr<MidoriExpression>&& range) mutable -> MidoriResult::ExpressionResult
 						{
 							if (!Match(Token::Name::RIGHT_BRACKET))
 							{
@@ -3325,7 +3235,7 @@ MidoriResult::ExpressionResult Parser::ParseArrayComprehension(Token& bracket, c
 							}
 
 							close_scope();
-							if (var_index < 0 || hidden_step_index < 0 || hidden_end_index < 0 || hidden_array_index < 0 || result_array_index < 0)
+							if (var_index < 0)
 							{
 								return std::unexpected(GenerateParserError("Internal error: array comprehension loop binding was not initialized.", actual_loop_var));
 							}
@@ -3334,10 +3244,6 @@ MidoriResult::ExpressionResult Parser::ParseArrayComprehension(Token& bracket, c
 
 							MidoriExpression::ArrayComprehension& comp_ref = comp_expr->GetExpression<MidoriExpression::ArrayComprehension>();
 							comp_ref.m_loop_variable_index = var_index;
-							comp_ref.m_hidden_step_index = hidden_step_index;
-							comp_ref.m_hidden_end_index = hidden_end_index;
-							comp_ref.m_hidden_array_index = hidden_array_index;
-							comp_ref.m_result_array_index = result_array_index;
 
 							return comp_expr;
 						}
@@ -4831,15 +4737,10 @@ MidoriResult::StatementResult Parser::ParseForeignDeclaration(const Token& forei
 
 MidoriResult::ExpressionResult Parser::ParseMatchExpressionWithScrutinee(Token& match_keyword, std::unique_ptr<MidoriExpression>&& expr)
 {
-	static int s_match_counter = 0;
-	std::optional<int> match_value_index_opt = RegisterHiddenLocal(std::string(MATCH_VALUE_PREFIX) + std::to_string(s_match_counter));
-	int match_value_index = match_value_index_opt.value_or(-1);
-	s_match_counter += 1;
-
 	return Consume(Token::Name::WITH, "Expected 'with' after match expression.")
 		.and_then
 		(
-			[expr = std::move(expr), &match_keyword, this, match_value_index, match_value_index_opt](Token&&) mutable ->MidoriResult::ExpressionResult
+			[expr = std::move(expr), &match_keyword, this](Token&&) mutable ->MidoriResult::ExpressionResult
 			{
 				MatchCoverage coverage;
 				std::vector<std::unique_ptr<MidoriExpression>> cases;
@@ -4860,16 +4761,7 @@ MidoriResult::ExpressionResult Parser::ParseMatchExpressionWithScrutinee(Token& 
 					return std::unexpected(GenerateParserError("Expected at least one case.", match_keyword));
 				}
 
-				std::unique_ptr<MidoriExpression> match_expr = std::make_unique<MidoriExpression>(MidoriExpression::Match(match_keyword, std::move(expr), std::move(cases)));
-				match_expr->GetExpression<MidoriExpression::Match>().m_match_value_index = match_value_index;
-
-				if (match_value_index_opt.has_value())
-				{
-					m_state.m_total_locals_in_curr_scope -= 1;
-					m_state.m_total_variables -= 1;
-				}
-
-				return match_expr;
+				return std::make_unique<MidoriExpression>(MidoriExpression::Match(match_keyword, std::move(expr), std::move(cases)));
 			}
 		);
 }
@@ -5159,20 +5051,19 @@ MidoriResult::ExpressionResult Parser::ParseCaseExpression(MatchCoverage& covera
 		coverage.m_is_exhausted = true;
 	}
 
-	int binding_count = PatternBindingCounter::Count(*pattern);
 
 	return Consume(Token::Name::FAT_ARROW, "Expected '=>' after case.")
 		.and_then
 		(
-			[&keyword, &pattern, &guard, binding_count, this](Token&&)->MidoriResult::ExpressionResult
+			[&keyword, &pattern, &guard, this](Token&&)->MidoriResult::ExpressionResult
 			{
 				return ParseExpression()
 					.and_then
 					(
-						[&keyword, &pattern, &guard, binding_count, this](std::unique_ptr<MidoriExpression>&& case_expr)->MidoriResult::ExpressionResult
+						[&keyword, &pattern, &guard, this](std::unique_ptr<MidoriExpression>&& case_expr)->MidoriResult::ExpressionResult
 						{
 							EndScope();
-							return std::make_unique<MidoriExpression>(MidoriExpression::Case(keyword, std::move(pattern), std::move(case_expr), binding_count, std::move(guard)));
+							return std::make_unique<MidoriExpression>(MidoriExpression::Case(keyword, std::move(pattern), std::move(case_expr), std::move(guard)));
 						}
 					);
 			}
@@ -6629,10 +6520,10 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 		return std::make_unique<MidoriPattern>(MidoriPattern::Constructor(ctor_token, std::string(ctor_name), std::move(args), true));
 	};
 
-	auto make_case = [this, &union_stmt](std::unique_ptr<MidoriPattern>&& pattern, std::unique_ptr<MidoriExpression>&& expr, int binding_count) -> std::unique_ptr<MidoriExpression>
+	auto make_case = [this, &union_stmt](std::unique_ptr<MidoriPattern>&& pattern, std::unique_ptr<MidoriExpression>&& expr) -> std::unique_ptr<MidoriExpression>
 	{
 		Token case_token = MakeSyntheticToken("case", Token::Name::CASE, union_stmt.m_name);
-		return std::make_unique<MidoriExpression>(MidoriExpression::Case(case_token, std::move(pattern), std::move(expr), binding_count));
+		return std::make_unique<MidoriExpression>(MidoriExpression::Case(case_token, std::move(pattern), std::move(expr)));
 	};
 
 	auto make_default_case = [this, &union_stmt](std::unique_ptr<MidoriExpression>&& expr) -> std::unique_ptr<MidoriExpression>
@@ -6640,15 +6531,13 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 		Token case_token = MakeSyntheticToken("case", Token::Name::CASE, union_stmt.m_name);
 		Token wildcard_token = MakeSyntheticToken("_", Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name);
 		std::unique_ptr<MidoriPattern> wildcard = std::make_unique<MidoriPattern>(MidoriPattern::Wildcard(wildcard_token));
-		return std::make_unique<MidoriExpression>(MidoriExpression::Case(case_token, std::move(wildcard), std::move(expr), 0));
+		return std::make_unique<MidoriExpression>(MidoriExpression::Case(case_token, std::move(wildcard), std::move(expr)));
 	};
 
-	auto make_match = [this, &union_stmt](std::unique_ptr<MidoriExpression>&& scrutinee, int hidden_index, std::vector<std::unique_ptr<MidoriExpression>>&& cases) -> std::unique_ptr<MidoriExpression>
+	auto make_match = [this, &union_stmt](std::unique_ptr<MidoriExpression>&& scrutinee, std::vector<std::unique_ptr<MidoriExpression>>&& cases) -> std::unique_ptr<MidoriExpression>
 	{
 		Token match_token = MakeSyntheticToken("match", Token::Name::MATCH, union_stmt.m_name);
-		std::unique_ptr<MidoriExpression> match_expr = std::make_unique<MidoriExpression>(MidoriExpression::Match(match_token, std::move(scrutinee), std::move(cases)));
-		match_expr->GetExpression<MidoriExpression::Match>().m_match_value_index = hidden_index;
-		return match_expr;
+		return std::make_unique<MidoriExpression>(MidoriExpression::Match(match_token, std::move(scrutinee), std::move(cases)));
 	};
 
 	auto make_union_construct = [this, &union_stmt](const std::string& ctor_name, int tag, std::vector<std::unique_ptr<MidoriExpression>>&& args, const std::shared_ptr<MidoriType>& return_type) -> std::unique_ptr<MidoriExpression>
@@ -6716,8 +6605,8 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 				for (const Token& ctor_name : union_stmt.m_constructor_names)
 				{
 					const MidoriType::UnionType::UnionMemberContext& member_ctx = union_type.m_member_info.at(ctor_name.m_lexeme);
-					const int outer_binding_start = 3;
-					const int inner_match_hidden = outer_binding_start + static_cast<int>(member_ctx.m_member_types.size());
+					const int outer_binding_start = 2;
+					const int inner_binding_start = outer_binding_start + static_cast<int>(member_ctx.m_member_types.size());
 
 					std::vector<std::unique_ptr<MidoriExpression>> inner_cases;
 					std::unique_ptr<MidoriExpression> inner_body = make_bool_literal(true);
@@ -6725,7 +6614,7 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 					{
 						std::vector<std::unique_ptr<MidoriExpression>> eq_args;
 						eq_args.emplace_back(make_local_name("lhs" + std::to_string(i), outer_binding_start + static_cast<int>(i)));
-						eq_args.emplace_back(make_local_name("rhs" + std::to_string(i), inner_match_hidden + 1 + static_cast<int>(i)));
+						eq_args.emplace_back(make_local_name("rhs" + std::to_string(i), inner_binding_start + static_cast<int>(i)));
 
 						std::unique_ptr<MidoriExpression> compare_expr = make_qualified_call("Equatable", "Equals", std::move(eq_args));
 						inner_body = make_binary(Token::Name::DOUBLE_AMPERSAND, "&&", std::move(inner_body), std::move(compare_expr));
@@ -6735,9 +6624,8 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 					(
 						make_case
 						(
-							make_constructor_pattern(ctor_name.m_lexeme, inner_match_hidden + 1, member_ctx.m_member_types.size(), "rhs"),
-							std::move(inner_body),
-							static_cast<int>(member_ctx.m_member_types.size())
+							make_constructor_pattern(ctor_name.m_lexeme, inner_binding_start, member_ctx.m_member_types.size(), "rhs"),
+							std::move(inner_body)
 						)
 					);
 					inner_cases.emplace_back(make_default_case(make_bool_literal(false)));
@@ -6747,13 +6635,12 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 						make_case
 						(
 							make_constructor_pattern(ctor_name.m_lexeme, outer_binding_start, member_ctx.m_member_types.size(), "lhs"),
-							make_match(make_local_name("b", 1), inner_match_hidden, std::move(inner_cases)),
-							static_cast<int>(member_ctx.m_member_types.size())
+							make_match(make_local_name("b", 1), std::move(inner_cases))
 						)
 					);
 				}
 
-				std::unique_ptr<MidoriExpression> body = make_match(make_local_name("a", 0), 2, std::move(outer_cases));
+				std::unique_ptr<MidoriExpression> body = make_match(make_local_name("a", 0), std::move(outer_cases));
 				methods.emplace_back
 				(
 					std::make_unique<MidoriStatement>
@@ -6778,7 +6665,7 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 					for (size_t i = 0u; i < member_ctx.m_member_types.size(); i += 1u)
 					{
 						std::vector<std::unique_ptr<MidoriExpression>> hash_args;
-						hash_args.emplace_back(make_local_name("field" + std::to_string(i), 2 + static_cast<int>(i)));
+						hash_args.emplace_back(make_local_name("field" + std::to_string(i), 1 + static_cast<int>(i)));
 
 						std::unique_ptr<MidoriExpression> member_hash = make_qualified_call("Hashable", "Hash", std::move(hash_args));
 						std::unique_ptr<MidoriExpression> scaled = make_binary(Token::Name::STAR, "*", std::move(case_body), make_int_literal(31));
@@ -6789,14 +6676,13 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 					(
 						make_case
 						(
-							make_constructor_pattern(ctor_name.m_lexeme, 2, member_ctx.m_member_types.size(), "field"),
-							std::move(case_body),
-							static_cast<int>(member_ctx.m_member_types.size())
+							make_constructor_pattern(ctor_name.m_lexeme, 1, member_ctx.m_member_types.size(), "field"),
+							std::move(case_body)
 						)
 					);
 				}
 
-				std::unique_ptr<MidoriExpression> body = make_match(make_local_name("value", 0), 1, std::move(cases));
+				std::unique_ptr<MidoriExpression> body = make_match(make_local_name("value", 0), std::move(cases));
 				methods.emplace_back
 				(
 					std::make_unique<MidoriStatement>
@@ -6859,8 +6745,7 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 		{
 			params.emplace_back(MakeSyntheticToken("f", Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name));
 			param_types.emplace_back(MidoriType::MakeFunctionType(std::vector<std::shared_ptr<MidoriType>>{ source_type }, std::shared_ptr<MidoriType>(mapped_type)));
-			const int match_value_local_index = static_cast<int>(params.size());
-			const int case_binding_base_index = match_value_local_index + 1;
+			const int case_binding_base_index = static_cast<int>(params.size());
 
 			std::vector<std::unique_ptr<MidoriExpression>> cases;
 			for (const Token& ctor_name : union_stmt.m_constructor_names)
@@ -6901,13 +6786,12 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 						make_case
 						(
 							make_constructor_pattern(ctor_name.m_lexeme, case_binding_base_index, member_ctx.m_member_types.size(), "field"),
-							make_union_construct(ctor_name.m_lexeme, member_ctx.m_tag, std::move(ctor_args), output_union_type),
-							static_cast<int>(member_ctx.m_member_types.size())
+							make_union_construct(ctor_name.m_lexeme, member_ctx.m_tag, std::move(ctor_args), output_union_type)
 						)
 					);
 			}
 
-			std::unique_ptr<MidoriExpression> body = make_match(make_local_name("value", 0), match_value_local_index, std::move(cases));
+			std::unique_ptr<MidoriExpression> body = make_match(make_local_name("value", 0), std::move(cases));
 			m_pending_statements.emplace
 			(
 				std::make_unique<MidoriStatement>
@@ -6922,8 +6806,7 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 		{
 			params.emplace_back(MakeSyntheticToken("f", Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name));
 			param_types.emplace_back(MidoriType::MakeFunctionType(std::vector<std::shared_ptr<MidoriType>>{ source_type }, std::shared_ptr<MidoriType>(output_union_type)));
-			const int match_value_local_index = static_cast<int>(params.size());
-			const int case_binding_base_index = match_value_local_index + 1;
+			const int case_binding_base_index = static_cast<int>(params.size());
 
 			std::vector<std::unique_ptr<MidoriExpression>> cases;
 			for (const Token& ctor_name : union_stmt.m_constructor_names)
@@ -6981,13 +6864,12 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 						make_case
 						(
 							make_constructor_pattern(ctor_name.m_lexeme, case_binding_base_index, member_ctx.m_member_types.size(), "field"),
-							std::move(case_body),
-							static_cast<int>(member_ctx.m_member_types.size())
+							std::move(case_body)
 						)
 					);
 			}
 
-			std::unique_ptr<MidoriExpression> body = make_match(make_local_name("value", 0), match_value_local_index, std::move(cases));
+			std::unique_ptr<MidoriExpression> body = make_match(make_local_name("value", 0), std::move(cases));
 			m_pending_statements.emplace
 			(
 				std::make_unique<MidoriStatement>
@@ -7000,8 +6882,7 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 
 		params.emplace_back(MakeSyntheticToken("default_value", Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name));
 		param_types.emplace_back(source_type);
-		const int match_value_local_index = static_cast<int>(params.size());
-		const int case_binding_base_index = match_value_local_index + 1;
+		const int case_binding_base_index = static_cast<int>(params.size());
 
 		std::vector<std::unique_ptr<MidoriExpression>> cases;
 		for (const Token& ctor_name : union_stmt.m_constructor_names)
@@ -7050,13 +6931,12 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 				make_case
 				(
 					make_constructor_pattern(ctor_name.m_lexeme, case_binding_base_index, member_ctx.m_member_types.size(), mapped_field_index >= 0 ? "field" : "_field"),
-					std::move(case_body),
-					static_cast<int>(member_ctx.m_member_types.size())
+					std::move(case_body)
 				)
 			);
 		}
 
-		std::unique_ptr<MidoriExpression> body = make_match(make_local_name("value", 0), match_value_local_index, std::move(cases));
+		std::unique_ptr<MidoriExpression> body = make_match(make_local_name("value", 0), std::move(cases));
 		m_pending_statements.emplace
 		(
 			std::make_unique<MidoriStatement>
