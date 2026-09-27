@@ -4,6 +4,7 @@ import
 {
 	"../MarmotPrelude/IO.mmt",
 	"../MarmotPrelude/DateTime.mmt",
+	"support/Timing.mmt",
 	"../MarmotPrelude/Prelude/List.mmt"
 }
 
@@ -40,7 +41,7 @@ def Churn = fn(i : Int, limit : Int, fresh : List<Text>) -> List<Text> =>
 
 def Main = fn() -> Unit =>
 {
-	def start = DateTime::NowUnixMillis();
+	def start = DateTime::NowMonotonicNanos();
 
 	def pad = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-keeper-record-payload-";
 	def keeper = [pad ++ (k as Text) for k in 0..1..300000];
@@ -50,9 +51,9 @@ def Main = fn() -> Unit =>
 	def fresh = ListToArray(ListReverse(Churn(0, 800000, List::Nil())));
 	def final_keeper = [if slot < #fresh then fresh[slot] else keeper[slot] for slot in 0..1..(#keeper)];
 
-	def end = DateTime::NowUnixMillis();
+	def end = DateTime::NowMonotonicNanos();
 
-	IO::PrintLine("GC churn benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
+	IO::PrintLine("GC churn benchmark took " ++ Timing::ElapsedMillis(start, end) ++ " milliseconds");
 	IO::PrintLine("checksum: keeper_len=" ++ ((#final_keeper) as Text) ++ " keeper[0]=" ++ final_keeper[0] ++ " keeper[299999]=" ++ final_keeper[299999]);
 };
 

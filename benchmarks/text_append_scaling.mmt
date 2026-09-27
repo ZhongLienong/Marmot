@@ -1,0 +1,30 @@
+module TextAppendScaling
+
+import
+{
+	"../MarmotPrelude/IO.mmt",
+	"../MarmotPrelude/DateTime.mmt",
+	"support/Timing.mmt",
+	"../MarmotPrelude/TextUtil.mmt"
+}
+
+// Appending one character at a time with `acc ++ "a"`, at three sizes. Linear
+// appending doubles the time with each doubling of n; a copy per append
+// quadruples it.
+def Build = fn(count : Int, limit : Int, acc : Text) -> Text =>
+	if count >= limit then acc else Build(count + 1, limit, acc ++ "a");
+
+def TestAppend = fn(n : Int) -> Unit =>
+{
+	def start = DateTime::NowMonotonicNanos();
+
+	def text = Build(0, n, "");
+
+	def end = DateTime::NowMonotonicNanos();
+
+	IO::PrintLine("Text append " ++ (n as Text) ++ " (length " ++ (TextUtil::Length(text) as Text) ++ ") benchmark took " ++ Timing::ElapsedMillis(start, end) ++ " milliseconds");
+};
+
+TestAppend(10000);
+TestAppend(20000);
+TestAppend(40000);

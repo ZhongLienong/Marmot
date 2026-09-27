@@ -444,7 +444,7 @@ The public IO and system surface now prefers typed wrappers over sentinel values
 
 - `IO::TryReadFile`, `IO::TryWriteFile`, `IO::TryAppendToFile`, `IO::TryDeleteFile`, `IO::TryRenameFile`, and `IO::TryGetFileSize`
 - `System::TryGetEnv`, `System::CurrentDirectory`, `System::TrySetCurrentDirectory`, `System::Run`, `System::CurrentPlatform`, and `System::CurrentProcessId`
-- `DateTime::LocalNow`, `DateTime::UtcNow`, `DateTime::NowUnixMillis`, and `DateTime::FormatLocal`
+- `DateTime::LocalNow`, `DateTime::UtcNow`, `DateTime::NowUnixMillis`, `DateTime::NowMonotonicNanos`, and `DateTime::FormatLocal`
 - `TextUtil::Length`, `TextUtil::Split`, `TextUtil::Replace`, `TextUtil::Trim`, and `TextUtil::Reverse`
 - `ArrayUtil::WithAppended`, `ArrayUtil::Slice`, and `ArrayUtil::Reverse` (arrays are immutable; these return new arrays)
 

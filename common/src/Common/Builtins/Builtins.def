@@ -103,3 +103,4 @@ MARMOT_BUILTIN(MIDORI_FFI_TextIsInteger, MakeFFIArgKinds(FFIArgumentKind::Tracea
 MARMOT_BUILTIN(MIDORI_FFI_TextIsFloat, MakeFFIArgKinds(FFIArgumentKind::TraceableHandle), FFIReturnKind::RawValue)
 MARMOT_BUILTIN(MIDORI_FFI_HashText, MakeFFIArgKinds(FFIArgumentKind::CString), FFIReturnKind::RawValue)
 MARMOT_BUILTIN(MIDORI_FFI_HashFloat, {}, FFIReturnKind::RawValue)
+MARMOT_BUILTIN(MIDORI_FFI_GetMonotonicNanos, {}, FFIReturnKind::RawValue)

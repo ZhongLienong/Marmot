@@ -39,9 +39,9 @@ WORKLOADS = [
     ROOT / "benchmarks" / "gc_churn.mmt",
 ]
 
-RESULT_PATTERN = re.compile(r"^(.*?)(?: benchmark)? took (\d+) milliseconds", re.MULTILINE)
+RESULT_PATTERN = re.compile(r"^(.*?)(?: benchmark)? took (\d+(?:\.\d+)?) milliseconds", re.MULTILINE)
 # The other files print "<what> (<details>): N ms" or "<what> in N ms".
-MS_PATTERN = re.compile(r"^(.*?)(?::| in) (\d+) ms$", re.MULTILINE)
+MS_PATTERN = re.compile(r"^(.*?)(?::| in) (\d+(?:\.\d+)?) ms$", re.MULTILINE)
 
 
 def every_workload() -> list[Path]:
@@ -52,7 +52,7 @@ def every_workload() -> list[Path]:
     return sorted(path for path in (ROOT / "benchmarks").glob("*.mmt") if prints_timing(path))
 
 
-def run_workload(exe: Path, workload: Path, prefix: bool) -> dict[str, int]:
+def run_workload(exe: Path, workload: Path, prefix: bool) -> dict[str, float]:
     # marmotc builds the workload; marmotvm (beside it) runs what is measured.
     environment = checkout_environment()
     with tempfile.TemporaryDirectory(prefix="marmot-bench-") as directory:
@@ -72,14 +72,14 @@ def run_workload(exe: Path, workload: Path, prefix: bool) -> dict[str, int]:
         label = re.sub(r"\x1b\[[0-9;]*m", "", match.group(1)).strip()
         label = label.split(":")[0].split(" (")[0].strip()
         # Several files time the same thing, so --every says whose it is.
-        results[f"{workload.stem}: {label}" if prefix else label] = int(match.group(2))
+        results[f"{workload.stem}: {label}" if prefix else label] = float(match.group(2))
     if not results:
         sys.exit(f"{workload.name}: no benchmark output (exit={proc.returncode})\n{proc.stdout}\n{proc.stderr}")
     return results
 
 
-def collect(sides: list[Path], workloads: list[Path], runs: int) -> dict[Path, dict[str, list[int]]]:
-    samples: dict[Path, dict[str, list[int]]] = {side: {} for side in sides}
+def collect(sides: list[Path], workloads: list[Path], runs: int) -> dict[Path, dict[str, list[float]]]:
+    samples: dict[Path, dict[str, list[float]]] = {side: {} for side in sides}
     prefix = workloads != WORKLOADS
     for run_index in range(runs):
         for workload in workloads:
@@ -121,12 +121,12 @@ def main(argv: list[str]) -> int:
             base = statistics.median(samples[baseline].get(label, [0]))
             curr = statistics.median(samples[current].get(label, [0]))
             delta = f"{(curr - base) / base * 100:+.1f}%" if base else "n/a"
-            print(f"{label:<{name_width}}{base:>8.0f}ms{curr:>8.0f}ms{delta:>9}")
+            print(f"{label:<{name_width}}{base:>8.2f}ms{curr:>8.2f}ms{delta:>9}")
     else:
-        print(f"{'benchmark':<{name_width}}{'median':>10}{'min':>8}{'max':>8}")
+        print(f"{'benchmark':<{name_width}}{'median':>10}{'min':>10}{'max':>10}")
         for label in labels:
             values = samples[current][label]
-            print(f"{label:<{name_width}}{statistics.median(values):>8.0f}ms{min(values):>6}ms{max(values):>6}ms")
+            print(f"{label:<{name_width}}{statistics.median(values):>8.2f}ms{min(values):>8.2f}ms{max(values):>8.2f}ms")
     return 0
 
 

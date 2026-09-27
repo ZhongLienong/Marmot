@@ -1,5 +1,5 @@
 module DateTime
-public export { LocalTimeParts, UtcTimeParts, NowUnixMillis, TimezoneOffsetMinutes, LocalNow, UtcNow, FormatLocal }
+public export { LocalTimeParts, UtcTimeParts, NowUnixMillis, NowMonotonicNanos, TimezoneOffsetMinutes, LocalNow, UtcNow, FormatLocal }
 type LocalTimeParts = {
     year: Int,
     month: Int,
@@ -22,6 +22,7 @@ type UtcTimeParts = {
     day_of_year: Int
 };
 foreign "MIDORI_FFI_GetTime" GetTimeRaw: fn() -> Float;
+foreign "MIDORI_FFI_GetMonotonicNanos" GetMonotonicNanosRaw: fn() -> Int;
 foreign "MIDORI_FFI_GetYear" GetYearRaw: fn() -> Int;
 foreign "MIDORI_FFI_GetMonth" GetMonthRaw: fn() -> Int;
 foreign "MIDORI_FFI_GetDay" GetDayRaw: fn() -> Int;
@@ -41,6 +42,7 @@ foreign "MIDORI_FFI_GetUtcSecond" GetUtcSecondRaw: fn() -> Int;
 foreign "MIDORI_FFI_GetUtcDayOfWeek" GetUtcDayOfWeekRaw: fn() -> Int;
 foreign "MIDORI_FFI_GetUtcDayOfYear" GetUtcDayOfYearRaw: fn() -> Int;
 def NowUnixMillis = fn() -> Int => GetTimeRaw() as Int;
+def NowMonotonicNanos = fn() -> Int => GetMonotonicNanosRaw();
 def TimezoneOffsetMinutes = fn() -> Int => GetTimezoneOffsetRaw();
 def LocalNow = fn() -> LocalTimeParts => {
     LocalTimeParts(GetYearRaw(), GetMonthRaw(), GetDayRaw(), GetHourRaw(), GetMinuteRaw(), GetSecondRaw(), GetDayOfWeekRaw(), GetDayOfYearRaw(), TimezoneOffsetMinutes())

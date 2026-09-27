@@ -59,6 +59,12 @@ extern "C"
 		std::memcpy(ret, &val, sizeof(double));
 	}
 
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetMonotonicNanos)(void**, void* ret) noexcept
+	{
+		const int64_t nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+		std::memcpy(ret, &nanos, sizeof(int64_t));
+	}
+
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetYear)(void**, void* ret) noexcept
 	{
 		const std::tm local_tm = GetLocalTime();

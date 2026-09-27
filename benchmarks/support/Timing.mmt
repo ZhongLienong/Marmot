@@ -1,0 +1,11 @@
+module Timing
+
+public export { ElapsedMillis }
+
+// Milliseconds with two decimals, as benchmarks/reference/all.py prints them.
+def ElapsedMillis = fn(start : Int, end : Int) -> Text =>
+{
+	def hundredths = ((end - start) + 5000) / 10000;
+	def fraction = hundredths % 100;
+	((hundredths / 100) as Text) ++ "." ++ (if fraction < 10 then "0" else "") ++ (fraction as Text)
+};

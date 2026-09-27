@@ -4,6 +4,7 @@ import
 {
 	"../MarmotPrelude/IO.mmt",
 	"../MarmotPrelude/DateTime.mmt",
+	"support/Timing.mmt",
 	"../MarmotPrelude/TextUtil.mmt",
 	"../MarmotPrelude/Prelude/List.mmt"
 }
@@ -36,26 +37,26 @@ def CountPrimes = fn(count : Int, limit : Int, prime_count : Int) -> Int =>
 
 def TestPrimeNumbers = fn() -> Unit =>
 {
-	def start = DateTime::NowUnixMillis();
+	def start = DateTime::NowMonotonicNanos();
 
 	def prime_count = CountPrimes(0, 100000, 0);
 
-	def end = DateTime::NowUnixMillis();
+	def end = DateTime::NowMonotonicNanos();
 
-	IO::PrintLine("Prime(100000): " ++ (prime_count as Text) ++ " benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
+	IO::PrintLine("Prime(100000): " ++ (prime_count as Text) ++ " benchmark took " ++ Timing::ElapsedMillis(start, end) ++ " milliseconds");
 };
 
 def Fib = fn(n : Int) -> Int => if n <= 1 then n else Fib(n - 1) + Fib(n - 2);
 
 def TestFib = fn(n : Int) -> Unit =>
 {
-	def start = DateTime::NowUnixMillis();
+	def start = DateTime::NowMonotonicNanos();
 
 	def fib_n = Fib(n);
 
-	def end = DateTime::NowUnixMillis();
+	def end = DateTime::NowMonotonicNanos();
 
-	IO::PrintLine("Fibonacci(" ++ (n as Text) ++ "): " ++ (fib_n as Text) ++ " benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
+	IO::PrintLine("Fibonacci(" ++ (n as Text) ++ "): " ++ (fib_n as Text) ++ " benchmark took " ++ Timing::ElapsedMillis(start, end) ++ " milliseconds");
 };
 
 def AppendA = fn(count : Int, limit : Int, acc : Text) -> Text =>
@@ -66,13 +67,13 @@ def AppendA = fn(count : Int, limit : Int, acc : Text) -> Text =>
 // the `test_string += "a"` in reference/all.py.
 def TestStringManipulation = fn() -> Unit =>
 {
-	def start = DateTime::NowUnixMillis();
+	def start = DateTime::NowMonotonicNanos();
 
 	def test_string = AppendA(0, 10000, "");
 
-	def end = DateTime::NowUnixMillis();
+	def end = DateTime::NowMonotonicNanos();
 
-	IO::PrintLine("String manipulation (length " ++ (TextUtil::Length(test_string) as Text) ++ ") benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
+	IO::PrintLine("String manipulation (length " ++ (TextUtil::Length(test_string) as Text) ++ ") benchmark took " ++ Timing::ElapsedMillis(start, end) ++ " milliseconds");
 };
 
 // v2 port: formerly appended each result into an outer array and returned early;
@@ -90,13 +91,13 @@ def BackTrack = fn(len : Int, left : Int, right : Int, acc : Text, output : List
 
 def TestParenthesisGeneration = fn(max_len : Int) -> Unit =>
 {
-	def start = DateTime::NowUnixMillis();
+	def start = DateTime::NowMonotonicNanos();
 
 	def output = BackTrack(max_len, 0, 0, "", List::Nil());
 
-	def end = DateTime::NowUnixMillis();
+	def end = DateTime::NowMonotonicNanos();
 
-	IO::PrintLine("Parenthesis generation (" ++ (ListLength(output) as Text) ++ " combinations) benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
+	IO::PrintLine("Parenthesis generation (" ++ (ListLength(output) as Text) ++ " combinations) benchmark took " ++ Timing::ElapsedMillis(start, end) ++ " milliseconds");
 };
 
 def Ackermann = fn(m : Int, n : Int) -> Int =>
@@ -113,13 +114,13 @@ def Ackermann = fn(m : Int, n : Int) -> Int =>
 
 def TestAckermann = fn(m : Int, n : Int) -> Unit =>
 {
-	def start = DateTime::NowUnixMillis();
+	def start = DateTime::NowMonotonicNanos();
 
 	def result = Ackermann(m, n);
 
-	def end = DateTime::NowUnixMillis();
+	def end = DateTime::NowMonotonicNanos();
 
-	IO::PrintLine("Ackermann(" ++ (m as Text) ++ ", " ++ (n as Text) ++ "): " ++ (result as Text) ++ " benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
+	IO::PrintLine("Ackermann(" ++ (m as Text) ++ ", " ++ (n as Text) ++ "): " ++ (result as Text) ++ " benchmark took " ++ Timing::ElapsedMillis(start, end) ++ " milliseconds");
 };
 
 // Partitions by prepending into cons lists while walking from the last element
@@ -151,14 +152,14 @@ def QuickSort = fn(arr : Array<Int>) -> Array<Int> =>
 
 def TestSorting = fn(size : Int) -> Unit =>
 {
-	def start = DateTime::NowUnixMillis();
+	def start = DateTime::NowMonotonicNanos();
 
 	def test_array = [size - offset for offset in 0..1..size];
 	def sorted = QuickSort(test_array);
 
-	def end = DateTime::NowUnixMillis();
+	def end = DateTime::NowMonotonicNanos();
 
-	IO::PrintLine("QuickSort(" ++ (size as Text) ++ " elements): first=" ++ (sorted[0] as Text) ++ ", benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
+	IO::PrintLine("QuickSort(" ++ (size as Text) ++ " elements): first=" ++ (sorted[0] as Text) ++ ", benchmark took " ++ Timing::ElapsedMillis(start, end) ++ " milliseconds");
 };
 
 def BinarySearch = fn(arr : Array<Int>, target : Int, low : Int, high : Int) -> Int =>
@@ -195,14 +196,14 @@ def CountFound = fn(arr : Array<Int>, search : Int, searches : Int, found_count 
 
 def TestBinarySearch = fn(array_size : Int, num_searches : Int) -> Unit =>
 {
-	def start = DateTime::NowUnixMillis();
+	def start = DateTime::NowMonotonicNanos();
 
 	def sorted_array = [value for value in 0..1..array_size];
 	def found_count = CountFound(sorted_array, 0, num_searches, 0);
 
-	def end = DateTime::NowUnixMillis();
+	def end = DateTime::NowMonotonicNanos();
 
-	IO::PrintLine("Binary search (" ++ (num_searches as Text) ++ " searches in " ++ (array_size as Text) ++ " elements): " ++ (found_count as Text) ++ " found, benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
+	IO::PrintLine("Binary search (" ++ (num_searches as Text) ++ " searches in " ++ (array_size as Text) ++ " elements): " ++ (found_count as Text) ++ " found, benchmark took " ++ Timing::ElapsedMillis(start, end) ++ " milliseconds");
 };
 
 TestFib(35);

@@ -143,7 +143,7 @@ def offset = local.timezone_offset_minutes;
 Public date/time entry points:
 
 - `LocalNow`, `UtcNow`
-- `NowUnixMillis`, `TimezoneOffsetMinutes`
+- `NowUnixMillis`, `NowMonotonicNanos`, `TimezoneOffsetMinutes`
 - `FormatLocal`
 
 ## Text and Array Helpers

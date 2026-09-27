@@ -20,9 +20,12 @@ def ExpectRange = fn(value: Int, minimum: Int, maximum: Int, message: Text) -> U
 def local = DateTime::LocalNow();
 def utc = DateTime::UtcNow();
 def unix_millis = DateTime::NowUnixMillis();
+def monotonic_first = DateTime::NowMonotonicNanos();
+def monotonic_second = DateTime::NowMonotonicNanos();
 def formatted_year = DateTime::FormatLocal("%Y");
 
 Expect(unix_millis > 0, "NowUnixMillis should return a positive Unix timestamp");
+Expect(monotonic_second >= monotonic_first, "NowMonotonicNanos should never go backwards");
 
 ExpectRange(local.year, 1970, 9999, "LocalNow should return a plausible year");
 ExpectRange(local.month, 1, 12, "LocalNow should return a month in the 1-12 range");

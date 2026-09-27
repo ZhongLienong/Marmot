@@ -1,0 +1,27 @@
+module IterableToArray
+
+import
+{
+	"../MarmotPrelude/IO.mmt",
+	"../MarmotPrelude/DateTime.mmt",
+	"support/Timing.mmt",
+	"../MarmotPrelude/Prelude/List.mmt"
+}
+
+use List.{List, ListFromArray, ListToArray}
+
+// A comprehension over a user Iterable (ListIter), the loop that dominates
+// QuickSort in all.mmt: 13 conversions of a 5,000-element list, about as many
+// elements as QuickSort(5000) converts in total.
+def Convert = fn(round : Int, rounds : Int, list : List<Int>, total : Int) -> Int =>
+	if round >= rounds then total else Convert(round + 1, rounds, list, total + #ListToArray(list));
+
+def list = ListFromArray([value for value in 0..1..5000]);
+
+def start = DateTime::NowMonotonicNanos();
+
+def total = Convert(0, 13, list, 0);
+
+def end = DateTime::NowMonotonicNanos();
+
+IO::PrintLine("ListToArray 13x5000 (" ++ (total as Text) ++ " elements) benchmark took " ++ Timing::ElapsedMillis(start, end) ++ " milliseconds");

@@ -3,7 +3,8 @@ module PerfTextMidsize
 import
 {
 	"../MarmotPrelude/IO.mmt",
-	"../MarmotPrelude/DateTime.mmt"
+	"../MarmotPrelude/DateTime.mmt",
+	"support/Timing.mmt"
 }
 
 // v2 port: the loop's `matches += 1` and `i += 1` are now a tail-recursive walk
@@ -19,10 +20,10 @@ def CountMatches = fn(i : Int, limit : Int, matches : Int) -> Int =>
 	}
 };
 
-def start = DateTime::NowUnixMillis();
+def start = DateTime::NowMonotonicNanos();
 
 def matches = CountMatches(0, 2000000, 0);
 
-def end = DateTime::NowUnixMillis();
+def end = DateTime::NowMonotonicNanos();
 
-IO::PrintLine("TextMidsize: " ++ (matches as Text) ++ " matches, benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
+IO::PrintLine("TextMidsize: " ++ (matches as Text) ++ " matches, benchmark took " ++ Timing::ElapsedMillis(start, end) ++ " milliseconds");

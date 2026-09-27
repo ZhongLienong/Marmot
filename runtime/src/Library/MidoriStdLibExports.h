@@ -84,6 +84,7 @@ extern "C"
 
 	// DateTime
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetTime)(void** args, void* ret) noexcept;
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetMonotonicNanos)(void** args, void* ret) noexcept;
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetYear)(void** args, void* ret) noexcept;
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetMonth)(void** args, void* ret) noexcept;
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetDay)(void** args, void* ret) noexcept;

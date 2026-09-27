@@ -1,0 +1,37 @@
+module AllocRetained
+
+import
+{
+	"../MarmotPrelude/IO.mmt",
+	"../MarmotPrelude/DateTime.mmt",
+	"support/Timing.mmt",
+	"../MarmotPrelude/Prelude/List.mmt"
+}
+
+use List.{List, ListFold}
+
+// The cost of an allocation that survives: a million-cell cons list, next to a
+// million-step loop that allocates nothing. The difference is allocation and GC.
+def Accumulate = fn(i : Int, limit : Int, acc : Int) -> Int =>
+	if i >= limit then acc else Accumulate(i + 1, limit, acc + i);
+
+def BuildList = fn(i : Int, limit : Int, acc : List<Int>) -> List<Int> =>
+	if i >= limit then acc else BuildList(i + 1, limit, List::Cons(i, acc));
+
+def loop_start = DateTime::NowMonotonicNanos();
+
+def sum = Accumulate(0, 1000000, 0);
+
+def loop_end = DateTime::NowMonotonicNanos();
+
+IO::PrintLine("Integer loop 1M (sum " ++ (sum as Text) ++ ") benchmark took " ++ Timing::ElapsedMillis(loop_start, loop_end) ++ " milliseconds");
+
+def list_start = DateTime::NowMonotonicNanos();
+
+def list = BuildList(0, 1000000, List::Nil());
+
+def list_end = DateTime::NowMonotonicNanos();
+
+def list_sum = ListFold(list, 0, fn(acc : Int, value : Int) -> Int => acc + value);
+
+IO::PrintLine("Retained cons list 1M (sum " ++ (list_sum as Text) ++ ") benchmark took " ++ Timing::ElapsedMillis(list_start, list_end) ++ " milliseconds");
