@@ -9,6 +9,7 @@
 
 #include "Common/Constant/Constant.h"
 #include "Common/Error/Error.h"
+#include "PatternCoverage.h"
 #include "TypeChecker.h"
 
 using namespace std::string_literals;
@@ -2170,84 +2171,6 @@ MidoriResult::TypeResult TypeChecker::CheckPattern(MidoriPattern& pattern, const
 			else
 			{
 				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: unsupported pattern", GetPatternToken(pattern), m_file_name, m_source_lines));
-			}
-		},
-		*pattern
-	);
-}
-
-bool TypeChecker::IsIrrefutablePattern(const MidoriPattern& pattern, const std::shared_ptr<MidoriType>& expected_type)
-{
-	std::shared_ptr<MidoriType> resolved_expected = ApplySubstitution(expected_type);
-
-	return std::visit
-	(
-		[&]<typename T>(T&& node) -> bool
-		{
-			using Node = std::decay_t<T>;
-			if constexpr (std::is_same_v<Node, MidoriPattern::Binding>)
-			{
-				return true;
-			}
-			else if constexpr (std::is_same_v<Node, MidoriPattern::Wildcard>)
-			{
-				return true;
-			}
-			else if constexpr (std::is_same_v<Node, MidoriPattern::Literal>)
-			{
-				return false;
-			}
-			else if constexpr (std::is_same_v<Node, MidoriPattern::Tuple>)
-			{
-				if (!resolved_expected->IsType<MidoriType::TupleType>())
-				{
-					return false;
-				}
-				const MidoriType::TupleType& tuple_type = resolved_expected->GetType<MidoriType::TupleType>();
-				if (tuple_type.m_element_types.size() != node.m_elements.size())
-				{
-					return false;
-				}
-				for (size_t i = 0u; i < node.m_elements.size(); i += 1u)
-				{
-					if (!IsIrrefutablePattern(*node.m_elements[i], tuple_type.m_element_types[i]))
-					{
-						return false;
-					}
-				}
-				return true;
-			}
-			else if constexpr (std::is_same_v<Node, MidoriPattern::Array>)
-			{
-				return false;
-			}
-			else if constexpr (std::is_same_v<Node, MidoriPattern::Constructor>)
-			{
-				if (node.m_is_union)
-				{
-					return false;
-				}
-				if (!resolved_expected->IsType<MidoriType::StructType>())
-				{
-					return false;
-				}
-				const MidoriType::StructType& struct_type = resolved_expected->GetType<MidoriType::StructType>();
-				if (struct_type.m_member_types.size() != node.m_args.size())
-				{
-					return false;
-				}
-				for (size_t i = 0u; i < node.m_args.size(); i += 1u)
-				{
-					if (!IsIrrefutablePattern(*node.m_args[i], struct_type.m_member_types[i]))
-					{
-						return false;
-					}
-				}
-				return true;
-			}
-			else
-			{
-				return false;
 			}
 		},
 		*pattern
@@ -4609,25 +4532,6 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 			[&match, this](std::shared_ptr<MidoriType>&& arg_type) -> MidoriResult::TypeResult
 			{
 				std::shared_ptr<MidoriType> resolved_arg_type = ApplySubstitution(arg_type);
-				bool is_union = resolved_arg_type->IsType<MidoriType::UnionType>();
-				bool is_bool = resolved_arg_type->IsType<MidoriType::BoolType>();
-
-				std::unordered_set<std::string> missing_cases;
-				if (is_union)
-				{
-					const MidoriType::UnionType& union_type = resolved_arg_type->GetType<MidoriType::UnionType>();
-					for (const auto& [member_name, member_ctx] : union_type.m_member_info)
-					{
-						missing_cases.insert(member_name);
-					}
-				}
-				else if (is_bool)
-				{
-					missing_cases.emplace("true");
-					missing_cases.emplace("false");
-				}
-
-				bool has_catch_all_case = false;
 				std::shared_ptr<MidoriType> prev_case_type = nullptr;
 
 				for (const std::unique_ptr<MidoriExpression>& case_expr : match.m_cases)
@@ -4647,39 +4551,6 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 						else if (match_case.HasGuard())
 						{
 							error = CheckCaseGuard(match_case);
-						}
-
-						if (!error.has_value() && !match_case.HasGuard())
-						{
-							if (is_union && match_case.m_pattern->IsPattern<MidoriPattern::Constructor>())
-							{
-								const MidoriPattern::Constructor& ctor = match_case.m_pattern->GetPattern<MidoriPattern::Constructor>();
-								if (ctor.m_is_union)
-								{
-									missing_cases.erase(ctor.m_name);
-								}
-							}
-							else if (is_bool && match_case.m_pattern->IsPattern<MidoriPattern::Literal>())
-							{
-								const MidoriPattern::Literal& literal = match_case.m_pattern->GetPattern<MidoriPattern::Literal>();
-								if (literal.m_kind == MidoriPattern::LiteralKind::Bool)
-								{
-									if (literal.m_token.m_token_name == Token::Name::TRUE)
-									{
-										missing_cases.erase("true");
-									}
-									else if (literal.m_token.m_token_name == Token::Name::FALSE)
-									{
-										missing_cases.erase("false");
-									}
-								}
-							}
-
-							if (IsIrrefutablePattern(*match_case.m_pattern, resolved_arg_type))
-							{
-								has_catch_all_case = true;
-								missing_cases.clear();
-							}
 						}
 
 						if (!error.has_value())
@@ -4717,22 +4588,21 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 					}
 				}
 
-				if (is_union || is_bool)
+				// A guarded case may fail its guard, so it covers nothing.
+				const std::vector<std::string> unmatched = PatternCoverage(match.m_cases
+					| std::views::transform([](const std::unique_ptr<MidoriExpression>& case_expr) -> const MidoriExpression::Case& { return case_expr->GetExpression<MidoriExpression::Case>(); })
+					| std::views::filter([](const MidoriExpression::Case& match_case) { return !match_case.HasGuard(); })
+					| std::views::transform([](const MidoriExpression::Case& match_case) -> const MidoriPattern* { return match_case.m_pattern.get(); })
+					| std::ranges::to<std::vector>()).FindUnmatched();
+
+				if (unmatched == std::vector<std::string>{ "_" })
 				{
-					if (!missing_cases.empty())
-					{
-						std::vector<std::string> missing_names(missing_cases.begin(), missing_cases.end());
-						const std::string missing_label = is_union ? "variants" : "cases";
-						const std::string message = std::format("Match expression type error: non-exhaustive match: missing {}: {}", missing_label, JoinSortedNames(std::move(missing_names)));
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeNonExhaustiveMatch, message, match.m_match_keyword, m_file_name, m_source_lines));
-					}
+					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeNonExhaustiveMatch, "Match expression type error: non-union matches need a catch-all arm such as 'case _ =>'", match.m_match_keyword, m_file_name, m_source_lines));
 				}
-				else
+				if (!unmatched.empty())
 				{
-					if (!has_catch_all_case)
-					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeNonExhaustiveMatch, "Match expression type error: non-union matches need a catch-all arm such as 'case _ =>'",match.m_match_keyword, m_file_name, m_source_lines));
-					}
+					const std::string message = std::format("Match expression type error: non-exhaustive match: no case matches {}", unmatched | std::views::join_with(std::string_view(", ")) | std::ranges::to<std::string>());
+					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeNonExhaustiveMatch, message, match.m_match_keyword, m_file_name, m_source_lines));
 				}
 
 				match.m_type_data = prev_case_type;

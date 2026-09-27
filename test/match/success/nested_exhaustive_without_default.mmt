@@ -1,0 +1,62 @@
+module NestedExhaustiveWithoutDefault
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/Prelude/Option.mmt",
+	"../../../MarmotPrelude/Prelude/Result.mmt"
+}
+
+use Option.{ Option }
+use Result.{ Result }
+
+type Sign = Negative | Zero | Positive;
+
+type Reading =
+{
+	sign : Sign,
+	valid : Bool
+};
+
+// Each match covers every value through its nested patterns, with no catch-all.
+
+def DescribeResult = fn(result : Result<Option<Int>, Text>) -> Text =>
+	match result with
+		case Result::Ok(Option::Some(value)) => "value " ++ (value as Text)
+		case Result::Ok(Option::None()) => "nothing"
+		case Result::Err(message) => "err: " ++ message;
+
+def DescribePair = fn(left : Bool, right : Bool) -> Text =>
+	match (left, right) with
+		case (true, true) => "both"
+		case (true, false) => "left"
+		case (false, true) => "right"
+		case (false, false) => "neither";
+
+def DescribeReading = fn(reading : Reading) -> Text =>
+	match reading with
+		case Reading(_, false) => "invalid"
+		case Reading(Sign::Negative(), true) => "negative"
+		case Reading(Sign::Zero(), true) => "zero"
+		case Reading(Sign::Positive(), true) => "positive";
+
+def DescribeNested = fn(option : Option<Option<Bool>>) -> Text =>
+	match option with
+		case Option::Some(Option::Some(true)) => "yes"
+		case Option::Some(Option::Some(false)) => "no"
+		case Option::Some(Option::None()) => "unknown"
+		case Option::None() => "missing";
+
+def DescribeGuarded = fn(option : Option<Int>) -> Text =>
+	match option with
+		case Option::Some(n) if n > 0 => "positive"
+		case Option::Some(_) => "not positive"
+		case Option::None() => "none";
+
+IO::PrintLine(DescribeResult(Result::Ok(Option::Some(3))));
+IO::PrintLine(DescribeResult(Result::Ok(Option::None())));
+IO::PrintLine(DescribeResult(Result::Err("bad")));
+IO::PrintLine(DescribePair(true, true) ++ " " ++ DescribePair(true, false) ++ " " ++ DescribePair(false, true) ++ " " ++ DescribePair(false, false));
+IO::PrintLine(DescribeReading(Reading(Sign::Zero(), false)) ++ " " ++ DescribeReading(Reading(Sign::Negative(), true)) ++ " " ++ DescribeReading(Reading(Sign::Positive(), true)));
+IO::PrintLine(DescribeNested(Option::Some(Option::Some(false))) ++ " " ++ DescribeNested(Option::Some(Option::None())) ++ " " ++ DescribeNested(Option::None()));
+IO::PrintLine(DescribeGuarded(Option::Some(5)) ++ " " ++ DescribeGuarded(Option::Some(-5)) ++ " " ++ DescribeGuarded(Option::None()));

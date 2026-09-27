@@ -1,0 +1,22 @@
+module NestedVariantNotExhaustive
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/Prelude/Option.mmt",
+	"../../../MarmotPrelude/Prelude/Result.mmt"
+}
+
+use Option.{ Option }
+use Result.{ Result }
+
+// Both variants of Result are named, but Ok(None()) matches neither case.
+// Coverage used to be counted at the top level only, so this compiled and ran
+// the Err arm for Ok(None()), reading the Option payload as Text.
+
+def Describe = fn(result : Result<Option<Int>, Text>) -> Text =>
+	match result with
+		case Result::Ok(Option::Some(value)) => value as Text
+		case Result::Err(message) => "err: " ++ message;
+
+IO::PrintLine(Describe(Result::Ok(Option::None())));

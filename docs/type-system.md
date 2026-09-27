@@ -16,7 +16,7 @@ The type system provides:
 - **Nominal algebraic data types** through structs and unions
 - **Deriving** for common structural and container operations
 - **Constraint propagation** from both function signatures and type definitions
-- **Compile-time exhaustiveness checking** for `match` on unions and `Bool`
+- **Compile-time exhaustiveness checking** for `match`, through nested patterns
 
 ## Primitive Types
 
@@ -434,16 +434,22 @@ def Unwrap = fn(option: Option<Int>) -> Int =>
 
 ### Exhaustiveness Rules
 
-`match` expressions are checked for exhaustiveness:
+`match` expressions are checked for exhaustiveness at every depth: every value
+of the scrutinee's type must reach an unguarded case. A union covers its variants
+and their fields, a `Bool` covers `true` and `false`, a tuple or record covers each
+combination of its fields, and `Unit` covers `()`. `Int`, `Float`, `Text`, `Byte`,
+`Word` and arrays have too many values to list, so a match on them, or on a field
+of those types, needs a case that takes any value there.
 
-- **Union scrutinees** must cover every variant unless a catch-all arm is present
-- **`Bool` scrutinees** must cover both `true` and `false` unless a catch-all arm is present
-- **Other scrutinee types** require a catch-all arm
+A case with a guard covers nothing, since its guard may fail. A non-exhaustive
+match is an error that names values no case matches:
+
+```text
+Match expression type error: non-exhaustive match: no case matches Result::Ok(Option::None())
+```
 
 A catch-all arm is an unguarded `case` whose pattern always matches: `case _`, a
 bare binding such as `case n`, or a tuple of those. There is no `default` keyword.
-
-Coverage is currently tracked at the top-level pattern. For unions, matching a variant counts as covering that variant even if nested sub-patterns are not themselves exhaustive.
 
 ### Pipe Into Match
 
@@ -551,14 +557,12 @@ Current limitations include:
 3. **No GADTs or general type-level functions**: associated types are supported, but richer type-level computation is not.
 4. **No existential types**: type parameters cannot be hidden inside values.
 5. **No rank-N polymorphism**: polymorphic types cannot appear in arbitrary positions.
-6. **Top-level exhaustiveness only**: nested-pattern exhaustiveness is not fully checked yet.
-7. **Focused deriving support**: only the currently supported targets and shapes are derivable.
+6. **Focused deriving support**: only the currently supported targets and shapes are derivable.
 
 ## Future Considerations
 
 Likely extensions include:
 
 - Richer unification error messages
-- Deeper nested-pattern exhaustiveness analysis
 - Broader deriving support
 - Default method implementations for type classes

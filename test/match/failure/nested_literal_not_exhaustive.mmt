@@ -1,0 +1,18 @@
+module NestedLiteralNotExhaustive
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/Prelude/Option.mmt"
+}
+
+use Option.{ Option }
+
+// A literal covers one value, so Some(0) leaves every other Some unmatched.
+
+def Describe = fn(option : Option<Int>) -> Text =>
+	match option with
+		case Option::Some(0) => "zero"
+		case Option::None() => "none";
+
+IO::PrintLine(Describe(Option::Some(1)));

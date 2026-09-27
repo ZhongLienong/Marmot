@@ -1,0 +1,13 @@
+module BoolTupleNotExhaustive
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt"
+}
+
+def Describe = fn(left : Bool, right : Bool) -> Text =>
+	match (left, right) with
+		case (true, true) => "both"
+		case (false, _) => "not left";
+
+IO::PrintLine(Describe(true, false));

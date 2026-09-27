@@ -46,7 +46,7 @@ See [Versioning Policy](versioning-policy.md) for how `Stable`,
 | Feature | Status | Primary Coverage | Notes |
 |---------|--------|------------------|-------|
 | `match` with binding, wildcard, literal, tuple, array, and constructor patterns | Stable | `test/match/`, `compiler/tests/parser/`, `compiler/tests/typechecker/` | The current pattern inventory is six variants. |
-| Exhaustiveness checking | Stable | `test/match/`, `compiler/tests/typechecker/` | Exhaustiveness is currently top-level only. |
+| Exhaustiveness checking | Stable | `test/match/`, `compiler/tests/typechecker/` | Checked through nested patterns; an error names a value no case matches. |
 
 ## Generics and Typeclasses
 

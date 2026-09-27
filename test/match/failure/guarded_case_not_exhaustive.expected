@@ -2,5 +2,5 @@ Compilation failed :(
 Type Checker Error at test/match/failure/guarded_case_not_exhaustive.mmt:5
   |
 5 | def value = match Result::Ok(1) with
-  |             ^^^^^ Match expression type error: non-exhaustive match: missing variants: Result::Ok
+  |             ^^^^^ Match expression type error: non-exhaustive match: no case matches Result::Ok(_)
   |

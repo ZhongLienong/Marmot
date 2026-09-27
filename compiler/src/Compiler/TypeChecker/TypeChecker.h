@@ -173,7 +173,6 @@ private:
 
 	std::optional<CompilerError> CheckSpawnArgument(MidoriExpression::Spawn& spawn, const MidoriType::FunctionType& function_type);
 
-	bool IsIrrefutablePattern(const MidoriPattern& pattern, const std::shared_ptr<MidoriType>& expected_type);
 
 	std::shared_ptr<MidoriType>* FindNameType(const std::string& name);
 

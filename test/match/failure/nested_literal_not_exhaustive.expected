@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/match/failure/nested_literal_not_exhaustive.mmt:14
+   |
+14 | 	match option with
+   |  ^^^^^ Match expression type error: non-exhaustive match: no case matches Option::Some(_)
+   |
