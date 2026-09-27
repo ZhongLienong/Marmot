@@ -203,12 +203,15 @@ The optimizer runs a fixed list of passes once over each module:
 4. `Contification`
 5. `Inlining`
 6. `SelfTailCall`
-7. `ScalarReplacement`
-8. `Sccp`
-9. `StrengthReduction`
-10. `GlobalValueNumbering`
-11. `LoopInvariantCodeMotion`
-12. `DeadCodeElimination`
+7. `KnownConstructorThreading`
+8. `DeadCodeElimination`
+9. `ScalarReplacement`
+10. `ParameterUnboxing`
+11. `Sccp`
+12. `StrengthReduction`
+13. `GlobalValueNumbering`
+14. `LoopInvariantCodeMotion`
+15. `DeadCodeElimination`
 
 It reports nothing. [MidoriIR](midori-ir.md#optimizer) describes each pass and what they all keep: tail calls, stack traces and source lines.
 

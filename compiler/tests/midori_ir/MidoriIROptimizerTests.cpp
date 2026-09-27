@@ -306,6 +306,175 @@ bb0(a: Int):
 )");
 }
 
+TEST_CASE("KnownConstructorThreading sends a union made for a match straight to the arm its tag picks", "[midori_ir][optimizer]")
+{
+	const MidoriIRModule module = Optimize<KnownConstructorThreadingPass, DeadCodeEliminationPass, ScalarReplacementPass, DeadCodeEliminationPass>(R"(module Thread
+type Opt = None | Some(Int);
+def Pick = fn(n: Int) -> Int => {
+	def o = if n > 0 then Opt::Some(n) else Opt::None();
+	match o with
+		case Opt::Some(v) => v + 1
+		case Opt::None => 0
+};
+Pick(3);
+)");
+
+	CHECK(PrintFunction(module, "Pick") == R"(fn Pick(Int) -> Int
+bb0(n: Int):
+  %1: Int = Const 0
+  %2: Bool = GtInt n, %1
+  branch %2, bb1, bb2
+bb1:
+  %10: Int = Const 1
+  %11: Int = AddInt n, %10
+  return %11
+bb2:
+  %15: Int = Const 0
+  return %15
+)");
+}
+
+TEST_CASE("KnownConstructorThreading leaves a union read after the match is done with it", "[midori_ir][optimizer]")
+{
+	constexpr std::string_view source = R"(module Escape
+type Opt = None | Some(Int);
+def Weigh = fn(o: Opt) -> Int => match o with
+	case Opt::Some(v) => v
+	case Opt::None => 0
+;
+def Pick = fn(n: Int) -> Int => {
+	def o = if n > 0 then Opt::Some(n) else Opt::None();
+	def r = match o with
+		case Opt::Some(v) => v + 1
+		case Opt::None => 0
+	;
+	r + Weigh(o)
+};
+Pick(3);
+)";
+
+	CHECK(PrintFunction(Optimize<KnownConstructorThreadingPass, DeadCodeEliminationPass>(std::string(source)), "Pick") == PrintFunction(Optimize<DeadCodeEliminationPass>(std::string(source)), "Pick"));
+}
+
+TEST_CASE("KnownConstructorThreading leaves a block that does more than look", "[midori_ir][optimizer]")
+{
+	constexpr std::string_view source = R"(module Effect
+foreign "MIDORI_FFI_Print" Print: fn(Text) -> Unit;
+type Opt = None | Some(Int);
+def Pick = fn(n: Int) -> Int => {
+	def o = if n > 0 then Opt::Some(n) else Opt::None();
+	Print("matching");
+	match o with
+		case Opt::Some(v) => v + 1
+		case Opt::None => 0
+};
+Pick(3);
+)";
+
+	CHECK(PrintFunction(Optimize<KnownConstructorThreadingPass, DeadCodeEliminationPass>(std::string(source)), "Pick") == PrintFunction(Optimize<DeadCodeEliminationPass>(std::string(source)), "Pick"));
+}
+
+TEST_CASE("KnownConstructorThreading threads only the edge whose union it knows", "[midori_ir][optimizer]")
+{
+	const MidoriIRModule module = Optimize<KnownConstructorThreadingPass, DeadCodeEliminationPass>(R"(module Mixed
+type Opt = None | Some(Int);
+def Make = fn(n: Int) -> Opt => if n == 0 then Opt::None() else Opt::Some(n);
+def Pick = fn(n: Int) -> Int => {
+	def o = if n > 0 then Opt::Some(n) else Make(n);
+	match o with
+		case Opt::Some(v) => v + 1
+		case Opt::None => 0
+};
+Pick(3);
+)");
+
+	CHECK(PrintFunction(module, "Pick") == R"(fn Pick(Int) -> Int
+bb0(n: Int):
+  %1: Int = Const 0
+  %2: Bool = GtInt n, %1
+  branch %2, bb1, bb2
+bb1:
+  %3: Mixed::Opt = MakeUnion tag 1, n  !alloc
+  jump bb4(%3)
+bb2:
+  %4: Mixed::Opt = Call Make, n  !call
+  %6: Int = GetTag %4
+  %7: Int = Const 1
+  %8: Bool = EqInt %6, %7
+  branch %8, bb4(%4), bb3
+bb3:
+  %12: Int = GetTag %4
+  %13: Int = Const 0
+  %14: Bool = EqInt %12, %13
+  branch %14, bb6, bb5
+bb4(%19: Mixed::Opt):
+  %9: Int = UnionField tag 1 #0, %19
+  %10: Int = Const 1
+  %11: Int = AddInt %9, %10
+  return %11
+bb5:
+  unreachable
+bb6:
+  %15: Int = Const 0
+  return %15
+)");
+}
+
+TEST_CASE("ParameterUnboxing carries a loop's struct as its members", "[midori_ir][optimizer]")
+{
+	const MidoriIRModule module = Optimize<SelfTailCallPass, InliningPass, DeadCodeEliminationPass, ParameterUnboxingPass, DeadCodeEliminationPass>(R"(module Unbox
+type Cursor = { at: Int, total: Int };
+def Walk = fn(c: Cursor, n: Int) -> Int => if c.at == n then c.total else Walk(Cursor(c.at + 1, c.total + c.at), n);
+def Sum = fn(n: Int) -> Int => Walk(Cursor(0, 0), n);
+Sum(4);
+)");
+
+	CHECK(PrintFunction(module, "Sum") == R"(fn Sum(Int) -> Int
+bb0(n.0: Int):
+  %1: Int = Const 0
+  %2: Int = Const 0
+  jump bb1(%1, %2)
+bb1(c.18: Int, c.19: Int):
+  %9: Bool = EqInt c.18, n.0
+  branch %9, bb2, bb3
+bb2:
+  return c.19
+bb3:
+  %12: Int = Const 1
+  %13: Int = AddInt c.18, %12
+  %16: Int = AddInt c.19, c.18
+  jump bb1(%13, %16)
+)");
+}
+
+TEST_CASE("ParameterUnboxing leaves a struct the loop passes on whole", "[midori_ir][optimizer]")
+{
+	constexpr std::string_view source = R"(module Escape
+foreign "MIDORI_FFI_Print" Print: fn(Text) -> Unit;
+type Cursor = { at: Int, total: Int };
+def Report = fn(c: Cursor) -> Unit => Print(c.at as Text);
+def Walk = fn(c: Cursor, n: Int) -> Int => {
+	Report(c);
+	if c.at == n then c.total else Walk(Cursor(c.at + 1, c.total + c.at), n)
+};
+def Sum = fn(n: Int) -> Int => Walk(Cursor(0, 0), n);
+Sum(4);
+)";
+
+	CHECK(PrintFunction(Optimize<SelfTailCallPass, InliningPass, DeadCodeEliminationPass, ParameterUnboxingPass, DeadCodeEliminationPass>(std::string(source)), "Sum") == PrintFunction(Optimize<SelfTailCallPass, InliningPass, DeadCodeEliminationPass, DeadCodeEliminationPass>(std::string(source)), "Sum"));
+}
+
+TEST_CASE("ParameterUnboxing leaves a struct that one edge passes without making it", "[midori_ir][optimizer]")
+{
+	constexpr std::string_view source = R"(module Mixed
+type Cursor = { at: Int, total: Int };
+def Walk = fn(c: Cursor, n: Int) -> Int => if c.at == n then c.total else Walk(Cursor(c.at + 1, c.total + c.at), n);
+Walk(Cursor(0, 0), 4);
+)";
+
+	CHECK(PrintFunction(Optimize<SelfTailCallPass, DeadCodeEliminationPass, ParameterUnboxingPass, DeadCodeEliminationPass>(std::string(source)), "Walk") == PrintFunction(Optimize<SelfTailCallPass, DeadCodeEliminationPass, DeadCodeEliminationPass>(std::string(source)), "Walk"));
+}
+
 TEST_CASE("GlobalValueNumbering computes a value once where a dominating instruction already has", "[midori_ir][optimizer]")
 {
 	const MidoriIRModule module = Optimize<GlobalValueNumberingPass, DeadCodeEliminationPass>(R"(module Numbering

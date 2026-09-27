@@ -44,7 +44,11 @@ MidoriIRPassFailure::MidoriIRPassFailure(std::string pass, std::vector<MidoriIRV
 // a self tail call is a loop and a known closure a direct call before bodies
 // are copied; copying exposes values made only to be taken apart and
 // constants; the cleanup runs last. Self tail calls are looked for again after
-// inlining, which can make a mutual tail call a self one.
+// inlining, which can make a mutual tail call a self one. Inlining leaves a
+// union made only to be branched on through a block parameter, which
+// threading exposes to ScalarReplacement once DCE has joined the blocks it
+// leaves; a struct or tuple carried around a loop is only seen to be made
+// fresh on each edge after that.
 MidoriIROptimizer::MidoriIROptimizer()
 	: m_passes(MakePasses
 	<
@@ -54,7 +58,10 @@ MidoriIROptimizer::MidoriIROptimizer()
 		ContificationPass,
 		InliningPass,
 		SelfTailCallPass,
+		KnownConstructorThreadingPass,
+		DeadCodeEliminationPass,
 		ScalarReplacementPass,
+		ParameterUnboxingPass,
 		SccpPass,
 		StrengthReductionPass,
 		GlobalValueNumberingPass,

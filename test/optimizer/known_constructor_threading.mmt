@@ -1,0 +1,61 @@
+module KnownConstructorThreading
+
+import
+{
+	"../../MarmotPrelude/IO.mmt",
+	"../../MarmotPrelude/Iterable.mmt",
+	"../../MarmotPrelude/Prelude/Option.mmt"
+}
+
+use Option.{Option}
+
+// A loop over a user Iterable. Once Next is inlined, its Option goes straight
+// to the arm its tag picks, and the Walker it carries is passed as its
+// fields, so neither is made. What each step yields must survive that: the
+// tag and fields of each Shape, and the index the Walker counts.
+
+type Shape = Dot | Square(Int) | Box(Int, Int);
+
+type Shapes = Done | More(Shape, Shapes);
+
+type Walker = { rest: Shapes, index: Int };
+
+instance Iterable<Walker>
+{
+	type Item = (Int, Shape);
+	def Next = fn(walker: Walker) -> Option<((Int, Shape), Walker)> =>
+		match walker.rest with
+			case Shapes::More(shape, rest) => Option::Some(((walker.index, shape), Walker(rest, walker.index + 1)))
+			case Shapes::Done => Option::None();
+};
+
+def Describe = fn(step: (Int, Shape)) -> Text => {
+	def (index, shape) = step;
+	def area = match shape with
+		case Shape::Dot => "a dot"
+		case Shape::Square(side) => "a square of area " ++ ((side * side) as Text)
+		case Shape::Box(width, height) => "a box of area " ++ ((width * height) as Text);
+	(index as Text) ++ ": " ++ area
+};
+
+def CountFrom = fn(walker: Walker, count: Int) -> Int =>
+	match Iterable::Next(walker) with
+		case Option::Some(step) => {
+			def (_, rest) = step;
+			CountFrom(rest, count + 1)
+		}
+		case Option::None() => count;
+
+def shapes = Shapes::More(Shape::Square(3), Shapes::More(Shape::Dot(), Shapes::More(Shape::Box(2, 5), Shapes::Done())));
+
+for step in Walker(shapes, 0) {
+	IO::PrintLine(Describe(step));
+};
+
+def described = [Describe(step) for step in Walker(shapes, 10)];
+IO::PrintLine(described[2]);
+
+def empty = [Describe(step) for step in Walker(Shapes::Done(), 0)];
+IO::PrintLine("empty: " ++ (#empty as Text) ++ " steps");
+
+IO::PrintLine("counted: " ++ (CountFrom(Walker(shapes, 0), 0) as Text) ++ " steps");

@@ -79,6 +79,28 @@ public:
 	void Run(MidoriIRModule& module) const override;
 };
 
+// An edge that passes a union into a small block that only branches on its
+// tag goes straight to the successor that tag picks. The edge carries the
+// block's few pure instructions with it, and that successor takes the block's
+// values it reads as parameters, so what the union was made with can be read
+// from it where it is taken apart.
+class KnownConstructorThreadingPass : public MidoriIRPass
+{
+public:
+	std::string_view Name() const override;
+	void Run(MidoriIRModule& module) const override;
+};
+
+// A block parameter that is always passed a struct or tuple made for it, or
+// itself around a loop, and is only ever taken apart, becomes a parameter for
+// each part read, so the whole need not be made.
+class ParameterUnboxingPass : public MidoriIRPass
+{
+public:
+	std::string_view Name() const override;
+	void Run(MidoriIRModule& module) const override;
+};
+
 // A tuple, struct or union made and only taken apart again is never made:
 // each part read from it is the value it was made with.
 class ScalarReplacementPass : public MidoriIRPass
