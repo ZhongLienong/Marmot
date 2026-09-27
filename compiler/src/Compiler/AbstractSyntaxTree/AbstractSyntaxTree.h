@@ -281,8 +281,17 @@ public:
 		As(std::unique_ptr<MidoriPattern>&& pattern, std::unique_ptr<MidoriPattern>&& binding);
 	};
 
+	// `first | second | ...`: matches what any alternative does, tried in order.
+	// Every alternative binds the same names, to the same locals.
+	struct Or : BasePattern
+	{
+		std::vector<std::unique_ptr<MidoriPattern>> m_alternatives;
+
+		Or(std::vector<std::unique_ptr<MidoriPattern>>&& alternatives);
+	};
+
 private:
-	using PatternUnion = std::variant<Binding, Wildcard, Literal, Tuple, Array, Constructor, As>;
+	using PatternUnion = std::variant<Binding, Wildcard, Literal, Tuple, Array, Constructor, As, Or>;
 	PatternUnion m_variant;
 
 public:
@@ -314,6 +323,11 @@ public:
 
 	std::shared_ptr<MidoriType>& GetType();
 	const std::shared_ptr<MidoriType>& GetType() const;
+
+	// The bindings the pattern makes, in order. An or-pattern's alternatives bind
+	// the same names, so only its first is looked at unless `every_alternative`.
+	std::vector<Binding*> Bindings(bool every_alternative);
+	std::vector<const Binding*> Bindings() const;
 };
 
 class MidoriExpression

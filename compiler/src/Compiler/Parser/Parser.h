@@ -804,6 +804,8 @@ private:
 
 	MidoriResult::PatternResult ParsePattern();
 
+	MidoriResult::PatternResult ParseAlternatives();
+
 	MidoriResult::PatternResult ParsePrimaryPattern();
 
 	MidoriResult::PatternResult ParseBindingPattern(Token&& name);

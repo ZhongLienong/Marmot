@@ -143,6 +143,11 @@ MidoriPattern::As::As(std::unique_ptr<MidoriPattern>&& pattern, std::unique_ptr<
 {
 }
 
+MidoriPattern::Or::Or(std::vector<std::unique_ptr<MidoriPattern>>&& alternatives)
+	: m_alternatives(std::move(alternatives))
+{
+}
+
 MidoriExpression::As::As(const Token& as_keyword, std::shared_ptr<MidoriType> to_type, std::unique_ptr<MidoriExpression>&& expr)
 	: m_as_keyword(as_keyword),
 	m_to_type(std::move(to_type)),
@@ -385,6 +390,80 @@ std::shared_ptr<MidoriType>& MidoriPattern::GetType()
 const std::shared_ptr<MidoriType>& MidoriPattern::GetType() const
 {
 	return std::visit(ConstTypeDataAccessor{}, m_variant);
+}
+
+namespace
+{
+	template<typename Pattern, typename Binding>
+	void CollectBindings(Pattern& pattern, bool every_alternative, std::vector<Binding*>& bindings)
+	{
+		const auto children = [every_alternative, &bindings](auto& patterns)
+			{
+				for (auto& child : patterns)
+				{
+					CollectBindings(*child, every_alternative, bindings);
+				}
+			};
+
+		std::visit
+		(
+			[&]<typename T>(T& node)
+			{
+				using Node = std::remove_const_t<T>;
+				if constexpr (std::is_same_v<Node, MidoriPattern::Binding>)
+				{
+					bindings.push_back(&node);
+				}
+				else if constexpr (std::is_same_v<Node, MidoriPattern::Tuple>)
+				{
+					children(node.m_elements);
+				}
+				else if constexpr (std::is_same_v<Node, MidoriPattern::Array>)
+				{
+					children(node.m_elements);
+					if (node.m_rest.has_value())
+					{
+						CollectBindings(*node.m_rest->m_pattern, every_alternative, bindings);
+					}
+				}
+				else if constexpr (std::is_same_v<Node, MidoriPattern::Constructor>)
+				{
+					children(node.m_args);
+				}
+				else if constexpr (std::is_same_v<Node, MidoriPattern::As>)
+				{
+					CollectBindings(*node.m_pattern, every_alternative, bindings);
+					CollectBindings(*node.m_binding, every_alternative, bindings);
+				}
+				else if constexpr (std::is_same_v<Node, MidoriPattern::Or>)
+				{
+					if (every_alternative)
+					{
+						children(node.m_alternatives);
+					}
+					else
+					{
+						CollectBindings(*node.m_alternatives.front(), every_alternative, bindings);
+					}
+				}
+			},
+			*pattern
+		);
+	}
+}
+
+std::vector<MidoriPattern::Binding*> MidoriPattern::Bindings(bool every_alternative)
+{
+	std::vector<Binding*> bindings;
+	CollectBindings(*this, every_alternative, bindings);
+	return bindings;
+}
+
+std::vector<const MidoriPattern::Binding*> MidoriPattern::Bindings() const
+{
+	std::vector<const Binding*> bindings;
+	CollectBindings(*this, false, bindings);
+	return bindings;
 }
 
 MidoriExpression::ExpressionUnion& MidoriExpression::operator*()

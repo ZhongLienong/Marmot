@@ -186,7 +186,8 @@ next `|>`. `x |> fn(a) => f(a) |> g` is `g(f(x))`, and a later stage cannot name
 ## Patterns
 
 ```
-pattern      = primary ('as' IDENTIFIER)* ;               // names the whole value
+pattern      = alternatives ('as' IDENTIFIER)* ;          // names the whole value
+alternatives = primary ('|' primary)* ;                   // any one of them
 primary      = '_'                                        // wildcard
              | INTEGER | FLOAT | TEXT | 'true' | 'false'
              | IDENTIFIER                                 // binds the value
@@ -204,6 +205,14 @@ is between them, possibly nothing, as an array. `[head, ..tail]`,
 
 `pattern as name` matches what `pattern` matches and binds the whole value to
 `name` as well: `case Option::Some(inner) as whole => ...`.
+
+`first | second` matches what either alternative matches, trying them in order:
+`case Shape::Dot() | Shape::Blob() => 0`. Every alternative binds the same names,
+with the same types, and the case reads them from whichever one matched:
+`case Shape::Line(n) | Shape::Box(n, _) => n`. `as` takes in every alternative
+before it, so `A() | B() as x` names either; parenthesize one alternative to name
+only it. A guard is tested once, with what the first matching alternative bound,
+and when it fails the match goes on to the next case.
 
 A `case` may carry a guard: `case n if n > 10 => ...`. The catch-all arm is
 `case _ =>`; `_` is a pattern, so it nests inside the others.

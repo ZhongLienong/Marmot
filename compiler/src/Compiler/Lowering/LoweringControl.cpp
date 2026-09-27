@@ -372,6 +372,53 @@ Lowering::Emitted Lowering::LowerPattern(const MidoriPattern& pattern, MidoriIRV
 				});
 		}
 
+		// Each alternative that matches jumps to one block with what it bound, so
+		// the case reads its names from that block's parameters.
+		Emitted operator()(const MidoriPattern::Or& either) const
+		{
+			const std::vector<int> locals = either.m_alternatives.front()->Bindings()
+				| std::views::filter([](const MidoriPattern::Binding* binding) { return binding->m_local_index.has_value(); })
+				| std::views::transform([](const MidoriPattern::Binding* binding) { return binding->m_local_index.value(); })
+				| std::ranges::to<std::vector>();
+			const MidoriIRBlockId matched = m_self.NewBlock();
+			std::vector<MidoriIRValueId> parameters;
+			for (size_t index = 0uz; index < either.m_alternatives.size(); index += 1uz)
+			{
+				const bool is_last = index + 1uz == either.m_alternatives.size();
+				const MidoriIRBlockId next = is_last ? m_fail : m_self.NewBlock();
+				m_self.PushLocalFrame();
+				const Emitted lowered = m_self.LowerPattern(*either.m_alternatives[index], m_value, next);
+				if (!lowered.has_value())
+				{
+					m_self.PopLocalFrame();
+					return lowered;
+				}
+
+				const std::vector<MidoriIRValueId> values = locals
+					| std::views::transform([this](int local) { return m_self.Scope().m_locals.at(local); })
+					| std::ranges::to<std::vector>();
+				if (index == 0uz)
+				{
+					parameters = values
+						| std::views::transform([this, matched](MidoriIRValueId value) { return Builder().AddParameter(matched, m_self.Scope().m_function.TypeOf(value)); })
+						| std::ranges::to<std::vector>();
+				}
+				m_self.PopLocalFrame();
+				m_self.Jump(matched, values);
+				if (!is_last)
+				{
+					m_self.PositionAt(next);
+				}
+			}
+
+			m_self.PositionAt(matched);
+			for (size_t index = 0uz; index < locals.size(); index += 1uz)
+			{
+				m_self.DefineLocal(locals[index], parameters[index]);
+			}
+			return {};
+		}
+
 		Emitted operator()(const MidoriPattern::As& as) const
 		{
 			return m_self.LowerPattern(*as.m_pattern, m_value, m_fail)

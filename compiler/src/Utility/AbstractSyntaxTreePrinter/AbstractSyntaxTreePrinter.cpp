@@ -596,4 +596,11 @@ void PrintAbstractSyntaxTree::operator()(const MidoriPattern::As& as, int depth)
 	PrintWithIndentation(depth, "}");
 }
 
+void PrintAbstractSyntaxTree::operator()(const MidoriPattern::Or& either, int depth) const
+{
+	PrintWithIndentation(depth, "OrPattern {");
+	std::ranges::for_each(either.m_alternatives, [depth, this](const std::unique_ptr<MidoriPattern>& alternative) { Visit(alternative, depth + 1); });
+	PrintWithIndentation(depth, "}");
+}
+
 #endif

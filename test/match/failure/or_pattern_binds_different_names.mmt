@@ -1,0 +1,18 @@
+module OrPatternBindsDifferentNames
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt"
+}
+
+type Shape = Dot | Line(Int) | Box(Int, Int);
+
+// The case reads its names whichever alternative matched, so every alternative
+// binds the same ones.
+
+def Size = fn(shape : Shape) -> Int =>
+	match shape with
+		case Shape::Line(length) | Shape::Box(width, _) => length
+		case _ => 0;
+
+IO::PrintLine(Size(Shape::Line(1)) as Text);

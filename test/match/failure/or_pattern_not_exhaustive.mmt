@@ -1,0 +1,20 @@
+module OrPatternNotExhaustive
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/Prelude/Option.mmt"
+}
+
+use Option.{ Option }
+
+type Shape = Dot | Line(Int) | Box(Int, Int) | Blob;
+
+// Each alternative covers what it would as a case of its own; together these
+// leave out Box and a Some holding Blob.
+
+def Size = fn(option : Option<Shape>) -> Int =>
+	match option with
+		case Option::Some(Shape::Dot() | Shape::Line(_)) | Option::None() => 0;
+
+IO::PrintLine(Size(Option::None()) as Text);

@@ -32,9 +32,9 @@ std::vector<std::string> PatternCoverage::FindUnmatched() const
 // finitely many constructors, a value is unmatched exactly when it is unmatched
 // under one of them. Otherwise no set of constructors covers the column, so only
 // the rows that take anything there can match, and the value starts with `_`.
-std::vector<PatternCoverage::Witness> PatternCoverage::Unmatched(const std::vector<Row>& rows, size_t width)
+std::vector<PatternCoverage::Witness> PatternCoverage::Unmatched(const std::vector<Row>& unexpanded, size_t width)
 {
-	if (rows.empty())
+	if (unexpanded.empty())
 	{
 		return { Witness(width, "_") };
 	}
@@ -42,6 +42,8 @@ std::vector<PatternCoverage::Witness> PatternCoverage::Unmatched(const std::vect
 	{
 		return {};
 	}
+
+	const std::vector<Row> rows = Expanded(unexpanded);
 
 	const std::vector<const MidoriPattern*> column = rows
 		| std::views::transform([](const Row& row) { return row.front(); })
@@ -77,6 +79,32 @@ std::vector<PatternCoverage::Witness> PatternCoverage::Prefixed(const std::strin
 		witness.insert(witness.begin(), first);
 	}
 	return std::move(rest);
+}
+
+// A row that starts with an or-pattern stands for one row per alternative.
+std::vector<PatternCoverage::Row> PatternCoverage::Expanded(const std::vector<Row>& rows)
+{
+	std::vector<Row> expanded;
+	for (const Row& row : rows)
+	{
+		if (IsWildcard(row.front()) || !row.front()->IsPattern<MidoriPattern::Or>())
+		{
+			expanded.push_back(row);
+			continue;
+		}
+
+		const std::vector<Row> alternatives = row.front()->GetPattern<MidoriPattern::Or>().m_alternatives
+			| std::views::transform([&row](const std::unique_ptr<MidoriPattern>& alternative)
+				{
+					Row alternative_row{ Strip(alternative.get()) };
+					alternative_row.insert(alternative_row.end(), row.begin() + 1, row.end());
+					return alternative_row;
+				})
+			| std::ranges::to<std::vector>();
+		const std::vector<Row> flattened = Expanded(alternatives);
+		expanded.insert(expanded.end(), flattened.begin(), flattened.end());
+	}
+	return expanded;
 }
 
 std::vector<PatternCoverage::Row> PatternCoverage::Specialize(const std::vector<Row>& rows, const Head& head)
@@ -240,7 +268,7 @@ std::optional<PatternCoverage::Row> PatternCoverage::ArgumentsFor(const MidoriPa
 			}
 			else
 			{
-				static_assert(std::is_same_v<Node, MidoriPattern::Binding> || std::is_same_v<Node, MidoriPattern::Wildcard> || std::is_same_v<Node, MidoriPattern::As>);
+				static_assert(std::is_same_v<Node, MidoriPattern::Binding> || std::is_same_v<Node, MidoriPattern::Wildcard> || std::is_same_v<Node, MidoriPattern::As> || std::is_same_v<Node, MidoriPattern::Or>);
 				std::unreachable();
 			}
 		},

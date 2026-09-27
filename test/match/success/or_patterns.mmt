@@ -1,0 +1,62 @@
+module MatchOrPatterns
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/Prelude/Option.mmt"
+}
+
+use Option.{ Option }
+
+type Shape = Dot | Line(Int) | Box(Int, Int) | Blob;
+
+// `first | second` matches what either does, tried in order. Every alternative
+// binds the same names, and the case reads whichever alternative matched.
+
+def Size = fn(shape : Shape) -> Int =>
+	match shape with
+		case Shape::Dot() | Shape::Blob() => 0
+		case Shape::Line(n) | Shape::Box(n, _) => n;
+
+def Describe = fn(n : Int) -> Text =>
+	match n with
+		case 1 | 2 | 3 => "small"
+		case _ => "big";
+
+def FirstPresent = fn(pair : (Option<Int>, Option<Int>)) -> Int =>
+	match pair with
+		case (Option::Some(value), _) | (Option::None(), Option::Some(value)) => value
+		case (Option::None(), Option::None()) => -1;
+
+def Nested = fn(option : Option<Shape>) -> Int =>
+	match option with
+		case Option::Some(Shape::Line(n) | Shape::Box(_, n)) => n
+		case Option::Some(Shape::Dot() | Shape::Blob()) | Option::None() => 0;
+
+// A guard is tested once, with what the first matching alternative bound.
+def Guarded = fn(shape : Shape) -> Text =>
+	match shape with
+		case Shape::Line(n) | Shape::Box(n, _) if n > 5 => "long"
+		case _ => "other";
+
+def Captured = fn(shape : Shape) -> Int =>
+	match shape with
+		case Shape::Line(n) | Shape::Box(n, _) =>
+		{
+			def add = fn(k : Int) -> Int => k + n;
+			add(100)
+		}
+		case _ => 0;
+
+def Named = fn(values : Array<Int>) -> Int =>
+	match values with
+		case [] | [_] as short => #short
+		case [first, ..] => first;
+
+IO::PrintLine((Size(Shape::Dot()) as Text) ++ " " ++ (Size(Shape::Line(4)) as Text) ++ " " ++ (Size(Shape::Box(7, 9)) as Text) ++ " " ++ (Size(Shape::Blob()) as Text));
+IO::PrintLine(Describe(2) ++ " " ++ Describe(5));
+IO::PrintLine((FirstPresent((Option::Some(1), Option::Some(2))) as Text) ++ " " ++ (FirstPresent((Option::None(), Option::Some(2))) as Text) ++ " " ++ (FirstPresent((Option::None(), Option::None())) as Text));
+IO::PrintLine((Nested(Option::Some(Shape::Box(1, 8))) as Text) ++ " " ++ (Nested(Option::Some(Shape::Line(3))) as Text) ++ " " ++ (Nested(Option::None()) as Text));
+IO::PrintLine(Guarded(Shape::Box(9, 0)) ++ " " ++ Guarded(Shape::Line(2)));
+IO::PrintLine(Captured(Shape::Box(9, 0)) as Text);
+IO::PrintLine((Named([]) as Text) ++ " " ++ (Named([4]) as Text) ++ " " ++ (Named([7, 8]) as Text));

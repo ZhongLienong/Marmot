@@ -128,6 +128,13 @@ void MidoriAbstractSyntaxTreeWalker::operator()(MidoriPattern::As& as)
 	VisitPattern(as.m_binding);
 }
 
+// The later alternatives bind the names the first does, to the same locals, and
+// patterns hold nothing else a pass looks at.
+void MidoriAbstractSyntaxTreeWalker::operator()(MidoriPattern::Or& either)
+{
+	VisitPattern(either.m_alternatives.front());
+}
+
 void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::As& as)
 {
 	VisitExpression(as.m_expr);

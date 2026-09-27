@@ -115,6 +115,11 @@ namespace
 			return IsCatchAllPattern(*pattern.GetPattern<MidoriPattern::As>().m_pattern);
 		}
 
+		if (pattern.IsPattern<MidoriPattern::Or>())
+		{
+			return std::ranges::any_of(pattern.GetPattern<MidoriPattern::Or>().m_alternatives, [](const std::unique_ptr<MidoriPattern>& alternative) { return IsCatchAllPattern(*alternative); });
+		}
+
 		return false;
 	}
 
@@ -136,6 +141,14 @@ namespace
 		if (pattern.IsPattern<MidoriPattern::As>())
 		{
 			return PatternSignature(*pattern.GetPattern<MidoriPattern::As>().m_pattern);
+		}
+
+		if (pattern.IsPattern<MidoriPattern::Or>())
+		{
+			return pattern.GetPattern<MidoriPattern::Or>().m_alternatives
+				| std::views::transform([](const std::unique_ptr<MidoriPattern>& alternative) { return PatternSignature(*alternative); })
+				| std::views::join_with(std::string_view(" | "))
+				| std::ranges::to<std::string>();
 		}
 
 		const auto join = [](const std::vector<std::unique_ptr<MidoriPattern>>& parts) -> std::string
@@ -5089,7 +5102,7 @@ MidoriResult::ExpressionResult Parser::ParseCaseExpression(MatchCoverage& covera
 
 MidoriResult::PatternResult Parser::ParsePattern()
 {
-	MidoriResult::PatternResult pattern = ParsePrimaryPattern();
+	MidoriResult::PatternResult pattern = ParseAlternatives();
 	while (pattern.has_value() && Match(Token::Name::AS))
 	{
 		const Token as = Previous();
@@ -5105,6 +5118,60 @@ MidoriResult::PatternResult Parser::ParsePattern()
 			});
 	}
 	return pattern;
+}
+
+// An alternative after the first is parsed in a scope of its own, so it may bind
+// the names the first does, and its bindings then take the first's locals: the
+// case sees one set of names, whichever alternative matched.
+MidoriResult::PatternResult Parser::ParseAlternatives()
+{
+	MidoriResult::PatternResult first = ParsePrimaryPattern();
+	if (!first.has_value() || !Check(Token::Name::SINGLE_BAR, 0))
+	{
+		return first;
+	}
+
+	std::vector<std::unique_ptr<MidoriPattern>> alternatives;
+	alternatives.push_back(std::move(first.value()));
+	const std::unordered_map<std::string, std::optional<int>> locals = alternatives.front()->Bindings(false)
+		| std::views::transform([](const MidoriPattern::Binding* binding) { return std::pair{ binding->m_name.m_lexeme, binding->m_local_index }; })
+		| std::ranges::to<std::unordered_map>();
+
+	while (Match(Token::Name::SINGLE_BAR))
+	{
+		const Token bar = Previous();
+		BeginScope();
+		MidoriResult::PatternResult alternative = ParsePrimaryPattern();
+		EndScope();
+		if (!alternative.has_value())
+		{
+			return alternative;
+		}
+
+		const std::vector<MidoriPattern::Binding*> bound = alternative.value()->Bindings(false);
+		for (const MidoriPattern::Binding* binding : bound)
+		{
+			if (!locals.contains(binding->m_name.m_lexeme))
+			{
+				return std::unexpected(GenerateParserError(std::format("'{}' is bound here but not by the first alternative; every alternative of '|' binds the same names.", binding->m_name.m_lexeme), binding->m_name));
+			}
+		}
+		for (const std::string& name : locals | std::views::keys)
+		{
+			if (std::ranges::none_of(bound, [&name](const MidoriPattern::Binding* binding) { return binding->m_name.m_lexeme == name; }))
+			{
+				return std::unexpected(GenerateParserError(std::format("The first alternative binds '{}' and this one does not; every alternative of '|' binds the same names.", name), bar));
+			}
+		}
+
+		for (MidoriPattern::Binding* binding : alternative.value()->Bindings(true))
+		{
+			binding->m_local_index = locals.at(binding->m_name.m_lexeme);
+		}
+		alternatives.push_back(std::move(alternative.value()));
+	}
+
+	return std::make_unique<MidoriPattern>(MidoriPattern::Or(std::move(alternatives)));
 }
 
 MidoriResult::PatternResult Parser::ParsePrimaryPattern()

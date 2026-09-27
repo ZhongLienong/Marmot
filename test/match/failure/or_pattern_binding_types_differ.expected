@@ -1,0 +1,7 @@
+Compilation failed :(
+Type Checker Error at test/match/failure/or_pattern_binding_types_differ.mmt:12
+   |
+12 | 		case Shape::Line(value) | Shape::Label(value) => 1;
+   |                             ^^^^^ Pattern type error: 'value' has a different type in this alternative than in the first
+Expected Int, but got Text
+   |

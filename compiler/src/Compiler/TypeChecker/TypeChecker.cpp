@@ -76,6 +76,10 @@ namespace
 				{
 					return GetPatternToken(*node.m_pattern);
 				}
+				else if constexpr (std::is_same_v<Node, MidoriPattern::Or>)
+				{
+					return GetPatternToken(*node.m_alternatives.front());
+				}
 				else
 				{
 					static_assert(AlwaysFalse<Node>, "Unhandled pattern type.");
@@ -2191,6 +2195,42 @@ MidoriResult::TypeResult TypeChecker::CheckPattern(MidoriPattern& pattern, const
 						return node.m_type_data;
 					});
 			}
+			else if constexpr (std::is_same_v<Node, MidoriPattern::Or>)
+			{
+				// Each alternative binds the same names; the first decides their types and
+				// every later one must agree with it.
+				MidoriResult::TypeResult first = CheckPattern(*node.m_alternatives.front(), resolved_expected);
+				if (!first.has_value())
+				{
+					return first;
+				}
+				std::unordered_map<std::string, std::shared_ptr<MidoriType>>& names = m_name_type_table.back();
+				const std::vector<std::pair<std::string, std::shared_ptr<MidoriType>>> bound = node.m_alternatives.front()->Bindings(false)
+					| std::views::transform([&names](const MidoriPattern::Binding* binding) { return std::pair{ binding->m_name.m_lexeme, names.at(binding->m_name.m_lexeme) }; })
+					| std::ranges::to<std::vector>();
+
+				for (std::unique_ptr<MidoriPattern>& alternative : node.m_alternatives | std::views::drop(1))
+				{
+					MidoriResult::TypeResult checked = CheckPattern(*alternative, resolved_expected);
+					if (!checked.has_value())
+					{
+						return checked;
+					}
+					for (const auto& [name, type] : bound)
+					{
+						std::shared_ptr<MidoriType> resolved_type = ApplySubstitution(type);
+						std::shared_ptr<MidoriType> alternative_type = ApplySubstitution(names.at(name));
+						if (!Unify(GetPatternToken(*alternative), resolved_type, alternative_type).has_value())
+						{
+							return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, std::format("Pattern type error: '{}' has a different type in this alternative than in the first", name), GetPatternToken(*alternative), m_file_name, m_source_lines, alternative_type, resolved_type));
+						}
+						names[name] = type;
+					}
+				}
+
+				node.m_type_data = resolved_expected;
+				return node.m_type_data;
+			}
 			else
 			{
 				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: unsupported pattern", GetPatternToken(pattern), m_file_name, m_source_lines));
@@ -3481,6 +3521,10 @@ void TypeChecker::ResolveRecordedTypes(MidoriPattern& pattern)
 		MidoriPattern::As& as = pattern.GetPattern<MidoriPattern::As>();
 		ResolveRecordedTypes(*as.m_pattern);
 		ResolveRecordedTypes(*as.m_binding);
+	}
+	else if (pattern.IsPattern<MidoriPattern::Or>())
+	{
+		resolve_all(pattern.GetPattern<MidoriPattern::Or>().m_alternatives);
 	}
 }
 

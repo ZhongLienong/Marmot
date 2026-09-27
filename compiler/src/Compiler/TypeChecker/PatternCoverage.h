@@ -51,6 +51,8 @@ private:
 
 	static std::vector<Witness> Prefixed(const std::string& first, std::vector<Witness>&& rest);
 
+	static std::vector<Row> Expanded(const std::vector<Row>& rows);
+
 	static std::vector<Row> Specialize(const std::vector<Row>& rows, const Head& head);
 
 	static std::vector<Row> Default(const std::vector<Row>& rows);
