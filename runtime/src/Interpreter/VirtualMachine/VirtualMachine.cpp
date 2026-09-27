@@ -1141,10 +1141,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 				}
 				m_string_literal_cache[index] = AllocateTraceable(m_executable->GetStringPool()[index].data());
 			}
-			MidoriText& cached_text = m_string_literal_cache[index]->GetTraceable<MidoriText>();
-			MidoriText text_copy(cached_text);
-			MidoriTraceable* new_string = AllocateTraceable(std::move(text_copy));
-			Push(sp, new_string);
+			// Shared by every load: lowering never extends a text literal in place.
+			Push(sp, m_string_literal_cache[index]);
 			break;
 		}
 		case OpCode::INTEGER_CONSTANT:

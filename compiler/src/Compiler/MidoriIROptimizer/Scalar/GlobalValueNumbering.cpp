@@ -33,9 +33,9 @@ namespace
 	}
 
 	// Whether the value depends on nothing but the operands and immediate. A
-	// constant is left alone: the backend pushes it where it is used, and a
-	// Text one is a fresh allocation each time. A fault is kept: the one
-	// that dominates ran first, so this one cannot fail.
+	// constant is left alone: the backend pushes it where it is used. A
+	// fault is kept: the one that dominates ran first, so this one cannot
+	// fail.
 	bool IsNumbered(const MidoriIRInstruction& instruction)
 	{
 		if (instruction.m_op == MidoriIROp::Const || !instruction.m_result.has_value())

@@ -180,8 +180,8 @@ namespace
 		case IntToWord: return Word(static_cast<uint64_t>(int_at(0u)));
 		case ByteToFloat: return static_cast<double>(ByteAt(operands, 0u));
 		case WordToFloat: return static_cast<double>(WordAt(operands, 0u));
-		// Text constants are made fresh each time they are loaded, so the
-		// result of a growth is as fresh as the constant replacing it.
+		// A folded Extend gives a text constant, which every load shares, so
+		// Rewrite turns an Extend of it into a Concat.
 		case Concat:
 		case Extend:
 			if (!std::holds_alternative<std::string>(*operands[0u]))
@@ -336,6 +336,10 @@ namespace
 						instruction.m_op = MidoriIROp::Const;
 						instruction.m_operands.clear();
 						instruction.m_effect = MidoriIREffect();
+					}
+					else if (instruction.m_op == MidoriIROp::Extend && m_cells[instruction.m_operands.front().m_index].m_level == Level::Constant)
+					{
+						instruction.m_op = MidoriIROp::Concat;
 					}
 				}
 				MidoriIRInstruction& terminator = instructions.back();

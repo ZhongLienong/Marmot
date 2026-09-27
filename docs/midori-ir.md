@@ -171,7 +171,7 @@ What the passes keep:
 - **Tail calls.** A call in tail position stays a `TailCall` through every pass. Inlining a callee at a tail call leaves its returns and tail calls the caller's; inlining it at an ordinary call turns its tail calls into calls, which take the call site's line.
 - **Stack traces.** A runtime error prints every frame, so a body is copied into another function, by inlining or contification, only when no runtime error can be raised in its frame or in one it makes: it can neither fail nor write, and calls only in tail position, where its own frame is already gone. A division by a non-zero constant cannot fail.
 - **Source lines.** An inlined instruction keeps its line when the callee's source is the caller's module; the body of another module's generic takes the call's line, since its own lines are of another file.
-- **Fresh values.** A `Text` constant is a new text each time it runs and an allocation is its own value, so neither is merged or moved out of a loop: `Extend` changes its left operand in place.
+- **Fresh values.** An allocation is its own value, so it is neither merged nor moved out of a loop: `Extend` changes its left operand in place. A `Text` constant is one text that every load of it shares, so `Extend` never takes one; SCCP turns an `Extend` whose left operand it folds to a constant into a `Concat`, and the verifier checks it.
 - **Globals.** A global is defined once, by the top-level function, before anything can read it, and never set again, so every read of it gives one value.
 
 ## Bytecode backend

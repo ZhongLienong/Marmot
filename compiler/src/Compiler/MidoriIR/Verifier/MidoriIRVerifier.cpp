@@ -367,6 +367,13 @@ namespace
 			}
 		}
 
+		bool IsConstant(MidoriIRValueId value) const
+		{
+			const std::optional<Definition>& definition = m_definitions[value.m_index];
+			return definition.has_value() && definition->m_position >= 0
+				&& m_function.m_blocks[definition->m_block.m_index].m_instructions[static_cast<size_t>(definition->m_position)].m_op == MidoriIROp::Const;
+		}
+
 		// Rule 1: nothing runs after a call that returns Never.
 		void CheckNeverCalls(MidoriIRBlockId block)
 		{
@@ -684,6 +691,7 @@ namespace
 					const TypeRef& left = TypeOf(operands[0u]);
 					Expect(left->IsType<MidoriType::TextType>() || left->IsType<MidoriType::ArrayType>(), block, instruction, "takes Text or an array");
 					Expect(SameType(left, TypeOf(operands[1u])) && SameType(left, result), block, instruction, "operands and result are not one type");
+					Expect(instruction.m_op != MidoriIROp::Extend || !IsConstant(operands[0u]), block, instruction, "extends a constant in place, which every load of it shares");
 				}
 				return;
 			}

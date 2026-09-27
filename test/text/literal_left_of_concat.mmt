@@ -1,0 +1,32 @@
+module LiteralLeftOfConcat
+
+import
+{
+	"../../MarmotPrelude/IO.mmt",
+	"../../MarmotPrelude/Prelude/List.mmt"
+}
+
+use List.{List, ListReverse}
+
+// Every load of a text literal pushes the same cached text, so `++` with a
+// literal on its left must leave the literal as it was, however often it
+// runs and whatever it appends.
+
+def Short = fn(i: Int) -> Text => "item#" ++ (i as Text);
+
+def Long = fn(i: Int) -> Text => "a literal long enough to live in a buffer of its own, well past seventy bytes #" ++ (i as Text);
+
+def Collect = fn(i: Int, limit: Int, make: fn(Int) -> Text, acc: List<Text>) -> List<Text> =>
+	if i >= limit
+	then ListReverse(acc)
+	else Collect(i + 1, limit, make, List::Cons(make(i * 7), acc));
+
+def Print = fn(texts: List<Text>) -> Unit =>
+	match texts with
+		case List::Nil => ()
+		case List::Cons(head, tail) => { IO::PrintLine(head); Print(tail) };
+
+Print(Collect(0, 4, Short, List::Nil()));
+IO::PrintLine("item#");
+Print(Collect(0, 4, Long, List::Nil()));
+IO::PrintLine("a literal long enough to live in a buffer of its own, well past seventy bytes #");

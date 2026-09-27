@@ -138,8 +138,9 @@ namespace
 	}
 
 	// An operand the `++` may extend in place, because nothing else holds it:
-	// another `++` a class does not provide, a text literal, which is pushed
-	// fresh each time, or an array literal or comprehension.
+	// another `++` a class does not provide, or an array literal or
+	// comprehension. Not a text literal: every load of one pushes the same
+	// cached text.
 	bool IsFreshConcatTemporary(const MidoriExpression& expression)
 	{
 		if (expression.IsExpression<MidoriExpression::Binary>())
@@ -148,8 +149,7 @@ namespace
 			return binary.m_op.m_token_name == Token::Name::DOUBLE_PLUS && !binary.m_uses_concatenable;
 		}
 
-		return expression.IsLiteral(MidoriExpression::LiteralKind::Text)
-			|| expression.IsExpression<MidoriExpression::Array>()
+		return expression.IsExpression<MidoriExpression::Array>()
 			|| expression.IsExpression<MidoriExpression::ArrayComprehension>();
 	}
 }

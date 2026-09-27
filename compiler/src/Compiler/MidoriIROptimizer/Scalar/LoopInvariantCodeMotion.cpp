@@ -64,7 +64,7 @@ namespace
 		}
 		if (instruction.m_op == MidoriIROp::Const)
 		{
-			return !std::holds_alternative<std::string>(instruction.m_immediate);
+			return true;
 		}
 		switch (instruction.m_effect.m_kind)
 		{

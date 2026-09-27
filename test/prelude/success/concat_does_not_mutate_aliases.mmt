@@ -7,15 +7,15 @@ module ConcatDoesNotMutateAliases
 //
 // `++` still mutates its LEFT operand in place when the code generator can
 // prove that operand is a freshly produced temporary nothing else can
-// reference: a text literal, an array literal/comprehension, or the result
-// of another non-typeclass `++`. IsFreshConcatTemporary decides this purely
+// reference: an array literal/comprehension, or the result of another
+// non-typeclass `++`. A text literal is not one: every load of it pushes the
+// same cached text. IsFreshConcatTemporary decides this purely
 // syntactically, from the immediate AST node of the left operand.
 //
 // This file tests both directions of that classification, not just one:
 //   - Shapes IsFreshConcatTemporary must ACCEPT, where the in-place extend
-//     genuinely fires (the "p" ++ t2_rt style left operands in cases 2, 3,
-//     5 and 6, and the array-literal/comprehension left operands in the
-//     Array cases). These are the corruption probes: they extend a value in
+//     genuinely fires (the nested `++` in Text case 3, and the
+//     array-literal/comprehension left operands in the Array cases). These are the corruption probes: they extend a value in
 //     place and then check a second, previously-bound name did not change.
 //   - Shapes it must REJECT, where an aliased value has to go through the
 //     copying CONCAT_TEXT/CONCAT_ARRAY path instead. Case 1 (`t1_a ++ "!"`,
@@ -58,9 +58,8 @@ if t1_c == "p1!"
 then ()
 else Panic::Panic("Text case 1: the ++ result itself must be correct");
 
-// Case 2: alias of a concat result. "p" is a fresh text literal, so
-// `"p" ++ t2_rt` runs through EXTEND_TEXT. t2_b is bound to that result
-// before the second concat runs.
+// Case 2: alias of a concat result. t2_b is bound to that result before the
+// second concat runs.
 def t2_src : Array<Text> = ["q"];
 def t2_rt = t2_src[0];
 def t2_a = "p" ++ t2_rt;
@@ -112,17 +111,13 @@ if t5_seen == "p"
 then ()
 else Panic::Panic("Text case 5: a closure capturing a binding must see it unchanged after a ++ on that binding");
 
-// Case 6: the same literal text spelled twice in source. This is not an
-// aliasing case at all - it is a direct check of the comment's claim in
-// IsFreshConcatTemporary that LOAD_STRING_WIDE always pushes a fresh copy. If two
-// occurrences of the same literal ever shared one runtime buffer, mutating
-// one occurrence via EXTEND_TEXT would corrupt the other with no `def`
-// aliasing involved. The right operand is routed through an array index, as
-// in cases 2 and 3, so `"shared" ++ t6_suffix` is not two literal operands
-// and survives ConstantFolding as a real Binary node - otherwise the whole
-// expression folds to the single literal "shared-x" at compile time and
-// EXTEND_TEXT never runs, and this case would pass without checking
-// anything.
+// Case 6: the same literal text spelled twice in source. LOAD_STRING_WIDE
+// pushes one cached text for every load of a literal, so a `++` with a
+// literal on its left must copy it: extending it in place would change every
+// other occurrence with no `def` aliasing involved. The right operand is
+// routed through an array index, as in cases 2 and 3, so
+// `"shared" ++ t6_suffix` is not two literal operands and is not folded to
+// the single literal "shared-x" at compile time.
 def t6_suffix_src : Array<Text> = ["-x"];
 def t6_suffix = t6_suffix_src[0];
 def t6_a = "shared";
