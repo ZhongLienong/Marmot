@@ -12,7 +12,8 @@
 #include "Compiler/Result/Result.h"
 #include "Compiler/BytecodeModule/BytecodeModule.h"
 #include "Common/Builtins/BuiltinTable.h"
-#include "GenericFunctionInfo.h"
+#include "Compiler/Lowering/GenericFunctionTable.h"
+#include "Compiler/Lowering/InstanceResolver.h"
 
 class CodeGenerator
 {
@@ -21,14 +22,6 @@ private:
 	{
 		ValueLocal,
 		CellLocal
-	};
-
-	struct ResolvedMethodCandidate
-	{
-		std::string m_first_type_name;
-		std::string m_second_type_name;
-		std::string m_resolved_name;
-		bool m_has_instance = false;
 	};
 
 	struct LoopContext
@@ -53,11 +46,6 @@ private:
 		std::size_t operator()(const FunctionSignature& sig) const;
 	};
 
-	struct TypePairHash
-	{
-		std::size_t operator()(const std::pair<MidoriType*, MidoriType*>& pair) const;
-	};
-
 	struct BytecodeBuilder
 	{
 		MidoriExecutable::Procedures m_procedures{ BytecodeStream() };
@@ -72,9 +60,6 @@ private:
 	};
 
 	using TypeEnvironment = std::unordered_map<std::string, std::shared_ptr<MidoriType>>;
-	using TypeclassMethodMap = std::unordered_map<std::string, std::unordered_set<std::string>>;
-	using TypeclassInstanceMap = std::unordered_map<std::string, std::vector<std::string>>;
-	using TypeclassInstanceTypeMap = std::unordered_map<std::string, std::vector<std::vector<std::shared_ptr<MidoriType>>>>;
 
 	MidoriProgramTree m_program_tree;
 	std::string m_file_name;
@@ -94,15 +79,13 @@ private:
 	std::unordered_map<std::string, int> m_global_variables;
 	std::unordered_map<int, int> m_direct_proc_global_indices;
 	std::unordered_map<std::string, int> m_local_variables;
-	std::unordered_map<std::string, GenericFunctionInfo> m_generic_functions;
+	GenericFunctionTable m_generic_functions;
 	std::unordered_set<std::string> m_generic_instance_methods;
 	std::unordered_map<FunctionSignature, int, FunctionSignatureHash> m_specialized_functions;
 	TypeEnvironment m_param_type_map;
 	TypeEnvironment m_generic_type_substitution;
-	TypeclassMethodMap m_class_methods;
-	TypeclassInstanceMap m_class_instances;
-	TypeclassInstanceTypeMap m_class_instance_type_args;
-	std::unordered_map<std::string, std::vector<ResolvedMethodCandidate>> m_method_resolution_map;
+	InstanceResolver m_instance_resolver;
+	MethodResolutionMap m_method_resolution_map;
 	std::shared_ptr<std::unordered_map<std::string, size_t>> m_ffi_indices = std::make_shared<std::unordered_map<std::string, size_t>>();
 	// library -> symbols this module's `foreign ... from` declarations name.
 	std::map<std::string, std::set<std::string>> m_native_imports;
@@ -118,7 +101,7 @@ private:
 
 public:
 
-	CodeGenerator(MidoriProgramTree&& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines, std::string module_name, std::unordered_set<std::string> export_symbols, const TypeclassMethodMap& imported_class_methods = {}, const TypeclassInstanceMap& imported_class_instances = {}, const TypeclassInstanceTypeMap& imported_class_instance_type_args = {}, const std::unordered_map<std::string, GenericFunctionInfo>& imported_generic_functions = {});
+	CodeGenerator(MidoriProgramTree&& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines, std::string module_name, std::unordered_set<std::string> export_symbols, const InstanceResolver::ClassMethods& imported_class_methods = {}, const InstanceResolver::ClassInstances& imported_class_instances = {}, const InstanceResolver::ClassInstanceTypes& imported_class_instance_type_args = {}, const std::unordered_map<std::string, GenericFunctionInfo>& imported_generic_functions = {});
 
 	MidoriResult::CodeGeneratorResult GenerateModuleBytecode() &;
 	MidoriResult::CodeGeneratorResult GenerateModuleBytecode() &&;
@@ -183,8 +166,6 @@ private:
 	void EmitCallProc(int proc_index, int arity, int line);
 
 	void EmitCallGlobal(int global_index, int arity, int line);
-
-	bool MatchInstanceTypeArg(const std::shared_ptr<MidoriType>& pattern, const std::shared_ptr<MidoriType>& concrete, TypeEnvironment& substitutions, std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash>& visited) const;
 
 	bool EmitIterableNextInvocation(const std::string& resolved_name, const std::shared_ptr<MidoriType>& iter_type, int line);
 
@@ -383,48 +364,30 @@ private:
 
 	int EmitFunction(const std::vector<Token>& params, std::unique_ptr<MidoriExpression>& body, const std::string& debug_name, int line, int captured_count = 0, int direct_proc_global_index = -1);
 
-	bool IsGenericType(const std::shared_ptr<MidoriType>& type);
-
-	void DeduceGenericTypesRecursive(const std::shared_ptr<MidoriType>& param_type, const std::shared_ptr<MidoriType>& concrete_type, std::unordered_map<std::string, std::shared_ptr<MidoriType>>& map, std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash>& visited);
-
 	int SpecializeGenericFunction(const std::string& base_name, const std::vector<std::shared_ptr<MidoriType>>& concrete_arg_types, int line);
 
 	std::string ProcedureOwnerName() const;
 
 	std::shared_ptr<MidoriType> GetConcreteTypeForExpression(const std::unique_ptr<MidoriExpression>& expr);
 
-	static std::shared_ptr<MidoriType> RepresentationOf(const std::shared_ptr<MidoriType>& type);
-
-	static bool IsNewTypeErasedConversion(const std::shared_ptr<MidoriType>& from_type, const std::shared_ptr<MidoriType>& target_type);
-
-	std::shared_ptr<MidoriType> SubstituteGenericTypes(const std::shared_ptr<MidoriType>& type, const TypeEnvironment& generic_type_map);
-
 	std::optional<std::string> ResolveMethodNameForCall(const std::string& callee_name, const MidoriExpression::Call& call, int line);
 
 	std::optional<std::string> ResolveConcreteTypeclassMethodName(const std::string& callee_name, const MidoriExpression::Call& call, int line);
+
+	void AddResolutionError(const MethodResolutionError& error, int line);
 
 	bool EmitResolvedNameGetGlobal(const std::string& resolved_name, int line);
 
 	std::optional<int> ResolveResolvedNameGlobalIndex(const std::string& resolved_name, int line);
 
-	std::optional<std::string> ResolveInstanceName(const std::string& class_name, const std::string& base_name) const;
-
 	int GlobalSlot(const std::string& name);
 
 	void ReserveTopLevelGlobals();
-
-	std::optional<std::string> GenericKeyIn(const std::string& module_name, const std::string& symbol_name) const;
 
 
 	std::optional<std::string> FindGenericFunctionKey(const std::string& resolved_name) const;
 
 	bool RejectGenericFunctionValueUse(const Token& name);
-
-	std::optional<std::string> ResolveInstanceNameForTypeArgs(const std::string& class_name, const std::string& method_name, const std::vector<std::shared_ptr<MidoriType>>& concrete_type_args) const;
-
-	bool AreTypeArgsEqual(const std::vector<std::shared_ptr<MidoriType>>& left, const std::vector<std::shared_ptr<MidoriType>>& right) const;
-
-	void AddInstanceTypeArgs(const std::string& class_name, const std::vector<std::shared_ptr<MidoriType>>& type_args);
 
 	bool EmitCountableCall(const MidoriExpression::UnaryPrefix& unary, const std::shared_ptr<MidoriType>& count_type, int line);
 

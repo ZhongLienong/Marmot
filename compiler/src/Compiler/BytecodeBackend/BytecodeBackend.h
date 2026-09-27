@@ -38,6 +38,7 @@ public:
 	[[nodiscard]] std::optional<BytecodeModule::SourceProvenance> MakeSourceProvenance(const Token& token) const;
 	[[nodiscard]] CompilerError LimitExceeded(std::string_view message, int line) const;
 	size_t ProcedureIndex(MidoriIRFunctionId function) const;
+	size_t CaptureCount(MidoriIRFunctionId function) const;
 	int GlobalOperand(MidoriIRGlobalSlot slot) const;
 	std::expected<int, CompilerError> TextConstant(const std::string& text, int line);
 

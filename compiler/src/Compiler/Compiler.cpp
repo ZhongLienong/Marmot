@@ -823,10 +823,11 @@ namespace
 	static LoweringImports MakeLoweringImports(const ImportContext& import_context)
 	{
 		LoweringImports imports;
-		imports.m_generic_functions = import_context.m_imported_generic_functions
-			| std::views::keys
-			| std::ranges::to<std::unordered_set<std::string>>();
+		imports.m_generic_functions = import_context.m_imported_generic_functions;
 		imports.m_class_methods = import_context.m_imported_typeclass_methods;
+		imports.m_class_instances = import_context.m_imported_typeclass_instances;
+		imports.m_class_instance_type_args = import_context.m_imported_typeclass_instance_types;
+		imports.m_class_instance_associated_types = import_context.m_imported_typeclass_instance_associated_type_bindings;
 		return imports;
 	}
 
@@ -844,7 +845,16 @@ namespace
 			| std::views::transform([](const MidoriIRViolation& violation) { return violation.ToString(); })
 			| std::views::join_with('\n')
 			| std::ranges::to<std::string>();
-		return CompilerError::WithFile(CompilerStage::Lowering, std::format("Lowering produced invalid MidoriIR:\n{}\n", message), file_path, CompilerErrorCode::CompilerInternalError);
+		const MidoriIRPrinter printer(module);
+		const std::string functions = module.m_functions
+			| std::views::filter([&violations](const MidoriIRFunction& function)
+			{
+				return std::ranges::any_of(violations, [&function](const MidoriIRViolation& violation) { return violation.m_function == function.m_name; });
+			})
+			| std::views::transform([&printer](const MidoriIRFunction& function) { return printer.PrintFunction(function); })
+			| std::views::join_with('\n')
+			| std::ranges::to<std::string>();
+		return CompilerError::WithFile(CompilerStage::Lowering, std::format("Lowering produced invalid MidoriIR:\n{}\n\n{}", message, functions), file_path, CompilerErrorCode::CompilerInternalError);
 	}
 
 	CompileStateResult CompileState::WithLoweredModule() &&

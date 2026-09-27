@@ -223,16 +223,18 @@ Important opcode families in the current executable format:
 - Arithmetic and bit operations: `ADD_*`, `SUBTRACT_*`, `MULTIPLY_*`, `DIVIDE_*`, `MODULO_*`, `LEFT_SHIFT`, `RIGHT_SHIFT`, `BITWISE_AND`, `BITWISE_OR`, `BITWISE_XOR`, `BITWISE_NOT`
 - Fused integer update: `ADD_ASSIGN_INT`, `SUB_ASSIGN_INT` (produced only when the code generator splits a fused `ADD_LOCAL_INT` back apart because that local became a captured cell; the language has no compound assignment)
 - Control flow: `JUMP_IF_FALSE`, `JUMP_IF_TRUE`, `JUMP`, `JUMP_BACK`, fused compare-and-branch opcodes such as `IF_INTEGER_LESS` and `IF_FLOAT_GREATER_EQUAL`
-- Pattern matching: `LOAD_TAG`, `GET_TAG`, `SET_TAG`
-- Calls: `CALL_FOREIGN`, `CALL_FOREIGN_INDEXED`, `CALL`, `CALL_0` through `CALL_3`, `CALL_PROC`, `CALL_PROC_0` through `CALL_PROC_3`, `CALL_GLOBAL`, `CALL_GLOBAL_WIDE`, `TAIL_CALL`
+- Pattern matching: `LOAD_TAG`, `GET_TAG`, `SET_TAG`, `GET_UNION_FIELD`
+- Calls: `CALL_FOREIGN`, `CALL_FOREIGN_INDEXED`, `CALL`, `CALL_0` through `CALL_3`, `CALL_PROC`, `CALL_PROC_0` through `CALL_PROC_3`, `CALL_PROC_WIDE`, `CALL_GLOBAL`, `CALL_GLOBAL_WIDE`, `TAIL_CALL`
 - Data construction: `CONSTRUCT_STRUCT`, `CONSTRUCT_UNION`
-- Closures and functions: `MAKE_FUNCTION`, `MAKE_CLOSURE`, `BIND_CAPTURES`
+- Closures and functions: `MAKE_FUNCTION`, `MAKE_FUNCTION_WIDE`, `MAKE_CLOSURE`, `BIND_CAPTURES`, `MAKE_CLOSURE_OF`, `SET_CAPTURE`
 - Variables: `DEFINE_GLOBAL`, `GET_GLOBAL`, `SET_GLOBAL`, `GET_LOCAL`, `SET_LOCAL`, `GET_LOCAL_CELL`, `SET_LOCAL_CELL`, `GET_CELL`, `SET_CELL`, plus wide variants
 - Cells (`Cell<T>`): `MAKE_CELL`, `READ_CELL`, `WRITE_CELL`, operating on a cell value on the stack rather than a captured local
 - Members and stack: `GET_MEMBER`, `POP`, `DUP`, `SWAP`, `POP_LOCAL_SCOPE`, `POP_VALUES`, `POP_BLOCK_SCOPE`, `POP_MATCH_SCOPE`
 - Termination: `RETURN`, `HALT`
 
 Generic functions are specialized at call sites; the emitted module keeps specialization metadata so later codegen and linking stages can resolve the concrete procedures.
+
+The opcodes with `WIDE` in their name, `MAKE_CLOSURE_OF`, `SET_CAPTURE` and `GET_UNION_FIELD` are what the MidoriIR backend (`--backend ir`, see [MidoriIR](midori-ir.md)) emits. It names procedures and globals only in two bytes, because the linker adds each module's first procedure and first global to them.
 
 ## Phase 8: Linking
 

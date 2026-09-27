@@ -12,6 +12,7 @@ In order, stopping at the first failure:
     benchmarks  every program under benchmarks/ compiles cleanly
     tool        the Rust marmot tool's tests, against the compiler just built
     language    the language suite under test/
+    language-ir the language suite again, through MidoriIR (until it is the only path)
 
 Examples:
     python scripts/dev.py gate
@@ -36,7 +37,7 @@ from lib.host import REPO_ROOT
 from lib.presets import BuildTree, add_build_arguments
 from testing import benchmarks, cli_contracts, doc_examples, formatting, language, layering, tool, unit
 
-STEPS = ["layering", "build", "unit", "docs", "cli", "format", "benchmarks", "tool", "language"]
+STEPS = ["layering", "build", "unit", "docs", "cli", "format", "benchmarks", "tool", "language", "language-ir"]
 
 
 def cleanup_all_artifacts(root: Path) -> None:
@@ -97,6 +98,7 @@ def steps(args: argparse.Namespace, tree: BuildTree) -> dict[str, Callable[[], i
         "benchmarks": lambda: benchmarks.main(common + verbose),
         "tool": lambda: tool.main(common),
         "language": lambda: language.main(common + verbose),
+        "language-ir": lambda: language.main(common + verbose + ["--backend", "ir"]),
     }
 
 

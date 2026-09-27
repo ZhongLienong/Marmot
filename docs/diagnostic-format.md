@@ -192,10 +192,10 @@ Current `CompilerErrorCode` values:
 - `TypeMismatch`
 - `TypeNonExhaustiveMatch`
 - `CodeGeneratorLimitExceeded`
-- `CodeGeneratorUnresolvedMethodResolution`
-- `CodeGeneratorAmbiguousMethodResolution`
-- `CodeGeneratorUnsupportedLowering`
-- `CodeGeneratorUnknownForeignFunction`
+- `LoweringUnresolvedMethodResolution`
+- `LoweringAmbiguousMethodResolution`
+- `LoweringUnsupportedConstruct`
+- `LoweringUnknownForeignFunction`
 - `BytecodeLinkerNoModulesToLink`
 - `BytecodeLinkerDuplicateExportedSymbol`
 - `BytecodeLinkerUnresolvedImport`
@@ -330,10 +330,10 @@ are emitted with the same shape as the full examples above.
 | `TypeMismatch` | `TypeChecker` | `Expected 'Int' but got 'Text'.` |
 | `TypeNonExhaustiveMatch` | `TypeChecker` | `Non-exhaustive 'match'; missing case for 'None'.` |
 | `CodeGeneratorLimitExceeded` | `CodeGenerator` | `Function exceeds the maximum local count.` |
-| `CodeGeneratorUnresolvedMethodResolution` | `CodeGenerator` | `Could not resolve method 'show' for type 'T'.` |
-| `CodeGeneratorAmbiguousMethodResolution` | `CodeGenerator` | `Ambiguous method 'show' for type 'T'.` |
-| `CodeGeneratorUnsupportedLowering` | `CodeGenerator` | `Cannot lower expression to bytecode.` |
-| `CodeGeneratorUnknownForeignFunction` | `CodeGenerator` | `Unknown foreign function 'MIDORI_FFI_Foo': it is not a Marmot builtin. Name the library that exports it: foreign "MIDORI_FFI_Foo" ... from "library";` |
+| `LoweringUnresolvedMethodResolution` | `Lowering` | `Could not resolve method 'show' for type 'T'.` |
+| `LoweringAmbiguousMethodResolution` | `Lowering` | `Ambiguous method 'show' for type 'T'.` |
+| `LoweringUnsupportedConstruct` | `Lowering` | `Cannot lower expression to bytecode.` |
+| `LoweringUnknownForeignFunction` | `Lowering` | `Unknown foreign function 'MIDORI_FFI_Foo': it is not a Marmot builtin. Name the library that exports it: foreign "MIDORI_FFI_Foo" ... from "library";` |
 | `BytecodeLinkerNoModulesToLink` | `BytecodeLinker` | `No modules to link.` |
 | `BytecodeLinkerDuplicateExportedSymbol` | `BytecodeLinker` | `Duplicate exported symbol 'main' in 'A' and 'B'.` |
 | `BytecodeLinkerUnresolvedImport` | `BytecodeLinker` | `Unresolved import 'foo' from module 'A'.` |

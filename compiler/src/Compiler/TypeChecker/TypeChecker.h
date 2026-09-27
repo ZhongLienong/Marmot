@@ -196,6 +196,14 @@ private:
 
 	std::shared_ptr<MidoriType> ApplySubstitution(const std::shared_ptr<MidoriType>& type);
 
+	// Inference binds a type variable after the types around it are recorded,
+	// so once the module is checked every recorded type gets what its
+	// variables were bound to. Lowering specializes by these types.
+	void ResolveRecordedTypes(MidoriStatement& statement);
+	void ResolveRecordedTypes(MidoriExpression& expression);
+	void ResolveRecordedTypes(MidoriPattern& pattern);
+	std::shared_ptr<MidoriType> ResolvedRecordedType(const std::shared_ptr<MidoriType>& type);
+
 	std::shared_ptr<MidoriType> ApplySubstitution(const std::shared_ptr<MidoriType>& type, std::unordered_map<const MidoriType*, std::shared_ptr<MidoriType>>& cache);
 
 	bool OccursCheck(int var_id, const std::shared_ptr<MidoriType>& type);

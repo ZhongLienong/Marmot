@@ -264,7 +264,7 @@ TEST_CASE("Driver renders compilation warnings and errors behind one banner", "[
 		3u,
 		std::nullopt,
 		"def x = y;",
-		CompilerErrorCode::CodeGeneratorUnsupportedLowering));
+		CompilerErrorCode::LoweringUnsupportedConstruct));
 	errors.emplace_back(CompilerError::WithContext(
 		CompilerStage::BytecodeLinker,
 		"Second linker failure",
@@ -324,11 +324,11 @@ TEST_CASE("Machine-readable errors serialize location and code metadata", "[comp
 		5u,
 		"Rewrite this expression",
 		"bad();",
-		CompilerErrorCode::CodeGeneratorUnsupportedLowering);
+		CompilerErrorCode::LoweringUnsupportedConstruct);
 
 	const std::string serialized = SerializeMachineReadableError(error);
 	CHECK(serialized.find("\"stage\":\"CodeGenerator\"") != std::string::npos);
-	CHECK(serialized.find("\"code\":\"CodeGeneratorUnsupportedLowering\"") != std::string::npos);
+	CHECK(serialized.find("\"code\":\"LoweringUnsupportedConstruct\"") != std::string::npos);
 	CHECK(serialized.find("\"file_path\":\"Lowering.mmt\"") != std::string::npos);
 	CHECK(serialized.find("\"line\":6") != std::string::npos);
 	CHECK(serialized.find("\"column\":3") != std::string::npos);

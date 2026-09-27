@@ -71,14 +71,14 @@ std::string_view CompilerErrorCodeName(CompilerErrorCode code)
 		return "TypeNonExhaustiveMatch";
 	case CompilerErrorCode::CodeGeneratorLimitExceeded:
 		return "CodeGeneratorLimitExceeded";
-	case CompilerErrorCode::CodeGeneratorUnresolvedMethodResolution:
-		return "CodeGeneratorUnresolvedMethodResolution";
-	case CompilerErrorCode::CodeGeneratorAmbiguousMethodResolution:
-		return "CodeGeneratorAmbiguousMethodResolution";
-	case CompilerErrorCode::CodeGeneratorUnsupportedLowering:
-		return "CodeGeneratorUnsupportedLowering";
-	case CompilerErrorCode::CodeGeneratorUnknownForeignFunction:
-		return "CodeGeneratorUnknownForeignFunction";
+	case CompilerErrorCode::LoweringUnresolvedMethodResolution:
+		return "LoweringUnresolvedMethodResolution";
+	case CompilerErrorCode::LoweringAmbiguousMethodResolution:
+		return "LoweringAmbiguousMethodResolution";
+	case CompilerErrorCode::LoweringUnsupportedConstruct:
+		return "LoweringUnsupportedConstruct";
+	case CompilerErrorCode::LoweringUnknownForeignFunction:
+		return "LoweringUnknownForeignFunction";
 	case CompilerErrorCode::BytecodeLinkerNoModulesToLink:
 		return "BytecodeLinkerNoModulesToLink";
 	case CompilerErrorCode::BytecodeLinkerDuplicateExportedSymbol:
@@ -1015,6 +1015,11 @@ CompilerError MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCo
 CompilerError MidoriError::GenerateCodeGeneratorErrorWithContext(std::string_view message, int line, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion)
 {
 	return GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::None, message, line, file_name, source_lines, suggestion);
+}
+
+CompilerError MidoriError::GenerateLoweringErrorWithContext(CompilerErrorCode code, std::string_view message, int line, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion)
+{
+	return GenerateRichError(CompilerStage::Lowering, message, line, file_name, source_lines, std::nullopt, std::nullopt, suggestion, code);
 }
 
 CompilerError MidoriError::GenerateLexerErrorWithContext(std::string_view message, int line, int column, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion)

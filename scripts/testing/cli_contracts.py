@@ -281,15 +281,15 @@ def scenario_backend_options_are_hidden(runner: TestRunner) -> None:
             f"check --backend ir --emit-ir should print the module's MidoriIR:\n{emitted.stdout}{emitted.stderr}",
         )
 
-        # A construct lowering does not handle yet stops the module on the IR path only.
+        # On the IR path, lowering reports its diagnostics under its own stage.
         unsupported_path = temp_dir / "Unsupported.mmt"
-        write_text(unsupported_path, "module Unsupported\ndef pair = (1, 2);\n")
+        write_text(unsupported_path, "module Unsupported\nforeign \"MIDORI_FFI_Nope\" Nope: fn() -> Unit;\n")
         unsupported = run_midori(runner, ["check", str(unsupported_path), "--backend", "ir", "--format", "json"], env_overrides={"MARMOT_PATH": None})
         errors = require_report(parse_command_json("backend_options_are_hidden", unsupported), "backend_options_are_hidden")["errors"]
-        assert_condition(unsupported.returncode != 0, "check --backend ir should fail on a construct lowering does not handle.")
+        assert_condition(unsupported.returncode != 0, "check --backend ir should fail on an unknown builtin.")
         assert_condition(
-            len(errors) == 1 and errors[0]["code"] == "CodeGeneratorUnsupportedLowering",
-            f"check --backend ir: expected CodeGeneratorUnsupportedLowering, got: {errors}",
+            len(errors) == 1 and errors[0]["code"] == "LoweringUnknownForeignFunction" and errors[0]["stage"] == "Lowering",
+            f"check --backend ir: expected LoweringUnknownForeignFunction from Lowering, got: {errors}",
         )
 
         unknown = run_midori(runner, ["build", str(source_path), "--backend", "llvm"], env_overrides={"MARMOT_PATH": None})

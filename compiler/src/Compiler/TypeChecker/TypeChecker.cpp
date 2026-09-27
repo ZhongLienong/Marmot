@@ -3361,11 +3361,191 @@ MidoriResult::TypeCheckerResult TypeChecker::TypeCheck()
 
 		if (errors.empty())
 		{
+			for (std::unique_ptr<MidoriStatement>& statement : m_program_tree)
+			{
+				ResolveRecordedTypes(*statement);
+			}
 			m_module_types = m_name_type_table.back();
 			return std::move(m_program_tree);
 		}
 		return std::unexpected(MidoriResult::CompilerDiagnostics(std::move(errors)));
 	});
+}
+
+// A variable inference bound to Undecided was never decided; the type it had
+// says more.
+std::shared_ptr<MidoriType> TypeChecker::ResolvedRecordedType(const std::shared_ptr<MidoriType>& type)
+{
+	const std::shared_ptr<MidoriType> resolved = ApplySubstitution(type);
+	return resolved->IsType<MidoriType::UndecidedType>() ? type : resolved;
+}
+
+void TypeChecker::ResolveRecordedTypes(MidoriStatement& statement)
+{
+	struct StatementResolver
+	{
+		TypeChecker& m_self;
+
+		void operator()(MidoriStatement::ExpressionStatement& expression_statement) const
+		{
+			m_self.ResolveRecordedTypes(*expression_statement.m_expr);
+		}
+
+		void operator()(MidoriStatement::VariableDefinition& definition) const
+		{
+			if (definition.m_value != nullptr)
+			{
+				m_self.ResolveRecordedTypes(*definition.m_value);
+			}
+		}
+
+		void operator()(MidoriStatement::TupleDefinition& definition) const
+		{
+			m_self.ResolveRecordedTypes(*definition.m_value);
+		}
+
+		void operator()(MidoriStatement::FunctionDefinition& definition) const
+		{
+			if (definition.m_body != nullptr)
+			{
+				m_self.ResolveRecordedTypes(*definition.m_body);
+			}
+		}
+
+		void operator()(MidoriStatement::Instance& instance) const
+		{
+			for (std::unique_ptr<MidoriStatement>& method : instance.m_methods)
+			{
+				m_self.ResolveRecordedTypes(*method);
+			}
+		}
+
+		void operator()(MidoriStatement::ForeignDefinition&) const {}
+		void operator()(MidoriStatement::Struct&) const {}
+		void operator()(MidoriStatement::Union&) const {}
+		void operator()(MidoriStatement::Class&) const {}
+		void operator()(MidoriStatement::TypeAlias&) const {}
+	};
+
+	VisitNode(StatementResolver{ *this }, statement);
+}
+
+void TypeChecker::ResolveRecordedTypes(MidoriExpression& expression)
+{
+	struct ExpressionResolver
+	{
+		TypeChecker& m_self;
+
+		void Resolve(std::unique_ptr<MidoriExpression>& child) const
+		{
+			if (child != nullptr)
+			{
+				m_self.ResolveRecordedTypes(*child);
+			}
+		}
+
+		void Resolve(std::vector<std::unique_ptr<MidoriExpression>>& children) const
+		{
+			std::ranges::for_each(children, [this](std::unique_ptr<MidoriExpression>& child) { Resolve(child); });
+		}
+
+		void Resolve(std::shared_ptr<MidoriType>& type) const
+		{
+			if (type != nullptr)
+			{
+				type = m_self.ResolvedRecordedType(type);
+			}
+		}
+
+		void operator()(MidoriExpression::As& node) const { Resolve(node.m_to_type); Resolve(node.m_expr); }
+		void operator()(MidoriExpression::Binary& node) const { Resolve(node.m_left); Resolve(node.m_right); }
+		void operator()(MidoriExpression::Group& node) const { Resolve(node.m_expr_in); }
+		void operator()(MidoriExpression::Tuple& node) const { Resolve(node.m_elements); }
+		void operator()(MidoriExpression::Literal&) const {}
+		void operator()(MidoriExpression::UnaryPrefix& node) const { Resolve(node.m_expr); }
+		void operator()(MidoriExpression::UnarySuffix& node) const { Resolve(node.m_expr); }
+		void operator()(MidoriExpression::Spawn& node) const { Resolve(node.m_callee); Resolve(node.m_arguments); }
+		void operator()(MidoriExpression::Join& node) const { Resolve(node.m_worker); }
+		void operator()(MidoriExpression::ChannelCreate& node) const { Resolve(node.m_capacity); }
+		void operator()(MidoriExpression::Send& node) const { Resolve(node.m_channel); Resolve(node.m_value); }
+		void operator()(MidoriExpression::Receive& node) const { Resolve(node.m_channel); }
+		void operator()(MidoriExpression::NameAccess&) const {}
+		void operator()(MidoriExpression::Call& node) const { Resolve(node.m_callee); Resolve(node.m_arguments); }
+		void operator()(MidoriExpression::Function& node) const { Resolve(node.m_body); }
+		void operator()(MidoriExpression::Construct& node) const { Resolve(node.m_params); }
+		void operator()(MidoriExpression::IfElse& node) const { Resolve(node.m_condition); Resolve(node.m_true_branch); Resolve(node.m_else_branch); }
+		void operator()(MidoriExpression::MemberAccess& node) const { Resolve(node.m_struct); }
+		void operator()(MidoriExpression::Array& node) const { Resolve(node.m_elems); }
+		void operator()(MidoriExpression::IndexAccess& node) const { Resolve(node.m_arr_var); Resolve(node.m_index); }
+		void operator()(MidoriExpression::RangeBinary& node) const { Resolve(node.m_start); Resolve(node.m_end); }
+		void operator()(MidoriExpression::RangeTernary& node) const { Resolve(node.m_start); Resolve(node.m_step); Resolve(node.m_end); }
+		void operator()(MidoriExpression::Match& node) const { Resolve(node.m_arg_expr); Resolve(node.m_cases); }
+
+		void operator()(MidoriExpression::RecordUpdate& node) const
+		{
+			Resolve(node.m_source);
+			std::ranges::for_each(node.m_updates, [this](MidoriExpression::RecordUpdate::FieldUpdate& update) { Resolve(update.m_value); });
+		}
+
+		void operator()(MidoriExpression::ArrayComprehension& node) const
+		{
+			Resolve(node.m_iterable_item_type);
+			Resolve(node.m_iterable_next_type);
+			Resolve(node.m_transform_expr);
+			Resolve(node.m_range);
+		}
+
+		void operator()(MidoriExpression::Block& node) const
+		{
+			std::ranges::for_each(node.m_stmts, [this](std::unique_ptr<MidoriStatement>& statement) { m_self.ResolveRecordedTypes(*statement); });
+			if (node.m_final_expr.has_value())
+			{
+				Resolve(node.m_final_expr.value());
+			}
+		}
+
+		void operator()(MidoriExpression::Case& node) const
+		{
+			m_self.ResolveRecordedTypes(*node.m_pattern);
+			Resolve(node.m_expr);
+			if (node.m_guard.has_value())
+			{
+				Resolve(node.m_guard.value());
+			}
+		}
+
+		void operator()(MidoriExpression::For& node) const
+		{
+			Resolve(node.m_iterable_item_type);
+			Resolve(node.m_iterable_next_type);
+			Resolve(node.m_range);
+			Resolve(node.m_body);
+		}
+	};
+
+	expression.GetType() = ResolvedRecordedType(expression.GetType());
+	VisitNode(ExpressionResolver{ *this }, expression);
+}
+
+void TypeChecker::ResolveRecordedTypes(MidoriPattern& pattern)
+{
+	pattern.GetType() = ResolvedRecordedType(pattern.GetType());
+	const auto resolve_all = [this](std::vector<std::unique_ptr<MidoriPattern>>& children)
+	{
+		std::ranges::for_each(children, [this](std::unique_ptr<MidoriPattern>& child) { ResolveRecordedTypes(*child); });
+	};
+	if (pattern.IsPattern<MidoriPattern::Tuple>())
+	{
+		resolve_all(pattern.GetPattern<MidoriPattern::Tuple>().m_elements);
+	}
+	else if (pattern.IsPattern<MidoriPattern::Array>())
+	{
+		resolve_all(pattern.GetPattern<MidoriPattern::Array>().m_elements);
+	}
+	else if (pattern.IsPattern<MidoriPattern::Constructor>())
+	{
+		resolve_all(pattern.GetPattern<MidoriPattern::Constructor>().m_args);
+	}
 }
 
 // Extract type signatures from parsed AST without full type checking
@@ -4787,6 +4967,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::For& for_expr
 					for_expr.m_is_iterable_iteration = true;
 					for_expr.m_iterable_item_type = iterable_item_type;
 					for_expr.m_iterable_some_tag = iterable_some_tag;
+					for_expr.m_iterable_next_type = next_return;
 				}
 
 				ScopeSession scope(*this);
@@ -4975,6 +5156,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::ArrayComprehe
 					comp.m_is_iterable_iteration = true;
 					comp.m_iterable_item_type = iterable_item_type;
 					comp.m_iterable_some_tag = iterable_some_tag;
+					comp.m_iterable_next_type = next_return;
 				}
 
 				ScopeSession scope(*this);

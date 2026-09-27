@@ -61,6 +61,8 @@ endif()
 add_library(marmot_test_native SHARED "${CMAKE_SOURCE_DIR}/compiler/tests/native/TestNative.cpp")
 add_dependencies(MarmotUnitTests marmot_test_native)
 target_compile_definitions(MarmotUnitTests PRIVATE MARMOT_TEST_NATIVE_DIR="$<TARGET_FILE_DIR:marmot_test_native>")
+# The prelude, which a MidoriIR test lowers module by module.
+target_compile_definitions(MarmotUnitTests PRIVATE MARMOT_PRELUDE_DIR="${CMAKE_SOURCE_DIR}/MarmotPrelude")
 
 include(${catch2_SOURCE_DIR}/extras/Catch.cmake)
 catch_discover_tests(MarmotUnitTests)

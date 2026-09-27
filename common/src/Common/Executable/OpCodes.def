@@ -204,3 +204,12 @@ MARMOT_OPCODE(PUSH_LOCAL_SUB_INT, 4) // [op][local][imm8][pad]                  
 MARMOT_OPCODE(IF_LOCAL_LE_INT, 6)    // [op][local][imm8][pad][off_lo][off_hi]       branch if !(local <= imm)
 MARMOT_OPCODE(IF_LOCAL_GE_LOCAL, 7)  // [op][left][pad][right][pad][off_lo][off_hi]  branch if !(left >= right)
 MARMOT_OPCODE(GET_LOCAL2, 4)         // [op][first][pad][second]                     push two locals
+// What MidoriIR's backend emits: procedures by a two-byte index, low byte
+// first, since the linker adds each module's first procedure to it; closures
+// that hold exactly the values they capture, each in a fresh cell; and a union
+// field by position.
+MARMOT_OPCODE(MAKE_CLOSURE_OF, 4)    // [op][proc_lo][proc_hi][count]                pop count values, push a closure over them
+MARMOT_OPCODE(SET_CAPTURE, 2)        // [op][index]                                  pop a value and a closure, store the value at index
+MARMOT_OPCODE(GET_UNION_FIELD, 2)    // [op][index]                                  replace a union with its field at index
+MARMOT_OPCODE(CALL_PROC_WIDE, 4)     // [op][proc_lo][proc_hi][arity]
+MARMOT_OPCODE(MAKE_FUNCTION_WIDE, 3) // [op][proc_lo][proc_hi]

@@ -123,7 +123,7 @@ def main = fn() -> Int => {
 			.m_line = 10
 		});
 
-	REQUIRE(MidoriTest::FindError(report.Errors(), CompilerStage::CodeGenerator, CompilerErrorCode::CodeGeneratorUnsupportedLowering) != nullptr);
+	REQUIRE(MidoriTest::FindError(report.Errors(), CompilerStage::Lowering, CompilerErrorCode::LoweringUnsupportedConstruct) != nullptr);
 }
 
 TEST_CASE("A successful compile renders its warnings from the final report", "[compiler][warning][driver]")

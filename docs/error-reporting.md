@@ -66,10 +66,10 @@ Current `CompilerErrorCode` values:
 - `TypeMismatch`
 - `TypeNonExhaustiveMatch`
 - `CodeGeneratorLimitExceeded`
-- `CodeGeneratorUnresolvedMethodResolution`
-- `CodeGeneratorAmbiguousMethodResolution`
-- `CodeGeneratorUnsupportedLowering`
-- `CodeGeneratorUnknownForeignFunction`
+- `LoweringUnresolvedMethodResolution`
+- `LoweringAmbiguousMethodResolution`
+- `LoweringUnsupportedConstruct`
+- `LoweringUnknownForeignFunction`
 - `BytecodeLinkerNoModulesToLink`
 - `BytecodeLinkerDuplicateExportedSymbol`
 - `BytecodeLinkerUnresolvedImport`

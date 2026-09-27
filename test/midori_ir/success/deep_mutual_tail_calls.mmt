@@ -1,0 +1,13 @@
+module DeepMutualTailCalls
+
+// Test: two functions that call each other in tail position run a million deep
+// without a new frame for each call, as the language promises every tail call
+// does, whichever function it calls.
+
+foreign "MIDORI_FFI_Print" Print: fn(Text) -> Unit;
+
+def IsEven = fn(n: Int) -> Bool => if n == 0 then true else IsOdd(n - 1);
+def IsOdd = fn(n: Int) -> Bool => if n == 0 then false else IsEven(n - 1);
+
+Print((IsEven(1000000) as Text) ++ "\n");
+Print((IsOdd(1000001) as Text) ++ "\n");

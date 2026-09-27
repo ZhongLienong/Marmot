@@ -1,5 +1,5 @@
 Compilation failed :( 
-Code Generator Error at test/literal/failure/hex_literal_wider_than_64_bits.mmt:7
+Lowering Error at test/literal/failure/hex_literal_wider_than_64_bits.mmt:7
   |
 7 | def too_wide = 0x1FFFFFFFFFFFFFFFF;
   |                ^^^^^^^^^^^^^^^^^^^ Word literal '0x1FFFFFFFFFFFFFFFF' is out of range. Maximum value is 18446744073709551615 (0xFFFFFFFFFFFFFFFF).

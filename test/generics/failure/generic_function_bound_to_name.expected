@@ -1,5 +1,5 @@
 Compilation failed :(
-Code Generator Error at test/generics/failure/generic_function_bound_to_name.mmt:14
+Lowering Error at test/generics/failure/generic_function_bound_to_name.mmt:14
    |
 14 | def bound = identity;
    |             ^^^^^^^^ Generic function 'identity' is monomorphised at each call site, so it has no single procedure to use as a value. Call it directly, or wrap it in a non-generic lambda that pins its type parameters.

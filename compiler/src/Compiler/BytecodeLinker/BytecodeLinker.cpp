@@ -84,6 +84,14 @@ namespace
 		return second_underscore != std::string::npos;
 	}
 
+	// A program may have more than 256 procedures.
+	void AddProcedure(BytecodeStream& stream, size_t procedure)
+	{
+		stream.AddByteCode(OpCode::MAKE_FUNCTION_WIDE, 0);
+		stream.AddByteCode(static_cast<OpCode>(procedure & BYTE_MASK), 0);
+		stream.AddByteCode(static_cast<OpCode>((procedure >> SHIFT_8_BITS) & BYTE_MASK), 0);
+	}
+
 	void AddModuleInitializer(BytecodeStream& bootstrap, const BytecodeModule& module, const std::unordered_map<std::string, size_t>& module_base_procedure_indices)
 	{
 		const std::unordered_map<std::string, size_t>::const_iterator base_it =
@@ -92,10 +100,7 @@ namespace
 		const size_t module_base_index = base_it->second;
 		const size_t module_global_index = module_base_index + 1u;
 
-		bootstrap.AddByteCode(OpCode::MAKE_CLOSURE, 0);
-		bootstrap.AddByteCode(static_cast<OpCode>(module_global_index), 0);
-		bootstrap.AddByteCode(OpCode::BIND_CAPTURES, 0);
-		bootstrap.AddByteCode(static_cast<OpCode>(0), 0);
+		AddProcedure(bootstrap, module_global_index);
 		bootstrap.AddByteCode(OpCode::CALL, 0);
 		bootstrap.AddByteCode(static_cast<OpCode>(0), 0);
 		bootstrap.AddByteCode(OpCode::POP, 0);
@@ -103,8 +108,7 @@ namespace
 
 	void EmitInstanceGlobal(BytecodeStream& stream, size_t proc_idx, size_t global_index)
 	{
-		stream.AddByteCode(OpCode::MAKE_FUNCTION, 0);
-		stream.AddByteCode(static_cast<OpCode>(proc_idx), 0);
+		AddProcedure(stream, proc_idx);
 
 		if (global_index <= MAX_LOCAL_VARIABLES)
 		{
@@ -169,6 +173,21 @@ namespace
 		}
 
 		return instance_inits_by_module;
+	}
+
+	// Its procedure is two bytes, low first, so it survives a program of more
+	// than 256 procedures.
+	bool HasWideProcedureOperand(OpCode opcode)
+	{
+		return opcode == OpCode::MAKE_CLOSURE_OF || opcode == OpCode::CALL_PROC_WIDE || opcode == OpCode::MAKE_FUNCTION_WIDE;
+	}
+
+	void ShiftWideProcedure(BytecodeStream& procedure, int offset, int shift)
+	{
+		const int old_index = static_cast<int>(procedure.ReadByteCode(offset + 1)) | (static_cast<int>(procedure.ReadByteCode(offset + 2)) << 8);
+		const int new_index = old_index + shift;
+		procedure.SetByteCode(offset + 1, static_cast<OpCode>(new_index & 0xFF));
+		procedure.SetByteCode(offset + 2, static_cast<OpCode>((new_index >> 8) & 0xFF));
 	}
 
 	std::string DiagnosticFileName(const BytecodeModule& module)
@@ -532,7 +551,11 @@ void BytecodeLinker::PatchBootstrapOffsets()
 				OpCode opcode = procedure.ReadByteCode(offset);
 				int advance = OpCodeTable::Length(opcode);
 
-				if (opcode == OpCode::MAKE_CLOSURE || opcode == OpCode::MAKE_FUNCTION)
+				if (HasWideProcedureOperand(opcode))
+				{
+					ShiftWideProcedure(procedure, offset, 1);
+				}
+				else if (opcode == OpCode::MAKE_CLOSURE || opcode == OpCode::MAKE_FUNCTION)
 				{
 					int old_proc_index = static_cast<int>(procedure.ReadByteCode(offset + 1));
 					int new_proc_index = old_proc_index + 1;
@@ -788,7 +811,11 @@ void BytecodeLinker::PatchProcedure(
 		const OpCode opcode = procedure.ReadByteCode(offset);
 		const int advance = OpCodeTable::Length(opcode);
 
-		if (opcode == OpCode::MAKE_CLOSURE || opcode == OpCode::MAKE_FUNCTION || opcode == OpCode::CALL_PROC ||
+		if (HasWideProcedureOperand(opcode))
+		{
+			ShiftWideProcedure(procedure, offset, proc_base_offset);
+		}
+		else if (opcode == OpCode::MAKE_CLOSURE || opcode == OpCode::MAKE_FUNCTION || opcode == OpCode::CALL_PROC ||
 			opcode == OpCode::CALL_PROC_0 || opcode == OpCode::CALL_PROC_1 || opcode == OpCode::CALL_PROC_2 || opcode == OpCode::CALL_PROC_3)
 		{
 			const int old_proc_index = static_cast<int>(procedure.ReadByteCode(offset + 1));

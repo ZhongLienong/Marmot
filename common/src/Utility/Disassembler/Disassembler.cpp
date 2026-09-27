@@ -940,6 +940,35 @@ namespace Disassembler
 			offset += 4;
 			break;
 		}
+		case OpCode::MAKE_CLOSURE_OF:
+		{
+			const int code_index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index)) | (static_cast<int>(executable.ReadByteCode(offset + 2, proc_index)) << 8);
+			const int count = static_cast<int>(executable.ReadByteCode(offset + 3, proc_index));
+			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("MAKE_CLOSURE_OF")) + " code=" + std::to_string(code_index) + " captures=" + std::to_string(count) + "\n");
+			offset += 4;
+			break;
+		}
+		case OpCode::CALL_PROC_WIDE:
+		{
+			const int code_index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index)) | (static_cast<int>(executable.ReadByteCode(offset + 2, proc_index)) << 8);
+			const int arity = static_cast<int>(executable.ReadByteCode(offset + 3, proc_index));
+			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("CALL_PROC_WIDE")) + " code=" + std::to_string(code_index) + " arity=" + std::to_string(arity) + "\n");
+			offset += 4;
+			break;
+		}
+		case OpCode::MAKE_FUNCTION_WIDE:
+		{
+			const int code_index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index)) | (static_cast<int>(executable.ReadByteCode(offset + 2, proc_index)) << 8);
+			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("MAKE_FUNCTION_WIDE")) + " code=" + std::to_string(code_index) + "\n");
+			offset += 3;
+			break;
+		}
+		case OpCode::SET_CAPTURE:
+			MemberInstruction("SET_CAPTURE", executable, proc_index, offset);
+			break;
+		case OpCode::GET_UNION_FIELD:
+			MemberInstruction("GET_UNION_FIELD", executable, proc_index, offset);
+			break;
 		case OpCode::EXTEND_ARRAY:
 			SimpleInstruction("EXTEND_ARRAY", offset);
 			break;

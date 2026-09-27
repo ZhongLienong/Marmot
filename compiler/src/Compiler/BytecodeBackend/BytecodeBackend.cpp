@@ -1,8 +1,10 @@
 #include "BytecodeBackend.h"
 #include "Common/Builtins/BuiltinTable.h"
 #include "Common/Constant/Constant.h"
+#include "Compiler/Lowering/GenericTypes.h"
 
 #include <algorithm>
+#include <array>
 #include <bit>
 #include <filesystem>
 #include <format>
@@ -127,6 +129,28 @@ namespace
 		}
 	}
 
+	// Jumps when the comparison fails, taking both operands.
+	std::optional<OpCode> CompareAndJumpOpCode(MidoriIROp op)
+	{
+		using enum MidoriIROp;
+		switch (op)
+		{
+		case LtInt: return OpCode::IF_INTEGER_LESS;
+		case LeInt: return OpCode::IF_INTEGER_LESS_EQUAL;
+		case GtInt: return OpCode::IF_INTEGER_GREATER;
+		case GeInt: return OpCode::IF_INTEGER_GREATER_EQUAL;
+		case EqInt: return OpCode::IF_INTEGER_EQUAL;
+		case NeInt: return OpCode::IF_INTEGER_NOT_EQUAL;
+		case LtFloat: return OpCode::IF_FLOAT_LESS;
+		case LeFloat: return OpCode::IF_FLOAT_LESS_EQUAL;
+		case GtFloat: return OpCode::IF_FLOAT_GREATER;
+		case GeFloat: return OpCode::IF_FLOAT_GREATER_EQUAL;
+		case EqFloat: return OpCode::IF_FLOAT_EQUAL;
+		case NeFloat: return OpCode::IF_FLOAT_NOT_EQUAL;
+		default: return std::nullopt;
+		}
+	}
+
 	std::optional<OpCode> SmallIntOpCode(int64_t value)
 	{
 		switch (value)
@@ -154,6 +178,7 @@ namespace
 		case OpCode::GET_LOCAL: return OpCode::GET_LOCAL_WIDE;
 		case OpCode::SET_LOCAL: return OpCode::SET_LOCAL_WIDE;
 		case OpCode::CALL_GLOBAL: return OpCode::CALL_GLOBAL_WIDE;
+		case OpCode::GET_CELL: return OpCode::GET_CELL_WIDE;
 		default: throw std::logic_error(std::format("opcode {} has no wide form", static_cast<int>(op)));
 		}
 	}
@@ -177,15 +202,41 @@ namespace
 		return 0u;
 	}
 
+	// A call whose first operand is what it calls, which the VM takes from on
+	// top of the arguments: a closure, or a foreign function's name.
 	bool CallsClosureOperand(const MidoriIRInstruction& instruction)
 	{
-		return instruction.m_op == MidoriIROp::CallValue || (instruction.m_op == MidoriIROp::TailCall && std::holds_alternative<std::monostate>(instruction.m_immediate));
+		const bool has_no_callee = std::holds_alternative<std::monostate>(instruction.m_immediate);
+		return instruction.m_op == MidoriIROp::CallValue || (has_no_callee && (instruction.m_op == MidoriIROp::TailCall || instruction.m_op == MidoriIROp::CallForeign));
 	}
 
 	// Whether the instruction leaves its value on the stack.
 	bool PushesResult(const MidoriIRInstruction& instruction)
 	{
-		return !IsMidoriIRTerminator(instruction.m_op) && instruction.m_op != MidoriIROp::GlobalDefine && instruction.m_op != MidoriIROp::GlobalSet;
+		return !IsMidoriIRTerminator(instruction.m_op) && instruction.m_op != MidoriIROp::GlobalDefine && instruction.m_op != MidoriIROp::GlobalSet && instruction.m_op != MidoriIROp::BindCaptures;
+	}
+
+	// The blocks a path from the entry runs, in order. The others hold only
+	// code after a call that returns Never, and are not emitted.
+	std::vector<bool> ReachableBlocks(const MidoriIRFunction& function)
+	{
+		std::vector<bool> reachable(function.m_blocks.size(), false);
+		std::vector<uint32_t> pending = { MidoriIRFunction::s_entry_block.m_index };
+		reachable[MidoriIRFunction::s_entry_block.m_index] = true;
+		while (!pending.empty())
+		{
+			const uint32_t block = pending.back();
+			pending.pop_back();
+			for (const MidoriIRSuccessor& successor : function.m_blocks[block].m_instructions.back().m_successors)
+			{
+				if (!reachable[successor.m_block.m_index])
+				{
+					reachable[successor.m_block.m_index] = true;
+					pending.push_back(successor.m_block.m_index);
+				}
+			}
+		}
+		return reachable;
 	}
 
 	class FunctionEmitter
@@ -207,7 +258,13 @@ namespace
 		std::vector<int> m_slots;
 		std::vector<const MidoriIRInstruction*> m_definitions;
 		std::vector<int> m_block_offsets;
+		std::vector<bool> m_reachable;
+		// The block emitted after each, where a jump to it falls through.
+		std::vector<std::optional<uint32_t>> m_next_emitted;
 		std::vector<Fixup> m_fixups;
+		// A comparison a Branch takes straight from the instruction before it
+		// becomes one compare-and-jump opcode, by the value it would have made.
+		std::vector<std::optional<OpCode>> m_fused_branches;
 		int m_slot_count = 0;
 
 	public:
@@ -217,8 +274,24 @@ namespace
 			m_storage(function.m_values.size(), Storage::Slot),
 			m_slots(function.m_values.size(), -1),
 			m_definitions(function.m_values.size(), nullptr),
-			m_block_offsets(function.m_blocks.size(), -1)
+			m_block_offsets(function.m_blocks.size(), -1),
+			m_reachable(ReachableBlocks(function)),
+			m_next_emitted(function.m_blocks.size()),
+			m_fused_branches(function.m_values.size())
 		{
+			std::optional<uint32_t> previous;
+			for (uint32_t block = 0u; block < function.m_blocks.size(); block += 1u)
+			{
+				if (!m_reachable[block])
+				{
+					continue;
+				}
+				if (previous.has_value())
+				{
+					m_next_emitted[previous.value()] = block;
+				}
+				previous = block;
+			}
 		}
 
 		std::expected<BytecodeStream, CompilerError> Emit() &&
@@ -226,6 +299,7 @@ namespace
 			AssignStorage();
 			ScheduleStack();
 			AssignSlots();
+			FuseBranches();
 			if (m_slot_count - 1 > MAX_VARIABLES)
 			{
 				return std::unexpected(m_backend.LimitExceeded(std::format("Too many variables (max {})", MAX_VARIABLES), FirstLine()));
@@ -239,6 +313,10 @@ namespace
 
 			for (uint32_t block = 0u; block < m_function.m_blocks.size(); block += 1u)
 			{
+				if (!m_reachable[block])
+				{
+					continue;
+				}
 				m_block_offsets[block] = m_stream.GetByteCodeSize();
 				for (const MidoriIRInstruction& instruction : m_function.m_blocks[block].m_instructions)
 				{
@@ -318,6 +396,10 @@ namespace
 
 			for (uint32_t block = 0u; block < m_function.m_blocks.size(); block += 1u)
 			{
+				if (!m_reachable[block])
+				{
+					continue;
+				}
 				for (const MidoriIRValueId parameter : m_function.m_blocks[block].m_parameters)
 				{
 					is_parameter[parameter.m_index] = true;
@@ -376,10 +458,14 @@ namespace
 		// leaves the stack it was on, and the use is checked again.
 		void ScheduleStack()
 		{
-			for (const MidoriIRBlock& block : m_function.m_blocks)
+			for (uint32_t block_index = 0u; block_index < m_function.m_blocks.size(); block_index += 1u)
 			{
+				if (!m_reachable[block_index])
+				{
+					continue;
+				}
 				std::vector<MidoriIRValueId> pending;
-				for (const MidoriIRInstruction& instruction : block.m_instructions)
+				for (const MidoriIRInstruction& instruction : m_function.m_blocks[block_index].m_instructions)
 				{
 					const std::vector<MidoriIRValueId> sequence = PushSequence(instruction);
 					std::vector<MidoriIRValueId> taken = StackValues(sequence);
@@ -416,20 +502,205 @@ namespace
 			return is_prefix && is_on_top;
 		}
 
+		// A local an opcode names in one byte.
+		bool IsByteLocal(MidoriIRValueId value) const
+		{
+			return m_storage[value.m_index] == Storage::Slot && m_slots[value.m_index] <= MAX_LOCAL_VARIABLES;
+		}
+
+		// An Int constant an opcode carries in one signed byte.
+		std::optional<int8_t> ByteConstant(MidoriIRValueId value) const
+		{
+			const MidoriIRInstruction* definition = m_definitions[value.m_index];
+			if (m_storage[value.m_index] != Storage::Rematerialized || definition == nullptr || !std::holds_alternative<int64_t>(definition->m_immediate))
+			{
+				return std::nullopt;
+			}
+			const int64_t constant = std::get<int64_t>(definition->m_immediate);
+			return constant >= INT8_MIN && constant <= INT8_MAX ? std::optional<int8_t>(static_cast<int8_t>(constant)) : std::nullopt;
+		}
+
+		void FuseBranches()
+		{
+			for (uint32_t block = 0u; block < m_function.m_blocks.size(); block += 1u)
+			{
+				const std::vector<MidoriIRInstruction>& instructions = m_function.m_blocks[block].m_instructions;
+				if (!m_reachable[block] || instructions.size() < 2u || instructions.back().m_op != MidoriIROp::Branch)
+				{
+					continue;
+				}
+				const MidoriIRValueId condition = instructions.back().m_operands.front();
+				const MidoriIRInstruction& comparison = instructions[instructions.size() - 2u];
+				const std::optional<OpCode> jump = CompareAndJumpOpCode(comparison.m_op);
+				if (comparison.m_result != condition || m_storage[condition.m_index] != Storage::Stack || !jump.has_value())
+				{
+					continue;
+				}
+
+				const MidoriIRValueId left = comparison.m_operands[0u];
+				const MidoriIRValueId right = comparison.m_operands[1u];
+				if (comparison.m_op == MidoriIROp::LeInt && IsByteLocal(left) && ByteConstant(right).has_value())
+				{
+					m_fused_branches[condition.m_index] = OpCode::IF_LOCAL_LE_INT;
+				}
+				else if (comparison.m_op == MidoriIROp::GeInt && IsByteLocal(left) && IsByteLocal(right))
+				{
+					m_fused_branches[condition.m_index] = OpCode::IF_LOCAL_GE_LOCAL;
+				}
+				else
+				{
+					m_fused_branches[condition.m_index] = jump;
+				}
+			}
+		}
+
+		// Two values in slots share one when neither is live where the other
+		// is defined. A block's parameters are defined where it starts, so
+		// they take no slot a value live into the block holds.
 		void AssignSlots()
 		{
+			const std::vector<std::vector<uint32_t>> interference = Interference();
 			const std::vector<MidoriIRValueId>& parameters = m_function.Block(MidoriIRFunction::s_entry_block).m_parameters;
 			for (const MidoriIRValueId parameter : parameters)
 			{
 				m_slots[parameter.m_index] = m_slot_count++;
 			}
+
 			for (size_t value = 0u; value < m_slots.size(); value += 1u)
 			{
-				if (m_storage[value] == Storage::Slot && m_slots[value] < 0)
+				if (m_storage[value] != Storage::Slot || m_slots[value] >= 0)
 				{
-					m_slots[value] = m_slot_count++;
+					continue;
+				}
+				std::vector<bool> taken(static_cast<size_t>(m_slot_count) + 1u, false);
+				for (const uint32_t neighbour : interference[value])
+				{
+					if (m_slots[neighbour] >= 0)
+					{
+						taken[static_cast<size_t>(m_slots[neighbour])] = true;
+					}
+				}
+				const int slot = static_cast<int>(std::distance(taken.begin(), std::ranges::find(taken, false)));
+				m_slots[value] = slot;
+				m_slot_count = std::max(m_slot_count, slot + 1);
+			}
+		}
+
+		bool IsInSlot(MidoriIRValueId value) const
+		{
+			return m_storage[value.m_index] == Storage::Slot;
+		}
+
+		// What an instruction reads: its operands and its successors' arguments.
+		template<typename Visit>
+		void ForEachUse(const MidoriIRInstruction& instruction, const Visit& visit) const
+		{
+			std::ranges::for_each(instruction.m_operands, visit);
+			for (const MidoriIRSuccessor& successor : instruction.m_successors)
+			{
+				std::ranges::for_each(successor.m_arguments, visit);
+			}
+		}
+
+		std::vector<bool> LiveOut(uint32_t block, const std::vector<std::vector<bool>>& live_in) const
+		{
+			std::vector<bool> live(m_function.m_values.size(), false);
+			for (const MidoriIRSuccessor& successor : m_function.m_blocks[block].m_instructions.back().m_successors)
+			{
+				const std::vector<bool>& successor_live = live_in[successor.m_block.m_index];
+				for (size_t value = 0u; value < live.size(); value += 1u)
+				{
+					live[value] = live[value] || successor_live[value];
 				}
 			}
+			return live;
+		}
+
+		// Walks a block backward from what is live out of it, telling `define`
+		// each value in a slot the block defines, with what is live after it.
+		template<typename Define>
+		std::vector<bool> WalkBackward(uint32_t block, std::vector<bool> live, const Define& define) const
+		{
+			const std::vector<MidoriIRInstruction>& instructions = m_function.m_blocks[block].m_instructions;
+			for (const MidoriIRInstruction& instruction : instructions | std::views::reverse)
+			{
+				if (instruction.m_result.has_value() && IsInSlot(instruction.m_result.value()))
+				{
+					define(instruction.m_result.value(), live);
+					live[instruction.m_result->m_index] = false;
+				}
+				ForEachUse(instruction, [&](MidoriIRValueId value)
+				{
+					if (IsInSlot(value))
+					{
+						live[value.m_index] = true;
+					}
+				});
+			}
+			return live;
+		}
+
+		std::vector<std::vector<uint32_t>> Interference() const
+		{
+			const size_t block_count = m_function.m_blocks.size();
+			std::vector<std::vector<bool>> live_in(block_count, std::vector<bool>(m_function.m_values.size(), false));
+			const auto no_definition = [](MidoriIRValueId, const std::vector<bool>&) {};
+			bool changed = true;
+			while (changed)
+			{
+				changed = false;
+				for (uint32_t block = static_cast<uint32_t>(block_count); block-- > 0u;)
+				{
+					if (!m_reachable[block])
+					{
+						continue;
+					}
+					std::vector<bool> live = WalkBackward(block, LiveOut(block, live_in), no_definition);
+					for (const MidoriIRValueId parameter : m_function.m_blocks[block].m_parameters)
+					{
+						live[parameter.m_index] = false;
+					}
+					if (live != live_in[block])
+					{
+						live_in[block] = std::move(live);
+						changed = true;
+					}
+				}
+			}
+
+			std::vector<std::vector<uint32_t>> interference(m_function.m_values.size());
+			const auto interfere = [&interference](uint32_t value, const std::vector<bool>& live)
+			{
+				for (uint32_t other = 0u; other < live.size(); other += 1u)
+				{
+					if (live[other] && other != value)
+					{
+						interference[value].push_back(other);
+						interference[other].push_back(value);
+					}
+				}
+			};
+			for (uint32_t block = 0u; block < block_count; block += 1u)
+			{
+				if (!m_reachable[block])
+				{
+					continue;
+				}
+				std::vector<bool> live = WalkBackward(block, LiveOut(block, live_in), [&](MidoriIRValueId value, const std::vector<bool>& live_after)
+				{
+					interfere(value.m_index, live_after);
+				});
+				const std::vector<MidoriIRValueId>& parameters = m_function.m_blocks[block].m_parameters;
+				for (const MidoriIRValueId parameter : parameters)
+				{
+					live[parameter.m_index] = true;
+				}
+				for (const MidoriIRValueId parameter : parameters)
+				{
+					interfere(parameter.m_index, live);
+				}
+			}
+			return interference;
 		}
 
 		void EmitByte(OpCode byte, int line)
@@ -451,6 +722,15 @@ namespace
 				EmitOperand(index, line);
 				return;
 			}
+			EmitByte(WideOpCode(op), line);
+			EmitOperand(index >> SHIFT_8_BITS, line);
+			EmitOperand(index, line);
+		}
+
+		// A global's index is always two bytes, high first: the linker adds the
+		// module's first global to it, which may pass 255.
+		void EmitGlobal(OpCode op, int index, int line)
+		{
 			EmitByte(WideOpCode(op), line);
 			EmitOperand(index >> SHIFT_8_BITS, line);
 			EmitOperand(index, line);
@@ -550,9 +830,18 @@ namespace
 
 		Emitted LoadAll(const std::vector<MidoriIRValueId>& values, int line)
 		{
-			for (const MidoriIRValueId value : values)
+			for (size_t index = 0u; index < values.size(); index += 1u)
 			{
-				const Emitted loaded = Load(value, line);
+				if (index + 1u < values.size() && IsByteLocal(values[index]) && IsByteLocal(values[index + 1u]))
+				{
+					EmitByte(OpCode::GET_LOCAL2, line);
+					EmitOperand(m_slots[values[index].m_index], line);
+					EmitOperand(0, line);
+					EmitOperand(m_slots[values[index + 1u].m_index], line);
+					index += 1u;
+					continue;
+				}
+				const Emitted loaded = Load(values[index], line);
 				if (!loaded.has_value())
 				{
 					return loaded;
@@ -597,6 +886,26 @@ namespace
 				return EmitTerminator(block, instruction);
 			}
 
+			const std::optional<OpCode> fused = instruction.m_result.has_value() ? m_fused_branches[instruction.m_result->m_index] : std::nullopt;
+			if (fused == OpCode::IF_LOCAL_LE_INT || fused == OpCode::IF_LOCAL_GE_LOCAL)
+			{
+				return {};
+			}
+			if (fused.has_value())
+			{
+				return LoadAll(PushSequence(instruction), line);
+			}
+
+			if (instruction.m_op == MidoriIROp::SubInt && IsByteLocal(instruction.m_operands[0u]) && ByteConstant(instruction.m_operands[1u]).has_value())
+			{
+				EmitByte(OpCode::PUSH_LOCAL_SUB_INT, line);
+				EmitOperand(m_slots[instruction.m_operands[0u].m_index], line);
+				EmitOperand(static_cast<uint8_t>(ByteConstant(instruction.m_operands[1u]).value()), line);
+				EmitOperand(0, line);
+				Store(instruction.m_result.value(), line);
+				return {};
+			}
+
 			return LoadAll(PushSequence(instruction), line)
 				.and_then([this, &instruction, line]() { return EmitOperation(instruction, line); })
 				.transform([this, &instruction, line]()
@@ -620,11 +929,20 @@ namespace
 		std::expected<int, CompilerError> Procedure(MidoriIRFunctionId function, int line) const
 		{
 			const size_t procedure = m_backend.ProcedureIndex(function);
-			if (procedure > static_cast<size_t>(MAX_FUNCTION_COUNT))
+			if (procedure > static_cast<size_t>(UINT16_MAX))
 			{
-				return std::unexpected(m_backend.LimitExceeded(std::format("Too many functions (max {})", MAX_FUNCTION_COUNT + 1), line));
+				return std::unexpected(m_backend.LimitExceeded(std::format("Too many functions (max {})", UINT16_MAX + 1), line));
 			}
 			return static_cast<int>(procedure);
+		}
+
+		// A procedure is two bytes, low first: the linker adds the module's
+		// first procedure to it.
+		void EmitProcedure(OpCode op, int procedure, int line)
+		{
+			EmitByte(op, line);
+			EmitOperand(procedure, line);
+			EmitOperand(procedure >> SHIFT_8_BITS, line);
 		}
 
 		Emitted EmitCallOf(OpCode op, OpCode first_fixed, size_t arity, int line)
@@ -637,6 +955,99 @@ namespace
 			EmitByte(op, line);
 			EmitOperand(static_cast<int>(arity), line);
 			return {};
+		}
+
+		static bool IsText(const TypeRef& type)
+		{
+			return GenericTypes::RepresentationOf(type)->IsType<MidoriType::TextType>();
+		}
+
+		Emitted CheckByte(size_t count, std::string_view what, int line) const
+		{
+			if (count > static_cast<size_t>(BYTE_MASK))
+			{
+				return std::unexpected(m_backend.LimitExceeded(std::format("{} (max {})", what, static_cast<int>(BYTE_MASK)), line));
+			}
+			return {};
+		}
+
+		void EmitSmallInt(uint32_t value, int line)
+		{
+			const std::optional<OpCode> small = SmallIntOpCode(static_cast<int64_t>(value));
+			if (small.has_value())
+			{
+				EmitByte(small.value(), line);
+				return;
+			}
+			EmitByte(OpCode::INTEGER_CONSTANT, line);
+			EmitEightBytes(value, line);
+		}
+
+		// A tuple's or an array's element count, in three bytes, low first.
+		Emitted EmitCount(OpCode op, size_t count, int line)
+		{
+			if (count > static_cast<size_t>(MAX_ARRAY_SIZE))
+			{
+				return std::unexpected(m_backend.LimitExceeded(std::format("Too many elements (max {})", MAX_ARRAY_SIZE + 1), line));
+			}
+			EmitByte(op, line);
+			EmitOperand(static_cast<int>(count), line);
+			EmitOperand(static_cast<int>(count >> SHIFT_8_BITS), line);
+			EmitOperand(static_cast<int>(count >> SHIFT_16_BITS), line);
+			return {};
+		}
+
+		// A function with no captures is one shared value. A closure's
+		// captures follow its operands, and the ones BindCaptures fills are
+		// held by Unit until it does.
+		Emitted EmitMakeClosure(const MidoriIRInstruction& instruction, int line)
+		{
+			const MidoriIRFunctionId function = std::get<MidoriIRFunctionId>(instruction.m_immediate);
+			const size_t capture_count = m_backend.CaptureCount(function);
+			if (capture_count > static_cast<size_t>(MAX_CAPTURED_COUNT))
+			{
+				return std::unexpected(m_backend.LimitExceeded(std::format("Too many captured variables (max {})", MAX_CAPTURED_COUNT + 1), line));
+			}
+			return Procedure(function, line)
+				.transform([&](int procedure)
+				{
+					if (capture_count == 0u)
+					{
+						EmitProcedure(OpCode::MAKE_FUNCTION_WIDE, procedure, line);
+						return;
+					}
+					for (size_t late = instruction.m_operands.size(); late < capture_count; late += 1u)
+					{
+						EmitByte(OpCode::OP_UNIT, line);
+					}
+					EmitProcedure(OpCode::MAKE_CLOSURE_OF, procedure, line);
+					EmitOperand(static_cast<int>(capture_count), line);
+				});
+		}
+
+		// A union with no fields is one shared value per tag.
+		Emitted EmitMakeUnion(const MidoriIRInstruction& instruction, int line)
+		{
+			const int tag = std::get<MidoriIRTag>(instruction.m_immediate).m_value;
+			if (tag > MAX_UNION_TAG)
+			{
+				return std::unexpected(m_backend.LimitExceeded(std::format("Union tag too large (max {})", MAX_UNION_TAG + 1), line));
+			}
+			const size_t field_count = instruction.m_operands.size();
+			return CheckByte(field_count, "Too many union fields", line)
+				.transform([&]()
+				{
+					if (field_count == 0u)
+					{
+						EmitByte(OpCode::LOAD_EMPTY_UNION, line);
+						EmitOperand(tag, line);
+						return;
+					}
+					EmitByte(OpCode::CONSTRUCT_UNION, line);
+					EmitOperand(static_cast<int>(field_count), line);
+					EmitByte(OpCode::SET_TAG, line);
+					EmitOperand(tag, line);
+				});
 		}
 
 		Emitted EmitOperation(const MidoriIRInstruction& instruction, int line)
@@ -661,62 +1072,166 @@ namespace
 				EmitByte(OpCode::INT_TO_BYTE, line);
 				return {};
 			case MidoriIROp::Concat:
-				EmitByte(instruction.m_type->IsType<MidoriType::TextType>() ? OpCode::CONCAT_TEXT : OpCode::CONCAT_ARRAY, line);
+				EmitByte(IsText(instruction.m_type) ? OpCode::CONCAT_TEXT : OpCode::CONCAT_ARRAY, line);
+				return {};
+			case MidoriIROp::Extend:
+				EmitByte(IsText(instruction.m_type) ? OpCode::EXTEND_TEXT : OpCode::EXTEND_ARRAY, line);
+				return {};
+			case MidoriIROp::ArrayAppend:
+				EmitByte(OpCode::ADD_BACK_ARRAY, line);
 				return {};
 			case MidoriIROp::Call:
 				return CheckArity(operand_count, line)
 					.and_then([&]() { return Procedure(std::get<MidoriIRFunctionId>(instruction.m_immediate), line); })
 					.transform([&](int procedure)
 					{
-						if (operand_count <= 3u)
-						{
-							EmitByte(static_cast<OpCode>(static_cast<int>(OpCode::CALL_PROC_0) + static_cast<int>(operand_count)), line);
-							EmitOperand(procedure, line);
-							return;
-						}
-						EmitByte(OpCode::CALL_PROC, line);
-						EmitOperand(procedure, line);
+						EmitProcedure(OpCode::CALL_PROC_WIDE, procedure, line);
 						EmitOperand(static_cast<int>(operand_count), line);
 					});
 			case MidoriIROp::CallGlobal:
 				return CheckArity(operand_count, line)
 					.transform([&]()
 					{
-						EmitVariable(OpCode::CALL_GLOBAL, m_backend.GlobalOperand(std::get<MidoriIRGlobalSlot>(instruction.m_immediate)), line);
+						EmitGlobal(OpCode::CALL_GLOBAL, m_backend.GlobalOperand(std::get<MidoriIRGlobalSlot>(instruction.m_immediate)), line);
 						EmitOperand(static_cast<int>(operand_count), line);
 					});
 			case MidoriIROp::CallValue:
 				return CheckArity(operand_count - 1u, line)
 					.and_then([&]() { return EmitCallOf(OpCode::CALL, OpCode::CALL_0, operand_count - 1u, line); });
 			case MidoriIROp::CallForeign:
-				return CheckArity(operand_count, line)
+			{
+				// A builtin is called by its index; any other foreign function
+				// by the name its first operand holds.
+				const bool is_builtin = std::holds_alternative<MidoriIRForeign>(instruction.m_immediate);
+				const size_t arity = is_builtin ? operand_count : operand_count - 1u;
+				return CheckArity(arity, line)
 					.transform([&]()
 					{
-						EmitByte(OpCode::CALL_FOREIGN_INDEXED, line);
-						EmitOperand(static_cast<int>(MarmotBuiltins::FindIndex(std::get<MidoriIRForeign>(instruction.m_immediate).m_name).value()), line);
-						EmitOperand(static_cast<int>(operand_count), line);
+						if (is_builtin)
+						{
+							EmitByte(OpCode::CALL_FOREIGN_INDEXED, line);
+							EmitOperand(static_cast<int>(MarmotBuiltins::FindIndex(std::get<MidoriIRForeign>(instruction.m_immediate).m_name).value()), line);
+						}
+						else
+						{
+							EmitByte(OpCode::CALL_FOREIGN, line);
+						}
+						EmitOperand(static_cast<int>(arity), line);
 						EmitOperand(ForeignReturnTag(instruction.m_type), line);
 					});
+			}
 			case MidoriIROp::MakeClosure:
-				if (operand_count != 0u)
-				{
-					throw std::logic_error("the bytecode backend cannot emit a closure with captures yet");
-				}
-				return Procedure(std::get<MidoriIRFunctionId>(instruction.m_immediate), line)
-					.transform([&](int procedure)
-					{
-						EmitByte(OpCode::MAKE_FUNCTION, line);
-						EmitOperand(procedure, line);
-					});
+				return EmitMakeClosure(instruction, line);
+			case MidoriIROp::BindCaptures:
+				EmitByte(OpCode::SET_CAPTURE, line);
+				EmitOperand(static_cast<int>(std::get<MidoriIRIndex>(instruction.m_immediate).m_value), line);
+				return {};
+			case MidoriIROp::GetCapture:
+				EmitVariable(OpCode::GET_CELL, static_cast<int>(std::get<MidoriIRIndex>(instruction.m_immediate).m_value), line);
+				return {};
 			case MidoriIROp::GlobalDefine:
-				EmitVariable(OpCode::DEFINE_GLOBAL, m_backend.GlobalOperand(std::get<MidoriIRGlobalSlot>(instruction.m_immediate)), line);
+				EmitGlobal(OpCode::DEFINE_GLOBAL, m_backend.GlobalOperand(std::get<MidoriIRGlobalSlot>(instruction.m_immediate)), line);
 				return {};
 			case MidoriIROp::GlobalGet:
-				EmitVariable(OpCode::GET_GLOBAL, m_backend.GlobalOperand(std::get<MidoriIRGlobalSlot>(instruction.m_immediate)), line);
+				EmitGlobal(OpCode::GET_GLOBAL, m_backend.GlobalOperand(std::get<MidoriIRGlobalSlot>(instruction.m_immediate)), line);
 				return {};
 			case MidoriIROp::GlobalSet:
-				EmitVariable(OpCode::SET_GLOBAL, m_backend.GlobalOperand(std::get<MidoriIRGlobalSlot>(instruction.m_immediate)), line);
+				EmitGlobal(OpCode::SET_GLOBAL, m_backend.GlobalOperand(std::get<MidoriIRGlobalSlot>(instruction.m_immediate)), line);
 				EmitByte(OpCode::POP, line);
+				return {};
+			case MidoriIROp::MakeTuple:
+				return EmitCount(OpCode::CREATE_TUPLE, operand_count, line);
+			case MidoriIROp::MakeArray:
+				return EmitCount(OpCode::CREATE_ARRAY, operand_count, line);
+			case MidoriIROp::TupleGet:
+				EmitSmallInt(std::get<MidoriIRIndex>(instruction.m_immediate).m_value, line);
+				EmitByte(OpCode::GET_TUPLE, line);
+				return {};
+			case MidoriIROp::ArrayGet:
+				EmitByte(OpCode::GET_ARRAY, line);
+				return {};
+			case MidoriIROp::ArrayLength:
+				EmitByte(OpCode::GET_ARRAY_LENGTH, line);
+				return {};
+			case MidoriIROp::Construct:
+				return CheckByte(operand_count, "Too many struct members", line)
+					.transform([&]()
+					{
+						EmitByte(OpCode::CONSTRUCT_STRUCT, line);
+						EmitOperand(static_cast<int>(operand_count), line);
+					});
+			case MidoriIROp::GetMember:
+				EmitByte(OpCode::GET_MEMBER, line);
+				EmitOperand(static_cast<int>(std::get<MidoriIRIndex>(instruction.m_immediate).m_value), line);
+				return {};
+			case MidoriIROp::MakeUnion:
+				return EmitMakeUnion(instruction, line);
+			case MidoriIROp::GetTag:
+				EmitByte(OpCode::GET_TAG, line);
+				return {};
+			case MidoriIROp::UnionField:
+				EmitByte(OpCode::GET_UNION_FIELD, line);
+				EmitOperand(static_cast<int>(std::get<MidoriIRUnionField>(instruction.m_immediate).m_index), line);
+				return {};
+			case MidoriIROp::MakeRange:
+				EmitByte(instruction.m_type->GetType<MidoriType::RangeType>().m_element_type->IsType<MidoriType::FloatType>() ? OpCode::CREATE_FLOAT_RANGE : OpCode::CREATE_INT_RANGE, line);
+				return {};
+			case MidoriIROp::RangeStart:
+				EmitByte(OpCode::GET_RANGE_START, line);
+				return {};
+			case MidoriIROp::RangeEnd:
+				EmitByte(OpCode::GET_RANGE_END, line);
+				return {};
+			case MidoriIROp::RangeStep:
+				EmitByte(OpCode::GET_RANGE_STEP, line);
+				return {};
+			case MidoriIROp::CellNew:
+				EmitByte(OpCode::MAKE_CELL, line);
+				return {};
+			case MidoriIROp::CellRead:
+				EmitByte(OpCode::READ_CELL, line);
+				return {};
+			case MidoriIROp::CellWrite:
+				EmitByte(OpCode::WRITE_CELL, line);
+				return {};
+			case MidoriIROp::Spawn:
+				return CheckArity(operand_count - 1u, line)
+					.transform([&]()
+					{
+						EmitByte(OpCode::SPAWN_WORKER, line);
+						EmitOperand(static_cast<int>(operand_count - 1u), line);
+					});
+			case MidoriIROp::Join:
+			{
+				const MidoriIRJoinTags& tags = std::get<MidoriIRJoinTags>(instruction.m_immediate);
+				if (std::ranges::any_of(std::array<int, 4u>{ tags.m_ok, tags.m_err, tags.m_cancelled, tags.m_failed }, [](int tag) { return tag > MAX_UNION_TAG; }))
+				{
+					return std::unexpected(m_backend.LimitExceeded("Union tag for 'join' result exceeds the supported maximum", line));
+				}
+				EmitByte(OpCode::JOIN_WORKER, line);
+				EmitOperand(tags.m_ok, line);
+				EmitOperand(tags.m_err, line);
+				EmitOperand(tags.m_cancelled, line);
+				EmitOperand(tags.m_failed, line);
+				return {};
+			}
+			case MidoriIROp::ChannelNew:
+				EmitByte(OpCode::CHANNEL_CREATE, line);
+				return {};
+			case MidoriIROp::Send:
+				EmitByte(OpCode::CHANNEL_SEND, line);
+				return {};
+			case MidoriIROp::Receive:
+				EmitByte(OpCode::CHANNEL_RECEIVE, line);
+				return {};
+			case MidoriIROp::ChannelClose:
+				EmitByte(OpCode::CHANNEL_CLOSE, line);
+				return {};
+			case MidoriIROp::WorkerIsDone:
+				EmitByte(OpCode::WORKER_IS_DONE, line);
+				return {};
+			case MidoriIROp::WorkerCancel:
+				EmitByte(OpCode::WORKER_CANCEL, line);
 				return {};
 			default:
 				throw std::logic_error(std::format("the bytecode backend cannot emit {} yet", GetMidoriIROpInfo(instruction.m_op).m_name));
@@ -743,7 +1258,7 @@ namespace
 		// A jump to the block laid out next is left out unless code follows it.
 		Emitted EmitJumpTo(MidoriIRBlockId from, MidoriIRBlockId target, bool may_fall_through, int line)
 		{
-			if (may_fall_through && target.m_index == from.m_index + 1u)
+			if (may_fall_through && m_next_emitted[from.m_index] == target.m_index)
 			{
 				return {};
 			}
@@ -780,6 +1295,43 @@ namespace
 			return {};
 		}
 
+		// JUMP_IF_FALSE leaves the condition, so each path pops it. Gives
+		// where the jump's offset goes.
+		int EmitConditionJump(int line)
+		{
+			EmitByte(OpCode::JUMP_IF_FALSE, line);
+			const int offset = m_stream.GetByteCodeSize();
+			EmitOperand(0, line);
+			EmitOperand(0, line);
+			EmitByte(OpCode::POP, line);
+			return offset;
+		}
+
+		// The comparison `condition` was not emitted; this opcode makes it and
+		// jumps when it fails.
+		int EmitFusedBranch(OpCode op, MidoriIRValueId condition, int line)
+		{
+			const std::vector<MidoriIRValueId>& operands = m_definitions[condition.m_index]->m_operands;
+			EmitByte(op, line);
+			if (op == OpCode::IF_LOCAL_LE_INT)
+			{
+				EmitOperand(m_slots[operands[0u].m_index], line);
+				EmitOperand(static_cast<uint8_t>(ByteConstant(operands[1u]).value()), line);
+				EmitOperand(0, line);
+			}
+			else if (op == OpCode::IF_LOCAL_GE_LOCAL)
+			{
+				EmitOperand(m_slots[operands[0u].m_index], line);
+				EmitOperand(0, line);
+				EmitOperand(m_slots[operands[1u].m_index], line);
+				EmitOperand(0, line);
+			}
+			const int offset = m_stream.GetByteCodeSize();
+			EmitOperand(0, line);
+			EmitOperand(0, line);
+			return offset;
+		}
+
 		Emitted EmitTerminator(MidoriIRBlockId block, const MidoriIRInstruction& instruction)
 		{
 			const int line = instruction.m_line;
@@ -796,20 +1348,31 @@ namespace
 				// JUMP_IF_FALSE leaves the condition, so each path pops it.
 				const MidoriIRSuccessor& if_true = instruction.m_successors[0u];
 				const MidoriIRSuccessor& if_false = instruction.m_successors[1u];
-				return Load(instruction.m_operands.front(), line)
+				const std::optional<OpCode> fused = m_fused_branches[instruction.m_operands.front().m_index];
+				// A fused comparison leaves nothing to pop, so when the false
+				// edge moves nothing it jumps straight to its block, and the
+				// true one may fall through.
+				const bool jumps_to_false_block = fused.has_value() && MoveArguments(if_false).empty() && if_false.m_block.m_index > block.m_index;
+				if (jumps_to_false_block)
+				{
+					const int when_false = EmitFusedBranch(fused.value(), instruction.m_operands.front(), line);
+					m_fixups.push_back(Fixup{ when_false, if_false.m_block, line });
+					return EmitMoves(if_true, line)
+						.and_then([&]() { return EmitJumpTo(block, if_true.m_block, true, line); });
+				}
+				return (fused.has_value() ? Emitted() : Load(instruction.m_operands.front(), line))
 					.and_then([&]() -> Emitted
 					{
-						EmitByte(OpCode::JUMP_IF_FALSE, line);
-						const int when_false = m_stream.GetByteCodeSize();
-						EmitOperand(0, line);
-						EmitOperand(0, line);
-						EmitByte(OpCode::POP, line);
+						const int when_false = fused.has_value() ? EmitFusedBranch(fused.value(), instruction.m_operands.front(), line) : EmitConditionJump(line);
 						return EmitMoves(if_true, line)
 							.and_then([&]() { return EmitJumpTo(block, if_true.m_block, false, line); })
 							.and_then([&]() { return PatchJump(when_false, m_stream.GetByteCodeSize(), line); })
 							.and_then([&]() -> Emitted
 							{
-								EmitByte(OpCode::POP, line);
+								if (!fused.has_value())
+								{
+									EmitByte(OpCode::POP, line);
+								}
 								return EmitMoves(if_false, line);
 							})
 							.and_then([&]() { return EmitJumpTo(block, if_false.m_block, true, line); });
@@ -820,8 +1383,7 @@ namespace
 					.transform([&]() { EmitByte(OpCode::RETURN, line); });
 			case MidoriIROp::TailCall:
 				return EmitTailCall(instruction, line);
-			case MidoriIROp::Halt:
-				EmitByte(OpCode::HALT, line);
+			case MidoriIROp::Unreachable:
 				return {};
 			default:
 				throw std::logic_error(std::format("the bytecode backend cannot emit {} yet", GetMidoriIROpInfo(instruction.m_op).m_name));
@@ -842,13 +1404,12 @@ namespace
 						return Procedure(std::get<MidoriIRFunctionId>(instruction.m_immediate), line)
 							.transform([&](int procedure)
 							{
-								EmitByte(OpCode::MAKE_FUNCTION, line);
-								EmitOperand(procedure, line);
+								EmitProcedure(OpCode::MAKE_FUNCTION_WIDE, procedure, line);
 							});
 					}
 					if (std::holds_alternative<MidoriIRGlobalSlot>(instruction.m_immediate))
 					{
-						EmitVariable(OpCode::GET_GLOBAL, m_backend.GlobalOperand(std::get<MidoriIRGlobalSlot>(instruction.m_immediate)), line);
+						EmitGlobal(OpCode::GET_GLOBAL, m_backend.GlobalOperand(std::get<MidoriIRGlobalSlot>(instruction.m_immediate)), line);
 					}
 					return {};
 				})
@@ -899,9 +1460,12 @@ MidoriResult::CodeGeneratorResult BytecodeBackend::Emit() &&
 		{
 			return std::unexpected(MidoriResult::CompilerDiagnostics(std::move(procedure.error())));
 		}
+		// A specialization of another module's generic runs that module's
+		// source, and its runtime errors point there.
+		const std::string& owner = ir_function.m_source_module.empty() ? module.m_name : ir_function.m_source_module;
 		const size_t index = m_procedure_indices[function];
 		bytecode.m_procedures[index] = std::move(procedure).value();
-		bytecode.m_procedure_names[index] = std::format("{}@{}", ir_function.m_name, module.m_name);
+		bytecode.m_procedure_names[index] = std::format("{}@{}", ir_function.m_name, owner);
 	}
 
 	bytecode.m_string_pool = std::move(m_string_pool);
@@ -914,9 +1478,22 @@ MidoriResult::CodeGeneratorResult BytecodeBackend::Emit() &&
 		| std::views::transform([this](const LoweredExport& exported)
 		{
 			const size_t global_index = exported.m_slot.has_value() ? static_cast<size_t>(GlobalOperand(exported.m_slot.value())) : 0uz;
-			return BytecodeModule::ExportedSymbol(exported.m_name, 0uz, global_index, exported.m_kind, MakeSourceProvenance(exported.m_token));
+			const size_t procedure_index = exported.m_function.has_value() ? ProcedureIndex(exported.m_function.value()) : 0uz;
+			return BytecodeModule::ExportedSymbol(exported.m_name, procedure_index, global_index, exported.m_kind, MakeSourceProvenance(exported.m_token));
 		})
 		| std::ranges::to<std::vector>();
+	bytecode.m_generic_functions = m_lowered.m_generic_functions;
+	for (const auto& [library, symbols] : m_lowered.m_native_imports)
+	{
+		std::error_code directory_error;
+		const std::filesystem::path module_directory = std::filesystem::absolute(std::filesystem::path(m_file_name), directory_error).parent_path();
+		bytecode.m_native_libraries.push_back(NativeLibraryImport
+		{
+			.m_name = library,
+			.m_symbols = std::vector<std::string>(symbols.begin(), symbols.end()),
+			.m_hint_directories = { directory_error ? std::filesystem::path(m_file_name).parent_path().string() : module_directory.string() }
+		});
+	}
 	if (!m_file_name.empty() && !m_source_lines.empty())
 	{
 		bytecode.m_source_files.emplace(m_file_name, m_source_lines);
@@ -954,6 +1531,11 @@ CompilerError BytecodeBackend::LimitExceeded(std::string_view message, int line)
 size_t BytecodeBackend::ProcedureIndex(MidoriIRFunctionId function) const
 {
 	return m_procedure_indices[function.m_index];
+}
+
+size_t BytecodeBackend::CaptureCount(MidoriIRFunctionId function) const
+{
+	return m_lowered.m_module.Function(function).m_capture_types.size();
 }
 
 int BytecodeBackend::GlobalOperand(MidoriIRGlobalSlot slot) const

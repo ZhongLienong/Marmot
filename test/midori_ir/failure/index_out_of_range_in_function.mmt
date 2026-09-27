@@ -1,0 +1,16 @@
+module IndexOutOfRangeInFunction
+
+// Test: an index past an array's end inside a small function reports the line
+// of the index in that function, and the call that reached it, on either
+// backend. The function is small enough that an optimizer may inline it; the
+// line it reports must not change when one does.
+
+foreign "MIDORI_FFI_Print" Print: fn(Text) -> Unit;
+
+def At = fn(values: Array<Int>, index: Int) -> Int => values[index];
+
+def values = [10, 20, 30];
+
+Print((At(values, 2) as Text) ++ "\n");
+Print((At(values, 3) as Text) ++ "\n");
+Print("not reached\n");

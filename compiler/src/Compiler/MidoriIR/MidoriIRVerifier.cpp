@@ -1,4 +1,5 @@
 #include "MidoriIRVerifier.h"
+#include "Compiler/Lowering/GenericTypes.h"
 
 #include <algorithm>
 #include <format>
@@ -14,7 +15,18 @@ namespace
 
 	bool SameType(const TypeRef& left, const TypeRef& right)
 	{
-		return *left == *right;
+		return MidoriIRSameType(left, right);
+	}
+
+	bool IsNever(const TypeRef& type)
+	{
+		return type->IsType<MidoriType::NeverType>();
+	}
+
+	// What a type is at run time: a newtype is its representation.
+	TypeRef ShapeOf(const TypeRef& type)
+	{
+		return GenericTypes::RepresentationOf(type);
 	}
 
 	bool SameTypes(std::span<const TypeRef> left, std::span<const TypeRef> right)
@@ -73,11 +85,17 @@ namespace
 			CheckUses();
 			for (uint32_t block = 0u; block < m_function.m_blocks.size(); block += 1u)
 			{
+				if (!IsReachable(block))
+				{
+					continue;
+				}
+				CheckNeverCalls(MidoriIRBlockId{ block });
 				for (const MidoriIRInstruction& instruction : m_function.m_blocks[block].m_instructions)
 				{
 					CheckSuccessors(MidoriIRBlockId{ block }, instruction);
 					if (AllValuesExist(instruction))
 					{
+						CheckNeverUses(MidoriIRBlockId{ block }, instruction);
 						CheckInstruction(MidoriIRBlockId{ block }, instruction);
 					}
 				}
@@ -118,6 +136,11 @@ namespace
 		const TypeRef& TypeOf(MidoriIRValueId value) const
 		{
 			return m_function.TypeOf(value);
+		}
+
+		TypeRef Shape(MidoriIRValueId value) const
+		{
+			return ShapeOf(TypeOf(value));
 		}
 
 		std::vector<TypeRef> TypesOf(std::span<const MidoriIRValueId> values) const
@@ -345,6 +368,31 @@ namespace
 			}
 		}
 
+		// Rule 1: nothing runs after a call that returns Never.
+		void CheckNeverCalls(MidoriIRBlockId block)
+		{
+			const std::vector<MidoriIRInstruction>& instructions = m_function.Block(block).m_instructions;
+			for (size_t position = 0u; position + 1u < instructions.size(); position += 1u)
+			{
+				const bool returns_never = instructions[position].m_result.has_value() && IsNever(instructions[position].m_type);
+				if (returns_never && instructions[position + 1u].m_op != MidoriIROp::Unreachable)
+				{
+					Report(MidoriIRRule::Terminator, block, std::format("{} returns Never, but {} follows it", GetMidoriIROpInfo(instructions[position].m_op).m_name, GetMidoriIROpInfo(instructions[position + 1u].m_op).m_name));
+				}
+			}
+		}
+
+		// Rule 4: a Never value is never made, so nothing can use one.
+		void CheckNeverUses(MidoriIRBlockId block, const MidoriIRInstruction& instruction)
+		{
+			const bool uses_never = std::ranges::any_of(instruction.m_operands, [this](MidoriIRValueId value) { return IsNever(TypeOf(value)); })
+				|| std::ranges::any_of(instruction.m_successors, [this](const MidoriIRSuccessor& successor)
+				{
+					return std::ranges::any_of(successor.m_arguments, [this](MidoriIRValueId value) { return IsNever(TypeOf(value)); });
+				});
+			Expect(!uses_never, block, instruction, "uses a Never value");
+		}
+
 		// Rule 3.
 		void CheckSuccessors(MidoriIRBlockId block, const MidoriIRInstruction& instruction)
 		{
@@ -403,10 +451,13 @@ namespace
 			return &m_module.Function(*function);
 		}
 
+		// A tail call of a function that returns Never may end a function of
+		// any return type, as a call that returns its own type may.
 		void ExpectCall(MidoriIRBlockId block, const MidoriIRInstruction& instruction, std::span<const TypeRef> parameters, const TypeRef& return_type, std::span<const MidoriIRValueId> arguments, const TypeRef& result)
 		{
 			Expect(SameTypes(TypesOf(arguments), parameters), block, instruction, "arguments do not match the callee's parameters");
-			Expect(SameType(result, return_type), block, instruction, std::format("result is {}, but the callee returns {}", result->ToString(), return_type->ToString()));
+			const bool is_tail_call_of_never = instruction.m_op == MidoriIROp::TailCall && IsNever(return_type);
+			Expect(is_tail_call_of_never || SameType(result, return_type), block, instruction, std::format("result is {}, but the callee returns {}", result->ToString(), return_type->ToString()));
 		}
 
 		void ExpectCallOfType(MidoriIRBlockId block, const MidoriIRInstruction& instruction, const TypeRef& callee, std::span<const MidoriIRValueId> arguments, const TypeRef& result)
@@ -487,24 +538,24 @@ namespace
 				if (operand_count(2u))
 				{
 					Expect(SameType(TypeOf(operands[0u]), shifted) && SameType(result, shifted), block, instruction, std::format("shifts a {} to a {}", shifted->ToString(), shifted->ToString()));
-					Expect(TypeOf(operands[1u])->IsType<MidoriType::IntegerType>(), block, instruction, "its shift amount is not an Int");
+					Expect(Shape(operands[1u])->IsType<MidoriType::IntegerType>(), block, instruction, "its shift amount is not an Int");
 				}
 				return;
 			}
 			case MidoriIROp::MakeTuple:
 			{
-				if (Expect(result->IsType<MidoriType::TupleType>(), block, instruction, "gives a tuple"))
+				if (Expect(ShapeOf(result)->IsType<MidoriType::TupleType>(), block, instruction, "gives a tuple"))
 				{
-					Expect(SameTypes(TypesOf(operands), result->GetType<MidoriType::TupleType>().m_element_types), block, instruction, "operands do not match the tuple's elements");
+					Expect(SameTypes(TypesOf(operands), ShapeOf(result)->GetType<MidoriType::TupleType>().m_element_types), block, instruction, "operands do not match the tuple's elements");
 				}
 				return;
 			}
 			case MidoriIROp::TupleGet:
 			{
 				const MidoriIRIndex* index = std::get_if<MidoriIRIndex>(&instruction.m_immediate);
-				if (operand_count(1u) && Expect(TypeOf(operands[0u])->IsType<MidoriType::TupleType>(), block, instruction, "takes a tuple") && Expect(index != nullptr, block, instruction, "needs an index"))
+				if (operand_count(1u) && Expect(Shape(operands[0u])->IsType<MidoriType::TupleType>(), block, instruction, "takes a tuple") && Expect(index != nullptr, block, instruction, "needs an index"))
 				{
-					const std::vector<TypeRef>& elements = TypeOf(operands[0u])->GetType<MidoriType::TupleType>().m_element_types;
+					const std::vector<TypeRef>& elements = Shape(operands[0u])->GetType<MidoriType::TupleType>().m_element_types;
 					if (Expect(index->m_value < elements.size(), block, instruction, std::format("index #{} is past the tuple's end", index->m_value)))
 					{
 						Expect(SameType(result, elements[index->m_value]), block, instruction, "result is not the element's type");
@@ -514,19 +565,19 @@ namespace
 			}
 			case MidoriIROp::MakeArray:
 			{
-				if (Expect(result->IsType<MidoriType::ArrayType>(), block, instruction, "gives an array"))
+				if (Expect(ShapeOf(result)->IsType<MidoriType::ArrayType>(), block, instruction, "gives an array"))
 				{
-					const TypeRef& element = result->GetType<MidoriType::ArrayType>().m_element_type;
+					const TypeRef& element = ShapeOf(result)->GetType<MidoriType::ArrayType>().m_element_type;
 					Expect(std::ranges::all_of(operands, [&](MidoriIRValueId operand) { return SameType(TypeOf(operand), element); }), block, instruction, "an operand is not the array's element type");
 				}
 				return;
 			}
 			case MidoriIROp::ArrayGet:
 			{
-				if (operand_count(2u) && Expect(TypeOf(operands[0u])->IsType<MidoriType::ArrayType>(), block, instruction, "takes an array"))
+				if (operand_count(2u) && Expect(Shape(operands[0u])->IsType<MidoriType::ArrayType>(), block, instruction, "takes an array"))
 				{
-					Expect(TypeOf(operands[1u])->IsType<MidoriType::IntegerType>(), block, instruction, "its index is not an Int");
-					Expect(SameType(result, TypeOf(operands[0u])->GetType<MidoriType::ArrayType>().m_element_type), block, instruction, "result is not the element's type");
+					Expect(Shape(operands[1u])->IsType<MidoriType::IntegerType>(), block, instruction, "its index is not an Int");
+					Expect(SameType(result, Shape(operands[0u])->GetType<MidoriType::ArrayType>().m_element_type), block, instruction, "result is not the element's type");
 				}
 				return;
 			}
@@ -534,16 +585,16 @@ namespace
 			{
 				if (operand_count(1u))
 				{
-					Expect(TypeOf(operands[0u])->IsType<MidoriType::ArrayType>(), block, instruction, "takes an array");
+					Expect(Shape(operands[0u])->IsType<MidoriType::ArrayType>(), block, instruction, "takes an array");
 					Expect(result->IsType<MidoriType::IntegerType>(), block, instruction, "gives an Int");
 				}
 				return;
 			}
 			case MidoriIROp::Construct:
 			{
-				if (Expect(result->IsType<MidoriType::StructType>(), block, instruction, "gives a struct"))
+				if (Expect(ShapeOf(result)->IsType<MidoriType::StructType>(), block, instruction, "gives a struct"))
 				{
-					Expect(SameTypes(TypesOf(operands), result->GetType<MidoriType::StructType>().m_member_types), block, instruction, "operands do not match the struct's members");
+					Expect(SameTypes(TypesOf(operands), ShapeOf(result)->GetType<MidoriType::StructType>().m_member_types), block, instruction, "operands do not match the struct's members");
 				}
 				return;
 			}
@@ -552,9 +603,9 @@ namespace
 			{
 				const bool is_update = instruction.m_op == MidoriIROp::RecordUpdate;
 				const MidoriIRIndex* index = std::get_if<MidoriIRIndex>(&instruction.m_immediate);
-				if (operand_count(is_update ? 2u : 1u) && Expect(TypeOf(operands[0u])->IsType<MidoriType::StructType>(), block, instruction, "takes a struct") && Expect(index != nullptr, block, instruction, "needs a member index"))
+				if (operand_count(is_update ? 2u : 1u) && Expect(Shape(operands[0u])->IsType<MidoriType::StructType>(), block, instruction, "takes a struct") && Expect(index != nullptr, block, instruction, "needs a member index"))
 				{
-					const std::vector<TypeRef>& members = TypeOf(operands[0u])->GetType<MidoriType::StructType>().m_member_types;
+					const std::vector<TypeRef>& members = Shape(operands[0u])->GetType<MidoriType::StructType>().m_member_types;
 					if (Expect(index->m_value < members.size(), block, instruction, std::format("member #{} is past the struct's end", index->m_value)))
 					{
 						const TypeRef& member = members[index->m_value];
@@ -565,9 +616,9 @@ namespace
 			}
 			case MidoriIROp::MakeRange:
 			{
-				if (operand_count(3u) && Expect(result->IsType<MidoriType::RangeType>(), block, instruction, "gives a range"))
+				if (operand_count(3u) && Expect(ShapeOf(result)->IsType<MidoriType::RangeType>(), block, instruction, "gives a range"))
 				{
-					const TypeRef& element = result->GetType<MidoriType::RangeType>().m_element_type;
+					const TypeRef& element = ShapeOf(result)->GetType<MidoriType::RangeType>().m_element_type;
 					Expect(std::ranges::all_of(operands, [&](MidoriIRValueId operand) { return SameType(TypeOf(operand), element); }), block, instruction, "its start, step and end are not the range's element type");
 				}
 				return;
@@ -576,18 +627,18 @@ namespace
 			case MidoriIROp::RangeEnd:
 			case MidoriIROp::RangeStep:
 			{
-				if (operand_count(1u) && Expect(TypeOf(operands[0u])->IsType<MidoriType::RangeType>(), block, instruction, "takes a range"))
+				if (operand_count(1u) && Expect(Shape(operands[0u])->IsType<MidoriType::RangeType>(), block, instruction, "takes a range"))
 				{
-					Expect(SameType(result, TypeOf(operands[0u])->GetType<MidoriType::RangeType>().m_element_type), block, instruction, "result is not the range's element type");
+					Expect(SameType(result, Shape(operands[0u])->GetType<MidoriType::RangeType>().m_element_type), block, instruction, "result is not the range's element type");
 				}
 				return;
 			}
 			case MidoriIROp::MakeUnion:
 			{
 				const MidoriIRTag* tag = std::get_if<MidoriIRTag>(&instruction.m_immediate);
-				if (Expect(result->IsType<MidoriType::UnionType>(), block, instruction, "gives a union") && Expect(tag != nullptr, block, instruction, "needs a tag"))
+				if (Expect(ShapeOf(result)->IsType<MidoriType::UnionType>(), block, instruction, "gives a union") && Expect(tag != nullptr, block, instruction, "needs a tag"))
 				{
-					const MidoriType::UnionType::UnionMemberContext* member = FindMember(result->GetType<MidoriType::UnionType>(), tag->m_value);
+					const MidoriType::UnionType::UnionMemberContext* member = FindMember(ShapeOf(result)->GetType<MidoriType::UnionType>(), tag->m_value);
 					if (Expect(member != nullptr, block, instruction, std::format("tag {} is no member of {}", tag->m_value, result->ToString())))
 					{
 						Expect(SameTypes(TypesOf(operands), member->m_member_types), block, instruction, "operands do not match the member's fields");
@@ -599,7 +650,7 @@ namespace
 			{
 				if (operand_count(1u))
 				{
-					Expect(TypeOf(operands[0u])->IsType<MidoriType::UnionType>(), block, instruction, "takes a union");
+					Expect(Shape(operands[0u])->IsType<MidoriType::UnionType>(), block, instruction, "takes a union");
 					Expect(result->IsType<MidoriType::IntegerType>(), block, instruction, "gives an Int");
 				}
 				return;
@@ -607,13 +658,22 @@ namespace
 			case MidoriIROp::UnionField:
 			{
 				const MidoriIRUnionField* field = std::get_if<MidoriIRUnionField>(&instruction.m_immediate);
-				if (operand_count(1u) && Expect(TypeOf(operands[0u])->IsType<MidoriType::UnionType>(), block, instruction, "takes a union") && Expect(field != nullptr, block, instruction, "needs a tag and field"))
+				if (operand_count(1u) && Expect(Shape(operands[0u])->IsType<MidoriType::UnionType>(), block, instruction, "takes a union") && Expect(field != nullptr, block, instruction, "needs a tag and field"))
 				{
-					const MidoriType::UnionType::UnionMemberContext* member = FindMember(TypeOf(operands[0u])->GetType<MidoriType::UnionType>(), field->m_tag);
+					const MidoriType::UnionType::UnionMemberContext* member = FindMember(Shape(operands[0u])->GetType<MidoriType::UnionType>(), field->m_tag);
 					if (Expect(member != nullptr, block, instruction, std::format("tag {} is no member of {}", field->m_tag, TypeOf(operands[0u])->ToString())) && Expect(field->m_index < member->m_member_types.size(), block, instruction, std::format("field #{} is past the member's end", field->m_index)))
 					{
 						Expect(SameType(result, member->m_member_types[field->m_index]), block, instruction, "result is not the field's type");
 					}
+				}
+				return;
+			}
+			case MidoriIROp::ArrayAppend:
+			{
+				if (operand_count(2u) && Expect(Shape(operands[0u])->IsType<MidoriType::ArrayType>(), block, instruction, "takes an array"))
+				{
+					Expect(SameType(TypeOf(operands[1u]), Shape(operands[0u])->GetType<MidoriType::ArrayType>().m_element_type), block, instruction, "appends a value that is not the array's element type");
+					Expect(SameType(result, TypeOf(operands[0u])), block, instruction, "result is not the array");
 				}
 				return;
 			}
@@ -648,7 +708,8 @@ namespace
 			}
 			case MidoriIROp::CallForeign:
 			{
-				Expect(std::holds_alternative<MidoriIRForeign>(instruction.m_immediate), block, instruction, "needs a foreign function");
+				const bool is_builtin = std::holds_alternative<MidoriIRForeign>(instruction.m_immediate);
+				Expect(is_builtin || (!operands.empty() && Shape(operands[0u])->IsType<MidoriType::TextType>()), block, instruction, "needs a builtin foreign function, or the name of one as its first operand");
 				return;
 			}
 			case MidoriIROp::CallValue:
@@ -661,8 +722,10 @@ namespace
 			}
 			case MidoriIROp::MakeClosure:
 			{
+				// The captures it leaves out, at the end, are bound with BindCaptures.
 				const MidoriIRFunction* callee = Callee(block, instruction);
-				if (callee != nullptr && Expect(SameTypes(TypesOf(operands), callee->m_capture_types), block, instruction, std::format("operands do not match the captures of {}", callee->m_name)))
+				const bool is_prefix = callee != nullptr && operands.size() <= callee->m_capture_types.size() && SameTypes(TypesOf(operands), std::span<const TypeRef>(callee->m_capture_types).first(operands.size()));
+				if (callee != nullptr && Expect(is_prefix, block, instruction, std::format("operands do not match the captures of {}", callee->m_name)))
 				{
 					const TypeRef closure = MidoriType::MakeFunctionType(callee->ParameterTypes(), TypeRef(callee->m_return_type));
 					Expect(SameType(result, closure), block, instruction, std::format("gives {}, not {}", closure->ToString(), result->ToString()));
@@ -688,18 +751,18 @@ namespace
 			}
 			case MidoriIROp::CellRead:
 			{
-				if (operand_count(1u) && Expect(TypeOf(operands[0u])->IsType<MidoriType::CellType>(), block, instruction, "takes a Cell"))
+				if (operand_count(1u) && Expect(Shape(operands[0u])->IsType<MidoriType::CellType>(), block, instruction, "takes a Cell"))
 				{
-					Expect(SameType(result, TypeOf(operands[0u])->GetType<MidoriType::CellType>().m_element_type), block, instruction, "result is not the Cell's element type");
+					Expect(SameType(result, Shape(operands[0u])->GetType<MidoriType::CellType>().m_element_type), block, instruction, "result is not the Cell's element type");
 				}
 				return;
 			}
 			case MidoriIROp::CellWrite:
 			{
-				if (operand_count(2u) && Expect(TypeOf(operands[0u])->IsType<MidoriType::CellType>(), block, instruction, "takes a Cell"))
+				if (operand_count(2u) && Expect(Shape(operands[0u])->IsType<MidoriType::CellType>(), block, instruction, "takes a Cell"))
 				{
-					Expect(SameType(TypeOf(operands[1u]), TypeOf(operands[0u])->GetType<MidoriType::CellType>().m_element_type), block, instruction, "writes a value that is not the Cell's element type");
-					Expect(result->IsType<MidoriType::UnitType>(), block, instruction, "gives Unit");
+					Expect(SameType(TypeOf(operands[1u]), Shape(operands[0u])->GetType<MidoriType::CellType>().m_element_type), block, instruction, "writes a value that is not the Cell's element type");
+					Expect(SameType(result, TypeOf(operands[1u])), block, instruction, "gives the value it writes");
 				}
 				return;
 			}
@@ -737,16 +800,16 @@ namespace
 			{
 				if (operand_count(1u))
 				{
-					Expect(TypeOf(operands[0u])->IsType<MidoriType::BoolType>(), block, instruction, "its condition is not a Bool");
+					Expect(Shape(operands[0u])->IsType<MidoriType::BoolType>(), block, instruction, "its condition is not a Bool");
 				}
 				Expect(instruction.m_successors.size() == 2u, block, instruction, "has two successors");
 				return;
 			}
 			case MidoriIROp::Switch:
 			{
-				if (operand_count(1u) && Expect(TypeOf(operands[0u])->IsType<MidoriType::UnionType>(), block, instruction, "takes a union"))
+				if (operand_count(1u) && Expect(Shape(operands[0u])->IsType<MidoriType::UnionType>(), block, instruction, "takes a union"))
 				{
-					CheckSwitchCoverage(block, instruction, TypeOf(operands[0u])->GetType<MidoriType::UnionType>());
+					CheckSwitchCoverage(block, instruction, Shape(operands[0u])->GetType<MidoriType::UnionType>());
 				}
 				return;
 			}
@@ -764,7 +827,7 @@ namespace
 				CheckTailCall(block, instruction);
 				return;
 			}
-			case MidoriIROp::Halt:
+			case MidoriIROp::Unreachable:
 			{
 				operand_count(0u);
 				Expect(instruction.m_successors.empty(), block, instruction, "has no successors");

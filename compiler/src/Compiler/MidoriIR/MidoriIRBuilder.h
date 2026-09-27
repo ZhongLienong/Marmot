@@ -49,7 +49,8 @@ public:
 	// A direct call names a MidoriIRFunctionId, a call of a global a
 	// MidoriIRGlobalSlot; with neither, the first operand is the closure called.
 	void TailCall(MidoriIRImmediate callee, std::vector<MidoriIRValueId> operands);
-	void Halt();
+	// Follows a call that returns Never.
+	void Unreachable();
 
 private:
 	MidoriIRValueId NewValue(std::shared_ptr<MidoriType> type, std::string name);

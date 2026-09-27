@@ -1,5 +1,5 @@
 Compilation failed :( 
-Code Generator Error at test/concurrency/failure/spawn_generic_def_lambda.mmt:7
+Lowering Error at test/concurrency/failure/spawn_generic_def_lambda.mmt:7
   |
 7 | def worker = Concurrency::Spawn(7, Identity);
   |                                    ^^^^^^^^ Generic function 'Identity' is monomorphised at each call site, so it has no single procedure to use as a value. Call it directly, or wrap it in a non-generic lambda that pins its type parameters.

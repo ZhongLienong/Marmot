@@ -588,6 +588,8 @@ public:
 		std::unique_ptr<MidoriExpression> m_transform_expr;
 		std::unique_ptr<MidoriExpression> m_range;    
 		std::shared_ptr<MidoriType> m_iterable_item_type = nullptr;
+		// What Iterable::Next returns for this iterator: Option<(Item, Iter)>.
+		std::shared_ptr<MidoriType> m_iterable_next_type = nullptr;
 		int m_loop_variable_index = -1;
 		int m_hidden_step_index = -1;    
 		int m_hidden_end_index = -1;  
@@ -663,6 +665,8 @@ public:
 		std::unique_ptr<MidoriExpression> m_range;
 		std::unique_ptr<MidoriExpression> m_body;
 		std::shared_ptr<MidoriType> m_iterable_item_type = nullptr;
+		// What Iterable::Next returns for this iterator: Option<(Item, Iter)>.
+		std::shared_ptr<MidoriType> m_iterable_next_type = nullptr;
 		int m_loop_variable_index = -1;
 		int m_hidden_step_index = -1;   // For range: step; For array: current index
 		int m_hidden_end_index = -1;    // For range: end; For array: length

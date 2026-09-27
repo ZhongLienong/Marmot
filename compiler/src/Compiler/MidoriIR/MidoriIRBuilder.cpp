@@ -120,9 +120,9 @@ void MidoriIRBuilder::TailCall(MidoriIRImmediate callee, std::vector<MidoriIRVal
 	Terminate(MidoriIROp::TailCall, std::move(operands), std::move(callee), {});
 }
 
-void MidoriIRBuilder::Halt()
+void MidoriIRBuilder::Unreachable()
 {
-	Terminate(MidoriIROp::Halt, {}, {}, {});
+	Terminate(MidoriIROp::Unreachable, {}, {}, {});
 }
 
 MidoriIRValueId MidoriIRBuilder::NewValue(std::shared_ptr<MidoriType> type, std::string name)

@@ -924,7 +924,7 @@ void VirtualMachine::BuildGarbageCollectionRoots(GarbageCollector::GarbageCollec
 		global_count = m_global_vars->size();
 	}
 
-	roots.reserve(stack_count + global_count + static_cast<size_t>(m_call_stack_pointer - m_call_stack_begin) + m_string_literal_cache.size() + m_small_string_pool.size() + 1uz);
+	roots.reserve(stack_count + global_count + static_cast<size_t>(m_call_stack_pointer - m_call_stack_begin) + m_string_literal_cache.size() + m_small_string_pool.size() + m_static_closure_cache.size() + 1uz);
 
 	if (stack_count > 0uz)
 	{
@@ -976,6 +976,16 @@ void VirtualMachine::BuildGarbageCollectionRoots(GarbageCollector::GarbageCollec
 		if (cached_union)
 		{
 			roots.emplace_back(cached_union);
+		}
+	}
+
+	// A cached function is handed out again by MAKE_FUNCTION, so it must
+	// outlive every value that held it.
+	for (MidoriTraceable* cached_function : m_static_closure_cache)
+	{
+		if (cached_function)
+		{
+			roots.emplace_back(cached_function);
 		}
 	}
 
@@ -2733,6 +2743,21 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
+		case OpCode::CALL_PROC_WIDE:
+		{
+			int proc_index = static_cast<int>(ReadByte(ip));
+			proc_index |= static_cast<int>(ReadByte(ip)) << 8;
+			int arity = static_cast<int>(ReadByte(ip));
+
+			PushCallFrame(bp, ip, env, closure);
+
+			env = nullptr;
+			closure = nullptr;
+			ip = GetProcEntry(proc_index);
+			bp = sp - arity;
+
+			break;
+		}
 		case OpCode::CALL_PROC_0:
 		case OpCode::CALL_PROC_1:
 		case OpCode::CALL_PROC_2:
@@ -2893,9 +2918,50 @@ int VirtualMachine::ExecuteLoop() noexcept
 			Push(sp, AllocateTraceable(MidoriClosure{ .m_cell_values = MidoriTuple(), .m_proc_index = proc_index }));
 			break;
 		}
-		case OpCode::MAKE_FUNCTION:
+		case OpCode::MAKE_CLOSURE_OF:
 		{
 			int proc_index = static_cast<int>(ReadByte(ip));
+			proc_index |= static_cast<int>(ReadByte(ip)) << 8;
+			int count = static_cast<int>(ReadByte(ip));
+
+			// The captures stay on the stack, and so stay rooted, until the closure
+			// holding them replaces them.
+			ValueStackPointer captures = sp - count;
+			MidoriTuple captured_cells(count);
+			for (int i = 0; i < count; i += 1)
+			{
+				captured_cells[i] = AllocateTraceable(MidoriCellValue(captures[i]));
+			}
+			MidoriTraceable* made = AllocateTraceable(MidoriClosure{ .m_cell_values = std::move(captured_cells), .m_proc_index = proc_index });
+			sp = captures;
+			Push(sp, made);
+			break;
+		}
+		case OpCode::SET_CAPTURE:
+		{
+			int index = static_cast<int>(ReadByte(ip));
+			MidoriValue value = Pop(sp);
+			MidoriTraceable* target = Pop(sp).GetPointer();
+			MidoriTraceable* cell = AllocateTraceable(MidoriCellValue(value));
+			m_gc.WriteBarrier(target);
+			target->GetTraceable<MidoriClosure>().m_cell_values[index] = cell;
+			break;
+		}
+		case OpCode::GET_UNION_FIELD:
+		{
+			int index = static_cast<int>(ReadByte(ip));
+			MidoriValue& top = Peek(sp);
+			top = top.GetPointer()->GetTraceable<MidoriUnion>().m_values[index];
+			break;
+		}
+		case OpCode::MAKE_FUNCTION:
+		case OpCode::MAKE_FUNCTION_WIDE:
+		{
+			int proc_index = static_cast<int>(ReadByte(ip));
+			if (instruction == OpCode::MAKE_FUNCTION_WIDE)
+			{
+				proc_index |= static_cast<int>(ReadByte(ip)) << 8;
+			}
 
 			size_t cache_index = static_cast<size_t>(proc_index);
 			if (cache_index < m_static_closure_cache.size() && m_static_closure_cache[cache_index])

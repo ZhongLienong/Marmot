@@ -1,0 +1,12 @@
+30
+error[IndexOutOfBounds]: Index out of bounds at index: 3.
+ --> test/midori_ir/failure/index_out_of_range_in_function.mmt:10
+   |
+10 | def At = fn(values: Array<Int>, index: Int) -> Int => values[index];
+   | Index out of bounds at index: 3.
+   |
+stack trace:
+  at At [module IndexOutOfRangeInFunction] in test/midori_ir/failure/index_out_of_range_in_function.mmt:10
+    def At = fn(values: Array<Int>, index: Int) -> Int => values[index];
+  at main [module IndexOutOfRangeInFunction] in test/midori_ir/failure/index_out_of_range_in_function.mmt:15
+    Print((At(values, 3) as Text) ++ "/n");

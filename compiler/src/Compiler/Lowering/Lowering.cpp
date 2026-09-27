@@ -12,7 +12,7 @@ namespace
 {
 	using TypeRef = std::shared_ptr<MidoriType>;
 
-	// Called like functions, but the code generator emits each as an opcode.
+	// Called like functions, but each is one instruction.
 	constexpr std::array<std::string_view, 6u> s_intrinsic_calls =
 	{
 		"Cell::New",
@@ -22,123 +22,6 @@ namespace
 		"Concurrency::IsDone",
 		"Concurrency::Cancel"
 	};
-
-	std::optional<MidoriIRScalar> ScalarOf(const TypeRef& type)
-	{
-		if (type->IsType<MidoriType::IntegerType>())
-		{
-			return MidoriIRScalar::Int;
-		}
-		if (type->IsType<MidoriType::FloatType>())
-		{
-			return MidoriIRScalar::Float;
-		}
-		if (type->IsType<MidoriType::ByteType>())
-		{
-			return MidoriIRScalar::Byte;
-		}
-		if (type->IsType<MidoriType::WordType>())
-		{
-			return MidoriIRScalar::Word;
-		}
-		if (type->IsType<MidoriType::BoolType>())
-		{
-			return MidoriIRScalar::Bool;
-		}
-		if (type->IsType<MidoriType::TextType>())
-		{
-			return MidoriIRScalar::Text;
-		}
-		return std::nullopt;
-	}
-
-	// One op per scalar type, in the order Int, Float, Byte, Word, Bool, Text;
-	// nothing where the operator does not apply to that type.
-	using ScalarOps = std::array<std::optional<MidoriIROp>, 6u>;
-
-	std::optional<MidoriIROp> SelectOp(const ScalarOps& ops, MidoriIRScalar scalar)
-	{
-		return ops[static_cast<size_t>(scalar)];
-	}
-
-	std::optional<ScalarOps> BinaryOps(Token::Name op)
-	{
-		using enum MidoriIROp;
-		switch (op)
-		{
-		case Token::Name::SINGLE_PLUS:
-			return ScalarOps{ AddInt, AddFloat, AddByte, AddWord, std::nullopt, std::nullopt };
-		case Token::Name::DOUBLE_PLUS:
-			return ScalarOps{ std::nullopt, std::nullopt, std::nullopt, std::nullopt, std::nullopt, Concat };
-		case Token::Name::SINGLE_MINUS:
-			return ScalarOps{ SubInt, SubFloat, SubByte, SubWord, std::nullopt, std::nullopt };
-		case Token::Name::STAR:
-			return ScalarOps{ MulInt, MulFloat, MulByte, MulWord, std::nullopt, std::nullopt };
-		case Token::Name::SLASH:
-			return ScalarOps{ DivInt, DivFloat, DivByte, DivWord, std::nullopt, std::nullopt };
-		case Token::Name::PERCENT:
-			return ScalarOps{ ModInt, ModFloat, ModByte, ModWord, std::nullopt, std::nullopt };
-		case Token::Name::LEFT_SHIFT:
-			return ScalarOps{ ShlInt, std::nullopt, ShlByte, ShlWord, std::nullopt, std::nullopt };
-		case Token::Name::RIGHT_SHIFT:
-			return ScalarOps{ ShrInt, std::nullopt, ShrByte, ShrWord, std::nullopt, std::nullopt };
-		case Token::Name::SINGLE_AMPERSAND:
-			return ScalarOps{ BitAndInt, std::nullopt, BitAndByte, BitAndWord, std::nullopt, std::nullopt };
-		case Token::Name::SINGLE_BAR:
-			return ScalarOps{ BitOrInt, std::nullopt, BitOrByte, BitOrWord, std::nullopt, std::nullopt };
-		case Token::Name::CARET:
-			return ScalarOps{ BitXorInt, std::nullopt, BitXorByte, BitXorWord, std::nullopt, std::nullopt };
-		case Token::Name::LEFT_ANGLE:
-			return ScalarOps{ LtInt, LtFloat, LtByte, LtWord, std::nullopt, std::nullopt };
-		case Token::Name::LESS_EQUAL:
-			return ScalarOps{ LeInt, LeFloat, LeByte, LeWord, std::nullopt, std::nullopt };
-		case Token::Name::RIGHT_ANGLE:
-			return ScalarOps{ GtInt, GtFloat, GtByte, GtWord, std::nullopt, std::nullopt };
-		case Token::Name::GREATER_EQUAL:
-			return ScalarOps{ GeInt, GeFloat, GeByte, GeWord, std::nullopt, std::nullopt };
-		case Token::Name::DOUBLE_EQUAL:
-			return ScalarOps{ EqInt, EqFloat, EqByte, EqWord, EqBool, EqText };
-		case Token::Name::BANG_EQUAL:
-			return ScalarOps{ NeInt, NeFloat, NeByte, NeWord, NeBool, NeText };
-		default:
-			return std::nullopt;
-		}
-	}
-
-	using Conversion = std::pair<std::pair<MidoriIRScalar, MidoriIRScalar>, std::vector<MidoriIROp>>;
-
-	// A conversion between two scalar types, as the ops that make it; empty
-	// when there is none.
-	std::vector<MidoriIROp> ConversionOps(MidoriIRScalar from, MidoriIRScalar to)
-	{
-		using enum MidoriIROp;
-		using enum MidoriIRScalar;
-		const std::pair<MidoriIRScalar, MidoriIRScalar> key{ from, to };
-		static const std::array<Conversion, 18u> s_conversions =
-		{{
-			{ { Int, Float }, { IntToFloat } },
-			{ { Text, Float }, { TextToFloat } },
-			{ { Byte, Float }, { ByteToFloat } },
-			{ { Word, Float }, { WordToFloat } },
-			{ { Float, Int }, { FloatToInt } },
-			{ { Text, Int }, { TextToInt } },
-			{ { Byte, Int }, { ByteToInt } },
-			{ { Word, Int }, { WordToInt } },
-			{ { Int, Byte }, { IntToByte } },
-			{ { Word, Byte }, { WordToByte } },
-			{ { Float, Byte }, { FloatToByte } },
-			{ { Int, Word }, { IntToWord } },
-			{ { Byte, Word }, { ByteToWord } },
-			{ { Float, Word }, { FloatToWord } },
-			{ { Float, Text }, { FloatToText } },
-			{ { Int, Text }, { IntToText } },
-			{ { Byte, Text }, { ByteToInt, IntToText } },
-			{ { Word, Text }, { WordToText } }
-		}};
-
-		const std::array<Conversion, 18u>::const_iterator found = std::ranges::find(s_conversions, key, &Conversion::first);
-		return found == s_conversions.cend() ? std::vector<MidoriIROp>{} : found->second;
-	}
 
 	// The type a closure of a function with this signature has.
 	TypeRef ClosureType(const TypeRef& function_type)
@@ -152,9 +35,14 @@ namespace
 		return MidoriType::MakeLiteralType<MidoriType::UnitType>();
 	}
 
-	bool IsGlobal(const MidoriExpression::NameAccess& name)
+	const TypeRef& TextType()
 	{
-		return std::holds_alternative<MidoriExpression::NameContext::Global>(name.m_name_ctx);
+		return MidoriType::MakeLiteralType<MidoriType::TextType>();
+	}
+
+	bool IsNever(const TypeRef& type)
+	{
+		return type->IsType<MidoriType::NeverType>();
 	}
 
 	const MidoriExpression::NameAccess* GlobalName(const MidoriExpression& expression)
@@ -164,14 +52,15 @@ namespace
 			return nullptr;
 		}
 		const MidoriExpression::NameAccess& name = expression.GetExpression<MidoriExpression::NameAccess>();
-		return IsGlobal(name) ? &name : nullptr;
+		return std::holds_alternative<MidoriExpression::NameContext::Global>(name.m_name_ctx) ? &name : nullptr;
 	}
 }
 
-LoweredExport::LoweredExport(std::string name, BytecodeModule::SymbolType kind, std::optional<MidoriIRGlobalSlot> slot, Token token)
+LoweredExport::LoweredExport(std::string name, BytecodeModule::SymbolType kind, std::optional<MidoriIRGlobalSlot> slot, std::optional<MidoriIRFunctionId> function, Token token)
 	: m_name(std::move(name)),
 	m_kind(kind),
 	m_slot(slot),
+	m_function(function),
 	m_token(std::move(token))
 {
 }
@@ -187,9 +76,29 @@ LoweredModule::LoweredModule(MidoriIRModule module)
 {
 }
 
-Lowering::FunctionScope::FunctionScope(MidoriIRFunctionId id, MidoriIRFunction& function)
+Lowering::Specialization::Specialization(GenericTypes::TypeEnvironment types, MethodResolutionMap methods, std::optional<std::string> source_module, std::shared_ptr<const ForeignIndices> foreign_indices)
+	: m_types(std::move(types)),
+	m_methods(std::move(methods)),
+	m_source_module(std::move(source_module)),
+	m_foreign_indices(std::move(foreign_indices))
+{
+}
+
+Lowering::JoinPoint::JoinPoint(MidoriIRBlockId block, TypeRef type)
+	: m_block(block),
+	m_type(std::move(type))
+{
+}
+
+Lowering::FunctionScope::FunctionScope(MidoriIRFunctionId id, MidoriIRFunction& function, const Specialization& specialization, FunctionScope* parent, int environment_length)
 	: m_id(id),
-	m_builder(function)
+	m_function(function),
+	m_builder(function),
+	m_specialization(specialization),
+	m_parent(parent),
+	m_environment_length(environment_length),
+	m_local_frames(1u),
+	m_live_blocks(1u, true)
 {
 }
 
@@ -199,16 +108,20 @@ Lowering::Lowering(MidoriProgramTree& program, std::string_view file_name, const
 	m_source_lines(source_lines),
 	m_module_name(module_name),
 	m_export_symbols(export_symbols),
-	m_imports(imports),
-	m_module(std::move(module_name))
+	m_module(module_name),
+	m_foreign_indices(std::make_shared<ForeignIndices>()),
+	m_generics(module_name, imports.m_generic_functions),
+	m_resolver(imports.m_class_methods, imports.m_class_instances, imports.m_class_instance_type_args, imports.m_class_instance_associated_types, [this](const std::string& name) { return m_top_level_names.contains(name); })
 {
+	m_specializations.emplace_back(GenericTypes::TypeEnvironment{}, MethodResolutionMap{}, std::nullopt, m_foreign_indices);
 }
 
 MidoriResult::DiagnosticsResult<LoweredModule> Lowering::Lower() &&
 {
-	const MidoriIRFunctionId top_level = NewFunction(std::string(MAIN_PROCEDURE_PREFIX), UnitType());
+	const Specialization& module_context = m_specializations.front();
+	const MidoriIRFunctionId top_level = NewFunction(std::string(MAIN_PROCEDURE_PREFIX), UnitType(), module_context);
 	m_module.m_top_level = top_level;
-	FunctionScope scope(top_level, m_functions[top_level.m_index]);
+	FunctionScope scope(top_level, m_functions[top_level.m_index], module_context, nullptr, 0);
 	m_scopes.push_back(&scope);
 
 	const Emitted lowered = ReserveTopLevelNames()
@@ -236,12 +149,24 @@ MidoriResult::DiagnosticsResult<LoweredModule> Lowering::Lower() &&
 	LoweredModule result(std::move(m_module));
 	result.m_exports = CollectExports();
 	result.m_imports = std::move(m_import_tokens);
+	result.m_generic_functions = std::move(m_generics).TakeAll();
+	result.m_native_imports = std::move(m_native_imports);
 	return result;
 }
 
 CompilerError Lowering::Unsupported(std::string_view construct, const Token& token) const
 {
-	return MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorUnsupportedLowering, std::format("The MidoriIR backend cannot lower {} yet.", construct), token, m_file_name, m_source_lines);
+	return Error(CompilerErrorCode::LoweringUnsupportedConstruct, std::format("The MidoriIR backend cannot lower {} yet.", construct), token);
+}
+
+CompilerError Lowering::Error(CompilerErrorCode code, std::string_view message, const Token& token) const
+{
+	return MidoriError::GenerateLoweringErrorWithContext(code, message, token, m_file_name, m_source_lines);
+}
+
+CompilerError Lowering::ResolutionError(const MethodResolutionError& error, const Token& token) const
+{
+	return MidoriError::GenerateLoweringErrorWithContext(error.m_code, error.m_message, token.m_line, m_file_name, m_source_lines);
 }
 
 Lowering::FunctionScope& Lowering::Scope()
@@ -254,14 +179,85 @@ MidoriIRBuilder& Lowering::Builder()
 	return Scope().m_builder;
 }
 
-MidoriIRFunctionId Lowering::NewFunction(std::string name, std::shared_ptr<MidoriType> return_type)
+MidoriIRFunctionId Lowering::NewFunction(std::string name, TypeRef return_type, const Specialization& specialization)
 {
-	m_functions.emplace_back(std::move(name), std::move(return_type));
+	MidoriIRFunction& function = m_functions.emplace_back(std::move(name), std::move(return_type));
+	function.m_source_module = specialization.m_source_module.value_or(std::string());
 	return MidoriIRFunctionId{ static_cast<uint32_t>(m_functions.size() - 1u) };
 }
 
+Lowering::TypeRef Lowering::Concrete(const TypeRef& type)
+{
+	const GenericTypes::TypeEnvironment& types = Scope().m_specialization.m_types;
+	return types.empty() ? type : Substitute(type, types);
+}
+
+// A projection such as Iterable::Item<S> means a type once S is one.
+Lowering::TypeRef Lowering::Substitute(const TypeRef& type, const GenericTypes::TypeEnvironment& types) const
+{
+	return GenericTypes::Substitute(type, types, [this](const MidoriType::AssociatedType& projection) { return m_resolver.ResolveAssociatedType(projection); });
+}
+
+Lowering::TypeRef Lowering::TypeOf(const MidoriExpression& expression)
+{
+	return Concrete(expression.GetType());
+}
+
+Lowering::TypeRef Lowering::NominalType(const MidoriExpression& expression, MidoriIRValueId value)
+{
+	const TypeRef type = TypeOf(expression);
+	return !IsNever(type) && GenericTypes::IsConcrete(type) ? type : Scope().m_function.TypeOf(value);
+}
+
+MidoriIRBlockId Lowering::NewBlock()
+{
+	Scope().m_live_blocks.push_back(false);
+	return Builder().CreateBlock();
+}
+
+bool Lowering::IsDead()
+{
+	return !Scope().m_live_blocks[Builder().CurrentBlock().m_index];
+}
+
+void Lowering::PositionAt(MidoriIRBlockId block)
+{
+	Builder().PositionAt(block);
+}
+
+void Lowering::Jump(MidoriIRBlockId target, std::vector<MidoriIRValueId> arguments)
+{
+	if (!IsDead())
+	{
+		Scope().m_live_blocks[target.m_index] = true;
+	}
+	Builder().Jump(target, std::move(arguments));
+}
+
+void Lowering::Branch(MidoriIRValueId condition, MidoriIRSuccessor if_true, MidoriIRSuccessor if_false)
+{
+	if (!IsDead())
+	{
+		Scope().m_live_blocks[if_true.m_block.m_index] = true;
+		Scope().m_live_blocks[if_false.m_block.m_index] = true;
+	}
+	Builder().Branch(condition, std::move(if_true), std::move(if_false));
+}
+
+MidoriIRValueId Lowering::Placeholder(const TypeRef& type)
+{
+	return Builder().Emit(MidoriIROp::Const, type);
+}
+
+void Lowering::AfterNever()
+{
+	Builder().Unreachable();
+	PositionAt(NewBlock());
+}
+
 // A body may name a top-level definition that comes after it, so every one has
-// its global, and every `def f = fn ...` its function, before any is lowered.
+// its global, every function its MidoriIR function, every generic its template
+// and every class and instance its entry before any body is lowered.
 Lowering::Emitted Lowering::ReserveTopLevelNames()
 {
 	for (std::unique_ptr<MidoriStatement>& statement : m_program)
@@ -295,26 +291,34 @@ Lowering::Emitted Lowering::ReserveTopLevelName(MidoriStatement& statement)
 				return {};
 			}
 
-			const MidoriExpression::Function& function = definition.m_value->GetExpression<MidoriExpression::Function>();
+			MidoriExpression::Function& function = definition.m_value->GetExpression<MidoriExpression::Function>();
 			if (!function.m_generic_params.empty())
 			{
-				return std::unexpected(m_self.Unsupported("a generic function", definition.m_name));
+				m_self.RegisterGeneric(name, function.m_params, function.m_param_types, function.m_generic_params, function.m_constraints, function.m_return_type, function.m_body, function.m_captured_count);
+				return {};
 			}
-
-			const TypeRef closure_type = ClosureType(definition.m_value->GetType());
-			const MidoriIRFunctionId id = m_self.NewFunction(name, closure_type->GetType<MidoriType::FunctionType>().m_return_type);
-			m_self.m_top_level_names.emplace(name, TopLevelName{ m_self.m_module.ReserveGlobal(name, closure_type), id });
-			return {};
+			return m_self.ReserveFunction(name, ClosureType(definition.m_value->GetType()));
 		}
 
 		Emitted operator()(MidoriStatement::TupleDefinition& definition) const
 		{
-			return std::unexpected(m_self.Unsupported("a tuple definition", definition.m_names.front()));
+			const std::vector<TypeRef>& element_types = GenericTypes::RepresentationOf(definition.m_value->GetType())->GetType<MidoriType::TupleType>().m_element_types;
+			for (size_t index = 0u; index < definition.m_names.size(); index += 1u)
+			{
+				const std::string& name = definition.m_names[index].m_lexeme;
+				m_self.m_top_level_names.emplace(name, TopLevelName{ m_self.m_module.ReserveGlobal(name, element_types[index]), std::nullopt });
+			}
+			return {};
 		}
 
 		Emitted operator()(MidoriStatement::FunctionDefinition& definition) const
 		{
-			return std::unexpected(m_self.Unsupported("an instance method", definition.m_name));
+			if (!definition.m_generic_params.empty())
+			{
+				m_self.RegisterGeneric(definition.m_name.m_lexeme, definition.m_params, definition.m_param_types, definition.m_generic_params, definition.m_constraints, definition.m_return_type, definition.m_body, definition.m_captured_count);
+				return {};
+			}
+			return m_self.ReserveFunction(definition.m_name.m_lexeme, MidoriType::MakeFunctionType(definition.m_param_types, TypeRef(definition.m_return_type)));
 		}
 
 		Emitted operator()(MidoriStatement::ForeignDefinition& foreign) const
@@ -324,12 +328,44 @@ Lowering::Emitted Lowering::ReserveTopLevelName(MidoriStatement& statement)
 
 		Emitted operator()(MidoriStatement::Class& class_statement) const
 		{
-			return std::unexpected(m_self.Unsupported("a class", class_statement.m_name));
+			std::unordered_set<std::string> method_names = class_statement.m_methods
+				| std::views::filter([](const std::unique_ptr<MidoriStatement>& method) { return method->IsStatement<MidoriStatement::FunctionDefinition>(); })
+				| std::views::transform([](const std::unique_ptr<MidoriStatement>& method) { return method->GetStatement<MidoriStatement::FunctionDefinition>().m_name.m_lexeme; })
+				| std::ranges::to<std::unordered_set<std::string>>();
+			m_self.m_resolver.AddClass(class_statement.m_name.m_lexeme, std::move(method_names));
+			return {};
 		}
 
+		// A method of an instance over a generic head is a generic, specialized
+		// where it is called; any other is an ordinary function.
 		Emitted operator()(MidoriStatement::Instance& instance) const
 		{
-			return std::unexpected(m_self.Unsupported("an instance", instance.m_class_name));
+			m_self.m_resolver.AddInstanceTypeArgs(instance.m_class_name.m_lexeme, instance.m_type_args);
+			m_self.m_resolver.AddAssociatedTypes(instance.m_class_name.m_lexeme, instance.m_type_args, instance.m_associated_types
+				| std::views::transform([](const MidoriStatement::Instance::AssociatedTypeBinding& binding) { return std::pair{ binding.m_name.m_lexeme, binding.m_type }; })
+				| std::ranges::to<InstanceResolver::AssociatedTypeBindings>());
+			for (std::unique_ptr<MidoriStatement>& statement : instance.m_methods)
+			{
+				if (!statement->IsStatement<MidoriStatement::FunctionDefinition>())
+				{
+					continue;
+				}
+
+				MidoriStatement::FunctionDefinition& method = statement->GetStatement<MidoriStatement::FunctionDefinition>();
+				m_self.m_resolver.AddInstanceMethod(instance.m_class_name.m_lexeme, method.m_name.m_lexeme);
+				if (m_self.IsGenericMethod(instance, method))
+				{
+					m_self.RegisterGeneric(method.m_name.m_lexeme, method.m_params, method.m_param_types, method.m_generic_params, method.m_constraints, method.m_return_type, method.m_body, method.m_captured_count);
+					continue;
+				}
+
+				const Emitted reserved = m_self.ReserveFunction(method.m_name.m_lexeme, MidoriType::MakeFunctionType(method.m_param_types, TypeRef(method.m_return_type)));
+				if (!reserved.has_value())
+				{
+					return reserved;
+				}
+			}
+			return {};
 		}
 
 		Emitted operator()(MidoriStatement::ExpressionStatement&) const
@@ -356,70 +392,114 @@ Lowering::Emitted Lowering::ReserveTopLevelName(MidoriStatement& statement)
 	return VisitNode(Reserver{ *this }, statement);
 }
 
+Lowering::Emitted Lowering::ReserveFunction(const std::string& name, const TypeRef& closure_type)
+{
+	const MidoriIRFunctionId function = NewFunction(name, closure_type->GetType<MidoriType::FunctionType>().m_return_type, m_specializations.front());
+	m_top_level_names.emplace(name, TopLevelName{ m_module.ReserveGlobal(name, closure_type), function });
+	return {};
+}
+
 // A foreign function's global holds the name the VM looks it up by, which is
 // how another module calls it.
 Lowering::Emitted Lowering::ReserveForeign(const MidoriStatement::ForeignDefinition& foreign)
 {
-	const Token& name = foreign.m_function_name;
-	if (foreign.m_library.has_value())
-	{
-		return std::unexpected(Unsupported("a foreign function from a library", name));
-	}
+	return ForeignName(foreign)
+		.transform([this, &foreign](const std::string&)
+		{
+			const std::string& name = foreign.m_function_name.m_lexeme;
+			m_top_level_names.emplace(name, TopLevelName{ m_module.ReserveGlobal(name, TextType()), std::nullopt });
+		});
+}
 
+// A builtin's own name, or its library's and its symbol's. A builtin is also
+// recorded by the name the module declares it as, so a call of it is one by
+// index.
+std::expected<std::string, CompilerError> Lowering::ForeignName(const MidoriStatement::ForeignDefinition& foreign)
+{
+	const Token& name = foreign.m_function_name;
 	const TypeRef& return_type = foreign.m_type->GetType<MidoriType::FunctionType>().m_return_type;
 	const bool is_supported_return = return_type->IsType<MidoriType::IntegerType>() || return_type->IsType<MidoriType::FloatType>() || return_type->IsType<MidoriType::BoolType>() || return_type->IsType<MidoriType::UnitType>() || return_type->IsType<MidoriType::TextType>() || return_type->IsType<MidoriType::ArrayType>() || return_type->IsType<MidoriType::ByteType>() || return_type->IsType<MidoriType::WordType>();
 	if (!is_supported_return)
 	{
-		return std::unexpected(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorUnsupportedLowering, "Unsupported return type for foreign function", name, m_file_name, m_source_lines));
+		return std::unexpected(Error(CompilerErrorCode::LoweringUnsupportedConstruct, "Unsupported return type for foreign function", name));
 	}
 
-	if (!MarmotBuiltins::FindIndex(foreign.m_foreign_name).has_value())
+	if (foreign.m_library.has_value())
 	{
-		return std::unexpected(MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorUnknownForeignFunction, std::format("Unknown foreign function '{}': it is not a Marmot builtin. Name the library that exports it: foreign \"{}\" ... from \"library\";", foreign.m_foreign_name, foreign.m_foreign_name), name, m_file_name, m_source_lines));
+		m_native_imports[foreign.m_library.value()].insert(foreign.m_foreign_name);
+		return foreign.m_library.value() + NATIVE_SYMBOL_SEPARATOR + foreign.m_foreign_name;
 	}
 
-	m_builtin_foreigns.emplace(name.m_lexeme, foreign.m_foreign_name);
-	m_top_level_names.emplace(name.m_lexeme, TopLevelName{ m_module.ReserveGlobal(name.m_lexeme, MidoriType::MakeLiteralType<MidoriType::TextType>()), std::nullopt });
-	return {};
+	const std::optional<size_t> builtin = MarmotBuiltins::FindIndex(foreign.m_foreign_name);
+	if (!builtin.has_value())
+	{
+		return std::unexpected(Error(CompilerErrorCode::LoweringUnknownForeignFunction, std::format("Unknown foreign function '{}': it is not a Marmot builtin. Name the library that exports it: foreign \"{}\" ... from \"library\";", foreign.m_foreign_name, foreign.m_foreign_name), name));
+	}
+	m_foreign_indices->insert_or_assign(name.m_lexeme, builtin.value());
+	return foreign.m_foreign_name;
+}
+
+// A generic's body moves out of this module's AST into its template, which the
+// modules that import it specialize too.
+void Lowering::RegisterGeneric(const std::string& name, const std::vector<Token>& params, const std::vector<TypeRef>& param_types, const std::vector<Token>& generic_params, const std::vector<MidoriType::ClassConstraint>& constraints, const TypeRef& return_type, std::unique_ptr<MidoriExpression>& body, int captured_count)
+{
+	m_generics.Add(name, GenericFunctionInfo(name, params, param_types, generic_params, constraints, return_type, std::shared_ptr<MidoriExpression>(std::move(body)), captured_count, m_module_name, m_foreign_indices));
+}
+
+// Every value in MidoriIR has one type, so a method of an instance whose head
+// names a type parameter, `instance Indexable<Array<T>, Int>`, is specialized
+// for each set of argument types it is called with, as a generic is.
+bool Lowering::IsGenericMethod(const MidoriStatement::Instance& instance, const MidoriStatement::FunctionDefinition& method) const
+{
+	return !method.m_generic_params.empty() || GenericTypes::IsGenericInstanceHead(instance.m_type_args);
 }
 
 std::vector<LoweredExport> Lowering::CollectExports() const
 {
 	std::vector<LoweredExport> exports;
+	const auto export_name = [&](const Token& token, BytecodeModule::SymbolType kind)
+	{
+		if (!m_export_symbols.contains(token.m_lexeme))
+		{
+			return;
+		}
+		const std::unordered_map<std::string, TopLevelName>::const_iterator name = m_top_level_names.find(token.m_lexeme);
+		const std::optional<MidoriIRGlobalSlot> slot = name == m_top_level_names.cend() ? std::nullopt : std::optional<MidoriIRGlobalSlot>(name->second.m_slot);
+		const std::optional<MidoriIRFunctionId> function = name == m_top_level_names.cend() ? std::nullopt : name->second.m_function;
+		exports.emplace_back(token.m_lexeme, kind, slot, function, token);
+	};
 
 	for (const std::unique_ptr<MidoriStatement>& statement : m_program)
 	{
 		if (statement->IsStatement<MidoriStatement::VariableDefinition>())
 		{
-			const MidoriStatement::VariableDefinition& definition = statement->GetStatement<MidoriStatement::VariableDefinition>();
-			if (m_export_symbols.contains(definition.m_name.m_lexeme))
-			{
-				exports.emplace_back(definition.m_name.m_lexeme, BytecodeModule::SymbolType::GLOBAL_VARIABLE, m_top_level_names.at(definition.m_name.m_lexeme).m_slot, definition.m_name);
-			}
+			export_name(statement->GetStatement<MidoriStatement::VariableDefinition>().m_name, BytecodeModule::SymbolType::GLOBAL_VARIABLE);
 		}
 		else if (statement->IsStatement<MidoriStatement::ForeignDefinition>())
 		{
-			const MidoriStatement::ForeignDefinition& foreign = statement->GetStatement<MidoriStatement::ForeignDefinition>();
-			if (m_export_symbols.contains(foreign.m_function_name.m_lexeme))
+			export_name(statement->GetStatement<MidoriStatement::ForeignDefinition>().m_function_name, BytecodeModule::SymbolType::FOREIGN_FUNCTION);
+		}
+		else if (statement->IsStatement<MidoriStatement::FunctionDefinition>())
+		{
+			export_name(statement->GetStatement<MidoriStatement::FunctionDefinition>().m_name, BytecodeModule::SymbolType::FUNCTION);
+		}
+		else if (statement->IsStatement<MidoriStatement::Instance>())
+		{
+			for (const std::unique_ptr<MidoriStatement>& method : statement->GetStatement<MidoriStatement::Instance>().m_methods)
 			{
-				exports.emplace_back(foreign.m_function_name.m_lexeme, BytecodeModule::SymbolType::FOREIGN_FUNCTION, m_top_level_names.at(foreign.m_function_name.m_lexeme).m_slot, foreign.m_function_name);
+				if (method->IsStatement<MidoriStatement::FunctionDefinition>())
+				{
+					export_name(method->GetStatement<MidoriStatement::FunctionDefinition>().m_name, BytecodeModule::SymbolType::FUNCTION);
+				}
 			}
 		}
 		else if (statement->IsStatement<MidoriStatement::Struct>())
 		{
-			const Token& name = statement->GetStatement<MidoriStatement::Struct>().m_name;
-			if (m_export_symbols.contains(name.m_lexeme))
-			{
-				exports.emplace_back(name.m_lexeme, BytecodeModule::SymbolType::STRUCT_TYPE, std::nullopt, name);
-			}
+			export_name(statement->GetStatement<MidoriStatement::Struct>().m_name, BytecodeModule::SymbolType::STRUCT_TYPE);
 		}
 		else if (statement->IsStatement<MidoriStatement::Union>())
 		{
-			const Token& name = statement->GetStatement<MidoriStatement::Union>().m_name;
-			if (m_export_symbols.contains(name.m_lexeme))
-			{
-				exports.emplace_back(name.m_lexeme, BytecodeModule::SymbolType::UNION_TYPE, std::nullopt, name);
-			}
+			export_name(statement->GetStatement<MidoriStatement::Union>().m_name, BytecodeModule::SymbolType::UNION_TYPE);
 		}
 	}
 	return exports;
@@ -430,10 +510,53 @@ Lowering::Emitted Lowering::LowerTopLevelStatement(MidoriStatement& statement)
 	if (statement.IsStatement<MidoriStatement::ForeignDefinition>())
 	{
 		const MidoriStatement::ForeignDefinition& foreign = statement.GetStatement<MidoriStatement::ForeignDefinition>();
-		const std::string& name = foreign.m_function_name.m_lexeme;
+		const std::string value = foreign.m_library.has_value() ? foreign.m_library.value() + NATIVE_SYMBOL_SEPARATOR + foreign.m_foreign_name : foreign.m_foreign_name;
 		Builder().AtLine(foreign.m_function_name.m_line);
-		Builder().Emit(MidoriIROp::GlobalDefine, UnitType(), { Builder().ConstText(foreign.m_foreign_name) }, m_top_level_names.at(name).m_slot);
+		Builder().Emit(MidoriIROp::GlobalDefine, UnitType(), { Builder().ConstText(value) }, m_top_level_names.at(foreign.m_function_name.m_lexeme).m_slot);
 		return {};
+	}
+
+	if (statement.IsStatement<MidoriStatement::FunctionDefinition>())
+	{
+		MidoriStatement::FunctionDefinition& definition = statement.GetStatement<MidoriStatement::FunctionDefinition>();
+		if (!definition.m_generic_params.empty())
+		{
+			return {};
+		}
+		return LowerTopLevelFunction(definition.m_name.m_lexeme, definition.m_params, *definition.m_body, definition.m_name.m_line);
+	}
+
+	if (statement.IsStatement<MidoriStatement::Instance>())
+	{
+		MidoriStatement::Instance& instance = statement.GetStatement<MidoriStatement::Instance>();
+		for (std::unique_ptr<MidoriStatement>& method_statement : instance.m_methods)
+		{
+			if (!method_statement->IsStatement<MidoriStatement::FunctionDefinition>())
+			{
+				continue;
+			}
+			MidoriStatement::FunctionDefinition& method = method_statement->GetStatement<MidoriStatement::FunctionDefinition>();
+			if (IsGenericMethod(instance, method))
+			{
+				continue;
+			}
+			const Emitted lowered = LowerTopLevelFunction(method.m_name.m_lexeme, method.m_params, *method.m_body, method.m_name.m_line);
+			if (!lowered.has_value())
+			{
+				return lowered;
+			}
+		}
+		return {};
+	}
+
+	if (statement.IsStatement<MidoriStatement::Class>())
+	{
+		return {};
+	}
+
+	if (statement.IsStatement<MidoriStatement::TupleDefinition>())
+	{
+		return LowerTupleDefinition(statement.GetStatement<MidoriStatement::TupleDefinition>());
 	}
 
 	if (!statement.IsStatement<MidoriStatement::VariableDefinition>())
@@ -447,24 +570,38 @@ Lowering::Emitted Lowering::LowerTopLevelStatement(MidoriStatement& statement)
 		return {};
 	}
 
-	const TopLevelName& name = m_top_level_names.at(definition.m_name.m_lexeme);
-	const int line = definition.m_name.m_line;
-	if (!name.m_function.has_value())
+	const std::unordered_map<std::string, TopLevelName>::const_iterator name = m_top_level_names.find(definition.m_name.m_lexeme);
+	if (name == m_top_level_names.cend())
 	{
-		return Lower(*definition.m_value)
-			.transform([this, &name, line](MidoriIRValueId value)
-			{
-				Builder().AtLine(line).Emit(MidoriIROp::GlobalDefine, UnitType(), { value }, name.m_slot);
-			});
+		return {};
 	}
 
-	MidoriExpression::Function& function = definition.m_value->GetExpression<MidoriExpression::Function>();
-	const TypeRef closure_type = m_module.m_globals[name.m_slot.m_value].m_type;
-	return LowerFunctionBody(name.m_function.value(), closure_type->GetType<MidoriType::FunctionType>().m_param_types, function.m_params, *function.m_body)
-		.transform([this, &name, &closure_type, &definition, line]()
+	const int line = definition.m_name.m_line;
+	if (name->second.m_function.has_value())
+	{
+		MidoriExpression::Function& function = definition.m_value->GetExpression<MidoriExpression::Function>();
+		return LowerTopLevelFunction(definition.m_name.m_lexeme, function.m_params, *function.m_body, line);
+	}
+
+	const MidoriIRGlobalSlot slot = name->second.m_slot;
+	return Lower(*definition.m_value)
+		.transform([this, slot, line](MidoriIRValueId value)
 		{
-			const MidoriIRValueId closure = Builder().AtLine(line).Emit(MidoriIROp::MakeClosure, closure_type, {}, name.m_function.value(), definition.m_name.m_lexeme);
-			Builder().Emit(MidoriIROp::GlobalDefine, UnitType(), { closure }, name.m_slot);
+			Builder().AtLine(line).Emit(MidoriIROp::GlobalDefine, UnitType(), { value }, slot);
+		});
+}
+
+Lowering::Emitted Lowering::LowerTopLevelFunction(const std::string& name, const std::vector<Token>& params, MidoriExpression& body, int line)
+{
+	const TopLevelName& top_level_name = m_top_level_names.at(name);
+	const TypeRef closure_type = m_module.m_globals[top_level_name.m_slot.m_value].m_type;
+	const MidoriIRFunctionId id = top_level_name.m_function.value();
+	FunctionScope scope(id, m_functions[id.m_index], m_specializations.front(), &Scope(), 0);
+	return LowerFunctionBody(scope, closure_type->GetType<MidoriType::FunctionType>().m_param_types, params, body)
+		.and_then([&]() { return MakeClosure(scope, closure_type, line, name); })
+		.transform([this, &top_level_name, line](MidoriIRValueId closure)
+		{
+			Builder().AtLine(line).Emit(MidoriIROp::GlobalDefine, UnitType(), { closure }, top_level_name.m_slot);
 		});
 }
 
@@ -486,7 +623,7 @@ Lowering::Emitted Lowering::LowerStatement(MidoriStatement& statement)
 
 		Emitted operator()(MidoriStatement::TupleDefinition& definition) const
 		{
-			return std::unexpected(m_self.Unsupported("a tuple definition", definition.m_names.front()));
+			return m_self.LowerTupleDefinition(definition);
 		}
 
 		Emitted operator()(MidoriStatement::FunctionDefinition& definition) const
@@ -496,11 +633,14 @@ Lowering::Emitted Lowering::LowerStatement(MidoriStatement& statement)
 
 		Emitted operator()(MidoriStatement::ForeignDefinition& foreign) const
 		{
-			return std::unexpected(m_self.Unsupported("a local foreign function", foreign.m_function_name));
+			return m_self.ForeignName(foreign)
+				.transform([this, &foreign](const std::string& value)
+				{
+					m_self.DefineLocal(foreign.m_local_index.value(), m_self.Builder().AtLine(foreign.m_function_name.m_line).ConstText(value));
+				});
 		}
 
-		// Only at the top level, where ReserveTopLevelNames has already
-		// stopped the module.
+		// Only at the top level.
 		Emitted operator()(MidoriStatement::Class&) const
 		{
 			std::unreachable();
@@ -541,18 +681,112 @@ Lowering::Emitted Lowering::LowerLocalDefinition(MidoriStatement::VariableDefini
 	return Lower(*definition.m_value)
 		.transform([this, local_index](MidoriIRValueId value)
 		{
-			Scope().m_locals.insert_or_assign(local_index, value);
+			DefineLocal(local_index, value);
 		});
 }
 
-// Parameters are the parser's first locals, so parameter i is local i.
-Lowering::Emitted Lowering::LowerFunctionBody(MidoriIRFunctionId id, const std::vector<std::shared_ptr<MidoriType>>& param_types, const std::vector<Token>& params, MidoriExpression& body)
+// Each name takes its element of the tuple, as a local or, at the top level,
+// as a global.
+Lowering::Emitted Lowering::LowerTupleDefinition(MidoriStatement::TupleDefinition& definition)
 {
-	FunctionScope scope(id, m_functions[id.m_index]);
+	const int line = definition.m_names.front().m_line;
+	return Lower(*definition.m_value)
+		.transform([this, &definition, line](MidoriIRValueId tuple)
+		{
+			const bool is_dead = IsDead();
+			Builder().AtLine(line);
+			for (size_t index = 0u; index < definition.m_names.size(); index += 1u)
+			{
+				const MidoriIRValueId element = is_dead
+					? Placeholder(UnitType())
+					: Builder().Emit(MidoriIROp::TupleGet, GenericTypes::RepresentationOf(Scope().m_function.TypeOf(tuple))->GetType<MidoriType::TupleType>().m_element_types[index], { tuple }, MidoriIRIndex{ static_cast<uint32_t>(index) }, definition.m_names[index].m_lexeme);
+				const std::optional<int>& local_index = definition.m_local_indices[index];
+				if (local_index.has_value())
+				{
+					DefineLocal(local_index.value(), element);
+				}
+				else if (!is_dead)
+				{
+					Builder().Emit(MidoriIROp::GlobalDefine, UnitType(), { element }, m_top_level_names.at(definition.m_names[index].m_lexeme).m_slot);
+				}
+			}
+		});
+}
+
+void Lowering::PushLocalFrame()
+{
+	Scope().m_local_frames.emplace_back();
+}
+
+void Lowering::PopLocalFrame()
+{
+	FunctionScope& scope = Scope();
+	for (const int index : scope.m_local_frames.back())
+	{
+		scope.m_locals.erase(index);
+	}
+	scope.m_local_frames.pop_back();
+}
+
+// A closure made before this local, which captures it, gets it now.
+void Lowering::DefineLocal(int index, MidoriIRValueId value)
+{
+	FunctionScope& scope = Scope();
+	scope.m_locals.insert_or_assign(index, value);
+	scope.m_local_frames.back().push_back(index);
+
+	std::erase_if(scope.m_pending_captures, [&](const PendingCapture& pending)
+	{
+		if (pending.m_local != index)
+		{
+			return false;
+		}
+		Builder().Emit(MidoriIROp::BindCaptures, UnitType(), { pending.m_closure, value }, MidoriIRIndex{ pending.m_capture });
+		return true;
+	});
+}
+
+// The parser numbers what a lambda captures as the VM used to lay out its
+// environment: its parent's environment first, then its parent's locals.
+Lowering::LocalKey Lowering::KeyForCell(const FunctionScope& scope, int cell_index) const
+{
+	const FunctionScope& parent = *scope.m_parent;
+	return cell_index < parent.m_environment_length
+		? KeyForCell(parent, cell_index)
+		: LocalKey{ &parent, cell_index - parent.m_environment_length };
+}
+
+// A capture is read once, at the top of the function, so its value dominates
+// every use.
+MidoriIRValueId Lowering::CaptureFor(FunctionScope& scope, const LocalKey& key, const TypeRef& type)
+{
+	const std::vector<LocalKey>::const_iterator found = std::ranges::find(scope.m_captures, key);
+	if (found != scope.m_captures.cend())
+	{
+		return scope.m_capture_values[static_cast<size_t>(std::distance(scope.m_captures.cbegin(), found))];
+	}
+
+	const uint32_t index = static_cast<uint32_t>(scope.m_captures.size());
+	MidoriIRFunction& function = scope.m_function;
+	function.m_values.emplace_back(type, std::string());
+	const MidoriIRValueId value{ static_cast<uint32_t>(function.m_values.size() - 1u) };
+	std::vector<MidoriIRInstruction>& entry = function.Block(MidoriIRFunction::s_entry_block).m_instructions;
+	entry.emplace(entry.begin() + index, MidoriIRInstruction(MidoriIROp::GetCapture, value, type, {}, MidoriIRIndex{ index }, {}, 0));
+
+	function.m_capture_types.push_back(type);
+	scope.m_captures.push_back(key);
+	scope.m_capture_values.push_back(value);
+	return value;
+}
+
+// Parameters are the parser's first locals, so parameter i is local i.
+Lowering::Emitted Lowering::LowerFunctionBody(FunctionScope& scope, const std::vector<TypeRef>& param_types, const std::vector<Token>& params, MidoriExpression& body)
+{
 	for (size_t index = 0u; index < params.size(); index += 1u)
 	{
 		const MidoriIRValueId parameter = scope.m_builder.AddParameter(MidoriIRFunction::s_entry_block, param_types[index], params[index].m_lexeme);
 		scope.m_locals.emplace(static_cast<int>(index), parameter);
+		scope.m_local_frames.back().push_back(static_cast<int>(index));
 	}
 
 	m_scopes.push_back(&scope);
@@ -561,421 +795,179 @@ Lowering::Emitted Lowering::LowerFunctionBody(MidoriIRFunctionId id, const std::
 	return lowered;
 }
 
-Lowering::Lowered Lowering::Lower(MidoriExpression& expression)
+// Each capture is a value of the enclosing function: its local, or one it
+// captures in turn. A local not defined yet, which a local function that names
+// itself or a later one captures, goes last, and is bound once it is defined.
+Lowering::Lowered Lowering::MakeClosure(FunctionScope& child, const TypeRef& closure_type, int line, std::string name)
 {
-	struct ExpressionLowering
+	FunctionScope& parent = Scope();
+	std::vector<size_t> order;
+	std::vector<size_t> late;
+	std::vector<MidoriIRValueId> operands;
+	for (size_t index = 0u; index < child.m_captures.size(); index += 1u)
 	{
-		Lowering& m_self;
-
-		Lowered operator()(MidoriExpression::Literal& literal) const
+		const LocalKey& key = child.m_captures[index];
+		if (key.m_owner != &parent)
 		{
-			return m_self.LowerLiteral(literal);
+			operands.push_back(CaptureFor(parent, key, child.m_function.m_capture_types[index]));
+			order.push_back(index);
+			continue;
 		}
 
-		Lowered operator()(MidoriExpression::Group& group) const
+		const std::unordered_map<int, MidoriIRValueId>::const_iterator local = parent.m_locals.find(key.m_index);
+		if (local == parent.m_locals.cend())
 		{
-			return m_self.Lower(*group.m_expr_in);
+			late.push_back(index);
+			continue;
 		}
+		operands.push_back(local->second);
+		order.push_back(index);
+	}
+	order.insert(order.end(), late.begin(), late.end());
 
-		Lowered operator()(MidoriExpression::Binary& binary) const
+	std::vector<uint32_t> position(order.size());
+	for (size_t index = 0u; index < order.size(); index += 1u)
+	{
+		position[order[index]] = static_cast<uint32_t>(index);
+	}
+	child.m_function.m_capture_types = order
+		| std::views::transform([&child](size_t index) { return child.m_function.m_capture_types[index]; })
+		| std::ranges::to<std::vector>();
+	for (MidoriIRInstruction& instruction : child.m_function.Block(MidoriIRFunction::s_entry_block).m_instructions)
+	{
+		if (instruction.m_op == MidoriIROp::GetCapture)
 		{
-			return m_self.LowerBinary(binary);
+			MidoriIRIndex& capture = std::get<MidoriIRIndex>(instruction.m_immediate);
+			capture.m_value = position[capture.m_value];
 		}
+	}
 
-		Lowered operator()(MidoriExpression::UnaryPrefix& unary) const
-		{
-			return m_self.LowerUnary(unary);
-		}
-
-		Lowered operator()(MidoriExpression::As& as) const
-		{
-			return m_self.LowerAs(as);
-		}
-
-		Lowered operator()(MidoriExpression::NameAccess& name) const
-		{
-			return m_self.LowerName(name);
-		}
-
-		Lowered operator()(MidoriExpression::IfElse& if_else) const
-		{
-			return m_self.LowerIf(if_else);
-		}
-
-		Lowered operator()(MidoriExpression::Block& block) const
-		{
-			return m_self.LowerBlock(block);
-		}
-
-		Lowered operator()(MidoriExpression::Function& function) const
-		{
-			return m_self.LowerFunction(function);
-		}
-
-		Lowered operator()(MidoriExpression::Call& call) const
-		{
-			return m_self.LowerCall(call);
-		}
-
-		Lowered operator()(MidoriExpression::UnarySuffix& unary) const
-		{
-			return std::unexpected(m_self.Unsupported("a suffix operator", unary.m_op));
-		}
-
-		Lowered operator()(MidoriExpression::Tuple& tuple) const
-		{
-			return std::unexpected(m_self.Unsupported("a tuple", tuple.m_op));
-		}
-
-		Lowered operator()(MidoriExpression::Spawn& spawn) const
-		{
-			return std::unexpected(m_self.Unsupported("spawn", spawn.m_spawn_keyword));
-		}
-
-		Lowered operator()(MidoriExpression::Join& join) const
-		{
-			return std::unexpected(m_self.Unsupported("join", join.m_join_keyword));
-		}
-
-		Lowered operator()(MidoriExpression::ChannelCreate& channel) const
-		{
-			return std::unexpected(m_self.Unsupported("a channel", channel.m_channel_keyword));
-		}
-
-		Lowered operator()(MidoriExpression::Send& send) const
-		{
-			return std::unexpected(m_self.Unsupported("a send", send.m_arrow));
-		}
-
-		Lowered operator()(MidoriExpression::Receive& receive) const
-		{
-			return std::unexpected(m_self.Unsupported("a receive", receive.m_arrow));
-		}
-
-		Lowered operator()(MidoriExpression::Construct& construct) const
-		{
-			return std::unexpected(m_self.Unsupported("a constructor", construct.m_data_name));
-		}
-
-		Lowered operator()(MidoriExpression::RecordUpdate& record_update) const
-		{
-			return std::unexpected(m_self.Unsupported("a record update", record_update.m_with_keyword));
-		}
-
-		Lowered operator()(MidoriExpression::MemberAccess& member) const
-		{
-			return std::unexpected(m_self.Unsupported("a member access", member.m_member_name));
-		}
-
-		Lowered operator()(MidoriExpression::Array& array) const
-		{
-			return std::unexpected(m_self.Unsupported("an array", array.m_op));
-		}
-
-		Lowered operator()(MidoriExpression::IndexAccess& index) const
-		{
-			return std::unexpected(m_self.Unsupported("an index", index.m_op));
-		}
-
-		Lowered operator()(MidoriExpression::ArrayComprehension& comprehension) const
-		{
-			return std::unexpected(m_self.Unsupported("an array comprehension", comprehension.m_bracket));
-		}
-
-		Lowered operator()(MidoriExpression::RangeBinary& range) const
-		{
-			return std::unexpected(m_self.Unsupported("a range", range.m_range_op));
-		}
-
-		Lowered operator()(MidoriExpression::RangeTernary& range) const
-		{
-			return std::unexpected(m_self.Unsupported("a range", range.m_first_range_op));
-		}
-
-		Lowered operator()(MidoriExpression::Match& match) const
-		{
-			return std::unexpected(m_self.Unsupported("match", match.m_match_keyword));
-		}
-
-		Lowered operator()(MidoriExpression::Case& case_expression) const
-		{
-			return std::unexpected(m_self.Unsupported("match", case_expression.m_keyword));
-		}
-
-		Lowered operator()(MidoriExpression::For& for_expression) const
-		{
-			return std::unexpected(m_self.Unsupported("a for loop", for_expression.m_for_keyword));
-		}
-	};
-
-	return VisitNode(ExpressionLowering{ *this }, expression);
+	const MidoriIRValueId closure = Builder().AtLine(line).Emit(MidoriIROp::MakeClosure, closure_type, std::move(operands), child.m_id, std::move(name));
+	for (const size_t index : late)
+	{
+		parent.m_pending_captures.push_back(PendingCapture{ closure, position[index], child.m_captures[index].m_index });
+	}
+	return closure;
 }
 
-// A call in tail position runs without a new frame, whatever it calls: the
-// language promises it. Tail position reaches through `if` branches and a
-// block's final expression.
-Lowering::Emitted Lowering::LowerReturn(MidoriExpression& expression)
+Lowering::Lowered Lowering::LowerFunction(MidoriExpression::Function& function)
 {
-	if (expression.IsExpression<MidoriExpression::Group>())
+	const int line = function.m_function_keyword.m_line;
+	const TypeRef closure_type = ClosureType(Concrete(function.m_type_data));
+	const MidoriType::FunctionType& signature = closure_type->GetType<MidoriType::FunctionType>();
+	const MidoriIRFunctionId id = NewFunction(std::format("Anonymous Function at line: {}", line), signature.m_return_type, Scope().m_specialization);
+	FunctionScope scope(id, m_functions[id.m_index], Scope().m_specialization, &Scope(), function.m_captured_count);
+	return LowerFunctionBody(scope, signature.m_param_types, function.m_params, *function.m_body)
+		.and_then([&]() { return MakeClosure(scope, closure_type, line); });
+}
+
+// One function per generic and set of argument types. Its types come from the
+// arguments', and from the call's where only the result names a type parameter.
+std::expected<MidoriIRFunctionId, CompilerError> Lowering::Specialize(const std::string& key, const std::vector<TypeRef>& argument_types, const TypeRef& call_type)
+{
+	const GenericFunctionInfo& info = m_generics.At(key);
+	GenericTypes::TypeEnvironment types;
+	GenericTypes::Deduce(info.m_generic_return_type, call_type, types);
+	for (size_t index = 0u; index < info.m_param_types.size() && index < argument_types.size(); index += 1u)
 	{
-		return LowerReturn(*expression.GetExpression<MidoriExpression::Group>().m_expr_in);
+		GenericTypes::Deduce(info.m_param_types[index], argument_types[index], types);
 	}
-
-	if (expression.IsExpression<MidoriExpression::IfElse>())
+	// `where Iterable::Item<S> ~ A` is what says A, once S is known.
+	for (const MidoriType::ClassConstraint& constraint : info.m_constraints)
 	{
-		MidoriExpression::IfElse& if_else = expression.GetExpression<MidoriExpression::IfElse>();
-		return Lower(*if_else.m_condition)
-			.and_then([this, &if_else](MidoriIRValueId condition) -> Emitted
-			{
-				const MidoriIRBlockId then_block = Builder().CreateBlock();
-				const MidoriIRBlockId else_block = Builder().CreateBlock();
-				Builder().AtLine(if_else.m_if_token.m_line).Branch(condition, MidoriIRSuccessor(then_block), MidoriIRSuccessor(else_block));
-
-				Builder().PositionAt(then_block);
-				return LowerReturn(*if_else.m_true_branch)
-					.and_then([this, &if_else, else_block]() -> Emitted
-					{
-						Builder().PositionAt(else_block);
-						if (if_else.m_else_branch == nullptr)
-						{
-							Builder().Return(Builder().ConstUnit());
-							return {};
-						}
-						return LowerReturn(*if_else.m_else_branch);
-					});
-			});
-	}
-
-	if (expression.IsExpression<MidoriExpression::Block>())
-	{
-		MidoriExpression::Block& block = expression.GetExpression<MidoriExpression::Block>();
-		for (std::unique_ptr<MidoriStatement>& statement : block.m_stmts)
+		if (!constraint.IsEquality())
 		{
-			const Emitted lowered = LowerStatement(*statement);
-			if (!lowered.has_value())
-			{
-				return lowered;
-			}
+			continue;
 		}
-		if (!block.m_final_expr.has_value())
+		const TypeRef projected = Substitute(constraint.m_equality_lhs, types);
+		if (GenericTypes::IsConcrete(projected))
 		{
-			Builder().AtLine(block.m_right_brace.m_line).Return(Builder().ConstUnit());
-			return {};
+			GenericTypes::Deduce(constraint.m_equality_rhs, projected, types);
 		}
-		return LowerReturn(*block.m_final_expr.value());
 	}
 
-	if (expression.IsExpression<MidoriExpression::Call>() && !expression.GetExpression<MidoriExpression::Call>().m_is_foreign)
+	const std::string signature = std::format("{}<{}>", key, argument_types
+		| std::views::transform([](const TypeRef& type) { return type->ToString(); })
+		| std::views::join_with(',')
+		| std::ranges::to<std::string>());
+	const TypeRef declared_return = Substitute(info.m_generic_return_type, types);
+	const TypeRef return_type = GenericTypes::IsConcrete(declared_return) ? declared_return : call_type;
+	const std::string cache_key = std::format("{}->{}", signature, return_type->ToString());
+	const std::unordered_map<std::string, MidoriIRFunctionId>::const_iterator existing = m_specialized_functions.find(cache_key);
+	if (existing != m_specialized_functions.cend())
 	{
-		return LowerTailCall(expression.GetExpression<MidoriExpression::Call>());
+		return existing->second;
+	}
+	const std::unordered_map<std::string, MidoriIRFunctionId>::const_iterator by_arguments = m_specializations_by_arguments.find(signature);
+	if (!GenericTypes::IsConcrete(return_type) && by_arguments != m_specializations_by_arguments.cend())
+	{
+		return by_arguments->second;
 	}
 
-	return Lower(expression)
-		.transform([this](MidoriIRValueId value)
+	const bool is_foreign = !info.m_defining_module.empty() && info.m_defining_module != m_module_name;
+	const std::optional<std::string> source_module = is_foreign ? std::optional<std::string>(info.m_defining_module) : std::nullopt;
+	const std::shared_ptr<const ForeignIndices> foreign_indices = is_foreign ? info.m_builtin_foreign_indices : m_foreign_indices;
+	MethodResolutionMap methods = m_resolver.ResolveConstraints(info.m_constraints, types);
+	const Specialization& specialization = m_specializations.emplace_back(std::move(types), std::move(methods), source_module, foreign_indices);
+
+	const MidoriIRFunctionId id = NewFunction(signature, return_type, specialization);
+	m_specialized_functions.emplace(cache_key, id);
+	m_specializations_by_arguments.emplace(signature, id);
+	FunctionScope scope(id, m_functions[id.m_index], specialization, nullptr, info.m_captured_count);
+	const std::shared_ptr<MidoriExpression> body = info.m_body;
+	const std::vector<Token> params = info.m_params;
+	return LowerFunctionBody(scope, argument_types, params, *body)
+		.transform([id]() { return id; });
+}
+
+bool Lowering::IsForeignFunction(const TypeRef& type) const
+{
+	return type->IsType<MidoriType::FunctionType>() && type->GetType<MidoriType::FunctionType>().m_is_foreign;
+}
+
+// A foreign declaration's global holds its name: this module's, one another
+// module declared, or, inside a specialization, the defining module's.
+bool Lowering::IsForeignDeclaration(const std::string& name)
+{
+	const std::unordered_map<std::string, TopLevelName>::const_iterator own = m_top_level_names.find(name);
+	const bool is_own = !Scope().m_specialization.m_source_module.has_value() && own != m_top_level_names.cend();
+	return !is_own || m_module.m_globals[own->second.m_slot.m_value].m_type->IsType<MidoriType::TextType>();
+}
+
+// A foreign function used as a value is a function that calls it.
+Lowering::Lowered Lowering::LowerForeignValue(const Token& name, const TypeRef& type)
+{
+	const TypeRef closure_type = ClosureType(type);
+	const MidoriType::FunctionType& signature = closure_type->GetType<MidoriType::FunctionType>();
+	const MidoriIRFunctionId id = NewFunction(std::format("foreign {}", name.m_lexeme), signature.m_return_type, Scope().m_specialization);
+	FunctionScope scope(id, m_functions[id.m_index], Scope().m_specialization, &Scope(), 0);
+	std::vector<MidoriIRValueId> arguments;
+	for (const TypeRef& parameter_type : signature.m_param_types)
+	{
+		arguments.push_back(scope.m_builder.AddParameter(MidoriIRFunction::s_entry_block, parameter_type));
+	}
+
+	m_scopes.push_back(&scope);
+	Builder().AtLine(name.m_line);
+	const ForeignIndices::const_iterator builtin = Scope().m_specialization.m_foreign_indices->find(name.m_lexeme);
+	const Emitted lowered = builtin != Scope().m_specialization.m_foreign_indices->cend()
+		? Emitted()
+		: GlobalFor(name, TextType()).transform([this, &arguments](MidoriIRGlobalSlot slot)
 		{
-			Builder().Return(value);
+			arguments.insert(arguments.begin(), Builder().Emit(MidoriIROp::GlobalGet, TextType(), {}, slot));
 		});
-}
-
-Lowering::Lowered Lowering::LowerLiteral(const MidoriExpression::Literal& literal)
-{
-	const Token& token = literal.m_token;
-	Builder().AtLine(token.m_line);
-	switch (literal.m_kind)
+	if (lowered.has_value())
 	{
-	case MidoriExpression::LiteralKind::Text:
-		return Builder().ConstText(token.m_lexeme);
-	case MidoriExpression::LiteralKind::Bool:
-		return Builder().ConstBool(token.m_lexeme == "true");
-	case MidoriExpression::LiteralKind::Float:
-		return Builder().ConstFloat(ParseFloatLiteral(token.m_lexeme).value());
-	case MidoriExpression::LiteralKind::Unit:
-		return Builder().ConstUnit();
-	case MidoriExpression::LiteralKind::Integer:
-	{
-		const std::optional<int64_t> value = ParseIntegerLiteral(token.m_lexeme);
-		if (!value.has_value())
-		{
-			return std::unexpected(MidoriError::GenerateCodeGeneratorErrorWithContext("Integer literal '" + token.m_lexeme + "' is out of range. Maximum value is 9223372036854775807 (2^63 - 1), minimum value is -9223372036854775808 (-2^63).", token, m_file_name, m_source_lines));
-		}
-		return Builder().ConstInt(value.value());
+		const MidoriIRImmediate foreign = builtin != Scope().m_specialization.m_foreign_indices->cend() ? MidoriIRImmediate(MidoriIRForeign{ std::string(MarmotBuiltins::At(builtin->second).m_name) }) : MidoriIRImmediate();
+		const MidoriIRValueId result = Builder().Emit(MidoriIROp::CallForeign, signature.m_return_type, std::move(arguments), foreign);
+		Builder().Return(result);
 	}
-	case MidoriExpression::LiteralKind::Byte:
+	m_scopes.pop_back();
+	if (!lowered.has_value())
 	{
-		const std::optional<uint64_t> value = ParseUnsignedLiteral(token.m_lexeme);
-		if (!value.has_value() || value.value() > 0xFFu)
-		{
-			return std::unexpected(MidoriError::GenerateCodeGeneratorErrorWithContext("Byte literal '" + token.m_lexeme + "' is out of range. Maximum value is 255 (0xFF).", token, m_file_name, m_source_lines));
-		}
-		return Builder().Emit(MidoriIROp::Const, MidoriType::MakeLiteralType<MidoriType::ByteType>(), {}, MidoriIRByte{ static_cast<uint8_t>(value.value()) });
+		return std::unexpected(lowered.error());
 	}
-	case MidoriExpression::LiteralKind::Word:
-	{
-		const std::optional<uint64_t> value = ParseUnsignedLiteral(token.m_lexeme);
-		if (!value.has_value())
-		{
-			return std::unexpected(MidoriError::GenerateCodeGeneratorErrorWithContext("Word literal '" + token.m_lexeme + "' is out of range. Maximum value is 18446744073709551615 (0xFFFFFFFFFFFFFFFF).", token, m_file_name, m_source_lines));
-		}
-		return Builder().Emit(MidoriIROp::Const, MidoriType::MakeLiteralType<MidoriType::WordType>(), {}, MidoriIRWord{ value.value() });
-	}
-	}
-	std::unreachable();
-}
-
-Lowering::Lowered Lowering::LowerBinary(MidoriExpression::Binary& binary)
-{
-	const Token& op = binary.m_op;
-	if (op.m_token_name == Token::Name::DOUBLE_AMPERSAND || op.m_token_name == Token::Name::DOUBLE_BAR)
-	{
-		return LowerShortCircuit(binary);
-	}
-	if (binary.m_uses_concatenable || binary.m_uses_equatable || binary.m_uses_orderable)
-	{
-		return std::unexpected(Unsupported("an operator a class instance provides", op));
-	}
-
-	const TypeRef& operand_type = binary.m_left->GetType();
-	const std::optional<MidoriIRScalar> scalar = ScalarOf(operand_type);
-	const std::optional<ScalarOps> ops = BinaryOps(op.m_token_name);
-	const std::optional<MidoriIROp> ir_op = (scalar.has_value() && ops.has_value()) ? SelectOp(ops.value(), scalar.value()) : std::nullopt;
-	if (!ir_op.has_value())
-	{
-		return std::unexpected(Unsupported(std::format("'{}' on {}", op.m_lexeme, operand_type->DisplayString()), op));
-	}
-
-	return Lower(*binary.m_left)
-		.and_then([this, &binary](MidoriIRValueId left)
-		{
-			return Lower(*binary.m_right)
-				.transform([left](MidoriIRValueId right) { return std::pair{ left, right }; });
-		})
-		.transform([this, &op, ir_op, scalar](std::pair<MidoriIRValueId, MidoriIRValueId> operands)
-		{
-			Builder().AtLine(op.m_line);
-			if (GetMidoriIROpInfo(ir_op.value()).m_arity == MidoriIRArity::Binary)
-			{
-				return Builder().Binary(ir_op.value(), operands.first, operands.second);
-			}
-			return Builder().Emit(ir_op.value(), MidoriIRScalarType(scalar.value()), { operands.first, operands.second });
-		});
-}
-
-// `a && b` is `b` when `a` holds and `a` otherwise; `a || b` the other way.
-Lowering::Lowered Lowering::LowerShortCircuit(MidoriExpression::Binary& binary)
-{
-	const bool is_and = binary.m_op.m_token_name == Token::Name::DOUBLE_AMPERSAND;
-	return Lower(*binary.m_left)
-		.and_then([this, &binary, is_and](MidoriIRValueId left) -> Lowered
-		{
-			const MidoriIRBlockId right_block = Builder().CreateBlock();
-			const MidoriIRBlockId join = Builder().CreateBlock();
-			const MidoriIRValueId result = Builder().AddParameter(join, MidoriIRScalarType(MidoriIRScalar::Bool));
-			const MidoriIRSuccessor evaluate_right(right_block);
-			const MidoriIRSuccessor skip_right(join, { left });
-			Builder().AtLine(binary.m_op.m_line).Branch(left, is_and ? evaluate_right : skip_right, is_and ? skip_right : evaluate_right);
-
-			Builder().PositionAt(right_block);
-			return Lower(*binary.m_right)
-				.transform([this, join, result](MidoriIRValueId right)
-				{
-					Builder().Jump(join, { right });
-					Builder().PositionAt(join);
-					return result;
-				});
-		});
-}
-
-Lowering::Lowered Lowering::LowerUnary(MidoriExpression::UnaryPrefix& unary)
-{
-	const Token& op = unary.m_op;
-	if (op.m_token_name == Token::Name::SINGLE_PLUS)
-	{
-		return Lower(*unary.m_expr);
-	}
-
-	const TypeRef& operand_type = unary.m_expr->GetType();
-	const std::optional<MidoriIRScalar> scalar = ScalarOf(operand_type);
-	const std::optional<MidoriIROp> ir_op = [&]() -> std::optional<MidoriIROp>
-	{
-		if (!scalar.has_value())
-		{
-			return std::nullopt;
-		}
-		using enum MidoriIROp;
-		switch (op.m_token_name)
-		{
-		case Token::Name::SINGLE_MINUS:
-			return SelectOp(ScalarOps{ NegInt, NegFloat, std::nullopt, std::nullopt, std::nullopt, std::nullopt }, scalar.value());
-		case Token::Name::BANG:
-			return SelectOp(ScalarOps{ std::nullopt, std::nullopt, std::nullopt, std::nullopt, NotBool, std::nullopt }, scalar.value());
-		case Token::Name::TILDE:
-			return SelectOp(ScalarOps{ BitNotInt, std::nullopt, BitNotByte, BitNotWord, std::nullopt, std::nullopt }, scalar.value());
-		default:
-			return std::nullopt;
-		}
-	}();
-	if (!ir_op.has_value())
-	{
-		return std::unexpected(Unsupported(std::format("'{}' on {}", op.m_lexeme, operand_type->DisplayString()), op));
-	}
-
-	return Lower(*unary.m_expr)
-		.transform([this, &op, ir_op](MidoriIRValueId operand)
-		{
-			return Builder().AtLine(op.m_line).Unary(ir_op.value(), operand);
-		});
-}
-
-Lowering::Lowered Lowering::LowerAs(MidoriExpression::As& as)
-{
-	const Token& keyword = as.m_as_keyword;
-	if (as.m_uses_convertable)
-	{
-		return std::unexpected(Unsupported("a conversion a Convertable instance provides", keyword));
-	}
-
-	const TypeRef from_type = as.m_from_type.lock();
-	const TypeRef& to_type = as.m_to_type;
-	if (*from_type == *to_type)
-	{
-		return Lower(*as.m_expr);
-	}
-
-	const std::optional<MidoriIRScalar> from = ScalarOf(from_type);
-	const std::optional<MidoriIRScalar> to = ScalarOf(to_type);
-	const bool is_bool_to_text = from == MidoriIRScalar::Bool && to == MidoriIRScalar::Text;
-	const std::vector<MidoriIROp> ops = (from.has_value() && to.has_value()) ? ConversionOps(from.value(), to.value()) : std::vector<MidoriIROp>{};
-	if (!is_bool_to_text && ops.empty())
-	{
-		return std::unexpected(Unsupported(std::format("a conversion from {} to {}", from_type->DisplayString(), to_type->DisplayString()), keyword));
-	}
-
-	return Lower(*as.m_expr)
-		.and_then([this, &keyword, is_bool_to_text, &ops](MidoriIRValueId value) -> Lowered
-		{
-			Builder().AtLine(keyword.m_line);
-			if (is_bool_to_text)
-			{
-				return LowerBoolToText(value, keyword.m_line);
-			}
-			return std::ranges::fold_left(ops, value, [this](MidoriIRValueId operand, MidoriIROp op) { return Builder().Unary(op, operand); });
-		});
-}
-
-Lowering::Lowered Lowering::LowerBoolToText(MidoriIRValueId value, int line)
-{
-	const MidoriIRBlockId when_true = Builder().CreateBlock();
-	const MidoriIRBlockId when_false = Builder().CreateBlock();
-	const MidoriIRBlockId join = Builder().CreateBlock();
-	const MidoriIRValueId text = Builder().AddParameter(join, MidoriIRScalarType(MidoriIRScalar::Text));
-	Builder().AtLine(line).Branch(value, MidoriIRSuccessor(when_true), MidoriIRSuccessor(when_false));
-
-	Builder().PositionAt(when_true);
-	Builder().Jump(join, { Builder().ConstText("true") });
-	Builder().PositionAt(when_false);
-	Builder().Jump(join, { Builder().ConstText("false") });
-	Builder().PositionAt(join);
-	return text;
+	return MakeClosure(scope, closure_type, name.m_line);
 }
 
 Lowering::Lowered Lowering::LowerName(const MidoriExpression::NameAccess& name)
@@ -987,14 +979,37 @@ Lowering::Lowered Lowering::LowerName(const MidoriExpression::NameAccess& name)
 	}
 	if (std::holds_alternative<MidoriExpression::NameContext::Cell>(name.m_name_ctx))
 	{
-		return std::unexpected(Unsupported("a name a closure captures", token));
-	}
-	if (m_builtin_foreigns.contains(token.m_lexeme))
-	{
-		return std::unexpected(Unsupported("a foreign function used as a value", token));
+		FunctionScope& scope = Scope();
+		const LocalKey key = KeyForCell(scope, std::get<MidoriExpression::NameContext::Cell>(name.m_name_ctx).m_index);
+		return CaptureFor(scope, key, Concrete(name.m_type_data));
 	}
 
-	return GlobalFor(token, name.m_type_data)
+	const std::string& lexeme = token.m_lexeme;
+	const Specialization& specialization = Scope().m_specialization;
+	if (specialization.m_methods.contains(lexeme))
+	{
+		const MethodResolution<std::string> resolved = m_resolver.ResolveConstrainedValue(specialization.m_methods, lexeme);
+		if (!resolved.has_value())
+		{
+			return std::unexpected(ResolutionError(resolved.error(), token));
+		}
+		return LoadResolved(resolved.value(), Concrete(name.m_type_data), token);
+	}
+
+	if (!m_top_level_names.contains(lexeme) && m_generics.FindKey(lexeme, specialization.m_source_module).has_value())
+	{
+		return std::unexpected(Error(CompilerErrorCode::LoweringUnresolvedMethodResolution, std::format("Generic function '{}' is monomorphised at each call site, so it has no single procedure to use as a value. Call it directly, or wrap it in a non-generic lambda that pins its type parameters.", lexeme), token));
+	}
+	if (IsForeignFunction(name.m_type_data))
+	{
+		return LowerForeignValue(token, Concrete(name.m_type_data));
+	}
+	if (m_resolver.IsClassMethod(lexeme))
+	{
+		return std::unexpected(Unsupported("a class method used as a value", token));
+	}
+
+	return GlobalFor(token, Concrete(name.m_type_data))
 		.transform([this, &token](MidoriIRGlobalSlot slot)
 		{
 			const MidoriIRGlobal& global = m_module.m_globals[slot.m_value];
@@ -1002,161 +1017,352 @@ Lowering::Lowered Lowering::LowerName(const MidoriExpression::NameAccess& name)
 		});
 }
 
-Lowering::Lowered Lowering::LowerIf(MidoriExpression::IfElse& if_else)
+// A bare name inside a specialization of another module's generic is one of
+// that module's, whatever this module defines.
+std::expected<MidoriIRGlobalSlot, CompilerError> Lowering::GlobalFor(const Token& name, const TypeRef& type)
 {
-	return Lower(*if_else.m_condition)
-		.and_then([this, &if_else](MidoriIRValueId condition) -> Lowered
-		{
-			const MidoriIRBlockId then_block = Builder().CreateBlock();
-			const MidoriIRBlockId else_block = Builder().CreateBlock();
-			const MidoriIRBlockId join = Builder().CreateBlock();
-			const MidoriIRValueId result = Builder().AddParameter(join, if_else.m_type_data);
-			Builder().AtLine(if_else.m_if_token.m_line).Branch(condition, MidoriIRSuccessor(then_block), MidoriIRSuccessor(else_block));
+	const std::string& lexeme = name.m_lexeme;
+	const TypeRef import_type = type->IsType<MidoriType::FunctionType>() ? ClosureType(type) : type;
+	const size_t separator = lexeme.find(NameSeparator);
+	const std::optional<std::string>& source_module = Scope().m_specialization.m_source_module;
+	if (source_module.has_value() && separator == std::string::npos)
+	{
+		return ImportGlobal(source_module.value(), lexeme, import_type, name);
+	}
 
-			return LowerJoinedBranch(then_block, if_else.m_true_branch.get(), join)
-				.and_then([&]() { return LowerJoinedBranch(else_block, if_else.m_else_branch.get(), join); })
-				.transform([this, join, result]()
-				{
-					Builder().PositionAt(join);
-					return result;
-				});
+	const std::unordered_map<std::string, TopLevelName>::const_iterator own = m_top_level_names.find(lexeme);
+	if (own != m_top_level_names.cend())
+	{
+		return own->second.m_slot;
+	}
+	if (separator == std::string::npos)
+	{
+		return std::unexpected(Unsupported(std::format("'{}'", lexeme), name));
+	}
+	return ImportGlobal(lexeme.substr(0u, separator), lexeme.substr(separator + NameSeparator.length()), import_type, name);
+}
+
+// A resolved instance method is `name`, a global of this module, or
+// `name@Module`, one of Module's.
+std::expected<MidoriIRGlobalSlot, CompilerError> Lowering::GlobalForResolved(const std::string& resolved_name, const TypeRef& type, const Token& at)
+{
+	const ResolvedInstanceName name(resolved_name);
+	if (name.m_module.has_value())
+	{
+		if (m_generics.FindKey(resolved_name, Scope().m_specialization.m_source_module).has_value())
+		{
+			return std::unexpected(Error(CompilerErrorCode::LoweringUnresolvedMethodResolution, std::format("Constrained instance method '{}' from module '{}' is monomorphised at each call site, so it has no address to take. Call it directly instead of using it through an operator or as a value.", name.m_symbol, name.m_module.value()), at));
+		}
+		return ImportGlobal(name.m_module.value(), name.m_symbol, type, at);
+	}
+
+	const std::unordered_map<std::string, TopLevelName>::const_iterator own = m_top_level_names.find(name.m_symbol);
+	if (own == m_top_level_names.cend())
+	{
+		return std::unexpected(Error(CompilerErrorCode::None, std::format("Resolved symbol '{}' not found in globals.", resolved_name), at));
+	}
+	return own->second.m_slot;
+}
+
+MidoriIRGlobalSlot Lowering::ImportGlobal(const std::string& module, const std::string& symbol, const TypeRef& type, const Token& at)
+{
+	const std::string key = module + std::string(NameSeparator) + symbol;
+	const std::unordered_map<std::string, MidoriIRGlobalSlot>::const_iterator imported = m_import_slots.find(key);
+	if (imported != m_import_slots.cend())
+	{
+		return imported->second;
+	}
+
+	const MidoriIRGlobalSlot slot = m_module.ReserveImport(module, symbol, type);
+	m_import_slots.emplace(key, slot);
+	m_import_tokens.emplace_back(slot, at);
+	return slot;
+}
+
+Lowering::Lowered Lowering::LoadResolved(const std::string& resolved_name, const TypeRef& type, const Token& at)
+{
+	return GlobalForResolved(resolved_name, type, at)
+		.transform([this, &at](MidoriIRGlobalSlot slot)
+		{
+			const MidoriIRGlobal& global = m_module.m_globals[slot.m_value];
+			return Builder().AtLine(at.m_line).Emit(MidoriIROp::GlobalGet, global.m_type, {}, slot, global.m_name);
 		});
 }
 
-// An `if` without an `else` is Unit when its condition fails.
-Lowering::Emitted Lowering::LowerJoinedBranch(MidoriIRBlockId block, MidoriExpression* branch, MidoriIRBlockId join)
+// A constrained instance's method is a generic, specialized for these
+// arguments; this module's own is called directly; another module's through
+// its global.
+Lowering::Lowered Lowering::CallResolved(const std::string& resolved_name, std::vector<MidoriIRValueId> arguments, const std::vector<TypeRef>& argument_types, const TypeRef& result_type, const Token& at)
 {
-	Builder().PositionAt(block);
-	const Lowered value = branch == nullptr ? Lowered(Builder().ConstUnit()) : Lower(*branch);
-	return value.transform([this, join](MidoriIRValueId branch_value) { Builder().Jump(join, { branch_value }); });
-}
-
-Lowering::Lowered Lowering::LowerBlock(MidoriExpression::Block& block)
-{
-	for (std::unique_ptr<MidoriStatement>& statement : block.m_stmts)
+	const std::optional<std::string> generic_key = m_generics.FindKey(resolved_name, Scope().m_specialization.m_source_module);
+	if (generic_key.has_value())
 	{
-		const Emitted lowered = LowerStatement(*statement);
-		if (!lowered.has_value())
+		return Specialize(generic_key.value(), argument_types, result_type)
+			.transform([&](MidoriIRFunctionId function)
+			{
+				return Builder().AtLine(at.m_line).Emit(MidoriIROp::Call, m_functions[function.m_index].m_return_type, std::move(arguments), function);
+			});
+	}
+
+	const ResolvedInstanceName name(resolved_name);
+	if (!name.m_module.has_value())
+	{
+		const std::unordered_map<std::string, TopLevelName>::const_iterator own = m_top_level_names.find(name.m_symbol);
+		if (own != m_top_level_names.cend() && own->second.m_function.has_value())
 		{
-			return std::unexpected(lowered.error());
+			const MidoriIRFunctionId function = own->second.m_function.value();
+			return Builder().AtLine(at.m_line).Emit(MidoriIROp::Call, m_functions[function.m_index].m_return_type, std::move(arguments), function);
 		}
 	}
 
-	if (block.m_final_expr.has_value())
-	{
-		return Lower(*block.m_final_expr.value());
-	}
-	return Builder().AtLine(block.m_right_brace.m_line).ConstUnit();
+	return GlobalForResolved(resolved_name, MidoriType::MakeFunctionType(argument_types, TypeRef(result_type)), at)
+		.transform([&](MidoriIRGlobalSlot slot)
+		{
+			return Builder().AtLine(at.m_line).Emit(MidoriIROp::CallGlobal, result_type, std::move(arguments), slot);
+		});
 }
 
-Lowering::Lowered Lowering::LowerFunction(MidoriExpression::Function& function)
+std::optional<std::string> Lowering::IntrinsicName(const MidoriExpression::Call& call) const
 {
-	const Token& keyword = function.m_function_keyword;
-	if (function.m_captured_count > 0)
+	const MidoriExpression::NameAccess* name = GlobalName(*call.m_callee);
+	if (name == nullptr || !std::ranges::contains(s_intrinsic_calls, name->m_name.m_lexeme))
 	{
-		return std::unexpected(Unsupported("a closure that can capture a local", keyword));
+		return std::nullopt;
 	}
+	return name->m_name.m_lexeme;
+}
 
-	const TypeRef closure_type = ClosureType(function.m_type_data);
-	const MidoriType::FunctionType& signature = closure_type->GetType<MidoriType::FunctionType>();
-	const MidoriIRFunctionId id = NewFunction(std::format("Anonymous Function at line: {}", keyword.m_line), signature.m_return_type);
-	return LowerFunctionBody(id, signature.m_param_types, function.m_params, *function.m_body)
-		.transform([this, id, &closure_type, &keyword]()
-		{
-			return Builder().AtLine(keyword.m_line).Emit(MidoriIROp::MakeClosure, closure_type, {}, id);
-		});
+Lowering::Lowered Lowering::LowerIntrinsic(const std::string& name, MidoriExpression::Call& call)
+{
+	struct Intrinsic
+	{
+		std::string_view m_name;
+		MidoriIROp m_op;
+	};
+	static constexpr std::array<Intrinsic, 6u> s_intrinsics =
+	{{
+		{ "Cell::New", MidoriIROp::CellNew },
+		{ "Cell::Get", MidoriIROp::CellRead },
+		{ "Cell::Set", MidoriIROp::CellWrite },
+		{ "Concurrency::Close", MidoriIROp::ChannelClose },
+		{ "Concurrency::IsDone", MidoriIROp::WorkerIsDone },
+		{ "Concurrency::Cancel", MidoriIROp::WorkerCancel }
+	}};
+
+	const MidoriIROp op = std::ranges::find(s_intrinsics, name, &Intrinsic::m_name)->m_op;
+	std::vector<MidoriExpression*> operands = call.m_arguments
+		| std::views::transform([](std::unique_ptr<MidoriExpression>& argument) { return argument.get(); })
+		| std::ranges::to<std::vector>();
+	return LowerOperation(op, Concrete(call.m_type_data), std::move(operands), {}, call.m_paren.m_line);
 }
 
 Lowering::Lowered Lowering::LowerCall(MidoriExpression::Call& call)
 {
-	const Token& paren = call.m_paren;
-	const MidoriExpression::NameAccess* callee_name = GlobalName(*call.m_callee);
-	if (callee_name != nullptr && std::ranges::contains(s_intrinsic_calls, callee_name->m_name.m_lexeme))
+	const std::optional<std::string> intrinsic = IntrinsicName(call);
+	if (intrinsic.has_value())
 	{
-		return std::unexpected(Unsupported(callee_name->m_name.m_lexeme, callee_name->m_name));
+		return LowerIntrinsic(intrinsic.value(), call);
 	}
 
-	const std::optional<std::string> foreign = BuiltinForeignCallee(call);
-	if (call.m_is_foreign && !foreign.has_value())
-	{
-		return std::unexpected(Unsupported("a call of another module's foreign function", paren));
-	}
-
+	const TypeRef call_type = Concrete(call.m_type_data);
+	const int line = call.m_paren.m_line;
 	return LowerArguments(call.m_arguments)
-		.and_then([this, &call, &paren, callee_name, &foreign](std::vector<MidoriIRValueId> arguments) -> Lowered
+		.and_then([&](std::vector<MidoriIRValueId> arguments) -> Lowered
 		{
-			const TypeRef& type = call.m_type_data;
-			if (foreign.has_value())
+			if (IsDead())
 			{
-				return Builder().AtLine(paren.m_line).Emit(MidoriIROp::CallForeign, type, std::move(arguments), MidoriIRForeign{ foreign.value() });
+				return Placeholder(call_type);
 			}
-
-			const std::optional<MidoriIRFunctionId> direct = DirectCallee(*call.m_callee);
-			if (direct.has_value())
-			{
-				return Builder().AtLine(paren.m_line).Emit(MidoriIROp::Call, type, std::move(arguments), direct.value());
-			}
-
-			if (callee_name != nullptr)
-			{
-				return GlobalFor(callee_name->m_name, callee_name->m_type_data)
-					.transform([this, &paren, &type, &arguments](MidoriIRGlobalSlot slot)
-					{
-						return Builder().AtLine(paren.m_line).Emit(MidoriIROp::CallGlobal, type, std::move(arguments), slot);
-					});
-			}
-
-			return Lower(*call.m_callee)
-				.transform([this, &paren, &type, &arguments](MidoriIRValueId callee)
+			return ResolveCallee(call, arguments, call_type)
+				.transform([&](Callee callee)
 				{
-					arguments.insert(arguments.begin(), callee);
-					return Builder().AtLine(paren.m_line).Emit(MidoriIROp::CallValue, type, std::move(arguments));
+					return EmitCall(callee, std::move(arguments), call_type, line);
 				});
 		});
 }
 
+// The language promises that a call in tail position runs without a new
+// frame, whatever it calls. A foreign call has no frame of its own to reuse,
+// and a call whose result is not the function's is not one it can return.
 Lowering::Emitted Lowering::LowerTailCall(MidoriExpression::Call& call)
 {
-	const Token& paren = call.m_paren;
-	const MidoriExpression::NameAccess* callee_name = GlobalName(*call.m_callee);
-	if (callee_name != nullptr && std::ranges::contains(s_intrinsic_calls, callee_name->m_name.m_lexeme))
+	if (call.m_is_foreign || IntrinsicName(call).has_value())
 	{
-		return std::unexpected(Unsupported(callee_name->m_name.m_lexeme, callee_name->m_name));
-	}
-	if (!(*call.m_type_data == *m_functions[Scope().m_id.m_index].m_return_type))
-	{
-		return std::unexpected(Unsupported("a tail call whose type is not the function's return type", paren));
+		return LowerCall(call)
+			.transform([this](MidoriIRValueId value)
+			{
+				Builder().Return(value);
+			});
 	}
 
+	const TypeRef call_type = Concrete(call.m_type_data);
+	const int line = call.m_paren.m_line;
 	return LowerArguments(call.m_arguments)
-		.and_then([this, &call, &paren, callee_name](std::vector<MidoriIRValueId> arguments) -> Emitted
+		.and_then([&](std::vector<MidoriIRValueId> arguments) -> Emitted
 		{
-			const std::optional<MidoriIRFunctionId> direct = DirectCallee(*call.m_callee);
-			if (direct.has_value())
+			if (IsDead())
 			{
-				Builder().AtLine(paren.m_line).TailCall(direct.value(), std::move(arguments));
+				Builder().Return(Placeholder(call_type));
 				return {};
 			}
-
-			if (callee_name != nullptr)
-			{
-				return GlobalFor(callee_name->m_name, callee_name->m_type_data)
-					.transform([this, &paren, &arguments](MidoriIRGlobalSlot slot)
-					{
-						Builder().AtLine(paren.m_line).TailCall(slot, std::move(arguments));
-					});
-			}
-
-			return Lower(*call.m_callee)
-				.transform([this, &paren, &arguments](MidoriIRValueId callee)
+			return ResolveCallee(call, arguments, call_type)
+				.transform([&](Callee callee)
 				{
-					arguments.insert(arguments.begin(), callee);
-					Builder().AtLine(paren.m_line).TailCall({}, std::move(arguments));
+					const TypeRef result_type = ResultTypeOf(callee, call_type);
+					if (!IsNever(result_type) && !MidoriIRSameType(result_type, Scope().m_function.m_return_type))
+					{
+						Builder().Return(EmitCall(callee, std::move(arguments), call_type, line));
+						return;
+					}
+					if (callee.m_value.has_value())
+					{
+						arguments.insert(arguments.begin(), callee.m_value.value());
+					}
+					Builder().AtLine(line).TailCall(callee.m_target, std::move(arguments));
 				});
 		});
 }
 
-std::expected<std::vector<MidoriIRValueId>, CompilerError> Lowering::LowerArguments(std::vector<std::unique_ptr<MidoriExpression>>& arguments)
+// A call's value has the type its callee returns, which the type checker does
+// not always record inside a generic's body.
+Lowering::TypeRef Lowering::ResultTypeOf(const Callee& callee, const TypeRef& call_type)
+{
+	const auto returned_by = [&call_type](const TypeRef& function_type)
+	{
+		return function_type->IsType<MidoriType::FunctionType>() ? function_type->GetType<MidoriType::FunctionType>().m_return_type : call_type;
+	};
+	if (std::holds_alternative<MidoriIRFunctionId>(callee.m_target))
+	{
+		return m_functions[std::get<MidoriIRFunctionId>(callee.m_target).m_index].m_return_type;
+	}
+	if (std::holds_alternative<MidoriIRGlobalSlot>(callee.m_target))
+	{
+		return returned_by(m_module.m_globals[std::get<MidoriIRGlobalSlot>(callee.m_target).m_value].m_type);
+	}
+	if (callee.m_value.has_value())
+	{
+		return returned_by(Scope().m_function.TypeOf(callee.m_value.value()));
+	}
+	return call_type;
+}
+
+MidoriIRValueId Lowering::EmitCall(const Callee& callee, std::vector<MidoriIRValueId> arguments, const TypeRef& call_type, int line)
+{
+	const TypeRef result_type = ResultTypeOf(callee, call_type);
+	const bool is_foreign = std::holds_alternative<MidoriIRForeign>(callee.m_target) || (callee.m_value.has_value() && !Scope().m_function.TypeOf(callee.m_value.value())->IsType<MidoriType::FunctionType>());
+	if (callee.m_value.has_value())
+	{
+		arguments.insert(arguments.begin(), callee.m_value.value());
+	}
+	const MidoriIROp op = std::holds_alternative<MidoriIRFunctionId>(callee.m_target) ? MidoriIROp::Call
+		: std::holds_alternative<MidoriIRGlobalSlot>(callee.m_target) ? MidoriIROp::CallGlobal
+		: is_foreign ? MidoriIROp::CallForeign
+		: MidoriIROp::CallValue;
+	const MidoriIRValueId result = Builder().AtLine(line).Emit(op, result_type, std::move(arguments), callee.m_target);
+	if (IsNever(result_type))
+	{
+		AfterNever();
+	}
+	return result;
+}
+
+// What a call runs: a builtin foreign function by name, another foreign one by
+// the name its global holds, the specialization of a generic, the instance
+// method a class method resolves to, this module's function, a global, or the
+// closure its callee evaluates to, after the arguments.
+std::expected<Lowering::Callee, CompilerError> Lowering::ResolveCallee(MidoriExpression::Call& call, const std::vector<MidoriIRValueId>& arguments, const TypeRef& call_type)
+{
+	const MidoriExpression::NameAccess* name = GlobalName(*call.m_callee);
+	const Specialization& specialization = Scope().m_specialization;
+	const Token& paren = call.m_paren;
+
+	// A foreign function is called by the name it is looked up by: a builtin
+	// by index, any other by the name its declaration holds. A value that only
+	// has a foreign function's type holds the closure that calls one.
+	if (call.m_is_foreign)
+	{
+		const MidoriExpression::NameAccess& foreign = call.m_callee->GetExpression<MidoriExpression::NameAccess>();
+		const ForeignIndices::const_iterator builtin = specialization.m_foreign_indices->find(foreign.m_name.m_lexeme);
+		if (builtin != specialization.m_foreign_indices->cend())
+		{
+			return Callee{ MidoriIRForeign{ std::string(MarmotBuiltins::At(builtin->second).m_name) }, std::nullopt };
+		}
+		if (name != nullptr && IsForeignDeclaration(name->m_name.m_lexeme))
+		{
+			return GlobalFor(name->m_name, TextType())
+				.transform([this, &paren](MidoriIRGlobalSlot slot)
+				{
+					const MidoriIRGlobal& global = m_module.m_globals[slot.m_value];
+					return Callee{ std::monostate{}, Builder().AtLine(paren.m_line).Emit(MidoriIROp::GlobalGet, global.m_type, {}, slot, global.m_name) };
+				});
+		}
+	}
+
+	if (name == nullptr)
+	{
+		return Lower(*call.m_callee)
+			.transform([](MidoriIRValueId closure) { return Callee{ std::monostate{}, closure }; });
+	}
+
+	const std::string& lexeme = name->m_name.m_lexeme;
+	std::vector<TypeRef> argument_types;
+	for (size_t index = 0u; index < arguments.size(); index += 1u)
+	{
+		argument_types.push_back(NominalType(*call.m_arguments[index], arguments[index]));
+	}
+	std::optional<std::string> resolved;
+	if (specialization.m_methods.contains(lexeme))
+	{
+		const MethodResolution<std::string> method = m_resolver.ResolveConstrainedCall(specialization.m_methods, lexeme, argument_types.empty() ? nullptr : &argument_types.front(), call_type);
+		if (!method.has_value())
+		{
+			return std::unexpected(ResolutionError(method.error(), paren));
+		}
+		resolved = method.value();
+	}
+	else if (lexeme.find(NameSeparator) != std::string::npos)
+	{
+		const MethodResolution<std::optional<std::string>> method = m_resolver.ResolveConcreteCall(lexeme, argument_types, call_type);
+		if (!method.has_value())
+		{
+			return std::unexpected(ResolutionError(method.error(), paren));
+		}
+		resolved = method.value();
+	}
+
+	const std::optional<std::string> generic_key = m_generics.FindKey(resolved.value_or(lexeme), specialization.m_source_module);
+	if (generic_key.has_value())
+	{
+		return Specialize(generic_key.value(), argument_types, call_type)
+			.transform([](MidoriIRFunctionId function) { return Callee{ function, std::nullopt }; });
+	}
+
+	if (resolved.has_value())
+	{
+		const ResolvedInstanceName instance(resolved.value());
+		const std::unordered_map<std::string, TopLevelName>::const_iterator own = instance.m_module.has_value() ? m_top_level_names.cend() : m_top_level_names.find(instance.m_symbol);
+		if (own != m_top_level_names.cend() && own->second.m_function.has_value())
+		{
+			return Callee{ own->second.m_function.value(), std::nullopt };
+		}
+		return GlobalForResolved(resolved.value(), MidoriType::MakeFunctionType(argument_types, TypeRef(call_type)), paren)
+			.transform([](MidoriIRGlobalSlot slot) { return Callee{ slot, std::nullopt }; });
+	}
+
+	if (!specialization.m_source_module.has_value())
+	{
+		const std::unordered_map<std::string, TopLevelName>::const_iterator own = m_top_level_names.find(lexeme);
+		if (own != m_top_level_names.cend() && own->second.m_function.has_value())
+		{
+			return Callee{ own->second.m_function.value(), std::nullopt };
+		}
+	}
+
+	return GlobalFor(name->m_name, Concrete(name->m_type_data))
+		.transform([](MidoriIRGlobalSlot slot) { return Callee{ slot, std::nullopt }; });
+}
+
+Lowering::LoweredValues Lowering::LowerArguments(std::vector<std::unique_ptr<MidoriExpression>>& arguments)
 {
 	std::vector<MidoriIRValueId> values;
 	values.reserve(arguments.size());
@@ -1172,64 +1378,10 @@ std::expected<std::vector<MidoriIRValueId>, CompilerError> Lowering::LowerArgume
 	return values;
 }
 
-std::expected<MidoriIRGlobalSlot, CompilerError> Lowering::GlobalFor(const Token& name, const std::shared_ptr<MidoriType>& type)
+std::vector<Lowering::TypeRef> Lowering::TypesOf(const std::vector<MidoriIRValueId>& values)
 {
-	const std::string& lexeme = name.m_lexeme;
-	const std::unordered_map<std::string, TopLevelName>::const_iterator own = m_top_level_names.find(lexeme);
-	if (own != m_top_level_names.cend())
-	{
-		return own->second.m_slot;
-	}
-
-	const size_t separator = lexeme.find(NameSeparator);
-	if (separator == std::string::npos)
-	{
-		return std::unexpected(Unsupported(std::format("'{}'", lexeme), name));
-	}
-
-	const std::string module = lexeme.substr(0u, separator);
-	const std::string symbol = lexeme.substr(separator + NameSeparator.length());
-	if (m_imports.m_generic_functions.contains(lexeme))
-	{
-		return std::unexpected(Unsupported("a generic function", name));
-	}
-	const std::unordered_map<std::string, std::unordered_set<std::string>>::const_iterator class_methods = m_imports.m_class_methods.find(module);
-	if (class_methods != m_imports.m_class_methods.cend() && class_methods->second.contains(symbol))
-	{
-		return std::unexpected(Unsupported("a class method", name));
-	}
-
-	const std::unordered_map<std::string, MidoriIRGlobalSlot>::const_iterator imported = m_import_slots.find(lexeme);
-	if (imported != m_import_slots.cend())
-	{
-		return imported->second;
-	}
-
-	const TypeRef import_type = type->IsType<MidoriType::FunctionType>() ? ClosureType(type) : type;
-	const MidoriIRGlobalSlot slot = m_module.ReserveImport(module, symbol, import_type);
-	m_import_slots.emplace(lexeme, slot);
-	m_import_tokens.emplace_back(slot, name);
-	return slot;
-}
-
-std::optional<MidoriIRFunctionId> Lowering::DirectCallee(const MidoriExpression& callee) const
-{
-	const MidoriExpression::NameAccess* name = GlobalName(callee);
-	if (name == nullptr)
-	{
-		return std::nullopt;
-	}
-	const std::unordered_map<std::string, TopLevelName>::const_iterator own = m_top_level_names.find(name->m_name.m_lexeme);
-	return own == m_top_level_names.cend() ? std::nullopt : own->second.m_function;
-}
-
-std::optional<std::string> Lowering::BuiltinForeignCallee(const MidoriExpression::Call& call) const
-{
-	const MidoriExpression::NameAccess* name = GlobalName(*call.m_callee);
-	if (!call.m_is_foreign || name == nullptr)
-	{
-		return std::nullopt;
-	}
-	const std::unordered_map<std::string, std::string>::const_iterator foreign = m_builtin_foreigns.find(name->m_name.m_lexeme);
-	return foreign == m_builtin_foreigns.cend() ? std::nullopt : std::optional<std::string>(foreign->second);
+	const MidoriIRFunction& function = Scope().m_function;
+	return values
+		| std::views::transform([&function](MidoriIRValueId value) { return function.TypeOf(value); })
+		| std::ranges::to<std::vector>();
 }

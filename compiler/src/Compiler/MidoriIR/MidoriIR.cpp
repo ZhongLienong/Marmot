@@ -1,5 +1,7 @@
 #include "MidoriIR.h"
+#include "Compiler/Lowering/GenericTypes.h"
 
+#include <algorithm>
 #include <array>
 #include <ranges>
 #include <utility>
@@ -94,6 +96,48 @@ const std::shared_ptr<MidoriType>& MidoriIRScalarType(MidoriIRScalar scalar)
 		return MidoriType::MakeLiteralType<MidoriType::TextType>();
 	}
 	std::unreachable();
+}
+
+bool MidoriIRSameType(const std::shared_ptr<MidoriType>& left, const std::shared_ptr<MidoriType>& right)
+{
+	const std::shared_ptr<MidoriType> left_type = GenericTypes::RepresentationOf(left);
+	const std::shared_ptr<MidoriType> right_type = GenericTypes::RepresentationOf(right);
+	const auto same_all = [](const std::vector<std::shared_ptr<MidoriType>>& lefts, const std::vector<std::shared_ptr<MidoriType>>& rights)
+	{
+		return std::ranges::equal(lefts, rights, MidoriIRSameType);
+	};
+
+	if (left_type->IsType<MidoriType::ArrayType>() && right_type->IsType<MidoriType::ArrayType>())
+	{
+		return MidoriIRSameType(left_type->GetType<MidoriType::ArrayType>().m_element_type, right_type->GetType<MidoriType::ArrayType>().m_element_type);
+	}
+	if (left_type->IsType<MidoriType::TupleType>() && right_type->IsType<MidoriType::TupleType>())
+	{
+		return same_all(left_type->GetType<MidoriType::TupleType>().m_element_types, right_type->GetType<MidoriType::TupleType>().m_element_types);
+	}
+	if (left_type->IsType<MidoriType::FunctionType>() && right_type->IsType<MidoriType::FunctionType>())
+	{
+		const MidoriType::FunctionType& left_function = left_type->GetType<MidoriType::FunctionType>();
+		const MidoriType::FunctionType& right_function = right_type->GetType<MidoriType::FunctionType>();
+		return same_all(left_function.m_param_types, right_function.m_param_types) && MidoriIRSameType(left_function.m_return_type, right_function.m_return_type);
+	}
+	if (left_type->IsType<MidoriType::CellType>() && right_type->IsType<MidoriType::CellType>())
+	{
+		return MidoriIRSameType(left_type->GetType<MidoriType::CellType>().m_element_type, right_type->GetType<MidoriType::CellType>().m_element_type);
+	}
+	if (left_type->IsType<MidoriType::RangeType>() && right_type->IsType<MidoriType::RangeType>())
+	{
+		return MidoriIRSameType(left_type->GetType<MidoriType::RangeType>().m_element_type, right_type->GetType<MidoriType::RangeType>().m_element_type);
+	}
+	if (left_type->IsType<MidoriType::WorkerType>() && right_type->IsType<MidoriType::WorkerType>())
+	{
+		return MidoriIRSameType(left_type->GetType<MidoriType::WorkerType>().m_result_type, right_type->GetType<MidoriType::WorkerType>().m_result_type);
+	}
+	if (left_type->IsType<MidoriType::ChannelType>() && right_type->IsType<MidoriType::ChannelType>())
+	{
+		return MidoriIRSameType(left_type->GetType<MidoriType::ChannelType>().m_element_type, right_type->GetType<MidoriType::ChannelType>().m_element_type);
+	}
+	return *left_type == *right_type;
 }
 
 MidoriIRSuccessor::MidoriIRSuccessor(MidoriIRBlockId block, std::vector<MidoriIRValueId> arguments, std::optional<int> case_tag)

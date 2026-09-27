@@ -8,6 +8,7 @@
 #include "support/DiagnosticMatchers.h"
 #include "support/TempProject.h"
 
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -169,39 +170,105 @@ bb0:
 )");
 }
 
-TEST_CASE("Lowering stops a module at a construct it does not lower yet", "[midori_ir][lowering][diagnostics]")
+TEST_CASE("A closure captures exactly the values its body reads", "[midori_ir][lowering][closure]")
 {
-	const std::string source = R"(module Unsupported
-def pair = (1, 2);
-)";
+	const LoweredModule lowered = RequireLowered(R"(module Capture
+def Adder = fn(n: Int, unused: Int) -> fn(Int) -> Int => fn(m: Int) -> Int => n + m;
+Adder(1, 2)(3);
+)");
 
-	MidoriTest::ErrorExpectation expectation;
-	expectation.m_stage = CompilerStage::CodeGenerator;
-	expectation.m_code = CompilerErrorCode::CodeGeneratorUnsupportedLowering;
-	expectation.m_line = 2;
-	expectation.m_message_substrings = { "The MidoriIR backend cannot lower a tuple yet." };
-	RequireErrorMatches(RequireLoweringError(source), expectation);
-
-	REQUIRE(MidoriTest::ExecuteSnippet(source, "Test.mmt", CompilerBackend::Ast).has_value());
+	const MidoriIRModule& module = lowered.m_module;
+	CHECK(MidoriIRPrinter(module).PrintFunction(module.m_functions[1u]) == R"(fn Adder(Int, Int) -> fn(Int) -> Int
+bb0(n: Int, unused: Int):
+  %2: fn(Int) -> Int = MakeClosure Anonymous Function at line: 2, n  !alloc
+  return %2
+)");
+	CHECK(MidoriIRPrinter(module).PrintFunction(module.m_functions[2u]) == R"(fn Anonymous Function at line: 2(Int) -> Int captures(Int)
+bb0(m: Int):
+  %1: Int = GetCapture #0
+  %2: Int = AddInt %1, m
+  return %2
+)");
 }
 
-TEST_CASE("Lowering does not lower a closure that can capture a local yet", "[midori_ir][lowering][diagnostics]")
+TEST_CASE("A local function that names itself fills its own capture once it is defined", "[midori_ir][lowering][closure]")
 {
-	MidoriTest::ErrorExpectation expectation;
-	expectation.m_stage = CompilerStage::CodeGenerator;
-	expectation.m_code = CompilerErrorCode::CodeGeneratorUnsupportedLowering;
-	expectation.m_line = 2;
-	expectation.m_message_substrings = { "a closure that can capture a local" };
-	RequireErrorMatches(RequireLoweringError(R"(module Capture
-def Adder = fn(n: Int) -> fn(Int) -> Int => fn(m: Int) -> Int => n + m;
-)"), expectation);
+	const LoweredModule lowered = RequireLowered(R"(module Recursive
+def Run = fn(limit: Int) -> Int => {
+	def Loop = fn(n: Int) -> Int => if n >= limit then n else Loop(n + 1);
+	Loop(0)
+};
+Run(3);
+)");
+
+	const std::string run = MidoriIRPrinter(lowered.m_module).PrintFunction(lowered.m_module.m_functions[1u]);
+	CHECK(run.contains("= MakeClosure Anonymous Function at line: 3, limit  !alloc"));
+	CHECK(run.contains("= BindCaptures #1, %"));
+	CHECK(lowered.m_module.m_functions[2u].m_capture_types.size() == 2u);
+}
+
+TEST_CASE("Nothing is lowered to run after a call that returns Never", "[midori_ir][lowering][never]")
+{
+	const LoweredModule lowered = RequireLowered(R"(module Stops
+foreign "MIDORI_FFI_Exit" ExitRaw: fn(Int) -> Unit;
+def Stop = fn(code: Int) -> Never => Stop(code);
+def Check = fn(n: Int) -> Int => {
+	def checked = if n < 0 then Stop(1) else n;
+	checked + 1
+};
+Check(1);
+)");
+
+	CHECK(MidoriIRPrinter(lowered.m_module).PrintFunction(lowered.m_module.m_functions[2u]) == R"(fn Check(Int) -> Int
+bb0(n: Int):
+  %1: Int = Const 0
+  %2: Bool = LtInt n, %1
+  branch %2, bb2, bb3
+bb1(%5: Int):
+  %6: Int = Const 1
+  %7: Int = AddInt %5, %6
+  return %7
+bb2:
+  %3: Int = Const 1
+  %4: Never = Call Stop, %3  !call
+  unreachable
+bb3:
+  jump bb1(n)
+bb4:
+  jump bb1(%4)
+)");
+}
+
+TEST_CASE("Every prelude module lowers to MidoriIR that verifies", "[midori_ir][lowering][prelude]")
+{
+	const std::filesystem::path prelude(MARMOT_PRELUDE_DIR);
+	std::vector<std::filesystem::path> modules;
+	for (const std::filesystem::directory_entry& entry : std::filesystem::recursive_directory_iterator(prelude))
+	{
+		if (entry.path().extension() == ".mmt")
+		{
+			modules.push_back(entry.path());
+		}
+	}
+	REQUIRE(modules.size() > 10u);
+
+	const MidoriBuild::ScopedTestModeOverride test_mode_override(true);
+	for (const std::filesystem::path& module : modules)
+	{
+		INFO(module.string());
+		MidoriDriver::CompileFileWithReportResult compiled = MidoriDriver::CompileFileWithReport(module, MidoriDriver::EnvironmentCompilationInputs().WithBackend(CompilerBackend::MidoriIR));
+		if (!compiled.has_value())
+		{
+			FAIL(compiled.error().Rendered());
+		}
+	}
 }
 
 TEST_CASE("Lowering reports an unknown builtin foreign function as the code generator does", "[midori_ir][lowering][diagnostics][ffi]")
 {
 	MidoriTest::ErrorExpectation expectation;
-	expectation.m_stage = CompilerStage::CodeGenerator;
-	expectation.m_code = CompilerErrorCode::CodeGeneratorUnknownForeignFunction;
+	expectation.m_stage = CompilerStage::Lowering;
+	expectation.m_code = CompilerErrorCode::LoweringUnknownForeignFunction;
 	expectation.m_line = 2;
 	expectation.m_message_substrings = { "Unknown foreign function 'MIDORI_FFI_PrintLin'" };
 	RequireErrorMatches(RequireLoweringError(R"(module ForeignTypo

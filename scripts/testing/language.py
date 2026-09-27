@@ -6,6 +6,9 @@ The language suite: every .mmt under test/, built with marmotc and run in marmot
 - A .expected beside a test is its output, compared after stripping colour and
   this checkout's path.
 - A .warnings.json beside a test is its warnings, compared as JSON.
+- A .ir.expected beside a test is what it does through MidoriIR, when that path
+  lowers a program the code generator rejects: with --backend ir the test must
+  succeed and print it.
 
 Usage:
     python scripts/testing/language.py                          # every test
@@ -188,6 +191,10 @@ class TestRunner:
 
         expected_to_fail = self.is_failure_test(test_path)
         expected_output = self.get_expected_output(test_path)
+        ir_expected_file = test_path.with_suffix('.ir.expected')
+        if self.backend == "ir" and ir_expected_file.exists():
+            expected_to_fail = False
+            expected_output = ir_expected_file.read_text(encoding='utf-8')
 
         try:
             expected_warnings = self.get_expected_warnings(test_path)

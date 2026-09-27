@@ -9,7 +9,7 @@
 
 #include "Common/Executable/Executable.h"
 #include "Common/Value/Value.h"
-#include "Compiler/CodeGenerator/GenericFunctionInfo.h"
+#include "Compiler/Lowering/GenericFunctionInfo.h"
 
 struct BytecodeModule
 {

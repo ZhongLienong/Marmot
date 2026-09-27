@@ -77,13 +77,63 @@ def Square = fn(n: Int) -> Int => (n * n) + 1;
 	REQUIRE(bytecode.m_procedure_names[1u] == "Square@Stack");
 	CHECK(Opcodes(bytecode.m_procedures[1u]) == std::vector<OpCode>
 	{
-		OpCode::GET_LOCAL,
-		OpCode::GET_LOCAL,
+		OpCode::GET_LOCAL2,
 		OpCode::MULTIPLY_INTEGER,
 		OpCode::INT_1,
 		OpCode::ADD_INTEGER,
 		OpCode::RETURN
 	});
+}
+
+TEST_CASE("The backend jumps on a comparison without making its Bool", "[midori_ir][backend]")
+{
+	std::expected<LoweredModule, MidoriResult::CompilerDiagnostics> lowered = MidoriTest::LowerSnippetWithDiagnostics(R"(module Fused
+def Fib = fn(n: Int) -> Int => if n <= 1 then n else Fib(n - 1) + Fib(n - 2);
+def Order = fn(a: Float, b: Float) -> Int => if a < b then 0 else 1;
+)");
+	REQUIRE(lowered.has_value());
+
+	const BytecodeModule bytecode = RequireBytecode(lowered.value());
+	CHECK(Opcodes(bytecode.m_procedures[1u]) == std::vector<OpCode>
+	{
+		OpCode::IF_LOCAL_LE_INT,
+		OpCode::GET_LOCAL,
+		OpCode::RETURN,
+		OpCode::PUSH_LOCAL_SUB_INT,
+		OpCode::CALL_PROC_WIDE,
+		OpCode::PUSH_LOCAL_SUB_INT,
+		OpCode::CALL_PROC_WIDE,
+		OpCode::ADD_INTEGER,
+		OpCode::RETURN
+	});
+	CHECK(Opcodes(bytecode.m_procedures[2u]) == std::vector<OpCode>
+	{
+		OpCode::GET_LOCAL2,
+		OpCode::IF_FLOAT_LESS,
+		OpCode::INT_0,
+		OpCode::RETURN,
+		OpCode::INT_1,
+		OpCode::RETURN
+	});
+}
+
+TEST_CASE("Two values in slots that are never live at once share one", "[midori_ir][backend]")
+{
+	std::expected<LoweredModule, MidoriResult::CompilerDiagnostics> lowered = MidoriTest::LowerSnippetWithDiagnostics(R"(module Share
+def Twice = fn(n: Int) -> Int => {
+	def a = n * 3;
+	def b = a + a;
+	def c = b * 5;
+	c + c
+};
+)");
+	REQUIRE(lowered.has_value());
+
+	// n is dead once a is made, and a once b is, so a, b and c take n's slot
+	// in turn and the frame needs no slot beyond its parameter.
+	const BytecodeModule bytecode = RequireBytecode(lowered.value());
+	const std::vector<OpCode> opcodes = Opcodes(bytecode.m_procedures[1u]);
+	CHECK(std::ranges::count(opcodes, OpCode::PUSH_PLACEHOLDER) == 0);
 }
 
 TEST_CASE("The backend makes the top-level function procedure 0 and names each procedure for its module", "[midori_ir][backend]")
@@ -100,7 +150,7 @@ def two = One() + 1;
 	CHECK(Opcodes(bytecode.m_procedures[0u]).back() == OpCode::RETURN);
 }
 
-// Lowering makes no loops yet, so this one is built by hand: each iteration
+// Built by hand, so its shape is exactly this: each iteration
 // passes a block's two parameters back to it swapped, which a jump that
 // stored the first before reading the second would get wrong.
 TEST_CASE("The backend moves a jump's arguments into its target's parameters all at once", "[midori_ir][backend]")

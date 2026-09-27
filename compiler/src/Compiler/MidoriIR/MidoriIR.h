@@ -113,6 +113,10 @@ std::string_view MidoriIRFaultName(MidoriIRFault fault);
 
 const std::shared_ptr<MidoriType>& MidoriIRScalarType(MidoriIRScalar scalar);
 
+// Whether two types are one at run time. A newtype is its representation, so
+// a conversion between them is no instruction at all.
+bool MidoriIRSameType(const std::shared_ptr<MidoriType>& left, const std::shared_ptr<MidoriType>& right);
+
 struct MidoriIRByte
 {
 	uint8_t m_value;
@@ -158,6 +162,17 @@ struct MidoriIRGlobalSlot
 	bool operator==(const MidoriIRGlobalSlot&) const = default;
 };
 
+// The union tags `join` builds its Result<T, WorkerError> from.
+struct MidoriIRJoinTags
+{
+	int m_ok;
+	int m_err;
+	int m_cancelled;
+	int m_failed;
+
+	bool operator==(const MidoriIRJoinTags&) const = default;
+};
+
 struct MidoriIRForeign
 {
 	std::string m_name;
@@ -181,7 +196,8 @@ using MidoriIRImmediate = std::variant
 	MidoriIRUnionField,
 	MidoriIRGlobalSlot,
 	MidoriIRFunctionId,
-	MidoriIRForeign
+	MidoriIRForeign,
+	MidoriIRJoinTags
 >;
 
 // Where a terminator goes. A Switch case carries the tag it matches; its
@@ -228,10 +244,13 @@ struct MidoriIRValue
 };
 
 // The entry block's parameters are the function's parameters. Captures are
-// read with GetCapture.
+// read with GetCapture. A function whose body another module wrote, a
+// specialization of that module's generic, names it in m_source_module, so a
+// runtime error in it points at that module's file.
 struct MidoriIRFunction
 {
 	std::string m_name;
+	std::string m_source_module;
 	std::vector<std::shared_ptr<MidoriType>> m_capture_types;
 	std::shared_ptr<MidoriType> m_return_type;
 	std::vector<MidoriIRBlock> m_blocks;

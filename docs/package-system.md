@@ -207,7 +207,7 @@ Current validation:
   runs
 - at compile time, a `foreign "Name"` declaration without `from` must name a
   builtin runtime function; anything else is the compile error
-  `CodeGeneratorUnknownForeignFunction`, rather than a failed call at run time
+  `LoweringUnknownForeignFunction`, rather than a failed call at run time
 
 ### `[build]`
 

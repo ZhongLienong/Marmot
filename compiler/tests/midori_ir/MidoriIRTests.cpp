@@ -168,7 +168,7 @@ TEST_CASE("The printer shows globals, unnamed values, constants, switches and ef
 
 	builder.PositionAt(circle).Return(builder.ConstUnit("done"));
 	builder.AddParameter(other, MidoriType::MakeLiteralType<MidoriType::TextType>(), "message");
-	builder.PositionAt(other).Halt();
+	builder.PositionAt(other).Unreachable();
 
 	module.m_top_level = module.AddFunction(std::move(function));
 
@@ -189,7 +189,7 @@ TEST_CASE("The printer shows globals, unnamed values, constants, switches and ef
 		"  done: Unit = Const\n"
 		"  return done\n"
 		"bb2(message: Text):\n"
-		"  halt\n";
+		"  unreachable\n";
 
 	REQUIRE(MidoriIRPrinter(module).Print() == expected);
 }
@@ -384,6 +384,108 @@ TEST_CASE("Rule 4: a tail call is checked against the caller's return type", "[m
 	module.AddFunction(std::move(caller));
 
 	REQUIRE(ReportsOnly(MidoriIRVerifier(module).Verify(), MidoriIRRule::OperandTypes));
+}
+
+namespace
+{
+	const TypeRef& NeverType()
+	{
+		return MidoriType::MakeLiteralType<MidoriType::NeverType>();
+	}
+
+	// A module holding `stop`, which returns Never, and a function `f`
+	// returning Int whose body the test writes.
+	struct NeverModule
+	{
+		MidoriIRModule m_module;
+		MidoriIRFunctionId m_stop;
+		MidoriIRFunction m_function;
+		MidoriIRBuilder m_builder;
+
+		NeverModule()
+			: m_module("Test"),
+			m_stop(m_module.AddFunction(MidoriIRFunction("stop", NeverType()))),
+			m_function("f", IntType()),
+			m_builder(m_function)
+		{
+			MidoriIRBuilder stop(m_module.Function(m_stop));
+			stop.TailCall(m_stop, {});
+		}
+
+		std::vector<MidoriIRViolation> Verify()
+		{
+			m_module.AddFunction(m_function);
+			return MidoriIRVerifier(m_module).Verify();
+		}
+	};
+}
+
+TEST_CASE("Rule 1: a call that returns Never is followed by unreachable", "[midori_ir][verifier][never]")
+{
+	NeverModule valid;
+	valid.m_builder.Emit(MidoriIROp::Call, NeverType(), {}, valid.m_stop);
+	valid.m_builder.Unreachable();
+	CHECK(valid.Verify().empty());
+
+	NeverModule invalid;
+	invalid.m_builder.Emit(MidoriIROp::Call, NeverType(), {}, invalid.m_stop);
+	invalid.m_builder.Return(invalid.m_builder.ConstInt(1));
+	CHECK(ReportsOnly(invalid.Verify(), MidoriIRRule::Terminator));
+}
+
+TEST_CASE("Rule 4: nothing uses a Never value", "[midori_ir][verifier][never]")
+{
+	NeverModule test;
+	const MidoriIRBlockId after = test.m_builder.CreateBlock();
+	const MidoriIRValueId never = test.m_builder.Emit(MidoriIROp::Call, NeverType(), {}, test.m_stop);
+	test.m_builder.Unreachable();
+	test.m_builder.PositionAt(after).Return(never);
+
+	// The block that would use it is one nothing reaches, so only its types
+	// would be wrong, and those are not checked.
+	CHECK(test.Verify().empty());
+}
+
+TEST_CASE("Rule 4: a tail call of a function that returns Never ends a function of any type", "[midori_ir][verifier][never]")
+{
+	NeverModule test;
+	test.m_builder.TailCall(test.m_stop, {});
+
+	CHECK(test.Verify().empty());
+}
+
+TEST_CASE("Rule 4: a closure leaves out the captures BindCaptures fills, at the end", "[midori_ir][verifier][closure]")
+{
+	MidoriIRModule module("Test");
+	const MidoriIRFunctionId lambda = module.AddFunction(MidoriIRFunction("lambda", IntType(), { IntType(), FloatType() }));
+	MidoriIRBuilder lambda_builder(module.Function(lambda));
+	lambda_builder.Return(lambda_builder.Emit(MidoriIROp::GetCapture, IntType(), {}, MidoriIRIndex{ 0u }));
+
+	const TypeRef closure_type = MidoriType::MakeFunctionType({}, TypeRef(IntType()));
+	MidoriIRFunction valid("valid", UnitType());
+	MidoriIRBuilder valid_builder(valid);
+	const MidoriIRValueId closure = valid_builder.Emit(MidoriIROp::MakeClosure, closure_type, { valid_builder.ConstInt(1) }, lambda);
+	valid_builder.Emit(MidoriIROp::BindCaptures, UnitType(), { closure, valid_builder.ConstFloat(2.0) }, MidoriIRIndex{ 1u });
+	valid_builder.Return(valid_builder.ConstUnit());
+	module.AddFunction(std::move(valid));
+	CHECK(MidoriIRVerifier(module).Verify().empty());
+
+	MidoriIRFunction invalid("invalid", UnitType());
+	MidoriIRBuilder invalid_builder(invalid);
+	invalid_builder.Emit(MidoriIROp::MakeClosure, closure_type, { invalid_builder.ConstFloat(2.0) }, lambda);
+	invalid_builder.Return(invalid_builder.ConstUnit());
+	module.AddFunction(std::move(invalid));
+	CHECK(ReportsOnly(MidoriIRVerifier(module).Verify(), MidoriIRRule::OperandTypes));
+}
+
+TEST_CASE("Rule 4: a newtype is its representation", "[midori_ir][verifier]")
+{
+	const TypeRef meters = MidoriType::MakeNewType("Meters", "Test", IntType());
+	SingleFunction test;
+	const MidoriIRValueId distance = test.m_builder.AddParameter(MidoriIRFunction::s_entry_block, meters);
+	test.m_builder.Return(test.m_builder.Binary(MidoriIROp::AddInt, distance, test.m_builder.ConstInt(1)));
+
+	CHECK(test.Verify().empty());
 }
 
 TEST_CASE("Rule 5: a switch with two cases for one tag", "[midori_ir][verifier]")

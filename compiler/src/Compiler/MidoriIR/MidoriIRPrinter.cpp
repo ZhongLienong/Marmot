@@ -192,6 +192,7 @@ std::string MidoriIRPrinter::PrintImmediate(const MidoriIRImmediate& immediate) 
 		std::string operator()(MidoriIRGlobalSlot value) const { return std::format("@{}", value.m_value); }
 		std::string operator()(MidoriIRFunctionId value) const { return m_module.Function(value).m_name; }
 		std::string operator()(const MidoriIRForeign& value) const { return std::format("foreign {}", QuoteText(value.m_name)); }
+		std::string operator()(MidoriIRJoinTags value) const { return std::format("tags {} {} {} {}", value.m_ok, value.m_err, value.m_cancelled, value.m_failed); }
 	};
 
 	return std::visit(ImmediateVisitor{ m_module }, immediate);
