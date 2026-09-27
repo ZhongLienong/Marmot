@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/match/failure/unreachable_alternative.mmt:16
+   |
+16 | 		case Shape::Line(_) | Shape::Dot() => 1
+   |                         ^^^^^ The cases and alternatives before this one already match every value it does, so it can never match.
+   |

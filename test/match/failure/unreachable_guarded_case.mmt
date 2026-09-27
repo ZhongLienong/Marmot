@@ -1,0 +1,20 @@
+module UnreachableGuardedCase
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/Prelude/Option.mmt"
+}
+
+use Option.{ Option }
+
+// A guard only narrows its case, so a guarded case under one that already takes
+// every Some still never runs.
+
+def Describe = fn(option : Option<Int>) -> Text =>
+	match option with
+		case Option::Some(_) => "some"
+		case Option::Some(n) if n > 0 => "positive"
+		case Option::None() => "none";
+
+IO::PrintLine(Describe(Option::Some(1)));

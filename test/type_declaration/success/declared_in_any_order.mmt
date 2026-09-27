@@ -53,8 +53,7 @@ type Label = | Label(Text);
 instance Equatable<Label> {
 	def Equals = fn(left : Label, right : Label) -> Bool =>
 		match (left, right) with
-			case (Label::Label(a), Label::Label(b)) => a == b
-			case _ => false;
+			case (Label::Label(a), Label::Label(b)) => a == b;
 };
 
 def distance : Meters = 12 as Meters;

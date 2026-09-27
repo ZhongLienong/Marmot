@@ -23,7 +23,6 @@ def union_result = match some_value with
 
 def nested_result = match nested_value with
 	case (x, _, Point(_, y)) => x + y
-	case _ => 0
 ;
 
 def catch_all_result = match true with

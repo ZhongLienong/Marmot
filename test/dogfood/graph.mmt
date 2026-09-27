@@ -42,8 +42,7 @@ def Merge = fn<T>(a: Heap<T>, b: Heap<T>, order: fn(T, T) -> Int) -> Heap<T> =>
 		case (Heap::Branch(_, x, a_left, a_right), Heap::Branch(_, y, b_left, b_right)) =>
 			if order(x, y) <= 0
 			then MakeBranch(x, a_left, Merge(a_right, b, order))
-			else MakeBranch(y, b_left, Merge(a, b_right, order))
-		case _ => a;
+			else MakeBranch(y, b_left, Merge(a, b_right, order));
 
 def Push = fn<T>(heap: Heap<T>, value: T, order: fn(T, T) -> Int) -> Heap<T> =>
 	Merge(heap, Heap::Branch(1, value, Heap::Empty(), Heap::Empty()), order);

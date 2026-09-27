@@ -9,6 +9,7 @@
 #include "Compiler/Result/Result.h"
 
 class ExpectedTypeGuard;
+class PatternCoverage;
 
 struct TypePairHash
 {
@@ -169,6 +170,7 @@ private:
 
 	MidoriResult::TypeResult CheckPattern(MidoriPattern& pattern, const std::shared_ptr<MidoriType>& expected_type);
 
+	std::optional<CompilerError> CheckCaseReachable(const PatternCoverage& coverage, const MidoriExpression::Case& match_case);
 	std::optional<CompilerError> CheckCaseGuard(MidoriExpression::Case& case_expr);
 
 	std::optional<CompilerError> CheckSpawnArgument(MidoriExpression::Spawn& spawn, const MidoriType::FunctionType& function_type);

@@ -67,6 +67,8 @@ std::string_view CompilerErrorCodeName(CompilerErrorCode code)
 		return "TypeMismatch";
 	case CompilerErrorCode::TypeNonExhaustiveMatch:
 		return "TypeNonExhaustiveMatch";
+	case CompilerErrorCode::TypeUnreachableCase:
+		return "TypeUnreachableCase";
 	case CompilerErrorCode::CodeGeneratorLimitExceeded:
 		return "CodeGeneratorLimitExceeded";
 	case CompilerErrorCode::LoweringUnresolvedMethodResolution:

@@ -1,0 +1,16 @@
+module UnreachableAfterRest
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt"
+}
+
+// `[first, ..]` takes every array with at least one element, one element included.
+
+def Describe = fn(values : Array<Int>) -> Int =>
+	match values with
+		case [first, ..] => first
+		case [only] => only
+		case [] => 0;
+
+IO::PrintLine(Describe([1]) as Text);

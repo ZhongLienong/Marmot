@@ -92,100 +92,6 @@ namespace
 		}
 	}
 
-	// `close`, `is_done` and `cancel` were unqualified builtins while everything else
-	// concurrency moved under Concurrency::. Writing one now names its replacement.
-	// A case arm covers its whole constructor only when every argument it carries
-	// matches anything. `Err(_)` covers `Err`; `Err(Alpha)` discriminates within it,
-	// so a later `Err(Beta)` is a different case rather than a duplicate.
-	bool IsCatchAllPattern(const MidoriPattern& pattern)
-	{
-		if (pattern.IsPattern<MidoriPattern::Binding>() || pattern.IsPattern<MidoriPattern::Wildcard>())
-		{
-			return true;
-		}
-
-		if (pattern.IsPattern<MidoriPattern::Tuple>())
-		{
-			const MidoriPattern::Tuple& tuple = pattern.GetPattern<MidoriPattern::Tuple>();
-			return std::ranges::all_of(tuple.m_elements, [](const std::unique_ptr<MidoriPattern>& element) { return IsCatchAllPattern(*element); });
-		}
-
-		if (pattern.IsPattern<MidoriPattern::As>())
-		{
-			return IsCatchAllPattern(*pattern.GetPattern<MidoriPattern::As>().m_pattern);
-		}
-
-		if (pattern.IsPattern<MidoriPattern::Or>())
-		{
-			return std::ranges::any_of(pattern.GetPattern<MidoriPattern::Or>().m_alternatives, [](const std::unique_ptr<MidoriPattern>& alternative) { return IsCatchAllPattern(*alternative); });
-		}
-
-		return false;
-	}
-
-	// A rendering that two arms share exactly when they match the same values, used
-	// to keep reporting the arm that really is written twice. A binding and a
-	// wildcard render alike because they accept alike.
-	std::string PatternSignature(const MidoriPattern& pattern)
-	{
-		if (pattern.IsPattern<MidoriPattern::Binding>() || pattern.IsPattern<MidoriPattern::Wildcard>())
-		{
-			return "_";
-		}
-
-		if (pattern.IsPattern<MidoriPattern::Literal>())
-		{
-			return pattern.GetPattern<MidoriPattern::Literal>().m_token.m_lexeme;
-		}
-
-		if (pattern.IsPattern<MidoriPattern::As>())
-		{
-			return PatternSignature(*pattern.GetPattern<MidoriPattern::As>().m_pattern);
-		}
-
-		if (pattern.IsPattern<MidoriPattern::Or>())
-		{
-			return pattern.GetPattern<MidoriPattern::Or>().m_alternatives
-				| std::views::transform([](const std::unique_ptr<MidoriPattern>& alternative) { return PatternSignature(*alternative); })
-				| std::views::join_with(std::string_view(" | "))
-				| std::ranges::to<std::string>();
-		}
-
-		const auto join = [](const std::vector<std::unique_ptr<MidoriPattern>>& parts) -> std::string
-		{
-			std::string rendered;
-			for (const std::unique_ptr<MidoriPattern>& part : parts)
-			{
-				if (!rendered.empty())
-				{
-					rendered.append(", ");
-				}
-				rendered.append(PatternSignature(*part));
-			}
-			return rendered;
-		};
-
-		if (pattern.IsPattern<MidoriPattern::Tuple>())
-		{
-			return "(" + join(pattern.GetPattern<MidoriPattern::Tuple>().m_elements) + ")";
-		}
-
-		if (pattern.IsPattern<MidoriPattern::Array>())
-		{
-			const MidoriPattern::Array& array = pattern.GetPattern<MidoriPattern::Array>();
-			std::string elements = join(array.m_elements);
-			if (array.m_rest.has_value())
-			{
-				// Where the elements before `..` end, as a count: `[a, ..]` and `[.., a]` differ.
-				elements = std::format("{}..{}", array.m_rest->m_position, elements);
-			}
-			return "[" + elements + "]";
-		}
-
-		const MidoriPattern::Constructor& constructor = pattern.GetPattern<MidoriPattern::Constructor>();
-		return constructor.m_name + "(" + join(constructor.m_args) + ")";
-	}
-
 	// Concurrency::Spawn, Join and MakeChannel are written as calls but have no
 	// declaration in Concurrency.mmt: the parser turns each call into the node the
 	// compiler already checks and lowers, as it resolves Result for Join by name.
@@ -4772,13 +4678,12 @@ MidoriResult::ExpressionResult Parser::ParseMatchExpressionWithScrutinee(Token& 
 		(
 			[expr = std::move(expr), &match_keyword, this](Token&&) mutable ->MidoriResult::ExpressionResult
 			{
-				MatchCoverage coverage;
 				std::vector<std::unique_ptr<MidoriExpression>> cases;
 
 				while (Match(Token::Name::CASE))
 				{
 					Token& case_keyword = Previous();
-					MidoriResult::ExpressionResult case_result = ParseCaseExpression(coverage, case_keyword);
+					MidoriResult::ExpressionResult case_result = ParseCaseExpression(case_keyword);
 					if (!case_result.has_value())
 					{
 						return std::unexpected(std::move(case_result.error()));
@@ -5003,9 +4908,8 @@ MidoriResult::ExpressionResult Parser::ParseFunctionExpression()
 	return std::make_unique<MidoriExpression>(MidoriExpression::Function(keyword, std::move(generic_params), std::move(params), std::move(param_types), std::move(return_type), std::move(body_result.value()), m_state.m_total_variables, std::move(constraints)));
 }
 
-MidoriResult::ExpressionResult Parser::ParseCaseExpression(MatchCoverage& coverage, Token& keyword)
+MidoriResult::ExpressionResult Parser::ParseCaseExpression(Token& keyword)
 {
-	std::unordered_set<std::string>& visited_members = coverage.m_visited;
 	BeginScope();
 	MidoriResult::PatternResult pattern_result = ParsePattern();
 	if (!pattern_result.has_value())
@@ -5027,60 +4931,6 @@ MidoriResult::ExpressionResult Parser::ParseCaseExpression(MatchCoverage& covera
 		}
 		guard = std::move(guard_result.value());
 	}
-
-	const bool is_unguarded_union_constructor = (guard == nullptr)
-		&& pattern->IsPattern<MidoriPattern::Constructor>()
-		&& pattern->GetPattern<MidoriPattern::Constructor>().m_is_union;
-
-	if (is_unguarded_union_constructor)
-	{
-		const MidoriPattern::Constructor& constructor = pattern->GetPattern<MidoriPattern::Constructor>();
-		if (visited_members.contains(constructor.m_name))
-		{
-			EndScope();
-			return std::unexpected(GenerateParserError(std::format("An earlier case already matches every '{}', so this one can never run.", constructor.m_name), constructor.m_name_token));
-		}
-
-		if (visited_members.contains(PatternSignature(*pattern)))
-		{
-			EndScope();
-			return std::unexpected(GenerateParserError("Duplicate case in match statement.", constructor.m_name_token));
-		}
-	}
-
-	// A match's cases run to the first one that is not a `case`, so a match
-	// nested in an arm without braces takes the outer match's later cases for
-	// its own: they are the likeliest cases here.
-	if (coverage.m_is_exhausted)
-	{
-		EndScope();
-		return std::unexpected(GenerateParserError("The cases above already match every value, so this one can never run. If it belongs to an enclosing match, put the match above it in braces.", keyword));
-	}
-
-	if (is_unguarded_union_constructor)
-	{
-		const MidoriPattern::Constructor& constructor = pattern->GetPattern<MidoriPattern::Constructor>();
-		visited_members.emplace(PatternSignature(*pattern));
-		if (std::ranges::all_of(constructor.m_args, [](const std::unique_ptr<MidoriPattern>& arg) { return IsCatchAllPattern(*arg); }))
-		{
-			visited_members.emplace(constructor.m_name);
-		}
-
-		if (coverage.m_variants.empty())
-		{
-			ConstructorResolutionResult resolution = ResolveConstructorName(constructor.m_name_token, constructor.m_name);
-			if (resolution.has_value() && resolution.value().has_value())
-			{
-				std::ranges::copy(resolution.value()->m_type->GetType<MidoriType::UnionType>().m_member_info | std::views::keys, std::back_inserter(coverage.m_variants));
-			}
-		}
-		coverage.m_is_exhausted = !coverage.m_variants.empty() && std::ranges::all_of(coverage.m_variants, [&visited_members](const std::string& variant) { return visited_members.contains(variant); });
-	}
-	else if ((guard == nullptr) && IsCatchAllPattern(*pattern))
-	{
-		coverage.m_is_exhausted = true;
-	}
-
 
 	return Consume(Token::Name::FAT_ARROW, "Expected '=>' after case.")
 		.and_then

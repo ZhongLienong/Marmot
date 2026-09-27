@@ -1,0 +1,20 @@
+module UnreachableCatchAll
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt"
+}
+
+type Heap = Empty | Node(Int);
+
+// The three cases above cover every pair, so `case _` never runs. Nothing about
+// how they are written says so; only coverage does.
+
+def Merge = fn(pair : (Heap, Heap)) -> Int =>
+	match pair with
+		case (Heap::Empty(), _) => 0
+		case (_, Heap::Empty()) => 1
+		case (Heap::Node(a), Heap::Node(b)) => a + b
+		case _ => -1;
+
+IO::PrintLine(Merge((Heap::Node(1), Heap::Node(2))) as Text);

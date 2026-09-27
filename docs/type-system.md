@@ -455,6 +455,11 @@ An array pattern with `..` covers every length from its element count up, so
 A catch-all arm is an unguarded `case` whose pattern always matches: `case _`, a
 bare binding such as `case n`, or a tuple of those. There is no `default` keyword.
 
+Every case must also be able to run: a case whose values the unguarded cases
+above it already match is an error, and so is an alternative of `|` that the
+cases and alternatives before it cover. `case 256` then `case 0x100` is one, as is
+`case _` after cases that already cover every value.
+
 ### Pipe Into Match
 
 The pipe operator can feed directly into a `match`:

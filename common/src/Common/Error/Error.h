@@ -46,6 +46,7 @@ enum class CompilerErrorCode
 	TypeIncorrectArity,
 	TypeMismatch,
 	TypeNonExhaustiveMatch,
+	TypeUnreachableCase,
 	CodeGeneratorLimitExceeded,
 	LoweringUnresolvedMethodResolution,
 	LoweringAmbiguousMethodResolution,

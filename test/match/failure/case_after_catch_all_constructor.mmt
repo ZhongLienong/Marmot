@@ -6,12 +6,12 @@ use Result.{ Result }
 
 type Code = Alpha | Beta;
 
-// `Err(e)` matches every Err, so the arm after it can never run. The error names
-// the constructor rather than calling it a duplicate, because the two arms are
-// not written the same way.
+// `Err(e)` matches every Err, so the arm after it can never run, though Ok is
+// still to come. The two arms are not written the same way, so only coverage,
+// not their spelling, can tell.
 
 def Describe = fn(result : Result<Int, Code>) -> Text =>
 	match result with
-		case Result::Ok(n) => "ok"
 		case Result::Err(e) => "any error"
-		case Result::Err(Code::Alpha) => "alpha";
+		case Result::Err(Code::Alpha) => "alpha"
+		case Result::Ok(n) => "ok";

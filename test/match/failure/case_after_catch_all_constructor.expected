@@ -1,6 +1,6 @@
-Compilation failed :( 
-Parser Error at test/match/failure/case_after_catch_all_constructor.mmt:17
+Compilation failed :(
+Type Checker Error at test/match/failure/case_after_catch_all_constructor.mmt:16
    |
-17 | 		case Result::Err(Code::Alpha) => "alpha";
-   |        ^^^^^^ An earlier case already matches every 'Result::Err', so this one can never run.
+16 | 		case Result::Err(Code::Alpha) => "alpha"
+   |   ^^^^ The cases above already match every value this one does, so it can never run.
    |

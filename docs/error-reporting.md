@@ -64,6 +64,7 @@ Current `CompilerErrorCode` values:
 - `TypeIncorrectArity`
 - `TypeMismatch`
 - `TypeNonExhaustiveMatch`
+- `TypeUnreachableCase`
 - `CodeGeneratorLimitExceeded`
 - `LoweringUnresolvedMethodResolution`
 - `LoweringAmbiguousMethodResolution`

@@ -14,9 +14,16 @@
 class PatternCoverage
 {
 public:
-	explicit PatternCoverage(std::vector<const MidoriPattern*>&& patterns);
+	PatternCoverage() = default;
 
-	// Values no pattern matches, written as patterns, at most a few of them.
+	void Add(const MidoriPattern& pattern);
+
+	// Whether the pattern matches some value no pattern added so far does.
+	bool IsUseful(const MidoriPattern& pattern) const;
+
+	bool IsExhaustive() const;
+
+	// Values no pattern added so far matches, written as patterns, at most a few.
 	std::vector<std::string> FindUnmatched() const;
 
 private:
@@ -49,6 +56,10 @@ private:
 
 	static std::vector<Witness> Unmatched(const std::vector<Row>& rows, size_t width);
 
+	static bool Useful(const std::vector<Row>& rows, const Row& candidate);
+
+	static Row Joined(Row&& first, std::span<const MidoriPattern* const> rest);
+
 	static std::vector<Witness> Prefixed(const std::string& first, std::vector<Witness>&& rest);
 
 	static std::vector<Row> Expanded(const std::vector<Row>& rows);
@@ -60,6 +71,10 @@ private:
 	static std::optional<std::vector<Head>> Signature(std::span<const MidoriPattern* const> column);
 
 	static std::optional<Row> ArgumentsFor(const MidoriPattern& pattern, const Head& head);
+
+	static Head OwnHead(const MidoriPattern& pattern);
+
+	static std::string LiteralKey(const MidoriPattern::Literal& literal);
 
 	static const MidoriPattern* Strip(const MidoriPattern* pattern);
 

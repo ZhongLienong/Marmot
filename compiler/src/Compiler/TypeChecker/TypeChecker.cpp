@@ -4611,67 +4611,71 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 			{
 				std::shared_ptr<MidoriType> resolved_arg_type = ApplySubstitution(arg_type);
 				std::shared_ptr<MidoriType> prev_case_type = nullptr;
+				PatternCoverage coverage;
 
 				for (const std::unique_ptr<MidoriExpression>& case_expr : match.m_cases)
 				{
 					ScopeSession scope(*this);
-					std::optional<CompilerError> error;
-					MidoriResult::TypeResult case_result;
+					MidoriExpression::Case& match_case = case_expr->GetExpression<MidoriExpression::Case>();
 
-					if (case_expr->IsExpression<MidoriExpression::Case>())
+					// Before the case's own pattern is checked: a match in an arm without
+					// braces takes the enclosing match's later cases, whose patterns are
+					// likely of another type, and this is the error that says why.
+					if (&case_expr != &match.m_cases.front() && coverage.IsExhaustive())
 					{
-						MidoriExpression::Case& match_case = case_expr->GetExpression<MidoriExpression::Case>();
-						MidoriResult::TypeResult pattern_result = CheckPattern(*match_case.m_pattern, resolved_arg_type);
-						if (!pattern_result.has_value())
-						{
-							error = std::move(pattern_result.error());
-						}
-						else if (match_case.HasGuard())
-						{
-							error = CheckCaseGuard(match_case);
-						}
-
-						if (!error.has_value())
-						{
-							case_result = Evaluate(match_case.m_expr);
-						}
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnreachableCase, "The cases above already match every value, so this one can never run. If it belongs to an enclosing match, put the match above it in braces.", match_case.m_keyword, m_file_name, m_source_lines));
 					}
 
-					if (error.has_value())
-					{
-						return std::unexpected(std::move(error.value()));
-					}
-					else if (!case_result.has_value())
+					MidoriResult::TypeResult case_result = CheckPattern(*match_case.m_pattern, resolved_arg_type)
+						.and_then([&](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
+						{
+							const std::optional<CompilerError> error = CheckCaseReachable(coverage, match_case);
+							if (error.has_value())
+							{
+								return std::unexpected(error.value());
+							}
+							return {};
+						})
+						.and_then([&](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
+						{
+							const std::optional<CompilerError> error = match_case.HasGuard() ? CheckCaseGuard(match_case) : std::nullopt;
+							if (error.has_value())
+							{
+								return std::unexpected(error.value());
+							}
+							return Evaluate(match_case.m_expr);
+						});
+
+					if (!case_result.has_value())
 					{
 						return std::unexpected(std::move(case_result.error()));
 					}
+
+					// A guarded case may fail its guard, so it covers nothing.
+					if (!match_case.HasGuard())
+					{
+						coverage.Add(*match_case.m_pattern);
+					}
+
+					std::shared_ptr<MidoriType> resolved_case_type = ApplySubstitution(case_result.value());
+					if (prev_case_type == nullptr)
+					{
+						prev_case_type = resolved_case_type;
+					}
 					else
 					{
-						std::shared_ptr<MidoriType> resolved_case_type = ApplySubstitution(case_result.value());
-						if (prev_case_type == nullptr)
+						std::shared_ptr<MidoriType> resolved_prev_case_type = ApplySubstitution(prev_case_type);
+						MidoriResult::TypeResult unify_result = Unify(match.m_match_keyword, resolved_prev_case_type, resolved_case_type);
+						if (!unify_result.has_value())
 						{
-							prev_case_type = resolved_case_type;
+							return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, "Match expression type error: case types do not match", match.m_match_keyword, m_file_name, m_source_lines, resolved_prev_case_type, resolved_case_type));
 						}
-						else
-						{
-							std::shared_ptr<MidoriType> resolved_prev_case_type = ApplySubstitution(prev_case_type);
-							MidoriResult::TypeResult unify_result = Unify(match.m_match_keyword, resolved_prev_case_type, resolved_case_type);
-							if (!unify_result.has_value())
-							{
-								return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, "Match expression type error: case types do not match", match.m_match_keyword, m_file_name, m_source_lines, resolved_prev_case_type, resolved_case_type));
-							}
 
-							prev_case_type = ApplySubstitution(resolved_prev_case_type);
-						}
+						prev_case_type = ApplySubstitution(resolved_prev_case_type);
 					}
 				}
 
-				// A guarded case may fail its guard, so it covers nothing.
-				const std::vector<std::string> unmatched = PatternCoverage(match.m_cases
-					| std::views::transform([](const std::unique_ptr<MidoriExpression>& case_expr) -> const MidoriExpression::Case& { return case_expr->GetExpression<MidoriExpression::Case>(); })
-					| std::views::filter([](const MidoriExpression::Case& match_case) { return !match_case.HasGuard(); })
-					| std::views::transform([](const MidoriExpression::Case& match_case) -> const MidoriPattern* { return match_case.m_pattern.get(); })
-					| std::ranges::to<std::vector>()).FindUnmatched();
+				const std::vector<std::string> unmatched = coverage.FindUnmatched();
 
 				if (unmatched == std::vector<std::string>{ "_" })
 				{
@@ -4687,6 +4691,37 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 				return match.m_type_data;
 			}
 		);
+}
+
+// A case, and each alternative of an or-pattern it starts with, must match some
+// value nothing before it does.
+std::optional<CompilerError> TypeChecker::CheckCaseReachable(const PatternCoverage& coverage, const MidoriExpression::Case& match_case)
+{
+	if (!coverage.IsUseful(*match_case.m_pattern))
+	{
+		return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnreachableCase, "The cases above already match every value this one does, so it can never run.", match_case.m_keyword, m_file_name, m_source_lines);
+	}
+
+	const MidoriPattern* pattern = match_case.m_pattern.get();
+	while (pattern->IsPattern<MidoriPattern::As>())
+	{
+		pattern = pattern->GetPattern<MidoriPattern::As>().m_pattern.get();
+	}
+	if (!pattern->IsPattern<MidoriPattern::Or>())
+	{
+		return std::nullopt;
+	}
+
+	PatternCoverage alternatives = coverage;
+	for (const std::unique_ptr<MidoriPattern>& alternative : pattern->GetPattern<MidoriPattern::Or>().m_alternatives)
+	{
+		if (!alternatives.IsUseful(*alternative))
+		{
+			return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnreachableCase, "The cases and alternatives before this one already match every value it does, so it can never match.", GetPatternToken(*alternative), m_file_name, m_source_lines);
+		}
+		alternatives.Add(*alternative);
+	}
+	return std::nullopt;
 }
 
 std::optional<CompilerError> TypeChecker::CheckCaseGuard(MidoriExpression::Case& case_expr)

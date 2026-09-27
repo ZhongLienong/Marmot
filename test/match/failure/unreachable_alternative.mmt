@@ -1,0 +1,19 @@
+module UnreachableAlternative
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt"
+}
+
+type Shape = Dot | Line(Int) | Box(Int, Int);
+
+// The case can run, for Line, but its Dot alternative never matches: the case
+// above takes every Dot first.
+
+def Size = fn(shape : Shape) -> Int =>
+	match shape with
+		case Shape::Dot() => 0
+		case Shape::Line(_) | Shape::Dot() => 1
+		case Shape::Box(_, _) => 2;
+
+IO::PrintLine(Size(Shape::Dot()) as Text);

@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <charconv>
 #include <format>
 #include <ranges>
 #include <type_traits>
@@ -14,11 +15,19 @@ PatternCoverage::Head::Head(std::string&& key, Shape shape, size_t arity, size_t
 {
 }
 
-PatternCoverage::PatternCoverage(std::vector<const MidoriPattern*>&& patterns)
-	: m_rows(patterns
-		| std::views::transform([](const MidoriPattern* pattern) { return Row{ Strip(pattern) }; })
-		| std::ranges::to<std::vector>())
+void PatternCoverage::Add(const MidoriPattern& pattern)
 {
+	m_rows.push_back(Row{ Strip(&pattern) });
+}
+
+bool PatternCoverage::IsUseful(const MidoriPattern& pattern) const
+{
+	return Useful(m_rows, Row{ Strip(&pattern) });
+}
+
+bool PatternCoverage::IsExhaustive() const
+{
+	return !Useful(m_rows, Row{ nullptr });
 }
 
 std::vector<std::string> PatternCoverage::FindUnmatched() const
@@ -70,6 +79,64 @@ std::vector<PatternCoverage::Witness> PatternCoverage::Unmatched(const std::vect
 		}
 	}
 	return unmatched;
+}
+
+// Maranget's usefulness check: whether some value the candidate row matches is
+// matched by no row. The candidate's own head joins the column when choosing the
+// constructors to split on, since an array with a rest there changes them.
+bool PatternCoverage::Useful(const std::vector<Row>& unexpanded, const Row& candidate)
+{
+	if (unexpanded.empty())
+	{
+		return true;
+	}
+	if (candidate.empty())
+	{
+		return false;
+	}
+
+	const MidoriPattern* head = candidate.front();
+	const std::span<const MidoriPattern* const> rest = std::span(candidate).subspan(1uz);
+	if (!IsWildcard(head) && head->IsPattern<MidoriPattern::Or>())
+	{
+		return std::ranges::any_of(head->GetPattern<MidoriPattern::Or>().m_alternatives, [&unexpanded, rest](const std::unique_ptr<MidoriPattern>& alternative)
+			{
+				return Useful(unexpanded, Joined(Row{ Strip(alternative.get()) }, rest));
+			});
+	}
+
+	const std::vector<Row> rows = Expanded(unexpanded);
+	std::vector<const MidoriPattern*> column = rows
+		| std::views::transform([](const Row& row) { return row.front(); })
+		| std::views::filter([](const MidoriPattern* pattern) { return !IsWildcard(pattern); })
+		| std::ranges::to<std::vector>();
+	if (!IsWildcard(head))
+	{
+		column.push_back(head);
+	}
+
+	const std::optional<std::vector<Head>> signature = column.empty() ? std::nullopt : Signature(column);
+	if (signature.has_value())
+	{
+		return std::ranges::any_of(signature.value(), [&rows, head, rest](const Head& constructor)
+			{
+				std::optional<Row> arguments = IsWildcard(head) ? Row(constructor.m_arity, nullptr) : ArgumentsFor(*head, constructor);
+				return arguments.has_value() && Useful(Specialize(rows, constructor), Joined(std::move(arguments.value()), rest));
+			});
+	}
+	if (IsWildcard(head))
+	{
+		return Useful(Default(rows), Row(rest.begin(), rest.end()));
+	}
+
+	const Head own = OwnHead(*head);
+	return Useful(Specialize(rows, own), Joined(ArgumentsFor(*head, own).value(), rest));
+}
+
+PatternCoverage::Row PatternCoverage::Joined(Row&& first, std::span<const MidoriPattern* const> rest)
+{
+	first.insert(first.end(), rest.begin(), rest.end());
+	return std::move(first);
 }
 
 std::vector<PatternCoverage::Witness> PatternCoverage::Prefixed(const std::string& first, std::vector<Witness>&& rest)
@@ -263,8 +330,7 @@ std::optional<PatternCoverage::Row> PatternCoverage::ArgumentsFor(const MidoriPa
 			}
 			else if constexpr (std::is_same_v<Node, MidoriPattern::Literal>)
 			{
-				const std::string key = node.m_kind == MidoriPattern::LiteralKind::Unit ? std::string("()") : std::string(node.m_token.m_lexeme);
-				return key == head.m_key ? std::optional<Row>(Row{}) : std::nullopt;
+				return LiteralKey(node) == head.m_key ? std::optional<Row>(Row{}) : std::nullopt;
 			}
 			else
 			{
@@ -274,6 +340,51 @@ std::optional<PatternCoverage::Row> PatternCoverage::ArgumentsFor(const MidoriPa
 		},
 		*pattern
 	);
+}
+
+// The one constructor a pattern names in a column with no finite signature: a
+// literal, or an array of one exact length.
+PatternCoverage::Head PatternCoverage::OwnHead(const MidoriPattern& pattern)
+{
+	if (pattern.IsPattern<MidoriPattern::Array>())
+	{
+		const size_t length = pattern.GetPattern<MidoriPattern::Array>().m_elements.size();
+		return Head(std::format("[{}]", length), Shape::ClosedArray, length);
+	}
+	return Head(LiteralKey(pattern.GetPattern<MidoriPattern::Literal>()), Shape::Literal, 0uz);
+}
+
+// Literals that denote one value share a key however they are written, so `16`
+// and `0x10` are the same case.
+std::string PatternCoverage::LiteralKey(const MidoriPattern::Literal& literal)
+{
+	const std::string_view lexeme = literal.m_token.m_lexeme;
+	switch (literal.m_kind)
+	{
+	case MidoriPattern::LiteralKind::Unit:
+		return "()";
+	case MidoriPattern::LiteralKind::Integer:
+	case MidoriPattern::LiteralKind::Byte:
+	case MidoriPattern::LiteralKind::Word:
+	{
+		// A literal too large for 64 bits is reported by lowering; until then its
+		// lexeme stands for it.
+		const bool is_negative = lexeme.starts_with('-');
+		return ParseUnsignedLiteral(is_negative ? lexeme.substr(1uz) : lexeme)
+			.transform([is_negative](uint64_t magnitude) { return std::format("{}{}", is_negative && magnitude != 0u ? "-" : "", magnitude); })
+			.value_or(std::string(lexeme));
+	}
+	case MidoriPattern::LiteralKind::Float:
+	{
+		double value = 0.0;
+		std::from_chars(lexeme.data(), lexeme.data() + lexeme.size(), value);
+		return std::format("{}", value);
+	}
+	case MidoriPattern::LiteralKind::Bool:
+	case MidoriPattern::LiteralKind::Text:
+		return std::string(lexeme);
+	}
+	std::unreachable();
 }
 
 // Rows never hold an `as`: it matches what its pattern does.

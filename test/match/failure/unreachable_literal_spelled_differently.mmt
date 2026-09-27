@@ -1,0 +1,17 @@
+module UnreachableLiteralSpelledDifferently
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt"
+}
+
+// 0x100 is 256, so the second case matches nothing the first does not. (A hex
+// literal up to 0xFF is a Byte, so this one is past it to stay an Int.)
+
+def Describe = fn(n : Int) -> Text =>
+	match n with
+		case 256 => "two hundred fifty-six"
+		case 0x100 => "hex"
+		case _ => "other";
+
+IO::PrintLine(Describe(256));

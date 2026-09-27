@@ -190,6 +190,7 @@ Current `CompilerErrorCode` values:
 - `TypeIncorrectArity`
 - `TypeMismatch`
 - `TypeNonExhaustiveMatch`
+- `TypeUnreachableCase`
 - `CodeGeneratorLimitExceeded`
 - `LoweringUnresolvedMethodResolution`
 - `LoweringAmbiguousMethodResolution`
@@ -328,6 +329,7 @@ are emitted with the same shape as the full examples above.
 | `TypeIncorrectArity` | `TypeChecker` | `Function expects 2 argument(s) but received 3.` |
 | `TypeMismatch` | `TypeChecker` | `Expected 'Int' but got 'Text'.` |
 | `TypeNonExhaustiveMatch` | `TypeChecker` | `Non-exhaustive 'match'; missing case for 'None'.` |
+| `TypeUnreachableCase` | `TypeChecker` | `The cases above already match every value this one does, so it can never run.` |
 | `CodeGeneratorLimitExceeded` | `CodeGenerator` | `Function exceeds the maximum local count.` |
 | `LoweringUnresolvedMethodResolution` | `Lowering` | `Could not resolve method 'show' for type 'T'.` |
 | `LoweringAmbiguousMethodResolution` | `Lowering` | `Ambiguous method 'show' for type 'T'.` |

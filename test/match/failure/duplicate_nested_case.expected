@@ -1,6 +1,6 @@
-Compilation failed :( 
-Parser Error at test/match/failure/duplicate_nested_case.mmt:15
+Compilation failed :(
+Type Checker Error at test/match/failure/duplicate_nested_case.mmt:15
    |
 15 | 		case Result::Err(Code::Alpha) => "alpha again"
-   |        ^^^^^^ Duplicate case in match statement.
+   |   ^^^^ The cases above already match every value this one does, so it can never run.
    |

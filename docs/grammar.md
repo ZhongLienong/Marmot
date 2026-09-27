@@ -219,4 +219,7 @@ A `case` may carry a guard: `case n if n > 10 => ...`. The catch-all arm is
 
 A match's cases run to the first token that is not `case`, so a match in an
 arm without braces takes the arm's following cases for its own. A case that
-the cases above it already cover can never run, and is an error.
+the cases above it already cover can never run, and is an error, as is an
+alternative of `|` that the cases and alternatives before it cover. Coverage
+counts the values patterns match, not how they are written, and a case with a
+guard covers nothing.

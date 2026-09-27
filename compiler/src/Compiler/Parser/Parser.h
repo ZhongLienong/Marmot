@@ -788,19 +788,7 @@ private:
 
 	MidoriResult::ExpressionResult ParseFunctionExpression();
 
-	// What the cases of one match have covered so far.
-	struct MatchCoverage
-	{
-		// Constructors every value of which is matched, and each case's signature.
-		std::unordered_set<std::string> m_visited;
-		// The variants of the union matched on, once a case names one.
-		std::vector<std::string> m_variants;
-		bool m_is_exhausted = false;
-
-		MatchCoverage() = default;
-	};
-
-	MidoriResult::ExpressionResult ParseCaseExpression(MatchCoverage& coverage, Token& keyword);
+	MidoriResult::ExpressionResult ParseCaseExpression(Token& keyword);
 
 	MidoriResult::PatternResult ParsePattern();
 
