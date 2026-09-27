@@ -71,10 +71,6 @@ private:
 
 	size_t ConvertImportIndex(int global_index) const;
 
-	bool IsImportIndexWide(int global_index) const;
-
-	size_t ConvertImportIndexWide(int global_index) const;
-
 	size_t MergeString(const std::string& str);
 
 	// A re-exported name is an alias, so the module that answers for it is the

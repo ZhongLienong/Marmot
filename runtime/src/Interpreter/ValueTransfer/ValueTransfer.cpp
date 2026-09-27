@@ -385,7 +385,7 @@ std::expected<MidoriTraceable*, std::string> ValueTransfer::DeserializeObject(co
 	if (const SerializedObject::Closure* serialized_closure = std::get_if<SerializedObject::Closure>(&source->m_data))
 	{
 		// A capture-free function goes through the target VM's static closure
-		// cache, exactly as MAKE_FUNCTION would produce it there.
+		// cache, exactly as MAKE_FUNCTION_WIDE would produce it there.
 		if (serialized_closure->m_cells.empty())
 		{
 			MidoriTraceable* function = target_vm.MakeFunctionValue(serialized_closure->m_proc_index).GetPointer();

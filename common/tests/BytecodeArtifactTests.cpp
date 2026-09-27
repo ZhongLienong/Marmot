@@ -171,6 +171,26 @@ TEST_CASE("BinaryArtifact ReadExecutable rejects version mismatch", "[bytecode-a
 	REQUIRE(result.error().find("version") != std::string::npos);
 }
 
+TEST_CASE("BinaryArtifact ReadExecutable rejects a version 11 artifact", "[bytecode-artifact]")
+{
+	const std::string source =
+		"module Main\n"
+		"\n"
+		"def main = fn() -> Int => 0;\n";
+
+	std::string blob = Serialize(CompileOrFail(source));
+	blob[4] = static_cast<char>(11);
+	blob[5] = static_cast<char>(0);
+	blob[6] = static_cast<char>(0);
+	blob[7] = static_cast<char>(0);
+
+	std::istringstream in(blob, std::ios::binary);
+	const std::expected<MidoriExecutable, std::string> result = MidoriBinaryArtifact::ReadExecutable(in);
+
+	REQUIRE_FALSE(result.has_value());
+	REQUIRE(result.error() == "Bytecode artifact format version mismatch: expected 12, got 11. Rebuild the artifact.");
+}
+
 TEST_CASE("BinaryArtifact ReadExecutable rejects corrupt payload (CRC mismatch)", "[bytecode-artifact]")
 {
 	const std::string source =

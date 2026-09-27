@@ -572,10 +572,7 @@ struct MidoriCellValue
 	const MidoriValue& GetValue() const;
 };
 
-// A user-visible Cell<T>. Deliberately a different traceable type from
-// MidoriCellValue: GET_LOCAL_CELL and SET_LOCAL_CELL decide whether a local slot
-// was boxed for capture by checking for a MidoriCellValue pointer, so a user cell
-// of that type sitting unboxed in a local would be unwrapped by mistake.
+// A user-visible Cell<T>. A MidoriCellValue is a closure's capture.
 struct MidoriMutableCell
 {
 	MidoriValue m_value;

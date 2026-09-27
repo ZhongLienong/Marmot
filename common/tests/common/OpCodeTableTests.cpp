@@ -8,7 +8,7 @@
 #include <vector>
 
 // OpCodes.def is the one list of instructions and their lengths. The linker and
-// the code generator step through bytecode with OpCodeTable::Length; the
+// the backend step through bytecode with OpCodeTable::Length; the
 // disassembler still decodes each instruction by hand. These tests hold the
 // hand-written decoder to the table.
 
@@ -22,10 +22,11 @@ TEST_CASE("Every opcode has a length and a name", "[opcode]")
 		CHECK(OpCodeTable::Name(opcode) != "<invalid opcode>");
 	}
 
-	CHECK(OpCodeTable::Name(OpCode::LOAD_STRING) == "LOAD_STRING");
+	CHECK(OpCodeTable::Name(OpCode::LOAD_STRING_WIDE) == "LOAD_STRING_WIDE");
 	CHECK(OpCodeTable::Name(OpCode::GET_LOCAL2) == "GET_LOCAL2");
 	CHECK(OpCodeTable::Length(OpCode::INTEGER_CONSTANT) == 9);
-	CHECK(OpCodeTable::Length(OpCode::IF_LOCAL_GE_LOCAL) == 7);
+	CHECK(OpCodeTable::Length(OpCode::IF_LOCAL_GE_LOCAL) == 5);
+	CHECK(OpCodeTable::Length(OpCode::ADD_LOCAL_INT) == 3);
 }
 
 TEST_CASE("Byte values past the last opcode have no length", "[opcode]")

@@ -364,16 +364,6 @@ private:
 		return bits;
 	}
 
-	MIDORI_FORCE_INLINE int ReadGlobalVariable() noexcept
-	{
-		return static_cast<int>(ReadByte());
-	}
-
-	static MIDORI_FORCE_INLINE int ReadGlobalVariable(InstructionPointer& ip) noexcept
-	{
-		return static_cast<int>(ReadByte(ip));
-	}
-
 	RuntimeError GenerateRuntimeError(RuntimeErrorCode code, std::string_view message, int line) noexcept;
 
 	std::vector<RuntimeStackFrame> GenerateStackTrace() noexcept;
@@ -424,8 +414,6 @@ private:
 	int CheckIndexBounds(const MidoriValue index, MidoriInteger size) noexcept;
 
 	int CheckNewArraySize(MidoriInteger size) noexcept;
-
-	MidoriValue EnsureCellHandle(MidoriValue& slot, ValueStackPointer closure_slot) noexcept;
 
     void BuildGarbageCollectionRoots(GarbageCollector::GarbageCollectionRoots& roots) const noexcept;
 

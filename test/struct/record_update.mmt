@@ -43,8 +43,8 @@ IO::PrintLine("projected: " ++ ({ origin with x = 77 }.x as Text));
 def twice = { { origin with x = 10 } with y = 20 };
 IO::PrintLine("twice: " ++ (twice.x as Text) ++ "," ++ (twice.y as Text));
 
-// A struct with several preserved fields exercises the stack discipline: DUP copies the
-// TOP of the stack, so the source has to stay on top rather than under the fields.
+// A struct with several preserved fields exercises the stack discipline: the source
+// has to stay on top rather than under the fields.
 type Wide =
 {
 	a : Int,

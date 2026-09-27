@@ -109,14 +109,6 @@ namespace
 	void EmitInstanceGlobal(BytecodeStream& stream, size_t proc_idx, size_t global_index)
 	{
 		AddProcedure(stream, proc_idx);
-
-		if (global_index <= MAX_LOCAL_VARIABLES)
-		{
-			stream.AddByteCode(OpCode::DEFINE_GLOBAL, 0);
-			stream.AddByteCode(static_cast<OpCode>(global_index), 0);
-			return;
-		}
-
 		stream.AddByteCode(OpCode::DEFINE_GLOBAL_WIDE, 0);
 		const int high_byte = (static_cast<int>(global_index) >> SHIFT_8_BITS) & BYTE_MASK;
 		const int low_byte = static_cast<int>(global_index) & BYTE_MASK;
@@ -555,18 +547,6 @@ void BytecodeLinker::PatchBootstrapOffsets()
 				{
 					ShiftWideProcedure(procedure, offset, 1);
 				}
-				else if (opcode == OpCode::MAKE_CLOSURE || opcode == OpCode::MAKE_FUNCTION)
-				{
-					int old_proc_index = static_cast<int>(procedure.ReadByteCode(offset + 1));
-					int new_proc_index = old_proc_index + 1;
-					procedure.SetByteCode(offset + 1, static_cast<OpCode>(new_proc_index));
-				}
-				else if (opcode == OpCode::CALL_PROC || opcode == OpCode::CALL_PROC_0 || opcode == OpCode::CALL_PROC_1 || opcode == OpCode::CALL_PROC_2 || opcode == OpCode::CALL_PROC_3)
-				{
-					int old_proc_index = static_cast<int>(procedure.ReadByteCode(offset + 1));
-					int new_proc_index = old_proc_index + 1;
-					procedure.SetByteCode(offset + 1, static_cast<OpCode>(new_proc_index));
-				}
 
 				offset += advance;
 			}
@@ -626,21 +606,10 @@ std::string BytecodeLinker::MakeSymbolKey(const std::string& module_name, const 
 
 bool BytecodeLinker::IsImportIndex(int global_index) const
 {
-	return global_index >= 248;
-}
-
-size_t BytecodeLinker::ConvertImportIndex(int global_index) const
-{
-	int import_index = global_index - 256;
-	return static_cast<size_t>(-import_index - 1);
-}
-
-bool BytecodeLinker::IsImportIndexWide(int global_index) const
-{
 	return global_index >= IMPORT_PLACEHOLDER_BASE;
 }
 
-size_t BytecodeLinker::ConvertImportIndexWide(int global_index) const
+size_t BytecodeLinker::ConvertImportIndex(int global_index) const
 {
 	return static_cast<size_t>(global_index - IMPORT_PLACEHOLDER_BASE);
 }
@@ -815,22 +784,6 @@ void BytecodeLinker::PatchProcedure(
 		{
 			ShiftWideProcedure(procedure, offset, proc_base_offset);
 		}
-		else if (opcode == OpCode::MAKE_CLOSURE || opcode == OpCode::MAKE_FUNCTION || opcode == OpCode::CALL_PROC ||
-			opcode == OpCode::CALL_PROC_0 || opcode == OpCode::CALL_PROC_1 || opcode == OpCode::CALL_PROC_2 || opcode == OpCode::CALL_PROC_3)
-		{
-			const int old_proc_index = static_cast<int>(procedure.ReadByteCode(offset + 1));
-			const int new_proc_index = old_proc_index + proc_base_offset;
-			procedure.SetByteCode(offset + 1, static_cast<OpCode>(new_proc_index));
-		}
-		else if (opcode == OpCode::LOAD_STRING)
-		{
-			const int old_string_index = static_cast<int>(procedure.ReadByteCode(offset + 1));
-			if (old_string_index >= 0 && static_cast<size_t>(old_string_index) < string_mapping.size())
-			{
-				const size_t new_string_index = string_mapping[old_string_index];
-				procedure.SetByteCode(offset + 1, static_cast<OpCode>(new_string_index));
-			}
-		}
 		else if (opcode == OpCode::LOAD_STRING_WIDE)
 		{
 			const int old_string_index = ReadShortOperandLE(procedure, offset);
@@ -838,30 +791,6 @@ void BytecodeLinker::PatchProcedure(
 			{
 				const size_t new_string_index = string_mapping[old_string_index];
 				WriteShortOperandLE(procedure, offset, static_cast<int>(new_string_index));
-			}
-		}
-		else if (
-			opcode == OpCode::DEFINE_GLOBAL ||
-			opcode == OpCode::GET_GLOBAL ||
-			opcode == OpCode::SET_GLOBAL ||
-			opcode == OpCode::CALL_GLOBAL
-		)
-		{
-			const int old_global_index = static_cast<int>(procedure.ReadByteCode(offset + 1));
-
-			if (IsImportIndex(old_global_index))
-			{
-				const size_t import_array_index = ConvertImportIndex(old_global_index);
-				if (import_array_index < import_resolved_indices.size())
-				{
-					const size_t resolved_index = import_resolved_indices[import_array_index];
-					procedure.SetByteCode(offset + 1, static_cast<OpCode>(resolved_index));
-				}
-			}
-			else
-			{
-				const int new_global_index = old_global_index + global_base_offset;
-				procedure.SetByteCode(offset + 1, static_cast<OpCode>(new_global_index));
 			}
 		}
 		else if (
@@ -873,9 +802,9 @@ void BytecodeLinker::PatchProcedure(
 		{
 			const int old_global_index = ReadWideOperand(procedure, offset);
 
-			if (IsImportIndexWide(old_global_index))
+			if (IsImportIndex(old_global_index))
 			{
-				const size_t import_array_index = ConvertImportIndexWide(old_global_index);
+				const size_t import_array_index = ConvertImportIndex(old_global_index);
 				if (import_array_index < import_resolved_indices.size())
 				{
 					const size_t resolved_index = import_resolved_indices[import_array_index];

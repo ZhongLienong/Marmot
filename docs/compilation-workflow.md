@@ -220,24 +220,24 @@ The bytecode backend turns each module's MidoriIR into a `BytecodeModule`. It ch
 
 Important opcode families in the current executable format:
 
-- Constants: `LOAD_STRING`, `INTEGER_CONSTANT`, `FLOAT_CONSTANT`, `BYTE_CONSTANT`, `WORD_CONSTANT`, `OP_UNIT`, `OP_TRUE`, `OP_FALSE`
+- Constants: `LOAD_STRING_WIDE`, `INTEGER_CONSTANT`, `FLOAT_CONSTANT`, `BYTE_CONSTANT`, `WORD_CONSTANT`, `OP_UNIT`, `OP_TRUE`, `OP_FALSE`
 - Small integer constants: `INT_MINUS_1`, `INT_0`, `INT_1`, `INT_2`, `INT_3`, `INT_4`, `INT_5`, `INT_10`
-- Arrays and tuples: `CREATE_ARRAY`, `CREATE_TUPLE`, `GET_ARRAY`, `GET_TUPLE`, `UNPACK_TUPLE`, `ADD_BACK_ARRAY`, `GET_ARRAY_LENGTH`
+- Arrays and tuples: `CREATE_ARRAY`, `CREATE_TUPLE`, `GET_ARRAY`, `GET_TUPLE`, `ADD_BACK_ARRAY`, `GET_ARRAY_LENGTH`
 - Ranges: `CREATE_INT_RANGE`, `CREATE_FLOAT_RANGE`, `GET_RANGE_START`, `GET_RANGE_END`, `GET_RANGE_STEP`
 - Casts: `INT_TO_FLOAT`, `TEXT_TO_FLOAT`, `FLOAT_TO_INT`, `TEXT_TO_INT`, `FLOAT_TO_TEXT`, `INT_TO_TEXT`, `WORD_TO_TEXT`, `BYTE_TO_INT`, `INT_TO_BYTE`, `BYTE_TO_WORD`, `WORD_TO_BYTE`, `WORD_TO_INT`, `INT_TO_WORD`, `BYTE_TO_FLOAT`, `FLOAT_TO_BYTE`, `WORD_TO_FLOAT`, `FLOAT_TO_WORD`
 - Arithmetic and bit operations: `ADD_*`, `SUBTRACT_*`, `MULTIPLY_*`, `DIVIDE_*`, `MODULO_*`, `LEFT_SHIFT`, `RIGHT_SHIFT`, `BITWISE_AND`, `BITWISE_OR`, `BITWISE_XOR`, `BITWISE_NOT`
-- Fused integer update: `ADD_ASSIGN_INT`, `SUB_ASSIGN_INT` (nothing emits them any more; the language has no compound assignment)
-- Control flow: `JUMP_IF_FALSE`, `JUMP_IF_TRUE`, `JUMP`, `JUMP_BACK`, fused compare-and-branch opcodes such as `IF_INTEGER_LESS` and `IF_FLOAT_GREATER_EQUAL`
-- Pattern matching: `LOAD_TAG`, `GET_TAG`, `SET_TAG`, `GET_UNION_FIELD`
-- Calls: `CALL_FOREIGN`, `CALL_FOREIGN_INDEXED`, `CALL`, `CALL_0` through `CALL_3`, `CALL_PROC`, `CALL_PROC_0` through `CALL_PROC_3`, `CALL_PROC_WIDE`, `CALL_GLOBAL`, `CALL_GLOBAL_WIDE`, `TAIL_CALL`
+- Control flow: `JUMP_IF_FALSE`, `JUMP`, `JUMP_BACK`, fused compare-and-branch opcodes such as `IF_INTEGER_LESS` and `IF_FLOAT_GREATER_EQUAL`
+- Local-operand superinstructions: `ADD_LOCAL_INT`, `PUSH_LOCAL_SUB_INT`, `IF_LOCAL_LE_INT`, `IF_LOCAL_GE_LOCAL`, `GET_LOCAL2`
+- Pattern matching: `GET_TAG`, `SET_TAG`, `GET_UNION_FIELD`
+- Calls: `CALL_FOREIGN`, `CALL_FOREIGN_INDEXED`, `CALL`, `CALL_0` through `CALL_3`, `CALL_PROC_WIDE`, `CALL_GLOBAL_WIDE`, `TAIL_CALL`
 - Data construction: `CONSTRUCT_STRUCT`, `CONSTRUCT_UNION`
-- Closures and functions: `MAKE_FUNCTION`, `MAKE_FUNCTION_WIDE`, `MAKE_CLOSURE`, `BIND_CAPTURES`, `MAKE_CLOSURE_OF`, `SET_CAPTURE`
-- Variables: `DEFINE_GLOBAL`, `GET_GLOBAL`, `SET_GLOBAL`, `GET_LOCAL`, `SET_LOCAL`, `GET_LOCAL_CELL`, `SET_LOCAL_CELL`, `GET_CELL`, `SET_CELL`, plus wide variants
+- Closures and functions: `MAKE_FUNCTION_WIDE`, `MAKE_CLOSURE_OF`, `SET_CAPTURE`, `GET_CELL`, `GET_CELL_WIDE`
+- Variables: `DEFINE_GLOBAL_WIDE`, `GET_GLOBAL_WIDE`, `SET_GLOBAL_WIDE`, `GET_LOCAL`, `SET_LOCAL`, `GET_LOCAL_WIDE`, `SET_LOCAL_WIDE`
 - Cells (`Cell<T>`): `MAKE_CELL`, `READ_CELL`, `WRITE_CELL`, operating on a cell value on the stack rather than a captured local
-- Members and stack: `GET_MEMBER`, `POP`, `DUP`, `SWAP`, `POP_LOCAL_SCOPE`, `POP_VALUES`, `POP_BLOCK_SCOPE`, `POP_MATCH_SCOPE`
+- Members and stack: `GET_MEMBER`, `POP`, `PUSH_PLACEHOLDER`
 - Termination: `RETURN`, `HALT`
 
-The backend names procedures and globals only in two bytes, with the `WIDE` forms, because the linker adds each module's first procedure and first global to them. A closure is `MAKE_CLOSURE_OF`, which takes exactly the values it captures; `MAKE_CLOSURE`, `BIND_CAPTURES`, `GET_LOCAL_CELL`, `SET_LOCAL_CELL` and `SET_CELL` remain in the format, but nothing emits them.
+Procedures, globals and text constants are named only in two bytes, by the `WIDE` forms, because the linker adds each module's first procedure, global and text to them. A closure is `MAKE_CLOSURE_OF`, which takes exactly the values it captures. `OpCodes.def` is the list of every opcode and its length; removing, reordering or resizing one changes `MbcFormatVersion`, and the VM refuses a `.mmc` of another version.
 
 ## Phase 9: Linking
 

@@ -196,17 +196,13 @@ namespace
 		}
 	}
 
-	// The wide form of a variable operation, for an index past one byte.
+	// The wide form of a local or capture operation, for an index past one byte.
 	OpCode WideOpCode(OpCode op)
 	{
 		switch (op)
 		{
-		case OpCode::DEFINE_GLOBAL: return OpCode::DEFINE_GLOBAL_WIDE;
-		case OpCode::GET_GLOBAL: return OpCode::GET_GLOBAL_WIDE;
-		case OpCode::SET_GLOBAL: return OpCode::SET_GLOBAL_WIDE;
 		case OpCode::GET_LOCAL: return OpCode::GET_LOCAL_WIDE;
 		case OpCode::SET_LOCAL: return OpCode::SET_LOCAL_WIDE;
-		case OpCode::CALL_GLOBAL: return OpCode::CALL_GLOBAL_WIDE;
 		case OpCode::GET_CELL: return OpCode::GET_CELL_WIDE;
 		default: throw std::logic_error(std::format("opcode {} has no wide form", static_cast<int>(op)));
 		}
@@ -895,7 +891,7 @@ namespace
 			m_stream.AddByteCode(static_cast<OpCode>(value & BYTE_MASK), line);
 		}
 
-		// An index of a local or a global, in one byte or, wide, in two, high first.
+		// An index of a local or a capture, in one byte or, wide, in two, high first.
 		void EmitVariable(OpCode op, int index, int line)
 		{
 			if (index <= MAX_LOCAL_VARIABLES)
@@ -913,7 +909,7 @@ namespace
 		// module's first global to it, which may pass 255.
 		void EmitGlobal(OpCode op, int index, int line)
 		{
-			EmitByte(WideOpCode(op), line);
+			EmitByte(op, line);
 			EmitOperand(index >> SHIFT_8_BITS, line);
 			EmitOperand(index, line);
 		}
@@ -1024,7 +1020,6 @@ namespace
 				{
 					EmitByte(OpCode::GET_LOCAL2, line);
 					EmitOperand(m_slots[values[index].m_index], line);
-					EmitOperand(0, line);
 					EmitOperand(m_slots[values[index + 1u].m_index], line);
 					index += 1u;
 					continue;
@@ -1175,16 +1170,12 @@ namespace
 				EmitByte(OpCode::ADD_LOCAL_INT, line);
 				EmitOperand(slot, line);
 				EmitOperand(static_cast<uint8_t>(static_cast<int8_t>(delta)), line);
-				EmitOperand(0, line);
-				EmitOperand(0, line);
-				EmitOperand(slot, line);
 				KeepOrPop(result, line);
 				return true;
 			}
 			EmitByte(OpCode::PUSH_LOCAL_SUB_INT, line);
 			EmitOperand(slot, line);
 			EmitOperand(static_cast<uint8_t>(static_cast<int8_t>(-delta)), line);
-			EmitOperand(0, line);
 			Store(result, line);
 			return true;
 		}
@@ -1364,7 +1355,7 @@ namespace
 				return CheckArity(operand_count, line)
 					.transform([&]()
 					{
-						EmitGlobal(OpCode::CALL_GLOBAL, m_backend.GlobalOperand(std::get<MidoriIRGlobalSlot>(instruction.m_immediate)), line);
+						EmitGlobal(OpCode::CALL_GLOBAL_WIDE, m_backend.GlobalOperand(std::get<MidoriIRGlobalSlot>(instruction.m_immediate)), line);
 						EmitOperand(static_cast<int>(operand_count), line);
 					});
 			case MidoriIROp::CallValue:
@@ -1402,13 +1393,13 @@ namespace
 				EmitVariable(OpCode::GET_CELL, static_cast<int>(std::get<MidoriIRIndex>(instruction.m_immediate).m_value), line);
 				return {};
 			case MidoriIROp::GlobalDefine:
-				EmitGlobal(OpCode::DEFINE_GLOBAL, m_backend.GlobalOperand(std::get<MidoriIRGlobalSlot>(instruction.m_immediate)), line);
+				EmitGlobal(OpCode::DEFINE_GLOBAL_WIDE, m_backend.GlobalOperand(std::get<MidoriIRGlobalSlot>(instruction.m_immediate)), line);
 				return {};
 			case MidoriIROp::GlobalGet:
-				EmitGlobal(OpCode::GET_GLOBAL, m_backend.GlobalOperand(std::get<MidoriIRGlobalSlot>(instruction.m_immediate)), line);
+				EmitGlobal(OpCode::GET_GLOBAL_WIDE, m_backend.GlobalOperand(std::get<MidoriIRGlobalSlot>(instruction.m_immediate)), line);
 				return {};
 			case MidoriIROp::GlobalSet:
-				EmitGlobal(OpCode::SET_GLOBAL, m_backend.GlobalOperand(std::get<MidoriIRGlobalSlot>(instruction.m_immediate)), line);
+				EmitGlobal(OpCode::SET_GLOBAL_WIDE, m_backend.GlobalOperand(std::get<MidoriIRGlobalSlot>(instruction.m_immediate)), line);
 				EmitByte(OpCode::POP, line);
 				return {};
 			case MidoriIROp::MakeTuple:
@@ -1609,14 +1600,11 @@ namespace
 			{
 				EmitOperand(m_slots[operands[0u].m_index], line);
 				EmitOperand(static_cast<uint8_t>(ByteConstant(operands[1u]).value()), line);
-				EmitOperand(0, line);
 			}
 			else if (op == OpCode::IF_LOCAL_GE_LOCAL)
 			{
 				EmitOperand(m_slots[operands[0u].m_index], line);
-				EmitOperand(0, line);
 				EmitOperand(m_slots[operands[1u].m_index], line);
-				EmitOperand(0, line);
 			}
 			const int offset = m_stream.GetByteCodeSize();
 			EmitOperand(0, line);
@@ -1701,7 +1689,7 @@ namespace
 					}
 					if (std::holds_alternative<MidoriIRGlobalSlot>(instruction.m_immediate))
 					{
-						EmitGlobal(OpCode::GET_GLOBAL, m_backend.GlobalOperand(std::get<MidoriIRGlobalSlot>(instruction.m_immediate)), line);
+						EmitGlobal(OpCode::GET_GLOBAL_WIDE, m_backend.GlobalOperand(std::get<MidoriIRGlobalSlot>(instruction.m_immediate)), line);
 					}
 					return {};
 				})

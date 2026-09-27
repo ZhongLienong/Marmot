@@ -26,18 +26,6 @@ namespace
 		Printer::Print(formated_str.str());
 	}
 
-	void PopMultipleInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
-	{
-		int operand = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
-		offset += 2;
-		std::ostringstream formated_str;
-
-		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
-		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(operand));
-		formated_str << '\n';
-		Printer::Print(formated_str.str());
-	}
-
 	void NumericConstantInstruction(bool is_integer, std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
 	{
 		std::byte operand_bytes[8];
@@ -98,19 +86,6 @@ namespace
 		Printer::Print(formated_str.str());
 	}
 
-	void LoadStringInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
-	{
-		int index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
-		offset += 2;
-		std::ostringstream formated_str;
-
-		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
-		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(index));
-		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// string pool index");
-		formated_str << '\n';
-		Printer::Print(formated_str.str());
-	}
-
 	void LoadStringWideInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
 	{
 		int low_byte = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
@@ -140,19 +115,6 @@ namespace
 		formated_str << Printer::Colored<Printer::Color::BRIGHT_YELLOW>(std::string(name));
 		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(operand));
 		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>(dest_str.str());
-		formated_str << '\n';
-		Printer::Print(formated_str.str());
-	}
-
-	void GlobalVariableInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
-	{
-		int operand = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
-		offset += 2;
-		std::ostringstream formated_str;
-
-		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
-		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(operand));
-		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// " + executable.GetGlobalVariable(operand));
 		formated_str << '\n';
 		Printer::Print(formated_str.str());
 	}
@@ -215,32 +177,6 @@ namespace
 		Printer::Print(formated_str.str());
 	}
 
-	void ClosureCreateInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
-	{
-		int captured_count = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
-		offset += 2;
-		std::ostringstream formated_str;
-
-		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
-		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(captured_count));
-		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// number of captured variables: " + std::to_string(captured_count));
-		formated_str << '\n';
-		Printer::Print(formated_str.str());
-	}
-
-	void AllocateClosureInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
-	{
-		int index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
-		offset += 2;
-		std::ostringstream formated_str;
-
-		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
-		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(index));
-		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// code index: " + std::to_string(index));
-		formated_str << '\n';
-		Printer::Print(formated_str.str());
-	}
-
 	void CallInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
 	{
 		int operand = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
@@ -262,50 +198,6 @@ namespace
 		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
 		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(arity));
 		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// number of parameters: " + std::to_string(arity));
-		formated_str << '\n';
-		Printer::Print(formated_str.str());
-	}
-
-	void CallDirectInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
-	{
-		int target_proc = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
-		int arity = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
-		offset += 3;
-		std::ostringstream formated_str;
-
-		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
-		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(target_proc));
-		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(arity));
-		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// proc: " + std::to_string(target_proc) + ", params: " + std::to_string(arity));
-		formated_str << '\n';
-		Printer::Print(formated_str.str());
-	}
-
-	void CallDirectFixedInstruction(std::string_view name, int arity, const MidoriExecutable& executable, int proc_index, int& offset)
-	{
-		int target_proc = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
-		offset += 2;
-		std::ostringstream formated_str;
-
-		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
-		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(target_proc));
-		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(arity));
-		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// proc: " + std::to_string(target_proc) + ", params: " + std::to_string(arity));
-		formated_str << '\n';
-		Printer::Print(formated_str.str());
-	}
-
-	void CallGlobalInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
-	{
-		int global_index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
-		int arity = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
-		offset += 3;
-		std::ostringstream formated_str;
-
-		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
-		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(global_index));
-		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(arity));
-		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// global: " + executable.GetGlobalVariable(global_index) + ", params: " + std::to_string(arity));
 		formated_str << '\n';
 		Printer::Print(formated_str.str());
 	}
@@ -482,9 +374,6 @@ namespace Disassembler
 		OpCode instruction = executable.ReadByteCode(offset, proc_index);
 		switch (instruction) 
 		{
-		case OpCode::LOAD_STRING:
-			LoadStringInstruction("LOAD_STRING", executable, proc_index, offset);
-			break;
 		case OpCode::LOAD_STRING_WIDE:
 			LoadStringWideInstruction("LOAD_STRING_WIDE", executable, proc_index, offset);
 			break;
@@ -544,9 +433,6 @@ namespace Disassembler
 			break;
 		case OpCode::GET_TUPLE:
 			SimpleInstruction("GET_TUPLE", offset);
-			break;
-		case OpCode::UNPACK_TUPLE:
-			SimpleInstruction("UNPACK_TUPLE", offset);
 			break;
 		case OpCode::ADD_BACK_ARRAY:
 			SimpleInstruction("ADD_BACK_ARRAY", offset);
@@ -716,12 +602,6 @@ namespace Disassembler
 		case OpCode::CONCAT_TEXT:
 			SimpleInstruction("CONCAT_TEXT", offset);
 			break;
-		case OpCode::ADD_ASSIGN_INT:
-			SimpleInstruction("ADD_ASSIGN_INT", offset);
-			break;
-		case OpCode::SUB_ASSIGN_INT:
-			SimpleInstruction("SUB_ASSIGN_INT", offset);
-			break;
 		case OpCode::EQUAL_FLOAT:
 			SimpleInstruction("EQUAL_FLOAT", offset);
 			break;
@@ -809,9 +689,6 @@ namespace Disassembler
 		case OpCode::JUMP_IF_FALSE:
 			JumpInstruction("JUMP_IF_FALSE", 1, executable, proc_index, offset);
 			break;
-		case OpCode::JUMP_IF_TRUE:
-			JumpInstruction("JUMP_IF_TRUE", 1, executable, proc_index, offset);
-			break;
 		case OpCode::JUMP:
 			JumpInstruction("JUMP", 1, executable, proc_index, offset);
 			break;
@@ -853,9 +730,6 @@ namespace Disassembler
 			break;
 		case OpCode::IF_FLOAT_NOT_EQUAL:
 			JumpInstruction("IF_FLOAT_NOT_EQUAL", 1, executable, proc_index, offset);
-			break;
-		case OpCode::LOAD_TAG:
-			SimpleInstruction("LOAD_TAG", offset);
 			break;
 		case OpCode::GET_TAG:
 			SimpleInstruction("GET_TAG", offset);
@@ -901,7 +775,7 @@ namespace Disassembler
 			const int local_index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 			const int imm = static_cast<int>(static_cast<int8_t>(executable.ReadByteCode(offset + 2, proc_index)));
 			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("ADD_LOCAL_INT")) + " local=" + std::to_string(local_index) + " imm=" + std::to_string(imm) + "\n");
-			offset += 6;
+			offset += 3;
 			break;
 		}
 		case OpCode::PUSH_LOCAL_SUB_INT:
@@ -909,35 +783,35 @@ namespace Disassembler
 			const int local_index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 			const int imm = static_cast<int>(static_cast<int8_t>(executable.ReadByteCode(offset + 2, proc_index)));
 			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("PUSH_LOCAL_SUB_INT")) + " local=" + std::to_string(local_index) + " imm=" + std::to_string(imm) + "\n");
-			offset += 4;
+			offset += 3;
 			break;
 		}
 		case OpCode::IF_LOCAL_LE_INT:
 		{
 			const int local_index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 			const int imm = static_cast<int>(static_cast<int8_t>(executable.ReadByteCode(offset + 2, proc_index)));
-			const int low = static_cast<int>(executable.ReadByteCode(offset + 4, proc_index));
-			const int high = static_cast<int>(executable.ReadByteCode(offset + 5, proc_index));
-			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("IF_LOCAL_LE_INT")) + " local=" + std::to_string(local_index) + " imm=" + std::to_string(imm) + " -> " + std::to_string(offset + 6 + (low | (high << 8))) + "\n");
-			offset += 6;
+			const int low = static_cast<int>(executable.ReadByteCode(offset + 3, proc_index));
+			const int high = static_cast<int>(executable.ReadByteCode(offset + 4, proc_index));
+			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("IF_LOCAL_LE_INT")) + " local=" + std::to_string(local_index) + " imm=" + std::to_string(imm) + " -> " + std::to_string(offset + 5 + (low | (high << 8))) + "\n");
+			offset += 5;
 			break;
 		}
 		case OpCode::IF_LOCAL_GE_LOCAL:
 		{
 			const int left = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
-			const int right = static_cast<int>(executable.ReadByteCode(offset + 3, proc_index));
-			const int low = static_cast<int>(executable.ReadByteCode(offset + 5, proc_index));
-			const int high = static_cast<int>(executable.ReadByteCode(offset + 6, proc_index));
-			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("IF_LOCAL_GE_LOCAL")) + " left=" + std::to_string(left) + " right=" + std::to_string(right) + " -> " + std::to_string(offset + 7 + (low | (high << 8))) + "\n");
-			offset += 7;
+			const int right = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
+			const int low = static_cast<int>(executable.ReadByteCode(offset + 3, proc_index));
+			const int high = static_cast<int>(executable.ReadByteCode(offset + 4, proc_index));
+			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("IF_LOCAL_GE_LOCAL")) + " left=" + std::to_string(left) + " right=" + std::to_string(right) + " -> " + std::to_string(offset + 5 + (low | (high << 8))) + "\n");
+			offset += 5;
 			break;
 		}
 		case OpCode::GET_LOCAL2:
 		{
 			const int first = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
-			const int second = static_cast<int>(executable.ReadByteCode(offset + 3, proc_index));
+			const int second = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
 			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("GET_LOCAL2")) + " first=" + std::to_string(first) + " second=" + std::to_string(second) + "\n");
-			offset += 4;
+			offset += 3;
 			break;
 		}
 		case OpCode::MAKE_CLOSURE_OF:
@@ -996,24 +870,6 @@ namespace Disassembler
 		case OpCode::CALL_3:
 			CallFixedInstruction("CALL_3", 3, offset);
 			break;
-		case OpCode::CALL_PROC:
-			CallDirectInstruction("CALL_PROC", executable, proc_index, offset);
-			break;
-		case OpCode::CALL_PROC_0:
-			CallDirectFixedInstruction("CALL_PROC_0", 0, executable, proc_index, offset);
-			break;
-		case OpCode::CALL_PROC_1:
-			CallDirectFixedInstruction("CALL_PROC_1", 1, executable, proc_index, offset);
-			break;
-		case OpCode::CALL_PROC_2:
-			CallDirectFixedInstruction("CALL_PROC_2", 2, executable, proc_index, offset);
-			break;
-		case OpCode::CALL_PROC_3:
-			CallDirectFixedInstruction("CALL_PROC_3", 3, executable, proc_index, offset);
-			break;
-		case OpCode::CALL_GLOBAL:
-			CallGlobalInstruction("CALL_GLOBAL", executable, proc_index, offset);
-			break;
 		case OpCode::TAIL_CALL:
 			CallInstruction("TAIL_CALL", executable, proc_index, offset);
 			break;
@@ -1026,41 +882,14 @@ namespace Disassembler
 		case OpCode::LOAD_EMPTY_UNION:
 			DataInstruction("LOAD_EMPTY_UNION", executable, proc_index, offset);
 			break;
-		case OpCode::MAKE_CLOSURE:
-			AllocateClosureInstruction("MAKE_CLOSURE", executable, proc_index, offset);
-			break;
-		case OpCode::BIND_CAPTURES:
-			ClosureCreateInstruction("BIND_CAPTURES", executable, proc_index, offset);
-			break;
-		case OpCode::MAKE_FUNCTION:
-			AllocateClosureInstruction("MAKE_FUNCTION", executable, proc_index, offset);
-			break;
-		case OpCode::DEFINE_GLOBAL:
-			GlobalVariableInstruction("DEFINE_GLOBAL", executable, proc_index, offset);
-			break;
-		case OpCode::GET_GLOBAL:
-			GlobalVariableInstruction("GET_GLOBAL", executable, proc_index, offset);
-			break;
-		case OpCode::SET_GLOBAL:
-			GlobalVariableInstruction("SET_GLOBAL", executable, proc_index, offset);
-			break;
 		case OpCode::GET_LOCAL:
 			LocalOrCellVariableInstruction("GET_LOCAL", executable, proc_index, offset);
 			break;
 		case OpCode::SET_LOCAL:
 			LocalOrCellVariableInstruction("SET_LOCAL", executable, proc_index, offset);
 			break;
-		case OpCode::GET_LOCAL_CELL:
-			LocalOrCellVariableInstruction("GET_LOCAL_CELL", executable, proc_index, offset);
-			break;
-		case OpCode::SET_LOCAL_CELL:
-			LocalOrCellVariableInstruction("SET_LOCAL_CELL", executable, proc_index, offset);
-			break;
 		case OpCode::GET_CELL:
 			LocalOrCellVariableInstruction("GET_CELL", executable, proc_index, offset);
-			break;
-		case OpCode::SET_CELL:
-			LocalOrCellVariableInstruction("SET_CELL", executable, proc_index, offset);
 			break;
 		case OpCode::DEFINE_GLOBAL_WIDE:
 			GlobalVariableWideInstruction("DEFINE_GLOBAL_WIDE", executable, proc_index, offset);
@@ -1080,41 +909,14 @@ namespace Disassembler
 		case OpCode::SET_LOCAL_WIDE:
 			LocalOrCellVariableWideInstruction("SET_LOCAL_WIDE", executable, proc_index, offset);
 			break;
-		case OpCode::GET_LOCAL_CELL_WIDE:
-			LocalOrCellVariableWideInstruction("GET_LOCAL_CELL_WIDE", executable, proc_index, offset);
-			break;
-		case OpCode::SET_LOCAL_CELL_WIDE:
-			LocalOrCellVariableWideInstruction("SET_LOCAL_CELL_WIDE", executable, proc_index, offset);
-			break;
 		case OpCode::GET_CELL_WIDE:
 			LocalOrCellVariableWideInstruction("GET_CELL_WIDE", executable, proc_index, offset);
-			break;
-		case OpCode::SET_CELL_WIDE:
-			LocalOrCellVariableWideInstruction("SET_CELL_WIDE", executable, proc_index, offset);
 			break;
 		case OpCode::GET_MEMBER:
 			MemberInstruction("GET_MEMBER", executable, proc_index, offset);
 			break;
 		case OpCode::POP:
 			SimpleInstruction("POP", offset);
-			break;
-		case OpCode::DUP:
-			SimpleInstruction("DUP", offset);
-			break;
-		case OpCode::SWAP:
-			SimpleInstruction("SWAP", offset);
-			break;
-		case OpCode::POP_LOCAL_SCOPE:
-			PopMultipleInstruction("POP_LOCAL_SCOPE", executable, proc_index, offset);
-			break;
-		case OpCode::POP_VALUES:
-			PopMultipleInstruction("POP_VALUES", executable, proc_index, offset);
-			break;
-		case OpCode::POP_BLOCK_SCOPE:
-			PopMultipleInstruction("POP_BLOCK_SCOPE", executable, proc_index, offset);
-			break;
-		case OpCode::POP_MATCH_SCOPE:
-			PopMultipleInstruction("POP_MATCH_SCOPE", executable, proc_index, offset);
 			break;
 		case OpCode::RETURN:
 			SimpleInstruction("RETURN", offset);

@@ -23,7 +23,7 @@ There is no secondary runtime scheduler, worker pool, or alternate execution mod
 
 A closure's captures are `MidoriCellValue` boxes, read with `GET_CELL`. A function with no captures uses `MAKE_FUNCTION_WIDE`; a closure uses `MAKE_CLOSURE_OF`, which takes exactly the values it captures from the stack and boxes each in a fresh cell. `SET_CAPTURE` fills a capture after the closure exists, which is how local functions that name each other reach one another. Nothing is promoted in place, and locals use `GET_LOCAL*` / `SET_LOCAL*`.
 
-Every function with no captures is one value, which `MAKE_FUNCTION` and `MAKE_FUNCTION_WIDE` hand out from the static closure cache; the cache is a garbage-collection root.
+Every function with no captures is one value, which `MAKE_FUNCTION_WIDE` hands out from the static closure cache; the cache is a garbage-collection root.
 
 ## Memory Model
 
@@ -104,9 +104,10 @@ environments, the remembered set, and nested aggregate objects.
 
 Global variables live in the executable's global array and are accessed through:
 
-- `DEFINE_GLOBAL`
-- `GET_GLOBAL`
-- `SET_GLOBAL`
+- `DEFINE_GLOBAL_WIDE`
+- `GET_GLOBAL_WIDE`
+- `SET_GLOBAL_WIDE`
+- `CALL_GLOBAL_WIDE`
 
 The runtime does not maintain shared-global indirection. A spawned worker gets
 its own copy of the spawning VM's globals, taken at the spawn; see

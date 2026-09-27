@@ -892,22 +892,6 @@ int VirtualMachine::CheckNewArraySize(MidoriInteger size) noexcept
 	return 0;
 }
 
-MidoriValue VirtualMachine::EnsureCellHandle(MidoriValue& slot, ValueStackPointer closure_slot) noexcept
-{
-	MidoriTraceable* ptr = slot.GetPointer();
-	if (ptr != nullptr && m_gc.Contains(ptr) && ptr->IsTraceable<MidoriCellValue>())
-	{
-		return slot;
-	}
-
-	MidoriValue cell_value = AllocateTraceable(MidoriCellValue(slot));
-	if (&slot != closure_slot)
-	{
-		slot = cell_value;
-	}
-	return cell_value;
-}
-
 void VirtualMachine::BuildGarbageCollectionRoots(GarbageCollector::GarbageCollectionRoots& roots) const noexcept
 {
 	roots.clear();
@@ -979,7 +963,7 @@ void VirtualMachine::BuildGarbageCollectionRoots(GarbageCollector::GarbageCollec
 		}
 	}
 
-	// A cached function is handed out again by MAKE_FUNCTION, so it must
+	// A cached function is handed out again by MAKE_FUNCTION_WIDE, so it must
 	// outlive every value that held it.
 	for (MidoriTraceable* cached_function : m_static_closure_cache)
 	{
@@ -1146,23 +1130,6 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 		switch (instruction)
 		{
-		case OpCode::LOAD_STRING:
-		{
-			size_t index = static_cast<size_t>(ReadByte(ip));
-			if (index >= m_string_literal_cache.size() || !m_string_literal_cache[index])
-			{
-				if (index >= m_string_literal_cache.size())
-				{
-					m_string_literal_cache.resize(index + 1, nullptr);
-				}
-				m_string_literal_cache[index] = AllocateTraceable(m_executable->GetStringPool()[index].data());
-			}
-			MidoriText& cached_text = m_string_literal_cache[index]->GetTraceable<MidoriText>();
-			MidoriText text_copy(cached_text);
-			MidoriTraceable* new_string = AllocateTraceable(std::move(text_copy));
-			Push(sp, new_string);
-			break;
-		}
 		case OpCode::LOAD_STRING_WIDE:
 		{
 			size_t index = static_cast<size_t>(ReadShort(ip));
@@ -1323,16 +1290,6 @@ int VirtualMachine::ExecuteLoop() noexcept
 			*tuple_slot = tuple_ref[static_cast<int>(index.GetInteger())];
 			sp = tuple_slot + 1;
 
-			break;
-		}
-		case OpCode::UNPACK_TUPLE:
-		{
-			MidoriTuple& tuple = Pop(sp).GetPointer()->GetTraceable<MidoriTuple>();
-			const int length = tuple.GetLength();
-			for (int idx = 0; idx < length; idx += 1)
-			{
-				Push(sp, tuple[idx]);
-			}
 			break;
 		}
 		case OpCode::ADD_BACK_ARRAY:
@@ -1847,7 +1804,6 @@ int VirtualMachine::ExecuteLoop() noexcept
 		{
 			int local_index = static_cast<int>(ReadByte(ip));
 			MidoriInteger imm = static_cast<MidoriInteger>(static_cast<int8_t>(ReadByte(ip)));
-			ip += 3;
 
 			MidoriValue& slot = *(bp + local_index);
 			MidoriInteger result = MidoriIntegerArithmetic::Add(slot.GetInteger(), imm);
@@ -1859,7 +1815,6 @@ int VirtualMachine::ExecuteLoop() noexcept
 		{
 			int local_index = static_cast<int>(ReadByte(ip));
 			MidoriInteger imm = static_cast<MidoriInteger>(static_cast<int8_t>(ReadByte(ip)));
-			ip += 1;
 
 			Push(sp, MidoriIntegerArithmetic::Subtract((bp + local_index)->GetInteger(), imm));
 			break;
@@ -1868,7 +1823,6 @@ int VirtualMachine::ExecuteLoop() noexcept
 		{
 			int local_index = static_cast<int>(ReadByte(ip));
 			MidoriInteger imm = static_cast<MidoriInteger>(static_cast<int8_t>(ReadByte(ip)));
-			ip += 1;
 			int offset = ReadShort(ip);
 
 			if (!((bp + local_index)->GetInteger() <= imm))
@@ -1880,9 +1834,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 		case OpCode::IF_LOCAL_GE_LOCAL:
 		{
 			int left_index = static_cast<int>(ReadByte(ip));
-			ip += 1;
 			int right_index = static_cast<int>(ReadByte(ip));
-			ip += 1;
 			int offset = ReadShort(ip);
 
 			if (!((bp + left_index)->GetInteger() >= (bp + right_index)->GetInteger()))
@@ -1894,25 +1846,10 @@ int VirtualMachine::ExecuteLoop() noexcept
 		case OpCode::GET_LOCAL2:
 		{
 			int first_index = static_cast<int>(ReadByte(ip));
-			ip += 1;
 			int second_index = static_cast<int>(ReadByte(ip));
 
 			Push(sp, *(bp + first_index));
 			Push(sp, *(bp + second_index));
-			break;
-		}
-		case OpCode::ADD_ASSIGN_INT:
-		{
-			MidoriValue value = Pop(sp);
-			MidoriValue& var = Peek(sp);
-			var = MidoriIntegerArithmetic::Add(var.GetInteger(), value.GetInteger());
-			break;
-		}
-		case OpCode::SUB_ASSIGN_INT:
-		{
-			MidoriValue value = Pop(sp);
-			MidoriValue& var = Peek(sp);
-			var = MidoriIntegerArithmetic::Subtract(var.GetInteger(), value.GetInteger());
 			break;
 		}
 		case OpCode::EQUAL_FLOAT:
@@ -2169,17 +2106,6 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		case OpCode::JUMP_IF_TRUE:
-		{
-			MidoriValue value = Peek(sp);
-
-			int offset = ReadShort(ip);
-			if (value.GetBool())
-			{
-				ip += offset;
-			}
-			break;
-		}
 		case OpCode::JUMP:
 		{
 			int offset = ReadShort(ip);
@@ -2340,19 +2266,6 @@ int VirtualMachine::ExecuteLoop() noexcept
 			{
 				ip += offset;
 			}
-			break;
-		}
-		case OpCode::LOAD_TAG:
-		{
-			MidoriValue union_val = Pop(sp);
-			MidoriUnion& union_ref = union_val.GetPointer()->GetTraceable<MidoriUnion>();
-
-			for (int i = 0; i < union_ref.m_values.GetLength(); i += 1)
-			{
-				Push(sp, union_ref.m_values[i]);
-			}
-
-			Push(sp, static_cast<MidoriInteger>(union_ref.m_index));
 			break;
 		}
 		case OpCode::GET_TAG:
@@ -2728,21 +2641,6 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case OpCode::CALL_PROC:
-		{
-			int proc_index = static_cast<int>(ReadByte(ip));
-			int arity = static_cast<int>(ReadByte(ip));
-
-			PushCallFrame(bp, ip, env, closure);
-
-			// Static functions have no captures, so no environment needed
-			env = nullptr;
-			closure = nullptr;
-			ip = GetProcEntry(proc_index);
-			bp = sp - arity;
-
-			break;
-		}
 		case OpCode::CALL_PROC_WIDE:
 		{
 			int proc_index = static_cast<int>(ReadByte(ip));
@@ -2754,49 +2652,6 @@ int VirtualMachine::ExecuteLoop() noexcept
 			env = nullptr;
 			closure = nullptr;
 			ip = GetProcEntry(proc_index);
-			bp = sp - arity;
-
-			break;
-		}
-		case OpCode::CALL_PROC_0:
-		case OpCode::CALL_PROC_1:
-		case OpCode::CALL_PROC_2:
-		case OpCode::CALL_PROC_3:
-		{
-			int proc_index = static_cast<int>(ReadByte(ip));
-			int arity = static_cast<int>(instruction) - static_cast<int>(OpCode::CALL_PROC_0);
-
-			PushCallFrame(bp, ip, env, closure);
-
-			// Static functions have no captures, so no environment needed
-			env = nullptr;
-			closure = nullptr;
-			ip = GetProcEntry(proc_index);
-			bp = sp - arity;
-
-			break;
-		}
-		case OpCode::CALL_GLOBAL:
-		{
-			int global_idx = ReadGlobalVariable(ip);
-			int arity = static_cast<int>(ReadByte(ip));
-			MidoriValue callable = (*m_global_vars)[global_idx];
-
-#if MIDORI_DEBUG_FULL
-			if (!callable.IsPointer())
-			{
-				SyncMachineState(ip, sp, bp, env, closure);
-				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, std::format("Type error: expected callable (function/closure), but got {}.", callable.ToText().GetCString()), GetLine()));
-			}
-#endif
-
-			PushCallFrame(bp, ip, env, closure);
-
-			closure = callable.GetPointer();
-			MidoriClosure& callee = closure->GetTraceable<MidoriClosure>();
-			env = &callee.m_cell_values;
-
-			ip = GetProcEntry(callee.m_proc_index);
 			bp = sp - arity;
 
 			break;
@@ -2912,12 +2767,6 @@ int VirtualMachine::ExecuteLoop() noexcept
 			Push(sp, cached);
 			break;
 		}
-		case OpCode::MAKE_CLOSURE:
-		{
-			int proc_index = static_cast<int>(ReadByte(ip));
-			Push(sp, AllocateTraceable(MidoriClosure{ .m_cell_values = MidoriTuple(), .m_proc_index = proc_index }));
-			break;
-		}
 		case OpCode::MAKE_CLOSURE_OF:
 		{
 			int proc_index = static_cast<int>(ReadByte(ip));
@@ -2954,14 +2803,10 @@ int VirtualMachine::ExecuteLoop() noexcept
 			top = top.GetPointer()->GetTraceable<MidoriUnion>().m_values[index];
 			break;
 		}
-		case OpCode::MAKE_FUNCTION:
 		case OpCode::MAKE_FUNCTION_WIDE:
 		{
 			int proc_index = static_cast<int>(ReadByte(ip));
-			if (instruction == OpCode::MAKE_FUNCTION_WIDE)
-			{
-				proc_index |= static_cast<int>(ReadByte(ip)) << 8;
-			}
+			proc_index |= static_cast<int>(ReadByte(ip)) << 8;
 
 			size_t cache_index = static_cast<size_t>(proc_index);
 			if (cache_index < m_static_closure_cache.size() && m_static_closure_cache[cache_index])
@@ -2980,61 +2825,6 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case OpCode::BIND_CAPTURES:
-		{
-			int total_count = static_cast<int>(ReadByte(ip));
-
-			MidoriTuple& closure_env = (sp - 1)->GetPointer()->GetTraceable<MidoriClosure>().m_cell_values;
-			int parent_count = env ? env->GetLength() : 0;
-			int local_capture_count = (total_count > parent_count) ? (total_count - parent_count) : 0;
-
-			MidoriTuple new_env(total_count);
-			MidoriValue* closure_slot = sp - 1;
-
-			// Copy parent environment
-			if (env)
-			{
-				for (int i = 0; i < parent_count; i += 1)
-				{
-					new_env[i] = (*env)[i];
-				}
-			}
-
-			// Capture local variables
-			for (int i = 0; i < local_capture_count; i += 1)
-			{
-				MidoriValue& local_slot = *(bp + i);
-				new_env[parent_count + i] = EnsureCellHandle(local_slot, closure_slot);
-			}
-
-			// Closure is freshly allocated by the preceding MAKE_CLOSURE and cannot have
-			// tenured (no GC safepoint runs between allocation and here), so this barrier
-			// is normally a no-op. Kept as insurance against future codegen/safepoint changes.
-			m_gc.WriteBarrier(closure_slot->GetPointer());
-			closure_env = std::move(new_env);
-			break;
-		}
-		case OpCode::DEFINE_GLOBAL:
-		{
-			MidoriValue value = Pop(sp);
-			int global_idx = ReadGlobalVariable(ip);
-			MidoriValue& var = (*m_global_vars)[global_idx];
-			var = value;
-			break;
-		}
-		case OpCode::GET_GLOBAL:
-		{
-			int global_idx = ReadGlobalVariable(ip);
-			Push(sp, (*m_global_vars)[global_idx]);
-			break;
-		}
-		case OpCode::SET_GLOBAL:
-		{
-			int global_idx = ReadGlobalVariable(ip);
-			MidoriValue& var = (*m_global_vars)[global_idx];
-			var = Peek(sp);
-			break;
-		}
 		case OpCode::GET_LOCAL:
 		{
 			int offset = static_cast<int>(ReadByte(ip));
@@ -3047,38 +2837,6 @@ int VirtualMachine::ExecuteLoop() noexcept
 			*(bp + offset) = Peek(sp);
 			break;
 		}
-		case OpCode::GET_LOCAL_CELL:
-		{
-			int offset = static_cast<int>(ReadByte(ip));
-			MidoriValue& slot = *(bp + offset);
-			MidoriTraceable* ptr = slot.GetPointer();
-			if (ptr != nullptr && m_gc.Contains(ptr) && ptr->IsTraceable<MidoriCellValue>())
-			{
-				Push(sp, ptr->GetTraceable<MidoriCellValue>().GetValue());
-			}
-			else
-			{
-				Push(sp, slot);
-			}
-			break;
-		}
-		case OpCode::SET_LOCAL_CELL:
-		{
-			int offset = static_cast<int>(ReadByte(ip));
-			MidoriValue& slot = *(bp + offset);
-			MidoriValue value = Peek(sp);
-			MidoriTraceable* ptr = slot.GetPointer();
-			if (ptr != nullptr && m_gc.Contains(ptr) && ptr->IsTraceable<MidoriCellValue>())
-			{
-				m_gc.WriteBarrier(ptr);
-				ptr->GetTraceable<MidoriCellValue>().GetValue() = value;
-			}
-			else
-			{
-				slot = value;
-			}
-			break;
-		}
 		case OpCode::GET_CELL:
 		{
 			int offset = static_cast<int>(ReadByte(ip));
@@ -3086,19 +2844,11 @@ int VirtualMachine::ExecuteLoop() noexcept
 			if (!env)
 			{
 				SyncMachineState(ip, sp, bp, env, closure);
-				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, "GET_CELL called with null environment - function has captures but was called via CALL_PROC", GetLine()));
+				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, "GET_CELL called with null environment - function has captures but was called via CALL_PROC_WIDE", GetLine()));
 			}
 #endif
 			MidoriValue cell_value = (*env)[offset].GetPointer()->GetTraceable<MidoriCellValue>().GetValue();
 			Push(sp, cell_value);
-			break;
-		}
-		case OpCode::SET_CELL:
-		{
-			int offset = static_cast<int>(ReadByte(ip));
-			MidoriTraceable* cell_owner = (*env)[offset].GetPointer();
-			m_gc.WriteBarrier(cell_owner);
-			cell_owner->GetTraceable<MidoriCellValue>().GetValue() = Peek(sp);
 			break;
 		}
 		case OpCode::MAKE_CELL:
@@ -3168,42 +2918,6 @@ int VirtualMachine::ExecuteLoop() noexcept
 			*(bp + offset) = Peek(sp);
 			break;
 		}
-		case OpCode::GET_LOCAL_CELL_WIDE:
-		{
-			int high_byte = static_cast<int>(ReadByte(ip));
-			int low_byte = static_cast<int>(ReadByte(ip));
-			int offset = (high_byte << 8) | low_byte;
-			MidoriValue& slot = *(bp + offset);
-			MidoriTraceable* ptr = slot.GetPointer();
-			if (ptr != nullptr && m_gc.Contains(ptr) && ptr->IsTraceable<MidoriCellValue>())
-			{
-				Push(sp, ptr->GetTraceable<MidoriCellValue>().GetValue());
-			}
-			else
-			{
-				Push(sp, slot);
-			}
-			break;
-		}
-		case OpCode::SET_LOCAL_CELL_WIDE:
-		{
-			int high_byte = static_cast<int>(ReadByte(ip));
-			int low_byte = static_cast<int>(ReadByte(ip));
-			int offset = (high_byte << 8) | low_byte;
-			MidoriValue& slot = *(bp + offset);
-			MidoriValue value = Peek(sp);
-			MidoriTraceable* ptr = slot.GetPointer();
-			if (ptr != nullptr && m_gc.Contains(ptr) && ptr->IsTraceable<MidoriCellValue>())
-			{
-				m_gc.WriteBarrier(ptr);
-				ptr->GetTraceable<MidoriCellValue>().GetValue() = value;
-			}
-			else
-			{
-				slot = value;
-			}
-			break;
-		}
 		case OpCode::GET_CELL_WIDE:
 		{
 			int high_byte = static_cast<int>(ReadByte(ip));
@@ -3211,16 +2925,6 @@ int VirtualMachine::ExecuteLoop() noexcept
 			int offset = (high_byte << 8) | low_byte;
 			MidoriValue cell_value = (*env)[offset].GetPointer()->GetTraceable<MidoriCellValue>().GetValue();
 			Push(sp, cell_value);
-			break;
-		}
-		case OpCode::SET_CELL_WIDE:
-		{
-			int high_byte = static_cast<int>(ReadByte(ip));
-			int low_byte = static_cast<int>(ReadByte(ip));
-			int offset = (high_byte << 8) | low_byte;
-			MidoriTraceable* cell_owner = (*env)[offset].GetPointer();
-			m_gc.WriteBarrier(cell_owner);
-			cell_owner->GetTraceable<MidoriCellValue>().GetValue() = Peek(sp);
 			break;
 		}
 		case OpCode::GET_MEMBER:
@@ -3233,43 +2937,6 @@ int VirtualMachine::ExecuteLoop() noexcept
 		case OpCode::POP:
 		{
 			--sp;
-			break;
-		}
-		case OpCode::DUP:
-		{
-			Push(sp, Peek(sp));
-			break;
-		}
-		case OpCode::SWAP:
-		{
-			MidoriValue first = Pop(sp);
-			MidoriValue second = Pop(sp);
-			Push(sp, first);
-			Push(sp, second);
-			break;
-		}
-		case OpCode::POP_LOCAL_SCOPE:
-		{
-			sp -= static_cast<int>(ReadByte(ip));
-			break;
-		}
-		case OpCode::POP_VALUES:
-		{
-			sp -= static_cast<int>(ReadByte(ip));
-			break;
-		}
-		case OpCode::POP_BLOCK_SCOPE:
-		{
-			MidoriValue final_value = Pop(sp);
-			sp -= static_cast<int>(ReadByte(ip));
-			Push(sp, final_value);
-			break;
-		}
-		case OpCode::POP_MATCH_SCOPE:
-		{
-			MidoriValue final_value = Pop(sp);
-			sp -= static_cast<int>(ReadByte(ip));
-			Push(sp, final_value);
 			break;
 		}
 		case OpCode::RETURN:

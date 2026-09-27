@@ -120,7 +120,13 @@ namespace MidoriBuild
     //
     // Bumped 2026-09-17 (9): MAKE_CELL, READ_CELL and WRITE_CELL were inserted
     // after SET_CELL for Cell<T>, which renumbered every later opcode.
-    inline constexpr uint32_t MbcFormatVersion = 11u;
+    //
+    // Bumped 2026-09-27 (12): once MidoriIR's backend was the only emitter,
+    // the 30 opcodes nothing emitted were deleted (the frame-prefix closure
+    // opcodes, the one-byte procedure, global and text forms, the scope pops
+    // and others), and the local-operand superinstructions lost the padding
+    // that let the old code generator rewrite them in place.
+    inline constexpr uint32_t MbcFormatVersion = 12u;
 
     [[nodiscard]] inline bool EnvironmentFlagEnabledUncached(const char* name) noexcept
     {

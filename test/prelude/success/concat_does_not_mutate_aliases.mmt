@@ -114,7 +114,7 @@ else Panic::Panic("Text case 5: a closure capturing a binding must see it unchan
 
 // Case 6: the same literal text spelled twice in source. This is not an
 // aliasing case at all - it is a direct check of the comment's claim in
-// IsFreshConcatTemporary that LOAD_STRING always pushes a fresh copy. If two
+// IsFreshConcatTemporary that LOAD_STRING_WIDE always pushes a fresh copy. If two
 // occurrences of the same literal ever shared one runtime buffer, mutating
 // one occurrence via EXTEND_TEXT would corrupt the other with no `def`
 // aliasing involved. The right operand is routed through an array index, as
