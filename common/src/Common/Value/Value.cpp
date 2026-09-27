@@ -234,7 +234,7 @@ MidoriText ConvertToQuotedText(const MidoriText& input)
 	result.Append('\"');
 
 	// Iterate over bytes to handle escape sequences (which are ASCII)
-	const char* str = input.GetCString();
+	const char* str = input.View().data();
 	for (int i = 0; i < byte_len; i += 1)
 	{
 		char c = str[i];
@@ -1456,7 +1456,7 @@ MidoriText& MidoriText::Append(const MidoriText& other)
 
 	int current_size = GetByteLength();
 	int new_size = current_size + other_byte_len;
-	const char* other_str = other.GetCString();
+	const char* other_str = other.View().data();
 
 	if (IsShort())
 	{
@@ -1622,7 +1622,7 @@ MidoriText& MidoriText::Prepend(char c)
 
 MidoriText& MidoriText::Prepend(const MidoriText& other)
 {
-	return Prepend(other.GetCString());
+	return Prepend(std::string(other.View()).c_str());
 }
 
 MidoriText MidoriText::Substring(int start, int end) const
@@ -1638,7 +1638,7 @@ MidoriText MidoriText::Substring(int start, int end) const
 	// The length is cached, and a text as long in code points as in bytes is
 	// ASCII, where an index is its own byte offset. Walking to the offset made
 	// reading a text one code point at a time quadratic.
-	const char* source = GetCString();
+	const char* source = View().data();
 	const int byte_len = GetByteLength();
 	const bool is_ascii = len == byte_len;
 	const int start_offset = is_ascii ? start : UTF8::GetByteOffsetOfCodePoint(source, byte_len, start);
@@ -1650,8 +1650,8 @@ MidoriText MidoriText::Substring(int start, int end) const
 std::vector<MidoriText> MidoriText::Split(const MidoriText& delimiter) const
 {
 	std::vector<MidoriText> parts;
-	const std::string_view source(GetCString(), static_cast<size_t>(GetByteLength()));
-	const std::string_view needle(delimiter.GetCString(), static_cast<size_t>(delimiter.GetByteLength()));
+	const std::string_view source = View();
+	const std::string_view needle = delimiter.View();
 
 	if (needle.empty())
 	{
@@ -1687,7 +1687,7 @@ std::vector<MidoriText> MidoriText::Split(const MidoriText& delimiter) const
 
 MidoriText MidoriText::Reverse() const
 {
-	const char* source = GetCString();
+	const char* source = View().data();
 	const int byte_len = GetByteLength();
 	std::string reversed;
 	reversed.reserve(static_cast<size_t>(byte_len));
@@ -1704,15 +1704,14 @@ MidoriText MidoriText::Reverse() const
 
 bool MidoriText::Contains(const MidoriText& other) const
 {
-	return std::string_view(GetCString(), static_cast<size_t>(GetByteLength()))
-		.find(std::string_view(other.GetCString(), static_cast<size_t>(other.GetByteLength()))) != std::string_view::npos;
+	return View().find(other.View()) != std::string_view::npos;
 }
 
 MidoriText MidoriText::Replace(const MidoriText& old_value, const MidoriText& new_value) const
 {
-	const std::string_view source(GetCString(), static_cast<size_t>(GetByteLength()));
-	const std::string_view needle(old_value.GetCString(), static_cast<size_t>(old_value.GetByteLength()));
-	const std::string_view replacement(new_value.GetCString(), static_cast<size_t>(new_value.GetByteLength()));
+	const std::string_view source = View();
+	const std::string_view needle = old_value.View();
+	const std::string_view replacement = new_value.View();
 
 	if (needle.empty())
 	{
@@ -1740,7 +1739,7 @@ MidoriText MidoriText::Replace(const MidoriText& old_value, const MidoriText& ne
 
 MidoriText MidoriText::Trim() const
 {
-	const std::string_view source(GetCString(), static_cast<size_t>(GetByteLength()));
+	const std::string_view source = View();
 	size_t start = 0u;
 	while (start < source.size() && std::isspace(static_cast<unsigned char>(source[start])) != 0)
 	{
@@ -1758,14 +1757,13 @@ MidoriText MidoriText::Trim() const
 
 char MidoriText::operator[](int index) const
 {
-	int byte_offset = UTF8::GetByteOffsetOfCodePoint(GetCString(), GetByteLength(), index);
-	return GetCString()[byte_offset];
+	const std::string_view bytes = View();
+	return bytes[static_cast<size_t>(UTF8::GetByteOffsetOfCodePoint(bytes.data(), GetByteLength(), index))];
 }
 
 bool MidoriText::operator==(const MidoriText& other) const
 {
-	int len = GetByteLength();
-	return (len == other.GetByteLength()) && (len == 0 || std::memcmp(GetCString(), other.GetCString(), len) == 0);
+	return View() == other.View();
 }
 
 bool MidoriText::operator!=(const MidoriText& other) const
@@ -1775,8 +1773,9 @@ bool MidoriText::operator!=(const MidoriText& other) const
 
 std::optional<MidoriInteger> MidoriText::ParseInteger() const
 {
-	const char* begin = GetCString();
-	const char* end = begin + GetByteLength();
+	const std::string_view bytes = View();
+	const char* begin = bytes.data();
+	const char* end = begin + bytes.size();
 	MidoriInteger value = 0;
 	const std::from_chars_result result = std::from_chars(begin, end, value);
 	if ((begin == end) || (result.ec != std::errc()) || (result.ptr != end))
@@ -1788,8 +1787,9 @@ std::optional<MidoriInteger> MidoriText::ParseInteger() const
 
 std::optional<MidoriFloat> MidoriText::ParseFloat() const
 {
-	const char* begin = GetCString();
-	const char* end = begin + GetByteLength();
+	const std::string_view bytes = View();
+	const char* begin = bytes.data();
+	const char* end = begin + bytes.size();
 	MidoriFloat value = 0.0;
 	const std::from_chars_result result = std::from_chars(begin, end, value);
 	if ((begin == end) || (result.ec != std::errc()) || (result.ptr != end))
@@ -1859,8 +1859,8 @@ MidoriText MidoriText::Concatenate(const MidoriText& a, const MidoriText& b)
 	MidoriText result;
 	if (total_byte_len <= SSO_CAPACITY)
 	{
-		std::memcpy(result.m_short.m_buffer, a.GetCString(), byte_len_a);
-		std::memcpy(result.m_short.m_buffer + byte_len_a, b.GetCString(), byte_len_b);
+		std::memcpy(result.m_short.m_buffer, a.View().data(), byte_len_a);
+		std::memcpy(result.m_short.m_buffer + byte_len_a, b.View().data(), byte_len_b);
 		result.m_short.m_buffer[total_byte_len] = '\0';
 		result.SetShortSize(total_byte_len);
 	}
@@ -1874,8 +1874,8 @@ MidoriText MidoriText::Concatenate(const MidoriText& a, const MidoriText& b)
 		}
 		result.m_long.m_size = total_byte_len;
 		result.m_long.m_capacity = static_cast<int>(bytes - 1uz);
-		std::memcpy(result.m_long.m_ptr, a.GetCString(), byte_len_a);
-		std::memcpy(result.m_long.m_ptr + byte_len_a, b.GetCString(), byte_len_b);
+		std::memcpy(result.m_long.m_ptr, a.View().data(), byte_len_a);
+		std::memcpy(result.m_long.m_ptr + byte_len_a, b.View().data(), byte_len_b);
 		result.m_long.m_ptr[total_byte_len] = '\0';
 		result.m_long.m_length_cache = -1;
 		result.m_long.m_flag = 0;
@@ -1900,6 +1900,11 @@ MidoriText MidoriText::FromFFI(char* ffi_allocated_string)
 	MidoriText result(ffi_allocated_string);
 	std::free(ffi_allocated_string);
 	return result;
+}
+
+const char* MidoriText::CString()
+{
+	return IsShort() ? m_short.m_buffer : m_long.m_ptr;
 }
 
 size_t MidoriText::GetCapacity() const

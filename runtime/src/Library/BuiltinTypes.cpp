@@ -107,7 +107,7 @@ namespace
 			return nullptr;
 		}
 
-		std::memcpy(buffer, text.GetCString(), static_cast<size_t>(byte_len));
+		std::memcpy(buffer, text.View().data(), static_cast<size_t>(byte_len));
 		buffer[byte_len] = '\0';
 		return buffer;
 	}
@@ -275,8 +275,8 @@ extern "C"
 	{
 		const MidoriInteger index = ReadInt(args, 1u);
 		const MidoriText character = RequireText(args[0u]).Substring(static_cast<int>(index), static_cast<int>(index) + 1);
-		const unsigned char* bytes = reinterpret_cast<const unsigned char*>(character.GetCString());
-		if ((index < 0) || (bytes[0] == 0u))
+		const unsigned char* bytes = reinterpret_cast<const unsigned char*>(character.View().data());
+		if ((index < 0) || character.View().empty())
 		{
 			WriteInt(ret, -1);
 			return;

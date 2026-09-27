@@ -258,10 +258,15 @@ public:
 		return IsShort() ? GetShortSize() : m_long.m_size;
 	}
 
-	MIDORI_FORCE_INLINE const char* GetCString() const noexcept
+	// The text's bytes, with no promise of a NUL after them.
+	MIDORI_FORCE_INLINE std::string_view View() const noexcept
 	{
-		return IsShort() ? m_short.m_buffer : m_long.m_ptr;
+		return IsShort() ? std::string_view(m_short.m_buffer, static_cast<size_t>(GetShortSize())) : std::string_view(m_long.m_ptr, static_cast<size_t>(m_long.m_size));
 	}
+
+	// The text's bytes followed by a NUL, for what reads a C string: a
+	// foreign function, a C API.
+	const char* CString();
 
 	MidoriText& Pop();
 

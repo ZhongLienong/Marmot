@@ -71,7 +71,7 @@ std::expected<std::shared_ptr<SerializedObject>, std::string> ValueTransfer::Ser
 	if (source->IsTraceable<MidoriText>())
 	{
 		const MidoriText& src_text = source->GetTraceable<MidoriText>();
-		std::shared_ptr<SerializedObject> serialized = std::make_shared<SerializedObject>(SerializedObject{ SerializedObject::Text{ std::string(src_text.GetCString()) } });
+		std::shared_ptr<SerializedObject> serialized = std::make_shared<SerializedObject>(SerializedObject{ SerializedObject::Text{ std::string(src_text.View()) } });
 		visited.emplace(source, serialized);
 		return serialized;
 	}

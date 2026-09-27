@@ -999,7 +999,7 @@ MidoriTraceable* VirtualMachine::InternSmallString(const MidoriText& text) noexc
 		return nullptr;
 	}
 
-	std::string_view key(text.GetCString(), static_cast<size_t>(byte_length));
+	std::string_view key = text.View();
 	std::unordered_map<std::string_view, MidoriTraceable*>::iterator it = m_small_string_pool.find(key);
 	if (it != m_small_string_pool.end())
 	{
@@ -1008,7 +1008,7 @@ MidoriTraceable* VirtualMachine::InternSmallString(const MidoriText& text) noexc
 
 	MidoriText text_copy(text);
 	MidoriTraceable* interned = AllocateTraceable(std::move(text_copy));
-	m_small_string_pool[std::string_view(interned->GetTraceable<MidoriText>().GetCString(), static_cast<size_t>(byte_length))] = interned;
+	m_small_string_pool[interned->GetTraceable<MidoriText>().View()] = interned;
 	return interned;
 }
 
@@ -1066,7 +1066,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 				bp - 1 < m_value_stack_begin ? m_value_stack_begin : bp - 1,
 				[](MidoriValue value) -> void
 				{
-					Printer::Print<Printer::Color::YELLOW>(("[ "s + value.ToText().GetCString() + " ]"s));
+					Printer::Print<Printer::Color::YELLOW>(("[ "s + std::string(value.ToText().View()) + " ]"s));
 				}
 			);
 			std::for_each
@@ -1075,7 +1075,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 				sp,
 				[](MidoriValue value) -> void
 				{
-					Printer::Print<Printer::Color::GREEN>(("[ "s + value.ToText().GetCString() + " ]"s));
+					Printer::Print<Printer::Color::GREEN>(("[ "s + std::string(value.ToText().View()) + " ]"s));
 				}
 			);
 #else
@@ -1086,7 +1086,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 				bp - 1 < m_value_stack_begin ? m_value_stack_begin : bp - 1,
 				[](MidoriValue value) -> void
 				{
-					Printer::Print<Printer::Color::YELLOW>(("[ "s + value.ToText().GetCString() + " ]"s));
+					Printer::Print<Printer::Color::YELLOW>(("[ "s + std::string(value.ToText().View()) + " ]"s));
 				}
 			);
 			std::for_each
@@ -1096,7 +1096,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 				sp,
 				[](MidoriValue value) -> void
 				{
-					Printer::Print<Printer::Color::GREEN>(("[ "s + value.ToText().GetCString() + " ]"s));
+					Printer::Print<Printer::Color::GREEN>(("[ "s + std::string(value.ToText().View()) + " ]"s));
 				}
 			);
 #endif
@@ -1390,7 +1390,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 				m_value_stack_pointer = sp;
 				m_value_stack_base_pointer = bp;
 				m_curr_environment = env;
-				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InvalidConversion, std::format("'{}' is not a Float.", text.GetCString()), GetLine()));
+				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InvalidConversion, std::format("'{}' is not a Float.", text.View()), GetLine()));
 			}
 			Peek(sp) = parsed.value();
 			break;
@@ -1410,7 +1410,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 				m_value_stack_pointer = sp;
 				m_value_stack_base_pointer = bp;
 				m_curr_environment = env;
-				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InvalidConversion, std::format("'{}' is not an Int.", text.GetCString()), GetLine()));
+				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InvalidConversion, std::format("'{}' is not an Int.", text.View()), GetLine()));
 			}
 			Peek(sp) = parsed.value();
 			break;
@@ -2292,14 +2292,14 @@ int VirtualMachine::ExecuteLoop() noexcept
 			if (!foreign_function_name.IsPointer())
 			{
 				SyncMachineState(ip, sp, bp, env, closure);
-				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalFFITypeError, std::format("Type error: expected function name (Text), but got {}.", foreign_function_name.ToText().GetCString()), GetLine()));
+				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalFFITypeError, std::format("Type error: expected function name (Text), but got {}.", foreign_function_name.ToText().View()), GetLine()));
 			}
 #endif
 
 			MidoriText& foreign_function_name_ref = foreign_function_name.GetPointer()->GetTraceable<MidoriText>();
 
 			FFIFunction proc = nullptr;
-			std::optional<size_t> ffi_idx = MidoriFFIRegistry::FindIndex(foreign_function_name_ref.GetCString());
+			std::optional<size_t> ffi_idx = MidoriFFIRegistry::FindIndex(foreign_function_name_ref.View());
 			if (ffi_idx.has_value())
 			{
 				if (m_is_worker && ffi_idx.value() == MidoriFFIRegistry::ExitBuiltinIndex())
@@ -2312,7 +2312,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			else
 			{
-				std::optional<FFIFunction> dynamic_func = m_dynamic_ffi_registry.FindFunction(foreign_function_name_ref.GetCString());
+				std::optional<FFIFunction> dynamic_func = m_dynamic_ffi_registry.FindFunction(foreign_function_name_ref.View());
 				if (dynamic_func.has_value())
 				{
 					proc = dynamic_func.value();
@@ -2322,7 +2322,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			if (proc == nullptr)
 			{
 				SyncMachineState(ip, sp, bp, env, closure);
-				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::FFIFunctionNotFound, std::format("Failed to load foreign function '{}'.", foreign_function_name_ref.GetCString()), GetLine()));
+				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::FFIFunctionNotFound, std::format("Failed to load foreign function '{}'.", foreign_function_name_ref.View()), GetLine()));
 			}
 
 			m_ffi_array_args.clear();
@@ -2340,7 +2340,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 					MidoriTraceable* ptr = arg.GetPointer();
 					if (ptr->IsTraceable<MidoriText>())
 					{
-						m_ffi_args[static_cast<size_t>(idx)] = (void*)ptr->GetTraceable<MidoriText>().GetCString();
+						m_ffi_args[static_cast<size_t>(idx)] = (void*)ptr->GetTraceable<MidoriText>().CString();
 					}
 					else if (ptr->IsTraceable<MidoriArray>())
 					{
@@ -2451,7 +2451,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 				case FFIArgumentKind::CString:
 					if (is_managed_traceable && ptr->IsTraceable<MidoriText>())
 					{
-						m_ffi_args[idx] = (void*)ptr->GetTraceable<MidoriText>().GetCString();
+						m_ffi_args[idx] = (void*)ptr->GetTraceable<MidoriText>().CString();
 					}
 					else
 					{
@@ -2597,7 +2597,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			if (!callable.IsPointer())
 			{
 				SyncMachineState(ip, sp, bp, env, closure);
-				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, std::format("Type error: expected callable (function/closure), but got {}.", callable.ToText().GetCString()), GetLine()));
+				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, std::format("Type error: expected callable (function/closure), but got {}.", callable.ToText().View()), GetLine()));
 			}
 #endif
 
@@ -2625,7 +2625,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			if (!callable.IsPointer())
 			{
 				SyncMachineState(ip, sp, bp, env, closure);
-				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, std::format("Type error: expected callable (function/closure), but got {}.", callable.ToText().GetCString()), GetLine()));
+				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, std::format("Type error: expected callable (function/closure), but got {}.", callable.ToText().View()), GetLine()));
 			}
 #endif
 
@@ -2668,7 +2668,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			if (!callable.IsPointer())
 			{
 				SyncMachineState(ip, sp, bp, env, closure);
-				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, std::format("Type error: expected callable (function/closure), but got {}.", callable.ToText().GetCString()), GetLine()));
+				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, std::format("Type error: expected callable (function/closure), but got {}.", callable.ToText().View()), GetLine()));
 			}
 #endif
 
@@ -2692,7 +2692,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			if (!callable.IsPointer())
 			{
 				SyncMachineState(ip, sp, bp, env, closure);
-				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, std::format("Type error: expected callable (function/closure), but got {}.", callable.ToText().GetCString()), GetLine()));
+				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, std::format("Type error: expected callable (function/closure), but got {}.", callable.ToText().View()), GetLine()));
 			}
 #endif
 

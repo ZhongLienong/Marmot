@@ -256,7 +256,7 @@ namespace
 			writer.WriteString(entry);
 		}
 
-		// globals — serialized via GetCString()/GetByteLength(), never memcpy of MidoriText struct
+		// globals, by name
 		writer.WriteU32(static_cast<uint32_t>(executable.GetGlobalVariableCount()));
 		for (int index = 0; index < executable.GetGlobalVariableCount(); index += 1)
 		{
