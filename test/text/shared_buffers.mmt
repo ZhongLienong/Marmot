@@ -1,0 +1,81 @@
+module SharedBuffers
+
+import
+{
+	"../../MarmotPrelude/IO.mmt",
+	"../../MarmotPrelude/TextUtil.mmt",
+	"../../MarmotPrelude/Concurrency.mmt",
+	"../../MarmotPrelude/Collections/Map.mmt",
+	"../../MarmotPrelude/Prelude/List.mmt",
+	"../../MarmotPrelude/Prelude/Result.mmt",
+	"../../MarmotPrelude/Prelude/Panic.mmt"
+}
+
+use List.{List, ListReverse, ListLength}
+use Result.{Result}
+
+// Past 70 bytes a text lives in a buffer that texts share: `a ++ b` writes b
+// after a in place when a ends where the buffer has been written to, and the
+// result shares a's buffer. Every text sharing a buffer must still see only
+// its own bytes, however the others grow.
+
+def Expect = fn(condition: Bool, message: Text) -> Unit => if condition then () else Panic::Panic(message);
+
+def a = "this text is more than seventy bytes long, too long for a short text, so";
+def b = a ++ " b took the end of the buffer";
+def c = a ++ " c must not write over b";
+IO::PrintLine(a);
+IO::PrintLine(b);
+IO::PrintLine(c);
+IO::PrintLine(b ++ ", and b grows on");
+IO::PrintLine(c ++ ", and so does c");
+Expect(a == TextUtil::Substring(b, 0, TextUtil::Length(a)), "a is a prefix of b");
+Expect(b != c, "b and c differ");
+
+// A literal loaded twice shares one buffer, so the second `++` on it must not
+// see the first one's bytes.
+def Label = fn(i: Int) -> Text => "a literal long enough to be kept in a buffer of its own, past seventy bytes: " ++ (i as Text) ++ "/" ++ ((i * 2) as Text);
+IO::PrintLine(Label(1));
+IO::PrintLine(Label(22));
+IO::PrintLine(Label(333));
+
+// A chain of appends, keeping every 25th prefix of it along the way.
+def Grow = fn(i: Int, limit: Int, acc: Text, kept: List<Text>) -> (Text, List<Text>) =>
+	if i >= limit
+	then (acc, kept)
+	else Grow(i + 1, limit, acc ++ ((i % 10) as Text), if (i % 25) == 0 then List::Cons(acc, kept) else kept);
+
+def (full, kept_backwards) = Grow(0, 200, "", List::Nil());
+def kept = ListReverse(kept_backwards);
+IO::PrintLine("full: " ++ (TextUtil::Length(full) as Text) ++ " characters, " ++ (ListLength(kept) as Text) ++ " prefixes kept");
+
+def Rebuild = fn(i: Int, limit: Int, acc: Text) -> Text => if i >= limit then acc else Rebuild(i + 1, limit, acc ++ ((i % 10) as Text));
+
+def CheckPrefixes = fn(prefixes: List<Text>, index: Int, by_prefix: Map::Map<Text, Int>) -> Map::Map<Text, Int> =>
+	match prefixes with
+		case List::Cons(prefix, rest) => {
+			def length = index * 25;
+			Expect(TextUtil::Length(prefix) == length, "prefix " ++ (index as Text) ++ " keeps its length");
+			Expect(prefix == TextUtil::Substring(full, 0, length), "prefix " ++ (index as Text) ++ " is a prefix of the full text");
+			Expect(prefix == Rebuild(0, length, ""), "prefix " ++ (index as Text) ++ " equals the same text built apart");
+			CheckPrefixes(rest, index + 1, Map::With(by_prefix, prefix, index))
+		}
+		case List::Nil => by_prefix;
+
+def by_prefix = CheckPrefixes(kept, 0, Map::Empty());
+IO::PrintLine("hashed: " ++ (Map::Count(by_prefix) as Text) ++ " prefixes");
+Expect(Map::GetOr(by_prefix, Rebuild(0, 100, ""), -1) == 4, "a prefix hashes as the same text built apart");
+Expect(Map::GetOr(by_prefix, Rebuild(0, 175, ""), -1) == 7, "a later prefix hashes as the same text built apart");
+
+// A prefix is followed in its buffer by the next text's bytes, not a NUL:
+// printing it and sending it to a worker must stop at its own end.
+def middle = TextUtil::Substring(full, 0, 1) ++ TextUtil::Substring(full, 1, 150);
+def longer = middle ++ "<- the middle ends here";
+IO::PrintLine(middle);
+IO::PrintLine(longer);
+
+def Measure = fn(text: Text) -> Text => (TextUtil::Length(text) as Text) ++ " characters: " ++ text;
+match Concurrency::Join(Concurrency::Spawn(middle, Measure)) with
+	case Result::Ok(measured) => IO::PrintLine("worker saw " ++ measured)
+	case Result::Err(_) => IO::PrintLine("worker failed")
+;

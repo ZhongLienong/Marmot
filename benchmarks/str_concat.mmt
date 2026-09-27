@@ -8,8 +8,8 @@ import
 }
 
 // v2 port: `test_string = test_string ++ "a"` in a loop is now a tail-recursive
-// walk carrying the text. Each step still copies the accumulated text, which is
-// what this benchmark has always measured.
+// walk carrying the text. Each step writes the "a" after the accumulated text in
+// its shared buffer, as CPython resizes a string it holds the only reference to.
 def Build = fn(count : Int, limit : Int, acc : Text) -> Text =>
 	if count >= limit then acc else Build(count + 1, limit, acc ++ "a");
 

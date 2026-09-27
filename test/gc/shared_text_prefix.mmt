@@ -1,0 +1,35 @@
+module SharedTextPrefix
+
+import
+{
+	"../../MarmotPrelude/IO.mmt",
+	"../../MarmotPrelude/TextUtil.mmt",
+	"../../MarmotPrelude/Prelude/Panic.mmt"
+}
+
+// A chain of `++` shares one buffer, so the text that allocated it can die
+// while a prefix of it lives on. Keep only an early prefix, drop the long tip,
+// churn through enough garbage for several collections, then read the prefix.
+// The prefix's buffer holds bytes 71 to 239 of the chain; the churn's texts
+// come from the same size class of the buffer pool.
+
+def Expect = fn(condition: Bool, message: Text) -> Unit => if condition then () else Panic::Panic(message);
+
+def Grow = fn(i: Int, limit: Int, acc: Text, early: Text) -> Text =>
+	if i >= limit
+	then early
+	else Grow(i + 1, limit, acc ++ ((i % 10) as Text), if i == 120 then acc else early);
+
+def Churn = fn(i: Int, limit: Int, total: Int) -> Int =>
+	if i >= limit
+	then total
+	else Churn(i + 1, limit, total + TextUtil::Length("churn " ++ (i as Text) ++ " makes a text of about 150 bytes, which takes a buffer from the same size class as the one the early prefix shares, so a buffer freed too early is written over"));
+
+def early = Grow(0, 5000, "", "");
+def churned = Churn(0, 60000, 0);
+Expect(churned > 0, "the churn ran");
+
+Expect(TextUtil::Length(early) == 120, "the prefix keeps its length");
+IO::PrintLine(early);
+IO::PrintLine(early ++ " <- and it can still be extended");
+IO::PrintLine(TextUtil::Substring(early, 110, 120));

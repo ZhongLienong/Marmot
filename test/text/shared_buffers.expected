@@ -1,0 +1,13 @@
+this text is more than seventy bytes long, too long for a short text, so
+this text is more than seventy bytes long, too long for a short text, so b took the end of the buffer
+this text is more than seventy bytes long, too long for a short text, so c must not write over b
+this text is more than seventy bytes long, too long for a short text, so b took the end of the buffer, and b grows on
+this text is more than seventy bytes long, too long for a short text, so c must not write over b, and so does c
+a literal long enough to be kept in a buffer of its own, past seventy bytes: 1/2
+a literal long enough to be kept in a buffer of its own, past seventy bytes: 22/44
+a literal long enough to be kept in a buffer of its own, past seventy bytes: 333/666
+full: 200 characters, 8 prefixes kept
+hashed: 8 prefixes
+012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789
+012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789<- the middle ends here
+worker saw 150 characters: 012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789

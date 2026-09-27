@@ -210,12 +210,32 @@ private:
 	static constexpr int STORAGE_SIZE = 72;
 	static constexpr int SSO_CAPACITY = STORAGE_SIZE - 2;
 
+	// A long text's characters follow this header in a buffer that texts
+	// share: `a ++ b` writes b after a in place when a ends where the buffer
+	// has been written to, and the result shares the buffer with a, so a
+	// chain of appends is linear. Each text sees only its own m_size bytes,
+	// so texts stay immutable; the byte at m_written is always a NUL.
+	//
+	// The count is not atomic because a buffer never leaves its thread: the
+	// buffer pool is thread_local, each VM makes its own texts from the
+	// executable's string pool, and worker transfer copies text by value
+	// (ValueTransfer). Keep it that way.
+	struct Buffer
+	{
+		int m_references;
+		int m_written;
+		int m_capacity;
+		int m_padding;
+	};
+
 	struct LongLayout
 	{
 		char* m_ptr;
 		int m_size;
-		int m_capacity;
 		mutable int m_length_cache;
+		// The bytes of the buffer this text allocated, which the collector
+		// counts against it; a text that only shares a buffer counts none.
+		int m_owned_bytes;
 		uint8_t m_padding[STORAGE_SIZE - sizeof(char*) - 3uz * sizeof(int) - 1uz];
 		uint8_t m_flag;
 	};
@@ -318,12 +338,26 @@ public:
 
 	static MidoriText FromFFI(char* ffi_allocated_string);
 
-	size_t GetCapacity() const;
+	size_t GetOwnedBytes() const;
 
 private:
-	void Expand(int new_size);
+	Buffer& GetBuffer() const noexcept;
 
-	void GrowLongBuffer(int new_capacity);
+	// Whether `size` bytes fit in the buffer after this text's own, with no
+	// other text's bytes there.
+	bool CanWriteAtEnd(int size) const noexcept;
+
+	// Whether no other text sees the buffer, so its bytes may change.
+	bool IsPrivate() const noexcept;
+
+	// Moves the text to a buffer of its own with room for `capacity` bytes.
+	void Reallocate(int capacity);
+
+	void Release() noexcept;
+
+	MidoriText& AppendBytes(std::string_view bytes, int length);
+
+	MidoriText& PrependBytes(std::string_view bytes);
 
 	MIDORI_FORCE_INLINE bool IsShort() const noexcept
 	{

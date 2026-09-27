@@ -113,8 +113,9 @@ often got wrong:
   ask without stopping.
 - A `Float` prints as the shortest text that reads back as the same value, with
   `.0` kept on a whole number.
-- Building text with `++` and arrays with `ArrayUtil::WithAppended` is
-  quadratic. Fine for small inputs, not for a loop over a large one.
+- Building arrays with `ArrayUtil::WithAppended` is quadratic. Fine for small
+  inputs, not for a loop over a large one. Building text with `acc ++ piece` is
+  linear: the result shares `acc`'s buffer and writes after it in place.
 
 Tests under `test/` import the prelude by relative path
 (`"../../../MarmotPrelude/IO.mmt"`). The `<IO>` form resolves through
