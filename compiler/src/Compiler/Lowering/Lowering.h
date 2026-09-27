@@ -6,7 +6,7 @@
 #include "Compiler/Lowering/GenericTypes.h"
 #include "Compiler/Lowering/InstanceResolver.h"
 #include "Compiler/MidoriIR/MidoriIR.h"
-#include "Compiler/MidoriIR/MidoriIRBuilder.h"
+#include "Compiler/MidoriIR/Builder/MidoriIRBuilder.h"
 #include "Compiler/Result/Result.h"
 
 #include <deque>

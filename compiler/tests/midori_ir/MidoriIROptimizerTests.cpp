@@ -1,8 +1,8 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "Compiler/Lowering/Lowering.h"
-#include "Compiler/MidoriIR/MidoriIRBuilder.h"
-#include "Compiler/MidoriIR/MidoriIRPrinter.h"
+#include "Compiler/MidoriIR/Builder/MidoriIRBuilder.h"
+#include "Compiler/MidoriIR/Printer/MidoriIRPrinter.h"
 #include "Compiler/MidoriIROptimizer/MidoriIROptimizer.h"
 #include "Compiler/MidoriIROptimizer/MidoriIRPasses.h"
 #include "support/CompileHelpers.h"

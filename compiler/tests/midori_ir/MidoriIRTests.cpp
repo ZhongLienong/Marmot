@@ -1,9 +1,9 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "Compiler/MidoriIR/MidoriIR.h"
-#include "Compiler/MidoriIR/MidoriIRBuilder.h"
-#include "Compiler/MidoriIR/MidoriIRPrinter.h"
-#include "Compiler/MidoriIR/MidoriIRVerifier.h"
+#include "Compiler/MidoriIR/Builder/MidoriIRBuilder.h"
+#include "Compiler/MidoriIR/Printer/MidoriIRPrinter.h"
+#include "Compiler/MidoriIR/Verifier/MidoriIRVerifier.h"
 
 #include <algorithm>
 #include <memory>

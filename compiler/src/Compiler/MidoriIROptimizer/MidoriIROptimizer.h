@@ -2,7 +2,7 @@
 
 #include "Common/BuildConfig/BuildConfig.h"
 #include "Compiler/MidoriIR/MidoriIR.h"
-#include "Compiler/MidoriIR/MidoriIRVerifier.h"
+#include "Compiler/MidoriIR/Verifier/MidoriIRVerifier.h"
 
 #include <expected>
 #include <memory>

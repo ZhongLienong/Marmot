@@ -1,5 +1,5 @@
 #include "MidoriIRModuleFacts.h"
-#include "Compiler/MidoriIROptimizer/MidoriIRAnalysis.h"
+#include "Compiler/MidoriIROptimizer/Analysis/MidoriIRAnalysis.h"
 
 #include <algorithm>
 #include <ranges>

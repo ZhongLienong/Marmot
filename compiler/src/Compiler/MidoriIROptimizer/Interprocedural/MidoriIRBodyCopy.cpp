@@ -1,5 +1,5 @@
 #include "MidoriIRBodyCopy.h"
-#include "Compiler/MidoriIROptimizer/MidoriIRAnalysis.h"
+#include "Compiler/MidoriIROptimizer/Analysis/MidoriIRAnalysis.h"
 #include "Compiler/Lowering/GenericTypes.h"
 
 #include <ranges>

@@ -1,4 +1,4 @@
-#include "Compiler/MidoriIROptimizer/MidoriIRAnalysis.h"
+#include "Compiler/MidoriIROptimizer/Analysis/MidoriIRAnalysis.h"
 #include "Compiler/MidoriIROptimizer/MidoriIRPasses.h"
 
 #include <ranges>
