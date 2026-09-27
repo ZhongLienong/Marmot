@@ -3,6 +3,7 @@
 #include "Compiler/Analysis/SharedAnalysis.h"
 
 #include <algorithm>
+#include <cmath>
 #include <optional>
 #include <ranges>
 
@@ -19,7 +20,9 @@ namespace
 		return truth_value.has_value() && truth_value.value() == expected_value;
 	}
 
-	bool TryGetPureNumericConstant(const MidoriExpression& expr, bool expect_zero)
+	// A Float zero counts only with the sign given: x + -0.0 and x - 0.0 are
+	// x, but -0.0 + 0.0 is 0.0.
+	bool TryGetPureNumericConstant(const MidoriExpression& expr, bool expect_zero, bool negative_float_zero = false)
 	{
 		if (!MidoriAnalysis::IsPure(expr))
 		{
@@ -40,8 +43,8 @@ namespace
 
 		if (constant_value->Is<MidoriFloat>())
 		{
-			const MidoriFloat expected_value = expect_zero ? 0.0 : 1.0;
-			return constant_value->Get<MidoriFloat>() == expected_value;
+			const MidoriFloat value = constant_value->Get<MidoriFloat>();
+			return expect_zero ? value == 0.0 && std::signbit(value) == negative_float_zero : value == 1.0;
 		}
 
 		if (constant_value->Is<MidoriByte>())
@@ -59,9 +62,9 @@ namespace
 		return false;
 	}
 
-	bool IsPureZero(const MidoriExpression& expr)
+	bool IsPureZero(const MidoriExpression& expr, bool negative_float_zero = false)
 	{
-		return TryGetPureNumericConstant(expr, true);
+		return TryGetPureNumericConstant(expr, true, negative_float_zero);
 	}
 
 	bool IsPureOne(const MidoriExpression& expr)
@@ -240,14 +243,14 @@ void CanonicalizationCleanup::operator()(MidoriExpression::Binary& binary)
 	switch (binary.m_op.m_token_name)
 	{
 	case Token::Name::SINGLE_PLUS:
-		if (IsPureZero(*binary.m_right))
+		if (IsPureZero(*binary.m_right, true))
 		{
 			m_pending_replacement = MidoriAnalysis::StripRedundantGroups(std::move(binary.m_left));
 			SetReplacementType(m_pending_replacement, binary.m_type_data);
 			return;
 		}
 
-		if (IsPureZero(*binary.m_left))
+		if (IsPureZero(*binary.m_left, true))
 		{
 			m_pending_replacement = MidoriAnalysis::StripRedundantGroups(std::move(binary.m_right));
 			SetReplacementType(m_pending_replacement, binary.m_type_data);

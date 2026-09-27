@@ -2,21 +2,26 @@
 """
 Run the benchmark suite and report per-benchmark medians.
 
-Optionally compares two compilers with interleaved runs, so machine drift
-affects both sides equally; each is run with the marmotvm beside it. To keep a
-baseline, copy a build's out/ folder aside before changing the sources.
+Optionally compares two sides with interleaved runs, so machine drift affects
+both equally: two compilers, each run with the marmotvm beside it, or one
+compiler through two backends. To keep a baseline, copy a build's out/ folder
+aside before changing the sources.
 
 Usage:
     python scripts/dev.py bench                         # the Release build
     python scripts/dev.py bench --runs 7                # more samples
     python scripts/dev.py bench --compare old/out/marmotc
     python scripts/dev.py bench --exe path/to/marmotc
+    python scripts/dev.py bench --backend ir            # through MidoriIR
+    python scripts/dev.py bench --backend ir --compare-backend ast
+    python scripts/dev.py bench --every                 # every file in benchmarks/
 """
 
 from __future__ import annotations
 
 import argparse
 import re
+from dataclasses import dataclass
 import statistics
 import subprocess
 import sys
@@ -38,17 +43,40 @@ WORKLOADS = [
 ]
 
 RESULT_PATTERN = re.compile(r"^(.*?)(?: benchmark)? took (\d+) milliseconds", re.MULTILINE)
+# The other files print "<what> (<details>): N ms" or "<what> in N ms".
+MS_PATTERN = re.compile(r"^(.*?)(?::| in) (\d+) ms$", re.MULTILINE)
 
 
-def run_workload(exe: Path, workload: Path) -> dict[str, int]:
+@dataclass(frozen=True)
+class Side:
+    """A compiler and the backend it compiles through."""
+
+    exe: Path
+    backend: str
+
+    def __str__(self) -> str:
+        return f"{self.exe} --backend {self.backend}"
+
+
+def every_workload() -> list[Path]:
+    """The files in benchmarks/ that print a timing."""
+    def prints_timing(path: Path) -> bool:
+        source = path.read_text(encoding="utf-8")
+        return "milliseconds" in source or ' ms")' in source
+    return sorted(path for path in (ROOT / "benchmarks").glob("*.mmt") if prints_timing(path))
+
+
+def run_workload(side: Side, workload: Path, prefix: bool) -> dict[str, int]:
     # marmotc builds the workload; marmotvm (beside it) runs what is measured.
     environment = checkout_environment()
     with tempfile.TemporaryDirectory(prefix="marmot-bench-") as directory:
         program = Path(directory) / (workload.stem + ".mmc")
-        subprocess.run([str(exe), "build", str(workload), "-o", str(program), "--quiet"],
+        # A compiler from before --backend existed takes the default, ast.
+        backend = [] if side.backend == "ast" else ["--backend", side.backend]
+        subprocess.run([str(side.exe), "build", str(workload), "-o", str(program), "--quiet", *backend],
                        cwd=ROOT, env=environment, timeout=600, check=True, capture_output=True)
         proc = subprocess.run(
-            [str(vm_beside(exe)), str(program)],
+            [str(vm_beside(side.exe)), str(program)],
             capture_output=True,
             text=True,
             cwd=ROOT,
@@ -56,22 +84,24 @@ def run_workload(exe: Path, workload: Path) -> dict[str, int]:
             timeout=600,
         )
     results = {}
-    for match in RESULT_PATTERN.finditer(proc.stdout):
+    for match in [*RESULT_PATTERN.finditer(proc.stdout), *MS_PATTERN.finditer(proc.stdout)]:
         label = re.sub(r"\x1b\[[0-9;]*m", "", match.group(1)).strip()
-        label = label.split(":")[0].strip()
-        results[label] = int(match.group(2))
+        label = label.split(":")[0].split(" (")[0].strip()
+        # Several files time the same thing, so --every says whose it is.
+        results[f"{workload.stem}: {label}" if prefix else label] = int(match.group(2))
     if not results:
         sys.exit(f"{workload.name}: no benchmark output (exit={proc.returncode})\n{proc.stdout}\n{proc.stderr}")
     return results
 
 
-def collect(exes: list[Path], runs: int) -> dict[str, dict[str, list[int]]]:
-    samples: dict[str, dict[str, list[int]]] = {str(exe): {} for exe in exes}
+def collect(sides: list[Side], workloads: list[Path], runs: int) -> dict[Side, dict[str, list[int]]]:
+    samples: dict[Side, dict[str, list[int]]] = {side: {} for side in sides}
+    prefix = workloads != WORKLOADS
     for run_index in range(runs):
-        for workload in WORKLOADS:
-            for exe in exes:  # interleave executables within each workload
-                for label, ms in run_workload(exe, workload).items():
-                    samples[str(exe)].setdefault(label, []).append(ms)
+        for workload in workloads:
+            for side in sides:  # interleave the sides within each workload
+                for label, ms in run_workload(side, workload, prefix).items():
+                    samples[side].setdefault(label, []).append(ms)
         print(f"  run {run_index + 1}/{runs} done", file=sys.stderr)
     return samples
 
@@ -81,15 +111,22 @@ def main(argv: list[str]) -> int:
     add_build_arguments(parser, default="Release")
     parser.add_argument("--exe", type=Path, default=None, help="marmotc to benchmark, instead of the build's")
     parser.add_argument("--compare", type=Path, default=None, help="Baseline marmotc for A/B comparison")
+    parser.add_argument("--backend", choices=["ast", "ir"], default="ast", help="The path marmotc compiles through (default: ast)")
+    parser.add_argument("--compare-backend", choices=["ast", "ir"], default=None,
+                        help="Baseline backend for A/B comparison, of the --compare compiler or else the same one")
+    parser.add_argument("--every", action="store_true", help="Run every timed file in benchmarks/, not only the usual workloads")
     parser.add_argument("--runs", type=int, default=5, help="Samples per benchmark (default 5)")
     args = parser.parse_args(argv)
 
     exe = args.exe.resolve() if args.exe else BuildTree.from_args(args).require_compiler()
-    exes = [exe]
-    if args.compare:
-        exes.insert(0, args.compare.resolve())
+    current = Side(exe, args.backend)
+    comparing = args.compare is not None or args.compare_backend is not None
+    baseline = Side(args.compare.resolve() if args.compare else exe, args.compare_backend or args.backend)
+    if comparing and baseline == current:
+        parser.error("the baseline is the same compiler and backend as the current side")
+    sides = [baseline, current] if comparing else [current]
 
-    samples = collect(exes, args.runs)
+    samples = collect(sides, every_workload() if args.every else WORKLOADS, args.runs)
 
     labels: list[str] = []
     for per_exe in samples.values():
@@ -98,17 +135,18 @@ def main(argv: list[str]) -> int:
                 labels.append(label)
 
     name_width = max(len(label) for label in labels) + 2
-    if args.compare:
+    if comparing:
+        print(f"baseline: {baseline}\ncurrent:  {current}\n")
         print(f"{'benchmark':<{name_width}}{'baseline':>10}{'current':>10}{'delta':>9}")
         for label in labels:
-            base = statistics.median(samples[str(exes[0])].get(label, [0]))
-            curr = statistics.median(samples[str(exe)].get(label, [0]))
+            base = statistics.median(samples[baseline].get(label, [0]))
+            curr = statistics.median(samples[current].get(label, [0]))
             delta = f"{(curr - base) / base * 100:+.1f}%" if base else "n/a"
             print(f"{label:<{name_width}}{base:>8.0f}ms{curr:>8.0f}ms{delta:>9}")
     else:
         print(f"{'benchmark':<{name_width}}{'median':>10}{'min':>8}{'max':>8}")
         for label in labels:
-            values = samples[str(exe)][label]
+            values = samples[current][label]
             print(f"{label:<{name_width}}{statistics.median(values):>8.0f}ms{min(values):>6}ms{max(values):>6}ms")
     return 0
 

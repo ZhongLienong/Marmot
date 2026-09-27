@@ -1,0 +1,12 @@
+5
+error[DivisionByZero]: Division by zero.
+ --> test/midori_ir/failure/division_by_zero_through_inlined_function.mmt:11
+   |
+11 | def Divide = fn(total: Int, parts: Int) -> Int => total / parts;
+   | Division by zero.
+   |
+stack trace:
+  at Divide [module DivisionByZeroThroughInlinedFunction] in test/midori_ir/failure/division_by_zero_through_inlined_function.mmt:11
+    def Divide = fn(total: Int, parts: Int) -> Int => total / parts;
+  at main [module DivisionByZeroThroughInlinedFunction] in test/midori_ir/failure/division_by_zero_through_inlined_function.mmt:19
+    Print(((Share(10, people) + 1) as Text) ++ "/n");

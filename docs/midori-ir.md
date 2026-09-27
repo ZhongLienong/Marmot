@@ -82,7 +82,7 @@ Every instruction has one effect. The builder takes it from `MidoriIROps.def`, a
 
 ## Verifier
 
-`MidoriIRVerifier(module).Verify()` returns every violation it finds, each with its rule number, function, block and a message. Development builds are to run it after lowering and after every pass, and Release builds once before the backend. A violation is a compiler bug, never a user error.
+`MidoriIRVerifier(module).Verify()` returns every violation it finds, each with its rule number, function, block and a message. Development and Debug builds run it after lowering and after every optimizer pass, and Release builds once, before the backend. A violation is a compiler bug, never a user error: it stops the module with `CompilerInternalError`, naming the pass that broke the IR.
 
 1. **Terminators.** Every block ends in exactly one terminator, no terminator appears anywhere else, and every function has a block. A call that returns `Never` is followed by `unreachable`.
 2. **Dominance.** Every value is defined once, and every use is dominated by its definition. A use in the defining block must come after it.
@@ -144,20 +144,47 @@ bb3:
 
 A diagnostic lowering reports is under the `Lowering` stage: an unresolved or ambiguous method, an unknown builtin, an unsupported foreign return type, a generic function used as a value, or an out-of-range literal.
 
+## Optimizer
+
+`MidoriIROptimizer` (`compiler/src/Compiler/MidoriIROptimizer/`) runs a fixed list of passes once, in this order, over each module after lowering. It reports nothing: a pass that leaves the IR invalid is a compiler bug the verifier catches. `MidoriIRPasses.h` declares the passes, and `MidoriIROptimizer(passes)` runs any other list, as the unit tests in `compiler/tests/midori_ir/MidoriIROptimizerTests.cpp` do.
+
+| Pass | What it does |
+| --- | --- |
+| `DeadCodeElimination` | Drops every instruction whose value nothing needs and that may be dropped (see [Effects](#effects)), block parameters included, then simplifies the graph: a branch on a constant, or whose two edges are one, becomes a jump; a parameter every edge passes the same value to is that value; an edge into a block that only jumps on goes where it goes; a block whose only predecessor jumps to it joins it; blocks nothing reaches go |
+| `SelfTailCall` | A tail call of the function itself becomes a jump back to a loop header after the entry, which takes the function's parameters. It finds the function by name, through the global that holds it, or through a capture every closure of it binds to itself, as a local function that names itself does |
+| `ClosureConversion` | Drops the captures nothing reads; turns the captures of a local function whose closures are only ever called into parameters after its own, so it is called directly and never made; and calls a function directly where the closure called is made in the same function with nothing captured |
+| `Contification` | A function only ever tail called, and from one function, becomes blocks of that function, and each tail call a jump to them |
+| `Inlining` | Copies a directly called function into its caller when it is small or called nowhere else, callees before callers. Within a cycle of calls only a tail call is inlined |
+| `SelfTailCall` | Again: inlining can make a mutual tail call a self one |
+| `ScalarReplacement` | A part read from a tuple, struct, union or range made in the same function is the value it was made with, through record updates too, and a union's tag is its constant |
+| `Sccp` | Sparse conditional constant propagation: a value every path makes the same constant is that constant, and a branch on one goes one way. A global the top-level function defines as a constant other than Text reads as that constant |
+| `StrengthReduction` | Identities with a constant operand, only where they hold for every value: `x + 0`, `x * 1`, `x * 0`, `x * 2^n` to a shift, `x / -1`, `x % 1`, `x - x`; for Floats only `x * 1.0`, `x / 1.0`, `x - 0.0` and `x + -0.0`, since `-0.0 + 0.0` is `0.0` and `x * 0.0` is NaN for an infinite `x` |
+| `GlobalValueNumbering` | An instruction that computes what a dominating one did uses its value. Constants, allocations and reads of a `Cell` take no part; a global's definition gives what reading it does |
+| `LoopInvariantCodeMotion` | An instruction in a loop whose operands the loop does not change, and which can neither fail nor allocate, moves to the block before the loop |
+| `DeadCodeElimination` | Again, to clean up |
+
+What the passes keep:
+
+- **Tail calls.** A call in tail position stays a `TailCall` through every pass. Inlining a callee at a tail call leaves its returns and tail calls the caller's; inlining it at an ordinary call turns its tail calls into calls, which take the call site's line.
+- **Stack traces.** A runtime error prints every frame, so a body is copied into another function, by inlining or contification, only when no runtime error can be raised in its frame or in one it makes: it can neither fail nor write, and calls only in tail position, where its own frame is already gone. A division by a non-zero constant cannot fail.
+- **Source lines.** An inlined instruction keeps its line when the callee's source is the caller's module; the body of another module's generic takes the call's line, since its own lines are of another file.
+- **Fresh values.** A `Text` constant is a new text each time it runs and an allocation is its own value, so neither is merged or moved out of a loop: `Extend` changes its left operand in place.
+- **Globals.** A global is defined once, by the top-level function, before anything can read it, and never set again, so every read of it gives one value.
+
 ## Bytecode backend
 
 `BytecodeBackend` (`compiler/src/Compiler/BytecodeBackend/`) turns a `LoweredModule` into the same `BytecodeModule` the code generator produces, so the linker takes either. `$main$` is procedure 0 and every other function follows in order, named `name@Module`. Imported globals become the placeholders the linker resolves. A block nothing reaches is not emitted.
 
 Each value lives in one of four places:
 
-- **A frame slot.** A function's parameters are its first slots. A block parameter, and a value used more than once or in another block, is stored in a slot when it is made and read at each use. Two values share a slot when neither is live where the other is defined, from liveness over the function's blocks.
-- **The operand stack.** A value used once, in the block that makes it, stays where its instruction left it, if its use takes it from there: its use's other stack operands come after it, and nothing made between is left above it.
-- **Nowhere, pushed again at each use.** A constant other than Text, and every `Unit` value.
+- **A frame slot.** A function's parameters are its first slots. A block parameter, and a value used more than once or in another block, is stored in a slot when it is made and read at each use. Two values share a slot when neither is live where the other is defined, from liveness over the function's blocks. Block parameters take their slots first, and a value takes the slot of what it is moved to or from when it can: a jump argument its parameter's, so the jump moves nothing, and `x + c` its `x`'s. A loop's `p + c` passed straight back as `p` stays in a slot for this rather than on the stack.
+- **The operand stack.** A value used once, in the block that makes it, stays where its instruction left it, if its use takes it from there: its use's other stack operands come after it, and nothing made between is left above it. A commutative operation pushes its operands in whichever order lets one stay. A value stored in a slot also stays on the stack when the next instruction pushes it first.
+- **Nowhere, pushed again at each use.** A constant other than Text, a Text constant used once, which is a new text each time it is loaded anyway, and every `Unit` value.
 - **Nowhere at all.** A value nothing uses is popped as soon as it is made.
 
-A jump pushes all of its arguments before it stores any, so passing a block's parameters back to it in another order is safe.
+A jump pushes all of its arguments before it stores any, so passing a block's parameters back to it in another order is safe. An argument already in its parameter's slot is not moved.
 
-The backend chooses these superinstructions: a comparison of Ints or Floats that a `branch` takes straight from it becomes one compare-and-jump opcode, `IF_LOCAL_LE_INT` when it compares a local with a small constant and `IF_LOCAL_GE_LOCAL` when it compares two locals; `SubInt` of a local and a small constant is `PUSH_LOCAL_SUB_INT`; two locals loaded together are `GET_LOCAL2`. Cell storage is known before emission, so nothing is rewritten after it is emitted.
+The backend chooses these superinstructions: a comparison of Ints or Floats that a `branch` takes straight from it becomes one compare-and-jump opcode, `IF_LOCAL_LE_INT` when it compares a local with a small constant and `IF_LOCAL_GE_LOCAL` when it compares two locals; a local plus or minus a small constant is `ADD_LOCAL_INT` when it is stored back in the local's slot and `PUSH_LOCAL_SUB_INT` otherwise; two locals loaded together are `GET_LOCAL2`. Cell storage is known before emission, so nothing is rewritten after it is emitted.
 
 Procedures and globals are named in two bytes (`CALL_PROC_WIDE`, `MAKE_FUNCTION_WIDE`, `MAKE_CLOSURE_OF` and the `_WIDE` global forms), because the linker adds each module's first procedure and global to them and a program may have more than 256 of either. A closure with captures is `MAKE_CLOSURE_OF`, which boxes each capture in a fresh cell, with `Unit` for the ones `SET_CAPTURE` fills later; a union field is `GET_UNION_FIELD`. The backend's only diagnostics are the bytecode encoding's limits, as `CodeGeneratorLimitExceeded`.
 
@@ -165,5 +192,5 @@ Procedures and globals are named in two bytes (`CALL_PROC_WIDE`, `MAKE_FUNCTION_
 
 Both options are hidden from `marmotc --help`, and both go away once MidoriIR is the only path.
 
-- **`--backend ast|ir`** is accepted by `marmotc check` and `marmotc build`. It picks the path after static analysis: `ast` (the default) runs the AST optimizer and the code generator, and `ir` runs lowering, the MidoriIR optimizer and the backend. There is no MidoriIR optimizer yet. `python scripts/testing/language.py --backend ir` runs the language suite through it, which the gate does as its `language-ir` step, and `test/midori_ir/` holds the tests written for it. A test the code generator rejects but MidoriIR lowers has a `.ir.expected` beside it, with what it prints through MidoriIR.
+- **`--backend ast|ir`** is accepted by `marmotc check` and `marmotc build`. It picks the path after static analysis: `ast` (the default) runs the AST optimizer and the code generator, and `ir` runs lowering, the MidoriIR optimizer and the backend. `python scripts/dev.py bench --backend ir --compare-backend ast` times one path against the other, with `--every` for every file in `benchmarks/`. `python scripts/testing/language.py --backend ir` runs the language suite through it, which the gate does as its `language-ir` step, and `test/midori_ir/` holds the tests written for it. A test the code generator rejects but MidoriIR lowers has a `.ir.expected` beside it, with what it prints through MidoriIR.
 - **`--emit-ir`** prints each module's MidoriIR, after optimization, in the textual form above, in link order. It needs `--backend ir` and cannot be combined with `--format json`.

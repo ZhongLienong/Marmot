@@ -2,6 +2,7 @@
 #include "Common/BuildConfig/BuildConfig.h"
 
 #include "StrengthReduction.h"
+#include "Compiler/Analysis/SemanticFacts.h"
 #include "Compiler/Token/Token.h"
 #include <stdexcept>
 #include <optional>
@@ -92,15 +93,15 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 {
 	if (left_int || right_int)
 	{
-		// x * 0 -> 0
+		// x * 0 -> 0, when nothing is lost by not computing x.
 		if (op.m_token_name == Token::Name::STAR)
 		{
-			if (right_int && IntegerEquals(right_int->m_token.m_lexeme, 0ll))
+			if (right_int && IntegerEquals(right_int->m_token.m_lexeme, 0ll) && MidoriAnalysis::IsPure(*binary.m_left))
 			{
 				Token zero_token("0", Token::Name::INTEGER_LITERAL, op.m_line, op.m_file_name);
 				return std::make_unique<MidoriExpression>(MidoriExpression::Literal(zero_token, MidoriExpression::LiteralKind::Integer));
 			}
-			if (left_int && IntegerEquals(left_int->m_token.m_lexeme, 0ll))
+			if (left_int && IntegerEquals(left_int->m_token.m_lexeme, 0ll) && MidoriAnalysis::IsPure(*binary.m_right))
 			{
 				Token zero_token("0", Token::Name::INTEGER_LITERAL, op.m_line, op.m_file_name);
 				return std::make_unique<MidoriExpression>(MidoriExpression::Literal(zero_token, MidoriExpression::LiteralKind::Integer));
@@ -196,24 +197,10 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 		}
 	}
 
-	// Float operations
+	// Float operations, only where they hold for every value: x * 0.0 is NaN
+	// for an infinite x and -0.0 for a negative one, and -0.0 + 0.0 is 0.0.
 	if (left_float || right_float)
 	{
-		// x * 0.0 -> 0.0
-		if (op.m_token_name == Token::Name::STAR)
-		{
-			if (right_float && GetFloatValue(right_float) == 0.0)
-			{
-				Token zero_token("0.0", Token::Name::FLOAT_LITERAL, op.m_line, op.m_file_name);
-				return std::make_unique<MidoriExpression>(MidoriExpression::Literal(zero_token, MidoriExpression::LiteralKind::Float));
-			}
-			if (left_float && GetFloatValue(left_float) == 0.0)
-			{
-				Token zero_token("0.0", Token::Name::FLOAT_LITERAL, op.m_line, op.m_file_name);
-				return std::make_unique<MidoriExpression>(MidoriExpression::Literal(zero_token, MidoriExpression::LiteralKind::Float));
-			}
-		}
-
 		// x * 1.0 -> x
 		if (op.m_token_name == Token::Name::STAR)
 		{
@@ -233,19 +220,6 @@ std::unique_ptr<MidoriExpression> StrengthReduction::TryReduceBinary(MidoriExpre
 			if (right_float && GetFloatValue(right_float) == 1.0)
 			{
 				return std::move(binary.m_left);
-			}
-		}
-
-		// x + 0.0 -> x
-		if (op.m_token_name == Token::Name::SINGLE_PLUS)
-		{
-			if (right_float && GetFloatValue(right_float) == 0.0)
-			{
-				return std::move(binary.m_left);
-			}
-			if (left_float && GetFloatValue(left_float) == 0.0)
-			{
-				return std::move(binary.m_right);
 			}
 		}
 

@@ -151,6 +151,35 @@ namespace
 		}
 	}
 
+	// Operations whose operands may be pushed in either order.
+	bool IsCommutative(MidoriIROp op)
+	{
+		using enum MidoriIROp;
+		switch (op)
+		{
+		case AddInt:
+		case MulInt:
+		case BitAndInt:
+		case BitOrInt:
+		case BitXorInt:
+		case EqInt:
+		case NeInt:
+		case EqBool:
+		case NeBool:
+		case AddByte:
+		case MulByte:
+		case EqByte:
+		case NeByte:
+		case AddWord:
+		case MulWord:
+		case EqWord:
+		case NeWord:
+			return true;
+		default:
+			return false;
+		}
+	}
+
 	std::optional<OpCode> SmallIntOpCode(int64_t value)
 	{
 		switch (value)
@@ -266,6 +295,11 @@ namespace
 		// becomes one compare-and-jump opcode, by the value it would have made.
 		std::vector<std::optional<OpCode>> m_fused_branches;
 		int m_slot_count = 0;
+		// The instruction emitted after the current one in its block.
+		const MidoriIRInstruction* m_next = nullptr;
+		// A value just stored and left on the stack too, because the next
+		// instruction pushes it first.
+		std::optional<MidoriIRValueId> m_kept;
 
 	public:
 		FunctionEmitter(BytecodeBackend& backend, const MidoriIRFunction& function)
@@ -318,12 +352,19 @@ namespace
 					continue;
 				}
 				m_block_offsets[block] = m_stream.GetByteCodeSize();
-				for (const MidoriIRInstruction& instruction : m_function.m_blocks[block].m_instructions)
+				const std::vector<MidoriIRInstruction>& instructions = m_function.m_blocks[block].m_instructions;
+				for (size_t position = 0u; position < instructions.size(); position += 1u)
 				{
-					const Emitted emitted = EmitInstruction(MidoriIRBlockId{ block }, instruction);
+					m_next = position + 1u < instructions.size() ? &instructions[position + 1u] : nullptr;
+					const std::optional<MidoriIRValueId> kept = m_kept;
+					const Emitted emitted = EmitInstruction(MidoriIRBlockId{ block }, instructions[position]);
 					if (!emitted.has_value())
 					{
 						return std::unexpected(emitted.error());
+					}
+					if (kept.has_value() && m_kept == kept)
+					{
+						throw std::logic_error(std::format("{} did not take the value left for it on the stack", GetMidoriIROpInfo(instructions[position].m_op).m_name));
 					}
 				}
 			}
@@ -365,6 +406,15 @@ namespace
 			if (instruction.m_op == MidoriIROp::Jump)
 			{
 				return MoveArguments(instruction.m_successors.front());
+			}
+			// A value left on the stack must be taken first, and either
+			// operand of a commutative operation may be.
+			const bool takes_second_from_stack = IsCommutative(instruction.m_op)
+				&& m_storage[instruction.m_operands[1u].m_index] == Storage::Stack
+				&& m_storage[instruction.m_operands[0u].m_index] != Storage::Stack;
+			if (takes_second_from_stack)
+			{
+				return { instruction.m_operands[1u], instruction.m_operands[0u] };
 			}
 			return instruction.m_operands;
 		}
@@ -449,13 +499,60 @@ namespace
 					m_storage[value] = Storage::Stack;
 				}
 			}
+			KeepStepsInPlace();
+		}
+
+		// A loop's `p + c` passed straight back as p is kept in a slot rather
+		// than on the stack: p dies there, so the sum takes p's slot and is
+		// one ADD_LOCAL_INT, and the jump moves nothing.
+		void KeepStepsInPlace()
+		{
+			for (uint32_t block = 0u; block < m_function.m_blocks.size(); block += 1u)
+			{
+				const std::vector<MidoriIRInstruction>& instructions = m_function.m_blocks[block].m_instructions;
+				if (!m_reachable[block] || instructions.back().m_op != MidoriIROp::Jump)
+				{
+					continue;
+				}
+				const MidoriIRSuccessor& target = instructions.back().m_successors.front();
+				const std::vector<MidoriIRValueId>& parameters = TargetOf(target).m_parameters;
+				for (size_t index = 0u; index < parameters.size(); index += 1u)
+				{
+					const MidoriIRValueId argument = target.m_arguments[index];
+					const MidoriIRInstruction* definition = m_definitions[argument.m_index];
+					if (m_storage[argument.m_index] != Storage::Stack || definition == nullptr)
+					{
+						continue;
+					}
+					const std::optional<std::pair<MidoriIRValueId, int64_t>> step = LocalStep(*definition);
+					if (step.has_value() && step->first == parameters[index] && !IsUsedAfter(block, *definition, step->first))
+					{
+						m_storage[argument.m_index] = Storage::Slot;
+					}
+				}
+			}
+		}
+
+		// Whether an instruction after `definition` in the block reads `value`.
+		bool IsUsedAfter(uint32_t block, const MidoriIRInstruction& definition, MidoriIRValueId value) const
+		{
+			const std::vector<MidoriIRInstruction>& instructions = m_function.m_blocks[block].m_instructions;
+			const std::vector<MidoriIRInstruction>::const_iterator after = std::ranges::find_if(instructions, [&definition](const MidoriIRInstruction& instruction) { return &instruction == &definition; }) + 1;
+			bool used = false;
+			for (const MidoriIRInstruction& instruction : std::ranges::subrange(after, instructions.end()))
+			{
+				ForEachUse(instruction, [&](MidoriIRValueId use) { used = used || use == value; });
+			}
+			return used;
 		}
 
 		// A value can stay on the stack only if, when its use runs, it is where
 		// that use takes it: the stack values an instruction takes must come
 		// first among its operands, and be the top of the stack in order. One
 		// that is not moves to a slot; it was stored when it was made, so it
-		// leaves the stack it was on, and the use is checked again.
+		// leaves the stack it was on, and the use is checked again. A Text
+		// constant is a new text each time it is loaded, so one used once is
+		// loaded at its use instead.
 		void ScheduleStack()
 		{
 			for (uint32_t block_index = 0u; block_index < m_function.m_blocks.size(); block_index += 1u)
@@ -467,15 +564,17 @@ namespace
 				std::vector<MidoriIRValueId> pending;
 				for (const MidoriIRInstruction& instruction : m_function.m_blocks[block_index].m_instructions)
 				{
-					const std::vector<MidoriIRValueId> sequence = PushSequence(instruction);
+					std::vector<MidoriIRValueId> sequence = PushSequence(instruction);
 					std::vector<MidoriIRValueId> taken = StackValues(sequence);
 					while (!IsTakenFromTop(sequence, taken, pending))
 					{
 						for (const MidoriIRValueId value : taken)
 						{
-							m_storage[value.m_index] = Storage::Slot;
+							const MidoriIRInstruction* definition = m_definitions[value.m_index];
+							m_storage[value.m_index] = definition->m_op == MidoriIROp::Const ? Storage::Rematerialized : Storage::Slot;
 							std::erase(pending, value);
 						}
+						sequence = PushSequence(instruction);
 						taken = StackValues(sequence);
 					}
 
@@ -556,17 +655,32 @@ namespace
 
 		// Two values in slots share one when neither is live where the other
 		// is defined. A block's parameters are defined where it starts, so
-		// they take no slot a value live into the block holds.
+		// they take no slot a value live into the block holds. Parameters
+		// are placed first, and a value takes the slot of what it is moved
+		// to or from when it can: a jump that passes a value in the slot of
+		// the parameter it becomes moves nothing, and a sum stored where its
+		// operand was is one ADD_LOCAL_INT.
 		void AssignSlots()
 		{
 			const std::vector<std::vector<uint32_t>> interference = Interference();
+			const std::vector<std::vector<uint32_t>> hints = SlotHints();
 			const std::vector<MidoriIRValueId>& parameters = m_function.Block(MidoriIRFunction::s_entry_block).m_parameters;
 			for (const MidoriIRValueId parameter : parameters)
 			{
 				m_slots[parameter.m_index] = m_slot_count++;
 			}
 
-			for (size_t value = 0u; value < m_slots.size(); value += 1u)
+			std::vector<uint32_t> order;
+			for (uint32_t block = 1u; block < m_function.m_blocks.size(); block += 1u)
+			{
+				if (m_reachable[block])
+				{
+					std::ranges::transform(m_function.m_blocks[block].m_parameters, std::back_inserter(order), [](MidoriIRValueId parameter) { return parameter.m_index; });
+				}
+			}
+			std::ranges::copy(std::views::iota(0u, static_cast<uint32_t>(m_slots.size())), std::back_inserter(order));
+
+			for (const uint32_t value : order)
 			{
 				if (m_storage[value] != Storage::Slot || m_slots[value] >= 0)
 				{
@@ -580,10 +694,78 @@ namespace
 						taken[static_cast<size_t>(m_slots[neighbour])] = true;
 					}
 				}
-				const int slot = static_cast<int>(std::distance(taken.begin(), std::ranges::find(taken, false)));
+				const std::vector<uint32_t>::const_iterator hinted = std::ranges::find_if(hints[value], [&](uint32_t partner)
+				{
+					return m_slots[partner] >= 0 && !taken[static_cast<size_t>(m_slots[partner])];
+				});
+				const int slot = hinted != hints[value].end() ? m_slots[*hinted] : static_cast<int>(std::distance(taken.begin(), std::ranges::find(taken, false)));
 				m_slots[value] = slot;
 				m_slot_count = std::max(m_slot_count, slot + 1);
 			}
+		}
+
+		// The values each would do best to share a slot with: a parameter
+		// and what edges pass it, a sum of a local and a small constant and
+		// that local.
+		std::vector<std::vector<uint32_t>> SlotHints() const
+		{
+			std::vector<std::vector<uint32_t>> hints(m_function.m_values.size());
+			const auto pair = [&](MidoriIRValueId left, MidoriIRValueId right)
+			{
+				if (left != right && IsInSlot(left) && IsInSlot(right))
+				{
+					hints[left.m_index].push_back(right.m_index);
+					hints[right.m_index].push_back(left.m_index);
+				}
+			};
+			for (uint32_t block = 0u; block < m_function.m_blocks.size(); block += 1u)
+			{
+				if (!m_reachable[block])
+				{
+					continue;
+				}
+				for (const MidoriIRInstruction& instruction : m_function.m_blocks[block].m_instructions)
+				{
+					const std::optional<std::pair<MidoriIRValueId, int64_t>> step = LocalStep(instruction);
+					if (step.has_value())
+					{
+						pair(instruction.m_result.value(), step->first);
+					}
+					for (const MidoriIRSuccessor& successor : instruction.m_successors)
+					{
+						const std::vector<MidoriIRValueId>& target = TargetOf(successor).m_parameters;
+						for (size_t index = 0u; index < target.size(); index += 1u)
+						{
+							pair(successor.m_arguments[index], target[index]);
+						}
+					}
+				}
+			}
+			return hints;
+		}
+
+		// A sum or difference of a value and a small constant, as the value
+		// and what it adds.
+		std::optional<std::pair<MidoriIRValueId, int64_t>> LocalStep(const MidoriIRInstruction& instruction) const
+		{
+			if (instruction.m_op != MidoriIROp::AddInt && instruction.m_op != MidoriIROp::SubInt)
+			{
+				return std::nullopt;
+			}
+			const MidoriIRValueId left = instruction.m_operands[0u];
+			const MidoriIRValueId right = instruction.m_operands[1u];
+			const std::optional<int8_t> right_constant = ByteConstant(right);
+			if (right_constant.has_value() && m_storage[left.m_index] != Storage::Rematerialized)
+			{
+				const int64_t constant = right_constant.value();
+				return std::pair{ left, instruction.m_op == MidoriIROp::AddInt ? constant : -constant };
+			}
+			const std::optional<int8_t> left_constant = ByteConstant(left);
+			if (instruction.m_op == MidoriIROp::AddInt && left_constant.has_value() && m_storage[right.m_index] != Storage::Rematerialized)
+			{
+				return std::pair{ right, static_cast<int64_t>(left_constant.value()) };
+			}
+			return std::nullopt;
 		}
 
 		bool IsInSlot(MidoriIRValueId value) const
@@ -808,6 +990,11 @@ namespace
 
 		Emitted Load(MidoriIRValueId value, int line)
 		{
+			if (m_kept == value)
+			{
+				m_kept.reset();
+				return {};
+			}
 			switch (m_storage[value.m_index])
 			{
 			case Storage::Stack:
@@ -832,7 +1019,8 @@ namespace
 		{
 			for (size_t index = 0u; index < values.size(); index += 1u)
 			{
-				if (index + 1u < values.size() && IsByteLocal(values[index]) && IsByteLocal(values[index + 1u]))
+				const bool is_kept = index == 0u && m_kept == values[index];
+				if (!is_kept && index + 1u < values.size() && IsByteLocal(values[index]) && IsByteLocal(values[index + 1u]))
 				{
 					EmitByte(OpCode::GET_LOCAL2, line);
 					EmitOperand(m_slots[values[index].m_index], line);
@@ -858,13 +1046,58 @@ namespace
 				return;
 			case Storage::Slot:
 				EmitVariable(OpCode::SET_LOCAL, m_slots[value.m_index], line);
-				EmitByte(OpCode::POP, line);
+				KeepOrPop(value, line);
 				return;
 			case Storage::Rematerialized:
 			case Storage::Discarded:
 				EmitByte(OpCode::POP, line);
 				return;
 			}
+		}
+
+		// A value in its slot that is also on top of the stack stays there
+		// when the next instruction would push it first.
+		void KeepOrPop(MidoriIRValueId value, int line)
+		{
+			if (m_next != nullptr && FirstLoad(*m_next) == value)
+			{
+				m_kept = value;
+				return;
+			}
+			EmitByte(OpCode::POP, line);
+		}
+
+		// The value an instruction's emission loads first, as EmitInstruction
+		// and EmitTerminator do it; nothing when it reads slots directly or
+		// loads nothing.
+		std::optional<MidoriIRValueId> FirstLoad(const MidoriIRInstruction& instruction) const
+		{
+			const auto first = [](const std::vector<MidoriIRValueId>& values) { return values.empty() ? std::nullopt : std::optional(values.front()); };
+			switch (instruction.m_op)
+			{
+			case MidoriIROp::Const:
+			case MidoriIROp::Unreachable:
+				return std::nullopt;
+			case MidoriIROp::Jump:
+			{
+				const std::vector<std::pair<MidoriIRValueId, MidoriIRValueId>> moves = Moves(instruction.m_successors.front());
+				return moves.empty() ? std::nullopt : std::optional(moves.front().first);
+			}
+			case MidoriIROp::Branch:
+				return m_fused_branches[instruction.m_operands.front().m_index].has_value() ? std::nullopt : std::optional(instruction.m_operands.front());
+			case MidoriIROp::Return:
+				return instruction.m_operands.front();
+			case MidoriIROp::TailCall:
+				return first(PushSequence(instruction));
+			default:
+				break;
+			}
+			const std::optional<OpCode> fused = m_fused_branches[instruction.m_result->m_index];
+			if (fused == OpCode::IF_LOCAL_LE_INT || fused == OpCode::IF_LOCAL_GE_LOCAL || IsLocalStep(instruction))
+			{
+				return std::nullopt;
+			}
+			return first(PushSequence(instruction));
 		}
 
 		Emitted EmitInstruction(MidoriIRBlockId block, const MidoriIRInstruction& instruction)
@@ -896,13 +1129,8 @@ namespace
 				return LoadAll(PushSequence(instruction), line);
 			}
 
-			if (instruction.m_op == MidoriIROp::SubInt && IsByteLocal(instruction.m_operands[0u]) && ByteConstant(instruction.m_operands[1u]).has_value())
+			if (EmitLocalStep(instruction, line))
 			{
-				EmitByte(OpCode::PUSH_LOCAL_SUB_INT, line);
-				EmitOperand(m_slots[instruction.m_operands[0u].m_index], line);
-				EmitOperand(static_cast<uint8_t>(ByteConstant(instruction.m_operands[1u]).value()), line);
-				EmitOperand(0, line);
-				Store(instruction.m_result.value(), line);
 				return {};
 			}
 
@@ -915,6 +1143,50 @@ namespace
 						Store(instruction.m_result.value(), line);
 					}
 				});
+		}
+
+		// A local plus or minus a small constant. Stored back in the local's
+		// own slot, which it may share only when the local dies here, it is
+		// ADD_LOCAL_INT; otherwise PUSH_LOCAL_SUB_INT pushes it.
+		bool IsLocalStep(const MidoriIRInstruction& instruction) const
+		{
+			const std::optional<std::pair<MidoriIRValueId, int64_t>> step = LocalStep(instruction);
+			if (!step.has_value() || !IsByteLocal(step->first))
+			{
+				return false;
+			}
+			const auto [local, delta] = step.value();
+			const MidoriIRValueId result = instruction.m_result.value();
+			const bool is_in_place = IsInSlot(result) && m_slots[result.m_index] == m_slots[local.m_index] && delta >= INT8_MIN && delta <= INT8_MAX;
+			return is_in_place || (-delta >= INT8_MIN && -delta <= INT8_MAX);
+		}
+
+		bool EmitLocalStep(const MidoriIRInstruction& instruction, int line)
+		{
+			if (!IsLocalStep(instruction))
+			{
+				return false;
+			}
+			const auto [local, delta] = LocalStep(instruction).value();
+			const MidoriIRValueId result = instruction.m_result.value();
+			const int slot = m_slots[local.m_index];
+			if (IsInSlot(result) && m_slots[result.m_index] == slot && delta >= INT8_MIN && delta <= INT8_MAX)
+			{
+				EmitByte(OpCode::ADD_LOCAL_INT, line);
+				EmitOperand(slot, line);
+				EmitOperand(static_cast<uint8_t>(static_cast<int8_t>(delta)), line);
+				EmitOperand(0, line);
+				EmitOperand(0, line);
+				EmitOperand(slot, line);
+				KeepOrPop(result, line);
+				return true;
+			}
+			EmitByte(OpCode::PUSH_LOCAL_SUB_INT, line);
+			EmitOperand(slot, line);
+			EmitOperand(static_cast<uint8_t>(static_cast<int8_t>(-delta)), line);
+			EmitOperand(0, line);
+			Store(result, line);
+			return true;
 		}
 
 		Emitted CheckArity(size_t arity, int line) const
@@ -1238,17 +1510,37 @@ namespace
 			}
 		}
 
+		// The (argument, parameter) pairs a jump must move: a Unit parameter
+		// keeps nothing, and an argument already in its parameter's slot is
+		// there.
+		std::vector<std::pair<MidoriIRValueId, MidoriIRValueId>> Moves(const MidoriIRSuccessor& successor) const
+		{
+			const std::vector<MidoriIRValueId>& parameters = TargetOf(successor).m_parameters;
+			std::vector<std::pair<MidoriIRValueId, MidoriIRValueId>> moves;
+			for (size_t index = 0u; index < parameters.size(); index += 1u)
+			{
+				const MidoriIRValueId argument = successor.m_arguments[index];
+				const bool is_in_place = IsInSlot(argument) && m_slots[argument.m_index] == m_slots[parameters[index].m_index];
+				if (IsInSlot(parameters[index]) && !is_in_place)
+				{
+					moves.emplace_back(argument, parameters[index]);
+				}
+			}
+			return moves;
+		}
+
 		// Every argument is pushed before any parameter is stored, so a jump
-		// that passes one parameter's value to another reads it first.
+		// that passes one parameter's value to another reads it first. A
+		// parameter's slot is written by no other of the block's parameters,
+		// which are all live at once, so a pair already in place is left out.
 		Emitted EmitMoves(const MidoriIRSuccessor& successor, int line)
 		{
-			const std::vector<MidoriIRValueId> parameters = TargetOf(successor).m_parameters
-				| std::views::filter([this](MidoriIRValueId parameter) { return m_storage[parameter.m_index] == Storage::Slot; })
-				| std::ranges::to<std::vector>();
-			return LoadAll(MoveArguments(successor), line)
-				.transform([this, &parameters, line]()
+			const std::vector<std::pair<MidoriIRValueId, MidoriIRValueId>> moves = Moves(successor);
+			const std::vector<MidoriIRValueId> arguments = moves | std::views::keys | std::ranges::to<std::vector>();
+			return LoadAll(arguments, line)
+				.transform([this, &moves, line]()
 				{
-					for (const MidoriIRValueId parameter : parameters | std::views::reverse)
+					for (const MidoriIRValueId parameter : moves | std::views::values | std::views::reverse)
 					{
 						Store(parameter, line);
 					}
@@ -1352,7 +1644,7 @@ namespace
 				// A fused comparison leaves nothing to pop, so when the false
 				// edge moves nothing it jumps straight to its block, and the
 				// true one may fall through.
-				const bool jumps_to_false_block = fused.has_value() && MoveArguments(if_false).empty() && if_false.m_block.m_index > block.m_index;
+				const bool jumps_to_false_block = fused.has_value() && Moves(if_false).empty() && if_false.m_block.m_index > block.m_index;
 				if (jumps_to_false_block)
 				{
 					const int when_false = EmitFusedBranch(fused.value(), instruction.m_operands.front(), line);

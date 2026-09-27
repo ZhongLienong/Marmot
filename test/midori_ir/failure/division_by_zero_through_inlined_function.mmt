@@ -1,0 +1,20 @@
+module DivisionByZeroThroughInlinedFunction
+
+// Test: a small function that only tail calls another is copied into its
+// caller, where the tail call becomes an ordinary call. The runtime error in
+// the function it calls shows the same stack trace either way: the copied
+// function's frame was gone by the time the error happened, and the caller's
+// frame points at the line of the call that reached it.
+
+foreign "MIDORI_FFI_Print" Print: fn(Text) -> Unit;
+
+def Divide = fn(total: Int, parts: Int) -> Int => total / parts;
+
+def Share = fn(total: Int, people: Int) -> Int =>
+	Divide(total, people - 1);
+
+def people = 1;
+
+Print((Share(10, 3) as Text) ++ "\n");
+Print(((Share(10, people) + 1) as Text) ++ "\n");
+Print("not reached\n");

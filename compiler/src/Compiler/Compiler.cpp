@@ -11,6 +11,7 @@
 #include "Compiler/Lowering/Lowering.h"
 #include "Compiler/MidoriIR/MidoriIRPrinter.h"
 #include "Compiler/MidoriIR/MidoriIRVerifier.h"
+#include "Compiler/MidoriIROptimizer/MidoriIROptimizer.h"
 #include "Compiler/Module/CompiledModule.h"
 #include "Compiler/ModuleManager/ModuleManager.h"
 #include "Compiler/OptimizerManager/OptimizerManager.h"
@@ -833,13 +834,8 @@ namespace
 
 	// A violation is the compiler's bug, not the program's, so every one is
 	// reported and the module stops.
-	static std::optional<CompilerError> VerifyMidoriIR(const MidoriIRModule& module, const std::string& file_path)
+	static CompilerError InvalidMidoriIR(const MidoriIRModule& module, const std::vector<MidoriIRViolation>& violations, std::string_view what, const std::string& file_path)
 	{
-		const std::vector<MidoriIRViolation> violations = MidoriIRVerifier(module).Verify();
-		if (violations.empty())
-		{
-			return std::nullopt;
-		}
 
 		const std::string message = violations
 			| std::views::transform([](const MidoriIRViolation& violation) { return violation.ToString(); })
@@ -854,7 +850,41 @@ namespace
 			| std::views::transform([&printer](const MidoriIRFunction& function) { return printer.PrintFunction(function); })
 			| std::views::join_with('\n')
 			| std::ranges::to<std::string>();
-		return CompilerError::WithFile(CompilerStage::Lowering, std::format("Lowering produced invalid MidoriIR:\n{}\n\n{}", message, functions), file_path, CompilerErrorCode::CompilerInternalError);
+		return CompilerError::WithFile(CompilerStage::Lowering, std::format("{} produced invalid MidoriIR:\n{}\n\n{}", what, message, functions), file_path, CompilerErrorCode::CompilerInternalError);
+	}
+
+	static std::optional<CompilerError> VerifyMidoriIR(const MidoriIRModule& module, std::string_view what, const std::string& file_path)
+	{
+		const std::vector<MidoriIRViolation> violations = MidoriIRVerifier(module).Verify();
+		if (violations.empty())
+		{
+			return std::nullopt;
+		}
+		return InvalidMidoriIR(module, violations, what, file_path);
+	}
+
+	// Development builds verify after lowering and after every pass, Release
+	// builds once, before the backend.
+	static std::optional<CompilerError> OptimizeMidoriIR(MidoriIRModule& module, const std::string& file_path)
+	{
+		if (MidoriIROptimizer::VerifiesEachPass())
+		{
+			std::optional<CompilerError> lowered = VerifyMidoriIR(module, "Lowering", file_path);
+			if (lowered.has_value())
+			{
+				return lowered;
+			}
+		}
+		std::expected<void, MidoriIRPassFailure> optimized = MidoriIROptimizer().Optimize(module);
+		if (!optimized.has_value())
+		{
+			return InvalidMidoriIR(module, optimized.error().m_violations, std::format("The MidoriIR pass {}", optimized.error().m_pass), file_path);
+		}
+		if (!MidoriIROptimizer::VerifiesEachPass())
+		{
+			return VerifyMidoriIR(module, "The MidoriIR optimizer", file_path);
+		}
+		return std::nullopt;
 	}
 
 	CompileStateResult CompileState::WithLoweredModule() &&
@@ -870,7 +900,7 @@ namespace
 			return std::unexpected(MakeStateErrorReport(std::move(state), std::move(lowered.error())));
 		}
 
-		std::optional<CompilerError> violation = VerifyMidoriIR(lowered->m_module, state.m_file_path);
+		std::optional<CompilerError> violation = OptimizeMidoriIR(lowered->m_module, state.m_file_path);
 		if (violation.has_value())
 		{
 			return std::unexpected(MakeStateErrorReport(std::move(state), MidoriResult::CompilerDiagnostics(std::move(violation).value())));
