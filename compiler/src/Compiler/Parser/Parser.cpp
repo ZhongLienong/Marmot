@@ -149,7 +149,14 @@ namespace
 
 		if (pattern.IsPattern<MidoriPattern::Array>())
 		{
-			return "[" + join(pattern.GetPattern<MidoriPattern::Array>().m_elements) + "]";
+			const MidoriPattern::Array& array = pattern.GetPattern<MidoriPattern::Array>();
+			std::string elements = join(array.m_elements);
+			if (array.m_rest.has_value())
+			{
+				// Where the elements before `..` end, as a count: `[a, ..]` and `[.., a]` differ.
+				elements = std::format("{}..{}", array.m_rest->m_position, elements);
+			}
+			return "[" + elements + "]";
 		}
 
 		const MidoriPattern::Constructor& constructor = pattern.GetPattern<MidoriPattern::Constructor>();
@@ -5126,37 +5133,45 @@ MidoriResult::PatternResult Parser::ParsePattern()
 	if (Match(Token::Name::LEFT_BRACKET))
 	{
 		Token left_bracket = Previous();
-		if (Match(Token::Name::RIGHT_BRACKET))
+		std::vector<std::unique_ptr<MidoriPattern>> elements;
+		std::optional<MidoriPattern::Array::Rest> rest;
+		if (!Check(Token::Name::RIGHT_BRACKET, 0))
 		{
-			return std::make_unique<MidoriPattern>(MidoriPattern::Array(left_bracket, {}));
-		}
-
-		return ParsePattern()
-			.and_then
-			(
-				[this, left_bracket](std::unique_ptr<MidoriPattern>&& first_pattern) -> MidoriResult::PatternResult
+			do
+			{
+				if (Match(Token::Name::DOUBLE_DOT))
 				{
-					std::vector<std::unique_ptr<MidoriPattern>> elements;
-					elements.push_back(std::move(first_pattern));
-
-					while (Match(Token::Name::COMMA))
+					Token dots = Previous();
+					if (rest.has_value())
 					{
-						MidoriResult::PatternResult elem_result = ParsePattern();
-						if (!elem_result)
-						{
-							return std::unexpected(elem_result.error());
-						}
-						elements.push_back(std::move(elem_result.value()));
+						return std::unexpected(GenerateParserError("An array pattern takes at most one '..'.", dots));
 					}
 
-					return Consume(Token::Name::RIGHT_BRACKET, "Expected ']' after array pattern.")
-						.and_then
-						(
-							[&elements, left_bracket](Token&&) -> MidoriResult::PatternResult
-							{
-								return std::make_unique<MidoriPattern>(MidoriPattern::Array(left_bracket, std::move(elements)));
-							}
-						);
+					MidoriResult::PatternResult rest_result = ParseArrayRest(std::move(dots));
+					if (!rest_result)
+					{
+						return std::unexpected(rest_result.error());
+					}
+					rest.emplace(elements.size(), std::move(rest_result.value()));
+				}
+				else
+				{
+					MidoriResult::PatternResult elem_result = ParsePattern();
+					if (!elem_result)
+					{
+						return std::unexpected(elem_result.error());
+					}
+					elements.push_back(std::move(elem_result.value()));
+				}
+			} while (Match(Token::Name::COMMA));
+		}
+
+		return Consume(Token::Name::RIGHT_BRACKET, "Expected ']' after array pattern.")
+			.and_then
+			(
+				[&elements, &rest, left_bracket](Token&&) -> MidoriResult::PatternResult
+				{
+					return std::make_unique<MidoriPattern>(MidoriPattern::Array(left_bracket, std::move(elements), std::move(rest)));
 				}
 			);
 	}
@@ -5260,22 +5275,41 @@ MidoriResult::PatternResult Parser::ParsePattern()
 						return std::unexpected(GenerateParserError(DescribeUnknownConstructor(resolved.m_lexeme), resolved));
 					}
 
-					Token binding_name = std::move(identifier);
-					constexpr bool is_variable = true;
-					return DefineName(binding_name, is_variable)
-						.and_then
-						(
-							[this](Token&& defined_name) -> MidoriResult::PatternResult
-							{
-								std::optional<int> local_index = RegisterOrUpdateLocalVariable(defined_name.m_lexeme);
-								return std::make_unique<MidoriPattern>(MidoriPattern::Binding(defined_name, std::move(local_index)));
-							}
-						);
+					return ParseBindingPattern(std::move(identifier));
 				}
 			);
 	}
 
 	return std::unexpected(GenerateParserError("Expected pattern.", Peek(0)));
+}
+
+MidoriResult::PatternResult Parser::ParseBindingPattern(Token&& name)
+{
+	constexpr bool is_variable = true;
+	return DefineName(name, is_variable)
+		.and_then
+		(
+			[this](Token&& defined_name) -> MidoriResult::PatternResult
+			{
+				std::optional<int> local_index = RegisterOrUpdateLocalVariable(defined_name.m_lexeme);
+				return std::make_unique<MidoriPattern>(MidoriPattern::Binding(defined_name, std::move(local_index)));
+			}
+		);
+}
+
+MidoriResult::PatternResult Parser::ParseArrayRest(Token&& dots)
+{
+	if (!Match(Token::Name::IDENTIFIER_LITERAL))
+	{
+		return std::make_unique<MidoriPattern>(MidoriPattern::Wildcard(dots));
+	}
+
+	Token name = Previous();
+	if (name.m_lexeme == "_")
+	{
+		return std::make_unique<MidoriPattern>(MidoriPattern::Wildcard(name));
+	}
+	return ParseBindingPattern(std::move(name));
 }
 
 MidoriResult::StatementResult Parser::ParseStatement()

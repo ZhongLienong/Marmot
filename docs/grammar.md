@@ -191,8 +191,15 @@ pattern      = '_'                                        // wildcard
              | IDENTIFIER                                 // binds the value
              | IDENTIFIER '(' pattern (',' pattern)* ')'  // a variant
              | '(' pattern (',' pattern)+ ')'             // a tuple
-             | '[' (pattern (',' pattern)*)? ']' ;        // an array
+             | '[' (element (',' element)*)? ']' ;        // an array
+element      = pattern | '..' IDENTIFIER? ;               // at most one '..'
 ```
+
+An array pattern without `..` matches arrays of exactly its length. With one, it
+matches every array at least as long as its other elements: those before `..`
+are counted from the start, those after it from the end, and `..name` binds what
+is between them, possibly nothing, as an array. `[head, ..tail]`,
+`[..init, last]`, `[first, .., last]`.
 
 A `case` may carry a guard: `case n if n > 10 => ...`. The catch-all arm is
 `case _ =>`; `_` is a pattern, so it nests inside the others.

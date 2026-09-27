@@ -1,6 +1,7 @@
 #if MIDORI_ENABLE_AST_DUMP
 
 #include <algorithm>
+#include <format>
 #include "Common/BuildConfig/BuildConfig.h"
 #include <ranges>
 
@@ -563,6 +564,12 @@ void PrintAbstractSyntaxTree::operator()(const MidoriPattern::Array& array, int 
 			Visit(elem, depth + 1);
 		}
 	);
+	if (array.m_rest.has_value())
+	{
+		PrintWithIndentation(depth + 1, std::format("Rest after {} element(s) {{", array.m_rest->m_position));
+		Visit(array.m_rest->m_pattern, depth + 2);
+		PrintWithIndentation(depth + 1, "}");
+	}
 	PrintWithIndentation(depth, "}");
 }
 

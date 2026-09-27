@@ -116,9 +116,16 @@ MidoriPattern::Tuple::Tuple(const Token& left_paren, std::vector<std::unique_ptr
 {
 }
 
-MidoriPattern::Array::Array(const Token& left_bracket, std::vector<std::unique_ptr<MidoriPattern>>&& elements)
+MidoriPattern::Array::Rest::Rest(size_t position, std::unique_ptr<MidoriPattern>&& pattern)
+	: m_position(position),
+	m_pattern(std::move(pattern))
+{
+}
+
+MidoriPattern::Array::Array(const Token& left_bracket, std::vector<std::unique_ptr<MidoriPattern>>&& elements, std::optional<Rest>&& rest)
 	: m_left_bracket(left_bracket),
-	m_elements(std::move(elements))
+	m_elements(std::move(elements)),
+	m_rest(std::move(rest))
 {
 }
 

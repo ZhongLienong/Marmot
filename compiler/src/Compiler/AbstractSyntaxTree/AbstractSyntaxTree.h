@@ -244,10 +244,21 @@ public:
 
 	struct Array : BasePattern
 	{
+		// `..name` or `..` among the elements: it takes whatever the elements before
+		// and after it leave, possibly nothing, as an array.
+		struct Rest
+		{
+			size_t m_position;
+			std::unique_ptr<MidoriPattern> m_pattern;
+
+			Rest(size_t position, std::unique_ptr<MidoriPattern>&& pattern);
+		};
+
 		Token m_left_bracket;
 		std::vector<std::unique_ptr<MidoriPattern>> m_elements;
+		std::optional<Rest> m_rest;
 
-		Array(const Token& left_bracket, std::vector<std::unique_ptr<MidoriPattern>>&& elements);
+		Array(const Token& left_bracket, std::vector<std::unique_ptr<MidoriPattern>>&& elements, std::optional<Rest>&& rest);
 	};
 
 	struct Constructor : BasePattern

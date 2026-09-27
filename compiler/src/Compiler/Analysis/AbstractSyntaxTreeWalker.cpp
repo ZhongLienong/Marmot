@@ -108,6 +108,10 @@ void MidoriAbstractSyntaxTreeWalker::operator()(MidoriPattern::Array& array)
 	{
 		VisitPattern(element);
 	}
+	if (array.m_rest.has_value())
+	{
+		VisitPattern(array.m_rest->m_pattern);
+	}
 }
 
 void MidoriAbstractSyntaxTreeWalker::operator()(MidoriPattern::Constructor& constructor)

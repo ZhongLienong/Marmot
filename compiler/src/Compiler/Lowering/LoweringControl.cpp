@@ -337,19 +337,38 @@ Lowering::Emitted Lowering::LowerPattern(const MidoriPattern& pattern, MidoriIRV
 			});
 		}
 
+		// With a rest, the elements after it are counted from the end, and the rest
+		// is the slice between the two ends.
 		Emitted operator()(const MidoriPattern::Array& array) const
 		{
-			const TypeRef element_type = Representation()->GetType<MidoriType::ArrayType>().m_element_type;
+			const TypeRef array_type = Representation();
+			const TypeRef element_type = array_type->GetType<MidoriType::ArrayType>().m_element_type;
+			const int64_t count = static_cast<int64_t>(array.m_elements.size());
+			const int64_t before = array.m_rest.has_value() ? static_cast<int64_t>(array.m_rest->m_position) : count;
 			Builder().AtLine(array.m_left_bracket.m_line);
 			const MidoriIRValueId length = Builder().Emit(MidoriIROp::ArrayLength, IntType(), { m_value });
-			const MidoriIRValueId expected = Builder().ConstInt(static_cast<int64_t>(array.m_elements.size()));
-			return m_self.TestOrFail(Builder().Binary(MidoriIROp::EqInt, length, expected), m_fail)
+			const MidoriIROp comparison = array.m_rest.has_value() ? MidoriIROp::GeInt : MidoriIROp::EqInt;
+			const auto from_end = [&](int64_t distance)
+				{
+					return Builder().Binary(MidoriIROp::SubInt, length, Builder().ConstInt(distance));
+				};
+			return m_self.TestOrFail(Builder().Binary(comparison, length, Builder().ConstInt(count)), m_fail)
 				.and_then([&]()
 				{
 					return Elements(array.m_elements, [&](uint32_t index)
 					{
-						return Builder().Emit(MidoriIROp::ArrayGet, element_type, { m_value, Builder().ConstInt(index) });
+						const MidoriIRValueId position = index < before ? Builder().ConstInt(index) : from_end(count - index);
+						return Builder().Emit(MidoriIROp::ArrayGet, element_type, { m_value, position });
 					});
+				})
+				.and_then([&]() -> Emitted
+				{
+					if (!array.m_rest.has_value() || !array.m_rest->m_pattern->IsPattern<MidoriPattern::Binding>())
+					{
+						return {};
+					}
+					const MidoriIRValueId rest = Builder().Emit(MidoriIROp::CallForeign, array_type, { m_value, Builder().ConstInt(before), from_end(count - before) }, MidoriIRForeign{ "MIDORI_FFI_ArraySlice" });
+					return m_self.LowerPattern(*array.m_rest->m_pattern, rest, m_fail);
 				});
 		}
 

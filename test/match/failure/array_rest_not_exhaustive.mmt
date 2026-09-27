@@ -1,0 +1,21 @@
+module ArrayRestNotExhaustive
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/Prelude/Option.mmt"
+}
+
+use Option.{ Option }
+
+// One case looks at the first element and the other at the last, so an array
+// that starts with Some and ends with None is taken by neither. The two must not
+// be read as the same position: that only holds for arrays of one element.
+
+def Describe = fn(values : Array<Option<Int>>) -> Int =>
+	match values with
+		case [] => 0
+		case [Option::None(), ..] => 1
+		case [.., Option::Some(value)] => value;
+
+IO::PrintLine(Describe([Option::Some(1), Option::None()]) as Text);

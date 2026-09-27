@@ -437,9 +437,10 @@ def Unwrap = fn(option: Option<Int>) -> Int =>
 `match` expressions are checked for exhaustiveness at every depth: every value
 of the scrutinee's type must reach an unguarded case. A union covers its variants
 and their fields, a `Bool` covers `true` and `false`, a tuple or record covers each
-combination of its fields, and `Unit` covers `()`. `Int`, `Float`, `Text`, `Byte`,
-`Word` and arrays have too many values to list, so a match on them, or on a field
-of those types, needs a case that takes any value there.
+combination of its fields, and `Unit` covers `()`. `Int`, `Float`, `Text`, `Byte`
+and `Word` have too many values to list, so a match on them, or on a field of
+those types, needs a case that takes any value there. So do arrays, unless a case
+uses `..`, as below.
 
 A case with a guard covers nothing, since its guard may fail. A non-exhaustive
 match is an error that names values no case matches:
@@ -447,6 +448,9 @@ match is an error that names values no case matches:
 ```text
 Match expression type error: non-exhaustive match: no case matches Result::Ok(Option::None())
 ```
+
+An array pattern with `..` covers every length from its element count up, so
+`case []`, `case [x]` and `case [first, ..rest]` together cover every array.
 
 A catch-all arm is an unguarded `case` whose pattern always matches: `case _`, a
 bare binding such as `case n`, or a tuple of those. There is no `default` keyword.

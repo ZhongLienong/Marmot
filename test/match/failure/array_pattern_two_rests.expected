@@ -1,0 +1,6 @@
+Compilation failed :(
+Parser Error at test/match/failure/array_pattern_two_rests.mmt:10
+   |
+10 | 		case [..before, 0, ..after] => #before + #after
+   |                      ^^ An array pattern takes at most one '..'.
+   |

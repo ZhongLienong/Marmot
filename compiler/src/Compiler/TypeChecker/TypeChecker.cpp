@@ -2102,6 +2102,15 @@ MidoriResult::TypeResult TypeChecker::CheckPattern(MidoriPattern& pattern, const
 					}
 				}
 
+				if (node.m_rest.has_value())
+				{
+					MidoriResult::TypeResult rest_result = CheckPattern(*node.m_rest->m_pattern, resolved_expected);
+					if (!rest_result.has_value())
+					{
+						return std::unexpected(std::move(rest_result.error()));
+					}
+				}
+
 				node.m_type_data = resolved_expected;
 				return node.m_type_data;
 			}
@@ -3442,7 +3451,12 @@ void TypeChecker::ResolveRecordedTypes(MidoriPattern& pattern)
 	}
 	else if (pattern.IsPattern<MidoriPattern::Array>())
 	{
-		resolve_all(pattern.GetPattern<MidoriPattern::Array>().m_elements);
+		MidoriPattern::Array& array = pattern.GetPattern<MidoriPattern::Array>();
+		resolve_all(array.m_elements);
+		if (array.m_rest.has_value())
+		{
+			ResolveRecordedTypes(*array.m_rest->m_pattern);
+		}
 	}
 	else if (pattern.IsPattern<MidoriPattern::Constructor>())
 	{

@@ -1,0 +1,50 @@
+module MatchArrayRestPatterns
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/Prelude/Option.mmt"
+}
+
+use Option.{ Option }
+
+// `..name` takes the elements the others leave, possibly none, as an array; a
+// bare `..` ignores them. The elements after it are counted from the end.
+
+def Describe = fn(values : Array<Int>) -> Text =>
+	match values with
+		case [] => "empty"
+		case [only] => "one " ++ (only as Text)
+		case [first, ..middle, last] => (first as Text) ++ " then " ++ (#middle as Text) ++ " then " ++ (last as Text);
+
+def Sum = fn(values : Array<Int>, total : Int) -> Int =>
+	match values with
+		case [] => total
+		case [head, ..tail] => Sum(tail, total + head);
+
+def LastTwo = fn(values : Array<Int>) -> Text =>
+	match values with
+		case [.., second, last] => (second as Text) ++ "," ++ (last as Text)
+		case _ => "short";
+
+def InitLength = fn(values : Array<Int>) -> Int =>
+	match values with
+		case [] => -1
+		case [..init, _] => #init;
+
+def FirstPresent = fn(values : Array<Option<Int>>) -> Int =>
+	match values with
+		case [] => 0
+		case [Option::Some(value), ..] => value
+		case [Option::None(), ..rest] => FirstPresent(rest);
+
+def Everything = fn(values : Array<Text>) -> Int =>
+	match values with
+		case [..all] => #all;
+
+IO::PrintLine(Describe([]) ++ " | " ++ Describe([7]) ++ " | " ++ Describe([1, 2]) ++ " | " ++ Describe([1, 2, 3, 4, 5]));
+IO::PrintLine(Sum([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 0) as Text);
+IO::PrintLine(LastTwo([1, 2, 3]) ++ " " ++ LastTwo([9]));
+IO::PrintLine((InitLength([1, 2, 3]) as Text) ++ " " ++ (InitLength([]) as Text));
+IO::PrintLine(FirstPresent([Option::None(), Option::None(), Option::Some(4), Option::Some(5)]) as Text);
+IO::PrintLine(Everything(["a", "b", "c"]) as Text);

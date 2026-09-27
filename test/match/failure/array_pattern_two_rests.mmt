@@ -1,0 +1,13 @@
+module ArrayPatternTwoRests
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt"
+}
+
+def Describe = fn(values : Array<Int>) -> Int =>
+	match values with
+		case [..before, 0, ..after] => #before + #after
+		case _ => 0;
+
+IO::PrintLine(Describe([1, 0, 2]) as Text);
