@@ -72,6 +72,10 @@ namespace
 				{
 					return node.m_name_token;
 				}
+				else if constexpr (std::is_same_v<Node, MidoriPattern::As>)
+				{
+					return GetPatternToken(*node.m_pattern);
+				}
 				else
 				{
 					static_assert(AlwaysFalse<Node>, "Unhandled pattern type.");
@@ -2177,6 +2181,16 @@ MidoriResult::TypeResult TypeChecker::CheckPattern(MidoriPattern& pattern, const
 				node.m_type_data = resolved_expected;
 				return node.m_type_data;
 			}
+			else if constexpr (std::is_same_v<Node, MidoriPattern::As>)
+			{
+				return CheckPattern(*node.m_pattern, resolved_expected)
+					.and_then([&](std::shared_ptr<MidoriType>&&) { return CheckPattern(*node.m_binding, resolved_expected); })
+					.transform([&node, &resolved_expected](std::shared_ptr<MidoriType>&&)
+					{
+						node.m_type_data = resolved_expected;
+						return node.m_type_data;
+					});
+			}
 			else
 			{
 				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: unsupported pattern", GetPatternToken(pattern), m_file_name, m_source_lines));
@@ -3461,6 +3475,12 @@ void TypeChecker::ResolveRecordedTypes(MidoriPattern& pattern)
 	else if (pattern.IsPattern<MidoriPattern::Constructor>())
 	{
 		resolve_all(pattern.GetPattern<MidoriPattern::Constructor>().m_args);
+	}
+	else if (pattern.IsPattern<MidoriPattern::As>())
+	{
+		MidoriPattern::As& as = pattern.GetPattern<MidoriPattern::As>();
+		ResolveRecordedTypes(*as.m_pattern);
+		ResolveRecordedTypes(*as.m_binding);
 	}
 }
 

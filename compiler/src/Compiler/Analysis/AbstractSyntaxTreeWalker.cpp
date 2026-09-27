@@ -122,6 +122,12 @@ void MidoriAbstractSyntaxTreeWalker::operator()(MidoriPattern::Constructor& cons
 	}
 }
 
+void MidoriAbstractSyntaxTreeWalker::operator()(MidoriPattern::As& as)
+{
+	VisitPattern(as.m_pattern);
+	VisitPattern(as.m_binding);
+}
+
 void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::As& as)
 {
 	VisitExpression(as.m_expr);

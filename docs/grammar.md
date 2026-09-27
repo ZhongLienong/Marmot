@@ -186,7 +186,8 @@ next `|>`. `x |> fn(a) => f(a) |> g` is `g(f(x))`, and a later stage cannot name
 ## Patterns
 
 ```
-pattern      = '_'                                        // wildcard
+pattern      = primary ('as' IDENTIFIER)* ;               // names the whole value
+primary      = '_'                                        // wildcard
              | INTEGER | FLOAT | TEXT | 'true' | 'false'
              | IDENTIFIER                                 // binds the value
              | IDENTIFIER '(' pattern (',' pattern)* ')'  // a variant
@@ -200,6 +201,9 @@ matches every array at least as long as its other elements: those before `..`
 are counted from the start, those after it from the end, and `..name` binds what
 is between them, possibly nothing, as an array. `[head, ..tail]`,
 `[..init, last]`, `[first, .., last]`.
+
+`pattern as name` matches what `pattern` matches and binds the whole value to
+`name` as well: `case Option::Some(inner) as whole => ...`.
 
 A `case` may carry a guard: `case n if n > 10 => ...`. The catch-all arm is
 `case _ =>`; `_` is a pattern, so it nests inside the others.

@@ -588,4 +588,12 @@ void PrintAbstractSyntaxTree::operator()(const MidoriPattern::Constructor& const
 	PrintWithIndentation(depth, "}");
 }
 
+void PrintAbstractSyntaxTree::operator()(const MidoriPattern::As& as, int depth) const
+{
+	PrintWithIndentation(depth, "AsPattern {");
+	Visit(as.m_pattern, depth + 1);
+	Visit(as.m_binding, depth + 1);
+	PrintWithIndentation(depth, "}");
+}
+
 #endif

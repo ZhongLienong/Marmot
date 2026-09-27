@@ -36,6 +36,7 @@ protected:
 	virtual void operator()(MidoriPattern::Tuple& tuple);
 	virtual void operator()(MidoriPattern::Array& array);
 	virtual void operator()(MidoriPattern::Constructor& constructor);
+	virtual void operator()(MidoriPattern::As& as);
 
 	virtual void operator()(MidoriExpression::As& as);
 	virtual void operator()(MidoriExpression::Binary& binary);

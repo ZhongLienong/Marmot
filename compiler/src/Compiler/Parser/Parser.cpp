@@ -110,6 +110,11 @@ namespace
 			return std::ranges::all_of(tuple.m_elements, [](const std::unique_ptr<MidoriPattern>& element) { return IsCatchAllPattern(*element); });
 		}
 
+		if (pattern.IsPattern<MidoriPattern::As>())
+		{
+			return IsCatchAllPattern(*pattern.GetPattern<MidoriPattern::As>().m_pattern);
+		}
+
 		return false;
 	}
 
@@ -126,6 +131,11 @@ namespace
 		if (pattern.IsPattern<MidoriPattern::Literal>())
 		{
 			return pattern.GetPattern<MidoriPattern::Literal>().m_token.m_lexeme;
+		}
+
+		if (pattern.IsPattern<MidoriPattern::As>())
+		{
+			return PatternSignature(*pattern.GetPattern<MidoriPattern::As>().m_pattern);
 		}
 
 		const auto join = [](const std::vector<std::unique_ptr<MidoriPattern>>& parts) -> std::string
@@ -5078,6 +5088,26 @@ MidoriResult::ExpressionResult Parser::ParseCaseExpression(MatchCoverage& covera
 }
 
 MidoriResult::PatternResult Parser::ParsePattern()
+{
+	MidoriResult::PatternResult pattern = ParsePrimaryPattern();
+	while (pattern.has_value() && Match(Token::Name::AS))
+	{
+		const Token as = Previous();
+		if (!Match(Token::Name::IDENTIFIER_LITERAL) || Previous().m_lexeme == "_")
+		{
+			return std::unexpected(GenerateParserError("Expected a name after 'as' in a pattern.", as));
+		}
+
+		pattern = ParseBindingPattern(Token(Previous()))
+			.transform([&pattern](std::unique_ptr<MidoriPattern>&& binding)
+			{
+				return std::make_unique<MidoriPattern>(MidoriPattern::As(std::move(pattern.value()), std::move(binding)));
+			});
+	}
+	return pattern;
+}
+
+MidoriResult::PatternResult Parser::ParsePrimaryPattern()
 {
 	if (Match(Token::Name::LEFT_PAREN))
 	{

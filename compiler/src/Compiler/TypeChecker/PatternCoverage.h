@@ -59,6 +59,8 @@ private:
 
 	static std::optional<Row> ArgumentsFor(const MidoriPattern& pattern, const Head& head);
 
+	static const MidoriPattern* Strip(const MidoriPattern* pattern);
+
 	static bool IsWildcard(const MidoriPattern* pattern);
 
 	static std::string Display(const Head& head, std::span<const std::string> arguments);

@@ -272,8 +272,17 @@ public:
 		Constructor(const Token& name_token, std::string&& name, std::vector<std::unique_ptr<MidoriPattern>>&& args, bool is_union);
 	};
 
+	// `pattern as name`: matches what `pattern` does and binds the whole value.
+	struct As : BasePattern
+	{
+		std::unique_ptr<MidoriPattern> m_pattern;
+		std::unique_ptr<MidoriPattern> m_binding;
+
+		As(std::unique_ptr<MidoriPattern>&& pattern, std::unique_ptr<MidoriPattern>&& binding);
+	};
+
 private:
-	using PatternUnion = std::variant<Binding, Wildcard, Literal, Tuple, Array, Constructor>;
+	using PatternUnion = std::variant<Binding, Wildcard, Literal, Tuple, Array, Constructor, As>;
 	PatternUnion m_variant;
 
 public:

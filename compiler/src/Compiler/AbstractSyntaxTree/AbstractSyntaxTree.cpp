@@ -137,6 +137,12 @@ MidoriPattern::Constructor::Constructor(const Token& name_token, std::string&& n
 {
 }
 
+MidoriPattern::As::As(std::unique_ptr<MidoriPattern>&& pattern, std::unique_ptr<MidoriPattern>&& binding)
+	: m_pattern(std::move(pattern)),
+	m_binding(std::move(binding))
+{
+}
+
 MidoriExpression::As::As(const Token& as_keyword, std::shared_ptr<MidoriType> to_type, std::unique_ptr<MidoriExpression>&& expr)
 	: m_as_keyword(as_keyword),
 	m_to_type(std::move(to_type)),

@@ -1,0 +1,16 @@
+module AsPatternNeedsName
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/Prelude/Option.mmt"
+}
+
+use Option.{ Option }
+
+def Describe = fn(option : Option<Int>) -> Int =>
+	match option with
+		case Option::Some(value) as _ => value
+		case _ => 0;
+
+IO::PrintLine(Describe(Option::Some(1)) as Text);

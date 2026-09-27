@@ -16,7 +16,7 @@ PatternCoverage::Head::Head(std::string&& key, Shape shape, size_t arity, size_t
 
 PatternCoverage::PatternCoverage(std::vector<const MidoriPattern*>&& patterns)
 	: m_rows(patterns
-		| std::views::transform([](const MidoriPattern* pattern) { return Row{ pattern }; })
+		| std::views::transform([](const MidoriPattern* pattern) { return Row{ Strip(pattern) }; })
 		| std::ranges::to<std::vector>())
 {
 }
@@ -198,7 +198,7 @@ std::optional<PatternCoverage::Row> PatternCoverage::ArgumentsFor(const MidoriPa
 	const auto pointers = [](std::span<const std::unique_ptr<MidoriPattern>> patterns)
 		{
 			return patterns
-				| std::views::transform([](const std::unique_ptr<MidoriPattern>& argument) -> const MidoriPattern* { return argument.get(); })
+				| std::views::transform([](const std::unique_ptr<MidoriPattern>& argument) { return Strip(argument.get()); })
 				| std::ranges::to<Row>();
 		};
 
@@ -240,12 +240,18 @@ std::optional<PatternCoverage::Row> PatternCoverage::ArgumentsFor(const MidoriPa
 			}
 			else
 			{
-				static_assert(std::is_same_v<Node, MidoriPattern::Binding> || std::is_same_v<Node, MidoriPattern::Wildcard>);
+				static_assert(std::is_same_v<Node, MidoriPattern::Binding> || std::is_same_v<Node, MidoriPattern::Wildcard> || std::is_same_v<Node, MidoriPattern::As>);
 				std::unreachable();
 			}
 		},
 		*pattern
 	);
+}
+
+// Rows never hold an `as`: it matches what its pattern does.
+const MidoriPattern* PatternCoverage::Strip(const MidoriPattern* pattern)
+{
+	return pattern->IsPattern<MidoriPattern::As>() ? Strip(pattern->GetPattern<MidoriPattern::As>().m_pattern.get()) : pattern;
 }
 
 bool PatternCoverage::IsWildcard(const MidoriPattern* pattern)

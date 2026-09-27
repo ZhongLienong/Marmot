@@ -372,6 +372,12 @@ Lowering::Emitted Lowering::LowerPattern(const MidoriPattern& pattern, MidoriIRV
 				});
 		}
 
+		Emitted operator()(const MidoriPattern::As& as) const
+		{
+			return m_self.LowerPattern(*as.m_pattern, m_value, m_fail)
+				.and_then([&]() { return m_self.LowerPattern(*as.m_binding, m_value, m_fail); });
+		}
+
 		Emitted operator()(const MidoriPattern::Constructor& constructor) const
 		{
 			Builder().AtLine(constructor.m_name_token.m_line);

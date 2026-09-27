@@ -1,0 +1,19 @@
+module AsPatternRebindsName
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/Prelude/Option.mmt"
+}
+
+use Option.{ Option }
+
+// The name after `as` is bound in the same case as the pattern's own names, so
+// it cannot be one of them.
+
+def Describe = fn(option : Option<Int>) -> Int =>
+	match option with
+		case Option::Some(value) as value => 1
+		case _ => 0;
+
+IO::PrintLine(Describe(Option::Some(1)) as Text);

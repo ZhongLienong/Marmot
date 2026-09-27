@@ -1,0 +1,53 @@
+module MatchAsPatterns
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/Prelude/Option.mmt"
+}
+
+use Option.{ Option }
+
+type Point =
+{
+	x : Int,
+	y : Int
+};
+
+// `pattern as name` matches what the pattern does and names the whole value, at
+// any depth, so a case can take a value apart and keep it.
+
+def Describe = fn(option : Option<Option<Int>>) -> Text =>
+	match option with
+		case Option::Some(Option::Some(value) as inner) as whole => (value as Text) ++ " " ++ Unwrap(inner) ++ " " ++ Unwrap(Flatten(whole))
+		case Option::Some(Option::None()) => "inner none"
+		case Option::None() => "none";
+
+def Unwrap = fn(option : Option<Int>) -> Text =>
+	match option with
+		case Option::Some(value) => value as Text
+		case Option::None() => "-";
+
+def Flatten = fn(option : Option<Option<Int>>) -> Option<Int> =>
+	match option with
+		case Option::Some(inner) => inner
+		case Option::None() => Option::None();
+
+def FirstPlusLength = fn(values : Array<Int>) -> Int =>
+	match values with
+		case [first, ..] as all => first + #all
+		case [] as empty => #empty;
+
+def Axis = fn(point : Point) -> Text =>
+	match point with
+		case Point(0, _) as on_axis => "on the y axis at " ++ (on_axis.y as Text)
+		case other => "off it at " ++ (other.x as Text);
+
+def Triple = fn(n : Int) -> Int =>
+	match n with
+		case a as b as c => a + b + c;
+
+IO::PrintLine(Describe(Option::Some(Option::Some(4))) ++ " | " ++ Describe(Option::Some(Option::None())) ++ " | " ++ Describe(Option::None()));
+IO::PrintLine((FirstPlusLength([10, 1, 1]) as Text) ++ " " ++ (FirstPlusLength([]) as Text));
+IO::PrintLine(Axis(Point(0, 3)) ++ " | " ++ Axis(Point(2, 3)));
+IO::PrintLine(Triple(2) as Text);

@@ -95,6 +95,7 @@ struct PrintAbstractSyntaxTree
 	void operator()(const MidoriPattern::Array& array, int depth = 0) const;
 
 	void operator()(const MidoriPattern::Constructor& constructor, int depth = 0) const;
+	void operator()(const MidoriPattern::As& as, int depth = 0) const;
 
 private:
 
