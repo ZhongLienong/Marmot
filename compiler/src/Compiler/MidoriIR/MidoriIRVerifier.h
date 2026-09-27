@@ -14,8 +14,7 @@ enum class MidoriIRRule : uint8_t
 	Dominance = 2u,
 	SuccessorArguments = 3u,
 	OperandTypes = 4u,
-	SwitchCoverage = 5u,
-	GlobalSlot = 6u
+	GlobalSlot = 5u
 };
 
 struct MidoriIRViolation

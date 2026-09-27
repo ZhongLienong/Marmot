@@ -101,15 +101,6 @@ void MidoriIRBuilder::Branch(MidoriIRValueId condition, MidoriIRSuccessor if_tru
 	Terminate(MidoriIROp::Branch, { condition }, {}, { std::move(if_true), std::move(if_false) });
 }
 
-void MidoriIRBuilder::Switch(MidoriIRValueId tag, std::vector<MidoriIRSuccessor> cases, std::optional<MidoriIRSuccessor> otherwise)
-{
-	if (otherwise.has_value())
-	{
-		cases.push_back(std::move(otherwise).value());
-	}
-	Terminate(MidoriIROp::Switch, { tag }, {}, std::move(cases));
-}
-
 void MidoriIRBuilder::Return(MidoriIRValueId value)
 {
 	Terminate(MidoriIROp::Return, { value }, {}, {});

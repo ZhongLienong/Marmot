@@ -43,8 +43,6 @@ public:
 
 	void Jump(MidoriIRBlockId target, std::vector<MidoriIRValueId> arguments = {});
 	void Branch(MidoriIRValueId condition, MidoriIRSuccessor if_true, MidoriIRSuccessor if_false);
-	// Each case carries its tag; without a default the cases must cover every member.
-	void Switch(MidoriIRValueId tag, std::vector<MidoriIRSuccessor> cases, std::optional<MidoriIRSuccessor> otherwise = std::nullopt);
 	void Return(MidoriIRValueId value);
 	// A direct call names a MidoriIRFunctionId, a call of a global a
 	// MidoriIRGlobalSlot; with neither, the first operand is the closure called.

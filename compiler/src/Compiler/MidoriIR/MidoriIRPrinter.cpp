@@ -210,11 +210,7 @@ std::string MidoriIRPrinter::PrintInstruction(const MidoriIRInstruction& instruc
 	{
 		parts.push_back(JoinValues(instruction.m_operands, names));
 	}
-	std::ranges::transform(instruction.m_successors, std::back_inserter(parts), [&](const MidoriIRSuccessor& successor)
-	{
-		const bool is_default = instruction.m_op == MidoriIROp::Switch && !successor.m_case_tag.has_value();
-		return is_default ? std::format("default: {}", PrintSuccessor(successor, names)) : PrintSuccessor(successor, names);
-	});
+	std::ranges::transform(instruction.m_successors, std::back_inserter(parts), [&names](const MidoriIRSuccessor& successor) { return PrintSuccessor(successor, names); });
 
 	const std::string arguments = parts | std::views::join_with(std::string_view(", ")) | std::ranges::to<std::string>();
 	if (IsMidoriIRTerminator(instruction.m_op))
@@ -240,7 +236,7 @@ std::string MidoriIRPrinter::PrintInstruction(const MidoriIRInstruction& instruc
 
 std::string MidoriIRPrinter::PrintSuccessor(const MidoriIRSuccessor& successor, const std::vector<std::string>& names)
 {
-	std::string text = successor.m_case_tag.has_value() ? std::format("{}: bb{}", successor.m_case_tag.value(), successor.m_block.m_index) : std::format("bb{}", successor.m_block.m_index);
+	std::string text = std::format("bb{}", successor.m_block.m_index);
 	if (!successor.m_arguments.empty())
 	{
 		text.append(std::format("({})", JoinValues(successor.m_arguments, names)));

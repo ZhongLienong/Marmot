@@ -140,10 +140,9 @@ bool MidoriIRSameType(const std::shared_ptr<MidoriType>& left, const std::shared
 	return *left_type == *right_type;
 }
 
-MidoriIRSuccessor::MidoriIRSuccessor(MidoriIRBlockId block, std::vector<MidoriIRValueId> arguments, std::optional<int> case_tag)
+MidoriIRSuccessor::MidoriIRSuccessor(MidoriIRBlockId block, std::vector<MidoriIRValueId> arguments)
 	: m_block(block),
-	m_arguments(std::move(arguments)),
-	m_case_tag(case_tag)
+	m_arguments(std::move(arguments))
 {
 }
 

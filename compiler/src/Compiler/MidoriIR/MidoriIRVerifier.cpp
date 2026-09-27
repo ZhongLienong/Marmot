@@ -6,7 +6,6 @@
 #include <ranges>
 #include <span>
 #include <unordered_map>
-#include <unordered_set>
 #include <utility>
 
 namespace
@@ -469,7 +468,7 @@ namespace
 			}
 		}
 
-		// Rules 4, 5 and 6.
+		// Rules 4 and 5.
 		void CheckInstruction(MidoriIRBlockId block, const MidoriIRInstruction& instruction)
 		{
 			const MidoriIROpInfo& info = GetMidoriIROpInfo(instruction.m_op);
@@ -805,14 +804,6 @@ namespace
 				Expect(instruction.m_successors.size() == 2u, block, instruction, "has two successors");
 				return;
 			}
-			case MidoriIROp::Switch:
-			{
-				if (operand_count(1u) && Expect(Shape(operands[0u])->IsType<MidoriType::UnionType>(), block, instruction, "takes a union"))
-				{
-					CheckSwitchCoverage(block, instruction, Shape(operands[0u])->GetType<MidoriType::UnionType>());
-				}
-				return;
-			}
 			case MidoriIROp::Return:
 			{
 				if (operand_count(1u))
@@ -864,45 +855,6 @@ namespace
 			if (Expect(!operands.empty(), block, instruction, "needs the closure it calls"))
 			{
 				ExpectCallOfType(block, instruction, TypeOf(operands[0u]), operands.subspan(1u), return_type);
-			}
-		}
-
-		// Rule 5.
-		void CheckSwitchCoverage(MidoriIRBlockId block, const MidoriIRInstruction& instruction, const MidoriType::UnionType& union_type)
-		{
-			std::unordered_set<int> covered;
-			size_t defaults = 0u;
-			for (const MidoriIRSuccessor& successor : instruction.m_successors)
-			{
-				if (!successor.m_case_tag.has_value())
-				{
-					defaults += 1u;
-					continue;
-				}
-				const int tag = successor.m_case_tag.value();
-				if (FindMember(union_type, tag) == nullptr)
-				{
-					Report(MidoriIRRule::SwitchCoverage, block, std::format("Switch: tag {} is no member of {}", tag, union_type.m_name));
-				}
-				if (!covered.insert(tag).second)
-				{
-					Report(MidoriIRRule::SwitchCoverage, block, std::format("Switch: tag {} has two cases", tag));
-				}
-			}
-
-			if (defaults > 1u)
-			{
-				Report(MidoriIRRule::SwitchCoverage, block, "Switch: has more than one default");
-			}
-			if (defaults == 0u)
-			{
-				for (const UnionMember& member : union_type.m_member_info)
-				{
-					if (!covered.contains(member.second.m_tag))
-					{
-						Report(MidoriIRRule::SwitchCoverage, block, std::format("Switch: has no default and no case for {}", member.first));
-					}
-				}
 			}
 		}
 	};

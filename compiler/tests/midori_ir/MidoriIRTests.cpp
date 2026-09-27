@@ -29,17 +29,6 @@ namespace
 		return MidoriType::MakeLiteralType<MidoriType::UnitType>();
 	}
 
-	// union Shape = Circle(Float) | Square(Float) | Empty
-	TypeRef ShapeType()
-	{
-		TypeRef shape = MidoriType::MakeUnionType("Shape", "Test");
-		MidoriType::UnionType& union_type = shape->GetType<MidoriType::UnionType>();
-		union_type.m_member_info.emplace("Circle", MidoriType::UnionType::UnionMemberContext{ { FloatType() }, 0 });
-		union_type.m_member_info.emplace("Square", MidoriType::UnionType::UnionMemberContext{ { FloatType() }, 1 });
-		union_type.m_member_info.emplace("Empty", MidoriType::UnionType::UnionMemberContext{ {}, 2 });
-		return shape;
-	}
-
 	// The plan's first example: a self tail call over an array, already a loop.
 	MidoriIRModule SumModule()
 	{
@@ -149,24 +138,24 @@ TEST_CASE("The Sum example verifies", "[midori_ir]")
 	REQUIRE(violations.empty());
 }
 
-TEST_CASE("The printer shows globals, unnamed values, constants, switches and effects", "[midori_ir]")
+TEST_CASE("The printer shows globals, unnamed values, constants, block parameters and effects", "[midori_ir]")
 {
 	MidoriIRModule module("Main");
 	const MidoriIRGlobalSlot total = module.ReserveGlobal("total", IntType());
 	MidoriIRFunction function("Main$top", UnitType());
 	MidoriIRBuilder builder(function);
-	const MidoriIRBlockId circle = builder.CreateBlock();
+	const MidoriIRBlockId done = builder.CreateBlock();
 	const MidoriIRBlockId other = builder.CreateBlock();
 
-	const MidoriIRValueId shape = builder.AddParameter(MidoriIRFunction::s_entry_block, ShapeType());
+	const MidoriIRValueId flag = builder.AddParameter(MidoriIRFunction::s_entry_block, MidoriType::MakeLiteralType<MidoriType::BoolType>());
 	const MidoriIRValueId text = builder.ConstText("a \"b\"\n");
 	builder.ConstFloat(2.0);
 	const MidoriIRValueId seven = builder.ConstInt(7);
 	builder.Emit(MidoriIROp::GlobalDefine, UnitType(), { seven }, total);
 	builder.Emit(MidoriIROp::IntToText, MidoriType::MakeLiteralType<MidoriType::TextType>(), { seven });
-	builder.Switch(shape, { MidoriIRSuccessor(circle, {}, 0) }, MidoriIRSuccessor(other, { text }));
+	builder.Branch(flag, MidoriIRSuccessor(done), MidoriIRSuccessor(other, { text }));
 
-	builder.PositionAt(circle).Return(builder.ConstUnit("done"));
+	builder.PositionAt(done).Return(builder.ConstUnit("done"));
 	builder.AddParameter(other, MidoriType::MakeLiteralType<MidoriType::TextType>(), "message");
 	builder.PositionAt(other).Unreachable();
 
@@ -177,14 +166,14 @@ TEST_CASE("The printer shows globals, unnamed values, constants, switches and ef
 		"global @0 total: Int\n"
 		"top-level Main$top\n"
 		"\n"
-		"fn Main$top(Test::Shape) -> Unit\n"
-		"bb0(%0: Test::Shape):\n"
+		"fn Main$top(Bool) -> Unit\n"
+		"bb0(%0: Bool):\n"
 		"  %1: Text = Const \"a \\\"b\\\"\\n\"\n"
 		"  %2: Float = Const 2.0\n"
 		"  %3: Int = Const 7\n"
 		"  %4: Unit = GlobalDefine @0, %3  !io\n"
 		"  %5: Text = IntToText %3  !alloc\n"
-		"  switch %0, 0: bb1, default: bb2(%1)\n"
+		"  branch %0, bb1, bb2(%1)\n"
 		"bb1:\n"
 		"  done: Unit = Const\n"
 		"  return done\n"
@@ -488,48 +477,7 @@ TEST_CASE("Rule 4: a newtype is its representation", "[midori_ir][verifier]")
 	CHECK(test.Verify().empty());
 }
 
-TEST_CASE("Rule 5: a switch with two cases for one tag", "[midori_ir][verifier]")
-{
-	SingleFunction test;
-	const MidoriIRBlockId target = test.m_builder.CreateBlock();
-	const MidoriIRValueId shape = test.m_builder.AddParameter(MidoriIRFunction::s_entry_block, ShapeType());
-	test.m_builder.Switch(shape, { MidoriIRSuccessor(target, {}, 0), MidoriIRSuccessor(target, {}, 0) }, MidoriIRSuccessor(target));
-	test.m_builder.PositionAt(target).Return(test.m_builder.ConstInt(0));
-
-	REQUIRE(ReportsOnly(test.Verify(), MidoriIRRule::SwitchCoverage));
-}
-
-TEST_CASE("Rule 5: a switch with no default that misses a member", "[midori_ir][verifier]")
-{
-	SingleFunction test;
-	const MidoriIRBlockId target = test.m_builder.CreateBlock();
-	const MidoriIRValueId shape = test.m_builder.AddParameter(MidoriIRFunction::s_entry_block, ShapeType());
-	test.m_builder.Switch(shape, { MidoriIRSuccessor(target, {}, 0), MidoriIRSuccessor(target, {}, 1) });
-	test.m_builder.PositionAt(target).Return(test.m_builder.ConstInt(0));
-
-	const std::vector<MidoriIRViolation> violations = test.Verify();
-	REQUIRE(ReportsOnly(violations, MidoriIRRule::SwitchCoverage));
-	REQUIRE(violations.front().m_message.contains("Empty"));
-}
-
-TEST_CASE("Rule 5: a switch covering every member, or with a default, is valid", "[midori_ir][verifier]")
-{
-	SingleFunction every_member;
-	const MidoriIRBlockId target = every_member.m_builder.CreateBlock();
-	const MidoriIRValueId shape = every_member.m_builder.AddParameter(MidoriIRFunction::s_entry_block, ShapeType());
-	every_member.m_builder.Switch(shape, { MidoriIRSuccessor(target, {}, 0), MidoriIRSuccessor(target, {}, 1), MidoriIRSuccessor(target, {}, 2) });
-	every_member.m_builder.PositionAt(target).Return(every_member.m_builder.ConstInt(0));
-	REQUIRE(every_member.Verify().empty());
-
-	SingleFunction with_default;
-	const MidoriIRBlockId default_target = with_default.m_builder.CreateBlock();
-	const MidoriIRValueId other_shape = with_default.m_builder.AddParameter(MidoriIRFunction::s_entry_block, ShapeType());
-	with_default.m_builder.Switch(other_shape, { MidoriIRSuccessor(default_target, {}, 1) }, MidoriIRSuccessor(default_target));
-	with_default.m_builder.PositionAt(default_target).Return(with_default.m_builder.ConstInt(0));
-	REQUIRE(with_default.Verify().empty());
-}
-
-TEST_CASE("Rule 6: a read of a global slot that was never reserved", "[midori_ir][verifier]")
+TEST_CASE("Rule 5: a read of a global slot that was never reserved", "[midori_ir][verifier]")
 {
 	SingleFunction test;
 	test.m_module.ReserveGlobal("total", IntType());
@@ -538,7 +486,7 @@ TEST_CASE("Rule 6: a read of a global slot that was never reserved", "[midori_ir
 	REQUIRE(ReportsOnly(test.Verify(), MidoriIRRule::GlobalSlot));
 }
 
-TEST_CASE("Rule 6: a read of a reserved global slot is valid", "[midori_ir][verifier]")
+TEST_CASE("Rule 5: a read of a reserved global slot is valid", "[midori_ir][verifier]")
 {
 	SingleFunction test;
 	const MidoriIRGlobalSlot total = test.m_module.ReserveGlobal("total", IntType());

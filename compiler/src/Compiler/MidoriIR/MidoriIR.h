@@ -200,15 +200,14 @@ using MidoriIRImmediate = std::variant
 	MidoriIRJoinTags
 >;
 
-// Where a terminator goes. A Switch case carries the tag it matches; its
-// default, like every other successor, carries none.
+// Where a terminator goes, with the arguments it passes to that block's
+// parameters.
 struct MidoriIRSuccessor
 {
 	MidoriIRBlockId m_block;
 	std::vector<MidoriIRValueId> m_arguments;
-	std::optional<int> m_case_tag;
 
-	MidoriIRSuccessor(MidoriIRBlockId block, std::vector<MidoriIRValueId> arguments = {}, std::optional<int> case_tag = std::nullopt);
+	MidoriIRSuccessor(MidoriIRBlockId block, std::vector<MidoriIRValueId> arguments = {});
 };
 
 // Every instruction but a terminator defines exactly one value, of type

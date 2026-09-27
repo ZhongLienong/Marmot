@@ -53,7 +53,7 @@ Functions, blocks and globals are kept in vectors, in the order lowering creates
 | Cells | `CellNew`, `CellRead`, `CellWrite cell, value` | Only for the language's `Cell<T>`. `CellWrite` gives the value it writes |
 | Globals | `GlobalDefine @slot`, `GlobalGet @slot`, `GlobalSet @slot` | |
 | Concurrency | `Spawn args..., function`, `Join tags ok err cancelled failed`, `WorkerCancel` `WorkerIsDone` `ChannelNew` `Send` `Receive` `ChannelClose` | `Join` builds its Result from the union tags its immediate names |
-| Terminators | `Jump`, `Branch`, `Switch`, `Return`, `TailCall`, `Unreachable` | See below |
+| Terminators | `Jump`, `Branch`, `Return`, `TailCall`, `Unreachable` | See below |
 
 A terminator ends its block and defines no value. Its successors carry their jump arguments.
 
@@ -61,7 +61,6 @@ A terminator ends its block and defines no value. Its successors carry their jum
 | --- | --- |
 | `jump bbN(args)` | Go to `bbN` |
 | `branch cond, bbT(args), bbF(args)` | Go to `bbT` when the Bool `cond` is true, else to `bbF` |
-| `switch union, t: bbN(args), ..., default: bbD(args)` | Go to the case for the union's tag; the default is optional |
 | `return value` | Return from the function |
 | `tailcall callee, args` | Call without a new frame: a function, a global `@slot`, or, with neither, a closure given as the first operand |
 | `unreachable` | Nothing runs here: it follows a call that returns `Never`, and ends a match's last failed test, which the type checker's exhaustiveness makes impossible |
@@ -89,10 +88,9 @@ Every instruction has one effect. The builder takes it from `MidoriIROps.def`, a
 2. **Dominance.** Every value is defined once, and every use is dominated by its definition. A use in the defining block must come after it.
 3. **Successor arguments.** Every successor names an existing block. Its arguments match that block's parameters in number and type.
 4. **Operand types.** Each instruction's operands, immediate and result have the types it expects: `AddInt` takes two Ints and gives an Int, a `Call` matches its callee's parameters and return type, a `Return` gives the function's return type, and so on. An instruction's type is its value's type, and only terminators have successors. Nothing uses a `Never` value. A tail call of a function that returns `Never` may end a function of any return type. A `MakeClosure`'s operands match the first of its function's captures. The concurrency instructions and `BindCaptures` are not checked yet.
-5. **Switch coverage.** A `Switch` takes a union, has at most one case per tag and at most one default, and names only tags of that union. With no default, it covers every member.
-6. **Global slots.** Every `GlobalDefine`, `GlobalGet`, `GlobalSet`, `CallGlobal` and global `TailCall` names a reserved slot, and no `GlobalDefine` or `GlobalSet` names an imported global.
+5. **Global slots.** Every `GlobalDefine`, `GlobalGet`, `GlobalSet`, `CallGlobal` and global `TailCall` names a reserved slot, and no `GlobalDefine` or `GlobalSet` names an imported global.
 
-Rules 2 to 6 hold in the blocks the entry reaches. A block nothing reaches holds code lowered after a call that returns `Never`, which never runs and which the backend does not emit, so only rule 1 applies to it. When lowering breaks a rule, the error prints each function it found a violation in.
+Rules 2 to 5 hold in the blocks the entry reaches. A block nothing reaches holds code lowered after a call that returns `Never`, which never runs and which the backend does not emit, so only rule 1 applies to it. When lowering breaks a rule, the error prints each function it found a violation in.
 
 ## Textual form
 
