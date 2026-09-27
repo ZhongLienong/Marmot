@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Common/BuildConfig/BuildConfig.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -18,13 +20,11 @@ public:
 	MidoriAllocator(const MidoriAllocator&) = delete;
 	MidoriAllocator& operator=(const MidoriAllocator&) = delete;
 
-	void* Allocate(size_t size);
-	MidoriAllocator& Free(void* ptr, size_t size) &;
-	MidoriAllocator&& Free(void* ptr, size_t size) &&;
+	void* Allocate();
+
+	MidoriAllocator& Free(size_t slot_index) &;
 
 	bool Contains(const void* ptr) const noexcept;
-
-	std::optional<size_t> TryGetSlotIndex(const void* ptr) const noexcept;
 
 	void* SlotAt(size_t slot_index) const noexcept;
 
@@ -35,58 +35,68 @@ public:
 	size_t LiveSlotCount() const noexcept;
 
 private:
-#ifndef __EMSCRIPTEN__
 	struct FreeNode
 	{
 		FreeNode* m_next;
 	};
 
-	static constexpr size_t RESERVED_REGION_SIZE = 1uz << 30uz;
 	static constexpr size_t USABLE_BLOCK_BYTES = SLOTS_PER_BLOCK * SLOT_SIZE;
 	static constexpr size_t LIVE_WORDS_PER_BLOCK = (SLOTS_PER_BLOCK + 63uz) / 64uz;
 	static constexpr size_t BITS_PER_BLOCK = LIVE_WORDS_PER_BLOCK * 64uz;
 
+	std::vector<uint64_t> m_live_bits;
+	FreeNode* m_free_list = nullptr;
+
+	bool AllocateBlock();
+	MIDORI_NOINLINE void* AllocateFromNewBlock();
+
+#ifndef __EMSCRIPTEN__
+public:
+	// Slot indices are global bit indices compatible with m_live_bits: each block
+	// contributes BITS_PER_BLOCK positions (LIVE_WORDS_PER_BLOCK words * 64), of
+	// which only the first SLOTS_PER_BLOCK are real slots; padding bits are never set.
+	MIDORI_FORCE_INLINE std::optional<size_t> TryGetSlotIndex(const void* ptr) const noexcept
+	{
+		const size_t offset = static_cast<size_t>(reinterpret_cast<uintptr_t>(ptr) - reinterpret_cast<uintptr_t>(m_region_base));
+		if (offset >= m_block_bytes)
+		{
+			return std::nullopt;
+		}
+
+		const size_t block_offset = offset % BLOCK_SIZE;
+		const size_t slot_in_block = block_offset / SLOT_SIZE;
+		if (slot_in_block * SLOT_SIZE != block_offset || slot_in_block >= SLOTS_PER_BLOCK)
+		{
+			return std::nullopt;
+		}
+
+		return (offset / BLOCK_SIZE) * BITS_PER_BLOCK + slot_in_block;
+	}
+
+private:
+	static constexpr size_t RESERVED_REGION_SIZE = 1uz << 30uz;
+#ifdef _WIN32
+	static constexpr size_t COMMIT_GRANULE = BLOCK_SIZE;
+#else
+	// One transparent huge page. Committing a 64 KB block at a time never makes a
+	// whole 2 MB page accessible, so the kernel faulted a growing heap in 4 KB at a
+	// time: a million-cell list took about 20,000 faults.
+	static constexpr size_t COMMIT_GRANULE = 2uz << 20uz;
+#endif
+
+	uint8_t* m_reservation = nullptr;
 	uint8_t* m_region_base = nullptr;
 	size_t m_committed_bytes = 0uz;
-	std::vector<uint64_t> m_live_bits;
-	FreeNode* m_free_list = nullptr;
-	std::vector<void*> m_large_allocs;
+	size_t m_block_bytes = 0uz;
 
-	void* AllocateSmall();
-	void* AllocateLarge(size_t size);
-	bool AllocateBlock();
-	bool EnsureFreeList();
-	FreeNode* PopFreeNode() noexcept;
-	FreeNode* PushFreeNode(FreeNode* node) noexcept;
-	bool SetLiveBit(void* ptr, bool is_live) noexcept;
-	bool TrackLargeAllocation(void* ptr);
-	bool UntrackLargeAllocation(void* ptr) noexcept;
-	bool ContainsLargeAllocation(const void* ptr) const noexcept;
+	bool CommitGranule();
 #else
-	struct FreeNode
-	{
-		FreeNode* m_next;
-	};
+public:
+	std::optional<size_t> TryGetSlotIndex(const void* ptr) const noexcept;
 
-	static constexpr size_t USABLE_BLOCK_BYTES = SLOTS_PER_BLOCK * SLOT_SIZE;
-	static constexpr size_t LIVE_WORDS_PER_BLOCK = (SLOTS_PER_BLOCK + 63uz) / 64uz;
-	static constexpr size_t BITS_PER_BLOCK = LIVE_WORDS_PER_BLOCK * 64uz;
-
+private:
 	std::vector<uint8_t*> m_blocks;
-	std::vector<uint64_t> m_live_bits;
-	FreeNode* m_free_list = nullptr;
-	std::vector<void*> m_large_allocs;
 
-	void* AllocateSmall();
-	void* AllocateLarge(size_t size);
-	bool AllocateBlock();
-	bool EnsureFreeList();
-	FreeNode* PopFreeNode() noexcept;
-	FreeNode* PushFreeNode(FreeNode* node) noexcept;
-	bool SetLiveBit(void* ptr, bool is_live) noexcept;
-	bool TrackLargeAllocation(void* ptr);
-	bool UntrackLargeAllocation(void* ptr) noexcept;
-	bool ContainsLargeAllocation(const void* ptr) const noexcept;
 	std::optional<size_t> FindBlockIndex(const void* ptr) const noexcept;
 #endif
 };

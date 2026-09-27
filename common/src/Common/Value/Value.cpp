@@ -359,6 +359,18 @@ MidoriTraceable::MidoriTraceable(MidoriUnion&& midori_union) noexcept : m_union(
 {
 }
 
+MidoriTraceable::MidoriTraceable(std::in_place_type_t<MidoriTuple>, std::span<const MidoriValue> values) noexcept : m_tuple(values), m_type(TraceableType::Tuple)
+{
+}
+
+MidoriTraceable::MidoriTraceable(std::in_place_type_t<MidoriStruct>, std::span<const MidoriValue> values) noexcept : m_struct{ .m_values = MidoriTuple(values) }, m_type(TraceableType::Struct)
+{
+}
+
+MidoriTraceable::MidoriTraceable(std::in_place_type_t<MidoriUnion>, std::span<const MidoriValue> values) noexcept : m_union{ .m_values = MidoriTuple(values) }, m_type(TraceableType::Union)
+{
+}
+
 MidoriTraceable::~MidoriTraceable()
 {
 	switch (m_type)
@@ -1040,6 +1052,39 @@ MidoriTuple::MidoriTuple(int size)
 		m_long.m_flag = 0;
 		m_short.m_size_flag = 0;
 	}
+}
+
+// The long layout is out of line so the short one, which every constructor and
+// union with up to SOO_CAPACITY fields takes, runs without a stack frame.
+MidoriTuple::MidoriTuple(std::span<const MidoriValue> values)
+{
+	if (values.size() > static_cast<size_t>(SOO_CAPACITY))
+	{
+		InitializeLong(values);
+		return;
+	}
+
+	std::memset(static_cast<void*>(this), 0, sizeof(MidoriTuple));
+	SetShortSize(static_cast<int>(values.size()));
+	for (size_t i = 0uz; i < values.size(); i += 1uz)
+	{
+		new (&m_short.m_buffer[i]) MidoriValue(values[i]);
+	}
+}
+
+void MidoriTuple::InitializeLong(std::span<const MidoriValue> values)
+{
+	size_t bytes = values.size_bytes();
+	m_long.m_ptr = static_cast<MidoriValue*>(AllocateValueBuffer(bytes));
+	if (!m_long.m_ptr)
+	{
+		FatalOutOfMemory("MidoriTuple::MidoriTuple", bytes);
+	}
+	std::memcpy(static_cast<void*>(m_long.m_ptr), values.data(), values.size_bytes());
+	m_long.m_size = static_cast<int>(values.size());
+	m_long.m_capacity = static_cast<int>(bytes / sizeof(MidoriValue));
+	m_long.m_flag = 0;
+	m_short.m_size_flag = 0;
 }
 
 MidoriTuple::MidoriTuple(const MidoriTuple& other)

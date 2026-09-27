@@ -48,8 +48,10 @@ out moving/copying collection — Marmot's collector is strictly non-moving.
 
 `MidoriAllocator` carves fixed 80-byte slots out of 64 KB blocks:
 
-- Native: blocks are committed from one contiguous reserved virtual-memory
-  region.
+- Native: blocks are carved from one contiguous reserved virtual-memory
+  region. On POSIX the region is committed 2 MB at a time, aligned so that
+  every granule after the first can be backed by a transparent huge page; a
+  growing heap would otherwise take one page fault per 4 KB.
 - Emscripten/WASM: blocks are individually `malloc`-backed and appended to a
   block table (never sorted — slot indices must stay stable for the
   lifetime of the allocator, since the generational collector keys
@@ -58,8 +60,8 @@ out moving/copying collection — Marmot's collector is strictly non-moving.
   across both platforms. `TryGetSlotIndex` maps a pointer to its global slot
   index; `SlotAt` is the inverse. Allocation pops from a free list; freeing
   clears the live bit and pushes back onto the free list.
-- Allocations larger than one slot (internal buffers backing long `Text`,
-  `Array`, and `Tuple` payloads) go through a separate large-allocation path
+- The allocator only ever hands out slots. The buffers behind long `Text`,
+  `Array`, and `Tuple` payloads come from the value buffer pool in `common`
   and are never traced or treated as roots — only their owning
   `MidoriTraceable` is.
 
@@ -88,7 +90,9 @@ out moving/copying collection — Marmot's collector is strictly non-moving.
 - **Major collections** clear all mark bits and the remembered set, then
   trace and sweep the whole heap. They run at VM shutdown (`force_clean`)
   and whenever live bytes after a minor collection exceed 2× live bytes
-  after the last major.
+  after the last major, or 4× when that major reclaimed less than a quarter
+  of the heap: a heap that only grows would otherwise be re-traced in full
+  every time it doubled.
 - Collection triggers on a byte-allocated threshold (`ShouldCollect`),
   starting at `INITIAL_GC_THRESHOLD`. After each cycle the next threshold is
   the live bytes plus headroom of half the live bytes, with the headroom

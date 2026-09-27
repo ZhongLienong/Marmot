@@ -32,11 +32,11 @@ public:
 
     GarbageCollector::GarbageCollectionRoots GetGarbageCollectionRoots() const noexcept;
 
-    template<typename T>
-    MIDORI_FORCE_INLINE MidoriTraceable* AllocateTraceable(T&& arg)
+    template<typename... Args>
+    MIDORI_FORCE_INLINE MidoriTraceable* AllocateTraceable(Args&&... args)
     {
-        void* mem = m_allocator.Allocate(sizeof(MidoriTraceable));
-        MidoriTraceable* traceable = new(mem) MidoriTraceable(std::forward<T>(arg));
+        void* mem = m_allocator.Allocate();
+        MidoriTraceable* traceable = new(mem) MidoriTraceable(std::forward<Args>(args)...);
         m_gc.RegisterObject(traceable);
         return traceable;
     }

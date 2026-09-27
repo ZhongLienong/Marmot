@@ -8,7 +8,7 @@ namespace
 {
 	MidoriTraceable* AllocateText(MidoriAllocator& allocator, GarbageCollector& gc, const char* content)
 	{
-		void* memory = allocator.Allocate(sizeof(MidoriTraceable));
+		void* memory = allocator.Allocate();
 		MidoriTraceable* traceable = new(memory) MidoriTraceable(MidoriText(content));
 		gc.RegisterObject(traceable);
 		return traceable;
@@ -25,7 +25,7 @@ namespace
 		{
 			array.AddBack(MidoriValue(static_cast<MidoriInteger>(0)));
 		}
-		void* memory = allocator.Allocate(sizeof(MidoriTraceable));
+		void* memory = allocator.Allocate();
 		MidoriTraceable* traceable = new(memory) MidoriTraceable(std::move(array));
 		gc.RegisterObject(traceable);
 		return traceable;
@@ -39,7 +39,7 @@ namespace
 	{
 		MidoriText text;
 		text.Reserve(reserve_bytes);
-		void* memory = allocator.Allocate(sizeof(MidoriTraceable));
+		void* memory = allocator.Allocate();
 		MidoriTraceable* traceable = new(memory) MidoriTraceable(std::move(text));
 		gc.RegisterObject(traceable);
 		return traceable;
@@ -273,6 +273,66 @@ TEST_CASE("ReclaimMemory escalates to a major collection when live bytes stay hi
 	gc.ReclaimMemory(no_roots, allocator, true);
 	REQUIRE(gc.MajorCollectionCount() == 2uz);
 	REQUIRE(allocator.LiveSlotCount() == 0uz);
+}
+
+TEST_CASE("A major that reclaims little waits for the heap to quadruple before the next", "[gc][generational]")
+{
+	MidoriAllocator allocator;
+	GarbageCollector gc;
+	gc.SetAllocator(&allocator);
+
+	constexpr int RESERVE_BYTES = 4 * 1024 * 1024;
+	GarbageCollector::GarbageCollectionRoots roots;
+	for (int i = 0; i < 3; i += 1)
+	{
+		roots.emplace_back(AllocateLargeText(allocator, gc, RESERVE_BYTES));
+	}
+	gc.ReclaimMemory(roots, allocator, false);
+	REQUIRE(gc.MajorCollectionCount() == 1uz);
+
+	// Seven texts are more than twice the three the major left live, and fewer
+	// than four times.
+	for (int i = 0; i < 4; i += 1)
+	{
+		roots.emplace_back(AllocateLargeText(allocator, gc, RESERVE_BYTES));
+	}
+	REQUIRE(gc.ShouldCollect());
+	gc.ReclaimMemory(roots, allocator, false);
+
+	REQUIRE(gc.MinorCollectionCount() == 2uz);
+	REQUIRE(gc.MajorCollectionCount() == 1uz);
+
+	GarbageCollector::GarbageCollectionRoots no_roots;
+	gc.ReclaimMemory(no_roots, allocator, true);
+}
+
+TEST_CASE("A major that reclaims most of the heap keeps the next one at twice the live bytes", "[gc][generational]")
+{
+	MidoriAllocator allocator;
+	GarbageCollector gc;
+	gc.SetAllocator(&allocator);
+
+	constexpr int RESERVE_BYTES = 4 * 1024 * 1024;
+	GarbageCollector::GarbageCollectionRoots roots;
+	for (int i = 0; i < 3; i += 1)
+	{
+		roots.emplace_back(AllocateLargeText(allocator, gc, RESERVE_BYTES));
+	}
+	gc.ReclaimMemory(roots, allocator, true);
+
+	GarbageCollector::GarbageCollectionRoots no_roots;
+	gc.ReclaimMemory(no_roots, allocator, true);
+	REQUIRE(gc.MajorCollectionCount() == 2uz);
+
+	// One text is more than twice MIN_GC_THRESHOLD, the live bytes the last major
+	// recorded, and less than four times.
+	GarbageCollector::GarbageCollectionRoots one_root{ AllocateLargeText(allocator, gc, RESERVE_BYTES) };
+	REQUIRE(gc.ShouldCollect());
+	gc.ReclaimMemory(one_root, allocator, false);
+
+	REQUIRE(gc.MajorCollectionCount() == 3uz);
+
+	gc.ReclaimMemory(no_roots, allocator, true);
 }
 
 namespace

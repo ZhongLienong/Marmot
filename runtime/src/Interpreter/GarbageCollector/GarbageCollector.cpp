@@ -122,13 +122,8 @@ void GarbageCollector::WriteBarrier(MidoriTraceable* target) noexcept
 	m_remembered_set.emplace_back(target);
 }
 
-void GarbageCollector::TryMark(MidoriTraceable* child_ptr)
+MIDORI_FORCE_INLINE void GarbageCollector::TryMark(MidoriTraceable* child_ptr)
 {
-	if (child_ptr == nullptr || m_allocator == nullptr)
-	{
-		return;
-	}
-
 	const std::optional<size_t> slot_index = m_allocator->TryGetSlotIndex(child_ptr);
 	if (!slot_index.has_value())
 	{
@@ -137,11 +132,7 @@ void GarbageCollector::TryMark(MidoriTraceable* child_ptr)
 
 	const size_t word_index = *slot_index / 64uz;
 	const uint64_t mask = 1ull << (*slot_index % 64uz);
-	if ((m_allocator->LiveBitWords()[word_index] & mask) == 0ull)
-	{
-		return;
-	}
-	if ((m_mark_bits[word_index] & mask) != 0ull)
+	if ((m_allocator->LiveBitWords()[word_index] & mask) == 0ull || (m_mark_bits[word_index] & mask) != 0ull)
 	{
 		return;
 	}
@@ -154,7 +145,7 @@ void GarbageCollector::TryMark(MidoriTraceable* child_ptr)
 #endif
 
 	m_mark_bits[word_index] |= mask;
-	m_mark_stack.emplace_back(child_ptr);
+	m_mark_stack.push_back(child_ptr);
 }
 
 void GarbageCollector::Trace(const GarbageCollectionRoots& roots)
@@ -175,49 +166,47 @@ void GarbageCollector::Trace(const GarbageCollectionRoots& roots)
 		TryMark(root);
 	}
 
-	for (MidoriTraceable* remembered : m_remembered_set)
-	{
-		m_mark_stack.emplace_back(remembered);
-	}
+	m_mark_stack.insert(m_mark_stack.end(), m_remembered_set.begin(), m_remembered_set.end());
 
 	while (!m_mark_stack.empty())
 	{
 		MidoriTraceable* current = m_mark_stack.back();
 		m_mark_stack.pop_back();
 
-		if (current->IsTraceable<MidoriArray>())
+		switch (current->GetType())
+		{
+		case MidoriTraceable::TraceableType::Array:
 		{
 			MidoriArray& arr = current->GetTraceable<MidoriArray>();
-			int length = arr.GetLength();
+			const int length = arr.GetLength();
 			for (int idx = 0; idx < length; idx += 1)
 			{
 				TryMark(arr[idx].GetPointer());
 			}
+			break;
 		}
-		else if (current->IsTraceable<MidoriTuple>())
-		{
+		case MidoriTraceable::TraceableType::Tuple:
 			mark_tuple_values(current->GetTraceable<MidoriTuple>());
-		}
-		else if (current->IsTraceable<MidoriClosure>())
-		{
+			break;
+		case MidoriTraceable::TraceableType::Closure:
 			mark_tuple_values(current->GetTraceable<MidoriClosure>().m_cell_values);
-		}
-		else if (current->IsTraceable<MidoriCellValue>())
-		{
-			MidoriValue cell_value = current->GetTraceable<MidoriCellValue>().GetValue();
-			TryMark(cell_value.GetPointer());
-		}
-		else if (current->IsTraceable<MidoriMutableCell>())
-		{
+			break;
+		case MidoriTraceable::TraceableType::Cell:
+			TryMark(current->GetTraceable<MidoriCellValue>().GetValue().GetPointer());
+			break;
+		case MidoriTraceable::TraceableType::MutableCell:
 			TryMark(current->GetTraceable<MidoriMutableCell>().m_value.GetPointer());
-		}
-		else if (current->IsTraceable<MidoriStruct>())
-		{
+			break;
+		case MidoriTraceable::TraceableType::Struct:
 			mark_tuple_values(current->GetTraceable<MidoriStruct>().m_values);
-		}
-		else if (current->IsTraceable<MidoriUnion>())
-		{
+			break;
+		case MidoriTraceable::TraceableType::Union:
 			mark_tuple_values(current->GetTraceable<MidoriUnion>().m_values);
+			break;
+		case MidoriTraceable::TraceableType::Text:
+		case MidoriTraceable::TraceableType::IntRange:
+		case MidoriTraceable::TraceableType::FloatRange:
+			break;
 		}
 	}
 }
@@ -235,14 +224,15 @@ void GarbageCollector::Sweep(MidoriAllocator& allocator, size_t& sweep_count, si
 			const size_t bit = static_cast<size_t>(std::countr_zero(garbage));
 			garbage &= garbage - 1ull;
 
-			MidoriTraceable* ptr = static_cast<MidoriTraceable*>(allocator.SlotAt(word_index * 64uz + bit));
+			const size_t slot_index = word_index * 64uz + bit;
+			MidoriTraceable* ptr = static_cast<MidoriTraceable*>(allocator.SlotAt(slot_index));
 			const size_t registered_size = ptr->GetSize();
 			bytes_reclaimed += registered_size;
 			m_total_bytes_allocated -= std::min(registered_size, m_total_bytes_allocated);
 			sweep_count += 1uz;
 
 			ptr->~MidoriTraceable();
-			allocator.Free(ptr, sizeof(MidoriTraceable));
+			allocator.Free(slot_index);
 		}
 	}
 }
@@ -327,6 +317,7 @@ void GarbageCollector::CollectNow(const GarbageCollectionRoots& roots, MidoriAll
 	else
 	{
 		m_live_bytes_after_major = std::max(m_total_bytes_allocated, MIN_GC_THRESHOLD);
+		m_major_growth = bytes_reclaimed * 4uz < m_total_bytes_allocated + bytes_reclaimed ? MAJOR_GROWTH_WHILE_GROWING : MAJOR_GROWTH;
 	}
 
 #if MIDORI_DEBUG_INFO
@@ -394,7 +385,7 @@ void GarbageCollector::ReclaimMemory(const GarbageCollectionRoots& roots, Midori
 	}
 
 	CollectNow(roots, allocator, CollectionKind::Minor);
-	if (m_total_bytes_allocated > 2uz * m_live_bytes_after_major)
+	if (m_total_bytes_allocated > m_major_growth * m_live_bytes_after_major)
 	{
 		CollectNow(roots, allocator, CollectionKind::Major);
 	}

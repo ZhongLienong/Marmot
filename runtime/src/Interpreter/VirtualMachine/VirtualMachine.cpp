@@ -1238,14 +1238,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 		case OpCode::CREATE_TUPLE:
 		{
 			int count = ReadThreeBytes(ip);
-			MidoriTuple tuple(count);
-
-			for (int i = count - 1; i >= 0; i -= 1)
-			{
-				tuple[i] = Pop(sp);
-			}
-
-			Push(sp, AllocateTraceable(std::move(tuple)));
+			sp -= count;
+			Push(sp, AllocateTraceable(std::in_place_type<MidoriTuple>, std::span<const MidoriValue>(sp, static_cast<size_t>(count))));
 			break;
 		}
 		case OpCode::GET_ARRAY:
@@ -2721,37 +2715,16 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case OpCode::CONSTRUCT_STRUCT:
 		{
-			MidoriTraceable* new_struct = AllocateTraceable(MidoriStruct());
 			int size = static_cast<int>(ReadByte(ip));
-			MidoriTuple args(size);
-
-			for (int i = size - 1; i >= 0; i -= 1)
-			{
-				args[i] = Pop(sp);
-			}
-
-			MidoriTuple& members = new_struct->GetTraceable<MidoriStruct>().m_values;
-			members = std::move(args);
-
-			Push(sp, new_struct);
+			sp -= size;
+			Push(sp, AllocateTraceable(std::in_place_type<MidoriStruct>, std::span<const MidoriValue>(sp, static_cast<size_t>(size))));
 			break;
 		}
 		case OpCode::CONSTRUCT_UNION:
 		{
-			MidoriTraceable* new_union = AllocateTraceable(MidoriUnion());
-
 			int size = static_cast<int>(ReadByte(ip));
-			MidoriTuple args(size);
-
-			for (int i = size - 1; i >= 0; i -= 1)
-			{
-				args[i] = Pop(sp);
-			}
-
-			MidoriTuple& members = new_union->GetTraceable<MidoriUnion>().m_values;
-			members = std::move(args);
-
-			Push(sp, new_union);
+			sp -= size;
+			Push(sp, AllocateTraceable(std::in_place_type<MidoriUnion>, std::span<const MidoriValue>(sp, static_cast<size_t>(size))));
 			break;
 		}
 		case OpCode::LOAD_EMPTY_UNION:

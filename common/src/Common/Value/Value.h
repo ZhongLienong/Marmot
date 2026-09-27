@@ -7,7 +7,9 @@
 #include <list>
 #include <memory>
 #include <optional>
+#include <span>
 #include <unordered_set>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -516,6 +518,8 @@ public:
 
 	MidoriTuple(int size);
 
+	explicit MidoriTuple(std::span<const MidoriValue> values);
+
 	MidoriTuple(const MidoriTuple& other);
 
 	MidoriTuple(MidoriTuple&& other) noexcept;
@@ -553,6 +557,8 @@ private:
 	{
 		m_short.m_size_flag = static_cast<uint8_t>((size << 1) | 1);
 	}
+
+	MIDORI_NOINLINE void InitializeLong(std::span<const MidoriValue> values);
 
 	MIDORI_FORCE_INLINE int GetShortSize() const
 	{
@@ -720,6 +726,11 @@ private:
 
 public:
 
+	MIDORI_FORCE_INLINE TraceableType GetType() const noexcept
+	{
+		return m_type;
+	}
+
 	template<typename T>
 	constexpr bool IsTraceable()
 	{
@@ -799,6 +810,9 @@ public:
 	MidoriTraceable(MidoriClosure&& closure) noexcept;
 	MidoriTraceable(MidoriStruct&& midori_struct) noexcept;
 	MidoriTraceable(MidoriUnion&& midori_union) noexcept;
+	MidoriTraceable(std::in_place_type_t<MidoriTuple>, std::span<const MidoriValue> values) noexcept;
+	MidoriTraceable(std::in_place_type_t<MidoriStruct>, std::span<const MidoriValue> values) noexcept;
+	MidoriTraceable(std::in_place_type_t<MidoriUnion>, std::span<const MidoriValue> values) noexcept;
 
 private:
 	MidoriTraceable() = delete;

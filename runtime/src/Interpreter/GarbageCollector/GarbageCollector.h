@@ -18,6 +18,12 @@ public:
 	// or below the live bytes would make every allocation check collect.
 	static constexpr inline size_t MAX_GC_HEADROOM = 512000uz * 128uz;
 	static constexpr inline double GC_GROWTH_FACTOR = 1.5;
+	// A major collection runs once the heap reaches this many times the bytes the
+	// last one left live. It waits longer after a major that reclaimed less than a
+	// quarter of the heap: the old generation is growing, not churning, and each
+	// major re-traces all of it.
+	static constexpr inline size_t MAJOR_GROWTH = 2uz;
+	static constexpr inline size_t MAJOR_GROWTH_WHILE_GROWING = 4uz;
 
 	using GarbageCollectionRoots = std::vector<MidoriTraceable*>;
 
@@ -31,6 +37,7 @@ private:
 	size_t m_total_bytes_allocated = 0uz;
 	size_t m_gc_threshold = INITIAL_GC_THRESHOLD;
 	size_t m_live_bytes_after_major = INITIAL_GC_THRESHOLD;
+	size_t m_major_growth = MAJOR_GROWTH;
 	std::vector<uint64_t> m_mark_bits;
 	std::vector<uint64_t> m_logged_bits;
 	std::vector<MidoriTraceable*> m_mark_stack;
