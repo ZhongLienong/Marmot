@@ -26,7 +26,7 @@ namespace
 	BytecodeModule RequireBytecode(const LoweredModule& lowered)
 	{
 		const std::vector<std::string> source_lines;
-		MidoriResult::CodeGeneratorResult bytecode = BytecodeBackend(lowered, "Test.mmt", source_lines).Emit();
+		MidoriResult::BytecodeBackendResult bytecode = BytecodeBackend(lowered, "Test.mmt", source_lines).Emit();
 		if (!bytecode.has_value())
 		{
 			FAIL(bytecode.error().Rendered());

@@ -20,8 +20,8 @@ struct GenericFunctionInfo
 	std::shared_ptr<MidoriExpression> m_body;
 	std::string m_defining_module;
 	// The defining module's builtin foreign functions, by the name its source
-	// calls them. Shared with that module's code generator, which fills it as
-	// it reaches each declaration: a foreign may come after the generic.
+	// calls them. Shared with that module's lowering, which fills it as it
+	// reaches each declaration: a foreign may come after the generic.
 	std::shared_ptr<const std::unordered_map<std::string, size_t>> m_builtin_foreign_indices;
 	int m_captured_count;
 

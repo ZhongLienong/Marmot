@@ -2606,7 +2606,7 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 						const ImportedSymbolAccess access = ResolveImportedSymbolAccess(qualifier, symbol_name);
 						if (access == ImportedSymbolAccess::Accessible)
 						{
-							// Keep the fully qualified name so the code generator can identify imports
+							// Keep the fully qualified name so lowering can identify imports
 							return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(variable, MidoriExpression::NameContext::Global()));
 						}
 
@@ -3121,9 +3121,9 @@ MidoriResult::ExpressionResult Parser::ParseForExpression()
 				BeginScope();
 
 				// Add loop variable to scope. Every index here is the slot within this
-				// function's frame, which is what the code generator emits: the running
-				// m_total_variables count is absolute across nested functions, so using it
-				// addressed slots past the frame once a loop sat inside a nested lambda.
+				// function's frame: the running m_total_variables count is absolute
+				// across nested functions, so using it addressed slots past the frame
+				// once a loop sat inside a nested lambda.
 				std::string var_name(loop_variable.m_lexeme);
 				std::optional<int> local_index = RegisterOrUpdateLocalVariable(var_name);
 				int var_index = local_index.value_or(m_state.m_total_variables - 1);
@@ -4915,7 +4915,7 @@ MidoriResult::ExpressionResult Parser::ParseIfElseExpression()
 														(
 															[&if_token, &condition, &true_branch, &then_token, &else_token](std::unique_ptr<MidoriExpression>&& else_branch) -> MidoriResult::ExpressionResult
 															{
-																return std::make_unique<MidoriExpression>(MidoriExpression::IfElse(if_token, then_token, else_token, std::move(condition), std::move(true_branch), std::move(else_branch), MidoriExpression::ConditionOperandType::OTHER));
+																return std::make_unique<MidoriExpression>(MidoriExpression::IfElse(if_token, then_token, else_token, std::move(condition), std::move(true_branch), std::move(else_branch)));
 															}
 														);
 												}

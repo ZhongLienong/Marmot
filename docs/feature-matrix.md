@@ -11,9 +11,9 @@ See [Versioning Policy](versioning-policy.md) for how `Stable`,
 
 ## Stability Levels
 
-- **Stable**: implemented on its relevant end-to-end path, documented in tracked docs, and covered by automated tests. For language syntax, that normally means the lexer/parser/typechecker/codegen/runtime path exists and at least one `test/` or `tests/` fixture exercises it.
+- **Stable**: implemented on its relevant end-to-end path, documented in tracked docs, and covered by automated tests. For language syntax, that normally means the lexer/parser/typechecker/lowering/runtime path exists and at least one `test/` or `tests/` fixture exercises it.
 - **Experimental**: implemented, but still limited, early, or thinly covered compared with the rest of the language.
-- **Planned**: not implemented in the current token, AST, parser, typechecker, code generator, or runtime surface.
+- **Planned**: not implemented in the current token, AST, parser, typechecker, lowering, or runtime surface.
 
 ## Type System
 
@@ -35,7 +35,7 @@ See [Versioning Policy](versioning-policy.md) for how `Stable`,
 | Pattern guards | Stable | `test/match/`, `compiler/tests/` | `case P if cond => e`. A failed guard falls through to the next arm, including one with the same constructor. A guarded arm does **not** count toward exhaustiveness, since the guard is a runtime test. |
 | Record update | Stable | `test/struct/` | `{ s with f = v, g = w }` copies a record with fields replaced. Simultaneous — right-hand sides see the original. Duplicate fields are an error, nested paths are not supported. Works inside generic functions, taking its type from the already-resolved source record. |
 | `if`, block expressions, `match`, `for` | Stable | `test/expression/`, `test/for_loop/`, `runtime/tests/runtime/` | Every control-flow form is an expression. `return`, `loop`, `break` and `continue` were removed; using one is a compile error naming the replacement. |
-| `for ... in` over ranges, arrays, and `Iterable` implementations | Stable | `test/for_loop/`, `test/prelude/` | `Iterable`-backed loops use `Iterable::Next` at type-check and codegen time. |
+| `for ... in` over ranges, arrays, and `Iterable` implementations | Stable | `test/for_loop/`, `test/prelude/` | `Iterable`-backed loops use `Iterable::Next` at type-check and lowering time. |
 | Binary and ternary ranges | Stable | `test/range/`, `test/for_loop/`, `runtime/tests/runtime/` | Both `start..end` and `start..step..end` are implemented. |
 | Array comprehensions | Stable | `test/array_comprehension/`, `compiler/tests/parser/` | Supports range, array, and `Iterable` inputs. |
 | Pipe operator: `|>` and `|> match with` | Stable | `test/pipe/` | Pipe rewriting is handled in the parser. |

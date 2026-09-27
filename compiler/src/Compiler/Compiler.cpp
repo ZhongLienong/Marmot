@@ -6,7 +6,6 @@
 #include "Compiler/BuildGraph/BuildGraph.h"
 #include "Compiler/BytecodeBackend/BytecodeBackend.h"
 #include "Compiler/BytecodeLinker/BytecodeLinker.h"
-#include "Compiler/CodeGenerator/CodeGenerator.h"
 #include "Compiler/Lexer/Lexer.h"
 #include "Compiler/Lowering/Lowering.h"
 #include "Compiler/MidoriIR/MidoriIRPrinter.h"
@@ -14,7 +13,6 @@
 #include "Compiler/MidoriIROptimizer/MidoriIROptimizer.h"
 #include "Compiler/Module/CompiledModule.h"
 #include "Compiler/ModuleManager/ModuleManager.h"
-#include "Compiler/OptimizerManager/OptimizerManager.h"
 #include "Compiler/Parser/Parser.h"
 #include "Compiler/StaticAnalyzerManager/StaticAnalyzerManager.h"
 #include "Compiler/TypeChecker/TypeChecker.h"
@@ -28,7 +26,6 @@
 #include <filesystem>
 #include <mutex>
 #include <ranges>
-#include <span>
 #include <sstream>
 #include <exception>
 #include <thread>
@@ -83,7 +80,6 @@ namespace
 		std::atomic<size_t>& m_completed_modules;
 		const std::vector<std::vector<std::string>>& m_tiers;
 		size_t m_total_modules;
-		CompilerBackend m_backend;
 		bool m_emit_midori_ir;
 	};
 
@@ -116,7 +112,7 @@ namespace
 		std::optional<LoweredModule> m_lowered;
 		std::string m_midori_ir;
 #if MIDORI_ENABLE_OPTIMIZER_STATS
-		OptimizerLog m_optimizer_log;
+		std::string m_optimizer_log;
 #endif
 
 		CompileStateResult WithImportContext() &&;
@@ -124,8 +120,6 @@ namespace
 		CompileStateResult WithParsedModule() &&;
 		CompileStateResult WithTypeCheckedAst() &&;
 		CompileStateResult WithStaticAnalysis() &&;
-		CompileStateResult WithOptimizedAst() &&;
-		CompileStateResult WithBytecode() &&;
 		CompileStateResult WithLoweredModule() &&;
 		CompileStateResult WithBackendBytecode() &&;
 		MidoriResult::CompiledModuleReportResult Finalize() &&;
@@ -215,12 +209,6 @@ namespace
 		state.m_warnings.Append(std::move(parsed_module.m_warnings));
 		state.m_parsed_module = std::move(parsed_module);
 		state.m_ast = std::move(state.m_parsed_module.m_ast);
-		return std::move(state);
-	}
-
-	static CompileState ApplyAst(CompileState state, MidoriProgramTree&& ast)
-	{
-		state.m_ast = std::move(ast);
 		return std::move(state);
 	}
 
@@ -368,7 +356,7 @@ namespace
 	}
 
 #if MIDORI_ENABLE_OPTIMIZER_STATS
-	static size_t ReportCompiled(CompileEnv& env, const std::string& file_path, size_t tier_idx, const OptimizerLog* optimizer_log)
+	static size_t ReportCompiled(CompileEnv& env, const std::string& file_path, size_t tier_idx, const std::string& optimizer_log)
 #else
 	static size_t ReportCompiled(CompileEnv& env, const std::string& file_path, size_t tier_idx)
 #endif
@@ -397,15 +385,12 @@ namespace
 			}
 
 #if MIDORI_ENABLE_OPTIMIZER_STATS
-			if (optimizer_log && optimizer_log->m_enabled)
+			Printer::Print<Printer::Color::CYAN>("\n=== MidoriIR Optimizer ===\n");
+			if (!optimizer_log.empty())
 			{
-				Printer::Print<Printer::Color::CYAN>("\n=== Optimization Pass ===\n");
-				if (!optimizer_log->m_body.empty())
-				{
-					Printer::Print<Printer::Color::MAGENTA>(optimizer_log->m_body);
-				}
-				Printer::Print<Printer::Color::CYAN>("=========================\n\n");
+				Printer::Print<Printer::Color::MAGENTA>(optimizer_log);
 			}
+			Printer::Print<Printer::Color::CYAN>("==========================\n\n");
 #endif
 		}
 
@@ -687,19 +672,6 @@ namespace
 		return StaticAnalyzerManager().Analyze(ast, file_path, module_source_lines);
 	}
 
-	static MidoriResult::OptimizerResult OptimizeModule(MidoriProgramTree&& ast
-#if MIDORI_ENABLE_OPTIMIZER_STATS
-		, OptimizerLog* optimizer_log, std::mutex* print_mutex
-#endif
-	)
-	{
-#if MIDORI_ENABLE_OPTIMIZER_STATS
-		return OptimizerManager(std::move(ast)).Optimize(optimizer_log, print_mutex);
-#else
-		return OptimizerManager(std::move(ast)).Optimize();
-#endif
-	}
-
 	static ModuleExportInfo BuildModuleExports(const ModuleDeclaration* module_decl, const CompiledModule::TypeclassMetadataMap& typeclass_metadata)
 	{
 		ModuleExportInfo export_info;
@@ -723,11 +695,6 @@ namespace
 		}
 
 		return export_info;
-	}
-
-	static MidoriResult::CodeGeneratorResult GenerateModuleBytecode(MidoriProgramTree&& optimized_ast, const std::string& file_path, const std::vector<std::string>& module_source_lines, const std::string& module_name, const std::unordered_set<std::string>& export_set, const ImportContext& import_context)
-	{
-		return CodeGenerator(std::move(optimized_ast), file_path, module_source_lines, module_name, export_set, import_context.m_imported_typeclass_methods, import_context.m_imported_typeclass_instances, import_context.m_imported_typeclass_instance_types, import_context.m_imported_generic_functions).GenerateModuleBytecode();
 	}
 
 	static CompileStateResult ValidateExports(CompileState state);
@@ -791,36 +758,6 @@ namespace
 		return ApplyStaticAnalysis(std::move(state), std::move(analysis_result));
 	}
 
-	CompileStateResult CompileState::WithOptimizedAst() &&
-	{
-		CompileState state = std::move(*this);
-		return ApplyToState<MidoriProgramTree, ApplyAst>
-		(
-			OptimizeModule(std::move(state.m_ast)
-#if MIDORI_ENABLE_OPTIMIZER_STATS
-				, &state.m_optimizer_log, state.m_env ? &state.m_env->m_print_mutex : nullptr
-#endif
-			),
-			std::move(state)
-		);
-	}
-
-	CompileStateResult CompileState::WithBytecode() &&
-	{
-		CompileState state = std::move(*this);
-		state.m_export_info = BuildModuleExports(state.m_module_decl, state.m_parsed_module.m_typeclass_metadata);
-		state.m_module_name = state.m_module_decl ? state.m_module_decl->ModuleName() : std::filesystem::path(state.m_file_path).stem().string();
-
-		MidoriResult::CodeGeneratorResult bytecode_result =
-			GenerateModuleBytecode(std::move(state.m_ast), state.m_file_path, state.m_source_lines, state.m_module_name, state.m_export_info.m_export_set, state.m_import_context);
-		if (!bytecode_result.has_value())
-		{
-			return std::unexpected(MakeStateErrorReport(std::move(state), std::move(bytecode_result.error())));
-		}
-
-		return ApplyBytecode(std::move(state), std::move(bytecode_result).value());
-	}
-
 	static LoweringImports MakeLoweringImports(const ImportContext& import_context)
 	{
 		LoweringImports imports;
@@ -865,7 +802,7 @@ namespace
 
 	// Development builds verify after lowering and after every pass, Release
 	// builds once, before the backend.
-	static std::optional<CompilerError> OptimizeMidoriIR(MidoriIRModule& module, const std::string& file_path)
+	static std::optional<CompilerError> OptimizeMidoriIR(MidoriIROptimizer& optimizer, MidoriIRModule& module, const std::string& file_path)
 	{
 		if (MidoriIROptimizer::VerifiesEachPass())
 		{
@@ -875,7 +812,7 @@ namespace
 				return lowered;
 			}
 		}
-		std::expected<void, MidoriIRPassFailure> optimized = MidoriIROptimizer().Optimize(module);
+		std::expected<void, MidoriIRPassFailure> optimized = optimizer.Optimize(module);
 		if (!optimized.has_value())
 		{
 			return InvalidMidoriIR(module, optimized.error().m_violations, std::format("The MidoriIR pass {}", optimized.error().m_pass), file_path);
@@ -900,11 +837,15 @@ namespace
 			return std::unexpected(MakeStateErrorReport(std::move(state), std::move(lowered.error())));
 		}
 
-		std::optional<CompilerError> violation = OptimizeMidoriIR(lowered->m_module, state.m_file_path);
+		MidoriIROptimizer optimizer;
+		std::optional<CompilerError> violation = OptimizeMidoriIR(optimizer, lowered->m_module, state.m_file_path);
 		if (violation.has_value())
 		{
 			return std::unexpected(MakeStateErrorReport(std::move(state), MidoriResult::CompilerDiagnostics(std::move(violation).value())));
 		}
+#if MIDORI_ENABLE_OPTIMIZER_STATS
+		state.m_optimizer_log = optimizer.Log();
+#endif
 
 		if (state.m_env->m_emit_midori_ir)
 		{
@@ -917,7 +858,7 @@ namespace
 	CompileStateResult CompileState::WithBackendBytecode() &&
 	{
 		CompileState state = std::move(*this);
-		MidoriResult::CodeGeneratorResult bytecode_result = BytecodeBackend(state.m_lowered.value(), state.m_file_path, state.m_source_lines).Emit();
+		MidoriResult::BytecodeBackendResult bytecode_result = BytecodeBackend(state.m_lowered.value(), state.m_file_path, state.m_source_lines).Emit();
 		if (!bytecode_result.has_value())
 		{
 			return std::unexpected(MakeStateErrorReport(std::move(state), std::move(bytecode_result.error())));
@@ -1072,7 +1013,7 @@ namespace
 			state.m_file_path,
 			state.m_tier_idx
 #if MIDORI_ENABLE_OPTIMIZER_STATS
-			, &state.m_optimizer_log
+			, state.m_optimizer_log
 #endif
 		);
 
@@ -1119,16 +1060,6 @@ namespace
 		return std::move(state).WithStaticAnalysis();
 	}
 
-	static CompileStateResult StageOptimizedAst(CompileState state)
-	{
-		return std::move(state).WithOptimizedAst();
-	}
-
-	static CompileStateResult StageBytecode(CompileState state)
-	{
-		return std::move(state).WithBytecode();
-	}
-
 	static CompileStateResult StageLowering(CompileState state)
 	{
 		return std::move(state).WithLoweredModule();
@@ -1173,44 +1104,20 @@ namespace
 			std::string_view m_name;
 		};
 
-		static std::span<const NamedStage> Pipeline(CompilerBackend backend)
+		static constexpr std::array<NamedStage, 7u> s_pipeline =
 		{
-			static const std::array<NamedStage, 7u> s_ast_pipeline =
-			{
-				NamedStage{ StageImportContext, "import context" },
-				NamedStage{ StageSourceLines, "source lines" },
-				NamedStage{ StageParsedModule, "parser" },
-				NamedStage{ StageTypeCheckedAst, "type checker" },
-				NamedStage{ StageStaticAnalysis, "static analyzer" },
-				NamedStage{ StageOptimizedAst, "optimizer" },
-				NamedStage{ StageBytecode, "code generator" }
-			};
-
-			static const std::array<NamedStage, 7u> s_midori_ir_pipeline =
-			{
-				NamedStage{ StageImportContext, "import context" },
-				NamedStage{ StageSourceLines, "source lines" },
-				NamedStage{ StageParsedModule, "parser" },
-				NamedStage{ StageTypeCheckedAst, "type checker" },
-				NamedStage{ StageStaticAnalysis, "static analyzer" },
-				NamedStage{ StageLowering, "lowering" },
-				NamedStage{ StageBytecodeBackend, "bytecode backend" }
-			};
-
-			switch (backend)
-			{
-			case CompilerBackend::Ast:
-				return s_ast_pipeline;
-			case CompilerBackend::MidoriIR:
-				return s_midori_ir_pipeline;
-			}
-			std::unreachable();
-		}
+			NamedStage{ StageImportContext, "import context" },
+			NamedStage{ StageSourceLines, "source lines" },
+			NamedStage{ StageParsedModule, "parser" },
+			NamedStage{ StageTypeCheckedAst, "type checker" },
+			NamedStage{ StageStaticAnalysis, "static analyzer" },
+			NamedStage{ StageLowering, "lowering" },
+			NamedStage{ StageBytecodeBackend, "bytecode backend" }
+		};
 
 		static CompileStateResult RunStages(CompileState state)
 		{
-			const std::span<const NamedStage> stages = Pipeline(state.m_env->m_backend);
-			for (const NamedStage& stage : stages)
+			for (const NamedStage& stage : s_pipeline)
 			{
 				// An exception escaping a stage reaches a worker thread with no
 				// handler, so it must be turned into a diagnostic here while the
@@ -1587,7 +1494,7 @@ namespace
 
 	static CompileEnv MakeCompileEnv(BuildGraph& build_graph, std::unordered_map<std::string, CompiledModule>& compiled_modules, std::mutex& modules_mutex, std::mutex& print_mutex, std::atomic<size_t>& completed_modules, const CompilationSchedule& schedule, size_t total_modules, const CompilationInputs& inputs)
 	{
-		return CompileEnv{ build_graph, compiled_modules, modules_mutex, print_mutex, completed_modules, schedule.m_tiers, total_modules, inputs.Backend(), inputs.EmitsMidoriIR() };
+		return CompileEnv{ build_graph, compiled_modules, modules_mutex, print_mutex, completed_modules, schedule.m_tiers, total_modules, inputs.EmitsMidoriIR() };
 	}
 
 	static MidoriResult::ReportResult<BuildGraphArtifacts> CollectBytecodeModules(const CompilationSchedule& schedule, std::unordered_map<std::string, CompiledModule>& compiled_modules)

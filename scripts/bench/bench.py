@@ -3,17 +3,14 @@
 Run the benchmark suite and report per-benchmark medians.
 
 Optionally compares two sides with interleaved runs, so machine drift affects
-both equally: two compilers, each run with the marmotvm beside it, or one
-compiler through two backends. To keep a baseline, copy a build's out/ folder
-aside before changing the sources.
+both equally: two compilers, each run with the marmotvm beside it. To keep a
+baseline, copy a build's out/ folder aside before changing the sources.
 
 Usage:
     python scripts/dev.py bench                         # the Release build
     python scripts/dev.py bench --runs 7                # more samples
     python scripts/dev.py bench --compare old/out/marmotc
     python scripts/dev.py bench --exe path/to/marmotc
-    python scripts/dev.py bench --backend ir            # through MidoriIR
-    python scripts/dev.py bench --backend ir --compare-backend ast
     python scripts/dev.py bench --every                 # every file in benchmarks/
 """
 
@@ -47,17 +44,6 @@ RESULT_PATTERN = re.compile(r"^(.*?)(?: benchmark)? took (\d+) milliseconds", re
 MS_PATTERN = re.compile(r"^(.*?)(?::| in) (\d+) ms$", re.MULTILINE)
 
 
-@dataclass(frozen=True)
-class Side:
-    """A compiler and the backend it compiles through."""
-
-    exe: Path
-    backend: str
-
-    def __str__(self) -> str:
-        return f"{self.exe} --backend {self.backend}"
-
-
 def every_workload() -> list[Path]:
     """The files in benchmarks/ that print a timing."""
     def prints_timing(path: Path) -> bool:
@@ -66,17 +52,15 @@ def every_workload() -> list[Path]:
     return sorted(path for path in (ROOT / "benchmarks").glob("*.mmt") if prints_timing(path))
 
 
-def run_workload(side: Side, workload: Path, prefix: bool) -> dict[str, int]:
+def run_workload(exe: Path, workload: Path, prefix: bool) -> dict[str, int]:
     # marmotc builds the workload; marmotvm (beside it) runs what is measured.
     environment = checkout_environment()
     with tempfile.TemporaryDirectory(prefix="marmot-bench-") as directory:
         program = Path(directory) / (workload.stem + ".mmc")
-        # A compiler from before --backend existed takes the default, ast.
-        backend = [] if side.backend == "ast" else ["--backend", side.backend]
-        subprocess.run([str(side.exe), "build", str(workload), "-o", str(program), "--quiet", *backend],
+        subprocess.run([str(exe), "build", str(workload), "-o", str(program), "--quiet"],
                        cwd=ROOT, env=environment, timeout=600, check=True, capture_output=True)
         proc = subprocess.run(
-            [str(vm_beside(side.exe)), str(program)],
+            [str(vm_beside(exe)), str(program)],
             capture_output=True,
             text=True,
             cwd=ROOT,
@@ -94,8 +78,8 @@ def run_workload(side: Side, workload: Path, prefix: bool) -> dict[str, int]:
     return results
 
 
-def collect(sides: list[Side], workloads: list[Path], runs: int) -> dict[Side, dict[str, list[int]]]:
-    samples: dict[Side, dict[str, list[int]]] = {side: {} for side in sides}
+def collect(sides: list[Path], workloads: list[Path], runs: int) -> dict[Path, dict[str, list[int]]]:
+    samples: dict[Path, dict[str, list[int]]] = {side: {} for side in sides}
     prefix = workloads != WORKLOADS
     for run_index in range(runs):
         for workload in workloads:
@@ -111,20 +95,15 @@ def main(argv: list[str]) -> int:
     add_build_arguments(parser, default="Release")
     parser.add_argument("--exe", type=Path, default=None, help="marmotc to benchmark, instead of the build's")
     parser.add_argument("--compare", type=Path, default=None, help="Baseline marmotc for A/B comparison")
-    parser.add_argument("--backend", choices=["ast", "ir"], default="ast", help="The path marmotc compiles through (default: ast)")
-    parser.add_argument("--compare-backend", choices=["ast", "ir"], default=None,
-                        help="Baseline backend for A/B comparison, of the --compare compiler or else the same one")
     parser.add_argument("--every", action="store_true", help="Run every timed file in benchmarks/, not only the usual workloads")
     parser.add_argument("--runs", type=int, default=5, help="Samples per benchmark (default 5)")
     args = parser.parse_args(argv)
 
-    exe = args.exe.resolve() if args.exe else BuildTree.from_args(args).require_compiler()
-    current = Side(exe, args.backend)
-    comparing = args.compare is not None or args.compare_backend is not None
-    baseline = Side(args.compare.resolve() if args.compare else exe, args.compare_backend or args.backend)
-    if comparing and baseline == current:
-        parser.error("the baseline is the same compiler and backend as the current side")
-    sides = [baseline, current] if comparing else [current]
+    current = args.exe.resolve() if args.exe else BuildTree.from_args(args).require_compiler()
+    baseline = args.compare.resolve() if args.compare else None
+    if baseline == current:
+        parser.error("the baseline is the same compiler as the current side")
+    sides = [current] if baseline is None else [baseline, current]
 
     samples = collect(sides, every_workload() if args.every else WORKLOADS, args.runs)
 
@@ -135,7 +114,7 @@ def main(argv: list[str]) -> int:
                 labels.append(label)
 
     name_width = max(len(label) for label in labels) + 2
-    if comparing:
+    if baseline is not None:
         print(f"baseline: {baseline}\ncurrent:  {current}\n")
         print(f"{'benchmark':<{name_width}}{'baseline':>10}{'current':>10}{'delta':>9}")
         for label in labels:

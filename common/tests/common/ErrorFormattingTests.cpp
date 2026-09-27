@@ -148,10 +148,10 @@ TEST_CASE("CompilerError WithToken renders a single caret for zero-length token 
 TEST_CASE("Simple compiler diagnostics render as plain messages", "[error][warning][format]")
 {
 	const CompilerError error = CompilerError::Simple(CompilerStage::Module, "Missing import");
-	const CompilerWarning warning = CompilerWarning::Simple(CompilerStage::Optimizer, "Dead store removed");
+	const CompilerWarning warning = CompilerWarning::Simple(CompilerStage::StaticAnalyzer, "Local 'count' is never used");
 
 	REQUIRE(error.Rendered() == "Missing import");
-	REQUIRE(warning.Rendered() == "Dead store removed");
+	REQUIRE(warning.Rendered() == "Local 'count' is never used");
 }
 
 TEST_CASE("Runtime errors render file-backed source lines", "[error][format][runtime]")

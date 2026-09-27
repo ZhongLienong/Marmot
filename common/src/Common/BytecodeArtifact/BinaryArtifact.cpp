@@ -275,7 +275,7 @@ namespace
 			// source_path
 			writer.WriteString(executable.GetProcedureSourcePath(proc_index));
 
-			// bytecode — raw u8 stream, already LSB-first per CodeGenerator
+			// bytecode — raw u8 stream, already LSB-first per BytecodeBackend
 			const int bytecode_size = executable.GetByteCodeSize(proc_index);
 			writer.WriteU32(static_cast<uint32_t>(bytecode_size));
 			for (int instr = 0; instr < bytecode_size; instr += 1)

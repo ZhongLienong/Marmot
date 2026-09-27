@@ -10,7 +10,7 @@
 #include <unordered_map>
 #include <vector>
 
-// A lowered module to bytecode, for the linker as the code generator's is.
+// A lowered module to bytecode, for the linker.
 // The module's top-level function is procedure 0 and every other function
 // follows in order. A value that crosses a block edge or is used twice lives
 // in a frame slot; a value used once, by an instruction that can take it from
@@ -33,7 +33,7 @@ private:
 public:
 	BytecodeBackend(const LoweredModule& lowered, std::string_view file_name, const std::vector<std::string>& source_lines);
 
-	MidoriResult::CodeGeneratorResult Emit() &&;
+	MidoriResult::BytecodeBackendResult Emit() &&;
 
 	[[nodiscard]] std::optional<BytecodeModule::SourceProvenance> MakeSourceProvenance(const Token& token) const;
 	[[nodiscard]] CompilerError LimitExceeded(std::string_view message, int line) const;

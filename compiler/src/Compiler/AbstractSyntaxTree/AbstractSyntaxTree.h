@@ -31,18 +31,14 @@ enum class MidoriLiteralKind
 // binary. Nothing when the lexeme is malformed or does not fit in 64 unsigned bits.
 std::optional<uint64_t> ParseUnsignedLiteral(std::string_view lexeme);
 
-// Value of an Integer literal lexeme. Also accepts a leading '-', which the optimizer
-// writes when it folds a negative constant back into a literal. Nothing when the value
-// does not fit in a signed 64-bit integer.
+// Value of an Integer literal lexeme. Also accepts a leading '-', which the parser
+// writes for a negative literal pattern. Nothing when the value does not fit in a
+// signed 64-bit integer.
 std::optional<int64_t> ParseIntegerLiteral(std::string_view lexeme);
 
-// Value of a Float literal lexeme, including the forms FloatLiteralLexeme writes: an
-// exponent, a sign, "inf" and "nan". Nothing when the lexeme is malformed.
+// Value of a Float literal lexeme, including an exponent and a leading sign. Nothing
+// when the lexeme is malformed.
 std::optional<double> ParseFloatLiteral(std::string_view lexeme);
-
-// The lexeme the optimizer writes for a folded Float: the shortest text that reads back
-// as exactly this value, so a folded constant is the value the program would compute.
-std::string FloatLiteralLexeme(double value);
 
 class MidoriStatement
 {
@@ -87,7 +83,6 @@ public:
 		std::unique_ptr<MidoriExpression> m_body;
 		std::optional<int> m_local_index;
 		int m_captured_count;
-		bool m_is_lift_wrapper = false;
 
 		FunctionDefinition(const Token& name, std::vector<Token>&& generic_params, std::vector<Token>&& params, std::vector<std::shared_ptr<MidoriType>>&& param_types, std::shared_ptr<MidoriType>&& return_type, std::unique_ptr<MidoriExpression>&& body, std::optional<int>&& local_index, int captured_count = 0, std::vector<MidoriType::ClassConstraint>&& constraints = {});
 	};
@@ -319,13 +314,6 @@ public:
 		using Tag = std::variant<Local, Cell, Global>;
 	};
 
-	enum class ConditionOperandType
-	{
-		INTEGER,
-		FLOAT,
-		OTHER
-	};
-
 	struct BaseExpression
 	{
 		std::shared_ptr<MidoriType> m_type_data = MidoriType::MakeUndecidedType();
@@ -334,7 +322,6 @@ public:
 	struct As : BaseExpression
 	{
 		Token m_as_keyword;
-		std::weak_ptr<MidoriType> m_from_type;
 		std::shared_ptr<MidoriType> m_to_type;
 		std::unique_ptr<MidoriExpression> m_expr;
 		bool m_uses_convertable = false;
@@ -406,7 +393,7 @@ public:
 		// Concurrency::Spawn(argument, F): m_arguments holds the one argument, which
 		// stands for all of F's parameters - the value itself for one parameter, a
 		// tuple spread across them for several, and a Unit that is discarded for none.
-		// The type checker records F's arity so the code generator knows which.
+		// The type checker records F's arity so lowering knows which.
 		int m_callee_arity = -1;
 
 		Spawn(const Token& spawn_keyword, std::unique_ptr<MidoriExpression>&& callee, std::vector<std::unique_ptr<MidoriExpression>>&& arguments);
@@ -469,7 +456,6 @@ public:
 		std::unique_ptr<MidoriExpression> m_callee;
 		std::vector<std::unique_ptr<MidoriExpression>> m_arguments;
 		bool m_is_foreign;
-		bool m_is_tail_call = false;
 
 		Call(const Token& paren, std::unique_ptr<MidoriExpression>&& callee, std::vector<std::unique_ptr<MidoriExpression>>&& arguments, bool is_foreign = false);
 	};
@@ -534,7 +520,7 @@ public:
 		std::vector<FieldUpdate> m_updates;
 		// One entry per declared member slot, in declared order. Holds the index into
 		// m_updates that supplies that slot, or -1 when the slot is copied from the
-		// source. Filled by the type checker, consumed by the code generator.
+		// source. Filled by the type checker, consumed by lowering.
 		std::vector<int> m_slot_sources;
 
 		RecordUpdate(const Token& with_keyword, std::unique_ptr<MidoriExpression>&& source, std::vector<FieldUpdate>&& updates);
@@ -548,9 +534,8 @@ public:
 		std::unique_ptr<MidoriExpression> m_condition;
 		std::unique_ptr<MidoriExpression> m_true_branch;
 		std::unique_ptr<MidoriExpression> m_else_branch;
-		ConditionOperandType m_condition_operand_type;
 
-		IfElse(const Token& if_token, const Token& then_token, const Token& else_token, std::unique_ptr<MidoriExpression>&& condition, std::unique_ptr<MidoriExpression>&& true_branch, std::unique_ptr<MidoriExpression>&& else_branch, ConditionOperandType condition_operand_type);
+		IfElse(const Token& if_token, const Token& then_token, const Token& else_token, std::unique_ptr<MidoriExpression>&& condition, std::unique_ptr<MidoriExpression>&& true_branch, std::unique_ptr<MidoriExpression>&& else_branch);
 	};
 
 	struct MemberAccess : BaseExpression

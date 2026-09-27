@@ -1,0 +1,18 @@
+module HiddenLocalCaptureInOperandPosition
+
+// A closure capturing a local that a match binds, with the match used as an
+// operand, captures that local's value.
+//
+// The code generator shifted the match's locals above the pending operand but
+// found captures by their parser index, so it read unrelated memory, and later
+// rejected the program. MidoriIR captures values, not frame slots, so there is
+// nothing to shift.
+
+import { "../../../MarmotPrelude/IO.mmt" }
+
+def ShowF = fn(label : Text, f : fn() -> Int) -> Unit =>
+	IO::PrintLine(label ++ " " ++ (f() as Text));
+
+def pair = (3, 4);
+
+ShowF("captured", match pair with case (a, b) => fn() -> Int => a + b);

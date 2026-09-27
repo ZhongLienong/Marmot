@@ -41,17 +41,6 @@ const std::unordered_map<std::string, NativeLibraryPolicy>& CompilationInputs::N
 	return m_native_library_policies;
 }
 
-CompilationInputs CompilationInputs::WithBackend(CompilerBackend backend) &&
-{
-	m_backend = backend;
-	return std::move(*this);
-}
-
-CompilerBackend CompilationInputs::Backend() const
-{
-	return m_backend;
-}
-
 CompilationInputs CompilationInputs::WithEmitMidoriIR(bool emit_midori_ir) &&
 {
 	m_emit_midori_ir = emit_midori_ir;

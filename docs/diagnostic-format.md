@@ -168,7 +168,6 @@ Current `stage` values:
 - `Lowering`
 - `CodeGenerator`
 - `Module`
-- `Optimizer`
 - `BytecodeLinker`
 - `Compiler`
 - `Runtime`

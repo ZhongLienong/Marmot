@@ -521,8 +521,7 @@ namespace MidoriResult
 	using TypeResult = Result<std::shared_ptr<MidoriType>>;
 	using TypeListResult = Result<std::vector<std::shared_ptr<MidoriType>>>;
 	using TypeCheckerResult = DiagnosticsResult<MidoriProgramTree>;
-	using OptimizerResult = Result<MidoriProgramTree>;
-	using CodeGeneratorResult = DiagnosticsResult<BytecodeModule>;
+	using BytecodeBackendResult = DiagnosticsResult<BytecodeModule>;
 	using CompiledModuleResult = DiagnosticsResult<CompiledModule>;
 	using CompiledModuleReportResult = ReportResult<CompiledModule>;
 	using CompilerResult = DiagnosticsResult<MidoriExecutable>;

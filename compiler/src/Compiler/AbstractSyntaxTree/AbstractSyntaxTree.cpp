@@ -62,13 +62,6 @@ std::optional<double> ParseFloatLiteral(std::string_view lexeme)
 	return value;
 }
 
-std::string FloatLiteralLexeme(double value)
-{
-	char buffer[64];
-	const std::to_chars_result result = std::to_chars(std::begin(buffer), std::end(buffer), value);
-	return std::string(std::begin(buffer), result.ptr);
-}
-
 namespace
 {
 	struct TypeDataAccessor
@@ -262,15 +255,14 @@ MidoriExpression::RecordUpdate::RecordUpdate(const Token& with_keyword, std::uni
 {
 }
 
-MidoriExpression::IfElse::IfElse(const Token& if_token, const Token& then_token, const Token& else_token, std::unique_ptr<MidoriExpression>&& condition, std::unique_ptr<MidoriExpression>&& true_branch, std::unique_ptr<MidoriExpression>&& else_branch, ConditionOperandType condition_operand_type)
+MidoriExpression::IfElse::IfElse(const Token& if_token, const Token& then_token, const Token& else_token, std::unique_ptr<MidoriExpression>&& condition, std::unique_ptr<MidoriExpression>&& true_branch, std::unique_ptr<MidoriExpression>&& else_branch)
 	:
 	m_if_token(if_token),
 	m_then_token(then_token),
 	m_else_token(else_token),
 	m_condition(std::move(condition)),
 	m_true_branch(std::move(true_branch)),
-	m_else_branch(std::move(else_branch)),
-	m_condition_operand_type(condition_operand_type)
+	m_else_branch(std::move(else_branch))
 {
 }
 

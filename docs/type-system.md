@@ -376,7 +376,7 @@ Associated types are especially useful when one type parameter logically determi
 
 ### Operator-Backed Type Classes
 
-Several operators are wired into the type checker and code generator so they can dispatch through type classes when the operands are not handled entirely as builtins.
+Several operators are wired into the type checker and lowering so they can dispatch through type classes when the operands are not handled entirely as builtins.
 
 - `as` can use `Convertable<From, To>`
 - `++` can use `Concatenable<T>`

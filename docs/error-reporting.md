@@ -37,7 +37,6 @@ Diagnostics carry a `CompilerStage`:
 - `Lowering`
 - `CodeGenerator`
 - `Module`
-- `Optimizer`
 - `BytecodeLinker`
 - `Compiler`
 - `Runtime`

@@ -124,20 +124,26 @@ MidoriResult::DiagnosticsResult<LoweredModule> Lowering::Lower() &&
 	FunctionScope scope(top_level, m_functions[top_level.m_index], module_context, nullptr, 0);
 	m_scopes.push_back(&scope);
 
-	const Emitted lowered = ReserveTopLevelNames()
-		.and_then([this]() -> Emitted
+	std::vector<CompilerError> reservation_errors = ReserveTopLevelNames();
+	if (!reservation_errors.empty())
+	{
+		m_scopes.pop_back();
+		return std::unexpected(MidoriResult::CompilerDiagnostics(std::move(reservation_errors)));
+	}
+
+	const Emitted lowered = [this]() -> Emitted
+	{
+		for (std::unique_ptr<MidoriStatement>& statement : m_program)
 		{
-			for (std::unique_ptr<MidoriStatement>& statement : m_program)
+			const Emitted statement_lowered = LowerTopLevelStatement(*statement);
+			if (!statement_lowered.has_value())
 			{
-				const Emitted statement_lowered = LowerTopLevelStatement(*statement);
-				if (!statement_lowered.has_value())
-				{
-					return statement_lowered;
-				}
+				return statement_lowered;
 			}
-			Builder().AtLine(0).Return(Builder().ConstUnit());
-			return {};
-		});
+		}
+		Builder().AtLine(0).Return(Builder().ConstUnit());
+		return {};
+	}();
 	m_scopes.pop_back();
 
 	if (!lowered.has_value())
@@ -258,17 +264,20 @@ void Lowering::AfterNever()
 // A body may name a top-level definition that comes after it, so every one has
 // its global, every function its MidoriIR function, every generic its template
 // and every class and instance its entry before any body is lowered.
-Lowering::Emitted Lowering::ReserveTopLevelNames()
+// Every name is reserved even after one fails, so each declaration the module
+// cannot lower is reported, not only the first.
+std::vector<CompilerError> Lowering::ReserveTopLevelNames()
 {
+	std::vector<CompilerError> errors;
 	for (std::unique_ptr<MidoriStatement>& statement : m_program)
 	{
-		const Emitted reserved = ReserveTopLevelName(*statement);
+		Emitted reserved = ReserveTopLevelName(*statement);
 		if (!reserved.has_value())
 		{
-			return reserved;
+			errors.push_back(std::move(reserved.error()));
 		}
 	}
-	return {};
+	return errors;
 }
 
 Lowering::Emitted Lowering::ReserveTopLevelName(MidoriStatement& statement)

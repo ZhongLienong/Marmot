@@ -23,8 +23,6 @@ std::string_view CompilerStageName(CompilerStage stage)
 		return "CodeGenerator";
 	case CompilerStage::Module:
 		return "Module";
-	case CompilerStage::Optimizer:
-		return "Optimizer";
 	case CompilerStage::BytecodeLinker:
 		return "BytecodeLinker";
 	case CompilerStage::Compiler:
@@ -186,8 +184,6 @@ namespace
 				return "Code Generator Error";
 			case CompilerStage::Module:
 				return "Module Error";
-			case CompilerStage::Optimizer:
-				return "Optimizer Error";
 			case CompilerStage::BytecodeLinker:
 				return "Bytecode Linker Error";
 			case CompilerStage::Compiler:
@@ -216,8 +212,6 @@ namespace
 			return "Code Generator Warning";
 		case CompilerStage::Module:
 			return "Module Warning";
-		case CompilerStage::Optimizer:
-			return "Optimizer Warning";
 		case CompilerStage::BytecodeLinker:
 			return "Bytecode Linker Warning";
 		case CompilerStage::Compiler:
@@ -1010,11 +1004,6 @@ CompilerError MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCo
 {
 	// Use unified implementation without column info (no caret)
 	return GenerateRichError(CompilerStage::CodeGenerator, message, line, file_name, source_lines, std::nullopt, std::nullopt, suggestion, code);
-}
-
-CompilerError MidoriError::GenerateCodeGeneratorErrorWithContext(std::string_view message, int line, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion)
-{
-	return GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::None, message, line, file_name, source_lines, suggestion);
 }
 
 CompilerError MidoriError::GenerateLoweringErrorWithContext(CompilerErrorCode code, std::string_view message, int line, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion)

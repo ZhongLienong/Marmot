@@ -71,18 +71,12 @@ namespace MidoriTest
 
 	[[nodiscard]] std::expected<TypedSnippet, CompilerError> TypeCheckSnippet(std::string source_code, std::string file_name = "Test.mmt");
 
-	[[nodiscard]] std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> GenerateBytecodeSnippetWithDiagnostics(std::string source_code, std::string file_name = "Test.mmt");
-
-	// Identical to GenerateBytecodeSnippetWithDiagnostics, except it runs
-	// OptimizerManager between type checking and code generation, the way the
-	// real compiler does (see Compiler.cpp's WithOptimizedAst). Use this when a
-	// test needs to know what the optimizer pipeline does to codegen output -
-	// GenerateBytecodeSnippetWithDiagnostics alone cannot detect a regression
-	// that only shows up after optimisation, because it never runs one.
-	[[nodiscard]] std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> GenerateOptimizedBytecodeSnippetWithDiagnostics(std::string source_code, std::string file_name = "Test.mmt");
-
 	// Lowers one module to MidoriIR, as the compiler's lowering stage does.
 	[[nodiscard]] std::expected<LoweredModule, MidoriResult::CompilerDiagnostics> LowerSnippetWithDiagnostics(std::string source_code, std::string file_name = "Test.mmt");
+
+	// Lowers one module, optimizes its MidoriIR and emits it, as the compiler
+	// does after static analysis.
+	[[nodiscard]] std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> GenerateBytecodeSnippetWithDiagnostics(std::string source_code, std::string file_name = "Test.mmt");
 
 	[[nodiscard]] std::expected<AnalyzedSnippet, CompilerError> AnalyzeSnippet(std::string source_code, std::string file_name = "Test.mmt");
 
@@ -92,7 +86,6 @@ namespace MidoriTest
 	[[nodiscard]] MidoriResult::CompilerResult CompileSnippet(std::string source_code, std::string file_name = "Test.mmt");
 
 	[[nodiscard]] std::expected<ExecutedSnippet, CompilerError> ExecuteSnippet(std::string source_code, std::string file_name = "Test.mmt");
-	[[nodiscard]] std::expected<ExecutedSnippet, CompilerError> ExecuteSnippet(std::string source_code, std::string file_name, CompilerBackend backend);
 
 	[[nodiscard]] std::vector<Token::Name> CollectTokenNames(const TokenStream& tokens, bool include_whitespace = false, bool include_end_of_file = false);
 }

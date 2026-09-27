@@ -93,8 +93,8 @@ namespace MidoriBuild
     // Bumped 2026-09-12: the 2026-09-12-delete-in-place-mutation plan removed
     // six builtins from the MIDDLE of MidoriFFIRegistry's entry table (five in
     // Task 6 - ArrayAppend/ArrayPrepend/ArrayExtend/TextAppend/TextPrepend -
-    // and ArrayPop in Task 9). The code generator serialises a builtin's
-    // POSITION in that table into the bytecode (CodeGenerator.cpp), and the
+    // and ArrayPop in Task 9). The bytecode backend serialises a builtin's
+    // POSITION in that table into the bytecode (BytecodeBackend.cpp), and the
     // VM looks the builtin up by that position at call time
     // (VirtualMachine.cpp). Removing entries from the middle shifts every
     // later entry's position, so a .mmc built against the old table would

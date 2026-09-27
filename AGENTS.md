@@ -20,7 +20,7 @@ driver does not link the runtime.
 | Path | What it holds |
 |---|---|
 | `common/src` | Values, opcodes, the executable format, errors, builtin table |
-| `compiler/src/Compiler` | Lexer, parser, type checker, static analysis, optimizer, code generator, linker |
+| `compiler/src/Compiler` | Lexer, parser, type checker, static analysis, lowering, MidoriIR optimizer, bytecode backend, linker |
 | `runtime/src` | The interpreter, the GC, workers, the builtin FFI library |
 | `vm/src` | The `marmotvm` entry point |
 | `tool/src` | The `marmot` tool |
@@ -135,8 +135,12 @@ Worth knowing before editing the front end, because each was a bug once:
   `Module::name` for imported ones. A qualified call is generic only if that
   module's function is.
 - `==` and `!=` are emitted by one function, so their type cases cannot drift.
-- Every top-level definition gets its global slot before any body is emitted.
-  `m_global_variables[name]` on an unknown name would insert slot 0.
+- Every top-level definition gets its global slot before any function is
+  lowered. Verifier rule 5 checks that every global read names a reserved slot.
+- The MidoriIR verifier runs after lowering and after every optimizer pass in
+  Development and Debug builds, and once before the backend in Release. A
+  violation is a compiler bug, never a user error. `marmotc check --emit-ir`
+  prints each module's IR after optimization; see `docs/midori-ir.md`.
 
 ## Gotchas
 

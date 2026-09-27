@@ -21,10 +21,7 @@ There is no secondary runtime scheduler, worker pool, or alternate execution mod
 
 ## Closures and Captures
 
-A closure's captures are `MidoriCellValue` boxes, read with `GET_CELL`. Two code paths build them:
-
-- The code generator (the default): uncaptured functions use `MAKE_FUNCTION`; capturing functions use `MAKE_CLOSURE` followed by `BIND_CAPTURES`, which copies the enclosing environment and promotes the enclosing frame's locals to cells in place, read afterwards with `GET_LOCAL_CELL` / `SET_LOCAL_CELL`. Non-captured locals use `GET_LOCAL*` / `SET_LOCAL*`.
-- The MidoriIR backend (`--backend ir`): a function with no captures uses `MAKE_FUNCTION_WIDE`; a closure uses `MAKE_CLOSURE_OF`, which takes exactly the values it captures from the stack and boxes each in a fresh cell. `SET_CAPTURE` fills a capture after the closure exists, which is how local functions that name each other reach one another. Nothing is promoted in place.
+A closure's captures are `MidoriCellValue` boxes, read with `GET_CELL`. A function with no captures uses `MAKE_FUNCTION_WIDE`; a closure uses `MAKE_CLOSURE_OF`, which takes exactly the values it captures from the stack and boxes each in a fresh cell. `SET_CAPTURE` fills a capture after the closure exists, which is how local functions that name each other reach one another. Nothing is promoted in place, and locals use `GET_LOCAL*` / `SET_LOCAL*`.
 
 Every function with no captures is one value, which `MAKE_FUNCTION` and `MAKE_FUNCTION_WIDE` hand out from the static closure cache; the cache is a garbage-collection root.
 

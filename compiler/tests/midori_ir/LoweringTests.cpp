@@ -45,17 +45,6 @@ namespace
 		CAPTURE(mismatch);
 		REQUIRE(matched);
 	}
-
-	void RequireSameOutputOnBothBackends(const std::string& source)
-	{
-		std::expected<MidoriTest::ExecutedSnippet, CompilerError> ast = MidoriTest::ExecuteSnippet(source, "Test.mmt", CompilerBackend::Ast);
-		std::expected<MidoriTest::ExecutedSnippet, CompilerError> ir = MidoriTest::ExecuteSnippet(source, "Test.mmt", CompilerBackend::MidoriIR);
-		REQUIRE(ast.has_value());
-		REQUIRE(ir.has_value());
-		CHECK(ir->m_exit_code == ast->m_exit_code);
-		CHECK(ir->m_output.m_stdout == ast->m_output.m_stdout);
-		CHECK(ir->m_output.m_stderr == ast->m_output.m_stderr);
-	}
 }
 
 TEST_CASE("Lowering names a top-level function directly and turns a call in tail position into a tail call", "[midori_ir][lowering]")
@@ -256,7 +245,7 @@ TEST_CASE("Every prelude module lowers to MidoriIR that verifies", "[midori_ir][
 	for (const std::filesystem::path& module : modules)
 	{
 		INFO(module.string());
-		MidoriDriver::CompileFileWithReportResult compiled = MidoriDriver::CompileFileWithReport(module, MidoriDriver::EnvironmentCompilationInputs().WithBackend(CompilerBackend::MidoriIR));
+		MidoriDriver::CompileFileWithReportResult compiled = MidoriDriver::CompileFileWithReport(module, MidoriDriver::EnvironmentCompilationInputs());
 		if (!compiled.has_value())
 		{
 			FAIL(compiled.error().Rendered());
@@ -264,7 +253,7 @@ TEST_CASE("Every prelude module lowers to MidoriIR that verifies", "[midori_ir][
 	}
 }
 
-TEST_CASE("Lowering reports an unknown builtin foreign function as the code generator does", "[midori_ir][lowering][diagnostics][ffi]")
+TEST_CASE("Lowering reports an unknown builtin foreign function", "[midori_ir][lowering][diagnostics][ffi]")
 {
 	MidoriTest::ErrorExpectation expectation;
 	expectation.m_stage = CompilerStage::Lowering;
@@ -276,9 +265,9 @@ foreign "MIDORI_FFI_PrintLin" PrintTypo : fn(Text) -> Unit;
 )"), expectation);
 }
 
-TEST_CASE("A program in the lowered subset prints the same on both backends", "[midori_ir][lowering][backend]")
+TEST_CASE("A program of scalars, branches and tail calls prints what it computes", "[midori_ir][lowering][backend]")
 {
-	RequireSameOutputOnBothBackends(R"(module Parity
+	const std::expected<MidoriTest::ExecutedSnippet, CompilerError> executed = MidoriTest::ExecuteSnippet(R"(module Parity
 foreign "MIDORI_FFI_Print" Print: fn(Text) -> Unit;
 def Fib = fn(n: Int, a: Int, b: Int) -> Int => if n == 0 then a else Fib(n - 1, b, a + b);
 def Show = fn(label: Text, value: Int) -> Unit => Print(label ++ "=" ++ (value as Text) ++ "\n");
@@ -292,6 +281,9 @@ Show("mixed", {
 Print(Pick((Fib(5, 0, 1) == 5) && !(Fib(6, 0, 1) == 5)) ++ "\n");
 Print(((Fib(7, 0, 1) as Float) / 2.0) as Text);
 )");
+	REQUIRE(executed.has_value());
+	CHECK(executed->m_exit_code == 0);
+	CHECK(executed->m_output.m_stdout == "fib=12586269025\nmixed=104\nyes\n6.5");
 }
 
 TEST_CASE("Lowering reads and calls another module's globals through imports", "[midori_ir][lowering][module]")
@@ -311,7 +303,7 @@ Print((Lib::Scale(Lib::factor) as Text) ++ "\n");
 	});
 
 	const MidoriBuild::ScopedTestModeOverride test_mode_override(true);
-	MidoriDriver::CompileFileWithReportResult compiled = MidoriDriver::CompileFileWithReport(project.Path("Main.mmt"), MidoriDriver::EnvironmentCompilationInputs().WithBackend(CompilerBackend::MidoriIR).WithEmitMidoriIR(true));
+	MidoriDriver::CompileFileWithReportResult compiled = MidoriDriver::CompileFileWithReport(project.Path("Main.mmt"), MidoriDriver::EnvironmentCompilationInputs().WithEmitMidoriIR(true));
 	if (!compiled.has_value())
 	{
 		FAIL(compiled.error().Rendered());

@@ -729,8 +729,8 @@ def map = fn<A, B>(list: List<A>, f: fn(A) -> B) -> List<B> =>
 ## Architecture
 
 - **Frontend**: Lexer → Module Manager → Parser → Type Checker → Static Analyzer
-- **Optimizer**: Constant folding, strength reduction, constant branch elimination, local constant propagation, dead code elimination, canonicalization cleanup, closure lifting, and tail call optimization; rerun until a fixpoint or the 8-iteration cap is reached
-- **Backend**: Bytecode generator → Linker
+- **Middle end**: Lowering to MidoriIR, a typed SSA IR in which generics are specialized → MidoriIR optimizer (constant propagation, inlining, contification, scalar replacement, GVN, loop-invariant code motion and others, run once)
+- **Backend**: Bytecode backend → Linker
 - **Runtime**: Single `VirtualMachine` execution path with a non-moving, generational (bitmap mark-sweep) garbage collector
 
 See [Runtime Architecture](docs/runtime-architecture.md) for details on VM execution, closure capture, and memory management.
@@ -743,7 +743,7 @@ See the [docs](docs/) folder for detailed technical documentation:
 - [Grammar](docs/grammar.md) - the language's syntax, fixed at v1
 - [Prelude](docs/prelude.md) - Standard-library module map and typed wrapper examples
 - [Compilation Workflow](docs/compilation-workflow.md) - Complete pipeline from lexing to linking
-- [MidoriIR](docs/midori-ir.md) - The typed SSA IR replacing the AST optimizer and code generator: structure, instructions, effects, verifier rules
+- [MidoriIR](docs/midori-ir.md) - The compiler's typed SSA IR: structure, instructions, effects, verifier rules, optimizer passes and bytecode emission
 - [Feature Matrix](docs/feature-matrix.md) - Current feature status, stability levels, and primary automated coverage
 - [Versioning Policy](docs/versioning-policy.md) - Compatibility rules for releases, deprecation, and breaking changes
 - [Error Reporting](docs/error-reporting.md) - Structured diagnostics, warning/error codes, and machine-readable output

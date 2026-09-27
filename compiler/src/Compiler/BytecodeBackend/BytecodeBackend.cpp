@@ -1721,7 +1721,7 @@ BytecodeBackend::BytecodeBackend(const LoweredModule& lowered, std::string_view 
 {
 }
 
-MidoriResult::CodeGeneratorResult BytecodeBackend::Emit() &&
+MidoriResult::BytecodeBackendResult BytecodeBackend::Emit() &&
 {
 	const MidoriIRModule& module = m_lowered.m_module;
 	const MidoriIRFunctionId top_level = module.m_top_level.value();

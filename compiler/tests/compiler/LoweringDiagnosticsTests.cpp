@@ -39,7 +39,7 @@ def main = fn() -> Int => {
 	}
 }
 
-TEST_CASE("CodeGenerator rejects a foreign name that is neither builtin nor package-declared", "[compiler][codegen][diagnostics][ffi]")
+TEST_CASE("Lowering rejects a foreign name that is neither builtin nor package-declared", "[compiler][lowering][diagnostics][ffi]")
 {
 	const std::string source =
 		R"(module ForeignTypo
@@ -61,7 +61,7 @@ foreign "MIDORI_FFI_PrintLin" PrintTypo : fn(Text) -> Unit;
 	RequireErrorMatches(bytecode_result.error().m_errors[0u], expectation);
 }
 
-TEST_CASE("CodeGenerator records the native libraries that foreign declarations name", "[compiler][codegen][ffi]")
+TEST_CASE("The backend records the native libraries that foreign declarations name", "[compiler][backend][ffi]")
 {
 	const std::string source =
 		R"(module Image
@@ -89,7 +89,7 @@ foreign "helper" Helper : fn() -> Int from "other";
 	CHECK(libraries[1u].m_symbols == std::vector<std::string>{ "helper" });
 }
 
-TEST_CASE("CodeGenerator asks for the library of a foreign function that is not a builtin", "[compiler][codegen][diagnostics][ffi]")
+TEST_CASE("Lowering asks for the library of a foreign function that is not a builtin", "[compiler][lowering][diagnostics][ffi]")
 {
 	const std::string source =
 		R"(module Image
@@ -130,7 +130,7 @@ def main = fn() -> Int => {
 	CHECK(empty_result.error().m_errors[0u].m_message.find("declares no functions") != std::string::npos);
 }
 
-TEST_CASE("CodeGenerator preserves structured diagnostics for recoverable lowering failures", "[compiler][codegen][diagnostics]")
+TEST_CASE("Lowering reports every unsupported foreign return type, not only the first", "[compiler][lowering][diagnostics]")
 {
 	std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> bytecode_result =
 		MidoriTest::GenerateBytecodeSnippetWithDiagnostics(UnsupportedForeignReturnSource(), "ForeignDiagnostics.mmt");
@@ -155,7 +155,7 @@ TEST_CASE("CodeGenerator preserves structured diagnostics for recoverable loweri
 	RequireErrorMatches(bytecode_result.error().m_errors[1u], second_expectation);
 }
 
-TEST_CASE("Compiler preserves all codegen diagnostics through the compile boundary", "[compiler][codegen][diagnostics]")
+TEST_CASE("Compiler preserves all lowering diagnostics through the compile boundary", "[compiler][lowering][diagnostics]")
 {
 	MidoriResult::CompilerResult compile_result = MidoriTest::CompileSnippet(UnsupportedForeignReturnSource(), "ForeignDiagnostics.mmt");
 	REQUIRE_FALSE(compile_result.has_value());

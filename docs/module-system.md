@@ -280,8 +280,9 @@ After module resolution, each module is compiled through:
 2. type-signature extraction for exported API
 3. type checking
 4. static analysis
-5. optimization
-6. code generation
+5. lowering
+6. MidoriIR optimization
+7. bytecode emission
 
 Each completed module contributes:
 

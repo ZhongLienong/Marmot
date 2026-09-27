@@ -58,11 +58,8 @@ namespace
 		std::optional<std::filesystem::path> m_output_path = std::nullopt;
 		std::optional<std::filesystem::path> m_deps_path = std::nullopt;
 		bool m_quiet = false;
-		// check and build: set by the hidden --backend, for testing MidoriIR
-		// before it replaces the AST path.
-		CompilerBackend m_backend = CompilerBackend::Ast;
 		// check and build: the hidden --emit-ir, which prints each module's
-		// MidoriIR. It needs --backend ir, and text output.
+		// MidoriIR. It needs text output.
 		bool m_emit_ir = false;
 	};
 
@@ -242,33 +239,6 @@ namespace
 		return true;
 	}
 
-	[[nodiscard]] bool ParseBackendValue(const std::vector<std::string_view>& args, size_t& index, CompilerBackend& backend, std::string& error)
-	{
-		if (index + 1u >= args.size())
-		{
-			error = "Missing value for --backend.";
-			return false;
-		}
-
-		const std::string_view backend_value = args[index + 1u];
-		if (backend_value == "ast")
-		{
-			backend = CompilerBackend::Ast;
-		}
-		else if (backend_value == "ir")
-		{
-			backend = CompilerBackend::MidoriIR;
-		}
-		else
-		{
-			error = std::format("Unknown backend: {}", backend_value);
-			return false;
-		}
-
-		index += 1u;
-		return true;
-	}
-
 	// Reads the value of --plan at args[index + 1].
 	[[nodiscard]] bool ParsePlanValue(const std::vector<std::string_view>& args, size_t& index, std::optional<std::filesystem::path>& plan_file, std::string& error)
 	{
@@ -356,16 +326,6 @@ namespace
 			if (arg == "--emit-ir")
 			{
 				invocation.m_emit_ir = true;
-				continue;
-			}
-
-			if (arg == "--backend")
-			{
-				std::string error;
-				if (!ParseBackendValue(args, index, invocation.m_backend, error))
-				{
-					return std::unexpected(error);
-				}
 				continue;
 			}
 
@@ -463,16 +423,6 @@ namespace
 			if (arg == "--emit-ir")
 			{
 				invocation.m_emit_ir = true;
-				continue;
-			}
-
-			if (arg == "--backend")
-			{
-				std::string error;
-				if (!ParseBackendValue(args, index, invocation.m_backend, error))
-				{
-					return std::unexpected(error);
-				}
 				continue;
 			}
 
@@ -683,10 +633,6 @@ namespace
 			invocation.m_format = global_format;
 		}
 
-		if (invocation.m_emit_ir && invocation.m_backend != CompilerBackend::MidoriIR)
-		{
-			return std::unexpected("--emit-ir needs --backend ir.");
-		}
 		if (invocation.m_emit_ir && invocation.m_format == OutputFormat::Json)
 		{
 			return std::unexpected("--emit-ir prints text, so it cannot be used with --format json.");
@@ -755,7 +701,7 @@ namespace
 	[[nodiscard]] MidoriDriver::CompileFileWithReportResult CompileInvocation(const Invocation& invocation)
 	{
 		CompilationInputs inputs = invocation.m_plan_inputs.value_or(MidoriDriver::EnvironmentCompilationInputs());
-		return MidoriDriver::CompileFileWithReport(invocation.m_source_file, std::move(inputs).WithBackend(invocation.m_backend).WithEmitMidoriIR(invocation.m_emit_ir));
+		return MidoriDriver::CompileFileWithReport(invocation.m_source_file, std::move(inputs).WithEmitMidoriIR(invocation.m_emit_ir));
 	}
 
 	void PrintMidoriIR(const MidoriResult::CompiledProgram& compiled_program)

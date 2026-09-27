@@ -13,8 +13,9 @@ Source
   -> Parser
   -> TypeChecker
   -> StaticAnalyzerManager
-  -> OptimizerManager
-  -> CodeGenerator
+  -> Lowering
+  -> MidoriIROptimizer
+  -> BytecodeBackend
   -> BytecodeLinker
   -> VirtualMachine
 ```
@@ -171,7 +172,7 @@ It also records whether some operators should lower through typeclass dispatch, 
 
 Source: `compiler/src/Compiler/StaticAnalyzerManager/`
 
-Static analysis runs after type checking and before optimization. It emits warnings without mutating the AST.
+Static analysis runs after type checking and before lowering. It emits warnings without mutating the AST.
 
 Current warning passes:
 
@@ -182,36 +183,40 @@ Current warning passes:
 
 Warnings remain structured as `CompilerWarning` values and are appended to the compile-wide report.
 
-## Phase 6: Optimization
+## Phase 6: Lowering
 
-Source: `compiler/src/Compiler/OptimizerManager/`
+Source: `compiler/src/Compiler/Lowering/`
 
-Optimization is AST-based and iterative.
+Lowering turns the checked AST of one module into MidoriIR, a typed SSA IR with one graph per function (see [MidoriIR](midori-ir.md)). Every top-level definition gets its global slot before any function is lowered. Generic functions are specialized here, on demand, one function per set of argument types, including generics imported from other modules; class methods and operators that dispatch through type classes are resolved to instance methods here too. Its diagnostics are reported under the `Lowering` stage.
 
-Current pass order:
+The MidoriIR verifier checks the result. Development and Debug builds verify after lowering and after every optimizer pass, Release builds once, before the backend; a violation is a compiler bug, reported as `CompilerInternalError`.
 
-1. `ConstantFolding`
-2. `FunctionInlining`
-3. `StrengthReduction`
-4. `ConstantBranchElimination`
-5. `LocalConstantPropagation`
-6. `DeadCodeElimination`
-7. `CanonicalizationCleanup`
-8. `ClosureLifting`
-9. `TailCallOptimization`
+## Phase 7: MidoriIR Optimization
 
-The optimizer does not run just once. It reruns the pass list until either:
+Source: `compiler/src/Compiler/MidoriIROptimizer/`
 
-- no pass reports a change, or
-- `OptimizerManager::s_max_iterations` is reached
+The optimizer runs a fixed list of passes once over each module:
 
-The current fixpoint cap is `8`.
+1. `DeadCodeElimination`
+2. `SelfTailCall`
+3. `ClosureConversion`
+4. `Contification`
+5. `Inlining`
+6. `SelfTailCall`
+7. `ScalarReplacement`
+8. `Sccp`
+9. `StrengthReduction`
+10. `GlobalValueNumbering`
+11. `LoopInvariantCodeMotion`
+12. `DeadCodeElimination`
 
-## Phase 7: Code Generation
+It reports nothing. [MidoriIR](midori-ir.md#optimizer) describes each pass and what they all keep: tail calls, stack traces and source lines.
 
-Source: `compiler/src/Compiler/CodeGenerator/`
+## Phase 8: Bytecode Emission
 
-The code generator lowers the optimized typed AST into a per-module `BytecodeModule`.
+Source: `compiler/src/Compiler/BytecodeBackend/`
+
+The bytecode backend turns each module's MidoriIR into a `BytecodeModule`. It chooses where each value lives (a frame slot shared by liveness, the operand stack, or nowhere) and which opcodes to use, superinstructions included. Its only diagnostics are the encoding's limits, reported as `CodeGeneratorLimitExceeded` under the `CodeGenerator` stage.
 
 Important opcode families in the current executable format:
 
@@ -221,7 +226,7 @@ Important opcode families in the current executable format:
 - Ranges: `CREATE_INT_RANGE`, `CREATE_FLOAT_RANGE`, `GET_RANGE_START`, `GET_RANGE_END`, `GET_RANGE_STEP`
 - Casts: `INT_TO_FLOAT`, `TEXT_TO_FLOAT`, `FLOAT_TO_INT`, `TEXT_TO_INT`, `FLOAT_TO_TEXT`, `INT_TO_TEXT`, `WORD_TO_TEXT`, `BYTE_TO_INT`, `INT_TO_BYTE`, `BYTE_TO_WORD`, `WORD_TO_BYTE`, `WORD_TO_INT`, `INT_TO_WORD`, `BYTE_TO_FLOAT`, `FLOAT_TO_BYTE`, `WORD_TO_FLOAT`, `FLOAT_TO_WORD`
 - Arithmetic and bit operations: `ADD_*`, `SUBTRACT_*`, `MULTIPLY_*`, `DIVIDE_*`, `MODULO_*`, `LEFT_SHIFT`, `RIGHT_SHIFT`, `BITWISE_AND`, `BITWISE_OR`, `BITWISE_XOR`, `BITWISE_NOT`
-- Fused integer update: `ADD_ASSIGN_INT`, `SUB_ASSIGN_INT` (produced only when the code generator splits a fused `ADD_LOCAL_INT` back apart because that local became a captured cell; the language has no compound assignment)
+- Fused integer update: `ADD_ASSIGN_INT`, `SUB_ASSIGN_INT` (nothing emits them any more; the language has no compound assignment)
 - Control flow: `JUMP_IF_FALSE`, `JUMP_IF_TRUE`, `JUMP`, `JUMP_BACK`, fused compare-and-branch opcodes such as `IF_INTEGER_LESS` and `IF_FLOAT_GREATER_EQUAL`
 - Pattern matching: `LOAD_TAG`, `GET_TAG`, `SET_TAG`, `GET_UNION_FIELD`
 - Calls: `CALL_FOREIGN`, `CALL_FOREIGN_INDEXED`, `CALL`, `CALL_0` through `CALL_3`, `CALL_PROC`, `CALL_PROC_0` through `CALL_PROC_3`, `CALL_PROC_WIDE`, `CALL_GLOBAL`, `CALL_GLOBAL_WIDE`, `TAIL_CALL`
@@ -232,11 +237,9 @@ Important opcode families in the current executable format:
 - Members and stack: `GET_MEMBER`, `POP`, `DUP`, `SWAP`, `POP_LOCAL_SCOPE`, `POP_VALUES`, `POP_BLOCK_SCOPE`, `POP_MATCH_SCOPE`
 - Termination: `RETURN`, `HALT`
 
-Generic functions are specialized at call sites; the emitted module keeps specialization metadata so later codegen and linking stages can resolve the concrete procedures.
+The backend names procedures and globals only in two bytes, with the `WIDE` forms, because the linker adds each module's first procedure and first global to them. A closure is `MAKE_CLOSURE_OF`, which takes exactly the values it captures; `MAKE_CLOSURE`, `BIND_CAPTURES`, `GET_LOCAL_CELL`, `SET_LOCAL_CELL` and `SET_CELL` remain in the format, but nothing emits them.
 
-The opcodes with `WIDE` in their name, `MAKE_CLOSURE_OF`, `SET_CAPTURE` and `GET_UNION_FIELD` are what the MidoriIR backend (`--backend ir`, see [MidoriIR](midori-ir.md)) emits. It names procedures and globals only in two bytes, because the linker adds each module's first procedure and first global to them.
-
-## Phase 8: Linking
+## Phase 9: Linking
 
 Source: `compiler/src/Compiler/BytecodeLinker/`
 

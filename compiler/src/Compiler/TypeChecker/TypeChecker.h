@@ -166,7 +166,6 @@ private:
 
 	TypeChecker& EndScope();
 
-	static MidoriExpression::ConditionOperandType ResolveConditionOperandType(MidoriExpression::ConditionOperandType fallback, const std::unique_ptr<MidoriExpression>& expr);
 
 	MidoriResult::TypeResult CheckPattern(MidoriPattern& pattern, const std::shared_ptr<MidoriType>& expected_type);
 

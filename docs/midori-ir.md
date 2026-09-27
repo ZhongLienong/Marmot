@@ -1,6 +1,6 @@
 # MidoriIR
 
-MidoriIR is the compiler's typed SSA intermediate representation. Lowering builds it from the checked AST after generics are specialized, the MidoriIR optimizer rewrites it, and the bytecode backend emits it. It replaces the AST optimizer and the code generator. Until it is complete, the AST path stays the default and MidoriIR is reached only with `marmotc --backend ir` (see [Command line](#command-line)).
+MidoriIR is the compiler's typed SSA intermediate representation. Lowering builds it from the checked AST after generics are specialized, the MidoriIR optimizer rewrites it, and the bytecode backend emits it. It is the only path from a checked module to bytecode (see [Compilation Workflow](compilation-workflow.md)).
 
 Source: `compiler/src/Compiler/MidoriIR/`.
 
@@ -139,14 +139,14 @@ bb3:
 - **Loops.** `for` and array comprehensions over a range, an array or an Iterable become a loop whose header takes the position (the element, the index or the iterator) and anything carried round it: a comprehension's result grows by `ArrayAppend`. The loop variable is a value of the body, so a closure made in one iteration keeps that iteration's.
 - **Closures.** A lambda captures exactly the enclosing values its body reads, including through lambdas nested in it, and reads them with `GetCapture`. A local function that names itself, or one defined after it, is made first and gets that capture from `BindCaptures` once the local is defined.
 - **Generics.** A call of a generic specializes it for its argument types, and for the call's type where only the result names a type parameter, as one function per set of types. An equality constraint such as `Iterable::Item<S> ~ A` also says what `A` is, and an associated type projection becomes the type its instance binds. A method of an instance whose head names a type parameter is a generic too. A specialization of another module's generic reads that module's names, and its procedure is named for that module.
-- **Classes.** A class method call, an operator a class provides and a `for` over an Iterable resolve to an instance method through `InstanceResolver`, which the code generator also calls, by the argument's own type: converting a newtype to its representation keeps the newtype for this.
+- **Classes.** A class method call, an operator a class provides and a `for` over an Iterable resolve to an instance method through `InstanceResolver`, by the argument's own type: converting a newtype to its representation keeps the newtype for this.
 - **Foreign functions.** A foreign function's global, or local, holds the name the VM looks it up by. A call of a builtin is a `CallForeign` by its name, a call of any other one a `CallForeign` of the name its declaration holds. A foreign function used as a value is a small function that calls it.
 
-A diagnostic lowering reports is under the `Lowering` stage: an unresolved or ambiguous method, an unknown builtin, an unsupported foreign return type, a generic function used as a value, or an out-of-range literal.
+A diagnostic lowering reports is under the `Lowering` stage: an unresolved or ambiguous method, an unknown builtin, an unsupported foreign return type, a generic function used as a value, or an out-of-range literal. Lowering reserves every top-level name before it lowers any body, and reports each declaration that fails there, such as every foreign function with an unsupported return type; after that it stops at the first error.
 
 ## Optimizer
 
-`MidoriIROptimizer` (`compiler/src/Compiler/MidoriIROptimizer/`) runs a fixed list of passes once, in this order, over each module after lowering. It reports nothing: a pass that leaves the IR invalid is a compiler bug the verifier catches. `MidoriIRPasses.h` declares the passes, and `MidoriIROptimizer(passes)` runs any other list, as the unit tests in `compiler/tests/midori_ir/MidoriIROptimizerTests.cpp` do.
+`MidoriIROptimizer` (`compiler/src/Compiler/MidoriIROptimizer/`) runs a fixed list of passes once, in this order, over each module after lowering. It reports nothing: a pass that leaves the IR invalid is a compiler bug the verifier catches. `MidoriIRPasses.h` declares the passes, and `MidoriIROptimizer(passes)` runs any other list, as the unit tests in `compiler/tests/midori_ir/MidoriIROptimizerTests.cpp` do. In Development and Debug builds (`MIDORI_ENABLE_OPTIMIZER_STATS`), the compiler's progress output lists each pass that changed a module's instruction count, with the count before and after it.
 
 | Pass | What it does |
 | --- | --- |
@@ -173,7 +173,7 @@ What the passes keep:
 
 ## Bytecode backend
 
-`BytecodeBackend` (`compiler/src/Compiler/BytecodeBackend/`) turns a `LoweredModule` into the same `BytecodeModule` the code generator produces, so the linker takes either. `$main$` is procedure 0 and every other function follows in order, named `name@Module`. Imported globals become the placeholders the linker resolves. A block nothing reaches is not emitted.
+`BytecodeBackend` (`compiler/src/Compiler/BytecodeBackend/`) turns a `LoweredModule` into the `BytecodeModule` the linker takes. `$main$` is procedure 0 and every other function follows in order, named `name@Module`. Imported globals become the placeholders the linker resolves. A block nothing reaches is not emitted.
 
 Each value lives in one of four places:
 
@@ -190,7 +190,6 @@ Procedures and globals are named in two bytes (`CALL_PROC_WIDE`, `MAKE_FUNCTION_
 
 ## Command line
 
-Both options are hidden from `marmotc --help`, and both go away once MidoriIR is the only path.
+`marmotc check` and `marmotc build` accept `--emit-ir`, which is hidden from `marmotc --help`. It prints each module's MidoriIR, after optimization, in the textual form above, in link order. It cannot be combined with `--format json`.
 
-- **`--backend ast|ir`** is accepted by `marmotc check` and `marmotc build`. It picks the path after static analysis: `ast` (the default) runs the AST optimizer and the code generator, and `ir` runs lowering, the MidoriIR optimizer and the backend. `python scripts/dev.py bench --backend ir --compare-backend ast` times one path against the other, with `--every` for every file in `benchmarks/`. `python scripts/testing/language.py --backend ir` runs the language suite through it, which the gate does as its `language-ir` step, and `test/midori_ir/` holds the tests written for it. A test the code generator rejects but MidoriIR lowers has a `.ir.expected` beside it, with what it prints through MidoriIR.
-- **`--emit-ir`** prints each module's MidoriIR, after optimization, in the textual form above, in link order. It needs `--backend ir` and cannot be combined with `--format json`.
+`test/midori_ir/` holds the language tests written for MidoriIR, and `python scripts/dev.py bench --compare old/out/marmotc --every` times two compilers against each other on every file in `benchmarks/`.

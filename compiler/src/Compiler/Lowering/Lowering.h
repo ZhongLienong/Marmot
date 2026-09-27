@@ -231,7 +231,7 @@ private:
 	// nothing reaches.
 	void AfterNever();
 
-	Emitted ReserveTopLevelNames();
+	std::vector<CompilerError> ReserveTopLevelNames();
 	Emitted ReserveTopLevelName(MidoriStatement& statement);
 	Emitted ReserveFunction(const std::string& name, const TypeRef& closure_type);
 	Emitted ReserveForeign(const MidoriStatement::ForeignDefinition& foreign);

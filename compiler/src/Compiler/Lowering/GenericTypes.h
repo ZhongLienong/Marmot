@@ -10,8 +10,7 @@
 #include <vector>
 
 // What specializing a generic needs to know about types: which concrete type
-// each type parameter stands for, and the type a generic one becomes. Lowering
-// and the code generator share these, so a specialization is typed one way.
+// each type parameter stands for, and the type a generic one becomes.
 namespace GenericTypes
 {
 	using TypeEnvironment = std::unordered_map<std::string, std::shared_ptr<MidoriType>>;

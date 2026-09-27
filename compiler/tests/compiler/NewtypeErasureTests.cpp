@@ -65,7 +65,7 @@ namespace
 		"};\n";
 }
 
-TEST_CASE("Newtype arithmetic compiles to byte-identical opcodes as its representation", "[codegen][newtype]")
+TEST_CASE("Newtype arithmetic compiles to byte-identical opcodes as its representation", "[backend][newtype]")
 {
 	const MidoriExecutable newtype_executable = CompileOrFail(NEWTYPE_SOURCE);
 	const MidoriExecutable representation_executable = CompileOrFail(REPRESENTATION_SOURCE);
@@ -89,7 +89,7 @@ TEST_CASE("Newtype arithmetic compiles to byte-identical opcodes as its represen
 	}
 }
 
-TEST_CASE("Newtype arithmetic never emits CONSTRUCT_UNION", "[codegen][newtype]")
+TEST_CASE("Newtype arithmetic never emits CONSTRUCT_UNION", "[backend][newtype]")
 {
 	const MidoriExecutable executable = CompileOrFail(NEWTYPE_SOURCE);
 	const std::optional<int> main_index = FindMainProcedureIndex(executable);

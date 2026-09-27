@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Common/BuildConfig/BuildConfig.h"
 #include "Compiler/MidoriIR/MidoriIR.h"
 #include "Compiler/MidoriIR/MidoriIRVerifier.h"
 
@@ -36,12 +37,20 @@ class MidoriIROptimizer
 {
 private:
 	std::vector<std::unique_ptr<MidoriIRPass>> m_passes;
+#if MIDORI_ENABLE_OPTIMIZER_STATS
+	std::string m_log;
+#endif
 
 public:
 	MidoriIROptimizer();
 	explicit MidoriIROptimizer(std::vector<std::unique_ptr<MidoriIRPass>> passes);
 
-	std::expected<void, MidoriIRPassFailure> Optimize(MidoriIRModule& module) const;
+	std::expected<void, MidoriIRPassFailure> Optimize(MidoriIRModule& module);
 
 	static bool VerifiesEachPass();
+
+#if MIDORI_ENABLE_OPTIMIZER_STATS
+	// One line for each pass that changed the module's instruction count.
+	const std::string& Log() const;
+#endif
 };

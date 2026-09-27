@@ -2009,27 +2009,6 @@ MidoriResult::TypeResult TypeChecker::Evaluate(const std::unique_ptr<MidoriExpre
 	);
 }
 
-MidoriExpression::ConditionOperandType TypeChecker::ResolveConditionOperandType(MidoriExpression::ConditionOperandType fallback, const std::unique_ptr<MidoriExpression>& expr)
-{
-	if (!expr->IsExpression<MidoriExpression::Binary>())
-	{
-		return fallback;
-	}
-
-	const MidoriExpression::Binary& binary = expr->GetExpression<MidoriExpression::Binary>();
-	const std::shared_ptr<MidoriType>& left_type = binary.m_left->GetType();
-
-	if (left_type->IsType<MidoriType::IntegerType>())
-	{
-		return MidoriExpression::ConditionOperandType::INTEGER;
-	}
-	if (left_type->IsType<MidoriType::FloatType>())
-	{
-		return MidoriExpression::ConditionOperandType::FLOAT;
-	}
-	return MidoriExpression::ConditionOperandType::OTHER;
-}
-
 MidoriResult::TypeResult TypeChecker::CheckPattern(MidoriPattern& pattern, const std::shared_ptr<MidoriType>& expected_type)
 {
 	std::shared_ptr<MidoriType> resolved_expected = ApplySubstitution(expected_type);
@@ -5286,7 +5265,6 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::As& as)
 					return std::unexpected(MakeConstraintFailureError(as.m_as_keyword, constraint, suggestion));
 				}
 
-				as.m_from_type = expr_type;
 				as.m_type_data = as.m_to_type;
 
 				// Prefer built-in code generation for concrete built-in casts so Convertable
@@ -7276,8 +7254,6 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::IfElse& if_el
 							{
 								return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("IfElse expression type error: condition must be boolean", if_else.m_if_token, m_file_name, m_source_lines, type, MidoriType::MakeLiteralType<MidoriType::BoolType>()));
 							}
-
-							if_else.m_condition_operand_type = ResolveConditionOperandType(if_else.m_condition_operand_type, if_else.m_condition);
 
 							auto evaluate_branch_with_expected = [this](const std::unique_ptr<MidoriExpression>& branch) -> MidoriResult::TypeResult
 							{
