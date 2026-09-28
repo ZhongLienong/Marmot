@@ -8,7 +8,7 @@
 #include <type_traits>
 
 #include "Common/Constant/Constant.h"
-#include "Common/Error/Error.h"
+#include "Compiler/Error/CompilerError.h"
 #include "PatternCoverage.h"
 #include "TypeChecker.h"
 

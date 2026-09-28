@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Common/Error/Error.h"
+#include "Error/RuntimeError.h"
 #include "Interpreter/ValueTransfer/ValueTransfer.h"
 #include "Interpreter/VirtualMachine/VirtualMachine.h"
 

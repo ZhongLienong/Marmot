@@ -9,9 +9,6 @@
 
 #include <memory>
 
-// Defined by the compiler. The members that take them are defined in
-// compiler/src/Compiler/Error/CompilerErrorContext.cpp, so this header, shared
-// with the runtime, needs only the names.
 struct Token;
 class MidoriType;
 
@@ -26,7 +23,6 @@ enum class CompilerStage
 	Module,
 	BytecodeLinker,
 	Compiler,
-	Runtime,
 	Unknown
 };
 
@@ -70,30 +66,6 @@ enum class CompilerWarningCode
 	CellCrossesWorker
 };
 
-enum class RuntimeErrorCode
-{
-	None,
-	IndexOutOfBounds,
-	NegativeArraySize,
-	ArraySizeExceeded,
-	FFIFunctionNotFound,
-	StackOverflow,
-	MemoryAccessViolation,
-	DivisionByZero,
-	InternalTypeError,
-	InternalFFITypeError,
-	UnsupportedPlatformOperation,
-	WorkerCancelled,
-	WorkerExited,
-	InvalidConversion
-};
-
-enum class RuntimeDiagnosticKind
-{
-	Error,
-	Panic
-};
-
 struct CompilerErrorLocation
 {
 	std::string m_file_name;
@@ -103,14 +75,6 @@ struct CompilerErrorLocation
 	std::optional<int> m_end_line = std::nullopt;
 	std::optional<int> m_end_column = std::nullopt;
 	std::optional<std::string> m_source_line = std::nullopt;
-};
-
-struct RuntimeStackFrame
-{
-	std::string m_procedure_name;
-	std::string m_module_name;
-	CompilerErrorLocation m_location;
-	int m_recursive_call_count = 1;
 };
 
 struct CompilerRelatedInformation
@@ -145,22 +109,6 @@ struct CompilerError
 	std::string_view Rendered() const;
 };
 
-struct RuntimeError
-{
-	RuntimeDiagnosticKind m_kind = RuntimeDiagnosticKind::Error;
-	RuntimeErrorCode m_code = RuntimeErrorCode::None;
-	std::string m_message;
-	std::optional<CompilerErrorLocation> m_location = std::nullopt;
-	std::vector<RuntimeStackFrame> m_stack;
-	std::string m_rendered;
-
-	RuntimeError() = default;
-
-	[[nodiscard]] int ExitCode() const;
-	[[nodiscard]] std::string_view Rendered() const;
-	[[nodiscard]] CompilerError ToCompilerError() const;
-};
-
 struct CompilerWarning
 {
 	CompilerStage m_stage = CompilerStage::Unknown;
@@ -187,12 +135,10 @@ struct CompilerWarning
 [[nodiscard]] std::string_view CompilerStageName(CompilerStage stage);
 [[nodiscard]] std::string_view CompilerErrorCodeName(CompilerErrorCode code);
 [[nodiscard]] std::string_view CompilerWarningCodeName(CompilerWarningCode code);
-[[nodiscard]] std::string_view RuntimeErrorCodeName(RuntimeErrorCode code);
 [[nodiscard]] std::string RenderWarningGroupHeader(size_t warning_count, std::string_view file_path);
 [[nodiscard]] std::string SerializeMachineReadableError(const CompilerError& error);
 [[nodiscard]] std::string SerializeMachineReadableWarningPayload(const CompilerWarning& warning);
 [[nodiscard]] std::string SerializeMachineReadableWarning(const CompilerWarning& warning);
-[[nodiscard]] std::string SerializeMachineReadableRuntimeError(const RuntimeError& error);
 
 namespace std
 {
@@ -211,15 +157,6 @@ namespace std
 		auto format(const CompilerWarning& warning, format_context& ctx) const
 		{
 			return formatter<std::string_view>::format(warning.Rendered(), ctx);
-		}
-	};
-
-	template<>
-	struct formatter<RuntimeError> : formatter<std::string_view>
-	{
-		auto format(const RuntimeError& error, format_context& ctx) const
-		{
-			return formatter<std::string_view>::format(error.Rendered(), ctx);
 		}
 	};
 }
@@ -269,8 +206,6 @@ public:
 		return GenerateRichError(CompilerStage::TypeChecker, full_message, token, file_name, source_lines, std::nullopt, code);
 	}
 
-	// "<message>\nExpected A or B, but got C". Defined with the compiler (it prints types).
+	// "<message>\nExpected A or B, but got C".
 	static std::string FormatTypeMismatch(std::string_view message, const std::vector<std::string>& expected_names, const std::shared_ptr<MidoriType>& actual);
-
-	static RuntimeError GenerateRuntimeError(RuntimeErrorCode code, std::string_view message, std::optional<CompilerErrorLocation> location = std::nullopt, std::vector<RuntimeStackFrame>&& stack = {}, std::optional<RuntimeDiagnosticKind> kind = std::nullopt);
 };

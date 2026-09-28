@@ -138,9 +138,9 @@ endfunction()
 # ============================================================================
 # One library per component, linked in one direction only:
 #
-#   MarmotCommon    common/src     values, errors, the bytecode format, the
-#                                  builtin table's names and signatures
-#   MarmotRuntime   runtime/src    the VM and builtin library     -> Common
+#   MarmotCommon    common/src     the bytecode format, the builtin table's
+#                                  names and signatures
+#   MarmotRuntime   runtime/src    values, the VM, builtin library -> Common
 #   MarmotCompiler  compiler/src   source to bytecode             -> Common
 #   MarmotDriver    compiler/src/Utility/{CLI,Driver}
 #                                  marmotc's command line         -> Compiler

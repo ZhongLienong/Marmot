@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include "Common/BuildConfig/BuildConfig.h"
 #include "Common/Constant/Constant.h"
 #include "Common/Executable/Executable.h"
 #include "Compiler/BytecodeBackend/BytecodeBackend.h"

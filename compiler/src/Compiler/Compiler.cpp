@@ -1,7 +1,7 @@
 #include "Common/BuildConfig/BuildConfig.h"
 #include "Common/Constant/Constant.h"
 #include "Common/Printer/Printer.h"
-#include "Common/Source/Source.h"
+#include "Compiler/Source/Source.h"
 #include "Compiler.h"
 #include "Compiler/BuildGraph/BuildGraph.h"
 #include "Compiler/BytecodeBackend/BytecodeBackend.h"

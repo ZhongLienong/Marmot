@@ -8,7 +8,7 @@
 #include <string_view>
 #include <unordered_set>
 
-#include "Common/Source/Source.h"
+#include "Compiler/Source/Source.h"
 #include "Compiler/Lexer/Lexer.h"
 
 namespace

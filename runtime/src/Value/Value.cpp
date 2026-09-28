@@ -1,6 +1,6 @@
 #include "Common/Printer/Printer.h"
 #include "Value.h"
-#include "Common/Error/Error.h"
+#include "Error/RuntimeError.h"
 
 #include <algorithm>
 #include <array>
@@ -28,7 +28,7 @@ namespace
 		}
 		message.push_back('.');
 
-		const RuntimeError runtime_error = MidoriError::GenerateRuntimeError(RuntimeErrorCode::MemoryAccessViolation, message);
+		const RuntimeError runtime_error(RuntimeErrorCode::MemoryAccessViolation, message);
 		const std::string rendered(runtime_error.Rendered());
 		std::fputs(rendered.c_str(), stderr);
 		std::fputc('\n', stderr);

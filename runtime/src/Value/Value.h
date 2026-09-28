@@ -14,14 +14,11 @@
 #include <vector>
 
 #include "Common/BuildConfig/BuildConfig.h"
+#include "Common/Scalar/Scalar.h"
 
 class MidoriTraceable;
 class MidoriText;
 
-using MidoriInteger = int64_t;
-using MidoriFloat = double;
-using MidoriByte = uint8_t;
-using MidoriWord = uint64_t;
 using MidoriUnit = std::monostate;
 using MidoriBool = bool;
 

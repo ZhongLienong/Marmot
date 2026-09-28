@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include "Common/BuildConfig/BuildConfig.h"
 #include "Compiler/Lowering/Lowering.h"
 #include "Compiler/MidoriIR/Printer/MidoriIRPrinter.h"
 #include "Compiler/MidoriIR/Verifier/MidoriIRVerifier.h"

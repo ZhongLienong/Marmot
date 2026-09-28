@@ -1,7 +1,7 @@
 #include "Library/MidoriStdLibExports.h"
 
-#include "Common/Error/Error.h"
-#include "Common/Value/Value.h"
+#include "Error/RuntimeError.h"
+#include "Value/Value.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -20,7 +20,7 @@ namespace
 
 	[[noreturn]] void AbortRuntime(std::string_view message) noexcept
 	{
-		const RuntimeError runtime_error = MidoriError::GenerateRuntimeError(RuntimeErrorCode::InternalFFITypeError, message);
+		const RuntimeError runtime_error(RuntimeErrorCode::InternalFFITypeError, message);
 		const std::string rendered(runtime_error.Rendered());
 		std::fputs(rendered.c_str(), stderr);
 		std::fputc('\n', stderr);

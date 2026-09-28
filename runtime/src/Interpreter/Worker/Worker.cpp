@@ -1,6 +1,6 @@
 #include "Worker.h"
 
-#include "Common/Cancellation/Cancellation.h"
+#include "Support/Cancellation/Cancellation.h"
 #include "Common/Printer/Printer.h"
 
 #include <unordered_map>

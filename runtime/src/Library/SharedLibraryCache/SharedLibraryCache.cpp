@@ -1,5 +1,5 @@
 #include "SharedLibraryCache.h"
-#include "Common/Checksum/Checksum.h"
+#include "Support/Checksum/Checksum.h"
 
 #ifdef _WIN32
 	#define WIN32_LEAN_AND_MEAN

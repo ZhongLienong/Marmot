@@ -1,7 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 
-#include "Common/Source/Source.h"
+#include "Compiler/Source/Source.h"
 #include "Utility/Formatter/Formatter.h"
 #include "support/CompileHelpers.h"
 #include "support/DiagnosticMatchers.h"

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Common/Error/Error.h"
+#include "Compiler/Error/CompilerError.h"
 #include "Compiler/Analysis/AbstractSyntaxTreeWalker.h"
 #include "Compiler/AbstractSyntaxTree/AbstractSyntaxTree.h"
 

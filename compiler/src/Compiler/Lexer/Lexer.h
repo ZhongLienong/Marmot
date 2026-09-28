@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Common/Error/Error.h"
+#include "Compiler/Error/CompilerError.h"
 #include "Compiler/Result/Result.h"
 
 #include <string>

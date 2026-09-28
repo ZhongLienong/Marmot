@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Common/Constant/Constant.h"
-#include "Common/Error/Error.h"
+#include "Error/RuntimeError.h"
 #include "Common/Executable/Executable.h"
 #include "Interpreter/Allocator/MidoriAllocator.h"
 #include "Interpreter/GarbageCollector/GarbageCollector.h"

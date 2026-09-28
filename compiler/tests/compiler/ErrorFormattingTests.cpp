@@ -1,7 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <filesystem>
-#include "Common/Error/Error.h"
+#include "Compiler/Error/CompilerError.h"
 #include "Compiler/Token/Token.h"
 #include "support/CompileHelpers.h"
 #include "support/DiagnosticMatchers.h"
@@ -154,32 +154,6 @@ TEST_CASE("Simple compiler diagnostics render as plain messages", "[error][warni
 	REQUIRE(warning.Rendered() == "Local 'count' is never used");
 }
 
-TEST_CASE("Runtime errors render file-backed source lines", "[error][format][runtime]")
-{
-	const RuntimeError runtime_error =
-		MidoriError::GenerateRuntimeError(
-			RuntimeErrorCode::IndexOutOfBounds,
-			"Index out of bounds at index: 4.",
-			CompilerErrorLocation
-			{
-				.m_file_name = "Runtime.mmt",
-				.m_line = 2,
-				.m_source_line = "def value = [1, 2][4];"
-			});
-	const std::string rendered = StripAnsiCodes(runtime_error.Rendered());
-
-	const std::string expected_render =
-		"error[IndexOutOfBounds]: Index out of bounds at index: 4.\n"
-		" --> Runtime.mmt:2\n"
-		"  |\n"
-		"2 | def value = [1, 2][4];\n"
-		"  | Index out of bounds at index: 4.\n"
-		"  |\n";
-
-	REQUIRE(rendered == expected_render);
-	REQUIRE(runtime_error.ExitCode() == 1);
-}
-
 TEST_CASE("Compiler report renders grouped warnings and structured machine-readable warnings", "[compiler][warning][report]")
 {
 	CompilerWarning alpha_warning = CompilerWarning::WithContext(
@@ -294,25 +268,6 @@ TEST_CASE("Driver renders compilation warnings and errors behind one banner", "[
 	CHECK(first_position < second_position);
 }
 
-TEST_CASE("Driver does not prepend the compilation banner to runtime diagnostics", "[compiler][driver][diagnostics]")
-{
-	const MidoriDriver::DriverError error =
-		MidoriDriver::DriverError::Diagnostics(MidoriResult::CompilerDiagnostics(
-			CompilerError::WithContext(
-				CompilerStage::Runtime,
-				"Division by zero",
-				8,
-				"Runtime.mmt",
-				10,
-				1u,
-				std::nullopt,
-				"return value / 0;")));
-
-	const std::string rendered = StripAnsiCodes(error.Rendered());
-	CHECK(rendered.find("Compilation failed :(") == std::string::npos);
-	CHECK(rendered.find("Runtime Error at Runtime.mmt:8") != std::string::npos);
-}
-
 TEST_CASE("Machine-readable errors serialize location and code metadata", "[compiler][error][report]")
 {
 	const CompilerError error = CompilerError::WithContext(
@@ -334,43 +289,6 @@ TEST_CASE("Machine-readable errors serialize location and code metadata", "[comp
 	CHECK(serialized.find("\"column\":3") != std::string::npos);
 	CHECK(serialized.find("\"caret_length\":5") != std::string::npos);
 	CHECK(serialized.find("\"suggestion\":\"Rewrite this expression\"") != std::string::npos);
-}
-
-TEST_CASE("Machine-readable runtime errors serialize runtime code and stack metadata", "[runtime][error][json]")
-{
-	RuntimeError runtime_error = MidoriError::GenerateRuntimeError(
-		RuntimeErrorCode::StackOverflow,
-		"Stack overflow - exceeded maximum call depth.",
-		CompilerErrorLocation
-		{
-			.m_file_name = "Runtime.mmt",
-			.m_line = 5,
-			.m_source_line = "def value = recurse(0);"
-		},
-		std::vector<RuntimeStackFrame>
-		{
-			RuntimeStackFrame
-			{
-				.m_procedure_name = "recurse",
-				.m_module_name = "Runtime",
-				.m_location = CompilerErrorLocation
-				{
-					.m_file_name = "Runtime.mmt",
-					.m_line = 2,
-					.m_source_line = "def recurse = fn(n : Int) -> Int => recurse(n + 1) + 1;"
-				},
-				.m_recursive_call_count = 12
-			}
-		});
-
-	const std::string serialized = SerializeMachineReadableRuntimeError(runtime_error);
-	CHECK(serialized.find("\"source\":\"marmot-runtime\"") != std::string::npos);
-	CHECK(serialized.find("\"code\":\"StackOverflow\"") != std::string::npos);
-	CHECK(serialized.find("\"kind\":\"panic\"") != std::string::npos);
-	CHECK(serialized.find("\"exitCode\":2") != std::string::npos);
-	CHECK(serialized.find("\"stack\":[{") != std::string::npos);
-	CHECK(serialized.find("\"procedure\":\"recurse\"") != std::string::npos);
-	CHECK(serialized.find("\"recursiveCount\":12") != std::string::npos);
 }
 
 TEST_CASE("Compiler report preserves static-analyzer warning metadata on successful compile", "[compiler][warning][report]")

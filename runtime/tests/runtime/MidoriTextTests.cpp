@@ -1,6 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
-#include "Common/Value/Value.h"
+#include "Value/Value.h"
 
 #include <cstring>
 #include <string>

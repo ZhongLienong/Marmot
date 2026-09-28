@@ -1,14 +1,9 @@
-#include "Common/Error/Error.h"
+#include "Compiler/Error/CompilerError.h"
 #include "Compiler/AbstractSyntaxTree/Type.h"
 #include "Compiler/Token/Token.h"
 
 #include <algorithm>
 #include <format>
-
-// Error.h is shared with the runtime and only forward-declares Token and
-// MidoriType. The members that read a token's location or print a type are
-// defined here, in the compiler, so the shared library never depends on
-// compiler types.
 
 namespace
 {

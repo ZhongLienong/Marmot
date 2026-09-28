@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-#include "Common/Error/Error.h"
+#include "Compiler/Error/CompilerError.h"
 
 namespace MidoriFormatter
 {

@@ -8,7 +8,7 @@
 #include <utility>
 #include <vector>
 
-#include "Common/Error/Error.h"
+#include "Compiler/Error/CompilerError.h"
 #include "Compiler/AbstractSyntaxTree/AbstractSyntaxTree.h"
 #include "Compiler/BytecodeModule/BytecodeModule.h"
 #include "Compiler/Module/CompiledModule.h"

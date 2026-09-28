@@ -1,6 +1,6 @@
 #include "Lexer.h"
 
-#include "Common/Source/Source.h"
+#include "Compiler/Source/Source.h"
 
 #include <sstream>
 

@@ -1,4 +1,5 @@
-#include "Common/Value/IntegerArithmetic.h"
+#include "Common/Scalar/IntegerArithmetic.h"
+#include "Common/Scalar/Scalar.h"
 #include "Compiler/MidoriIROptimizer/Analysis/MidoriIRAnalysis.h"
 #include "Compiler/MidoriIROptimizer/MidoriIRPasses.h"
 

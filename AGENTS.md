@@ -19,9 +19,9 @@ driver does not link the runtime.
 
 | Path | What it holds |
 |---|---|
-| `common/src` | Values, opcodes, the executable format, errors, builtin table |
-| `compiler/src/Compiler` | Lexer, parser, type checker, static analysis, lowering, MidoriIR optimizer, bytecode backend, linker |
-| `runtime/src` | The interpreter, the GC, workers, the builtin FFI library |
+| `common/src` | Opcodes, the executable format, builtin table, JSON, printing and environment helpers |
+| `compiler/src/Compiler` | Compiler errors, lexer, parser, type checker, static analysis, lowering, MidoriIR optimizer, bytecode backend, linker |
+| `runtime/src` | Values, runtime errors, the interpreter, the GC, workers, the builtin FFI library |
 | `vm/src` | The `marmotvm` entry point |
 | `tool/src` | The `marmot` tool |
 | `MarmotPrelude` | The prelude, written in Marmot |
@@ -156,7 +156,7 @@ Worth knowing before editing the front end, because each was a bug once:
   `AppData\Local\Marmot`. A debug build of `marmot` prefers its own checkout's
   compiler and prelude; an installed one uses whatever was last installed.
   Reinstall with `python scripts/dev.py install --rebuild`.
-- Adding a `RuntimeErrorCode` means touching `Common/Error/Error.{h,cpp}` and the
+- Adding a `RuntimeErrorCode` means touching `runtime/src/Error/RuntimeError.{h,cpp}` and the
   lists in `docs/diagnostic-format.md` and `docs/error-reporting.md`.
 - Doc examples marked `marmot-test` are mirrored into `test/doc_examples/`. After
   editing one, run `python scripts/dev.py check docs --sync`.

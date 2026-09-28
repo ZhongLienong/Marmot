@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Common/Error/Error.h"
+#include "Compiler/Error/CompilerError.h"
 #include "Compiler/CompilationInputs/CompilationInputs.h"
 #include "Compiler/Lowering/Lowering.h"
 #include "Compiler/Module/Module.h"

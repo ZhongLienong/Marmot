@@ -1,7 +1,7 @@
 #include "Common/Constant/Constant.h"
 #include "Common/BuildConfig/BuildConfig.h"
 #include "Common/Printer/Printer.h"
-#include "Common/Value/IntegerArithmetic.h"
+#include "Common/Scalar/IntegerArithmetic.h"
 #include "Interpreter/Channel/Channel.h"
 #include "Interpreter/ValueTransfer/ValueTransfer.h"
 #include "Interpreter/Worker/Worker.h"
@@ -747,13 +747,13 @@ RuntimeError VirtualMachine::GenerateRuntimeError(RuntimeErrorCode code, std::st
 	const int current_proc = GetProcedureIndexFromIP(m_instruction_pointer);
 	const std::optional<RuntimeStackFrame> current_frame = ResolveStackTraceFrame(*m_executable, current_proc, line, source_line_cache);
 
-	std::optional<CompilerErrorLocation> location = std::nullopt;
+	std::optional<RuntimeErrorLocation> location = std::nullopt;
 	if (current_frame.has_value())
 	{
 		location = current_frame->m_location;
 	}
 
-	return MidoriError::GenerateRuntimeError(code, message, std::move(location), GenerateStackTrace());
+	return RuntimeError(code, message, std::move(location), GenerateStackTrace());
 }
 
 int VirtualMachine::GetProcedureIndexFromIP(InstructionPointer ip) noexcept

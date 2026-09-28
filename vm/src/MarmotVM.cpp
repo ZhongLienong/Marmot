@@ -2,9 +2,9 @@
 // writes the program and the marmot tool runs both.
 
 #include "Common/BuildConfig/BuildConfig.h"
-#include "Common/Error/Error.h"
+#include "Error/RuntimeError.h"
 #include "Common/Json/Json.h"
-#include "Common/OutputCapture/OutputCapture.h"
+#include "Support/OutputCapture/OutputCapture.h"
 #include "Loader/ProgramLoader.h"
 
 #include <cstdlib>
@@ -139,13 +139,37 @@ namespace
 		return payload;
 	}
 
+	// The same fields as marmotc's diagnostics, reported as a Module error.
+	[[nodiscard]] std::string StartFailureJson(std::string_view message)
+	{
+		const std::optional<std::string_view> no_text = std::nullopt;
+		const std::optional<int> no_number = std::nullopt;
+		std::string payload = "{";
+		bool first_field = true;
+		MidoriJson::AppendStringField(payload, "source", "marmot", first_field);
+		MidoriJson::AppendStringField(payload, "severity", "error", first_field);
+		MidoriJson::AppendStringField(payload, "stage", "Module", first_field);
+		MidoriJson::AppendStringField(payload, "code", "None", first_field);
+		MidoriJson::AppendStringField(payload, "message", message, first_field);
+		MidoriJson::AppendStringField(payload, "file", no_text, first_field);
+		MidoriJson::AppendStringField(payload, "file_path", no_text, first_field);
+		MidoriJson::AppendNumberField(payload, "line", no_number, first_field);
+		MidoriJson::AppendNumberField(payload, "column", no_number, first_field);
+		MidoriJson::AppendNumberField(payload, "endLine", no_number, first_field);
+		MidoriJson::AppendNumberField(payload, "endColumn", no_number, first_field);
+		MidoriJson::AppendNumberField(payload, "caret_length", no_number, first_field);
+		MidoriJson::AppendStringField(payload, "suggestion", no_text, first_field);
+		MidoriJson::AppendRawField(payload, "relatedInformation", "[]", first_field);
+		payload.push_back('}');
+		return payload;
+	}
+
 	// A program that cannot start: unreadable, or a native library did not load.
 	[[nodiscard]] int FailToStart(const Invocation& invocation, const std::string& message)
 	{
 		if (invocation.m_json)
 		{
-			const CompilerError error = CompilerError::Simple(CompilerStage::Module, message);
-			std::print("{}", RunJson(false, EXIT_FAILURE, {}, {}, SerializeMachineReadableError(error)));
+			std::print("{}", RunJson(false, EXIT_FAILURE, {}, {}, StartFailureJson(message)));
 		}
 		else
 		{

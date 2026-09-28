@@ -1,4 +1,4 @@
-#include "Common/Cancellation/Cancellation.h"
+#include "Support/Cancellation/Cancellation.h"
 #include "Library/MidoriStdLibExports.h"
 
 #include <cerrno>

@@ -8,8 +8,10 @@ Marmot's diagnostic pipeline is structured. Compiler stages produce
 
 Source:
 
-- `common/src/Common/Error/Error.h`
-- `common/src/Common/Error/Error.cpp`
+- `compiler/src/Compiler/Error/CompilerError.h`
+- `compiler/src/Compiler/Error/CompilerError.cpp`
+- `runtime/src/Error/RuntimeError.h`
+- `runtime/src/Error/RuntimeError.cpp`
 - `compiler/src/Compiler/Result/Result.h`
 - `compiler/src/Utility/Driver/MidoriDriver.cpp`
 
@@ -19,6 +21,7 @@ Main types:
 - `CompilerWarning`
 - `CompilerErrorLocation`
 - `RuntimeError`
+- `RuntimeErrorLocation`
 - `RuntimeErrorCode`
 - `RuntimeDiagnosticKind`
 - `RuntimeStackFrame`
@@ -28,7 +31,7 @@ Main types:
 
 ## Stages
 
-Diagnostics carry a `CompilerStage`:
+Compiler diagnostics carry a `CompilerStage`:
 
 - `Lexer`
 - `Parser`
@@ -39,10 +42,10 @@ Diagnostics carry a `CompilerStage`:
 - `Module`
 - `BytecodeLinker`
 - `Compiler`
-- `Runtime`
 - `Unknown`
 
-These stage names are also used in machine-readable output.
+These stage names are also used in machine-readable output. Runtime diagnostics
+report the stage `Runtime`.
 
 ## Codes
 
@@ -126,8 +129,8 @@ Not every diagnostic includes all fields:
   `Token`
 - `WithContext(...)` accepts them explicitly
 - `Simple(...)` creates an unlocated diagnostic that renders as a plain message
-- runtime diagnostics reuse the same location type so compile-time and runtime
-  JSON stay aligned
+- `RuntimeErrorLocation` has the same fields, so compile-time and runtime JSON
+  stay aligned
 
 ## Human-Readable Rendering
 

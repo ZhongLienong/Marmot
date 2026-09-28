@@ -2,7 +2,9 @@
 #include <sstream>
 #include <string>
 
+#include "Common/BuildConfig/BuildConfig.h"
 #include "Common/Executable/Executable.h"
+#include "Common/Scalar/Scalar.h"
 #include "Common/Printer/Printer.h"
 #include "Common/Builtins/BuiltinTable.h"
 #include "Disassembler.h"

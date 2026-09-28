@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Common/Value/Value.h"
+#include "Value/Value.h"
 #include "Common/BuildConfig/BuildConfig.h"
 #include "Interpreter/Allocator/MidoriAllocator.h"
 

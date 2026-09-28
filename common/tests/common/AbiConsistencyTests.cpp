@@ -1,7 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "Common/BuildConfig/BuildConfig.h"
-#include "Common/Value/Value.h"
+#include "Value/Value.h"
 
 #include <cstddef>
 #include <string_view>
