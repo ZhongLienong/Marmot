@@ -1,0 +1,16 @@
+module ByteLiteralAgainstInt
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt"
+}
+
+// A hex or binary literal up to 0xFF is a Byte wherever it is written, a
+// pattern included, and the error says what to write instead.
+
+def Describe = fn(n : Int) -> Text =>
+	match n with
+		case 0x10 => "sixteen"
+		case _ => "other";
+
+IO::PrintLine(Describe(16));

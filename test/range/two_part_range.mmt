@@ -1,0 +1,21 @@
+module TwoPartRange
+
+import
+{
+	"../../MarmotPrelude/IO.mmt"
+}
+
+// `start..end` steps by 1, and by 1.0 for Floats; the end is excluded, as with
+// `start..step..end`.
+
+def ints = [i for i in 0..5];
+def floats = [x for x in 0.5..3.0];
+def empty = [i for i in 5..0];
+
+IO::PrintLine((#ints as Text) ++ " " ++ (ints[0] as Text) ++ " " ++ (ints[4] as Text));
+IO::PrintLine((#floats as Text) ++ " " ++ (floats[2] as Text));
+IO::PrintLine(#empty as Text);
+for i in -2..1
+{
+	IO::PrintLine(i as Text);
+};

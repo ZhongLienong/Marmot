@@ -6,7 +6,8 @@ import
 }
 
 // A range pattern is written as a range is and matches the Ints that range
-// visits: `90..1..101` is 90 to 100, and `10..-1..0` counts down from 10 to 1.
+// visits: `90..1..101` is 90 to 100, `10..-1..0` counts down from 10 to 1, and
+// `0..10`, stepping by 1, is 0 to 9.
 
 def Grade = fn(score : Int) -> Text =>
 	match score with
@@ -33,6 +34,18 @@ def Band = fn(n : Int) -> Int =>
 		case 3..1..10 => 2
 		case _ => 0;
 
+def Digit = fn(n : Int) -> Text =>
+	match n with
+		case 0..10 => "digit"
+		case _ => "not a digit";
+
+// Ranges that together take every Int need no catch-all.
+def Sign = fn(n : Int) -> Int =>
+	match n with
+		case -9223372036854775808..0 => -1
+		case 0 => 0
+		case 9223372036854775807..-1..0 => 1;
+
 def Cell = fn(cell : (Int, Bool)) -> Text =>
 	match cell with
 		case (0..1..10, true) => "low on"
@@ -44,3 +57,5 @@ IO::PrintLine(Countdown(10) ++ " " ++ Countdown(1) ++ " " ++ Countdown(0) ++ " "
 IO::PrintLine(Magnitude(-5) ++ " " ++ Magnitude(5) ++ " " ++ Magnitude(6) ++ " " ++ Magnitude(-6));
 IO::PrintLine((Band(4) as Text) ++ " " ++ (Band(5) as Text) ++ " " ++ (Band(10) as Text));
 IO::PrintLine(Cell((3, true)) ++ ", " ++ Cell((3, false)) ++ ", " ++ Cell((10, true)));
+IO::PrintLine(Digit(9) ++ ", " ++ Digit(10));
+IO::PrintLine((Sign(-9223372036854775808) as Text) ++ " " ++ (Sign(0) as Text) ++ " " ++ (Sign(9223372036854775807) as Text));

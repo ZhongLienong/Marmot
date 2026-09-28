@@ -190,7 +190,7 @@ pattern      = alternatives ('as' IDENTIFIER)* ;          // names the whole val
 alternatives = primary ('|' primary)* ;                   // any one of them
 primary      = '_'                                        // wildcard
              | number | TEXT | 'true' | 'false'
-             | integer '..' integer '..' integer          // the Ints a range visits
+             | integer '..' integer ('..' integer)?       // the Ints a range visits
              | IDENTIFIER                                 // binds the value
              | IDENTIFIER '(' pattern (',' pattern)* ')'  // a variant or record, by position
              | IDENTIFIER '{' fieldPatterns '}'           // a record, by field name
@@ -203,10 +203,11 @@ number       = ('-' | '+')? (INTEGER | FLOAT) ;
 integer      = ('-' | '+')? INTEGER ;
 ```
 
-A range pattern `start..step..end` matches the Ints the range with those parts
-visits, the end excluded: `90..1..101` is 90 to 100, `10..-1..0` is 10 down to 1.
-Its parts are Int literals and its step is 1 or -1, so a case always covers an
-interval; test other steps with a guard. A range that visits nothing is an error.
+A range pattern, `start..end` or `start..step..end`, matches the Ints the range
+with those parts visits, the end excluded: `0..10` is 0 to 9, `90..1..101` is 90
+to 100, `10..-1..0` is 10 down to 1. Its parts are Int literals and its step is 1
+or -1, so a case always covers an interval; test other steps with a guard. A
+range that visits nothing is an error.
 
 An array pattern without `..` matches arrays of exactly its length. With one, it
 matches every array at least as long as its other elements: those before `..`

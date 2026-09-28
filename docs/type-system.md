@@ -437,11 +437,12 @@ def Unwrap = fn(option: Option<Int>) -> Int =>
 `match` expressions are checked for exhaustiveness at every depth: every value
 of the scrutinee's type must reach an unguarded case. A union covers its variants
 and their fields, a `Bool` covers `true` and `false`, a tuple or record covers each
-combination of its fields, and `Unit` covers `()`. `Int`, `Float`, `Text`, `Byte`
-and `Word` have too many values to list, so a match on them, or on a field of
-those types, needs a case that takes any value there, whatever literals and range
-patterns such as `0..1..10` come before it. So do arrays, unless a case
-uses `..`, as below.
+combination of its fields, and `Unit` covers `()`. An `Int` is covered by the
+literals and range patterns such as `0..10` that take it, so ranges that
+together take every `Int` need no catch-all; a missing `Int` is named by the value
+nearest zero in the gap. `Float`, `Text`, `Byte` and `Word` have too many values
+to list, so a match on them, or on a field of those types, needs a case that
+takes any value there. So do arrays, unless a case uses `..`, as below.
 
 A case with a guard covers nothing, since its guard may fail. A non-exhaustive
 match is an error that names values no case matches:

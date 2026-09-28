@@ -1,6 +1,0 @@
-Compilation failed :(
-Parser Error at test/match/failure/range_pattern_without_step.mmt:12
-   |
-12 | 		case 0..10 => "small"
-   |              ^^ A range pattern is written start..step..end, as a range is.
-   |

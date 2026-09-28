@@ -2073,6 +2073,12 @@ MidoriResult::TypeResult TypeChecker::CheckPattern(MidoriPattern& pattern, const
 					break;
 				}
 
+				// Literals do not take their type from where they are used, so a hex or
+				// binary literal up to 0xFF is a Byte even against an Int.
+				if (node.m_kind == MidoriPattern::LiteralKind::Byte && resolved_expected->IsType<MidoriType::IntegerType>())
+				{
+					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, std::format("Pattern type error: '{}' is a Byte, since a hex or binary literal up to 0xFF is one; write {} to match an Int", node.m_token.m_lexeme, ParseUnsignedLiteral(node.m_token.m_lexeme).value()), node.m_token, m_file_name, m_source_lines));
+				}
 				return Unify(node.m_token, node.m_type_data, resolved_expected, UnifyDiagnosticMode::ActualExpected)
 					.and_then([&node](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult { return node.m_type_data; });
 			}
@@ -4759,8 +4765,8 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 		);
 }
 
-// A case, and each alternative of an or-pattern it starts with, must match some
-// value nothing before it does.
+// A case, and each alternative of every or-pattern in it, must match some value
+// nothing before it does.
 std::optional<CompilerError> TypeChecker::CheckCaseReachable(const PatternCoverage& coverage, const MidoriExpression::Case& match_case)
 {
 	if (!coverage.IsUseful(*match_case.m_pattern))
@@ -4768,24 +4774,10 @@ std::optional<CompilerError> TypeChecker::CheckCaseReachable(const PatternCovera
 		return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnreachableCase, "The cases above already match every value this one does, so it can never run.", match_case.m_keyword, m_file_name, m_source_lines);
 	}
 
-	const MidoriPattern* pattern = match_case.m_pattern.get();
-	while (pattern->IsPattern<MidoriPattern::As>())
+	const MidoriPattern* alternative = coverage.FindUnreachableAlternative(*match_case.m_pattern);
+	if (alternative != nullptr)
 	{
-		pattern = pattern->GetPattern<MidoriPattern::As>().m_pattern.get();
-	}
-	if (!pattern->IsPattern<MidoriPattern::Or>())
-	{
-		return std::nullopt;
-	}
-
-	PatternCoverage alternatives = coverage;
-	for (const std::unique_ptr<MidoriPattern>& alternative : pattern->GetPattern<MidoriPattern::Or>().m_alternatives)
-	{
-		if (!alternatives.IsUseful(*alternative))
-		{
-			return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnreachableCase, "The cases and alternatives before this one already match every value it does, so it can never match.", GetPatternToken(*alternative), m_file_name, m_source_lines);
-		}
-		alternatives.Add(*alternative);
+		return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnreachableCase, "The cases and alternatives before this one already match every value it does, so it can never match.", GetPatternToken(*alternative), m_file_name, m_source_lines);
 	}
 	return std::nullopt;
 }

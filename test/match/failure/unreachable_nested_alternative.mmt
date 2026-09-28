@@ -1,0 +1,20 @@
+module UnreachableNestedAlternative
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/Prelude/Option.mmt"
+}
+
+use Option.{ Option }
+
+// The case can run, for Some(2) and None, but inside it the 1 never matches:
+// the case above takes Some(1) first. Where an alternative sits does not matter.
+
+def Describe = fn(option : Option<Int>) -> Text =>
+	match option with
+		case Option::Some(1) => "one"
+		case Option::Some(1 | 2) | Option::None() => "two or none"
+		case _ => "other";
+
+IO::PrintLine(Describe(Option::Some(2)));

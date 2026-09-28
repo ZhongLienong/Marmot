@@ -23,6 +23,11 @@ public:
 
 	bool IsExhaustive() const;
 
+	// An alternative of an or-pattern, at any depth, that can never match: what
+	// reaches it is taken by the patterns added so far or by an alternative tried
+	// before it. Nothing when every alternative can match.
+	const MidoriPattern* FindUnreachableAlternative(const MidoriPattern& pattern) const;
+
 	// Values no pattern added so far matches, written as patterns, at most a few.
 	std::vector<std::string> FindUnmatched() const;
 
@@ -58,6 +63,25 @@ private:
 
 	using Interval = std::pair<int64_t, int64_t>;
 
+	// An or-pattern narrowed to its alternatives from `m_begin` up to `m_end`.
+	struct Choice
+	{
+		const MidoriPattern* m_or;
+		size_t m_begin;
+		size_t m_end;
+
+		Choice(const MidoriPattern* either, size_t begin, size_t end);
+	};
+
+	struct NestedOr
+	{
+		const MidoriPattern* m_or;
+		// The alternative each or-pattern around it takes to reach it.
+		std::vector<Choice> m_path;
+
+		NestedOr(const MidoriPattern* either, std::vector<Choice>&& path);
+	};
+
 	std::vector<Row> m_rows;
 
 	static std::vector<Witness> Unmatched(const std::vector<Row>& rows, size_t width);
@@ -82,11 +106,15 @@ private:
 
 	static std::optional<Interval> IntervalOf(const MidoriPattern& pattern);
 
-	static std::vector<Head> Pieces(Interval interval, std::span<const MidoriPattern* const> column);
+	static std::optional<std::vector<Head>> Pieces(std::span<const MidoriPattern* const> column);
 
 	static std::string LiteralKey(const MidoriPattern::Literal& literal);
 
 	static const MidoriPattern* Strip(const MidoriPattern* pattern);
+
+	static void CollectOrs(const MidoriPattern& pattern, std::vector<Choice>& path, std::vector<NestedOr>& found);
+
+	static std::unique_ptr<MidoriPattern> Narrowed(const MidoriPattern& pattern, std::span<const Choice> choices);
 
 	static bool IsWildcard(const MidoriPattern* pattern);
 

@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/match/failure/unreachable_nested_alternative.mmt:17
+   |
+17 | 		case Option::Some(1 | 2) | Option::None() => "two or none"
+   |                     ^ The cases and alternatives before this one already match every value it does, so it can never match.
+   |

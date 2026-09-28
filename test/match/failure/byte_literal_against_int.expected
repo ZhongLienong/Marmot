@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/match/failure/byte_literal_against_int.mmt:13
+   |
+13 | 		case 0x10 => "sixteen"
+   |        ^^^^ Pattern type error: '0x10' is a Byte, since a hex or binary literal up to 0xFF is one; write 16 to match an Int
+   |

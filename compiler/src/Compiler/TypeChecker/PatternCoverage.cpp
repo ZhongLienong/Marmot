@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <charconv>
 #include <format>
+#include <limits>
 #include <ranges>
 #include <type_traits>
 
@@ -19,6 +20,14 @@ PatternCoverage::Head::Head(int64_t low, int64_t high) : m_key(std::format("{}..
 {
 }
 
+PatternCoverage::Choice::Choice(const MidoriPattern* either, size_t begin, size_t end) : m_or(either), m_begin(begin), m_end(end)
+{
+}
+
+PatternCoverage::NestedOr::NestedOr(const MidoriPattern* either, std::vector<Choice>&& path) : m_or(either), m_path(std::move(path))
+{
+}
+
 void PatternCoverage::Add(const MidoriPattern& pattern)
 {
 	m_rows.push_back(Row{ Strip(&pattern) });
@@ -27,6 +36,191 @@ void PatternCoverage::Add(const MidoriPattern& pattern)
 bool PatternCoverage::IsUseful(const MidoriPattern& pattern) const
 {
 	return Useful(m_rows, Row{ Strip(&pattern) });
+}
+
+// Alternative j of an or-pattern is tried on what reaches it: the values the
+// case would match with that or-pattern cut down to j and every one around it to
+// the branch that leads there. It can match when some such value is taken
+// neither by an earlier case, nor by an earlier alternative of this or-pattern,
+// nor by an earlier alternative of one around it.
+const MidoriPattern* PatternCoverage::FindUnreachableAlternative(const MidoriPattern& pattern) const
+{
+	std::vector<Choice> path;
+	std::vector<NestedOr> ors;
+	CollectOrs(pattern, path, ors);
+
+	for (const NestedOr& nested : ors)
+	{
+		const std::vector<std::unique_ptr<MidoriPattern>>& alternatives = nested.m_or->GetPattern<MidoriPattern::Or>().m_alternatives;
+		for (size_t index = 0uz; index < alternatives.size(); index += 1uz)
+		{
+			std::vector<std::unique_ptr<MidoriPattern>> narrowed;
+			std::vector<Row> rows = m_rows;
+			const auto add_row = [&narrowed, &rows, &pattern](std::vector<Choice>&& choices)
+				{
+					narrowed.push_back(Narrowed(pattern, choices));
+					rows.push_back(Row{ Strip(narrowed.back().get()) });
+				};
+
+			for (size_t depth = 0uz; depth < nested.m_path.size(); depth += 1uz)
+			{
+				const Choice& taken = nested.m_path[depth];
+				if (taken.m_begin > 0uz)
+				{
+					std::vector<Choice> choices(nested.m_path.begin(), nested.m_path.begin() + static_cast<std::ptrdiff_t>(depth));
+					choices.emplace_back(taken.m_or, 0uz, taken.m_begin);
+					add_row(std::move(choices));
+				}
+			}
+			if (index > 0uz)
+			{
+				std::vector<Choice> choices = nested.m_path;
+				choices.emplace_back(nested.m_or, 0uz, index);
+				add_row(std::move(choices));
+			}
+
+			std::vector<Choice> choices = nested.m_path;
+			choices.emplace_back(nested.m_or, index, index + 1uz);
+			const std::unique_ptr<MidoriPattern> candidate = Narrowed(pattern, choices);
+			if (!Useful(rows, Row{ Strip(candidate.get()) }))
+			{
+				return alternatives[index].get();
+			}
+		}
+	}
+	return nullptr;
+}
+
+// Every or-pattern in the pattern, outer ones first, each with the branches of
+// the ones around it that lead to it.
+void PatternCoverage::CollectOrs(const MidoriPattern& pattern, std::vector<Choice>& path, std::vector<NestedOr>& found)
+{
+	const auto children = [&path, &found](std::span<const std::unique_ptr<MidoriPattern>> patterns)
+		{
+			for (const std::unique_ptr<MidoriPattern>& child : patterns)
+			{
+				CollectOrs(*child, path, found);
+			}
+		};
+
+	std::visit
+	(
+		[&]<typename T>(const T& node)
+		{
+			using Node = std::decay_t<T>;
+			if constexpr (std::is_same_v<Node, MidoriPattern::Or>)
+			{
+				found.emplace_back(&pattern, std::vector<Choice>(path));
+				for (size_t index = 0uz; index < node.m_alternatives.size(); index += 1uz)
+				{
+					path.emplace_back(&pattern, index, index + 1uz);
+					CollectOrs(*node.m_alternatives[index], path, found);
+					path.pop_back();
+				}
+			}
+			else if constexpr (std::is_same_v<Node, MidoriPattern::Tuple>)
+			{
+				children(node.m_elements);
+			}
+			else if constexpr (std::is_same_v<Node, MidoriPattern::Array>)
+			{
+				children(node.m_elements);
+			}
+			else if constexpr (std::is_same_v<Node, MidoriPattern::Constructor>)
+			{
+				children(node.m_args);
+			}
+			else if constexpr (std::is_same_v<Node, MidoriPattern::As>)
+			{
+				CollectOrs(*node.m_pattern, path, found);
+			}
+			else if constexpr (std::is_same_v<Node, MidoriPattern::Record>)
+			{
+				for (const MidoriPattern::Record::Field& field : node.m_fields)
+				{
+					CollectOrs(*field.m_pattern, path, found);
+				}
+			}
+		},
+		*pattern
+	);
+}
+
+// A copy of the pattern with each or-pattern the choices name cut down to their
+// alternatives. It keeps every type the checker recorded, which coverage reads.
+std::unique_ptr<MidoriPattern> PatternCoverage::Narrowed(const MidoriPattern& pattern, std::span<const Choice> choices)
+{
+	const auto copies = [choices](std::span<const std::unique_ptr<MidoriPattern>> patterns)
+		{
+			return patterns
+				| std::views::transform([choices](const std::unique_ptr<MidoriPattern>& child) { return Narrowed(*child, choices); })
+				| std::ranges::to<std::vector>();
+		};
+
+	const std::span<const Choice>::iterator choice = std::ranges::find(choices, &pattern, &Choice::m_or);
+	if (choice != choices.end())
+	{
+		const std::span<const std::unique_ptr<MidoriPattern>> kept = std::span(pattern.GetPattern<MidoriPattern::Or>().m_alternatives).subspan(choice->m_begin, choice->m_end - choice->m_begin);
+		if (kept.size() == 1uz)
+		{
+			return Narrowed(*kept.front(), choices);
+		}
+		std::unique_ptr<MidoriPattern> either = std::make_unique<MidoriPattern>(MidoriPattern::Or(copies(kept)));
+		either->GetType() = pattern.GetType();
+		return either;
+	}
+
+	std::unique_ptr<MidoriPattern> copy = std::visit
+	(
+		[&copies, choices]<typename T>(const T& node) -> std::unique_ptr<MidoriPattern>
+		{
+			using Node = std::decay_t<T>;
+			if constexpr (std::is_same_v<Node, MidoriPattern::Tuple>)
+			{
+				return std::make_unique<MidoriPattern>(MidoriPattern::Tuple(node.m_left_paren, copies(node.m_elements)));
+			}
+			else if constexpr (std::is_same_v<Node, MidoriPattern::Array>)
+			{
+				std::optional<MidoriPattern::Array::Rest> rest;
+				if (node.m_rest.has_value())
+				{
+					rest.emplace(node.m_rest->m_position, Narrowed(*node.m_rest->m_pattern, choices));
+				}
+				return std::make_unique<MidoriPattern>(MidoriPattern::Array(node.m_left_bracket, copies(node.m_elements), std::move(rest)));
+			}
+			else if constexpr (std::is_same_v<Node, MidoriPattern::Constructor>)
+			{
+				MidoriPattern::Constructor constructor(node.m_name_token, std::string(node.m_name), copies(node.m_args), node.m_is_union);
+				constructor.m_tag = node.m_tag;
+				return std::make_unique<MidoriPattern>(std::move(constructor));
+			}
+			else if constexpr (std::is_same_v<Node, MidoriPattern::As>)
+			{
+				return std::make_unique<MidoriPattern>(MidoriPattern::As(Narrowed(*node.m_pattern, choices), Narrowed(*node.m_binding, choices)));
+			}
+			else if constexpr (std::is_same_v<Node, MidoriPattern::Or>)
+			{
+				return std::make_unique<MidoriPattern>(MidoriPattern::Or(copies(node.m_alternatives)));
+			}
+			else if constexpr (std::is_same_v<Node, MidoriPattern::Record>)
+			{
+				std::vector<MidoriPattern::Record::Field> fields;
+				for (const MidoriPattern::Record::Field& field : node.m_fields)
+				{
+					fields.emplace_back(field.m_name, Narrowed(*field.m_pattern, choices));
+					fields.back().m_index = field.m_index;
+				}
+				return std::make_unique<MidoriPattern>(MidoriPattern::Record(node.m_name_token, std::string(node.m_name), std::move(fields), std::optional<Token>(node.m_rest)));
+			}
+			else
+			{
+				return std::make_unique<MidoriPattern>(Node(node));
+			}
+		},
+		*pattern
+	);
+	copy->GetType() = pattern.GetType();
+	return copy;
 }
 
 bool PatternCoverage::IsExhaustive() const
@@ -133,37 +327,29 @@ bool PatternCoverage::Useful(const std::vector<Row>& unexpanded, const Row& cand
 		return Useful(Default(rows), Row(rest.begin(), rest.end()));
 	}
 
-	const std::optional<Interval> interval = IntervalOf(*head);
-	if (interval.has_value())
-	{
-		return std::ranges::any_of(Pieces(interval.value(), column), [&rows, rest](const Head& piece)
-			{
-				return Useful(Specialize(rows, piece), Row(rest.begin(), rest.end()));
-			});
-	}
-
 	const Head own = OwnHead(*head);
 	return Useful(Specialize(rows, own), Joined(ArgumentsFor(*head, own).value(), rest));
 }
 
-// The interval, split where an interval the column names starts or stops, so
-// that each piece lies wholly inside or wholly outside every one of them.
-std::vector<PatternCoverage::Head> PatternCoverage::Pieces(Interval interval, std::span<const MidoriPattern* const> column)
+// Every Int, split where an interval the column names starts or stops, so that
+// each piece lies wholly inside or wholly outside every one of them.
+std::optional<std::vector<PatternCoverage::Head>> PatternCoverage::Pieces(std::span<const MidoriPattern* const> column)
 {
-	const auto [low, high] = interval;
+	constexpr int64_t low = std::numeric_limits<int64_t>::min();
+	constexpr int64_t high = std::numeric_limits<int64_t>::max();
 	std::vector<int64_t> starts{ low };
 	for (const MidoriPattern* pattern : column)
 	{
 		const std::optional<Interval> other = IntervalOf(*pattern);
 		if (!other.has_value())
 		{
-			continue;
+			return std::nullopt;
 		}
-		if (other->first > low && other->first <= high)
+		if (other->first > low)
 		{
 			starts.push_back(other->first);
 		}
-		if (other->second >= low && other->second < high)
+		if (other->second < high)
 		{
 			starts.push_back(other->second + 1);
 		}
@@ -332,8 +518,16 @@ std::optional<std::vector<PatternCoverage::Head>> PatternCoverage::Signature(std
 				lengths.emplace_back(std::format("[{}..]", open_from), Shape::OpenArray, open_from, before);
 				return lengths;
 			}
+			else if constexpr (std::is_same_v<Node, MidoriPattern::Range>)
+			{
+				return Pieces(column);
+			}
 			else if constexpr (std::is_same_v<Node, MidoriPattern::Literal>)
 			{
+				if (node.m_kind == MidoriPattern::LiteralKind::Integer)
+				{
+					return Pieces(column);
+				}
 				if (node.m_kind == MidoriPattern::LiteralKind::Bool)
 				{
 					return std::vector<Head>{ Head("true", Shape::Literal, 0uz), Head("false", Shape::Literal, 0uz) };
@@ -507,8 +701,11 @@ std::string PatternCoverage::Display(const Head& head, std::span<const std::stri
 		return std::format("[{}]", parts | std::views::join_with(std::string_view(", ")) | std::ranges::to<std::string>());
 	}
 	case Shape::Literal:
-	case Shape::Interval:
 		return head.m_key;
+	case Shape::Interval:
+		// One value stands for the piece: the one nearest zero, which is next to a
+		// case's interval whenever the piece does not hold zero.
+		return std::format("{}", head.m_high < 0 ? head.m_high : std::max<int64_t>(head.m_low, 0));
 	}
 	std::unreachable();
 }
