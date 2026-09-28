@@ -3377,7 +3377,7 @@ MidoriResult::TypeCheckerResult TypeChecker::TypeCheck()
 			return std::unexpected(MidoriResult::CompilerDiagnostics(std::move(errors)));
 		}
 
-		for (std::unique_ptr<MidoriStatement>& statement : m_program_tree | std::views::filter(std::not_fn(is_declaration)))
+		for (std::unique_ptr<MidoriStatement>& statement : m_program_tree | std::views::filter([&is_declaration](const std::unique_ptr<MidoriStatement>& statement) { return !is_declaration(statement); }))
 		{
 			m_used_failed_definition = false;
 			MidoriResult::TypeResult result = Evaluate(statement);

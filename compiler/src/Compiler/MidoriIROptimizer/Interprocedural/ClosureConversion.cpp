@@ -148,9 +148,8 @@ namespace
 			if (std::ranges::contains(read, false))
 			{
 				dropped_any = true;
-				function.m_capture_types = function.m_capture_types
-					| std::views::enumerate
-					| std::views::filter([&read](const auto& capture) { return read[static_cast<size_t>(std::get<0>(capture))]; })
+				function.m_capture_types = std::views::zip(std::views::iota(0uz), function.m_capture_types)
+					| std::views::filter([&read](const auto& capture) { return read[std::get<0>(capture)]; })
 					| std::views::transform([](const auto& capture) { return std::get<1>(capture); })
 					| std::ranges::to<std::vector>();
 			}
@@ -201,9 +200,8 @@ namespace
 					else if (instruction.m_op == MidoriIROp::MakeClosure)
 					{
 						const std::vector<std::optional<uint32_t>>& captures = renumbered[std::get<MidoriIRFunctionId>(instruction.m_immediate).m_index];
-						instruction.m_operands = instruction.m_operands
-							| std::views::enumerate
-							| std::views::filter([&captures](const auto& operand) { return captures[static_cast<size_t>(std::get<0>(operand))].has_value(); })
+						instruction.m_operands = std::views::zip(std::views::iota(0uz), instruction.m_operands)
+							| std::views::filter([&captures](const auto& operand) { return captures[std::get<0>(operand)].has_value(); })
 							| std::views::transform([](const auto& operand) { return std::get<1>(operand); })
 							| std::ranges::to<std::vector>();
 					}

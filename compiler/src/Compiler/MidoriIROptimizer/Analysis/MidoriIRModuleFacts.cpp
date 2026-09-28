@@ -30,12 +30,11 @@ MidoriIRModuleFacts::MidoriIRModuleFacts(const MidoriIRModule& module)
 					const uint32_t made = std::get<MidoriIRFunctionId>(instruction.m_immediate).m_index;
 					closures_made[made] += 1u;
 					std::vector<bool>& captures = bound_to_self[made];
-					const std::vector<bool> bound = captures
-						| std::views::enumerate
+					const std::vector<bool> bound = std::views::zip(std::views::iota(0uz), captures)
 						| std::views::transform([&](const auto& capture)
 						{
 							const auto& [index, was_self] = capture;
-							const bool is_passed = static_cast<size_t>(index) < instruction.m_operands.size();
+							const bool is_passed = index < instruction.m_operands.size();
 							const bool binds_self = std::ranges::any_of(block.m_instructions, [&](const MidoriIRInstruction& bind)
 							{
 								return bind.m_op == MidoriIROp::BindCaptures && bind.m_operands[0u] == instruction.m_result && bind.m_operands[1u] == instruction.m_result && std::get<MidoriIRIndex>(bind.m_immediate).m_value == static_cast<uint32_t>(index);

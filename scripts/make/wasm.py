@@ -42,6 +42,10 @@ class Emscripten:
     emcmake: str
     root: Path | None = None
 
+    @property
+    def toolchain_file(self) -> Path:
+        return Path(self.emcmake).resolve().parent / "cmake" / "Modules" / "Platform" / "Emscripten.cmake"
+
 
 def format_size(size_bytes: int) -> str:
     size_kb = size_bytes / 1024
@@ -56,8 +60,10 @@ def newest_directory(directory: Path) -> Path | None:
 
 def from_emsdk(emsdk_root: Path) -> Emscripten | None:
     emscripten_root = emsdk_root / "upstream" / "emscripten"
-    emcmake = emscripten_root / ("emcmake.bat" if IS_WINDOWS else "emcmake")
-    if not emcmake.is_file():
+    # Newer emsdk releases ship emcmake.exe on Windows in place of emcmake.bat.
+    launchers = ["emcmake.exe", "emcmake.bat"] if IS_WINDOWS else ["emcmake"]
+    emcmake = next((emscripten_root / name for name in launchers if (emscripten_root / name).is_file()), None)
+    if emcmake is None:
         return None
 
     environment = os.environ.copy()
@@ -97,6 +103,15 @@ def remove_locked(function, path, _error) -> None:
     console.note(f"skipping locked path: {path}")
 
 
+def cached_toolchain_file() -> Path | None:
+    cache = BUILD_DIR / "CMakeCache.txt"
+    if not cache.is_file():
+        return None
+    prefix = "CMAKE_TOOLCHAIN_FILE:FILEPATH="
+    lines = cache.read_text(encoding="utf-8", errors="replace").splitlines()
+    return next((Path(line[len(prefix):]).resolve() for line in lines if line.startswith(prefix)), None)
+
+
 def build(emscripten: Emscripten, clean: bool) -> int:
     if clean and BUILD_DIR.exists():
         print(f"Cleaning {BUILD_DIR}...")
@@ -104,10 +119,16 @@ def build(emscripten: Emscripten, clean: bool) -> int:
         handler = {"onexc" if sys.version_info >= (3, 12) else "onerror": remove_locked}
         shutil.rmtree(BUILD_DIR, **handler)
 
-    if not (BUILD_DIR / "CMakeCache.txt").is_file():
+    # A build tree keeps the em++ it was configured with; running it under another emsdk's config mixes LLVM versions.
+    cached = cached_toolchain_file()
+    stale = cached is not None and cached != emscripten.toolchain_file.resolve()
+    if stale:
+        console.note(f"build-wasm/ was configured with another Emscripten ({cached}); reconfiguring")
+    if cached is None or stale:
         generator = ["-G", "Ninja"] if shutil.which("ninja", path=emscripten.environment.get("PATH")) else []
+        fresh = ["--fresh"] if stale else []
         configured = toolchain.run(
-            [emscripten.emcmake, "cmake", "-S", str(REPO_ROOT), "-B", str(BUILD_DIR), *generator,
+            [emscripten.emcmake, "cmake", *fresh, "-S", str(REPO_ROOT), "-B", str(BUILD_DIR), *generator,
              "-DCMAKE_BUILD_TYPE=Release", "-DMIDORI_WASM64=ON"],
             environment=emscripten.environment,
         )
