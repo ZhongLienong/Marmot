@@ -1,0 +1,6 @@
+Compilation failed :(
+Parser Error at test/match/failure/range_pattern_step_not_one.mmt:13
+   |
+13 | 		case 0..2..10 => "even and small"
+   |           ^ A range pattern steps by 1 or -1; test other steps with a guard, as in 'case n if n % 2 == 0'.
+   |

@@ -439,7 +439,8 @@ of the scrutinee's type must reach an unguarded case. A union covers its variant
 and their fields, a `Bool` covers `true` and `false`, a tuple or record covers each
 combination of its fields, and `Unit` covers `()`. `Int`, `Float`, `Text`, `Byte`
 and `Word` have too many values to list, so a match on them, or on a field of
-those types, needs a case that takes any value there. So do arrays, unless a case
+those types, needs a case that takes any value there, whatever literals and range
+patterns such as `0..1..10` come before it. So do arrays, unless a case
 uses `..`, as below.
 
 A case with a guard covers nothing, since its guard may fail. A non-exhaustive

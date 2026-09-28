@@ -1,0 +1,6 @@
+Compilation failed :(
+Parser Error at test/match/failure/range_pattern_of_floats.mmt:13
+   |
+13 | 		case 0.0..0.5..2.0 => "low"
+   |        ^^^ A range pattern's start, step and end are Int literals.
+   |

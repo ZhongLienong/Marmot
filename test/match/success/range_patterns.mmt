@@ -1,0 +1,46 @@
+module MatchRangePatterns
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt"
+}
+
+// A range pattern is written as a range is and matches the Ints that range
+// visits: `90..1..101` is 90 to 100, and `10..-1..0` counts down from 10 to 1.
+
+def Grade = fn(score : Int) -> Text =>
+	match score with
+		case 90..1..101 => "A"
+		case 80..1..90 => "B"
+		case 0..1..80 => "C"
+		case _ => "-";
+
+def Countdown = fn(n : Int) -> Text =>
+	match n with
+		case 10..-1..0 => "counting"
+		case 0 => "liftoff"
+		case _ => "idle";
+
+def Magnitude = fn(n : Int) -> Text =>
+	match n with
+		case -5..1..0 | 0..1..6 => "small"
+		case _ => "large";
+
+// Overlapping ranges are fine while each still takes a value the ones above do not.
+def Band = fn(n : Int) -> Int =>
+	match n with
+		case 0..1..5 => 1
+		case 3..1..10 => 2
+		case _ => 0;
+
+def Cell = fn(cell : (Int, Bool)) -> Text =>
+	match cell with
+		case (0..1..10, true) => "low on"
+		case (0..1..10, false) => "low off"
+		case (_, _) => "out";
+
+IO::PrintLine(Grade(95) ++ Grade(90) ++ Grade(89) ++ Grade(0) ++ Grade(100) ++ Grade(101) ++ Grade(-1));
+IO::PrintLine(Countdown(10) ++ " " ++ Countdown(1) ++ " " ++ Countdown(0) ++ " " ++ Countdown(11));
+IO::PrintLine(Magnitude(-5) ++ " " ++ Magnitude(5) ++ " " ++ Magnitude(6) ++ " " ++ Magnitude(-6));
+IO::PrintLine((Band(4) as Text) ++ " " ++ (Band(5) as Text) ++ " " ++ (Band(10) as Text));
+IO::PrintLine(Cell((3, true)) ++ ", " ++ Cell((3, false)) ++ ", " ++ Cell((10, true)));

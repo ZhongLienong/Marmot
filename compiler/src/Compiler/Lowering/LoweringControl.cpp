@@ -372,6 +372,13 @@ Lowering::Emitted Lowering::LowerPattern(const MidoriPattern& pattern, MidoriIRV
 				});
 		}
 
+		Emitted operator()(const MidoriPattern::Range& range) const
+		{
+			Builder().AtLine(range.m_start.m_line);
+			return m_self.TestOrFail(Builder().Binary(MidoriIROp::GeInt, m_value, Builder().ConstInt(range.m_low)), m_fail)
+				.and_then([&]() { return m_self.TestOrFail(Builder().Binary(MidoriIROp::LeInt, m_value, Builder().ConstInt(range.m_high)), m_fail); });
+		}
+
 		// Each alternative that matches jumps to one block with what it bound, so
 		// the case reads its names from that block's parameters.
 		Emitted operator()(const MidoriPattern::Or& either) const

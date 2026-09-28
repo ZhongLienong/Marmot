@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <format>
 #include <fstream>
@@ -5128,39 +5129,18 @@ MidoriResult::PatternResult Parser::ParsePrimaryPattern()
 		return std::make_unique<MidoriPattern>(MidoriPattern::Literal(Previous(), MidoriPattern::LiteralKind::Bool));
 	}
 
-	if (Match(Token::Name::FLOAT_LITERAL))
+	if (Check(Token::Name::FLOAT_LITERAL, 0) || Check(Token::Name::INTEGER_LITERAL, 0) || Check(Token::Name::SINGLE_MINUS, 0) || Check(Token::Name::SINGLE_PLUS, 0))
 	{
-		return std::make_unique<MidoriPattern>(MidoriPattern::Literal(Previous(), MidoriPattern::LiteralKind::Float));
-	}
-
-	if (Match(Token::Name::INTEGER_LITERAL))
-	{
-		return MakeNumericLiteralPattern(Previous());
+		return ParseNumericLiteralPattern()
+			.and_then([this](std::unique_ptr<MidoriPattern>&& literal) -> MidoriResult::PatternResult
+			{
+				return Check(Token::Name::DOUBLE_DOT, 0) ? ParseRangePattern(std::move(literal)) : std::move(literal);
+			});
 	}
 
 	if (Match(Token::Name::TEXT_LITERAL))
 	{
 		return std::make_unique<MidoriPattern>(MidoriPattern::Literal(Previous(), MidoriPattern::LiteralKind::Text));
-	}
-
-	if (Match(Token::Name::SINGLE_MINUS, Token::Name::SINGLE_PLUS))
-	{
-		Token sign_token = Previous();
-		bool is_negative = sign_token.m_token_name == Token::Name::SINGLE_MINUS;
-		if (Match(Token::Name::FLOAT_LITERAL))
-		{
-			Token literal = Previous();
-			literal.m_lexeme = (is_negative ? "-"s : ""s) + literal.m_lexeme;
-			return std::make_unique<MidoriPattern>(MidoriPattern::Literal(literal, MidoriPattern::LiteralKind::Float));
-		}
-		if (Match(Token::Name::INTEGER_LITERAL))
-		{
-			Token literal = Previous();
-			literal.m_lexeme = (is_negative ? "-"s : ""s) + literal.m_lexeme;
-			return MakeNumericLiteralPattern(std::move(literal));
-		}
-
-		return std::unexpected(GenerateParserError("Expected numeric literal after unary sign in pattern.", sign_token));
 	}
 
 	if (Match(Token::Name::IDENTIFIER_LITERAL))
@@ -5228,6 +5208,83 @@ MidoriResult::PatternResult Parser::ParsePrimaryPattern()
 	}
 
 	return std::unexpected(GenerateParserError("Expected pattern.", Peek(0)));
+}
+
+MidoriResult::PatternResult Parser::ParseNumericLiteralPattern()
+{
+	std::string sign;
+	if (Match(Token::Name::SINGLE_MINUS, Token::Name::SINGLE_PLUS))
+	{
+		sign = Previous().m_token_name == Token::Name::SINGLE_MINUS ? "-" : "";
+		if (!Check(Token::Name::FLOAT_LITERAL, 0) && !Check(Token::Name::INTEGER_LITERAL, 0))
+		{
+			return std::unexpected(GenerateParserError("Expected numeric literal after unary sign in pattern.", Previous()));
+		}
+	}
+
+	if (Match(Token::Name::FLOAT_LITERAL))
+	{
+		Token literal = Previous();
+		literal.m_lexeme = sign + literal.m_lexeme;
+		return std::make_unique<MidoriPattern>(MidoriPattern::Literal(literal, MidoriPattern::LiteralKind::Float));
+	}
+	if (Match(Token::Name::INTEGER_LITERAL))
+	{
+		Token literal = Previous();
+		literal.m_lexeme = sign + literal.m_lexeme;
+		return MakeNumericLiteralPattern(std::move(literal));
+	}
+	return std::unexpected(GenerateParserError("Expected numeric literal in pattern.", Peek(0)));
+}
+
+// `start..step..end` matches the Ints the same range visits. The step is 1 or -1,
+// which keeps what a case covers an interval; other steps belong in a guard.
+MidoriResult::PatternResult Parser::ParseRangePattern(std::unique_ptr<MidoriPattern>&& start)
+{
+	std::array<std::unique_ptr<MidoriPattern>, 3uz> parts{ std::move(start) };
+	for (size_t index = 1uz; index < parts.size(); index += 1uz)
+	{
+		if (!Match(Token::Name::DOUBLE_DOT))
+		{
+			return std::unexpected(GenerateParserError("A range pattern is written start..step..end, as a range is.", Peek(0)));
+		}
+		MidoriResult::PatternResult part = ParseNumericLiteralPattern();
+		if (!part.has_value())
+		{
+			return part;
+		}
+		parts[index] = std::move(part.value());
+	}
+
+	std::array<int64_t, 3uz> values{};
+	for (size_t index = 0uz; index < parts.size(); index += 1uz)
+	{
+		const MidoriPattern::Literal& literal = parts[index]->GetPattern<MidoriPattern::Literal>();
+		if (literal.m_kind != MidoriPattern::LiteralKind::Integer)
+		{
+			return std::unexpected(GenerateParserError("A range pattern's start, step and end are Int literals.", literal.m_token));
+		}
+		const std::optional<int64_t> value = ParseIntegerLiteral(literal.m_token.m_lexeme);
+		if (!value.has_value())
+		{
+			return std::unexpected(GenerateParserError("This literal does not fit in an Int.", literal.m_token));
+		}
+		values[index] = value.value();
+	}
+
+	const Token& start_token = parts[0uz]->GetPattern<MidoriPattern::Literal>().m_token;
+	const auto [first, step, end] = values;
+	if (step != 1 && step != -1)
+	{
+		return std::unexpected(GenerateParserError("A range pattern steps by 1 or -1; test other steps with a guard, as in 'case n if n % 2 == 0'.", parts[1uz]->GetPattern<MidoriPattern::Literal>().m_token));
+	}
+	if (step == 1 ? first >= end : first <= end)
+	{
+		return std::unexpected(GenerateParserError("This range visits no value, so the pattern can never match.", start_token));
+	}
+	return step == 1
+		? std::make_unique<MidoriPattern>(MidoriPattern::Range(start_token, first, end - 1))
+		: std::make_unique<MidoriPattern>(MidoriPattern::Range(start_token, end + 1, first));
 }
 
 MidoriResult::PatternResult Parser::ParseBindingPattern(Token&& name)

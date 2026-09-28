@@ -36,21 +36,27 @@ private:
 		Tuple,
 		ClosedArray,
 		OpenArray,
-		Literal
+		Literal,
+		Interval
 	};
 
 	// One constructor of a column's type. An open array stands for every length
 	// from its arity up: its first `m_before` arguments are counted from the start
-	// and the rest from the end.
+	// and the rest from the end. An interval stands for the Ints `m_low` to `m_high`.
 	struct Head
 	{
 		std::string m_key;
 		Shape m_shape;
 		size_t m_arity;
 		size_t m_before;
+		int64_t m_low = 0;
+		int64_t m_high = 0;
 
 		Head(std::string&& key, Shape shape, size_t arity, size_t before = 0uz);
+		Head(int64_t low, int64_t high);
 	};
+
+	using Interval = std::pair<int64_t, int64_t>;
 
 	std::vector<Row> m_rows;
 
@@ -73,6 +79,10 @@ private:
 	static std::optional<Row> ArgumentsFor(const MidoriPattern& pattern, const Head& head);
 
 	static Head OwnHead(const MidoriPattern& pattern);
+
+	static std::optional<Interval> IntervalOf(const MidoriPattern& pattern);
+
+	static std::vector<Head> Pieces(Interval interval, std::span<const MidoriPattern* const> column);
 
 	static std::string LiteralKey(const MidoriPattern::Literal& literal);
 

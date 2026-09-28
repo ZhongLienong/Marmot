@@ -189,13 +189,21 @@ next `|>`. `x |> fn(a) => f(a) |> g` is `g(f(x))`, and a later stage cannot name
 pattern      = alternatives ('as' IDENTIFIER)* ;          // names the whole value
 alternatives = primary ('|' primary)* ;                   // any one of them
 primary      = '_'                                        // wildcard
-             | INTEGER | FLOAT | TEXT | 'true' | 'false'
+             | number | TEXT | 'true' | 'false'
+             | integer '..' integer '..' integer          // the Ints a range visits
              | IDENTIFIER                                 // binds the value
              | IDENTIFIER '(' pattern (',' pattern)* ')'  // a variant
              | '(' pattern (',' pattern)+ ')'             // a tuple
              | '[' (element (',' element)*)? ']' ;        // an array
 element      = pattern | '..' IDENTIFIER? ;               // at most one '..'
+number       = ('-' | '+')? (INTEGER | FLOAT) ;
+integer      = ('-' | '+')? INTEGER ;
 ```
+
+A range pattern `start..step..end` matches the Ints the range with those parts
+visits, the end excluded: `90..1..101` is 90 to 100, `10..-1..0` is 10 down to 1.
+Its parts are Int literals and its step is 1 or -1, so a case always covers an
+interval; test other steps with a guard. A range that visits nothing is an error.
 
 An array pattern without `..` matches arrays of exactly its length. With one, it
 matches every array at least as long as its other elements: those before `..`

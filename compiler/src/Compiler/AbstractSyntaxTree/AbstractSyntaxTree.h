@@ -290,8 +290,19 @@ public:
 		Or(std::vector<std::unique_ptr<MidoriPattern>>&& alternatives);
 	};
 
+	// `start..step..end` with a step of 1 or -1: the Ints from `m_low` to `m_high`,
+	// both included, which are the ones the range visits.
+	struct Range : BasePattern
+	{
+		Token m_start;
+		int64_t m_low;
+		int64_t m_high;
+
+		Range(const Token& start, int64_t low, int64_t high);
+	};
+
 private:
-	using PatternUnion = std::variant<Binding, Wildcard, Literal, Tuple, Array, Constructor, As, Or>;
+	using PatternUnion = std::variant<Binding, Wildcard, Literal, Tuple, Array, Constructor, As, Or, Range>;
 	PatternUnion m_variant;
 
 public:

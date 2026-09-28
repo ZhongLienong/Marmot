@@ -15,6 +15,10 @@ PatternCoverage::Head::Head(std::string&& key, Shape shape, size_t arity, size_t
 {
 }
 
+PatternCoverage::Head::Head(int64_t low, int64_t high) : m_key(std::format("{}..{}", low, high)), m_shape(Shape::Interval), m_arity(0uz), m_before(0uz), m_low(low), m_high(high)
+{
+}
+
 void PatternCoverage::Add(const MidoriPattern& pattern)
 {
 	m_rows.push_back(Row{ Strip(&pattern) });
@@ -129,8 +133,68 @@ bool PatternCoverage::Useful(const std::vector<Row>& unexpanded, const Row& cand
 		return Useful(Default(rows), Row(rest.begin(), rest.end()));
 	}
 
+	const std::optional<Interval> interval = IntervalOf(*head);
+	if (interval.has_value())
+	{
+		return std::ranges::any_of(Pieces(interval.value(), column), [&rows, rest](const Head& piece)
+			{
+				return Useful(Specialize(rows, piece), Row(rest.begin(), rest.end()));
+			});
+	}
+
 	const Head own = OwnHead(*head);
 	return Useful(Specialize(rows, own), Joined(ArgumentsFor(*head, own).value(), rest));
+}
+
+// The interval, split where an interval the column names starts or stops, so
+// that each piece lies wholly inside or wholly outside every one of them.
+std::vector<PatternCoverage::Head> PatternCoverage::Pieces(Interval interval, std::span<const MidoriPattern* const> column)
+{
+	const auto [low, high] = interval;
+	std::vector<int64_t> starts{ low };
+	for (const MidoriPattern* pattern : column)
+	{
+		const std::optional<Interval> other = IntervalOf(*pattern);
+		if (!other.has_value())
+		{
+			continue;
+		}
+		if (other->first > low && other->first <= high)
+		{
+			starts.push_back(other->first);
+		}
+		if (other->second >= low && other->second < high)
+		{
+			starts.push_back(other->second + 1);
+		}
+	}
+	std::ranges::sort(starts);
+	const auto [unique_end, sentinel] = std::ranges::unique(starts);
+	starts.erase(unique_end, sentinel);
+
+	std::vector<Head> pieces;
+	for (size_t index = 0uz; index < starts.size(); index += 1uz)
+	{
+		pieces.emplace_back(starts[index], index + 1uz < starts.size() ? starts[index + 1uz] - 1 : high);
+	}
+	return pieces;
+}
+
+// Int literals and ranges, which are the patterns an Int column tells apart by
+// value. A literal too large for an Int has none; lowering reports it.
+std::optional<PatternCoverage::Interval> PatternCoverage::IntervalOf(const MidoriPattern& pattern)
+{
+	if (pattern.IsPattern<MidoriPattern::Range>())
+	{
+		const MidoriPattern::Range& range = pattern.GetPattern<MidoriPattern::Range>();
+		return Interval{ range.m_low, range.m_high };
+	}
+	if (pattern.IsPattern<MidoriPattern::Literal>() && pattern.GetPattern<MidoriPattern::Literal>().m_kind == MidoriPattern::LiteralKind::Integer)
+	{
+		return ParseIntegerLiteral(pattern.GetPattern<MidoriPattern::Literal>().m_token.m_lexeme)
+			.transform([](int64_t value) { return Interval{ value, value }; });
+	}
+	return std::nullopt;
 }
 
 PatternCoverage::Row PatternCoverage::Joined(Row&& first, std::span<const MidoriPattern* const> rest)
@@ -299,7 +363,7 @@ std::optional<PatternCoverage::Row> PatternCoverage::ArgumentsFor(const MidoriPa
 
 	return std::visit
 	(
-		[&head, &pointers]<typename T>(const T& node) -> std::optional<Row>
+		[&pattern, &head, &pointers]<typename T>(const T& node) -> std::optional<Row>
 		{
 			using Node = std::decay_t<T>;
 			if constexpr (std::is_same_v<Node, MidoriPattern::Constructor>)
@@ -328,9 +392,19 @@ std::optional<PatternCoverage::Row> PatternCoverage::ArgumentsFor(const MidoriPa
 				arguments.insert(arguments.end(), after.begin(), after.end());
 				return arguments;
 			}
-			else if constexpr (std::is_same_v<Node, MidoriPattern::Literal>)
+			else if constexpr (std::is_same_v<Node, MidoriPattern::Literal> || std::is_same_v<Node, MidoriPattern::Range>)
 			{
-				return LiteralKey(node) == head.m_key ? std::optional<Row>(Row{}) : std::nullopt;
+				if (head.m_shape == Shape::Interval)
+				{
+					const std::optional<Interval> interval = IntervalOf(pattern);
+					const bool contains = interval.has_value() && interval->first <= head.m_low && head.m_high <= interval->second;
+					return contains ? std::optional<Row>(Row{}) : std::nullopt;
+				}
+				if constexpr (std::is_same_v<Node, MidoriPattern::Literal>)
+				{
+					return LiteralKey(node) == head.m_key ? std::optional<Row>(Row{}) : std::nullopt;
+				}
+				return std::nullopt;
 			}
 			else
 			{
@@ -416,6 +490,7 @@ std::string PatternCoverage::Display(const Head& head, std::span<const std::stri
 		return std::format("[{}]", parts | std::views::join_with(std::string_view(", ")) | std::ranges::to<std::string>());
 	}
 	case Shape::Literal:
+	case Shape::Interval:
 		return head.m_key;
 	}
 	std::unreachable();

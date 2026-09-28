@@ -90,6 +90,10 @@ void MidoriAbstractSyntaxTreeWalker::operator()(MidoriPattern::Wildcard&)
 {
 }
 
+void MidoriAbstractSyntaxTreeWalker::operator()(MidoriPattern::Range&)
+{
+}
+
 void MidoriAbstractSyntaxTreeWalker::operator()(MidoriPattern::Literal&)
 {
 }

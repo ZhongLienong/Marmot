@@ -1,0 +1,17 @@
+module UnreachableInsideRanges
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt"
+}
+
+// Neither range above takes all of 2 to 7, but together they do.
+
+def Band = fn(n : Int) -> Int =>
+	match n with
+		case 0..1..5 => 1
+		case 5..1..10 => 2
+		case 2..1..8 => 3
+		case _ => 0;
+
+IO::PrintLine(Band(6) as Text);

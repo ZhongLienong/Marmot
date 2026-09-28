@@ -603,4 +603,9 @@ void PrintAbstractSyntaxTree::operator()(const MidoriPattern::Or& either, int de
 	PrintWithIndentation(depth, "}");
 }
 
+void PrintAbstractSyntaxTree::operator()(const MidoriPattern::Range& range, int depth) const
+{
+	PrintWithIndentation(depth, std::format("RangePattern {{ {} to {} }}", range.m_low, range.m_high));
+}
+
 #endif

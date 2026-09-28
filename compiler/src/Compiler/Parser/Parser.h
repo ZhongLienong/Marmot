@@ -798,6 +798,10 @@ private:
 
 	MidoriResult::PatternResult ParseBindingPattern(Token&& name);
 
+	MidoriResult::PatternResult ParseNumericLiteralPattern();
+
+	MidoriResult::PatternResult ParseRangePattern(std::unique_ptr<MidoriPattern>&& start);
+
 	MidoriResult::PatternResult ParseArrayRest(Token&& dots);
 
 

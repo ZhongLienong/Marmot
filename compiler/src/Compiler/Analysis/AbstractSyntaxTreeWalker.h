@@ -38,6 +38,7 @@ protected:
 	virtual void operator()(MidoriPattern::Constructor& constructor);
 	virtual void operator()(MidoriPattern::As& as);
 	virtual void operator()(MidoriPattern::Or& either);
+	virtual void operator()(MidoriPattern::Range& range);
 
 	virtual void operator()(MidoriExpression::As& as);
 	virtual void operator()(MidoriExpression::Binary& binary);

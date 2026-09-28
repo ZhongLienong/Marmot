@@ -148,6 +148,13 @@ MidoriPattern::Or::Or(std::vector<std::unique_ptr<MidoriPattern>>&& alternatives
 {
 }
 
+MidoriPattern::Range::Range(const Token& start, int64_t low, int64_t high)
+	: m_start(start),
+	m_low(low),
+	m_high(high)
+{
+}
+
 MidoriExpression::As::As(const Token& as_keyword, std::shared_ptr<MidoriType> to_type, std::unique_ptr<MidoriExpression>&& expr)
 	: m_as_keyword(as_keyword),
 	m_to_type(std::move(to_type)),

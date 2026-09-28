@@ -1,0 +1,16 @@
+module RangePatternStepNotOne
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt"
+}
+
+// A step of 1 or -1 keeps what a case covers an interval, so the compiler can
+// tell exactly which cases can run; other steps are a guard's job.
+
+def Describe = fn(n : Int) -> Text =>
+	match n with
+		case 0..2..10 => "even and small"
+		case _ => "other";
+
+IO::PrintLine(Describe(4));

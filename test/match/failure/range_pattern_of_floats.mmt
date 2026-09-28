@@ -1,0 +1,16 @@
+module RangePatternOfFloats
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt"
+}
+
+// Which Floats a Float range visits depends on rounding, so a range pattern
+// takes Int literals only.
+
+def Describe = fn(x : Float) -> Text =>
+	match x with
+		case 0.0..0.5..2.0 => "low"
+		case _ => "other";
+
+IO::PrintLine(Describe(0.5));

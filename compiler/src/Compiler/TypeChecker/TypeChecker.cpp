@@ -80,6 +80,10 @@ namespace
 				{
 					return GetPatternToken(*node.m_alternatives.front());
 				}
+				else if constexpr (std::is_same_v<Node, MidoriPattern::Range>)
+				{
+					return node.m_start;
+				}
 				else
 				{
 					static_assert(AlwaysFalse<Node>, "Unhandled pattern type.");
@@ -2194,6 +2198,12 @@ MidoriResult::TypeResult TypeChecker::CheckPattern(MidoriPattern& pattern, const
 						node.m_type_data = resolved_expected;
 						return node.m_type_data;
 					});
+			}
+			else if constexpr (std::is_same_v<Node, MidoriPattern::Range>)
+			{
+				node.m_type_data = MidoriType::MakeLiteralType<MidoriType::IntegerType>();
+				return Unify(node.m_start, node.m_type_data, resolved_expected, UnifyDiagnosticMode::ActualExpected)
+					.and_then([&node](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult { return node.m_type_data; });
 			}
 			else if constexpr (std::is_same_v<Node, MidoriPattern::Or>)
 			{
