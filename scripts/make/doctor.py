@@ -2,9 +2,9 @@
 """
 Check that this machine can build and test Marmot, and show what is built.
 
-Required: Python 3.10+, CMake 3.24+, Ninja, and a C++23 compiler (MSVC on
-Windows; GCC 14+ or Clang 19+ on Linux). Optional: cargo for the marmot tool,
-Emscripten for the WebAssembly build.
+Required: Python 3.10+, CMake 3.24+, Ninja, and a C++23 compiler (clang-cl
+or MSVC on Windows; GCC 14+ or Clang 19+ on Linux). Optional: cargo for the
+marmot tool, Emscripten for the WebAssembly build.
 
 Example:
     python scripts/dev.py doctor
@@ -62,24 +62,29 @@ def check_ninja() -> bool:
 
 
 def check_compiler() -> bool:
-    if IS_WINDOWS:
-        root = toolchain.visual_studio_root()
-        if shutil.which("cl") is not None:
-            console.ok("C++ compiler: MSVC, from this Developer Prompt")
-            return True
-        if root is None:
-            console.fail("C++ compiler: no Visual Studio with the C++ x64 tools (install 'Desktop development with C++')")
-            return False
-        console.ok(f"C++ compiler: MSVC from {root}")
-        return True
-
     chosen = os.environ.get("CXX")
     if chosen:
         if toolchain.supports_cxx23_library(chosen):
             console.ok(f"C++ compiler: CXX={chosen}")
             return True
-        console.fail(f"C++ compiler: CXX={chosen} is older than GCC 14 / Clang 19")
+        console.fail(f"C++ compiler: CXX={chosen} does not support C++23")
         return False
+
+    if IS_WINDOWS:
+        found = toolchain.windows_cxx()
+        if found is not None:
+            console.ok(f"C++ compiler: {found} (clang-cl, preferred over MSVC)")
+            return True
+        root = toolchain.visual_studio_root()
+        if shutil.which("cl") is not None:
+            console.ok("C++ compiler: MSVC, from this Developer Prompt")
+            return True
+        if root is None:
+            console.fail("C++ compiler: no clang-cl and no Visual Studio with the C++ x64 tools")
+            return False
+        console.ok(f"C++ compiler: MSVC from {root} (install clang-cl for better codegen)")
+        return True
+
     found = toolchain.linux_cxx()
     if found is None:
         console.fail("C++ compiler: none new enough; install GCC 14+ or Clang 19+, or set CXX")

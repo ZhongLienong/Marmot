@@ -1,7 +1,8 @@
 """The C++ toolchain: the environment a build runs in, and running commands in it.
 
-On Windows the compiler is MSVC, whose environment a Developer Prompt sets up;
-it is loaded here from vcvars64.bat, found with vswhere, so any shell will do.
+On Windows the MSVC environment (headers, libraries, linker) is always loaded
+from vcvars64.bat, found with vswhere, so any shell will do. clang-cl is
+preferred as the compiler when available; the scripts fall back to cl.exe.
 On Linux the default compiler may predate C++23's library (GCC 13 has no
 <print>), so a fresh configure picks one that has it unless CXX says otherwise.
 """
@@ -22,6 +23,7 @@ from lib.host import IS_WINDOWS, REPO_ROOT
 _MINIMUM_GCC = 14
 _MINIMUM_CLANG = 19
 _LINUX_CANDIDATES = ["g++-16", "g++-15", "g++-14", "clang++-22", "clang++-21", "clang++-20", "clang++-19", "g++", "clang++", "c++"]
+_WINDOWS_CANDIDATES = ["clang-cl"]
 
 
 def _vswhere() -> Path:
@@ -97,14 +99,33 @@ def linux_cxx() -> str | None:
     return None
 
 
+@functools.cache
+def windows_cxx() -> str | None:
+    """clang-cl when it is on the MSVC environment's PATH and CXX is unset."""
+    if os.environ.get("CXX"):
+        return None
+    env = msvc_environment()
+    for candidate in _WINDOWS_CANDIDATES:
+        path = find_program(candidate, env)
+        if path is not None and supports_cxx23_library(path):
+            return path
+    return None
+
+
 def build_environment(configuring: bool = False) -> dict[str, str]:
     """The environment to run CMake, Ninja and the compiler in.
 
-    A build tree remembers its compiler, so the Linux choice only matters to a
-    configure that creates one.
+    A build tree remembers its compiler, so the compiler choice only matters to
+    a configure that creates one. On Windows the MSVC environment is always
+    loaded (the headers, libraries and linker come from it); clang-cl is set as
+    CXX when available.
     """
     if IS_WINDOWS:
-        return msvc_environment()
+        environment = msvc_environment()
+        chosen = windows_cxx() if configuring else None
+        if chosen is not None:
+            environment["CXX"] = chosen
+        return environment
 
     environment = os.environ.copy()
     chosen = linux_cxx() if configuring else None

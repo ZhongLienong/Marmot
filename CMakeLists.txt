@@ -205,8 +205,9 @@ endforeach()
 # The interpreter dispatch loop is compiled without whole-program optimization:
 # its hot dependencies are all force-inlined from headers, and opting out of
 # LTCG keeps its codegen stable instead of shifting with unrelated changes in
-# other translation units.
-if(MSVC)
+# other translation units. /GL- is cl.exe-only; clang-cl uses -flto at link
+# time and does not need an opt-out per translation unit.
+if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     set_source_files_properties(runtime/src/Interpreter/VirtualMachine/VirtualMachine.cpp
         PROPERTIES COMPILE_OPTIONS "/GL-")
 endif()
@@ -390,7 +391,8 @@ else()
 
             # Release/Experimental configuration - maximum speed
             $<$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>:/O2>    # Maximize speed
-            $<$<AND:$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>,$<BOOL:${MIDORI_ENABLE_LTO}>>:/GL>    # Whole program optimization (LTCG)
+            $<$<AND:$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>,$<BOOL:${MIDORI_ENABLE_LTO}>,$<CXX_COMPILER_ID:MSVC>>:/GL>    # MSVC whole program optimization
+            $<$<AND:$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>,$<BOOL:${MIDORI_ENABLE_LTO}>,$<CXX_COMPILER_ID:Clang>>:-flto=thin>    # clang-cl LTO
             $<$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>:/Gw>    # Optimize global data
             $<$<AND:$<CONFIG:Experimental>,$<BOOL:${MIDORI_HAS_AVX2_FLAG}>>:${MIDORI_AVX2_FLAG}>
             $<$<CONFIG:Experimental>:/Gy>   # Function-level linking
@@ -406,7 +408,8 @@ else()
                 $<$<CONFIG:Development>:/OPT:REF>
                 $<$<CONFIG:Development>:/OPT:ICF>
 
-                $<$<AND:$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>,$<BOOL:${MIDORI_ENABLE_LTO}>>:/LTCG>
+                $<$<AND:$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>,$<BOOL:${MIDORI_ENABLE_LTO}>,$<CXX_COMPILER_ID:MSVC>>:/LTCG>
+                $<$<AND:$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>,$<BOOL:${MIDORI_ENABLE_LTO}>,$<CXX_COMPILER_ID:Clang>>:-flto=thin>
                 $<$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>:/OPT:REF>
                 $<$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>:/OPT:ICF>
                 $<$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>:/RELEASE>
