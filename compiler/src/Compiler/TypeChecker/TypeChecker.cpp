@@ -84,6 +84,10 @@ namespace
 				{
 					return node.m_start;
 				}
+				else if constexpr (std::is_same_v<Node, MidoriPattern::Record>)
+				{
+					return node.m_name_token;
+				}
 				else
 				{
 					static_assert(AlwaysFalse<Node>, "Unhandled pattern type.");
@@ -2199,6 +2203,54 @@ MidoriResult::TypeResult TypeChecker::CheckPattern(MidoriPattern& pattern, const
 						return node.m_type_data;
 					});
 			}
+			else if constexpr (std::is_same_v<Node, MidoriPattern::Record>)
+			{
+				if (!resolved_expected->IsType<MidoriType::StructType>() || resolved_expected->GetType<MidoriType::StructType>().m_name != node.m_name)
+				{
+					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: expected struct type", node.m_name_token, m_file_name, m_source_lines, resolved_expected));
+				}
+
+				const MidoriType::StructType& struct_type = resolved_expected->GetType<MidoriType::StructType>();
+				std::vector<bool> is_matched(struct_type.m_member_names.size(), false);
+				for (MidoriPattern::Record::Field& field : node.m_fields)
+				{
+					const std::vector<std::string>::const_iterator found = std::ranges::find(struct_type.m_member_names, field.m_name.m_lexeme);
+					if (found == struct_type.m_member_names.cend())
+					{
+						const std::string suggestion = std::format("Struct '{}' does not have a member named '{}'", struct_type.m_name, field.m_name.m_lexeme);
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Unknown struct member in record pattern", field.m_name, m_file_name, m_source_lines, std::optional<std::string_view>(suggestion)));
+					}
+
+					field.m_index = static_cast<int>(std::distance(struct_type.m_member_names.cbegin(), found));
+					if (is_matched[static_cast<size_t>(field.m_index)])
+					{
+						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(std::format("Pattern type error: '{}' is matched twice in this record pattern", field.m_name.m_lexeme), field.m_name, m_file_name, m_source_lines));
+					}
+					is_matched[static_cast<size_t>(field.m_index)] = true;
+
+					MidoriResult::TypeResult field_result = CheckPattern(*field.m_pattern, struct_type.m_member_types[static_cast<size_t>(field.m_index)]);
+					if (!field_result.has_value())
+					{
+						return field_result;
+					}
+				}
+
+				const std::vector<std::string> left_out = std::views::zip(struct_type.m_member_names, is_matched)
+					| std::views::filter([](const std::tuple<const std::string&, bool>& member) { return !std::get<1>(member); })
+					| std::views::transform([](const std::tuple<const std::string&, bool>& member) { return std::format("'{}'", std::get<0>(member)); })
+					| std::ranges::to<std::vector>();
+				if (!node.m_rest.has_value() && !left_out.empty())
+				{
+					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(std::format("Pattern type error: this record pattern leaves out {}; match each, as in 'field = _', or end with '..' to leave them out", left_out | std::views::join_with(std::string_view(", ")) | std::ranges::to<std::string>()), node.m_name_token, m_file_name, m_source_lines));
+				}
+				if (node.m_rest.has_value() && left_out.empty())
+				{
+					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: every field is matched already, so '..' leaves nothing out", node.m_rest.value(), m_file_name, m_source_lines));
+				}
+
+				node.m_type_data = resolved_expected;
+				return node.m_type_data;
+			}
 			else if constexpr (std::is_same_v<Node, MidoriPattern::Range>)
 			{
 				node.m_type_data = MidoriType::MakeLiteralType<MidoriType::IntegerType>();
@@ -3535,6 +3587,10 @@ void TypeChecker::ResolveRecordedTypes(MidoriPattern& pattern)
 	else if (pattern.IsPattern<MidoriPattern::Or>())
 	{
 		resolve_all(pattern.GetPattern<MidoriPattern::Or>().m_alternatives);
+	}
+	else if (pattern.IsPattern<MidoriPattern::Record>())
+	{
+		std::ranges::for_each(pattern.GetPattern<MidoriPattern::Record>().m_fields, [this](MidoriPattern::Record::Field& field) { ResolveRecordedTypes(*field.m_pattern); });
 	}
 }
 

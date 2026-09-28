@@ -192,10 +192,13 @@ primary      = '_'                                        // wildcard
              | number | TEXT | 'true' | 'false'
              | integer '..' integer '..' integer          // the Ints a range visits
              | IDENTIFIER                                 // binds the value
-             | IDENTIFIER '(' pattern (',' pattern)* ')'  // a variant
+             | IDENTIFIER '(' pattern (',' pattern)* ')'  // a variant or record, by position
+             | IDENTIFIER '{' fieldPatterns '}'           // a record, by field name
              | '(' pattern (',' pattern)+ ')'             // a tuple
              | '[' (element (',' element)*)? ']' ;        // an array
 element      = pattern | '..' IDENTIFIER? ;               // at most one '..'
+fieldPatterns= fieldPattern (',' fieldPattern)* (',' '..')? | '..' ;
+fieldPattern = IDENTIFIER '=' pattern ;
 number       = ('-' | '+')? (INTEGER | FLOAT) ;
 integer      = ('-' | '+')? INTEGER ;
 ```
@@ -210,6 +213,13 @@ matches every array at least as long as its other elements: those before `..`
 are counted from the start, those after it from the end, and `..name` binds what
 is between them, possibly nothing, as an array. `[head, ..tail]`,
 `[..init, last]`, `[first, .., last]`.
+
+A record pattern names the fields it matches, in any order, each as
+`field = pattern`: `case Point { x = 0, y = y0 } => ...`. Every field is matched
+unless the pattern ends in `..`, which leaves the ones it does not name out:
+`case Point { x = 0, .. }`. Leaving a field out without `..`, naming one twice,
+and a `..` that leaves nothing out are errors. A variant's fields have no
+names, so only `Name(...)` matches them.
 
 `pattern as name` matches what `pattern` matches and binds the whole value to
 `name` as well: `case Option::Some(inner) as whole => ...`.

@@ -155,6 +155,20 @@ MidoriPattern::Range::Range(const Token& start, int64_t low, int64_t high)
 {
 }
 
+MidoriPattern::Record::Field::Field(const Token& name, std::unique_ptr<MidoriPattern>&& pattern)
+	: m_name(name),
+	m_pattern(std::move(pattern))
+{
+}
+
+MidoriPattern::Record::Record(const Token& name_token, std::string&& name, std::vector<Field>&& fields, std::optional<Token>&& rest)
+	: m_name_token(name_token),
+	m_name(std::move(name)),
+	m_fields(std::move(fields)),
+	m_rest(std::move(rest))
+{
+}
+
 MidoriExpression::As::As(const Token& as_keyword, std::shared_ptr<MidoriType> to_type, std::unique_ptr<MidoriExpression>&& expr)
 	: m_as_keyword(as_keyword),
 	m_to_type(std::move(to_type)),
@@ -436,6 +450,13 @@ namespace
 				else if constexpr (std::is_same_v<Node, MidoriPattern::Constructor>)
 				{
 					children(node.m_args);
+				}
+				else if constexpr (std::is_same_v<Node, MidoriPattern::Record>)
+				{
+					for (auto& field : node.m_fields)
+					{
+						CollectBindings(*field.m_pattern, every_alternative, bindings);
+					}
 				}
 				else if constexpr (std::is_same_v<Node, MidoriPattern::As>)
 				{

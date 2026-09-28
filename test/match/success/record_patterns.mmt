@@ -1,0 +1,62 @@
+module MatchRecordPatterns
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/Prelude/Option.mmt"
+}
+
+use Option.{ Option }
+
+type Point =
+{
+	x : Int,
+	y : Int
+};
+
+type Labeled =
+{
+	label : Text,
+	at : Point,
+	weight : Option<Int>
+};
+
+type Box<T> =
+{
+	value : T,
+	open : Bool
+};
+
+// `Name { field = pattern }` names each field it matches, in any order. A
+// pattern that leaves fields out says so with `..` last.
+
+def Axis = fn(point : Point) -> Text =>
+	match point with
+		case Point { x = 0, y = 0 } => "origin"
+		case Point { x = 0, .. } => "on the y axis"
+		case Point { y = 0, .. } => "on the x axis"
+		case Point { y = b, x = a } => (a as Text) ++ "," ++ (b as Text);
+
+def Describe = fn(labeled : Labeled) -> Text =>
+	match labeled with
+		case Labeled { weight = Option::None(), label = name, .. } => name ++ " weighs nothing"
+		case Labeled { at = Point { x = 0..1..10, .. } as near, weight = Option::Some(w), label = _ } => "near, at y " ++ (near.y as Text) ++ ", weighing " ++ (w as Text)
+		case Labeled { .. } => "elsewhere";
+
+// Record and positional patterns of one type cover it together.
+def Quadrant = fn(point : Point) -> Int =>
+	match point with
+		case Point(0, _) => 0
+		case Point { x = _, y = 0 } => 1
+		case Point { .. } => 2;
+
+def Peek = fn(box : Box<Int>) -> Text =>
+	match box with
+		case Box { open = false, .. } => "closed"
+		case Box { open = true, value = 0..1..10 } => "small"
+		case Box { value = v, open = true } => "big " ++ (v as Text);
+
+IO::PrintLine(Axis(Point(0, 0)) ++ " | " ++ Axis(Point(0, 3)) ++ " | " ++ Axis(Point(4, 0)) ++ " | " ++ Axis(Point(4, 5)));
+IO::PrintLine(Describe(Labeled("a", Point(1, 2), Option::None())) ++ " | " ++ Describe(Labeled("b", Point(3, 7), Option::Some(9))) ++ " | " ++ Describe(Labeled("c", Point(30, 7), Option::Some(9))));
+IO::PrintLine((Quadrant(Point(0, 5)) as Text) ++ " " ++ (Quadrant(Point(3, 0)) as Text) ++ " " ++ (Quadrant(Point(3, 3)) as Text));
+IO::PrintLine(Peek(Box(3, false)) ++ " " ++ Peek(Box(3, true)) ++ " " ++ Peek(Box(30, true)));

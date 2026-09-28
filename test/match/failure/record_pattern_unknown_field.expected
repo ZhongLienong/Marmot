@@ -1,0 +1,7 @@
+Compilation failed :(
+Type Checker Error at test/match/failure/record_pattern_unknown_field.mmt:16
+   |
+16 | 		case Point { z = depth, .. } => depth;
+   |                ^ Unknown struct member in record pattern
+   |
+  | Struct 'Point' does not have a member named 'z'

@@ -5170,6 +5170,15 @@ MidoriResult::PatternResult Parser::ParsePrimaryPattern()
 					{
 						const bool is_union = !resolution.value()->m_is_struct;
 						resolved.m_lexeme = resolution.value()->m_constructor_name;
+						if (Check(Token::Name::LEFT_BRACE, 0))
+						{
+							if (is_union)
+							{
+								return std::unexpected(GenerateParserError("A variant's fields have no names; match it with Name(...).", Peek(0)));
+							}
+							Advance();
+							return ParseRecordPattern(std::move(resolved));
+						}
 						if (Match(Token::Name::LEFT_PAREN))
 						{
 							std::vector<std::unique_ptr<MidoriPattern>> args;
@@ -5285,6 +5294,44 @@ MidoriResult::PatternResult Parser::ParseRangePattern(std::unique_ptr<MidoriPatt
 	return step == 1
 		? std::make_unique<MidoriPattern>(MidoriPattern::Range(start_token, first, end - 1))
 		: std::make_unique<MidoriPattern>(MidoriPattern::Range(start_token, end + 1, first));
+}
+
+// Every field is named with `=`, and `..`, last, says the fields not named are
+// left out on purpose; which ones exist is the type checker's to say.
+MidoriResult::PatternResult Parser::ParseRecordPattern(Token&& name)
+{
+	std::vector<MidoriPattern::Record::Field> fields;
+	std::optional<Token> rest;
+	do
+	{
+		if (Match(Token::Name::DOUBLE_DOT))
+		{
+			rest = Previous();
+			break;
+		}
+		MidoriResult::TokenResult field = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected a field name, or '..' to leave the rest out, in a record pattern.");
+		if (!field.has_value())
+		{
+			return std::unexpected(field.error());
+		}
+		MidoriResult::TokenResult equal = Consume(Token::Name::SINGLE_EQUAL, "Expected '=' after the field name; a record pattern names each field as 'field = pattern'.");
+		if (!equal.has_value())
+		{
+			return std::unexpected(equal.error());
+		}
+		MidoriResult::PatternResult pattern = ParsePattern();
+		if (!pattern.has_value())
+		{
+			return pattern;
+		}
+		fields.emplace_back(field.value(), std::move(pattern.value()));
+	} while (Match(Token::Name::COMMA));
+
+	return Consume(Token::Name::RIGHT_BRACE, rest.has_value() ? "Expected '}' after '..'; it comes last in a record pattern." : "Expected '}' after record pattern.")
+		.transform([&name, &fields, &rest](Token&&)
+		{
+			return std::make_unique<MidoriPattern>(MidoriPattern::Record(name, std::string(name.m_lexeme), std::move(fields), std::move(rest)));
+		});
 }
 
 MidoriResult::PatternResult Parser::ParseBindingPattern(Token&& name)

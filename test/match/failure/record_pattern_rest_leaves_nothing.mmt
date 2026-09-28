@@ -1,0 +1,19 @@
+module RecordPatternRestLeavesNothing
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt"
+}
+
+type Point =
+{
+	x : Int,
+	y : Int
+};
+
+def IsOrigin = fn(point : Point) -> Bool =>
+	match point with
+		case Point { x = 0, y = 0, .. } => true
+		case _ => false;
+
+IO::PrintLine(IsOrigin(Point(0, 0)) as Text);

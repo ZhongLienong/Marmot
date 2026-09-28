@@ -301,8 +301,29 @@ public:
 		Range(const Token& start, int64_t low, int64_t high);
 	};
 
+	// `Name { field = pattern, ... }`, ending in `..` when it leaves fields out.
+	struct Record : BasePattern
+	{
+		struct Field
+		{
+			Token m_name;
+			std::unique_ptr<MidoriPattern> m_pattern;
+			// The field's slot in declared order; filled by the type checker.
+			int m_index = -1;
+
+			Field(const Token& name, std::unique_ptr<MidoriPattern>&& pattern);
+		};
+
+		Token m_name_token;
+		std::string m_name;
+		std::vector<Field> m_fields;
+		std::optional<Token> m_rest;
+
+		Record(const Token& name_token, std::string&& name, std::vector<Field>&& fields, std::optional<Token>&& rest);
+	};
+
 private:
-	using PatternUnion = std::variant<Binding, Wildcard, Literal, Tuple, Array, Constructor, As, Or, Range>;
+	using PatternUnion = std::variant<Binding, Wildcard, Literal, Tuple, Array, Constructor, As, Or, Range, Record>;
 	PatternUnion m_variant;
 
 public:

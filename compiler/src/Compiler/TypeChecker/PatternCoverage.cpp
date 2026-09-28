@@ -290,6 +290,10 @@ std::optional<std::vector<PatternCoverage::Head>> PatternCoverage::Signature(std
 				std::ranges::sort(members, {}, &std::pair<int, Head>::first);
 				return members | std::views::values | std::ranges::to<std::vector>();
 			}
+			else if constexpr (std::is_same_v<Node, MidoriPattern::Record>)
+			{
+				return std::vector<Head>{ Head(std::string(node.m_name), Shape::Named, node.m_type_data->template GetType<MidoriType::StructType>().m_member_types.size()) };
+			}
 			else if constexpr (std::is_same_v<Node, MidoriPattern::Tuple>)
 			{
 				return std::vector<Head>{ Head("()", Shape::Tuple, node.m_elements.size()) };
@@ -369,6 +373,19 @@ std::optional<PatternCoverage::Row> PatternCoverage::ArgumentsFor(const MidoriPa
 			if constexpr (std::is_same_v<Node, MidoriPattern::Constructor>)
 			{
 				return node.m_name == head.m_key ? std::optional<Row>(pointers(node.m_args)) : std::nullopt;
+			}
+			else if constexpr (std::is_same_v<Node, MidoriPattern::Record>)
+			{
+				if (node.m_name != head.m_key)
+				{
+					return std::nullopt;
+				}
+				Row arguments(head.m_arity, nullptr);
+				for (const MidoriPattern::Record::Field& field : node.m_fields)
+				{
+					arguments[static_cast<size_t>(field.m_index)] = Strip(field.m_pattern.get());
+				}
+				return arguments;
 			}
 			else if constexpr (std::is_same_v<Node, MidoriPattern::Tuple>)
 			{

@@ -94,6 +94,14 @@ void MidoriAbstractSyntaxTreeWalker::operator()(MidoriPattern::Range&)
 {
 }
 
+void MidoriAbstractSyntaxTreeWalker::operator()(MidoriPattern::Record& record)
+{
+	for (MidoriPattern::Record::Field& field : record.m_fields)
+	{
+		VisitPattern(field.m_pattern);
+	}
+}
+
 void MidoriAbstractSyntaxTreeWalker::operator()(MidoriPattern::Literal&)
 {
 }

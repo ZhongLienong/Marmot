@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/match/failure/record_pattern_leaves_field_out.mmt:19
+   |
+19 | 		case Point { x = 0 } => true
+   |        ^^^^^ Pattern type error: this record pattern leaves out 'y'; match each, as in 'field = _', or end with '..' to leave them out
+   |

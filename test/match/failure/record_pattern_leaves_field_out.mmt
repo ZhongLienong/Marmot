@@ -1,0 +1,22 @@
+module RecordPatternLeavesFieldOut
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt"
+}
+
+type Point =
+{
+	x : Int,
+	y : Int
+};
+
+// A record pattern leaves a field out only when it says so with `..`, so a
+// field added to Point later cannot be ignored without anyone deciding to.
+
+def OnYAxis = fn(point : Point) -> Bool =>
+	match point with
+		case Point { x = 0 } => true
+		case _ => false;
+
+IO::PrintLine(OnYAxis(Point(0, 1)) as Text);

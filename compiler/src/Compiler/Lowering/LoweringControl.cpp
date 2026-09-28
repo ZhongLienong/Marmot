@@ -372,6 +372,23 @@ Lowering::Emitted Lowering::LowerPattern(const MidoriPattern& pattern, MidoriIRV
 				});
 		}
 
+		Emitted operator()(const MidoriPattern::Record& record) const
+		{
+			Builder().AtLine(record.m_name_token.m_line);
+			const std::vector<TypeRef> member_types = Representation()->GetType<MidoriType::StructType>().m_member_types;
+			for (const MidoriPattern::Record::Field& field : record.m_fields)
+			{
+				const uint32_t index = static_cast<uint32_t>(field.m_index);
+				const MidoriIRValueId member = Builder().Emit(MidoriIROp::GetMember, member_types[index], { m_value }, MidoriIRIndex{ index });
+				const Emitted lowered = m_self.LowerPattern(*field.m_pattern, member, m_fail);
+				if (!lowered.has_value())
+				{
+					return lowered;
+				}
+			}
+			return {};
+		}
+
 		Emitted operator()(const MidoriPattern::Range& range) const
 		{
 			Builder().AtLine(range.m_start.m_line);

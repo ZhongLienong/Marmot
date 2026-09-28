@@ -1,0 +1,18 @@
+module RecordPatternOnVariant
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt"
+}
+
+type Shape = Circle(Int) | Dot;
+
+// A variant's fields are positional and unnamed, so only its Name(...) form
+// can match them.
+
+def Radius = fn(shape : Shape) -> Int =>
+	match shape with
+		case Shape::Circle { radius = r } => r
+		case Shape::Dot() => 0;
+
+IO::PrintLine(Radius(Shape::Circle(2)) as Text);

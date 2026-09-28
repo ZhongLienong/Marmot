@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/match/failure/record_pattern_rest_leaves_nothing.mmt:16
+   |
+16 | 		case Point { x = 0, y = 0, .. } => true
+   |                              ^^ Pattern type error: every field is matched already, so '..' leaves nothing out
+   |

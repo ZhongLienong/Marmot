@@ -39,6 +39,9 @@ namespace
 		// They differ for a match arm's body, which aligns with its `case`.
 		int m_outer_indent = 0;
 		int m_restore_indent = 0;
+		// An import or export block ends its directive's line; a record pattern's
+		// braces sit inside the case's line.
+		bool m_ends_line = false;
 	};
 
 	struct MatchContext
@@ -405,6 +408,43 @@ namespace
 		return brackets;
 	}
 
+	// The braces of record patterns: a pattern holds no block, so every brace from a
+	// `case` to its `=>` or guard is one.
+	[[nodiscard]] std::unordered_set<size_t> FindRecordPatternBraces(const std::vector<Token>& tokens)
+	{
+		std::unordered_set<size_t> braces;
+		for (size_t index = 0u; index < tokens.size(); index += 1u)
+		{
+			if (tokens[index].m_token_name != TokenName::CASE)
+			{
+				continue;
+			}
+
+			int depth = 0;
+			for (index += 1u; index < tokens.size(); index += 1u)
+			{
+				const TokenName name = tokens[index].m_token_name;
+				if (depth == 0 && (name == TokenName::FAT_ARROW || name == TokenName::IF))
+				{
+					break;
+				}
+				if (name == TokenName::LEFT_PAREN || name == TokenName::LEFT_BRACKET || name == TokenName::LEFT_BRACE)
+				{
+					depth += 1;
+				}
+				else if (name == TokenName::RIGHT_PAREN || name == TokenName::RIGHT_BRACKET || name == TokenName::RIGHT_BRACE)
+				{
+					depth -= 1;
+				}
+				if (name == TokenName::LEFT_BRACE || name == TokenName::RIGHT_BRACE)
+				{
+					braces.insert(index);
+				}
+			}
+		}
+		return braces;
+	}
+
 	[[nodiscard]] bool IsInlineBraceOpen(const std::vector<Token>& tokens, size_t index)
 	{
 		const Token* previous = PreviousNonCommentToken(tokens, index);
@@ -435,6 +475,7 @@ namespace
 		std::optional<TokenName> m_last_code_token;
 		bool m_previous_was_type_bracket = false;
 		std::unordered_set<size_t> m_type_brackets;
+		std::unordered_set<size_t> m_record_pattern_braces;
 		// Type-argument brackets open around the current token: a comma inside them
 		// separates type arguments, never record fields.
 		int m_type_bracket_depth = 0;
@@ -445,6 +486,7 @@ namespace
 		[[nodiscard]] std::string Format(const std::vector<Token>& tokens)
 		{
 			m_type_brackets = FindTypeArgumentBrackets(tokens);
+			m_record_pattern_braces = FindRecordPatternBraces(tokens);
 			for (size_t index = 0u; index < tokens.size(); index += 1u)
 			{
 				FormatToken(tokens, index);
@@ -833,7 +875,8 @@ namespace
 			{
 			case TokenName::LEFT_BRACE:
 			{
-				const bool inline_brace = IsInlineBraceOpen(tokens, index);
+				const bool is_record_pattern = m_record_pattern_braces.contains(index);
+				const bool inline_brace = is_record_pattern || IsInlineBraceOpen(tokens, index);
 				WriteCurrentIndent();
 				MaybeWriteSpace(token_name, false);
 				m_output.push_back('{');
@@ -844,7 +887,7 @@ namespace
 				m_previous_was_type_bracket = false;
 				if (inline_brace)
 				{
-					m_contexts.push_back(Context{ ContextKind::InlineBrace, m_paren_depth, m_bracket_depth, m_block_depth });
+					m_contexts.push_back(Context{ ContextKind::InlineBrace, m_paren_depth, m_bracket_depth, m_block_depth, 0, 0, !is_record_pattern });
 					if (next_token != TokenName::RIGHT_BRACE)
 					{
 						m_output.push_back(' ');
@@ -876,8 +919,7 @@ namespace
 					}
 					m_output += " }";
 					m_at_line_start = false;
-					// An import or export block ends its directive's line.
-					if (next_raw_token == nullptr || !IsComment(next_raw_token->m_token_name) || next_raw_token->m_line != token.m_line)
+					if (m_contexts.back().m_ends_line && (next_raw_token == nullptr || !IsComment(next_raw_token->m_token_name) || next_raw_token->m_line != token.m_line))
 					{
 						WriteNewline();
 					}

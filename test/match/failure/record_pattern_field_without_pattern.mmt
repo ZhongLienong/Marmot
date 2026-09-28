@@ -1,0 +1,21 @@
+module RecordPatternFieldWithoutPattern
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt"
+}
+
+type Point =
+{
+	x : Int,
+	y : Int
+};
+
+// A field is always `field = pattern`: a bare field name would bind a name
+// nothing in the pattern spells out.
+
+def FirstOf = fn(point : Point) -> Int =>
+	match point with
+		case Point { x, .. } => x;
+
+IO::PrintLine(FirstOf(Point(1, 2)) as Text);

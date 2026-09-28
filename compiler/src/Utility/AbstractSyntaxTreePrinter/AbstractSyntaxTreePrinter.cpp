@@ -608,4 +608,19 @@ void PrintAbstractSyntaxTree::operator()(const MidoriPattern::Range& range, int 
 	PrintWithIndentation(depth, std::format("RangePattern {{ {} to {} }}", range.m_low, range.m_high));
 }
 
+void PrintAbstractSyntaxTree::operator()(const MidoriPattern::Record& record, int depth) const
+{
+	PrintWithIndentation(depth, std::format("RecordPattern {} {{", record.m_name));
+	for (const MidoriPattern::Record::Field& field : record.m_fields)
+	{
+		PrintWithIndentation(depth + 1, std::format("{} =", field.m_name.m_lexeme));
+		Visit(field.m_pattern, depth + 2);
+	}
+	if (record.m_rest.has_value())
+	{
+		PrintWithIndentation(depth + 1, "..");
+	}
+	PrintWithIndentation(depth, "}");
+}
+
 #endif

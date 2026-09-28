@@ -1,0 +1,18 @@
+module RecordPatternUnknownField
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt"
+}
+
+type Point =
+{
+	x : Int,
+	y : Int
+};
+
+def Depth = fn(point : Point) -> Int =>
+	match point with
+		case Point { z = depth, .. } => depth;
+
+IO::PrintLine(Depth(Point(1, 2)) as Text);

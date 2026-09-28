@@ -149,6 +149,19 @@ TEST_CASE("Formatter round-trips guarded match arms", "[formatter][edge]")
 	RequireIdempotent(source_code, "GuardedArms.mmt");
 }
 
+TEST_CASE("Formatter keeps a record pattern on its case's line", "[formatter][edge]")
+{
+	const std::string source_code =
+		"module RecordArms\n"
+		"type Point = { x : Int, y : Int };\n"
+		"def F = fn(p : Point) -> Int => match p with case Point{x=0,..} => 0 case Point{ y = b, x = _ } if b > 0 => b case _ => 1;\n";
+
+	const std::string first_pass = FormatOrFail(source_code, "RecordArms.mmt");
+	CHECK(first_pass.find("case Point { x = 0, .. } => 0") != std::string::npos);
+	CHECK(first_pass.find("case Point { y = b, x = _ } if b > 0 => b") != std::string::npos);
+	RequireIdempotent(source_code, "RecordArms.mmt");
+}
+
 TEST_CASE("Formatter keeps inline comments inline between tokens", "[formatter][comments]")
 {
 	const std::string source_code =
