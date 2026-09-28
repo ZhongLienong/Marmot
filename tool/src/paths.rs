@@ -17,7 +17,11 @@ pub fn split_search_paths(value: &str) -> Vec<PathBuf> {
 /// being worked on rather than whichever one is installed.
 pub fn marmot_path() -> Vec<PathBuf> {
     let checkout_prelude = cfg!(debug_assertions)
-        .then(|| Path::new(env!("CARGO_MANIFEST_DIR")).parent().map(|root| root.join("MarmotPrelude")))
+        .then(|| {
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .parent()
+                .map(|root| root.join("MarmotPrelude"))
+        })
         .flatten()
         .filter(|prelude| prelude.is_dir());
     let environment = std::env::var("MARMOT_PATH")

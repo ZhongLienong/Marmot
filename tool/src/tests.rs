@@ -537,13 +537,13 @@ fn the_checkout_build_is_the_one_whose_compiler_or_vm_was_written_last() {
     stamp("release/out/marmotc", 200);
     stamp("release/out/marmotvm", 200);
     assert_eq!(
-        crate::newest_build(&tree.0),
+        crate::app::newest_build(&tree.0),
         Some(tree.path(&format!("development/out/marmotc{suffix}")))
     );
 
     stamp("release/out/marmotc", 400);
     assert_eq!(
-        crate::newest_build(&tree.0),
+        crate::app::newest_build(&tree.0),
         Some(tree.path(&format!("release/out/marmotc{suffix}")))
     );
 }

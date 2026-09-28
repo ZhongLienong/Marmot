@@ -181,7 +181,7 @@ mod tests {
         let stamp = stamp(
             "{}",
             &source,
-            &[source.clone()],
+            std::slice::from_ref(&source),
             Some("warning: unused\n".to_string()),
             Some(serde_json::json!({ "warnings": [1] })),
         )
