@@ -391,6 +391,7 @@ build*
 # Bytecode artifacts `marmot build` writes beside a program
 *.mmc
 *.mmc.json
+!format/mmc/fixtures/*.mmc
 
 # Coding agent plans
 docs/plan/

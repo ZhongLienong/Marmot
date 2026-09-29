@@ -20,6 +20,7 @@ import json
 import os
 import subprocess
 import re
+import shutil
 import sys
 import tempfile
 from pathlib import Path
@@ -429,11 +430,9 @@ def scenario_build_command_compiles_without_running(runner: TestRunner) -> None:
         assert_condition(built_from == ["Main.mmt", "Support.mmt"], f"Expected the entry and its import, got: {built_from}")
 
 def scenario_native_library_loads_only_to_run(runner: TestRunner) -> None:
-    # A module names a native library in source; the run is told where its
-    # file is, and that file is not a loadable library. Checking a program that
-    # imports the module must not touch the library (loading one runs its
-    # code); running it must stop before it starts, with the load failure
-    # reported like a compile error.
+    # A module names a native library in source. Its file loads, but lacks the
+    # requested symbol. Checking and building must not resolve that symbol;
+    # running must report the load error before executing the program.
     with tempfile.TemporaryDirectory(prefix="marmot-cli-native-") as temp_dir_raw:
         temp_dir = Path(temp_dir_raw)
         package_dir = temp_dir / "Native"
@@ -443,7 +442,18 @@ def scenario_native_library_loads_only_to_run(runner: TestRunner) -> None:
             "public export { Answer }\n"
             "foreign \"native_answer\" Answer : fn() -> Int from \"native_stub\";\n",
         )
-        write_text(temp_dir / "stub" / "native_stub.dll", "not a library\n")
+        test_libraries = [path for path in runner.midori_exe.parent.glob("*marmot_test_native*")
+                          if path.suffix.lower() in {".dll", ".so", ".dylib"}]
+        assert_condition(len(test_libraries) == 1, "Expected the built native FFI test library beside marmotc.")
+        if sys.platform == "win32":
+            library_name = "native_stub.dll"
+        elif sys.platform == "darwin":
+            library_name = "libnative_stub.dylib"
+        else:
+            library_name = "libnative_stub.so"
+        stub = temp_dir / "stub" / library_name
+        stub.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(test_libraries[0], stub)
         write_text(
             temp_dir / "app" / "Main.mmt",
             "module Main\n"

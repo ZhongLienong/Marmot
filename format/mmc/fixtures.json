@@ -1,0 +1,55 @@
+{
+  "format_version": 13,
+  "baseline_commit": "757c430582776463b4108d7de8d5cee0b20e79f7",
+  "producer": "marmotc build, Development profile, from the baseline compiler source",
+  "path_normalization": "Serialized paths beneath the checkout were changed to repository-relative forward-slash paths; payload size and CRC32 were recomputed. All other fields are unchanged.",
+  "valid": [
+    {
+      "name": "minimal",
+      "source": "format/mmc/sources/minimal.mmt",
+      "exit_code": 0,
+      "stdout": ""
+    },
+    {
+      "name": "control",
+      "source": "format/mmc/sources/control.mmt",
+      "exit_code": 0,
+      "stdout": "large\n"
+    },
+    {
+      "name": "embedded_error",
+      "source": "format/mmc/sources/embedded_error.mmt",
+      "embed_sources": true,
+      "exit_code": 1,
+      "stdout_contains": [
+        "error[IndexOutOfBounds]",
+        "def missing = values[4];",
+        "format/mmc/sources/embedded_error.mmt:4"
+      ]
+    },
+    {
+      "name": "native",
+      "source": "format/mmc/sources/native.mmt",
+      "native_library": true,
+      "exit_code": 0,
+      "stdout": "42\n"
+    }
+  ],
+  "invalid": [
+    {
+      "name": "truncated",
+      "derived_from": "minimal.mmc with its final payload byte removed",
+      "stderr_contains": "Truncated artifact: payload is shorter than declared size"
+    },
+    {
+      "name": "checksum",
+      "derived_from": "minimal.mmc with one payload byte flipped, without updating CRC32",
+      "stderr_contains": "CRC32 mismatch"
+    },
+    {
+      "name": "old_version",
+      "derived_from": "minimal.mmc with format_version changed from 13 to 11",
+      "stderr_contains": "format version mismatch: expected 13, got 11"
+    }
+  ]
+}

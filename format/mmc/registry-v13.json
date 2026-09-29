@@ -1,0 +1,1588 @@
+{
+  "format_version": 13,
+  "builtin_abi_version": 1,
+  "opcodes": [
+    {
+      "id": 0,
+      "name": "LOAD_STRING_WIDE",
+      "length": 3
+    },
+    {
+      "id": 1,
+      "name": "INTEGER_CONSTANT",
+      "length": 9
+    },
+    {
+      "id": 2,
+      "name": "FLOAT_CONSTANT",
+      "length": 9
+    },
+    {
+      "id": 3,
+      "name": "BYTE_CONSTANT",
+      "length": 2
+    },
+    {
+      "id": 4,
+      "name": "WORD_CONSTANT",
+      "length": 9
+    },
+    {
+      "id": 5,
+      "name": "OP_UNIT",
+      "length": 1
+    },
+    {
+      "id": 6,
+      "name": "OP_TRUE",
+      "length": 1
+    },
+    {
+      "id": 7,
+      "name": "OP_FALSE",
+      "length": 1
+    },
+    {
+      "id": 8,
+      "name": "INT_MINUS_1",
+      "length": 1
+    },
+    {
+      "id": 9,
+      "name": "INT_0",
+      "length": 1
+    },
+    {
+      "id": 10,
+      "name": "INT_1",
+      "length": 1
+    },
+    {
+      "id": 11,
+      "name": "INT_2",
+      "length": 1
+    },
+    {
+      "id": 12,
+      "name": "INT_3",
+      "length": 1
+    },
+    {
+      "id": 13,
+      "name": "INT_4",
+      "length": 1
+    },
+    {
+      "id": 14,
+      "name": "INT_5",
+      "length": 1
+    },
+    {
+      "id": 15,
+      "name": "INT_10",
+      "length": 1
+    },
+    {
+      "id": 16,
+      "name": "CREATE_ARRAY",
+      "length": 4
+    },
+    {
+      "id": 17,
+      "name": "CREATE_TUPLE",
+      "length": 4
+    },
+    {
+      "id": 18,
+      "name": "GET_ARRAY",
+      "length": 1
+    },
+    {
+      "id": 19,
+      "name": "GET_TUPLE",
+      "length": 1
+    },
+    {
+      "id": 20,
+      "name": "ADD_BACK_ARRAY",
+      "length": 1
+    },
+    {
+      "id": 21,
+      "name": "GET_ARRAY_LENGTH",
+      "length": 1
+    },
+    {
+      "id": 22,
+      "name": "CREATE_INT_RANGE",
+      "length": 1
+    },
+    {
+      "id": 23,
+      "name": "CREATE_FLOAT_RANGE",
+      "length": 1
+    },
+    {
+      "id": 24,
+      "name": "GET_RANGE_START",
+      "length": 1
+    },
+    {
+      "id": 25,
+      "name": "GET_RANGE_END",
+      "length": 1
+    },
+    {
+      "id": 26,
+      "name": "GET_RANGE_STEP",
+      "length": 1
+    },
+    {
+      "id": 27,
+      "name": "INT_TO_FLOAT",
+      "length": 1
+    },
+    {
+      "id": 28,
+      "name": "TEXT_TO_FLOAT",
+      "length": 1
+    },
+    {
+      "id": 29,
+      "name": "FLOAT_TO_INT",
+      "length": 1
+    },
+    {
+      "id": 30,
+      "name": "TEXT_TO_INT",
+      "length": 1
+    },
+    {
+      "id": 31,
+      "name": "FLOAT_TO_TEXT",
+      "length": 1
+    },
+    {
+      "id": 32,
+      "name": "INT_TO_TEXT",
+      "length": 1
+    },
+    {
+      "id": 33,
+      "name": "WORD_TO_TEXT",
+      "length": 1
+    },
+    {
+      "id": 34,
+      "name": "BYTE_TO_INT",
+      "length": 1
+    },
+    {
+      "id": 35,
+      "name": "INT_TO_BYTE",
+      "length": 1
+    },
+    {
+      "id": 36,
+      "name": "BYTE_TO_WORD",
+      "length": 1
+    },
+    {
+      "id": 37,
+      "name": "WORD_TO_BYTE",
+      "length": 1
+    },
+    {
+      "id": 38,
+      "name": "WORD_TO_INT",
+      "length": 1
+    },
+    {
+      "id": 39,
+      "name": "INT_TO_WORD",
+      "length": 1
+    },
+    {
+      "id": 40,
+      "name": "BYTE_TO_FLOAT",
+      "length": 1
+    },
+    {
+      "id": 41,
+      "name": "FLOAT_TO_BYTE",
+      "length": 1
+    },
+    {
+      "id": 42,
+      "name": "WORD_TO_FLOAT",
+      "length": 1
+    },
+    {
+      "id": 43,
+      "name": "FLOAT_TO_WORD",
+      "length": 1
+    },
+    {
+      "id": 44,
+      "name": "LEFT_SHIFT",
+      "length": 1
+    },
+    {
+      "id": 45,
+      "name": "RIGHT_SHIFT",
+      "length": 1
+    },
+    {
+      "id": 46,
+      "name": "LEFT_SHIFT_BYTE",
+      "length": 1
+    },
+    {
+      "id": 47,
+      "name": "RIGHT_SHIFT_BYTE",
+      "length": 1
+    },
+    {
+      "id": 48,
+      "name": "LEFT_SHIFT_WORD",
+      "length": 1
+    },
+    {
+      "id": 49,
+      "name": "RIGHT_SHIFT_WORD",
+      "length": 1
+    },
+    {
+      "id": 50,
+      "name": "BITWISE_AND",
+      "length": 1
+    },
+    {
+      "id": 51,
+      "name": "BITWISE_OR",
+      "length": 1
+    },
+    {
+      "id": 52,
+      "name": "BITWISE_XOR",
+      "length": 1
+    },
+    {
+      "id": 53,
+      "name": "BITWISE_NOT",
+      "length": 1
+    },
+    {
+      "id": 54,
+      "name": "ADD_FLOAT",
+      "length": 1
+    },
+    {
+      "id": 55,
+      "name": "SUBTRACT_FLOAT",
+      "length": 1
+    },
+    {
+      "id": 56,
+      "name": "MULTIPLY_FLOAT",
+      "length": 1
+    },
+    {
+      "id": 57,
+      "name": "DIVIDE_FLOAT",
+      "length": 1
+    },
+    {
+      "id": 58,
+      "name": "MODULO_FLOAT",
+      "length": 1
+    },
+    {
+      "id": 59,
+      "name": "ADD_INTEGER",
+      "length": 1
+    },
+    {
+      "id": 60,
+      "name": "SUBTRACT_INTEGER",
+      "length": 1
+    },
+    {
+      "id": 61,
+      "name": "MULTIPLY_INTEGER",
+      "length": 1
+    },
+    {
+      "id": 62,
+      "name": "DIVIDE_INTEGER",
+      "length": 1
+    },
+    {
+      "id": 63,
+      "name": "MODULO_INTEGER",
+      "length": 1
+    },
+    {
+      "id": 64,
+      "name": "ADD_BYTE",
+      "length": 1
+    },
+    {
+      "id": 65,
+      "name": "SUBTRACT_BYTE",
+      "length": 1
+    },
+    {
+      "id": 66,
+      "name": "MULTIPLY_BYTE",
+      "length": 1
+    },
+    {
+      "id": 67,
+      "name": "DIVIDE_BYTE",
+      "length": 1
+    },
+    {
+      "id": 68,
+      "name": "MODULO_BYTE",
+      "length": 1
+    },
+    {
+      "id": 69,
+      "name": "ADD_WORD",
+      "length": 1
+    },
+    {
+      "id": 70,
+      "name": "SUBTRACT_WORD",
+      "length": 1
+    },
+    {
+      "id": 71,
+      "name": "MULTIPLY_WORD",
+      "length": 1
+    },
+    {
+      "id": 72,
+      "name": "DIVIDE_WORD",
+      "length": 1
+    },
+    {
+      "id": 73,
+      "name": "MODULO_WORD",
+      "length": 1
+    },
+    {
+      "id": 74,
+      "name": "CONCAT_ARRAY",
+      "length": 1
+    },
+    {
+      "id": 75,
+      "name": "CONCAT_TEXT",
+      "length": 1
+    },
+    {
+      "id": 76,
+      "name": "EQUAL_FLOAT",
+      "length": 1
+    },
+    {
+      "id": 77,
+      "name": "NOT_EQUAL_FLOAT",
+      "length": 1
+    },
+    {
+      "id": 78,
+      "name": "GREATER_FLOAT",
+      "length": 1
+    },
+    {
+      "id": 79,
+      "name": "GREATER_EQUAL_FLOAT",
+      "length": 1
+    },
+    {
+      "id": 80,
+      "name": "LESS_FLOAT",
+      "length": 1
+    },
+    {
+      "id": 81,
+      "name": "LESS_EQUAL_FLOAT",
+      "length": 1
+    },
+    {
+      "id": 82,
+      "name": "EQUAL_INTEGER",
+      "length": 1
+    },
+    {
+      "id": 83,
+      "name": "NOT_EQUAL_INTEGER",
+      "length": 1
+    },
+    {
+      "id": 84,
+      "name": "GREATER_INTEGER",
+      "length": 1
+    },
+    {
+      "id": 85,
+      "name": "GREATER_EQUAL_INTEGER",
+      "length": 1
+    },
+    {
+      "id": 86,
+      "name": "LESS_INTEGER",
+      "length": 1
+    },
+    {
+      "id": 87,
+      "name": "LESS_EQUAL_INTEGER",
+      "length": 1
+    },
+    {
+      "id": 88,
+      "name": "EQUAL_BYTE",
+      "length": 1
+    },
+    {
+      "id": 89,
+      "name": "NOT_EQUAL_BYTE",
+      "length": 1
+    },
+    {
+      "id": 90,
+      "name": "GREATER_BYTE",
+      "length": 1
+    },
+    {
+      "id": 91,
+      "name": "GREATER_EQUAL_BYTE",
+      "length": 1
+    },
+    {
+      "id": 92,
+      "name": "LESS_BYTE",
+      "length": 1
+    },
+    {
+      "id": 93,
+      "name": "LESS_EQUAL_BYTE",
+      "length": 1
+    },
+    {
+      "id": 94,
+      "name": "EQUAL_WORD",
+      "length": 1
+    },
+    {
+      "id": 95,
+      "name": "NOT_EQUAL_WORD",
+      "length": 1
+    },
+    {
+      "id": 96,
+      "name": "GREATER_WORD",
+      "length": 1
+    },
+    {
+      "id": 97,
+      "name": "GREATER_EQUAL_WORD",
+      "length": 1
+    },
+    {
+      "id": 98,
+      "name": "LESS_WORD",
+      "length": 1
+    },
+    {
+      "id": 99,
+      "name": "LESS_EQUAL_WORD",
+      "length": 1
+    },
+    {
+      "id": 100,
+      "name": "EQUAL_TEXT",
+      "length": 1
+    },
+    {
+      "id": 101,
+      "name": "NOT",
+      "length": 1
+    },
+    {
+      "id": 102,
+      "name": "NEGATE_FLOAT",
+      "length": 1
+    },
+    {
+      "id": 103,
+      "name": "NEGATE_INTEGER",
+      "length": 1
+    },
+    {
+      "id": 104,
+      "name": "JUMP_IF_FALSE",
+      "length": 3
+    },
+    {
+      "id": 105,
+      "name": "JUMP",
+      "length": 3
+    },
+    {
+      "id": 106,
+      "name": "JUMP_BACK",
+      "length": 3
+    },
+    {
+      "id": 107,
+      "name": "IF_INTEGER_LESS",
+      "length": 3
+    },
+    {
+      "id": 108,
+      "name": "IF_INTEGER_LESS_EQUAL",
+      "length": 3
+    },
+    {
+      "id": 109,
+      "name": "IF_INTEGER_GREATER",
+      "length": 3
+    },
+    {
+      "id": 110,
+      "name": "IF_INTEGER_GREATER_EQUAL",
+      "length": 3
+    },
+    {
+      "id": 111,
+      "name": "IF_INTEGER_EQUAL",
+      "length": 3
+    },
+    {
+      "id": 112,
+      "name": "IF_INTEGER_NOT_EQUAL",
+      "length": 3
+    },
+    {
+      "id": 113,
+      "name": "IF_FLOAT_LESS",
+      "length": 3
+    },
+    {
+      "id": 114,
+      "name": "IF_FLOAT_LESS_EQUAL",
+      "length": 3
+    },
+    {
+      "id": 115,
+      "name": "IF_FLOAT_GREATER",
+      "length": 3
+    },
+    {
+      "id": 116,
+      "name": "IF_FLOAT_GREATER_EQUAL",
+      "length": 3
+    },
+    {
+      "id": 117,
+      "name": "IF_FLOAT_EQUAL",
+      "length": 3
+    },
+    {
+      "id": 118,
+      "name": "IF_FLOAT_NOT_EQUAL",
+      "length": 3
+    },
+    {
+      "id": 119,
+      "name": "GET_TAG",
+      "length": 1
+    },
+    {
+      "id": 120,
+      "name": "GET_UNION_FIELD",
+      "length": 2
+    },
+    {
+      "id": 121,
+      "name": "CALL_FOREIGN",
+      "length": 3
+    },
+    {
+      "id": 122,
+      "name": "CALL_FOREIGN_INDEXED",
+      "length": 4
+    },
+    {
+      "id": 123,
+      "name": "CALL",
+      "length": 2
+    },
+    {
+      "id": 124,
+      "name": "CALL_0",
+      "length": 1
+    },
+    {
+      "id": 125,
+      "name": "CALL_1",
+      "length": 1
+    },
+    {
+      "id": 126,
+      "name": "CALL_2",
+      "length": 1
+    },
+    {
+      "id": 127,
+      "name": "CALL_3",
+      "length": 1
+    },
+    {
+      "id": 128,
+      "name": "CALL_PROC_WIDE",
+      "length": 4
+    },
+    {
+      "id": 129,
+      "name": "CALL_GLOBAL_WIDE",
+      "length": 4
+    },
+    {
+      "id": 130,
+      "name": "TAIL_CALL",
+      "length": 2
+    },
+    {
+      "id": 131,
+      "name": "CONSTRUCT_STRUCT",
+      "length": 2
+    },
+    {
+      "id": 132,
+      "name": "CONSTRUCT_UNION",
+      "length": 3
+    },
+    {
+      "id": 133,
+      "name": "LOAD_EMPTY_UNION",
+      "length": 2
+    },
+    {
+      "id": 134,
+      "name": "GET_MEMBER",
+      "length": 2
+    },
+    {
+      "id": 135,
+      "name": "MAKE_FUNCTION_WIDE",
+      "length": 3
+    },
+    {
+      "id": 136,
+      "name": "MAKE_CLOSURE_OF",
+      "length": 4
+    },
+    {
+      "id": 137,
+      "name": "SET_CAPTURE",
+      "length": 2
+    },
+    {
+      "id": 138,
+      "name": "GET_CELL",
+      "length": 2
+    },
+    {
+      "id": 139,
+      "name": "GET_CELL_WIDE",
+      "length": 3
+    },
+    {
+      "id": 140,
+      "name": "DEFINE_GLOBAL_WIDE",
+      "length": 3
+    },
+    {
+      "id": 141,
+      "name": "GET_GLOBAL_WIDE",
+      "length": 3
+    },
+    {
+      "id": 142,
+      "name": "SET_GLOBAL_WIDE",
+      "length": 3
+    },
+    {
+      "id": 143,
+      "name": "GET_LOCAL",
+      "length": 2
+    },
+    {
+      "id": 144,
+      "name": "SET_LOCAL",
+      "length": 2
+    },
+    {
+      "id": 145,
+      "name": "GET_LOCAL_WIDE",
+      "length": 3
+    },
+    {
+      "id": 146,
+      "name": "SET_LOCAL_WIDE",
+      "length": 3
+    },
+    {
+      "id": 147,
+      "name": "MAKE_CELL",
+      "length": 1
+    },
+    {
+      "id": 148,
+      "name": "READ_CELL",
+      "length": 1
+    },
+    {
+      "id": 149,
+      "name": "WRITE_CELL",
+      "length": 1
+    },
+    {
+      "id": 150,
+      "name": "POP",
+      "length": 1
+    },
+    {
+      "id": 151,
+      "name": "PUSH_PLACEHOLDER",
+      "length": 2
+    },
+    {
+      "id": 152,
+      "name": "RETURN",
+      "length": 1
+    },
+    {
+      "id": 153,
+      "name": "HALT",
+      "length": 1
+    },
+    {
+      "id": 154,
+      "name": "SPAWN_WORKER",
+      "length": 2
+    },
+    {
+      "id": 155,
+      "name": "JOIN_WORKER",
+      "length": 5
+    },
+    {
+      "id": 156,
+      "name": "CHANNEL_CREATE",
+      "length": 1
+    },
+    {
+      "id": 157,
+      "name": "CHANNEL_SEND",
+      "length": 1
+    },
+    {
+      "id": 158,
+      "name": "CHANNEL_RECEIVE",
+      "length": 1
+    },
+    {
+      "id": 159,
+      "name": "CHANNEL_CLOSE",
+      "length": 1
+    },
+    {
+      "id": 160,
+      "name": "WORKER_IS_DONE",
+      "length": 1
+    },
+    {
+      "id": 161,
+      "name": "WORKER_CANCEL",
+      "length": 1
+    },
+    {
+      "id": 162,
+      "name": "EXTEND_ARRAY",
+      "length": 1
+    },
+    {
+      "id": 163,
+      "name": "EXTEND_TEXT",
+      "length": 1
+    },
+    {
+      "id": 164,
+      "name": "ADD_LOCAL_INT",
+      "length": 3
+    },
+    {
+      "id": 165,
+      "name": "PUSH_LOCAL_SUB_INT",
+      "length": 3
+    },
+    {
+      "id": 166,
+      "name": "IF_LOCAL_LE_INT",
+      "length": 5
+    },
+    {
+      "id": 167,
+      "name": "IF_LOCAL_GE_LOCAL",
+      "length": 5
+    },
+    {
+      "id": 168,
+      "name": "GET_LOCAL2",
+      "length": 3
+    },
+    {
+      "id": 169,
+      "name": "STORE_LOCAL",
+      "length": 2
+    },
+    {
+      "id": 170,
+      "name": "IF_LOCAL_TAG_NOT",
+      "length": 5
+    },
+    {
+      "id": 171,
+      "name": "LOCAL_UNION_FIELD",
+      "length": 4
+    },
+    {
+      "id": 172,
+      "name": "IF_LOCAL_LT_INT",
+      "length": 5
+    },
+    {
+      "id": 173,
+      "name": "IF_LOCAL_LT_LOCAL",
+      "length": 5
+    },
+    {
+      "id": 174,
+      "name": "IF_LOCAL_EQ_LOCAL",
+      "length": 5
+    },
+    {
+      "id": 175,
+      "name": "STEP_LOCAL",
+      "length": 3
+    },
+    {
+      "id": 176,
+      "name": "LOCAL_ARRAY_GET",
+      "length": 4
+    },
+    {
+      "id": 177,
+      "name": "APPEND_LOCAL",
+      "length": 3
+    },
+    {
+      "id": 178,
+      "name": "LOCAL_UNION2",
+      "length": 5
+    }
+  ],
+  "builtins": [
+    {
+      "id": 0,
+      "name": "MIDORI_FFI_Print",
+      "arguments": [
+        "CString"
+      ],
+      "returns": "RawValue"
+    },
+    {
+      "id": 1,
+      "name": "MIDORI_FFI_PrintError",
+      "arguments": [
+        "CString"
+      ],
+      "returns": "RawValue"
+    },
+    {
+      "id": 2,
+      "name": "MIDORI_FFI_ReadInput",
+      "arguments": [],
+      "returns": "CString"
+    },
+    {
+      "id": 3,
+      "name": "MIDORI_FFI_ReadLine",
+      "arguments": [],
+      "returns": "CString"
+    },
+    {
+      "id": 4,
+      "name": "MIDORI_FFI_ReadFile",
+      "arguments": [
+        "CString"
+      ],
+      "returns": "CString"
+    },
+    {
+      "id": 5,
+      "name": "MIDORI_FFI_WriteFile",
+      "arguments": [
+        "CString",
+        "CString"
+      ],
+      "returns": "RawValue"
+    },
+    {
+      "id": 6,
+      "name": "MIDORI_FFI_AppendToFile",
+      "arguments": [
+        "CString",
+        "CString"
+      ],
+      "returns": "RawValue"
+    },
+    {
+      "id": 7,
+      "name": "MIDORI_FFI_ReadBinaryFile",
+      "arguments": [
+        "CString"
+      ],
+      "returns": "ArrayValues"
+    },
+    {
+      "id": 8,
+      "name": "MIDORI_FFI_WriteBinaryFile",
+      "arguments": [
+        "CString",
+        "ArrayView"
+      ],
+      "returns": "RawValue"
+    },
+    {
+      "id": 9,
+      "name": "MIDORI_FFI_FileExists",
+      "arguments": [
+        "CString"
+      ],
+      "returns": "RawValue"
+    },
+    {
+      "id": 10,
+      "name": "MIDORI_FFI_DeleteFile",
+      "arguments": [
+        "CString"
+      ],
+      "returns": "RawValue"
+    },
+    {
+      "id": 11,
+      "name": "MIDORI_FFI_RenameFile",
+      "arguments": [
+        "CString",
+        "CString"
+      ],
+      "returns": "RawValue"
+    },
+    {
+      "id": 12,
+      "name": "MIDORI_FFI_GetFileSize",
+      "arguments": [
+        "CString"
+      ],
+      "returns": "RawValue"
+    },
+    {
+      "id": 13,
+      "name": "MIDORI_FFI_GetLastIOErrorKind",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 14,
+      "name": "MIDORI_FFI_GetLastIOErrorMessage",
+      "arguments": [],
+      "returns": "CString"
+    },
+    {
+      "id": 15,
+      "name": "MIDORI_FFI_SquareRoot",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 16,
+      "name": "MIDORI_FFI_Abs",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 17,
+      "name": "MIDORI_FFI_Pow",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 18,
+      "name": "MIDORI_FFI_Exp",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 19,
+      "name": "MIDORI_FFI_Log",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 20,
+      "name": "MIDORI_FFI_Log10",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 21,
+      "name": "MIDORI_FFI_Log2",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 22,
+      "name": "MIDORI_FFI_Sin",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 23,
+      "name": "MIDORI_FFI_Cos",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 24,
+      "name": "MIDORI_FFI_Tan",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 25,
+      "name": "MIDORI_FFI_Asin",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 26,
+      "name": "MIDORI_FFI_Acos",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 27,
+      "name": "MIDORI_FFI_Atan",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 28,
+      "name": "MIDORI_FFI_Atan2",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 29,
+      "name": "MIDORI_FFI_Sinh",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 30,
+      "name": "MIDORI_FFI_Cosh",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 31,
+      "name": "MIDORI_FFI_Tanh",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 32,
+      "name": "MIDORI_FFI_Floor",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 33,
+      "name": "MIDORI_FFI_Ceil",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 34,
+      "name": "MIDORI_FFI_Round",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 35,
+      "name": "MIDORI_FFI_Trunc",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 36,
+      "name": "MIDORI_FFI_Min",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 37,
+      "name": "MIDORI_FFI_Max",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 38,
+      "name": "MIDORI_FFI_Clamp",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 39,
+      "name": "MIDORI_FFI_Sign",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 40,
+      "name": "MIDORI_FFI_Fmod",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 41,
+      "name": "MIDORI_FFI_Hypot",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 42,
+      "name": "MIDORI_FFI_Random",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 43,
+      "name": "MIDORI_FFI_RandomInt",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 44,
+      "name": "MIDORI_FFI_RandomFloat",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 45,
+      "name": "MIDORI_FFI_ToRadians",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 46,
+      "name": "MIDORI_FFI_ToDegrees",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 47,
+      "name": "MIDORI_FFI_IsNaN",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 48,
+      "name": "MIDORI_FFI_IsInf",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 49,
+      "name": "MIDORI_FFI_IsFinite",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 50,
+      "name": "MIDORI_FFI_GetTime",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 51,
+      "name": "MIDORI_FFI_GetYear",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 52,
+      "name": "MIDORI_FFI_GetMonth",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 53,
+      "name": "MIDORI_FFI_GetDay",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 54,
+      "name": "MIDORI_FFI_GetHour",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 55,
+      "name": "MIDORI_FFI_GetMinute",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 56,
+      "name": "MIDORI_FFI_GetSecond",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 57,
+      "name": "MIDORI_FFI_GetDayOfWeek",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 58,
+      "name": "MIDORI_FFI_GetDayOfYear",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 59,
+      "name": "MIDORI_FFI_FormatTime",
+      "arguments": [
+        "CString"
+      ],
+      "returns": "CString"
+    },
+    {
+      "id": 60,
+      "name": "MIDORI_FFI_GetTimezoneOffset",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 61,
+      "name": "MIDORI_FFI_GetUtcYear",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 62,
+      "name": "MIDORI_FFI_GetUtcMonth",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 63,
+      "name": "MIDORI_FFI_GetUtcDay",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 64,
+      "name": "MIDORI_FFI_GetUtcHour",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 65,
+      "name": "MIDORI_FFI_GetUtcMinute",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 66,
+      "name": "MIDORI_FFI_GetUtcSecond",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 67,
+      "name": "MIDORI_FFI_GetUtcDayOfWeek",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 68,
+      "name": "MIDORI_FFI_GetUtcDayOfYear",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 69,
+      "name": "MIDORI_FFI_Exit",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 70,
+      "name": "MIDORI_FFI_GetEnv",
+      "arguments": [
+        "CString"
+      ],
+      "returns": "CString"
+    },
+    {
+      "id": 71,
+      "name": "MIDORI_FFI_SetEnv",
+      "arguments": [
+        "CString",
+        "CString"
+      ],
+      "returns": "RawValue"
+    },
+    {
+      "id": 72,
+      "name": "MIDORI_FFI_Sleep",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 73,
+      "name": "MIDORI_FFI_GetCurrentDirectory",
+      "arguments": [],
+      "returns": "CString"
+    },
+    {
+      "id": 74,
+      "name": "MIDORI_FFI_SetCurrentDirectory",
+      "arguments": [
+        "CString"
+      ],
+      "returns": "RawValue"
+    },
+    {
+      "id": 75,
+      "name": "MIDORI_FFI_Execute",
+      "arguments": [
+        "CString"
+      ],
+      "returns": "RawValue"
+    },
+    {
+      "id": 76,
+      "name": "MIDORI_FFI_GetPlatform",
+      "arguments": [],
+      "returns": "CString"
+    },
+    {
+      "id": 77,
+      "name": "MIDORI_FFI_GetProcessId",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 78,
+      "name": "MIDORI_FFI_GetLastSystemErrorKind",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 79,
+      "name": "MIDORI_FFI_GetLastSystemErrorMessage",
+      "arguments": [],
+      "returns": "CString"
+    },
+    {
+      "id": 80,
+      "name": "MIDORI_FFI_ArrayConcat",
+      "arguments": [
+        "TraceableHandle",
+        "TraceableHandle"
+      ],
+      "returns": "ArrayValues"
+    },
+    {
+      "id": 81,
+      "name": "MIDORI_FFI_ArrayLength",
+      "arguments": [
+        "TraceableHandle"
+      ],
+      "returns": "RawValue"
+    },
+    {
+      "id": 82,
+      "name": "MIDORI_FFI_ArraySlice",
+      "arguments": [
+        "TraceableHandle",
+        "ValueHandle",
+        "ValueHandle"
+      ],
+      "returns": "ArrayValues"
+    },
+    {
+      "id": 83,
+      "name": "MIDORI_FFI_ArrayReverse",
+      "arguments": [
+        "TraceableHandle"
+      ],
+      "returns": "ArrayValues"
+    },
+    {
+      "id": 84,
+      "name": "MIDORI_FFI_ArrayContains",
+      "arguments": [
+        "TraceableHandle",
+        "ValueHandle"
+      ],
+      "returns": "RawValue"
+    },
+    {
+      "id": 85,
+      "name": "MIDORI_FFI_TextConcat",
+      "arguments": [
+        "TraceableHandle",
+        "TraceableHandle"
+      ],
+      "returns": "CString"
+    },
+    {
+      "id": 86,
+      "name": "MIDORI_FFI_TextLength",
+      "arguments": [
+        "CString"
+      ],
+      "returns": "RawValue"
+    },
+    {
+      "id": 87,
+      "name": "MIDORI_FFI_TextSubstring",
+      "arguments": [
+        "TraceableHandle",
+        "ValueHandle",
+        "ValueHandle"
+      ],
+      "returns": "CString"
+    },
+    {
+      "id": 88,
+      "name": "MIDORI_FFI_TextSplit",
+      "arguments": [
+        "TraceableHandle",
+        "TraceableHandle"
+      ],
+      "returns": "ArrayStrings"
+    },
+    {
+      "id": 89,
+      "name": "MIDORI_FFI_TextReverse",
+      "arguments": [
+        "TraceableHandle"
+      ],
+      "returns": "CString"
+    },
+    {
+      "id": 90,
+      "name": "MIDORI_FFI_TextContains",
+      "arguments": [
+        "TraceableHandle",
+        "TraceableHandle"
+      ],
+      "returns": "RawValue"
+    },
+    {
+      "id": 91,
+      "name": "MIDORI_FFI_TextReplace",
+      "arguments": [
+        "TraceableHandle",
+        "TraceableHandle",
+        "TraceableHandle"
+      ],
+      "returns": "CString"
+    },
+    {
+      "id": 92,
+      "name": "MIDORI_FFI_TextTrim",
+      "arguments": [
+        "TraceableHandle"
+      ],
+      "returns": "CString"
+    },
+    {
+      "id": 93,
+      "name": "MIDORI_FFI_TextFromCodePoint",
+      "arguments": [
+        "ValueHandle"
+      ],
+      "returns": "CString"
+    },
+    {
+      "id": 94,
+      "name": "MIDORI_FFI_TextCodePointAt",
+      "arguments": [
+        "TraceableHandle",
+        "ValueHandle"
+      ],
+      "returns": "RawValue"
+    },
+    {
+      "id": 95,
+      "name": "MIDORI_FFI_TextIsInteger",
+      "arguments": [
+        "TraceableHandle"
+      ],
+      "returns": "RawValue"
+    },
+    {
+      "id": 96,
+      "name": "MIDORI_FFI_TextIsFloat",
+      "arguments": [
+        "TraceableHandle"
+      ],
+      "returns": "RawValue"
+    },
+    {
+      "id": 97,
+      "name": "MIDORI_FFI_HashText",
+      "arguments": [
+        "CString"
+      ],
+      "returns": "RawValue"
+    },
+    {
+      "id": 98,
+      "name": "MIDORI_FFI_HashFloat",
+      "arguments": [],
+      "returns": "RawValue"
+    },
+    {
+      "id": 99,
+      "name": "MIDORI_FFI_GetMonotonicNanos",
+      "arguments": [],
+      "returns": "RawValue"
+    }
+  ]
+}

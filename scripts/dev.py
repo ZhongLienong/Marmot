@@ -60,10 +60,11 @@ COMMANDS: dict[str, Command] = {
 CHECKS: dict[str, Command] = {
     "layering": Command("testing.layering", "library include rules", "Tests"),
     "docs": Command("testing.doc_examples", "documentation examples (--sync to update their mirrors)", "Tests", COMPILER_AND_VM),
-    "cli": Command("testing.cli_contracts", "command-line contracts", "Tests", COMPILER_AND_VM),
+    "cli": Command("testing.cli_contracts", "command-line contracts", "Tests", [*COMPILER_AND_VM, "MarmotUnitTests"]),
     "format": Command("testing.formatting", "formatter idempotency", "Tests", ["marmotc"]),
     "benchmarks": Command("testing.benchmarks", "benchmarks compile (--run to run them)", "Tests", COMPILER_AND_VM),
     "tool": Command("testing.tool", "the marmot tool's tests", "Tests", ["marmotc"]),
+    "mmc": Command("testing.mmc_contract", "version-13 .mmc contract and fixture compatibility", "Tests", ["marmotc", "marmotvm", "MarmotUnitTests"]),
 }
 
 

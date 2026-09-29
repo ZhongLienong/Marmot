@@ -1,0 +1,6 @@
+module MmcNative
+
+foreign "MIDORI_FFI_Print" PrintRaw : fn(Text) -> Unit;
+foreign "marmot_test_answer" Answer : fn() -> Int from "marmot_test_native";
+
+PrintRaw((Answer() as Text) ++ "\n");

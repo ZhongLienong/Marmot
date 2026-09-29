@@ -8,6 +8,7 @@ In order, stopping at the first failure:
     unit        the C++ unit tests
     docs        documentation examples are in sync and run as documented
     cli         the command-line contracts
+    mmc         frozen .mmc format and compiler/VM compatibility
     format      the formatter is idempotent on the corpus
     benchmarks  every program under benchmarks/ compiles cleanly
     tool        the Rust marmot tool's tests, against the compiler just built
@@ -34,9 +35,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from lib import console
 from lib.host import REPO_ROOT
 from lib.presets import BuildTree, add_build_arguments
-from testing import benchmarks, cli_contracts, doc_examples, formatting, language, layering, tool, unit
+from testing import benchmarks, cli_contracts, doc_examples, formatting, language, layering, mmc_contract, tool, unit
 
-STEPS = ["layering", "build", "unit", "docs", "cli", "format", "benchmarks", "tool", "language"]
+STEPS = ["layering", "build", "unit", "mmc", "docs", "cli", "format", "benchmarks", "tool", "language"]
 
 
 def cleanup_all_artifacts(root: Path) -> None:
@@ -91,6 +92,7 @@ def steps(args: argparse.Namespace, tree: BuildTree) -> dict[str, Callable[[], i
         "layering": lambda: layering.main([]),
         "build": lambda: build_everything(tree),
         "unit": lambda: unit.main(common),
+        "mmc": lambda: mmc_contract.main(common),
         "docs": lambda: doc_examples.main(common + verbose),
         "cli": lambda: cli_contracts.main(common + verbose),
         "format": lambda: formatting.main(common + verbose),

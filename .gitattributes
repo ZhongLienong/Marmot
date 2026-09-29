@@ -2,6 +2,10 @@
 # Set default behavior to automatically normalize line endings.
 ###############################################################################
 * text=auto
+format/mmc/sources/*.mmt text eol=lf
+format/mmc/fixtures/*.mmc binary
+test/dogfood/json.mmt text eol=lf
+test/dogfood/lisp.mmt text eol=lf
 
 ###############################################################################
 # Set default behavior for command prompt diff.
