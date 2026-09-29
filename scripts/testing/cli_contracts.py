@@ -296,6 +296,34 @@ def scenario_emit_ir_is_hidden(runner: TestRunner) -> None:
         assert_condition(rejected.returncode != 0 and "--emit-ir prints text" in rejected_output, f"--emit-ir --format json should be rejected:\n{rejected_output}")
 
 
+def scenario_emit_ast_is_hidden(runner: TestRunner) -> None:
+    # --emit-ast is for debugging the compiler too; it stays out of the help.
+    for command in ("check", "build"):
+        help_output = run_midori(runner, ["help", command], env_overrides={"MARMOT_PATH": None})
+        assert_condition("--emit-ast" not in help_output.stdout, f"help {command} should not list --emit-ast:\n{help_output.stdout}")
+
+    with tempfile.TemporaryDirectory(prefix="marmot-cli-emit-ast-") as temp_dir_raw:
+        temp_dir = Path(temp_dir_raw)
+        source_path = temp_dir / "Tree.mmt"
+        write_text(source_path, "module Tree\ndef value = 1 + 2;\n")
+
+        emitted = run_midori(runner, ["check", str(source_path), "--emit-ast"], env_overrides={"MARMOT_PATH": None})
+        assert_condition(
+            emitted.returncode == 0 and emitted.stdout.startswith("module Tree\nDefine {\n Name: value\n") and "Operator: +" in emitted.stdout,
+            f"check --emit-ast should print the module's syntax tree:\n{emitted.stdout}{emitted.stderr}",
+        )
+
+        # Both dumps at once: the tree first, then the IR.
+        both = run_midori(runner, ["check", str(source_path), "--emit-ast", "--emit-ir"], env_overrides={"MARMOT_PATH": None})
+        tree_at = both.stdout.find("Define {")
+        ir_at = both.stdout.find("global @0 value: Int")
+        assert_condition(both.returncode == 0 and 0 <= tree_at < ir_at, f"--emit-ast --emit-ir should print the tree, then the IR:\n{both.stdout}{both.stderr}")
+
+        rejected = run_midori(runner, ["check", str(source_path), "--emit-ast", "--format", "json"], env_overrides={"MARMOT_PATH": None})
+        rejected_output = rejected.stdout + rejected.stderr
+        assert_condition(rejected.returncode != 0 and "--emit-ast prints text" in rejected_output, f"--emit-ast --format json should be rejected:\n{rejected_output}")
+
+
 def scenario_marmotvm_runs_what_marmotc_built(runner: TestRunner) -> None:
     with tempfile.TemporaryDirectory(prefix="marmot-cli-run-") as temp_dir_raw:
         temp_dir = Path(temp_dir_raw)
@@ -557,6 +585,7 @@ SCENARIOS: list[tuple[str, Any]] = [
     ("version_output_format", scenario_version_output_format),
     ("help_lists_new_commands", scenario_help_lists_new_commands),
     ("emit_ir_is_hidden", scenario_emit_ir_is_hidden),
+    ("emit_ast_is_hidden", scenario_emit_ast_is_hidden),
     ("marmotvm_runs_what_marmotc_built", scenario_marmotvm_runs_what_marmotc_built),
     ("marmotvm_command_line", scenario_marmotvm_command_line),
     ("build_command_compiles_without_running", scenario_build_command_compiles_without_running),

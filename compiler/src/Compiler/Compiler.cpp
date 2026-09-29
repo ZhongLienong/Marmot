@@ -8,6 +8,7 @@
 #include "Compiler/BytecodeLinker/BytecodeLinker.h"
 #include "Compiler/Lexer/Lexer.h"
 #include "Compiler/Lowering/Lowering.h"
+#include "Compiler/AbstractSyntaxTree/Printer/AbstractSyntaxTreePrinter.h"
 #include "Compiler/MidoriIR/Printer/MidoriIRPrinter.h"
 #include "Compiler/MidoriIR/Verifier/MidoriIRVerifier.h"
 #include "Compiler/MidoriIROptimizer/MidoriIROptimizer.h"
@@ -77,6 +78,7 @@ namespace
 		const std::vector<std::vector<std::string>>& m_tiers;
 		size_t m_total_modules;
 		bool m_emit_midori_ir;
+		bool m_emit_ast;
 	};
 
 	struct CompileState;
@@ -107,6 +109,7 @@ namespace
 		BytecodeModule m_bytecode;
 		std::optional<LoweredModule> m_lowered;
 		std::string m_midori_ir;
+		std::string m_ast_text;
 #if MIDORI_ENABLE_OPTIMIZER_STATS
 		std::string m_optimizer_log;
 #endif
@@ -125,6 +128,7 @@ namespace
 	{
 		std::vector<BytecodeModule> m_bytecode_modules;
 		std::vector<std::string> m_midori_ir;
+		std::vector<std::string> m_ast;
 		MidoriResult::CompilerWarnings m_warnings;
 	};
 
@@ -827,6 +831,11 @@ namespace
 		state.m_module_name = state.m_module_decl ? state.m_module_decl->ModuleName() : std::filesystem::path(state.m_file_path).stem().string();
 
 		const LoweringImports imports = MakeLoweringImports(state.m_import_context);
+		if (state.m_env->m_emit_ast)
+		{
+			state.m_ast_text = AbstractSyntaxTreePrinter(state.m_module_name, state.m_ast).Print();
+		}
+
 		MidoriResult::DiagnosticsResult<LoweredModule> lowered = Lowering(state.m_ast, state.m_file_path, state.m_source_lines, state.m_module_name, state.m_export_info.m_export_set, imports).Lower();
 		if (!lowered.has_value())
 		{
@@ -1001,7 +1010,8 @@ namespace
 			.WithTypeclassMetadata(std::move(state.m_parsed_module.m_typeclass_metadata))
 			.WithWarnings(std::move(state.m_warnings).TakeAll())
 			.WithBytecode(std::move(state.m_bytecode))
-			.WithMidoriIR(std::move(state.m_midori_ir));
+			.WithMidoriIR(std::move(state.m_midori_ir))
+			.WithAst(std::move(state.m_ast_text));
 
 		ReportCompiled
 		(
@@ -1490,7 +1500,7 @@ namespace
 
 	static CompileEnv MakeCompileEnv(BuildGraph& build_graph, std::unordered_map<std::string, CompiledModule>& compiled_modules, std::mutex& modules_mutex, std::mutex& print_mutex, std::atomic<size_t>& completed_modules, const CompilationSchedule& schedule, size_t total_modules, const CompilationInputs& inputs)
 	{
-		return CompileEnv{ build_graph, compiled_modules, modules_mutex, print_mutex, completed_modules, schedule.m_tiers, total_modules, inputs.EmitsMidoriIR() };
+		return CompileEnv{ build_graph, compiled_modules, modules_mutex, print_mutex, completed_modules, schedule.m_tiers, total_modules, inputs.EmitsMidoriIR(), inputs.EmitsAst() };
 	}
 
 	static MidoriResult::ReportResult<BuildGraphArtifacts> CollectBytecodeModules(const CompilationSchedule& schedule, std::unordered_map<std::string, CompiledModule>& compiled_modules)
@@ -1514,6 +1524,10 @@ namespace
 				if (!it->second.MidoriIR().empty())
 				{
 					artifacts.m_midori_ir.push_back(it->second.MidoriIR());
+				}
+				if (!it->second.Ast().empty())
+				{
+					artifacts.m_ast.push_back(it->second.Ast());
 				}
 				artifacts.m_bytecode_modules.emplace_back(std::move(it->second).TakeBytecode());
 			}
@@ -1781,11 +1795,13 @@ MidoriResult::CompilationResult Compiler::CompileWithReport()
 	}
 
 	std::vector<std::string> midori_ir = std::move(bytecode_result->m_midori_ir);
+	std::vector<std::string> ast = std::move(bytecode_result->m_ast);
 	MidoriResult::CompilationResult linked = LinkBytecodeModules(std::move(bytecode_result).value(), entry_module_name);
 	if (linked.has_value())
 	{
 		linked->m_source_files = std::move(source_files);
 		linked->m_midori_ir = std::move(midori_ir);
+		linked->m_ast = std::move(ast);
 	}
 	if (linked.has_value() && !m_inputs.NativeLibraryPolicies().empty())
 	{

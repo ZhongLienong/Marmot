@@ -183,6 +183,8 @@ Current warning passes:
 
 Warnings remain structured as `CompilerWarning` values and are appended to the compile-wide report.
 
+`marmotc check` and `marmotc build` accept `--emit-ast`, which is hidden from `marmotc --help`. It prints each module's checked AST, as it stands after static analysis, with how every name resolved (a local and its slot, a cell, or a global), in link order. It cannot be combined with `--format json`. With `--emit-ir` as well, every module's AST comes first, then every module's MidoriIR.
+
 ## Phase 6: Lowering
 
 Source: `compiler/src/Compiler/Lowering/`

@@ -143,6 +143,7 @@ Worth knowing before editing the front end, because each was a bug once:
   Development and Debug builds, and once before the backend in Release. A
   violation is a compiler bug, never a user error. `marmotc check --emit-ir`
   prints each module's IR after optimization; see `docs/midori-ir.md`.
+  `--emit-ast` prints each module's checked AST, before lowering.
 
 ## Gotchas
 

@@ -59,6 +59,11 @@ const std::string& CompiledModule::MidoriIR() const
 	return m_midori_ir;
 }
 
+const std::string& CompiledModule::Ast() const
+{
+	return m_ast;
+}
+
 bool CompiledModule::SymbolTable::HasExport(std::string_view name) const
 {
 	return m_exports.contains(std::string(name));
@@ -131,5 +136,11 @@ CompiledModule CompiledModule::WithBytecode(BytecodeModule bytecode) &&
 CompiledModule CompiledModule::WithMidoriIR(std::string midori_ir) &&
 {
 	m_midori_ir = std::move(midori_ir);
+	return std::move(*this);
+}
+
+CompiledModule CompiledModule::WithAst(std::string ast) &&
+{
+	m_ast = std::move(ast);
 	return std::move(*this);
 }

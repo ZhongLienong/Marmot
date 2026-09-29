@@ -1,18 +1,156 @@
-#if MIDORI_ENABLE_AST_DUMP
+#include "AbstractSyntaxTreePrinter.h"
 
 #include <algorithm>
 #include <format>
-#include "Common/BuildConfig/BuildConfig.h"
 #include <ranges>
+#include <string>
+#include <string_view>
 
-#include "AbstractSyntaxTreePrinter.h"
-#include "Common/Printer/Printer.h"
+namespace
+{
+	std::string JoinTypes(const std::vector<std::shared_ptr<MidoriType>>& types)
+	{
+		return types
+			| std::views::transform([](const std::shared_ptr<MidoriType>& type) { return type->ToString(); })
+			| std::views::join_with(std::string_view(", "))
+			| std::ranges::to<std::string>();
+	}
+
+	std::string JoinNames(const std::vector<Token>& names)
+	{
+		return names
+			| std::views::transform([](const Token& name) { return name.m_lexeme; })
+			| std::views::join_with(std::string_view(", "))
+			| std::ranges::to<std::string>();
+	}
+
+	std::string DescribeConstraint(const MidoriType::ClassConstraint& constraint)
+	{
+		return constraint.IsEquality()
+			? std::format("{} = {}", constraint.m_equality_lhs->ToString(), constraint.m_equality_rhs->ToString())
+			: std::format("{}<{}>", constraint.m_class_name, JoinTypes(constraint.m_type_args));
+	}
+
+	struct PrintAbstractSyntaxTree
+	{
+		std::string& m_output;
+
+		explicit PrintAbstractSyntaxTree(std::string& output);
+
+		void PrintWithIndentation(int depth, std::string_view text) const;
+
+		void PrintVariableSemantic(int depth, const MidoriExpression::NameContext::Tag& tag) const;
+
+		void operator()(const MidoriStatement::ExpressionStatement& simple, int depth = 0) const;
+
+		void operator()(const MidoriStatement::VariableDefinition& def, int depth = 0) const;
+
+		void operator()(const MidoriStatement::TupleDefinition& def_tuple, int depth = 0) const;
+
+		void operator()(const MidoriStatement::FunctionDefinition& defun, int depth = 0) const;
+
+		void operator()(const MidoriStatement::ForeignDefinition& foreign, int depth = 0) const;
+
+		void operator()(const MidoriStatement::Struct& struct_stmt, int depth = 0) const;
+
+		void operator()(const MidoriStatement::Union& union_stmt, int depth = 0) const;
+
+		void operator()(const MidoriStatement::Class& class_stmt, int depth = 0) const;
+
+		void operator()(const MidoriStatement::Instance& instance, int depth = 0) const;
+
+		void operator()(const MidoriStatement::TypeAlias& alias, int depth = 0) const;
+
+		void operator()(const MidoriExpression::As& as, int depth = 0) const;
+
+		void operator()(const MidoriExpression::Binary& binary, int depth = 0) const;
+
+		void operator()(const MidoriExpression::Group& group, int depth = 0) const;
+
+		void operator()(const MidoriExpression::Tuple& tuple, int depth = 0) const;
+
+		void operator()(const MidoriExpression::UnaryPrefix& unary, int depth = 0) const;
+
+		void operator()(const MidoriExpression::UnarySuffix& unary, int depth = 0) const;
+
+		void operator()(const MidoriExpression::Spawn& spawn, int depth = 0) const;
+
+		void operator()(const MidoriExpression::Join& join, int depth = 0) const;
+
+		void operator()(const MidoriExpression::ChannelCreate& channel_create, int depth = 0) const;
+
+		void operator()(const MidoriExpression::Send& send, int depth = 0) const;
+
+		void operator()(const MidoriExpression::Receive& receive, int depth = 0) const;
+
+		void operator()(const MidoriExpression::Call& call, int depth = 0) const;
+
+		void operator()(const MidoriExpression::MemberAccess& get, int depth = 0) const;
+
+		void operator()(const MidoriExpression::NameAccess& variable, int depth = 0) const;
+
+		void operator()(const MidoriExpression::Literal& literal, int depth = 0) const;
+
+		void operator()(const MidoriExpression::Function& closure, int depth = 0) const;
+
+		void operator()(const MidoriExpression::Construct& construct, int depth = 0) const;
+
+		void operator()(const MidoriExpression::RecordUpdate& record_update, int depth = 0) const;
+
+		void operator()(const MidoriExpression::Array& array, int depth = 0) const;
+
+		void operator()(const MidoriExpression::IndexAccess& array_get, int depth = 0) const;
+
+		void operator()(const MidoriExpression::ArrayComprehension& comprehension, int depth = 0) const;
+
+		void operator()(const MidoriExpression::RangeBinary& range_binary, int depth = 0) const;
+
+		void operator()(const MidoriExpression::RangeTernary& range_ternary, int depth = 0) const;
+
+		void operator()(const MidoriExpression::IfElse& if_else, int depth = 0) const;
+
+		void operator()(const MidoriExpression::Block& block, int depth = 0) const;
+
+		void operator()(const MidoriExpression::Match& match, int depth = 0) const;
+
+		void operator()(const MidoriExpression::Case& case_expr, int depth = 0) const;
+
+		void operator()(const MidoriExpression::For& for_expr, int depth = 0) const;
+
+		void operator()(const MidoriPattern::Binding& binding, int depth = 0) const;
+
+		void operator()(const MidoriPattern::Wildcard& wildcard, int depth = 0) const;
+
+		void operator()(const MidoriPattern::Literal& literal, int depth = 0) const;
+
+		void operator()(const MidoriPattern::Tuple& tuple, int depth = 0) const;
+
+		void operator()(const MidoriPattern::Array& array, int depth = 0) const;
+
+		void operator()(const MidoriPattern::Constructor& constructor, int depth = 0) const;
+		void operator()(const MidoriPattern::As& as, int depth = 0) const;
+		void operator()(const MidoriPattern::Or& either, int depth = 0) const;
+		void operator()(const MidoriPattern::Range& range, int depth = 0) const;
+		void operator()(const MidoriPattern::Record& record, int depth = 0) const;
+
+		void Visit(const std::unique_ptr<MidoriStatement>& statement, int depth) const;
+
+		void Visit(const std::unique_ptr<MidoriExpression>& expression, int depth) const;
+
+		void Visit(const std::unique_ptr<MidoriPattern>& pattern, int depth) const;
+	};
+}
+
+PrintAbstractSyntaxTree::PrintAbstractSyntaxTree(std::string& output)
+	: m_output(output)
+{
+}
 
 void PrintAbstractSyntaxTree::PrintWithIndentation(int depth, std::string_view text) const
 {
-	Printer::Print(std::string(depth, ' '));
-	Printer::Print(text);
-	Printer::Print("\n");
+	m_output.append(static_cast<size_t>(depth), ' ');
+	m_output += text;
+	m_output.push_back('\n');
 }
 
 void PrintAbstractSyntaxTree::PrintVariableSemantic(int depth, const MidoriExpression::NameContext::Tag& tag) const
@@ -104,8 +242,12 @@ void PrintAbstractSyntaxTree::operator()(const MidoriStatement::FunctionDefiniti
 		}
 	);
 	PrintWithIndentation(depth + 1, "ReturnType: " + defun.m_return_type->ToString());
-	PrintWithIndentation(depth + 1, "Body: ");
-	Visit(defun.m_body, depth + 2);
+	// A class declares its methods' signatures only.
+	if (defun.m_body != nullptr)
+	{
+		PrintWithIndentation(depth + 1, "Body: ");
+		Visit(defun.m_body, depth + 2);
+	}
 	PrintWithIndentation(depth, "}");
 }
 
@@ -623,4 +765,60 @@ void PrintAbstractSyntaxTree::operator()(const MidoriPattern::Record& record, in
 	PrintWithIndentation(depth, "}");
 }
 
-#endif
+void PrintAbstractSyntaxTree::operator()(const MidoriStatement::Class& class_stmt, int depth) const
+{
+	PrintWithIndentation(depth, "Class {");
+	PrintWithIndentation(depth + 1, "Name: " + class_stmt.m_name.m_lexeme);
+	PrintWithIndentation(depth + 1, "TypeParameters: " + JoinNames(class_stmt.m_type_params));
+	std::ranges::for_each(class_stmt.m_superclasses, [depth, this](const MidoriType::ClassConstraint& superclass) { PrintWithIndentation(depth + 1, "Superclass: " + DescribeConstraint(superclass)); });
+	std::ranges::for_each(class_stmt.m_associated_types, [depth, this](const MidoriStatement::Class::AssociatedTypeDeclaration& associated) { PrintWithIndentation(depth + 1, "AssociatedType: " + associated.m_name.m_lexeme); });
+	PrintWithIndentation(depth + 1, "Methods: ");
+	std::ranges::for_each(class_stmt.m_methods, [depth, this](const std::unique_ptr<MidoriStatement>& method) { Visit(method, depth + 2); });
+	PrintWithIndentation(depth, "}");
+}
+
+void PrintAbstractSyntaxTree::operator()(const MidoriStatement::Instance& instance, int depth) const
+{
+	PrintWithIndentation(depth, "Instance {");
+	PrintWithIndentation(depth + 1, "Class: " + instance.m_class_name.m_lexeme);
+	PrintWithIndentation(depth + 1, "TypeArguments: " + JoinTypes(instance.m_type_args));
+	std::ranges::for_each(instance.m_constraints, [depth, this](const MidoriType::ClassConstraint& constraint) { PrintWithIndentation(depth + 1, "Where: " + DescribeConstraint(constraint)); });
+	std::ranges::for_each(instance.m_associated_types, [depth, this](const MidoriStatement::Instance::AssociatedTypeBinding& binding) { PrintWithIndentation(depth + 1, std::format("AssociatedType: {} = {}", binding.m_name.m_lexeme, binding.m_type->ToString())); });
+	PrintWithIndentation(depth + 1, "Methods: ");
+	std::ranges::for_each(instance.m_methods, [depth, this](const std::unique_ptr<MidoriStatement>& method) { Visit(method, depth + 2); });
+	PrintWithIndentation(depth, "}");
+}
+
+void PrintAbstractSyntaxTree::operator()(const MidoriStatement::TypeAlias& alias, int depth) const
+{
+	PrintWithIndentation(depth, "TypeAlias {");
+	PrintWithIndentation(depth + 1, "Name: " + alias.m_name.m_lexeme);
+	PrintWithIndentation(depth + 1, "GenericParameters: " + JoinNames(alias.m_generic_params));
+	PrintWithIndentation(depth + 1, "AliasedType: " + alias.m_aliased_type->ToString());
+	PrintWithIndentation(depth, "}");
+}
+
+void PrintAbstractSyntaxTree::operator()(const MidoriExpression::ArrayComprehension& comprehension, int depth) const
+{
+	PrintWithIndentation(depth, "ArrayComprehension {");
+	PrintWithIndentation(depth + 1, "Variable: " + comprehension.m_loop_variable.m_lexeme);
+	PrintWithIndentation(depth + 1, "Range: ");
+	Visit(comprehension.m_range, depth + 2);
+	PrintWithIndentation(depth + 1, "Transform: ");
+	Visit(comprehension.m_transform_expr, depth + 2);
+	PrintWithIndentation(depth, "}");
+}
+
+AbstractSyntaxTreePrinter::AbstractSyntaxTreePrinter(std::string_view module_name, const MidoriProgramTree& program)
+	: m_module_name(module_name),
+	m_program(program)
+{
+}
+
+std::string AbstractSyntaxTreePrinter::Print() const
+{
+	std::string output = std::format("module {}\n", m_module_name);
+	const PrintAbstractSyntaxTree visitor(output);
+	std::ranges::for_each(m_program, [&visitor](const std::unique_ptr<MidoriStatement>& statement) { visitor.Visit(statement, 0); });
+	return output;
+}

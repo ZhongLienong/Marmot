@@ -481,6 +481,8 @@ namespace MidoriResult
 		std::vector<std::string> m_source_files;
 		// Each module's MidoriIR as text, in link order, when --emit-ir asked.
 		std::vector<std::string> m_midori_ir;
+		// Each module's checked syntax tree as text, in link order, when --emit-ast asked.
+		std::vector<std::string> m_ast;
 
 		CompiledProgram(MidoriExecutable executable, CompilerReport report = {}, std::vector<std::string> source_files = {})
 			: m_executable(std::move(executable)),

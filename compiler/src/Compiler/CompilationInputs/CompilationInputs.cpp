@@ -51,3 +51,14 @@ bool CompilationInputs::EmitsMidoriIR() const
 {
 	return m_emit_midori_ir;
 }
+
+CompilationInputs CompilationInputs::WithEmitAst(bool emit_ast) &&
+{
+	m_emit_ast = emit_ast;
+	return std::move(*this);
+}
+
+bool CompilationInputs::EmitsAst() const
+{
+	return m_emit_ast;
+}

@@ -58,9 +58,10 @@ namespace
 		std::optional<std::filesystem::path> m_output_path = std::nullopt;
 		std::optional<std::filesystem::path> m_deps_path = std::nullopt;
 		bool m_quiet = false;
-		// check and build: the hidden --emit-ir, which prints each module's
-		// MidoriIR. It needs text output.
+		// check and build: the hidden --emit-ir and --emit-ast, which print each
+		// module's MidoriIR and checked syntax tree. They need text output.
 		bool m_emit_ir = false;
+		bool m_emit_ast = false;
 	};
 
 	using ParseResult = std::expected<Invocation, std::string>;
@@ -329,6 +330,12 @@ namespace
 				continue;
 			}
 
+			if (arg == "--emit-ast")
+			{
+				invocation.m_emit_ast = true;
+				continue;
+			}
+
 			if (arg == "--format")
 			{
 				std::string error;
@@ -423,6 +430,12 @@ namespace
 			if (arg == "--emit-ir")
 			{
 				invocation.m_emit_ir = true;
+				continue;
+			}
+
+			if (arg == "--emit-ast")
+			{
+				invocation.m_emit_ast = true;
 				continue;
 			}
 
@@ -637,6 +650,10 @@ namespace
 		{
 			return std::unexpected("--emit-ir prints text, so it cannot be used with --format json.");
 		}
+		if (invocation.m_emit_ast && invocation.m_format == OutputFormat::Json)
+		{
+			return std::unexpected("--emit-ast prints text, so it cannot be used with --format json.");
+		}
 		return invocation;
 	}
 
@@ -701,11 +718,16 @@ namespace
 	[[nodiscard]] MidoriDriver::CompileFileWithReportResult CompileInvocation(const Invocation& invocation)
 	{
 		CompilationInputs inputs = invocation.m_plan_inputs.value_or(MidoriDriver::EnvironmentCompilationInputs());
-		return MidoriDriver::CompileFileWithReport(invocation.m_source_file, std::move(inputs).WithEmitMidoriIR(invocation.m_emit_ir));
+		return MidoriDriver::CompileFileWithReport(invocation.m_source_file, std::move(inputs).WithEmitMidoriIR(invocation.m_emit_ir).WithEmitAst(invocation.m_emit_ast));
 	}
 
-	void PrintMidoriIR(const MidoriResult::CompiledProgram& compiled_program)
+	// Each module's syntax tree, then each module's MidoriIR, as asked.
+	void PrintDumps(const MidoriResult::CompiledProgram& compiled_program)
 	{
+		for (const std::string& module_ast : compiled_program.m_ast)
+		{
+			std::print("{}\n", module_ast);
+		}
 		for (const std::string& module_ir : compiled_program.m_midori_ir)
 		{
 			std::print("{}\n", module_ir);
@@ -736,7 +758,7 @@ namespace
 			return EXIT_FAILURE;
 		}
 
-		PrintMidoriIR(*compile_result);
+		PrintDumps(*compile_result);
 		const MidoriResult::CompilerReport& report = compile_result->Report();
 		if (invocation.m_format == OutputFormat::Json)
 		{
@@ -775,7 +797,7 @@ namespace
 		}
 
 		const MidoriResult::CompiledProgram& compiled_program = *compile_result;
-		PrintMidoriIR(compiled_program);
+		PrintDumps(compiled_program);
 		const MidoriExecutable& executable = compiled_program.m_executable;
 
 		std::filesystem::path artifact_path = invocation.m_output_path.value_or(invocation.m_source_file);

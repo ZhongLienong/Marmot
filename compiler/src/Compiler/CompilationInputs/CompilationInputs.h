@@ -18,6 +18,7 @@ private:
 	std::vector<std::filesystem::path> m_search_paths;
 	std::unordered_map<std::string, NativeLibraryPolicy> m_native_library_policies;
 	bool m_emit_midori_ir = false;
+	bool m_emit_ast = false;
 
 public:
 	// Directories searched, in order, for `<Name>` imports. Directories that do
@@ -36,4 +37,9 @@ public:
 	CompilationInputs WithEmitMidoriIR(bool emit_midori_ir) &&;
 
 	bool EmitsMidoriIR() const;
+
+	// Keep each module's checked syntax tree as text in the compiled program.
+	CompilationInputs WithEmitAst(bool emit_ast) &&;
+
+	bool EmitsAst() const;
 };

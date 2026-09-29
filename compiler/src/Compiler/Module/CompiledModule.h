@@ -77,6 +77,9 @@ struct CompiledModule
 	// The module's MidoriIR as text, when --emit-ir asked for it; empty otherwise.
 	[[nodiscard]] const std::string& MidoriIR() const;
 
+	// The module's checked syntax tree as text, when --emit-ast asked for it; empty otherwise.
+	[[nodiscard]] const std::string& Ast() const;
+
 	[[nodiscard]] CompiledModule WithSymbols(SymbolTable symbols) &&;
 
 	[[nodiscard]] CompiledModule WithTypeSignatures(TypeEnvironment type_signatures) &&;
@@ -89,6 +92,8 @@ struct CompiledModule
 
 	[[nodiscard]] CompiledModule WithMidoriIR(std::string midori_ir) &&;
 
+	[[nodiscard]] CompiledModule WithAst(std::string ast) &&;
+
 private:
 	std::string m_module_name;
 	std::filesystem::path m_file_path;
@@ -98,4 +103,5 @@ private:
 	std::vector<CompilerWarning> m_warnings;
 	std::optional<BytecodeModule> m_bytecode;        // Per-module bytecode for incremental compilation
 	std::string m_midori_ir;
+	std::string m_ast;
 };
