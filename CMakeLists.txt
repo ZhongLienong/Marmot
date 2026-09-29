@@ -138,10 +138,12 @@ endfunction()
 # ============================================================================
 # One library per component, linked in one direction only:
 #
-#   MarmotCommon    common/src     the bytecode format, the builtin table's
-#                                  names and signatures
-#   MarmotRuntime   runtime/src    values, the VM, builtin library -> Common
-#   MarmotCompiler  compiler/src   source to bytecode             -> Common
+#   MarmotCommon    common/src     build configuration, printing, JSON
+#   MarmotBytecode  bytecode/src   the bytecode format both sides agree on:
+#                                  opcodes, the executable, .mmc files, the
+#                                  builtin table                  -> Common
+#   MarmotRuntime   runtime/src    values, the VM, builtin library -> Bytecode
+#   MarmotCompiler  compiler/src   source to bytecode             -> Bytecode
 #   MarmotDriver    compiler/src/Utility/{CLI,Driver}
 #                                  marmotc's command line         -> Compiler
 #
@@ -154,6 +156,12 @@ file(GLOB_RECURSE MARMOT_COMMON_SOURCES CONFIGURE_DEPENDS
     "common/src/*.h"
     "common/src/*.def"
     "common/src/*.cpp"
+)
+
+file(GLOB_RECURSE MARMOT_BYTECODE_SOURCES CONFIGURE_DEPENDS
+    "bytecode/src/*.h"
+    "bytecode/src/*.def"
+    "bytecode/src/*.cpp"
 )
 
 file(GLOB_RECURSE MARMOT_RUNTIME_SOURCES CONFIGURE_DEPENDS
@@ -181,19 +189,24 @@ endforeach()
 add_library(MarmotCommon STATIC ${MARMOT_COMMON_SOURCES})
 target_include_directories(MarmotCommon PUBLIC ${CMAKE_SOURCE_DIR}/common/src)
 
+add_library(MarmotBytecode STATIC ${MARMOT_BYTECODE_SOURCES})
+target_include_directories(MarmotBytecode PUBLIC ${CMAKE_SOURCE_DIR}/bytecode/src)
+target_link_libraries(MarmotBytecode PUBLIC MarmotCommon)
+
 add_library(MarmotRuntime STATIC ${MARMOT_RUNTIME_SOURCES})
 target_include_directories(MarmotRuntime PUBLIC ${CMAKE_SOURCE_DIR}/runtime/src)
-target_link_libraries(MarmotRuntime PUBLIC MarmotCommon)
+target_link_libraries(MarmotRuntime PUBLIC MarmotBytecode)
 
 add_library(MarmotCompiler STATIC ${MARMOT_COMPILER_SOURCES})
 target_include_directories(MarmotCompiler PUBLIC ${CMAKE_SOURCE_DIR}/compiler/src)
-target_link_libraries(MarmotCompiler PUBLIC MarmotCommon)
+target_link_libraries(MarmotCompiler PUBLIC MarmotBytecode)
 
 add_library(MarmotDriver STATIC ${MARMOT_DRIVER_SOURCES})
 target_link_libraries(MarmotDriver PUBLIC MarmotCompiler)
 
 set(MIDORI_LIBRARY_TARGETS
     MarmotCommon
+    MarmotBytecode
     MarmotRuntime
     MarmotCompiler
     MarmotDriver

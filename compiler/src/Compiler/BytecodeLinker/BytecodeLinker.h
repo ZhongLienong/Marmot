@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Common/Executable/Executable.h"
+#include "Bytecode/Executable/Executable.h"
 #include "Compiler/BytecodeModule/BytecodeModule.h"
 #include "Compiler/Result/Result.h"
 

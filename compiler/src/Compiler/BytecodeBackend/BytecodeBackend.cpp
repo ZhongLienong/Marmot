@@ -1,6 +1,7 @@
 #include "BytecodeBackend.h"
-#include "Common/Builtins/BuiltinTable.h"
-#include "Common/Constant/Constant.h"
+#include "Bytecode/Builtins/BuiltinTable.h"
+#include "Bytecode/Format/Format.h"
+#include "Compiler/Constant/Constant.h"
 #include "Compiler/Lowering/GenericTypes.h"
 
 #include <algorithm>

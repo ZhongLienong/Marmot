@@ -1,11 +1,11 @@
-#include "Common/Constant/Constant.h"
+#include "Bytecode/Format/Format.h"
 #include "Common/BuildConfig/BuildConfig.h"
 #include "Common/Printer/Printer.h"
-#include "Common/Scalar/IntegerArithmetic.h"
+#include "Bytecode/Scalar/IntegerArithmetic.h"
 #include "Interpreter/Channel/Channel.h"
 #include "Interpreter/ValueTransfer/ValueTransfer.h"
 #include "Interpreter/Worker/Worker.h"
-#include "Utility/Disassembler/Disassembler.h"
+#include "Bytecode/Disassembler/Disassembler.h"
 #include "VirtualMachine.h"
 
 #ifdef _WIN32
@@ -47,6 +47,8 @@ using namespace std::string_literals;
 
 namespace
 {
+	constexpr std::string_view ANONYMOUS_FUNCTION = "<anonymous>";
+
 #if !defined(_WIN32) && !defined(MAP_ANONYMOUS) && defined(MAP_ANON)
 #define MAP_ANONYMOUS MAP_ANON
 #endif

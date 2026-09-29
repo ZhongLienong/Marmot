@@ -7,7 +7,8 @@
 #include <ranges>
 #include <sstream>
 
-#include "Common/Constant/Constant.h"
+#include "Bytecode/Format/Format.h"
+#include "Compiler/Constant/Constant.h"
 #include "Compiler/Lexer/Lexer.h"
 #include "Parser.h"
 

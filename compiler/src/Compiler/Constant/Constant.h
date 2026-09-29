@@ -8,11 +8,7 @@
 
 inline constexpr int MAX_CAPTURED_COUNT{ UINT8_MAX };
 
-inline constexpr int MAX_SIZE_OP_CONSTANT{ UINT8_MAX };
-
 inline constexpr int MAX_SIZE_OP_CONSTANT_LONG{ UINT16_MAX };
-
-inline constexpr int MAX_SIZE_OP_CONSTANT_LONG_LONG{ ((UINT16_MAX << 8) | 0xffff) };
 
 inline constexpr int MAX_LOCAL_VARIABLES{ UINT8_MAX };
 
@@ -26,41 +22,21 @@ inline constexpr int MAX_JUMP_SIZE{ UINT16_MAX };
 
 inline constexpr int MAX_FUNCTION_ARITY{ UINT8_MAX };
 
-inline constexpr int MAX_FUNCTION_COUNT{ UINT8_MAX };
-
-inline constexpr int MAX_UNION_TAG{ UINT8_MAX };
-
-inline constexpr int MAX_ARRAY_SIZE{ ((UINT16_MAX << 8) | 0xffff) };
-
 constexpr std::string_view NameSeparator = "::";
 
-constexpr char ModuleSeparator = '@';
 constexpr char INTERNAL_NAME_PREFIX = '$';
 
 // Byte manipulation constants
 inline constexpr uint8_t BYTE_MASK = 0xffu;
-inline constexpr int BYTE_SIZE_BITS = 8;
-inline constexpr int SHORT_SIZE_BITS = 16;
-inline constexpr int TRIBYTE_SIZE_BITS = 24;
 
 // Bit shift amounts for byte extraction
 inline constexpr unsigned int SHIFT_8_BITS = 8u;
 inline constexpr unsigned int SHIFT_16_BITS = 16u;
-inline constexpr unsigned int SHIFT_24_BITS = 24u;
-inline constexpr unsigned int SHIFT_32_BITS = 32u;
-inline constexpr unsigned int SHIFT_40_BITS = 40u;
-inline constexpr unsigned int SHIFT_48_BITS = 48u;
-inline constexpr unsigned int SHIFT_56_BITS = 56u;
 
 // Hash function constants (FNV-1a)
 inline constexpr uint32_t HASH_OFFSET_BASIS = 0x9e3779b9u;
 inline constexpr unsigned int HASH_LEFT_SHIFT = 6u;
 inline constexpr unsigned int HASH_RIGHT_SHIFT = 2u;
-
-// Main procedure naming
-constexpr std::string_view MAIN_PROCEDURE_PREFIX = "$main$";
-constexpr std::string_view MODULE_BOOTSTRAP_PREFIX = "$module_bootstrap$";
-constexpr std::string_view MODULE_SEPARATOR_STR = "@";
 
 // Typeclass names
 constexpr std::string_view CONVERTABLE_CLASS_NAME = "Convertable";
@@ -84,20 +60,3 @@ constexpr std::string_view NEXT_METHOD_NAME = "Next";
 constexpr std::string_view INDEXABLE_CLASS_NAME = "Indexable";
 constexpr std::string_view GET_METHOD_NAME = "Get";
 constexpr std::string_view ELEMENT_ASSOCIATED_TYPE_NAME = "Element";
-
-// Standard library paths
-constexpr std::string_view STDLIB_DLL_NAME = "MidoriStdLib.dll";
-constexpr std::string_view STDLIB_SO_NAME = "libMidoriStdLib.so";
-constexpr std::string_view LIBRARY_PATH_PREFIX = "./";
-constexpr char STDLIB_DLL_PATH[] = "./MidoriStdLib.dll";
-constexpr char STDLIB_SO_PATH[] = "./libMidoriStdLib.so";
-
-// Thread pool
-inline constexpr unsigned int DEFAULT_THREAD_POOL_SIZE = 4u;
-
-// Stack trace formatting
-constexpr std::string_view STACK_TRACE_HEADER = "Stack trace:\n";
-constexpr std::string_view ANONYMOUS_FUNCTION = "<anonymous>";
-constexpr std::string_view STACK_FRAME_FORMAT = "  at {}{}{}";
-constexpr std::string_view TRUNCATED_FRAMES_FORMAT = "  ... ({} more frame{})";
-constexpr std::string_view STDLIB_LOAD_ERROR = "Failed to load the standard library.";

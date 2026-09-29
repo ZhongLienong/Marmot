@@ -1,7 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
-#include "Common/Executable/Executable.h"
-#include "Utility/Disassembler/Disassembler.h"
+#include "Bytecode/Executable/Executable.h"
+#include "Bytecode/Disassembler/Disassembler.h"
 #include "support/OutputCapture.h"
 
 #include <string>

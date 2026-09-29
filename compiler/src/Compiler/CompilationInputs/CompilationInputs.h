@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Common/Executable/Executable.h"
+#include "Bytecode/Executable/Executable.h"
 
 #include <filesystem>
 #include <string>

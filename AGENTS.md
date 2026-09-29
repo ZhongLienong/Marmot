@@ -13,13 +13,15 @@ Marmot is a language with three binaries:
 - `marmot` — the project tool, written in Rust (`tool/`). Resolves projects and
   packages and drives the other two through a build plan.
 
-Layering, enforced by `scripts/testing/layering.py`: `common` → `runtime` and
-`compiler` → the driver (`compiler/src/Utility/{CLI,Driver}`) → `vm/src`. The
-driver does not link the runtime.
+Layering, enforced by `scripts/testing/layering.py`: `common` → `bytecode` →
+`runtime` and `compiler`. The driver (`compiler/src/Utility/{CLI,Driver}`)
+builds on the compiler and `vm/src` on the runtime; neither side links the
+other, and `bytecode` is all they share.
 
 | Path | What it holds |
 |---|---|
-| `common/src` | Opcodes, the executable format, builtin table, JSON, printing and environment helpers |
+| `common/src` | Build configuration, JSON, printing and environment helpers |
+| `bytecode/src` | The bytecode format: opcodes, the executable, `.mmc` files, the builtin table, the format version |
 | `compiler/src/Compiler` | Compiler errors, lexer, parser, type checker, static analysis, lowering, MidoriIR optimizer, bytecode backend, linker |
 | `runtime/src` | Values, runtime errors, the interpreter, the GC, workers, the builtin FFI library |
 | `vm/src` | The `marmotvm` entry point |

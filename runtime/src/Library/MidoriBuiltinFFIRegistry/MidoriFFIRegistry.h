@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Common/Builtins/BuiltinTable.h"
+#include "Bytecode/Builtins/BuiltinTable.h"
 #include "Library/MidoriStdLibExports.h"
 
 #include <array>
@@ -35,7 +35,7 @@ private:
 	inline static constexpr std::array s_entries =
 	{
 #define MARMOT_BUILTIN(name, arg_kinds, return_kind) FFIEntry{ #name, &name, arg_kinds, return_kind },
-#include "Common/Builtins/Builtins.def"
+#include "Bytecode/Builtins/Builtins.def"
 #undef MARMOT_BUILTIN
 	};
 

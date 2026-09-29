@@ -5,7 +5,7 @@
 #include <iosfwd>
 #include <string>
 
-#include "Common/Executable/Executable.h"
+#include "Bytecode/Executable/Executable.h"
 
 namespace MidoriBinaryArtifact
 {

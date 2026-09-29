@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Error/RuntimeError.h"
-#include "Common/Executable/Executable.h"
+#include "Bytecode/Executable/Executable.h"
 
 #include <expected>
 #include <filesystem>

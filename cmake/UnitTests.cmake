@@ -3,6 +3,7 @@
 # "support/...".
 file(GLOB_RECURSE MIDORI_UNIT_TEST_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_SOURCE_DIR}/common/tests/*.cpp"
+    "${CMAKE_SOURCE_DIR}/bytecode/tests/*.cpp"
     "${CMAKE_SOURCE_DIR}/runtime/tests/*.cpp"
     "${CMAKE_SOURCE_DIR}/compiler/tests/*.cpp"
 )

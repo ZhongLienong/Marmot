@@ -1,5 +1,4 @@
 #include "Lowering.h"
-#include "Common/Constant/Constant.h"
 
 #include <algorithm>
 #include <array>

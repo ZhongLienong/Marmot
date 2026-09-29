@@ -3,10 +3,10 @@
 #include <string>
 
 #include "Common/BuildConfig/BuildConfig.h"
-#include "Common/Executable/Executable.h"
-#include "Common/Scalar/Scalar.h"
+#include "Bytecode/Executable/Executable.h"
+#include "Bytecode/Scalar/Scalar.h"
 #include "Common/Printer/Printer.h"
-#include "Common/Builtins/BuiltinTable.h"
+#include "Bytecode/Builtins/BuiltinTable.h"
 #include "Disassembler.h"
 
 #if MIDORI_ENABLE_DISASSEMBLY

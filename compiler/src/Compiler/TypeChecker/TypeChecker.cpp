@@ -7,7 +7,7 @@
 #include <unordered_set>
 #include <type_traits>
 
-#include "Common/Constant/Constant.h"
+#include "Compiler/Constant/Constant.h"
 #include "Compiler/Error/CompilerError.h"
 #include "PatternCoverage.h"
 #include "TypeChecker.h"

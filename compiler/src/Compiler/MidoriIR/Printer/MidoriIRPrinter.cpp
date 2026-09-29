@@ -1,5 +1,5 @@
 #include "MidoriIRPrinter.h"
-#include "Common/Constant/Constant.h"
+#include "Compiler/Constant/Constant.h"
 
 #include <algorithm>
 #include <cctype>

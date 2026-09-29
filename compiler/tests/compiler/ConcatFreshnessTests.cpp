@@ -4,8 +4,8 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-#include "Common/Constant/Constant.h"
-#include "Common/Executable/Executable.h"
+#include "Bytecode/Format/Format.h"
+#include "Bytecode/Executable/Executable.h"
 #include "Compiler/BytecodeModule/BytecodeModule.h"
 #include "support/CompileHelpers.h"
 

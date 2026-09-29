@@ -199,11 +199,11 @@ also executes each one; its timings are only meaningful with a Release build,
 and `python scripts/dev.py bench` measures them properly.
 
 The layering check keeps the components' dependency direction.
-The C++ code builds as four libraries: `MarmotCommon` (`common/src`),
-`MarmotRuntime` (`runtime/src`, links Common), `MarmotCompiler`
-(`compiler/src`, links Common, never Runtime) and `MarmotDriver` (the CLI,
-driver and test runner under `compiler/src/Utility`, links Compiler and
-Runtime). Each library exports only its own include root, so most wrong
+The C++ code builds as five libraries: `MarmotCommon` (`common/src`),
+`MarmotBytecode` (`bytecode/src`, links Common), `MarmotRuntime`
+(`runtime/src`, links Bytecode), `MarmotCompiler` (`compiler/src`, links
+Bytecode, never Runtime) and `MarmotDriver` (the CLI and driver under
+`compiler/src/Utility`, links Compiler). Each library exports only its own include root, so most wrong
 includes already fail to compile; the script also catches the ones a shared
 include path would let through, such as compiler code including a driver
 header. It also keeps the compiler pipeline (`compiler/src/Compiler`, apart

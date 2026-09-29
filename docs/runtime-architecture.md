@@ -61,7 +61,7 @@ out moving/copying collection — Marmot's collector is strictly non-moving.
   index; `SlotAt` is the inverse. Allocation pops from a free list; freeing
   clears the live bit and pushes back onto the free list.
 - The allocator only ever hands out slots. The buffers behind long `Text`,
-  `Array`, and `Tuple` payloads come from the value buffer pool in `common`
+  `Array`, and `Tuple` payloads come from the value buffer pool in `runtime/src/Value`
   and are never traced or treated as roots — only their owning
   `MidoriTraceable` is.
 

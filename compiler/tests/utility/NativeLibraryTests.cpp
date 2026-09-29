@@ -1,7 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "Common/BuildConfig/BuildConfig.h"
-#include "Common/BytecodeArtifact/BinaryArtifact.h"
+#include "Bytecode/Artifact/BinaryArtifact.h"
 #include "Loader/ProgramLoader.h"
 #include "Utility/Driver/MidoriDriver.h"
 #include "support/OutputCapture.h"

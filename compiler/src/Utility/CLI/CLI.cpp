@@ -16,7 +16,7 @@
 #include <vector>
 
 #include "Common/BuildConfig/BuildConfig.h"
-#include "Common/BytecodeArtifact/BinaryArtifact.h"
+#include "Bytecode/Artifact/BinaryArtifact.h"
 #include "Common/Json/Json.h"
 #include "Common/Printer/Printer.h"
 #include "Utility/BuildPlan/BuildPlan.h"

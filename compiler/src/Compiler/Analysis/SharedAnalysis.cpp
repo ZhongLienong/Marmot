@@ -1,6 +1,6 @@
 #include "SharedAnalysis.h"
 
-#include "Common/Constant/Constant.h"
+#include "Compiler/Constant/Constant.h"
 
 namespace MidoriAnalysis
 {

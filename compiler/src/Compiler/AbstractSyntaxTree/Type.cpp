@@ -5,7 +5,7 @@
 #include <unordered_set>
 #include <utility>
 
-#include "Common/Constant/Constant.h"
+#include "Compiler/Constant/Constant.h"
 
 using namespace std::string_literals;
 

@@ -1,5 +1,5 @@
 #include "Common/BuildConfig/BuildConfig.h"
-#include "Common/Constant/Constant.h"
+#include "Compiler/Constant/Constant.h"
 #include "Common/Printer/Printer.h"
 #include "Compiler/Source/Source.h"
 #include "Compiler.h"
@@ -38,7 +38,7 @@ using namespace std::string_literals;
 #endif
 
 #if MIDORI_ENABLE_DISASSEMBLY
-#include "Utility/Disassembler/Disassembler.h"
+#include "Bytecode/Disassembler/Disassembler.h"
 #endif
 
 namespace

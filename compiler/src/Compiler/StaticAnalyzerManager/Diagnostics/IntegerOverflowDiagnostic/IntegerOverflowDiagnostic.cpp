@@ -1,6 +1,6 @@
 #include "IntegerOverflowDiagnostic.h"
 
-#include "Common/Scalar/Scalar.h"
+#include "Bytecode/Scalar/Scalar.h"
 
 #include <limits>
 #include <optional>

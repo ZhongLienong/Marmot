@@ -14,7 +14,7 @@
 #include <vector>
 
 #include "Common/BuildConfig/BuildConfig.h"
-#include "Common/Scalar/Scalar.h"
+#include "Bytecode/Scalar/Scalar.h"
 
 class MidoriTraceable;
 class MidoriText;

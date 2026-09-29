@@ -1,4 +1,4 @@
-#include "Common/BytecodeArtifact/BinaryArtifact.h"
+#include "Bytecode/Artifact/BinaryArtifact.h"
 
 #include <array>
 #include <cstdint>
@@ -8,6 +8,7 @@
 #include <string>
 #include <string_view>
 
+#include "Bytecode/Format/Format.h"
 #include "Common/BuildConfig/BuildConfig.h"
 
 namespace
@@ -411,7 +412,7 @@ namespace MidoriBinaryArtifact
 		// magic "MBC\0"
 		header_writer.WriteRaw(s_magic, 4u);
 		// format_version
-		header_writer.WriteU32(MidoriBuild::MbcFormatVersion);
+		header_writer.WriteU32(MbcFormatVersion);
 		// marmot_version
 		header_writer.WriteU16(ver_major);
 		header_writer.WriteU16(ver_minor);
@@ -454,11 +455,11 @@ namespace MidoriBinaryArtifact
 		{
 			return std::unexpected("Truncated artifact: could not read format version.");
 		}
-		if (format_version != MidoriBuild::MbcFormatVersion)
+		if (format_version != MbcFormatVersion)
 		{
 			return std::unexpected(std::format(
 				"Bytecode artifact format version mismatch: expected {}, got {}. Rebuild the artifact.",
-				MidoriBuild::MbcFormatVersion,
+				MbcFormatVersion,
 				format_version));
 		}
 

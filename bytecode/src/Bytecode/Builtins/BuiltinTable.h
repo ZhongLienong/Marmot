@@ -59,7 +59,7 @@ private:
 	inline static constexpr std::array s_signatures =
 	{
 #define MARMOT_BUILTIN(name, arg_kinds, return_kind) BuiltinSignature{ #name, arg_kinds, return_kind },
-#include "Common/Builtins/Builtins.def"
+#include "Bytecode/Builtins/Builtins.def"
 #undef MARMOT_BUILTIN
 	};
 

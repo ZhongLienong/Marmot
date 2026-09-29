@@ -7,7 +7,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "Common/Executable/Executable.h"
+#include "Bytecode/Executable/Executable.h"
 #include "Compiler/Lowering/GenericFunctionInfo.h"
 
 struct BytecodeModule

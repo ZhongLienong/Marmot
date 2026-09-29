@@ -1,6 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
-#include "Common/Constant/Constant.h"
+#include "Bytecode/Format/Format.h"
 #include "Compiler/BuildGraph/BuildGraph.h"
 #include "Compiler/Lexer/Lexer.h"
 #include "Compiler/ModuleManager/ModuleManager.h"
