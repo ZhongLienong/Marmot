@@ -1,7 +1,6 @@
 #pragma once
 
 #include <string_view>
-#include "Common/BuildConfig/BuildConfig.h"
 
 #if MIDORI_ENABLE_DISASSEMBLY
 

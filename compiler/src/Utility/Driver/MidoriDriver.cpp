@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <filesystem>
 #include <format>
 #include <fstream>
 #include <optional>
@@ -12,12 +13,43 @@
 #include <system_error>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
-#include "Common/Environment/Environment.h"
 #include "Compiler/Compiler.h"
 
 namespace
 {
+	// The directories in the PATH-style variable `name`: `;` separated on
+	// Windows, `:` elsewhere, empty entries dropped.
+	[[nodiscard]] std::vector<std::filesystem::path> ReadPathList(const char* name)
+	{
+#ifdef _WIN32
+		constexpr char separator = ';';
+		char* raw = nullptr;
+		size_t length = 0u;
+		if (_dupenv_s(&raw, &length, name) != 0 || raw == nullptr)
+		{
+			return {};
+		}
+		const std::string value(raw);
+		free(raw);
+#else
+		constexpr char separator = ':';
+		const char* raw = std::getenv(name);
+		if (raw == nullptr)
+		{
+			return {};
+		}
+		const std::string value(raw);
+#endif
+		using Segment = std::ranges::subrange<std::string::const_iterator>;
+		return value
+			| std::views::split(separator)
+			| std::views::filter([](const Segment& segment) { return !segment.empty(); })
+			| std::views::transform([](const Segment& segment) { return std::filesystem::path(std::string(segment.begin(), segment.end())); })
+			| std::ranges::to<std::vector<std::filesystem::path>>();
+	}
+
 	[[nodiscard]] bool ShouldEmitMachineReadableWarnings()
 	{
 #ifdef _WIN32
@@ -117,7 +149,7 @@ namespace MidoriDriver
 
 	std::vector<std::filesystem::path> EnvironmentSearchPaths()
 	{
-		return MidoriEnvironment::ReadPathList("MARMOT_PATH");
+		return ReadPathList("MARMOT_PATH");
 	}
 
 	CompilationInputs EnvironmentCompilationInputs()

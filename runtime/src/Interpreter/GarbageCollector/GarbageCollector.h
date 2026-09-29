@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Value/Value.h"
-#include "Common/BuildConfig/BuildConfig.h"
+#include "Support/Attributes/Attributes.h"
 #include "Interpreter/Allocator/MidoriAllocator.h"
 
 #include <cstddef>
@@ -45,11 +45,11 @@ private:
 	const MidoriAllocator* m_allocator = nullptr;
 	// Kept unconditional (not under #if MIDORI_DEBUG_INFO) so that sizeof(GarbageCollector)
 	// cannot differ between translation units. This was first a workaround: the unit test
-	// targets used to be compiled without MIDORI_BUILD_DEVELOPMENT, so guarding these members
+	// targets used to be compiled without the build-level definitions, so guarding these members
 	// would have given a test TU a smaller object than the library, and CollectNow (in the library)
 	// would have written these counters past its end. The cause is now fixed at the root --
 	// the libraries' build-level definitions are PUBLIC and every consumer inherits them,
-	// checked by common/tests/common/AbiConsistencyTests.cpp -- but a layout that does not
+	// checked by runtime/tests/runtime/AbiConsistencyTests.cpp -- but a layout that does not
 	// depend on the debug level is still the safer default for a type shared across that
 	// boundary. Only the increments/telemetry are guarded.
 	size_t m_minor_collection_count = 0uz;

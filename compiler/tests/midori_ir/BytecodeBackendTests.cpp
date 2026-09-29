@@ -1,6 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
-#include "Common/BuildConfig/BuildConfig.h"
+#include "Support/TestMode/TestMode.h"
 #include "Bytecode/Format/Format.h"
 #include "Bytecode/Executable/Executable.h"
 #include "Compiler/BytecodeBackend/BytecodeBackend.h"
@@ -58,7 +58,7 @@ namespace
 			FAIL(linked.error().Rendered());
 		}
 
-		const MidoriBuild::ScopedTestModeOverride test_mode_override(true);
+		const RuntimeTestMode::ScopedOverride test_mode_override(true);
 		MidoriTest::OutputCapture capture;
 		std::expected<int, RuntimeError> run = MidoriProgramLoader::Run(std::move(linked).value());
 		const MidoriTest::CapturedOutput output = capture.Stop();

@@ -15,10 +15,10 @@
 #include <utility>
 #include <vector>
 
-#include "Common/BuildConfig/BuildConfig.h"
+#include "Utility/TestMode/TestMode.h"
 #include "Bytecode/Artifact/BinaryArtifact.h"
-#include "Common/Json/Json.h"
-#include "Common/Printer/Printer.h"
+#include "Compiler/Json/Json.h"
+#include "Compiler/Terminal/Terminal.h"
 #include "Utility/BuildPlan/BuildPlan.h"
 #include "Utility/Driver/MidoriDriver.h"
 #include "Utility/Formatter/Formatter.h"
@@ -93,8 +93,8 @@ namespace
 
 	void PrintCliError(std::string_view message)
 	{
-		Printer::Print<Printer::Color::RED>(std::string(message));
-		Printer::Print<Printer::Color::RED>("\n");
+		CompilerTerminal::Print<CompilerTerminal::Color::RED>(std::string(message));
+		CompilerTerminal::Print<CompilerTerminal::Color::RED>("\n");
 	}
 
 	[[nodiscard]] std::string CommandHelp(std::string_view command_name)
@@ -653,17 +653,17 @@ namespace
 		const std::string resolved_report_json = report_json.has_value() ? std::string(*report_json) : report.MachineReadableJson();
 		std::string payload = "{";
 		bool first_field = true;
-		MidoriJson::AppendNumberField(payload, "version", 1, first_field);
-		MidoriJson::AppendStringField(payload, "source", "marmot", first_field);
-		MidoriJson::AppendStringField(payload, "command", command, first_field);
-		MidoriJson::AppendBoolField(payload, "success", success, first_field);
-		MidoriJson::AppendNumberField(payload, "exitCode", exit_code, first_field);
-		MidoriJson::AppendStringField(payload, "stdout", stdout_text, first_field);
-		MidoriJson::AppendStringField(payload, "stderr", stderr_text, first_field);
-		MidoriJson::AppendRawField(payload, "report", resolved_report_json, first_field);
+		CompilerJson::AppendNumberField(payload, "version", 1, first_field);
+		CompilerJson::AppendStringField(payload, "source", "marmot", first_field);
+		CompilerJson::AppendStringField(payload, "command", command, first_field);
+		CompilerJson::AppendBoolField(payload, "success", success, first_field);
+		CompilerJson::AppendNumberField(payload, "exitCode", exit_code, first_field);
+		CompilerJson::AppendStringField(payload, "stdout", stdout_text, first_field);
+		CompilerJson::AppendStringField(payload, "stderr", stderr_text, first_field);
+		CompilerJson::AppendRawField(payload, "report", resolved_report_json, first_field);
 		if (artifact_json.has_value())
 		{
-			MidoriJson::AppendRawField(payload, "artifact", *artifact_json, first_field);
+			CompilerJson::AppendRawField(payload, "artifact", *artifact_json, first_field);
 		}
 		payload.push_back('}');
 		return payload;
@@ -681,17 +681,17 @@ namespace
 		{
 			std::string payload = "{";
 			bool first_field = true;
-			MidoriJson::AppendNumberField(payload, "version", 1, first_field);
-			MidoriJson::AppendStringField(payload, "source", "marmot", first_field);
-			MidoriJson::AppendStringField(payload, "command", "version", first_field);
-			MidoriJson::AppendBoolField(payload, "success", true, first_field);
-			MidoriJson::AppendStringField(payload, "marmotVersion", MidoriBuild::VersionString, first_field);
+			CompilerJson::AppendNumberField(payload, "version", 1, first_field);
+			CompilerJson::AppendStringField(payload, "source", "marmot", first_field);
+			CompilerJson::AppendStringField(payload, "command", "version", first_field);
+			CompilerJson::AppendBoolField(payload, "success", true, first_field);
+			CompilerJson::AppendStringField(payload, "marmotVersion", MIDORI_VERSION_STRING, first_field);
 			payload.push_back('}');
 			std::print("{}", payload);
 		}
 		else
 		{
-			std::print("marmotc {}\n", MidoriBuild::VersionString);
+			std::print("marmotc {}\n", MIDORI_VERSION_STRING);
 		}
 		return EXIT_SUCCESS;
 	}
@@ -720,7 +720,7 @@ namespace
 			return EXIT_SUCCESS;
 		}
 
-		const MidoriBuild::ScopedTestModeOverride suppress_internal_diagnostics(true);
+		const CompilerTestMode::ScopedOverride suppress_internal_diagnostics(true);
 		const MidoriDriver::CompileFileWithReportResult compile_result = CompileInvocation(invocation);
 		if (!compile_result.has_value())
 		{
@@ -758,7 +758,7 @@ namespace
 			return EXIT_SUCCESS;
 		}
 
-		const MidoriBuild::ScopedTestModeOverride suppress_internal_diagnostics(true);
+		const CompilerTestMode::ScopedOverride suppress_internal_diagnostics(true);
 		const MidoriDriver::CompileFileWithReportResult compile_result = CompileInvocation(invocation);
 		if (!compile_result.has_value())
 		{
@@ -836,11 +836,11 @@ namespace
 		{
 			std::string artifact_json = "{";
 			bool first_field = true;
-			MidoriJson::AppendStringField(artifact_json, "path", artifact_path.generic_string(), first_field);
-			MidoriJson::AppendStringField(artifact_json, "entryFile", invocation.m_source_file.generic_string(), first_field);
-			MidoriJson::AppendNumberField(artifact_json, "procedureCount", executable.GetProcedureCount(), first_field);
-			MidoriJson::AppendNumberField(artifact_json, "globalCount", executable.GetGlobalVariableCount(), first_field);
-			MidoriJson::AppendNumberField(artifact_json, "stringCount", static_cast<int>(executable.GetStringPool().size()), first_field);
+			CompilerJson::AppendStringField(artifact_json, "path", artifact_path.generic_string(), first_field);
+			CompilerJson::AppendStringField(artifact_json, "entryFile", invocation.m_source_file.generic_string(), first_field);
+			CompilerJson::AppendNumberField(artifact_json, "procedureCount", executable.GetProcedureCount(), first_field);
+			CompilerJson::AppendNumberField(artifact_json, "globalCount", executable.GetGlobalVariableCount(), first_field);
+			CompilerJson::AppendNumberField(artifact_json, "stringCount", static_cast<int>(executable.GetStringPool().size()), first_field);
 			artifact_json.push_back('}');
 			std::print("{}", CommandJson("build", true, compiled_program.Report(), EXIT_SUCCESS, {}, {}, artifact_json));
 			return EXIT_SUCCESS;
@@ -921,12 +921,12 @@ namespace
 			{
 				std::string payload = "{";
 				bool first_field = true;
-				MidoriJson::AppendNumberField(payload, "version", 1, first_field);
-				MidoriJson::AppendStringField(payload, "source", "marmot", first_field);
-				MidoriJson::AppendStringField(payload, "command", "fmt", first_field);
-				MidoriJson::AppendBoolField(payload, "success", true, first_field);
-				MidoriJson::AppendStringField(payload, "target", first_path.generic_string(), first_field);
-				MidoriJson::AppendStringField(payload, "formattedText", format_result.value(), first_field);
+				CompilerJson::AppendNumberField(payload, "version", 1, first_field);
+				CompilerJson::AppendStringField(payload, "source", "marmot", first_field);
+				CompilerJson::AppendStringField(payload, "command", "fmt", first_field);
+				CompilerJson::AppendBoolField(payload, "success", true, first_field);
+				CompilerJson::AppendStringField(payload, "target", first_path.generic_string(), first_field);
+				CompilerJson::AppendStringField(payload, "formattedText", format_result.value(), first_field);
 				payload.push_back('}');
 				std::print("{}", payload);
 			}
@@ -959,10 +959,10 @@ namespace
 				const MidoriFormatter::FileResult& file = result.m_files[index];
 				std::string object = "{";
 				bool first_field = true;
-				MidoriJson::AppendStringField(object, "path", file.m_path.generic_string(), first_field);
-				MidoriJson::AppendBoolField(object, "changed", file.m_changed, first_field);
-				MidoriJson::AppendBoolField(object, "written", file.m_written, first_field);
-				MidoriJson::AppendStringField(
+				CompilerJson::AppendStringField(object, "path", file.m_path.generic_string(), first_field);
+				CompilerJson::AppendBoolField(object, "changed", file.m_changed, first_field);
+				CompilerJson::AppendBoolField(object, "written", file.m_written, first_field);
+				CompilerJson::AppendStringField(
 					object,
 					"error",
 					file.m_error.has_value() ? std::optional<std::string_view>(*file.m_error) : std::nullopt,
@@ -974,13 +974,13 @@ namespace
 
 			std::string payload = "{";
 			bool first_field = true;
-			MidoriJson::AppendNumberField(payload, "version", 1, first_field);
-			MidoriJson::AppendStringField(payload, "source", "marmot", first_field);
-			MidoriJson::AppendStringField(payload, "command", "fmt", first_field);
-			MidoriJson::AppendBoolField(payload, "success", !result.HasErrors() && (!invocation.m_fmt_check || !result.HasChanges()), first_field);
-			MidoriJson::AppendNumberField(payload, "changedCount", result.ChangedCount(), first_field);
-			MidoriJson::AppendNumberField(payload, "errorCount", result.ErrorCount(), first_field);
-			MidoriJson::AppendRawField(payload, "files", files_json, first_field);
+			CompilerJson::AppendNumberField(payload, "version", 1, first_field);
+			CompilerJson::AppendStringField(payload, "source", "marmot", first_field);
+			CompilerJson::AppendStringField(payload, "command", "fmt", first_field);
+			CompilerJson::AppendBoolField(payload, "success", !result.HasErrors() && (!invocation.m_fmt_check || !result.HasChanges()), first_field);
+			CompilerJson::AppendNumberField(payload, "changedCount", result.ChangedCount(), first_field);
+			CompilerJson::AppendNumberField(payload, "errorCount", result.ErrorCount(), first_field);
+			CompilerJson::AppendRawField(payload, "files", files_json, first_field);
 			payload.push_back('}');
 			std::print("{}", payload);
 		}

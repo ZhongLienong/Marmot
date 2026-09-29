@@ -1,4 +1,4 @@
-#include "Common/Json/JsonReader.h"
+#include "Compiler/Json/JsonReader.h"
 
 #include <cerrno>
 #include <cmath>
@@ -8,7 +8,7 @@
 
 namespace
 {
-	using MidoriJson::JsonValue;
+	using CompilerJson::JsonValue;
 
 	// Deep enough for any plan or report; bounded so hostile input cannot
 	// exhaust the stack.
@@ -468,7 +468,7 @@ namespace
 	};
 }
 
-namespace MidoriJson
+namespace CompilerJson
 {
 	const JsonValue* JsonValue::Find(std::string_view key) const
 	{

@@ -1,6 +1,6 @@
 #include "Utility/BuildPlan/BuildPlan.h"
 
-#include "Common/Json/JsonReader.h"
+#include "Compiler/Json/JsonReader.h"
 
 #include <cmath>
 #include <format>
@@ -11,7 +11,7 @@
 
 namespace
 {
-	using MidoriJson::JsonValue;
+	using CompilerJson::JsonValue;
 
 	template<typename T>
 	using PlanResult = std::expected<T, std::string>;
@@ -183,7 +183,7 @@ namespace MidoriBuildPlan
 {
 	std::expected<BuildPlan, std::string> Parse(std::string_view json, const std::filesystem::path& base_directory)
 	{
-		const std::expected<JsonValue, std::string> document = MidoriJson::Parse(json);
+		const std::expected<JsonValue, std::string> document = CompilerJson::Parse(json);
 		if (!document.has_value())
 		{
 			return std::unexpected(document.error());

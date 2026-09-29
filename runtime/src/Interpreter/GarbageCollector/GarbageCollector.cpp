@@ -1,5 +1,6 @@
 #include "GarbageCollector.h"
-#include "Common/BuildConfig/BuildConfig.h"
+#include "Support/Attributes/Attributes.h"
+#include "Support/TestMode/TestMode.h"
 #include "Interpreter/Allocator/MidoriAllocator.h"
 
 #include <algorithm>
@@ -7,7 +8,7 @@
 #include <optional>
 
 #if MIDORI_DEBUG_INFO
-#include "Common/Printer/Printer.h"
+#include "Support/Terminal/Terminal.h"
 
 #include <chrono>
 #include <format>
@@ -137,9 +138,9 @@ MIDORI_FORCE_INLINE void GarbageCollector::TryMark(MidoriTraceable* child_ptr)
 	}
 
 #if MIDORI_DEBUG_FULL
-	if (MidoriBuild::ShouldEmitInternalDiagnostics())
+	if (RuntimeTestMode::ShouldEmitInternalDiagnostics())
 	{
-		Printer::Print<Printer::Color::GREEN>(std::format("Marking traceable pointer: {:p}\n", static_cast<void*>(child_ptr)));
+		RuntimeTerminal::Print<RuntimeTerminal::Color::GREEN>(std::format("Marking traceable pointer: {:p}\n", static_cast<void*>(child_ptr)));
 	}
 #endif
 
@@ -250,7 +251,7 @@ void GarbageCollector::CollectNow(const GarbageCollectionRoots& roots, MidoriAll
 	const size_t remembered_count = m_remembered_set.size();
 
 #if MIDORI_DEBUG_INFO
-	const bool emit_gc_diagnostics = MidoriBuild::ShouldEmitInternalDiagnostics();
+	const bool emit_gc_diagnostics = RuntimeTestMode::ShouldEmitInternalDiagnostics();
 	using Clock = std::chrono::high_resolution_clock;
 	using TimePoint = Clock::time_point;
 	TimePoint t0{};
@@ -260,7 +261,7 @@ void GarbageCollector::CollectNow(const GarbageCollectionRoots& roots, MidoriAll
 	TimePoint t_sweep_end{};
 	if (emit_gc_diagnostics)
 	{
-		Printer::Print<Printer::Color::BLUE>("\n----------------------------------------------\nBefore garbage collection:");
+		RuntimeTerminal::Print<RuntimeTerminal::Color::BLUE>("\n----------------------------------------------\nBefore garbage collection:");
 		PrintMemoryTelemetry();
 		t0 = Clock::now();
 	}
@@ -329,7 +330,7 @@ void GarbageCollector::CollectNow(const GarbageCollectionRoots& roots, MidoriAll
 		int64_t ns_sweep = std::chrono::duration_cast<std::chrono::nanoseconds>(t_sweep_end - t_sweep_start).count();
 		int64_t ns_total = std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).count();
 
-		Printer::Print<Printer::Color::BLUE>
+		RuntimeTerminal::Print<RuntimeTerminal::Color::BLUE>
 			(
 				std::format
 				(
@@ -356,7 +357,7 @@ void GarbageCollector::CollectNow(const GarbageCollectionRoots& roots, MidoriAll
 					FormatBytes(bytes_reclaimed)
 				)
 			);
-		Printer::Print<Printer::Color::BLUE>("\nAfter garbage collection:");
+		RuntimeTerminal::Print<RuntimeTerminal::Color::BLUE>("\nAfter garbage collection:");
 		PrintMemoryTelemetry();
 	}
 #endif
@@ -393,7 +394,7 @@ void GarbageCollector::ReclaimMemory(const GarbageCollectionRoots& roots, Midori
 #if MIDORI_DEBUG_INFO
 void GarbageCollector::PrintMemoryTelemetry()
 {
-	Printer::Print<Printer::Color::BLUE>
+	RuntimeTerminal::Print<RuntimeTerminal::Color::BLUE>
 		(
 			std::format
 			(

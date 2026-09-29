@@ -10,7 +10,7 @@
 #include <variant>
 #include <vector>
 
-namespace MidoriJson
+namespace CompilerJson
 {
 	// A parsed JSON document. Objects keep their members in source order and
 	// reject duplicate keys, so a reader can report exactly what it was given.

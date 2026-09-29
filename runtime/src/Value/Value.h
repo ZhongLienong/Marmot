@@ -8,12 +8,13 @@
 #include <memory>
 #include <optional>
 #include <span>
+#include <string_view>
 #include <unordered_set>
 #include <utility>
 #include <variant>
 #include <vector>
 
-#include "Common/BuildConfig/BuildConfig.h"
+#include "Support/Attributes/Attributes.h"
 #include "Bytecode/Scalar/Scalar.h"
 
 class MidoriTraceable;
@@ -27,7 +28,7 @@ class MidoriValue
 public:
 	constexpr static inline int DATA_BUFFER_SIZE = sizeof(double);
 
-	// sizeof(MidoriValue) as compiled inside MarmotCommon. Out of line on purpose,
+	// sizeof(MidoriValue) as compiled inside MarmotRuntime. Out of line on purpose,
 	// so a consumer can compare it with its own sizeof(MidoriValue): the layout
 	// below depends on MIDORI_DEBUG_FULL, and a mismatch means objects passed
 	// across the library boundary are read with the wrong size.

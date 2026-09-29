@@ -1,5 +1,4 @@
 #include "MidoriIROptimizer.h"
-#include "Common/BuildConfig/BuildConfig.h"
 #include "Compiler/MidoriIROptimizer/MidoriIRPasses.h"
 
 #include <utility>

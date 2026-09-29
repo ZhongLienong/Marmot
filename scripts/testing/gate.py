@@ -3,7 +3,7 @@
 The full gate: everything that must pass before a commit.
 
 In order, stopping at the first failure:
-    layering    the compiler, runtime, bytecode and common libraries include only what they may
+    layering    the compiler, runtime and bytecode libraries include only what they may
     build       marmotc, marmotvm and MarmotUnitTests
     unit        the C++ unit tests
     docs        documentation examples are in sync and run as documented

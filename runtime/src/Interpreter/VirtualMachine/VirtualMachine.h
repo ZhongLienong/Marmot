@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Bytecode/Format/Format.h"
+#include "Support/Attributes/Attributes.h"
 #include "Error/RuntimeError.h"
 #include "Bytecode/Executable/Executable.h"
 #include "Interpreter/Allocator/MidoriAllocator.h"
@@ -206,7 +207,6 @@ private:
 		return *ip++;
 	}
 
-#if defined(MIDORI_LITTLE_ENDIAN)
 	MIDORI_FORCE_INLINE int ReadShort() noexcept
 	{
 		const uint8_t b0 = static_cast<uint8_t>(m_instruction_pointer[0u]);
@@ -244,53 +244,15 @@ private:
 		ip += 3;
 		return value;
 	}
-#elif defined(MIDORI_BIG_ENDIAN)
-	MIDORI_FORCE_INLINE int ReadShort() noexcept
-	{
-		const uint8_t b0 = static_cast<uint8_t>(m_instruction_pointer[0u]);
-		const uint8_t b1 = static_cast<uint8_t>(m_instruction_pointer[1u]);
-		int value = static_cast<int>((static_cast<uint16_t>(b0) << 8) | static_cast<uint16_t>(b1));
-		m_instruction_pointer += 2;
-		return value;
-	}
-
-	static MIDORI_FORCE_INLINE int ReadShort(InstructionPointer& ip) noexcept
-	{
-		const uint8_t b0 = static_cast<uint8_t>(ip[0u]);
-		const uint8_t b1 = static_cast<uint8_t>(ip[1u]);
-		int value = static_cast<int>((static_cast<uint16_t>(b0) << 8) | static_cast<uint16_t>(b1));
-		ip += 2;
-		return value;
-	}
-
-	MIDORI_FORCE_INLINE int ReadThreeBytes() noexcept
-	{
-		const uint8_t b0 = static_cast<uint8_t>(m_instruction_pointer[0u]);
-		const uint8_t b1 = static_cast<uint8_t>(m_instruction_pointer[1u]);
-		const uint8_t b2 = static_cast<uint8_t>(m_instruction_pointer[2u]);
-		int value = static_cast<int>((static_cast<uint32_t>(b0) << 16) | (static_cast<uint32_t>(b1) << 8) | static_cast<uint32_t>(b2));
-		m_instruction_pointer += 3;
-		return value;
-	}
-
-	static MIDORI_FORCE_INLINE int ReadThreeBytes(InstructionPointer& ip) noexcept
-	{
-		const uint8_t b0 = static_cast<uint8_t>(ip[0u]);
-		const uint8_t b1 = static_cast<uint8_t>(ip[1u]);
-		const uint8_t b2 = static_cast<uint8_t>(ip[2u]);
-		int value = static_cast<int>((static_cast<uint32_t>(b0) << 16) | (static_cast<uint32_t>(b1) << 8) | static_cast<uint32_t>(b2));
-		ip += 3;
-		return value;
-	}
-#endif
 
 	MIDORI_FORCE_INLINE MidoriInteger ReadIntegerConstant() noexcept
 	{
 		uint64_t bits = 0u;
 		std::memcpy(&bits, m_instruction_pointer, sizeof(bits));
-#if defined(MIDORI_BIG_ENDIAN)
-		bits = std::byteswap(bits);
-#endif
+		if constexpr (std::endian::native == std::endian::big)
+		{
+			bits = std::byteswap(bits);
+		}
 		m_instruction_pointer += sizeof(MidoriInteger);
 		return static_cast<MidoriInteger>(bits);
 	}
@@ -299,9 +261,10 @@ private:
 	{
 		uint64_t bits = 0u;
 		std::memcpy(&bits, ip, sizeof(bits));
-#if defined(MIDORI_BIG_ENDIAN)
-		bits = std::byteswap(bits);
-#endif
+		if constexpr (std::endian::native == std::endian::big)
+		{
+			bits = std::byteswap(bits);
+		}
 		ip += sizeof(MidoriInteger);
 		return static_cast<MidoriInteger>(bits);
 	}
@@ -310,9 +273,10 @@ private:
 	{
 		uint64_t bits = 0u;
 		std::memcpy(&bits, m_instruction_pointer, sizeof(bits));
-#if defined(MIDORI_BIG_ENDIAN)
-		bits = std::byteswap(bits);
-#endif
+		if constexpr (std::endian::native == std::endian::big)
+		{
+			bits = std::byteswap(bits);
+		}
 		m_instruction_pointer += sizeof(MidoriFloat);
 		return std::bit_cast<MidoriFloat>(bits);
 	}
@@ -321,9 +285,10 @@ private:
 	{
 		uint64_t bits = 0u;
 		std::memcpy(&bits, ip, sizeof(bits));
-#if defined(MIDORI_BIG_ENDIAN)
-		bits = std::byteswap(bits);
-#endif
+		if constexpr (std::endian::native == std::endian::big)
+		{
+			bits = std::byteswap(bits);
+		}
 		ip += sizeof(MidoriFloat);
 		return std::bit_cast<MidoriFloat>(bits);
 	}
@@ -346,9 +311,10 @@ private:
 	{
 		uint64_t bits = 0u;
 		std::memcpy(&bits, m_instruction_pointer, sizeof(bits));
-#if defined(MIDORI_BIG_ENDIAN)
-		bits = std::byteswap(bits);
-#endif
+		if constexpr (std::endian::native == std::endian::big)
+		{
+			bits = std::byteswap(bits);
+		}
 		m_instruction_pointer += sizeof(MidoriWord);
 		return bits;
 	}
@@ -357,9 +323,10 @@ private:
 	{
 		uint64_t bits = 0u;
 		std::memcpy(&bits, ip, sizeof(bits));
-#if defined(MIDORI_BIG_ENDIAN)
-		bits = std::byteswap(bits);
-#endif
+		if constexpr (std::endian::native == std::endian::big)
+		{
+			bits = std::byteswap(bits);
+		}
 		ip += sizeof(MidoriWord);
 		return bits;
 	}

@@ -1,11 +1,11 @@
 #include <catch2/catch_test_macros.hpp>
 
-#include "Common/Printer/Printer.h"
 #include "support/OutputCapture.h"
 #include "support/ScopedEnvVar.h"
 #include "support/TempDir.h"
 
 #include <cstdio>
+#include <print>
 #include <optional>
 #include <string>
 
@@ -43,7 +43,7 @@ TEST_CASE("TempDir creates files that are removed with the fixture", "[support][
 TEST_CASE("OutputCapture captures stdout and stderr from native utilities", "[support][output]")
 {
 	MidoriTest::OutputCapture capture;
-	Printer::Print("captured stdout");
+	std::print("captured stdout");
 	std::fputs("captured stderr", stderr);
 
 	const MidoriTest::CapturedOutput output = capture.Stop();

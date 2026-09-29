@@ -1,9 +1,9 @@
 // marmotvm: runs a compiled Marmot program (.mmc). It compiles nothing; marmotc
 // writes the program and the marmot tool runs both.
 
-#include "Common/BuildConfig/BuildConfig.h"
+#include "Support/TestMode/TestMode.h"
 #include "Error/RuntimeError.h"
-#include "Common/Json/Json.h"
+#include "Support/Json/Json.h"
 #include "Support/OutputCapture/OutputCapture.h"
 #include "Loader/ProgramLoader.h"
 
@@ -127,14 +127,14 @@ namespace
 	{
 		std::string payload = "{";
 		bool first_field = true;
-		MidoriJson::AppendNumberField(payload, "version", 1, first_field);
-		MidoriJson::AppendStringField(payload, "source", "marmotvm", first_field);
-		MidoriJson::AppendStringField(payload, "command", "run", first_field);
-		MidoriJson::AppendBoolField(payload, "success", success, first_field);
-		MidoriJson::AppendNumberField(payload, "exitCode", exit_code, first_field);
-		MidoriJson::AppendStringField(payload, "stdout", stdout_text, first_field);
-		MidoriJson::AppendStringField(payload, "stderr", stderr_text, first_field);
-		MidoriJson::AppendRawField(payload, "report", ReportJson(error_json), first_field);
+		RuntimeJson::AppendNumberField(payload, "version", 1, first_field);
+		RuntimeJson::AppendStringField(payload, "source", "marmotvm", first_field);
+		RuntimeJson::AppendStringField(payload, "command", "run", first_field);
+		RuntimeJson::AppendBoolField(payload, "success", success, first_field);
+		RuntimeJson::AppendNumberField(payload, "exitCode", exit_code, first_field);
+		RuntimeJson::AppendStringField(payload, "stdout", stdout_text, first_field);
+		RuntimeJson::AppendStringField(payload, "stderr", stderr_text, first_field);
+		RuntimeJson::AppendRawField(payload, "report", ReportJson(error_json), first_field);
 		payload.push_back('}');
 		return payload;
 	}
@@ -146,20 +146,20 @@ namespace
 		const std::optional<int> no_number = std::nullopt;
 		std::string payload = "{";
 		bool first_field = true;
-		MidoriJson::AppendStringField(payload, "source", "marmot", first_field);
-		MidoriJson::AppendStringField(payload, "severity", "error", first_field);
-		MidoriJson::AppendStringField(payload, "stage", "Module", first_field);
-		MidoriJson::AppendStringField(payload, "code", "None", first_field);
-		MidoriJson::AppendStringField(payload, "message", message, first_field);
-		MidoriJson::AppendStringField(payload, "file", no_text, first_field);
-		MidoriJson::AppendStringField(payload, "file_path", no_text, first_field);
-		MidoriJson::AppendNumberField(payload, "line", no_number, first_field);
-		MidoriJson::AppendNumberField(payload, "column", no_number, first_field);
-		MidoriJson::AppendNumberField(payload, "endLine", no_number, first_field);
-		MidoriJson::AppendNumberField(payload, "endColumn", no_number, first_field);
-		MidoriJson::AppendNumberField(payload, "caret_length", no_number, first_field);
-		MidoriJson::AppendStringField(payload, "suggestion", no_text, first_field);
-		MidoriJson::AppendRawField(payload, "relatedInformation", "[]", first_field);
+		RuntimeJson::AppendStringField(payload, "source", "marmot", first_field);
+		RuntimeJson::AppendStringField(payload, "severity", "error", first_field);
+		RuntimeJson::AppendStringField(payload, "stage", "Module", first_field);
+		RuntimeJson::AppendStringField(payload, "code", "None", first_field);
+		RuntimeJson::AppendStringField(payload, "message", message, first_field);
+		RuntimeJson::AppendStringField(payload, "file", no_text, first_field);
+		RuntimeJson::AppendStringField(payload, "file_path", no_text, first_field);
+		RuntimeJson::AppendNumberField(payload, "line", no_number, first_field);
+		RuntimeJson::AppendNumberField(payload, "column", no_number, first_field);
+		RuntimeJson::AppendNumberField(payload, "endLine", no_number, first_field);
+		RuntimeJson::AppendNumberField(payload, "endColumn", no_number, first_field);
+		RuntimeJson::AppendNumberField(payload, "caret_length", no_number, first_field);
+		RuntimeJson::AppendStringField(payload, "suggestion", no_text, first_field);
+		RuntimeJson::AppendRawField(payload, "relatedInformation", "[]", first_field);
 		payload.push_back('}');
 		return payload;
 	}
@@ -239,10 +239,10 @@ int main(int argc, char* argv[])
 
 	if (invocation->m_show_version)
 	{
-		std::print("marmotvm {}\n", MidoriBuild::VersionString);
+		std::print("marmotvm {}\n", MIDORI_VERSION_STRING);
 		return EXIT_SUCCESS;
 	}
 
-	const MidoriBuild::ScopedTestModeOverride suppress_internal_diagnostics(true);
+	const RuntimeTestMode::ScopedOverride suppress_internal_diagnostics(true);
 	return Execute(invocation.value());
 }

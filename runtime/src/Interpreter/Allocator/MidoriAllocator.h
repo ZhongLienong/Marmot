@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Common/BuildConfig/BuildConfig.h"
+#include "Support/Attributes/Attributes.h"
 
 #include <cstddef>
 #include <cstdint>

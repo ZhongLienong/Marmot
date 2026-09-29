@@ -4,7 +4,7 @@
 #include <string>
 #include <string_view>
 
-namespace MidoriJson
+namespace CompilerJson
 {
 	[[nodiscard]] inline std::string EscapeString(std::string_view value)
 	{

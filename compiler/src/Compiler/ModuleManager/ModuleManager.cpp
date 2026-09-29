@@ -1,6 +1,5 @@
 #include "ModuleManager.h"
 #include "Compiler/Error/CompilerError.h"
-#include "Common/Printer/Printer.h"
 #include "Compiler/Lexer/Lexer.h"
 #include "Compiler/Token/Token.h"
 #include "Compiler/ImportResolver/ImportResolver.h"

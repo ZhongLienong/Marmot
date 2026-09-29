@@ -1,6 +1,6 @@
 #include "CompilerError.h"
-#include "Common/Json/Json.h"
-#include "Common/Printer/Printer.h"
+#include "Compiler/Json/Json.h"
+#include "Compiler/Terminal/Terminal.h"
 #include <algorithm>
 #include <filesystem>
 #include <sstream>
@@ -183,19 +183,19 @@ namespace
 		}
 	}
 
-	Printer::Color DiagnosticAccentColor(DiagnosticSeverity severity)
+	CompilerTerminal::Color DiagnosticAccentColor(DiagnosticSeverity severity)
 	{
 		return severity == DiagnosticSeverity::Error
-			? Printer::Color::BRIGHT_RED
-			: Printer::Color::BRIGHT_YELLOW;
+			? CompilerTerminal::Color::BRIGHT_RED
+			: CompilerTerminal::Color::BRIGHT_YELLOW;
 	}
 
-	std::string RenderLabeledLine(Printer::Color label_color, Printer::Color message_color, std::string_view label, std::string_view message)
+	std::string RenderLabeledLine(CompilerTerminal::Color label_color, CompilerTerminal::Color message_color, std::string_view label, std::string_view message)
 	{
 		std::ostringstream oss;
-		oss << Printer::Detail::GetColorCode(label_color);
+		oss << CompilerTerminal::Code(label_color);
 		oss << "[" << label << "] ";
-		oss << Printer::Detail::GetColorCode(message_color);
+		oss << CompilerTerminal::Code(message_color);
 		oss << message;
 		oss << "\033[0m";
 		return oss.str();
@@ -228,13 +228,13 @@ namespace
 				end_column = *item.m_location.m_column + static_cast<int>(std::max(item.m_location.m_caret_length.value_or(size_t(1u)), size_t(1u)));
 			}
 
-			MidoriJson::AppendStringField(object, "message", item.m_message, first_field);
-			MidoriJson::AppendStringField(object, "file", file, first_field);
-			MidoriJson::AppendStringField(object, "file_path", file, first_field);
-			MidoriJson::AppendNumberField(object, "line", line, first_field);
-			MidoriJson::AppendNumberField(object, "column", item.m_location.m_column, first_field);
-			MidoriJson::AppendNumberField(object, "endLine", end_line, first_field);
-			MidoriJson::AppendNumberField(object, "endColumn", end_column, first_field);
+			CompilerJson::AppendStringField(object, "message", item.m_message, first_field);
+			CompilerJson::AppendStringField(object, "file", file, first_field);
+			CompilerJson::AppendStringField(object, "file_path", file, first_field);
+			CompilerJson::AppendNumberField(object, "line", line, first_field);
+			CompilerJson::AppendNumberField(object, "column", item.m_location.m_column, first_field);
+			CompilerJson::AppendNumberField(object, "endLine", end_line, first_field);
+			CompilerJson::AppendNumberField(object, "endColumn", end_column, first_field);
 			object.push_back('}');
 			serialized += object;
 		}
@@ -284,20 +284,20 @@ namespace
 		const std::optional<std::string_view> serialized_suggestion =
 			suggestion.has_value() ? std::optional<std::string_view>(*suggestion) : std::optional<std::string_view>(std::nullopt);
 
-		MidoriJson::AppendStringField(serialized, "source", "marmot", first_field);
-		MidoriJson::AppendStringField(serialized, "severity", severity == DiagnosticSeverity::Error ? "error" : "warning", first_field);
-		MidoriJson::AppendStringField(serialized, "stage", CompilerStageName(stage), first_field);
-		MidoriJson::AppendStringField(serialized, "code", code_name, first_field);
-		MidoriJson::AppendStringField(serialized, "message", message, first_field);
-		MidoriJson::AppendStringField(serialized, "file", file, first_field);
-		MidoriJson::AppendStringField(serialized, "file_path", file, first_field);
-		MidoriJson::AppendNumberField(serialized, "line", line, first_field);
-		MidoriJson::AppendNumberField(serialized, "column", column, first_field);
-		MidoriJson::AppendNumberField(serialized, "endLine", end_line, first_field);
-		MidoriJson::AppendNumberField(serialized, "endColumn", end_column, first_field);
-		MidoriJson::AppendNumberField(serialized, "caret_length", caret_length, first_field);
-		MidoriJson::AppendStringField(serialized, "suggestion", serialized_suggestion, first_field);
-		MidoriJson::AppendRawField(serialized, "relatedInformation", SerializeRelatedInformation(related_information), first_field);
+		CompilerJson::AppendStringField(serialized, "source", "marmot", first_field);
+		CompilerJson::AppendStringField(serialized, "severity", severity == DiagnosticSeverity::Error ? "error" : "warning", first_field);
+		CompilerJson::AppendStringField(serialized, "stage", CompilerStageName(stage), first_field);
+		CompilerJson::AppendStringField(serialized, "code", code_name, first_field);
+		CompilerJson::AppendStringField(serialized, "message", message, first_field);
+		CompilerJson::AppendStringField(serialized, "file", file, first_field);
+		CompilerJson::AppendStringField(serialized, "file_path", file, first_field);
+		CompilerJson::AppendNumberField(serialized, "line", line, first_field);
+		CompilerJson::AppendNumberField(serialized, "column", column, first_field);
+		CompilerJson::AppendNumberField(serialized, "endLine", end_line, first_field);
+		CompilerJson::AppendNumberField(serialized, "endColumn", end_column, first_field);
+		CompilerJson::AppendNumberField(serialized, "caret_length", caret_length, first_field);
+		CompilerJson::AppendStringField(serialized, "suggestion", serialized_suggestion, first_field);
+		CompilerJson::AppendRawField(serialized, "relatedInformation", SerializeRelatedInformation(related_information), first_field);
 		serialized.push_back('}');
 		return serialized;
 	}
@@ -317,12 +317,12 @@ namespace
 		const CompilerErrorLocation& resolved_location = *location;
 		std::ostringstream oss;
 
-		oss << Printer::Detail::GetStyleCode(Printer::Style::BOLD);
-		oss << Printer::Detail::GetColorCode(DiagnosticAccentColor(severity));
+		oss << CompilerTerminal::BOLD;
+		oss << CompilerTerminal::Code(DiagnosticAccentColor(severity));
 		oss << StageLabel(stage, severity);
 		oss << "\033[0m";
 		oss << " at ";
-		oss << Printer::Detail::GetColorCode(Printer::Color::BRIGHT_CYAN);
+		oss << CompilerTerminal::Code(CompilerTerminal::Color::BRIGHT_CYAN);
 		oss << resolved_location.m_file_name << ":" << resolved_location.m_line;
 		oss << "\033[0m\n";
 
@@ -332,7 +332,7 @@ namespace
 			const std::string line_num_str = std::to_string(resolved_location.m_line);
 			const int gutter_width = static_cast<int>(line_num_str.length()) + 1;
 
-			oss << Printer::Detail::GetColorCode(Printer::Color::BLUE);
+			oss << CompilerTerminal::Code(CompilerTerminal::Color::BLUE);
 			for (int i = 0; i < gutter_width; i += 1)
 			{
 				oss << " ";
@@ -343,13 +343,13 @@ namespace
 			oss << "\033[0m";
 			oss << " " << source_line << "\n";
 
-			oss << Printer::Detail::GetColorCode(Printer::Color::BLUE);
+			oss << CompilerTerminal::Code(CompilerTerminal::Color::BLUE);
 			for (int i = 0; i < gutter_width; i += 1)
 			{
 				oss << " ";
 			}
 			oss << "|";
-			oss << Printer::Detail::GetColorCode(DiagnosticAccentColor(severity));
+			oss << CompilerTerminal::Code(DiagnosticAccentColor(severity));
 
 			if (resolved_location.m_column.has_value())
 			{
@@ -374,7 +374,7 @@ namespace
 
 			oss << "\033[0m\n";
 
-			oss << Printer::Detail::GetColorCode(Printer::Color::BLUE);
+			oss << CompilerTerminal::Code(CompilerTerminal::Color::BLUE);
 			for (int i = 0; i < gutter_width; i += 1)
 			{
 				oss << " ";
@@ -388,7 +388,7 @@ namespace
 
 		if (suggestion.has_value())
 		{
-			oss << Printer::Detail::GetColorCode(Printer::Color::YELLOW);
+			oss << CompilerTerminal::Code(CompilerTerminal::Color::YELLOW);
 			oss << "  | ";
 			oss << *suggestion;
 			oss << "\033[0m\n";
@@ -404,7 +404,7 @@ std::string RenderWarningGroupHeader(size_t warning_count, std::string_view file
 	const std::string summary = file_path.empty()
 		? std::format("{} warning(s)\n", warning_count)
 		: std::format("{} warning(s) in {}\n", warning_count, std::filesystem::path(file_path).filename().string());
-	return RenderLabeledLine(Printer::Color::YELLOW, Printer::Color::WHITE, "warning", summary);
+	return RenderLabeledLine(CompilerTerminal::Color::YELLOW, CompilerTerminal::Color::WHITE, "warning", summary);
 }
 
 std::string SerializeMachineReadableError(const CompilerError& error)

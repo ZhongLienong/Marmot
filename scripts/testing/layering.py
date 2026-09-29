@@ -1,15 +1,14 @@
 """Check that the C++ components include only what they are allowed to.
 
-    common    -> common
-    bytecode  -> common, bytecode
-    runtime   -> common, bytecode, runtime
-    compiler  -> common, bytecode, compiler
-    driver    -> common, bytecode, compiler, driver      (marmotc: compiles, never runs)
-    web       -> common, bytecode, runtime, compiler
-    vm        -> common, bytecode, runtime, vm           (marmotvm: runs, never compiles)
+    bytecode  -> bytecode
+    runtime   -> bytecode, runtime
+    compiler  -> bytecode, compiler
+    driver    -> bytecode, compiler, driver      (marmotc: compiles, never runs)
+    web       -> bytecode, runtime, compiler
+    vm        -> bytecode, runtime, vm           (marmotvm: runs, never compiles)
 
-Every quoted #include is resolved against the four include roots
-(common/src, bytecode/src, runtime/src, compiler/src). Includes that resolve nowhere (system
+Every quoted #include is resolved against the three include roots
+(bytecode/src, runtime/src, compiler/src). Includes that resolve nowhere (system
 and third-party headers) are ignored. Exit status 1 lists each forbidden edge.
 
 Inside the compiler, the pipeline (compiler/src/Compiler) compiles from the
@@ -26,7 +25,6 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from lib.host import REPO_ROOT as ROOT
 
 INCLUDE_ROOTS = {
-    'common': ROOT / 'common' / 'src',
     'bytecode': ROOT / 'bytecode' / 'src',
     'runtime': ROOT / 'runtime' / 'src',
     'compiler': ROOT / 'compiler' / 'src',
@@ -40,13 +38,12 @@ DRIVER_DIRS = [
 DRIVER_FILES = [ROOT / 'compiler' / 'src' / 'Marmot.cpp']
 
 ALLOWED = {
-    'common': {'common'},
-    'bytecode': {'common', 'bytecode'},
-    'runtime': {'common', 'bytecode', 'runtime'},
-    'compiler': {'common', 'bytecode', 'compiler'},
-    'driver': {'common', 'bytecode', 'compiler', 'driver'},
-    'web': {'common', 'bytecode', 'runtime', 'compiler'},
-    'vm': {'common', 'bytecode', 'runtime', 'vm'},
+    'bytecode': {'bytecode'},
+    'runtime': {'bytecode', 'runtime'},
+    'compiler': {'bytecode', 'compiler'},
+    'driver': {'bytecode', 'compiler', 'driver'},
+    'web': {'bytecode', 'runtime', 'compiler'},
+    'vm': {'bytecode', 'runtime', 'vm'},
 }
 
 INCLUDE = re.compile(r'^\s*#\s*include\s+"([^"]+)"', re.MULTILINE)
@@ -95,7 +92,7 @@ def resolve(including_file, target):
 
 def main(argv: list[str]) -> int:
     sources = []
-    for folder in (ROOT / 'common' / 'src', ROOT / 'bytecode' / 'src', ROOT / 'runtime' / 'src', ROOT / 'compiler' / 'src', ROOT / 'web' / 'src', ROOT / 'vm' / 'src'):
+    for folder in (ROOT / 'bytecode' / 'src', ROOT / 'runtime' / 'src', ROOT / 'compiler' / 'src', ROOT / 'web' / 'src', ROOT / 'vm' / 'src'):
         for pattern in ('*.h', '*.cpp', '*.def'):
             sources.extend(folder.rglob(pattern))
 

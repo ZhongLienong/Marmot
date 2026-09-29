@@ -1,6 +1,5 @@
 #pragma once
 
-#include "Common/BuildConfig/BuildConfig.h"
 #include "Compiler/MidoriIR/MidoriIR.h"
 #include "Compiler/MidoriIR/Verifier/MidoriIRVerifier.h"
 

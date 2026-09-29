@@ -1,6 +1,7 @@
 #include "Bytecode/Format/Format.h"
-#include "Common/BuildConfig/BuildConfig.h"
-#include "Common/Printer/Printer.h"
+#include "Support/Attributes/Attributes.h"
+#include "Support/TestMode/TestMode.h"
+#include "Support/Terminal/Terminal.h"
 #include "Bytecode/Scalar/IntegerArithmetic.h"
 #include "Interpreter/Channel/Channel.h"
 #include "Interpreter/ValueTransfer/ValueTransfer.h"
@@ -567,7 +568,7 @@ MIDORI_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(OpCode instru
 	}
 	default:
 	{
-		MIDORI_UNREACHABLE();
+		std::unreachable();
 	}
 	}
 #endif
@@ -1050,9 +1051,9 @@ int VirtualMachine::ExecuteLoop() noexcept
 	{
 
 #if MIDORI_ENABLE_EXECUTION_TRACE
-		if (MidoriBuild::ShouldEmitInternalDiagnostics())
+		if (RuntimeTestMode::ShouldEmitInternalDiagnostics())
 		{
-			Printer::Print("          ");
+			RuntimeTerminal::Print("          ");
 #ifdef __EMSCRIPTEN__
 			std::for_each
 			(
@@ -1060,7 +1061,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 				bp - 1 < m_value_stack_begin ? m_value_stack_begin : bp - 1,
 				[](MidoriValue value) -> void
 				{
-					Printer::Print<Printer::Color::YELLOW>(("[ "s + std::string(value.ToText().View()) + " ]"s));
+					RuntimeTerminal::Print<RuntimeTerminal::Color::YELLOW>(("[ "s + std::string(value.ToText().View()) + " ]"s));
 				}
 			);
 			std::for_each
@@ -1069,7 +1070,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 				sp,
 				[](MidoriValue value) -> void
 				{
-					Printer::Print<Printer::Color::GREEN>(("[ "s + std::string(value.ToText().View()) + " ]"s));
+					RuntimeTerminal::Print<RuntimeTerminal::Color::GREEN>(("[ "s + std::string(value.ToText().View()) + " ]"s));
 				}
 			);
 #else
@@ -1080,7 +1081,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 				bp - 1 < m_value_stack_begin ? m_value_stack_begin : bp - 1,
 				[](MidoriValue value) -> void
 				{
-					Printer::Print<Printer::Color::YELLOW>(("[ "s + std::string(value.ToText().View()) + " ]"s));
+					RuntimeTerminal::Print<RuntimeTerminal::Color::YELLOW>(("[ "s + std::string(value.ToText().View()) + " ]"s));
 				}
 			);
 			std::for_each
@@ -1090,11 +1091,11 @@ int VirtualMachine::ExecuteLoop() noexcept
 				sp,
 				[](MidoriValue value) -> void
 				{
-					Printer::Print<Printer::Color::GREEN>(("[ "s + std::string(value.ToText().View()) + " ]"s));
+					RuntimeTerminal::Print<RuntimeTerminal::Color::GREEN>(("[ "s + std::string(value.ToText().View()) + " ]"s));
 				}
 			);
 #endif
-			Printer::Print("\n");
+			RuntimeTerminal::Print("\n");
 			int dbg_instruction_pointer = -1;
 			int dbg_proc_index = -1;
 
@@ -3062,7 +3063,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		default:
 		{
-			MIDORI_UNREACHABLE();
+			std::unreachable();
 		}
 		}
 	}

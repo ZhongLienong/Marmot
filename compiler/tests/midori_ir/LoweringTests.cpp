@@ -1,6 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
-#include "Common/BuildConfig/BuildConfig.h"
+#include "Utility/TestMode/TestMode.h"
 #include "Compiler/Lowering/Lowering.h"
 #include "Compiler/MidoriIR/Printer/MidoriIRPrinter.h"
 #include "Compiler/MidoriIR/Verifier/MidoriIRVerifier.h"
@@ -242,7 +242,7 @@ TEST_CASE("Every prelude module lowers to MidoriIR that verifies", "[midori_ir][
 	}
 	REQUIRE(modules.size() > 10u);
 
-	const MidoriBuild::ScopedTestModeOverride test_mode_override(true);
+	const CompilerTestMode::ScopedOverride test_mode_override(true);
 	for (const std::filesystem::path& module : modules)
 	{
 		INFO(module.string());
@@ -303,7 +303,7 @@ Print((Lib::Scale(Lib::factor) as Text) ++ "\n");
 )")
 	});
 
-	const MidoriBuild::ScopedTestModeOverride test_mode_override(true);
+	const CompilerTestMode::ScopedOverride test_mode_override(true);
 	MidoriDriver::CompileFileWithReportResult compiled = MidoriDriver::CompileFileWithReport(project.Path("Main.mmt"), MidoriDriver::EnvironmentCompilationInputs().WithEmitMidoriIR(true));
 	if (!compiled.has_value())
 	{

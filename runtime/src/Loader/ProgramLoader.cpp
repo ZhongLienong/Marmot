@@ -1,22 +1,60 @@
 #include "Loader/ProgramLoader.h"
 
 #include "Bytecode/Artifact/BinaryArtifact.h"
-#include "Common/Environment/Environment.h"
 #include "Interpreter/VirtualMachine/VirtualMachine.h"
 #include "Interpreter/Worker/Worker.h"
 #include "Library/SharedLibraryCache/SharedLibraryCache.h"
 
 #include <algorithm>
+#include <cstdlib>
+#include <filesystem>
 #include <format>
 #include <optional>
+#include <ranges>
+#include <string>
 #include <string_view>
 #include <system_error>
+#include <vector>
+
+namespace
+{
+	// The directories in the PATH-style variable `name`: `;` separated on
+	// Windows, `:` elsewhere, empty entries dropped.
+	[[nodiscard]] std::vector<std::filesystem::path> ReadPathList(const char* name)
+	{
+#ifdef _WIN32
+		constexpr char separator = ';';
+		char* raw = nullptr;
+		size_t length = 0u;
+		if (_dupenv_s(&raw, &length, name) != 0 || raw == nullptr)
+		{
+			return {};
+		}
+		const std::string value(raw);
+		free(raw);
+#else
+		constexpr char separator = ':';
+		const char* raw = std::getenv(name);
+		if (raw == nullptr)
+		{
+			return {};
+		}
+		const std::string value(raw);
+#endif
+		using Segment = std::ranges::subrange<std::string::const_iterator>;
+		return value
+			| std::views::split(separator)
+			| std::views::filter([](const Segment& segment) { return !segment.empty(); })
+			| std::views::transform([](const Segment& segment) { return std::filesystem::path(std::string(segment.begin(), segment.end())); })
+			| std::ranges::to<std::vector<std::filesystem::path>>();
+	}
+}
 
 namespace MidoriProgramLoader
 {
 	std::vector<std::filesystem::path> EnvironmentLibraryPaths()
 	{
-		return MidoriEnvironment::ReadPathList("MARMOT_LIBRARY_PATH");
+		return ReadPathList("MARMOT_LIBRARY_PATH");
 	}
 
 	std::expected<MidoriExecutable, std::string> ReadProgram(const std::filesystem::path& path)

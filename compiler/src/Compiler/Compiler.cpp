@@ -1,6 +1,6 @@
-#include "Common/BuildConfig/BuildConfig.h"
+#include "Utility/TestMode/TestMode.h"
 #include "Compiler/Constant/Constant.h"
-#include "Common/Printer/Printer.h"
+#include "Compiler/Terminal/Terminal.h"
 #include "Compiler/Source/Source.h"
 #include "Compiler.h"
 #include "Compiler/BuildGraph/BuildGraph.h"
@@ -32,10 +32,6 @@
 #include <utility>
 
 using namespace std::string_literals;
-
-#if MIDORI_ENABLE_AST_DUMP
-#include "Utility/AbstractSyntaxTreePrinter/AbstractSyntaxTreePrinter.h"
-#endif
 
 #if MIDORI_ENABLE_DISASSEMBLY
 #include "Bytecode/Disassembler/Disassembler.h"
@@ -363,13 +359,13 @@ namespace
 	{
 		const size_t current_module = env.m_completed_modules.fetch_add(1u) + 1u;
 		const std::string short_path = std::filesystem::path(file_path).filename().string();
-		if (MidoriBuild::ShouldEmitInternalDiagnostics())
+		if (CompilerTestMode::ShouldEmitInternalDiagnostics())
 		{
 			std::lock_guard<std::mutex> lock(env.m_print_mutex);
 			// Show tier info for multi-tier builds, just progress for single tier
 			if (env.m_tiers.size() > 1u)
 			{
-				Printer::PrintLabeled<Printer::Color::BLUE, Printer::Color::WHITE>
+				CompilerTerminal::PrintLabeled<CompilerTerminal::Color::BLUE, CompilerTerminal::Color::WHITE>
 				(
 					std::format("{}/{}", current_module, env.m_total_modules),
 					std::format("Tier {} -> {}\n", tier_idx + 1, short_path)
@@ -377,7 +373,7 @@ namespace
 			}
 			else
 			{
-				Printer::PrintLabeled<Printer::Color::BLUE, Printer::Color::WHITE>
+				CompilerTerminal::PrintLabeled<CompilerTerminal::Color::BLUE, CompilerTerminal::Color::WHITE>
 				(
 					std::format("{}/{}", current_module, env.m_total_modules),
 					std::format("{}\n", short_path)
@@ -385,12 +381,12 @@ namespace
 			}
 
 #if MIDORI_ENABLE_OPTIMIZER_STATS
-			Printer::Print<Printer::Color::CYAN>("\n=== MidoriIR Optimizer ===\n");
+			CompilerTerminal::Print<CompilerTerminal::Color::CYAN>("\n=== MidoriIR Optimizer ===\n");
 			if (!optimizer_log.empty())
 			{
-				Printer::Print<Printer::Color::MAGENTA>(optimizer_log);
+				CompilerTerminal::Print<CompilerTerminal::Color::MAGENTA>(optimizer_log);
 			}
-			Printer::Print<Printer::Color::CYAN>("==========================\n\n");
+			CompilerTerminal::Print<CompilerTerminal::Color::CYAN>("==========================\n\n");
 #endif
 		}
 
@@ -1455,11 +1451,11 @@ namespace
 	static size_t ReportCompilationStart(std::mutex& print_mutex, const CompilationSchedule& schedule, size_t total_modules)
 	{
 		const size_t tier_count = schedule.m_tiers.size();
-		if (MidoriBuild::ShouldEmitInternalDiagnostics())
+		if (CompilerTestMode::ShouldEmitInternalDiagnostics())
 		{
 			std::lock_guard<std::mutex> lock(print_mutex);
-			Printer::PrintSeparator(Printer::Color::DARK_GRAY, 60);
-			Printer::PrintLabeled<Printer::Color::BRIGHT_CYAN, Printer::Color::WHITE>
+			CompilerTerminal::PrintSeparator(CompilerTerminal::Color::DARK_GRAY, 60);
+			CompilerTerminal::PrintLabeled<CompilerTerminal::Color::BRIGHT_CYAN, CompilerTerminal::Color::WHITE>
 			(
 				"COMPILING",
 				std::format
@@ -1471,23 +1467,23 @@ namespace
 					tier_count == 1u ? "" : "s"
 				)
 			);
-			Printer::PrintSeparator(Printer::Color::DARK_GRAY, 60);
+			CompilerTerminal::PrintSeparator(CompilerTerminal::Color::DARK_GRAY, 60);
 		}
 		return total_modules;
 	}
 
 	static std::chrono::milliseconds ReportCompilationSuccess(std::mutex& print_mutex, size_t total_modules, std::chrono::milliseconds duration)
 	{
-		if (MidoriBuild::ShouldEmitInternalDiagnostics())
+		if (CompilerTestMode::ShouldEmitInternalDiagnostics())
 		{
 			std::lock_guard<std::mutex> lock(print_mutex);
-			Printer::PrintSeparator(Printer::Color::DARK_GRAY, 60);
-			Printer::PrintLabeled<Printer::Color::BRIGHT_GREEN, Printer::Color::WHITE>
+			CompilerTerminal::PrintSeparator(CompilerTerminal::Color::DARK_GRAY, 60);
+			CompilerTerminal::PrintLabeled<CompilerTerminal::Color::BRIGHT_GREEN, CompilerTerminal::Color::WHITE>
 			(
 				"SUCCESS",
 				std::format("Compiled {} module{} in {} ms\n", total_modules, total_modules == 1 ? "" : "s", duration.count())
 			);
-			Printer::PrintSeparator(Printer::Color::DARK_GRAY, 60);
+			CompilerTerminal::PrintSeparator(CompilerTerminal::Color::DARK_GRAY, 60);
 		}
 		return duration;
 	}
@@ -1589,7 +1585,7 @@ namespace
 
 		MidoriExecutable linked_executable = std::move(link_result.value());
 #if MIDORI_ENABLE_DISASSEMBLY
-		if (MidoriBuild::ShouldEmitInternalDiagnostics())
+		if (CompilerTestMode::ShouldEmitInternalDiagnostics())
 		{
 			for (size_t i : std::views::iota(0u, linked_executable.m_procedure_names.size()))
 			{

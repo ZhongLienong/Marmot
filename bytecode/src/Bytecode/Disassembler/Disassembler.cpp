@@ -1,11 +1,13 @@
+#include <format>
 #include <iomanip>
+#include <print>
 #include <sstream>
 #include <string>
+#include <string_view>
+#include <utility>
 
-#include "Common/BuildConfig/BuildConfig.h"
 #include "Bytecode/Executable/Executable.h"
 #include "Bytecode/Scalar/Scalar.h"
-#include "Common/Printer/Printer.h"
 #include "Bytecode/Builtins/BuiltinTable.h"
 #include "Disassembler.h"
 
@@ -13,6 +15,52 @@
 
 namespace
 {
+	namespace Terminal
+	{
+		enum class Color
+		{
+			CYAN,
+			WHITE,
+			BRIGHT_YELLOW,
+			BRIGHT_CYAN,
+			BRIGHT_WHITE,
+			DARK_GRAY,
+		};
+
+		constexpr std::string_view RESET = "[0m";
+
+		constexpr std::string_view Code(Color color)
+		{
+			switch (color)
+			{
+			case Color::CYAN:
+				return "[36m";
+			case Color::WHITE:
+				return "[37m";
+			case Color::BRIGHT_YELLOW:
+				return "[93m";
+			case Color::BRIGHT_CYAN:
+				return "[96m";
+			case Color::BRIGHT_WHITE:
+				return "[97m";
+			case Color::DARK_GRAY:
+				return "[38;5;240m";
+			}
+			std::unreachable();
+		}
+
+		template<Color color>
+		std::string Colored(std::string_view text)
+		{
+			return std::format("{}{}{}", Code(color), text, RESET);
+		}
+
+		void Print(std::string_view message)
+		{
+			std::print("{}{}{}", Code(Color::WHITE), message, RESET);
+		}
+	}
+
 	constexpr int address_width = 6;
 	constexpr int instr_width = 25;
 	constexpr int operand_width = 12;
@@ -23,9 +71,9 @@ namespace
 		offset += 1;
 		std::ostringstream formated_str;
 
-		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << Terminal::Colored<Terminal::Color::BRIGHT_WHITE>(std::string(name));
 		formated_str << '\n';
-		Printer::Print(formated_str.str());
+		Terminal::Print(formated_str.str());
 	}
 
 	void NumericConstantInstruction(bool is_integer, std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
@@ -41,19 +89,19 @@ namespace
 		MidoriFloat as_float = *reinterpret_cast<MidoriFloat*>(operand_bytes);
 		MidoriInteger as_integer = *reinterpret_cast<MidoriInteger*>(operand_bytes);
 
-		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << Terminal::Colored<Terminal::Color::BRIGHT_WHITE>(std::string(name));
 		if (is_integer)
 		{
-			formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(as_integer));
-			formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// " + std::to_string(as_integer));
+			formated_str << " " << Terminal::Colored<Terminal::Color::CYAN>(std::to_string(as_integer));
+			formated_str << "  " << Terminal::Colored<Terminal::Color::DARK_GRAY>("// " + std::to_string(as_integer));
 		}
 		else
 		{
-			formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(as_float));
-			formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// " + std::to_string(as_float));
+			formated_str << " " << Terminal::Colored<Terminal::Color::CYAN>(std::to_string(as_float));
+			formated_str << "  " << Terminal::Colored<Terminal::Color::DARK_GRAY>("// " + std::to_string(as_float));
 		}
 		formated_str << '\n';
-		Printer::Print(formated_str.str());
+		Terminal::Print(formated_str.str());
 	}
 
 	void ByteConstantInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
@@ -62,11 +110,11 @@ namespace
 		offset += 2;
 
 		std::ostringstream formated_str;
-		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
-		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(static_cast<unsigned int>(operand)));
-		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// 0x" + (std::ostringstream() << std::hex << std::uppercase << static_cast<unsigned int>(operand)).str());
+		formated_str << Terminal::Colored<Terminal::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << " " << Terminal::Colored<Terminal::Color::CYAN>(std::to_string(static_cast<unsigned int>(operand)));
+		formated_str << "  " << Terminal::Colored<Terminal::Color::DARK_GRAY>("// 0x" + (std::ostringstream() << std::hex << std::uppercase << static_cast<unsigned int>(operand)).str());
 		formated_str << '\n';
-		Printer::Print(formated_str.str());
+		Terminal::Print(formated_str.str());
 	}
 
 	void WordConstantInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
@@ -81,11 +129,11 @@ namespace
 		std::ostringstream formated_str;
 		MidoriWord operand = *reinterpret_cast<MidoriWord*>(operand_bytes);
 
-		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
-		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(operand));
-		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// 0x" + (std::ostringstream() << std::hex << std::uppercase << operand).str());
+		formated_str << Terminal::Colored<Terminal::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << " " << Terminal::Colored<Terminal::Color::CYAN>(std::to_string(operand));
+		formated_str << "  " << Terminal::Colored<Terminal::Color::DARK_GRAY>("// 0x" + (std::ostringstream() << std::hex << std::uppercase << operand).str());
 		formated_str << '\n';
-		Printer::Print(formated_str.str());
+		Terminal::Print(formated_str.str());
 	}
 
 	void LoadStringWideInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
@@ -96,11 +144,11 @@ namespace
 		offset += 3;
 		std::ostringstream formated_str;
 
-		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
-		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(index));
-		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// string pool index");
+		formated_str << Terminal::Colored<Terminal::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << " " << Terminal::Colored<Terminal::Color::CYAN>(std::to_string(index));
+		formated_str << "  " << Terminal::Colored<Terminal::Color::DARK_GRAY>("// string pool index");
 		formated_str << '\n';
-		Printer::Print(formated_str.str());
+		Terminal::Print(formated_str.str());
 	}
 
 	void JumpInstruction(std::string_view name, int sign, const MidoriExecutable& executable, int proc_index, int& offset)
@@ -114,11 +162,11 @@ namespace
 		std::ostringstream dest_str;
 		dest_str << "-> 0x" << std::hex << std::setfill('0') << std::setw(address_width) << destination;
 
-		formated_str << Printer::Colored<Printer::Color::BRIGHT_YELLOW>(std::string(name));
-		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(operand));
-		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>(dest_str.str());
+		formated_str << Terminal::Colored<Terminal::Color::BRIGHT_YELLOW>(std::string(name));
+		formated_str << " " << Terminal::Colored<Terminal::Color::CYAN>(std::to_string(operand));
+		formated_str << "  " << Terminal::Colored<Terminal::Color::DARK_GRAY>(dest_str.str());
 		formated_str << '\n';
-		Printer::Print(formated_str.str());
+		Terminal::Print(formated_str.str());
 	}
 
 	void LocalOrCellVariableInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
@@ -127,11 +175,11 @@ namespace
 		offset += 2;
 		std::ostringstream formated_str;
 
-		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
-		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(operand));
-		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// offset " + std::to_string(operand));
+		formated_str << Terminal::Colored<Terminal::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << " " << Terminal::Colored<Terminal::Color::CYAN>(std::to_string(operand));
+		formated_str << "  " << Terminal::Colored<Terminal::Color::DARK_GRAY>("// offset " + std::to_string(operand));
 		formated_str << '\n';
-		Printer::Print(formated_str.str());
+		Terminal::Print(formated_str.str());
 	}
 
 	void GlobalVariableWideInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
@@ -142,11 +190,11 @@ namespace
 		offset += 3;
 		std::ostringstream formated_str;
 
-		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
-		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(operand));
-		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// " + executable.GetGlobalVariable(operand));
+		formated_str << Terminal::Colored<Terminal::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << " " << Terminal::Colored<Terminal::Color::CYAN>(std::to_string(operand));
+		formated_str << "  " << Terminal::Colored<Terminal::Color::DARK_GRAY>("// " + executable.GetGlobalVariable(operand));
 		formated_str << '\n';
-		Printer::Print(formated_str.str());
+		Terminal::Print(formated_str.str());
 	}
 
 	void LocalOrCellVariableWideInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
@@ -157,11 +205,11 @@ namespace
 		offset += 3;
 		std::ostringstream formated_str;
 
-		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
-		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(operand));
-		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// offset " + std::to_string(operand));
+		formated_str << Terminal::Colored<Terminal::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << " " << Terminal::Colored<Terminal::Color::CYAN>(std::to_string(operand));
+		formated_str << "  " << Terminal::Colored<Terminal::Color::DARK_GRAY>("// offset " + std::to_string(operand));
 		formated_str << '\n';
-		Printer::Print(formated_str.str());
+		Terminal::Print(formated_str.str());
 	}
 
 	void AggregateCreateInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
@@ -172,11 +220,11 @@ namespace
 		offset += 4;
 		std::ostringstream formated_str;
 
-		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
-		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(operand));
-		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// element count: " + std::to_string(operand));
+		formated_str << Terminal::Colored<Terminal::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << " " << Terminal::Colored<Terminal::Color::CYAN>(std::to_string(operand));
+		formated_str << "  " << Terminal::Colored<Terminal::Color::DARK_GRAY>("// element count: " + std::to_string(operand));
 		formated_str << '\n';
-		Printer::Print(formated_str.str());
+		Terminal::Print(formated_str.str());
 	}
 
 	void CallInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
@@ -185,11 +233,11 @@ namespace
 		offset += 2;
 		std::ostringstream formated_str;
 
-		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
-		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(operand));
-		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// number of parameters: " + std::to_string(operand));
+		formated_str << Terminal::Colored<Terminal::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << " " << Terminal::Colored<Terminal::Color::CYAN>(std::to_string(operand));
+		formated_str << "  " << Terminal::Colored<Terminal::Color::DARK_GRAY>("// number of parameters: " + std::to_string(operand));
 		formated_str << '\n';
-		Printer::Print(formated_str.str());
+		Terminal::Print(formated_str.str());
 	}
 
 	void CallFixedInstruction(std::string_view name, int arity, int& offset)
@@ -197,11 +245,11 @@ namespace
 		offset += 1;
 		std::ostringstream formated_str;
 
-		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
-		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(arity));
-		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// number of parameters: " + std::to_string(arity));
+		formated_str << Terminal::Colored<Terminal::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << " " << Terminal::Colored<Terminal::Color::CYAN>(std::to_string(arity));
+		formated_str << "  " << Terminal::Colored<Terminal::Color::DARK_GRAY>("// number of parameters: " + std::to_string(arity));
 		formated_str << '\n';
-		Printer::Print(formated_str.str());
+		Terminal::Print(formated_str.str());
 	}
 
 	void CallGlobalWideInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
@@ -213,12 +261,12 @@ namespace
 		offset += 4;
 		std::ostringstream formated_str;
 
-		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
-		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(global_index));
-		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(arity));
-		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// global: " + executable.GetGlobalVariable(global_index) + ", params: " + std::to_string(arity));
+		formated_str << Terminal::Colored<Terminal::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << " " << Terminal::Colored<Terminal::Color::CYAN>(std::to_string(global_index));
+		formated_str << " " << Terminal::Colored<Terminal::Color::CYAN>(std::to_string(arity));
+		formated_str << "  " << Terminal::Colored<Terminal::Color::DARK_GRAY>("// global: " + executable.GetGlobalVariable(global_index) + ", params: " + std::to_string(arity));
 		formated_str << '\n';
-		Printer::Print(formated_str.str());
+		Terminal::Print(formated_str.str());
 	}
 
 	void CallForeignInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
@@ -228,15 +276,15 @@ namespace
 		offset += 3;
 		std::ostringstream formated_str;
 
-		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
-		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(arity));
-		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(return_type));
-		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// params: " + std::to_string(arity) + ", return: ");
+		formated_str << Terminal::Colored<Terminal::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << " " << Terminal::Colored<Terminal::Color::CYAN>(std::to_string(arity));
+		formated_str << " " << Terminal::Colored<Terminal::Color::CYAN>(std::to_string(return_type));
+		formated_str << "  " << Terminal::Colored<Terminal::Color::DARK_GRAY>("// params: " + std::to_string(arity) + ", return: ");
 
 		std::string return_type_str = (return_type == 0) ? "primitive" : (return_type == 1) ? "text" : (return_type == 2) ? "array" : "unknown";
 		formated_str << return_type_str;
 		formated_str << '\n';
-		Printer::Print(formated_str.str());
+		Terminal::Print(formated_str.str());
 	}
 
 	void CallForeignIndexedInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
@@ -247,19 +295,19 @@ namespace
 		offset += 4;
 		std::ostringstream formated_str;
 
-		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
-		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(ffi_index));
-		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(arity));
-		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(return_type));
+		formated_str << Terminal::Colored<Terminal::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << " " << Terminal::Colored<Terminal::Color::CYAN>(std::to_string(ffi_index));
+		formated_str << " " << Terminal::Colored<Terminal::Color::CYAN>(std::to_string(arity));
+		formated_str << " " << Terminal::Colored<Terminal::Color::CYAN>(std::to_string(return_type));
 
 		std::string ffi_name = (static_cast<size_t>(ffi_index) < MarmotBuiltins::COUNT)
 			? std::string(MarmotBuiltins::At(static_cast<size_t>(ffi_index)).m_name)
 			: "unknown";
 		std::string return_type_str = (return_type == 0) ? "primitive" : (return_type == 1) ? "text" : (return_type == 2) ? "array" : "unknown";
 
-		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// " + ffi_name + ", params: " + std::to_string(arity) + ", return: " + return_type_str);
+		formated_str << "  " << Terminal::Colored<Terminal::Color::DARK_GRAY>("// " + ffi_name + ", params: " + std::to_string(arity) + ", return: " + return_type_str);
 		formated_str << '\n';
-		Printer::Print(formated_str.str());
+		Terminal::Print(formated_str.str());
 	}
 
 	void MemberInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
@@ -268,11 +316,11 @@ namespace
 		offset += 2;
 		std::ostringstream formated_str;
 
-		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
-		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(operand));
-		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// member index: " + std::to_string(operand));
+		formated_str << Terminal::Colored<Terminal::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << " " << Terminal::Colored<Terminal::Color::CYAN>(std::to_string(operand));
+		formated_str << "  " << Terminal::Colored<Terminal::Color::DARK_GRAY>("// member index: " + std::to_string(operand));
 		formated_str << '\n';
-		Printer::Print(formated_str.str());
+		Terminal::Print(formated_str.str());
 	}
 
 	void DataInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
@@ -281,11 +329,11 @@ namespace
 		offset += 2;
 		std::ostringstream formated_str;
 
-		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
-		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(operand));
-		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// data size: " + std::to_string(operand));
+		formated_str << Terminal::Colored<Terminal::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << " " << Terminal::Colored<Terminal::Color::CYAN>(std::to_string(operand));
+		formated_str << "  " << Terminal::Colored<Terminal::Color::DARK_GRAY>("// data size: " + std::to_string(operand));
 		formated_str << '\n';
-		Printer::Print(formated_str.str());
+		Terminal::Print(formated_str.str());
 	}
 
 	void JoinWorkerInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
@@ -297,11 +345,11 @@ namespace
 		offset += 5;
 		std::ostringstream formated_str;
 
-		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
-		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::format("{} {} {} {}", ok_tag, err_tag, cancelled_tag, failed_tag));
-		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>(std::format("// tags: Ok {}, Err {}, Cancelled {}, Failed {}", ok_tag, err_tag, cancelled_tag, failed_tag));
+		formated_str << Terminal::Colored<Terminal::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << " " << Terminal::Colored<Terminal::Color::CYAN>(std::format("{} {} {} {}", ok_tag, err_tag, cancelled_tag, failed_tag));
+		formated_str << "  " << Terminal::Colored<Terminal::Color::DARK_GRAY>(std::format("// tags: Ok {}, Err {}, Cancelled {}, Failed {}", ok_tag, err_tag, cancelled_tag, failed_tag));
 		formated_str << '\n';
-		Printer::Print(formated_str.str());
+		Terminal::Print(formated_str.str());
 	}
 
 	void ConstructUnionInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
@@ -311,12 +359,12 @@ namespace
 		offset += 3;
 		std::ostringstream formated_str;
 
-		formated_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
-		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(size));
-		formated_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(tag));
-		formated_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// data size: " + std::to_string(size) + ", union tag: " + std::to_string(tag));
+		formated_str << Terminal::Colored<Terminal::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << " " << Terminal::Colored<Terminal::Color::CYAN>(std::to_string(size));
+		formated_str << " " << Terminal::Colored<Terminal::Color::CYAN>(std::to_string(tag));
+		formated_str << "  " << Terminal::Colored<Terminal::Color::DARK_GRAY>("// data size: " + std::to_string(size) + ", union tag: " + std::to_string(tag));
 		formated_str << '\n';
-		Printer::Print(formated_str.str());
+		Terminal::Print(formated_str.str());
 	}
 
 	void SpawnWorkerInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
@@ -324,11 +372,11 @@ namespace
 		const int arg_count = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 
 		std::ostringstream formatted_str;
-		formatted_str << Printer::Colored<Printer::Color::BRIGHT_WHITE>(std::string(name));
-		formatted_str << " " << Printer::Colored<Printer::Color::CYAN>(std::to_string(arg_count));
-		formatted_str << "  " << Printer::Colored<Printer::Color::DARK_GRAY>("// argc " + std::to_string(arg_count) + ", function on the stack");
+		formatted_str << Terminal::Colored<Terminal::Color::BRIGHT_WHITE>(std::string(name));
+		formatted_str << " " << Terminal::Colored<Terminal::Color::CYAN>(std::to_string(arg_count));
+		formatted_str << "  " << Terminal::Colored<Terminal::Color::DARK_GRAY>("// argc " + std::to_string(arg_count) + ", function on the stack");
 		formatted_str << '\n';
-		Printer::Print(formatted_str.str());
+		Terminal::Print(formatted_str.str());
 
 		offset += 2;
 	}
@@ -343,9 +391,9 @@ namespace Disassembler
 	{
 		std::ostringstream header;
 		header << std::string(95, '=') << "\n";
-		header << " " << Printer::Colored<Printer::Color::BRIGHT_CYAN>(std::string(proc_name)) << "\n";
+		header << " " << Terminal::Colored<Terminal::Color::BRIGHT_CYAN>(std::string(proc_name)) << "\n";
 		header << std::string(95, '=') << "\n";
-		Printer::Print(header.str());
+		Terminal::Print(header.str());
 
 		int offset = 0;
 		while (offset < executable.GetByteCodeSize(proc_index))
@@ -354,8 +402,8 @@ namespace Disassembler
 		}
 
 		std::ostringstream footer;
-		footer << Printer::Colored<Printer::Color::DARK_GRAY>(std::string(95, '-')) << "\n\n";
-		Printer::Print(footer.str());
+		footer << Terminal::Colored<Terminal::Color::DARK_GRAY>(std::string(95, '-')) << "\n\n";
+		Terminal::Print(footer.str());
 	}
 
 	void DisassembleInstruction(const MidoriExecutable& executable, int proc_index, int& offset)
@@ -373,7 +421,7 @@ namespace Disassembler
 			formated_str << std::dec << executable.GetLine(offset, proc_index) << std::setfill(' ');
 		}
 		formated_str << std::right << ' ';
-		Printer::Print(formated_str.str());
+		Terminal::Print(formated_str.str());
 
 		OpCode instruction = executable.ReadByteCode(offset, proc_index);
 		switch (instruction) 
@@ -775,7 +823,7 @@ namespace Disassembler
 		{
 			const int local_index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 			const int imm = static_cast<int>(static_cast<int8_t>(executable.ReadByteCode(offset + 2, proc_index)));
-			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("ADD_LOCAL_INT")) + " local=" + std::to_string(local_index) + " imm=" + std::to_string(imm) + "\n");
+			Terminal::Print(std::string(Terminal::Colored<Terminal::Color::BRIGHT_WHITE>("ADD_LOCAL_INT")) + " local=" + std::to_string(local_index) + " imm=" + std::to_string(imm) + "\n");
 			offset += 3;
 			break;
 		}
@@ -783,7 +831,7 @@ namespace Disassembler
 		{
 			const int local_index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 			const int imm = static_cast<int>(static_cast<int8_t>(executable.ReadByteCode(offset + 2, proc_index)));
-			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("PUSH_LOCAL_SUB_INT")) + " local=" + std::to_string(local_index) + " imm=" + std::to_string(imm) + "\n");
+			Terminal::Print(std::string(Terminal::Colored<Terminal::Color::BRIGHT_WHITE>("PUSH_LOCAL_SUB_INT")) + " local=" + std::to_string(local_index) + " imm=" + std::to_string(imm) + "\n");
 			offset += 3;
 			break;
 		}
@@ -793,7 +841,7 @@ namespace Disassembler
 			const int imm = static_cast<int>(static_cast<int8_t>(executable.ReadByteCode(offset + 2, proc_index)));
 			const int low = static_cast<int>(executable.ReadByteCode(offset + 3, proc_index));
 			const int high = static_cast<int>(executable.ReadByteCode(offset + 4, proc_index));
-			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("IF_LOCAL_LE_INT")) + " local=" + std::to_string(local_index) + " imm=" + std::to_string(imm) + " -> " + std::to_string(offset + 5 + (low | (high << 8))) + "\n");
+			Terminal::Print(std::string(Terminal::Colored<Terminal::Color::BRIGHT_WHITE>("IF_LOCAL_LE_INT")) + " local=" + std::to_string(local_index) + " imm=" + std::to_string(imm) + " -> " + std::to_string(offset + 5 + (low | (high << 8))) + "\n");
 			offset += 5;
 			break;
 		}
@@ -803,7 +851,7 @@ namespace Disassembler
 			const int right = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
 			const int low = static_cast<int>(executable.ReadByteCode(offset + 3, proc_index));
 			const int high = static_cast<int>(executable.ReadByteCode(offset + 4, proc_index));
-			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("IF_LOCAL_GE_LOCAL")) + " left=" + std::to_string(left) + " right=" + std::to_string(right) + " -> " + std::to_string(offset + 5 + (low | (high << 8))) + "\n");
+			Terminal::Print(std::string(Terminal::Colored<Terminal::Color::BRIGHT_WHITE>("IF_LOCAL_GE_LOCAL")) + " left=" + std::to_string(left) + " right=" + std::to_string(right) + " -> " + std::to_string(offset + 5 + (low | (high << 8))) + "\n");
 			offset += 5;
 			break;
 		}
@@ -811,7 +859,7 @@ namespace Disassembler
 		{
 			const int first = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 			const int second = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
-			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("GET_LOCAL2")) + " first=" + std::to_string(first) + " second=" + std::to_string(second) + "\n");
+			Terminal::Print(std::string(Terminal::Colored<Terminal::Color::BRIGHT_WHITE>("GET_LOCAL2")) + " first=" + std::to_string(first) + " second=" + std::to_string(second) + "\n");
 			offset += 3;
 			break;
 		}
@@ -824,7 +872,7 @@ namespace Disassembler
 			const int tag = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
 			const int low = static_cast<int>(executable.ReadByteCode(offset + 3, proc_index));
 			const int high = static_cast<int>(executable.ReadByteCode(offset + 4, proc_index));
-			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("IF_LOCAL_TAG_NOT")) + " local=" + std::to_string(local_index) + " tag=" + std::to_string(tag) + " -> " + std::to_string(offset + 5 + (low | (high << 8))) + "\n");
+			Terminal::Print(std::string(Terminal::Colored<Terminal::Color::BRIGHT_WHITE>("IF_LOCAL_TAG_NOT")) + " local=" + std::to_string(local_index) + " tag=" + std::to_string(tag) + " -> " + std::to_string(offset + 5 + (low | (high << 8))) + "\n");
 			offset += 5;
 			break;
 		}
@@ -833,7 +881,7 @@ namespace Disassembler
 			const int union_index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 			const int field_index = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
 			const int target_index = static_cast<int>(executable.ReadByteCode(offset + 3, proc_index));
-			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("LOCAL_UNION_FIELD")) + " union=" + std::to_string(union_index) + " index=" + std::to_string(field_index) + " target=" + std::to_string(target_index) + "\n");
+			Terminal::Print(std::string(Terminal::Colored<Terminal::Color::BRIGHT_WHITE>("LOCAL_UNION_FIELD")) + " union=" + std::to_string(union_index) + " index=" + std::to_string(field_index) + " target=" + std::to_string(target_index) + "\n");
 			offset += 4;
 			break;
 		}
@@ -843,7 +891,7 @@ namespace Disassembler
 			const int imm = static_cast<int>(static_cast<int8_t>(executable.ReadByteCode(offset + 2, proc_index)));
 			const int low = static_cast<int>(executable.ReadByteCode(offset + 3, proc_index));
 			const int high = static_cast<int>(executable.ReadByteCode(offset + 4, proc_index));
-			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("IF_LOCAL_LT_INT")) + " local=" + std::to_string(local_index) + " imm=" + std::to_string(imm) + " -> " + std::to_string(offset + 5 + (low | (high << 8))) + "\n");
+			Terminal::Print(std::string(Terminal::Colored<Terminal::Color::BRIGHT_WHITE>("IF_LOCAL_LT_INT")) + " local=" + std::to_string(local_index) + " imm=" + std::to_string(imm) + " -> " + std::to_string(offset + 5 + (low | (high << 8))) + "\n");
 			offset += 5;
 			break;
 		}
@@ -853,7 +901,7 @@ namespace Disassembler
 			const int right = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
 			const int low = static_cast<int>(executable.ReadByteCode(offset + 3, proc_index));
 			const int high = static_cast<int>(executable.ReadByteCode(offset + 4, proc_index));
-			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("IF_LOCAL_LT_LOCAL")) + " left=" + std::to_string(left) + " right=" + std::to_string(right) + " -> " + std::to_string(offset + 5 + (low | (high << 8))) + "\n");
+			Terminal::Print(std::string(Terminal::Colored<Terminal::Color::BRIGHT_WHITE>("IF_LOCAL_LT_LOCAL")) + " left=" + std::to_string(left) + " right=" + std::to_string(right) + " -> " + std::to_string(offset + 5 + (low | (high << 8))) + "\n");
 			offset += 5;
 			break;
 		}
@@ -863,7 +911,7 @@ namespace Disassembler
 			const int right = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
 			const int low = static_cast<int>(executable.ReadByteCode(offset + 3, proc_index));
 			const int high = static_cast<int>(executable.ReadByteCode(offset + 4, proc_index));
-			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("IF_LOCAL_EQ_LOCAL")) + " left=" + std::to_string(left) + " right=" + std::to_string(right) + " -> " + std::to_string(offset + 5 + (low | (high << 8))) + "\n");
+			Terminal::Print(std::string(Terminal::Colored<Terminal::Color::BRIGHT_WHITE>("IF_LOCAL_EQ_LOCAL")) + " left=" + std::to_string(left) + " right=" + std::to_string(right) + " -> " + std::to_string(offset + 5 + (low | (high << 8))) + "\n");
 			offset += 5;
 			break;
 		}
@@ -871,7 +919,7 @@ namespace Disassembler
 		{
 			const int local_index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 			const int imm = static_cast<int>(static_cast<int8_t>(executable.ReadByteCode(offset + 2, proc_index)));
-			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("STEP_LOCAL")) + " local=" + std::to_string(local_index) + " imm=" + std::to_string(imm) + "\n");
+			Terminal::Print(std::string(Terminal::Colored<Terminal::Color::BRIGHT_WHITE>("STEP_LOCAL")) + " local=" + std::to_string(local_index) + " imm=" + std::to_string(imm) + "\n");
 			offset += 3;
 			break;
 		}
@@ -880,7 +928,7 @@ namespace Disassembler
 			const int array_index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 			const int index = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
 			const int target_index = static_cast<int>(executable.ReadByteCode(offset + 3, proc_index));
-			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("LOCAL_ARRAY_GET")) + " array=" + std::to_string(array_index) + " index=" + std::to_string(index) + " target=" + std::to_string(target_index) + "\n");
+			Terminal::Print(std::string(Terminal::Colored<Terminal::Color::BRIGHT_WHITE>("LOCAL_ARRAY_GET")) + " array=" + std::to_string(array_index) + " index=" + std::to_string(index) + " target=" + std::to_string(target_index) + "\n");
 			offset += 4;
 			break;
 		}
@@ -890,7 +938,7 @@ namespace Disassembler
 			const int first = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
 			const int second = static_cast<int>(executable.ReadByteCode(offset + 3, proc_index));
 			const int target_index = static_cast<int>(executable.ReadByteCode(offset + 4, proc_index));
-			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("LOCAL_UNION2")) + " tag=" + std::to_string(tag) + " first=" + std::to_string(first) + " second=" + std::to_string(second) + " target=" + std::to_string(target_index) + "\n");
+			Terminal::Print(std::string(Terminal::Colored<Terminal::Color::BRIGHT_WHITE>("LOCAL_UNION2")) + " tag=" + std::to_string(tag) + " first=" + std::to_string(first) + " second=" + std::to_string(second) + " target=" + std::to_string(target_index) + "\n");
 			offset += 5;
 			break;
 		}
@@ -898,7 +946,7 @@ namespace Disassembler
 		{
 			const int array_index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 			const int value_index = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
-			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("APPEND_LOCAL")) + " array=" + std::to_string(array_index) + " value=" + std::to_string(value_index) + "\n");
+			Terminal::Print(std::string(Terminal::Colored<Terminal::Color::BRIGHT_WHITE>("APPEND_LOCAL")) + " array=" + std::to_string(array_index) + " value=" + std::to_string(value_index) + "\n");
 			offset += 3;
 			break;
 		}
@@ -906,7 +954,7 @@ namespace Disassembler
 		{
 			const int code_index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index)) | (static_cast<int>(executable.ReadByteCode(offset + 2, proc_index)) << 8);
 			const int count = static_cast<int>(executable.ReadByteCode(offset + 3, proc_index));
-			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("MAKE_CLOSURE_OF")) + " code=" + std::to_string(code_index) + " captures=" + std::to_string(count) + "\n");
+			Terminal::Print(std::string(Terminal::Colored<Terminal::Color::BRIGHT_WHITE>("MAKE_CLOSURE_OF")) + " code=" + std::to_string(code_index) + " captures=" + std::to_string(count) + "\n");
 			offset += 4;
 			break;
 		}
@@ -914,14 +962,14 @@ namespace Disassembler
 		{
 			const int code_index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index)) | (static_cast<int>(executable.ReadByteCode(offset + 2, proc_index)) << 8);
 			const int arity = static_cast<int>(executable.ReadByteCode(offset + 3, proc_index));
-			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("CALL_PROC_WIDE")) + " code=" + std::to_string(code_index) + " arity=" + std::to_string(arity) + "\n");
+			Terminal::Print(std::string(Terminal::Colored<Terminal::Color::BRIGHT_WHITE>("CALL_PROC_WIDE")) + " code=" + std::to_string(code_index) + " arity=" + std::to_string(arity) + "\n");
 			offset += 4;
 			break;
 		}
 		case OpCode::MAKE_FUNCTION_WIDE:
 		{
 			const int code_index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index)) | (static_cast<int>(executable.ReadByteCode(offset + 2, proc_index)) << 8);
-			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("MAKE_FUNCTION_WIDE")) + " code=" + std::to_string(code_index) + "\n");
+			Terminal::Print(std::string(Terminal::Colored<Terminal::Color::BRIGHT_WHITE>("MAKE_FUNCTION_WIDE")) + " code=" + std::to_string(code_index) + "\n");
 			offset += 3;
 			break;
 		}
@@ -1015,7 +1063,7 @@ namespace Disassembler
 		case OpCode::PUSH_PLACEHOLDER:
 		{
 			const int count = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
-			Printer::Print(std::string(Printer::Colored<Printer::Color::BRIGHT_WHITE>("PUSH_PLACEHOLDER")) + " count=" + std::to_string(count) + "\n");
+			Terminal::Print(std::string(Terminal::Colored<Terminal::Color::BRIGHT_WHITE>("PUSH_PLACEHOLDER")) + " count=" + std::to_string(count) + "\n");
 			offset += 2;
 			break;
 		}

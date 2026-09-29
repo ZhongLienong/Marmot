@@ -199,7 +199,7 @@ Important behavior from the current pipeline:
 
 That ordering is tested in:
 
-- `common/tests/common/ErrorFormattingTests.cpp`
+- `compiler/tests/compiler/ErrorFormattingTests.cpp`
 - `compiler/tests/compiler/CompilerWarningAggregationTests.cpp`
 
 ## Driver Behavior

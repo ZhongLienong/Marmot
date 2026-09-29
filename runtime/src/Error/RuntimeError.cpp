@@ -1,6 +1,6 @@
 #include "RuntimeError.h"
-#include "Common/Json/Json.h"
-#include "Common/Printer/Printer.h"
+#include "Support/Json/Json.h"
+#include "Support/Terminal/Terminal.h"
 #include <algorithm>
 #include <sstream>
 
@@ -105,16 +105,16 @@ namespace
 					? std::optional<std::string_view>(*frame.m_location.m_source_line)
 					: std::nullopt;
 
-			MidoriJson::AppendStringField(object, "procedure", frame.m_procedure_name, first_field);
-			MidoriJson::AppendStringField(object, "module", frame.m_module_name.empty() ? std::optional<std::string_view>(std::nullopt) : std::optional<std::string_view>(frame.m_module_name), first_field);
-			MidoriJson::AppendStringField(object, "file", file, first_field);
-			MidoriJson::AppendStringField(object, "file_path", file, first_field);
-			MidoriJson::AppendNumberField(object, "line", line, first_field);
-			MidoriJson::AppendNumberField(object, "column", frame.m_location.m_column, first_field);
-			MidoriJson::AppendNumberField(object, "endLine", end_line, first_field);
-			MidoriJson::AppendNumberField(object, "endColumn", end_column, first_field);
-			MidoriJson::AppendStringField(object, "sourceLine", source_line, first_field);
-			MidoriJson::AppendNumberField(object, "recursiveCount", frame.m_recursive_call_count, first_field);
+			RuntimeJson::AppendStringField(object, "procedure", frame.m_procedure_name, first_field);
+			RuntimeJson::AppendStringField(object, "module", frame.m_module_name.empty() ? std::optional<std::string_view>(std::nullopt) : std::optional<std::string_view>(frame.m_module_name), first_field);
+			RuntimeJson::AppendStringField(object, "file", file, first_field);
+			RuntimeJson::AppendStringField(object, "file_path", file, first_field);
+			RuntimeJson::AppendNumberField(object, "line", line, first_field);
+			RuntimeJson::AppendNumberField(object, "column", frame.m_location.m_column, first_field);
+			RuntimeJson::AppendNumberField(object, "endLine", end_line, first_field);
+			RuntimeJson::AppendNumberField(object, "endColumn", end_column, first_field);
+			RuntimeJson::AppendStringField(object, "sourceLine", source_line, first_field);
+			RuntimeJson::AppendNumberField(object, "recursiveCount", frame.m_recursive_call_count, first_field);
 			object.push_back('}');
 			serialized += object;
 		}
@@ -159,22 +159,22 @@ namespace
 			}
 		}
 
-		MidoriJson::AppendStringField(serialized, "source", "marmot-runtime", first_field);
-		MidoriJson::AppendStringField(serialized, "severity", "error", first_field);
-		MidoriJson::AppendStringField(serialized, "stage", "Runtime", first_field);
-		MidoriJson::AppendStringField(serialized, "code", RuntimeErrorCodeName(error.m_code), first_field);
-		MidoriJson::AppendStringField(serialized, "kind", error.m_kind == RuntimeDiagnosticKind::Panic ? "panic" : "error", first_field);
-		MidoriJson::AppendStringField(serialized, "message", error.m_message, first_field);
-		MidoriJson::AppendStringField(serialized, "file", file, first_field);
-		MidoriJson::AppendStringField(serialized, "file_path", file, first_field);
-		MidoriJson::AppendNumberField(serialized, "line", line, first_field);
-		MidoriJson::AppendNumberField(serialized, "column", column, first_field);
-		MidoriJson::AppendNumberField(serialized, "endLine", end_line, first_field);
-		MidoriJson::AppendNumberField(serialized, "endColumn", end_column, first_field);
-		MidoriJson::AppendNumberField(serialized, "caret_length", caret_length, first_field);
-		MidoriJson::AppendStringField(serialized, "sourceLine", source_line, first_field);
-		MidoriJson::AppendNumberField(serialized, "exitCode", error.ExitCode(), first_field);
-		MidoriJson::AppendRawField(serialized, "stack", SerializeRuntimeStack(error.m_stack), first_field);
+		RuntimeJson::AppendStringField(serialized, "source", "marmot-runtime", first_field);
+		RuntimeJson::AppendStringField(serialized, "severity", "error", first_field);
+		RuntimeJson::AppendStringField(serialized, "stage", "Runtime", first_field);
+		RuntimeJson::AppendStringField(serialized, "code", RuntimeErrorCodeName(error.m_code), first_field);
+		RuntimeJson::AppendStringField(serialized, "kind", error.m_kind == RuntimeDiagnosticKind::Panic ? "panic" : "error", first_field);
+		RuntimeJson::AppendStringField(serialized, "message", error.m_message, first_field);
+		RuntimeJson::AppendStringField(serialized, "file", file, first_field);
+		RuntimeJson::AppendStringField(serialized, "file_path", file, first_field);
+		RuntimeJson::AppendNumberField(serialized, "line", line, first_field);
+		RuntimeJson::AppendNumberField(serialized, "column", column, first_field);
+		RuntimeJson::AppendNumberField(serialized, "endLine", end_line, first_field);
+		RuntimeJson::AppendNumberField(serialized, "endColumn", end_column, first_field);
+		RuntimeJson::AppendNumberField(serialized, "caret_length", caret_length, first_field);
+		RuntimeJson::AppendStringField(serialized, "sourceLine", source_line, first_field);
+		RuntimeJson::AppendNumberField(serialized, "exitCode", error.ExitCode(), first_field);
+		RuntimeJson::AppendRawField(serialized, "stack", SerializeRuntimeStack(error.m_stack), first_field);
 		serialized.push_back('}');
 		return serialized;
 	}
@@ -184,8 +184,8 @@ namespace
 		std::ostringstream oss;
 		const bool is_panic = error.m_kind == RuntimeDiagnosticKind::Panic;
 
-		oss << Printer::Detail::GetStyleCode(Printer::Style::BOLD);
-		oss << Printer::Detail::GetColorCode(Printer::Color::BRIGHT_RED);
+		oss << RuntimeTerminal::BOLD;
+		oss << RuntimeTerminal::Code(RuntimeTerminal::Color::BRIGHT_RED);
 		oss << (is_panic ? "panic" : "error");
 		if (error.m_code != RuntimeErrorCode::None)
 		{
@@ -193,7 +193,7 @@ namespace
 		}
 		oss << "\033[0m";
 		oss << ": ";
-		oss << Printer::Detail::GetColorCode(Printer::Color::BRIGHT_WHITE);
+		oss << RuntimeTerminal::Code(RuntimeTerminal::Color::BRIGHT_WHITE);
 		oss << error.m_message;
 		oss << "\033[0m\n";
 
@@ -206,7 +206,7 @@ namespace
 			if (has_file || has_line)
 			{
 				oss << " ";
-				oss << Printer::Detail::GetColorCode(Printer::Color::BRIGHT_CYAN);
+				oss << RuntimeTerminal::Code(RuntimeTerminal::Color::BRIGHT_CYAN);
 				oss << "-->";
 				oss << "\033[0m";
 				oss << " ";
@@ -235,7 +235,7 @@ namespace
 				const std::string line_number = std::to_string(location.m_line);
 				const int gutter_width = static_cast<int>(line_number.size()) + 1;
 
-				oss << Printer::Detail::GetColorCode(Printer::Color::BLUE);
+				oss << RuntimeTerminal::Code(RuntimeTerminal::Color::BLUE);
 				for (int index = 0; index < gutter_width; index += 1)
 				{
 					oss << " ";
@@ -247,13 +247,13 @@ namespace
 				oss << source_text;
 				oss << "\n";
 
-				oss << Printer::Detail::GetColorCode(Printer::Color::BLUE);
+				oss << RuntimeTerminal::Code(RuntimeTerminal::Color::BLUE);
 				for (int index = 0; index < gutter_width; index += 1)
 				{
 					oss << " ";
 				}
 				oss << "|";
-				oss << Printer::Detail::GetColorCode(Printer::Color::BRIGHT_RED);
+				oss << RuntimeTerminal::Code(RuntimeTerminal::Color::BRIGHT_RED);
 				if (location.m_column.has_value())
 				{
 					oss << " ";
@@ -273,7 +273,7 @@ namespace
 				}
 				oss << "\033[0m\n";
 
-				oss << Printer::Detail::GetColorCode(Printer::Color::BLUE);
+				oss << RuntimeTerminal::Code(RuntimeTerminal::Color::BLUE);
 				for (int index = 0; index < gutter_width; index += 1)
 				{
 					oss << " ";
@@ -288,7 +288,7 @@ namespace
 			for (const RuntimeStackFrame& frame : error.m_stack)
 			{
 				oss << "  at ";
-				oss << Printer::Detail::GetColorCode(Printer::Color::BRIGHT_YELLOW);
+				oss << RuntimeTerminal::Code(RuntimeTerminal::Color::BRIGHT_YELLOW);
 				oss << frame.m_procedure_name;
 				oss << "\033[0m";
 

@@ -102,31 +102,24 @@ if(MIDORI_BUILD_TESTS AND NOT EMSCRIPTEN)
     FetchContent_MakeAvailable(catch2)
 endif()
 
-# ============================================================================
-# Platform Detection
-# ============================================================================
-# Test system endianness
-include(TestBigEndian)
-test_big_endian(IS_BIG_ENDIAN)
-
-set(MIDORI_ENDIAN_DEFINES
-    $<$<BOOL:${IS_BIG_ENDIAN}>:MIDORI_BIG_ENDIAN>
-    $<IF:$<BOOL:${IS_BIG_ENDIAN}>,,MIDORI_LITTLE_ENDIAN>
-)
-
 # Settings every Marmot library and executable shares. Include directories are
 # not set here: each component library exports only its own src/ root, so a
 # target can include a header only from the components it links (see the
 # dependency graph below and scripts/testing/layering.py).
 function(midori_configure_target target_name)
-    # PUBLIC because headers read them: BuildConfig.h defines an inline constexpr
-    # VersionString from MIDORI_VERSION_STRING, and falls back to its own endian
-    # detection when neither endian macro is set. Every translation unit that
-    # includes those headers has to see the same values as the library it links,
-    # or the program has two different definitions of the same inline entity.
+    # PUBLIC, so every target that links a Marmot library compiles its headers
+    # with the same values as the library. Headers change on them:
+    # sizeof(MidoriValue) is 8 without MIDORI_DEBUG_FULL and 16 with it, and a
+    # unit test target that once compiled at a different level from the library
+    # read past the end of every MidoriValue it passed across. Pinned by
+    # runtime/tests/runtime/AbiConsistencyTests.cpp.
     target_compile_definitions(${target_name} PUBLIC
-        ${MIDORI_ENDIAN_DEFINES}
         MIDORI_VERSION_STRING="${PROJECT_VERSION}"
+        MIDORI_DEBUG_FULL=$<CONFIG:Debug>
+        MIDORI_DEBUG_INFO=$<CONFIG:Debug,Development>
+        MIDORI_ENABLE_DISASSEMBLY=$<CONFIG:Debug,Development>
+        MIDORI_ENABLE_EXECUTION_TRACE=$<CONFIG:Debug>
+        MIDORI_ENABLE_OPTIMIZER_STATS=$<CONFIG:Debug,Development>
     )
     target_compile_definitions(${target_name} PRIVATE
         $<$<BOOL:${MIDORI_PROFILE_OPCODES}>:MIDORI_PROFILE_OPCODES=1>
@@ -138,10 +131,9 @@ endfunction()
 # ============================================================================
 # One library per component, linked in one direction only:
 #
-#   MarmotCommon    common/src     build configuration, printing, JSON
 #   MarmotBytecode  bytecode/src   the bytecode format both sides agree on:
 #                                  opcodes, the executable, .mmc files, the
-#                                  builtin table                  -> Common
+#                                  builtin table
 #   MarmotRuntime   runtime/src    values, the VM, builtin library -> Bytecode
 #   MarmotCompiler  compiler/src   source to bytecode             -> Bytecode
 #   MarmotDriver    compiler/src/Utility/{CLI,Driver}
@@ -151,12 +143,6 @@ endfunction()
 # (vm/src, -> Runtime) runs what it builds. The entry points
 # (compiler/src/Marmot.cpp, vm/src, web/src) are added per build below.
 set(MIDORI_DRIVER_DIRS CLI Driver)
-
-file(GLOB_RECURSE MARMOT_COMMON_SOURCES CONFIGURE_DEPENDS
-    "common/src/*.h"
-    "common/src/*.def"
-    "common/src/*.cpp"
-)
 
 file(GLOB_RECURSE MARMOT_BYTECODE_SOURCES CONFIGURE_DEPENDS
     "bytecode/src/*.h"
@@ -186,12 +172,8 @@ foreach(driver_dir IN LISTS MIDORI_DRIVER_DIRS)
     list(FILTER MARMOT_COMPILER_SOURCES EXCLUDE REGEX "/compiler/src/Utility/${driver_dir}/")
 endforeach()
 
-add_library(MarmotCommon STATIC ${MARMOT_COMMON_SOURCES})
-target_include_directories(MarmotCommon PUBLIC ${CMAKE_SOURCE_DIR}/common/src)
-
 add_library(MarmotBytecode STATIC ${MARMOT_BYTECODE_SOURCES})
 target_include_directories(MarmotBytecode PUBLIC ${CMAKE_SOURCE_DIR}/bytecode/src)
-target_link_libraries(MarmotBytecode PUBLIC MarmotCommon)
 
 add_library(MarmotRuntime STATIC ${MARMOT_RUNTIME_SOURCES})
 target_include_directories(MarmotRuntime PUBLIC ${CMAKE_SOURCE_DIR}/runtime/src)
@@ -205,7 +187,6 @@ add_library(MarmotDriver STATIC ${MARMOT_DRIVER_SOURCES})
 target_link_libraries(MarmotDriver PUBLIC MarmotCompiler)
 
 set(MIDORI_LIBRARY_TARGETS
-    MarmotCommon
     MarmotBytecode
     MarmotRuntime
     MarmotCompiler
@@ -226,7 +207,7 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
 endif()
 
 if(UNIX)
-    target_link_libraries(MarmotCommon PUBLIC ${CMAKE_DL_LIBS})
+    target_link_libraries(MarmotRuntime PUBLIC ${CMAKE_DL_LIBS})
     target_link_libraries(MarmotCompiler PUBLIC ${CMAKE_DL_LIBS})
 endif()
 
@@ -356,16 +337,8 @@ else()
         message(WARNING "Experimental config requested but compiler does not support ${MIDORI_AVX2_FLAG}. Building without AVX2.")
     endif()
 
-    # PUBLIC, so every target that links a Marmot library inherits them. They select
-    # MIDORI_DEBUG_LEVEL in BuildConfig.h, which changes type layouts in headers
-    # (sizeof(MidoriValue) is 8 at levels 1-2 and 16 at level 3). Before these were
-    # PUBLIC, the unit test targets compiled those headers at a different level
-    # from the library, which in x64-debug was a live out-of-bounds read. Pinned by
-    # common/tests/common/AbiConsistencyTests.cpp.
     foreach(target_name IN LISTS MIDORI_NATIVE_COMPILE_TARGETS)
         target_compile_definitions(${target_name} PUBLIC
-            $<$<CONFIG:Debug>:MIDORI_BUILD_DEBUG>
-            $<$<CONFIG:Development>:MIDORI_BUILD_DEVELOPMENT>
             $<$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>:NDEBUG>
         )
     endforeach()

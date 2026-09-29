@@ -9,7 +9,6 @@
 #include <string_view>
 
 #include "Bytecode/Format/Format.h"
-#include "Common/BuildConfig/BuildConfig.h"
 
 namespace
 {
@@ -391,7 +390,7 @@ namespace MidoriBinaryArtifact
 		uint16_t ver_minor = 0u;
 		uint16_t ver_patch = 0u;
 		{
-			const std::string_view version = MidoriBuild::VersionString;
+			const std::string_view version = MIDORI_VERSION_STRING;
 			size_t pos = 0u;
 			size_t dot1 = version.find('.', pos);
 			size_t dot2 = dot1 != std::string_view::npos ? version.find('.', dot1 + 1u) : std::string_view::npos;

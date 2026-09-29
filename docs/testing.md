@@ -2,7 +2,7 @@
 
 Marmot has two complementary test layers:
 
-- `common/tests/`, `runtime/tests/` and `compiler/tests/` contain in-process implementation tests built with Catch2 and linked against the Marmot libraries.
+- `bytecode/tests/`, `runtime/tests/` and `compiler/tests/` contain in-process implementation tests built with Catch2 and linked against the Marmot libraries.
 - `test/` contains file-based language regression tests run through `marmot test` and the legacy Python runners.
 
 Use the smallest layer that proves the behavior you are changing. If a regression is important at both the subsystem and CLI level, add both.
@@ -32,7 +32,7 @@ Default rule:
 
 Implementation tests:
 
-- place files under the owning component's `tests/<area>/` folder: `common/tests/`, `runtime/tests/` or `compiler/tests/`
+- place files under the owning component's `tests/<area>/` folder: `bytecode/tests/`, `runtime/tests/` or `compiler/tests/`
 - name files `<Subsystem>Tests.cpp`
 - use behavior-focused `TEST_CASE` names
 - tag by area first, then by narrower slice when useful, for example `[module][import]` or `[runtime][vm][error]`
@@ -199,9 +199,8 @@ also executes each one; its timings are only meaningful with a Release build,
 and `python scripts/dev.py bench` measures them properly.
 
 The layering check keeps the components' dependency direction.
-The C++ code builds as five libraries: `MarmotCommon` (`common/src`),
-`MarmotBytecode` (`bytecode/src`, links Common), `MarmotRuntime`
-(`runtime/src`, links Bytecode), `MarmotCompiler` (`compiler/src`, links
+The C++ code builds as four libraries: `MarmotBytecode` (`bytecode/src`),
+`MarmotRuntime` (`runtime/src`, links Bytecode), `MarmotCompiler` (`compiler/src`, links
 Bytecode, never Runtime) and `MarmotDriver` (the CLI and driver under
 `compiler/src/Utility`, links Compiler). Each library exports only its own include root, so most wrong
 includes already fail to compile; the script also catches the ones a shared
