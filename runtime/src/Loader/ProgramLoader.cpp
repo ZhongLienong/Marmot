@@ -1,6 +1,6 @@
 #include "Loader/ProgramLoader.h"
 
-#include "Bytecode/Artifact/BinaryArtifact.h"
+#include "VmBytecode/Artifact/BinaryArtifact.h"
 #include "Interpreter/VirtualMachine/VirtualMachine.h"
 #include "Interpreter/Worker/Worker.h"
 #include "Library/SharedLibraryCache/SharedLibraryCache.h"
@@ -57,12 +57,12 @@ namespace MidoriProgramLoader
 		return ReadPathList("MARMOT_LIBRARY_PATH");
 	}
 
-	std::expected<MidoriExecutable, std::string> ReadProgram(const std::filesystem::path& path)
+	std::expected<VmExecutable, std::string> ReadProgram(const std::filesystem::path& path)
 	{
-		return MidoriBinaryArtifact::ReadExecutableFromFile(path);
+		return VmBinaryArtifact::ReadExecutableFromFile(path);
 	}
 
-	std::expected<void, std::string> LoadNativeLibraries(const MidoriExecutable& executable, const NativeLibraryLocations& locations)
+	std::expected<void, std::string> LoadNativeLibraries(const VmExecutable& executable, const NativeLibraryLocations& locations)
 	{
 #ifdef _WIN32
 		const std::string prefix;
@@ -79,7 +79,7 @@ namespace MidoriProgramLoader
 #endif
 
 		SharedLibraryCache& cache = SharedLibraryCache::GetInstance();
-		for (const NativeLibraryImport& library : executable.GetNativeLibraries())
+		for (const VmNativeLibraryImport& library : executable.GetNativeLibraries())
 		{
 			if (cache.IsLibraryLoaded(library.m_name))
 			{
@@ -127,7 +127,7 @@ namespace MidoriProgramLoader
 			std::unordered_map<std::string, std::string> functions;
 			for (const std::string& symbol : library.m_symbols)
 			{
-				functions.emplace(library.m_name + NATIVE_SYMBOL_SEPARATOR + symbol, symbol);
+				functions.emplace(library.m_name + VM_NATIVE_SYMBOL_SEPARATOR + symbol, symbol);
 			}
 
 			std::optional<std::string_view> expected_checksum = std::nullopt;
@@ -147,7 +147,7 @@ namespace MidoriProgramLoader
 		return {};
 	}
 
-	std::expected<int, RuntimeError> Run(MidoriExecutable&& executable)
+	std::expected<int, RuntimeError> Run(VmExecutable&& executable)
 	{
 		VirtualMachine vm(std::move(executable));
 		std::expected<int, RuntimeError> run_result = vm.Execute();

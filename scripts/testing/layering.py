@@ -1,15 +1,14 @@
-"""Check that the C++ components include only what they are allowed to.
+"""Check that the C++ compiler and VM use only their own code.
 
-    bytecode  -> bytecode
-    runtime   -> bytecode, runtime
-    compiler  -> bytecode, compiler
-    driver    -> bytecode, compiler, driver      (marmotc: compiles, never runs)
-    web       -> bytecode, runtime, compiler
-    vm        -> bytecode, runtime, vm           (marmotvm: runs, never compiles)
+    runtime   -> runtime
+    compiler  -> compiler
+    driver    -> compiler, driver
+    web       -> runtime, compiler
+    vm        -> runtime, vm
 
-Every quoted #include is resolved against the three include roots
-(bytecode/src, runtime/src, compiler/src). Includes that resolve nowhere (system
-and third-party headers) are ignored. Exit status 1 lists each forbidden edge.
+Every quoted #include is resolved against the compiler and runtime include
+roots. Includes that resolve nowhere (system and third-party headers) are
+ignored. The CMake production target links are checked as well.
 
 Inside the compiler, the pipeline (compiler/src/Compiler) compiles from the
 CompilationInputs it is given and may not read environment variables. Projects
@@ -25,7 +24,6 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from lib.host import REPO_ROOT as ROOT
 
 INCLUDE_ROOTS = {
-    'bytecode': ROOT / 'bytecode' / 'src',
     'runtime': ROOT / 'runtime' / 'src',
     'compiler': ROOT / 'compiler' / 'src',
 }
@@ -38,12 +36,11 @@ DRIVER_DIRS = [
 DRIVER_FILES = [ROOT / 'compiler' / 'src' / 'Marmot.cpp']
 
 ALLOWED = {
-    'bytecode': {'bytecode'},
-    'runtime': {'bytecode', 'runtime'},
-    'compiler': {'bytecode', 'compiler'},
-    'driver': {'bytecode', 'compiler', 'driver'},
-    'web': {'bytecode', 'runtime', 'compiler'},
-    'vm': {'bytecode', 'runtime', 'vm'},
+    'runtime': {'runtime'},
+    'compiler': {'compiler'},
+    'driver': {'compiler', 'driver'},
+    'web': {'runtime', 'compiler'},
+    'vm': {'runtime', 'vm'},
 }
 
 INCLUDE = re.compile(r'^\s*#\s*include\s+"([^"]+)"', re.MULTILINE)
@@ -92,7 +89,7 @@ def resolve(including_file, target):
 
 def main(argv: list[str]) -> int:
     sources = []
-    for folder in (ROOT / 'bytecode' / 'src', ROOT / 'runtime' / 'src', ROOT / 'compiler' / 'src', ROOT / 'web' / 'src', ROOT / 'vm' / 'src'):
+    for folder in (ROOT / 'runtime' / 'src', ROOT / 'compiler' / 'src', ROOT / 'web' / 'src', ROOT / 'vm' / 'src'):
         for pattern in ('*.h', '*.cpp', '*.def'):
             sources.extend(folder.rglob(pattern))
 
@@ -115,6 +112,30 @@ def main(argv: list[str]) -> int:
                 f'{source.relative_to(ROOT).as_posix()}:{line}: {source_component} includes '
                 f'{target_component} header "{match.group(1)}"'
             )
+
+    cmake = (ROOT / 'CMakeLists.txt').read_text(encoding='utf-8')
+    if re.search(r'add_library\(\s*MarmotBytecode\b', cmake):
+        violations.append('CMakeLists.txt: MarmotBytecode remains a shared target')
+    links = {}
+    for match in re.finditer(r'target_link_libraries\(\s*(\w+)\s+([^)]*)\)', cmake, re.DOTALL):
+        links.setdefault(match.group(1), set()).update(
+            token for token in match.group(2).split()
+            if token not in {'PUBLIC', 'PRIVATE', 'INTERFACE'}
+        )
+
+    def reachable(target: str, visited: set[str] | None = None) -> set[str]:
+        visited = set() if visited is None else visited
+        for dependency in links.get(target, set()) - visited:
+            visited.add(dependency)
+            visited.update(reachable(dependency, visited))
+        return visited
+
+    for target, forbidden in (
+        ('marmotc', {'MarmotRuntime', 'MarmotBytecode'}),
+        ('marmotvm', {'MarmotCompiler', 'MarmotDriver', 'MarmotBytecode'}),
+    ):
+        for dependency in reachable(target) & forbidden:
+            violations.append(f'CMakeLists.txt: {target} links {dependency}')
 
     if violations:
         print('Layering violations:')

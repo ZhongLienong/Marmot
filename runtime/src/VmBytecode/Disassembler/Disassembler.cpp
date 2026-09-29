@@ -6,9 +6,9 @@
 #include <string_view>
 #include <utility>
 
-#include "Bytecode/Executable/Executable.h"
-#include "Bytecode/Scalar/Scalar.h"
-#include "Bytecode/Builtins/BuiltinTable.h"
+#include "VmBytecode/Executable/Executable.h"
+#include "VmBytecode/Scalar/Scalar.h"
+#include "VmBytecode/Builtins/BuiltinTable.h"
 #include "Disassembler.h"
 
 #if MIDORI_ENABLE_DISASSEMBLY
@@ -76,7 +76,7 @@ namespace
 		Terminal::Print(formated_str.str());
 	}
 
-	void NumericConstantInstruction(bool is_integer, std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
+	void NumericConstantInstruction(bool is_integer, std::string_view name, const VmExecutable& executable, int proc_index, int& offset)
 	{
 		std::byte operand_bytes[8];
 		for (int i = 0; i < 8; i += 1)
@@ -104,7 +104,7 @@ namespace
 		Terminal::Print(formated_str.str());
 	}
 
-	void ByteConstantInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
+	void ByteConstantInstruction(std::string_view name, const VmExecutable& executable, int proc_index, int& offset)
 	{
 		MidoriByte operand = static_cast<MidoriByte>(executable.ReadByteCode(offset + 1, proc_index));
 		offset += 2;
@@ -117,7 +117,7 @@ namespace
 		Terminal::Print(formated_str.str());
 	}
 
-	void WordConstantInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
+	void WordConstantInstruction(std::string_view name, const VmExecutable& executable, int proc_index, int& offset)
 	{
 		std::byte operand_bytes[8];
 		for (int i = 0; i < 8; i += 1)
@@ -136,7 +136,7 @@ namespace
 		Terminal::Print(formated_str.str());
 	}
 
-	void LoadStringWideInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
+	void LoadStringWideInstruction(std::string_view name, const VmExecutable& executable, int proc_index, int& offset)
 	{
 		int low_byte = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 		int high_byte = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
@@ -151,7 +151,7 @@ namespace
 		Terminal::Print(formated_str.str());
 	}
 
-	void JumpInstruction(std::string_view name, int sign, const MidoriExecutable& executable, int proc_index, int& offset)
+	void JumpInstruction(std::string_view name, int sign, const VmExecutable& executable, int proc_index, int& offset)
 	{
 		int operand = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index)) |
 			(static_cast<int>(executable.ReadByteCode(offset + 2, proc_index)) << 8);
@@ -169,7 +169,7 @@ namespace
 		Terminal::Print(formated_str.str());
 	}
 
-	void LocalOrCellVariableInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
+	void LocalOrCellVariableInstruction(std::string_view name, const VmExecutable& executable, int proc_index, int& offset)
 	{
 		int operand = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 		offset += 2;
@@ -182,7 +182,7 @@ namespace
 		Terminal::Print(formated_str.str());
 	}
 
-	void GlobalVariableWideInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
+	void GlobalVariableWideInstruction(std::string_view name, const VmExecutable& executable, int proc_index, int& offset)
 	{
 		int high_byte = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 		int low_byte = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
@@ -197,7 +197,7 @@ namespace
 		Terminal::Print(formated_str.str());
 	}
 
-	void LocalOrCellVariableWideInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
+	void LocalOrCellVariableWideInstruction(std::string_view name, const VmExecutable& executable, int proc_index, int& offset)
 	{
 		int high_byte = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 		int low_byte = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
@@ -212,7 +212,7 @@ namespace
 		Terminal::Print(formated_str.str());
 	}
 
-	void AggregateCreateInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
+	void AggregateCreateInstruction(std::string_view name, const VmExecutable& executable, int proc_index, int& offset)
 	{
 		int operand = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index)) |
 			(static_cast<int>(executable.ReadByteCode(offset + 2, proc_index)) << 8) |
@@ -227,7 +227,7 @@ namespace
 		Terminal::Print(formated_str.str());
 	}
 
-	void CallInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
+	void CallInstruction(std::string_view name, const VmExecutable& executable, int proc_index, int& offset)
 	{
 		int operand = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 		offset += 2;
@@ -252,7 +252,7 @@ namespace
 		Terminal::Print(formated_str.str());
 	}
 
-	void CallGlobalWideInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
+	void CallGlobalWideInstruction(std::string_view name, const VmExecutable& executable, int proc_index, int& offset)
 	{
 		int high_byte = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 		int low_byte = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
@@ -269,7 +269,7 @@ namespace
 		Terminal::Print(formated_str.str());
 	}
 
-	void CallForeignInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
+	void CallForeignInstruction(std::string_view name, const VmExecutable& executable, int proc_index, int& offset)
 	{
 		int arity = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 		int return_type = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
@@ -287,7 +287,7 @@ namespace
 		Terminal::Print(formated_str.str());
 	}
 
-	void CallForeignIndexedInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
+	void CallForeignIndexedInstruction(std::string_view name, const VmExecutable& executable, int proc_index, int& offset)
 	{
 		int ffi_index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 		int arity = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
@@ -300,8 +300,8 @@ namespace
 		formated_str << " " << Terminal::Colored<Terminal::Color::CYAN>(std::to_string(arity));
 		formated_str << " " << Terminal::Colored<Terminal::Color::CYAN>(std::to_string(return_type));
 
-		std::string ffi_name = (static_cast<size_t>(ffi_index) < MarmotBuiltins::COUNT)
-			? std::string(MarmotBuiltins::At(static_cast<size_t>(ffi_index)).m_name)
+		std::string ffi_name = (static_cast<size_t>(ffi_index) < VmBuiltins::COUNT)
+			? std::string(VmBuiltins::At(static_cast<size_t>(ffi_index)).m_name)
 			: "unknown";
 		std::string return_type_str = (return_type == 0) ? "primitive" : (return_type == 1) ? "text" : (return_type == 2) ? "array" : "unknown";
 
@@ -310,7 +310,7 @@ namespace
 		Terminal::Print(formated_str.str());
 	}
 
-	void MemberInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
+	void MemberInstruction(std::string_view name, const VmExecutable& executable, int proc_index, int& offset)
 	{
 		int operand = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 		offset += 2;
@@ -323,7 +323,7 @@ namespace
 		Terminal::Print(formated_str.str());
 	}
 
-	void DataInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
+	void DataInstruction(std::string_view name, const VmExecutable& executable, int proc_index, int& offset)
 	{
 		int operand = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 		offset += 2;
@@ -336,7 +336,7 @@ namespace
 		Terminal::Print(formated_str.str());
 	}
 
-	void JoinWorkerInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
+	void JoinWorkerInstruction(std::string_view name, const VmExecutable& executable, int proc_index, int& offset)
 	{
 		const int ok_tag = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 		const int err_tag = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
@@ -352,7 +352,7 @@ namespace
 		Terminal::Print(formated_str.str());
 	}
 
-	void ConstructUnionInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
+	void ConstructUnionInstruction(std::string_view name, const VmExecutable& executable, int proc_index, int& offset)
 	{
 		int size = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 		int tag = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
@@ -367,7 +367,7 @@ namespace
 		Terminal::Print(formated_str.str());
 	}
 
-	void SpawnWorkerInstruction(std::string_view name, const MidoriExecutable& executable, int proc_index, int& offset)
+	void SpawnWorkerInstruction(std::string_view name, const VmExecutable& executable, int proc_index, int& offset)
 	{
 		const int arg_count = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 
@@ -385,9 +385,9 @@ namespace
 namespace Disassembler
 {
 	// Forward declaration
-	void DisassembleInstruction(const MidoriExecutable& executable, int proc_index, int& offset);
+	void DisassembleInstruction(const VmExecutable& executable, int proc_index, int& offset);
 
-	void DisassembleBytecodeStream(const MidoriExecutable& executable, int proc_index, std::string_view proc_name)
+	void DisassembleBytecodeStream(const VmExecutable& executable, int proc_index, std::string_view proc_name)
 	{
 		std::ostringstream header;
 		header << std::string(95, '=') << "\n";
@@ -406,7 +406,7 @@ namespace Disassembler
 		Terminal::Print(footer.str());
 	}
 
-	void DisassembleInstruction(const MidoriExecutable& executable, int proc_index, int& offset)
+	void DisassembleInstruction(const VmExecutable& executable, int proc_index, int& offset)
 	{
 		std::ostringstream formated_str;
 		formated_str << '[' << std::right << std::setfill('0') << std::setw(::address_width) << std::hex << offset << "] " << std::setfill(' ');
@@ -423,403 +423,403 @@ namespace Disassembler
 		formated_str << std::right << ' ';
 		Terminal::Print(formated_str.str());
 
-		OpCode instruction = executable.ReadByteCode(offset, proc_index);
+		VmOpCode instruction = executable.ReadByteCode(offset, proc_index);
 		switch (instruction) 
 		{
-		case OpCode::LOAD_STRING_WIDE:
+		case VmOpCode::LOAD_STRING_WIDE:
 			LoadStringWideInstruction("LOAD_STRING_WIDE", executable, proc_index, offset);
 			break;
-		case OpCode::INTEGER_CONSTANT:
+		case VmOpCode::INTEGER_CONSTANT:
 			NumericConstantInstruction(true, "INTEGER_CONSTANT", executable, proc_index, offset);
 			break;
-		case OpCode::FLOAT_CONSTANT:
+		case VmOpCode::FLOAT_CONSTANT:
 			NumericConstantInstruction(false, "FLOAT_CONSTANT", executable, proc_index, offset);
 			break;
-		case OpCode::BYTE_CONSTANT:
+		case VmOpCode::BYTE_CONSTANT:
 			ByteConstantInstruction("BYTE_CONSTANT", executable, proc_index, offset);
 			break;
-		case OpCode::WORD_CONSTANT:
+		case VmOpCode::WORD_CONSTANT:
 			WordConstantInstruction("WORD_CONSTANT", executable, proc_index, offset);
 			break;
-		case OpCode::OP_UNIT:
+		case VmOpCode::OP_UNIT:
 			SimpleInstruction("OP_UNIT", offset);
 			break;
-		case OpCode::OP_TRUE:
+		case VmOpCode::OP_TRUE:
 			SimpleInstruction("OP_TRUE", offset);
 			break;
-		case OpCode::OP_FALSE:
+		case VmOpCode::OP_FALSE:
 			SimpleInstruction("OP_FALSE", offset);
 			break;
-		case OpCode::INT_MINUS_1:
+		case VmOpCode::INT_MINUS_1:
 			SimpleInstruction("INT_MINUS_1", offset);
 			break;
-		case OpCode::INT_0:
+		case VmOpCode::INT_0:
 			SimpleInstruction("INT_0", offset);
 			break;
-		case OpCode::INT_1:
+		case VmOpCode::INT_1:
 			SimpleInstruction("INT_1", offset);
 			break;
-		case OpCode::INT_2:
+		case VmOpCode::INT_2:
 			SimpleInstruction("INT_2", offset);
 			break;
-		case OpCode::INT_3:
+		case VmOpCode::INT_3:
 			SimpleInstruction("INT_3", offset);
 			break;
-		case OpCode::INT_4:
+		case VmOpCode::INT_4:
 			SimpleInstruction("INT_4", offset);
 			break;
-		case OpCode::INT_5:
+		case VmOpCode::INT_5:
 			SimpleInstruction("INT_5", offset);
 			break;
-		case OpCode::INT_10:
+		case VmOpCode::INT_10:
 			SimpleInstruction("INT_10", offset);
 			break;
-		case OpCode::CREATE_ARRAY:
+		case VmOpCode::CREATE_ARRAY:
 			AggregateCreateInstruction("CREATE_ARRAY", executable, proc_index, offset);
 			break;
-		case OpCode::CREATE_TUPLE:
+		case VmOpCode::CREATE_TUPLE:
 			AggregateCreateInstruction("CREATE_TUPLE", executable, proc_index, offset);
 			break;
-		case OpCode::GET_ARRAY:
+		case VmOpCode::GET_ARRAY:
 			SimpleInstruction("GET_ARRAY", offset);
 			break;
-		case OpCode::GET_TUPLE:
+		case VmOpCode::GET_TUPLE:
 			SimpleInstruction("GET_TUPLE", offset);
 			break;
-		case OpCode::ADD_BACK_ARRAY:
+		case VmOpCode::ADD_BACK_ARRAY:
 			SimpleInstruction("ADD_BACK_ARRAY", offset);
 			break;
-		case OpCode::GET_ARRAY_LENGTH:
+		case VmOpCode::GET_ARRAY_LENGTH:
 			SimpleInstruction("GET_ARRAY_LENGTH", offset);
 			break;
-		case OpCode::CREATE_INT_RANGE:
+		case VmOpCode::CREATE_INT_RANGE:
 			SimpleInstruction("CREATE_INT_RANGE", offset);
 			break;
-		case OpCode::CREATE_FLOAT_RANGE:
+		case VmOpCode::CREATE_FLOAT_RANGE:
 			SimpleInstruction("CREATE_FLOAT_RANGE", offset);
 			break;
-		case OpCode::GET_RANGE_START:
+		case VmOpCode::GET_RANGE_START:
 			SimpleInstruction("GET_RANGE_START", offset);
 			break;
-		case OpCode::GET_RANGE_END:
+		case VmOpCode::GET_RANGE_END:
 			SimpleInstruction("GET_RANGE_END", offset);
 			break;
-		case OpCode::GET_RANGE_STEP:
+		case VmOpCode::GET_RANGE_STEP:
 			SimpleInstruction("GET_RANGE_STEP", offset);
 			break;
-		case OpCode::INT_TO_FLOAT:
+		case VmOpCode::INT_TO_FLOAT:
 			SimpleInstruction("INT_TO_FLOAT", offset);
 			break;
-		case OpCode::TEXT_TO_FLOAT:
+		case VmOpCode::TEXT_TO_FLOAT:
 			SimpleInstruction("TEXT_TO_FLOAT", offset);
 			break;
-		case OpCode::FLOAT_TO_INT:
+		case VmOpCode::FLOAT_TO_INT:
 			SimpleInstruction("FLOAT_TO_INT", offset);
 			break;
-		case OpCode::TEXT_TO_INT:
+		case VmOpCode::TEXT_TO_INT:
 			SimpleInstruction("TEXT_TO_INT", offset);
 			break;
-		case OpCode::FLOAT_TO_TEXT:
+		case VmOpCode::FLOAT_TO_TEXT:
 			SimpleInstruction("FLOAT_TO_TEXT", offset);
 			break;
-		case OpCode::INT_TO_TEXT:
+		case VmOpCode::INT_TO_TEXT:
 			SimpleInstruction("INT_TO_TEXT", offset);
 			break;
-		case OpCode::WORD_TO_TEXT:
+		case VmOpCode::WORD_TO_TEXT:
 			SimpleInstruction("WORD_TO_TEXT", offset);
 			break;
-		case OpCode::BYTE_TO_INT:
+		case VmOpCode::BYTE_TO_INT:
 			SimpleInstruction("BYTE_TO_INT", offset);
 			break;
-		case OpCode::INT_TO_BYTE:
+		case VmOpCode::INT_TO_BYTE:
 			SimpleInstruction("INT_TO_BYTE", offset);
 			break;
-		case OpCode::BYTE_TO_WORD:
+		case VmOpCode::BYTE_TO_WORD:
 			SimpleInstruction("BYTE_TO_WORD", offset);
 			break;
-		case OpCode::WORD_TO_BYTE:
+		case VmOpCode::WORD_TO_BYTE:
 			SimpleInstruction("WORD_TO_BYTE", offset);
 			break;
-		case OpCode::WORD_TO_INT:
+		case VmOpCode::WORD_TO_INT:
 			SimpleInstruction("WORD_TO_INT", offset);
 			break;
-		case OpCode::INT_TO_WORD:
+		case VmOpCode::INT_TO_WORD:
 			SimpleInstruction("INT_TO_WORD", offset);
 			break;
-		case OpCode::BYTE_TO_FLOAT:
+		case VmOpCode::BYTE_TO_FLOAT:
 			SimpleInstruction("BYTE_TO_FLOAT", offset);
 			break;
-		case OpCode::FLOAT_TO_BYTE:
+		case VmOpCode::FLOAT_TO_BYTE:
 			SimpleInstruction("FLOAT_TO_BYTE", offset);
 			break;
-		case OpCode::WORD_TO_FLOAT:
+		case VmOpCode::WORD_TO_FLOAT:
 			SimpleInstruction("WORD_TO_FLOAT", offset);
 			break;
-		case OpCode::FLOAT_TO_WORD:
+		case VmOpCode::FLOAT_TO_WORD:
 			SimpleInstruction("FLOAT_TO_WORD", offset);
 			break;
-		case OpCode::LEFT_SHIFT:
+		case VmOpCode::LEFT_SHIFT:
 			SimpleInstruction("LEFT_SHIFT", offset);
 			break;
-		case OpCode::RIGHT_SHIFT:
+		case VmOpCode::RIGHT_SHIFT:
 			SimpleInstruction("RIGHT_SHIFT", offset);
 			break;
-		case OpCode::LEFT_SHIFT_BYTE:
+		case VmOpCode::LEFT_SHIFT_BYTE:
 			SimpleInstruction("LEFT_SHIFT_BYTE", offset);
 			break;
-		case OpCode::RIGHT_SHIFT_BYTE:
+		case VmOpCode::RIGHT_SHIFT_BYTE:
 			SimpleInstruction("RIGHT_SHIFT_BYTE", offset);
 			break;
-		case OpCode::LEFT_SHIFT_WORD:
+		case VmOpCode::LEFT_SHIFT_WORD:
 			SimpleInstruction("LEFT_SHIFT_WORD", offset);
 			break;
-		case OpCode::RIGHT_SHIFT_WORD:
+		case VmOpCode::RIGHT_SHIFT_WORD:
 			SimpleInstruction("RIGHT_SHIFT_WORD", offset);
 			break;
-		case OpCode::BITWISE_AND:
+		case VmOpCode::BITWISE_AND:
 			SimpleInstruction("BITWISE_AND", offset);
 			break;
-		case OpCode::BITWISE_OR:
+		case VmOpCode::BITWISE_OR:
 			SimpleInstruction("BITWISE_OR", offset);
 			break;
-		case OpCode::BITWISE_XOR:
+		case VmOpCode::BITWISE_XOR:
 			SimpleInstruction("BITWISE_XOR", offset);
 			break;
-		case OpCode::BITWISE_NOT:
+		case VmOpCode::BITWISE_NOT:
 			SimpleInstruction("BITWISE_NOT", offset);
 			break;
-		case OpCode::ADD_FLOAT:
+		case VmOpCode::ADD_FLOAT:
 			SimpleInstruction("ADD_FLOAT", offset);
 			break;
-		case OpCode::SUBTRACT_FLOAT:
+		case VmOpCode::SUBTRACT_FLOAT:
 			SimpleInstruction("SUBTRACT_FLOAT", offset);
 			break;
-		case OpCode::MULTIPLY_FLOAT:
+		case VmOpCode::MULTIPLY_FLOAT:
 			SimpleInstruction("MULTIPLY_FLOAT", offset);
 			break;
-		case OpCode::DIVIDE_FLOAT:
+		case VmOpCode::DIVIDE_FLOAT:
 			SimpleInstruction("DIVIDE_FLOAT", offset);
 			break;
-		case OpCode::MODULO_FLOAT:
+		case VmOpCode::MODULO_FLOAT:
 			SimpleInstruction("MODULO_FLOAT", offset);
 			break;
-		case OpCode::ADD_INTEGER:
+		case VmOpCode::ADD_INTEGER:
 			SimpleInstruction("ADD_INTEGER", offset);
 			break;
-		case OpCode::SUBTRACT_INTEGER:
+		case VmOpCode::SUBTRACT_INTEGER:
 			SimpleInstruction("SUBTRACT_INTEGER", offset);
 			break;
-		case OpCode::MULTIPLY_INTEGER:
+		case VmOpCode::MULTIPLY_INTEGER:
 			SimpleInstruction("MULTIPLY_INTEGER", offset);
 			break;
-		case OpCode::DIVIDE_INTEGER:
+		case VmOpCode::DIVIDE_INTEGER:
 			SimpleInstruction("DIVIDE_INTEGER", offset);
 			break;
-		case OpCode::MODULO_INTEGER:
+		case VmOpCode::MODULO_INTEGER:
 			SimpleInstruction("MODULO_INTEGER", offset);
 			break;
-		case OpCode::ADD_BYTE:
+		case VmOpCode::ADD_BYTE:
 			SimpleInstruction("ADD_BYTE", offset);
 			break;
-		case OpCode::SUBTRACT_BYTE:
+		case VmOpCode::SUBTRACT_BYTE:
 			SimpleInstruction("SUBTRACT_BYTE", offset);
 			break;
-		case OpCode::MULTIPLY_BYTE:
+		case VmOpCode::MULTIPLY_BYTE:
 			SimpleInstruction("MULTIPLY_BYTE", offset);
 			break;
-		case OpCode::DIVIDE_BYTE:
+		case VmOpCode::DIVIDE_BYTE:
 			SimpleInstruction("DIVIDE_BYTE", offset);
 			break;
-		case OpCode::MODULO_BYTE:
+		case VmOpCode::MODULO_BYTE:
 			SimpleInstruction("MODULO_BYTE", offset);
 			break;
-		case OpCode::ADD_WORD:
+		case VmOpCode::ADD_WORD:
 			SimpleInstruction("ADD_WORD", offset);
 			break;
-		case OpCode::SUBTRACT_WORD:
+		case VmOpCode::SUBTRACT_WORD:
 			SimpleInstruction("SUBTRACT_WORD", offset);
 			break;
-		case OpCode::MULTIPLY_WORD:
+		case VmOpCode::MULTIPLY_WORD:
 			SimpleInstruction("MULTIPLY_WORD", offset);
 			break;
-		case OpCode::DIVIDE_WORD:
+		case VmOpCode::DIVIDE_WORD:
 			SimpleInstruction("DIVIDE_WORD", offset);
 			break;
-		case OpCode::MODULO_WORD:
+		case VmOpCode::MODULO_WORD:
 			SimpleInstruction("MODULO_WORD", offset);
 			break;
-		case OpCode::CONCAT_ARRAY:
+		case VmOpCode::CONCAT_ARRAY:
 			SimpleInstruction("CONCAT_ARRAY", offset);
 			break;
-		case OpCode::CONCAT_TEXT:
+		case VmOpCode::CONCAT_TEXT:
 			SimpleInstruction("CONCAT_TEXT", offset);
 			break;
-		case OpCode::EQUAL_FLOAT:
+		case VmOpCode::EQUAL_FLOAT:
 			SimpleInstruction("EQUAL_FLOAT", offset);
 			break;
-		case OpCode::NOT_EQUAL_FLOAT:
+		case VmOpCode::NOT_EQUAL_FLOAT:
 			SimpleInstruction("NOT_EQUAL_FLOAT", offset);
 			break;
-		case OpCode::GREATER_FLOAT:
+		case VmOpCode::GREATER_FLOAT:
 			SimpleInstruction("GREATER_FLOAT", offset);
 			break;
-		case OpCode::GREATER_EQUAL_FLOAT:
+		case VmOpCode::GREATER_EQUAL_FLOAT:
 			SimpleInstruction("GREATER_EQUAL_FLOAT", offset);
 			break;
-		case OpCode::LESS_FLOAT:
+		case VmOpCode::LESS_FLOAT:
 			SimpleInstruction("LESS_FLOAT", offset);
 			break;
-		case OpCode::LESS_EQUAL_FLOAT:
+		case VmOpCode::LESS_EQUAL_FLOAT:
 			SimpleInstruction("LESS_EQUAL_FLOAT", offset);
 			break;
-		case OpCode::EQUAL_INTEGER:
+		case VmOpCode::EQUAL_INTEGER:
 			SimpleInstruction("EQUAL_INTEGER", offset);
 			break;
-		case OpCode::NOT_EQUAL_INTEGER:
+		case VmOpCode::NOT_EQUAL_INTEGER:
 			SimpleInstruction("NOT_EQUAL_INTEGER", offset);
 			break;
-		case OpCode::GREATER_INTEGER:
+		case VmOpCode::GREATER_INTEGER:
 			SimpleInstruction("GREATER_INTEGER", offset);
 			break;
-		case OpCode::GREATER_EQUAL_INTEGER:
+		case VmOpCode::GREATER_EQUAL_INTEGER:
 			SimpleInstruction("GREATER_EQUAL_INTEGER", offset);
 			break;
-		case OpCode::LESS_INTEGER:
+		case VmOpCode::LESS_INTEGER:
 			SimpleInstruction("LESS_INTEGER", offset);
 			break;
-		case OpCode::LESS_EQUAL_INTEGER:
+		case VmOpCode::LESS_EQUAL_INTEGER:
 			SimpleInstruction("LESS_EQUAL_INTEGER", offset);
 			break;
-		case OpCode::EQUAL_BYTE:
+		case VmOpCode::EQUAL_BYTE:
 			SimpleInstruction("EQUAL_BYTE", offset);
 			break;
-		case OpCode::NOT_EQUAL_BYTE:
+		case VmOpCode::NOT_EQUAL_BYTE:
 			SimpleInstruction("NOT_EQUAL_BYTE", offset);
 			break;
-		case OpCode::GREATER_BYTE:
+		case VmOpCode::GREATER_BYTE:
 			SimpleInstruction("GREATER_BYTE", offset);
 			break;
-		case OpCode::GREATER_EQUAL_BYTE:
+		case VmOpCode::GREATER_EQUAL_BYTE:
 			SimpleInstruction("GREATER_EQUAL_BYTE", offset);
 			break;
-		case OpCode::LESS_BYTE:
+		case VmOpCode::LESS_BYTE:
 			SimpleInstruction("LESS_BYTE", offset);
 			break;
-		case OpCode::LESS_EQUAL_BYTE:
+		case VmOpCode::LESS_EQUAL_BYTE:
 			SimpleInstruction("LESS_EQUAL_BYTE", offset);
 			break;
-		case OpCode::EQUAL_WORD:
+		case VmOpCode::EQUAL_WORD:
 			SimpleInstruction("EQUAL_WORD", offset);
 			break;
-		case OpCode::NOT_EQUAL_WORD:
+		case VmOpCode::NOT_EQUAL_WORD:
 			SimpleInstruction("NOT_EQUAL_WORD", offset);
 			break;
-		case OpCode::GREATER_WORD:
+		case VmOpCode::GREATER_WORD:
 			SimpleInstruction("GREATER_WORD", offset);
 			break;
-		case OpCode::GREATER_EQUAL_WORD:
+		case VmOpCode::GREATER_EQUAL_WORD:
 			SimpleInstruction("GREATER_EQUAL_WORD", offset);
 			break;
-		case OpCode::LESS_WORD:
+		case VmOpCode::LESS_WORD:
 			SimpleInstruction("LESS_WORD", offset);
 			break;
-		case OpCode::LESS_EQUAL_WORD:
+		case VmOpCode::LESS_EQUAL_WORD:
 			SimpleInstruction("LESS_EQUAL_WORD", offset);
 			break;
-		case OpCode::EQUAL_TEXT:
+		case VmOpCode::EQUAL_TEXT:
 			SimpleInstruction("EQUAL_TEXT", offset);
 			break;
-		case OpCode::NOT:
+		case VmOpCode::NOT:
 			SimpleInstruction("NOT", offset);
 			break;
-		case OpCode::NEGATE_FLOAT:
+		case VmOpCode::NEGATE_FLOAT:
 			SimpleInstruction("NEGATE_FLOAT", offset);
 			break;
-		case OpCode::NEGATE_INTEGER:
+		case VmOpCode::NEGATE_INTEGER:
 			SimpleInstruction("NEGATE_INTEGER", offset);
 			break;
-		case OpCode::JUMP_IF_FALSE:
+		case VmOpCode::JUMP_IF_FALSE:
 			JumpInstruction("JUMP_IF_FALSE", 1, executable, proc_index, offset);
 			break;
-		case OpCode::JUMP:
+		case VmOpCode::JUMP:
 			JumpInstruction("JUMP", 1, executable, proc_index, offset);
 			break;
-		case OpCode::JUMP_BACK:
+		case VmOpCode::JUMP_BACK:
 			JumpInstruction("JUMP_BACK", -1, executable, proc_index, offset);
 			break;
-		case OpCode::IF_INTEGER_LESS:
+		case VmOpCode::IF_INTEGER_LESS:
 			JumpInstruction("IF_INTEGER_LESS", 1, executable, proc_index, offset);
 			break;
-		case OpCode::IF_INTEGER_LESS_EQUAL:
+		case VmOpCode::IF_INTEGER_LESS_EQUAL:
 			JumpInstruction("IF_INTEGER_LESS_EQUAL", 1, executable, proc_index, offset);
 				break;
-		case OpCode::IF_INTEGER_GREATER:
+		case VmOpCode::IF_INTEGER_GREATER:
 			JumpInstruction("IF_INTEGER_GREATER", 1, executable, proc_index, offset);
 			break;
-		case OpCode::IF_INTEGER_GREATER_EQUAL:
+		case VmOpCode::IF_INTEGER_GREATER_EQUAL:
 			JumpInstruction("IF_INTEGER_GREATER_EQUAL", 1, executable, proc_index, offset);
 			break;
-		case OpCode::IF_INTEGER_EQUAL:
+		case VmOpCode::IF_INTEGER_EQUAL:
 			JumpInstruction("IF_INTEGER_EQUAL", 1, executable, proc_index, offset);
 			break;
-		case OpCode::IF_INTEGER_NOT_EQUAL:
+		case VmOpCode::IF_INTEGER_NOT_EQUAL:
 			JumpInstruction("IF_INTEGER_NOT_EQUAL", 1, executable, proc_index, offset);
 			break;
-		case OpCode::IF_FLOAT_LESS:
+		case VmOpCode::IF_FLOAT_LESS:
 			JumpInstruction("IF_FLOAT_LESS", 1, executable, proc_index, offset);
 			break;
-		case OpCode::IF_FLOAT_LESS_EQUAL:
+		case VmOpCode::IF_FLOAT_LESS_EQUAL:
 			JumpInstruction("IF_FLOAT_LESS_EQUAL", 1, executable, proc_index, offset);
 			break;
-		case OpCode::IF_FLOAT_GREATER:
+		case VmOpCode::IF_FLOAT_GREATER:
 			JumpInstruction("IF_FLOAT_GREATER", 1, executable, proc_index, offset);
 			break;
-		case OpCode::IF_FLOAT_GREATER_EQUAL:
+		case VmOpCode::IF_FLOAT_GREATER_EQUAL:
 			JumpInstruction("IF_FLOAT_GREATER_EQUAL", 1, executable, proc_index, offset);
 			break;
-		case OpCode::IF_FLOAT_EQUAL:
+		case VmOpCode::IF_FLOAT_EQUAL:
 			JumpInstruction("IF_FLOAT_EQUAL", 1, executable, proc_index, offset);
 			break;
-		case OpCode::IF_FLOAT_NOT_EQUAL:
+		case VmOpCode::IF_FLOAT_NOT_EQUAL:
 			JumpInstruction("IF_FLOAT_NOT_EQUAL", 1, executable, proc_index, offset);
 			break;
-		case OpCode::GET_TAG:
+		case VmOpCode::GET_TAG:
 			SimpleInstruction("GET_TAG", offset);
 			break;
-		case OpCode::SPAWN_WORKER:
+		case VmOpCode::SPAWN_WORKER:
 			SpawnWorkerInstruction("SPAWN_WORKER", executable, proc_index, offset);
 			break;
-		case OpCode::JOIN_WORKER:
+		case VmOpCode::JOIN_WORKER:
 			JoinWorkerInstruction("JOIN_WORKER", executable, proc_index, offset);
 			break;
-		case OpCode::CHANNEL_CREATE:
+		case VmOpCode::CHANNEL_CREATE:
 			SimpleInstruction("CHANNEL_CREATE", offset);
 			break;
-		case OpCode::CHANNEL_SEND:
+		case VmOpCode::CHANNEL_SEND:
 			SimpleInstruction("CHANNEL_SEND", offset);
 			break;
-		case OpCode::CHANNEL_RECEIVE:
+		case VmOpCode::CHANNEL_RECEIVE:
 			SimpleInstruction("CHANNEL_RECEIVE", offset);
 			break;
-		case OpCode::CHANNEL_CLOSE:
+		case VmOpCode::CHANNEL_CLOSE:
 			SimpleInstruction("CHANNEL_CLOSE", offset);
 			break;
-		case OpCode::WORKER_IS_DONE:
+		case VmOpCode::WORKER_IS_DONE:
 			SimpleInstruction("WORKER_IS_DONE", offset);
 			break;
-		case OpCode::MAKE_CELL:
+		case VmOpCode::MAKE_CELL:
 			SimpleInstruction("MAKE_CELL", offset);
 			break;
-		case OpCode::READ_CELL:
+		case VmOpCode::READ_CELL:
 			SimpleInstruction("READ_CELL", offset);
 			break;
-		case OpCode::WRITE_CELL:
+		case VmOpCode::WRITE_CELL:
 			SimpleInstruction("WRITE_CELL", offset);
 			break;
-		case OpCode::WORKER_CANCEL:
+		case VmOpCode::WORKER_CANCEL:
 			SimpleInstruction("WORKER_CANCEL", offset);
 			break;
-		case OpCode::ADD_LOCAL_INT:
+		case VmOpCode::ADD_LOCAL_INT:
 		{
 			const int local_index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 			const int imm = static_cast<int>(static_cast<int8_t>(executable.ReadByteCode(offset + 2, proc_index)));
@@ -827,7 +827,7 @@ namespace Disassembler
 			offset += 3;
 			break;
 		}
-		case OpCode::PUSH_LOCAL_SUB_INT:
+		case VmOpCode::PUSH_LOCAL_SUB_INT:
 		{
 			const int local_index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 			const int imm = static_cast<int>(static_cast<int8_t>(executable.ReadByteCode(offset + 2, proc_index)));
@@ -835,7 +835,7 @@ namespace Disassembler
 			offset += 3;
 			break;
 		}
-		case OpCode::IF_LOCAL_LE_INT:
+		case VmOpCode::IF_LOCAL_LE_INT:
 		{
 			const int local_index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 			const int imm = static_cast<int>(static_cast<int8_t>(executable.ReadByteCode(offset + 2, proc_index)));
@@ -845,7 +845,7 @@ namespace Disassembler
 			offset += 5;
 			break;
 		}
-		case OpCode::IF_LOCAL_GE_LOCAL:
+		case VmOpCode::IF_LOCAL_GE_LOCAL:
 		{
 			const int left = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 			const int right = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
@@ -855,7 +855,7 @@ namespace Disassembler
 			offset += 5;
 			break;
 		}
-		case OpCode::GET_LOCAL2:
+		case VmOpCode::GET_LOCAL2:
 		{
 			const int first = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 			const int second = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
@@ -863,10 +863,10 @@ namespace Disassembler
 			offset += 3;
 			break;
 		}
-		case OpCode::STORE_LOCAL:
+		case VmOpCode::STORE_LOCAL:
 			LocalOrCellVariableInstruction("STORE_LOCAL", executable, proc_index, offset);
 			break;
-		case OpCode::IF_LOCAL_TAG_NOT:
+		case VmOpCode::IF_LOCAL_TAG_NOT:
 		{
 			const int local_index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 			const int tag = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
@@ -876,7 +876,7 @@ namespace Disassembler
 			offset += 5;
 			break;
 		}
-		case OpCode::LOCAL_UNION_FIELD:
+		case VmOpCode::LOCAL_UNION_FIELD:
 		{
 			const int union_index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 			const int field_index = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
@@ -885,7 +885,7 @@ namespace Disassembler
 			offset += 4;
 			break;
 		}
-		case OpCode::IF_LOCAL_LT_INT:
+		case VmOpCode::IF_LOCAL_LT_INT:
 		{
 			const int local_index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 			const int imm = static_cast<int>(static_cast<int8_t>(executable.ReadByteCode(offset + 2, proc_index)));
@@ -895,7 +895,7 @@ namespace Disassembler
 			offset += 5;
 			break;
 		}
-		case OpCode::IF_LOCAL_LT_LOCAL:
+		case VmOpCode::IF_LOCAL_LT_LOCAL:
 		{
 			const int left = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 			const int right = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
@@ -905,7 +905,7 @@ namespace Disassembler
 			offset += 5;
 			break;
 		}
-		case OpCode::IF_LOCAL_EQ_LOCAL:
+		case VmOpCode::IF_LOCAL_EQ_LOCAL:
 		{
 			const int left = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 			const int right = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
@@ -915,7 +915,7 @@ namespace Disassembler
 			offset += 5;
 			break;
 		}
-		case OpCode::STEP_LOCAL:
+		case VmOpCode::STEP_LOCAL:
 		{
 			const int local_index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 			const int imm = static_cast<int>(static_cast<int8_t>(executable.ReadByteCode(offset + 2, proc_index)));
@@ -923,7 +923,7 @@ namespace Disassembler
 			offset += 3;
 			break;
 		}
-		case OpCode::LOCAL_ARRAY_GET:
+		case VmOpCode::LOCAL_ARRAY_GET:
 		{
 			const int array_index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 			const int index = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
@@ -932,7 +932,7 @@ namespace Disassembler
 			offset += 4;
 			break;
 		}
-		case OpCode::LOCAL_UNION2:
+		case VmOpCode::LOCAL_UNION2:
 		{
 			const int tag = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 			const int first = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
@@ -942,7 +942,7 @@ namespace Disassembler
 			offset += 5;
 			break;
 		}
-		case OpCode::APPEND_LOCAL:
+		case VmOpCode::APPEND_LOCAL:
 		{
 			const int array_index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 			const int value_index = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
@@ -950,7 +950,7 @@ namespace Disassembler
 			offset += 3;
 			break;
 		}
-		case OpCode::MAKE_CLOSURE_OF:
+		case VmOpCode::MAKE_CLOSURE_OF:
 		{
 			const int code_index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index)) | (static_cast<int>(executable.ReadByteCode(offset + 2, proc_index)) << 8);
 			const int count = static_cast<int>(executable.ReadByteCode(offset + 3, proc_index));
@@ -958,7 +958,7 @@ namespace Disassembler
 			offset += 4;
 			break;
 		}
-		case OpCode::CALL_PROC_WIDE:
+		case VmOpCode::CALL_PROC_WIDE:
 		{
 			const int code_index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index)) | (static_cast<int>(executable.ReadByteCode(offset + 2, proc_index)) << 8);
 			const int arity = static_cast<int>(executable.ReadByteCode(offset + 3, proc_index));
@@ -966,101 +966,101 @@ namespace Disassembler
 			offset += 4;
 			break;
 		}
-		case OpCode::MAKE_FUNCTION_WIDE:
+		case VmOpCode::MAKE_FUNCTION_WIDE:
 		{
 			const int code_index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index)) | (static_cast<int>(executable.ReadByteCode(offset + 2, proc_index)) << 8);
 			Terminal::Print(std::string(Terminal::Colored<Terminal::Color::BRIGHT_WHITE>("MAKE_FUNCTION_WIDE")) + " code=" + std::to_string(code_index) + "\n");
 			offset += 3;
 			break;
 		}
-		case OpCode::SET_CAPTURE:
+		case VmOpCode::SET_CAPTURE:
 			MemberInstruction("SET_CAPTURE", executable, proc_index, offset);
 			break;
-		case OpCode::GET_UNION_FIELD:
+		case VmOpCode::GET_UNION_FIELD:
 			MemberInstruction("GET_UNION_FIELD", executable, proc_index, offset);
 			break;
-		case OpCode::EXTEND_ARRAY:
+		case VmOpCode::EXTEND_ARRAY:
 			SimpleInstruction("EXTEND_ARRAY", offset);
 			break;
-		case OpCode::EXTEND_TEXT:
+		case VmOpCode::EXTEND_TEXT:
 			SimpleInstruction("EXTEND_TEXT", offset);
 			break;
-		case OpCode::CALL_FOREIGN:
+		case VmOpCode::CALL_FOREIGN:
 			CallForeignInstruction("CALL_FOREIGN", executable, proc_index, offset);
 			break;
-		case OpCode::CALL_FOREIGN_INDEXED:
+		case VmOpCode::CALL_FOREIGN_INDEXED:
 			CallForeignIndexedInstruction("CALL_FOREIGN_INDEXED", executable, proc_index, offset);
 			break;
-		case OpCode::CALL:
+		case VmOpCode::CALL:
 			CallInstruction("CALL", executable, proc_index, offset);
 			break;
-		case OpCode::CALL_0:
+		case VmOpCode::CALL_0:
 			CallFixedInstruction("CALL_0", 0, offset);
 			break;
-		case OpCode::CALL_1:
+		case VmOpCode::CALL_1:
 			CallFixedInstruction("CALL_1", 1, offset);
 			break;
-		case OpCode::CALL_2:
+		case VmOpCode::CALL_2:
 			CallFixedInstruction("CALL_2", 2, offset);
 			break;
-		case OpCode::CALL_3:
+		case VmOpCode::CALL_3:
 			CallFixedInstruction("CALL_3", 3, offset);
 			break;
-		case OpCode::TAIL_CALL:
+		case VmOpCode::TAIL_CALL:
 			CallInstruction("TAIL_CALL", executable, proc_index, offset);
 			break;
-		case OpCode::CONSTRUCT_STRUCT:
+		case VmOpCode::CONSTRUCT_STRUCT:
 			DataInstruction("CONSTRUCT_STRUCT", executable, proc_index, offset);
 			break;
-		case OpCode::CONSTRUCT_UNION:
+		case VmOpCode::CONSTRUCT_UNION:
 			ConstructUnionInstruction("CONSTRUCT_UNION", executable, proc_index, offset);
 			break;
-		case OpCode::LOAD_EMPTY_UNION:
+		case VmOpCode::LOAD_EMPTY_UNION:
 			DataInstruction("LOAD_EMPTY_UNION", executable, proc_index, offset);
 			break;
-		case OpCode::GET_LOCAL:
+		case VmOpCode::GET_LOCAL:
 			LocalOrCellVariableInstruction("GET_LOCAL", executable, proc_index, offset);
 			break;
-		case OpCode::SET_LOCAL:
+		case VmOpCode::SET_LOCAL:
 			LocalOrCellVariableInstruction("SET_LOCAL", executable, proc_index, offset);
 			break;
-		case OpCode::GET_CELL:
+		case VmOpCode::GET_CELL:
 			LocalOrCellVariableInstruction("GET_CELL", executable, proc_index, offset);
 			break;
-		case OpCode::DEFINE_GLOBAL_WIDE:
+		case VmOpCode::DEFINE_GLOBAL_WIDE:
 			GlobalVariableWideInstruction("DEFINE_GLOBAL_WIDE", executable, proc_index, offset);
 			break;
-		case OpCode::GET_GLOBAL_WIDE:
+		case VmOpCode::GET_GLOBAL_WIDE:
 			GlobalVariableWideInstruction("GET_GLOBAL_WIDE", executable, proc_index, offset);
 			break;
-		case OpCode::SET_GLOBAL_WIDE:
+		case VmOpCode::SET_GLOBAL_WIDE:
 			GlobalVariableWideInstruction("SET_GLOBAL_WIDE", executable, proc_index, offset);
 			break;
-		case OpCode::CALL_GLOBAL_WIDE:
+		case VmOpCode::CALL_GLOBAL_WIDE:
 			CallGlobalWideInstruction("CALL_GLOBAL_WIDE", executable, proc_index, offset);
 			break;
-		case OpCode::GET_LOCAL_WIDE:
+		case VmOpCode::GET_LOCAL_WIDE:
 			LocalOrCellVariableWideInstruction("GET_LOCAL_WIDE", executable, proc_index, offset);
 			break;
-		case OpCode::SET_LOCAL_WIDE:
+		case VmOpCode::SET_LOCAL_WIDE:
 			LocalOrCellVariableWideInstruction("SET_LOCAL_WIDE", executable, proc_index, offset);
 			break;
-		case OpCode::GET_CELL_WIDE:
+		case VmOpCode::GET_CELL_WIDE:
 			LocalOrCellVariableWideInstruction("GET_CELL_WIDE", executable, proc_index, offset);
 			break;
-		case OpCode::GET_MEMBER:
+		case VmOpCode::GET_MEMBER:
 			MemberInstruction("GET_MEMBER", executable, proc_index, offset);
 			break;
-		case OpCode::POP:
+		case VmOpCode::POP:
 			SimpleInstruction("POP", offset);
 			break;
-		case OpCode::RETURN:
+		case VmOpCode::RETURN:
 			SimpleInstruction("RETURN", offset);
 			break;
-		case OpCode::HALT:
+		case VmOpCode::HALT:
 			SimpleInstruction("HALT", offset);
 			break;
-		case OpCode::PUSH_PLACEHOLDER:
+		case VmOpCode::PUSH_PLACEHOLDER:
 		{
 			const int count = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 			Terminal::Print(std::string(Terminal::Colored<Terminal::Color::BRIGHT_WHITE>("PUSH_PLACEHOLDER")) + " count=" + std::to_string(count) + "\n");

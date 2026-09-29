@@ -1,9 +1,9 @@
 #pragma once
 
-#include "Bytecode/Format/Format.h"
+#include "VmBytecode/Format/Format.h"
 #include "Support/Attributes/Attributes.h"
 #include "Error/RuntimeError.h"
-#include "Bytecode/Executable/Executable.h"
+#include "VmBytecode/Executable/Executable.h"
 #include "Interpreter/Allocator/MidoriAllocator.h"
 #include "Interpreter/GarbageCollector/GarbageCollector.h"
 #include "Library/MidoriBuiltinFFIRegistry/MidoriFFIRegistry.h"
@@ -25,9 +25,9 @@ public:
     using GlobalVariables = std::vector<MidoriValue>;
 	using ExecuteResult = std::expected<int, RuntimeError>;
 
-	VirtualMachine(MidoriExecutable&& executable) noexcept;
+	VirtualMachine(VmExecutable&& executable) noexcept;
 
-	VirtualMachine(std::shared_ptr<const MidoriExecutable> shared_executable, int proc_index, const GlobalVariables* source_globals) noexcept;
+	VirtualMachine(std::shared_ptr<const VmExecutable> shared_executable, int proc_index, const GlobalVariables* source_globals) noexcept;
 
     ~VirtualMachine();
 
@@ -44,7 +44,7 @@ public:
 
 private:
 	using ValueStackPointer = MidoriValue*;
-	using InstructionPointer = const OpCode*;
+	using InstructionPointer = const VmOpCode*;
 
 	struct CallFrame
 	{
@@ -88,8 +88,8 @@ private:
 	MidoriTuple* m_curr_environment = nullptr;
 
     // Warm VM State
-	std::shared_ptr<const MidoriExecutable> m_owned_executable;
-    const MidoriExecutable* m_executable = nullptr;
+	std::shared_ptr<const VmExecutable> m_owned_executable;
+    const VmExecutable* m_executable = nullptr;
 	GlobalVariables m_owned_globals;
     GlobalVariables* m_global_vars = nullptr;
     std::vector<InstructionPointer> m_proc_entry_cache;
@@ -102,7 +102,7 @@ private:
 
     // FFI State
     DynamicFFIRegistry m_dynamic_ffi_registry;
-    std::array<FFIFunction, MidoriFFIRegistry::BUILTIN_COUNT> m_ffi_table{};
+    std::array<VmFFIFunction, MidoriFFIRegistry::BUILTIN_COUNT> m_ffi_table{};
     std::array<void*, UINT8_MAX> m_ffi_args{};
     std::array<MidoriValue, UINT8_MAX> m_ffi_value_args{};
     std::vector<FFIArrayArgument> m_ffi_array_args;
@@ -112,7 +112,7 @@ private:
 	std::vector<MidoriTraceable*> m_static_closure_cache;
 	// A union variant with no fields carries nothing but its tag, and v2 values are
 	// immutable, so every occurrence of one can be the same object.
-	std::array<MidoriTraceable*, static_cast<size_t>(MAX_UNION_TAG) + 1u> m_empty_union_cache{};
+	std::array<MidoriTraceable*, static_cast<size_t>(VM_MAX_UNION_TAG) + 1u> m_empty_union_cache{};
     std::unordered_map<std::string_view, MidoriTraceable*> m_small_string_pool;
 
     void* m_value_stack_region = nullptr;
@@ -134,7 +134,7 @@ public:
 
     const GarbageCollector& GetGC() const noexcept { return m_gc; }
 
-    std::shared_ptr<const MidoriExecutable> GetSharedExecutable() const noexcept { return m_owned_executable; }
+    std::shared_ptr<const VmExecutable> GetSharedExecutable() const noexcept { return m_owned_executable; }
 
     DynamicFFIRegistry& GetDynamicFFIRegistry() noexcept { return m_dynamic_ffi_registry; }
 
@@ -183,7 +183,7 @@ private:
 		}
 	}
 
-	bool ExecuteConcurrencyInstruction(OpCode instruction, InstructionPointer& ip) noexcept;
+	bool ExecuteConcurrencyInstruction(VmOpCode instruction, InstructionPointer& ip) noexcept;
 
 	int ExecuteLoop() noexcept;
 
@@ -197,12 +197,12 @@ private:
 
 	int GetLine() noexcept;
 
-	MIDORI_FORCE_INLINE OpCode ReadByte() noexcept
+	MIDORI_FORCE_INLINE VmOpCode ReadByte() noexcept
 	{
 		return *m_instruction_pointer++;
 	}
 
-	static MIDORI_FORCE_INLINE OpCode ReadByte(InstructionPointer& ip) noexcept
+	static MIDORI_FORCE_INLINE VmOpCode ReadByte(InstructionPointer& ip) noexcept
 	{
 		return *ip++;
 	}

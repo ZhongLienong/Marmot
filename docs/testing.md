@@ -174,11 +174,12 @@ python scripts/dev.py gate --skip unit tool
 python scripts/dev.py gate --only docs cli format
 ```
 
-Its steps, in order, are `layering`, `build`, `unit`, `docs`, `cli`, `format`,
+Its steps, in order, are `layering`, `build`, `unit`, `mmc`, `docs`, `cli`, `format`,
 `benchmarks`, `tool` and `language`. Each check also runs alone:
 
 ```bash
 python scripts/dev.py check layering
+python scripts/dev.py check mmc               # frozen v13 writer and reader contract
 python scripts/dev.py check docs              # --sync rewrites the mirrors
 python scripts/dev.py check cli
 python scripts/dev.py check format            # --root DIR, --enforce-clean
@@ -199,13 +200,13 @@ also executes each one; its timings are only meaningful with a Release build,
 and `python scripts/dev.py bench` measures them properly.
 
 The layering check keeps the components' dependency direction.
-The C++ code builds as four libraries: `MarmotBytecode` (`bytecode/src`),
-`MarmotRuntime` (`runtime/src`, links Bytecode), `MarmotCompiler` (`compiler/src`, links
-Bytecode, never Runtime) and `MarmotDriver` (the CLI and driver under
-`compiler/src/Utility`, links Compiler). Each library exports only its own include root, so most wrong
-includes already fail to compile; the script also catches the ones a shared
-include path would let through, such as compiler code including a driver
-header. It also keeps the compiler pipeline (`compiler/src/Compiler`, apart
+The C++ code builds as three libraries: `MarmotRuntime` (`runtime/src`, with
+its private `.mmc` reader), `MarmotCompiler` (`compiler/src`, with its private
+writer) and `MarmotDriver` (the CLI and driver under `compiler/src/Utility`,
+links Compiler). The two sides share no C++ library or header; `format/mmc/`
+holds their versioned file contract. Each library exports only its own include
+root, so most wrong includes already fail to compile; the script also checks
+includes and production CMake links. It also keeps the compiler pipeline (`compiler/src/Compiler`, apart
 from the package manager) free of project discovery: those files may not
 include the package manager or `Utility/Project`, or read environment
 variables, because the compiler compiles from the `CompilationInputs` its

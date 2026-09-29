@@ -2,9 +2,9 @@
 //   MARMOT_OPCODE(name, length)
 // where length is the whole instruction in bytes, the opcode included. The
 // position of an entry is its byte value in .mmc files, so inserting,
-// removing or reordering entries needs an MbcFormatVersion bump; appending
-// does not. The enum, OpCodeTable (lengths and names), the backend, the linker
-// and the disassembler all read this one list.
+// removing or reordering entries needs a VmMbcFormatVersion bump; appending
+// does not. The VM's decoder and disassembler read this VM-side list; the
+// conformance check compares it with format/mmc/registry-v13.json.
 //
 // Procedures, globals and text constants are named in two bytes, because the
 // linker adds each module's first procedure, global or text to them, which

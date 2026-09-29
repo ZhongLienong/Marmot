@@ -6,6 +6,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "Bytecode/Artifact/BinaryArtifact.h"
+#include "VmBytecode/Artifact/BinaryArtifact.h"
 #include "Utility/Driver/MidoriDriver.h"
 #include "support/CompileHelpers.h"
 #include "support/OutputCapture.h"
@@ -34,10 +35,10 @@ namespace
 		return out.str();
 	}
 
-	[[nodiscard]] MidoriExecutable Deserialize(const std::string& blob)
+	[[nodiscard]] VmExecutable Deserialize(const std::string& blob)
 	{
 		std::istringstream in(blob);
-		std::expected<MidoriExecutable, std::string> read_result = MidoriBinaryArtifact::ReadExecutable(in);
+		std::expected<VmExecutable, std::string> read_result = VmBinaryArtifact::ReadExecutable(in);
 		if (!read_result.has_value())
 		{
 			FAIL(std::string("ReadExecutable failed: ") + read_result.error());
@@ -45,7 +46,7 @@ namespace
 		return std::move(read_result).value();
 	}
 
-	[[nodiscard]] std::pair<int, std::string> RunArtifact(MidoriExecutable executable)
+	[[nodiscard]] std::pair<int, std::string> RunArtifact(VmExecutable executable)
 	{
 		MidoriTest::OutputCapture capture;
 		std::expected<int, RuntimeError> run_result = MidoriProgramLoader::Run(std::move(executable));
@@ -61,7 +62,7 @@ namespace
 	}
 }
 
-TEST_CASE("BinaryArtifact round-trip produces byte-equal second serialization", "[bytecode-artifact]")
+TEST_CASE("BinaryArtifact writer is deterministic and the VM loads its output", "[bytecode-artifact]")
 {
 	const std::string source =
 		"module Main\n"
@@ -71,10 +72,11 @@ TEST_CASE("BinaryArtifact round-trip produces byte-equal second serialization", 
 	const MidoriExecutable executable = CompileOrFail(source);
 	const std::string first_blob = Serialize(executable);
 
-	const MidoriExecutable reloaded = Deserialize(first_blob);
-	const std::string second_blob = Serialize(reloaded);
+	const VmExecutable reloaded = Deserialize(first_blob);
+	const std::string second_blob = Serialize(executable);
 
 	REQUIRE(first_blob == second_blob);
+	REQUIRE(reloaded.GetProcedureCount() == executable.GetProcedureCount());
 }
 
 TEST_CASE("BinaryArtifact round-trip preserves procedure count and names", "[bytecode-artifact]")
@@ -87,7 +89,7 @@ TEST_CASE("BinaryArtifact round-trip preserves procedure count and names", "[byt
 
 	const MidoriExecutable executable = CompileOrFail(source);
 	const std::string blob = Serialize(executable);
-	const MidoriExecutable reloaded = Deserialize(blob);
+	const VmExecutable reloaded = Deserialize(blob);
 
 	REQUIRE(reloaded.GetProcedureCount() == executable.GetProcedureCount());
 	for (int index = 0; index < executable.GetProcedureCount(); index += 1)
@@ -107,7 +109,7 @@ TEST_CASE("BinaryArtifact round-trip preserves global count and string pool", "[
 
 	const MidoriExecutable executable = CompileOrFail(source);
 	const std::string blob = Serialize(executable);
-	const MidoriExecutable reloaded = Deserialize(blob);
+	const VmExecutable reloaded = Deserialize(blob);
 
 	REQUIRE(reloaded.GetGlobalVariableCount() == executable.GetGlobalVariableCount());
 	REQUIRE(reloaded.GetStringPool().size() == executable.GetStringPool().size());
@@ -122,14 +124,14 @@ TEST_CASE("BinaryArtifact round-trip preserves bytecode and line info", "[byteco
 
 	const MidoriExecutable executable = CompileOrFail(source);
 	const std::string blob = Serialize(executable);
-	const MidoriExecutable reloaded = Deserialize(blob);
+	const VmExecutable reloaded = Deserialize(blob);
 
 	for (int proc = 0; proc < executable.GetProcedureCount(); proc += 1)
 	{
 		REQUIRE(reloaded.GetByteCodeSize(proc) == executable.GetByteCodeSize(proc));
 		for (int instr = 0; instr < executable.GetByteCodeSize(proc); instr += 1)
 		{
-			REQUIRE(reloaded.ReadByteCode(instr, proc) == executable.ReadByteCode(instr, proc));
+			REQUIRE(static_cast<uint8_t>(reloaded.ReadByteCode(instr, proc)) == static_cast<uint8_t>(executable.ReadByteCode(instr, proc)));
 			REQUIRE(reloaded.GetLine(instr, proc) == executable.GetLine(instr, proc));
 		}
 	}
@@ -139,7 +141,7 @@ TEST_CASE("BinaryArtifact ReadExecutable rejects bad magic", "[bytecode-artifact
 {
 	const std::string bad_blob = "NOTMBC\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0";
 	std::istringstream in(bad_blob, std::ios::binary);
-	const std::expected<MidoriExecutable, std::string> result = MidoriBinaryArtifact::ReadExecutable(in);
+	const std::expected<VmExecutable, std::string> result = VmBinaryArtifact::ReadExecutable(in);
 
 	REQUIRE_FALSE(result.has_value());
 	REQUIRE(result.error().find("magic") != std::string::npos);
@@ -165,7 +167,7 @@ TEST_CASE("BinaryArtifact ReadExecutable rejects version mismatch", "[bytecode-a
 	}
 
 	std::istringstream in(blob, std::ios::binary);
-	const std::expected<MidoriExecutable, std::string> result = MidoriBinaryArtifact::ReadExecutable(in);
+	const std::expected<VmExecutable, std::string> result = VmBinaryArtifact::ReadExecutable(in);
 
 	REQUIRE_FALSE(result.has_value());
 	REQUIRE(result.error().find("version") != std::string::npos);
@@ -185,7 +187,7 @@ TEST_CASE("BinaryArtifact ReadExecutable rejects a version 11 artifact", "[bytec
 	blob[7] = static_cast<char>(0);
 
 	std::istringstream in(blob, std::ios::binary);
-	const std::expected<MidoriExecutable, std::string> result = MidoriBinaryArtifact::ReadExecutable(in);
+	const std::expected<VmExecutable, std::string> result = VmBinaryArtifact::ReadExecutable(in);
 
 	REQUIRE_FALSE(result.has_value());
 	REQUIRE(result.error() == "Bytecode artifact format version mismatch: expected 13, got 11. Rebuild the artifact.");
@@ -208,7 +210,7 @@ TEST_CASE("BinaryArtifact ReadExecutable rejects corrupt payload (CRC mismatch)"
 	}
 
 	std::istringstream in(blob, std::ios::binary);
-	const std::expected<MidoriExecutable, std::string> result = MidoriBinaryArtifact::ReadExecutable(in);
+	const std::expected<VmExecutable, std::string> result = VmBinaryArtifact::ReadExecutable(in);
 
 	REQUIRE_FALSE(result.has_value());
 	REQUIRE(result.error().find("CRC32") != std::string::npos);
@@ -230,16 +232,14 @@ TEST_CASE("BinaryArtifact round-trip with embed-sources flag", "[bytecode-artifa
 	REQUIRE(blob_with_sources.size() >= blob_without_sources.size());
 
 	// Both round-trip cleanly
-	const MidoriExecutable reloaded_with = Deserialize(blob_with_sources);
-	const MidoriExecutable reloaded_without = Deserialize(blob_without_sources);
+	const VmExecutable reloaded_with = Deserialize(blob_with_sources);
+	const VmExecutable reloaded_without = Deserialize(blob_without_sources);
 
 	REQUIRE(reloaded_with.GetProcedureCount() == executable.GetProcedureCount());
 	REQUIRE(reloaded_without.GetProcedureCount() == executable.GetProcedureCount());
 
-	// Second-pass serialization (without embed) is byte-equal for both
-	const std::string second_with = Serialize(reloaded_with);
-	const std::string second_without = Serialize(reloaded_without);
-	REQUIRE(second_with == second_without);
+	REQUIRE(reloaded_with.FindSourceLines(reloaded_with.GetProcedureSourcePath(0)) != nullptr);
+	REQUIRE(reloaded_without.FindSourceLines(reloaded_without.GetProcedureSourcePath(0)) == nullptr);
 }
 
 TEST_CASE("BinaryArtifact round-trip run produces identical exit code to direct execution", "[bytecode-artifact]")
@@ -249,7 +249,7 @@ TEST_CASE("BinaryArtifact round-trip run produces identical exit code to direct 
 		"\n"
 		"def main = fn() -> Int => 0;\n";
 
-	const auto [direct_exit, direct_stdout] = RunArtifact(CompileOrFail(source));
+	const auto [direct_exit, direct_stdout] = RunArtifact(MidoriTest::LoadForVm(CompileOrFail(source)));
 	const auto [artifact_exit, artifact_stdout] = RunArtifact(Deserialize(Serialize(CompileOrFail(source))));
 
 	REQUIRE(direct_exit == EXIT_SUCCESS);
@@ -290,8 +290,8 @@ TEST_CASE("BinaryArtifact run with embedded sources preserves runtime error sour
 
 TEST_CASE("BinaryArtifact ReadExecutableFromFile returns error for missing file", "[bytecode-artifact]")
 {
-	const std::expected<MidoriExecutable, std::string> result =
-		MidoriBinaryArtifact::ReadExecutableFromFile("nonexistent_artifact_file.mmc");
+	const std::expected<VmExecutable, std::string> result =
+		VmBinaryArtifact::ReadExecutableFromFile("nonexistent_artifact_file.mmc");
 
 	REQUIRE_FALSE(result.has_value());
 	REQUIRE_FALSE(result.error().empty());

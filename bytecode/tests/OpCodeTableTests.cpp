@@ -1,65 +1,65 @@
 #include <catch2/catch_test_macros.hpp>
 
-#include "Bytecode/Executable/Executable.h"
-#include "Bytecode/Disassembler/Disassembler.h"
+#include "VmBytecode/Executable/Executable.h"
+#include "VmBytecode/Disassembler/Disassembler.h"
 #include "support/OutputCapture.h"
 
 #include <string>
 #include <vector>
 
 // OpCodes.def is the one list of instructions and their lengths. The linker and
-// the backend step through bytecode with OpCodeTable::Length; the
+// the backend step through bytecode with VmOpCodeTable::Length; the
 // disassembler still decodes each instruction by hand. These tests hold the
 // hand-written decoder to the table.
 
 TEST_CASE("Every opcode has a length and a name", "[opcode]")
 {
-	for (size_t index = 0uz; index < OpCodeTable::COUNT; index += 1uz)
+	for (size_t index = 0uz; index < VmOpCodeTable::COUNT; index += 1uz)
 	{
-		const OpCode opcode = static_cast<OpCode>(index);
-		INFO(OpCodeTable::Name(opcode));
-		CHECK(OpCodeTable::Length(opcode) >= 1);
-		CHECK(OpCodeTable::Name(opcode) != "<invalid opcode>");
+		const VmOpCode opcode = static_cast<VmOpCode>(index);
+		INFO(VmOpCodeTable::Name(opcode));
+		CHECK(VmOpCodeTable::Length(opcode) >= 1);
+		CHECK(VmOpCodeTable::Name(opcode) != "<invalid opcode>");
 	}
 
-	CHECK(OpCodeTable::Name(OpCode::LOAD_STRING_WIDE) == "LOAD_STRING_WIDE");
-	CHECK(OpCodeTable::Name(OpCode::GET_LOCAL2) == "GET_LOCAL2");
-	CHECK(OpCodeTable::Length(OpCode::INTEGER_CONSTANT) == 9);
-	CHECK(OpCodeTable::Length(OpCode::IF_LOCAL_GE_LOCAL) == 5);
-	CHECK(OpCodeTable::Length(OpCode::ADD_LOCAL_INT) == 3);
+	CHECK(VmOpCodeTable::Name(VmOpCode::LOAD_STRING_WIDE) == "LOAD_STRING_WIDE");
+	CHECK(VmOpCodeTable::Name(VmOpCode::GET_LOCAL2) == "GET_LOCAL2");
+	CHECK(VmOpCodeTable::Length(VmOpCode::INTEGER_CONSTANT) == 9);
+	CHECK(VmOpCodeTable::Length(VmOpCode::IF_LOCAL_GE_LOCAL) == 5);
+	CHECK(VmOpCodeTable::Length(VmOpCode::ADD_LOCAL_INT) == 3);
 }
 
 TEST_CASE("Byte values past the last opcode have no length", "[opcode]")
 {
-	for (size_t index = OpCodeTable::COUNT; index < 256uz; index += 1uz)
+	for (size_t index = VmOpCodeTable::COUNT; index < 256uz; index += 1uz)
 	{
-		CHECK(OpCodeTable::Length(static_cast<OpCode>(index)) == 0);
+		CHECK(VmOpCodeTable::Length(static_cast<VmOpCode>(index)) == 0);
 	}
 }
 
 #if MIDORI_ENABLE_DISASSEMBLY
 TEST_CASE("The disassembler reads each instruction's length from OpCodes.def", "[opcode][disassembler]")
 {
-	for (size_t index = 0uz; index < OpCodeTable::COUNT; index += 1uz)
+	for (size_t index = 0uz; index < VmOpCodeTable::COUNT; index += 1uz)
 	{
-		const OpCode opcode = static_cast<OpCode>(index);
-		const int length = OpCodeTable::Length(opcode);
+		const VmOpCode opcode = static_cast<VmOpCode>(index);
+		const int length = VmOpCodeTable::Length(opcode);
 
 		// The instruction with every operand byte zero, so each index it carries
 		// names the first global, string or procedure.
-		BytecodeStream procedure;
+		VmBytecodeStream procedure;
 		procedure.AddByteCode(opcode, 1);
 		for (int operand = 1; operand < length; operand += 1)
 		{
-			procedure.AddByteCode(static_cast<OpCode>(0), 1);
+			procedure.AddByteCode(static_cast<VmOpCode>(0), 1);
 		}
 
-		MidoriExecutable executable;
+		VmExecutable executable;
 		static_cast<void>(executable.AddGlobalVariable(std::string("global")));
 		executable.AddStringPool(std::vector<std::string>{ "text" });
 		executable.AttachProcedureNames(std::vector<std::string>{ "$main$" });
 		executable.AttachProcedureSourcePaths(std::vector<std::string>{ "Main.mmt" });
-		std::vector<BytecodeStream> procedures;
+		std::vector<VmBytecodeStream> procedures;
 		procedures.emplace_back(std::move(procedure));
 		executable.AttachProcedures(std::move(procedures));
 
@@ -68,7 +68,7 @@ TEST_CASE("The disassembler reads each instruction's length from OpCodes.def", "
 		Disassembler::DisassembleInstruction(executable, 0, offset);
 		static_cast<void>(capture.Stop());
 
-		INFO(OpCodeTable::Name(opcode));
+		INFO(VmOpCodeTable::Name(opcode));
 		CHECK(offset == length);
 	}
 }

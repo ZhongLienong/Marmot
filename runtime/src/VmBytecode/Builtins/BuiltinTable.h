@@ -6,16 +6,14 @@
 #include <optional>
 #include <string_view>
 
-// The builtin foreign functions as the compiler and tools see them: names and
-// marshalling kinds, in bytecode order. The function pointers live in the
-// runtime's MidoriFFIRegistry, expanded from the same Builtins.def, so this
-// header carries no runtime symbols.
+// VM-side builtin IDs and signatures in .mmc order. The compiler keeps its
+// own table; the v13 registry check requires both tables to agree.
 
-using FFIFunction = void(*)(void** args, void* ret);
+using VmFFIFunction = void(*)(void** args, void* ret);
 
-constexpr size_t MIDORI_FFI_MAX_ARITY = 4u;
+constexpr size_t VM_FFI_MAX_ARITY = 4u;
 
-enum class FFIArgumentKind : uint8_t
+enum class VmFFIArgumentKind : uint8_t
 {
 	RawValue = 0,
 	CString,
@@ -24,7 +22,7 @@ enum class FFIArgumentKind : uint8_t
 	ValueHandle
 };
 
-enum class FFIReturnKind : uint8_t
+enum class VmFFIReturnKind : uint8_t
 {
 	RawValue = 0,
 	CString,
@@ -34,11 +32,11 @@ enum class FFIReturnKind : uint8_t
 };
 
 template<typename... Kinds>
-consteval std::array<FFIArgumentKind, MIDORI_FFI_MAX_ARITY> MakeFFIArgKinds(Kinds... kinds)
+consteval std::array<VmFFIArgumentKind, VM_FFI_MAX_ARITY> MakeVmFFIArgKinds(Kinds... kinds)
 {
-	static_assert(sizeof...(Kinds) <= MIDORI_FFI_MAX_ARITY);
-	std::array<FFIArgumentKind, MIDORI_FFI_MAX_ARITY> result{};
-	FFIArgumentKind values[] = { kinds... };
+	static_assert(sizeof...(Kinds) <= VM_FFI_MAX_ARITY);
+	std::array<VmFFIArgumentKind, VM_FFI_MAX_ARITY> result{};
+	VmFFIArgumentKind values[] = { kinds... };
 	for (size_t i = 0uz; i < sizeof...(Kinds); i += 1uz)
 	{
 		result[i] = values[i];
@@ -46,20 +44,20 @@ consteval std::array<FFIArgumentKind, MIDORI_FFI_MAX_ARITY> MakeFFIArgKinds(Kind
 	return result;
 }
 
-struct BuiltinSignature
+struct VmBuiltinSignature
 {
 	std::string_view m_name;
-	std::array<FFIArgumentKind, MIDORI_FFI_MAX_ARITY> m_arg_kinds{};
-	FFIReturnKind m_return_kind = FFIReturnKind::RawValue;
+	std::array<VmFFIArgumentKind, VM_FFI_MAX_ARITY> m_arg_kinds{};
+	VmFFIReturnKind m_return_kind = VmFFIReturnKind::RawValue;
 };
 
-class MarmotBuiltins
+class VmBuiltins
 {
 private:
 	inline static constexpr std::array s_signatures =
 	{
-#define MARMOT_BUILTIN(name, arg_kinds, return_kind) BuiltinSignature{ #name, arg_kinds, return_kind },
-#include "Bytecode/Builtins/Builtins.def"
+#define MARMOT_BUILTIN(name, arg_kinds, return_kind) VmBuiltinSignature{ #name, arg_kinds, return_kind },
+#include "VmBytecode/Builtins/Builtins.def"
 #undef MARMOT_BUILTIN
 	};
 
@@ -79,7 +77,7 @@ public:
 		return std::nullopt;
 	}
 
-	static constexpr const BuiltinSignature& At(size_t index)
+	static constexpr const VmBuiltinSignature& At(size_t index)
 	{
 		return s_signatures[index];
 	}

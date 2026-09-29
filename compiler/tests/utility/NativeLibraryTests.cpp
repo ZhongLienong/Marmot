@@ -3,9 +3,11 @@
 #include "Utility/TestMode/TestMode.h"
 #include "Support/TestMode/TestMode.h"
 #include "Bytecode/Artifact/BinaryArtifact.h"
+#include "VmBytecode/Artifact/BinaryArtifact.h"
 #include "Loader/ProgramLoader.h"
 #include "Utility/Driver/MidoriDriver.h"
 #include "support/OutputCapture.h"
+#include "support/CompileHelpers.h"
 #include "support/TempProject.h"
 
 #include <expected>
@@ -59,7 +61,7 @@ namespace
 		return std::move(compiled).value().TakeExecutable();
 	}
 
-	std::string Run(MidoriExecutable&& executable)
+	std::string Run(VmExecutable&& executable)
 	{
 		const RuntimeTestMode::ScopedOverride quiet(true);
 		MidoriTest::OutputCapture capture;
@@ -67,6 +69,11 @@ namespace
 		const std::string output = capture.Stop().m_stdout;
 		REQUIRE(result.has_value());
 		return output;
+	}
+
+	std::string Run(MidoriExecutable&& executable)
+	{
+		return Run(MidoriTest::LoadForVm(executable));
 	}
 
 	// A program that runs Answer() on a worker and prints what the join gave back.
@@ -95,14 +102,14 @@ namespace
 
 	std::string LoadError(const MidoriExecutable& executable, const MidoriProgramLoader::NativeLibraryLocations& locations)
 	{
-		const std::expected<void, std::string> loaded = MidoriProgramLoader::LoadNativeLibraries(executable, locations);
+		const std::expected<void, std::string> loaded = MidoriProgramLoader::LoadNativeLibraries(MidoriTest::LoadForVm(executable), locations);
 		REQUIRE_FALSE(loaded.has_value());
 		return loaded.error();
 	}
 
 	bool Loads(const MidoriExecutable& executable, const MidoriProgramLoader::NativeLibraryLocations& locations)
 	{
-		const std::expected<void, std::string> loaded = MidoriProgramLoader::LoadNativeLibraries(executable, locations);
+		const std::expected<void, std::string> loaded = MidoriProgramLoader::LoadNativeLibraries(MidoriTest::LoadForVm(executable), locations);
 		if (!loaded.has_value())
 		{
 			UNSCOPED_INFO(loaded.error());
@@ -154,18 +161,18 @@ TEST_CASE("A .mmc records its native libraries and runs from them", "[ffi][nativ
 
 	std::stringstream artifact;
 	REQUIRE(MidoriBinaryArtifact::WriteExecutable(executable, artifact, false).has_value());
-	std::expected<MidoriExecutable, std::string> reloaded = MidoriBinaryArtifact::ReadExecutable(artifact);
+	std::expected<VmExecutable, std::string> reloaded = VmBinaryArtifact::ReadExecutable(artifact);
 	REQUIRE(reloaded.has_value());
 
 	REQUIRE(reloaded->GetNativeLibraries().size() == 1u);
-	const NativeLibraryImport& library = reloaded->GetNativeLibraries()[0u];
+	const VmNativeLibraryImport& library = reloaded->GetNativeLibraries()[0u];
 	CHECK(library.m_name == "marmot_test_native_artifact");
 	CHECK(library.m_symbols == executable.GetNativeLibraries()[0u].m_symbols);
 	CHECK(library.m_hint_directories == executable.GetNativeLibraries()[0u].m_hint_directories);
 	CHECK(library.m_policy.m_thread_safe);
 	CHECK_FALSE(library.m_policy.m_checksum.has_value());
 
-	REQUIRE(Loads(reloaded.value(), MidoriProgramLoader::NativeLibraryLocations{}));
+	REQUIRE(MidoriProgramLoader::LoadNativeLibraries(reloaded.value(), MidoriProgramLoader::NativeLibraryLocations{}).has_value());
 	CHECK(Run(std::move(reloaded).value()) == "ok");
 }
 

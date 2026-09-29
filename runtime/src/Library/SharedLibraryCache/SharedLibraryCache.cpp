@@ -49,7 +49,7 @@ std::expected<void, std::string> SharedLibraryCache::LoadLibraryWithFunctions(
 	}
 
 	void* handle = load_result.value();
-	std::unordered_map<std::string, FFIFunction> resolved_functions;
+	std::unordered_map<std::string, VmFFIFunction> resolved_functions;
 
 	for (const std::pair<const std::string, std::string>& func_pair : function_mappings)
 	{
@@ -67,7 +67,7 @@ std::expected<void, std::string> SharedLibraryCache::LoadLibraryWithFunctions(
 				library_path.string()));
 		}
 
-		resolved_functions.emplace(midori_name, reinterpret_cast<FFIFunction>(func_ptr));
+		resolved_functions.emplace(midori_name, reinterpret_cast<VmFFIFunction>(func_ptr));
 	}
 
 	SharedLibraryEntry entry;
@@ -87,13 +87,13 @@ bool SharedLibraryCache::IsLibraryLoaded(const std::string& package_name) const
 	return m_libraries.contains(package_name);
 }
 
-std::unordered_map<std::string, FFIFunction> SharedLibraryCache::SnapshotAllFunctions() const
+std::unordered_map<std::string, VmFFIFunction> SharedLibraryCache::SnapshotAllFunctions() const
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
-	std::unordered_map<std::string, FFIFunction> snapshot;
+	std::unordered_map<std::string, VmFFIFunction> snapshot;
 	for (const std::pair<const std::string, SharedLibraryEntry>& lib : m_libraries)
 	{
-		for (const std::pair<const std::string, FFIFunction>& func : lib.second.m_functions)
+		for (const std::pair<const std::string, VmFFIFunction>& func : lib.second.m_functions)
 		{
 			snapshot.emplace(func.first, func.second);
 		}

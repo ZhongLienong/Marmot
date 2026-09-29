@@ -180,7 +180,7 @@ namespace
 
 	[[nodiscard]] int Execute(const Invocation& invocation)
 	{
-		std::expected<MidoriExecutable, std::string> program = MidoriProgramLoader::ReadProgram(invocation.m_program);
+		std::expected<VmExecutable, std::string> program = MidoriProgramLoader::ReadProgram(invocation.m_program);
 		if (!program.has_value())
 		{
 			return FailToStart(invocation, program.error());

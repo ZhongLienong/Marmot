@@ -131,11 +131,8 @@ endfunction()
 # ============================================================================
 # One library per component, linked in one direction only:
 #
-#   MarmotBytecode  bytecode/src   the bytecode format both sides agree on:
-#                                  opcodes, the executable, .mmc files, the
-#                                  builtin table
-#   MarmotRuntime   runtime/src    values, the VM, builtin library -> Bytecode
-#   MarmotCompiler  compiler/src   source to bytecode             -> Bytecode
+#   MarmotRuntime   runtime/src    values, the VM, private .mmc reader
+#   MarmotCompiler  compiler/src   source to bytecode, private .mmc writer
 #   MarmotDriver    compiler/src/Utility/{CLI,Driver}
 #                                  marmotc's command line         -> Compiler
 #
@@ -144,18 +141,15 @@ endfunction()
 # (compiler/src/Marmot.cpp, vm/src, web/src) are added per build below.
 set(MIDORI_DRIVER_DIRS CLI Driver)
 
-file(GLOB_RECURSE MARMOT_BYTECODE_SOURCES CONFIGURE_DEPENDS
-    "bytecode/src/*.h"
-    "bytecode/src/*.def"
-    "bytecode/src/*.cpp"
-)
-
 file(GLOB_RECURSE MARMOT_RUNTIME_SOURCES CONFIGURE_DEPENDS
     "runtime/src/*.h"
     "runtime/src/*.cpp"
 )
 
 file(GLOB_RECURSE MARMOT_COMPILER_SOURCES CONFIGURE_DEPENDS
+    "compiler/src/Bytecode/*.h"
+    "compiler/src/Bytecode/*.def"
+    "compiler/src/Bytecode/*.cpp"
     "compiler/src/Compiler/*.h"
     "compiler/src/Compiler/*.cpp"
     "compiler/src/Utility/*.h"
@@ -172,22 +166,16 @@ foreach(driver_dir IN LISTS MIDORI_DRIVER_DIRS)
     list(FILTER MARMOT_COMPILER_SOURCES EXCLUDE REGEX "/compiler/src/Utility/${driver_dir}/")
 endforeach()
 
-add_library(MarmotBytecode STATIC ${MARMOT_BYTECODE_SOURCES})
-target_include_directories(MarmotBytecode PUBLIC ${CMAKE_SOURCE_DIR}/bytecode/src)
-
 add_library(MarmotRuntime STATIC ${MARMOT_RUNTIME_SOURCES})
 target_include_directories(MarmotRuntime PUBLIC ${CMAKE_SOURCE_DIR}/runtime/src)
-target_link_libraries(MarmotRuntime PUBLIC MarmotBytecode)
 
 add_library(MarmotCompiler STATIC ${MARMOT_COMPILER_SOURCES})
 target_include_directories(MarmotCompiler PUBLIC ${CMAKE_SOURCE_DIR}/compiler/src)
-target_link_libraries(MarmotCompiler PUBLIC MarmotBytecode)
 
 add_library(MarmotDriver STATIC ${MARMOT_DRIVER_SOURCES})
 target_link_libraries(MarmotDriver PUBLIC MarmotCompiler)
 
 set(MIDORI_LIBRARY_TARGETS
-    MarmotBytecode
     MarmotRuntime
     MarmotCompiler
     MarmotDriver

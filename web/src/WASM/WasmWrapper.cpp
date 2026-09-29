@@ -10,6 +10,8 @@
 #include <typeinfo>
 
 #include "Compiler/Compiler.h"
+#include "Bytecode/Artifact/BinaryArtifact.h"
+#include "VmBytecode/Artifact/BinaryArtifact.h"
 #include "Interpreter/VirtualMachine/VirtualMachine.h"
 
 using namespace std::string_literals;
@@ -104,7 +106,11 @@ ExecutionResult ExecuteMarmotCode(const std::string& source_code)
 	try
 	{
 		MidoriExecutable executable = std::move(compile_result.value());
-		VirtualMachine::ExecuteResult run_result = VirtualMachine(std::move(executable)).Execute();
+		std::ostringstream artifact;
+		MidoriBinaryArtifact::WriteExecutable(executable, artifact, true).value();
+		std::istringstream input(artifact.str());
+		VmExecutable loaded = std::move(VmBinaryArtifact::ReadExecutable(input)).value();
+		VirtualMachine::ExecuteResult run_result = VirtualMachine(std::move(loaded)).Execute();
 
 		if (!run_result.has_value())
 		{

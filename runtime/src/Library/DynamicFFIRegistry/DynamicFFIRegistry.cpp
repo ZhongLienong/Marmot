@@ -12,9 +12,9 @@ void DynamicFFIRegistry::SnapshotFromCache()
 	m_functions = SharedLibraryCache::GetInstance().SnapshotAllFunctions();
 }
 
-std::optional<FFIFunction> DynamicFFIRegistry::FindFunction(std::string_view function_name) const
+std::optional<VmFFIFunction> DynamicFFIRegistry::FindFunction(std::string_view function_name) const
 {
-	const std::unordered_map<std::string, FFIFunction>::const_iterator it = m_functions.find(std::string(function_name));
+	const std::unordered_map<std::string, VmFFIFunction>::const_iterator it = m_functions.find(std::string(function_name));
 	if (it != m_functions.end())
 	{
 		return it->second;
@@ -23,11 +23,11 @@ std::optional<FFIFunction> DynamicFFIRegistry::FindFunction(std::string_view fun
 	return std::nullopt;
 }
 
-std::expected<void, std::string> DynamicFFIRegistry::ValidateWorkerSafety(const std::vector<NativeLibraryImport>& libraries)
+std::expected<void, std::string> DynamicFFIRegistry::ValidateWorkerSafety(const std::vector<VmNativeLibraryImport>& libraries)
 {
 	std::vector<std::string> library_names;
 	library_names.reserve(libraries.size());
-	for (const NativeLibraryImport& library : libraries)
+	for (const VmNativeLibraryImport& library : libraries)
 	{
 		library_names.push_back(library.m_name);
 	}

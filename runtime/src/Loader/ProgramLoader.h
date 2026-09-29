@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Error/RuntimeError.h"
-#include "Bytecode/Executable/Executable.h"
+#include "VmBytecode/Executable/Executable.h"
 
 #include <expected>
 #include <filesystem>
@@ -26,7 +26,7 @@ namespace MidoriProgramLoader
 	// The directories in MARMOT_LIBRARY_PATH, in order.
 	[[nodiscard]] std::vector<std::filesystem::path> EnvironmentLibraryPaths();
 
-	[[nodiscard]] std::expected<MidoriExecutable, std::string> ReadProgram(const std::filesystem::path& path);
+	[[nodiscard]] std::expected<VmExecutable, std::string> ReadProgram(const std::filesystem::path& path);
 
 	// Loads every native library the program names (`foreign ... from
 	// "library"`), before it runs. Each is looked for at its file in
@@ -35,7 +35,7 @@ namespace MidoriProgramLoader
 	// library's thread_safe flag and checksum come from the program. A library
 	// that is missing, fails to load, or lacks a symbol is an error. Loading
 	// runs a library's own code.
-	[[nodiscard]] std::expected<void, std::string> LoadNativeLibraries(const MidoriExecutable& executable, const NativeLibraryLocations& locations);
+	[[nodiscard]] std::expected<void, std::string> LoadNativeLibraries(const VmExecutable& executable, const NativeLibraryLocations& locations);
 
-	[[nodiscard]] std::expected<int, RuntimeError> Run(MidoriExecutable&& executable);
+	[[nodiscard]] std::expected<int, RuntimeError> Run(VmExecutable&& executable);
 }

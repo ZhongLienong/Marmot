@@ -13,14 +13,17 @@ Marmot is a language with three binaries:
 - `marmot` — the project tool, written in Rust (`tool/`). Resolves projects and
   packages and drives the other two through a build plan.
 
-Layering, enforced by `scripts/testing/layering.py`: `bytecode` → `runtime` and
-`compiler`. The driver (`compiler/src/Utility/{CLI,Driver}`)
-builds on the compiler and `vm/src` on the runtime; neither side links the
-other, and `bytecode` is all they share.
+Layering, enforced by `scripts/testing/layering.py`: the compiler owns its
+bytecode writer and the VM owns its reader and disassembler. The driver
+(`compiler/src/Utility/{CLI,Driver}`) builds on the compiler and `vm/src` on
+the runtime; neither side links or includes the other. They agree through the
+versioned `.mmc` contract under `format/mmc/`.
 
 | Path | What it holds |
 |---|---|
-| `bytecode/src` | The bytecode format: opcodes, the executable, `.mmc` files, the builtin table, the format version |
+| `compiler/src/Bytecode` | Compiler-side opcode and builtin IDs, executable model, `.mmc` writer |
+| `runtime/src/VmBytecode` | VM-side opcode and builtin IDs, loaded-program model, `.mmc` reader and disassembler |
+| `format/mmc` | Language-neutral v13 contract and compatibility fixtures |
 | `compiler/src/Compiler` | Compiler errors, lexer, parser, type checker, static analysis, lowering, MidoriIR optimizer, bytecode backend, linker |
 | `runtime/src` | Values, runtime errors, the interpreter, the GC, workers, the builtin FFI library |
 | `vm/src` | The `marmotvm` entry point |
@@ -42,9 +45,10 @@ python scripts/dev.py test --category module
 python scripts/dev.py run scratch.mmt
 ```
 
-The gate is what "green" means here: layering, the build, C++ unit tests, doc
-examples, CLI contracts, formatting, benchmarks, the tool's cargo tests and the
-language suite, stopping at the first failure. `--skip` and `--only` take step
+The gate is what "green" means here: layering, the build, C++ unit tests, the
+`.mmc` contract, doc examples, CLI contracts, formatting, benchmarks, the
+tool's cargo tests and the language suite, stopping at the first failure.
+`--skip` and `--only` take step
 names. Commands that need a build bring it up to date first.
 
 The language suite through the tool, in about thirteen seconds:

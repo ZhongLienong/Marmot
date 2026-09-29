@@ -28,7 +28,7 @@ namespace
 	}
 }
 
-Worker::Worker(std::shared_ptr<const MidoriExecutable> executable, SerializedValue serialized_function, std::vector<SerializedValue> serialized_args, std::vector<SerializedValue> serialized_globals)
+Worker::Worker(std::shared_ptr<const VmExecutable> executable, SerializedValue serialized_function, std::vector<SerializedValue> serialized_args, std::vector<SerializedValue> serialized_globals)
 	: m_executable(std::move(executable))
 	, m_serialized_function(std::move(serialized_function))
 	, m_serialized_args(std::move(serialized_args))
@@ -214,7 +214,7 @@ WorkerRegistry& WorkerRegistry::GetInstance()
 	return instance;
 }
 
-int WorkerRegistry::SpawnWorker(std::shared_ptr<const MidoriExecutable> executable, SerializedValue serialized_function, std::vector<SerializedValue> serialized_args, std::vector<SerializedValue> serialized_globals)
+int WorkerRegistry::SpawnWorker(std::shared_ptr<const VmExecutable> executable, SerializedValue serialized_function, std::vector<SerializedValue> serialized_args, std::vector<SerializedValue> serialized_globals)
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
 	const int worker_id = m_next_id;

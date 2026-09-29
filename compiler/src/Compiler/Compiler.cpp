@@ -34,10 +34,6 @@
 
 using namespace std::string_literals;
 
-#if MIDORI_ENABLE_DISASSEMBLY
-#include "Bytecode/Disassembler/Disassembler.h"
-#endif
-
 namespace
 {
 	struct ImportContext
@@ -1598,16 +1594,6 @@ namespace
 		}
 
 		MidoriExecutable linked_executable = std::move(link_result.value());
-#if MIDORI_ENABLE_DISASSEMBLY
-		if (CompilerTestMode::ShouldEmitInternalDiagnostics())
-		{
-			for (size_t i : std::views::iota(0u, linked_executable.m_procedure_names.size()))
-			{
-				const std::string& variable_name = linked_executable.m_procedure_names[i];
-				Disassembler::DisassembleBytecodeStream(linked_executable, static_cast<int>(i), variable_name.c_str());
-			}
-		}
-#endif
 		return MidoriResult::CompiledProgram(std::move(linked_executable), MidoriResult::CompilerReport(std::move(build_graph_artifacts.m_warnings)));
 	}
 }

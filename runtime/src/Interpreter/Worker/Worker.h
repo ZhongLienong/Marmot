@@ -23,7 +23,7 @@ struct WorkerError
 class Worker
 {
 public:
-	Worker(std::shared_ptr<const MidoriExecutable> executable, SerializedValue serialized_function, std::vector<SerializedValue> serialized_args, std::vector<SerializedValue> serialized_globals);
+	Worker(std::shared_ptr<const VmExecutable> executable, SerializedValue serialized_function, std::vector<SerializedValue> serialized_args, std::vector<SerializedValue> serialized_globals);
 
 	~Worker();
 
@@ -44,7 +44,7 @@ private:
 	void Execute(std::stop_token stop_token);
 
 	std::jthread m_thread;
-	std::shared_ptr<const MidoriExecutable> m_executable;
+	std::shared_ptr<const VmExecutable> m_executable;
 	// The spawned function, transferred as a value: its procedure index and a copy
 	// of its captured cells, deserialized into the worker's own heap.
 	SerializedValue m_serialized_function;
@@ -65,7 +65,7 @@ class WorkerRegistry
 public:
 	static WorkerRegistry& GetInstance();
 
-	int SpawnWorker(std::shared_ptr<const MidoriExecutable> executable, SerializedValue serialized_function, std::vector<SerializedValue> serialized_args, std::vector<SerializedValue> serialized_globals);
+	int SpawnWorker(std::shared_ptr<const VmExecutable> executable, SerializedValue serialized_function, std::vector<SerializedValue> serialized_args, std::vector<SerializedValue> serialized_globals);
 
 	std::expected<SerializedValue, WorkerError> JoinWorkerValue(int worker_id);
 

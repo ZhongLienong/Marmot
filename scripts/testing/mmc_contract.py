@@ -118,10 +118,10 @@ def normalize_artifact(blob: bytes) -> bytes:
     return header + normalized
 
 
-def source_registry() -> dict[str, object]:
-    opcode_source = (REPO_ROOT / "bytecode/src/Bytecode/Executable/OpCodes.def").read_text(encoding="utf-8")
-    builtin_source = (REPO_ROOT / "bytecode/src/Bytecode/Builtins/Builtins.def").read_text(encoding="utf-8")
-    builtin_header = (REPO_ROOT / "bytecode/src/Bytecode/Builtins/BuiltinTable.h").read_text(encoding="utf-8")
+def source_registry(side: Path) -> dict[str, object]:
+    opcode_source = (side / "Executable/OpCodes.def").read_text(encoding="utf-8")
+    builtin_source = (side / "Builtins/Builtins.def").read_text(encoding="utf-8")
+    builtin_header = (side / "Builtins/BuiltinTable.h").read_text(encoding="utf-8")
     opcodes = [
         {"id": index, "name": name, "length": int(length)}
         for index, (name, length) in enumerate(re.findall(r"^MARMOT_OPCODE\((\w+),\s*(\d+)\)", opcode_source, re.MULTILINE))
@@ -136,8 +136,8 @@ def source_registry() -> dict[str, object]:
         builtins.append({
             "id": len(builtins),
             "name": name.strip(),
-            "arguments": re.findall(r"FFIArgumentKind::(\w+)", arguments),
-            "returns": re.fullmatch(r"\s*FFIReturnKind::(\w+)\s*", result).group(1),
+            "arguments": re.findall(r"(?:Vm)?FFIArgumentKind::(\w+)", arguments),
+            "returns": re.fullmatch(r"\s*(?:Vm)?FFIReturnKind::(\w+)\s*", result).group(1),
         })
     abi_version = re.search(r"ABI_VERSION\s*=\s*(\d+)", builtin_header)
     if abi_version is None:
@@ -148,13 +148,16 @@ def source_registry() -> dict[str, object]:
 
 def check_registry() -> None:
     frozen = json.loads((CONTRACT_DIR / "registry-v13.json").read_text(encoding="utf-8"))
-    current = source_registry()
-    if current != frozen:
-        raise AssertionError("opcode or builtin table differs from the frozen version-13 registry")
-    format_header = (REPO_ROOT / "bytecode/src/Bytecode/Format/Format.h").read_text(encoding="utf-8")
-    version = re.search(r"MbcFormatVersion\s*=\s*(\d+)u", format_header)
-    if version is None or int(version.group(1)) != frozen["format_version"]:
-        raise AssertionError("MbcFormatVersion differs from the frozen registry")
+    for name, side, version_name in (
+        ("marmotc", REPO_ROOT / "compiler/src/Bytecode", "MbcFormatVersion"),
+        ("marmotvm", REPO_ROOT / "runtime/src/VmBytecode", "VmMbcFormatVersion"),
+    ):
+        if source_registry(side) != frozen:
+            raise AssertionError(f"{name} opcode or builtin table differs from the frozen version-13 registry")
+        format_header = (side / "Format/Format.h").read_text(encoding="utf-8")
+        version = re.search(rf"{version_name}\s*=\s*(\d+)u", format_header)
+        if version is None or int(version.group(1)) != frozen["format_version"]:
+            raise AssertionError(f"{name} format version differs from the frozen registry")
 
 
 def run(args: list[str]) -> subprocess.CompletedProcess[str]:

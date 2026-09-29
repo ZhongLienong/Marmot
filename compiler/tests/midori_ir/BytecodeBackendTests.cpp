@@ -60,7 +60,7 @@ namespace
 
 		const RuntimeTestMode::ScopedOverride test_mode_override(true);
 		MidoriTest::OutputCapture capture;
-		std::expected<int, RuntimeError> run = MidoriProgramLoader::Run(std::move(linked).value());
+		std::expected<int, RuntimeError> run = MidoriProgramLoader::Run(MidoriTest::LoadForVm(linked.value()));
 		const MidoriTest::CapturedOutput output = capture.Stop();
 		REQUIRE(run.has_value());
 		REQUIRE(run.value() == 0);

@@ -15,7 +15,7 @@
 #include <vector>
 
 #include "Support/Attributes/Attributes.h"
-#include "Bytecode/Scalar/Scalar.h"
+#include "VmBytecode/Scalar/Scalar.h"
 
 class MidoriTraceable;
 class MidoriText;

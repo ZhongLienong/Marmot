@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Bytecode/Builtins/BuiltinTable.h"
+#include "VmBytecode/Builtins/BuiltinTable.h"
 
 #include <expected>
 #include <filesystem>
@@ -17,7 +17,7 @@ struct SharedLibraryEntry
 	std::string m_package_name;
 	std::filesystem::path m_path;
 	bool m_thread_safe = false;
-	std::unordered_map<std::string, FFIFunction> m_functions;
+	std::unordered_map<std::string, VmFFIFunction> m_functions;
 };
 
 class SharedLibraryCache
@@ -34,7 +34,7 @@ public:
 
 	bool IsLibraryLoaded(const std::string& package_name) const;
 
-	std::unordered_map<std::string, FFIFunction> SnapshotAllFunctions() const;
+	std::unordered_map<std::string, VmFFIFunction> SnapshotAllFunctions() const;
 
 	// Of the named libraries, those loaded without thread_safe.
 	std::vector<std::string> GetNonThreadSafeLibraries(const std::vector<std::string>& library_names) const;

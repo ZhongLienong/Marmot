@@ -3,6 +3,7 @@
 #include "Utility/BuildPlan/BuildPlan.h"
 #include "Utility/Driver/MidoriDriver.h"
 #include "support/ScopedEnvVar.h"
+#include "support/CompileHelpers.h"
 #include "support/TempProject.h"
 #include "Loader/ProgramLoader.h"
 
@@ -10,6 +11,7 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace
@@ -106,6 +108,6 @@ TEST_CASE("A program compiled from a plan sees only the plan's search paths", "[
 	REQUIRE(compiled.has_value());
 
 	MidoriResult::CompiledProgram program = std::move(compiled).value();
-	const std::expected<int, RuntimeError> run_result = MidoriProgramLoader::Run(std::move(program).TakeExecutable());
+	const std::expected<int, RuntimeError> run_result = MidoriProgramLoader::Run(MidoriTest::LoadForVm(std::move(program).TakeExecutable()));
 	CHECK(run_result.has_value());
 }

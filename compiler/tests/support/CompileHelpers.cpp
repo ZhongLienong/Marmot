@@ -12,10 +12,13 @@
 #include "Compiler/TypeChecker/TypeChecker.h"
 #include "Utility/Driver/MidoriDriver.h"
 #include "Loader/ProgramLoader.h"
+#include "Bytecode/Artifact/BinaryArtifact.h"
+#include "VmBytecode/Artifact/BinaryArtifact.h"
 
 #include <filesystem>
 #include <format>
 #include <print>
+#include <sstream>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -311,6 +314,14 @@ namespace MidoriTest
 		return MidoriDriver::CompileSource(std::move(source_code), std::move(file_name));
 	}
 
+	VmExecutable LoadForVm(const MidoriExecutable& executable)
+	{
+		std::ostringstream bytes;
+		MidoriBinaryArtifact::WriteExecutable(executable, bytes, true).value();
+		std::istringstream input(bytes.str());
+		return std::move(VmBinaryArtifact::ReadExecutable(input)).value();
+	}
+
 	std::expected<ExecutedSnippet, CompilerError> ExecuteSnippet(std::string source_code, std::string file_name)
 	{
 		SourceFixture source(std::move(source_code), std::move(file_name));
@@ -325,7 +336,7 @@ namespace MidoriTest
 		}
 
 		OutputCapture capture;
-		std::expected<int, RuntimeError> run_result = MidoriProgramLoader::Run(std::move(compile_result.value()).TakeExecutable());
+		std::expected<int, RuntimeError> run_result = MidoriProgramLoader::Run(LoadForVm(std::move(compile_result.value()).TakeExecutable()));
 		if (!run_result.has_value())
 		{
 			const RuntimeError runtime_error = run_result.error();

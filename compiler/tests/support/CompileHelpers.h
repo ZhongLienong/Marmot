@@ -8,6 +8,7 @@
 #include "Compiler/Token/Token.h"
 #include "support/OutputCapture.h"
 #include "support/SourceFixture.h"
+#include "VmBytecode/Executable/Executable.h"
 
 #include <expected>
 #include <optional>
@@ -84,6 +85,7 @@ namespace MidoriTest
 	[[nodiscard]] const MidoriResult::CompilerReport& CompilationReport(const MidoriResult::CompilationResult& compilation_result);
 
 	[[nodiscard]] MidoriResult::CompilerResult CompileSnippet(std::string source_code, std::string file_name = "Test.mmt");
+	[[nodiscard]] VmExecutable LoadForVm(const MidoriExecutable& executable);
 
 	[[nodiscard]] std::expected<ExecutedSnippet, CompilerError> ExecuteSnippet(std::string source_code, std::string file_name = "Test.mmt");
 

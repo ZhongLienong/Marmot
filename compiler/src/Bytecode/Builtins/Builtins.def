@@ -1,6 +1,6 @@
 // The builtin foreign functions, in bytecode order. An entry's position is the
-// index CALL_FOREIGN_INDEXED encodes, so the compiler (names), the disassembler
-// (names) and the runtime (function pointers) all expand this one list:
+// index CALL_FOREIGN_INDEXED encodes. This compiler-side list is checked
+// against format/mmc/registry-v13.json:
 //   MARMOT_BUILTIN(name, argument kinds, return kind)
 // Removing or reordering an entry renumbers the ones after it and needs an
 // MbcFormatVersion bump; appending does not.
