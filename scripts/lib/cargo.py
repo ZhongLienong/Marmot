@@ -1,4 +1,4 @@
-"""The Rust `marmot` project tool under tool/, built and tested with cargo."""
+"""The Rust `marmot` project tool under projects/marmot/, built and tested with cargo."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import shutil
 from pathlib import Path
 
 from lib import toolchain
+from lib.program import vm_beside
 from lib.host import TOOL_DIR, checkout_environment, executable
 
 MANIFEST = TOOL_DIR / "Cargo.toml"
@@ -35,4 +36,4 @@ def build(release: bool = True) -> int:
 
 def test(compiler: Path) -> int:
     """The tool's unit tests, plus its end-to-end runs against `compiler`."""
-    return toolchain.run(["cargo", "test", "--manifest-path", str(MANIFEST)], environment=checkout_environment(MARMOTC=str(compiler)))
+    return toolchain.run(["cargo", "test", "--manifest-path", str(MANIFEST)], environment=checkout_environment(MARMOTC=str(compiler), MARMOTVM=str(vm_beside(compiler))))

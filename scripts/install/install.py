@@ -33,6 +33,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from install import layout
 from install.layout import InstallLayout
 from lib import cargo, console
+from lib.program import vm_beside
 from lib.host import IS_WINDOWS, PRELUDE_DIR, executable
 from lib.presets import BuildTree, add_build_arguments, newest_built
 
@@ -58,7 +59,7 @@ def rebuild(args: argparse.Namespace) -> int:
 
 def copy_binaries(target: InstallLayout, compiler: Path) -> None:
     target.bin_dir.mkdir(parents=True, exist_ok=True)
-    vm = compiler.with_name(executable("marmotvm"))
+    vm = vm_beside(compiler)
     for binary in (compiler, vm):
         if not binary.is_file():
             raise SystemExit(f"{binary} is not built.")

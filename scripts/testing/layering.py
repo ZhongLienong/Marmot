@@ -10,7 +10,7 @@ Every quoted #include is resolved against the compiler and runtime include
 roots. Includes that resolve nowhere (system and third-party headers) are
 ignored. The CMake production target links are checked as well.
 
-Inside the compiler, the pipeline (compiler/src/Compiler) compiles from the
+Inside the compiler, the pipeline (projects/marmotc/src/Compiler) compiles from the
 CompilationInputs it is given and may not read environment variables. Projects
 and packages are resolved by the marmot tool before the compiler is called.
 """
@@ -24,16 +24,16 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from lib.host import REPO_ROOT as ROOT
 
 INCLUDE_ROOTS = {
-    'runtime': ROOT / 'runtime' / 'src',
-    'compiler': ROOT / 'compiler' / 'src',
+    'runtime': ROOT / 'projects' / 'marmotvm' / 'src',
+    'compiler': ROOT / 'projects' / 'marmotc' / 'src',
 }
 
 # The folders of compiler/src that form the driver, not the compiler library.
 DRIVER_DIRS = [
-    ROOT / 'compiler' / 'src' / 'Utility' / name
+    ROOT / 'projects' / 'marmotc' / 'src' / 'Utility' / name
     for name in ('CLI', 'Driver')
 ]
-DRIVER_FILES = [ROOT / 'compiler' / 'src' / 'Marmot.cpp']
+DRIVER_FILES = [ROOT / 'projects' / 'marmotc' / 'src' / 'Marmot.cpp']
 
 ALLOWED = {
     'runtime': {'runtime'},
@@ -45,7 +45,7 @@ ALLOWED = {
 
 INCLUDE = re.compile(r'^\s*#\s*include\s+"([^"]+)"', re.MULTILINE)
 
-PIPELINE_DIR = ROOT / 'compiler' / 'src' / 'Compiler'
+PIPELINE_DIR = ROOT / 'projects' / 'marmotc' / 'src' / 'Compiler'
 ENVIRONMENT_READ = re.compile(r'\b(getenv|_dupenv_s|_wgetenv|secure_getenv)\s*\(')
 
 
@@ -66,13 +66,16 @@ def component_of(path):
     path = path.resolve()
     if path in DRIVER_FILES or any(directory in path.parents for directory in DRIVER_DIRS):
         return 'driver'
-    if (ROOT / 'web' / 'src') in path.parents:
+    if (ROOT / 'projects' / 'web' / 'src') in path.parents:
         return 'web'
-    if (ROOT / 'vm' / 'src') in path.parents:
-        return 'vm'
     for name, include_root in INCLUDE_ROOTS.items():
         if include_root in path.parents:
             return name
+    for project, component in [('marmotc', 'driver'), ('marmotvm', 'runtime')]:
+        if (ROOT / 'projects' / project / 'tests') in path.parents:
+            return component
+    if (ROOT / 'test' / 'integration') in path.parents:
+        return 'driver'
     return None
 
 
@@ -89,7 +92,7 @@ def resolve(including_file, target):
 
 def main(argv: list[str]) -> int:
     sources = []
-    for folder in (ROOT / 'runtime' / 'src', ROOT / 'compiler' / 'src', ROOT / 'web' / 'src', ROOT / 'vm' / 'src'):
+    for folder in (ROOT / 'projects' / 'marmotvm' / 'src', ROOT / 'projects' / 'marmotc' / 'src', ROOT / 'projects' / 'web' / 'src', ROOT / 'test' / 'integration', ROOT / 'projects' / 'marmotc' / 'tests', ROOT / 'projects' / 'marmotvm' / 'tests'):
         for pattern in ('*.h', '*.cpp', '*.def'):
             sources.extend(folder.rglob(pattern))
 
@@ -113,7 +116,7 @@ def main(argv: list[str]) -> int:
                 f'{target_component} header "{match.group(1)}"'
             )
 
-    cmake = (ROOT / 'CMakeLists.txt').read_text(encoding='utf-8')
+    cmake = '\n'.join(path.read_text(encoding='utf-8') for project in ('marmotc', 'marmotvm') for path in (ROOT / 'projects' / project).rglob('*.cmake')) + '\n' + '\n'.join((ROOT / 'projects' / project / 'CMakeLists.txt').read_text(encoding='utf-8') for project in ('marmotc', 'marmotvm'))
     if re.search(r'add_library\(\s*MarmotBytecode\b', cmake):
         violations.append('CMakeLists.txt: MarmotBytecode remains a shared target')
     links = {}

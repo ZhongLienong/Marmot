@@ -10,7 +10,7 @@ Covers:
 - `marmotc --version` and `help <command>`, and marmotvm's command line
 
 Projects (manifests, lockfiles, packages, init) and `marmot run`/`marmot test`
-belong to the marmot tool and are covered by its tests (tool/tests).
+belong to the marmot tool and are covered by its tests (projects/marmot/tests).
 """
 
 from __future__ import annotations

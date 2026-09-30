@@ -5,7 +5,7 @@ Build Marmot: the compiler, the VM, the unit tests and the project tool.
 Targets:
     compiler    marmotc
     vm          marmotvm
-    unit        MarmotUnitTests
+    unit        the project unit tests and subprocess integration tests
     tool        the Rust marmot tool, with cargo
     all         everything above
 
@@ -27,9 +27,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from lib import cargo
-from lib.presets import BuildTree, add_build_arguments
+from lib.presets import BuildTree, UNIT_TARGETS, add_build_arguments
 
-CMAKE_TARGETS = {"compiler": "marmotc", "vm": "marmotvm", "unit": "MarmotUnitTests"}
+CMAKE_TARGETS = {"compiler": ["marmotc"], "vm": ["marmotvm"], "unit": [*UNIT_TARGETS, "marmotc", "marmotvm"]}
 TARGETS = [*CMAKE_TARGETS, "tool", "all"]
 
 
@@ -46,10 +46,10 @@ def main(argv: list[str]) -> int:
         parser.error(f"unknown target {', '.join(unknown)}; choose from {', '.join(TARGETS)}")
     requested = args.targets or ["compiler", "vm"]
     chosen = [*CMAKE_TARGETS, "tool"] if "all" in requested else requested
-    cmake_targets = [CMAKE_TARGETS[target] for target in chosen if target in CMAKE_TARGETS]
+    cmake_targets = [item for target in chosen if target in CMAKE_TARGETS for item in CMAKE_TARGETS[target]]
     if cmake_targets:
         tree = BuildTree.from_args(args)
-        if "MarmotUnitTests" in cmake_targets and tree.build_type == "Release":
+        if any(target in UNIT_TARGETS for target in cmake_targets) and tree.build_type == "Release":
             # Release leaves the unit tests out unless configured with them.
             configured = tree.configure(with_unit_tests=True)
             if configured != 0:

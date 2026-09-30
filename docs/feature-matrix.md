@@ -19,9 +19,9 @@ See [Versioning Policy](versioning-policy.md) for how `Stable`,
 
 | Feature | Status | Primary Coverage | Notes |
 |---------|--------|------------------|-------|
-| Primitive values: `Int`, `Float`, `Byte`, `Word`, `Bool`, `Text`, `Unit` | Stable | `test/literal/`, `test/ffi/`, `runtime/tests/runtime/` | `Text` is UTF-8 and remains the only built-in string type. |
+| Primitive values: `Int`, `Float`, `Byte`, `Word`, `Bool`, `Text`, `Unit` | Stable | `test/literal/`, `test/ffi/`, `projects/marmotvm/tests/runtime/` | `Text` is UTF-8 and remains the only built-in string type. |
 | Bottom type: `Never` | Stable | `test/prelude/`, `test/hashmap/` | Mostly exercised through `Prelude/Panic` and bottom-type unification rather than a dedicated `Never` fixture. |
-| Arrays and tuples | Stable | `test/literal/`, `test/expression/`, `compiler/tests/parser/`, `runtime/tests/runtime/` | Tuple literals and tuple destructuring both have dedicated regression coverage, with parser/runtime unit tests still covering AST and VM details. |
+| Arrays and tuples | Stable | `test/literal/`, `test/expression/`, `projects/marmotc/tests/parser/`, `projects/marmotvm/tests/runtime/` | Tuple literals and tuple destructuring both have dedicated regression coverage, with parser/runtime unit tests still covering AST and VM details. |
 | Structs and unions | Stable | `test/struct/`, `test/union/`, `test/match/` | Product and sum types both compile through the normal end-to-end path. |
 | Type aliases | Stable | `test/type_alias/`, `test/generics/` | `alias X = Y` is transparent. The older transparent `type X = Y` has been migrated; `type` is now nominal. Parameterised aliases are limited — see the type-declaration row. |
 | `type` declarations | Stable | `test/type_declaration/`, `test/newtype/` | One keyword for three shapes: `type P = { x: Int }` record, `type O<T> = A \| B(T)` sum, `type Meters = Int` newtype. The right-hand side selects the kind. `struct` and `union` have been removed; a file still using either gets a parser diagnostic naming the replacement. |
@@ -32,21 +32,21 @@ See [Versioning Policy](versioning-policy.md) for how `Stable`,
 
 | Feature | Status | Primary Coverage | Notes |
 |---------|--------|------------------|-------|
-| Pattern guards | Stable | `test/match/`, `compiler/tests/` | `case P if cond => e`. A failed guard falls through to the next arm, including one with the same constructor. A guarded arm does **not** count toward exhaustiveness, since the guard is a runtime test. |
+| Pattern guards | Stable | `test/match/`, `projects/marmotc/tests/` | `case P if cond => e`. A failed guard falls through to the next arm, including one with the same constructor. A guarded arm does **not** count toward exhaustiveness, since the guard is a runtime test. |
 | Record update | Stable | `test/struct/` | `{ s with f = v, g = w }` copies a record with fields replaced. Simultaneous — right-hand sides see the original. Duplicate fields are an error, nested paths are not supported. Works inside generic functions, taking its type from the already-resolved source record. |
-| `if`, block expressions, `match`, `for` | Stable | `test/expression/`, `test/for_loop/`, `runtime/tests/runtime/` | Every control-flow form is an expression. `return`, `loop`, `break` and `continue` were removed; using one is a compile error naming the replacement. |
+| `if`, block expressions, `match`, `for` | Stable | `test/expression/`, `test/for_loop/`, `projects/marmotvm/tests/runtime/` | Every control-flow form is an expression. `return`, `loop`, `break` and `continue` were removed; using one is a compile error naming the replacement. |
 | `for ... in` over ranges, arrays, and `Iterable` implementations | Stable | `test/for_loop/`, `test/prelude/` | `Iterable`-backed loops use `Iterable::Next` at type-check and lowering time. |
-| Binary and ternary ranges | Stable | `test/range/`, `test/for_loop/`, `runtime/tests/runtime/` | Both `start..end` and `start..step..end` are implemented. |
-| Array comprehensions | Stable | `test/array_comprehension/`, `compiler/tests/parser/` | Supports range, array, and `Iterable` inputs. |
+| Binary and ternary ranges | Stable | `test/range/`, `test/for_loop/`, `projects/marmotvm/tests/runtime/` | Both `start..end` and `start..step..end` are implemented. |
+| Array comprehensions | Stable | `test/array_comprehension/`, `projects/marmotc/tests/parser/` | Supports range, array, and `Iterable` inputs. |
 | Pipe operator: `|>` and `|> match with` | Stable | `test/pipe/` | Pipe rewriting is handled in the parser. |
-| Closures and captured mutation | Stable | `test/closure/`, `runtime/tests/runtime/`, `compiler/tests/static_analyzer/` | Captured locals are boxed so nested closures preserve by-reference semantics. |
+| Closures and captured mutation | Stable | `test/closure/`, `projects/marmotvm/tests/runtime/`, `projects/marmotc/tests/static_analyzer/` | Captured locals are boxed so nested closures preserve by-reference semantics. |
 
 ## Pattern Matching
 
 | Feature | Status | Primary Coverage | Notes |
 |---------|--------|------------------|-------|
-| `match` with binding, wildcard, literal, tuple, array, and constructor patterns | Stable | `test/match/`, `compiler/tests/parser/`, `compiler/tests/typechecker/` | The current pattern inventory is six variants. |
-| Exhaustiveness checking | Stable | `test/match/`, `compiler/tests/typechecker/` | Checked through nested patterns; an error names a value no case matches. |
+| `match` with binding, wildcard, literal, tuple, array, and constructor patterns | Stable | `test/match/`, `projects/marmotc/tests/parser/`, `projects/marmotc/tests/typechecker/` | The current pattern inventory is six variants. |
+| Exhaustiveness checking | Stable | `test/match/`, `projects/marmotc/tests/typechecker/` | Checked through nested patterns; an error names a value no case matches. |
 
 ## Generics and Typeclasses
 
@@ -55,7 +55,7 @@ See [Versioning Policy](versioning-policy.md) for how `Stable`,
 | Generic functions, structs, unions, and aliases | Stable | `test/generics/`, `test/type_alias/` | Includes nested generics and multi-parameter definitions. |
 | `where` constraints and type-definition constraints | Stable | `test/generics/`, `test/typeclass/` | Constraints work on functions and type definitions. |
 | Constructor inference and context-sensitive lambda typing | Stable | `test/generics/`, `test/pipe/` | The type checker uses bidirectional context here. |
-| Classes, instances, and associated types | Stable | `test/typeclass/`, `compiler/tests/typechecker/` | Includes associated type declarations and instance bindings. |
+| Classes, instances, and associated types | Stable | `test/typeclass/`, `projects/marmotc/tests/typechecker/` | Includes associated type declarations and instance bindings. |
 | Cross-module typeclass metadata and imports | Stable | `test/typeclass/`, `test/module/` | Typeclass/import metadata survives module boundaries. |
 | Deriving: `Equatable`, `Hashable`, `Map`, `Bind`, `Unwrap` | Stable | `test/deriving/` | Structural deriving is limited to focused non-generic, non-recursive shapes; container deriving supports focused union shapes. |
 | Operator-backed typeclass dispatch: `Convertable`, `Concatenable`, `Countable`, `Equatable`, `Orderable` | Stable | `test/typeclass/`, `test/prelude/`, `test/as_operator/` | The implementation mixes builtin lowering with constrained dispatch depending on the concrete types. |
@@ -64,25 +64,25 @@ See [Versioning Policy](versioning-policy.md) for how `Stable`,
 
 | Feature | Status | Primary Coverage | Notes |
 |---------|--------|------------------|-------|
-| Arithmetic, logical, bitwise, and comparison operators | Stable | `test/expression/`, `test/typeclass/`, `compiler/tests/lexer/` | User-defined equality and ordering rely on `Equatable` and `Orderable`. |
+| Arithmetic, logical, bitwise, and comparison operators | Stable | `test/expression/`, `test/typeclass/`, `projects/marmotc/tests/lexer/` | User-defined equality and ordering rely on `Equatable` and `Orderable`. |
 | Cast operator: `as` | Stable | `test/as_operator/`, `test/typeclass/` | Covers builtin primitive casts and constrained generic conversions. |
 | Concatenation: `++` for `Text` and `Array<T>` | Stable | `test/expression/`, `test/prelude/`, `test/typeclass/` | Constrained generic code can lower through `Concatenable<T>`. |
 | Length operator: `#` | Stable | `test/for_loop/`, `test/prelude/`, `test/hashmap/`, `test/hashset/` | Arrays are builtin; `List`, `Map`, `Set`, and generic `Countable` paths also exist. |
-| Compound assignment: `+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `|=`, `^=`, `<<=`, `>>=` | Stable | `test/expression/`, `compiler/tests/lexer/` | End-to-end regression coverage now exercises numeric and bitwise compound assignment on locals and struct members, plus type-check failures for unsupported targets. |
+| Compound assignment: `+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `|=`, `^=`, `<<=`, `>>=` | Stable | `test/expression/`, `projects/marmotc/tests/lexer/` | End-to-end regression coverage now exercises numeric and bitwise compound assignment on locals and struct members, plus type-check failures for unsupported targets. |
 
 ## Modules, FFI, Packages, and Diagnostics
 
 | Feature | Status | Primary Coverage | Notes |
 |---------|--------|------------------|-------|
-| Modules, path imports, system imports, `use`, exports, privacy, and qualified access | Stable | `test/module/`, `compiler/tests/module/`, `compiler/tests/parser/` | `module` must be first; import/use/export blocks can appear later and be scattered. |
-| Module diagnostics: circular imports, unresolved imports, missing exports, duplicate modules | Stable | `test/module/`, `compiler/tests/module/`, `compiler/tests/compiler/` | The compiler emits stable module error codes for these cases. |
+| Modules, path imports, system imports, `use`, exports, privacy, and qualified access | Stable | `test/module/`, `projects/marmotc/tests/module/`, `projects/marmotc/tests/parser/` | `module` must be first; import/use/export blocks can appear later and be scattered. |
+| Module diagnostics: circular imports, unresolved imports, missing exports, duplicate modules | Stable | `test/module/`, `projects/marmotc/tests/module/`, `projects/marmotc/tests/compiler/` | The compiler emits stable module error codes for these cases. |
 | `foreign` declarations and builtin runtime FFI (`CALL_FOREIGN_INDEXED`) | Stable | `test/ffi/`, `test/prelude/` | This is the richer built-in FFI path backed by `MidoriFFIRegistry`. |
 | Dynamic package FFI (`CALL_FOREIGN`) | Experimental | `none yet` | The generic ABI exists, but package-specific automated coverage is still thin and the dynamic path does not expose the full builtin typed-FFI metadata. |
-| Native libraries (`foreign ... from "library"`, `package.marmot` `[ffi]`) | Experimental | `compiler/tests/utility/NativeLibraryTests.cpp`, `tool/src/tests.rs`, `scripts/testing/cli_contracts.py` | Source names the library; the `.mmc` records it with its `thread_safe` flag and checksum. `marmotvm` finds and loads it before the program starts through `--library`, `--library-path`, `MARMOT_LIBRARY_PATH` or the declaring module's directory; `marmotc` never does. |
-| Structured compiler warnings/errors and stable diagnostic codes | Stable | `compiler/tests/compiler/`, `runtime/tests/runtime/`, `test/static_analyzer/` | Warnings and errors are aggregated in `CompilerReport` instead of being printed ad hoc. |
-| Machine-readable warnings and compiler-report JSON | Stable | `compiler/tests/compiler/`, `test/static_analyzer/`, `scripts/testing/cli_contracts.py` | `*.warnings.json` fixtures exercise the warning-stream path, and CLI contract checks cover `marmotc.exe check --format json`. |
-| Static-analyzer warnings: `UnusedLocal`, `ShadowingPolicy`, `IntegerOverflow`, `CellCrossesWorker` | Stable | `compiler/tests/static_analyzer/`, `test/static_analyzer/` | Warnings are preserved even when a later compile stage fails. |
-| Projects (`project.marmot`, `[project]` fallback, `marmot.lock`), package resolution and `marmot init` | Experimental | `tool/tests/` | The `marmot` tool's tests cover manifest lookup and precedence, resolution, vendoring, lockfiles, test discovery and scaffolding. |
+| Native libraries (`foreign ... from "library"`, `package.marmot` `[ffi]`) | Experimental | `test/integration/NativeLibraryTests.cpp`, `projects/marmot/src/tests.rs`, `scripts/testing/cli_contracts.py` | Source names the library; the `.mmc` records it with its `thread_safe` flag and checksum. `marmotvm` finds and loads it before the program starts through `--library`, `--library-path`, `MARMOT_LIBRARY_PATH` or the declaring module's directory; `marmotc` never does. |
+| Structured compiler warnings/errors and stable diagnostic codes | Stable | `projects/marmotc/tests/compiler/`, `projects/marmotvm/tests/runtime/`, `test/static_analyzer/` | Warnings and errors are aggregated in `CompilerReport` instead of being printed ad hoc. |
+| Machine-readable warnings and compiler-report JSON | Stable | `projects/marmotc/tests/compiler/`, `test/static_analyzer/`, `scripts/testing/cli_contracts.py` | `*.warnings.json` fixtures exercise the warning-stream path, and CLI contract checks cover `marmotc.exe check --format json`. |
+| Static-analyzer warnings: `UnusedLocal`, `ShadowingPolicy`, `IntegerOverflow`, `CellCrossesWorker` | Stable | `projects/marmotc/tests/static_analyzer/`, `test/static_analyzer/` | Warnings are preserved even when a later compile stage fails. |
+| Projects (`project.marmot`, `[project]` fallback, `marmot.lock`), package resolution and `marmot init` | Experimental | `projects/marmot/tests/` | The `marmot` tool's tests cover manifest lookup and precedence, resolution, vendoring, lockfiles, test discovery and scaffolding. |
 
 ## Standard Library
 
@@ -109,5 +109,5 @@ See [Versioning Policy](versioning-policy.md) for how `Stable`,
 | `deriving (Transferable)` | Stable | `test/concurrency/` | Generates field-by-field serialization for structs and tag+payload serialization for unions. |
 | Auxiliary operations: `close`, `is_done`, `cancel` | Stable | `test/concurrency/` | Parsed as normal function calls; emit dedicated opcodes. |
 | Non-blocking / bounded receive (`try_receive`, `select`, timeouts) | Not implemented | — | `Channel::TryReceive` exists in the runtime but has no opcode or syntax; `try_receive(ch)` is an undefined name. |
-| Worker cancellation (`cancel`) | Stable | `test/concurrency/`, `runtime/tests/runtime/WorkerCancellationTests.cpp` | Cooperative: observed at loop back-edges, tail calls, foreign-call returns, and blocking channel waits. Blocking stdin and third-party FFI are not interruptible. |
-| Isolated-worker runtime | Stable | `test/concurrency/`, `runtime/tests/runtime/` | Per-VM isolation of heap, GC, stack, globals, and string cache. Single-threaded cost is one never-taken branch at cancellation safepoints. |
+| Worker cancellation (`cancel`) | Stable | `test/concurrency/`, `test/integration/WorkerCancellationTests.cpp` | Cooperative: observed at loop back-edges, tail calls, foreign-call returns, and blocking channel waits. Blocking stdin and third-party FFI are not interruptible. |
+| Isolated-worker runtime | Stable | `test/concurrency/`, `projects/marmotvm/tests/runtime/` | Per-VM isolation of heap, GC, stack, globals, and string cache. Single-threaded cost is one never-taken branch at cancellation safepoints. |

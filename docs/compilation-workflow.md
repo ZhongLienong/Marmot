@@ -24,7 +24,7 @@ The top-level driver preserves warnings and errors in a shared `CompilerReport`;
 
 ## Phase 1: Lexical Analysis
 
-Source: `compiler/src/Compiler/Lexer/`
+Source: `projects/marmotc/src/Compiler/Lexer/`
 
 The lexer converts raw source text into a `TokenStream`.
 
@@ -46,7 +46,7 @@ Current token inventory includes:
 
 ## Phase 2: Module Resolution
 
-Source: `compiler/src/Compiler/ModuleManager/`
+Source: `projects/marmotc/src/Compiler/ModuleManager/`
 
 `ModuleManager` scans top-level module statements, resolves imports, and builds a dependency graph.
 
@@ -80,7 +80,7 @@ The build graph stores:
 
 ## Phase 3: Syntax Analysis
 
-Source: `compiler/src/Compiler/Parser/`
+Source: `projects/marmotc/src/Compiler/Parser/`
 
 The parser converts each module's `TokenStream` into a `MidoriProgramTree`.
 
@@ -148,7 +148,7 @@ Current parser features include:
 
 ## Phase 4: Type Checking
 
-Source: `compiler/src/Compiler/TypeChecker/`
+Source: `projects/marmotc/src/Compiler/TypeChecker/`
 
 See [Type System](type-system.md) for the language-level surface.
 
@@ -170,7 +170,7 @@ It also records whether some operators should lower through typeclass dispatch, 
 
 ## Phase 5: Static Analysis
 
-Source: `compiler/src/Compiler/StaticAnalyzerManager/`
+Source: `projects/marmotc/src/Compiler/StaticAnalyzerManager/`
 
 Static analysis runs after type checking and before lowering. It emits warnings without mutating the AST.
 
@@ -187,7 +187,7 @@ Warnings remain structured as `CompilerWarning` values and are appended to the c
 
 ## Phase 6: Lowering
 
-Source: `compiler/src/Compiler/Lowering/`
+Source: `projects/marmotc/src/Compiler/Lowering/`
 
 Lowering turns the checked AST of one module into MidoriIR, a typed SSA IR with one graph per function (see [MidoriIR](midori-ir.md)). Every top-level definition gets its global slot before any function is lowered. Generic functions are specialized here, on demand, one function per set of argument types, including generics imported from other modules; class methods and operators that dispatch through type classes are resolved to instance methods here too. Its diagnostics are reported under the `Lowering` stage.
 
@@ -195,7 +195,7 @@ The MidoriIR verifier checks the result. Development and Debug builds verify aft
 
 ## Phase 7: MidoriIR Optimization
 
-Source: `compiler/src/Compiler/MidoriIROptimizer/`
+Source: `projects/marmotc/src/Compiler/MidoriIROptimizer/`
 
 The optimizer runs a fixed list of passes once over each module:
 
@@ -219,7 +219,7 @@ It reports nothing. [MidoriIR](midori-ir.md#optimizer) describes each pass and w
 
 ## Phase 8: Bytecode Emission
 
-Source: `compiler/src/Compiler/BytecodeBackend/`
+Source: `projects/marmotc/src/Compiler/BytecodeBackend/`
 
 The bytecode backend turns each module's MidoriIR into a `BytecodeModule`. It chooses where each value lives (a frame slot shared by liveness, the operand stack, or nowhere) and which opcodes to use, superinstructions included. Its only diagnostics are the encoding's limits, reported as `CodeGeneratorLimitExceeded` under the `CodeGenerator` stage.
 
@@ -246,7 +246,7 @@ Procedures, globals and text constants are named only in two bytes, by the `WIDE
 
 ## Phase 9: Linking
 
-Source: `compiler/src/Compiler/BytecodeLinker/`
+Source: `projects/marmotc/src/Compiler/BytecodeLinker/`
 
 `BytecodeLinker` merges per-module bytecode into a single `MidoriExecutable`.
 
@@ -263,7 +263,7 @@ The linker works on modules in build-schedule order, which is deterministic even
 
 ## Scheduling Model
 
-Source: `compiler/src/Compiler/Compiler.cpp`
+Source: `projects/marmotc/src/Compiler/Compiler.cpp`
 
 The compiler derives stable compilation tiers from the dependency graph, but the actual scheduler is dependency-driven rather than tier-blocked.
 

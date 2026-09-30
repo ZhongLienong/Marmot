@@ -1,8 +1,9 @@
 # Testing Guide
 
-Marmot has two complementary test layers:
+Marmot has three test layers:
 
-- `bytecode/tests/`, `runtime/tests/` and `compiler/tests/` contain in-process implementation tests built with Catch2 and linked against the Marmot libraries.
+- `projects/marmotc/tests/` and `projects/marmotvm/tests/` contain separate Catch2 unit suites, each linked only to its own project.
+- `test/integration/` contains compiler-to-VM checks. The compiler side emits a temporary `.mmc` file, and the test invokes `marmotvm` as a subprocess. The repository build opts into this target; standalone project unit tests do not require it.
 - `test/` contains file-based language regression tests run through `marmot test` and the legacy Python runners.
 
 Use the smallest layer that proves the behavior you are changing. If a regression is important at both the subsystem and CLI level, add both.
@@ -25,14 +26,14 @@ Add a test under `test/` when the behavior is best validated as a user-visible p
 
 Default rule:
 
-- if the subsystem is directly reachable through the Marmot libraries or `compiler/tests/support`, prefer a C++ unit test in the component's `tests/` folder
+- if the subsystem is directly reachable through the Marmot libraries or `projects/marmotc/tests/support`, prefer a C++ unit test in the component's `tests/` folder
 - if the value comes from a full-program fixture and black-box execution, prefer `test/`
 
 ## Layout and Conventions
 
 Implementation tests:
 
-- place files under the owning component's `tests/<area>/` folder: `bytecode/tests/`, `runtime/tests/` or `compiler/tests/`
+- place files under the owning component's `tests/<area>/` folder: `projects/marmotvm/tests/` or `projects/marmotc/tests/`
 - name files `<Subsystem>Tests.cpp`
 - use behavior-focused `TEST_CASE` names
 - tag by area first, then by narrower slice when useful, for example `[module][import]` or `[runtime][vm][error]`
@@ -89,9 +90,9 @@ Documentation examples:
 
 ## Support Helpers
 
-The helpers in `compiler/tests/support/` exist to keep new tests short and deterministic.
+The helpers in `projects/marmotc/tests/support/` exist to keep new tests short and deterministic.
 
-`CompileHelpers` in [`compiler/tests/support/CompileHelpers.h`](../compiler/tests/support/CompileHelpers.h):
+`CompileHelpers` in [`projects/marmotc/tests/support/CompileHelpers.h`](../projects/marmotc/tests/support/CompileHelpers.h):
 
 - `LexSnippet(source, file_name)` returns `std::expected<LexedSnippet, CompilerError>`
 - `ParseSnippet(source, file_name)` returns parsed statements, module declaration metadata, and collected `use` imports
@@ -100,21 +101,21 @@ The helpers in `compiler/tests/support/` exist to keep new tests short and deter
 - `CompileSnippetWithReport(source, file_name)` returns the final `MidoriResult::CompilationResult` from the driver boundary
 - `CompilationReport(result)` returns the final `MidoriResult::CompilerReport` for either a successful or failed compile result
 - `CompileSnippet(source, file_name)` compiles through the driver layer without launching the CLI
-- `ExecuteSnippet(source, file_name)` compiles and runs a snippet in-process and captures stdout/stderr
+- `ExecuteSnippet(source, file_name)` compiles a snippet, writes a temporary artifact, and captures stdout/stderr from the VM subprocess
 - `CollectTokenNames(tokens)` turns a token stream into a concise sequence for lexer assertions
 
 `CompileSnippet` and `ExecuteSnippet` already force Marmot test mode, so most unit tests do not need to set `MARMOT_TEST_MODE` manually.
 
 Filesystem and environment helpers:
 
-- [`compiler/tests/support/TempDir.h`](../compiler/tests/support/TempDir.h) creates an isolated temporary directory and removes it on scope exit
-- [`compiler/tests/support/TempProject.h`](../compiler/tests/support/TempProject.h) builds small module trees for import and build-graph tests
-- [`compiler/tests/support/ScopedEnvVar.h`](../compiler/tests/support/ScopedEnvVar.h) sets and restores environment variables such as `MARMOT_PATH`
-- [`compiler/tests/support/OutputCapture.h`](../compiler/tests/support/OutputCapture.h) captures native stdout/stderr when a test cannot use `ExecuteSnippet`
+- [`projects/marmotc/tests/support/TempDir.h`](../projects/marmotc/tests/support/TempDir.h) creates an isolated temporary directory and removes it on scope exit
+- [`projects/marmotc/tests/support/TempProject.h`](../projects/marmotc/tests/support/TempProject.h) builds small module trees for import and build-graph tests
+- [`projects/marmotc/tests/support/ScopedEnvVar.h`](../projects/marmotc/tests/support/ScopedEnvVar.h) sets and restores environment variables such as `MARMOT_PATH`
+- [`projects/marmotc/tests/support/OutputCapture.h`](../projects/marmotc/tests/support/OutputCapture.h) captures native stdout/stderr when a test cannot use `ExecuteSnippet`
 
 Diagnostic helpers:
 
-- [`compiler/tests/support/DiagnosticMatchers.h`](../compiler/tests/support/DiagnosticMatchers.h) matches warnings and errors by stage, code, line, and message fragments
+- [`projects/marmotc/tests/support/DiagnosticMatchers.h`](../projects/marmotc/tests/support/DiagnosticMatchers.h) matches warnings and errors by stage, code, line, and message fragments
 - `FindWarning(...)` and `FindError(...)` work on raw vectors, diagnostic collections, and top-level compiler reports
 - prefer these matchers over exact full-render snapshots when only part of the diagnostic matters
 
@@ -200,13 +201,13 @@ also executes each one; its timings are only meaningful with a Release build,
 and `python scripts/dev.py bench` measures them properly.
 
 The layering check keeps the components' dependency direction.
-The C++ code builds as three libraries: `MarmotRuntime` (`runtime/src`, with
-its private `.mmc` reader), `MarmotCompiler` (`compiler/src`, with its private
-writer) and `MarmotDriver` (the CLI and driver under `compiler/src/Utility`,
+The C++ code builds as three libraries: `MarmotRuntime` (`projects/marmotvm/src`, with
+its private `.mmc` reader), `MarmotCompiler` (`projects/marmotc/src`, with its private
+writer) and `MarmotDriver` (the CLI and driver under `projects/marmotc/src/Utility`,
 links Compiler). The two sides share no C++ library or header; `format/mmc/`
 holds their versioned file contract. Each library exports only its own include
 root, so most wrong includes already fail to compile; the script also checks
-includes and production CMake links. It also keeps the compiler pipeline (`compiler/src/Compiler`, apart
+includes and production CMake links. It also keeps the compiler pipeline (`projects/marmotc/src/Compiler`, apart
 from the package manager) free of project discovery: those files may not
 include the package manager or `Utility/Project`, or read environment
 variables, because the compiler compiles from the `CompilationInputs` its
@@ -227,10 +228,11 @@ Release gate does that itself. By hand, the presets are `x64-*` on Windows and
 `linux-*` on Linux:
 
 ```bash
+cd projects/marmotvm
 cmake --preset linux-debug
-cmake --build --preset linux-debug --target MarmotUnitTests
-ctest --test-dir out/build/ninja/linux-debug --output-on-failure
-./out/build/ninja/linux-debug/out/MarmotUnitTests [runtime]
+cmake --build --preset linux-debug --target MarmotvmUnitTests
+ctest --preset linux-debug
+../../out/build/marmotvm/linux-debug/out/MarmotvmUnitTests [runtime]
 ```
 
 Run the file-based regression suite:

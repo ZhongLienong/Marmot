@@ -10,7 +10,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS_DIR = REPO_ROOT / "scripts"
 PRELUDE_DIR = REPO_ROOT / "MarmotPrelude"
 TEST_DIR = REPO_ROOT / "test"
-TOOL_DIR = REPO_ROOT / "tool"
+TOOL_DIR = REPO_ROOT / "projects" / "marmot"
 
 IS_WINDOWS = os.name == "nt"
 IS_LINUX = sys.platform.startswith("linux")

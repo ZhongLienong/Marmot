@@ -26,7 +26,19 @@ Marmot/
 
 There is no root `CMakeLists.txt` and no installable C++ package shared by `marmotc` and `marmotvm`. Each C++ project may have internal targets within its own build. `scripts/dev.py` remains the convenient front door and invokes separate CMake builds. `format/mmc/` is a contract and fixture directory, not a CMake project or link dependency.
 
-## Current coupling to remove
+## Progress
+
+Phases 1–3 are implemented. The compiler, VM, project tool, and browser integration
+now live under `projects/`. Each native C++ project owns its CMake build, presets,
+unit tests, and install target. Repository integration tests live in
+`test/integration/` and invoke the VM through temporary `.mmc` files.
+
+Phase 3 verification passed the full Development gate, standalone CMake install
+and cleanup checks, the VM Debug ABI check, and the relocated WebAssembly build.
+The browser still uses the combined integration module until phase 5. Build
+profiles and diagnostic features are the next phase.
+
+## Baseline coupling to remove
 
 - The root `CMakeLists.txt` builds `MarmotBytecode`, then links it into both `MarmotCompiler` and `MarmotRuntime`. Its `bytecode/src` directory mixes the in-memory `MidoriExecutable`, artifact reader and writer, opcode and builtin tables, scalar helpers, and disassembler.
 - `compiler/src/Utility/CLI/CLI.cpp` writes `.mmc` through `MidoriBinaryArtifact`; `runtime/src/Loader/ProgramLoader.cpp` reads it through the same implementation. Split those responsibilities, including their in-memory models.

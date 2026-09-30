@@ -4,7 +4,7 @@ The full gate: everything that must pass before a commit.
 
 In order, stopping at the first failure:
     layering    the compiler, runtime and bytecode libraries include only what they may
-    build       marmotc, marmotvm and MarmotUnitTests
+    build       marmotc, marmotvm and the project unit tests and subprocess integration tests
     unit        the C++ unit tests
     docs        documentation examples are in sync and run as documented
     cli         the command-line contracts
@@ -34,7 +34,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from lib import console
 from lib.host import REPO_ROOT
-from lib.presets import BuildTree, add_build_arguments
+from lib.presets import BuildTree, UNIT_TARGETS, add_build_arguments
 from testing import benchmarks, cli_contracts, doc_examples, formatting, language, layering, mmc_contract, tool, unit
 
 STEPS = ["layering", "build", "unit", "mmc", "docs", "cli", "format", "benchmarks", "tool", "language"]
@@ -82,7 +82,7 @@ def build_everything(tree: BuildTree) -> int:
         configured = tree.configure(with_unit_tests=True)
         if configured != 0:
             return configured
-    return tree.build(["marmotc", "marmotvm", "MarmotUnitTests"])
+    return tree.build(["marmotc", "marmotvm", *UNIT_TARGETS])
 
 
 def steps(args: argparse.Namespace, tree: BuildTree) -> dict[str, Callable[[], int]]:

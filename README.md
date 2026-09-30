@@ -41,7 +41,7 @@ one.
 
 Marmot has three programs:
 
-- `marmot`, the project tool (Rust, in `tool/`): projects, packages, running and
+- `marmot`, the project tool (Rust, in `projects/marmot/`): projects, packages, running and
   testing
 - `marmotc`, the compiler: it compiles a program to a `.mmc` file and never runs
   one
@@ -626,13 +626,18 @@ python scripts/dev.py clean
 
 Underneath are CMake presets: `x64-debug`, `x64-development`, `x64-release` and
 `x64-experimental` on Windows, and the same four as `linux-*` on Linux. Builds
-write the executables to `out/build/ninja/<preset>/out/`. The compiler needs a
+write each executable to `out/build/<project>/<preset>/out/`. Each C++ project
+has its own CMake project and presets under `projects/`; there is no root CMake project. The compiler needs a
 C++23 standard library with `<print>`, `<expected>` and `std::ranges::to`: MSVC
 19.37+, GCC 14+, or Clang 19+. On Linux the scripts pick one that is new enough
 when a build tree is first configured; `CXX` overrides the choice. By hand:
 ```bash
+cd projects/marmotc
 cmake --preset linux-development
-cmake --build --preset linux-development --target marmotc marmotvm
+cmake --build --preset linux-development --target marmotc
+cd ../marmotvm
+cmake --preset linux-development
+cmake --build --preset linux-development --target marmotvm
 ```
 
 ### Running Programs

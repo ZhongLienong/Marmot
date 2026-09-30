@@ -1,4 +1,4 @@
-"""Build trees: the CMake preset for a configuration, where it builds, and what it builds."""
+"""Independent CMake build trees orchestrated with one profile selection."""
 
 from __future__ import annotations
 
@@ -12,11 +12,8 @@ from lib import toolchain
 from lib.host import REPO_ROOT, executable, preset_family
 
 BUILD_TYPES = ["Debug", "Development", "Release", "Experimental"]
-
-
-def _configure_presets() -> dict[str, dict[str, Any]]:
-    contents = json.loads((REPO_ROOT / "CMakePresets.json").read_text(encoding="utf-8-sig"))
-    return {str(preset["name"]): preset for preset in contents.get("configurePresets", [])}
+PROJECTS = ("marmotc", "marmotvm")
+UNIT_TARGETS = ("MarmotcUnitTests", "MarmotvmUnitTests", "MarmotIntegrationTests")
 
 
 def _resolved(name: str, presets: dict[str, dict[str, Any]]) -> dict[str, Any]:
@@ -32,23 +29,58 @@ def _resolved(name: str, presets: dict[str, dict[str, Any]]) -> dict[str, Any]:
 
 
 @dataclass(frozen=True)
-class BuildTree:
+class ProjectBuild:
+    project: str
     preset: str
     build_type: str
     binary_dir: Path
 
+    @property
+    def source_dir(self) -> Path:
+        return REPO_ROOT / "projects" / self.project
+
+    @property
+    def is_configured(self) -> bool:
+        return (self.binary_dir / "CMakeCache.txt").is_file()
+
+    def configure(self, *, with_unit_tests: bool = False, fresh: bool = False) -> int:
+        command = ["cmake", "--preset", self.preset]
+        if fresh:
+            command.append("--fresh")
+        if with_unit_tests:
+            command.append("-DMIDORI_BUILD_TESTS=ON")
+            if self.project == "marmotc":
+                command.append("-DMIDORI_BUILD_INTEGRATION_TESTS=ON")
+        return toolchain.run(command, cwd=self.source_dir,
+                             environment=toolchain.build_environment(configuring=fresh or not self.is_configured))
+
+
+@dataclass(frozen=True)
+class BuildTree:
+    preset: str
+    build_type: str
+    projects: tuple[ProjectBuild, ...]
+
     @staticmethod
     def select(build_type: str = "Development", preset: str | None = None) -> "BuildTree":
-        presets = _configure_presets()
-        name = preset if preset else preset_family() + build_type.lower()
-        resolved = _resolved(name, presets)
-        binary_dir = str(resolved["binaryDir"]).replace("${sourceDir}", str(REPO_ROOT)).replace("${presetName}", name)
-        chosen_type = resolved.get("cacheVariables", {}).get("CMAKE_BUILD_TYPE", build_type)
-        return BuildTree(name, chosen_type, Path(binary_dir).resolve())
+        name = preset or preset_family() + build_type.lower()
+        builds = []
+        for project in PROJECTS:
+            source = REPO_ROOT / "projects" / project
+            contents = json.loads((source / "CMakePresets.json").read_text(encoding="utf-8-sig"))
+            resolved = _resolved(name, {entry["name"]: entry for entry in contents["configurePresets"]})
+            directory = str(resolved["binaryDir"]).replace("${sourceDir}", str(source)).replace("${presetName}", name)
+            chosen_type = resolved.get("cacheVariables", {}).get("CMAKE_BUILD_TYPE", build_type)
+            builds.append(ProjectBuild(project, name, chosen_type, Path(directory).resolve()))
+        return BuildTree(name, builds[0].build_type, tuple(builds))
 
     @staticmethod
     def from_args(args: argparse.Namespace) -> "BuildTree":
         return BuildTree.select(args.build, args.preset)
+
+    @property
+    def binary_dir(self) -> Path:
+        return self.projects[0].binary_dir
 
     @property
     def out_dir(self) -> Path:
@@ -60,31 +92,44 @@ class BuildTree:
 
     @property
     def vm(self) -> Path:
-        return self.out_dir / executable("marmotvm")
+        return self.projects[1].binary_dir / "out" / executable("marmotvm")
 
     @property
-    def unit_tests(self) -> Path:
-        return self.out_dir / executable("MarmotUnitTests")
+    def unit_tests(self) -> tuple[Path, ...]:
+        return (self.out_dir / executable(UNIT_TARGETS[0]),
+                self.projects[1].binary_dir / "out" / executable(UNIT_TARGETS[1]))
+
+    @property
+    def integration_tests(self) -> Path:
+        return self.out_dir / executable(UNIT_TARGETS[2])
 
     @property
     def is_configured(self) -> bool:
-        return (self.binary_dir / "CMakeCache.txt").is_file()
+        return all(project.is_configured for project in self.projects)
 
     def configure(self, *, with_unit_tests: bool = False, fresh: bool = False) -> int:
-        command = ["cmake", "--preset", self.preset]
-        if fresh:
-            command.append("--fresh")
-        # Release leaves the unit tests out unless asked for.
-        if with_unit_tests and self.build_type == "Release":
-            command.append("-DMIDORI_BUILD_TESTS=ON")
-        return toolchain.run(command, environment=toolchain.build_environment(configuring=fresh or not self.is_configured))
+        for project in self.projects:
+            status = project.configure(with_unit_tests=with_unit_tests, fresh=fresh)
+            if status != 0:
+                return status
+        return 0
 
     def build(self, targets: list[str]) -> int:
-        if not self.is_configured:
-            configured = self.configure(with_unit_tests="MarmotUnitTests" in targets)
-            if configured != 0:
-                return configured
-        return toolchain.run(["cmake", "--build", "--preset", self.preset, "--target", *targets], environment=toolchain.build_environment())
+        for project in self.projects:
+            chosen = list(dict.fromkeys(target for target in targets
+                          if (target in {"marmotvm", "MarmotvmUnitTests"}) == (project.project == "marmotvm")))
+            if not chosen:
+                continue
+            tests = any(target in UNIT_TARGETS for target in chosen)
+            if tests or not project.is_configured:
+                status = project.configure(with_unit_tests=tests)
+                if status != 0:
+                    return status
+            status = toolchain.run(["cmake", "--build", "--preset", self.preset, "--target", *chosen],
+                                   cwd=project.source_dir, environment=toolchain.build_environment())
+            if status != 0:
+                return status
+        return 0
 
     def require_compiler(self) -> Path:
         if not self.compiler.is_file():
@@ -93,12 +138,11 @@ class BuildTree:
 
 
 def newest_built() -> BuildTree | None:
-    """The host's build tree whose marmotc was built last: the one being worked on."""
     built = [tree for tree in map(BuildTree.select, BUILD_TYPES) if tree.compiler.is_file()]
-    return max(built, key=lambda tree: tree.compiler.stat().st_mtime, default=None)
+    return max(built, key=lambda tree: max(path.stat().st_mtime for path in (tree.compiler, tree.vm) if path.is_file()), default=None)
 
 
 def add_build_arguments(parser: argparse.ArgumentParser, default: str | None = "Development") -> None:
     described = default if default else "the one built last"
     parser.add_argument("--build", choices=BUILD_TYPES, default=default, help=f"Build configuration (default: {described}).")
-    parser.add_argument("--preset", default=None, help="A CMake preset by name, instead of the host's preset for --build.")
+    parser.add_argument("--preset", default=None, help="The matching preset in each C++ project.")

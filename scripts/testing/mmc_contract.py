@@ -149,8 +149,8 @@ def source_registry(side: Path) -> dict[str, object]:
 def check_registry() -> None:
     frozen = json.loads((CONTRACT_DIR / "registry-v13.json").read_text(encoding="utf-8"))
     for name, side, version_name in (
-        ("marmotc", REPO_ROOT / "compiler/src/Bytecode", "MbcFormatVersion"),
-        ("marmotvm", REPO_ROOT / "runtime/src/VmBytecode", "VmMbcFormatVersion"),
+        ("marmotc", REPO_ROOT / "projects/marmotc/src/Bytecode", "MbcFormatVersion"),
+        ("marmotvm", REPO_ROOT / "projects/marmotvm/src/VmBytecode", "VmMbcFormatVersion"),
     ):
         if source_registry(side) != frozen:
             raise AssertionError(f"{name} opcode or builtin table differs from the frozen version-13 registry")

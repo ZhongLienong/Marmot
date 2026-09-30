@@ -28,6 +28,7 @@ from lib import console
 from lib.presets import BuildTree
 
 COMPILER_AND_VM = ["marmotc", "marmotvm"]
+UNIT_TARGETS = ["MarmotcUnitTests", "MarmotvmUnitTests", "MarmotIntegrationTests", *COMPILER_AND_VM]
 
 
 @dataclass(frozen=True)
@@ -48,7 +49,7 @@ COMMANDS: dict[str, Command] = {
     "run": Command("program.run", "build a .mmt file and run it", "Programs", COMPILER_AND_VM),
     "fmt": Command("program.fmt", "format .mmt files and folders, or --check them", "Programs", ["marmotc"]),
     "test": Command("testing.language", "run the language suite (--category, --pattern, --test)", "Tests", COMPILER_AND_VM),
-    "unit": Command("testing.unit", "run the C++ unit tests (--tag, --regex)", "Tests", ["MarmotUnitTests"]),
+    "unit": Command("testing.unit", "run the C++ unit tests (--tag, --regex)", "Tests", UNIT_TARGETS),
     "snapshot": Command("testing.snapshot", "write a language test's .expected from its output", "Tests", COMPILER_AND_VM),
     "check": Command("", "run one check: layering, docs, cli, format, benchmarks, tool", "Tests"),
     "gate": Command("testing.gate", "everything a commit must pass", "Tests"),
@@ -60,11 +61,11 @@ COMMANDS: dict[str, Command] = {
 CHECKS: dict[str, Command] = {
     "layering": Command("testing.layering", "library include rules", "Tests"),
     "docs": Command("testing.doc_examples", "documentation examples (--sync to update their mirrors)", "Tests", COMPILER_AND_VM),
-    "cli": Command("testing.cli_contracts", "command-line contracts", "Tests", [*COMPILER_AND_VM, "MarmotUnitTests"]),
+    "cli": Command("testing.cli_contracts", "command-line contracts", "Tests", UNIT_TARGETS),
     "format": Command("testing.formatting", "formatter idempotency", "Tests", ["marmotc"]),
     "benchmarks": Command("testing.benchmarks", "benchmarks compile (--run to run them)", "Tests", COMPILER_AND_VM),
     "tool": Command("testing.tool", "the marmot tool's tests", "Tests", ["marmotc"]),
-    "mmc": Command("testing.mmc_contract", "version-13 .mmc contract and fixture compatibility", "Tests", ["marmotc", "marmotvm", "MarmotUnitTests"]),
+    "mmc": Command("testing.mmc_contract", "version-13 .mmc contract and fixture compatibility", "Tests", UNIT_TARGETS),
 }
 
 

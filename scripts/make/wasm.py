@@ -2,7 +2,7 @@
 """
 Build Marmot for WebAssembly with Emscripten, and optionally deploy it to a website.
 
-The build goes to build-wasm/ and makes marmot.js and marmot.wasm. Deploying
+The build goes to out/build/web/wasm64/ and makes marmot.js and marmot.wasm. Deploying
 copies them, the prelude and a manifest of its files into the site's public
 folder, given with --deploy or the MARMOT_SITE_DIR environment variable.
 
@@ -31,7 +31,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from lib import console, toolchain
 from lib.host import IS_WINDOWS, PRELUDE_DIR, REPO_ROOT
 
-BUILD_DIR = REPO_ROOT / "build-wasm"
+BUILD_DIR = REPO_ROOT / "out" / "build" / "web" / "wasm64"
 OUTPUT_DIR = BUILD_DIR / "out"
 WASM_FILES = ["marmot.js", "marmot.wasm"]
 
@@ -103,11 +103,11 @@ def remove_locked(function, path, _error) -> None:
     console.note(f"skipping locked path: {path}")
 
 
-def cached_toolchain_file() -> Path | None:
+def cached_path(variable: str) -> Path | None:
     cache = BUILD_DIR / "CMakeCache.txt"
     if not cache.is_file():
         return None
-    prefix = "CMAKE_TOOLCHAIN_FILE:FILEPATH="
+    prefix = variable + "="
     lines = cache.read_text(encoding="utf-8", errors="replace").splitlines()
     return next((Path(line[len(prefix):]).resolve() for line in lines if line.startswith(prefix)), None)
 
@@ -120,15 +120,16 @@ def build(emscripten: Emscripten, clean: bool) -> int:
         shutil.rmtree(BUILD_DIR, **handler)
 
     # A build tree keeps the em++ it was configured with; running it under another emsdk's config mixes LLVM versions.
-    cached = cached_toolchain_file()
-    stale = cached is not None and cached != emscripten.toolchain_file.resolve()
+    cached = cached_path("CMAKE_TOOLCHAIN_FILE:FILEPATH")
+    source = REPO_ROOT / "projects" / "web"
+    stale = cached is not None and (cached != emscripten.toolchain_file.resolve() or cached_path("CMAKE_HOME_DIRECTORY:INTERNAL") != source.resolve())
     if stale:
-        console.note(f"build-wasm/ was configured with another Emscripten ({cached}); reconfiguring")
+        console.note(f"{BUILD_DIR} has a different toolchain or source directory; reconfiguring")
     if cached is None or stale:
         generator = ["-G", "Ninja"] if shutil.which("ninja", path=emscripten.environment.get("PATH")) else []
         fresh = ["--fresh"] if stale else []
         configured = toolchain.run(
-            [emscripten.emcmake, "cmake", *fresh, "-S", str(REPO_ROOT), "-B", str(BUILD_DIR), *generator,
+            [emscripten.emcmake, "cmake", *fresh, "-S", str(REPO_ROOT / "projects" / "web"), "-B", str(BUILD_DIR), *generator,
              "-DCMAKE_BUILD_TYPE=Release", "-DMIDORI_WASM64=ON"],
             environment=emscripten.environment,
         )
@@ -160,7 +161,7 @@ def deploy(site: Path) -> int:
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="Build Marmot for WebAssembly, and optionally deploy it.")
-    parser.add_argument("--clean", action="store_true", help="Delete build-wasm/ first.")
+    parser.add_argument("--clean", action="store_true", help="Delete the WebAssembly build tree first.")
     parser.add_argument("--deploy", nargs="?", const=os.environ.get("MARMOT_SITE_DIR", ""), default=None, metavar="SITE_DIR",
                         help="Copy the build and the prelude into this website folder (default: $MARMOT_SITE_DIR).")
     args = parser.parse_args(argv)

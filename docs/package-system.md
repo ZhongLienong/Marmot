@@ -2,7 +2,7 @@
 
 Marmot has a local package dependency system built around `package.marmot`,
 `project.marmot`, `marmot.lock`, and project-local vendoring into `packages/`.
-It lives in the `marmot` project tool (`tool/`); the compiler, `marmotc`, reads
+It lives in the `marmot` project tool (`projects/marmot/`); the compiler, `marmotc`, reads
 no manifests and is given its inputs in a [build plan](plan-file.md).
 The current implementation resolves from package directories that already exist
 on disk. Remote registry fetch and publish support are still deferred.

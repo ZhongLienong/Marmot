@@ -24,17 +24,16 @@ from lib import console
 from lib.host import REPO_ROOT, TOOL_DIR
 from lib.presets import BuildTree, add_build_arguments
 
-WASM_BUILD_DIR = REPO_ROOT / "build-wasm"
-
-
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="Delete build output.")
     add_build_arguments(parser)
     parser.add_argument("--all", action="store_true", help="Every build tree, the WebAssembly build and the tool's cargo target.")
     args = parser.parse_args(argv)
 
-    doomed = [REPO_ROOT / "out" / "build", WASM_BUILD_DIR, TOOL_DIR / "target"] if args.all else [BuildTree.from_args(args).binary_dir]
+    doomed = [REPO_ROOT / "out" / "build", TOOL_DIR / "target"] if args.all else [project.binary_dir for project in BuildTree.from_args(args).projects]
     for directory in doomed:
+        if not directory.resolve().is_relative_to(REPO_ROOT.resolve()):
+            raise SystemExit(f"Build output must stay inside the repository: {directory}")
         if directory.is_dir():
             shutil.rmtree(directory)
             console.ok(f"removed {directory}")

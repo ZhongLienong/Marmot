@@ -2,7 +2,7 @@
 
 MidoriIR is the compiler's typed SSA intermediate representation. Lowering builds it from the checked AST after generics are specialized, the MidoriIR optimizer rewrites it, and the bytecode backend emits it. It is the only path from a checked module to bytecode (see [Compilation Workflow](compilation-workflow.md)).
 
-Source: `compiler/src/Compiler/MidoriIR/`.
+Source: `projects/marmotc/src/Compiler/MidoriIR/`.
 
 Change this document in the same change as the IR.
 
@@ -31,7 +31,7 @@ Functions, blocks and globals are kept in vectors, in the order lowering creates
 
 ## Instructions
 
-`compiler/src/Compiler/MidoriIR/MidoriIROps.def` lists every instruction with its signature and default effect. The operation enum, the printed names, the fixed signatures the verifier checks and the builder's effects are all generated from that file.
+`projects/marmotc/src/Compiler/MidoriIR/MidoriIROps.def` lists every instruction with its signature and default effect. The operation enum, the printed names, the fixed signatures the verifier checks and the builder's effects are all generated from that file.
 
 | Family | Instructions | Operands and immediate |
 | --- | --- | --- |
@@ -127,7 +127,7 @@ bb3:
 
 ## Lowering
 
-`Lowering` (`compiler/src/Compiler/Lowering/`) turns the checked AST of one module into a `LoweredModule`: its MidoriIR, and what the IR does not carry: the names it exports and imports, which the linker needs, the generics a module importing it specializes, and the native libraries its foreign functions come from. The verifier then checks the module; a violation stops it with `CompilerInternalError`. It lowers every construct the language has.
+`Lowering` (`projects/marmotc/src/Compiler/Lowering/`) turns the checked AST of one module into a `LoweredModule`: its MidoriIR, and what the IR does not carry: the names it exports and imports, which the linker needs, the generics a module importing it specializes, and the native libraries its foreign functions come from. The verifier then checks the module; a violation stops it with `CompilerInternalError`. It lowers every construct the language has.
 
 - **The top-level function.** The module's top-level statements become the function `$main$`, which returns `Unit`.
 - **Top-level definitions.** Every one gets its global before any body is lowered, every `def f = fn ...` and instance method its function, every generic its template, and every class and instance its entry for resolving methods. A call of one of this module's functions is a direct `Call f` or `tailcall f`, and a call of any other global a `CallGlobal`.
@@ -146,7 +146,7 @@ A diagnostic lowering reports is under the `Lowering` stage: an unresolved or am
 
 ## Optimizer
 
-`MidoriIROptimizer` (`compiler/src/Compiler/MidoriIROptimizer/`) runs a fixed list of passes once, in this order, over each module after lowering. It reports nothing: a pass that leaves the IR invalid is a compiler bug the verifier catches. `MidoriIRPasses.h` declares the passes, and `MidoriIROptimizer(passes)` runs any other list, as the unit tests in `compiler/tests/midori_ir/MidoriIROptimizerTests.cpp` do. In Development and Debug builds (`MIDORI_ENABLE_OPTIMIZER_STATS`), the compiler's progress output lists each pass that changed a module's instruction count, with the count before and after it.
+`MidoriIROptimizer` (`projects/marmotc/src/Compiler/MidoriIROptimizer/`) runs a fixed list of passes once, in this order, over each module after lowering. It reports nothing: a pass that leaves the IR invalid is a compiler bug the verifier catches. `MidoriIRPasses.h` declares the passes, and `MidoriIROptimizer(passes)` runs any other list, as the unit tests in `projects/marmotc/tests/midori_ir/MidoriIROptimizerTests.cpp` do. In Development and Debug builds (`MIDORI_ENABLE_OPTIMIZER_STATS`), the compiler's progress output lists each pass that changed a module's instruction count, with the count before and after it.
 
 | Pass | What it does |
 | --- | --- |
@@ -176,7 +176,7 @@ What the passes keep:
 
 ## Bytecode backend
 
-`BytecodeBackend` (`compiler/src/Compiler/BytecodeBackend/`) turns a `LoweredModule` into the `BytecodeModule` the linker takes. `$main$` is procedure 0 and every other function follows in order, named `name@Module`. Imported globals become the placeholders the linker resolves. A block nothing reaches is not emitted.
+`BytecodeBackend` (`projects/marmotc/src/Compiler/BytecodeBackend/`) turns a `LoweredModule` into the `BytecodeModule` the linker takes. `$main$` is procedure 0 and every other function follows in order, named `name@Module`. Imported globals become the placeholders the linker resolves. A block nothing reaches is not emitted.
 
 Each value lives in one of four places:
 

@@ -373,7 +373,7 @@ FodyWeavers.xsd
 build/
 build-wasm/
 
-tool/target/
+projects/marmot/target/
 
 # Generated doc-example compile sandboxes
 .doc_examples/

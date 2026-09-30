@@ -10,24 +10,23 @@ Marmot is a language with three binaries:
 - `marmotc` — the compiler. Reads `.mmt` source, writes a `.mmc` program. It
   never runs anything.
 - `marmotvm` — the VM. Runs a `.mmc`.
-- `marmot` — the project tool, written in Rust (`tool/`). Resolves projects and
+- `marmot` — the project tool, written in Rust (`projects/marmot/`). Resolves projects and
   packages and drives the other two through a build plan.
 
 Layering, enforced by `scripts/testing/layering.py`: the compiler owns its
 bytecode writer and the VM owns its reader and disassembler. The driver
-(`compiler/src/Utility/{CLI,Driver}`) builds on the compiler and `vm/src` on
+(`projects/marmotc/src/Utility/{CLI,Driver}`) builds on the compiler and `projects/marmotvm/src/MarmotVM.cpp` on
 the runtime; neither side links or includes the other. They agree through the
 versioned `.mmc` contract under `format/mmc/`.
 
 | Path | What it holds |
 |---|---|
-| `compiler/src/Bytecode` | Compiler-side opcode and builtin IDs, executable model, `.mmc` writer |
-| `runtime/src/VmBytecode` | VM-side opcode and builtin IDs, loaded-program model, `.mmc` reader and disassembler |
+| `projects/marmotc/src/Bytecode` | Compiler-side opcode and builtin IDs, executable model, `.mmc` writer |
+| `projects/marmotvm/src/VmBytecode` | VM-side opcode and builtin IDs, loaded-program model, `.mmc` reader and disassembler |
 | `format/mmc` | Language-neutral v13 contract and compatibility fixtures |
-| `compiler/src/Compiler` | Compiler errors, lexer, parser, type checker, static analysis, lowering, MidoriIR optimizer, bytecode backend, linker |
-| `runtime/src` | Values, runtime errors, the interpreter, the GC, workers, the builtin FFI library |
-| `vm/src` | The `marmotvm` entry point |
-| `tool/src` | The `marmot` tool |
+| `projects/marmotc/src/Compiler` | Compiler errors, lexer, parser, type checker, static analysis, lowering, MidoriIR optimizer, bytecode backend, linker |
+| `projects/marmotvm/src` | Values, runtime errors, the interpreter, the GC, workers, the builtin FFI library and VM entry point |
+| `projects/marmot/src` | The `marmot` tool |
 | `MarmotPrelude` | The prelude, written in Marmot |
 | `test/` | The `.mmt` regression suite, with `.expected` snapshots |
 | `docs/` | The language and toolchain documentation |
@@ -54,8 +53,8 @@ names. Commands that need a build bring it up to date first.
 The language suite through the tool, in about thirteen seconds:
 
 ```
-cargo run --quiet --manifest-path tool/Cargo.toml -- test
-cargo run --quiet --manifest-path tool/Cargo.toml -- test module/      # one folder
+cargo run --quiet --manifest-path projects/marmot/Cargo.toml -- test
+cargo run --quiet --manifest-path projects/marmot/Cargo.toml -- test module/      # one folder
 ```
 
 The scripts are grouped by purpose under `scripts/`: `make/` (doctor, configure,
@@ -162,7 +161,7 @@ Worth knowing before editing the front end, because each was a bug once:
   `AppData\Local\Marmot`. A debug build of `marmot` prefers its own checkout's
   compiler and prelude; an installed one uses whatever was last installed.
   Reinstall with `python scripts/dev.py install --rebuild`.
-- Adding a `RuntimeErrorCode` means touching `runtime/src/Error/RuntimeError.{h,cpp}` and the
+- Adding a `RuntimeErrorCode` means touching `projects/marmotvm/src/Error/RuntimeError.{h,cpp}` and the
   lists in `docs/diagnostic-format.md` and `docs/error-reporting.md`.
 - Doc examples marked `marmot-test` are mirrored into `test/doc_examples/`. After
   editing one, run `python scripts/dev.py check docs --sync`.

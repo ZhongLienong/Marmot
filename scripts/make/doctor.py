@@ -115,7 +115,7 @@ def show_builds() -> None:
         if not tree.is_configured:
             print(f"  {tree.preset:<22} not configured")
             continue
-        built = [path.name for path in (tree.compiler, tree.vm, tree.unit_tests) if path.is_file()]
+        built = [path.name for path in (tree.compiler, tree.vm, *tree.unit_tests, tree.integration_tests) if path.is_file()]
         stamp = f", marmotc built {modified(tree.compiler)}" if tree.compiler.is_file() else ""
         print(f"  {tree.preset:<22} {', '.join(built) if built else 'nothing built'}{stamp}")
 

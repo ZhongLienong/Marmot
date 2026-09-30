@@ -4,11 +4,16 @@ from __future__ import annotations
 
 import subprocess
 import tempfile
+import os
 from pathlib import Path
 
 
 def vm_beside(compiler: Path) -> Path:
-    """marmotvm, built beside marmotc."""
+    """The matching independent VM build, or an installed sibling executable."""
+    if os.environ.get("MARMOTVM"):
+        return Path(os.environ["MARMOTVM"])
+    if compiler.parent.parent.parent.name == "marmotc":
+        return compiler.parent.parent.parent.parent / "marmotvm" / compiler.parent.parent.name / "out" / ("marmotvm" + compiler.suffix)
     return compiler.with_name("marmotvm" + compiler.suffix)
 
 

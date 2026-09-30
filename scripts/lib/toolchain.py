@@ -65,7 +65,9 @@ def msvc_environment() -> dict[str, str]:
     for line in dumped.stdout.splitlines():
         key, separator, value = line.partition("=")
         if separator and key:
-            environment[key] = value
+            # vcvars can emit PATH followed by an inherited Path. Windows treats
+            # them as one key; keep the configured value that appeared first.
+            environment.setdefault(key.upper(), value)
     return environment
 
 
