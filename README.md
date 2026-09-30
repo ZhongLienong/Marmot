@@ -618,14 +618,17 @@ On Windows it loads the MSVC environment itself, so any terminal will do.
 
 ```bash
 python scripts/dev.py doctor                    # toolchain check, and what is built
-python scripts/dev.py build                     # marmotc and marmotvm (Development)
+python scripts/dev.py build                     # marmotc and marmotvm (Dev)
 python scripts/dev.py build all --build Release # plus the unit tests and the marmot tool
 python scripts/dev.py configure --fresh         # reconfigure, e.g. after changing CXX
 python scripts/dev.py clean
 ```
 
-Underneath are CMake presets: `x64-debug`, `x64-development`, `x64-release` and
-`x64-experimental` on Windows, and the same four as `linux-*` on Linux. Builds
+Underneath are CMake presets: `x64-debug`, `x64-dev`, and `x64-release`
+on Windows, and the same three as `linux-*` on Linux. `Dev` maps to CMake's
+`RelWithDebInfo`: optimized code with symbols and compiler verification after
+each pass. `Debug` adds expensive VM checks; `Release` uses portable optimization
+and LTO, without fast-math. All three provide AST/IR printing and disassembly. Builds
 write each executable to `out/build/<project>/<preset>/out/`. Each C++ project
 has its own CMake project and presets under `projects/`; there is no root CMake project. The compiler needs a
 C++23 standard library with `<print>`, `<expected>` and `std::ranges::to`: MSVC
@@ -633,11 +636,11 @@ C++23 standard library with `<print>`, `<expected>` and `std::ranges::to`: MSVC
 when a build tree is first configured; `CXX` overrides the choice. By hand:
 ```bash
 cd projects/marmotc
-cmake --preset linux-development
-cmake --build --preset linux-development --target marmotc
+cmake --preset linux-dev
+cmake --build --preset linux-dev --target marmotc
 cd ../marmotvm
-cmake --preset linux-development
-cmake --build --preset linux-development --target marmotvm
+cmake --preset linux-dev
+cmake --build --preset linux-dev --target marmotvm
 ```
 
 ### Running Programs
@@ -648,10 +651,17 @@ checkout's compiler and runs it, with the checkout's prelude first on
 the installed tools. By hand:
 
 ```bash
-marmotc check path/to/program.mmt    # type-check only
+marmotc check path/to/program.mmt     # type-check only
 marmotc build path/to/program.mmt    # compile to path/to/program.mmc (or -o)
-marmotvm path/to/program.mmc         # run the compiled program
+marmotvm run path/to/program.mmc      # run the compiled program
+marmotvm disassemble path/to/program.mmc
 ```
+
+`marmotc check|build --emit-ast` and `--emit-ir` print the checked tree and
+optimized IR. Internal diagnostics require explicit flags: `--optimizer-stats`
+for the compiler, `--opcode-metrics` and `--gc-metrics` for VM runs in Debug or
+Dev, and `--trace` in Debug. They go to stderr, including with `--format json`;
+ordinary commands print no internal metrics.
 
 ### Running Tests
 
@@ -667,7 +677,7 @@ python scripts/dev.py unit --tag "[runtime]"    # the C++ unit tests
 python scripts/dev.py snapshot closure/new_test.mmt
 ```
 
-Debug and Development builds include the unit tests. Release builds leave them
+Debug and Dev builds include the unit tests. Release builds leave them
 out unless configured with them (`dev.py configure --build Release --unit-tests`;
 `dev.py gate --build Release` does that itself).
 

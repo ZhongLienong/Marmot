@@ -203,7 +203,7 @@ pub fn run(request: &RunRequest) -> Result<ExitCode, String> {
         .arg(cache::deps_path(&program));
 
     let mut vm = Command::new(request.vm);
-    vm.arg(&program);
+    vm.arg("run").arg(&program);
     for library in &request.plan.native_libraries {
         vm.arg("--library")
             .arg(format!("{}={}", library.name, library.path));

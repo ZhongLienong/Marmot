@@ -6,7 +6,7 @@ on CLI commands such as:
 ```powershell
 marmotc.exe check src/Main.mmt --format json
 marmotc.exe build src/Main.mmt --format json
-marmotvm.exe src/Main.mmc --format json
+marmotvm.exe run src/Main.mmc --format json
 marmot run src/Main.mmt --format json
 ```
 

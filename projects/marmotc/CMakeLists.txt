@@ -49,21 +49,28 @@ if(NOT MIDORI_HAS_CXX23_LIBRARY)
         "Marmot needs a C++23 standard library with <print>, <expected> and std::ranges::to.\n"
         "Detected compiler: ${CMAKE_CXX_COMPILER} (${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION})\n"
         "Use MSVC 19.37+, GCC 14+, or Clang 19+ (Clang 18 cannot use libstdc++'s std::expected); "
-        "on Linux, for example: CXX=g++-14 cmake --preset linux-development")
+        "on Linux, for example: CXX=g++-14 cmake --preset linux-dev")
 endif()
 
 # Define build configurations (multi-config) or default build type (single-config)
+get_property(CMAKE_GENERATOR_MULTI_CONFIG GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
 if(CMAKE_GENERATOR_MULTI_CONFIG)
-    set(CMAKE_CONFIGURATION_TYPES "Debug;Development;Release;Experimental" CACHE STRING "" FORCE)
+    set(CMAKE_CONFIGURATION_TYPES "Debug;RelWithDebInfo;Release" CACHE STRING "" FORCE)
 else()
     if(NOT CMAKE_BUILD_TYPE)
-        set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+        set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "Build type" FORCE)
     endif()
 endif()
 
-# Performance tuning options (Experimental is an aggressive, non-portable speed profile)
+if(NOT CMAKE_GENERATOR_MULTI_CONFIG)
+    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS Debug RelWithDebInfo Release)
+    if(NOT CMAKE_BUILD_TYPE MATCHES "^(Debug|RelWithDebInfo|Release)$")
+        message(FATAL_ERROR "Use Debug, RelWithDebInfo (Dev), or Release")
+    endif()
+endif()
+
+# Release optimization preserves the language's Float semantics.
 option(MIDORI_ENABLE_LTO "Enable link-time optimization for Release builds" ON)
-option(MIDORI_PROFILE_OPCODES "Count dynamic opcode pairs in the VM and dump them at HALT" OFF)
 
 set(MIDORI_BUILD_TESTS_DEFAULT ON)
 if(EMSCRIPTEN)
@@ -116,13 +123,8 @@ function(midori_configure_target target_name)
     target_compile_definitions(${target_name} PUBLIC
         MIDORI_VERSION_STRING="${PROJECT_VERSION}"
         MIDORI_DEBUG_FULL=$<CONFIG:Debug>
-        MIDORI_DEBUG_INFO=$<CONFIG:Debug,Development>
-        MIDORI_ENABLE_DISASSEMBLY=$<CONFIG:Debug,Development>
-        MIDORI_ENABLE_EXECUTION_TRACE=$<CONFIG:Debug>
-        MIDORI_ENABLE_OPTIMIZER_STATS=$<CONFIG:Debug,Development>
-    )
-    target_compile_definitions(${target_name} PRIVATE
-        $<$<BOOL:${MIDORI_PROFILE_OPCODES}>:MIDORI_PROFILE_OPCODES=1>
+        MIDORI_DEBUG_INFO=$<CONFIG:Debug,RelWithDebInfo>
+        MIDORI_ENABLE_OPTIMIZER_STATS=$<CONFIG:Debug,RelWithDebInfo>
     )
 endfunction()
 
@@ -145,36 +147,9 @@ if(NOT EMSCRIPTEN)
     target_link_libraries(marmotc PRIVATE MarmotDriver)
     set(MIDORI_NATIVE_COMPILE_TARGETS ${MIDORI_LIBRARY_TARGETS} marmotc)
     set(MIDORI_NATIVE_LINK_TARGETS marmotc)
-    # Detect AVX2 compiler flag for Experimental configuration
-    set(MIDORI_HAS_AVX2_FLAG FALSE)
-    if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
-        set(MIDORI_AVX2_FLAG "-mavx2")
-    elseif(MSVC)
-        set(MIDORI_AVX2_FLAG "/arch:AVX2")
-    else()
-        set(MIDORI_AVX2_FLAG "-mavx2")
-    endif()
-    include(CheckCXXCompilerFlag)
-    check_cxx_compiler_flag("${MIDORI_AVX2_FLAG}" MIDORI_HAS_AVX2_FLAG)
-
-    set(MIDORI_HAS_AVX2_CONFIG FALSE)
-    if(CMAKE_GENERATOR_MULTI_CONFIG)
-        list(FIND CMAKE_CONFIGURATION_TYPES "Experimental" MIDORI_AVX2_CONFIG_INDEX)
-        if(NOT MIDORI_AVX2_CONFIG_INDEX EQUAL -1)
-            set(MIDORI_HAS_AVX2_CONFIG TRUE)
-        endif()
-    else()
-        if(CMAKE_BUILD_TYPE STREQUAL "Experimental")
-            set(MIDORI_HAS_AVX2_CONFIG TRUE)
-        endif()
-    endif()
-    if(MIDORI_HAS_AVX2_CONFIG AND NOT MIDORI_HAS_AVX2_FLAG)
-        message(WARNING "Experimental config requested but compiler does not support ${MIDORI_AVX2_FLAG}. Building without AVX2.")
-    endif()
-
     foreach(target_name IN LISTS MIDORI_NATIVE_COMPILE_TARGETS)
         target_compile_definitions(${target_name} PUBLIC
-            $<$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>:NDEBUG>
+            $<$<CONFIG:Release>:NDEBUG>
         )
     endforeach()
 
@@ -206,34 +181,30 @@ if(NOT EMSCRIPTEN)
             $<$<CONFIG:Debug>:/Od>      # No optimization
             $<$<CONFIG:Debug>:/Zi>      # Full debug info
 
-            # Development configuration - optimized with debug symbols
-            $<$<CONFIG:Development>:/O2>    # Maximize speed
-            $<$<CONFIG:Development>:/Zi>    # Full debug info
+            # RelWithDebInfo configuration - optimized with debug symbols
+            $<$<CONFIG:RelWithDebInfo>:/O2>    # Maximize speed
+            $<$<CONFIG:RelWithDebInfo>:/Zi>    # Full debug info
 
-            # Release/Experimental configuration - maximum speed
-            $<$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>:/O2>    # Maximize speed
-            $<$<AND:$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>,$<BOOL:${MIDORI_ENABLE_LTO}>,$<CXX_COMPILER_ID:MSVC>>:/GL>    # MSVC whole program optimization
-            $<$<AND:$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>,$<BOOL:${MIDORI_ENABLE_LTO}>,$<CXX_COMPILER_ID:Clang>>:-flto=thin>    # clang-cl LTO
-            $<$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>:/Gw>    # Optimize global data
-            $<$<AND:$<CONFIG:Experimental>,$<BOOL:${MIDORI_HAS_AVX2_FLAG}>>:${MIDORI_AVX2_FLAG}>
-            $<$<CONFIG:Experimental>:/Gy>   # Function-level linking
-            $<$<CONFIG:Experimental>:/GF>   # String pooling
-            $<$<CONFIG:Experimental>:/fp:fast>   # Fast-math
+            # Release configuration - maximum speed
+            $<$<CONFIG:Release>:/O2>    # Maximize speed
+            $<$<AND:$<CONFIG:Release>,$<BOOL:${MIDORI_ENABLE_LTO}>,$<CXX_COMPILER_ID:MSVC>>:/GL>    # MSVC whole program optimization
+            $<$<AND:$<CONFIG:Release>,$<BOOL:${MIDORI_ENABLE_LTO}>,$<CXX_COMPILER_ID:Clang>>:-flto=thin>    # clang-cl LTO
+            $<$<CONFIG:Release>:/Gw>    # Optimize global data
             )
         endforeach()
 
         # MSVC linker flags
         foreach(target_name IN LISTS MIDORI_NATIVE_LINK_TARGETS)
             target_link_options(${target_name} PRIVATE
-                $<$<CONFIG:Development>:/DEBUG>
-                $<$<CONFIG:Development>:/OPT:REF>
-                $<$<CONFIG:Development>:/OPT:ICF>
+                $<$<CONFIG:RelWithDebInfo>:/DEBUG>
+                $<$<CONFIG:RelWithDebInfo>:/OPT:REF>
+                $<$<CONFIG:RelWithDebInfo>:/OPT:ICF>
 
-                $<$<AND:$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>,$<BOOL:${MIDORI_ENABLE_LTO}>,$<CXX_COMPILER_ID:MSVC>>:/LTCG>
-                $<$<AND:$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>,$<BOOL:${MIDORI_ENABLE_LTO}>,$<CXX_COMPILER_ID:Clang>>:-flto=thin>
-                $<$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>:/OPT:REF>
-                $<$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>:/OPT:ICF>
-                $<$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>:/RELEASE>
+                $<$<AND:$<CONFIG:Release>,$<BOOL:${MIDORI_ENABLE_LTO}>,$<CXX_COMPILER_ID:MSVC>>:/LTCG>
+                $<$<AND:$<CONFIG:Release>,$<BOOL:${MIDORI_ENABLE_LTO}>,$<CXX_COMPILER_ID:Clang>>:-flto=thin>
+                $<$<CONFIG:Release>:/OPT:REF>
+                $<$<CONFIG:Release>:/OPT:ICF>
+                $<$<CONFIG:Release>:/RELEASE>
             )
         endforeach()
     endif()
@@ -248,20 +219,16 @@ if(NOT EMSCRIPTEN)
 
         foreach(target_name IN LISTS MIDORI_NATIVE_COMPILE_TARGETS)
             target_compile_options(${target_name} PRIVATE
-                $<$<CONFIG:Development>:-O2>
-                $<$<CONFIG:Development>:-g>
-                $<$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>:-O3>
-                $<$<AND:$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>,$<BOOL:${MIDORI_ENABLE_LTO}>>:${MIDORI_LTO_FLAG}>
-                $<$<AND:$<CONFIG:Experimental>,$<BOOL:${MIDORI_HAS_AVX2_FLAG}>>:${MIDORI_AVX2_FLAG}>
-                $<$<CONFIG:Experimental>:-fomit-frame-pointer>
-                $<$<CONFIG:Experimental>:-funroll-loops>
-                $<$<CONFIG:Experimental>:-ffast-math>
+                $<$<CONFIG:RelWithDebInfo>:-O2>
+                $<$<CONFIG:RelWithDebInfo>:-g>
+                $<$<CONFIG:Release>:-O3>
+                $<$<AND:$<CONFIG:Release>,$<BOOL:${MIDORI_ENABLE_LTO}>>:${MIDORI_LTO_FLAG}>
             )
         endforeach()
 
         foreach(target_name IN LISTS MIDORI_NATIVE_LINK_TARGETS)
             target_link_options(${target_name} PRIVATE
-                $<$<AND:$<OR:$<CONFIG:Release>,$<CONFIG:Experimental>>,$<BOOL:${MIDORI_ENABLE_LTO}>>:${MIDORI_LTO_FLAG}>
+                $<$<AND:$<CONFIG:Release>,$<BOOL:${MIDORI_ENABLE_LTO}>>:${MIDORI_LTO_FLAG}>
             )
         endforeach()
     endif()

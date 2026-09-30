@@ -40,5 +40,5 @@ def build_and_run(
         built = subprocess.run([str(compiler), "build", source, "-o", str(program), "--quiet", *(compiler_args or [])], **options)
         if built.returncode != 0:
             return built
-        ran = subprocess.run([str(vm_beside(compiler)), str(program), *(program_args or [])], **options)
+        ran = subprocess.run([str(vm_beside(compiler)), "run", str(program), *(program_args or [])], **options)
         return subprocess.CompletedProcess(ran.args, ran.returncode, built.stdout + ran.stdout, built.stderr + ran.stderr)

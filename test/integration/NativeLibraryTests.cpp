@@ -1,6 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
 
-#include "Utility/TestMode/TestMode.h"
 #include "Bytecode/Artifact/BinaryArtifact.h"
 #include "Utility/Driver/MidoriDriver.h"
 #include "support/OutputCapture.h"
@@ -50,7 +49,7 @@ namespace
 
 	MidoriExecutable Compile(const MidoriTest::TempProject& project, std::string_view file, CompilationInputs inputs = CompilationInputs())
 	{
-		const CompilerTestMode::ScopedOverride quiet(true);
+
 		MidoriDriver::CompileFileWithReportResult compiled = MidoriDriver::CompileFileWithReport(project.Path(std::string(file)), std::move(inputs));
 		REQUIRE(compiled.has_value());
 		return std::move(compiled).value().TakeExecutable();

@@ -2,7 +2,6 @@
 
 #include "Compiler/AbstractSyntaxTree/Printer/AbstractSyntaxTreePrinter.h"
 #include "Utility/Driver/MidoriDriver.h"
-#include "Utility/TestMode/TestMode.h"
 #include "support/CompileHelpers.h"
 
 #include <filesystem>
@@ -57,7 +56,6 @@ TEST_CASE("Every prelude module prints its syntax tree", "[ast][printer][prelude
 	}
 	REQUIRE(modules.size() > 10u);
 
-	const CompilerTestMode::ScopedOverride test_mode_override(true);
 	for (const std::filesystem::path& module : modules)
 	{
 		INFO(module.string());

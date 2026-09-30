@@ -329,7 +329,6 @@ def run_example(root: Path, runner: TestRunner, example: DocExample, verbose: bo
 
     write_text(compile_path, compile_source)
     env = os.environ.copy()
-    env["MARMOT_TEST_MODE"] = "1"
     env["MARMOT_PATH"] = prelude_search_path()
     if expected_warnings is not None:
         env["MARMOT_TEST_WARNING_FORMAT"] = "machine"

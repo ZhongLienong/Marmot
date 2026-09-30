@@ -37,7 +37,6 @@ TEST_CASE("Byte values past the last opcode have no length", "[opcode]")
 	}
 }
 
-#if MIDORI_ENABLE_DISASSEMBLY
 TEST_CASE("The disassembler reads each instruction's length from OpCodes.def", "[opcode][disassembler]")
 {
 	for (size_t index = 0uz; index < VmOpCodeTable::COUNT; index += 1uz)
@@ -65,11 +64,10 @@ TEST_CASE("The disassembler reads each instruction's length from OpCodes.def", "
 
 		int offset = 0;
 		MidoriTest::OutputCapture capture;
-		Disassembler::DisassembleInstruction(executable, 0, offset);
+		Disassembler::DisassembleInstruction(stdout, executable, 0, offset);
 		static_cast<void>(capture.Stop());
 
 		INFO(VmOpCodeTable::Name(opcode));
 		CHECK(offset == length);
 	}
 }
-#endif

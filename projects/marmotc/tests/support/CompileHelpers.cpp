@@ -1,6 +1,5 @@
 #include "support/CompileHelpers.h"
 
-#include "Utility/TestMode/TestMode.h"
 #include "Compiler/BuildGraph/BuildGraph.h"
 #include "Compiler/BytecodeBackend/BytecodeBackend.h"
 #include "Compiler/Lexer/Lexer.h"
@@ -291,7 +290,7 @@ namespace MidoriTest
 
 	MidoriResult::CompilationResult CompileSnippetWithReport(std::string source_code, std::string file_name)
 	{
-		const CompilerTestMode::ScopedOverride test_mode_override(true);
+
 		return MidoriDriver::CompileSourceWithReport(std::move(source_code), std::move(file_name));
 	}
 
@@ -307,14 +306,14 @@ namespace MidoriTest
 
 	MidoriResult::CompilerResult CompileSnippet(std::string source_code, std::string file_name)
 	{
-		const CompilerTestMode::ScopedOverride test_mode_override(true);
+
 		return MidoriDriver::CompileSource(std::move(source_code), std::move(file_name));
 	}
 
 	std::expected<ExecutedSnippet, CompilerError> ExecuteSnippet(std::string source_code, std::string file_name)
 	{
 		SourceFixture source(std::move(source_code), std::move(file_name));
-		const CompilerTestMode::ScopedOverride compiler_test_mode(true);
+
 		MidoriResult::CompilationResult compile_result = MidoriDriver::CompileSourceWithReport(std::string(source.SourceCode()), source.FileName(), MidoriDriver::EnvironmentCompilationInputs());
 		if (!compile_result.has_value())
 		{

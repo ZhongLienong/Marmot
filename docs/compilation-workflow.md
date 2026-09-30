@@ -183,7 +183,7 @@ Current warning passes:
 
 Warnings remain structured as `CompilerWarning` values and are appended to the compile-wide report.
 
-`marmotc check` and `marmotc build` accept `--emit-ast`, which is hidden from `marmotc --help`. It prints each module's checked AST, as it stands after static analysis, with how every name resolved (a local and its slot, a cell, or a global), in link order. It cannot be combined with `--format json`. With `--emit-ir` as well, every module's AST comes first, then every module's MidoriIR.
+`marmotc check` and `marmotc build` accept `--emit-ast`, which is listed in the per-command help in every profile. It prints each module's checked AST, as it stands after static analysis, with how every name resolved (a local and its slot, a cell, or a global), in link order. It cannot be combined with `--format json`. With `--emit-ir` as well, every module's AST comes first, then every module's MidoriIR.
 
 ## Phase 6: Lowering
 
@@ -191,7 +191,7 @@ Source: `projects/marmotc/src/Compiler/Lowering/`
 
 Lowering turns the checked AST of one module into MidoriIR, a typed SSA IR with one graph per function (see [MidoriIR](midori-ir.md)). Every top-level definition gets its global slot before any function is lowered. Generic functions are specialized here, on demand, one function per set of argument types, including generics imported from other modules; class methods and operators that dispatch through type classes are resolved to instance methods here too. Its diagnostics are reported under the `Lowering` stage.
 
-The MidoriIR verifier checks the result. Development and Debug builds verify after lowering and after every optimizer pass, Release builds once, before the backend; a violation is a compiler bug, reported as `CompilerInternalError`.
+The MidoriIR verifier checks the result. Dev and Debug builds verify after lowering and after every optimizer pass, Release builds once, before the backend; a violation is a compiler bug, reported as `CompilerInternalError`.
 
 ## Phase 7: MidoriIR Optimization
 

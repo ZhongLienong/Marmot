@@ -82,7 +82,7 @@ Every instruction has one effect. The builder takes it from `MidoriIROps.def`, a
 
 ## Verifier
 
-`MidoriIRVerifier(module).Verify()` returns every violation it finds, each with its rule number, function, block and a message. Development and Debug builds run it after lowering and after every optimizer pass, and Release builds once, before the backend. A violation is a compiler bug, never a user error: it stops the module with `CompilerInternalError`, naming the pass that broke the IR.
+`MidoriIRVerifier(module).Verify()` returns every violation it finds, each with its rule number, function, block and a message. Dev and Debug builds run it after lowering and after every optimizer pass, and Release builds once, before the backend. A violation is a compiler bug, never a user error: it stops the module with `CompilerInternalError`, naming the pass that broke the IR.
 
 1. **Terminators.** Every block ends in exactly one terminator, no terminator appears anywhere else, and every function has a block. A call that returns `Never` is followed by `unreachable`.
 2. **Dominance.** Every value is defined once, and every use is dominated by its definition. A use in the defining block must come after it.
@@ -146,7 +146,7 @@ A diagnostic lowering reports is under the `Lowering` stage: an unresolved or am
 
 ## Optimizer
 
-`MidoriIROptimizer` (`projects/marmotc/src/Compiler/MidoriIROptimizer/`) runs a fixed list of passes once, in this order, over each module after lowering. It reports nothing: a pass that leaves the IR invalid is a compiler bug the verifier catches. `MidoriIRPasses.h` declares the passes, and `MidoriIROptimizer(passes)` runs any other list, as the unit tests in `projects/marmotc/tests/midori_ir/MidoriIROptimizerTests.cpp` do. In Development and Debug builds (`MIDORI_ENABLE_OPTIMIZER_STATS`), the compiler's progress output lists each pass that changed a module's instruction count, with the count before and after it.
+`MidoriIROptimizer` (`projects/marmotc/src/Compiler/MidoriIROptimizer/`) runs a fixed list of passes once, in this order, over each module after lowering. It reports nothing: a pass that leaves the IR invalid is a compiler bug the verifier catches. `MidoriIRPasses.h` declares the passes, and `MidoriIROptimizer(passes)` runs any other list, as the unit tests in `projects/marmotc/tests/midori_ir/MidoriIROptimizerTests.cpp` do. In Dev and Debug builds (`MIDORI_ENABLE_OPTIMIZER_STATS`), `--optimizer-stats` lists on stderr each pass that changed a module's instruction count, with the count before and after it.
 
 | Pass | What it does |
 | --- | --- |
@@ -193,6 +193,6 @@ Procedures and globals are named in two bytes (`CALL_PROC_WIDE`, `MAKE_FUNCTION_
 
 ## Command line
 
-`marmotc check` and `marmotc build` accept `--emit-ir`, which is hidden from `marmotc --help`. It prints each module's MidoriIR, after optimization, in the textual form above, in link order. It cannot be combined with `--format json`.
+`marmotc check` and `marmotc build` accept `--emit-ir`, which is listed in the per-command help in every profile. It prints each module's MidoriIR, after optimization, in the textual form above, in link order. It cannot be combined with `--format json`.
 
 `test/midori_ir/` holds the language tests written for MidoriIR, and `python scripts/dev.py bench --compare old/out/marmotc --every` times two compilers against each other on every file in `benchmarks/`.

@@ -104,7 +104,7 @@ The helpers in `projects/marmotc/tests/support/` exist to keep new tests short a
 - `ExecuteSnippet(source, file_name)` compiles a snippet, writes a temporary artifact, and captures stdout/stderr from the VM subprocess
 - `CollectTokenNames(tokens)` turns a token stream into a concise sequence for lexer assertions
 
-`CompileSnippet` and `ExecuteSnippet` already force Marmot test mode, so most unit tests do not need to set `MARMOT_TEST_MODE` manually.
+Compiler and VM internal diagnostics are disabled by default, including in tests.
 
 Filesystem and environment helpers:
 
@@ -164,7 +164,7 @@ REQUIRE(MidoriTest::Matches(
 
 `scripts/dev.py` runs every check, on Windows and Linux alike, and builds what
 a check needs first (`--no-build` skips that). `--build` picks the
-configuration, Development by default.
+configuration, Dev by default.
 
 The full gate, stopping at the first failure:
 
@@ -249,7 +249,7 @@ The marmot tool runs it too, from the repository root, with `MARMOTC` naming
 the compiler and `MARMOT_PATH` the prelude:
 
 ```powershell
-$env:MARMOTC = ".\out\build\ninja\x64-development\out\marmotc.exe"
+$env:MARMOTC = ".\out\build\marmotc\x64-dev\out\marmotc.exe"
 $env:MARMOT_PATH = "$PWD\MarmotPrelude"
 marmot test
 marmot test closure

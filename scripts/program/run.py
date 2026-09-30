@@ -46,7 +46,7 @@ def main(argv: list[str]) -> int:
         built = subprocess.run(build, env=environment, check=False)
         if built.returncode != 0:
             return built.returncode
-        return subprocess.run([str(tree.vm), program], env=environment, check=False).returncode
+        return subprocess.run([str(tree.vm), "run", program], env=environment, check=False).returncode
 
 
 if __name__ == "__main__":

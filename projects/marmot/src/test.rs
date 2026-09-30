@@ -336,7 +336,7 @@ fn run_one(request: &TestRequest, test: &Path) -> TestResult {
 
     if built.code == Some(0) {
         let mut vm = Command::new(request.vm);
-        vm.current_dir(request.root).arg(&program);
+        vm.current_dir(request.root).arg("run").arg(&program);
         for library in &request.plan.native_libraries {
             vm.arg("--library")
                 .arg(format!("{}={}", library.name, library.path));

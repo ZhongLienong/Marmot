@@ -38,7 +38,7 @@ MSVC's environment itself on Windows and picks a new enough GCC or Clang on
 Linux. `python scripts/dev.py` lists the commands.
 
 ```
-python scripts/dev.py build                 # marmotc and marmotvm, Development
+python scripts/dev.py build                 # marmotc and marmotvm, Dev
 python scripts/dev.py gate                  # the full gate
 python scripts/dev.py test --category module
 python scripts/dev.py run scratch.mmt
@@ -143,7 +143,7 @@ Worth knowing before editing the front end, because each was a bug once:
 - Every top-level definition gets its global slot before any function is
   lowered. Verifier rule 5 checks that every global read names a reserved slot.
 - The MidoriIR verifier runs after lowering and after every optimizer pass in
-  Development and Debug builds, and once before the backend in Release. A
+  Dev and Debug builds, and once before the backend in Release. A
   violation is a compiler bug, never a user error. `marmotc check --emit-ir`
   prints each module's IR after optimization; see `docs/midori-ir.md`.
   `--emit-ast` prints each module's checked AST, before lowering.

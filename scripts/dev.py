@@ -7,7 +7,7 @@ One front door for everyday Marmot work, on Windows and Linux.
 
 Commands that need a build (run, test, snapshot, ...) bring it up to date
 first; --no-build skips that. --build picks the configuration (Debug,
-Development, Release, Experimental; Development unless the command says) and
+Dev, Release; Dev unless the command says) and
 --preset a CMake preset by name.
 """
 
@@ -37,7 +37,7 @@ class Command:
     summary: str
     group: str
     targets: list[str] = field(default_factory=list)
-    default_build: str | None = "Development"
+    default_build: str | None = "Dev"
 
 
 COMMANDS: dict[str, Command] = {
@@ -92,7 +92,7 @@ def bring_up_to_date(command: Command, argv: list[str]) -> tuple[int, list[str]]
     remaining = [argument for argument in argv if argument != "--no-build"]
     if not command.targets or known.no_build or known.help:
         return 0, remaining
-    return BuildTree.select(known.build or "Development", known.preset).build(command.targets), remaining
+    return BuildTree.select(known.build or "Dev", known.preset).build(command.targets), remaining
 
 
 def dispatch(command_name: str, command: Command, argv: list[str]) -> int:

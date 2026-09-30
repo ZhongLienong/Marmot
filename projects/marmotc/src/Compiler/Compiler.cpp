@@ -1,4 +1,4 @@
-#include "Utility/TestMode/TestMode.h"
+#include "Utility/Diagnostics/Diagnostics.h"
 #include "Compiler/Constant/Constant.h"
 #include "Compiler/Terminal/Terminal.h"
 #include "Compiler/Source/Source.h"
@@ -352,43 +352,20 @@ namespace
 	}
 
 #if MIDORI_ENABLE_OPTIMIZER_STATS
-	static size_t ReportCompiled(CompileEnv& env, const std::string& file_path, size_t tier_idx, const std::string& optimizer_log)
+	static size_t ReportCompiled(CompileEnv& env, const std::string& file_path, size_t, const std::string& optimizer_log)
 #else
-	static size_t ReportCompiled(CompileEnv& env, const std::string& file_path, size_t tier_idx)
+	static size_t ReportCompiled(CompileEnv& env, const std::string& file_path, size_t)
 #endif
 	{
 		const size_t current_module = env.m_completed_modules.fetch_add(1u) + 1u;
 		const std::string short_path = std::filesystem::path(file_path).filename().string();
-		if (CompilerTestMode::ShouldEmitInternalDiagnostics())
+#if MIDORI_ENABLE_OPTIMIZER_STATS
+		if (CompilerDiagnostics::StatisticsEnabled())
 		{
 			std::lock_guard<std::mutex> lock(env.m_print_mutex);
-			// Show tier info for multi-tier builds, just progress for single tier
-			if (env.m_tiers.size() > 1u)
-			{
-				CompilerTerminal::PrintLabeled<CompilerTerminal::Color::BLUE, CompilerTerminal::Color::WHITE>
-				(
-					std::format("{}/{}", current_module, env.m_total_modules),
-					std::format("Tier {} -> {}\n", tier_idx + 1, short_path)
-				);
-			}
-			else
-			{
-				CompilerTerminal::PrintLabeled<CompilerTerminal::Color::BLUE, CompilerTerminal::Color::WHITE>
-				(
-					std::format("{}/{}", current_module, env.m_total_modules),
-					std::format("{}\n", short_path)
-				);
-			}
-
-#if MIDORI_ENABLE_OPTIMIZER_STATS
-			CompilerTerminal::Print<CompilerTerminal::Color::CYAN>("\n=== MidoriIR Optimizer ===\n");
-			if (!optimizer_log.empty())
-			{
-				CompilerTerminal::Print<CompilerTerminal::Color::MAGENTA>(optimizer_log);
-			}
-			CompilerTerminal::Print<CompilerTerminal::Color::CYAN>("==========================\n\n");
-#endif
+			std::print(stderr, "MidoriIR optimizer: {}\n{}", short_path, optimizer_log);
 		}
+#endif
 
 		return current_module;
 	}
@@ -796,7 +773,7 @@ namespace
 		return InvalidMidoriIR(module, violations, what, file_path);
 	}
 
-	// Development builds verify after lowering and after every pass, Release
+	// Dev builds verify after lowering and after every pass, Release
 	// builds once, before the backend.
 	static std::optional<CompilerError> OptimizeMidoriIR(MidoriIROptimizer& optimizer, MidoriIRModule& module, const std::string& file_path)
 	{
@@ -1439,61 +1416,6 @@ namespace
 		return compiled_count;
 	}
 
-	static bool ShouldReportCompilation(const CompilationSchedule& schedule)
-	{
-		if (schedule.m_tiers.empty())
-		{
-			return false;
-		}
-
-		if (schedule.m_tiers.size() > 1u)
-		{
-			return true;
-		}
-
-		return schedule.m_tiers[0u].size() > 1u;
-	}
-
-	static size_t ReportCompilationStart(std::mutex& print_mutex, const CompilationSchedule& schedule, size_t total_modules)
-	{
-		const size_t tier_count = schedule.m_tiers.size();
-		if (CompilerTestMode::ShouldEmitInternalDiagnostics())
-		{
-			std::lock_guard<std::mutex> lock(print_mutex);
-			CompilerTerminal::PrintSeparator(CompilerTerminal::Color::DARK_GRAY, 60);
-			CompilerTerminal::PrintLabeled<CompilerTerminal::Color::BRIGHT_CYAN, CompilerTerminal::Color::WHITE>
-			(
-				"COMPILING",
-				std::format
-				(
-					"{} module{} in {} tier{}\n",
-					total_modules,
-					total_modules == 1 ? "" : "s",
-					tier_count,
-					tier_count == 1u ? "" : "s"
-				)
-			);
-			CompilerTerminal::PrintSeparator(CompilerTerminal::Color::DARK_GRAY, 60);
-		}
-		return total_modules;
-	}
-
-	static std::chrono::milliseconds ReportCompilationSuccess(std::mutex& print_mutex, size_t total_modules, std::chrono::milliseconds duration)
-	{
-		if (CompilerTestMode::ShouldEmitInternalDiagnostics())
-		{
-			std::lock_guard<std::mutex> lock(print_mutex);
-			CompilerTerminal::PrintSeparator(CompilerTerminal::Color::DARK_GRAY, 60);
-			CompilerTerminal::PrintLabeled<CompilerTerminal::Color::BRIGHT_GREEN, CompilerTerminal::Color::WHITE>
-			(
-				"SUCCESS",
-				std::format("Compiled {} module{} in {} ms\n", total_modules, total_modules == 1 ? "" : "s", duration.count())
-			);
-			CompilerTerminal::PrintSeparator(CompilerTerminal::Color::DARK_GRAY, 60);
-		}
-		return duration;
-	}
-
 	static CompileEnv MakeCompileEnv(BuildGraph& build_graph, std::unordered_map<std::string, CompiledModule>& compiled_modules, std::mutex& modules_mutex, std::mutex& print_mutex, std::atomic<size_t>& completed_modules, const CompilationSchedule& schedule, size_t total_modules, const CompilationInputs& inputs)
 	{
 		return CompileEnv{ build_graph, compiled_modules, modules_mutex, print_mutex, completed_modules, schedule.m_tiers, total_modules, inputs.EmitsMidoriIR(), inputs.EmitsAst() };
@@ -1534,7 +1456,6 @@ namespace
 
 	static MidoriResult::ReportResult<BuildGraphArtifacts> CompileBuildGraph(BuildGraph&& build_graph, const CompilationInputs& inputs)
 	{
-		std::chrono::high_resolution_clock::time_point compile_start = std::chrono::high_resolution_clock::now();
 		CompilationSchedule schedule = BuildCompilationSchedule(build_graph);
 		const size_t total_modules = schedule.m_all_modules.size();
 		std::unordered_map<std::string, CompiledModule> compiled_modules;
@@ -1542,12 +1463,6 @@ namespace
 		std::mutex modules_mutex;
 		std::mutex print_mutex;
 		std::atomic<size_t> completed_modules{ 0u };
-
-		const bool should_report = ShouldReportCompilation(schedule);
-		if (should_report)
-		{
-			ReportCompilationStart(print_mutex, schedule, total_modules);
-		}
 
 		CompileEnv env = MakeCompileEnv(build_graph, compiled_modules, modules_mutex, print_mutex, completed_modules, schedule, total_modules, inputs);
 		ModuleCompiler module_compiler;
@@ -1561,14 +1476,6 @@ namespace
 		if (!bytecode_result.has_value())
 		{
 			return std::unexpected(std::move(bytecode_result.error()));
-		}
-
-		std::chrono::high_resolution_clock::time_point compile_end = std::chrono::high_resolution_clock::now();
-		std::chrono::milliseconds compile_duration = std::chrono::duration_cast<std::chrono::milliseconds>(compile_end - compile_start);
-
-		if (should_report)
-		{
-			ReportCompilationSuccess(print_mutex, total_modules, compile_duration);
 		}
 
 		return bytecode_result;

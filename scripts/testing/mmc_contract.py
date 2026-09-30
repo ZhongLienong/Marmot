@@ -192,7 +192,7 @@ def check_valid(tree: BuildTree, fixture: dict[str, object]) -> None:
         if normalize_artifact(fresh.read_bytes()) != baseline:
             raise AssertionError(f"{name}: compiler output differs from frozen .mmc bytes")
 
-    command = [str(tree.vm), str(artifact)]
+    command = [str(tree.vm), "run", str(artifact)]
     if fixture.get("native_library"):
         command.extend(["--library", f"marmot_test_native={native_library(tree)}"])
     executed = run(command)
@@ -209,7 +209,7 @@ def check_valid(tree: BuildTree, fixture: dict[str, object]) -> None:
 def check_invalid(tree: BuildTree, fixture: dict[str, object]) -> None:
     name = str(fixture["name"])
     artifact = CONTRACT_DIR / "fixtures" / f"{name}.mmc"
-    executed = run([str(tree.vm), str(artifact)])
+    executed = run([str(tree.vm), "run", str(artifact)])
     if executed.returncode != 1 or fixture["stderr_contains"] not in executed.stderr:
         raise AssertionError(f"{name}: VM did not reject the artifact as expected:\n{executed.stdout}{executed.stderr}")
     print(f"[OK] {name}: VM rejection")

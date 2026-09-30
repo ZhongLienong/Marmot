@@ -3,7 +3,7 @@
 #include "Value/Value.h"
 
 // Guards against a translation unit compiling Value.h differently from the
-// runtime library it links. sizeof(MidoriValue) is 8 in Development and Release
+// runtime library it links. sizeof(MidoriValue) is 8 in Dev and Release
 // and 16 in Debug, chosen by MIDORI_DEBUG_FULL. The unit test targets once
 // compiled at a different level from the library because they never received
 // the build definitions, and in x64-debug that was a live out-of-bounds read

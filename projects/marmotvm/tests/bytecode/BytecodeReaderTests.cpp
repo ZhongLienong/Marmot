@@ -2,7 +2,6 @@
 
 #include "VmBytecode/Artifact/BinaryArtifact.h"
 #include "Loader/ProgramLoader.h"
-#include "Support/TestMode/TestMode.h"
 #include "support/OutputCapture.h"
 
 #include <array>
@@ -72,7 +71,7 @@ TEST_CASE("The reader rejects incompatible and corrupted artifacts", "[bytecode-
 
 TEST_CASE("The VM runs artifacts with and without embedded sources", "[bytecode-artifact][runtime]")
 {
-	const RuntimeTestMode::ScopedOverride quiet(true);
+
 	std::expected<VmExecutable, std::string> control = VmBinaryArtifact::ReadExecutableFromFile(Fixture("control"));
 	REQUIRE(control.has_value());
 	MidoriTest::OutputCapture capture;

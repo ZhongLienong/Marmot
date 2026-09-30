@@ -11,7 +11,7 @@ from typing import Any
 from lib import toolchain
 from lib.host import REPO_ROOT, executable, preset_family
 
-BUILD_TYPES = ["Debug", "Development", "Release", "Experimental"]
+BUILD_TYPES = ["Debug", "Dev", "Release"]
 PROJECTS = ("marmotc", "marmotvm")
 UNIT_TARGETS = ("MarmotcUnitTests", "MarmotvmUnitTests", "MarmotIntegrationTests")
 
@@ -62,7 +62,7 @@ class BuildTree:
     projects: tuple[ProjectBuild, ...]
 
     @staticmethod
-    def select(build_type: str = "Development", preset: str | None = None) -> "BuildTree":
+    def select(build_type: str = "Dev", preset: str | None = None) -> "BuildTree":
         name = preset or preset_family() + build_type.lower()
         builds = []
         for project in PROJECTS:
@@ -70,7 +70,8 @@ class BuildTree:
             contents = json.loads((source / "CMakePresets.json").read_text(encoding="utf-8-sig"))
             resolved = _resolved(name, {entry["name"]: entry for entry in contents["configurePresets"]})
             directory = str(resolved["binaryDir"]).replace("${sourceDir}", str(source)).replace("${presetName}", name)
-            chosen_type = resolved.get("cacheVariables", {}).get("CMAKE_BUILD_TYPE", build_type)
+            configuration = resolved.get("cacheVariables", {}).get("CMAKE_BUILD_TYPE", build_type)
+            chosen_type = "Dev" if configuration == "RelWithDebInfo" else configuration
             builds.append(ProjectBuild(project, name, chosen_type, Path(directory).resolve()))
         return BuildTree(name, builds[0].build_type, tuple(builds))
 
@@ -142,7 +143,7 @@ def newest_built() -> BuildTree | None:
     return max(built, key=lambda tree: max(path.stat().st_mtime for path in (tree.compiler, tree.vm) if path.is_file()), default=None)
 
 
-def add_build_arguments(parser: argparse.ArgumentParser, default: str | None = "Development") -> None:
+def add_build_arguments(parser: argparse.ArgumentParser, default: str | None = "Dev") -> None:
     described = default if default else "the one built last"
     parser.add_argument("--build", choices=BUILD_TYPES, default=default, help=f"Build configuration (default: {described}).")
     parser.add_argument("--preset", default=None, help="The matching preset in each C++ project.")

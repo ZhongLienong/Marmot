@@ -15,7 +15,7 @@
 #include <utility>
 #include <vector>
 
-#include "Utility/TestMode/TestMode.h"
+#include "Utility/Diagnostics/Diagnostics.h"
 #include "Bytecode/Artifact/BinaryArtifact.h"
 #include "Compiler/Json/Json.h"
 #include "Compiler/Terminal/Terminal.h"
@@ -58,10 +58,11 @@ namespace
 		std::optional<std::filesystem::path> m_output_path = std::nullopt;
 		std::optional<std::filesystem::path> m_deps_path = std::nullopt;
 		bool m_quiet = false;
-		// check and build: the hidden --emit-ir and --emit-ast, which print each
+		// check and build: --emit-ir and --emit-ast, which print each
 		// module's MidoriIR and checked syntax tree. They need text output.
 		bool m_emit_ir = false;
 		bool m_emit_ast = false;
+		bool m_optimizer_stats = false;
 	};
 
 	using ParseResult = std::expected<Invocation, std::string>;
@@ -106,6 +107,11 @@ namespace
 				"Usage: marmotc check (<file> | --plan <plan.json>) [--format json]\n"
 				"Type-check a Marmot source file without executing it.\n"
 				"With --plan, check the plan's entry from exactly the plan's inputs.\n\n"
+				"Options: --emit-ast (checked AST), --emit-ir (optimized IR).\n"
+#if MIDORI_ENABLE_OPTIMIZER_STATS
+				"         --optimizer-stats (pass statistics on stderr).\n"
+#endif
+
 				"Examples:\n"
 				"  marmotc check src/Main.mmt\n"
 				"  marmotc check src/Main.mmt --format json\n"
@@ -125,6 +131,11 @@ namespace
 				"With --quiet, print only diagnostics.\n"
 				"With --deps, list every file the program was built from, one per line:\n"
 				"what the build depends on.\n\n"
+				"Options: --emit-ast (checked AST), --emit-ir (optimized IR).\n"
+#if MIDORI_ENABLE_OPTIMIZER_STATS
+				"         --optimizer-stats (pass statistics on stderr).\n"
+#endif
+
 				"Examples:\n"
 				"  marmotc build src/Main.mmt\n"
 				"  marmotc build src/Main.mmt -o target/Main.mmc\n"
@@ -165,7 +176,7 @@ namespace
 			"  marmotc fmt src -w\n"
 			"  marmotc check src/Main.mmt --format json\n"
 			"  marmotc build src/Main.mmt -o target/Main.mmc\n"
-			"  marmotvm target/Main.mmc\n\n"
+			"  marmotvm run target/Main.mmc\n\n"
 			"marmotc compiles what it is given: a file, with <Name> imports found through\n"
 			"MARMOT_PATH, or a build plan. It never runs a program: marmotvm runs what it\n"
 			"builds. Projects, packages, running and testing are the marmot tool's job:\n"
@@ -324,6 +335,16 @@ namespace
 				continue;
 			}
 
+			if (arg == "--optimizer-stats")
+			{
+#if MIDORI_ENABLE_OPTIMIZER_STATS
+				invocation.m_optimizer_stats = true;
+				continue;
+#else
+				return std::unexpected("--optimizer-stats requires a Debug or Dev build.");
+#endif
+			}
+
 			if (arg == "--emit-ir")
 			{
 				invocation.m_emit_ir = true;
@@ -425,6 +446,16 @@ namespace
 				index += 1u;
 				invocation.m_deps_path = std::filesystem::path(args[index]);
 				continue;
+			}
+
+			if (arg == "--optimizer-stats")
+			{
+#if MIDORI_ENABLE_OPTIMIZER_STATS
+				invocation.m_optimizer_stats = true;
+				continue;
+#else
+				return std::unexpected("--optimizer-stats requires a Debug or Dev build.");
+#endif
 			}
 
 			if (arg == "--emit-ir")
@@ -742,7 +773,7 @@ namespace
 			return EXIT_SUCCESS;
 		}
 
-		const CompilerTestMode::ScopedOverride suppress_internal_diagnostics(true);
+		const CompilerDiagnostics::ScopedStatistics statistics(invocation.m_optimizer_stats);
 		const MidoriDriver::CompileFileWithReportResult compile_result = CompileInvocation(invocation);
 		if (!compile_result.has_value())
 		{
@@ -780,7 +811,7 @@ namespace
 			return EXIT_SUCCESS;
 		}
 
-		const CompilerTestMode::ScopedOverride suppress_internal_diagnostics(true);
+		const CompilerDiagnostics::ScopedStatistics statistics(invocation.m_optimizer_stats);
 		const MidoriDriver::CompileFileWithReportResult compile_result = CompileInvocation(invocation);
 		if (!compile_result.has_value())
 		{

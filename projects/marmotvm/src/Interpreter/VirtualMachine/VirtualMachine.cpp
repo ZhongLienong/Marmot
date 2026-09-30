@@ -1,6 +1,6 @@
 #include "VmBytecode/Format/Format.h"
 #include "Support/Attributes/Attributes.h"
-#include "Support/TestMode/TestMode.h"
+#include "Support/Diagnostics/Diagnostics.h"
 #include "Support/Terminal/Terminal.h"
 #include "VmBytecode/Scalar/IntegerArithmetic.h"
 #include "Interpreter/Channel/Channel.h"
@@ -1007,38 +1007,6 @@ MidoriTraceable* VirtualMachine::InternSmallString(const MidoriText& text) noexc
 	return interned;
 }
 
-#ifndef MIDORI_PROFILE_OPCODES
-#define MIDORI_PROFILE_OPCODES 0
-#endif
-
-#if MIDORI_PROFILE_OPCODES
-namespace
-{
-	uint64_t s_opcode_pair_counts[256][256];
-	size_t s_previous_opcode = 255u;
-
-	void DumpOpcodeProfile()
-	{
-		std::FILE* file = std::fopen("marmot_opcode_profile.txt", "w");
-		if (file == nullptr)
-		{
-			return;
-		}
-		for (size_t first = 0u; first < 256u; first += 1u)
-		{
-			for (size_t second = 0u; second < 256u; second += 1u)
-			{
-				if (s_opcode_pair_counts[first][second] != 0u)
-				{
-					std::fprintf(file, "%zu %zu %llu\n", first, second, static_cast<unsigned long long>(s_opcode_pair_counts[first][second]));
-				}
-			}
-		}
-		std::fclose(file);
-	}
-}
-#endif
-
 int VirtualMachine::ExecuteLoop() noexcept
 {
 	InstructionPointer ip = m_instruction_pointer;
@@ -1047,80 +1015,63 @@ int VirtualMachine::ExecuteLoop() noexcept
 	MidoriTuple* env = m_curr_environment;
 	MidoriTraceable* closure = m_curr_closure_traceable;
 
+#if MIDORI_ENABLE_OPCODE_METRICS
+	const bool opcode_metrics = RuntimeDiagnostics::OpcodeMetricsEnabled();
+	std::array<uint64_t, 256> opcode_counts{};
+	struct OpcodeReport
+	{
+		bool m_enabled;
+		const std::array<uint64_t, 256>& m_counts;
+		~OpcodeReport()
+		{
+			if (m_enabled)
+			{
+				std::print(RuntimeDiagnostics::Output(), "Opcode metrics (this VM):\n");
+				for (size_t index = 0uz; index < m_counts.size(); index += 1uz)
+				{
+					if (m_counts[index] != 0u)
+					{
+						std::print(RuntimeDiagnostics::Output(), "  {}: {}\n", VmOpCodeTable::Name(static_cast<VmOpCode>(index)), m_counts[index]);
+					}
+				}
+			}
+		}
+	};
+	const OpcodeReport opcode_report{opcode_metrics, opcode_counts};
+#endif
+
 	while (true)
 	{
 
 #if MIDORI_ENABLE_EXECUTION_TRACE
-		if (RuntimeTestMode::ShouldEmitInternalDiagnostics())
+		if (RuntimeDiagnostics::TraceEnabled())
 		{
-			RuntimeTerminal::Print("          ");
-#ifdef __EMSCRIPTEN__
-			std::for_each
-			(
-				m_value_stack_begin,
-				bp - 1 < m_value_stack_begin ? m_value_stack_begin : bp - 1,
-				[](MidoriValue value) -> void
-				{
-					RuntimeTerminal::Print<RuntimeTerminal::Color::YELLOW>(("[ "s + std::string(value.ToText().View()) + " ]"s));
-				}
-			);
-			std::for_each
-			(
-				bp,
-				sp,
-				[](MidoriValue value) -> void
-				{
-					RuntimeTerminal::Print<RuntimeTerminal::Color::GREEN>(("[ "s + std::string(value.ToText().View()) + " ]"s));
-				}
-			);
-#else
-			std::for_each
-			(
-				std::execution::seq,
-				m_value_stack_begin,
-				bp - 1 < m_value_stack_begin ? m_value_stack_begin : bp - 1,
-				[](MidoriValue value) -> void
-				{
-					RuntimeTerminal::Print<RuntimeTerminal::Color::YELLOW>(("[ "s + std::string(value.ToText().View()) + " ]"s));
-				}
-			);
-			std::for_each
-			(
-				std::execution::seq,
-				bp,
-				sp,
-				[](MidoriValue value) -> void
-				{
-					RuntimeTerminal::Print<RuntimeTerminal::Color::GREEN>(("[ "s + std::string(value.ToText().View()) + " ]"s));
-				}
-			);
-#endif
-			RuntimeTerminal::Print("\n");
-			int dbg_instruction_pointer = -1;
-			int dbg_proc_index = -1;
-
-			for (int i : std::views::iota(0, m_executable->GetProcedureCount()))
+			std::print(RuntimeDiagnostics::Output(), "Stack:");
+			for (ValueStackPointer value = m_value_stack_begin; value < sp; value += 1)
 			{
-				const VmBytecodeStream& bytecode = m_executable->GetBytecodeStream(i);
-				const VmOpCode* start = &*bytecode.cbegin();
-				const VmOpCode* end = start + bytecode.GetByteCodeSize();
-
-				if (ip >= start && ip < end)
+				std::print(RuntimeDiagnostics::Output(), " [ {} ]", value->ToText().View());
+			}
+			std::print(RuntimeDiagnostics::Output(), "\n");
+			for (int index = 0; index < m_executable->GetProcedureCount(); index += 1)
+			{
+				const VmBytecodeStream& bytecode = m_executable->GetBytecodeStream(index);
+				const VmOpCode* begin = &*bytecode.cbegin();
+				if (ip >= begin && ip < begin + bytecode.GetByteCodeSize())
 				{
-					dbg_proc_index = i;
-					dbg_instruction_pointer = static_cast<int>(ip - start);
+					int offset = static_cast<int>(ip - begin);
+					Disassembler::DisassembleInstruction(RuntimeDiagnostics::Output(), *m_executable, index, offset);
+					break;
 				}
 			}
-#if MIDORI_ENABLE_DISASSEMBLY
-			Disassembler::DisassembleInstruction(*m_executable, dbg_proc_index, dbg_instruction_pointer);
-#endif
 		}
 #endif
 		const InstructionPointer inst_ip = ip;
 		VmOpCode instruction = ReadByte(ip);
-#if MIDORI_PROFILE_OPCODES
-		s_opcode_pair_counts[s_previous_opcode][static_cast<size_t>(instruction)] += 1u;
-		s_previous_opcode = static_cast<size_t>(instruction);
+#if MIDORI_ENABLE_OPCODE_METRICS
+		if (opcode_metrics)
+		{
+			opcode_counts[static_cast<size_t>(instruction)] += 1u;
+		}
 #endif
 
 		switch (instruction)
@@ -3029,9 +2980,6 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		case VmOpCode::HALT:
 		{
-#if MIDORI_PROFILE_OPCODES
-			DumpOpcodeProfile();
-#endif
 			SyncMachineState(ip, sp, bp, env, closure);
 			return 0;
 		}

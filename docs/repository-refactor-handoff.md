@@ -28,15 +28,23 @@ There is no root `CMakeLists.txt` and no installable C++ package shared by `marm
 
 ## Progress
 
-Phases 1–3 are implemented. The compiler, VM, project tool, and browser integration
+Phases 1–4 are implemented. The compiler, VM, project tool, and browser integration
 now live under `projects/`. Each native C++ project owns its CMake build, presets,
 unit tests, and install target. Repository integration tests live in
 `test/integration/` and invoke the VM through temporary `.mmc` files.
 
 Phase 3 verification passed the full Development gate, standalone CMake install
 and cleanup checks, the VM Debug ABI check, and the relocated WebAssembly build.
-The browser still uses the combined integration module until phase 5. Build
-profiles and diagnostic features are the next phase.
+Phase 4 verification passed the full Dev gate, compiler/VM unit and subprocess
+integration suites in Debug and Release, CLI and `.mmc` checks in all three
+profiles, and the WebAssembly build. Dev maps to CMake's RelWithDebInfo.
+AST/IR printers and `marmotvm disassemble` are available in every profile;
+execution uses `marmotvm run`. Metrics and Debug tracing require explicit flags
+and use stderr, including alongside JSON output. Experimental and fast-math
+flags are removed.
+
+The browser still uses the combined integration module. Separating its compiler
+and VM modules is the next phase.
 
 ## Baseline coupling to remove
 

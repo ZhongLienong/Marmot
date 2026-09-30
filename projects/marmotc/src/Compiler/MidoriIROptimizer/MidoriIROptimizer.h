@@ -31,7 +31,7 @@ struct MidoriIRPassFailure
 
 // Runs a fixed list of passes once, in order: SSA makes iterating to a
 // fixpoint unnecessary, and a pass that helps a later one runs before it. In
-// Development and Debug builds the verifier runs after every pass.
+// Dev and Debug builds the verifier runs after every pass.
 class MidoriIROptimizer
 {
 private:

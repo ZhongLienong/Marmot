@@ -1,7 +1,8 @@
 // marmotvm: runs a compiled Marmot program (.mmc). It compiles nothing; marmotc
 // writes the program and the marmot tool runs both.
 
-#include "Support/TestMode/TestMode.h"
+#include "Support/Diagnostics/Diagnostics.h"
+#include "VmBytecode/Disassembler/Disassembler.h"
 #include "Error/RuntimeError.h"
 #include "Support/Json/Json.h"
 #include "Support/OutputCapture/OutputCapture.h"
@@ -20,24 +21,42 @@
 namespace
 {
 	constexpr std::string_view USAGE =
-		"Usage: marmotvm <program.mmc> [--library <name>=<file>]... [--library-path <dir>]...\n"
+		"Usage: marmotvm run <program.mmc> [--library <name>=<file>]... [--library-path <dir>]...\n"
 		"                [--format json]\n"
+		"       marmotvm disassemble <program.mmc>\n"
+#if MIDORI_ENABLE_OPCODE_METRICS
+		"Run diagnostics: --opcode-metrics, --gc-metrics (stderr).\n"
+#endif
+#if MIDORI_ENABLE_EXECUTION_TRACE
+		"                --trace (instructions and stack on stderr).\n"
+#endif
 		"Run a compiled Marmot program.\n\n"
 		"A native library the program names (foreign ... from \"name\") is looked for\n"
 		"at its --library file, then in each --library-path, then in MARMOT_LIBRARY_PATH,\n"
 		"then beside the module that declared it (lib/<platform>/, then the directory).\n\n"
 		"Examples:\n"
-		"  marmotvm target/Main.mmc\n"
-		"  marmotvm Main.mmc --library-path native/bin\n"
-		"  marmotvm Main.mmc --library marmot_image=bin/marmot_image.dll\n";
+		"  marmotvm run target/Main.mmc\n"
+		"  marmotvm disassemble target/Main.mmc\n"
+		"  marmotvm run Main.mmc --library-path native/bin\n"
+		"  marmotvm run Main.mmc --library marmot_image=bin/marmot_image.dll\n";
+
+	enum class CommandKind
+	{
+		Run,
+		Disassemble
+	};
 
 	struct Invocation
 	{
+		std::optional<CommandKind> m_command;
 		std::filesystem::path m_program;
 		MidoriProgramLoader::NativeLibraryLocations m_locations;
 		bool m_json = false;
 		bool m_show_help = false;
 		bool m_show_version = false;
+		bool m_trace = false;
+		bool m_opcode_metrics = false;
+		bool m_gc_metrics = false;
 	};
 
 	// The value after the option at `index`, which moves past it.
@@ -65,6 +84,29 @@ namespace
 			else if (arg == "--version")
 			{
 				invocation.m_show_version = true;
+			}
+			else if (arg == "--trace")
+			{
+#if MIDORI_ENABLE_EXECUTION_TRACE
+				invocation.m_trace = true;
+#else
+				return std::unexpected("--trace requires a Debug build.");
+#endif
+			}
+			else if (arg == "--opcode-metrics" || arg == "--gc-metrics")
+			{
+#if MIDORI_ENABLE_OPCODE_METRICS
+				if (arg == "--opcode-metrics")
+				{
+					invocation.m_opcode_metrics = true;
+				}
+				else
+				{
+					invocation.m_gc_metrics = true;
+				}
+#else
+				return std::unexpected(std::format("{} requires a Debug or Dev build.", arg));
+#endif
 			}
 			else if (arg == "--format")
 			{
@@ -98,6 +140,21 @@ namespace
 			{
 				return std::unexpected(std::format("Unknown option: {}", arg));
 			}
+			else if (!invocation.m_command.has_value())
+			{
+				if (arg == "run")
+				{
+					invocation.m_command = CommandKind::Run;
+				}
+				else if (arg == "disassemble")
+				{
+					invocation.m_command = CommandKind::Disassemble;
+				}
+				else
+				{
+					return std::unexpected(std::format("Unknown command: {}. Use run or disassemble.", arg));
+				}
+			}
 			else if (!invocation.m_program.empty())
 			{
 				return std::unexpected("marmotvm runs one program.");
@@ -108,9 +165,23 @@ namespace
 			}
 		}
 
-		if (!invocation.m_show_help && !invocation.m_show_version && invocation.m_program.empty())
+		if (invocation.m_show_help || invocation.m_show_version)
 		{
-			return std::unexpected("Missing the program to run (a .mmc file).");
+			return invocation;
+		}
+		if (!invocation.m_command.has_value())
+		{
+			return std::unexpected("Missing command. Use run or disassemble.");
+		}
+		if (invocation.m_program.empty())
+		{
+			return std::unexpected("Missing program (a .mmc file).");
+		}
+		if (invocation.m_command == CommandKind::Disassemble &&
+			(invocation.m_json || invocation.m_trace || invocation.m_opcode_metrics || invocation.m_gc_metrics ||
+			 !invocation.m_locations.m_files.empty() || !invocation.m_locations.m_search_paths.empty()))
+		{
+			return std::unexpected("disassemble takes only a .mmc file; execution options belong to run.");
 		}
 		return invocation;
 	}
@@ -185,6 +256,14 @@ namespace
 		{
 			return FailToStart(invocation, program.error());
 		}
+		if (invocation.m_command == CommandKind::Disassemble)
+		{
+			for (int index = 0; index < program->GetProcedureCount(); index += 1)
+			{
+				Disassembler::DisassembleBytecodeStream(stdout, program.value(), index, std::format("Procedure {}", index));
+			}
+			return EXIT_SUCCESS;
+		}
 
 		MidoriProgramLoader::NativeLibraryLocations locations = invocation.m_locations;
 		for (const std::filesystem::path& directory : MidoriProgramLoader::EnvironmentLibraryPaths())
@@ -199,6 +278,7 @@ namespace
 
 		if (invocation.m_json)
 		{
+			const RuntimeDiagnostics::ScopedOutput diagnostic_output;
 			MidoriUtility::OutputCapture capture;
 			const std::expected<int, RuntimeError> run_result = MidoriProgramLoader::Run(std::move(program).value());
 			const MidoriUtility::CapturedOutput output = capture.Stop();
@@ -243,6 +323,6 @@ int main(int argc, char* argv[])
 		return EXIT_SUCCESS;
 	}
 
-	const RuntimeTestMode::ScopedOverride suppress_internal_diagnostics(true);
+	RuntimeDiagnostics::Configure(invocation->m_trace, invocation->m_opcode_metrics, invocation->m_gc_metrics);
 	return Execute(invocation.value());
 }

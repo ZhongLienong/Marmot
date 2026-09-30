@@ -544,7 +544,7 @@ TEST_CASE("The optimizer names the pass that left the module invalid", "[midori_
 {
 	if (!MidoriIROptimizer::VerifiesEachPass())
 	{
-		SKIP("only Development and Debug builds verify after each pass");
+		SKIP("only Dev and Debug builds verify after each pass");
 	}
 	std::expected<LoweredModule, MidoriResult::CompilerDiagnostics> lowered = MidoriTest::LowerSnippetWithDiagnostics("module Broken\ndef value = 1;\n");
 	REQUIRE(lowered.has_value());

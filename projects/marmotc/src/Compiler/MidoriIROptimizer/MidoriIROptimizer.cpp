@@ -2,6 +2,7 @@
 #include "Compiler/MidoriIROptimizer/MidoriIRPasses.h"
 
 #include <utility>
+#include "Utility/Diagnostics/Diagnostics.h"
 
 #if MIDORI_ENABLE_OPTIMIZER_STATS
 #include <format>
@@ -80,9 +81,10 @@ std::expected<void, MidoriIRPassFailure> MidoriIROptimizer::Optimize(MidoriIRMod
 	for (const std::unique_ptr<MidoriIRPass>& pass : m_passes)
 	{
 #if MIDORI_ENABLE_OPTIMIZER_STATS
-		const size_t before = InstructionCount(module);
+		const bool statistics = CompilerDiagnostics::StatisticsEnabled();
+		const size_t before = statistics ? InstructionCount(module) : 0uz;
 		pass->Run(module);
-		const size_t after = InstructionCount(module);
+		const size_t after = statistics ? InstructionCount(module) : 0uz;
 		if (after != before)
 		{
 			std::format_to(std::back_inserter(m_log), "  {}: {} -> {} instructions\n", pass->Name(), before, after);

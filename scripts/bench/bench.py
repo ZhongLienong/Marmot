@@ -60,7 +60,7 @@ def run_workload(exe: Path, workload: Path, prefix: bool) -> dict[str, float]:
         subprocess.run([str(exe), "build", str(workload), "-o", str(program), "--quiet"],
                        cwd=ROOT, env=environment, timeout=600, check=True, capture_output=True)
         proc = subprocess.run(
-            [str(vm_beside(exe)), str(program)],
+            [str(vm_beside(exe)), "run", str(program)],
             capture_output=True,
             text=True,
             cwd=ROOT,

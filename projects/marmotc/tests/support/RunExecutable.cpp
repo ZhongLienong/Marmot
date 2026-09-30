@@ -62,7 +62,7 @@ namespace MidoriTest
 		const TempDir temporary("marmot-integration");
 		const std::filesystem::path artifact = temporary.Path() / "program.mmc";
 		MidoriBinaryArtifact::WriteExecutableToFile(executable, artifact, true).value();
-		std::string command = QuoteArgument(vm) + " " + QuoteArgument(artifact.string());
+		std::string command = QuoteArgument(vm) + " run " + QuoteArgument(artifact.string());
 		for (const std::string& argument : arguments)
 		{
 			command += " " + QuoteArgument(argument);

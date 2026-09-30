@@ -353,7 +353,7 @@ fn run_check_build_and_the_plan_handoff() {
         &project.0,
         &["build", "--plan", "plan.json", "-o", "direct.mmc"],
     ));
-    let direct = run(&vm(&compiler), &project.0, &["direct.mmc"], &compiler);
+    let direct = run(&vm(&compiler), &project.0, &["run", "direct.mmc"], &compiler);
     assert_eq!(text(&succeeded(&direct).stdout), "hello, plan!\n");
 
     // Without the plan, the compiler knows nothing of the project's packages.

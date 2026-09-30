@@ -1,6 +1,6 @@
 #include "GarbageCollector.h"
 #include "Support/Attributes/Attributes.h"
-#include "Support/TestMode/TestMode.h"
+#include "Support/Diagnostics/Diagnostics.h"
 #include "Interpreter/Allocator/MidoriAllocator.h"
 
 #include <algorithm>
@@ -138,9 +138,9 @@ MIDORI_FORCE_INLINE void GarbageCollector::TryMark(MidoriTraceable* child_ptr)
 	}
 
 #if MIDORI_DEBUG_FULL
-	if (RuntimeTestMode::ShouldEmitInternalDiagnostics())
+	if (RuntimeDiagnostics::GcMetricsEnabled())
 	{
-		RuntimeTerminal::Print<RuntimeTerminal::Color::GREEN>(std::format("Marking traceable pointer: {:p}\n", static_cast<void*>(child_ptr)));
+		RuntimeDiagnostics::Print(std::format("Marking traceable pointer: {:p}\n", static_cast<void*>(child_ptr)));
 	}
 #endif
 
@@ -251,7 +251,7 @@ void GarbageCollector::CollectNow(const GarbageCollectionRoots& roots, MidoriAll
 	const size_t remembered_count = m_remembered_set.size();
 
 #if MIDORI_DEBUG_INFO
-	const bool emit_gc_diagnostics = RuntimeTestMode::ShouldEmitInternalDiagnostics();
+	const bool emit_gc_diagnostics = RuntimeDiagnostics::GcMetricsEnabled();
 	using Clock = std::chrono::high_resolution_clock;
 	using TimePoint = Clock::time_point;
 	TimePoint t0{};
@@ -261,7 +261,7 @@ void GarbageCollector::CollectNow(const GarbageCollectionRoots& roots, MidoriAll
 	TimePoint t_sweep_end{};
 	if (emit_gc_diagnostics)
 	{
-		RuntimeTerminal::Print<RuntimeTerminal::Color::BLUE>("\n----------------------------------------------\nBefore garbage collection:");
+		RuntimeDiagnostics::Print("\n----------------------------------------------\nBefore garbage collection:");
 		PrintMemoryTelemetry();
 		t0 = Clock::now();
 	}
@@ -330,7 +330,7 @@ void GarbageCollector::CollectNow(const GarbageCollectionRoots& roots, MidoriAll
 		int64_t ns_sweep = std::chrono::duration_cast<std::chrono::nanoseconds>(t_sweep_end - t_sweep_start).count();
 		int64_t ns_total = std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).count();
 
-		RuntimeTerminal::Print<RuntimeTerminal::Color::BLUE>
+		RuntimeDiagnostics::Print
 			(
 				std::format
 				(
@@ -357,7 +357,7 @@ void GarbageCollector::CollectNow(const GarbageCollectionRoots& roots, MidoriAll
 					FormatBytes(bytes_reclaimed)
 				)
 			);
-		RuntimeTerminal::Print<RuntimeTerminal::Color::BLUE>("\nAfter garbage collection:");
+		RuntimeDiagnostics::Print("\nAfter garbage collection:");
 		PrintMemoryTelemetry();
 	}
 #endif
@@ -394,7 +394,7 @@ void GarbageCollector::ReclaimMemory(const GarbageCollectionRoots& roots, Midori
 #if MIDORI_DEBUG_INFO
 void GarbageCollector::PrintMemoryTelemetry()
 {
-	RuntimeTerminal::Print<RuntimeTerminal::Color::BLUE>
+	RuntimeDiagnostics::Print
 		(
 			std::format
 			(

@@ -167,7 +167,6 @@ class TestRunner:
     def execute(self, test_path: Path, *, machine_warnings: bool) -> subprocess.CompletedProcess:
         """Build and run one test as the suite does, from the checkout root."""
         environment = checkout_environment(
-            MARMOT_TEST_MODE="1",
             MARMOT_TEST_WARNING_FORMAT="machine" if machine_warnings else None,
         )
         command_path = test_path.resolve().relative_to(self.root_dir).as_posix()
