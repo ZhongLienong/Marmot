@@ -124,14 +124,6 @@ const std::vector<std::pair<int, int>>& BytecodeStream::GetLineInfo() const
 	return m_line_info;
 }
 
-BytecodeStream BytecodeStream::FromRaw(std::vector<OpCode>&& bytecode, std::vector<std::pair<int, int>>&& line_info)
-{
-	BytecodeStream stream;
-	stream.m_bytecode = std::move(bytecode);
-	stream.m_line_info = std::move(line_info);
-	return stream;
-}
-
 int MidoriExecutable::AddGlobalVariable(std::string&& name)
 {
 	m_globals.emplace_back(std::move(name));

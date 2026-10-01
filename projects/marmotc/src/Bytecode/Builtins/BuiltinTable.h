@@ -2,74 +2,30 @@
 
 #include <array>
 #include <cstddef>
-#include <cstdint>
 #include <optional>
 #include <string_view>
 
-// Compiler-side builtin IDs and signatures in .mmc order. The VM keeps its
-// own table; the v13 registry check requires both tables to agree.
-
-using FFIFunction = void(*)(void** args, void* ret);
-
-constexpr size_t MIDORI_FFI_MAX_ARITY = 4u;
-
-enum class FFIArgumentKind : uint8_t
-{
-	RawValue = 0,
-	CString,
-	ArrayView,
-	TraceableHandle,
-	ValueHandle
-};
-
-enum class FFIReturnKind : uint8_t
-{
-	RawValue = 0,
-	CString,
-	ArrayValues,
-	ArrayStrings,
-	Value
-};
-
-template<typename... Kinds>
-consteval std::array<FFIArgumentKind, MIDORI_FFI_MAX_ARITY> MakeFFIArgKinds(Kinds... kinds)
-{
-	static_assert(sizeof...(Kinds) <= MIDORI_FFI_MAX_ARITY);
-	std::array<FFIArgumentKind, MIDORI_FFI_MAX_ARITY> result{};
-	FFIArgumentKind values[] = { kinds... };
-	for (size_t i = 0uz; i < sizeof...(Kinds); i += 1uz)
-	{
-		result[i] = values[i];
-	}
-	return result;
-}
-
-struct BuiltinSignature
-{
-	std::string_view m_name;
-	std::array<FFIArgumentKind, MIDORI_FFI_MAX_ARITY> m_arg_kinds{};
-	FFIReturnKind m_return_kind = FFIReturnKind::RawValue;
-};
+// Only builtin names and indexes are needed to emit CALL_FOREIGN_INDEXED.
 
 class MarmotBuiltins
 {
 private:
-	inline static constexpr std::array s_signatures =
+	inline static constexpr std::array s_names =
 	{
-#define MARMOT_BUILTIN(name, arg_kinds, return_kind) BuiltinSignature{ #name, arg_kinds, return_kind },
+#define MARMOT_BUILTIN(name, arg_kinds, return_kind) std::string_view(#name),
 #include "Bytecode/Builtins/Builtins.def"
 #undef MARMOT_BUILTIN
 	};
 
 public:
 	static constexpr int ABI_VERSION = 1;
-	static constexpr size_t COUNT = s_signatures.size();
+	static constexpr size_t COUNT = s_names.size();
 
 	static constexpr std::optional<size_t> FindIndex(std::string_view name)
 	{
-		for (size_t index = 0uz; index < s_signatures.size(); index += 1uz)
+		for (size_t index = 0uz; index < s_names.size(); index += 1uz)
 		{
-			if (s_signatures[index].m_name == name)
+			if (s_names[index] == name)
 			{
 				return index;
 			}
@@ -77,21 +33,8 @@ public:
 		return std::nullopt;
 	}
 
-	static constexpr const BuiltinSignature& At(size_t index)
+	static constexpr std::string_view At(size_t index)
 	{
-		return s_signatures[index];
-	}
-
-	// Exiting the process is the one builtin a worker must not perform: it would
-	// take the whole program down from a thread. The VM needs its position to
-	// intercept the call, and the position is known here at compile time.
-	static consteval size_t ExitIndex()
-	{
-		const std::optional<size_t> index = FindIndex("MIDORI_FFI_Exit");
-		if (!index.has_value())
-		{
-			throw "MIDORI_FFI_Exit is missing from the builtin table";
-		}
-		return index.value();
+		return s_names[index];
 	}
 };

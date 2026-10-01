@@ -335,7 +335,7 @@ namespace VmBinaryArtifact
 				line_info.emplace_back(static_cast<int>(line), static_cast<int>(count));
 			}
 
-			procedures.push_back(VmBytecodeStream::FromRaw(std::move(bytecode), std::move(line_info)));
+			procedures.emplace_back(std::move(bytecode), std::move(line_info));
 			procedure_names.push_back(std::move(proc_name));
 			procedure_source_paths.push_back(std::move(source_path));
 		}

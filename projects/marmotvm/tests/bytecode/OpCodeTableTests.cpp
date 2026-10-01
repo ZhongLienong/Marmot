@@ -7,10 +7,8 @@
 #include <string>
 #include <vector>
 
-// OpCodes.def is the one list of instructions and their lengths. The linker and
-// the backend step through bytecode with VmOpCodeTable::Length; the
-// disassembler still decodes each instruction by hand. These tests hold the
-// hand-written decoder to the table.
+// The disassembler decodes each instruction by hand. These tests hold its
+// decoder to the VM's instruction table.
 
 TEST_CASE("Every opcode has a length and a name", "[opcode]")
 {
@@ -46,12 +44,9 @@ TEST_CASE("The disassembler reads each instruction's length from OpCodes.def", "
 
 		// The instruction with every operand byte zero, so each index it carries
 		// names the first global, string or procedure.
-		VmBytecodeStream procedure;
-		procedure.AddByteCode(opcode, 1);
-		for (int operand = 1; operand < length; operand += 1)
-		{
-			procedure.AddByteCode(static_cast<VmOpCode>(0), 1);
-		}
+		std::vector<VmOpCode> bytecode(static_cast<size_t>(length), static_cast<VmOpCode>(0));
+		bytecode[0u] = opcode;
+		VmBytecodeStream procedure(std::move(bytecode), std::vector<std::pair<int, int>>{ { 1, length } });
 
 		VmExecutable executable;
 		static_cast<void>(executable.AddGlobalVariable(std::string("global")));

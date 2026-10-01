@@ -97,7 +97,6 @@ public:
 
 	const std::vector<std::pair<int, int>>& GetLineInfo() const;
 
-	static BytecodeStream FromRaw(std::vector<OpCode>&& bytecode, std::vector<std::pair<int, int>>&& line_info);
 };
 
 // How a native library may be used, as the package that ships it declares.

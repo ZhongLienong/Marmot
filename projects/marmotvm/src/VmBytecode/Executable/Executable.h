@@ -57,19 +57,12 @@ public:
 class VmBytecodeStream
 {
 public:
-	using iterator = std::vector<VmOpCode>::iterator;
 	using const_iterator = std::vector<VmOpCode>::const_iterator;
-	using reverse_iterator = std::vector<VmOpCode>::reverse_iterator;
-	using const_reverse_iterator = std::vector<VmOpCode>::const_reverse_iterator;
 
-	iterator begin();
-	iterator end();
+	VmBytecodeStream(std::vector<VmOpCode>&& bytecode, std::vector<std::pair<int, int>>&& line_info);
+
 	const_iterator cbegin() const;
 	const_iterator cend() const;
-	reverse_iterator rbegin();
-	reverse_iterator rend();
-	const_reverse_iterator crbegin() const;
-	const_reverse_iterator crend() const;
 
 private:
 	std::vector<VmOpCode> m_bytecode;
@@ -79,25 +72,11 @@ public:
 
 	VmOpCode ReadByteCode(int index) const;
 
-	void SetByteCode(int index, VmOpCode byte);
-
-	void AddByteCode(VmOpCode byte, int line);
-
-	void PopByteCode(int line);
-
 	int GetByteCodeSize() const;
-
-	bool IsByteCodeEmpty() const;
 
 	int GetLine(int index) const;
 
-	void Append(VmBytecodeStream&& other);
-
 	const VmOpCode* operator[](int index) const;
-
-	const std::vector<std::pair<int, int>>& GetLineInfo() const;
-
-	static VmBytecodeStream FromRaw(std::vector<VmOpCode>&& bytecode, std::vector<std::pair<int, int>>&& line_info);
 };
 
 // How a native library may be used, as the package that ships it declares.

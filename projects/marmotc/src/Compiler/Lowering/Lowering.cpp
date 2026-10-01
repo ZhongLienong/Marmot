@@ -968,7 +968,7 @@ Lowering::Lowered Lowering::LowerForeignValue(const Token& name, const TypeRef& 
 		});
 	if (lowered.has_value())
 	{
-		const MidoriIRImmediate foreign = builtin != Scope().m_specialization.m_foreign_indices->cend() ? MidoriIRImmediate(MidoriIRForeign{ std::string(MarmotBuiltins::At(builtin->second).m_name) }) : MidoriIRImmediate();
+		const MidoriIRImmediate foreign = builtin != Scope().m_specialization.m_foreign_indices->cend() ? MidoriIRImmediate(MidoriIRForeign{ std::string(MarmotBuiltins::At(builtin->second)) }) : MidoriIRImmediate();
 		const MidoriIRValueId result = Builder().Emit(MidoriIROp::CallForeign, signature.m_return_type, std::move(arguments), foreign);
 		Builder().Return(result);
 	}
@@ -1295,7 +1295,7 @@ std::expected<Lowering::Callee, CompilerError> Lowering::ResolveCallee(MidoriExp
 		const ForeignIndices::const_iterator builtin = specialization.m_foreign_indices->find(foreign.m_name.m_lexeme);
 		if (builtin != specialization.m_foreign_indices->cend())
 		{
-			return Callee{ MidoriIRForeign{ std::string(MarmotBuiltins::At(builtin->second).m_name) }, std::nullopt };
+			return Callee{ MidoriIRForeign{ std::string(MarmotBuiltins::At(builtin->second)) }, std::nullopt };
 		}
 		if (name != nullptr && IsForeignDeclaration(name->m_name.m_lexeme))
 		{

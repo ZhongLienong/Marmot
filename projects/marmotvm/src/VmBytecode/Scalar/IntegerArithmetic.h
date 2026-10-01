@@ -5,8 +5,8 @@
 #include <type_traits>
 
 // Int arithmetic wraps in two's complement. Signed overflow is undefined in
-// C++, so each operation goes through the unsigned type, and the VM and the
-// constant folder share these so a folded expression and a computed one agree.
+// C++, so the VM goes through the unsigned type. Its result must agree with
+// the compiler's independent constant folder.
 namespace MidoriIntegerArithmetic
 {
 	using Signed = int64_t;
