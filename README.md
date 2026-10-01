@@ -643,6 +643,12 @@ cmake --preset linux-dev
 cmake --build --preset linux-dev --target marmotvm
 ```
 
+`python scripts/dev.py wasm` builds each project's independent WebAssembly
+module in `out/build/<project>/wasm64/out/`. `wasm --deploy <site-public-folder>`
+copies `marmotc.js/.wasm`, `marmotvm.js/.wasm`, the `marmot.js` browser adapter,
+and the prelude. The adapter keeps the playground's `createMarmotModule` and
+`executeMarmotCode` API; compiler and VM exchange versioned `.mmc` bytes.
+
 ### Running Programs
 
 `python scripts/dev.py run path/to/program.mmt` builds a program with the

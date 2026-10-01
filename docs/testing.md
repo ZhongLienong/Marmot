@@ -166,6 +166,12 @@ REQUIRE(MidoriTest::Matches(
 a check needs first (`--no-build` skips that). `--build` picks the
 configuration, Dev by default.
 
+After `python scripts/dev.py wasm`, `python scripts/dev.py check web` serves the
+browser smoke test at `http://127.0.0.1:8765/`. Open it in a browser; it runs the
+independent compiler and VM modules through the playground adapter and reports
+the result on the page. This optional browser check is separate from the native
+gate and requires an Emscripten build.
+
 The full gate, stopping at the first failure:
 
 ```bash

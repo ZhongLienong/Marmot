@@ -234,6 +234,8 @@ if(NOT EMSCRIPTEN)
     endif()
 
     install(TARGETS marmotc RUNTIME DESTINATION bin)
+else()
+    include(cmake/Wasm.cmake)
 endif()
 if(MIDORI_BUILD_TESTS AND NOT EMSCRIPTEN)
     include(cmake/UnitTests.cmake)

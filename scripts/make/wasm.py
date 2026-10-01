@@ -2,8 +2,8 @@
 """
 Build Marmot for WebAssembly with Emscripten, and optionally deploy it to a website.
 
-The build goes to out/build/web/wasm64/ and makes marmot.js and marmot.wasm. Deploying
-copies them, the prelude and a manifest of its files into the site's public
+The independent builds go to out/build/<project>/wasm64/. Deploying copies
+marmotc.js/.wasm, marmotvm.js/.wasm, the marmot.js adapter, and the prelude into the site's public
 folder, given with --deploy or the MARMOT_SITE_DIR environment variable.
 
 Emscripten is found on PATH, else in $EMSDK or a usual emsdk folder.
@@ -31,9 +31,19 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from lib import console, toolchain
 from lib.host import IS_WINDOWS, PRELUDE_DIR, REPO_ROOT
 
-BUILD_DIR = REPO_ROOT / "out" / "build" / "web" / "wasm64"
-OUTPUT_DIR = BUILD_DIR / "out"
-WASM_FILES = ["marmot.js", "marmot.wasm"]
+PROJECTS = ("marmotc", "marmotvm")
+ADAPTER = REPO_ROOT / "projects" / "web" / "marmot.js"
+
+
+def build_directory(project: str) -> Path:
+    return REPO_ROOT / "out" / "build" / project / "wasm64"
+
+
+def artifacts() -> dict[str, Path]:
+    return {"marmot.js": ADAPTER, **{
+        f"{project}.{suffix}": build_directory(project) / "out" / f"{project}.{suffix}"
+        for project in PROJECTS for suffix in ("js", "wasm")
+    }}
 
 
 @dataclass(frozen=True)
@@ -103,8 +113,8 @@ def remove_locked(function, path, _error) -> None:
     console.note(f"skipping locked path: {path}")
 
 
-def cached_path(variable: str) -> Path | None:
-    cache = BUILD_DIR / "CMakeCache.txt"
+def cached_path(directory: Path, variable: str) -> Path | None:
+    cache = directory / "CMakeCache.txt"
     if not cache.is_file():
         return None
     prefix = variable + "="
@@ -112,30 +122,41 @@ def cached_path(variable: str) -> Path | None:
     return next((Path(line[len(prefix):]).resolve() for line in lines if line.startswith(prefix)), None)
 
 
-def build(emscripten: Emscripten, clean: bool) -> int:
-    if clean and BUILD_DIR.exists():
-        print(f"Cleaning {BUILD_DIR}...")
+def build_project(emscripten: Emscripten, project: str, clean: bool) -> int:
+    directory = build_directory(project)
+    if not directory.resolve().is_relative_to((REPO_ROOT / "out" / "build").resolve()):
+        raise SystemExit(f"Build output must stay inside out/build: {directory}")
+    if clean and directory.exists():
+        print(f"Cleaning {directory}...")
         # onerror became onexc in 3.12; the handler ignores the argument that changed.
         handler = {"onexc" if sys.version_info >= (3, 12) else "onerror": remove_locked}
-        shutil.rmtree(BUILD_DIR, **handler)
+        shutil.rmtree(directory, **handler)
 
     # A build tree keeps the em++ it was configured with; running it under another emsdk's config mixes LLVM versions.
-    cached = cached_path("CMAKE_TOOLCHAIN_FILE:FILEPATH")
-    source = REPO_ROOT / "projects" / "web"
-    stale = cached is not None and (cached != emscripten.toolchain_file.resolve() or cached_path("CMAKE_HOME_DIRECTORY:INTERNAL") != source.resolve())
+    cached = cached_path(directory, "CMAKE_TOOLCHAIN_FILE:FILEPATH")
+    source = REPO_ROOT / "projects" / project
+    stale = cached is not None and (cached != emscripten.toolchain_file.resolve() or cached_path(directory, "CMAKE_HOME_DIRECTORY:INTERNAL") != source.resolve())
     if stale:
-        console.note(f"{BUILD_DIR} has a different toolchain or source directory; reconfiguring")
+        console.note(f"{directory} has a different toolchain or source directory; reconfiguring")
     if cached is None or stale:
         generator = ["-G", "Ninja"] if shutil.which("ninja", path=emscripten.environment.get("PATH")) else []
         fresh = ["--fresh"] if stale else []
         configured = toolchain.run(
-            [emscripten.emcmake, "cmake", *fresh, "-S", str(REPO_ROOT / "projects" / "web"), "-B", str(BUILD_DIR), *generator,
-             "-DCMAKE_BUILD_TYPE=Release", "-DMIDORI_WASM64=ON"],
+            [emscripten.emcmake, "cmake", *fresh, "-S", str(source), "-B", str(directory), *generator,
+             "-DCMAKE_BUILD_TYPE=Release", "-DMIDORI_BUILD_TESTS=OFF", "-DMIDORI_WASM64=ON"],
             environment=emscripten.environment,
         )
         if configured != 0:
             return configured
-    return toolchain.run(["cmake", "--build", str(BUILD_DIR), "--config", "Release", "--parallel"], environment=emscripten.environment)
+    return toolchain.run(["cmake", "--build", str(directory), "--config", "Release", "--target", project, "--parallel"], environment=emscripten.environment)
+
+
+def build(emscripten: Emscripten, clean: bool) -> int:
+    for project in PROJECTS:
+        status = build_project(emscripten, project, clean)
+        if status != 0:
+            return status
+    return 0
 
 
 def deploy(site: Path) -> int:
@@ -144,12 +165,13 @@ def deploy(site: Path) -> int:
         return 1
 
     print(f"\nDeploying to {site}...")
-    for filename in WASM_FILES:
-        source = OUTPUT_DIR / filename
+    for filename, source in artifacts().items():
         shutil.copy2(source, site / filename)
         print(f"  {filename} ({format_size(source.stat().st_size)})")
 
     prelude = site / "MarmotPrelude"
+    if not prelude.resolve().is_relative_to(site.resolve()):
+        raise SystemExit(f"Prelude output must stay inside the website folder: {prelude}")
     if prelude.exists():
         shutil.rmtree(prelude)
     shutil.copytree(PRELUDE_DIR, prelude)
@@ -178,11 +200,11 @@ def main(argv: list[str]) -> int:
     built = build(emscripten, args.clean)
     if built != 0:
         return built
-    missing = [name for name in WASM_FILES if not (OUTPUT_DIR / name).is_file()]
+    missing = [name for name, path in artifacts().items() if not path.is_file()]
     if missing:
-        console.fail(f"The build made no {', '.join(missing)} in {OUTPUT_DIR}")
+        console.fail(f"The build made no {', '.join(missing)}")
         return 1
-    console.ok(f"built {', '.join(WASM_FILES)} in {OUTPUT_DIR}")
+    console.ok(f"built independent compiler and VM modules: {', '.join(artifacts())}")
 
     if args.deploy is not None:
         return deploy(Path(args.deploy).expanduser().resolve())

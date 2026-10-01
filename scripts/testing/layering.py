@@ -3,7 +3,7 @@
     runtime   -> runtime
     compiler  -> compiler
     driver    -> compiler, driver
-    web       -> runtime, compiler
+    web       -> no C++ components
     vm        -> runtime, vm
 
 Every quoted #include is resolved against the compiler and runtime include
@@ -39,7 +39,7 @@ ALLOWED = {
     'runtime': {'runtime'},
     'compiler': {'compiler'},
     'driver': {'compiler', 'driver'},
-    'web': {'runtime', 'compiler'},
+    'web': set(),
     'vm': {'runtime', 'vm'},
 }
 
@@ -66,7 +66,7 @@ def component_of(path):
     path = path.resolve()
     if path in DRIVER_FILES or any(directory in path.parents for directory in DRIVER_DIRS):
         return 'driver'
-    if (ROOT / 'projects' / 'web' / 'src') in path.parents:
+    if (ROOT / 'projects' / 'web') in path.parents:
         return 'web'
     for name, include_root in INCLUDE_ROOTS.items():
         if include_root in path.parents:
@@ -92,7 +92,7 @@ def resolve(including_file, target):
 
 def main(argv: list[str]) -> int:
     sources = []
-    for folder in (ROOT / 'projects' / 'marmotvm' / 'src', ROOT / 'projects' / 'marmotc' / 'src', ROOT / 'projects' / 'web' / 'src', ROOT / 'test' / 'integration', ROOT / 'projects' / 'marmotc' / 'tests', ROOT / 'projects' / 'marmotvm' / 'tests'):
+    for folder in (ROOT / 'projects' / 'marmotvm' / 'src', ROOT / 'projects' / 'marmotc' / 'src', ROOT / 'projects' / 'web', ROOT / 'test' / 'integration', ROOT / 'projects' / 'marmotc' / 'tests', ROOT / 'projects' / 'marmotvm' / 'tests'):
         for pattern in ('*.h', '*.cpp', '*.def'):
             sources.extend(folder.rglob(pattern))
 
@@ -139,6 +139,10 @@ def main(argv: list[str]) -> int:
     ):
         for dependency in reachable(target) & forbidden:
             violations.append(f'CMakeLists.txt: {target} links {dependency}')
+
+    web = ROOT / 'projects' / 'web'
+    if any(web.rglob('CMakeLists.txt')) or any(web.rglob('*.cmake')):
+        violations.append('projects/web: browser integration must orchestrate independent builds in JavaScript')
 
     if violations:
         print('Layering violations:')

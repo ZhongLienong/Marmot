@@ -28,7 +28,7 @@ There is no root `CMakeLists.txt` and no installable C++ package shared by `marm
 
 ## Progress
 
-Phases 1–4 are implemented. The compiler, VM, project tool, and browser integration
+Phases 1–5 are implemented. The compiler, VM, project tool, and browser integration
 now live under `projects/`. Each native C++ project owns its CMake build, presets,
 unit tests, and install target. Repository integration tests live in
 `test/integration/` and invoke the VM through temporary `.mmc` files.
@@ -43,8 +43,15 @@ execution uses `marmotvm run`. Metrics and Debug tracing require explicit flags
 and use stderr, including alongside JSON output. Experimental and fast-math
 flags are removed.
 
-The browser still uses the combined integration module. Separating its compiler
-and VM modules is the next phase.
+Phase 5 builds `marmotc.js/.wasm` and `marmotvm.js/.wasm` from their own project
+directories. `projects/web/marmot.js` preserves the playground factory and
+execution API while transferring owned `.mmc` bytes between separate module
+instances. The combined C++ wrapper and web CMake project are removed.
+Verification passed the full Dev gate and a real browser smoke test covering
+prelude imports, output capture, structured compiler/runtime errors, embedded
+source diagnostics, recovery after errors, the native compatibility fixture,
+and malformed artifacts. The deployment command copies the adapter, both
+module pairs, and the prelude. Final integration and removal is the next phase.
 
 ## Baseline coupling to remove
 

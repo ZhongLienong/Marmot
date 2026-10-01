@@ -51,7 +51,7 @@ COMMANDS: dict[str, Command] = {
     "test": Command("testing.language", "run the language suite (--category, --pattern, --test)", "Tests", COMPILER_AND_VM),
     "unit": Command("testing.unit", "run the C++ unit tests (--tag, --regex)", "Tests", UNIT_TARGETS),
     "snapshot": Command("testing.snapshot", "write a language test's .expected from its output", "Tests", COMPILER_AND_VM),
-    "check": Command("", "run one check: layering, docs, cli, format, benchmarks, tool", "Tests"),
+    "check": Command("", "run one check: layering, docs, cli, mmc, format, benchmarks, tool, web", "Tests"),
     "gate": Command("testing.gate", "everything a commit must pass", "Tests"),
     "bench": Command("bench.bench", "time the benchmarks, or --compare two compilers", "Performance", COMPILER_AND_VM, "Release"),
     "install": Command("install.install", "install marmotc, marmotvm, marmot and the prelude", "Install"),
@@ -66,6 +66,7 @@ CHECKS: dict[str, Command] = {
     "benchmarks": Command("testing.benchmarks", "benchmarks compile (--run to run them)", "Tests", COMPILER_AND_VM),
     "tool": Command("testing.tool", "the marmot tool's tests", "Tests", ["marmotc"]),
     "mmc": Command("testing.mmc_contract", "version-13 .mmc contract and fixture compatibility", "Tests", UNIT_TARGETS),
+    "web": Command("testing.web", "serve the WebAssembly browser smoke test", "Tests"),
 }
 
 

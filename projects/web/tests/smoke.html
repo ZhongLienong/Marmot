@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Marmot browser smoke test</title>
+<h1>Marmot browser smoke test</h1>
+<p id="status">Loading independent compiler and VM modules…</p>
+<pre id="results"></pre>
+<script src="/marmot.js?v=smoke"></script>
+<script>
+    const status = document.getElementById("status");
+    const results = document.getElementById("results");
+
+    function check(condition, message) {
+        if (!condition) {
+            throw new Error(message);
+        }
+        results.textContent += `PASS: ${message}\n`;
+    }
+
+    async function fixture(name) {
+        return new Uint8Array(await (await fetch(`/fixtures/${name}.mmc`)).arrayBuffer());
+    }
+
+    (async () => {
+        // Use the existing site's factory options and synchronous execution API.
+        const module = await createMarmotModule({
+            locateFile: path => path === "marmot.wasm" ? "/marmot.wasm?v=smoke" : path,
+        });
+        const files = await (await fetch("/MarmotPrelude/manifest.json")).json();
+        for (const file of files) {
+            const segments = file.split("/");
+            const name = segments.pop();
+            const directory = `/MarmotPrelude/${segments.join("/")}`;
+            module.FS_createPath("/", directory, true, true);
+            module.FS_createDataFile(directory, name, await (await fetch(`/MarmotPrelude/${file}`)).text(), true, true, true);
+        }
+
+        const source = 'module BrowserSmoke\nimport { <IO> }\nIO::PrintLine("browser hello");';
+        const compiled = module.compileMarmotCode(source);
+        if (!compiled.success) {
+            results.textContent += compiled.error + "\n";
+        }
+        check(compiled.success && compiled.bytes instanceof Uint8Array, "Compiler returns owned .mmc bytes");
+        check(String.fromCharCode(...compiled.bytes.slice(0, 3)) === "MBC", "Interchange uses the native .mmc header");
+        const saved = compiled.bytes.slice();
+        module.compileMarmotCode('module Another\ndef other = "another compilation";');
+        check(saved.every((value, index) => value === compiled.bytes[index]), "Artifact survives later compiler calls");
+        const executed = module.runMarmotBytecode(compiled.bytes);
+        check(executed.success && executed.output === "browser hello\n", "Independent VM executes compiler bytes with prelude imports");
+        const combined = module.executeMarmotCode(source);
+        check(combined.success && combined.output === executed.output && combined.exitCode === 0, "Existing playground API preserves execution behavior");
+
+        const failure = module.executeMarmotCode("module Broken\ndef = ;");
+        check(!failure.success && failure.error.length > 0 && failure.report.errors.length > 0, "Compiler errors are returned with structured diagnostics");
+        const runtime = module.executeMarmotCode("module Bounds\ndef xs = [1];\ndef missing = xs[4];");
+        check(!runtime.success && runtime.error.includes("IndexOutOfBounds") && runtime.report.errors[0].code === "IndexOutOfBounds", "Runtime errors are returned with structured diagnostics");
+        check(runtime.error.includes("def missing = xs[4];"), "Runtime diagnostics use source embedded in .mmc bytes");
+        const again = module.executeMarmotCode(source);
+        check(again.success && again.output === "browser hello\n", "Execution recovers after compiler and runtime errors");
+        const errorOutput = module.executeMarmotCode('module Stderr\nforeign "MIDORI_FFI_PrintError" PrintError : fn(Text) -> Unit;\nPrintError("stderr test\\n");');
+        check(errorOutput.success && errorOutput.output === "" && errorOutput.error === "stderr test\n", "Program stderr is captured separately from stdout");
+
+        const nativeProduced = module.runMarmotBytecode(await fixture("control"));
+        check(nativeProduced.success && nativeProduced.output === "large\n", "WASM VM runs the frozen native compiler fixture");
+        for (const name of ["truncated", "checksum", "old_version"]) {
+            const invalid = module.runMarmotBytecode(await fixture(name));
+            check(!invalid.success && invalid.report.errors.length === 1, `VM rejects ${name} artifact`);
+        }
+        status.textContent = "PASSED: independent browser compiler and VM";
+        document.documentElement.dataset.result = "passed";
+    })().catch(error => {
+        status.textContent = "FAILED: " + String(error);
+        results.textContent += error.stack || String(error);
+        document.documentElement.dataset.result = "failed";
+    });
+</script>
+</html>
