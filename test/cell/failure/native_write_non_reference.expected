@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/cell/failure/native_write_non_reference.mmt:4
+  |
+4 | value := 2;
+  |       ^^ Reference write operator requires a Ref<T>
+  |

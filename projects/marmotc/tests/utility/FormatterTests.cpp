@@ -60,6 +60,22 @@ TEST_CASE("Formatter is idempotent for comment-bearing files", "[formatter]")
 	RequireIdempotent(source_code, "FormatterIdempotent.mmt");
 }
 
+TEST_CASE("Formatter distinguishes dereference from multiplication", "[formatter][reference]")
+{
+	const std::string source_code =
+		"def cell=ref(1);\n"
+		"cell:=*cell*2;\n"
+		"def nested=ref(ref(3));\n"
+		"def value=**nested;\n"
+		"def negative=-*cell;\n";
+
+	const std::string formatted = FormatOrFail(source_code, "References.mmt");
+	CHECK(formatted.find("cell := *cell * 2;") != std::string::npos);
+	CHECK(formatted.find("def value = **nested;") != std::string::npos);
+	CHECK(formatted.find("def negative = -*cell;") != std::string::npos);
+	RequireIdempotent(source_code, "References.mmt");
+}
+
 TEST_CASE("Formatter handles an empty input", "[formatter][edge]")
 {
 	const std::string formatted = FormatOrFail("", "Empty.mmt");

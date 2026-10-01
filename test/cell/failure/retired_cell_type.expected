@@ -1,0 +1,6 @@
+Compilation failed :(
+Parser Error at test/cell/failure/retired_cell_type.mmt:3
+  |
+3 | def value : Cell<Int> = ref 0;
+  |             ^^^^ Undefined struct or union.
+  |

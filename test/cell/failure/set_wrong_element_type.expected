@@ -1,6 +1,6 @@
-Compilation failed :( 
-Type Checker Error at test/cell/failure/set_wrong_element_type.mmt:11
+Compilation failed :(
+Type Checker Error at test/cell/failure/set_wrong_element_type.mmt:10
    |
-11 | def v = Cell::Set(c, "no");
-   |                          ^ Type mismatch between 'Int' and 'Text'
+10 | c := "no";
+   |   ^^ Type mismatch between 'Int' and 'Text'
    |

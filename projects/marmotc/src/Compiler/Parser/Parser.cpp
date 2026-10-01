@@ -110,18 +110,6 @@ namespace
 			|| name == CloseIntrinsicName || name == IsDoneIntrinsicName || name == CancelIntrinsicName;
 	}
 
-	// Cell::New, Get and Set are compiler-provided like the concurrency calls above:
-	// importing Cell.mmt makes them, and the Cell<T> type, available.
-	constexpr std::string_view CellModuleName = "Cell";
-	constexpr std::string_view CellNewIntrinsicName = "Cell::New";
-	constexpr std::string_view CellGetIntrinsicName = "Cell::Get";
-	constexpr std::string_view CellSetIntrinsicName = "Cell::Set";
-
-	bool IsCellIntrinsicName(std::string_view name)
-	{
-		return name == CellNewIntrinsicName || name == CellGetIntrinsicName || name == CellSetIntrinsicName;
-	}
-
 	void CollectTypeConstraints(
 		const std::shared_ptr<MidoriType>& type,
 		std::vector<MidoriType::ClassConstraint>& constraints,
@@ -527,6 +515,16 @@ MidoriResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 		return std::unexpected(GenerateParserError(BuildImportedSymbolAccessError(imported_module_name, lookup_name, access), name_token));
 	}
 
+	if (name_token.m_lexeme == "ref")
+	{
+		const Token op("ref", Token::Name::REF, name_token);
+		return ParseUnaryLogicalBitwise()
+			.transform([&op](std::unique_ptr<MidoriExpression>&& value)
+			{
+				return std::make_unique<MidoriExpression>(MidoriExpression::UnaryPrefix(op, std::move(value)));
+			});
+	}
+
 	const std::vector<std::string> exporting_modules = ModulesExporting(lookup_name);
 	if (!exporting_modules.empty())
 	{
@@ -676,6 +674,11 @@ Parser::ConstructorResolutionResult Parser::ResolveConstructorName(const Token& 
 
 bool Parser::CanAccessSymbol(const std::string& symbol_name) const
 {
+	if (symbol_name == "ref")
+	{
+		return true;
+	}
+
 	// No module system enabled, allow all access
 	if (m_context.m_module_declarations == nullptr || m_context.m_current_module == nullptr)
 	{
@@ -2004,7 +2007,7 @@ MidoriResult::ExpressionResult Parser::ParseBitwiseOr()
 
 MidoriResult::ExpressionResult Parser::ParseUnaryLogicalBitwise()
 {
-	if (Match(Token::Name::BANG, Token::Name::TILDE, Token::Name::HASH))
+	if (Match(Token::Name::BANG, Token::Name::TILDE, Token::Name::HASH, Token::Name::STAR))
 	{
 		Token& op = Previous();
 		return ParseUnaryLogicalBitwise()
@@ -2025,7 +2028,7 @@ MidoriResult::ExpressionResult Parser::ParseUnaryArithmetic()
 	if (Match(Token::Name::LEFT_ARROW, Token::Name::SINGLE_MINUS, Token::Name::SINGLE_PLUS))
 	{
 		Token& op = Previous();
-		return ParseUnaryArithmetic()
+		return ParseUnaryLogicalBitwise()
 			.and_then
 			(
 				[&op](std::unique_ptr<MidoriExpression>&& right) -> MidoriResult::ExpressionResult
@@ -2075,7 +2078,20 @@ MidoriResult::ExpressionResult Parser::RejectExponent(std::unique_ptr<MidoriExpr
 
 MidoriResult::ExpressionResult Parser::ParseExpression()
 {
-	return ParseAs();
+	return ParseAs()
+		.and_then([this](std::unique_ptr<MidoriExpression>&& cell) -> MidoriResult::ExpressionResult
+		{
+			if (!Match(Token::Name::COLON_EQUAL))
+			{
+				return std::move(cell);
+			}
+			const Token& op = Previous();
+			return ParseExpression()
+				.transform([&cell, &op](std::unique_ptr<MidoriExpression>&& value)
+				{
+					return std::make_unique<MidoriExpression>(MidoriExpression::Binary(op, std::move(cell), std::move(value)));
+				});
+		});
 }
 
 MidoriResult::ExpressionResult Parser::ParseAs()
@@ -2473,11 +2489,6 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 						}
 
 						if (qualifier == ConcurrencyModuleName && IsConcurrencyIntrinsicName(variable.m_lexeme) && IsModuleVisible(ConcurrencyModuleName))
-						{
-							return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(variable, MidoriExpression::NameContext::Global()));
-						}
-
-						if (qualifier == CellModuleName && IsCellIntrinsicName(variable.m_lexeme) && IsModuleVisible(CellModuleName))
 						{
 							return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(variable, MidoriExpression::NameContext::Global()));
 						}
@@ -5699,12 +5710,10 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 								std::string mangled_name = Mangle(type_name.m_lexeme);
 								std::vector<Scope>::const_reverse_iterator found_scope_it = FindTypeScope(type_name.m_lexeme);
 
-								// Cell is an ordinary identifier, not a keyword like Channel: a program
-								// may declare its own type named Cell, and that one wins. Otherwise
-								// Cell<T> is the built-in cell type once Cell.mmt is imported.
-								if (found_scope_it == m_state.m_scopes.crend() && type_name.m_lexeme == CellModuleName && IsModuleVisible(CellModuleName))
+								// A declared type named Ref takes precedence over the built-in reference type.
+								if (found_scope_it == m_state.m_scopes.crend() && type_name.m_lexeme == "Ref")
 								{
-									return ParseCellTypeArguments();
+									return ParseRefTypeArguments();
 								}
 
 								std::shared_ptr<MidoriType> base_type = nullptr;
@@ -7128,9 +7137,9 @@ bool Parser::IsModuleVisible(std::string_view module_name) const
 		|| (m_context.m_current_module != nullptr && m_context.m_current_module->ModuleName() == module_name);
 }
 
-MidoriResult::TypeResult Parser::ParseCellTypeArguments()
+MidoriResult::TypeResult Parser::ParseRefTypeArguments()
 {
-	return Consume(Token::Name::LEFT_ANGLE, "Expected '<' after 'Cell'.")
+	return Consume(Token::Name::LEFT_ANGLE, "Expected '<' after 'Ref'.")
 		.and_then
 		(
 			[this](Token&&) -> MidoriResult::TypeResult
@@ -7140,7 +7149,7 @@ MidoriResult::TypeResult Parser::ParseCellTypeArguments()
 					(
 						[this](std::shared_ptr<MidoriType>&& element_type) -> MidoriResult::TypeResult
 						{
-							return ConsumeTypeRightAngle("Expected '>' after cell element type.")
+							return ConsumeTypeRightAngle("Expected '>' after reference element type.")
 								.and_then
 								(
 									[&element_type](Token&&) -> MidoriResult::TypeResult

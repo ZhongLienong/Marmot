@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/cell/failure/native_write_returns_unit.mmt:4
+  |
+4 | def written : Int = value := 2;
+  |     ^^^^^^^ Expected type 'Int' but got 'Unit'
+  |

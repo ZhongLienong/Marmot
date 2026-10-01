@@ -1,6 +1,6 @@
-Compilation failed :( 
-Type Checker Error at test/cell/failure/get_on_non_cell.mmt:10
-   |
-10 | def v = Cell::Get(5);
-   |                    ^ Call expression type error: Cell::Get takes a Cell<T>
-   |
+Compilation failed :(
+Type Checker Error at test/cell/failure/get_on_non_cell.mmt:9
+  |
+9 | def v = (*5);
+  |          ^ Dereference operator requires a Ref<T>
+  |

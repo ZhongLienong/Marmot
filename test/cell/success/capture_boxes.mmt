@@ -2,8 +2,7 @@ module CellCaptureBoxes
 
 import
 {
-	"../../../MarmotPrelude/IO.mmt",
-	"../../../MarmotPrelude/Cell.mmt"
+	"../../../MarmotPrelude/IO.mmt"
 }
 
 // A user cell held in a local must read back as the cell, whether or not a
@@ -12,16 +11,20 @@ import
 
 def NotCaptured = fn() -> Int =>
 {
-	def c = Cell::New(1);
-	Cell::Set(c, Cell::Get(c) + 1)
+	def c = ref 1;
+	c := (*c) + 1;
+	*c
 };
 
 def Captured = fn() -> Int =>
 {
-	def c = Cell::New(1);
-	def Bump = fn() -> Int => Cell::Set(c, Cell::Get(c) + 10);
+	def c = ref 1;
+	def Bump = fn() -> Int => {
+		c := (*c) + 10;
+		*c
+	};
 	def after_closure = Bump();
-	Cell::Get(c) + after_closure
+	(*c) + after_closure
 };
 
 IO::PrintLine((NotCaptured() as Text) ++ " " ++ (Captured() as Text));

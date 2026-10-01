@@ -2,19 +2,21 @@ module CellAliasing
 
 import
 {
-	"../../../MarmotPrelude/IO.mmt",
-	"../../../MarmotPrelude/Cell.mmt"
+	"../../../MarmotPrelude/IO.mmt"
 }
 
 // A cell is a reference: passing it, capturing it, or storing it in an array or
 // record shares the one cell.
 
-type Holder = { cell: Cell<Int> };
+type Holder = { cell: Ref<Int> };
 type Pair<T> = { left: T, right: T };
 
-def Bump = fn(c: Cell<Int>) -> Int => Cell::Set(c, Cell::Get(c) + 1);
+def Bump = fn(c: Ref<Int>) -> Int => {
+	c := (*c) + 1;
+	*c
+};
 
-def shared = Cell::New(10);
+def shared = ref 10;
 def via_function = Bump(shared);
 def Increment = fn() -> Int => Bump(shared);
 def via_closure = Increment();
@@ -23,10 +25,12 @@ def via_array = Bump(in_array[1]);
 def holder = Holder(shared);
 def via_record = Bump(holder.cell);
 
-def pair_cell = Cell::New(Pair(1, 2));
-def swapped = Cell::Set(pair_cell, Pair(Cell::Get(pair_cell).right, Cell::Get(pair_cell).left));
-def nested = Cell::New(Cell::New(5));
-def inner_after = Cell::Set(Cell::Get(nested), 6);
+def pair_cell = ref Pair(1, 2);
+pair_cell := Pair((*pair_cell).right, (*pair_cell).left);
+def swapped = *pair_cell;
+def nested = ref (ref 5);
+*nested := 6;
+def inner_after = **nested;
 
-IO::PrintLine((via_function as Text) ++ " " ++ (via_closure as Text) ++ " " ++ (via_array as Text) ++ " " ++ (via_record as Text) ++ " " ++ (Cell::Get(shared) as Text));
-IO::PrintLine((Cell::Get(pair_cell).left as Text) ++ "," ++ (Cell::Get(pair_cell).right as Text) ++ " " ++ (Cell::Get(Cell::Get(nested)) as Text));
+IO::PrintLine((via_function as Text) ++ " " ++ (via_closure as Text) ++ " " ++ (via_array as Text) ++ " " ++ (via_record as Text) ++ " " ++ (*shared as Text));
+IO::PrintLine(((*pair_cell).left as Text) ++ "," ++ ((*pair_cell).right as Text) ++ " " ++ ((**nested) as Text));

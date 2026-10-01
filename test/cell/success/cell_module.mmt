@@ -1,0 +1,6 @@
+module Cell
+public export { New, Get, Set }
+
+def New = fn(value: Int) -> Int => value + 10;
+def Get = fn(value: Int) -> Int => value + 20;
+def Set = fn(first: Int, second: Int) -> Int => first + second + 30;

@@ -510,8 +510,12 @@ MidoriResult::TokenResult Lexer::MatchMinus()
 
 MidoriResult::TokenResult Lexer::MatchColon()
 {
-	return MatchNext(':')
-		? MakeTokenResult(Token::Name::DOUBLE_COLON)
+	if (MatchNext(':'))
+	{
+		return MakeTokenResult(Token::Name::DOUBLE_COLON);
+	}
+	return MatchNext('=')
+		? MakeTokenResult(Token::Name::COLON_EQUAL)
 		: MakeTokenResult(Token::Name::SINGLE_COLON);
 }
 

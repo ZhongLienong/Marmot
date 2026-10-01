@@ -3,24 +3,23 @@ module Semantics
 import
 {
 	"../../MarmotPrelude/IO.mmt",
-	"../../MarmotPrelude/Cell.mmt",
 	"../../MarmotPrelude/Prelude/Option.mmt"
 }
 
 use Option.{ Option }
 
-def log = Cell::New("");
+def log = ref "";
 
 def Note = fn(tag: Text, value: Int) -> Int =>
 {
-	Cell::Set(log, Cell::Get(log) ++ tag);
+	log := (*log) ++ tag;
 	value
 };
 
 def Flush = fn(label: Text) -> Unit =>
 {
-	IO::PrintLine(label ++ ": " ++ Cell::Get(log));
-	Cell::Set(log, "");
+	IO::PrintLine(label ++ ": " ++ (*log));
+	log := "";
 	()
 };
 
@@ -74,10 +73,13 @@ Flush("comprehension " ++ (#r12 as Text));
 def adders = [fn(x: Int) -> Int => x + i for i in 0..1..5];
 IO::PrintLine("captured loop vars " ++ (adders[0](100) as Text) ++ " " ++ (adders[4](100) as Text));
 
-def counter = Cell::New(0);
-def Tick = fn() -> Int => Cell::Set(counter, Cell::Get(counter) + 1);
+def counter = ref 0;
+def Tick = fn() -> Int => {
+	counter := (*counter) + 1;
+	*counter
+};
 def ticks = [Tick() for _ in 0..1..10];
-IO::PrintLine("ticks " ++ (ticks[0] as Text) ++ ".." ++ (ticks[9] as Text) ++ " final " ++ (Cell::Get(counter) as Text));
+IO::PrintLine("ticks " ++ (ticks[0] as Text) ++ ".." ++ (ticks[9] as Text) ++ " final " ++ (*counter as Text));
 
 def x = 1;
 def Shadow = fn(x: Int) -> Int =>
@@ -112,13 +114,13 @@ IO::PrintLine("curried " ++ (Curry(1)(2)(3) as Text));
 
 def ManOrBoy = fn(k: Int, x1: fn() -> Int, x2: fn() -> Int, x3: fn() -> Int, x4: fn() -> Int, x5: fn() -> Int) -> Int =>
 {
-	def kc = Cell::New(k);
+	def kc = ref k;
 	def B : fn() -> Int = fn() -> Int =>
 	{
-		Cell::Set(kc, Cell::Get(kc) - 1);
-		ManOrBoy(Cell::Get(kc), B, x1, x2, x3, x4)
+		kc := (*kc) - 1;
+		ManOrBoy((*kc), B, x1, x2, x3, x4)
 	};
-	if Cell::Get(kc) <= 0 then x4() + x5() else B()
+	if (*kc) <= 0 then x4() + x5() else B()
 };
 IO::PrintLine("man or boy " ++ (ManOrBoy(10, fn() -> Int => 1, fn() -> Int => -1, fn() -> Int => -1, fn() -> Int => 1, fn() -> Int => 0) as Text));
 

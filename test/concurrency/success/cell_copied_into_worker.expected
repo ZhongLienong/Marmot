@@ -1,13 +1,13 @@
 [warning] 2 warning(s) in cell_copied_into_worker.mmt
-Static Analyzer Warning at test/concurrency/success/cell_copied_into_worker.mmt:23
+Static Analyzer Warning at test/concurrency/success/cell_copied_into_worker.mmt:24
    |
-23 | def worker = Concurrency::Spawn(main_cell, BumpTwice);
-   |              ^^^^^^^^^^^ This Cell is copied into the worker; writes on either side are not seen by the other.
+24 | def worker = Concurrency::Spawn(main_cell, BumpTwice);
+   |              ^^^^^^^^^^^ This reference is copied into the worker; writes on either side are not seen by the other.
    |
-Static Analyzer Warning at test/concurrency/success/cell_copied_into_worker.mmt:39
+Static Analyzer Warning at test/concurrency/success/cell_copied_into_worker.mmt:41
    |
-39 | def pair_worker = Concurrency::Spawn((main_cell, main_cell), WriteFirstReadSecond);
-   |                   ^^^^^^^^^^^ This Cell is copied into the worker; writes on either side are not seen by the other.
+41 | def pair_worker = Concurrency::Spawn((main_cell, main_cell), WriteFirstReadSecond);
+   |                   ^^^^^^^^^^^ This reference is copied into the worker; writes on either side are not seen by the other.
    |
 worker saw 102, main still has 100
 shared inside the worker: 14, main still has 100

@@ -1,0 +1,41 @@
+module NativeReferenceExpressions
+
+import { "../../../MarmotPrelude/IO.mmt" }
+
+type Holder = { values: Ref<Array<Int>>, count: Ref<Int> };
+def values : Ref<Array<Int>> = ref [];
+def holder = Holder(values, ref 0);
+holder.values := [1, 2];
+IO::PrintLine(((*holder.values)[1] as Text) ++ " " ++ (#(*values) as Text));
+holder.values := [];
+IO::PrintLine(#(*values) as Text);
+
+def order = ref "";
+def Select = fn() -> Ref<Int> => {
+    order := (*order) ++ "L";
+    holder.count
+};
+def Replacement = fn() -> Int => {
+    order := (*order) ++ "R";
+    7
+};
+Select() := Replacement();
+IO::PrintLine((*order) ++ " " ++ (*holder.count as Text));
+
+def nested = ref (ref 5);
+*nested := 6;
+def aliases = [*nested, *nested];
+aliases[1] := 9;
+IO::PrintLine((**nested as Text) ++ " " ++ (-*holder.count as Text));
+
+def Replace = fn<T>(cell: Ref<T>, value: T) -> Unit => cell := value;
+def Read = fn<T>(cell: Ref<T>) -> T => *cell;
+Replace(values, [3]);
+IO::PrintLine(Read(values)[0] as Text);
+
+def ReadInferred : fn(Ref<Int>) -> Int = fn(cell) => *cell;
+IO::PrintLine(ReadInferred(holder.count) as Text);
+
+def unit : Ref<Unit> = ref (holder.count := 10);
+unit := holder.count := 11;
+IO::PrintLine(*holder.count as Text);

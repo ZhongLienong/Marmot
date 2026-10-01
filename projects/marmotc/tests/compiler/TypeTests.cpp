@@ -187,12 +187,12 @@ TEST_CASE("Two distinct newtype instantiations render differently", "[type]")
 	REQUIRE(boxed_int->ToString() != boxed_text->ToString());
 }
 
-TEST_CASE("Cell<T> renders with its element type", "[type][cell]")
+TEST_CASE("Ref<T> renders with its element type", "[type][cell]")
 {
 	const std::shared_ptr<MidoriType> element = MidoriType::MakeLiteralType<MidoriType::IntegerType>();
 	const std::shared_ptr<MidoriType> cell = MidoriType::MakeCellType(element);
 
-	REQUIRE(cell->ToString() == "Cell<Int>");
+	REQUIRE(cell->ToString() == "Ref<Int>");
 }
 
 TEST_CASE("Cell types are equal exactly when their element types are", "[type][cell]")

@@ -1,7 +1,7 @@
 [warning] 1 warning(s) in cell_crosses_worker_capture.mmt
-Static Analyzer Warning at test/static_analyzer/success/cell_crosses_worker_capture.mmt:23
+Static Analyzer Warning at test/static_analyzer/success/cell_crosses_worker_capture.mmt:25
    |
-23 | 		Cell::Set(outer, Cell::Get(outer) + Bump())
-   |             ^^^^^ This Cell is copied into the worker; writes on either side are not seen by the other.
+25 | 		outer := (*outer) + Bump();
+   |   ^^^^^ This reference is copied into the worker; writes on either side are not seen by the other.
    |
 worker got 42, caller still has 40

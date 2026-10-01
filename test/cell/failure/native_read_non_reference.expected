@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/cell/failure/native_read_non_reference.mmt:3
+  |
+3 | def value = *1;
+  |             ^ Dereference operator requires a Ref<T>
+  |

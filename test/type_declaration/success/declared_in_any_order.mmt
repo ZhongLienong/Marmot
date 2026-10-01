@@ -9,7 +9,6 @@ module DeclaredInAnyOrder
 import
 {
 	"../../../MarmotPrelude/IO.mmt",
-	"../../../MarmotPrelude/Cell.mmt",
 	"../../../MarmotPrelude/Equatable.mmt"
 }
 
@@ -38,7 +37,7 @@ def ForestSize = fn<T>(forest : Forest<T>) -> Int =>
 def Same = fn(left : Tagged, right : Tagged) -> Bool => Equatable::Equals(left, right);
 
 type Value = Number(Int) | Closure(Env);
-type Env = Root | Frame(Cell<Value>, Env);
+type Env = Root | Frame(Ref<Value>, Env);
 
 type Tree<T> = Leaf | Node(T, Forest<T>);
 type Forest<T> = Empty | More(Tree<T>, Forest<T>);
@@ -59,7 +58,7 @@ instance Equatable<Label> {
 def distance : Meters = 12 as Meters;
 type Meters = Int;
 
-def env = Env::Frame(Cell::New(Value::Number(1)), Env::Frame(Cell::New(Value::Number(2)), Env::Root()));
+def env = Env::Frame((ref Value::Number(1)), Env::Frame((ref Value::Number(2)), Env::Root()));
 IO::PrintLine(Describe(Value::Closure(env)));
 
 def forest = Tree::Node(1, Forest::More(Tree::Node(2, Forest::Empty()), Forest::More(Tree::Leaf(), Forest::Empty())));

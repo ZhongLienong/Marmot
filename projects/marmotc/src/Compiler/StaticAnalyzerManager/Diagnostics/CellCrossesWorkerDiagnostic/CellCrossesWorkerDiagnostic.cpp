@@ -6,7 +6,7 @@
 
 namespace
 {
-	constexpr std::string_view CellCrossesWorkerMessage = "This Cell is copied into the worker; writes on either side are not seen by the other.";
+	constexpr std::string_view CellCrossesWorkerMessage = "This reference is copied into the worker; writes on either side are not seen by the other.";
 	constexpr std::string_view ParallelMapName = "Concurrency::ParallelMap";
 
 	// Collects the names a spawned lambda captures whose type holds a cell. Only the

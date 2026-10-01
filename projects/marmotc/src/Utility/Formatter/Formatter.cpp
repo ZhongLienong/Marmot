@@ -208,6 +208,7 @@ namespace
 		case TokenName::BANG:
 		case TokenName::BANG_EQUAL:
 		case TokenName::SINGLE_EQUAL:
+		case TokenName::COLON_EQUAL:
 		case TokenName::DOUBLE_EQUAL:
 		case TokenName::RIGHT_ANGLE:
 		case TokenName::GREATER_EQUAL:
@@ -230,6 +231,7 @@ namespace
 		{
 		case TokenName::BANG:
 		case TokenName::HASH:
+		case TokenName::STAR:
 		case TokenName::SINGLE_MINUS:
 		case TokenName::SINGLE_PLUS:
 			return true;

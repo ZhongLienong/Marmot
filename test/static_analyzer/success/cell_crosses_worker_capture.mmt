@@ -3,7 +3,6 @@ module CellCrossesWorkerCapture
 import
 {
 	"../../../MarmotPrelude/IO.mmt",
-	"../../../MarmotPrelude/Cell.mmt",
 	"../../../MarmotPrelude/Concurrency.mmt",
 	"../../../MarmotPrelude/Prelude/Result.mmt"
 }
@@ -14,18 +13,22 @@ use Result.{ Result }
 // cell the worker makes for itself inside a nested lambda never crosses, so only
 // the captured one is reported.
 
-def RunWorker = fn(outer: Cell<Int>) -> Int =>
+def RunWorker = fn(outer: Ref<Int>) -> Int =>
 {
 	def worker = Concurrency::Spawn((), fn() -> Int =>
 	{
-		def local = Cell::New(1);
-		def Bump = fn() -> Int => Cell::Set(local, Cell::Get(local) + 1);
-		Cell::Set(outer, Cell::Get(outer) + Bump())
+		def local = ref 1;
+		def Bump = fn() -> Int => {
+			local := (*local) + 1;
+			*local
+		};
+		outer := (*outer) + Bump();
+		*outer
 	});
 	match Concurrency::Join(worker) with
 		case Result::Ok(value) => value
 		case Result::Err(_) => -1
 };
 
-def shared = Cell::New(40);
-IO::PrintLine("worker got " ++ (RunWorker(shared) as Text) ++ ", caller still has " ++ (Cell::Get(shared) as Text));
+def shared = ref 40;
+IO::PrintLine("worker got " ++ (RunWorker(shared) as Text) ++ ", caller still has " ++ (*shared as Text));

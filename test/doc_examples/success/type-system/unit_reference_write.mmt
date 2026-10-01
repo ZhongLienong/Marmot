@@ -1,0 +1,5 @@
+module TypeSystemUnitReferenceWrite
+
+def Reset = fn(counter: Ref<Int>) -> Unit => counter := 0;
+def counter = ref 3;
+def completed : Unit = Reset(counter);

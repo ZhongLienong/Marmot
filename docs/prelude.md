@@ -17,7 +17,7 @@ The documented examples in this file are mirrored by `test/prelude/success/docum
 - `Concatenable.mmt`, `Convertable.mmt`, `Countable.mmt`, `Equatable.mmt`, `Hashable.mmt`, `Indexable.mmt`, `Iterable.mmt`, `Orderable.mmt`, and `Transferable.mmt` expose the helper and typeclass surface used by operators, collections, and concurrency.
 - `Iter.mmt` provides lazy sequence pipelines over any `Iterable`. See [Sequence Pipelines](#sequence-pipelines).
 - `Prelude/Panic.mmt` contains the simple panic helper used by many tests and examples.
-- `Cell.mmt` makes `Cell<T>` and the compiler-provided `Cell::New`, `Cell::Get` and `Cell::Set` available; the module itself declares nothing. See [Cells](type-system.md#cells).
+- References are part of the language: `Ref<T>` and the `ref`, `*` and `:=` forms need no import. See [References](type-system.md#references).
 - `Concurrency.mmt` declares `WorkerError` (`Cancelled | Failed(Text)`), the error half of the `Result<T, WorkerError>` that `Concurrency::Join` evaluates to, `JoinedOrPanic` for code that treats a worker failure as fatal, and `ParallelMap`, which is written in Marmot rather than provided by the compiler. The compiler requires the `WorkerError` declaration to have exactly that shape.
 
 ## Helper and Typeclass Modules

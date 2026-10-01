@@ -611,11 +611,11 @@ private:
 	ImportedSymbolAccess ResolveImportedSymbolAccess(const std::string& module_name, const std::string& symbol_name) const;
 
 	// True when this file imports the module, or is the module: the rule that makes
-	// compiler-provided names such as Concurrency::Spawn and Cell::New available.
+	// compiler-provided names such as Concurrency::Spawn available.
 	bool IsModuleVisible(std::string_view module_name) const;
 
 	// Parses the '<T>' after the built-in type name Cell.
-	MidoriResult::TypeResult ParseCellTypeArguments();
+	MidoriResult::TypeResult ParseRefTypeArguments();
 
 	std::string BuildImportedSymbolAccessError(const std::string& module_name, const std::string& symbol_name, ImportedSymbolAccess access) const;
 

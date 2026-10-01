@@ -52,8 +52,11 @@ struct Token
 		LESS_EQUAL,
 		SINGLE_COLON,
 		DOUBLE_COLON,
+		COLON_EQUAL,
 		TILDE,
 		HASH,
+		// Contextual prefix form; lexed as an identifier so existing names still work.
+		REF,
 
 		// Literal
 		IDENTIFIER_LITERAL,

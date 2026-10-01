@@ -2,8 +2,7 @@ module ManOrBoy
 
 import
 {
-	"../../MarmotPrelude/IO.mmt",
-	"../../MarmotPrelude/Cell.mmt"
+	"../../MarmotPrelude/IO.mmt"
 }
 
 // Knuth's Man or Boy test. B changes the k of the call to A that created it, and
@@ -11,8 +10,11 @@ import
 
 def A = fn(k: Int, x1: fn() -> Int, x2: fn() -> Int, x3: fn() -> Int, x4: fn() -> Int, x5: fn() -> Int) -> Int =>
 {
-	def cell = Cell::New(k);
-	def B = fn() -> Int => A(Cell::Set(cell, Cell::Get(cell) - 1), B, x1, x2, x3, x4);
+	def cell = ref k;
+	def B = fn() -> Int => {
+		cell := (*cell) - 1;
+		A(*cell, B, x1, x2, x3, x4)
+	};
 	if k > 0 then B() else x4() + x5()
 };
 

@@ -14,11 +14,8 @@ namespace
 	using TypeRef = std::shared_ptr<MidoriType>;
 
 	// Called like functions, but each is one instruction.
-	constexpr std::array<std::string_view, 6u> s_intrinsic_calls =
+	constexpr std::array<std::string_view, 3u> s_intrinsic_calls =
 	{
-		"Cell::New",
-		"Cell::Get",
-		"Cell::Set",
 		"Concurrency::Close",
 		"Concurrency::IsDone",
 		"Concurrency::Cancel"
@@ -1149,11 +1146,8 @@ Lowering::Lowered Lowering::LowerIntrinsic(const std::string& name, MidoriExpres
 		std::string_view m_name;
 		MidoriIROp m_op;
 	};
-	static constexpr std::array<Intrinsic, 6u> s_intrinsics =
+	static constexpr std::array<Intrinsic, 3u> s_intrinsics =
 	{{
-		{ "Cell::New", MidoriIROp::CellNew },
-		{ "Cell::Get", MidoriIROp::CellRead },
-		{ "Cell::Set", MidoriIROp::CellWrite },
 		{ "Concurrency::Close", MidoriIROp::ChannelClose },
 		{ "Concurrency::IsDone", MidoriIROp::WorkerIsDone },
 		{ "Concurrency::Cancel", MidoriIROp::WorkerCancel }

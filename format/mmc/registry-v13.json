@@ -896,19 +896,19 @@
       "id": 147,
       "name": "MAKE_CELL",
       "length": 1,
-      "category": "Cell<T>"
+      "category": "Ref<T>"
     },
     {
       "id": 148,
       "name": "READ_CELL",
       "length": 1,
-      "category": "Cell<T>"
+      "category": "Ref<T>"
     },
     {
       "id": 149,
       "name": "WRITE_CELL",
       "length": 1,
-      "category": "Cell<T>"
+      "category": "Ref<T>"
     },
     {
       "id": 150,

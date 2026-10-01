@@ -163,6 +163,10 @@ private:
 
 	MidoriResult::TypeResult Evaluate(const std::unique_ptr<MidoriExpression>& expression);
 
+	MidoriResult::TypeResult CheckRefNew(const std::unique_ptr<MidoriExpression>& value);
+
+	MidoriResult::TypeResult CheckRefAccess(const std::unique_ptr<MidoriExpression>& cell, const std::unique_ptr<MidoriExpression>* value, const Token& token, std::string_view error_message);
+
 	TypeChecker& BeginScope();
 
 	TypeChecker& EndScope();

@@ -1,13 +1,13 @@
 [warning] 2 warning(s) in cell_crosses_worker_channel.mmt
-Static Analyzer Warning at test/static_analyzer/success/cell_crosses_worker_channel.mmt:15
+Static Analyzer Warning at test/static_analyzer/success/cell_crosses_worker_channel.mmt:14
    |
-15 | channel -> original;
-   |         ^^ This Cell is copied into the worker; writes on either side are not seen by the other.
+14 | channel -> original;
+   |         ^^ This reference is copied into the worker; writes on either side are not seen by the other.
    |
-Static Analyzer Warning at test/static_analyzer/success/cell_crosses_worker_channel.mmt:21
+Static Analyzer Warning at test/static_analyzer/success/cell_crosses_worker_channel.mmt:24
    |
-21 | def doubled = Concurrency::ParallelMap(cells, Double, 1);
-   |                                                        ^ This Cell is copied into the worker; writes on either side are not seen by the other.
+24 | def doubled = Concurrency::ParallelMap(cells, Double, 1);
+   |                                                        ^ This reference is copied into the worker; writes on either side are not seen by the other.
    |
 received 6, original 5
 doubled 2 4, cells still 1 2

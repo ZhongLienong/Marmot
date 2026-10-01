@@ -22,6 +22,7 @@ See [Versioning Policy](versioning-policy.md) for how `Stable`,
 | Primitive values: `Int`, `Float`, `Byte`, `Word`, `Bool`, `Text`, `Unit` | Stable | `test/literal/`, `test/ffi/`, `projects/marmotvm/tests/runtime/` | `Text` is UTF-8 and remains the only built-in string type. |
 | Bottom type: `Never` | Stable | `test/prelude/`, `test/hashmap/` | Mostly exercised through `Prelude/Panic` and bottom-type unification rather than a dedicated `Never` fixture. |
 | Arrays and tuples | Stable | `test/literal/`, `test/expression/`, `projects/marmotc/tests/parser/`, `projects/marmotvm/tests/runtime/` | Tuple literals and tuple destructuring both have dedicated regression coverage, with parser/runtime unit tests still covering AST and VM details. |
+| References: `Ref<T>` | Stable | `test/cell/`, `test/concurrency/`, `test/optimizer/` | Built into the language; no import is needed. Aliases and closures share a reference within a worker; crossing to another worker copies it. Bindings remain immutable. |
 | Structs and unions | Stable | `test/struct/`, `test/union/`, `test/match/` | Product and sum types both compile through the normal end-to-end path. |
 | Type aliases | Stable | `test/type_alias/`, `test/generics/` | `alias X = Y` is transparent. The older transparent `type X = Y` has been migrated; `type` is now nominal. Parameterised aliases are limited — see the type-declaration row. |
 | `type` declarations | Stable | `test/type_declaration/`, `test/newtype/` | One keyword for three shapes: `type P = { x: Int }` record, `type O<T> = A \| B(T)` sum, `type Meters = Int` newtype. The right-hand side selects the kind. `struct` and `union` have been removed; a file still using either gets a parser diagnostic naming the replacement. |
@@ -39,7 +40,7 @@ See [Versioning Policy](versioning-policy.md) for how `Stable`,
 | Binary and ternary ranges | Stable | `test/range/`, `test/for_loop/`, `projects/marmotvm/tests/runtime/` | Both `start..end` and `start..step..end` are implemented. |
 | Array comprehensions | Stable | `test/array_comprehension/`, `projects/marmotc/tests/parser/` | Supports range, array, and `Iterable` inputs. |
 | Pipe operator: `|>` and `|> match with` | Stable | `test/pipe/` | Pipe rewriting is handled in the parser. |
-| Closures and captured mutation | Stable | `test/closure/`, `projects/marmotvm/tests/runtime/`, `projects/marmotc/tests/static_analyzer/` | Captured locals are boxed so nested closures preserve by-reference semantics. |
+| Closures and captured references | Stable | `test/closure/`, `test/cell/`, `projects/marmotvm/tests/runtime/`, `projects/marmotc/tests/static_analyzer/` | Captured locals retain the existing capture boxes. Capturing a `Ref<T>` shares that reference, so closures see writes through `:=`. |
 
 ## Pattern Matching
 
@@ -68,7 +69,7 @@ See [Versioning Policy](versioning-policy.md) for how `Stable`,
 | Cast operator: `as` | Stable | `test/as_operator/`, `test/typeclass/` | Covers builtin primitive casts and constrained generic conversions. |
 | Concatenation: `++` for `Text` and `Array<T>` | Stable | `test/expression/`, `test/prelude/`, `test/typeclass/` | Constrained generic code can lower through `Concatenable<T>`. |
 | Length operator: `#` | Stable | `test/for_loop/`, `test/prelude/`, `test/hashmap/`, `test/hashset/` | Arrays are builtin; `List`, `Map`, `Set`, and generic `Countable` paths also exist. |
-| Compound assignment: `+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `|=`, `^=`, `<<=`, `>>=` | Stable | `test/expression/`, `projects/marmotc/tests/lexer/` | End-to-end regression coverage now exercises numeric and bitwise compound assignment on locals and struct members, plus type-check failures for unsupported targets. |
+| Reference creation, read, and write: `ref`, `*`, `:=` | Stable | `test/cell/`, `test/optimizer/`, `projects/marmotc/tests/utility/FormatterTests.cpp` | `ref value` creates a reference, `*reference` reads it, and `reference := value` writes its contents and returns `Unit`. Binding assignment and compound assignment are unavailable. |
 
 ## Modules, FFI, Packages, and Diagnostics
 
@@ -105,7 +106,7 @@ See [Versioning Policy](versioning-policy.md) for how `Stable`,
 | Constrained instances | Stable | `test/typeclass/` | `instance C<T> where D<T>` — an instance may require constraints on its own type parameters, resolved recursively and across module boundaries. |
 | `Indexable<C, I>` typeclass | Stable | `test/typeclass/` | `x[i]` resolves through `Indexable` for any type with an instance, arrays included. Two type parameters, so a container may be indexed by something other than `Int`. |
 | Generic lambdas | Stable | `test/generics/` | `fn<T>(x: T) -> T where C<T> => e`, bound to a top-level `def`. Anonymous, capturing and nested generic lambdas are rejected with a diagnostic — only a module-level binding is supported. |
-| `Transferable<T>` typeclass | Stable | `test/concurrency/` | Built-in instances for primitives, `Array<T>`, and `Channel<T>`. Derivable for structs and unions. |
+| `Transferable<T>` typeclass | Stable | `test/concurrency/` | Built-in instances for primitives, `Array<T>`, `Channel<T>`, and `Ref<T>` when their element types are transferable. References are copied across workers. Derivable for structs and unions. |
 | `deriving (Transferable)` | Stable | `test/concurrency/` | Generates field-by-field serialization for structs and tag+payload serialization for unions. |
 | Auxiliary operations: `close`, `is_done`, `cancel` | Stable | `test/concurrency/` | Parsed as normal function calls; emit dedicated opcodes. |
 | Non-blocking / bounded receive (`try_receive`, `select`, timeouts) | Not implemented | — | `Channel::TryReceive` exists in the runtime but has no opcode or syntax; `try_receive(ch)` is an undefined name. |

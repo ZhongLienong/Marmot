@@ -1,0 +1,35 @@
+module NativeReferences
+
+import { "../../../MarmotPrelude/IO.mmt" }
+
+def counter : Ref<Int> = ref 0;
+def shared = counter;
+def snapshot = *counter;
+def written : Unit = shared := (*shared) + 1;
+def Next = fn() -> Int => {
+    counter := (*counter) + 1;
+    *counter
+};
+def Describe = fn(_value: Unit) -> Text => "Unit";
+
+IO::PrintLine((snapshot as Text) ++ " " ++ (Next() as Text) ++ " " ++ (*shared as Text));
+IO::PrintLine(Describe(written) ++ " " ++ ((!false) as Text) ++ " " ++ (((*counter) * 3) as Text));
+
+def MakeCounter = fn(start: Int) -> fn() -> Int => {
+    def state = ref start;
+    def Increment = fn() -> Int => {
+        state := (*state) + 1;
+        *state
+    };
+    def Wrap = fn() -> fn() -> Int => Increment;
+    Wrap()
+};
+
+def escaped = MakeCounter(10);
+IO::PrintLine((escaped() as Text) ++ " " ++ (escaped() as Text));
+
+def LocalName = fn() -> Int => {
+    def ref = fn(value: Int) -> Int => value + 1;
+    ref(2)
+};
+IO::PrintLine(LocalName() as Text);

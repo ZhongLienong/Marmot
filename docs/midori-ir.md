@@ -50,10 +50,15 @@ Functions, blocks and globals are kept in vectors, in the order lowering creates
 | Text and array growth | `Concat`, `Extend`, `ArrayAppend array, value` | `Concat` and `Extend` take and give one type, Text or an array. `Extend` and `ArrayAppend` change their left operand in place, so only where it is provably fresh, and give it back |
 | Calls | `Call f`, `CallGlobal @slot`, `CallForeign foreign "name"`, `CallValue closure, ...` | Arguments follow. A `CallForeign` with no immediate calls the foreign function its first operand, a Text, names |
 | Closures | `MakeClosure f` with the captures as operands, `BindCaptures #i closure, value`, `GetCapture #i` | `MakeClosure` may leave out captures at the end, which `BindCaptures` fills before the closure is called; that is how local functions that name themselves or each other reach one another |
-| Cells | `CellNew`, `CellRead`, `CellWrite cell, value` | Only for the language's `Cell<T>`. `CellWrite` gives the value it writes |
+| References | `CellNew`, `CellRead`, `CellWrite cell, value` | Only for the language's `Ref<T>`. `CellWrite` gives the value it writes |
 | Globals | `GlobalDefine @slot`, `GlobalGet @slot`, `GlobalSet @slot` | |
 | Concurrency | `Spawn args..., function`, `Join tags ok err cancelled failed`, `WorkerCancel` `WorkerIsDone` `ChannelNew` `Send` `Receive` `ChannelClose` | `Join` builds its Result from the union tags its immediate names |
 | Terminators | `Jump`, `Branch`, `Return`, `TailCall`, `Unreachable` | See below |
+
+The source form `ref value` lowers to `CellNew`, and `*reference` to
+`CellRead`. A source write `reference := value` emits `CellWrite` and gives
+a `Unit` constant as its expression result, while the existing IR
+instruction still produces the stored value.
 
 A terminator ends its block and defines no value. Its successors carry their jump arguments.
 

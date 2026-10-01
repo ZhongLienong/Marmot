@@ -3,22 +3,25 @@ module CellCrossesWorkerChannel
 import
 {
 	"../../../MarmotPrelude/IO.mmt",
-	"../../../MarmotPrelude/Cell.mmt",
 	"../../../MarmotPrelude/Concurrency.mmt"
 }
 
 // Sending a cell through a channel, or mapping over cells in parallel, copies
 // each cell into the worker that handles it.
 
-def channel : Channel<Cell<Int>> = Concurrency::MakeChannel(1);
-def original = Cell::New(5);
+def channel : Channel<Ref<Int>> = Concurrency::MakeChannel(1);
+def original = ref 5;
 channel -> original;
 def received = <- channel;
-def changed = Cell::Set(received, 6);
+received := 6;
+def changed = *received;
 
-def cells = [Cell::New(1), Cell::New(2)];
-def Double = fn(c: Cell<Int>) -> Int => Cell::Set(c, Cell::Get(c) * 2);
+def cells = [(ref 1), (ref 2)];
+def Double = fn(c: Ref<Int>) -> Int => {
+	c := (*c) * 2;
+	*c
+};
 def doubled = Concurrency::ParallelMap(cells, Double, 1);
 
-IO::PrintLine("received " ++ (changed as Text) ++ ", original " ++ (Cell::Get(original) as Text));
-IO::PrintLine("doubled " ++ (doubled[0] as Text) ++ " " ++ (doubled[1] as Text) ++ ", cells still " ++ (Cell::Get(cells[0]) as Text) ++ " " ++ (Cell::Get(cells[1]) as Text));
+IO::PrintLine("received " ++ (changed as Text) ++ ", original " ++ (*original as Text));
+IO::PrintLine("doubled " ++ (doubled[0] as Text) ++ " " ++ (doubled[1] as Text) ++ ", cells still " ++ ((*cells[0]) as Text) ++ " " ++ ((*cells[1]) as Text));

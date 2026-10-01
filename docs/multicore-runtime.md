@@ -38,7 +38,7 @@ via `ValueTransfer` (direct VM-to-VM copy for `spawn`/`join`) or serialized to
 - `Text` — new allocation in target VM, bytes copied
 - `Array<T>` where `Transferable<T>` — new allocation, elements recursively transferred
 - `Channel<T>` where `Transferable<T>` — handle copy (process-wide registry index)
-- `Cell<T>` where `Transferable<T>` — **copied**: the worker gets its own cell, so
+- `Ref<T>` where `Transferable<T>` — **copied**: the worker gets its own cell, so
   writes on either side are not seen by the other. The compiler warns
   (`CellCrossesWorker`) wherever a cell is passed to `Spawn`, captured by the
   spawned lambda, sent through a channel, or mapped with `ParallelMap`.
@@ -62,7 +62,7 @@ non-transferable argument or create a `Channel<T>` where `T` lacks a
 `Transferable` instance produces a constraint-failure error.
 
 Copying a closure and its captured cells is sound because v2 values, closures
-included, are immutable once built. The one exception is a `Cell<T>`, whose
+included, are immutable once built. The one exception is a `Ref<T>`, whose
 contents can change; it is copied like everything else, which is why crossing
 with one is a warning rather than a data race. The same copy carries a worker's
 globals, the spawned function itself, and any function sent through a channel.

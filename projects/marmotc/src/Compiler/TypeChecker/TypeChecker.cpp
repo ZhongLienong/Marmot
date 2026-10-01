@@ -5350,8 +5350,80 @@ std::optional<CompilerError> TypeChecker::ByteLiteralBesideInt(const MidoriExpre
 	return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, std::format("'{0}' is a Byte: a hex or binary literal up to 0xFF is how a Byte is written. For an Int here, write {1}, or {0} as Int.", lexeme, ParseUnsignedLiteral(lexeme).value()), literal->m_token, m_file_name, m_source_lines);
 }
 
+MidoriResult::TypeResult TypeChecker::CheckRefNew(const std::unique_ptr<MidoriExpression>& value)
+{
+	std::shared_ptr<MidoriType> expected_element = nullptr;
+	const std::shared_ptr<MidoriType> expected_type = m_expected_expr_type != nullptr ? ApplySubstitution(m_expected_expr_type) : nullptr;
+	if (expected_type != nullptr && expected_type->IsType<MidoriType::CellType>())
+	{
+		expected_element = expected_type->GetType<MidoriType::CellType>().m_element_type;
+	}
+
+	ExpectedTypeGuard guard(*this, expected_element);
+	return Evaluate(value).transform([this](const std::shared_ptr<MidoriType>& value_type)
+	{
+		return MidoriType::MakeCellType(ApplySubstitution(value_type));
+	});
+}
+
+MidoriResult::TypeResult TypeChecker::CheckRefAccess(const std::unique_ptr<MidoriExpression>& cell, const std::unique_ptr<MidoriExpression>* value, const Token& token, std::string_view error_message)
+{
+	MidoriResult::TypeResult cell_result = [this, &cell]() -> MidoriResult::TypeResult
+	{
+		ExpectedTypeGuard guard(*this, nullptr);
+		return Evaluate(cell);
+	}();
+	if (!cell_result.has_value())
+	{
+		return cell_result;
+	}
+
+	std::shared_ptr<MidoriType> cell_type = ApplySubstitution(cell_result.value());
+	if (cell_type->IsType<MidoriType::TypeVariable>())
+	{
+		std::shared_ptr<MidoriType> expected_cell = MidoriType::MakeCellType(FreshTypeVar());
+		MidoriResult::TypeResult unified = Unify(token, cell_type, expected_cell);
+		if (!unified.has_value())
+		{
+			return unified;
+		}
+		cell_type = ApplySubstitution(cell_type);
+	}
+	if (!cell_type->IsType<MidoriType::CellType>())
+	{
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(std::string(error_message), token, m_file_name, m_source_lines, cell_type));
+	}
+
+	std::shared_ptr<MidoriType> element_type = cell_type->GetType<MidoriType::CellType>().m_element_type;
+	if (value != nullptr)
+	{
+		ExpectedTypeGuard guard(*this, element_type);
+		MidoriResult::TypeResult value_result = Evaluate(*value);
+		if (!value_result.has_value())
+		{
+			return value_result;
+		}
+		MidoriResult::TypeResult unified = Unify(token, element_type, value_result.value());
+		if (!unified.has_value())
+		{
+			return unified;
+		}
+	}
+	return ApplySubstitution(element_type);
+}
+
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Binary& binary)
 {
+	if (binary.m_op.m_token_name == Token::Name::COLON_EQUAL)
+	{
+		return CheckRefAccess(binary.m_left, &binary.m_right, binary.m_op, "Reference write operator requires a Ref<T>")
+			.transform([&binary](const std::shared_ptr<MidoriType>&)
+			{
+				binary.m_type_data = MidoriType::MakeLiteralType<MidoriType::UnitType>();
+				return binary.m_type_data;
+			});
+	}
+
 	return Evaluate(binary.m_left)
 		.and_then
 		(
@@ -5594,6 +5666,18 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Tuple& tuple)
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::UnaryPrefix& unary)
 {
+	if (unary.m_op.m_token_name == Token::Name::REF || unary.m_op.m_token_name == Token::Name::STAR)
+	{
+		MidoriResult::TypeResult result = unary.m_op.m_token_name == Token::Name::REF
+			? CheckRefNew(unary.m_expr)
+			: CheckRefAccess(unary.m_expr, nullptr, unary.m_op, "Dereference operator requires a Ref<T>");
+		return result.transform([&unary](std::shared_ptr<MidoriType> type)
+		{
+			unary.m_type_data = std::move(type);
+			return unary.m_type_data;
+		});
+	}
+
 	return Evaluate(unary.m_expr)
 		.and_then
 		(
@@ -6056,87 +6140,6 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 
 			call.m_is_foreign = false;
 			call.m_type_data = MidoriType::MakeLiteralType<MidoriType::BoolType>();
-			return call.m_type_data;
-		}
-
-		if (full_name == "Cell::New")
-		{
-			if (call.m_arguments.size() != 1u)
-			{
-				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, "Call expression type error: Cell::New takes exactly one argument, the value the cell starts with", call.m_paren, m_file_name, m_source_lines));
-			}
-
-			// An annotated binding such as 'def c : Cell<Array<Int>> = Cell::New([])' tells
-			// the initial value what it is, the way a constructor's context does.
-			std::shared_ptr<MidoriType> expected_element = nullptr;
-			std::shared_ptr<MidoriType> expected_type = m_expected_expr_type != nullptr ? ApplySubstitution(m_expected_expr_type) : nullptr;
-			if (expected_type != nullptr && expected_type->IsType<MidoriType::CellType>())
-			{
-				expected_element = expected_type->GetType<MidoriType::CellType>().m_element_type;
-			}
-
-			MidoriResult::TypeResult value_result = [this, &call, &expected_element]() -> MidoriResult::TypeResult
-			{
-				ExpectedTypeGuard guard(*this, expected_element);
-				return Evaluate(call.m_arguments[0u]);
-			}();
-			if (!value_result.has_value())
-			{
-				return value_result;
-			}
-
-			call.m_is_foreign = false;
-			call.m_type_data = MidoriType::MakeCellType(ApplySubstitution(value_result.value()));
-			return call.m_type_data;
-		}
-		if (full_name == "Cell::Get" || full_name == "Cell::Set")
-		{
-			const bool is_set = full_name == "Cell::Set";
-			const size_t expected_arity = is_set ? 2u : 1u;
-			if (call.m_arguments.size() != expected_arity)
-			{
-				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, std::format("Call expression type error: {} takes {}", full_name, is_set ? "two arguments, the cell and the new value" : "exactly one argument, the cell"), call.m_paren, m_file_name, m_source_lines));
-			}
-
-			MidoriResult::TypeResult cell_result = [this, &call]() -> MidoriResult::TypeResult
-			{
-				ExpectedTypeGuard guard(*this, nullptr);
-				return Evaluate(call.m_arguments[0u]);
-			}();
-			if (!cell_result.has_value())
-			{
-				return cell_result;
-			}
-
-			std::shared_ptr<MidoriType> resolved_cell_type = ApplySubstitution(cell_result.value());
-			if (!resolved_cell_type->IsType<MidoriType::CellType>())
-			{
-				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(std::format("Call expression type error: {} takes a Cell<T>", full_name), call.m_paren, m_file_name, m_source_lines, resolved_cell_type));
-			}
-
-			std::shared_ptr<MidoriType> element_type = resolved_cell_type->GetType<MidoriType::CellType>().m_element_type;
-			if (is_set)
-			{
-				MidoriResult::TypeResult value_result = [this, &call, &element_type]() -> MidoriResult::TypeResult
-				{
-					ExpectedTypeGuard guard(*this, element_type);
-					return Evaluate(call.m_arguments[1u]);
-				}();
-				if (!value_result.has_value())
-				{
-					return value_result;
-				}
-
-				std::shared_ptr<MidoriType> value_type = value_result.value();
-				MidoriResult::TypeResult unified = Unify(call.m_paren, element_type, value_type);
-				if (!unified.has_value())
-				{
-					return unified;
-				}
-			}
-
-			call.m_is_foreign = false;
-			call.m_type_data = ApplySubstitution(element_type);
 			return call.m_type_data;
 		}
 

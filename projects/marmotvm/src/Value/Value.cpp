@@ -458,7 +458,7 @@ MidoriText MidoriTraceable::ToText()
 	case TraceableType::Cell:
 		return MidoriText("Cell(").Append(m_cell.GetValue().ToText()).Append(")");
 	case TraceableType::MutableCell:
-		return MidoriText("Cell::New(").Append(m_mutable_cell.m_value.ToText()).Append(")");
+		return MidoriText("ref (").Append(m_mutable_cell.m_value.ToText()).Append(")");
 	case TraceableType::Closure:
 	{
 		char buffer[64];

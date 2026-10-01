@@ -2,9 +2,8 @@ module CellGetOnNonCell
 
 import
 {
-	"../../../MarmotPrelude/IO.mmt",
-	"../../../MarmotPrelude/Cell.mmt"
+	"../../../MarmotPrelude/IO.mmt"
 }
 
-// Cell::Get needs a Cell<T>.
-def v = Cell::Get(5);
+// Dereference needs a Ref<T>.
+def v = (*5);

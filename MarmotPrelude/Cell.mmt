@@ -1,9 +1,0 @@
-module Cell
-// Cell::New(value), Cell::Get(cell) and Cell::Set(cell, value) are called like
-// functions from this module, but the compiler provides them: importing this
-// module is what makes them and the Cell<T> type available.
-//
-// A cell is a box whose contents can change. The binding that names it never
-// changes; Cell::Set replaces what the box holds and evaluates to the new value,
-// and every name, closure, array or record holding the same cell sees it.
-// A cell that reaches another worker is copied, with a CellCrossesWorker warning.

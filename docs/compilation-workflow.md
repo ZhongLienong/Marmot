@@ -137,6 +137,7 @@ Notably absent:
 Current parser features include:
 
 - expression-oriented control flow
+- native references: `ref` and dereference use `UnaryPrefix`; `:=` uses `Binary`
 - generic parameter parsing
 - `where` constraints on functions and type definitions
 - associated type declarations and bindings in classes and instances
@@ -238,7 +239,7 @@ Important opcode families in the current executable format:
 - Data construction: `CONSTRUCT_STRUCT`, `CONSTRUCT_UNION`
 - Closures and functions: `MAKE_FUNCTION_WIDE`, `MAKE_CLOSURE_OF`, `SET_CAPTURE`, `GET_CELL`, `GET_CELL_WIDE`
 - Variables: `DEFINE_GLOBAL_WIDE`, `GET_GLOBAL_WIDE`, `SET_GLOBAL_WIDE`, `GET_LOCAL`, `SET_LOCAL`, `GET_LOCAL_WIDE`, `SET_LOCAL_WIDE`
-- Cells (`Cell<T>`): `MAKE_CELL`, `READ_CELL`, `WRITE_CELL`, operating on a cell value on the stack rather than a captured local
+- References (`Ref<T>`): `MAKE_CELL`, `READ_CELL`, `WRITE_CELL`, operating on a cell value on the stack rather than a captured local
 - Members and stack: `GET_MEMBER`, `POP`, `PUSH_PLACEHOLDER`
 - Termination: `RETURN`, `HALT`
 

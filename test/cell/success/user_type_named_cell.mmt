@@ -2,12 +2,8 @@ module UserTypeNamedCell
 
 import
 {
-	"../../../MarmotPrelude/IO.mmt",
-	"../../../MarmotPrelude/Cell.mmt"
+	"../../../MarmotPrelude/IO.mmt"
 }
-
-// Cell is not a keyword: a program may declare its own type named Cell, and its
-// own type wins over the built-in one even when Cell.mmt is imported.
 
 type Cell<T> = { row: Int, value: T };
 

@@ -80,7 +80,7 @@ struct SerializedObject
 		SerializedValue m_value;
 	};
 
-	// A user Cell<T>. Copied into the worker; the sharing map keeps two
+	// A user Ref<T>. Copied into the worker; the sharing map keeps two
 	// references to one cell in one payload pointing at one copy.
 	struct MutableCell
 	{

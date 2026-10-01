@@ -2,10 +2,9 @@ module CellSetWrongElementType
 
 import
 {
-	"../../../MarmotPrelude/IO.mmt",
-	"../../../MarmotPrelude/Cell.mmt"
+	"../../../MarmotPrelude/IO.mmt"
 }
 
-// A cell keeps its element type: a Cell<Int> cannot hold Text.
-def c = Cell::New(1);
-def v = Cell::Set(c, "no");
+// A cell keeps its element type: a Ref<Int> cannot hold Text.
+def c = ref 1;
+c := "no";

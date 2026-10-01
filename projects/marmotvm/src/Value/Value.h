@@ -615,7 +615,7 @@ struct MidoriCellValue
 	const MidoriValue& GetValue() const;
 };
 
-// A user-visible Cell<T>. A MidoriCellValue is a closure's capture.
+// A user-visible Ref<T>. A MidoriCellValue is a closure's capture.
 struct MidoriMutableCell
 {
 	MidoriValue m_value;

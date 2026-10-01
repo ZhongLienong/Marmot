@@ -1,0 +1,34 @@
+module NativeReferenceCopiedIntoWorker
+
+import {
+    "../../../MarmotPrelude/IO.mmt",
+    "../../../MarmotPrelude/Concurrency.mmt",
+    "../../../MarmotPrelude/Prelude/Result.mmt"
+}
+use Result.{ Result }
+
+def WriteFirstReadSecond = fn(first: Ref<Int>, second: Ref<Int>) -> Int => {
+    first := 7;
+    *second
+};
+
+def original = ref 100;
+def worker = Concurrency::Spawn((original, original), WriteFirstReadSecond);
+def result = match Concurrency::Join(worker) with
+    case Result::Ok(value) => value
+    case Result::Err(_) => -1;
+
+IO::PrintLine((result as Text) ++ " " ++ (*original as Text));
+
+def Run = fn(start: Int) -> Int => {
+    def local = ref start;
+    def captured_worker = Concurrency::Spawn(0, fn(_ignored: Int) -> Int => {
+        local := (*local) + 1;
+        *local
+    });
+    def captured_result = match Concurrency::Join(captured_worker) with
+        case Result::Ok(value) => value
+        case Result::Err(_) => -1;
+    captured_result + (*local)
+};
+IO::PrintLine(Run(10) as Text);

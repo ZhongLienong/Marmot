@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/cell/failure/native_write_wrong_type.mmt:4
+  |
+4 | value := "wrong";
+  |       ^^ Type mismatch between 'Int' and 'Text'
+  |

@@ -6,7 +6,7 @@ this document keeps compiling.
 
 Additions under consideration — an error-propagation operator, waiting on
 several channels — would be new rules, not changes to these. The syntax that
-earlier versions dropped (`return`, `loop`, `break`, `continue`, assignment and
+earlier versions dropped (`return`, `loop`, `break`, `continue`, binding assignment and
 its compound forms, `new`, `defun`, `struct`, `union`, `default`, the `spawn`,
 `join` and `channel` keywords) is gone for good; the compiler carries no trace
 of it, so those words are now ordinary identifiers.
@@ -31,11 +31,14 @@ Whitespace separates tokens and is otherwise insignificant.
 `false` `fn` `for` `foreign` `if` `import` `in` `instance` `match` `module`
 `private` `public` `then` `true` `type` `use` `where` `with`
 
+`ref` is a contextual prefix form that creates a reference. A declared or
+`use`d name spelled `ref` still resolves as an ordinary name.
+
 **Type names.** `Array` `Bool` `Byte` `Channel` `Float` `Int` `Never` `Range`
 `Text` `Unit` `Word` `Worker`
 
 **Symbols.** `-> <- => ( ) { } [ ] , . .. ; + ++ - << >> % * / | || |> ^ & && !
-!= = == > >= < <= : :: ~ #`
+!= = == > >= < <= : :: := ~ #`
 
 ## Program
 
@@ -121,6 +124,7 @@ atomType     = 'Int' | 'Float' | 'Bool' | 'Byte' | 'Word' | 'Text' | 'Unit'
              | 'Range' '<' type '>'
              | 'Channel' '<' type '>'
              | 'Worker' '<' type '>'
+             | 'Ref' '<' type '>'                         // a reference, unless Ref is a declared type
              | IDENTIFIER ('<' type (',' type)* '>')?     // a declared type
              | '(' type (',' type)+ ')' ;                 // a tuple
 ```
@@ -134,6 +138,7 @@ Precedence, loosest first. Each level is left-associative unless noted.
 
 | Level | Form |
 |---|---|
+| 0 | `e := e` (reference write; right-associative) |
 | 1 | `e as Type` |
 | 2 | `e \|\| e` |
 | 3 | `e && e` |
@@ -148,7 +153,7 @@ Precedence, loosest first. Each level is left-associative unless noted.
 | 12 | `e << e`, `e >> e` |
 | 13 | `e + e`, `e - e`, `e ++ e` (concatenation) |
 | 14 | `e * e`, `e / e`, `e % e` |
-| 15 | `!e`, `~e`, `#e` (length), `-e`, `<- ch` (receive) |
+| 15 | `!e`, `~e`, `#e` (length), `-e`, `<- ch` (receive), `ref e`, `*e` (dereference) |
 | 16 | `f(args)`, `e[index]`, `e.field`, `Module::name` |
 | 17 | primary |
 
@@ -177,6 +182,12 @@ case         = 'case' pattern ('if' expression)? '=>' expression ;
 
 A record is built by calling its type's name: `Point(1, 2)`. `for` evaluates
 its body for each element and has no value of its own.
+
+`ref e` creates a `Ref<T>` holding `e`, `*e` reads a reference's contents,
+and `cell := value` replaces those contents and evaluates to `Unit`. These
+forms and `Ref<T>` need no import. Bindings remain immutable. Group a
+compound initializer, as in `ref (a + b)`; a write's right operand is a full
+expression, as in `counter := (*counter) + 1`.
 
 A `function` that is the right operand of `|>` is one stage of the pipeline: its
 body is parsed as a pipe operand (level 6 and tighter), so it ends before the

@@ -4,7 +4,6 @@ import
 {
 	"../../MarmotPrelude/IO.mmt",
 	"../../MarmotPrelude/TextUtil.mmt",
-	"../../MarmotPrelude/Cell.mmt",
 	"../../MarmotPrelude/Prelude/Option.mmt",
 	"../../MarmotPrelude/Prelude/Result.mmt",
 	"../../MarmotPrelude/Collections/Map.mmt",
@@ -24,7 +23,7 @@ type Value =
 	| Builtin(Text)
 	| Nil;
 
-type Env = { frames: Array<Cell<Map::Map<Text, Value>>> };
+type Env = { frames: Array<Ref<Map::Map<Text, Value>>> };
 
 alias Eval = Result<Value, Text>;
 
@@ -84,14 +83,14 @@ def ReadAll = fn(tokens: Array<Text>, at: Int, forms: Array<Value>) -> Result<Ar
 def Lookup = fn(env: Env, name: Text, depth: Int) -> Option<Value> =>
 	if depth < 0
 	then Option::None()
-	else match Map::Get(Cell::Get(env.frames[depth]), name) with
+	else match Map::Get((*env.frames[depth]), name) with
 		case Option::Some(v) => Option::Some(v)
 		case Option::None() => Lookup(env, name, depth - 1);
 
 def Define = fn(env: Env, name: Text, value: Value) -> Value =>
 {
 	def top = env.frames[#env.frames - 1];
-	Cell::Set(top, Map::With(Cell::Get(top), name, value));
+	top := Map::With(*top, name, value);
 	value
 };
 
@@ -101,17 +100,17 @@ def Assign = fn(env: Env, name: Text, value: Value, depth: Int) -> Eval =>
 	else
 	{
 		def frame = env.frames[depth];
-		if Map::ContainsKey(Cell::Get(frame), name)
+		if Map::ContainsKey((*frame), name)
 		then
 		{
-			Cell::Set(frame, Map::With(Cell::Get(frame), name, value));
+			frame := Map::With(*frame, name, value);
 			Result::Ok(value)
 		}
 		else Assign(env, name, value, depth - 1)
 	};
 
 def Extend = fn(env: Env, names: Array<Text>, values: Array<Value>) -> Env =>
-	Env(env.frames ++ [Cell::New(BindAll(names, values, 0, Map::Empty()))]);
+	Env(env.frames ++ [(ref BindAll(names, values, 0, Map::Empty()))]);
 
 def BindAll = fn(names: Array<Text>, values: Array<Value>, index: Int, frame: Map::Map<Text, Value>) -> Map::Map<Text, Value> =>
 	if index >= #names then frame else BindAll(names, values, index + 1, Map::With(frame, names[index], values[index]));
@@ -265,7 +264,7 @@ def ConcatStrings = fn(args: Array<Value>, index: Int, built: Text) -> Text =>
 	else ConcatStrings(args, index + 1, built ++ (match args[index] with case Value::Str(s) => s case other => Show(other)));
 
 def builtin_names = ["+", "-", "*", "/", "<", "=", "mod", "list", "car", "cdr", "cons", "null?", "concat"];
-def global = Env([Cell::New(BindAll(builtin_names, [Value::Builtin(n) for n in builtin_names], 0, Map::Empty()))]);
+def global = Env([(ref BindAll(builtin_names, [Value::Builtin(n) for n in builtin_names], 0, Map::Empty()))]);
 
 def Run = fn(source: Text) -> Unit =>
 	match ReadAll(Tokenize(source), 0, []) with

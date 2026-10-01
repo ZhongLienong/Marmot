@@ -118,7 +118,7 @@ long as they sit between the pattern and the arrow.
 ### Spacing
 
 - one space after `,`
-- one space around `=`, `=>`, `->`, `::=`, and infix operators
+- one space around `=`, `=>`, `->`, `:=`, and infix operators
 - no space inside `(`, `[`, or after `.`, `..`, `::`, `#`
 - no space before `,`, `;`, `)`, `]`, `.`, `..`, `::`
 - no space between a function name and its `(` argument list; a `(` or `[`
@@ -126,7 +126,9 @@ long as they sit between the pattern and the arrow.
   `match` is spaced like any operand: `a / (b - c)`, `def (x, y) = pair`
 - no space around the angle brackets of type arguments: `Array<Text>`,
   `fn<T>(value: T)`, `Map::Map<Text, Int>`
-- no space after a unary operator: `-x`, `!done`, `-(a - b)`
+- no space after a symbolic unary operator: `-x`, `!done`, `*counter`, `-(a - b)`
+- reference creation may be written `ref value` or `ref(value)`; the formatter
+  preserves either form
 - one space between `}` and a following `else` or other continuation keyword
 
 ### Blank lines

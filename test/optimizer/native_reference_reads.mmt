@@ -1,0 +1,13 @@
+module NativeReferenceReads
+
+import { "../../MarmotPrelude/IO.mmt" }
+
+def Probe = fn(c: Ref<Int>) -> Int => {
+    def before = *c;
+    c := before * 2;
+    def after = *c;
+    before + after
+};
+
+def c = ref 7;
+IO::PrintLine((Probe(c) as Text) ++ " " ++ (*c as Text));

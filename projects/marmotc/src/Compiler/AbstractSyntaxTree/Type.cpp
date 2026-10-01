@@ -301,7 +301,7 @@ namespace
 			}
 			else if constexpr (std::is_same_v<Type, MidoriType::CellType>)
 			{
-				return "Cell<"s + stringify(*type_variant.m_element_type) + ">"s;
+				return "Ref<"s + stringify(*type_variant.m_element_type) + ">"s;
 			}
 			else if constexpr (std::is_same_v<Type, MidoriType::RangeType>)
 			{

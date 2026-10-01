@@ -35,7 +35,7 @@
 // WORD_TO_INT + INT_TO_TEXT and print values above 2^63 - 1 as negative.
 //
 // Bumped 2026-09-17 (9): MAKE_CELL, READ_CELL and WRITE_CELL were inserted
-// after SET_CELL for Cell<T>, which renumbered every later opcode.
+// after SET_CELL for Ref<T>, which renumbered every later opcode.
 //
 // Bumped 2026-09-27 (12): once MidoriIR's backend was the only emitter,
 // the 30 opcodes nothing emitted were deleted (the frame-prefix closure

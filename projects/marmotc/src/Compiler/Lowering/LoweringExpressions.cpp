@@ -376,6 +376,11 @@ Lowering::Lowered Lowering::LowerBinary(MidoriExpression::Binary& binary)
 			{
 				return Placeholder(Concrete(binary.m_type_data));
 			}
+			if (op.m_token_name == Token::Name::COLON_EQUAL)
+			{
+				Builder().AtLine(op.m_line).Emit(MidoriIROp::CellWrite, Scope().m_function.TypeOf(right), { left, right });
+				return Builder().ConstUnit();
+			}
 			if (binary.m_uses_concatenable || binary.m_uses_equatable || binary.m_uses_orderable)
 			{
 				return LowerClassOperator(binary, left, right);
@@ -504,6 +509,11 @@ Lowering::Lowered Lowering::LowerUnary(MidoriExpression::UnaryPrefix& unary)
 				return Placeholder(Concrete(unary.m_type_data));
 			}
 			const TypeRef& operand_type = Scope().m_function.TypeOf(operand);
+			if (op.m_token_name == Token::Name::REF || op.m_token_name == Token::Name::STAR)
+			{
+				const MidoriIROp cell_op = op.m_token_name == Token::Name::REF ? MidoriIROp::CellNew : MidoriIROp::CellRead;
+				return Builder().AtLine(op.m_line).Emit(cell_op, Concrete(unary.m_type_data), { operand });
+			}
 			if (op.m_token_name == Token::Name::HASH)
 			{
 				if (GenericTypes::RepresentationOf(operand_type)->IsType<MidoriType::ArrayType>())

@@ -5,7 +5,7 @@
 #include <memory>
 #include <unordered_set>
 
-// Warns where a Cell<T> is copied into another worker: a Spawn argument, a cell
+// Warns where a Ref<T> is copied into another worker: a Spawn argument, a cell
 // the spawned lambda captures, a channel send, or a ParallelMap over cells. The
 // copy is safe (each worker owns its cell afterwards) but easy to misread, since
 // writes on one side are not seen on the other.

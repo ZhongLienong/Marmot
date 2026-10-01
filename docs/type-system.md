@@ -28,7 +28,7 @@ The type system provides:
 | `Word` | 64-bit unsigned integer |
 | `Bool` | `true` or `false`, a built-in rather than a library union — see the design spec's section 8 for the measurement behind that |
 | `Text` | UTF-8 string |
-| `Unit` | Unit value type |
+| `Unit` | A type with one value, `()`; used when a result carries no payload |
 
 A decimal integer literal is an `Int`. A hex or binary literal is a `Byte` up to
 `0xFF`, an `Int` above it, and a `Word` past the largest `Int`, so `0x0F` is a
@@ -106,26 +106,27 @@ Channel<Text>     // handle to a channel carrying Text values
 
 Both are internally represented as `Int` handles but carry compile-time type parameters. `Worker<T>` is produced by `Concurrency::Spawn` and consumed by `Concurrency::Join`. `Channel<T>` is produced by `Concurrency::MakeChannel(capacity)`, which takes `T` from context, and used with `->` (send) and `<-` (receive).
 
-### Cells
+### References
 
-`Cell<T>` is a box whose contents can change. It is available once
-`MarmotPrelude/Cell.mmt` is imported; `Cell` is not a keyword, so a program's own
-type named `Cell` takes precedence over it.
+`Ref<T>` is a box whose contents can change. The type and the native
+`ref`, `*` and `:=` forms are available without an import. `Ref` is not a
+keyword, so a program's own type named `Ref` takes precedence over it. A
+declared or `use`d value named `ref` also keeps its ordinary name resolution.
 
-| Operation | Type | Meaning |
+| Native form | Result | Meaning |
 |---|---|---|
-| `Cell::New(value)` | `fn<T>(T) -> Cell<T>` | A new cell holding `value`. |
-| `Cell::Get(cell)` | `fn<T>(Cell<T>) -> T` | The value currently stored. |
-| `Cell::Set(cell, value)` | `fn<T>(Cell<T>, T) -> T` | Stores `value` and evaluates to it. |
+| `ref value` | `Ref<T>` for a value of type `T` | A new reference holding `value`. |
+| `*cell` | `T` for a `Ref<T>` | The value currently stored. |
+| `cell := value` | `Unit` | Stores a value of the cell's element type. |
 
 A cell is a reference: passing it, capturing it, or storing it in an array,
 tuple or record shares the one cell. Bindings stay immutable, so the only state
 that changes is a cell's contents, and a program's mutable state can be found by
-looking for `Cell<...>` in its types.
+looking for `Ref<...>` in its types.
 
 Deliberately not provided: `Equatable`, `Hashable` or `Orderable` instances for
-cells (compare contents with `Cell::Get(a) == Cell::Get(b)`), operators such as
-`!c` or `c := v`, and any tracking of mutation in function types. A cell that
+cells (compare contents with `*a == *b`) or any tracking of mutation in
+function types. `!` remains Boolean negation. A cell that
 reaches another worker is copied; see [Multicore Runtime](multicore-runtime.md).
 
 ### Ranges
@@ -415,11 +416,13 @@ The shipped prelude provides the following related modules:
 
 The concrete coverage is intentionally uneven today. For example, `Orderable` is provided as a class surface, but most interesting instances are still expected to come from user code rather than the prelude.
 
-### No Assignment Operators
+### Immutable Bindings
 
-There is no assignment, compound or otherwise (`=`, `+=`, `&=` and the rest were
-removed in v2). A computed value is bound to a new name with `def`; state that
-has to change in place lives in a [`Cell<T>`](#cells).
+`def` binds a name once; neither `=` nor a compound assignment can rebind it.
+A computed value is bound to a new name with `def`. State that has to change
+in place lives in a [`Ref<T>`](#references), created with `ref`, read with `*` and
+written with `:=`. A bare reference name shares the box; dereferencing it
+produces the value currently inside it.
 
 ## Pattern Matching
 
@@ -518,9 +521,44 @@ fn(x: Int) -> Int => { x + 1 }
 
 ## Special Types
 
+### Unit
+
+`Unit` has exactly one value, `()`. It lets an expression or function finish
+without carrying a useful result. Printing and reference writes return
+`Unit`; a function declared to return it may use either as its final expression.
+
+```marmot-test name=type-system/unit_reference_write path=.doc_examples/type_system/unit_reference_write.mmt module=TypeSystemUnitReferenceWrite
+def Reset = fn(counter: Ref<Int>) -> Unit => counter := 0;
+def counter = ref 3;
+def completed : Unit = Reset(counter);
+```
+
+Because `Unit` is an ordinary type, generic APIs need no separate success form
+for operations without a payload. For example, `IO::TryWriteFile` returns
+`Result<Unit, IOError>`: success carries `()`, and failure carries an error.
+Returning `Unit` does not imply that a function is pure or that it must finish.
+
 ### Never
 
-`Never` is the bottom type for computations that do not produce a normal value, such as non-returning control-flow paths.
+`Never` has no values. It is the bottom type for computations that cannot
+return normally, such as a panic or a function that recurses forever.
+`Panic::Panic` returns `Never`, so a panic branch can fit the result type of
+another branch without producing a dummy value:
+
+```marmot-test name=type-system/never_branch path=.doc_examples/type_system/never_branch.mmt module=TypeSystemNeverBranch
+import { "../../MarmotPrelude/Prelude/Panic.mmt" }
+
+def RequirePositive = fn(n: Int) -> Int =>
+    if n > 0 then n
+    else Panic::Panic("Expected a positive number");
+
+def value : Int = RequirePositive(3);
+```
+
+The type checker accepts the `Never` branch alongside the `Int` branch. The
+compiler also uses `Never` to mark control flow after such a call as unreachable.
+Replacing its return type with `Unit` would lose that information and make
+these branch result types disagree.
 
 ### Undecided Type
 
@@ -537,7 +575,7 @@ Types include:
 - Primitive types
 - Type variables
 - Generic parameters
-- Arrays, tuples, functions, structs, and unions
+- Arrays, references, tuples, functions, structs, and unions
 - Type class constraints and associated type projections
 
 ### Type Checker Responsibilities
