@@ -8,7 +8,7 @@
 #include <vector>
 
 #include "Loader/ProgramLoader.h"
-#include "VmBytecode/Artifact/BinaryArtifact.h"
+#include "Bytecode/Artifact/BinaryArtifact.h"
 
 namespace
 {

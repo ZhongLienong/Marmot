@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Library/MidoriBuiltinFFIRegistry/MidoriFFIRegistry.h"
-#include "VmBytecode/Executable/Executable.h"
+#include "Bytecode/Executable/Executable.h"
 #include "Library/SharedLibraryCache/SharedLibraryCache.h"
 
 #include <optional>

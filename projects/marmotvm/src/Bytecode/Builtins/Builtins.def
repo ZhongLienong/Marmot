@@ -1,9 +1,6 @@
-// The builtin foreign functions, in bytecode order. An entry's position is the
-// index CALL_FOREIGN_INDEXED encodes. The VM's disassembler and runtime table
-// expand this VM-side list, checked against format/mmc/registry-v13.json:
-//   MARMOT_BUILTIN(name, argument kinds, return kind)
-// Removing or reordering an entry renumbers the ones after it and needs an
-// VmMbcFormatVersion bump; appending does not.
+// Generated from format/mmc/registry-v13.json. Do not edit.
+// Regenerate: python scripts/dev.py generate-mmc
+
 MARMOT_BUILTIN(MIDORI_FFI_Print, MakeVmFFIArgKinds(VmFFIArgumentKind::CString), VmFFIReturnKind::RawValue)
 MARMOT_BUILTIN(MIDORI_FFI_PrintError, MakeVmFFIArgKinds(VmFFIArgumentKind::CString), VmFFIReturnKind::RawValue)
 MARMOT_BUILTIN(MIDORI_FFI_ReadInput, {}, VmFFIReturnKind::CString)

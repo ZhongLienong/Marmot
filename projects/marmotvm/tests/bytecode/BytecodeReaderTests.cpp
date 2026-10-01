@@ -1,6 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
-#include "VmBytecode/Artifact/BinaryArtifact.h"
+#include "Bytecode/Artifact/BinaryArtifact.h"
 #include "Loader/ProgramLoader.h"
 #include "support/OutputCapture.h"
 

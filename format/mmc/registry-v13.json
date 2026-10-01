@@ -5,897 +5,1100 @@
     {
       "id": 0,
       "name": "LOAD_STRING_WIDE",
-      "length": 3
+      "length": 3,
+      "category": "Constants and literals"
     },
     {
       "id": 1,
       "name": "INTEGER_CONSTANT",
-      "length": 9
+      "length": 9,
+      "category": "Constants and literals"
     },
     {
       "id": 2,
       "name": "FLOAT_CONSTANT",
-      "length": 9
+      "length": 9,
+      "category": "Constants and literals"
     },
     {
       "id": 3,
       "name": "BYTE_CONSTANT",
-      "length": 2
+      "length": 2,
+      "category": "Constants and literals"
     },
     {
       "id": 4,
       "name": "WORD_CONSTANT",
-      "length": 9
+      "length": 9,
+      "category": "Constants and literals"
     },
     {
       "id": 5,
       "name": "OP_UNIT",
-      "length": 1
+      "length": 1,
+      "category": "Constants and literals"
     },
     {
       "id": 6,
       "name": "OP_TRUE",
-      "length": 1
+      "length": 1,
+      "category": "Constants and literals"
     },
     {
       "id": 7,
       "name": "OP_FALSE",
-      "length": 1
+      "length": 1,
+      "category": "Constants and literals"
     },
     {
       "id": 8,
       "name": "INT_MINUS_1",
-      "length": 1
+      "length": 1,
+      "category": "Constants and literals"
     },
     {
       "id": 9,
       "name": "INT_0",
-      "length": 1
+      "length": 1,
+      "category": "Constants and literals"
     },
     {
       "id": 10,
       "name": "INT_1",
-      "length": 1
+      "length": 1,
+      "category": "Constants and literals"
     },
     {
       "id": 11,
       "name": "INT_2",
-      "length": 1
+      "length": 1,
+      "category": "Constants and literals"
     },
     {
       "id": 12,
       "name": "INT_3",
-      "length": 1
+      "length": 1,
+      "category": "Constants and literals"
     },
     {
       "id": 13,
       "name": "INT_4",
-      "length": 1
+      "length": 1,
+      "category": "Constants and literals"
     },
     {
       "id": 14,
       "name": "INT_5",
-      "length": 1
+      "length": 1,
+      "category": "Constants and literals"
     },
     {
       "id": 15,
       "name": "INT_10",
-      "length": 1
+      "length": 1,
+      "category": "Constants and literals"
     },
     {
       "id": 16,
       "name": "CREATE_ARRAY",
-      "length": 4
+      "length": 4,
+      "category": "Arrays and tuples"
     },
     {
       "id": 17,
       "name": "CREATE_TUPLE",
-      "length": 4
+      "length": 4,
+      "category": "Arrays and tuples"
     },
     {
       "id": 18,
       "name": "GET_ARRAY",
-      "length": 1
+      "length": 1,
+      "category": "Arrays and tuples"
     },
     {
       "id": 19,
       "name": "GET_TUPLE",
-      "length": 1
+      "length": 1,
+      "category": "Arrays and tuples"
     },
     {
       "id": 20,
       "name": "ADD_BACK_ARRAY",
-      "length": 1
+      "length": 1,
+      "category": "Arrays and tuples"
     },
     {
       "id": 21,
       "name": "GET_ARRAY_LENGTH",
-      "length": 1
+      "length": 1,
+      "category": "Arrays and tuples"
     },
     {
       "id": 22,
       "name": "CREATE_INT_RANGE",
-      "length": 1
+      "length": 1,
+      "category": "Ranges"
     },
     {
       "id": 23,
       "name": "CREATE_FLOAT_RANGE",
-      "length": 1
+      "length": 1,
+      "category": "Ranges"
     },
     {
       "id": 24,
       "name": "GET_RANGE_START",
-      "length": 1
+      "length": 1,
+      "category": "Ranges"
     },
     {
       "id": 25,
       "name": "GET_RANGE_END",
-      "length": 1
+      "length": 1,
+      "category": "Ranges"
     },
     {
       "id": 26,
       "name": "GET_RANGE_STEP",
-      "length": 1
+      "length": 1,
+      "category": "Ranges"
     },
     {
       "id": 27,
       "name": "INT_TO_FLOAT",
-      "length": 1
+      "length": 1,
+      "category": "Conversions"
     },
     {
       "id": 28,
       "name": "TEXT_TO_FLOAT",
-      "length": 1
+      "length": 1,
+      "category": "Conversions"
     },
     {
       "id": 29,
       "name": "FLOAT_TO_INT",
-      "length": 1
+      "length": 1,
+      "category": "Conversions"
     },
     {
       "id": 30,
       "name": "TEXT_TO_INT",
-      "length": 1
+      "length": 1,
+      "category": "Conversions"
     },
     {
       "id": 31,
       "name": "FLOAT_TO_TEXT",
-      "length": 1
+      "length": 1,
+      "category": "Conversions"
     },
     {
       "id": 32,
       "name": "INT_TO_TEXT",
-      "length": 1
+      "length": 1,
+      "category": "Conversions"
     },
     {
       "id": 33,
       "name": "WORD_TO_TEXT",
-      "length": 1
+      "length": 1,
+      "category": "Conversions"
     },
     {
       "id": 34,
       "name": "BYTE_TO_INT",
-      "length": 1
+      "length": 1,
+      "category": "Conversions"
     },
     {
       "id": 35,
       "name": "INT_TO_BYTE",
-      "length": 1
+      "length": 1,
+      "category": "Conversions"
     },
     {
       "id": 36,
       "name": "BYTE_TO_WORD",
-      "length": 1
+      "length": 1,
+      "category": "Conversions"
     },
     {
       "id": 37,
       "name": "WORD_TO_BYTE",
-      "length": 1
+      "length": 1,
+      "category": "Conversions"
     },
     {
       "id": 38,
       "name": "WORD_TO_INT",
-      "length": 1
+      "length": 1,
+      "category": "Conversions"
     },
     {
       "id": 39,
       "name": "INT_TO_WORD",
-      "length": 1
+      "length": 1,
+      "category": "Conversions"
     },
     {
       "id": 40,
       "name": "BYTE_TO_FLOAT",
-      "length": 1
+      "length": 1,
+      "category": "Conversions"
     },
     {
       "id": 41,
       "name": "FLOAT_TO_BYTE",
-      "length": 1
+      "length": 1,
+      "category": "Conversions"
     },
     {
       "id": 42,
       "name": "WORD_TO_FLOAT",
-      "length": 1
+      "length": 1,
+      "category": "Conversions"
     },
     {
       "id": 43,
       "name": "FLOAT_TO_WORD",
-      "length": 1
+      "length": 1,
+      "category": "Conversions"
     },
     {
       "id": 44,
       "name": "LEFT_SHIFT",
-      "length": 1
+      "length": 1,
+      "category": "Bit operations"
     },
     {
       "id": 45,
       "name": "RIGHT_SHIFT",
-      "length": 1
+      "length": 1,
+      "category": "Bit operations"
     },
     {
       "id": 46,
       "name": "LEFT_SHIFT_BYTE",
-      "length": 1
+      "length": 1,
+      "category": "Bit operations"
     },
     {
       "id": 47,
       "name": "RIGHT_SHIFT_BYTE",
-      "length": 1
+      "length": 1,
+      "category": "Bit operations"
     },
     {
       "id": 48,
       "name": "LEFT_SHIFT_WORD",
-      "length": 1
+      "length": 1,
+      "category": "Bit operations"
     },
     {
       "id": 49,
       "name": "RIGHT_SHIFT_WORD",
-      "length": 1
+      "length": 1,
+      "category": "Bit operations"
     },
     {
       "id": 50,
       "name": "BITWISE_AND",
-      "length": 1
+      "length": 1,
+      "category": "Bit operations"
     },
     {
       "id": 51,
       "name": "BITWISE_OR",
-      "length": 1
+      "length": 1,
+      "category": "Bit operations"
     },
     {
       "id": 52,
       "name": "BITWISE_XOR",
-      "length": 1
+      "length": 1,
+      "category": "Bit operations"
     },
     {
       "id": 53,
       "name": "BITWISE_NOT",
-      "length": 1
+      "length": 1,
+      "category": "Bit operations"
     },
     {
       "id": 54,
       "name": "ADD_FLOAT",
-      "length": 1
+      "length": 1,
+      "category": "Arithmetic"
     },
     {
       "id": 55,
       "name": "SUBTRACT_FLOAT",
-      "length": 1
+      "length": 1,
+      "category": "Arithmetic"
     },
     {
       "id": 56,
       "name": "MULTIPLY_FLOAT",
-      "length": 1
+      "length": 1,
+      "category": "Arithmetic"
     },
     {
       "id": 57,
       "name": "DIVIDE_FLOAT",
-      "length": 1
+      "length": 1,
+      "category": "Arithmetic"
     },
     {
       "id": 58,
       "name": "MODULO_FLOAT",
-      "length": 1
+      "length": 1,
+      "category": "Arithmetic"
     },
     {
       "id": 59,
       "name": "ADD_INTEGER",
-      "length": 1
+      "length": 1,
+      "category": "Arithmetic"
     },
     {
       "id": 60,
       "name": "SUBTRACT_INTEGER",
-      "length": 1
+      "length": 1,
+      "category": "Arithmetic"
     },
     {
       "id": 61,
       "name": "MULTIPLY_INTEGER",
-      "length": 1
+      "length": 1,
+      "category": "Arithmetic"
     },
     {
       "id": 62,
       "name": "DIVIDE_INTEGER",
-      "length": 1
+      "length": 1,
+      "category": "Arithmetic"
     },
     {
       "id": 63,
       "name": "MODULO_INTEGER",
-      "length": 1
+      "length": 1,
+      "category": "Arithmetic"
     },
     {
       "id": 64,
       "name": "ADD_BYTE",
-      "length": 1
+      "length": 1,
+      "category": "Arithmetic"
     },
     {
       "id": 65,
       "name": "SUBTRACT_BYTE",
-      "length": 1
+      "length": 1,
+      "category": "Arithmetic"
     },
     {
       "id": 66,
       "name": "MULTIPLY_BYTE",
-      "length": 1
+      "length": 1,
+      "category": "Arithmetic"
     },
     {
       "id": 67,
       "name": "DIVIDE_BYTE",
-      "length": 1
+      "length": 1,
+      "category": "Arithmetic"
     },
     {
       "id": 68,
       "name": "MODULO_BYTE",
-      "length": 1
+      "length": 1,
+      "category": "Arithmetic"
     },
     {
       "id": 69,
       "name": "ADD_WORD",
-      "length": 1
+      "length": 1,
+      "category": "Arithmetic"
     },
     {
       "id": 70,
       "name": "SUBTRACT_WORD",
-      "length": 1
+      "length": 1,
+      "category": "Arithmetic"
     },
     {
       "id": 71,
       "name": "MULTIPLY_WORD",
-      "length": 1
+      "length": 1,
+      "category": "Arithmetic"
     },
     {
       "id": 72,
       "name": "DIVIDE_WORD",
-      "length": 1
+      "length": 1,
+      "category": "Arithmetic"
     },
     {
       "id": 73,
       "name": "MODULO_WORD",
-      "length": 1
+      "length": 1,
+      "category": "Arithmetic"
     },
     {
       "id": 74,
       "name": "CONCAT_ARRAY",
-      "length": 1
+      "length": 1,
+      "category": "Concatenation"
     },
     {
       "id": 75,
       "name": "CONCAT_TEXT",
-      "length": 1
+      "length": 1,
+      "category": "Concatenation"
     },
     {
       "id": 76,
       "name": "EQUAL_FLOAT",
-      "length": 1
+      "length": 1,
+      "category": "Comparison"
     },
     {
       "id": 77,
       "name": "NOT_EQUAL_FLOAT",
-      "length": 1
+      "length": 1,
+      "category": "Comparison"
     },
     {
       "id": 78,
       "name": "GREATER_FLOAT",
-      "length": 1
+      "length": 1,
+      "category": "Comparison"
     },
     {
       "id": 79,
       "name": "GREATER_EQUAL_FLOAT",
-      "length": 1
+      "length": 1,
+      "category": "Comparison"
     },
     {
       "id": 80,
       "name": "LESS_FLOAT",
-      "length": 1
+      "length": 1,
+      "category": "Comparison"
     },
     {
       "id": 81,
       "name": "LESS_EQUAL_FLOAT",
-      "length": 1
+      "length": 1,
+      "category": "Comparison"
     },
     {
       "id": 82,
       "name": "EQUAL_INTEGER",
-      "length": 1
+      "length": 1,
+      "category": "Comparison"
     },
     {
       "id": 83,
       "name": "NOT_EQUAL_INTEGER",
-      "length": 1
+      "length": 1,
+      "category": "Comparison"
     },
     {
       "id": 84,
       "name": "GREATER_INTEGER",
-      "length": 1
+      "length": 1,
+      "category": "Comparison"
     },
     {
       "id": 85,
       "name": "GREATER_EQUAL_INTEGER",
-      "length": 1
+      "length": 1,
+      "category": "Comparison"
     },
     {
       "id": 86,
       "name": "LESS_INTEGER",
-      "length": 1
+      "length": 1,
+      "category": "Comparison"
     },
     {
       "id": 87,
       "name": "LESS_EQUAL_INTEGER",
-      "length": 1
+      "length": 1,
+      "category": "Comparison"
     },
     {
       "id": 88,
       "name": "EQUAL_BYTE",
-      "length": 1
+      "length": 1,
+      "category": "Comparison"
     },
     {
       "id": 89,
       "name": "NOT_EQUAL_BYTE",
-      "length": 1
+      "length": 1,
+      "category": "Comparison"
     },
     {
       "id": 90,
       "name": "GREATER_BYTE",
-      "length": 1
+      "length": 1,
+      "category": "Comparison"
     },
     {
       "id": 91,
       "name": "GREATER_EQUAL_BYTE",
-      "length": 1
+      "length": 1,
+      "category": "Comparison"
     },
     {
       "id": 92,
       "name": "LESS_BYTE",
-      "length": 1
+      "length": 1,
+      "category": "Comparison"
     },
     {
       "id": 93,
       "name": "LESS_EQUAL_BYTE",
-      "length": 1
+      "length": 1,
+      "category": "Comparison"
     },
     {
       "id": 94,
       "name": "EQUAL_WORD",
-      "length": 1
+      "length": 1,
+      "category": "Comparison"
     },
     {
       "id": 95,
       "name": "NOT_EQUAL_WORD",
-      "length": 1
+      "length": 1,
+      "category": "Comparison"
     },
     {
       "id": 96,
       "name": "GREATER_WORD",
-      "length": 1
+      "length": 1,
+      "category": "Comparison"
     },
     {
       "id": 97,
       "name": "GREATER_EQUAL_WORD",
-      "length": 1
+      "length": 1,
+      "category": "Comparison"
     },
     {
       "id": 98,
       "name": "LESS_WORD",
-      "length": 1
+      "length": 1,
+      "category": "Comparison"
     },
     {
       "id": 99,
       "name": "LESS_EQUAL_WORD",
-      "length": 1
+      "length": 1,
+      "category": "Comparison"
     },
     {
       "id": 100,
       "name": "EQUAL_TEXT",
-      "length": 1
+      "length": 1,
+      "category": "Comparison"
     },
     {
       "id": 101,
       "name": "NOT",
-      "length": 1
+      "length": 1,
+      "category": "Logical and unary"
     },
     {
       "id": 102,
       "name": "NEGATE_FLOAT",
-      "length": 1
+      "length": 1,
+      "category": "Logical and unary"
     },
     {
       "id": 103,
       "name": "NEGATE_INTEGER",
-      "length": 1
+      "length": 1,
+      "category": "Logical and unary"
     },
     {
       "id": 104,
       "name": "JUMP_IF_FALSE",
-      "length": 3
+      "length": 3,
+      "category": "Control flow"
     },
     {
       "id": 105,
       "name": "JUMP",
-      "length": 3
+      "length": 3,
+      "category": "Control flow"
     },
     {
       "id": 106,
       "name": "JUMP_BACK",
-      "length": 3
+      "length": 3,
+      "category": "Control flow"
     },
     {
       "id": 107,
       "name": "IF_INTEGER_LESS",
-      "length": 3
+      "length": 3,
+      "category": "Control flow"
     },
     {
       "id": 108,
       "name": "IF_INTEGER_LESS_EQUAL",
-      "length": 3
+      "length": 3,
+      "category": "Control flow"
     },
     {
       "id": 109,
       "name": "IF_INTEGER_GREATER",
-      "length": 3
+      "length": 3,
+      "category": "Control flow"
     },
     {
       "id": 110,
       "name": "IF_INTEGER_GREATER_EQUAL",
-      "length": 3
+      "length": 3,
+      "category": "Control flow"
     },
     {
       "id": 111,
       "name": "IF_INTEGER_EQUAL",
-      "length": 3
+      "length": 3,
+      "category": "Control flow"
     },
     {
       "id": 112,
       "name": "IF_INTEGER_NOT_EQUAL",
-      "length": 3
+      "length": 3,
+      "category": "Control flow"
     },
     {
       "id": 113,
       "name": "IF_FLOAT_LESS",
-      "length": 3
+      "length": 3,
+      "category": "Control flow"
     },
     {
       "id": 114,
       "name": "IF_FLOAT_LESS_EQUAL",
-      "length": 3
+      "length": 3,
+      "category": "Control flow"
     },
     {
       "id": 115,
       "name": "IF_FLOAT_GREATER",
-      "length": 3
+      "length": 3,
+      "category": "Control flow"
     },
     {
       "id": 116,
       "name": "IF_FLOAT_GREATER_EQUAL",
-      "length": 3
+      "length": 3,
+      "category": "Control flow"
     },
     {
       "id": 117,
       "name": "IF_FLOAT_EQUAL",
-      "length": 3
+      "length": 3,
+      "category": "Control flow"
     },
     {
       "id": 118,
       "name": "IF_FLOAT_NOT_EQUAL",
-      "length": 3
+      "length": 3,
+      "category": "Control flow"
     },
     {
       "id": 119,
       "name": "GET_TAG",
-      "length": 1
+      "length": 1,
+      "category": "Unions"
     },
     {
       "id": 120,
       "name": "GET_UNION_FIELD",
-      "length": 2
+      "length": 2,
+      "category": "Unions",
+      "description": "[op][index] replace a union with its field at index"
     },
     {
       "id": 121,
       "name": "CALL_FOREIGN",
-      "length": 3
+      "length": 3,
+      "category": "Calls. CALL_0 to CALL_3 stay in order: the arity is the distance from CALL_0."
     },
     {
       "id": 122,
       "name": "CALL_FOREIGN_INDEXED",
-      "length": 4
+      "length": 4,
+      "category": "Calls. CALL_0 to CALL_3 stay in order: the arity is the distance from CALL_0."
     },
     {
       "id": 123,
       "name": "CALL",
-      "length": 2
+      "length": 2,
+      "category": "Calls. CALL_0 to CALL_3 stay in order: the arity is the distance from CALL_0."
     },
     {
       "id": 124,
       "name": "CALL_0",
-      "length": 1
+      "length": 1,
+      "category": "Calls. CALL_0 to CALL_3 stay in order: the arity is the distance from CALL_0."
     },
     {
       "id": 125,
       "name": "CALL_1",
-      "length": 1
+      "length": 1,
+      "category": "Calls. CALL_0 to CALL_3 stay in order: the arity is the distance from CALL_0."
     },
     {
       "id": 126,
       "name": "CALL_2",
-      "length": 1
+      "length": 1,
+      "category": "Calls. CALL_0 to CALL_3 stay in order: the arity is the distance from CALL_0."
     },
     {
       "id": 127,
       "name": "CALL_3",
-      "length": 1
+      "length": 1,
+      "category": "Calls. CALL_0 to CALL_3 stay in order: the arity is the distance from CALL_0."
     },
     {
       "id": 128,
       "name": "CALL_PROC_WIDE",
-      "length": 4
+      "length": 4,
+      "category": "Calls. CALL_0 to CALL_3 stay in order: the arity is the distance from CALL_0.",
+      "description": "[op][proc_lo][proc_hi][arity]"
     },
     {
       "id": 129,
       "name": "CALL_GLOBAL_WIDE",
-      "length": 4
+      "length": 4,
+      "category": "Calls. CALL_0 to CALL_3 stay in order: the arity is the distance from CALL_0.",
+      "description": "[op][global_hi][global_lo][arity]"
     },
     {
       "id": 130,
       "name": "TAIL_CALL",
-      "length": 2
+      "length": 2,
+      "category": "Calls. CALL_0 to CALL_3 stay in order: the arity is the distance from CALL_0."
     },
     {
       "id": 131,
       "name": "CONSTRUCT_STRUCT",
-      "length": 2
+      "length": 2,
+      "category": "Data"
     },
     {
       "id": 132,
       "name": "CONSTRUCT_UNION",
-      "length": 3
+      "length": 3,
+      "category": "Data",
+      "description": "[op][size][tag] pop size fields, push a union of them with the tag"
     },
     {
       "id": 133,
       "name": "LOAD_EMPTY_UNION",
-      "length": 2
+      "length": 2,
+      "category": "Data"
     },
     {
       "id": 134,
       "name": "GET_MEMBER",
-      "length": 2
+      "length": 2,
+      "category": "Data"
     },
     {
       "id": 135,
       "name": "MAKE_FUNCTION_WIDE",
-      "length": 3
+      "length": 3,
+      "category": "Functions and closures. A closure holds exactly the values it captures, each in a fresh cell.",
+      "description": "[op][proc_lo][proc_hi]"
     },
     {
       "id": 136,
       "name": "MAKE_CLOSURE_OF",
-      "length": 4
+      "length": 4,
+      "category": "Functions and closures. A closure holds exactly the values it captures, each in a fresh cell.",
+      "description": "[op][proc_lo][proc_hi][count] pop count values, push a closure over them"
     },
     {
       "id": 137,
       "name": "SET_CAPTURE",
-      "length": 2
+      "length": 2,
+      "category": "Functions and closures. A closure holds exactly the values it captures, each in a fresh cell.",
+      "description": "[op][index] pop a value and a closure, store the value at index"
     },
     {
       "id": 138,
       "name": "GET_CELL",
-      "length": 2
+      "length": 2,
+      "category": "Functions and closures. A closure holds exactly the values it captures, each in a fresh cell.",
+      "description": "[op][index] push the running closure's capture at index"
     },
     {
       "id": 139,
       "name": "GET_CELL_WIDE",
-      "length": 3
+      "length": 3,
+      "category": "Functions and closures. A closure holds exactly the values it captures, each in a fresh cell."
     },
     {
       "id": 140,
       "name": "DEFINE_GLOBAL_WIDE",
-      "length": 3
+      "length": 3,
+      "category": "Variables"
     },
     {
       "id": 141,
       "name": "GET_GLOBAL_WIDE",
-      "length": 3
+      "length": 3,
+      "category": "Variables"
     },
     {
       "id": 142,
       "name": "SET_GLOBAL_WIDE",
-      "length": 3
+      "length": 3,
+      "category": "Variables"
     },
     {
       "id": 143,
       "name": "GET_LOCAL",
-      "length": 2
+      "length": 2,
+      "category": "Variables"
     },
     {
       "id": 144,
       "name": "SET_LOCAL",
-      "length": 2
+      "length": 2,
+      "category": "Variables"
     },
     {
       "id": 145,
       "name": "GET_LOCAL_WIDE",
-      "length": 3
+      "length": 3,
+      "category": "Variables"
     },
     {
       "id": 146,
       "name": "SET_LOCAL_WIDE",
-      "length": 3
+      "length": 3,
+      "category": "Variables"
     },
     {
       "id": 147,
       "name": "MAKE_CELL",
-      "length": 1
+      "length": 1,
+      "category": "Cell<T>"
     },
     {
       "id": 148,
       "name": "READ_CELL",
-      "length": 1
+      "length": 1,
+      "category": "Cell<T>"
     },
     {
       "id": 149,
       "name": "WRITE_CELL",
-      "length": 1
+      "length": 1,
+      "category": "Cell<T>"
     },
     {
       "id": 150,
       "name": "POP",
-      "length": 1
+      "length": 1,
+      "category": "Stack"
     },
     {
       "id": 151,
       "name": "PUSH_PLACEHOLDER",
-      "length": 2
+      "length": 2,
+      "category": "Stack",
+      "description": "[op][count] push count placeholders, the frame's slots past its parameters"
     },
     {
       "id": 152,
       "name": "RETURN",
-      "length": 1
+      "length": 1,
+      "category": "Return"
     },
     {
       "id": 153,
       "name": "HALT",
-      "length": 1
+      "length": 1,
+      "category": "Return"
     },
     {
       "id": 154,
       "name": "SPAWN_WORKER",
-      "length": 2
+      "length": 2,
+      "category": "Concurrency"
     },
     {
       "id": 155,
       "name": "JOIN_WORKER",
-      "length": 5
+      "length": 5,
+      "category": "Concurrency"
     },
     {
       "id": 156,
       "name": "CHANNEL_CREATE",
-      "length": 1
+      "length": 1,
+      "category": "Concurrency"
     },
     {
       "id": 157,
       "name": "CHANNEL_SEND",
-      "length": 1
+      "length": 1,
+      "category": "Concurrency"
     },
     {
       "id": 158,
       "name": "CHANNEL_RECEIVE",
-      "length": 1
+      "length": 1,
+      "category": "Concurrency"
     },
     {
       "id": 159,
       "name": "CHANNEL_CLOSE",
-      "length": 1
+      "length": 1,
+      "category": "Concurrency"
     },
     {
       "id": 160,
       "name": "WORKER_IS_DONE",
-      "length": 1
+      "length": 1,
+      "category": "Concurrency"
     },
     {
       "id": 161,
       "name": "WORKER_CANCEL",
-      "length": 1
+      "length": 1,
+      "category": "Concurrency"
     },
     {
       "id": 162,
       "name": "EXTEND_ARRAY",
-      "length": 1
+      "length": 1,
+      "category": "In-place concatenation"
     },
     {
       "id": 163,
       "name": "EXTEND_TEXT",
-      "length": 1
+      "length": 1,
+      "category": "In-place concatenation"
     },
     {
       "id": 164,
       "name": "ADD_LOCAL_INT",
-      "length": 3
+      "length": 3,
+      "category": "Local-operand superinstructions",
+      "description": "[op][local][imm8] local += imm, push the result"
     },
     {
       "id": 165,
       "name": "PUSH_LOCAL_SUB_INT",
-      "length": 3
+      "length": 3,
+      "category": "Local-operand superinstructions",
+      "description": "[op][local][imm8] push local - imm"
     },
     {
       "id": 166,
       "name": "IF_LOCAL_LE_INT",
-      "length": 5
+      "length": 5,
+      "category": "Local-operand superinstructions",
+      "description": "[op][local][imm8][off_lo][off_hi] jump if !(local <= imm)"
     },
     {
       "id": 167,
       "name": "IF_LOCAL_GE_LOCAL",
-      "length": 5
+      "length": 5,
+      "category": "Local-operand superinstructions",
+      "description": "[op][left][right][off_lo][off_hi] jump if !(left >= right)"
     },
     {
       "id": 168,
       "name": "GET_LOCAL2",
-      "length": 3
+      "length": 3,
+      "category": "Local-operand superinstructions",
+      "description": "[op][first][second] push two locals"
     },
     {
       "id": 169,
       "name": "STORE_LOCAL",
-      "length": 2
+      "length": 2,
+      "category": "Local-operand superinstructions",
+      "description": "[op][local] pop a value into local"
     },
     {
       "id": 170,
       "name": "IF_LOCAL_TAG_NOT",
-      "length": 5
+      "length": 5,
+      "category": "Local-operand superinstructions",
+      "description": "[op][local][tag][off_lo][off_hi] jump if local's union tag != tag"
     },
     {
       "id": 171,
       "name": "LOCAL_UNION_FIELD",
-      "length": 4
+      "length": 4,
+      "category": "Local-operand superinstructions",
+      "description": "[op][union][index][target] target = the field at index of the union in local union"
     },
     {
       "id": 172,
       "name": "IF_LOCAL_LT_INT",
-      "length": 5
+      "length": 5,
+      "category": "Local-operand superinstructions",
+      "description": "[op][local][imm8][off_lo][off_hi] jump if !(local < imm)"
     },
     {
       "id": 173,
       "name": "IF_LOCAL_LT_LOCAL",
-      "length": 5
+      "length": 5,
+      "category": "Local-operand superinstructions",
+      "description": "[op][left][right][off_lo][off_hi] jump if !(left < right)"
     },
     {
       "id": 174,
       "name": "IF_LOCAL_EQ_LOCAL",
-      "length": 5
+      "length": 5,
+      "category": "Local-operand superinstructions",
+      "description": "[op][left][right][off_lo][off_hi] jump if !(left == right)"
     },
     {
       "id": 175,
       "name": "STEP_LOCAL",
-      "length": 3
+      "length": 3,
+      "category": "Local-operand superinstructions",
+      "description": "[op][local][imm8] local += imm"
     },
     {
       "id": 176,
       "name": "LOCAL_ARRAY_GET",
-      "length": 4
+      "length": 4,
+      "category": "Local-operand superinstructions",
+      "description": "[op][array][index][target] target = array[index]"
     },
     {
       "id": 177,
       "name": "APPEND_LOCAL",
-      "length": 3
+      "length": 3,
+      "category": "Local-operand superinstructions",
+      "description": "[op][array][value] append value to the array in local array"
     },
     {
       "id": 178,
       "name": "LOCAL_UNION2",
-      "length": 5
+      "length": 5,
+      "category": "Local-operand superinstructions",
+      "description": "[op][tag][first][second][target] target = a union of the two locals with the tag"
     }
   ],
   "builtins": [

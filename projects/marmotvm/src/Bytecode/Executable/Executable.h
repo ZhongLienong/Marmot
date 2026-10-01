@@ -11,7 +11,7 @@
 enum class VmOpCode : uint8_t
 {
 #define MARMOT_OPCODE(name, length) name,
-#include "VmBytecode/Executable/OpCodes.def"
+#include "Bytecode/Executable/OpCodes.def"
 #undef MARMOT_OPCODE
 };
 
@@ -24,7 +24,7 @@ private:
 		std::array<int, 256> lengths{};
 		size_t index = 0uz;
 #define MARMOT_OPCODE(name, length) lengths[index] = length; index += 1uz;
-#include "VmBytecode/Executable/OpCodes.def"
+#include "Bytecode/Executable/OpCodes.def"
 #undef MARMOT_OPCODE
 		return lengths;
 	}();
@@ -32,7 +32,7 @@ private:
 	inline static constexpr std::array s_names =
 	{
 #define MARMOT_OPCODE(name, length) std::string_view(#name),
-#include "VmBytecode/Executable/OpCodes.def"
+#include "Bytecode/Executable/OpCodes.def"
 #undef MARMOT_OPCODE
 	};
 

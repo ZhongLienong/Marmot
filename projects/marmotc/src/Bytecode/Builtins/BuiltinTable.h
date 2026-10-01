@@ -12,7 +12,7 @@ class MarmotBuiltins
 private:
 	inline static constexpr std::array s_names =
 	{
-#define MARMOT_BUILTIN(name, arg_kinds, return_kind) std::string_view(#name),
+#define MARMOT_BUILTIN(name) std::string_view(#name),
 #include "Bytecode/Builtins/Builtins.def"
 #undef MARMOT_BUILTIN
 	};

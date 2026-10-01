@@ -2,7 +2,7 @@
 // writes the program and the marmot tool runs both.
 
 #include "Support/Diagnostics/Diagnostics.h"
-#include "VmBytecode/Disassembler/Disassembler.h"
+#include "Bytecode/Disassembler/Disassembler.h"
 #include "Error/RuntimeError.h"
 #include "Support/Json/Json.h"
 #include "Support/OutputCapture/OutputCapture.h"

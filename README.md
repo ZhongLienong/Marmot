@@ -644,6 +644,10 @@ cmake --preset linux-dev
 cmake --build --preset linux-dev --target marmotvm
 ```
 
+The opcode and builtin tables come from `format/mmc/registry-v13.json`.
+`python scripts/dev.py generate-mmc` updates their checked-in, project-private
+copies; `--check` checks freshness. Native builds use those copies directly.
+
 `python scripts/dev.py wasm` builds each project's independent WebAssembly
 module in `out/build/<project>/wasm64/out/`. `wasm --deploy <site-public-folder>`
 copies `marmotc.js/.wasm`, `marmotvm.js/.wasm`, the `marmot.js` browser adapter,

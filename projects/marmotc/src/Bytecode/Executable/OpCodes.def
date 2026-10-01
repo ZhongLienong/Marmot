@@ -1,15 +1,5 @@
-// Every bytecode instruction, in encoding order:
-//   MARMOT_OPCODE(name, length)
-// where length is the whole instruction in bytes, the opcode included. The
-// position of an entry is its byte value in .mmc files, so inserting,
-// removing or reordering entries needs an MbcFormatVersion bump; appending
-// does not. The enum, OpCodeTable, backend and linker read this compiler-side
-// list; the conformance check compares it with format/mmc/registry-v13.json.
-//
-// Procedures, globals and text constants are named in two bytes, because the
-// linker adds each module's first procedure, global or text to them, which
-// may pass 255. Procedures and texts put the low byte first, globals the high
-// byte first.
+// Generated from format/mmc/registry-v13.json. Do not edit.
+// Regenerate: python scripts/dev.py generate-mmc
 
 // Constants and literals
 MARMOT_OPCODE(LOAD_STRING_WIDE, 3)
@@ -152,7 +142,7 @@ MARMOT_OPCODE(IF_FLOAT_NOT_EQUAL, 3)
 
 // Unions
 MARMOT_OPCODE(GET_TAG, 1)
-MARMOT_OPCODE(GET_UNION_FIELD, 2)    // [op][index]                         replace a union with its field at index
+MARMOT_OPCODE(GET_UNION_FIELD, 2) // [op][index] replace a union with its field at index
 
 // Calls. CALL_0 to CALL_3 stay in order: the arity is the distance from CALL_0.
 MARMOT_OPCODE(CALL_FOREIGN, 3)
@@ -162,22 +152,21 @@ MARMOT_OPCODE(CALL_0, 1)
 MARMOT_OPCODE(CALL_1, 1)
 MARMOT_OPCODE(CALL_2, 1)
 MARMOT_OPCODE(CALL_3, 1)
-MARMOT_OPCODE(CALL_PROC_WIDE, 4)     // [op][proc_lo][proc_hi][arity]
-MARMOT_OPCODE(CALL_GLOBAL_WIDE, 4)   // [op][global_hi][global_lo][arity]
+MARMOT_OPCODE(CALL_PROC_WIDE, 4) // [op][proc_lo][proc_hi][arity]
+MARMOT_OPCODE(CALL_GLOBAL_WIDE, 4) // [op][global_hi][global_lo][arity]
 MARMOT_OPCODE(TAIL_CALL, 2)
 
 // Data
 MARMOT_OPCODE(CONSTRUCT_STRUCT, 2)
-MARMOT_OPCODE(CONSTRUCT_UNION, 3)    // [op][size][tag]                     pop size fields, push a union of them with the tag
+MARMOT_OPCODE(CONSTRUCT_UNION, 3) // [op][size][tag] pop size fields, push a union of them with the tag
 MARMOT_OPCODE(LOAD_EMPTY_UNION, 2)
 MARMOT_OPCODE(GET_MEMBER, 2)
 
-// Functions and closures. A closure holds exactly the values it captures,
-// each in a fresh cell.
+// Functions and closures. A closure holds exactly the values it captures, each in a fresh cell.
 MARMOT_OPCODE(MAKE_FUNCTION_WIDE, 3) // [op][proc_lo][proc_hi]
-MARMOT_OPCODE(MAKE_CLOSURE_OF, 4)    // [op][proc_lo][proc_hi][count]       pop count values, push a closure over them
-MARMOT_OPCODE(SET_CAPTURE, 2)        // [op][index]                         pop a value and a closure, store the value at index
-MARMOT_OPCODE(GET_CELL, 2)           // [op][index]                         push the running closure's capture at index
+MARMOT_OPCODE(MAKE_CLOSURE_OF, 4) // [op][proc_lo][proc_hi][count] pop count values, push a closure over them
+MARMOT_OPCODE(SET_CAPTURE, 2) // [op][index] pop a value and a closure, store the value at index
+MARMOT_OPCODE(GET_CELL, 2) // [op][index] push the running closure's capture at index
 MARMOT_OPCODE(GET_CELL_WIDE, 3)
 
 // Variables
@@ -196,7 +185,7 @@ MARMOT_OPCODE(WRITE_CELL, 1)
 
 // Stack
 MARMOT_OPCODE(POP, 1)
-MARMOT_OPCODE(PUSH_PLACEHOLDER, 2)   // [op][count]                         push count placeholders, the frame's slots past its parameters
+MARMOT_OPCODE(PUSH_PLACEHOLDER, 2) // [op][count] push count placeholders, the frame's slots past its parameters
 
 // Return
 MARMOT_OPCODE(RETURN, 1)
@@ -217,18 +206,18 @@ MARMOT_OPCODE(EXTEND_ARRAY, 1)
 MARMOT_OPCODE(EXTEND_TEXT, 1)
 
 // Local-operand superinstructions
-MARMOT_OPCODE(ADD_LOCAL_INT, 3)      // [op][local][imm8]                   local += imm, push the result
-MARMOT_OPCODE(PUSH_LOCAL_SUB_INT, 3) // [op][local][imm8]                   push local - imm
-MARMOT_OPCODE(IF_LOCAL_LE_INT, 5)    // [op][local][imm8][off_lo][off_hi]   jump if !(local <= imm)
-MARMOT_OPCODE(IF_LOCAL_GE_LOCAL, 5)  // [op][left][right][off_lo][off_hi]   jump if !(left >= right)
-MARMOT_OPCODE(GET_LOCAL2, 3)         // [op][first][second]                 push two locals
-MARMOT_OPCODE(STORE_LOCAL, 2)        // [op][local]                         pop a value into local
-MARMOT_OPCODE(IF_LOCAL_TAG_NOT, 5)   // [op][local][tag][off_lo][off_hi]    jump if local's union tag != tag
-MARMOT_OPCODE(LOCAL_UNION_FIELD, 4)  // [op][union][index][target]          target = the field at index of the union in local union
-MARMOT_OPCODE(IF_LOCAL_LT_INT, 5)    // [op][local][imm8][off_lo][off_hi]   jump if !(local < imm)
-MARMOT_OPCODE(IF_LOCAL_LT_LOCAL, 5)  // [op][left][right][off_lo][off_hi]   jump if !(left < right)
-MARMOT_OPCODE(IF_LOCAL_EQ_LOCAL, 5)  // [op][left][right][off_lo][off_hi]   jump if !(left == right)
-MARMOT_OPCODE(STEP_LOCAL, 3)         // [op][local][imm8]                   local += imm
-MARMOT_OPCODE(LOCAL_ARRAY_GET, 4)    // [op][array][index][target]          target = array[index]
-MARMOT_OPCODE(APPEND_LOCAL, 3)       // [op][array][value]                  append value to the array in local array
-MARMOT_OPCODE(LOCAL_UNION2, 5)       // [op][tag][first][second][target]    target = a union of the two locals with the tag
+MARMOT_OPCODE(ADD_LOCAL_INT, 3) // [op][local][imm8] local += imm, push the result
+MARMOT_OPCODE(PUSH_LOCAL_SUB_INT, 3) // [op][local][imm8] push local - imm
+MARMOT_OPCODE(IF_LOCAL_LE_INT, 5) // [op][local][imm8][off_lo][off_hi] jump if !(local <= imm)
+MARMOT_OPCODE(IF_LOCAL_GE_LOCAL, 5) // [op][left][right][off_lo][off_hi] jump if !(left >= right)
+MARMOT_OPCODE(GET_LOCAL2, 3) // [op][first][second] push two locals
+MARMOT_OPCODE(STORE_LOCAL, 2) // [op][local] pop a value into local
+MARMOT_OPCODE(IF_LOCAL_TAG_NOT, 5) // [op][local][tag][off_lo][off_hi] jump if local's union tag != tag
+MARMOT_OPCODE(LOCAL_UNION_FIELD, 4) // [op][union][index][target] target = the field at index of the union in local union
+MARMOT_OPCODE(IF_LOCAL_LT_INT, 5) // [op][local][imm8][off_lo][off_hi] jump if !(local < imm)
+MARMOT_OPCODE(IF_LOCAL_LT_LOCAL, 5) // [op][left][right][off_lo][off_hi] jump if !(left < right)
+MARMOT_OPCODE(IF_LOCAL_EQ_LOCAL, 5) // [op][left][right][off_lo][off_hi] jump if !(left == right)
+MARMOT_OPCODE(STEP_LOCAL, 3) // [op][local][imm8] local += imm
+MARMOT_OPCODE(LOCAL_ARRAY_GET, 4) // [op][array][index][target] target = array[index]
+MARMOT_OPCODE(APPEND_LOCAL, 3) // [op][array][value] append value to the array in local array
+MARMOT_OPCODE(LOCAL_UNION2, 5) // [op][tag][first][second][target] target = a union of the two locals with the tag

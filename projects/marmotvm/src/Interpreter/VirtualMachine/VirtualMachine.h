@@ -1,9 +1,9 @@
 #pragma once
 
-#include "VmBytecode/Format/Format.h"
+#include "Bytecode/Format/Format.h"
 #include "Support/Attributes/Attributes.h"
 #include "Error/RuntimeError.h"
-#include "VmBytecode/Executable/Executable.h"
+#include "Bytecode/Executable/Executable.h"
 #include "Interpreter/Allocator/MidoriAllocator.h"
 #include "Interpreter/GarbageCollector/GarbageCollector.h"
 #include "Library/MidoriBuiltinFFIRegistry/MidoriFFIRegistry.h"

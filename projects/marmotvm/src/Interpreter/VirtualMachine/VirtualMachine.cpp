@@ -1,12 +1,12 @@
-#include "VmBytecode/Format/Format.h"
+#include "Bytecode/Format/Format.h"
 #include "Support/Attributes/Attributes.h"
 #include "Support/Diagnostics/Diagnostics.h"
 #include "Support/Terminal/Terminal.h"
-#include "VmBytecode/Scalar/IntegerArithmetic.h"
+#include "Bytecode/Scalar/IntegerArithmetic.h"
 #include "Interpreter/Channel/Channel.h"
 #include "Interpreter/ValueTransfer/ValueTransfer.h"
 #include "Interpreter/Worker/Worker.h"
-#include "VmBytecode/Disassembler/Disassembler.h"
+#include "Bytecode/Disassembler/Disassembler.h"
 #include "VirtualMachine.h"
 
 #ifdef _WIN32

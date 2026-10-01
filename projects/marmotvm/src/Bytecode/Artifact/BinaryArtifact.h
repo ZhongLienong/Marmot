@@ -5,7 +5,7 @@
 #include <iosfwd>
 #include <string>
 
-#include "VmBytecode/Executable/Executable.h"
+#include "Bytecode/Executable/Executable.h"
 
 namespace VmBinaryArtifact
 {

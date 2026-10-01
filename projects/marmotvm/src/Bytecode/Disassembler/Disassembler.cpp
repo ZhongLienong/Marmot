@@ -8,9 +8,9 @@
 #include <string_view>
 #include <utility>
 
-#include "VmBytecode/Executable/Executable.h"
-#include "VmBytecode/Scalar/Scalar.h"
-#include "VmBytecode/Builtins/BuiltinTable.h"
+#include "Bytecode/Executable/Executable.h"
+#include "Bytecode/Scalar/Scalar.h"
+#include "Bytecode/Builtins/BuiltinTable.h"
 #include "Disassembler.h"
 
 

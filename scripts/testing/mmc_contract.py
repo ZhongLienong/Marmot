@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from lib.host import REPO_ROOT, checkout_environment
 from lib.presets import BuildTree, add_build_arguments
+from make import generate_mmc
 
 
 CONTRACT_DIR = REPO_ROOT / "format" / "mmc"
@@ -118,7 +119,7 @@ def normalize_artifact(blob: bytes) -> bytes:
     return header + normalized
 
 
-def source_registry(side: Path) -> dict[str, object]:
+def source_registry(side: Path, *, signatures: bool) -> dict[str, object]:
     opcode_source = (side / "Executable/OpCodes.def").read_text(encoding="utf-8")
     builtin_source = (side / "Builtins/Builtins.def").read_text(encoding="utf-8")
     builtin_header = (side / "Builtins/BuiltinTable.h").read_text(encoding="utf-8")
@@ -131,6 +132,9 @@ def source_registry(side: Path) -> dict[str, object]:
         if not line.startswith("MARMOT_BUILTIN("):
             continue
         body = line.removeprefix("MARMOT_BUILTIN(").removesuffix(")")
+        if not signatures:
+            builtins.append({"id": len(builtins), "name": body.strip()})
+            continue
         name, remainder = body.split(",", 1)
         arguments, result = remainder.rsplit(",", 1)
         builtins.append({
@@ -142,17 +146,24 @@ def source_registry(side: Path) -> dict[str, object]:
     abi_version = re.search(r"ABI_VERSION\s*=\s*(\d+)", builtin_header)
     if abi_version is None:
         raise AssertionError("builtin ABI version is missing")
-    return {"format_version": 13, "builtin_abi_version": int(abi_version.group(1)),
+    return {"builtin_abi_version": int(abi_version.group(1)),
             "opcodes": opcodes, "builtins": builtins}
 
 
 def check_registry() -> None:
+    generate_mmc.check_generated()
     frozen = json.loads((CONTRACT_DIR / "registry-v13.json").read_text(encoding="utf-8"))
     for name, side, version_name in (
         ("marmotc", REPO_ROOT / "projects/marmotc/src/Bytecode", "MbcFormatVersion"),
-        ("marmotvm", REPO_ROOT / "projects/marmotvm/src/VmBytecode", "VmMbcFormatVersion"),
+        ("marmotvm", REPO_ROOT / "projects/marmotvm/src/Bytecode", "VmMbcFormatVersion"),
     ):
-        if source_registry(side) != frozen:
+        expected = {
+            "builtin_abi_version": frozen["builtin_abi_version"],
+            "opcodes": [{key: opcode[key] for key in ("id", "name", "length")} for opcode in frozen["opcodes"]],
+            "builtins": frozen["builtins"] if name == "marmotvm" else
+                        [{key: builtin[key] for key in ("id", "name")} for builtin in frozen["builtins"]],
+        }
+        if source_registry(side, signatures=name == "marmotvm") != expected:
             raise AssertionError(f"{name} opcode or builtin table differs from the frozen version-13 registry")
         format_header = (side / "Format/Format.h").read_text(encoding="utf-8")
         version = re.search(rf"{version_name}\s*=\s*(\d+)u", format_header)

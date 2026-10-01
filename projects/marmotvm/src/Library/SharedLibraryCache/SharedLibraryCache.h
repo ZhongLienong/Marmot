@@ -1,6 +1,6 @@
 #pragma once
 
-#include "VmBytecode/Builtins/BuiltinTable.h"
+#include "Bytecode/Builtins/BuiltinTable.h"
 
 #include <expected>
 #include <filesystem>

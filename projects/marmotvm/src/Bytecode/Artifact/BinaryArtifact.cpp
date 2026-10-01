@@ -1,4 +1,4 @@
-#include "VmBytecode/Artifact/BinaryArtifact.h"
+#include "Bytecode/Artifact/BinaryArtifact.h"
 
 #include <array>
 #include <cstdint>
@@ -8,7 +8,7 @@
 #include <string>
 #include <string_view>
 
-#include "VmBytecode/Format/Format.h"
+#include "Bytecode/Format/Format.h"
 
 namespace
 {

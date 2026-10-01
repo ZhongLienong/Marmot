@@ -1,6 +1,6 @@
 #include "Loader/ProgramLoader.h"
 
-#include "VmBytecode/Artifact/BinaryArtifact.h"
+#include "Bytecode/Artifact/BinaryArtifact.h"
 #include "Interpreter/VirtualMachine/VirtualMachine.h"
 #include "Interpreter/Worker/Worker.h"
 #include "Library/SharedLibraryCache/SharedLibraryCache.h"

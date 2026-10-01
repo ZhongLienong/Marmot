@@ -83,7 +83,9 @@ def resolve(including_file, target):
     local = (including_file.parent / target)
     if local.is_file():
         return local
-    for include_root in INCLUDE_ROOTS.values():
+    source_component = component_of(including_file)
+    include_roots = sorted(INCLUDE_ROOTS.items(), key=lambda item: item[0] not in ALLOWED[source_component])
+    for _, include_root in include_roots:
         candidate = include_root / target
         if candidate.is_file():
             return candidate

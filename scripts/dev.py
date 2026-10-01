@@ -43,6 +43,7 @@ class Command:
 COMMANDS: dict[str, Command] = {
     "doctor": Command("make.doctor", "check the toolchain and show what is built", "Build"),
     "configure": Command("make.configure", "(re)configure a CMake build tree", "Build"),
+    "generate-mmc": Command("make.generate_mmc", "generate private .mmc tables, or --check them", "Build"),
     "build": Command("make.compile", "build compiler, vm, unit, tool or all", "Build"),
     "clean": Command("make.clean", "delete a build tree, or --all build output", "Build"),
     "wasm": Command("make.wasm", "build for WebAssembly, and --deploy it to a website", "Build"),
