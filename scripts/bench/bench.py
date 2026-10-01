@@ -3,8 +3,8 @@
 Run the benchmark suite and report per-benchmark medians.
 
 Optionally compares two sides with interleaved runs, so machine drift affects
-both equally: two compilers, each run with the marmotvm beside it. To keep a
-baseline, copy a build's out/ folder aside before changing the sources.
+both equally: two compilers, each run with its matching marmotvm. To keep a
+baseline, copy both projects' executables into one folder before changing sources.
 
 Usage:
     python scripts/dev.py bench                         # the Release build
@@ -53,7 +53,7 @@ def every_workload() -> list[Path]:
 
 
 def run_workload(exe: Path, workload: Path, prefix: bool) -> dict[str, float]:
-    # marmotc builds the workload; marmotvm (beside it) runs what is measured.
+    # marmotc builds the workload; the matching marmotvm runs what is measured.
     environment = checkout_environment()
     with tempfile.TemporaryDirectory(prefix="marmot-bench-") as directory:
         program = Path(directory) / (workload.stem + ".mmc")

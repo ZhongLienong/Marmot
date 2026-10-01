@@ -28,7 +28,7 @@ There is no root `CMakeLists.txt` and no installable C++ package shared by `marm
 
 ## Progress
 
-Phases 1–5 are implemented. The compiler, VM, project tool, and browser integration
+Phases 1–6 are implemented. The compiler, VM, project tool, and browser integration
 now live under `projects/`. Each native C++ project owns its CMake build, presets,
 unit tests, and install target. Repository integration tests live in
 `test/integration/` and invoke the VM through temporary `.mmc` files.
@@ -51,7 +51,25 @@ Verification passed the full Dev gate and a real browser smoke test covering
 prelude imports, output capture, structured compiler/runtime errors, embedded
 source diagnostics, recovery after errors, the native compatibility fixture,
 and malformed artifacts. The deployment command copies the adapter, both
-module pairs, and the prelude. Final integration and removal is the next phase.
+module pairs, and the prelude.
+
+Phase 6 removes unused compiler-side VM build definitions, confines integration
+test settings to their target, and requires both executables for the tool check.
+Installation accepts independent `--marmotc` and `--marmotvm` paths. Checkout
+compiler/prelude discovery applies only to a Debug tool running inside its own
+project; an installed Debug tool uses installed siblings and `MARMOT_PATH`.
+Regression coverage exercises both layouts. Editor defaults work on Windows
+and Linux, and discovery help, benchmark instructions, and existing docs match
+the independent builds. Deployment removes the obsolete combined `marmot.wasm`,
+and the old generated WebAssembly tree and empty wrapper directories are gone.
+The layering check also rejects a root CMake project and unowned repository headers.
+
+Final verification passed the full Dev gate (including all 531 language
+fixtures), independent Debug and Release configure/build/CTest, subprocess
+integration, CLI and `.mmc` checks in every profile, Cargo tests, independent
+CMake installs and an isolated installed-toolchain run, and all 14 browser
+smoke checks against rebuilt WebAssembly modules. Verification ran on Windows;
+Linux execution was not available in this session. Step 6 is ready for review.
 
 ## Baseline coupling to remove
 
@@ -125,9 +143,9 @@ Run the full `python scripts/dev.py gate` before any commit, as required by `AGE
 
 ## Final acceptance checklist
 
-- `marmotc` can be built, tested, and installed from its own directory without configuring or linking `marmotvm`; the reverse holds for `marmotvm`.
-- No C++ library, header, or in-memory executable type crosses the compiler/VM boundary. Their only program interchange is versioned `.mmc` bytes.
-- The format contract contains enough information to implement an OCaml writer, and independent fixtures catch opcode, builtin-index, and serialization drift.
-- `marmotvm disassemble` works in Release. AST and IR printers remain available in Release. Internal metrics are explicit and do not pollute program stdout.
-- `marmot`, native scripts, installation, language suite, and browser workflow use the new project paths and pass their checks.
-- The root has no CMake project; `Experimental` and the old shared bytecode target are gone.
+- [x] `marmotc` can be built, tested, and installed from its own directory without configuring or linking `marmotvm`; the reverse holds for `marmotvm`.
+- [x] No C++ library, header, or in-memory executable type crosses the compiler/VM boundary. Their only program interchange is versioned `.mmc` bytes.
+- [x] The format contract contains enough information to implement an OCaml writer, and independent fixtures catch opcode, builtin-index, and serialization drift.
+- [x] `marmotvm disassemble` works in Release. AST and IR printers remain available in Release. Internal metrics are explicit and do not pollute program stdout.
+- [x] `marmot`, native scripts, installation, language suite, and browser workflow use the new project paths and pass their checks.
+- [x] The root has no CMake project; `Experimental` and the old shared bytecode target are gone.

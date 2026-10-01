@@ -28,7 +28,7 @@ INCLUDE_ROOTS = {
     'compiler': ROOT / 'projects' / 'marmotc' / 'src',
 }
 
-# The folders of compiler/src that form the driver, not the compiler library.
+# The compiler's driver stays outside the compiler pipeline.
 DRIVER_DIRS = [
     ROOT / 'projects' / 'marmotc' / 'src' / 'Utility' / name
     for name in ('CLI', 'Driver')
@@ -97,6 +97,9 @@ def main(argv: list[str]) -> int:
             sources.extend(folder.rglob(pattern))
 
     violations = []
+    for filename in ('CMakeLists.txt', 'CMakePresets.json'):
+        if (ROOT / filename).exists():
+            violations.append(f'{filename}: C++ builds must belong to individual projects')
     for source in sorted(sources):
         source_component = component_of(source)
         if source_component is None:
@@ -108,12 +111,14 @@ def main(argv: list[str]) -> int:
             if resolved is None:
                 continue
             target_component = component_of(resolved)
-            if target_component is None or target_component in ALLOWED[source_component]:
+            if target_component in ALLOWED[source_component]:
+                continue
+            if target_component is None and not resolved.resolve().is_relative_to(ROOT.resolve()):
                 continue
             line = text.count('\n', 0, match.start()) + 1
             violations.append(
                 f'{source.relative_to(ROOT).as_posix()}:{line}: {source_component} includes '
-                f'{target_component} header "{match.group(1)}"'
+                f'{target_component or "unowned repository"} header "{match.group(1)}"'
             )
 
     cmake = '\n'.join(path.read_text(encoding='utf-8') for project in ('marmotc', 'marmotvm') for path in (ROOT / 'projects' / project).rglob('*.cmake')) + '\n' + '\n'.join((ROOT / 'projects' / project / 'CMakeLists.txt').read_text(encoding='utf-8') for project in ('marmotc', 'marmotvm'))

@@ -35,7 +35,8 @@ Windows it goes to `%LOCALAPPDATA%\Marmot` and sets `MARMOT_PATH` and `PATH` for
 new terminals. On Linux it goes to `~/.local/share/marmot` (or
 `$XDG_DATA_HOME/marmot`) and writes an `env.sh` there for your shell profile to
 source. Without `--rebuild` it installs the build made last; `--build` picks
-one.
+one. `--marmotc <file>` and `--marmotvm <file>` select executables built in
+custom directories.
 
 ## Getting Started
 
@@ -688,7 +689,8 @@ out unless configured with them (`dev.py configure --build Release --unit-tests`
 `dev.py gate --build Release` does that itself).
 
 The `marmot` tool runs the language suite too, from the repository root, with
-`MARMOTC` naming the compiler (marmotvm is found beside it) and `MARMOT_PATH`
+`MARMOTC` naming the compiler (`marmotvm` is found in the matching project build
+or beside an installed compiler) and `MARMOT_PATH`
 the prelude:
 ```bash
 marmot test

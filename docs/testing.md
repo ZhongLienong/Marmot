@@ -214,8 +214,7 @@ links Compiler). The two sides share no C++ library or header; `format/mmc/`
 holds their versioned file contract. Each library exports only its own include
 root, so most wrong includes already fail to compile; the script also checks
 includes and production CMake links. It also keeps the compiler pipeline (`projects/marmotc/src/Compiler`, apart
-from the package manager) free of project discovery: those files may not
-include the package manager or `Utility/Project`, or read environment
+from the driver) free of project discovery: those files may not read environment
 variables, because the compiler compiles from the `CompilationInputs` its
 caller passes. It needs no build, and the gate runs it first.
 
@@ -252,7 +251,8 @@ python scripts/dev.py test --test closure/simple.mmt --verbose
 ```
 
 The marmot tool runs it too, from the repository root, with `MARMOTC` naming
-the compiler and `MARMOT_PATH` the prelude:
+the compiler and `MARMOT_PATH` the prelude. It finds the VM in the matching
+project build or beside an installed compiler; `MARMOTVM` selects another VM:
 
 ```powershell
 $env:MARMOTC = ".\out\build\marmotc\x64-dev\out\marmotc.exe"

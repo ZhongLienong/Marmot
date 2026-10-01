@@ -41,7 +41,8 @@ Options:
                         built last in this checkout, then marmotc on PATH
   --rebuild             Build even if the program is unchanged (run)
   --marmotvm PATH       The VM to run programs in (run, test); otherwise MARMOTVM,
-                        then marmotvm next to the compiler or this program,
+                        then the matching checkout build, then marmotvm next
+                        to the compiler or this program,
                         then marmotvm on PATH
   -h, --help            Show this help
   -V                    Show the version

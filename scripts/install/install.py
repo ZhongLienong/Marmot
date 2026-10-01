@@ -39,8 +39,8 @@ from lib.presets import BuildTree, add_build_arguments, newest_built
 
 
 def chosen_compiler(args: argparse.Namespace) -> Path:
-    if args.marmot_exe:
-        return Path(args.marmot_exe).expanduser().resolve()
+    if args.marmotc:
+        return Path(args.marmotc).expanduser().resolve()
     if args.build or args.preset:
         return BuildTree.select(args.build or "Release", args.preset).require_compiler()
     newest = newest_built()
@@ -57,9 +57,8 @@ def rebuild(args: argparse.Namespace) -> int:
     return cargo.build(release=True)
 
 
-def copy_binaries(target: InstallLayout, compiler: Path) -> None:
+def copy_binaries(target: InstallLayout, compiler: Path, vm: Path) -> None:
     target.bin_dir.mkdir(parents=True, exist_ok=True)
-    vm = vm_beside(compiler)
     for binary in (compiler, vm):
         if not binary.is_file():
             raise SystemExit(f"{binary} is not built.")
@@ -77,6 +76,8 @@ def copy_binaries(target: InstallLayout, compiler: Path) -> None:
 
 
 def copy_prelude(target: InstallLayout) -> None:
+    if not target.prelude_dir.resolve().is_relative_to(target.root.resolve()):
+        raise SystemExit(f"Prelude output must stay inside the install folder: {target.prelude_dir}")
     if target.prelude_dir.exists():
         shutil.rmtree(target.prelude_dir)
     shutil.copytree(PRELUDE_DIR, target.prelude_dir)
@@ -113,7 +114,8 @@ def main(argv: list[str]) -> int:
     add_build_arguments(parser, default=None)
     parser.add_argument("--scope", choices=["user", "machine"], default="user", help="Windows: set the variables for the user or the machine (default: user).")
     parser.add_argument("--install-dir", default="", help="Where to install (default: %%LOCALAPPDATA%%\\Marmot, or ~/.local/share/marmot).")
-    parser.add_argument("--marmot-exe", default="", help="Install this marmotc (and the marmotvm beside it) instead of a build's.")
+    parser.add_argument("--marmotc", default="", help="Install this compiler instead of the selected build's.")
+    parser.add_argument("--marmotvm", default="", help="Install this VM instead of the matching build or installed sibling.")
     parser.add_argument("--prelude-only", action="store_true", help="Install just the prelude and MARMOT_PATH.")
     parser.add_argument("--rebuild", action="store_true", help="Build marmotc, marmotvm and the tool first (Release unless --build says).")
     args = parser.parse_args(argv)
@@ -130,7 +132,9 @@ def main(argv: list[str]) -> int:
     target.root.mkdir(parents=True, exist_ok=True)
     with_binaries = not args.prelude_only
     if with_binaries:
-        copy_binaries(target, chosen_compiler(args))
+        compiler = chosen_compiler(args)
+        vm = Path(args.marmotvm).expanduser().resolve() if args.marmotvm else vm_beside(compiler)
+        copy_binaries(target, compiler, vm)
     copy_prelude(target)
     marker = {"schema_version": 1, "installed_by": "scripts/install/install.py", "scope": args.scope,
               "prelude_dir": str(target.prelude_dir), "bin_dir": str(target.bin_dir)}

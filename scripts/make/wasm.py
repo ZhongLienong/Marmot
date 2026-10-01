@@ -169,6 +169,8 @@ def deploy(site: Path) -> int:
         shutil.copy2(source, site / filename)
         print(f"  {filename} ({format_size(source.stat().st_size)})")
 
+    (site / "marmot.wasm").unlink(missing_ok=True)
+
     prelude = site / "MarmotPrelude"
     if not prelude.resolve().is_relative_to(site.resolve()):
         raise SystemExit(f"Prelude output must stay inside the website folder: {prelude}")

@@ -79,7 +79,7 @@ def run_vm(
     args: list[str],
     env_overrides: dict[str, str | None] | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    """marmotvm, beside the marmotc under test."""
+    """The matching independent VM build or installed sibling."""
     env = os.environ.copy()
     for key, value in (env_overrides or {}).items():
         if value is None:

@@ -40,7 +40,7 @@
       "properties": {
         "marmot.executablePath": {
           "type": "string",
-          "default": "marmot.exe",
+          "default": "marmot",
           "description": "Path to the marmot project tool used for diagnostics."
         }
       }

@@ -125,7 +125,7 @@ fn marmot(compiler: &Path, directory: &Path, args: &[&str]) -> Output {
     )
 }
 
-/// marmotvm, which the tool finds beside the compiler.
+/// The explicit VM supplied by the repository gate, or an installed sibling.
 fn vm(compiler: &Path) -> PathBuf {
     std::env::var_os("MARMOTVM")
         .map(PathBuf::from)
@@ -346,6 +346,23 @@ fn run_check_build_and_the_plan_handoff() {
     assert!(project.path("target/src/Main.mmc").exists());
     assert!(!project.path("src/Main.mmc").exists());
 
+    let suffix = std::env::consts::EXE_SUFFIX;
+    let independent_compiler = project.path(&format!("build/marmotc/dev/out/marmotc{suffix}"));
+    let independent_vm = project.path(&format!("build/marmotvm/dev/out/marmotvm{suffix}"));
+    std::fs::create_dir_all(independent_compiler.parent().unwrap()).unwrap();
+    std::fs::create_dir_all(independent_vm.parent().unwrap()).unwrap();
+    std::fs::copy(&compiler, &independent_compiler).unwrap();
+    std::fs::copy(vm(&compiler), independent_vm).unwrap();
+    let discovered = Command::new(env!("CARGO_BIN_EXE_marmot"))
+        .args(["run", "--rebuild"])
+        .current_dir(&project.0)
+        .env("MARMOTC", independent_compiler)
+        .env_remove("MARMOTVM")
+        .env("MARMOT_PATH", prelude())
+        .output()
+        .unwrap();
+    assert_eq!(text(&succeeded(&discovered).stdout), "hello, plan!\n");
+
     // The tool's plan is all the compiler needs, and the .mmc all the VM needs.
     succeeded(&marmot(&compiler, &project.0, &["plan", "-o", "plan.json"]));
     succeeded(&marmotc(
@@ -353,7 +370,12 @@ fn run_check_build_and_the_plan_handoff() {
         &project.0,
         &["build", "--plan", "plan.json", "-o", "direct.mmc"],
     ));
-    let direct = run(&vm(&compiler), &project.0, &["run", "direct.mmc"], &compiler);
+    let direct = run(
+        &vm(&compiler),
+        &project.0,
+        &["run", "direct.mmc"],
+        &compiler,
+    );
     assert_eq!(text(&succeeded(&direct).stdout), "hello, plan!\n");
 
     // Without the plan, the compiler knows nothing of the project's packages.
@@ -371,6 +393,41 @@ fn run_check_build_and_the_plan_handoff() {
 
     succeeded(&marmot(&compiler, &project.0, &["build"]));
     assert!(project.path("src/Main.mmc").exists());
+}
+
+#[test]
+fn an_installed_tool_uses_its_siblings_and_installed_prelude() {
+    let Some(compiler) = compiler() else { return };
+    let project = Project::new("installed-tool");
+    let suffix = std::env::consts::EXE_SUFFIX;
+    let bin = project.path("install/bin");
+    std::fs::create_dir_all(&bin).unwrap();
+    let tool = bin.join(format!("marmot{suffix}"));
+    std::fs::copy(env!("CARGO_BIN_EXE_marmot"), &tool).unwrap();
+    std::fs::copy(&compiler, bin.join(format!("marmotc{suffix}"))).unwrap();
+    std::fs::copy(vm(&compiler), bin.join(format!("marmotvm{suffix}"))).unwrap();
+    project.write(
+        "install/MarmotPrelude/Installed.mmt",
+        "module Installed\npublic export { Value }\ndef Value = 42;\n",
+    );
+    project.write("Main.mmt", "module Main\nimport { <Installed> }\nforeign \"MIDORI_FFI_Print\" Print : fn(Text) -> Unit;\nPrint(Installed::Value as Text);\n");
+    let invoke = |command| {
+        Command::new(&tool)
+            .args([command, "Main.mmt"])
+            .current_dir(&project.0)
+            .env_remove("MARMOTC")
+            .env_remove("MARMOTVM")
+            .env("MARMOT_PATH", project.path("install/MarmotPrelude"))
+            .output()
+            .unwrap()
+    };
+    let planned = invoke("plan");
+    let plan: serde_json::Value = serde_json::from_slice(&succeeded(&planned).stdout).unwrap();
+    assert_eq!(
+        plan["search_paths"],
+        serde_json::json!([project.path("install").join("MarmotPrelude")])
+    );
+    assert_eq!(text(&succeeded(&invoke("run")).stdout), "42");
 }
 
 #[test]

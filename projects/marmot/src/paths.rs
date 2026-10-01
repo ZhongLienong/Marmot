@@ -12,23 +12,29 @@ pub fn split_search_paths(value: &str) -> Vec<PathBuf> {
         .collect()
 }
 
-/// MARMOT_PATH, after -- for a debug build of this tool, which comes from a
-/// Marmot checkout -- that checkout's prelude, so `<IO>` means the prelude
+/// MARMOT_PATH, after -- for a debug tool running in its Marmot project --
+/// that checkout's prelude, so `<IO>` means the prelude
 /// being worked on rather than whichever one is installed.
 pub fn marmot_path() -> Vec<PathBuf> {
-    let checkout_prelude = cfg!(debug_assertions)
-        .then(|| {
-            Path::new(env!("CARGO_MANIFEST_DIR"))
-                .parent()
-                .and_then(Path::parent)
-                .map(|root| root.join("MarmotPrelude"))
-        })
-        .flatten()
+    let checkout_prelude = checkout_root()
+        .map(|root| root.join("MarmotPrelude"))
         .filter(|prelude| prelude.is_dir());
     let environment = std::env::var("MARMOT_PATH")
         .map(|value| split_search_paths(&value))
         .unwrap_or_default();
     checkout_prelude.into_iter().chain(environment).collect()
+}
+
+pub fn checkout_root() -> Option<PathBuf> {
+    if !cfg!(debug_assertions) {
+        return None;
+    }
+    let project = resolved(Path::new(env!("CARGO_MANIFEST_DIR")));
+    let executable = resolved(&std::env::current_exe().ok()?);
+    if !executable.starts_with(&project) {
+        return None;
+    }
+    project.parent()?.parent().map(Path::to_path_buf)
 }
 
 pub fn absolute(path: &Path) -> PathBuf {

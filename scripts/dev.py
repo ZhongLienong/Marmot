@@ -64,7 +64,7 @@ CHECKS: dict[str, Command] = {
     "cli": Command("testing.cli_contracts", "command-line contracts", "Tests", UNIT_TARGETS),
     "format": Command("testing.formatting", "formatter idempotency", "Tests", ["marmotc"]),
     "benchmarks": Command("testing.benchmarks", "benchmarks compile (--run to run them)", "Tests", COMPILER_AND_VM),
-    "tool": Command("testing.tool", "the marmot tool's tests", "Tests", ["marmotc"]),
+    "tool": Command("testing.tool", "the marmot tool's tests", "Tests", COMPILER_AND_VM),
     "mmc": Command("testing.mmc_contract", "version-13 .mmc contract and fixture compatibility", "Tests", UNIT_TARGETS),
     "web": Command("testing.web", "serve the WebAssembly browser smoke test", "Tests"),
 }

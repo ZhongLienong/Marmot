@@ -24,7 +24,7 @@ function diagnosticSeverity(value) {
     }
 }
 
-function midoriExecutablePath() {
+function marmotExecutablePath() {
     const config = vscode.workspace.getConfiguration("marmot");
     return config.get("executablePath", process.platform === "win32" ? "marmot.exe" : "marmot");
 }
@@ -34,7 +34,7 @@ function refreshDiagnostics(document, collection) {
         return;
     }
 
-    const executable = midoriExecutablePath();
+    const executable = marmotExecutablePath();
     childProcess.execFile(
         executable,
         ["check", document.fileName, "--format", "json"],

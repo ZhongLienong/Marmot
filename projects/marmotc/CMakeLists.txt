@@ -109,20 +109,9 @@ if(MIDORI_BUILD_TESTS AND NOT EMSCRIPTEN)
     FetchContent_MakeAvailable(catch2)
 endif()
 
-# Settings every Marmot library and executable shares. Include directories are
-# not set here: each component library exports only its own src/ root, so a
-# target can include a header only from the components it links (see the
-# dependency graph below and scripts/testing/layering.py).
 function(midori_configure_target target_name)
-    # PUBLIC, so every target that links a Marmot library compiles its headers
-    # with the same values as the library. Headers change on them:
-    # sizeof(MidoriValue) is 8 without MIDORI_DEBUG_FULL and 16 with it, and a
-    # unit test target that once compiled at a different level from the library
-    # read past the end of every MidoriValue it passed across. Pinned by
-    # tests/runtime/AbiConsistencyTests.cpp.
     target_compile_definitions(${target_name} PUBLIC
         MIDORI_VERSION_STRING="${PROJECT_VERSION}"
-        MIDORI_DEBUG_FULL=$<CONFIG:Debug>
         MIDORI_DEBUG_INFO=$<CONFIG:Debug,RelWithDebInfo>
         MIDORI_ENABLE_OPTIMIZER_STATS=$<CONFIG:Debug,RelWithDebInfo>
     )

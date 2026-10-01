@@ -40,15 +40,7 @@ fn find_compiler(explicit: Option<&Path>) -> PathBuf {
 /// last by either program, since a change to the VM relinks only marmotvm,
 /// and the VM uses the matching preset in its own project build.
 fn checkout_compiler() -> Option<PathBuf> {
-    if !cfg!(debug_assertions) {
-        return None;
-    }
-
-    let builds = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()?
-        .parent()?
-        .join("out")
-        .join("build");
+    let builds = paths::checkout_root()?.join("out").join("build");
     newest_build(&builds)
 }
 
