@@ -57,6 +57,9 @@ constexpr std::string_view COUNT_METHOD_NAME = "Count";
 constexpr std::string_view ITERABLE_CLASS_NAME = "Iterable";
 constexpr std::string_view NEXT_METHOD_NAME = "Next";
 
+constexpr std::string_view NUMERIC_CLASS_NAME = "Numeric";
+constexpr std::string_view BITWISE_CLASS_NAME = "Bitwise";
+
 constexpr std::string_view INDEXABLE_CLASS_NAME = "Indexable";
 constexpr std::string_view GET_METHOD_NAME = "Get";
 constexpr std::string_view ELEMENT_ASSOCIATED_TYPE_NAME = "Element";

@@ -1,0 +1,32 @@
+module Numeric
+public export { Numeric, Bitwise }
+
+// The compiler does arithmetic and ranges on these types itself. A generic
+// parameter is used as a number only where its definition says 'where Numeric<T>'.
+class Numeric<T> {
+};
+
+instance Numeric<Int> {
+};
+
+instance Numeric<Float> {
+};
+
+instance Numeric<Byte> {
+};
+
+instance Numeric<Word> {
+};
+
+// The types '&', '|', '^', '~' and the shifts work on.
+class Bitwise<T> {
+};
+
+instance Bitwise<Int> {
+};
+
+instance Bitwise<Byte> {
+};
+
+instance Bitwise<Word> {
+};

@@ -1,0 +1,8 @@
+module GenericBitwiseRequiresBitwise
+
+// Numeric is not enough for the bit operators: Float has arithmetic but no
+// bits, so a generic '&' needs 'where Bitwise<T>'.
+
+import { "../../../MarmotPrelude/Numeric.mmt" }
+
+def Mask = fn<T>(value: T, mask: T) -> T where Numeric<T> => value & mask;

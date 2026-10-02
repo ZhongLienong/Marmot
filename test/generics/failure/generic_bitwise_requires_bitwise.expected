@@ -1,0 +1,7 @@
+Compilation failed :(
+Type Checker Error at test/generics/failure/generic_bitwise_requires_bitwise.mmt:8
+  |
+8 | def Mask = fn<T>(value: T, mask: T) -> T where Numeric<T> => value & mask;
+  |                                                                    ^ Type T does not satisfy constraint Bitwise<T> - no matching instance found
+  |
+  | 'T' is a generic parameter, so it is only known to be one when the definition says 'where Bitwise<T>'.

@@ -1,8 +1,0 @@
-module GenericShiftAmountSpecialization
-
-// A generic shift amount is checked for each specialization. A Text amount
-// reached the MidoriIR verifier as an invalid ShlInt.
-
-def Shift = fn<T>(x: T) -> Int => 1 << x;
-
-def result = Shift("abc");

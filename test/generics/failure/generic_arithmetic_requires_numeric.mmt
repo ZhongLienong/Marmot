@@ -1,0 +1,7 @@
+module GenericArithmeticRequiresNumeric
+
+// Arithmetic on a generic parameter needs 'where Numeric<T>'. It used to be
+// checked only per specialization, so the error named a caller's type in the
+// middle of lowering.
+
+def Add = fn<T>(a: T, b: T) -> T => a + b;

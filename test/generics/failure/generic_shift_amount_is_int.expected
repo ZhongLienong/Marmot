@@ -1,0 +1,7 @@
+Compilation failed :(
+Type Checker Error at test/generics/failure/generic_shift_amount_is_int.mmt:8
+  |
+8 | def Shift = fn<T>(amount: T) -> Int where Bitwise<T> => 1 << amount;
+  |                                                           ^^ Shift operator type error: shift amount must be Int
+Expected Int, but got T
+  |

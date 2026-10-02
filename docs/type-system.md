@@ -312,7 +312,11 @@ def ShowBox = fn<T>(box: Box<T>) -> Text => Show::show(box.value);
 
 Constraints attached to a struct or union are checked when the type is instantiated and automatically propagate when a function accepts that type.
 
-A generic parameter stands for whatever type a caller picks, so a body may not decide it. `fn<T>(x: T) -> T => 5` is rejected, because the body only works when `T` is `Int`. The same goes for treating two parameters as one type. The operators a type class provides (`==`, `!=`, `<`, `<=`, `>`, `>=`, `++`, `#` and `as`) need a constraint naming that class when an operand is a generic parameter, as in `where Equatable<T>`. The numeric operators and ranges take a generic parameter as it is, and each specialization is checked when it is compiled.
+A generic parameter stands for whatever type a caller picks, so a body may not decide it. `fn<T>(x: T) -> T => 5` is rejected, because the body only works when `T` is `Int`. The same goes for treating two parameters as one type. An operator applies to a generic parameter only where a constraint names the class that provides it: `Numeric<T>` for arithmetic, unary `-` and ranges; `Bitwise<T>` for `&`, `|`, `^`, `~` and the shifted operand; `Equatable<T>`, `Orderable<T>`, `Concatenable<T>`, `Countable<T>` and `Convertable<From, To>` for `==`, `<`, `++`, `#` and `as`. A shift amount is always an `Int`. `Numeric` and `Bitwise` live in `MarmotPrelude/Numeric.mmt`. The compiler does the arithmetic itself, so their only instances are the ones it can do: `Int`, `Float`, `Byte` and `Word` for `Numeric`, and `Int`, `Byte` and `Word` for `Bitwise`.
+
+```marmot
+def Sum = fn<T>(a: T, b: T) -> T where Numeric<T> => a + b;
+```
 
 ## Type Classes
 

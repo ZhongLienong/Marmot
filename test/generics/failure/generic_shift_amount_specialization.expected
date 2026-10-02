@@ -1,6 +1,0 @@
-Compilation failed :(
-Lowering Error at test/generics/failure/generic_shift_amount_specialization.mmt:6
-  |
-6 | def Shift = fn<T>(x: T) -> Int => 1 << x;
-  |                                     ^^ '<<' shifts by an Int, not Text, the type a generic parameter is given here
-  |

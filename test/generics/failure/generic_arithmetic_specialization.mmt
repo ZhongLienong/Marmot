@@ -1,8 +1,0 @@
-module GenericArithmeticSpecialization
-
-// Arithmetic on a generic parameter is checked for each specialization, and a
-// specialization with a non-numeric type is a type error, not a missing feature.
-
-def Add = fn<T>(a: T, b: T) -> T => a + b;
-
-def result = Add("x", "y");

@@ -1,0 +1,32 @@
+module NumericConstraint
+
+// Generic arithmetic, negation, ranges and bit operations, each allowed by the
+// where clause that names the class providing it.
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/Numeric.mmt"
+}
+
+def Add = fn<T>(a: T, b: T) -> T where Numeric<T> => a + b;
+
+def Negate = fn<T>(value: T) -> T where Numeric<T> => -value;
+
+def SumRange = fn<T>(start: T, step: T, end: T, total: T) -> T where Numeric<T> =>
+{
+	def values = [x for x in start..step..end];
+	if #values == 0 then total else total + values[0]
+};
+
+def Mask = fn<T>(value: T, mask: T) -> T where Bitwise<T> => (value & mask) | (value ^ value);
+
+def Doubled = fn<T>(value: T) -> T where Bitwise<T> => value << 1;
+
+IO::PrintLine(Add(2, 3) as Text);
+IO::PrintLine(Add(1.5, 2.25) as Text);
+IO::PrintLine(Negate(4) as Text);
+IO::PrintLine(SumRange(3, 1, 6, 10) as Text);
+IO::PrintLine(Mask(12, 10) as Text);
+IO::PrintLine(Mask(0xF0, 0x3C) as Text);
+IO::PrintLine(Doubled(21) as Text);

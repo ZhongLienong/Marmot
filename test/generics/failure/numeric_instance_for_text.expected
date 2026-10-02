@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/generics/failure/numeric_instance_for_text.mmt:8
+  |
+8 | instance Numeric<Text> {
+  |          ^^^^^^^ Instance declaration error: the compiler does arithmetic itself, on Int, Float, Byte and Word only, so there is no Numeric<Text>
+  |

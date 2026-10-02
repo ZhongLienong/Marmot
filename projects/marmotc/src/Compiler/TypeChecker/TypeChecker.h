@@ -295,6 +295,8 @@ private:
 
 	MidoriResult::TypeResult operator()(MidoriExpression::Binary& binary);
 
+	std::optional<CompilerError> RequireOperandClass(const Token& op, std::string_view class_name, const std::shared_ptr<MidoriType>& resolved_operand);
+
 	MidoriResult::TypeResult CheckBinaryOperator(MidoriExpression::Binary& binary, std::shared_ptr<MidoriType>& left_type, std::shared_ptr<MidoriType>& right_type);
 
 	MidoriResult::TypeResult operator()(MidoriExpression::Group& group);

@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/generics/failure/generic_numeric_call_with_text.mmt:10
+   |
+10 | def joined = Add("x", "y");
+   |                          ^ Type Text does not satisfy constraint Numeric<Text> - no matching instance found
+   |

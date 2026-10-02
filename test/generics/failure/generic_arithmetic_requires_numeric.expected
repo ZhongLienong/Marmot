@@ -1,0 +1,7 @@
+Compilation failed :(
+Type Checker Error at test/generics/failure/generic_arithmetic_requires_numeric.mmt:7
+  |
+7 | def Add = fn<T>(a: T, b: T) -> T => a + b;
+  |                                       ^ Type T does not satisfy constraint Numeric<T> - no matching instance found
+  |
+  | 'T' is a generic parameter. Import MarmotPrelude/Numeric.mmt, which declares Numeric, and say 'where Numeric<T>' on the definition.

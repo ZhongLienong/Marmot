@@ -2,8 +2,11 @@ module GenericRange
 
 // Test: Generic functions that create and use Range<T> internally
 // Expected: Each instantiation should get independent type variables for the range element type
+// A generic range bound is a number only where the definition says Numeric<T>.
 
-def CountUp = fn<T>(start: T, step: T, end: T) -> Unit =>
+import { "../../../MarmotPrelude/Numeric.mmt" }
+
+def CountUp = fn<T>(start: T, step: T, end: T) -> Unit where Numeric<T> =>
 {
     for x in start..step..end
     {
@@ -15,7 +18,7 @@ def CountUp = fn<T>(start: T, step: T, end: T) -> Unit =>
 CountUp(0, 1, 10);
 CountUp(0.0, 0.5, 5.0);
 
-def IterateTwice = fn<T>(start: T, step: T, end: T) -> Unit =>
+def IterateTwice = fn<T>(start: T, step: T, end: T) -> Unit where Numeric<T> =>
 {
     for x in start..step..end
     {

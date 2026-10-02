@@ -4297,6 +4297,19 @@ MidoriResult::TypeResult TypeChecker::RegisterInstance(MidoriStatement::Instance
 		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: type argument count mismatch", instance_stmt.m_class_name, m_file_name, m_source_lines));
 	}
 
+	// The compiler, not an instance, does arithmetic and bit operations, so an
+	// instance for a type it cannot do them on would let a generic body claim
+	// what no specialization can do.
+	const std::shared_ptr<MidoriType>& first_type_arg = instance_stmt.m_type_args.front();
+	if (instance_stmt.m_class_name.m_lexeme == NUMERIC_CLASS_NAME && !first_type_arg->IsNumericType())
+	{
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnsatisfiedConstraint, std::format("Instance declaration error: the compiler does arithmetic itself, on Int, Float, Byte and Word only, so there is no Numeric<{}>", first_type_arg->DisplayString()), instance_stmt.m_class_name, m_file_name, m_source_lines));
+	}
+	if (instance_stmt.m_class_name.m_lexeme == BITWISE_CLASS_NAME && !first_type_arg->IsType<MidoriType::IntegerType>() && !first_type_arg->IsType<MidoriType::ByteType>() && !first_type_arg->IsType<MidoriType::WordType>())
+	{
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnsatisfiedConstraint, std::format("Instance declaration error: the compiler does bit operations itself, on Int, Byte and Word only, so there is no Bitwise<{}>", first_type_arg->DisplayString()), instance_stmt.m_class_name, m_file_name, m_source_lines));
+	}
+
 	std::vector<std::string> concrete_type_names;
 	for (const std::shared_ptr<MidoriType>& type_arg : instance_stmt.m_type_args)
 	{
@@ -5132,11 +5145,31 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Binary& binar
 		);
 }
 
+// The class an operand must belong to for an operator to apply. A generic
+// parameter belongs to one only where its definition says so, and it is shown
+// by the name it was written as, with the where clause that would say so.
+std::optional<CompilerError> TypeChecker::RequireOperandClass(const Token& op, std::string_view class_name, const std::shared_ptr<MidoriType>& resolved_operand)
+{
+	std::optional<CompilerError> error = CheckConstraintHolds(op, MidoriType::ClassConstraint(std::string(class_name), { resolved_operand }), 0u);
+	const std::optional<std::string> param_name = RigidParameterName(resolved_operand);
+	if (!error.has_value() || !param_name.has_value())
+	{
+		return error;
+	}
+
+	const std::string_view declaring_file = class_name == BITWISE_CLASS_NAME ? NUMERIC_CLASS_NAME : class_name;
+	const std::string hint = m_classes.contains(std::string(class_name))
+		? std::format("'{0}' is a generic parameter, so it is only known to be one when the definition says 'where {1}<{0}>'.", param_name.value(), class_name)
+		: std::format("'{0}' is a generic parameter. Import MarmotPrelude/{2}.mmt, which declares {1}, and say 'where {1}<{0}>' on the definition.", param_name.value(), class_name, declaring_file);
+	return MakeConstraintFailureError(op, MidoriType::ClassConstraint(std::string(class_name), { MidoriType::MakeGenericType(param_name.value()) }), hint);
+}
+
 // An operand whose type is still a variable is one inference has not decided
 // yet, and an operator may decide it. A generic parameter is a variable too, but
-// it stands for whatever type a caller picks: the numeric operators take it as
-// it is and each specialization is checked when it is lowered, while `==`, `<`
-// and `++`, which a class provides, need a where clause naming that class.
+// it stands for whatever type a caller picks, so an operator applies to it only
+// where a where clause names the class that provides the operator: Numeric for
+// arithmetic, Bitwise for the bit operators, Equatable, Orderable and
+// Concatenable for the rest.
 MidoriResult::TypeResult TypeChecker::CheckBinaryOperator(MidoriExpression::Binary& binary, std::shared_ptr<MidoriType>& left_type, std::shared_ptr<MidoriType>& right_type)
 {
 	const Token& op = binary.m_op;
@@ -5154,12 +5187,23 @@ MidoriResult::TypeResult TypeChecker::CheckBinaryOperator(MidoriExpression::Bina
 				return unified;
 			}
 		}
-		else if (!resolved_right->IsType<MidoriType::IntegerType>() && !resolved_right->IsType<MidoriType::TypeVariable>())
+		else if (const std::optional<std::string> amount_param = RigidParameterName(resolved_right))
+		{
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Shift operator type error: shift amount must be Int", op, m_file_name, m_source_lines, MidoriType::MakeGenericType(amount_param.value()), MidoriType::MakeLiteralType<MidoriType::IntegerType>()));
+		}
+		else if (!resolved_right->IsType<MidoriType::IntegerType>())
 		{
 			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Shift operator type error: shift amount must be Int", op, m_file_name, m_source_lines, resolved_right, MidoriType::MakeLiteralType<MidoriType::IntegerType>()));
 		}
 
-		if (!resolved_left->IsType<MidoriType::IntegerType>() && !resolved_left->IsType<MidoriType::ByteType>() && !resolved_left->IsType<MidoriType::WordType>() && !resolved_left->IsType<MidoriType::TypeVariable>())
+		if (RigidParameterName(resolved_left).has_value())
+		{
+			if (std::optional<CompilerError> error = RequireOperandClass(op, BITWISE_CLASS_NAME, resolved_left))
+			{
+				return std::unexpected(std::move(*error));
+			}
+		}
+		else if (!resolved_left->IsType<MidoriType::IntegerType>() && !resolved_left->IsType<MidoriType::ByteType>() && !resolved_left->IsType<MidoriType::WordType>() && !resolved_left->IsType<MidoriType::TypeVariable>())
 		{
 			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Shift operator type error: can only shift Int, Byte, or Word types", op, m_file_name, m_source_lines, resolved_left, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::ByteType>(), MidoriType::MakeLiteralType<MidoriType::WordType>()));
 		}
@@ -5182,25 +5226,13 @@ MidoriResult::TypeResult TypeChecker::CheckBinaryOperator(MidoriExpression::Bina
 	const std::shared_ptr<MidoriType> resolved = ApplySubstitution(left_type);
 	const std::optional<std::string> param_name = RigidParameterName(resolved);
 	const bool is_undecided = resolved->IsType<MidoriType::TypeVariable>() && !param_name.has_value();
-	// A class an operand must belong to. A generic parameter is shown by the name
-	// it was written as, with the where clause that would make it one.
-	const std::function<std::optional<CompilerError>(std::string_view)> require_class = [this, &op, &resolved, &param_name](std::string_view class_name) -> std::optional<CompilerError>
-	{
-		std::optional<CompilerError> error = CheckConstraintHolds(op, MidoriType::ClassConstraint(std::string(class_name), { resolved }), 0u);
-		if (!error.has_value() || !param_name.has_value())
-		{
-			return error;
-		}
-		const std::string hint = std::format("'{0}' is a generic parameter, so it is only known to be one when the definition says 'where {1}<{0}>'.", param_name.value(), class_name);
-		return MakeConstraintFailureError(op, MidoriType::ClassConstraint(std::string(class_name), { MidoriType::MakeGenericType(param_name.value()) }), hint);
-	};
 	binary.m_type_data = left_type;
 
 	if (std::ranges::contains(kBinaryPartialOrderComparisonOperators, op.m_token_name))
 	{
 		if (!resolved->IsNumericType() && !is_undecided)
 		{
-			if (std::optional<CompilerError> error = require_class(ORDERABLE_CLASS_NAME))
+			if (std::optional<CompilerError> error = RequireOperandClass(op, ORDERABLE_CLASS_NAME, resolved))
 			{
 				return std::unexpected(std::move(*error));
 			}
@@ -5213,7 +5245,14 @@ MidoriResult::TypeResult TypeChecker::CheckBinaryOperator(MidoriExpression::Bina
 
 	if (std::ranges::contains(kBinaryArithmeticOperators, op.m_token_name))
 	{
-		if (!resolved->IsNumericType() && !resolved->IsType<MidoriType::TypeVariable>())
+		if (param_name.has_value())
+		{
+			if (std::optional<CompilerError> error = RequireOperandClass(op, NUMERIC_CLASS_NAME, resolved))
+			{
+				return std::unexpected(std::move(*error));
+			}
+		}
+		else if (!resolved->IsNumericType() && !is_undecided)
 		{
 			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Binary expression type error: expected numeric type", op, m_file_name, m_source_lines, resolved, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::FloatType>()));
 		}
@@ -5222,7 +5261,14 @@ MidoriResult::TypeResult TypeChecker::CheckBinaryOperator(MidoriExpression::Bina
 
 	if (std::ranges::contains(kBinaryBitwiseOperators, op.m_token_name))
 	{
-		if (!resolved->IsType<MidoriType::IntegerType>() && !resolved->IsType<MidoriType::ByteType>() && !resolved->IsType<MidoriType::WordType>() && !resolved->IsType<MidoriType::TypeVariable>())
+		if (param_name.has_value())
+		{
+			if (std::optional<CompilerError> error = RequireOperandClass(op, BITWISE_CLASS_NAME, resolved))
+			{
+				return std::unexpected(std::move(*error));
+			}
+		}
+		else if (!resolved->IsType<MidoriType::IntegerType>() && !resolved->IsType<MidoriType::ByteType>() && !resolved->IsType<MidoriType::WordType>() && !is_undecided)
 		{
 			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Binary expression type error: expected integer, byte, or word type", op, m_file_name, m_source_lines, resolved, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::ByteType>(), MidoriType::MakeLiteralType<MidoriType::WordType>()));
 		}
@@ -5234,7 +5280,7 @@ MidoriResult::TypeResult TypeChecker::CheckBinaryOperator(MidoriExpression::Bina
 		const bool is_builtin = resolved->IsNumericType() || resolved->IsType<MidoriType::TextType>() || resolved->IsType<MidoriType::BoolType>() || is_undecided;
 		if (!is_builtin)
 		{
-			if (std::optional<CompilerError> error = require_class(EQUATABLE_CLASS_NAME))
+			if (std::optional<CompilerError> error = RequireOperandClass(op, EQUATABLE_CLASS_NAME, resolved))
 			{
 				return std::unexpected(std::move(*error));
 			}
@@ -5269,7 +5315,7 @@ MidoriResult::TypeResult TypeChecker::CheckBinaryOperator(MidoriExpression::Bina
 	{
 		if (!resolved->IsType<MidoriType::TextType>() && !resolved->IsType<MidoriType::ArrayType>())
 		{
-			if (std::optional<CompilerError> error = require_class(CONCATENABLE_CLASS_NAME))
+			if (std::optional<CompilerError> error = RequireOperandClass(op, CONCATENABLE_CLASS_NAME, resolved))
 			{
 				return std::unexpected(std::move(*error));
 			}
@@ -5352,7 +5398,14 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::UnaryPrefix& 
 				std::shared_ptr<MidoriType> actual_type = ApplySubstitution(operand_type);
 				if (unary.m_op.m_token_name == Token::Name::SINGLE_MINUS || unary.m_op.m_token_name == Token::Name::SINGLE_PLUS)
 				{
-					if (!actual_type->IsNumericType())
+					if (RigidParameterName(actual_type).has_value())
+					{
+						if (std::optional<CompilerError> error = RequireOperandClass(unary.m_op, NUMERIC_CLASS_NAME, actual_type))
+						{
+							return std::unexpected(std::move(*error));
+						}
+					}
+					else if (!actual_type->IsNumericType())
 					{
 						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Unary operator requires numeric type", unary.m_op, m_file_name, m_source_lines, actual_type, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::FloatType>()));
 					}
@@ -5366,7 +5419,14 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::UnaryPrefix& 
 				}
 				else if (unary.m_op.m_token_name == Token::Name::TILDE)
 				{
-					if (!actual_type->IsType<MidoriType::IntegerType>() && !actual_type->IsType<MidoriType::ByteType>() && !actual_type->IsType<MidoriType::WordType>())
+					if (RigidParameterName(actual_type).has_value())
+					{
+						if (std::optional<CompilerError> error = RequireOperandClass(unary.m_op, BITWISE_CLASS_NAME, actual_type))
+						{
+							return std::unexpected(std::move(*error));
+						}
+					}
+					else if (!actual_type->IsType<MidoriType::IntegerType>() && !actual_type->IsType<MidoriType::ByteType>() && !actual_type->IsType<MidoriType::WordType>())
 					{
 						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Bitwise NOT operator requires an integer, byte, or word type", unary.m_op, m_file_name, m_source_lines, actual_type, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::ByteType>(), MidoriType::MakeLiteralType<MidoriType::WordType>()));
 					}
@@ -6849,7 +6909,14 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::RangeBinary& 
 									{
 										std::shared_ptr<MidoriType> resolved_type = ApplySubstitution(start_type);
 
-										if (!resolved_type->IsNumericType() && !resolved_type->IsType<MidoriType::TypeVariable>())
+										if (RigidParameterName(resolved_type).has_value())
+										{
+											if (std::optional<CompilerError> error = RequireOperandClass(range_binary.m_range_op, NUMERIC_CLASS_NAME, resolved_type))
+											{
+												return std::unexpected(std::move(*error));
+											}
+										}
+										else if (!resolved_type->IsNumericType() && !resolved_type->IsType<MidoriType::TypeVariable>())
 										{
 											return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Range expression type error: expected numeric type", range_binary.m_range_op, m_file_name, m_source_lines, resolved_type, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::FloatType>()));
 										}
@@ -6893,7 +6960,14 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::RangeTernary&
 															{
 																std::shared_ptr<MidoriType> resolved_type = ApplySubstitution(start_type);
 
-																if (!resolved_type->IsNumericType() && !resolved_type->IsType<MidoriType::TypeVariable>())
+																if (RigidParameterName(resolved_type).has_value())
+																{
+																	if (std::optional<CompilerError> error = RequireOperandClass(range_ternary.m_first_range_op, NUMERIC_CLASS_NAME, resolved_type))
+																	{
+																		return std::unexpected(std::move(*error));
+																	}
+																}
+																else if (!resolved_type->IsNumericType() && !resolved_type->IsType<MidoriType::TypeVariable>())
 																{
 																	return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Range expression type error: expected numeric type", range_ternary.m_first_range_op, m_file_name, m_source_lines, resolved_type, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::FloatType>()));
 																}

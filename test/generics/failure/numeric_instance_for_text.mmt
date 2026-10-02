@@ -1,0 +1,9 @@
+module NumericInstanceForText
+
+// The compiler does arithmetic itself, so an instance cannot make Text a
+// number: a body constrained on Numeric<T> would then compile for no type.
+
+import { "../../../MarmotPrelude/Numeric.mmt" }
+
+instance Numeric<Text> {
+};
