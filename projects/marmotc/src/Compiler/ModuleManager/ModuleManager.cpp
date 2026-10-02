@@ -1,34 +1,19 @@
 #include "ModuleManager.h"
 #include "Compiler/Error/CompilerError.h"
-#include "Compiler/Lexer/Lexer.h"
+#include "ModuleSourceLoader.h"
 #include "Compiler/Token/Token.h"
 #include "Compiler/ImportResolver/ImportResolver.h"
 
 #include <filesystem>
 #include <expected>
 #include <format>
-#include <fstream>
 #include <queue>
-#include <sstream>
 #include <algorithm>
 
 using namespace std::string_literals;
 
 namespace
 {
-	std::vector<std::string> SplitSourceLines(const std::string& source)
-	{
-		std::vector<std::string> source_lines;
-		std::istringstream stream(source);
-		std::string line;
-		while (std::getline(stream, line))
-		{
-			source_lines.emplace_back(std::move(line));
-		}
-
-		return source_lines;
-	}
-
 	std::string JoinDottedSegments(const std::vector<std::string>& segments, size_t count)
 	{
 		std::string result;
@@ -57,7 +42,8 @@ ModuleManager::ModuleManager(TokenStream&& main_file_tokens, std::string_view ma
 MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraph()
 {
 	BuildGraph build_graph;
-	MidoriResult::VoidResult discovery = GenerateBuildGraphImpl(build_graph);
+	ModuleSourceLoader source_loader(m_inputs.Jobs().value_or(std::max(1u, std::thread::hardware_concurrency())));
+	MidoriResult::VoidResult discovery = GenerateBuildGraphImpl(build_graph, source_loader);
 	if (!discovery.has_value())
 	{
 		return std::unexpected(std::move(discovery.error()));
@@ -77,7 +63,7 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraph()
 	return build_graph;
 }
 
-MidoriResult::VoidResult ModuleManager::GenerateBuildGraphImpl(BuildGraph& build_graph)
+MidoriResult::VoidResult ModuleManager::GenerateBuildGraphImpl(BuildGraph& build_graph, ModuleSourceLoader& source_loader)
 {
 
 	if (m_main_token_stream.Size() != 0)
@@ -155,9 +141,26 @@ MidoriResult::VoidResult ModuleManager::GenerateBuildGraphImpl(BuildGraph& build
 
 		ImportResolver resolver(m_main_file_name, m_inputs.SearchPaths());
 
+		std::vector<std::optional<ImportResolver::ResolvedImport>> resolved_imports;
+		std::vector<std::string> loading;
+		resolved_imports.reserve(import_paths.size());
 		for (const auto& [import_specifier, line] : import_paths)
 		{
-			std::optional<ImportResolver::ResolvedImport> resolved_opt = resolver.Resolve(import_specifier);
+			resolved_imports.push_back(resolver.Resolve(import_specifier));
+			const std::optional<ImportResolver::ResolvedImport>& resolved = resolved_imports.back();
+			if (resolved.has_value() && !build_graph.m_nodes.contains(resolved->m_absolute_path))
+			{
+				loading.push_back(resolved->m_absolute_path);
+			}
+		}
+		source_loader.Prefetch(loading);
+
+		// Consume prefetched results in the original depth-first order so a
+		// faster sibling cannot change which declaration or error comes first.
+		for (size_t index = 0u; index < import_paths.size(); index += 1u)
+		{
+			const auto& [import_specifier, line] = import_paths[index];
+			const std::optional<ImportResolver::ResolvedImport>& resolved_opt = resolved_imports[index];
 			if (!resolved_opt.has_value())
 			{
 				return std::unexpected(MidoriError::GenerateModuleErrorWithContext(CompilerErrorCode::ModuleImportResolutionFailed, "Could not resolve import: "s + import_specifier, line, m_main_file_name));
@@ -172,28 +175,14 @@ MidoriResult::VoidResult ModuleManager::GenerateBuildGraphImpl(BuildGraph& build
 				continue;
 			}
 
-			// Linux opens a directory as a stream that reads nothing.
-			std::ifstream include_file(include_absolute_path_str);
-			if (std::filesystem::is_directory(include_absolute_path_str) || !include_file.is_open())
+			MidoriResult::Result<ImportedSource> source = source_loader.Take(include_absolute_path_str, m_main_file_name, line);
+			if (!source.has_value())
 			{
-				return std::unexpected(MidoriError::GenerateModuleErrorWithContext(CompilerErrorCode::ModuleImportFileOpenFailed, "Could not open import file: "s + include_absolute_path_str, line, m_main_file_name));
+				return std::unexpected(std::move(source.error()));
 			}
 
-			std::ostringstream include_file_stream;
-			include_file_stream << include_file.rdbuf();
-			std::string include_source = include_file_stream.str();
-			std::vector<std::string> include_source_lines = SplitSourceLines(include_source);
-
-			MidoriResult::LexerResult lex_result = Lexer(std::move(include_source), include_absolute_path_str).Lex();
-			if (!lex_result.has_value())
-			{
-				return std::unexpected(std::move(lex_result.error()));
-			}
-
-			TokenStream imported_token_stream = std::move(lex_result.value());
-
-			ModuleManager module_manager(std::move(imported_token_stream), std::move(include_absolute_path_str), std::move(include_source_lines), m_inputs);
-			MidoriResult::VoidResult nested_build_graph_result = module_manager.GenerateBuildGraphImpl(build_graph);
+			ModuleManager module_manager(std::move(source->m_tokens), include_absolute_path_str, std::move(source->m_source_lines), m_inputs);
+			MidoriResult::VoidResult nested_build_graph_result = module_manager.GenerateBuildGraphImpl(build_graph, source_loader);
 			if (!nested_build_graph_result.has_value())
 			{
 				return std::unexpected(std::move(nested_build_graph_result.error()));

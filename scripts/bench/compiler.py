@@ -83,6 +83,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("files", nargs="*", type=Path, help="Sources to compile; defaults to all.mmt and perf_sort_100k.mmt")
     parser.add_argument("--exe", type=Path, help="Compiler instead of this build's")
     parser.add_argument("--compare", type=Path, help="Earlier compiler, using its default scheduling without timing flags")
+    parser.add_argument("--compare-jobs", action="store_true", help="Compare earlier compiler at the same job counts; requires its --jobs and --timings support")
     parser.add_argument("--jobs", nargs="+", type=positive, default=[1, 2, 4, 8], help="Worker limits to compare")
     parser.add_argument("--runs", type=positive, default=7)
     parser.add_argument("--synthetic", type=positive, help="Also generate wide and chain graphs with this many modules")
@@ -98,7 +99,10 @@ def main(argv: list[str]) -> int:
             sources += synthetic(directory, args.synthetic)
         sides = [("current", exe, jobs) for jobs in [*dict.fromkeys(args.jobs), None]]
         if baseline:
-            sides.insert(0, ("baseline", baseline, None))
+            if args.compare_jobs:
+                sides = [("baseline", baseline, jobs) for jobs in [*dict.fromkeys(args.jobs), None]] + sides
+            else:
+                sides.insert(0, ("baseline", baseline, None))
         for source in sources:
             label = f"{source.parent.name}/{source.name}"
             samples = {(side, jobs): [] for side, _, jobs in sides}
@@ -106,7 +110,7 @@ def main(argv: list[str]) -> int:
             for run in range(args.runs + 1):
                 order = sides[run % len(sides):] + sides[:run % len(sides)]
                 for side, compiler, jobs in order:
-                    measured, digest = sample(compiler, source, directory / "program.mmc", jobs, side == "baseline")
+                    measured, digest = sample(compiler, source, directory / "program.mmc", jobs, side == "baseline" and not args.compare_jobs)
                     if expected is not None and digest != expected:
                         raise RuntimeError(f"{label}: emitted bytecode differs for {side}, jobs={jobs}")
                     expected = digest

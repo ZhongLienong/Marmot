@@ -11,6 +11,8 @@
 #include <unordered_set>
 #include <vector>
 
+class ModuleSourceLoader;
+
 class ModuleManager
 {
 private:
@@ -39,7 +41,7 @@ public:
 	MidoriResult::ModuleManagerResult GenerateBuildGraph();
 
 private:
-	MidoriResult::VoidResult GenerateBuildGraphImpl(BuildGraph& build_graph);
+	MidoriResult::VoidResult GenerateBuildGraphImpl(BuildGraph& build_graph, ModuleSourceLoader& source_loader);
 
 	bool HasCircularDependency() const;
 

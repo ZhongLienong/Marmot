@@ -14,13 +14,14 @@
 #include <expected>
 #include <filesystem>
 #include <fstream>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <vector>
 
 namespace
 {
-	std::expected<BuildGraph, CompilerError> GenerateBuildGraphFromFile(const std::filesystem::path& file_path)
+	std::expected<BuildGraph, CompilerError> GenerateBuildGraphFromFile(const std::filesystem::path& file_path, std::optional<size_t> jobs = std::nullopt)
 	{
 		std::ifstream input_file(file_path);
 		if (!input_file.is_open())
@@ -38,7 +39,7 @@ namespace
 			return std::unexpected(std::move(lex_result.error()));
 		}
 
-		return ModuleManager(std::move(lex_result.value()), source_fixture.FileName(), source_fixture.SourceLines(), MidoriDriver::EnvironmentCompilationInputs()).GenerateBuildGraph();
+		return ModuleManager(std::move(lex_result.value()), source_fixture.FileName(), source_fixture.SourceLines(), MidoriDriver::EnvironmentCompilationInputs().WithJobs(jobs)).GenerateBuildGraph();
 	}
 
 	void CheckDiagnosticLocation(const CompilerError& error, const std::filesystem::path& expected_file_path, int expected_line)
@@ -54,6 +55,56 @@ namespace
 		const bool matched = MidoriTest::Matches(error, expectation, &mismatch);
 		CAPTURE(mismatch);
 		REQUIRE(matched);
+	}
+}
+
+TEST_CASE("Discovery reports errors in import traversal order across job counts", "[module][discovery]")
+{
+	const MidoriTest::TempProject project
+	({
+		MidoriTest::TempProjectFile("Main.mmt", "module Main\nimport { \"First.mmt\", \"Second.mmt\", \"Missing.mmt\" }\n"),
+		MidoriTest::TempProjectFile("First.mmt", "def value = 1;\n"),
+		MidoriTest::TempProjectFile("Second.mmt", "module Second\ndef value = \"unterminated\n")
+	});
+	const std::filesystem::path main = std::filesystem::weakly_canonical(project.Path("Main.mmt"));
+	std::string expected;
+	for (size_t jobs : { 1u, 2u, 4u })
+	{
+		MidoriResult::ModuleManagerResult graph = GenerateBuildGraphFromFile(main, jobs);
+		REQUIRE(!graph.has_value());
+		REQUIRE(graph.error().m_code == CompilerErrorCode::ModuleDeclarationMissing);
+		CheckDiagnosticLocation(graph.error(), std::filesystem::weakly_canonical(project.Path("First.mmt")), 1);
+		const std::string rendered(graph.error().Rendered());
+		if (expected.empty())
+		{
+			expected = rendered;
+		}
+		REQUIRE(rendered == expected);
+	}
+}
+
+TEST_CASE("Discovery attributes a shared prefetched open failure to the first importer", "[module][discovery]")
+{
+	const MidoriTest::TempProject project
+	({
+		MidoriTest::TempProjectFile("Main.mmt", "module Main\nimport { \"Nested.mmt\", \"Directory.mmt\" }\n"),
+		MidoriTest::TempProjectFile("Nested.mmt", "module Nested\nimport { \"Directory.mmt\" }\n")
+	});
+	std::filesystem::create_directory(project.Path("Directory.mmt"));
+	const std::filesystem::path main = std::filesystem::weakly_canonical(project.Path("Main.mmt"));
+	std::string expected;
+	for (size_t jobs : { 1u, 2u, 4u })
+	{
+		MidoriResult::ModuleManagerResult graph = GenerateBuildGraphFromFile(main, jobs);
+		REQUIRE(!graph.has_value());
+		REQUIRE(graph.error().m_code == CompilerErrorCode::ModuleImportFileOpenFailed);
+		CheckDiagnosticLocation(graph.error(), std::filesystem::weakly_canonical(project.Path("Nested.mmt")), 2);
+		const std::string rendered(graph.error().Rendered());
+		if (expected.empty())
+		{
+			expected = rendered;
+		}
+		REQUIRE(rendered == expected);
 	}
 }
 
