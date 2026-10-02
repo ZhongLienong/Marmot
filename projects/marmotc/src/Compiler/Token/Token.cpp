@@ -96,9 +96,9 @@ void TokenStream::Insert(TokenStream::iterator iter, TokenStream&& tokens)
 	m_tokens.insert(iter.Position(), std::make_move_iterator(tokens.m_tokens.begin()), std::make_move_iterator(tokens.m_tokens.end()));
 }
 
-void TokenStream::Erase(TokenStream::iterator iter)
+void TokenStream::Erase(TokenStream::iterator first, TokenStream::iterator last)
 {
-	m_tokens.erase(iter.Position());
+	m_tokens.erase(first.Position(), last.Position());
 }
 
 void TokenStream::PopBack() noexcept

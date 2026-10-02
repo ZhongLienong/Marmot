@@ -7,7 +7,6 @@
 #include <filesystem>
 #include <expected>
 #include <format>
-#include <queue>
 #include <algorithm>
 
 using namespace std::string_literals;
@@ -43,15 +42,14 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraph()
 {
 	BuildGraph build_graph;
 	ModuleSourceLoader source_loader(m_inputs.Jobs().value_or(std::max(1u, std::thread::hardware_concurrency())));
-	MidoriResult::VoidResult discovery = GenerateBuildGraphImpl(build_graph, source_loader);
-	if (!discovery.has_value())
+	DiscoveryState discovery;
+	MidoriResult::VoidResult result = GenerateBuildGraphImpl(build_graph, source_loader, discovery);
+	if (!result.has_value())
 	{
-		return std::unexpected(std::move(discovery.error()));
+		return std::unexpected(std::move(result.error()));
 	}
 
-	BuildDependencyGraph(build_graph);
 	CalculateInDegrees(build_graph);
-	build_graph.m_module_declarations = std::move(m_module_declarations);
 	for (const auto& [file_name, node] : build_graph.m_nodes)
 	{
 		if (!node.m_use_imports.empty())
@@ -63,9 +61,8 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraph()
 	return build_graph;
 }
 
-MidoriResult::VoidResult ModuleManager::GenerateBuildGraphImpl(BuildGraph& build_graph, ModuleSourceLoader& source_loader)
+MidoriResult::VoidResult ModuleManager::GenerateBuildGraphImpl(BuildGraph& build_graph, ModuleSourceLoader& source_loader, DiscoveryState& discovery)
 {
-
 	if (m_main_token_stream.Size() != 0)
 	{
 		std::vector<StatementSpan> spans = ScanModuleStatements(m_main_token_stream);
@@ -107,7 +104,7 @@ MidoriResult::VoidResult ModuleManager::GenerateBuildGraphImpl(BuildGraph& build
 		ModuleDeclaration module_decl = ModuleDeclaration(module_name, m_main_file_name)
 			.WithHasModuleDeclaration(has_module_decl)
 			.WithExports(std::move(exports));
-		m_module_declarations[m_main_file_name] = std::move(module_decl);
+		build_graph.m_module_declarations.emplace(m_main_file_name, std::move(module_decl));
 
 		MidoriResult::Result<std::vector<std::pair<std::string, int>>> import_result = ExtractImports(m_main_token_stream, spans);
 		if (!import_result.has_value())
@@ -127,10 +124,7 @@ MidoriResult::VoidResult ModuleManager::GenerateBuildGraphImpl(BuildGraph& build
 
 		for (const StatementSpan& span : spans)
 		{
-			for (int i = 0; i < span.m_end - span.m_start; i += 1)
-			{
-				m_main_token_stream.Erase(m_main_token_stream.begin() + span.m_start);
-			}
+			m_main_token_stream.Erase(m_main_token_stream.begin() + span.m_start, m_main_token_stream.begin() + span.m_end);
 		}
 
 		BuildGraph::BuildNode& main_node = build_graph.m_nodes[m_main_file_name];
@@ -138,6 +132,7 @@ MidoriResult::VoidResult ModuleManager::GenerateBuildGraphImpl(BuildGraph& build
 		main_node.m_file_name = m_main_file_name;
 		main_node.m_source_lines = std::move(m_main_source_lines);
 		main_node.m_use_imports = std::move(use_imports);
+		discovery.m_active_modules.emplace(m_main_file_name);
 
 		ImportResolver resolver(m_main_file_name, m_inputs.SearchPaths());
 
@@ -154,6 +149,8 @@ MidoriResult::VoidResult ModuleManager::GenerateBuildGraphImpl(BuildGraph& build
 			}
 		}
 		source_loader.Prefetch(loading);
+		std::unordered_set<std::string_view> dependencies;
+		dependencies.reserve(import_paths.size());
 
 		// Consume prefetched results in the original depth-first order so a
 		// faster sibling cannot change which declaration or error comes first.
@@ -166,12 +163,19 @@ MidoriResult::VoidResult ModuleManager::GenerateBuildGraphImpl(BuildGraph& build
 				return std::unexpected(MidoriError::GenerateModuleErrorWithContext(CompilerErrorCode::ModuleImportResolutionFailed, "Could not resolve import: "s + import_specifier, line, m_main_file_name));
 			}
 
-			std::string include_absolute_path_str = resolved_opt->m_absolute_path;
+			const std::string& include_absolute_path_str = resolved_opt->m_absolute_path;
 
-			m_dependency_graph[m_main_file_name].emplace_back(include_absolute_path_str);
+			if (dependencies.emplace(include_absolute_path_str).second)
+			{
+				main_node.m_dependencies.emplace_back(include_absolute_path_str);
+			}
 
 			if (build_graph.m_nodes.contains(include_absolute_path_str))
 			{
+				if (discovery.m_active_modules.contains(include_absolute_path_str))
+				{
+					discovery.m_cyclic_modules.emplace(include_absolute_path_str);
+				}
 				continue;
 			}
 
@@ -182,18 +186,18 @@ MidoriResult::VoidResult ModuleManager::GenerateBuildGraphImpl(BuildGraph& build
 			}
 
 			ModuleManager module_manager(std::move(source->m_tokens), include_absolute_path_str, std::move(source->m_source_lines), m_inputs);
-			MidoriResult::VoidResult nested_build_graph_result = module_manager.GenerateBuildGraphImpl(build_graph, source_loader);
+			MidoriResult::VoidResult nested_build_graph_result = module_manager.GenerateBuildGraphImpl(build_graph, source_loader, discovery);
 			if (!nested_build_graph_result.has_value())
 			{
 				return std::unexpected(std::move(nested_build_graph_result.error()));
 			}
-
-			m_module_declarations.merge(module_manager.m_module_declarations);
-			m_dependency_graph.merge(module_manager.m_dependency_graph);
 		}
 	}
 
-	if (HasCircularDependency())
+	discovery.m_active_modules.erase(m_main_file_name);
+	// Finish the owning module before reporting its cycle, so errors in its
+	// remaining imports keep their original precedence and diagnostic location.
+	if (discovery.m_cyclic_modules.contains(m_main_file_name))
 	{
 		return std::unexpected(MidoriError::GenerateModuleErrorWithContext(CompilerErrorCode::ModuleCircularDependency, "Circular dependency detected in final build graph", 0, m_main_file_name));
 	}
@@ -201,85 +205,13 @@ MidoriResult::VoidResult ModuleManager::GenerateBuildGraphImpl(BuildGraph& build
 	return {};
 }
 
-bool ModuleManager::HasCircularDependency() const
-{
-	std::unordered_set<std::string> visited;
-	std::unordered_set<std::string> recursion_stack;
-
-	for (const auto& [node, _] : m_dependency_graph)
-	{
-		if (CheckCycle(node, visited, recursion_stack))
-		{
-			return true;
-		}
-	}
-
-	return false;
-}
-
-bool ModuleManager::CheckCycle(const std::string& node, std::unordered_set<std::string>& visited, std::unordered_set<std::string>& recursion_stack) const
-{
-	if (recursion_stack.contains(node))
-	{
-		return true;
-	}
-
-	if (visited.contains(node))
-	{
-		return false;
-	}
-
-	visited.emplace(node);
-	recursion_stack.emplace(node);
-
-	if (m_dependency_graph.contains(node))
-	{
-		for (const std::string& dependency : m_dependency_graph.at(node))
-		{
-			if (CheckCycle(dependency, visited, recursion_stack))
-			{
-				return true;
-			}
-		}
-	}
-
-	recursion_stack.erase(node);
-	return false;
-}
-
-void ModuleManager::BuildDependencyGraph(BuildGraph& build_graph)
-{
-	for (const auto& [src, dependencies] : m_dependency_graph)
-	{
-		if (build_graph.m_nodes.contains(src))
-		{
-			BuildGraph::BuildNode& node = build_graph.m_nodes[src];
-			for (const std::string& dependency : dependencies)
-			{
-				if (build_graph.m_nodes.contains(dependency) && !std::ranges::contains(node.m_dependencies, dependency))
-				{
-					node.m_dependencies.emplace_back(dependency);
-				}
-			}
-		}
-	}
-}
-
 void ModuleManager::CalculateInDegrees(BuildGraph& build_graph)
 {
-	for (auto& [file, node] : build_graph.m_nodes)
-	{
-		node.m_in_degree = 0;
-	}
-
 	for (const auto& [file, node] : build_graph.m_nodes)
 	{
 		for (const std::string& dependency : node.m_dependencies)
 		{
-			if (build_graph.m_nodes.contains(dependency))
-			{
-				build_graph.m_nodes.at(dependency).m_in_degree += 1;
-			}
+			build_graph.m_nodes.at(dependency).m_in_degree += 1;
 		}
 	}
 }

@@ -279,7 +279,7 @@ public:
 
 	void Insert(iterator iter, TokenStream&& tokens);
 
-	void Erase(iterator iter);
+	void Erase(iterator first, iterator last);
 
 	void PopBack() noexcept;
 };

@@ -564,6 +564,105 @@ TEST_CASE("ModuleManager tags circular dependencies with a stable diagnostic cod
 	RequireErrorMatches(graph_result.error(), expectation);
 }
 
+TEST_CASE("Discovery reports cycles at their owning module across job counts", "[module][discovery]")
+{
+	const MidoriTest::TempProject project
+	({
+		MidoriTest::TempProjectFile("Main.mmt", "module Main\nimport { \"A.mmt\" }\n"),
+		MidoriTest::TempProjectFile("A.mmt", "module A\nimport { \"B.mmt\" }\n"),
+		MidoriTest::TempProjectFile("B.mmt", "module B\nimport { \"C.mmt\" }\n")
+	});
+	std::filesystem::path owner = project.Path("B.mmt");
+
+	SECTION("A nested cycle is attributed to its nearest ancestor")
+	{
+		static_cast<void>(project.WriteSourceFile("C.mmt", "module C\nimport { \"B.mmt\" }\n"));
+	}
+	SECTION("A cycle through the entry is attributed to the entry")
+	{
+		static_cast<void>(project.WriteSourceFile("C.mmt", "module C\nimport { \"Main.mmt\" }\n"));
+		owner = project.Path("Main.mmt");
+	}
+	SECTION("A self import is attributed to the importing module")
+	{
+		static_cast<void>(project.WriteSourceFile("C.mmt", "module C\nimport { \"C.mmt\" }\n"));
+		owner = project.Path("C.mmt");
+	}
+
+	std::string expected;
+	for (size_t jobs : { 1u, 2u, 4u })
+	{
+		MidoriResult::ModuleManagerResult graph = GenerateBuildGraphFromFile(project.Path("Main.mmt"), jobs);
+		REQUIRE(!graph.has_value());
+		REQUIRE(graph.error().m_code == CompilerErrorCode::ModuleCircularDependency);
+		CheckDiagnosticLocation(graph.error(), std::filesystem::weakly_canonical(owner), 0);
+		const std::string rendered(graph.error().Rendered());
+		if (expected.empty())
+		{
+			expected = rendered;
+		}
+		REQUIRE(rendered == expected);
+	}
+}
+
+TEST_CASE("Discovery preserves cycle error precedence within and after its owning module", "[module][discovery]")
+{
+	const MidoriTest::TempProject project
+	({
+		MidoriTest::TempProjectFile("Main.mmt", "module Main\nimport { \"A.mmt\" }\n"),
+		MidoriTest::TempProjectFile("A.mmt", "module A\nimport { \"B.mmt\" }\n"),
+		MidoriTest::TempProjectFile("B.mmt", "module B\nimport { \"A.mmt\" }\n")
+	});
+	CompilerErrorCode code = CompilerErrorCode::ModuleCircularDependency;
+	int line = 0;
+	SECTION("An error inside the cycle's owner takes precedence")
+	{
+		static_cast<void>(project.WriteSourceFile("A.mmt", "module A\nimport { \"B.mmt\", \"Missing.mmt\" }\n"));
+		code = CompilerErrorCode::ModuleImportResolutionFailed;
+		line = 2;
+	}
+	SECTION("An error after the cycle's owner does not take precedence")
+	{
+		static_cast<void>(project.WriteSourceFile("Main.mmt", "module Main\nimport { \"A.mmt\", \"Missing.mmt\" }\n"));
+	}
+
+	for (size_t jobs : { 1u, 2u, 4u })
+	{
+		MidoriResult::ModuleManagerResult graph = GenerateBuildGraphFromFile(project.Path("Main.mmt"), jobs);
+		REQUIRE(!graph.has_value());
+		REQUIRE(graph.error().m_code == code);
+		CheckDiagnosticLocation(graph.error(), std::filesystem::weakly_canonical(project.Path("A.mmt")), line);
+	}
+}
+
+TEST_CASE("Discovery retains shared and duplicate import edges once", "[module][discovery]")
+{
+	const MidoriTest::TempProject project
+	({
+		MidoriTest::TempProjectFile("Main.mmt", "module Main\nimport { \"Left.mmt\", \"Right.mmt\", \"Left.mmt\" }\n"),
+		MidoriTest::TempProjectFile("Left.mmt", "module Left\nimport { \"Shared.mmt\" }\n"),
+		MidoriTest::TempProjectFile("Right.mmt", "module Right\nimport { \"Shared.mmt\", \"Left.mmt\" }\n"),
+		MidoriTest::TempProjectFile("Shared.mmt", "module Shared\npublic export { Value }\ndef Value = 1;\n")
+	});
+	const std::string main = std::filesystem::weakly_canonical(project.Path("Main.mmt")).string();
+	const std::string left = std::filesystem::weakly_canonical(project.Path("Left.mmt")).string();
+	const std::string right = std::filesystem::weakly_canonical(project.Path("Right.mmt")).string();
+	const std::string shared = std::filesystem::weakly_canonical(project.Path("Shared.mmt")).string();
+	for (size_t jobs : { 1u, 2u, 4u })
+	{
+		MidoriResult::ModuleManagerResult graph = GenerateBuildGraphFromFile(main, jobs);
+		REQUIRE(graph.has_value());
+		REQUIRE(graph->m_nodes.size() == 4u);
+		REQUIRE(graph->m_module_declarations.size() == 4u);
+		REQUIRE(graph->m_nodes.at(main).m_dependencies == std::vector<std::string>{ left, right });
+		REQUIRE(graph->m_nodes.at(right).m_dependencies == std::vector<std::string>{ shared, left });
+		REQUIRE(graph->m_nodes.at(shared).m_in_degree == 2);
+		REQUIRE(graph->m_nodes.at(left).m_in_degree == 2);
+		REQUIRE(graph->m_module_declarations.at(shared).HasExport("Value"));
+		REQUIRE(graph->GetCompilationTiers() == std::vector<std::vector<std::string>>{ { shared }, { left }, { right }, { main } });
+	}
+}
+
 TEST_CASE("Compiler tags missing exported symbols with a stable module diagnostic code", "[module][graph]")
 {
 	const std::string source_code =

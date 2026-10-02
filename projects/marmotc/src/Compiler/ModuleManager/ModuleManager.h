@@ -7,7 +7,6 @@
 
 #include <filesystem>
 #include <string>
-#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -16,7 +15,11 @@ class ModuleSourceLoader;
 class ModuleManager
 {
 private:
-	using ModuleDependencyGraph = std::unordered_map<std::string, std::vector<std::string>>;
+	struct DiscoveryState
+	{
+		std::unordered_set<std::string> m_active_modules;
+		std::unordered_set<std::string> m_cyclic_modules;
+	};
 
 	enum class StatementType { MODULE, EXPORT, IMPORT, USE };
 
@@ -28,8 +31,6 @@ private:
 		int m_line;
 	};
 
-	ModuleDependencyGraph m_dependency_graph;
-	std::unordered_map<std::string, ModuleDeclaration> m_module_declarations;
 	TokenStream m_main_token_stream;
 	std::string m_main_file_name;
 	std::vector<std::string> m_main_source_lines;
@@ -41,13 +42,7 @@ public:
 	MidoriResult::ModuleManagerResult GenerateBuildGraph();
 
 private:
-	MidoriResult::VoidResult GenerateBuildGraphImpl(BuildGraph& build_graph, ModuleSourceLoader& source_loader);
-
-	bool HasCircularDependency() const;
-
-	bool CheckCycle(const std::string& node, std::unordered_set<std::string>& visited, std::unordered_set<std::string>& recursion_stack) const;
-
-	void BuildDependencyGraph(BuildGraph& build_graph);
+	MidoriResult::VoidResult GenerateBuildGraphImpl(BuildGraph& build_graph, ModuleSourceLoader& source_loader, DiscoveryState& discovery);
 
 	void CalculateInDegrees(BuildGraph& build_graph);
 
