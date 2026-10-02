@@ -1,57 +1,26 @@
 #pragma once
 
 #include "Compiler/Error/CompilerError.h"
-#include "Compiler/AbstractSyntaxTree/AbstractSyntaxTree.h"
 #include "Compiler/BytecodeModule/BytecodeModule.h"
-#include "Compiler/Module/Module.h"
+#include "Compiler/Module/ModuleInterface.h"
 #include <string>
 #include <filesystem>
-#include <unordered_set>
-#include <unordered_map>
-#include <string_view>
+#include <vector>
 #include <optional>
 #include <memory>
 
 struct CompiledModule
 {
-	using TypeEnvironment = std::unordered_map<std::string, std::shared_ptr<MidoriType>>;
-	using ExportSet = std::unordered_set<std::string>;
-	using ExportVisibilityMap = std::unordered_map<std::string, VisibilityLevel>;
+	using TypeEnvironment = ModuleInterface::TypeEnvironment;
+	using ExportSet = ModuleInterface::ExportSet;
+	using ExportVisibilityMap = ModuleInterface::ExportVisibilityMap;
+	using SymbolTable = ModuleInterface::SymbolTable;
+	using TypeclassMetadata = ModuleInterface::TypeclassMetadata;
+	using TypeclassMethodMap = ModuleInterface::TypeclassMethodMap;
+	using TypeclassInstanceMap = ModuleInterface::TypeclassInstanceMap;
+	using TypeclassMetadataMap = ModuleInterface::TypeclassMetadataMap;
 
-	struct SymbolTable
-	{
-		[[nodiscard]] const VisibilityLevel* FindExportVisibility(std::string_view name) const;
-
-		bool HasExport(std::string_view name) const;
-
-		VisibilityLevel GetExportVisibility(std::string_view name) const;
-
-		[[nodiscard]] SymbolTable WithExport(std::string name, VisibilityLevel visibility) const &;
-
-		[[nodiscard]] SymbolTable WithExport(std::string name, VisibilityLevel visibility) &&;
-
-	private:
-		ExportSet m_exports;
-		ExportVisibilityMap m_export_visibility;
-	};
-
-	struct TypeclassMetadata
-	{
-		std::unordered_map<std::string, std::shared_ptr<MidoriType>> m_method_types;
-		std::unordered_set<std::string> m_method_names;
-		std::vector<std::string> m_type_param_names;
-		std::vector<std::string> m_associated_type_names;
-		std::vector<std::string> m_instance_methods;  // Mangled instance method names (e.g., show_Show_Int)
-		std::vector<std::vector<std::shared_ptr<MidoriType>>> m_instance_type_args;
-		// Of those, the ones this module declares itself.
-		std::vector<std::vector<std::shared_ptr<MidoriType>>> m_declared_instance_type_args;
-		std::vector<std::unordered_map<std::string, std::shared_ptr<MidoriType>>> m_instance_associated_type_bindings;
-	};
-	using TypeclassMethodMap = std::unordered_map<std::string, std::unordered_set<std::string>>;
-	using TypeclassInstanceMap = std::unordered_map<std::string, std::vector<std::string>>;
-	using TypeclassMetadataMap = std::unordered_map<std::string, TypeclassMetadata>;
-
-	CompiledModule(std::string module_name, std::filesystem::path file_path, SymbolTable symbols, TypeEnvironment type_signatures = {}, TypeclassMetadataMap typeclass_metadata = {});
+	explicit CompiledModule(std::shared_ptr<const ModuleInterface> interface);
 
 	CompiledModule(const CompiledModule&) = delete;
 	CompiledModule& operator=(const CompiledModule&) = delete;
@@ -80,12 +49,6 @@ struct CompiledModule
 	// The module's checked syntax tree as text, when --emit-ast asked for it; empty otherwise.
 	[[nodiscard]] const std::string& Ast() const;
 
-	[[nodiscard]] CompiledModule WithSymbols(SymbolTable symbols) &&;
-
-	[[nodiscard]] CompiledModule WithTypeSignatures(TypeEnvironment type_signatures) &&;
-
-	[[nodiscard]] CompiledModule WithTypeclassMetadata(TypeclassMetadataMap typeclass_metadata) &&;
-
 	[[nodiscard]] CompiledModule WithWarnings(std::vector<CompilerWarning> warnings) &&;
 
 	[[nodiscard]] CompiledModule WithBytecode(BytecodeModule bytecode) &&;
@@ -95,11 +58,7 @@ struct CompiledModule
 	[[nodiscard]] CompiledModule WithAst(std::string ast) &&;
 
 private:
-	std::string m_module_name;
-	std::filesystem::path m_file_path;
-	SymbolTable m_symbols;
-	TypeEnvironment m_type_signatures;
-	TypeclassMetadataMap m_typeclass_metadata;
+	std::shared_ptr<const ModuleInterface> m_interface;
 	std::vector<CompilerWarning> m_warnings;
 	std::optional<BytecodeModule> m_bytecode;        // Per-module bytecode for incremental compilation
 	std::string m_midori_ir;

@@ -271,9 +271,10 @@ The compiler derives stable compilation tiers from the dependency graph, but the
 Current behavior:
 
 - `BuildGraph::GetCompilationTiers()` is used for deterministic progress reporting and final linking order.
-- The compiler builds a ready queue from modules whose dependencies are already satisfied.
+- The compiler builds a ready queue from modules whose dependency interfaces are ready, prioritizing the longest downstream path weighted by token count, with file paths breaking ties.
 - Native builds use `std::jthread` workers, capped by `--jobs N` or hardware concurrency by default; one worker compiles on the calling thread.
-- When a module completes, any newly unblocked dependents are enqueued immediately.
+- After checking, static analysis, lowering, and export validation, a module publishes its immutable interface and generic templates. Newly unblocked dependents can compile while that module optimizes and generates bytecode.
+- Linking waits for every module's bytecode; tiers keep its order stable regardless of interface or worker completion order.
 - On Emscripten builds, the same dependency logic runs through a single-threaded queue.
 
 ## FFI Notes

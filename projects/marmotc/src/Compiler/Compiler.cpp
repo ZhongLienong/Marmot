@@ -5,6 +5,7 @@
 #include "Compiler.h"
 #include "Compiler/BuildGraph/BuildGraph.h"
 #include "Compiler/CompilationTimings/CompilationTimings.h"
+#include "Compiler/CompilationSchedule/CompilationSchedule.h"
 #include "Compiler/BytecodeBackend/BytecodeBackend.h"
 #include "Compiler/BytecodeLinker/BytecodeLinker.h"
 #include "Compiler/Lexer/Lexer.h"
@@ -25,6 +26,9 @@
 #include <chrono>
 #include <condition_variable>
 #include <deque>
+#include <functional>
+#include <queue>
+#include <variant>
 #include <filesystem>
 #include <mutex>
 #include <ranges>
@@ -69,6 +73,7 @@ namespace
 	{
 		BuildGraph& m_build_graph;
 		std::unordered_map<std::string, CompiledModule>& m_compiled_modules;
+		std::unordered_map<std::string, std::shared_ptr<const ModuleInterface>>& m_interfaces;
 		std::mutex& m_modules_mutex;
 		std::mutex& m_print_mutex;
 		std::atomic<size_t>& m_completed_modules;
@@ -106,6 +111,8 @@ namespace
 		ModuleExportInfo m_export_info;
 		BytecodeModule m_bytecode;
 		std::optional<LoweredModule> m_lowered;
+		std::shared_ptr<const ModuleInterface> m_interface;
+		std::unordered_map<std::string, std::string> m_reexports;
 		std::string m_midori_ir;
 		std::string m_ast_text;
 #if MIDORI_ENABLE_OPTIMIZER_STATS
@@ -118,6 +125,8 @@ namespace
 		CompileStateResult WithTypeCheckedAst() &&;
 		CompileStateResult WithStaticAnalysis() &&;
 		CompileStateResult WithLoweredModule() &&;
+		CompileStateResult WithInterface() &&;
+		CompileStateResult WithOptimizedModule() &&;
 		CompileStateResult WithBackendBytecode() &&;
 		MidoriResult::CompiledModuleReportResult Finalize() &&;
 	};
@@ -128,15 +137,6 @@ namespace
 		std::vector<std::string> m_midori_ir;
 		std::vector<std::string> m_ast;
 		MidoriResult::CompilerWarnings m_warnings;
-	};
-
-	struct CompilationSchedule
-	{
-		std::vector<std::vector<std::string>> m_tiers;
-		std::vector<std::string> m_all_modules;
-		std::unordered_map<std::string, size_t> m_tier_indices;
-		std::unordered_map<std::string, size_t> m_remaining_deps;
-		std::unordered_map<std::string, std::vector<std::string>> m_dependents;
 	};
 
 	struct CompilerAccess : Compiler
@@ -247,59 +247,6 @@ namespace
 	{
 		state.m_bytecode = std::move(bytecode);
 		return std::move(state);
-	}
-
-	static CompilationSchedule BuildCompilationSchedule(const BuildGraph& build_graph)
-	{
-		CompilationSchedule schedule;
-		schedule.m_tiers = build_graph.GetCompilationTiers();
-		schedule.m_all_modules.reserve(build_graph.m_nodes.size());
-
-		for (const auto& [file_path, _] : build_graph.m_nodes)
-		{
-			schedule.m_all_modules.push_back(file_path);
-		}
-
-		std::ranges::sort(schedule.m_all_modules);
-
-		schedule.m_tier_indices.reserve(schedule.m_all_modules.size());
-		for (size_t tier_idx = 0u; tier_idx < schedule.m_tiers.size(); tier_idx += 1u)
-		{
-			for (const std::string& file_path : schedule.m_tiers[tier_idx])
-			{
-				schedule.m_tier_indices[file_path] = tier_idx;
-			}
-		}
-
-		schedule.m_remaining_deps.reserve(schedule.m_all_modules.size());
-		schedule.m_dependents.reserve(schedule.m_all_modules.size());
-		for (const std::string& file_path : schedule.m_all_modules)
-		{
-			schedule.m_remaining_deps.emplace(file_path, 0u);
-			schedule.m_dependents.emplace(file_path, std::vector<std::string>{});
-		}
-
-		for (const std::string& file_path : schedule.m_all_modules)
-		{
-			const BuildGraph::BuildNode& node = build_graph.m_nodes.at(file_path);
-			for (const std::string& dependency : node.m_dependencies)
-			{
-				if (!build_graph.m_nodes.contains(dependency))
-				{
-					continue;
-				}
-
-				schedule.m_dependents[dependency].push_back(file_path);
-				schedule.m_remaining_deps[file_path] += 1u;
-			}
-		}
-
-		for (auto& [_, dependents] : schedule.m_dependents)
-		{
-			std::ranges::sort(dependents);
-		}
-
-		return schedule;
 	}
 
 	// Phase 2 warning policy:
@@ -433,30 +380,26 @@ namespace
 	{
 		ImportContext context;
 		std::unordered_map<std::string, std::string> imported_typeclass_sources;
-		std::vector<const CompiledModule*> dependency_modules;
+		std::vector<const ModuleInterface*> dependency_modules;
 		dependency_modules.reserve(node.m_dependencies.size());
 
 		{
 			std::lock_guard<std::mutex> lock(env.m_modules_mutex);
 			for (const std::string& dep_path : node.m_dependencies)
 			{
-				dependency_modules.push_back(&env.m_compiled_modules.at(dep_path));
+				dependency_modules.push_back(env.m_interfaces.at(dep_path).get());
 			}
 		}
 
 		size_t imported_type_count = 0u;
 		size_t imported_typeclass_count = 0u;
 		size_t imported_generic_function_count = 0u;
-		for (const CompiledModule* dep : dependency_modules)
+		for (const ModuleInterface* dep : dependency_modules)
 		{
-			imported_type_count += dep->TypeSignatures().size() * 2u;
-			imported_typeclass_count += dep->TypeclassMetadataByName().size();
+			imported_type_count += dep->m_type_signatures.size() * 2u;
+			imported_typeclass_count += dep->m_typeclass_metadata.size();
 
-			const std::optional<BytecodeModule>& dep_bytecode = dep->Bytecode();
-			if (dep_bytecode.has_value())
-			{
-				imported_generic_function_count += dep_bytecode.value().m_generic_functions.size() * 2u;
-			}
+			imported_generic_function_count += dep->m_generic_functions.size() * 2u;
 		}
 
 		context.m_imported_symbols.reserve(dependency_modules.size());
@@ -473,13 +416,13 @@ namespace
 		// type can name both.
 		std::unordered_map<std::string, std::unordered_map<std::string, std::string>> instance_sources;
 
-		for (const CompiledModule* dep : dependency_modules)
+		for (const ModuleInterface* dep : dependency_modules)
 		{
-			const std::string& dep_module_name = dep->ModuleName();
-			context.m_imported_symbols[dep_module_name] = dep->Symbols();
-			context.m_imported_type_signatures[dep_module_name] = dep->TypeSignatures();
+			const std::string& dep_module_name = dep->m_module_name;
+			context.m_imported_symbols[dep_module_name] = dep->m_symbols;
+			context.m_imported_type_signatures[dep_module_name] = dep->m_type_signatures;
 
-			for (const auto& [tc_name, metadata] : dep->TypeclassMetadataByName())
+			for (const auto& [tc_name, metadata] : dep->m_typeclass_metadata)
 			{
 				std::unordered_map<std::string, CompiledModule::TypeclassMetadata>::iterator existing_it = context.m_imported_typeclass_metadata.find(tc_name);
 				if (existing_it != context.m_imported_typeclass_metadata.end())
@@ -528,7 +471,7 @@ namespace
 			// re-export is not: a constructor is looked up by the type's own
 			// identity, and a union's members go with their union.
 			std::unordered_map<std::string, std::string> declaring_modules;
-			for (const auto& [name, type] : dep->TypeSignatures())
+			for (const auto& [name, type] : dep->m_type_signatures)
 			{
 				const std::string declaring_module_name = DeclaringModuleName(type);
 				if (!declaring_module_name.empty())
@@ -537,7 +480,7 @@ namespace
 				}
 			}
 
-			for (const auto& [name, type] : dep->TypeSignatures())
+			for (const auto& [name, type] : dep->m_type_signatures)
 			{
 				context.m_imported_types[name] = type;
 				context.m_imported_types[dep_module_name + NameSeparator.data() + name] = type;
@@ -550,26 +493,22 @@ namespace
 				}
 			}
 
-			const std::optional<BytecodeModule>& dep_bytecode = dep->Bytecode();
-			if (dep_bytecode.has_value())
+			// A dependency's own generics go under the module it was reached
+			// through and the module that defined it, never under the bare
+			// name, which belongs to this module's own. The ones it imported
+			// are already `Module::name`, and its generics may call them.
+			for (const auto& [name, info] : dep->m_generic_functions)
 			{
-				// A dependency's own generics go under the module it was reached
-				// through and the module that defined it, never under the bare
-				// name, which belongs to this module's own. The ones it imported
-				// are already `Module::name`, and its generics may call them.
-				for (const auto& [name, info] : dep_bytecode.value().m_generic_functions)
+				if (name.find(NameSeparator) != std::string::npos)
 				{
-					if (name.find(NameSeparator) != std::string::npos)
-					{
-						context.m_imported_generic_functions[name] = info;
-						continue;
-					}
+					context.m_imported_generic_functions[name] = info;
+					continue;
+				}
 
-					context.m_imported_generic_functions[dep_module_name + NameSeparator.data() + name] = info;
-					if (!info.m_defining_module.empty() && info.m_defining_module != dep_module_name)
-					{
-						context.m_imported_generic_functions[info.m_defining_module + NameSeparator.data() + name] = info;
-					}
+				context.m_imported_generic_functions[dep_module_name + NameSeparator.data() + name] = info;
+				if (!info.m_defining_module.empty() && info.m_defining_module != dep_module_name)
+				{
+					context.m_imported_generic_functions[info.m_defining_module + NameSeparator.data() + name] = info;
 				}
 			}
 		}
@@ -817,8 +756,31 @@ namespace
 			return std::unexpected(MakeStateErrorReport(std::move(state), std::move(lowered.error())));
 		}
 
+		state.m_lowered.emplace(std::move(lowered).value());
+		return state;
+	}
+
+	CompileStateResult CompileState::WithInterface() &&
+	{
+		return ValidateExports(std::move(*this)).transform([](CompileState state)
+		{
+			state.m_interface = std::make_shared<const ModuleInterface>(
+				state.m_module_name, state.m_file_path, std::move(state.m_export_info.m_symbols),
+				std::move(state.m_parsed_module.m_type_signatures), std::move(state.m_parsed_module.m_typeclass_metadata),
+				std::move(state.m_lowered->m_generic_functions));
+			{
+				std::lock_guard<std::mutex> lock(state.m_env->m_modules_mutex);
+				state.m_env->m_interfaces.emplace(state.m_file_path, state.m_interface);
+			}
+			return state;
+		});
+	}
+
+	CompileStateResult CompileState::WithOptimizedModule() &&
+	{
+		CompileState state = std::move(*this);
 		MidoriIROptimizer optimizer;
-		std::optional<CompilerError> violation = OptimizeMidoriIR(optimizer, lowered->m_module, state.m_file_path);
+		std::optional<CompilerError> violation = OptimizeMidoriIR(optimizer, state.m_lowered->m_module, state.m_file_path);
 		if (violation.has_value())
 		{
 			return std::unexpected(MakeStateErrorReport(std::move(state), MidoriResult::CompilerDiagnostics(std::move(violation).value())));
@@ -829,9 +791,8 @@ namespace
 
 		if (state.m_env->m_emit_midori_ir)
 		{
-			state.m_midori_ir = MidoriIRPrinter(lowered->m_module).Print();
+			state.m_midori_ir = MidoriIRPrinter(state.m_lowered->m_module).Print();
 		}
-		state.m_lowered.emplace(std::move(lowered).value());
 		return state;
 	}
 
@@ -844,6 +805,7 @@ namespace
 			return std::unexpected(MakeStateErrorReport(std::move(state), std::move(bytecode_result.error())));
 		}
 
+		bytecode_result->m_reexports = std::move(state.m_reexports);
 		state.m_lowered.reset();
 		return ApplyBytecode(std::move(state), std::move(bytecode_result).value());
 	}
@@ -851,8 +813,7 @@ namespace
 	MidoriResult::CompiledModuleReportResult CompileState::Finalize() &&
 	{
 		CompilationTimings::Timer timer(m_env->m_timings, CompilationTimings::Phase::Finalization);
-		return ValidateExports(std::move(*this))
-			.and_then(BuildCompiledModule);
+		return BuildCompiledModule(std::move(*this));
 	}
 
 	// A name a module exports without defining it may be one of its imports.
@@ -898,7 +859,7 @@ namespace
 	// origin's.
 	static void AliasReexport(CompileState& state, const std::string& exported_name, const std::string& origin_module)
 	{
-		state.m_bytecode.m_reexports[exported_name] = origin_module;
+		state.m_reexports[exported_name] = origin_module;
 
 		// The name itself, and a union's constructors, which are keyed under it.
 		const std::string member_prefix = exported_name + NameSeparator.data();
@@ -914,21 +875,21 @@ namespace
 			state.m_import_context.m_imported_generic_functions.find(origin_module + NameSeparator.data() + exported_name);
 		if (generic_it != state.m_import_context.m_imported_generic_functions.cend())
 		{
-			state.m_bytecode.m_generic_functions[exported_name] = generic_it->second;
+			state.m_lowered->m_generic_functions[exported_name] = generic_it->second;
 		}
 	}
 
 	static CompileStateResult ValidateExports(CompileState state)
 	{
 		const std::unordered_set<std::string>& export_set = state.m_export_info.m_export_set;
-		const BytecodeModule& module_bytecode = state.m_bytecode;
+		const LoweredModule& lowered_module = state.m_lowered.value();
 		const CompiledModule::TypeclassMetadataMap& typeclass_metadata = state.m_parsed_module.m_typeclass_metadata;
 		const TypeChecker::TypeEnvironment& type_signatures = state.m_parsed_module.m_type_signatures;
 		const std::string& module_name = state.m_module_name;
 		const std::string& file_path = state.m_file_path;
 
 		std::unordered_set<std::string> defined_exports;
-		for (const BytecodeModule::ExportedSymbol& exported_symbol : module_bytecode.m_exports)
+		for (const LoweredExport& exported_symbol : lowered_module.m_exports)
 		{
 			defined_exports.insert(exported_symbol.m_name);
 		}
@@ -981,9 +942,7 @@ namespace
 
 	static MidoriResult::CompiledModuleReportResult BuildCompiledModule(CompileState state)
 	{
-		CompiledModule compiled_module = CompiledModule(state.m_module_name, state.m_file_path, std::move(state.m_export_info.m_symbols))
-			.WithTypeSignatures(std::move(state.m_parsed_module.m_type_signatures))
-			.WithTypeclassMetadata(std::move(state.m_parsed_module.m_typeclass_metadata))
+		CompiledModule compiled_module = CompiledModule(std::move(state.m_interface))
 			.WithWarnings(std::move(state.m_warnings).TakeAll())
 			.WithBytecode(std::move(state.m_bytecode))
 			.WithMidoriIR(std::move(state.m_midori_ir))
@@ -1047,15 +1006,27 @@ namespace
 		return std::move(state).WithLoweredModule();
 	}
 
+	static CompileStateResult StageInterface(CompileState state)
+	{
+		return std::move(state).WithInterface();
+	}
+
+	static CompileStateResult StageOptimization(CompileState state)
+	{
+		return std::move(state).WithOptimizedModule();
+	}
+
 	static CompileStateResult StageBytecodeBackend(CompileState state)
 	{
 		return std::move(state).WithBackendBytecode();
 	}
 
+	using InterfaceReady = std::function<void(const std::string&)>;
+
 	class ModuleCompiler
 	{
 	public:
-		MidoriResult::CompiledModuleReportResult Compile(CompileEnv& env, const std::string& file_path, size_t tier_idx) const
+		MidoriResult::CompiledModuleReportResult Compile(CompileEnv& env, const std::string& file_path, size_t tier_idx, const InterfaceReady& interface_ready) const
 		{
 			CompilationTimings::ModuleTimer timer(env.m_timings);
 			// A worker exception would terminate the process; use the same module
@@ -1063,7 +1034,7 @@ namespace
 			try
 			{
 				return MakeCompileState(env, file_path, tier_idx)
-					.and_then(RunStages)
+					.and_then([&interface_ready](CompileState state) { return RunStages(std::move(state), interface_ready); })
 					.and_then
 					(
 						[](CompileState state) -> MidoriResult::CompiledModuleReportResult
@@ -1108,18 +1079,20 @@ namespace
 			CompilationTimings::Phase m_phase;
 		};
 
-		static constexpr std::array<NamedStage, 7u> s_pipeline =
+		static constexpr std::array<NamedStage, 9u> s_pipeline =
 		{
 			NamedStage{ StageImportContext, "import context", CompilationTimings::Phase::Imports },
 			NamedStage{ StageSourceLines, "source lines", CompilationTimings::Phase::SourceLines },
 			NamedStage{ StageParsedModule, "parser", CompilationTimings::Phase::Parsing },
 			NamedStage{ StageTypeCheckedAst, "type checker", CompilationTimings::Phase::TypeChecking },
 			NamedStage{ StageStaticAnalysis, "static analyzer", CompilationTimings::Phase::StaticAnalysis },
-			NamedStage{ StageLowering, "lowering", CompilationTimings::Phase::LoweringAndOptimization },
+			NamedStage{ StageLowering, "lowering", CompilationTimings::Phase::Lowering },
+			NamedStage{ StageInterface, "module interface", CompilationTimings::Phase::Interface },
+			NamedStage{ StageOptimization, "optimization", CompilationTimings::Phase::Optimization },
 			NamedStage{ StageBytecodeBackend, "bytecode backend", CompilationTimings::Phase::Backend }
 		};
 
-		static CompileStateResult RunStages(CompileState state)
+		static CompileStateResult RunStages(CompileState state, const InterfaceReady& interface_ready)
 		{
 			for (const NamedStage& stage : s_pipeline)
 			{
@@ -1149,16 +1122,19 @@ namespace
 				}
 
 				state = std::move(result).value();
+				if (stage.m_stage == StageInterface)
+				{
+					interface_ready(state.m_file_path);
+				}
 			}
 
 			return state;
 		}
 	};
 
-	struct QueuedModule
+	struct InterfacePublished
 	{
 		std::string m_file_path;
-		size_t m_tier_idx = 0u;
 	};
 
 	struct CompletedModule
@@ -1166,6 +1142,8 @@ namespace
 		std::string m_file_path;
 		MidoriResult::CompiledModuleReportResult m_result;
 	};
+
+	using ModuleEvent = std::variant<InterfacePublished, CompletedModule>;
 
 	class ModuleWorkQueue
 	{
@@ -1189,38 +1167,42 @@ namespace
 			Stop();
 		}
 
-		void Enqueue(std::string file_path, size_t tier_idx)
+		void Enqueue(std::vector<ScheduledModule> modules)
 		{
+			if (modules.empty())
+			{
+				return;
+			}
+			const size_t ready_count = modules.size();
 			{
 				std::lock_guard<std::mutex> lock(m_mutex);
-				if (m_stop)
+				for (ScheduledModule& module : modules)
 				{
-					return;
+					m_ready.push(std::move(module));
+					m_in_flight += 1u;
 				}
-
-				m_ready.emplace_back(QueuedModule{ std::move(file_path), tier_idx });
-				m_in_flight += 1u;
 			}
-
-			m_ready_cv.notify_one();
+			if (ready_count == 1u)
+			{
+				m_ready_cv.notify_one();
+			}
+			else
+			{
+				m_ready_cv.notify_all();
+			}
 		}
 
-		CompletedModule WaitForCompleted()
+		ModuleEvent WaitForEvent()
 		{
 			std::unique_lock<std::mutex> lock(m_mutex);
-			m_completed_cv.wait
-			(
-				lock,
-				[this]()
-				{
-					return !m_completed.empty() || m_in_flight == 0u;
-				}
-			);
-
-			CompletedModule completed_module = std::move(m_completed.front());
-			m_completed.pop_front();
-			m_in_flight -= 1u;
-			return completed_module;
+			m_events_cv.wait(lock, [this]() { return !m_events.empty(); });
+			ModuleEvent event = std::move(m_events.front());
+			m_events.pop_front();
+			if (std::holds_alternative<CompletedModule>(event))
+			{
+				m_in_flight -= 1u;
+			}
+			return event;
 		}
 
 		size_t InFlight() const
@@ -1231,58 +1213,47 @@ namespace
 
 		void Stop()
 		{
-			bool should_notify = false;
 			{
 				std::lock_guard<std::mutex> lock(m_mutex);
-				if (!m_stop)
-				{
-					m_stop = true;
-					m_ready.clear();
-					should_notify = true;
-				}
+				m_stop = true;
+				m_ready = {};
 			}
-
-			if (should_notify)
-			{
-				m_ready_cv.notify_all();
-				m_completed_cv.notify_all();
-			}
+			m_ready_cv.notify_all();
 		}
 
 	private:
+		void Publish(ModuleEvent event)
+		{
+			{
+				std::lock_guard<std::mutex> lock(m_mutex);
+				m_events.push_back(std::move(event));
+			}
+			m_events_cv.notify_one();
+		}
+
 		void WorkerLoop()
 		{
+			const InterfaceReady interface_ready = [this](const std::string& file_path)
+			{
+				Publish(InterfacePublished{ file_path });
+			};
 			while (true)
 			{
-				QueuedModule queued_module;
+				std::optional<ScheduledModule> queued_module;
 				{
 					std::unique_lock<std::mutex> lock(m_mutex);
-					m_ready_cv.wait
-					(
-						lock,
-						[this]()
-						{
-							return m_stop || !m_ready.empty();
-						}
-					);
-
-					if (m_stop && m_ready.empty())
+					m_ready_cv.wait(lock, [this]() { return m_stop || !m_ready.empty(); });
+					if (m_stop)
 					{
 						return;
 					}
-
-					queued_module = std::move(m_ready.front());
-					m_ready.pop_front();
+					queued_module.emplace(m_ready.top());
+					m_ready.pop();
 				}
 
-				CompletedModule completed_module{ queued_module.m_file_path, m_module_compiler.Compile(m_env, queued_module.m_file_path, queued_module.m_tier_idx) };
-
-				{
-					std::lock_guard<std::mutex> lock(m_mutex);
-					m_completed.emplace_back(std::move(completed_module));
-				}
-
-				m_completed_cv.notify_one();
+				Publish(CompletedModule{
+					queued_module->m_file_path,
+					m_module_compiler.Compile(m_env, queued_module->m_file_path, queued_module->m_tier_idx, interface_ready) });
 			}
 		}
 
@@ -1290,13 +1261,22 @@ namespace
 		const ModuleCompiler& m_module_compiler;
 		mutable std::mutex m_mutex;
 		std::condition_variable m_ready_cv;
-		std::condition_variable m_completed_cv;
-		std::deque<QueuedModule> m_ready;
-		std::deque<CompletedModule> m_completed;
-		std::vector<std::jthread> m_workers;
+		std::condition_variable m_events_cv;
+		std::priority_queue<ScheduledModule> m_ready;
+		std::deque<ModuleEvent> m_events;
 		size_t m_in_flight = 0u;
 		bool m_stop = false;
+		// Join workers before destroying the queues, mutex, or condition variables.
+		std::vector<std::jthread> m_workers;
 	};
+
+	static MidoriResult::CompilerReport CollectFailureReport(const CompilationSchedule& schedule, const CompileEnv& env, const std::string& file_path, MidoriResult::CompilerReport failed_module_report)
+	{
+		const std::vector<CompilerWarning>& failed_module_warnings = failed_module_report.Warnings().Warnings();
+		return MidoriResult::CompilerReport(
+			CollectCompiledModuleWarnings(schedule, env.m_compiled_modules, &file_path, &failed_module_warnings),
+			std::move(failed_module_report).TakeErrors());
+	}
 
 	static MidoriResult::ReportResult<size_t> CompileModulesReadyQueue(CompileEnv& env, ModuleCompiler& module_compiler, CompilationSchedule& schedule, std::optional<size_t> jobs)
 	{
@@ -1309,57 +1289,31 @@ namespace
 		if (worker_count > 1u)
 		{
 			ModuleWorkQueue work_queue(env, module_compiler, worker_count);
-
-			for (const std::string& file_path : schedule.m_all_modules)
-			{
-				if (schedule.m_remaining_deps.at(file_path) == 0u)
-				{
-					work_queue.Enqueue(file_path, schedule.m_tier_indices.at(file_path));
-				}
-			}
+			work_queue.Enqueue(schedule.InitialReady());
 
 			while (compiled_count < schedule.m_all_modules.size())
 			{
 				if (work_queue.InFlight() == 0u)
 				{
-					work_queue.Stop();
 					return std::unexpected(MidoriResult::CompilerReport(CompilerError::Simple(CompilerStage::Compiler, "No modules are ready to compile. Check for circular dependencies.\n", CompilerErrorCode::CompilerNoModulesReadyToCompile)));
 				}
 
-				CompletedModule completed_module = work_queue.WaitForCompleted();
+				ModuleEvent event = work_queue.WaitForEvent();
+				if (const InterfacePublished* interface = std::get_if<InterfacePublished>(&event))
+				{
+					work_queue.Enqueue(schedule.InterfaceReady(interface->m_file_path));
+					continue;
+				}
+
+				CompletedModule completed_module = std::move(std::get<CompletedModule>(event));
 				if (!completed_module.m_result.has_value())
 				{
-					work_queue.Stop();
-					MidoriResult::CompilerReport failed_module_report = std::move(completed_module.m_result).error();
-					const std::vector<CompilerWarning>& failed_module_warnings = failed_module_report.Warnings().Warnings();
-					MidoriResult::CompilerReport report(
-						CollectCompiledModuleWarnings(schedule, env.m_compiled_modules, &completed_module.m_file_path, &failed_module_warnings),
-						std::move(failed_module_report).TakeErrors());
-					return std::unexpected(std::move(report));
+					return std::unexpected(CollectFailureReport(schedule, env, completed_module.m_file_path, std::move(completed_module.m_result).error()));
 				}
 
-				{
-					std::lock_guard<std::mutex> lock(env.m_modules_mutex);
-					env.m_compiled_modules.emplace(completed_module.m_file_path, std::move(completed_module.m_result).value());
-				}
-
+				env.m_compiled_modules.emplace(completed_module.m_file_path, std::move(completed_module.m_result).value());
 				compiled_count += 1u;
-
-				for (const std::string& dependent : schedule.m_dependents.at(completed_module.m_file_path))
-				{
-					size_t& remaining = schedule.m_remaining_deps.at(dependent);
-					if (remaining > 0u)
-					{
-						remaining -= 1u;
-						if (remaining == 0u)
-						{
-							work_queue.Enqueue(dependent, schedule.m_tier_indices.at(dependent));
-						}
-					}
-				}
 			}
-
-			work_queue.Stop();
 		}
 		else
 #else
@@ -1367,47 +1321,31 @@ namespace
 		env.m_timings.SetWorkerCount(1u);
 #endif
 		{
-			std::deque<std::string> ready;
-			for (const std::string& file_path : schedule.m_all_modules)
+			std::priority_queue<ScheduledModule> ready;
+			for (ScheduledModule& module : schedule.InitialReady())
 			{
-				if (schedule.m_remaining_deps.at(file_path) == 0u)
-				{
-					ready.emplace_back(file_path);
-				}
+				ready.push(std::move(module));
 			}
+			const InterfaceReady interface_ready = [&schedule, &ready](const std::string& file_path)
+			{
+				for (ScheduledModule& module : schedule.InterfaceReady(file_path))
+				{
+					ready.push(std::move(module));
+				}
+			};
 
 			while (!ready.empty())
 			{
-				std::string file_path = std::move(ready.front());
-				ready.pop_front();
-
-				const size_t tier_idx = schedule.m_tier_indices.at(file_path);
-				MidoriResult::CompiledModuleReportResult result = module_compiler.Compile(env, file_path, tier_idx);
+				const ScheduledModule module = ready.top();
+				ready.pop();
+				MidoriResult::CompiledModuleReportResult result = module_compiler.Compile(env, module.m_file_path, module.m_tier_idx, interface_ready);
 				if (!result.has_value())
 				{
-					MidoriResult::CompilerReport failed_module_report = std::move(result).error();
-					const std::vector<CompilerWarning>& failed_module_warnings = failed_module_report.Warnings().Warnings();
-					MidoriResult::CompilerReport report(
-						CollectCompiledModuleWarnings(schedule, env.m_compiled_modules, &file_path, &failed_module_warnings),
-						std::move(failed_module_report).TakeErrors());
-					return std::unexpected(std::move(report));
+					return std::unexpected(CollectFailureReport(schedule, env, module.m_file_path, std::move(result).error()));
 				}
 
-				env.m_compiled_modules.emplace(file_path, std::move(result).value());
+				env.m_compiled_modules.emplace(module.m_file_path, std::move(result).value());
 				compiled_count += 1u;
-
-				for (const std::string& dependent : schedule.m_dependents.at(file_path))
-				{
-					size_t& remaining = schedule.m_remaining_deps.at(dependent);
-					if (remaining > 0u)
-					{
-						remaining -= 1u;
-						if (remaining == 0u)
-						{
-							ready.emplace_back(dependent);
-						}
-					}
-				}
 			}
 		}
 
@@ -1415,13 +1353,12 @@ namespace
 		{
 			return std::unexpected(MidoriResult::CompilerReport(CompilerError::Simple(CompilerStage::Compiler, "Incomplete compilation: some modules never became ready.\n", CompilerErrorCode::CompilerIncompleteCompilationSchedule)));
 		}
-
 		return compiled_count;
 	}
 
-	static CompileEnv MakeCompileEnv(BuildGraph& build_graph, std::unordered_map<std::string, CompiledModule>& compiled_modules, std::mutex& modules_mutex, std::mutex& print_mutex, std::atomic<size_t>& completed_modules, const CompilationSchedule& schedule, size_t total_modules, const CompilationInputs& inputs, CompilationTimings& timings)
+	static CompileEnv MakeCompileEnv(BuildGraph& build_graph, std::unordered_map<std::string, CompiledModule>& compiled_modules, std::unordered_map<std::string, std::shared_ptr<const ModuleInterface>>& interfaces, std::mutex& modules_mutex, std::mutex& print_mutex, std::atomic<size_t>& completed_modules, const CompilationSchedule& schedule, size_t total_modules, const CompilationInputs& inputs, CompilationTimings& timings)
 	{
-		return CompileEnv{ build_graph, compiled_modules, modules_mutex, print_mutex, completed_modules, schedule.m_tiers, total_modules, inputs.EmitsMidoriIR(), inputs.EmitsAst(), timings };
+		return CompileEnv{ build_graph, compiled_modules, interfaces, modules_mutex, print_mutex, completed_modules, schedule.m_tiers, total_modules, inputs.EmitsMidoriIR(), inputs.EmitsAst(), timings };
 	}
 
 	static MidoriResult::ReportResult<BuildGraphArtifacts> CollectBytecodeModules(const CompilationSchedule& schedule, std::unordered_map<std::string, CompiledModule>& compiled_modules)
@@ -1462,16 +1399,18 @@ namespace
 		CompilationSchedule schedule = [&]()
 		{
 			CompilationTimings::Timer timer(timings, CompilationTimings::Phase::Schedule);
-			return BuildCompilationSchedule(build_graph);
+			return CompilationSchedule(build_graph);
 		}();
 		const size_t total_modules = schedule.m_all_modules.size();
 		std::unordered_map<std::string, CompiledModule> compiled_modules;
 		compiled_modules.reserve(total_modules);
+		std::unordered_map<std::string, std::shared_ptr<const ModuleInterface>> interfaces;
+		interfaces.reserve(total_modules);
 		std::mutex modules_mutex;
 		std::mutex print_mutex;
 		std::atomic<size_t> completed_modules{ 0u };
 
-		CompileEnv env = MakeCompileEnv(build_graph, compiled_modules, modules_mutex, print_mutex, completed_modules, schedule, total_modules, inputs, timings);
+		CompileEnv env = MakeCompileEnv(build_graph, compiled_modules, interfaces, modules_mutex, print_mutex, completed_modules, schedule, total_modules, inputs, timings);
 		ModuleCompiler module_compiler;
 		MidoriResult::ReportResult<size_t> compile_result = CompileModulesReadyQueue(env, module_compiler, schedule, inputs.Jobs());
 		if (!compile_result.has_value())

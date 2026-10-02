@@ -649,9 +649,17 @@ def scenario_compiler_parallelism(runner: TestRunner) -> None:
     with tempfile.TemporaryDirectory(prefix="marmot-cli-jobs-") as raw:
         directory = Path(raw)
         sources = {
-            "Shared.mmt": "module Shared\npublic export { Identity }\ndef Identity = fn<T>(value: T) -> T => value;\n",
-            "Left.mmt": 'module Left\nimport { "Shared.mmt" }\npublic export { Value }\ndef Value = Shared::Identity(20);\n',
-            "Right.mmt": 'module Right\nimport { "Shared.mmt" }\npublic export { Value }\ndef Value = Shared::Identity(22);\n',
+            "Shared.mmt": ("module Shared\npublic export { Identity, Middle, Shade, Base }\n"
+                           'foreign "MIDORI_FFI_ArraySlice" ArraySlice: fn(Array<T>, Int, Int) -> Array<T>;\n'
+                           "def Identity = fn<T>(value: T) -> T => value;\n"
+                           "def Middle = fn<T>(items: Array<T>) -> Array<T> => ArraySlice(items, 1, #items - 1);\n"
+                           "type Shade = Light | Dark(Int);\ndef Base = 20;\n"),
+            "Facade.mmt": 'module Facade\nimport { "Shared.mmt" }\npublic export { Identity, Middle, Shade, Base }\n',
+            "Left.mmt": ('module Left\nimport { "Facade.mmt" }\npublic export { Value }\n'
+                         'def Value = Facade::Identity(Facade::Base);\n'),
+            "Right.mmt": ('module Right\nimport { "Facade.mmt" }\npublic export { Value }\n'
+                          'def items = Facade::Middle([0, 22, 0]);\ndef shade = Facade::Shade::Dark(items[0]);\n'
+                          'def Value = Facade::Identity(items[0]);\n'),
             "Main.mmt": 'module Main\nimport { "Left.mmt", "Right.mmt" }\ndef result = Left::Value + Right::Value;\n',
         }
         for name, source in sources.items():
@@ -667,7 +675,7 @@ def scenario_compiler_parallelism(runner: TestRunner) -> None:
             assert_condition(built.returncode == 0 and payload["success"], f"build --jobs {jobs}: {built}")
             workers = re.search(r"Workers: (\d+) configured, (\d+) peak active, (\d+) modules started", built.stderr)
             assert_condition(workers is not None, f"missing timings: {built.stderr}")
-            assert_condition(int(workers[1]) == jobs and 1 <= int(workers[2]) <= jobs and int(workers[3]) == 4,
+            assert_condition(int(workers[1]) == jobs and 1 <= int(workers[2]) <= jobs and int(workers[3]) == 5,
                              f"incorrect worker counts: {built.stderr}")
             emitted = artifact.read_bytes()
             assert_condition(expected is None or emitted == expected, "--jobs and --timings changed emitted bytecode")

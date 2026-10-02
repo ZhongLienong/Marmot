@@ -72,9 +72,3 @@ BytecodeModule BytecodeModule::WithGlobalVariable(std::string variable) &&
 	m_global_variables.push_back(std::move(variable));
 	return std::move(*this);
 }
-
-BytecodeModule BytecodeModule::WithGenericFunction(std::string name, GenericFunctionInfo info) &&
-{
-	m_generic_functions.emplace(std::move(name), std::move(info));
-	return std::move(*this);
-}

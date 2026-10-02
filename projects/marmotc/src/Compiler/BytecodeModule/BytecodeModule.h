@@ -8,7 +8,6 @@
 #include <vector>
 
 #include "Bytecode/Executable/Executable.h"
-#include "Compiler/Lowering/GenericFunctionInfo.h"
 
 struct BytecodeModule
 {
@@ -59,7 +58,6 @@ struct BytecodeModule
 	using StringPool = std::vector<std::string>;
 	using ProcedureNameList = std::vector<std::string>;
 	using GlobalVariableList = std::vector<std::string>;
-	using GenericFunctionMap = std::unordered_map<std::string, GenericFunctionInfo>;
 	// An exported name this module does not define: the module it came from.
 	using ReexportMap = std::unordered_map<std::string, std::string>;
 	using SourceFileTable = MidoriExecutable::SourceFileTable;
@@ -72,7 +70,6 @@ struct BytecodeModule
 	StringPool m_string_pool;
 	ProcedureNameList m_procedure_names;
 	GlobalVariableList m_global_variables;
-	GenericFunctionMap m_generic_functions;
 	ReexportMap m_reexports;
 	SourceFileTable m_source_files;
 	std::vector<NativeLibraryImport> m_native_libraries;
@@ -86,7 +83,6 @@ struct BytecodeModule
 	[[nodiscard]] BytecodeModule WithString(std::string str) &&;
 	[[nodiscard]] BytecodeModule WithProcedureName(std::string name) &&;
 	[[nodiscard]] BytecodeModule WithGlobalVariable(std::string variable) &&;
-	[[nodiscard]] BytecodeModule WithGenericFunction(std::string name, GenericFunctionInfo info) &&;
 
 	BytecodeModule(const BytecodeModule&) = delete;
 	BytecodeModule& operator=(const BytecodeModule&) = delete;

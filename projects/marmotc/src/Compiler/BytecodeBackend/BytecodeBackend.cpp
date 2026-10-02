@@ -1932,7 +1932,6 @@ MidoriResult::BytecodeBackendResult BytecodeBackend::Emit() &&
 			return BytecodeModule::ExportedSymbol(exported.m_name, procedure_index, global_index, exported.m_kind, MakeSourceProvenance(exported.m_token));
 		})
 		| std::ranges::to<std::vector>();
-	bytecode.m_generic_functions = m_lowered.m_generic_functions;
 	for (const auto& [library, symbols] : m_lowered.m_native_imports)
 	{
 		std::error_code directory_error;

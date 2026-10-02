@@ -22,7 +22,9 @@ public:
 		Parsing,
 		TypeChecking,
 		StaticAnalysis,
-		LoweringAndOptimization,
+		Lowering,
+		Interface,
+		Optimization,
 		Backend,
 		Finalization,
 		Count

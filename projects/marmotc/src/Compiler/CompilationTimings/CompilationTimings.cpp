@@ -74,7 +74,7 @@ void CompilationTimings::Print() const
 	{
 		"total", "lexing", "discovery", "schedule", "modules", "linking",
 		"imports", "source lines", "parsing", "type checking", "static analysis",
-		"lowering + optimization", "bytecode backend", "finalization"
+		"lowering", "module interface", "optimization", "bytecode backend", "finalization"
 	};
 	std::print(stderr, "Compilation timings (wall time):\n");
 	for (size_t index = 0u; index < static_cast<size_t>(Phase::Imports); index += 1u)
