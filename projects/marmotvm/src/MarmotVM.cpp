@@ -7,6 +7,7 @@
 #include "Support/Json/Json.h"
 #include "Support/OutputCapture/OutputCapture.h"
 #include "Loader/ProgramLoader.h"
+#include "Loader/Standalone.h"
 
 #include <cstdlib>
 #include <expected>
@@ -54,6 +55,7 @@ namespace
 		bool m_json = false;
 		bool m_show_help = false;
 		bool m_show_version = false;
+		bool m_standalone_version = false;
 		bool m_trace = false;
 		bool m_opcode_metrics = false;
 		bool m_gc_metrics = false;
@@ -84,6 +86,10 @@ namespace
 			else if (arg == "--version")
 			{
 				invocation.m_show_version = true;
+			}
+			else if (arg == "--standalone-version")
+			{
+				invocation.m_standalone_version = true;
 			}
 			else if (arg == "--trace")
 			{
@@ -165,7 +171,7 @@ namespace
 			}
 		}
 
-		if (invocation.m_show_help || invocation.m_show_version)
+		if (invocation.m_show_help || invocation.m_show_version || invocation.m_standalone_version)
 		{
 			return invocation;
 		}
@@ -304,6 +310,23 @@ namespace
 
 int main(int argc, char* argv[])
 {
+	std::expected<std::optional<MidoriStandalone::Package>, std::string> embedded =
+		MidoriStandalone::ReadCurrentExecutable();
+	if (!embedded.has_value())
+	{
+		std::print(stderr, "{}\n", embedded.error());
+		return EXIT_FAILURE;
+	}
+	if (embedded->has_value())
+	{
+		const std::expected<int, std::string> result = MidoriStandalone::Run(std::move(embedded->value()));
+		if (!result.has_value())
+		{
+			std::print(stderr, "{}\n", result.error());
+			return EXIT_FAILURE;
+		}
+		return result.value();
+	}
 	const std::expected<Invocation, std::string> invocation = Parse(argc, argv);
 	if (!invocation.has_value())
 	{
@@ -320,6 +343,20 @@ int main(int argc, char* argv[])
 	if (invocation->m_show_version)
 	{
 		std::print("marmotvm {}\n", MIDORI_VERSION_STRING);
+		return EXIT_SUCCESS;
+	}
+	if (invocation->m_standalone_version)
+	{
+		const std::expected<std::filesystem::path, std::string> path = MidoriStandalone::CurrentExecutablePath();
+		if (!path.has_value())
+		{
+			std::print(stderr, "{}\n", path.error());
+			return EXIT_FAILURE;
+		}
+		const std::u8string utf8_path = path->generic_u8string();
+		std::print("{{\"version\":{},\"executable\":\"{}\"}}\n",
+			MidoriStandalone::s_format_version,
+			RuntimeJson::EscapeString(std::string(utf8_path.begin(), utf8_path.end())));
 		return EXIT_SUCCESS;
 	}
 

@@ -10,7 +10,8 @@ Commands:
   run [file]            Build the program into target/ and run it in marmotvm;
                         an unchanged program is not built again
   check [file]          Type-check without running
-  build [file]          Compile to a .mmc artifact
+  build [file]          Compile to a .mmc artifact; with --executable, produce
+                        a standalone executable for this platform
   plan [file]           Print the build plan instead of compiling
   install [package]     Resolve and install the project's packages, adding
                         [package] as a dependency first
@@ -30,7 +31,8 @@ current directory.
 Options:
   --format json         Machine-readable output (run, check, build, test, init)
   --embed-sources       Embed sources in the artifact (build)
-  -o, --output FILE     Write the plan to FILE (plan)
+  --executable         Bundle the program and VM into one executable (build)
+  -o, --output FILE     Write the artifact or plan to FILE (build, plan)
   --version CONSTRAINT  The constraint to record (install <package>); the
                         default is ^ the newest version available
   --pattern TEXT        Run tests whose path contains TEXT (test)
@@ -45,7 +47,8 @@ Options:
                         next to this program, then (for a debug build) the one
                         built last in this checkout, then marmotc on PATH
   --rebuild             Build even if the program is unchanged (run)
-  --marmotvm PATH       The VM to run programs in (run, test); otherwise MARMOTVM,
+  --marmotvm PATH       The VM to run or bundle (run, test, build --executable);
+                        otherwise MARMOTVM,
                         then the matching checkout build, then marmotvm next
                         to the compiler or this program,
                         then marmotvm on PATH
@@ -109,6 +112,7 @@ pub(crate) struct Options {
     pub(crate) argument: Option<String>,
     pub(crate) json: bool,
     pub(crate) embed_sources: bool,
+    pub(crate) executable: bool,
     pub(crate) output: Option<PathBuf>,
     pub(crate) constraint: Option<String>,
     pub(crate) marmotc: Option<PathBuf>,
@@ -169,6 +173,7 @@ pub(crate) fn parse_options(kind: CommandKind, args: &[String]) -> Result<Option
                 options.json = true;
             }
             "--embed-sources" if kind == CommandKind::Build => options.embed_sources = true,
+            "--executable" if kind == CommandKind::Build => options.executable = true,
             "--jobs"
                 if matches!(
                     kind,
@@ -189,7 +194,7 @@ pub(crate) fn parse_options(kind: CommandKind, args: &[String]) -> Result<Option
             {
                 options.timings = true;
             }
-            "-o" | "--output" if kind == CommandKind::Plan => {
+            "-o" | "--output" if matches!(kind, CommandKind::Plan | CommandKind::Build) => {
                 options.output = Some(PathBuf::from(value()?))
             }
             "--version" if kind == CommandKind::Install => options.constraint = Some(value()?),
@@ -199,7 +204,12 @@ pub(crate) fn parse_options(kind: CommandKind, args: &[String]) -> Result<Option
             "--name" if kind == CommandKind::Init => options.name = Some(value()?),
             "--marmotc" => options.marmotc = Some(PathBuf::from(value()?)),
             "--rebuild" if kind == CommandKind::Run => options.rebuild = true,
-            "--marmotvm" if matches!(kind, CommandKind::Run | CommandKind::Test) => {
+            "--marmotvm"
+                if matches!(
+                    kind,
+                    CommandKind::Run | CommandKind::Test | CommandKind::Build
+                ) =>
+            {
                 options.marmotvm = Some(PathBuf::from(value()?))
             }
             _ if arg.starts_with('-') => {
@@ -219,12 +229,33 @@ pub(crate) fn parse_options(kind: CommandKind, args: &[String]) -> Result<Option
     if options.constraint.is_some() && options.argument.is_none() {
         return Err("--version needs a package name".to_string());
     }
+    if kind == CommandKind::Build && options.marmotvm.is_some() && !options.executable {
+        return Err("--marmotvm requires --executable for build".to_string());
+    }
     Ok(options)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn executable_build_options_are_order_independent_and_stay_with_build() {
+        let options = parse_options(
+            CommandKind::Build,
+            &["--marmotvm", "vm", "-o", "app", "--executable"].map(String::from),
+        )
+        .unwrap();
+        assert!(options.executable);
+        assert_eq!(options.output, Some(PathBuf::from("app")));
+        assert_eq!(options.marmotvm, Some(PathBuf::from("vm")));
+        assert!(
+            parse_options(CommandKind::Build, &["--marmotvm", "vm"].map(String::from)).is_err()
+        );
+        for kind in [CommandKind::Run, CommandKind::Check, CommandKind::Plan] {
+            assert!(parse_options(kind, &["--executable".into()]).is_err());
+        }
+    }
 
     #[test]
     fn compilation_and_tests_accept_positive_worker_budgets() {

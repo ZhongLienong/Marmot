@@ -955,6 +955,17 @@ namespace
 			CompilerJson::AppendNumberField(artifact_json, "procedureCount", executable.GetProcedureCount(), first_field);
 			CompilerJson::AppendNumberField(artifact_json, "globalCount", executable.GetGlobalVariableCount(), first_field);
 			CompilerJson::AppendNumberField(artifact_json, "stringCount", static_cast<int>(executable.GetStringPool().size()), first_field);
+			std::string native_libraries = "[";
+			for (const NativeLibraryImport& library : executable.GetNativeLibraries())
+			{
+				if (native_libraries.size() > 1u)
+				{
+					native_libraries.push_back(',');
+				}
+				native_libraries += "\"" + CompilerJson::EscapeString(library.m_name) + "\"";
+			}
+			native_libraries.push_back(']');
+			CompilerJson::AppendRawField(artifact_json, "nativeLibraries", native_libraries, first_field);
 			artifact_json.push_back('}');
 			std::print("{}", CommandJson("build", true, compiled_program.Report(), EXIT_SUCCESS, {}, {}, artifact_json));
 			return EXIT_SUCCESS;

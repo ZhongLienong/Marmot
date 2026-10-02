@@ -10,6 +10,9 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+#[cfg(any(target_os = "windows", target_os = "linux"))]
+mod standalone;
+
 struct Project(PathBuf);
 
 impl Drop for Project {

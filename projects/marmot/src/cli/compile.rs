@@ -1,6 +1,6 @@
 use super::{CommandKind, Options, print_warnings};
 use crate::execution::temporary::TemporaryFile;
-use crate::execution::{plan, run, toolchain};
+use crate::execution::{plan, run, standalone, toolchain};
 use crate::paths;
 use crate::project::manifest::current_workspace;
 use crate::project::version::Version;
@@ -63,10 +63,10 @@ pub(super) fn execute(
 
     let mut command = Command::new(compiler);
     command.arg(kind.name()).arg("--plan").arg(plan_file.path());
-    if options.json {
+    if options.json && !options.executable {
         command.args(["--format", "json"]);
     }
-    if options.embed_sources {
+    if options.embed_sources && !options.executable {
         command.arg("--embed-sources");
     }
     if let Some(jobs) = options.jobs {
@@ -74,6 +74,18 @@ pub(super) fn execute(
     }
     if options.timings {
         command.arg("--timings");
+    }
+
+    if options.executable {
+        let vm = toolchain::find_vm(options.marmotvm.as_deref(), compiler);
+        let output = options
+            .output
+            .clone()
+            .unwrap_or_else(|| entry.with_extension(std::env::consts::EXE_EXTENSION));
+        return standalone::build(command, compiler, &vm, &plan, &output, options.json);
+    }
+    if let Some(output) = &options.output {
+        command.arg("-o").arg(output);
     }
 
     toolchain::run_compiler(command, compiler)
