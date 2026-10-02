@@ -1,0 +1,22 @@
+[warning] 2 warning(s) in dead_code_keeps_division_by_zero.mmt
+Static Analyzer Warning at test/optimizer/failure/dead_code_keeps_division_by_zero.mmt:5
+  |
+5 | 	def unused = x + 1;
+  |      ^^^^^^ Binding 'unused' is never read.
+  |
+Static Analyzer Warning at test/optimizer/failure/dead_code_keeps_division_by_zero.mmt:9
+  |
+9 | 	def bad = x / zero;
+  |      ^^^ Binding 'bad' is never read.
+  |
+error[DivisionByZero]: Division by zero.
+ --> test/optimizer/failure/dead_code_keeps_division_by_zero.mmt:9
+  |
+9 | 	def bad = x / zero;
+  | Division by zero.
+  |
+stack trace:
+  at Bad [module DeadCodeKeepsDivisionByZero] in test/optimizer/failure/dead_code_keeps_division_by_zero.mmt:9
+    	def bad = x / zero;
+  at main [module DeadCodeKeepsDivisionByZero] in test/optimizer/failure/dead_code_keeps_division_by_zero.mmt:13
+    Bad(7);

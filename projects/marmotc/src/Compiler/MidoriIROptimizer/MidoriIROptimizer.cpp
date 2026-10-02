@@ -40,20 +40,20 @@ MidoriIRPassFailure::MidoriIRPassFailure(std::string pass, std::vector<MidoriIRV
 {
 }
 
-// Each pass sets up the next: the graph is cleaned before calls are looked at;
-// a self tail call is a loop and a known closure a direct call before bodies
-// are copied; copying exposes values made only to be taken apart and
-// constants; the cleanup runs last. Self tail calls are looked for again after
-// inlining, which can make a mutual tail call a self one. Inlining leaves a
-// union made only to be branched on through a block parameter, which
-// threading exposes to ScalarReplacement once DCE has joined the blocks it
-// leaves; a struct or tuple carried around a loop is only seen to be made
-// fresh on each edge after that.
+MidoriIROptimizer::PassGroup::PassGroup(std::vector<std::unique_ptr<MidoriIRPass>> passes, size_t max_rounds)
+	: m_passes(std::move(passes)),
+	m_max_rounds(max_rounds)
+{
+}
+
+// Inlining exposes known closures; scalar rewrites expose constants and make
+// more callees small and frame transparent. Revisit these together, keeping
+// the inliner's size limits and a round budget to bound compilation work.
 MidoriIROptimizer::MidoriIROptimizer()
-	: m_passes(MakePasses
+{
+	m_groups.emplace_back(MakePasses<DeadCodeEliminationPass, SelfTailCallPass>(), 1u);
+	m_groups.emplace_back(MakePasses
 	<
-		DeadCodeEliminationPass,
-		SelfTailCallPass,
 		ClosureConversionPass,
 		ContificationPass,
 		InliningPass,
@@ -65,41 +65,51 @@ MidoriIROptimizer::MidoriIROptimizer()
 		SccpPass,
 		StrengthReductionPass,
 		GlobalValueNumberingPass,
-		LoopInvariantCodeMotionPass,
 		DeadCodeEliminationPass
-	>())
-{
+	>(), 8u);
+	m_groups.emplace_back(MakePasses<LoopInvariantCodeMotionPass, DeadCodeEliminationPass>(), 1u);
 }
 
 MidoriIROptimizer::MidoriIROptimizer(std::vector<std::unique_ptr<MidoriIRPass>> passes)
-	: m_passes(std::move(passes))
 {
+	m_groups.emplace_back(std::move(passes), 1u);
 }
 
 std::expected<void, MidoriIRPassFailure> MidoriIROptimizer::Optimize(MidoriIRModule& module)
 {
-	for (const std::unique_ptr<MidoriIRPass>& pass : m_passes)
+	for (const PassGroup& group : m_groups)
 	{
+		for (size_t round = 0u; round < group.m_max_rounds; round += 1u)
+		{
+			bool changed = false;
+			for (const std::unique_ptr<MidoriIRPass>& pass : group.m_passes)
+			{
 #if MIDORI_ENABLE_OPTIMIZER_STATS
-		const bool statistics = CompilerDiagnostics::StatisticsEnabled();
-		const size_t before = statistics ? InstructionCount(module) : 0uz;
-		pass->Run(module);
-		const size_t after = statistics ? InstructionCount(module) : 0uz;
-		if (after != before)
-		{
-			std::format_to(std::back_inserter(m_log), "  {}: {} -> {} instructions\n", pass->Name(), before, after);
-		}
+				const bool statistics = CompilerDiagnostics::StatisticsEnabled();
+				const size_t before = statistics ? InstructionCount(module) : 0uz;
+				const bool pass_changed = pass->Run(module);
+				if (statistics && pass_changed)
+				{
+					std::format_to(std::back_inserter(m_log), "  {}: {} -> {} instructions\n", pass->Name(), before, InstructionCount(module));
+				}
 #else
-		pass->Run(module);
+				const bool pass_changed = pass->Run(module);
 #endif
-		if (!VerifiesEachPass())
-		{
-			continue;
-		}
-		std::vector<MidoriIRViolation> violations = MidoriIRVerifier(module).Verify();
-		if (!violations.empty())
-		{
-			return std::unexpected(MidoriIRPassFailure(std::string(pass->Name()), std::move(violations)));
+				changed = changed || pass_changed;
+				if (!VerifiesEachPass())
+				{
+					continue;
+				}
+				std::vector<MidoriIRViolation> violations = MidoriIRVerifier(module).Verify();
+				if (!violations.empty())
+				{
+					return std::unexpected(MidoriIRPassFailure(std::string(pass->Name()), std::move(violations)));
+				}
+			}
+			if (!changed)
+			{
+				break;
+			}
 		}
 	}
 	return {};

@@ -1,0 +1,42 @@
+module PassInteractions
+
+import { "../../MarmotPrelude/IO.mmt" }
+
+def first = 2;
+def second = first + 3;
+def third = second * 2;
+
+def Apply = fn(f: fn(Int) -> Int, x: Int) -> Int => f(x);
+def AddOne = fn(x: Int) -> Int => Apply(fn(y: Int) -> Int => y + 1, x);
+def AddSelf = fn(x: Int) -> Int => Apply(fn(y: Int) -> Int => y + x, x);
+def Cascade = fn(x: Int) -> Int => ((x * 0) + 5) * 2;
+def GlobalChain = fn(x: Int) -> Int => x + third;
+def RepeatedDivision = fn(x: Int, y: Int) -> Int => (x / y) + (x / y);
+def SafeLoop = fn(n: Int, x: Int, sum: Int) -> Int =>
+	if n <= 0 then sum else SafeLoop(n - 1, x, sum + (x / 3));
+def MayFailLoop = fn(n: Int, x: Int, d: Int, sum: Int) -> Int =>
+	if n <= 0 then sum else MayFailLoop(n - 1, x, d, sum + (x / d));
+def Bytes = fn(x: Byte) -> Byte => ((x + 0x00) * 0x01) & 0xFF;
+def Words = fn(x: Word) -> Word => ((x + (0 as Word)) * (1 as Word)) & 0xFFFFFFFFFFFFFFFF;
+def NoisyByte = fn(x: Byte) -> Byte =>
+{
+	IO::PrintLine("byte evaluated");
+	x
+};
+def NoisyWord = fn(x: Word) -> Word =>
+{
+	IO::PrintLine("word evaluated");
+	x
+};
+
+IO::PrintLine(AddOne(4) as Text);
+IO::PrintLine(AddSelf(4) as Text);
+IO::PrintLine(Cascade(7) as Text);
+IO::PrintLine(GlobalChain(7) as Text);
+IO::PrintLine(RepeatedDivision(12, 3) as Text);
+IO::PrintLine(SafeLoop(3, 12, 0) as Text);
+IO::PrintLine(MayFailLoop(0, 12, 0, 0) as Text);
+IO::PrintLine(Bytes(0xFF) as Text);
+IO::PrintLine(Words(0xFFFFFFFFFFFFFFFF) as Text);
+IO::PrintLine((NoisyByte(0xFF) * 0x00) as Text);
+IO::PrintLine((NoisyWord(0xFFFFFFFFFFFFFFFF) * (0 as Word)) as Text);

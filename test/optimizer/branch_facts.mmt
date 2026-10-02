@@ -1,0 +1,32 @@
+module BranchFacts
+
+import { "../../MarmotPrelude/IO.mmt" }
+
+def Both = fn(x: Int) -> Int =>
+	if x == 0 then (if x == 0 then 10 else 20) else (if x == 0 then 30 else 40);
+def Nested = fn(x: Int, choose: Bool) -> Int =>
+	if x == 0 then (if choose then (if x == 0 then 10 else 20) else 30) else 40;
+def Join = fn(flag: Bool) -> Int =>
+{
+	def offset = if flag then 1 else 2;
+	offset + (if flag then 3 else 4)
+};
+def ReadAgain = fn(cell: Ref<Bool>) -> Int =>
+	if *cell then { cell := false; if *cell then 3 else 4 } else 5;
+def Walk = fn(n: Int, count: Int) -> Int =>
+	if n == 0 then count else
+	{
+		def step = if n > 2 then (if n > 2 then 2 else 100) else (if n > 2 then 100 else 1);
+		Walk(n - 1, count + step)
+	};
+
+IO::PrintLine(Both(0) as Text);
+IO::PrintLine(Both(1) as Text);
+IO::PrintLine(Nested(0, true) as Text);
+IO::PrintLine(Nested(0, false) as Text);
+IO::PrintLine(Nested(1, true) as Text);
+IO::PrintLine(Join(true) as Text);
+IO::PrintLine(Join(false) as Text);
+IO::PrintLine(ReadAgain(ref true) as Text);
+IO::PrintLine(ReadAgain(ref false) as Text);
+IO::PrintLine(Walk(5, 0) as Text);

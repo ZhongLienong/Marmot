@@ -250,6 +250,7 @@ namespace
 	private:
 		MidoriIRFunction& m_function;
 		const GlobalConstants& m_globals;
+		std::unordered_map<uint32_t, MidoriIRValueId> m_defined_globals;
 		std::vector<Cell> m_cells;
 		std::vector<bool> m_executable;
 
@@ -260,6 +261,16 @@ namespace
 			m_cells(function.m_values.size()),
 			m_executable(function.m_blocks.size(), false)
 		{
+			for (const MidoriIRBlock& block : function.m_blocks)
+			{
+				for (const MidoriIRInstruction& instruction : block.m_instructions)
+				{
+					if (instruction.m_op == MidoriIROp::GlobalDefine)
+					{
+						m_defined_globals.emplace(std::get<MidoriIRGlobalSlot>(instruction.m_immediate).m_value, instruction.m_operands.front());
+					}
+				}
+			}
 			for (const MidoriIRValueId parameter : function.Block(MidoriIRFunction::s_entry_block).m_parameters)
 			{
 				m_cells[parameter.m_index] = Cell::Varying();
@@ -304,8 +315,9 @@ namespace
 			}
 		}
 
-		void Rewrite()
+		bool Rewrite()
 		{
+			bool changed = false;
 			std::vector<std::optional<MidoriIRValueId>> replacements(m_function.m_values.size());
 			for (uint32_t block = 0u; block < m_function.m_blocks.size(); block += 1u)
 			{
@@ -325,6 +337,7 @@ namespace
 					const MidoriIRValueId constant = MidoriIRAnalysis::AddValue(m_function, type);
 					constants.emplace_back(MidoriIROp::Const, constant, type, std::vector<MidoriIRValueId>{}, cell.m_value, std::vector<MidoriIRSuccessor>{}, FirstLine(block));
 					replacements[parameter.m_index] = constant;
+					changed = true;
 				}
 
 				std::vector<MidoriIRInstruction>& instructions = m_function.m_blocks[block].m_instructions;
@@ -337,10 +350,12 @@ namespace
 						instruction.m_op = MidoriIROp::Const;
 						instruction.m_operands.clear();
 						instruction.m_effect = MidoriIREffect();
+						changed = true;
 					}
 					else if (instruction.m_op == MidoriIROp::Extend && m_cells[instruction.m_operands.front().m_index].m_level == Level::Constant)
 					{
 						instruction.m_op = MidoriIROp::Concat;
+						changed = true;
 					}
 				}
 				MidoriIRInstruction& terminator = instructions.back();
@@ -352,10 +367,12 @@ namespace
 					terminator.m_operands.clear();
 					terminator.m_successors.clear();
 					terminator.m_successors.push_back(std::move(taken));
+					changed = true;
 				}
 				instructions.insert(instructions.begin(), std::make_move_iterator(constants.begin()), std::make_move_iterator(constants.end()));
 			}
 			MidoriIRAnalysis::ReplaceUses(m_function, replacements);
+			return MidoriIRAnalysis::RefineEffects(m_function) || changed;
 		}
 
 	private:
@@ -389,7 +406,16 @@ namespace
 			}
 			if (instruction.m_op == MidoriIROp::GlobalGet)
 			{
-				const GlobalConstants::const_iterator global = m_globals.find(std::get<MidoriIRGlobalSlot>(instruction.m_immediate).m_value);
+				const uint32_t slot = std::get<MidoriIRGlobalSlot>(instruction.m_immediate).m_value;
+				const std::unordered_map<uint32_t, MidoriIRValueId>::const_iterator defined = m_defined_globals.find(slot);
+				if (defined != m_defined_globals.end())
+				{
+					const Cell& stored = m_cells[defined->second.m_index];
+					// Text loads retain their allocation identity when read through
+					// a global, even if its contents are constant.
+					return stored.m_level == Level::Constant && std::holds_alternative<std::string>(stored.m_value) ? Cell::Varying() : stored;
+				}
+				const GlobalConstants::const_iterator global = m_globals.find(slot);
 				return global == m_globals.end() ? Cell::Varying() : Cell::Constant(global->second);
 			}
 			if (!IsFoldable(instruction.m_op))
@@ -464,7 +490,7 @@ std::string_view SccpPass::Name() const
 	return "Sccp";
 }
 
-void SccpPass::Run(MidoriIRModule& module) const
+bool SccpPass::Run(MidoriIRModule& module) const
 {
 	// Every read of a global comes after its definition, which only the
 	// top-level function makes, so what it stores is what every read gives.
@@ -473,8 +499,5 @@ void SccpPass::Run(MidoriIRModule& module) const
 	{
 		Propagation(module.Function(module.m_top_level.value()), globals).CollectGlobals(globals);
 	}
-	for (MidoriIRFunction& function : module.m_functions)
-	{
-		Propagation(function, globals).Rewrite();
-	}
+	return MidoriIRAnalysis::TransformFunctions(module, [&globals](MidoriIRFunction& function) { return Propagation(function, globals).Rewrite(); });
 }

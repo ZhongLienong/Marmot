@@ -44,6 +44,17 @@ struct MidoriIRSite
 
 namespace MidoriIRAnalysis
 {
+	template<typename Transform>
+	bool TransformFunctions(MidoriIRModule& module, const Transform& transform)
+	{
+		bool changed = false;
+		for (MidoriIRFunction& function : module.m_functions)
+		{
+			changed = transform(function) || changed;
+		}
+		return changed;
+	}
+
 	// Every value an instruction reads: its operands, then its successors'
 	// arguments.
 	template<typename Visit>
@@ -100,6 +111,10 @@ namespace MidoriIRAnalysis
 
 	// Whether an instruction may be dropped once nothing uses its value.
 	bool IsRemovable(const MidoriIRFunction& function, const std::vector<std::optional<MidoriIRSite>>& sites, const MidoriIRInstruction& instruction);
+
+	// Records proofs that an instruction cannot fault, so other passes can
+	// move it as well as drop it.
+	bool RefineEffects(MidoriIRFunction& function);
 
 	// Whether a runtime error can never be raised in a function's own frame,
 	// nor in a frame it makes: it neither fails, nor writes, nor calls

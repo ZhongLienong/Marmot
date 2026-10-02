@@ -177,12 +177,16 @@ namespace
 		}
 	};
 
-	void UnboxParameters(MidoriIRFunction& function)
+	bool UnboxParameters(MidoriIRFunction& function)
 	{
+		const size_t blocks_before = function.m_blocks.size();
 		MidoriIRAnalysis::RemoveUnreachableBlocks(function);
+		bool changed = function.m_blocks.size() != blocks_before;
 		while (Unboxing(function).UnboxOne())
 		{
+			changed = true;
 		}
+		return changed;
 	}
 }
 
@@ -191,7 +195,7 @@ std::string_view ParameterUnboxingPass::Name() const
 	return "ParameterUnboxing";
 }
 
-void ParameterUnboxingPass::Run(MidoriIRModule& module) const
+bool ParameterUnboxingPass::Run(MidoriIRModule& module) const
 {
-	std::ranges::for_each(module.m_functions, UnboxParameters);
+	return MidoriIRAnalysis::TransformFunctions(module, UnboxParameters);
 }

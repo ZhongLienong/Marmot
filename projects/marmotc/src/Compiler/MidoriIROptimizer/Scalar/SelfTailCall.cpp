@@ -29,7 +29,7 @@ namespace
 
 	// The entry keeps the function's parameters and jumps to a header that
 	// takes them as its own, which the loop jumps back to.
-	void MakeLoop(const MidoriIRModuleFacts& facts, MidoriIRFunctionId function_id, MidoriIRFunction& function)
+	bool MakeLoop(const MidoriIRModuleFacts& facts, MidoriIRFunctionId function_id, MidoriIRFunction& function)
 	{
 		const std::vector<std::optional<MidoriIRSite>> sites = MidoriIRAnalysis::DefinitionSites(function);
 		std::vector<std::pair<MidoriIRSite, std::vector<MidoriIRValueId>>> self_calls;
@@ -48,7 +48,7 @@ namespace
 		}
 		if (self_calls.empty())
 		{
-			return;
+			return false;
 		}
 
 		const MidoriIRBlockId header = MidoriIRAnalysis::InsertBlock(function, 1u);
@@ -78,6 +78,7 @@ namespace
 		MidoriIRAnalysis::ReplaceUses(function, replacements);
 		moved_entry.m_instructions.clear();
 		moved_entry.m_instructions.push_back(MidoriIRAnalysis::Jump(MidoriIRSuccessor(header, moved_entry.m_parameters), line));
+		return true;
 	}
 }
 
@@ -86,11 +87,13 @@ std::string_view SelfTailCallPass::Name() const
 	return "SelfTailCall";
 }
 
-void SelfTailCallPass::Run(MidoriIRModule& module) const
+bool SelfTailCallPass::Run(MidoriIRModule& module) const
 {
 	const MidoriIRModuleFacts facts(module);
+	bool changed = false;
 	for (uint32_t function = 0u; function < module.m_functions.size(); function += 1u)
 	{
-		MakeLoop(facts, MidoriIRFunctionId{ function }, module.m_functions[function]);
+		changed = MakeLoop(facts, MidoriIRFunctionId{ function }, module.m_functions[function]) || changed;
 	}
+	return changed;
 }

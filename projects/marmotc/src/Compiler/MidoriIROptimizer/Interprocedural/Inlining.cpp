@@ -211,7 +211,7 @@ namespace
 		return is_only_use || MidoriIRAnalysis::Size(callee) <= s_max_inlined_size;
 	}
 
-	void InlineInto(MidoriIRModule& module, const CallGraph& graph, const std::vector<uint32_t>& components, uint32_t caller)
+	bool InlineInto(MidoriIRModule& module, const CallGraph& graph, const std::vector<uint32_t>& components, uint32_t caller)
 	{
 		std::vector<MidoriIRSite> sites;
 		const MidoriIRFunction& function = module.m_functions[caller];
@@ -228,6 +228,7 @@ namespace
 		}
 		// From the last site back, so that inlining one moves no site not yet
 		// inlined.
+		bool changed = false;
 		for (const MidoriIRSite& site : sites | std::views::reverse)
 		{
 			if (MidoriIRAnalysis::Size(module.m_functions[caller]) > s_max_caller_size)
@@ -235,7 +236,9 @@ namespace
 				break;
 			}
 			InlineAt(module, caller, site);
+			changed = true;
 		}
+		return changed;
 	}
 }
 
@@ -244,12 +247,14 @@ std::string_view InliningPass::Name() const
 	return "Inlining";
 }
 
-void InliningPass::Run(MidoriIRModule& module) const
+bool InliningPass::Run(MidoriIRModule& module) const
 {
 	const CallGraph graph(module);
 	const auto [order, components] = graph.Components();
+	bool changed = false;
 	for (const uint32_t caller : order)
 	{
-		InlineInto(module, graph, components, caller);
+		changed = InlineInto(module, graph, components, caller) || changed;
 	}
+	return changed;
 }

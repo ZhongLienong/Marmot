@@ -25,7 +25,7 @@ namespace
 
 		static Reduction ToOperand(MidoriIRValueId operand)
 		{
-			return Reduction{ Kind::Operand, operand };
+			return Reduction{ Kind::Operand, operand, MidoriIROp::Const, {} };
 		}
 
 		static Reduction ToConstant(MidoriIRImmediate constant)
@@ -35,7 +35,7 @@ namespace
 
 		static Reduction ToUnary(MidoriIROp op, MidoriIRValueId operand)
 		{
-			return Reduction{ Kind::Unary, operand, op };
+			return Reduction{ Kind::Unary, operand, op, {} };
 		}
 
 		static Reduction ToBinary(MidoriIROp op, MidoriIRValueId operand, MidoriIRImmediate constant)
@@ -64,44 +64,82 @@ namespace
 			switch (instruction.m_op)
 			{
 			case AddInt:
+			case AddByte:
+			case AddWord:
 			case BitOrInt:
+			case BitOrByte:
+			case BitOrWord:
 			case BitXorInt:
-				return IsInt(operands[1u], 0) ? Reduction::ToOperand(operands[0u])
-					: IsInt(operands[0u], 0) ? std::optional(Reduction::ToOperand(operands[1u]))
+			case BitXorByte:
+			case BitXorWord:
+				return IsInteger(operands[1u], 0) ? Reduction::ToOperand(operands[0u])
+					: IsInteger(operands[0u], 0) ? std::optional(Reduction::ToOperand(operands[1u]))
 					: std::nullopt;
 			case SubInt:
-				if (IsInt(operands[1u], 0))
+			case SubByte:
+			case SubWord:
+				if (IsInteger(operands[1u], 0))
 				{
 					return Reduction::ToOperand(operands[0u]);
 				}
-				if (IsInt(operands[0u], 0))
+				if (instruction.m_op == SubInt && IsInteger(operands[0u], 0))
 				{
 					return Reduction::ToUnary(NegInt, operands[1u]);
 				}
-				return operands[0u] == operands[1u] ? std::optional(Reduction::ToConstant(int64_t{ 0 })) : std::nullopt;
+				return operands[0u] == operands[1u] ? std::optional(Reduction::ToConstant(Zero(operands[0u]))) : std::nullopt;
 			case MulInt:
 				return ReduceMultiply(operands[0u], operands[1u]).or_else([&]() { return ReduceMultiply(operands[1u], operands[0u]); });
-			case DivInt:
-				return IsInt(operands[1u], 1) ? std::optional(Reduction::ToOperand(operands[0u]))
-					: IsInt(operands[1u], -1) ? std::optional(Reduction::ToUnary(NegInt, operands[0u]))
+			case MulByte:
+			case MulWord:
+				return IsInteger(operands[0u], 0) || IsInteger(operands[1u], 0) ? Reduction::ToConstant(Zero(operands[0u]))
+					: IsInteger(operands[0u], 1) ? std::optional(Reduction::ToOperand(operands[1u]))
+					: IsInteger(operands[1u], 1) ? std::optional(Reduction::ToOperand(operands[0u]))
 					: std::nullopt;
+			case DivInt:
+				return IsInteger(operands[1u], 1) ? std::optional(Reduction::ToOperand(operands[0u]))
+					: IsInteger(operands[1u], -1) ? std::optional(Reduction::ToUnary(NegInt, operands[0u]))
+					: std::nullopt;
+			case DivByte:
+			case DivWord:
+				return IsInteger(operands[1u], 1) ? std::optional(Reduction::ToOperand(operands[0u])) : std::nullopt;
 			case ModInt:
-				return IsInt(operands[1u], 1) || IsInt(operands[1u], -1) ? std::optional(Reduction::ToConstant(int64_t{ 0 })) : std::nullopt;
+				return IsInteger(operands[1u], 1) || IsInteger(operands[1u], -1) ? std::optional(Reduction::ToConstant(int64_t{ 0 })) : std::nullopt;
+			case ModByte:
+			case ModWord:
+				return IsInteger(operands[1u], 1) ? std::optional(Reduction::ToConstant(Zero(operands[0u]))) : std::nullopt;
 			case BitAndInt:
-				return IsInt(operands[1u], 0) || IsInt(operands[0u], 0) ? Reduction::ToConstant(int64_t{ 0 })
-					: IsInt(operands[1u], -1) ? std::optional(Reduction::ToOperand(operands[0u]))
-					: IsInt(operands[0u], -1) ? std::optional(Reduction::ToOperand(operands[1u]))
+			case BitAndByte:
+			case BitAndWord:
+				return IsInteger(operands[1u], 0) || IsInteger(operands[0u], 0) ? Reduction::ToConstant(Zero(operands[0u]))
+					: IsInteger(operands[1u], -1) ? std::optional(Reduction::ToOperand(operands[0u]))
+					: IsInteger(operands[0u], -1) ? std::optional(Reduction::ToOperand(operands[1u]))
 					: std::nullopt;
 			case ShlInt:
+			case ShlByte:
+			case ShlWord:
 			case ShrInt:
-				return IsInt(operands[1u], 0) ? std::optional(Reduction::ToOperand(operands[0u])) : std::nullopt;
+			case ShrByte:
+			case ShrWord:
+				return IsInteger(operands[1u], 0) ? std::optional(Reduction::ToOperand(operands[0u])) : std::nullopt;
 			case EqInt:
+			case EqByte:
+			case EqWord:
 			case LeInt:
+			case LeByte:
+			case LeWord:
 			case GeInt:
+			case GeByte:
+			case GeWord:
 				return operands[0u] == operands[1u] ? std::optional(Reduction::ToConstant(true)) : std::nullopt;
 			case NeInt:
+			case NeByte:
+			case NeWord:
 			case LtInt:
+			case LtByte:
+			case LtWord:
 			case GtInt:
+			case GtByte:
+			case GtWord:
 				return operands[0u] == operands[1u] ? std::optional(Reduction::ToConstant(false)) : std::nullopt;
 			// Only what holds for NaN and -0.0 too: x * 1.0, x / 1.0, x - 0.0
 			// and x + -0.0 are x, but x + 0.0 is 0.0 for x = -0.0.
@@ -151,10 +189,47 @@ namespace
 			return definition != nullptr && definition->m_op == MidoriIROp::Const ? &definition->m_immediate : nullptr;
 		}
 
-		bool IsInt(MidoriIRValueId value, int64_t expected) const
+		bool IsInteger(MidoriIRValueId value, int64_t expected) const
 		{
 			const MidoriIRImmediate* constant = Constant(value);
-			return constant != nullptr && std::holds_alternative<int64_t>(*constant) && std::get<int64_t>(*constant) == expected;
+			if (constant == nullptr)
+			{
+				return false;
+			}
+			return std::visit([expected](const auto& immediate)
+			{
+				using Immediate = std::decay_t<decltype(immediate)>;
+				if constexpr (std::is_same_v<Immediate, int64_t>)
+				{
+					return immediate == expected;
+				}
+				else if constexpr (std::is_same_v<Immediate, MidoriIRByte>)
+				{
+					return immediate.m_value == static_cast<uint8_t>(expected);
+				}
+				else if constexpr (std::is_same_v<Immediate, MidoriIRWord>)
+				{
+					return immediate.m_value == static_cast<uint64_t>(expected);
+				}
+				else
+				{
+					return false;
+				}
+			}, *constant);
+		}
+
+		MidoriIRImmediate Zero(MidoriIRValueId value) const
+		{
+			const std::shared_ptr<MidoriType>& type = m_function.TypeOf(value);
+			if (MidoriIRSameType(type, MidoriIRScalarType(MidoriIRScalar::Byte)))
+			{
+				return MidoriIRByte{ 0u };
+			}
+			if (MidoriIRSameType(type, MidoriIRScalarType(MidoriIRScalar::Word)))
+			{
+				return MidoriIRWord{ 0u };
+			}
+			return int64_t{ 0 };
 		}
 
 		// By bits, so that 0.0 and -0.0 are told apart.
@@ -201,11 +276,20 @@ namespace
 
 	std::shared_ptr<MidoriType> ConstantType(const MidoriIRImmediate& constant)
 	{
+		if (std::holds_alternative<MidoriIRByte>(constant))
+		{
+			return MidoriIRScalarType(MidoriIRScalar::Byte);
+		}
+		if (std::holds_alternative<MidoriIRWord>(constant))
+		{
+			return MidoriIRScalarType(MidoriIRScalar::Word);
+		}
 		return std::holds_alternative<bool>(constant) ? MidoriIRScalarType(MidoriIRScalar::Bool) : MidoriIRScalarType(MidoriIRScalar::Int);
 	}
 
-	void ReduceFunction(MidoriIRFunction& function)
+	bool ReduceFunction(MidoriIRFunction& function)
 	{
+		bool changed = false;
 		std::vector<std::optional<MidoriIRValueId>> replacements(function.m_values.size());
 		for (uint32_t block = 0u; block < function.m_blocks.size(); block += 1u)
 		{
@@ -220,6 +304,7 @@ namespace
 					continue;
 				}
 				const MidoriIRValueId result = instruction.m_result.value();
+				changed = true;
 				switch (reduction->m_kind)
 				{
 				case Reduction::Kind::Operand:
@@ -248,6 +333,7 @@ namespace
 		}
 		replacements.resize(function.m_values.size());
 		MidoriIRAnalysis::ReplaceUses(function, replacements);
+		return changed;
 	}
 }
 
@@ -256,7 +342,7 @@ std::string_view StrengthReductionPass::Name() const
 	return "StrengthReduction";
 }
 
-void StrengthReductionPass::Run(MidoriIRModule& module) const
+bool StrengthReductionPass::Run(MidoriIRModule& module) const
 {
-	std::ranges::for_each(module.m_functions, ReduceFunction);
+	return MidoriIRAnalysis::TransformFunctions(module, ReduceFunction);
 }

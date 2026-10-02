@@ -96,12 +96,12 @@ namespace
 	}
 
 	// Hoisting moves instructions but no edge, so one graph serves every loop.
-	void Hoist(MidoriIRFunction& function, const MidoriIRControlFlow& control_flow, const Loop& loop)
+	bool Hoist(MidoriIRFunction& function, const MidoriIRControlFlow& control_flow, const Loop& loop)
 	{
 		const std::optional<uint32_t> preheader = Preheader(function, control_flow, loop);
 		if (!preheader.has_value())
 		{
-			return;
+			return false;
 		}
 		std::vector<bool> defined_inside(function.m_values.size(), false);
 		for (uint32_t block = 0u; block < function.m_blocks.size(); block += 1u)
@@ -145,15 +145,18 @@ namespace
 		}
 		std::vector<MidoriIRInstruction>& target = function.m_blocks[preheader.value()].m_instructions;
 		target.insert(target.end() - 1, std::make_move_iterator(hoisted.begin()), std::make_move_iterator(hoisted.end()));
+		return !hoisted.empty();
 	}
 
-	void HoistInvariants(MidoriIRFunction& function)
+	bool HoistInvariants(MidoriIRFunction& function)
 	{
 		const MidoriIRControlFlow control_flow(function);
+		bool changed = false;
 		for (const Loop& loop : FindLoops(function, control_flow))
 		{
-			Hoist(function, control_flow, loop);
+			changed = Hoist(function, control_flow, loop) || changed;
 		}
+		return changed;
 	}
 }
 
@@ -162,7 +165,7 @@ std::string_view LoopInvariantCodeMotionPass::Name() const
 	return "LoopInvariantCodeMotion";
 }
 
-void LoopInvariantCodeMotionPass::Run(MidoriIRModule& module) const
+bool LoopInvariantCodeMotionPass::Run(MidoriIRModule& module) const
 {
-	std::ranges::for_each(module.m_functions, HoistInvariants);
+	return MidoriIRAnalysis::TransformFunctions(module, HoistInvariants);
 }

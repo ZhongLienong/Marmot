@@ -9,15 +9,15 @@
 #include <string_view>
 #include <vector>
 
-// One rewrite of a module. A pass reports nothing: the IR it leaves must be
-// valid, and a pass that breaks it is a compiler bug the verifier catches.
+// One rewrite of a module, reporting whether it changed the IR. A pass that
+// leaves invalid IR is a compiler bug the verifier catches.
 class MidoriIRPass
 {
 public:
 	virtual ~MidoriIRPass() = default;
 
 	virtual std::string_view Name() const = 0;
-	virtual void Run(MidoriIRModule& module) const = 0;
+	virtual bool Run(MidoriIRModule& module) const = 0;
 };
 
 // The pass that left the module invalid, and what the verifier found.
@@ -29,13 +29,21 @@ struct MidoriIRPassFailure
 	MidoriIRPassFailure(std::string pass, std::vector<MidoriIRViolation> violations);
 };
 
-// Runs a fixed list of passes once, in order: SSA makes iterating to a
-// fixpoint unnecessary, and a pass that helps a later one runs before it. In
+// Repeats transformations that expose opportunities for one another, stopping
+// when unchanged or at the round budget. A supplied pass list runs once. In
 // Dev and Debug builds the verifier runs after every pass.
 class MidoriIROptimizer
 {
 private:
-	std::vector<std::unique_ptr<MidoriIRPass>> m_passes;
+	struct PassGroup
+	{
+		std::vector<std::unique_ptr<MidoriIRPass>> m_passes;
+		size_t m_max_rounds;
+
+		PassGroup(std::vector<std::unique_ptr<MidoriIRPass>> passes, size_t max_rounds);
+	};
+
+	std::vector<PassGroup> m_groups;
 #if MIDORI_ENABLE_OPTIMIZER_STATS
 	std::string m_log;
 #endif
@@ -49,7 +57,7 @@ public:
 	static bool VerifiesEachPass();
 
 #if MIDORI_ENABLE_OPTIMIZER_STATS
-	// One line for each pass that changed the module's instruction count.
+	// One line for each pass that changed the module, with instruction counts.
 	const std::string& Log() const;
 #endif
 };

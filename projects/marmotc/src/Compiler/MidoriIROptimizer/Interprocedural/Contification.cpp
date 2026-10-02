@@ -60,8 +60,9 @@ std::string_view ContificationPass::Name() const
 	return "Contification";
 }
 
-void ContificationPass::Run(MidoriIRModule& module) const
+bool ContificationPass::Run(MidoriIRModule& module) const
 {
+	bool changed = false;
 	for (uint32_t function = 0u; function < module.m_functions.size(); function += 1u)
 	{
 		if (module.m_top_level.has_value() && module.m_top_level->m_index == function)
@@ -78,6 +79,8 @@ void ContificationPass::Run(MidoriIRModule& module) const
 		if (caller.has_value() && module.m_functions[caller.value()].m_source_module == callee.m_source_module)
 		{
 			Contify(module, function, caller.value());
+			changed = true;
 		}
 	}
+	return changed;
 }

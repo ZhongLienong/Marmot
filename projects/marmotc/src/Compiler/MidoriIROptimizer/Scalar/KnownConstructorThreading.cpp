@@ -325,8 +325,10 @@ namespace
 		return false;
 	}
 
-	void ThreadKnownConstructors(MidoriIRFunction& function)
+	bool ThreadKnownConstructors(MidoriIRFunction& function)
 	{
+		const size_t blocks_before = function.m_blocks.size();
+		bool changed = false;
 		// One edge per round, since each threading changes the graph the next
 		// is found in. An edge only moves forward, to a block that had one
 		// predecessor; the bound caps the rounds a function with many
@@ -334,7 +336,9 @@ namespace
 		const size_t limit = 4u * function.m_blocks.size();
 		for (size_t round = 0u; round < limit && ThreadOneEdge(function); round += 1u)
 		{
+			changed = true;
 		}
+		return changed || function.m_blocks.size() != blocks_before;
 	}
 }
 
@@ -343,7 +347,7 @@ std::string_view KnownConstructorThreadingPass::Name() const
 	return "KnownConstructorThreading";
 }
 
-void KnownConstructorThreadingPass::Run(MidoriIRModule& module) const
+bool KnownConstructorThreadingPass::Run(MidoriIRModule& module) const
 {
-	std::ranges::for_each(module.m_functions, ThreadKnownConstructors);
+	return MidoriIRAnalysis::TransformFunctions(module, ThreadKnownConstructors);
 }

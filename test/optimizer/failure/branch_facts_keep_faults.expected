@@ -1,0 +1,11 @@
+error[DivisionByZero]: Division by zero.
+ --> test/optimizer/failure/branch_facts_keep_faults.mmt:6
+  |
+6 | 		def quotient = x / divisor;
+  | Division by zero.
+  |
+stack trace:
+  at Divide [module BranchFactsKeepFaults] in test/optimizer/failure/branch_facts_keep_faults.mmt:6
+    		def quotient = x / divisor;
+  at main [module BranchFactsKeepFaults] in test/optimizer/failure/branch_facts_keep_faults.mmt:11
+    Divide(true, 7, 0);

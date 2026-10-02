@@ -123,7 +123,7 @@ namespace
 
 	// A capture nothing reads is not captured: each closure is made without
 	// it, and what bound it later binds nothing.
-	void DropUnreadCaptures(MidoriIRModule& module)
+	bool DropUnreadCaptures(MidoriIRModule& module)
 	{
 		std::vector<std::vector<std::optional<uint32_t>>> renumbered(module.m_functions.size());
 		bool dropped_any = false;
@@ -156,7 +156,7 @@ namespace
 		}
 		if (!dropped_any)
 		{
-			return;
+			return false;
 		}
 
 		for (uint32_t function_index = 0u; function_index < module.m_functions.size(); function_index += 1u)
@@ -208,6 +208,7 @@ namespace
 				}
 			}
 		}
+		return true;
 	}
 
 	struct Creation
@@ -221,9 +222,10 @@ namespace
 	// as parameters instead, after its own: each call passes the ones its
 	// closure was made with, and a call through a capture that holds the
 	// closure itself passes the function's own.
-	void LiftClosures(MidoriIRModule& module)
+	bool LiftClosures(MidoriIRModule& module)
 	{
 		const MidoriIRModuleFacts facts(module);
+		bool changed = false;
 		std::vector<std::vector<Creation>> creations(module.m_functions.size());
 		std::vector<bool> is_liftable(module.m_functions.size(), true);
 		for (uint32_t maker = 0u; maker < module.m_functions.size(); maker += 1u)
@@ -300,6 +302,7 @@ namespace
 			}
 
 			MidoriIRAnalysis::ReplaceUses(function, replacements);
+			changed = true;
 			lifted_captures[lifted] = std::move(replacements);
 			for (const MidoriIRValueId self : self_values)
 			{
@@ -338,12 +341,14 @@ namespace
 				}
 			}
 		}
+		return changed;
 	}
 
 	// A call of a closure made in the same function, of a function with no
 	// captures, calls that function.
-	void CallKnownFunctions(MidoriIRModule& module)
+	bool CallKnownFunctions(MidoriIRModule& module)
 	{
+		bool changed = false;
 		for (MidoriIRFunction& function : module.m_functions)
 		{
 			const std::vector<std::optional<MidoriIRSite>> sites = MidoriIRAnalysis::DefinitionSites(function);
@@ -366,8 +371,10 @@ namespace
 			for (const auto& [closure, callee] : known)
 			{
 				CallDirectly(function, MidoriIRValueId{ closure }, MidoriIRFunctionId{ callee }, {});
+				changed = true;
 			}
 		}
+		return changed;
 	}
 }
 
@@ -376,13 +383,13 @@ std::string_view ClosureConversionPass::Name() const
 	return "ClosureConversion";
 }
 
-void ClosureConversionPass::Run(MidoriIRModule& module) const
+bool ClosureConversionPass::Run(MidoriIRModule& module) const
 {
 	if (!BindsOnlyKnownClosures(module))
 	{
-		return;
+		return false;
 	}
-	DropUnreadCaptures(module);
-	LiftClosures(module);
-	CallKnownFunctions(module);
+	bool changed = DropUnreadCaptures(module);
+	changed = LiftClosures(module) || changed;
+	return CallKnownFunctions(module) || changed;
 }

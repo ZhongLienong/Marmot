@@ -99,7 +99,9 @@ namespace
 		"module ConcatTextProbe\n"
 		"\n"
 		"def a = \"x\";\n"
-		"def result = a ++ \"y\";\n";
+		"def src : Array<Text> = [\"y\"];\n"
+		"def rt = src[0];\n"
+		"def result = a ++ rt;\n";
 }
 
 TEST_CASE("A text literal left operand of ++ emits CONCAT_TEXT and never EXTEND_TEXT", "[compiler][backend][concat]")

@@ -198,7 +198,7 @@ The MidoriIR verifier checks the result. Dev and Debug builds verify after lower
 
 Source: `projects/marmotc/src/Compiler/MidoriIROptimizer/`
 
-The optimizer runs a fixed list of passes once over each module:
+The optimizer runs the following passes over each module. Steps 1–2 run once; steps 3–14 repeat until unchanged, for at most eight rounds, so inlining and scalar simplification can expose work for earlier passes. Steps 15–16 run once:
 
 1. `DeadCodeElimination`
 2. `SelfTailCall`
@@ -213,10 +213,11 @@ The optimizer runs a fixed list of passes once over each module:
 11. `Sccp`
 12. `StrengthReduction`
 13. `GlobalValueNumbering`
-14. `LoopInvariantCodeMotion`
-15. `DeadCodeElimination`
+14. `DeadCodeElimination`
+15. `LoopInvariantCodeMotion`
+16. `DeadCodeElimination`
 
-It reports nothing. [MidoriIR](midori-ir.md#optimizer) describes each pass and what they all keep: tail calls, stack traces and source lines.
+Each pass reports whether it changed the IR. [MidoriIR](midori-ir.md#optimizer) describes each pass and what they all keep: tail calls, stack traces and source lines.
 
 ## Phase 8: Bytecode Emission
 

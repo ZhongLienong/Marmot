@@ -10,7 +10,7 @@
 //     Ends a block. Defines no value.
 //
 // `effect` and `fault` are what the builder gives the instruction; a pass may
-// weaken them once it proves more, as DCE does for a non-zero constant divisor.
+// weaken them once it proves more, as SCCP does for a non-zero constant divisor.
 
 #ifndef MIDORI_IR_UNARY
 #define MIDORI_IR_UNARY(name, operand, result, effect, fault)

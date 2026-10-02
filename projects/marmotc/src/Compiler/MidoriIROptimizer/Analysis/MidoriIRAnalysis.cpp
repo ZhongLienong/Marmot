@@ -320,6 +320,24 @@ namespace MidoriIRAnalysis
 		std::unreachable();
 	}
 
+	bool RefineEffects(MidoriIRFunction& function)
+	{
+		const std::vector<std::optional<MidoriIRSite>> sites = DefinitionSites(function);
+		bool changed = false;
+		for (MidoriIRBlock& block : function.m_blocks)
+		{
+			for (MidoriIRInstruction& instruction : block.m_instructions)
+			{
+				if (instruction.m_effect.m_kind == MidoriIREffectKind::Fault && IsRemovable(function, sites, instruction))
+				{
+					instruction.m_effect = MidoriIREffect();
+					changed = true;
+				}
+			}
+		}
+		return changed;
+	}
+
 	bool IsFrameTransparent(const MidoriIRFunction& function)
 	{
 		const std::vector<std::optional<MidoriIRSite>> sites = DefinitionSites(function);

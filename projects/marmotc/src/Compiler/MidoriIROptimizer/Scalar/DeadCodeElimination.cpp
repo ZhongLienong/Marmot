@@ -100,6 +100,7 @@ namespace
 			}
 		}
 
+		std::vector<bool> removable(function.m_values.size(), false);
 		std::vector<bool> live(function.m_values.size(), false);
 		std::vector<MidoriIRValueId> pending;
 		const auto mark = [&](MidoriIRValueId value)
@@ -114,7 +115,14 @@ namespace
 		{
 			for (const MidoriIRInstruction& instruction : block.m_instructions)
 			{
-				if (IsMidoriIRTerminator(instruction.m_op) || !MidoriIRAnalysis::IsRemovable(function, sites, instruction))
+				// Compaction invalidates definition positions, so decide whether
+				// an instruction can fail before moving any of them.
+				const bool is_removable = MidoriIRAnalysis::IsRemovable(function, sites, instruction);
+				if (instruction.m_result.has_value())
+				{
+					removable[instruction.m_result->m_index] = is_removable;
+				}
+				if (IsMidoriIRTerminator(instruction.m_op) || !is_removable)
 				{
 					std::ranges::for_each(instruction.m_operands, mark);
 				}
@@ -145,7 +153,7 @@ namespace
 			const size_t before = block.m_instructions.size();
 			std::erase_if(block.m_instructions, [&](const MidoriIRInstruction& instruction)
 			{
-				return instruction.m_result.has_value() && !live[instruction.m_result->m_index] && MidoriIRAnalysis::IsRemovable(function, sites, instruction);
+				return instruction.m_result.has_value() && !live[instruction.m_result->m_index] && removable[instruction.m_result->m_index];
 			});
 			changed = changed || block.m_instructions.size() != before;
 		}
@@ -346,8 +354,10 @@ namespace
 		return changed;
 	}
 
-	void EliminateDeadCode(MidoriIRFunction& function)
+	bool EliminateDeadCode(MidoriIRFunction& function)
 	{
+		const size_t blocks_before = function.m_blocks.size();
+		bool changed_any = false;
 		// Each step only removes, so the rounds end; the bound is for a cycle
 		// of blocks that only jump to each other, which never settles.
 		for (size_t round = 0u; round <= function.m_blocks.size(); round += 1u)
@@ -359,12 +369,14 @@ namespace
 			changed = SkipForwardingBlocks(function) || changed;
 			MidoriIRAnalysis::RemoveUnreachableBlocks(function);
 			changed = MergeBlocks(function) || changed;
+			changed_any = changed_any || changed;
 			if (!changed)
 			{
 				break;
 			}
 		}
 		MidoriIRAnalysis::RemoveUnreachableBlocks(function);
+		return changed_any || function.m_blocks.size() != blocks_before;
 	}
 }
 
@@ -373,7 +385,7 @@ std::string_view DeadCodeEliminationPass::Name() const
 	return "DeadCodeElimination";
 }
 
-void DeadCodeEliminationPass::Run(MidoriIRModule& module) const
+bool DeadCodeEliminationPass::Run(MidoriIRModule& module) const
 {
-	std::ranges::for_each(module.m_functions, EliminateDeadCode);
+	return MidoriIRAnalysis::TransformFunctions(module, EliminateDeadCode);
 }

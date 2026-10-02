@@ -1,0 +1,11 @@
+module BranchFactsKeepFaults
+
+def Divide = fn(flag: Bool, x: Int, divisor: Int) -> Int =>
+	if flag then
+	{
+		def quotient = x / divisor;
+		if flag then quotient else 99
+	}
+	else 0;
+
+Divide(true, 7, 0);

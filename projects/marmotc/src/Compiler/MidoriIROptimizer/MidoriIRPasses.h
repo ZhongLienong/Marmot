@@ -11,7 +11,7 @@ class SccpPass : public MidoriIRPass
 {
 public:
 	std::string_view Name() const override;
-	void Run(MidoriIRModule& module) const override;
+	bool Run(MidoriIRModule& module) const override;
 };
 
 // Drops what nothing uses and nothing needs, block parameters included, then
@@ -23,7 +23,7 @@ class DeadCodeEliminationPass : public MidoriIRPass
 {
 public:
 	std::string_view Name() const override;
-	void Run(MidoriIRModule& module) const override;
+	bool Run(MidoriIRModule& module) const override;
 };
 
 // A tail call of the function itself becomes a jump back to a loop header,
@@ -34,7 +34,7 @@ class SelfTailCallPass : public MidoriIRPass
 {
 public:
 	std::string_view Name() const override;
-	void Run(MidoriIRModule& module) const override;
+	bool Run(MidoriIRModule& module) const override;
 };
 
 // Resolves the closures a call is known to call, drops the captures nothing
@@ -45,7 +45,7 @@ class ClosureConversionPass : public MidoriIRPass
 {
 public:
 	std::string_view Name() const override;
-	void Run(MidoriIRModule& module) const override;
+	bool Run(MidoriIRModule& module) const override;
 };
 
 // A local function only ever tail called, and only from one function, becomes
@@ -54,7 +54,7 @@ class ContificationPass : public MidoriIRPass
 {
 public:
 	std::string_view Name() const override;
-	void Run(MidoriIRModule& module) const override;
+	bool Run(MidoriIRModule& module) const override;
 };
 
 // Copies a directly called function's body into its caller when it is small or
@@ -66,7 +66,7 @@ class InliningPass : public MidoriIRPass
 {
 public:
 	std::string_view Name() const override;
-	void Run(MidoriIRModule& module) const override;
+	bool Run(MidoriIRModule& module) const override;
 };
 
 // Algebraic identities with a constant operand: x + 0, x * 1, x * 0, x * 2^n,
@@ -76,7 +76,7 @@ class StrengthReductionPass : public MidoriIRPass
 {
 public:
 	std::string_view Name() const override;
-	void Run(MidoriIRModule& module) const override;
+	bool Run(MidoriIRModule& module) const override;
 };
 
 // An edge that passes a union into a small block that only branches on its
@@ -88,7 +88,7 @@ class KnownConstructorThreadingPass : public MidoriIRPass
 {
 public:
 	std::string_view Name() const override;
-	void Run(MidoriIRModule& module) const override;
+	bool Run(MidoriIRModule& module) const override;
 };
 
 // A block parameter that is always passed a struct or tuple made for it, or
@@ -98,7 +98,7 @@ class ParameterUnboxingPass : public MidoriIRPass
 {
 public:
 	std::string_view Name() const override;
-	void Run(MidoriIRModule& module) const override;
+	bool Run(MidoriIRModule& module) const override;
 };
 
 // A tuple, struct or union made and only taken apart again is never made:
@@ -107,7 +107,7 @@ class ScalarReplacementPass : public MidoriIRPass
 {
 public:
 	std::string_view Name() const override;
-	void Run(MidoriIRModule& module) const override;
+	bool Run(MidoriIRModule& module) const override;
 };
 
 // An instruction that computes what a dominating one already did uses its
@@ -117,7 +117,7 @@ class GlobalValueNumberingPass : public MidoriIRPass
 {
 public:
 	std::string_view Name() const override;
-	void Run(MidoriIRModule& module) const override;
+	bool Run(MidoriIRModule& module) const override;
 };
 
 // An instruction in a loop whose operands the loop does not change, and which
@@ -126,5 +126,5 @@ class LoopInvariantCodeMotionPass : public MidoriIRPass
 {
 public:
 	std::string_view Name() const override;
-	void Run(MidoriIRModule& module) const override;
+	bool Run(MidoriIRModule& module) const override;
 };

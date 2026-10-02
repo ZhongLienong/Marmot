@@ -8,6 +8,7 @@
 #include "support/CompileHelpers.h"
 
 #include <algorithm>
+#include <bit>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -26,7 +27,9 @@ namespace
 		std::vector<std::unique_ptr<MidoriIRPass>> passes;
 		(passes.push_back(std::make_unique<Passes>()), ...);
 		MidoriIRModule module = std::move(lowered->m_module);
-		const std::expected<void, MidoriIRPassFailure> optimized = MidoriIROptimizer(std::move(passes)).Optimize(module);
+		const std::expected<void, MidoriIRPassFailure> optimized = sizeof...(Passes) == 0u
+			? MidoriIROptimizer().Optimize(module)
+			: MidoriIROptimizer(std::move(passes)).Optimize(module);
 		if (!optimized.has_value())
 		{
 			for (const MidoriIRViolation& violation : optimized.error().m_violations)
@@ -55,9 +58,10 @@ namespace
 			return "Breaking";
 		}
 
-		void Run(MidoriIRModule& module) const override
+		bool Run(MidoriIRModule& module) const override
 		{
 			module.m_functions.front().m_blocks.front().m_instructions.pop_back();
+			return true;
 		}
 	};
 }
@@ -81,6 +85,45 @@ bb0(x: Int):
 )");
 }
 
+TEST_CASE("Sccp follows dependencies between globals in the same module", "[midori_ir][optimizer]")
+{
+	const MidoriIRModule module = Optimize<SccpPass, DeadCodeEliminationPass>(R"(module GlobalChain
+def first = 2;
+def second = first + 3;
+def third = second * 2;
+def Scale = fn(x: Int) -> Int => x + third;
+Scale(4);
+)");
+
+	CHECK(PrintFunction(module, "Scale") == R"(fn Scale(Int) -> Int
+bb0(x: Int):
+  third: Int = Const 10
+  %2: Int = AddInt x, third
+  return %2
+)");
+}
+
+TEST_CASE("The optimizer revisits known closures and constants exposed by earlier rewrites", "[midori_ir][optimizer]")
+{
+	const MidoriIRModule module = Optimize<>(R"(module Revisit
+def Apply = fn(f: fn(Int) -> Int, x: Int) -> Int => f(x);
+def HigherOrder = fn(x: Int) -> Int => Apply(fn(y: Int) -> Int => y + 1, x);
+def Cascade = fn(x: Int) -> Int => ((x * 0) + 5) * 2;
+HigherOrder(3);
+Cascade(3);
+)");
+
+	const std::string higher_order = PrintFunction(module, "HigherOrder");
+	CHECK(higher_order.find("MakeClosure") == std::string::npos);
+	CHECK(higher_order.find("CallValue") == std::string::npos);
+	CHECK(higher_order.find("tailcall") == std::string::npos);
+	CHECK(higher_order.find("AddInt") != std::string::npos);
+	const std::string cascade = PrintFunction(module, "Cascade");
+	CHECK(cascade.find("Const 10") != std::string::npos);
+	CHECK(cascade.find("AddInt") == std::string::npos);
+	CHECK(cascade.find("MulInt") == std::string::npos);
+}
+
 TEST_CASE("DeadCodeElimination drops unused values and joins the blocks a constant branch leaves", "[midori_ir][optimizer]")
 {
 	const MidoriIRModule module = Optimize<DeadCodeEliminationPass>(R"(module Dead
@@ -97,6 +140,31 @@ bb0(x: Int):
   %5: Int = Const 1
   %6: Int = AddInt x, %5
   return %6
+)");
+}
+
+TEST_CASE("DeadCodeElimination preserves faults while compacting instruction definitions", "[midori_ir][optimizer]")
+{
+	const MidoriIRModule module = Optimize<DeadCodeEliminationPass>(R"(module Faults
+def Bad = fn(x: Int) -> Int => {
+	def unused = x + 1;
+	def zero = 0;
+	def a = 2;
+	def b = 3;
+	def bad = x / zero;
+	a + b
+};
+Bad(7);
+)");
+
+	CHECK(PrintFunction(module, "Bad") == R"(fn Bad(Int) -> Int
+bb0(x: Int):
+  %3: Int = Const 0
+  %4: Int = Const 2
+  %5: Int = Const 3
+  %6: Int = DivInt x, %3  !fault(DivisionByZero)
+  %7: Int = AddInt %4, %5
+  return %7
 )");
 }
 
@@ -311,6 +379,25 @@ bb0(y: Float):
 )");
 }
 
+TEST_CASE("StrengthReduction applies identities to Byte and Word at their own widths", "[midori_ir][optimizer]")
+{
+	const MidoriIRModule module = Optimize<SccpPass, StrengthReductionPass, DeadCodeEliminationPass>(R"(module UnsignedIdentities
+def Bytes = fn(x: Byte) -> Byte => ((x + 0x00) * 0x01) & 0xFF;
+def Words = fn(x: Word) -> Word => ((x + (0 as Word)) * (1 as Word)) & 0xFFFFFFFFFFFFFFFF;
+def ZeroByte = fn(x: Byte) -> Byte => x - x;
+def ZeroWord = fn(x: Word) -> Word => x % (1 as Word);
+Bytes(0xFF);
+Words(0xFFFFFFFFFFFFFFFF);
+ZeroByte(0xFF);
+ZeroWord(0xFFFFFFFFFFFFFFFF);
+)");
+
+	CHECK(PrintFunction(module, "Bytes") == "fn Bytes(Byte) -> Byte\nbb0(x: Byte):\n  return x\n");
+	CHECK(PrintFunction(module, "Words") == "fn Words(Word) -> Word\nbb0(x: Word):\n  return x\n");
+	CHECK(PrintFunction(module, "ZeroByte").find(": Byte = Const 0") != std::string::npos);
+	CHECK(PrintFunction(module, "ZeroWord").find(": Word = Const 0") != std::string::npos);
+}
+
 TEST_CASE("ScalarReplacement reads the parts of a struct made in the same function from what made it", "[midori_ir][optimizer]")
 {
 	const MidoriIRModule module = Optimize<ScalarReplacementPass, DeadCodeEliminationPass>(R"(module Scalars
@@ -515,6 +602,164 @@ bb2:
 )");
 }
 
+TEST_CASE("GlobalValueNumbering shares scalar literals when numbering their users", "[midori_ir][optimizer]")
+{
+	const MidoriIRModule module = Optimize<GlobalValueNumberingPass, DeadCodeEliminationPass>(R"(module Literals
+def Twice = fn(x: Int) -> Int => (x + 1) + (x + 1);
+Twice(3);
+)");
+
+	CHECK(PrintFunction(module, "Twice") == R"(fn Twice(Int) -> Int
+bb0(x: Int):
+  %1: Int = Const 1
+  %2: Int = AddInt x, %1
+  %5: Int = AddInt %2, %2
+  return %5
+)");
+}
+
+TEST_CASE("GlobalValueNumbering follows a branch's truth only within its dominated path", "[midori_ir][optimizer]")
+{
+	const MidoriIRModule module = Optimize<GlobalValueNumberingPass, DeadCodeEliminationPass>(R"(module BranchFacts
+def Both = fn(x: Int) -> Int =>
+	if x == 0 then (if x == 0 then 10 else 20) else (if x == 0 then 30 else 40);
+def Nested = fn(x: Int, choose: Bool) -> Int =>
+	if x == 0 then (if choose then (if x == 0 then 10 else 20) else 30) else 40;
+def Join = fn(flag: Bool) -> Int => {
+	def offset = if flag then 1 else 2;
+	offset + (if flag then 3 else 4)
+};
+def ReadAgain = fn(cell: Ref<Bool>) -> Int =>
+	if *cell then { cell := false; if *cell then 3 else 4 } else 5;
+Both(0);
+Nested(0, true);
+Join(true);
+ReadAgain(ref true);
+)");
+
+	const std::string both = PrintFunction(module, "Both");
+	const size_t branch = both.find("branch");
+	REQUIRE(branch != std::string::npos);
+	CHECK(both.find("branch", branch + 1u) == std::string::npos);
+	CHECK(both.find("Const 20") == std::string::npos);
+	CHECK(both.find("Const 30") == std::string::npos);
+	CHECK(both.find("Const 10") != std::string::npos);
+	CHECK(both.find("Const 40") != std::string::npos);
+	CHECK(PrintFunction(module, "Nested").find("Const 20") == std::string::npos);
+	for (const std::string_view name : { "Join", "ReadAgain" })
+	{
+		const std::string function = PrintFunction(module, name);
+		const size_t first = function.find("branch");
+		REQUIRE(first != std::string::npos);
+		CHECK(function.find("branch", first + 1u) != std::string::npos);
+	}
+}
+
+TEST_CASE("GlobalValueNumbering does not assume a condition when both branch edges enter one block", "[midori_ir][optimizer]")
+{
+	MidoriIRModule module("SharedSuccessor");
+	MidoriIRFunction function("Pick", MidoriIRScalarType(MidoriIRScalar::Int));
+	MidoriIRBuilder builder(function);
+	const MidoriIRBlockId join = builder.CreateBlock();
+	const MidoriIRBlockId yes = builder.CreateBlock();
+	const MidoriIRBlockId no = builder.CreateBlock();
+	const MidoriIRValueId flag = builder.AddParameter(MidoriIRFunction::s_entry_block, MidoriIRScalarType(MidoriIRScalar::Bool), "flag");
+	const MidoriIRValueId one = builder.ConstInt(1);
+	const MidoriIRValueId two = builder.ConstInt(2);
+	builder.Branch(flag, MidoriIRSuccessor(join, { one }), MidoriIRSuccessor(join, { two }));
+	const MidoriIRValueId selected = builder.AddParameter(join, MidoriIRScalarType(MidoriIRScalar::Int));
+	builder.PositionAt(join).Branch(flag, MidoriIRSuccessor(yes), MidoriIRSuccessor(no));
+	builder.PositionAt(yes).Return(selected);
+	builder.PositionAt(no).Return(two);
+	module.AddFunction(std::move(function));
+	REQUIRE(MidoriIRVerifier(module).Verify().empty());
+	CHECK_FALSE(GlobalValueNumberingPass().Run(module));
+	CHECK(module.m_functions.front().Block(join).m_instructions.back().m_op == MidoriIROp::Branch);
+	CHECK(MidoriIRVerifier(module).Verify().empty());
+}
+
+TEST_CASE("GlobalValueNumbering canonicalizes unsigned commutative operations", "[midori_ir][optimizer]")
+{
+	const MidoriIRModule module = Optimize<GlobalValueNumberingPass>(R"(module UnsignedNumbering
+def Bytes = fn(x: Byte, y: Byte) -> Byte => (x + y) ^ (y + x);
+def Words = fn(x: Word, y: Word) -> Word => (x * y) ^ (y * x);
+Bytes(0x01, 0x02);
+Words(1 as Word, 2 as Word);
+)");
+	for (const auto& [name, operation] : { std::pair{ "Bytes", "AddByte" }, std::pair{ "Words", "MulWord" } })
+	{
+		const std::string function = PrintFunction(module, name);
+		const size_t first = function.find(operation);
+		REQUIRE(first != std::string::npos);
+		CHECK(function.find(operation, first + 1u) == std::string::npos);
+	}
+}
+
+TEST_CASE("GlobalValueNumbering removes a fault only after the same computation dominates it", "[midori_ir][optimizer]")
+{
+	const MidoriIRModule module = Optimize<GlobalValueNumberingPass>(R"(module FaultNumbering
+def Twice = fn(x: Int, y: Int) -> Int => (x / y) + (x / y);
+def Either = fn(x: Int, y: Int, choose: Bool) -> Int => if choose then x / y else x / y;
+Twice(3, 2);
+Either(3, 2, true);
+)");
+
+	CHECK(PrintFunction(module, "Twice") == R"(fn Twice(Int, Int) -> Int
+bb0(x: Int, y: Int):
+  %2: Int = DivInt x, y  !fault(DivisionByZero)
+  %4: Int = AddInt %2, %2
+  return %4
+)");
+	const std::string either = PrintFunction(module, "Either");
+	const size_t first = either.find("DivInt");
+	REQUIRE(first != std::string::npos);
+	CHECK(either.find("DivInt", first + 1u) != std::string::npos);
+}
+
+TEST_CASE("GlobalValueNumbering preserves distinct float zeros and text allocations", "[midori_ir][optimizer]")
+{
+	const MidoriIRModule module = Optimize<SccpPass, GlobalValueNumberingPass, DeadCodeEliminationPass>(R"(module Identities
+def Zeros = fn(x: Float) -> (Float, Float) => (x * 0.0, x * (0.0 * -1.0));
+def Texts = fn() -> (Text, Text) => ("same", "same");
+Zeros(2.0);
+Texts();
+)");
+
+	const std::string zeros = PrintFunction(module, "Zeros");
+	const size_t first_multiply = zeros.find("MulFloat");
+	REQUIRE(first_multiply != std::string::npos);
+	CHECK(zeros.find("MulFloat", first_multiply + 1u) != std::string::npos);
+	const std::string texts = PrintFunction(module, "Texts");
+	const size_t first_text = texts.find("Const \"same\"");
+	REQUIRE(first_text != std::string::npos);
+	CHECK(texts.find("Const \"same\"", first_text + 1u) != std::string::npos);
+}
+
+TEST_CASE("GlobalValueNumbering compares NaN constants by their payload bits", "[midori_ir][optimizer]")
+{
+	const std::shared_ptr<MidoriType> float_type = MidoriIRScalarType(MidoriIRScalar::Float);
+	const std::shared_ptr<MidoriType> tuple_type = MidoriType::MakeTupleType({ float_type, float_type, float_type });
+	MidoriIRModule module("NaNPayloads");
+	MidoriIRFunction function("Values", tuple_type);
+	MidoriIRBuilder builder(function);
+	const double nan = std::bit_cast<double>(uint64_t{ 0x7ff8000000000001 });
+	const double other_nan = std::bit_cast<double>(uint64_t{ 0x7ff8000000000002 });
+	const MidoriIRValueId first = builder.ConstFloat(nan);
+	const MidoriIRValueId same = builder.ConstFloat(nan);
+	const MidoriIRValueId other = builder.ConstFloat(other_nan);
+	builder.Return(builder.Emit(MidoriIROp::MakeTuple, tuple_type, { first, same, other }));
+	module.AddFunction(std::move(function));
+	REQUIRE(MidoriIRVerifier(module).Verify().empty());
+	CHECK(GlobalValueNumberingPass().Run(module));
+	CHECK(MidoriIRVerifier(module).Verify().empty());
+	const std::vector<MidoriIRInstruction>& instructions = module.m_functions.front().m_blocks.front().m_instructions;
+	REQUIRE(instructions.size() == 4u);
+	const MidoriIRInstruction& tuple = instructions[2u];
+	CHECK(tuple.m_operands[0u] == tuple.m_operands[1u]);
+	CHECK(tuple.m_operands[0u] != tuple.m_operands[2u]);
+	CHECK_FALSE(GlobalValueNumberingPass().Run(module));
+}
+
 TEST_CASE("LoopInvariantCodeMotion moves what a loop does not change to before the loop", "[midori_ir][optimizer]")
 {
 	const MidoriIRModule module = Optimize<SelfTailCallPass, DeadCodeEliminationPass, LoopInvariantCodeMotionPass>(R"(module Hoist
@@ -538,6 +783,23 @@ bb3:
   %8: Int = AddInt total.11, %7
   jump bb1(%6, %8)
 )");
+}
+
+TEST_CASE("LoopInvariantCodeMotion hoists proven non-faulting division and leaves a variable divisor", "[midori_ir][optimizer]")
+{
+	const MidoriIRModule module = Optimize<SelfTailCallPass, DeadCodeEliminationPass, SccpPass, LoopInvariantCodeMotionPass>(R"(module SafeHoist
+def Safe = fn(n: Int, x: Int, sum: Int) -> Int => if n <= 0 then sum else Safe(n - 1, x, sum + (x / 3));
+def MayFail = fn(n: Int, x: Int, d: Int, sum: Int) -> Int => if n <= 0 then sum else MayFail(n - 1, x, d, sum + (x / d));
+Safe(3, 12, 0);
+MayFail(0, 12, 0, 0);
+)");
+
+	const std::string safe = PrintFunction(module, "Safe");
+	CHECK(safe.find("DivInt") < safe.find("jump bb1"));
+	CHECK(safe.find("fault(DivisionByZero)") == std::string::npos);
+	const std::string may_fail = PrintFunction(module, "MayFail");
+	CHECK(may_fail.find("DivInt") > may_fail.find("jump bb1"));
+	CHECK(may_fail.find("fault(DivisionByZero)") != std::string::npos);
 }
 
 TEST_CASE("The optimizer names the pass that left the module invalid", "[midori_ir][optimizer]")

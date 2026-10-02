@@ -99,8 +99,9 @@ namespace
 	// Blocks in reverse postorder, so a part read from a part already
 	// forwarded, such as a tuple taken out of a union, is read from what made
 	// that part.
-	void ReplaceScalars(MidoriIRFunction& function)
+	bool ReplaceScalars(MidoriIRFunction& function)
 	{
+		bool changed = false;
 		const Forwarding forwarding(function);
 		const MidoriIRControlFlow control_flow(function);
 		std::vector<std::optional<MidoriIRValueId>> replacements(function.m_values.size());
@@ -116,10 +117,12 @@ namespace
 				}
 				if (std::holds_alternative<MidoriIRValueId>(forwarded.value()))
 				{
+					changed = true;
 					replacements[instruction.m_result->m_index] = std::get<MidoriIRValueId>(forwarded.value());
 					continue;
 				}
 				instruction.m_op = MidoriIROp::Const;
+				changed = true;
 				instruction.m_immediate = static_cast<int64_t>(std::get<int>(forwarded.value()));
 				instruction.m_operands.clear();
 				instruction.m_type = MidoriIRScalarType(MidoriIRScalar::Int);
@@ -127,6 +130,7 @@ namespace
 			}
 		}
 		MidoriIRAnalysis::ReplaceUses(function, replacements);
+		return changed;
 	}
 }
 
@@ -135,7 +139,7 @@ std::string_view ScalarReplacementPass::Name() const
 	return "ScalarReplacement";
 }
 
-void ScalarReplacementPass::Run(MidoriIRModule& module) const
+bool ScalarReplacementPass::Run(MidoriIRModule& module) const
 {
-	std::ranges::for_each(module.m_functions, ReplaceScalars);
+	return MidoriIRAnalysis::TransformFunctions(module, ReplaceScalars);
 }
