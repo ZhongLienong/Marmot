@@ -21,12 +21,14 @@ class TypeChecker
 	friend class ExpectedTypeGuard;
 	friend class NominalUnifyGuard;
 	friend class DefiningGenericGuard;
+	friend class RigidTypeVariablesGuard;
 
 public:
 	using TypeEnvironment = std::unordered_map<std::string, std::shared_ptr<MidoriType>>;
 	using TypeclassInstanceTypeMap = std::unordered_map<std::string, std::vector<std::vector<std::shared_ptr<MidoriType>>>>;
 	using AssociatedTypeEnvironment = std::unordered_map<std::string, std::shared_ptr<MidoriType>>;
 	using TypeclassInstanceAssociatedTypeBindingMap = std::unordered_map<std::string, std::vector<AssociatedTypeEnvironment>>;
+	using TypeclassInstanceConstraintMap = std::unordered_map<std::string, std::vector<std::vector<MidoriType::ClassConstraint>>>;
 	enum class UnifyDiagnosticMode
 	{
 		Symmetric,
@@ -38,13 +40,11 @@ public:
 	{
 		std::string m_name;
 		std::vector<std::string> m_type_param_names;
-		std::vector<MidoriType::ClassConstraint> m_superclasses;
 		AssociatedTypeEnvironment m_associated_types;
 		std::unordered_map<std::string, std::shared_ptr<MidoriType>> m_method_types;
-		std::unordered_set<std::string> m_methods_with_defaults;
 
 		ClassInfo() = default;
-		ClassInfo(const std::string& name, std::vector<std::string>&& params, std::vector<MidoriType::ClassConstraint>&& supers, AssociatedTypeEnvironment&& associated_types, std::unordered_map<std::string, std::shared_ptr<MidoriType>>&& methods, std::unordered_set<std::string>&& defaults);
+		ClassInfo(const std::string& name, std::vector<std::string>&& params, AssociatedTypeEnvironment&& associated_types, std::unordered_map<std::string, std::shared_ptr<MidoriType>>&& methods);
 	};
 
 private:
@@ -126,6 +126,10 @@ private:
 	// A call to one of these from inside its own body must not be freshened: it is
 	// recursion, not a fresh instantiation.
 	std::vector<std::string> m_defining_generic_names;
+	// The variables standing for the generic parameters of the definitions being
+	// checked, with the name each was written as. A body may not decide one: it
+	// stands for whatever type a caller picks.
+	std::unordered_map<int, std::string> m_rigid_type_vars;
 	std::string m_file_name;
 	const std::vector<std::string>& m_source_lines;
 	std::shared_ptr<MidoriType> m_expected_return_type;
@@ -141,7 +145,7 @@ private:
 
 public:
 
-	TypeChecker(MidoriProgramTree&& parser_result, std::string_view file_name, const std::vector<std::string>& source_lines, TypeEnvironment imported_types = {}, const std::unordered_map<std::string, ClassInfo>& imported_typeclasses = {}, TypeclassInstanceTypeMap imported_instance_types = {}, TypeclassInstanceAssociatedTypeBindingMap imported_instance_associated_type_bindings = {});
+	TypeChecker(MidoriProgramTree&& parser_result, std::string_view file_name, const std::vector<std::string>& source_lines, TypeEnvironment imported_types = {}, const std::unordered_map<std::string, ClassInfo>& imported_typeclasses = {}, TypeclassInstanceTypeMap imported_instance_types = {}, TypeclassInstanceAssociatedTypeBindingMap imported_instance_associated_type_bindings = {}, TypeclassInstanceConstraintMap imported_instance_constraints = {});
 
 	MidoriResult::TypeCheckerResult TypeCheck();
 
@@ -194,6 +198,13 @@ private:
 
 	std::unordered_set<int> CollectEnclosingTypeVariableIds();
 
+	std::optional<CompilerError> CheckGenericParametersStayGeneric(const std::vector<std::pair<int, std::string>>& generic_params, const std::vector<Token>& declared_params, const Token& definition_token);
+
+	std::shared_ptr<MidoriType> InstantiateWrittenType(const std::shared_ptr<MidoriType>& written_type) const;
+
+	// The name of the generic parameter a resolved type stands for, when it is one.
+	std::optional<std::string> RigidParameterName(const std::shared_ptr<MidoriType>& resolved_type) const;
+
 	MidoriResult::TypeResult TypeCheckGenericLambdaDefinition(MidoriStatement::VariableDefinition& def, MidoriExpression::Function& function);
 
 	MidoriResult::TypeResult ResolveFunctionExpressionSignature(MidoriExpression::Function& function, const std::unordered_set<int>& outer_visible_type_vars);
@@ -206,7 +217,6 @@ private:
 	void ResolveRecordedTypes(MidoriStatement& statement);
 	void ResolveRecordedTypes(MidoriExpression& expression);
 	void ResolveRecordedTypes(MidoriPattern& pattern);
-	std::shared_ptr<MidoriType> ResolvedRecordedType(const std::shared_ptr<MidoriType>& type);
 
 	std::shared_ptr<MidoriType> ApplySubstitution(const std::shared_ptr<MidoriType>& type, std::unordered_map<const MidoriType*, std::shared_ptr<MidoriType>>& cache);
 
@@ -231,6 +241,10 @@ private:
 	std::shared_ptr<MidoriType> ReduceProjectionByEqualityConstraint(const std::shared_ptr<MidoriType>& type) const;
 
 	std::optional<ResolvedInstanceMatch> FindMatchingInstance(const std::string& class_name, const std::vector<std::shared_ptr<MidoriType>>& type_args) const;
+
+	std::vector<ResolvedInstanceMatch> FindMatchingInstances(const std::string& class_name, const std::vector<std::shared_ptr<MidoriType>>& type_args) const;
+
+	std::optional<CompilerError> CheckConstraintHolds(const Token& token, const MidoriType::ClassConstraint& resolved_constraint, size_t depth, std::optional<std::string_view> suggestion = std::nullopt);
 
 	void RegisterIdentityConversion(const std::shared_ptr<MidoriType>& from_type, const std::shared_ptr<MidoriType>& to_type);
 
@@ -281,6 +295,8 @@ private:
 
 	MidoriResult::TypeResult operator()(MidoriExpression::Binary& binary);
 
+	MidoriResult::TypeResult CheckBinaryOperator(MidoriExpression::Binary& binary, std::shared_ptr<MidoriType>& left_type, std::shared_ptr<MidoriType>& right_type);
+
 	MidoriResult::TypeResult operator()(MidoriExpression::Group& group);
 
 	MidoriResult::TypeResult operator()(MidoriExpression::Tuple& tuple);
@@ -298,6 +314,10 @@ private:
 	MidoriResult::TypeResult operator()(MidoriExpression::Send& send);
 
 	MidoriResult::TypeResult operator()(MidoriExpression::Receive& receive);
+
+	MidoriResult::TypeResult CheckConstrainedMethodCall(MidoriExpression::Call& call, const ClassInfo& tc_info, const std::shared_ptr<MidoriType>& method_type, const MidoriType::ClassConstraint& constraint, std::vector<std::shared_ptr<MidoriType>>& arg_results);
+
+	MidoriResult::TypeResult CheckInstanceMethodCall(MidoriExpression::Call& call, const std::string& qualifier, const std::string& method_name, const ClassInfo& tc_info, const std::shared_ptr<MidoriType>& method_type, std::vector<std::shared_ptr<MidoriType>>&& arg_results);
 
 	MidoriResult::TypeResult operator()(MidoriExpression::Call& call);
 
@@ -332,6 +352,9 @@ private:
 	MidoriResult::TypeResult operator()(MidoriExpression::Match& match);
 
 	MidoriResult::TypeResult operator()(MidoriExpression::Case& case_expr);
+
+	template <typename IterationNode>
+	MidoriResult::TypeResult ResolveIteration(IterationNode& node, const std::shared_ptr<MidoriType>& range_type, std::string_view error_prefix);
 
 	MidoriResult::TypeResult operator()(MidoriExpression::For& for_expr);
 

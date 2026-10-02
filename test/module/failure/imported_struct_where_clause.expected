@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/module/failure/imported_struct_where_clause.mmt:14
+   |
+14 | def built = ConstrainedExportsLib::Shown(Opaque(1));
+   |             ^^^^^^^^^^^^^^^^^^^^^ Type Opaque does not satisfy constraint Show<Opaque> - no matching instance found
+   |

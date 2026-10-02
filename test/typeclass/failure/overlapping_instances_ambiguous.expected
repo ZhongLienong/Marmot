@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/typeclass/failure/overlapping_instances_ambiguous.mmt:18
+   |
+18 | IO::PrintLine(Display(Boxed(1)));
+   |                               ^ Constraint Show<Boxed<Int>> is ambiguous: 2 instances match it ('Show<Boxed<Int>>', 'Show<Boxed<T>>')
+   |

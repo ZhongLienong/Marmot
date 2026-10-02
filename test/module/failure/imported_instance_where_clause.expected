@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/module/failure/imported_instance_where_clause.mmt:16
+   |
+16 | IO::PrintLine(Show::show(bad));
+   |                             ^ Type Opaque does not satisfy constraint Show<Opaque> - no matching instance found
+   |

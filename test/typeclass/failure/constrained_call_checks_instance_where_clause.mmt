@@ -1,0 +1,21 @@
+module ConstrainedCallChecksInstanceWhereClause
+
+// Calling a constrained function selects an instance, and that instance's own
+// where clause must hold too. Show<Boxed<Opaque>> was accepted although
+// Show<Opaque> has no instance.
+
+import { "../../../MarmotPrelude/IO.mmt" }
+
+class Show<T> { show: fn(value: T) -> Text; };
+
+type Boxed<T> = { item: T };
+
+type Opaque = { tag: Int };
+
+instance Show<Boxed<T>> where Show<T> {
+	def show = fn(value: Boxed<T>) -> Text => "Boxed(" ++ Show::show(value.item) ++ ")";
+};
+
+def Display = fn<T>(value: T) -> Text where Show<T> => Show::show(value);
+
+IO::PrintLine(Display(Boxed(Opaque(1))));

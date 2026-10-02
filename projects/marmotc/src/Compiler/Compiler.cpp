@@ -52,6 +52,7 @@ namespace
 		std::unordered_map<std::string, std::vector<std::string>> m_imported_typeclass_instances;
 		std::unordered_map<std::string, std::vector<std::vector<std::shared_ptr<MidoriType>>>> m_imported_typeclass_instance_types;
 		TypeChecker::TypeclassInstanceAssociatedTypeBindingMap m_imported_typeclass_instance_associated_type_bindings;
+		TypeChecker::TypeclassInstanceConstraintMap m_imported_typeclass_instance_constraints;
 		std::unordered_map<std::string, GenericFunctionInfo> m_imported_generic_functions;
 	};
 
@@ -141,7 +142,7 @@ namespace
 
 	struct CompilerAccess : Compiler
 	{
-		using Compiler::MergeInstanceAssociatedTypeBindings;
+		using Compiler::MergeInstanceEntries;
 		using Compiler::MergeInstanceMethods;
 		using Compiler::MergeInstanceTypeArgs;
 		using Compiler::TypeclassDefinitionsMatch;
@@ -447,10 +448,16 @@ namespace
 					}
 
 					CompilerAccess::MergeInstanceMethods(existing_it->second.m_instance_methods, metadata.m_instance_methods);
-					CompilerAccess::MergeInstanceAssociatedTypeBindings(
+					CompilerAccess::MergeInstanceEntries(
 						existing_it->second.m_instance_associated_type_bindings,
 						existing_it->second.m_instance_type_args,
 						metadata.m_instance_associated_type_bindings,
+						metadata.m_instance_type_args
+					);
+					CompilerAccess::MergeInstanceEntries(
+						existing_it->second.m_instance_constraints,
+						existing_it->second.m_instance_type_args,
+						metadata.m_instance_constraints,
 						metadata.m_instance_type_args
 					);
 					CompilerAccess::MergeInstanceTypeArgs(existing_it->second.m_instance_type_args, metadata.m_instance_type_args);
@@ -527,12 +534,13 @@ namespace
 				associated_types.emplace(associated_type_name, MidoriType::MakeAssociatedType(typeclass_name, associated_type_name, std::move(associated_type_args)));
 			}
 
-			TypeChecker::ClassInfo info(typeclass_name, std::vector<std::string>(metadata.m_type_param_names), std::vector<MidoriType::ClassConstraint>{}, std::move(associated_types), TypeChecker::TypeEnvironment(metadata.m_method_types), std::unordered_set<std::string>{});
+			TypeChecker::ClassInfo info(typeclass_name, std::vector<std::string>(metadata.m_type_param_names), std::move(associated_types), TypeChecker::TypeEnvironment(metadata.m_method_types));
 			context.m_imported_typeclass_infos[typeclass_name] = std::move(info);
 			context.m_imported_typeclass_methods[typeclass_name] = metadata.m_method_names;
 			context.m_imported_typeclass_instances[typeclass_name] = metadata.m_instance_methods;
 			context.m_imported_typeclass_instance_types[typeclass_name] = metadata.m_instance_type_args;
 			context.m_imported_typeclass_instance_associated_type_bindings[typeclass_name] = metadata.m_instance_associated_type_bindings;
+			context.m_imported_typeclass_instance_constraints[typeclass_name] = metadata.m_instance_constraints;
 		}
 
 		return context;
@@ -571,7 +579,7 @@ namespace
 
 	static MidoriResult::DiagnosticsResult<TypeCheckedModule> TypeCheckModule(MidoriProgramTree&& ast, const std::string& file_path, const std::vector<std::string>& module_source_lines, const ImportContext& import_context)
 	{
-		TypeChecker type_checker(std::move(ast), file_path, module_source_lines, import_context.m_imported_types, import_context.m_imported_typeclass_infos, import_context.m_imported_typeclass_instance_types, import_context.m_imported_typeclass_instance_associated_type_bindings);
+		TypeChecker type_checker(std::move(ast), file_path, module_source_lines, import_context.m_imported_types, import_context.m_imported_typeclass_infos, import_context.m_imported_typeclass_instance_types, import_context.m_imported_typeclass_instance_associated_type_bindings, import_context.m_imported_typeclass_instance_constraints);
 		MidoriResult::TypeCheckerResult typecheck_result = type_checker.TypeCheck();
 		if (!typecheck_result.has_value())
 		{
@@ -1505,10 +1513,11 @@ std::vector<std::vector<std::shared_ptr<MidoriType>>>& Compiler::MergeInstanceTy
 	return target;
 }
 
-std::vector<std::unordered_map<std::string, std::shared_ptr<MidoriType>>>& Compiler::MergeInstanceAssociatedTypeBindings(
-	std::vector<std::unordered_map<std::string, std::shared_ptr<MidoriType>>>& target_bindings,
+template <typename Entry>
+std::vector<Entry>& Compiler::MergeInstanceEntries(
+	std::vector<Entry>& target_entries,
 	const std::vector<std::vector<std::shared_ptr<MidoriType>>>& target_type_args,
-	const std::vector<std::unordered_map<std::string, std::shared_ptr<MidoriType>>>& incoming_bindings,
+	const std::vector<Entry>& incoming_entries,
 	const std::vector<std::vector<std::shared_ptr<MidoriType>>>& incoming_type_args
 )
 {
@@ -1531,17 +1540,17 @@ std::vector<std::unordered_map<std::string, std::shared_ptr<MidoriType>>>& Compi
 			continue;
 		}
 
-		if (incoming_idx < incoming_bindings.size())
+		if (incoming_idx < incoming_entries.size())
 		{
-			target_bindings.push_back(incoming_bindings[incoming_idx]);
+			target_entries.push_back(incoming_entries[incoming_idx]);
 		}
 		else
 		{
-			target_bindings.emplace_back();
+			target_entries.emplace_back();
 		}
 	}
 
-	return target_bindings;
+	return target_entries;
 }
 
 bool Compiler::TypeclassDefinitionsMatch(const CompiledModule::TypeclassMetadata& left, const CompiledModule::TypeclassMetadata& right)

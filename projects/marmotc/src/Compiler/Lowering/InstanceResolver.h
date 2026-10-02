@@ -103,6 +103,7 @@ public:
 	MethodResolution<std::string> ResolveConcat(const MethodResolutionMap& resolutions, const std::shared_ptr<MidoriType>& operand_type) const;
 	MethodResolution<std::string> ResolveEquals(const std::shared_ptr<MidoriType>& operand_type) const;
 	MethodResolution<std::string> ResolveCompare(const std::shared_ptr<MidoriType>& operand_type) const;
+	MethodResolution<std::string> ResolveOperandInstance(const std::string& class_name, const std::string& method_name, const std::shared_ptr<MidoriType>& operand_type) const;
 	// Nothing when `#` does not need Countable.
 	MethodResolution<std::optional<std::string>> ResolveCount(const MethodResolutionMap& resolutions, const std::shared_ptr<MidoriType>& operand_type, bool uses_countable) const;
 	MethodResolution<std::string> ResolveIndex(const MethodResolutionMap& resolutions, const std::shared_ptr<MidoriType>& container_type, const std::shared_ptr<MidoriType>& index_type) const;

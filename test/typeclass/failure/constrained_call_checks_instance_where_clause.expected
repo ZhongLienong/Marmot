@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/typeclass/failure/constrained_call_checks_instance_where_clause.mmt:21
+   |
+21 | IO::PrintLine(Display(Boxed(Opaque(1))));
+   |                                       ^ Type Opaque does not satisfy constraint Show<Opaque> - no matching instance found
+   |

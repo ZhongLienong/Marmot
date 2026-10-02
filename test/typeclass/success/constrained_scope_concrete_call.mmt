@@ -1,0 +1,14 @@
+module ConstrainedScopeConcreteCall
+
+// Inside a function constrained on Show<T>, a Show call on a concrete type is
+// selected from the instances. It was rejected because no constraint names Int.
+
+import { "../../../MarmotPrelude/IO.mmt" }
+
+class Show<T> { show: fn(value: T) -> Text; };
+
+instance Show<Int> { def show = fn(value: Int) -> Text => value as Text; };
+
+def Both = fn<T>(value: T) -> Text where Show<T> => Show::show(value) ++ "/" ++ Show::show(5);
+
+IO::PrintLine(Both(1));

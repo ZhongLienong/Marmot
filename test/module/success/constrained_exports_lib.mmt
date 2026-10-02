@@ -1,0 +1,18 @@
+module ConstrainedExportsLib
+
+// A constrained instance and a constrained struct, for the importers in
+// ../failure to break.
+
+public export { Show, Boxed, Shown }
+
+class Show<T> {
+	show: fn(value: T) -> Text;
+};
+
+type Boxed<T> = { item: T };
+
+type Shown<T> where Show<T> = { item: T };
+
+instance Show<Boxed<T>> where Show<T> {
+	def show = fn(value: Boxed<T>) -> Text => "Boxed(" ++ Show::show(value.item) ++ ")";
+};

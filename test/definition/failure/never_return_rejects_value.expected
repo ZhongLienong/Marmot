@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/definition/failure/never_return_rejects_value.mmt:7
+  |
+7 | def Liar = fn() -> Never => 5;
+  |            ^^ Expected type 'Never' but got 'Int'
+  |

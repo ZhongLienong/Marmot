@@ -132,11 +132,10 @@ public:
 
 		Token m_name;
 		std::vector<Token> m_type_params;
-		std::vector<MidoriType::ClassConstraint> m_superclasses;
 		std::vector<AssociatedTypeDeclaration> m_associated_types;
 		std::vector<std::unique_ptr<MidoriStatement>> m_methods;
 
-		Class(const Token& name, std::vector<Token>&& type_params, std::vector<MidoriType::ClassConstraint>&& superclasses, std::vector<AssociatedTypeDeclaration>&& associated_types, std::vector<std::unique_ptr<MidoriStatement>>&& methods);
+		Class(const Token& name, std::vector<Token>&& type_params, std::vector<AssociatedTypeDeclaration>&& associated_types, std::vector<std::unique_ptr<MidoriStatement>>&& methods);
 	};
 
 	struct Instance

@@ -312,6 +312,8 @@ def ShowBox = fn<T>(box: Box<T>) -> Text => Show::show(box.value);
 
 Constraints attached to a struct or union are checked when the type is instantiated and automatically propagate when a function accepts that type.
 
+A generic parameter stands for whatever type a caller picks, so a body may not decide it. `fn<T>(x: T) -> T => 5` is rejected, because the body only works when `T` is `Int`. The same goes for treating two parameters as one type. The operators a type class provides (`==`, `!=`, `<`, `<=`, `>`, `>=`, `++`, `#` and `as`) need a constraint naming that class when an operand is a generic parameter, as in `where Equatable<T>`. The numeric operators and ranges take a generic parameter as it is, and each specialization is checked when it is compiled.
+
 ## Type Classes
 
 Marmot supports both single-parameter and multi-parameter type classes.
@@ -556,6 +558,8 @@ def value : Int = RequirePositive(3);
 ```
 
 The type checker accepts the `Never` branch alongside the `Int` branch. The
+reverse does not hold: where `Never` itself is expected, as in the body of a
+function declared `-> Never`, only an expression of type `Never` fits. The
 compiler also uses `Never` to mark control flow after such a call as unreachable.
 Replacing its return type with `Unit` would lose that information and make
 these branch result types disagree.

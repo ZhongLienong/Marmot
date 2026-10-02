@@ -44,6 +44,8 @@ struct ModuleInterface
 		// Of those, the ones this module declares itself.
 		std::vector<std::vector<std::shared_ptr<MidoriType>>> m_declared_instance_type_args;
 		std::vector<std::unordered_map<std::string, std::shared_ptr<MidoriType>>> m_instance_associated_type_bindings;
+		// Each instance's where clause, in step with m_instance_type_args.
+		std::vector<std::vector<MidoriType::ClassConstraint>> m_instance_constraints;
 	};
 	using TypeclassMethodMap = std::unordered_map<std::string, std::unordered_set<std::string>>;
 	using TypeclassInstanceMap = std::unordered_map<std::string, std::vector<std::string>>;

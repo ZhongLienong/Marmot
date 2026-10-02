@@ -390,13 +390,24 @@ Lowering::Lowered Lowering::LowerBinary(MidoriExpression::Binary& binary)
 				return LowerConcat(binary, left, right);
 			}
 
+			// The checker takes a generic parameter as an operand of the numeric
+			// operators as it is, so this is where a specialization that gave it
+			// some other type is found.
 			const TypeRef& operand_type = Scope().m_function.TypeOf(left);
 			const std::optional<MidoriIRScalar> scalar = ScalarOf(operand_type);
 			const std::optional<ScalarOps> ops = BinaryOps(op.m_token_name);
 			const std::optional<MidoriIROp> ir_op = (scalar.has_value() && ops.has_value()) ? SelectOp(ops.value(), scalar.value()) : std::nullopt;
 			if (!ir_op.has_value())
 			{
-				return std::unexpected(Unsupported(std::format("'{}' on {}", op.m_lexeme, operand_type->DisplayString()), op));
+				return std::unexpected(Error(CompilerErrorCode::TypeMismatch, std::format("'{}' does not apply to {}, the type a generic parameter is given here", op.m_lexeme, operand_type->DisplayString()), op));
+			}
+			if (op.m_token_name == Token::Name::LEFT_SHIFT || op.m_token_name == Token::Name::RIGHT_SHIFT)
+			{
+				const TypeRef& amount_type = Scope().m_function.TypeOf(right);
+				if (ScalarOf(amount_type) != MidoriIRScalar::Int)
+				{
+					return std::unexpected(Error(CompilerErrorCode::TypeMismatch, std::format("'{}' shifts by an Int, not {}, the type a generic parameter is given here", op.m_lexeme, amount_type->DisplayString()), op));
+				}
 			}
 
 			Builder().AtLine(op.m_line);

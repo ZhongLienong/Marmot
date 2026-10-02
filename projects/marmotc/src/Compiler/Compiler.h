@@ -25,10 +25,11 @@ private:
 protected:
 	static std::vector<std::string>& MergeInstanceMethods(std::vector<std::string>& target, const std::vector<std::string>& incoming);
 	static std::vector<std::vector<std::shared_ptr<MidoriType>>>& MergeInstanceTypeArgs(std::vector<std::vector<std::shared_ptr<MidoriType>>>& target, const std::vector<std::vector<std::shared_ptr<MidoriType>>>& incoming);
-	static std::vector<std::unordered_map<std::string, std::shared_ptr<MidoriType>>>& MergeInstanceAssociatedTypeBindings(
-		std::vector<std::unordered_map<std::string, std::shared_ptr<MidoriType>>>& target_bindings,
+	template <typename Entry>
+	static std::vector<Entry>& MergeInstanceEntries(
+		std::vector<Entry>& target_entries,
 		const std::vector<std::vector<std::shared_ptr<MidoriType>>>& target_type_args,
-		const std::vector<std::unordered_map<std::string, std::shared_ptr<MidoriType>>>& incoming_bindings,
+		const std::vector<Entry>& incoming_entries,
 		const std::vector<std::vector<std::shared_ptr<MidoriType>>>& incoming_type_args
 	);
 	static bool TypeclassDefinitionsMatch(const CompiledModule::TypeclassMetadata& left, const CompiledModule::TypeclassMetadata& right);

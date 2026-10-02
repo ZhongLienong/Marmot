@@ -770,7 +770,6 @@ void PrintAbstractSyntaxTree::operator()(const MidoriStatement::Class& class_stm
 	PrintWithIndentation(depth, "Class {");
 	PrintWithIndentation(depth + 1, "Name: " + class_stmt.m_name.m_lexeme);
 	PrintWithIndentation(depth + 1, "TypeParameters: " + JoinNames(class_stmt.m_type_params));
-	std::ranges::for_each(class_stmt.m_superclasses, [depth, this](const MidoriType::ClassConstraint& superclass) { PrintWithIndentation(depth + 1, "Superclass: " + DescribeConstraint(superclass)); });
 	std::ranges::for_each(class_stmt.m_associated_types, [depth, this](const MidoriStatement::Class::AssociatedTypeDeclaration& associated) { PrintWithIndentation(depth + 1, "AssociatedType: " + associated.m_name.m_lexeme); });
 	PrintWithIndentation(depth + 1, "Methods: ");
 	std::ranges::for_each(class_stmt.m_methods, [depth, this](const std::unique_ptr<MidoriStatement>& method) { Visit(method, depth + 2); });

@@ -1,0 +1,20 @@
+module GenericEquatableInstanceOperator
+
+// `==` selects a generic instance the way a class method call does. It used to
+// look an instance up by the exact type, so Equatable<Box<T>> was never found
+// for Box<Int>.
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/Equatable.mmt"
+}
+
+type Box<T> = { v: T };
+
+instance Equatable<Box<T>> where Equatable<T> {
+	def Equals = fn(a: Box<T>, b: Box<T>) -> Bool => a.v == b.v;
+};
+
+IO::PrintLine((Box(1) == Box(1)) as Text);
+IO::PrintLine((Box("a") != Box("b")) as Text);

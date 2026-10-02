@@ -577,22 +577,38 @@ MethodResolution<std::string> InstanceResolver::ResolveConcat(const MethodResolu
 
 MethodResolution<std::string> InstanceResolver::ResolveEquals(const std::shared_ptr<MidoriType>& operand_type) const
 {
-	const std::string mangled_name = MidoriType::MangleInstanceMethodName(std::string(EQUALS_METHOD_NAME), std::string(EQUATABLE_CLASS_NAME), { operand_type });
-	if (!m_is_module_global(mangled_name))
-	{
-		return std::unexpected(MethodResolutionError(CompilerErrorCode::None, std::format("Equatable instance method '{}' not found", mangled_name)));
-	}
-	return mangled_name;
+	return ResolveOperandInstance(std::string(EQUATABLE_CLASS_NAME), std::string(EQUALS_METHOD_NAME), operand_type);
 }
 
 MethodResolution<std::string> InstanceResolver::ResolveCompare(const std::shared_ptr<MidoriType>& operand_type) const
 {
-	const std::string mangled_name = MidoriType::MangleInstanceMethodName(std::string(COMPARE_METHOD_NAME), std::string(ORDERABLE_CLASS_NAME), { operand_type });
-	if (!m_is_module_global(mangled_name))
+	return ResolveOperandInstance(std::string(ORDERABLE_CLASS_NAME), std::string(COMPARE_METHOD_NAME), operand_type);
+}
+
+// The instance an operator on one operand type calls: the one declared for
+// exactly that type, or else the single generic instance that matches it.
+MethodResolution<std::string> InstanceResolver::ResolveOperandInstance(const std::string& class_name, const std::string& method_name, const std::shared_ptr<MidoriType>& operand_type) const
+{
+	const std::string mangled_name = MidoriType::MangleInstanceMethodName(method_name, class_name, { operand_type });
+	if (m_is_module_global(mangled_name))
 	{
-		return std::unexpected(MethodResolutionError(CompilerErrorCode::None, std::format("Orderable instance method '{}' not found", mangled_name)));
+		return mangled_name;
 	}
-	return mangled_name;
+
+	const MethodResolution<std::optional<std::string>> matched = MatchSingleInstance(class_name, method_name, [&operand_type](const std::vector<TypeRef>& candidate_args, GenericTypes::TypeEnvironment& substitutions)
+	{
+		VisitedPairs visited;
+		return candidate_args.size() == 1u && MatchInstanceTypeArg(candidate_args[0u], operand_type, substitutions, visited);
+	}, std::format("{} instance method resolution is ambiguous for type '{}'", class_name, operand_type->DisplayString()));
+	if (!matched.has_value())
+	{
+		return std::unexpected(matched.error());
+	}
+	if (!matched.value().has_value())
+	{
+		return std::unexpected(MethodResolutionError(CompilerErrorCode::None, std::format("{} instance method '{}' not found", class_name, mangled_name)));
+	}
+	return matched.value().value();
 }
 
 MethodResolution<std::optional<std::string>> InstanceResolver::ResolveCount(const MethodResolutionMap& resolutions, const std::shared_ptr<MidoriType>& operand_type, bool uses_countable) const

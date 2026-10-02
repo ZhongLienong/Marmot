@@ -1,0 +1,16 @@
+module ImportedInstanceWhereClause
+
+// An imported instance keeps its where clause. It was dropped on import, so
+// this type-checked and failed in lowering, at a line of the other module.
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../success/constrained_exports_lib.mmt"
+}
+
+type Opaque = { tag: Int };
+
+def bad = ConstrainedExportsLib::Boxed(Opaque(1));
+
+IO::PrintLine(Show::show(bad));

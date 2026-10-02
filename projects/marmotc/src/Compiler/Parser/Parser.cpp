@@ -427,6 +427,7 @@ Parser::Parser(TokenStream&& tokens,std::string_view file_name, const std::vecto
 		m_state.m_class_instances[tc_name] = metadata.m_instance_methods;
 		m_state.m_class_instance_type_args[tc_name] = metadata.m_instance_type_args;
 		m_state.m_class_instance_associated_type_bindings[tc_name] = metadata.m_instance_associated_type_bindings;
+		m_state.m_class_instance_constraints[tc_name] = metadata.m_instance_constraints;
 		m_state.m_typeclass_method_types[tc_name] = metadata.m_method_types;
 	}
 }
@@ -4107,7 +4108,7 @@ MidoriResult::StatementResult Parser::ParseClassDeclaration()
 
 	return std::make_unique<MidoriStatement>
 	(
-		MidoriStatement::Class(std::move(typeclass_name), std::move(type_params), std::vector<MidoriType::ClassConstraint>(), std::move(associated_types), std::move(methods))
+		MidoriStatement::Class(std::move(typeclass_name), std::move(type_params), std::move(associated_types), std::move(methods))
 	);
 }
 
@@ -4476,6 +4477,7 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 		associated_type_bindings.emplace(binding.m_name.m_lexeme, binding.m_type);
 	}
 	m_state.m_class_instance_associated_type_bindings[typeclass_name.m_lexeme].push_back(associated_type_bindings);
+	m_state.m_class_instance_constraints[typeclass_name.m_lexeme].push_back(constraints);
 
 	for (std::unique_ptr<MidoriStatement>& method_stmt : methods)
 	{
@@ -6333,6 +6335,7 @@ void Parser::RegisterSyntheticInstanceMetadata(const std::string& class_name, co
 		m_state.m_declared_class_instance_type_args[class_name].push_back(type_args);
 		m_state.m_class_instance_type_args[class_name].push_back(type_args);
 		m_state.m_class_instance_associated_type_bindings[class_name].emplace_back();
+		m_state.m_class_instance_constraints[class_name].emplace_back();
 	}
 
 	for (const std::string& mangled_method_name : mangled_method_names)
@@ -7121,6 +7124,10 @@ CompiledModule::TypeclassMetadataMap Parser::GetTypeclassMetadata() const
 		if (m_state.m_class_instance_associated_type_bindings.contains(tc_name))
 		{
 			metadata.m_instance_associated_type_bindings = m_state.m_class_instance_associated_type_bindings.at(tc_name);
+		}
+		if (m_state.m_class_instance_constraints.contains(tc_name))
+		{
+			metadata.m_instance_constraints = m_state.m_class_instance_constraints.at(tc_name);
 		}
 		if (m_state.m_typeclass_method_types.contains(tc_name))
 		{

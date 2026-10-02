@@ -1,0 +1,6 @@
+Compilation failed :(
+Lowering Error at test/generics/failure/generic_arithmetic_specialization.mmt:6
+  |
+6 | def Add = fn<T>(a: T, b: T) -> T => a + b;
+  |                                       ^ '+' does not apply to Text, the type a generic parameter is given here
+  |

@@ -1,0 +1,6 @@
+module GenericBodyMergesParameters
+
+// Two parameters are two types a caller picks; a body treating them as one
+// works only when the caller picks the same type twice.
+
+def Pick = fn<A, B>(a: A, b: B) -> A => b;

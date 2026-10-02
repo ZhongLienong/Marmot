@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/generics/failure/generic_body_decides_parameter.mmt:6
+  |
+6 | def Make = fn<T>(x: T) -> T => 5;
+  |               ^ Generic parameter 'T' stands for any type, but the body uses it as 'Int'
+  |

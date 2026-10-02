@@ -1,0 +1,23 @@
+module NeverFirstArm
+
+// A match whose first arm never finishes takes its type from the other arms.
+// It used to keep the first arm's Never, so the match could not be bound to Int.
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/Prelude/Panic.mmt"
+}
+
+def Pick = fn(n: Int) -> Int => match n with
+	case 0 => Panic::Panic("zero")
+	case _ => n + 1;
+
+def value = match 3 with
+	case 0 => Panic::Panic("zero")
+	case _ => 7;
+
+def bound : Int = value;
+
+IO::PrintLine(Pick(4) as Text);
+IO::PrintLine(bound as Text);

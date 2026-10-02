@@ -96,6 +96,7 @@ private:
 	using TypeclassInstanceTypeMap = std::unordered_map<std::string, std::vector<std::vector<std::shared_ptr<MidoriType>>>>;
 	using TypeclassAssociatedTypeMap = std::unordered_map<std::string, std::vector<std::string>>;
 	using TypeclassInstanceAssociatedTypeBindingMap = std::unordered_map<std::string, std::vector<std::unordered_map<std::string, std::shared_ptr<MidoriType>>>>;
+	using TypeclassInstanceConstraintMap = std::unordered_map<std::string, std::vector<std::vector<MidoriType::ClassConstraint>>>;
 	using TypeEnvironment = std::unordered_map<std::string, std::shared_ptr<MidoriType>>;
 	using TypeclassMethodTypeMap = std::unordered_map<std::string, std::unordered_map<std::string, std::shared_ptr<MidoriType>>>;
 
@@ -157,6 +158,7 @@ private:
 		// The subset declared in the file being parsed.
 		TypeclassInstanceTypeMap m_declared_class_instance_type_args;
 		TypeclassInstanceAssociatedTypeBindingMap m_class_instance_associated_type_bindings;
+		TypeclassInstanceConstraintMap m_class_instance_constraints;
 		TypeclassMethodTypeMap m_typeclass_method_types;
 		Scopes m_scopes{ Scope() };
 		std::vector<int> m_function_base_variable_index{0};

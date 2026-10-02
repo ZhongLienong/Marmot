@@ -1,0 +1,6 @@
+module GenericBodyDecidesParameter
+
+// A body that only works for one type is not generic. This was accepted, and
+// the error surfaced at whichever caller picked another type.
+
+def Make = fn<T>(x: T) -> T => 5;

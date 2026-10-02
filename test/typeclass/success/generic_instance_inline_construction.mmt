@@ -1,0 +1,18 @@
+module GenericInstanceInlineConstruction
+
+// A construction written straight into a class method call takes its expected
+// type from the one instance that matches. That type held the instance's own
+// parameter T, so Box(1) was checked against Box<T> and rejected.
+
+import { "../../../MarmotPrelude/IO.mmt" }
+
+class Show<T> { show: fn(value: T) -> Text; };
+
+type Box<T> = { v: T };
+
+instance Show<Box<T>> { def show = fn(value: Box<T>) -> Text => "box"; };
+
+def held = Box(1);
+
+IO::PrintLine(Show::show(held));
+IO::PrintLine(Show::show(Box(1)));

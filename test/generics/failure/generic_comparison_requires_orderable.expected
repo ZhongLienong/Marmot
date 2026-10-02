@@ -1,0 +1,7 @@
+Compilation failed :(
+Type Checker Error at test/generics/failure/generic_comparison_requires_orderable.mmt:8
+  |
+8 | def Less = fn<T>(a: T, b: T) -> Bool => a < b;
+  |                                           ^ Type T does not satisfy constraint Orderable<T> - no matching instance found
+  |
+  | 'T' is a generic parameter, so it is only known to be one when the definition says 'where Orderable<T>'.

@@ -1,0 +1,10 @@
+module GenericComparisonRequiresOrderable
+
+// `<` on a generic parameter needs a where clause saying the parameter is
+// Orderable. Without one this reached lowering, which could not lower '<' on P.
+
+type P = { v: Int };
+
+def Less = fn<T>(a: T, b: T) -> Bool => a < b;
+
+def result = Less(P(1), P(2));

@@ -1,5 +1,4 @@
 #include <algorithm>
-#include <algorithm>
 #include <format>
 #include <functional>
 #include <iterator>
@@ -98,388 +97,158 @@ namespace
 		);
 	}
 
-	bool HasTypeVariables(const std::shared_ptr<MidoriType>& type, std::unordered_set<const MidoriType*>& visited)
+	// What a type is built from, one level down. Every walk over a type descends
+	// through this one function, so no walk can skip a part another one sees.
+	void ForEachComponent(const MidoriType& type, const std::function<void(const std::shared_ptr<MidoriType>&)>& visit)
 	{
-		if (visited.contains(type.get()))
+		const std::function<void(const std::vector<std::shared_ptr<MidoriType>>&)> visit_all = [&visit](const std::vector<std::shared_ptr<MidoriType>>& components)
 		{
-			return false;
-		}
-		visited.insert(type.get());
+			for (const std::shared_ptr<MidoriType>& component : components)
+			{
+				visit(component);
+			}
+		};
+		const std::function<void(const std::vector<MidoriType::ClassConstraint>&)> visit_constraints = [&visit, &visit_all](const std::vector<MidoriType::ClassConstraint>& constraints)
+		{
+			for (const MidoriType::ClassConstraint& constraint : constraints)
+			{
+				visit_all(constraint.m_type_args);
+				if (constraint.IsEquality())
+				{
+					visit(constraint.m_equality_lhs);
+					visit(constraint.m_equality_rhs);
+				}
+			}
+		};
 
-		if (type->IsType<MidoriType::TypeVariable>())
-		{
-			return true;
-		}
-		else if (type->IsType<MidoriType::ArrayType>())
-		{
-			return HasTypeVariables(type->GetType<MidoriType::ArrayType>().m_element_type, visited);
-		}
-		else if (type->IsType<MidoriType::RangeType>())
-		{
-			return HasTypeVariables(type->GetType<MidoriType::RangeType>().m_element_type, visited);
-		}
-		else if (type->IsType<MidoriType::WorkerType>())
-		{
-			return HasTypeVariables(type->GetType<MidoriType::WorkerType>().m_result_type, visited);
-		}
-		else if (type->IsType<MidoriType::ChannelType>())
-		{
-			return HasTypeVariables(type->GetType<MidoriType::ChannelType>().m_element_type, visited);
-		}
-		else if (type->IsType<MidoriType::CellType>())
-		{
-			return HasTypeVariables(type->GetType<MidoriType::CellType>().m_element_type, visited);
-		}
-		else if (type->IsType<MidoriType::FunctionType>())
-		{
-			MidoriType::FunctionType& func = type->GetType<MidoriType::FunctionType>();
-			for (const std::shared_ptr<MidoriType>& param : func.m_param_types)
+		std::visit
+		(
+			[&visit, &visit_all, &visit_constraints]<typename T>(const T& node)
 			{
-				if (HasTypeVariables(param, visited)) return true;
-			}
-			if (HasTypeVariables(func.m_return_type, visited))
-			{
-				return true;
-			}
-			for (const MidoriType::ClassConstraint& constraint : func.m_constraints)
-			{
-				for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
+				using Node = std::decay_t<T>;
+				if constexpr (std::is_same_v<Node, MidoriType::ArrayType> || std::is_same_v<Node, MidoriType::ChannelType> || std::is_same_v<Node, MidoriType::CellType> || std::is_same_v<Node, MidoriType::RangeType>)
 				{
-					if (HasTypeVariables(type_arg, visited))
+					visit(node.m_element_type);
+				}
+				else if constexpr (std::is_same_v<Node, MidoriType::WorkerType>)
+				{
+					visit(node.m_result_type);
+				}
+				else if constexpr (std::is_same_v<Node, MidoriType::TupleType>)
+				{
+					visit_all(node.m_element_types);
+				}
+				else if constexpr (std::is_same_v<Node, MidoriType::FunctionType>)
+				{
+					visit_all(node.m_param_types);
+					visit(node.m_return_type);
+					visit_constraints(node.m_constraints);
+				}
+				else if constexpr (std::is_same_v<Node, MidoriType::StructType>)
+				{
+					visit_all(node.m_member_types);
+					visit_all(node.m_type_arguments);
+					visit_constraints(node.m_constraints);
+				}
+				else if constexpr (std::is_same_v<Node, MidoriType::UnionType>)
+				{
+					for (const auto& [_, member_ctx] : node.m_member_info)
 					{
-						return true;
+						visit_all(member_ctx.m_member_types);
 					}
+					visit_all(node.m_type_arguments);
+					visit_constraints(node.m_constraints);
 				}
-			}
-			return false;
-		}
-		else if (type->IsType<MidoriType::StructType>())
-		{
-			for (const std::shared_ptr<MidoriType>& member : type->GetType<MidoriType::StructType>().m_member_types)
-			{
-				if (HasTypeVariables(member, visited)) return true;
-			}
-			for (const std::shared_ptr<MidoriType>& type_argument : type->GetType<MidoriType::StructType>().m_type_arguments)
-			{
-				if (HasTypeVariables(type_argument, visited))
+				else if constexpr (std::is_same_v<Node, MidoriType::AssociatedType> || std::is_same_v<Node, MidoriType::ClassConstraint>)
 				{
-					return true;
+					visit_all(node.m_type_args);
 				}
-			}
-			for (const MidoriType::ClassConstraint& constraint : type->GetType<MidoriType::StructType>().m_constraints)
-			{
-				for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
-				{
-					if (HasTypeVariables(type_arg, visited))
-					{
-						return true;
-					}
-				}
-			}
-		}
-		else if (type->IsType<MidoriType::UnionType>())
-		{
-			for (const auto& [name, ctx] : type->GetType<MidoriType::UnionType>().m_member_info)
-			{
-				for (const std::shared_ptr<MidoriType>& member : ctx.m_member_types)
-				{
-					if (HasTypeVariables(member, visited)) return true;
-				}
-			}
-			for (const std::shared_ptr<MidoriType>& type_argument : type->GetType<MidoriType::UnionType>().m_type_arguments)
-			{
-				if (HasTypeVariables(type_argument, visited))
-				{
-					return true;
-				}
-			}
-			for (const MidoriType::ClassConstraint& constraint : type->GetType<MidoriType::UnionType>().m_constraints)
-			{
-				for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
-				{
-					if (HasTypeVariables(type_arg, visited))
-					{
-						return true;
-					}
-				}
-			}
-		}
-		else if (type->IsType<MidoriType::TupleType>())
-		{
-			for (const std::shared_ptr<MidoriType>& elem : type->GetType<MidoriType::TupleType>().m_element_types)
-			{
-				if (HasTypeVariables(elem, visited)) return true;
-			}
-		}
-		return false;
+			},
+			type.m_type
+		);
 	}
 
-	bool HasTypeVariables(const std::shared_ptr<MidoriType>& type)
-	{
-		std::unordered_set<const MidoriType*> visited;
-		return HasTypeVariables(type, visited);
-	}
-
-	void CollectTypeVariableIds(const std::shared_ptr<MidoriType>& type, std::unordered_set<int>& type_variable_ids, std::unordered_set<const MidoriType*>& visited)
+	void ForEachType(const std::shared_ptr<MidoriType>& type, const std::function<void(const MidoriType&)>& visit, std::unordered_set<const MidoriType*>& visited)
 	{
 		if (type == nullptr || !visited.insert(type.get()).second)
 		{
 			return;
 		}
 
-		if (type->IsType<MidoriType::TypeVariable>())
+		visit(*type);
+		ForEachComponent(*type, [&visit, &visited](const std::shared_ptr<MidoriType>& component) { ForEachType(component, visit, visited); });
+	}
+
+	bool ContainsType(const std::shared_ptr<MidoriType>& type, const std::function<bool(const MidoriType&)>& is_wanted, std::unordered_set<const MidoriType*>& visited)
+	{
+		if (type == nullptr || !visited.insert(type.get()).second)
 		{
-			type_variable_ids.insert(type->GetType<MidoriType::TypeVariable>().m_id);
-			return;
-		}
-		if (type->IsType<MidoriType::ArrayType>())
-		{
-			CollectTypeVariableIds(type->GetType<MidoriType::ArrayType>().m_element_type, type_variable_ids, visited);
-			return;
-		}
-		if (type->IsType<MidoriType::RangeType>())
-		{
-			CollectTypeVariableIds(type->GetType<MidoriType::RangeType>().m_element_type, type_variable_ids, visited);
-			return;
-		}
-		if (type->IsType<MidoriType::WorkerType>())
-		{
-			CollectTypeVariableIds(type->GetType<MidoriType::WorkerType>().m_result_type, type_variable_ids, visited);
-			return;
-		}
-		if (type->IsType<MidoriType::ChannelType>())
-		{
-			CollectTypeVariableIds(type->GetType<MidoriType::ChannelType>().m_element_type, type_variable_ids, visited);
-			return;
+			return false;
 		}
 
-		if (type->IsType<MidoriType::CellType>())
+		if (is_wanted(*type))
 		{
-			CollectTypeVariableIds(type->GetType<MidoriType::CellType>().m_element_type, type_variable_ids, visited);
-			return;
+			return true;
 		}
-		if (type->IsType<MidoriType::TupleType>())
-		{
-			for (const std::shared_ptr<MidoriType>& element_type : type->GetType<MidoriType::TupleType>().m_element_types)
-			{
-				CollectTypeVariableIds(element_type, type_variable_ids, visited);
-			}
-			return;
-		}
-		if (type->IsType<MidoriType::FunctionType>())
-		{
-			const MidoriType::FunctionType& function_type = type->GetType<MidoriType::FunctionType>();
-			for (const std::shared_ptr<MidoriType>& param_type : function_type.m_param_types)
-			{
-				CollectTypeVariableIds(param_type, type_variable_ids, visited);
-			}
-			CollectTypeVariableIds(function_type.m_return_type, type_variable_ids, visited);
-			for (const MidoriType::ClassConstraint& constraint : function_type.m_constraints)
-			{
-				for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
-				{
-					CollectTypeVariableIds(type_arg, type_variable_ids, visited);
-				}
-			}
-			return;
-		}
-		if (type->IsType<MidoriType::StructType>())
-		{
-			const MidoriType::StructType& struct_type = type->GetType<MidoriType::StructType>();
-			for (const std::shared_ptr<MidoriType>& member_type : struct_type.m_member_types)
-			{
-				CollectTypeVariableIds(member_type, type_variable_ids, visited);
-			}
-			for (const MidoriType::ClassConstraint& constraint : struct_type.m_constraints)
-			{
-				for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
-				{
-					CollectTypeVariableIds(type_arg, type_variable_ids, visited);
-				}
-			}
-			return;
-		}
-		if (type->IsType<MidoriType::UnionType>())
-		{
-			const MidoriType::UnionType& union_type = type->GetType<MidoriType::UnionType>();
-			for (const auto& [_, member_ctx] : union_type.m_member_info)
-			{
-				for (const std::shared_ptr<MidoriType>& member_type : member_ctx.m_member_types)
-				{
-					CollectTypeVariableIds(member_type, type_variable_ids, visited);
-				}
-			}
-			for (const MidoriType::ClassConstraint& constraint : union_type.m_constraints)
-			{
-				for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
-				{
-					CollectTypeVariableIds(type_arg, type_variable_ids, visited);
-				}
-			}
-			return;
-		}
-		if (type->IsType<MidoriType::AssociatedType>())
-		{
-			for (const std::shared_ptr<MidoriType>& type_arg : type->GetType<MidoriType::AssociatedType>().m_type_args)
-			{
-				CollectTypeVariableIds(type_arg, type_variable_ids, visited);
-			}
-			return;
-		}
-		if (type->IsType<MidoriType::ClassConstraint>())
-		{
-			for (const std::shared_ptr<MidoriType>& type_arg : type->GetType<MidoriType::ClassConstraint>().m_type_args)
-			{
-				CollectTypeVariableIds(type_arg, type_variable_ids, visited);
-			}
-		}
+
+		bool found = false;
+		ForEachComponent(*type, [&found, &is_wanted, &visited](const std::shared_ptr<MidoriType>& component) { found = found || ContainsType(component, is_wanted, visited); });
+		return found;
+	}
+
+	bool HasTypeVariables(const std::shared_ptr<MidoriType>& type)
+	{
+		std::unordered_set<const MidoriType*> visited;
+		return ContainsType(type, [](const MidoriType& node) { return node.IsType<MidoriType::TypeVariable>(); }, visited);
+	}
+
+	// Whether substitution can change the type: a variable may be bound, and a
+	// projection may reduce.
+	bool NeedsSubstitution(const std::shared_ptr<MidoriType>& type)
+	{
+		std::unordered_set<const MidoriType*> visited;
+		return ContainsType(type, [](const MidoriType& node) { return node.IsType<MidoriType::TypeVariable>() || node.IsType<MidoriType::AssociatedType>(); }, visited);
 	}
 
 	std::unordered_set<int> CollectTypeVariableIds(const std::shared_ptr<MidoriType>& type)
 	{
 		std::unordered_set<int> type_variable_ids;
 		std::unordered_set<const MidoriType*> visited;
-		CollectTypeVariableIds(type, type_variable_ids, visited);
+		ForEachType
+		(
+			type,
+			[&type_variable_ids](const MidoriType& node)
+			{
+				if (node.IsType<MidoriType::TypeVariable>())
+				{
+					type_variable_ids.insert(node.GetType<MidoriType::TypeVariable>().m_id);
+				}
+			},
+			visited
+		);
 		return type_variable_ids;
 	}
 
-	std::string FormatTypeVariableIds(const std::unordered_set<int>& type_variable_ids)
+	std::unordered_set<std::string> CollectGenericParamNames(const std::vector<std::shared_ptr<MidoriType>>& types)
 	{
-		std::vector<int> sorted_ids(type_variable_ids.cbegin(), type_variable_ids.cend());
-		std::ranges::sort(sorted_ids);
-
-		std::string result = "{";
-		for (size_t idx = 0; idx < sorted_ids.size(); idx += 1u)
-		{
-			if (idx != 0u)
-			{
-				result += ", ";
-			}
-			result += std::to_string(sorted_ids[idx]);
-		}
-		result += "}";
-		return result;
-	}
-
-	bool ContainsAssociatedTypes(const std::shared_ptr<MidoriType>& type, std::unordered_set<const MidoriType*>& visited)
-	{
-		if (visited.contains(type.get()))
-		{
-			return false;
-		}
-		visited.insert(type.get());
-
-		if (type->IsType<MidoriType::AssociatedType>())
-		{
-			return true;
-		}
-		if (type->IsType<MidoriType::ArrayType>())
-		{
-			return ContainsAssociatedTypes(type->GetType<MidoriType::ArrayType>().m_element_type, visited);
-		}
-		if (type->IsType<MidoriType::RangeType>())
-		{
-			return ContainsAssociatedTypes(type->GetType<MidoriType::RangeType>().m_element_type, visited);
-		}
-		if (type->IsType<MidoriType::WorkerType>())
-		{
-			return ContainsAssociatedTypes(type->GetType<MidoriType::WorkerType>().m_result_type, visited);
-		}
-		if (type->IsType<MidoriType::ChannelType>())
-		{
-			return ContainsAssociatedTypes(type->GetType<MidoriType::ChannelType>().m_element_type, visited);
-		}
-
-		if (type->IsType<MidoriType::CellType>())
-		{
-			return ContainsAssociatedTypes(type->GetType<MidoriType::CellType>().m_element_type, visited);
-		}
-		if (type->IsType<MidoriType::FunctionType>())
-		{
-			const MidoriType::FunctionType& func = type->GetType<MidoriType::FunctionType>();
-			for (const std::shared_ptr<MidoriType>& param : func.m_param_types)
-			{
-				if (ContainsAssociatedTypes(param, visited))
-				{
-					return true;
-				}
-			}
-			if (ContainsAssociatedTypes(func.m_return_type, visited))
-			{
-				return true;
-			}
-			for (const MidoriType::ClassConstraint& constraint : func.m_constraints)
-			{
-				for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
-				{
-					if (ContainsAssociatedTypes(type_arg, visited))
-					{
-						return true;
-					}
-				}
-			}
-			return false;
-		}
-		if (type->IsType<MidoriType::StructType>())
-		{
-			for (const std::shared_ptr<MidoriType>& member : type->GetType<MidoriType::StructType>().m_member_types)
-			{
-				if (ContainsAssociatedTypes(member, visited))
-				{
-					return true;
-				}
-			}
-			for (const MidoriType::ClassConstraint& constraint : type->GetType<MidoriType::StructType>().m_constraints)
-			{
-				for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
-				{
-					if (ContainsAssociatedTypes(type_arg, visited))
-					{
-						return true;
-					}
-				}
-			}
-		}
-		if (type->IsType<MidoriType::UnionType>())
-		{
-			for (const auto& [_, ctx] : type->GetType<MidoriType::UnionType>().m_member_info)
-			{
-				for (const std::shared_ptr<MidoriType>& member : ctx.m_member_types)
-				{
-					if (ContainsAssociatedTypes(member, visited))
-					{
-						return true;
-					}
-				}
-			}
-			for (const MidoriType::ClassConstraint& constraint : type->GetType<MidoriType::UnionType>().m_constraints)
-			{
-				for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
-				{
-					if (ContainsAssociatedTypes(type_arg, visited))
-					{
-						return true;
-					}
-				}
-			}
-		}
-		if (type->IsType<MidoriType::TupleType>())
-		{
-			for (const std::shared_ptr<MidoriType>& elem : type->GetType<MidoriType::TupleType>().m_element_types)
-			{
-				if (ContainsAssociatedTypes(elem, visited))
-				{
-					return true;
-				}
-			}
-		}
-		return false;
-	}
-
-	bool ContainsAssociatedTypes(const std::shared_ptr<MidoriType>& type)
-	{
+		std::unordered_set<std::string> names;
 		std::unordered_set<const MidoriType*> visited;
-		return ContainsAssociatedTypes(type, visited);
+		for (const std::shared_ptr<MidoriType>& type : types)
+		{
+			ForEachType
+			(
+				type,
+				[&names](const MidoriType& node)
+				{
+					if (node.IsType<MidoriType::GenericParam>())
+					{
+						names.insert(node.GetType<MidoriType::GenericParam>().m_name);
+					}
+				},
+				visited
+			);
+		}
+		return names;
 	}
 
 	// A class constraint names its class directly; an equality constraint names it
@@ -516,90 +285,6 @@ namespace
 		}
 	}
 
-	void CollectTypeConstraints(
-		const std::shared_ptr<MidoriType>& type,
-		std::vector<MidoriType::ClassConstraint>& constraints,
-		std::unordered_set<const MidoriType*>& visited
-	)
-	{
-		if (type == nullptr || !visited.insert(type.get()).second)
-		{
-			return;
-		}
-
-		if (type->IsType<MidoriType::ArrayType>())
-		{
-			CollectTypeConstraints(type->GetType<MidoriType::ArrayType>().m_element_type, constraints, visited);
-			return;
-		}
-
-		if (type->IsType<MidoriType::CellType>())
-		{
-			CollectTypeConstraints(type->GetType<MidoriType::CellType>().m_element_type, constraints, visited);
-			return;
-		}
-
-		if (type->IsType<MidoriType::RangeType>())
-		{
-			CollectTypeConstraints(type->GetType<MidoriType::RangeType>().m_element_type, constraints, visited);
-			return;
-		}
-
-		if (type->IsType<MidoriType::TupleType>())
-		{
-			for (const std::shared_ptr<MidoriType>& element_type : type->GetType<MidoriType::TupleType>().m_element_types)
-			{
-				CollectTypeConstraints(element_type, constraints, visited);
-			}
-			return;
-		}
-
-		if (type->IsType<MidoriType::FunctionType>())
-		{
-			const MidoriType::FunctionType& function_type = type->GetType<MidoriType::FunctionType>();
-			for (const std::shared_ptr<MidoriType>& param_type : function_type.m_param_types)
-			{
-				CollectTypeConstraints(param_type, constraints, visited);
-			}
-			CollectTypeConstraints(function_type.m_return_type, constraints, visited);
-			for (const MidoriType::ClassConstraint& constraint : function_type.m_constraints)
-			{
-				AppendUniqueConstraint(constraints, MidoriType::ClassConstraint(constraint));
-			}
-			return;
-		}
-
-		if (type->IsType<MidoriType::StructType>())
-		{
-			const MidoriType::StructType& struct_type = type->GetType<MidoriType::StructType>();
-			for (const MidoriType::ClassConstraint& constraint : struct_type.m_constraints)
-			{
-				AppendUniqueConstraint(constraints, MidoriType::ClassConstraint(constraint));
-			}
-			for (const std::shared_ptr<MidoriType>& member_type : struct_type.m_member_types)
-			{
-				CollectTypeConstraints(member_type, constraints, visited);
-			}
-			return;
-		}
-
-		if (type->IsType<MidoriType::UnionType>())
-		{
-			const MidoriType::UnionType& union_type = type->GetType<MidoriType::UnionType>();
-			for (const MidoriType::ClassConstraint& constraint : union_type.m_constraints)
-			{
-				AppendUniqueConstraint(constraints, MidoriType::ClassConstraint(constraint));
-			}
-			for (const auto& [_, member_ctx] : union_type.m_member_info)
-			{
-				for (const std::shared_ptr<MidoriType>& member_type : member_ctx.m_member_types)
-				{
-					CollectTypeConstraints(member_type, constraints, visited);
-				}
-			}
-		}
-	}
-
 	std::vector<MidoriType::ClassConstraint> CollectSignatureConstraints(
 		const std::vector<std::shared_ptr<MidoriType>>& param_types,
 		const std::shared_ptr<MidoriType>& return_type
@@ -607,11 +292,28 @@ namespace
 	{
 		std::vector<MidoriType::ClassConstraint> constraints;
 		std::unordered_set<const MidoriType*> visited;
+		const std::function<void(const MidoriType&)> collect = [&constraints](const MidoriType& node)
+		{
+			const std::vector<MidoriType::ClassConstraint>* node_constraints = node.IsType<MidoriType::FunctionType>() ? &node.GetType<MidoriType::FunctionType>().m_constraints
+				: node.IsType<MidoriType::StructType>() ? &node.GetType<MidoriType::StructType>().m_constraints
+				: node.IsType<MidoriType::UnionType>() ? &node.GetType<MidoriType::UnionType>().m_constraints
+				: nullptr;
+			if (node_constraints == nullptr)
+			{
+				return;
+			}
+
+			for (const MidoriType::ClassConstraint& constraint : *node_constraints)
+			{
+				AppendUniqueConstraint(constraints, MidoriType::ClassConstraint(constraint));
+			}
+		};
+
 		for (const std::shared_ptr<MidoriType>& param_type : param_types)
 		{
-			CollectTypeConstraints(param_type, constraints, visited);
+			ForEachType(param_type, collect, visited);
 		}
-		CollectTypeConstraints(return_type, constraints, visited);
+		ForEachType(return_type, collect, visited);
 		return constraints;
 	}
 
@@ -643,11 +345,9 @@ namespace
 			[](const std::shared_ptr<MidoriType>& type_argument) { return type_argument; }
 		);
 
-		// Derive no bindings rather than rejecting the match, so a concrete type that
-		// predates its arguments still resolves through its members.
 		if (resolved_pattern_type_arguments.size() != concrete_type_arguments.size())
 		{
-			return true;
+			return false;
 		}
 
 		for (size_t i = 0u; i < resolved_pattern_type_arguments.size(); i += 1u)
@@ -892,6 +592,45 @@ public:
 
 	DefiningGenericGuard(const DefiningGenericGuard&) = delete;
 	DefiningGenericGuard& operator=(const DefiningGenericGuard&) = delete;
+};
+
+class RigidTypeVariablesGuard
+{
+private:
+	TypeChecker& m_type_checker;
+	std::vector<std::pair<int, std::string>> m_parameters;
+
+public:
+	RigidTypeVariablesGuard(TypeChecker& tc, const TypeChecker::TypeEnvironment& generic_params)
+		: m_type_checker(tc)
+	{
+		for (const auto& [name, type] : generic_params)
+		{
+			if (type->IsType<MidoriType::TypeVariable>() && m_type_checker.m_rigid_type_vars.emplace(type->GetType<MidoriType::TypeVariable>().m_id, name).second)
+			{
+				m_parameters.emplace_back(type->GetType<MidoriType::TypeVariable>().m_id, name);
+			}
+		}
+		std::ranges::sort(m_parameters, {}, &std::pair<int, std::string>::second);
+	}
+
+	~RigidTypeVariablesGuard()
+	{
+		for (const std::pair<int, std::string>& parameter : m_parameters)
+		{
+			m_type_checker.m_rigid_type_vars.erase(parameter.first);
+		}
+	}
+
+	// Each parameter's variable, by id: binding a variable rewrites its node in
+	// place, so the node itself no longer says which variable it was.
+	const std::vector<std::pair<int, std::string>>& Parameters() const
+	{
+		return m_parameters;
+	}
+
+	RigidTypeVariablesGuard(const RigidTypeVariablesGuard&) = delete;
+	RigidTypeVariablesGuard& operator=(const RigidTypeVariablesGuard&) = delete;
 };
 
 class NominalUnifyGuard
@@ -1273,7 +1012,17 @@ std::optional<std::vector<std::pair<std::string, std::shared_ptr<MidoriType>>>> 
 
 std::optional<TypeChecker::ResolvedInstanceMatch> TypeChecker::FindMatchingInstance(const std::string& class_name, const std::vector<std::shared_ptr<MidoriType>>& type_args) const
 {
-	std::optional<ResolvedInstanceMatch> resolved_match;
+	std::vector<ResolvedInstanceMatch> matches = FindMatchingInstances(class_name, type_args);
+	if (matches.size() != 1u)
+	{
+		return std::nullopt;
+	}
+	return std::move(matches.front());
+}
+
+std::vector<TypeChecker::ResolvedInstanceMatch> TypeChecker::FindMatchingInstances(const std::string& class_name, const std::vector<std::shared_ptr<MidoriType>>& type_args) const
+{
+	std::vector<ResolvedInstanceMatch> matches;
 
 	for (const auto& [_, instance_info] : m_instances)
 	{
@@ -1299,15 +1048,10 @@ std::optional<TypeChecker::ResolvedInstanceMatch> TypeChecker::FindMatchingInsta
 			continue;
 		}
 
-		if (resolved_match.has_value())
-		{
-			return std::nullopt;
-		}
-
-		resolved_match = ResolvedInstanceMatch{ .m_instance = &instance_info, .m_substitutions = std::move(substitutions) };
+		matches.push_back(ResolvedInstanceMatch{ .m_instance = &instance_info, .m_substitutions = std::move(substitutions) });
 	}
 
-	return resolved_match;
+	return matches;
 }
 
 std::optional<CompilerError> TypeChecker::DischargeEqualityConstraint(const Token& token, const MidoriType::ClassConstraint& constraint, const std::shared_ptr<MidoriType>& resolved_lhs, const std::shared_ptr<MidoriType>& resolved_rhs)
@@ -1330,7 +1074,8 @@ std::optional<CompilerError> TypeChecker::DischargeEqualityConstraint(const Toke
 		}
 	}
 
-	return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnsatisfiedConstraint, std::format("Equality constraint is not satisfied: '{}' resolves to '{}', not '{}'", constraint.m_equality_lhs->DisplayString(), DescribeTypePair(*resolved_lhs, *resolved_rhs).first, DescribeTypePair(*resolved_lhs, *resolved_rhs).second), token, m_file_name, m_source_lines);
+	const std::pair<std::string, std::string> described = DescribeTypePair(*resolved_lhs, *resolved_rhs);
+	return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnsatisfiedConstraint, std::format("Equality constraint is not satisfied: '{}' resolves to '{}', not '{}'", constraint.m_equality_lhs->DisplayString(), described.first, described.second), token, m_file_name, m_source_lines);
 }
 
 bool TypeChecker::IsSatisfiedByActiveConstraint(const MidoriType::ClassConstraint& resolved_constraint)
@@ -1357,6 +1102,42 @@ bool TypeChecker::IsSatisfiedByActiveConstraint(const MidoriType::ClassConstrain
 	);
 }
 
+// A class constraint holds when a where clause in force states it, or when
+// exactly one instance matches and that instance's own where clauses hold.
+// Two matching instances are not a missing one, and the error says which.
+std::optional<CompilerError> TypeChecker::CheckConstraintHolds(const Token& token, const MidoriType::ClassConstraint& resolved_constraint, size_t depth, std::optional<std::string_view> suggestion)
+{
+	if (IsSatisfiedByActiveConstraint(resolved_constraint))
+	{
+		return std::nullopt;
+	}
+
+	std::vector<ResolvedInstanceMatch> matches = FindMatchingInstances(resolved_constraint.m_class_name, resolved_constraint.m_type_args);
+	if (matches.empty())
+	{
+		return MakeConstraintFailureError(token, resolved_constraint, suggestion);
+	}
+	if (matches.size() > 1u)
+	{
+		const std::vector<std::string> candidates = matches
+			| std::views::transform([this](const ResolvedInstanceMatch& match) { return std::format("'{}'", DescribeConstraint(MidoriType::ClassConstraint(match.m_instance->m_class_name, std::vector<std::shared_ptr<MidoriType>>(match.m_instance->m_type_args)))); })
+			| std::ranges::to<std::vector>();
+		return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnsatisfiedConstraint, std::format("Constraint {} is ambiguous: {} instances match it ({})", DescribeConstraint(resolved_constraint), matches.size(), JoinSortedNames(candidates)), token, m_file_name, m_source_lines);
+	}
+
+	if (depth >= s_max_instance_constraint_depth)
+	{
+		return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnsatisfiedConstraint, std::format("Constraint {} could not be decided: its instances' where clauses nest more than {} deep", DescribeConstraint(resolved_constraint), s_max_instance_constraint_depth), token, m_file_name, m_source_lines);
+	}
+
+	MidoriResult::TypeResult nested_result = ValidateInstanceConstraints(token, *matches.front().m_instance, matches.front().m_substitutions, depth + 1u);
+	if (!nested_result.has_value())
+	{
+		return std::move(nested_result.error());
+	}
+	return std::nullopt;
+}
+
 MidoriResult::TypeResult TypeChecker::ValidateFunctionConstraints(const Token& token, const MidoriType::FunctionType& function_type)
 {
 	for (const MidoriType::ClassConstraint& constraint : function_type.m_constraints)
@@ -1381,18 +1162,10 @@ MidoriResult::TypeResult TypeChecker::ValidateFunctionConstraints(const Token& t
 			resolved_type_args.emplace_back(ApplySubstitution(type_arg));
 		}
 
-		const MidoriType::ClassConstraint resolved_constraint(constraint.m_class_name, std::move(resolved_type_args));
-		if (IsSatisfiedByActiveConstraint(resolved_constraint))
+		if (std::optional<CompilerError> error = CheckConstraintHolds(token, MidoriType::ClassConstraint(constraint.m_class_name, std::move(resolved_type_args)), 0u))
 		{
-			continue;
+			return std::unexpected(std::move(*error));
 		}
-
-		if (FindMatchingInstance(resolved_constraint.m_class_name, resolved_constraint.m_type_args).has_value())
-		{
-			continue;
-		}
-
-		return std::unexpected(MakeConstraintFailureError(token, resolved_constraint));
 	}
 
 	return MidoriType::MakeUndecidedType();
@@ -1400,11 +1173,6 @@ MidoriResult::TypeResult TypeChecker::ValidateFunctionConstraints(const Token& t
 
 MidoriResult::TypeResult TypeChecker::ValidateInstanceConstraints(const Token& token, const InstanceInfo& instance_info, const TypeEnvironment& substitutions, size_t depth)
 {
-	if (depth >= s_max_instance_constraint_depth)
-	{
-		return MidoriType::MakeUndecidedType();
-	}
-
 	for (const MidoriType::ClassConstraint& constraint : instance_info.m_constraints)
 	{
 		// An equality constraint is discharged by reduction, not by instance
@@ -1427,22 +1195,9 @@ MidoriResult::TypeResult TypeChecker::ValidateInstanceConstraints(const Token& t
 			resolved_type_args.emplace_back(ApplySubstitution(MidoriType::SubstituteTypeParams(type_arg, substitutions)));
 		}
 
-		const MidoriType::ClassConstraint resolved_constraint(constraint.m_class_name, std::move(resolved_type_args));
-		if (IsSatisfiedByActiveConstraint(resolved_constraint))
+		if (std::optional<CompilerError> error = CheckConstraintHolds(token, MidoriType::ClassConstraint(constraint.m_class_name, std::move(resolved_type_args)), depth))
 		{
-			continue;
-		}
-
-		std::optional<ResolvedInstanceMatch> resolved_match = FindMatchingInstance(resolved_constraint.m_class_name, resolved_constraint.m_type_args);
-		if (!resolved_match.has_value())
-		{
-			return std::unexpected(MakeConstraintFailureError(token, resolved_constraint));
-		}
-
-		MidoriResult::TypeResult nested_result = ValidateInstanceConstraints(token, *resolved_match->m_instance, resolved_match->m_substitutions, depth + 1u);
-		if (!nested_result.has_value())
-		{
-			return nested_result;
+			return std::unexpected(std::move(*error));
 		}
 	}
 
@@ -1592,9 +1347,7 @@ std::optional<CompilerError> TypeChecker::TryMakeGenericParameterMismatchError(c
 			continue;
 		}
 
-		std::unordered_set<const MidoriType*> left_visited;
-		std::unordered_set<const MidoriType*> right_visited;
-		if (HasTypeVariables(left_arg, left_visited) || HasTypeVariables(right_arg, right_visited)
+		if (HasTypeVariables(left_arg) || HasTypeVariables(right_arg)
 			|| left_arg->IsType<MidoriType::UndecidedType>() || right_arg->IsType<MidoriType::UndecidedType>())
 		{
 			continue;
@@ -1648,12 +1401,12 @@ CompilerError TypeChecker::MakeUnificationError(const Token& token, const std::s
 
 MidoriResult::TypeResult TypeChecker::UnifyTypeArguments(const Token& token, std::vector<std::shared_ptr<MidoriType>>& left, std::vector<std::shared_ptr<MidoriType>>& right, UnifyDiagnosticMode diagnostic_mode)
 {
-	// Arity is equal for every same-named instantiation the parser admits, so this
-	// only guards against a substitution site that failed to record its arguments.
-	// Such a lapse is caught by the phantom type parameter tests rather than here.
-	const size_t shared_count = std::min(left.size(), right.size());
+	if (left.size() != right.size())
+	{
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, std::format("Type mismatch: {} type argument(s) in one context but {} in another", left.size(), right.size()), token, m_file_name, m_source_lines));
+	}
 
-	for (size_t idx : std::views::iota(0u, shared_count))
+	for (size_t idx : std::views::iota(0u, left.size()))
 	{
 		MidoriResult::TypeResult result = Unify(token, left[idx], right[idx], diagnostic_mode);
 		if (!result.has_value())
@@ -1720,9 +1473,22 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 		left_subst->IsType<MidoriType::CellType>() ||
 		left_subst->IsType<MidoriType::FunctionType>();
 
+	// Never is the type of an expression that does not finish, so it may stand
+	// where any type is expected. Where Never itself is expected, as in the body
+	// of a function declared to return it, nothing else fits.
+	const std::shared_ptr<MidoriType>* expected_side = diagnostic_mode == UnifyDiagnosticMode::ActualExpected ? &right_subst
+		: diagnostic_mode == UnifyDiagnosticMode::ExpectedActual ? &left_subst
+		: nullptr;
+	const std::shared_ptr<MidoriType>* actual_side = expected_side == &right_subst ? &left_subst : &right_subst;
+	const bool actual_is_open = (*actual_side)->IsType<MidoriType::NeverType>() || (*actual_side)->IsType<MidoriType::TypeVariable>() || (*actual_side)->IsType<MidoriType::UndecidedType>();
+
 	if (!is_complex_type && *left_subst == *right_subst)
 	{
 		return left_subst;
+	}
+	else if (expected_side != nullptr && (*expected_side)->IsType<MidoriType::NeverType>() && !actual_is_open)
+	{
+		return std::unexpected(MakeUnificationError(token, left_subst, right_subst, diagnostic_mode));
 	}
 	// Never type unifies with any type (it's the bottom type)
 	else if (left_subst->IsType<MidoriType::NeverType>())
@@ -1732,6 +1498,18 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 	else if (right_subst->IsType<MidoriType::NeverType>())
 	{
 		return left_subst;
+	}
+	// Undecided holds no information, so it takes the other side. It is never
+	// bound into a variable: a variable bound to Undecided has lost what it was.
+	else if (left_subst->IsType<MidoriType::UndecidedType>() && !right_subst->IsType<MidoriType::UndecidedType>())
+	{
+		*left = *right_subst;
+		return left;
+	}
+	else if (!left_subst->IsType<MidoriType::UndecidedType>() && right_subst->IsType<MidoriType::UndecidedType>())
+	{
+		*right = *left_subst;
+		return left;
 	}
 	// Of two variables, the newer is bound to the older. A generic function's own
 	// parameters are the oldest variables in its body, so a call's freshened ones
@@ -1756,16 +1534,6 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Infinite type detected (occurs check failed)", token, m_file_name, m_source_lines, left_subst, right_subst));
 		}
 		m_type_substitution[var_id] = left_subst;
-		*right = *left_subst;
-		return left;
-	}
-	else if (left_subst->IsType<MidoriType::UndecidedType>() && !right_subst->IsType<MidoriType::UndecidedType>())
-	{
-		*left = *right_subst;
-		return left;
-	}
-	else if (!left_subst->IsType<MidoriType::UndecidedType>() && right_subst->IsType<MidoriType::UndecidedType>())
-	{
 		*right = *left_subst;
 		return left;
 	}
@@ -1903,7 +1671,7 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 		// arguments, which have just been unified. Descending again is redundant,
 		// and does not terminate when a member reaches the type through a fresh
 		// node such as Array<Self>.
-		NominalUnifyGuard nominal_guard(*this, left_union.m_name);
+		NominalUnifyGuard nominal_guard(*this, ConstructorKey(left_union.m_module_name, left_union.m_name));
 		if (!nominal_guard.Entered())
 		{
 			return left;
@@ -2555,6 +2323,74 @@ std::shared_ptr<MidoriType> TypeChecker::Freshen(const std::shared_ptr<MidoriTyp
 	return type;
 }
 
+// A generic parameter is checked in its body as a type variable, so nothing but
+// this stops the body from deciding it. Once the body is checked, each one must
+// still be a variable of its own: bound to a type, the body works only for that
+// type; bound to another parameter, only when the two are the same.
+std::optional<CompilerError> TypeChecker::CheckGenericParametersStayGeneric(const std::vector<std::pair<int, std::string>>& generic_params, const std::vector<Token>& declared_params, const Token& definition_token)
+{
+	const std::function<const Token&(const std::string&)> token_of = [&declared_params, &definition_token](const std::string& name) -> const Token&
+	{
+		std::vector<Token>::const_iterator declared = std::ranges::find_if(declared_params, [&name](const Token& param) { return param.m_lexeme == name; });
+		return declared != declared_params.cend() ? *declared : definition_token;
+	};
+
+	std::unordered_map<int, std::string> owners;
+	for (const auto& [id, name] : generic_params)
+	{
+		const std::shared_ptr<MidoriType> resolved = ApplySubstitution(MidoriType::MakeTypeVariable(id));
+		if (!resolved->IsType<MidoriType::TypeVariable>())
+		{
+			return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, std::format("Generic parameter '{}' stands for any type, but the body uses it as '{}'", name, resolved->DisplayString()), token_of(name), m_file_name, m_source_lines);
+		}
+
+		const int resolved_id = resolved->GetType<MidoriType::TypeVariable>().m_id;
+		const std::unordered_map<int, std::string>::const_iterator owner = owners.find(resolved_id);
+		if (owner != owners.cend())
+		{
+			return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, std::format("Generic parameters '{}' and '{}' stand for two types a caller picks, but the body uses them as one", owner->second, name), token_of(name), m_file_name, m_source_lines);
+		}
+		owners.emplace(resolved_id, name);
+	}
+
+	return std::nullopt;
+}
+
+// A type written inside a generic body names the body's parameters as the parser
+// read them, by name. The body checks them as its own variables, so a written
+// type is put in those terms before anything is unified with it.
+std::shared_ptr<MidoriType> TypeChecker::InstantiateWrittenType(const std::shared_ptr<MidoriType>& written_type) const
+{
+	if (m_rigid_type_vars.empty())
+	{
+		return written_type;
+	}
+
+	TypeEnvironment parameters;
+	for (const auto& [id, name] : m_rigid_type_vars)
+	{
+		parameters.emplace(name, MidoriType::MakeTypeVariable(id));
+	}
+
+	const std::unordered_set<std::string> written_names = CollectGenericParamNames({ written_type });
+	if (std::ranges::none_of(written_names, [&parameters](const std::string& name) { return parameters.contains(name); }))
+	{
+		return written_type;
+	}
+	return MidoriType::SubstituteTypeParams(written_type, parameters);
+}
+
+std::optional<std::string> TypeChecker::RigidParameterName(const std::shared_ptr<MidoriType>& resolved_type) const
+{
+	if (!resolved_type->IsType<MidoriType::TypeVariable>())
+	{
+		return std::nullopt;
+	}
+
+	const std::unordered_map<int, std::string>::const_iterator rigid = m_rigid_type_vars.find(resolved_type->GetType<MidoriType::TypeVariable>().m_id);
+	return rigid != m_rigid_type_vars.cend() ? std::optional<std::string>(rigid->second) : std::nullopt;
+}
+
 TypeChecker::FresheningContext TypeChecker::MakeLambdaFresheningContext()
 {
 	FresheningContext context;
@@ -2623,6 +2459,11 @@ std::unordered_set<int> TypeChecker::CollectEnclosingTypeVariableIds()
 
 std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr<MidoriType>& type)
 {
+	if (!NeedsSubstitution(type))
+	{
+		return type;
+	}
+
 	std::unordered_map<const MidoriType*, std::shared_ptr<MidoriType>> cache;
 	return ApplySubstitution(type, cache);
 }
@@ -2630,21 +2471,15 @@ std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr
 std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr<MidoriType>& type, std::unordered_map<const MidoriType*, std::shared_ptr<MidoriType>>& cache)
 {
 	if (
-			type->IsType<MidoriType::IntegerType>() || 
-			type->IsType<MidoriType::FloatType>() || 
-			type->IsType<MidoriType::BoolType>() || 
-			type->IsType<MidoriType::UnitType>() || 
-			type->IsType<MidoriType::TextType>() || 
-			type->IsType<MidoriType::ByteType>() || 
-			type->IsType<MidoriType::WordType>() || 
+			type->IsType<MidoriType::IntegerType>() ||
+			type->IsType<MidoriType::FloatType>() ||
+			type->IsType<MidoriType::BoolType>() ||
+			type->IsType<MidoriType::UnitType>() ||
+			type->IsType<MidoriType::TextType>() ||
+			type->IsType<MidoriType::ByteType>() ||
+			type->IsType<MidoriType::WordType>() ||
 			type->IsType<MidoriType::NeverType>()
 		)
-	{
-		return type;
-	}
-
-	std::unordered_set<const MidoriType*> visited;
-	if (!HasTypeVariables(type, visited) && !ContainsAssociatedTypes(type))
 	{
 		return type;
 	}
@@ -2654,6 +2489,15 @@ std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr
 	if (cache_it != cache.end())
 	{
 		return cache_it->second;
+	}
+
+	// A nominal type is the one node a walk can reach again through itself, and
+	// rebuilding it then marks it changed whether or not anything in it was. It
+	// is the only node worth asking before descending; any other node rebuilds
+	// only when a part of it did.
+	if ((type->IsType<MidoriType::StructType>() || type->IsType<MidoriType::UnionType>()) && !NeedsSubstitution(type))
+	{
+		return type;
 	}
 
 	if (type->IsType<MidoriType::TypeVariable>())
@@ -3071,7 +2915,7 @@ bool TypeChecker::OccursCheck(int var_id, const std::shared_ptr<MidoriType>& typ
 		// A variable can only reach a nominal type through its type arguments, which
 		// are checked below. Walking the members again is redundant and does not
 		// terminate when a member reaches the type through a fresh node.
-		NominalUnifyGuard occurs_guard(*this, "occurs:" + union_type.m_name);
+		NominalUnifyGuard occurs_guard(*this, "occurs:" + ConstructorKey(union_type.m_module_name, union_type.m_name));
 		if (occurs_guard.Entered())
 		{
 			for (const auto& [member_name, member_ctx] : union_type.m_member_info)
@@ -3122,13 +2966,11 @@ bool TypeChecker::OccursCheck(int var_id, const std::shared_ptr<MidoriType>& typ
 	return false;
 }
 
-TypeChecker::ClassInfo::ClassInfo(const std::string& name, std::vector<std::string>&& params, std::vector<MidoriType::ClassConstraint>&& supers, AssociatedTypeEnvironment&& associated_types, TypeEnvironment&& methods, std::unordered_set<std::string>&& defaults)
+TypeChecker::ClassInfo::ClassInfo(const std::string& name, std::vector<std::string>&& params, AssociatedTypeEnvironment&& associated_types, TypeEnvironment&& methods)
 	: m_name(name),
 	m_type_param_names(std::move(params)),
-	m_superclasses(std::move(supers)),
 	m_associated_types(std::move(associated_types)),
-	m_method_types(std::move(methods)),
-	m_methods_with_defaults(std::move(defaults))
+	m_method_types(std::move(methods))
 {
 }
 
@@ -3165,7 +3007,8 @@ TypeChecker::TypeChecker(
 	TypeEnvironment imported_types,
 	const std::unordered_map<std::string, ClassInfo>& imported_typeclasses,
 	TypeclassInstanceTypeMap imported_instance_types,
-	TypeclassInstanceAssociatedTypeBindingMap imported_instance_associated_type_bindings
+	TypeclassInstanceAssociatedTypeBindingMap imported_instance_associated_type_bindings,
+	TypeclassInstanceConstraintMap imported_instance_constraints
 )
 	: m_program_tree(std::move(parser_result)),
 	m_classes(imported_typeclasses),
@@ -3182,10 +3025,10 @@ TypeChecker::TypeChecker(
 			if (type->IsType<MidoriType::StructType>())
 			{
 				const MidoriType::StructType& struct_type = type->GetType<MidoriType::StructType>();
-				m_struct_type_definitions[struct_type.m_name] = type;
+				m_struct_type_definitions[ConstructorKey(struct_type.m_module_name, struct_type.m_name)] = type;
 				if (!struct_type.m_generic_params.empty())
 				{
-					m_generic_structs.insert(struct_type.m_name);
+					m_generic_structs.insert(ConstructorKey(struct_type.m_module_name, struct_type.m_name));
 				}
 
 				// The declaring module binds a struct's name to its constructor's
@@ -3193,7 +3036,11 @@ TypeChecker::TypeChecker(
 				// bind the same thing or there is nothing callable under the name.
 				// The type itself is still reachable through m_struct_type_definitions,
 				// registered just above.
-				imported_names[name] = MidoriType::MakeFunctionType(struct_type.m_member_types, std::shared_ptr<MidoriType>(type));
+				// It carries the struct's where clause, as the declaring module's does,
+				// so constructing one here is held to the same constraints.
+				std::shared_ptr<MidoriType> constructor_type = MidoriType::MakeFunctionType(struct_type.m_member_types, std::shared_ptr<MidoriType>(type));
+				constructor_type->GetType<MidoriType::FunctionType>().m_constraints = struct_type.m_constraints;
+				imported_names[name] = std::move(constructor_type);
 				continue;
 			}
 
@@ -3209,10 +3056,10 @@ TypeChecker::TypeChecker(
 			if (type->IsType<MidoriType::UnionType>())
 			{
 				const MidoriType::UnionType& union_type = type->GetType<MidoriType::UnionType>();
-				m_union_type_definitions[union_type.m_name] = type;
+				m_union_type_definitions[ConstructorKey(union_type.m_module_name, union_type.m_name)] = type;
 				if (!union_type.m_generic_params.empty())
 				{
-					m_generic_unions.insert(union_type.m_name);
+					m_generic_unions.insert(ConstructorKey(union_type.m_module_name, union_type.m_name));
 				}
 			}
 
@@ -3251,7 +3098,15 @@ TypeChecker::TypeChecker(
 					{
 						associated_type_bindings = imported_bindings_it->second[instance_idx];
 					}
-					m_instances.emplace(std::move(instance_key), InstanceInfo(class_name, std::move(type_args_copy), std::vector<MidoriType::ClassConstraint>{}, std::move(associated_type_bindings), std::unordered_map<std::string, std::unique_ptr<MidoriStatement>>()));
+					// An imported instance keeps its where clause: selecting it here holds
+					// the same constraints as selecting it in the module that declared it.
+					std::vector<MidoriType::ClassConstraint> constraints;
+					TypeclassInstanceConstraintMap::const_iterator imported_constraints_it = imported_instance_constraints.find(class_name);
+					if (imported_constraints_it != imported_instance_constraints.cend() && instance_idx < imported_constraints_it->second.size())
+					{
+						constraints = imported_constraints_it->second[instance_idx];
+					}
+					m_instances.emplace(std::move(instance_key), InstanceInfo(class_name, std::move(type_args_copy), std::move(constraints), std::move(associated_type_bindings), std::unordered_map<std::string, std::unique_ptr<MidoriStatement>>()));
 				}
 			}
 		}
@@ -3405,14 +3260,6 @@ MidoriResult::TypeCheckerResult TypeChecker::TypeCheck()
 	});
 }
 
-// A variable inference bound to Undecided was never decided; the type it had
-// says more.
-std::shared_ptr<MidoriType> TypeChecker::ResolvedRecordedType(const std::shared_ptr<MidoriType>& type)
-{
-	const std::shared_ptr<MidoriType> resolved = ApplySubstitution(type);
-	return resolved->IsType<MidoriType::UndecidedType>() ? type : resolved;
-}
-
 void TypeChecker::ResolveRecordedTypes(MidoriStatement& statement)
 {
 	struct StatementResolver
@@ -3486,7 +3333,7 @@ void TypeChecker::ResolveRecordedTypes(MidoriExpression& expression)
 		{
 			if (type != nullptr)
 			{
-				type = m_self.ResolvedRecordedType(type);
+				type = m_self.ApplySubstitution(type);
 			}
 		}
 
@@ -3556,13 +3403,13 @@ void TypeChecker::ResolveRecordedTypes(MidoriExpression& expression)
 		}
 	};
 
-	expression.GetType() = ResolvedRecordedType(expression.GetType());
+	expression.GetType() = ApplySubstitution(expression.GetType());
 	VisitNode(ExpressionResolver{ *this }, expression);
 }
 
 void TypeChecker::ResolveRecordedTypes(MidoriPattern& pattern)
 {
-	pattern.GetType() = ResolvedRecordedType(pattern.GetType());
+	pattern.GetType() = ApplySubstitution(pattern.GetType());
 	const auto resolve_all = [this](std::vector<std::unique_ptr<MidoriPattern>>& children)
 	{
 		std::ranges::for_each(children, [this](std::unique_ptr<MidoriPattern>& child) { ResolveRecordedTypes(*child); });
@@ -3837,10 +3684,11 @@ MidoriResult::TypeResult TypeChecker::TypeCheckGenericLambdaDefinition(MidoriSta
 		// Inside its own body, a recursive call is not a fresh instantiation.
 		DefiningGenericGuard defining_guard(*this, def.m_name.m_lexeme);
 		ExpectedTypeGuard expected_expr_guard(*this, function.m_return_type);
+		RigidTypeVariablesGuard rigid_guard(*this, freshening_context.m_generic_params);
 		return Evaluate(function.m_body)
 			.and_then
 			(
-				[&function, &saved_expected_return_type, prev_constraints_size, this](std::shared_ptr<MidoriType>&& body_type) -> MidoriResult::TypeResult
+				[&function, &def, &rigid_guard, &saved_expected_return_type, prev_constraints_size, this](std::shared_ptr<MidoriType>&& body_type) -> MidoriResult::TypeResult
 				{
 					m_expected_return_type = saved_expected_return_type;
 					m_active_constraints.resize(prev_constraints_size);
@@ -3848,8 +3696,12 @@ MidoriResult::TypeResult TypeChecker::TypeCheckGenericLambdaDefinition(MidoriSta
 					return Unify(function.m_function_keyword, function.m_return_type, body_type, UnifyDiagnosticMode::ExpectedActual)
 						.and_then
 						(
-							[](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
+							[&function, &def, &rigid_guard, this](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
 							{
+								if (std::optional<CompilerError> error = CheckGenericParametersStayGeneric(rigid_guard.Parameters(), function.m_generic_params, def.m_name))
+								{
+									return std::unexpected(std::move(*error));
+								}
 								return MidoriType::MakeUndecidedType();
 							}
 						);
@@ -3868,6 +3720,11 @@ MidoriResult::TypeResult TypeChecker::TypeCheckGenericLambdaDefinition(MidoriSta
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::VariableDefinition& def)
 {
+	if (def.m_annotated_type.has_value())
+	{
+		def.m_annotated_type = InstantiateWrittenType(def.m_annotated_type.value());
+	}
+
 	// Special handling for functions (scope management required)
 	if (def.m_value->IsExpression<MidoriExpression::Function>())
 	{
@@ -4196,10 +4053,11 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::FunctionDefini
 		}
 
 		ExpectedTypeGuard expected_expr_guard(*this, defun.m_return_type);
+		RigidTypeVariablesGuard rigid_guard(*this, freshening_context.m_generic_params);
 		return Evaluate(defun.m_body)
 			.and_then
 			(
-				[&defun, &saved_expected_return_type, prev_constraints_size, this](std::shared_ptr<MidoriType>&& function_return_value_type) ->MidoriResult::TypeResult
+				[&defun, &rigid_guard, &saved_expected_return_type, prev_constraints_size, this](std::shared_ptr<MidoriType>&& function_return_value_type) ->MidoriResult::TypeResult
 				{
 					m_expected_return_type = saved_expected_return_type;
 					m_active_constraints.resize(prev_constraints_size);
@@ -4207,8 +4065,12 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::FunctionDefini
 					return Unify(defun.m_name, defun.m_return_type, function_return_value_type, UnifyDiagnosticMode::ExpectedActual)
 						.and_then
 						(
-							[&defun](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
+							[&defun, &rigid_guard, this](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
 							{
+								if (std::optional<CompilerError> error = CheckGenericParametersStayGeneric(rigid_guard.Parameters(), defun.m_generic_params, defun.m_name))
+								{
+									return std::unexpected(std::move(*error));
+								}
 								return defun.m_return_type;
 							}
 						);
@@ -4244,7 +4106,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Struct& struct
 			}
 		}
 
-		m_generic_structs.insert(struct_stmt.m_name.m_lexeme);
+		m_generic_structs.insert(ConstructorKey(struct_stmt.m_self_type->GetType<MidoriType::StructType>().m_module_name, struct_stmt.m_name.m_lexeme));
 	}
 
 	if (!struct_stmt.m_constraints.empty())
@@ -4300,7 +4162,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Union& union_s
 			}
 		}
 
-		m_generic_unions.insert(union_stmt.m_name.m_lexeme);
+		m_generic_unions.insert(ConstructorKey(union_stmt.m_self_type->GetType<MidoriType::UnionType>().m_module_name, union_stmt.m_name.m_lexeme));
 	}
 
 	if (!union_stmt.m_constraints.empty())
@@ -4390,7 +4252,6 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Class& class_s
 	}
 
 	TypeEnvironment method_types;
-	std::unordered_set<std::string> methods_with_defaults;
 	for (std::unique_ptr<MidoriStatement>& method : class_stmt.m_methods)
 	{
 		if (!method->IsStatement<MidoriStatement::FunctionDefinition>())
@@ -4415,7 +4276,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Class& class_s
 		param_names.emplace_back(param.m_lexeme);
 	}
 
-	m_classes[class_stmt.m_name.m_lexeme] = ClassInfo(class_stmt.m_name.m_lexeme, std::move(param_names), std::vector<MidoriType::ClassConstraint>(class_stmt.m_superclasses), std::move(associated_types), std::move(method_types), std::move(methods_with_defaults));
+	m_classes[class_stmt.m_name.m_lexeme] = ClassInfo(class_stmt.m_name.m_lexeme, std::move(param_names), std::move(associated_types), std::move(method_types));
 
 	return MidoriType::MakeUndecidedType();
 }
@@ -4743,7 +4604,9 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 							return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, "Match expression type error: case types do not match", match.m_match_keyword, m_file_name, m_source_lines, resolved_prev_case_type, resolved_case_type));
 						}
 
-						prev_case_type = ApplySubstitution(resolved_prev_case_type);
+						// What unification gives back, not the previous arm's type: an arm
+						// that never finishes takes the type of the arms that do.
+						prev_case_type = ApplySubstitution(unify_result.value());
 					}
 				}
 
@@ -4821,179 +4684,181 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Case& case_ex
 		);
 }
 
+// A `for` loop and an array comprehension iterate the same things the same way:
+// a Range, an Array, or anything with an Iterable instance or constraint. This
+// decides which, records it on the node, and gives the element type.
+template <typename IterationNode>
+MidoriResult::TypeResult TypeChecker::ResolveIteration(IterationNode& node, const std::shared_ptr<MidoriType>& range_type, std::string_view error_prefix)
+{
+	const std::shared_ptr<MidoriType> resolved_range = ApplySubstitution(range_type);
+	const Token& token = node.m_in_keyword;
+	const std::function<CompilerError(std::string_view, const std::shared_ptr<MidoriType>&)> fail = [this, &token, error_prefix](std::string_view message, const std::shared_ptr<MidoriType>& shown_type)
+	{
+		return MidoriError::GenerateTypeCheckerErrorWithContext(std::format("{} type error: {}", error_prefix, message), token, m_file_name, m_source_lines, shown_type);
+	};
+
+	if (resolved_range->IsType<MidoriType::RangeType>())
+	{
+		node.m_is_array_iteration = false;
+		node.m_is_iterable_iteration = false;
+		return resolved_range->GetType<MidoriType::RangeType>().m_element_type;
+	}
+	if (resolved_range->IsType<MidoriType::ArrayType>())
+	{
+		node.m_is_array_iteration = true;
+		node.m_is_iterable_iteration = false;
+		return resolved_range->GetType<MidoriType::ArrayType>().m_element_type;
+	}
+
+	std::unordered_map<std::string, ClassInfo>::iterator class_it = m_classes.find(std::string(ITERABLE_CLASS_NAME));
+	if (class_it == m_classes.end())
+	{
+		return std::unexpected(fail("Iterable class not found", resolved_range));
+	}
+
+	const bool uses_associated_item = class_it->second.m_associated_types.contains("Item");
+	std::shared_ptr<MidoriType> iterable_item_type;
+	bool is_iterable = false;
+
+	// A bare variable stands for a type nothing is known about yet, so only a
+	// where clause can say it is iterable; any other type may match an instance,
+	// generic or not.
+	if (!resolved_range->IsType<MidoriType::TypeVariable>())
+	{
+		if (uses_associated_item)
+		{
+			std::optional<ResolvedInstanceMatch> resolved_match = FindMatchingInstance(std::string(ITERABLE_CLASS_NAME), { resolved_range });
+			if (resolved_match.has_value())
+			{
+				AssociatedTypeEnvironment::const_iterator binding_it = resolved_match->m_instance->m_associated_type_bindings.find("Item");
+				if (binding_it != resolved_match->m_instance->m_associated_type_bindings.cend())
+				{
+					iterable_item_type = ApplySubstitution(MidoriType::SubstituteTypeParams(binding_it->second, resolved_match->m_substitutions));
+					is_iterable = true;
+				}
+			}
+		}
+		else
+		{
+			for (const auto& [key, info] : m_instances)
+			{
+				if (info.m_class_name != ITERABLE_CLASS_NAME || info.m_type_args.size() != 2u)
+				{
+					continue;
+				}
+
+				std::unordered_map<std::string, std::shared_ptr<MidoriType>> substitutions;
+				std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash> visited;
+				if (!MatchInstanceTypeArg(info.m_type_args[0u], resolved_range, substitutions, visited))
+				{
+					continue;
+				}
+
+				if (is_iterable)
+				{
+					return std::unexpected(fail("ambiguous Iterable instance for iterator type", resolved_range));
+				}
+				iterable_item_type = MidoriType::SubstituteTypeParams(info.m_type_args[1u], substitutions);
+				is_iterable = true;
+			}
+		}
+	}
+
+	if (!is_iterable)
+	{
+		for (const MidoriType::ClassConstraint& constraint : m_active_constraints)
+		{
+			if (constraint.m_class_name == ITERABLE_CLASS_NAME && constraint.m_type_args.size() == class_it->second.m_type_param_names.size() && !constraint.m_type_args.empty() && *ApplySubstitution(constraint.m_type_args[0u]) == *resolved_range)
+			{
+				if (uses_associated_item)
+				{
+					iterable_item_type = ResolveAssociatedType(MidoriType::AssociatedType(std::string(ITERABLE_CLASS_NAME), "Item", std::vector<std::shared_ptr<MidoriType>>(constraint.m_type_args)));
+				}
+				else if (constraint.m_type_args.size() >= 2u)
+				{
+					iterable_item_type = constraint.m_type_args[1u];
+				}
+				is_iterable = true;
+				break;
+			}
+		}
+	}
+
+	if (!is_iterable)
+	{
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(std::format("{} type error: expected Range, Array, or Iterable type for iteration", error_prefix), token, m_file_name, m_source_lines, resolved_range, MidoriType::MakeRangeType(MidoriType::MakeLiteralType<MidoriType::IntegerType>())));
+	}
+
+	std::unordered_map<std::string, std::shared_ptr<MidoriType>>::iterator method_it = class_it->second.m_method_types.find(std::string(NEXT_METHOD_NAME));
+	if (method_it == class_it->second.m_method_types.end())
+	{
+		return std::unexpected(fail("Iterable::Next not found", resolved_range));
+	}
+
+	TypeEnvironment substitutions;
+	const std::vector<std::string>& type_params = class_it->second.m_type_param_names;
+	if (!type_params.empty())
+	{
+		substitutions[type_params[0u]] = resolved_range;
+		if (!uses_associated_item && type_params.size() >= 2u && iterable_item_type != nullptr)
+		{
+			substitutions[type_params[1u]] = iterable_item_type;
+		}
+	}
+
+	std::shared_ptr<MidoriType> next_type = ApplySubstitution(MidoriType::SubstituteTypeParams(method_it->second, substitutions));
+	if (!next_type->IsType<MidoriType::FunctionType>())
+	{
+		return std::unexpected(fail("Iterable::Next must be a function", resolved_range));
+	}
+
+	std::shared_ptr<MidoriType> next_return = ApplySubstitution(next_type->GetType<MidoriType::FunctionType>().m_return_type);
+	if (!next_return->IsType<MidoriType::UnionType>())
+	{
+		return std::unexpected(fail("Iterable::Next must return an Option-like union", next_return));
+	}
+
+	const MidoriType::UnionType& option_union = next_return->GetType<MidoriType::UnionType>();
+	const std::string some_name = option_union.m_name + std::string(NameSeparator) + "Some";
+	if (!option_union.m_member_info.contains(some_name))
+	{
+		return std::unexpected(fail("Iterable::Next return type is missing 'Some' constructor", next_return));
+	}
+
+	const MidoriType::UnionType::UnionMemberContext& some_ctx = option_union.m_member_info.at(some_name);
+	if (some_ctx.m_member_types.size() != 1u)
+	{
+		return std::unexpected(fail("Iterable::Next 'Some' constructor must contain exactly one value", next_return));
+	}
+
+	// Next returns Option<(Item, Iter)>. The payload is a pair whose first
+	// element is the item and whose second is the advanced iterator, so the
+	// loop variable takes element 0 rather than the payload itself.
+	std::shared_ptr<MidoriType> some_payload = ApplySubstitution(some_ctx.m_member_types[0u]);
+	if (!some_payload->IsType<MidoriType::TupleType>() || some_payload->GetType<MidoriType::TupleType>().m_element_types.size() != 2u)
+	{
+		return std::unexpected(fail("Iterable::Next must return Option<(Item, Iter)>", some_payload));
+	}
+
+	iterable_item_type = ApplySubstitution(some_payload->GetType<MidoriType::TupleType>().m_element_types[0u]);
+	node.m_is_array_iteration = false;
+	node.m_is_iterable_iteration = true;
+	node.m_iterable_item_type = iterable_item_type;
+	node.m_iterable_some_tag = some_ctx.m_tag;
+	node.m_iterable_next_type = next_return;
+	return iterable_item_type;
+}
+
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::For& for_expr)
 {
 	return Evaluate(for_expr.m_range)
+		.and_then([&for_expr, this](std::shared_ptr<MidoriType>&& range_type) { return ResolveIteration(for_expr, range_type, "For loop expression"); })
 		.and_then
 		(
-			[&for_expr, this](std::shared_ptr<MidoriType>&& range_type)->MidoriResult::TypeResult
+			[&for_expr, this](std::shared_ptr<MidoriType>&& element_type) -> MidoriResult::TypeResult
 			{
-				std::shared_ptr<MidoriType> resolved_range = ApplySubstitution(range_type);
-
-				std::shared_ptr<MidoriType> element_type;
-
-				if (resolved_range->IsType<MidoriType::RangeType>())
-				{
-					element_type = resolved_range->GetType<MidoriType::RangeType>().m_element_type;
-					for_expr.m_is_array_iteration = false;
-				}
-				else if (resolved_range->IsType<MidoriType::ArrayType>())
-				{
-					element_type = resolved_range->GetType<MidoriType::ArrayType>().m_element_type;
-					for_expr.m_is_array_iteration = true;
-					for_expr.m_is_iterable_iteration = false;
-				}
-				else
-				{
-					std::shared_ptr<MidoriType> iterable_item_type;
-					int iterable_some_tag = -1;
-					bool has_iterable_instance = false;
-					bool has_iterable_constraint = false;
-					bool range_has_type_vars = false;
-
-					{
-						std::unordered_set<const MidoriType*> visited;
-						range_has_type_vars = HasTypeVariables(resolved_range, visited);
-					}
-
-					std::unordered_map<std::string, ClassInfo>::iterator class_it = m_classes.find(std::string(ITERABLE_CLASS_NAME));
-					if (class_it == m_classes.end())
-					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("For loop expression type error: Iterable class not found", for_expr.m_in_keyword, m_file_name, m_source_lines, resolved_range));
-					}
-
-					const bool uses_associated_item = class_it->second.m_associated_types.contains("Item");
-
-					if (!range_has_type_vars)
-					{
-						if (uses_associated_item)
-						{
-							std::optional<ResolvedInstanceMatch> resolved_match = FindMatchingInstance(std::string(ITERABLE_CLASS_NAME), { resolved_range });
-							if (resolved_match.has_value())
-							{
-								AssociatedTypeEnvironment::const_iterator binding_it = resolved_match->m_instance->m_associated_type_bindings.find("Item");
-								if (binding_it != resolved_match->m_instance->m_associated_type_bindings.cend())
-								{
-									iterable_item_type = ApplySubstitution(MidoriType::SubstituteTypeParams(binding_it->second, resolved_match->m_substitutions));
-									has_iterable_instance = true;
-								}
-							}
-						}
-						else
-						{
-							for (const auto& [key, info] : m_instances)
-							{
-								if (info.m_class_name == ITERABLE_CLASS_NAME && info.m_type_args.size() == 2u)
-								{
-									std::unordered_map<std::string, std::shared_ptr<MidoriType>> substitutions;
-									std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash> visited;
-									if (!MatchInstanceTypeArg(info.m_type_args[0u], resolved_range, substitutions, visited))
-									{
-										continue;
-									}
-
-									std::shared_ptr<MidoriType> candidate_item_type = MidoriType::SubstituteTypeParams(info.m_type_args[1u], substitutions);
-									if (has_iterable_instance)
-									{
-										return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("For loop expression type error: ambiguous Iterable instance for iterator type", for_expr.m_in_keyword, m_file_name, m_source_lines, resolved_range));
-									}
-									iterable_item_type = candidate_item_type;
-									has_iterable_instance = true;
-								}
-							}
-						}
-					}
-
-					if (!has_iterable_instance)
-					{
-						for (const MidoriType::ClassConstraint& constraint : m_active_constraints)
-						{
-							if (constraint.m_class_name == ITERABLE_CLASS_NAME && constraint.m_type_args.size() == class_it->second.m_type_param_names.size() && !constraint.m_type_args.empty() && *constraint.m_type_args[0u] == *resolved_range)
-							{
-								if (uses_associated_item)
-								{
-									iterable_item_type = ResolveAssociatedType(MidoriType::AssociatedType(std::string(ITERABLE_CLASS_NAME), "Item", std::vector<std::shared_ptr<MidoriType>>(constraint.m_type_args)));
-								}
-								else if (constraint.m_type_args.size() >= 2u)
-								{
-									iterable_item_type = constraint.m_type_args[1u];
-								}
-								has_iterable_constraint = true;
-								break;
-							}
-						}
-					}
-
-					if (!has_iterable_instance && !has_iterable_constraint)
-					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("For loop expression type error: expected Range, Array, or Iterable type for iteration", for_expr.m_in_keyword, m_file_name, m_source_lines, resolved_range, MidoriType::MakeRangeType(MidoriType::MakeLiteralType<MidoriType::IntegerType>())));
-					}
-
-					std::unordered_map<std::string, std::shared_ptr<MidoriType>>::iterator method_it = class_it->second.m_method_types.find(std::string(NEXT_METHOD_NAME));
-					if (method_it == class_it->second.m_method_types.end())
-					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("For loop expression type error: Iterable::Next not found", for_expr.m_in_keyword, m_file_name, m_source_lines, resolved_range));
-					}
-
-					TypeEnvironment substitutions;
-					const std::vector<std::string>& type_params = class_it->second.m_type_param_names;
-					if (!type_params.empty())
-					{
-						substitutions[type_params[0u]] = resolved_range;
-						if (!uses_associated_item && type_params.size() >= 2u && iterable_item_type != nullptr)
-						{
-							substitutions[type_params[1u]] = iterable_item_type;
-						}
-					}
-
-					std::shared_ptr<MidoriType> next_type = ApplySubstitution(MidoriType::SubstituteTypeParams(method_it->second, substitutions));
-					if (!next_type->IsType<MidoriType::FunctionType>())
-					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("For loop expression type error: Iterable::Next must be a function", for_expr.m_in_keyword, m_file_name, m_source_lines, resolved_range));
-					}
-
-					std::shared_ptr<MidoriType> next_return = ApplySubstitution(next_type->GetType<MidoriType::FunctionType>().m_return_type);
-					if (!next_return->IsType<MidoriType::UnionType>())
-					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("For loop expression type error: Iterable::Next must return an Option-like union", for_expr.m_in_keyword, m_file_name, m_source_lines, next_return));
-					}
-
-					const MidoriType::UnionType& option_union = next_return->GetType<MidoriType::UnionType>();
-					std::string some_name = option_union.m_name + std::string(NameSeparator) + "Some";
-					if (!option_union.m_member_info.contains(some_name))
-					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("For loop expression type error: Iterable::Next return type is missing 'Some' constructor", for_expr.m_in_keyword, m_file_name, m_source_lines, next_return));
-					}
-
-					const MidoriType::UnionType::UnionMemberContext& some_ctx = option_union.m_member_info.at(some_name);
-					iterable_some_tag = some_ctx.m_tag;
-					if (some_ctx.m_member_types.size() != 1u)
-					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("For loop expression type error: Iterable::Next 'Some' constructor must contain exactly one value", for_expr.m_in_keyword, m_file_name, m_source_lines, next_return));
-					}
-
-					// Next returns Option<(Item, Iter)>. The payload is a pair whose first
-					// element is the item and whose second is the advanced iterator, so the
-					// loop variable takes element 0 rather than the payload itself.
-					std::shared_ptr<MidoriType> some_payload = ApplySubstitution(some_ctx.m_member_types[0u]);
-					if (!some_payload->IsType<MidoriType::TupleType>() || some_payload->GetType<MidoriType::TupleType>().m_element_types.size() != 2u)
-					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("For loop expression type error: Iterable::Next must return Option<(Item, Iter)>", for_expr.m_in_keyword, m_file_name, m_source_lines, some_payload));
-					}
-
-					iterable_item_type = ApplySubstitution(some_payload->GetType<MidoriType::TupleType>().m_element_types[0u]);
-					element_type = iterable_item_type;
-					for_expr.m_is_array_iteration = false;
-					for_expr.m_is_iterable_iteration = true;
-					for_expr.m_iterable_item_type = iterable_item_type;
-					for_expr.m_iterable_some_tag = iterable_some_tag;
-					for_expr.m_iterable_next_type = next_return;
-				}
-
 				ScopeSession scope(*this);
-
-				std::string var_name(for_expr.m_loop_variable.m_lexeme);
-				m_name_type_table.back()[var_name] = element_type;
+				m_name_type_table.back()[for_expr.m_loop_variable.m_lexeme] = element_type;
 
 				return Evaluate(for_expr.m_body)
 					.and_then
@@ -5013,177 +4878,13 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::For& for_expr
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::ArrayComprehension& comp)
 {
 	return Evaluate(comp.m_range)
+		.and_then([&comp, this](std::shared_ptr<MidoriType>&& range_type) { return ResolveIteration(comp, range_type, "Array comprehension"); })
 		.and_then
 		(
-			[&comp, this](std::shared_ptr<MidoriType>&& range_type) -> MidoriResult::TypeResult
+			[&comp, this](std::shared_ptr<MidoriType>&& element_type) -> MidoriResult::TypeResult
 			{
-				std::shared_ptr<MidoriType> resolved_range = ApplySubstitution(range_type);
-
-				std::shared_ptr<MidoriType> element_type;
-
-				if (resolved_range->IsType<MidoriType::RangeType>())
-				{
-					element_type = resolved_range->GetType<MidoriType::RangeType>().m_element_type;
-					comp.m_is_array_iteration = false;
-				}
-				else if (resolved_range->IsType<MidoriType::ArrayType>())
-				{
-					element_type = resolved_range->GetType<MidoriType::ArrayType>().m_element_type;
-					comp.m_is_array_iteration = true;
-					comp.m_is_iterable_iteration = false;
-				}
-				else
-				{
-					std::shared_ptr<MidoriType> iterable_item_type;
-					int iterable_some_tag = -1;
-					bool has_iterable_instance = false;
-					bool has_iterable_constraint = false;
-					bool range_has_type_vars = false;
-
-					{
-						std::unordered_set<const MidoriType*> visited;
-						range_has_type_vars = HasTypeVariables(resolved_range, visited);
-					}
-
-					std::unordered_map<std::string, ClassInfo>::iterator class_it = m_classes.find(std::string(ITERABLE_CLASS_NAME));
-					if (class_it == m_classes.end())
-					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Array comprehension type error: Iterable class not found", comp.m_in_keyword, m_file_name, m_source_lines, resolved_range));
-					}
-
-					const bool uses_associated_item = class_it->second.m_associated_types.contains("Item");
-
-					if (!range_has_type_vars)
-					{
-						if (uses_associated_item)
-						{
-							std::optional<ResolvedInstanceMatch> resolved_match = FindMatchingInstance(std::string(ITERABLE_CLASS_NAME), { resolved_range });
-							if (resolved_match.has_value())
-							{
-								AssociatedTypeEnvironment::const_iterator binding_it = resolved_match->m_instance->m_associated_type_bindings.find("Item");
-								if (binding_it != resolved_match->m_instance->m_associated_type_bindings.cend())
-								{
-									iterable_item_type = ApplySubstitution(MidoriType::SubstituteTypeParams(binding_it->second, resolved_match->m_substitutions));
-									has_iterable_instance = true;
-								}
-							}
-						}
-						else
-						{
-							for (const auto& [key, info] : m_instances)
-							{
-								if (info.m_class_name == ITERABLE_CLASS_NAME && info.m_type_args.size() == 2u)
-								{
-									std::unordered_map<std::string, std::shared_ptr<MidoriType>> substitutions;
-									std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash> visited;
-									if (!MatchInstanceTypeArg(info.m_type_args[0u], resolved_range, substitutions, visited))
-									{
-										continue;
-									}
-
-									std::shared_ptr<MidoriType> candidate_item_type = MidoriType::SubstituteTypeParams(info.m_type_args[1u], substitutions);
-									if (has_iterable_instance)
-									{
-										return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Array comprehension type error: ambiguous Iterable instance for iterator type", comp.m_in_keyword, m_file_name, m_source_lines, resolved_range));
-									}
-									iterable_item_type = candidate_item_type;
-									has_iterable_instance = true;
-								}
-							}
-						}
-					}
-
-					if (!has_iterable_instance)
-					{
-						for (const MidoriType::ClassConstraint& constraint : m_active_constraints)
-						{
-							if (constraint.m_class_name == ITERABLE_CLASS_NAME && constraint.m_type_args.size() == class_it->second.m_type_param_names.size() && !constraint.m_type_args.empty() && *constraint.m_type_args[0u] == *resolved_range)
-							{
-								if (uses_associated_item)
-								{
-									iterable_item_type = ResolveAssociatedType(MidoriType::AssociatedType(std::string(ITERABLE_CLASS_NAME), "Item", std::vector<std::shared_ptr<MidoriType>>(constraint.m_type_args)));
-								}
-								else if (constraint.m_type_args.size() >= 2u)
-								{
-									iterable_item_type = constraint.m_type_args[1u];
-								}
-								has_iterable_constraint = true;
-								break;
-							}
-						}
-					}
-
-					if (!has_iterable_instance && !has_iterable_constraint)
-					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Array comprehension type error: expected Range, Array, or Iterable type for iteration", comp.m_in_keyword, m_file_name, m_source_lines, resolved_range, MidoriType::MakeRangeType(MidoriType::MakeLiteralType<MidoriType::IntegerType>())));
-					}
-
-					std::unordered_map<std::string, std::shared_ptr<MidoriType>>::iterator method_it = class_it->second.m_method_types.find(std::string(NEXT_METHOD_NAME));
-					if (method_it == class_it->second.m_method_types.end())
-					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Array comprehension type error: Iterable::Next not found", comp.m_in_keyword, m_file_name, m_source_lines, resolved_range));
-					}
-
-					TypeEnvironment substitutions;
-					const std::vector<std::string>& type_params = class_it->second.m_type_param_names;
-					if (!type_params.empty())
-					{
-						substitutions[type_params[0u]] = resolved_range;
-						if (!uses_associated_item && type_params.size() >= 2u && iterable_item_type != nullptr)
-						{
-							substitutions[type_params[1u]] = iterable_item_type;
-						}
-					}
-
-					std::shared_ptr<MidoriType> next_type = ApplySubstitution(MidoriType::SubstituteTypeParams(method_it->second, substitutions));
-					if (!next_type->IsType<MidoriType::FunctionType>())
-					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Array comprehension type error: Iterable::Next must be a function", comp.m_in_keyword, m_file_name, m_source_lines, resolved_range));
-					}
-
-					std::shared_ptr<MidoriType> next_return = ApplySubstitution(next_type->GetType<MidoriType::FunctionType>().m_return_type);
-					if (!next_return->IsType<MidoriType::UnionType>())
-					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Array comprehension type error: Iterable::Next must return an Option-like union", comp.m_in_keyword, m_file_name, m_source_lines, next_return));
-					}
-
-					const MidoriType::UnionType& option_union = next_return->GetType<MidoriType::UnionType>();
-					std::string some_name = option_union.m_name + std::string(NameSeparator) + "Some";
-					if (!option_union.m_member_info.contains(some_name))
-					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Array comprehension type error: Iterable::Next return type is missing 'Some' constructor", comp.m_in_keyword, m_file_name, m_source_lines, next_return));
-					}
-
-					const MidoriType::UnionType::UnionMemberContext& some_ctx = option_union.m_member_info.at(some_name);
-					iterable_some_tag = some_ctx.m_tag;
-					if (some_ctx.m_member_types.size() != 1u)
-					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Array comprehension type error: Iterable::Next 'Some' constructor must contain exactly one value", comp.m_in_keyword, m_file_name, m_source_lines, next_return));
-					}
-
-					// Next returns Option<(Item, Iter)>. The payload is a pair whose first
-					// element is the item and whose second is the advanced iterator, so the
-					// loop variable takes element 0 rather than the payload itself.
-					std::shared_ptr<MidoriType> some_payload = ApplySubstitution(some_ctx.m_member_types[0u]);
-					if (!some_payload->IsType<MidoriType::TupleType>() || some_payload->GetType<MidoriType::TupleType>().m_element_types.size() != 2u)
-					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Array comprehension type error: Iterable::Next must return Option<(Item, Iter)>", comp.m_in_keyword, m_file_name, m_source_lines, some_payload));
-					}
-
-					iterable_item_type = ApplySubstitution(some_payload->GetType<MidoriType::TupleType>().m_element_types[0u]);
-					element_type = iterable_item_type;
-					comp.m_is_array_iteration = false;
-					comp.m_is_iterable_iteration = true;
-					comp.m_iterable_item_type = iterable_item_type;
-					comp.m_iterable_some_tag = iterable_some_tag;
-					comp.m_iterable_next_type = next_return;
-				}
-
 				ScopeSession scope(*this);
-
-				// Add loop variable to scope with element type
-				std::string var_name(comp.m_loop_variable.m_lexeme);
-				m_name_type_table.back()[var_name] = element_type;
+				m_name_type_table.back()[comp.m_loop_variable.m_lexeme] = element_type;
 
 				// The transform expression produces one element, so its expected type is
 				// the expected array's element type, never the array type itself. Leaving
@@ -5192,15 +4893,11 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::ArrayComprehe
 				const std::shared_ptr<MidoriType> ambient_expected_type = m_expected_expr_type;
 				ExpectedTypeGuard transform_guard(*this, (ambient_expected_type != nullptr && ambient_expected_type->IsType<MidoriType::ArrayType>()) ? ambient_expected_type->GetType<MidoriType::ArrayType>().m_element_type : std::shared_ptr<MidoriType>{});
 
-				// Type check the transform expression
-				return std::visit
-				(
-					[this]<typename T>(T&& arg) -> MidoriResult::TypeResult { return (*this)(arg); }, **comp.m_transform_expr)
+				return Evaluate(comp.m_transform_expr)
 					.and_then
 					(
 						[&comp, this](std::shared_ptr<MidoriType>&& transform_type) -> MidoriResult::TypeResult
 						{
-							// Result type is Array<T> where T is the type of the transform expression
 							comp.m_type_data = MidoriType::MakeArrayType(ApplySubstitution(transform_type));
 							return comp.m_type_data;
 						}
@@ -5215,45 +4912,32 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::As& as)
 	// describes the result of the cast, not its source, so leaving it in place
 	// pushes the target type into a construction on the left of 'as'.
 	ExpectedTypeGuard operand_guard(*this, std::shared_ptr<MidoriType>{});
+	as.m_to_type = InstantiateWrittenType(as.m_to_type);
 
 	return Evaluate(as.m_expr)
 		.and_then
 		(
 			[&as, this](std::shared_ptr<MidoriType>&& expr_type) ->MidoriResult::TypeResult
 			{
-				// Check for Convertable<From, To> instance
-				InstanceKey conversion_key{
-					"Convertable",
-					{expr_type->ToString(), as.m_to_type->ToString()}
-				};
-
-				std::unordered_map<InstanceKey, InstanceInfo, InstanceKeyHash>::iterator instance_it =
-					m_instances.find(conversion_key);
-				bool has_convertable_instance = (instance_it != m_instances.end());
-				bool has_convertable_constraint = false;
-				if (!has_convertable_instance)
-				{
-					for (const MidoriType::ClassConstraint& constraint : m_active_constraints)
-					{
-						if (constraint.m_class_name == "Convertable"s && constraint.m_type_args.size() == 2 && *constraint.m_type_args[0] == *expr_type && *constraint.m_type_args[1] == *as.m_to_type)
-						{
-							has_convertable_constraint = true;
-							break;
-						}
-					}
-				}
+				// Instance selection matches the resolved types, so a variable inference
+				// has bound casts as its type, and a generic instance is found.
+				const std::shared_ptr<MidoriType> from_type = ApplySubstitution(expr_type);
+				const std::shared_ptr<MidoriType> to_type = ApplySubstitution(as.m_to_type);
+				const MidoriType::ClassConstraint conversion(std::string(CONVERTABLE_CLASS_NAME), { from_type, to_type });
+				const bool has_convertable_instance = !FindMatchingInstances(conversion.m_class_name, conversion.m_type_args).empty();
+				const bool has_convertable_constraint = !has_convertable_instance && IsSatisfiedByActiveConstraint(conversion);
 
 				// Check if this is a built-in conversion
 				bool is_builtin_conversion = false;
-				if (as.m_to_type->IsType<MidoriType::StructType>() && expr_type->IsType<MidoriType::StructType>())
+				if (to_type->IsType<MidoriType::StructType>() && from_type->IsType<MidoriType::StructType>())
 				{
 					if (!has_convertable_instance && !has_convertable_constraint)
 					{
-						const MidoriType::StructType& from_struct_type = expr_type->GetType<MidoriType::StructType>();
-						const MidoriType::StructType& to_struct_type = as.m_to_type->GetType<MidoriType::StructType>();
+						const MidoriType::StructType& from_struct_type = from_type->GetType<MidoriType::StructType>();
+						const MidoriType::StructType& to_struct_type = to_type->GetType<MidoriType::StructType>();
 						if (to_struct_type.m_member_types.size() != from_struct_type.m_member_types.size())
 						{
-							return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Type cast expression type error: struct member count mismatch", as.m_as_keyword, m_file_name, m_source_lines, expr_type, as.m_to_type));
+							return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Type cast expression type error: struct member count mismatch", as.m_as_keyword, m_file_name, m_source_lines, from_type, to_type));
 						}
 
 						for (size_t i : std::views::iota(0u, to_struct_type.m_member_types.size()))
@@ -5266,24 +4950,24 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::As& as)
 						is_builtin_conversion = true;
 					}
 				}
-				else if (as.m_to_type->IsType<MidoriType::StructType>() && !has_convertable_instance && !has_convertable_constraint)
+				else if (to_type->IsType<MidoriType::StructType>() && !has_convertable_instance && !has_convertable_constraint)
 				{
-					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Type cast expression type error: cannot cast to struct type", as.m_as_keyword, m_file_name, m_source_lines, expr_type, as.m_to_type));
+					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Type cast expression type error: cannot cast to struct type", as.m_as_keyword, m_file_name, m_source_lines, from_type, to_type));
 				}
 
 				// Check for built-in primitive conversions
-				bool const is_from_int = expr_type->IsType<MidoriType::IntegerType>();
-				bool const is_from_float = expr_type->IsType<MidoriType::FloatType>();
-				bool const is_from_text = expr_type->IsType<MidoriType::TextType>();
-				bool const is_from_byte = expr_type->IsType<MidoriType::ByteType>();
-				bool const is_from_word = expr_type->IsType<MidoriType::WordType>();
-				bool const is_from_bool = expr_type->IsType<MidoriType::BoolType>();
+				bool const is_from_int = from_type->IsType<MidoriType::IntegerType>();
+				bool const is_from_float = from_type->IsType<MidoriType::FloatType>();
+				bool const is_from_text = from_type->IsType<MidoriType::TextType>();
+				bool const is_from_byte = from_type->IsType<MidoriType::ByteType>();
+				bool const is_from_word = from_type->IsType<MidoriType::WordType>();
+				bool const is_from_bool = from_type->IsType<MidoriType::BoolType>();
 
-				bool const is_to_int = as.m_to_type->IsType<MidoriType::IntegerType>();
-				bool const is_to_float = as.m_to_type->IsType<MidoriType::FloatType>();
-				bool const is_to_text = as.m_to_type->IsType<MidoriType::TextType>();
-				bool const is_to_byte = as.m_to_type->IsType<MidoriType::ByteType>();
-				bool const is_to_word = as.m_to_type->IsType<MidoriType::WordType>();
+				bool const is_to_int = to_type->IsType<MidoriType::IntegerType>();
+				bool const is_to_float = to_type->IsType<MidoriType::FloatType>();
+				bool const is_to_text = to_type->IsType<MidoriType::TextType>();
+				bool const is_to_byte = to_type->IsType<MidoriType::ByteType>();
+				bool const is_to_word = to_type->IsType<MidoriType::WordType>();
 
 				if ((is_from_int && (is_to_float || is_to_text || is_to_byte || is_to_word)) ||
 					(is_from_float && (is_to_int || is_to_text || is_to_byte || is_to_word)) ||
@@ -5296,23 +4980,30 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::As& as)
 				}
 
 				// `x as T` where x already has type T is a no-op, so it needs no Convertable instance.
-				const bool is_identity_conversion = *ApplySubstitution(expr_type) == *ApplySubstitution(as.m_to_type);
+				const bool is_identity_conversion = *from_type == *to_type;
 
 				// Verify that either Convertable instance exists, constraint exists, or it's a built-in conversion
 				if (!has_convertable_instance && !has_convertable_constraint && !is_builtin_conversion && !is_identity_conversion)
 				{
-					MidoriType::ClassConstraint constraint("Convertable", { expr_type, as.m_to_type });
-					const std::string suggestion = std::format("Define 'instance Convertable<{}, {}>' to enable this conversion.", expr_type->DisplayString(), as.m_to_type->DisplayString());
+					MidoriType::ClassConstraint constraint("Convertable", { from_type, to_type });
+					const std::string suggestion = std::format("Define 'instance Convertable<{}, {}>' to enable this conversion.", from_type->DisplayString(), to_type->DisplayString());
 					return std::unexpected(MakeConstraintFailureError(as.m_as_keyword, constraint, suggestion));
 				}
 
-				as.m_type_data = as.m_to_type;
+				as.m_type_data = to_type;
 
 				// Prefer built-in code generation for concrete built-in casts so Convertable
 				// instances can implement Convert via `as` without recursing back into themselves.
 				// Constraints still require Convertable dispatch because the concrete conversion
 				// is only known during specialization.
 				as.m_uses_convertable = has_convertable_constraint || (has_convertable_instance && !is_builtin_conversion);
+				if (has_convertable_instance && !is_builtin_conversion)
+				{
+					if (std::optional<CompilerError> error = CheckConstraintHolds(as.m_as_keyword, conversion, 0u))
+					{
+						return std::unexpected(std::move(*error));
+					}
+				}
 				return as.m_type_data;
 			}
 		);
@@ -5427,191 +5118,166 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Binary& binar
 	return Evaluate(binary.m_left)
 		.and_then
 		(
-			[&binary, this](std::shared_ptr<MidoriType>&& left_type) ->MidoriResult::TypeResult
+			[&binary, this](std::shared_ptr<MidoriType>&& left_type) -> MidoriResult::TypeResult
 			{
 				return Evaluate(binary.m_right)
 					.and_then
 					(
-						[&left_type, &binary, this](std::shared_ptr<MidoriType>&& right_type) ->MidoriResult::TypeResult
+						[&left_type, &binary, this](std::shared_ptr<MidoriType>&& right_type) -> MidoriResult::TypeResult
 						{
-							// Special handling for shift operators: right operand must be Int, left can be Int/Byte/Word
-							if (binary.m_op.m_token_name == Token::Name::LEFT_SHIFT || binary.m_op.m_token_name == Token::Name::RIGHT_SHIFT)
-							{
-								std::shared_ptr<MidoriType> resolved_left = ApplySubstitution(left_type);
-								std::shared_ptr<MidoriType> resolved_right = ApplySubstitution(right_type);
-
-								// Right operand (shift amount) must be Int
-								if (!resolved_right->IsType<MidoriType::IntegerType>() && !resolved_right->IsType<MidoriType::TypeVariable>())
-								{
-									return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Shift operator type error: shift amount must be Int", binary.m_op, m_file_name, m_source_lines, resolved_right, MidoriType::MakeLiteralType<MidoriType::IntegerType>()));
-								}
-
-								// Left operand must be Int, Byte, or Word
-								if (!resolved_left->IsType<MidoriType::IntegerType>() && !resolved_left->IsType<MidoriType::ByteType>() && !resolved_left->IsType<MidoriType::WordType>() && !resolved_left->IsType<MidoriType::TypeVariable>())
-								{
-									return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Shift operator type error: can only shift Int, Byte, or Word types", binary.m_op, m_file_name, m_source_lines, resolved_left, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::ByteType>(), MidoriType::MakeLiteralType<MidoriType::WordType>()));
-								}
-
-								// Result type is the same as left operand type
-								binary.m_type_data = left_type;
-								return binary.m_type_data;
-							}
-
-							if (std::optional<CompilerError> byte_literal_error = ByteLiteralBesideInt(binary, left_type, right_type))
-							{
-								return std::unexpected(std::move(byte_literal_error.value()));
-							}
-
-							return Unify(binary.m_op, left_type, right_type)
-								.and_then
-								(
-									[&binary, &left_type, &right_type, this](std::shared_ptr<MidoriType>&&)->MidoriResult::TypeResult
-									{
-										std::shared_ptr<MidoriType>& self_type = binary.m_type_data;
-
-										// Apply substitution to get concrete types if available
-										std::shared_ptr<MidoriType> resolved_left = ApplySubstitution(left_type);
-										std::shared_ptr<MidoriType> resolved_right = ApplySubstitution(right_type);
-
-										self_type = left_type;
-
-										if (std::ranges::contains(kBinaryPartialOrderComparisonOperators.cbegin(), kBinaryPartialOrderComparisonOperators.cend(), binary.m_op.m_token_name))
-										{
-											std::shared_ptr<MidoriType> resolved_self = ApplySubstitution(self_type);
-											bool is_builtin = resolved_self->IsNumericType() || resolved_self->IsType<MidoriType::TypeVariable>();
-
-											if (!is_builtin)
-											{
-												// Check for Orderable<T> instance
-												InstanceKey orderable_key{std::string(ORDERABLE_CLASS_NAME),{resolved_self->ToString()}};
-												std::unordered_map<InstanceKey, InstanceInfo, InstanceKeyHash>::iterator instance_it = m_instances.find(orderable_key);
-												bool has_orderable_instance = (instance_it != m_instances.end());
-
-												// Check for Orderable<T> constraint
-												bool has_orderable_constraint = false;
-												if (!has_orderable_instance)
-												{
-													for (const MidoriType::ClassConstraint& constraint : m_active_constraints)
-													{
-														if (constraint.m_class_name == ORDERABLE_CLASS_NAME && constraint.m_type_args.size() == 1 && *constraint.m_type_args[0] == *resolved_self)
-														{
-															has_orderable_constraint = true;
-															break;
-														}
-													}
-												}
-
-												if (!has_orderable_instance && !has_orderable_constraint)
-												{
-													MidoriType::ClassConstraint constraint(std::string(ORDERABLE_CLASS_NAME), { resolved_self });
-													return std::unexpected(MakeConstraintFailureError(binary.m_op, constraint));
-												}
-
-												binary.m_uses_orderable = true;
-											}
-
-											self_type = MidoriType::MakeLiteralType<MidoriType::BoolType>();
-										}
-										else if (std::ranges::contains(kBinaryArithmeticOperators.cbegin(), kBinaryArithmeticOperators.cend(), binary.m_op.m_token_name))
-										{
-											// Allow type variables (will be constrained by usage) or concrete numeric types
-											std::shared_ptr<MidoriType> resolved_self = ApplySubstitution(self_type);
-											if (!resolved_self->IsNumericType() && !resolved_self->IsType<MidoriType::TypeVariable>())
-											{
-												return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Binary expression type error: expected numeric type", binary.m_op, m_file_name, m_source_lines, resolved_self, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::FloatType>()));
-											}
-										}
-										else if (std::ranges::contains(kBinaryBitwiseOperators.cbegin(), kBinaryBitwiseOperators.cend(), binary.m_op.m_token_name))
-										{
-											std::shared_ptr<MidoriType> resolved_self = ApplySubstitution(self_type);
-											if (!resolved_self->IsType<MidoriType::IntegerType>() && !resolved_self->IsType<MidoriType::ByteType>() && !resolved_self->IsType<MidoriType::WordType>() && !resolved_self->IsType<MidoriType::TypeVariable>())
-											{
-												return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Binary expression type error: expected integer, byte, or word type", binary.m_op, m_file_name, m_source_lines, resolved_self, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::ByteType>(), MidoriType::MakeLiteralType<MidoriType::WordType>()));
-											}
-										}
-										else if (std::ranges::contains(kBinaryEqualityOperators.cbegin(), kBinaryEqualityOperators.cend(), binary.m_op.m_token_name))
-										{
-											std::shared_ptr<MidoriType> resolved_self = ApplySubstitution(self_type);
-											bool is_builtin = resolved_self->IsNumericType() || resolved_self->IsType<MidoriType::TextType>() || resolved_self->IsType<MidoriType::BoolType>() || resolved_self->IsType<MidoriType::TypeVariable>();
-
-											if (!is_builtin)
-											{
-												// Check for Equatable<T> instance
-												InstanceKey equatable_key{std::string(EQUATABLE_CLASS_NAME),{resolved_self->ToString()}};
-												std::unordered_map<InstanceKey, InstanceInfo, InstanceKeyHash>::iterator instance_it = m_instances.find(equatable_key);
-												bool has_equatable_instance = (instance_it != m_instances.end());
-
-												// Check for Equatable<T> constraint
-												bool has_equatable_constraint = false;
-												if (!has_equatable_instance)
-												{
-													for (const MidoriType::ClassConstraint& constraint : m_active_constraints)
-													{
-														if (constraint.m_class_name == EQUATABLE_CLASS_NAME && constraint.m_type_args.size() == 1 && *constraint.m_type_args[0] == *resolved_self)
-														{
-															has_equatable_constraint = true;
-															break;
-														}
-													}
-												}
-
-												if (!has_equatable_instance && !has_equatable_constraint)
-												{
-													MidoriType::ClassConstraint constraint(std::string(EQUATABLE_CLASS_NAME), { resolved_self });
-													return std::unexpected(MakeConstraintFailureError(binary.m_op, constraint));
-												}
-
-												binary.m_uses_equatable = true;
-											}
-
-											self_type = MidoriType::MakeLiteralType<MidoriType::BoolType>();
-										}
-										else if (std::ranges::contains(kBinaryLogicalOperators.cbegin(), kBinaryLogicalOperators.cend(), binary.m_op.m_token_name))
-										{
-											std::shared_ptr<MidoriType> resolved_left_logical = ApplySubstitution(left_type);
-											if (!resolved_left_logical->IsType<MidoriType::BoolType>() && !resolved_left_logical->IsType<MidoriType::TypeVariable>())
-											{
-												return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Binary expression type error: expected boolean type", binary.m_op, m_file_name, m_source_lines, resolved_left_logical, MidoriType::MakeLiteralType<MidoriType::BoolType>()));
-											}
-
-											self_type = MidoriType::MakeLiteralType<MidoriType::BoolType>();
-										}
-										else if (std::ranges::contains(kBinaryConcatenationOperators.cbegin(), kBinaryConcatenationOperators.cend(), binary.m_op.m_token_name))
-										{
-											bool is_builtin_concat = resolved_left->IsType<MidoriType::TextType>() || resolved_left->IsType<MidoriType::ArrayType>();
-											if (!is_builtin_concat)
-											{
-												bool has_concatenable_instance = FindMatchingInstance(std::string(CONCATENABLE_CLASS_NAME), { resolved_left }).has_value();
-												bool has_concatenable_constraint = false;
-												if (!has_concatenable_instance)
-												{
-													for (const MidoriType::ClassConstraint& constraint : m_active_constraints)
-													{
-														if (constraint.m_class_name == CONCATENABLE_CLASS_NAME && constraint.m_type_args.size() == 1u && *constraint.m_type_args[0] == *resolved_left)
-														{
-															has_concatenable_constraint = true;
-															break;
-														}
-													}
-												}
-
-												if (!has_concatenable_instance && !has_concatenable_constraint)
-												{
-													MidoriType::ClassConstraint constraint(std::string(CONCATENABLE_CLASS_NAME), { resolved_left });
-													return std::unexpected(MakeConstraintFailureError(binary.m_op, constraint));
-												}
-
-												binary.m_uses_concatenable = true;
-											}
-										}
-
-										return self_type;
-									}
-								);
+							return CheckBinaryOperator(binary, left_type, right_type);
 						}
 					);
 			}
 		);
+}
+
+// An operand whose type is still a variable is one inference has not decided
+// yet, and an operator may decide it. A generic parameter is a variable too, but
+// it stands for whatever type a caller picks: the numeric operators take it as
+// it is and each specialization is checked when it is lowered, while `==`, `<`
+// and `++`, which a class provides, need a where clause naming that class.
+MidoriResult::TypeResult TypeChecker::CheckBinaryOperator(MidoriExpression::Binary& binary, std::shared_ptr<MidoriType>& left_type, std::shared_ptr<MidoriType>& right_type)
+{
+	const Token& op = binary.m_op;
+	if (op.m_token_name == Token::Name::LEFT_SHIFT || op.m_token_name == Token::Name::RIGHT_SHIFT)
+	{
+		const std::shared_ptr<MidoriType> resolved_left = ApplySubstitution(left_type);
+		const std::shared_ptr<MidoriType> resolved_right = ApplySubstitution(right_type);
+
+		if (resolved_right->IsType<MidoriType::TypeVariable>() && !RigidParameterName(resolved_right).has_value())
+		{
+			std::shared_ptr<MidoriType> int_type = MidoriType::MakeLiteralType<MidoriType::IntegerType>();
+			MidoriResult::TypeResult unified = Unify(op, right_type, int_type, UnifyDiagnosticMode::ActualExpected);
+			if (!unified.has_value())
+			{
+				return unified;
+			}
+		}
+		else if (!resolved_right->IsType<MidoriType::IntegerType>() && !resolved_right->IsType<MidoriType::TypeVariable>())
+		{
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Shift operator type error: shift amount must be Int", op, m_file_name, m_source_lines, resolved_right, MidoriType::MakeLiteralType<MidoriType::IntegerType>()));
+		}
+
+		if (!resolved_left->IsType<MidoriType::IntegerType>() && !resolved_left->IsType<MidoriType::ByteType>() && !resolved_left->IsType<MidoriType::WordType>() && !resolved_left->IsType<MidoriType::TypeVariable>())
+		{
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Shift operator type error: can only shift Int, Byte, or Word types", op, m_file_name, m_source_lines, resolved_left, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::ByteType>(), MidoriType::MakeLiteralType<MidoriType::WordType>()));
+		}
+
+		binary.m_type_data = left_type;
+		return binary.m_type_data;
+	}
+
+	if (std::optional<CompilerError> byte_literal_error = ByteLiteralBesideInt(binary, left_type, right_type))
+	{
+		return std::unexpected(std::move(byte_literal_error.value()));
+	}
+
+	MidoriResult::TypeResult unified = Unify(op, left_type, right_type);
+	if (!unified.has_value())
+	{
+		return unified;
+	}
+
+	const std::shared_ptr<MidoriType> resolved = ApplySubstitution(left_type);
+	const std::optional<std::string> param_name = RigidParameterName(resolved);
+	const bool is_undecided = resolved->IsType<MidoriType::TypeVariable>() && !param_name.has_value();
+	// A class an operand must belong to. A generic parameter is shown by the name
+	// it was written as, with the where clause that would make it one.
+	const std::function<std::optional<CompilerError>(std::string_view)> require_class = [this, &op, &resolved, &param_name](std::string_view class_name) -> std::optional<CompilerError>
+	{
+		std::optional<CompilerError> error = CheckConstraintHolds(op, MidoriType::ClassConstraint(std::string(class_name), { resolved }), 0u);
+		if (!error.has_value() || !param_name.has_value())
+		{
+			return error;
+		}
+		const std::string hint = std::format("'{0}' is a generic parameter, so it is only known to be one when the definition says 'where {1}<{0}>'.", param_name.value(), class_name);
+		return MakeConstraintFailureError(op, MidoriType::ClassConstraint(std::string(class_name), { MidoriType::MakeGenericType(param_name.value()) }), hint);
+	};
+	binary.m_type_data = left_type;
+
+	if (std::ranges::contains(kBinaryPartialOrderComparisonOperators, op.m_token_name))
+	{
+		if (!resolved->IsNumericType() && !is_undecided)
+		{
+			if (std::optional<CompilerError> error = require_class(ORDERABLE_CLASS_NAME))
+			{
+				return std::unexpected(std::move(*error));
+			}
+			binary.m_uses_orderable = true;
+		}
+
+		binary.m_type_data = MidoriType::MakeLiteralType<MidoriType::BoolType>();
+		return binary.m_type_data;
+	}
+
+	if (std::ranges::contains(kBinaryArithmeticOperators, op.m_token_name))
+	{
+		if (!resolved->IsNumericType() && !resolved->IsType<MidoriType::TypeVariable>())
+		{
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Binary expression type error: expected numeric type", op, m_file_name, m_source_lines, resolved, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::FloatType>()));
+		}
+		return binary.m_type_data;
+	}
+
+	if (std::ranges::contains(kBinaryBitwiseOperators, op.m_token_name))
+	{
+		if (!resolved->IsType<MidoriType::IntegerType>() && !resolved->IsType<MidoriType::ByteType>() && !resolved->IsType<MidoriType::WordType>() && !resolved->IsType<MidoriType::TypeVariable>())
+		{
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Binary expression type error: expected integer, byte, or word type", op, m_file_name, m_source_lines, resolved, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::ByteType>(), MidoriType::MakeLiteralType<MidoriType::WordType>()));
+		}
+		return binary.m_type_data;
+	}
+
+	if (std::ranges::contains(kBinaryEqualityOperators, op.m_token_name))
+	{
+		const bool is_builtin = resolved->IsNumericType() || resolved->IsType<MidoriType::TextType>() || resolved->IsType<MidoriType::BoolType>() || is_undecided;
+		if (!is_builtin)
+		{
+			if (std::optional<CompilerError> error = require_class(EQUATABLE_CLASS_NAME))
+			{
+				return std::unexpected(std::move(*error));
+			}
+			binary.m_uses_equatable = true;
+		}
+
+		binary.m_type_data = MidoriType::MakeLiteralType<MidoriType::BoolType>();
+		return binary.m_type_data;
+	}
+
+	if (std::ranges::contains(kBinaryLogicalOperators, op.m_token_name))
+	{
+		std::shared_ptr<MidoriType> bool_type = MidoriType::MakeLiteralType<MidoriType::BoolType>();
+		if (is_undecided)
+		{
+			MidoriResult::TypeResult bool_result = Unify(op, left_type, bool_type, UnifyDiagnosticMode::ActualExpected);
+			if (!bool_result.has_value())
+			{
+				return bool_result;
+			}
+		}
+		else if (!resolved->IsType<MidoriType::BoolType>())
+		{
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Binary expression type error: expected boolean type", op, m_file_name, m_source_lines, resolved, bool_type));
+		}
+
+		binary.m_type_data = bool_type;
+		return binary.m_type_data;
+	}
+
+	if (std::ranges::contains(kBinaryConcatenationOperators, op.m_token_name))
+	{
+		if (!resolved->IsType<MidoriType::TextType>() && !resolved->IsType<MidoriType::ArrayType>())
+		{
+			if (std::optional<CompilerError> error = require_class(CONCATENABLE_CLASS_NAME))
+			{
+				return std::unexpected(std::move(*error));
+			}
+			binary.m_uses_concatenable = true;
+		}
+	}
+
+	return binary.m_type_data;
 }
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Group& group)
@@ -5681,8 +5347,9 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::UnaryPrefix& 
 	return Evaluate(unary.m_expr)
 		.and_then
 		(
-			[this, &unary](std::shared_ptr<MidoriType>&& actual_type) -> MidoriResult::TypeResult
+			[this, &unary](std::shared_ptr<MidoriType>&& operand_type) -> MidoriResult::TypeResult
 			{
+				std::shared_ptr<MidoriType> actual_type = ApplySubstitution(operand_type);
 				if (unary.m_op.m_token_name == Token::Name::SINGLE_MINUS || unary.m_op.m_token_name == Token::Name::SINGLE_PLUS)
 				{
 					if (!actual_type->IsNumericType())
@@ -5706,40 +5373,23 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::UnaryPrefix& 
 				}
 				else if (unary.m_op.m_token_name == Token::Name::HASH)
 				{
-					std::shared_ptr<MidoriType> resolved_type = ApplySubstitution(actual_type);
-
-					if (resolved_type->IsType<MidoriType::ArrayType>())
+					if (actual_type->IsType<MidoriType::ArrayType>())
 					{
 						unary.m_type_data = MidoriType::MakeLiteralType<MidoriType::IntegerType>();
 						return unary.m_type_data;
 					}
 
-					bool has_countable_instance = FindMatchingInstance(std::string(COUNTABLE_CLASS_NAME), { resolved_type }).has_value();
-					bool has_countable_constraint = false;
-					if (!has_countable_instance)
+					const std::string suggestion = m_classes.contains(std::string(COUNTABLE_CLASS_NAME))
+						? std::format("Define 'instance Countable<{}>' to give it a length.", actual_type->DisplayString())
+						: actual_type->IsType<MidoriType::TextType>()
+						? std::string("Import MarmotPrelude/Countable.mmt: it declares Countable and its instance for Text.")
+						: std::format("Import MarmotPrelude/Countable.mmt, which declares Countable, and define 'instance Countable<{}>'.", actual_type->DisplayString());
+					if (std::optional<CompilerError> error = CheckConstraintHolds(unary.m_op, MidoriType::ClassConstraint(std::string(COUNTABLE_CLASS_NAME), { actual_type }), 0u, suggestion))
 					{
-						for (const MidoriType::ClassConstraint& constraint : m_active_constraints)
-						{
-							if (constraint.m_class_name == COUNTABLE_CLASS_NAME && constraint.m_type_args.size() == 1u && *constraint.m_type_args[0] == *resolved_type)
-							{
-								has_countable_constraint = true;
-								break;
-							}
-						}
+						return std::unexpected(std::move(*error));
 					}
 
-					if (!has_countable_instance && !has_countable_constraint)
-					{
-						MidoriType::ClassConstraint constraint(std::string(COUNTABLE_CLASS_NAME), { resolved_type });
-						const std::string suggestion = m_classes.contains(std::string(COUNTABLE_CLASS_NAME))
-							? std::format("Define 'instance Countable<{}>' to give it a length.", resolved_type->DisplayString())
-							: resolved_type->IsType<MidoriType::TextType>()
-							? std::string("Import MarmotPrelude/Countable.mmt: it declares Countable and its instance for Text.")
-							: std::format("Import MarmotPrelude/Countable.mmt, which declares Countable, and define 'instance Countable<{}>'.", resolved_type->DisplayString());
-						return std::unexpected(MakeConstraintFailureError(unary.m_op, constraint, suggestion));
-					}
-
-					unary.m_uses_countable = has_countable_instance || has_countable_constraint;
+					unary.m_uses_countable = true;
 					unary.m_type_data = MidoriType::MakeLiteralType<MidoriType::IntegerType>();
 					return unary.m_type_data;
 				}
@@ -5922,6 +5572,11 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Join& join)
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::ChannelCreate& channel_create)
 {
+	if (channel_create.m_element_type != nullptr)
+	{
+		channel_create.m_element_type = InstantiateWrittenType(channel_create.m_element_type);
+	}
+
 	if (channel_create.m_element_type == nullptr)
 	{
 		// Concurrency::MakeChannel(capacity) names no element type, so it takes the
@@ -6072,12 +5727,207 @@ std::shared_ptr<MidoriType> TypeChecker::NarrowClassMethodType(const std::string
 			return std::shared_ptr<MidoriType>{};
 		}
 
+		// The narrowed type becomes an argument's expected type, so a parameter of the
+		// instance that the arguments so far have not decided must be left open: as
+		// the instance's own GenericParam it would pin the argument to that name.
+		for (const std::string& param_name : CollectGenericParamNames(instance_info.m_type_args))
+		{
+			substitutions.try_emplace(param_name, FreshTypeVar());
+		}
+
 		// SubstituteTypeParams with an empty map is not the identity - it rebuilds a struct with
 		// its generic parameters cleared - so a match that derived no bindings keeps the candidate.
 		narrowed_method_type = substitutions.empty() ? candidate_method_type : ApplySubstitution(MidoriType::SubstituteTypeParams(candidate_method_type, substitutions));
 	}
 
 	return narrowed_method_type;
+}
+
+// A class method called on the type a where clause in force names: the
+// constraint, not an instance, says what the method's type is.
+MidoriResult::TypeResult TypeChecker::CheckConstrainedMethodCall(MidoriExpression::Call& call, const ClassInfo& tc_info, const std::shared_ptr<MidoriType>& method_type, const MidoriType::ClassConstraint& constraint, std::vector<std::shared_ptr<MidoriType>>& arg_results)
+{
+	TypeEnvironment class_substitutions;
+	for (size_t i = 0u; i < tc_info.m_type_param_names.size(); i += 1u)
+	{
+		class_substitutions.emplace(tc_info.m_type_param_names[i], ApplySubstitution(constraint.m_type_args[i]));
+	}
+
+	std::shared_ptr<MidoriType> resolved_method_type = ApplySubstitution(MidoriType::SubstituteTypeParams(method_type, class_substitutions));
+	if (!resolved_method_type->IsType<MidoriType::FunctionType>())
+	{
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeNotCallable, "Call expression type error: not a callable", call.m_paren, m_file_name, m_source_lines, resolved_method_type));
+	}
+
+	MidoriType::FunctionType& function_type = resolved_method_type->GetType<MidoriType::FunctionType>();
+	if (function_type.m_param_types.size() != arg_results.size())
+	{
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, std::format("Call expression type error: incorrect arity: expected {} argument(s), got {}", function_type.m_param_types.size(), arg_results.size()), call.m_paren, m_file_name, m_source_lines));
+	}
+
+	for (size_t idx : std::views::iota(0u, arg_results.size()))
+	{
+		MidoriResult::TypeResult result = Unify(call.m_paren, arg_results[idx], function_type.m_param_types[idx], UnifyDiagnosticMode::ActualExpected);
+		if (!result.has_value())
+		{
+			return result;
+		}
+	}
+
+	call.m_is_foreign = function_type.m_is_foreign;
+	call.m_type_data = ApplySubstitution(function_type.m_return_type);
+	return call.m_type_data;
+}
+
+// A class method selected from the instances by its arguments. `arg_results`
+// holds the arguments already checked, which may be none; the rest are checked
+// here, each against what the instances still matching say it must be.
+MidoriResult::TypeResult TypeChecker::CheckInstanceMethodCall(MidoriExpression::Call& call, const std::string& qualifier, const std::string& method_name, const ClassInfo& tc_info, const std::shared_ptr<MidoriType>& method_type, std::vector<std::shared_ptr<MidoriType>>&& arg_results)
+{
+	arg_results.reserve(call.m_arguments.size());
+	for (size_t idx : std::views::iota(arg_results.size(), call.m_arguments.size()))
+	{
+		// Instance selection is argument-directed, so no parameter type is known before the
+		// arguments are checked. Narrowing against the arguments already settled recovers one
+		// as soon as a single instance still matches, which is what lets
+		// `Appendable::Append(buckets, Slot::Empty())` infer the construction from the
+		// container it is appended to. A prefix that picks out no single instance leaves the
+		// argument checked with no expected type, as before. Selection below is unchanged and
+		// still consults every argument.
+		std::shared_ptr<MidoriType> narrowed_method_type = NarrowClassMethodType(qualifier, tc_info, method_type, arg_results, call.m_arguments.size());
+		std::shared_ptr<MidoriType> expected_param_type = narrowed_method_type != nullptr ? narrowed_method_type->GetType<MidoriType::FunctionType>().m_param_types[idx] : std::shared_ptr<MidoriType>{};
+		ExpectedTypeGuard guard(*this, std::move(expected_param_type));
+
+		MidoriResult::TypeResult arg_result = Evaluate(call.m_arguments[idx]);
+		if (!arg_result.has_value())
+		{
+			return arg_result;
+		}
+		arg_results.emplace_back(std::move(arg_result.value()));
+	}
+
+	struct ConcreteMethodCandidate
+	{
+		std::shared_ptr<MidoriType> m_method_type;
+		const InstanceInfo* m_instance;
+		TypeEnvironment m_substitutions;
+		bool m_matches_expected_type;
+
+		ConcreteMethodCandidate(std::shared_ptr<MidoriType>&& method_type, const InstanceInfo* instance, TypeEnvironment&& substitutions, bool matches_expected_type)
+			: m_method_type(std::move(method_type)), m_instance(instance), m_substitutions(std::move(substitutions)), m_matches_expected_type(matches_expected_type)
+		{
+		}
+	};
+
+	std::vector<ConcreteMethodCandidate> candidates;
+	for (const auto& [instance_key, instance_info] : m_instances)
+	{
+		if (instance_info.m_class_name != qualifier || instance_info.m_type_args.size() != tc_info.m_type_param_names.size())
+		{
+			continue;
+		}
+
+		TypeEnvironment class_substitutions;
+		for (size_t i = 0u; i < tc_info.m_type_param_names.size(); i += 1u)
+		{
+			class_substitutions.emplace(tc_info.m_type_param_names[i], instance_info.m_type_args[i]);
+		}
+
+		std::shared_ptr<MidoriType> candidate_method_type = ApplySubstitution(MidoriType::SubstituteTypeParams(method_type, class_substitutions));
+		if (!candidate_method_type->IsType<MidoriType::FunctionType>())
+		{
+			continue;
+		}
+
+		const MidoriType::FunctionType& candidate_function_type = candidate_method_type->GetType<MidoriType::FunctionType>();
+		if (candidate_function_type.m_param_types.size() != arg_results.size())
+		{
+			continue;
+		}
+
+		std::unordered_map<std::string, std::shared_ptr<MidoriType>> substitutions;
+		std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash> visited;
+		bool matched = true;
+
+		for (size_t i = 0u; i < arg_results.size(); i += 1u)
+		{
+			std::shared_ptr<MidoriType> resolved_arg = ApplySubstitution(arg_results[i]);
+			if (!MatchInstanceTypeArg(candidate_function_type.m_param_types[i], resolved_arg, substitutions, visited))
+			{
+				matched = false;
+				break;
+			}
+		}
+
+		if (!matched)
+		{
+			continue;
+		}
+
+		// Selection is argument-directed, exactly as the operator spellings are.
+		// The expected type only breaks ties between instances the arguments
+		// already accept, which is what return-type-directed classes such as
+		// Convertable need. Applying it as a filter rejected every instance of
+		// a class whose method returns a fixed type.
+		bool matches_expected_type = false;
+		if (m_expected_expr_type != nullptr)
+		{
+			std::unordered_map<std::string, std::shared_ptr<MidoriType>> expected_substitutions = substitutions;
+			std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash> expected_visited = visited;
+			std::shared_ptr<MidoriType> expected_type = ApplySubstitution(m_expected_expr_type);
+			if (MatchInstanceTypeArg(candidate_function_type.m_return_type, expected_type, expected_substitutions, expected_visited))
+			{
+				matches_expected_type = true;
+				substitutions = std::move(expected_substitutions);
+				visited = std::move(expected_visited);
+			}
+		}
+
+		std::shared_ptr<MidoriType> resolved_method_type = ApplySubstitution(MidoriType::SubstituteTypeParams(candidate_method_type, substitutions));
+		candidates.emplace_back(std::move(resolved_method_type), &instance_info, std::move(substitutions), matches_expected_type);
+	}
+
+	if (candidates.empty())
+	{
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: no matching concrete instance for '" + qualifier + NameSeparator.data() + method_name + "'", call.m_paren, m_file_name, m_source_lines));
+	}
+	if (candidates.size() != 1u)
+	{
+		if (std::ranges::count_if(candidates, &ConcreteMethodCandidate::m_matches_expected_type) != 1)
+		{
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: ambiguous concrete instance for '" + qualifier + NameSeparator.data() + method_name + "'", call.m_paren, m_file_name, m_source_lines));
+		}
+
+		std::erase_if(candidates, [](const ConcreteMethodCandidate& candidate) -> bool { return !candidate.m_matches_expected_type; });
+	}
+
+	MidoriType::FunctionType& function_type = candidates[0u].m_method_type->GetType<MidoriType::FunctionType>();
+	for (size_t idx : std::views::iota(0u, arg_results.size()))
+	{
+		MidoriResult::TypeResult result = Unify(call.m_paren, arg_results[idx], function_type.m_param_types[idx], UnifyDiagnosticMode::ActualExpected);
+		if (!result.has_value())
+		{
+			return result;
+		}
+	}
+
+	MidoriResult::TypeResult constraint_result = ValidateFunctionConstraints(call.m_paren, function_type);
+	if (!constraint_result.has_value())
+	{
+		return constraint_result;
+	}
+
+	// function_type comes from the class declaration, so it never carries the
+	// selected instance's where-clause - that lives on InstanceInfo instead.
+	MidoriResult::TypeResult instance_constraint_result = ValidateInstanceConstraints(call.m_paren, *candidates[0u].m_instance, candidates[0u].m_substitutions, 0u);
+	if (!instance_constraint_result.has_value())
+	{
+		return instance_constraint_result;
+	}
+
+	call.m_is_foreign = function_type.m_is_foreign;
+	call.m_type_data = ApplySubstitution(function_type.m_return_type);
+	return call.m_type_data;
 }
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
@@ -6146,291 +5996,64 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 		size_t separator_pos = full_name.rfind(NameSeparator.data());
 		if (separator_pos != std::string::npos)
 		{
-			std::string qualifier = full_name.substr(0u, separator_pos);
-			std::string method_name = full_name.substr(separator_pos + NameSeparator.length());
+			const std::string qualifier = full_name.substr(0u, separator_pos);
+			const std::string method_name = full_name.substr(separator_pos + NameSeparator.length());
 
-			std::vector<const MidoriType::ClassConstraint*> matching_constraints;
-			for (const MidoriType::ClassConstraint& constraint : m_active_constraints)
-			{
-				if (constraint.m_class_name == qualifier)
-				{
-					matching_constraints.emplace_back(&constraint);
-				}
-			}
-
-			if (!matching_constraints.empty())
-			{
-				std::unordered_map<std::string, ClassInfo>::iterator tc_it = m_classes.find(qualifier);
-				if (tc_it == m_classes.end())
-				{
-					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: unknown class '" + qualifier + "'", call.m_paren, m_file_name, m_source_lines));
-				}
-
-				const ClassInfo& tc_info = tc_it->second;
-				TypeEnvironment::const_iterator method_it = tc_info.m_method_types.find(method_name);
-				if (method_it != tc_info.m_method_types.cend())
-				{
-					std::vector<std::shared_ptr<MidoriType>> arg_results;
-					arg_results.reserve(call.m_arguments.size());
-					for (std::unique_ptr<MidoriExpression>& call_arg : call.m_arguments)
-					{
-						MidoriResult::TypeResult arg_result = Evaluate(call_arg);
-						if (!arg_result.has_value())
-						{
-							return arg_result;
-						}
-						arg_results.emplace_back(std::move(arg_result.value()));
-					}
-
-					TypeEnvironment env_substitutions;
-					for (TypeChecker::TypeEnvironmentStack::reverse_iterator it = m_name_type_table.rbegin(); it != m_name_type_table.rend(); ++it)
-					{
-						for (const TypeEnvironment::value_type& entry : *it)
-						{
-							const std::string& name = entry.first;
-							const std::shared_ptr<MidoriType>& type = entry.second;
-
-							if (!env_substitutions.contains(name))
-							{
-								env_substitutions.emplace(name, type);
-							}
-						}
-					}
-
-					std::vector<const MidoriType::ClassConstraint*> selected_constraints;
-					if (!arg_results.empty())
-					{
-						std::shared_ptr<MidoriType> first_arg_type = ApplySubstitution(arg_results[0u]);
-						for (const MidoriType::ClassConstraint* constraint : matching_constraints)
-						{
-							if (constraint->m_type_args.empty())
-							{
-								continue;
-							}
-
-							std::shared_ptr<MidoriType> substituted_first = MidoriType::SubstituteTypeParams(constraint->m_type_args[0u], env_substitutions);
-							std::shared_ptr<MidoriType> resolved_first = ApplySubstitution(substituted_first);
-
-							if (*resolved_first == *first_arg_type)
-							{
-								selected_constraints.emplace_back(constraint);
-							}
-						}
-					}
-					else
-					{
-						selected_constraints = matching_constraints;
-					}
-
-					if (selected_constraints.empty())
-					{
-						std::string first_arg_name = arg_results.empty() ? std::string("no arguments") : ApplySubstitution(arg_results[0u])->DisplayString();
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: no matching class constraint for '" + qualifier + NameSeparator.data() + method_name + "' and argument type '" + first_arg_name + "'", call.m_paren, m_file_name, m_source_lines));
-					}
-					if (selected_constraints.size() != 1u)
-					{
-						std::string first_arg_name = arg_results.empty() ? std::string("no arguments") : ApplySubstitution(arg_results[0u])->DisplayString();
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: ambiguous class method '" + qualifier + NameSeparator.data() + method_name + "' for argument type '" + first_arg_name + "'", call.m_paren, m_file_name, m_source_lines));
-					}
-
-					const MidoriType::ClassConstraint& selected_constraint = *selected_constraints[0u];
-					if (selected_constraint.m_type_args.size() != tc_info.m_type_param_names.size())
-					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: constraint type argument count mismatch for class '" + qualifier + "'", call.m_paren, m_file_name, m_source_lines));
-					}
-
-					TypeEnvironment class_substitutions;
-					for (size_t i = 0u; i < tc_info.m_type_param_names.size(); i += 1u)
-					{
-						std::shared_ptr<MidoriType> resolved_type_arg = MidoriType::SubstituteTypeParams(selected_constraint.m_type_args[i], env_substitutions);
-						class_substitutions.emplace(tc_info.m_type_param_names[i], ApplySubstitution(resolved_type_arg));
-					}
-
-					std::shared_ptr<MidoriType> substituted_method_type = MidoriType::SubstituteTypeParams(method_it->second, class_substitutions);
-					std::shared_ptr<MidoriType> resolved_method_type = ApplySubstitution(substituted_method_type);
-					if (!resolved_method_type->IsType<MidoriType::FunctionType>())
-					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeNotCallable, "Call expression type error: not a callable", call.m_paren, m_file_name, m_source_lines, resolved_method_type));
-					}
-
-					MidoriType::FunctionType& function_type = resolved_method_type->GetType<MidoriType::FunctionType>();
-					if (function_type.m_param_types.size() != arg_results.size())
-					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, std::format("Call expression type error: incorrect arity: expected {} argument(s), got {}", function_type.m_param_types.size(), arg_results.size()), call.m_paren, m_file_name, m_source_lines));
-					}
-
-					std::vector<std::shared_ptr<MidoriType>>& param_types = function_type.m_param_types;
-					for (size_t idx : std::views::iota(0u, arg_results.size()))
-					{
-						std::shared_ptr<MidoriType>& actual_param_type = arg_results[idx];
-						std::shared_ptr<MidoriType>& param_type = param_types[idx];
-						MidoriResult::TypeResult result = Unify(call.m_paren, actual_param_type, param_type, UnifyDiagnosticMode::ActualExpected);
-						if (!result.has_value())
-						{
-							return result;
-						}
-					}
-
-					call.m_is_foreign = function_type.m_is_foreign;
-					call.m_type_data = ApplySubstitution(function_type.m_return_type);
-					return call.m_type_data;
-				}
-			}
-
-			std::unordered_map<std::string, ClassInfo>::iterator tc_it = m_classes.find(qualifier);
-			if (tc_it != m_classes.end())
+			std::unordered_map<std::string, ClassInfo>::const_iterator tc_it = m_classes.find(qualifier);
+			if (tc_it != m_classes.cend())
 			{
 				const ClassInfo& tc_info = tc_it->second;
 				TypeEnvironment::const_iterator method_it = tc_info.m_method_types.find(method_name);
 				if (method_it != tc_info.m_method_types.cend())
 				{
 					std::vector<std::shared_ptr<MidoriType>> arg_results;
-					arg_results.reserve(call.m_arguments.size());
-					for (size_t idx : std::views::iota(0u, call.m_arguments.size()))
+					const std::vector<const MidoriType::ClassConstraint*> matching_constraints = m_active_constraints
+						| std::views::filter([&qualifier](const MidoriType::ClassConstraint& constraint) { return constraint.m_class_name == qualifier; })
+						| std::views::transform([](const MidoriType::ClassConstraint& constraint) { return &constraint; })
+						| std::ranges::to<std::vector>();
+
+					if (!matching_constraints.empty())
 					{
-						// Instance selection is argument-directed, so no parameter type is known before the
-						// arguments are checked. Narrowing against the arguments already settled recovers one
-						// as soon as a single instance still matches, which is what lets
-						// `Appendable::Append(buckets, Slot::Empty())` infer the construction from the
-						// container it is appended to. A prefix that picks out no single instance leaves the
-						// argument checked with no expected type, as before. Selection below is unchanged and
-						// still consults every argument.
-						std::shared_ptr<MidoriType> narrowed_method_type = NarrowClassMethodType(qualifier, tc_info, method_it->second, arg_results, call.m_arguments.size());
-						std::shared_ptr<MidoriType> expected_param_type = narrowed_method_type != nullptr ? narrowed_method_type->GetType<MidoriType::FunctionType>().m_param_types[idx] : std::shared_ptr<MidoriType>{};
-						ExpectedTypeGuard guard(*this, std::move(expected_param_type));
-
-						MidoriResult::TypeResult arg_result = Evaluate(call.m_arguments[idx]);
-						if (!arg_result.has_value())
+						arg_results.reserve(call.m_arguments.size());
+						for (std::unique_ptr<MidoriExpression>& call_arg : call.m_arguments)
 						{
-							return arg_result;
-						}
-						arg_results.emplace_back(std::move(arg_result.value()));
-					}
-
-					struct ConcreteMethodCandidate
-					{
-						std::shared_ptr<MidoriType> m_method_type;
-						const InstanceInfo* m_instance;
-						TypeEnvironment m_substitutions;
-						bool m_matches_expected_type;
-
-						ConcreteMethodCandidate(std::shared_ptr<MidoriType>&& method_type, const InstanceInfo* instance, TypeEnvironment&& substitutions, bool matches_expected_type)
-							: m_method_type(std::move(method_type)), m_instance(instance), m_substitutions(std::move(substitutions)), m_matches_expected_type(matches_expected_type)
-						{
-						}
-					};
-
-					std::vector<ConcreteMethodCandidate> candidates;
-					for (const auto& [instance_key, instance_info] : m_instances)
-					{
-						if (instance_info.m_class_name != qualifier || instance_info.m_type_args.size() != tc_info.m_type_param_names.size())
-						{
-							continue;
-						}
-
-						TypeEnvironment class_substitutions;
-						for (size_t i = 0u; i < tc_info.m_type_param_names.size(); i += 1u)
-						{
-							class_substitutions.emplace(tc_info.m_type_param_names[i], instance_info.m_type_args[i]);
-						}
-
-						std::shared_ptr<MidoriType> candidate_method_type = ApplySubstitution(MidoriType::SubstituteTypeParams(method_it->second, class_substitutions));
-						if (!candidate_method_type->IsType<MidoriType::FunctionType>())
-						{
-							continue;
-						}
-
-						const MidoriType::FunctionType& candidate_function_type = candidate_method_type->GetType<MidoriType::FunctionType>();
-						if (candidate_function_type.m_param_types.size() != arg_results.size())
-						{
-							continue;
-						}
-
-						std::unordered_map<std::string, std::shared_ptr<MidoriType>> substitutions;
-						std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash> visited;
-						bool matched = true;
-
-						for (size_t i = 0u; i < arg_results.size(); i += 1u)
-						{
-							std::shared_ptr<MidoriType> resolved_arg = ApplySubstitution(arg_results[i]);
-							if (!MatchInstanceTypeArg(candidate_function_type.m_param_types[i], resolved_arg, substitutions, visited))
+							MidoriResult::TypeResult arg_result = Evaluate(call_arg);
+							if (!arg_result.has_value())
 							{
-								matched = false;
-								break;
+								return arg_result;
 							}
+							arg_results.emplace_back(std::move(arg_result.value()));
 						}
 
-						if (!matched)
+						// A where clause in force answers for the type it names. The method is
+						// picked by its first argument, so a call on any other type - a concrete
+						// one with an instance of its own - is selected from the instances.
+						std::vector<const MidoriType::ClassConstraint*> selected_constraints = matching_constraints;
+						if (!arg_results.empty())
 						{
-							continue;
+							const std::shared_ptr<MidoriType> first_arg_type = ApplySubstitution(arg_results[0u]);
+							std::erase_if
+							(
+								selected_constraints,
+								[this, &first_arg_type](const MidoriType::ClassConstraint* constraint)
+								{
+									return constraint->m_type_args.empty() || *ApplySubstitution(constraint->m_type_args[0u]) != *first_arg_type;
+								}
+							);
 						}
 
-						// Selection is argument-directed, exactly as the operator spellings are.
-						// The expected type only breaks ties between instances the arguments
-						// already accept, which is what return-type-directed classes such as
-						// Convertable need. Applying it as a filter rejected every instance of
-						// a class whose method returns a fixed type.
-						bool matches_expected_type = false;
-						if (m_expected_expr_type != nullptr)
+						if (selected_constraints.size() > 1u)
 						{
-							std::unordered_map<std::string, std::shared_ptr<MidoriType>> expected_substitutions = substitutions;
-							std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash> expected_visited = visited;
-							std::shared_ptr<MidoriType> expected_type = ApplySubstitution(m_expected_expr_type);
-							if (MatchInstanceTypeArg(candidate_function_type.m_return_type, expected_type, expected_substitutions, expected_visited))
-							{
-								matches_expected_type = true;
-								substitutions = std::move(expected_substitutions);
-								visited = std::move(expected_visited);
-							}
+							const std::string first_arg_name = arg_results.empty() ? std::string("no arguments") : ApplySubstitution(arg_results[0u])->DisplayString();
+							return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: ambiguous class method '" + qualifier + NameSeparator.data() + method_name + "' for argument type '" + first_arg_name + "'", call.m_paren, m_file_name, m_source_lines));
 						}
-
-						std::shared_ptr<MidoriType> resolved_method_type = ApplySubstitution(MidoriType::SubstituteTypeParams(candidate_method_type, substitutions));
-						candidates.emplace_back(std::move(resolved_method_type), &instance_info, std::move(substitutions), matches_expected_type);
-					}
-
-					if (candidates.empty())
-					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: no matching concrete instance for '" + qualifier + NameSeparator.data() + method_name + "'", call.m_paren, m_file_name, m_source_lines));
-					}
-					if (candidates.size() != 1u)
-					{
-						if (std::ranges::count_if(candidates, &ConcreteMethodCandidate::m_matches_expected_type) != 1)
+						if (selected_constraints.size() == 1u)
 						{
-							return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: ambiguous concrete instance for '" + qualifier + NameSeparator.data() + method_name + "'", call.m_paren, m_file_name, m_source_lines));
-						}
-
-						std::erase_if(candidates, [](const ConcreteMethodCandidate& candidate) -> bool { return !candidate.m_matches_expected_type; });
-					}
-
-					MidoriType::FunctionType& function_type = candidates[0u].m_method_type->GetType<MidoriType::FunctionType>();
-					for (size_t idx : std::views::iota(0u, arg_results.size()))
-					{
-						std::shared_ptr<MidoriType>& actual_param_type = arg_results[idx];
-						std::shared_ptr<MidoriType>& param_type = function_type.m_param_types[idx];
-						MidoriResult::TypeResult result = Unify(call.m_paren, actual_param_type, param_type, UnifyDiagnosticMode::ActualExpected);
-						if (!result.has_value())
-						{
-							return result;
+							return CheckConstrainedMethodCall(call, tc_info, method_it->second, *selected_constraints.front(), arg_results);
 						}
 					}
 
-					MidoriResult::TypeResult constraint_result = ValidateFunctionConstraints(call.m_paren, function_type);
-					if (!constraint_result.has_value())
-					{
-						return constraint_result;
-					}
-
-					// function_type comes from the class declaration, so it never carries the
-					// selected instance's where-clause - that lives on InstanceInfo instead.
-					MidoriResult::TypeResult instance_constraint_result = ValidateInstanceConstraints(call.m_paren, *candidates[0u].m_instance, candidates[0u].m_substitutions, 0u);
-					if (!instance_constraint_result.has_value())
-					{
-						return instance_constraint_result;
-					}
-
-					call.m_is_foreign = function_type.m_is_foreign;
-					call.m_type_data = ApplySubstitution(function_type.m_return_type);
-					return call.m_type_data;
+					return CheckInstanceMethodCall(call, qualifier, method_name, tc_info, method_it->second, std::move(arg_results));
 				}
 			}
 		}
@@ -6570,8 +6193,9 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::MemberAccess&
 	return Evaluate(get.m_struct)
 		.and_then
 		(
-			[this, &get](std::shared_ptr<MidoriType>&& actual_type) -> MidoriResult::TypeResult
+			[this, &get](std::shared_ptr<MidoriType>&& object_type) -> MidoriResult::TypeResult
 			{
+				const std::shared_ptr<MidoriType> actual_type = ApplySubstitution(object_type);
 				if (!actual_type->IsType<MidoriType::StructType>())
 				{
 					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Cannot access member on non-struct type", get.m_member_name, m_file_name, m_source_lines));
@@ -6901,11 +6525,11 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Construct& co
 	bool is_generic = false;
 	if (construct.IsConstructTypeOf<MidoriExpression::Construct::Struct>())
 	{
-		is_generic = m_generic_structs.contains(actual_type_name);
+		is_generic = m_generic_structs.contains(ConstructorKey(declaring_module_name, actual_type_name));
 	}
 	else
 	{
-		is_generic = m_generic_unions.contains(actual_type_name);
+		is_generic = m_generic_unions.contains(ConstructorKey(declaring_module_name, actual_type_name));
 	}
 
 	std::shared_ptr<MidoriType> constructor_type_shared = is_generic ? Freshen(*constructor_type_ptr) : *constructor_type_ptr;
@@ -6922,6 +6546,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Construct& co
 
 	if (construct.m_has_explicit_type_args)
 	{
+		construct.m_return_type = InstantiateWrittenType(construct.m_return_type);
 		MidoriResult::TypeResult explicit_type_result = Unify(construct.m_data_name, constructor_type.m_return_type, construct.m_return_type, UnifyDiagnosticMode::ActualExpected);
 		if (!explicit_type_result.has_value())
 		{
@@ -7003,12 +6628,12 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Construct& co
 	// Mark as generic instantiation if this was a generic struct/union
 	if (construct.IsConstructTypeOf<MidoriExpression::Construct::Struct>())
 	{
-		if (m_generic_structs.contains(actual_type_name) && construct.m_type_data->IsType<MidoriType::StructType>())
+		if (is_generic && construct.m_type_data->IsType<MidoriType::StructType>())
 		{
 			construct.m_type_data->GetType<MidoriType::StructType>().m_is_generic_instantiation = true;
 		}
 	}
-	else if (m_generic_unions.contains(actual_type_name) && construct.m_type_data->IsType<MidoriType::UnionType>())
+	else if (is_generic && construct.m_type_data->IsType<MidoriType::UnionType>())
 	{
 		construct.m_type_data->GetType<MidoriType::UnionType>().m_is_generic_instantiation = true;
 	}
@@ -7024,7 +6649,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::RecordUpdate&
 		return source_result;
 	}
 
-	std::shared_ptr<MidoriType> source_type = source_result.value();
+	std::shared_ptr<MidoriType> source_type = ApplySubstitution(source_result.value());
 
 	// Multi-variant types are out of scope: `{ u with ... }` on a union would require the
 	// variant to be statically known. A union is always a UnionType even when it has a
@@ -7121,15 +6746,21 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Array& array)
 		element_results.emplace_back(std::move(result.value()));
 	}
 
-	for (size_t idx : std::views::iota(0u, element_results.size()))
+	// The elements share one type, which each may tell more of: `[[], [1]]` is
+	// Array<Array<Int>>, and an element that never finishes takes the others' type.
+	std::shared_ptr<MidoriType> element_type = element_results[0u];
+	for (std::shared_ptr<MidoriType>& element_result : element_results | std::views::drop(1))
 	{
-		if (*element_results[0u] != *element_results[idx])
+		std::shared_ptr<MidoriType> resolved_element_type = ApplySubstitution(element_type);
+		MidoriResult::TypeResult unified = Unify(array.m_op, resolved_element_type, element_result);
+		if (!unified.has_value())
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Array expression type error: inconsistent element types", array.m_op, m_file_name, m_source_lines, element_results[idx], element_results[0u]));
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Array expression type error: inconsistent element types", array.m_op, m_file_name, m_source_lines, ApplySubstitution(element_result), ApplySubstitution(element_type)));
 		}
+		element_type = unified.value();
 	}
 
-	array.m_type_data = MidoriType::MakeArrayType(element_results[0u]);
+	array.m_type_data = MidoriType::MakeArrayType(ApplySubstitution(element_type));
 	return array.m_type_data;
 }
 

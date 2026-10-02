@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/generics/failure/generic_body_merges_parameters.mmt:6
+  |
+6 | def Pick = fn<A, B>(a: A, b: B) -> A => b;
+  |                  ^ Generic parameters 'A' and 'B' stand for two types a caller picks, but the body uses them as one
+  |

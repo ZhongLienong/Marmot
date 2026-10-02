@@ -1,0 +1,16 @@
+module ImportedStructWhereClause
+
+// An imported struct's constructor keeps the struct's where clause. It was
+// dropped on import, so this built a Shown<Opaque> with no Show<Opaque>.
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../success/constrained_exports_lib.mmt"
+}
+
+type Opaque = { tag: Int };
+
+def built = ConstrainedExportsLib::Shown(Opaque(1));
+
+IO::PrintLine("built");
