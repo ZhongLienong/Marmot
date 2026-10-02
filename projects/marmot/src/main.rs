@@ -1,22 +1,11 @@
-mod app;
-mod cache;
 mod checksum;
 mod cli;
-mod edit;
-mod fmt;
-mod init;
-mod lockfile;
-mod manifest;
-mod packages;
+mod execution;
 mod paths;
-mod plan;
-mod resolver;
-mod run;
-mod test;
-mod version;
+mod project;
 
 #[cfg(test)]
-mod tests;
+mod test_support;
 
 use cli::{CommandKind, USAGE, parse_options};
 use std::process::ExitCode;
@@ -45,7 +34,7 @@ fn main() -> ExitCode {
         return ExitCode::from(2);
     };
 
-    let result = parse_options(kind, &args[1..]).and_then(|options| app::execute(kind, options));
+    let result = parse_options(kind, &args[1..]).and_then(|options| cli::execute(kind, options));
     result.unwrap_or_else(|error| {
         eprintln!("marmot: error: {error}");
         ExitCode::FAILURE

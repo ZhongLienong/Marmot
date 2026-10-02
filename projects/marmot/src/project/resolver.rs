@@ -1,34 +1,34 @@
-use crate::manifest::{self, PACKAGE_MANIFEST, PackageManifest};
+use super::manifest::{self, PACKAGE_MANIFEST, PackageManifest};
+use super::version::{Constraint, Version};
 use crate::paths;
-use crate::version::{Constraint, Version};
 use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet, BinaryHeap};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]
-pub struct ResolvedPackage {
-    pub manifest: PackageManifest,
+pub(crate) struct ResolvedPackage {
+    pub(crate) manifest: PackageManifest,
     /// Names of the packages this one depends on, sorted.
-    pub dependencies: Vec<String>,
+    pub(crate) dependencies: Vec<String>,
     /// Where the lockfile says the package lives (`local:<path>`); empty until
     /// the package is installed into the project.
-    pub source: String,
+    pub(crate) source: String,
     /// The package's source checksum; empty when not yet computed.
-    pub checksum: String,
+    pub(crate) checksum: String,
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct Graph {
-    pub packages: BTreeMap<String, ResolvedPackage>,
+pub(crate) struct Graph {
+    pub(crate) packages: BTreeMap<String, ResolvedPackage>,
     /// The packages the project depends on directly, sorted.
-    pub roots: Vec<String>,
+    pub(crate) roots: Vec<String>,
 }
 
 impl Graph {
     /// Dependencies before dependents; among packages ready at the same time
     /// the alphabetically first goes first. Packages caught in a cycle are
     /// left out, as the compiler's resolver does.
-    pub fn topological_order(&self) -> Vec<&str> {
+    pub(crate) fn topological_order(&self) -> Vec<&str> {
         let mut in_degree: BTreeMap<&str, usize> = self
             .packages
             .keys()
@@ -69,7 +69,7 @@ impl Graph {
     }
 
     /// The directories of the packages, in dependency order.
-    pub fn search_paths(&self) -> Vec<PathBuf> {
+    pub(crate) fn search_paths(&self) -> Vec<PathBuf> {
         self.topological_order()
             .into_iter()
             .map(|name| self.packages[name].manifest.directory.clone())
@@ -77,7 +77,7 @@ impl Graph {
     }
 
     /// `Name@version` per package, dependencies indented under each root.
-    pub fn render_tree(&self) -> String {
+    pub(crate) fn render_tree(&self) -> String {
         fn render(
             graph: &Graph,
             name: &str,
@@ -113,7 +113,7 @@ impl Graph {
 }
 
 /// Every package found in the index roots, newest version first.
-pub struct Index {
+pub(crate) struct Index {
     packages: BTreeMap<String, Vec<(PackageManifest, usize)>>,
 }
 
@@ -139,7 +139,7 @@ fn candidate_directories(root: &Path) -> Vec<PathBuf> {
 impl Index {
     /// A root is a package itself or a directory of packages, one level deep.
     /// Earlier roots win when two have the same version of a package.
-    pub fn scan(roots: &[PathBuf], compiler: &Version) -> Result<Index, String> {
+    pub(crate) fn scan(roots: &[PathBuf], compiler: &Version) -> Result<Index, String> {
         let mut packages: BTreeMap<String, Vec<(PackageManifest, usize)>> = BTreeMap::new();
         let mut visited = BTreeSet::new();
         for (priority, root) in roots.iter().enumerate() {
@@ -169,7 +169,7 @@ impl Index {
         Ok(Index { packages })
     }
 
-    pub fn newest(&self, name: &str) -> Option<&PackageManifest> {
+    pub(crate) fn newest(&self, name: &str) -> Option<&PackageManifest> {
         self.packages
             .get(name)
             .and_then(|entries| entries.first())
@@ -190,7 +190,10 @@ impl Index {
 /// constraint, depth first from the project's dependencies in name order. A
 /// later constraint the chosen version does not satisfy is a conflict; there
 /// is no backtracking.
-pub fn resolve(index: &Index, roots: &BTreeMap<String, Constraint>) -> Result<Graph, String> {
+pub(crate) fn resolve(
+    index: &Index,
+    roots: &BTreeMap<String, Constraint>,
+) -> Result<Graph, String> {
     fn visit(
         index: &Index,
         graph: &mut Graph,
@@ -267,3 +270,6 @@ pub fn resolve(index: &Index, roots: &BTreeMap<String, Constraint>) -> Result<Gr
     }
     Ok(graph)
 }
+
+#[cfg(test)]
+mod tests;

@@ -1,10 +1,13 @@
-use crate::manifest::Workspace;
+use super::Options;
+use crate::execution::toolchain;
 use crate::paths;
+use crate::project::manifest::{Workspace, current_workspace};
 use std::path::{Path, PathBuf};
+use std::process::{Command, ExitCode};
 
 /// Whether `marmot fmt`'s arguments name something to format. `--format`
 /// takes a value, which is not a path.
-pub fn names_a_path(args: &[String]) -> bool {
+fn names_a_path(args: &[String]) -> bool {
     let mut index = 0;
     while index < args.len() {
         let arg = args[index].as_str();
@@ -24,7 +27,7 @@ pub fn names_a_path(args: &[String]) -> bool {
 /// folders, except hidden folders and other people's code: the installed
 /// packages (vendored copies whose checksums the lockfile records), the
 /// prelude and the `marmot_path` package registries.
-pub fn project_sources(workspace: &Workspace) -> Result<Vec<PathBuf>, String> {
+fn project_sources(workspace: &Workspace) -> Result<Vec<PathBuf>, String> {
     let entries = std::fs::read_dir(&workspace.root)
         .map_err(|error| format!("cannot read {}: {error}", workspace.root.display()))?;
     let excluded: Vec<String> = [&workspace.packages_dir, &workspace.prelude_dir]
@@ -56,10 +59,23 @@ fn is_hidden(path: &Path) -> bool {
 }
 
 /// A bare `marmot fmt` writes, as `cargo fmt` does, unless asked only to check.
-pub fn writes_by_default(args: &[String]) -> bool {
+fn writes_by_default(args: &[String]) -> bool {
     !args
         .iter()
         .any(|arg| arg == "--check" || arg == "--write" || arg == "-w")
+}
+
+pub(super) fn execute(options: &Options, compiler: &Path) -> Result<ExitCode, String> {
+    let mut command = Command::new(compiler);
+    command.arg("fmt");
+    if !names_a_path(&options.raw) {
+        command.args(project_sources(&current_workspace()?)?);
+        if writes_by_default(&options.raw) {
+            command.arg("--write");
+        }
+    }
+    command.args(&options.raw);
+    toolchain::run_compiler(command, compiler)
 }
 
 #[cfg(test)]

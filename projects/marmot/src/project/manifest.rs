@@ -1,11 +1,11 @@
+use super::version::{Constraint, Version};
 use crate::paths;
-use crate::version::{Constraint, Version};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use toml::{Table, Value};
 
-pub const PROJECT_MANIFEST: &str = "project.marmot";
-pub const PACKAGE_MANIFEST: &str = "package.marmot";
+pub(crate) const PROJECT_MANIFEST: &str = "project.marmot";
+pub(crate) const PACKAGE_MANIFEST: &str = "package.marmot";
 
 /// The FFI ABI the runtime implements; a package built for another one does
 /// not load (`MarmotBuiltins::ABI_VERSION`).
@@ -14,38 +14,38 @@ const FFI_ABI_VERSION: i64 = 1;
 /// The active manifest for a source file: the nearest `project.marmot` above
 /// it, or a `package.marmot` with a `[package]` table.
 #[derive(Debug, Clone)]
-pub struct Workspace {
-    pub root: PathBuf,
-    pub manifest_path: PathBuf,
-    pub entry: Option<PathBuf>,
-    pub source_dir: PathBuf,
-    pub packages_dir: PathBuf,
-    pub prelude_dir: PathBuf,
-    pub extra_paths: Vec<PathBuf>,
-    pub dependencies: BTreeMap<String, Constraint>,
+pub(crate) struct Workspace {
+    pub(crate) root: PathBuf,
+    pub(crate) manifest_path: PathBuf,
+    pub(crate) entry: Option<PathBuf>,
+    pub(crate) source_dir: PathBuf,
+    pub(crate) packages_dir: PathBuf,
+    pub(crate) prelude_dir: PathBuf,
+    pub(crate) extra_paths: Vec<PathBuf>,
+    pub(crate) dependencies: BTreeMap<String, Constraint>,
     /// `[test].dir`, relative to the root.
-    pub test_dir: PathBuf,
+    pub(crate) test_dir: PathBuf,
     /// `[test].timeout_ms`, per test.
-    pub test_timeout_ms: i64,
+    pub(crate) test_timeout_ms: i64,
 }
 
 impl Workspace {
-    pub fn entry_path(&self) -> Option<PathBuf> {
+    pub(crate) fn entry_path(&self) -> Option<PathBuf> {
         self.entry
             .as_ref()
             .map(|entry| paths::under(&self.root, entry))
     }
 
-    pub fn packages_path(&self) -> PathBuf {
+    pub(crate) fn packages_path(&self) -> PathBuf {
         paths::under(&self.root, &self.packages_dir)
     }
 
-    pub fn test_path(&self) -> PathBuf {
+    pub(crate) fn test_path(&self) -> PathBuf {
         paths::under(&self.root, &self.test_dir)
     }
 }
 
-pub fn read_toml(path: &Path) -> Result<Table, String> {
+pub(crate) fn read_toml(path: &Path) -> Result<Table, String> {
     let text = std::fs::read_to_string(path)
         .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
     text.parse::<Table>()
@@ -165,7 +165,7 @@ fn load_workspace(manifest_path: &Path, root: &Path) -> Result<Option<Workspace>
 
 /// Walks up from `start` as the compiler's CLI does: in each directory a
 /// `project.marmot` wins, then a `package.marmot` that has a `[package]`.
-pub fn find_workspace(start: &Path) -> Result<Option<Workspace>, String> {
+pub(crate) fn find_workspace(start: &Path) -> Result<Option<Workspace>, String> {
     for directory in start.ancestors() {
         let project = directory.join(PROJECT_MANIFEST);
         if project.exists() {
@@ -186,22 +186,22 @@ pub fn find_workspace(start: &Path) -> Result<Option<Workspace>, String> {
 /// A `package.marmot` that loads: named, versioned, compatible with this
 /// compiler and, if it has native code, with this runtime's FFI ABI.
 #[derive(Debug, Clone)]
-pub struct PackageManifest {
-    pub directory: PathBuf,
-    pub name: String,
-    pub version: Version,
-    pub version_text: String,
-    pub dependencies: BTreeMap<String, Constraint>,
-    pub native: Option<NativeLibrary>,
+pub(crate) struct PackageManifest {
+    pub(crate) directory: PathBuf,
+    pub(crate) name: String,
+    pub(crate) version: Version,
+    pub(crate) version_text: String,
+    pub(crate) dependencies: BTreeMap<String, Constraint>,
+    pub(crate) native: Option<NativeLibrary>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NativeLibrary {
+pub(crate) struct NativeLibrary {
     /// The name source code gives the library: `foreign ... from "name"`.
-    pub name: String,
-    pub library: PathBuf,
-    pub thread_safe: bool,
-    pub checksum: Option<String>,
+    pub(crate) name: String,
+    pub(crate) library: PathBuf,
+    pub(crate) thread_safe: bool,
+    pub(crate) checksum: Option<String>,
 }
 
 fn platform_prebuilt_key() -> &'static str {
@@ -297,7 +297,10 @@ fn native_library(
     }))
 }
 
-pub fn read_package(directory: &Path, compiler: &Version) -> Result<PackageManifest, String> {
+pub(crate) fn read_package(
+    directory: &Path,
+    compiler: &Version,
+) -> Result<PackageManifest, String> {
     let manifest_path = directory.join(PACKAGE_MANIFEST);
     if !manifest_path.exists() {
         return Err(format!(
@@ -341,5 +344,13 @@ pub fn read_package(directory: &Path, compiler: &Version) -> Result<PackageManif
         version_text: version_text.to_string(),
         dependencies: dependencies(&data, &manifest_path)?,
         native: native_library(&data, directory, name)?,
+    })
+}
+
+pub(crate) fn current_workspace() -> Result<Workspace, String> {
+    let current = std::env::current_dir()
+        .map_err(|error| format!("cannot read the current directory: {error}"))?;
+    find_workspace(&current)?.ok_or_else(|| {
+        "Could not find project.marmot or package.marmot from the current directory.".to_string()
     })
 }

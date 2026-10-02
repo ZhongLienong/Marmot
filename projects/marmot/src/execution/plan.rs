@@ -1,40 +1,40 @@
-use crate::manifest::{self, PACKAGE_MANIFEST};
-use crate::packages::{self, Mode};
 use crate::paths::{self, DirectoryList};
-use crate::version::Version;
+use crate::project::manifest::{self, PACKAGE_MANIFEST};
+use crate::project::packages::{self, Mode};
+use crate::project::version::Version;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 
-pub const PLAN_VERSION: u32 = 1;
+pub(crate) const PLAN_VERSION: u32 = 1;
 
 /// The JSON document `marmotc --plan` reads.
 #[derive(Debug, Serialize, PartialEq, Eq)]
-pub struct Plan {
-    pub version: u32,
+pub(crate) struct Plan {
+    pub(crate) version: u32,
     /// Absent in the plan for `marmot test`, whose tests are each compiled
     /// with the plan's inputs and their own entry.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub entry: Option<String>,
-    pub search_paths: Vec<String>,
-    pub native_libraries: Vec<PlanNativeLibrary>,
+    pub(crate) entry: Option<String>,
+    pub(crate) search_paths: Vec<String>,
+    pub(crate) native_libraries: Vec<PlanNativeLibrary>,
 }
 
 /// How a library that source names with `from "name"` may be used, which the
 /// compiler records in the program, and where the tool found its file.
 #[derive(Debug, Serialize, PartialEq, Eq)]
-pub struct PlanNativeLibrary {
-    pub name: String,
+pub(crate) struct PlanNativeLibrary {
+    pub(crate) name: String,
     /// Not part of the plan: where a file is belongs to the run, which the tool
     /// passes to marmotvm.
     #[serde(skip)]
-    pub path: String,
-    pub thread_safe: bool,
+    pub(crate) path: String,
+    pub(crate) thread_safe: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub checksum: Option<String>,
+    pub(crate) checksum: Option<String>,
 }
 
 impl Plan {
-    pub fn to_json(&self) -> String {
+    pub(crate) fn to_json(&self) -> String {
         serde_json::to_string_pretty(self).expect("a plan always serialises") + "\n"
     }
 }
@@ -141,7 +141,7 @@ fn assemble(
 }
 
 /// The plan for compiling `entry`, and any warnings about its project's packages.
-pub fn make_plan(
+pub(crate) fn make_plan(
     entry: &Path,
     environment: &[PathBuf],
     compiler: &Version,
@@ -163,7 +163,7 @@ pub fn make_plan(
 }
 
 /// A plan with no entry, for compiling every file under `directory` (tests).
-pub fn inputs_plan(
+pub(crate) fn inputs_plan(
     directory: &Path,
     environment: &[PathBuf],
     compiler: &Version,
@@ -173,3 +173,6 @@ pub fn inputs_plan(
     let plan = assemble(None, &directory, search_paths, compiler, &mut warnings)?;
     Ok((plan, warnings))
 }
+
+#[cfg(test)]
+mod tests;

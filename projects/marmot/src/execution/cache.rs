@@ -14,36 +14,36 @@ use std::path::{Path, PathBuf};
 const VERSION: u32 = 1;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct Stamp {
-    pub version: u32,
+pub(crate) struct Stamp {
+    pub(crate) version: u32,
     /// The plan's JSON, hashed.
-    pub plan: String,
+    pub(crate) plan: String,
     /// The compiler that built the program: its path, size and write time.
-    pub compiler: String,
+    pub(crate) compiler: String,
     /// Every source file the program was built from, hashed.
-    pub files: BTreeMap<String, String>,
+    pub(crate) files: BTreeMap<String, String>,
     /// What the build printed, replayed when the build is skipped.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub output: Option<String>,
+    pub(crate) output: Option<String>,
     /// The build's report, for `--format json`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub report: Option<Value>,
+    pub(crate) report: Option<Value>,
 }
 
-pub fn stamp_path(program: &Path) -> PathBuf {
+pub(crate) fn stamp_path(program: &Path) -> PathBuf {
     let mut name = program.as_os_str().to_os_string();
     name.push(".stamp");
     PathBuf::from(name)
 }
 
-pub fn deps_path(program: &Path) -> PathBuf {
+pub(crate) fn deps_path(program: &Path) -> PathBuf {
     let mut name = program.as_os_str().to_os_string();
     name.push(".deps");
     PathBuf::from(name)
 }
 
 /// The compiler as a build input: a rebuilt marmotc invalidates what it built.
-pub fn compiler_identity(compiler: &Path) -> String {
+pub(crate) fn compiler_identity(compiler: &Path) -> String {
     let described = std::fs::metadata(compiler).ok().map(|metadata| {
         let written = metadata
             .modified()
@@ -57,7 +57,7 @@ pub fn compiler_identity(compiler: &Path) -> String {
 }
 
 /// The files marmotc listed with `--deps`.
-pub fn read_deps(path: &Path) -> Result<Vec<PathBuf>, String> {
+pub(crate) fn read_deps(path: &Path) -> Result<Vec<PathBuf>, String> {
     let listing = std::fs::read_to_string(path)
         .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
     Ok(listing
@@ -68,7 +68,7 @@ pub fn read_deps(path: &Path) -> Result<Vec<PathBuf>, String> {
         .collect())
 }
 
-pub fn stamp(
+pub(crate) fn stamp(
     plan_json: &str,
     compiler: &Path,
     files: &[PathBuf],
@@ -89,7 +89,7 @@ pub fn stamp(
     })
 }
 
-pub fn write(program: &Path, stamp: &Stamp) -> Result<(), String> {
+pub(crate) fn write(program: &Path, stamp: &Stamp) -> Result<(), String> {
     let path = stamp_path(program);
     let text =
         serde_json::to_string(stamp).map_err(|error| format!("cannot write a stamp: {error}"))?;
@@ -104,7 +104,7 @@ fn read(program: &Path) -> Option<Stamp> {
 
 /// The stamp of a build that is still current: the program is there, and the
 /// plan, the compiler and every file it was built from are unchanged.
-pub fn fresh(program: &Path, plan_json: &str, compiler: &Path) -> Option<Stamp> {
+pub(crate) fn fresh(program: &Path, plan_json: &str, compiler: &Path) -> Option<Stamp> {
     if !program.is_file() {
         return None;
     }

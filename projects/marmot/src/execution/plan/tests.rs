@@ -1,92 +1,16 @@
-use crate::manifest;
-use crate::packages::{self, Mode};
+use super::{Plan, PlanNativeLibrary, make_plan};
 use crate::paths;
-use crate::plan::{self, Plan, PlanNativeLibrary};
-use crate::resolver::{self, Graph, Index, ResolvedPackage};
-use crate::version::{Constraint, Version};
-use std::collections::BTreeMap;
+use crate::test_support::{TempTree, compiler, package, project};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
-
-struct TempTree(PathBuf);
-
-impl TempTree {
-    fn new(files: &[(&str, &str)]) -> TempTree {
-        static COUNTER: AtomicUsize = AtomicUsize::new(0);
-        let root = std::env::temp_dir().join(format!(
-            "marmot-tool-test-{}-{}",
-            std::process::id(),
-            COUNTER.fetch_add(1, Ordering::SeqCst)
-        ));
-        let _ = std::fs::remove_dir_all(&root);
-        std::fs::create_dir_all(&root).unwrap();
-        let tree = TempTree(root);
-        for (relative, contents) in files {
-            tree.write(relative, contents);
-        }
-        tree
-    }
-
-    fn path(&self, relative: &str) -> PathBuf {
-        self.0.join(relative)
-    }
-
-    fn write(&self, relative: &str, contents: &str) {
-        let path = self.path(relative);
-        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-        std::fs::write(path, contents).unwrap();
-    }
-
-    fn read(&self, relative: &str) -> String {
-        std::fs::read_to_string(self.path(relative)).unwrap()
-    }
-}
-
-impl Drop for TempTree {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
-    }
-}
-
-fn compiler() -> Version {
-    Version::parse("1.0.0").unwrap()
-}
-
-fn package(name: &str, version: &str, dependencies: &[(&str, &str)]) -> String {
-    let mut text = format!("[package]\nname = \"{name}\"\nversion = \"{version}\"\n");
-    if !dependencies.is_empty() {
-        text += "\n[dependencies]\n";
-        for (dependency, constraint) in dependencies {
-            text += &format!("{dependency} = \"{constraint}\"\n");
-        }
-    }
-    text
-}
-
-fn project(dependencies: &[(&str, &str)]) -> String {
-    let mut text =
-        "[project]\nentry = \"src/Main.mmt\"\nmarmot_path = [\"registry\"]\n".to_string();
-    if !dependencies.is_empty() {
-        text += "\n[dependencies]\n";
-        for (dependency, constraint) in dependencies {
-            text += &format!("{dependency} = \"{constraint}\"\n");
-        }
-    }
-    text
-}
 
 fn shown(path: &Path) -> String {
     paths::display(path)
 }
 
 fn plan_for(tree: &TempTree, entry: &str, environment: &[PathBuf]) -> Plan {
-    plan::make_plan(&tree.path(entry), environment, &compiler())
+    make_plan(&tree.path(entry), environment, &compiler())
         .unwrap()
         .0
-}
-
-fn workspace(tree: &TempTree) -> manifest::Workspace {
-    manifest::find_workspace(&tree.0).unwrap().unwrap()
 }
 
 #[test]
@@ -239,7 +163,7 @@ fn a_changed_package_source_is_a_warning_not_a_resolution() {
     let lock = tree.read("marmot.lock");
 
     tree.write("packages/Lib-1.0.0/Lib.mmt", "module Lib\n// edited\n");
-    let (_, warnings) = plan::make_plan(&tree.path("src/Main.mmt"), &[], &compiler()).unwrap();
+    let (_, warnings) = make_plan(&tree.path("src/Main.mmt"), &[], &compiler()).unwrap();
     assert_eq!(
         warnings,
         vec!["Package 'Lib' has changed since the lockfile was generated.".to_string()]
@@ -325,7 +249,7 @@ fn a_package_that_still_lists_ffi_functions_is_named_in_a_warning() {
         ),
     ]);
 
-    let (plan, warnings) = plan::make_plan(
+    let (plan, warnings) = make_plan(
         &tree.path("app/Main.mmt"),
         &[tree.path("legacy")],
         &compiler(),
@@ -344,147 +268,8 @@ fn project_manifest_without_a_project_table_is_an_error() {
         ("project.marmot", "[dependencies]\n"),
         ("src/Main.mmt", "module Main\n"),
     ]);
-    let error = plan::make_plan(&tree.path("src/Main.mmt"), &[], &compiler()).unwrap_err();
+    let error = make_plan(&tree.path("src/Main.mmt"), &[], &compiler()).unwrap_err();
     assert!(error.contains("missing [project] table"), "{error}");
-}
-
-fn index(tree: &TempTree) -> Index {
-    Index::scan(&[tree.path("registry"), tree.path("second")], &compiler()).unwrap()
-}
-
-fn roots(entries: &[(&str, &str)]) -> BTreeMap<String, Constraint> {
-    entries
-        .iter()
-        .map(|(name, constraint)| (name.to_string(), Constraint::parse(constraint).unwrap()))
-        .collect()
-}
-
-#[test]
-fn the_resolver_picks_the_newest_match_and_prefers_earlier_roots() {
-    let tree = TempTree::new(&[
-        ("registry/A1/package.marmot", &package("A", "1.2.0", &[])),
-        ("registry/A2/package.marmot", &package("A", "1.9.0", &[])),
-        ("registry/A3/package.marmot", &package("A", "2.0.0", &[])),
-        ("second/A/package.marmot", &package("A", "1.9.0", &[])),
-    ]);
-
-    let graph = resolver::resolve(&index(&tree), &roots(&[("A", "^1.0.0")])).unwrap();
-    let chosen = &graph.packages["A"].manifest;
-    assert_eq!(chosen.version_text, "1.9.0");
-    assert_eq!(
-        paths::identity_key(&chosen.directory),
-        paths::identity_key(&tree.path("registry/A2"))
-    );
-}
-
-#[test]
-fn the_resolver_reports_conflicts_missing_packages_and_cycles() {
-    let tree = TempTree::new(&[
-        (
-            "registry/A/package.marmot",
-            &package("A", "1.0.0", &[("C", "^1.0.0")]),
-        ),
-        (
-            "registry/B/package.marmot",
-            &package("B", "1.0.0", &[("C", "^2.0.0")]),
-        ),
-        ("registry/C/package.marmot", &package("C", "1.0.0", &[])),
-        (
-            "registry/X/package.marmot",
-            &package("X", "1.0.0", &[("Y", "^1.0.0")]),
-        ),
-        (
-            "registry/Y/package.marmot",
-            &package("Y", "1.0.0", &[("X", "^1.0.0")]),
-        ),
-    ]);
-    let index = index(&tree);
-
-    let conflict =
-        resolver::resolve(&index, &roots(&[("A", "^1.0.0"), ("B", "^1.0.0")])).unwrap_err();
-    assert_eq!(
-        conflict,
-        "Version conflict for package 'C': B requires '^2.0.0', but the resolved version is 1.0.0."
-    );
-
-    let missing = resolver::resolve(&index, &roots(&[("Nope", "^1.0.0")])).unwrap_err();
-    assert_eq!(
-        missing,
-        "Could not resolve package 'Nope' required by <root> with constraint '^1.0.0'."
-    );
-
-    let cycle = resolver::resolve(&index, &roots(&[("X", "^1.0.0")])).unwrap_err();
-    assert_eq!(cycle, "Detected a package dependency cycle: X -> Y -> X");
-}
-
-#[test]
-fn a_package_for_another_compiler_version_stops_the_scan() {
-    let tree = TempTree::new(&[(
-        "registry/Future/package.marmot",
-        "[package]\nname = \"Future\"\nversion = \"1.0.0\"\nmarmot_version = \">=2.0.0\"\n",
-    )]);
-    let error = Index::scan(&[tree.path("registry")], &compiler())
-        .err()
-        .unwrap();
-    assert_eq!(
-        error,
-        "Package 'Future' requires Marmot >=2.0.0, but the current compiler version is 1.0.0."
-    );
-}
-
-#[test]
-fn removing_unused_packages_keeps_the_active_versions() {
-    let tree = TempTree::new(&[
-        ("project.marmot", &project(&[("Lib", "^1.0.0")])),
-        ("src/Main.mmt", "module Main\n"),
-        ("registry/Lib/package.marmot", &package("Lib", "1.0.0", &[])),
-        (
-            "packages/Lib-0.9.0/package.marmot",
-            &package("Lib", "0.9.0", &[]),
-        ),
-        (
-            "packages/Other-1.0.0/package.marmot",
-            &package("Other", "1.0.0", &[]),
-        ),
-    ]);
-    let workspace = workspace(&tree);
-    let prepared = packages::prepare(&workspace, Mode::ForceRefresh, &[], &compiler()).unwrap();
-
-    packages::remove_unused(&workspace, &prepared.graph, Some("Lib"), &compiler()).unwrap();
-
-    assert!(tree.path("packages/Lib-1.0.0").exists());
-    assert!(!tree.path("packages/Lib-0.9.0").exists());
-    assert!(tree.path("packages/Other-1.0.0").exists());
-}
-
-#[test]
-fn packages_in_a_cycle_are_left_out_like_the_compiler_does() {
-    let tree = TempTree::new(&[("p/package.marmot", &package("P", "1.0.0", &[]))]);
-    let manifest = manifest::read_package(&tree.path("p"), &compiler()).unwrap();
-    let entry = |dependencies: &[&str]| ResolvedPackage {
-        manifest: manifest.clone(),
-        dependencies: dependencies.iter().map(|name| name.to_string()).collect(),
-        source: String::new(),
-        checksum: String::new(),
-    };
-    let graph = Graph {
-        packages: [
-            ("C", entry(&["B"])),
-            ("B", entry(&["C"])),
-            ("A", entry(&["Missing"])),
-            ("D", entry(&["A"])),
-        ]
-        .into_iter()
-        .map(|(name, package)| (name.to_string(), package))
-        .collect(),
-        roots: vec!["D".to_string(), "C".to_string()],
-    };
-
-    assert_eq!(graph.topological_order(), vec!["A", "D"]);
-    assert_eq!(
-        graph.render_tree(),
-        "D@1.0.0\n  A@1.0.0\n    Missing (missing)\nC@1.0.0\n  B@1.0.0\n    C@1.0.0\n      (cycle)\n"
-    );
 }
 
 #[test]
@@ -509,41 +294,5 @@ fn the_plan_serialises_as_the_compiler_expects() {
             "search_paths": ["S"],
             "native_libraries": [{ "name": "n", "thread_safe": false }]
         })
-    );
-}
-
-#[test]
-fn the_checkout_build_is_the_one_whose_compiler_or_vm_was_written_last() {
-    let suffix = std::env::consts::EXE_SUFFIX;
-    let tree = TempTree::new(&[
-        (&format!("marmotc/dev/out/marmotc{suffix}"), ""),
-        (&format!("marmotvm/dev/out/marmotvm{suffix}"), ""),
-        (&format!("marmotc/release/out/marmotc{suffix}"), ""),
-        (&format!("marmotvm/release/out/marmotvm{suffix}"), ""),
-    ]);
-    let stamp = |relative: &str, seconds: u64| {
-        std::fs::File::options()
-            .write(true)
-            .open(tree.path(&format!("{relative}{suffix}")))
-            .unwrap()
-            .set_modified(std::time::UNIX_EPOCH + std::time::Duration::from_secs(seconds))
-            .unwrap();
-    };
-
-    // A change to the VM relinks only marmotvm: that build is still the newest,
-    // though its compiler is older than the other build's.
-    stamp("marmotc/dev/out/marmotc", 100);
-    stamp("marmotvm/dev/out/marmotvm", 300);
-    stamp("marmotc/release/out/marmotc", 200);
-    stamp("marmotvm/release/out/marmotvm", 200);
-    assert_eq!(
-        crate::app::newest_build(&tree.0),
-        Some(tree.path(&format!("marmotc/dev/out/marmotc{suffix}")))
-    );
-
-    stamp("marmotc/release/out/marmotc", 400);
-    assert_eq!(
-        crate::app::newest_build(&tree.0),
-        Some(tree.path(&format!("marmotc/release/out/marmotc{suffix}")))
     );
 }

@@ -4,12 +4,12 @@ use std::fmt;
 /// A semantic version. Build metadata is kept for display but ignored when
 /// comparing, as SemVer requires.
 #[derive(Debug, Clone, Default)]
-pub struct Version {
-    pub major: u64,
-    pub minor: u64,
-    pub patch: u64,
-    pub prerelease: Vec<String>,
-    pub build: Vec<String>,
+pub(crate) struct Version {
+    pub(crate) major: u64,
+    pub(crate) minor: u64,
+    pub(crate) patch: u64,
+    pub(crate) prerelease: Vec<String>,
+    pub(crate) build: Vec<String>,
 }
 
 fn identifiers(text: &str, label: &str) -> Result<Vec<String>, String> {
@@ -43,7 +43,7 @@ fn component(text: &str, label: &str) -> Result<u64, String> {
 }
 
 impl Version {
-    pub fn parse(text: &str) -> Result<Version, String> {
+    pub(crate) fn parse(text: &str) -> Result<Version, String> {
         let trimmed = text.trim();
         if trimmed.is_empty() {
             return Err("Version string is empty.".to_string());
@@ -213,12 +213,12 @@ impl fmt::Display for Comparator {
 /// Comma-separated comparators, all of which must hold: `^1.2.0`,
 /// `>=0.4.0, <0.5.0`. A bare version means `^`.
 #[derive(Debug, Clone)]
-pub struct Constraint {
+pub(crate) struct Constraint {
     comparators: Vec<Comparator>,
 }
 
 impl Constraint {
-    pub fn parse(text: &str) -> Result<Constraint, String> {
+    pub(crate) fn parse(text: &str) -> Result<Constraint, String> {
         let trimmed = text.trim();
         if trimmed.is_empty() {
             return Err("Constraint string is empty.".to_string());
@@ -255,7 +255,7 @@ impl Constraint {
         Ok(Constraint { comparators })
     }
 
-    pub fn matches(&self, version: &Version) -> bool {
+    pub(crate) fn matches(&self, version: &Version) -> bool {
         self.comparators
             .iter()
             .all(|comparator| comparator.matches(version))

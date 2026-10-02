@@ -1,13 +1,14 @@
+use super::checksum::package_sources;
+use super::lockfile;
+use super::manifest::{self, Workspace};
+use super::resolver::{self, Graph, Index};
+use super::version::Version;
 use crate::checksum;
-use crate::lockfile;
-use crate::manifest::{self, Workspace};
 use crate::paths::{self, DirectoryList};
-use crate::resolver::{self, Graph, Index};
-use crate::version::Version;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Mode {
+pub(crate) enum Mode {
     /// Use the lockfile when it still matches the manifest and every locked
     /// package is present; otherwise resolve afresh.
     PreferLockfile,
@@ -16,15 +17,15 @@ pub enum Mode {
 }
 
 #[derive(Debug)]
-pub struct Environment {
-    pub graph: Graph,
-    pub search_paths: Vec<PathBuf>,
-    pub warnings: Vec<String>,
-    pub lockfile_path: PathBuf,
+pub(crate) struct Environment {
+    pub(crate) graph: Graph,
+    pub(crate) search_paths: Vec<PathBuf>,
+    pub(crate) warnings: Vec<String>,
+    pub(crate) lockfile_path: PathBuf,
 }
 
 /// Where packages are installed for all projects of this user.
-pub fn global_cache_directory() -> PathBuf {
+pub(crate) fn global_cache_directory() -> PathBuf {
     let variable = |name: &str| std::env::var_os(name).filter(|value| !value.is_empty());
     if cfg!(windows)
         && let Some(local_app_data) = variable("LOCALAPPDATA")
@@ -136,7 +137,7 @@ fn install_locally(
         let target_directory =
             packages_directory.join(format!("{name}-{}", package.manifest.version_text));
         let source_checksum = if package.checksum.is_empty() {
-            checksum::package_sources(source_directory)?
+            package_sources(source_directory)?
         } else {
             package.checksum.clone()
         };
@@ -144,7 +145,7 @@ fn install_locally(
         if paths::identity_key(source_directory) != paths::identity_key(&target_directory) {
             let current = target_directory
                 .exists()
-                .then(|| checksum::package_sources(&target_directory).ok())
+                .then(|| package_sources(&target_directory).ok())
                 .flatten();
             if current.as_deref() != Some(source_checksum.as_str()) {
                 copy_directory_replacing(source_directory, &target_directory)?;
@@ -167,7 +168,7 @@ fn install_locally(
 
 /// Resolves the workspace's packages. Resolving afresh installs them into the
 /// project and rewrites the lockfile, as the compiler's CLI always has.
-pub fn prepare(
+pub(crate) fn prepare(
     workspace: &Workspace,
     mode: Mode,
     environment: &[PathBuf],
@@ -205,7 +206,7 @@ pub fn prepare(
 }
 
 /// The newest version of `name` any index root offers.
-pub fn newest_version(
+pub(crate) fn newest_version(
     workspace: &Workspace,
     name: &str,
     environment: &[PathBuf],
@@ -220,7 +221,7 @@ pub fn newest_version(
 
 /// Deletes installed copies the graph no longer uses. With `only`, just the
 /// copies of that package.
-pub fn remove_unused(
+pub(crate) fn remove_unused(
     workspace: &Workspace,
     graph: &Graph,
     only: Option<&str>,
@@ -256,3 +257,6 @@ pub fn remove_unused(
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests;

@@ -1,6 +1,8 @@
-use crate::manifest::{PACKAGE_MANIFEST, PROJECT_MANIFEST};
+use super::Options;
 use crate::paths;
+use crate::project::manifest::{PACKAGE_MANIFEST, PROJECT_MANIFEST};
 use std::path::{Path, PathBuf};
+use std::process::ExitCode;
 
 fn escape_toml(value: &str) -> String {
     let mut escaped = String::with_capacity(value.len());
@@ -20,7 +22,7 @@ fn escape_toml(value: &str) -> String {
 /// A module name from a package name: bytes that are not ASCII letters,
 /// digits or `_` become `_`, and a name that does not start with a letter or
 /// `_` gets `Package` in front.
-pub fn module_name(name: &str) -> String {
+fn module_name(name: &str) -> String {
     let mut result: String = name
         .bytes()
         .map(|byte| {
@@ -74,7 +76,7 @@ fn create_directory(path: &Path) -> Result<(), String> {
 }
 
 /// `project.marmot`, `src/Main.mmt`, and empty `packages/` and `test/`.
-pub fn project(target: Option<&Path>, name: Option<&str>) -> Result<PathBuf, String> {
+fn project(target: Option<&Path>, name: Option<&str>) -> Result<PathBuf, String> {
     let root = prepare_root(target)?;
     let manifest_path = root.join(PROJECT_MANIFEST);
     let main_path = root.join("src").join("Main.mmt");
@@ -124,7 +126,7 @@ pub fn project(target: Option<&Path>, name: Option<&str>) -> Result<PathBuf, Str
 }
 
 /// `package.marmot` and a module named after the package.
-pub fn package(target: Option<&Path>, name: Option<&str>) -> Result<PathBuf, String> {
+fn package(target: Option<&Path>, name: Option<&str>) -> Result<PathBuf, String> {
     let root = prepare_root(target)?;
     let manifest_path = root.join(PACKAGE_MANIFEST);
     if manifest_path.exists() {
@@ -164,6 +166,52 @@ pub fn package(target: Option<&Path>, name: Option<&str>) -> Result<PathBuf, Str
         ),
     )?;
     Ok(root)
+}
+
+pub(super) fn execute(options: &Options) -> ExitCode {
+    let target = options.argument.as_deref().map(Path::new);
+    let kind = if options.package {
+        "package"
+    } else {
+        "project"
+    };
+    let result = if options.package {
+        package(target, options.name.as_deref())
+    } else {
+        project(target, options.name.as_deref())
+    };
+
+    match (result, options.json) {
+        (Ok(root), true) => {
+            let payload = serde_json::json!({
+                "version": 1, "source": "marmot", "command": "init", "success": true,
+                "kind": kind, "path": paths::generic(&root),
+            });
+            println!("{payload}");
+            ExitCode::SUCCESS
+        }
+        (Ok(root), false) => {
+            println!("Initialized Marmot {kind} at {}", root.display());
+            ExitCode::SUCCESS
+        }
+        (Err(error), true) => {
+            let payload = serde_json::json!({
+                "version": 1, "source": "marmot", "command": "init", "success": false,
+                "kind": kind, "error": error,
+            });
+            println!("{payload}");
+            ExitCode::FAILURE
+        }
+        (Err(error), false) => {
+            let what = if options.package {
+                "Package"
+            } else {
+                "Project"
+            };
+            eprintln!("marmot: error: {what} init failed: {error}");
+            ExitCode::FAILURE
+        }
+    }
 }
 
 #[cfg(test)]

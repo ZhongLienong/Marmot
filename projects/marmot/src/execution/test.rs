@@ -4,8 +4,8 @@
 //! and its output and warnings match the `.expected` and `.warnings.json`
 //! snapshots beside it, when there are any.
 
+use super::plan::Plan;
 use crate::paths;
-use crate::plan::Plan;
 use serde_json::Value;
 use std::io::Read;
 use std::num::NonZeroUsize;
@@ -33,34 +33,34 @@ const SCRATCH_FILES: [&str; 4] = [
     "test_backup.mmt",
 ];
 
-pub struct TestRequest<'a> {
-    pub root: &'a Path,
-    pub test_directory: &'a Path,
+pub(crate) struct TestRequest<'a> {
+    pub(crate) root: &'a Path,
+    pub(crate) test_directory: &'a Path,
     /// Where the built tests go.
-    pub target_directory: &'a Path,
-    pub timeout: Duration,
-    pub filter: Option<&'a str>,
-    pub pattern: Option<&'a str>,
-    pub test_file: Option<&'a str>,
-    pub plan: &'a Plan,
+    pub(crate) target_directory: &'a Path,
+    pub(crate) timeout: Duration,
+    pub(crate) filter: Option<&'a str>,
+    pub(crate) pattern: Option<&'a str>,
+    pub(crate) test_file: Option<&'a str>,
+    pub(crate) plan: &'a Plan,
     /// The plan's inputs, without an entry: each test is the entry.
-    pub plan_file: &'a Path,
-    pub compiler: &'a Path,
-    pub vm: &'a Path,
-    pub jobs: Option<NonZeroUsize>,
+    pub(crate) plan_file: &'a Path,
+    pub(crate) compiler: &'a Path,
+    pub(crate) vm: &'a Path,
+    pub(crate) jobs: Option<NonZeroUsize>,
 }
 
 #[derive(Debug, Default)]
-pub struct TestResult {
-    pub name: String,
-    pub passed: bool,
-    pub expected_to_fail: bool,
-    pub timed_out: bool,
-    pub exit_code: i32,
-    pub duration_ms: u128,
-    pub error: Option<String>,
-    pub output: String,
-    pub warnings: Vec<Value>,
+pub(crate) struct TestResult {
+    pub(crate) name: String,
+    pub(crate) passed: bool,
+    pub(crate) expected_to_fail: bool,
+    pub(crate) timed_out: bool,
+    pub(crate) exit_code: i32,
+    pub(crate) duration_ms: u128,
+    pub(crate) error: Option<String>,
+    pub(crate) output: String,
+    pub(crate) warnings: Vec<Value>,
 }
 
 /// A test is expected to fail when any folder on its path is named `failure`.
@@ -111,7 +111,7 @@ fn walk(directory: &Path, found: &mut Vec<PathBuf>) {
 /// The test files, in order: `--test` names one; otherwise every `.mmt` under
 /// the test directory that passes the filter and pattern, except the
 /// `doc_examples` folder and scratch files at the top.
-pub fn discover(
+pub(crate) fn discover(
     test_directory: &Path,
     filter: Option<&str>,
     pattern: Option<&str>,
@@ -434,7 +434,7 @@ fn run_one(request: &TestRequest, test: &Path, compiler_jobs: usize) -> TestResu
 
 /// Shares the worker budget between test processes and each compiler, and
 /// returns results in discovery order.
-pub fn run_all(request: &TestRequest, tests: &[PathBuf]) -> Vec<TestResult> {
+pub(crate) fn run_all(request: &TestRequest, tests: &[PathBuf]) -> Vec<TestResult> {
     let budget = request.jobs.unwrap_or_else(|| {
         std::thread::available_parallelism().unwrap_or(NonZeroUsize::new(1).unwrap())
     });
@@ -488,7 +488,7 @@ fn type_label(result: &TestResult) -> String {
     }
 }
 
-pub fn rendered(root: &Path, timeout: Duration, results: &[TestResult]) -> String {
+pub(crate) fn rendered(root: &Path, timeout: Duration, results: &[TestResult]) -> String {
     let passed = results.iter().filter(|result| result.passed).count();
     let timed_out = results.iter().filter(|result| result.timed_out).count();
     let duration: u128 = results.iter().map(|result| result.duration_ms).sum();
@@ -534,7 +534,7 @@ pub fn rendered(root: &Path, timeout: Duration, results: &[TestResult]) -> Strin
     output
 }
 
-pub fn json(root: &Path, test_directory: &Path, results: &[TestResult]) -> Value {
+pub(crate) fn json(root: &Path, test_directory: &Path, results: &[TestResult]) -> Value {
     let passed = results.iter().filter(|result| result.passed).count();
     let entries: Vec<Value> = results
         .iter()

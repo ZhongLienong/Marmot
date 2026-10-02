@@ -1,73 +1,21 @@
 //! `marmot run`: marmotc builds the program into the project's `target/`, and
 //! marmotvm runs it.
 
-use crate::cache;
-use crate::manifest;
+use super::cache;
+use super::plan::Plan;
+use super::temporary::TemporaryDirectory;
 use crate::paths;
-use crate::plan::Plan;
+use crate::project::manifest;
 use serde_json::Value;
 use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, Output};
 
-/// The VM: `--marmotvm`, then MARMOTVM, the matching checkout preset,
-/// an installed sibling executable, then marmotvm on PATH.
-pub fn find_vm(explicit: Option<&Path>, compiler: &Path) -> PathBuf {
-    if let Some(path) = explicit {
-        return path.to_path_buf();
-    }
-    if let Some(path) = std::env::var_os("MARMOTVM").filter(|value| !value.is_empty()) {
-        return PathBuf::from(path);
-    }
-
-    let name = format!("marmotvm{}", std::env::consts::EXE_SUFFIX);
-    let checkout_vm = compiler.parent().and_then(|out| {
-        let preset = out.parent()?;
-        let project = preset.parent()?;
-        if project.file_name()? != "marmotc" {
-            return None;
-        }
-        Some(
-            project
-                .parent()?
-                .join("marmotvm")
-                .join(preset.file_name()?)
-                .join("out")
-                .join(&name),
-        )
-    });
-    let beside_compiler = compiler.parent().map(|directory| directory.join(&name));
-    let beside_tool = std::env::current_exe()
-        .ok()
-        .and_then(|exe| exe.parent().map(|directory| directory.join(&name)));
-    checkout_vm
-        .into_iter()
-        .chain(beside_compiler)
-        .chain(beside_tool)
-        .find(|candidate| candidate.is_file())
-        .unwrap_or_else(|| PathBuf::from("marmotvm"))
-}
-
-/// A directory removed when dropped.
-pub struct TemporaryDirectory(PathBuf);
-
-impl TemporaryDirectory {
-    pub fn new(path: PathBuf) -> TemporaryDirectory {
-        TemporaryDirectory(path)
-    }
-}
-
-impl Drop for TemporaryDirectory {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
-    }
-}
-
 /// Where the program built from `entry` goes: in a project, `target/` at its
 /// root, mirroring the entry's path in the project (`src/Main.mmt` becomes
 /// `target/src/Main.mmc`); outside one, a temporary directory that lives as
 /// long as the returned guard.
-pub fn program_path(entry: &Path) -> Result<(PathBuf, Option<TemporaryDirectory>), String> {
+pub(crate) fn program_path(entry: &Path) -> Result<(PathBuf, Option<TemporaryDirectory>), String> {
     let entry = paths::absolute(entry);
     let directory = entry.parent().map(Path::to_path_buf).unwrap_or_default();
     let mmc = entry.with_extension("mmc");
@@ -84,7 +32,7 @@ pub fn program_path(entry: &Path) -> Result<(PathBuf, Option<TemporaryDirectory>
     let temporary = std::env::temp_dir().join(format!("marmot-run-{}", std::process::id()));
     Ok((
         temporary.join(file_name),
-        Some(TemporaryDirectory(temporary)),
+        Some(TemporaryDirectory::new(temporary)),
     ))
 }
 
@@ -138,17 +86,17 @@ fn merged(build: &Value, run: &Value) -> Value {
     payload
 }
 
-pub struct RunRequest<'a> {
-    pub plan: &'a Plan,
-    pub plan_file: &'a Path,
-    pub entry: &'a Path,
-    pub compiler: &'a Path,
-    pub vm: &'a Path,
-    pub json: bool,
+pub(crate) struct RunRequest<'a> {
+    pub(crate) plan: &'a Plan,
+    pub(crate) plan_file: &'a Path,
+    pub(crate) entry: &'a Path,
+    pub(crate) compiler: &'a Path,
+    pub(crate) vm: &'a Path,
+    pub(crate) json: bool,
     /// Build even when the program in target/ is still current.
-    pub rebuild: bool,
-    pub jobs: Option<NonZeroUsize>,
-    pub timings: bool,
+    pub(crate) rebuild: bool,
+    pub(crate) jobs: Option<NonZeroUsize>,
+    pub(crate) timings: bool,
 }
 
 /// The build's report when it was skipped: the stamp replays it, and an older
@@ -178,7 +126,7 @@ fn remember(
     cache::write(program, &stamp)
 }
 
-pub fn run(request: &RunRequest) -> Result<ExitCode, String> {
+pub(crate) fn run(request: &RunRequest) -> Result<ExitCode, String> {
     let (program, _temporary) = program_path(request.entry)?;
     let plan_json = request.plan.to_json();
     // A stamp replays one form of what the build said, so it serves the mode it

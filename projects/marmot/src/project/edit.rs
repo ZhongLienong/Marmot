@@ -1,4 +1,4 @@
-use crate::version::Constraint;
+use super::version::Constraint;
 use std::path::Path;
 use toml_edit::{DocumentMut, Item, Table, value};
 
@@ -16,7 +16,11 @@ fn save(path: &Path, document: &DocumentMut) -> Result<(), String> {
 
 /// Sets `name = "constraint"` under `[dependencies]`, keeping the rest of the
 /// manifest as written.
-pub fn add_dependency(manifest_path: &Path, name: &str, constraint: &str) -> Result<(), String> {
+pub(crate) fn add_dependency(
+    manifest_path: &Path,
+    name: &str,
+    constraint: &str,
+) -> Result<(), String> {
     if name.is_empty() {
         return Err("Package name cannot be empty.".to_string());
     }
@@ -39,7 +43,7 @@ pub fn add_dependency(manifest_path: &Path, name: &str, constraint: &str) -> Res
 }
 
 /// Removes `name` from `[dependencies]`, and the table when it empties.
-pub fn remove_dependency(manifest_path: &Path, name: &str) -> Result<(), String> {
+pub(crate) fn remove_dependency(manifest_path: &Path, name: &str) -> Result<(), String> {
     if name.is_empty() {
         return Err("Package name cannot be empty.".to_string());
     }

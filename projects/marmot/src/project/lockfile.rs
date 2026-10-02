@@ -1,25 +1,25 @@
-use crate::checksum;
-use crate::manifest;
-use crate::resolver::{Graph, ResolvedPackage};
-use crate::version::Version;
+use super::checksum;
+use super::manifest;
+use super::resolver::{Graph, ResolvedPackage};
+use super::version::Version;
 use std::path::{Path, PathBuf};
 use toml::{Table, Value};
 
-pub const LOCKFILE: &str = "marmot.lock";
+pub(crate) const LOCKFILE: &str = "marmot.lock";
 
 /// What a lockfile says, as far as the packages it names can still be found.
 #[derive(Debug, Default)]
-pub struct LockRead {
-    pub graph: Graph,
-    pub manifest_checksum: String,
+pub(crate) struct LockRead {
+    pub(crate) graph: Graph,
+    pub(crate) manifest_checksum: String,
     /// Every locked package is present, loads, and has its locked version.
-    pub complete: bool,
-    pub warnings: Vec<String>,
+    pub(crate) complete: bool,
+    pub(crate) warnings: Vec<String>,
 }
 
 impl LockRead {
     /// Usable as it is for a manifest with this checksum.
-    pub fn usable_for(&self, manifest_checksum: &str) -> bool {
+    pub(crate) fn usable_for(&self, manifest_checksum: &str) -> bool {
         self.complete && self.manifest_checksum == manifest_checksum
     }
 }
@@ -33,7 +33,7 @@ fn locked_directory(source: &str, root: &Path) -> PathBuf {
 
 /// Reads `root/marmot.lock`. `None` when there is no lockfile or it cannot be
 /// read as one (the compiler then resolves afresh too).
-pub fn read(root: &Path, compiler: &Version) -> Option<LockRead> {
+pub(crate) fn read(root: &Path, compiler: &Version) -> Option<LockRead> {
     let path = root.join(LOCKFILE);
     if !path.exists() {
         return None;
@@ -189,7 +189,7 @@ fn utc_timestamp() -> String {
 }
 
 /// Writes the lockfile for `graph`, packages in dependency order.
-pub fn write(
+pub(crate) fn write(
     root: &Path,
     graph: &Graph,
     manifest_checksum: &str,
