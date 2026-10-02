@@ -4,6 +4,7 @@
 #include "Compiler/Source/Source.h"
 #include "Compiler.h"
 #include "Compiler/BuildGraph/BuildGraph.h"
+#include "Compiler/CompilationTimings/CompilationTimings.h"
 #include "Compiler/BytecodeBackend/BytecodeBackend.h"
 #include "Compiler/BytecodeLinker/BytecodeLinker.h"
 #include "Compiler/Lexer/Lexer.h"
@@ -75,6 +76,7 @@ namespace
 		size_t m_total_modules;
 		bool m_emit_midori_ir;
 		bool m_emit_ast;
+		CompilationTimings& m_timings;
 	};
 
 	struct CompileState;
@@ -848,6 +850,7 @@ namespace
 
 	MidoriResult::CompiledModuleReportResult CompileState::Finalize() &&
 	{
+		CompilationTimings::Timer timer(m_env->m_timings, CompilationTimings::Phase::Finalization);
 		return ValidateExports(std::move(*this))
 			.and_then(BuildCompiledModule);
 	}
@@ -1054,18 +1057,39 @@ namespace
 	public:
 		MidoriResult::CompiledModuleReportResult Compile(CompileEnv& env, const std::string& file_path, size_t tier_idx) const
 		{
-			return MakeCompileState(env, file_path, tier_idx)
-				.and_then(RunStages)
-				.and_then
-				(
-					[](CompileState state) -> MidoriResult::CompiledModuleReportResult
-					{
-						return std::move(state).Finalize();
-					}
-				);
+			CompilationTimings::ModuleTimer timer(env.m_timings);
+			// A worker exception would terminate the process; use the same module
+			// diagnostic for worker threads and compilation on the calling thread.
+			try
+			{
+				return MakeCompileState(env, file_path, tier_idx)
+					.and_then(RunStages)
+					.and_then
+					(
+						[](CompileState state) -> MidoriResult::CompiledModuleReportResult
+						{
+							return std::move(state).Finalize();
+						}
+					);
+			}
+			catch (const std::exception& e)
+			{
+				return MakeInternalErrorResult(file_path, e.what());
+			}
+			catch (...)
+			{
+				return MakeInternalErrorResult(file_path, "unknown exception");
+			}
 		}
 
 	private:
+		static MidoriResult::CompiledModuleReportResult MakeInternalErrorResult(const std::string& file_path, const std::string& detail)
+		{
+			std::string message = "Internal compiler error while compiling '" + file_path + "': " + detail;
+			message.push_back(static_cast<char>(10));
+			return std::unexpected(MidoriResult::CompilerReport(CompilerError::Simple(CompilerStage::Compiler, message, CompilerErrorCode::CompilerInternalError)));
+		}
+
 		using Stage = CompileStateResult(*)(CompileState);
 
 		static std::string MakeStageFailureMessage(std::string_view stage_name, const std::string& detail)
@@ -1081,17 +1105,18 @@ namespace
 		{
 			Stage m_stage;
 			std::string_view m_name;
+			CompilationTimings::Phase m_phase;
 		};
 
 		static constexpr std::array<NamedStage, 7u> s_pipeline =
 		{
-			NamedStage{ StageImportContext, "import context" },
-			NamedStage{ StageSourceLines, "source lines" },
-			NamedStage{ StageParsedModule, "parser" },
-			NamedStage{ StageTypeCheckedAst, "type checker" },
-			NamedStage{ StageStaticAnalysis, "static analyzer" },
-			NamedStage{ StageLowering, "lowering" },
-			NamedStage{ StageBytecodeBackend, "bytecode backend" }
+			NamedStage{ StageImportContext, "import context", CompilationTimings::Phase::Imports },
+			NamedStage{ StageSourceLines, "source lines", CompilationTimings::Phase::SourceLines },
+			NamedStage{ StageParsedModule, "parser", CompilationTimings::Phase::Parsing },
+			NamedStage{ StageTypeCheckedAst, "type checker", CompilationTimings::Phase::TypeChecking },
+			NamedStage{ StageStaticAnalysis, "static analyzer", CompilationTimings::Phase::StaticAnalysis },
+			NamedStage{ StageLowering, "lowering", CompilationTimings::Phase::LoweringAndOptimization },
+			NamedStage{ StageBytecodeBackend, "bytecode backend", CompilationTimings::Phase::Backend }
 		};
 
 		static CompileStateResult RunStages(CompileState state)
@@ -1103,6 +1128,7 @@ namespace
 				// stage that produced it is still known.
 				CompileStateResult result = [&]() -> CompileStateResult
 				{
+					CompilationTimings::Timer timer(state.m_env->m_timings, stage.m_phase);
 					try
 					{
 						return stage.m_stage(std::move(state));
@@ -1224,29 +1250,6 @@ namespace
 		}
 
 	private:
-		MidoriResult::CompiledModuleReportResult CompileModuleGuarded(const QueuedModule& queued_module) const
-		{
-			try
-			{
-				return m_module_compiler.Compile(m_env, queued_module.m_file_path, queued_module.m_tier_idx);
-			}
-			catch (const std::exception& e)
-			{
-				return MakeInternalErrorResult(queued_module.m_file_path, e.what());
-			}
-			catch (...)
-			{
-				return MakeInternalErrorResult(queued_module.m_file_path, "unknown exception");
-			}
-		}
-
-		static MidoriResult::CompiledModuleReportResult MakeInternalErrorResult(const std::string& file_path, const std::string& detail)
-		{
-			std::string message = "Internal compiler error while compiling '" + file_path + "': " + detail;
-			message.push_back(static_cast<char>(10));
-			return std::unexpected(MidoriResult::CompilerReport(CompilerError::Simple(CompilerStage::Compiler, message, CompilerErrorCode::CompilerInternalError)));
-		}
-
 		void WorkerLoop()
 		{
 			while (true)
@@ -1272,13 +1275,7 @@ namespace
 					m_ready.pop_front();
 				}
 
-				// A worker thread has no handler of its own, so an escaping exception
-				// would call std::terminate and the process would die by __fastfail
-				// with no diagnostic at all -- reported by Windows as
-				// STATUS_STACK_BUFFER_OVERRUN, which reads like a stack overflow and
-				// is not one. Catching here turns an internal failure into an error
-				// that names the module it came from.
-				CompletedModule completed_module{ queued_module.m_file_path, CompileModuleGuarded(queued_module) };
+				CompletedModule completed_module{ queued_module.m_file_path, m_module_compiler.Compile(m_env, queued_module.m_file_path, queued_module.m_tier_idx) };
 
 				{
 					std::lock_guard<std::mutex> lock(m_mutex);
@@ -1301,112 +1298,118 @@ namespace
 		bool m_stop = false;
 	};
 
-	static MidoriResult::ReportResult<size_t> CompileModulesReadyQueue(CompileEnv& env, ModuleCompiler& module_compiler, CompilationSchedule& schedule)
+	static MidoriResult::ReportResult<size_t> CompileModulesReadyQueue(CompileEnv& env, ModuleCompiler& module_compiler, CompilationSchedule& schedule, std::optional<size_t> jobs)
 	{
+		CompilationTimings::Timer timer(env.m_timings, CompilationTimings::Phase::Modules);
 		size_t compiled_count = 0u;
 
 #ifndef __EMSCRIPTEN__
-		const size_t worker_count = std::max<size_t>
-		(
-			1u,
-			std::min(schedule.m_all_modules.size(), static_cast<size_t>(std::max(1u, std::thread::hardware_concurrency())))
-		);
-		ModuleWorkQueue work_queue(env, module_compiler, worker_count);
-
-		for (const std::string& file_path : schedule.m_all_modules)
+		const size_t worker_count = std::min(schedule.m_all_modules.size(), jobs.value_or(std::max(1u, std::thread::hardware_concurrency())));
+		env.m_timings.SetWorkerCount(worker_count);
+		if (worker_count > 1u)
 		{
-			if (schedule.m_remaining_deps.at(file_path) == 0u)
-			{
-				work_queue.Enqueue(file_path, schedule.m_tier_indices.at(file_path));
-			}
-		}
+			ModuleWorkQueue work_queue(env, module_compiler, worker_count);
 
-		while (compiled_count < schedule.m_all_modules.size())
-		{
-			if (work_queue.InFlight() == 0u)
+			for (const std::string& file_path : schedule.m_all_modules)
 			{
-				work_queue.Stop();
-				return std::unexpected(MidoriResult::CompilerReport(CompilerError::Simple(CompilerStage::Compiler, "No modules are ready to compile. Check for circular dependencies.\n", CompilerErrorCode::CompilerNoModulesReadyToCompile)));
-			}
-
-			CompletedModule completed_module = work_queue.WaitForCompleted();
-			if (!completed_module.m_result.has_value())
-			{
-				work_queue.Stop();
-				MidoriResult::CompilerReport failed_module_report = std::move(completed_module.m_result).error();
-				const std::vector<CompilerWarning>& failed_module_warnings = failed_module_report.Warnings().Warnings();
-				MidoriResult::CompilerReport report(
-					CollectCompiledModuleWarnings(schedule, env.m_compiled_modules, &completed_module.m_file_path, &failed_module_warnings),
-					std::move(failed_module_report).TakeErrors());
-				return std::unexpected(std::move(report));
-			}
-
-			{
-				std::lock_guard<std::mutex> lock(env.m_modules_mutex);
-				env.m_compiled_modules.emplace(completed_module.m_file_path, std::move(completed_module.m_result).value());
-			}
-
-			compiled_count += 1u;
-
-			for (const std::string& dependent : schedule.m_dependents.at(completed_module.m_file_path))
-			{
-				size_t& remaining = schedule.m_remaining_deps.at(dependent);
-				if (remaining > 0u)
+				if (schedule.m_remaining_deps.at(file_path) == 0u)
 				{
-					remaining -= 1u;
-					if (remaining == 0u)
+					work_queue.Enqueue(file_path, schedule.m_tier_indices.at(file_path));
+				}
+			}
+
+			while (compiled_count < schedule.m_all_modules.size())
+			{
+				if (work_queue.InFlight() == 0u)
+				{
+					work_queue.Stop();
+					return std::unexpected(MidoriResult::CompilerReport(CompilerError::Simple(CompilerStage::Compiler, "No modules are ready to compile. Check for circular dependencies.\n", CompilerErrorCode::CompilerNoModulesReadyToCompile)));
+				}
+
+				CompletedModule completed_module = work_queue.WaitForCompleted();
+				if (!completed_module.m_result.has_value())
+				{
+					work_queue.Stop();
+					MidoriResult::CompilerReport failed_module_report = std::move(completed_module.m_result).error();
+					const std::vector<CompilerWarning>& failed_module_warnings = failed_module_report.Warnings().Warnings();
+					MidoriResult::CompilerReport report(
+						CollectCompiledModuleWarnings(schedule, env.m_compiled_modules, &completed_module.m_file_path, &failed_module_warnings),
+						std::move(failed_module_report).TakeErrors());
+					return std::unexpected(std::move(report));
+				}
+
+				{
+					std::lock_guard<std::mutex> lock(env.m_modules_mutex);
+					env.m_compiled_modules.emplace(completed_module.m_file_path, std::move(completed_module.m_result).value());
+				}
+
+				compiled_count += 1u;
+
+				for (const std::string& dependent : schedule.m_dependents.at(completed_module.m_file_path))
+				{
+					size_t& remaining = schedule.m_remaining_deps.at(dependent);
+					if (remaining > 0u)
 					{
-						work_queue.Enqueue(dependent, schedule.m_tier_indices.at(dependent));
+						remaining -= 1u;
+						if (remaining == 0u)
+						{
+							work_queue.Enqueue(dependent, schedule.m_tier_indices.at(dependent));
+						}
 					}
 				}
 			}
-		}
 
-		work_queue.Stop();
+			work_queue.Stop();
+		}
+		else
 #else
-		std::deque<std::string> ready;
-		for (const std::string& file_path : schedule.m_all_modules)
+		(void)jobs;
+		env.m_timings.SetWorkerCount(1u);
+#endif
 		{
-			if (schedule.m_remaining_deps.at(file_path) == 0u)
+			std::deque<std::string> ready;
+			for (const std::string& file_path : schedule.m_all_modules)
 			{
-				ready.emplace_back(file_path);
-			}
-		}
-
-		while (!ready.empty())
-		{
-			std::string file_path = std::move(ready.front());
-			ready.pop_front();
-
-			const size_t tier_idx = schedule.m_tier_indices.at(file_path);
-			MidoriResult::CompiledModuleReportResult result = module_compiler.Compile(env, file_path, tier_idx);
-			if (!result.has_value())
-			{
-				MidoriResult::CompilerReport failed_module_report = std::move(result).error();
-				const std::vector<CompilerWarning>& failed_module_warnings = failed_module_report.Warnings().Warnings();
-				MidoriResult::CompilerReport report(
-					CollectCompiledModuleWarnings(schedule, env.m_compiled_modules, &file_path, &failed_module_warnings),
-					std::move(failed_module_report).TakeErrors());
-				return std::unexpected(std::move(report));
-			}
-
-			env.m_compiled_modules.emplace(file_path, std::move(result).value());
-			compiled_count += 1u;
-
-			for (const std::string& dependent : schedule.m_dependents.at(file_path))
-			{
-				size_t& remaining = schedule.m_remaining_deps.at(dependent);
-				if (remaining > 0u)
+				if (schedule.m_remaining_deps.at(file_path) == 0u)
 				{
-					remaining -= 1u;
-					if (remaining == 0u)
+					ready.emplace_back(file_path);
+				}
+			}
+
+			while (!ready.empty())
+			{
+				std::string file_path = std::move(ready.front());
+				ready.pop_front();
+
+				const size_t tier_idx = schedule.m_tier_indices.at(file_path);
+				MidoriResult::CompiledModuleReportResult result = module_compiler.Compile(env, file_path, tier_idx);
+				if (!result.has_value())
+				{
+					MidoriResult::CompilerReport failed_module_report = std::move(result).error();
+					const std::vector<CompilerWarning>& failed_module_warnings = failed_module_report.Warnings().Warnings();
+					MidoriResult::CompilerReport report(
+						CollectCompiledModuleWarnings(schedule, env.m_compiled_modules, &file_path, &failed_module_warnings),
+						std::move(failed_module_report).TakeErrors());
+					return std::unexpected(std::move(report));
+				}
+
+				env.m_compiled_modules.emplace(file_path, std::move(result).value());
+				compiled_count += 1u;
+
+				for (const std::string& dependent : schedule.m_dependents.at(file_path))
+				{
+					size_t& remaining = schedule.m_remaining_deps.at(dependent);
+					if (remaining > 0u)
 					{
-						ready.emplace_back(dependent);
+						remaining -= 1u;
+						if (remaining == 0u)
+						{
+							ready.emplace_back(dependent);
+						}
 					}
 				}
 			}
 		}
-#endif
 
 		if (compiled_count != schedule.m_all_modules.size())
 		{
@@ -1416,9 +1419,9 @@ namespace
 		return compiled_count;
 	}
 
-	static CompileEnv MakeCompileEnv(BuildGraph& build_graph, std::unordered_map<std::string, CompiledModule>& compiled_modules, std::mutex& modules_mutex, std::mutex& print_mutex, std::atomic<size_t>& completed_modules, const CompilationSchedule& schedule, size_t total_modules, const CompilationInputs& inputs)
+	static CompileEnv MakeCompileEnv(BuildGraph& build_graph, std::unordered_map<std::string, CompiledModule>& compiled_modules, std::mutex& modules_mutex, std::mutex& print_mutex, std::atomic<size_t>& completed_modules, const CompilationSchedule& schedule, size_t total_modules, const CompilationInputs& inputs, CompilationTimings& timings)
 	{
-		return CompileEnv{ build_graph, compiled_modules, modules_mutex, print_mutex, completed_modules, schedule.m_tiers, total_modules, inputs.EmitsMidoriIR(), inputs.EmitsAst() };
+		return CompileEnv{ build_graph, compiled_modules, modules_mutex, print_mutex, completed_modules, schedule.m_tiers, total_modules, inputs.EmitsMidoriIR(), inputs.EmitsAst(), timings };
 	}
 
 	static MidoriResult::ReportResult<BuildGraphArtifacts> CollectBytecodeModules(const CompilationSchedule& schedule, std::unordered_map<std::string, CompiledModule>& compiled_modules)
@@ -1454,9 +1457,13 @@ namespace
 		return artifacts;
 	}
 
-	static MidoriResult::ReportResult<BuildGraphArtifacts> CompileBuildGraph(BuildGraph&& build_graph, const CompilationInputs& inputs)
+	static MidoriResult::ReportResult<BuildGraphArtifacts> CompileBuildGraph(BuildGraph&& build_graph, const CompilationInputs& inputs, CompilationTimings& timings)
 	{
-		CompilationSchedule schedule = BuildCompilationSchedule(build_graph);
+		CompilationSchedule schedule = [&]()
+		{
+			CompilationTimings::Timer timer(timings, CompilationTimings::Phase::Schedule);
+			return BuildCompilationSchedule(build_graph);
+		}();
 		const size_t total_modules = schedule.m_all_modules.size();
 		std::unordered_map<std::string, CompiledModule> compiled_modules;
 		compiled_modules.reserve(total_modules);
@@ -1464,9 +1471,9 @@ namespace
 		std::mutex print_mutex;
 		std::atomic<size_t> completed_modules{ 0u };
 
-		CompileEnv env = MakeCompileEnv(build_graph, compiled_modules, modules_mutex, print_mutex, completed_modules, schedule, total_modules, inputs);
+		CompileEnv env = MakeCompileEnv(build_graph, compiled_modules, modules_mutex, print_mutex, completed_modules, schedule, total_modules, inputs, timings);
 		ModuleCompiler module_compiler;
-		MidoriResult::ReportResult<size_t> compile_result = CompileModulesReadyQueue(env, module_compiler, schedule);
+		MidoriResult::ReportResult<size_t> compile_result = CompileModulesReadyQueue(env, module_compiler, schedule, inputs.Jobs());
 		if (!compile_result.has_value())
 		{
 			return std::unexpected(std::move(compile_result.error()));
@@ -1657,14 +1664,30 @@ Compiler::Compiler(std::string&& source_code, std::string&& file_name, Compilati
 
 MidoriResult::CompilationResult Compiler::CompileWithReport()
 {
-	MidoriResult::LexerResult lex_result = Lexer(std::move(m_source_code), m_file_name).Lex();
+	CompilationTimings timings(m_inputs.EmitsTimings());
+	MidoriResult::CompilationResult result = CompileWithTimings(timings);
+	timings.Print();
+	return result;
+}
+
+MidoriResult::CompilationResult Compiler::CompileWithTimings(CompilationTimings& timings)
+{
+	CompilationTimings::Timer total(timings, CompilationTimings::Phase::Total);
+	MidoriResult::LexerResult lex_result = [&]()
+	{
+		CompilationTimings::Timer timer(timings, CompilationTimings::Phase::Lexing);
+		return Lexer(std::move(m_source_code), m_file_name).Lex();
+	}();
 	if (!lex_result.has_value())
 	{
 		return std::unexpected(MidoriResult::CompilerReport(std::move(lex_result.error())));
 	}
 
-	MidoriResult::ModuleManagerResult build_graph_result =
-		ModuleManager(std::move(lex_result.value()), m_file_name, m_source_lines, m_inputs).GenerateBuildGraph();
+	MidoriResult::ModuleManagerResult build_graph_result = [&]()
+	{
+		CompilationTimings::Timer timer(timings, CompilationTimings::Phase::Discovery);
+		return ModuleManager(std::move(lex_result.value()), m_file_name, m_source_lines, m_inputs).GenerateBuildGraph();
+	}();
 	if (!build_graph_result.has_value())
 	{
 		return std::unexpected(MidoriResult::CompilerReport(std::move(build_graph_result.error())));
@@ -1681,7 +1704,7 @@ MidoriResult::CompilationResult Compiler::CompileWithReport()
 	}
 	std::ranges::sort(source_files);
 
-	MidoriResult::ReportResult<BuildGraphArtifacts> bytecode_result = CompileBuildGraph(std::move(build_graph), m_inputs);
+	MidoriResult::ReportResult<BuildGraphArtifacts> bytecode_result = CompileBuildGraph(std::move(build_graph), m_inputs, timings);
 	if (!bytecode_result.has_value())
 	{
 		return std::unexpected(std::move(bytecode_result.error()));
@@ -1689,7 +1712,11 @@ MidoriResult::CompilationResult Compiler::CompileWithReport()
 
 	std::vector<std::string> midori_ir = std::move(bytecode_result->m_midori_ir);
 	std::vector<std::string> ast = std::move(bytecode_result->m_ast);
-	MidoriResult::CompilationResult linked = LinkBytecodeModules(std::move(bytecode_result).value(), entry_module_name);
+	MidoriResult::CompilationResult linked = [&]()
+	{
+		CompilationTimings::Timer timer(timings, CompilationTimings::Phase::Linking);
+		return LinkBytecodeModules(std::move(bytecode_result).value(), entry_module_name);
+	}();
 	if (linked.has_value())
 	{
 		linked->m_source_files = std::move(source_files);

@@ -1,3 +1,4 @@
+use std::num::NonZeroUsize;
 use std::path::PathBuf;
 
 pub(crate) const USAGE: &str = "\
@@ -34,6 +35,10 @@ Options:
                         default is ^ the newest version available
   --pattern TEXT        Run tests whose path contains TEXT (test)
   --test FILE           Run one test file (test)
+  --jobs N              Maximum compiler workers (run, check, build); total
+                        worker budget across tests and compilers (test)
+  --timings             Print compiler stage times and worker utilization
+                        to stderr (run, check, build)
   --package             Create a package instead of a project (init)
   --name NAME           The project or package name (init)
   --marmotc PATH        The compiler to run; otherwise MARMOTC, then marmotc
@@ -113,6 +118,8 @@ pub(crate) struct Options {
     pub(crate) package: bool,
     pub(crate) rebuild: bool,
     pub(crate) name: Option<String>,
+    pub(crate) jobs: Option<NonZeroUsize>,
+    pub(crate) timings: bool,
     /// Everything after the command, for commands passed through as they are.
     pub(crate) raw: Vec<String>,
 }
@@ -162,6 +169,26 @@ pub(crate) fn parse_options(kind: CommandKind, args: &[String]) -> Result<Option
                 options.json = true;
             }
             "--embed-sources" if kind == CommandKind::Build => options.embed_sources = true,
+            "--jobs"
+                if matches!(
+                    kind,
+                    CommandKind::Run | CommandKind::Check | CommandKind::Build | CommandKind::Test
+                ) =>
+            {
+                options.jobs = Some(
+                    value()?
+                        .parse::<NonZeroUsize>()
+                        .map_err(|_| "--jobs requires a positive integer".to_string())?,
+                );
+            }
+            "--timings"
+                if matches!(
+                    kind,
+                    CommandKind::Run | CommandKind::Check | CommandKind::Build
+                ) =>
+            {
+                options.timings = true;
+            }
             "-o" | "--output" if kind == CommandKind::Plan => {
                 options.output = Some(PathBuf::from(value()?))
             }
@@ -193,4 +220,27 @@ pub(crate) fn parse_options(kind: CommandKind, args: &[String]) -> Result<Option
         return Err("--version needs a package name".to_string());
     }
     Ok(options)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn compilation_and_tests_accept_positive_worker_budgets() {
+        for kind in [
+            CommandKind::Run,
+            CommandKind::Check,
+            CommandKind::Build,
+            CommandKind::Test,
+        ] {
+            let parsed = parse_options(kind, &["--jobs".into(), "4".into()]).unwrap();
+            assert_eq!(parsed.jobs.unwrap().get(), 4);
+            for value in ["0", "-1", "1.5", "abc", "18446744073709551616"] {
+                assert!(parse_options(kind, &["--jobs".into(), value.into()]).is_err());
+            }
+            assert!(parse_options(kind, &["--jobs".into()]).is_err());
+        }
+        assert!(parse_options(CommandKind::Plan, &["--jobs".into(), "4".into()]).is_err());
+    }
 }

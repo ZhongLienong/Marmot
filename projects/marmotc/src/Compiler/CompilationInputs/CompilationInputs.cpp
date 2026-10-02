@@ -62,3 +62,25 @@ bool CompilationInputs::EmitsAst() const
 {
 	return m_emit_ast;
 }
+
+CompilationInputs CompilationInputs::WithJobs(std::optional<size_t> jobs) &&
+{
+	m_jobs = jobs;
+	return std::move(*this);
+}
+
+const std::optional<size_t>& CompilationInputs::Jobs() const
+{
+	return m_jobs;
+}
+
+CompilationInputs CompilationInputs::WithTimings(bool emit_timings) &&
+{
+	m_emit_timings = emit_timings;
+	return std::move(*this);
+}
+
+bool CompilationInputs::EmitsTimings() const
+{
+	return m_emit_timings;
+}

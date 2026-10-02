@@ -8,6 +8,7 @@ use crate::paths;
 use crate::plan::Plan;
 use serde_json::Value;
 use std::io::Read;
+use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
@@ -46,6 +47,7 @@ pub struct TestRequest<'a> {
     pub plan_file: &'a Path,
     pub compiler: &'a Path,
     pub vm: &'a Path,
+    pub jobs: Option<NonZeroUsize>,
 }
 
 #[derive(Debug, Default)]
@@ -292,7 +294,7 @@ fn read_optional(path: &Path) -> Option<String> {
     std::fs::read_to_string(path).ok()
 }
 
-fn run_one(request: &TestRequest, test: &Path) -> TestResult {
+fn run_one(request: &TestRequest, test: &Path, compiler_jobs: usize) -> TestResult {
     let started = Instant::now();
     let deadline = started + request.timeout;
     let relative = test
@@ -319,6 +321,8 @@ fn run_one(request: &TestRequest, test: &Path) -> TestResult {
         .arg(test)
         .arg("-o")
         .arg(&program)
+        .arg("--jobs")
+        .arg(compiler_jobs.to_string())
         .arg("--quiet");
     let built = match run_until(build, deadline) {
         Ok(built) => built,
@@ -428,13 +432,13 @@ fn run_one(request: &TestRequest, test: &Path) -> TestResult {
     result
 }
 
-/// Runs every test, as many at once as the machine has cores, and returns the
-/// results in discovery order.
+/// Shares the worker budget between test processes and each compiler, and
+/// returns results in discovery order.
 pub fn run_all(request: &TestRequest, tests: &[PathBuf]) -> Vec<TestResult> {
-    let workers = std::thread::available_parallelism()
-        .map(|count| count.get())
-        .unwrap_or(1)
-        .min(tests.len().max(1));
+    let budget = request.jobs.unwrap_or_else(|| {
+        std::thread::available_parallelism().unwrap_or(NonZeroUsize::new(1).unwrap())
+    });
+    let (workers, compiler_jobs) = worker_counts(budget, tests.len());
     let next = AtomicUsize::new(0);
     let results: Mutex<Vec<(usize, TestResult)>> = Mutex::new(Vec::with_capacity(tests.len()));
     std::thread::scope(|scope| {
@@ -445,7 +449,7 @@ pub fn run_all(request: &TestRequest, tests: &[PathBuf]) -> Vec<TestResult> {
                     let Some(test) = tests.get(index) else {
                         break;
                     };
-                    let result = run_one(request, test);
+                    let result = run_one(request, test, compiler_jobs);
                     results
                         .lock()
                         .expect("no test thread panics holding the lock")
@@ -459,6 +463,11 @@ pub fn run_all(request: &TestRequest, tests: &[PathBuf]) -> Vec<TestResult> {
         .expect("the test threads have finished");
     results.sort_by_key(|(index, _)| *index);
     results.into_iter().map(|(_, result)| result).collect()
+}
+
+fn worker_counts(budget: NonZeroUsize, test_count: usize) -> (usize, usize) {
+    let workers = budget.get().min(test_count.max(1));
+    (workers, budget.get() / workers)
 }
 
 fn status_label(result: &TestResult) -> String {
@@ -565,6 +574,22 @@ pub fn json(root: &Path, test_directory: &Path, results: &[TestResult]) -> Value
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_processes_and_compiler_workers_share_one_budget() {
+        for budget in 1..=16 {
+            for test_count in 1..=24 {
+                let (workers, compiler_jobs) =
+                    worker_counts(NonZeroUsize::new(budget).unwrap(), test_count);
+                assert!(workers <= test_count);
+                assert!(workers * compiler_jobs <= budget);
+                assert!(compiler_jobs > 0);
+            }
+        }
+        assert_eq!(worker_counts(NonZeroUsize::new(8).unwrap(), 1), (1, 8));
+        assert_eq!(worker_counts(NonZeroUsize::new(8).unwrap(), 3), (3, 2));
+        assert_eq!(worker_counts(NonZeroUsize::new(8).unwrap(), 20), (8, 1));
+    }
 
     #[test]
     fn a_test_under_a_failure_folder_is_expected_to_fail() {

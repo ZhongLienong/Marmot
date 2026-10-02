@@ -272,7 +272,7 @@ Current behavior:
 
 - `BuildGraph::GetCompilationTiers()` is used for deterministic progress reporting and final linking order.
 - The compiler builds a ready queue from modules whose dependencies are already satisfied.
-- On native builds, workers are `std::jthread` instances that pull from the queue.
+- Native builds use `std::jthread` workers, capped by `--jobs N` or hardware concurrency by default; one worker compiles on the calling thread.
 - When a module completes, any newly unblocked dependents are enqueued immediately.
 - On Emscripten builds, the same dependency logic runs through a single-threaded queue.
 

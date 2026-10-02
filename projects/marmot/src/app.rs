@@ -165,6 +165,8 @@ fn compile(
             vm: &vm,
             json: options.json,
             rebuild: options.rebuild,
+            jobs: options.jobs,
+            timings: options.timings,
         });
     }
 
@@ -175,6 +177,12 @@ fn compile(
     }
     if options.embed_sources {
         command.arg("--embed-sources");
+    }
+    if let Some(jobs) = options.jobs {
+        command.arg("--jobs").arg(jobs.to_string());
+    }
+    if options.timings {
+        command.arg("--timings");
     }
 
     run_compiler(command, compiler)
@@ -354,6 +362,7 @@ fn test(options: &Options, compiler: &Path, version: &Version) -> Result<ExitCod
         plan_file: &plan_file.0,
         compiler,
         vm: &vm,
+        jobs: options.jobs,
     };
     let tests = test::discover(
         &test_directory,

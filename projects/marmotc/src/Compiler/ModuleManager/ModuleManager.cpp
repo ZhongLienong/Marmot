@@ -57,10 +57,27 @@ ModuleManager::ModuleManager(TokenStream&& main_file_tokens, std::string_view ma
 MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraph()
 {
 	BuildGraph build_graph;
-	return GenerateBuildGraphImpl(build_graph);
+	MidoriResult::VoidResult discovery = GenerateBuildGraphImpl(build_graph);
+	if (!discovery.has_value())
+	{
+		return std::unexpected(std::move(discovery.error()));
+	}
+
+	BuildDependencyGraph(build_graph);
+	CalculateInDegrees(build_graph);
+	build_graph.m_module_declarations = std::move(m_module_declarations);
+	for (const auto& [file_name, node] : build_graph.m_nodes)
+	{
+		if (!node.m_use_imports.empty())
+		{
+			build_graph.m_use_imports[file_name] = node.m_use_imports;
+		}
+	}
+
+	return build_graph;
 }
 
-MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraphImpl(BuildGraph& build_graph)
+MidoriResult::VoidResult ModuleManager::GenerateBuildGraphImpl(BuildGraph& build_graph)
 {
 
 	if (m_main_token_stream.Size() != 0)
@@ -131,9 +148,9 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraphImpl(BuildGra
 		}
 
 		BuildGraph::BuildNode& main_node = build_graph.m_nodes[m_main_file_name];
-		main_node.m_tokens = m_main_token_stream;
+		main_node.m_tokens = std::move(m_main_token_stream);
 		main_node.m_file_name = m_main_file_name;
-		main_node.m_source_lines = m_main_source_lines;
+		main_node.m_source_lines = std::move(m_main_source_lines);
 		main_node.m_use_imports = std::move(use_imports);
 
 		ImportResolver resolver(m_main_file_name, m_inputs.SearchPaths());
@@ -162,11 +179,6 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraphImpl(BuildGra
 				return std::unexpected(MidoriError::GenerateModuleErrorWithContext(CompilerErrorCode::ModuleImportFileOpenFailed, "Could not open import file: "s + include_absolute_path_str, line, m_main_file_name));
 			}
 
-			if (HasCircularDependency())
-			{
-				return std::unexpected(MidoriError::GenerateModuleErrorWithContext(CompilerErrorCode::ModuleCircularDependency, "Circular dependency detected: "s + include_absolute_path_str, line, m_main_file_name));
-			}
-
 			std::ostringstream include_file_stream;
 			include_file_stream << include_file.rdbuf();
 			std::string include_source = include_file_stream.str();
@@ -181,62 +193,23 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraphImpl(BuildGra
 			TokenStream imported_token_stream = std::move(lex_result.value());
 
 			ModuleManager module_manager(std::move(imported_token_stream), std::move(include_absolute_path_str), std::move(include_source_lines), m_inputs);
-			MidoriResult::ModuleManagerResult nested_build_graph_result = module_manager.GenerateBuildGraphImpl(build_graph);
+			MidoriResult::VoidResult nested_build_graph_result = module_manager.GenerateBuildGraphImpl(build_graph);
 			if (!nested_build_graph_result.has_value())
 			{
 				return std::unexpected(std::move(nested_build_graph_result.error()));
 			}
 
-			BuildGraph& nested_build_graph = nested_build_graph_result.value();
-			for (const auto& [file_name, node] : nested_build_graph.m_nodes)
-			{
-				if (!build_graph.m_nodes.contains(file_name))
-				{
-					build_graph.m_nodes[file_name] = node;
-				}
-			}
-
-			for (const auto& [nested_file_path, nested_module_decl] : module_manager.m_module_declarations)
-			{
-				if (!m_module_declarations.contains(nested_file_path))
-				{
-					m_module_declarations[nested_file_path] = nested_module_decl;
-				}
-			}
-
-			for (const auto& [src, dependencies] : module_manager.m_dependency_graph)
-			{
-				for (const std::string& dependency : dependencies)
-				{
-					if (!std::ranges::contains(m_dependency_graph[src], dependency))
-					{
-						m_dependency_graph[src].emplace_back(dependency);
-					}
-				}
-			}
+			m_module_declarations.merge(module_manager.m_module_declarations);
+			m_dependency_graph.merge(module_manager.m_dependency_graph);
 		}
 	}
-
-	BuildDependencyGraph(build_graph);
-
-	CalculateInDegrees(build_graph);
 
 	if (HasCircularDependency())
 	{
 		return std::unexpected(MidoriError::GenerateModuleErrorWithContext(CompilerErrorCode::ModuleCircularDependency, "Circular dependency detected in final build graph", 0, m_main_file_name));
 	}
 
-	build_graph.m_module_declarations = m_module_declarations;
-
-	for (const auto& [file_name, node] : build_graph.m_nodes)
-	{
-		if (!node.m_use_imports.empty())
-		{
-			build_graph.m_use_imports[file_name] = node.m_use_imports;
-		}
-	}
-
-	return build_graph;
+	return {};
 }
 
 bool ModuleManager::HasCircularDependency() const

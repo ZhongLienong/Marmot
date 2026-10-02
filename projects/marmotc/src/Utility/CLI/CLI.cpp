@@ -63,6 +63,8 @@ namespace
 		bool m_emit_ir = false;
 		bool m_emit_ast = false;
 		bool m_optimizer_stats = false;
+		std::optional<size_t> m_jobs;
+		bool m_timings = false;
 	};
 
 	using ParseResult = std::expected<Invocation, std::string>;
@@ -108,6 +110,8 @@ namespace
 				"Type-check a Marmot source file without executing it.\n"
 				"With --plan, check the plan's entry from exactly the plan's inputs.\n\n"
 				"Options: --emit-ast (checked AST), --emit-ir (optimized IR).\n"
+				"         --jobs N (maximum workers; default: hardware concurrency).\n"
+				"         --timings (stage times and worker utilization on stderr).\n"
 #if MIDORI_ENABLE_OPTIMIZER_STATS
 				"         --optimizer-stats (pass statistics on stderr).\n"
 #endif
@@ -132,6 +136,8 @@ namespace
 				"With --deps, list every file the program was built from, one per line:\n"
 				"what the build depends on.\n\n"
 				"Options: --emit-ast (checked AST), --emit-ir (optimized IR).\n"
+				"         --jobs N (maximum workers; default: hardware concurrency).\n"
+				"         --timings (stage times and worker utilization on stderr).\n"
 #if MIDORI_ENABLE_OPTIMIZER_STATS
 				"         --optimizer-stats (pass statistics on stderr).\n"
 #endif
@@ -310,6 +316,23 @@ namespace
 		return {};
 	}
 
+	[[nodiscard]] std::expected<size_t, std::string> ParseJobs(const std::vector<std::string_view>& args, size_t& index)
+	{
+		if (index + 1u >= args.size())
+		{
+			return std::unexpected("Missing value for --jobs.");
+		}
+
+		const std::string_view value = args[++index];
+		size_t jobs = 0u;
+		const std::from_chars_result parsed = std::from_chars(value.data(), value.data() + value.size(), jobs);
+		if (parsed.ec != std::errc{} || parsed.ptr != value.data() + value.size() || jobs == 0u)
+		{
+			return std::unexpected("--jobs requires a positive integer.");
+		}
+		return jobs;
+	}
+
 	[[nodiscard]] ParseResult ParseCompileLike(CommandKind kind, const std::vector<std::string_view>& args)
 	{
 		Invocation invocation;
@@ -332,6 +355,23 @@ namespace
 				{
 					return std::unexpected(error);
 				}
+				continue;
+			}
+
+			if (arg == "--jobs")
+			{
+				std::expected<size_t, std::string> jobs = ParseJobs(args, index);
+				if (!jobs.has_value())
+				{
+					return std::unexpected(std::move(jobs.error()));
+				}
+				invocation.m_jobs = jobs.value();
+				continue;
+			}
+
+			if (arg == "--timings")
+			{
+				invocation.m_timings = true;
 				continue;
 			}
 
@@ -445,6 +485,23 @@ namespace
 				}
 				index += 1u;
 				invocation.m_deps_path = std::filesystem::path(args[index]);
+				continue;
+			}
+
+			if (arg == "--jobs")
+			{
+				std::expected<size_t, std::string> jobs = ParseJobs(args, index);
+				if (!jobs.has_value())
+				{
+					return std::unexpected(std::move(jobs.error()));
+				}
+				invocation.m_jobs = jobs.value();
+				continue;
+			}
+
+			if (arg == "--timings")
+			{
+				invocation.m_timings = true;
 				continue;
 			}
 
@@ -749,7 +806,11 @@ namespace
 	[[nodiscard]] MidoriDriver::CompileFileWithReportResult CompileInvocation(const Invocation& invocation)
 	{
 		CompilationInputs inputs = invocation.m_plan_inputs.value_or(MidoriDriver::EnvironmentCompilationInputs());
-		return MidoriDriver::CompileFileWithReport(invocation.m_source_file, std::move(inputs).WithEmitMidoriIR(invocation.m_emit_ir).WithEmitAst(invocation.m_emit_ast));
+		return MidoriDriver::CompileFileWithReport(invocation.m_source_file, std::move(inputs)
+			.WithEmitMidoriIR(invocation.m_emit_ir)
+			.WithEmitAst(invocation.m_emit_ast)
+			.WithJobs(invocation.m_jobs)
+			.WithTimings(invocation.m_timings));
 	}
 
 	// Each module's syntax tree, then each module's MidoriIR, as asked.

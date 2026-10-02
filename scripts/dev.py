@@ -55,6 +55,7 @@ COMMANDS: dict[str, Command] = {
     "check": Command("", "run one check: layering, docs, cli, mmc, format, benchmarks, tool, web", "Tests"),
     "gate": Command("testing.gate", "everything a commit must pass", "Tests"),
     "bench": Command("bench.bench", "time the benchmarks, or --compare two compilers", "Performance", COMPILER_AND_VM, "Release"),
+    "bench-compile": Command("bench.compiler", "measure compiler scaling (--jobs, --synthetic)", "Performance", ["marmotc"], "Release"),
     "install": Command("install.install", "install marmotc, marmotvm, marmot and the prelude", "Install"),
     "uninstall": Command("install.uninstall", "remove that install", "Install"),
 }

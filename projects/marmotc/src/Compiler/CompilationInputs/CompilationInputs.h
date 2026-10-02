@@ -3,6 +3,7 @@
 #include "Bytecode/Executable/Executable.h"
 
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -19,6 +20,8 @@ private:
 	std::unordered_map<std::string, NativeLibraryPolicy> m_native_library_policies;
 	bool m_emit_midori_ir = false;
 	bool m_emit_ast = false;
+	std::optional<size_t> m_jobs;
+	bool m_emit_timings = false;
 
 public:
 	// Directories searched, in order, for `<Name>` imports. Directories that do
@@ -42,4 +45,12 @@ public:
 	CompilationInputs WithEmitAst(bool emit_ast) &&;
 
 	bool EmitsAst() const;
+
+	CompilationInputs WithJobs(std::optional<size_t> jobs) &&;
+
+	const std::optional<size_t>& Jobs() const;
+
+	CompilationInputs WithTimings(bool emit_timings) &&;
+
+	bool EmitsTimings() const;
 };

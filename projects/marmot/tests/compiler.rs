@@ -914,3 +914,52 @@ fn a_skipped_build_still_reports_its_warnings() {
         "{payload}"
     );
 }
+
+#[test]
+fn compiler_job_limits_and_timings_reach_build_check_and_cached_run() {
+    let Some(compiler) = compiler() else { return };
+    let project = Project::new("compiler-jobs");
+    project.write("project.marmot", "[project]\nentry = \"Main.mmt\"\n");
+    project.write(
+        "Main.mmt",
+        "module Main\nimport { \"<IO>\" }\nIO::PrintLine(\"hi\");\n",
+    );
+    succeeded(&marmot(&compiler, &project.0, &["run"]));
+    for command in ["build", "check", "run"] {
+        let output = marmot(
+            &compiler,
+            &project.0,
+            &[command, "--jobs", "1", "--timings", "--format", "json"],
+        );
+        let payload: serde_json::Value =
+            serde_json::from_slice(&succeeded(&output).stdout).unwrap();
+        assert_eq!(payload["success"], true);
+        assert!(text(&output.stderr).contains("Workers: 1 configured, 1 peak active"));
+        if command == "run" {
+            assert_eq!(payload["stdout"], "hi\n");
+        }
+    }
+
+    project.write(
+        "test/hello.mmt",
+        "module Hello\nimport { \"<IO>\" }\nIO::PrintLine(\"hi\");\n",
+    );
+    project.write("test/hello.expected", "hi\n");
+    for jobs in ["1", "4"] {
+        let output = marmot(
+            &compiler,
+            &project.0,
+            &["test", "--jobs", jobs, "--format", "json"],
+        );
+        let payload: serde_json::Value =
+            serde_json::from_slice(&succeeded(&output).stdout).unwrap();
+        assert_eq!(payload["summary"]["passed"], 1);
+        assert_eq!(
+            payload["results"][0]["output"]
+                .as_str()
+                .unwrap()
+                .replace("\r\n", "\n"),
+            "hi\n"
+        );
+    }
+}

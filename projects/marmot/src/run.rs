@@ -6,6 +6,7 @@ use crate::manifest;
 use crate::paths;
 use crate::plan::Plan;
 use serde_json::Value;
+use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, Output};
 
@@ -146,6 +147,8 @@ pub struct RunRequest<'a> {
     pub json: bool,
     /// Build even when the program in target/ is still current.
     pub rebuild: bool,
+    pub jobs: Option<NonZeroUsize>,
+    pub timings: bool,
 }
 
 /// The build's report when it was skipped: the stamp replays it, and an older
@@ -180,7 +183,7 @@ pub fn run(request: &RunRequest) -> Result<ExitCode, String> {
     let plan_json = request.plan.to_json();
     // A stamp replays one form of what the build said, so it serves the mode it
     // was recorded in; the other mode builds once and records its own.
-    let current = if request.rebuild {
+    let current = if request.rebuild || request.timings {
         None
     } else {
         cache::fresh(&program, &plan_json, request.compiler).filter(|stamp| {
@@ -201,6 +204,12 @@ pub fn run(request: &RunRequest) -> Result<ExitCode, String> {
         .arg(&program)
         .arg("--deps")
         .arg(cache::deps_path(&program));
+    if let Some(jobs) = request.jobs {
+        build.arg("--jobs").arg(jobs.to_string());
+    }
+    if request.timings {
+        build.arg("--timings");
+    }
 
     let mut vm = Command::new(request.vm);
     vm.arg("run").arg(&program);
@@ -239,6 +248,7 @@ pub fn run(request: &RunRequest) -> Result<ExitCode, String> {
         Some(stamp) => serde_json::json!({ "report": replayed_report(stamp) }),
         None => {
             let built = output_of(build.args(["--format", "json"]), request.compiler)?;
+            eprint!("{}", String::from_utf8_lossy(&built.stderr));
             let mut payload = json_of(&built, request.compiler)?;
             if !built.status.success() {
                 payload["command"] = Value::from("run");

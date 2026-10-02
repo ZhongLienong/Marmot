@@ -645,7 +645,56 @@ def scenario_profile_features(runner: TestRunner) -> None:
             assert_condition(artifact.read_bytes() == baseline, "Statistics must not change emitted .mmc bytes.")
 
 
+def scenario_compiler_parallelism(runner: TestRunner) -> None:
+    with tempfile.TemporaryDirectory(prefix="marmot-cli-jobs-") as raw:
+        directory = Path(raw)
+        sources = {
+            "Shared.mmt": "module Shared\npublic export { Identity }\ndef Identity = fn<T>(value: T) -> T => value;\n",
+            "Left.mmt": 'module Left\nimport { "Shared.mmt" }\npublic export { Value }\ndef Value = Shared::Identity(20);\n',
+            "Right.mmt": 'module Right\nimport { "Shared.mmt" }\npublic export { Value }\ndef Value = Shared::Identity(22);\n',
+            "Main.mmt": 'module Main\nimport { "Left.mmt", "Right.mmt" }\ndef result = Left::Value + Right::Value;\n',
+        }
+        for name, source in sources.items():
+            write_text(directory / name, source)
+        entry = directory / "Main.mmt"
+        artifact = directory / "program.mmc"
+        expected = None
+        expected_ir = None
+        for jobs in (1, 2, 4, 2):
+            built = run_midori(runner, ["build", str(entry), "-o", str(artifact), "--jobs", str(jobs),
+                                        "--timings", "--format", "json"], {"MARMOT_PATH": None})
+            payload = json.loads(built.stdout)
+            assert_condition(built.returncode == 0 and payload["success"], f"build --jobs {jobs}: {built}")
+            workers = re.search(r"Workers: (\d+) configured, (\d+) peak active, (\d+) modules started", built.stderr)
+            assert_condition(workers is not None, f"missing timings: {built.stderr}")
+            assert_condition(int(workers[1]) == jobs and 1 <= int(workers[2]) <= jobs and int(workers[3]) == 4,
+                             f"incorrect worker counts: {built.stderr}")
+            emitted = artifact.read_bytes()
+            assert_condition(expected is None or emitted == expected, "--jobs and --timings changed emitted bytecode")
+            expected = emitted
+            checked = run_midori(runner, ["check", str(entry), "--jobs", str(jobs), "--emit-ir"], {"MARMOT_PATH": None})
+            assert_condition(checked.returncode == 0 and not checked.stderr, f"untimed check: {checked}")
+            assert_condition(expected_ir is None or checked.stdout == expected_ir, "--jobs changed checked IR or diagnostic ordering")
+            expected_ir = checked.stdout
+
+        for command in ("check", "build"):
+            for value in ("0", "-1", "1.5", "abc", "18446744073709551616"):
+                rejected = run_midori(runner, [command, str(entry), "--jobs", value], {"MARMOT_PATH": None})
+                assert_condition(rejected.returncode != 0 and "positive integer" in rejected.stdout + rejected.stderr,
+                                 f"invalid --jobs {value}: {rejected}")
+            missing = run_midori(runner, [command, str(entry), "--jobs"], {"MARMOT_PATH": None})
+            assert_condition(missing.returncode != 0 and "Missing value for --jobs" in missing.stdout + missing.stderr,
+                             f"missing --jobs value: {missing}")
+
+        write_text(directory / "Broken.mmt", "module Broken\ndef value = ;\n")
+        failed = run_midori(runner, ["check", str(directory / "Broken.mmt"), "--jobs", "1", "--timings", "--format", "json"],
+                            {"MARMOT_PATH": None})
+        assert_condition(failed.returncode != 0 and not json.loads(failed.stdout)["success"] and "Compilation timings" in failed.stderr,
+                         f"timings must preserve failed compilation reports: {failed}")
+
+
 SCENARIOS: list[tuple[str, Any]] = [
+    ("compiler_parallelism", scenario_compiler_parallelism),
     ("profile_features", scenario_profile_features),
     ("check_json_success_finds_imports_through_marmot_path", scenario_check_json_success_finds_imports_through_marmot_path),
     ("check_json_failure_reports_parser_errors", scenario_check_json_failure_reports_parser_errors),

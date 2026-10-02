@@ -8,6 +8,7 @@
 #include <vector>
 
 class MidoriType;
+class CompilationTimings;
 
 class Compiler
 {
@@ -16,6 +17,8 @@ private:
 	std::string m_file_name;
 	std::vector<std::string> m_source_lines;
 	CompilationInputs m_inputs;
+
+	MidoriResult::CompilationResult CompileWithTimings(CompilationTimings& timings);
 
 	static bool InstanceTypeArgsEqual(const std::vector<std::shared_ptr<MidoriType>>& left, const std::vector<std::shared_ptr<MidoriType>>& right);
 
