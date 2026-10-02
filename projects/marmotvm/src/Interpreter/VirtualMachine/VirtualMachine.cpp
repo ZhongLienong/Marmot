@@ -46,6 +46,23 @@ using namespace std::string_literals;
 #define MIDORI_NOINLINE
 #endif
 
+// Each handler ends in its own indirect jump to the next one, so the branch
+// predictor sees one jump per opcode instead of a single shared one. MSVC has
+// no labels-as-values, and Wasm lowers them back to a switch.
+//
+// The compiler gives each handler that jump by copying the shared dispatch
+// block into it, and never copies a block that is its own successor. A handler
+// that compiles to nothing (WORD_TO_INT reinterprets the same bits) would
+// merge into the dispatch block and make it one, and every handler would then
+// share one jump again. The empty asm keeps each handler a block of its own.
+#if (defined(__GNUC__) || defined(__clang__)) && !defined(__EMSCRIPTEN__)
+#define MIDORI_THREADED_DISPATCH 1
+#define MIDORI_HANDLER(name) case VmOpCode::name: handler_##name: __asm__ volatile("");
+#else
+#define MIDORI_THREADED_DISPATCH 0
+#define MIDORI_HANDLER(name) case VmOpCode::name:
+#endif
+
 namespace
 {
 	constexpr std::string_view ANONYMOUS_FUNCTION = "<anonymous>";
@@ -1014,6 +1031,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 	ValueStackPointer bp = m_value_stack_base_pointer;
 	MidoriTuple* env = m_curr_environment;
 	MidoriTraceable* closure = m_curr_closure_traceable;
+	CallStackPointer csp = m_call_stack_pointer;
+	const InstructionPointer* const proc_entries = m_proc_entry_cache.data();
 
 #if MIDORI_ENABLE_OPCODE_METRICS
 	const bool opcode_metrics = RuntimeDiagnostics::OpcodeMetricsEnabled();
@@ -1038,6 +1057,15 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 	};
 	const OpcodeReport opcode_report{opcode_metrics, opcode_counts};
+#endif
+
+#if MIDORI_THREADED_DISPATCH
+	static const std::array<void*, VmOpCodeTable::COUNT> s_dispatch_table =
+	{
+#define MARMOT_OPCODE(name, length) &&handler_##name,
+#include "Bytecode/Executable/OpCodes.def"
+#undef MARMOT_OPCODE
+	};
 #endif
 
 	while (true)
@@ -1074,9 +1102,12 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 #endif
 
+#if MIDORI_THREADED_DISPATCH
+		goto *s_dispatch_table[static_cast<size_t>(instruction)];
+#endif
 		switch (instruction)
 		{
-		case VmOpCode::LOAD_STRING_WIDE:
+		MIDORI_HANDLER(LOAD_STRING_WIDE)
 		{
 			size_t index = static_cast<size_t>(ReadShort(ip));
 			if (index >= m_string_literal_cache.size() || !m_string_literal_cache[index])
@@ -1091,82 +1122,82 @@ int VirtualMachine::ExecuteLoop() noexcept
 			Push(sp, m_string_literal_cache[index]);
 			break;
 		}
-		case VmOpCode::INTEGER_CONSTANT:
+		MIDORI_HANDLER(INTEGER_CONSTANT)
 		{
 			Push(sp, ReadIntegerConstant(ip));
 			break;
 		}
-		case VmOpCode::FLOAT_CONSTANT:
+		MIDORI_HANDLER(FLOAT_CONSTANT)
 		{
 			Push(sp, ReadFloatConstant(ip));
 			break;
 		}
-		case VmOpCode::BYTE_CONSTANT:
+		MIDORI_HANDLER(BYTE_CONSTANT)
 		{
 			Push(sp, ReadByteConstant(ip));
 			break;
 		}
-		case VmOpCode::WORD_CONSTANT:
+		MIDORI_HANDLER(WORD_CONSTANT)
 		{
 			Push(sp, ReadWordConstant(ip));
 			break;
 		}
-		case VmOpCode::OP_UNIT:
+		MIDORI_HANDLER(OP_UNIT)
 		{
 			Push(sp, MidoriValue());
 			break;
 		}
-		case VmOpCode::OP_TRUE:
+		MIDORI_HANDLER(OP_TRUE)
 		{
 			Push(sp, true);
 			break;
 		}
-		case VmOpCode::OP_FALSE:
+		MIDORI_HANDLER(OP_FALSE)
 		{
 			Push(sp, false);
 			break;
 		}
-		case VmOpCode::INT_MINUS_1:
+		MIDORI_HANDLER(INT_MINUS_1)
 		{
 			Push(sp, MidoriInteger{-1});
 			break;
 		}
-		case VmOpCode::INT_0:
+		MIDORI_HANDLER(INT_0)
 		{
 			Push(sp, MidoriInteger{0});
 			break;
 		}
-		case VmOpCode::INT_1:
+		MIDORI_HANDLER(INT_1)
 		{
 			Push(sp, MidoriInteger{1});
 			break;
 		}
-		case VmOpCode::INT_2:
+		MIDORI_HANDLER(INT_2)
 		{
 			Push(sp, MidoriInteger{2});
 			break;
 		}
-		case VmOpCode::INT_3:
+		MIDORI_HANDLER(INT_3)
 		{
 			Push(sp, MidoriInteger{3});
 			break;
 		}
-		case VmOpCode::INT_4:
+		MIDORI_HANDLER(INT_4)
 		{
 			Push(sp, MidoriInteger{4});
 			break;
 		}
-		case VmOpCode::INT_5:
+		MIDORI_HANDLER(INT_5)
 		{
 			Push(sp, MidoriInteger{5});
 			break;
 		}
-		case VmOpCode::INT_10:
+		MIDORI_HANDLER(INT_10)
 		{
 			Push(sp, MidoriInteger{10});
 			break;
 		}
-		case VmOpCode::CREATE_ARRAY:
+		MIDORI_HANDLER(CREATE_ARRAY)
 		{
 			int count = ReadThreeBytes(ip);
 			MidoriArray arr(count);
@@ -1179,14 +1210,14 @@ int VirtualMachine::ExecuteLoop() noexcept
 			Push(sp, AllocateTraceable(std::move(arr)));
 			break;
 		}
-		case VmOpCode::CREATE_TUPLE:
+		MIDORI_HANDLER(CREATE_TUPLE)
 		{
 			int count = ReadThreeBytes(ip);
 			sp -= count;
 			Push(sp, AllocateTraceable(std::in_place_type<MidoriTuple>, std::span<const MidoriValue>(sp, static_cast<size_t>(count))));
 			break;
 		}
-		case VmOpCode::GET_ARRAY:
+		MIDORI_HANDLER(GET_ARRAY)
 		{
 			MidoriValue& index = *(sp - 1);
 			MidoriValue* arr_slot = sp - 2;
@@ -1208,7 +1239,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::GET_TUPLE:
+		MIDORI_HANDLER(GET_TUPLE)
 		{
 			MidoriValue& index = *(sp - 1);
 			MidoriValue* tuple_slot = sp - 2;
@@ -1230,7 +1261,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::ADD_BACK_ARRAY:
+		MIDORI_HANDLER(ADD_BACK_ARRAY)
 		{
 			MidoriValue val = Pop(sp);
 			MidoriValue& arr = Peek(sp);
@@ -1241,7 +1272,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::GET_ARRAY_LENGTH:
+		MIDORI_HANDLER(GET_ARRAY_LENGTH)
 		{
 			MidoriValue arr = Pop(sp);
 			MidoriArray& arr_ref = arr.GetPointer()->GetTraceable<MidoriArray>();
@@ -1249,7 +1280,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			Push(sp, length);
 			break;
 		}
-		case VmOpCode::CREATE_INT_RANGE:
+		MIDORI_HANDLER(CREATE_INT_RANGE)
 		{
 			MidoriValue end = Pop(sp);
 			MidoriValue step = Pop(sp);
@@ -1260,7 +1291,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			Push(sp, AllocateTraceable(std::move(range)));
 			break;
 		}
-		case VmOpCode::CREATE_FLOAT_RANGE:
+		MIDORI_HANDLER(CREATE_FLOAT_RANGE)
 		{
 			MidoriValue end = Pop(sp);
 			MidoriValue step = Pop(sp);
@@ -1271,7 +1302,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			Push(sp, AllocateTraceable(std::move(range)));
 			break;
 		}
-		case VmOpCode::GET_RANGE_START:
+		MIDORI_HANDLER(GET_RANGE_START)
 		{
 			MidoriValue range_ptr = Pop(sp);
 			MidoriTraceable* ptr = range_ptr.GetPointer();
@@ -1285,7 +1316,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		case VmOpCode::GET_RANGE_END:
+		MIDORI_HANDLER(GET_RANGE_END)
 		{
 			MidoriValue range_ptr = Pop(sp);
 			MidoriTraceable* ptr = range_ptr.GetPointer();
@@ -1299,7 +1330,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		case VmOpCode::GET_RANGE_STEP:
+		MIDORI_HANDLER(GET_RANGE_STEP)
 		{
 			MidoriValue range_ptr = Pop(sp);
 			MidoriTraceable* ptr = range_ptr.GetPointer();
@@ -1313,12 +1344,12 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		case VmOpCode::INT_TO_FLOAT:
+		MIDORI_HANDLER(INT_TO_FLOAT)
 		{
 			Peek(sp) = static_cast<MidoriFloat>(Peek(sp).GetInteger());
 			break;
 		}
-		case VmOpCode::TEXT_TO_FLOAT:
+		MIDORI_HANDLER(TEXT_TO_FLOAT)
 		{
 			const MidoriText& text = Peek(sp).GetPointer()->GetTraceable<MidoriText>();
 			const std::optional<MidoriFloat> parsed = text.ParseFloat();
@@ -1333,12 +1364,12 @@ int VirtualMachine::ExecuteLoop() noexcept
 			Peek(sp) = parsed.value();
 			break;
 		}
-		case VmOpCode::FLOAT_TO_INT:
+		MIDORI_HANDLER(FLOAT_TO_INT)
 		{
 			Peek(sp) = static_cast<MidoriInteger>(Peek(sp).GetFloat());
 			break;
 		}
-		case VmOpCode::TEXT_TO_INT:
+		MIDORI_HANDLER(TEXT_TO_INT)
 		{
 			const MidoriText& text = Peek(sp).GetPointer()->GetTraceable<MidoriText>();
 			const std::optional<MidoriInteger> parsed = text.ParseInteger();
@@ -1353,72 +1384,72 @@ int VirtualMachine::ExecuteLoop() noexcept
 			Peek(sp) = parsed.value();
 			break;
 		}
-		case VmOpCode::FLOAT_TO_TEXT:
+		MIDORI_HANDLER(FLOAT_TO_TEXT)
 		{
 			Peek(sp) = AllocateTraceable(MidoriText::FromFloat(Peek(sp).GetFloat()));
 			break;
 		}
-		case VmOpCode::INT_TO_TEXT:
+		MIDORI_HANDLER(INT_TO_TEXT)
 		{
 			Peek(sp) = AllocateTraceable(MidoriText::FromInteger(Peek(sp).GetInteger()));
 			break;
 		}
-		case VmOpCode::WORD_TO_TEXT:
+		MIDORI_HANDLER(WORD_TO_TEXT)
 		{
 			Peek(sp) = AllocateTraceable(MidoriText::FromWord(Peek(sp).GetWord()));
 			break;
 		}
-		case VmOpCode::BYTE_TO_INT:
+		MIDORI_HANDLER(BYTE_TO_INT)
 		{
 			Peek(sp) = static_cast<MidoriInteger>(Peek(sp).GetByte());
 			break;
 		}
-		case VmOpCode::INT_TO_BYTE:
+		MIDORI_HANDLER(INT_TO_BYTE)
 		{
 			Peek(sp) = static_cast<MidoriByte>(Peek(sp).GetInteger() & 0xFF);
 			break;
 		}
-		case VmOpCode::BYTE_TO_WORD:
+		MIDORI_HANDLER(BYTE_TO_WORD)
 		{
 			Peek(sp) = static_cast<MidoriWord>(Peek(sp).GetByte());
 			break;
 		}
-		case VmOpCode::WORD_TO_BYTE:
+		MIDORI_HANDLER(WORD_TO_BYTE)
 		{
 			Peek(sp) = static_cast<MidoriByte>(Peek(sp).GetWord() & 0xFF);
 			break;
 		}
-		case VmOpCode::WORD_TO_INT:
+		MIDORI_HANDLER(WORD_TO_INT)
 		{
 			Peek(sp) = static_cast<MidoriInteger>(Peek(sp).GetWord());
 			break;
 		}
-		case VmOpCode::INT_TO_WORD:
+		MIDORI_HANDLER(INT_TO_WORD)
 		{
 			Peek(sp) = static_cast<MidoriWord>(Peek(sp).GetInteger());
 			break;
 		}
-		case VmOpCode::BYTE_TO_FLOAT:
+		MIDORI_HANDLER(BYTE_TO_FLOAT)
 		{
 			Peek(sp) = static_cast<MidoriFloat>(Peek(sp).GetByte());
 			break;
 		}
-		case VmOpCode::FLOAT_TO_BYTE:
+		MIDORI_HANDLER(FLOAT_TO_BYTE)
 		{
 			Peek(sp) = static_cast<MidoriByte>(Peek(sp).GetFloat());
 			break;
 		}
-		case VmOpCode::WORD_TO_FLOAT:
+		MIDORI_HANDLER(WORD_TO_FLOAT)
 		{
 			Peek(sp) = static_cast<MidoriFloat>(Peek(sp).GetWord());
 			break;
 		}
-		case VmOpCode::FLOAT_TO_WORD:
+		MIDORI_HANDLER(FLOAT_TO_WORD)
 		{
 			Peek(sp) = static_cast<MidoriWord>(Peek(sp).GetFloat());
 			break;
 		}
-		case VmOpCode::LEFT_SHIFT:
+		MIDORI_HANDLER(LEFT_SHIFT)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -1426,7 +1457,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			left = MidoriIntegerArithmetic::ShiftLeft(left.GetInteger(), static_cast<uint64_t>(right.GetInteger()));
 			break;
 		}
-		case VmOpCode::RIGHT_SHIFT:
+		MIDORI_HANDLER(RIGHT_SHIFT)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -1435,7 +1466,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::LEFT_SHIFT_BYTE:
+		MIDORI_HANDLER(LEFT_SHIFT_BYTE)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -1444,7 +1475,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::RIGHT_SHIFT_BYTE:
+		MIDORI_HANDLER(RIGHT_SHIFT_BYTE)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -1453,7 +1484,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::LEFT_SHIFT_WORD:
+		MIDORI_HANDLER(LEFT_SHIFT_WORD)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -1462,7 +1493,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::RIGHT_SHIFT_WORD:
+		MIDORI_HANDLER(RIGHT_SHIFT_WORD)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -1471,7 +1502,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::BITWISE_AND:
+		MIDORI_HANDLER(BITWISE_AND)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -1480,7 +1511,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::BITWISE_OR:
+		MIDORI_HANDLER(BITWISE_OR)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -1489,7 +1520,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::BITWISE_XOR:
+		MIDORI_HANDLER(BITWISE_XOR)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -1498,7 +1529,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::BITWISE_NOT:
+		MIDORI_HANDLER(BITWISE_NOT)
 		{
 			MidoriValue& right = Peek(sp);
 
@@ -1506,7 +1537,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::ADD_FLOAT:
+		MIDORI_HANDLER(ADD_FLOAT)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -1515,7 +1546,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::SUBTRACT_FLOAT:
+		MIDORI_HANDLER(SUBTRACT_FLOAT)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -1524,7 +1555,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::MULTIPLY_FLOAT:
+		MIDORI_HANDLER(MULTIPLY_FLOAT)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -1533,7 +1564,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::DIVIDE_FLOAT:
+		MIDORI_HANDLER(DIVIDE_FLOAT)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -1542,7 +1573,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::MODULO_FLOAT:
+		MIDORI_HANDLER(MODULO_FLOAT)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -1551,7 +1582,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::ADD_INTEGER:
+		MIDORI_HANDLER(ADD_INTEGER)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -1560,7 +1591,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::SUBTRACT_INTEGER:
+		MIDORI_HANDLER(SUBTRACT_INTEGER)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -1569,7 +1600,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::MULTIPLY_INTEGER:
+		MIDORI_HANDLER(MULTIPLY_INTEGER)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -1578,7 +1609,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::DIVIDE_INTEGER:
+		MIDORI_HANDLER(DIVIDE_INTEGER)
 		{
 			m_instruction_pointer = inst_ip;
 			MidoriValue right = Pop(sp);
@@ -1588,7 +1619,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::MODULO_INTEGER:
+		MIDORI_HANDLER(MODULO_INTEGER)
 		{
 			m_instruction_pointer = inst_ip;
 			MidoriValue right = Pop(sp);
@@ -1598,7 +1629,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::ADD_BYTE:
+		MIDORI_HANDLER(ADD_BYTE)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -1607,7 +1638,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::SUBTRACT_BYTE:
+		MIDORI_HANDLER(SUBTRACT_BYTE)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -1616,7 +1647,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::MULTIPLY_BYTE:
+		MIDORI_HANDLER(MULTIPLY_BYTE)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -1625,7 +1656,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::DIVIDE_BYTE:
+		MIDORI_HANDLER(DIVIDE_BYTE)
 		{
 			m_instruction_pointer = inst_ip;
 			MidoriValue right = Pop(sp);
@@ -1635,7 +1666,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::MODULO_BYTE:
+		MIDORI_HANDLER(MODULO_BYTE)
 		{
 			m_instruction_pointer = inst_ip;
 			MidoriValue right = Pop(sp);
@@ -1645,7 +1676,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::ADD_WORD:
+		MIDORI_HANDLER(ADD_WORD)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -1654,7 +1685,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::SUBTRACT_WORD:
+		MIDORI_HANDLER(SUBTRACT_WORD)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -1663,7 +1694,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::MULTIPLY_WORD:
+		MIDORI_HANDLER(MULTIPLY_WORD)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -1672,7 +1703,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::DIVIDE_WORD:
+		MIDORI_HANDLER(DIVIDE_WORD)
 		{
 			m_instruction_pointer = inst_ip;
 			MidoriValue right = Pop(sp);
@@ -1682,7 +1713,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::MODULO_WORD:
+		MIDORI_HANDLER(MODULO_WORD)
 		{
 			m_instruction_pointer = inst_ip;
 			MidoriValue right = Pop(sp);
@@ -1692,7 +1723,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::CONCAT_ARRAY:
+		MIDORI_HANDLER(CONCAT_ARRAY)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -1705,7 +1736,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			TryCollect(ip, sp, bp, env, closure);
 			break;
 		}
-		case VmOpCode::CONCAT_TEXT:
+		MIDORI_HANDLER(CONCAT_TEXT)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -1719,7 +1750,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			TryCollect(ip, sp, bp, env, closure);
 			break;
 		}
-		case VmOpCode::EXTEND_ARRAY:
+		MIDORI_HANDLER(EXTEND_ARRAY)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -1729,7 +1760,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::EXTEND_TEXT:
+		MIDORI_HANDLER(EXTEND_TEXT)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -1738,7 +1769,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::ADD_LOCAL_INT:
+		MIDORI_HANDLER(ADD_LOCAL_INT)
 		{
 			int local_index = static_cast<int>(ReadByte(ip));
 			MidoriInteger imm = static_cast<MidoriInteger>(static_cast<int8_t>(ReadByte(ip)));
@@ -1749,7 +1780,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			Push(sp, result);
 			break;
 		}
-		case VmOpCode::PUSH_LOCAL_SUB_INT:
+		MIDORI_HANDLER(PUSH_LOCAL_SUB_INT)
 		{
 			int local_index = static_cast<int>(ReadByte(ip));
 			MidoriInteger imm = static_cast<MidoriInteger>(static_cast<int8_t>(ReadByte(ip)));
@@ -1757,7 +1788,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			Push(sp, MidoriIntegerArithmetic::Subtract((bp + local_index)->GetInteger(), imm));
 			break;
 		}
-		case VmOpCode::IF_LOCAL_LE_INT:
+		MIDORI_HANDLER(IF_LOCAL_LE_INT)
 		{
 			int local_index = static_cast<int>(ReadByte(ip));
 			MidoriInteger imm = static_cast<MidoriInteger>(static_cast<int8_t>(ReadByte(ip)));
@@ -1769,7 +1800,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		case VmOpCode::IF_LOCAL_GE_LOCAL:
+		MIDORI_HANDLER(IF_LOCAL_GE_LOCAL)
 		{
 			int left_index = static_cast<int>(ReadByte(ip));
 			int right_index = static_cast<int>(ReadByte(ip));
@@ -1781,7 +1812,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		case VmOpCode::GET_LOCAL2:
+		MIDORI_HANDLER(GET_LOCAL2)
 		{
 			int first_index = static_cast<int>(ReadByte(ip));
 			int second_index = static_cast<int>(ReadByte(ip));
@@ -1790,13 +1821,13 @@ int VirtualMachine::ExecuteLoop() noexcept
 			Push(sp, *(bp + second_index));
 			break;
 		}
-		case VmOpCode::STORE_LOCAL:
+		MIDORI_HANDLER(STORE_LOCAL)
 		{
 			int offset = static_cast<int>(ReadByte(ip));
 			*(bp + offset) = Pop(sp);
 			break;
 		}
-		case VmOpCode::IF_LOCAL_TAG_NOT:
+		MIDORI_HANDLER(IF_LOCAL_TAG_NOT)
 		{
 			int local_index = static_cast<int>(ReadByte(ip));
 			int tag = static_cast<int>(ReadByte(ip));
@@ -1808,7 +1839,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		case VmOpCode::LOCAL_UNION_FIELD:
+		MIDORI_HANDLER(LOCAL_UNION_FIELD)
 		{
 			int union_index = static_cast<int>(ReadByte(ip));
 			int field_index = static_cast<int>(ReadByte(ip));
@@ -1817,7 +1848,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			*(bp + target_index) = (bp + union_index)->GetPointer()->GetTraceable<MidoriUnion>().m_values[field_index];
 			break;
 		}
-		case VmOpCode::IF_LOCAL_LT_INT:
+		MIDORI_HANDLER(IF_LOCAL_LT_INT)
 		{
 			int local_index = static_cast<int>(ReadByte(ip));
 			MidoriInteger imm = static_cast<MidoriInteger>(static_cast<int8_t>(ReadByte(ip)));
@@ -1829,7 +1860,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		case VmOpCode::IF_LOCAL_LT_LOCAL:
+		MIDORI_HANDLER(IF_LOCAL_LT_LOCAL)
 		{
 			int left_index = static_cast<int>(ReadByte(ip));
 			int right_index = static_cast<int>(ReadByte(ip));
@@ -1841,7 +1872,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		case VmOpCode::IF_LOCAL_EQ_LOCAL:
+		MIDORI_HANDLER(IF_LOCAL_EQ_LOCAL)
 		{
 			int left_index = static_cast<int>(ReadByte(ip));
 			int right_index = static_cast<int>(ReadByte(ip));
@@ -1853,7 +1884,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		case VmOpCode::STEP_LOCAL:
+		MIDORI_HANDLER(STEP_LOCAL)
 		{
 			int local_index = static_cast<int>(ReadByte(ip));
 			MidoriInteger imm = static_cast<MidoriInteger>(static_cast<int8_t>(ReadByte(ip)));
@@ -1862,7 +1893,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			slot = MidoriIntegerArithmetic::Add(slot.GetInteger(), imm);
 			break;
 		}
-		case VmOpCode::LOCAL_ARRAY_GET:
+		MIDORI_HANDLER(LOCAL_ARRAY_GET)
 		{
 			MidoriArray& arr_ref = (bp + static_cast<int>(ReadByte(ip)))->GetPointer()->GetTraceable<MidoriArray>();
 			MidoriValue& index = *(bp + static_cast<int>(ReadByte(ip)));
@@ -1881,7 +1912,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			*(bp + target_index) = arr_ref[static_cast<int>(index.GetInteger())];
 			break;
 		}
-		case VmOpCode::LOCAL_UNION2:
+		MIDORI_HANDLER(LOCAL_UNION2)
 		{
 			int tag = static_cast<int>(ReadByte(ip));
 			const std::array<MidoriValue, 2uz> fields{ *(bp + static_cast<int>(ReadByte(ip))), *(bp + static_cast<int>(ReadByte(ip))) };
@@ -1890,7 +1921,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			*(bp + target_index) = AllocateTraceable(std::in_place_type<MidoriUnion>, std::span<const MidoriValue>(fields), tag);
 			break;
 		}
-		case VmOpCode::APPEND_LOCAL:
+		MIDORI_HANDLER(APPEND_LOCAL)
 		{
 			MidoriTraceable* arr = (bp + static_cast<int>(ReadByte(ip)))->GetPointer();
 			MidoriValue val = *(bp + static_cast<int>(ReadByte(ip)));
@@ -1899,7 +1930,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			arr->GetTraceable<MidoriArray>().AddBack(val);
 			break;
 		}
-		case VmOpCode::EQUAL_FLOAT:
+		MIDORI_HANDLER(EQUAL_FLOAT)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -1908,7 +1939,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::NOT_EQUAL_FLOAT:
+		MIDORI_HANDLER(NOT_EQUAL_FLOAT)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -1917,7 +1948,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::GREATER_FLOAT:
+		MIDORI_HANDLER(GREATER_FLOAT)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -1926,7 +1957,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::GREATER_EQUAL_FLOAT:
+		MIDORI_HANDLER(GREATER_EQUAL_FLOAT)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -1935,7 +1966,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::LESS_FLOAT:
+		MIDORI_HANDLER(LESS_FLOAT)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -1944,7 +1975,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::LESS_EQUAL_FLOAT:
+		MIDORI_HANDLER(LESS_EQUAL_FLOAT)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -1953,7 +1984,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::EQUAL_INTEGER:
+		MIDORI_HANDLER(EQUAL_INTEGER)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -1962,7 +1993,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::NOT_EQUAL_INTEGER:
+		MIDORI_HANDLER(NOT_EQUAL_INTEGER)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -1971,7 +2002,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::GREATER_INTEGER:
+		MIDORI_HANDLER(GREATER_INTEGER)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -1980,7 +2011,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::GREATER_EQUAL_INTEGER:
+		MIDORI_HANDLER(GREATER_EQUAL_INTEGER)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -1989,7 +2020,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::LESS_INTEGER:
+		MIDORI_HANDLER(LESS_INTEGER)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -1998,7 +2029,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::LESS_EQUAL_INTEGER:
+		MIDORI_HANDLER(LESS_EQUAL_INTEGER)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -2007,7 +2038,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::EQUAL_BYTE:
+		MIDORI_HANDLER(EQUAL_BYTE)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -2016,7 +2047,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::NOT_EQUAL_BYTE:
+		MIDORI_HANDLER(NOT_EQUAL_BYTE)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -2025,7 +2056,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::GREATER_BYTE:
+		MIDORI_HANDLER(GREATER_BYTE)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -2034,7 +2065,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::GREATER_EQUAL_BYTE:
+		MIDORI_HANDLER(GREATER_EQUAL_BYTE)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -2043,7 +2074,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::LESS_BYTE:
+		MIDORI_HANDLER(LESS_BYTE)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -2052,7 +2083,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::LESS_EQUAL_BYTE:
+		MIDORI_HANDLER(LESS_EQUAL_BYTE)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -2061,7 +2092,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::EQUAL_WORD:
+		MIDORI_HANDLER(EQUAL_WORD)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -2070,7 +2101,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::NOT_EQUAL_WORD:
+		MIDORI_HANDLER(NOT_EQUAL_WORD)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -2079,7 +2110,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::GREATER_WORD:
+		MIDORI_HANDLER(GREATER_WORD)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -2088,7 +2119,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::GREATER_EQUAL_WORD:
+		MIDORI_HANDLER(GREATER_EQUAL_WORD)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -2097,7 +2128,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::LESS_WORD:
+		MIDORI_HANDLER(LESS_WORD)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -2106,7 +2137,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::LESS_EQUAL_WORD:
+		MIDORI_HANDLER(LESS_EQUAL_WORD)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -2115,7 +2146,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::EQUAL_TEXT:
+		MIDORI_HANDLER(EQUAL_TEXT)
 		{
 			MidoriValue right = Pop(sp);
 			MidoriValue& left = Peek(sp);
@@ -2124,25 +2155,25 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::NOT:
+		MIDORI_HANDLER(NOT)
 		{
 			MidoriValue& value = Peek(sp);
 			value = !value.GetBool();
 			break;
 		}
-		case VmOpCode::NEGATE_FLOAT:
+		MIDORI_HANDLER(NEGATE_FLOAT)
 		{
 			MidoriValue& value = Peek(sp);
 			value = -value.GetFloat();
 			break;
 		}
-		case VmOpCode::NEGATE_INTEGER:
+		MIDORI_HANDLER(NEGATE_INTEGER)
 		{
 			MidoriValue& value = Peek(sp);
 			value = MidoriIntegerArithmetic::Negate(value.GetInteger());
 			break;
 		}
-		case VmOpCode::JUMP_IF_FALSE:
+		MIDORI_HANDLER(JUMP_IF_FALSE)
 		{
 			MidoriValue value = Peek(sp);
 
@@ -2153,13 +2184,13 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		case VmOpCode::JUMP:
+		MIDORI_HANDLER(JUMP)
 		{
 			int offset = ReadShort(ip);
 			ip += offset;
 			break;
 		}
-		case VmOpCode::JUMP_BACK:
+		MIDORI_HANDLER(JUMP_BACK)
 		{
 			int offset = ReadShort(ip);
 			ip -= offset;
@@ -2171,7 +2202,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			TryCollect(ip, sp, bp, env, closure);
 			break;
 		}
-		case VmOpCode::IF_INTEGER_LESS:
+		MIDORI_HANDLER(IF_INTEGER_LESS)
 		{
 			int offset = ReadShort(ip);
 			MidoriInteger right = Pop(sp).GetInteger();
@@ -2183,7 +2214,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		case VmOpCode::IF_INTEGER_LESS_EQUAL:
+		MIDORI_HANDLER(IF_INTEGER_LESS_EQUAL)
 		{
 			int offset = ReadShort(ip);
 			MidoriInteger right = Pop(sp).GetInteger();
@@ -2195,7 +2226,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		case VmOpCode::IF_INTEGER_GREATER:
+		MIDORI_HANDLER(IF_INTEGER_GREATER)
 		{
 			int offset = ReadShort(ip);
 			MidoriInteger right = Pop(sp).GetInteger();
@@ -2207,7 +2238,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		case VmOpCode::IF_INTEGER_GREATER_EQUAL:
+		MIDORI_HANDLER(IF_INTEGER_GREATER_EQUAL)
 		{
 			int offset = ReadShort(ip);
 			MidoriInteger right = Pop(sp).GetInteger();
@@ -2219,7 +2250,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		case VmOpCode::IF_INTEGER_EQUAL:
+		MIDORI_HANDLER(IF_INTEGER_EQUAL)
 		{
 			int offset = ReadShort(ip);
 			MidoriInteger right = Pop(sp).GetInteger();
@@ -2231,7 +2262,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		case VmOpCode::IF_INTEGER_NOT_EQUAL:
+		MIDORI_HANDLER(IF_INTEGER_NOT_EQUAL)
 		{
 			int offset = ReadShort(ip);
 			MidoriInteger right = Pop(sp).GetInteger();
@@ -2243,7 +2274,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		case VmOpCode::IF_FLOAT_LESS:
+		MIDORI_HANDLER(IF_FLOAT_LESS)
 		{
 			int offset = ReadShort(ip);
 			MidoriFloat right = Pop(sp).GetFloat();
@@ -2255,7 +2286,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		case VmOpCode::IF_FLOAT_LESS_EQUAL:
+		MIDORI_HANDLER(IF_FLOAT_LESS_EQUAL)
 		{
 			int offset = ReadShort(ip);
 			MidoriFloat right = Pop(sp).GetFloat();
@@ -2267,7 +2298,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		case VmOpCode::IF_FLOAT_GREATER:
+		MIDORI_HANDLER(IF_FLOAT_GREATER)
 		{
 			int offset = ReadShort(ip);
 			MidoriFloat right = Pop(sp).GetFloat();
@@ -2279,7 +2310,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		case VmOpCode::IF_FLOAT_GREATER_EQUAL:
+		MIDORI_HANDLER(IF_FLOAT_GREATER_EQUAL)
 		{
 			int offset = ReadShort(ip);
 			MidoriFloat right = Pop(sp).GetFloat();
@@ -2291,7 +2322,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		case VmOpCode::IF_FLOAT_EQUAL:
+		MIDORI_HANDLER(IF_FLOAT_EQUAL)
 		{
 			int offset = ReadShort(ip);
 			MidoriFloat right = Pop(sp).GetFloat();
@@ -2303,7 +2334,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		case VmOpCode::IF_FLOAT_NOT_EQUAL:
+		MIDORI_HANDLER(IF_FLOAT_NOT_EQUAL)
 		{
 			int offset = ReadShort(ip);
 			MidoriFloat right = Pop(sp).GetFloat();
@@ -2315,14 +2346,14 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		case VmOpCode::GET_TAG:
+		MIDORI_HANDLER(GET_TAG)
 		{
 			MidoriValue union_val = Pop(sp);
 			MidoriUnion& union_ref = union_val.GetPointer()->GetTraceable<MidoriUnion>();
 			Push(sp, static_cast<MidoriInteger>(union_ref.m_index));
 			break;
 		}
-		case VmOpCode::CALL_FOREIGN:
+		MIDORI_HANDLER(CALL_FOREIGN)
 		{
 			MidoriValue foreign_function_name = Pop(sp);
 			int arity = static_cast<int>(ReadByte(ip));
@@ -2458,7 +2489,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::CALL_FOREIGN_INDEXED:
+		MIDORI_HANDLER(CALL_FOREIGN_INDEXED)
 		{
 			uint8_t ffi_index = static_cast<uint8_t>(ReadByte(ip));
 			int arity = static_cast<int>(ReadByte(ip));
@@ -2628,7 +2659,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::CALL:
+		MIDORI_HANDLER(CALL)
 		{
 			MidoriValue callable = Pop(sp);
 			int arity = static_cast<int>(ReadByte(ip));
@@ -2642,21 +2673,21 @@ int VirtualMachine::ExecuteLoop() noexcept
 #endif
 
 			// Save caller's frame before switching to callee
-			PushCallFrame(bp, ip, env, closure);
+			PushCallFrame(csp, bp, ip, env, closure);
 
 			closure = callable.GetPointer();
 			MidoriClosure& callee = closure->GetTraceable<MidoriClosure>();
 			env = &callee.m_cell_values;
 
-			ip = GetProcEntry(callee.m_proc_index);
+			ip = proc_entries[static_cast<size_t>(callee.m_proc_index)];
 			bp = sp - arity;
 
 			break;
 		}
-		case VmOpCode::CALL_0:
-		case VmOpCode::CALL_1:
-		case VmOpCode::CALL_2:
-		case VmOpCode::CALL_3:
+		MIDORI_HANDLER(CALL_0)
+		MIDORI_HANDLER(CALL_1)
+		MIDORI_HANDLER(CALL_2)
+		MIDORI_HANDLER(CALL_3)
 		{
 			MidoriValue callable = Pop(sp);
 			int arity = static_cast<int>(instruction) - static_cast<int>(VmOpCode::CALL_0);
@@ -2670,33 +2701,33 @@ int VirtualMachine::ExecuteLoop() noexcept
 #endif
 
 			// Save caller's frame before switching to callee
-			PushCallFrame(bp, ip, env, closure);
+			PushCallFrame(csp, bp, ip, env, closure);
 
 			closure = callable.GetPointer();
 			MidoriClosure& callee = closure->GetTraceable<MidoriClosure>();
 			env = &callee.m_cell_values;
 
-			ip = GetProcEntry(callee.m_proc_index);
+			ip = proc_entries[static_cast<size_t>(callee.m_proc_index)];
 			bp = sp - arity;
 
 			break;
 		}
-		case VmOpCode::CALL_PROC_WIDE:
+		MIDORI_HANDLER(CALL_PROC_WIDE)
 		{
 			int proc_index = static_cast<int>(ReadByte(ip));
 			proc_index |= static_cast<int>(ReadByte(ip)) << 8;
 			int arity = static_cast<int>(ReadByte(ip));
 
-			PushCallFrame(bp, ip, env, closure);
+			PushCallFrame(csp, bp, ip, env, closure);
 
 			env = nullptr;
 			closure = nullptr;
-			ip = GetProcEntry(proc_index);
+			ip = proc_entries[static_cast<size_t>(proc_index)];
 			bp = sp - arity;
 
 			break;
 		}
-		case VmOpCode::CALL_GLOBAL_WIDE:
+		MIDORI_HANDLER(CALL_GLOBAL_WIDE)
 		{
 			int high_byte = static_cast<int>(ReadByte(ip));
 			int low_byte = static_cast<int>(ReadByte(ip));
@@ -2712,18 +2743,18 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 #endif
 
-			PushCallFrame(bp, ip, env, closure);
+			PushCallFrame(csp, bp, ip, env, closure);
 
 			closure = callable.GetPointer();
 			MidoriClosure& callee = closure->GetTraceable<MidoriClosure>();
 			env = &callee.m_cell_values;
 
-			ip = GetProcEntry(callee.m_proc_index);
+			ip = proc_entries[static_cast<size_t>(callee.m_proc_index)];
 			bp = sp - arity;
 
 			break;
 		}
-		case VmOpCode::TAIL_CALL:
+		MIDORI_HANDLER(TAIL_CALL)
 		{
 			MidoriValue callable = Pop(sp);
 			int arity = static_cast<int>(ReadByte(ip));
@@ -2749,7 +2780,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			env = &callee.m_cell_values;
 
 			// Jump to the start of the function without creating a new call frame
-			ip = GetProcEntry(callee.m_proc_index);
+			ip = proc_entries[static_cast<size_t>(callee.m_proc_index)];
 
 			if (IsCancellationRequested()) [[unlikely]]
 			{
@@ -2759,14 +2790,14 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::CONSTRUCT_STRUCT:
+		MIDORI_HANDLER(CONSTRUCT_STRUCT)
 		{
 			int size = static_cast<int>(ReadByte(ip));
 			sp -= size;
 			Push(sp, AllocateTraceable(std::in_place_type<MidoriStruct>, std::span<const MidoriValue>(sp, static_cast<size_t>(size))));
 			break;
 		}
-		case VmOpCode::CONSTRUCT_UNION:
+		MIDORI_HANDLER(CONSTRUCT_UNION)
 		{
 			int size = static_cast<int>(ReadByte(ip));
 			int tag = static_cast<int>(ReadByte(ip));
@@ -2774,7 +2805,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			Push(sp, AllocateTraceable(std::in_place_type<MidoriUnion>, std::span<const MidoriValue>(sp, static_cast<size_t>(size)), tag));
 			break;
 		}
-		case VmOpCode::LOAD_EMPTY_UNION:
+		MIDORI_HANDLER(LOAD_EMPTY_UNION)
 		{
 			const size_t tag = static_cast<size_t>(ReadByte(ip));
 			MidoriTraceable*& cached = m_empty_union_cache[tag];
@@ -2787,7 +2818,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			Push(sp, cached);
 			break;
 		}
-		case VmOpCode::MAKE_CLOSURE_OF:
+		MIDORI_HANDLER(MAKE_CLOSURE_OF)
 		{
 			int proc_index = static_cast<int>(ReadByte(ip));
 			proc_index |= static_cast<int>(ReadByte(ip)) << 8;
@@ -2806,7 +2837,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			Push(sp, made);
 			break;
 		}
-		case VmOpCode::SET_CAPTURE:
+		MIDORI_HANDLER(SET_CAPTURE)
 		{
 			int index = static_cast<int>(ReadByte(ip));
 			MidoriValue value = Pop(sp);
@@ -2816,14 +2847,14 @@ int VirtualMachine::ExecuteLoop() noexcept
 			target->GetTraceable<MidoriClosure>().m_cell_values[index] = cell;
 			break;
 		}
-		case VmOpCode::GET_UNION_FIELD:
+		MIDORI_HANDLER(GET_UNION_FIELD)
 		{
 			int index = static_cast<int>(ReadByte(ip));
 			MidoriValue& top = Peek(sp);
 			top = top.GetPointer()->GetTraceable<MidoriUnion>().m_values[index];
 			break;
 		}
-		case VmOpCode::MAKE_FUNCTION_WIDE:
+		MIDORI_HANDLER(MAKE_FUNCTION_WIDE)
 		{
 			int proc_index = static_cast<int>(ReadByte(ip));
 			proc_index |= static_cast<int>(ReadByte(ip)) << 8;
@@ -2845,19 +2876,19 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::GET_LOCAL:
+		MIDORI_HANDLER(GET_LOCAL)
 		{
 			int offset = static_cast<int>(ReadByte(ip));
 			Push(sp, *(bp + offset));
 			break;
 		}
-		case VmOpCode::SET_LOCAL:
+		MIDORI_HANDLER(SET_LOCAL)
 		{
 			int offset = static_cast<int>(ReadByte(ip));
 			*(bp + offset) = Peek(sp);
 			break;
 		}
-		case VmOpCode::GET_CELL:
+		MIDORI_HANDLER(GET_CELL)
 		{
 			int offset = static_cast<int>(ReadByte(ip));
 #if MIDORI_DEBUG_FULL
@@ -2871,7 +2902,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			Push(sp, cell_value);
 			break;
 		}
-		case VmOpCode::MAKE_CELL:
+		MIDORI_HANDLER(MAKE_CELL)
 		{
 			// The initial value stays on the stack, and so stays rooted, until the
 			// cell holding it replaces it.
@@ -2880,13 +2911,13 @@ int VirtualMachine::ExecuteLoop() noexcept
 			TryCollect(ip, sp, bp, env, closure);
 			break;
 		}
-		case VmOpCode::READ_CELL:
+		MIDORI_HANDLER(READ_CELL)
 		{
 			MidoriValue& top = Peek(sp);
 			top = top.GetPointer()->GetTraceable<MidoriMutableCell>().m_value;
 			break;
 		}
-		case VmOpCode::WRITE_CELL:
+		MIDORI_HANDLER(WRITE_CELL)
 		{
 			MidoriValue value = Pop(sp);
 			MidoriTraceable* cell = Pop(sp).GetPointer();
@@ -2895,7 +2926,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			Push(sp, value);
 			break;
 		}
-		case VmOpCode::DEFINE_GLOBAL_WIDE:
+		MIDORI_HANDLER(DEFINE_GLOBAL_WIDE)
 		{
 			MidoriValue value = Pop(sp);
 			int high_byte = static_cast<int>(ReadByte(ip));
@@ -2905,7 +2936,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			var = value;
 			break;
 		}
-		case VmOpCode::GET_GLOBAL_WIDE:
+		MIDORI_HANDLER(GET_GLOBAL_WIDE)
 		{
 			int high_byte = static_cast<int>(ReadByte(ip));
 			int low_byte = static_cast<int>(ReadByte(ip));
@@ -2913,7 +2944,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			Push(sp, (*m_global_vars)[global_idx]);
 			break;
 		}
-		case VmOpCode::SET_GLOBAL_WIDE:
+		MIDORI_HANDLER(SET_GLOBAL_WIDE)
 		{
 			int high_byte = static_cast<int>(ReadByte(ip));
 			int low_byte = static_cast<int>(ReadByte(ip));
@@ -2922,7 +2953,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			var = Peek(sp);
 			break;
 		}
-		case VmOpCode::GET_LOCAL_WIDE:
+		MIDORI_HANDLER(GET_LOCAL_WIDE)
 		{
 			int high_byte = static_cast<int>(ReadByte(ip));
 			int low_byte = static_cast<int>(ReadByte(ip));
@@ -2930,7 +2961,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			Push(sp, *(bp + offset));
 			break;
 		}
-		case VmOpCode::SET_LOCAL_WIDE:
+		MIDORI_HANDLER(SET_LOCAL_WIDE)
 		{
 			int high_byte = static_cast<int>(ReadByte(ip));
 			int low_byte = static_cast<int>(ReadByte(ip));
@@ -2938,7 +2969,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			*(bp + offset) = Peek(sp);
 			break;
 		}
-		case VmOpCode::GET_CELL_WIDE:
+		MIDORI_HANDLER(GET_CELL_WIDE)
 		{
 			int high_byte = static_cast<int>(ReadByte(ip));
 			int low_byte = static_cast<int>(ReadByte(ip));
@@ -2947,23 +2978,24 @@ int VirtualMachine::ExecuteLoop() noexcept
 			Push(sp, cell_value);
 			break;
 		}
-		case VmOpCode::GET_MEMBER:
+		MIDORI_HANDLER(GET_MEMBER)
 		{
 			int index = static_cast<int>(ReadByte(ip));
 			MidoriValue value = Pop(sp);
 			Push(sp, value.GetPointer()->GetTraceable<MidoriStruct>().m_values[index]);
 			break;
 		}
-		case VmOpCode::POP:
+		MIDORI_HANDLER(POP)
 		{
 			--sp;
 			break;
 		}
-		case VmOpCode::RETURN:
+		MIDORI_HANDLER(RETURN)
 		{
 			MidoriValue value = Pop(sp);
-			--m_call_stack_pointer;
-			const CallFrame& frame = *m_call_stack_pointer;
+			--csp;
+			m_call_stack_pointer = csp;
+			const CallFrame& frame = *csp;
 
 			// Callee's bp points to where args started, which is our return point
 			ValueStackPointer return_point = bp;
@@ -2978,25 +3010,25 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		case VmOpCode::HALT:
+		MIDORI_HANDLER(HALT)
 		{
 			SyncMachineState(ip, sp, bp, env, closure);
 			return 0;
 		}
-		case VmOpCode::PUSH_PLACEHOLDER:
+		MIDORI_HANDLER(PUSH_PLACEHOLDER)
 		{
 			int count = static_cast<int>(ReadByte(ip));
 			sp = std::fill_n(sp, count, MidoriValue());
 			break;
 		}
-		case VmOpCode::SPAWN_WORKER:
-		case VmOpCode::JOIN_WORKER:
-		case VmOpCode::CHANNEL_CREATE:
-		case VmOpCode::CHANNEL_SEND:
-		case VmOpCode::CHANNEL_RECEIVE:
-		case VmOpCode::CHANNEL_CLOSE:
-		case VmOpCode::WORKER_IS_DONE:
-		case VmOpCode::WORKER_CANCEL:
+		MIDORI_HANDLER(SPAWN_WORKER)
+		MIDORI_HANDLER(JOIN_WORKER)
+		MIDORI_HANDLER(CHANNEL_CREATE)
+		MIDORI_HANDLER(CHANNEL_SEND)
+		MIDORI_HANDLER(CHANNEL_RECEIVE)
+		MIDORI_HANDLER(CHANNEL_CLOSE)
+		MIDORI_HANDLER(WORKER_IS_DONE)
+		MIDORI_HANDLER(WORKER_CANCEL)
 		{
 			SyncMachineState(ip, sp, bp, env, closure);
 			// Through a copy: once ip's address escapes, every dispatch stores it.

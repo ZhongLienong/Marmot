@@ -350,6 +350,16 @@ private:
 		++m_call_stack_pointer;
 	}
 
+	// The dispatch loop keeps the pointer in a register, but still stores it on
+	// every push: a fault mid-loop (guard page, division by zero) builds its
+	// stack trace from the member.
+	MIDORI_FORCE_INLINE void PushCallFrame(CallStackPointer& csp, ValueStackPointer return_bp, InstructionPointer return_ip, MidoriTuple* closure_ptr, MidoriTraceable* closure) noexcept
+	{
+		*csp = CallFrame{return_bp, return_ip, closure_ptr, closure};
+		++csp;
+		m_call_stack_pointer = csp;
+	}
+
     MIDORI_FORCE_INLINE MidoriValue& Peek() noexcept
     {
         return *(m_value_stack_pointer - 1);
