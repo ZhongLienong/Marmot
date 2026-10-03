@@ -46,13 +46,13 @@ COMMANDS: dict[str, Command] = {
     "generate-mmc": Command("make.generate_mmc", "generate private .mmc tables, or --check them", "Build"),
     "build": Command("make.compile", "build compiler, vm, unit, tool or all", "Build"),
     "clean": Command("make.clean", "delete a build tree, or --all build output", "Build"),
-    "wasm": Command("make.wasm", "build for WebAssembly, and --deploy it to a website", "Build"),
+    "wasm": Command("make.wasm", "build for WebAssembly", "Build"),
     "run": Command("program.run", "build a .mmt file and run it", "Programs", COMPILER_AND_VM),
     "fmt": Command("program.fmt", "format .mmt files and folders, or --check them", "Programs", ["marmotc"]),
     "test": Command("testing.language", "run the language suite (--category, --pattern, --test)", "Tests", COMPILER_AND_VM),
     "unit": Command("testing.unit", "run the C++ unit tests (--tag, --regex)", "Tests", UNIT_TARGETS),
     "snapshot": Command("testing.snapshot", "write a language test's .expected from its output", "Tests", COMPILER_AND_VM),
-    "check": Command("", "run one check: layering, docs, cli, mmc, format, benchmarks, tool, web", "Tests"),
+    "check": Command("", "run one check: layering, docs, cli, mmc, format, benchmarks, tool", "Tests"),
     "gate": Command("testing.gate", "everything a commit must pass", "Tests"),
     "bench": Command("bench.bench", "time the benchmarks, or --compare two compilers", "Performance", COMPILER_AND_VM, "Release"),
     "bench-compile": Command("bench.compiler", "measure compiler scaling (--jobs, --synthetic)", "Performance", ["marmotc"], "Release"),
@@ -68,7 +68,6 @@ CHECKS: dict[str, Command] = {
     "benchmarks": Command("testing.benchmarks", "benchmarks compile (--run to run them)", "Tests", COMPILER_AND_VM),
     "tool": Command("testing.tool", "the marmot tool's tests", "Tests", COMPILER_AND_VM),
     "mmc": Command("testing.mmc_contract", "version-13 .mmc contract and fixture compatibility", "Tests", UNIT_TARGETS),
-    "web": Command("testing.web", "serve the WebAssembly browser smoke test", "Tests"),
 }
 
 

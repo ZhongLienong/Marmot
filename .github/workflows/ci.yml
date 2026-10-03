@@ -1,0 +1,175 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "editors/**"
+  pull_request:
+    paths-ignore:
+      - "editors/**"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  gate:
+    name: gate (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux
+            os: ubuntu-24.04
+          - name: windows
+            os: windows-2025
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: projects/marmot
+
+      - name: Install Ninja
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+
+      # Windows builds with MSVC/clang-cl, which ccache does not cache reliably.
+      - uses: hendrikmuhs/ccache-action@v1.2
+        if: runner.os == 'Linux'
+        with:
+          key: ${{ matrix.name }}
+
+      - name: Use GCC 14 through ccache
+        if: runner.os == 'Linux'
+        run: |
+          echo "CXX=g++-14" >> "$GITHUB_ENV"
+          echo "CMAKE_CXX_COMPILER_LAUNCHER=ccache" >> "$GITHUB_ENV"
+
+      - name: Toolchain
+        run: python scripts/dev.py doctor
+
+      - name: Gate
+        run: python scripts/dev.py gate --verbose
+
+
+  wasm:
+    name: wasm
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Install Ninja
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+
+      - uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 6.0.11
+          actions-cache-folder: emsdk-cache
+
+      - name: Build
+        run: python scripts/dev.py wasm
+
+      # The layout of the website's public folder: the modules, the adapter, and
+      # the prelude with the manifest the adapter loads it from.
+      - name: Stage site
+        shell: python
+        run: |
+          import json
+          import shutil
+          from pathlib import Path
+
+          site = Path("out/web/site")
+          site.mkdir(parents=True)
+          shutil.copy2("projects/web/marmot.js", site)
+          for project in ("marmotc", "marmotvm"):
+              for suffix in ("js", "wasm"):
+                  shutil.copy2(f"out/build/{project}/wasm64/out/{project}.{suffix}", site)
+          prelude = site / "MarmotPrelude"
+          shutil.copytree("MarmotPrelude", prelude)
+          manifest = sorted(path.relative_to(prelude).as_posix() for path in prelude.rglob("*.mmt"))
+          (prelude / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+
+      - name: Browser smoke test
+        run: |
+          cp -r out/web/site out/web/smoke
+          cp projects/web/tests/smoke.html out/web/smoke/index.html
+          cp -r format/mmc/fixtures out/web/smoke/fixtures
+          python -m http.server 8765 --bind 127.0.0.1 --directory out/web/smoke &
+          npm install --no-save --prefix projects/web/tests playwright@1
+          npx --prefix projects/web/tests playwright install --with-deps chromium
+          node projects/web/tests/smoke.mjs http://127.0.0.1:8765/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: marmot-web
+          path: out/web/site
+          retention-days: 14
+
+  deploy:
+    name: deploy site
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [gate, wasm]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    concurrency:
+      group: site-deploy
+      cancel-in-progress: false
+    env:
+      PUBLIC_DIR: public
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          name: marmot-web
+          path: web
+
+      - uses: actions/checkout@v5
+        with:
+          repository: ZhongLienong/ZhongLienong.github.io
+          ssh-key: ${{ secrets.SITE_DEPLOY_KEY }}
+          path: site
+
+      - name: Copy into the site
+        run: |
+          mkdir -p "site/$PUBLIC_DIR"
+          rm -rf "site/$PUBLIC_DIR/MarmotPrelude" "site/$PUBLIC_DIR/marmot.wasm"
+          cp -r web/. "site/$PUBLIC_DIR/"
+
+      - name: Push
+        working-directory: site
+        run: |
+          git add -A "$PUBLIC_DIR"
+          if git diff --cached --quiet; then
+            echo "The site already has this build."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Deploy Marmot ${GITHUB_SHA::7}" -m "From ${{ github.server_url }}/${{ github.repository }}/commit/${GITHUB_SHA}"
+          git push

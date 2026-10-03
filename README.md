@@ -653,9 +653,10 @@ The opcode and builtin tables come from `format/mmc/registry-v13.json`.
 copies; `--check` checks freshness. Native builds use those copies directly.
 
 `python scripts/dev.py wasm` builds each project's independent WebAssembly
-module in `out/build/<project>/wasm64/out/`. `wasm --deploy <site-public-folder>`
-copies `marmotc.js/.wasm`, `marmotvm.js/.wasm`, the `marmot.js` browser adapter,
-and the prelude. The adapter keeps the playground's `createMarmotModule` and
+module in `out/build/<project>/wasm64/out/`. CI builds them the same way, runs
+the browser smoke test against them, and on `main` pushes `marmotc.js/.wasm`, `marmotvm.js/.wasm`,
+the `marmot.js` browser adapter and the prelude to the website's `public`
+folder. The adapter keeps the playground's `createMarmotModule` and
 `executeMarmotCode` API; compiler and VM exchange versioned `.mmc` bytes.
 
 ### Running Programs

@@ -1,23 +1,20 @@
 #!/usr/bin/env python3
 """
-Build Marmot for WebAssembly with Emscripten, and optionally deploy it to a website.
+Build Marmot for WebAssembly with Emscripten.
 
-The independent builds go to out/build/<project>/wasm64/. Deploying copies
-marmotc.js/.wasm, marmotvm.js/.wasm, the marmot.js adapter, and the prelude into the site's public
-folder, given with --deploy or the MARMOT_SITE_DIR environment variable.
+The independent builds go to out/build/<project>/wasm64/. CI deploys them to the
+website; this script only builds.
 
 Emscripten is found on PATH, else in $EMSDK or a usual emsdk folder.
 
 Examples:
     python scripts/dev.py wasm
     python scripts/dev.py wasm --clean
-    python scripts/dev.py wasm --deploy ../ZhongLienong.github.io/public
 """
 
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import shutil
 import stat
@@ -29,7 +26,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from lib import console, toolchain
-from lib.host import IS_WINDOWS, PRELUDE_DIR, REPO_ROOT
+from lib.host import IS_WINDOWS, REPO_ROOT
 
 PROJECTS = ("marmotc", "marmotvm")
 ADAPTER = REPO_ROOT / "projects" / "web" / "marmot.js"
@@ -55,11 +52,6 @@ class Emscripten:
     @property
     def toolchain_file(self) -> Path:
         return Path(self.emcmake).resolve().parent / "cmake" / "Modules" / "Platform" / "Emscripten.cmake"
-
-
-def format_size(size_bytes: int) -> str:
-    size_kb = size_bytes / 1024
-    return f"{size_kb / 1024:.2f} MB" if size_kb >= 1024 else f"{size_kb:.2f} KB"
 
 
 def newest_directory(directory: Path) -> Path | None:
@@ -159,38 +151,10 @@ def build(emscripten: Emscripten, clean: bool) -> int:
     return 0
 
 
-def deploy(site: Path) -> int:
-    if not site.is_dir():
-        console.fail(f"No website folder at {site}")
-        return 1
-
-    print(f"\nDeploying to {site}...")
-    for filename, source in artifacts().items():
-        shutil.copy2(source, site / filename)
-        print(f"  {filename} ({format_size(source.stat().st_size)})")
-
-    (site / "marmot.wasm").unlink(missing_ok=True)
-
-    prelude = site / "MarmotPrelude"
-    if not prelude.resolve().is_relative_to(site.resolve()):
-        raise SystemExit(f"Prelude output must stay inside the website folder: {prelude}")
-    if prelude.exists():
-        shutil.rmtree(prelude)
-    shutil.copytree(PRELUDE_DIR, prelude)
-    manifest = sorted(path.relative_to(prelude).as_posix() for path in prelude.rglob("*.mmt"))
-    (prelude / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-    print(f"  MarmotPrelude/ ({len(manifest)} files)")
-    return 0
-
-
 def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(description="Build Marmot for WebAssembly, and optionally deploy it.")
+    parser = argparse.ArgumentParser(description="Build Marmot for WebAssembly.")
     parser.add_argument("--clean", action="store_true", help="Delete the WebAssembly build tree first.")
-    parser.add_argument("--deploy", nargs="?", const=os.environ.get("MARMOT_SITE_DIR", ""), default=None, metavar="SITE_DIR",
-                        help="Copy the build and the prelude into this website folder (default: $MARMOT_SITE_DIR).")
     args = parser.parse_args(argv)
-    if args.deploy == "":
-        parser.error("--deploy needs a folder, or MARMOT_SITE_DIR set")
 
     emscripten = find_emscripten()
     if emscripten is None:
@@ -207,9 +171,6 @@ def main(argv: list[str]) -> int:
         console.fail(f"The build made no {', '.join(missing)}")
         return 1
     console.ok(f"built independent compiler and VM modules: {', '.join(artifacts())}")
-
-    if args.deploy is not None:
-        return deploy(Path(args.deploy).expanduser().resolve())
     return 0
 
 
