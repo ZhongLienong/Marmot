@@ -29,6 +29,7 @@ source_dir = "src"
 packages_dir = "packages"
 prelude_dir = "MarmotPrelude"
 marmot_path = ["registry", "../shared-packages"]
+registries = ["https://github.com/ZhongLienong/marmot-packages"]
 
 [dependencies]
 Greeter = "^1.2.0"
@@ -53,6 +54,9 @@ timeout_ms = 30000
   Marmot uses the conventional `MarmotPrelude` directory.
 - `marmot_path` (optional): extra search paths and package index roots, relative
   to the project root unless absolute
+- `registries` (optional): GitHub repositories whose releases resolution may
+  download; see [Registries](package-system.md#registries). When omitted,
+  Marmot uses `https://github.com/ZhongLienong/marmot-packages`.
 - `[dependencies]` (optional): top-level table of direct package dependencies,
   mapping package names to version constraints
 - `[test].dir` (optional): test directory used by `marmot test`. Defaults to
@@ -94,9 +98,9 @@ You can edit that table manually or use the CLI:
 `marmot install` resolves direct and transitive dependencies, vendors the chosen
 versions into `packages/`, and writes `marmot.lock`.
 
-Because remote registry fetching is not implemented yet, reproducible dependency
-setups currently depend on keeping the vendored `packages/` directory or some
-other local package root available.
+Packages no root on disk provides are downloaded from the project's
+registries. Keep the vendored `packages/` directory to reproduce the locked
+versions exactly.
 
 ## Module Naming
 

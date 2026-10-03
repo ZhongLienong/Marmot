@@ -4,8 +4,8 @@ Marmot has a local package dependency system built around `package.marmot`,
 `project.marmot`, `marmot.lock`, and project-local vendoring into `packages/`.
 It lives in the `marmot` project tool (`projects/marmot/`); the compiler, `marmotc`, reads
 no manifests and is given its inputs in a [build plan](plan-file.md).
-The current implementation resolves from package directories that already exist
-on disk. Remote registry fetch and publish support are still deferred.
+It resolves from package directories on disk and downloads released packages,
+with their prebuilt native libraries, from GitHub registries.
 
 ## What Exists Today
 
@@ -13,6 +13,7 @@ on disk. Remote registry fetch and publish support are still deferred.
 - dependency constraints in `project.marmot` and `package.marmot`
 - compiler version validation through `package.marmot` `marmot_version`
 - local package index scanning across project, cache, and path roots
+- downloading released packages from GitHub registries into the global cache
 - dependency resolution with cycle and version-conflict diagnostics
 - project-local vendoring into `packages/<name>-<version>/`
 - `marmot.lock` generation and reuse
@@ -24,15 +25,15 @@ on disk. Remote registry fetch and publish support are still deferred.
 
 ## Still Deferred
 
-- remote registry fetch and publish workflows
+- recording a downloaded package's registry and release in `marmot.lock`
 - automatic native builds from `native/` or `[build]`
 - manifest-driven export enforcement beyond normal module `public export`
 - targeted `marmot update <package>` resolution; the current command refreshes the whole graph
 - full garbage collection of every newly orphaned transitive vendored package directory
 
-Because registry fetching is not implemented yet, fully reproducible installs on
-a clean machine currently depend on the vendored `packages/` directory or some
-other local package root already being available.
+A clean machine without the vendored `packages/` directory resolves afresh,
+which downloads the newest released version each constraint allows rather than
+the locked one.
 
 ## Package Discovery
 
@@ -57,6 +58,28 @@ Available versions are sorted by:
 
 That means a newer compatible version in a lower-priority root still wins over
 an older version in a higher-priority root.
+
+## Registries
+
+A registry is a GitHub repository whose releases are packages. `[project]` or
+`[package]` lists them in `registries`; without the key Marmot uses
+`https://github.com/ZhongLienong/marmot-packages`, and `registries = []` keeps
+resolution on disk.
+
+A release is tagged `Name-vX.Y.Z` and carries these assets:
+
+- `Name-X.Y.Z.tar.gz`: the package directory's files at the archive root
+- `Name-X.Y.Z-<platform>.tar.gz`, for a package with `[ffi]` enabled: the built
+  library at the path the manifest expects, for each of `windows_x64`,
+  `linux_x86_64`, `macos_arm64` and `macos_x86_64`
+
+`marmot install`, `update` and `remove` ask the registries about every package,
+and a released version newer than any on disk wins. Other commands that resolve
+afresh ask only about packages no directory on disk satisfies. The chosen
+release is downloaded into the global cache as `<Name>-<version>/`, each asset
+checked against the sha256 digest GitHub recorded for it, and then vendored like
+any other package. Downloads use `curl`; set `GITHUB_TOKEN` to raise GitHub's
+API rate limit.
 
 On Windows the global cache root is `%LOCALAPPDATA%/Marmot/cache` when
 available. On other systems Marmot falls back to `~/.marmot/cache`.

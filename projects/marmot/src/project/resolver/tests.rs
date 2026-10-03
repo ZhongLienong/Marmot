@@ -25,7 +25,7 @@ fn the_resolver_picks_the_newest_match_and_prefers_earlier_roots() {
         ("second/A/package.marmot", &package("A", "1.9.0", &[])),
     ]);
 
-    let graph = resolve(&index(&tree), &roots(&[("A", "^1.0.0")])).unwrap();
+    let graph = resolve(&mut index(&tree), &roots(&[("A", "^1.0.0")])).unwrap();
     let chosen = &graph.packages["A"].manifest;
     assert_eq!(chosen.version_text, "1.9.0");
     assert_eq!(
@@ -55,21 +55,21 @@ fn the_resolver_reports_conflicts_missing_packages_and_cycles() {
             &package("Y", "1.0.0", &[("X", "^1.0.0")]),
         ),
     ]);
-    let index = index(&tree);
+    let mut index = index(&tree);
 
-    let conflict = resolve(&index, &roots(&[("A", "^1.0.0"), ("B", "^1.0.0")])).unwrap_err();
+    let conflict = resolve(&mut index, &roots(&[("A", "^1.0.0"), ("B", "^1.0.0")])).unwrap_err();
     assert_eq!(
         conflict,
         "Version conflict for package 'C': B requires '^2.0.0', but the resolved version is 1.0.0."
     );
 
-    let missing = resolve(&index, &roots(&[("Nope", "^1.0.0")])).unwrap_err();
+    let missing = resolve(&mut index, &roots(&[("Nope", "^1.0.0")])).unwrap_err();
     assert_eq!(
         missing,
         "Could not resolve package 'Nope' required by <root> with constraint '^1.0.0'."
     );
 
-    let cycle = resolve(&index, &roots(&[("X", "^1.0.0")])).unwrap_err();
+    let cycle = resolve(&mut index, &roots(&[("X", "^1.0.0")])).unwrap_err();
     assert_eq!(cycle, "Detected a package dependency cycle: X -> Y -> X");
 }
 

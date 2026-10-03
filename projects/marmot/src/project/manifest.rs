@@ -1,3 +1,4 @@
+use super::registry::DEFAULT_REGISTRY;
 use super::version::{Constraint, Version};
 use crate::paths;
 use std::collections::BTreeMap;
@@ -22,6 +23,8 @@ pub(crate) struct Workspace {
     pub(crate) packages_dir: PathBuf,
     pub(crate) prelude_dir: PathBuf,
     pub(crate) extra_paths: Vec<PathBuf>,
+    /// GitHub repositories whose releases resolution may download.
+    pub(crate) registries: Vec<String>,
     pub(crate) dependencies: BTreeMap<String, Constraint>,
     /// `[test].dir`, relative to the root.
     pub(crate) test_dir: PathBuf,
@@ -101,6 +104,20 @@ fn test_settings(data: &Table) -> (PathBuf, i64) {
     )
 }
 
+fn registries(table: &Table) -> Vec<String> {
+    table
+        .get("registries")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_else(|| vec![DEFAULT_REGISTRY.to_string()])
+}
+
 fn load_workspace(manifest_path: &Path, root: &Path) -> Result<Option<Workspace>, String> {
     let data = read_toml(manifest_path)?;
     let (test_dir, test_timeout_ms) = test_settings(&data);
@@ -125,6 +142,7 @@ fn load_workspace(manifest_path: &Path, root: &Path) -> Result<Option<Workspace>
             packages_dir: directory_or(project, "packages_dir", "packages"),
             prelude_dir: directory_or(project, "prelude_dir", "MarmotPrelude"),
             extra_paths,
+            registries: registries(project),
             dependencies: dependencies(&data, manifest_path)?,
             test_dir: test_dir.clone(),
             test_timeout_ms,
@@ -151,6 +169,7 @@ fn load_workspace(manifest_path: &Path, root: &Path) -> Result<Option<Workspace>
             packages_dir: PathBuf::from("packages"),
             prelude_dir: PathBuf::from("MarmotPrelude"),
             extra_paths: Vec::new(),
+            registries: registries(package),
             dependencies: dependencies(&data, manifest_path)?,
             test_dir: test_dir.clone(),
             test_timeout_ms,
@@ -204,7 +223,7 @@ pub(crate) struct NativeLibrary {
     pub(crate) checksum: Option<String>,
 }
 
-fn platform_prebuilt_key() -> &'static str {
+pub(crate) fn platform_prebuilt_key() -> &'static str {
     if cfg!(windows) {
         "windows_x64"
     } else if cfg!(all(target_os = "macos", target_arch = "aarch64")) {

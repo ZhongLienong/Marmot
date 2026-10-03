@@ -1,4 +1,5 @@
 use super::manifest::{self, PACKAGE_MANIFEST, PackageManifest};
+use super::registry::{Lookup, Registries};
 use super::version::{Constraint, Version};
 use crate::paths;
 use std::cmp::Reverse;
@@ -112,9 +113,12 @@ impl Graph {
     }
 }
 
-/// Every package found in the index roots, newest version first.
+/// Every package found in the index roots, newest version first, and the
+/// registries whose releases join them as they are downloaded.
 pub(crate) struct Index {
     packages: BTreeMap<String, Vec<(PackageManifest, usize)>>,
+    compiler: Version,
+    registries: Option<Registries>,
 }
 
 fn candidate_directories(root: &Path) -> Vec<PathBuf> {
@@ -134,6 +138,16 @@ fn candidate_directories(root: &Path) -> Vec<PathBuf> {
         }
     }
     directories
+}
+
+fn sort_newest_first(entries: &mut [(PackageManifest, usize)]) {
+    entries.sort_by(|(left, left_priority), (right, right_priority)| {
+        right
+            .version
+            .cmp(&left.version)
+            .then(left_priority.cmp(right_priority))
+            .then_with(|| paths::generic(&left.directory).cmp(&paths::generic(&right.directory)))
+    });
 }
 
 impl Index {
@@ -156,33 +170,75 @@ impl Index {
         }
 
         for entries in packages.values_mut() {
-            entries.sort_by(|(left, left_priority), (right, right_priority)| {
-                right
-                    .version
-                    .cmp(&left.version)
-                    .then(left_priority.cmp(right_priority))
-                    .then_with(|| {
-                        paths::generic(&left.directory).cmp(&paths::generic(&right.directory))
-                    })
-            });
+            sort_newest_first(entries);
         }
-        Ok(Index { packages })
+        Ok(Index {
+            packages,
+            compiler: compiler.clone(),
+            registries: None,
+        })
     }
 
-    pub(crate) fn newest(&self, name: &str) -> Option<&PackageManifest> {
-        self.packages
+    pub(crate) fn with_registries(self, registries: Registries) -> Index {
+        Index {
+            registries: Some(registries),
+            ..self
+        }
+    }
+
+    /// The newest version of `name` on disk or released.
+    pub(crate) fn newest(&mut self, name: &str) -> Result<Option<Version>, String> {
+        let local = self
+            .packages
             .get(name)
             .and_then(|entries| entries.first())
-            .map(|(manifest, _)| manifest)
+            .map(|(manifest, _)| manifest.version.clone());
+        let released = match self.registries.as_mut() {
+            Some(registries) => registries.newest(name, None)?,
+            None => None,
+        };
+        Ok(local.max(released))
     }
 
-    fn best_match(&self, name: &str, constraint: &Constraint) -> Option<&PackageManifest> {
+    fn local_match(&self, name: &str, constraint: &Constraint) -> Option<&PackageManifest> {
         self.packages.get(name).and_then(|entries| {
             entries
                 .iter()
                 .map(|(manifest, _)| manifest)
                 .find(|manifest| constraint.matches(&manifest.version))
         })
+    }
+
+    /// The newest version `constraint` allows, downloading it when a registry
+    /// releases a newer one than any on disk.
+    fn best_match(
+        &mut self,
+        name: &str,
+        constraint: &Constraint,
+    ) -> Result<Option<PackageManifest>, String> {
+        let local = self.local_match(name, constraint).cloned();
+        let Some(registries) = self.registries.as_mut() else {
+            return Ok(local);
+        };
+        if local.is_some() && registries.lookup() == Lookup::WhenMissing {
+            return Ok(local);
+        }
+        let Some(released) = registries.newest(name, Some(constraint))? else {
+            return Ok(local);
+        };
+        if local
+            .as_ref()
+            .is_some_and(|local| local.version >= released)
+        {
+            return Ok(local);
+        }
+
+        let directory = registries.fetch(name, &released, &self.compiler)?;
+        let manifest = manifest::read_package(&directory, &self.compiler)?;
+        let entries = self.packages.entry(name.to_string()).or_default();
+        entries.push((manifest.clone(), usize::MAX));
+        sort_newest_first(entries);
+        Ok(Some(manifest))
     }
 }
 
@@ -191,11 +247,11 @@ impl Index {
 /// later constraint the chosen version does not satisfy is a conflict; there
 /// is no backtracking.
 pub(crate) fn resolve(
-    index: &Index,
+    index: &mut Index,
     roots: &BTreeMap<String, Constraint>,
 ) -> Result<Graph, String> {
     fn visit(
-        index: &Index,
+        index: &mut Index,
         graph: &mut Graph,
         name: &str,
         constraint: &Constraint,
@@ -224,7 +280,7 @@ pub(crate) fn resolve(
             return Ok(());
         }
 
-        let manifest = index.best_match(name, constraint).ok_or_else(|| {
+        let manifest = index.best_match(name, constraint)?.ok_or_else(|| {
             format!(
                 "Could not resolve package '{name}' required by {required_by} with constraint '{constraint}'."
             )

@@ -274,7 +274,7 @@ def result = MyModule::add(5, 3);
 
 ### Package System
 
-Marmot has local packages: versioned dependencies resolved from package directories on disk, vendored into the project, and locked in `marmot.lock`, with optional native FFI libraries. There is no remote registry yet.
+Marmot has local packages: versioned dependencies resolved from package directories on disk, vendored into the project, and locked in `marmot.lock`, with optional native FFI libraries. Packages not on disk are downloaded, with prebuilt native libraries, from GitHub releases ([registries](docs/package-system.md#registries)).
 
 **Package structure:**
 ```text

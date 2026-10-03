@@ -59,7 +59,8 @@ pub(crate) fn package(name: &str, version: &str, dependencies: &[(&str, &str)]) 
 
 pub(crate) fn project(dependencies: &[(&str, &str)]) -> String {
     let mut text =
-        "[project]\nentry = \"src/Main.mmt\"\nmarmot_path = [\"registry\"]\n".to_string();
+        "[project]\nentry = \"src/Main.mmt\"\nmarmot_path = [\"registry\"]\nregistries = []\n"
+            .to_string();
     if !dependencies.is_empty() {
         text += "\n[dependencies]\n";
         for (dependency, constraint) in dependencies {

@@ -1,6 +1,7 @@
 use super::checksum::package_sources;
 use super::lockfile;
 use super::manifest::{self, Workspace};
+use super::registry::{Lookup, Registries};
 use super::resolver::{self, Graph, Index};
 use super::version::Version;
 use crate::checksum;
@@ -73,6 +74,22 @@ fn index_roots(workspace: &Workspace, environment: &[PathBuf]) -> Vec<PathBuf> {
         directories.push(path.clone());
     }
     directories.into_vec()
+}
+
+/// The local package index, joined by the workspace's registries. Refreshing
+/// asks them about every package; otherwise only about packages not on disk.
+fn index(
+    workspace: &Workspace,
+    mode: Mode,
+    environment: &[PathBuf],
+    compiler: &Version,
+) -> Result<Index, String> {
+    let lookup = match mode {
+        Mode::ForceRefresh => Lookup::Always,
+        Mode::PreferLockfile => Lookup::WhenMissing,
+    };
+    let registries = Registries::new(&workspace.registries, global_cache_directory(), lookup)?;
+    Ok(Index::scan(&index_roots(workspace, environment), compiler)?.with_registries(registries))
 }
 
 fn copy_directory(source: &Path, target: &Path) -> Result<(), String> {
@@ -192,8 +209,8 @@ pub(crate) fn prepare(
         }
     }
 
-    let index = Index::scan(&index_roots(workspace, environment), compiler)?;
-    let resolved = resolver::resolve(&index, &workspace.dependencies)?;
+    let mut index = index(workspace, mode, environment, compiler)?;
+    let resolved = resolver::resolve(&mut index, &workspace.dependencies)?;
     let localized = install_locally(workspace, &resolved, compiler)?;
     lockfile::write(&workspace.root, &localized, &manifest_checksum, compiler)?;
 
@@ -205,18 +222,18 @@ pub(crate) fn prepare(
     })
 }
 
-/// The newest version of `name` any index root offers.
+/// The newest version of `name` any index root or registry offers.
 pub(crate) fn newest_version(
     workspace: &Workspace,
     name: &str,
     environment: &[PathBuf],
     compiler: &Version,
 ) -> Result<Version, String> {
-    let index = Index::scan(&index_roots(workspace, environment), compiler)?;
-    index
-        .newest(name)
-        .map(|manifest| manifest.version.clone())
-        .ok_or_else(|| format!("Package '{name}' was not found in the local package index."))
+    index(workspace, Mode::ForceRefresh, environment, compiler)?
+        .newest(name)?
+        .ok_or_else(|| {
+            format!("Package '{name}' was not found in the local package index or a registry.")
+        })
 }
 
 /// Deletes installed copies the graph no longer uses. With `only`, just the
