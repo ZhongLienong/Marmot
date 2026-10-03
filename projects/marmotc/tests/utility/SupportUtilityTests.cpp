@@ -33,6 +33,7 @@ TEST_CASE("TempDir creates files that are removed with the fixture", "[support][
 		file_path = temp_dir.WriteTextFile("nested/sample.txt", "contents");
 
 		REQUIRE(std::filesystem::exists(root_path));
+		REQUIRE(root_path == std::filesystem::weakly_canonical(root_path));
 		REQUIRE(std::filesystem::exists(file_path));
 	}
 

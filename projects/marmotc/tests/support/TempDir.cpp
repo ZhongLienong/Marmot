@@ -24,6 +24,7 @@ namespace MidoriTest
 		: m_path(MakeUniquePath(prefix))
 	{
 		std::filesystem::create_directories(m_path);
+		m_path = std::filesystem::weakly_canonical(m_path);
 	}
 
 	TempDir::~TempDir() noexcept

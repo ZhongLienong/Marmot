@@ -1601,7 +1601,7 @@ Compiler::Compiler(std::string&& source_code, std::string&& file_name, Compilati
 	}
 
 #ifndef __EMSCRIPTEN__
-	m_file_name = std::filesystem::absolute(m_file_name).string();
+	m_file_name = std::filesystem::weakly_canonical(m_file_name).string();
 #else
 	if (!m_file_name.empty() && m_file_name[0u] != '/')
 	{
