@@ -66,7 +66,12 @@ jobs:
       - name: Toolchain
         run: python scripts/dev.py doctor
 
+      # The package tests query the GitHub API. Unauthenticated requests share a
+      # 60-an-hour limit per IP, which hosted runners exhaust; the job's token
+      # raises it. registry.rs sends GITHUB_TOKEN when it is set.
       - name: Gate
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python scripts/dev.py gate --verbose
 
 
