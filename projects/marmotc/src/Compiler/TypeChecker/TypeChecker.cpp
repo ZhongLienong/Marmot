@@ -1482,6 +1482,19 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 	const std::shared_ptr<MidoriType>* actual_side = expected_side == &right_subst ? &left_subst : &right_subst;
 	const bool actual_is_open = (*actual_side)->IsType<MidoriType::NeverType>() || (*actual_side)->IsType<MidoriType::TypeVariable>() || (*actual_side)->IsType<MidoriType::UndecidedType>();
 
+	// Two Undecided types that meet must end up as one type: `[[], []]` is
+	// told its element type later, by one use, and both elements need it.
+	// Undecided is refined by overwriting it in place, which reaches only one
+	// of the two, so both become the same fresh variable instead, and whatever
+	// that variable is bound to reaches every node that holds either.
+	if (left_subst->IsType<MidoriType::UndecidedType>() && right_subst->IsType<MidoriType::UndecidedType>() && left.get() != right.get())
+	{
+		const std::shared_ptr<MidoriType> shared = FreshTypeVar();
+		*left = *shared;
+		*right = *shared;
+		return left;
+	}
+
 	if (!is_complex_type && *left_subst == *right_subst)
 	{
 		return left_subst;
@@ -3022,7 +3035,12 @@ TypeChecker::TypeChecker(
 		TypeEnvironment imported_names;
 		for (const auto& [name, type] : imported_types)
 		{
-			if (type->IsType<MidoriType::StructType>())
+			// An exported value can have a struct type too, `def Origin = P(0, 0)`,
+			// and is bound to its type like any value. Only the struct's own name
+			// is its constructor.
+			const size_t separator_pos = name.rfind(NameSeparator);
+			const std::string_view bare_name = separator_pos == std::string::npos ? std::string_view(name) : std::string_view(name).substr(separator_pos + NameSeparator.length());
+			if (type->IsType<MidoriType::StructType>() && type->GetType<MidoriType::StructType>().m_name == bare_name)
 			{
 				const MidoriType::StructType& struct_type = type->GetType<MidoriType::StructType>();
 				m_struct_type_definitions[ConstructorKey(struct_type.m_module_name, struct_type.m_name)] = type;

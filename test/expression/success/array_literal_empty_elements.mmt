@@ -1,0 +1,20 @@
+module ArrayLiteralEmptyElements
+
+// When every element of an array literal is empty, their element type is
+// learned later, from a use of one of them. It was learned for the first
+// element only, and lowering failed: "MakeArray: an operand is not the array's
+// element type".
+
+import { "../../../MarmotPrelude/IO.mmt" }
+
+def lists = [[], [], []];
+def grown = lists[2] ++ [7];
+
+def cells = [ref [], ref []];
+cells[1] := [1, 2];
+for cell in cells { cell := (*cell) ++ [9] };
+
+IO::PrintLine((#lists) as Text);
+IO::PrintLine(grown[0] as Text);
+IO::PrintLine((#(*cells[0])) as Text);
+IO::PrintLine((#(*cells[1])) as Text);

@@ -1,0 +1,11 @@
+module StructValueExportLib
+
+// A `def` whose value is a record: its type is the struct, and the name is a
+// value, not the struct's constructor.
+
+public export { Point, Origin, Corner }
+
+type Point = { x: Int, y: Int };
+
+def Origin = Point(0, 0);
+def Corner = Point(1, 1);

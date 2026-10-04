@@ -1,0 +1,22 @@
+module StructValueExport
+
+// An exported value of a struct type was taken for the struct's constructor,
+// because the module's signatures hold values and types side by side:
+// `StructValueExportLib::Origin` was rejected as a constructor used as a value,
+// and through `use` it was typed `fn(Int, Int) -> Point`.
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"./struct_value_export_lib.mmt"
+}
+
+use StructValueExportLib.{ Corner }
+
+def origin = StructValueExportLib::Origin;
+def annotated : StructValueExportLib::Point = StructValueExportLib::Corner;
+def built = StructValueExportLib::Point(3, 4);
+
+IO::PrintLine((origin.x + StructValueExportLib::Origin.y) as Text);
+IO::PrintLine((annotated.x + Corner.y) as Text);
+IO::PrintLine((built.x + built.y) as Text);

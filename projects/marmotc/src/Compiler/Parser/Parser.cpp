@@ -616,7 +616,9 @@ Parser::ConstructorResolutionResult Parser::ResolveConstructorName(const Token& 
 			if (env.contains(lookup_base))
 			{
 				std::shared_ptr<MidoriType> type = env.at(lookup_base);
-				if (type->IsType<MidoriType::UnionType>() && separator_pos != std::string::npos)
+				// The signatures hold exported values beside types, so a name is a
+				// constructor only when its type is the type of that same name.
+				if (type->IsType<MidoriType::UnionType>() && separator_pos != std::string::npos && type->GetType<MidoriType::UnionType>().m_name == lookup_base)
 				{
 					const MidoriType::UnionType& union_type = type->GetType<MidoriType::UnionType>();
 					std::string member_key = union_type.m_name + NameSeparator.data() + mangled_name.substr(separator_pos + NameSeparator.length());
@@ -625,7 +627,7 @@ Parser::ConstructorResolutionResult Parser::ResolveConstructorName(const Token& 
 						return ConstructorResolution(std::move(type), std::move(member_key), false);
 					}
 				}
-				else if (type->IsType<MidoriType::StructType>() && lookup_base == mangled_name)
+				else if (type->IsType<MidoriType::StructType>() && lookup_base == mangled_name && type->GetType<MidoriType::StructType>().m_name == lookup_base)
 				{
 					return ConstructorResolution(std::move(type), std::string(mangled_name), true);
 				}
@@ -652,12 +654,14 @@ Parser::ConstructorResolutionResult Parser::ResolveConstructorName(const Token& 
 					return std::unexpected(GenerateParserError(BuildImportedSymbolAccessError(lookup_base, type_name, access), name_token));
 				}
 
-				if (member_pos == std::string::npos && type_it->second->IsType<MidoriType::StructType>())
+				// The module's signatures hold its exported values beside its types,
+				// so the name is a constructor only when it names a type, not a value.
+				if (member_pos == std::string::npos && type_it->second->IsType<MidoriType::StructType>() && type_it->second->GetType<MidoriType::StructType>().m_name == type_name)
 				{
 					return ConstructorResolution(std::shared_ptr<MidoriType>(type_it->second), std::move(type_name), true);
 				}
 
-				if (member_pos != std::string::npos && type_it->second->IsType<MidoriType::UnionType>())
+				if (member_pos != std::string::npos && type_it->second->IsType<MidoriType::UnionType>() && type_it->second->GetType<MidoriType::UnionType>().m_name == type_name)
 				{
 					const MidoriType::UnionType& union_type = type_it->second->GetType<MidoriType::UnionType>();
 					std::string member_key = union_type.m_name + NameSeparator.data() + symbol_name.substr(member_pos + NameSeparator.length());
