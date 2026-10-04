@@ -81,7 +81,7 @@ std::optional<ImportResolver::ResolvedImport> ImportResolver::ResolvePathImport(
 	{
 		resolved_path = m_current_file_dir / resolved_path;
 	}
-	std::string absolute_path = resolved_path.string();
+	std::string absolute_path = resolved_path.lexically_normal().string();
 #else
 	if (!resolved_path.is_absolute())
 	{

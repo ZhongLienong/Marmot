@@ -50,6 +50,12 @@
         const combined = module.executeMarmotCode(source);
         check(combined.success && combined.output === executed.output && combined.exitCode === 0, "Existing playground API preserves execution behavior");
 
+        const mixed = module.executeMarmotCode('module MixedImports\nimport { "/MarmotPrelude/IO.mmt", "/MarmotPrelude/Equatable.mmt", "/MarmotPrelude/Collections/Map.mmt" }\nIO::PrintLine(Map::Count(Map::With(Map::Empty(), 1, 2)) as Text);');
+        if (!mixed.success) {
+            results.textContent += mixed.error + "\n";
+        }
+        check(mixed.success && mixed.output === "1\n", "A prelude file imported by absolute and relative paths is one module");
+
         const failure = module.executeMarmotCode("module Broken\ndef = ;");
         check(!failure.success && failure.error.length > 0 && failure.report.errors.length > 0, "Compiler errors are returned with structured diagnostics");
         const runtime = module.executeMarmotCode("module Bounds\ndef xs = [1];\ndef missing = xs[4];");
