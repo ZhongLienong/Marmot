@@ -1,0 +1,39 @@
+module ExpectedTypeStaysWithResult
+
+// The type demanded of an expression is the type of its result, and only the
+// parts that become the result share it. It leaked into an if's condition, a
+// match's scrutinee and a comparison's operands: a constructor there was
+// checked against the wrong type and rejected.
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/Equatable.mmt",
+	"../../../MarmotPrelude/Prelude/Option.mmt"
+}
+use Option.{ Option }
+
+type Cell = { x: Int, y: Int } deriving (Equatable);
+
+def goal = Cell(2, 3);
+
+def Check = fn(x: Int, y: Int) -> Option<Cell> =>
+	if Cell(x, y) == goal then Option::Some(Cell(x, y)) else Option::None();
+
+def same : Bool = Cell(1, 1) == Cell(1, 1);
+
+def first : Option<Cell> = match Cell(4, 5) with case c => Option::Some(c);
+
+// With nothing demanded of the if, the else branch takes the then branch's type.
+def maybe = if same then Option::Some(goal) else Option::None();
+
+def Show = fn(found: Option<Cell>) -> Text =>
+	match found with
+		case Option::Some(c) => (c.x as Text) ++ "," ++ (c.y as Text)
+		case Option::None() => "none";
+
+IO::PrintLine(Show(Check(2, 3)));
+IO::PrintLine(Show(Check(1, 1)));
+IO::PrintLine(same as Text);
+IO::PrintLine(Show(first));
+IO::PrintLine(Show(maybe));

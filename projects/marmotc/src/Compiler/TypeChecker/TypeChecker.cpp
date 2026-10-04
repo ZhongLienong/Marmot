@@ -4568,7 +4568,14 @@ void TypeChecker::RegisterIdentityConversion(const std::shared_ptr<MidoriType>& 
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 {
-	return Evaluate(match.m_arg_expr)
+	// The type demanded of the match is its cases' type, not the scrutinee's.
+	const auto evaluate_scrutinee = [&match, this]() -> MidoriResult::TypeResult
+	{
+		ExpectedTypeGuard guard(*this, nullptr);
+		return Evaluate(match.m_arg_expr);
+	};
+
+	return evaluate_scrutinee()
 		.and_then
 		(
 			[&match, this](std::shared_ptr<MidoriType>&& arg_type) -> MidoriResult::TypeResult
@@ -5144,6 +5151,19 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Binary& binar
 				binary.m_type_data = MidoriType::MakeLiteralType<MidoriType::UnitType>();
 				return binary.m_type_data;
 			});
+	}
+
+	// A comparison's result is Bool whatever its operands are, so the type
+	// demanded of it says nothing about them: `C(1) == C(2)` where a Bool is
+	// expected was checked as if C(1) had to be a Bool.
+	const Token::Name op_name = binary.m_op.m_token_name;
+	const bool compares = op_name == Token::Name::DOUBLE_EQUAL || op_name == Token::Name::BANG_EQUAL
+		|| op_name == Token::Name::LEFT_ANGLE || op_name == Token::Name::LESS_EQUAL
+		|| op_name == Token::Name::RIGHT_ANGLE || op_name == Token::Name::GREATER_EQUAL;
+	std::optional<ExpectedTypeGuard> operand_guard;
+	if (compares)
+	{
+		operand_guard.emplace(*this, nullptr);
 	}
 
 	return Evaluate(binary.m_left)
@@ -7006,7 +7026,15 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::RangeTernary&
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::IfElse& if_else)
 {
-	return Evaluate(if_else.m_condition)
+	// The type demanded of the if is the type of its branches, not of its
+	// condition: `C(x) == C(1)` as a condition was checked against Option<C>.
+	const auto evaluate_condition = [&if_else, this]() -> MidoriResult::TypeResult
+	{
+		ExpectedTypeGuard guard(*this, nullptr);
+		return Evaluate(if_else.m_condition);
+	};
+
+	return evaluate_condition()
 		.and_then
 		(
 			[&if_else, this](std::shared_ptr<MidoriType>&& actual_type) ->MidoriResult::TypeResult
@@ -7038,7 +7066,19 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::IfElse& if_el
 								(
 									[&if_else, &evaluate_branch_with_expected, this](std::shared_ptr<MidoriType>&& true_branch_type) ->MidoriResult::TypeResult
 									{
-										return evaluate_branch_with_expected(if_else.m_else_branch)
+										// With nothing demanded of the whole if, the else branch is
+										// still known to need the then branch's type, which lets
+										// `if c then Some(x) else None()` decide None's type.
+										const auto evaluate_else = [&if_else, &true_branch_type, &evaluate_branch_with_expected, this]() -> MidoriResult::TypeResult
+										{
+											if (m_expected_expr_type == nullptr)
+											{
+												ExpectedTypeGuard guard(*this, ApplySubstitution(true_branch_type));
+												return Evaluate(if_else.m_else_branch);
+											}
+											return evaluate_branch_with_expected(if_else.m_else_branch);
+										};
+										return evaluate_else()
 											.and_then
 											(
 												[&true_branch_type, &if_else, this](std::shared_ptr<MidoriType>&& else_branch_type)->MidoriResult::TypeResult
