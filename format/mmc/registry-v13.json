@@ -820,35 +820,35 @@
       "id": 135,
       "name": "MAKE_FUNCTION_WIDE",
       "length": 3,
-      "category": "Functions and closures. A closure holds exactly the values it captures, each in a fresh cell.",
+      "category": "Functions and closures. A closure holds exactly the values it captures.",
       "description": "[op][proc_lo][proc_hi]"
     },
     {
       "id": 136,
       "name": "MAKE_CLOSURE_OF",
       "length": 4,
-      "category": "Functions and closures. A closure holds exactly the values it captures, each in a fresh cell.",
+      "category": "Functions and closures. A closure holds exactly the values it captures.",
       "description": "[op][proc_lo][proc_hi][count] pop count values, push a closure over them"
     },
     {
       "id": 137,
       "name": "SET_CAPTURE",
       "length": 2,
-      "category": "Functions and closures. A closure holds exactly the values it captures, each in a fresh cell.",
+      "category": "Functions and closures. A closure holds exactly the values it captures.",
       "description": "[op][index] pop a value and a closure, store the value at index"
     },
     {
       "id": 138,
       "name": "GET_CELL",
       "length": 2,
-      "category": "Functions and closures. A closure holds exactly the values it captures, each in a fresh cell.",
+      "category": "Functions and closures. A closure holds exactly the values it captures.",
       "description": "[op][index] push the running closure's capture at index"
     },
     {
       "id": 139,
       "name": "GET_CELL_WIDE",
       "length": 3,
-      "category": "Functions and closures. A closure holds exactly the values it captures, each in a fresh cell."
+      "category": "Functions and closures. A closure holds exactly the values it captures."
     },
     {
       "id": 140,

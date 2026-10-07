@@ -2785,15 +2785,10 @@ int VirtualMachine::ExecuteLoop() noexcept
 			proc_index |= static_cast<int>(ReadByte(ip)) << 8;
 			int count = static_cast<int>(ReadByte(ip));
 
-			// The captures stay on the stack, and so stay rooted, until the closure
-			// holding them replaces them.
+			// A capture is never written after SET_CAPTURE fills it, so the closure
+			// holds the values themselves rather than a cell for each.
 			ValueStackPointer captures = sp - count;
-			MidoriTuple captured_cells(count);
-			for (int i = 0; i < count; i += 1)
-			{
-				captured_cells[i] = AllocateTraceable(MidoriCellValue(captures[i]));
-			}
-			MidoriTraceable* made = AllocateTraceable(MidoriClosure{ .m_cell_values = std::move(captured_cells), .m_proc_index = proc_index });
+			MidoriTraceable* made = AllocateTraceable(MidoriClosure{ .m_cell_values = MidoriTuple(std::span<const MidoriValue>(captures, static_cast<size_t>(count))), .m_proc_index = proc_index });
 			sp = captures;
 			Push(sp, made);
 			break;
@@ -2803,9 +2798,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 			int index = static_cast<int>(ReadByte(ip));
 			MidoriValue value = Pop(sp);
 			MidoriTraceable* target = Pop(sp).GetPointer();
-			MidoriTraceable* cell = AllocateTraceable(MidoriCellValue(value));
 			m_gc.WriteBarrier(target);
-			target->GetTraceable<MidoriClosure>().m_cell_values[index] = cell;
+			target->GetTraceable<MidoriClosure>().m_cell_values[index] = value;
 			break;
 		}
 		MIDORI_HANDLER(GET_UNION_FIELD)
@@ -2859,8 +2853,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, "GET_CELL called with null environment - function has captures but was called via CALL_PROC_WIDE", GetLine()));
 			}
 #endif
-			MidoriValue cell_value = (*env)[offset].GetPointer()->GetTraceable<MidoriCellValue>().GetValue();
-			Push(sp, cell_value);
+			Push(sp, (*env)[offset]);
 			break;
 		}
 		MIDORI_HANDLER(MAKE_CELL)
@@ -2935,8 +2928,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			int high_byte = static_cast<int>(ReadByte(ip));
 			int low_byte = static_cast<int>(ReadByte(ip));
 			int offset = (high_byte << 8) | low_byte;
-			MidoriValue cell_value = (*env)[offset].GetPointer()->GetTraceable<MidoriCellValue>().GetValue();
-			Push(sp, cell_value);
+			Push(sp, (*env)[offset]);
 			break;
 		}
 		MIDORI_HANDLER(GET_MEMBER)

@@ -590,20 +590,7 @@ public:
 	MidoriFloat GetStep() const;
 };
 
-struct MidoriCellValue
-{
-	MidoriValue m_value;
-
-	MidoriCellValue() noexcept;
-
-	explicit MidoriCellValue(MidoriValue value) noexcept;
-
-	MidoriValue& GetValue();
-
-	const MidoriValue& GetValue() const;
-};
-
-// A user-visible Ref<T>. A MidoriCellValue is a closure's capture.
+// A user-visible Ref<T>.
 struct MidoriMutableCell
 {
 	MidoriValue m_value;
@@ -640,7 +627,6 @@ public:
 		FloatRange,
 		Struct,
 		Union,
-		Cell,
 		MutableCell,
 		Closure
 	};
@@ -655,7 +641,6 @@ private:
 		MidoriFloatRange m_float_range;
 		MidoriStruct m_struct;
 		MidoriUnion m_union;
-		MidoriCellValue m_cell;
 		MidoriMutableCell m_mutable_cell;
 		MidoriClosure m_closure;
 	};
@@ -691,10 +676,6 @@ private:
 		else if constexpr (std::is_same_v<T, MidoriUnion>)
 		{
 			return TraceableType::Union;
-		}
-		else if constexpr (std::is_same_v<T, MidoriCellValue>)
-		{
-			return TraceableType::Cell;
 		}
 		else if constexpr (std::is_same_v<T, MidoriMutableCell>)
 		{
@@ -754,10 +735,6 @@ public:
 		{
 			return m_union;
 		}
-		else if constexpr (std::is_same_v<T, MidoriCellValue>)
-		{
-			return m_cell;
-		}
 		else if constexpr (std::is_same_v<T, MidoriMutableCell>)
 		{
 			return m_mutable_cell;
@@ -791,7 +768,6 @@ public:
 	MidoriTraceable(MidoriTuple&& tuple) noexcept;
 	MidoriTraceable(MidoriIntRange&& range) noexcept;
 	MidoriTraceable(MidoriFloatRange&& range) noexcept;
-	MidoriTraceable(MidoriCellValue&& cell_value) noexcept;
 	MidoriTraceable(MidoriMutableCell&& mutable_cell) noexcept;
 	MidoriTraceable(MidoriClosure&& closure) noexcept;
 	MidoriTraceable(MidoriStruct&& midori_struct) noexcept;

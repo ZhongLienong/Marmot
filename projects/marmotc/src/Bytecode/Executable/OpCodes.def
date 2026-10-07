@@ -162,7 +162,7 @@ MARMOT_OPCODE(CONSTRUCT_UNION, 3) // [op][size][tag] pop size fields, push a uni
 MARMOT_OPCODE(LOAD_EMPTY_UNION, 2)
 MARMOT_OPCODE(GET_MEMBER, 2)
 
-// Functions and closures. A closure holds exactly the values it captures, each in a fresh cell.
+// Functions and closures. A closure holds exactly the values it captures.
 MARMOT_OPCODE(MAKE_FUNCTION_WIDE, 3) // [op][proc_lo][proc_hi]
 MARMOT_OPCODE(MAKE_CLOSURE_OF, 4) // [op][proc_lo][proc_hi][count] pop count values, push a closure over them
 MARMOT_OPCODE(SET_CAPTURE, 2) // [op][index] pop a value and a closure, store the value at index

@@ -191,9 +191,6 @@ void GarbageCollector::Trace(const GarbageCollectionRoots& roots)
 		case MidoriTraceable::TraceableType::Closure:
 			mark_tuple_values(current->GetTraceable<MidoriClosure>().m_cell_values);
 			break;
-		case MidoriTraceable::TraceableType::Cell:
-			TryMark(current->GetTraceable<MidoriCellValue>().GetValue().GetPointer());
-			break;
 		case MidoriTraceable::TraceableType::MutableCell:
 			TryMark(current->GetTraceable<MidoriMutableCell>().m_value.GetPointer());
 			break;
