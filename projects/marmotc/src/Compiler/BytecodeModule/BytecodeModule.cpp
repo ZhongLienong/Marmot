@@ -36,39 +36,3 @@ BytecodeModule::BytecodeModule(std::string module_name, std::filesystem::path so
 	m_source_path(std::move(source_path))
 {
 }
-
-BytecodeModule BytecodeModule::WithProcedure(BytecodeStream procedure) &&
-{
-	m_procedures.push_back(std::move(procedure));
-	return std::move(*this);
-}
-
-BytecodeModule BytecodeModule::WithExport(ExportedSymbol export_symbol) &&
-{
-	m_exports.push_back(std::move(export_symbol));
-	return std::move(*this);
-}
-
-BytecodeModule BytecodeModule::WithImport(ImportedSymbol import_symbol) &&
-{
-	m_imports.push_back(std::move(import_symbol));
-	return std::move(*this);
-}
-
-BytecodeModule BytecodeModule::WithString(std::string str) &&
-{
-	m_string_pool.push_back(std::move(str));
-	return std::move(*this);
-}
-
-BytecodeModule BytecodeModule::WithProcedureName(std::string name) &&
-{
-	m_procedure_names.push_back(std::move(name));
-	return std::move(*this);
-}
-
-BytecodeModule BytecodeModule::WithGlobalVariable(std::string variable) &&
-{
-	m_global_variables.push_back(std::move(variable));
-	return std::move(*this);
-}

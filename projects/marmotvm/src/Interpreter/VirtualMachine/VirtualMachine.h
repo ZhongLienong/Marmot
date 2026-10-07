@@ -31,8 +31,6 @@ public:
 
     ~VirtualMachine();
 
-    GarbageCollector::GarbageCollectionRoots GetGarbageCollectionRoots() const noexcept;
-
     template<typename... Args>
     MIDORI_FORCE_INLINE MidoriTraceable* AllocateTraceable(Args&&... args)
     {
@@ -134,10 +132,6 @@ public:
 
     const GarbageCollector& GetGC() const noexcept { return m_gc; }
 
-    std::shared_ptr<const VmExecutable> GetSharedExecutable() const noexcept { return m_owned_executable; }
-
-    DynamicFFIRegistry& GetDynamicFFIRegistry() noexcept { return m_dynamic_ffi_registry; }
-
     MidoriValue* GetValueStackPointer() noexcept { return m_value_stack_pointer; }
 
     void AdvanceValueStackPointer() noexcept { ++m_value_stack_pointer; }
@@ -155,8 +149,6 @@ public:
         m_stop_token = std::move(stop_token);
         m_stop_possible = m_stop_token.stop_possible();
     }
-
-    MidoriTraceable* InternSmallString(const MidoriText& text) noexcept;
 
 private:
 	MIDORI_FORCE_INLINE void SyncMachineState(InstructionPointer ip, ValueStackPointer sp, ValueStackPointer bp, MidoriTuple* env, MidoriTraceable* closure) noexcept
@@ -401,8 +393,6 @@ private:
 	}
 
 	MIDORI_NOINLINE int IndexOutOfBounds(MidoriInteger index) noexcept;
-
-	int CheckNewArraySize(MidoriInteger size) noexcept;
 
     void BuildGarbageCollectionRoots(GarbageCollector::GarbageCollectionRoots& roots) const noexcept;
 

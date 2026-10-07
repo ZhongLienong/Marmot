@@ -388,11 +388,6 @@ MidoriExpression::For::For(const Token& for_keyword, const Token& loop_variable,
 {
 }
 
-bool MidoriExpression::Block::HasDefine() const
-{
-	return std::ranges::any_of(m_stmts, [](const std::unique_ptr<MidoriStatement>& stmt) { return stmt->IsStatement<MidoriStatement::VariableDefinition>(); });
-}
-
 MidoriPattern::PatternUnion& MidoriPattern::operator*()
 {
 	return m_variant;

@@ -7,7 +7,6 @@
 
 namespace MidoriChecksum
 {
-	[[nodiscard]] std::string HashBytes(std::string_view bytes);
 
 	[[nodiscard]] std::expected<std::string, std::string> HashFile(const std::filesystem::path& path);
 

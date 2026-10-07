@@ -24,8 +24,6 @@ namespace MidoriTest
 
 		[[nodiscard]] const std::filesystem::path& Path() const;
 
-		[[nodiscard]] std::filesystem::path CreateDirectory(const std::filesystem::path& relative_path) const;
-
 		[[nodiscard]] std::filesystem::path WriteTextFile(const std::filesystem::path& relative_path, std::string_view contents) const;
 
 	private:

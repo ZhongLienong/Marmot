@@ -35,8 +35,6 @@ struct CompiledModule
 
 	[[nodiscard]] const TypeEnvironment& TypeSignatures() const;
 
-	[[nodiscard]] const TypeclassMetadataMap& TypeclassMetadataByName() const;
-
 	[[nodiscard]] const std::vector<CompilerWarning>& Warnings() const;
 
 	[[nodiscard]] const std::optional<BytecodeModule>& Bytecode() const &;

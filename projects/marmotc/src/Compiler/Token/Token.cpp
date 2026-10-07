@@ -100,9 +100,3 @@ void TokenStream::Erase(TokenStream::iterator first, TokenStream::iterator last)
 {
 	m_tokens.erase(first.Position(), last.Position());
 }
-
-void TokenStream::PopBack() noexcept
-{
-    m_tokens.pop_back();
-}
-

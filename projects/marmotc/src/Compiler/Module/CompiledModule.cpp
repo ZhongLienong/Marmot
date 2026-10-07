@@ -28,11 +28,6 @@ const CompiledModule::TypeEnvironment& CompiledModule::TypeSignatures() const
 	return m_interface->m_type_signatures;
 }
 
-const CompiledModule::TypeclassMetadataMap& CompiledModule::TypeclassMetadataByName() const
-{
-	return m_interface->m_typeclass_metadata;
-}
-
 const std::vector<CompilerWarning>& CompiledModule::Warnings() const
 {
 	return m_warnings;

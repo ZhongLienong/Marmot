@@ -37,8 +37,6 @@ public:
 
 	void Close();
 
-	bool IsClosed() const;
-
 	bool IsDrained() const;
 
 	bool IsCloseRequested() const noexcept;

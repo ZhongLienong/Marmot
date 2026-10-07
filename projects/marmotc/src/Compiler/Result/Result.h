@@ -361,11 +361,6 @@ namespace MidoriResult
 			return m_errors;
 		}
 
-		[[nodiscard]] CompilerWarnings TakeWarnings() &&
-		{
-			return std::move(m_warnings);
-		}
-
 		[[nodiscard]] CompilerDiagnostics TakeErrors() &&
 		{
 			return std::move(m_errors);

@@ -12,44 +12,6 @@ namespace
 		std::unordered_map<std::string, int> m_in_degrees;
 	};
 
-	std::vector<std::string> CollectStartingPoints(const std::unordered_map<std::string, BuildGraph::BuildNode>& nodes)
-	{
-		std::vector<std::string> starting_points;
-		starting_points.reserve(nodes.size());
-
-		for (const std::pair<const std::string, BuildGraph::BuildNode>& entry : nodes)
-		{
-			const BuildGraph::BuildNode& node = entry.second;
-			if (node.m_in_degree == 0 && !node.m_processed)
-			{
-				starting_points.emplace_back(entry.first);
-			}
-		}
-
-		return starting_points;
-	}
-
-	bool AreAllNodesProcessed(const std::unordered_map<std::string, BuildGraph::BuildNode>& nodes)
-	{
-		for (const std::pair<const std::string, BuildGraph::BuildNode>& entry : nodes)
-		{
-			if (!entry.second.m_processed)
-			{
-				return false;
-			}
-		}
-
-		return true;
-	}
-
-	void DecrementDependencyInDegrees(std::unordered_map<std::string, BuildGraph::BuildNode>& nodes, const std::vector<std::string>& dependencies)
-	{
-		for (const std::string& dependency : dependencies)
-		{
-			nodes[dependency].m_in_degree -= 1;
-		}
-	}
-
 	DependencyGraph BuildDependencyGraph(const std::unordered_map<std::string, BuildGraph::BuildNode>& nodes)
 	{
 		DependencyGraph graph;
@@ -149,24 +111,6 @@ namespace
 
 		return tiers;
 	}
-}
-
-std::vector<std::string> BuildGraph::GetStartingPoints() const
-{
-	return CollectStartingPoints(m_nodes);
-}
-
-void BuildGraph::MarkProcessed(const std::string& file_name)
-{
-	BuildGraph::BuildNode& node = m_nodes[file_name];
-	node.m_processed = true;
-
-	DecrementDependencyInDegrees(m_nodes, node.m_dependencies);
-}
-
-bool BuildGraph::IsComplete() const
-{
-	return AreAllNodesProcessed(m_nodes);
 }
 
 std::vector<std::vector<std::string>> BuildGraph::GetCompilationTiers() const

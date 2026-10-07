@@ -891,19 +891,6 @@ int VirtualMachine::IndexOutOfBounds(MidoriInteger index) noexcept
 	return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::IndexOutOfBounds, std::format("Index out of bounds at index: {}.", index), GetLine()));
 }
 
-int VirtualMachine::CheckNewArraySize(MidoriInteger size) noexcept
-{
-	if (size < 0)
-	{
-		return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::NegativeArraySize, "Array size cannot be negative.", GetLine()));
-	}
-	else if (size > VM_MAX_ARRAY_SIZE)
-	{
-		return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::ArraySizeExceeded, "Array size exceeds maximum array size.", GetLine()));
-	}
-	return 0;
-}
-
 void VirtualMachine::BuildGarbageCollectionRoots(GarbageCollector::GarbageCollectionRoots& roots) const noexcept
 {
 	roots.clear();
@@ -992,36 +979,6 @@ void VirtualMachine::BuildGarbageCollectionRoots(GarbageCollector::GarbageCollec
 			roots.emplace_back(value);
 		}
 	}
-}
-
-GarbageCollector::GarbageCollectionRoots VirtualMachine::GetGarbageCollectionRoots() const noexcept
-{
-	GarbageCollector::GarbageCollectionRoots roots;
-	BuildGarbageCollectionRoots(roots);
-	return roots;
-}
-
-MidoriTraceable* VirtualMachine::InternSmallString(const MidoriText& text) noexcept
-{
-	constexpr int SMALL_STRING_THRESHOLD = 4;
-
-	int byte_length = text.GetByteLength();
-	if (byte_length > SMALL_STRING_THRESHOLD)
-	{
-		return nullptr;
-	}
-
-	std::string_view key = text.View();
-	std::unordered_map<std::string_view, MidoriTraceable*>::iterator it = m_small_string_pool.find(key);
-	if (it != m_small_string_pool.end())
-	{
-		return it->second;
-	}
-
-	MidoriText text_copy(text);
-	MidoriTraceable* interned = AllocateTraceable(std::move(text_copy));
-	m_small_string_pool[interned->GetTraceable<MidoriText>().View()] = interned;
-	return interned;
 }
 
 int VirtualMachine::ExecuteLoop() noexcept

@@ -30,8 +30,6 @@ public:
 
 	std::optional<ResolvedImport> Resolve(const std::string& import_specifier) const;
 
-	const std::vector<std::filesystem::path>& GetSystemSearchPaths() const;
-
 	ImportResolver WithSystemSearchPaths(std::vector<std::filesystem::path> system_search_paths) const &;
 
 	ImportResolver WithSystemSearchPaths(std::vector<std::filesystem::path> system_search_paths) &&;

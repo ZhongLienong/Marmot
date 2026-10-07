@@ -44,8 +44,6 @@ public:
 private:
 	MidoriResult::VoidResult GenerateBuildGraphImpl(BuildGraph& build_graph, ModuleSourceLoader& source_loader, DiscoveryState& discovery);
 
-	void CalculateInDegrees(BuildGraph& build_graph);
-
 	std::vector<StatementSpan> ScanModuleStatements(const TokenStream& tokens);
 
 	int ComputeStatementEnd(const TokenStream& tokens, int start, StatementType type);

@@ -368,6 +368,7 @@ build/
 build-wasm/
 
 projects/marmot/target/
+tool/target/
 
 # Generated doc-example compile sandboxes
 .doc_examples/

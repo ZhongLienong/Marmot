@@ -55,13 +55,6 @@ namespace MidoriTest
 		return m_path;
 	}
 
-	std::filesystem::path TempDir::CreateDirectory(const std::filesystem::path& relative_path) const
-	{
-		const std::filesystem::path full_path = m_path / relative_path;
-		std::filesystem::create_directories(full_path);
-		return full_path;
-	}
-
 	std::filesystem::path TempDir::WriteTextFile(const std::filesystem::path& relative_path, std::string_view contents) const
 	{
 		const std::filesystem::path full_path = m_path / relative_path;

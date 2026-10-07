@@ -34,9 +34,4 @@ namespace CompilerTerminal
 		}
 		std::unreachable();
 	}
-
-	void PrintSeparator(Color color, int width)
-	{
-		std::print("{}{}{}\n", Code(color), std::string(static_cast<size_t>(width), '-'), RESET);
-	}
 }

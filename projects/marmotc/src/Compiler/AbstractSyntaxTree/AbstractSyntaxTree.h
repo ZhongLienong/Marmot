@@ -676,7 +676,6 @@ public:
 
 		Block(const Token& right_brace, std::vector<std::unique_ptr<MidoriStatement>>&& stmts, std::unique_ptr<MidoriExpression>&& final_expr = nullptr);
 
-		bool HasDefine() const;
 	};
 
 	struct Match : BaseExpression

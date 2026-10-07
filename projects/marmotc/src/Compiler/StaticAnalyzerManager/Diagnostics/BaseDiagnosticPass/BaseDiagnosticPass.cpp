@@ -10,11 +10,6 @@ void DiagnosticSink::AddWarning(CompilerWarning warning)
 	m_warnings.emplace_back(std::move(warning));
 }
 
-void DiagnosticSink::AddError(CompilerError error)
-{
-	m_errors.emplace_back(std::move(error));
-}
-
 StaticAnalysisResult DiagnosticSink::TakeResult() &&
 {
 	return StaticAnalysisResult

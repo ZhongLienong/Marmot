@@ -25,17 +25,9 @@ namespace CompilerTerminal
 
 	[[nodiscard]] std::string_view Code(Color color);
 
-	void PrintSeparator(Color color, int width);
-
 	template<Color color = Color::WHITE>
 	void Print(std::string_view message)
 	{
 		std::print("{}{}{}", Code(color), message, RESET);
-	}
-
-	template<Color label_color, Color message_color>
-	void PrintLabeled(std::string_view label, std::string_view message)
-	{
-		std::print("{}[{}] {}{}{}", Code(label_color), label, Code(message_color), message, RESET);
 	}
 }

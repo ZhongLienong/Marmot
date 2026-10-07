@@ -281,6 +281,5 @@ public:
 
 	void Erase(iterator first, iterator last);
 
-	void PopBack() noexcept;
 };
 

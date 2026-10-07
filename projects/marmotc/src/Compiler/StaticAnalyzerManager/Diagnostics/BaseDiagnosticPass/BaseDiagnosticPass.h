@@ -29,8 +29,6 @@ class DiagnosticSink
 public:
 	void AddWarning(CompilerWarning warning);
 
-	void AddError(CompilerError error);
-
 	StaticAnalysisResult TakeResult() &&;
 
 private:

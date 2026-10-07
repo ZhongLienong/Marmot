@@ -832,40 +832,6 @@ bool MidoriArray::Contains(const MidoriValue& value) const
 	return false;
 }
 
-void MidoriArray::AddFront(const MidoriValue& value)
-{
-	int len = GetLength();
-	
-	bool needs_expand = false;
-	if (IsShort())
-	{
-		if (len >= SOO_CAPACITY) needs_expand = true;
-	}
-	else
-	{
-		if (len >= m_long.m_capacity) needs_expand = true;
-	}
-
-	if (needs_expand)
-	{
-		Expand(0);
-	}
-
-	// Move elements
-	if (IsShort())
-	{
-		std::memmove(m_short.m_buffer + 1, m_short.m_buffer, static_cast<size_t>(len) * sizeof(MidoriValue));
-		m_short.m_buffer[0] = value;
-		SetShortSize(len + 1);
-	}
-	else
-	{
-		std::memmove(m_long.m_ptr + 1, m_long.m_ptr, static_cast<size_t>(len) * sizeof(MidoriValue));
-		m_long.m_ptr[0] = value;
-		m_long.m_size += 1;
-	}
-}
-
 void MidoriArray::AddBack(const MidoriValue& value)
 {
 	if (IsShort())

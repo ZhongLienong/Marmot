@@ -209,18 +209,6 @@ namespace
 		return constraints;
 	}
 
-	bool IsExportedInAnyModule(const std::unordered_map<std::string, ModuleDeclaration>& modules, const std::string& symbol_name)
-	{
-		for (const std::pair<const std::string, ModuleDeclaration>& entry : modules)
-		{
-			if (entry.second.HasExport(symbol_name))
-			{
-				return true;
-			}
-		}
-		return false;
-	}
-
 	bool IsDecimalIntegerLiteral(const MidoriExpression& expr)
 	{
 		if (!expr.IsLiteral(MidoriExpression::LiteralKind::Integer))
@@ -355,8 +343,6 @@ Parser::ParseContext::ParseContext(TokenStream&& tokens, std::string_view file_n
 	m_tokens(std::move(tokens)),
 	m_file_name(file_name),
 	m_current_module(module_decl),
-	m_module_declarations(nullptr),
-	m_use_imports(nullptr),
 	m_source_lines(&source_lines)
 {
 }
@@ -675,91 +661,6 @@ Parser::ConstructorResolutionResult Parser::ResolveConstructorName(const Token& 
 	}
 
 	return std::optional<ConstructorResolution>(std::nullopt);
-}
-
-bool Parser::CanAccessSymbol(const std::string& symbol_name) const
-{
-	if (symbol_name == "ref")
-	{
-		return true;
-	}
-
-	// No module system enabled, allow all access
-	if (m_context.m_module_declarations == nullptr || m_context.m_current_module == nullptr)
-	{
-		return true;
-	}
-
-	// First check if symbol is defined in current scope (local or global)
-	// Local symbols always take precedence over imported symbols
-	std::string mangled_name = symbol_name;  // For namespace-qualified names
-	std::vector<Scope>::const_reverse_iterator found_scope_it = std::ranges::find_if
-	(
-		m_state.m_scopes.rbegin(),
-		m_state.m_scopes.rend(),
-		[&mangled_name](const Scope& scope)
-		{
-			return scope.m_variables.contains(mangled_name) ||
-				scope.m_struct_constructors.contains(mangled_name) ||
-				scope.m_union_constructors.contains(mangled_name) ||
-				scope.m_defined_names.contains(mangled_name);
-		}
-	);
-
-	// If symbol is defined in current scope, or further down this module, always allow access
-	if ((found_scope_it != m_state.m_scopes.rend()) || m_state.m_top_level_names.contains(symbol_name))
-	{
-		return true;
-	}
-
-	// For unqualified symbol access to external symbols, the symbol must either be:
-	// 1. Explicitly imported via 'use' statement, OR
-	// 2. Not exported by any module (i.e., foreign function)
-	// Check if symbol was explicitly imported via 'use'
-	const UseImportResolution use_import_resolution = ResolveUseImport(symbol_name);
-	if (use_import_resolution.m_status == UseImportResolutionStatus::Resolved)
-	{
-		// Symbol is in use imports, verify it's actually exported by that module
-		return ResolveQualifiedSymbol(use_import_resolution.m_module_name, symbol_name);
-	}
-
-	if (use_import_resolution.m_status == UseImportResolutionStatus::Ambiguous)
-	{
-		return true;
-	}
-
-	// Check if symbol is exported by ANY module
-	bool found_in_any_export = false;
-	for (const auto& [file_path, module_decl] : *m_context.m_module_declarations)
-	{
-		if (module_decl.HasExport(symbol_name))
-		{
-			found_in_any_export = true;
-			break;
-		}
-	}
-
-	// If symbol is exported by a module but NOT in use imports, deny access
-	// (must use qualified name like Module.Symbol)
-	if (found_in_any_export)
-	{
-		return false;
-	}
-
-	// Symbol not exported by any module - allow access (might be foreign function)
-	return true;
-}
-
-bool Parser::IsInUseImports(const std::string& symbol_name, std::string& out_module_name) const
-{
-	const UseImportResolution resolution = ResolveUseImport(symbol_name);
-	if (resolution.m_status == UseImportResolutionStatus::Resolved)
-	{
-		out_module_name = resolution.m_module_name;
-		return true;
-	}
-
-	return false;
 }
 
 Parser::UseImportResolution Parser::ResolveUseImport(const std::string& symbol_name) const
@@ -1545,11 +1446,6 @@ std::optional<CompilerError> Parser::CheckDefinitionOrder()
 std::string Parser::CurrentModuleName() const
 {
 	return m_context.m_current_module != nullptr ? m_context.m_current_module->ModuleName() : std::string();
-}
-
-bool Parser::ResolveQualifiedSymbol(const std::string& module_name, const std::string& symbol_name) const
-{
-	return ResolveImportedSymbolAccess(module_name, symbol_name) == ImportedSymbolAccess::Accessible;
 }
 
 bool Parser::IsGlobalName(const std::vector<Scope>::const_reverse_iterator& found_scope_it) const
@@ -2397,39 +2293,6 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 								variable
 							)
 						);
-					}
-
-					// Only check CanAccessSymbol for unqualified names
-					// Qualified names (Module::Symbol) bypass this check and are validated below
-					if (qualifier.empty() && !CanAccessSymbol(symbol_name))
-					{
-						std::string error_msg = "Symbol '"s + symbol_name + "' is not accessible"s;
-						if (m_context.m_module_declarations != nullptr)
-						{
-							for (const auto& [file_path, module_decl] : *m_context.m_module_declarations)
-							{
-								if (module_decl.HasExport(symbol_name))
-								{
-									VisibilityLevel visibility = module_decl.GetExportVisibility(symbol_name);
-									const std::string& module_name = module_decl.ModuleName();
-									if (visibility == VisibilityLevel::Private)
-									{
-										error_msg += "\n  Note: '"s + symbol_name + "' is marked as 'private export' in module "s + module_name;
-										error_msg += "\n  Note: Only modules in the "s + module_name.substr(0, module_name.find_last_of('.')) + " namespace can access it"s;
-									}
-									else if (visibility == VisibilityLevel::Internal)
-									{
-										error_msg += "\n  Note: '"s + symbol_name + "' is not exported from module "s + module_name;
-										error_msg += "\n  Suggestion: Add it to a 'public export' or 'private export' block"s;
-									}
-									break;
-								}
-							}
-						}
-
-						const bool has_matching_export = (m_context.m_module_declarations != nullptr) && IsExportedInAnyModule(*m_context.m_module_declarations, symbol_name);
-						error_msg += "\n  Hint: Use 'use "s + std::string(has_matching_export ? "ModuleName"s : ""s) + ".{"s + symbol_name + "}' to import it, or use qualified access like 'ModuleName"s + NameSeparator.data() + symbol_name + "'"s;
-						return std::unexpected(GenerateParserError(std::move(error_msg), variable));
 					}
 
 					// A constructor may be written without 'new': `Point(1, 2)` and
@@ -7083,11 +6946,6 @@ Parser::VariableContext::VariableContext(int relative_index, int absolute_index,
 	m_absolute_index(absolute_index),
 	m_function_depth(function_depth)
 {
-}
-
-const Parser::TypeclassMethodMap& Parser::GetTypeclassMethods() const
-{
-	return m_state.m_class_methods;
 }
 
 const std::vector<CompilerWarning>& Parser::GetWarnings() const

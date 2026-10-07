@@ -201,15 +201,4 @@ namespace MidoriDriver
 
 		return std::move(compile_result).value();
 	}
-
-	CompileFileResult CompileFile(const std::filesystem::path& file_path)
-	{
-		CompileFileWithReportResult compile_result = CompileFileWithReport(file_path);
-		if (!compile_result.has_value())
-		{
-			return std::unexpected(std::move(compile_result.error()));
-		}
-
-		return std::move(compile_result.value()).TakeExecutable();
-	}
 }

@@ -161,12 +161,6 @@ namespace
 
 namespace MidoriChecksum
 {
-	std::string HashBytes(std::string_view bytes)
-	{
-		Sha256 hash;
-		hash.Update(bytes.data(), bytes.size());
-		return hash.Finalize();
-	}
 
 	std::expected<std::string, std::string> HashFile(const std::filesystem::path& path)
 	{

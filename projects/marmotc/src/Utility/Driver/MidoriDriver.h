@@ -29,7 +29,6 @@ namespace MidoriDriver
 
 	using SourceReadResult = std::expected<std::string, DriverError>;
 	using CompileFileWithReportResult = std::expected<MidoriResult::CompiledProgram, DriverError>;
-	using CompileFileResult = std::expected<MidoriExecutable, DriverError>;
 
 	[[nodiscard]] SourceReadResult ReadSourceFile(const std::filesystem::path& file_path);
 	// The directories in MARMOT_PATH, in order.
@@ -45,5 +44,4 @@ namespace MidoriDriver
 	[[nodiscard]] CompileFileWithReportResult CompileFileWithReport(const std::filesystem::path& file_path);
 	// Compiles with exactly `inputs` (a build plan's).
 	[[nodiscard]] CompileFileWithReportResult CompileFileWithReport(const std::filesystem::path& file_path, CompilationInputs inputs);
-	[[nodiscard]] CompileFileResult CompileFile(const std::filesystem::path& file_path);
 }

@@ -107,8 +107,6 @@ private:
 		TokenStream m_tokens;
 		std::string m_file_name;
 		const ModuleDeclaration* m_current_module = nullptr;
-		const std::unordered_map<std::string, ModuleDeclaration>* m_module_declarations = nullptr;
-		const std::unordered_map<std::string, std::vector<UseImport>>* m_use_imports = nullptr;
 		const std::vector<std::string>* m_source_lines = nullptr;
 
 		ParseContext(TokenStream&& tokens, std::string_view file_name, const std::vector<std::string>& source_lines, const std::unordered_map<std::string, CompiledModule::SymbolTable>& imports, const std::unordered_map<std::string, TypeEnvironment>& imported_type_signatures, const ModuleDeclaration* module_decl);
@@ -281,7 +279,6 @@ public:
 
 	MidoriResult::ParserResult Parse();
 
-	const TypeclassMethodMap& GetTypeclassMethods() const;
 	const std::vector<CompilerWarning>& GetWarnings() const;
 
 	CompiledModule::TypeclassMetadataMap GetTypeclassMetadata() const;
@@ -476,62 +473,6 @@ private:
 		return ParseDelimitedOneOrMoreUnlimited(std::forward<ParseFunc>(func), std::forward<Delim>(delim), std::move(acc));
 	}
 
-	template<typename OutputType, typename ParseFunc, typename EndCond>
-	std::expected<std::vector<OutputType>, CompilerError> ParseZeroOrMoreLimited(ParseFunc&& func, EndCond&& end_cond, std::vector<OutputType>&& acc = {})
-	{
-		return TryParser<OutputType>(std::forward<ParseFunc>(func))
-			.and_then
-			(
-				[&acc, &func, &end_cond, this](OutputType&& elem)
-				{
-					acc.emplace_back(std::move(elem));
-					return ParseZeroOrMoreLimited(std::forward<ParseFunc>(func), std::forward<EndCond>(end_cond), std::move(acc))
-						.or_else
-						(
-							[&end_cond, &acc](CompilerError&& error) -> std::expected<std::vector<OutputType>, CompilerError>
-							{
-								return end_cond()
-									.and_then
-									(
-										[&acc](Token&&) -> std::expected<std::vector<OutputType>, CompilerError>
-										{
-											return std::move(acc);
-										}
-									)
-									.or_else
-									(
-										[&error](CompilerError&&) ->std::expected<std::vector<OutputType>, CompilerError>
-										{
-											return std::unexpected(std::move(error));
-										}
-									);
-							}
-						);
-				}
-			)
-			.or_else
-			(
-				[&acc, &end_cond](CompilerError&& try_parser_error)
-				{
-					return end_cond()
-						.and_then
-						(
-							[&acc](Token&&) -> std::expected<std::vector<OutputType>, CompilerError>
-							{
-								return std::move(acc);
-							}
-						)
-						.or_else
-						(
-							[&try_parser_error](CompilerError&&) -> std::expected<std::vector<OutputType>, CompilerError>
-							{
-								return std::unexpected(std::move(try_parser_error));
-							}
-						);
-				}
-			);
-	}
-
 	template<typename OutputType, typename ParseFunc>
 	std::expected<std::vector<OutputType>, CompilerError> ParseZeroOrMoreUnlimited(ParseFunc&& func, std::vector<OutputType>&& acc = {})
 	{
@@ -592,10 +533,6 @@ private:
 
 	std::vector<Scope>::const_reverse_iterator FindTypeScope(std::string& name);
 
-	bool CanAccessSymbol(const std::string& symbol_name) const;
-
-	bool IsInUseImports(const std::string& symbol_name, std::string& out_module_name) const;
-
 	UseImportResolution ResolveUseImport(const std::string& symbol_name) const;
 
 	// The imported modules that export `symbol_name` and would let this module
@@ -652,8 +589,6 @@ private:
 	void RecordTopLevelReference(const Token& name);
 
 	std::optional<CompilerError> CheckDefinitionOrder();
-
-	bool ResolveQualifiedSymbol(const std::string& module_name, const std::string& symbol_name) const;
 
 	std::string ExtractSymbolName(const std::string& qualified_name) const;
 

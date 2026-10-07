@@ -51,6 +51,5 @@ public:
 
 	static const FFIEntry& GetEntry(size_t index);
 	static std::optional<size_t> FindIndex(std::string_view name);
-	static constexpr size_t GetTableSize();
 	static const std::array<FFIEntry, BUILTIN_COUNT>& GetTable();
 };

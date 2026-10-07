@@ -17,11 +17,6 @@ std::optional<size_t> MidoriFFIRegistry::FindIndex(std::string_view name)
 	return std::nullopt;
 }
 
-constexpr size_t MidoriFFIRegistry::GetTableSize()
-{
-	return s_entries.size();
-}
-
 const std::array<FFIEntry, MidoriFFIRegistry::BUILTIN_COUNT>& MidoriFFIRegistry::GetTable()
 {
 	return s_entries;

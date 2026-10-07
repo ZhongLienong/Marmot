@@ -77,13 +77,6 @@ struct BytecodeModule
 	BytecodeModule() = default;
 	BytecodeModule(std::string module_name, std::filesystem::path source_path);
 
-	[[nodiscard]] BytecodeModule WithProcedure(BytecodeStream procedure) &&;
-	[[nodiscard]] BytecodeModule WithExport(ExportedSymbol export_symbol) &&;
-	[[nodiscard]] BytecodeModule WithImport(ImportedSymbol import_symbol) &&;
-	[[nodiscard]] BytecodeModule WithString(std::string str) &&;
-	[[nodiscard]] BytecodeModule WithProcedureName(std::string name) &&;
-	[[nodiscard]] BytecodeModule WithGlobalVariable(std::string variable) &&;
-
 	BytecodeModule(const BytecodeModule&) = delete;
 	BytecodeModule& operator=(const BytecodeModule&) = delete;
 	BytecodeModule(BytecodeModule&&) noexcept = default;

@@ -28,7 +28,6 @@ public:
 	MidoriIRBuilder& PositionAt(MidoriIRBlockId block);
 	MidoriIRBuilder& AtLine(int line);
 	MidoriIRBlockId CurrentBlock() const;
-	bool IsTerminated() const;
 
 	MidoriIRValueId Emit(MidoriIROp op, std::shared_ptr<MidoriType> type, std::vector<MidoriIRValueId> operands = {}, MidoriIRImmediate immediate = {}, std::string name = {});
 	// An op with a fixed signature, whose result type MidoriIROps.def gives.

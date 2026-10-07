@@ -145,11 +145,6 @@ public:
 		return static_cast<MidoriWord>(m_data.m_integer);
 	}
 
-	MIDORI_FORCE_INLINE MidoriUnit GetUnit() const noexcept
-	{
-		return {};
-	}
-
 	MIDORI_FORCE_INLINE MidoriBool GetBool() const noexcept
 	{
 		return m_data.m_bool;
@@ -158,11 +153,6 @@ public:
 	MIDORI_FORCE_INLINE MidoriTraceable* GetPointer() const noexcept
 	{
 		return m_data.m_pointer;
-	}
-
-	MIDORI_FORCE_INLINE const void* GetRawDataPtr() const noexcept
-	{
-		return &m_data;
 	}
 
 	MIDORI_FORCE_INLINE MidoriWord GetRawBits() const noexcept
@@ -436,8 +426,6 @@ public:
 	}
 
 	void AddBack(const MidoriValue& value);
-
-	void AddFront(const MidoriValue& value);
 
 	void Extend(const MidoriArray& other);
 

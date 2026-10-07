@@ -83,11 +83,7 @@ public:
 
 	void AddByteCode(OpCode byte, int line);
 
-	void PopByteCode(int line);
-
 	int GetByteCodeSize() const;
-
-	bool IsByteCodeEmpty() const;
 
 	int GetLine(int index) const;
 

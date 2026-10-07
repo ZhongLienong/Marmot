@@ -43,12 +43,6 @@ MidoriIRBlockId MidoriIRBuilder::CurrentBlock() const
 	return m_block;
 }
 
-bool MidoriIRBuilder::IsTerminated() const
-{
-	const std::vector<MidoriIRInstruction>& instructions = m_function.Block(m_block).m_instructions;
-	return !instructions.empty() && IsMidoriIRTerminator(instructions.back().m_op);
-}
-
 MidoriIRValueId MidoriIRBuilder::Emit(MidoriIROp op, std::shared_ptr<MidoriType> type, std::vector<MidoriIRValueId> operands, MidoriIRImmediate immediate, std::string name)
 {
 	const MidoriIRValueId result = NewValue(type, std::move(name));

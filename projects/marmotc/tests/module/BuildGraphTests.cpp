@@ -188,12 +188,11 @@ TEST_CASE("ModuleManager preserves dependency metadata and strips module stateme
 	const BuildGraph::BuildNode& main_node = graph.m_nodes.at(main_file_path.string());
 	REQUIRE(main_node.m_dependencies == std::vector<std::string>{ lib_file_path.string(), util_file_path.string() });
 
-	REQUIRE(graph.m_use_imports.contains(main_file_path.string()));
-	REQUIRE(graph.m_use_imports.at(main_file_path.string()).size() == 2);
-	CHECK(graph.m_use_imports.at(main_file_path.string())[0].m_module_name == "Lib");
-	CHECK(graph.m_use_imports.at(main_file_path.string())[0].m_symbol_name == "PrintLine");
-	CHECK(graph.m_use_imports.at(main_file_path.string())[1].m_module_name == "Lib");
-	CHECK(graph.m_use_imports.at(main_file_path.string())[1].m_symbol_name == "Parse");
+	REQUIRE(graph.m_nodes.at(main_file_path.string()).m_use_imports.size() == 2);
+	CHECK(graph.m_nodes.at(main_file_path.string()).m_use_imports[0].m_module_name == "Lib");
+	CHECK(graph.m_nodes.at(main_file_path.string()).m_use_imports[0].m_symbol_name == "PrintLine");
+	CHECK(graph.m_nodes.at(main_file_path.string()).m_use_imports[1].m_module_name == "Lib");
+	CHECK(graph.m_nodes.at(main_file_path.string()).m_use_imports[1].m_symbol_name == "Parse");
 
 	REQUIRE(graph.m_module_declarations.at(main_file_path.string()).ModuleName() == "Main");
 	REQUIRE(graph.m_module_declarations.at(lib_file_path.string()).ModuleName() == "Lib");
@@ -245,12 +244,11 @@ TEST_CASE("ModuleManager preserves dotted module names in use imports", "[module
 	}
 
 	const BuildGraph& graph = graph_result.value();
-	REQUIRE(graph.m_use_imports.contains(main_file_path.string()));
-	REQUIRE(graph.m_use_imports.at(main_file_path.string()).size() == 2u);
-	CHECK(graph.m_use_imports.at(main_file_path.string())[0].m_module_name == "Math.Vector");
-	CHECK(graph.m_use_imports.at(main_file_path.string())[0].m_symbol_name == "add");
-	CHECK(graph.m_use_imports.at(main_file_path.string())[1].m_module_name == "Math.Vector");
-	CHECK(graph.m_use_imports.at(main_file_path.string())[1].m_symbol_name == "sub");
+	REQUIRE(graph.m_nodes.at(main_file_path.string()).m_use_imports.size() == 2u);
+	CHECK(graph.m_nodes.at(main_file_path.string()).m_use_imports[0].m_module_name == "Math.Vector");
+	CHECK(graph.m_nodes.at(main_file_path.string()).m_use_imports[0].m_symbol_name == "add");
+	CHECK(graph.m_nodes.at(main_file_path.string()).m_use_imports[1].m_module_name == "Math.Vector");
+	CHECK(graph.m_nodes.at(main_file_path.string()).m_use_imports[1].m_symbol_name == "sub");
 }
 
 TEST_CASE("ModuleManager requires an explicit module declaration in every file", "[module][graph]")
@@ -656,8 +654,6 @@ TEST_CASE("Discovery retains shared and duplicate import edges once", "[module][
 		REQUIRE(graph->m_module_declarations.size() == 4u);
 		REQUIRE(graph->m_nodes.at(main).m_dependencies == std::vector<std::string>{ left, right });
 		REQUIRE(graph->m_nodes.at(right).m_dependencies == std::vector<std::string>{ shared, left });
-		REQUIRE(graph->m_nodes.at(shared).m_in_degree == 2);
-		REQUIRE(graph->m_nodes.at(left).m_in_degree == 2);
 		REQUIRE(graph->m_module_declarations.at(shared).HasExport("Value"));
 		REQUIRE(graph->GetCompilationTiers() == std::vector<std::vector<std::string>>{ { shared }, { left }, { right }, { main } });
 	}

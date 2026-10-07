@@ -77,12 +77,6 @@ void Channel::Close()
 	m_not_full.notify_all();
 }
 
-bool Channel::IsClosed() const
-{
-	std::lock_guard<std::mutex> lock(m_mutex);
-	return m_closed;
-}
-
 bool Channel::IsDrained() const
 {
 	std::lock_guard<std::mutex> lock(m_mutex);

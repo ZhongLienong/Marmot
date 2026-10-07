@@ -49,15 +49,6 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraph()
 		return std::unexpected(std::move(result.error()));
 	}
 
-	CalculateInDegrees(build_graph);
-	for (const auto& [file_name, node] : build_graph.m_nodes)
-	{
-		if (!node.m_use_imports.empty())
-		{
-			build_graph.m_use_imports[file_name] = node.m_use_imports;
-		}
-	}
-
 	return build_graph;
 }
 
@@ -203,17 +194,6 @@ MidoriResult::VoidResult ModuleManager::GenerateBuildGraphImpl(BuildGraph& build
 	}
 
 	return {};
-}
-
-void ModuleManager::CalculateInDegrees(BuildGraph& build_graph)
-{
-	for (const auto& [file, node] : build_graph.m_nodes)
-	{
-		for (const std::string& dependency : node.m_dependencies)
-		{
-			build_graph.m_nodes.at(dependency).m_in_degree += 1;
-		}
-	}
 }
 
 void ModuleManager::SkipWhiteSpace(const TokenStream& tokens, int& current_index)

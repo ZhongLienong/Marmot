@@ -15,11 +15,6 @@ ImportResolver::ImportResolver(std::filesystem::path current_file_dir, std::vect
 {
 }
 
-const std::vector<std::filesystem::path>& ImportResolver::GetSystemSearchPaths() const
-{
-	return m_system_search_paths;
-}
-
 ImportResolver ImportResolver::WithSystemSearchPaths(std::vector<std::filesystem::path> system_search_paths) const &
 {
 	return ImportResolver(m_current_file_dir, std::move(system_search_paths));
