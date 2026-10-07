@@ -2,6 +2,8 @@
 #include "Support/Json/Json.h"
 #include "Support/Terminal/Terminal.h"
 #include <algorithm>
+#include <cstdlib>
+#include <print>
 #include <sstream>
 
 std::string_view RuntimeErrorCodeName(RuntimeErrorCode code)
@@ -36,6 +38,8 @@ std::string_view RuntimeErrorCodeName(RuntimeErrorCode code)
 		return "WorkerExited";
 	case RuntimeErrorCode::InvalidConversion:
 		return "InvalidConversion";
+	case RuntimeErrorCode::OutOfMemory:
+		return "OutOfMemory";
 	default:
 		return "None";
 	}
@@ -58,6 +62,7 @@ namespace
 		case RuntimeErrorCode::MemoryAccessViolation:
 		case RuntimeErrorCode::InternalTypeError:
 		case RuntimeErrorCode::InternalFFITypeError:
+		case RuntimeErrorCode::OutOfMemory:
 			return true;
 		case RuntimeErrorCode::None:
 		case RuntimeErrorCode::IndexOutOfBounds:
@@ -363,4 +368,11 @@ RuntimeError::RuntimeError(RuntimeErrorCode code, std::string_view message, std:
 	}
 
 	m_rendered = RenderRuntimeDiagnostic(*this);
+}
+
+void FatalOutOfMemory(std::string_view context, size_t bytes) noexcept
+{
+	const RuntimeError runtime_error(RuntimeErrorCode::OutOfMemory, std::format("Out of memory while allocating {} bytes ({}).", bytes, context));
+	std::print("{}", runtime_error.Rendered());
+	std::exit(runtime_error.ExitCode());
 }

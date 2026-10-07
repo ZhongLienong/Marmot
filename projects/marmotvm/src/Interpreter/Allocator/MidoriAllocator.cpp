@@ -1,5 +1,6 @@
 #include "MidoriAllocator.h"
 #include "Value/Value.h"
+#include "Error/RuntimeError.h"
 
 #include <bit>
 #include <cstdlib>
@@ -214,7 +215,7 @@ void* MidoriAllocator::AllocateFromNewBlock()
 {
 	if (!AllocateBlock())
 	{
-		return nullptr;
+		FatalOutOfMemory("the heap is full", SLOT_SIZE);
 	}
 	return Allocate();
 }

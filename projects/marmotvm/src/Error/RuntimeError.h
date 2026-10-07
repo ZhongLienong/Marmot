@@ -21,7 +21,8 @@ enum class RuntimeErrorCode
 	UnsupportedPlatformOperation,
 	WorkerCancelled,
 	WorkerExited,
-	InvalidConversion
+	InvalidConversion,
+	OutOfMemory
 };
 
 enum class RuntimeDiagnosticKind
@@ -66,6 +67,11 @@ struct RuntimeError
 
 [[nodiscard]] std::string_view RuntimeErrorCodeName(RuntimeErrorCode code);
 [[nodiscard]] std::string SerializeMachineReadableRuntimeError(const RuntimeError& error);
+
+// Prints the error and ends the process. An allocation is made from deep inside
+// an opcode or a value's constructor, with no way back to the dispatch loop to
+// unwind it, so running out of memory is fatal.
+[[noreturn]] void FatalOutOfMemory(std::string_view context, size_t bytes) noexcept;
 
 namespace std
 {

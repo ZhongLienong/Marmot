@@ -107,6 +107,7 @@ Current `RuntimeErrorCode` values:
 - `WorkerExited`
 - `InvalidConversion`
 - `InternalFFITypeError`
+- `OutOfMemory`
 
 `RuntimeErrorCodeName(...)` provides the stable string form used in rendered and
 machine-readable output.

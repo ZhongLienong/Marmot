@@ -19,23 +19,6 @@
 
 namespace
 {
-	[[noreturn]] void FatalOutOfMemory(const char* context, size_t bytes) noexcept
-	{
-		std::string message = "Out of memory while allocating " + std::to_string(bytes) + " bytes";
-		if (context && *context != '\0')
-		{
-			message.append(" (").append(context).append(")");
-		}
-		message.push_back('.');
-
-		const RuntimeError runtime_error(RuntimeErrorCode::MemoryAccessViolation, message);
-		const std::string rendered(runtime_error.Rendered());
-		std::fputs(rendered.c_str(), stderr);
-		std::fputc('\n', stderr);
-		std::fflush(stderr);
-		std::exit(EXIT_FAILURE);
-	}
-
 	// Size-classed recycler for MidoriArray, MidoriTuple and MidoriText
 	// buffers. Those never migrate between threads (workers exchange values
 	// only through serialization), so each thread recycles its own buffers.

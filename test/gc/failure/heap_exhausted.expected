@@ -1,0 +1,2 @@
+building
+panic[OutOfMemory]: Out of memory while allocating 80 bytes (the heap is full).

@@ -218,6 +218,7 @@ Current `RuntimeErrorCode` values:
 - `WorkerExited`
 - `InvalidConversion`
 - `InternalFFITypeError`
+- `OutOfMemory`
 
 ## Warning Codes
 
@@ -358,6 +359,7 @@ are emitted with the same shape as the full examples above.
 | `UnsupportedPlatformOperation` | `Runtime` | `error` | `Operation not supported on this platform.` |
 | `WorkerCancelled` | `Runtime` | `error` | `Worker cancelled.` |
 | `InvalidConversion` | `Runtime` | `error` | `'abc' is not a Float.` |
+| `OutOfMemory` | `Runtime` | `panic` | `Out of memory while allocating 80 bytes (the heap is full).` |
 
 ## Stability
 
