@@ -16,7 +16,9 @@
 #include <expected>
 #include <memory>
 #include <new>
+#include <span>
 #include <stop_token>
+#include <type_traits>
 #include <vector>
 
 class VirtualMachine
@@ -31,11 +33,21 @@ public:
 
     ~VirtualMachine();
 
-    template<typename... Args>
-    MIDORI_FORCE_INLINE MidoriTraceable* AllocateTraceable(Args&&... args)
+    template<typename T>
+        requires MidoriTraceablePayload<std::remove_cvref_t<T>>
+    MIDORI_FORCE_INLINE MidoriTraceable* AllocateTraceable(T&& payload)
     {
-        void* mem = m_allocator.Allocate();
-        MidoriTraceable* traceable = new(mem) MidoriTraceable(std::forward<Args>(args)...);
+        void* mem = m_allocator.Allocate(MidoriTraceable::HEADER_SIZE + sizeof(std::remove_cvref_t<T>));
+        MidoriTraceable* traceable = new(mem) MidoriTraceable(std::forward<T>(payload));
+        m_gc.RegisterObject(traceable);
+        return traceable;
+    }
+
+    // A tuple, struct, union or closure; `index` is a union's tag or a closure's procedure.
+    MIDORI_FORCE_INLINE MidoriTraceable* AllocateAggregate(MidoriTraceable::TraceableType type, std::span<const MidoriValue> values, int index) noexcept
+    {
+        void* mem = m_allocator.Allocate(MidoriTraceable::AggregateBytes(static_cast<int>(values.size())));
+        MidoriTraceable* traceable = new(mem) MidoriTraceable(type, values, index);
         m_gc.RegisterObject(traceable);
         return traceable;
     }
@@ -48,8 +60,8 @@ private:
 	{
 		ValueStackPointer m_return_bp;
 		InstructionPointer m_return_ip;
-		MidoriTuple* m_closure_ptr;
-		// The closure m_closure_ptr points into. A frame is often the only thing that
+		MidoriValue* m_captures;
+		// The closure m_captures points into. A frame is often the only thing that
 		// still holds its closure - `Make(x)(n)` calls one nothing else names - so the
 		// collector roots it through here, or frees it under a running call.
 		MidoriTraceable* m_closure;
@@ -83,7 +95,7 @@ private:
 	CallStackPointer m_call_stack_pointer = nullptr;
 	CallStackPointer m_call_stack_begin = nullptr;
 	MidoriTraceable* m_curr_closure_traceable = nullptr;
-	MidoriTuple* m_curr_environment = nullptr;
+	MidoriValue* m_curr_environment = nullptr;
 
     // Warm VM State
 	std::shared_ptr<const VmExecutable> m_owned_executable;
@@ -151,7 +163,7 @@ public:
     }
 
 private:
-	MIDORI_FORCE_INLINE void SyncMachineState(InstructionPointer ip, ValueStackPointer sp, ValueStackPointer bp, MidoriTuple* env, MidoriTraceable* closure) noexcept
+	MIDORI_FORCE_INLINE void SyncMachineState(InstructionPointer ip, ValueStackPointer sp, ValueStackPointer bp, MidoriValue* env, MidoriTraceable* closure) noexcept
 	{
 		m_instruction_pointer = ip;
 		m_value_stack_pointer = sp;
@@ -165,7 +177,7 @@ private:
 		return m_stop_possible && m_stop_token.stop_requested();
 	}
 
-	MIDORI_FORCE_INLINE void TryCollect(InstructionPointer ip, ValueStackPointer sp, ValueStackPointer bp, MidoriTuple* env, MidoriTraceable* closure) noexcept
+	MIDORI_FORCE_INLINE void TryCollect(InstructionPointer ip, ValueStackPointer sp, ValueStackPointer bp, MidoriValue* env, MidoriTraceable* closure) noexcept
 	{
 		if (m_gc.ShouldCollect())
 		{
@@ -336,18 +348,18 @@ private:
 		return m_proc_entry_cache[static_cast<size_t>(proc_index)];
 	}
 
-	MIDORI_FORCE_INLINE void PushCallFrame(ValueStackPointer m_return_bp, InstructionPointer m_return_ip, MidoriTuple* m_closure_ptr, MidoriTraceable* m_closure) noexcept
+	MIDORI_FORCE_INLINE void PushCallFrame(ValueStackPointer m_return_bp, InstructionPointer m_return_ip, MidoriValue* m_captures, MidoriTraceable* m_closure) noexcept
 	{
-		*m_call_stack_pointer = CallFrame{m_return_bp, m_return_ip, m_closure_ptr, m_closure};
+		*m_call_stack_pointer = CallFrame{m_return_bp, m_return_ip, m_captures, m_closure};
 		++m_call_stack_pointer;
 	}
 
 	// The dispatch loop keeps the pointer in a register, but still stores it on
 	// every push: a fault mid-loop (guard page, division by zero) builds its
 	// stack trace from the member.
-	MIDORI_FORCE_INLINE void PushCallFrame(CallStackPointer& csp, ValueStackPointer return_bp, InstructionPointer return_ip, MidoriTuple* closure_ptr, MidoriTraceable* closure) noexcept
+	MIDORI_FORCE_INLINE void PushCallFrame(CallStackPointer& csp, ValueStackPointer return_bp, InstructionPointer return_ip, MidoriValue* captures, MidoriTraceable* closure) noexcept
 	{
-		*csp = CallFrame{return_bp, return_ip, closure_ptr, closure};
+		*csp = CallFrame{return_bp, return_ip, captures, closure};
 		++csp;
 		m_call_stack_pointer = csp;
 	}

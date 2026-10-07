@@ -1,6 +1,7 @@
 #include "Support/Attributes/Attributes.h"
 #include "Value.h"
 #include "Error/RuntimeError.h"
+#include "Interpreter/Allocator/MidoriAllocator.h"
 
 #include <algorithm>
 #include <array>
@@ -19,7 +20,7 @@
 
 namespace
 {
-	// Size-classed recycler for MidoriArray, MidoriTuple and MidoriText
+	// Size-classed recycler for MidoriArray, MidoriText and long aggregate
 	// buffers. Those never migrate between threads (workers exchange values
 	// only through serialization), so each thread recycles its own buffers.
 	class ValueBufferPool
@@ -302,52 +303,54 @@ MidoriValue::DebugTypeTag MidoriValue::GetTag() const noexcept
 }
 #endif
 
-MidoriTraceable::MidoriTraceable(MidoriText&& str) noexcept : m_text(std::move(str)), m_type(TraceableType::Text)
+MidoriTraceable::MidoriTraceable(MidoriText&& str) noexcept : m_type(TraceableType::Text), m_text(std::move(str))
 {
 }
 
-MidoriTraceable::MidoriTraceable(MidoriArray&& array) noexcept : m_array(std::move(array)), m_type(TraceableType::Array)
+MidoriTraceable::MidoriTraceable(MidoriArray&& array) noexcept : m_type(TraceableType::Array), m_array(std::move(array))
 {
 }
 
-MidoriTraceable::MidoriTraceable(MidoriTuple&& tuple) noexcept : m_tuple(std::move(tuple)), m_type(TraceableType::Tuple)
+MidoriTraceable::MidoriTraceable(MidoriIntRange&& range) noexcept : m_type(TraceableType::IntRange), m_int_range(std::move(range))
 {
 }
 
-MidoriTraceable::MidoriTraceable(MidoriIntRange&& range) noexcept : m_int_range(std::move(range)), m_type(TraceableType::IntRange)
+MidoriTraceable::MidoriTraceable(MidoriFloatRange&& range) noexcept : m_type(TraceableType::FloatRange), m_float_range(std::move(range))
 {
 }
 
-MidoriTraceable::MidoriTraceable(MidoriFloatRange&& range) noexcept : m_float_range(std::move(range)), m_type(TraceableType::FloatRange)
+MidoriTraceable::MidoriTraceable(MidoriMutableCell&& mutable_cell) noexcept : m_type(TraceableType::MutableCell), m_mutable_cell(std::move(mutable_cell))
 {
 }
 
-MidoriTraceable::MidoriTraceable(MidoriMutableCell&& mutable_cell) noexcept : m_mutable_cell(std::move(mutable_cell)), m_type(TraceableType::MutableCell)
+// Only the header and the values are written: the slot may be smaller than
+// sizeof(MidoriTraceable).
+MidoriTraceable::MidoriTraceable(TraceableType type, std::span<const MidoriValue> values, int index) noexcept
+	: m_type(type), m_padding(0u), m_index(static_cast<uint16_t>(index)), m_length(static_cast<uint32_t>(values.size()))
 {
+	if (values.size() > static_cast<size_t>(INLINE_CAPACITY))
+	{
+		InitializeExternalValues(values);
+		return;
+	}
+	// Not memcpy: a variable-length one is a call into libc, and the closure or
+	// union built here is usually read a few instructions later. It cost the
+	// closure benchmark 18%.
+	for (size_t i = 0uz; i < values.size(); i += 1uz)
+	{
+		m_inline_values[i] = values[i];
+	}
 }
 
-MidoriTraceable::MidoriTraceable(MidoriClosure&& closure) noexcept : m_closure(std::move(closure)), m_type(TraceableType::Closure)
+void MidoriTraceable::InitializeExternalValues(std::span<const MidoriValue> values)
 {
-}
-
-MidoriTraceable::MidoriTraceable(MidoriStruct&& midori_struct)noexcept : m_struct(std::move(midori_struct)), m_type(TraceableType::Struct)
-{
-}
-
-MidoriTraceable::MidoriTraceable(MidoriUnion&& midori_union) noexcept : m_union(std::move(midori_union)), m_type(TraceableType::Union)
-{
-}
-
-MidoriTraceable::MidoriTraceable(std::in_place_type_t<MidoriTuple>, std::span<const MidoriValue> values) noexcept : m_tuple(values), m_type(TraceableType::Tuple)
-{
-}
-
-MidoriTraceable::MidoriTraceable(std::in_place_type_t<MidoriStruct>, std::span<const MidoriValue> values) noexcept : m_struct{ .m_values = MidoriTuple(values) }, m_type(TraceableType::Struct)
-{
-}
-
-MidoriTraceable::MidoriTraceable(std::in_place_type_t<MidoriUnion>, std::span<const MidoriValue> values, int index) noexcept : m_union{ .m_values = MidoriTuple(values), .m_index = index }, m_type(TraceableType::Union)
-{
+	size_t bytes = values.size_bytes();
+	m_external_values = static_cast<MidoriValue*>(AllocateValueBuffer(bytes));
+	if (m_external_values == nullptr)
+	{
+		FatalOutOfMemory("an aggregate's values", bytes);
+	}
+	std::memcpy(static_cast<void*>(m_external_values), values.data(), values.size_bytes());
 }
 
 MidoriTraceable::~MidoriTraceable()
@@ -360,26 +363,20 @@ MidoriTraceable::~MidoriTraceable()
 	case TraceableType::Array:
 		m_array.~MidoriArray();
 		break;
-	case TraceableType::Tuple:
-		m_tuple.~MidoriTuple();
-		break;
 	case TraceableType::IntRange:
-		m_int_range.~MidoriIntRange();
-		break;
 	case TraceableType::FloatRange:
-		m_float_range.~MidoriFloatRange();
-		break;
-	case TraceableType::Struct:
-		m_struct.~MidoriStruct();
-		break;
-	case TraceableType::Union:
-		m_union.~MidoriUnion();
-		break;
 	case TraceableType::MutableCell:
-		m_mutable_cell.~MidoriMutableCell();
 		break;
+	case TraceableType::Tuple:
+	case TraceableType::Struct:
+	case TraceableType::Union:
 	case TraceableType::Closure:
-		m_closure.~MidoriClosure();
+		if (m_length > static_cast<uint32_t>(INLINE_CAPACITY))
+		{
+			// The pool finds the size class from the requested bytes as well as
+			// from the granted ones, so the length is enough to free it.
+			FreeValueBuffer(m_external_values, static_cast<size_t>(m_length) * sizeof(MidoriValue));
+		}
 		break;
 	}
 }
@@ -411,18 +408,18 @@ MidoriText MidoriTraceable::ToText()
 	}
 	case TraceableType::Tuple:
 	{
-		const int len = m_tuple.GetLength();
-		if (len == 0)
+		const MidoriValue* values = GetValues();
+		if (GetLength() == 0)
 		{
 			return MidoriText("()");
 		}
 
 		MidoriText result("(");
-		result.Append(m_tuple[0].ToText());
-		for (int idx = 1; idx < len; idx += 1)
+		result.Append(values[0].ToText());
+		for (int idx = 1; idx < GetLength(); idx += 1)
 		{
 			result.Append(", ");
-			result.Append(m_tuple[idx].ToText());
+			result.Append(values[idx].ToText());
 		}
 		result.Append(")");
 		return result;
@@ -440,40 +437,20 @@ MidoriText MidoriTraceable::ToText()
 		return MidoriText(buffer);
 	}
 	case TraceableType::Union:
-	{
-		if (m_union.m_values.GetLength() == 0)
-		{
-			return MidoriText("Union{}");
-		}
-
-		const int len = m_union.m_values.GetLength();
-		MidoriText union_val("Union{");
-		union_val.Append(m_union.m_values[0].ToText());
-		for (int idx = 1; idx < len; idx += 1)
-		{
-			union_val.Append(", ");
-			union_val.Append(m_union.m_values[idx].ToText());
-		}
-		union_val.Append("}");
-		return union_val;
-	}
 	case TraceableType::Struct:
 	{
-		if (m_struct.m_values.GetLength() == 0)
+		const MidoriValue* values = GetValues();
+		MidoriText result(m_type == TraceableType::Union ? "Union{" : "Struct{");
+		for (int idx = 0; idx < GetLength(); idx += 1)
 		{
-			return MidoriText("Struct{}");
+			if (idx > 0)
+			{
+				result.Append(", ");
+			}
+			result.Append(values[idx].ToText());
 		}
-
-		const int len = m_struct.m_values.GetLength();
-		MidoriText struct_val("Struct{");
-		struct_val.Append(m_struct.m_values[0].ToText());
-		for (int idx = 1; idx < len; idx += 1)
-		{
-			struct_val.Append(", ");
-			struct_val.Append(m_struct.m_values[idx].ToText());
-		}
-		struct_val.Append("}");
-		return struct_val;
+		result.Append("}");
+		return result;
 	}
 	default:
 		return MidoriText("Unknown MidoriTraceable");
@@ -483,31 +460,26 @@ MidoriText MidoriTraceable::ToText()
 
 size_t MidoriTraceable::GetSize() const
 {
-	size_t dynamic_size = 0uz;
 	switch (m_type)
 	{
 	case TraceableType::Text:
-		dynamic_size = m_text.GetOwnedBytes();
-		break;
+		return MidoriAllocator::SlotSizeFor(HEADER_SIZE + sizeof(MidoriText)) + m_text.GetOwnedBytes();
 	case TraceableType::Array:
-		dynamic_size = m_array.GetCapacity();
-		break;
+		return MidoriAllocator::SlotSizeFor(HEADER_SIZE + sizeof(MidoriArray)) + m_array.GetCapacity();
+	case TraceableType::IntRange:
+		return MidoriAllocator::SlotSizeFor(HEADER_SIZE + sizeof(MidoriIntRange));
+	case TraceableType::FloatRange:
+		return MidoriAllocator::SlotSizeFor(HEADER_SIZE + sizeof(MidoriFloatRange));
+	case TraceableType::MutableCell:
+		return MidoriAllocator::SlotSizeFor(HEADER_SIZE + sizeof(MidoriMutableCell));
 	case TraceableType::Tuple:
-		dynamic_size = m_tuple.GetCapacity();
-		break;
-	case TraceableType::Closure:
-		dynamic_size = m_closure.m_cell_values.GetCapacity();
-		break;
 	case TraceableType::Struct:
-		dynamic_size = m_struct.m_values.GetCapacity();
-		break;
 	case TraceableType::Union:
-		dynamic_size = m_union.m_values.GetCapacity();
-		break;
-	default:
+	case TraceableType::Closure:
 		break;
 	}
-	return sizeof(MidoriTraceable) + dynamic_size;
+	const size_t external_bytes = m_length > static_cast<uint32_t>(INLINE_CAPACITY) ? static_cast<size_t>(m_length) * sizeof(MidoriValue) : 0uz;
+	return MidoriAllocator::SlotSizeFor(AggregateBytes(GetLength())) + external_bytes;
 }
 
 void* MidoriTraceable::operator new(size_t size) noexcept
@@ -960,168 +932,6 @@ MidoriArray MidoriArray::FromFFI(MidoriValue* ffi_allocated_data, int length)
 
 	std::free(ffi_allocated_data);
 	return result;
-}
-
-MidoriTuple::MidoriTuple()
-{
-	std::memset(this, 0, sizeof(MidoriTuple));
-	SetShortSize(0);
-}
-
-MidoriTuple::MidoriTuple(int size)
-{
-	if (size <= SOO_CAPACITY)
-	{
-		std::memset(this, 0, sizeof(MidoriTuple));
-		SetShortSize(size);
-		for (int i = 0; i < size; i += 1)
-		{
-			new (&m_short.m_buffer[i]) MidoriValue();
-		}
-	}
-	else
-	{
-		size_t bytes = static_cast<size_t>(size) * sizeof(MidoriValue);
-		m_long.m_ptr = static_cast<MidoriValue*>(AllocateValueBuffer(bytes));
-		if (!m_long.m_ptr)
-		{
-			FatalOutOfMemory("MidoriTuple::MidoriTuple", bytes);
-		}
-		m_long.m_size = size;
-		m_long.m_capacity = static_cast<int>(bytes / sizeof(MidoriValue));
-		m_long.m_flag = 0;
-		m_short.m_size_flag = 0;
-	}
-}
-
-// The long layout is out of line so the short one, which every constructor and
-// union with up to SOO_CAPACITY fields takes, runs without a stack frame.
-MidoriTuple::MidoriTuple(std::span<const MidoriValue> values)
-{
-	if (values.size() > static_cast<size_t>(SOO_CAPACITY))
-	{
-		InitializeLong(values);
-		return;
-	}
-
-	std::memset(static_cast<void*>(this), 0, sizeof(MidoriTuple));
-	SetShortSize(static_cast<int>(values.size()));
-	for (size_t i = 0uz; i < values.size(); i += 1uz)
-	{
-		new (&m_short.m_buffer[i]) MidoriValue(values[i]);
-	}
-}
-
-void MidoriTuple::InitializeLong(std::span<const MidoriValue> values)
-{
-	size_t bytes = values.size_bytes();
-	m_long.m_ptr = static_cast<MidoriValue*>(AllocateValueBuffer(bytes));
-	if (!m_long.m_ptr)
-	{
-		FatalOutOfMemory("MidoriTuple::MidoriTuple", bytes);
-	}
-	std::memcpy(static_cast<void*>(m_long.m_ptr), values.data(), values.size_bytes());
-	m_long.m_size = static_cast<int>(values.size());
-	m_long.m_capacity = static_cast<int>(bytes / sizeof(MidoriValue));
-	m_long.m_flag = 0;
-	m_short.m_size_flag = 0;
-}
-
-MidoriTuple::MidoriTuple(const MidoriTuple& other)
-{
-	if (other.IsShort())
-	{
-		std::memcpy(this, &other, sizeof(MidoriTuple));
-	}
-	else
-	{
-		size_t bytes = static_cast<size_t>(other.m_long.m_size) * sizeof(MidoriValue);
-		m_long.m_ptr = static_cast<MidoriValue*>(AllocateValueBuffer(bytes));
-		if (!m_long.m_ptr)
-		{
-			FatalOutOfMemory("MidoriTuple::MidoriTuple copy", bytes);
-		}
-		std::memcpy(m_long.m_ptr, other.m_long.m_ptr, static_cast<size_t>(other.m_long.m_size) * sizeof(MidoriValue));
-		m_long.m_size = other.m_long.m_size;
-		m_long.m_capacity = static_cast<int>(bytes / sizeof(MidoriValue));
-		m_long.m_flag = 0;
-		m_short.m_size_flag = 0;
-	}
-}
-
-MidoriTuple::MidoriTuple(MidoriTuple&& other) noexcept
-{
-	std::memcpy(this, &other, sizeof(MidoriTuple));
-	std::memset(&other, 0, sizeof(MidoriTuple));
-	other.SetShortSize(0);
-}
-
-MidoriTuple& MidoriTuple::operator=(const MidoriTuple& other)
-{
-	if (this == &other)
-	{
-		return *this;
-	}
-
-	if (!IsShort())
-	{
-		FreeValueBuffer(m_long.m_ptr, static_cast<size_t>(m_long.m_capacity) * sizeof(MidoriValue));
-	}
-
-	if (other.IsShort())
-	{
-		std::memcpy(this, &other, sizeof(MidoriTuple));
-	}
-	else
-	{
-		size_t bytes = static_cast<size_t>(other.m_long.m_size) * sizeof(MidoriValue);
-		m_long.m_ptr = static_cast<MidoriValue*>(AllocateValueBuffer(bytes));
-		if (!m_long.m_ptr)
-		{
-			FatalOutOfMemory("MidoriTuple::operator= copy", bytes);
-		}
-		std::memcpy(m_long.m_ptr, other.m_long.m_ptr, static_cast<size_t>(other.m_long.m_size) * sizeof(MidoriValue));
-		m_long.m_size = other.m_long.m_size;
-		m_long.m_capacity = static_cast<int>(bytes / sizeof(MidoriValue));
-		m_long.m_flag = 0;
-		m_short.m_size_flag = 0;
-	}
-	return *this;
-}
-
-MidoriTuple& MidoriTuple::operator=(MidoriTuple&& other) noexcept
-{
-	if (this == &other)
-	{
-		return *this;
-	}
-
-	if (!IsShort())
-	{
-		FreeValueBuffer(m_long.m_ptr, static_cast<size_t>(m_long.m_capacity) * sizeof(MidoriValue));
-	}
-
-	std::memcpy(this, &other, sizeof(MidoriTuple));
-	std::memset(&other, 0, sizeof(MidoriTuple));
-	other.SetShortSize(0);
-	return *this;
-}
-
-MidoriTuple::~MidoriTuple()
-{
-	if (!IsShort())
-	{
-		FreeValueBuffer(m_long.m_ptr, static_cast<size_t>(m_long.m_capacity) * sizeof(MidoriValue));
-	}
-}
-
-size_t MidoriTuple::GetCapacity() const
-{
-	if (IsShort())
-	{
-		return 0uz;
-	}
-	return static_cast<size_t>(m_long.m_capacity) * sizeof(MidoriValue);
 }
 
 MidoriIntRange::MidoriIntRange(MidoriInteger start, MidoriInteger end, MidoriInteger step)

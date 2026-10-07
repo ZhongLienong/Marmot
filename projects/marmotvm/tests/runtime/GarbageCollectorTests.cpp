@@ -8,7 +8,7 @@ namespace
 {
 	MidoriTraceable* AllocateText(MidoriAllocator& allocator, GarbageCollector& gc, const char* content)
 	{
-		void* memory = allocator.Allocate();
+		void* memory = allocator.Allocate(sizeof(MidoriTraceable));
 		MidoriTraceable* traceable = new(memory) MidoriTraceable(MidoriText(content));
 		gc.RegisterObject(traceable);
 		return traceable;
@@ -25,7 +25,7 @@ namespace
 		{
 			array.AddBack(MidoriValue(static_cast<MidoriInteger>(0)));
 		}
-		void* memory = allocator.Allocate();
+		void* memory = allocator.Allocate(sizeof(MidoriTraceable));
 		MidoriTraceable* traceable = new(memory) MidoriTraceable(std::move(array));
 		gc.RegisterObject(traceable);
 		return traceable;
@@ -39,7 +39,7 @@ namespace
 	{
 		MidoriText text;
 		text.Reserve(reserve_bytes);
-		void* memory = allocator.Allocate();
+		void* memory = allocator.Allocate(sizeof(MidoriTraceable));
 		MidoriTraceable* traceable = new(memory) MidoriTraceable(std::move(text));
 		gc.RegisterObject(traceable);
 		return traceable;

@@ -3,6 +3,8 @@
 #include "Interpreter/VirtualMachine/VirtualMachine.h"
 
 #include <format>
+#include <span>
+#include <vector>
 
 std::expected<SerializedValue, std::string> ValueTransfer::Serialize(MidoriValue source, VirtualMachine& source_vm)
 {
@@ -97,18 +99,17 @@ std::expected<std::shared_ptr<SerializedObject>, std::string> ValueTransfer::Ser
 		return serialized;
 	}
 
-	if (source->IsTraceable<MidoriTuple>())
+	if (source->GetType() == MidoriTraceable::TraceableType::Tuple)
 	{
-		const MidoriTuple& src_tuple = source->GetTraceable<MidoriTuple>();
+		const std::span<const MidoriValue> src_tuple(source->GetValues(), static_cast<size_t>(source->GetLength()));
 		std::shared_ptr<SerializedObject> serialized = std::make_shared<SerializedObject>(SerializedObject{ SerializedObject::Tuple{} });
 		visited.emplace(source, serialized);
 
 		SerializedObject::Tuple& serialized_tuple = std::get<SerializedObject::Tuple>(serialized->m_data);
-		const int length = src_tuple.GetLength();
-		serialized_tuple.m_elements.reserve(static_cast<size_t>(length));
-		for (int index = 0; index < length; index += 1)
+		serialized_tuple.m_elements.reserve(src_tuple.size());
+		for (const MidoriValue& src_element : src_tuple)
 		{
-			std::expected<SerializedValue, std::string> element = SerializeValue(src_tuple[index], source_vm, visited);
+			std::expected<SerializedValue, std::string> element = SerializeValue(src_element, source_vm, visited);
 			if (!element.has_value())
 			{
 				return std::unexpected(element.error());
@@ -118,18 +119,17 @@ std::expected<std::shared_ptr<SerializedObject>, std::string> ValueTransfer::Ser
 		return serialized;
 	}
 
-	if (source->IsTraceable<MidoriStruct>())
+	if (source->GetType() == MidoriTraceable::TraceableType::Struct)
 	{
-		const MidoriStruct& src_struct = source->GetTraceable<MidoriStruct>();
+		const std::span<const MidoriValue> src_struct(source->GetValues(), static_cast<size_t>(source->GetLength()));
 		std::shared_ptr<SerializedObject> serialized = std::make_shared<SerializedObject>(SerializedObject{ SerializedObject::Struct{} });
 		visited.emplace(source, serialized);
 
 		SerializedObject::Struct& serialized_struct = std::get<SerializedObject::Struct>(serialized->m_data);
-		const int length = src_struct.m_values.GetLength();
-		serialized_struct.m_fields.reserve(static_cast<size_t>(length));
-		for (int index = 0; index < length; index += 1)
+		serialized_struct.m_fields.reserve(src_struct.size());
+		for (const MidoriValue& src_field : src_struct)
 		{
-			std::expected<SerializedValue, std::string> field = SerializeValue(src_struct.m_values[index], source_vm, visited);
+			std::expected<SerializedValue, std::string> field = SerializeValue(src_field, source_vm, visited);
 			if (!field.has_value())
 			{
 				return std::unexpected(field.error());
@@ -139,19 +139,18 @@ std::expected<std::shared_ptr<SerializedObject>, std::string> ValueTransfer::Ser
 		return serialized;
 	}
 
-	if (source->IsTraceable<MidoriUnion>())
+	if (source->GetType() == MidoriTraceable::TraceableType::Union)
 	{
-		const MidoriUnion& src_union = source->GetTraceable<MidoriUnion>();
+		const std::span<const MidoriValue> src_union(source->GetValues(), static_cast<size_t>(source->GetLength()));
 		std::shared_ptr<SerializedObject> serialized = std::make_shared<SerializedObject>(SerializedObject{ SerializedObject::Union{} });
 		visited.emplace(source, serialized);
 
 		SerializedObject::Union& serialized_union = std::get<SerializedObject::Union>(serialized->m_data);
-		serialized_union.m_tag = src_union.m_index;
-		const int length = src_union.m_values.GetLength();
-		serialized_union.m_fields.reserve(static_cast<size_t>(length));
-		for (int index = 0; index < length; index += 1)
+		serialized_union.m_tag = source->GetIndex();
+		serialized_union.m_fields.reserve(src_union.size());
+		for (const MidoriValue& src_field : src_union)
 		{
-			std::expected<SerializedValue, std::string> field = SerializeValue(src_union.m_values[index], source_vm, visited);
+			std::expected<SerializedValue, std::string> field = SerializeValue(src_field, source_vm, visited);
 			if (!field.has_value())
 			{
 				return std::unexpected(field.error());
@@ -203,19 +202,18 @@ std::expected<std::shared_ptr<SerializedObject>, std::string> ValueTransfer::Ser
 	// copy is the same value. A recursive local closure captures itself;
 	// registering each object in `visited` before recursing into its fields turns
 	// that cycle into a shared reference, as for arrays.
-	if (source->IsTraceable<MidoriClosure>())
+	if (source->GetType() == MidoriTraceable::TraceableType::Closure)
 	{
-		const MidoriClosure& src_closure = source->GetTraceable<MidoriClosure>();
+		const std::span<const MidoriValue> src_captures(source->GetValues(), static_cast<size_t>(source->GetLength()));
 		std::shared_ptr<SerializedObject> serialized = std::make_shared<SerializedObject>(SerializedObject{ SerializedObject::Closure{} });
 		visited.emplace(source, serialized);
 
 		SerializedObject::Closure& serialized_closure = std::get<SerializedObject::Closure>(serialized->m_data);
-		serialized_closure.m_proc_index = src_closure.m_proc_index;
-		const int length = src_closure.m_cell_values.GetLength();
-		serialized_closure.m_captures.reserve(static_cast<size_t>(length));
-		for (int index = 0; index < length; index += 1)
+		serialized_closure.m_proc_index = source->GetIndex();
+		serialized_closure.m_captures.reserve(src_captures.size());
+		for (const MidoriValue& src_capture : src_captures)
 		{
-			std::expected<SerializedValue, std::string> capture = SerializeValue(src_closure.m_cell_values[index], source_vm, visited);
+			std::expected<SerializedValue, std::string> capture = SerializeValue(src_capture, source_vm, visited);
 			if (!capture.has_value())
 			{
 				return std::unexpected(capture.error());
@@ -295,11 +293,11 @@ std::expected<MidoriTraceable*, std::string> ValueTransfer::DeserializeObject(co
 
 	if (const SerializedObject::Tuple* serialized_tuple = std::get_if<SerializedObject::Tuple>(&source->m_data))
 	{
-		MidoriTuple new_tuple(static_cast<int>(serialized_tuple->m_elements.size()));
-		MidoriTraceable* transferred = target_vm.AllocateTraceable(std::move(new_tuple));
+		const std::vector<MidoriValue> placeholders(serialized_tuple->m_elements.size());
+		MidoriTraceable* transferred = target_vm.AllocateAggregate(MidoriTraceable::TraceableType::Tuple, placeholders, 0);
 		visited.emplace(source.get(), transferred);
 
-		MidoriTuple& dst_tuple = transferred->GetTraceable<MidoriTuple>();
+		MidoriValue* dst_tuple = transferred->GetValues();
 		for (size_t index = 0u; index < serialized_tuple->m_elements.size(); index += 1u)
 		{
 			std::expected<MidoriValue, std::string> element = DeserializeValue(serialized_tuple->m_elements[index], target_vm, visited);
@@ -307,19 +305,18 @@ std::expected<MidoriTraceable*, std::string> ValueTransfer::DeserializeObject(co
 			{
 				return std::unexpected(element.error());
 			}
-			dst_tuple[static_cast<int>(index)] = element.value();
+			dst_tuple[index] = element.value();
 		}
 		return transferred;
 	}
 
 	if (const SerializedObject::Struct* serialized_struct = std::get_if<SerializedObject::Struct>(&source->m_data))
 	{
-		MidoriStruct new_struct;
-		new_struct.m_values = MidoriTuple(static_cast<int>(serialized_struct->m_fields.size()));
-		MidoriTraceable* transferred = target_vm.AllocateTraceable(std::move(new_struct));
+		const std::vector<MidoriValue> placeholders(serialized_struct->m_fields.size());
+		MidoriTraceable* transferred = target_vm.AllocateAggregate(MidoriTraceable::TraceableType::Struct, placeholders, 0);
 		visited.emplace(source.get(), transferred);
 
-		MidoriStruct& dst_struct = transferred->GetTraceable<MidoriStruct>();
+		MidoriValue* dst_struct = transferred->GetValues();
 		for (size_t index = 0u; index < serialized_struct->m_fields.size(); index += 1u)
 		{
 			std::expected<MidoriValue, std::string> field = DeserializeValue(serialized_struct->m_fields[index], target_vm, visited);
@@ -327,20 +324,18 @@ std::expected<MidoriTraceable*, std::string> ValueTransfer::DeserializeObject(co
 			{
 				return std::unexpected(field.error());
 			}
-			dst_struct.m_values[static_cast<int>(index)] = field.value();
+			dst_struct[index] = field.value();
 		}
 		return transferred;
 	}
 
 	if (const SerializedObject::Union* serialized_union = std::get_if<SerializedObject::Union>(&source->m_data))
 	{
-		MidoriUnion new_union;
-		new_union.m_index = serialized_union->m_tag;
-		new_union.m_values = MidoriTuple(static_cast<int>(serialized_union->m_fields.size()));
-		MidoriTraceable* transferred = target_vm.AllocateTraceable(std::move(new_union));
+		const std::vector<MidoriValue> placeholders(serialized_union->m_fields.size());
+		MidoriTraceable* transferred = target_vm.AllocateAggregate(MidoriTraceable::TraceableType::Union, placeholders, serialized_union->m_tag);
 		visited.emplace(source.get(), transferred);
 
-		MidoriUnion& dst_union = transferred->GetTraceable<MidoriUnion>();
+		MidoriValue* dst_union = transferred->GetValues();
 		for (size_t index = 0u; index < serialized_union->m_fields.size(); index += 1u)
 		{
 			std::expected<MidoriValue, std::string> field = DeserializeValue(serialized_union->m_fields[index], target_vm, visited);
@@ -348,7 +343,7 @@ std::expected<MidoriTraceable*, std::string> ValueTransfer::DeserializeObject(co
 			{
 				return std::unexpected(field.error());
 			}
-			dst_union.m_values[static_cast<int>(index)] = field.value();
+			dst_union[index] = field.value();
 		}
 		return transferred;
 	}
@@ -378,10 +373,11 @@ std::expected<MidoriTraceable*, std::string> ValueTransfer::DeserializeObject(co
 			return function;
 		}
 
-		MidoriTraceable* transferred = target_vm.AllocateTraceable(MidoriClosure{ .m_cell_values = MidoriTuple(static_cast<int>(serialized_closure->m_captures.size())), .m_proc_index = serialized_closure->m_proc_index });
+		const std::vector<MidoriValue> placeholders(serialized_closure->m_captures.size());
+		MidoriTraceable* transferred = target_vm.AllocateAggregate(MidoriTraceable::TraceableType::Closure, placeholders, serialized_closure->m_proc_index);
 		visited.emplace(source.get(), transferred);
 
-		MidoriTuple& dst_captures = transferred->GetTraceable<MidoriClosure>().m_cell_values;
+		MidoriValue* dst_captures = transferred->GetValues();
 		for (size_t index = 0u; index < serialized_closure->m_captures.size(); index += 1u)
 		{
 			std::expected<MidoriValue, std::string> capture = DeserializeValue(serialized_closure->m_captures[index], target_vm, visited);
@@ -389,7 +385,7 @@ std::expected<MidoriTraceable*, std::string> ValueTransfer::DeserializeObject(co
 			{
 				return std::unexpected(capture.error());
 			}
-			dst_captures[static_cast<int>(index)] = capture.value();
+			dst_captures[index] = capture.value();
 		}
 		return transferred;
 	}

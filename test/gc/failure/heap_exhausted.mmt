@@ -2,30 +2,16 @@ module HeapExhausted
 
 import
 {
-	"../../../MarmotPrelude/IO.mmt",
-	"../../../MarmotPrelude/Prelude/List.mmt"
+	"../../../MarmotPrelude/IO.mmt"
 }
 
-use List.{List}
-
-// Every cell stays reachable, so the collector frees nothing and the heap runs
-// out. That used to dereference the null slot the allocator returned and was
-// reported as a MemoryAccessViolation that blamed the bytecode.
-
-def Build = fn(n : Int, built : List<Int>) -> List<Int> =>
-{
-	if n == 0
-	then built
-	else Build(n - 1, List::Cons(n, built))
-};
-
-def Head = fn(list : List<Int>) -> Int =>
-{
-	match list with
-		case List::Cons(head, _) => head
-		case List::Nil => 0
-};
+// Every text stays reachable from the array, so the collector frees nothing and
+// the heap runs out. That used to dereference the null slot the allocator
+// returned and was reported as a MemoryAccessViolation that blamed the
+// bytecode. A short text takes the largest slot in every build, which a union's
+// size does not: Debug builds have wider values.
 
 IO::PrintLine("building");
-IO::PrintLine(Head(Build(20000000, List::Nil())) as Text);
+def texts = [(i as Text) for i in 0..1..20000000];
+IO::PrintLine((#texts) as Text);
 IO::PrintLine("not reached");

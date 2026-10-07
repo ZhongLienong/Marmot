@@ -152,15 +152,6 @@ void GarbageCollector::Trace(const GarbageCollectionRoots& roots)
 {
 	m_mark_stack.clear();
 
-	auto mark_tuple_values = [this](MidoriTuple& tuple)
-		{
-			const int length = tuple.GetLength();
-			for (int idx = 0; idx < length; idx += 1)
-			{
-				TryMark(tuple[idx].GetPointer());
-			}
-		};
-
 	for (MidoriTraceable* root : roots)
 	{
 		TryMark(root);
@@ -186,19 +177,20 @@ void GarbageCollector::Trace(const GarbageCollectionRoots& roots)
 			break;
 		}
 		case MidoriTraceable::TraceableType::Tuple:
-			mark_tuple_values(current->GetTraceable<MidoriTuple>());
-			break;
+		case MidoriTraceable::TraceableType::Struct:
+		case MidoriTraceable::TraceableType::Union:
 		case MidoriTraceable::TraceableType::Closure:
-			mark_tuple_values(current->GetTraceable<MidoriClosure>().m_cell_values);
+		{
+			const MidoriValue* values = current->GetValues();
+			const int length = current->GetLength();
+			for (int idx = 0; idx < length; idx += 1)
+			{
+				TryMark(values[idx].GetPointer());
+			}
 			break;
+		}
 		case MidoriTraceable::TraceableType::MutableCell:
 			TryMark(current->GetTraceable<MidoriMutableCell>().m_value.GetPointer());
-			break;
-		case MidoriTraceable::TraceableType::Struct:
-			mark_tuple_values(current->GetTraceable<MidoriStruct>().m_values);
-			break;
-		case MidoriTraceable::TraceableType::Union:
-			mark_tuple_values(current->GetTraceable<MidoriUnion>().m_values);
 			break;
 		case MidoriTraceable::TraceableType::Text:
 		case MidoriTraceable::TraceableType::IntRange:

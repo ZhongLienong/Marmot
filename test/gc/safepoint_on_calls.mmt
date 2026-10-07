@@ -2,40 +2,42 @@ module SafepointOnCalls
 
 import
 {
-	"../../MarmotPrelude/IO.mmt",
-	"../../MarmotPrelude/Prelude/List.mmt"
+	"../../MarmotPrelude/IO.mmt"
 }
-
-use List.{List}
 
 // Each loop below keeps a few bytes live and makes over a gigabyte of garbage,
 // more than the allocator's whole region. Neither reaches a JUMP_BACK: the
 // first loops through a function value, which the compiler cannot turn into a
 // jump, and the second is recursion that never loops. The collector used to run
-// only at JUMP_BACK, so both ran out of heap.
+// only at JUMP_BACK, so both ran out of heap. A link has nine fields so that it
+// takes the largest slot, and fewer of them make the gigabyte.
 
-def Head = fn(list : List<Int>) -> Int =>
+type Chain = End | Link(Int, Int, Int, Int, Int, Int, Int, Int, Chain);
+
+def Head = fn(chain : Chain) -> Int =>
 {
-	match list with
-		case List::Cons(head, _) => head
-		case List::Nil => 0
+	match chain with
+		case Chain::Link(head, _, _, _, _, _, _, _, _) => head
+		case Chain::End => 0
 };
 
-def Step : fn(Int, List<Int>, Int, fn(Int, List<Int>, Int) -> Int) -> Int = fn(n : Int, carried : List<Int>, acc : Int, next : fn(Int, List<Int>, Int) -> Int) -> Int =>
+def Pair = fn(first : Int, second : Int) -> Chain => Chain::Link(first, first, first, first, first, first, first, first, Chain::Link(second, second, second, second, second, second, second, second, Chain::End()));
+
+def Step : fn(Int, Chain, Int, fn(Int, Chain, Int) -> Int) -> Int = fn(n : Int, carried : Chain, acc : Int, next : fn(Int, Chain, Int) -> Int) -> Int =>
 {
 	if n == 0
 	then acc
-	else next(n - 1, List::Cons(n, List::Cons(acc, List::Nil())), (acc + Head(carried)) % 1000003)
+	else next(n - 1, Pair(n, acc), (acc + Head(carried)) % 1000003)
 };
 
-def Bounce : fn(Int, List<Int>, Int) -> Int = fn(n : Int, carried : List<Int>, acc : Int) -> Int => Step(n, carried, acc, Bounce);
+def Bounce : fn(Int, Chain, Int) -> Int = fn(n : Int, carried : Chain, acc : Int) -> Int => Step(n, carried, acc, Bounce);
 
-def Tree = fn(n : Int, seed : List<Int>) -> Int =>
+def Tree = fn(n : Int, seed : Chain) -> Int =>
 {
 	if n < 2
 	then Head(seed)
-	else (Tree(n - 1, List::Cons(n, seed)) + Tree(n - 2, List::Cons(n + 1, List::Nil()))) % 1000003
+	else (Tree(n - 1, Chain::Link(n, n, n, n, n, n, n, n, seed)) + Tree(n - 2, Pair(n + 1, n))) % 1000003
 };
 
-IO::PrintLine(Bounce(8000000, List::Nil(), 0) as Text);
-IO::PrintLine(Tree(33, List::Nil()) as Text);
+IO::PrintLine(Bounce(8000000, Chain::End(), 0) as Text);
+IO::PrintLine(Tree(33, Chain::End()) as Text);

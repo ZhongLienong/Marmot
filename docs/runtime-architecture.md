@@ -34,11 +34,15 @@ All GC-managed objects are VM-local:
 - Structs
 - Unions
 - Closures
-- Cell boxes
+- References (`Ref<T>`)
 - Range objects
 
-Every GC-managed object is one `MidoriTraceable`, exactly one fixed-size
-allocator slot. `MidoriValue` is an untagged word in release builds, so root
+Every GC-managed object is one `MidoriTraceable` in one allocator slot. It
+starts with an 8-byte header (its type, a union's tag or a closure's
+procedure, and an aggregate's length), so a match reads the tag on the same
+cache line as the first fields. A tuple, struct, union or closure keeps up to
+nine values right after the header, and longer ones in a buffer of their own.
+`MidoriValue` is an untagged word in release builds, so root
 and child pointer identification is conservative (region/slot-range check
 plus a live-bit test): a scalar whose bits happen to alias a live slot only
 over-retains that object, it is never dereferenced incorrectly. This rules
@@ -46,7 +50,9 @@ out moving/copying collection — Marmot's collector is strictly non-moving.
 
 ### Allocator
 
-`MidoriAllocator` carves fixed 80-byte slots out of 64 KB blocks:
+`MidoriAllocator` carves slots out of 64 KB blocks. Slots come in five sizes,
+16 to 80 bytes in steps of 16, and each block holds one size for good: a
+two-field union takes 32 bytes, text and arrays take 80.
 
 - Native: blocks are carved from one contiguous reserved virtual-memory
   region. On POSIX the region is committed 2 MB at a time, aligned so that
@@ -57,11 +63,14 @@ out moving/copying collection — Marmot's collector is strictly non-moving.
   lifetime of the allocator, since the generational collector keys
   persistent bitmaps by slot index).
 - A `uint64_t` live-bitmap tracks slot occupancy, one bit per slot, parallel
-  across both platforms. `TryGetSlotIndex` maps a pointer to its global slot
-  index; `SlotAt` is the inverse. Allocation pops from a free list; freeing
-  clears the live bit and pushes back onto the free list.
+  across both platforms; each block owns whole words of it, as many as its
+  slots need. `TryGetSlotIndex` maps a pointer to its global slot index,
+  dividing by the block's slot size with a multiply, and rejects a pointer
+  into the middle of a slot; `SlotAt` is the inverse. Allocation pops from
+  the free list of its size; freeing clears the live bit and pushes back
+  onto that list.
 - The allocator only ever hands out slots. The buffers behind long `Text`,
-  `Array`, and `Tuple` payloads come from the value buffer pool in `projects/marmotvm/src/Value`
+  `Array`, and aggregate payloads come from the value buffer pool in `projects/marmotvm/src/Value`
   and are never traced or treated as roots — only their owning
   `MidoriTraceable` is.
 

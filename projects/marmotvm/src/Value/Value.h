@@ -195,7 +195,7 @@ concept MidoriNumeric = std::same_as<T, MidoriFloat> || std::same_as<T, MidoriIn
 class MidoriText
 {
 private:
-	// Sized so MidoriTraceable fills one allocator slot; small payloads then
+	// Sized so MidoriTraceable fills the largest allocator slot; small payloads then
 	// never need a separate heap buffer.
 	static constexpr int STORAGE_SIZE = 72;
 	static constexpr int SSO_CAPACITY = STORAGE_SIZE - 2;
@@ -369,7 +369,7 @@ class MidoriArray
 {
 private:
 	static constexpr int s_initial_capacity = 8;
-	// Sized so MidoriTraceable fills one allocator slot; small payloads then
+	// Sized so MidoriTraceable fills the largest allocator slot; small payloads then
 	// never need a separate heap buffer.
 	static constexpr int STORAGE_SIZE = 72;
 	static constexpr int SOO_CAPACITY = (STORAGE_SIZE - 8) / static_cast<int>(sizeof(MidoriValue));
@@ -465,93 +465,6 @@ private:
 	}
 };
 
-class MidoriTuple
-{
-private:
-	// Smaller than MidoriArray/MidoriText: MidoriClosure and MidoriUnion wrap a
-	// tuple plus an int, and those must still fit the traceable slot budget.
-	static constexpr int STORAGE_SIZE = 64;
-	static constexpr int SOO_CAPACITY = (STORAGE_SIZE - 8) / static_cast<int>(sizeof(MidoriValue));
-
-	struct LongLayout
-	{
-		MidoriValue* m_ptr;
-		int m_size;
-		int m_capacity;
-		uint8_t m_padding[STORAGE_SIZE - sizeof(MidoriValue*) - 2uz * sizeof(int) - 1uz];
-		uint8_t m_flag;
-	};
-
-	struct ShortLayout
-	{
-		MidoriValue m_buffer[SOO_CAPACITY];
-		uint8_t m_padding[STORAGE_SIZE - SOO_CAPACITY * sizeof(MidoriValue) - 1uz];
-		uint8_t m_size_flag;
-	};
-
-	static_assert(sizeof(LongLayout) == STORAGE_SIZE);
-	static_assert(sizeof(ShortLayout) == STORAGE_SIZE);
-	static_assert(offsetof(LongLayout, m_flag) == offsetof(ShortLayout, m_size_flag));
-
-	union
-	{
-		LongLayout m_long;
-		ShortLayout m_short;
-	};
-
-public:
-	MidoriTuple();
-
-	MidoriTuple(int size);
-
-	explicit MidoriTuple(std::span<const MidoriValue> values);
-
-	MidoriTuple(const MidoriTuple& other);
-
-	MidoriTuple(MidoriTuple&& other) noexcept;
-
-	MidoriTuple& operator=(const MidoriTuple& other);
-
-	MidoriTuple& operator=(MidoriTuple&& other) noexcept;
-
-	~MidoriTuple();
-
-	MIDORI_FORCE_INLINE MidoriValue& operator[](int index)
-	{
-		return IsShort() ? m_short.m_buffer[index] : m_long.m_ptr[index];
-	}
-
-	MIDORI_FORCE_INLINE const MidoriValue& operator[](int index) const
-	{
-		return IsShort() ? m_short.m_buffer[index] : m_long.m_ptr[index];
-	}
-
-	MIDORI_FORCE_INLINE int GetLength() const
-	{
-		return IsShort() ? GetShortSize() : m_long.m_size;
-	}
-
-	size_t GetCapacity() const;
-
-private:
-	MIDORI_FORCE_INLINE bool IsShort() const noexcept
-	{
-		return (m_short.m_size_flag & 1) != 0;
-	}
-
-	MIDORI_FORCE_INLINE void SetShortSize(int size)
-	{
-		m_short.m_size_flag = static_cast<uint8_t>((size << 1) | 1);
-	}
-
-	MIDORI_NOINLINE void InitializeLong(std::span<const MidoriValue> values);
-
-	MIDORI_FORCE_INLINE int GetShortSize() const
-	{
-		return m_short.m_size_flag >> 1;
-	}
-};
-
 class MidoriIntRange
 {
 private:
@@ -598,23 +511,11 @@ struct MidoriMutableCell
 	explicit MidoriMutableCell(MidoriValue value) noexcept;
 };
 
-struct MidoriClosure
-{
-	MidoriTuple m_cell_values;
-	int m_proc_index;
-};
-
-struct MidoriStruct
-{
-	MidoriTuple m_values{};
-};
-
-struct MidoriUnion
-{
-	MidoriTuple m_values{};
-	int m_index{ 0 };
-};
-
+// Every heap object starts with the same 8-byte header, so a match reads its tag
+// on the same cache line as its first fields, and is allocated in a slot sized
+// for it rather than the largest. An aggregate (a tuple, struct, union or
+// closure) holds its values right after the header when they fit in the
+// largest slot, and in a buffer of its own when they do not.
 class MidoriTraceable
 {
 public:
@@ -631,20 +532,32 @@ public:
 		Closure
 	};
 
+	static constexpr size_t HEADER_SIZE = 8uz;
+	static constexpr int INLINE_CAPACITY = static_cast<int>(sizeof(MidoriText) / sizeof(MidoriValue));
+
+	// The bytes an aggregate of `length` values takes in its slot.
+	static constexpr size_t AggregateBytes(int length) noexcept
+	{
+		return HEADER_SIZE + (length > 0 && length <= INLINE_CAPACITY ? static_cast<size_t>(length) * sizeof(MidoriValue) : sizeof(MidoriValue*));
+	}
+
 private:
+	TraceableType m_type;
+	uint8_t m_padding;
+	// A union's tag or a closure's procedure.
+	uint16_t m_index;
+	// An aggregate's value count.
+	uint32_t m_length;
 	union
 	{
 		MidoriText m_text;
 		MidoriArray m_array;
-		MidoriTuple m_tuple;
 		MidoriIntRange m_int_range;
 		MidoriFloatRange m_float_range;
-		MidoriStruct m_struct;
-		MidoriUnion m_union;
 		MidoriMutableCell m_mutable_cell;
-		MidoriClosure m_closure;
+		MidoriValue m_inline_values[INLINE_CAPACITY];
+		MidoriValue* m_external_values;
 	};
-	TraceableType m_type;
 
 	template<typename T>
 	static constexpr TraceableType TypeToEnum()
@@ -657,10 +570,6 @@ private:
 		{
 			return TraceableType::Array;
 		}
-		else if constexpr (std::is_same_v<T, MidoriTuple>)
-		{
-			return TraceableType::Tuple;
-		}
 		else if constexpr (std::is_same_v<T, MidoriIntRange>)
 		{
 			return TraceableType::IntRange;
@@ -669,21 +578,9 @@ private:
 		{
 			return TraceableType::FloatRange;
 		}
-		else if constexpr (std::is_same_v<T, MidoriStruct>)
-		{
-			return TraceableType::Struct;
-		}
-		else if constexpr (std::is_same_v<T, MidoriUnion>)
-		{
-			return TraceableType::Union;
-		}
 		else if constexpr (std::is_same_v<T, MidoriMutableCell>)
 		{
 			return TraceableType::MutableCell;
-		}
-		else if constexpr (std::is_same_v<T, MidoriClosure>)
-		{
-			return TraceableType::Closure;
 		}
 		else
 		{
@@ -715,10 +612,6 @@ public:
 		{
 			return m_array;
 		}
-		else if constexpr (std::is_same_v<T, MidoriTuple>)
-		{
-			return m_tuple;
-		}
 		else if constexpr (std::is_same_v<T, MidoriIntRange>)
 		{
 			return m_int_range;
@@ -727,24 +620,36 @@ public:
 		{
 			return m_float_range;
 		}
-		else if constexpr (std::is_same_v<T, MidoriStruct>)
-		{
-			return m_struct;
-		}
-		else if constexpr (std::is_same_v<T, MidoriUnion>)
-		{
-			return m_union;
-		}
 		else if constexpr (std::is_same_v<T, MidoriMutableCell>)
 		{
 			return m_mutable_cell;
 		}
-		else if constexpr (std::is_same_v<T, MidoriClosure>)
-		{
-			return m_closure;
-		}
 	}
 
+	MIDORI_FORCE_INLINE int GetIndex() const noexcept
+	{
+		return static_cast<int>(m_index);
+	}
+
+	MIDORI_FORCE_INLINE int GetLength() const noexcept
+	{
+		return static_cast<int>(m_length);
+	}
+
+	// An aggregate's GetLength() values. A pointer rather than a span: the
+	// dispatch loop and the collector read through it, and Debug builds do not
+	// inline span's members.
+	MIDORI_FORCE_INLINE MidoriValue* GetValues() noexcept
+	{
+		return m_length <= static_cast<uint32_t>(INLINE_CAPACITY) ? m_inline_values : m_external_values;
+	}
+
+	MIDORI_FORCE_INLINE const MidoriValue* GetValues() const noexcept
+	{
+		return m_length <= static_cast<uint32_t>(INLINE_CAPACITY) ? m_inline_values : m_external_values;
+	}
+
+	// The bytes of the slot this object takes, and of any buffer it owns.
 	size_t GetSize() const;
 
 #if MIDORI_DEBUG_FULL
@@ -765,21 +670,21 @@ public:
 
 	MidoriTraceable(MidoriText&& str) noexcept;
 	MidoriTraceable(MidoriArray&& array) noexcept;
-	MidoriTraceable(MidoriTuple&& tuple) noexcept;
 	MidoriTraceable(MidoriIntRange&& range) noexcept;
 	MidoriTraceable(MidoriFloatRange&& range) noexcept;
 	MidoriTraceable(MidoriMutableCell&& mutable_cell) noexcept;
-	MidoriTraceable(MidoriClosure&& closure) noexcept;
-	MidoriTraceable(MidoriStruct&& midori_struct) noexcept;
-	MidoriTraceable(MidoriUnion&& midori_union) noexcept;
-	MidoriTraceable(std::in_place_type_t<MidoriTuple>, std::span<const MidoriValue> values) noexcept;
-	MidoriTraceable(std::in_place_type_t<MidoriStruct>, std::span<const MidoriValue> values) noexcept;
-	MidoriTraceable(std::in_place_type_t<MidoriUnion>, std::span<const MidoriValue> values, int index) noexcept;
+	// A tuple, struct, union or closure; `index` is a union's tag or a closure's procedure.
+	MidoriTraceable(TraceableType type, std::span<const MidoriValue> values, int index) noexcept;
 
 private:
+	MIDORI_NOINLINE void InitializeExternalValues(std::span<const MidoriValue> values);
+
 	MidoriTraceable() = delete;
 	MidoriTraceable(const MidoriTraceable& other) = delete;
 	MidoriTraceable(MidoriTraceable&& other) noexcept = delete;
 	MidoriTraceable& operator=(const MidoriTraceable& other) = delete;
 	MidoriTraceable& operator=(MidoriTraceable&& other) noexcept = delete;
 };
+
+template<typename T>
+concept MidoriTraceablePayload = std::same_as<T, MidoriText> || std::same_as<T, MidoriArray> || std::same_as<T, MidoriIntRange> || std::same_as<T, MidoriFloatRange> || std::same_as<T, MidoriMutableCell>;

@@ -347,12 +347,11 @@ void VirtualMachine::PrepareWorkerCall(MidoriValue worker_function) noexcept
 	// it is not on this VM's stack, so it is rooted here, and its cells are the
 	// environment the worker's first frame runs in - which is what lets a lambda
 	// that captured something be spawned.
-	MidoriTraceable* closure_pointer = worker_function.GetPointer();
-	MidoriClosure& closure = closure_pointer->GetTraceable<MidoriClosure>();
-	m_curr_closure_traceable = closure_pointer;
-	m_curr_environment = &closure.m_cell_values;
+	MidoriTraceable* closure = worker_function.GetPointer();
+	m_curr_closure_traceable = closure;
+	m_curr_environment = closure->GetValues();
 
-	m_instruction_pointer = GetProcEntry(closure.m_proc_index);
+	m_instruction_pointer = GetProcEntry(closure->GetIndex());
 
 	PushCallFrame(m_value_stack_begin, &s_halt_bytecode[0], m_curr_environment, m_curr_closure_traceable);
 	m_value_stack_base_pointer = m_value_stack_pointer;
@@ -366,7 +365,7 @@ MidoriValue VirtualMachine::MakeFunctionValue(int proc_index) noexcept
 		return m_static_closure_cache[cache_index];
 	}
 
-	MidoriTraceable* closure = AllocateTraceable(MidoriClosure{ .m_cell_values = MidoriTuple(), .m_proc_index = proc_index });
+	MidoriTraceable* closure = AllocateAggregate(MidoriTraceable::TraceableType::Closure, {}, proc_index);
 	if (cache_index < m_static_closure_cache.size())
 	{
 		m_static_closure_cache[cache_index] = closure;
@@ -405,7 +404,7 @@ MIDORI_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(VmOpCode inst
 		}
 
 		MidoriTraceable* worker_pointer = worker_function.GetPointer();
-		if (worker_pointer == nullptr || !worker_pointer->IsTraceable<MidoriClosure>())
+		if (worker_pointer == nullptr || worker_pointer->GetType() != MidoriTraceable::TraceableType::Closure)
 		{
 			m_instruction_pointer = ip;
 			static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, "SPAWN_WORKER expected a function value.", GetLine())));
@@ -478,30 +477,19 @@ MIDORI_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(VmOpCode inst
 		}
 		else
 		{
-			MidoriTraceable* worker_error = AllocateTraceable(MidoriUnion());
-			MidoriUnion& worker_error_ref = worker_error->GetTraceable<MidoriUnion>();
 			if (worker_result.error().m_code == RuntimeErrorCode::WorkerCancelled)
 			{
-				worker_error_ref.m_index = cancelled_tag;
+				payload = AllocateAggregate(MidoriTraceable::TraceableType::Union, {}, cancelled_tag);
 			}
 			else
 			{
-				MidoriTuple failed_fields(1);
-				failed_fields[0] = AllocateTraceable(MidoriText(worker_result.error().m_message.c_str()));
-				worker_error_ref.m_values = std::move(failed_fields);
-				worker_error_ref.m_index = failed_tag;
+				const MidoriValue message = AllocateTraceable(MidoriText(worker_result.error().m_message.c_str()));
+				payload = AllocateAggregate(MidoriTraceable::TraceableType::Union, std::span<const MidoriValue>(&message, 1uz), failed_tag);
 			}
-			payload = worker_error;
 			result_tag = err_tag;
 		}
 
-		MidoriTraceable* result = AllocateTraceable(MidoriUnion());
-		MidoriUnion& result_ref = result->GetTraceable<MidoriUnion>();
-		MidoriTuple result_fields(1);
-		result_fields[0] = payload;
-		result_ref.m_values = std::move(result_fields);
-		result_ref.m_index = result_tag;
-		Push(result);
+		Push(AllocateAggregate(MidoriTraceable::TraceableType::Union, std::span<const MidoriValue>(&payload, 1uz), result_tag));
 		return true;
 	}
 	case VmOpCode::CHANNEL_CREATE:
@@ -986,7 +974,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 	InstructionPointer ip = m_instruction_pointer;
 	ValueStackPointer sp = m_value_stack_pointer;
 	ValueStackPointer bp = m_value_stack_base_pointer;
-	MidoriTuple* env = m_curr_environment;
+	MidoriValue* env = m_curr_environment;
 	MidoriTraceable* closure = m_curr_closure_traceable;
 	CallStackPointer csp = m_call_stack_pointer;
 	const InstructionPointer* const proc_entries = m_proc_entry_cache.data();
@@ -1073,7 +1061,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 				{
 					m_string_literal_cache.resize(index + 1, nullptr);
 				}
-				m_string_literal_cache[index] = AllocateTraceable(m_executable->GetStringPool()[index].data());
+				m_string_literal_cache[index] = AllocateTraceable(MidoriText(m_executable->GetStringPool()[index].data()));
 			}
 			// Shared by every load: lowering never extends a text literal in place.
 			Push(sp, m_string_literal_cache[index]);
@@ -1171,7 +1159,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 		{
 			int count = ReadThreeBytes(ip);
 			sp -= count;
-			Push(sp, AllocateTraceable(std::in_place_type<MidoriTuple>, std::span<const MidoriValue>(sp, static_cast<size_t>(count))));
+			Push(sp, AllocateAggregate(MidoriTraceable::TraceableType::Tuple, std::span<const MidoriValue>(sp, static_cast<size_t>(count)), 0));
 			break;
 		}
 		MIDORI_HANDLER(GET_ARRAY)
@@ -1201,10 +1189,10 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriValue& index = *(sp - 1);
 			MidoriValue* tuple_slot = sp - 2;
 			MidoriValue tuple_value = *tuple_slot;
-			MidoriTuple& tuple_ref = tuple_value.GetPointer()->GetTraceable<MidoriTuple>();
+			MidoriTraceable* tuple_ref = tuple_value.GetPointer();
 			m_instruction_pointer = inst_ip;
 
-			int return_code = CheckIndexBounds(index, static_cast<MidoriInteger>(tuple_ref.GetLength()));
+			int return_code = CheckIndexBounds(index, static_cast<MidoriInteger>(tuple_ref->GetLength()));
 			if (return_code != 0)
 			{
 				m_value_stack_pointer = tuple_slot;
@@ -1213,7 +1201,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 				return return_code;
 			}
 
-			*tuple_slot = tuple_ref[static_cast<int>(index.GetInteger())];
+			*tuple_slot = tuple_ref->GetValues()[static_cast<size_t>(index.GetInteger())];
 			sp = tuple_slot + 1;
 
 			break;
@@ -1790,7 +1778,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			int tag = static_cast<int>(ReadByte(ip));
 			int offset = ReadShort(ip);
 
-			if ((bp + local_index)->GetPointer()->GetTraceable<MidoriUnion>().m_index != tag)
+			if ((bp + local_index)->GetPointer()->GetIndex() != tag)
 			{
 				ip += offset;
 			}
@@ -1802,7 +1790,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			int field_index = static_cast<int>(ReadByte(ip));
 			int target_index = static_cast<int>(ReadByte(ip));
 
-			*(bp + target_index) = (bp + union_index)->GetPointer()->GetTraceable<MidoriUnion>().m_values[field_index];
+			*(bp + target_index) = (bp + union_index)->GetPointer()->GetValues()[static_cast<size_t>(field_index)];
 			break;
 		}
 		MIDORI_HANDLER(IF_LOCAL_LT_INT)
@@ -1875,7 +1863,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			const std::array<MidoriValue, 2uz> fields{ *(bp + static_cast<int>(ReadByte(ip))), *(bp + static_cast<int>(ReadByte(ip))) };
 			int target_index = static_cast<int>(ReadByte(ip));
 
-			*(bp + target_index) = AllocateTraceable(std::in_place_type<MidoriUnion>, std::span<const MidoriValue>(fields), tag);
+			*(bp + target_index) = AllocateAggregate(MidoriTraceable::TraceableType::Union, std::span<const MidoriValue>(fields), tag);
 			break;
 		}
 		MIDORI_HANDLER(APPEND_LOCAL)
@@ -2306,8 +2294,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 		MIDORI_HANDLER(GET_TAG)
 		{
 			MidoriValue union_val = Pop(sp);
-			MidoriUnion& union_ref = union_val.GetPointer()->GetTraceable<MidoriUnion>();
-			Push(sp, static_cast<MidoriInteger>(union_ref.m_index));
+			Push(sp, static_cast<MidoriInteger>(union_val.GetPointer()->GetIndex()));
 			break;
 		}
 		MIDORI_HANDLER(CALL_FOREIGN)
@@ -2399,12 +2386,12 @@ int VirtualMachine::ExecuteLoop() noexcept
 				int64_t ptr_val = return_val.GetInteger();
 				if (ptr_val == 0)
 				{
-					Push(sp, AllocateTraceable(""));
+					Push(sp, AllocateTraceable(MidoriText("")));
 				}
 				else
 				{
 					char* ffi_string = reinterpret_cast<char*>(ptr_val);
-					Push(sp, AllocateTraceable(ffi_string));
+					Push(sp, AllocateTraceable(MidoriText(ffi_string)));
 					std::free(ffi_string);
 				}
 			}
@@ -2537,12 +2524,12 @@ int VirtualMachine::ExecuteLoop() noexcept
 				int64_t ptr_val = return_val.GetInteger();
 				if (ptr_val == 0)
 				{
-					Push(sp, AllocateTraceable(""));
+					Push(sp, AllocateTraceable(MidoriText("")));
 				}
 				else
 				{
 					char* ffi_string = reinterpret_cast<char*>(ptr_val);
-					Push(sp, AllocateTraceable(ffi_string));
+					Push(sp, AllocateTraceable(MidoriText(ffi_string)));
 					std::free(ffi_string);
 				}
 			}
@@ -2594,7 +2581,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 					for (int idx = 0; idx < length; idx += 1)
 					{
 						char* ffi_string = ffi_strings[idx];
-						wrapped_array[idx] = AllocateTraceable(ffi_string != nullptr ? ffi_string : "");
+						wrapped_array[idx] = AllocateTraceable(MidoriText(ffi_string != nullptr ? ffi_string : ""));
 						std::free(ffi_string);
 					}
 
@@ -2633,10 +2620,9 @@ int VirtualMachine::ExecuteLoop() noexcept
 			PushCallFrame(csp, bp, ip, env, closure);
 
 			closure = callable.GetPointer();
-			MidoriClosure& callee = closure->GetTraceable<MidoriClosure>();
-			env = &callee.m_cell_values;
+			env = closure->GetValues();
 
-			ip = proc_entries[static_cast<size_t>(callee.m_proc_index)];
+			ip = proc_entries[static_cast<size_t>(closure->GetIndex())];
 			bp = sp - arity;
 
 			break;
@@ -2661,10 +2647,9 @@ int VirtualMachine::ExecuteLoop() noexcept
 			PushCallFrame(csp, bp, ip, env, closure);
 
 			closure = callable.GetPointer();
-			MidoriClosure& callee = closure->GetTraceable<MidoriClosure>();
-			env = &callee.m_cell_values;
+			env = closure->GetValues();
 
-			ip = proc_entries[static_cast<size_t>(callee.m_proc_index)];
+			ip = proc_entries[static_cast<size_t>(closure->GetIndex())];
 			bp = sp - arity;
 
 			break;
@@ -2703,10 +2688,9 @@ int VirtualMachine::ExecuteLoop() noexcept
 			PushCallFrame(csp, bp, ip, env, closure);
 
 			closure = callable.GetPointer();
-			MidoriClosure& callee = closure->GetTraceable<MidoriClosure>();
-			env = &callee.m_cell_values;
+			env = closure->GetValues();
 
-			ip = proc_entries[static_cast<size_t>(callee.m_proc_index)];
+			ip = proc_entries[static_cast<size_t>(closure->GetIndex())];
 			bp = sp - arity;
 
 			break;
@@ -2733,11 +2717,10 @@ int VirtualMachine::ExecuteLoop() noexcept
 			sp = bp + arity;
 
 			closure = callable.GetPointer();
-			MidoriClosure& callee = closure->GetTraceable<MidoriClosure>();
-			env = &callee.m_cell_values;
+			env = closure->GetValues();
 
 			// Jump to the start of the function without creating a new call frame
-			ip = proc_entries[static_cast<size_t>(callee.m_proc_index)];
+			ip = proc_entries[static_cast<size_t>(closure->GetIndex())];
 
 			if (IsCancellationRequested()) [[unlikely]]
 			{
@@ -2755,7 +2738,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 		{
 			int size = static_cast<int>(ReadByte(ip));
 			sp -= size;
-			Push(sp, AllocateTraceable(std::in_place_type<MidoriStruct>, std::span<const MidoriValue>(sp, static_cast<size_t>(size))));
+			Push(sp, AllocateAggregate(MidoriTraceable::TraceableType::Struct, std::span<const MidoriValue>(sp, static_cast<size_t>(size)), 0));
 			break;
 		}
 		MIDORI_HANDLER(CONSTRUCT_UNION)
@@ -2763,7 +2746,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			int size = static_cast<int>(ReadByte(ip));
 			int tag = static_cast<int>(ReadByte(ip));
 			sp -= size;
-			Push(sp, AllocateTraceable(std::in_place_type<MidoriUnion>, std::span<const MidoriValue>(sp, static_cast<size_t>(size)), tag));
+			Push(sp, AllocateAggregate(MidoriTraceable::TraceableType::Union, std::span<const MidoriValue>(sp, static_cast<size_t>(size)), tag));
 			break;
 		}
 		MIDORI_HANDLER(LOAD_EMPTY_UNION)
@@ -2772,8 +2755,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriTraceable*& cached = m_empty_union_cache[tag];
 			if (cached == nullptr)
 			{
-				cached = AllocateTraceable(MidoriUnion());
-				cached->GetTraceable<MidoriUnion>().m_index = static_cast<int>(tag);
+				cached = AllocateAggregate(MidoriTraceable::TraceableType::Union, {}, static_cast<int>(tag));
 			}
 
 			Push(sp, cached);
@@ -2788,7 +2770,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			// A capture is never written after SET_CAPTURE fills it, so the closure
 			// holds the values themselves rather than a cell for each.
 			ValueStackPointer captures = sp - count;
-			MidoriTraceable* made = AllocateTraceable(MidoriClosure{ .m_cell_values = MidoriTuple(std::span<const MidoriValue>(captures, static_cast<size_t>(count))), .m_proc_index = proc_index });
+			MidoriTraceable* made = AllocateAggregate(MidoriTraceable::TraceableType::Closure, std::span<const MidoriValue>(captures, static_cast<size_t>(count)), proc_index);
 			sp = captures;
 			Push(sp, made);
 			break;
@@ -2799,14 +2781,14 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriValue value = Pop(sp);
 			MidoriTraceable* target = Pop(sp).GetPointer();
 			m_gc.WriteBarrier(target);
-			target->GetTraceable<MidoriClosure>().m_cell_values[index] = value;
+			target->GetValues()[static_cast<size_t>(index)] = value;
 			break;
 		}
 		MIDORI_HANDLER(GET_UNION_FIELD)
 		{
 			int index = static_cast<int>(ReadByte(ip));
 			MidoriValue& top = Peek(sp);
-			top = top.GetPointer()->GetTraceable<MidoriUnion>().m_values[index];
+			top = top.GetPointer()->GetValues()[static_cast<size_t>(index)];
 			break;
 		}
 		MIDORI_HANDLER(MAKE_FUNCTION_WIDE)
@@ -2821,7 +2803,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			else
 			{
-				MidoriTraceable* closure = AllocateTraceable(MidoriClosure{.m_cell_values = MidoriTuple(), .m_proc_index = proc_index});
+				MidoriTraceable* closure = AllocateAggregate(MidoriTraceable::TraceableType::Closure, {}, proc_index);
 				if (cache_index < m_static_closure_cache.size())
 				{
 					m_static_closure_cache[cache_index] = closure;
@@ -2853,7 +2835,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, "GET_CELL called with null environment - function has captures but was called via CALL_PROC_WIDE", GetLine()));
 			}
 #endif
-			Push(sp, (*env)[offset]);
+			Push(sp, env[offset]);
 			break;
 		}
 		MIDORI_HANDLER(MAKE_CELL)
@@ -2928,14 +2910,14 @@ int VirtualMachine::ExecuteLoop() noexcept
 			int high_byte = static_cast<int>(ReadByte(ip));
 			int low_byte = static_cast<int>(ReadByte(ip));
 			int offset = (high_byte << 8) | low_byte;
-			Push(sp, (*env)[offset]);
+			Push(sp, env[offset]);
 			break;
 		}
 		MIDORI_HANDLER(GET_MEMBER)
 		{
 			int index = static_cast<int>(ReadByte(ip));
 			MidoriValue value = Pop(sp);
-			Push(sp, value.GetPointer()->GetTraceable<MidoriStruct>().m_values[index]);
+			Push(sp, value.GetPointer()->GetValues()[static_cast<size_t>(index)]);
 			break;
 		}
 		MIDORI_HANDLER(POP)
@@ -2956,7 +2938,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			bp = frame.m_return_bp;
 			sp = return_point;
 			ip = frame.m_return_ip;
-			env = frame.m_closure_ptr;
+			env = frame.m_captures;
 			closure = frame.m_closure;
 
 			Push(sp, value);
