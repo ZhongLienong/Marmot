@@ -2744,6 +2744,10 @@ int VirtualMachine::ExecuteLoop() noexcept
 				SyncMachineState(ip, sp, bp, env, closure);
 				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::WorkerCancelled, "Worker cancelled.", GetLine()));
 			}
+			// Iteration is recursion: a tail call through a function value is a
+			// loop the compiler cannot turn into JUMP_BACK, and without a
+			// safepoint here it never collects.
+			TryCollect(ip, sp, bp, env, closure);
 
 			break;
 		}
@@ -2964,6 +2968,9 @@ int VirtualMachine::ExecuteLoop() noexcept
 			closure = frame.m_closure;
 
 			Push(sp, value);
+			// Every call that is not a tail call returns, so recursion that
+			// allocates and never loops (a tree walk) still reaches a safepoint.
+			TryCollect(ip, sp, bp, env, closure);
 
 			break;
 		}
