@@ -34,6 +34,9 @@ from lib.presets import BuildTree, add_build_arguments
 from lib.program import build_and_run
 
 TIMEOUT_SECONDS = 30
+# Debug builds are unoptimized and carry a type tag on every value: the slowest
+# test, dogfood/collections, takes about 45 s there against 1 s in Dev.
+DEBUG_TIMEOUT_SECONDS = 300
 
 
 def cleanup_language_test_artifacts(root: Path, extra_files: set[Path] | None = None) -> None:
@@ -84,6 +87,7 @@ class TestRunner:
         self.root_dir = REPO_ROOT
         self.test_dir = TEST_DIR
         self.build_config = tree.build_type
+        self.timeout = DEBUG_TIMEOUT_SECONDS if tree.build_type == "Debug" else TIMEOUT_SECONDS
         self.verbose = verbose
         self.midori_exe = tree.require_compiler()
         self.results: List[TestResult] = []
@@ -172,7 +176,7 @@ class TestRunner:
         command_path = test_path.resolve().relative_to(self.root_dir).as_posix()
         files_before = {p for p in self.root_dir.iterdir() if p.is_file()}
         try:
-            return build_and_run(self.midori_exe, command_path, cwd=self.root_dir, env=environment, timeout=TIMEOUT_SECONDS)
+            return build_and_run(self.midori_exe, command_path, cwd=self.root_dir, env=environment, timeout=self.timeout)
         finally:
             files_after = {p for p in self.root_dir.iterdir() if p.is_file()}
             cleanup_language_test_artifacts(self.root_dir, extra_files=files_after - files_before)
@@ -247,8 +251,8 @@ class TestRunner:
                 passed=False,
                 expected_to_fail=expected_to_fail,
                 output="",
-                error=f"Test timed out ({TIMEOUT_SECONDS}s)",
-                duration_ms=TIMEOUT_SECONDS * 1000
+                error=f"Test timed out ({self.timeout}s)",
+                duration_ms=self.timeout * 1000
             )
         except Exception as e:
             return TestResult(

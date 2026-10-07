@@ -32,8 +32,15 @@ jobs:
         include:
           - name: linux
             os: ubuntu-24.04
+            build: Dev
           - name: windows
             os: windows-2025
+            build: Dev
+          # Debug turns on MIDORI_DEBUG_FULL: 16-byte values, so object sizes,
+          # inline capacities and the VM's type checks differ from Dev.
+          - name: linux-debug
+            os: ubuntu-24.04
+            build: Debug
     steps:
       - uses: actions/checkout@v5
 
@@ -72,7 +79,7 @@ jobs:
       - name: Gate
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python scripts/dev.py gate --verbose
+        run: python scripts/dev.py gate --build ${{ matrix.build }} --verbose
 
 
   wasm:
