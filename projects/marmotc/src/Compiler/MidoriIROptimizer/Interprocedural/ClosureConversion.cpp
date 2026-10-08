@@ -378,12 +378,7 @@ namespace
 	}
 }
 
-std::string_view ClosureConversionPass::Name() const
-{
-	return "ClosureConversion";
-}
-
-bool ClosureConversionPass::Run(MidoriIRModule& module) const
+bool RunClosureConversion(MidoriIRModule& module)
 {
 	if (!BindsOnlyKnownClosures(module))
 	{

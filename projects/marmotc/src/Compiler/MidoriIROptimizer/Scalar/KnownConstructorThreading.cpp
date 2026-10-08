@@ -342,12 +342,7 @@ namespace
 	}
 }
 
-std::string_view KnownConstructorThreadingPass::Name() const
-{
-	return "KnownConstructorThreading";
-}
-
-bool KnownConstructorThreadingPass::Run(MidoriIRModule& module) const
+bool RunKnownConstructorThreading(MidoriIRModule& module)
 {
 	return MidoriIRAnalysis::TransformFunctions(module, ThreadKnownConstructors);
 }

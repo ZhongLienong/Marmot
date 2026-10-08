@@ -190,12 +190,7 @@ namespace
 	}
 }
 
-std::string_view ParameterUnboxingPass::Name() const
-{
-	return "ParameterUnboxing";
-}
-
-bool ParameterUnboxingPass::Run(MidoriIRModule& module) const
+bool RunParameterUnboxing(MidoriIRModule& module)
 {
 	return MidoriIRAnalysis::TransformFunctions(module, UnboxParameters);
 }

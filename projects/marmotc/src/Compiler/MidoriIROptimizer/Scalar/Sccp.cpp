@@ -485,12 +485,7 @@ namespace
 	};
 }
 
-std::string_view SccpPass::Name() const
-{
-	return "Sccp";
-}
-
-bool SccpPass::Run(MidoriIRModule& module) const
+bool RunSccp(MidoriIRModule& module)
 {
 	// Every read of a global comes after its definition, which only the
 	// top-level function makes, so what it stores is what every read gives.

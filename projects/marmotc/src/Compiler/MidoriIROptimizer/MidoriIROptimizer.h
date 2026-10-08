@@ -4,20 +4,16 @@
 #include "Compiler/MidoriIR/Verifier/MidoriIRVerifier.h"
 
 #include <expected>
-#include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
 
 // One rewrite of a module, reporting whether it changed the IR. A pass that
 // leaves invalid IR is a compiler bug the verifier catches.
-class MidoriIRPass
+struct MidoriIRPass
 {
-public:
-	virtual ~MidoriIRPass() = default;
-
-	virtual std::string_view Name() const = 0;
-	virtual bool Run(MidoriIRModule& module) const = 0;
+	std::string_view m_name;
+	bool (*m_run)(MidoriIRModule& module);
 };
 
 // The pass that left the module invalid, and what the verifier found.
@@ -37,10 +33,10 @@ class MidoriIROptimizer
 private:
 	struct PassGroup
 	{
-		std::vector<std::unique_ptr<MidoriIRPass>> m_passes;
+		std::vector<MidoriIRPass> m_passes;
 		size_t m_max_rounds;
 
-		PassGroup(std::vector<std::unique_ptr<MidoriIRPass>> passes, size_t max_rounds);
+		PassGroup(std::vector<MidoriIRPass> passes, size_t max_rounds);
 	};
 
 	std::vector<PassGroup> m_groups;
@@ -50,7 +46,7 @@ private:
 
 public:
 	MidoriIROptimizer();
-	explicit MidoriIROptimizer(std::vector<std::unique_ptr<MidoriIRPass>> passes);
+	explicit MidoriIROptimizer(std::vector<MidoriIRPass> passes);
 
 	std::expected<void, MidoriIRPassFailure> Optimize(MidoriIRModule& module);
 

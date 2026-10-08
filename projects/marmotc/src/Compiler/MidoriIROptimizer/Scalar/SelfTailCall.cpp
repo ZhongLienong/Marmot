@@ -82,12 +82,7 @@ namespace
 	}
 }
 
-std::string_view SelfTailCallPass::Name() const
-{
-	return "SelfTailCall";
-}
-
-bool SelfTailCallPass::Run(MidoriIRModule& module) const
+bool RunSelfTailCall(MidoriIRModule& module)
 {
 	const MidoriIRModuleFacts facts(module);
 	bool changed = false;

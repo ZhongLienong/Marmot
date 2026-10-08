@@ -16,7 +16,7 @@
 
 namespace
 {
-	template<typename... Passes>
+	template<const MidoriIRPass&... Passes>
 	MidoriIRModule Optimize(std::string source)
 	{
 		std::expected<LoweredModule, MidoriResult::CompilerDiagnostics> lowered = MidoriTest::LowerSnippetWithDiagnostics(std::move(source));
@@ -24,12 +24,10 @@ namespace
 		{
 			FAIL(lowered.error().Rendered());
 		}
-		std::vector<std::unique_ptr<MidoriIRPass>> passes;
-		(passes.push_back(std::make_unique<Passes>()), ...);
 		MidoriIRModule module = std::move(lowered->m_module);
 		const std::expected<void, MidoriIRPassFailure> optimized = sizeof...(Passes) == 0u
 			? MidoriIROptimizer().Optimize(module)
-			: MidoriIROptimizer(std::move(passes)).Optimize(module);
+			: MidoriIROptimizer(std::vector<MidoriIRPass>{ Passes... }).Optimize(module);
 		if (!optimized.has_value())
 		{
 			for (const MidoriIRViolation& violation : optimized.error().m_violations)
@@ -50,20 +48,11 @@ namespace
 	}
 
 	// Leaves the module without a terminator in its first function.
-	class BreakingPass : public MidoriIRPass
+	bool Break(MidoriIRModule& module)
 	{
-	public:
-		std::string_view Name() const override
-		{
-			return "Breaking";
-		}
-
-		bool Run(MidoriIRModule& module) const override
-		{
-			module.m_functions.front().m_blocks.front().m_instructions.pop_back();
-			return true;
-		}
-	};
+		module.m_functions.front().m_blocks.front().m_instructions.pop_back();
+		return true;
+	}
 }
 
 TEST_CASE("Sccp folds constants, branches on them and reads a global defined by one", "[midori_ir][optimizer]")
@@ -673,7 +662,7 @@ TEST_CASE("GlobalValueNumbering does not assume a condition when both branch edg
 	builder.PositionAt(no).Return(two);
 	module.AddFunction(std::move(function));
 	REQUIRE(MidoriIRVerifier(module).Verify().empty());
-	CHECK_FALSE(GlobalValueNumberingPass().Run(module));
+	CHECK_FALSE(GlobalValueNumberingPass.m_run(module));
 	CHECK(module.m_functions.front().Block(join).m_instructions.back().m_op == MidoriIROp::Branch);
 	CHECK(MidoriIRVerifier(module).Verify().empty());
 }
@@ -750,14 +739,14 @@ TEST_CASE("GlobalValueNumbering compares NaN constants by their payload bits", "
 	builder.Return(builder.Emit(MidoriIROp::MakeTuple, tuple_type, { first, same, other }));
 	module.AddFunction(std::move(function));
 	REQUIRE(MidoriIRVerifier(module).Verify().empty());
-	CHECK(GlobalValueNumberingPass().Run(module));
+	CHECK(GlobalValueNumberingPass.m_run(module));
 	CHECK(MidoriIRVerifier(module).Verify().empty());
 	const std::vector<MidoriIRInstruction>& instructions = module.m_functions.front().m_blocks.front().m_instructions;
 	REQUIRE(instructions.size() == 4u);
 	const MidoriIRInstruction& tuple = instructions[2u];
 	CHECK(tuple.m_operands[0u] == tuple.m_operands[1u]);
 	CHECK(tuple.m_operands[0u] != tuple.m_operands[2u]);
-	CHECK_FALSE(GlobalValueNumberingPass().Run(module));
+	CHECK_FALSE(GlobalValueNumberingPass.m_run(module));
 }
 
 TEST_CASE("LoopInvariantCodeMotion moves what a loop does not change to before the loop", "[midori_ir][optimizer]")
@@ -810,10 +799,7 @@ TEST_CASE("The optimizer names the pass that left the module invalid", "[midori_
 	}
 	std::expected<LoweredModule, MidoriResult::CompilerDiagnostics> lowered = MidoriTest::LowerSnippetWithDiagnostics("module Broken\ndef value = 1;\n");
 	REQUIRE(lowered.has_value());
-	std::vector<std::unique_ptr<MidoriIRPass>> passes;
-	passes.push_back(std::make_unique<DeadCodeEliminationPass>());
-	passes.push_back(std::make_unique<BreakingPass>());
-	const std::expected<void, MidoriIRPassFailure> optimized = MidoriIROptimizer(std::move(passes)).Optimize(lowered->m_module);
+	const std::expected<void, MidoriIRPassFailure> optimized = MidoriIROptimizer(std::vector<MidoriIRPass>{ DeadCodeEliminationPass, MidoriIRPass{ "Breaking", &Break } }).Optimize(lowered->m_module);
 	REQUIRE_FALSE(optimized.has_value());
 	CHECK(optimized.error().m_pass == "Breaking");
 	CHECK_FALSE(optimized.error().m_violations.empty());

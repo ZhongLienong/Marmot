@@ -242,12 +242,7 @@ namespace
 	}
 }
 
-std::string_view InliningPass::Name() const
-{
-	return "Inlining";
-}
-
-bool InliningPass::Run(MidoriIRModule& module) const
+bool RunInlining(MidoriIRModule& module)
 {
 	const CallGraph graph(module);
 	const auto [order, components] = graph.Components();

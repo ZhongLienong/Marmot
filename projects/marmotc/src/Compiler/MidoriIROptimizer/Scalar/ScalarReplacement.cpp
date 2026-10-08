@@ -134,12 +134,7 @@ namespace
 	}
 }
 
-std::string_view ScalarReplacementPass::Name() const
-{
-	return "ScalarReplacement";
-}
-
-bool ScalarReplacementPass::Run(MidoriIRModule& module) const
+bool RunScalarReplacement(MidoriIRModule& module)
 {
 	return MidoriIRAnalysis::TransformFunctions(module, ReplaceScalars);
 }

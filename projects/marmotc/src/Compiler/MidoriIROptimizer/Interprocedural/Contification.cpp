@@ -55,12 +55,7 @@ namespace
 	}
 }
 
-std::string_view ContificationPass::Name() const
-{
-	return "Contification";
-}
-
-bool ContificationPass::Run(MidoriIRModule& module) const
+bool RunContification(MidoriIRModule& module)
 {
 	bool changed = false;
 	for (uint32_t function = 0u; function < module.m_functions.size(); function += 1u)

@@ -160,12 +160,7 @@ namespace
 	}
 }
 
-std::string_view LoopInvariantCodeMotionPass::Name() const
-{
-	return "LoopInvariantCodeMotion";
-}
-
-bool LoopInvariantCodeMotionPass::Run(MidoriIRModule& module) const
+bool RunLoopInvariantCodeMotion(MidoriIRModule& module)
 {
 	return MidoriIRAnalysis::TransformFunctions(module, HoistInvariants);
 }

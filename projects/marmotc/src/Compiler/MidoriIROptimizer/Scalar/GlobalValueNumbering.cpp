@@ -302,12 +302,7 @@ namespace
 	}
 }
 
-std::string_view GlobalValueNumberingPass::Name() const
-{
-	return "GlobalValueNumbering";
-}
-
-bool GlobalValueNumberingPass::Run(MidoriIRModule& module) const
+bool RunGlobalValueNumbering(MidoriIRModule& module)
 {
 	return MidoriIRAnalysis::TransformFunctions(module, NumberValues);
 }

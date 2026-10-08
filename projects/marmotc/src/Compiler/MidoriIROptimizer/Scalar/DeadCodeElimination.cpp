@@ -380,12 +380,7 @@ namespace
 	}
 }
 
-std::string_view DeadCodeEliminationPass::Name() const
-{
-	return "DeadCodeElimination";
-}
-
-bool DeadCodeEliminationPass::Run(MidoriIRModule& module) const
+bool RunDeadCodeElimination(MidoriIRModule& module)
 {
 	return MidoriIRAnalysis::TransformFunctions(module, EliminateDeadCode);
 }

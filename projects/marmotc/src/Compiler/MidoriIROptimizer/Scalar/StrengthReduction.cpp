@@ -337,12 +337,7 @@ namespace
 	}
 }
 
-std::string_view StrengthReductionPass::Name() const
-{
-	return "StrengthReduction";
-}
-
-bool StrengthReductionPass::Run(MidoriIRModule& module) const
+bool RunStrengthReduction(MidoriIRModule& module)
 {
 	return MidoriIRAnalysis::TransformFunctions(module, ReduceFunction);
 }
