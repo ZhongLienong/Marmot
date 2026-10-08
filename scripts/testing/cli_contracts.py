@@ -28,19 +28,10 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from lib.host import REPO_ROOT
+from lib.host import REPO_ROOT, write_text
 from lib.presets import BuildTree, add_build_arguments
 from lib.program import vm_beside
 from testing.language import TestRunner
-
-
-def repo_root() -> Path:
-    return REPO_ROOT
-
-
-def write_text(path: Path, text: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8", newline="\n")
 
 
 def read_text(path: Path) -> str:
@@ -68,7 +59,7 @@ def run_midori(
         encoding="utf-8",
         errors="replace",
         timeout=30,
-        cwd=cwd or repo_root(),
+        cwd=cwd or REPO_ROOT,
         env=env,
         check=False,
     )
@@ -93,7 +84,7 @@ def run_vm(
         encoding="utf-8",
         errors="replace",
         timeout=30,
-        cwd=repo_root(),
+        cwd=REPO_ROOT,
         env=env,
         check=False,
     )
@@ -375,7 +366,7 @@ def scenario_marmotvm_command_line(runner: TestRunner) -> None:
     missing = run_vm(runner, [])
     assert_condition(missing.returncode != 0 and "Missing command" in missing.stderr, f"marmotvm without a program: {missing.stdout}{missing.stderr}")
 
-    unreadable = run_vm(runner, ["run", str(repo_root() / "no-such-program.mmc")])
+    unreadable = run_vm(runner, ["run", str(REPO_ROOT / "no-such-program.mmc")])
     assert_condition(unreadable.returncode != 0 and unreadable.stderr.strip() != "", f"marmotvm with no such file: {unreadable.stdout}{unreadable.stderr}")
 
     malformed = run_vm(runner, ["run", "x.mmc", "--library", "no-equals-sign"])
@@ -602,7 +593,7 @@ def scenario_fmt_check_and_write(runner: TestRunner) -> None:
 
 
 def scenario_profile_features(runner: TestRunner) -> None:
-    fixtures = repo_root() / "format" / "mmc" / "fixtures"
+    fixtures = REPO_ROOT / "format" / "mmc" / "fixtures"
     control = str(fixtures / "control.mmc")
     ordinary = run_vm(runner, ["run", control])
     assert_condition(ordinary.returncode == 0 and ordinary.stdout == "large\n" and ordinary.stderr == "",
@@ -641,7 +632,7 @@ def scenario_profile_features(runner: TestRunner) -> None:
             assert_condition(requested.returncode != 0 and "requires a" in requested.stderr,
                              f"Unavailable instrumentation must report its required profile: {requested}")
 
-    source = str(repo_root() / "format" / "mmc" / "sources" / "control.mmt")
+    source = str(REPO_ROOT / "format" / "mmc" / "sources" / "control.mmt")
     with tempfile.TemporaryDirectory(prefix="marmot-profile-") as directory:
         artifact = Path(directory) / "program.mmc"
         args = ["build", source, "-o", str(artifact), "--quiet"]
@@ -783,7 +774,7 @@ def main(argv: list[str]) -> int:
         print(f"\n[SUCCESS] {len(SCENARIOS)} CLI contract check(s) passed.")
         return 0
     finally:
-        cleanup_cli_artifacts(repo_root())
+        cleanup_cli_artifacts(REPO_ROOT)
 
 
 if __name__ == "__main__":

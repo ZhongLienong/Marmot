@@ -41,10 +41,6 @@ DEFAULT_ROOTS: tuple[str, ...] = (
 )
 
 
-def repo_root() -> Path:
-    return REPO_ROOT
-
-
 def collect_mdr_files(roots: Sequence[Path]) -> list[Path]:
     files: list[Path] = []
     for root in roots:
@@ -75,7 +71,7 @@ def check_idempotency(runner: TestRunner, files: Sequence[Path], verbose: bool) 
             encoding="utf-8",
             errors="replace",
             timeout=30,
-            cwd=repo_root(),
+            cwd=REPO_ROOT,
             check=False,
         )
         if completed_first.returncode != 0:
@@ -94,7 +90,7 @@ def check_idempotency(runner: TestRunner, files: Sequence[Path], verbose: bool) 
                 encoding="utf-8",
                 errors="replace",
                 timeout=30,
-                cwd=repo_root(),
+                cwd=REPO_ROOT,
                 check=False,
             )
         finally:
@@ -112,12 +108,12 @@ def check_idempotency(runner: TestRunner, files: Sequence[Path], verbose: bool) 
             continue
 
         if verbose:
-            print(f"[OK] {path.relative_to(repo_root())}")
+            print(f"[OK] {path.relative_to(REPO_ROOT)}")
 
     if failures:
         print(f"\n[FAILED] {len(failures)} idempotency check(s) failed.")
         for path, message in failures:
-            print(f"- {path.relative_to(repo_root())}: {message}")
+            print(f"- {path.relative_to(REPO_ROOT)}: {message}")
         return 1
 
     print(f"\n[SUCCESS] {len(files)} file(s) are formatter-idempotent.")
@@ -136,7 +132,7 @@ def enforce_clean(runner: TestRunner, roots: Sequence[Path]) -> int:
             encoding="utf-8",
             errors="replace",
             timeout=120,
-            cwd=repo_root(),
+            cwd=REPO_ROOT,
             check=False,
         )
         if completed.returncode != 0:
@@ -180,7 +176,7 @@ def main(argv: list[str]) -> int:
     for raw_root in raw_roots:
         candidate = Path(raw_root)
         if not candidate.is_absolute():
-            candidate = repo_root() / candidate
+            candidate = REPO_ROOT / candidate
         roots.append(candidate)
 
     files = collect_mdr_files(roots)

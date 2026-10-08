@@ -59,10 +59,6 @@ def cleanup_benchmark_artifacts(root: Path, extra_files: set[Path] | None = None
                 pass
 
 
-def repo_root() -> Path:
-    return REPO_ROOT
-
-
 def discover_benchmarks(root: Path) -> list[Path]:
     return sorted((root / "benchmarks").glob("*.mmt"))
 
@@ -140,7 +136,7 @@ def main(argv: list[str]) -> int:
     )
     args = parser.parse_args(argv)
 
-    root = repo_root()
+    root = REPO_ROOT
     benchmarks = discover_benchmarks(root)
     if len(benchmarks) == 0:
         print("[FAIL] No programs found under benchmarks/.")

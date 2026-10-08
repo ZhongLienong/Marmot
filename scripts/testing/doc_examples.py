@@ -34,7 +34,7 @@ from typing import Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from lib.host import REPO_ROOT, prelude_search_path
+from lib.host import REPO_ROOT, prelude_search_path, write_text
 from lib.presets import BuildTree, add_build_arguments
 from lib.program import build_and_run
 from testing.language import TestRunner
@@ -75,10 +75,6 @@ class DocExample:
             )
 
         return f"module {self.module_name}\n\n{self.snippet_source}"
-
-
-def repo_root() -> Path:
-    return REPO_ROOT
 
 
 def docs_to_scan(root: Path) -> list[Path]:
@@ -194,11 +190,6 @@ def warnings_snapshot_path(root: Path, example: DocExample) -> Path:
 
 def normalize_newlines(text: str) -> str:
     return text.replace("\r\n", "\n").replace("\r", "\n")
-
-
-def write_text(path: Path, text: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8", newline="\n")
 
 
 def allowed_artifact_paths(root: Path, examples: list[DocExample]) -> set[Path]:
@@ -401,7 +392,7 @@ def main(argv: list[str]) -> int:
     )
     args = parser.parse_args(argv)
 
-    root = repo_root()
+    root = REPO_ROOT
     examples = discover_examples(root)
     if len(examples) == 0:
         print("No marmot-test fences found.")
