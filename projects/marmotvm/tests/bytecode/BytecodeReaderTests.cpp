@@ -2,7 +2,7 @@
 
 #include "Bytecode/Artifact/BinaryArtifact.h"
 #include "Loader/ProgramLoader.h"
-#include "support/OutputCapture.h"
+#include "Support/OutputCapture/OutputCapture.h"
 
 #include <array>
 #include <filesystem>
@@ -74,9 +74,9 @@ TEST_CASE("The VM runs artifacts with and without embedded sources", "[bytecode-
 
 	std::expected<VmExecutable, std::string> control = VmBinaryArtifact::ReadExecutableFromFile(Fixture("control"));
 	REQUIRE(control.has_value());
-	MidoriTest::OutputCapture capture;
+	MidoriUtility::OutputCapture capture;
 	const std::expected<int, RuntimeError> executed = MidoriProgramLoader::Run(std::move(control).value());
-	const MidoriTest::CapturedOutput output = capture.Stop();
+	const MidoriUtility::CapturedOutput output = capture.Stop();
 	REQUIRE(executed.has_value());
 	CHECK(executed.value() == 0);
 	CHECK(output.m_stdout == "large\n");

@@ -2,7 +2,7 @@
 
 #include "Bytecode/Executable/Executable.h"
 #include "Bytecode/Disassembler/Disassembler.h"
-#include "support/OutputCapture.h"
+#include "Support/OutputCapture/OutputCapture.h"
 
 #include <string>
 #include <vector>
@@ -58,7 +58,7 @@ TEST_CASE("The disassembler reads each instruction's length from OpCodes.def", "
 		executable.AttachProcedures(std::move(procedures));
 
 		int offset = 0;
-		MidoriTest::OutputCapture capture;
+		MidoriUtility::OutputCapture capture;
 		Disassembler::DisassembleInstruction(stdout, executable, 0, offset);
 		static_cast<void>(capture.Stop());
 
