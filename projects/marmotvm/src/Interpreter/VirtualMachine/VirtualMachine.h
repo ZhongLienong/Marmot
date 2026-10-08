@@ -112,11 +112,9 @@ private:
 
     // FFI State
     DynamicFFIRegistry m_dynamic_ffi_registry;
-    std::array<VmFFIFunction, MidoriFFIRegistry::BUILTIN_COUNT> m_ffi_table{};
     std::array<void*, UINT8_MAX> m_ffi_args{};
     std::array<MidoriValue, UINT8_MAX> m_ffi_value_args{};
     std::vector<FFIArrayArgument> m_ffi_array_args;
-	bool m_ffi_table_initialized = false;
 
     // Cold Caches & Results
 	std::vector<MidoriTraceable*> m_static_closure_cache;
@@ -192,6 +190,8 @@ private:
 	int ExecuteLoop() noexcept;
 
 	int TerminateExecution(RuntimeError error) noexcept;
+
+	MIDORI_FORCE_INLINE MidoriValue TakeForeignResult(VmFFIReturnKind kind, uint8_t return_tag, MidoriValue result) noexcept;
 
 #ifdef _WIN32
 	int ExecuteLoopWithStructuredExceptionHandling(uintptr_t& exception_code, uintptr_t& exception_address, uintptr_t& fault_address, bool& captured) noexcept;

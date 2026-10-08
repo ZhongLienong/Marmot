@@ -30,7 +30,7 @@ using FFIFunction = void(*)(void** args, void* ret);
 
 Related runtime constants:
 
-- `MidoriFFIRegistry::ABI_VERSION == 1`
+- `VmBuiltins::ABI_VERSION == 1`
 - `MIDORI_FFI_MAX_ARITY == 4`
 
 Call contract:

@@ -4,52 +4,14 @@
 #include "Library/MidoriStdLibExports.h"
 
 #include <array>
-#include <cstdint>
-#include <optional>
-#include <string_view>
 
-struct FFIEntry
+// The runtime half of the builtin table: the function each VmBuiltins entry
+// calls, expanded from the same Builtins.def.
+inline constexpr std::array BUILTIN_FUNCTIONS =
 {
-	const char* m_name;
-	VmFFIFunction m_function;
-	std::array<VmFFIArgumentKind, VM_FFI_MAX_ARITY> m_arg_kinds{};
-	VmFFIReturnKind m_return_kind = VmFFIReturnKind::RawValue;
-
-	constexpr FFIEntry
-	(
-		const char* name,
-		VmFFIFunction function,
-		std::array<VmFFIArgumentKind, VM_FFI_MAX_ARITY> arg_kinds = {},
-		VmFFIReturnKind return_kind = VmFFIReturnKind::RawValue
-	)
-		: m_name(name), m_function(function), m_arg_kinds(arg_kinds), m_return_kind(return_kind)
-	{
-	}
-};
-
-// The runtime half of the builtin table: the same entries as VmBuiltins,
-// expanded from the same Builtins.def, with the function each one calls.
-class MidoriFFIRegistry
-{
-private:
-	inline static constexpr std::array s_entries =
-	{
-#define MARMOT_BUILTIN(name, arg_kinds, return_kind) FFIEntry{ #name, &name, arg_kinds, return_kind },
+#define MARMOT_BUILTIN(name, arg_kinds, return_kind) VmFFIFunction{ &name },
 #include "Bytecode/Builtins/Builtins.def"
 #undef MARMOT_BUILTIN
-	};
-
-public:
-	static constexpr int ABI_VERSION = VmBuiltins::ABI_VERSION;
-	static constexpr size_t BUILTIN_COUNT = s_entries.size();
-	static_assert(BUILTIN_COUNT == VmBuiltins::COUNT, "the runtime and shared builtin tables must list the same entries");
-
-	static consteval size_t ExitBuiltinIndex()
-	{
-		return VmBuiltins::ExitIndex();
-	}
-
-	static const FFIEntry& GetEntry(size_t index);
-	static std::optional<size_t> FindIndex(std::string_view name);
-	static const std::array<FFIEntry, BUILTIN_COUNT>& GetTable();
 };
+
+static_assert(BUILTIN_FUNCTIONS.size() == VmBuiltins::COUNT, "the runtime and shared builtin tables must list the same entries");

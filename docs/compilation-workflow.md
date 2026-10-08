@@ -283,7 +283,7 @@ Current behavior:
 
 The runtime has two FFI call paths:
 
-- `CALL_FOREIGN_INDEXED` for built-in runtime FFI entries declared in `MidoriFFIRegistry`
+- `CALL_FOREIGN_INDEXED` for built-in runtime FFI entries declared in `Builtins.def`
 - `CALL_FOREIGN` for dynamically loaded functions, including package-provided libraries
 
 The indexed path carries explicit argument and return metadata such as `CString`, `ArrayView`, `TraceableHandle`, `ValueHandle`, `ArrayValues`, and `ArrayStrings`. The dynamic path is more generic and is documented in [Package System](package-system.md).

@@ -7,7 +7,7 @@
 // the builtin table.
 
 // Bumped 2026-09-12: the 2026-09-12-delete-in-place-mutation plan removed
-// six builtins from the MIDDLE of MidoriFFIRegistry's entry table (five in
+// six builtins from the MIDDLE of Builtins.def (five in
 // Task 6 - ArrayAppend/ArrayPrepend/ArrayExtend/TextAppend/TextPrepend -
 // and ArrayPop in Task 9). The bytecode backend serialises a builtin's
 // POSITION in that table into the bytecode (BytecodeBackend.cpp), and the

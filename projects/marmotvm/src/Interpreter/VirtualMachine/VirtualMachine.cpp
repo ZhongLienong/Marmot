@@ -879,6 +879,77 @@ int VirtualMachine::IndexOutOfBounds(MidoriInteger index) noexcept
 	return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::IndexOutOfBounds, std::format("Index out of bounds at index: {}.", index), GetLine()));
 }
 
+// What a foreign function returned, as a Marmot value: a C string or an array
+// it allocated becomes a Text or an Array, and is freed. For a function whose
+// signature returns a raw value, the call's return tag (1 Text, 2 Array) picks.
+MIDORI_FORCE_INLINE MidoriValue VirtualMachine::TakeForeignResult(VmFFIReturnKind kind, uint8_t return_tag, MidoriValue result) noexcept
+{
+	struct FFIArray
+	{
+		void* data;
+		int length;
+	};
+
+	if (kind == VmFFIReturnKind::RawValue && return_tag == 1u)
+	{
+		kind = VmFFIReturnKind::CString;
+	}
+	else if (kind == VmFFIReturnKind::RawValue && return_tag == 2u)
+	{
+		kind = VmFFIReturnKind::ArrayValues;
+	}
+
+	switch (kind)
+	{
+	case VmFFIReturnKind::CString:
+	{
+		char* ffi_string = reinterpret_cast<char*>(result.GetInteger());
+		if (ffi_string == nullptr)
+		{
+			return AllocateTraceable(MidoriText(""));
+		}
+		MidoriTraceable* text = AllocateTraceable(MidoriText(ffi_string));
+		std::free(ffi_string);
+		return text;
+	}
+	case VmFFIReturnKind::ArrayValues:
+	{
+		FFIArray* ffi_array = reinterpret_cast<FFIArray*>(result.GetInteger());
+		if (ffi_array == nullptr)
+		{
+			return AllocateTraceable(MidoriArray());
+		}
+		MidoriTraceable* array = AllocateTraceable(MidoriArray::FromFFI(static_cast<MidoriValue*>(ffi_array->data), ffi_array->length));
+		std::free(ffi_array);
+		return array;
+	}
+	case VmFFIReturnKind::ArrayStrings:
+	{
+		FFIArray* ffi_array = reinterpret_cast<FFIArray*>(result.GetInteger());
+		if (ffi_array == nullptr)
+		{
+			return AllocateTraceable(MidoriArray());
+		}
+		char** ffi_strings = static_cast<char**>(ffi_array->data);
+		const int length = ffi_array->length;
+		MidoriArray wrapped_array(length);
+		for (int idx = 0; idx < length; idx += 1)
+		{
+			char* ffi_string = ffi_strings[idx];
+			wrapped_array[idx] = AllocateTraceable(MidoriText(ffi_string != nullptr ? ffi_string : ""));
+			std::free(ffi_string);
+		}
+		std::free(ffi_strings);
+		std::free(ffi_array);
+		return AllocateTraceable(std::move(wrapped_array));
+	}
+	case VmFFIReturnKind::RawValue:
+	case VmFFIReturnKind::Value:
+		return result;
+	}
+	std::unreachable();
+}
+
 void VirtualMachine::BuildGarbageCollectionRoots(GarbageCollector::GarbageCollectionRoots& roots) const noexcept
 {
 	roots.clear();
@@ -2314,16 +2385,16 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriText& foreign_function_name_ref = foreign_function_name.GetPointer()->GetTraceable<MidoriText>();
 
 			VmFFIFunction proc = nullptr;
-			std::optional<size_t> ffi_idx = MidoriFFIRegistry::FindIndex(foreign_function_name_ref.View());
+			std::optional<size_t> ffi_idx = VmBuiltins::FindIndex(foreign_function_name_ref.View());
 			if (ffi_idx.has_value())
 			{
-				if (m_is_worker && ffi_idx.value() == MidoriFFIRegistry::ExitBuiltinIndex())
+				if (m_is_worker && ffi_idx.value() == VmBuiltins::ExitIndex())
 				{
 					SyncMachineState(ip, sp, bp, env, closure);
 					return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::WorkerExited, "Worker exited. Exiting the process from a worker would end the whole program, so the worker fails instead and the joiner receives Err(Failed(...)). A panic inside a worker takes this path.", GetLine()));
 				}
 
-				proc = m_ffi_table[ffi_idx.value()];
+				proc = BUILTIN_FUNCTIONS[ffi_idx.value()];
 			}
 			else
 			{
@@ -2381,49 +2452,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriValue return_val;
 			proc(m_ffi_args.data(), reinterpret_cast<void*>(&return_val));
 
-			if (return_type == 1)
-			{
-				int64_t ptr_val = return_val.GetInteger();
-				if (ptr_val == 0)
-				{
-					Push(sp, AllocateTraceable(MidoriText("")));
-				}
-				else
-				{
-					char* ffi_string = reinterpret_cast<char*>(ptr_val);
-					Push(sp, AllocateTraceable(MidoriText(ffi_string)));
-					std::free(ffi_string);
-				}
-			}
-			else if (return_type == 2)
-			{
-				struct FFIArray
-				{
-					void* data;
-					int length;
-				};
-
-				int64_t ptr_val = return_val.GetInteger();
-				if (ptr_val == 0)
-				{
-					Push(sp, AllocateTraceable(MidoriArray()));
-				}
-				else
-				{
-					FFIArray* ffi_array = reinterpret_cast<FFIArray*>(ptr_val);
-					MidoriValue* ffi_array_data = static_cast<MidoriValue*>(ffi_array->data);
-					int length = ffi_array->length;
-
-					MidoriArray wrapped_array = MidoriArray::FromFFI(ffi_array_data, length);
-					Push(sp, AllocateTraceable(std::move(wrapped_array)));
-
-					std::free(ffi_array);
-				}
-			}
-			else
-			{
-				Push(sp, return_val);
-			}
+			Push(sp, TakeForeignResult(VmFFIReturnKind::RawValue, return_type, return_val));
 
 			if (IsCancellationRequested()) [[unlikely]]
 			{
@@ -2439,14 +2468,14 @@ int VirtualMachine::ExecuteLoop() noexcept
 			int arity = static_cast<int>(ReadByte(ip));
 			uint8_t return_type = static_cast<uint8_t>(ReadByte(ip));
 
-			if (m_is_worker && static_cast<size_t>(ffi_index) == MidoriFFIRegistry::ExitBuiltinIndex())
+			if (m_is_worker && static_cast<size_t>(ffi_index) == VmBuiltins::ExitIndex())
 			{
 				SyncMachineState(ip, sp, bp, env, closure);
 				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::WorkerExited, "Worker exited. Exiting the process from a worker would end the whole program, so the worker fails instead and the joiner receives Err(Failed(...)). A panic inside a worker takes this path.", GetLine()));
 			}
 
-			const FFIEntry& ffi_entry = MidoriFFIRegistry::GetEntry(ffi_index);
-			VmFFIFunction proc = m_ffi_table[ffi_index];
+			const VmBuiltinSignature& signature = VmBuiltins::At(ffi_index);
+			VmFFIFunction proc = BUILTIN_FUNCTIONS[ffi_index];
 
 			m_ffi_array_args.clear();
 			if (m_ffi_array_args.capacity() < static_cast<size_t>(arity))
@@ -2457,7 +2486,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			{
 				size_t idx = static_cast<size_t>(i);
 				MidoriValue arg = Pop(sp);
-				const VmFFIArgumentKind arg_kind = ffi_entry.m_arg_kinds[idx];
+				const VmFFIArgumentKind arg_kind = signature.m_arg_kinds[idx];
 				MidoriTraceable* ptr = arg.GetPointer();
 				const bool is_managed_traceable = ptr != nullptr && m_gc.Contains(ptr);
 
@@ -2506,94 +2535,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriValue return_val;
 			proc(m_ffi_args.data(), reinterpret_cast<void*>(&return_val));
 
-			VmFFIReturnKind return_kind = ffi_entry.m_return_kind;
-			if (return_kind == VmFFIReturnKind::RawValue)
-			{
-				if (return_type == 1)
-				{
-					return_kind = VmFFIReturnKind::CString;
-				}
-				else if (return_type == 2)
-				{
-					return_kind = VmFFIReturnKind::ArrayValues;
-				}
-			}
-
-			if (return_kind == VmFFIReturnKind::CString)
-			{
-				int64_t ptr_val = return_val.GetInteger();
-				if (ptr_val == 0)
-				{
-					Push(sp, AllocateTraceable(MidoriText("")));
-				}
-				else
-				{
-					char* ffi_string = reinterpret_cast<char*>(ptr_val);
-					Push(sp, AllocateTraceable(MidoriText(ffi_string)));
-					std::free(ffi_string);
-				}
-			}
-			else if (return_kind == VmFFIReturnKind::ArrayValues)
-			{
-				struct FFIArray
-				{
-					void* data;
-					int length;
-				};
-
-				int64_t ptr_val = return_val.GetInteger();
-				if (ptr_val == 0)
-				{
-					Push(sp, AllocateTraceable(MidoriArray()));
-				}
-				else
-				{
-					FFIArray* ffi_array = reinterpret_cast<FFIArray*>(ptr_val);
-					MidoriValue* ffi_array_data = static_cast<MidoriValue*>(ffi_array->data);
-					int length = ffi_array->length;
-
-					MidoriArray wrapped_array = MidoriArray::FromFFI(ffi_array_data, length);
-					Push(sp, AllocateTraceable(std::move(wrapped_array)));
-
-					std::free(ffi_array);
-				}
-			}
-			else if (return_kind == VmFFIReturnKind::ArrayStrings)
-			{
-				struct FFIArray
-				{
-					void* data;
-					int length;
-				};
-
-				int64_t ptr_val = return_val.GetInteger();
-				if (ptr_val == 0)
-				{
-					Push(sp, AllocateTraceable(MidoriArray()));
-				}
-				else
-				{
-					FFIArray* ffi_array = reinterpret_cast<FFIArray*>(ptr_val);
-					char** ffi_strings = static_cast<char**>(ffi_array->data);
-					const int length = ffi_array->length;
-
-					MidoriArray wrapped_array(length);
-					for (int idx = 0; idx < length; idx += 1)
-					{
-						char* ffi_string = ffi_strings[idx];
-						wrapped_array[idx] = AllocateTraceable(MidoriText(ffi_string != nullptr ? ffi_string : ""));
-						std::free(ffi_string);
-					}
-
-					std::free(ffi_strings);
-					std::free(ffi_array);
-					Push(sp, AllocateTraceable(std::move(wrapped_array)));
-				}
-			}
-			else
-			{
-				Push(sp, return_val);
-			}
+			Push(sp, TakeForeignResult(signature.m_return_kind, return_type, return_val));
 
 			if (IsCancellationRequested()) [[unlikely]]
 			{
@@ -3083,17 +3025,6 @@ bool VirtualMachine::CommitStackPages(uintptr_t fault_address) noexcept
 VirtualMachine::ExecuteResult VirtualMachine::Execute() noexcept
 {
 	m_last_error.reset();
-
-	if (!m_ffi_table_initialized)
-	{
-		// Initialize FFI table with statically linked functions once per VM.
-		const std::array<FFIEntry, MidoriFFIRegistry::BUILTIN_COUNT>& registry = MidoriFFIRegistry::GetTable();
-		for (size_t i = 0u; i < MidoriFFIRegistry::BUILTIN_COUNT; i += 1u)
-		{
-			m_ffi_table[i] = registry[i].m_function;
-		}
-		m_ffi_table_initialized = true;
-	}
 
 #ifdef _WIN32
 	uintptr_t exception_code = 0u;
