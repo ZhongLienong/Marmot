@@ -1,3 +1,6 @@
-Compilation failed :( 
-Module Error at test/module/failure/reexport_ambiguous.mmt
-  Symbol 'Shared' is re-exported by module 'ReexportAmbiguous', but 'SharedNameLib' and 'SharedNameOther' both export it. Write 'use SharedNameLib.{Shared}' to say which one.
+Compilation failed :(
+Module Error at test/module/failure/reexport_ambiguous.mmt:12
+   |
+12 | public export { Shared }
+   |                 ^^^^^^ Symbol 'Shared' is re-exported by module 'ReexportAmbiguous', but 'SharedNameLib' and 'SharedNameOther' both export it. Write 'use SharedNameLib.{Shared}' to say which one.
+   |

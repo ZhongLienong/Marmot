@@ -4,6 +4,7 @@
 use super::cache;
 use super::plan::Plan;
 use super::temporary::TemporaryDirectory;
+use super::{stderr_colored, strip_ansi};
 use crate::paths;
 use crate::project::manifest;
 use serde_json::Value;
@@ -158,6 +159,9 @@ pub(crate) fn run(request: &RunRequest) -> Result<ExitCode, String> {
     if request.timings {
         build.arg("--timings");
     }
+    if stderr_colored() {
+        build.env("CLICOLOR_FORCE", "1");
+    }
 
     let mut vm = Command::new(request.vm);
     vm.arg("run").arg(&program);
@@ -168,7 +172,14 @@ pub(crate) fn run(request: &RunRequest) -> Result<ExitCode, String> {
 
     if !request.json {
         match &current {
-            Some(stamp) => print!("{}", stamp.output.clone().unwrap_or_default()),
+            Some(stamp) => {
+                let replayed = stamp.output.as_deref().unwrap_or_default();
+                if stderr_colored() {
+                    eprint!("{replayed}");
+                } else {
+                    eprint!("{}", strip_ansi(replayed));
+                }
+            }
             None => {
                 let built = output_of(build.arg("--quiet"), request.compiler)?;
                 print!("{}", String::from_utf8_lossy(&built.stdout));
@@ -176,13 +187,11 @@ pub(crate) fn run(request: &RunRequest) -> Result<ExitCode, String> {
                 if !built.status.success() {
                     return Ok(exit_code(built.status.code()));
                 }
-                remember(
-                    request,
-                    &program,
-                    &plan_json,
-                    Some(String::from_utf8_lossy(&built.stdout).into_owned()),
-                    None,
-                )?;
+                // --timings prints this build's times, which a skipped build
+                // must not replay.
+                let output =
+                    (!request.timings).then(|| String::from_utf8_lossy(&built.stderr).into_owned());
+                remember(request, &program, &plan_json, output, None)?;
             }
         }
 

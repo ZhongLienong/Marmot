@@ -1,3 +1,6 @@
 Compilation failed :(
-Module Error at test/module/failure/export_missing_symbol.mmt
-  Symbol 'definitely_not_defined' is exported but not defined in module 'ExportMissingSymbol'
+Module Error at test/module/failure/export_missing_symbol.mmt:4
+  |
+4 | public export { definitely_not_defined }
+  |                 ^^^^^^^^^^^^^^^^^^^^^^ Symbol 'definitely_not_defined' is exported but not defined in module 'ExportMissingSymbol'
+  |

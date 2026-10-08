@@ -1,3 +1,6 @@
 Compilation failed :(
 Module Error at test/module/failure/import_nonexistent_system.mmt:5
-  Could not resolve import: <NonExistentModule>
+  |
+5 | import { <NonExistentModule> }
+  |          ^^^^^^^^^^^^^^^^^^^ Could not resolve import: <NonExistentModule>
+  |

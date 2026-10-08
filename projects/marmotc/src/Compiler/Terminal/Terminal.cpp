@@ -1,14 +1,38 @@
 #include "Terminal.h"
 
-#include <string>
+#include <atomic>
 #include <utility>
+
+namespace
+{
+	std::atomic<bool> s_color_enabled = false;
+}
 
 namespace CompilerTerminal
 {
+	void SetColorEnabled(bool enabled)
+	{
+		s_color_enabled.store(enabled);
+	}
+
+	bool ColorEnabled()
+	{
+		return s_color_enabled.load();
+	}
+
 	std::string_view Code(Color color)
 	{
+		if (!ColorEnabled())
+		{
+			return {};
+		}
+
 		switch (color)
 		{
+		case Color::RESET:
+			return "\033[0m";
+		case Color::BOLD:
+			return "\033[1m";
 		case Color::RED:
 			return "\033[31m";
 		case Color::YELLOW:

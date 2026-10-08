@@ -1,0 +1,7 @@
+Compilation failed :(
+Module Error at test/module/failure/export_without_visibility.mmt:5
+  |
+5 | export { Value }
+  | ^^^^^^ An export list needs a visibility.
+  |
+  | Write 'public export { ... }' to export to every module, or 'private export { ... }' to export within this module's namespace.

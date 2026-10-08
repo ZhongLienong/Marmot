@@ -145,13 +145,13 @@ TEST_CASE("CompilerError WithToken renders a single caret for zero-length token 
 	REQUIRE(StripAnsiCodes(error.Rendered()) == expected_render);
 }
 
-TEST_CASE("Simple compiler diagnostics render as plain messages", "[error][warning][format]")
+TEST_CASE("Unlocated compiler diagnostics render under their stage header", "[error][warning][format]")
 {
 	const CompilerError error = CompilerError::Simple(CompilerStage::Module, "Missing import");
 	const CompilerWarning warning = CompilerWarning::Simple(CompilerStage::StaticAnalyzer, "Local 'count' is never used");
 
-	REQUIRE(error.Rendered() == "Missing import");
-	REQUIRE(warning.Rendered() == "Local 'count' is never used");
+	REQUIRE(StripAnsiCodes(error.Rendered()) == "Module Error\n  Missing import\n");
+	REQUIRE(StripAnsiCodes(warning.Rendered()) == "Static Analyzer Warning\n  Local 'count' is never used\n");
 }
 
 TEST_CASE("Compiler report renders grouped warnings and structured machine-readable warnings", "[compiler][warning][report]")

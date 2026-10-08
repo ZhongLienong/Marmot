@@ -44,18 +44,6 @@ TEST_CASE("Bytecode linker reports unresolved imports with importer source prove
 	RequireErrorMatches(link_result.error(), expectation);
 }
 
-TEST_CASE("Bytecode linker tags empty link jobs with a stable code", "[compiler][linker][diagnostics]")
-{
-	MidoriResult::BytecodeLinkerResult link_result = BytecodeLinker({}, "Main").Link();
-	REQUIRE_FALSE(link_result.has_value());
-
-	MidoriTest::ErrorExpectation expectation;
-	expectation.m_stage = CompilerStage::BytecodeLinker;
-	expectation.m_code = CompilerErrorCode::BytecodeLinkerNoModulesToLink;
-	expectation.m_message_substrings = { "Cannot link: no modules were successfully compiled." };
-	RequireErrorMatches(link_result.error(), expectation);
-}
-
 TEST_CASE("Bytecode linker reports duplicate exports with source-aware conflict details", "[compiler][linker][diagnostics]")
 {
 	BytecodeModule first_module("Shared", "SharedA.mmt");

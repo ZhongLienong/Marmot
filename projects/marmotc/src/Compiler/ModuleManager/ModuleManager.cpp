@@ -8,11 +8,29 @@
 #include <expected>
 #include <format>
 #include <algorithm>
+#include <ranges>
 
 using namespace std::string_literals;
 
 namespace
 {
+	// `A -> B -> A`, by module name, pointing at the import that closes it.
+	CompilerError ImportCycleError(const BuildGraph& build_graph, std::ranges::subrange<std::vector<std::string>::const_iterator> cycle, const Token& import_token, const BuildGraph::BuildNode& importer)
+	{
+		const std::string chain = cycle
+			| std::views::transform([&build_graph](const std::string& file_path) { return build_graph.m_module_declarations.at(file_path).ModuleName(); })
+			| std::views::join_with(std::string_view(" -> "))
+			| std::ranges::to<std::string>();
+		return CompilerError::WithToken(
+			CompilerStage::Module,
+			std::format("Import cycle: {} -> {}.", chain, build_graph.m_module_declarations.at(cycle.front()).ModuleName()),
+			import_token,
+			importer.m_file_name,
+			importer.m_source_lines,
+			"A module cannot import itself, directly or through the modules it imports.",
+			CompilerErrorCode::ModuleCircularDependency);
+	}
+
 	std::string JoinDottedSegments(const std::vector<std::string>& segments, size_t count)
 	{
 		std::string result;
@@ -97,13 +115,13 @@ MidoriResult::VoidResult ModuleManager::GenerateBuildGraphImpl(BuildGraph& build
 			.WithExports(std::move(exports));
 		build_graph.m_module_declarations.emplace(m_main_file_name, std::move(module_decl));
 
-		MidoriResult::Result<std::vector<std::pair<std::string, int>>> import_result = ExtractImports(m_main_token_stream, spans);
+		MidoriResult::Result<std::vector<std::pair<std::string, Token>>> import_result = ExtractImports(m_main_token_stream, spans);
 		if (!import_result.has_value())
 		{
 			return std::unexpected(std::move(import_result.error()));
 		}
 
-		std::vector<std::pair<std::string, int>> import_paths = std::move(import_result.value());
+		std::vector<std::pair<std::string, Token>> import_paths = std::move(import_result.value());
 		MidoriResult::Result<std::vector<UseImport>> use_import_result = ExtractUseStatements(m_main_token_stream, spans);
 		if (!use_import_result.has_value())
 		{
@@ -123,14 +141,14 @@ MidoriResult::VoidResult ModuleManager::GenerateBuildGraphImpl(BuildGraph& build
 		main_node.m_file_name = m_main_file_name;
 		main_node.m_source_lines = std::move(m_main_source_lines);
 		main_node.m_use_imports = std::move(use_imports);
-		discovery.m_active_modules.emplace(m_main_file_name);
+		discovery.m_active_modules.push_back(m_main_file_name);
 
 		ImportResolver resolver(m_main_file_name, m_inputs.SearchPaths());
 
 		std::vector<std::optional<ImportResolver::ResolvedImport>> resolved_imports;
 		std::vector<std::string> loading;
 		resolved_imports.reserve(import_paths.size());
-		for (const auto& [import_specifier, line] : import_paths)
+		for (const auto& [import_specifier, import_token] : import_paths)
 		{
 			resolved_imports.push_back(resolver.Resolve(import_specifier));
 			const std::optional<ImportResolver::ResolvedImport>& resolved = resolved_imports.back();
@@ -147,11 +165,11 @@ MidoriResult::VoidResult ModuleManager::GenerateBuildGraphImpl(BuildGraph& build
 		// faster sibling cannot change which declaration or error comes first.
 		for (size_t index = 0u; index < import_paths.size(); index += 1u)
 		{
-			const auto& [import_specifier, line] = import_paths[index];
+			const auto& [import_specifier, import_token] = import_paths[index];
 			const std::optional<ImportResolver::ResolvedImport>& resolved_opt = resolved_imports[index];
 			if (!resolved_opt.has_value())
 			{
-				return std::unexpected(MidoriError::GenerateModuleErrorWithContext(CompilerErrorCode::ModuleImportResolutionFailed, "Could not resolve import: "s + import_specifier, line, m_main_file_name));
+				return std::unexpected(CompilerError::WithToken(CompilerStage::Module, "Could not resolve import: "s + import_specifier, import_token, m_main_file_name, main_node.m_source_lines, std::nullopt, CompilerErrorCode::ModuleImportResolutionFailed));
 			}
 
 			const std::string& include_absolute_path_str = resolved_opt->m_absolute_path;
@@ -159,18 +177,20 @@ MidoriResult::VoidResult ModuleManager::GenerateBuildGraphImpl(BuildGraph& build
 			if (dependencies.emplace(include_absolute_path_str).second)
 			{
 				main_node.m_dependencies.emplace_back(include_absolute_path_str);
+				main_node.m_import_tokens.emplace(include_absolute_path_str, import_token);
 			}
 
 			if (build_graph.m_nodes.contains(include_absolute_path_str))
 			{
-				if (discovery.m_active_modules.contains(include_absolute_path_str))
+				const std::vector<std::string>::const_iterator cycle_start = std::ranges::find(discovery.m_active_modules, include_absolute_path_str);
+				if (cycle_start != discovery.m_active_modules.cend())
 				{
-					discovery.m_cyclic_modules.emplace(include_absolute_path_str);
+					discovery.m_cycles.emplace(include_absolute_path_str, ImportCycleError(build_graph, std::ranges::subrange(cycle_start, discovery.m_active_modules.cend()), import_token, main_node));
 				}
 				continue;
 			}
 
-			MidoriResult::Result<ImportedSource> source = source_loader.Take(include_absolute_path_str, m_main_file_name, line);
+			MidoriResult::Result<ImportedSource> source = source_loader.Take(include_absolute_path_str, m_main_file_name, import_token.m_line);
 			if (!source.has_value())
 			{
 				return std::unexpected(std::move(source.error()));
@@ -183,14 +203,15 @@ MidoriResult::VoidResult ModuleManager::GenerateBuildGraphImpl(BuildGraph& build
 				return std::unexpected(std::move(nested_build_graph_result.error()));
 			}
 		}
+		discovery.m_active_modules.pop_back();
 	}
 
-	discovery.m_active_modules.erase(m_main_file_name);
 	// Finish the owning module before reporting its cycle, so errors in its
 	// remaining imports keep their original precedence and diagnostic location.
-	if (discovery.m_cyclic_modules.contains(m_main_file_name))
+	const std::unordered_map<std::string, CompilerError>::const_iterator cycle = discovery.m_cycles.find(m_main_file_name);
+	if (cycle != discovery.m_cycles.cend())
 	{
-		return std::unexpected(MidoriError::GenerateModuleErrorWithContext(CompilerErrorCode::ModuleCircularDependency, "Circular dependency detected in final build graph", 0, m_main_file_name));
+		return std::unexpected(cycle->second);
 	}
 
 	return {};
@@ -239,6 +260,11 @@ std::vector<ModuleManager::StatementSpan> ModuleManager::ScanModuleStatements(co
 			else if (token.m_token_name == Token::Name::USE)
 			{
 				stmt_type = StatementType::USE;
+				is_module_statement = true;
+			}
+			else if (token.m_token_name == Token::Name::EXPORT)
+			{
+				stmt_type = StatementType::EXPORT;
 				is_module_statement = true;
 			}
 			else if (token.m_token_name == Token::Name::PUBLIC || token.m_token_name == Token::Name::PRIVATE)
@@ -615,6 +641,11 @@ MidoriResult::Result<std::tuple<std::string, std::vector<ModuleExport>>> ModuleM
 			int current = span.m_start;
 			VisibilityLevel visibility = VisibilityLevel::Public;
 
+			if (tokens[current].m_token_name == Token::Name::EXPORT)
+			{
+				return std::unexpected(CompilerError::WithToken(CompilerStage::Module, "An export list needs a visibility.", tokens[current], m_main_file_name, m_main_source_lines, "Write 'public export { ... }' to export to every module, or 'private export { ... }' to export within this module's namespace."));
+			}
+
 			if (tokens[current].m_token_name == Token::Name::PUBLIC)
 			{
 				visibility = VisibilityLevel::Public;
@@ -642,7 +673,7 @@ MidoriResult::Result<std::tuple<std::string, std::vector<ModuleExport>>> ModuleM
 				{
 					if (tokens[current].m_token_name == Token::Name::IDENTIFIER_LITERAL)
 					{
-						all_exports.emplace_back(tokens[current].m_lexeme, visibility);
+						all_exports.emplace_back(tokens[current], visibility);
 						current += 1;
 						SkipWhiteSpace(tokens, current);
 
@@ -664,9 +695,9 @@ MidoriResult::Result<std::tuple<std::string, std::vector<ModuleExport>>> ModuleM
 	return std::make_tuple(std::move(module_name), std::move(all_exports));
 }
 
-MidoriResult::Result<std::vector<std::pair<std::string, int>>> ModuleManager::ExtractImports(const TokenStream& tokens, const std::vector<StatementSpan>& spans)
+MidoriResult::Result<std::vector<std::pair<std::string, Token>>> ModuleManager::ExtractImports(const TokenStream& tokens, const std::vector<StatementSpan>& spans)
 {
-	std::vector<std::pair<std::string, int>> import_paths;
+	std::vector<std::pair<std::string, Token>> import_paths;
 	const std::string_view import_suggestion = R"(Use 'import { <IO> }' for system modules or 'import { "./File.mmt" }' for path imports.)";
 
 	const auto make_import_error = [this, import_suggestion](std::string_view message, const Token& token) -> CompilerError
@@ -695,8 +726,7 @@ MidoriResult::Result<std::vector<std::pair<std::string, int>>> ModuleManager::Ex
 			while (current < span.m_end && tokens[current].m_token_name != Token::Name::RIGHT_BRACE)
 			{
 				std::string import_specifier;
-				const Token& import_entry_token = tokens[current];
-				int import_line = import_entry_token.m_line;
+				Token import_entry_token = tokens[current];
 
 				if (tokens[current].m_token_name == Token::Name::TEXT_LITERAL)
 				{
@@ -748,6 +778,10 @@ MidoriResult::Result<std::vector<std::pair<std::string, int>>> ModuleManager::Ex
 						return std::unexpected(make_import_error("Expected identifier in system import.", tokens[current]));
 					}
 
+					if (tokens[current].m_line == left_angle_token.m_line)
+					{
+						import_entry_token.m_source_length = static_cast<size_t>(tokens[current].m_column.value() + 1 - left_angle_token.m_column.value());
+					}
 					current += 1;
 					import_specifier = "<"s + module_name + ">"s;
 				}
@@ -757,7 +791,7 @@ MidoriResult::Result<std::vector<std::pair<std::string, int>>> ModuleManager::Ex
 				}
 
 				parsed_any_import = true;
-				import_paths.emplace_back(import_specifier, import_line);
+				import_paths.emplace_back(import_specifier, import_entry_token);
 				SkipWhiteSpace(tokens, current);
 
 				if (current < span.m_end && tokens[current].m_token_name == Token::Name::COMMA)
@@ -786,7 +820,7 @@ MidoriResult::Result<std::vector<std::pair<std::string, int>>> ModuleManager::Ex
 		}
 	}
 
-	return MidoriResult::Result<std::vector<std::pair<std::string, int>>>(std::move(import_paths));
+	return MidoriResult::Result<std::vector<std::pair<std::string, Token>>>(std::move(import_paths));
 }
 
 MidoriResult::Result<std::vector<UseImport>> ModuleManager::ExtractUseStatements(const TokenStream& tokens, const std::vector<StatementSpan>& spans)

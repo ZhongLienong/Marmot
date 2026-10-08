@@ -7,7 +7,7 @@
 
 #include <filesystem>
 #include <string>
-#include <unordered_set>
+#include <unordered_map>
 #include <vector>
 
 class ModuleSourceLoader;
@@ -17,8 +17,11 @@ class ModuleManager
 private:
 	struct DiscoveryState
 	{
-		std::unordered_set<std::string> m_active_modules;
-		std::unordered_set<std::string> m_cyclic_modules;
+		// The modules being discovered, outermost first.
+		std::vector<std::string> m_active_modules;
+		// An import cycle, kept by the module it leads back to until that
+		// module's own imports are done.
+		std::unordered_map<std::string, CompilerError> m_cycles;
 	};
 
 	enum class StatementType { MODULE, EXPORT, IMPORT, USE };
@@ -54,7 +57,7 @@ private:
 
 	MidoriResult::Result<std::tuple<std::string, std::vector<ModuleExport>>> ExtractModuleDeclaration(const TokenStream& tokens, const std::vector<StatementSpan>& spans);
 
-	MidoriResult::Result<std::vector<std::pair<std::string, int>>> ExtractImports(const TokenStream& tokens, const std::vector<StatementSpan>& spans);
+	MidoriResult::Result<std::vector<std::pair<std::string, Token>>> ExtractImports(const TokenStream& tokens, const std::vector<StatementSpan>& spans);
 
 	MidoriResult::Result<std::vector<UseImport>> ExtractUseStatements(const TokenStream& tokens, const std::vector<StatementSpan>& spans);
 

@@ -73,10 +73,10 @@ namespace
 
 namespace MidoriDriver
 {
-	DriverError DriverError::FileSystem(std::string message)
+	DriverError DriverError::FileSystem(std::string_view message, const std::filesystem::path& file_path)
 	{
 		DriverError error;
-		error.m_message = std::move(message);
+		error.m_report = MidoriResult::CompilerReport(CompilerError::WithFile(CompilerStage::Compiler, message, file_path.string()));
 		return error;
 	}
 
@@ -88,42 +88,15 @@ namespace MidoriDriver
 		return error;
 	}
 
-	DriverError DriverError::Compilation(MidoriResult::CompilerDiagnostics diagnostics)
-	{
-		return Compilation(MidoriResult::CompilerReport(std::move(diagnostics)));
-	}
-
-	DriverError DriverError::Diagnostics(MidoriResult::CompilerReport report)
-	{
-		DriverError error;
-		error.m_report = std::move(report);
-		return error;
-	}
-
-	DriverError DriverError::Diagnostics(MidoriResult::CompilerDiagnostics diagnostics)
-	{
-		return Diagnostics(MidoriResult::CompilerReport(std::move(diagnostics)));
-	}
-
 	std::string DriverError::Rendered() const
 	{
-		if (m_report.has_value())
+		std::string rendered = m_is_compilation_failure ? "Compilation failed :( \n" : "";
+		rendered += m_report.Rendered();
+		if (ShouldEmitMachineReadableWarnings())
 		{
-			std::string rendered;
-			if (m_is_compilation_failure)
-			{
-				rendered = "Compilation failed :( \n";
-			}
-
-			rendered += m_report->Rendered();
-			if (ShouldEmitMachineReadableWarnings())
-			{
-				rendered += m_report->MachineReadableWarnings();
-			}
-			return rendered;
+			rendered += m_report.MachineReadableWarnings();
 		}
-
-		return m_message;
+		return rendered;
 	}
 
 	SourceReadResult ReadSourceFile(const std::filesystem::path& file_path)
@@ -132,7 +105,7 @@ namespace MidoriDriver
 		std::ifstream file(file_path, std::ios::binary);
 		if (std::filesystem::is_directory(file_path) || !file.is_open())
 		{
-			return std::unexpected(DriverError::FileSystem(std::format("Could not open file: {}\n", file_path.string())));
+			return std::unexpected(DriverError::FileSystem("Could not open file", file_path));
 		}
 
 		// Not `!buffer`: inserting an empty file's rdbuf sets failbit, and an
@@ -141,7 +114,7 @@ namespace MidoriDriver
 		buffer << file.rdbuf();
 		if (file.bad())
 		{
-			return std::unexpected(DriverError::FileSystem(std::format("Could not read file to buffer: {}\n", file_path.string())));
+			return std::unexpected(DriverError::FileSystem("Could not read file", file_path));
 		}
 
 		return buffer.str();

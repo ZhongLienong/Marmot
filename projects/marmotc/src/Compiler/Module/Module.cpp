@@ -27,9 +27,10 @@ bool SharesNamespace(std::string_view first_module_name, std::string_view second
 	return first_namespace == second_namespace;
 }
 
-ModuleExport::ModuleExport(std::string_view symbol_name, VisibilityLevel visibility)
-	: m_symbol_name(symbol_name),
-	m_visibility(visibility)
+ModuleExport::ModuleExport(Token token, VisibilityLevel visibility)
+	: m_symbol_name(token.m_lexeme),
+	m_visibility(visibility),
+	m_token(std::move(token))
 {
 }
 

@@ -252,6 +252,12 @@ TEST_CASE("Lexer errors and tokens after a multi-line string point at their own 
 	CHECK(unterminated.error().m_location->m_line == 2);
 	CHECK(unterminated.error().m_location->m_column == 8);
 
+	const std::expected<MidoriTest::LexedSnippet, CompilerError> unterminated_comment = MidoriTest::LexSnippet("def a = 1;\n  /* never closed\ndef b = 2;\n", "UnterminatedComment.mmt");
+	REQUIRE_FALSE(unterminated_comment.has_value());
+	REQUIRE(unterminated_comment.error().m_location.has_value());
+	CHECK(unterminated_comment.error().m_location->m_line == 2);
+	CHECK(unterminated_comment.error().m_location->m_column == 2);
+
 	const std::expected<MidoriTest::LexedSnippet, CompilerError> multi_line = MidoriTest::LexSnippet("def s = \"abcdef\nb\"; def t = 1;\n", "MultiLineString.mmt");
 	if (!multi_line.has_value())
 	{

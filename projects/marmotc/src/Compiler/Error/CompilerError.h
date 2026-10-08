@@ -48,7 +48,6 @@ enum class CompilerErrorCode
 	LoweringAmbiguousMethodResolution,
 	LoweringUnsupportedConstruct,
 	LoweringUnknownForeignFunction,
-	BytecodeLinkerNoModulesToLink,
 	BytecodeLinkerDuplicateExportedSymbol,
 	BytecodeLinkerUnresolvedImport,
 	CompilerInternalError

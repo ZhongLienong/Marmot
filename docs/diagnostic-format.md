@@ -196,7 +196,6 @@ Current `CompilerErrorCode` values:
 - `LoweringAmbiguousMethodResolution`
 - `LoweringUnsupportedConstruct`
 - `LoweringUnknownForeignFunction`
-- `BytecodeLinkerNoModulesToLink`
 - `BytecodeLinkerDuplicateExportedSymbol`
 - `BytecodeLinkerUnresolvedImport`
 - `CompilerInternalError`
@@ -318,7 +317,7 @@ are emitted with the same shape as the full examples above.
 | `NoMatch` | `Parser` | `No grammar rule matched the input.` |
 | `ModuleImportResolutionFailed` | `Module` | `Could not resolve import '<Foo>'.` |
 | `ModuleImportFileOpenFailed` | `Module` | `Could not open imported module file 'Foo.mmt'.` |
-| `ModuleCircularDependency` | `Module` | `Circular dependency detected between 'A' and 'B'.` |
+| `ModuleCircularDependency` | `Module` | `Import cycle: A -> B -> A.` |
 | `ModuleDeclarationMissing` | `Module` | `File does not declare a 'module' statement.` |
 | `ModuleDeclarationDuplicate` | `Module` | `Duplicate 'module' declaration in file.` |
 | `ModuleMissingExportedSymbol` | `Module` | `Module 'A' does not export symbol 'foo'.` |
@@ -334,7 +333,6 @@ are emitted with the same shape as the full examples above.
 | `LoweringAmbiguousMethodResolution` | `Lowering` | `Ambiguous method 'show' for type 'T'.` |
 | `LoweringUnsupportedConstruct` | `Lowering` | `Cannot lower expression to bytecode.` |
 | `LoweringUnknownForeignFunction` | `Lowering` | `Unknown foreign function 'MIDORI_FFI_Foo': it is not a Marmot builtin. Name the library that exports it: foreign "MIDORI_FFI_Foo" ... from "library";` |
-| `BytecodeLinkerNoModulesToLink` | `BytecodeLinker` | `No modules to link.` |
 | `BytecodeLinkerDuplicateExportedSymbol` | `BytecodeLinker` | `Duplicate exported symbol 'main' in 'A' and 'B'.` |
 | `BytecodeLinkerUnresolvedImport` | `BytecodeLinker` | `Unresolved import 'foo' from module 'A'.` |
 | `CompilerInternalError` | `Compiler` | `Internal compiler error in the type checker stage: bad_alloc` |

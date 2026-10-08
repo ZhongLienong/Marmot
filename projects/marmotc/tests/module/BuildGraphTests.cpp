@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <format>
 
 #include "Compiler/BuildGraph/BuildGraph.h"
 #include "Compiler/Lexer/Lexer.h"
@@ -13,6 +14,7 @@
 #include <algorithm>
 #include <expected>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <optional>
 #include <sstream>
@@ -558,11 +560,11 @@ TEST_CASE("ModuleManager tags circular dependencies with a stable diagnostic cod
 	MidoriTest::ErrorExpectation expectation;
 	expectation.m_stage = CompilerStage::Module;
 	expectation.m_code = CompilerErrorCode::ModuleCircularDependency;
-	expectation.m_message_substrings = { "Circular dependency detected" };
+	expectation.m_message_substrings = { "Import cycle: A -> B -> A." };
 	RequireErrorMatches(graph_result.error(), expectation);
 }
 
-TEST_CASE("Discovery reports cycles at their owning module across job counts", "[module][discovery]")
+TEST_CASE("Discovery names each cycle at the import that closes it across job counts", "[module][discovery]")
 {
 	const MidoriTest::TempProject project
 	({
@@ -570,21 +572,21 @@ TEST_CASE("Discovery reports cycles at their owning module across job counts", "
 		MidoriTest::TempProjectFile("A.mmt", "module A\nimport { \"B.mmt\" }\n"),
 		MidoriTest::TempProjectFile("B.mmt", "module B\nimport { \"C.mmt\" }\n")
 	});
-	std::filesystem::path owner = project.Path("B.mmt");
+	std::string chain = "B -> C -> B";
 
-	SECTION("A nested cycle is attributed to its nearest ancestor")
+	SECTION("A nested cycle starts at its nearest ancestor")
 	{
 		static_cast<void>(project.WriteSourceFile("C.mmt", "module C\nimport { \"B.mmt\" }\n"));
 	}
-	SECTION("A cycle through the entry is attributed to the entry")
+	SECTION("A cycle through the entry starts at the entry")
 	{
 		static_cast<void>(project.WriteSourceFile("C.mmt", "module C\nimport { \"Main.mmt\" }\n"));
-		owner = project.Path("Main.mmt");
+		chain = "Main -> A -> B -> C -> Main";
 	}
-	SECTION("A self import is attributed to the importing module")
+	SECTION("A self import is a cycle of one module")
 	{
 		static_cast<void>(project.WriteSourceFile("C.mmt", "module C\nimport { \"C.mmt\" }\n"));
-		owner = project.Path("C.mmt");
+		chain = "C -> C";
 	}
 
 	std::string expected;
@@ -593,7 +595,8 @@ TEST_CASE("Discovery reports cycles at their owning module across job counts", "
 		MidoriResult::ModuleManagerResult graph = GenerateBuildGraphFromFile(project.Path("Main.mmt"), jobs);
 		REQUIRE(!graph.has_value());
 		REQUIRE(graph.error().m_code == CompilerErrorCode::ModuleCircularDependency);
-		CheckDiagnosticLocation(graph.error(), std::filesystem::weakly_canonical(owner), 0);
+		CHECK(graph.error().m_message == std::format("Import cycle: {}.", chain));
+		CheckDiagnosticLocation(graph.error(), std::filesystem::weakly_canonical(project.Path("C.mmt")), 2);
 		const std::string rendered(graph.error().Rendered());
 		if (expected.empty())
 		{
@@ -612,12 +615,12 @@ TEST_CASE("Discovery preserves cycle error precedence within and after its ownin
 		MidoriTest::TempProjectFile("B.mmt", "module B\nimport { \"A.mmt\" }\n")
 	});
 	CompilerErrorCode code = CompilerErrorCode::ModuleCircularDependency;
-	int line = 0;
+	std::filesystem::path file = project.Path("B.mmt");
 	SECTION("An error inside the cycle's owner takes precedence")
 	{
 		static_cast<void>(project.WriteSourceFile("A.mmt", "module A\nimport { \"B.mmt\", \"Missing.mmt\" }\n"));
 		code = CompilerErrorCode::ModuleImportResolutionFailed;
-		line = 2;
+		file = project.Path("A.mmt");
 	}
 	SECTION("An error after the cycle's owner does not take precedence")
 	{
@@ -629,7 +632,7 @@ TEST_CASE("Discovery preserves cycle error precedence within and after its ownin
 		MidoriResult::ModuleManagerResult graph = GenerateBuildGraphFromFile(project.Path("Main.mmt"), jobs);
 		REQUIRE(!graph.has_value());
 		REQUIRE(graph.error().m_code == code);
-		CheckDiagnosticLocation(graph.error(), std::filesystem::weakly_canonical(project.Path("A.mmt")), line);
+		CheckDiagnosticLocation(graph.error(), std::filesystem::weakly_canonical(file), 2);
 	}
 }
 

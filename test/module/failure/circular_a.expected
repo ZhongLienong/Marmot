@@ -1,3 +1,7 @@
 Compilation failed :(
-Module Error at test/module/failure/circular_a.mmt
-  Circular dependency detected in final build graph
+Module Error at test/module/failure/circular_b.mmt:7
+  |
+7 | import { "circular_a.mmt" }
+  |          ^^^^^^^^^^^^^^^^ Import cycle: CircularA -> CircularB -> CircularA.
+  |
+  | A module cannot import itself, directly or through the modules it imports.

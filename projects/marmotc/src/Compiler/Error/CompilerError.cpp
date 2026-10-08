@@ -79,8 +79,6 @@ std::string_view CompilerErrorCodeName(CompilerErrorCode code)
 		return "LoweringUnsupportedConstruct";
 	case CompilerErrorCode::LoweringUnknownForeignFunction:
 		return "LoweringUnknownForeignFunction";
-	case CompilerErrorCode::BytecodeLinkerNoModulesToLink:
-		return "BytecodeLinkerNoModulesToLink";
 	case CompilerErrorCode::BytecodeLinkerDuplicateExportedSymbol:
 		return "BytecodeLinkerDuplicateExportedSymbol";
 	case CompilerErrorCode::BytecodeLinkerUnresolvedImport:
@@ -194,7 +192,7 @@ namespace
 		oss << "[" << label << "] ";
 		oss << CompilerTerminal::Code(message_color);
 		oss << message;
-		oss << "\033[0m";
+		oss << CompilerTerminal::Code(CompilerTerminal::Color::RESET);
 		return oss.str();
 	}
 
@@ -320,29 +318,27 @@ namespace
 		const std::optional<std::string>& suggestion,
 		DiagnosticSeverity severity)
 	{
-		if (!location.has_value())
-		{
-			return std::string(message);
-		}
-
-		const CompilerErrorLocation& resolved_location = *location;
 		std::ostringstream oss;
-
-		oss << CompilerTerminal::BOLD;
+		oss << CompilerTerminal::Code(CompilerTerminal::Color::BOLD);
 		oss << CompilerTerminal::Code(DiagnosticAccentColor(severity));
 		oss << StageLabel(stage, severity);
-		oss << "\033[0m";
-		oss << " at ";
-		oss << CompilerTerminal::Code(CompilerTerminal::Color::BRIGHT_CYAN);
-		oss << resolved_location.m_file_name;
-		if (resolved_location.m_line > 0)
+		oss << CompilerTerminal::Code(CompilerTerminal::Color::RESET);
+		if (location.has_value())
 		{
-			oss << ":" << resolved_location.m_line;
+			oss << " at ";
+			oss << CompilerTerminal::Code(CompilerTerminal::Color::BRIGHT_CYAN);
+			oss << location->m_file_name;
+			if (location->m_line > 0)
+			{
+				oss << ":" << location->m_line;
+			}
+			oss << CompilerTerminal::Code(CompilerTerminal::Color::RESET);
 		}
-		oss << "\033[0m\n";
+		oss << "\n";
 
-		if (resolved_location.m_source_line.has_value() && resolved_location.m_line > 0)
+		if (location.has_value() && location->m_source_line.has_value() && location->m_line > 0)
 		{
+			const CompilerErrorLocation& resolved_location = *location;
 			std::string_view source_line = *resolved_location.m_source_line;
 			const std::string line_num_str = std::to_string(resolved_location.m_line);
 			const int gutter_width = static_cast<int>(line_num_str.length()) + 1;
@@ -355,7 +351,7 @@ namespace
 			oss << "|\n";
 
 			oss << line_num_str << " |";
-			oss << "\033[0m";
+			oss << CompilerTerminal::Code(CompilerTerminal::Color::RESET);
 			oss << " " << source_line << "\n";
 
 			oss << CompilerTerminal::Code(CompilerTerminal::Color::BLUE);
@@ -383,14 +379,14 @@ namespace
 				oss << " " << message;
 			}
 
-			oss << "\033[0m\n";
+			oss << CompilerTerminal::Code(CompilerTerminal::Color::RESET) << "\n";
 
 			oss << CompilerTerminal::Code(CompilerTerminal::Color::BLUE);
 			for (int i = 0; i < gutter_width; i += 1)
 			{
 				oss << " ";
 			}
-			oss << "|\033[0m\n";
+			oss << "|" << CompilerTerminal::Code(CompilerTerminal::Color::RESET) << "\n";
 		}
 		else
 		{
@@ -402,7 +398,7 @@ namespace
 			oss << CompilerTerminal::Code(CompilerTerminal::Color::YELLOW);
 			oss << "  | ";
 			oss << *suggestion;
-			oss << "\033[0m\n";
+			oss << CompilerTerminal::Code(CompilerTerminal::Color::RESET) << "\n";
 		}
 
 		return oss.str();
@@ -461,10 +457,8 @@ namespace
 }
 
 CompilerError::CompilerError(std::string message)
-	: m_stage(CompilerStage::Compiler),
-	m_message(std::move(message))
+	: CompilerError(CompilerStage::Compiler, std::move(message))
 {
-	m_rendered = m_message;
 }
 
 CompilerError::CompilerError(std::string_view message)
@@ -565,10 +559,8 @@ std::string_view CompilerError::Rendered() const
 }
 
 CompilerWarning::CompilerWarning(std::string message)
-	: m_stage(CompilerStage::Compiler),
-	m_message(std::move(message))
+	: CompilerWarning(CompilerStage::Compiler, std::move(message))
 {
-	m_rendered = m_message;
 }
 
 CompilerWarning::CompilerWarning(std::string_view message)

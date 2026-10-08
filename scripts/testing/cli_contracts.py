@@ -231,6 +231,21 @@ def scenario_check_reads_only_regular_files(runner: TestRunner) -> None:
         assert_condition(directory.returncode != 0 and "Could not open file" in directory_output, f"check_reads_only_regular_files: a directory should not open:\n{directory_output}")
 
 
+def scenario_diagnostics_go_to_stderr_in_colour_only_when_asked(runner: TestRunner) -> None:
+    with tempfile.TemporaryDirectory(prefix="marmot-cli-stderr-") as temp_dir_raw:
+        source_path = Path(temp_dir_raw) / "Broken.mmt"
+        write_text(source_path, "module Broken\ndef value = ;\n")
+        captured = run_midori(runner, ["check", str(source_path)], env_overrides={"MARMOT_PATH": None, "NO_COLOR": None, "CLICOLOR_FORCE": None})
+        assert_condition(captured.returncode != 0 and captured.stdout == "", f"diagnostics should not go to stdout:\n{captured.stdout}")
+        assert_condition("Parser Error" in captured.stderr and "\x1b[" not in captured.stderr, f"captured stderr should carry the error without colour:\n{captured.stderr}")
+
+        forced = run_midori(runner, ["check", str(source_path)], env_overrides={"MARMOT_PATH": None, "NO_COLOR": None, "CLICOLOR_FORCE": "1"})
+        assert_condition("\x1b[" in forced.stderr, f"CLICOLOR_FORCE should colour the diagnostics:\n{forced.stderr}")
+
+        refused = run_midori(runner, ["check", str(source_path)], env_overrides={"MARMOT_PATH": None, "NO_COLOR": "1", "CLICOLOR_FORCE": "1"})
+        assert_condition("\x1b[" not in refused.stderr, f"NO_COLOR should win over CLICOLOR_FORCE:\n{refused.stderr}")
+
+
 def scenario_version_output_format(runner: TestRunner) -> None:
     completed = run_midori(runner, ["--version"], env_overrides={"MARMOT_PATH": None})
     assert_condition(completed.returncode == 0, f"version_output_format: expected exit code 0, got {completed.returncode}.")
@@ -707,6 +722,7 @@ SCENARIOS: list[tuple[str, Any]] = [
     ("check_json_success_finds_imports_through_marmot_path", scenario_check_json_success_finds_imports_through_marmot_path),
     ("check_json_failure_reports_parser_errors", scenario_check_json_failure_reports_parser_errors),
     ("check_reads_only_regular_files", scenario_check_reads_only_regular_files),
+    ("diagnostics_go_to_stderr_in_colour_only_when_asked", scenario_diagnostics_go_to_stderr_in_colour_only_when_asked),
     ("version_output_format", scenario_version_output_format),
     ("help_lists_new_commands", scenario_help_lists_new_commands),
     ("emit_ir_feature", scenario_emit_ir_feature),

@@ -384,7 +384,7 @@ fn run_check_build_and_the_plan_handoff() {
     // Without the plan, the compiler knows nothing of the project's packages.
     let bare = marmotc(&compiler, &project.0, &["check", "src/Main.mmt"]);
     assert!(!bare.status.success());
-    assert!(text(&bare.stdout).contains("Could not resolve import: <Greeter>"));
+    assert!(text(&bare.stderr).contains("Could not resolve import: <Greeter>"));
 
     let checked = marmot(
         &compiler,
@@ -441,7 +441,7 @@ fn a_compile_error_comes_back_with_the_compilers_exit_status() {
 
     let checked = marmot(&compiler, &project.0, &["check"]);
     assert!(!checked.status.success());
-    assert!(text(&checked.stdout).contains("Parser Error"));
+    assert!(text(&checked.stderr).contains("Parser Error"));
 }
 
 fn check_json(
@@ -887,18 +887,19 @@ fn a_skipped_build_still_reports_its_warnings() {
     let first = marmot(&compiler, &project.0, &["run"]);
     let warning = "Static Analyzer Warning";
     assert!(
-        text(&succeeded(&first).stdout).contains(warning),
+        text(&succeeded(&first).stderr).contains(warning),
         "{}",
-        text(&first.stdout)
+        text(&first.stderr)
     );
 
     let again = marmot(&compiler, &project.0, &["run"]);
     assert!(
-        text(&succeeded(&again).stdout).contains(warning),
+        text(&succeeded(&again).stderr).contains(warning),
         "{}",
-        text(&again.stdout)
+        text(&again.stderr)
     );
     assert_eq!(text(&again.stdout), text(&first.stdout));
+    assert_eq!(text(&again.stderr), text(&first.stderr));
 
     let json = marmot(&compiler, &project.0, &["run", "--format", "json"]);
     let payload: serde_json::Value = serde_json::from_slice(&succeeded(&json).stdout).unwrap();

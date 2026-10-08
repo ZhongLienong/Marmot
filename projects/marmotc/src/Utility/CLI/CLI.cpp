@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <charconv>
+#include <cstdio>
 #include <cstdlib>
 #include <expected>
 #include <filesystem>
@@ -14,6 +15,12 @@
 #include <string_view>
 #include <utility>
 #include <vector>
+
+#ifdef _WIN32
+#include <io.h>
+#else
+#include <unistd.h>
+#endif
 
 #include "Utility/Diagnostics/Diagnostics.h"
 #include "Bytecode/Artifact/BinaryArtifact.h"
@@ -78,27 +85,40 @@ namespace
 		CommandHandler m_handler;
 	};
 
-	[[nodiscard]] MidoriResult::CompilerReport WrapDriverErrorAsReport(const MidoriDriver::DriverError& error)
-	{
-		if (error.m_report.has_value())
-		{
-			return *error.m_report;
-		}
-
-		return MidoriResult::CompilerReport(MidoriResult::CompilerDiagnostics(
-			CompilerError::Simple(CompilerStage::Compiler, error.m_message)));
-	}
-
 	[[nodiscard]] bool ShouldEmitMachineReadableWarnings()
 	{
 		const char* warning_format = std::getenv("MARMOT_TEST_WARNING_FORMAT");
 		return warning_format != nullptr && std::string_view(warning_format) == "machine";
 	}
 
+	[[nodiscard]] std::string_view Environment(const char* name)
+	{
+		const char* value = std::getenv(name);
+		return value == nullptr ? std::string_view() : std::string_view(value);
+	}
+
+	// Diagnostics go to stderr, so they are coloured when it is a terminal.
+	// NO_COLOR turns colour off and CLICOLOR_FORCE on, NO_COLOR first.
+	[[nodiscard]] bool DiagnosticsColored()
+	{
+		if (!Environment("NO_COLOR").empty())
+		{
+			return false;
+		}
+		if (!Environment("CLICOLOR_FORCE").empty() && Environment("CLICOLOR_FORCE") != "0")
+		{
+			return true;
+		}
+#ifdef _WIN32
+		return _isatty(_fileno(stderr)) != 0;
+#else
+		return isatty(fileno(stderr)) != 0;
+#endif
+	}
+
 	void PrintCliError(std::string_view message)
 	{
-		CompilerTerminal::Print<CompilerTerminal::Color::RED>(std::string(message));
-		CompilerTerminal::Print<CompilerTerminal::Color::RED>("\n");
+		std::print(stderr, "{}{}{}\n", CompilerTerminal::Code(CompilerTerminal::Color::RED), message, CompilerTerminal::Code(CompilerTerminal::Color::RESET));
 	}
 
 	[[nodiscard]] std::string CommandHelp(std::string_view command_name)
@@ -838,14 +858,14 @@ namespace
 		const MidoriDriver::CompileFileWithReportResult compile_result = CompileInvocation(invocation);
 		if (!compile_result.has_value())
 		{
-			const MidoriResult::CompilerReport report = WrapDriverErrorAsReport(compile_result.error());
+			const MidoriResult::CompilerReport& report = compile_result.error().m_report;
 			if (invocation.m_format == OutputFormat::Json)
 			{
 				std::print("{}", CommandJson("check", false, report, EXIT_FAILURE));
 			}
 			else
 			{
-				std::print("{}", compile_result.error().Rendered());
+				std::print(stderr, "{}", compile_result.error().Rendered());
 			}
 			return EXIT_FAILURE;
 		}
@@ -858,7 +878,7 @@ namespace
 		}
 		else
 		{
-			std::print("{}", report.RenderedWarnings());
+			std::print(stderr, "{}", report.RenderedWarnings());
 		}
 
 		return EXIT_SUCCESS;
@@ -876,14 +896,14 @@ namespace
 		const MidoriDriver::CompileFileWithReportResult compile_result = CompileInvocation(invocation);
 		if (!compile_result.has_value())
 		{
-			const MidoriResult::CompilerReport report = WrapDriverErrorAsReport(compile_result.error());
+			const MidoriResult::CompilerReport& report = compile_result.error().m_report;
 			if (invocation.m_format == OutputFormat::Json)
 			{
 				std::print("{}", CommandJson("build", false, report, EXIT_FAILURE));
 			}
 			else
 			{
-				std::print("{}", compile_result.error().Rendered());
+				std::print(stderr, "{}", compile_result.error().Rendered());
 			}
 			return EXIT_FAILURE;
 		}
@@ -941,7 +961,7 @@ namespace
 			}
 			else
 			{
-				std::print("{}", report.Rendered());
+				std::print(stderr, "{}", report.Rendered());
 			}
 			return EXIT_FAILURE;
 		}
@@ -971,10 +991,10 @@ namespace
 			return EXIT_SUCCESS;
 		}
 
-		std::print("{}", compiled_program.Report().RenderedWarnings());
+		std::print(stderr, "{}", compiled_program.Report().RenderedWarnings());
 		if (ShouldEmitMachineReadableWarnings())
 		{
-			std::print("{}", compiled_program.Report().MachineReadableWarnings());
+			std::print(stderr, "{}", compiled_program.Report().MachineReadableWarnings());
 		}
 		if (!invocation.m_quiet)
 		{
@@ -1210,6 +1230,7 @@ namespace MidoriCLI
 {
 	int Run(int argc, char* argv[])
 	{
+		CompilerTerminal::SetColorEnabled(DiagnosticsColored());
 		const ParseResult parse_result = ParseInvocation(argc, argv);
 		if (!parse_result.has_value())
 		{

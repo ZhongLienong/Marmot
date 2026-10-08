@@ -31,6 +31,7 @@
 #include <variant>
 #include <filesystem>
 #include <mutex>
+#include <print>
 #include <ranges>
 #include <sstream>
 #include <exception>
@@ -271,18 +272,7 @@ namespace
 
 	static MidoriResult::Result<std::vector<std::string>> LoadModuleSourceLines(const CompileEnv& env, const std::string& file_path)
 	{
-		std::unordered_map<std::string, BuildGraph::BuildNode>::const_iterator node_it = env.m_build_graph.m_nodes.find(file_path);
-		if (node_it == env.m_build_graph.m_nodes.end())
-		{
-			return std::unexpected(MidoriError::GenerateModuleErrorWithContext("Missing build graph node for module: "s + file_path, 0, file_path));
-		}
-
-		if (node_it->second.m_source_lines.empty())
-		{
-			return std::unexpected(MidoriError::GenerateModuleErrorWithContext("Missing source lines for module: "s + file_path, 0, file_path));
-		}
-
-		return node_it->second.m_source_lines;
+		return env.m_build_graph.m_nodes.at(file_path).m_source_lines;
 	}
 
 	// Which module declared a nominal type. Anything else has no module of its
@@ -311,21 +301,23 @@ namespace
 	{
 		ImportContext context;
 		std::unordered_map<std::string, std::string> imported_typeclass_sources;
-		std::vector<const ModuleInterface*> dependency_modules;
+		// Each dependency's interface, and the import a conflict between two of
+		// them points at.
+		std::vector<std::pair<const ModuleInterface*, const Token*>> dependency_modules;
 		dependency_modules.reserve(node.m_dependencies.size());
 
 		{
 			std::lock_guard<std::mutex> lock(env.m_modules_mutex);
 			for (const std::string& dep_path : node.m_dependencies)
 			{
-				dependency_modules.push_back(env.m_interfaces.at(dep_path).get());
+				dependency_modules.emplace_back(env.m_interfaces.at(dep_path).get(), &node.m_import_tokens.at(dep_path));
 			}
 		}
 
 		size_t imported_type_count = 0u;
 		size_t imported_typeclass_count = 0u;
 		size_t imported_generic_function_count = 0u;
-		for (const ModuleInterface* dep : dependency_modules)
+		for (const ModuleInterface* dep : dependency_modules | std::views::keys)
 		{
 			imported_type_count += dep->m_type_signatures.size() * 2u;
 			imported_typeclass_count += dep->m_typeclass_metadata.size();
@@ -347,7 +339,7 @@ namespace
 		// type can name both.
 		std::unordered_map<std::string, std::unordered_map<std::string, std::string>> instance_sources;
 
-		for (const ModuleInterface* dep : dependency_modules)
+		for (const auto& [dep, import_token] : dependency_modules)
 		{
 			const std::string& dep_module_name = dep->m_module_name;
 			context.m_imported_symbols[dep_module_name] = dep->m_symbols;
@@ -360,7 +352,7 @@ namespace
 				{
 					if (!CompilerAccess::TypeclassDefinitionsMatch(existing_it->second, metadata))
 					{
-						return std::unexpected(MidoriError::GenerateModuleErrorWithContext(std::format("Typeclass '{}' is defined in multiple imported modules ('{}' and '{}')", tc_name, imported_typeclass_sources.at(tc_name), dep_module_name), 0, file_path));
+						return std::unexpected(CompilerError::WithToken(CompilerStage::Module, std::format("Typeclass '{}' is defined in multiple imported modules ('{}' and '{}')", tc_name, imported_typeclass_sources.at(tc_name), dep_module_name), *import_token, file_path, node.m_source_lines));
 					}
 
 					for (const std::vector<std::shared_ptr<MidoriType>>& type_args : metadata.m_declared_instance_type_args)
@@ -369,11 +361,13 @@ namespace
 						const std::unordered_map<std::string, std::string>::const_iterator previous = instance_sources[tc_name].find(signature);
 						if (previous != instance_sources[tc_name].cend() && previous->second != dep_module_name)
 						{
-							return std::unexpected(MidoriError::GenerateModuleErrorWithContext(
+							return std::unexpected(CompilerError::WithToken(
+								CompilerStage::Module,
 								std::format("Typeclass '{}' has two instances for '{}': one in module '{}', one in module '{}'. An instance belongs in the module that declares the class or the module that declares the type.",
 									tc_name, signature, previous->second, dep_module_name),
-								0,
-								file_path));
+								*import_token,
+								file_path,
+								node.m_source_lines));
 						}
 					}
 
@@ -819,7 +813,11 @@ namespace
 
 	static CompileStateResult ValidateExports(CompileState state)
 	{
-		const std::unordered_set<std::string>& export_set = state.m_export_info.m_export_set;
+		if (state.m_module_decl == nullptr)
+		{
+			return state;
+		}
+
 		const LoweredModule& lowered_module = state.m_lowered.value();
 		const CompiledModule::TypeclassMetadataMap& typeclass_metadata = state.m_parsed_module.m_typeclass_metadata;
 		const TypeChecker::TypeEnvironment& type_signatures = state.m_parsed_module.m_type_signatures;
@@ -847,8 +845,11 @@ namespace
 			defined_exports.insert(type_name);
 		}
 
-		for (const std::string& exported_name : export_set)
+		// In the order the export list names them, so the first problem is the
+		// one reported.
+		for (const ModuleExport& exported : state.m_module_decl->Exports())
 		{
+			const std::string& exported_name = exported.m_symbol_name;
 			if (defined_exports.contains(exported_name))
 			{
 				continue;
@@ -865,14 +866,8 @@ namespace
 				? "Symbol '"s + exported_name + "' is exported but not defined in module '"s + module_name + "'"s
 				: std::format("Symbol '{}' is re-exported by module '{}', but '{}' and '{}' both export it. Write 'use {}.{{{}}}' to say which one.", exported_name, module_name, origins.front(), origins[1u], origins.front(), exported_name);
 
-			return std::unexpected(MakeStateErrorReport(
-				std::move(state),
-				MidoriResult::CompilerDiagnostics(
-				MidoriError::GenerateModuleErrorWithContext(
-					CompilerErrorCode::ModuleMissingExportedSymbol,
-					message,
-					0,
-					file_path))));
+			CompilerError error = CompilerError::WithToken(CompilerStage::Module, message, exported.m_token, file_path, state.m_source_lines, std::nullopt, CompilerErrorCode::ModuleMissingExportedSymbol);
+			return std::unexpected(MakeStateErrorReport(std::move(state), MidoriResult::CompilerDiagnostics(std::move(error))));
 		}
 
 		return state;

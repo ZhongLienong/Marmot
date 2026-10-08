@@ -73,7 +73,6 @@ Current `CompilerErrorCode` values:
 - `LoweringAmbiguousMethodResolution`
 - `LoweringUnsupportedConstruct`
 - `LoweringUnknownForeignFunction`
-- `BytecodeLinkerNoModulesToLink`
 - `BytecodeLinkerDuplicateExportedSymbol`
 - `BytecodeLinkerUnresolvedImport`
 - `CompilerInternalError`
@@ -127,7 +126,8 @@ Not every diagnostic includes all fields:
 - `WithToken(...)` derives line, column, caret length, and source line from a
   `Token`
 - `WithContext(...)` accepts them explicitly
-- `Simple(...)` creates an unlocated diagnostic that renders as a plain message
+- `Simple(...)` creates an unlocated diagnostic, which renders as its stage
+  header and the message
 - `RuntimeErrorLocation` has the same fields, so compile-time and runtime JSON
   stay aligned
 
@@ -136,7 +136,7 @@ Not every diagnostic includes all fields:
 Compiler diagnostics render with:
 
 - a stage/severity header
-- file and line
+- file and line, when the diagnostic has them
 - source line context
 - caret highlighting when column info exists
 - an optional suggestion line
@@ -211,6 +211,13 @@ That ordering is tested in:
 - `RunExecutable(...)` returns `std::expected<int, RuntimeError>`
 - on successful compile-and-run, warnings are emitted before execution starts
 - on compilation failure, warnings are rendered before the final errors
+- `marmotc` prints rendered diagnostics on stderr, and keeps stdout for what a
+  command produces: JSON, `--emit-ir` and `--emit-ast` dumps, the build
+  summary
+- diagnostics are coloured when stderr is a terminal; `NO_COLOR` turns colour
+  off and `CLICOLOR_FORCE` turns it on, `NO_COLOR` first. `marmot` sets
+  `CLICOLOR_FORCE` for a build whose output it passes on to a terminal.
+  `marmotvm` follows the same rule for stdout, where it prints runtime errors
 - the `"Compilation failed :( "` banner is only used for compilation failures
 - runtime diagnostics are rendered without the compilation banner
 

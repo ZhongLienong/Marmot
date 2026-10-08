@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "Compiler/AbstractSyntaxTree/Type.h"
+#include "Compiler/Token/Token.h"
 
 enum class VisibilityLevel : std::uint8_t
 {
@@ -28,8 +29,10 @@ struct ModuleExport
 {
 	std::string m_symbol_name;
 	VisibilityLevel m_visibility;
+	// The name in the export list, where a diagnostic about it points.
+	Token m_token;
 
-	ModuleExport(std::string_view symbol_name, VisibilityLevel visibility);
+	ModuleExport(Token token, VisibilityLevel visibility);
 };
 
 // Represents a symbol imported via 'use' statement

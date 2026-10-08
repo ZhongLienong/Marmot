@@ -18,6 +18,8 @@ struct BuildGraph
 		std::vector<std::string> m_source_lines;
 		std::vector<std::string> m_dependencies;
 		std::vector<UseImport> m_use_imports;  // Symbols brought into scope via 'use' statements
+		// Each dependency's first import, where a diagnostic about it points.
+		std::unordered_map<std::string, Token> m_import_tokens;
 	};
 
 	std::unordered_map<std::string, BuildNode> m_nodes;

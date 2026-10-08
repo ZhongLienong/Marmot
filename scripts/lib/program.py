@@ -29,7 +29,8 @@ def build_and_run(
 ) -> subprocess.CompletedProcess[str]:
     """Build `source` with marmotc and run it in marmotvm, as `marmot run` does.
 
-    The result's output is the build's, then the run's; its exit code is the
+    The result's stdout is all the build printed, its diagnostics included,
+    then the run's stdout; its stderr is the run's. Its exit code is the
     build's when the build failed. A timeout covers each step. `compiler_args`
     go to `marmotc build` after the source.
     """
@@ -41,4 +42,4 @@ def build_and_run(
         if built.returncode != 0:
             return built
         ran = subprocess.run([str(vm_beside(compiler)), "run", str(program), *(program_args or [])], **options)
-        return subprocess.CompletedProcess(ran.args, ran.returncode, built.stdout + ran.stdout, built.stderr + ran.stderr)
+        return subprocess.CompletedProcess(ran.args, ran.returncode, built.stdout + built.stderr + ran.stdout, ran.stderr)

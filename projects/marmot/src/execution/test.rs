@@ -5,6 +5,7 @@
 //! snapshots beside it, when there are any.
 
 use super::plan::Plan;
+use super::strip_ansi;
 use crate::paths;
 use serde_json::Value;
 use std::io::Read;
@@ -214,21 +215,6 @@ fn root_prefix(root: &Path) -> String {
 
 fn without_root(text: &str, root_prefix: &str) -> String {
     text.replace('\\', "/").replace(root_prefix, "")
-}
-
-fn strip_ansi(text: &str) -> String {
-    let mut stripped = String::with_capacity(text.len());
-    let mut in_escape = false;
-    for character in text.chars() {
-        if character == '\x1b' {
-            in_escape = true;
-        } else if in_escape {
-            in_escape = character != 'm';
-        } else {
-            stripped.push(character);
-        }
-    }
-    stripped
 }
 
 /// Output as a snapshot compares it: no colour, no root, `/` separators, `\n`

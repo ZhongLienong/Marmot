@@ -14,15 +14,12 @@ namespace MidoriDriver
 {
 	struct DriverError
 	{
-		std::string m_message;
-		std::optional<MidoriResult::CompilerReport> m_report = std::nullopt;
+		MidoriResult::CompilerReport m_report;
 		bool m_is_compilation_failure = false;
 
-		static DriverError FileSystem(std::string message);
+		// The source file could not be read, so nothing was compiled.
+		static DriverError FileSystem(std::string_view message, const std::filesystem::path& file_path);
 		static DriverError Compilation(MidoriResult::CompilerReport report);
-		static DriverError Compilation(MidoriResult::CompilerDiagnostics diagnostics);
-		static DriverError Diagnostics(MidoriResult::CompilerReport report);
-		static DriverError Diagnostics(MidoriResult::CompilerDiagnostics diagnostics);
 
 		[[nodiscard]] std::string Rendered() const;
 	};

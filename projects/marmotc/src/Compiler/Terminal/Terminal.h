@@ -1,12 +1,13 @@
 #pragma once
 
-#include <print>
 #include <string_view>
 
 namespace CompilerTerminal
 {
 	enum class Color
 	{
+		RESET,
+		BOLD,
 		RED,
 		YELLOW,
 		BLUE,
@@ -20,14 +21,11 @@ namespace CompilerTerminal
 		DARK_GRAY,
 	};
 
-	inline constexpr std::string_view RESET = "\033[0m";
-	inline constexpr std::string_view BOLD = "\033[1m";
+	// Whether diagnostics carry colour: off until the driver, which knows where
+	// they are going, turns it on before compiling.
+	void SetColorEnabled(bool enabled);
+	[[nodiscard]] bool ColorEnabled();
 
+	// The escape code for `color`, or nothing when colour is off.
 	[[nodiscard]] std::string_view Code(Color color);
-
-	template<Color color = Color::WHITE>
-	void Print(std::string_view message)
-	{
-		std::print("{}{}{}", Code(color), message, RESET);
-	}
 }

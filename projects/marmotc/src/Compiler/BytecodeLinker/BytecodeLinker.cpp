@@ -252,11 +252,6 @@ BytecodeLinker::BytecodeLinker(std::vector<BytecodeModule>&& modules, std::strin
 
 MidoriResult::BytecodeLinkerResult BytecodeLinker::Link()
 {
-	if (m_modules.empty())
-	{
-		return std::unexpected(CompilerError::Simple(CompilerStage::BytecodeLinker, "Cannot link: no modules were successfully compiled.\n\nPossible causes:\n  - All source files failed to compile (check for syntax/type errors above)\n  - Circular module dependencies detected\n  - Module resolution failed (check import paths)\n  - Empty build graph (no valid modules to compile)", CompilerErrorCode::BytecodeLinkerNoModulesToLink));
-	}
-
 	AssignModuleBaseOffsets();
 
 	MidoriResult::VoidResult symbol_result = BuildGlobalSymbolTable();
@@ -296,7 +291,6 @@ MidoriResult::BytecodeLinkerResult BytecodeLinker::Link()
 			message += "  ";
 			message += unresolved;
 		}
-		message.push_back(static_cast<char>(10));
 		return std::unexpected(CompilerError::Simple(CompilerStage::BytecodeLinker, message, CompilerErrorCode::BytecodeLinkerUnresolvedImport));
 	}
 

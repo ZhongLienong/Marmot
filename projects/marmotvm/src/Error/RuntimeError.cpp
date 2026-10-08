@@ -189,18 +189,18 @@ namespace
 		std::ostringstream oss;
 		const bool is_panic = error.m_kind == RuntimeDiagnosticKind::Panic;
 
-		oss << RuntimeTerminal::BOLD;
+		oss << RuntimeTerminal::Code(RuntimeTerminal::Color::BOLD);
 		oss << RuntimeTerminal::Code(RuntimeTerminal::Color::BRIGHT_RED);
 		oss << (is_panic ? "panic" : "error");
 		if (error.m_code != RuntimeErrorCode::None)
 		{
 			oss << "[" << RuntimeErrorCodeName(error.m_code) << "]";
 		}
-		oss << "\033[0m";
+		oss << RuntimeTerminal::Code(RuntimeTerminal::Color::RESET);
 		oss << ": ";
 		oss << RuntimeTerminal::Code(RuntimeTerminal::Color::BRIGHT_WHITE);
 		oss << error.m_message;
-		oss << "\033[0m\n";
+		oss << RuntimeTerminal::Code(RuntimeTerminal::Color::RESET) << "\n";
 
 		if (error.m_location.has_value())
 		{
@@ -213,7 +213,7 @@ namespace
 				oss << " ";
 				oss << RuntimeTerminal::Code(RuntimeTerminal::Color::BRIGHT_CYAN);
 				oss << "-->";
-				oss << "\033[0m";
+				oss << RuntimeTerminal::Code(RuntimeTerminal::Color::RESET);
 				oss << " ";
 				if (has_file)
 				{
@@ -245,7 +245,7 @@ namespace
 				{
 					oss << " ";
 				}
-				oss << "|\033[0m\n";
+				oss << "|" << RuntimeTerminal::Code(RuntimeTerminal::Color::RESET) << "\n";
 
 				oss << line_number;
 				oss << " | ";
@@ -276,14 +276,14 @@ namespace
 				{
 					oss << " " << error.m_message;
 				}
-				oss << "\033[0m\n";
+				oss << RuntimeTerminal::Code(RuntimeTerminal::Color::RESET) << "\n";
 
 				oss << RuntimeTerminal::Code(RuntimeTerminal::Color::BLUE);
 				for (int index = 0; index < gutter_width; index += 1)
 				{
 					oss << " ";
 				}
-				oss << "|\033[0m\n";
+				oss << "|" << RuntimeTerminal::Code(RuntimeTerminal::Color::RESET) << "\n";
 			}
 		}
 
@@ -295,7 +295,7 @@ namespace
 				oss << "  at ";
 				oss << RuntimeTerminal::Code(RuntimeTerminal::Color::BRIGHT_YELLOW);
 				oss << frame.m_procedure_name;
-				oss << "\033[0m";
+				oss << RuntimeTerminal::Code(RuntimeTerminal::Color::RESET);
 
 				if (!frame.m_module_name.empty())
 				{

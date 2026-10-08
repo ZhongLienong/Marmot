@@ -22,7 +22,7 @@ pub(crate) struct Stamp {
     pub(crate) compiler: String,
     /// Every source file the program was built from, hashed.
     pub(crate) files: BTreeMap<String, String>,
-    /// What the build printed, replayed when the build is skipped.
+    /// What the build printed on stderr, replayed when the build is skipped.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) output: Option<String>,
     /// The build's report, for `--format json`.

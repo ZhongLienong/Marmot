@@ -7,6 +7,8 @@ namespace RuntimeTerminal
 {
 	enum class Color
 	{
+		RESET,
+		BOLD,
 		RED,
 		GREEN,
 		YELLOW,
@@ -18,14 +20,16 @@ namespace RuntimeTerminal
 		BRIGHT_WHITE,
 	};
 
-	inline constexpr std::string_view RESET = "\033[0m";
-	inline constexpr std::string_view BOLD = "\033[1m";
+	// Runtime errors go to stdout, so they are coloured when it is a terminal.
+	// NO_COLOR turns colour off and CLICOLOR_FORCE on, NO_COLOR first.
+	[[nodiscard]] bool ColorEnabled();
 
+	// The escape code for `color`, or nothing when colour is off.
 	[[nodiscard]] std::string_view Code(Color color);
 
 	template<Color color = Color::WHITE>
 	void Print(std::string_view message)
 	{
-		std::print("{}{}{}", Code(color), message, RESET);
+		std::print("{}{}{}", Code(color), message, Code(Color::RESET));
 	}
 }

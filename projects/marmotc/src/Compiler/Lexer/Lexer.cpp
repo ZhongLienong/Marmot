@@ -202,8 +202,7 @@ MidoriResult::VoidResult Lexer::SkipBlockComment()
 
 		if (IsAtEnd(0))
 		{
-			const int column = CurrentColumn();
-			return std::unexpected(MidoriError::GenerateLexerErrorWithContext("Unterminated block comment", m_cursor.m_line, column, m_source.m_file_name, m_source.m_lines));
+			return std::unexpected(MidoriError::GenerateLexerErrorWithContext("Unterminated block comment", m_cursor.m_begin_line, BeginColumn(), m_source.m_file_name, m_source.m_lines));
 		}
 
 		if (LookAhead(0) == '\n')
@@ -258,6 +257,7 @@ MidoriResult::VoidResult Lexer::SkipWhitespaceAndComments()
 					return {};
 				}
 
+				BeginToken();
 				Advance(); // '/'
 				Advance(); // '*'
 				return SkipBlockComment()
@@ -567,8 +567,7 @@ MidoriResult::TokenResult Lexer::MatchBlockComment()
 
 		if (IsAtEnd(0))
 		{
-			const int column = CurrentColumn();
-			return std::unexpected(MidoriError::GenerateLexerErrorWithContext("Unterminated block comment", m_cursor.m_line, column, m_source.m_file_name, m_source.m_lines));
+			return std::unexpected(MidoriError::GenerateLexerErrorWithContext("Unterminated block comment", m_cursor.m_begin_line, BeginColumn(), m_source.m_file_name, m_source.m_lines));
 		}
 
 		if (LookAhead(0) == '\n')
