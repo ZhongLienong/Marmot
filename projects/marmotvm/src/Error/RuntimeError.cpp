@@ -14,10 +14,6 @@ std::string_view RuntimeErrorCodeName(RuntimeErrorCode code)
 		return "None";
 	case RuntimeErrorCode::IndexOutOfBounds:
 		return "IndexOutOfBounds";
-	case RuntimeErrorCode::NegativeArraySize:
-		return "NegativeArraySize";
-	case RuntimeErrorCode::ArraySizeExceeded:
-		return "ArraySizeExceeded";
 	case RuntimeErrorCode::FFIFunctionNotFound:
 		return "FFIFunctionNotFound";
 	case RuntimeErrorCode::StackOverflow:
@@ -66,8 +62,6 @@ namespace
 			return true;
 		case RuntimeErrorCode::None:
 		case RuntimeErrorCode::IndexOutOfBounds:
-		case RuntimeErrorCode::NegativeArraySize:
-		case RuntimeErrorCode::ArraySizeExceeded:
 		case RuntimeErrorCode::FFIFunctionNotFound:
 		case RuntimeErrorCode::DivisionByZero:
 		case RuntimeErrorCode::WorkerCancelled:

@@ -201,23 +201,9 @@ private:
 
 	int GetLine() noexcept;
 
-	MIDORI_FORCE_INLINE VmOpCode ReadByte() noexcept
-	{
-		return *m_instruction_pointer++;
-	}
-
 	static MIDORI_FORCE_INLINE VmOpCode ReadByte(InstructionPointer& ip) noexcept
 	{
 		return *ip++;
-	}
-
-	MIDORI_FORCE_INLINE int ReadShort() noexcept
-	{
-		const uint8_t b0 = static_cast<uint8_t>(m_instruction_pointer[0u]);
-		const uint8_t b1 = static_cast<uint8_t>(m_instruction_pointer[1u]);
-		int value = static_cast<int>(static_cast<uint16_t>(b0) | (static_cast<uint16_t>(b1) << 8));
-		m_instruction_pointer += 2;
-		return value;
 	}
 
 	static MIDORI_FORCE_INLINE int ReadShort(InstructionPointer& ip) noexcept
@@ -226,16 +212,6 @@ private:
 		const uint8_t b1 = static_cast<uint8_t>(ip[1u]);
 		int value = static_cast<int>(static_cast<uint16_t>(b0) | (static_cast<uint16_t>(b1) << 8));
 		ip += 2;
-		return value;
-	}
-
-	MIDORI_FORCE_INLINE int ReadThreeBytes() noexcept
-	{
-		const uint8_t b0 = static_cast<uint8_t>(m_instruction_pointer[0u]);
-		const uint8_t b1 = static_cast<uint8_t>(m_instruction_pointer[1u]);
-		const uint8_t b2 = static_cast<uint8_t>(m_instruction_pointer[2u]);
-		int value = static_cast<int>(static_cast<uint32_t>(b0) | (static_cast<uint32_t>(b1) << 8) | (static_cast<uint32_t>(b2) << 16));
-		m_instruction_pointer += 3;
 		return value;
 	}
 
@@ -249,80 +225,6 @@ private:
 		return value;
 	}
 
-	MIDORI_FORCE_INLINE MidoriInteger ReadIntegerConstant() noexcept
-	{
-		uint64_t bits = 0u;
-		std::memcpy(&bits, m_instruction_pointer, sizeof(bits));
-		if constexpr (std::endian::native == std::endian::big)
-		{
-			bits = std::byteswap(bits);
-		}
-		m_instruction_pointer += sizeof(MidoriInteger);
-		return static_cast<MidoriInteger>(bits);
-	}
-
-	static MIDORI_FORCE_INLINE MidoriInteger ReadIntegerConstant(InstructionPointer& ip) noexcept
-	{
-		uint64_t bits = 0u;
-		std::memcpy(&bits, ip, sizeof(bits));
-		if constexpr (std::endian::native == std::endian::big)
-		{
-			bits = std::byteswap(bits);
-		}
-		ip += sizeof(MidoriInteger);
-		return static_cast<MidoriInteger>(bits);
-	}
-
-	MIDORI_FORCE_INLINE MidoriFloat ReadFloatConstant() noexcept
-	{
-		uint64_t bits = 0u;
-		std::memcpy(&bits, m_instruction_pointer, sizeof(bits));
-		if constexpr (std::endian::native == std::endian::big)
-		{
-			bits = std::byteswap(bits);
-		}
-		m_instruction_pointer += sizeof(MidoriFloat);
-		return std::bit_cast<MidoriFloat>(bits);
-	}
-
-	static MIDORI_FORCE_INLINE MidoriFloat ReadFloatConstant(InstructionPointer& ip) noexcept
-	{
-		uint64_t bits = 0u;
-		std::memcpy(&bits, ip, sizeof(bits));
-		if constexpr (std::endian::native == std::endian::big)
-		{
-			bits = std::byteswap(bits);
-		}
-		ip += sizeof(MidoriFloat);
-		return std::bit_cast<MidoriFloat>(bits);
-	}
-
-	MIDORI_FORCE_INLINE MidoriByte ReadByteConstant() noexcept
-	{
-		MidoriByte value = static_cast<MidoriByte>(*m_instruction_pointer);
-		m_instruction_pointer += sizeof(MidoriByte);
-		return value;
-	}
-
-	static MIDORI_FORCE_INLINE MidoriByte ReadByteConstant(InstructionPointer& ip) noexcept
-	{
-		MidoriByte value = static_cast<MidoriByte>(*ip);
-		ip += sizeof(MidoriByte);
-		return value;
-	}
-
-	MIDORI_FORCE_INLINE MidoriWord ReadWordConstant() noexcept
-	{
-		uint64_t bits = 0u;
-		std::memcpy(&bits, m_instruction_pointer, sizeof(bits));
-		if constexpr (std::endian::native == std::endian::big)
-		{
-			bits = std::byteswap(bits);
-		}
-		m_instruction_pointer += sizeof(MidoriWord);
-		return bits;
-	}
-
 	static MIDORI_FORCE_INLINE MidoriWord ReadWordConstant(InstructionPointer& ip) noexcept
 	{
 		uint64_t bits = 0u;
@@ -333,6 +235,23 @@ private:
 		}
 		ip += sizeof(MidoriWord);
 		return bits;
+	}
+
+	static MIDORI_FORCE_INLINE MidoriInteger ReadIntegerConstant(InstructionPointer& ip) noexcept
+	{
+		return static_cast<MidoriInteger>(ReadWordConstant(ip));
+	}
+
+	static MIDORI_FORCE_INLINE MidoriFloat ReadFloatConstant(InstructionPointer& ip) noexcept
+	{
+		return std::bit_cast<MidoriFloat>(ReadWordConstant(ip));
+	}
+
+	static MIDORI_FORCE_INLINE MidoriByte ReadByteConstant(InstructionPointer& ip) noexcept
+	{
+		MidoriByte value = static_cast<MidoriByte>(*ip);
+		ip += sizeof(MidoriByte);
+		return value;
 	}
 
 	RuntimeError GenerateRuntimeError(RuntimeErrorCode code, std::string_view message, int line) noexcept;

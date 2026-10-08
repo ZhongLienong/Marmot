@@ -87,11 +87,6 @@ struct SerializedObject
 	Variant m_data;
 };
 
-struct TransferResult
-{
-	MidoriValue m_value;
-};
-
 class ValueTransfer
 {
 public:
@@ -109,14 +104,8 @@ public:
 
 	static std::expected<MidoriValue, std::string> Deserialize(const SerializedValue& source, VirtualMachine& target_vm, DeserializePointerMap& sharing);
 
-	static std::expected<TransferResult, std::string> Transfer(MidoriValue source, VirtualMachine& source_vm, VirtualMachine& target_vm);
-
 private:
-	static std::expected<SerializedValue, std::string> SerializeValue(MidoriValue source, VirtualMachine& source_vm, SerializePointerMap& visited);
-
 	static std::expected<std::shared_ptr<SerializedObject>, std::string> SerializeTraceable(MidoriTraceable* source, VirtualMachine& source_vm, SerializePointerMap& visited);
-
-	static std::expected<MidoriValue, std::string> DeserializeValue(const SerializedValue& source, VirtualMachine& target_vm, DeserializePointerMap& visited);
 
 	static std::expected<MidoriTraceable*, std::string> DeserializeObject(const std::shared_ptr<SerializedObject>& source, VirtualMachine& target_vm, DeserializePointerMap& visited);
 };

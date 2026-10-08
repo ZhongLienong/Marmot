@@ -10,8 +10,6 @@ enum class RuntimeErrorCode
 {
 	None,
 	IndexOutOfBounds,
-	NegativeArraySize,
-	ArraySizeExceeded,
 	FFIFunctionNotFound,
 	StackOverflow,
 	MemoryAccessViolation,

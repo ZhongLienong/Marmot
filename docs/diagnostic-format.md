@@ -204,8 +204,6 @@ Current `RuntimeErrorCode` values:
 
 - `None`
 - `IndexOutOfBounds`
-- `NegativeArraySize`
-- `ArraySizeExceeded`
 - `FFIFunctionNotFound`
 - `StackOverflow`
 - `MemoryAccessViolation`
@@ -342,8 +340,6 @@ are emitted with the same shape as the full examples above.
 | Code | Stage | Kind | Example message |
 |------|-------|------|-----------------|
 | `IndexOutOfBounds` | `Runtime` | `error` | `Array index 5 out of bounds for length 3.` |
-| `NegativeArraySize` | `Runtime` | `error` | `Cannot construct array with negative size -1.` |
-| `ArraySizeExceeded` | `Runtime` | `error` | `Array size exceeds maximum.` |
 | `FFIFunctionNotFound` | `Runtime` | `error` | `FFI function 'MIDORI_FFI_Foo' not found.` |
 | `StackOverflow` | `Runtime` | `panic` | `Stack overflow - exceeded maximum call depth.` |
 | `MemoryAccessViolation` | `Runtime` | `panic` | `Memory access violation.` |

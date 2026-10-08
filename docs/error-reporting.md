@@ -93,8 +93,6 @@ Current `RuntimeErrorCode` values:
 
 - `None`
 - `IndexOutOfBounds`
-- `NegativeArraySize`
-- `ArraySizeExceeded`
 - `FFIFunctionNotFound`
 - `StackOverflow`
 - `MemoryAccessViolation`

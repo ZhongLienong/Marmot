@@ -28,11 +28,6 @@ namespace
 		std::exit(EXIT_FAILURE);
 	}
 
-	void WriteUnit(void* ret) noexcept
-	{
-		*static_cast<MidoriValue*>(ret) = MidoriValue();
-	}
-
 	void WriteBool(void* ret, bool value) noexcept
 	{
 		*static_cast<MidoriValue*>(ret) = MidoriValue(value);
