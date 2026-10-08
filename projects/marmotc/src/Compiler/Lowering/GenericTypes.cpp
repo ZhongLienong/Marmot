@@ -344,6 +344,22 @@ std::shared_ptr<MidoriType> GenericTypes::Substitute(const std::shared_ptr<Midor
 		const std::shared_ptr<MidoriType>& m_current;
 		const AssociatedTypeResolver& m_resolve;
 
+		// m_substitute, setting `changed` when a part comes back different.
+		auto Tracked(bool& changed) const
+		{
+			return [this, &changed](const std::shared_ptr<MidoriType>& part)
+			{
+				std::shared_ptr<MidoriType> substituted = m_substitute(part);
+				changed = changed || substituted != part;
+				return substituted;
+			};
+		}
+
+		std::vector<std::shared_ptr<MidoriType>> SubstituteAll(const std::vector<std::shared_ptr<MidoriType>>& parts, bool& changed) const
+		{
+			return parts | std::views::transform(Tracked(changed)) | std::ranges::to<std::vector>();
+		}
+
 		std::shared_ptr<MidoriType> operator()(const MidoriType::GenericParam& type_variant) const
 		{
 			TypeEnvironment::const_iterator it = m_generic_type_map.find(type_variant.m_name);
@@ -406,17 +422,8 @@ std::shared_ptr<MidoriType> GenericTypes::Substitute(const std::shared_ptr<Midor
 
 		std::shared_ptr<MidoriType> operator()(const MidoriType::TupleType& type_variant) const
 		{
-			std::vector<std::shared_ptr<MidoriType>> substituted_elements;
 			bool changed = false;
-			for (const std::shared_ptr<MidoriType>& elem_type : type_variant.m_element_types)
-			{
-				std::shared_ptr<MidoriType> substituted = m_substitute(elem_type);
-				substituted_elements.push_back(substituted);
-				if (substituted != elem_type)
-				{
-					changed = true;
-				}
-			}
+			std::vector<std::shared_ptr<MidoriType>> substituted_elements = SubstituteAll(type_variant.m_element_types, changed);
 			if (changed)
 			{
 				return std::make_shared<MidoriType>(MidoriType::TupleType{ std::move(substituted_elements) });
@@ -426,39 +433,10 @@ std::shared_ptr<MidoriType> GenericTypes::Substitute(const std::shared_ptr<Midor
 
 		std::shared_ptr<MidoriType> operator()(const MidoriType::FunctionType& type_variant) const
 		{
-			std::vector<std::shared_ptr<MidoriType>> substituted_params;
 			bool changed = false;
-			for (const std::shared_ptr<MidoriType>& param_type : type_variant.m_param_types)
-			{
-				std::shared_ptr<MidoriType> substituted = m_substitute(param_type);
-				substituted_params.push_back(substituted);
-				if (substituted != param_type)
-				{
-					changed = true;
-				}
-			}
-			std::shared_ptr<MidoriType> substituted_return = m_substitute(type_variant.m_return_type);
-			if (substituted_return != type_variant.m_return_type)
-			{
-				changed = true;
-			}
-			std::vector<MidoriType::ClassConstraint> substituted_constraints;
-			substituted_constraints.reserve(type_variant.m_constraints.size());
-			for (const MidoriType::ClassConstraint& constraint : type_variant.m_constraints)
-			{
-				std::vector<std::shared_ptr<MidoriType>> substituted_type_args;
-				substituted_type_args.reserve(constraint.m_type_args.size());
-				for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
-				{
-					std::shared_ptr<MidoriType> substituted = m_substitute(type_arg);
-					substituted_type_args.push_back(substituted);
-					if (substituted != type_arg)
-					{
-						changed = true;
-					}
-				}
-				substituted_constraints.emplace_back(constraint.m_class_name, std::move(substituted_type_args));
-			}
+			std::vector<std::shared_ptr<MidoriType>> substituted_params = SubstituteAll(type_variant.m_param_types, changed);
+			std::shared_ptr<MidoriType> substituted_return = Tracked(changed)(type_variant.m_return_type);
+			std::vector<MidoriType::ClassConstraint> substituted_constraints = MidoriType::MapConstraints(type_variant.m_constraints, Tracked(changed));
 			if (changed)
 			{
 				return std::make_shared<MidoriType>
@@ -486,16 +464,7 @@ std::shared_ptr<MidoriType> GenericTypes::Substitute(const std::shared_ptr<Midor
 			std::vector<std::shared_ptr<MidoriType>> substituted_members;
 			std::ranges::transform(type_variant.m_member_types, std::back_inserter(substituted_members), m_substitute);
 			new_struct->GetType<MidoriType::StructType>().m_member_types = std::move(substituted_members);
-			std::vector<MidoriType::ClassConstraint> substituted_constraints;
-			substituted_constraints.reserve(type_variant.m_constraints.size());
-			for (const MidoriType::ClassConstraint& constraint : type_variant.m_constraints)
-			{
-				std::vector<std::shared_ptr<MidoriType>> substituted_type_args;
-				substituted_type_args.reserve(constraint.m_type_args.size());
-				std::ranges::transform(constraint.m_type_args, std::back_inserter(substituted_type_args), m_substitute);
-				substituted_constraints.emplace_back(constraint.m_class_name, std::move(substituted_type_args));
-			}
-			new_struct->GetType<MidoriType::StructType>().m_constraints = std::move(substituted_constraints);
+			new_struct->GetType<MidoriType::StructType>().m_constraints = MidoriType::MapConstraints(type_variant.m_constraints, m_substitute);
 			if (!type_variant.m_generic_params.empty() || type_variant.m_is_generic_instantiation)
 			{
 				new_struct->GetType<MidoriType::StructType>().m_is_generic_instantiation = true;
@@ -510,16 +479,7 @@ std::shared_ptr<MidoriType> GenericTypes::Substitute(const std::shared_ptr<Midor
 			std::shared_ptr<MidoriType> new_union = MidoriType::MakeUnionType(type_variant.m_name, type_variant.m_module_name, std::move(instantiated_generic_params));
 			m_cache[m_current.get()] = new_union;
 			MidoriType::UnionType& new_union_ref = new_union->GetType<MidoriType::UnionType>();
-			std::vector<MidoriType::ClassConstraint> substituted_constraints;
-			substituted_constraints.reserve(type_variant.m_constraints.size());
-			for (const MidoriType::ClassConstraint& constraint : type_variant.m_constraints)
-			{
-				std::vector<std::shared_ptr<MidoriType>> substituted_type_args;
-				substituted_type_args.reserve(constraint.m_type_args.size());
-				std::ranges::transform(constraint.m_type_args, std::back_inserter(substituted_type_args), m_substitute);
-				substituted_constraints.emplace_back(constraint.m_class_name, std::move(substituted_type_args));
-			}
-			new_union_ref.m_constraints = std::move(substituted_constraints);
+			new_union_ref.m_constraints = MidoriType::MapConstraints(type_variant.m_constraints, m_substitute);
 			if (!type_variant.m_generic_params.empty() || type_variant.m_is_generic_instantiation)
 			{
 				new_union_ref.m_is_generic_instantiation = true;
@@ -536,17 +496,8 @@ std::shared_ptr<MidoriType> GenericTypes::Substitute(const std::shared_ptr<Midor
 		}
 		std::shared_ptr<MidoriType> operator()(const MidoriType::AssociatedType& type_variant) const
 		{
-			std::vector<std::shared_ptr<MidoriType>> substituted_type_args;
 			bool changed = false;
-			for (const std::shared_ptr<MidoriType>& type_arg : type_variant.m_type_args)
-			{
-				std::shared_ptr<MidoriType> substituted = m_substitute(type_arg);
-				substituted_type_args.push_back(substituted);
-				if (substituted != type_arg)
-				{
-					changed = true;
-				}
-			}
+			std::vector<std::shared_ptr<MidoriType>> substituted_type_args = SubstituteAll(type_variant.m_type_args, changed);
 			const std::shared_ptr<MidoriType> projection = changed ? MidoriType::MakeAssociatedType(type_variant.m_class_name, type_variant.m_name, std::move(substituted_type_args)) : m_current;
 			if (!m_resolve)
 			{
@@ -562,16 +513,7 @@ std::shared_ptr<MidoriType> GenericTypes::Substitute(const std::shared_ptr<Midor
 			std::shared_ptr<MidoriType> new_newtype = MidoriType::MakeNewType(type_variant.m_name, type_variant.m_module_name, substituted_representation, std::move(instantiated_generic_params));
 			m_cache[m_current.get()] = new_newtype;
 			MidoriType::NewType& new_newtype_ref = new_newtype->GetType<MidoriType::NewType>();
-			std::vector<MidoriType::ClassConstraint> substituted_constraints;
-			substituted_constraints.reserve(type_variant.m_constraints.size());
-			for (const MidoriType::ClassConstraint& constraint : type_variant.m_constraints)
-			{
-				std::vector<std::shared_ptr<MidoriType>> substituted_type_args;
-				substituted_type_args.reserve(constraint.m_type_args.size());
-				std::ranges::transform(constraint.m_type_args, std::back_inserter(substituted_type_args), m_substitute);
-				substituted_constraints.emplace_back(constraint.m_class_name, std::move(substituted_type_args));
-			}
-			new_newtype_ref.m_constraints = std::move(substituted_constraints);
+			new_newtype_ref.m_constraints = MidoriType::MapConstraints(type_variant.m_constraints, m_substitute);
 			if (!type_variant.m_generic_params.empty() || type_variant.m_is_generic_instantiation)
 			{
 				new_newtype_ref.m_is_generic_instantiation = true;

@@ -92,6 +92,21 @@ public:
 		ClassConstraint(std::shared_ptr<MidoriType>&& equality_lhs, std::shared_ptr<MidoriType>&& equality_rhs);
 		bool operator==(const ClassConstraint& other) const;
 		bool IsEquality() const;
+
+		// The same constraint with each of its types passed through `map`: the
+		// class's type arguments, then both sides of an equality.
+		template<typename MapFn>
+		ClassConstraint Map(MapFn&& map) const
+		{
+			ClassConstraint mapped(*this);
+			std::ranges::transform(m_type_args, mapped.m_type_args.begin(), map);
+			if (IsEquality())
+			{
+				mapped.m_equality_lhs = map(m_equality_lhs);
+				mapped.m_equality_rhs = map(m_equality_rhs);
+			}
+			return mapped;
+		}
 	};
 
 	struct AssociatedType
@@ -246,6 +261,14 @@ public:
 	using TypeArgumentSubstituteFn = std::function<std::shared_ptr<MidoriType>(const std::shared_ptr<MidoriType>&)>;
 
 	static std::vector<std::shared_ptr<MidoriType>> InstantiateTypeArguments(const std::vector<std::string>& generic_params, const std::vector<std::shared_ptr<MidoriType>>& type_arguments, const TypeArgumentSubstituteFn& substitute);
+
+	template<typename MapFn>
+	static std::vector<ClassConstraint> MapConstraints(const std::vector<ClassConstraint>& constraints, MapFn&& map)
+	{
+		return constraints
+			| std::views::transform([&map](const ClassConstraint& constraint) { return constraint.Map(map); })
+			| std::ranges::to<std::vector>();
+	}
 
 	// What identifies the type: a declared type's module is part of it, so an
 	// instance keyed on one module's `Wrap` is not the other module's.

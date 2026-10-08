@@ -28,23 +28,6 @@ namespace
 	using JoinWithCommaFn = std::function<std::string(const std::string&, const std::string&)>;
 	using ToStringFn = std::function<std::string(const MidoriType&)>;
 
-	// Rebuilding a constraint through the class constructor would drop the operands
-	// of an equality constraint and leave it looking like a class constraint with
-	// no name, so both forms are rebuilt explicitly.
-	template<typename SubstituteFn>
-	MidoriType::ClassConstraint SubstituteConstraint(const MidoriType::ClassConstraint& constraint, SubstituteFn& substitute)
-	{
-		if (constraint.IsEquality())
-		{
-			return MidoriType::ClassConstraint(substitute(constraint.m_equality_lhs), substitute(constraint.m_equality_rhs));
-		}
-
-		std::vector<TypePtr> new_type_args;
-		new_type_args.reserve(constraint.m_type_args.size());
-		std::ranges::transform(constraint.m_type_args, std::back_inserter(new_type_args), substitute);
-		return MidoriType::ClassConstraint(constraint.m_class_name, std::move(new_type_args));
-	}
-
 	template<typename SubstituteFn>
 	struct SubstitutionVisitor
 	{
@@ -105,13 +88,7 @@ namespace
 				std::vector<TypePtr> new_param_types;
 				std::ranges::transform(type_variant.m_param_types, std::back_inserter(new_param_types), substitute);
 				TypePtr new_function = MidoriType::MakeFunctionType(new_param_types, substitute(type_variant.m_return_type), type_variant.m_is_foreign);
-				std::vector<MidoriType::ClassConstraint> new_constraints;
-				new_constraints.reserve(type_variant.m_constraints.size());
-				for (const MidoriType::ClassConstraint& constraint : type_variant.m_constraints)
-				{
-					new_constraints.emplace_back(SubstituteConstraint(constraint, substitute));
-				}
-				new_function->GetType<MidoriType::FunctionType>().m_constraints = std::move(new_constraints);
+				new_function->GetType<MidoriType::FunctionType>().m_constraints = MidoriType::MapConstraints(type_variant.m_constraints, substitute);
 				return new_function;
 			}
 			else if constexpr (std::is_same_v<T, MidoriType::StructType>)
@@ -125,13 +102,7 @@ namespace
 				std::vector<TypePtr> new_member_types;
 				std::ranges::transform(type_variant.m_member_types, std::back_inserter(new_member_types), substitute);
 				new_struct->GetType<MidoriType::StructType>().m_member_types = std::move(new_member_types);
-				std::vector<MidoriType::ClassConstraint> new_constraints;
-				new_constraints.reserve(type_variant.m_constraints.size());
-				for (const MidoriType::ClassConstraint& constraint : type_variant.m_constraints)
-				{
-					new_constraints.emplace_back(SubstituteConstraint(constraint, substitute));
-				}
-				new_struct->GetType<MidoriType::StructType>().m_constraints = std::move(new_constraints);
+				new_struct->GetType<MidoriType::StructType>().m_constraints = MidoriType::MapConstraints(type_variant.m_constraints, substitute);
 				if (!type_variant.m_generic_params.empty() || type_variant.m_is_generic_instantiation)
 				{
 					new_struct->GetType<MidoriType::StructType>().m_is_generic_instantiation = true;
@@ -144,13 +115,7 @@ namespace
 				std::vector<std::string> instantiated_generic_params;
 				TypePtr new_union_type = InRootTarget(MidoriType::MakeUnionType(type_variant.m_name, type_variant.m_module_name, std::move(instantiated_generic_params)));
 				MidoriType::UnionType& new_union_ref = new_union_type->GetType<MidoriType::UnionType>();
-				std::vector<MidoriType::ClassConstraint> new_constraints;
-				new_constraints.reserve(type_variant.m_constraints.size());
-				for (const MidoriType::ClassConstraint& constraint : type_variant.m_constraints)
-				{
-					new_constraints.emplace_back(SubstituteConstraint(constraint, substitute));
-				}
-				new_union_ref.m_constraints = std::move(new_constraints);
+				new_union_ref.m_constraints = MidoriType::MapConstraints(type_variant.m_constraints, substitute);
 				if (!type_variant.m_generic_params.empty() || type_variant.m_is_generic_instantiation)
 				{
 					new_union_ref.m_is_generic_instantiation = true;
@@ -183,14 +148,7 @@ namespace
 
 				MidoriType::NewType& new_ref = new_newtype->GetType<MidoriType::NewType>();
 				new_ref.m_representation = substitute(type_variant.m_representation);
-
-				std::vector<MidoriType::ClassConstraint> new_constraints;
-				new_constraints.reserve(type_variant.m_constraints.size());
-				for (const MidoriType::ClassConstraint& constraint : type_variant.m_constraints)
-				{
-					new_constraints.emplace_back(SubstituteConstraint(constraint, substitute));
-				}
-				new_ref.m_constraints = std::move(new_constraints);
+				new_ref.m_constraints = MidoriType::MapConstraints(type_variant.m_constraints, substitute);
 
 				if (!type_variant.m_generic_params.empty() || type_variant.m_is_generic_instantiation)
 				{

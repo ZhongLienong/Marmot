@@ -2109,6 +2109,9 @@ std::shared_ptr<MidoriType> TypeChecker::Freshen(const std::shared_ptr<MidoriTyp
 		return cache_it->second;
 	}
 
+	auto freshen = [this, &context](const std::shared_ptr<MidoriType>& part) { return Freshen(part, context); };
+	auto freshen_all = [&freshen](const std::vector<std::shared_ptr<MidoriType>>& parts) { return parts | std::views::transform(freshen) | std::ranges::to<std::vector>(); };
+
 	if (type->IsType<MidoriType::UndecidedType>() || type->IsType<MidoriType::TypeVariable>())
 	{
 		std::shared_ptr<MidoriType> fresh_var = FreshTypeVar();
@@ -2135,63 +2138,31 @@ std::shared_ptr<MidoriType> TypeChecker::Freshen(const std::shared_ptr<MidoriTyp
 	}
 	else if (type->IsType<MidoriType::ArrayType>())
 	{
-		MidoriType::ArrayType& array_type = type->GetType<MidoriType::ArrayType>();
-		return MidoriType::MakeArrayType(Freshen(array_type.m_element_type, context));
+		return MidoriType::MakeArrayType(freshen(type->GetType<MidoriType::ArrayType>().m_element_type));
 	}
 	else if (type->IsType<MidoriType::RangeType>())
 	{
-		MidoriType::RangeType& range_type = type->GetType<MidoriType::RangeType>();
-		return MidoriType::MakeRangeType(Freshen(range_type.m_element_type, context));
+		return MidoriType::MakeRangeType(freshen(type->GetType<MidoriType::RangeType>().m_element_type));
 	}
 	else if (type->IsType<MidoriType::WorkerType>())
 	{
-		MidoriType::WorkerType& worker_type = type->GetType<MidoriType::WorkerType>();
-		return MidoriType::MakeWorkerType(Freshen(worker_type.m_result_type, context));
+		return MidoriType::MakeWorkerType(freshen(type->GetType<MidoriType::WorkerType>().m_result_type));
 	}
 	else if (type->IsType<MidoriType::ChannelType>())
 	{
-		MidoriType::ChannelType& channel_type = type->GetType<MidoriType::ChannelType>();
-		return MidoriType::MakeChannelType(Freshen(channel_type.m_element_type, context));
+		return MidoriType::MakeChannelType(freshen(type->GetType<MidoriType::ChannelType>().m_element_type));
 	}
 	else if (type->IsType<MidoriType::CellType>())
 	{
-		MidoriType::CellType& cell_type = type->GetType<MidoriType::CellType>();
-		return MidoriType::MakeCellType(Freshen(cell_type.m_element_type, context));
+		return MidoriType::MakeCellType(freshen(type->GetType<MidoriType::CellType>().m_element_type));
 	}
 	else if (type->IsType<MidoriType::FunctionType>())
 	{
 		MidoriType::FunctionType& func_type = type->GetType<MidoriType::FunctionType>();
-		std::vector<std::shared_ptr<MidoriType>> fresh_params;
-		std::ranges::for_each
-		(
-			func_type.m_param_types,
-			[&fresh_params, &context, this](const std::shared_ptr<MidoriType>& param_type)
-			{
-				fresh_params.emplace_back(Freshen(param_type, context));
-			}
-		);
-
-		std::shared_ptr<MidoriType> fresh_return = Freshen(func_type.m_return_type, context);
+		std::vector<std::shared_ptr<MidoriType>> fresh_params = freshen_all(func_type.m_param_types);
+		std::shared_ptr<MidoriType> fresh_return = freshen(func_type.m_return_type);
 		std::shared_ptr<MidoriType> fresh_function = MidoriType::MakeFunctionType(fresh_params, std::move(fresh_return), func_type.m_is_foreign);
-		std::vector<MidoriType::ClassConstraint> fresh_constraints;
-		fresh_constraints.reserve(func_type.m_constraints.size());
-		for (const MidoriType::ClassConstraint& constraint : func_type.m_constraints)
-		{
-			MidoriType::ClassConstraint fresh_constraint(constraint);
-			fresh_constraint.m_type_args.clear();
-			for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
-			{
-				fresh_constraint.m_type_args.emplace_back(Freshen(type_arg, context));
-			}
-
-			if (fresh_constraint.IsEquality())
-			{
-				fresh_constraint.m_equality_lhs = Freshen(constraint.m_equality_lhs, context);
-				fresh_constraint.m_equality_rhs = Freshen(constraint.m_equality_rhs, context);
-			}
-			fresh_constraints.push_back(std::move(fresh_constraint));
-		}
-		fresh_function->GetType<MidoriType::FunctionType>().m_constraints = std::move(fresh_constraints);
+		fresh_function->GetType<MidoriType::FunctionType>().m_constraints = MidoriType::MapConstraints(func_type.m_constraints, freshen);
 		return fresh_function;
 	}
 	else if (type->IsType<MidoriType::StructType>())
@@ -2203,52 +2174,16 @@ std::shared_ptr<MidoriType> TypeChecker::Freshen(const std::shared_ptr<MidoriTyp
 		std::vector<std::string> member_names_copy = struct_type.m_member_names;
 		std::vector<std::string> instantiated_generic_params;
 		std::shared_ptr<MidoriType> fresh_struct = MidoriType::MakeStructType(struct_type.m_name, struct_type.m_module_name, std::move(empty_member_types), std::move(member_names_copy), std::move(instantiated_generic_params));
-		fresh_struct->GetType<MidoriType::StructType>().m_is_generic_instantiation = struct_type.m_is_generic_instantiation || !struct_type.m_generic_params.empty();
+		MidoriType::StructType& fresh_struct_ref = fresh_struct->GetType<MidoriType::StructType>();
+		fresh_struct_ref.m_is_generic_instantiation = struct_type.m_is_generic_instantiation || !struct_type.m_generic_params.empty();
 		context.m_type_cache[type.get()] = fresh_struct;
 
-		if (fresh_struct->GetType<MidoriType::StructType>().m_is_generic_instantiation)
+		if (fresh_struct_ref.m_is_generic_instantiation)
 		{
-			fresh_struct->GetType<MidoriType::StructType>().m_type_arguments = MidoriType::InstantiateTypeArguments
-			(
-				struct_type.m_generic_params,
-				struct_type.m_type_arguments,
-				[&context, this](const std::shared_ptr<MidoriType>& type_argument) { return Freshen(type_argument, context); }
-			);
+			fresh_struct_ref.m_type_arguments = MidoriType::InstantiateTypeArguments(struct_type.m_generic_params, struct_type.m_type_arguments, freshen);
 		}
-
-		// Now freshen members
-		std::vector<std::shared_ptr<MidoriType>> fresh_member_types;
-		std::ranges::for_each
-		(
-			struct_type.m_member_types,
-			[&fresh_member_types, &context, this](const std::shared_ptr<MidoriType>& member_type)
-			{
-				fresh_member_types.push_back(Freshen(member_type, context));
-			}
-		);
-
-		// Update the fresh struct with freshened members
-		fresh_struct->GetType<MidoriType::StructType>().m_member_types = std::move(fresh_member_types);
-		std::vector<MidoriType::ClassConstraint> fresh_constraints;
-		fresh_constraints.reserve(struct_type.m_constraints.size());
-		for (const MidoriType::ClassConstraint& constraint : struct_type.m_constraints)
-		{
-			MidoriType::ClassConstraint fresh_constraint(constraint);
-			fresh_constraint.m_type_args.clear();
-			for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
-			{
-				fresh_constraint.m_type_args.emplace_back(Freshen(type_arg, context));
-			}
-
-			if (fresh_constraint.IsEquality())
-			{
-				fresh_constraint.m_equality_lhs = Freshen(constraint.m_equality_lhs, context);
-				fresh_constraint.m_equality_rhs = Freshen(constraint.m_equality_rhs, context);
-			}
-			fresh_constraints.push_back(std::move(fresh_constraint));
-		}
-		fresh_struct->GetType<MidoriType::StructType>().m_constraints = std::move(fresh_constraints);
-
+		fresh_struct_ref.m_member_types = freshen_all(struct_type.m_member_types);
+		fresh_struct_ref.m_constraints = MidoriType::MapConstraints(struct_type.m_constraints, freshen);
 		return fresh_struct;
 	}
 	else if (type->IsType<MidoriType::UnionType>())
@@ -2264,74 +2199,23 @@ std::shared_ptr<MidoriType> TypeChecker::Freshen(const std::shared_ptr<MidoriTyp
 
 		if (fresh_union_ref.m_is_generic_instantiation)
 		{
-			fresh_union_ref.m_type_arguments = MidoriType::InstantiateTypeArguments
-			(
-				union_type.m_generic_params,
-				union_type.m_type_arguments,
-				[&context, this](const std::shared_ptr<MidoriType>& type_argument) { return Freshen(type_argument, context); }
-			);
+			fresh_union_ref.m_type_arguments = MidoriType::InstantiateTypeArguments(union_type.m_generic_params, union_type.m_type_arguments, freshen);
 		}
-
-		std::vector<MidoriType::ClassConstraint> fresh_constraints;
-		fresh_constraints.reserve(union_type.m_constraints.size());
-		for (const MidoriType::ClassConstraint& constraint : union_type.m_constraints)
-		{
-			MidoriType::ClassConstraint fresh_constraint(constraint);
-			fresh_constraint.m_type_args.clear();
-			for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
-			{
-				fresh_constraint.m_type_args.emplace_back(Freshen(type_arg, context));
-			}
-
-			if (fresh_constraint.IsEquality())
-			{
-				fresh_constraint.m_equality_lhs = Freshen(constraint.m_equality_lhs, context);
-				fresh_constraint.m_equality_rhs = Freshen(constraint.m_equality_rhs, context);
-			}
-			fresh_constraints.push_back(std::move(fresh_constraint));
-		}
-		fresh_union_ref.m_constraints = std::move(fresh_constraints);
-
+		fresh_union_ref.m_constraints = MidoriType::MapConstraints(union_type.m_constraints, freshen);
 		for (const auto& [member_name, member_ctx] : union_type.m_member_info)
 		{
-			std::vector<std::shared_ptr<MidoriType>> fresh_member_types;
-			std::ranges::for_each
-			(
-				member_ctx.m_member_types,
-				[&fresh_member_types, &context, this](const std::shared_ptr<MidoriType>& member_type)
-				{
-					fresh_member_types.emplace_back(Freshen(member_type, context));
-				}
-			);
-			fresh_union_ref.m_member_info.emplace(member_name, MidoriType::UnionType::UnionMemberContext(std::move(fresh_member_types), member_ctx.m_tag));
+			fresh_union_ref.m_member_info.emplace(member_name, MidoriType::UnionType::UnionMemberContext(freshen_all(member_ctx.m_member_types), member_ctx.m_tag));
 		}
-
 		return fresh_union;
 	}
 	else if (type->IsType<MidoriType::TupleType>())
 	{
-		MidoriType::TupleType& tuple_type = type->GetType<MidoriType::TupleType>();
-		std::vector<std::shared_ptr<MidoriType>> fresh_element_types;
-		std::ranges::for_each
-		(
-			tuple_type.m_element_types,
-			[&fresh_element_types, &context, this](const std::shared_ptr<MidoriType>& element_type)
-			{
-				fresh_element_types.emplace_back(Freshen(element_type, context));
-			}
-		);
-		return MidoriType::MakeTupleType(std::move(fresh_element_types));
+		return MidoriType::MakeTupleType(freshen_all(type->GetType<MidoriType::TupleType>().m_element_types));
 	}
 	else if (type->IsType<MidoriType::AssociatedType>())
 	{
 		MidoriType::AssociatedType& associated_type = type->GetType<MidoriType::AssociatedType>();
-		std::vector<std::shared_ptr<MidoriType>> fresh_type_args;
-		fresh_type_args.reserve(associated_type.m_type_args.size());
-		for (const std::shared_ptr<MidoriType>& type_arg : associated_type.m_type_args)
-		{
-			fresh_type_args.emplace_back(Freshen(type_arg, context));
-		}
-		return MidoriType::MakeAssociatedType(associated_type.m_class_name, associated_type.m_name, std::move(fresh_type_args));
+		return MidoriType::MakeAssociatedType(associated_type.m_class_name, associated_type.m_name, freshen_all(associated_type.m_type_args));
 	}
 	return type;
 }
@@ -2513,6 +2397,17 @@ std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr
 		return type;
 	}
 
+	// Each part substituted, noting whether any came back different: a node
+	// none of whose parts changed is returned as it is.
+	bool changed = false;
+	auto apply = [this, &cache, &changed](const std::shared_ptr<MidoriType>& part)
+	{
+		std::shared_ptr<MidoriType> applied = ApplySubstitution(part, cache);
+		changed = changed || applied != part;
+		return applied;
+	};
+	auto apply_all = [&apply](const std::vector<std::shared_ptr<MidoriType>>& parts) { return parts | std::views::transform(apply) | std::ranges::to<std::vector>(); };
+
 	if (type->IsType<MidoriType::TypeVariable>())
 	{
 		int var_id = type->GetType<MidoriType::TypeVariable>().m_id;
@@ -2527,20 +2422,7 @@ std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr
 	else if (type->IsType<MidoriType::AssociatedType>())
 	{
 		MidoriType::AssociatedType& associated_type = type->GetType<MidoriType::AssociatedType>();
-		bool changed = false;
-		std::vector<std::shared_ptr<MidoriType>> substituted_type_args;
-		substituted_type_args.reserve(associated_type.m_type_args.size());
-
-		for (const std::shared_ptr<MidoriType>& type_arg : associated_type.m_type_args)
-		{
-			std::shared_ptr<MidoriType> substituted_type_arg = ApplySubstitution(type_arg, cache);
-			substituted_type_args.emplace_back(substituted_type_arg);
-			if (substituted_type_arg != type_arg)
-			{
-				changed = true;
-			}
-		}
-
+		std::vector<std::shared_ptr<MidoriType>> substituted_type_args = apply_all(associated_type.m_type_args);
 		std::shared_ptr<MidoriType> associated_type_ref = changed
 			? MidoriType::MakeAssociatedType(associated_type.m_class_name, associated_type.m_name, std::move(substituted_type_args))
 			: type;
@@ -2550,111 +2432,42 @@ std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr
 	}
 	else if (type->IsType<MidoriType::ArrayType>())
 	{
-		MidoriType::ArrayType& array_type = type->GetType<MidoriType::ArrayType>();
-		std::shared_ptr<MidoriType> element_type = ApplySubstitution(array_type.m_element_type, cache);
-		if (element_type != array_type.m_element_type)
-		{
-			return MidoriType::MakeArrayType(element_type);
-		}
-		return type;
+		std::shared_ptr<MidoriType> element_type = apply(type->GetType<MidoriType::ArrayType>().m_element_type);
+		return changed ? MidoriType::MakeArrayType(element_type) : type;
 	}
 	else if (type->IsType<MidoriType::RangeType>())
 	{
-		MidoriType::RangeType& range_type = type->GetType<MidoriType::RangeType>();
-		std::shared_ptr<MidoriType> element_type = ApplySubstitution(range_type.m_element_type, cache);
-		if (element_type != range_type.m_element_type)
-		{
-			return MidoriType::MakeRangeType(element_type);
-		}
-		return type;
+		std::shared_ptr<MidoriType> element_type = apply(type->GetType<MidoriType::RangeType>().m_element_type);
+		return changed ? MidoriType::MakeRangeType(element_type) : type;
 	}
 	else if (type->IsType<MidoriType::WorkerType>())
 	{
-		MidoriType::WorkerType& worker_type = type->GetType<MidoriType::WorkerType>();
-		std::shared_ptr<MidoriType> result_type = ApplySubstitution(worker_type.m_result_type, cache);
-		if (result_type != worker_type.m_result_type)
-		{
-			return MidoriType::MakeWorkerType(result_type);
-		}
-		return type;
+		std::shared_ptr<MidoriType> result_type = apply(type->GetType<MidoriType::WorkerType>().m_result_type);
+		return changed ? MidoriType::MakeWorkerType(result_type) : type;
 	}
 	else if (type->IsType<MidoriType::ChannelType>())
 	{
-		MidoriType::ChannelType& channel_type = type->GetType<MidoriType::ChannelType>();
-		std::shared_ptr<MidoriType> element_type = ApplySubstitution(channel_type.m_element_type, cache);
-		if (element_type != channel_type.m_element_type)
-		{
-			return MidoriType::MakeChannelType(element_type);
-		}
-		return type;
+		std::shared_ptr<MidoriType> element_type = apply(type->GetType<MidoriType::ChannelType>().m_element_type);
+		return changed ? MidoriType::MakeChannelType(element_type) : type;
 	}
 	else if (type->IsType<MidoriType::CellType>())
 	{
-		MidoriType::CellType& cell_type = type->GetType<MidoriType::CellType>();
-		std::shared_ptr<MidoriType> element_type = ApplySubstitution(cell_type.m_element_type, cache);
-		if (element_type != cell_type.m_element_type)
-		{
-			return MidoriType::MakeCellType(element_type);
-		}
-		return type;
+		std::shared_ptr<MidoriType> element_type = apply(type->GetType<MidoriType::CellType>().m_element_type);
+		return changed ? MidoriType::MakeCellType(element_type) : type;
 	}
 	else if (type->IsType<MidoriType::FunctionType>())
 	{
 		MidoriType::FunctionType& func_type = type->GetType<MidoriType::FunctionType>();
-		bool changed = false;
-		std::vector<std::shared_ptr<MidoriType>> new_param_types;
-
-		for (const std::shared_ptr<MidoriType>& param_type : func_type.m_param_types)
+		std::vector<std::shared_ptr<MidoriType>> new_param_types = apply_all(func_type.m_param_types);
+		std::shared_ptr<MidoriType> new_return_type = apply(func_type.m_return_type);
+		std::vector<MidoriType::ClassConstraint> new_constraints = MidoriType::MapConstraints(func_type.m_constraints, apply);
+		if (!changed)
 		{
-			std::shared_ptr<MidoriType> subst_param = ApplySubstitution(param_type, cache);
-			new_param_types.push_back(subst_param);
-			if (subst_param != param_type)
-			{
-				changed = true;
-			}
+			return type;
 		}
-
-		std::shared_ptr<MidoriType> new_return_type = ApplySubstitution(func_type.m_return_type, cache);
-		if (new_return_type != func_type.m_return_type)
-		{
-			changed = true;
-		}
-
-		std::vector<MidoriType::ClassConstraint> new_constraints;
-		new_constraints.reserve(func_type.m_constraints.size());
-		for (const MidoriType::ClassConstraint& constraint : func_type.m_constraints)
-		{
-			MidoriType::ClassConstraint substituted_constraint(constraint);
-			substituted_constraint.m_type_args.clear();
-			if (substituted_constraint.IsEquality())
-			{
-				substituted_constraint.m_equality_lhs = ApplySubstitution(constraint.m_equality_lhs, cache);
-				substituted_constraint.m_equality_rhs = ApplySubstitution(constraint.m_equality_rhs, cache);
-				if (substituted_constraint.m_equality_lhs != constraint.m_equality_lhs || substituted_constraint.m_equality_rhs != constraint.m_equality_rhs)
-				{
-					changed = true;
-				}
-			}
-
-			for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
-			{
-				std::shared_ptr<MidoriType> substituted_type_arg = ApplySubstitution(type_arg, cache);
-				substituted_constraint.m_type_args.emplace_back(substituted_type_arg);
-				if (substituted_type_arg != type_arg)
-				{
-					changed = true;
-				}
-			}
-			new_constraints.push_back(std::move(substituted_constraint));
-		}
-
-		if (changed)
-		{
-			std::shared_ptr<MidoriType> new_function = MidoriType::MakeFunctionType(new_param_types, std::move(new_return_type), func_type.m_is_foreign);
-			new_function->GetType<MidoriType::FunctionType>().m_constraints = std::move(new_constraints);
-			return new_function;
-		}
-		return type;
+		std::shared_ptr<MidoriType> new_function = MidoriType::MakeFunctionType(new_param_types, std::move(new_return_type), func_type.m_is_foreign);
+		new_function->GetType<MidoriType::FunctionType>().m_constraints = std::move(new_constraints);
+		return new_function;
 	}
 	else if (type->IsType<MidoriType::StructType>())
 	{
@@ -2667,73 +2480,25 @@ std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr
 		std::shared_ptr<MidoriType> new_struct = MidoriType::MakeStructType(struct_type.m_name, struct_type.m_module_name, std::move(empty_member_types), std::move(member_names_copy), std::move(instantiated_generic_params));
 		cache[type.get()] = new_struct;
 
-		bool changed = false;
-		std::vector<std::shared_ptr<MidoriType>> new_member_types;
-
-		for (const std::shared_ptr<MidoriType>& member_type : struct_type.m_member_types)
+		std::vector<std::shared_ptr<MidoriType>> new_member_types = apply_all(struct_type.m_member_types);
+		std::vector<MidoriType::ClassConstraint> new_constraints = MidoriType::MapConstraints(struct_type.m_constraints, apply);
+		std::vector<std::shared_ptr<MidoriType>> new_type_arguments = apply_all(struct_type.m_type_arguments);
+		if (!changed)
 		{
-			std::shared_ptr<MidoriType> subst_member = ApplySubstitution(member_type, cache);
-			new_member_types.push_back(subst_member);
-			if (subst_member != member_type)
-			{
-				changed = true;
-			}
+			cache[type.get()] = type;
+			return type;
 		}
 
-		std::vector<MidoriType::ClassConstraint> new_constraints;
-		new_constraints.reserve(struct_type.m_constraints.size());
-		for (const MidoriType::ClassConstraint& constraint : struct_type.m_constraints)
+		MidoriType::StructType& new_struct_ref = new_struct->GetType<MidoriType::StructType>();
+		new_struct_ref.m_member_types = std::move(new_member_types);
+		new_struct_ref.m_constraints = std::move(new_constraints);
+		new_struct_ref.m_type_arguments = std::move(new_type_arguments);
+		// Mark this as a generic instantiation if the original had generic params
+		if (!struct_type.m_generic_params.empty() || struct_type.m_is_generic_instantiation)
 		{
-			MidoriType::ClassConstraint substituted_constraint(constraint);
-			substituted_constraint.m_type_args.clear();
-			if (substituted_constraint.IsEquality())
-			{
-				substituted_constraint.m_equality_lhs = ApplySubstitution(constraint.m_equality_lhs, cache);
-				substituted_constraint.m_equality_rhs = ApplySubstitution(constraint.m_equality_rhs, cache);
-				if (substituted_constraint.m_equality_lhs != constraint.m_equality_lhs || substituted_constraint.m_equality_rhs != constraint.m_equality_rhs)
-				{
-					changed = true;
-				}
-			}
-
-			for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
-			{
-				std::shared_ptr<MidoriType> substituted_type_arg = ApplySubstitution(type_arg, cache);
-				substituted_constraint.m_type_args.emplace_back(substituted_type_arg);
-				if (substituted_type_arg != type_arg)
-				{
-					changed = true;
-				}
-			}
-			new_constraints.push_back(std::move(substituted_constraint));
+			new_struct_ref.m_is_generic_instantiation = true;
 		}
-
-		std::vector<std::shared_ptr<MidoriType>> new_type_arguments;
-		new_type_arguments.reserve(struct_type.m_type_arguments.size());
-		for (const std::shared_ptr<MidoriType>& type_argument : struct_type.m_type_arguments)
-		{
-			std::shared_ptr<MidoriType> substituted_type_argument = ApplySubstitution(type_argument, cache);
-			new_type_arguments.emplace_back(substituted_type_argument);
-			if (substituted_type_argument != type_argument)
-			{
-				changed = true;
-			}
-		}
-
-		if (changed)
-		{
-			new_struct->GetType<MidoriType::StructType>().m_member_types = std::move(new_member_types);
-			new_struct->GetType<MidoriType::StructType>().m_constraints = std::move(new_constraints);
-			new_struct->GetType<MidoriType::StructType>().m_type_arguments = std::move(new_type_arguments);
-			// Mark this as a generic instantiation if the original had generic params
-			if (!struct_type.m_generic_params.empty() || struct_type.m_is_generic_instantiation)
-			{
-				new_struct->GetType<MidoriType::StructType>().m_is_generic_instantiation = true;
-			}
-			return new_struct;
-		}
-		cache[type.get()] = type;
-		return type;
+		return new_struct;
 	}
 	else if (type->IsType<MidoriType::UnionType>())
 	{
@@ -2745,97 +2510,29 @@ std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr
 		cache[type.get()] = new_union;
 		MidoriType::UnionType& new_union_ref = new_union->GetType<MidoriType::UnionType>();
 
-		bool changed = false;
-		std::vector<MidoriType::ClassConstraint> new_constraints;
-		new_constraints.reserve(union_type.m_constraints.size());
-		for (const MidoriType::ClassConstraint& constraint : union_type.m_constraints)
-		{
-			MidoriType::ClassConstraint substituted_constraint(constraint);
-			substituted_constraint.m_type_args.clear();
-			if (substituted_constraint.IsEquality())
-			{
-				substituted_constraint.m_equality_lhs = ApplySubstitution(constraint.m_equality_lhs, cache);
-				substituted_constraint.m_equality_rhs = ApplySubstitution(constraint.m_equality_rhs, cache);
-				if (substituted_constraint.m_equality_lhs != constraint.m_equality_lhs || substituted_constraint.m_equality_rhs != constraint.m_equality_rhs)
-				{
-					changed = true;
-				}
-			}
-
-			for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
-			{
-				std::shared_ptr<MidoriType> substituted_type_arg = ApplySubstitution(type_arg, cache);
-				substituted_constraint.m_type_args.emplace_back(substituted_type_arg);
-				if (substituted_type_arg != type_arg)
-				{
-					changed = true;
-				}
-			}
-			new_constraints.push_back(std::move(substituted_constraint));
-		}
-		new_union_ref.m_constraints = std::move(new_constraints);
-
-		std::vector<std::shared_ptr<MidoriType>> new_type_arguments;
-		new_type_arguments.reserve(union_type.m_type_arguments.size());
-		for (const std::shared_ptr<MidoriType>& type_argument : union_type.m_type_arguments)
-		{
-			std::shared_ptr<MidoriType> substituted_type_argument = ApplySubstitution(type_argument, cache);
-			new_type_arguments.emplace_back(substituted_type_argument);
-			if (substituted_type_argument != type_argument)
-			{
-				changed = true;
-			}
-		}
-		new_union_ref.m_type_arguments = std::move(new_type_arguments);
-
+		new_union_ref.m_constraints = MidoriType::MapConstraints(union_type.m_constraints, apply);
+		new_union_ref.m_type_arguments = apply_all(union_type.m_type_arguments);
 		for (const auto& [member_name, member_ctx] : union_type.m_member_info)
 		{
-			std::vector<std::shared_ptr<MidoriType>> new_member_types;
-			for (const std::shared_ptr<MidoriType>& member_type : member_ctx.m_member_types)
-			{
-				std::shared_ptr<MidoriType> subst_member = ApplySubstitution(member_type, cache);
-				new_member_types.push_back(subst_member);
-				if (subst_member != member_type)
-				{
-					changed = true;
-				}
-			}
-			new_union_ref.m_member_info.emplace(member_name, MidoriType::UnionType::UnionMemberContext(std::move(new_member_types), member_ctx.m_tag));
+			new_union_ref.m_member_info.emplace(member_name, MidoriType::UnionType::UnionMemberContext(apply_all(member_ctx.m_member_types), member_ctx.m_tag));
 		}
 
-		if (changed)
+		if (!changed)
 		{
-			// Mark this as a generic instantiation if the original had generic params
-			if (!union_type.m_generic_params.empty() || union_type.m_is_generic_instantiation)
-			{
-				new_union->GetType<MidoriType::UnionType>().m_is_generic_instantiation = true;
-			}
-			return new_union;
+			cache[type.get()] = type;
+			return type;
 		}
-		cache[type.get()] = type;
-		return type;
+		// Mark this as a generic instantiation if the original had generic params
+		if (!union_type.m_generic_params.empty() || union_type.m_is_generic_instantiation)
+		{
+			new_union_ref.m_is_generic_instantiation = true;
+		}
+		return new_union;
 	}
 	else if (type->IsType<MidoriType::TupleType>())
 	{
-		MidoriType::TupleType& tuple_type = type->GetType<MidoriType::TupleType>();
-		bool changed = false;
-		std::vector<std::shared_ptr<MidoriType>> new_element_types;
-
-		for (const std::shared_ptr<MidoriType>& element_type : tuple_type.m_element_types)
-		{
-			std::shared_ptr<MidoriType> subst_element = ApplySubstitution(element_type, cache);
-			new_element_types.push_back(subst_element);
-			if (subst_element != element_type)
-			{
-				changed = true;
-			}
-		}
-
-		if (changed)
-		{
-			return MidoriType::MakeTupleType(std::move(new_element_types));
-		}
-		return type;
+		std::vector<std::shared_ptr<MidoriType>> new_element_types = apply_all(type->GetType<MidoriType::TupleType>().m_element_types);
+		return changed ? MidoriType::MakeTupleType(std::move(new_element_types)) : type;
 	}
 
 	return type;
@@ -3636,22 +3333,10 @@ MidoriResult::TypeResult TypeChecker::TypeCheckGenericLambdaDefinition(MidoriSta
 		param_type = Freshen(param_type, freshening_context);
 	}
 	function.m_return_type = Freshen(function.m_return_type, freshening_context);
-	for (MidoriType::ClassConstraint& constraint : function.m_constraints)
-	{
-		for (std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
-		{
-			type_arg = Freshen(type_arg, freshening_context);
-		}
-
-		// An equality constraint carries its types in its operands rather than in
-		// m_type_args, and they must be freshened alongside the signature or the
-		// projection will never match the one built at the use site.
-		if (constraint.IsEquality())
-		{
-			constraint.m_equality_lhs = Freshen(constraint.m_equality_lhs, freshening_context);
-			constraint.m_equality_rhs = Freshen(constraint.m_equality_rhs, freshening_context);
-		}
-	}
+	// An equality constraint's types are its operands, which Map freshens with the
+	// signature: otherwise the projection would never match the one built at the
+	// use site.
+	function.m_constraints = MidoriType::MapConstraints(function.m_constraints, [this, &freshening_context](const std::shared_ptr<MidoriType>& constraint_type) { return Freshen(constraint_type, freshening_context); });
 
 	std::shared_ptr<MidoriType> return_type_copy = function.m_return_type;
 	std::shared_ptr<MidoriType> function_type = MidoriType::MakeFunctionType(function.m_param_types, std::move(return_type_copy));
@@ -4009,22 +3694,10 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::FunctionDefini
 		param_type = Freshen(param_type, freshening_context);
 	}
 	defun.m_return_type = Freshen(defun.m_return_type, freshening_context);
-	for (MidoriType::ClassConstraint& constraint : defun.m_constraints)
-	{
-		for (std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
-		{
-			type_arg = Freshen(type_arg, freshening_context);
-		}
-
-		// An equality constraint carries its types in its operands rather than in
-		// m_type_args, and they must be freshened alongside the signature or the
-		// projection will never match the one built at the use site.
-		if (constraint.IsEquality())
-		{
-			constraint.m_equality_lhs = Freshen(constraint.m_equality_lhs, freshening_context);
-			constraint.m_equality_rhs = Freshen(constraint.m_equality_rhs, freshening_context);
-		}
-	}
+	// An equality constraint's types are its operands, which Map freshens with the
+	// signature: otherwise the projection would never match the one built at the
+	// use site.
+	defun.m_constraints = MidoriType::MapConstraints(defun.m_constraints, [this, &freshening_context](const std::shared_ptr<MidoriType>& constraint_type) { return Freshen(constraint_type, freshening_context); });
 
 	std::shared_ptr<MidoriType> return_type_copy = defun.m_return_type;
 	std::shared_ptr<MidoriType> function_type = MidoriType::MakeFunctionType(defun.m_param_types, std::move(return_type_copy));
