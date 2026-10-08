@@ -240,55 +240,6 @@ namespace
 		}
 	}
 
-	[[nodiscard]] bool IsWordLike(TokenName token_name)
-	{
-		switch (token_name)
-		{
-		case TokenName::IDENTIFIER_LITERAL:
-		case TokenName::TEXT_LITERAL:
-		case TokenName::FLOAT_LITERAL:
-		case TokenName::INTEGER_LITERAL:
-		case TokenName::ELSE:
-		case TokenName::FALSE:
-		case TokenName::FUNCTION:
-		case TokenName::FOR:
-		case TokenName::IN:
-		case TokenName::IF:
-		case TokenName::TRUE:
-		case TokenName::DEF:
-		case TokenName::IMPORT:
-		case TokenName::AS:
-		case TokenName::FOREIGN:
-		case TokenName::CASE:
-		case TokenName::MATCH:
-		case TokenName::THEN:
-		case TokenName::WITH:
-		case TokenName::MODULE:
-		case TokenName::EXPORT:
-		case TokenName::PUBLIC:
-		case TokenName::PRIVATE:
-		case TokenName::USE:
-		case TokenName::CLASS:
-		case TokenName::INSTANCE:
-		case TokenName::WHERE:
-		case TokenName::TYPE:
-		case TokenName::ALIAS:
-		case TokenName::DERIVING:
-		case TokenName::FLOAT:
-		case TokenName::INTEGER:
-		case TokenName::BYTE:
-		case TokenName::WORD:
-		case TokenName::TEXT:
-		case TokenName::BOOL:
-		case TokenName::UNIT:
-		case TokenName::ARRAY:
-		case TokenName::NEVER:
-			return true;
-		default:
-			return false;
-		}
-	}
-
 	// Whether `<` at `index` opens a type's arguments - `Array<Text>`, `fn<T>`,
 	// `Map::Map<K, V>` - rather than comparing. It does when it follows a type-like
 	// name and closes before anything a type cannot hold.

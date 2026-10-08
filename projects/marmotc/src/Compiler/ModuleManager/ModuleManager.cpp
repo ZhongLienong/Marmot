@@ -145,16 +145,16 @@ MidoriResult::VoidResult ModuleManager::GenerateBuildGraphImpl(BuildGraph& build
 
 		ImportResolver resolver(m_main_file_name, m_inputs.SearchPaths());
 
-		std::vector<std::optional<ImportResolver::ResolvedImport>> resolved_imports;
+		std::vector<std::optional<std::string>> resolved_imports;
 		std::vector<std::string> loading;
 		resolved_imports.reserve(import_paths.size());
 		for (const auto& [import_specifier, import_token] : import_paths)
 		{
 			resolved_imports.push_back(resolver.Resolve(import_specifier));
-			const std::optional<ImportResolver::ResolvedImport>& resolved = resolved_imports.back();
-			if (resolved.has_value() && !build_graph.m_nodes.contains(resolved->m_absolute_path))
+			const std::optional<std::string>& resolved = resolved_imports.back();
+			if (resolved.has_value() && !build_graph.m_nodes.contains(resolved.value()))
 			{
-				loading.push_back(resolved->m_absolute_path);
+				loading.push_back(resolved.value());
 			}
 		}
 		source_loader.Prefetch(loading);
@@ -166,13 +166,13 @@ MidoriResult::VoidResult ModuleManager::GenerateBuildGraphImpl(BuildGraph& build
 		for (size_t index = 0u; index < import_paths.size(); index += 1u)
 		{
 			const auto& [import_specifier, import_token] = import_paths[index];
-			const std::optional<ImportResolver::ResolvedImport>& resolved_opt = resolved_imports[index];
+			const std::optional<std::string>& resolved_opt = resolved_imports[index];
 			if (!resolved_opt.has_value())
 			{
 				return std::unexpected(CompilerError::WithToken(CompilerStage::Module, "Could not resolve import: "s + import_specifier, import_token, m_main_file_name, main_node.m_source_lines, std::nullopt, CompilerErrorCode::ModuleImportResolutionFailed));
 			}
 
-			const std::string& include_absolute_path_str = resolved_opt->m_absolute_path;
+			const std::string& include_absolute_path_str = resolved_opt.value();
 
 			if (dependencies.emplace(include_absolute_path_str).second)
 			{

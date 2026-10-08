@@ -5,24 +5,9 @@
 using namespace std::string_literals;
 
 ImportResolver::ImportResolver(const std::string& current_file_path, std::vector<std::filesystem::path> system_search_paths)
-	: ImportResolver(ResolveCurrentFileDir(std::filesystem::path(current_file_path)), std::move(system_search_paths))
+	: m_current_file_dir(ResolveCurrentFileDir(std::filesystem::path(current_file_path))),
+	m_system_search_paths(std::move(system_search_paths))
 {
-}
-
-ImportResolver::ImportResolver(std::filesystem::path current_file_dir, std::vector<std::filesystem::path> system_search_paths)
-	: m_current_file_dir(std::move(current_file_dir)),
-		m_system_search_paths(std::move(system_search_paths))
-{
-}
-
-ImportResolver ImportResolver::WithSystemSearchPaths(std::vector<std::filesystem::path> system_search_paths) const &
-{
-	return ImportResolver(m_current_file_dir, std::move(system_search_paths));
-}
-
-ImportResolver ImportResolver::WithSystemSearchPaths(std::vector<std::filesystem::path> system_search_paths) &&
-{
-	return ImportResolver(std::move(m_current_file_dir), std::move(system_search_paths));
 }
 
 std::filesystem::path ImportResolver::ResolveCurrentFileDir(const std::filesystem::path& current_file_path)
@@ -35,7 +20,7 @@ std::filesystem::path ImportResolver::ResolveCurrentFileDir(const std::filesyste
 	return std::filesystem::current_path();
 }
 
-std::optional<ImportResolver::ResolvedImport> ImportResolver::Resolve(const std::string& import_specifier) const
+std::optional<std::string> ImportResolver::Resolve(const std::string& import_specifier) const
 {
 	return IsSystemImport(import_specifier)
 		? ResolveSystemImport(import_specifier)
@@ -49,25 +34,7 @@ bool ImportResolver::IsSystemImport(const std::string& import_specifier)
 		&& import_specifier.back() == '>';
 }
 
-std::string ImportResolver::ExtractModuleName(const std::string& system_import)
-{
-	if (system_import.size() >= 2 && system_import.front() == '<' && system_import.back() == '>')
-	{
-		return system_import.substr(1, system_import.size() - 2);
-	}
-	return system_import;
-}
-
-ImportResolver::ResolvedImport ImportResolver::MakeResolvedImport(std::string absolute_path, ImportType type, std::string original_specifier)
-{
-	ResolvedImport result;
-	result.m_absolute_path = std::move(absolute_path);
-	result.m_original_specifier = std::move(original_specifier);
-	result.m_type = type;
-	return result;
-}
-
-std::optional<ImportResolver::ResolvedImport> ImportResolver::ResolvePathImport(const std::string& import_specifier) const
+std::optional<std::string> ImportResolver::ResolvePathImport(const std::string& import_specifier) const
 {
 	std::filesystem::path resolved_path(import_specifier);
 
@@ -91,7 +58,7 @@ std::optional<ImportResolver::ResolvedImport> ImportResolver::ResolvePathImport(
 	std::string absolute_path = std::filesystem::weakly_canonical(resolved_path).string();
 #endif
 
-	return MakeResolvedImport(std::move(absolute_path), ImportType::PATH, import_specifier);
+	return absolute_path;
 }
 
 std::optional<std::filesystem::path> ImportResolver::FindSystemModulePath(const std::vector<std::filesystem::path>& module_paths) const
@@ -111,9 +78,9 @@ std::optional<std::filesystem::path> ImportResolver::FindSystemModulePath(const 
 	return std::nullopt;
 }
 
-std::optional<ImportResolver::ResolvedImport> ImportResolver::ResolveSystemImport(const std::string& import_specifier) const
+std::optional<std::string> ImportResolver::ResolveSystemImport(const std::string& import_specifier) const
 {
-	std::string module_name = ExtractModuleName(import_specifier);
+	const std::string module_name = import_specifier.substr(1, import_specifier.size() - 2);
 	std::vector<std::filesystem::path> possible_paths = GetModuleFilePaths(module_name);
 	std::optional<std::filesystem::path> resolved_path = FindSystemModulePath(possible_paths);
 
@@ -122,7 +89,7 @@ std::optional<ImportResolver::ResolvedImport> ImportResolver::ResolveSystemImpor
 		return std::nullopt;
 	}
 
-	return MakeResolvedImport(resolved_path->string(), ImportType::SYSTEM, import_specifier);
+	return resolved_path->string();
 }
 
 std::vector<std::filesystem::path> ImportResolver::GetModuleFilePaths(const std::string& module_name)

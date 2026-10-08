@@ -32,12 +32,10 @@ TEST_CASE("ImportResolver resolves relative path imports against the current fil
 	const std::filesystem::path helper_file_path = std::filesystem::weakly_canonical(project.Path("src/lib/Helper.mmt"));
 
 	const ImportResolver resolver(main_file_path.string(), {});
-	const std::optional<ImportResolver::ResolvedImport> resolved_import = resolver.Resolve("./lib/Helper.mmt");
+	const std::optional<std::string> resolved_import = resolver.Resolve("./lib/Helper.mmt");
 
 	REQUIRE(resolved_import.has_value());
-	CHECK(resolved_import->m_type == ImportResolver::ImportType::PATH);
-	CHECK(resolved_import->m_original_specifier == "./lib/Helper.mmt");
-	CHECK(resolved_import->m_absolute_path == helper_file_path.string());
+	CHECK(resolved_import.value() == helper_file_path.string());
 }
 
 TEST_CASE("ImportResolver resolves dotted system imports from explicit search paths", "[module][import]")
@@ -51,14 +49,11 @@ TEST_CASE("ImportResolver resolves dotted system imports from explicit search pa
 	const std::filesystem::path main_file_path = std::filesystem::weakly_canonical(project.Path("Main.mmt"));
 	const std::filesystem::path io_module_path = std::filesystem::weakly_canonical(project.Path("stdlib/Std/IO.mmt"));
 
-	const ImportResolver resolver(main_file_path.string(), {});
-	const ImportResolver configured_resolver = resolver.WithSystemSearchPaths({ project.Path("stdlib") });
-	const std::optional<ImportResolver::ResolvedImport> resolved_import = configured_resolver.Resolve("<Std.IO>");
+	const ImportResolver resolver(main_file_path.string(), { project.Path("stdlib") });
+	const std::optional<std::string> resolved_import = resolver.Resolve("<Std.IO>");
 
 	REQUIRE(resolved_import.has_value());
-	CHECK(resolved_import->m_type == ImportResolver::ImportType::SYSTEM);
-	CHECK(resolved_import->m_original_specifier == "<Std.IO>");
-	CHECK(resolved_import->m_absolute_path == io_module_path.string());
+	CHECK(resolved_import.value() == io_module_path.string());
 }
 
 TEST_CASE("MARMOT_PATH entries become canonical search paths and missing directories are dropped", "[module][import]")
@@ -81,9 +76,9 @@ TEST_CASE("MARMOT_PATH entries become canonical search paths and missing directo
 	CHECK(inputs.SearchPaths().front() == stdlib_path);
 
 	const ImportResolver resolver(main_file_path.string(), inputs.SearchPaths());
-	const std::optional<ImportResolver::ResolvedImport> resolved_import = resolver.Resolve("<Std.Math>");
+	const std::optional<std::string> resolved_import = resolver.Resolve("<Std.Math>");
 	REQUIRE(resolved_import.has_value());
-	CHECK(resolved_import->m_absolute_path == math_module_path.string());
+	CHECK(resolved_import.value() == math_module_path.string());
 }
 
 TEST_CASE("The compiler's inputs ignore MARMOT_PATH unless the caller reads it", "[module][import]")
@@ -107,8 +102,7 @@ TEST_CASE("ImportResolver returns nullopt for missing imports", "[module][import
 	const std::filesystem::path main_file_path = std::filesystem::weakly_canonical(project.Path("Main.mmt"));
 
 	const ImportResolver resolver(main_file_path.string(), { project.Root() / "stdlib" });
-	const ImportResolver& configured_resolver = resolver;
 
-	CHECK_FALSE(configured_resolver.Resolve("./Missing.mmt").has_value());
-	CHECK_FALSE(configured_resolver.Resolve("<Std.Missing>").has_value());
+	CHECK_FALSE(resolver.Resolve("./Missing.mmt").has_value());
+	CHECK_FALSE(resolver.Resolve("<Std.Missing>").has_value());
 }

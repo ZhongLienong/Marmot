@@ -11,13 +11,9 @@
 
 struct CompiledModule
 {
-	using TypeEnvironment = ModuleInterface::TypeEnvironment;
-	using ExportSet = ModuleInterface::ExportSet;
-	using ExportVisibilityMap = ModuleInterface::ExportVisibilityMap;
 	using SymbolTable = ModuleInterface::SymbolTable;
 	using TypeclassMetadata = ModuleInterface::TypeclassMetadata;
 	using TypeclassMethodMap = ModuleInterface::TypeclassMethodMap;
-	using TypeclassInstanceMap = ModuleInterface::TypeclassInstanceMap;
 	using TypeclassMetadataMap = ModuleInterface::TypeclassMetadataMap;
 
 	explicit CompiledModule(std::shared_ptr<const ModuleInterface> interface);
@@ -32,8 +28,6 @@ struct CompiledModule
 	[[nodiscard]] const std::filesystem::path& FilePath() const;
 
 	[[nodiscard]] const SymbolTable& Symbols() const;
-
-	[[nodiscard]] const TypeEnvironment& TypeSignatures() const;
 
 	[[nodiscard]] const std::vector<CompilerWarning>& Warnings() const;
 

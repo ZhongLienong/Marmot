@@ -7,20 +7,6 @@
 
 class ImportResolver
 {
-public:
-	enum class ImportType
-	{
-		PATH,    // Relative or absolute file path
-		SYSTEM   // System module, found in the search paths
-	};
-
-	struct ResolvedImport
-	{
-		std::string m_absolute_path;
-		std::string m_original_specifier;  // Original import string for error messages
-		ImportType m_type;
-	};
-
 private:
 	std::filesystem::path m_current_file_dir;
 	std::vector<std::filesystem::path> m_system_search_paths;
@@ -28,28 +14,20 @@ private:
 public:
 	ImportResolver(const std::string& current_file_path, std::vector<std::filesystem::path> system_search_paths);
 
-	std::optional<ResolvedImport> Resolve(const std::string& import_specifier) const;
-
-	ImportResolver WithSystemSearchPaths(std::vector<std::filesystem::path> system_search_paths) const &;
-
-	ImportResolver WithSystemSearchPaths(std::vector<std::filesystem::path> system_search_paths) &&;
+	// The absolute path an import names: a path relative to the importing file,
+	// or a `<Module>` found in the search paths.
+	std::optional<std::string> Resolve(const std::string& import_specifier) const;
 
 private:
-	ImportResolver(std::filesystem::path current_file_dir, std::vector<std::filesystem::path> system_search_paths);
-
 	static std::filesystem::path ResolveCurrentFileDir(const std::filesystem::path& current_file_path);
 
 	static bool IsSystemImport(const std::string& import_specifier);
 
-	static std::string ExtractModuleName(const std::string& system_import);
+	std::optional<std::string> ResolvePathImport(const std::string& import_specifier) const;
 
-	std::optional<ResolvedImport> ResolvePathImport(const std::string& import_specifier) const;
-
-	std::optional<ResolvedImport> ResolveSystemImport(const std::string& import_specifier) const;
+	std::optional<std::string> ResolveSystemImport(const std::string& import_specifier) const;
 
 	std::optional<std::filesystem::path> FindSystemModulePath(const std::vector<std::filesystem::path>& module_paths) const;
 
 	static std::vector<std::filesystem::path> GetModuleFilePaths(const std::string& module_name);
-
-	static ResolvedImport MakeResolvedImport(std::string absolute_path, ImportType type, std::string original_specifier);
 };

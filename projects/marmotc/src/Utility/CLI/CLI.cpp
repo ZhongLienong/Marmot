@@ -1168,17 +1168,6 @@ namespace
 		return EXIT_SUCCESS;
 	}
 
-	int HandleUnsupportedJson(const Invocation& invocation)
-	{
-		if (invocation.m_format == OutputFormat::Json)
-		{
-			PrintCliError("JSON output is not supported for this command.");
-			return EXIT_FAILURE;
-		}
-
-		return EXIT_SUCCESS;
-	}
-
 	const std::vector<CommandSpec>& CommandTable()
 	{
 		static const std::vector<CommandSpec> table
@@ -1201,15 +1190,7 @@ namespace
 			return &HandleVersion;
 		}
 
-		for (const CommandSpec& spec : CommandTable())
-		{
-			if (spec.m_kind == kind)
-			{
-				return spec.m_handler;
-			}
-		}
-
-		return &HandleUnsupportedJson;
+		return std::ranges::find(CommandTable(), kind, &CommandSpec::m_kind)->m_handler;
 	}
 
 	[[nodiscard]] std::string_view CommandName(CommandKind kind)

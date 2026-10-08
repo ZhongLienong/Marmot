@@ -18,9 +18,8 @@ TEST_CASE("TempProject and ScopedEnvVar make system import resolution determinis
 	const MidoriTest::ScopedEnvVar marmot_path("MARMOT_PATH", project.Path("stdlib").string());
 
 	const ImportResolver resolver(main_file_path.string(), MidoriDriver::EnvironmentCompilationInputs().SearchPaths());
-	const std::optional<ImportResolver::ResolvedImport> resolved_import = resolver.Resolve("<Std.IO>");
+	const std::optional<std::string> resolved_import = resolver.Resolve("<Std.IO>");
 
 	REQUIRE(resolved_import.has_value());
-	REQUIRE(resolved_import->m_type == ImportResolver::ImportType::SYSTEM);
-	REQUIRE(resolved_import->m_absolute_path == module_file_path.string());
+	REQUIRE(resolved_import.value() == module_file_path.string());
 }

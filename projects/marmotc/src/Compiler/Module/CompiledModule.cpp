@@ -23,11 +23,6 @@ const CompiledModule::SymbolTable& CompiledModule::Symbols() const
 	return m_interface->m_symbols;
 }
 
-const CompiledModule::TypeEnvironment& CompiledModule::TypeSignatures() const
-{
-	return m_interface->m_type_signatures;
-}
-
 const std::vector<CompilerWarning>& CompiledModule::Warnings() const
 {
 	return m_warnings;
