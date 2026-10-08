@@ -94,21 +94,6 @@ namespace CompilerJson
 		out.push_back('\"');
 	}
 
-	inline void AppendStringField(std::string& out, std::string_view key, std::string_view value, bool& first_field)
-	{
-		AppendStringField(out, key, std::optional<std::string_view>(value), first_field);
-	}
-
-	inline void AppendStringField(std::string& out, std::string_view key, const std::string& value, bool& first_field)
-	{
-		AppendStringField(out, key, std::string_view(value), first_field);
-	}
-
-	inline void AppendStringField(std::string& out, std::string_view key, const char* value, bool& first_field)
-	{
-		AppendStringField(out, key, std::string_view(value), first_field);
-	}
-
 	template <typename NumberType>
 	inline void AppendNumberField(std::string& out, std::string_view key, std::optional<NumberType> value, bool& first_field)
 	{

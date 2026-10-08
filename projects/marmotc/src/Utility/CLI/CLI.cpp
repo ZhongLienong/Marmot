@@ -353,8 +353,11 @@ namespace
 		return jobs;
 	}
 
-	[[nodiscard]] ParseResult ParseCompileLike(CommandKind kind, const std::vector<std::string_view>& args)
+	// check and build share their options; build adds where its output goes.
+	[[nodiscard]] ParseResult ParseCompile(CommandKind kind, const std::vector<std::string_view>& args)
 	{
+		const std::string_view command = kind == CommandKind::Check ? "check" : "build";
+		const bool is_build = kind == CommandKind::Build;
 		Invocation invocation;
 		invocation.m_kind = kind;
 		std::optional<std::filesystem::path> plan_file = std::nullopt;
@@ -378,115 +381,19 @@ namespace
 				continue;
 			}
 
-			if (arg == "--jobs")
-			{
-				std::expected<size_t, std::string> jobs = ParseJobs(args, index);
-				if (!jobs.has_value())
-				{
-					return std::unexpected(std::move(jobs.error()));
-				}
-				invocation.m_jobs = jobs.value();
-				continue;
-			}
-
-			if (arg == "--timings")
-			{
-				invocation.m_timings = true;
-				continue;
-			}
-
-			if (arg == "--optimizer-stats")
-			{
-#if MIDORI_ENABLE_OPTIMIZER_STATS
-				invocation.m_optimizer_stats = true;
-				continue;
-#else
-				return std::unexpected("--optimizer-stats requires a Debug or Dev build.");
-#endif
-			}
-
-			if (arg == "--emit-ir")
-			{
-				invocation.m_emit_ir = true;
-				continue;
-			}
-
-			if (arg == "--emit-ast")
-			{
-				invocation.m_emit_ast = true;
-				continue;
-			}
-
-			if (arg == "--format")
-			{
-				std::string error;
-				if (!ParseFormatValue(args, index, invocation.m_format, error))
-				{
-					return std::unexpected(error);
-				}
-				continue;
-			}
-
-			if (!arg.empty() && arg.front() == '-')
-			{
-				return std::unexpected(std::format("Unknown option: {}", arg));
-			}
-
-			if (!invocation.m_source_file.empty())
-			{
-				return std::unexpected(std::format("Only one source file is allowed for {}.", kind == CommandKind::Check ? "check" : "build"));
-			}
-
-			invocation.m_source_file = std::filesystem::path(arg);
-		}
-
-		const std::expected<void, std::string> plan_result = ApplyPlan(invocation, plan_file, kind == CommandKind::Check ? "check" : "build");
-		if (!plan_result.has_value())
-		{
-			return std::unexpected(plan_result.error());
-		}
-
-		return invocation;
-	}
-
-	[[nodiscard]] ParseResult ParseBuild(const std::vector<std::string_view>& args)
-	{
-		Invocation invocation;
-		invocation.m_kind = CommandKind::Build;
-		std::optional<std::filesystem::path> plan_file = std::nullopt;
-
-		for (size_t index = 0u; index < args.size(); index += 1u)
-		{
-			const std::string_view arg = args[index];
-			if (arg == "-h" || arg == "--help")
-			{
-				invocation.m_show_help = true;
-				continue;
-			}
-
-			if (arg == "--plan")
-			{
-				std::string error;
-				if (!ParsePlanValue(args, index, plan_file, error))
-				{
-					return std::unexpected(error);
-				}
-				continue;
-			}
-
-			if (arg == "--embed-sources")
+			if (is_build && arg == "--embed-sources")
 			{
 				invocation.m_embed_sources = true;
 				continue;
 			}
 
-			if (arg == "--quiet")
+			if (is_build && arg == "--quiet")
 			{
 				invocation.m_quiet = true;
 				continue;
 			}
 
-			if (arg == "-o" || arg == "--output")
+			if (is_build && (arg == "-o" || arg == "--output"))
 			{
 				if (index + 1u >= args.size())
 				{
@@ -497,7 +404,7 @@ namespace
 				continue;
 			}
 
-			if (arg == "--deps")
+			if (is_build && arg == "--deps")
 			{
 				if (index + 1u >= args.size())
 				{
@@ -564,13 +471,13 @@ namespace
 
 			if (!invocation.m_source_file.empty())
 			{
-				return std::unexpected("Only one source file is allowed for build.");
+				return std::unexpected(std::format("Only one source file is allowed for {}.", command));
 			}
 
 			invocation.m_source_file = std::filesystem::path(arg);
 		}
 
-		const std::expected<void, std::string> plan_result = ApplyPlan(invocation, plan_file, "build");
+		const std::expected<void, std::string> plan_result = ApplyPlan(invocation, plan_file, command);
 		if (!plan_result.has_value())
 		{
 			return std::unexpected(plan_result.error());
@@ -713,11 +620,11 @@ namespace
 		ParseResult parsed;
 		if (head == "check")
 		{
-			parsed = ParseCompileLike(CommandKind::Check, rest);
+			parsed = ParseCompile(CommandKind::Check, rest);
 		}
 		else if (head == "build")
 		{
-			parsed = ParseBuild(rest);
+			parsed = ParseCompile(CommandKind::Build, rest);
 		}
 		else if (head == "fmt")
 		{

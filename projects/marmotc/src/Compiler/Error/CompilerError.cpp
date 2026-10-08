@@ -122,60 +122,39 @@ namespace
 		return normalized;
 	}
 
-	std::string_view StageLabel(CompilerStage stage, DiagnosticSeverity severity)
+	std::string_view StageDisplayName(CompilerStage stage)
 	{
-		if (severity == DiagnosticSeverity::Error)
-		{
-			switch (stage)
-			{
-			case CompilerStage::Lexer:
-				return "Lexer Error";
-			case CompilerStage::Parser:
-				return "Parser Error";
-			case CompilerStage::TypeChecker:
-				return "Type Checker Error";
-			case CompilerStage::StaticAnalyzer:
-				return "Static Analyzer Error";
-			case CompilerStage::Lowering:
-				return "Lowering Error";
-			case CompilerStage::CodeGenerator:
-				return "Code Generator Error";
-			case CompilerStage::Module:
-				return "Module Error";
-			case CompilerStage::BytecodeLinker:
-				return "Bytecode Linker Error";
-			case CompilerStage::Compiler:
-				return "Compiler Error";
-			case CompilerStage::Unknown:
-				return "Error";
-			}
-			std::unreachable();
-		}
-
 		switch (stage)
 		{
 		case CompilerStage::Lexer:
-			return "Lexer Warning";
+			return "Lexer";
 		case CompilerStage::Parser:
-			return "Parser Warning";
+			return "Parser";
 		case CompilerStage::TypeChecker:
-			return "Type Checker Warning";
+			return "Type Checker";
 		case CompilerStage::StaticAnalyzer:
-			return "Static Analyzer Warning";
+			return "Static Analyzer";
 		case CompilerStage::Lowering:
-			return "Lowering Warning";
+			return "Lowering";
 		case CompilerStage::CodeGenerator:
-			return "Code Generator Warning";
+			return "Code Generator";
 		case CompilerStage::Module:
-			return "Module Warning";
+			return "Module";
 		case CompilerStage::BytecodeLinker:
-			return "Bytecode Linker Warning";
+			return "Bytecode Linker";
 		case CompilerStage::Compiler:
-			return "Compiler Warning";
+			return "Compiler";
 		case CompilerStage::Unknown:
-			return "Warning";
+			break;
 		}
 		std::unreachable();
+	}
+
+	// "Type Checker Error", "Parser Warning", or a bare "Error" for no stage.
+	std::string StageLabel(CompilerStage stage, DiagnosticSeverity severity)
+	{
+		const std::string_view kind = severity == DiagnosticSeverity::Error ? "Error" : "Warning";
+		return stage == CompilerStage::Unknown ? std::string(kind) : std::format("{} {}", StageDisplayName(stage), kind);
 	}
 
 	CompilerTerminal::Color DiagnosticAccentColor(DiagnosticSeverity severity)
