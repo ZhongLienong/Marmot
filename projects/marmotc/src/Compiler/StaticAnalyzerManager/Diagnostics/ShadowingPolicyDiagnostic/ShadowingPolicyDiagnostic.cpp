@@ -36,11 +36,6 @@ namespace
 	}
 }
 
-std::string_view ShadowingPolicyDiagnostic::GetName() const
-{
-	return "ShadowingPolicyDiagnostic";
-}
-
 void ShadowingPolicyDiagnostic::Reset()
 {
 	m_scopes.clear();

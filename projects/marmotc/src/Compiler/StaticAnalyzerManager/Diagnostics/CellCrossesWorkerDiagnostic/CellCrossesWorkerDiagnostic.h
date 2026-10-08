@@ -9,11 +9,9 @@
 // the spawned lambda captures, a channel send, or a ParallelMap over cells. The
 // copy is safe (each worker owns its cell afterwards) but easy to misread, since
 // writes on one side are not seen on the other.
-class CellCrossesWorkerDiagnostic final : public AstDiagnosticPass
+class CellCrossesWorkerDiagnostic final : public DiagnosticPass
 {
 public:
-	std::string_view GetName() const override;
-
 	static bool ContainsCell(const std::shared_ptr<MidoriType>& type);
 
 protected:

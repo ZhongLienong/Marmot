@@ -118,11 +118,6 @@ namespace
 	}
 }
 
-std::string_view IntegerOverflowDiagnostic::GetName() const
-{
-	return "IntegerOverflowDiagnostic";
-}
-
 void IntegerOverflowDiagnostic::operator()(MidoriExpression::Binary& binary)
 {
 	VisitExpression(binary.m_left);

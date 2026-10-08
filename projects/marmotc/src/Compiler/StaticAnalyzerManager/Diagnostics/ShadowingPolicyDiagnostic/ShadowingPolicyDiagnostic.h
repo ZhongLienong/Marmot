@@ -7,11 +7,8 @@
 #include <unordered_set>
 #include <vector>
 
-class ShadowingPolicyDiagnostic final : public AstDiagnosticPass
+class ShadowingPolicyDiagnostic final : public DiagnosticPass
 {
-public:
-	std::string_view GetName() const override;
-
 protected:
 	void Reset() override;
 

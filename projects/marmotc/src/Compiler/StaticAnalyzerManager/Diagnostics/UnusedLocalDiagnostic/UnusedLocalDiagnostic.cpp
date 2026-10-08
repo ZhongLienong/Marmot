@@ -4,11 +4,6 @@
 
 #include <format>
 
-std::string_view UnusedLocalDiagnostic::GetName() const
-{
-	return "UnusedLocalDiagnostic";
-}
-
 void UnusedLocalDiagnostic::Reset()
 {
 	m_functions.clear();

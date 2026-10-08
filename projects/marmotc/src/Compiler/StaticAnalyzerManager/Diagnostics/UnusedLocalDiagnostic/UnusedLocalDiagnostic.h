@@ -7,11 +7,8 @@
 #include <unordered_map>
 #include <vector>
 
-class UnusedLocalDiagnostic final : public AstDiagnosticPass
+class UnusedLocalDiagnostic final : public DiagnosticPass
 {
-public:
-	std::string_view GetName() const override;
-
 protected:
 	void Reset() override;
 

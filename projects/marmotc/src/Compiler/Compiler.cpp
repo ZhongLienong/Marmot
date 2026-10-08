@@ -108,7 +108,6 @@ namespace
 		std::vector<std::string> m_source_lines;
 		MidoriResult::CompilerWarnings m_warnings;
 		ParsedModule m_parsed_module;
-		StaticAnalysisResult m_analysis_result;
 		MidoriProgramTree m_ast;
 		ModuleExportInfo m_export_info;
 		BytecodeModule m_bytecode;
@@ -235,13 +234,6 @@ namespace
 		}
 
 		state.m_ast = std::move(checked.m_ast);
-		return std::move(state);
-	}
-
-	static CompileState ApplyStaticAnalysis(CompileState state, StaticAnalysisResult&& analysis_result)
-	{
-		state.m_warnings.Append(std::move(analysis_result.m_warnings));
-		state.m_analysis_result = std::move(analysis_result);
 		return std::move(state);
 	}
 
@@ -513,11 +505,6 @@ namespace
 		return TypeCheckedModule{ std::move(typecheck_result.value()), type_checker.ModuleTypes() };
 	}
 
-	static StaticAnalysisResult StaticAnalyzeModule(MidoriProgramTree& ast, const std::string& file_path, const std::vector<std::string>& module_source_lines)
-	{
-		return StaticAnalyzerManager().Analyze(ast, file_path, module_source_lines);
-	}
-
 	static ModuleExportInfo BuildModuleExports(const ModuleDeclaration* module_decl, const CompiledModule::TypeclassMetadataMap& typeclass_metadata)
 	{
 		ModuleExportInfo export_info;
@@ -593,15 +580,8 @@ namespace
 	CompileStateResult CompileState::WithStaticAnalysis() &&
 	{
 		CompileState state = std::move(*this);
-		StaticAnalysisResult analysis_result = StaticAnalyzeModule(state.m_ast, state.m_file_path, state.m_source_lines);
-		if (!analysis_result.m_errors.empty())
-		{
-			MidoriResult::CompilerReport report(std::move(state.m_warnings), MidoriResult::CompilerDiagnostics(std::move(analysis_result.m_errors)));
-			report.AppendWarnings(std::move(analysis_result.m_warnings));
-			return std::unexpected(std::move(report));
-		}
-
-		return ApplyStaticAnalysis(std::move(state), std::move(analysis_result));
+		state.m_warnings.Append(StaticAnalyzerManager().Analyze(state.m_ast, state.m_file_path, state.m_source_lines));
+		return state;
 	}
 
 	static LoweringImports MakeLoweringImports(const ImportContext& import_context)

@@ -149,11 +149,10 @@ namespace MidoriTest
 	{
 	}
 
-	AnalyzedSnippet::AnalyzedSnippet(SourceFixture source, MidoriProgramTree&& program, std::vector<CompilerWarning>&& warnings, std::vector<CompilerError>&& errors)
+	AnalyzedSnippet::AnalyzedSnippet(SourceFixture source, MidoriProgramTree&& program, std::vector<CompilerWarning>&& warnings)
 		: m_source(std::move(source)),
 		m_program(std::move(program)),
-		m_warnings(std::move(warnings)),
-		m_errors(std::move(errors))
+		m_warnings(std::move(warnings))
 	{
 	}
 
@@ -284,8 +283,8 @@ namespace MidoriTest
 		}
 
 		TypedSnippet typed = std::move(typed_result.value());
-		StaticAnalysisResult analysis_result = StaticAnalyzerManager().Analyze(typed.m_program, typed.m_source.FileName(), typed.m_source.SourceLines());
-		return AnalyzedSnippet(std::move(typed.m_source), std::move(typed.m_program), std::move(analysis_result.m_warnings), std::move(analysis_result.m_errors));
+		std::vector<CompilerWarning> warnings = StaticAnalyzerManager().Analyze(typed.m_program, typed.m_source.FileName(), typed.m_source.SourceLines());
+		return AnalyzedSnippet(std::move(typed.m_source), std::move(typed.m_program), std::move(warnings));
 	}
 
 	MidoriResult::CompilationResult CompileSnippetWithReport(std::string source_code, std::string file_name)

@@ -37,7 +37,6 @@ def Compute = fn() -> Int => {
 		FAIL(std::string(analyze_result.error().Rendered()));
 	}
 
-	REQUIRE(analyze_result->m_errors.empty());
 	RequireWarningMatches(
 		analyze_result->m_warnings,
 		CompilerWarningCode::UnusedLocal,
@@ -70,7 +69,6 @@ def Compute = fn(value : Int) -> Int => {
 		FAIL(std::string(analyze_result.error().Rendered()));
 	}
 
-	REQUIRE(analyze_result->m_errors.empty());
 	RequireWarningMatches(
 		analyze_result->m_warnings,
 		CompilerWarningCode::NameShadowing,
@@ -104,7 +102,6 @@ def Add = fn(a: Int) -> fn(Int) -> Int => fn(b: Int) -> Int => a + b;
 		FAIL(std::string(analyze_result.error().Rendered()));
 	}
 
-	REQUIRE(analyze_result->m_errors.empty());
 	CHECK(analyze_result->m_warnings.empty());
 }
 
@@ -123,7 +120,6 @@ def main = fn() -> Int => too_big + shifted;
 		FAIL(std::string(analyze_result.error().Rendered()));
 	}
 
-	REQUIRE(analyze_result->m_errors.empty());
 	RequireWarningMatches(
 		analyze_result->m_warnings,
 		CompilerWarningCode::IntegerOverflow,
@@ -152,6 +148,5 @@ def Compute = fn(x : Int) -> Int => {
 		FAIL(std::string(analyze_result.error().Rendered()));
 	}
 
-	REQUIRE(analyze_result->m_errors.empty());
 	CHECK(MidoriTest::FindWarning(analyze_result->m_warnings, CompilerWarningCode::IntegerOverflow) == nullptr);
 }

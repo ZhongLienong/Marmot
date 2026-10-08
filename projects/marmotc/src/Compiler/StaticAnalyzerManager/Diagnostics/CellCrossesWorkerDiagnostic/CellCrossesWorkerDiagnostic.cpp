@@ -42,11 +42,6 @@ namespace
 	};
 }
 
-std::string_view CellCrossesWorkerDiagnostic::GetName() const
-{
-	return "CellCrossesWorkerDiagnostic";
-}
-
 bool CellCrossesWorkerDiagnostic::ContainsCell(const std::shared_ptr<MidoriType>& type)
 {
 	std::unordered_set<const MidoriType*> visited;

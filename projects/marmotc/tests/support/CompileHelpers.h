@@ -50,9 +50,8 @@ namespace MidoriTest
 		SourceFixture m_source;
 		MidoriProgramTree m_program;
 		std::vector<CompilerWarning> m_warnings;
-		std::vector<CompilerError> m_errors;
 
-		AnalyzedSnippet(SourceFixture source, MidoriProgramTree&& program, std::vector<CompilerWarning>&& warnings, std::vector<CompilerError>&& errors);
+		AnalyzedSnippet(SourceFixture source, MidoriProgramTree&& program, std::vector<CompilerWarning>&& warnings);
 	};
 
 	struct ExecutedSnippet

@@ -1,54 +1,27 @@
 #include "BaseDiagnosticPass.h"
 
-const std::vector<std::string>& StaticAnalysisContext::SourceLines() const
-{
-	return *m_source_lines;
-}
+#include <utility>
 
-void DiagnosticSink::AddWarning(CompilerWarning warning)
+std::vector<CompilerWarning> DiagnosticPass::Run(MidoriProgramTree& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines)
 {
-	m_warnings.emplace_back(std::move(warning));
-}
-
-StaticAnalysisResult DiagnosticSink::TakeResult() &&
-{
-	return StaticAnalysisResult
-	{
-		std::move(m_warnings),
-		std::move(m_errors)
-	};
-}
-
-void AstDiagnosticPass::Run(MidoriProgramTree& program_tree, const StaticAnalysisContext& context, DiagnosticSink& sink)
-{
-	m_context = &context;
-	m_sink = &sink;
+	m_file_name = file_name;
+	m_source_lines = &source_lines;
 	Reset();
 	VisitProgram(program_tree);
 	Finish();
-	m_sink = nullptr;
-	m_context = nullptr;
+	m_source_lines = nullptr;
+	return std::exchange(m_warnings, {});
 }
 
-void AstDiagnosticPass::Reset()
+void DiagnosticPass::Reset()
 {
 }
 
-void AstDiagnosticPass::Finish()
+void DiagnosticPass::Finish()
 {
 }
 
-const StaticAnalysisContext& AstDiagnosticPass::Context() const
+void DiagnosticPass::EmitWarning(CompilerWarningCode code, const Token& token, std::string_view message, std::optional<std::string_view> suggestion)
 {
-	return *m_context;
-}
-
-DiagnosticSink& AstDiagnosticPass::Sink() const
-{
-	return *m_sink;
-}
-
-void AstDiagnosticPass::EmitWarning(CompilerWarningCode code, const Token& token, std::string_view message, std::optional<std::string_view> suggestion)
-{
-	Sink().AddWarning(CompilerWarning::WithToken(CompilerStage::StaticAnalyzer, message, token, Context().m_file_name, Context().SourceLines(), suggestion, code));
+	m_warnings.emplace_back(CompilerWarning::WithToken(CompilerStage::StaticAnalyzer, message, token, m_file_name, *m_source_lines, suggestion, code));
 }
