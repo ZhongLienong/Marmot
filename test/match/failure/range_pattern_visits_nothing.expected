@@ -2,5 +2,5 @@ Compilation failed :(
 Parser Error at test/match/failure/range_pattern_visits_nothing.mmt:12
    |
 12 | 		case 5..1..5 => "five"
-   |        ^ This range visits no value, so the pattern can never match.
+   | 		     ^ This range visits no value, so the pattern can never match.
    |

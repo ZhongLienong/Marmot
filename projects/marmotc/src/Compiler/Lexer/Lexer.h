@@ -40,7 +40,6 @@ private:
 	struct LexState
 	{
 		TokenStream m_tokens;
-		std::vector<CompilerError> m_errors;
 	};
 
 	Source m_source;

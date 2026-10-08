@@ -2,5 +2,5 @@ Compilation failed :(
 Type Checker Error at test/match/failure/unreachable_catch_all.mmt:18
    |
 18 | 		case _ => -1;
-   |   ^^^^ The cases above already match every value, so this one can never run. If it belongs to an enclosing match, put the match above it in braces.
+   | 		^^^^ The cases above already match every value, so this one can never run. If it belongs to an enclosing match, put the match above it in braces.
    |

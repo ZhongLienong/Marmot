@@ -237,3 +237,28 @@ joined = left ++ right;
 	CHECK(tilde_token->m_token_name == Token::Name::TILDE);
 }
 
+
+TEST_CASE("Lexer errors and tokens after a multi-line string point at their own columns", "[lexer]")
+{
+	const std::expected<MidoriTest::LexedSnippet, CompilerError> invalid = MidoriTest::LexSnippet("def s = 1 $ 2;\ndef t = 1 ` 2;\n", "InvalidCharacter.mmt");
+	REQUIRE_FALSE(invalid.has_value());
+	REQUIRE(invalid.error().m_location.has_value());
+	CHECK(invalid.error().m_location->m_line == 1);
+	CHECK(invalid.error().m_location->m_column == 10);
+
+	const std::expected<MidoriTest::LexedSnippet, CompilerError> unterminated = MidoriTest::LexSnippet("def a = 1;\ndef s = \"abc;\n", "UnterminatedString.mmt");
+	REQUIRE_FALSE(unterminated.has_value());
+	REQUIRE(unterminated.error().m_location.has_value());
+	CHECK(unterminated.error().m_location->m_line == 2);
+	CHECK(unterminated.error().m_location->m_column == 8);
+
+	const std::expected<MidoriTest::LexedSnippet, CompilerError> multi_line = MidoriTest::LexSnippet("def s = \"abcdef\nb\"; def t = 1;\n", "MultiLineString.mmt");
+	if (!multi_line.has_value())
+	{
+		FAIL(std::string(multi_line.error().Rendered()));
+	}
+	const Token* after_string = FindTokenByLexeme(multi_line->m_tokens, "t");
+	REQUIRE(after_string != nullptr);
+	CHECK(after_string->m_line == 2);
+	CHECK(after_string->m_column == 8);
+}

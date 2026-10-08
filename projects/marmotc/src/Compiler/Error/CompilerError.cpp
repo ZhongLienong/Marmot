@@ -3,7 +3,9 @@
 #include "Compiler/Terminal/Terminal.h"
 #include <algorithm>
 #include <filesystem>
+#include <ranges>
 #include <sstream>
+#include <utility>
 
 std::string_view CompilerStageName(CompilerStage stage)
 {
@@ -28,9 +30,9 @@ std::string_view CompilerStageName(CompilerStage stage)
 	case CompilerStage::Compiler:
 		return "Compiler";
 	case CompilerStage::Unknown:
-	default:
 		return "Unknown";
 	}
+	std::unreachable();
 }
 
 std::string_view CompilerErrorCodeName(CompilerErrorCode code)
@@ -83,15 +85,10 @@ std::string_view CompilerErrorCodeName(CompilerErrorCode code)
 		return "BytecodeLinkerDuplicateExportedSymbol";
 	case CompilerErrorCode::BytecodeLinkerUnresolvedImport:
 		return "BytecodeLinkerUnresolvedImport";
-	case CompilerErrorCode::CompilerNoModulesReadyToCompile:
-		return "CompilerNoModulesReadyToCompile";
-	case CompilerErrorCode::CompilerIncompleteCompilationSchedule:
-		return "CompilerIncompleteCompilationSchedule";
-	case CompilerErrorCode::CompilerMissingCompiledModule:
-		return "CompilerMissingCompiledModule";
-	default:
-		return "None";
+	case CompilerErrorCode::CompilerInternalError:
+		return "CompilerInternalError";
 	}
+	std::unreachable();
 }
 
 std::string_view CompilerWarningCodeName(CompilerWarningCode code)
@@ -107,9 +104,9 @@ std::string_view CompilerWarningCodeName(CompilerWarningCode code)
 	case CompilerWarningCode::IntegerOverflow:
 		return "IntegerOverflow";
 	case CompilerWarningCode::None:
-	default:
 		return "None";
 	}
+	std::unreachable();
 }
 
 namespace
@@ -152,9 +149,9 @@ namespace
 			case CompilerStage::Compiler:
 				return "Compiler Error";
 			case CompilerStage::Unknown:
-			default:
 				return "Error";
 			}
+			std::unreachable();
 		}
 
 		switch (stage)
@@ -178,9 +175,9 @@ namespace
 		case CompilerStage::Compiler:
 			return "Compiler Warning";
 		case CompilerStage::Unknown:
-		default:
 			return "Warning";
 		}
+		std::unreachable();
 	}
 
 	CompilerTerminal::Color DiagnosticAccentColor(DiagnosticSeverity severity)
@@ -302,6 +299,20 @@ namespace
 		return serialized;
 	}
 
+	// Spaces up to `column`, except a tab where the source line has one and
+	// nothing for a UTF-8 continuation byte, so the caret lands under the
+	// column whatever the terminal's tab width.
+	std::string CaretIndent(std::string_view source_line, int column)
+	{
+		const size_t width = static_cast<size_t>(column);
+		std::string indent = source_line.substr(0u, std::min(width, source_line.size()))
+			| std::views::filter([](char c) { return (static_cast<unsigned char>(c) & 0xC0u) != 0x80u; })
+			| std::views::transform([](char c) { return c == '\t' ? '\t' : ' '; })
+			| std::ranges::to<std::string>();
+		indent.append(width - std::min(width, source_line.size()), ' ');
+		return indent;
+	}
+
 	std::string RenderCompilerDiagnostic(
 		CompilerStage stage,
 		std::string_view message,
@@ -323,7 +334,11 @@ namespace
 		oss << "\033[0m";
 		oss << " at ";
 		oss << CompilerTerminal::Code(CompilerTerminal::Color::BRIGHT_CYAN);
-		oss << resolved_location.m_file_name << ":" << resolved_location.m_line;
+		oss << resolved_location.m_file_name;
+		if (resolved_location.m_line > 0)
+		{
+			oss << ":" << resolved_location.m_line;
+		}
 		oss << "\033[0m\n";
 
 		if (resolved_location.m_source_line.has_value() && resolved_location.m_line > 0)
@@ -353,11 +368,7 @@ namespace
 
 			if (resolved_location.m_column.has_value())
 			{
-				oss << " ";
-				for (int i = 0; i < *resolved_location.m_column; i += 1)
-				{
-					oss << " ";
-				}
+				oss << " " << CaretIndent(source_line, *resolved_location.m_column);
 
 				const size_t caret_length = resolved_location.m_caret_length.value_or(1u);
 				for (size_t i = 0u; i < caret_length; i += 1u)

@@ -51,9 +51,6 @@ enum class CompilerErrorCode
 	BytecodeLinkerNoModulesToLink,
 	BytecodeLinkerDuplicateExportedSymbol,
 	BytecodeLinkerUnresolvedImport,
-	CompilerNoModulesReadyToCompile,
-	CompilerIncompleteCompilationSchedule,
-	CompilerMissingCompiledModule,
 	CompilerInternalError
 };
 

@@ -2,6 +2,6 @@
 Static Analyzer Warning at test/static_analyzer/success/cell_crosses_worker_capture.mmt:25
    |
 25 | 		outer := (*outer) + Bump();
-   |   ^^^^^ This reference is copied into the worker; writes on either side are not seen by the other.
+   | 		^^^^^ This reference is copied into the worker; writes on either side are not seen by the other.
    |
 worker got 42, caller still has 40

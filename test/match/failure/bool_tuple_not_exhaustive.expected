@@ -2,5 +2,5 @@ Compilation failed :(
 Type Checker Error at test/match/failure/bool_tuple_not_exhaustive.mmt:9
   |
 9 | 	match (left, right) with
-  |  ^^^^^ Match expression type error: non-exhaustive match: no case matches (true, false)
+  | 	^^^^^ Match expression type error: non-exhaustive match: no case matches (true, false)
   |

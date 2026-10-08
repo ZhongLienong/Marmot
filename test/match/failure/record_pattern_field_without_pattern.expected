@@ -2,5 +2,5 @@ Compilation failed :(
 Parser Error at test/match/failure/record_pattern_field_without_pattern.mmt:19
    |
 19 | 		case Point { x, .. } => x;
-   |                 ^ Expected '=' after the field name; a record pattern names each field as 'field = pattern'.
+   | 		              ^ Expected '=' after the field name; a record pattern names each field as 'field = pattern'.
    |

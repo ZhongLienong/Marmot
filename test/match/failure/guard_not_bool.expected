@@ -2,6 +2,6 @@ Compilation failed :(
 Type Checker Error at test/match/failure/guard_not_bool.mmt:6
   |
 6 | 	case Result::Ok(n) if n => "positive"
-  |  ^^^^ Match expression type error: case guard must be of type Bool
+  | 	^^^^ Match expression type error: case guard must be of type Bool
 Expected Bool, but got Int
   |

@@ -277,8 +277,7 @@ MidoriResult::TokenResult Lexer::MatchStringRecursive(std::string&& acc)
 	{
 		if (IsAtEnd(0))
 		{
-			const int column = BeginColumn();
-			return std::unexpected(MidoriError::GenerateLexerErrorWithContext("Unterminated string", m_cursor.m_line, column, m_source.m_file_name, m_source.m_lines));
+			return std::unexpected(MidoriError::GenerateLexerErrorWithContext("Unterminated string", m_cursor.m_begin_line, BeginColumn(), m_source.m_file_name, m_source.m_lines));
 		}
 
 		if (LookAhead(0) == '"')
@@ -289,7 +288,9 @@ MidoriResult::TokenResult Lexer::MatchStringRecursive(std::string&& acc)
 
 		if (LookAhead(0) == '\n')
 		{
-			m_cursor.m_line += 1;
+			AdvanceLine();
+			acc += '\n';
+			continue;
 		}
 
 		if (LookAhead(0) == '\\' && !IsAtEnd(1))
@@ -701,7 +702,7 @@ MidoriResult::TokenResult Lexer::MatchLiteralOrIdentifier(char next_char)
 
 MidoriResult::TokenResult Lexer::MakeInvalidCharacterError(char next_char) const
 {
-	return std::unexpected(MidoriError::GenerateLexerErrorWithContext("Invalid character: "s + next_char, m_cursor.m_line, CurrentColumn(), m_source.m_file_name, m_source.m_lines));
+	return std::unexpected(MidoriError::GenerateLexerErrorWithContext("Invalid character: "s + next_char, m_cursor.m_line, BeginColumn(), m_source.m_file_name, m_source.m_lines));
 }
 
 MidoriResult::Result<Lexer::LexState> Lexer::RecordTokenOrError(LexState state)
@@ -719,14 +720,6 @@ MidoriResult::Result<Lexer::LexState> Lexer::RecordTokenOrError(LexState state)
 				}
 
 				state.m_tokens.AddToken(std::move(token));
-				return std::move(state);
-			}
-		)
-		.or_else
-		(
-			[state = std::move(state)](CompilerError&& error) mutable -> MidoriResult::Result<LexState>
-			{
-				state.m_errors.emplace_back(std::move(error));
 				return std::move(state);
 			}
 		);
@@ -789,22 +782,6 @@ MidoriResult::LexerResult Lexer::LexRecursive(LexState state)
 		}
 	}
 
-	if (!state.m_errors.empty())
-	{
-		if (state.m_errors.size() == 1u)
-		{
-			return std::unexpected(std::move(state.m_errors.front()));
-		}
-
-		std::string rendered_errors;
-		for (const CompilerError& error : state.m_errors)
-		{
-			rendered_errors.append(error.Rendered()).append("\n");
-		}
-
-		return std::unexpected(CompilerError(std::move(rendered_errors)));
-	}
-
 	if (state.m_tokens.Size() == 0 || (std::prev(state.m_tokens.cend())->m_token_name != Token::Name::END_OF_FILE))
 	{
 		BeginToken();
@@ -816,11 +793,11 @@ MidoriResult::LexerResult Lexer::LexRecursive(LexState state)
 
 MidoriResult::LexerResult Lexer::Lex() &
 {
-	return LexRecursive(LexState{ TokenStream{}, {} });
+	return LexRecursive(LexState{ TokenStream{} });
 }
 
 MidoriResult::LexerResult Lexer::Lex() &&
 {
-	return LexRecursive(LexState{ TokenStream{}, {} });
+	return LexRecursive(LexState{ TokenStream{} });
 }
 

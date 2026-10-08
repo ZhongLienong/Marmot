@@ -7,7 +7,7 @@ Static Analyzer Warning at test/dogfood/semantics.mmt:85
 Static Analyzer Warning at test/dogfood/semantics.mmt:88
    |
 88 | 	def z = { def x = y * 10; x + 1 };
-   |                ^ Name 'x' shadows a variable from an outer scope.
+   | 	              ^ Name 'x' shadows a variable from an outer scope.
    |
 Static Analyzer Warning at test/dogfood/semantics.mmt:27
    |

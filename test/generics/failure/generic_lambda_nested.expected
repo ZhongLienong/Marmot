@@ -2,5 +2,5 @@ Compilation failed :(
 Type Checker Error at test/generics/failure/generic_lambda_nested.mmt:14
    |
 14 | 	def Id = fn<T>(x: T) -> T => x;
-   |           ^^ Function expression type error: a generic lambda must be bound at the top level, because it is specialized by name at each call site
+   | 	         ^^ Function expression type error: a generic lambda must be bound at the top level, because it is specialized by name at each call site
    |

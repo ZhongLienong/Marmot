@@ -76,9 +76,7 @@ Current `CompilerErrorCode` values:
 - `BytecodeLinkerNoModulesToLink`
 - `BytecodeLinkerDuplicateExportedSymbol`
 - `BytecodeLinkerUnresolvedImport`
-- `CompilerNoModulesReadyToCompile`
-- `CompilerIncompleteCompilationSchedule`
-- `CompilerMissingCompiledModule`
+- `CompilerInternalError`
 
 ### Warning Codes
 
@@ -197,6 +195,8 @@ Important behavior from the current pipeline:
 - warnings from earlier stages survive later failures
 - warnings are not printed immediately when produced
 - the driver prints warnings once, in build-schedule order
+- when modules fail, every failed module's errors are reported, in
+  build-schedule order, whatever the worker count
 
 That ordering is tested in:
 

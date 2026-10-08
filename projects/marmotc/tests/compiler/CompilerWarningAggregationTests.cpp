@@ -18,6 +18,13 @@ namespace
 		CAPTURE(mismatch);
 		REQUIRE(matched);
 	}
+
+	std::string RenderedFailure(const std::filesystem::path& main_file_path, size_t jobs)
+	{
+		const MidoriDriver::CompileFileWithReportResult compiled = MidoriDriver::CompileFileWithReport(main_file_path, MidoriDriver::EnvironmentCompilationInputs().WithJobs(jobs));
+		REQUIRE_FALSE(compiled.has_value());
+		return MidoriTest::StripAnsiCodes(compiled.error().Rendered());
+	}
 }
 
 TEST_CASE("CompileFileWithReport preserves aggregated warning order without rendering warnings early", "[compiler][warning][report]")
@@ -155,4 +162,49 @@ def main = fn() -> Int => {
 	REQUIRE(warning_position != std::string::npos);
 	CHECK(summary_position < warning_position);
 	CHECK(rendered_output.find("[warning] 1 warning(s) in Main.mmt", summary_position + 1u) == std::string::npos);
+}
+
+TEST_CASE("Every failing module is reported in build order for any worker count", "[compiler][report]")
+{
+	const MidoriTest::TempProject project
+	({
+		MidoriTest::TempProjectFile
+		(
+			"Alpha.mmt",
+			R"(module Alpha
+public export { Value }
+def Value: Int = "alpha";
+)"
+		),
+		MidoriTest::TempProjectFile
+		(
+			"Zulu.mmt",
+			R"(module Zulu
+public export { Value }
+def Value: Int = "zulu";
+)"
+		),
+		MidoriTest::TempProjectFile
+		(
+			"Main.mmt",
+			R"(module Main
+import { "Alpha.mmt", "Zulu.mmt" }
+def total = Alpha::Value + Zulu::Value;
+)"
+		)
+	});
+
+	const std::filesystem::path main_file_path = std::filesystem::weakly_canonical(project.Path("Main.mmt"));
+	const std::string sequential = RenderedFailure(main_file_path, 1u);
+	const size_t alpha = sequential.find("Alpha.mmt:3");
+	const size_t zulu = sequential.find("Zulu.mmt:3");
+	REQUIRE(alpha != std::string::npos);
+	REQUIRE(zulu != std::string::npos);
+	CHECK(alpha < zulu);
+	CHECK(sequential.find("Main.mmt") == std::string::npos);
+
+	for (size_t run = 0u; run < 20u; run += 1u)
+	{
+		CHECK(RenderedFailure(main_file_path, 4u) == sequential);
+	}
 }

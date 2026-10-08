@@ -2,5 +2,5 @@ Compilation failed :(
 Parser Error at test/match/failure/as_pattern_rebinds_name.mmt:16
    |
 16 | 		case Option::Some(value) as value => 1
-   |                               ^^^^^ Name already exists in the current scope
+   | 		                            ^^^^^ Name already exists in the current scope
    |

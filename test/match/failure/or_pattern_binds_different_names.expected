@@ -2,5 +2,5 @@ Compilation failed :(
 Parser Error at test/match/failure/or_pattern_binds_different_names.mmt:15
    |
 15 | 		case Shape::Line(length) | Shape::Box(width, _) => length
-   |                                         ^^^^^ 'width' is bound here but not by the first alternative; every alternative of '|' binds the same names.
+   | 		                                      ^^^^^ 'width' is bound here but not by the first alternative; every alternative of '|' binds the same names.
    |

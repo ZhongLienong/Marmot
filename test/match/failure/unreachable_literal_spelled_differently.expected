@@ -2,5 +2,5 @@ Compilation failed :(
 Type Checker Error at test/match/failure/unreachable_literal_spelled_differently.mmt:14
    |
 14 | 		case 0x100 => "hex"
-   |   ^^^^ The cases above already match every value this one does, so it can never run.
+   | 		^^^^ The cases above already match every value this one does, so it can never run.
    |

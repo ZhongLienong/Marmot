@@ -1,3 +1,3 @@
 Compilation failed :(
-Module Error at test/module/failure/circular_a.mmt:0
+Module Error at test/module/failure/circular_a.mmt
   Circular dependency detected in final build graph

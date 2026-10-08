@@ -2,5 +2,5 @@ Compilation failed :(
 Type Checker Error at test/match/failure/unreachable_inside_ranges.mmt:14
    |
 14 | 		case 2..1..8 => 3
-   |   ^^^^ The cases above already match every value this one does, so it can never run.
+   | 		^^^^ The cases above already match every value this one does, so it can never run.
    |

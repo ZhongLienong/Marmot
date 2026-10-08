@@ -2,5 +2,5 @@ Compilation failed :(
 Type Checker Error at test/match/failure/unreachable_after_rest.mmt:13
    |
 13 | 		case [only] => only
-   |   ^^^^ The cases above already match every value this one does, so it can never run.
+   | 		^^^^ The cases above already match every value this one does, so it can never run.
    |

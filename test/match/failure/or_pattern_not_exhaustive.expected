@@ -2,5 +2,5 @@ Compilation failed :(
 Type Checker Error at test/match/failure/or_pattern_not_exhaustive.mmt:17
    |
 17 | 	match option with
-   |  ^^^^^ Match expression type error: non-exhaustive match: no case matches Option::Some(Shape::Box(_, _)), Option::Some(Shape::Blob())
+   | 	^^^^^ Match expression type error: non-exhaustive match: no case matches Option::Some(Shape::Box(_, _)), Option::Some(Shape::Blob())
    |

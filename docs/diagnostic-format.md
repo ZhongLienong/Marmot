@@ -199,9 +199,7 @@ Current `CompilerErrorCode` values:
 - `BytecodeLinkerNoModulesToLink`
 - `BytecodeLinkerDuplicateExportedSymbol`
 - `BytecodeLinkerUnresolvedImport`
-- `CompilerNoModulesReadyToCompile`
-- `CompilerIncompleteCompilationSchedule`
-- `CompilerMissingCompiledModule`
+- `CompilerInternalError`
 
 Current `RuntimeErrorCode` values:
 
@@ -339,9 +337,7 @@ are emitted with the same shape as the full examples above.
 | `BytecodeLinkerNoModulesToLink` | `BytecodeLinker` | `No modules to link.` |
 | `BytecodeLinkerDuplicateExportedSymbol` | `BytecodeLinker` | `Duplicate exported symbol 'main' in 'A' and 'B'.` |
 | `BytecodeLinkerUnresolvedImport` | `BytecodeLinker` | `Unresolved import 'foo' from module 'A'.` |
-| `CompilerNoModulesReadyToCompile` | `Compiler` | `No modules ready to compile.` |
-| `CompilerIncompleteCompilationSchedule` | `Compiler` | `Compilation schedule is incomplete.` |
-| `CompilerMissingCompiledModule` | `Compiler` | `Missing compiled module 'A'.` |
+| `CompilerInternalError` | `Compiler` | `Internal compiler error in the type checker stage: bad_alloc` |
 
 ### Runtime error codes
 

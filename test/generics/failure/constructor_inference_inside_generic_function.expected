@@ -2,5 +2,5 @@ Compilation failed :(
 Type Checker Error at test/generics/failure/constructor_inference_inside_generic_function.mmt:18
    |
 18 | 	def unowned = Option::None();
-   |                ^^^^^^ Construct expression type error: could not infer all type arguments for 'Option'
+   | 	              ^^^^^^ Construct expression type error: could not infer all type arguments for 'Option'
    |

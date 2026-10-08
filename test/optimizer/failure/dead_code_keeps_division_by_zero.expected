@@ -2,12 +2,12 @@
 Static Analyzer Warning at test/optimizer/failure/dead_code_keeps_division_by_zero.mmt:5
   |
 5 | 	def unused = x + 1;
-  |      ^^^^^^ Binding 'unused' is never read.
+  | 	    ^^^^^^ Binding 'unused' is never read.
   |
 Static Analyzer Warning at test/optimizer/failure/dead_code_keeps_division_by_zero.mmt:9
   |
 9 | 	def bad = x / zero;
-  |      ^^^ Binding 'bad' is never read.
+  | 	    ^^^ Binding 'bad' is never read.
   |
 error[DivisionByZero]: Division by zero.
  --> test/optimizer/failure/dead_code_keeps_division_by_zero.mmt:9

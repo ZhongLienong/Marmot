@@ -2,5 +2,5 @@ Compilation failed :(
 Parser Error at test/match/failure/as_pattern_needs_name.mmt:13
    |
 13 | 		case Option::Some(value) as _ => value
-   |                            ^^ Expected a name after 'as' in a pattern.
+   | 		                         ^^ Expected a name after 'as' in a pattern.
    |
