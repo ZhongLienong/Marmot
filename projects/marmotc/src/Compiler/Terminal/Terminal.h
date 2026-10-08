@@ -11,14 +11,10 @@ namespace CompilerTerminal
 		RED,
 		YELLOW,
 		BLUE,
-		MAGENTA,
-		CYAN,
 		WHITE,
 		BRIGHT_RED,
-		BRIGHT_GREEN,
 		BRIGHT_YELLOW,
 		BRIGHT_CYAN,
-		DARK_GRAY,
 	};
 
 	// Whether diagnostics carry colour: off until the driver, which knows where

@@ -12,55 +12,12 @@
 #include "Bytecode/Scalar/Scalar.h"
 #include "Bytecode/Builtins/BuiltinTable.h"
 #include "Disassembler.h"
+#include "Support/Terminal/Terminal.h"
 
 
 namespace
 {
-	namespace Terminal
-	{
-		enum class Color
-		{
-			CYAN,
-			WHITE,
-			BRIGHT_YELLOW,
-			BRIGHT_CYAN,
-			BRIGHT_WHITE,
-			DARK_GRAY,
-		};
-
-		constexpr std::string_view RESET = "[0m";
-
-		constexpr std::string_view Code(Color color)
-		{
-			switch (color)
-			{
-			case Color::CYAN:
-				return "[36m";
-			case Color::WHITE:
-				return "[37m";
-			case Color::BRIGHT_YELLOW:
-				return "[93m";
-			case Color::BRIGHT_CYAN:
-				return "[96m";
-			case Color::BRIGHT_WHITE:
-				return "[97m";
-			case Color::DARK_GRAY:
-				return "[38;5;240m";
-			}
-			std::unreachable();
-		}
-
-		template<Color color>
-		std::string Colored(std::string_view text)
-		{
-			return std::format("{}{}{}", Code(color), text, RESET);
-		}
-
-		void Print(std::FILE* output, std::string_view message)
-		{
-			std::print(output, "{}{}{}", Code(Color::WHITE), message, RESET);
-		}
-	}
+	namespace Terminal = RuntimeTerminal;
 
 	constexpr int address_width = 6;
 	constexpr int instr_width = 25;

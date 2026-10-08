@@ -1,6 +1,9 @@
 #pragma once
 
+#include <cstdio>
+#include <format>
 #include <print>
+#include <string>
 #include <string_view>
 
 namespace RuntimeTerminal
@@ -10,14 +13,14 @@ namespace RuntimeTerminal
 		RESET,
 		BOLD,
 		RED,
-		GREEN,
-		YELLOW,
 		BLUE,
 		WHITE,
+		CYAN,
 		BRIGHT_RED,
 		BRIGHT_YELLOW,
 		BRIGHT_CYAN,
 		BRIGHT_WHITE,
+		DARK_GRAY,
 	};
 
 	// Runtime errors go to stdout, so they are coloured when it is a terminal.
@@ -27,9 +30,15 @@ namespace RuntimeTerminal
 	// The escape code for `color`, or nothing when colour is off.
 	[[nodiscard]] std::string_view Code(Color color);
 
-	template<Color color = Color::WHITE>
-	void Print(std::string_view message)
+	template<Color color>
+	[[nodiscard]] std::string Colored(std::string_view text)
 	{
-		std::print("{}{}{}", Code(color), message, Code(Color::RESET));
+		return std::format("{}{}{}", Code(color), text, Code(Color::RESET));
+	}
+
+	template<Color color = Color::WHITE>
+	void Print(std::FILE* output, std::string_view message)
+	{
+		std::print(output, "{}", Colored<color>(message));
 	}
 }

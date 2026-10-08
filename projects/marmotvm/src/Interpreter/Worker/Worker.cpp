@@ -53,7 +53,7 @@ Worker::~Worker()
 		if (m_had_error)
 		{
 			std::lock_guard<std::mutex> lock(m_result_mutex);
-			RuntimeTerminal::Print<RuntimeTerminal::Color::RED>(std::format("[Worker] Unjoined worker error: {}\n", m_error));
+			RuntimeTerminal::Print<RuntimeTerminal::Color::RED>(stdout, std::format("[Worker] Unjoined worker error: {}\n", m_error));
 		}
 	}
 }
