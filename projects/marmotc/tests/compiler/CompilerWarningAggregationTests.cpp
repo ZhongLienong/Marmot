@@ -76,12 +76,12 @@ def main = fn() -> Int => Alpha::Value() + Zulu::Value();
 	}
 
 	const MidoriResult::CompilerReport& report = compile_result->Report();
-	REQUIRE(report.WarningCount() == 2u);
-	REQUIRE_FALSE(report.HasErrors());
-	REQUIRE(report.Warnings().Warnings()[0u].m_location.has_value());
-	REQUIRE(report.Warnings().Warnings()[1u].m_location.has_value());
-	CHECK(std::filesystem::path(report.Warnings().Warnings()[0u].m_location->m_file_name).filename().string() == "Alpha.mmt");
-	CHECK(std::filesystem::path(report.Warnings().Warnings()[1u].m_location->m_file_name).filename().string() == "Zulu.mmt");
+	REQUIRE(report.m_warnings.Size() == 2u);
+	REQUIRE(report.m_errors.Empty());
+	REQUIRE(report.m_warnings.m_items[0u].m_location.has_value());
+	REQUIRE(report.m_warnings.m_items[1u].m_location.has_value());
+	CHECK(std::filesystem::path(report.m_warnings.m_items[0u].m_location->m_file_name).filename().string() == "Alpha.mmt");
+	CHECK(std::filesystem::path(report.m_warnings.m_items[1u].m_location->m_file_name).filename().string() == "Zulu.mmt");
 
 	const std::string rendered_output = MidoriTest::StripAnsiCodes(output.m_stdout);
 	CHECK(rendered_output.find("1 warning(s) in Alpha.mmt") == std::string::npos);
@@ -113,10 +113,10 @@ def main = fn() -> Int => {
 	REQUIRE_FALSE(compile_result.has_value());
 
 	const MidoriResult::CompilerReport& report = MidoriTest::CompilationReport(compile_result);
-	REQUIRE(report.HasWarnings());
-	REQUIRE(report.HasErrors());
-	REQUIRE(report.WarningCount() == 1u);
-	REQUIRE(report.ErrorCount() == 2u);
+	REQUIRE_FALSE(report.m_warnings.Empty());
+	REQUIRE_FALSE(report.m_errors.Empty());
+	REQUIRE(report.m_warnings.Size() == 1u);
+	REQUIRE(report.m_errors.Size() == 2u);
 
 	const CompilerWarning* warning =
 		MidoriTest::FindWarning(report, CompilerStage::StaticAnalyzer, CompilerWarningCode::UnusedLocal);
@@ -130,7 +130,7 @@ def main = fn() -> Int => {
 			.m_line = 10
 		});
 
-	REQUIRE(MidoriTest::FindError(report.Errors(), CompilerStage::Lowering, CompilerErrorCode::LoweringUnsupportedConstruct) != nullptr);
+	REQUIRE(MidoriTest::FindError(report.m_errors, CompilerStage::Lowering, CompilerErrorCode::LoweringUnsupportedConstruct) != nullptr);
 }
 
 TEST_CASE("A successful compile renders its warnings from the final report", "[compiler][warning][driver]")

@@ -1,7 +1,9 @@
 #pragma once
 
+#include <algorithm>
+#include <concepts>
 #include <expected>
-#include <future>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <string>
@@ -16,256 +18,65 @@
 
 namespace MidoriResult
 {
-	struct CompilerWarnings
+	// Diagnostics of one kind, in the order they were reported.
+	template<typename Diagnostic>
+	struct DiagnosticList
 	{
-		std::vector<CompilerWarning> m_warnings;
+		std::vector<Diagnostic> m_items;
 
-		CompilerWarnings() = default;
+		DiagnosticList() = default;
 
-		explicit CompilerWarnings(CompilerWarning warning)
-			: m_warnings{ std::move(warning) }
+		explicit DiagnosticList(Diagnostic diagnostic)
+			: m_items{ std::move(diagnostic) }
 		{
 		}
 
-		explicit CompilerWarnings(std::vector<CompilerWarning>&& warnings)
-			: m_warnings(std::move(warnings))
+		explicit DiagnosticList(std::vector<Diagnostic>&& diagnostics)
+			: m_items(std::move(diagnostics))
 		{
 		}
 
 		[[nodiscard]] bool Empty() const
 		{
-			return m_warnings.empty();
+			return m_items.empty();
 		}
 
 		[[nodiscard]] size_t Size() const
 		{
-			return m_warnings.size();
+			return m_items.size();
 		}
 
-		[[nodiscard]] const CompilerWarning& First() const
+		[[nodiscard]] const Diagnostic& First() const
 		{
-			return m_warnings.front();
+			return m_items.front();
 		}
 
-		[[nodiscard]] const std::vector<CompilerWarning>& Warnings() const
+		[[nodiscard]] std::vector<Diagnostic> TakeAll() &&
 		{
-			return m_warnings;
+			return std::move(m_items);
 		}
 
-		[[nodiscard]] std::vector<CompilerWarning> TakeAll() &&
+		[[nodiscard]] Diagnostic TakeFirst() &&
 		{
-			return std::move(m_warnings);
+			return std::move(m_items.front());
 		}
 
-		[[nodiscard]] CompilerWarning TakeFirst() &&
+		void Append(std::vector<Diagnostic> diagnostics)
 		{
-			return std::move(m_warnings.front());
+			std::ranges::move(diagnostics, std::back_inserter(m_items));
 		}
 
-		void Append(CompilerWarning warning)
+		void Append(DiagnosticList diagnostics)
 		{
-			m_warnings.emplace_back(std::move(warning));
-		}
-
-		void Append(const std::vector<CompilerWarning>& warnings)
-		{
-			m_warnings.insert(m_warnings.end(), warnings.begin(), warnings.end());
-		}
-
-		void Append(std::vector<CompilerWarning>&& warnings)
-		{
-			for (CompilerWarning& warning : warnings)
-			{
-				m_warnings.emplace_back(std::move(warning));
-			}
-		}
-
-		void Append(const CompilerWarnings& warnings)
-		{
-			Append(warnings.m_warnings);
-		}
-
-		void Append(CompilerWarnings&& warnings)
-		{
-			Append(std::move(warnings.m_warnings));
+			Append(std::move(diagnostics.m_items));
 		}
 
 		[[nodiscard]] std::string Rendered() const
 		{
 			std::string rendered;
-			for (const CompilerWarning& warning : m_warnings)
+			for (const Diagnostic& diagnostic : m_items)
 			{
-				const std::string_view warning_rendered = warning.Rendered();
-				rendered.append(warning_rendered);
-				if (!rendered.empty() && rendered.back() != '\n')
-				{
-					rendered.push_back('\n');
-				}
-			}
-
-			return rendered;
-		}
-
-		[[nodiscard]] std::string RenderedReport() const
-		{
-			if (m_warnings.empty())
-			{
-				return {};
-			}
-
-			const auto warning_file_path = [](const CompilerWarning& warning) -> std::string_view
-			{
-				if (!warning.m_location.has_value() || warning.m_location->m_file_name.empty())
-				{
-					return {};
-				}
-
-				return warning.m_location->m_file_name;
-			};
-
-			std::string rendered;
-			size_t group_begin = 0u;
-			while (group_begin < m_warnings.size())
-			{
-				const std::string_view file_path = warning_file_path(m_warnings[group_begin]);
-				size_t group_end = group_begin + 1u;
-				while (group_end < m_warnings.size() && warning_file_path(m_warnings[group_end]) == file_path)
-				{
-					group_end += 1u;
-				}
-
-				if (!file_path.empty())
-				{
-					rendered += RenderWarningGroupHeader(group_end - group_begin, file_path);
-				}
-
-				for (size_t index = group_begin; index < group_end; index += 1u)
-				{
-					const std::string_view warning_rendered = m_warnings[index].Rendered();
-					rendered.append(warning_rendered);
-					if (!rendered.empty() && rendered.back() != '\n')
-					{
-						rendered.push_back('\n');
-					}
-				}
-
-				group_begin = group_end;
-			}
-
-			return rendered;
-		}
-
-		[[nodiscard]] std::string MachineReadable() const
-		{
-			std::string serialized;
-			for (const CompilerWarning& warning : m_warnings)
-			{
-				serialized += SerializeMachineReadableWarning(warning);
-				serialized.push_back('\n');
-			}
-
-			return serialized;
-		}
-
-		[[nodiscard]] std::string MachineReadableJson() const
-		{
-			std::string serialized = "[";
-			for (size_t index = 0u; index < m_warnings.size(); index += 1u)
-			{
-				if (index > 0u)
-				{
-					serialized.push_back(',');
-				}
-
-				serialized += SerializeMachineReadableWarningPayload(m_warnings[index]);
-			}
-
-			serialized.push_back(']');
-			return serialized;
-		}
-	};
-
-	struct CompilerDiagnostics
-	{
-		std::vector<CompilerError> m_errors;
-
-		CompilerDiagnostics() = default;
-
-		explicit CompilerDiagnostics(CompilerError error)
-			: m_errors{ std::move(error) }
-		{
-		}
-
-		explicit CompilerDiagnostics(std::vector<CompilerError>&& errors)
-			: m_errors(std::move(errors))
-		{
-		}
-
-		[[nodiscard]] bool Empty() const
-		{
-			return m_errors.empty();
-		}
-
-		[[nodiscard]] size_t Size() const
-		{
-			return m_errors.size();
-		}
-
-		[[nodiscard]] const CompilerError& First() const
-		{
-			return m_errors.front();
-		}
-
-		[[nodiscard]] const std::vector<CompilerError>& Errors() const
-		{
-			return m_errors;
-		}
-
-		[[nodiscard]] std::vector<CompilerError> TakeAll() &&
-		{
-			return std::move(m_errors);
-		}
-
-		[[nodiscard]] CompilerError TakeFirst() &&
-		{
-			return std::move(m_errors.front());
-		}
-
-		void Append(CompilerError error)
-		{
-			m_errors.emplace_back(std::move(error));
-		}
-
-		void Append(const std::vector<CompilerError>& errors)
-		{
-			m_errors.insert(m_errors.end(), errors.begin(), errors.end());
-		}
-
-		void Append(std::vector<CompilerError>&& errors)
-		{
-			for (CompilerError& error : errors)
-			{
-				m_errors.emplace_back(std::move(error));
-			}
-		}
-
-		void Append(const CompilerDiagnostics& diagnostics)
-		{
-			Append(diagnostics.m_errors);
-		}
-
-		void Append(CompilerDiagnostics&& diagnostics)
-		{
-			Append(std::move(diagnostics.m_errors));
-		}
-
-		[[nodiscard]] std::string Rendered() const
-		{
-			std::string rendered;
-			for (const CompilerError& error : m_errors)
-			{
-				const std::string_view error_rendered = error.Rendered();
-				rendered.append(error_rendered);
+				rendered.append(diagnostic.Rendered());
 				if (!rendered.empty() && rendered.back() != '\n')
 				{
 					rendered.push_back('\n');
@@ -278,20 +89,30 @@ namespace MidoriResult
 		[[nodiscard]] std::string MachineReadableJson() const
 		{
 			std::string serialized = "[";
-			for (size_t index = 0u; index < m_errors.size(); index += 1u)
+			for (size_t index = 0u; index < m_items.size(); index += 1u)
 			{
 				if (index > 0u)
 				{
 					serialized.push_back(',');
 				}
 
-				serialized += SerializeMachineReadableError(m_errors[index]);
+				if constexpr (std::same_as<Diagnostic, CompilerWarning>)
+				{
+					serialized += SerializeMachineReadableWarningPayload(m_items[index]);
+				}
+				else
+				{
+					serialized += SerializeMachineReadableError(m_items[index]);
+				}
 			}
 
 			serialized.push_back(']');
 			return serialized;
 		}
 	};
+
+	using CompilerWarnings = DiagnosticList<CompilerWarning>;
+	using CompilerDiagnostics = DiagnosticList<CompilerError>;
 
 	struct CompilerReport
 	{
@@ -299,11 +120,6 @@ namespace MidoriResult
 		CompilerDiagnostics m_errors;
 
 		CompilerReport() = default;
-
-		explicit CompilerReport(CompilerWarning warning)
-			: m_warnings(std::move(warning))
-		{
-		}
 
 		explicit CompilerReport(CompilerWarnings warnings)
 			: m_warnings(std::move(warnings))
@@ -326,134 +142,95 @@ namespace MidoriResult
 		{
 		}
 
-		[[nodiscard]] bool Empty() const
+		void Append(CompilerReport report)
 		{
-			return m_warnings.Empty() && m_errors.Empty();
+			m_warnings.Append(std::move(report.m_warnings));
+			m_errors.Append(std::move(report.m_errors));
 		}
 
-		[[nodiscard]] bool HasWarnings() const
-		{
-			return !m_warnings.Empty();
-		}
-
-		[[nodiscard]] bool HasErrors() const
-		{
-			return !m_errors.Empty();
-		}
-
-		[[nodiscard]] size_t WarningCount() const
-		{
-			return m_warnings.Size();
-		}
-
-		[[nodiscard]] size_t ErrorCount() const
-		{
-			return m_errors.Size();
-		}
-
-		[[nodiscard]] const CompilerWarnings& Warnings() const
-		{
-			return m_warnings;
-		}
-
-		[[nodiscard]] const CompilerDiagnostics& Errors() const
-		{
-			return m_errors;
-		}
-
-		[[nodiscard]] CompilerDiagnostics TakeErrors() &&
-		{
-			return std::move(m_errors);
-		}
-
-		CompilerReport& AppendWarnings(const CompilerWarnings& warnings)
-		{
-			m_warnings.Append(warnings);
-			return *this;
-		}
-
-		CompilerReport& AppendWarnings(CompilerWarnings&& warnings)
-		{
-			m_warnings.Append(std::move(warnings));
-			return *this;
-		}
-
-		CompilerReport& AppendWarnings(const std::vector<CompilerWarning>& warnings)
-		{
-			m_warnings.Append(warnings);
-			return *this;
-		}
-
-		CompilerReport& AppendWarnings(std::vector<CompilerWarning>&& warnings)
-		{
-			m_warnings.Append(std::move(warnings));
-			return *this;
-		}
-
-		CompilerReport& AppendErrors(const CompilerDiagnostics& errors)
-		{
-			m_errors.Append(errors);
-			return *this;
-		}
-
-		CompilerReport& AppendErrors(CompilerDiagnostics&& errors)
-		{
-			m_errors.Append(std::move(errors));
-			return *this;
-		}
-
-		CompilerReport& Append(CompilerReport&& report)
-		{
-			AppendWarnings(std::move(report.m_warnings));
-			AppendErrors(std::move(report.m_errors));
-			return *this;
-		}
-
+		// The warnings under one header for each file they are in.
 		[[nodiscard]] std::string RenderedWarnings() const
 		{
-			return m_warnings.RenderedReport();
-		}
+			const auto warning_file_path = [](const CompilerWarning& warning) -> std::string_view
+			{
+				if (!warning.m_location.has_value() || warning.m_location->m_file_name.empty())
+				{
+					return {};
+				}
 
-		[[nodiscard]] std::string RenderedErrors() const
-		{
-			return m_errors.Rendered();
+				return warning.m_location->m_file_name;
+			};
+
+			const std::vector<CompilerWarning>& warnings = m_warnings.m_items;
+			std::string rendered;
+			size_t group_begin = 0u;
+			while (group_begin < warnings.size())
+			{
+				const std::string_view file_path = warning_file_path(warnings[group_begin]);
+				size_t group_end = group_begin + 1u;
+				while (group_end < warnings.size() && warning_file_path(warnings[group_end]) == file_path)
+				{
+					group_end += 1u;
+				}
+
+				if (!file_path.empty())
+				{
+					rendered += RenderWarningGroupHeader(group_end - group_begin, file_path);
+				}
+
+				for (size_t index = group_begin; index < group_end; index += 1u)
+				{
+					rendered.append(warnings[index].Rendered());
+					if (!rendered.empty() && rendered.back() != '\n')
+					{
+						rendered.push_back('\n');
+					}
+				}
+
+				group_begin = group_end;
+			}
+
+			return rendered;
 		}
 
 		[[nodiscard]] std::string Rendered() const
 		{
-			std::string rendered = RenderedWarnings();
-			rendered += RenderedErrors();
-			return rendered;
+			return RenderedWarnings() + m_errors.Rendered();
 		}
 
 		[[nodiscard]] std::string MachineReadableWarnings() const
 		{
-			return m_warnings.MachineReadable();
+			std::string serialized;
+			for (const CompilerWarning& warning : m_warnings.m_items)
+			{
+				serialized += SerializeMachineReadableWarning(warning);
+				serialized.push_back('\n');
+			}
+
+			return serialized;
 		}
 
 		[[nodiscard]] std::string MachineReadableJson() const
 		{
 			std::string diagnostics = "[";
-			const std::vector<CompilerWarning>& warnings = m_warnings.Warnings();
-			for (size_t index = 0u; index < warnings.size(); index += 1u)
+			for (size_t index = 0u; index < m_warnings.m_items.size(); index += 1u)
 			{
 				if (index > 0u)
 				{
 					diagnostics.push_back(',');
 				}
 
-				diagnostics += SerializeMachineReadableWarningPayload(warnings[index]);
+				diagnostics += SerializeMachineReadableWarningPayload(m_warnings.m_items[index]);
 			}
 
-			const std::vector<CompilerError>& errors = m_errors.Errors();
-			for (size_t index = 0u; index < errors.size(); index += 1u)
+			for (size_t index = 0u; index < m_errors.m_items.size(); index += 1u)
 			{
-				if (!warnings.empty() || index > 0u)
+				if (!m_warnings.Empty() || index > 0u)
 				{
 					diagnostics.push_back(',');
 				}
 
-				diagnostics += SerializeMachineReadableError(errors[index]);
+				diagnostics += SerializeMachineReadableError(m_errors.m_items[index]);
 			}
 
 			diagnostics.push_back(']');
@@ -503,7 +280,6 @@ namespace MidoriResult
 	template<typename ValueType>
 	using DiagnosticsResult = std::expected<ValueType, CompilerDiagnostics>;
 
-	using Error = CompilerError;
 	using TokenResult = Result<Token>;
 	using TokenListResult = Result<std::vector<Token>>;
 	using FunctionParamResult = Result<std::pair<Token, std::shared_ptr<MidoriType>>>;
@@ -519,15 +295,9 @@ namespace MidoriResult
 	using TypeListResult = Result<std::vector<std::shared_ptr<MidoriType>>>;
 	using TypeCheckerResult = DiagnosticsResult<MidoriProgramTree>;
 	using BytecodeBackendResult = DiagnosticsResult<BytecodeModule>;
-	using CompiledModuleResult = DiagnosticsResult<CompiledModule>;
 	using CompiledModuleReportResult = ReportResult<CompiledModule>;
 	using CompilerResult = DiagnosticsResult<MidoriExecutable>;
 	using CompilationResult = ReportResult<CompiledProgram>;
 
-	// Generic result types
 	using VoidResult = Result<void>;
-	using VoidResultList = std::vector<VoidResult>;
-
-	// Async compilation result types
-	using FutureModuleResult = std::future<CompiledModuleResult>;
 }

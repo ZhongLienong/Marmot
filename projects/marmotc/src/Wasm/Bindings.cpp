@@ -23,7 +23,7 @@ namespace
 		const MidoriResult::CompilerReport& report = compiled.has_value() ? compiled->Report() : compiled.error();
 		result.set("report", emscripten::val::global("JSON").call<emscripten::val>("parse", report.MachineReadableJson()));
 		result.set("output", report.RenderedWarnings());
-		result.set("error", report.RenderedErrors());
+		result.set("error", report.m_errors.Rendered());
 		if (!compiled.has_value())
 		{
 			return result;

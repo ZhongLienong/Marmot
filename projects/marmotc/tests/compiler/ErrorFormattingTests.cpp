@@ -309,8 +309,8 @@ def Compute = fn() -> Int => {
 	}
 
 	const MidoriResult::CompilerReport& report = MidoriTest::CompilationReport(compile_result);
-	REQUIRE(report.HasWarnings());
-	REQUIRE_FALSE(report.HasErrors());
+	REQUIRE_FALSE(report.m_warnings.Empty());
+	REQUIRE(report.m_errors.Empty());
 
 	const CompilerWarning* warning = MidoriTest::FindWarning(report, CompilerStage::StaticAnalyzer, CompilerWarningCode::UnusedLocal);
 	REQUIRE(warning != nullptr);

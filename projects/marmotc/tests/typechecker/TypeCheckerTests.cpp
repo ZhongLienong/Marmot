@@ -183,7 +183,7 @@ def flag : Bool = 123;
 	first_expectation.m_line = 2;
 	first_expectation.m_message_substrings = { "Expected type 'Int' but got 'Text'" };
 	first_expectation.m_rendered_substrings = { "Type Checker Error", "MultipleDiagnostics.mmt:2" };
-	RequireErrorMatches(typecheck_result.error().m_errors[0u], first_expectation);
+	RequireErrorMatches(typecheck_result.error().m_items[0u], first_expectation);
 
 	MidoriTest::ErrorExpectation second_expectation;
 	second_expectation.m_stage = CompilerStage::TypeChecker;
@@ -191,7 +191,7 @@ def flag : Bool = 123;
 	second_expectation.m_line = 3;
 	second_expectation.m_message_substrings = { "Expected type 'Bool' but got 'Int'" };
 	second_expectation.m_rendered_substrings = { "Type Checker Error", "MultipleDiagnostics.mmt:3" };
-	RequireErrorMatches(typecheck_result.error().m_errors[1u], second_expectation);
+	RequireErrorMatches(typecheck_result.error().m_items[1u], second_expectation);
 }
 
 TEST_CASE("Compiler tags undefined names with a stable diagnostic code", "[typechecker][diagnostics]")

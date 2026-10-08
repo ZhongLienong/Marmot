@@ -58,7 +58,7 @@ foreign "MIDORI_FFI_PrintLin" PrintTypo : fn(Text) -> Unit;
 	expectation.m_line = 3;
 	expectation.m_message_substrings = { "Unknown foreign function 'MIDORI_FFI_PrintLin'" };
 	expectation.m_rendered_substrings = { "Lowering Error", "ForeignTypo.mmt:3" };
-	RequireErrorMatches(bytecode_result.error().m_errors[0u], expectation);
+	RequireErrorMatches(bytecode_result.error().m_items[0u], expectation);
 }
 
 TEST_CASE("The backend records the native libraries that foreign declarations name", "[compiler][backend][ffi]")
@@ -106,7 +106,7 @@ foreign "image_read_info" ReadInfo : fn(Text) -> Array<Int>;
 	expectation.m_code = CompilerErrorCode::LoweringUnknownForeignFunction;
 	expectation.m_line = 2;
 	expectation.m_message_substrings = { "Unknown foreign function 'image_read_info'", "from \"library\"" };
-	RequireErrorMatches(bytecode_result.error().m_errors[0u], expectation);
+	RequireErrorMatches(bytecode_result.error().m_items[0u], expectation);
 }
 
 TEST_CASE("A foreign block is only for the top level and must declare something", "[compiler][parser][ffi]")
@@ -121,13 +121,13 @@ def main = fn() -> Int => {
 	std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> local_result =
 		MidoriTest::GenerateBytecodeSnippetWithDiagnostics(local_block, "Local.mmt");
 	REQUIRE_FALSE(local_result.has_value());
-	CHECK(local_result.error().m_errors[0u].m_message.find("top level") != std::string::npos);
+	CHECK(local_result.error().m_items[0u].m_message.find("top level") != std::string::npos);
 
 	const std::string empty_block = "module Empty\nforeign \"lib\" { }\n";
 	std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> empty_result =
 		MidoriTest::GenerateBytecodeSnippetWithDiagnostics(empty_block, "Empty.mmt");
 	REQUIRE_FALSE(empty_result.has_value());
-	CHECK(empty_result.error().m_errors[0u].m_message.find("declares no functions") != std::string::npos);
+	CHECK(empty_result.error().m_items[0u].m_message.find("declares no functions") != std::string::npos);
 }
 
 TEST_CASE("Lowering reports every unsupported foreign return type, not only the first", "[compiler][lowering][diagnostics]")
@@ -144,7 +144,7 @@ TEST_CASE("Lowering reports every unsupported foreign return type, not only the 
 	first_expectation.m_line = 6;
 	first_expectation.m_message_substrings = { "Unsupported return type for foreign function" };
 	first_expectation.m_rendered_substrings = { "Lowering Error", "ForeignDiagnostics.mmt:6" };
-	RequireErrorMatches(bytecode_result.error().m_errors[0u], first_expectation);
+	RequireErrorMatches(bytecode_result.error().m_items[0u], first_expectation);
 
 	MidoriTest::ErrorExpectation second_expectation;
 	second_expectation.m_stage = CompilerStage::Lowering;
@@ -152,7 +152,7 @@ TEST_CASE("Lowering reports every unsupported foreign return type, not only the 
 	second_expectation.m_line = 7;
 	second_expectation.m_message_substrings = { "Unsupported return type for foreign function" };
 	second_expectation.m_rendered_substrings = { "Lowering Error", "ForeignDiagnostics.mmt:7" };
-	RequireErrorMatches(bytecode_result.error().m_errors[1u], second_expectation);
+	RequireErrorMatches(bytecode_result.error().m_items[1u], second_expectation);
 }
 
 TEST_CASE("Compiler preserves all lowering diagnostics through the compile boundary", "[compiler][lowering][diagnostics]")
@@ -168,7 +168,7 @@ TEST_CASE("Compiler preserves all lowering diagnostics through the compile bound
 	expectation.m_line = 6;
 	expectation.m_message_substrings = { "Unsupported return type for foreign function" };
 	expectation.m_rendered_substrings = { "Lowering Error", "ForeignDiagnostics.mmt:6" };
-	RequireErrorMatches(compile_result.error().m_errors[0u], expectation);
+	RequireErrorMatches(compile_result.error().m_items[0u], expectation);
 
 	MidoriTest::ErrorExpectation second_expectation;
 	second_expectation.m_stage = CompilerStage::Lowering;
@@ -176,5 +176,5 @@ TEST_CASE("Compiler preserves all lowering diagnostics through the compile bound
 	second_expectation.m_line = 7;
 	second_expectation.m_message_substrings = { "Unsupported return type for foreign function" };
 	second_expectation.m_rendered_substrings = { "Lowering Error", "ForeignDiagnostics.mmt:7" };
-	RequireErrorMatches(compile_result.error().m_errors[1u], second_expectation);
+	RequireErrorMatches(compile_result.error().m_items[1u], second_expectation);
 }

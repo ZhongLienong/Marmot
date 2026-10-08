@@ -318,7 +318,7 @@ namespace MidoriTest
 		{
 			// Execution helpers keep a single-error surface for legacy tests; compile-time
 			// collections are narrowed explicitly at this boundary.
-			return std::unexpected(std::move(compile_result.error()).TakeErrors().TakeFirst());
+			return std::unexpected(std::move(compile_result.error().m_errors).TakeFirst());
 		}
 
 		std::pair<int, CapturedOutput> run = RunExecutable(std::move(compile_result.value()).TakeExecutable());

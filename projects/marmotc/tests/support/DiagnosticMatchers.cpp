@@ -130,32 +130,32 @@ namespace MidoriTest
 
 	const CompilerWarning* FindWarning(const MidoriResult::CompilerWarnings& warnings, CompilerWarningCode code)
 	{
-		return FindWarning(warnings.Warnings(), code);
+		return FindWarning(warnings.m_items, code);
 	}
 
 	const CompilerWarning* FindWarning(const MidoriResult::CompilerWarnings& warnings, CompilerStage stage)
 	{
-		return FindWarning(warnings.Warnings(), stage);
+		return FindWarning(warnings.m_items, stage);
 	}
 
 	const CompilerWarning* FindWarning(const MidoriResult::CompilerWarnings& warnings, CompilerStage stage, CompilerWarningCode code)
 	{
-		return FindWarning(warnings.Warnings(), stage, code);
+		return FindWarning(warnings.m_items, stage, code);
 	}
 
 	const CompilerWarning* FindWarning(const MidoriResult::CompilerReport& report, CompilerWarningCode code)
 	{
-		return FindWarning(report.Warnings(), code);
+		return FindWarning(report.m_warnings, code);
 	}
 
 	const CompilerWarning* FindWarning(const MidoriResult::CompilerReport& report, CompilerStage stage)
 	{
-		return FindWarning(report.Warnings(), stage);
+		return FindWarning(report.m_warnings, stage);
 	}
 
 	const CompilerWarning* FindWarning(const MidoriResult::CompilerReport& report, CompilerStage stage, CompilerWarningCode code)
 	{
-		return FindWarning(report.Warnings(), stage, code);
+		return FindWarning(report.m_warnings, stage, code);
 	}
 
 	const CompilerWarning* FindWarning(const std::vector<CompilerWarning>& warnings, CompilerWarningCode code)
@@ -217,17 +217,17 @@ namespace MidoriTest
 
 	const CompilerError* FindError(const MidoriResult::CompilerDiagnostics& diagnostics, CompilerStage stage)
 	{
-		return FindError(diagnostics.m_errors, stage);
+		return FindError(diagnostics.m_items, stage);
 	}
 
 	const CompilerError* FindError(const MidoriResult::CompilerDiagnostics& diagnostics, CompilerErrorCode code)
 	{
-		return FindError(diagnostics.m_errors, code);
+		return FindError(diagnostics.m_items, code);
 	}
 
 	const CompilerError* FindError(const MidoriResult::CompilerDiagnostics& diagnostics, CompilerStage stage, CompilerErrorCode code)
 	{
-		return FindError(diagnostics.m_errors, stage, code);
+		return FindError(diagnostics.m_items, stage, code);
 	}
 
 	const CompilerError* FindError(const std::vector<CompilerError>& errors, CompilerStage stage)

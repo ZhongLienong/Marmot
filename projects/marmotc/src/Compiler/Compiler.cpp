@@ -1203,7 +1203,7 @@ namespace
 			const std::unordered_map<std::string, CompiledModule>::const_iterator compiled = compiled_modules.find(file_path);
 			if (compiled != compiled_modules.end())
 			{
-				report.AppendWarnings(compiled->second.Warnings());
+				report.m_warnings.Append(compiled->second.Warnings());
 			}
 		}
 		return report;
@@ -1580,7 +1580,7 @@ MidoriResult::CompilerResult Compiler::Compile()
 	{
 		// Legacy callers still expect an executable-or-errors shape; preserve the
 		// new report upstream and narrow only at this adapter boundary.
-		return std::unexpected(std::move(compile_result.error()).TakeErrors());
+		return std::unexpected(std::move(compile_result.error().m_errors));
 	}
 
 	return std::move(compile_result.value()).TakeExecutable();

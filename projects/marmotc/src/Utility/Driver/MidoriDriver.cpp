@@ -137,7 +137,7 @@ namespace MidoriDriver
 		{
 			// Legacy callers still depend on the executable-or-errors shape; preserve
 			// the report on the new path and narrow only here.
-			return std::unexpected(std::move(compile_result.error()).TakeErrors());
+			return std::unexpected(std::move(compile_result.error().m_errors));
 		}
 
 		return std::move(compile_result.value()).TakeExecutable();

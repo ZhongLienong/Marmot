@@ -35,7 +35,7 @@ namespace
 		std::expected<LoweredModule, MidoriResult::CompilerDiagnostics> lowered = MidoriTest::LowerSnippetWithDiagnostics(std::move(source));
 		REQUIRE_FALSE(lowered.has_value());
 		REQUIRE(lowered.error().Size() == 1u);
-		return lowered.error().m_errors.front();
+		return lowered.error().m_items.front();
 	}
 
 	void RequireErrorMatches(const CompilerError& error, const MidoriTest::ErrorExpectation& expectation)

@@ -860,7 +860,7 @@ namespace
 		if (!write_result.has_value())
 		{
 			MidoriResult::CompilerReport report = compiled_program.Report();
-			report.AppendErrors(MidoriResult::CompilerDiagnostics(
+			report.m_errors.Append(MidoriResult::CompilerDiagnostics(
 				CompilerError::Simple(CompilerStage::Compiler, write_result.error())));
 			if (invocation.m_format == OutputFormat::Json)
 			{
