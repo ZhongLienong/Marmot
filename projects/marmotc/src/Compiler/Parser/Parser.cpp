@@ -6668,6 +6668,37 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 		}
 
 		const std::string& first_type_param = union_type.m_generic_params[0u];
+
+		// Bind and Unwrap take each variant as it is or by its one field of the
+		// first type parameter: the index of that field, or -1 for none.
+		auto mapped_field_of = [this, &union_stmt, &union_type, &first_type_param, &derive_target](const MidoriType::UnionType::UnionMemberContext& member_ctx) -> std::expected<int, CompilerError>
+		{
+			int mapped_field_index = -1;
+			bool has_other_generic_field = false;
+			for (size_t i = 0u; i < member_ctx.m_member_types.size(); i += 1u)
+			{
+				const std::shared_ptr<MidoriType>& member_type = member_ctx.m_member_types[i];
+				if (IsExactGenericParam(member_type, first_type_param))
+				{
+					if (mapped_field_index != -1)
+					{
+						return std::unexpected(GenerateParserError(std::format("{} deriving requires variants to contain at most one direct field of the first type parameter.", derive_target.m_lexeme), union_stmt.m_name));
+					}
+					mapped_field_index = static_cast<int>(i);
+				}
+				else if (IsUnionSelfReference(member_type, union_type.m_name) || ContainsGenericParam(member_type, first_type_param))
+				{
+					has_other_generic_field = true;
+				}
+			}
+
+			if (has_other_generic_field || (mapped_field_index >= 0 && member_ctx.m_member_types.size() != 1u))
+			{
+				return std::unexpected(GenerateParserError(std::format("{} deriving only supports pass-through variants or single-value variants.", derive_target.m_lexeme), union_stmt.m_name));
+			}
+			return mapped_field_index;
+		};
+
 		std::string mapped_type_param_name = "B";
 		while (std::ranges::any_of(union_stmt.m_generic_params, [&mapped_type_param_name](const Token& token) { return token.m_lexeme == mapped_type_param_name; }))
 		{
@@ -6776,35 +6807,12 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 			for (const Token& ctor_name : union_stmt.m_constructor_names)
 			{
 				const MidoriType::UnionType::UnionMemberContext& member_ctx = union_type.m_member_info.at(ctor_name.m_lexeme);
-				int mapped_field_index = -1;
-				bool has_recursive_field = false;
-				bool unsupported_nested_generic = false;
-
-				for (size_t i = 0u; i < member_ctx.m_member_types.size(); i += 1u)
+				const std::expected<int, CompilerError> mapped_field = mapped_field_of(member_ctx);
+				if (!mapped_field.has_value())
 				{
-					const std::shared_ptr<MidoriType>& member_type = member_ctx.m_member_types[i];
-					if (IsExactGenericParam(member_type, first_type_param))
-					{
-						if (mapped_field_index != -1)
-						{
-							return std::unexpected(GenerateParserError("Bind deriving requires variants to contain at most one direct field of the first type parameter.", union_stmt.m_name));
-						}
-						mapped_field_index = static_cast<int>(i);
-					}
-					else if (IsUnionSelfReference(member_type, union_type.m_name))
-					{
-						has_recursive_field = true;
-					}
-					else if (ContainsGenericParam(member_type, first_type_param))
-					{
-						unsupported_nested_generic = true;
-					}
+					return std::unexpected(mapped_field.error());
 				}
-
-				if (has_recursive_field || unsupported_nested_generic || (mapped_field_index >= 0 && member_ctx.m_member_types.size() != 1u))
-				{
-					return std::unexpected(GenerateParserError("Bind deriving only supports pass-through variants or single-value variants.", union_stmt.m_name));
-				}
+				const int mapped_field_index = mapped_field.value();
 
 				std::unique_ptr<MidoriExpression> case_body;
 				if (mapped_field_index >= 0)
@@ -6852,35 +6860,12 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 		for (const Token& ctor_name : union_stmt.m_constructor_names)
 		{
 			const MidoriType::UnionType::UnionMemberContext& member_ctx = union_type.m_member_info.at(ctor_name.m_lexeme);
-			int mapped_field_index = -1;
-			bool has_recursive_field = false;
-			bool unsupported_nested_generic = false;
-
-			for (size_t i = 0u; i < member_ctx.m_member_types.size(); i += 1u)
+			const std::expected<int, CompilerError> mapped_field = mapped_field_of(member_ctx);
+			if (!mapped_field.has_value())
 			{
-				const std::shared_ptr<MidoriType>& member_type = member_ctx.m_member_types[i];
-				if (IsExactGenericParam(member_type, first_type_param))
-				{
-					if (mapped_field_index != -1)
-					{
-						return std::unexpected(GenerateParserError("Unwrap deriving requires variants to contain at most one direct field of the first type parameter.", union_stmt.m_name));
-					}
-					mapped_field_index = static_cast<int>(i);
-				}
-				else if (IsUnionSelfReference(member_type, union_type.m_name))
-				{
-					has_recursive_field = true;
-				}
-				else if (ContainsGenericParam(member_type, first_type_param))
-				{
-					unsupported_nested_generic = true;
-				}
+				return std::unexpected(mapped_field.error());
 			}
-
-			if (has_recursive_field || unsupported_nested_generic || (mapped_field_index >= 0 && member_ctx.m_member_types.size() != 1u))
-			{
-				return std::unexpected(GenerateParserError("Unwrap deriving only supports pass-through variants or single-value variants.", union_stmt.m_name));
-			}
+			const int mapped_field_index = mapped_field.value();
 
 			std::unique_ptr<MidoriExpression> case_body =
 				mapped_field_index >= 0
