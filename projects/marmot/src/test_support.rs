@@ -25,10 +25,11 @@ impl TempTree {
         self.0.join(relative)
     }
 
-    pub(crate) fn write(&self, relative: &str, contents: &str) {
+    pub(crate) fn write(&self, relative: &str, contents: &str) -> PathBuf {
         let path = self.path(relative);
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-        std::fs::write(path, contents).unwrap();
+        std::fs::write(&path, contents).unwrap();
+        path
     }
 
     pub(crate) fn read(&self, relative: &str) -> String {

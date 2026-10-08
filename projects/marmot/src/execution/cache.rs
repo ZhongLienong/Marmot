@@ -123,43 +123,19 @@ pub(crate) fn fresh(program: &Path, plan_json: &str, compiler: &Path) -> Option<
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::TempTree;
 
-    struct Tree(PathBuf);
-
-    impl Drop for Tree {
-        fn drop(&mut self) {
-            let _ = std::fs::remove_dir_all(&self.0);
-        }
-    }
-
-    impl Tree {
-        fn new(name: &str) -> Tree {
-            let root =
-                std::env::temp_dir().join(format!("marmot-cache-{}-{name}", std::process::id()));
-            let _ = std::fs::remove_dir_all(&root);
-            std::fs::create_dir_all(&root).unwrap();
-            Tree(root)
-        }
-
-        fn write(&self, relative: &str, contents: &str) -> PathBuf {
-            let path = self.0.join(relative);
-            std::fs::write(&path, contents).unwrap();
-            path
-        }
-    }
-
-    fn stamped(tree: &Tree, program: &Path, source: &Path, plan: &str) {
+    fn stamped(program: &Path, source: &Path, plan: &str) {
         let stamp = stamp(plan, source, &[source.to_path_buf()], None, None).unwrap();
         write(program, &stamp).unwrap();
-        let _ = tree;
     }
 
     #[test]
     fn a_build_is_fresh_until_one_of_its_inputs_changes() {
-        let tree = Tree::new("fresh");
+        let tree = TempTree::new(&[]);
         let program = tree.write("Main.mmc", "program");
         let source = tree.write("Main.mmt", "module Main\n");
-        stamped(&tree, &program, &source, "{\"plan\":1}");
+        stamped(&program, &source, "{\"plan\":1}");
 
         assert!(fresh(&program, "{\"plan\":1}", &source).is_some());
         // A different plan, a changed source, a missing program: all stale.
@@ -167,7 +143,7 @@ mod tests {
         tree.write("Main.mmt", "module Main\n// edited\n");
         assert!(fresh(&program, "{\"plan\":1}", &source).is_none());
 
-        stamped(&tree, &program, &source, "{\"plan\":1}");
+        stamped(&program, &source, "{\"plan\":1}");
         assert!(fresh(&program, "{\"plan\":1}", &source).is_some());
         std::fs::remove_file(&program).unwrap();
         assert!(fresh(&program, "{\"plan\":1}", &source).is_none());
@@ -175,7 +151,7 @@ mod tests {
 
     #[test]
     fn a_stamp_replays_what_the_build_printed() {
-        let tree = Tree::new("replay");
+        let tree = TempTree::new(&[]);
         let program = tree.write("Main.mmc", "program");
         let source = tree.write("Main.mmt", "module Main\n");
         let stamp = stamp(
@@ -198,10 +174,10 @@ mod tests {
 
     #[test]
     fn a_missing_source_file_is_not_fresh() {
-        let tree = Tree::new("missing");
+        let tree = TempTree::new(&[]);
         let program = tree.write("Main.mmc", "program");
         let source = tree.write("Gone.mmt", "module Gone\n");
-        stamped(&tree, &program, &source, "{}");
+        stamped(&program, &source, "{}");
         std::fs::remove_file(&source).unwrap();
 
         assert!(fresh(&program, "{}", &source).is_none());
