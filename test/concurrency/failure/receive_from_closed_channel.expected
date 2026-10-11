@@ -1,0 +1,10 @@
+drained 1
+error[ChannelClosed]: Cannot receive from a closed and empty channel.
+ --> test/concurrency/failure/receive_from_closed_channel.mmt:16
+   |
+16 | def missing = <- ch;
+   | Cannot receive from a closed and empty channel.
+   |
+stack trace:
+  at main [module receive_from_closed_channel] in test/concurrency/failure/receive_from_closed_channel.mmt:16
+    def missing = <- ch;

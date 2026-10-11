@@ -129,12 +129,10 @@ private:
     size_t m_call_stack_region_size = 0u;
     size_t m_stack_page_size = 0u;
 	std::optional<RuntimeError> m_last_error = std::nullopt;
-	int m_worker_proc_index = -1;
 	// Set by PrepareWorkerCall, which only a worker goes through. A worker that
 	// exits must fail itself rather than the process it shares with everyone else.
 	bool m_is_worker = false;
 	std::stop_token m_stop_token;
-	bool m_stop_possible = false;
 
 
 public:
@@ -157,7 +155,6 @@ public:
     void SetStopToken(std::stop_token stop_token) noexcept
     {
         m_stop_token = std::move(stop_token);
-        m_stop_possible = m_stop_token.stop_possible();
     }
 
 private:
@@ -172,7 +169,7 @@ private:
 
 	MIDORI_FORCE_INLINE bool IsCancellationRequested() const noexcept
 	{
-		return m_stop_possible && m_stop_token.stop_requested();
+		return m_stop_token.stop_requested();
 	}
 
 	MIDORI_FORCE_INLINE void TryCollect(InstructionPointer ip, ValueStackPointer sp, ValueStackPointer bp, MidoriValue* env, MidoriTraceable* closure) noexcept

@@ -109,6 +109,6 @@ See [Versioning Policy](versioning-policy.md) for how `Stable`,
 | `Transferable<T>` typeclass | Stable | `test/concurrency/` | Built-in instances for primitives, `Array<T>`, `Channel<T>`, and `Ref<T>` when their element types are transferable. References are copied across workers. Derivable for structs and unions. |
 | `deriving (Transferable)` | Stable | `test/concurrency/` | Generates field-by-field serialization for structs and tag+payload serialization for unions. |
 | Auxiliary operations: `close`, `is_done`, `cancel` | Stable | `test/concurrency/` | Parsed as normal function calls; emit dedicated opcodes. |
-| Non-blocking / bounded receive (`try_receive`, `select`, timeouts) | Not implemented | — | `Channel::TryReceive` exists in the runtime but has no opcode or syntax; `try_receive(ch)` is an undefined name. |
-| Worker cancellation (`cancel`) | Stable | `test/concurrency/`, `test/integration/WorkerCancellationTests.cpp` | Cooperative: observed at loop back-edges, tail calls, foreign-call returns, and blocking channel waits. Blocking stdin and third-party FFI are not interruptible. |
+| Non-blocking / bounded receive (`try_receive`, `select`, timeouts) | Not implemented | — | `try_receive(ch)` is an undefined name. |
+| Worker cancellation (`cancel`) | Stable | `test/concurrency/`, `test/integration/WorkerCancellationTests.cpp` | Cooperative: observed at loop back-edges, tail calls, returns, foreign-call returns, and blocking channel waits. Blocking stdin and third-party FFI are not interruptible. |
 | Isolated-worker runtime | Stable | `test/concurrency/`, `projects/marmotvm/tests/runtime/` | Per-VM isolation of heap, GC, stack, globals, and string cache. Single-threaded cost is one never-taken branch at cancellation safepoints. |

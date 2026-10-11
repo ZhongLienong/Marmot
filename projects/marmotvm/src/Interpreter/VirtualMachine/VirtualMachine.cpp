@@ -310,7 +310,6 @@ namespace
 
 VirtualMachine::VirtualMachine(std::shared_ptr<const VmExecutable> shared_executable, int proc_index, const GlobalVariables* source_globals) noexcept
 	: m_owned_executable(std::move(shared_executable))
-	, m_worker_proc_index(proc_index)
 {
 	m_gc.SetAllocator(&m_allocator);
 	m_executable = m_owned_executable.get();
@@ -395,35 +394,13 @@ MIDORI_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(VmOpCode inst
 		// sharing map, so an object reached twice (a cell passed twice, or captured and
 		// also passed) arrives as one copy rather than two.
 		ValueTransfer::SerializePointerMap sharing;
-		std::expected<SerializedValue, std::string> serialized_function = ValueTransfer::Serialize(worker_function, *this, sharing);
-		if (!serialized_function.has_value())
-		{
-			m_instruction_pointer = ip;
-			static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, serialized_function.error(), GetLine())));
-			return false;
-		}
-
-		MidoriTraceable* worker_pointer = worker_function.GetPointer();
-		if (worker_pointer == nullptr || worker_pointer->GetType() != MidoriTraceable::TraceableType::Closure)
-		{
-			m_instruction_pointer = ip;
-			static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, "SPAWN_WORKER expected a function value.", GetLine())));
-			return false;
-		}
+		SerializedValue serialized_function = ValueTransfer::Serialize(worker_function, *this, sharing);
 
 		std::vector<SerializedValue> serialized_args;
 		serialized_args.reserve(static_cast<size_t>(arg_count));
 		for (int arg_index = 0; arg_index < arg_count; arg_index += 1)
 		{
-			MidoriValue argument = Pop();
-			std::expected<SerializedValue, std::string> serialized_argument = ValueTransfer::Serialize(argument, *this, sharing);
-			if (!serialized_argument.has_value())
-			{
-				m_instruction_pointer = ip;
-				static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, serialized_argument.error(), GetLine())));
-				return false;
-			}
-			serialized_args.emplace_back(std::move(serialized_argument.value()));
+			serialized_args.emplace_back(ValueTransfer::Serialize(Pop(), *this, sharing));
 		}
 		std::reverse(serialized_args.begin(), serialized_args.end());
 
@@ -431,21 +408,11 @@ MIDORI_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(VmOpCode inst
 		// spawning thread because this heap is not safe to read from another one.
 		// Globals are only ever defined once, so the copy is exactly what the
 		// spawned function would see if it were called directly.
-		std::vector<SerializedValue> serialized_globals;
-		serialized_globals.reserve(m_global_vars->size());
-		for (const MidoriValue& global_value : *m_global_vars)
-		{
-			std::expected<SerializedValue, std::string> serialized_global = ValueTransfer::Serialize(global_value, *this, sharing);
-			if (!serialized_global.has_value())
-			{
-				m_instruction_pointer = ip;
-				static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, serialized_global.error(), GetLine())));
-				return false;
-			}
-			serialized_globals.emplace_back(std::move(serialized_global.value()));
-		}
+		std::vector<SerializedValue> serialized_globals = *m_global_vars
+			| std::views::transform([this, &sharing](MidoriValue global_value) -> SerializedValue { return ValueTransfer::Serialize(global_value, *this, sharing); })
+			| std::ranges::to<std::vector<SerializedValue>>();
 
-		const int worker_id = WorkerRegistry::GetInstance().SpawnWorker(m_owned_executable, std::move(serialized_function.value()), std::move(serialized_args), std::move(serialized_globals));
+		const int worker_id = WorkerRegistry::GetInstance().SpawnWorker(m_owned_executable, std::move(serialized_function), std::move(serialized_args), std::move(serialized_globals));
 		Push(static_cast<MidoriInteger>(worker_id));
 		return true;
 	}
@@ -466,14 +433,7 @@ MIDORI_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(VmOpCode inst
 		int result_tag = ok_tag;
 		if (worker_result.has_value())
 		{
-			std::expected<MidoriValue, std::string> deserialized_result = ValueTransfer::Deserialize(worker_result.value(), *this);
-			if (!deserialized_result.has_value())
-			{
-				m_instruction_pointer = ip;
-				static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, deserialized_result.error(), GetLine())));
-				return false;
-			}
-			payload = deserialized_result.value();
+			payload = ValueTransfer::Deserialize(worker_result.value(), *this);
 		}
 		else
 		{
@@ -503,15 +463,7 @@ MIDORI_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(VmOpCode inst
 	{
 		MidoriValue value = Pop();
 		const int channel_id = static_cast<int>(Pop().GetInteger());
-		std::expected<SerializedValue, std::string> serialized_value = ValueTransfer::Serialize(value, *this);
-		if (!serialized_value.has_value())
-		{
-			m_instruction_pointer = ip;
-			static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, serialized_value.error(), GetLine())));
-			return false;
-		}
-
-		const ChannelOpStatus send_status = ChannelRegistry::GetInstance().Send(channel_id, std::move(serialized_value.value()), m_stop_token);
+		const ChannelOpStatus send_status = ChannelRegistry::GetInstance().Send(channel_id, ValueTransfer::Serialize(value, *this), m_stop_token);
 		if (send_status == ChannelOpStatus::Cancelled)
 		{
 			m_instruction_pointer = ip;
@@ -535,19 +487,11 @@ MIDORI_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(VmOpCode inst
 		if (received_value.m_status == ChannelOpStatus::Closed)
 		{
 			m_instruction_pointer = ip;
-			static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, "Cannot receive from a closed and empty channel.", GetLine())));
+			static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::ChannelClosed, "Cannot receive from a closed and empty channel.", GetLine())));
 			return false;
 		}
 
-		std::expected<MidoriValue, std::string> deserialized_value = ValueTransfer::Deserialize(received_value.m_value.value(), *this);
-		if (!deserialized_value.has_value())
-		{
-			m_instruction_pointer = ip;
-			static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InternalTypeError, deserialized_value.error(), GetLine())));
-			return false;
-		}
-
-		Push(deserialized_value.value());
+		Push(ValueTransfer::Deserialize(received_value.m_value.value(), *this));
 		return true;
 	}
 	case VmOpCode::CHANNEL_CLOSE:
@@ -2843,8 +2787,14 @@ int VirtualMachine::ExecuteLoop() noexcept
 			closure = frame.m_closure;
 
 			Push(sp, value);
-			// Every call that is not a tail call returns, so recursion that
-			// allocates and never loops (a tree walk) still reaches a safepoint.
+			// Every call that is not a tail call returns, so recursion that never
+			// loops (a tree walk) still reaches a safepoint, to be cancelled or to
+			// collect what it allocated.
+			if (IsCancellationRequested()) [[unlikely]]
+			{
+				SyncMachineState(ip, sp, bp, env, closure);
+				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::WorkerCancelled, "Worker cancelled.", GetLine()));
+			}
 			TryCollect(ip, sp, bp, env, closure);
 
 			break;

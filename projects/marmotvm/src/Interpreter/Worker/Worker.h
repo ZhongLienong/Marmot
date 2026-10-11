@@ -8,7 +8,6 @@
 #include <expected>
 #include <memory>
 #include <mutex>
-#include <optional>
 #include <string>
 #include <thread>
 #include <unordered_map>
@@ -34,8 +33,6 @@ public:
 
 	std::expected<SerializedValue, WorkerError> JoinValue();
 
-
-
 	bool IsDone() const;
 
 	bool Cancel();
@@ -43,21 +40,19 @@ public:
 private:
 	void Execute(std::stop_token stop_token);
 
-	std::jthread m_thread;
+	std::expected<SerializedValue, WorkerError> Run(std::stop_token stop_token);
+
 	std::shared_ptr<const VmExecutable> m_executable;
 	// The spawned function, transferred as a value: its procedure index and a copy
 	// of its captured cells, deserialized into the worker's own heap.
 	SerializedValue m_serialized_function;
 	std::vector<SerializedValue> m_serialized_args;
 	std::vector<SerializedValue> m_serialized_globals;
+	// Written by the worker thread, read only once it has been joined.
+	std::expected<SerializedValue, WorkerError> m_outcome;
 	std::atomic<bool> m_done{ false };
-	std::atomic<bool> m_joined{ false };
-	std::mutex m_result_mutex;
-	std::optional<SerializedValue> m_result;
-	std::string m_error;
-	RuntimeErrorCode m_error_code = RuntimeErrorCode::InternalTypeError;
-	int m_exit_code = 0;
-	bool m_had_error = false;
+	// Last, so it starts once everything it reads is built.
+	std::jthread m_thread;
 };
 
 class WorkerRegistry

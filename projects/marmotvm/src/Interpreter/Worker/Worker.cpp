@@ -7,24 +7,28 @@
 
 namespace
 {
-	// Installs the spawning VM's globals, copied at spawn time. A worker used to
-	// rebuild its globals instead: it re-ran every imported module's initializer
-	// (repeating any effect, such as printing, once per spawn) and restored only
-	// the entry module's globals whose names matched a procedure, so data globals
-	// read as zero and pointer-valued ones crashed the worker.
-	std::expected<void, WorkerError> InstallWorkerGlobals(VirtualMachine& worker_vm, const std::vector<SerializedValue>& serialized_globals, ValueTransfer::DeserializePointerMap& sharing)
+	// Installs the spawning VM's globals, copied at spawn time, then the spawned
+	// function and its arguments, through one sharing map as SPAWN_WORKER
+	// serialised them. A worker used to rebuild its globals instead: it re-ran
+	// every imported module's initializer (repeating any effect, such as printing,
+	// once per spawn) and restored only the entry module's globals whose names
+	// matched a procedure, so data globals read as zero and pointer-valued ones
+	// crashed the worker. The payload is taken by value so it is freed once it is
+	// in the worker's heap, rather than held beside that copy until the join.
+	void InstallPayload(VirtualMachine& worker_vm, SerializedValue serialized_function, std::vector<SerializedValue> serialized_args, std::vector<SerializedValue> serialized_globals)
 	{
+		ValueTransfer::DeserializePointerMap sharing;
 		for (size_t global_index = 0uz; global_index < serialized_globals.size(); global_index += 1uz)
 		{
-			std::expected<MidoriValue, std::string> global_value = ValueTransfer::Deserialize(serialized_globals[global_index], worker_vm, sharing);
-			if (!global_value.has_value())
-			{
-				return std::unexpected(WorkerError{ RuntimeErrorCode::InternalTypeError, global_value.error() });
-			}
-			worker_vm.SetGlobalValue(static_cast<int>(global_index), global_value.value());
+			worker_vm.SetGlobalValue(static_cast<int>(global_index), ValueTransfer::Deserialize(serialized_globals[global_index], worker_vm, sharing));
 		}
 
-		return {};
+		worker_vm.PrepareWorkerCall(ValueTransfer::Deserialize(serialized_function, worker_vm, sharing));
+		for (const SerializedValue& serialized_arg : serialized_args)
+		{
+			worker_vm.GetValueStackPointer()[0] = ValueTransfer::Deserialize(serialized_arg, worker_vm, sharing);
+			worker_vm.AdvanceValueStackPointer();
+		}
 	}
 }
 
@@ -33,27 +37,22 @@ Worker::Worker(std::shared_ptr<const VmExecutable> executable, SerializedValue s
 	, m_serialized_function(std::move(serialized_function))
 	, m_serialized_args(std::move(serialized_args))
 	, m_serialized_globals(std::move(serialized_globals))
-{
-	m_thread = std::jthread([this](std::stop_token stop_token)
+	, m_thread([this](std::stop_token stop_token)
 	{
 		Execute(std::move(stop_token));
-	});
+	})
+{
 }
 
 Worker::~Worker()
 {
-	if (!m_joined.load())
+	if (m_thread.joinable())
 	{
-		if (m_thread.joinable())
+		m_thread.request_stop();
+		m_thread.join();
+		if (!m_outcome.has_value())
 		{
-			m_thread.request_stop();
-			m_thread.join();
-		}
-
-		if (m_had_error)
-		{
-			std::lock_guard<std::mutex> lock(m_result_mutex);
-			RuntimeTerminal::Print<RuntimeTerminal::Color::RED>(stdout, std::format("[Worker] Unjoined worker error: {}\n", m_error));
+			RuntimeTerminal::Print<RuntimeTerminal::Color::RED>(stdout, std::format("[Worker] Unjoined worker error: {}\n", m_outcome.error().m_message));
 		}
 	}
 }
@@ -62,135 +61,46 @@ void Worker::Execute(std::stop_token stop_token)
 {
 	try
 	{
-		if (stop_token.stop_requested())
-		{
-			std::lock_guard<std::mutex> lock(m_result_mutex);
-			m_error = "Worker cancelled before execution.";
-			m_error_code = RuntimeErrorCode::WorkerCancelled;
-			m_had_error = true;
-			m_done.store(true);
-			return;
-		}
-
-		VirtualMachine worker_vm(m_executable, 0, nullptr);
-		worker_vm.SetStopToken(stop_token);
-		ThreadCancellation::SetCurrentThreadStopToken(stop_token);
-
-		std::expected<void, std::string> safety_check = DynamicFFIRegistry::ValidateWorkerSafety(m_executable->GetNativeLibraries());
-		if (!safety_check.has_value())
-		{
-			std::lock_guard<std::mutex> lock(m_result_mutex);
-			m_error = safety_check.error();
-			m_error_code = RuntimeErrorCode::InternalTypeError;
-			m_had_error = true;
-			m_done.store(true);
-			return;
-		}
-
-		// One sharing map for the whole payload, matching how SPAWN_WORKER serialised it.
-		ValueTransfer::DeserializePointerMap sharing;
-		std::expected<void, WorkerError> init_result = InstallWorkerGlobals(worker_vm, m_serialized_globals, sharing);
-		if (!init_result.has_value())
-		{
-			std::lock_guard<std::mutex> lock(m_result_mutex);
-			m_error = init_result.error().m_message;
-			m_error_code = init_result.error().m_code;
-			m_had_error = true;
-			m_done.store(true);
-			return;
-		}
-
-		std::expected<MidoriValue, std::string> worker_function = ValueTransfer::Deserialize(m_serialized_function, worker_vm, sharing);
-		if (!worker_function.has_value())
-		{
-			std::lock_guard<std::mutex> lock(m_result_mutex);
-			m_error = worker_function.error();
-			m_error_code = RuntimeErrorCode::InternalTypeError;
-			m_had_error = true;
-			m_done.store(true);
-			return;
-		}
-
-		worker_vm.PrepareWorkerCall(worker_function.value());
-		for (const SerializedValue& serialized_arg : m_serialized_args)
-		{
-			std::expected<MidoriValue, std::string> deserialized_arg = ValueTransfer::Deserialize(serialized_arg, worker_vm, sharing);
-			if (!deserialized_arg.has_value())
-			{
-				std::lock_guard<std::mutex> lock(m_result_mutex);
-				m_error = deserialized_arg.error();
-				m_error_code = RuntimeErrorCode::InternalTypeError;
-				m_had_error = true;
-				m_done.store(true);
-				return;
-			}
-
-			worker_vm.GetValueStackPointer()[0] = deserialized_arg.value();
-			worker_vm.AdvanceValueStackPointer();
-		}
-
-		VirtualMachine::ExecuteResult execution_result = worker_vm.Execute();
-		std::lock_guard<std::mutex> lock(m_result_mutex);
-		if (!execution_result.has_value())
-		{
-			m_error = std::string(execution_result.error().m_message);
-			m_error_code = execution_result.error().m_code;
-			m_had_error = true;
-			m_done.store(true);
-			return;
-		}
-
-		m_exit_code = execution_result.value();
-		std::expected<SerializedValue, std::string> serialized_result = ValueTransfer::Serialize(worker_vm.PeekValue(), worker_vm);
-		if (!serialized_result.has_value())
-		{
-			m_error = serialized_result.error();
-			m_error_code = RuntimeErrorCode::InternalTypeError;
-			m_had_error = true;
-			m_done.store(true);
-			return;
-		}
-
-		m_result = std::move(serialized_result.value());
-		m_had_error = false;
-		m_done.store(true);
+		m_outcome = Run(std::move(stop_token));
 	}
 	catch (const std::exception& exception)
 	{
-		std::lock_guard<std::mutex> lock(m_result_mutex);
-		m_error = std::string("Unhandled worker exception: ") + exception.what();
-		m_error_code = RuntimeErrorCode::InternalTypeError;
-		m_had_error = true;
-		m_done.store(true);
+		m_outcome = std::unexpected(WorkerError{ RuntimeErrorCode::InternalTypeError, std::string("Unhandled worker exception: ") + exception.what() });
 	}
-	catch (...)
+	m_done.store(true);
+}
+
+std::expected<SerializedValue, WorkerError> Worker::Run(std::stop_token stop_token)
+{
+	if (stop_token.stop_requested())
 	{
-		std::lock_guard<std::mutex> lock(m_result_mutex);
-		m_error = "Unhandled worker exception.";
-		m_error_code = RuntimeErrorCode::InternalTypeError;
-		m_had_error = true;
-		m_done.store(true);
+		return std::unexpected(WorkerError{ RuntimeErrorCode::WorkerCancelled, "Worker cancelled before execution." });
 	}
+
+	VirtualMachine worker_vm(m_executable, 0, nullptr);
+	worker_vm.SetStopToken(stop_token);
+	ThreadCancellation::SetCurrentThreadStopToken(stop_token);
+
+	std::expected<void, std::string> safety_check = DynamicFFIRegistry::ValidateWorkerSafety(m_executable->GetNativeLibraries());
+	if (!safety_check.has_value())
+	{
+		return std::unexpected(WorkerError{ RuntimeErrorCode::InternalTypeError, safety_check.error() });
+	}
+
+	InstallPayload(worker_vm, std::move(m_serialized_function), std::move(m_serialized_args), std::move(m_serialized_globals));
+	VirtualMachine::ExecuteResult execution_result = worker_vm.Execute();
+	if (!execution_result.has_value())
+	{
+		return std::unexpected(WorkerError{ execution_result.error().m_code, std::string(execution_result.error().m_message) });
+	}
+
+	return ValueTransfer::Serialize(worker_vm.PeekValue(), worker_vm);
 }
 
 std::expected<SerializedValue, WorkerError> Worker::JoinValue()
 {
-	m_joined.store(true);
-	if (m_thread.joinable())
-	{
-		m_thread.join();
-	}
-
-	std::lock_guard<std::mutex> lock(m_result_mutex);
-	if (m_had_error)
-	{
-		return std::unexpected(WorkerError{ m_error_code, m_error });
-	}
-	if (!m_result.has_value())
-	{
-		return std::unexpected(WorkerError{ RuntimeErrorCode::InternalTypeError, std::string("Worker completed without a result.") });
-	}
-	return m_result.value();
+	m_thread.join();
+	return std::move(m_outcome);
 }
 
 bool Worker::IsDone() const

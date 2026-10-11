@@ -1,0 +1,17 @@
+module receive_from_closed_channel
+
+import { "../../../MarmotPrelude/Concurrency.mmt" }
+
+import { "../../../MarmotPrelude/IO.mmt" }
+use IO.{PrintLine}
+
+// A closed channel still hands out what was sent before the close; once it is
+// empty, a receive is the program's mistake, not an internal error.
+
+def ch : Channel<Int> = Concurrency::MakeChannel(2);
+def sent = ch -> 1;
+Concurrency::Close(ch);
+def drained = <- ch;
+PrintLine("drained " ++ (drained as Text));
+def missing = <- ch;
+PrintLine("unreachable " ++ (missing as Text));

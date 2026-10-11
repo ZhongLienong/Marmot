@@ -2,7 +2,6 @@
 
 #include "Value/Value.h"
 
-#include <expected>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -36,20 +35,13 @@ struct SerializedObject
 		std::vector<SerializedValue> m_elements;
 	};
 
-	struct Tuple
+	// A tuple, struct, union or closure; `m_index` is a union's tag or a closure's
+	// procedure, and a closure's values are what it captured.
+	struct Aggregate
 	{
-		std::vector<SerializedValue> m_elements;
-	};
-
-	struct Struct
-	{
-		std::vector<SerializedValue> m_fields;
-	};
-
-	struct Union
-	{
-		int m_tag = 0;
-		std::vector<SerializedValue> m_fields;
+		MidoriTraceable::TraceableType m_type = MidoriTraceable::TraceableType::Tuple;
+		int m_index = 0;
+		std::vector<SerializedValue> m_values;
 	};
 
 	struct IntRange
@@ -66,15 +58,6 @@ struct SerializedObject
 		MidoriFloat m_step = 0.0;
 	};
 
-	// A function value: its procedure plus the values it captured. Only the
-	// runtime transfers these (the globals a worker starts from); user-visible
-	// transfers are gated by `Transferable`, which closures do not satisfy.
-	struct Closure
-	{
-		int m_proc_index = 0;
-		std::vector<SerializedValue> m_captures;
-	};
-
 	// A user Ref<T>. Copied into the worker; the sharing map keeps two
 	// references to one cell in one payload pointing at one copy.
 	struct MutableCell
@@ -82,7 +65,7 @@ struct SerializedObject
 		SerializedValue m_value;
 	};
 
-	using Variant = std::variant<Text, Array, Tuple, Struct, Union, IntRange, FloatRange, Closure, MutableCell>;
+	using Variant = std::variant<Text, Array, Aggregate, IntRange, FloatRange, MutableCell>;
 
 	Variant m_data;
 };
@@ -96,16 +79,16 @@ public:
 	using SerializePointerMap = std::unordered_map<MidoriTraceable*, std::shared_ptr<SerializedObject>>;
 	using DeserializePointerMap = std::unordered_map<const SerializedObject*, MidoriTraceable*>;
 
-	static std::expected<SerializedValue, std::string> Serialize(MidoriValue source, VirtualMachine& source_vm);
+	static SerializedValue Serialize(MidoriValue source, VirtualMachine& source_vm);
 
-	static std::expected<SerializedValue, std::string> Serialize(MidoriValue source, VirtualMachine& source_vm, SerializePointerMap& sharing);
+	static SerializedValue Serialize(MidoriValue source, VirtualMachine& source_vm, SerializePointerMap& sharing);
 
-	static std::expected<MidoriValue, std::string> Deserialize(const SerializedValue& source, VirtualMachine& target_vm);
+	static MidoriValue Deserialize(const SerializedValue& source, VirtualMachine& target_vm);
 
-	static std::expected<MidoriValue, std::string> Deserialize(const SerializedValue& source, VirtualMachine& target_vm, DeserializePointerMap& sharing);
+	static MidoriValue Deserialize(const SerializedValue& source, VirtualMachine& target_vm, DeserializePointerMap& sharing);
 
 private:
-	static std::expected<std::shared_ptr<SerializedObject>, std::string> SerializeTraceable(MidoriTraceable* source, VirtualMachine& source_vm, SerializePointerMap& visited);
+	static std::shared_ptr<SerializedObject> SerializeTraceable(MidoriTraceable* source, VirtualMachine& source_vm, SerializePointerMap& visited);
 
-	static std::expected<MidoriTraceable*, std::string> DeserializeObject(const std::shared_ptr<SerializedObject>& source, VirtualMachine& target_vm, DeserializePointerMap& visited);
+	static MidoriTraceable* DeserializeObject(const SerializedObject& source, VirtualMachine& target_vm, DeserializePointerMap& visited);
 };

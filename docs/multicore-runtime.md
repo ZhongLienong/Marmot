@@ -30,8 +30,9 @@ Communication between workers happens exclusively through message passing
 
 Cross-worker value transfer is governed by the `Transferable<T>` typeclass.
 Types that satisfy `Transferable` can be deep-copied across worker boundaries
-via `ValueTransfer` (direct VM-to-VM copy for `spawn`/`join`) or serialized to
-`SerializedValue` (binary format for channels).
+by `ValueTransfer`: the sending thread copies the value into a `SerializedValue`
+tree, and the receiving VM rebuilds it in its own heap. Spawns, joins and
+channels all cross this way.
 
 **Built-in `Transferable` instances** (deep copy):
 - `Int`, `Float`, `Byte`, `Word`, `Bool`, `Unit` — bitwise copy (no heap allocation)
@@ -143,8 +144,8 @@ with it.
 
 3. **Cancel**: `Concurrency::Cancel(w)` requests cooperative cancellation via
    `std::jthread::request_stop()`. The worker observes the request at
-   safepoints: loop back-edges (`JUMP_BACK`), tail calls (`TAIL_CALL`), and the
-   return of any foreign call. A worker blocked in `ch -> v` or `<- ch` is woken
+   safepoints: loop back-edges (`JUMP_BACK`), tail calls (`TAIL_CALL`), returns
+   (`RETURN`), and the return of any foreign call. A worker blocked in `ch -> v` or `<- ch` is woken
    immediately, because channel waits take the stop token, and the builtin
    `Sleep` is interruptible for the same reason. On observing cancellation the
    worker terminates with the `WorkerCancelled` runtime error.
@@ -194,15 +195,15 @@ thread_safe = true
 
 Channels provide typed message passing between workers:
 
-- `Concurrency::MakeChannel(capacity)` — creates a bounded `Channel<T>`, with `T` taken from context
+- `Concurrency::MakeChannel(capacity)` — creates a bounded `Channel<T>`, with `T` taken from context.
+  A capacity below 1 is taken as 1: there is no unbuffered channel, so a send
+  never waits for a receiver
 - `ch -> value` — sends a value (blocks if full, returns `Bool`)
-- `<- ch` — receives a value (blocks if empty, runtime error if closed and empty)
+- `<- ch` — receives a value (blocks if empty, a `ChannelClosed` error if closed and empty)
 - `Concurrency::Close(ch)` — closes the channel, unblocks all waiters
 
 There is no bounded or non-blocking receive at the language level: a receive
 waits until a value arrives, the channel closes, or the worker is cancelled.
-`Channel::TryReceive` exists in the runtime but has no opcode or syntax, so it
-is currently unreachable from Marmot code.
 
 Internally: `std::mutex` + `std::condition_variable_any` +
 `std::deque<SerializedValue>`. The waits are stop-token-aware, which is what
@@ -228,11 +229,12 @@ Nearly all of the concurrency system — `Worker`, `Channel`, the registries,
 
 The exception is cancellation. Making a running worker stoppable requires
 safepoints *inside* the dispatch loop, so `ExecuteLoop()` now checks
-`IsCancellationRequested()` at loop back-edges, at tail calls, and after
-foreign calls return. The check is `m_stop_possible && m_stop_token.stop_requested()`,
-and `m_stop_possible` is false for the main VM because only `Worker` ever calls
-`SetStopToken`. The main VM therefore pays one never-taken, correctly predicted
-branch at those sites and never touches the atomic. GC triggers, allocator
+`IsCancellationRequested()` at loop back-edges, at tail calls, at returns, and
+after foreign calls return. The check is `m_stop_token.stop_requested()`, which
+reads the token's atomic only when the token has a stop state, and the main
+VM's token never has one because only `Worker` ever calls `SetStopToken`. The
+main VM therefore pays one never-taken, correctly predicted branch at those
+sites and never touches the atomic. GC triggers, allocator
 calls, stack operations, and FFI dispatch remain identical for main and worker
 VMs.
 
@@ -249,4 +251,4 @@ None of the following is scheduled work.
 - Work stealing for automatic load balancing
 - Shared-memory opt-in for performance-critical workloads
 - `Future<T>` / `Promise<T>` as single-value channels
-- `ParallelMap`, `ParallelFor`, `ParallelReduce` collection helpers
+- `ParallelFor` and `ParallelReduce` collection helpers beside `ParallelMap`

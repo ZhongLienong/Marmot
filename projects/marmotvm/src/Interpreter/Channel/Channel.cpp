@@ -54,25 +54,10 @@ ChannelReceiveResult Channel::Receive(std::stop_token stop_token)
 	return ChannelReceiveResult{ ChannelOpStatus::Ok, std::move(message) };
 }
 
-std::optional<SerializedValue> Channel::TryReceive()
-{
-	std::lock_guard<std::mutex> lock(m_mutex);
-	if (m_queue.empty())
-	{
-		return std::nullopt;
-	}
-
-	SerializedValue message = std::move(m_queue.front());
-	m_queue.pop_front();
-	m_not_full.notify_one();
-	return message;
-}
-
 void Channel::Close()
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
-	m_closed = true;
-	m_close_requested.store(true, std::memory_order_release);
+	m_closed.store(true, std::memory_order_release);
 	m_not_empty.notify_all();
 	m_not_full.notify_all();
 }
@@ -83,9 +68,9 @@ bool Channel::IsDrained() const
 	return m_closed && m_queue.empty();
 }
 
-bool Channel::IsCloseRequested() const noexcept
+bool Channel::IsClosed() const noexcept
 {
-	return m_close_requested.load(std::memory_order_acquire);
+	return m_closed.load(std::memory_order_acquire);
 }
 
 ChannelRegistry& ChannelRegistry::GetInstance()
@@ -126,19 +111,6 @@ ChannelReceiveResult ChannelRegistry::Receive(int channel_id, std::stop_token st
 	return result;
 }
 
-std::optional<SerializedValue> ChannelRegistry::TryReceive(int channel_id)
-{
-	std::shared_ptr<Channel> channel = FindChannel(channel_id);
-	if (channel == nullptr)
-	{
-		return std::nullopt;
-	}
-
-	std::optional<SerializedValue> result = channel->TryReceive();
-	EraseIfDrained(channel_id, channel);
-	return result;
-}
-
 void ChannelRegistry::Close(int channel_id)
 {
 	std::shared_ptr<Channel> channel = FindChannel(channel_id);
@@ -169,7 +141,7 @@ std::shared_ptr<Channel> ChannelRegistry::FindChannel(int channel_id) const
 // Lock order: registry mutex, then channel mutex (via IsDrained). Channel must never call back into the registry.
 void ChannelRegistry::EraseIfDrained(int channel_id, const std::shared_ptr<Channel>& channel)
 {
-	if (!channel->IsCloseRequested())
+	if (!channel->IsClosed())
 	{
 		return;
 	}

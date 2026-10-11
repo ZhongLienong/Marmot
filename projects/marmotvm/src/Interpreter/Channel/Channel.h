@@ -33,13 +33,11 @@ public:
 
 	ChannelReceiveResult Receive(std::stop_token stop_token);
 
-	std::optional<SerializedValue> TryReceive();
-
 	void Close();
 
 	bool IsDrained() const;
 
-	bool IsCloseRequested() const noexcept;
+	bool IsClosed() const noexcept;
 
 private:
 	mutable std::mutex m_mutex;
@@ -47,8 +45,9 @@ private:
 	std::condition_variable_any m_not_full;
 	std::deque<SerializedValue> m_queue;
 	int m_capacity;
-	bool m_closed = false;
-	std::atomic<bool> m_close_requested{ false };
+	// Written under m_mutex, so the waits see it, and read without it so the
+	// registry is locked only for a channel that may need reclaiming.
+	std::atomic<bool> m_closed{ false };
 };
 
 class ChannelRegistry
@@ -61,8 +60,6 @@ public:
 	ChannelOpStatus Send(int channel_id, SerializedValue message, std::stop_token stop_token);
 
 	ChannelReceiveResult Receive(int channel_id, std::stop_token stop_token);
-
-	std::optional<SerializedValue> TryReceive(int channel_id);
 
 	void Close(int channel_id);
 

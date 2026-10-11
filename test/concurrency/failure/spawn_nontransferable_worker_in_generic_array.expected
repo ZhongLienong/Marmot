@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/concurrency/failure/spawn_nontransferable_worker_in_generic_array.mmt:19
+   |
+19 | def joined = Concurrency::ParallelMap([produced], JoinFirst, 1);
+   |                                                               ^ Type Worker<Int> does not satisfy constraint Transferable<Worker<Int>> - no matching instance found
+   |

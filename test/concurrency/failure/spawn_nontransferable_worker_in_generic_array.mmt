@@ -1,0 +1,19 @@
+module spawn_nontransferable_worker_in_generic_array
+
+import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Prelude/Result.mmt" }
+
+// ParallelMap asks for Transferable<A>; an array of workers must not satisfy it
+// just because arrays are transferable.
+
+def Produce = fn() -> Int =>
+{
+    42
+};
+
+def JoinFirst = fn(workers: Array<Worker<Int>>) -> Int =>
+{
+    Concurrency::JoinedOrPanic(Concurrency::Join(workers[0]))
+};
+
+def produced = [Concurrency::Spawn((), Produce)];
+def joined = Concurrency::ParallelMap([produced], JoinFirst, 1);

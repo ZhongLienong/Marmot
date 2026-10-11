@@ -214,6 +214,7 @@ Current `RuntimeErrorCode` values:
 - `InvalidConversion`
 - `InternalFFITypeError`
 - `OutOfMemory`
+- `ChannelClosed`
 
 ## Warning Codes
 
@@ -350,6 +351,7 @@ are emitted with the same shape as the full examples above.
 | `WorkerCancelled` | `Runtime` | `error` | `Worker cancelled.` |
 | `InvalidConversion` | `Runtime` | `error` | `'abc' is not a Float.` |
 | `OutOfMemory` | `Runtime` | `panic` | `Out of memory while allocating 80 bytes (the heap is full).` |
+| `ChannelClosed` | `Runtime` | `error` | `Cannot receive from a closed and empty channel.` |
 
 ## Stability
 
