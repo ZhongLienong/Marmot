@@ -135,7 +135,7 @@ def build_project(emscripten: Emscripten, project: str, clean: bool) -> int:
         fresh = ["--fresh"] if stale else []
         configured = toolchain.run(
             [emscripten.emcmake, "cmake", *fresh, "-S", str(source), "-B", str(directory), *generator,
-             "-DCMAKE_BUILD_TYPE=Release", "-DMIDORI_BUILD_TESTS=OFF", "-DMIDORI_WASM64=ON"],
+             "-DCMAKE_BUILD_TYPE=Release", "-DMIDORI_BUILD_TESTS=OFF"],
             environment=emscripten.environment,
         )
         if configured != 0:
