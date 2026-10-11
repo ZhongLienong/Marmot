@@ -1,0 +1,11 @@
+module spawn_generic_def_lambda
+
+// A generic function spawned as a value is its specialization for the
+// argument it is spawned with.
+
+import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Prelude/Result.mmt", "../../../MarmotPrelude/IO.mmt" }
+
+def Identity = fn<T>(value: T) -> T => value;
+
+def worker = Concurrency::Spawn(7, Identity);
+IO::PrintLine(Concurrency::JoinedOrPanic(Concurrency::Join(worker)) as Text);

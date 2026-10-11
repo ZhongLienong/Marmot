@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/generics/failure/generic_lambda_unsatisfied_constraint.mmt:7
+  |
+7 | def r = apply(fn<T>(x: T) -> Bool where Equatable<T> => Equatable::Equals(x, x), Opaque(1));
+  |               ^^ Type Opaque does not satisfy constraint Equatable<Opaque> - no matching instance found
+  |

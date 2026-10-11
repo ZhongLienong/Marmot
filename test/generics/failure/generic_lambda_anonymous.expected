@@ -1,6 +1,0 @@
-Compilation failed :(
-Type Checker Error at test/generics/failure/generic_lambda_anonymous.mmt:9
-  |
-9 | def r = apply(fn<T>(x: T) -> T => x, 5);
-  |               ^^ Function expression type error: an anonymous lambda cannot have generic parameters; bind it to a top-level name with 'def' so it can be specialized at each call site
-  |

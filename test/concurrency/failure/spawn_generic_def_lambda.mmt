@@ -1,7 +1,0 @@
-module spawn_generic_def_lambda
-
-import { "../../../MarmotPrelude/Concurrency.mmt" }
-
-def Identity = fn<T>(value: T) -> T => value;
-
-def worker = Concurrency::Spawn(7, Identity);

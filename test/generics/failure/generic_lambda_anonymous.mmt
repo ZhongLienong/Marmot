@@ -1,9 +1,0 @@
-module GenericLambdaAnonymous
-
-// Test: an anonymous generic lambda passed straight to a call.
-// Expected: rejected. A generic lambda is specialized by name at each call
-// site, so it has to be bound to a name first.
-
-def apply = fn(f: fn(Int) -> Int, v: Int) -> Int => f(v);
-
-def r = apply(fn<T>(x: T) -> T => x, 5);

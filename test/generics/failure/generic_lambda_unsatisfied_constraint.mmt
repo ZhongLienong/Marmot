@@ -1,0 +1,7 @@
+module GenericLambdaUnsatisfiedConstraint
+
+import { "../../../MarmotPrelude/Equatable.mmt" }
+
+type Opaque = { n: Int };
+def apply = fn(f: fn(Opaque) -> Bool, v: Opaque) -> Bool => f(v);
+def r = apply(fn<T>(x: T) -> Bool where Equatable<T> => Equatable::Equals(x, x), Opaque(1));

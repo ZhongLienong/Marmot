@@ -1,0 +1,14 @@
+module GenericFunctionAsValue
+
+// Test: a generic function passed where a concrete function type is expected
+// is its specialization for that type.
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt"
+}
+
+def identity = fn<T>(x: T) -> T => x;
+def apply = fn(f: fn(Int) -> Int, v: Int) -> Int => f(v);
+
+IO::PrintLine(apply(identity, 5) as Text);

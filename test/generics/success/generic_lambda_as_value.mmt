@@ -1,0 +1,14 @@
+module GenericLambdaAsValue
+
+// Test: a generic lambda bound to a top-level name, then passed as a value,
+// is its specialization for the type it is passed at.
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt"
+}
+
+def Id = fn<T>(x: T) -> T => x;
+def apply = fn(f: fn(Int) -> Int, v: Int) -> Int => f(v);
+
+IO::PrintLine(apply(Id, 5) as Text);

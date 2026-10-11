@@ -1,0 +1,40 @@
+module GenericLambdaLocal
+
+import { "../../../MarmotPrelude/IO.mmt", "../../../MarmotPrelude/Equatable.mmt" }
+
+def apply = fn(f: fn(Int) -> Int, v: Int) -> Int => f(v);
+def ApplyG = fn<A>(f: fn(A) -> A, v: A) -> A => f(v);
+
+IO::PrintLine(apply(fn<T>(x: T) -> T => x, 5) as Text);
+IO::PrintLine(ApplyG(fn<T>(x: T) -> T => x, "anon"));
+
+def outer = fn(k: Int) -> Unit =>
+{
+	def Id = fn<T>(x: T) -> T => x;
+	def Pair = fn<T>(x: T) -> (T, Int) => (x, k);
+	def Same = fn<T>(a: T, b: T) -> Bool where Equatable<T> => Equatable::Equals(a, b);
+	def Count = fn<T>(x: T, n: Int) -> Int => if n == 0 then k else Count(x, n - 1) + 1;
+	def later = fn(t: Text) -> Text => Id(t) ++ "!";
+	IO::PrintLine(Id(1) as Text);
+	IO::PrintLine(Id("two"));
+	def (p, q) = Pair("pair");
+	IO::PrintLine(p ++ " " ++ (q as Text));
+	IO::PrintLine((if Same(1, 1) then "same" else "diff") ++ " " ++ (if Same("a", "b") then "same" else "diff"));
+	IO::PrintLine(Count("x", 3) as Text);
+	IO::PrintLine(later("later"));
+	IO::PrintLine(apply(Id, 9) as Text);
+};
+
+outer(10);
+
+def GenericOuter = fn<A>(a: A, n: Int) -> (A, Int) =>
+{
+	def Wrap = fn<T>(x: T) -> (T, A) => (x, a);
+	def (w, z) = Wrap(n);
+	(z, w)
+};
+def (go, gn) = GenericOuter("ga", 4);
+IO::PrintLine(go ++ " " ++ (gn as Text));
+
+def ApplyPredicate = fn<A>(f: fn(A) -> Bool, v: A) -> Bool => f(v);
+IO::PrintLine(if ApplyPredicate(fn<T>(x: T) -> Bool where Equatable<T> => Equatable::Equals(x, x), "constrained") then "constrained" else "no");

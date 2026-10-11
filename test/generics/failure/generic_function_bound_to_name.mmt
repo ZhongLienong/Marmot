@@ -1,8 +1,8 @@
 module GenericFunctionBoundToName
 
 // Test: a generic function rebound to a plain name with 'def'.
-// Expected: rejected. The binding would have to hold one specialization,
-// which pins the type parameter to whichever use came first.
+// Expected: rejected. The binding is a value, so it holds one specialization,
+// and nothing at the definition says which; a later use may not decide it.
 
 import
 {

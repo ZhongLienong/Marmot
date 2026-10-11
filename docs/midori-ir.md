@@ -147,7 +147,7 @@ bb3:
 - **Classes.** A class method call, an operator a class provides and a `for` over an Iterable resolve to an instance method through `InstanceResolver`, by the argument's own type: converting a newtype to its representation keeps the newtype for this.
 - **Foreign functions.** A foreign function's global, or local, holds the name the VM looks it up by. A call of a builtin is a `CallForeign` by its name, a call of any other one a `CallForeign` of the name its declaration holds. A foreign function used as a value is a small function that calls it.
 
-A diagnostic lowering reports is under the `Lowering` stage: an unresolved or ambiguous method, an unknown builtin, an unsupported foreign return type, a generic function used as a value, or an out-of-range literal. Lowering reserves every top-level name before it lowers any body, and reports each declaration that fails there, such as every foreign function with an unsupported return type; after that it stops at the first error.
+A diagnostic lowering reports is under the `Lowering` stage: an unresolved or ambiguous method, an unknown builtin, an unsupported foreign return type, or an out-of-range literal. Lowering reserves every top-level name before it lowers any body, and reports each declaration that fails there, such as every foreign function with an unsupported return type; after that it stops at the first error.
 
 ## Optimizer
 

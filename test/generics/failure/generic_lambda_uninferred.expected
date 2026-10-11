@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/generics/failure/generic_lambda_uninferred.mmt:3
+  |
+3 | def f = [fn<T>(x: T) -> Int => 1];
+  |          ^^ Function expression type error: could not infer which types this generic lambda is used at
+  |

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <functional>
 #include <optional>
 #include <unordered_map>
 #include <unordered_set>
@@ -126,6 +127,23 @@ private:
 	// A call to one of these from inside its own body must not be freshened: it is
 	// recursion, not a fresh instantiation.
 	std::vector<std::string> m_defining_generic_names;
+	// A generic lambda bound by a 'def' inside a body: the scope it is bound
+	// in, and the variables that are its own, the ones a use picks.
+	struct LocalGenericFunction
+	{
+		size_t m_depth;
+		std::string m_name;
+		std::vector<int> m_parameters;
+
+		LocalGenericFunction(size_t depth, std::string name, std::vector<int> parameters);
+	};
+	std::vector<LocalGenericFunction> m_local_generic_functions;
+	// A generic used as a value whose types the call it is an argument of
+	// decides, so its constraints are checked there.
+	std::vector<std::pair<Token, std::shared_ptr<MidoriType>>> m_pending_instance_constraints;
+	// The name a call or spawn is about to call: using it there is not using
+	// it as a value.
+	const MidoriExpression::NameAccess* m_callee_name = nullptr;
 	// The variables standing for the generic parameters of the definitions being
 	// checked, with the name each was written as. A body may not decide one: it
 	// stands for whatever type a caller picks.
@@ -207,6 +225,15 @@ private:
 
 	MidoriResult::TypeResult TypeCheckGenericLambdaDefinition(MidoriStatement::VariableDefinition& def, MidoriExpression::Function& function);
 
+	// Checks the body once for any choice of the generic parameters. `bind` is
+	// given the generic type and its own variables before the body, so a named
+	// lambda can call itself.
+	MidoriResult::TypeResult CheckGenericLambda(MidoriExpression::Function& function, const Token& anchor, const std::string& name, const std::function<void(const std::shared_ptr<MidoriType>&, const std::vector<int>&)>& bind);
+
+	// `type` with each of `parameters` replaced by a fresh variable, and every
+	// other variable, an enclosing definition's, kept.
+	std::shared_ptr<MidoriType> Instantiate(const std::shared_ptr<MidoriType>& type, const std::vector<int>& parameters);
+
 	MidoriResult::TypeResult ResolveFunctionExpressionSignature(MidoriExpression::Function& function, const std::unordered_set<int>& outer_visible_type_vars);
 
 	std::shared_ptr<MidoriType> ApplySubstitution(const std::shared_ptr<MidoriType>& type);
@@ -255,6 +282,14 @@ private:
 	bool IsSatisfiedByActiveConstraint(const MidoriType::ClassConstraint& resolved_constraint);
 
 	MidoriResult::TypeResult ValidateFunctionConstraints(const Token& token, const MidoriType::FunctionType& function_type);
+	// Checks the constraints of each instance pending since `from` whose types
+	// are decided, and keeps the rest for an enclosing call.
+	MidoriResult::TypeResult ValidatePendingInstanceConstraints(size_t from, std::shared_ptr<MidoriType>&& type);
+	// A generic used as one value: an anonymous generic lambda, or a generic
+	// function named anywhere but as a callee. Its types come from the type
+	// expected of it or from what is in scope, as a lambda's do.
+	MidoriResult::TypeResult UseGenericInstance(const Token& token, std::shared_ptr<MidoriType> instance, std::string_view undecided_message);
+	bool IsDecided(const std::shared_ptr<MidoriType>& type) const;
 
 	MidoriResult::TypeResult ValidateInstanceConstraints(const Token& token, const InstanceInfo& instance_info, const TypeEnvironment& substitutions, size_t depth);
 
@@ -320,6 +355,7 @@ private:
 	MidoriResult::TypeResult CheckInstanceMethodCall(MidoriExpression::Call& call, const std::string& qualifier, const std::string& method_name, const ClassInfo& tc_info, const std::shared_ptr<MidoriType>& method_type, std::vector<std::shared_ptr<MidoriType>>&& arg_results);
 
 	MidoriResult::TypeResult operator()(MidoriExpression::Call& call);
+	MidoriResult::TypeResult CheckCall(MidoriExpression::Call& call);
 
 	MidoriResult::TypeResult operator()(MidoriExpression::MemberAccess& get);
 

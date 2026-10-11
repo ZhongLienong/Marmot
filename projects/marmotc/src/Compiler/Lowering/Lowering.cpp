@@ -100,6 +100,13 @@ Lowering::FunctionScope::FunctionScope(MidoriIRFunctionId id, MidoriIRFunction& 
 {
 }
 
+Lowering::ActiveGenericLambda::ActiveGenericLambda(const MidoriExpression::Function* function, std::string signature, LocalKey self)
+	: m_function(function),
+	m_signature(std::move(signature)),
+	m_self(self)
+{
+}
+
 Lowering::Lowering(MidoriProgramTree& program, std::string_view file_name, const std::vector<std::string>& source_lines, std::string module_name, const std::unordered_set<std::string>& export_symbols, const LoweringImports& imports)
 	: m_program(program),
 	m_file_name(file_name),
@@ -685,6 +692,12 @@ Lowering::Emitted Lowering::LowerLocalDefinition(MidoriStatement::VariableDefini
 	}
 
 	const int local_index = definition.m_local_index.value();
+	if (definition.m_value->IsExpression<MidoriExpression::Function>() && !definition.m_value->GetExpression<MidoriExpression::Function>().m_generic_params.empty())
+	{
+		Scope().m_local_generics.emplace(local_index, &definition.m_value->GetExpression<MidoriExpression::Function>());
+		Scope().m_local_frames.back().push_back(local_index);
+		return {};
+	}
 	return Lower(*definition.m_value)
 		.transform([this, local_index](MidoriIRValueId value)
 		{
@@ -731,6 +744,7 @@ void Lowering::PopLocalFrame()
 	for (const int index : scope.m_local_frames.back())
 	{
 		scope.m_locals.erase(index);
+		scope.m_local_generics.erase(index);
 	}
 	scope.m_local_frames.pop_back();
 }
@@ -860,12 +874,67 @@ Lowering::Lowered Lowering::MakeClosure(FunctionScope& child, const TypeRef& clo
 Lowering::Lowered Lowering::LowerFunction(MidoriExpression::Function& function)
 {
 	const int line = function.m_function_keyword.m_line;
+	if (!function.m_generic_params.empty())
+	{
+		return LowerGenericLambda(function, Concrete(function.m_type_data), std::format("Anonymous Function at line: {}", line), line);
+	}
 	const TypeRef closure_type = ClosureType(Concrete(function.m_type_data));
 	const MidoriType::FunctionType& signature = closure_type->GetType<MidoriType::FunctionType>();
 	const MidoriIRFunctionId id = NewFunction(std::format("Anonymous Function at line: {}", line), signature.m_return_type, Scope().m_specialization);
 	FunctionScope scope(id, m_functions[id.m_index], Scope().m_specialization, &Scope(), function.m_captured_count);
 	return LowerFunctionBody(scope, signature.m_param_types, function.m_params, *function.m_body)
 		.and_then([&]() { return MakeClosure(scope, closure_type, line); });
+}
+
+// A generic lambda's closure for the types `type` gives its parameters, with
+// the enclosing function's types and the methods its constraints resolve to.
+Lowering::Lowered Lowering::LowerGenericLambda(MidoriExpression::Function& function, const TypeRef& type, std::string name, int line)
+{
+	const MidoriType::FunctionType& instance = type->GetType<MidoriType::FunctionType>();
+	GenericTypes::TypeEnvironment types = Scope().m_specialization.m_types;
+	GenericTypes::Deduce(function.m_return_type, instance.m_return_type, types);
+	for (size_t index = 0u; index < function.m_param_types.size(); index += 1u)
+	{
+		GenericTypes::Deduce(function.m_param_types[index], instance.m_param_types[index], types);
+	}
+	MethodResolutionMap methods = Scope().m_specialization.m_methods;
+	for (auto& [method, candidates] : m_resolver.ResolveConstraints(function.m_constraints, types))
+	{
+		std::vector<ResolvedMethodCandidate>& existing = methods[method];
+		existing.insert(existing.end(), std::make_move_iterator(candidates.begin()), std::make_move_iterator(candidates.end()));
+	}
+	const Specialization& specialization = m_specializations.emplace_back(std::move(types), std::move(methods), Scope().m_specialization.m_source_module, Scope().m_specialization.m_foreign_indices);
+
+	const TypeRef closure_type = ClosureType(type);
+	const MidoriType::FunctionType& signature = closure_type->GetType<MidoriType::FunctionType>();
+	const MidoriIRFunctionId id = NewFunction(std::move(name), signature.m_return_type, specialization);
+	FunctionScope scope(id, m_functions[id.m_index], specialization, &Scope(), function.m_captured_count);
+	return LowerFunctionBody(scope, signature.m_param_types, function.m_params, *function.m_body)
+		.and_then([&]() { return MakeClosure(scope, closure_type, line); });
+}
+
+Lowering::Lowered Lowering::LowerLocalGeneric(MidoriExpression::Function& function, const TypeRef& type, const Token& name)
+{
+	const std::string signature = type->ToString();
+	const std::vector<ActiveGenericLambda>::const_iterator active = std::ranges::find_if(m_active_generic_lambdas, [&function, &signature](const ActiveGenericLambda& lambda)
+	{
+		return lambda.m_function == &function && lambda.m_signature == signature;
+	});
+	if (active != m_active_generic_lambdas.cend())
+	{
+		return CaptureFor(Scope(), active->m_self, ClosureType(type));
+	}
+
+	const LocalKey self{ &Scope(), m_next_synthetic_local };
+	m_next_synthetic_local -= 1;
+	m_active_generic_lambdas.emplace_back(&function, signature, self);
+	const Lowered closure = LowerGenericLambda(function, type, name.m_lexeme, name.m_line);
+	m_active_generic_lambdas.pop_back();
+	return closure.transform([this, &self](MidoriIRValueId value)
+	{
+		DefineLocal(self.m_index, value);
+		return value;
+	});
 }
 
 // One function per generic and set of argument types. Its types come from the
@@ -980,15 +1049,19 @@ Lowering::Lowered Lowering::LowerForeignValue(const Token& name, const TypeRef& 
 Lowering::Lowered Lowering::LowerName(const MidoriExpression::NameAccess& name)
 {
 	const Token& token = name.m_name;
-	if (std::holds_alternative<MidoriExpression::NameContext::Local>(name.m_name_ctx))
-	{
-		return Scope().m_locals.at(std::get<MidoriExpression::NameContext::Local>(name.m_name_ctx).m_index);
-	}
-	if (std::holds_alternative<MidoriExpression::NameContext::Cell>(name.m_name_ctx))
+	const bool is_local = std::holds_alternative<MidoriExpression::NameContext::Local>(name.m_name_ctx);
+	if (is_local || std::holds_alternative<MidoriExpression::NameContext::Cell>(name.m_name_ctx))
 	{
 		FunctionScope& scope = Scope();
-		const LocalKey key = KeyForCell(scope, std::get<MidoriExpression::NameContext::Cell>(name.m_name_ctx).m_index);
-		return CaptureFor(scope, key, Concrete(name.m_type_data));
+		const LocalKey key = is_local
+			? LocalKey{ &scope, std::get<MidoriExpression::NameContext::Local>(name.m_name_ctx).m_index }
+			: KeyForCell(scope, std::get<MidoriExpression::NameContext::Cell>(name.m_name_ctx).m_index);
+		const std::unordered_map<int, MidoriExpression::Function*>::const_iterator generic = key.m_owner->m_local_generics.find(key.m_index);
+		if (generic != key.m_owner->m_local_generics.cend())
+		{
+			return LowerLocalGeneric(*generic->second, Concrete(name.m_type_data), token);
+		}
+		return is_local ? scope.m_locals.at(key.m_index) : CaptureFor(scope, key, Concrete(name.m_type_data));
 	}
 
 	const std::string& lexeme = token.m_lexeme;
@@ -1003,9 +1076,18 @@ Lowering::Lowered Lowering::LowerName(const MidoriExpression::NameAccess& name)
 		return LoadResolved(resolved.value(), Concrete(name.m_type_data), token);
 	}
 
-	if (!m_top_level_names.contains(lexeme) && m_generics.FindKey(lexeme, specialization.m_source_module).has_value())
+	// A generic function used as a value is its specialization for the types
+	// the value has.
+	const std::optional<std::string> generic_key = m_top_level_names.contains(lexeme) ? std::nullopt : m_generics.FindKey(lexeme, specialization.m_source_module);
+	if (generic_key.has_value())
 	{
-		return std::unexpected(Error(CompilerErrorCode::LoweringUnresolvedMethodResolution, std::format("Generic function '{}' is monomorphised at each call site, so it has no single procedure to use as a value. Call it directly, or wrap it in a non-generic lambda that pins its type parameters.", lexeme), token));
+		const TypeRef type = Concrete(name.m_type_data);
+		const MidoriType::FunctionType& instance = type->GetType<MidoriType::FunctionType>();
+		return Specialize(generic_key.value(), instance.m_param_types, instance.m_return_type)
+			.transform([this, &type, &token](MidoriIRFunctionId function)
+			{
+				return Builder().AtLine(token.m_line).Emit(MidoriIROp::MakeClosure, ClosureType(type), {}, function, token.m_lexeme);
+			});
 	}
 	if (IsForeignFunction(name.m_type_data))
 	{

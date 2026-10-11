@@ -1,0 +1,15 @@
+module GenericFunctionBoundWithType
+
+// Test: a generic function bound to a plain name whose type is written on it
+// holds the specialization for that type.
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt"
+}
+
+def identity = fn<T>(x: T) -> T => x;
+
+def bound: fn(Int) -> Int = identity;
+
+IO::PrintLine(bound(42) as Text);

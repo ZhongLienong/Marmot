@@ -1781,6 +1781,7 @@ TypeChecker& TypeChecker::BeginScope()
 
 TypeChecker& TypeChecker::EndScope()
 {
+	std::erase_if(m_local_generic_functions, [this](const LocalGenericFunction& local) { return local.m_depth == m_name_type_table.size(); });
 	m_name_type_table.pop_back();
 	return *this;
 }
@@ -2115,6 +2116,21 @@ MidoriResult::TypeResult TypeChecker::CheckPattern(MidoriPattern& pattern, const
 		},
 		*pattern
 	);
+}
+
+TypeChecker::LocalGenericFunction::LocalGenericFunction(size_t depth, std::string name, std::vector<int> parameters)
+	: m_depth(depth),
+	m_name(std::move(name)),
+	m_parameters(std::move(parameters))
+{
+}
+
+std::shared_ptr<MidoriType> TypeChecker::Instantiate(const std::shared_ptr<MidoriType>& type, const std::vector<int>& parameters)
+{
+	std::ranges::for_each(parameters, [this](int parameter) { m_type_substitution.emplace(parameter, FreshTypeVar()); });
+	std::shared_ptr<MidoriType> instance = ApplySubstitution(type);
+	std::ranges::for_each(parameters, [this](int parameter) { m_type_substitution.erase(parameter); });
+	return instance;
 }
 
 std::shared_ptr<MidoriType> TypeChecker::FreshTypeVar()
@@ -3303,18 +3319,31 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::ExpressionStat
 
 MidoriResult::TypeResult TypeChecker::TypeCheckGenericLambdaDefinition(MidoriStatement::VariableDefinition& def, MidoriExpression::Function& function)
 {
-	// A generic lambda is specialized by name at each call site, so it must be a
-	// named binding at the top level.
-	if (def.m_local_index.has_value())
-	{
-		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Function expression type error: a generic lambda must be bound at the top level, because it is specialized by name at each call site", function.m_function_keyword, m_file_name, m_source_lines));
-	}
-
 	if (def.m_annotated_type.has_value())
 	{
 		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Function expression type error: a generic lambda cannot carry a type annotation, because its type differs at each call site", function.m_function_keyword, m_file_name, m_source_lines));
 	}
 
+	// Bound before the body so the lambda can recurse, and recorded as generic so
+	// each use is instantiated instead of pinned to one.
+	const std::string& name = def.m_name.m_lexeme;
+	return CheckGenericLambda(function, def.m_name, name, [this, &def, &name](const std::shared_ptr<MidoriType>& function_type, const std::vector<int>& parameters)
+	{
+		def.m_value->GetType() = function_type;
+		m_name_type_table.back()[name] = function_type;
+		if (def.m_local_index.has_value())
+		{
+			m_local_generic_functions.emplace_back(m_name_type_table.size(), name, parameters);
+		}
+		else
+		{
+			m_generic_functions.insert(name);
+		}
+	});
+}
+
+MidoriResult::TypeResult TypeChecker::CheckGenericLambda(MidoriExpression::Function& function, const Token& anchor, const std::string& name, const std::function<void(const std::shared_ptr<MidoriType>&, const std::vector<int>&)>& bind)
+{
 	// Validate that generic parameter names are unique
 	std::unordered_set<std::string> generic_param_names;
 	for (const Token& generic_param : function.m_generic_params)
@@ -3377,12 +3406,11 @@ MidoriResult::TypeResult TypeChecker::TypeCheckGenericLambdaDefinition(MidoriSta
 	std::shared_ptr<MidoriType> function_type = MidoriType::MakeFunctionType(function.m_param_types, std::move(return_type_copy));
 	function_type->GetType<MidoriType::FunctionType>().m_constraints = function.m_constraints;
 	function.m_type_data = function_type;
-	def.m_value->GetType() = function_type;
-
-	// Bind the name before evaluating the body so the lambda can recurse, and record
-	// it as generic so each use site is freshened instead of pinned to one instantiation.
-	m_name_type_table.back()[def.m_name.m_lexeme] = function_type;
-	m_generic_functions.insert(def.m_name.m_lexeme);
+	bind(function_type, freshening_context.m_generic_params
+		| std::views::values
+		| std::views::filter([](const std::shared_ptr<MidoriType>& type) { return type->IsType<MidoriType::TypeVariable>(); })
+		| std::views::transform([](const std::shared_ptr<MidoriType>& type) { return type->GetType<MidoriType::TypeVariable>().m_id; })
+		| std::ranges::to<std::vector>());
 
 	return ScopeSession(*this).Then([&]() -> MidoriResult::TypeResult
 	{
@@ -3420,13 +3448,13 @@ MidoriResult::TypeResult TypeChecker::TypeCheckGenericLambdaDefinition(MidoriSta
 		}
 
 		// Inside its own body, a recursive call is not a fresh instantiation.
-		DefiningGenericGuard defining_guard(*this, def.m_name.m_lexeme);
+		DefiningGenericGuard defining_guard(*this, name);
 		ExpectedTypeGuard expected_expr_guard(*this, function.m_return_type);
 		RigidTypeVariablesGuard rigid_guard(*this, freshening_context.m_generic_params);
 		return Evaluate(function.m_body)
 			.and_then
 			(
-				[&function, &def, &rigid_guard, &saved_expected_return_type, prev_constraints_size, this](std::shared_ptr<MidoriType>&& body_type) -> MidoriResult::TypeResult
+				[&function, &anchor, &rigid_guard, &saved_expected_return_type, prev_constraints_size, this](std::shared_ptr<MidoriType>&& body_type) -> MidoriResult::TypeResult
 				{
 					m_expected_return_type = saved_expected_return_type;
 					m_active_constraints.resize(prev_constraints_size);
@@ -3434,9 +3462,9 @@ MidoriResult::TypeResult TypeChecker::TypeCheckGenericLambdaDefinition(MidoriSta
 					return Unify(function.m_function_keyword, function.m_return_type, body_type, UnifyDiagnosticMode::ExpectedActual)
 						.and_then
 						(
-							[&function, &def, &rigid_guard, this](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
+							[&function, &anchor, &rigid_guard, this](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
 							{
-								if (std::optional<CompilerError> error = CheckGenericParametersStayGeneric(rigid_guard.Parameters(), function.m_generic_params, def.m_name))
+								if (std::optional<CompilerError> error = CheckGenericParametersStayGeneric(rigid_guard.Parameters(), function.m_generic_params, anchor))
 								{
 									return std::unexpected(std::move(*error));
 								}
@@ -5216,7 +5244,9 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Spawn& spawn)
 	MidoriResult::TypeResult callee_result;
 	{
 		ExpectedTypeGuard guard(*this, nullptr);
+		m_callee_name = spawn.m_callee->IsExpression<MidoriExpression::NameAccess>() ? &spawn.m_callee->GetExpression<MidoriExpression::NameAccess>() : nullptr;
 		callee_result = Evaluate(spawn.m_callee);
+		m_callee_name = nullptr;
 	}
 
 	if (!callee_result.has_value())
@@ -5732,6 +5762,70 @@ MidoriResult::TypeResult TypeChecker::CheckInstanceMethodCall(MidoriExpression::
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 {
+	const size_t pending = m_pending_instance_constraints.size();
+	return CheckCall(call)
+		.and_then([this, pending](std::shared_ptr<MidoriType>&& type) { return ValidatePendingInstanceConstraints(pending, std::move(type)); });
+}
+
+MidoriResult::TypeResult TypeChecker::ValidatePendingInstanceConstraints(size_t from, std::shared_ptr<MidoriType>&& type)
+{
+	std::vector<std::pair<Token, std::shared_ptr<MidoriType>>> undecided;
+	for (std::pair<Token, std::shared_ptr<MidoriType>>& pending : m_pending_instance_constraints | std::views::drop(from))
+	{
+		std::shared_ptr<MidoriType> instance = ApplySubstitution(pending.second);
+		if (!IsDecided(instance))
+		{
+			undecided.emplace_back(std::move(pending.first), std::move(instance));
+			continue;
+		}
+		MidoriResult::TypeResult validated = ValidateFunctionConstraints(pending.first, instance->GetType<MidoriType::FunctionType>());
+		if (!validated.has_value())
+		{
+			m_pending_instance_constraints.erase(m_pending_instance_constraints.begin() + static_cast<std::ptrdiff_t>(from), m_pending_instance_constraints.end());
+			return validated;
+		}
+	}
+	m_pending_instance_constraints.erase(m_pending_instance_constraints.begin() + static_cast<std::ptrdiff_t>(from), m_pending_instance_constraints.end());
+	m_pending_instance_constraints.insert(m_pending_instance_constraints.end(), std::make_move_iterator(undecided.begin()), std::make_move_iterator(undecided.end()));
+	return type;
+}
+
+MidoriResult::TypeResult TypeChecker::UseGenericInstance(const Token& token, std::shared_ptr<MidoriType> instance, std::string_view undecided_message)
+{
+	std::unordered_set<int> visible_type_vars = CollectEnclosingTypeVariableIds();
+	if (m_expected_expr_type != nullptr)
+	{
+		MidoriResult::TypeResult expected_result = Unify(token, instance, m_expected_expr_type, UnifyDiagnosticMode::ActualExpected);
+		if (!expected_result.has_value())
+		{
+			return expected_result;
+		}
+		std::unordered_set<int> expected_type_vars = CollectTypeVariableIds(ApplySubstitution(m_expected_expr_type));
+		visible_type_vars.insert(expected_type_vars.cbegin(), expected_type_vars.cend());
+	}
+
+	instance = ApplySubstitution(instance);
+	if (!std::ranges::all_of(CollectTypeVariableIds(instance), [&visible_type_vars](int id) { return visible_type_vars.contains(id); }))
+	{
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(std::string(undecided_message), token, m_file_name, m_source_lines));
+	}
+	if (!IsDecided(instance))
+	{
+		m_pending_instance_constraints.emplace_back(token, instance);
+		return instance;
+	}
+	return ValidateFunctionConstraints(token, instance->GetType<MidoriType::FunctionType>())
+		.transform([&instance](std::shared_ptr<MidoriType>&&) { return instance; });
+}
+
+// Decided: every variable left is a generic parameter of a definition being checked.
+bool TypeChecker::IsDecided(const std::shared_ptr<MidoriType>& type) const
+{
+	return std::ranges::all_of(CollectTypeVariableIds(type), [this](int id) { return m_rigid_type_vars.contains(id); });
+}
+
+MidoriResult::TypeResult TypeChecker::CheckCall(MidoriExpression::Call& call)
+{
 	if (call.m_callee->IsExpression<MidoriExpression::NameAccess>())
 	{
 		MidoriExpression::NameAccess& callee_name = call.m_callee->GetExpression<MidoriExpression::NameAccess>();
@@ -5924,7 +6018,10 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 	MidoriResult::TypeResult callee_result = [&call, this]() -> MidoriResult::TypeResult
 		{
 			ExpectedTypeGuard guard(*this, nullptr);
-			return Evaluate(call.m_callee);
+			m_callee_name = call.m_callee->IsExpression<MidoriExpression::NameAccess>() ? &call.m_callee->GetExpression<MidoriExpression::NameAccess>() : nullptr;
+			MidoriResult::TypeResult result = Evaluate(call.m_callee);
+			m_callee_name = nullptr;
+			return result;
 		}();
 
 	return std::move(callee_result)
@@ -6064,6 +6161,19 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::NameAccess& v
 	}
 
 	const std::shared_ptr<MidoriType>* binding = FindNameType(variable.m_name.m_lexeme);
+	const bool is_defining = std::ranges::contains(m_defining_generic_names, variable.m_name.m_lexeme);
+	const std::vector<LocalGenericFunction>::const_reverse_iterator local_generic = std::ranges::find(m_local_generic_functions | std::views::reverse, variable.m_name.m_lexeme, &LocalGenericFunction::m_name);
+	const bool is_value = &variable != m_callee_name;
+	const std::function<MidoriResult::TypeResult()> use_as_value = [this, &variable]()
+	{
+		return UseGenericInstance(variable.m_name, variable.m_type_data, std::format("Name access expression type error: could not infer which types '{}' is used at; pass it where a function type is expected, or write the type on the definition that holds it", variable.m_name.m_lexeme))
+			.transform([&variable](std::shared_ptr<MidoriType>&& instance) { return variable.m_type_data = std::move(instance); });
+	};
+	if (binding != nullptr && !is_defining && local_generic != m_local_generic_functions.crend())
+	{
+		variable.m_type_data = Instantiate(*binding, local_generic->m_parameters);
+		return is_value ? use_as_value() : variable.m_type_data;
+	}
 	if (binding != nullptr)
 	{
 		const bool binding_is_generic_function =
@@ -6075,6 +6185,10 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::NameAccess& v
 			|| (binding->get()->IsType<MidoriType::FunctionType>() && binding->get()->GetType<MidoriType::FunctionType>().m_is_foreign))
 		{
 			variable.m_type_data = Freshen(*binding);
+			if (is_value && variable.m_type_data->IsType<MidoriType::FunctionType>() && !CollectTypeVariableIds(variable.m_type_data).empty())
+			{
+				return use_as_value();
+			}
 		}
 		else
 		{
@@ -6191,13 +6305,15 @@ MidoriResult::TypeResult TypeChecker::ResolveFunctionExpressionSignature(MidoriE
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Function& function)
 {
-	// A generic lambda is specialized by name at each call site, so it is only
-	// reachable as the value of a top-level 'def'. That case is handled by
-	// TypeCheckGenericLambdaDefinition and never reaches this visitor; anything
-	// arriving here is anonymous (for example passed directly as an argument).
+	// An anonymous generic lambda is one value, so it takes one instance of its
+	// generic type, which the context decides. Its parameter and return types
+	// stay generic for lowering to read the instance against.
 	if (!function.m_generic_params.empty())
 	{
-		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Function expression type error: an anonymous lambda cannot have generic parameters; bind it to a top-level name with 'def' so it can be specialized at each call site", function.m_function_keyword, m_file_name, m_source_lines));
+		std::vector<int> parameters;
+		return CheckGenericLambda(function, function.m_function_keyword, std::string(), [&parameters](const std::shared_ptr<MidoriType>&, const std::vector<int>& own) { parameters = own; })
+			.and_then([&](std::shared_ptr<MidoriType>&&) { return UseGenericInstance(function.m_function_keyword, Instantiate(function.m_type_data, parameters), "Function expression type error: could not infer which types this generic lambda is used at"); })
+			.transform([&function](std::shared_ptr<MidoriType>&& instance) { return function.m_type_data = std::move(instance); });
 	}
 
 	// Preserve visible generic type variables when a lambda annotation refers to them.

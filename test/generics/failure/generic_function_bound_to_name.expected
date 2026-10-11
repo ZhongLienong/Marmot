@@ -1,6 +1,6 @@
 Compilation failed :(
-Lowering Error at test/generics/failure/generic_function_bound_to_name.mmt:14
+Type Checker Error at test/generics/failure/generic_function_bound_to_name.mmt:14
    |
 14 | def bound = identity;
-   |             ^^^^^^^^ Generic function 'identity' is monomorphised at each call site, so it has no single procedure to use as a value. Call it directly, or wrap it in a non-generic lambda that pins its type parameters.
+   |             ^^^^^^^^ Name access expression type error: could not infer which types 'identity' is used at; pass it where a function type is expected, or write the type on the definition that holds it
    |

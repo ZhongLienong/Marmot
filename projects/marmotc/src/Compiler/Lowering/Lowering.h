@@ -140,8 +140,23 @@ private:
 		// A block is live once a live block jumps to it; the entry is. Code
 		// after a call that returns Never goes to a block nothing reaches.
 		std::vector<bool> m_live_blocks;
+		// A generic lambda bound by a local 'def', by local index. It has no
+		// value of its own: each use makes the closure for its types.
+		std::unordered_map<int, MidoriExpression::Function*> m_local_generics;
 
 		FunctionScope(MidoriIRFunctionId id, MidoriIRFunction& function, const Specialization& specialization, FunctionScope* parent, int environment_length);
+	};
+
+	// A local generic lambda's closure for one set of types, while its body is
+	// lowered. A use at the same types inside it is the closure itself, held
+	// as a local of the scope that makes it, numbered below the parser's.
+	struct ActiveGenericLambda
+	{
+		const MidoriExpression::Function* m_function;
+		std::string m_signature;
+		LocalKey m_self;
+
+		ActiveGenericLambda(const MidoriExpression::Function* function, std::string signature, LocalKey self);
 	};
 
 	// A top-level definition: its global, and, for a function, the function
@@ -182,6 +197,8 @@ private:
 	// another, and moved into the module at the end.
 	std::deque<MidoriIRFunction> m_functions;
 	std::deque<Specialization> m_specializations;
+	std::vector<ActiveGenericLambda> m_active_generic_lambdas;
+	int m_next_synthetic_local = -1;
 	std::unordered_map<std::string, MidoriIRFunctionId> m_specialized_functions;
 	// The first specialization for each set of argument types, for a call whose
 	// type the type checker left undecided.
@@ -256,6 +273,8 @@ private:
 	Emitted LowerFunctionBody(FunctionScope& scope, const std::vector<TypeRef>& param_types, const std::vector<Token>& params, MidoriExpression& body);
 	Lowered MakeClosure(FunctionScope& child, const TypeRef& closure_type, int line, std::string name = {});
 	Lowered LowerFunction(MidoriExpression::Function& function);
+	Lowered LowerGenericLambda(MidoriExpression::Function& function, const TypeRef& type, std::string name, int line);
+	Lowered LowerLocalGeneric(MidoriExpression::Function& function, const TypeRef& type, const Token& name);
 	std::expected<MidoriIRFunctionId, CompilerError> Specialize(const std::string& key, const std::vector<TypeRef>& argument_types, const TypeRef& call_type);
 
 	Lowered LowerName(const MidoriExpression::NameAccess& name);

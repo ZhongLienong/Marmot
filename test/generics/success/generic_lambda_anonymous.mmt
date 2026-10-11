@@ -1,0 +1,8 @@
+module GenericLambdaAnonymous
+
+// Test: an anonymous generic lambda passed straight to a call is one value,
+// the instance the parameter's type asks for.
+
+def apply = fn(f: fn(Int) -> Int, v: Int) -> Int => f(v);
+
+def r = apply(fn<T>(x: T) -> T => x, 5);
