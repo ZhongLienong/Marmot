@@ -9,11 +9,10 @@
 #include <vector>
 
 // Slots come in multiples of SLOT_GRANULE up to MAX_SLOT_SIZE, and each block
-// holds slots of one size. A block keeps its size for good: the collector's
-// bitmaps are keyed by slot index, so a block's slots are never renumbered.
-// ponytail: a block emptied of one size is not reused for another, so a
-// program that switches from large objects to small ones keeps the old blocks.
-// Re-sizing an empty block needs its free slots unlinked from their list.
+// holds slots of one size. The collector's bitmaps are keyed by slot index, so
+// every block owns the same range of them, enough for its smallest slots: a
+// block a collection emptied can then be given another size without
+// renumbering anyone's slots.
 class MidoriAllocator
 {
 public:
@@ -21,6 +20,8 @@ public:
 	static constexpr size_t SLOT_GRANULE = 16uz;
 	static constexpr size_t MAX_SLOT_SIZE = 80uz;
 	static constexpr size_t SIZE_CLASS_COUNT = MAX_SLOT_SIZE / SLOT_GRANULE;
+	static constexpr size_t BLOCK_SLOT_BITS = BLOCK_SIZE / SLOT_GRANULE;
+	static constexpr size_t BLOCK_BIT_WORDS = BLOCK_SLOT_BITS / 64uz;
 
 	static constexpr size_t SlotSizeFor(size_t bytes) noexcept
 	{
@@ -48,8 +49,8 @@ public:
 
 	size_t LiveSlotCount() const noexcept;
 
-	// Slot indices are bit indices into the live bitmap. Each block owns whole
-	// words of it, enough for its slots; the bits past its last slot are never set.
+	// Slot indices are bit indices into the live bitmap. Each block owns
+	// BLOCK_BIT_WORDS of it; the bits past its last slot are never set.
 #ifndef __EMSCRIPTEN__
 	MIDORI_FORCE_INLINE std::optional<size_t> TryGetSlotIndex(const void* ptr) const noexcept
 	{
@@ -85,7 +86,8 @@ private:
 	};
 
 	// The reciprocal turns a byte offset in the block into a slot with a
-	// multiply: ceil(2^32 / slot size) is exact for offsets below 2^16.
+	// multiply: ceil(2^32 / slot size) is exact for offsets below 2^16. A block
+	// set aside for another size has no slots.
 	struct BlockLayout
 	{
 		uint32_t m_first_bit;
@@ -108,13 +110,18 @@ private:
 	}
 
 	std::vector<BlockLayout> m_blocks;
-	// The block that owns each word of m_live_bits.
-	std::vector<uint32_t> m_word_blocks;
 	std::vector<uint64_t> m_live_bits;
 	std::array<FreeNode*, SIZE_CLASS_COUNT> m_free_lists{};
+	// Emptied blocks waiting for whichever size next needs a block.
+	std::vector<size_t> m_spare_blocks;
+	bool m_freed_since_set_aside = false;
 
 	bool AllocateBlock(size_t size_class);
-	void AddBlock(uint8_t* base, size_t size_class);
+	void AddBlock(size_t size_class);
+	void LayOut(size_t block, size_t size_class);
+	template<typename IsFree>
+	void ThreadSlots(size_t block, IsFree is_free);
+	void SetAsideEmptyBlocks();
 	MIDORI_NOINLINE void* AllocateFromNewBlock(size_t size_class);
 
 #ifndef __EMSCRIPTEN__

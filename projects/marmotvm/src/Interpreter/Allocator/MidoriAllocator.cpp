@@ -2,6 +2,7 @@
 #include "Value/Value.h"
 #include "Error/RuntimeError.h"
 
+#include <algorithm>
 #include <bit>
 #include <cstdlib>
 
@@ -29,7 +30,7 @@ bool MidoriAllocator::AllocateBlock(size_t size_class)
 	}
 
 	m_block_bases.push_back(block);
-	AddBlock(block, size_class);
+	AddBlock(size_class);
 	return true;
 }
 
@@ -150,47 +151,107 @@ bool MidoriAllocator::AllocateBlock(size_t size_class)
 		return false;
 	}
 
-	uint8_t* block = m_region_base + m_block_bytes;
 	m_block_bytes += BLOCK_SIZE;
-	AddBlock(block, size_class);
+	AddBlock(size_class);
 	return true;
 }
 
 #endif
 
-void MidoriAllocator::AddBlock(uint8_t* base, size_t size_class)
+// Threaded from the last slot down, so the block is handed out in address
+// order and a structure built in one go is laid out the way it is walked.
+template<typename IsFree>
+void MidoriAllocator::ThreadSlots(size_t block, IsFree is_free)
 {
-	const size_t slot_size = (size_class + 1uz) * SLOT_GRANULE;
-	const size_t slot_count = BLOCK_SIZE / slot_size;
-	const size_t word_count = (slot_count + 63uz) / 64uz;
-	const size_t first_bit = m_live_bits.size() * 64uz;
-	const uint32_t block_index = static_cast<uint32_t>(m_blocks.size());
-
-	m_blocks.push_back(BlockLayout
+	const BlockLayout& layout = m_blocks[block];
+	uint8_t* base = const_cast<uint8_t*>(BlockBase(block));
+	FreeNode*& free_list = m_free_lists[layout.m_slot_size / SLOT_GRANULE - 1uz];
+	for (size_t slot = layout.m_slot_count; slot > 0uz; slot -= 1uz)
 	{
-		.m_first_bit = static_cast<uint32_t>(first_bit),
-		.m_reciprocal = static_cast<uint32_t>(((1ull << 32u) + slot_size - 1uz) / slot_size),
-		.m_slot_size = static_cast<uint32_t>(slot_size),
-		.m_slot_count = static_cast<uint32_t>(slot_count),
-	});
-	m_live_bits.insert(m_live_bits.end(), word_count, 0ull);
-	m_word_blocks.insert(m_word_blocks.end(), word_count, block_index);
-
-	// Threaded from the last slot down, so the block is handed out in address
-	// order and a structure built in one go is laid out the way it is walked.
-	FreeNode*& free_list = m_free_lists[size_class];
-	for (size_t slot = slot_count; slot > 0uz; slot -= 1uz)
-	{
-		FreeNode* node = reinterpret_cast<FreeNode*>(base + (slot - 1uz) * slot_size);
-		node->m_next = free_list;
-		node->m_slot_index = first_bit + slot - 1uz;
-		free_list = node;
+		const size_t slot_index = layout.m_first_bit + slot - 1uz;
+		if (is_free(slot_index))
+		{
+			FreeNode* node = reinterpret_cast<FreeNode*>(base + (slot - 1uz) * layout.m_slot_size);
+			node->m_next = free_list;
+			node->m_slot_index = slot_index;
+			free_list = node;
+		}
 	}
 }
 
+void MidoriAllocator::AddBlock(size_t size_class)
+{
+	m_blocks.emplace_back();
+	m_live_bits.insert(m_live_bits.end(), BLOCK_BIT_WORDS, 0ull);
+	LayOut(m_blocks.size() - 1uz, size_class);
+}
+
+void MidoriAllocator::LayOut(size_t block, size_t size_class)
+{
+	const size_t slot_size = (size_class + 1uz) * SLOT_GRANULE;
+	m_blocks[block] = BlockLayout
+	{
+		.m_first_bit = static_cast<uint32_t>(block * BLOCK_SLOT_BITS),
+		.m_reciprocal = static_cast<uint32_t>(((1ull << 32u) + slot_size - 1uz) / slot_size),
+		.m_slot_size = static_cast<uint32_t>(slot_size),
+		.m_slot_count = static_cast<uint32_t>(BLOCK_SIZE / slot_size),
+	};
+	ThreadSlots(block, [](size_t) { return true; });
+}
+
+// Takes every block with no live slot out of its size, for any size to reuse.
+// Its slots are on its size's free list, so that list is threaded again from
+// the blocks that keep the size.
+void MidoriAllocator::SetAsideEmptyBlocks()
+{
+	m_freed_since_set_aside = false;
+	std::array<bool, SIZE_CLASS_COUNT> emptied{};
+	for (size_t block = 0uz; block < m_blocks.size(); block += 1uz)
+	{
+		BlockLayout& layout = m_blocks[block];
+		const uint64_t* words = m_live_bits.data() + block * BLOCK_BIT_WORDS;
+		if (layout.m_slot_count != 0u && std::all_of(words, words + BLOCK_BIT_WORDS, [](uint64_t word) { return word == 0ull; }))
+		{
+			emptied[layout.m_slot_size / SLOT_GRANULE - 1uz] = true;
+			layout.m_slot_count = 0u;
+			m_spare_blocks.push_back(block);
+		}
+	}
+
+	for (size_t size_class = 0uz; size_class < SIZE_CLASS_COUNT; size_class += 1uz)
+	{
+		if (!emptied[size_class])
+		{
+			continue;
+		}
+
+		m_free_lists[size_class] = nullptr;
+		for (size_t block = m_blocks.size(); block > 0uz; block -= 1uz)
+		{
+			const BlockLayout& layout = m_blocks[block - 1uz];
+			if (layout.m_slot_count != 0u && layout.m_slot_size == (size_class + 1uz) * SLOT_GRANULE)
+			{
+				ThreadSlots(block - 1uz, [this](size_t slot_index) { return (m_live_bits[slot_index / 64uz] & (1ull << (slot_index % 64uz))) == 0ull; });
+			}
+		}
+	}
+}
+
+// Blocks emptied since the last look are set aside first, so a program that
+// moves from one size to another reuses the blocks the first size left.
 void* MidoriAllocator::AllocateFromNewBlock(size_t size_class)
 {
-	if (!AllocateBlock(size_class))
+	if (m_spare_blocks.empty() && m_freed_since_set_aside)
+	{
+		SetAsideEmptyBlocks();
+	}
+
+	if (!m_spare_blocks.empty())
+	{
+		LayOut(m_spare_blocks.back(), size_class);
+		m_spare_blocks.pop_back();
+	}
+	else if (!AllocateBlock(size_class))
 	{
 		FatalOutOfMemory("the heap is full", (size_class + 1uz) * SLOT_GRANULE);
 	}
@@ -215,8 +276,9 @@ void* MidoriAllocator::Allocate(size_t bytes)
 MidoriAllocator& MidoriAllocator::Free(void* slot, size_t slot_index) &
 {
 	m_live_bits[slot_index / 64uz] &= ~(1ull << (slot_index % 64uz));
+	m_freed_since_set_aside = true;
 
-	const size_t size_class = m_blocks[m_word_blocks[slot_index / 64uz]].m_slot_size / SLOT_GRANULE - 1uz;
+	const size_t size_class = m_blocks[slot_index / BLOCK_SLOT_BITS].m_slot_size / SLOT_GRANULE - 1uz;
 	FreeNode* node = static_cast<FreeNode*>(slot);
 	node->m_next = m_free_lists[size_class];
 	node->m_slot_index = slot_index;
@@ -228,7 +290,7 @@ MidoriAllocator& MidoriAllocator::Free(void* slot, size_t slot_index) &
 // LiveBitWords or TryGetSlotIndex); a padding bit maps past the block's slots.
 void* MidoriAllocator::SlotAt(size_t slot_index) const noexcept
 {
-	const size_t block = m_word_blocks[slot_index / 64uz];
+	const size_t block = slot_index / BLOCK_SLOT_BITS;
 	const BlockLayout& layout = m_blocks[block];
 	return const_cast<uint8_t*>(BlockBase(block)) + (slot_index - layout.m_first_bit) * layout.m_slot_size;
 }

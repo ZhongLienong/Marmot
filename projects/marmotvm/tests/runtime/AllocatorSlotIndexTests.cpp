@@ -155,3 +155,33 @@ TEST_CASE("Slots of every size keep their own indices in interleaved blocks", "[
 	// A freed slot goes back to the list of its own size.
 	REQUIRE(allocator.Allocate(48uz) == last_48_byte_slot);
 }
+
+TEST_CASE("A block emptied of one size is reused for another", "[allocator][gc]")
+{
+	MidoriAllocator allocator;
+
+	constexpr size_t SLOTS_PER_BLOCK = MidoriAllocator::BLOCK_SIZE / MidoriAllocator::MAX_SLOT_SIZE;
+	std::vector<std::pair<void*, size_t>> slots;
+	for (size_t i = 0uz; i < SLOTS_PER_BLOCK; i += 1uz)
+	{
+		void* slot = allocator.Allocate(MidoriAllocator::MAX_SLOT_SIZE);
+		slots.emplace_back(slot, allocator.SlotIndexOf(slot));
+	}
+	for (const auto& [slot, index] : slots)
+	{
+		allocator.Free(slot, index);
+	}
+	const size_t word_count = allocator.SlotWordCount();
+
+	// The emptied block's first slot, now a small one, and no block was added.
+	void* small = allocator.Allocate(MidoriAllocator::SLOT_GRANULE);
+	REQUIRE(small == slots.front().first);
+	REQUIRE(allocator.SlotWordCount() == word_count);
+	REQUIRE(allocator.TryGetSlotIndex(static_cast<uint8_t*>(small) + MidoriAllocator::SLOT_GRANULE).has_value());
+
+	// Its large slots left the free list with it, so a large slot needs a new block.
+	void* large = allocator.Allocate(MidoriAllocator::MAX_SLOT_SIZE);
+	REQUIRE(allocator.SlotIndexOf(large) / MidoriAllocator::BLOCK_SLOT_BITS != allocator.SlotIndexOf(small) / MidoriAllocator::BLOCK_SLOT_BITS);
+	REQUIRE(allocator.SlotAt(allocator.SlotIndexOf(large)) == large);
+	REQUIRE(allocator.LiveSlotCount() == 2uz);
+}
