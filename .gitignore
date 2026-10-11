@@ -16,7 +16,6 @@ build/
 build-wasm/
 build*
 projects/marmot/target/
-tool/target/
 __pycache__/
 *.pyc
 node_modules/
