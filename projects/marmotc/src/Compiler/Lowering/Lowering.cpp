@@ -1317,14 +1317,14 @@ std::expected<Lowering::Callee, CompilerError> Lowering::ResolveCallee(MidoriExp
 	std::optional<std::string> resolved;
 	if (specialization.m_methods.contains(lexeme))
 	{
-		const MethodResolution<std::string> method = m_resolver.ResolveConstrainedCall(specialization.m_methods, lexeme, argument_types.empty() ? nullptr : &argument_types.front(), call_type);
+		const MethodResolution<std::optional<std::string>> method = m_resolver.ResolveConstrainedCall(specialization.m_methods, lexeme, argument_types.empty() ? nullptr : &argument_types.front(), call_type);
 		if (!method.has_value())
 		{
 			return std::unexpected(ResolutionError(method.error(), paren));
 		}
 		resolved = method.value();
 	}
-	else if (lexeme.find(NameSeparator) != std::string::npos)
+	if (!resolved.has_value() && lexeme.find(NameSeparator) != std::string::npos)
 	{
 		const MethodResolution<std::optional<std::string>> method = m_resolver.ResolveConcreteCall(lexeme, argument_types, call_type);
 		if (!method.has_value())

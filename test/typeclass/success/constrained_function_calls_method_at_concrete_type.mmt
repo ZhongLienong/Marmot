@@ -1,0 +1,15 @@
+module ConstrainedFunctionCallsMethodAtConcreteType
+
+// Test: a function constrained on Equatable<T> also calls Equatable::Equals on
+// an Int. The constraint covers T; the call on Int resolves to Int's instance.
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/Equatable.mmt"
+}
+
+def Both = fn<T>(a: T, b: T, x: Int, y: Int) -> Bool where Equatable<T> => Equatable::Equals(a, b) && Equatable::Equals(x, y);
+
+IO::PrintLine(Both(1, 1, 2, 2) as Text);
+IO::PrintLine(Both("a", "a", 2, 3) as Text);

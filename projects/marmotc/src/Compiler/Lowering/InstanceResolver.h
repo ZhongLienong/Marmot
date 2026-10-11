@@ -92,8 +92,9 @@ public:
 	// classes' methods, once `substitutions` makes their type arguments concrete.
 	MethodResolutionMap ResolveConstraints(const std::vector<MidoriType::ClassConstraint>& constraints, const GenericTypes::TypeEnvironment& substitutions) const;
 
-	// A call of a method a constraint in scope provides.
-	MethodResolution<std::string> ResolveConstrainedCall(const MethodResolutionMap& resolutions, const std::string& callee_name, const std::shared_ptr<MidoriType>* first_argument_type, const std::shared_ptr<MidoriType>& return_type) const;
+	// A call of a method a constraint in scope provides; nothing when no
+	// constraint is on the first argument's type, a call at a concrete type.
+	MethodResolution<std::optional<std::string>> ResolveConstrainedCall(const MethodResolutionMap& resolutions, const std::string& callee_name, const std::shared_ptr<MidoriType>* first_argument_type, const std::shared_ptr<MidoriType>& return_type) const;
 	// A method a constraint in scope provides, used as a value.
 	MethodResolution<std::string> ResolveConstrainedValue(const MethodResolutionMap& resolutions, const std::string& name) const;
 	// A call of `Class::Method` with concrete arguments; nothing when the name

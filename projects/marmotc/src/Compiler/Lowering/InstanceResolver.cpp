@@ -340,7 +340,7 @@ MethodResolutionMap InstanceResolver::ResolveConstraints(const std::vector<Midor
 	return resolutions;
 }
 
-MethodResolution<std::string> InstanceResolver::ResolveConstrainedCall(const MethodResolutionMap& resolutions, const std::string& callee_name, const std::shared_ptr<MidoriType>* first_argument_type, const std::shared_ptr<MidoriType>& return_type) const
+MethodResolution<std::optional<std::string>> InstanceResolver::ResolveConstrainedCall(const MethodResolutionMap& resolutions, const std::string& callee_name, const std::shared_ptr<MidoriType>* first_argument_type, const std::shared_ptr<MidoriType>& return_type) const
 {
 	const std::vector<ResolvedMethodCandidate>& candidates = resolutions.at(callee_name);
 	if (first_argument_type == nullptr)
@@ -362,11 +362,7 @@ MethodResolution<std::string> InstanceResolver::ResolveConstrainedCall(const Met
 
 	if (matching.empty())
 	{
-		const std::string candidates_info = candidates
-			| std::views::transform([](const ResolvedMethodCandidate& candidate) { return std::format("\nCandidate: {} (First: '{}', Instance: {})", candidate.m_resolved_name, candidate.m_first_type_name, candidate.m_has_instance); })
-			| std::views::join
-			| std::ranges::to<std::string>();
-		return std::unexpected(MethodResolutionError(CompilerErrorCode::LoweringAmbiguousMethodResolution, std::format("Ambiguous method '{}': no constraint matches argument type '{}'. Candidates:{}", callee_name, first_arg_type_name, candidates_info)));
+		return std::nullopt;
 	}
 
 	const bool return_type_is_concrete =
