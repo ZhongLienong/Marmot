@@ -194,3 +194,34 @@ TEST_CASE("A native library's file can be named directly, whatever it is called"
 	MidoriExecutable executable = Compile(project, "Main.mmt");
 	CHECK(Run(executable, { "--library", "marmot_test_native_named=" + (project.Path("bin") / "renamed.bin").string() }) == "ok");
 }
+
+TEST_CASE("A native function receives and returns each argument as its declared type says", "[ffi][native]")
+{
+	const MidoriTest::TempProject project({ MidoriTest::TempProjectFile(
+		"Main.mmt",
+		"module Main\n"
+		"foreign \"MIDORI_FFI_Print\" Print : fn(Text) -> Unit;\n"
+		"foreign \"marmot_test_native\"\n"
+		"{\n"
+		"\t\"marmot_test_length\" Length : fn(Text) -> Int;\n"
+		"\t\"marmot_test_sum\" Sum : fn(Array<Int>) -> Int;\n"
+		"\t\"marmot_test_shout\" Shout : fn(Text) -> Text;\n"
+		"\t\"marmot_test_words\" Words : fn() -> Array<Text>;\n"
+		"}\n"
+		"def empty: Array<Int> = [];\n"
+		"def words = Words();\n"
+		"Print(Shout(\"hey\") ++ \" \" ++ (Length(\"four\") as Text) ++ \" \" ++ (Sum([1, 2, 39]) as Text) ++ \" \" ++ (Sum(empty) as Text) ++ \" \" ++ words[0] ++ \" \" ++ words[1]);\n") });
+	CHECK(Run(Compile(project, "Main.mmt"), { "--library-path", MARMOT_TEST_NATIVE_DIR }) == "hey! 4 42 0 up down");
+}
+
+TEST_CASE("A native function takes at most four arguments", "[ffi][native]")
+{
+	const MidoriTest::TempProject project({ MidoriTest::TempProjectFile(
+		"Main.mmt",
+		"module Main\n"
+		"foreign \"marmot_test_add\" Add : fn(Int, Int, Int, Int, Int) -> Int from \"marmot_test_native\";\n"
+		"Add(1, 2, 3, 4, 5);\n") });
+	const MidoriDriver::CompileFileWithReportResult compiled = MidoriDriver::CompileFileWithReport(project.Path("Main.mmt"), CompilationInputs());
+	REQUIRE_FALSE(compiled.has_value());
+	CHECK(compiled.error().Rendered().find("Too many arguments to a native function (max 4)") != std::string::npos);
+}

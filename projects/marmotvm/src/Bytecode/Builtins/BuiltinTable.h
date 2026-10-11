@@ -7,7 +7,7 @@
 #include <string_view>
 
 // VM-side builtin IDs and signatures in .mmc order. The compiler keeps its
-// own table; the v13 registry check requires both tables to agree.
+// own table; the v14 registry check requires both tables to agree.
 
 using VmFFIFunction = void(*)(void** args, void* ret);
 

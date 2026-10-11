@@ -46,7 +46,7 @@
 // Bumped 2026-09-27 (13): CONSTRUCT_UNION carries the tag SET_TAG used to
 // set after it, and SET_TAG, which nothing else emitted, was deleted.
 // PUSH_PLACEHOLDER carries how many to push.
-inline constexpr uint32_t MbcFormatVersion = 13u;
+inline constexpr uint32_t MbcFormatVersion = 14u;
 
 inline constexpr int MAX_UNION_TAG{ UINT8_MAX };
 

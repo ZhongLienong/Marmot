@@ -4,6 +4,8 @@ use crate::project::packages::{self, Mode};
 use crate::project::version::Version;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
+use std::process::Command;
+use std::time::SystemTime;
 
 pub(crate) const PLAN_VERSION: u32 = 1;
 
@@ -86,6 +88,14 @@ fn native_libraries(
             ));
         }
 
+        if let Some(command) = native
+            .build
+            .as_deref()
+            .filter(|_| needs_build(directory, &native.library))
+        {
+            build_native_library(directory, &native, command)?;
+        }
+
         providers.push(paths::display(directory));
         libraries.push(PlanNativeLibrary {
             name: native.name,
@@ -96,6 +106,89 @@ fn native_libraries(
     }
 
     Ok(libraries)
+}
+
+/// A library is built when it is missing or a file in its package changed
+/// after it was.
+fn needs_build(directory: &Path, library: &Path) -> bool {
+    std::fs::metadata(library)
+        .and_then(|metadata| metadata.modified())
+        .map_or(true, |built| changed_since(directory, built))
+}
+
+fn changed_since(directory: &Path, time: SystemTime) -> bool {
+    std::fs::read_dir(directory)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .any(|entry| match entry.file_type() {
+            Ok(kind) if kind.is_dir() => changed_since(&entry.path(), time),
+            _ => entry
+                .metadata()
+                .and_then(|metadata| metadata.modified())
+                .is_ok_and(|modified| modified > time),
+        })
+}
+
+/// Runs a package's `[build].command` in its directory. The command writes
+/// the library to the path in `MARMOT_LIBRARY_OUTPUT`.
+fn build_native_library(
+    directory: &Path,
+    native: &manifest::NativeLibrary,
+    command: &str,
+) -> Result<(), String> {
+    eprintln!(
+        "Building native library '{}' in {}",
+        native.name,
+        paths::display(directory)
+    );
+    if let Some(parent) = native.library.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|error| format!("cannot create {}: {error}", paths::display(parent)))?;
+    }
+    let output = shell(command)
+        .current_dir(directory)
+        .env("MARMOT_LIBRARY_OUTPUT", &native.library)
+        .output()
+        .map_err(|error| format!("cannot run [build].command for '{}': {error}", native.name))?;
+    if !output.status.success() {
+        return Err(format!(
+            "building native library '{}' failed ({}):\n{}{}",
+            native.name,
+            output.status,
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+    if !native.library.exists() {
+        return Err(format!(
+            "[build].command for '{}' succeeded but did not write {}",
+            native.name,
+            paths::display(&native.library)
+        ));
+    }
+    // Files the build wrote after the library, such as a build log, would
+    // otherwise be newer than it and build it again on every run.
+    std::fs::File::options()
+        .write(true)
+        .open(&native.library)
+        .and_then(|library| library.set_modified(SystemTime::now()))
+        .map_err(|error| format!("cannot touch {}: {error}", paths::display(&native.library)))
+}
+
+#[cfg(windows)]
+fn shell(command: &str) -> Command {
+    use std::os::windows::process::CommandExt;
+    let mut shell = Command::new("cmd");
+    shell.arg("/C").raw_arg(command);
+    shell
+}
+
+#[cfg(not(windows))]
+fn shell(command: &str) -> Command {
+    let mut shell = Command::new("sh");
+    shell.arg("-c").arg(command);
+    shell
 }
 
 /// Search paths for sources under `directory`, and any warnings about the

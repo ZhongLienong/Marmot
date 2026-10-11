@@ -1,5 +1,5 @@
 {
-  "format_version": 13,
+  "format_version": 14,
   "builtin_abi_version": 1,
   "opcodes": [
     {
@@ -732,8 +732,9 @@
     {
       "id": 121,
       "name": "CALL_FOREIGN",
-      "length": 3,
-      "category": "Calls. CALL_0 to CALL_3 stay in order: the arity is the distance from CALL_0."
+      "length": 4,
+      "category": "Calls. CALL_0 to CALL_3 stay in order: the arity is the distance from CALL_0.",
+      "description": "[op][arity][return kind][argument kinds] pop the function's name, then arity arguments; argument i's kind is bits 2i and 2i+1"
     },
     {
       "id": 122,

@@ -16,7 +16,7 @@ namespace
 	}
 }
 
-TEST_CASE("The VM independently loads the frozen version 13 artifacts", "[bytecode-artifact]")
+TEST_CASE("The VM independently loads the frozen version 14 artifacts", "[bytecode-artifact]")
 {
 	for (std::string_view name : { "minimal", "control", "embedded_error", "native" })
 	{
@@ -54,7 +54,7 @@ TEST_CASE("The reader rejects incompatible and corrupted artifacts", "[bytecode-
 	const std::array<std::pair<std::string_view, std::string_view>, 3u> invalid = {{
 		{ "truncated", "Truncated artifact" },
 		{ "checksum", "CRC32 mismatch" },
-		{ "old_version", "format version mismatch: expected 13, got 11" }
+		{ "old_version", "format version mismatch: expected 14, got 11" }
 	}};
 	for (const std::pair<std::string_view, std::string_view>& fixture : invalid)
 	{

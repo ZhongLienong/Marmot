@@ -881,7 +881,7 @@ int VirtualMachine::IndexOutOfBounds(MidoriInteger index) noexcept
 
 // What a foreign function returned, as a Marmot value: a C string or an array
 // it allocated becomes a Text or an Array, and is freed. For a function whose
-// signature returns a raw value, the call's return tag (1 Text, 2 Array) picks.
+// signature returns a raw value, the call's return tag is the return kind.
 MIDORI_FORCE_INLINE MidoriValue VirtualMachine::TakeForeignResult(VmFFIReturnKind kind, uint8_t return_tag, MidoriValue result) noexcept
 {
 	struct FFIArray
@@ -890,13 +890,9 @@ MIDORI_FORCE_INLINE MidoriValue VirtualMachine::TakeForeignResult(VmFFIReturnKin
 		int length;
 	};
 
-	if (kind == VmFFIReturnKind::RawValue && return_tag == 1u)
+	if (kind == VmFFIReturnKind::RawValue)
 	{
-		kind = VmFFIReturnKind::CString;
-	}
-	else if (kind == VmFFIReturnKind::RawValue && return_tag == 2u)
-	{
-		kind = VmFFIReturnKind::ArrayValues;
+		kind = static_cast<VmFFIReturnKind>(return_tag);
 	}
 
 	switch (kind)
@@ -948,6 +944,41 @@ MIDORI_FORCE_INLINE MidoriValue VirtualMachine::TakeForeignResult(VmFFIReturnKin
 		return result;
 	}
 	std::unreachable();
+}
+
+MIDORI_FORCE_INLINE void VirtualMachine::PassForeignArgument(VmFFIArgumentKind kind, size_t index, MidoriValue argument) noexcept
+{
+	MidoriTraceable* pointer = argument.GetPointer();
+	const bool is_managed_traceable = pointer != nullptr && m_gc.Contains(pointer);
+	switch (kind)
+	{
+	case VmFFIArgumentKind::CString:
+		m_ffi_args[index] = is_managed_traceable && pointer->IsTraceable<MidoriText>() ? (void*)pointer->GetTraceable<MidoriText>().CString() : nullptr;
+		break;
+	case VmFFIArgumentKind::ArrayView:
+		if (is_managed_traceable && pointer->IsTraceable<MidoriArray>())
+		{
+			MidoriArray& array = pointer->GetTraceable<MidoriArray>();
+			m_ffi_array_args.push_back(FFIArrayArgument{ array.GetLength() > 0 ? static_cast<void*>(&array[0u]) : nullptr, array.GetLength() });
+			m_gc.WriteBarrier(pointer);
+			m_ffi_args[index] = &m_ffi_array_args.back();
+		}
+		else
+		{
+			m_ffi_args[index] = nullptr;
+		}
+		break;
+	case VmFFIArgumentKind::TraceableHandle:
+		m_ffi_args[index] = is_managed_traceable ? pointer : nullptr;
+		break;
+	case VmFFIArgumentKind::ValueHandle:
+		m_ffi_value_args[index] = argument;
+		m_ffi_args[index] = &m_ffi_value_args[index];
+		break;
+	case VmFFIArgumentKind::RawValue:
+		m_ffi_args[index] = reinterpret_cast<void*>(static_cast<uintptr_t>(argument.GetRawBits()));
+		break;
+	}
 }
 
 void VirtualMachine::BuildGarbageCollectionRoots(GarbageCollector::GarbageCollectionRoots& roots) const noexcept
@@ -2373,6 +2404,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			MidoriValue foreign_function_name = Pop(sp);
 			int arity = static_cast<int>(ReadByte(ip));
 			uint8_t return_type = static_cast<uint8_t>(ReadByte(ip));
+			uint8_t argument_kinds = static_cast<uint8_t>(ReadByte(ip));
 
 #if MIDORI_DEBUG_FULL
 			if (!foreign_function_name.IsPointer())
@@ -2418,35 +2450,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			for (int i = arity - 1; i >= 0; i -= 1)
 			{
-				size_t idx = static_cast<size_t>(i);
-				MidoriValue arg = Pop(sp);
-
-				if (m_gc.Contains(arg.GetPointer()))
-				{
-					MidoriTraceable* ptr = arg.GetPointer();
-					if (ptr->IsTraceable<MidoriText>())
-					{
-						m_ffi_args[static_cast<size_t>(idx)] = (void*)ptr->GetTraceable<MidoriText>().CString();
-					}
-					else if (ptr->IsTraceable<MidoriArray>())
-					{
-						MidoriArray& array = ptr->GetTraceable<MidoriArray>();
-						FFIArrayArgument array_arg;
-						array_arg.data = &array[0u];
-						array_arg.length = array.GetLength();
-						m_ffi_array_args.push_back(array_arg);
-						m_gc.WriteBarrier(ptr);
-						m_ffi_args[static_cast<size_t>(idx)] = &m_ffi_array_args.back();
-					}
-					else
-					{
-						m_ffi_args[static_cast<size_t>(idx)] = nullptr;
-					}
-				}
-				else
-				{
-					m_ffi_args[idx] = reinterpret_cast<void*>(static_cast<uintptr_t>(arg.GetRawBits()));
-				}
+				PassForeignArgument(static_cast<VmFFIArgumentKind>((argument_kinds >> (2 * i)) & 3u), static_cast<size_t>(i), Pop(sp));
 			}
 
 			MidoriValue return_val;
@@ -2484,52 +2488,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			for (int i = arity - 1; i >= 0; i -= 1)
 			{
-				size_t idx = static_cast<size_t>(i);
-				MidoriValue arg = Pop(sp);
-				const VmFFIArgumentKind arg_kind = signature.m_arg_kinds[idx];
-				MidoriTraceable* ptr = arg.GetPointer();
-				const bool is_managed_traceable = ptr != nullptr && m_gc.Contains(ptr);
-
-				switch (arg_kind)
-				{
-				case VmFFIArgumentKind::CString:
-					if (is_managed_traceable && ptr->IsTraceable<MidoriText>())
-					{
-						m_ffi_args[idx] = (void*)ptr->GetTraceable<MidoriText>().CString();
-					}
-					else
-					{
-						m_ffi_args[idx] = nullptr;
-					}
-					break;
-				case VmFFIArgumentKind::ArrayView:
-					if (is_managed_traceable && ptr->IsTraceable<MidoriArray>())
-					{
-						MidoriArray& array = ptr->GetTraceable<MidoriArray>();
-						FFIArrayArgument array_arg;
-						array_arg.data = array.GetLength() > 0 ? static_cast<void*>(&array[0u]) : nullptr;
-						array_arg.length = array.GetLength();
-						m_ffi_array_args.push_back(array_arg);
-						m_gc.WriteBarrier(ptr);
-						m_ffi_args[idx] = &m_ffi_array_args.back();
-					}
-					else
-					{
-						m_ffi_args[idx] = nullptr;
-					}
-					break;
-				case VmFFIArgumentKind::TraceableHandle:
-					m_ffi_args[idx] = is_managed_traceable ? ptr : nullptr;
-					break;
-				case VmFFIArgumentKind::ValueHandle:
-					m_ffi_value_args[idx] = arg;
-					m_ffi_args[idx] = &m_ffi_value_args[idx];
-					break;
-				case VmFFIArgumentKind::RawValue:
-				default:
-					m_ffi_args[idx] = reinterpret_cast<void*>(static_cast<uintptr_t>(arg.GetRawBits()));
-					break;
-				}
+				PassForeignArgument(signature.m_arg_kinds[static_cast<size_t>(i)], static_cast<size_t>(i), Pop(sp));
 			}
 
 			MidoriValue return_val;

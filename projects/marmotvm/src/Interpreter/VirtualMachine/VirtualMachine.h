@@ -193,6 +193,8 @@ private:
 
 	MIDORI_FORCE_INLINE MidoriValue TakeForeignResult(VmFFIReturnKind kind, uint8_t return_tag, MidoriValue result) noexcept;
 
+	MIDORI_FORCE_INLINE void PassForeignArgument(VmFFIArgumentKind kind, size_t index, MidoriValue argument) noexcept;
+
 #ifdef _WIN32
 	int ExecuteLoopWithStructuredExceptionHandling(uintptr_t& exception_code, uintptr_t& exception_address, uintptr_t& fault_address, bool& captured) noexcept;
 

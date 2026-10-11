@@ -1,4 +1,4 @@
-// Generated from format/mmc/registry-v13.json. Do not edit.
+// Generated from format/mmc/registry-v14.json. Do not edit.
 // Regenerate: python scripts/dev.py generate-mmc
 
 MARMOT_BUILTIN(MIDORI_FFI_Print, MakeVmFFIArgKinds(VmFFIArgumentKind::CString), VmFFIReturnKind::RawValue)

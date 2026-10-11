@@ -3,6 +3,7 @@
 #pragma once
 
 #include <cinttypes>
+#include <cstddef>
 #include <string>
 #include <string_view>
 
@@ -21,6 +22,8 @@ inline constexpr int MAX_IMPORT_PLACEHOLDERS{ 0x1000 };
 inline constexpr int MAX_JUMP_SIZE{ UINT16_MAX };
 
 inline constexpr int MAX_FUNCTION_ARITY{ UINT8_MAX };
+
+inline constexpr size_t MAX_NATIVE_ARITY{ 4uz };
 
 constexpr std::string_view NameSeparator = "::";
 

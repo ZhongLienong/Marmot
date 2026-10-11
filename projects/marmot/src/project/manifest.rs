@@ -221,6 +221,9 @@ pub(crate) struct NativeLibrary {
     pub(crate) library: PathBuf,
     pub(crate) thread_safe: bool,
     pub(crate) checksum: Option<String>,
+    /// `[build].command`: what builds `library` from source when this platform
+    /// has no prebuilt entry and the file is missing.
+    pub(crate) build: Option<String>,
 }
 
 pub(crate) fn platform_prebuilt_key() -> &'static str {
@@ -303,6 +306,12 @@ fn native_library(
         ));
     }
 
+    let build = data
+        .get("build")
+        .and_then(Item::as_table_like)
+        .and_then(|table| string_at(table, "command"))
+        .filter(|_| prebuilt_path.is_none())
+        .map(str::to_string);
     Ok(Some(NativeLibrary {
         name: library_name.to_string(),
         library: prebuilt_path.unwrap_or_else(|| default_library_path(directory, library_name)),
@@ -313,6 +322,7 @@ fn native_library(
         checksum: prebuilt
             .and_then(|table| string_at(table, "checksum"))
             .map(str::to_string),
+        build,
     }))
 }
 

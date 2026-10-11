@@ -1,4 +1,4 @@
-// Generated from format/mmc/registry-v13.json. Do not edit.
+// Generated from format/mmc/registry-v14.json. Do not edit.
 // Regenerate: python scripts/dev.py generate-mmc
 
 // Constants and literals
@@ -145,7 +145,7 @@ MARMOT_OPCODE(GET_TAG, 1)
 MARMOT_OPCODE(GET_UNION_FIELD, 2) // [op][index] replace a union with its field at index
 
 // Calls. CALL_0 to CALL_3 stay in order: the arity is the distance from CALL_0.
-MARMOT_OPCODE(CALL_FOREIGN, 3)
+MARMOT_OPCODE(CALL_FOREIGN, 4) // [op][arity][return kind][argument kinds] pop the function's name, then arity arguments; argument i's kind is bits 2i and 2i+1
 MARMOT_OPCODE(CALL_FOREIGN_INDEXED, 4)
 MARMOT_OPCODE(CALL, 2)
 MARMOT_OPCODE(CALL_0, 1)

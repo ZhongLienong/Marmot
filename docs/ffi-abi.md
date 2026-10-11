@@ -82,10 +82,12 @@ struct FFIArray
 - The slot contains `MidoriValue*` pointing at a VM-owned value.
 - The pointee is borrowed and only valid during the call.
 
-Manifest-driven dynamic FFI currently uses the same physical call signature, but
-does not yet expose per-function `FFIArgumentKind` metadata in `package.marmot`.
-The runtime therefore uses the generic dynamic-call marshalling path for those
-functions.
+A native library's function gets its kinds from its `foreign` declaration's
+types, so `package.marmot` declares none: a `Text` parameter is passed as
+`CString`, an `Array<T>` as `ArrayView`, and any other as `RawValue`. A `Text`
+result is taken as `CString`, an `Array<Text>` as `ArrayStrings`, any other
+array as `ArrayValues`, and anything else as `RawValue`. The compiler rejects a
+call to a native function with more than `MIDORI_FFI_MAX_ARITY` arguments.
 
 ## Return Value Marshalling
 

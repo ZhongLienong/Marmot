@@ -2,6 +2,7 @@ use super::{Plan, PlanNativeLibrary, make_plan};
 use crate::paths;
 use crate::test_support::{TempTree, compiler, package, project};
 use std::path::{Path, PathBuf};
+use std::time::{Duration, SystemTime};
 
 fn shown(path: &Path) -> String {
     paths::display(path)
@@ -214,6 +215,69 @@ fn native_libraries_come_from_installed_packages() {
         );
         assert_eq!(native.checksum.as_deref(), Some("sha256:ab"));
     }
+}
+
+fn built_package(command: &str) -> TempTree {
+    TempTree::new(&[
+        ("app/Main.mmt", "module Main\n"),
+        (
+            "built/package.marmot",
+            &(package("Built", "1.0.0", &[])
+                + &format!(
+                    "\n[ffi]\nenabled = true\nlibrary_name = \"built\"\n\n[build]\ncommand = '{command}'\n"
+                )),
+        ),
+    ])
+}
+
+#[test]
+fn a_native_library_is_built_when_missing_or_older_than_its_package() {
+    // The build counts itself in a file it writes after the library.
+    let command = if cfg!(windows) {
+        r#"echo built> "%MARMOT_LIBRARY_OUTPUT%" && echo x>> builds"#
+    } else {
+        r#"echo built > "$MARMOT_LIBRARY_OUTPUT" && echo x >> builds"#
+    };
+    let tree = built_package(command);
+    let builds = || tree.read("built/builds").lines().count();
+
+    let plan = plan_for(&tree, "app/Main.mmt", &[tree.path("built")]);
+    assert_eq!(plan.native_libraries.len(), 1);
+    let library = std::fs::read_to_string(&plan.native_libraries[0].path).unwrap();
+    assert_eq!(library.trim(), "built");
+    assert_eq!(builds(), 1);
+
+    plan_for(&tree, "app/Main.mmt", &[tree.path("built")]);
+    assert_eq!(builds(), 1);
+
+    let source = tree.path("built/native.c");
+    std::fs::write(&source, "int answer;\n").unwrap();
+    std::fs::File::options()
+        .write(true)
+        .open(&source)
+        .unwrap()
+        .set_modified(SystemTime::now() + Duration::from_secs(60))
+        .unwrap();
+    plan_for(&tree, "app/Main.mmt", &[tree.path("built")]);
+    assert_eq!(builds(), 2);
+}
+
+#[test]
+fn a_failing_native_build_stops_the_plan_with_its_output() {
+    let tree = built_package("echo no compiler && exit 3");
+
+    let error = make_plan(
+        &tree.path("app/Main.mmt"),
+        &[tree.path("built")],
+        &compiler(),
+    )
+    .unwrap_err();
+
+    assert!(
+        error.contains("building native library 'built' failed"),
+        "{error}"
+    );
+    assert!(error.contains("no compiler"), "{error}");
 }
 
 #[test]

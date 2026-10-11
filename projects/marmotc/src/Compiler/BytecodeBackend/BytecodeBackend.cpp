@@ -10,7 +10,9 @@
 #include <filesystem>
 #include <format>
 #include <ranges>
+#include <span>
 #include <stdexcept>
+#include <tuple>
 #include <utility>
 
 namespace
@@ -227,7 +229,8 @@ namespace
 		return type->IsType<MidoriType::UnitType>();
 	}
 
-	// What a foreign call's result is, so the VM knows how to take it back.
+	// What a foreign call's result is, so the VM knows how to take it back:
+	// raw bits, a C string, an array of values or an array of C strings.
 	uint8_t ForeignReturnTag(const TypeRef& type)
 	{
 		if (type->IsType<MidoriType::TextType>())
@@ -236,9 +239,21 @@ namespace
 		}
 		if (type->IsType<MidoriType::ArrayType>())
 		{
-			return 2u;
+			return type->GetType<MidoriType::ArrayType>().m_element_type->IsType<MidoriType::TextType>() ? 3u : 2u;
 		}
 		return 0u;
+	}
+
+	// How a native library receives each argument, two bits apiece from the
+	// first: raw bits, a C string, or a view of an array's elements.
+	uint8_t ForeignArgumentKinds(const MidoriIRFunction& function, std::span<const MidoriIRValueId> arguments)
+	{
+		return std::ranges::fold_left(arguments | std::views::enumerate, uint8_t{ 0u }, [&function](uint8_t kinds, const std::tuple<std::ptrdiff_t, MidoriIRValueId>& argument)
+		{
+			const TypeRef& type = function.TypeOf(std::get<1>(argument));
+			const uint8_t kind = type->IsType<MidoriType::TextType>() ? 1u : type->IsType<MidoriType::ArrayType>() ? 2u : 0u;
+			return static_cast<uint8_t>(kinds | (kind << (2 * std::get<0>(argument))));
+		});
 	}
 
 	// A call whose first operand is what it calls, which the VM takes from on
@@ -1526,25 +1541,30 @@ namespace
 					.and_then([&]() { return EmitCallOf(OpCode::CALL, OpCode::CALL_0, operand_count - 1u, line); });
 			case MidoriIROp::CallForeign:
 			{
-				// A builtin is called by its index; any other foreign function
-				// by the name its first operand holds.
-				const bool is_builtin = std::holds_alternative<MidoriIRForeign>(instruction.m_immediate);
-				const size_t arity = is_builtin ? operand_count : operand_count - 1u;
-				return CheckArity(arity, line)
-					.transform([&]()
-					{
-						if (is_builtin)
+				// A builtin is called by its index; a native library's function
+				// by the name its first operand holds, with how each argument is
+				// passed.
+				if (std::holds_alternative<MidoriIRForeign>(instruction.m_immediate))
+				{
+					return CheckArity(operand_count, line)
+						.transform([&]()
 						{
 							EmitByte(OpCode::CALL_FOREIGN_INDEXED, line);
 							EmitOperand(static_cast<int>(MarmotBuiltins::FindIndex(std::get<MidoriIRForeign>(instruction.m_immediate).m_name).value()), line);
-						}
-						else
-						{
-							EmitByte(OpCode::CALL_FOREIGN, line);
-						}
-						EmitOperand(static_cast<int>(arity), line);
-						EmitOperand(ForeignReturnTag(instruction.m_type), line);
-					});
+							EmitOperand(static_cast<int>(operand_count), line);
+							EmitOperand(ForeignReturnTag(instruction.m_type), line);
+						});
+				}
+				const std::span<const MidoriIRValueId> arguments = std::span(instruction.m_operands).subspan(1u);
+				if (arguments.size() > MAX_NATIVE_ARITY)
+				{
+					return std::unexpected(m_backend.LimitExceeded(std::format("Too many arguments to a native function (max {})", MAX_NATIVE_ARITY), line));
+				}
+				EmitByte(OpCode::CALL_FOREIGN, line);
+				EmitOperand(static_cast<int>(arguments.size()), line);
+				EmitOperand(ForeignReturnTag(instruction.m_type), line);
+				EmitOperand(ForeignArgumentKinds(m_function, arguments), line);
+				return {};
 			}
 			case MidoriIROp::MakeClosure:
 				return EmitMakeClosure(instruction, line);

@@ -231,15 +231,17 @@ namespace
 	{
 		int arity = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 		int return_type = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
-		offset += 3;
+		int argument_kinds = static_cast<int>(executable.ReadByteCode(offset + 3, proc_index));
+		offset += 4;
 		std::ostringstream formated_str;
 
 		formated_str << Terminal::Colored<Terminal::Color::BRIGHT_WHITE>(std::string(name));
 		formated_str << " " << Terminal::Colored<Terminal::Color::CYAN>(std::to_string(arity));
 		formated_str << " " << Terminal::Colored<Terminal::Color::CYAN>(std::to_string(return_type));
+		formated_str << " " << Terminal::Colored<Terminal::Color::CYAN>(std::to_string(argument_kinds));
 		formated_str << "  " << Terminal::Colored<Terminal::Color::DARK_GRAY>("// params: " + std::to_string(arity) + ", return: ");
 
-		std::string return_type_str = (return_type == 0) ? "primitive" : (return_type == 1) ? "text" : (return_type == 2) ? "array" : "unknown";
+		std::string return_type_str = (return_type == 0) ? "primitive" : (return_type == 1) ? "text" : (return_type == 2) ? "array" : (return_type == 3) ? "text array" : "unknown";
 		formated_str << return_type_str;
 		formated_str << '\n';
 		Terminal::Print(output, formated_str.str());
@@ -261,7 +263,7 @@ namespace
 		std::string ffi_name = (static_cast<size_t>(ffi_index) < VmBuiltins::COUNT)
 			? std::string(VmBuiltins::At(static_cast<size_t>(ffi_index)).m_name)
 			: "unknown";
-		std::string return_type_str = (return_type == 0) ? "primitive" : (return_type == 1) ? "text" : (return_type == 2) ? "array" : "unknown";
+		std::string return_type_str = (return_type == 0) ? "primitive" : (return_type == 1) ? "text" : (return_type == 2) ? "array" : (return_type == 3) ? "text array" : "unknown";
 
 		formated_str << "  " << Terminal::Colored<Terminal::Color::DARK_GRAY>("// " + ffi_name + ", params: " + std::to_string(arity) + ", return: " + return_type_str);
 		formated_str << '\n';

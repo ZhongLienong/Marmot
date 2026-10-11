@@ -236,11 +236,24 @@ Current validation:
 
 Recognized fields:
 
+- `command`
 - `cmake_minimum_version`
 - `cpp_standard`
 
-This section is still metadata only. Marmot does not invoke a native build tool
-from the manifest today.
+`command` builds an FFI package's native library from source. The `marmot` tool
+runs it when this platform has no `[prebuilt]` entry and the conventional `lib/`
+file is missing or older than a file in the package directory, through `sh -c` (`cmd /C` on Windows) in the package directory,
+with `MARMOT_LIBRARY_OUTPUT` set to the path the library must be written to:
+
+```toml
+[build]
+command = 'cc -shared -fPIC -o "$MARMOT_LIBRARY_OUTPUT" src/image.c'
+```
+
+A command that fails, or succeeds without writing the file, stops the build with
+its output. After a build the tool marks the library as modified then, so files
+the command wrote after it do not build it again. `cmake_minimum_version` and
+`cpp_standard` are metadata only.
 
 ### `[prebuilt]`
 
@@ -295,7 +308,8 @@ checksums drift, Marmot emits warnings.
 For FFI-enabled packages, the `marmot` tool chooses the library path like this:
 
 1. use the matching `[prebuilt]` entry for the current platform when present
-2. otherwise fall back to the conventional `lib/` path
+2. otherwise fall back to the conventional `lib/` path, building it with
+   `[build].command` when it is missing or out of date
 
 Fallback paths:
 
@@ -309,9 +323,6 @@ in the program, before loading:
 - matching checksum: load continues
 - checksum mismatch: load fails
 - no checksum: load continues with a warning
-
-Marmot does not yet build native libraries automatically when no prebuilt binary
-is available.
 
 ## Native Packages At Build And Run Time
 
