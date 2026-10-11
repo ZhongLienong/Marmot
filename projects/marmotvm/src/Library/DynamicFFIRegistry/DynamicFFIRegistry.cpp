@@ -1,6 +1,8 @@
 #include "DynamicFFIRegistry.h"
 
 #include <format>
+#include <ranges>
+#include <string_view>
 
 DynamicFFIRegistry::DynamicFFIRegistry()
 {
@@ -38,15 +40,10 @@ std::expected<void, std::string> DynamicFFIRegistry::ValidateWorkerSafety(const 
 		return {};
 	}
 
-	std::string package_list;
-	for (size_t i = 0uz; i < non_thread_safe.size(); i += 1uz)
-	{
-		if (i > 0uz)
-		{
-			package_list += ", ";
-		}
-		package_list += "'" + non_thread_safe[i] + "'";
-	}
+	const std::string package_list = non_thread_safe
+		| std::views::transform([](const std::string& library_name) { return std::format("'{}'", library_name); })
+		| std::views::join_with(std::string_view(", "))
+		| std::ranges::to<std::string>();
 
 	return std::unexpected(std::format(
 		"Cannot spawn worker: the following native libraries are not declared thread_safe: {}. "

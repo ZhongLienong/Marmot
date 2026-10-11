@@ -148,22 +148,6 @@ namespace
 		using Compiler::TypeclassDefinitionsMatch;
 	};
 
-	// One instance's type arguments, as text: `Describe<Int>` is "Int", and a
-	// multi-parameter class joins them.
-	static std::string InstanceSignature(const std::vector<std::shared_ptr<MidoriType>>& type_args)
-	{
-		std::string signature;
-		for (const std::shared_ptr<MidoriType>& type_arg : type_args)
-		{
-			if (!signature.empty())
-			{
-				signature.append(", ");
-			}
-			signature.append(type_arg->ToString());
-		}
-		return signature;
-	}
-
 	static MidoriResult::CompilerReport MakeStateErrorReport(CompileState&& state, MidoriResult::CompilerDiagnostics diagnostics)
 	{
 		return MidoriResult::CompilerReport(std::move(state.m_warnings), std::move(diagnostics));
@@ -349,7 +333,7 @@ namespace
 
 					for (const std::vector<std::shared_ptr<MidoriType>>& type_args : metadata.m_declared_instance_type_args)
 					{
-						const std::string signature = InstanceSignature(type_args);
+						const std::string signature = MidoriType::JoinToStrings(type_args);
 						const std::unordered_map<std::string, std::string>::const_iterator previous = instance_sources[tc_name].find(signature);
 						if (previous != instance_sources[tc_name].cend() && previous->second != dep_module_name)
 						{
@@ -386,7 +370,7 @@ namespace
 
 				for (const std::vector<std::shared_ptr<MidoriType>>& type_args : metadata.m_declared_instance_type_args)
 				{
-					instance_sources[tc_name].emplace(InstanceSignature(type_args), dep_module_name);
+					instance_sources[tc_name].emplace(MidoriType::JoinToStrings(type_args), dep_module_name);
 				}
 			}
 

@@ -634,6 +634,11 @@ private:
 
 	MidoriResult::TypeResult ParseType(bool is_foreign = false);
 
+	using MakeTypeOfOne = std::shared_ptr<MidoriType> (*)(const std::shared_ptr<MidoriType>&);
+
+	// `Keyword<T>`: a type made from one other, such as `Array<Int>`.
+	MidoriResult::TypeResult ParseTypeOfOne(Token::Name keyword, std::string_view keyword_text, std::string_view argument_noun, MakeTypeOfOne make);
+
 	MidoriResult::ExpressionResult ParseExpression();
 
 	MidoriResult::ExpressionResult ParseFactor();

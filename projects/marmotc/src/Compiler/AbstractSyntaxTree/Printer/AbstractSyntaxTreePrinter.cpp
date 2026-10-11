@@ -8,14 +8,6 @@
 
 namespace
 {
-	std::string JoinTypes(const std::vector<std::shared_ptr<MidoriType>>& types)
-	{
-		return types
-			| std::views::transform([](const std::shared_ptr<MidoriType>& type) { return type->ToString(); })
-			| std::views::join_with(std::string_view(", "))
-			| std::ranges::to<std::string>();
-	}
-
 	std::string JoinNames(const std::vector<Token>& names)
 	{
 		return names
@@ -28,7 +20,7 @@ namespace
 	{
 		return constraint.IsEquality()
 			? std::format("{} = {}", constraint.m_equality_lhs->ToString(), constraint.m_equality_rhs->ToString())
-			: std::format("{}<{}>", constraint.m_class_name, JoinTypes(constraint.m_type_args));
+			: std::format("{}<{}>", constraint.m_class_name, MidoriType::JoinToStrings(constraint.m_type_args));
 	}
 
 	struct PrintAbstractSyntaxTree
@@ -286,18 +278,7 @@ void PrintAbstractSyntaxTree::operator()(const MidoriStatement::Union& union_stm
 	for (const auto& [name, info] : union_type.m_member_info)
 	{
 		PrintWithIndentation(depth + 2, "{");
-		std::string constructor = name;
-		constructor.push_back('(');
-		for (size_t i = 0u; i < info.m_member_types.size(); i += 1u)
-		{
-			constructor.append(info.m_member_types[i]->ToString());
-			if (i != info.m_member_types.size() - 1u)
-			{
-				constructor.append(", ");
-			}
-		}
-		constructor.push_back(')');
-		PrintWithIndentation(depth + 3, constructor);
+		PrintWithIndentation(depth + 3, std::format("{}({})", name, MidoriType::JoinToStrings(info.m_member_types)));
 		PrintWithIndentation(depth + 3, "Tag: " + std::to_string(info.m_tag));
 		PrintWithIndentation(depth + 2, "}");
 	}
@@ -780,7 +761,7 @@ void PrintAbstractSyntaxTree::operator()(const MidoriStatement::Instance& instan
 {
 	PrintWithIndentation(depth, "Instance {");
 	PrintWithIndentation(depth + 1, "Class: " + instance.m_class_name.m_lexeme);
-	PrintWithIndentation(depth + 1, "TypeArguments: " + JoinTypes(instance.m_type_args));
+	PrintWithIndentation(depth + 1, "TypeArguments: " + MidoriType::JoinToStrings(instance.m_type_args));
 	std::ranges::for_each(instance.m_constraints, [depth, this](const MidoriType::ClassConstraint& constraint) { PrintWithIndentation(depth + 1, "Where: " + DescribeConstraint(constraint)); });
 	std::ranges::for_each(instance.m_associated_types, [depth, this](const MidoriStatement::Instance::AssociatedTypeBinding& binding) { PrintWithIndentation(depth + 1, std::format("AssociatedType: {} = {}", binding.m_name.m_lexeme, binding.m_type->ToString())); });
 	PrintWithIndentation(depth + 1, "Methods: ");

@@ -71,21 +71,6 @@ namespace
 		instruction.m_effect = MidoriIREffect();
 	}
 
-	template<typename Visit>
-	void ForEachInstruction(MidoriIRModule& module, const Visit& visit)
-	{
-		for (MidoriIRFunction& function : module.m_functions)
-		{
-			for (MidoriIRBlock& block : function.m_blocks)
-			{
-				for (MidoriIRInstruction& instruction : block.m_instructions)
-				{
-					visit(function, instruction);
-				}
-			}
-		}
-	}
-
 	bool BindsOnlyKnownClosures(const MidoriIRModule& module)
 	{
 		for (const MidoriIRFunction& function : module.m_functions)

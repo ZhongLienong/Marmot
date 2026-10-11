@@ -33,18 +33,7 @@ namespace
 
 	std::string JoinDottedSegments(const std::vector<std::string>& segments, size_t count)
 	{
-		std::string result;
-		for (size_t i = 0u; i < count; i += 1u)
-		{
-			if (!result.empty())
-			{
-				result.push_back('.');
-			}
-
-			result.append(segments[i]);
-		}
-
-		return result;
+		return segments | std::views::take(count) | std::views::join_with('.') | std::ranges::to<std::string>();
 	}
 }
 
@@ -225,6 +214,30 @@ void ModuleManager::SkipWhiteSpace(const TokenStream& tokens, int& current_index
 	}
 };
 
+bool ModuleManager::SkipBracedBlock(const TokenStream& tokens, int& current_index)
+{
+	if (current_index >= tokens.Size() || tokens[current_index].m_token_name != Token::Name::LEFT_BRACE)
+	{
+		return false;
+	}
+
+	current_index += 1;
+	int depth = 1;
+	while (current_index < tokens.Size() && depth > 0)
+	{
+		if (tokens[current_index].m_token_name == Token::Name::LEFT_BRACE)
+		{
+			depth += 1;
+		}
+		else if (tokens[current_index].m_token_name == Token::Name::RIGHT_BRACE)
+		{
+			depth -= 1;
+		}
+		current_index += 1;
+	}
+	return true;
+}
+
 std::vector<ModuleManager::StatementSpan> ModuleManager::ScanModuleStatements(const TokenStream& tokens)
 {
 	std::vector<StatementSpan> spans;
@@ -335,44 +348,12 @@ int ModuleManager::ComputeStatementEnd(const TokenStream& tokens, int start, Sta
 			SkipWhiteSpace(tokens, current);
 		}
 
-		if (current < tokens.Size() && tokens[current].m_token_name == Token::Name::LEFT_BRACE)
-		{
-			current += 1;
-			int depth = 1;
-			while (current < tokens.Size() && depth > 0)
-			{
-				if (tokens[current].m_token_name == Token::Name::LEFT_BRACE)
-				{
-					depth += 1;
-				}
-				else if (tokens[current].m_token_name == Token::Name::RIGHT_BRACE)
-				{
-					depth -= 1;
-				}
-				current += 1;
-			}
-		}
+		SkipBracedBlock(tokens, current);
 		return current;
 	}
 	else if (type == StatementType::IMPORT)
 	{
-		if (current < tokens.Size() && tokens[current].m_token_name == Token::Name::LEFT_BRACE)
-		{
-			current += 1;
-			int depth = 1;
-			while (current < tokens.Size() && depth > 0)
-			{
-				if (tokens[current].m_token_name == Token::Name::LEFT_BRACE)
-				{
-					depth += 1;
-				}
-				else if (tokens[current].m_token_name == Token::Name::RIGHT_BRACE)
-				{
-					depth -= 1;
-				}
-				current += 1;
-			}
-		}
+		SkipBracedBlock(tokens, current);
 		return current;
 	}
 	else if (type == StatementType::USE)
@@ -390,24 +371,7 @@ int ModuleManager::ComputeStatementEnd(const TokenStream& tokens, int start, Sta
 			SkipWhiteSpace(tokens, current);
 		}
 
-		if (current < tokens.Size() && tokens[current].m_token_name == Token::Name::LEFT_BRACE)
-		{
-			current += 1;
-			int depth = 1;
-			while (current < tokens.Size() && depth > 0)
-			{
-				if (tokens[current].m_token_name == Token::Name::LEFT_BRACE)
-				{
-					depth += 1;
-				}
-				else if (tokens[current].m_token_name == Token::Name::RIGHT_BRACE)
-				{
-					depth -= 1;
-				}
-				current += 1;
-			}
-		}
-		else
+		if (!SkipBracedBlock(tokens, current))
 		{
 			while (current < tokens.Size() && tokens[current].m_token_name == Token::Name::IDENTIFIER_LITERAL)
 			{

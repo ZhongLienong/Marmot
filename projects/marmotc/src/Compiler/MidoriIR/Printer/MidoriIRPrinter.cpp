@@ -11,14 +11,6 @@
 
 namespace
 {
-	std::string JoinTypes(const std::vector<std::shared_ptr<MidoriType>>& types)
-	{
-		return types
-			| std::views::transform([](const std::shared_ptr<MidoriType>& type) { return type->ToString(); })
-			| std::views::join_with(std::string_view(", "))
-			| std::ranges::to<std::string>();
-	}
-
 	std::string JoinValues(const std::vector<MidoriIRValueId>& values, const std::vector<std::string>& names)
 	{
 		return values
@@ -115,10 +107,10 @@ std::string MidoriIRPrinter::Print() const
 std::string MidoriIRPrinter::PrintFunction(const MidoriIRFunction& function) const
 {
 	const std::vector<std::string> names = ValueNames(function);
-	std::string text = std::format("fn {}({}) -> {}", function.m_name, JoinTypes(function.ParameterTypes()), function.m_return_type->ToString());
+	std::string text = std::format("fn {}({}) -> {}", function.m_name, MidoriType::JoinToStrings(function.ParameterTypes()), function.m_return_type->ToString());
 	if (!function.m_capture_types.empty())
 	{
-		text.append(std::format(" captures({})", JoinTypes(function.m_capture_types)));
+		text.append(std::format(" captures({})", MidoriType::JoinToStrings(function.m_capture_types)));
 	}
 	text.push_back('\n');
 

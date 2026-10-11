@@ -277,6 +277,9 @@ public:
 	// What a diagnostic shows: the name as written, without the module.
 	std::string DisplayString() const;
 
+	// Each type's ToString, joined with ", ".
+	static std::string JoinToStrings(const std::vector<std::shared_ptr<MidoriType>>& types);
+
 	static std::string MangleInstanceMethodName(const std::string& method_name, const std::string& typeclass_name, const std::vector<std::shared_ptr<MidoriType>>& type_args);
 
 	static std::string DemangleInstanceMethodName(const std::string& mangled_name, const std::string& typeclass_name);

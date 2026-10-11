@@ -63,6 +63,9 @@ private:
 
 	static void SkipWhiteSpace(const TokenStream& tokens, int& current_index);
 
+	// Steps past a `{...}` block, nested braces included; false when none starts at `current_index`.
+	static bool SkipBracedBlock(const TokenStream& tokens, int& current_index);
+
 	static bool IsKeyword(Token::Name token_name);
 
 };

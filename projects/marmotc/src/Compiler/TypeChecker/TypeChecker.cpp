@@ -320,18 +320,7 @@ namespace
 	std::string JoinSortedNames(std::vector<std::string> names)
 	{
 		std::ranges::sort(names);
-
-		std::string joined;
-		for (size_t i = 0u; i < names.size(); i += 1u)
-		{
-			if (i != 0u)
-			{
-				joined.append(", ");
-			}
-			joined.append(names[i]);
-		}
-
-		return joined;
+		return names | std::views::join_with(std::string_view(", ")) | std::ranges::to<std::string>();
 	}
 
 	bool MatchInstanceTypeArg(const std::shared_ptr<MidoriType>& pattern, const std::shared_ptr<MidoriType>& concrete, std::unordered_map<std::string, std::shared_ptr<MidoriType>>& substitutions, std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash>& visited);
@@ -731,17 +720,11 @@ std::string TypeChecker::DescribeConstraint(const MidoriType::ClassConstraint& c
 		return constraint.m_class_name;
 	}
 
-	std::string rendered = constraint.m_class_name + "<"s;
-	for (size_t idx = 0u; idx < constraint.m_type_args.size(); idx += 1u)
-	{
-		if (idx > 0u)
-		{
-			rendered += ", "s;
-		}
-		rendered += constraint.m_type_args[idx]->DisplayString();
-	}
-	rendered += ">"s;
-	return rendered;
+	const std::string type_args = constraint.m_type_args
+		| std::views::transform([](const std::shared_ptr<MidoriType>& type_arg) { return type_arg->DisplayString(); })
+		| std::views::join_with(std::string_view(", "))
+		| std::ranges::to<std::string>();
+	return std::format("{}<{}>", constraint.m_class_name, type_args);
 }
 
 CompilerError TypeChecker::MakeConstraintFailureError(const Token& token, const MidoriType::ClassConstraint& constraint, std::optional<std::string_view> suggestion) const
@@ -1315,26 +1298,14 @@ std::optional<CompilerError> TypeChecker::TryMakeGenericParameterMismatchError(c
 		return std::nullopt;
 	}
 
-	std::vector<std::string> generic_param_names;
-	generic_param_names.reserve(left_args->size());
-	for (const auto& [param_name, _] : *left_args)
-	{
-		generic_param_names.emplace_back(param_name);
-	}
-
 	std::string type_signature = type_name;
-	if (!generic_param_names.empty())
+	if (!left_args->empty())
 	{
-		type_signature += "<"s;
-		for (size_t idx = 0u; idx < generic_param_names.size(); idx += 1u)
-		{
-			if (idx > 0u)
-			{
-				type_signature += ", "s;
-			}
-			type_signature += generic_param_names[idx];
-		}
-		type_signature += ">"s;
+		const std::string generic_param_names = *left_args
+			| std::views::keys
+			| std::views::join_with(std::string_view(", "))
+			| std::ranges::to<std::string>();
+		type_signature += std::format("<{}>", generic_param_names);
 	}
 
 	for (size_t idx = 0u; idx < left_args->size(); idx += 1u)

@@ -831,6 +831,14 @@ std::string MidoriType::Stringify(bool qualify) const
 	return stringify(*this);
 }
 
+std::string MidoriType::JoinToStrings(const std::vector<std::shared_ptr<MidoriType>>& types)
+{
+	return types
+		| std::views::transform([](const std::shared_ptr<MidoriType>& type) { return type->ToString(); })
+		| std::views::join_with(std::string_view(", "))
+		| std::ranges::to<std::string>();
+}
+
 std::string MidoriType::MangleInstanceMethodName(const std::string& method_name, const std::string& typeclass_name, const std::vector<std::shared_ptr<MidoriType>>& type_args)
 {
 	std::string mangled = INTERNAL_NAME_PREFIX + method_name + "_"s + typeclass_name;
