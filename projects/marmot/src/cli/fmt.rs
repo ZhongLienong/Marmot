@@ -33,7 +33,7 @@ fn project_sources(workspace: &Workspace) -> Result<Vec<PathBuf>, String> {
     let excluded: Vec<String> = [&workspace.packages_dir, &workspace.prelude_dir]
         .into_iter()
         .chain(&workspace.extra_paths)
-        .map(|directory| paths::identity_key(&paths::under(&workspace.root, directory)))
+        .map(|directory| paths::identity_key(&workspace.root.join(directory)))
         .collect();
     let mut sources = Vec::new();
     for entry in entries {

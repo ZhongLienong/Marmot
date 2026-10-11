@@ -47,14 +47,14 @@ pub(crate) fn global_cache_directory() -> PathBuf {
 /// prelude directory, then MARMOT_PATH.
 fn search_paths(workspace: &Workspace, graph: &Graph, environment: &[PathBuf]) -> Vec<PathBuf> {
     let mut directories = DirectoryList::default();
-    directories.push(paths::under(&workspace.root, &workspace.source_dir));
+    directories.push(workspace.root.join(&workspace.source_dir));
     for directory in graph.search_paths() {
         directories.push(directory);
     }
     for extra in &workspace.extra_paths {
-        directories.push(paths::under(&workspace.root, extra));
+        directories.push(workspace.root.join(extra));
     }
-    directories.push(paths::under(&workspace.root, &workspace.prelude_dir));
+    directories.push(workspace.root.join(&workspace.prelude_dir));
     for path in environment {
         directories.push(path.clone());
     }
@@ -68,7 +68,7 @@ fn index_roots(workspace: &Workspace, environment: &[PathBuf]) -> Vec<PathBuf> {
     directories.push(workspace.packages_path());
     directories.push(global_cache_directory());
     for extra in &workspace.extra_paths {
-        directories.push(paths::under(&workspace.root, extra));
+        directories.push(workspace.root.join(extra));
     }
     for path in environment {
         directories.push(path.clone());

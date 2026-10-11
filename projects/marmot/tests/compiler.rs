@@ -159,7 +159,7 @@ fn stdout(project: &Project, output: &Output) -> String {
     text(&output.stdout).replace(&project.0.display().to_string(), "<root>")
 }
 
-fn lockfile(project: &Project) -> toml::Table {
+fn lockfile(project: &Project) -> toml_edit::DocumentMut {
     project.read("marmot.lock").parse().unwrap()
 }
 
@@ -167,7 +167,7 @@ fn lockfile(project: &Project) -> toml::Table {
 fn locked(project: &Project) -> BTreeMap<String, (String, String, Vec<String>)> {
     lockfile(project)
         .get("package")
-        .and_then(toml::Value::as_array)
+        .and_then(toml_edit::Item::as_array_of_tables)
         .map(|entries| {
             entries
                 .iter()

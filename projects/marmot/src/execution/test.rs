@@ -26,14 +26,6 @@ const BOLD: &str = "\x1b[1m";
 const RESET: &str = "\x1b[0m";
 const RULE: &str = "============================================================";
 
-/// Files directly in the test directory that are scratch files, not tests.
-const SCRATCH_FILES: [&str; 4] = [
-    "minimal_test.mmt",
-    "test.mmt",
-    "simple_test.mmt",
-    "test_backup.mmt",
-];
-
 pub(crate) struct TestRequest<'a> {
     pub(crate) root: &'a Path,
     pub(crate) test_directory: &'a Path,
@@ -111,7 +103,7 @@ fn walk(directory: &Path, found: &mut Vec<PathBuf>) {
 
 /// The test files, in order: `--test` names one; otherwise every `.mmt` under
 /// the test directory that passes the filter and pattern, except the
-/// `doc_examples` folder and scratch files at the top.
+/// `doc_examples` folder.
 pub(crate) fn discover(
     test_directory: &Path,
     filter: Option<&str>,
@@ -138,13 +130,6 @@ pub(crate) fn discover(
         };
         let top = relative.components().next().map(|part| part.as_os_str());
         if top.is_some_and(|top| top == "doc_examples") {
-            return false;
-        }
-        if relative.components().count() == 1
-            && SCRATCH_FILES
-                .iter()
-                .any(|name| relative.as_os_str() == *name)
-        {
             return false;
         }
         matches(relative, filter, pattern)

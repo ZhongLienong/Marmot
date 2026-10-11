@@ -1,17 +1,5 @@
 use std::path::{Path, PathBuf};
 
-pub fn separator() -> char {
-    if cfg!(windows) { ';' } else { ':' }
-}
-
-pub fn split_search_paths(value: &str) -> Vec<PathBuf> {
-    value
-        .split(separator())
-        .filter(|segment| !segment.is_empty())
-        .map(PathBuf::from)
-        .collect()
-}
-
 /// MARMOT_PATH, after -- for a debug tool running in its Marmot project --
 /// that checkout's prelude, so `<IO>` means the prelude
 /// being worked on rather than whichever one is installed.
@@ -19,10 +7,9 @@ pub fn marmot_path() -> Vec<PathBuf> {
     let checkout_prelude = checkout_root()
         .map(|root| root.join("MarmotPrelude"))
         .filter(|prelude| prelude.is_dir());
-    let environment = std::env::var("MARMOT_PATH")
-        .map(|value| split_search_paths(&value))
-        .unwrap_or_default();
-    checkout_prelude.into_iter().chain(environment).collect()
+    let environment = std::env::var_os("MARMOT_PATH").unwrap_or_default();
+    let listed = std::env::split_paths(&environment).filter(|path| !path.as_os_str().is_empty());
+    checkout_prelude.into_iter().chain(listed).collect()
 }
 
 pub fn checkout_root() -> Option<PathBuf> {
@@ -39,15 +26,6 @@ pub fn checkout_root() -> Option<PathBuf> {
 
 pub fn absolute(path: &Path) -> PathBuf {
     std::path::absolute(path).unwrap_or_else(|_| path.to_path_buf())
-}
-
-/// `root/path`, or `path` itself when it is absolute.
-pub fn under(root: &Path, path: &Path) -> PathBuf {
-    if path.is_absolute() {
-        path.to_path_buf()
-    } else {
-        root.join(path)
-    }
 }
 
 /// Existing directories in insertion order, each at most once. Two spellings

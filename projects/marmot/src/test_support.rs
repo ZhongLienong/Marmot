@@ -47,8 +47,7 @@ pub(crate) fn compiler() -> Version {
     Version::parse("1.0.0").unwrap()
 }
 
-pub(crate) fn package(name: &str, version: &str, dependencies: &[(&str, &str)]) -> String {
-    let mut text = format!("[package]\nname = \"{name}\"\nversion = \"{version}\"\n");
+fn with_dependencies(mut text: String, dependencies: &[(&str, &str)]) -> String {
     if !dependencies.is_empty() {
         text += "\n[dependencies]\n";
         for (dependency, constraint) in dependencies {
@@ -58,15 +57,17 @@ pub(crate) fn package(name: &str, version: &str, dependencies: &[(&str, &str)]) 
     text
 }
 
+pub(crate) fn package(name: &str, version: &str, dependencies: &[(&str, &str)]) -> String {
+    with_dependencies(
+        format!("[package]\nname = \"{name}\"\nversion = \"{version}\"\n"),
+        dependencies,
+    )
+}
+
 pub(crate) fn project(dependencies: &[(&str, &str)]) -> String {
-    let mut text =
+    with_dependencies(
         "[project]\nentry = \"src/Main.mmt\"\nmarmot_path = [\"registry\"]\nregistries = []\n"
-            .to_string();
-    if !dependencies.is_empty() {
-        text += "\n[dependencies]\n";
-        for (dependency, constraint) in dependencies {
-            text += &format!("{dependency} = \"{constraint}\"\n");
-        }
-    }
-    text
+            .to_string(),
+        dependencies,
+    )
 }

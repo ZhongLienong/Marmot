@@ -1,9 +1,8 @@
 use super::registry::DEFAULT_REGISTRY;
 use super::version::{Constraint, Version};
-use crate::paths;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-use toml::{Table, Value};
+use toml_edit::{DocumentMut, Item, TableLike, Value};
 
 pub(crate) const PROJECT_MANIFEST: &str = "project.marmot";
 pub(crate) const PACKAGE_MANIFEST: &str = "package.marmot";
@@ -34,44 +33,45 @@ pub(crate) struct Workspace {
 
 impl Workspace {
     pub(crate) fn entry_path(&self) -> Option<PathBuf> {
-        self.entry
-            .as_ref()
-            .map(|entry| paths::under(&self.root, entry))
+        self.entry.as_ref().map(|entry| self.root.join(entry))
     }
 
     pub(crate) fn packages_path(&self) -> PathBuf {
-        paths::under(&self.root, &self.packages_dir)
+        self.root.join(&self.packages_dir)
     }
 
     pub(crate) fn test_path(&self) -> PathBuf {
-        paths::under(&self.root, &self.test_dir)
+        self.root.join(&self.test_dir)
     }
 }
 
-pub(crate) fn read_toml(path: &Path) -> Result<Table, String> {
+pub(crate) fn read_toml(path: &Path) -> Result<DocumentMut, String> {
     let text = std::fs::read_to_string(path)
         .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
-    text.parse::<Table>()
+    text.parse::<DocumentMut>()
         .map_err(|error| format!("cannot parse {}: {error}", path.display()))
 }
 
-fn string_at<'a>(table: &'a Table, key: &str) -> Option<&'a str> {
+fn string_at<'a>(table: &'a dyn TableLike, key: &str) -> Option<&'a str> {
     table
         .get(key)
-        .and_then(Value::as_str)
+        .and_then(Item::as_str)
         .filter(|value| !value.is_empty())
 }
 
-fn directory_or(table: &Table, key: &str, fallback: &str) -> PathBuf {
+fn directory_or(table: &dyn TableLike, key: &str, fallback: &str) -> PathBuf {
     PathBuf::from(string_at(table, key).unwrap_or(fallback))
 }
 
-fn dependencies(data: &Table, context: &Path) -> Result<BTreeMap<String, Constraint>, String> {
+fn dependencies(
+    data: &DocumentMut,
+    context: &Path,
+) -> Result<BTreeMap<String, Constraint>, String> {
     let Some(value) = data.get("dependencies") else {
         return Ok(BTreeMap::new());
     };
     let table = value
-        .as_table()
+        .as_table_like()
         .ok_or_else(|| format!("{}: [dependencies] is not a table", context.display()))?;
     table
         .iter()
@@ -80,7 +80,7 @@ fn dependencies(data: &Table, context: &Path) -> Result<BTreeMap<String, Constra
                 format!("{}: dependency '{name}' is not a string", context.display())
             })?;
             Constraint::parse(text)
-                .map(|constraint| (name.clone(), constraint))
+                .map(|constraint| (name.to_string(), constraint))
                 .map_err(|error| {
                     format!(
                         "Invalid dependency constraint for '{name}' in {}: {error}",
@@ -91,23 +91,23 @@ fn dependencies(data: &Table, context: &Path) -> Result<BTreeMap<String, Constra
         .collect()
 }
 
-fn test_settings(data: &Table) -> (PathBuf, i64) {
-    let test = data.get("test").and_then(Value::as_table);
+fn test_settings(data: &DocumentMut) -> (PathBuf, i64) {
+    let test = data.get("test").and_then(Item::as_table_like);
     (
         PathBuf::from(
             test.and_then(|test| string_at(test, "dir"))
                 .unwrap_or("test"),
         ),
         test.and_then(|test| test.get("timeout_ms"))
-            .and_then(Value::as_integer)
+            .and_then(Item::as_integer)
             .unwrap_or(30_000),
     )
 }
 
-fn registries(table: &Table) -> Vec<String> {
+fn registries(table: &dyn TableLike) -> Vec<String> {
     table
         .get("registries")
-        .and_then(Value::as_array)
+        .and_then(Item::as_array)
         .map(|items| {
             items
                 .iter()
@@ -122,10 +122,10 @@ fn load_workspace(manifest_path: &Path, root: &Path) -> Result<Option<Workspace>
     let data = read_toml(manifest_path)?;
     let (test_dir, test_timeout_ms) = test_settings(&data);
 
-    if let Some(project) = data.get("project").and_then(Value::as_table) {
+    if let Some(project) = data.get("project").and_then(Item::as_table_like) {
         let extra_paths = project
             .get("marmot_path")
-            .and_then(Value::as_array)
+            .and_then(Item::as_array)
             .map(|items| {
                 items
                     .iter()
@@ -153,12 +153,12 @@ fn load_workspace(manifest_path: &Path, root: &Path) -> Result<Option<Workspace>
         .file_name()
         .is_some_and(|name| name == PACKAGE_MANIFEST)
     {
-        let Some(package) = data.get("package").and_then(Value::as_table) else {
+        let Some(package) = data.get("package").and_then(Item::as_table_like) else {
             return Ok(None);
         };
         let entry = package
             .get("modules")
-            .and_then(Value::as_table)
+            .and_then(Item::as_table_like)
             .and_then(|modules| string_at(modules, "main"))
             .map(PathBuf::from);
         return Ok(Some(Workspace {
@@ -257,20 +257,20 @@ fn default_library_path(directory: &Path, library_name: &str) -> PathBuf {
 }
 
 fn native_library(
-    data: &Table,
+    data: &DocumentMut,
     directory: &Path,
     name: &str,
 ) -> Result<Option<NativeLibrary>, String> {
-    let Some(ffi) = data.get("ffi").and_then(Value::as_table) else {
+    let Some(ffi) = data.get("ffi").and_then(Item::as_table_like) else {
         return Ok(None);
     };
-    if !ffi.get("enabled").and_then(Value::as_bool).unwrap_or(false) {
+    if !ffi.get("enabled").and_then(Item::as_bool).unwrap_or(false) {
         return Ok(None);
     }
 
     let abi_version = ffi
         .get("abi_version")
-        .and_then(Value::as_integer)
+        .and_then(Item::as_integer)
         .unwrap_or(1);
     if abi_version <= 0 {
         return Err(format!(
@@ -285,9 +285,9 @@ fn native_library(
 
     let prebuilt = data
         .get("prebuilt")
-        .and_then(Value::as_table)
+        .and_then(Item::as_table_like)
         .and_then(|prebuilt| prebuilt.get(platform_prebuilt_key()))
-        .and_then(Value::as_table);
+        .and_then(Item::as_table_like);
     let prebuilt_path = prebuilt
         .and_then(|table| string_at(table, "path"))
         .map(|path| directory.join(path));
@@ -308,7 +308,7 @@ fn native_library(
         library: prebuilt_path.unwrap_or_else(|| default_library_path(directory, library_name)),
         thread_safe: ffi
             .get("thread_safe")
-            .and_then(Value::as_bool)
+            .and_then(Item::as_bool)
             .unwrap_or(false),
         checksum: prebuilt
             .and_then(|table| string_at(table, "checksum"))
@@ -335,17 +335,17 @@ pub(crate) fn read_package(
     })?;
     let package = data
         .get("package")
-        .and_then(Value::as_table)
+        .and_then(Item::as_table_like)
         .ok_or_else(|| "Missing [package] table.".to_string())?;
 
     let name = string_at(package, "name").ok_or("Missing required package name.")?;
-    let version_text = package.get("version").and_then(Value::as_str).unwrap_or("");
+    let version_text = package.get("version").and_then(Item::as_str).unwrap_or("");
     let version = Version::parse(version_text)
         .map_err(|error| format!("Invalid package version '{version_text}': {error}"))?;
 
     let marmot_version = package
         .get("marmot_version")
-        .and_then(Value::as_str)
+        .and_then(Item::as_str)
         .unwrap_or(">=1.0.0");
     let required = Constraint::parse(marmot_version).map_err(|error| {
         format!("Invalid marmot_version constraint '{marmot_version}': {error}")
