@@ -1,8 +1,7 @@
 module RecordUpdateUnion
 
-// Multi-variant types are out of scope: the variant would have to be statically known.
-// A union is a UnionType even when it has one variant, so this is rejected with a clear
-// error rather than being silently mistaken for a struct.
+// A union's variants hold their fields by position, so a record update has no
+// field name to set on one.
 
 type Shape = Circle(Int) | Square(Int);
 

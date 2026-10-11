@@ -1,0 +1,6 @@
+Compilation failed :(
+Parser Error at test/struct/failure/record_update_nested_overlap.mmt:7
+  |
+7 | def bad = { s with from = Point(0, 0), from.x = 1 };
+  |                                             ^ Field 'from.x' is assigned more than once in this record update.
+  |

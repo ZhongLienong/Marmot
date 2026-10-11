@@ -723,6 +723,9 @@ Lowering::Lowered Lowering::LowerRecordUpdate(MidoriExpression::RecordUpdate& re
 {
 	const int line = record_update.m_with_keyword.m_line;
 	const TypeRef type = Concrete(record_update.m_type_data);
+	const std::vector<MidoriExpression::RecordUpdate::FieldUpdate*> updates = record_update.m_updates
+		| std::views::transform([](MidoriExpression::RecordUpdate::FieldUpdate& update) { return &update; })
+		| std::ranges::to<std::vector>();
 	return Lower(*record_update.m_source)
 		.and_then([&](MidoriIRValueId source) -> Lowered
 		{
@@ -730,30 +733,42 @@ Lowering::Lowered Lowering::LowerRecordUpdate(MidoriExpression::RecordUpdate& re
 			{
 				return Placeholder(type);
 			}
-			const std::vector<TypeRef>& member_types = GenericTypes::RepresentationOf(Scope().m_function.TypeOf(source))->GetType<MidoriType::StructType>().m_member_types;
-			std::vector<MidoriIRValueId> members;
-			members.reserve(record_update.m_slot_sources.size());
-			for (size_t slot = 0u; slot < record_update.m_slot_sources.size(); slot += 1u)
-			{
-				const int update = record_update.m_slot_sources[slot];
-				if (update < 0)
-				{
-					members.push_back(Builder().AtLine(line).Emit(MidoriIROp::GetMember, member_types[slot], { source }, MidoriIRIndex{ static_cast<uint32_t>(slot) }));
-					continue;
-				}
-				const Lowered value = Lower(*record_update.m_updates[static_cast<size_t>(update)].m_value);
-				if (!value.has_value())
-				{
-					return value;
-				}
-				members.push_back(value.value());
-			}
-			if (IsDead())
-			{
-				return Placeholder(type);
-			}
-			return Builder().AtLine(line).Emit(MidoriIROp::Construct, type, std::move(members));
+			return LowerUpdatedRecord(source, type, updates, 0u, line);
 		});
+}
+
+// `source` rebuilt with each update's value at the end of its path, a record
+// on the way rebuilt from its old members and the updates that pass through it.
+Lowering::Lowered Lowering::LowerUpdatedRecord(MidoriIRValueId source, const TypeRef& type, const std::vector<MidoriExpression::RecordUpdate::FieldUpdate*>& updates, size_t depth, int line)
+{
+	const std::vector<TypeRef>& member_types = GenericTypes::RepresentationOf(Scope().m_function.TypeOf(source))->GetType<MidoriType::StructType>().m_member_types;
+	std::vector<MidoriIRValueId> members;
+	members.reserve(member_types.size());
+	for (size_t slot = 0u; slot < member_types.size(); slot += 1u)
+	{
+		const std::vector<MidoriExpression::RecordUpdate::FieldUpdate*> here = updates
+			| std::views::filter([depth, slot](const MidoriExpression::RecordUpdate::FieldUpdate* update) { return static_cast<size_t>(update->m_indices[depth]) == slot; })
+			| std::ranges::to<std::vector>();
+		const Lowered value = [&]() -> Lowered
+		{
+			if (!here.empty() && here.front()->m_indices.size() == depth + 1u)
+			{
+				return Lower(*here.front()->m_value);
+			}
+			const MidoriIRValueId old_member = Builder().AtLine(line).Emit(MidoriIROp::GetMember, member_types[slot], { source }, MidoriIRIndex{ static_cast<uint32_t>(slot) });
+			return here.empty() ? Lowered(old_member) : LowerUpdatedRecord(old_member, member_types[slot], here, depth + 1u, line);
+		}();
+		if (!value.has_value())
+		{
+			return value;
+		}
+		members.push_back(value.value());
+	}
+	if (IsDead())
+	{
+		return Placeholder(type);
+	}
+	return Builder().AtLine(line).Emit(MidoriIROp::Construct, type, std::move(members));
 }
 
 Lowering::Lowered Lowering::LowerMemberAccess(MidoriExpression::MemberAccess& member)

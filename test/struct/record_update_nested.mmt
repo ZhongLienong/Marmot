@@ -1,0 +1,22 @@
+module RecordUpdateNested
+
+import { "../../MarmotPrelude/IO.mmt" }
+
+type Point = { x: Int, y: Int };
+type Segment = { from: Point, to: Point, label: Text };
+type Box<T> = { item: T, size: Int };
+
+def calls = ref 0;
+def Make = fn() -> Segment => { calls := *calls + 1; Segment(Point(1, 2), Point(3, 4), "s") };
+
+def a = { Make() with from.x = 10, to.y = 40, label = "t" };
+def b = { a with from.x = 11, from.y = 22 };
+def c = { Box(a, 1) with item.to.x = 99 };
+def Retag = fn<T>(box: Box<Box<T>>, n: Int) -> Box<Box<T>> => { box with item.size = n };
+def d = Retag(Box(Box("v", 1), 2), 7);
+
+IO::PrintLine((a.from.x as Text) ++ " " ++ (a.from.y as Text) ++ " " ++ (a.to.x as Text) ++ " " ++ (a.to.y as Text) ++ " " ++ a.label);
+IO::PrintLine((b.from.x as Text) ++ " " ++ (b.from.y as Text) ++ " " ++ (b.to.y as Text));
+IO::PrintLine((c.item.to.x as Text) ++ " " ++ (c.item.to.y as Text) ++ " " ++ (c.size as Text));
+IO::PrintLine(d.item.item ++ " " ++ (d.item.size as Text) ++ " " ++ (d.size as Text));
+IO::PrintLine("calls=" ++ (*calls as Text));

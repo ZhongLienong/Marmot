@@ -175,7 +175,7 @@ param        = IDENTIFIER (':' type)? ;
 if           = 'if' expression 'then' expression 'else' expression ;
 for          = 'for' IDENTIFIER 'in' expression block ;
 recordUpdate = '{' expression 'with' fieldSet (',' fieldSet)* '}' ;
-fieldSet     = IDENTIFIER '=' expression ;
+fieldSet     = IDENTIFIER ('.' IDENTIFIER)* '=' expression ;
 match        = 'match' expression 'with' case+ ;
 case         = 'case' pattern ('if' expression)? '=>' expression ;
 ```

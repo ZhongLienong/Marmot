@@ -501,7 +501,7 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::RecordUpdate& r
 		record_update.m_updates,
 		[depth, this](const MidoriExpression::RecordUpdate::FieldUpdate& update)
 		{
-			PrintWithIndentation(depth + 2, update.m_name.m_lexeme + " = ");
+			PrintWithIndentation(depth + 2, std::format("{} = ", update.m_path | std::views::transform(&Token::m_lexeme) | std::views::join_with('.') | std::ranges::to<std::string>()));
 			Visit(update.m_value, depth + 3);
 		}
 	);

@@ -564,21 +564,18 @@ public:
 	{
 		struct FieldUpdate
 		{
-			Token m_name;
+			// `a.b = v` sets b inside a.
+			std::vector<Token> m_path;
 			std::unique_ptr<MidoriExpression> m_value;
-			// Slot in the struct's declared member order; filled by the type checker.
-			int m_index = -1;
+			// Each step's slot in its record's declared member order; filled by the type checker.
+			std::vector<int> m_indices;
 
-			FieldUpdate(const Token& name, std::unique_ptr<MidoriExpression>&& value);
+			FieldUpdate(std::vector<Token>&& path, std::unique_ptr<MidoriExpression>&& value);
 		};
 
 		Token m_with_keyword;
 		std::unique_ptr<MidoriExpression> m_source;
 		std::vector<FieldUpdate> m_updates;
-		// One entry per declared member slot, in declared order. Holds the index into
-		// m_updates that supplies that slot, or -1 when the slot is copied from the
-		// source. Filled by the type checker, consumed by lowering.
-		std::vector<int> m_slot_sources;
 
 		RecordUpdate(const Token& with_keyword, std::unique_ptr<MidoriExpression>&& source, std::vector<FieldUpdate>&& updates);
 	};

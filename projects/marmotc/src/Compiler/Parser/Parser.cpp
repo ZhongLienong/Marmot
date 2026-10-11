@@ -2810,22 +2810,32 @@ MidoriResult::ExpressionResult Parser::ParseRecordUpdate()
 	Token with_keyword = with_result.value();
 
 	std::vector<MidoriExpression::RecordUpdate::FieldUpdate> updates;
-	std::unordered_set<std::string> seen_fields;
+	std::vector<std::string> seen_paths;
 
 	while (true)
 	{
-		MidoriResult::TokenResult name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected field name in record update.");
-		if (!name_result.has_value())
+		std::vector<Token> path;
+		do
 		{
-			return std::unexpected(std::move(name_result.error()));
-		}
-		Token field_name = name_result.value();
+			MidoriResult::TokenResult name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected field name in record update.");
+			if (!name_result.has_value())
+			{
+				return std::unexpected(std::move(name_result.error()));
+			}
+			path.push_back(std::move(name_result.value()));
+		} while (Match(Token::Name::SINGLE_DOT));
 
-		// A duplicate field is an error, not last-one-wins.
-		if (!seen_fields.emplace(field_name.m_lexeme).second)
+		// A field set twice, directly or through a path, is an error, not last-one-wins.
+		const std::string joined = path | std::views::transform(&Token::m_lexeme) | std::views::join_with('.') | std::ranges::to<std::string>();
+		const bool overlaps = std::ranges::any_of(seen_paths, [&joined](const std::string& seen)
 		{
-			return std::unexpected(GenerateParserError(std::format("Field '{}' is assigned more than once in this record update.", field_name.m_lexeme), field_name));
+			return seen == joined || joined.starts_with(seen + '.') || seen.starts_with(joined + '.');
+		});
+		if (overlaps)
+		{
+			return std::unexpected(GenerateParserError(std::format("Field '{}' is assigned more than once in this record update.", joined), path.back()));
 		}
+		seen_paths.push_back(joined);
 
 		MidoriResult::TokenResult equal_result = Consume(Token::Name::SINGLE_EQUAL, "Expected '=' after field name in record update.");
 		if (!equal_result.has_value())
@@ -2839,7 +2849,7 @@ MidoriResult::ExpressionResult Parser::ParseRecordUpdate()
 			return value_result;
 		}
 
-		updates.emplace_back(field_name, std::move(value_result.value()));
+		updates.emplace_back(std::move(path), std::move(value_result.value()));
 
 		if (!Match(Token::Name::COMMA))
 		{

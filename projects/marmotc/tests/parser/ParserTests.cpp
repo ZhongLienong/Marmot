@@ -737,8 +737,8 @@ def projected = { p with x = 9 }.x;
 	const MidoriStatement::VariableDefinition& updated_definition = RequireVariableDefinition(program, 3u, "updated");
 	const MidoriExpression::RecordUpdate& updated_expr = RequireExpression<MidoriExpression::RecordUpdate>(updated_definition.m_value);
 	REQUIRE(updated_expr.m_updates.size() == 2u);
-	REQUIRE(updated_expr.m_updates[0u].m_name.m_lexeme == "x");
-	REQUIRE(updated_expr.m_updates[1u].m_name.m_lexeme == "y");
+	REQUIRE(updated_expr.m_updates[0u].m_path[0u].m_lexeme == "x");
+	REQUIRE(updated_expr.m_updates[1u].m_path[0u].m_lexeme == "y");
 	static_cast<void>(RequireExpression<MidoriExpression::NameAccess>(updated_expr.m_source));
 
 	// A bare `match ... with` inside braces is still a block, not a record update.
@@ -793,7 +793,7 @@ def BlockBodied = fn() -> Int => { def local = 2; local };
 	const MidoriExpression::Function& with_port = RequireFunctionBinding(program, 1u, "WithPort");
 	const MidoriExpression::RecordUpdate& with_port_body = RequireExpression<MidoriExpression::RecordUpdate>(with_port.m_body);
 	REQUIRE(with_port_body.m_updates.size() == 1u);
-	REQUIRE(with_port_body.m_updates[0u].m_name.m_lexeme == "port");
+	REQUIRE(with_port_body.m_updates[0u].m_path[0u].m_lexeme == "port");
 
 	const MidoriExpression::Function& port_of = RequireFunctionBinding(program, 2u, "PortOf");
 	const MidoriExpression::MemberAccess& port_of_body = RequireExpression<MidoriExpression::MemberAccess>(port_of.m_body);

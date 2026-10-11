@@ -1,0 +1,7 @@
+module RecordUpdateNestedOverlap
+
+type Point = { x: Int, y: Int };
+type Segment = { from: Point, to: Point };
+
+def s = Segment(Point(1, 2), Point(3, 4));
+def bad = { s with from = Point(0, 0), from.x = 1 };

@@ -275,8 +275,8 @@ MidoriExpression::Construct::Construct(const Token& data_name, std::vector<std::
 {
 }
 
-MidoriExpression::RecordUpdate::FieldUpdate::FieldUpdate(const Token& name, std::unique_ptr<MidoriExpression>&& value)
-	: m_name(name),
+MidoriExpression::RecordUpdate::FieldUpdate::FieldUpdate(std::vector<Token>&& path, std::unique_ptr<MidoriExpression>&& value)
+	: m_path(std::move(path)),
 	m_value(std::move(value))
 {
 }

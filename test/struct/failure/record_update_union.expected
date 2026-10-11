@@ -1,7 +1,7 @@
 Compilation failed :(
-Type Checker Error at test/struct/failure/record_update_union.mmt:10
-   |
-10 | def bad = { s with Circle = 4 };
-   |               ^^^^ Record update expression type error: multi-variant type
-   |
-  | 'Shape' is a union; record update needs the variant to be statically known and is not yet supported on multi-variant types
+Type Checker Error at test/struct/failure/record_update_union.mmt:9
+  |
+9 | def bad = { s with Circle = 4 };
+  |                    ^^^^^^ Record update expression type error: not a record
+  |
+  | 'Shape' is a union, whose variants' fields have no names; match on it and construct the variant instead
