@@ -1,0 +1,24 @@
+module DerivingGenericAndRecursive
+
+import { "../../../MarmotPrelude/IO.mmt", "../../../MarmotPrelude/Equatable.mmt", "../../../MarmotPrelude/Hashable.mmt" }
+
+type Pair<A, B> = { first: A, second: B, tag: Int } deriving (Equatable, Hashable);
+
+type Tree = Leaf | Node(Tree, Int, Tree) deriving (Equatable, Hashable);
+
+type Chain<T> = End | Link(T, Chain<T>) deriving (Equatable, Hashable);
+
+type Wrapper = { inner: Pair<Int, Text>, depth: Int } deriving (Equatable);
+
+def Show = fn(b: Bool) -> Text => if b then "true" else "false";
+
+IO::PrintLine(Show(Pair(1, "a", 0) == Pair(1, "a", 0)));
+IO::PrintLine(Show(Pair(1, "a", 0) == Pair(1, "b", 0)));
+IO::PrintLine(Show(Hashable::Hash(Pair(1, "a", 0)) == Hashable::Hash(Pair(1, "a", 0))));
+IO::PrintLine(Show(Tree::Node(Tree::Leaf(), 1, Tree::Leaf()) == Tree::Node(Tree::Leaf(), 1, Tree::Leaf())));
+IO::PrintLine(Show(Tree::Node(Tree::Leaf(), 1, Tree::Leaf()) == Tree::Node(Tree::Leaf(), 2, Tree::Leaf())));
+IO::PrintLine(Show(Hashable::Hash(Tree::Node(Tree::Leaf(), 1, Tree::Leaf())) == Hashable::Hash(Tree::Node(Tree::Leaf(), 1, Tree::Leaf()))));
+IO::PrintLine(Show(Chain::Link(1, Chain::Link(2, Chain::End())) == Chain::Link(1, Chain::Link(2, Chain::End()))));
+IO::PrintLine(Show(Chain::Link("x", Chain::End()) == Chain::Link("y", Chain::End())));
+IO::PrintLine(Show(Hashable::Hash(Chain::Link(1, Chain::End())) == Hashable::Hash(Chain::Link(1, Chain::End()))));
+IO::PrintLine(Show(Wrapper(Pair(1, "a", 0), 2) == Wrapper(Pair(1, "a", 0), 2)));

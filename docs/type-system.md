@@ -247,7 +247,7 @@ Current support is intentionally narrow:
 
 - `Equatable`, `Hashable`, and `Transferable` are supported structural derives
 - `Map`, `Bind`, and `Unwrap` are supported container derives
-- Structural deriving is limited to non-generic, non-recursive structs and unions for `Equatable` and `Hashable`
+- Structural deriving works on generic and recursive structs and unions; the instance for `Box<T>` requires `Equatable<T>` (or `Hashable<T>`) of each type parameter
 - `Transferable` deriving works on structs and unions including recursive union shapes
 - Container deriving maps only the first type parameter and supports pass-through variants, single-value variants, and recursive self fields
 

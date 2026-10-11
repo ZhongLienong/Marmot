@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/deriving/failure/structural_deriving_requires_field_instances.mmt:12
+   |
+12 | def same = Box(Opaque(1)) == Box(Opaque(1));
+   |                           ^^ Type Opaque does not satisfy constraint Equatable<Opaque> - no matching instance found
+   |

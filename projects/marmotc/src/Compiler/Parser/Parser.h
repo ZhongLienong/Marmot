@@ -792,7 +792,7 @@ private:
 
 	MidoriResult::TokenResult RegisterSyntheticGlobalName(const std::string& name, const Token& anchor);
 
-	void RegisterSyntheticInstanceMetadata(const std::string& class_name, const std::vector<std::shared_ptr<MidoriType>>& type_args, const std::vector<std::string>& mangled_method_names);
+	void RegisterSyntheticInstanceMetadata(const std::string& class_name, const std::vector<std::shared_ptr<MidoriType>>& type_args, const std::vector<MidoriType::ClassConstraint>& constraints, const std::vector<std::string>& mangled_method_names);
 
 	std::expected<void, CompilerError> QueueDerivedStructStatements(const MidoriStatement::Struct& struct_stmt, const std::vector<Token>& deriving_targets);
 

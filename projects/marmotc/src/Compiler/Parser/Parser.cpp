@@ -275,6 +275,13 @@ namespace
 		return type->IsType<MidoriType::GenericParam>() && type->GetType<MidoriType::GenericParam>().m_name == name;
 	}
 
+	std::vector<MidoriType::ClassConstraint> DerivedConstraints(const std::string& class_name, const std::vector<Token>& generic_params)
+	{
+		return generic_params
+			| std::views::transform([&class_name](const Token& param) { return MidoriType::ClassConstraint(class_name, std::vector<std::shared_ptr<MidoriType>>{ MidoriType::MakeGenericType(param.m_lexeme) }); })
+			| std::ranges::to<std::vector>();
+	}
+
 	bool IsUnionSelfReference(const std::shared_ptr<MidoriType>& type, std::string_view union_name)
 	{
 		return type->IsType<MidoriType::UnionType>() && type->GetType<MidoriType::UnionType>().m_name == union_name;
@@ -6102,14 +6109,14 @@ MidoriResult::TokenResult Parser::RegisterSyntheticGlobalName(const std::string&
 	return DefineName(synthetic_name, true);
 }
 
-void Parser::RegisterSyntheticInstanceMetadata(const std::string& class_name, const std::vector<std::shared_ptr<MidoriType>>& type_args, const std::vector<std::string>& mangled_method_names)
+void Parser::RegisterSyntheticInstanceMetadata(const std::string& class_name, const std::vector<std::shared_ptr<MidoriType>>& type_args, const std::vector<MidoriType::ClassConstraint>& constraints, const std::vector<std::string>& mangled_method_names)
 {
 	if (m_state.m_class_methods.contains(class_name))
 	{
 		m_state.m_declared_class_instance_type_args[class_name].push_back(type_args);
 		m_state.m_class_instance_type_args[class_name].push_back(type_args);
 		m_state.m_class_instance_associated_type_bindings[class_name].emplace_back();
-		m_state.m_class_instance_constraints[class_name].emplace_back();
+		m_state.m_class_instance_constraints[class_name].push_back(constraints);
 	}
 
 	for (const std::string& mangled_method_name : mangled_method_names)
@@ -6181,20 +6188,7 @@ std::expected<void, CompilerError> Parser::QueueDerivedStructStatements(const Mi
 		return std::unexpected(GenerateParserError("Deriving declarations are only supported at global scope.", struct_stmt.m_name));
 	}
 
-	if (!struct_stmt.m_generic_params.empty())
-	{
-		return std::unexpected(GenerateParserError("Structural deriving for generic structs is not supported yet.", struct_stmt.m_name));
-	}
-
 	const MidoriType::StructType& struct_type = struct_stmt.m_self_type->GetType<MidoriType::StructType>();
-	for (const std::shared_ptr<MidoriType>& member_type : struct_type.m_member_types)
-	{
-		if ((member_type->IsType<MidoriType::StructType>() && member_type->GetType<MidoriType::StructType>().m_name == struct_type.m_name)
-			|| (member_type->IsType<MidoriType::UnionType>() && member_type->GetType<MidoriType::UnionType>().m_name == struct_type.m_name))
-		{
-			return std::unexpected(GenerateParserError("Structural deriving for recursive structs is not supported yet.", struct_stmt.m_name));
-		}
-	}
 
 	const SyntheticSyntax syntax(struct_stmt.m_name);
 
@@ -6218,7 +6212,7 @@ std::expected<void, CompilerError> Parser::QueueDerivedStructStatements(const Mi
 
 		if (derive_target.m_lexeme == "Transferable")
 		{
-			RegisterSyntheticInstanceMetadata(derive_target.m_lexeme, type_args, mangled_method_names);
+			RegisterSyntheticInstanceMetadata(derive_target.m_lexeme, type_args, {}, mangled_method_names);
 			m_pending_statements.emplace(std::make_unique<MidoriStatement>(MidoriStatement::Instance(class_token, std::move(type_args), {}, {}, std::move(methods))));
 			continue;
 		}
@@ -6282,8 +6276,9 @@ std::expected<void, CompilerError> Parser::QueueDerivedStructStatements(const Mi
 			mangled_method_names.emplace_back(mangled_name);
 		}
 
-		RegisterSyntheticInstanceMetadata(derive_target.m_lexeme, type_args, mangled_method_names);
-		m_pending_statements.emplace(std::make_unique<MidoriStatement>(MidoriStatement::Instance(class_token, std::move(type_args), {}, {}, std::move(methods))));
+		std::vector<MidoriType::ClassConstraint> constraints = DerivedConstraints(derive_target.m_lexeme, struct_stmt.m_generic_params);
+		RegisterSyntheticInstanceMetadata(derive_target.m_lexeme, type_args, constraints, mangled_method_names);
+		m_pending_statements.emplace(std::make_unique<MidoriStatement>(MidoriStatement::Instance(class_token, std::move(type_args), std::move(constraints), {}, std::move(methods))));
 	}
 
 	return {};
@@ -6359,29 +6354,13 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 			Token class_token = MakeSyntheticToken(derive_target.m_lexeme, Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name);
 			std::vector<std::unique_ptr<MidoriStatement>> methods;
 			std::vector<std::string> mangled_method_names;
-			RegisterSyntheticInstanceMetadata(derive_target.m_lexeme, type_args, mangled_method_names);
+			RegisterSyntheticInstanceMetadata(derive_target.m_lexeme, type_args, {}, mangled_method_names);
 			m_pending_statements.emplace(std::make_unique<MidoriStatement>(MidoriStatement::Instance(class_token, std::move(type_args), {}, {}, std::move(methods))));
 			continue;
 		}
 
 		if (is_structural)
 		{
-			if (!union_stmt.m_generic_params.empty())
-			{
-				return std::unexpected(GenerateParserError("Structural deriving for generic unions is not supported yet.", union_stmt.m_name));
-			}
-
-			for (const auto& [member_name, member_ctx] : union_type.m_member_info)
-			{
-				for (const std::shared_ptr<MidoriType>& member_type : member_ctx.m_member_types)
-				{
-					if (IsUnionSelfReference(member_type, union_type.m_name))
-					{
-						return std::unexpected(GenerateParserError("Structural deriving for recursive unions is not supported yet.", union_stmt.m_name));
-					}
-				}
-			}
-
 			std::vector<std::shared_ptr<MidoriType>> type_args{ std::shared_ptr<MidoriType>(union_stmt.m_self_type) };
 			Token class_token = MakeSyntheticToken(derive_target.m_lexeme, Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name);
 			std::vector<std::unique_ptr<MidoriStatement>> methods;
@@ -6490,8 +6469,9 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 				mangled_method_names.emplace_back(mangled_name);
 			}
 
-			RegisterSyntheticInstanceMetadata(derive_target.m_lexeme, type_args, mangled_method_names);
-			m_pending_statements.emplace(std::make_unique<MidoriStatement>(MidoriStatement::Instance(class_token, std::move(type_args), {}, {}, std::move(methods))));
+			std::vector<MidoriType::ClassConstraint> constraints = DerivedConstraints(derive_target.m_lexeme, union_stmt.m_generic_params);
+			RegisterSyntheticInstanceMetadata(derive_target.m_lexeme, type_args, constraints, mangled_method_names);
+			m_pending_statements.emplace(std::make_unique<MidoriStatement>(MidoriStatement::Instance(class_token, std::move(type_args), std::move(constraints), {}, std::move(methods))));
 			continue;
 		}
 

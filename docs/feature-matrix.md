@@ -58,7 +58,7 @@ See [Versioning Policy](versioning-policy.md) for how `Stable`,
 | Constructor inference and context-sensitive lambda typing | Stable | `test/generics/`, `test/pipe/` | The type checker uses bidirectional context here. |
 | Classes, instances, and associated types | Stable | `test/typeclass/`, `projects/marmotc/tests/typechecker/` | Includes associated type declarations and instance bindings. |
 | Cross-module typeclass metadata and imports | Stable | `test/typeclass/`, `test/module/` | Typeclass/import metadata survives module boundaries. |
-| Deriving: `Equatable`, `Hashable`, `Map`, `Bind`, `Unwrap` | Stable | `test/deriving/` | Structural deriving is limited to focused non-generic, non-recursive shapes; container deriving supports focused union shapes. |
+| Deriving: `Equatable`, `Hashable`, `Map`, `Bind`, `Unwrap` | Stable | `test/deriving/` | Structural deriving works on generic and recursive types; a generic type's instance requires the class of each type parameter. Container deriving supports focused union shapes. |
 | Operator-backed typeclass dispatch: `Convertable`, `Concatenable`, `Countable`, `Equatable`, `Orderable` | Stable | `test/typeclass/`, `test/prelude/`, `test/as_operator/` | The implementation mixes builtin lowering with constrained dispatch depending on the concrete types. |
 
 ## Operators

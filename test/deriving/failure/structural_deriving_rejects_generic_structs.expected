@@ -1,6 +1,0 @@
-Compilation failed :(
-Parser Error at test/deriving/failure/structural_deriving_rejects_generic_structs.mmt:3
-  |
-3 | type Box<T> =
-  |      ^^^ Structural deriving for generic structs is not supported yet.
-  |
