@@ -1,9 +1,12 @@
 #include "Bytecode/Artifact/BinaryArtifact.h"
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <format>
 #include <fstream>
+#include <functional>
+#include <ranges>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -333,6 +336,14 @@ namespace VmBinaryArtifact
 						entry_index, proc_index));
 				}
 				line_info.emplace_back(static_cast<int>(line), static_cast<int>(count));
+			}
+
+			const int64_t covered_bytes = std::ranges::fold_left(line_info | std::views::values, int64_t{ 0 }, std::plus<int64_t>{});
+			if (covered_bytes != static_cast<int64_t>(bytecode_size))
+			{
+				return std::unexpected(std::format(
+					"Corrupt artifact: line info covers {} bytes but procedure {} has {}.",
+					covered_bytes, proc_index, bytecode_size));
 			}
 
 			procedures.emplace_back(std::move(bytecode), std::move(line_info));

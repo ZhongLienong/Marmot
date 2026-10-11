@@ -1,5 +1,7 @@
 #include "Executable.h"
 
+#include <utility>
+
 VmBytecodeStream::VmBytecodeStream(std::vector<VmOpCode>&& bytecode, std::vector<std::pair<int, int>>&& line_info)
 	: m_bytecode(std::move(bytecode)),
 	  m_line_info(std::move(line_info))
@@ -38,7 +40,7 @@ int VmBytecodeStream::GetLine(int index) const
 		}
 	}
 
-	return -1; // TODO: Throw exception
+	std::unreachable();
 }
 
 const VmOpCode* VmBytecodeStream::operator[](int index) const

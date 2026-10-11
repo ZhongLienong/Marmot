@@ -85,8 +85,6 @@ public:
 
 	int GetByteCodeSize() const;
 
-	int GetLine(int index) const;
-
 	void Append(BytecodeStream&& other);
 
 	const OpCode* operator[](int index) const;
@@ -160,8 +158,6 @@ public:
 	std::string_view GetFileName() const;
 
 	std::string_view GetProcedureSourcePath(int proc_index) const;
-
-	int GetLine(int instr_index, int proc_index) const;
 
 	const BytecodeStream& GetBytecodeStream(int proc_index) const;
 

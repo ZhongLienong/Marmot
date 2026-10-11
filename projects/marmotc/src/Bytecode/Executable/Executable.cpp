@@ -69,21 +69,6 @@ int BytecodeStream::GetByteCodeSize() const
 	return static_cast<int>(m_bytecode.size());
 }
 
-int BytecodeStream::GetLine(int index) const
-{
-	int cumulative_count = 0;
-	for (const auto& [line, count] : m_line_info)
-	{
-		cumulative_count += count;
-		if (index < cumulative_count)
-		{
-			return line;
-		}
-	}
-
-	return -1; // TODO: Throw exception
-}
-
 void BytecodeStream::Append(BytecodeStream&& other)
 {
 	m_bytecode.insert(m_bytecode.end(), other.m_bytecode.begin(), other.m_bytecode.end());
@@ -170,11 +155,6 @@ std::string_view MidoriExecutable::GetProcedureSourcePath(int proc_index) const
 	}
 
 	return source_path;
-}
-
-int MidoriExecutable::GetLine(int instr_index, int proc_index) const
-{
-	return m_procedures[static_cast<size_t>(proc_index)].GetLine(instr_index);
 }
 
 const BytecodeStream& MidoriExecutable::GetBytecodeStream(int proc_index) const
