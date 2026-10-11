@@ -1,0 +1,7 @@
+module GenericAcrossModules
+
+import { "../../../MarmotPrelude/IO.mmt", "generic_across_modules_lib.mmt" }
+
+def b = GenericAcrossModulesLib::Wrap([1, 2, 3]);
+def c: GenericAcrossModulesLib::Boxed<Text> = ["a"] as GenericAcrossModulesLib::Boxed<Text>;
+IO::PrintLine(((#(b as Array<Int>)) as Text) ++ ((c as Array<Text>)[0]));

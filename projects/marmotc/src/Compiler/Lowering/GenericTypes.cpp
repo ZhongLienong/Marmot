@@ -125,6 +125,10 @@ namespace
 				}
 			);
 		}
+		if (type->IsType<MidoriType::NewType>())
+		{
+			return ContainsFreeTypeParameter(type->GetType<MidoriType::NewType>().m_representation, visited);
+		}
 
 		return false;
 	}

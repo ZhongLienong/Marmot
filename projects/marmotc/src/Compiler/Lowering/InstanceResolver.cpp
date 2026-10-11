@@ -127,6 +127,17 @@ namespace
 			});
 		}
 
+		if (pattern->IsType<MidoriType::NewType>())
+		{
+			if (!concrete->IsType<MidoriType::NewType>())
+			{
+				return false;
+			}
+			const MidoriType::NewType& pattern_new_type = pattern->GetType<MidoriType::NewType>();
+			const MidoriType::NewType& concrete_new_type = concrete->GetType<MidoriType::NewType>();
+			return pattern_new_type.m_name == concrete_new_type.m_name && pattern_new_type.m_module_name == concrete_new_type.m_module_name && MatchInstanceTypeArg(pattern_new_type.m_representation, concrete_new_type.m_representation, substitutions, visited) && MatchTypeArguments(pattern_new_type.m_type_arguments, concrete_new_type.m_type_arguments, substitutions, visited);
+		}
+
 		if (pattern->IsType<MidoriType::AssociatedType>())
 		{
 			if (!concrete->IsType<MidoriType::AssociatedType>())

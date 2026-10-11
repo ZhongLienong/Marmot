@@ -1,0 +1,6 @@
+module GenericAcrossModulesLib
+public export { Boxed, Wrap }
+
+type Boxed<T> = Array<T>;
+
+def Wrap = fn<T>(items: Array<T>) -> Boxed<T> => items as Boxed<T>;

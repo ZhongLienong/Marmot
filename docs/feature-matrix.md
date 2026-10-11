@@ -26,7 +26,7 @@ See [Versioning Policy](versioning-policy.md) for how `Stable`,
 | Structs and unions | Stable | `test/struct/`, `test/union/`, `test/match/` | Product and sum types both compile through the normal end-to-end path. |
 | Type aliases | Stable | `test/type_alias/`, `test/generics/` | `alias X = Y` is transparent. The older transparent `type X = Y` has been migrated; `type` is now nominal. Parameterised aliases are limited — see the type-declaration row. |
 | `type` declarations | Stable | `test/type_declaration/`, `test/newtype/` | One keyword for three shapes: `type P = { x: Int }` record, `type O<T> = A \| B(T)` sum, `type Meters = Int` newtype. The right-hand side selects the kind. `struct` and `union` have been removed; a file still using either gets a parser diagnostic naming the replacement. |
-| Newtypes | Stable | `test/newtype/` | `type Meters = Int` is nominal — an `Int` does not pass where `Meters` is expected. Erased at opcode selection, so zero runtime cost. Typeclass instances attach to the newtype independently of its representation. Generic newtypes are declaration-only. |
+| Newtypes | Stable | `test/newtype/` | `type Meters = Int` is nominal — an `Int` does not pass where `Meters` is expected. Erased at opcode selection, so zero runtime cost. Typeclass instances attach to the newtype independently of its representation. A generic newtype, `type Boxed<T> = Array<T>`, converts to and from its representation at any type arguments. |
 | First-class functions and lambdas | Stable | `test/generics/`, `test/pipe/`, `test/closure/` | Includes anonymous functions and contextual lambda inference. |
 
 ## Expressions and Control Flow

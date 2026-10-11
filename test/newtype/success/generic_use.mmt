@@ -1,0 +1,36 @@
+module NewtypeGenericUse
+
+import { "../../../MarmotPrelude/IO.mmt" }
+
+class Show<T> {
+    show: fn(value: T) -> Text;
+};
+
+instance Show<Int> {
+    def show = fn(value: Int) -> Text => value as Text;
+};
+
+type Boxed<T> = Array<T>;
+type Pair<A, B> = (A, B);
+type Tagged<T> = (T, Int);
+
+instance Show<Boxed<T>> where Show<T> {
+    def show = fn(value: Boxed<T>) -> Text => "Boxed(" ++ (#(value as Array<T>) as Text) ++ ")";
+};
+
+def Describe = fn<T>(value: T) -> Text where Show<T> => Show::show(value);
+def Swap = fn<A, B>(p: Pair<A, B>) -> Pair<B, A> => { def (a, b) = p as (A, B); (b, a) as Pair<B, A> };
+
+IO::PrintLine(Show::show([1, 2] as Boxed<Int>));
+IO::PrintLine(Describe([1, 2, 3] as Boxed<Int>));
+def (x, y) = Swap((1, "one") as Pair<Int, Text>) as (Text, Int);
+IO::PrintLine(x ++ (y as Text));
+
+def b: Boxed<Int> = [1, 2, 3] as Boxed<Int>;
+def raw: Array<Int> = b as Array<Int>;
+IO::PrintLine((#raw) as Text);
+def t = (("x", 2) as Tagged<Text>);
+def (name, n) = t as (Text, Int);
+IO::PrintLine(name ++ (n as Text));
+def Unbox = fn<T>(boxed: Boxed<T>) -> Array<T> => boxed as Array<T>;
+IO::PrintLine((#Unbox([4, 5] as Boxed<Int>)) as Text);

@@ -159,6 +159,12 @@ namespace
 					visit_all(node.m_type_arguments);
 					visit_constraints(node.m_constraints);
 				}
+				else if constexpr (std::is_same_v<Node, MidoriType::NewType>)
+				{
+					visit(node.m_representation);
+					visit_all(node.m_type_arguments);
+					visit_constraints(node.m_constraints);
+				}
 				else if constexpr (std::is_same_v<Node, MidoriType::AssociatedType> || std::is_same_v<Node, MidoriType::ClassConstraint>)
 				{
 					visit_all(node.m_type_args);
@@ -166,6 +172,24 @@ namespace
 			},
 			type.m_type
 		);
+	}
+
+	// A newtype with `map` applied to what it is built from: its representation,
+	// type arguments and constraints.
+	template<typename MapFn>
+	std::shared_ptr<MidoriType> MapNewType(const std::shared_ptr<MidoriType>& type, MapFn&& map)
+	{
+		const MidoriType::NewType& new_type = type->GetType<MidoriType::NewType>();
+		std::vector<std::string> generic_params = new_type.m_generic_params;
+		std::shared_ptr<MidoriType> mapped = MidoriType::MakeNewType(new_type.m_name, new_type.m_module_name, map(new_type.m_representation), std::move(generic_params));
+		MidoriType::NewType& mapped_ref = mapped->GetType<MidoriType::NewType>();
+		mapped_ref.m_constraints = MidoriType::MapConstraints(new_type.m_constraints, map);
+		if (!new_type.m_generic_params.empty() || new_type.m_is_generic_instantiation)
+		{
+			mapped_ref.m_is_generic_instantiation = true;
+			mapped_ref.m_type_arguments = MidoriType::InstantiateTypeArguments(new_type.m_generic_params, new_type.m_type_arguments, map);
+		}
+		return mapped;
 	}
 
 	void ForEachType(const std::shared_ptr<MidoriType>& type, const std::function<void(const MidoriType&)>& visit, std::unordered_set<const MidoriType*>& visited)
@@ -523,6 +547,21 @@ namespace
 				}
 			}
 			return true;
+		}
+
+		if (pattern->IsType<MidoriType::NewType>())
+		{
+			if (!concrete->IsType<MidoriType::NewType>())
+			{
+				return false;
+			}
+
+			const MidoriType::NewType& pattern_new_type = pattern->GetType<MidoriType::NewType>();
+			const MidoriType::NewType& concrete_new_type = concrete->GetType<MidoriType::NewType>();
+			return pattern_new_type.m_name == concrete_new_type.m_name
+				&& pattern_new_type.m_module_name == concrete_new_type.m_module_name
+				&& MatchInstanceTypeArguments(pattern_new_type.m_generic_params, pattern_new_type.m_type_arguments, concrete_new_type.m_type_arguments, substitutions, visited)
+				&& MatchInstanceTypeArg(pattern_new_type.m_representation, concrete_new_type.m_representation, substitutions, visited);
 		}
 
 		return *pattern == *concrete;
@@ -1437,6 +1476,7 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 	bool is_complex_type = 
 		left_subst->IsType<MidoriType::StructType>() || 
 		left_subst->IsType<MidoriType::UnionType>() ||
+		left_subst->IsType<MidoriType::NewType>() ||
 		left_subst->IsType<MidoriType::ArrayType>() ||
 		left_subst->IsType<MidoriType::RangeType>() ||
 		left_subst->IsType<MidoriType::WorkerType>() ||
@@ -1592,6 +1632,23 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 		if (!result.has_value())
 		{
 			return result;
+		}
+		return left;
+	}
+	else if (left_subst->IsType<MidoriType::NewType>() && right_subst->IsType<MidoriType::NewType>())
+	{
+		MidoriType::NewType& left_new_type = left_subst->GetType<MidoriType::NewType>();
+		MidoriType::NewType& right_new_type = right_subst->GetType<MidoriType::NewType>();
+		if (left_new_type.m_name != right_new_type.m_name || left_new_type.m_module_name != right_new_type.m_module_name)
+		{
+			return std::unexpected(MakeUnificationError(token, left_subst, right_subst, diagnostic_mode));
+		}
+
+		// The type arguments decide the representation, so they are all there is to unify.
+		MidoriResult::TypeResult type_argument_result = UnifyTypeArguments(token, left_new_type.m_type_arguments, right_new_type.m_type_arguments, diagnostic_mode);
+		if (!type_argument_result.has_value())
+		{
+			return type_argument_result;
 		}
 		return left;
 	}
@@ -2188,6 +2245,10 @@ std::shared_ptr<MidoriType> TypeChecker::Freshen(const std::shared_ptr<MidoriTyp
 		MidoriType::AssociatedType& associated_type = type->GetType<MidoriType::AssociatedType>();
 		return MidoriType::MakeAssociatedType(associated_type.m_class_name, associated_type.m_name, freshen_all(associated_type.m_type_args));
 	}
+	else if (type->IsType<MidoriType::NewType>())
+	{
+		return MapNewType(type, freshen);
+	}
 	return type;
 }
 
@@ -2504,6 +2565,10 @@ std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr
 	{
 		std::vector<std::shared_ptr<MidoriType>> new_element_types = apply_all(type->GetType<MidoriType::TupleType>().m_element_types);
 		return changed ? MidoriType::MakeTupleType(std::move(new_element_types)) : type;
+	}
+	else if (type->IsType<MidoriType::NewType>())
+	{
+		return MapNewType(type, apply);
 	}
 
 	return type;
