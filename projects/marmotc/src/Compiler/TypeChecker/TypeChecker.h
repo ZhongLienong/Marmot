@@ -305,8 +305,6 @@ private:
 
 	MidoriResult::TypeResult operator()(MidoriExpression::UnaryPrefix& unary);
 
-	MidoriResult::TypeResult operator()(MidoriExpression::UnarySuffix& unary);
-
 	MidoriResult::TypeResult operator()(MidoriExpression::Spawn& spawn);
 
 	MidoriResult::TypeResult operator()(MidoriExpression::Join& join);

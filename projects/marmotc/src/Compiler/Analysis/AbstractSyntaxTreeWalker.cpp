@@ -176,11 +176,6 @@ void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::UnaryPrefix& u
 	VisitExpression(unary.m_expr);
 }
 
-void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::UnarySuffix& unary)
-{
-	VisitExpression(unary.m_expr);
-}
-
 void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::Call& call)
 {
 	VisitExpression(call.m_callee);

@@ -3029,7 +3029,6 @@ void TypeChecker::ResolveRecordedTypes(MidoriExpression& expression)
 		void operator()(MidoriExpression::Tuple& node) const { Resolve(node.m_elements); }
 		void operator()(MidoriExpression::Literal&) const {}
 		void operator()(MidoriExpression::UnaryPrefix& node) const { Resolve(node.m_expr); }
-		void operator()(MidoriExpression::UnarySuffix& node) const { Resolve(node.m_expr); }
 		void operator()(MidoriExpression::Spawn& node) const { Resolve(node.m_callee); Resolve(node.m_arguments); }
 		void operator()(MidoriExpression::Join& node) const { Resolve(node.m_worker); }
 		void operator()(MidoriExpression::ChannelCreate& node) const { Resolve(node.m_capacity); }
@@ -5140,12 +5139,6 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::UnaryPrefix& 
 				return unary.m_type_data;
 			}
 		);
-}
-
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::UnarySuffix&)
-{
-	// TODO: Not yet implemented, no suffix operators at the moment
-	return {};
 }
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Spawn& spawn)

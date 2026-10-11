@@ -440,14 +440,6 @@ public:
 		UnaryPrefix(const Token& op, std::unique_ptr<MidoriExpression>&& expr);
 	};
 
-	struct UnarySuffix : BaseExpression
-	{
-		Token m_op;
-		std::unique_ptr<MidoriExpression> m_expr;
-
-		UnarySuffix(const Token& op, std::unique_ptr<MidoriExpression>&& expr);
-	};
-
 	struct Spawn : BaseExpression
 	{
 		Token m_spawn_keyword;
@@ -718,7 +710,7 @@ public:
 	};
 
 private:
-	using ExpressionUnion = std::variant<As, Binary, Group, Tuple, Literal, UnaryPrefix, UnarySuffix, Spawn, Join, ChannelCreate, Send, Receive, NameAccess, Call, Function, Construct, RecordUpdate, IfElse, MemberAccess, Array, IndexAccess, ArrayComprehension, RangeBinary, RangeTernary, Block, Match, Case, For>;
+	using ExpressionUnion = std::variant<As, Binary, Group, Tuple, Literal, UnaryPrefix, Spawn, Join, ChannelCreate, Send, Receive, NameAccess, Call, Function, Construct, RecordUpdate, IfElse, MemberAccess, Array, IndexAccess, ArrayComprehension, RangeBinary, RangeTernary, Block, Match, Case, For>;
 	ExpressionUnion m_variant;
 
 public:
@@ -775,10 +767,6 @@ public:
 				return node.m_left->template Contains<Kind>() || node.m_right->template Contains<Kind>();
 			}
 			else if constexpr (std::is_same_v<T, MidoriExpression::UnaryPrefix>)
-			{
-				return node.m_expr->template Contains<Kind>();
-			}
-			else if constexpr (std::is_same_v<T, MidoriExpression::UnarySuffix>)
 			{
 				return node.m_expr->template Contains<Kind>();
 			}

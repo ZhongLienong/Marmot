@@ -46,7 +46,6 @@ protected:
 	virtual void operator()(MidoriExpression::Group& group);
 	virtual void operator()(MidoriExpression::Tuple& tuple);
 	virtual void operator()(MidoriExpression::UnaryPrefix& unary);
-	virtual void operator()(MidoriExpression::UnarySuffix& unary);
 	virtual void operator()(MidoriExpression::Call& call);
 	virtual void operator()(MidoriExpression::MemberAccess& get);
 	virtual void operator()(MidoriExpression::NameAccess& variable);

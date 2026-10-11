@@ -63,8 +63,6 @@ namespace
 
 		void operator()(const MidoriExpression::UnaryPrefix& unary, int depth = 0) const;
 
-		void operator()(const MidoriExpression::UnarySuffix& unary, int depth = 0) const;
-
 		void operator()(const MidoriExpression::Spawn& spawn, int depth = 0) const;
 
 		void operator()(const MidoriExpression::Join& join, int depth = 0) const;
@@ -331,15 +329,6 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Tuple& tuple, i
 void PrintAbstractSyntaxTree::operator()(const MidoriExpression::UnaryPrefix& unary, int depth) const
 {
 	PrintWithIndentation(depth, "UnaryPrefix {");
-	PrintWithIndentation(depth + 1, "Operator: " + unary.m_op.m_lexeme);
-	PrintWithIndentation(depth + 1, "Operand: ");
-	Visit(unary.m_expr, depth + 2);
-	PrintWithIndentation(depth, "}");
-}
-
-void PrintAbstractSyntaxTree::operator()(const MidoriExpression::UnarySuffix& unary, int depth) const
-{
-	PrintWithIndentation(depth, "UnarySuffix {");
 	PrintWithIndentation(depth + 1, "Operator: " + unary.m_op.m_lexeme);
 	PrintWithIndentation(depth + 1, "Operand: ");
 	Visit(unary.m_expr, depth + 2);

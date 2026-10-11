@@ -209,11 +209,6 @@ Lowering::Lowered Lowering::Lower(MidoriExpression& expression)
 			return m_self.LowerCall(call);
 		}
 
-		Lowered operator()(MidoriExpression::UnarySuffix& unary) const
-		{
-			return std::unexpected(m_self.Unsupported("a suffix operator", unary.m_op));
-		}
-
 		Lowered operator()(MidoriExpression::Tuple& tuple) const
 		{
 			return m_self.LowerTuple(tuple);

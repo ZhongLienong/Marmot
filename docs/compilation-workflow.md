@@ -115,7 +115,7 @@ Current expression variants:
 - `Group`
 - `Tuple`
 - `Literal` (one node; `m_kind` is `Bool`, `Integer`, `Byte`, `Word`, `Float`, `Text` or `Unit`)
-- `UnaryPrefix`, `UnarySuffix`
+- `UnaryPrefix`
 - `Spawn`, `Join`, `ChannelCreate`, `Send`, `Receive`
 - `NameAccess`
 - `Call`, `Function`
