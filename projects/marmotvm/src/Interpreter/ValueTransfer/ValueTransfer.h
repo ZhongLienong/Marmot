@@ -2,25 +2,18 @@
 
 #include "Value/Value.h"
 
-#include <memory>
 #include <string>
-#include <unordered_map>
 #include <vector>
 #include <variant>
 
 class VirtualMachine;
 
-struct SerializedObject;
-
+// A value inside a TransferPayload: its own bits, or for an object, the index of
+// the object's copy in the payload.
 struct SerializedValue
 {
-	MidoriWord m_raw_bits = 0u;
-	std::shared_ptr<SerializedObject> m_object;
-
-	[[nodiscard]] bool HasObject() const noexcept
-	{
-		return m_object != nullptr;
-	}
+	MidoriWord m_bits = 0u;
+	bool m_is_object = false;
 };
 
 struct SerializedObject
@@ -58,8 +51,8 @@ struct SerializedObject
 		MidoriFloat m_step = 0.0;
 	};
 
-	// A user Ref<T>. Copied into the worker; the sharing map keeps two
-	// references to one cell in one payload pointing at one copy.
+	// A user Ref<T>, copied: two references to one cell in one payload arrive as
+	// two references to one copy.
 	struct MutableCell
 	{
 		SerializedValue m_value;
@@ -70,25 +63,29 @@ struct SerializedObject
 	Variant m_data;
 };
 
+struct SerializedGlobal
+{
+	int m_index = 0;
+	SerializedValue m_value;
+};
+
+// What crosses from one VM to another: a value, every object it reaches, and the
+// globals the functions among them can read. Objects refer to each other by
+// index, so an object reached twice is one copy, and copying a structure of any
+// depth in either direction takes no native stack.
+struct TransferPayload
+{
+	std::vector<SerializedObject> m_objects;
+	std::vector<SerializedGlobal> m_globals;
+	SerializedValue m_root;
+};
+
 class ValueTransfer
 {
 public:
-	// Maps from an object to its copy. Values serialised (or deserialised) through
-	// the same map keep their sharing: two references to one object arrive as two
-	// references to one copy. Everything that crosses in one spawn shares one map.
-	using SerializePointerMap = std::unordered_map<MidoriTraceable*, std::shared_ptr<SerializedObject>>;
-	using DeserializePointerMap = std::unordered_map<const SerializedObject*, MidoriTraceable*>;
+	static TransferPayload Serialize(MidoriValue value, VirtualMachine& source_vm);
 
-	static SerializedValue Serialize(MidoriValue source, VirtualMachine& source_vm);
-
-	static SerializedValue Serialize(MidoriValue source, VirtualMachine& source_vm, SerializePointerMap& sharing);
-
-	static MidoriValue Deserialize(const SerializedValue& source, VirtualMachine& target_vm);
-
-	static MidoriValue Deserialize(const SerializedValue& source, VirtualMachine& target_vm, DeserializePointerMap& sharing);
-
-private:
-	static std::shared_ptr<SerializedObject> SerializeTraceable(MidoriTraceable* source, VirtualMachine& source_vm, SerializePointerMap& visited);
-
-	static MidoriTraceable* DeserializeObject(const SerializedObject& source, VirtualMachine& target_vm, DeserializePointerMap& visited);
+	// The payload's value, rebuilt in `target_vm`'s heap. Its globals are offered
+	// to `target_vm`, which keeps the ones it does not have yet.
+	static MidoriValue Deserialize(const TransferPayload& payload, VirtualMachine& target_vm);
 };

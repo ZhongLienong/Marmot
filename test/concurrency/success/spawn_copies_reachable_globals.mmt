@@ -1,0 +1,61 @@
+module spawn_copies_reachable_globals
+
+import
+{
+	"../../../MarmotPrelude/Concurrency.mmt",
+	"../../../MarmotPrelude/Prelude/Result.mmt",
+	"../../../MarmotPrelude/IO.mmt"
+}
+
+use IO.{PrintLine}
+
+// A worker is given the globals its code can read, not all of them. A function
+// that reaches a worker later, through a channel, brings the globals it reads.
+
+def unused = [index for index in 0..1..100000];
+
+// Reached through a global's value: ApplyTable reads `table`, which holds
+// AddOffset, which reads `offset`.
+def base = 100;
+def offset = 7;
+def AddOffset = fn(x : Int) -> Int => x + offset;
+def table = [AddOffset];
+def ApplyTable = fn(x : Int) -> Int => table[0](x) + base;
+PrintLine("through a global: " ++ (Concurrency::JoinedOrPanic(Concurrency::Join(Concurrency::Spawn(1, ApplyTable))) as Text));
+
+// A worker's own spawn copies from the globals the worker was given.
+def Inner = fn(x : Int) -> Int => x * base;
+def Outer = fn(x : Int) -> Int => Concurrency::JoinedOrPanic(Concurrency::Join(Concurrency::Spawn(x, Inner))) + 1;
+PrintLine("nested: " ++ (Concurrency::JoinedOrPanic(Concurrency::Join(Concurrency::Spawn(3, Outer))) as Text));
+
+// The worker's code names neither `secret` nor ReadSecret.
+def secret = 42;
+def ReadSecret = fn() -> Int => secret;
+def RunReceived = fn(ch : Channel<fn() -> Int>) -> Int =>
+{
+	def received = <- ch;
+	received()
+};
+def functions : Channel<fn() -> Int> = Concurrency::MakeChannel(1);
+def runner = Concurrency::Spawn(functions, RunReceived);
+def sent = functions -> ReadSecret;
+PrintLine("through a channel: " ++ (Concurrency::JoinedOrPanic(Concurrency::Join(runner)) as Text));
+
+// A global brought twice is taken once, so the worker's writes to its copy of a
+// cell are what a function that arrives later sees.
+def counter = ref 0;
+def BumpCounter = fn() -> Int =>
+{
+	counter := (*counter) + 1;
+	*counter
+};
+def BumpThenRun = fn(ch : Channel<fn() -> Int>) -> Int =>
+{
+	def first = BumpCounter();
+	def received = <- ch;
+	(first * 10) + received()
+};
+def bumps : Channel<fn() -> Int> = Concurrency::MakeChannel(1);
+def bumper = Concurrency::Spawn(bumps, BumpThenRun);
+def bump_sent = bumps -> BumpCounter;
+PrintLine("one copy per worker: " ++ (Concurrency::JoinedOrPanic(Concurrency::Join(bumper)) as Text) ++ ", main still has " ++ (*counter as Text));

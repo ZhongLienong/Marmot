@@ -1,0 +1,35 @@
+module transfer_deep_list
+
+import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Prelude/Result.mmt", "../../../MarmotPrelude/Transferable.mmt" }
+
+import { "../../../MarmotPrelude/IO.mmt" }
+use IO.{PrintLine}
+
+// A linked list is as deep as it is long. Copying one into or out of a worker
+// used to recurse once per node and overflowed the native stack.
+
+type List = Nil | Cons(Int, List) deriving (Transferable);
+
+def Build = fn(count: Int, acc: List) -> List =>
+    if count == 0
+    then acc
+    else Build(count - 1, List::Cons(count, acc));
+
+def Sum = fn(list: List, acc: Int) -> Int =>
+    match list with
+        case List::Nil() => acc
+        case List::Cons(head, rest) => Sum(rest, acc + head);
+
+def length = 200000;
+
+def SumInWorker = fn(list: List) -> Int => Sum(list, 0);
+def summed = Concurrency::JoinedOrPanic(Concurrency::Join(Concurrency::Spawn(Build(length, List::Nil()), SumInWorker)));
+PrintLine("argument: " ++ (summed as Text));
+
+def BuildInWorker = fn(count: Int) -> List => Build(count, List::Nil());
+def returned = Concurrency::JoinedOrPanic(Concurrency::Join(Concurrency::Spawn(length, BuildInWorker)));
+PrintLine("result: " ++ (Sum(returned, 0) as Text));
+
+def ch : Channel<List> = Concurrency::MakeChannel(1);
+def sent = ch -> Build(length, List::Nil());
+PrintLine("message: " ++ (Sum(<- ch, 0) as Text));

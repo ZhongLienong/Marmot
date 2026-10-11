@@ -4,7 +4,7 @@
 
 #include <format>
 
-void UnusedLocalDiagnostic::Reset()
+void UnusedLocalDiagnostic::Reset(MidoriProgramTree&)
 {
 	m_functions.clear();
 	PushFunctionContext();

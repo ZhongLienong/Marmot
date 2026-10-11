@@ -29,7 +29,9 @@ public:
 
 	VirtualMachine(VmExecutable&& executable) noexcept;
 
-	VirtualMachine(std::shared_ptr<const VmExecutable> shared_executable, int proc_index, const GlobalVariables* source_globals) noexcept;
+	// A worker's VM. It starts with no globals and takes each from the transfers
+	// that bring it, beginning with its spawn.
+	explicit VirtualMachine(std::shared_ptr<const VmExecutable> shared_executable) noexcept;
 
     ~VirtualMachine();
 
@@ -129,9 +131,13 @@ private:
     size_t m_call_stack_region_size = 0u;
     size_t m_stack_page_size = 0u;
 	std::optional<RuntimeError> m_last_error = std::nullopt;
-	// Set by PrepareWorkerCall, which only a worker goes through. A worker that
-	// exits must fail itself rather than the process it shares with everyone else.
+	// A worker that exits must fail itself rather than the process it shares
+	// with everyone else.
 	bool m_is_worker = false;
+	// A worker's globals that a transfer has brought. Globals are never reassigned,
+	// so a later transfer's copy of one is not taken: the worker keeps one value,
+	// and one copy of a cell, per global.
+	std::vector<bool> m_installed_globals;
 	std::stop_token m_stop_token;
 
 
@@ -148,7 +154,13 @@ public:
 
 	MidoriValue MakeFunctionValue(int proc_index) noexcept;
 
-	void SetGlobalValue(int global_index, MidoriValue value) noexcept { (*m_global_vars)[global_index] = value; }
+	const VmExecutable& GetExecutable() const noexcept { return *m_executable; }
+
+	MidoriValue GetGlobalValue(int global_index) const noexcept { return (*m_global_vars)[global_index]; }
+
+	// A global a transfer brought. The VM that ran the program's initializers holds
+	// every global already; a worker takes the ones it does not have yet.
+	void InstallGlobal(int global_index, MidoriValue value) noexcept;
 
     void PrepareWorkerCall(MidoriValue worker_function) noexcept;
 

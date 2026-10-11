@@ -16,7 +16,7 @@ public:
 	std::vector<CompilerWarning> Run(MidoriProgramTree& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines);
 
 protected:
-	virtual void Reset();
+	virtual void Reset(MidoriProgramTree& program_tree);
 
 	virtual void Finish();
 

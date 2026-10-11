@@ -6,18 +6,23 @@
 #include <stop_token>
 #include <thread>
 
+namespace
+{
+	TransferPayload Message(MidoriWord bits)
+	{
+		return TransferPayload{ {}, {}, SerializedValue{ bits, false } };
+	}
+}
+
 TEST_CASE("Channel round-trips a value", "[channel]")
 {
 	Channel channel(2);
-	SerializedValue message;
-	message.m_raw_bits = 42u;
-
-	REQUIRE(channel.Send(std::move(message), std::stop_token{}) == ChannelOpStatus::Ok);
+	REQUIRE(channel.Send(Message(42u), std::stop_token{}) == ChannelOpStatus::Ok);
 
 	const ChannelReceiveResult received = channel.Receive(std::stop_token{});
 	REQUIRE(received.m_status == ChannelOpStatus::Ok);
 	REQUIRE(received.m_value.has_value());
-	REQUIRE(received.m_value.value().m_raw_bits == 42u);
+	REQUIRE(received.m_value.value().m_root.m_bits == 42u);
 }
 
 TEST_CASE("Blocked receive is cancelled by stop request", "[channel]")
@@ -41,15 +46,13 @@ TEST_CASE("Blocked receive is cancelled by stop request", "[channel]")
 TEST_CASE("Blocked send is cancelled by stop request", "[channel]")
 {
 	Channel channel(1);
-	SerializedValue first;
-	REQUIRE(channel.Send(std::move(first), std::stop_token{}) == ChannelOpStatus::Ok);
+	REQUIRE(channel.Send(Message(0u), std::stop_token{}) == ChannelOpStatus::Ok);
 
 	std::stop_source stop_source;
 	ChannelOpStatus send_status = ChannelOpStatus::Ok;
 	std::thread sender([&channel, &stop_source, &send_status]()
 	{
-		SerializedValue second;
-		send_status = channel.Send(std::move(second), stop_source.get_token());
+		send_status = channel.Send(Message(0u), stop_source.get_token());
 	});
 
 	std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -80,8 +83,7 @@ TEST_CASE("Send to a closed channel reports Closed", "[channel]")
 	Channel channel(1);
 	channel.Close();
 
-	SerializedValue message;
-	REQUIRE(channel.Send(std::move(message), std::stop_token{}) == ChannelOpStatus::Closed);
+	REQUIRE(channel.Send(Message(0u), std::stop_token{}) == ChannelOpStatus::Closed);
 }
 
 TEST_CASE("Registry erases a channel once closed and drained", "[channel][registry]")
@@ -92,9 +94,7 @@ TEST_CASE("Registry erases a channel once closed and drained", "[channel][regist
 	const int channel_id = registry.CreateChannel(1);
 	REQUIRE(registry.GetChannelCount() == baseline + 1u);
 
-	SerializedValue message;
-	message.m_raw_bits = 7u;
-	REQUIRE(registry.Send(channel_id, std::move(message), std::stop_token{}) == ChannelOpStatus::Ok);
+	REQUIRE(registry.Send(channel_id, Message(7u), std::stop_token{}) == ChannelOpStatus::Ok);
 
 	registry.Close(channel_id);
 	REQUIRE(registry.GetChannelCount() == baseline + 1u);
@@ -102,7 +102,7 @@ TEST_CASE("Registry erases a channel once closed and drained", "[channel][regist
 	const ChannelReceiveResult drained = registry.Receive(channel_id, std::stop_token{});
 	REQUIRE(drained.m_status == ChannelOpStatus::Ok);
 	REQUIRE(drained.m_value.has_value());
-	REQUIRE(drained.m_value.value().m_raw_bits == 7u);
+	REQUIRE(drained.m_value.value().m_root.m_bits == 7u);
 	REQUIRE(registry.GetChannelCount() == baseline);
 
 	const ChannelReceiveResult after = registry.Receive(channel_id, std::stop_token{});
@@ -118,6 +118,5 @@ TEST_CASE("Registry erases an empty channel on close", "[channel][registry]")
 	registry.Close(channel_id);
 	REQUIRE(registry.GetChannelCount() == baseline);
 
-	SerializedValue message;
-	REQUIRE(registry.Send(channel_id, std::move(message), std::stop_token{}) == ChannelOpStatus::Closed);
+	REQUIRE(registry.Send(channel_id, Message(0u), std::stop_token{}) == ChannelOpStatus::Closed);
 }

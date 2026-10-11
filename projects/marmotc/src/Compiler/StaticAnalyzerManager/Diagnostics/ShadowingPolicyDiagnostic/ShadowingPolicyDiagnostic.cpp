@@ -36,7 +36,7 @@ namespace
 	}
 }
 
-void ShadowingPolicyDiagnostic::Reset()
+void ShadowingPolicyDiagnostic::Reset(MidoriProgramTree&)
 {
 	m_scopes.clear();
 	PushScope();

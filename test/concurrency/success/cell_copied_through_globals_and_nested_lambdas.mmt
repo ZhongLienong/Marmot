@@ -1,0 +1,48 @@
+module CellCopiedThroughGlobalsAndNestedLambdas
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/Concurrency.mmt",
+	"../../../MarmotPrelude/Prelude/Result.mmt"
+}
+
+// A cell also reaches a worker when the spawned code reads it as a global, here
+// through a function it calls, or when only a lambda inside the spawned one uses
+// it. Each is copied, and each is warned about.
+
+def counter = ref 0;
+
+def Bump = fn() -> Int =>
+{
+	counter := (*counter) + 1;
+	*counter
+};
+
+def BumpTwice = fn() -> Int =>
+{
+	def first = Bump();
+	first + Bump()
+};
+
+def through_global = Concurrency::JoinedOrPanic(Concurrency::Join(Concurrency::Spawn((), BumpTwice)));
+IO::PrintLine("global: worker saw " ++ (through_global as Text) ++ ", main still has " ++ (*counter as Text));
+
+def RunNested = fn() -> Int =>
+{
+	def local = ref 10;
+	def worker = Concurrency::Spawn((), fn() -> Int =>
+	{
+		def bump = fn() -> Int =>
+		{
+			local := (*local) + 1;
+			*local
+		};
+		bump()
+	});
+	def seen = Concurrency::JoinedOrPanic(Concurrency::Join(worker));
+	IO::PrintLine("nested lambda: worker saw " ++ (seen as Text) ++ ", main still has " ++ (*local as Text));
+	seen
+};
+
+def nested = RunNested();

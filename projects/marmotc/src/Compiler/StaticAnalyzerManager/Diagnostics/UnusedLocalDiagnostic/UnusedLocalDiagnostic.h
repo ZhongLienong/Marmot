@@ -10,7 +10,7 @@
 class UnusedLocalDiagnostic final : public DiagnosticPass
 {
 protected:
-	void Reset() override;
+	void Reset(MidoriProgramTree& program_tree) override;
 
 	void Finish() override;
 

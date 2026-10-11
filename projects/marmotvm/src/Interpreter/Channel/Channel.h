@@ -21,7 +21,7 @@ enum class ChannelOpStatus
 struct ChannelReceiveResult
 {
 	ChannelOpStatus m_status = ChannelOpStatus::Closed;
-	std::optional<SerializedValue> m_value = std::nullopt;
+	std::optional<TransferPayload> m_value = std::nullopt;
 };
 
 class Channel
@@ -29,7 +29,7 @@ class Channel
 public:
 	explicit Channel(int capacity);
 
-	ChannelOpStatus Send(SerializedValue message, std::stop_token stop_token);
+	ChannelOpStatus Send(TransferPayload message, std::stop_token stop_token);
 
 	ChannelReceiveResult Receive(std::stop_token stop_token);
 
@@ -43,7 +43,7 @@ private:
 	mutable std::mutex m_mutex;
 	std::condition_variable_any m_not_empty;
 	std::condition_variable_any m_not_full;
-	std::deque<SerializedValue> m_queue;
+	std::deque<TransferPayload> m_queue;
 	int m_capacity;
 	// Written under m_mutex, so the waits see it, and read without it so the
 	// registry is locked only for a channel that may need reclaiming.
@@ -57,7 +57,7 @@ public:
 
 	int CreateChannel(int capacity);
 
-	ChannelOpStatus Send(int channel_id, SerializedValue message, std::stop_token stop_token);
+	ChannelOpStatus Send(int channel_id, TransferPayload message, std::stop_token stop_token);
 
 	ChannelReceiveResult Receive(int channel_id, std::stop_token stop_token);
 

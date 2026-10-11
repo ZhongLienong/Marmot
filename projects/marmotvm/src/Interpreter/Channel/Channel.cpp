@@ -7,7 +7,7 @@ Channel::Channel(int capacity)
 {
 }
 
-ChannelOpStatus Channel::Send(SerializedValue message, std::stop_token stop_token)
+ChannelOpStatus Channel::Send(TransferPayload message, std::stop_token stop_token)
 {
 	std::unique_lock<std::mutex> lock(m_mutex);
 	const bool ready = m_not_full.wait(lock, stop_token, [this]()
@@ -48,7 +48,7 @@ ChannelReceiveResult Channel::Receive(std::stop_token stop_token)
 		return ChannelReceiveResult{ ChannelOpStatus::Closed, std::nullopt };
 	}
 
-	SerializedValue message = std::move(m_queue.front());
+	TransferPayload message = std::move(m_queue.front());
 	m_queue.pop_front();
 	m_not_full.notify_one();
 	return ChannelReceiveResult{ ChannelOpStatus::Ok, std::move(message) };
@@ -88,7 +88,7 @@ int ChannelRegistry::CreateChannel(int capacity)
 	return id;
 }
 
-ChannelOpStatus ChannelRegistry::Send(int channel_id, SerializedValue message, std::stop_token stop_token)
+ChannelOpStatus ChannelRegistry::Send(int channel_id, TransferPayload message, std::stop_token stop_token)
 {
 	std::shared_ptr<Channel> channel = FindChannel(channel_id);
 	if (channel == nullptr)

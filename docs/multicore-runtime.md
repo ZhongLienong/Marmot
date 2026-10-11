@@ -22,7 +22,7 @@ Communication between workers happens exclusively through message passing
 | Call stack | No | Per-VM, 10k slots |
 | Heap / Allocator | No | Per-VM `MidoriAllocator` |
 | Garbage collector | No | Per-VM, independent generational collection |
-| Global variables | No | Per-VM; a worker starts from a copy of the spawning VM's globals |
+| Global variables | No | Per-VM; a worker holds copies of the globals its code can read |
 | String literal cache | No | Per-VM |
 | Static closure cache | No | Per-VM |
 
@@ -30,9 +30,9 @@ Communication between workers happens exclusively through message passing
 
 Cross-worker value transfer is governed by the `Transferable<T>` typeclass.
 Types that satisfy `Transferable` can be deep-copied across worker boundaries
-by `ValueTransfer`: the sending thread copies the value into a `SerializedValue`
-tree, and the receiving VM rebuilds it in its own heap. Spawns, joins and
-channels all cross this way.
+by `ValueTransfer`: the sending thread copies the value into a `TransferPayload`,
+and the receiving VM rebuilds it in its own heap. Spawns, joins and channels
+all cross this way.
 
 **Built-in `Transferable` instances** (deep copy):
 - `Int`, `Float`, `Byte`, `Word`, `Bool`, `Unit` — bitwise copy (no heap allocation)
@@ -41,8 +41,10 @@ channels all cross this way.
 - `Channel<T>` where `Transferable<T>` — handle copy (process-wide registry index)
 - `Ref<T>` where `Transferable<T>` — **copied**: the worker gets its own cell, so
   writes on either side are not seen by the other. The compiler warns
-  (`CellCrossesWorker`) wherever a cell is passed to `Spawn`, captured by the
-  spawned lambda, sent through a channel, or mapped with `ParallelMap`.
+  (`CellCrossesWorker`) wherever a cell is passed to `Spawn`, sent through a
+  channel, or mapped with `ParallelMap`, and wherever a function that crosses
+  captures one or reads one as a global, itself or through a function of the
+  same module it calls.
 
 **Derivable for user types**:
 - Structs and unions can `deriving (Transferable)` if all fields/variants satisfy `Transferable`
@@ -68,12 +70,23 @@ contents can change; it is copied like everything else, which is why crossing
 with one is a warning rather than a data race. The same copy carries a worker's
 globals, the spawned function itself, and any function sent through a channel.
 
-Everything that crosses in one spawn (the function, its arguments and the
-globals) is copied through one sharing map, so an object reached twice arrives
-as one copy: `Concurrency::Spawn((c, c), F)` gives the worker one cell, not two.
+Everything that crosses at once (a spawn's function and arguments, a message, a
+join's result) is one payload, a table of the objects it reaches in which each
+object is copied once and refers to the others by index. An object reached twice
+arrives as one copy, `Concurrency::Spawn((c, c), F)` gives the worker one cell,
+not two, and a cycle is an index pointing back. Copying runs from a worklist in
+both directions, so a structure of any depth, such as a long linked list, takes
+no native stack.
 
-Cycle detection is handled via a `PointerMap` that tracks already-transferred
-traceables.
+A payload also carries the globals its functions can read. The sending VM
+follows each closure in it to its procedure, whose bytecode names the globals
+it reads and the procedures it calls or makes closures of, and follows those in
+turn, along with the closures inside each global it copies. A worker therefore
+starts with the globals its own code can read and no others, and a function
+that reaches it later, through a channel or a join, brings the ones it reads. A
+worker takes a global the first time a payload brings it and keeps that copy,
+so a cell held in a global is one cell for the whole worker; the VM that ran
+the program's initializers already holds every global and takes none.
 
 ## Concurrency Functions
 
@@ -128,16 +141,16 @@ with it.
    - Constructs a new `VirtualMachine` sharing the executable's bytecode
    - Takes a snapshot of dynamic FFI functions from `SharedLibraryCache`
    - Validates FFI thread safety before execution
-   - Installs a copy of the spawning VM's globals, serialized on the spawning
-     thread at the spawn. Globals are defined once and never reassigned, so
-     the spawned function sees exactly what it would see if called directly.
-     Module initializers are not re-run, so their effects happen once per
-     program, not once per worker.
+   - Installs the globals its code can read, copied on the spawning thread at
+     the spawn. Globals are defined once and never reassigned, so the spawned
+     function sees exactly what it would see if called directly. Module
+     initializers are not re-run, so their effects happen once per program,
+     not once per worker.
    - Deep-copies arguments via `ValueTransfer` into the worker VM's stack
    - Calls `VirtualMachine::Execute()` — the same dispatch loop the main VM uses
 
 2. **Join**: `Concurrency::Join(w)` blocks until the worker finishes. The worker's value is
-   deserialized from its `SerializedValue` and wrapped in `Ok`; a failure or
+   deserialized from its `TransferPayload` and wrapped in `Ok`; a failure or
    cancellation becomes `Err(WorkerError)` instead. `JOIN_WORKER` builds these
    union values itself, using the constructor tags the compiler reads from the
    `Result` and `WorkerError` declarations.
@@ -159,18 +172,19 @@ with it.
 
 ## Failure Propagation
 
-- If a worker fails, the `Worker` captures both the error message and the
-  originating `RuntimeErrorCode`
+- If a worker fails, the `Worker` keeps the error message and whether the
+  failure was its cancellation
 - On a join, that failure becomes a value, not an error in the joining VM: a
-  `WorkerCancelled` code gives `Err(WorkerError::Cancelled())`, and any other
-  code gives `Err(WorkerError::Failed(message))`. The joining program keeps
-  running and decides what a failed worker means
+  cancellation gives `Err(WorkerError::Cancelled())`, and any other failure,
+  a native library that is not thread-safe included, gives
+  `Err(WorkerError::Failed(message))`. The joining program keeps running and
+  decides what a failed worker means
 - `Panic::Panic` inside a worker fails that worker and nothing else. Panic exits
   the process, and a worker may not do that to a program it only borrows a thread
   from, so the runtime stops the worker with `WorkerExited` and the joiner gets
   `Err(WorkerError::Failed(...))`. The panic message still goes to standard error
 - If a worker is never joined and failed, the destructor prints the message to
-  standard output
+  standard error
 
 ## FFI Under Multicore
 
@@ -206,7 +220,7 @@ There is no bounded or non-blocking receive at the language level: a receive
 waits until a value arrives, the channel closes, or the worker is cancelled.
 
 Internally: `std::mutex` + `std::condition_variable_any` +
-`std::deque<SerializedValue>`. The waits are stop-token-aware, which is what
+`std::deque<TransferPayload>`. The waits are stop-token-aware, which is what
 makes a channel-blocked worker cancellable.
 
 Channel handles are raw `Int` values managed by `ChannelRegistry`, not

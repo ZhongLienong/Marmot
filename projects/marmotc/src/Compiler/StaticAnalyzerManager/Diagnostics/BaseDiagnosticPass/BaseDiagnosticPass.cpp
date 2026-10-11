@@ -6,14 +6,14 @@ std::vector<CompilerWarning> DiagnosticPass::Run(MidoriProgramTree& program_tree
 {
 	m_file_name = file_name;
 	m_source_lines = &source_lines;
-	Reset();
+	Reset(program_tree);
 	VisitProgram(program_tree);
 	Finish();
 	m_source_lines = nullptr;
 	return std::exchange(m_warnings, {});
 }
 
-void DiagnosticPass::Reset()
+void DiagnosticPass::Reset(MidoriProgramTree&)
 {
 }
 

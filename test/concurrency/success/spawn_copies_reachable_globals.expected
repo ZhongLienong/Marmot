@@ -1,0 +1,15 @@
+[warning] 2 warning(s) in spawn_copies_reachable_globals.mmt
+Static Analyzer Warning at test/concurrency/success/spawn_copies_reachable_globals.mmt:59
+   |
+59 | def bumper = Concurrency::Spawn(bumps, BumpThenRun);
+   |              ^^^^^^^^^^^ The global reference 'counter' is copied into the worker; writes on either side are not seen by the other.
+   |
+Static Analyzer Warning at test/concurrency/success/spawn_copies_reachable_globals.mmt:60
+   |
+60 | def bump_sent = bumps -> BumpCounter;
+   |                       ^^ The global reference 'counter' is copied into the worker; writes on either side are not seen by the other.
+   |
+through a global: 108
+nested: 301
+through a channel: 42
+one copy per worker: 12, main still has 0

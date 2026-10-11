@@ -2,9 +2,12 @@
 
 #include "Interpreter/VirtualMachine/VirtualMachine.h"
 
+#include <algorithm>
 #include <ranges>
 #include <span>
-#include <vector>
+#include <unordered_map>
+#include <unordered_set>
+#include <utility>
 
 namespace
 {
@@ -13,181 +16,315 @@ namespace
 	{
 		using Visitors::operator()...;
 	};
-}
 
-SerializedValue ValueTransfer::Serialize(MidoriValue source, VirtualMachine& source_vm)
-{
-	SerializePointerMap visited;
-	return Serialize(source, source_vm, visited);
-}
-
-MidoriValue ValueTransfer::Deserialize(const SerializedValue& source, VirtualMachine& target_vm)
-{
-	DeserializePointerMap visited;
-	return Deserialize(source, target_vm, visited);
-}
-
-SerializedValue ValueTransfer::Serialize(MidoriValue source, VirtualMachine& source_vm, SerializePointerMap& visited)
-{
-	MidoriTraceable* pointer = source.GetPointer();
-	if (pointer == nullptr || !source_vm.GetGC().Contains(pointer))
+	bool IsHeapObject(MidoriValue value, const VirtualMachine& vm)
 	{
-		return SerializedValue{ source.GetRawBits(), nullptr };
+		MidoriTraceable* pointer = value.GetPointer();
+		return pointer != nullptr && vm.GetGC().Contains(pointer);
 	}
 
-	return SerializedValue{ 0u, SerializeTraceable(pointer, source_vm, visited) };
-}
-
-std::shared_ptr<SerializedObject> ValueTransfer::SerializeTraceable(MidoriTraceable* source, VirtualMachine& source_vm, SerializePointerMap& visited)
-{
-	SerializePointerMap::iterator visited_it = visited.find(source);
-	if (visited_it != visited.end())
+	// Copies values out of one VM's heap. An object gets its index when first
+	// reached and is copied later, from a worklist, so a cycle (a recursive local
+	// closure captures itself) is an index pointing back. A copied closure brings
+	// its procedure, whose bytecode names the globals it reads and the procedures
+	// it calls or makes closures of; those are followed in turn, so the payload
+	// carries every global the functions in it can reach, and no other.
+	class PayloadWriter
 	{
-		return visited_it->second;
-	}
+	public:
+		explicit PayloadWriter(VirtualMachine& source_vm);
 
-	// Registered before its contents are copied, so a cycle back to it (a
-	// recursive local closure captures itself) becomes a shared reference.
-	std::shared_ptr<SerializedObject> serialized = std::make_shared<SerializedObject>();
-	visited.emplace(source, serialized);
+		TransferPayload Write(MidoriValue value) &&;
 
-	const auto serialize = [&source_vm, &visited](MidoriValue value) -> SerializedValue
-	{
-		return Serialize(value, source_vm, visited);
+	private:
+		SerializedValue Reference(MidoriValue value);
+
+		SerializedObject Copy(MidoriTraceable* source);
+
+		void CopyPendingObjects();
+
+		void ReachProcedure(int proc_index);
+
+		void ReachGlobal(int global_index);
+
+		void ScanProcedure(int proc_index);
+
+		VirtualMachine& m_source_vm;
+		TransferPayload m_payload;
+		std::unordered_map<MidoriTraceable*, MidoriWord> m_object_indices;
+		std::vector<std::pair<MidoriTraceable*, size_t>> m_pending_objects;
+		std::unordered_set<int> m_reached_procedures;
+		std::vector<int> m_pending_procedures;
+		std::unordered_set<int> m_reached_globals;
 	};
 
-	switch (source->GetType())
+	PayloadWriter::PayloadWriter(VirtualMachine& source_vm)
+		: m_source_vm(source_vm)
 	{
-	case MidoriTraceable::TraceableType::Text:
-	{
-		serialized->m_data = SerializedObject::Text{ std::string(source->GetTraceable<MidoriText>().View()) };
-		break;
 	}
-	case MidoriTraceable::TraceableType::Array:
+
+	TransferPayload PayloadWriter::Write(MidoriValue value) &&
 	{
-		const MidoriArray& array = source->GetTraceable<MidoriArray>();
-		serialized->m_data = SerializedObject::Array
+		m_payload.m_root = Reference(value);
+		CopyPendingObjects();
+		while (!m_pending_procedures.empty())
 		{
-			std::views::iota(0, array.GetLength())
-				| std::views::transform([&array, &serialize](int index) -> SerializedValue { return serialize(array[index]); })
-				| std::ranges::to<std::vector<SerializedValue>>()
+			const int proc_index = m_pending_procedures.back();
+			m_pending_procedures.pop_back();
+			ScanProcedure(proc_index);
+			CopyPendingObjects();
+		}
+
+		return std::move(m_payload);
+	}
+
+	SerializedValue PayloadWriter::Reference(MidoriValue value)
+	{
+		if (!IsHeapObject(value, m_source_vm))
+		{
+			return SerializedValue{ value.GetRawBits(), false };
+		}
+
+		const auto [entry, inserted] = m_object_indices.try_emplace(value.GetPointer(), static_cast<MidoriWord>(m_payload.m_objects.size()));
+		if (inserted)
+		{
+			m_payload.m_objects.emplace_back();
+			m_pending_objects.emplace_back(value.GetPointer(), m_payload.m_objects.size() - 1uz);
+		}
+		return SerializedValue{ entry->second, true };
+	}
+
+	void PayloadWriter::CopyPendingObjects()
+	{
+		while (!m_pending_objects.empty())
+		{
+			const auto [source, index] = m_pending_objects.back();
+			m_pending_objects.pop_back();
+			SerializedObject copy = Copy(source);
+			m_payload.m_objects[index] = std::move(copy);
+		}
+	}
+
+	SerializedObject PayloadWriter::Copy(MidoriTraceable* source)
+	{
+		const auto reference = [this](MidoriValue value) -> SerializedValue
+		{
+			return Reference(value);
 		};
-		break;
-	}
-	// A closure is immutable once built (v2 has no assignment), so a structural
-	// copy is the same value.
-	case MidoriTraceable::TraceableType::Tuple:
-	case MidoriTraceable::TraceableType::Struct:
-	case MidoriTraceable::TraceableType::Union:
-	case MidoriTraceable::TraceableType::Closure:
-	{
-		const std::span<const MidoriValue> values(source->GetValues(), static_cast<size_t>(source->GetLength()));
-		serialized->m_data = SerializedObject::Aggregate
+
+		switch (source->GetType())
 		{
-			source->GetType(),
-			source->GetIndex(),
-			values | std::views::transform(serialize) | std::ranges::to<std::vector<SerializedValue>>()
-		};
-		break;
-	}
-	case MidoriTraceable::TraceableType::IntRange:
-	{
-		const MidoriIntRange& range = source->GetTraceable<MidoriIntRange>();
-		serialized->m_data = SerializedObject::IntRange{ range.GetStart(), range.GetEnd(), range.GetStep() };
-		break;
-	}
-	case MidoriTraceable::TraceableType::FloatRange:
-	{
-		const MidoriFloatRange& range = source->GetTraceable<MidoriFloatRange>();
-		serialized->m_data = SerializedObject::FloatRange{ range.GetStart(), range.GetEnd(), range.GetStep() };
-		break;
-	}
-	case MidoriTraceable::TraceableType::MutableCell:
-	{
-		serialized->m_data = SerializedObject::MutableCell{ serialize(source->GetTraceable<MidoriMutableCell>().m_value) };
-		break;
-	}
-	}
-
-	return serialized;
-}
-
-MidoriValue ValueTransfer::Deserialize(const SerializedValue& source, VirtualMachine& target_vm, DeserializePointerMap& visited)
-{
-	if (!source.HasObject())
-	{
-		return MidoriValue::FromRawBits(source.m_raw_bits);
-	}
-
-	return MidoriValue(DeserializeObject(*source.m_object, target_vm, visited));
-}
-
-MidoriTraceable* ValueTransfer::DeserializeObject(const SerializedObject& source, VirtualMachine& target_vm, DeserializePointerMap& visited)
-{
-	DeserializePointerMap::iterator visited_it = visited.find(&source);
-	if (visited_it != visited.end())
-	{
-		return visited_it->second;
-	}
-
-	// Registered before its contents are filled in, for the same cycles as above.
-	const auto registered = [&source, &visited](MidoriTraceable* transferred) -> MidoriTraceable*
-	{
-		visited.emplace(&source, transferred);
-		return transferred;
-	};
-
-	return std::visit
-	(
-		Overloaded
+		case MidoriTraceable::TraceableType::Text:
 		{
-			[&](const SerializedObject::Text& text) -> MidoriTraceable*
+			return SerializedObject{ SerializedObject::Text{ std::string(source->GetTraceable<MidoriText>().View()) } };
+		}
+		case MidoriTraceable::TraceableType::Array:
+		{
+			const MidoriArray& array = source->GetTraceable<MidoriArray>();
+			return SerializedObject
 			{
-				return registered(target_vm.AllocateTraceable(MidoriText(text.m_text.c_str())));
-			},
-			[&](const SerializedObject::Array& array) -> MidoriTraceable*
-			{
-				MidoriTraceable* transferred = registered(target_vm.AllocateTraceable(MidoriArray(static_cast<int>(array.m_elements.size()))));
-				MidoriArray& elements = transferred->GetTraceable<MidoriArray>();
-				for (size_t index = 0uz; index < array.m_elements.size(); index += 1uz)
+				SerializedObject::Array
 				{
-					elements[static_cast<int>(index)] = Deserialize(array.m_elements[index], target_vm, visited);
+					std::views::iota(0, array.GetLength())
+						| std::views::transform([&array, &reference](int index) -> SerializedValue { return reference(array[index]); })
+						| std::ranges::to<std::vector<SerializedValue>>()
 				}
-				return transferred;
-			},
-			[&](const SerializedObject::Aggregate& aggregate) -> MidoriTraceable*
+			};
+		}
+		// A closure is immutable once built (v2 has no assignment), so a structural
+		// copy is the same value.
+		case MidoriTraceable::TraceableType::Tuple:
+		case MidoriTraceable::TraceableType::Struct:
+		case MidoriTraceable::TraceableType::Union:
+		case MidoriTraceable::TraceableType::Closure:
+		{
+			if (source->GetType() == MidoriTraceable::TraceableType::Closure)
 			{
-				// A capture-free function goes through the target VM's static closure
-				// cache, exactly as MAKE_FUNCTION_WIDE would produce it there.
-				if (aggregate.m_type == MidoriTraceable::TraceableType::Closure && aggregate.m_values.empty())
-				{
-					return registered(target_vm.MakeFunctionValue(aggregate.m_index).GetPointer());
-				}
-
-				const std::vector<MidoriValue> placeholders(aggregate.m_values.size());
-				MidoriTraceable* transferred = registered(target_vm.AllocateAggregate(aggregate.m_type, placeholders, aggregate.m_index));
-				MidoriValue* values = transferred->GetValues();
-				for (size_t index = 0uz; index < aggregate.m_values.size(); index += 1uz)
-				{
-					values[index] = Deserialize(aggregate.m_values[index], target_vm, visited);
-				}
-				return transferred;
-			},
-			[&](const SerializedObject::IntRange& range) -> MidoriTraceable*
-			{
-				return registered(target_vm.AllocateTraceable(MidoriIntRange(range.m_start, range.m_end, range.m_step)));
-			},
-			[&](const SerializedObject::FloatRange& range) -> MidoriTraceable*
-			{
-				return registered(target_vm.AllocateTraceable(MidoriFloatRange(range.m_start, range.m_end, range.m_step)));
-			},
-			[&](const SerializedObject::MutableCell& cell) -> MidoriTraceable*
-			{
-				MidoriTraceable* transferred = registered(target_vm.AllocateTraceable(MidoriMutableCell(MidoriValue())));
-				transferred->GetTraceable<MidoriMutableCell>().m_value = Deserialize(cell.m_value, target_vm, visited);
-				return transferred;
+				ReachProcedure(source->GetIndex());
 			}
-		},
-		source.m_data
-	);
+
+			const std::span<const MidoriValue> values(source->GetValues(), static_cast<size_t>(source->GetLength()));
+			return SerializedObject
+			{
+				SerializedObject::Aggregate
+				{
+					source->GetType(),
+					source->GetIndex(),
+					values | std::views::transform(reference) | std::ranges::to<std::vector<SerializedValue>>()
+				}
+			};
+		}
+		case MidoriTraceable::TraceableType::IntRange:
+		{
+			const MidoriIntRange& range = source->GetTraceable<MidoriIntRange>();
+			return SerializedObject{ SerializedObject::IntRange{ range.GetStart(), range.GetEnd(), range.GetStep() } };
+		}
+		case MidoriTraceable::TraceableType::FloatRange:
+		{
+			const MidoriFloatRange& range = source->GetTraceable<MidoriFloatRange>();
+			return SerializedObject{ SerializedObject::FloatRange{ range.GetStart(), range.GetEnd(), range.GetStep() } };
+		}
+		case MidoriTraceable::TraceableType::MutableCell:
+		{
+			return SerializedObject{ SerializedObject::MutableCell{ reference(source->GetTraceable<MidoriMutableCell>().m_value) } };
+		}
+		}
+
+		std::unreachable();
+	}
+
+	void PayloadWriter::ReachProcedure(int proc_index)
+	{
+		if (m_reached_procedures.insert(proc_index).second)
+		{
+			m_pending_procedures.push_back(proc_index);
+		}
+	}
+
+	void PayloadWriter::ReachGlobal(int global_index)
+	{
+		if (m_reached_globals.insert(global_index).second)
+		{
+			m_payload.m_globals.push_back(SerializedGlobal{ global_index, Reference(m_source_vm.GetGlobalValue(global_index)) });
+		}
+	}
+
+	// A global's index is written high byte first, a procedure's low byte first.
+	void PayloadWriter::ScanProcedure(int proc_index)
+	{
+		const VmBytecodeStream& bytecode = m_source_vm.GetExecutable().GetBytecodeStream(proc_index);
+		const auto operand = [&bytecode](int offset) -> int
+		{
+			return static_cast<int>(bytecode.ReadByteCode(offset));
+		};
+
+		for (int offset = 0; offset < bytecode.GetByteCodeSize(); offset += VmOpCodeTable::Length(bytecode.ReadByteCode(offset)))
+		{
+			switch (bytecode.ReadByteCode(offset))
+			{
+			case VmOpCode::GET_GLOBAL_WIDE:
+			case VmOpCode::CALL_GLOBAL_WIDE:
+			{
+				ReachGlobal((operand(offset + 1) << 8) | operand(offset + 2));
+				break;
+			}
+			case VmOpCode::CALL_PROC_WIDE:
+			case VmOpCode::MAKE_FUNCTION_WIDE:
+			case VmOpCode::MAKE_CLOSURE_OF:
+			{
+				ReachProcedure(operand(offset + 1) | (operand(offset + 2) << 8));
+				break;
+			}
+			default:
+			{
+				break;
+			}
+			}
+		}
+	}
+
+	MidoriTraceable* Allocate(const SerializedObject& object, VirtualMachine& target_vm)
+	{
+		return std::visit
+		(
+			Overloaded
+			{
+				[&target_vm](const SerializedObject::Text& text) -> MidoriTraceable*
+				{
+					return target_vm.AllocateTraceable(MidoriText(text.m_text.c_str()));
+				},
+				[&target_vm](const SerializedObject::Array& array) -> MidoriTraceable*
+				{
+					return target_vm.AllocateTraceable(MidoriArray(static_cast<int>(array.m_elements.size())));
+				},
+				[&target_vm](const SerializedObject::Aggregate& aggregate) -> MidoriTraceable*
+				{
+					// A capture-free function goes through the target VM's static closure
+					// cache, exactly as MAKE_FUNCTION_WIDE would produce it there.
+					if (aggregate.m_type == MidoriTraceable::TraceableType::Closure && aggregate.m_values.empty())
+					{
+						return target_vm.MakeFunctionValue(aggregate.m_index).GetPointer();
+					}
+
+					const std::vector<MidoriValue> placeholders(aggregate.m_values.size());
+					return target_vm.AllocateAggregate(aggregate.m_type, placeholders, aggregate.m_index);
+				},
+				[&target_vm](const SerializedObject::IntRange& range) -> MidoriTraceable*
+				{
+					return target_vm.AllocateTraceable(MidoriIntRange(range.m_start, range.m_end, range.m_step));
+				},
+				[&target_vm](const SerializedObject::FloatRange& range) -> MidoriTraceable*
+				{
+					return target_vm.AllocateTraceable(MidoriFloatRange(range.m_start, range.m_end, range.m_step));
+				},
+				[&target_vm](const SerializedObject::MutableCell&) -> MidoriTraceable*
+				{
+					return target_vm.AllocateTraceable(MidoriMutableCell(MidoriValue()));
+				}
+			},
+			object.m_data
+		);
+	}
+}
+
+// Most messages are a number or a flag, which need none of the writer's tables.
+TransferPayload ValueTransfer::Serialize(MidoriValue value, VirtualMachine& source_vm)
+{
+	if (!IsHeapObject(value, source_vm))
+	{
+		return TransferPayload{ {}, {}, SerializedValue{ value.GetRawBits(), false } };
+	}
+
+	return PayloadWriter(source_vm).Write(value);
+}
+
+MidoriValue ValueTransfer::Deserialize(const TransferPayload& payload, VirtualMachine& target_vm)
+{
+	// Every object is allocated before any is filled in, so a reference to any of
+	// them, back or forward, is a lookup.
+	const std::vector<MidoriTraceable*> objects = payload.m_objects
+		| std::views::transform([&target_vm](const SerializedObject& object) -> MidoriTraceable* { return Allocate(object, target_vm); })
+		| std::ranges::to<std::vector<MidoriTraceable*>>();
+	const auto resolve = [&objects](SerializedValue value) -> MidoriValue
+	{
+		return value.m_is_object ? MidoriValue(objects[static_cast<size_t>(value.m_bits)]) : MidoriValue::FromRawBits(value.m_bits);
+	};
+
+	for (size_t index = 0uz; index < objects.size(); index += 1uz)
+	{
+		MidoriTraceable* transferred = objects[index];
+		std::visit
+		(
+			Overloaded
+			{
+				[transferred, &resolve](const SerializedObject::Array& array)
+				{
+					MidoriArray& elements = transferred->GetTraceable<MidoriArray>();
+					for (size_t element = 0uz; element < array.m_elements.size(); element += 1uz)
+					{
+						elements[static_cast<int>(element)] = resolve(array.m_elements[element]);
+					}
+				},
+				[transferred, &resolve](const SerializedObject::Aggregate& aggregate)
+				{
+					std::ranges::transform(aggregate.m_values, transferred->GetValues(), resolve);
+				},
+				[transferred, &resolve](const SerializedObject::MutableCell& cell)
+				{
+					transferred->GetTraceable<MidoriMutableCell>().m_value = resolve(cell.m_value);
+				},
+				[](const auto&)
+				{
+				}
+			},
+			payload.m_objects[index].m_data
+		);
+	}
+
+	for (const SerializedGlobal& global : payload.m_globals)
+	{
+		target_vm.InstallGlobal(global.m_index, resolve(global.m_value));
+	}
+
+	return resolve(payload.m_root);
 }

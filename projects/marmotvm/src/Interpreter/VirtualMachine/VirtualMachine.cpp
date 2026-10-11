@@ -308,30 +308,20 @@ namespace
 	static constexpr VmOpCode s_halt_bytecode[] = { VmOpCode::HALT };
 }
 
-VirtualMachine::VirtualMachine(std::shared_ptr<const VmExecutable> shared_executable, int proc_index, const GlobalVariables* source_globals) noexcept
+VirtualMachine::VirtualMachine(std::shared_ptr<const VmExecutable> shared_executable) noexcept
 	: m_owned_executable(std::move(shared_executable))
+	, m_is_worker(true)
 {
 	m_gc.SetAllocator(&m_allocator);
 	m_executable = m_owned_executable.get();
 
-	if (source_globals != nullptr)
-	{
-		m_owned_globals = *source_globals;
-	}
-	else
-	{
-		m_owned_globals.resize(static_cast<size_t>(m_executable->GetGlobalVariableCount()));
-	}
+	m_owned_globals.resize(static_cast<size_t>(m_executable->GetGlobalVariableCount()));
+	m_installed_globals.assign(m_owned_globals.size(), false);
 	m_global_vars = &m_owned_globals;
 	m_string_literal_cache.resize(m_executable->GetStringPool().size(), nullptr);
 
 	InitializeProcEntryCache();
 	InitializeStacks();
-
-	m_instruction_pointer = GetProcEntry(proc_index);
-
-	PushCallFrame(m_value_stack_begin, &s_halt_bytecode[0], nullptr, nullptr);
-	m_value_stack_base_pointer = m_value_stack_pointer;
 }
 
 void VirtualMachine::PrepareWorkerCall(MidoriValue worker_function) noexcept
@@ -340,7 +330,6 @@ void VirtualMachine::PrepareWorkerCall(MidoriValue worker_function) noexcept
 	m_value_stack_base_pointer = m_value_stack_begin;
 	m_call_stack_pointer = m_call_stack_begin;
 	m_last_error.reset();
-	m_is_worker = true;
 
 	// The spawned function is a transferred closure rather than a procedure index:
 	// it is not on this VM's stack, so it is rooted here, and its cells are the
@@ -354,6 +343,16 @@ void VirtualMachine::PrepareWorkerCall(MidoriValue worker_function) noexcept
 
 	PushCallFrame(m_value_stack_begin, &s_halt_bytecode[0], m_curr_environment, m_curr_closure_traceable);
 	m_value_stack_base_pointer = m_value_stack_pointer;
+}
+
+void VirtualMachine::InstallGlobal(int global_index, MidoriValue value) noexcept
+{
+	const size_t slot = static_cast<size_t>(global_index);
+	if (m_is_worker && !m_installed_globals[slot])
+	{
+		(*m_global_vars)[slot] = value;
+		m_installed_globals[slot] = true;
+	}
 }
 
 MidoriValue VirtualMachine::MakeFunctionValue(int proc_index) noexcept
@@ -388,31 +387,18 @@ MIDORI_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(VmOpCode inst
 
 		// The function is an ordinary value on the stack, above its arguments, and
 		// crosses to the worker like any other transferred value: its procedure index
-		// plus a copy of whatever cells it captured.
-		MidoriValue worker_function = Pop();
-		// The function, its arguments and the globals cross as one payload through one
-		// sharing map, so an object reached twice (a cell passed twice, or captured and
-		// also passed) arrives as one copy rather than two.
-		ValueTransfer::SerializePointerMap sharing;
-		SerializedValue serialized_function = ValueTransfer::Serialize(worker_function, *this, sharing);
-
-		std::vector<SerializedValue> serialized_args;
-		serialized_args.reserve(static_cast<size_t>(arg_count));
-		for (int arg_index = 0; arg_index < arg_count; arg_index += 1)
-		{
-			serialized_args.emplace_back(ValueTransfer::Serialize(Pop(), *this, sharing));
-		}
-		std::reverse(serialized_args.begin(), serialized_args.end());
-
-		// The worker starts from a copy of this VM's globals, taken here on the
+		// plus a copy of whatever cells it captured. The arguments and the function
+		// cross as one tuple, so an object reached twice (a cell passed twice, or
+		// captured and also passed) arrives as one copy rather than two. The payload
+		// also carries the globals the worker's code can read, copied here on the
 		// spawning thread because this heap is not safe to read from another one.
-		// Globals are only ever defined once, so the copy is exactly what the
-		// spawned function would see if it were called directly.
-		std::vector<SerializedValue> serialized_globals = *m_global_vars
-			| std::views::transform([this, &sharing](MidoriValue global_value) -> SerializedValue { return ValueTransfer::Serialize(global_value, *this, sharing); })
-			| std::ranges::to<std::vector<SerializedValue>>();
+		// Globals are only ever defined once, so the copy is exactly what the spawned
+		// function would see if it were called directly.
+		const size_t crossing_count = static_cast<size_t>(arg_count) + 1uz;
+		m_value_stack_pointer -= crossing_count;
+		const MidoriValue crossing = AllocateAggregate(MidoriTraceable::TraceableType::Tuple, std::span<const MidoriValue>(m_value_stack_pointer, crossing_count), 0);
 
-		const int worker_id = WorkerRegistry::GetInstance().SpawnWorker(m_owned_executable, std::move(serialized_function), std::move(serialized_args), std::move(serialized_globals));
+		const int worker_id = WorkerRegistry::GetInstance().SpawnWorker(m_owned_executable, ValueTransfer::Serialize(crossing, *this));
 		Push(static_cast<MidoriInteger>(worker_id));
 		return true;
 	}
@@ -427,7 +413,7 @@ MIDORI_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(VmOpCode inst
 		// cancelled becomes Err(...) for the joining code to handle; it no longer
 		// terminates the joining VM.
 		const int worker_id = static_cast<int>(Pop().GetInteger());
-		std::expected<SerializedValue, WorkerError> worker_result = WorkerRegistry::GetInstance().JoinWorkerValue(worker_id);
+		std::expected<TransferPayload, WorkerError> worker_result = WorkerRegistry::GetInstance().JoinWorkerValue(worker_id);
 
 		MidoriValue payload;
 		int result_tag = ok_tag;
@@ -437,7 +423,7 @@ MIDORI_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(VmOpCode inst
 		}
 		else
 		{
-			if (worker_result.error().m_code == RuntimeErrorCode::WorkerCancelled)
+			if (worker_result.error().m_cancelled)
 			{
 				payload = AllocateAggregate(MidoriTraceable::TraceableType::Union, {}, cancelled_tag);
 			}

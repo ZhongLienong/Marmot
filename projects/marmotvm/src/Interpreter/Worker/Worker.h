@@ -13,16 +13,18 @@
 #include <unordered_map>
 #include <vector>
 
+// Why a worker has no value. A join tells cancellation apart from the rest, which
+// reach the joining code as their message.
 struct WorkerError
 {
-	RuntimeErrorCode m_code = RuntimeErrorCode::InternalTypeError;
+	bool m_cancelled = false;
 	std::string m_message;
 };
 
 class Worker
 {
 public:
-	Worker(std::shared_ptr<const VmExecutable> executable, SerializedValue serialized_function, std::vector<SerializedValue> serialized_args, std::vector<SerializedValue> serialized_globals);
+	Worker(std::shared_ptr<const VmExecutable> executable, TransferPayload payload);
 
 	~Worker();
 
@@ -31,7 +33,7 @@ public:
 	Worker(Worker&&) = delete;
 	Worker& operator=(Worker&&) = delete;
 
-	std::expected<SerializedValue, WorkerError> JoinValue();
+	std::expected<TransferPayload, WorkerError> JoinValue();
 
 	bool IsDone() const;
 
@@ -40,16 +42,14 @@ public:
 private:
 	void Execute(std::stop_token stop_token);
 
-	std::expected<SerializedValue, WorkerError> Run(std::stop_token stop_token);
+	std::expected<TransferPayload, WorkerError> Run(std::stop_token stop_token);
 
 	std::shared_ptr<const VmExecutable> m_executable;
-	// The spawned function, transferred as a value: its procedure index and a copy
-	// of its captured cells, deserialized into the worker's own heap.
-	SerializedValue m_serialized_function;
-	std::vector<SerializedValue> m_serialized_args;
-	std::vector<SerializedValue> m_serialized_globals;
+	// The spawned function and its arguments, as one tuple, with the globals they
+	// can read.
+	TransferPayload m_payload;
 	// Written by the worker thread, read only once it has been joined.
-	std::expected<SerializedValue, WorkerError> m_outcome;
+	std::expected<TransferPayload, WorkerError> m_outcome;
 	std::atomic<bool> m_done{ false };
 	// Last, so it starts once everything it reads is built.
 	std::jthread m_thread;
@@ -60,9 +60,9 @@ class WorkerRegistry
 public:
 	static WorkerRegistry& GetInstance();
 
-	int SpawnWorker(std::shared_ptr<const VmExecutable> executable, SerializedValue serialized_function, std::vector<SerializedValue> serialized_args, std::vector<SerializedValue> serialized_globals);
+	int SpawnWorker(std::shared_ptr<const VmExecutable> executable, TransferPayload payload);
 
-	std::expected<SerializedValue, WorkerError> JoinWorkerValue(int worker_id);
+	std::expected<TransferPayload, WorkerError> JoinWorkerValue(int worker_id);
 
 	bool IsWorkerDone(int worker_id) const;
 

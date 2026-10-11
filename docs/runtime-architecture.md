@@ -123,5 +123,5 @@ Global variables live in the executable's global array and are accessed through:
 - `CALL_GLOBAL_WIDE`
 
 The runtime does not maintain shared-global indirection. A spawned worker gets
-its own copy of the spawning VM's globals, taken at the spawn; see
+its own copy of each global its code can read, taken at the spawn; see
 `docs/multicore-runtime.md`.
