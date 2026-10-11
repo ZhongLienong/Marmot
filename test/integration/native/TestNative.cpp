@@ -52,6 +52,21 @@ MARMOT_TEST_NATIVE_API void marmot_test_sum(void** args, void* ret) noexcept
 	std::memcpy(ret, &sum, sizeof(sum));
 }
 
+MARMOT_TEST_NATIVE_API void marmot_test_count(void** args, void* ret) noexcept
+{
+	int64_t count = 0;
+	std::memcpy(&count, &args[0], sizeof(count));
+	int64_t* values = static_cast<int64_t*>(std::malloc(static_cast<size_t>(count) * sizeof(int64_t)));
+	for (int64_t index = 0; index < count; index += 1)
+	{
+		values[index] = index;
+	}
+	MarmotTestArray* array = static_cast<MarmotTestArray*>(std::malloc(sizeof(MarmotTestArray)));
+	array->data = values;
+	array->length = static_cast<int>(count);
+	std::memcpy(ret, &array, sizeof(array));
+}
+
 MARMOT_TEST_NATIVE_API void marmot_test_shout(void** args, void* ret) noexcept
 {
 	const char* text = static_cast<const char*>(args[0]);

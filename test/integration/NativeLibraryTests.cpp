@@ -207,11 +207,12 @@ TEST_CASE("A native function receives and returns each argument as its declared 
 		"\t\"marmot_test_sum\" Sum : fn(Array<Int>) -> Int;\n"
 		"\t\"marmot_test_shout\" Shout : fn(Text) -> Text;\n"
 		"\t\"marmot_test_words\" Words : fn() -> Array<Text>;\n"
+		"\t\"marmot_test_count\" Count : fn(Int) -> Array<Int>;\n"
 		"}\n"
 		"def empty: Array<Int> = [];\n"
 		"def words = Words();\n"
-		"Print(Shout(\"hey\") ++ \" \" ++ (Length(\"four\") as Text) ++ \" \" ++ (Sum([1, 2, 39]) as Text) ++ \" \" ++ (Sum(empty) as Text) ++ \" \" ++ words[0] ++ \" \" ++ words[1]);\n") });
-	CHECK(Run(Compile(project, "Main.mmt"), { "--library-path", MARMOT_TEST_NATIVE_DIR }) == "hey! 4 42 0 up down");
+		"Print(Shout(\"hey\") ++ \" \" ++ (Length(\"four\") as Text) ++ \" \" ++ (Sum([1, 2, 39]) as Text) ++ \" \" ++ (Sum(empty) as Text) ++ \" \" ++ words[0] ++ \" \" ++ words[1] ++ \" \" ++ (Sum(Count(4)) as Text));\n") });
+	CHECK(Run(Compile(project, "Main.mmt"), { "--library-path", MARMOT_TEST_NATIVE_DIR }) == "hey! 4 42 0 up down 6");
 }
 
 TEST_CASE("A native function takes at most four arguments", "[ffi][native]")

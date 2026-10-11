@@ -204,6 +204,10 @@ private:
 
 	MIDORI_FORCE_INLINE void PassForeignArgument(VmFFIArgumentKind kind, size_t index, MidoriValue argument) noexcept;
 
+#if MIDORI_DEBUG_FULL
+	void CallNativeWithSlots(VmFFIFunction proc, uint8_t return_kind, MidoriValue& result) noexcept;
+#endif
+
 #ifdef _WIN32
 	int ExecuteLoopWithStructuredExceptionHandling(uintptr_t& exception_code, uintptr_t& exception_address, uintptr_t& fault_address, bool& captured) noexcept;
 

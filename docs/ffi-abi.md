@@ -69,7 +69,8 @@ struct FFIArray
 };
 ```
 
-- `data` points at the array's element storage.
+- `data` points at the array's elements, one 8-byte slot of raw value bits
+  each, in every build of the VM.
 - The view is borrowed; native code must not free it.
 
 ### `TraceableHandle`
@@ -109,7 +110,8 @@ The runtime uses `FFIReturnKind` to describe how `ret` is interpreted.
 ### `ArrayValues`
 
 - Native code stores an `FFIArray*` in `ret`.
-- `FFIArray::data` must point to a `MidoriValue*` buffer.
+- `FFIArray::data` must point to a `malloc`ed buffer of 8-byte slots, one per
+  element, holding raw value bits.
 - Marmot takes ownership of that buffer, wraps it as a Marmot array, and frees
   the outer `FFIArray` wrapper.
 

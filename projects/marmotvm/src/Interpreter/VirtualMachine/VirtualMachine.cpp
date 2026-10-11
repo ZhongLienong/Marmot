@@ -876,6 +876,43 @@ MIDORI_FORCE_INLINE MidoriValue VirtualMachine::TakeForeignResult(VmFFIReturnKin
 	std::unreachable();
 }
 
+#if MIDORI_DEBUG_FULL
+// A Debug build's value is 16 bytes, its 8 beside a type tag, but a native library
+// sees an array as the ABI's 8-byte slots. An argument's elements are copied into
+// slots for the call, so a native write to them is not seen, and a returned
+// array's slots are widened into values before the result is taken.
+void VirtualMachine::CallNativeWithSlots(VmFFIFunction proc, uint8_t return_kind, MidoriValue& result) noexcept
+{
+	std::array<std::vector<MidoriWord>, VM_FFI_MAX_ARITY> slots;
+	for (size_t index = 0uz; index < m_ffi_array_args.size(); index += 1uz)
+	{
+		FFIArrayArgument& argument = m_ffi_array_args[index];
+		slots[index] = std::span<const MidoriValue>(static_cast<const MidoriValue*>(argument.data), static_cast<size_t>(argument.length))
+			| std::views::transform(&MidoriValue::GetRawBits)
+			| std::ranges::to<std::vector<MidoriWord>>();
+		argument.data = slots[index].data();
+	}
+
+	proc(m_ffi_args.data(), reinterpret_cast<void*>(&result));
+
+	FFIArrayArgument* array = reinterpret_cast<FFIArrayArgument*>(result.GetInteger());
+	if (static_cast<VmFFIReturnKind>(return_kind) != VmFFIReturnKind::ArrayValues || array == nullptr || array->length <= 0)
+	{
+		return;
+	}
+
+	const size_t bytes = static_cast<size_t>(array->length) * sizeof(MidoriValue);
+	MidoriValue* values = static_cast<MidoriValue*>(std::malloc(bytes));
+	if (values == nullptr)
+	{
+		FatalOutOfMemory("a native array result", bytes);
+	}
+	std::ranges::transform(std::span<const MidoriWord>(static_cast<const MidoriWord*>(array->data), static_cast<size_t>(array->length)), values, &MidoriValue::FromRawBits);
+	std::free(array->data);
+	array->data = values;
+}
+#endif
+
 MIDORI_FORCE_INLINE void VirtualMachine::PassForeignArgument(VmFFIArgumentKind kind, size_t index, MidoriValue argument) noexcept
 {
 	MidoriTraceable* pointer = argument.GetPointer();
@@ -2384,7 +2421,18 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 
 			MidoriValue return_val;
+#if MIDORI_DEBUG_FULL
+			if (ffi_idx.has_value())
+			{
+				proc(m_ffi_args.data(), reinterpret_cast<void*>(&return_val));
+			}
+			else
+			{
+				CallNativeWithSlots(proc, return_type, return_val);
+			}
+#else
 			proc(m_ffi_args.data(), reinterpret_cast<void*>(&return_val));
+#endif
 
 			Push(sp, TakeForeignResult(VmFFIReturnKind::RawValue, return_type, return_val));
 
