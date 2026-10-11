@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import contextlib
 import os
+import shutil
 import sys
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -53,3 +56,27 @@ def checkout_environment(**overrides: str | None) -> dict[str, str]:
 def write_text(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8", newline="\n")
+
+
+# What building and running programs from the checkout leaves beside them.
+BUILD_ARTIFACTS = ("*.ppm", "*.mmc", "*.mmc.json")
+
+
+def remove_artifacts(directory: Path, patterns: Iterable[str] = BUILD_ARTIFACTS, extra: Iterable[Path] = ()) -> None:
+    """Delete what matches `patterns` in `directory`, and `extra`, files or folders."""
+    for path in [*(match for pattern in patterns for match in directory.glob(pattern)), *extra]:
+        if path.is_dir():
+            shutil.rmtree(path, ignore_errors=True)
+        else:
+            with contextlib.suppress(OSError):
+                path.unlink()
+
+
+@contextlib.contextmanager
+def removing_new_files(directory: Path) -> Iterator[None]:
+    """Delete the files that appear directly in `directory` while the block runs."""
+    before = {path for path in directory.iterdir() if path.is_file()}
+    try:
+        yield
+    finally:
+        remove_artifacts(directory, (), {path for path in directory.iterdir() if path.is_file()} - before)

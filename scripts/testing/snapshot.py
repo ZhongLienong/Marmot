@@ -24,9 +24,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from lib import console
-from lib.host import REPO_ROOT, TEST_DIR
+from lib.host import REPO_ROOT, TEST_DIR, checkout_environment, removing_new_files
 from lib.presets import BuildTree, add_build_arguments
-from testing.language import TestRunner
+from lib.program import build_and_run
+from lib.snapshots import snapshot_text, split_warnings
 
 
 def locate(name: str) -> Path:
@@ -37,27 +38,30 @@ def locate(name: str) -> Path:
     return found
 
 
-def record(runner: TestRunner, test: Path, *, force: bool, warnings: bool) -> int:
+def record(compiler: Path, timeout: float, test: Path, *, force: bool, warnings: bool) -> int:
     expected_file = test.with_suffix(".expected")
     warnings_file = test.with_suffix(".warnings.json")
     if expected_file.exists() and not force:
         console.fail(f"{expected_file.relative_to(REPO_ROOT).as_posix()} exists; pass --force to rewrite it.")
         return 1
 
-    machine_warnings = warnings or warnings_file.exists()
-    result = runner.execute(test, machine_warnings=machine_warnings)
-    recorded_warnings, human_output = runner.split_machine_readable_warnings(result.stdout + result.stderr)
+    # Run from the checkout root, as the suite does, and clear away what the test leaves there.
+    environment = checkout_environment(MARMOT_TEST_WARNING_FORMAT="machine")
+    relative = test.relative_to(REPO_ROOT)
+    with removing_new_files(REPO_ROOT):
+        result = build_and_run(compiler, relative.as_posix(), cwd=REPO_ROOT, env=environment, timeout=timeout)
+    recorded_warnings, human_output = split_warnings(result.stdout + result.stderr)
 
-    expected_to_fail = runner.is_failure_test(test)
+    expected_to_fail = any(part.lower() == "failure" for part in relative.parent.parts)
     if (result.returncode != 0) != expected_to_fail:
         console.note(f"Warning: exit code {result.returncode}, but a test {'under' if expected_to_fail else 'outside'} a failure/ folder "
                      f"is expected to {'fail' if expected_to_fail else 'succeed'}; the suite will fail it.")
 
-    output = runner.normalize_snapshot_text(human_output).strip()
+    output = snapshot_text(human_output).strip()
     if output or expected_file.exists():
         expected_file.write_text(output + "\n", encoding="utf-8")
         console.ok(f"wrote {expected_file.relative_to(REPO_ROOT).as_posix()}")
-    if machine_warnings:
+    if warnings or warnings_file.exists():
         warnings_file.write_text(json.dumps(recorded_warnings, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         console.ok(f"wrote {warnings_file.relative_to(REPO_ROOT).as_posix()} ({len(recorded_warnings)} warning(s))")
     return 0
@@ -71,8 +75,11 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--warnings", action="store_true", help="Also record a .warnings.json (kept up to date when one exists).")
     args = parser.parse_args(argv)
 
-    runner = TestRunner(BuildTree.from_args(args))
-    return max(record(runner, locate(name), force=args.force, warnings=args.warnings) for name in args.tests)
+    tree = BuildTree.from_args(args)
+    # Debug builds are unoptimized and carry a type tag on every value: the
+    # slowest test, dogfood/collections, takes about 45 s there against 1 s in Dev.
+    timeout = 300.0 if tree.build_type == "Debug" else 30.0
+    return max(record(tree.require_compiler(), timeout, locate(name), force=args.force, warnings=args.warnings) for name in args.tests)
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-use std::num::NonZeroUsize;
+use std::num::{NonZeroU64, NonZeroUsize};
 use std::path::PathBuf;
 
 pub(crate) const USAGE: &str = "\
@@ -37,6 +37,7 @@ Options:
                         default is ^ the newest version available
   --pattern TEXT        Run tests whose path contains TEXT (test)
   --test FILE           Run one test file (test)
+  --timeout-ms N        Each test's time limit, over [test].timeout_ms (test)
   --jobs N              Maximum compiler workers (run, check, build); total
                         worker budget across tests and compilers (test)
   --timings             Print compiler stage times and worker utilization
@@ -119,6 +120,7 @@ pub(crate) struct Options {
     pub(crate) marmotvm: Option<PathBuf>,
     pub(crate) pattern: Option<String>,
     pub(crate) test_file: Option<String>,
+    pub(crate) timeout_ms: Option<NonZeroU64>,
     pub(crate) package: bool,
     pub(crate) rebuild: bool,
     pub(crate) name: Option<String>,
@@ -200,6 +202,13 @@ pub(crate) fn parse_options(kind: CommandKind, args: &[String]) -> Result<Option
             "--version" if kind == CommandKind::Install => options.constraint = Some(value()?),
             "--pattern" if kind == CommandKind::Test => options.pattern = Some(value()?),
             "--test" if kind == CommandKind::Test => options.test_file = Some(value()?),
+            "--timeout-ms" if kind == CommandKind::Test => {
+                options.timeout_ms = Some(
+                    value()?
+                        .parse::<NonZeroU64>()
+                        .map_err(|_| "--timeout-ms requires a positive integer".to_string())?,
+                );
+            }
             "--package" if kind == CommandKind::Init => options.package = true,
             "--name" if kind == CommandKind::Init => options.name = Some(value()?),
             "--marmotc" => options.marmotc = Some(PathBuf::from(value()?)),

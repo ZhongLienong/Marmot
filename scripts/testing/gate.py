@@ -12,7 +12,7 @@ In order, stopping at the first failure:
     format      the formatter is idempotent on the corpus
     benchmarks  every program under benchmarks/ compiles cleanly
     tool        the Rust marmot tool's tests, against the compiler just built
-    language    the language suite under test/
+    language    the language suite under test/, through `marmot test`
 
 Examples:
     python scripts/dev.py gate
@@ -24,7 +24,6 @@ Examples:
 from __future__ import annotations
 
 import argparse
-import shutil
 import sys
 import time
 from pathlib import Path
@@ -33,43 +32,17 @@ from typing import Callable
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from lib import console
-from lib.host import REPO_ROOT
+from lib.host import BUILD_ARTIFACTS, REPO_ROOT, remove_artifacts
 from lib.presets import BuildTree, UNIT_TARGETS, add_build_arguments
 from testing import benchmarks, cli_contracts, doc_examples, formatting, language, layering, mmc_contract, tool, unit
 
 STEPS = ["layering", "build", "unit", "mmc", "docs", "cli", "format", "benchmarks", "tool", "language"]
 
 
-def cleanup_all_artifacts(root: Path) -> None:
-    patterns = (
-        "*.ppm",
-        "*.mmc",
-        "*.mmc.json",
-        ".doc_example_*.mmt",
-        "midori_phase3_io_*",
-        "midori_phase8_doc_*",
-    )
-    for pattern in patterns:
-        for path in root.glob(pattern):
-            if path.is_file():
-                try:
-                    path.unlink()
-                except OSError:
-                    pass
-            elif path.is_dir():
-                shutil.rmtree(path, ignore_errors=True)
-        for path in (root / "benchmarks").glob(pattern):
-            if path.is_file():
-                try:
-                    path.unlink()
-                except OSError:
-                    pass
-    for dir_path in root.glob("midori_phase3_missing_dir_*"):
-        if dir_path.is_dir():
-            shutil.rmtree(dir_path, ignore_errors=True)
-    doc_examples_dir = root / ".doc_examples"
-    if doc_examples_dir.is_dir():
-        shutil.rmtree(doc_examples_dir, ignore_errors=True)
+# What a step stopped part way can leave behind: build output, extracted doc
+# examples, and the files the IO tests write and delete again.
+LEFTOVERS = (*BUILD_ARTIFACTS, ".doc_example_*.mmt", ".doc_examples",
+             "midori_phase3_io_*", "midori_phase8_doc_*", "midori_phase3_missing_dir_*")
 
 
 def tree_arguments(args: argparse.Namespace) -> list[str]:
@@ -98,7 +71,7 @@ def steps(args: argparse.Namespace, tree: BuildTree) -> dict[str, Callable[[], i
         "format": lambda: formatting.main(common + verbose),
         "benchmarks": lambda: benchmarks.main(common + verbose),
         "tool": lambda: tool.main(common),
-        "language": lambda: language.main(common + verbose),
+        "language": lambda: language.main(common),
     }
 
 
@@ -130,7 +103,8 @@ def main(argv: list[str]) -> int:
         console.ok(f"gate passed on {tree.preset}")
         return 0
     finally:
-        cleanup_all_artifacts(REPO_ROOT)
+        remove_artifacts(REPO_ROOT, LEFTOVERS)
+        remove_artifacts(REPO_ROOT / "benchmarks")
 
 
 if __name__ == "__main__":

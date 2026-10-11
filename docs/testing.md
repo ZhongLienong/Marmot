@@ -47,8 +47,8 @@ Regression tests:
 - `.expected` snapshots are compared after stripping ANSI color codes and repo-root path prefixes
 - add `<name>.warnings.json` when warnings need structured assertions
 - when a `.warnings.json` file is present, `marmot test` compares the emitted warning JSON against that snapshot
-- `marmot test` builds each fixture with `marmotc` into `target/` and runs it in its own `marmotvm` process, in parallel, enforcing `[test].timeout_ms` on each
-- `python scripts/dev.py test` runs the same suite through `scripts/testing/language.py`, which asks for warnings through `MARMOT_TEST_WARNING_FORMAT=machine`
+- `marmot test` builds each fixture with `marmotc` into `target/` and runs it in its own `marmotvm` process, in parallel, enforcing `[test].timeout_ms` (or `--timeout-ms`) on each
+- `python scripts/dev.py test` runs `marmot test` against this checkout's build; it needs cargo
 - `python scripts/dev.py snapshot <test>` writes a test's `.expected` (and `.warnings.json`, when it has one or with `--warnings`) from its current output; `--force` rewrites existing ones. Read the diff before committing: a snapshot rewritten to match a regression hides it
 - CLI contract checks that do not fit the plain `test/<category>/*.mmt` model run through `scripts/testing/cli_contracts.py`
 
@@ -246,7 +246,7 @@ python scripts/dev.py test
 python scripts/dev.py test --category closure
 python scripts/dev.py test --category static_analyzer --build Debug
 python scripts/dev.py test --pattern recursive
-python scripts/dev.py test --test closure/simple.mmt --verbose
+python scripts/dev.py test --test closure/simple.mmt
 ```
 
 The marmot tool runs it too, from the repository root, with `MARMOTC` naming

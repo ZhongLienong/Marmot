@@ -62,7 +62,7 @@ timeout_ms = 30000
 - `[test].dir` (optional): test directory used by `marmot test`. Defaults to
   `test`.
 - `[test].timeout_ms` (optional): per-test timeout budget enforced by
-  `marmot test`. Defaults to `30000`.
+  `marmot test`. Defaults to `30000`; `marmot test --timeout-ms N` overrides it.
 
 Dependency constraints use the same syntax as `package.marmot`, including caret,
 tilde, exact, comparison, and compound ranges.

@@ -24,9 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import shlex
-import shutil
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -34,24 +32,10 @@ from typing import Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from lib.host import REPO_ROOT, prelude_search_path, write_text
+from lib.host import BUILD_ARTIFACTS, REPO_ROOT, checkout_environment, remove_artifacts, write_text
 from lib.presets import BuildTree, add_build_arguments
 from lib.program import build_and_run
-from testing.language import TestRunner
-
-
-def cleanup_doc_artifacts(root: Path) -> None:
-    patterns = (".doc_example_*.mmt", "*.ppm", "*.mmc", "*.mmc.json")
-    for pattern in patterns:
-        for file in root.glob(pattern):
-            if file.is_file():
-                try:
-                    file.unlink()
-                except OSError:
-                    pass
-    doc_examples_dir = root / ".doc_examples"
-    if doc_examples_dir.is_dir():
-        shutil.rmtree(doc_examples_dir, ignore_errors=True)
+from lib.snapshots import read_warnings, snapshot_text, split_warnings
 
 
 @dataclass(frozen=True)
@@ -298,13 +282,6 @@ def cleanup_temp_file(root: Path, compile_path: Path) -> None:
         current = current.parent
 
 
-def load_expected_warnings(runner: TestRunner, root: Path, example: DocExample) -> Optional[list[dict]]:
-    warnings_path = warnings_snapshot_path(root, example)
-    if warnings_path.exists() is False:
-        return None
-    return runner.get_expected_warnings(mirror_path(root, example))
-
-
 def load_expected_output(root: Path, example: DocExample) -> Optional[str]:
     expected_path = expected_snapshot_path(root, example)
     if expected_path.exists() is False:
@@ -312,27 +289,24 @@ def load_expected_output(root: Path, example: DocExample) -> Optional[str]:
     return expected_path.read_text(encoding="utf-8")
 
 
-def run_example(root: Path, runner: TestRunner, example: DocExample, verbose: bool) -> Optional[str]:
+def run_example(root: Path, compiler: Path, example: DocExample, verbose: bool) -> Optional[str]:
     compile_source = example.generated_source()
     compile_path = example.compile_path
     expected_output = load_expected_output(root, example)
-    expected_warnings = load_expected_warnings(runner, root, example)
+    expected_warnings = read_warnings(warnings_snapshot_path(root, example))
 
     write_text(compile_path, compile_source)
-    env = os.environ.copy()
-    env["MARMOT_PATH"] = prelude_search_path()
-    if expected_warnings is not None:
-        env["MARMOT_TEST_WARNING_FORMAT"] = "machine"
+    env = checkout_environment(MARMOT_TEST_WARNING_FORMAT="machine")
 
     command_path = str(compile_path.relative_to(root))
     try:
-        completed = build_and_run(runner.midori_exe, command_path, cwd=root, env=env, timeout=30)
+        completed = build_and_run(compiler, command_path, cwd=root, env=env, timeout=30)
     finally:
         cleanup_temp_file(root, compile_path)
 
     output = completed.stdout + completed.stderr
-    actual_warnings, human_output = runner.split_machine_readable_warnings(output)
-    normalized_output = runner.normalize_snapshot_text(human_output)
+    actual_warnings, human_output = split_warnings(output)
+    normalized_output = snapshot_text(human_output)
 
     expected_to_fail = example.kind == "failure"
     passed = completed.returncode != 0 if expected_to_fail else completed.returncode == 0
@@ -343,7 +317,7 @@ def run_example(root: Path, runner: TestRunner, example: DocExample, verbose: bo
         failure_reason = f"Expected exit code {expected_status}, got {completed.returncode}."
 
     if passed and expected_output is not None:
-        normalized_expected = runner.normalize_snapshot_text(expected_output)
+        normalized_expected = snapshot_text(expected_output)
         if normalized_output.strip() != normalized_expected.strip():
             passed = False
             failure_reason = (
@@ -408,15 +382,16 @@ def main(argv: list[str]) -> int:
     if args.skip_run:
         return 0
 
-    runner = TestRunner(BuildTree.from_args(args), verbose=args.verbose)
-    print(f"Executable: {runner.midori_exe}")
-    print(f"Build: {runner.build_config}")
+    tree = BuildTree.from_args(args)
+    compiler = tree.require_compiler()
+    print(f"Executable: {compiler}")
+    print(f"Build: {tree.build_type}")
 
     failures = []
     try:
-        failures = [error for example in examples if (error := run_example(root, runner, example, args.verbose)) is not None]
+        failures = [error for example in examples if (error := run_example(root, compiler, example, args.verbose)) is not None]
     finally:
-        cleanup_doc_artifacts(root)
+        remove_artifacts(root, (".doc_example_*.mmt", ".doc_examples", *BUILD_ARTIFACTS))
 
     if failures:
         print(f"\n[FAILED] {len(failures)} doc example(s) failed.")

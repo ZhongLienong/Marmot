@@ -34,6 +34,16 @@ def build(release: bool = True) -> int:
     return toolchain.run(["cargo", "build", "--manifest-path", str(MANIFEST), *(["--release"] if release else [])])
 
 
+def against(compiler: Path) -> dict[str, str]:
+    """The environment that points the tool at `compiler` and its VM."""
+    return checkout_environment(MARMOTC=str(compiler), MARMOTVM=str(vm_beside(compiler)))
+
+
 def test(compiler: Path) -> int:
     """The tool's unit tests, plus its end-to-end runs against `compiler`."""
-    return toolchain.run(["cargo", "test", "--manifest-path", str(MANIFEST)], environment=checkout_environment(MARMOTC=str(compiler), MARMOTVM=str(vm_beside(compiler))))
+    return toolchain.run(["cargo", "test", "--manifest-path", str(MANIFEST)], environment=against(compiler))
+
+
+def run_tool(arguments: list[str], compiler: Path) -> int:
+    """`marmot <arguments>`, built from this checkout, against `compiler`."""
+    return toolchain.run(["cargo", "run", "--quiet", "--manifest-path", str(MANIFEST), "--", *arguments], environment=against(compiler))

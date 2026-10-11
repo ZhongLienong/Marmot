@@ -4,6 +4,7 @@ use crate::execution::{plan, test, toolchain};
 use crate::paths;
 use crate::project::manifest;
 use crate::project::version::Version;
+use std::num::NonZeroU64;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -52,7 +53,11 @@ pub(super) fn execute(
     };
 
     let vm = toolchain::find_vm(options.marmotvm.as_deref(), compiler);
-    let timeout = std::time::Duration::from_millis(timeout_ms.max(1) as u64);
+    let timeout = std::time::Duration::from_millis(
+        options
+            .timeout_ms
+            .map_or(timeout_ms.max(1) as u64, NonZeroU64::get),
+    );
     let request = test::TestRequest {
         root: &root,
         test_directory: &test_directory,

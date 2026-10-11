@@ -32,7 +32,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from lib.host import REPO_ROOT
 from lib.presets import BuildTree, add_build_arguments
-from testing.language import TestRunner
 
 
 DEFAULT_ROOTS: tuple[str, ...] = (
@@ -55,7 +54,7 @@ def collect_mdr_files(roots: Sequence[Path]) -> list[Path]:
     return sorted(set(files))
 
 
-def check_idempotency(runner: TestRunner, files: Sequence[Path], verbose: bool) -> int:
+def check_idempotency(tree: BuildTree, files: Sequence[Path], verbose: bool) -> int:
     failures: list[tuple[Path, str]] = []
     for path in files:
         try:
@@ -65,7 +64,7 @@ def check_idempotency(runner: TestRunner, files: Sequence[Path], verbose: bool) 
             continue
 
         completed_first = subprocess.run(
-            [str(runner.midori_exe), "fmt", str(path)],
+            [str(tree.compiler), "fmt", str(path)],
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -84,7 +83,7 @@ def check_idempotency(runner: TestRunner, files: Sequence[Path], verbose: bool) 
         sidecar.write_text(formatted_once, encoding="utf-8")
         try:
             completed_second = subprocess.run(
-                [str(runner.midori_exe), "fmt", str(sidecar)],
+                [str(tree.compiler), "fmt", str(sidecar)],
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
@@ -120,13 +119,13 @@ def check_idempotency(runner: TestRunner, files: Sequence[Path], verbose: bool) 
     return 0
 
 
-def enforce_clean(runner: TestRunner, roots: Sequence[Path]) -> int:
+def enforce_clean(tree: BuildTree, roots: Sequence[Path]) -> int:
     failures: list[Path] = []
     for root in roots:
         if not root.exists():
             continue
         completed = subprocess.run(
-            [str(runner.midori_exe), "fmt", str(root), "--check"],
+            [str(tree.compiler), "fmt", str(root), "--check"],
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -167,9 +166,9 @@ def main(argv: list[str]) -> int:
     )
     args = parser.parse_args(argv)
 
-    runner = TestRunner(BuildTree.from_args(args), verbose=args.verbose)
-    print(f"Executable: {runner.midori_exe}")
-    print(f"Build: {runner.build_config}")
+    tree = BuildTree.from_args(args)
+    print(f"Executable: {tree.require_compiler()}")
+    print(f"Build: {tree.build_type}")
 
     raw_roots = args.root if args.root else list(DEFAULT_ROOTS)
     roots: list[Path] = []
@@ -184,12 +183,12 @@ def main(argv: list[str]) -> int:
         print("No .mmt files found under the requested roots.")
         return 0
 
-    idempotency_exit_code = check_idempotency(runner, files, args.verbose)
+    idempotency_exit_code = check_idempotency(tree, files, args.verbose)
     if idempotency_exit_code != 0:
         return idempotency_exit_code
 
     if args.enforce_clean:
-        clean_exit_code = enforce_clean(runner, roots)
+        clean_exit_code = enforce_clean(tree, roots)
         if clean_exit_code != 0:
             return clean_exit_code
 
