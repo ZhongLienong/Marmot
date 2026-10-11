@@ -77,6 +77,10 @@
         {
           "name": "keyword.control.marmot",
           "match": "\\b(?:else|fn|for|in|if|def|import|as|foreign|case|match|then|with|module|export|public|private|use|class|instance|where|type|alias|deriving)\\b"
+        },
+        {
+          "name": "keyword.other.marmot",
+          "match": "\\bref\\b(?=\\s+[\\w(\\[{\"*#!~-])|\\bfrom\\b(?=\\s*\")"
         }
       ]
     },
@@ -84,7 +88,7 @@
       "patterns": [
         {
           "name": "storage.type.marmot",
-          "match": "\\b(?:Float|Int|Byte|Word|Text|Bool|Unit|Array|Never|Range|Channel|Worker)\\b"
+          "match": "\\b(?:Float|Int|Byte|Word|Text|Bool|Unit|Array|Never|Range|Channel|Worker|Ref)\\b"
         }
       ]
     },
@@ -112,7 +116,7 @@
       "patterns": [
         {
           "name": "punctuation.separator.annotation.marmot",
-          "match": ":"
+          "match": ":(?![:=])"
         }
       ]
     },
@@ -120,7 +124,7 @@
       "patterns": [
         {
           "name": "keyword.operator.marmot",
-          "match": "(?:\\|>|::|\\.\\.|=>|->|<-|==|!=|<=|>=|<<|>>|\\+\\+|&&|\\|\\||[+\\-*/%&|^~=<>!#.,;:{}()\\[\\]])"
+          "match": "(?:\\|>|::|:=|\\.\\.|=>|->|<-|==|!=|<=|>=|<<|>>|\\+\\+|&&|\\|\\||[+\\-*/%&|^~=<>!#.,;:{}()\\[\\]])"
         }
       ]
     }
