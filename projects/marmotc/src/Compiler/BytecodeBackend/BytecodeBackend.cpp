@@ -248,7 +248,8 @@ namespace
 	// first: raw bits, a C string, or a view of an array's elements.
 	uint8_t ForeignArgumentKinds(const MidoriIRFunction& function, std::span<const MidoriIRValueId> arguments)
 	{
-		return std::ranges::fold_left(arguments | std::views::enumerate, uint8_t{ 0u }, [&function](uint8_t kinds, const std::tuple<std::ptrdiff_t, MidoriIRValueId>& argument)
+		// zip with iota rather than enumerate, which Emscripten's libc++ lacks.
+		return std::ranges::fold_left(std::views::zip(std::views::iota(0), arguments), uint8_t{ 0u }, [&function](uint8_t kinds, const std::tuple<int, const MidoriIRValueId&>& argument)
 		{
 			const TypeRef& type = function.TypeOf(std::get<1>(argument));
 			const uint8_t kind = type->IsType<MidoriType::TextType>() ? 1u : type->IsType<MidoriType::ArrayType>() ? 2u : 0u;

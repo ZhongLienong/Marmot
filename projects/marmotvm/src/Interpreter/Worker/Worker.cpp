@@ -44,9 +44,13 @@ Worker::~Worker()
 {
 	if (m_thread.joinable())
 	{
+		// A worker still running when its handle goes, at the program's end, is
+		// stopped by the runtime, not by the program, so being cancelled is no
+		// failure of its own.
+		const bool stopped_here = !m_done.load();
 		m_thread.request_stop();
 		m_thread.join();
-		if (!m_outcome.has_value())
+		if (!m_outcome.has_value() && !(stopped_here && m_outcome.error().m_cancelled))
 		{
 			RuntimeTerminal::Print<RuntimeTerminal::Color::RED>(stderr, std::format("[Worker] Unjoined worker error: {}\n", m_outcome.error().m_message));
 		}

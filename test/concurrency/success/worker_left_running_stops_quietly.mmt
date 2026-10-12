@@ -1,0 +1,15 @@
+module worker_left_running_stops_quietly
+
+import { "../../../MarmotPrelude/Concurrency.mmt" }
+
+import { "../../../MarmotPrelude/IO.mmt" }
+use IO.{PrintLine}
+
+// A worker still running when the program ends is stopped by the runtime. That
+// is no failure of the worker's, so nothing is reported for it.
+
+def Wait = fn(source : Channel<Int>) -> Int => <- source;
+
+def ch : Channel<Int> = Concurrency::MakeChannel(1);
+def waiting = Concurrency::Spawn(ch, Wait);
+PrintLine("main done");
