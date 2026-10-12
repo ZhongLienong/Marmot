@@ -8,10 +8,13 @@ on:
   pull_request:
     paths-ignore:
       - "editors/**"
+  schedule:
+    - cron: "0 3 * * *"
   workflow_dispatch:
 
+# A nightly run is not queued behind a push to main, nor a push behind it.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -23,24 +26,24 @@ env:
 
 jobs:
   gate:
-    name: gate (${{ matrix.name }})
+    name: gate (${{ matrix.build == 'Dev' && matrix.platform || format('{0}-{1}', matrix.platform, matrix.build) }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
+        platform: [linux, windows]
+        # Pushes and pull requests gate Dev. The nightly run, and one started by
+        # hand, gate every configuration and package the Release builds. Debug
+        # turns on MIDORI_DEBUG_FULL: 16-byte values, so object sizes, inline
+        # capacities and the VM's type checks differ from Dev. Release is what
+        # gets installed: NDEBUG, -O3 and link-time optimization.
+        build: ${{ fromJSON((github.event_name == 'push' || github.event_name == 'pull_request') && '["Dev"]' || '["Dev", "Debug", "Release"]') }}
         include:
-          - name: linux
+          - platform: linux
             os: ubuntu-24.04
-            build: Dev
-          - name: windows
+          - platform: windows
             os: windows-2025
-            build: Dev
-          # Debug turns on MIDORI_DEBUG_FULL: 16-byte values, so object sizes,
-          # inline capacities and the VM's type checks differ from Dev.
-          - name: linux-debug
-            os: ubuntu-24.04
-            build: Debug
     steps:
       - uses: actions/checkout@v5
 
@@ -62,7 +65,7 @@ jobs:
       - uses: hendrikmuhs/ccache-action@v1.2
         if: runner.os == 'Linux'
         with:
-          key: ${{ matrix.name }}
+          key: ${{ matrix.platform }}-${{ matrix.build }}
 
       - name: Use GCC 14 through ccache
         if: runner.os == 'Linux'
@@ -80,6 +83,29 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python scripts/dev.py gate --build ${{ matrix.build }} --verbose
+
+      # Extracts the archive and runs a program with it before writing it.
+      - name: Package
+        if: matrix.build == 'Release'
+        run: python scripts/dev.py package
+
+      # The setup script changes the user's environment, which only a runner's
+      # can take unattended. Windows PowerShell, as the package's README runs it.
+      - name: Check the setup script
+        if: matrix.build == 'Release' && runner.os == 'Windows'
+        shell: powershell
+        run: |
+          Expand-Archive out/package/marmot-windows-x64.zip -DestinationPath $env:RUNNER_TEMP
+          & "$env:RUNNER_TEMP\marmot-windows-x64\install.ps1"
+          $prelude = (Get-Item HKCU:\Environment).GetValue('MARMOT_PATH', '', 'DoNotExpandEnvironmentNames')
+          if ($prelude -notlike '*marmot-windows-x64\MarmotPrelude*') { throw "MARMOT_PATH is '$prelude'" }
+
+      - uses: actions/upload-artifact@v4
+        if: matrix.build == 'Release'
+        with:
+          name: marmot-${{ matrix.platform }}-x64
+          path: out/package/marmot-${{ matrix.platform }}-x64.${{ runner.os == 'Windows' && 'zip' || 'tar.gz' }}
+          retention-days: 14
 
 
   wasm:

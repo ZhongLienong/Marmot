@@ -58,6 +58,7 @@ COMMANDS: dict[str, Command] = {
     "bench-compile": Command("bench.compiler", "measure compiler scaling (--jobs, --synthetic)", "Performance", ["marmotc"], "Release"),
     "install": Command("install.install", "install marmotc, marmotvm, marmot and the prelude", "Install"),
     "uninstall": Command("install.uninstall", "remove that install", "Install"),
+    "package": Command("install.package", "package a build for this platform, with a setup script", "Install", COMPILER_AND_VM, "Release"),
 }
 
 CHECKS: dict[str, Command] = {
