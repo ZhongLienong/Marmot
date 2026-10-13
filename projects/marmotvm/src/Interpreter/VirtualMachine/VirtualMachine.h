@@ -416,6 +416,12 @@ private:
 
     void BuildGarbageCollectionRoots(GarbageCollector::GarbageCollectionRoots& roots) const noexcept;
 
+	// Calls `visit` with each value of the frame between `bp` and `end` and
+	// whether its procedure's map says it is a pointer: its slots, the
+	// temporaries the safepoint at `ip` lists, and the result once one is pushed.
+	template<typename Visit>
+	void VisitFrame(const VmOpCode* ip, const MidoriValue* bp, const MidoriValue* end, const Visit& visit) const noexcept;
+
 	void InitializeStacks() noexcept;
 
 	void InitializeProcEntryCache() noexcept;

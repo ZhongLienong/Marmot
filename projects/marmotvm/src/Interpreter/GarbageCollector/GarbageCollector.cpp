@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <bit>
 #include <optional>
+#include <print>
 
 #if MIDORI_DEBUG_INFO
 #include "Support/Terminal/Terminal.h"
@@ -86,11 +87,6 @@ namespace
 }
 #endif
 
-bool GarbageCollector::Contains(MidoriTraceable* ptr) const
-{
-	return m_allocator != nullptr && m_allocator->Contains(ptr);
-}
-
 void GarbageCollector::WriteBarrier(MidoriTraceable* target) noexcept
 {
 	if (m_allocator == nullptr)
@@ -122,17 +118,26 @@ void GarbageCollector::Remember(MidoriTraceable* target, size_t word_index, uint
 	m_remembered_set.emplace_back(target);
 }
 
+// A pointer the maps call one is null or a live object: never bits that might
+// name one.
 MIDORI_FORCE_INLINE void GarbageCollector::TryMark(MidoriTraceable* child_ptr)
 {
-	const std::optional<size_t> slot_index = m_allocator->TryGetSlotIndex(child_ptr);
-	if (!slot_index.has_value())
+	if (child_ptr == nullptr)
 	{
 		return;
 	}
 
-	const size_t word_index = *slot_index / 64uz;
-	const uint64_t mask = 1ull << (*slot_index % 64uz);
-	if ((m_allocator->LiveBitWords()[word_index] & mask) == 0ull || (m_mark_bits[word_index] & mask) != 0ull)
+	const size_t slot_index = m_allocator->SlotIndexOf(child_ptr);
+	const size_t word_index = slot_index / 64uz;
+	const uint64_t mask = 1ull << (slot_index % 64uz);
+#if MIDORI_DEBUG_FULL
+	if ((m_allocator->LiveBitWords()[word_index] & mask) == 0ull)
+	{
+		std::println(stderr, "internal error: the collector reached {:p}, which is not a live object.", static_cast<void*>(child_ptr));
+		std::abort();
+	}
+#endif
+	if ((m_mark_bits[word_index] & mask) != 0ull)
 	{
 		return;
 	}
@@ -168,6 +173,10 @@ void GarbageCollector::Trace(const GarbageCollectionRoots& roots)
 		{
 		case MidoriTraceable::TraceableType::Array:
 		{
+			if (!current->HoldsPointers())
+			{
+				break;
+			}
 			MidoriArray& arr = current->GetTraceable<MidoriArray>();
 			const int length = arr.GetLength();
 			for (int idx = 0; idx < length; idx += 1)
@@ -182,15 +191,17 @@ void GarbageCollector::Trace(const GarbageCollectionRoots& roots)
 		case MidoriTraceable::TraceableType::Closure:
 		{
 			const MidoriValue* values = current->GetValues();
-			const int length = current->GetLength();
-			for (int idx = 0; idx < length; idx += 1)
+			for (const uint32_t field : (*m_shapes)[current->GetShape()])
 			{
-				TryMark(values[idx].GetPointer());
+				TryMark(values[field].GetPointer());
 			}
 			break;
 		}
 		case MidoriTraceable::TraceableType::MutableCell:
-			TryMark(current->GetTraceable<MidoriMutableCell>().m_value.GetPointer());
+			if (current->HoldsPointers())
+			{
+				TryMark(current->GetTraceable<MidoriMutableCell>().m_value.GetPointer());
+			}
 			break;
 		case MidoriTraceable::TraceableType::Text:
 		case MidoriTraceable::TraceableType::IntRange:

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Bytecode/Executable/Executable.h"
 #include "Value/Value.h"
 #include "Support/Attributes/Attributes.h"
 #include "Interpreter/Allocator/MidoriAllocator.h"
@@ -43,6 +44,8 @@ private:
 	std::vector<MidoriTraceable*> m_mark_stack;
 	std::vector<MidoriTraceable*> m_remembered_set;
 	const MidoriAllocator* m_allocator = nullptr;
+	// The program's shapes, which say an aggregate's pointer fields.
+	const std::vector<VmShape>* m_shapes = nullptr;
 	// Kept unconditional (not under #if MIDORI_DEBUG_INFO) so that sizeof(GarbageCollector)
 	// cannot differ between translation units. This was first a workaround: the unit test
 	// targets used to be compiled without the build-level definitions, so guarding these members
@@ -86,6 +89,8 @@ public:
 
 	void SetAllocator(const MidoriAllocator* allocator) noexcept { m_allocator = allocator; }
 
+	void SetShapes(const std::vector<VmShape>* shapes) noexcept { m_shapes = shapes; }
+
 	MIDORI_FORCE_INLINE void RegisterObject(MidoriTraceable* traceable) noexcept
 	{
 		m_total_bytes_allocated += traceable->GetSize();
@@ -96,7 +101,6 @@ public:
 	// guarded in the .cpp, so non-debug builds never reference it.
 	void PrintMemoryTelemetry();
 
-	bool Contains(MidoriTraceable* ptr) const;
 
 private:
 	void Trace(const GarbageCollectionRoots& roots);

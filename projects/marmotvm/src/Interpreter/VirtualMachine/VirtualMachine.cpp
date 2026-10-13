@@ -293,6 +293,7 @@ VirtualMachine::VirtualMachine(VmExecutable&& executable) noexcept
 {
 	m_gc.SetAllocator(&m_allocator);
 	m_executable = m_owned_executable.get();
+	m_gc.SetShapes(&m_executable->GetShapes());
 	m_owned_globals.resize(static_cast<size_t>(m_executable->GetGlobalVariableCount()));
 	m_global_vars = &m_owned_globals;
 	m_string_literal_cache.resize(m_executable->GetStringPool().size(), nullptr);
@@ -315,6 +316,7 @@ VirtualMachine::VirtualMachine(std::shared_ptr<const VmExecutable> shared_execut
 {
 	m_gc.SetAllocator(&m_allocator);
 	m_executable = m_owned_executable.get();
+	m_gc.SetShapes(&m_executable->GetShapes());
 
 	m_owned_globals.resize(static_cast<size_t>(m_executable->GetGlobalVariableCount()));
 	m_installed_globals.assign(m_owned_globals.size(), false);
@@ -402,9 +404,24 @@ void VirtualMachine::CheckShape(std::span<const MidoriValue> values, uint16_t sh
 	}
 }
 
-// A frame's region is its slots, then the temporaries its safepoint lists, then,
-// once a call has returned or an instruction has made it, the result.
 void VirtualMachine::CheckFrame(const VmOpCode* ip, const MidoriValue* sp, const MidoriValue* bp) const noexcept
+{
+	VisitFrame(ip, bp, sp, [this, ip, bp](const MidoriValue& value, bool is_pointer)
+	{
+		if (!value.AgreesWithKind(is_pointer))
+		{
+			const int proc_index = ProcedureAt(ip);
+			KindMismatch(value, is_pointer, std::format("value {} of the frame of {} at offset {}", &value - bp, m_executable->m_procedure_names[static_cast<size_t>(proc_index)], ip - m_executable->GetBytecodeStream(proc_index)[0u]));
+		}
+	});
+}
+#endif
+
+// A frame is its slots, then the temporaries its safepoint lists, then, once a
+// call has returned or an instruction has made it, the result. The VM's own
+// halt, below the first procedure, has none.
+template<typename Visit>
+void VirtualMachine::VisitFrame(const VmOpCode* ip, const MidoriValue* bp, const MidoriValue* end, const Visit& visit) const noexcept
 {
 	const int proc_index = ProcedureAt(ip);
 	if (proc_index < 0)
@@ -417,36 +434,26 @@ void VirtualMachine::CheckFrame(const VmOpCode* ip, const MidoriValue* sp, const
 	const VmFrameMap::Safepoint* safepoint = frame.FindSafepoint(offset);
 	const int slots = static_cast<int>(frame.m_slot_pointers.size());
 	const int temporaries = safepoint != nullptr ? static_cast<int>(safepoint->m_temporaries.size()) : 0;
-	const int region = static_cast<int>(sp - bp);
+	const int region = static_cast<int>(end - bp);
 	const bool fits = safepoint != nullptr ? (region == slots + temporaries || region == slots + temporaries + 1) : region <= slots;
-	const std::string& name = m_executable->m_procedure_names[static_cast<size_t>(proc_index)];
 	if (!fits)
 	{
-		std::println(stderr, "internal error: the frame of {} at offset {} holds {} values, but its map describes {} slots and {} temporaries.", name, offset, region, slots, temporaries);
+		std::println(stderr, "internal error: the frame of {} at offset {} holds {} values, but its map describes {} slots and {} temporaries.", m_executable->m_procedure_names[static_cast<size_t>(proc_index)], offset, region, slots, temporaries);
 		std::abort();
 	}
 	for (int index = 0; index < std::min(region, slots); index += 1)
 	{
-		const bool is_pointer = frame.m_slot_pointers[static_cast<size_t>(index)];
-		if (!bp[index].AgreesWithKind(is_pointer))
-		{
-			KindMismatch(bp[index], is_pointer, std::format("slot {} of {} at offset {}", index, name, offset));
-		}
+		visit(bp[index], frame.m_slot_pointers[static_cast<size_t>(index)]);
 	}
 	for (int index = 0; index < temporaries; index += 1)
 	{
-		const bool is_pointer = safepoint->m_temporaries[static_cast<size_t>(index)];
-		if (!bp[slots + index].AgreesWithKind(is_pointer))
-		{
-			KindMismatch(bp[slots + index], is_pointer, std::format("temporary {} of {} at offset {}", index, name, offset));
-		}
+		visit(bp[slots + index], safepoint->m_temporaries[static_cast<size_t>(index)]);
 	}
-	if (safepoint != nullptr && region == slots + temporaries + 1 && !bp[slots + temporaries].AgreesWithKind(safepoint->m_result_is_pointer))
+	if (region == slots + temporaries + 1)
 	{
-		KindMismatch(bp[slots + temporaries], safepoint->m_result_is_pointer, std::format("the result at offset {} of {}", offset, name));
+		visit(bp[slots + temporaries], safepoint->m_result_is_pointer);
 	}
 }
-#endif
 
 MidoriValue VirtualMachine::MakeFunctionValue(int proc_index) noexcept
 {
@@ -1017,30 +1024,36 @@ void VirtualMachine::CallNativeWithSlots(VmFFIFunction proc, uint8_t return_kind
 }
 #endif
 
+// An argument's kind comes from its parameter's type, so a text, an array or a
+// handle is the object its kind says.
 MIDORI_FORCE_INLINE void VirtualMachine::PassForeignArgument(VmFFIArgumentKind kind, size_t index, MidoriValue argument) noexcept
 {
 	MidoriTraceable* pointer = argument.GetPointer();
-	const bool is_managed_traceable = pointer != nullptr && m_gc.Contains(pointer);
+#if MIDORI_DEBUG_FULL
+	const bool is_object = kind == VmFFIArgumentKind::CString || kind == VmFFIArgumentKind::ArrayView || kind == VmFFIArgumentKind::TraceableHandle;
+	const bool is_its_kind = !is_object || (pointer != nullptr
+		&& (kind != VmFFIArgumentKind::CString || pointer->IsTraceable<MidoriText>())
+		&& (kind != VmFFIArgumentKind::ArrayView || pointer->IsTraceable<MidoriArray>()));
+	if (!is_its_kind)
+	{
+		KindMismatch(argument, true, std::format("argument {} of a foreign call", index));
+	}
+#endif
 	switch (kind)
 	{
 	case VmFFIArgumentKind::CString:
-		m_ffi_args[index] = is_managed_traceable && pointer->IsTraceable<MidoriText>() ? (void*)pointer->GetTraceable<MidoriText>().CString() : nullptr;
+		m_ffi_args[index] = (void*)pointer->GetTraceable<MidoriText>().CString();
 		break;
 	case VmFFIArgumentKind::ArrayView:
-		if (is_managed_traceable && pointer->IsTraceable<MidoriArray>())
-		{
-			MidoriArray& array = pointer->GetTraceable<MidoriArray>();
-			m_ffi_array_args.push_back(FFIArrayArgument{ array.GetLength() > 0 ? static_cast<void*>(&array[0u]) : nullptr, array.GetLength() });
-			m_gc.WriteBarrier(pointer);
-			m_ffi_args[index] = &m_ffi_array_args.back();
-		}
-		else
-		{
-			m_ffi_args[index] = nullptr;
-		}
+	{
+		MidoriArray& array = pointer->GetTraceable<MidoriArray>();
+		m_ffi_array_args.push_back(FFIArrayArgument{ array.GetLength() > 0 ? static_cast<void*>(&array[0u]) : nullptr, array.GetLength() });
+		m_gc.WriteBarrier(pointer);
+		m_ffi_args[index] = &m_ffi_array_args.back();
 		break;
+	}
 	case VmFFIArgumentKind::TraceableHandle:
-		m_ffi_args[index] = is_managed_traceable ? pointer : nullptr;
+		m_ffi_args[index] = pointer;
 		break;
 	case VmFFIArgumentKind::ValueHandle:
 		m_ffi_value_args[index] = argument;
@@ -1070,38 +1083,50 @@ void VirtualMachine::BuildGarbageCollectionRoots(GarbageCollector::GarbageCollec
 
 	roots.reserve(stack_count + global_count + static_cast<size_t>(m_call_stack_pointer - m_call_stack_begin) + m_string_literal_cache.size() + m_small_string_pool.size() + m_static_closure_cache.size() + 1uz);
 
+	// The top frame runs to the stack pointer, and each one below it, suspended
+	// at a call, to the base of the frame it called.
+	const auto add_pointers = [&roots](const MidoriValue& value, bool is_pointer)
+	{
+		if (is_pointer && value.GetPointer() != nullptr)
+		{
+			roots.emplace_back(value.GetPointer());
+		}
+	};
 	if (stack_count > 0uz)
 	{
-		for (MidoriValue* it = m_value_stack_begin; it != m_value_stack_pointer; ++it)
+		const MidoriValue* end = m_value_stack_pointer;
+		const MidoriValue* bp = m_value_stack_base_pointer;
+		InstructionPointer ip = m_instruction_pointer;
+		for (CallStackPointer frame = m_call_stack_pointer; ; )
 		{
-			MidoriTraceable* ptr = it->GetPointer();
-			if (ptr && m_gc.Contains(ptr))
+			VisitFrame(ip, bp, end, add_pointers);
+			if (frame == m_call_stack_begin)
 			{
-				roots.emplace_back(ptr);
+				break;
 			}
+			frame -= 1;
+			end = bp;
+			bp = frame->m_return_bp;
+			ip = frame->m_return_ip;
 		}
 	}
 
 	if (m_global_vars != nullptr)
 	{
-		for (const MidoriValue& val : *m_global_vars)
+		for (size_t index = 0uz; index < m_global_vars->size(); index += 1uz)
 		{
-			MidoriTraceable* ptr = val.GetPointer();
-			if (ptr != nullptr && m_gc.Contains(ptr))
-			{
-				roots.emplace_back(ptr);
-			}
+			add_pointers((*m_global_vars)[index], m_executable->IsGlobalPointer(static_cast<int>(index)));
 		}
 	}
 
-	if (m_curr_closure_traceable != nullptr && m_gc.Contains(m_curr_closure_traceable))
+	if (m_curr_closure_traceable != nullptr)
 	{
 		roots.emplace_back(m_curr_closure_traceable);
 	}
 
 	for (CallStackPointer frame = m_call_stack_begin; frame != m_call_stack_pointer; ++frame)
 	{
-		if (frame->m_closure != nullptr && m_gc.Contains(frame->m_closure))
+		if (frame->m_closure != nullptr)
 		{
 			roots.emplace_back(frame->m_closure);
 		}

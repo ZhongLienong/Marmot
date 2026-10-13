@@ -14,19 +14,13 @@ namespace
 		return traceable;
 	}
 
+	// An array of one text, or of none yet when `element` is null.
 	MidoriTraceable* AllocateArrayOf(MidoriAllocator& allocator, GarbageCollector& gc, MidoriTraceable* element)
 	{
 		MidoriArray array;
-		if (element != nullptr)
-		{
-			array.AddBack(MidoriValue(element));
-		}
-		else
-		{
-			array.AddBack(MidoriValue(static_cast<MidoriInteger>(0)));
-		}
+		array.AddBack(MidoriValue(element));
 		void* memory = allocator.Allocate(sizeof(MidoriTraceable));
-		MidoriTraceable* traceable = new(memory) MidoriTraceable(std::move(array), element != nullptr);
+		MidoriTraceable* traceable = new(memory) MidoriTraceable(std::move(array), true);
 		gc.RegisterObject(traceable);
 		return traceable;
 	}

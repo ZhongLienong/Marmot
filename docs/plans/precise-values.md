@@ -111,3 +111,8 @@ whole suite, run in Debug, agrees with the maps.
   whole suite agrees (breaking one map on purpose aborts at once). Value
   transfer moved here from phase 3: it copies by kind and shape, and no longer
   calls `Contains`.
+- 2026-10-13: phase 2 done. The collector walks each frame by its map, takes
+  globals by kind and traces fields by flag and shape; marking takes a pointer's
+  slot index directly, and Debug asserts the object is live. `PassForeignArgument`
+  trusts its kinds, with a Debug assertion, so `GarbageCollector::Contains` is
+  gone. Benchmarks within noise of `main`, peak memory unchanged.
