@@ -26,7 +26,7 @@ namespace
 			array.AddBack(MidoriValue(static_cast<MidoriInteger>(0)));
 		}
 		void* memory = allocator.Allocate(sizeof(MidoriTraceable));
-		MidoriTraceable* traceable = new(memory) MidoriTraceable(std::move(array));
+		MidoriTraceable* traceable = new(memory) MidoriTraceable(std::move(array), element != nullptr);
 		gc.RegisterObject(traceable);
 		return traceable;
 	}

@@ -70,6 +70,11 @@ struct BytecodeModule
 	StringPool m_string_pool;
 	ProcedureNameList m_procedure_names;
 	GlobalVariableList m_global_variables;
+	// One per global, true where it holds a pointer.
+	std::vector<bool> m_global_pointers;
+	// The shapes this module's instructions and procedures name, by the index they
+	// name; the linker merges them into the program's.
+	std::vector<Shape> m_shapes;
 	ReexportMap m_reexports;
 	SourceFileTable m_source_files;
 	std::vector<NativeLibraryImport> m_native_libraries;

@@ -22,6 +22,9 @@ enum class VmFFIArgumentKind : uint8_t
 	ValueHandle
 };
 
+// Set in a foreign call's return tag when the array it returns holds pointers.
+inline constexpr uint8_t VM_POINTER_ELEMENTS_TAG = 0x80u;
+
 enum class VmFFIReturnKind : uint8_t
 {
 	RawValue = 0,

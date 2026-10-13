@@ -23,7 +23,7 @@ versioned `.mmc` contract under `format/mmc/`.
 |---|---|
 | `projects/marmotc/src/Bytecode` | Compiler-side opcode and builtin IDs, executable model, `.mmc` writer |
 | `projects/marmotvm/src/Bytecode` | VM-side opcode and builtin IDs, loaded-program model, `.mmc` reader and disassembler |
-| `format/mmc` | Language-neutral v14 contract and compatibility fixtures |
+| `format/mmc` | Language-neutral v15 contract and compatibility fixtures |
 | `projects/marmotc/src/Compiler` | Compiler errors, lexer, parser, type checker, static analysis, lowering, MidoriIR optimizer, bytecode backend, linker |
 | `projects/marmotvm/src` | Values, runtime errors, the interpreter, the GC, workers, the builtin FFI library and VM entry point |
 | `projects/marmot/src` | The `marmot` tool |

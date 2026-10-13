@@ -1,4 +1,4 @@
-// Generated from format/mmc/registry-v14.json. Do not edit.
+// Generated from format/mmc/registry-v15.json. Do not edit.
 // Regenerate: python scripts/dev.py generate-mmc
 
 // Constants and literals
@@ -20,8 +20,8 @@ MARMOT_OPCODE(INT_5, 1)
 MARMOT_OPCODE(INT_10, 1)
 
 // Arrays and tuples
-MARMOT_OPCODE(CREATE_ARRAY, 4)
-MARMOT_OPCODE(CREATE_TUPLE, 4)
+MARMOT_OPCODE(CREATE_ARRAY, 5) // [op][count lo][count mid][count hi][kind] pop count values into a new array; kind 1 when its elements are pointers
+MARMOT_OPCODE(CREATE_TUPLE, 6) // [op][count lo][count mid][count hi][shape lo][shape hi] pop count values into a tuple of that shape
 MARMOT_OPCODE(GET_ARRAY, 1)
 MARMOT_OPCODE(GET_TUPLE, 1)
 MARMOT_OPCODE(ADD_BACK_ARRAY, 1)
@@ -157,8 +157,8 @@ MARMOT_OPCODE(CALL_GLOBAL_WIDE, 4) // [op][global_hi][global_lo][arity]
 MARMOT_OPCODE(TAIL_CALL, 2)
 
 // Data
-MARMOT_OPCODE(CONSTRUCT_STRUCT, 2)
-MARMOT_OPCODE(CONSTRUCT_UNION, 3) // [op][size][tag] pop size fields, push a union of them with the tag
+MARMOT_OPCODE(CONSTRUCT_STRUCT, 4) // [op][size][shape lo][shape hi] pop size fields into a struct of that shape
+MARMOT_OPCODE(CONSTRUCT_UNION, 5) // [op][size][tag][shape lo][shape hi] pop size fields, push a union of them with the tag and shape
 MARMOT_OPCODE(LOAD_EMPTY_UNION, 2)
 MARMOT_OPCODE(GET_MEMBER, 2)
 
@@ -179,7 +179,7 @@ MARMOT_OPCODE(GET_LOCAL_WIDE, 3)
 MARMOT_OPCODE(SET_LOCAL_WIDE, 3)
 
 // Ref<T>
-MARMOT_OPCODE(MAKE_CELL, 1)
+MARMOT_OPCODE(MAKE_CELL, 2) // [op][kind] replace a value with a Ref holding it; kind 1 when the value is a pointer
 MARMOT_OPCODE(READ_CELL, 1)
 MARMOT_OPCODE(WRITE_CELL, 1)
 
@@ -192,10 +192,10 @@ MARMOT_OPCODE(RETURN, 1)
 MARMOT_OPCODE(HALT, 1)
 
 // Concurrency
-MARMOT_OPCODE(SPAWN_WORKER, 2)
-MARMOT_OPCODE(JOIN_WORKER, 5)
+MARMOT_OPCODE(SPAWN_WORKER, 5) // [op][arity][shape lo][shape hi][result kind] pop the function and arity arguments, which cross as one tuple of that shape; result kind 1 when the worker's result is a pointer
+MARMOT_OPCODE(JOIN_WORKER, 6) // [op][ok][err][cancelled][failed][value kind] tags of Result and WorkerError; value kind 1 when Ok's value is a pointer
 MARMOT_OPCODE(CHANNEL_CREATE, 1)
-MARMOT_OPCODE(CHANNEL_SEND, 1)
+MARMOT_OPCODE(CHANNEL_SEND, 2) // [op][kind] pop a value and a channel and send it; kind 1 when the value is a pointer
 MARMOT_OPCODE(CHANNEL_RECEIVE, 1)
 MARMOT_OPCODE(CHANNEL_CLOSE, 1)
 MARMOT_OPCODE(WORKER_IS_DONE, 1)
@@ -220,4 +220,4 @@ MARMOT_OPCODE(IF_LOCAL_EQ_LOCAL, 5) // [op][left][right][off_lo][off_hi] jump if
 MARMOT_OPCODE(STEP_LOCAL, 3) // [op][local][imm8] local += imm
 MARMOT_OPCODE(LOCAL_ARRAY_GET, 4) // [op][array][index][target] target = array[index]
 MARMOT_OPCODE(APPEND_LOCAL, 3) // [op][array][value] append value to the array in local array
-MARMOT_OPCODE(LOCAL_UNION2, 5) // [op][tag][first][second][target] target = a union of the two locals with the tag
+MARMOT_OPCODE(LOCAL_UNION2, 7) // [op][tag][first][second][target][shape lo][shape hi] target = a union of the two locals with the tag and shape

@@ -1,11 +1,24 @@
 #include "Executable.h"
 
+#include <algorithm>
 #include <utility>
 
-VmBytecodeStream::VmBytecodeStream(std::vector<VmOpCode>&& bytecode, std::vector<std::pair<int, int>>&& line_info)
-	: m_bytecode(std::move(bytecode)),
-	  m_line_info(std::move(line_info))
+const VmFrameMap::Safepoint* VmFrameMap::FindSafepoint(int offset) const
 {
+	const std::vector<Safepoint>::const_iterator found = std::ranges::lower_bound(m_safepoints, offset, {}, &Safepoint::m_offset);
+	return found != m_safepoints.cend() && found->m_offset == offset ? &*found : nullptr;
+}
+
+VmBytecodeStream::VmBytecodeStream(std::vector<VmOpCode>&& bytecode, std::vector<std::pair<int, int>>&& line_info, VmFrameMap&& frame)
+	: m_bytecode(std::move(bytecode)),
+	  m_line_info(std::move(line_info)),
+	  m_frame(std::move(frame))
+{
+}
+
+const VmFrameMap& VmBytecodeStream::GetFrameMap() const
+{
+	return m_frame;
 }
 
 VmBytecodeStream::const_iterator VmBytecodeStream::cbegin() const
@@ -48,15 +61,31 @@ const VmOpCode* VmBytecodeStream::operator[](int index) const
 	return &m_bytecode[static_cast<size_t>(index)];
 }
 
-int VmExecutable::AddGlobalVariable(std::string&& name)
+int VmExecutable::AddGlobalVariable(std::string&& name, bool is_pointer)
 {
 	m_globals.emplace_back(std::move(name));
+	m_global_pointers.push_back(is_pointer);
 	return static_cast<int>(m_globals.size()) - 1;
 }
 
 const std::string& VmExecutable::GetGlobalVariable(int index) const
 {
 	return m_globals[static_cast<size_t>(index)];
+}
+
+bool VmExecutable::IsGlobalPointer(int index) const
+{
+	return m_global_pointers[static_cast<size_t>(index)];
+}
+
+void VmExecutable::AttachShapes(std::vector<VmShape>&& shapes)
+{
+	m_shapes = std::move(shapes);
+}
+
+const std::vector<VmShape>& VmExecutable::GetShapes() const
+{
+	return m_shapes;
 }
 
 void VmExecutable::AttachProcedures(Procedures&& bytecode)

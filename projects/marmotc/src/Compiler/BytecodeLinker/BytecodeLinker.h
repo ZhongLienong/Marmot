@@ -5,6 +5,7 @@
 #include "Compiler/Result/Result.h"
 
 #include <expected>
+#include <map>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -35,6 +36,10 @@ private:
 	std::vector<std::string> m_global_procedure_source_paths;
 	std::vector<BytecodeStream> m_global_procedures;
 	std::vector<std::string> m_global_variables;
+	std::vector<bool> m_global_pointers;
+	std::vector<Shape> m_global_shapes{ Shape{}, Shape{ 0u } };
+	std::map<Shape, uint16_t> m_global_shape_indices{ { Shape{}, SCALAR_SHAPE }, { Shape{ 0u }, FIRST_FIELD_SHAPE } };
+	std::unordered_map<std::string, std::vector<uint16_t>> m_module_shape_mappings;
 	MidoriExecutable::SourceFileTable m_global_source_files;
 
 public:
@@ -48,6 +53,8 @@ private:
 	MidoriResult::VoidResult BuildGlobalSymbolTable();
 
 	void MergeConstantPools();
+
+	MidoriResult::VoidResult MergeShapes();
 
 	void MergeFunctionNames();
 
@@ -85,5 +92,5 @@ private:
 
 	std::vector<size_t> ResolveImports(const BytecodeModule& module) const;
 
-	void PatchProcedure(BytecodeStream& procedure, size_t module_proc_base_offset, size_t module_global_base_offset, const std::vector<size_t>& import_resolved_indices, const std::vector<size_t>& string_mapping) const;
+	void PatchProcedure(BytecodeStream& procedure, size_t module_proc_base_offset, size_t module_global_base_offset, const std::vector<size_t>& import_resolved_indices, const std::vector<size_t>& string_mapping, const std::vector<uint16_t>& shape_mapping) const;
 };

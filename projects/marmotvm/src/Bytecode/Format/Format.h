@@ -46,7 +46,13 @@
 // Bumped 2026-09-27 (13): CONSTRUCT_UNION carries the tag SET_TAG used to
 // set after it, and SET_TAG, which nothing else emitted, was deleted.
 // PUSH_PLACEHOLDER carries how many to push.
-inline constexpr uint32_t VmMbcFormatVersion = 14u;
+//
+// Bumped 2026-10-13 (15): nothing decides from a value's bits whether it is a
+// pointer. Each global, each frame slot and each temporary a collection can
+// find on a frame's operand stack has a kind, each aggregate a shape naming its
+// pointer fields, and the instructions that build arrays, tuples, structs,
+// unions and cells, and that send values between workers, carry them.
+inline constexpr uint32_t VmMbcFormatVersion = 15u;
 
 inline constexpr int VM_MAX_UNION_TAG{ UINT8_MAX };
 

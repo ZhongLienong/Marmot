@@ -170,17 +170,44 @@ namespace
 		Terminal::Print(output, formated_str.str());
 	}
 
+	int ShapeOperand(const VmExecutable& executable, int proc_index, int at)
+	{
+		return static_cast<int>(executable.ReadByteCode(at, proc_index)) | (static_cast<int>(executable.ReadByteCode(at + 1, proc_index)) << 8);
+	}
+
+	std::string_view KindName(int kind)
+	{
+		return kind != 0 ? "pointer" : "scalar";
+	}
+
+	// An array's last operand is its elements' kind, a tuple's last two its shape.
 	void AggregateCreateInstruction(std::FILE* output, std::string_view name, const VmExecutable& executable, int proc_index, int& offset)
 	{
+		const bool is_array = executable.ReadByteCode(offset, proc_index) == VmOpCode::CREATE_ARRAY;
 		int operand = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index)) |
 			(static_cast<int>(executable.ReadByteCode(offset + 2, proc_index)) << 8) |
 			(static_cast<int>(executable.ReadByteCode(offset + 3, proc_index)) << 16);
-		offset += 4;
+		const std::string trailer = is_array
+			? std::format("elements {}", KindName(static_cast<int>(executable.ReadByteCode(offset + 4, proc_index))))
+			: std::format("shape {}", ShapeOperand(executable, proc_index, offset + 4));
+		offset += is_array ? 5 : 6;
 		std::ostringstream formated_str;
 
 		formated_str << Terminal::Colored<Terminal::Color::BRIGHT_WHITE>(std::string(name));
 		formated_str << " " << Terminal::Colored<Terminal::Color::CYAN>(std::to_string(operand));
-		formated_str << "  " << Terminal::Colored<Terminal::Color::DARK_GRAY>("// element count: " + std::to_string(operand));
+		formated_str << "  " << Terminal::Colored<Terminal::Color::DARK_GRAY>("// element count: " + std::to_string(operand) + ", " + trailer);
+		formated_str << '\n';
+		Terminal::Print(output, formated_str.str());
+	}
+
+	void KindInstruction(std::FILE* output, std::string_view name, const VmExecutable& executable, int proc_index, int& offset)
+	{
+		const int kind = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
+		offset += 2;
+		std::ostringstream formated_str;
+
+		formated_str << Terminal::Colored<Terminal::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << "  " << Terminal::Colored<Terminal::Color::DARK_GRAY>(std::format("// value {}", KindName(kind)));
 		formated_str << '\n';
 		Terminal::Print(output, formated_str.str());
 	}
@@ -296,18 +323,33 @@ namespace
 		Terminal::Print(output, formated_str.str());
 	}
 
+	void ConstructStructInstruction(std::FILE* output, std::string_view name, const VmExecutable& executable, int proc_index, int& offset)
+	{
+		int operand = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
+		const int shape = ShapeOperand(executable, proc_index, offset + 2);
+		offset += 4;
+		std::ostringstream formated_str;
+
+		formated_str << Terminal::Colored<Terminal::Color::BRIGHT_WHITE>(std::string(name));
+		formated_str << " " << Terminal::Colored<Terminal::Color::CYAN>(std::to_string(operand));
+		formated_str << "  " << Terminal::Colored<Terminal::Color::DARK_GRAY>("// data size: " + std::to_string(operand) + ", shape " + std::to_string(shape));
+		formated_str << '\n';
+		Terminal::Print(output, formated_str.str());
+	}
+
 	void JoinWorkerInstruction(std::FILE* output, std::string_view name, const VmExecutable& executable, int proc_index, int& offset)
 	{
 		const int ok_tag = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 		const int err_tag = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
 		const int cancelled_tag = static_cast<int>(executable.ReadByteCode(offset + 3, proc_index));
 		const int failed_tag = static_cast<int>(executable.ReadByteCode(offset + 4, proc_index));
-		offset += 5;
+		const int value_kind = static_cast<int>(executable.ReadByteCode(offset + 5, proc_index));
+		offset += 6;
 		std::ostringstream formated_str;
 
 		formated_str << Terminal::Colored<Terminal::Color::BRIGHT_WHITE>(std::string(name));
 		formated_str << " " << Terminal::Colored<Terminal::Color::CYAN>(std::format("{} {} {} {}", ok_tag, err_tag, cancelled_tag, failed_tag));
-		formated_str << "  " << Terminal::Colored<Terminal::Color::DARK_GRAY>(std::format("// tags: Ok {}, Err {}, Cancelled {}, Failed {}", ok_tag, err_tag, cancelled_tag, failed_tag));
+		formated_str << "  " << Terminal::Colored<Terminal::Color::DARK_GRAY>(std::format("// tags: Ok {}, Err {}, Cancelled {}, Failed {}; Ok's value {}", ok_tag, err_tag, cancelled_tag, failed_tag, KindName(value_kind)));
 		formated_str << '\n';
 		Terminal::Print(output, formated_str.str());
 	}
@@ -316,13 +358,14 @@ namespace
 	{
 		int size = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 		int tag = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
-		offset += 3;
+		const int shape = ShapeOperand(executable, proc_index, offset + 3);
+		offset += 5;
 		std::ostringstream formated_str;
 
 		formated_str << Terminal::Colored<Terminal::Color::BRIGHT_WHITE>(std::string(name));
 		formated_str << " " << Terminal::Colored<Terminal::Color::CYAN>(std::to_string(size));
 		formated_str << " " << Terminal::Colored<Terminal::Color::CYAN>(std::to_string(tag));
-		formated_str << "  " << Terminal::Colored<Terminal::Color::DARK_GRAY>("// data size: " + std::to_string(size) + ", union tag: " + std::to_string(tag));
+		formated_str << "  " << Terminal::Colored<Terminal::Color::DARK_GRAY>("// data size: " + std::to_string(size) + ", union tag: " + std::to_string(tag) + ", shape " + std::to_string(shape));
 		formated_str << '\n';
 		Terminal::Print(output, formated_str.str());
 	}
@@ -330,15 +373,17 @@ namespace
 	void SpawnWorkerInstruction(std::FILE* output, std::string_view name, const VmExecutable& executable, int proc_index, int& offset)
 	{
 		const int arg_count = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
+		const int shape = ShapeOperand(executable, proc_index, offset + 2);
+		const int result_kind = static_cast<int>(executable.ReadByteCode(offset + 4, proc_index));
 
 		std::ostringstream formatted_str;
 		formatted_str << Terminal::Colored<Terminal::Color::BRIGHT_WHITE>(std::string(name));
 		formatted_str << " " << Terminal::Colored<Terminal::Color::CYAN>(std::to_string(arg_count));
-		formatted_str << "  " << Terminal::Colored<Terminal::Color::DARK_GRAY>("// argc " + std::to_string(arg_count) + ", function on the stack");
+		formatted_str << "  " << Terminal::Colored<Terminal::Color::DARK_GRAY>(std::format("// argc {}, function on the stack, crossing as shape {}; result {}", arg_count, shape, KindName(result_kind)));
 		formatted_str << '\n';
 		Terminal::Print(output, formatted_str.str());
 
-		offset += 2;
+		offset += 5;
 	}
 }
 
@@ -756,7 +801,7 @@ namespace Disassembler
 			SimpleInstruction(output, "CHANNEL_CREATE", offset);
 			break;
 		case VmOpCode::CHANNEL_SEND:
-			SimpleInstruction(output, "CHANNEL_SEND", offset);
+			KindInstruction(output, "CHANNEL_SEND", executable, proc_index, offset);
 			break;
 		case VmOpCode::CHANNEL_RECEIVE:
 			SimpleInstruction(output, "CHANNEL_RECEIVE", offset);
@@ -768,7 +813,7 @@ namespace Disassembler
 			SimpleInstruction(output, "WORKER_IS_DONE", offset);
 			break;
 		case VmOpCode::MAKE_CELL:
-			SimpleInstruction(output, "MAKE_CELL", offset);
+			KindInstruction(output, "MAKE_CELL", executable, proc_index, offset);
 			break;
 		case VmOpCode::READ_CELL:
 			SimpleInstruction(output, "READ_CELL", offset);
@@ -898,8 +943,9 @@ namespace Disassembler
 			const int first = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
 			const int second = static_cast<int>(executable.ReadByteCode(offset + 3, proc_index));
 			const int target_index = static_cast<int>(executable.ReadByteCode(offset + 4, proc_index));
-			Terminal::Print(output, std::string(Terminal::Colored<Terminal::Color::BRIGHT_WHITE>("LOCAL_UNION2")) + " tag=" + std::to_string(tag) + " first=" + std::to_string(first) + " second=" + std::to_string(second) + " target=" + std::to_string(target_index) + "\n");
-			offset += 5;
+			const int shape = ShapeOperand(executable, proc_index, offset + 5);
+			Terminal::Print(output, std::string(Terminal::Colored<Terminal::Color::BRIGHT_WHITE>("LOCAL_UNION2")) + " tag=" + std::to_string(tag) + " first=" + std::to_string(first) + " second=" + std::to_string(second) + " target=" + std::to_string(target_index) + " shape=" + std::to_string(shape) + "\n");
+			offset += 7;
 			break;
 		}
 		case VmOpCode::APPEND_LOCAL:
@@ -970,7 +1016,7 @@ namespace Disassembler
 			CallInstruction(output, "TAIL_CALL", executable, proc_index, offset);
 			break;
 		case VmOpCode::CONSTRUCT_STRUCT:
-			DataInstruction(output, "CONSTRUCT_STRUCT", executable, proc_index, offset);
+			ConstructStructInstruction(output, "CONSTRUCT_STRUCT", executable, proc_index, offset);
 			break;
 		case VmOpCode::CONSTRUCT_UNION:
 			ConstructUnionInstruction(output, "CONSTRUCT_UNION", executable, proc_index, offset);

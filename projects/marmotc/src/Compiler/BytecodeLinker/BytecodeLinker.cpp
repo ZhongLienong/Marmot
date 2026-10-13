@@ -85,6 +85,25 @@ namespace
 		return second_underscore != std::string::npos;
 	}
 
+	// Where an instruction's shape operand starts, counted from its opcode.
+	std::optional<int> ShapeOperandOffset(OpCode opcode)
+	{
+		switch (opcode)
+		{
+		case OpCode::CONSTRUCT_STRUCT:
+		case OpCode::SPAWN_WORKER:
+			return 2;
+		case OpCode::CONSTRUCT_UNION:
+			return 3;
+		case OpCode::CREATE_TUPLE:
+			return 4;
+		case OpCode::LOCAL_UNION2:
+			return 5;
+		default:
+			return std::nullopt;
+		}
+	}
+
 	// A program may have more than 256 procedures.
 	void AddProcedure(BytecodeStream& stream, size_t procedure)
 	{
@@ -104,6 +123,8 @@ namespace
 		AddProcedure(bootstrap, module_global_index);
 		bootstrap.AddByteCode(OpCode::CALL, 0);
 		bootstrap.AddByteCode(static_cast<OpCode>(0), 0);
+		// A module's top level returns Unit, onto an otherwise empty frame.
+		bootstrap.GetFrameMap().m_safepoints.push_back(FrameMap::Safepoint{ bootstrap.GetByteCodeSize(), {}, false });
 		bootstrap.AddByteCode(OpCode::POP, 0);
 	}
 
@@ -261,6 +282,11 @@ MidoriResult::BytecodeLinkerResult BytecodeLinker::Link()
 	}
 
 	MergeConstantPools();
+	MidoriResult::VoidResult shape_result = MergeShapes();
+	if (!shape_result.has_value())
+	{
+		return std::unexpected(shape_result.error());
+	}
 	MergeFunctionNames();
 	MergeGlobalVariables();
 	for (const BytecodeModule& module : m_modules)
@@ -313,16 +339,13 @@ MidoriResult::BytecodeLinkerResult BytecodeLinker::Link()
 	executable.AttachSourceFiles(std::move(m_global_source_files));
 	executable.AttachNativeLibraries(MergeNativeLibraries());
 	executable.AddStringPool(std::move(m_global_string_pool));
+	executable.AttachShapes(std::move(m_global_shapes));
 	executable.SetFileName(EntrySourcePathForModule(m_modules, m_entry_module_name));
 
-	std::ranges::for_each
-	(
-		m_global_variables,
-		[&executable](std::string& global_var)
-		{
-			executable.AddGlobalVariable(std::move(global_var));
-		}
-	);
+	for (size_t index = 0uz; index < m_global_variables.size(); index += 1uz)
+	{
+		executable.AddGlobalVariable(std::move(m_global_variables[index]), m_global_pointers[index]);
+	}
 
 	return executable;
 }
@@ -408,6 +431,34 @@ void BytecodeLinker::MergeConstantPools()
 	);
 }
 
+MidoriResult::VoidResult BytecodeLinker::MergeShapes()
+{
+	for (const BytecodeModule& module : m_modules)
+	{
+		std::vector<uint16_t> shape_mapping;
+		shape_mapping.reserve(module.m_shapes.size());
+		for (const Shape& shape : module.m_shapes)
+		{
+			const std::map<Shape, uint16_t>::const_iterator existing = m_global_shape_indices.find(shape);
+			if (existing != m_global_shape_indices.cend())
+			{
+				shape_mapping.push_back(existing->second);
+				continue;
+			}
+			if (m_global_shapes.size() > static_cast<size_t>(UINT16_MAX))
+			{
+				return std::unexpected(CompilerError::Simple(CompilerStage::BytecodeLinker, std::format("Too many aggregate shapes in the program (max {})", UINT16_MAX + 1), CompilerErrorCode::CodeGeneratorLimitExceeded));
+			}
+			const uint16_t index = static_cast<uint16_t>(m_global_shapes.size());
+			m_global_shapes.push_back(shape);
+			m_global_shape_indices.emplace(shape, index);
+			shape_mapping.push_back(index);
+		}
+		m_module_shape_mappings[module.m_module_name] = std::move(shape_mapping);
+	}
+	return {};
+}
+
 void BytecodeLinker::MergeFunctionNames()
 {
 	std::ranges::for_each
@@ -462,6 +513,7 @@ void BytecodeLinker::MergeGlobalVariables()
 				m_module_base_global_indices[module.m_module_name] = current_index;
 
 				std::ranges::copy(module.m_global_variables, std::back_inserter(m_global_variables));
+				std::ranges::copy(module.m_global_pointers, std::back_inserter(m_global_pointers));
 
 				return current_index + module.m_global_variables.size();
 			}
@@ -502,15 +554,16 @@ void BytecodeLinker::ConcatenateBytecode()
 			const size_t module_proc_base_offset = m_module_base_procedure_indices.at(module.m_module_name);
 			const size_t module_global_base_offset = m_module_base_global_indices.at(module.m_module_name);
 			const std::vector<size_t>& string_mapping = m_module_string_index_mappings.at(module.m_module_name);
+			const std::vector<uint16_t>& shape_mapping = m_module_shape_mappings.at(module.m_module_name);
 			const std::vector<size_t> import_resolved_indices = ResolveImports(module);
 
 			std::ranges::for_each
 			(
 				std::views::iota(0uz, module.m_procedures.size()),
-				[this, &module, &source_path_by_module, module_proc_base_offset, module_global_base_offset, &import_resolved_indices, &string_mapping](size_t proc_index)
+				[this, &module, &source_path_by_module, module_proc_base_offset, module_global_base_offset, &import_resolved_indices, &string_mapping, &shape_mapping](size_t proc_index)
 				{
 					BytecodeStream& procedure = module.m_procedures[proc_index];
-					PatchProcedure(procedure, module_proc_base_offset, module_global_base_offset, import_resolved_indices, string_mapping);
+					PatchProcedure(procedure, module_proc_base_offset, module_global_base_offset, import_resolved_indices, string_mapping, shape_mapping);
 
 					// A specialization of an imported generic is named for the module it came from.
 					const std::string& proc_name = module.m_procedure_names[proc_index];
@@ -764,8 +817,12 @@ void BytecodeLinker::PatchProcedure(
 	size_t module_proc_base_offset,
 	size_t module_global_base_offset,
 	const std::vector<size_t>& import_resolved_indices,
-	const std::vector<size_t>& string_mapping) const
+	const std::vector<size_t>& string_mapping,
+	const std::vector<uint16_t>& shape_mapping) const
 {
+	FrameMap& frame = procedure.GetFrameMap();
+	frame.m_capture_shape = shape_mapping[frame.m_capture_shape];
+
 	const int bytecode_size = procedure.GetByteCodeSize();
 	const int proc_base_offset = static_cast<int>(module_proc_base_offset);
 	const int global_base_offset = static_cast<int>(module_global_base_offset);
@@ -774,6 +831,12 @@ void BytecodeLinker::PatchProcedure(
 	{
 		const OpCode opcode = procedure.ReadByteCode(offset);
 		const int advance = OpCodeTable::Length(opcode);
+
+		if (const std::optional<int> shape_offset = ShapeOperandOffset(opcode))
+		{
+			const int at = offset + shape_offset.value() - 1;
+			WriteShortOperandLE(procedure, at, shape_mapping[static_cast<size_t>(ReadShortOperandLE(procedure, at))]);
+		}
 
 		if (HasWideProcedureOperand(opcode))
 		{

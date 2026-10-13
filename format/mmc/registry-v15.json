@@ -1,5 +1,5 @@
 {
-  "format_version": 14,
+  "format_version": 15,
   "builtin_abi_version": 1,
   "opcodes": [
     {
@@ -101,14 +101,16 @@
     {
       "id": 16,
       "name": "CREATE_ARRAY",
-      "length": 4,
-      "category": "Arrays and tuples"
+      "length": 5,
+      "category": "Arrays and tuples",
+      "description": "[op][count lo][count mid][count hi][kind] pop count values into a new array; kind 1 when its elements are pointers"
     },
     {
       "id": 17,
       "name": "CREATE_TUPLE",
-      "length": 4,
-      "category": "Arrays and tuples"
+      "length": 6,
+      "category": "Arrays and tuples",
+      "description": "[op][count lo][count mid][count hi][shape lo][shape hi] pop count values into a tuple of that shape"
     },
     {
       "id": 18,
@@ -795,15 +797,16 @@
     {
       "id": 131,
       "name": "CONSTRUCT_STRUCT",
-      "length": 2,
-      "category": "Data"
+      "length": 4,
+      "category": "Data",
+      "description": "[op][size][shape lo][shape hi] pop size fields into a struct of that shape"
     },
     {
       "id": 132,
       "name": "CONSTRUCT_UNION",
-      "length": 3,
+      "length": 5,
       "category": "Data",
-      "description": "[op][size][tag] pop size fields, push a union of them with the tag"
+      "description": "[op][size][tag][shape lo][shape hi] pop size fields, push a union of them with the tag and shape"
     },
     {
       "id": 133,
@@ -896,8 +899,9 @@
     {
       "id": 147,
       "name": "MAKE_CELL",
-      "length": 1,
-      "category": "Ref<T>"
+      "length": 2,
+      "category": "Ref<T>",
+      "description": "[op][kind] replace a value with a Ref holding it; kind 1 when the value is a pointer"
     },
     {
       "id": 148,
@@ -939,14 +943,16 @@
     {
       "id": 154,
       "name": "SPAWN_WORKER",
-      "length": 2,
-      "category": "Concurrency"
+      "length": 5,
+      "category": "Concurrency",
+      "description": "[op][arity][shape lo][shape hi][result kind] pop the function and arity arguments, which cross as one tuple of that shape; result kind 1 when the worker's result is a pointer"
     },
     {
       "id": 155,
       "name": "JOIN_WORKER",
-      "length": 5,
-      "category": "Concurrency"
+      "length": 6,
+      "category": "Concurrency",
+      "description": "[op][ok][err][cancelled][failed][value kind] tags of Result and WorkerError; value kind 1 when Ok's value is a pointer"
     },
     {
       "id": 156,
@@ -957,8 +963,9 @@
     {
       "id": 157,
       "name": "CHANNEL_SEND",
-      "length": 1,
-      "category": "Concurrency"
+      "length": 2,
+      "category": "Concurrency",
+      "description": "[op][kind] pop a value and a channel and send it; kind 1 when the value is a pointer"
     },
     {
       "id": 158,
@@ -1097,9 +1104,9 @@
     {
       "id": 178,
       "name": "LOCAL_UNION2",
-      "length": 5,
+      "length": 7,
       "category": "Local-operand superinstructions",
-      "description": "[op][tag][first][second][target] target = a union of the two locals with the tag"
+      "description": "[op][tag][first][second][target][shape lo][shape hi] target = a union of the two locals with the tag and shape"
     }
   ],
   "builtins": [

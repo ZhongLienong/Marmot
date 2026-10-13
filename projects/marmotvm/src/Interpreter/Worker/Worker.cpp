@@ -30,9 +30,10 @@ namespace
 	}
 }
 
-Worker::Worker(std::shared_ptr<const VmExecutable> executable, TransferPayload payload)
+Worker::Worker(std::shared_ptr<const VmExecutable> executable, TransferPayload payload, bool result_is_pointer)
 	: m_executable(std::move(executable))
 	, m_payload(std::move(payload))
+	, m_result_is_pointer(result_is_pointer)
 	, m_thread([this](std::stop_token stop_token)
 	{
 		Execute(std::move(stop_token));
@@ -94,7 +95,7 @@ std::expected<TransferPayload, WorkerError> Worker::Run(std::stop_token stop_tok
 		return std::unexpected(WorkerError{ execution_result.error().m_code == RuntimeErrorCode::WorkerCancelled, std::string(execution_result.error().m_message) });
 	}
 
-	return ValueTransfer::Serialize(worker_vm.PeekValue(), worker_vm);
+	return ValueTransfer::Serialize(worker_vm.PeekValue(), m_result_is_pointer, worker_vm);
 }
 
 std::expected<TransferPayload, WorkerError> Worker::JoinValue()
@@ -124,12 +125,12 @@ WorkerRegistry& WorkerRegistry::GetInstance()
 	return instance;
 }
 
-int WorkerRegistry::SpawnWorker(std::shared_ptr<const VmExecutable> executable, TransferPayload payload)
+int WorkerRegistry::SpawnWorker(std::shared_ptr<const VmExecutable> executable, TransferPayload payload, bool result_is_pointer)
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
 	const int worker_id = m_next_id;
 	m_next_id += 1;
-	m_workers.emplace(worker_id, std::make_unique<Worker>(std::move(executable), std::move(payload)));
+	m_workers.emplace(worker_id, std::make_unique<Worker>(std::move(executable), std::move(payload), result_is_pointer));
 	return worker_id;
 }
 

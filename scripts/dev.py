@@ -68,7 +68,7 @@ CHECKS: dict[str, Command] = {
     "format": Command("testing.formatting", "formatter idempotency", "Tests", ["marmotc"]),
     "benchmarks": Command("testing.benchmarks", "benchmarks compile (--run to run them)", "Tests", COMPILER_AND_VM),
     "tool": Command("testing.tool", "the marmot tool's tests", "Tests", COMPILER_AND_VM),
-    "mmc": Command("testing.mmc_contract", "version-14 .mmc contract and fixture compatibility", "Tests", UNIT_TARGETS),
+    "mmc": Command("testing.mmc_contract", "version-15 .mmc contract and fixture compatibility", "Tests", UNIT_TARGETS),
 }
 
 

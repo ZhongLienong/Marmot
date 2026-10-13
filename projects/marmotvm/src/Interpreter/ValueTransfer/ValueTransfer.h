@@ -26,6 +26,7 @@ struct SerializedObject
 	struct Array
 	{
 		std::vector<SerializedValue> m_elements;
+		bool m_holds_pointers = false;
 	};
 
 	// A tuple, struct, union or closure; `m_index` is a union's tag or a closure's
@@ -34,6 +35,7 @@ struct SerializedObject
 	{
 		MidoriTraceable::TraceableType m_type = MidoriTraceable::TraceableType::Tuple;
 		int m_index = 0;
+		uint16_t m_shape = 0u;
 		std::vector<SerializedValue> m_values;
 	};
 
@@ -56,6 +58,7 @@ struct SerializedObject
 	struct MutableCell
 	{
 		SerializedValue m_value;
+		bool m_holds_pointer = false;
 	};
 
 	using Variant = std::variant<Text, Array, Aggregate, IntRange, FloatRange, MutableCell>;
@@ -83,7 +86,8 @@ struct TransferPayload
 class ValueTransfer
 {
 public:
-	static TransferPayload Serialize(MidoriValue value, VirtualMachine& source_vm);
+	// A value of the kind `is_pointer` says, which the compiler decided.
+	static TransferPayload Serialize(MidoriValue value, bool is_pointer, VirtualMachine& source_vm);
 
 	// The payload's value, rebuilt in `target_vm`'s heap. Its globals are offered
 	// to `target_vm`, which keeps the ones it does not have yet.

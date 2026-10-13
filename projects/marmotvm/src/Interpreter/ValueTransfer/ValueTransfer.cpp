@@ -17,13 +17,10 @@ namespace
 		using Visitors::operator()...;
 	};
 
-	bool IsHeapObject(MidoriValue value, const VirtualMachine& vm)
-	{
-		MidoriTraceable* pointer = value.GetPointer();
-		return pointer != nullptr && vm.GetGC().Contains(pointer);
-	}
-
-	// Copies values out of one VM's heap. An object gets its index when first
+	// Copies values out of one VM's heap, each by the kind the compiler gave it: an
+	// array's or a cell's flag, an aggregate's shape, a global's kind. A pointer
+	// that is null, a global not defined yet or a capture not bound yet, crosses
+	// as the zero it is. An object gets its index when first
 	// reached and is copied later, from a worklist, so a cycle (a recursive local
 	// closure captures itself) is an index pointing back. A copied closure brings
 	// its procedure, whose bytecode names the globals it reads and the procedures
@@ -34,10 +31,12 @@ namespace
 	public:
 		explicit PayloadWriter(VirtualMachine& source_vm);
 
-		TransferPayload Write(MidoriValue value) &&;
+		TransferPayload Write(MidoriValue value, bool is_pointer) &&;
 
 	private:
-		SerializedValue Reference(MidoriValue value);
+		SerializedValue Reference(MidoriValue value, bool is_pointer);
+
+		std::vector<SerializedValue> ReferenceAll(std::span<const MidoriValue> values, std::span<const uint32_t> pointer_fields);
 
 		SerializedObject Copy(MidoriTraceable* source);
 
@@ -63,9 +62,9 @@ namespace
 	{
 	}
 
-	TransferPayload PayloadWriter::Write(MidoriValue value) &&
+	TransferPayload PayloadWriter::Write(MidoriValue value, bool is_pointer) &&
 	{
-		m_payload.m_root = Reference(value);
+		m_payload.m_root = Reference(value, is_pointer);
 		CopyPendingObjects();
 		while (!m_pending_procedures.empty())
 		{
@@ -78,9 +77,9 @@ namespace
 		return std::move(m_payload);
 	}
 
-	SerializedValue PayloadWriter::Reference(MidoriValue value)
+	SerializedValue PayloadWriter::Reference(MidoriValue value, bool is_pointer)
 	{
-		if (!IsHeapObject(value, m_source_vm))
+		if (!is_pointer || value.GetPointer() == nullptr)
 		{
 			return SerializedValue{ value.GetRawBits(), false };
 		}
@@ -92,6 +91,21 @@ namespace
 			m_pending_objects.emplace_back(value.GetPointer(), m_payload.m_objects.size() - 1uz);
 		}
 		return SerializedValue{ entry->second, true };
+	}
+
+	// The values in order, the fields the shape lists as pointers among them.
+	std::vector<SerializedValue> PayloadWriter::ReferenceAll(std::span<const MidoriValue> values, std::span<const uint32_t> pointer_fields)
+	{
+		std::vector<SerializedValue> references;
+		references.reserve(values.size());
+		std::span<const uint32_t>::iterator next_pointer = pointer_fields.begin();
+		for (uint32_t index = 0u; index < values.size(); index += 1u)
+		{
+			const bool is_pointer = next_pointer != pointer_fields.end() && *next_pointer == index;
+			next_pointer += is_pointer ? 1 : 0;
+			references.push_back(Reference(values[index], is_pointer));
+		}
+		return references;
 	}
 
 	void PayloadWriter::CopyPendingObjects()
@@ -107,11 +121,6 @@ namespace
 
 	SerializedObject PayloadWriter::Copy(MidoriTraceable* source)
 	{
-		const auto reference = [this](MidoriValue value) -> SerializedValue
-		{
-			return Reference(value);
-		};
-
 		switch (source->GetType())
 		{
 		case MidoriTraceable::TraceableType::Text:
@@ -121,13 +130,15 @@ namespace
 		case MidoriTraceable::TraceableType::Array:
 		{
 			const MidoriArray& array = source->GetTraceable<MidoriArray>();
+			const bool holds_pointers = source->HoldsPointers();
 			return SerializedObject
 			{
 				SerializedObject::Array
 				{
 					std::views::iota(0, array.GetLength())
-						| std::views::transform([&array, &reference](int index) -> SerializedValue { return reference(array[index]); })
-						| std::ranges::to<std::vector<SerializedValue>>()
+						| std::views::transform([this, &array, holds_pointers](int index) -> SerializedValue { return Reference(array[index], holds_pointers); })
+						| std::ranges::to<std::vector<SerializedValue>>(),
+					holds_pointers
 				}
 			};
 		}
@@ -144,13 +155,15 @@ namespace
 			}
 
 			const std::span<const MidoriValue> values(source->GetValues(), static_cast<size_t>(source->GetLength()));
+			const VmShape& shape = m_source_vm.GetExecutable().GetShapes()[source->GetShape()];
 			return SerializedObject
 			{
 				SerializedObject::Aggregate
 				{
 					source->GetType(),
 					source->GetIndex(),
-					values | std::views::transform(reference) | std::ranges::to<std::vector<SerializedValue>>()
+					source->GetShape(),
+					ReferenceAll(values, shape)
 				}
 			};
 		}
@@ -166,7 +179,7 @@ namespace
 		}
 		case MidoriTraceable::TraceableType::MutableCell:
 		{
-			return SerializedObject{ SerializedObject::MutableCell{ reference(source->GetTraceable<MidoriMutableCell>().m_value) } };
+			return SerializedObject{ SerializedObject::MutableCell{ Reference(source->GetTraceable<MidoriMutableCell>().m_value, source->HoldsPointers()), source->HoldsPointers() } };
 		}
 		}
 
@@ -185,7 +198,7 @@ namespace
 	{
 		if (m_reached_globals.insert(global_index).second)
 		{
-			m_payload.m_globals.push_back(SerializedGlobal{ global_index, Reference(m_source_vm.GetGlobalValue(global_index)) });
+			m_payload.m_globals.push_back(SerializedGlobal{ global_index, Reference(m_source_vm.GetGlobalValue(global_index), m_source_vm.GetExecutable().IsGlobalPointer(global_index)) });
 		}
 	}
 
@@ -235,7 +248,7 @@ namespace
 				},
 				[&target_vm](const SerializedObject::Array& array) -> MidoriTraceable*
 				{
-					return target_vm.AllocateTraceable(MidoriArray(static_cast<int>(array.m_elements.size())));
+					return target_vm.AllocateArray(MidoriArray(static_cast<int>(array.m_elements.size())), array.m_holds_pointers);
 				},
 				[&target_vm](const SerializedObject::Aggregate& aggregate) -> MidoriTraceable*
 				{
@@ -247,7 +260,7 @@ namespace
 					}
 
 					const std::vector<MidoriValue> placeholders(aggregate.m_values.size());
-					return target_vm.AllocateAggregate(aggregate.m_type, placeholders, aggregate.m_index);
+					return target_vm.AllocateAggregate(aggregate.m_type, placeholders, aggregate.m_index, aggregate.m_shape);
 				},
 				[&target_vm](const SerializedObject::IntRange& range) -> MidoriTraceable*
 				{
@@ -257,9 +270,9 @@ namespace
 				{
 					return target_vm.AllocateTraceable(MidoriFloatRange(range.m_start, range.m_end, range.m_step));
 				},
-				[&target_vm](const SerializedObject::MutableCell&) -> MidoriTraceable*
+				[&target_vm](const SerializedObject::MutableCell& cell) -> MidoriTraceable*
 				{
-					return target_vm.AllocateTraceable(MidoriMutableCell(MidoriValue()));
+					return target_vm.AllocateCell(MidoriValue(), cell.m_holds_pointer);
 				}
 			},
 			object.m_data
@@ -268,14 +281,14 @@ namespace
 }
 
 // Most messages are a number or a flag, which need none of the writer's tables.
-TransferPayload ValueTransfer::Serialize(MidoriValue value, VirtualMachine& source_vm)
+TransferPayload ValueTransfer::Serialize(MidoriValue value, bool is_pointer, VirtualMachine& source_vm)
 {
-	if (!IsHeapObject(value, source_vm))
+	if (!is_pointer)
 	{
 		return TransferPayload{ {}, {}, SerializedValue{ value.GetRawBits(), false } };
 	}
 
-	return PayloadWriter(source_vm).Write(value);
+	return PayloadWriter(source_vm).Write(value, true);
 }
 
 MidoriValue ValueTransfer::Deserialize(const TransferPayload& payload, VirtualMachine& target_vm)

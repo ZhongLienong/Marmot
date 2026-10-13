@@ -150,12 +150,25 @@ namespace
 			writer.WriteString(entry);
 		}
 
-		// globals, by name
+		// globals: name, and kind (1 for a pointer)
 		writer.WriteU32(static_cast<uint32_t>(executable.GetGlobalVariableCount()));
 		for (int index = 0; index < executable.GetGlobalVariableCount(); index += 1)
 		{
 			const std::string& name = executable.GetGlobalVariable(index);
 			writer.WriteString(name);
+			writer.WriteU8(executable.IsGlobalPointer(index) ? 1u : 0u);
+		}
+
+		// shapes: the pointer fields of each, by index
+		const std::vector<Shape>& shapes = executable.GetShapes();
+		writer.WriteU32(static_cast<uint32_t>(shapes.size()));
+		for (const Shape& shape : shapes)
+		{
+			writer.WriteU32(static_cast<uint32_t>(shape.size()));
+			for (const uint32_t field : shape)
+			{
+				writer.WriteU32(field);
+			}
 		}
 
 		// procedures
@@ -184,6 +197,27 @@ namespace
 			{
 				writer.WriteI32(static_cast<int32_t>(line));
 				writer.WriteI32(static_cast<int32_t>(count));
+			}
+
+			// frame map: slot kinds, the captures' shape, then each safepoint's
+			// offset, temporary kinds and result kind
+			const FrameMap& frame = executable.GetBytecodeStream(proc_index).GetFrameMap();
+			writer.WriteU32(static_cast<uint32_t>(frame.m_slot_pointers.size()));
+			for (const bool is_pointer : frame.m_slot_pointers)
+			{
+				writer.WriteU8(is_pointer ? 1u : 0u);
+			}
+			writer.WriteU16(frame.m_capture_shape);
+			writer.WriteU32(static_cast<uint32_t>(frame.m_safepoints.size()));
+			for (const FrameMap::Safepoint& safepoint : frame.m_safepoints)
+			{
+				writer.WriteU32(static_cast<uint32_t>(safepoint.m_offset));
+				writer.WriteU32(static_cast<uint32_t>(safepoint.m_temporaries.size()));
+				for (const bool is_pointer : safepoint.m_temporaries)
+				{
+					writer.WriteU8(is_pointer ? 1u : 0u);
+				}
+				writer.WriteU8(safepoint.m_result_is_pointer ? 1u : 0u);
 			}
 		}
 

@@ -180,6 +180,11 @@ public:
 	bool IsPointer() const noexcept;
 
 	DebugTypeTag GetTag() const noexcept;
+
+	// Whether the tag agrees with the kind the compiler gave the value. A pointer
+	// nothing has been stored in yet is the zero a placeholder holds, and a value
+	// rebuilt from raw bits has no tag to compare.
+	bool AgreesWithKind(bool is_pointer) const noexcept;
 #endif
 };
 
@@ -543,11 +548,14 @@ public:
 
 private:
 	TraceableType m_type;
-	uint8_t m_padding;
+	// An array's or a cell's: whether the values it holds are pointers.
+	bool m_holds_pointers;
 	// A union's tag or a closure's procedure.
 	uint16_t m_index;
 	// An aggregate's value count.
-	uint32_t m_length;
+	uint16_t m_length;
+	// An aggregate's shape: which of its values are pointers.
+	uint16_t m_shape;
 	union
 	{
 		MidoriText m_text;
@@ -636,17 +644,27 @@ public:
 		return static_cast<int>(m_length);
 	}
 
+	MIDORI_FORCE_INLINE bool HoldsPointers() const noexcept
+	{
+		return m_holds_pointers;
+	}
+
+	MIDORI_FORCE_INLINE uint16_t GetShape() const noexcept
+	{
+		return m_shape;
+	}
+
 	// An aggregate's GetLength() values. A pointer rather than a span: the
 	// dispatch loop and the collector read through it, and Debug builds do not
 	// inline span's members.
 	MIDORI_FORCE_INLINE MidoriValue* GetValues() noexcept
 	{
-		return m_length <= static_cast<uint32_t>(INLINE_CAPACITY) ? m_inline_values : m_external_values;
+		return m_length <= static_cast<uint16_t>(INLINE_CAPACITY) ? m_inline_values : m_external_values;
 	}
 
 	MIDORI_FORCE_INLINE const MidoriValue* GetValues() const noexcept
 	{
-		return m_length <= static_cast<uint32_t>(INLINE_CAPACITY) ? m_inline_values : m_external_values;
+		return m_length <= static_cast<uint16_t>(INLINE_CAPACITY) ? m_inline_values : m_external_values;
 	}
 
 	// The bytes of the slot this object takes, and of any buffer it owns.
@@ -669,12 +687,12 @@ public:
 	static void operator delete(void*, std::align_val_t, void*) noexcept;
 
 	MidoriTraceable(MidoriText&& str) noexcept;
-	MidoriTraceable(MidoriArray&& array) noexcept;
+	MidoriTraceable(MidoriArray&& array, bool holds_pointers) noexcept;
 	MidoriTraceable(MidoriIntRange&& range) noexcept;
 	MidoriTraceable(MidoriFloatRange&& range) noexcept;
-	MidoriTraceable(MidoriMutableCell&& mutable_cell) noexcept;
+	MidoriTraceable(MidoriMutableCell&& mutable_cell, bool holds_pointer) noexcept;
 	// A tuple, struct, union or closure; `index` is a union's tag or a closure's procedure.
-	MidoriTraceable(TraceableType type, std::span<const MidoriValue> values, int index) noexcept;
+	MidoriTraceable(TraceableType type, std::span<const MidoriValue> values, int index, uint16_t shape) noexcept;
 
 private:
 	MIDORI_NOINLINE void InitializeExternalValues(std::span<const MidoriValue> values);
@@ -686,5 +704,6 @@ private:
 	MidoriTraceable& operator=(MidoriTraceable&& other) noexcept = delete;
 };
 
+// A payload with no values in it, which needs no kind to be traced.
 template<typename T>
-concept MidoriTraceablePayload = std::same_as<T, MidoriText> || std::same_as<T, MidoriArray> || std::same_as<T, MidoriIntRange> || std::same_as<T, MidoriFloatRange> || std::same_as<T, MidoriMutableCell>;
+concept MidoriScalarPayload = std::same_as<T, MidoriText> || std::same_as<T, MidoriIntRange> || std::same_as<T, MidoriFloatRange>;

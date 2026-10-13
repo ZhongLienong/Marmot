@@ -17,6 +17,7 @@
 #include <memory>
 #include <new>
 #include <span>
+#include <string_view>
 #include <stop_token>
 #include <type_traits>
 #include <vector>
@@ -35,8 +36,9 @@ public:
 
     ~VirtualMachine();
 
+    // A text or a range, which hold no values.
     template<typename T>
-        requires MidoriTraceablePayload<std::remove_cvref_t<T>>
+        requires MidoriScalarPayload<std::remove_cvref_t<T>>
     MIDORI_FORCE_INLINE MidoriTraceable* AllocateTraceable(T&& payload)
     {
         void* mem = m_allocator.Allocate(MidoriTraceable::HEADER_SIZE + sizeof(std::remove_cvref_t<T>));
@@ -45,13 +47,45 @@ public:
         return traceable;
     }
 
-    // A tuple, struct, union or closure; `index` is a union's tag or a closure's procedure.
-    MIDORI_FORCE_INLINE MidoriTraceable* AllocateAggregate(MidoriTraceable::TraceableType type, std::span<const MidoriValue> values, int index) noexcept
+    MIDORI_FORCE_INLINE MidoriTraceable* AllocateArray(MidoriArray&& array, bool holds_pointers)
     {
-        void* mem = m_allocator.Allocate(MidoriTraceable::AggregateBytes(static_cast<int>(values.size())));
-        MidoriTraceable* traceable = new(mem) MidoriTraceable(type, values, index);
+#if MIDORI_DEBUG_FULL
+        CheckKinds(std::span<const MidoriValue>(array.GetLength() > 0 ? &array[0] : nullptr, static_cast<size_t>(array.GetLength())), holds_pointers, "an array");
+#endif
+        void* mem = m_allocator.Allocate(MidoriTraceable::HEADER_SIZE + sizeof(MidoriArray));
+        MidoriTraceable* traceable = new(mem) MidoriTraceable(std::move(array), holds_pointers);
         m_gc.RegisterObject(traceable);
         return traceable;
+    }
+
+    MIDORI_FORCE_INLINE MidoriTraceable* AllocateCell(MidoriValue value, bool holds_pointer)
+    {
+#if MIDORI_DEBUG_FULL
+        CheckKind(value, holds_pointer, "a Ref");
+#endif
+        void* mem = m_allocator.Allocate(MidoriTraceable::HEADER_SIZE + sizeof(MidoriMutableCell));
+        MidoriTraceable* traceable = new(mem) MidoriTraceable(MidoriMutableCell(value), holds_pointer);
+        m_gc.RegisterObject(traceable);
+        return traceable;
+    }
+
+    // A tuple, struct or union; `index` is a union's tag.
+    MIDORI_FORCE_INLINE MidoriTraceable* AllocateAggregate(MidoriTraceable::TraceableType type, std::span<const MidoriValue> values, int index, uint16_t shape) noexcept
+    {
+#if MIDORI_DEBUG_FULL
+        CheckShape(values, shape, "an aggregate");
+#endif
+        void* mem = m_allocator.Allocate(MidoriTraceable::AggregateBytes(static_cast<int>(values.size())));
+        MidoriTraceable* traceable = new(mem) MidoriTraceable(type, values, index, shape);
+        m_gc.RegisterObject(traceable);
+        return traceable;
+    }
+
+    // A closure of the procedure over these captures, which its procedure says
+    // the kinds of.
+    MIDORI_FORCE_INLINE MidoriTraceable* AllocateClosure(int proc_index, std::span<const MidoriValue> captures) noexcept
+    {
+        return AllocateAggregate(MidoriTraceable::TraceableType::Closure, captures, proc_index, m_capture_shapes[static_cast<size_t>(proc_index)]);
     }
 
 private:
@@ -105,6 +139,17 @@ private:
 	GlobalVariables m_owned_globals;
     GlobalVariables* m_global_vars = nullptr;
     std::vector<InstructionPointer> m_proc_entry_cache;
+	// Each procedure's captures' shape, which a closure of it takes.
+	std::vector<uint16_t> m_capture_shapes;
+	// Each procedure's bytecode, ordered by where it lies in memory, so the
+	// procedure an instruction pointer is in can be found.
+	struct ProcedureRange
+	{
+		const VmOpCode* m_begin;
+		const VmOpCode* m_end;
+		int m_proc_index;
+	};
+	std::vector<ProcedureRange> m_procedure_ranges;
     std::vector<MidoriTraceable*> m_string_literal_cache;
 
     // Allocation & GC
@@ -164,6 +209,32 @@ public:
 
     void PrepareWorkerCall(MidoriValue worker_function) noexcept;
 
+	// The procedure whose bytecode holds `ip`, or -1 for the VM's own halt.
+	int ProcedureAt(const VmOpCode* ip) const noexcept;
+
+#if MIDORI_DEBUG_FULL
+	// Each checks values against the kinds the compiler gave them, using the tags
+	// Debug builds keep, and stops the process at the first that disagrees: a
+	// wrong map is a compiler bug that a precise collector would act on.
+	MIDORI_FORCE_INLINE void CheckKind(MidoriValue value, bool is_pointer, std::string_view where) const noexcept
+	{
+		if (!value.AgreesWithKind(is_pointer))
+		{
+			KindMismatch(value, is_pointer, where);
+		}
+	}
+
+	// Formats only once a check fails: a description made for every value checked
+	// made the Debug suite five times slower.
+	[[noreturn]] MIDORI_NOINLINE void KindMismatch(MidoriValue value, bool is_pointer, std::string_view where) const noexcept;
+
+	void CheckKinds(std::span<const MidoriValue> values, bool is_pointer, std::string_view where) const noexcept;
+
+	void CheckShape(std::span<const MidoriValue> values, uint16_t shape, std::string_view where) const noexcept;
+
+	void CheckFrame(const VmOpCode* ip, const MidoriValue* sp, const MidoriValue* bp) const noexcept;
+#endif
+
     void SetStopToken(std::stop_token stop_token) noexcept
     {
         m_stop_token = std::move(stop_token);
@@ -186,6 +257,9 @@ private:
 
 	MIDORI_FORCE_INLINE void TryCollect(InstructionPointer ip, ValueStackPointer sp, ValueStackPointer bp, MidoriValue* env, MidoriTraceable* closure) noexcept
 	{
+#if MIDORI_DEBUG_FULL
+		CheckFrame(ip, sp, bp);
+#endif
 		if (m_gc.ShouldCollect())
 		{
 			SyncMachineState(ip, sp, bp, env, closure);

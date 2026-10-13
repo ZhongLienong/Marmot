@@ -69,12 +69,6 @@ int BytecodeStream::GetByteCodeSize() const
 	return static_cast<int>(m_bytecode.size());
 }
 
-void BytecodeStream::Append(BytecodeStream&& other)
-{
-	m_bytecode.insert(m_bytecode.end(), other.m_bytecode.begin(), other.m_bytecode.end());
-	m_line_info.insert(m_line_info.end(), other.m_line_info.begin(), other.m_line_info.end());
-}
-
 const OpCode* BytecodeStream::operator[](int index) const
 {
 	return &m_bytecode[static_cast<size_t>(index)];
@@ -85,15 +79,41 @@ const std::vector<std::pair<int, int>>& BytecodeStream::GetLineInfo() const
 	return m_line_info;
 }
 
-int MidoriExecutable::AddGlobalVariable(std::string&& name)
+const FrameMap& BytecodeStream::GetFrameMap() const
+{
+	return m_frame;
+}
+
+FrameMap& BytecodeStream::GetFrameMap()
+{
+	return m_frame;
+}
+
+int MidoriExecutable::AddGlobalVariable(std::string&& name, bool is_pointer)
 {
 	m_globals.emplace_back(std::move(name));
+	m_global_pointers.push_back(is_pointer);
 	return static_cast<int>(m_globals.size()) - 1;
 }
 
 const std::string& MidoriExecutable::GetGlobalVariable(int index) const
 {
 	return m_globals[static_cast<size_t>(index)];
+}
+
+bool MidoriExecutable::IsGlobalPointer(int index) const
+{
+	return m_global_pointers[static_cast<size_t>(index)];
+}
+
+void MidoriExecutable::AttachShapes(std::vector<Shape>&& shapes)
+{
+	m_shapes = std::move(shapes);
+}
+
+const std::vector<Shape>& MidoriExecutable::GetShapes() const
+{
+	return m_shapes;
 }
 
 void MidoriExecutable::AttachProcedures(Procedures&& bytecode)

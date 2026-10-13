@@ -142,6 +142,58 @@ namespace
 
 	};
 	static constexpr uint32_t k_flag_embed_sources = 1u << 0;
+
+	std::expected<VmFrameMap, std::string> ReadFrameMap(BinaryReader& reader, uint32_t proc_index, uint32_t bytecode_size, uint32_t shape_count)
+	{
+		VmFrameMap frame;
+		uint32_t slot_count;
+		if (!reader.ReadU32(slot_count))
+		{
+			return std::unexpected(std::format("Corrupt artifact: could not read the frame map of procedure {}.", proc_index));
+		}
+		for (uint32_t slot = 0u; slot < slot_count; slot += 1u)
+		{
+			uint8_t kind;
+			if (!reader.ReadU8(kind))
+			{
+				return std::unexpected(std::format("Corrupt artifact: frame map of procedure {} truncated.", proc_index));
+			}
+			frame.m_slot_pointers.push_back(kind != 0u);
+		}
+
+		uint32_t safepoint_count;
+		if (!reader.ReadU16(frame.m_capture_shape) || !reader.ReadU32(safepoint_count) || frame.m_capture_shape >= shape_count)
+		{
+			return std::unexpected(std::format("Corrupt artifact: frame map of procedure {} is malformed.", proc_index));
+		}
+		for (uint32_t index = 0u; index < safepoint_count; index += 1u)
+		{
+			uint32_t offset;
+			uint32_t temporary_count;
+			if (!reader.ReadU32(offset) || !reader.ReadU32(temporary_count) || offset > bytecode_size || (!frame.m_safepoints.empty() && static_cast<int>(offset) <= frame.m_safepoints.back().m_offset))
+			{
+				return std::unexpected(std::format("Corrupt artifact: safepoint {} of procedure {} is malformed.", index, proc_index));
+			}
+			VmFrameMap::Safepoint safepoint{ static_cast<int>(offset), {}, false };
+			for (uint32_t temporary = 0u; temporary < temporary_count; temporary += 1u)
+			{
+				uint8_t kind;
+				if (!reader.ReadU8(kind))
+				{
+					return std::unexpected(std::format("Corrupt artifact: safepoint {} of procedure {} truncated.", index, proc_index));
+				}
+				safepoint.m_temporaries.push_back(kind != 0u);
+			}
+			uint8_t result_kind;
+			if (!reader.ReadU8(result_kind))
+			{
+				return std::unexpected(std::format("Corrupt artifact: safepoint {} of procedure {} truncated.", index, proc_index));
+			}
+			safepoint.m_result_is_pointer = result_kind != 0u;
+			frame.m_safepoints.push_back(std::move(safepoint));
+		}
+		return frame;
+	}
 }
 
 namespace VmBinaryArtifact
@@ -262,12 +314,44 @@ namespace VmBinaryArtifact
 		for (uint32_t index = 0u; index < global_count; index += 1u)
 		{
 			std::string name;
-			if (!payload_reader.ReadString(name))
+			uint8_t kind;
+			if (!payload_reader.ReadString(name) || !payload_reader.ReadU8(kind))
 			{
-				return std::unexpected(std::format("Corrupt artifact: could not read global name {}.", index));
+				return std::unexpected(std::format("Corrupt artifact: could not read global {}.", index));
 			}
-			executable.AddGlobalVariable(std::move(name));
+			executable.AddGlobalVariable(std::move(name), kind != 0u);
 		}
+
+		// shapes
+		uint32_t shape_count;
+		if (!payload_reader.ReadU32(shape_count))
+		{
+			return std::unexpected("Corrupt artifact: could not read shape count.");
+		}
+		std::vector<VmShape> shapes;
+		shapes.reserve(shape_count);
+		for (uint32_t index = 0u; index < shape_count; index += 1u)
+		{
+			uint32_t field_count;
+			if (!payload_reader.ReadU32(field_count))
+			{
+				return std::unexpected(std::format("Corrupt artifact: could not read shape {}.", index));
+			}
+			VmShape shape(field_count);
+			for (uint32_t& field : shape)
+			{
+				if (!payload_reader.ReadU32(field))
+				{
+					return std::unexpected(std::format("Corrupt artifact: shape {} truncated.", index));
+				}
+			}
+			shapes.push_back(std::move(shape));
+		}
+		if (shapes.size() < 2uz || !shapes[VM_SCALAR_SHAPE].empty() || shapes[VM_FIRST_FIELD_SHAPE] != VmShape{ 0u })
+		{
+			return std::unexpected("Corrupt artifact: the shape table does not begin with the two every program has.");
+		}
+		executable.AttachShapes(std::move(shapes));
 
 		// procedures
 		uint32_t procedure_count;
@@ -346,7 +430,13 @@ namespace VmBinaryArtifact
 					covered_bytes, proc_index, bytecode_size));
 			}
 
-			procedures.emplace_back(std::move(bytecode), std::move(line_info));
+			std::expected<VmFrameMap, std::string> frame = ReadFrameMap(payload_reader, proc_index, bytecode_size, shape_count);
+			if (!frame.has_value())
+			{
+				return std::unexpected(frame.error());
+			}
+
+			procedures.emplace_back(std::move(bytecode), std::move(line_info), std::move(frame).value());
 			procedure_names.push_back(std::move(proc_name));
 			procedure_source_paths.push_back(std::move(source_path));
 		}

@@ -54,12 +54,43 @@ public:
 	}
 };
 
+// The fields of an aggregate that hold pointers, by index. Every program's shape
+// 0 has none, for an aggregate of any length whose fields are all scalars, and
+// its shape 1 only the first field.
+using VmShape = std::vector<uint32_t>;
+inline constexpr uint16_t VM_SCALAR_SHAPE = 0u;
+inline constexpr uint16_t VM_FIRST_FIELD_SHAPE = 1u;
+
+// Where a procedure's frame holds pointers. A slot holds values of one kind for
+// the whole procedure. A safepoint is a place a collection can find the frame
+// with temporaries on its operand stack: after a call, while it runs and once
+// its result is pushed, and after an instruction that collects once its result
+// is pushed.
+struct VmFrameMap
+{
+	struct Safepoint
+	{
+		// The bytecode offset just after the instruction.
+		int m_offset = 0;
+		// The temporaries below the instruction's operands, bottom first.
+		std::vector<bool> m_temporaries;
+		bool m_result_is_pointer = false;
+	};
+
+	std::vector<bool> m_slot_pointers;
+	uint16_t m_capture_shape = VM_SCALAR_SHAPE;
+	// In offset order.
+	std::vector<Safepoint> m_safepoints;
+
+	const Safepoint* FindSafepoint(int offset) const;
+};
+
 class VmBytecodeStream
 {
 public:
 	using const_iterator = std::vector<VmOpCode>::const_iterator;
 
-	VmBytecodeStream(std::vector<VmOpCode>&& bytecode, std::vector<std::pair<int, int>>&& line_info);
+	VmBytecodeStream(std::vector<VmOpCode>&& bytecode, std::vector<std::pair<int, int>>&& line_info, VmFrameMap&& frame);
 
 	const_iterator cbegin() const;
 	const_iterator cend() const;
@@ -67,10 +98,13 @@ public:
 private:
 	std::vector<VmOpCode> m_bytecode;
 	std::vector<std::pair<int, int>> m_line_info; // Pair of line number and count of consecutive instructions
+	VmFrameMap m_frame;
 
 public:
 
 	VmOpCode ReadByteCode(int index) const;
+
+	const VmFrameMap& GetFrameMap() const;
 
 	int GetByteCodeSize() const;
 
@@ -117,6 +151,8 @@ public:
 
 private:
 	GlobalNames m_globals;
+	std::vector<bool> m_global_pointers;
+	std::vector<VmShape> m_shapes;
 	Procedures m_procedures;
 	ProcedureSourcePaths m_procedure_source_paths;
 	StringPool m_string_pool;
@@ -125,9 +161,15 @@ private:
 
 public:
 
-	int AddGlobalVariable(std::string&& name);
+	int AddGlobalVariable(std::string&& name, bool is_pointer);
 
 	const std::string& GetGlobalVariable(int index) const;
+
+	bool IsGlobalPointer(int index) const;
+
+	void AttachShapes(std::vector<VmShape>&& shapes);
+
+	const std::vector<VmShape>& GetShapes() const;
 
 	void AttachProcedures(Procedures&& bytecode);
 

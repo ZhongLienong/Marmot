@@ -229,8 +229,41 @@ namespace
 		return type->IsType<MidoriType::UnitType>();
 	}
 
+	// Whether a value of this type is a heap object at run time, which is the one
+	// thing the VM needs to know of it and never works out from its bits. A newtype
+	// is what it wraps. A type variable left for the backend is a compiler bug.
+	bool IsPointer(const TypeRef& type)
+	{
+		const TypeRef representation = GenericTypes::RepresentationOf(type);
+		if (representation->IsType<MidoriType::TextType>() || representation->IsType<MidoriType::ArrayType>() || representation->IsType<MidoriType::TupleType>()
+			|| representation->IsType<MidoriType::StructType>() || representation->IsType<MidoriType::UnionType>() || representation->IsType<MidoriType::FunctionType>()
+			|| representation->IsType<MidoriType::CellType>() || representation->IsType<MidoriType::RangeType>())
+		{
+			return true;
+		}
+		if (representation->IsType<MidoriType::IntegerType>() || representation->IsType<MidoriType::FloatType>() || representation->IsType<MidoriType::ByteType>()
+			|| representation->IsType<MidoriType::WordType>() || representation->IsType<MidoriType::BoolType>() || representation->IsType<MidoriType::UnitType>()
+			|| representation->IsType<MidoriType::NeverType>() || representation->IsType<MidoriType::WorkerType>() || representation->IsType<MidoriType::ChannelType>())
+		{
+			return false;
+		}
+		throw std::logic_error(std::format("the bytecode backend cannot tell whether a {} is a pointer", type->ToString()));
+	}
+
+	int Kind(const TypeRef& type)
+	{
+		return IsPointer(type) ? 1 : 0;
+	}
+
+	TypeRef ElementType(const TypeRef& array_type)
+	{
+		return GenericTypes::RepresentationOf(array_type)->GetType<MidoriType::ArrayType>().m_element_type;
+	}
+
 	// What a foreign call's result is, so the VM knows how to take it back:
-	// raw bits, a C string, an array of values or an array of C strings.
+	// raw bits, a C string, an array of values or an array of C strings, with bit
+	// 7 set for an array whose elements are pointers. A builtin that returns an
+	// array of values may return one of texts or other objects.
 	uint8_t ForeignReturnTag(const TypeRef& type)
 	{
 		if (type->IsType<MidoriType::TextType>())
@@ -239,7 +272,9 @@ namespace
 		}
 		if (type->IsType<MidoriType::ArrayType>())
 		{
-			return type->GetType<MidoriType::ArrayType>().m_element_type->IsType<MidoriType::TextType>() ? 3u : 2u;
+			const TypeRef& element = type->GetType<MidoriType::ArrayType>().m_element_type;
+			const uint8_t kind = element->IsType<MidoriType::TextType>() ? 3u : 2u;
+			return IsPointer(element) ? static_cast<uint8_t>(kind | 0x80u) : kind;
 		}
 		return 0u;
 	}
@@ -324,6 +359,11 @@ namespace
 		// the value GetTag would have made.
 		std::vector<bool> m_fused_tags;
 		int m_slot_count = 0;
+		// Whether each slot holds pointers, by slot.
+		std::vector<bool> m_slot_pointers;
+		// What each safepoint finds on the operand stack below its operands.
+		std::unordered_map<const MidoriIRInstruction*, std::vector<MidoriIRValueId>> m_stack_below;
+		std::vector<FrameMap::Safepoint> m_safepoints;
 		// The instruction emitted after the current one in its block.
 		const MidoriIRInstruction* m_next = nullptr;
 		// A value just stored and left on the stack too, because the next
@@ -364,9 +404,15 @@ namespace
 			ScheduleStack();
 			AssignSlots();
 			FuseBranches();
+			m_stack_below = StackBelow();
 			if (m_slot_count - 1 > MAX_VARIABLES)
 			{
 				return std::unexpected(m_backend.LimitExceeded(std::format("Too many variables (max {})", MAX_VARIABLES), FirstLine()));
+			}
+			const std::expected<uint16_t, CompilerError> capture_shape = ShapeOf(m_function.m_capture_types, FirstLine());
+			if (!capture_shape.has_value())
+			{
+				return std::unexpected(capture_shape.error());
 			}
 
 			const int arity = static_cast<int>(m_function.Block(MidoriIRFunction::s_entry_block).m_parameters.size());
@@ -408,6 +454,7 @@ namespace
 					return std::unexpected(patched.error());
 				}
 			}
+			m_stream.GetFrameMap() = FrameMap{ std::move(m_slot_pointers), capture_shape.value(), std::move(m_safepoints) };
 			return std::move(m_stream);
 		}
 
@@ -618,6 +665,79 @@ namespace
 			}
 		}
 
+		// What each safepoint finds on the operand stack below the values it
+		// takes, bottom first, walked again once ScheduleStack has settled where
+		// every value lives.
+		std::unordered_map<const MidoriIRInstruction*, std::vector<MidoriIRValueId>> StackBelow() const
+		{
+			std::unordered_map<const MidoriIRInstruction*, std::vector<MidoriIRValueId>> below;
+			for (uint32_t block_index = 0u; block_index < m_function.m_blocks.size(); block_index += 1u)
+			{
+				if (!m_reachable[block_index])
+				{
+					continue;
+				}
+				std::vector<MidoriIRValueId> pending;
+				for (const MidoriIRInstruction& instruction : m_function.m_blocks[block_index].m_instructions)
+				{
+					const std::vector<MidoriIRValueId> sequence = PushSequence(instruction);
+					const std::vector<MidoriIRValueId> taken = StackValues(sequence);
+					if (!IsTakenFromTop(sequence, taken, pending))
+					{
+						throw std::logic_error(std::format("{} does not take its stack operands from the top", GetMidoriIROpInfo(instruction.m_op).m_name));
+					}
+					pending.resize(pending.size() - taken.size());
+					if (IsSafepoint(instruction.m_op))
+					{
+						below.emplace(&instruction, pending);
+					}
+					if (instruction.m_result.has_value() && m_storage[instruction.m_result->m_index] == Storage::Stack)
+					{
+						pending.push_back(instruction.m_result.value());
+					}
+				}
+			}
+			return below;
+		}
+
+		// An instruction whose opcode a collection can start after, with the
+		// operand stack holding more than the frame's slots: a call, once it
+		// returns, and an operation that collects once its result is pushed.
+		static bool IsSafepoint(MidoriIROp op)
+		{
+			return op == MidoriIROp::Call || op == MidoriIROp::CallGlobal || op == MidoriIROp::CallValue || op == MidoriIROp::Concat || op == MidoriIROp::CellNew;
+		}
+
+		// Called once the safepoint's opcode and operands are emitted, so the
+		// offset is where the collection finds the frame.
+		void RecordSafepoint(const MidoriIRInstruction& instruction)
+		{
+			m_safepoints.push_back(FrameMap::Safepoint
+			{
+				m_stream.GetByteCodeSize(),
+				m_stack_below.at(&instruction) | std::views::transform([this](MidoriIRValueId value) { return IsPointer(m_function.TypeOf(value)); }) | std::ranges::to<std::vector<bool>>(),
+				IsPointer(instruction.m_type)
+			});
+		}
+
+		std::expected<uint16_t, CompilerError> ShapeOf(std::span<const TypeRef> field_types, int line)
+		{
+			Shape pointer_fields;
+			for (uint32_t index = 0u; index < field_types.size(); index += 1u)
+			{
+				if (IsPointer(field_types[index]))
+				{
+					pointer_fields.push_back(index);
+				}
+			}
+			return m_backend.ShapeIndex(pointer_fields, line);
+		}
+
+		std::expected<uint16_t, CompilerError> ShapeOfValues(std::span<const MidoriIRValueId> values, int line)
+		{
+			return ShapeOf(values | std::views::transform([this](MidoriIRValueId value) { return m_function.TypeOf(value); }) | std::ranges::to<std::vector<TypeRef>>(), line);
+		}
+
 		std::vector<MidoriIRValueId> StackValues(const std::vector<MidoriIRValueId>& values) const
 		{
 			return values
@@ -741,6 +861,9 @@ namespace
 		// to or from when it can: a jump that passes a value in the slot of
 		// the parameter it becomes moves nothing, and a sum stored where its
 		// operand was is one STEP_LOCAL.
+		//
+		// A slot holds one kind of value, pointers or scalars, for the whole
+		// procedure, so the collector reads the frame from its map alone.
 		void AssignSlots()
 		{
 			const std::vector<std::vector<uint32_t>> interference = Interference();
@@ -749,6 +872,7 @@ namespace
 			for (const MidoriIRValueId parameter : parameters)
 			{
 				m_slots[parameter.m_index] = m_slot_count++;
+				m_slot_pointers.push_back(IsPointer(m_function.m_values[parameter.m_index].m_type));
 			}
 
 			std::vector<uint32_t> order;
@@ -767,7 +891,12 @@ namespace
 				{
 					continue;
 				}
+				const bool is_pointer = IsPointer(m_function.m_values[value].m_type);
 				std::vector<bool> taken(static_cast<size_t>(m_slot_count) + 1u, false);
+				for (int slot = 0; slot < m_slot_count; slot += 1)
+				{
+					taken[static_cast<size_t>(slot)] = m_slot_pointers[static_cast<size_t>(slot)] != is_pointer;
+				}
 				for (const uint32_t neighbour : interference[value])
 				{
 					if (m_slots[neighbour] >= 0)
@@ -780,6 +909,10 @@ namespace
 					return m_slots[partner] >= 0 && !taken[static_cast<size_t>(m_slots[partner])];
 				});
 				const int slot = hinted != hints[value].end() ? m_slots[*hinted] : static_cast<int>(std::distance(taken.begin(), std::ranges::find(taken, false)));
+				if (slot == m_slot_count)
+				{
+					m_slot_pointers.push_back(is_pointer);
+				}
 				m_slots[value] = slot;
 				m_slot_count = std::max(m_slot_count, slot + 1);
 			}
@@ -1237,8 +1370,7 @@ namespace
 
 			if (ReadsAndWritesLocals(instruction))
 			{
-				EmitLocalsOperation(instruction, line);
-				return {};
+				return EmitLocalsOperation(instruction, line);
 			}
 
 			return LoadAll(PushSequence(instruction), line)
@@ -1281,7 +1413,7 @@ namespace
 			}
 		}
 
-		void EmitLocalsOperation(const MidoriIRInstruction& instruction, int line)
+		Emitted EmitLocalsOperation(const MidoriIRInstruction& instruction, int line)
 		{
 			const std::vector<MidoriIRValueId>& operands = instruction.m_operands;
 			switch (instruction.m_op)
@@ -1291,25 +1423,29 @@ namespace
 				EmitOperand(m_slots[operands.front().m_index], line);
 				EmitOperand(static_cast<int>(std::get<MidoriIRUnionField>(instruction.m_immediate).m_index), line);
 				EmitOperand(m_slots[instruction.m_result->m_index], line);
-				return;
+				return {};
 			case MidoriIROp::ArrayGet:
 				EmitByte(OpCode::LOCAL_ARRAY_GET, line);
 				EmitOperand(m_slots[operands[0u].m_index], line);
 				EmitOperand(m_slots[operands[1u].m_index], line);
 				EmitOperand(m_slots[instruction.m_result->m_index], line);
-				return;
+				return {};
 			case MidoriIROp::ArrayAppend:
 				EmitByte(OpCode::APPEND_LOCAL, line);
 				EmitOperand(m_slots[operands[0u].m_index], line);
 				EmitOperand(m_slots[operands[1u].m_index], line);
-				return;
+				return {};
 			case MidoriIROp::MakeUnion:
-				EmitByte(OpCode::LOCAL_UNION2, line);
-				EmitOperand(std::get<MidoriIRTag>(instruction.m_immediate).m_value, line);
-				EmitOperand(m_slots[operands[0u].m_index], line);
-				EmitOperand(m_slots[operands[1u].m_index], line);
-				EmitOperand(m_slots[instruction.m_result->m_index], line);
-				return;
+				return ShapeOfValues(operands, line)
+					.transform([&](uint16_t shape)
+					{
+						EmitByte(OpCode::LOCAL_UNION2, line);
+						EmitOperand(std::get<MidoriIRTag>(instruction.m_immediate).m_value, line);
+						EmitOperand(m_slots[operands[0u].m_index], line);
+						EmitOperand(m_slots[operands[1u].m_index], line);
+						EmitOperand(m_slots[instruction.m_result->m_index], line);
+						EmitShape(shape, line);
+					});
 			default:
 				throw std::logic_error(std::format("{} does not read and write locals", GetMidoriIROpInfo(instruction.m_op).m_name));
 			}
@@ -1427,6 +1563,12 @@ namespace
 		}
 
 		// A tuple's or an array's element count, in three bytes, low first.
+		void EmitShape(uint16_t shape, int line)
+		{
+			EmitOperand(shape & BYTE_MASK, line);
+			EmitOperand(shape >> SHIFT_8_BITS, line);
+		}
+
 		Emitted EmitCount(OpCode op, size_t count, int line)
 		{
 			if (count > static_cast<size_t>(MAX_ARRAY_SIZE))
@@ -1478,7 +1620,8 @@ namespace
 			}
 			const size_t field_count = instruction.m_operands.size();
 			return CheckByte(field_count, "Too many union fields", line)
-				.transform([&]()
+				.and_then([&]() { return ShapeOfValues(instruction.m_operands, line); })
+				.transform([&](uint16_t shape)
 				{
 					if (field_count == 0u)
 					{
@@ -1489,6 +1632,7 @@ namespace
 					EmitByte(OpCode::CONSTRUCT_UNION, line);
 					EmitOperand(static_cast<int>(field_count), line);
 					EmitOperand(tag, line);
+					EmitShape(shape, line);
 				});
 		}
 
@@ -1515,6 +1659,7 @@ namespace
 				return {};
 			case MidoriIROp::Concat:
 				EmitByte(IsText(instruction.m_type) ? OpCode::CONCAT_TEXT : OpCode::CONCAT_ARRAY, line);
+				RecordSafepoint(instruction);
 				return {};
 			case MidoriIROp::Extend:
 				EmitByte(IsText(instruction.m_type) ? OpCode::EXTEND_TEXT : OpCode::EXTEND_ARRAY, line);
@@ -1529,6 +1674,7 @@ namespace
 					{
 						EmitProcedure(OpCode::CALL_PROC_WIDE, procedure, line);
 						EmitOperand(static_cast<int>(operand_count), line);
+						RecordSafepoint(instruction);
 					});
 			case MidoriIROp::CallGlobal:
 				return CheckArity(operand_count, line)
@@ -1536,10 +1682,12 @@ namespace
 					{
 						EmitGlobal(OpCode::CALL_GLOBAL_WIDE, m_backend.GlobalOperand(std::get<MidoriIRGlobalSlot>(instruction.m_immediate)), line);
 						EmitOperand(static_cast<int>(operand_count), line);
+						RecordSafepoint(instruction);
 					});
 			case MidoriIROp::CallValue:
 				return CheckArity(operand_count - 1u, line)
-					.and_then([&]() { return EmitCallOf(OpCode::CALL, OpCode::CALL_0, operand_count - 1u, line); });
+					.and_then([&]() { return EmitCallOf(OpCode::CALL, OpCode::CALL_0, operand_count - 1u, line); })
+					.transform([&]() { RecordSafepoint(instruction); });
 			case MidoriIROp::CallForeign:
 			{
 				// A builtin is called by its index; a native library's function
@@ -1587,9 +1735,16 @@ namespace
 				EmitByte(OpCode::POP, line);
 				return {};
 			case MidoriIROp::MakeTuple:
-				return EmitCount(OpCode::CREATE_TUPLE, operand_count, line);
+				if (operand_count > static_cast<size_t>(UINT16_MAX))
+				{
+					return std::unexpected(m_backend.LimitExceeded(std::format("Too many tuple elements (max {})", UINT16_MAX), line));
+				}
+				return EmitCount(OpCode::CREATE_TUPLE, operand_count, line)
+					.and_then([&]() { return ShapeOfValues(instruction.m_operands, line); })
+					.transform([&](uint16_t shape) { EmitShape(shape, line); });
 			case MidoriIROp::MakeArray:
-				return EmitCount(OpCode::CREATE_ARRAY, operand_count, line);
+				return EmitCount(OpCode::CREATE_ARRAY, operand_count, line)
+					.transform([&]() { EmitOperand(Kind(ElementType(instruction.m_type)), line); });
 			case MidoriIROp::TupleGet:
 				EmitSmallInt(std::get<MidoriIRIndex>(instruction.m_immediate).m_value, line);
 				EmitByte(OpCode::GET_TUPLE, line);
@@ -1602,10 +1757,12 @@ namespace
 				return {};
 			case MidoriIROp::Construct:
 				return CheckByte(operand_count, "Too many struct members", line)
-					.transform([&]()
+					.and_then([&]() { return ShapeOfValues(instruction.m_operands, line); })
+					.transform([&](uint16_t shape)
 					{
 						EmitByte(OpCode::CONSTRUCT_STRUCT, line);
 						EmitOperand(static_cast<int>(operand_count), line);
+						EmitShape(shape, line);
 					});
 			case MidoriIROp::GetMember:
 				EmitByte(OpCode::GET_MEMBER, line);
@@ -1634,6 +1791,8 @@ namespace
 				return {};
 			case MidoriIROp::CellNew:
 				EmitByte(OpCode::MAKE_CELL, line);
+				EmitOperand(Kind(m_function.TypeOf(instruction.m_operands.front())), line);
+				RecordSafepoint(instruction);
 				return {};
 			case MidoriIROp::CellRead:
 				EmitByte(OpCode::READ_CELL, line);
@@ -1642,11 +1801,15 @@ namespace
 				EmitByte(OpCode::WRITE_CELL, line);
 				return {};
 			case MidoriIROp::Spawn:
+				// The arguments, then the function, cross as one tuple.
 				return CheckArity(operand_count - 1u, line)
-					.transform([&]()
+					.and_then([&]() { return ShapeOfValues(instruction.m_operands, line); })
+					.transform([&](uint16_t shape)
 					{
 						EmitByte(OpCode::SPAWN_WORKER, line);
 						EmitOperand(static_cast<int>(operand_count - 1u), line);
+						EmitShape(shape, line);
+						EmitOperand(Kind(GenericTypes::RepresentationOf(instruction.m_type)->GetType<MidoriType::WorkerType>().m_result_type), line);
 					});
 			case MidoriIROp::Join:
 			{
@@ -1660,6 +1823,7 @@ namespace
 				EmitOperand(tags.m_err, line);
 				EmitOperand(tags.m_cancelled, line);
 				EmitOperand(tags.m_failed, line);
+				EmitOperand(Kind(GenericTypes::RepresentationOf(m_function.TypeOf(instruction.m_operands.front()))->GetType<MidoriType::WorkerType>().m_result_type), line);
 				return {};
 			}
 			case MidoriIROp::ChannelNew:
@@ -1667,6 +1831,7 @@ namespace
 				return {};
 			case MidoriIROp::Send:
 				EmitByte(OpCode::CHANNEL_SEND, line);
+				EmitOperand(Kind(m_function.TypeOf(instruction.m_operands[1u])), line);
 				return {};
 			case MidoriIROp::Receive:
 				EmitByte(OpCode::CHANNEL_RECEIVE, line);
@@ -1945,6 +2110,11 @@ MidoriResult::BytecodeBackendResult BytecodeBackend::Emit() &&
 		| std::views::filter([](const MidoriIRGlobal& global) { return !global.IsImported(); })
 		| std::views::transform([](const MidoriIRGlobal& global) { return global.m_name; })
 		| std::ranges::to<std::vector>();
+	bytecode.m_global_pointers = module.m_globals
+		| std::views::filter([](const MidoriIRGlobal& global) { return !global.IsImported(); })
+		| std::views::transform([](const MidoriIRGlobal& global) { return IsPointer(global.m_type); })
+		| std::ranges::to<std::vector<bool>>();
+	bytecode.m_shapes = std::move(m_shapes);
 	bytecode.m_exports = m_lowered.m_exports
 		| std::views::transform([this](const LoweredExport& exported)
 		{
@@ -2028,6 +2198,24 @@ std::expected<int, CompilerError> BytecodeBackend::TextConstant(const std::strin
 	const int index = static_cast<int>(m_string_pool.size());
 	m_string_pool.push_back(text);
 	m_string_indices.emplace(text, index);
+	return index;
+}
+
+std::expected<uint16_t, CompilerError> BytecodeBackend::ShapeIndex(const Shape& pointer_fields, int line)
+{
+	const std::map<Shape, uint16_t>::const_iterator existing = m_shape_indices.find(pointer_fields);
+	if (existing != m_shape_indices.cend())
+	{
+		return existing->second;
+	}
+	if (m_shapes.size() > static_cast<size_t>(UINT16_MAX))
+	{
+		return std::unexpected(LimitExceeded(std::format("Too many aggregate shapes (max {})", UINT16_MAX + 1), line));
+	}
+
+	const uint16_t index = static_cast<uint16_t>(m_shapes.size());
+	m_shapes.push_back(pointer_fields);
+	m_shape_indices.emplace(pointer_fields, index);
 	return index;
 }
 

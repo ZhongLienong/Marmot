@@ -301,32 +301,47 @@ MidoriValue::DebugTypeTag MidoriValue::GetTag() const noexcept
 {
 	return m_tag;
 }
+
+bool MidoriValue::AgreesWithKind(bool is_pointer) const noexcept
+{
+	switch (m_tag)
+	{
+	case POINTER:
+		return is_pointer;
+	case UNKNOWN:
+		return true;
+	case UNIT:
+		return !is_pointer || GetRawBits() == 0u;
+	default:
+		return !is_pointer;
+	}
+}
 #endif
 
-MidoriTraceable::MidoriTraceable(MidoriText&& str) noexcept : m_type(TraceableType::Text), m_text(std::move(str))
+MidoriTraceable::MidoriTraceable(MidoriText&& str) noexcept : m_type(TraceableType::Text), m_holds_pointers(false), m_text(std::move(str))
 {
 }
 
-MidoriTraceable::MidoriTraceable(MidoriArray&& array) noexcept : m_type(TraceableType::Array), m_array(std::move(array))
+MidoriTraceable::MidoriTraceable(MidoriArray&& array, bool holds_pointers) noexcept : m_type(TraceableType::Array), m_holds_pointers(holds_pointers), m_array(std::move(array))
 {
 }
 
-MidoriTraceable::MidoriTraceable(MidoriIntRange&& range) noexcept : m_type(TraceableType::IntRange), m_int_range(std::move(range))
+MidoriTraceable::MidoriTraceable(MidoriIntRange&& range) noexcept : m_type(TraceableType::IntRange), m_holds_pointers(false), m_int_range(std::move(range))
 {
 }
 
-MidoriTraceable::MidoriTraceable(MidoriFloatRange&& range) noexcept : m_type(TraceableType::FloatRange), m_float_range(std::move(range))
+MidoriTraceable::MidoriTraceable(MidoriFloatRange&& range) noexcept : m_type(TraceableType::FloatRange), m_holds_pointers(false), m_float_range(std::move(range))
 {
 }
 
-MidoriTraceable::MidoriTraceable(MidoriMutableCell&& mutable_cell) noexcept : m_type(TraceableType::MutableCell), m_mutable_cell(std::move(mutable_cell))
+MidoriTraceable::MidoriTraceable(MidoriMutableCell&& mutable_cell, bool holds_pointer) noexcept : m_type(TraceableType::MutableCell), m_holds_pointers(holds_pointer), m_mutable_cell(std::move(mutable_cell))
 {
 }
 
 // Only the header and the values are written: the slot may be smaller than
 // sizeof(MidoriTraceable).
-MidoriTraceable::MidoriTraceable(TraceableType type, std::span<const MidoriValue> values, int index) noexcept
-	: m_type(type), m_padding(0u), m_index(static_cast<uint16_t>(index)), m_length(static_cast<uint32_t>(values.size()))
+MidoriTraceable::MidoriTraceable(TraceableType type, std::span<const MidoriValue> values, int index, uint16_t shape) noexcept
+	: m_type(type), m_holds_pointers(false), m_index(static_cast<uint16_t>(index)), m_length(static_cast<uint16_t>(values.size())), m_shape(shape)
 {
 	if (values.size() > static_cast<size_t>(INLINE_CAPACITY))
 	{
@@ -371,7 +386,7 @@ MidoriTraceable::~MidoriTraceable()
 	case TraceableType::Struct:
 	case TraceableType::Union:
 	case TraceableType::Closure:
-		if (m_length > static_cast<uint32_t>(INLINE_CAPACITY))
+		if (m_length > static_cast<uint16_t>(INLINE_CAPACITY))
 		{
 			// The pool finds the size class from the requested bytes as well as
 			// from the granted ones, so the length is enough to free it.
@@ -478,7 +493,7 @@ size_t MidoriTraceable::GetSize() const
 	case TraceableType::Closure:
 		break;
 	}
-	const size_t external_bytes = m_length > static_cast<uint32_t>(INLINE_CAPACITY) ? static_cast<size_t>(m_length) * sizeof(MidoriValue) : 0uz;
+	const size_t external_bytes = m_length > static_cast<uint16_t>(INLINE_CAPACITY) ? static_cast<size_t>(m_length) * sizeof(MidoriValue) : 0uz;
 	return MidoriAllocator::SlotSizeFor(AggregateBytes(GetLength())) + external_bytes;
 }
 

@@ -4,6 +4,7 @@
 #include "Compiler/Lowering/Lowering.h"
 #include "Compiler/Result/Result.h"
 
+#include <map>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -29,6 +30,10 @@ private:
 	std::vector<int> m_global_operands;
 	std::vector<std::string> m_string_pool;
 	std::unordered_map<std::string, int> m_string_indices;
+	// The shapes this module names, by index, beginning with the two every
+	// program has.
+	std::vector<Shape> m_shapes{ Shape{}, Shape{ 0u } };
+	std::map<Shape, uint16_t> m_shape_indices{ { Shape{}, SCALAR_SHAPE }, { Shape{ 0u }, FIRST_FIELD_SHAPE } };
 
 public:
 	BytecodeBackend(const LoweredModule& lowered, std::string_view file_name, const std::vector<std::string>& source_lines);
@@ -41,6 +46,7 @@ public:
 	size_t CaptureCount(MidoriIRFunctionId function) const;
 	int GlobalOperand(MidoriIRGlobalSlot slot) const;
 	std::expected<int, CompilerError> TextConstant(const std::string& text, int line);
+	std::expected<uint16_t, CompilerError> ShapeIndex(const Shape& pointer_fields, int line);
 
 private:
 	std::expected<std::vector<BytecodeModule::ImportedSymbol>, CompilerError> AssignGlobals();

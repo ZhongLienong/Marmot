@@ -24,7 +24,7 @@ struct WorkerError
 class Worker
 {
 public:
-	Worker(std::shared_ptr<const VmExecutable> executable, TransferPayload payload);
+	Worker(std::shared_ptr<const VmExecutable> executable, TransferPayload payload, bool result_is_pointer);
 
 	~Worker();
 
@@ -48,6 +48,7 @@ private:
 	// The spawned function and its arguments, as one tuple, with the globals they
 	// can read.
 	TransferPayload m_payload;
+	bool m_result_is_pointer;
 	// Written by the worker thread, read only once it has been joined.
 	std::expected<TransferPayload, WorkerError> m_outcome;
 	std::atomic<bool> m_done{ false };
@@ -60,7 +61,7 @@ class WorkerRegistry
 public:
 	static WorkerRegistry& GetInstance();
 
-	int SpawnWorker(std::shared_ptr<const VmExecutable> executable, TransferPayload payload);
+	int SpawnWorker(std::shared_ptr<const VmExecutable> executable, TransferPayload payload, bool result_is_pointer);
 
 	std::expected<TransferPayload, WorkerError> JoinWorkerValue(int worker_id);
 
