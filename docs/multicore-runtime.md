@@ -76,7 +76,9 @@ object is copied once and refers to the others by index. An object reached twice
 arrives as one copy, `Concurrency::Spawn((c, c), F)` gives the worker one cell,
 not two, and a cycle is an index pointing back. Copying runs from a worklist in
 both directions, so a structure of any depth, such as a long linked list, takes
-no native stack.
+no native stack. Each value crosses as the kind the compiler gave it, a
+value's by its type, an array's elements by the array's flag and an
+aggregate's fields by its shape, never as its bits suggest.
 
 A payload also carries the globals its functions can read. The sending VM
 follows each closure in it to its procedure, whose bytecode names the globals

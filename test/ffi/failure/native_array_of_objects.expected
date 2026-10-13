@@ -1,0 +1,6 @@
+Compilation failed :(
+Lowering Error at test/ffi/failure/native_array_of_objects.mmt:7
+  |
+7 | foreign "marmot_rows" Rows : fn() -> Array<Array<Int>> from "marmot_no_such_library";
+  |                       ^^^^ A native function cannot return Array<Array<Int>>: native code can return an array of Text or of scalars, not of other values
+  |

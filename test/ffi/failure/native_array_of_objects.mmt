@@ -1,0 +1,9 @@
+module NativeArrayOfObjects
+
+// Native code builds the arrays it returns out of bits, so an array of objects
+// other than Text cannot come back from it: the collector would take the bits
+// for pointers. The library is never loaded, since the program does not compile.
+
+foreign "marmot_rows" Rows : fn() -> Array<Array<Int>> from "marmot_no_such_library";
+
+def rows = Rows();

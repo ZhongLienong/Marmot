@@ -32,6 +32,11 @@ namespace GenericTypes
 	// starts matching Meters.
 	std::shared_ptr<MidoriType> RepresentationOf(const std::shared_ptr<MidoriType>& type);
 
+	// Whether a value of this type is a heap object at run time, which is the one
+	// thing the VM needs to know of it and never works out from its bits. A newtype
+	// is what it wraps. A type variable left this late is a compiler bug.
+	bool IsPointer(const std::shared_ptr<MidoriType>& type);
+
 	// A conversion between a newtype and its representation, which changes
 	// nothing at run time.
 	bool IsNewTypeErasedConversion(const std::shared_ptr<MidoriType>& from_type, const std::shared_ptr<MidoriType>& target_type);

@@ -438,6 +438,18 @@ std::expected<std::string, CompilerError> Lowering::ForeignName(const MidoriStat
 		return std::unexpected(Error(CompilerErrorCode::LoweringUnsupportedConstruct, "Unsupported return type for foreign function", name));
 	}
 
+	// Native code builds an array out of bits, so it can return one of texts or of
+	// scalars; one of other objects would hand the VM bits to take as pointers. A
+	// builtin can return any array, since it copies the VM's own values.
+	if (foreign.m_library.has_value() && return_type->IsType<MidoriType::ArrayType>())
+	{
+		const TypeRef& element = return_type->GetType<MidoriType::ArrayType>().m_element_type;
+		if (!element->IsType<MidoriType::TextType>() && GenericTypes::IsPointer(element))
+		{
+			return std::unexpected(Error(CompilerErrorCode::LoweringUnsupportedConstruct, std::format("A native function cannot return {}: native code can return an array of Text or of scalars, not of other values", return_type->DisplayString()), name));
+		}
+	}
+
 	if (foreign.m_library.has_value())
 	{
 		m_native_imports[foreign.m_library.value()].insert(foreign.m_foreign_name);

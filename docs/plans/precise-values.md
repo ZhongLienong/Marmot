@@ -116,3 +116,8 @@ whole suite, run in Debug, agrees with the maps.
   slot index directly, and Debug asserts the object is live. `PassForeignArgument`
   trusts its kinds, with a Debug assertion, so `GarbageCollector::Contains` is
   gone. Benchmarks within noise of `main`, peak memory unchanged.
+- 2026-10-13: phase 3 done. A native function declared to return an array of
+  values other than texts or scalars is a compile error. Nothing in the VM asks
+  the allocator about bits any more; `MidoriAllocator::Contains` stays for the
+  tests, which ask it about objects they made. Docs describe the precise
+  design.

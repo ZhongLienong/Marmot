@@ -38,15 +38,26 @@ All GC-managed objects are VM-local:
 - Range objects
 
 Every GC-managed object is one `MidoriTraceable` in one allocator slot. It
-starts with an 8-byte header (its type, a union's tag or a closure's
-procedure, and an aggregate's length), so a match reads the tag on the same
-cache line as the first fields. A tuple, struct, union or closure keeps up to
-nine values right after the header, and longer ones in a buffer of their own.
-`MidoriValue` is an untagged word in release builds, so root
-and child pointer identification is conservative (region/slot-range check
-plus a live-bit test): a scalar whose bits happen to alias a live slot only
-over-retains that object, it is never dereferenced incorrectly. This rules
-out moving/copying collection — Marmot's collector is strictly non-moving.
+starts with an 8-byte header (its type; whether an array's or a cell's values
+are pointers; a union's tag or a closure's procedure; and an aggregate's
+16-bit length and 16-bit shape), so a match reads the tag on the same cache
+line as the first fields. A tuple, struct, union or closure keeps up to nine
+values right after the header, and longer ones in a buffer of their own, and
+holds at most 65,535.
+
+`MidoriValue` is an untagged word in release builds, and nothing decides from
+its bits whether it is a pointer. The compiler writes down where every pointer
+is (format 15): a kind for each global; for each procedure, a kind for each
+frame slot, which holds one kind of value for the whole procedure, and the
+kinds of the temporaries on its operand stack where a collection can start
+with some there; and a shape for each aggregate, listing its pointer fields.
+The collector reads roots and fields from those alone. It walks the frames
+through the call stack, each from its base to the base of the frame it called
+and the top one to the stack pointer. A collection starts only at
+`JUMP_BACK`, `TAIL_CALL`, `RETURN`, `CONCAT_ARRAY`, `CONCAT_TEXT` and
+`MAKE_CELL`. Debug builds keep a type tag in every value and check each map
+against the tags as values are stored and at each of those places. The
+collector is non-moving.
 
 ### Allocator
 
@@ -111,7 +122,8 @@ two-field union takes 32 bytes, text and arrays take 80.
   them would make every allocation check run a collection that frees nothing.
 
 The collector traces values reachable from the VM stacks, globals, closure
-environments, the remembered set, and nested aggregate objects.
+environments, the remembered set, and nested aggregate objects, each as its
+map says.
 
 ## Globals
 

@@ -87,7 +87,10 @@ A native library's function gets its kinds from its `foreign` declaration's
 types, so `package.marmot` declares none: a `Text` parameter is passed as
 `CString`, an `Array<T>` as `ArrayView`, and any other as `RawValue`. A `Text`
 result is taken as `CString`, an `Array<Text>` as `ArrayStrings`, any other
-array as `ArrayValues`, and anything else as `RawValue`. The compiler rejects a
+array as `ArrayValues`, and anything else as `RawValue`. An array a native
+function returns holds texts or scalars: the compiler rejects a declaration
+that returns an array of other values, whose elements the VM would have to
+take as pointers. The compiler rejects a
 call to a native function with more than `MIDORI_FFI_MAX_ARITY` arguments.
 
 ## Return Value Marshalling

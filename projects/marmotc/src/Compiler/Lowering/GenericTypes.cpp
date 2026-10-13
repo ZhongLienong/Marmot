@@ -1,8 +1,10 @@
 #include "GenericTypes.h"
 
 #include <algorithm>
+#include <format>
 #include <functional>
 #include <iterator>
+#include <stdexcept>
 #include <unordered_set>
 #include <utility>
 
@@ -586,6 +588,24 @@ std::shared_ptr<MidoriType> GenericTypes::RepresentationOf(const std::shared_ptr
 	}
 
 	return current;
+}
+
+bool GenericTypes::IsPointer(const std::shared_ptr<MidoriType>& type)
+{
+	const std::shared_ptr<MidoriType> representation = RepresentationOf(type);
+	if (representation->IsType<MidoriType::TextType>() || representation->IsType<MidoriType::ArrayType>() || representation->IsType<MidoriType::TupleType>()
+		|| representation->IsType<MidoriType::StructType>() || representation->IsType<MidoriType::UnionType>() || representation->IsType<MidoriType::FunctionType>()
+		|| representation->IsType<MidoriType::CellType>() || representation->IsType<MidoriType::RangeType>())
+	{
+		return true;
+	}
+	if (representation->IsType<MidoriType::IntegerType>() || representation->IsType<MidoriType::FloatType>() || representation->IsType<MidoriType::ByteType>()
+		|| representation->IsType<MidoriType::WordType>() || representation->IsType<MidoriType::BoolType>() || representation->IsType<MidoriType::UnitType>()
+		|| representation->IsType<MidoriType::NeverType>() || representation->IsType<MidoriType::WorkerType>() || representation->IsType<MidoriType::ChannelType>())
+	{
+		return false;
+	}
+	throw std::logic_error(std::format("cannot tell whether a {} is a pointer", type->ToString()));
 }
 
 bool GenericTypes::IsNewTypeErasedConversion(const std::shared_ptr<MidoriType>& from_type, const std::shared_ptr<MidoriType>& target_type)

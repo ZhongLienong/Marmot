@@ -229,26 +229,7 @@ namespace
 		return type->IsType<MidoriType::UnitType>();
 	}
 
-	// Whether a value of this type is a heap object at run time, which is the one
-	// thing the VM needs to know of it and never works out from its bits. A newtype
-	// is what it wraps. A type variable left for the backend is a compiler bug.
-	bool IsPointer(const TypeRef& type)
-	{
-		const TypeRef representation = GenericTypes::RepresentationOf(type);
-		if (representation->IsType<MidoriType::TextType>() || representation->IsType<MidoriType::ArrayType>() || representation->IsType<MidoriType::TupleType>()
-			|| representation->IsType<MidoriType::StructType>() || representation->IsType<MidoriType::UnionType>() || representation->IsType<MidoriType::FunctionType>()
-			|| representation->IsType<MidoriType::CellType>() || representation->IsType<MidoriType::RangeType>())
-		{
-			return true;
-		}
-		if (representation->IsType<MidoriType::IntegerType>() || representation->IsType<MidoriType::FloatType>() || representation->IsType<MidoriType::ByteType>()
-			|| representation->IsType<MidoriType::WordType>() || representation->IsType<MidoriType::BoolType>() || representation->IsType<MidoriType::UnitType>()
-			|| representation->IsType<MidoriType::NeverType>() || representation->IsType<MidoriType::WorkerType>() || representation->IsType<MidoriType::ChannelType>())
-		{
-			return false;
-		}
-		throw std::logic_error(std::format("the bytecode backend cannot tell whether a {} is a pointer", type->ToString()));
-	}
+	using GenericTypes::IsPointer;
 
 	int Kind(const TypeRef& type)
 	{
