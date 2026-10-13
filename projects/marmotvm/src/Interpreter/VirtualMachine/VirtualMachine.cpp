@@ -441,7 +441,7 @@ void VirtualMachine::VisitFrame(const VmOpCode* ip, const MidoriValue* bp, const
 		std::println(stderr, "internal error: the frame of {} at offset {} holds {} values, but its map describes {} slots and {} temporaries.", m_executable->m_procedure_names[static_cast<size_t>(proc_index)], offset, region, slots, temporaries);
 		std::abort();
 	}
-	for (int index = 0; index < std::min(region, slots); index += 1)
+	for (int index = 0; index < (std::min)(region, slots); index += 1)
 	{
 		visit(bp[index], frame.m_slot_pointers[static_cast<size_t>(index)]);
 	}
