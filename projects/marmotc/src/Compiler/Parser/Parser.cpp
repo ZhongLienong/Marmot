@@ -6106,7 +6106,7 @@ std::expected<void, CompilerError> Parser::QueueDerivedStructStatements(const Mi
 
 	for (const Token& derive_target : deriving_targets)
 	{
-		if (derive_target.m_lexeme != "Equatable" && derive_target.m_lexeme != "Hashable" && derive_target.m_lexeme != "Transferable")
+		if (derive_target.m_lexeme != EQUATABLE_CLASS_NAME && derive_target.m_lexeme != HASHABLE_CLASS_NAME && derive_target.m_lexeme != TRANSFERABLE_CLASS_NAME)
 		{
 			return std::unexpected(GenerateParserError("Unsupported deriving target for struct.", derive_target));
 		}
@@ -6116,16 +6116,16 @@ std::expected<void, CompilerError> Parser::QueueDerivedStructStatements(const Mi
 		std::vector<std::unique_ptr<MidoriStatement>> methods;
 		std::vector<std::string> mangled_method_names;
 
-		if (derive_target.m_lexeme == "Transferable")
+		if (derive_target.m_lexeme == TRANSFERABLE_CLASS_NAME)
 		{
 			RegisterSyntheticInstanceMetadata(derive_target.m_lexeme, type_args, {}, mangled_method_names);
 			m_pending_statements.emplace(std::make_unique<MidoriStatement>(MidoriStatement::Instance(class_token, std::move(type_args), {}, {}, std::move(methods))));
 			continue;
 		}
 
-		if (derive_target.m_lexeme == "Equatable")
+		if (derive_target.m_lexeme == EQUATABLE_CLASS_NAME)
 		{
-			const std::string mangled_name = MidoriType::MangleInstanceMethodName("Equals", derive_target.m_lexeme, type_args);
+			const std::string mangled_name = MidoriType::MangleInstanceMethodName(std::string(EQUALS_METHOD_NAME), derive_target.m_lexeme, type_args);
 			Token method_token = MakeSyntheticToken(mangled_name, Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name);
 			std::vector<Token> params
 			{
@@ -6141,7 +6141,7 @@ std::expected<void, CompilerError> Parser::QueueDerivedStructStatements(const Mi
 				eq_args.emplace_back(make_member_access("a", 0, struct_type.m_member_names[i], static_cast<int>(i)));
 				eq_args.emplace_back(make_member_access("b", 1, struct_type.m_member_names[i], static_cast<int>(i)));
 
-				std::unique_ptr<MidoriExpression> compare_expr = syntax.QualifiedCall("Equatable", "Equals", std::move(eq_args));
+				std::unique_ptr<MidoriExpression> compare_expr = syntax.QualifiedCall(std::string(EQUATABLE_CLASS_NAME), std::string(EQUALS_METHOD_NAME), std::move(eq_args));
 				body = syntax.Binary(Token::Name::DOUBLE_AMPERSAND, "&&", std::move(body), std::move(compare_expr));
 			}
 
@@ -6156,7 +6156,7 @@ std::expected<void, CompilerError> Parser::QueueDerivedStructStatements(const Mi
 		}
 		else
 		{
-			const std::string mangled_name = MidoriType::MangleInstanceMethodName("Hash", derive_target.m_lexeme, type_args);
+			const std::string mangled_name = MidoriType::MangleInstanceMethodName(std::string(HASH_METHOD_NAME), derive_target.m_lexeme, type_args);
 			Token method_token = MakeSyntheticToken(mangled_name, Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name);
 			std::vector<Token> params{ MakeSyntheticToken("value", Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name) };
 			std::vector<std::shared_ptr<MidoriType>> param_types{ std::shared_ptr<MidoriType>(struct_stmt.m_self_type) };
@@ -6167,7 +6167,7 @@ std::expected<void, CompilerError> Parser::QueueDerivedStructStatements(const Mi
 				std::vector<std::unique_ptr<MidoriExpression>> hash_args;
 				hash_args.emplace_back(make_member_access("value", 0, struct_type.m_member_names[i], static_cast<int>(i)));
 
-				std::unique_ptr<MidoriExpression> member_hash = syntax.QualifiedCall("Hashable", "Hash", std::move(hash_args));
+				std::unique_ptr<MidoriExpression> member_hash = syntax.QualifiedCall(std::string(HASHABLE_CLASS_NAME), std::string(HASH_METHOD_NAME), std::move(hash_args));
 				std::unique_ptr<MidoriExpression> scaled = syntax.Binary(Token::Name::STAR, "*", std::move(body), syntax.IntLiteral(31));
 				body = syntax.Binary(Token::Name::SINGLE_PLUS, "+", std::move(scaled), std::move(member_hash));
 			}
@@ -6246,8 +6246,8 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 
 	for (const Token& derive_target : deriving_targets)
 	{
-		const bool is_structural = derive_target.m_lexeme == "Equatable" || derive_target.m_lexeme == "Hashable";
-		const bool is_transferable = derive_target.m_lexeme == "Transferable";
+		const bool is_structural = derive_target.m_lexeme == EQUATABLE_CLASS_NAME || derive_target.m_lexeme == HASHABLE_CLASS_NAME;
+		const bool is_transferable = derive_target.m_lexeme == TRANSFERABLE_CLASS_NAME;
 		const bool is_container = derive_target.m_lexeme == "Map" || derive_target.m_lexeme == "Bind" || derive_target.m_lexeme == "Unwrap";
 		if (!is_structural && !is_transferable && !is_container)
 		{
@@ -6272,9 +6272,9 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 			std::vector<std::unique_ptr<MidoriStatement>> methods;
 			std::vector<std::string> mangled_method_names;
 
-			if (derive_target.m_lexeme == "Equatable")
+			if (derive_target.m_lexeme == EQUATABLE_CLASS_NAME)
 			{
-				const std::string mangled_name = MidoriType::MangleInstanceMethodName("Equals", derive_target.m_lexeme, type_args);
+				const std::string mangled_name = MidoriType::MangleInstanceMethodName(std::string(EQUALS_METHOD_NAME), derive_target.m_lexeme, type_args);
 				Token method_token = MakeSyntheticToken(mangled_name, Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name);
 				std::vector<Token> params
 				{
@@ -6298,7 +6298,7 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 						eq_args.emplace_back(syntax.LocalName("lhs" + std::to_string(i), outer_binding_start + static_cast<int>(i)));
 						eq_args.emplace_back(syntax.LocalName("rhs" + std::to_string(i), inner_binding_start + static_cast<int>(i)));
 
-						std::unique_ptr<MidoriExpression> compare_expr = syntax.QualifiedCall("Equatable", "Equals", std::move(eq_args));
+						std::unique_ptr<MidoriExpression> compare_expr = syntax.QualifiedCall(std::string(EQUATABLE_CLASS_NAME), std::string(EQUALS_METHOD_NAME), std::move(eq_args));
 						inner_body = syntax.Binary(Token::Name::DOUBLE_AMPERSAND, "&&", std::move(inner_body), std::move(compare_expr));
 					}
 
@@ -6334,7 +6334,7 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 			}
 			else
 			{
-				const std::string mangled_name = MidoriType::MangleInstanceMethodName("Hash", derive_target.m_lexeme, type_args);
+				const std::string mangled_name = MidoriType::MangleInstanceMethodName(std::string(HASH_METHOD_NAME), derive_target.m_lexeme, type_args);
 				Token method_token = MakeSyntheticToken(mangled_name, Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name);
 				std::vector<Token> params{ MakeSyntheticToken("value", Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name) };
 				std::vector<std::shared_ptr<MidoriType>> param_types{ std::shared_ptr<MidoriType>(union_stmt.m_self_type) };
@@ -6349,7 +6349,7 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 						std::vector<std::unique_ptr<MidoriExpression>> hash_args;
 						hash_args.emplace_back(syntax.LocalName("field" + std::to_string(i), 1 + static_cast<int>(i)));
 
-						std::unique_ptr<MidoriExpression> member_hash = syntax.QualifiedCall("Hashable", "Hash", std::move(hash_args));
+						std::unique_ptr<MidoriExpression> member_hash = syntax.QualifiedCall(std::string(HASHABLE_CLASS_NAME), std::string(HASH_METHOD_NAME), std::move(hash_args));
 						std::unique_ptr<MidoriExpression> scaled = syntax.Binary(Token::Name::STAR, "*", std::move(case_body), syntax.IntLiteral(31));
 						case_body = syntax.Binary(Token::Name::SINGLE_PLUS, "+", std::move(scaled), std::move(member_hash));
 					}

@@ -4656,7 +4656,7 @@ MidoriResult::TypeResult TypeChecker::ResolveIteration(IterationNode& node, cons
 		return std::unexpected(fail("Iterable class not found", resolved_range));
 	}
 
-	const bool uses_associated_item = class_it->second.m_associated_types.contains("Item");
+	const bool uses_associated_item = class_it->second.m_associated_types.contains(std::string(ITEM_ASSOCIATED_TYPE_NAME));
 	std::shared_ptr<MidoriType> iterable_item_type;
 	bool is_iterable = false;
 
@@ -4670,7 +4670,7 @@ MidoriResult::TypeResult TypeChecker::ResolveIteration(IterationNode& node, cons
 			std::optional<ResolvedInstanceMatch> resolved_match = FindMatchingInstance(std::string(ITERABLE_CLASS_NAME), { resolved_range });
 			if (resolved_match.has_value())
 			{
-				AssociatedTypeEnvironment::const_iterator binding_it = resolved_match->m_instance->m_associated_type_bindings.find("Item");
+				AssociatedTypeEnvironment::const_iterator binding_it = resolved_match->m_instance->m_associated_type_bindings.find(std::string(ITEM_ASSOCIATED_TYPE_NAME));
 				if (binding_it != resolved_match->m_instance->m_associated_type_bindings.cend())
 				{
 					iterable_item_type = ApplySubstitution(MidoriType::SubstituteTypeParams(binding_it->second, resolved_match->m_substitutions));
@@ -4712,7 +4712,7 @@ MidoriResult::TypeResult TypeChecker::ResolveIteration(IterationNode& node, cons
 			{
 				if (uses_associated_item)
 				{
-					iterable_item_type = ResolveAssociatedType(MidoriType::AssociatedType(std::string(ITERABLE_CLASS_NAME), "Item", std::vector<std::shared_ptr<MidoriType>>(constraint.m_type_args)));
+					iterable_item_type = ResolveAssociatedType(MidoriType::AssociatedType(std::string(ITERABLE_CLASS_NAME), std::string(ITEM_ASSOCIATED_TYPE_NAME), std::vector<std::shared_ptr<MidoriType>>(constraint.m_type_args)));
 				}
 				else if (constraint.m_type_args.size() >= 2u)
 				{
@@ -4925,7 +4925,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::As& as)
 				// Verify that either Convertable instance exists, constraint exists, or it's a built-in conversion
 				if (!has_convertable_instance && !has_convertable_constraint && !is_builtin_conversion && !is_identity_conversion)
 				{
-					MidoriType::ClassConstraint constraint("Convertable", { from_type, to_type });
+					MidoriType::ClassConstraint constraint(std::string(CONVERTABLE_CLASS_NAME), { from_type, to_type });
 					const std::string suggestion = std::format("Define 'instance Convertable<{}, {}>' to enable this conversion.", from_type->DisplayString(), to_type->DisplayString());
 					return std::unexpected(MakeConstraintFailureError(as.m_as_keyword, constraint, suggestion));
 				}
