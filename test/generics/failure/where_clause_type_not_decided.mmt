@@ -1,0 +1,12 @@
+module WhereClauseTypeNotDecided
+
+import { "../../../MarmotPrelude/Hashable.mmt" }
+
+// `Empty`'s where clause is on a type only its result names. With nothing to decide
+// it, the clause cannot be checked, and the error says so rather than that some
+// placeholder type has no instance. Once decided, the clause is checked as usual.
+
+def Empty = fn<T>(capacity : Int) -> Array<T> where Hashable<T> => [];
+
+def undecided = Empty(4);
+def ranges : Array<Range<Int>> = Empty(4);

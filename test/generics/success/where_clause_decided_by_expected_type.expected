@@ -1,0 +1,7 @@
+[warning] 1 warning(s) in where_clause_decided_by_expected_type.mmt
+Static Analyzer Warning at test/generics/success/where_clause_decided_by_expected_type.mmt:9
+  |
+9 | def Empty = fn<T>(capacity : Int) -> Array<T> where Hashable<T> => [];
+  |                   ^^^^^^^^ Binding 'capacity' is never read.
+  |
+0 0 0

@@ -211,8 +211,6 @@ private:
 
 	std::optional<CompilerError> CheckSpawnArgument(MidoriExpression::Call& call, const MidoriType::FunctionType& function_type);
 
-	MidoriResult::TypeResult TakeExpectedElementType(MidoriExpression::Call& call, std::shared_ptr<MidoriType>&& channel_type, const std::shared_ptr<MidoriType>& expected_type);
-
 	std::optional<CompilerError> CheckPrimitiveDeclaration(const MidoriStatement::ForeignDefinition& foreign) const;
 
 

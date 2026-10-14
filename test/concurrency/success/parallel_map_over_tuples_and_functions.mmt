@@ -1,0 +1,20 @@
+module ParallelMapOverTuplesAndFunctions
+
+import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/IO.mmt" }
+
+// A tuple of transferable values and a function value can both cross to a worker, so
+// `where Transferable<A>` holds for them as Spawn's own check does. The class used to
+// know only the instances written for it, and rejected both.
+
+def Sum = fn(pair : (Int, Int)) -> Int => {
+	def (left, right) = pair;
+	left + right
+};
+def sums = Concurrency::ParallelMap([(1, 2), (3, 4)], Sum, 1);
+
+def Run = fn(work : fn() -> Int) -> Int => work();
+def One = fn() -> Int => 1;
+def Two = fn() -> Int => 2;
+def results = Concurrency::ParallelMap([One, Two], Run, 1);
+
+IO::PrintLine((sums[0] as Text) ++ " " ++ (sums[1] as Text) ++ " " ++ (results[0] as Text) ++ " " ++ (results[1] as Text));

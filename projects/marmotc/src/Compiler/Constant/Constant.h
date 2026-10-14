@@ -63,6 +63,10 @@ constexpr std::string_view NEXT_METHOD_NAME = "Next";
 constexpr std::string_view NUMERIC_CLASS_NAME = "Numeric";
 constexpr std::string_view BITWISE_CLASS_NAME = "Bitwise";
 
+// Decided from a type's structure, not only by its instances: a value can cross
+// to another worker exactly when EnsureTransferable says so.
+constexpr std::string_view TRANSFERABLE_CLASS_NAME = "Transferable";
+
 constexpr std::string_view INDEXABLE_CLASS_NAME = "Indexable";
 constexpr std::string_view GET_METHOD_NAME = "Get";
 constexpr std::string_view ELEMENT_ASSOCIATED_TYPE_NAME = "Element";

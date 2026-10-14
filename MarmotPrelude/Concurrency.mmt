@@ -4,9 +4,9 @@ use Result.{
     Result
 }
 public export { Spawn, Join, MakeChannel, Close, IsDone, Cancel, WorkerError, JoinedOrPanic, ParallelMap }
-// Each of these six is one instruction of the VM, declared as a `foreign` with no
-// library whose symbol names the instruction: a primitive. A primitive is called like
-// a function, but it is not a value.
+// Spawn, Join, Close, IsDone and Cancel are each one instruction of the VM, declared
+// as a `foreign` with no library whose symbol names the instruction: a primitive. A
+// primitive is called like a function, but it is not a value.
 //
 // Spawn(argument, F) runs F in a new worker. The one argument stands for all of F's
 // parameters: the value itself for one, a tuple spread across them for several, and
@@ -20,8 +20,10 @@ foreign "MIDORI_PRIMITIVE_Spawn" Spawn: fn(A, fn(A) -> R) -> Worker < R >;
 // holds nothing and its second the worker's error message.
 foreign "MIDORI_PRIMITIVE_Join" Join: fn(Worker < T >) -> Result < T, WorkerError >;
 // MakeChannel(capacity) takes its element type from where it is bound:
-// `def ch : Channel<Int> = Concurrency::MakeChannel(4);`.
-foreign "MIDORI_PRIMITIVE_ChannelNew" MakeChannel: fn(Int) -> Channel < T >;
+// `def ch : Channel<Int> = Concurrency::MakeChannel(4);`. Only a transferable value
+// can go through a channel, so only such a channel can be made.
+foreign "MIDORI_PRIMITIVE_ChannelNew" ChannelNew: fn(Int) -> Channel < T >;
+def MakeChannel = fn < T >(capacity: Int) -> Channel < T > where Transferable < T > => ChannelNew(capacity);
 foreign "MIDORI_PRIMITIVE_ChannelClose" Close: fn(Channel < T >) -> Unit;
 foreign "MIDORI_PRIMITIVE_WorkerIsDone" IsDone: fn(Worker < T >) -> Bool;
 foreign "MIDORI_PRIMITIVE_WorkerCancel" Cancel: fn(Worker < T >) -> Bool;

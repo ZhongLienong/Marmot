@@ -1,0 +1,11 @@
+Compilation failed :(
+Type Checker Error at test/generics/failure/where_clause_type_not_decided.mmt:11
+   |
+11 | def undecided = Empty(4);
+   |                        ^ Call expression type error: could not infer the type this call's Hashable constraint is on; write the type on the definition that holds the result
+   |
+Type Checker Error at test/generics/failure/where_clause_type_not_decided.mmt:12
+   |
+12 | def ranges : Array<Range<Int>> = Empty(4);
+   |                                         ^ Type Range<Int> does not satisfy constraint Hashable<Range<Int>> - no matching instance found
+   |

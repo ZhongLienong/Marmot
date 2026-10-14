@@ -95,10 +95,10 @@ the program's initializers already holds every global and takes none.
 
 ## Concurrency Functions
 
-Workers and channels are created with primitives from `MarmotPrelude/Concurrency.mmt`.
-Each is one instruction of the VM, which the module declares as a `foreign` with no
-library and exports like anything else, so `use Concurrency.{ Spawn }` works. A
-primitive is called like a function, but it is not a value:
+Workers and channels are created with functions from `MarmotPrelude/Concurrency.mmt`.
+Most are primitives, each one instruction of the VM, which the module declares as a
+`foreign` with no library and exports like anything else, so `use Concurrency.{ Spawn }`
+works. A primitive is called like a function, but it is not a value:
 
 ```marmot-test name=multicore/concurrency_surface path=.doc_example_multicore_surface.mmt module=MulticoreConcurrencySurface
 import { "./MarmotPrelude/Concurrency.mmt", "./MarmotPrelude/Prelude/Result.mmt" }
@@ -127,10 +127,12 @@ Concurrency::Close(ch);
   treats a worker failure as fatal.
 - `Concurrency::MakeChannel(capacity)` creates a typed bounded channel. It takes its
   element type from context, so annotate the binding: `def ch : Channel<Int> = ...`.
+  It is ordinary Marmot, `where Transferable<T>`, over a primitive the module keeps
+  to itself.
 - `->` (send) and `<-` (receive) are type-checked binary/unary operators
 
 Auxiliary operations: `Concurrency::Close(ch)`, `Concurrency::IsDone(w)`,
-`Concurrency::Cancel(w)`. Like the three above, they are primitives declared in
+`Concurrency::Cancel(w)`. Like `Spawn` and `Join`, they are primitives declared in
 `Concurrency.mmt`.
 
 `Concurrency::ParallelMap(values, work, chunk_size)` maps `work` over `values` one

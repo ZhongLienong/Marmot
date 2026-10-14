@@ -1,0 +1,18 @@
+module WhereClauseDecidedByExpectedType
+
+import { "../../../MarmotPrelude/Hashable.mmt", "../../../MarmotPrelude/IO.mmt" }
+
+// `Empty`'s where clause is on a type only its result names. Where the result goes
+// decides that type before the clause is checked: a definition's annotation, the
+// parameter it is passed to, or the return type of the function it ends.
+
+def Empty = fn<T>(capacity : Int) -> Array<T> where Hashable<T> => [];
+
+def numbers : Array<Int> = Empty(4);
+
+def CountTexts = fn(texts : Array<Text>) -> Int => #texts;
+def passed = CountTexts(Empty(2));
+
+def NoWords = fn() -> Array<Text> => Empty(1);
+
+IO::PrintLine(((#numbers) as Text) ++ " " ++ (passed as Text) ++ " " ++ ((#NoWords()) as Text));

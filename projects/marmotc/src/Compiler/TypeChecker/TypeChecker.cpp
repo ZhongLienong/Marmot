@@ -866,7 +866,7 @@ std::optional<CompilerError> TypeChecker::EnsureTransferable(const Token& token,
 		return std::nullopt;
 	}
 
-	const MidoriType::ClassConstraint transferable_constraint("Transferable", { resolved_type });
+	const MidoriType::ClassConstraint transferable_constraint(std::string(TRANSFERABLE_CLASS_NAME), { resolved_type });
 
 	const auto fail = [&](std::optional<std::string_view> suggestion = std::nullopt) -> std::optional<CompilerError>
 	{
@@ -875,8 +875,8 @@ std::optional<CompilerError> TypeChecker::EnsureTransferable(const Token& token,
 
 	const auto has_transferable_marker = [&]() -> bool
 	{
-		return HasActiveConstraint("Transferable", resolved_type)
-			|| FindMatchingInstance("Transferable", { resolved_type }).has_value();
+		return HasActiveConstraint(std::string(TRANSFERABLE_CLASS_NAME), resolved_type)
+			|| FindMatchingInstance(std::string(TRANSFERABLE_CLASS_NAME), { resolved_type }).has_value();
 	};
 
 	if (
@@ -1174,6 +1174,11 @@ bool TypeChecker::IsSatisfiedByActiveConstraint(const MidoriType::ClassConstrain
 // Two matching instances are not a missing one, and the error says which.
 std::optional<CompilerError> TypeChecker::CheckConstraintHolds(const Token& token, const MidoriType::ClassConstraint& resolved_constraint, size_t depth, std::optional<std::string_view> suggestion)
 {
+	if (resolved_constraint.m_class_name == TRANSFERABLE_CLASS_NAME)
+	{
+		return EnsureTransferable(token, resolved_constraint.m_type_args.front());
+	}
+
 	if (IsSatisfiedByActiveConstraint(resolved_constraint))
 	{
 		return std::nullopt;
@@ -1227,6 +1232,12 @@ MidoriResult::TypeResult TypeChecker::ValidateFunctionConstraints(const Token& t
 		for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
 		{
 			resolved_type_args.emplace_back(ApplySubstitution(type_arg));
+		}
+
+		// No instance is picked for a type nothing has decided yet.
+		if (!std::ranges::all_of(resolved_type_args, [this](const std::shared_ptr<MidoriType>& type_arg) { return IsDecided(type_arg); }))
+		{
+			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnsatisfiedConstraint, std::format("Call expression type error: could not infer the type this call's {} constraint is on; write the type on the definition that holds the result", constraint.m_class_name), token, m_file_name, m_source_lines));
 		}
 
 		if (std::optional<CompilerError> error = CheckConstraintHolds(token, MidoriType::ClassConstraint(constraint.m_class_name, std::move(resolved_type_args)), 0u))
@@ -5471,29 +5482,6 @@ std::optional<CompilerError> TypeChecker::CheckSpawnArgument(MidoriExpression::C
 	return std::nullopt;
 }
 
-// MakeChannel(capacity) names no element type, so it takes the one its context
-// expects, as a generic constructor does, and only one that can cross.
-MidoriResult::TypeResult TypeChecker::TakeExpectedElementType(MidoriExpression::Call& call, std::shared_ptr<MidoriType>&& channel_type, const std::shared_ptr<MidoriType>& expected_type)
-{
-	const Token& name = call.m_callee->GetExpression<MidoriExpression::NameAccess>().m_name;
-	std::shared_ptr<MidoriType> expected = expected_type != nullptr ? ApplySubstitution(expected_type) : nullptr;
-	if (expected == nullptr || !expected->IsType<MidoriType::ChannelType>() || !IsDecided(expected->GetType<MidoriType::ChannelType>().m_element_type))
-	{
-		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(std::format("Channel creation type error: {} cannot tell what the channel carries. Annotate where it is bound, as in 'def ch : Channel<Int> = {}(4);'", name.m_lexeme, name.m_lexeme), name, m_file_name, m_source_lines));
-	}
-
-	return Unify(name, channel_type, expected, UnifyDiagnosticMode::ActualExpected)
-		.and_then([this, &call, &name, &expected](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
-		{
-			if (std::optional<CompilerError> error = EnsureTransferable(name, expected->GetType<MidoriType::ChannelType>().m_element_type))
-			{
-				return std::unexpected(std::move(*error));
-			}
-			call.m_type_data = ApplySubstitution(expected);
-			return call.m_type_data;
-		});
-}
-
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Send& send)
 {
 	return Evaluate(send.m_channel)
@@ -5811,13 +5799,8 @@ MidoriResult::TypeResult TypeChecker::CheckInstanceMethodCall(MidoriExpression::
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 {
 	const size_t pending = m_pending_instance_constraints.size();
-	const std::shared_ptr<MidoriType> expected_type = m_expected_expr_type;
 	call.m_primitive = CalledPrimitive(call);
 	MidoriResult::TypeResult checked = call.m_primitive == MidoriPrimitive::Spawn ? CheckSpawnCall(call) : CheckCall(call);
-	if (call.m_primitive == MidoriPrimitive::ChannelNew)
-	{
-		checked = std::move(checked).and_then([this, &call, &expected_type](std::shared_ptr<MidoriType>&& channel_type) { return TakeExpectedElementType(call, std::move(channel_type), expected_type); });
-	}
 	return std::move(checked)
 		.and_then([this, pending](std::shared_ptr<MidoriType>&& type) { return ValidatePendingInstanceConstraints(pending, std::move(type)); });
 }
@@ -6072,6 +6055,17 @@ MidoriResult::TypeResult TypeChecker::CheckCall(MidoriExpression::Call& call)
 					if (!unify_result.has_value())
 					{
 						return unify_result;
+					}
+				}
+
+				// A where clause may be on a type only the result names, which where the
+				// result goes decides, as it does for a generic used as a value.
+				if (!function_type.m_constraints.empty() && m_expected_expr_type != nullptr && !IsDecided(ApplySubstitution(function_type.m_return_type)))
+				{
+					MidoriResult::TypeResult expected_result = Unify(call.m_paren, function_type.m_return_type, m_expected_expr_type, UnifyDiagnosticMode::ActualExpected);
+					if (!expected_result.has_value())
+					{
+						return expected_result;
 					}
 				}
 
