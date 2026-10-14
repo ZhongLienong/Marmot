@@ -283,6 +283,10 @@ public:
 	// What a diagnostic shows: the name as written, without the module.
 	std::string DisplayString() const;
 
+	// The same, with each type variable `variable_names` holds shown by the name it
+	// stands for, as a generic parameter's is written.
+	std::string DisplayString(const std::unordered_map<int, std::string>& variable_names) const;
+
 	// Each type's ToString, joined with ", ".
 	static std::string JoinToStrings(const std::vector<std::shared_ptr<MidoriType>>& types);
 
@@ -295,7 +299,7 @@ public:
 	friend bool operator==(const MidoriType& lhs, const MidoriType& rhs);
 
 private:
-	std::string Stringify(bool qualify) const;
+	std::string Stringify(bool qualify, const std::unordered_map<int, std::string>* variable_names) const;
 
 	struct TypeEqualityVisitor;
 	static bool CompareStructTypes(const StructType& a, const StructType& b);

@@ -1,0 +1,13 @@
+module ConstraintNamesGenericParameter
+
+import { "../../../MarmotPrelude/Hashable.mmt" }
+
+// A generic parameter in a constraint error is shown by the name it was written as,
+// not by the type variable that stands for it, whether the constraint is a call's or
+// that of a generic used as a value, decided by the function's return type.
+
+def Keep = fn<A>(hash : fn(A) -> Int) -> fn(A) -> Int => hash;
+def HashOf = fn<T>(value : T) -> Int where Hashable<T> => Hashable::Hash(value);
+
+def HashEach = fn<Item>(items : Array<Item>) -> Int => HashOf(items);
+def Hasher = fn<Key>(sample : Key) -> fn(Key) -> Int => Keep(HashOf);

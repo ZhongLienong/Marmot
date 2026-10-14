@@ -1,0 +1,11 @@
+Compilation failed :(
+Type Checker Error at test/generics/failure/constraint_names_generic_parameter.mmt:12
+   |
+12 | def HashEach = fn<Item>(items : Array<Item>) -> Int => HashOf(items);
+   |                                                                    ^ Type Array<Item> does not satisfy constraint Hashable<Array<Item>> - no matching instance found
+   |
+Type Checker Error at test/generics/failure/constraint_names_generic_parameter.mmt:13
+   |
+13 | def Hasher = fn<Key>(sample : Key) -> fn(Key) -> Int => Keep(HashOf);
+   |                                                              ^^^^^^ Type Key does not satisfy constraint Hashable<Key> - no matching instance found
+   |

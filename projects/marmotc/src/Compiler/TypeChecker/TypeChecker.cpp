@@ -796,7 +796,7 @@ std::string TypeChecker::DescribeConstraint(const MidoriType::ClassConstraint& c
 {
 	if (constraint.IsEquality())
 	{
-		return constraint.m_equality_lhs->DisplayString() + " ~ "s + constraint.m_equality_rhs->DisplayString();
+		return constraint.m_equality_lhs->DisplayString(m_rigid_type_vars) + " ~ "s + constraint.m_equality_rhs->DisplayString(m_rigid_type_vars);
 	}
 
 	if (constraint.m_type_args.empty())
@@ -805,7 +805,7 @@ std::string TypeChecker::DescribeConstraint(const MidoriType::ClassConstraint& c
 	}
 
 	const std::string type_args = constraint.m_type_args
-		| std::views::transform([](const std::shared_ptr<MidoriType>& type_arg) { return type_arg->DisplayString(); })
+		| std::views::transform([this](const std::shared_ptr<MidoriType>& type_arg) { return type_arg->DisplayString(m_rigid_type_vars); })
 		| std::views::join_with(std::string_view(", "))
 		| std::ranges::to<std::string>();
 	return std::format("{}<{}>", constraint.m_class_name, type_args);
@@ -819,7 +819,7 @@ CompilerError TypeChecker::MakeConstraintFailureError(const Token& token, const 
 		message = std::format
 		(
 			"Type {} does not satisfy constraint {} - no matching instance found",
-			constraint.m_type_args[0u]->DisplayString(),
+			constraint.m_type_args[0u]->DisplayString(m_rigid_type_vars),
 			DescribeConstraint(constraint)
 		);
 	}

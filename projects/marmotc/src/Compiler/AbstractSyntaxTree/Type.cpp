@@ -184,6 +184,7 @@ namespace
 		const JoinWithCommaFn& join_with_comma;
 		const ToStringCallback& stringify;
 		bool qualify;
+		const std::unordered_map<int, std::string>* variable_names;
 
 		std::string StringifyTypeArguments(const std::string& name, const std::vector<TypePtr>& type_arguments) const
 		{
@@ -211,6 +212,14 @@ namespace
 			}
 			else if constexpr (std::is_same_v<Type, MidoriType::TypeVariable>)
 			{
+				if (variable_names != nullptr)
+				{
+					const std::unordered_map<int, std::string>::const_iterator name = variable_names->find(type_variant.m_id);
+					if (name != variable_names->cend())
+					{
+						return name->second;
+					}
+				}
 				return "T"s + std::to_string(type_variant.m_id);
 			}
 			else if constexpr (std::is_same_v<Type, MidoriType::FloatType>)
@@ -783,15 +792,20 @@ std::vector<std::shared_ptr<MidoriType>> MidoriType::InstantiateTypeArguments(co
 
 std::string MidoriType::ToString() const
 {
-	return Stringify(true);
+	return Stringify(true, nullptr);
 }
 
 std::string MidoriType::DisplayString() const
 {
-	return Stringify(false);
+	return Stringify(false, nullptr);
 }
 
-std::string MidoriType::Stringify(bool qualify) const
+std::string MidoriType::DisplayString(const std::unordered_map<int, std::string>& variable_names) const
+{
+	return Stringify(false, &variable_names);
+}
+
+std::string MidoriType::Stringify(bool qualify, const std::unordered_map<int, std::string>* variable_names) const
 {
 	JoinWithCommaFn join_with_comma = [](const std::string& acc, const std::string& elem)
 		{
@@ -801,7 +815,7 @@ std::string MidoriType::Stringify(bool qualify) const
 	std::unordered_set<const MidoriType*> visited;
 
 	ToStringFn stringify;
-	stringify = [&visited, &join_with_comma, &stringify, qualify](const MidoriType& type) -> std::string
+	stringify = [&visited, &join_with_comma, &stringify, qualify, variable_names](const MidoriType& type) -> std::string
 	{
 		if (visited.contains(&type))
 		{
@@ -822,7 +836,7 @@ std::string MidoriType::Stringify(bool qualify) const
 
 			visited.insert(&type);
 
-			const std::string result = std::visit(ToStringVisitor<ToStringFn>{join_with_comma, stringify, qualify}, type.m_type);
+			const std::string result = std::visit(ToStringVisitor<ToStringFn>{join_with_comma, stringify, qualify, variable_names}, type.m_type);
 
 			visited.erase(&type);
 			return result;
