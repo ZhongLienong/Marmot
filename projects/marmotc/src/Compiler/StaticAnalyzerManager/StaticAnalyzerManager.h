@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Compiler/Analysis/WorkerCrossing.h"
 #include "Compiler/StaticAnalyzerManager/Diagnostics/BaseDiagnosticPass/BaseDiagnosticPass.h"
 
 #include <memory>
@@ -8,7 +9,7 @@
 class StaticAnalyzerManager
 {
 public:
-	StaticAnalyzerManager();
+	explicit StaticAnalyzerManager(const WorkerCrossings& crossings);
 
 	std::vector<CompilerWarning> Analyze(MidoriProgramTree& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines);
 

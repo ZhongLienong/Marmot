@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Compiler/Module/Module.h"
+#include "Compiler/Analysis/WorkerCrossing.h"
 #include "Compiler/Lowering/GenericFunctionTable.h"
 
 #include <filesystem>
@@ -57,6 +58,7 @@ struct ModuleInterface
 	TypeEnvironment m_type_signatures;
 	TypeclassMetadataMap m_typeclass_metadata;
 	GenericFunctionTable::Functions m_generic_functions;
+	WorkerCrossings m_worker_crossings;
 
-	ModuleInterface(std::string module_name, std::filesystem::path file_path, SymbolTable symbols, TypeEnvironment type_signatures, TypeclassMetadataMap typeclass_metadata, GenericFunctionTable::Functions generic_functions);
+	ModuleInterface(std::string module_name, std::filesystem::path file_path, SymbolTable symbols, TypeEnvironment type_signatures, TypeclassMetadataMap typeclass_metadata, GenericFunctionTable::Functions generic_functions, WorkerCrossings worker_crossings);
 };

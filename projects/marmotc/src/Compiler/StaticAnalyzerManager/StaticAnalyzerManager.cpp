@@ -8,11 +8,11 @@
 #include <algorithm>
 #include <iterator>
 
-StaticAnalyzerManager::StaticAnalyzerManager()
+StaticAnalyzerManager::StaticAnalyzerManager(const WorkerCrossings& crossings)
 {
 	m_passes.emplace_back(std::make_unique<ShadowingPolicyDiagnostic>());
 	m_passes.emplace_back(std::make_unique<UnusedLocalDiagnostic>());
-	m_passes.emplace_back(std::make_unique<CellCrossesWorkerDiagnostic>());
+	m_passes.emplace_back(std::make_unique<CellCrossesWorkerDiagnostic>(crossings));
 	m_passes.emplace_back(std::make_unique<IntegerOverflowDiagnostic>());
 }
 

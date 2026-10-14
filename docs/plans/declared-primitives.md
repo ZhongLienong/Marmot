@@ -173,3 +173,19 @@ New fixtures: `concurrency/success/join_without_result_import` (formerly
 `join_outcome_by_position`, `channel_of_generic_element`, and
 `concurrency/failure/primitive_used_as_value` and
 `primitive_declared_with_wrong_type`.
+
+Phase 3: done. `Compiler/Analysis/WorkerCrossing` finds the summaries before the
+analyzer runs; `ModuleInterface` carries a module's own, and the import context
+keys imported ones as `Module::name`. `Spawn` and `Join` are summarised by their
+primitive in `FindCallCrossing`, so the warning pass has one rule for every call.
+Choices the plan did not make:
+
+- Every crossing warning points at the callee's name, as Spawn's always did; the
+  `ParallelMap` one pointed at the closing parenthesis, so its snapshot moved.
+- A result that comes back from a worker holding a cell warns with its own
+  message, "copied out of the worker", at `Join` as well as at a function built
+  on it. Nothing warned at `Join` before.
+- A spawned function value's captures are checked in every crossing position,
+  so a lambda passed as Spawn's first argument is checked too.
+
+Fixture: `static_analyzer/success/cell_crosses_worker_through_function`.

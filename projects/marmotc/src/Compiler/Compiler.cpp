@@ -55,6 +55,7 @@ namespace
 		TypeChecker::TypeclassInstanceAssociatedTypeBindingMap m_imported_typeclass_instance_associated_type_bindings;
 		TypeChecker::TypeclassInstanceConstraintMap m_imported_typeclass_instance_constraints;
 		std::unordered_map<std::string, GenericFunctionInfo> m_imported_generic_functions;
+		WorkerCrossings m_imported_worker_crossings;
 	};
 
 	struct ParsedModule
@@ -113,6 +114,7 @@ namespace
 		BytecodeModule m_bytecode;
 		std::optional<LoweredModule> m_lowered;
 		std::shared_ptr<const ModuleInterface> m_interface;
+		WorkerCrossings m_worker_crossings;
 		std::unordered_map<std::string, std::string> m_reexports;
 		std::string m_midori_ir;
 		std::string m_ast_text;
@@ -320,6 +322,10 @@ namespace
 			const std::string& dep_module_name = dep->m_module_name;
 			context.m_imported_symbols[dep_module_name] = dep->m_symbols;
 			context.m_imported_type_signatures[dep_module_name] = dep->m_type_signatures;
+			for (const std::pair<const std::string, WorkerCrossing>& crossing : dep->m_worker_crossings)
+			{
+				context.m_imported_worker_crossings.insert_or_assign(dep_module_name + NameSeparator.data() + crossing.first, crossing.second);
+			}
 
 			for (const auto& [tc_name, metadata] : dep->m_typeclass_metadata)
 			{
@@ -564,7 +570,10 @@ namespace
 	CompileStateResult CompileState::WithStaticAnalysis() &&
 	{
 		CompileState state = std::move(*this);
-		state.m_warnings.Append(StaticAnalyzerManager().Analyze(state.m_ast, state.m_file_path, state.m_source_lines));
+		state.m_worker_crossings = FindWorkerCrossings(state.m_ast, state.m_import_context.m_imported_worker_crossings);
+		WorkerCrossings visible = state.m_import_context.m_imported_worker_crossings;
+		visible.insert(state.m_worker_crossings.cbegin(), state.m_worker_crossings.cend());
+		state.m_warnings.Append(StaticAnalyzerManager(visible).Analyze(state.m_ast, state.m_file_path, state.m_source_lines));
 		return state;
 	}
 
@@ -663,7 +672,7 @@ namespace
 			state.m_interface = std::make_shared<const ModuleInterface>(
 				state.m_module_name, state.m_file_path, std::move(state.m_export_info.m_symbols),
 				std::move(state.m_parsed_module.m_type_signatures), std::move(state.m_parsed_module.m_typeclass_metadata),
-				std::move(state.m_lowered->m_generic_functions));
+				std::move(state.m_lowered->m_generic_functions), std::move(state.m_worker_crossings));
 			{
 				std::lock_guard<std::mutex> lock(state.m_env->m_modules_mutex);
 				state.m_env->m_interfaces.emplace(state.m_file_path, state.m_interface);

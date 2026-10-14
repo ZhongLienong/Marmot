@@ -1,0 +1,29 @@
+module CellCrossesWorkerThroughFunction
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/Concurrency.mmt",
+	"../../../MarmotPrelude/Transferable.mmt"
+}
+
+// A function that hands a parameter to a worker hands across whatever a call passes
+// there, so the call warns as a spawn would. The compiler knows which parameters
+// reach a worker from each function's body, not from its name.
+
+def ReadCell = fn(cell: Ref<Int>) -> Int => *cell;
+
+// Generic: the cell only shows up at the call, which warns.
+def StartWith = fn<T>(value: T, work: fn(T) -> Int) -> Worker<Int> where Transferable<T> => Concurrency::Spawn(value, work);
+def through_generic = Concurrency::JoinedOrPanic(Concurrency::Join(StartWith(ref 3, ReadCell)));
+
+// The cell is in the parameter's type, so the spawn inside warns and the call does not.
+def StartReading = fn(cell: Ref<Int>) -> Worker<Int> => Concurrency::Spawn(cell, ReadCell);
+def through_typed = Concurrency::JoinedOrPanic(Concurrency::Join(StartReading(ref 4)));
+
+// A cell made in a worker comes back as a copy, through Join or a function built on it.
+def MakeCell = fn(value: Int) -> Ref<Int> => ref value;
+def joined = Concurrency::JoinedOrPanic(Concurrency::Join(Concurrency::Spawn(5, MakeCell)));
+def mapped = Concurrency::ParallelMap([6, 7], MakeCell, 1);
+
+IO::PrintLine((through_generic as Text) ++ " " ++ (through_typed as Text) ++ " " ++ ((*joined) as Text) ++ " " ++ ((*mapped[1]) as Text));

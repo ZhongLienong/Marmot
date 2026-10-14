@@ -42,9 +42,12 @@ all cross this way.
 - `Ref<T>` where `Transferable<T>` — **copied**: the worker gets its own cell, so
   writes on either side are not seen by the other. The compiler warns
   (`CellCrossesWorker`) wherever a cell is passed to `Spawn`, sent through a
-  channel, or mapped with `ParallelMap`, and wherever a function that crosses
-  captures one or reads one as a global, itself or through a function of the
-  same module it calls.
+  channel, or passed to a function that hands that parameter to a worker, as
+  `ParallelMap` does its values; wherever a function that crosses captures one
+  or reads one as a global, itself or through a function of the same module it
+  calls; and wherever one comes back from a worker, through `Join` or a function
+  built on it. Which parameters a function hands across is found from its body,
+  across modules.
 
 **Derivable for user types**:
 - Structs and unions can `deriving (Transferable)` if all fields/variants satisfy `Transferable`

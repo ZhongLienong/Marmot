@@ -7,7 +7,7 @@ Static Analyzer Warning at test/static_analyzer/success/cell_crosses_worker_chan
 Static Analyzer Warning at test/static_analyzer/success/cell_crosses_worker_channel.mmt:24
    |
 24 | def doubled = Concurrency::ParallelMap(cells, Double, 1);
-   |                                                        ^ This reference is copied into the worker; writes on either side are not seen by the other.
+   |               ^^^^^^^^^^^ This reference is copied into the worker; writes on either side are not seen by the other.
    |
 received 6, original 5
 doubled 2 4, cells still 1 2

@@ -8,7 +8,7 @@
 namespace
 {
 	constexpr std::string_view CellCrossesWorkerMessage = "This reference is copied into the worker; writes on either side are not seen by the other.";
-	constexpr std::string_view ParallelMapName = "Concurrency::ParallelMap";
+	constexpr std::string_view CellComesBackMessage = "This reference is copied out of the worker; writes on either side are not seen by the other.";
 
 	struct CarriedCells
 	{
@@ -55,7 +55,7 @@ namespace
 		{
 			if (const MidoriExpression::NameContext::Cell* captured = std::get_if<MidoriExpression::NameContext::Cell>(&access.m_name_ctx))
 			{
-				if (captured->m_index < m_captured_count && CellCrossesWorkerDiagnostic::ContainsCell(access.m_type_data) && m_seen_cells.insert(captured->m_index).second)
+				if (captured->m_index < m_captured_count && ContainsCell(access.m_type_data) && m_seen_cells.insert(captured->m_index).second)
 				{
 					m_found.m_captured.emplace_back(access.m_name);
 				}
@@ -67,7 +67,7 @@ namespace
 				return;
 			}
 
-			if (CellCrossesWorkerDiagnostic::ContainsCell(access.m_type_data))
+			if (ContainsCell(access.m_type_data))
 			{
 				if (m_seen_globals.insert(access.m_name.m_lexeme).second)
 				{
@@ -94,6 +94,11 @@ namespace
 	};
 }
 
+CellCrossesWorkerDiagnostic::CellCrossesWorkerDiagnostic(const WorkerCrossings& crossings)
+	: m_crossings(crossings)
+{
+}
+
 void CellCrossesWorkerDiagnostic::Reset(MidoriProgramTree& program_tree)
 {
 	m_module_functions.clear();
@@ -110,71 +115,6 @@ void CellCrossesWorkerDiagnostic::Reset(MidoriProgramTree& program_tree)
 			m_module_functions.emplace(definition.m_name.m_lexeme, &definition.m_value->GetExpression<MidoriExpression::Function>());
 		}
 	}
-}
-
-bool CellCrossesWorkerDiagnostic::ContainsCell(const std::shared_ptr<MidoriType>& type)
-{
-	std::unordered_set<const MidoriType*> visited;
-	return ContainsCell(type, visited);
-}
-
-bool CellCrossesWorkerDiagnostic::ContainsCell(const std::shared_ptr<MidoriType>& type, std::unordered_set<const MidoriType*>& visited)
-{
-	if (type == nullptr || !visited.insert(type.get()).second)
-	{
-		return false;
-	}
-
-	if (type->IsType<MidoriType::CellType>())
-	{
-		return true;
-	}
-	if (type->IsType<MidoriType::ArrayType>())
-	{
-		return ContainsCell(type->GetType<MidoriType::ArrayType>().m_element_type, visited);
-	}
-	if (type->IsType<MidoriType::ChannelType>())
-	{
-		return ContainsCell(type->GetType<MidoriType::ChannelType>().m_element_type, visited);
-	}
-	if (type->IsType<MidoriType::TupleType>())
-	{
-		for (const std::shared_ptr<MidoriType>& element_type : type->GetType<MidoriType::TupleType>().m_element_types)
-		{
-			if (ContainsCell(element_type, visited))
-			{
-				return true;
-			}
-		}
-		return false;
-	}
-	if (type->IsType<MidoriType::StructType>())
-	{
-		for (const std::shared_ptr<MidoriType>& member_type : type->GetType<MidoriType::StructType>().m_member_types)
-		{
-			if (ContainsCell(member_type, visited))
-			{
-				return true;
-			}
-		}
-		return false;
-	}
-	if (type->IsType<MidoriType::UnionType>())
-	{
-		for (const std::pair<const std::string, MidoriType::UnionType::UnionMemberContext>& member : type->GetType<MidoriType::UnionType>().m_member_info)
-		{
-			for (const std::shared_ptr<MidoriType>& member_type : member.second.m_member_types)
-			{
-				if (ContainsCell(member_type, visited))
-				{
-					return true;
-				}
-			}
-		}
-		return false;
-	}
-
-	return false;
 }
 
 void CellCrossesWorkerDiagnostic::WarnIfCell(const MidoriExpression& expression, const Token& token)
@@ -225,27 +165,20 @@ void CellCrossesWorkerDiagnostic::operator()(MidoriExpression::Call& call)
 {
 	MidoriAbstractSyntaxTreeWalker::operator()(call);
 
-	if (!call.m_callee->IsExpression<MidoriExpression::NameAccess>())
+	const WorkerCrossing* crossing = FindCallCrossing(call, m_crossings);
+	if (crossing == nullptr)
 	{
 		return;
 	}
 
-	const MidoriExpression::NameAccess& callee = call.m_callee->GetExpression<MidoriExpression::NameAccess>();
-	if (call.m_primitive == MidoriPrimitive::Spawn)
+	const Token& callee = call.m_callee->GetExpression<MidoriExpression::NameAccess>().m_name;
+	for (size_t index : crossing->m_crossing_parameters)
 	{
-		WarnIfCell(*call.m_arguments[0u], callee.m_name);
-		WarnIfFunctionCarriesCells(*call.m_arguments[1u], callee.m_name);
-		return;
+		WarnIfCell(*call.m_arguments[index], callee);
+		WarnIfFunctionCarriesCells(*call.m_arguments[index], callee);
 	}
-
-	if (callee.m_name.m_lexeme != ParallelMapName || call.m_arguments.size() < 2u)
+	if (crossing->m_returns_from_worker && ContainsCell(call.m_type_data))
 	{
-		return;
+		EmitWarning(CompilerWarningCode::CellCrossesWorker, callee, CellComesBackMessage);
 	}
-
-	if (ContainsCell(call.m_arguments[0u]->GetType()) || ContainsCell(call.m_type_data))
-	{
-		EmitWarning(CompilerWarningCode::CellCrossesWorker, call.m_paren, CellCrossesWorkerMessage);
-	}
-	WarnIfFunctionCarriesCells(*call.m_arguments[1u], call.m_paren);
 }

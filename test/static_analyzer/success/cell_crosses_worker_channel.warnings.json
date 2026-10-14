@@ -24,10 +24,10 @@
     "file": "test/static_analyzer/success/cell_crosses_worker_channel.mmt",
     "file_path": "test/static_analyzer/success/cell_crosses_worker_channel.mmt",
     "line": 24,
-    "column": 55,
+    "column": 14,
     "endLine": 24,
-    "endColumn": 56,
-    "caret_length": 1,
+    "endColumn": 25,
+    "caret_length": 11,
     "suggestion": null,
     "relatedInformation": []
   }

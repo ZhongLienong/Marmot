@@ -1,0 +1,22 @@
+[warning] 4 warning(s) in cell_crosses_worker_through_function.mmt
+Static Analyzer Warning at test/static_analyzer/success/cell_crosses_worker_through_function.mmt:18
+   |
+18 | def through_generic = Concurrency::JoinedOrPanic(Concurrency::Join(StartWith(ref 3, ReadCell)));
+   |                                                                    ^^^^^^^^^ This reference is copied into the worker; writes on either side are not seen by the other.
+   |
+Static Analyzer Warning at test/static_analyzer/success/cell_crosses_worker_through_function.mmt:21
+   |
+21 | def StartReading = fn(cell: Ref<Int>) -> Worker<Int> => Concurrency::Spawn(cell, ReadCell);
+   |                                                         ^^^^^^^^^^^ This reference is copied into the worker; writes on either side are not seen by the other.
+   |
+Static Analyzer Warning at test/static_analyzer/success/cell_crosses_worker_through_function.mmt:26
+   |
+26 | def joined = Concurrency::JoinedOrPanic(Concurrency::Join(Concurrency::Spawn(5, MakeCell)));
+   |                                         ^^^^^^^^^^^ This reference is copied out of the worker; writes on either side are not seen by the other.
+   |
+Static Analyzer Warning at test/static_analyzer/success/cell_crosses_worker_through_function.mmt:27
+   |
+27 | def mapped = Concurrency::ParallelMap([6, 7], MakeCell, 1);
+   |              ^^^^^^^^^^^ This reference is copied out of the worker; writes on either side are not seen by the other.
+   |
+3 4 5 7
