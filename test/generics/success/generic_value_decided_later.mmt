@@ -1,0 +1,18 @@
+module GenericValueDecidedLater
+
+import { "../../../MarmotPrelude/Hashable.mmt", "../../../MarmotPrelude/IO.mmt" }
+
+// `HashOf` used as a value waits for its types to be decided before its where clause
+// is checked: by a later statement, or by the return type of the generic function
+// it ends, under that function's own where clause.
+
+def Keep = fn<A>(hash : fn(A) -> Int) -> fn(A) -> Int => hash;
+def HashOf = fn<T>(value : T) -> Int where Hashable<T> => Hashable::Hash(value);
+
+def kept = Keep(HashOf);
+def number = kept(41);
+
+def Hasher = fn<R>(sample : R) -> fn(R) -> Int where Hashable<R> => Keep(HashOf);
+def text = (Hasher(true))(false);
+
+IO::PrintLine((number as Text) ++ " " ++ (text as Text));

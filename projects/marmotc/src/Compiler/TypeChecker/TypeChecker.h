@@ -138,9 +138,20 @@ private:
 		LocalGenericFunction(size_t depth, std::string name, std::vector<int> parameters);
 	};
 	std::vector<LocalGenericFunction> m_local_generic_functions;
-	// A generic used as a value whose types the call it is an argument of
-	// decides, so its constraints are checked there.
-	std::vector<std::pair<Token, std::shared_ptr<MidoriType>>> m_pending_instance_constraints;
+	// A generic used as a value before its types are decided, as the argument of a
+	// call that decides them or a definition a later use does. Its constraints wait,
+	// with the ones in force where it was used, until its types are decided; one still
+	// undecided once the module is checked is an error.
+	struct PendingInstance
+	{
+		Token m_token;
+		std::shared_ptr<MidoriType> m_instance;
+		std::vector<MidoriType::ClassConstraint> m_active_constraints;
+		std::string m_undecided_message;
+
+		PendingInstance(const Token& token, std::shared_ptr<MidoriType> instance, std::vector<MidoriType::ClassConstraint> active_constraints, std::string undecided_message);
+	};
+	std::vector<PendingInstance> m_pending_instances;
 	// The name a call or spawn is about to call: using it there is not using
 	// it as a value.
 	const MidoriExpression::NameAccess* m_callee_name = nullptr;
@@ -298,7 +309,7 @@ private:
 	MidoriResult::TypeResult ValidateFunctionConstraints(const Token& token, const MidoriType::FunctionType& function_type);
 	// Checks the constraints of each instance pending since `from` whose types
 	// are decided, and keeps the rest for an enclosing call.
-	MidoriResult::TypeResult ValidatePendingInstanceConstraints(size_t from, std::shared_ptr<MidoriType>&& type);
+	std::optional<CompilerError> CheckDecidedPendingInstances(size_t from);
 	// A generic used as one value: an anonymous generic lambda, or a generic
 	// function named anywhere but as a callee. Its types come from the type
 	// expected of it or from what is in scope, as a lambda's do.

@@ -2181,6 +2181,14 @@ TypeChecker::LocalGenericFunction::LocalGenericFunction(size_t depth, std::strin
 {
 }
 
+TypeChecker::PendingInstance::PendingInstance(const Token& token, std::shared_ptr<MidoriType> instance, std::vector<MidoriType::ClassConstraint> active_constraints, std::string undecided_message)
+	: m_token(token),
+	m_instance(std::move(instance)),
+	m_active_constraints(std::move(active_constraints)),
+	m_undecided_message(std::move(undecided_message))
+{
+}
+
 std::shared_ptr<MidoriType> TypeChecker::Instantiate(const std::shared_ptr<MidoriType>& type, const std::vector<int>& parameters)
 {
 	std::ranges::for_each(parameters, [this](int parameter) { m_type_substitution.emplace(parameter, FreshTypeVar()); });
@@ -3072,6 +3080,17 @@ MidoriResult::TypeCheckerResult TypeChecker::TypeCheck()
 
 		if (errors.empty())
 		{
+			if (std::optional<CompilerError> error = CheckDecidedPendingInstances(0u))
+			{
+				errors.push_back(std::move(*error));
+			}
+			for (const PendingInstance& undecided : m_pending_instances)
+			{
+				errors.push_back(MidoriError::GenerateTypeCheckerErrorWithContext(undecided.m_undecided_message, undecided.m_token, m_file_name, m_source_lines));
+			}
+		}
+		if (errors.empty())
+		{
 			for (std::unique_ptr<MidoriStatement>& statement : m_program_tree)
 			{
 				ResolveRecordedTypes(*statement);
@@ -3539,10 +3558,11 @@ MidoriResult::TypeResult TypeChecker::CheckGenericLambda(MidoriExpression::Funct
 		DefiningGenericGuard defining_guard(*this, name);
 		ExpectedTypeGuard expected_expr_guard(*this, function.m_return_type);
 		RigidTypeVariablesGuard rigid_guard(*this, freshening_context.m_generic_params);
+		const size_t pending_start = m_pending_instances.size();
 		return Evaluate(function.m_body)
 			.and_then
 			(
-				[&function, &anchor, &rigid_guard, &saved_expected_return_type, prev_constraints_size, this](std::shared_ptr<MidoriType>&& body_type) -> MidoriResult::TypeResult
+				[&function, &anchor, &rigid_guard, &saved_expected_return_type, prev_constraints_size, pending_start, this](std::shared_ptr<MidoriType>&& body_type) -> MidoriResult::TypeResult
 				{
 					m_expected_return_type = saved_expected_return_type;
 					m_active_constraints.resize(prev_constraints_size);
@@ -3550,9 +3570,14 @@ MidoriResult::TypeResult TypeChecker::CheckGenericLambda(MidoriExpression::Funct
 					return Unify(function.m_function_keyword, function.m_return_type, body_type, UnifyDiagnosticMode::ExpectedActual)
 						.and_then
 						(
-							[&function, &anchor, &rigid_guard, this](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
+							[&function, &anchor, &rigid_guard, pending_start, this](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
 							{
 								if (std::optional<CompilerError> error = CheckGenericParametersStayGeneric(rigid_guard.Parameters(), function.m_generic_params, anchor))
+								{
+									return std::unexpected(std::move(*error));
+								}
+								// Its parameters stop being rigid once it is checked.
+								if (std::optional<CompilerError> error = CheckDecidedPendingInstances(pending_start))
 								{
 									return std::unexpected(std::move(*error));
 								}
@@ -3896,10 +3921,11 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::FunctionDefini
 
 		ExpectedTypeGuard expected_expr_guard(*this, defun.m_return_type);
 		RigidTypeVariablesGuard rigid_guard(*this, freshening_context.m_generic_params);
+		const size_t pending_start = m_pending_instances.size();
 		return Evaluate(defun.m_body)
 			.and_then
 			(
-				[&defun, &rigid_guard, &saved_expected_return_type, prev_constraints_size, this](std::shared_ptr<MidoriType>&& function_return_value_type) ->MidoriResult::TypeResult
+				[&defun, &rigid_guard, &saved_expected_return_type, prev_constraints_size, pending_start, this](std::shared_ptr<MidoriType>&& function_return_value_type) ->MidoriResult::TypeResult
 				{
 					m_expected_return_type = saved_expected_return_type;
 					m_active_constraints.resize(prev_constraints_size);
@@ -3907,9 +3933,14 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::FunctionDefini
 					return Unify(defun.m_name, defun.m_return_type, function_return_value_type, UnifyDiagnosticMode::ExpectedActual)
 						.and_then
 						(
-							[&defun, &rigid_guard, this](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
+							[&defun, &rigid_guard, pending_start, this](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
 							{
 								if (std::optional<CompilerError> error = CheckGenericParametersStayGeneric(rigid_guard.Parameters(), defun.m_generic_params, defun.m_name))
+								{
+									return std::unexpected(std::move(*error));
+								}
+								// Its parameters stop being rigid once it is checked.
+								if (std::optional<CompilerError> error = CheckDecidedPendingInstances(pending_start))
 								{
 									return std::unexpected(std::move(*error));
 								}
@@ -5798,11 +5829,18 @@ MidoriResult::TypeResult TypeChecker::CheckInstanceMethodCall(MidoriExpression::
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 {
-	const size_t pending = m_pending_instance_constraints.size();
+	const size_t pending = m_pending_instances.size();
 	call.m_primitive = CalledPrimitive(call);
 	MidoriResult::TypeResult checked = call.m_primitive == MidoriPrimitive::Spawn ? CheckSpawnCall(call) : CheckCall(call);
 	return std::move(checked)
-		.and_then([this, pending](std::shared_ptr<MidoriType>&& type) { return ValidatePendingInstanceConstraints(pending, std::move(type)); });
+		.and_then([this, pending](std::shared_ptr<MidoriType>&& type) -> MidoriResult::TypeResult
+		{
+			if (std::optional<CompilerError> error = CheckDecidedPendingInstances(pending))
+			{
+				return std::unexpected(std::move(*error));
+			}
+			return type;
+		});
 }
 
 // The primitive whose declaration a call's callee names. Only a name can name
@@ -5818,27 +5856,34 @@ std::optional<MidoriPrimitive> TypeChecker::CalledPrimitive(const MidoriExpressi
 	return binding != nullptr && (*binding)->IsType<MidoriType::FunctionType>() ? (*binding)->GetType<MidoriType::FunctionType>().m_primitive : std::nullopt;
 }
 
-MidoriResult::TypeResult TypeChecker::ValidatePendingInstanceConstraints(size_t from, std::shared_ptr<MidoriType>&& type)
+// The waiting instances from `from` on whose types are now decided, each checked
+// with the constraints that were in force where it was used. The rest wait on.
+std::optional<CompilerError> TypeChecker::CheckDecidedPendingInstances(size_t from)
 {
-	std::vector<std::pair<Token, std::shared_ptr<MidoriType>>> undecided;
-	for (std::pair<Token, std::shared_ptr<MidoriType>>& pending : m_pending_instance_constraints | std::views::drop(from))
+	std::vector<PendingInstance> waiting;
+	std::optional<CompilerError> error;
+	for (PendingInstance& pending : m_pending_instances | std::views::drop(from))
 	{
-		std::shared_ptr<MidoriType> instance = ApplySubstitution(pending.second);
+		const std::shared_ptr<MidoriType> instance = ApplySubstitution(pending.m_instance);
 		if (!IsDecided(instance))
 		{
-			undecided.emplace_back(std::move(pending.first), std::move(instance));
+			waiting.push_back(std::move(pending));
 			continue;
 		}
-		MidoriResult::TypeResult validated = ValidateFunctionConstraints(pending.first, instance->GetType<MidoriType::FunctionType>());
-		if (!validated.has_value())
+		if (!error.has_value())
 		{
-			m_pending_instance_constraints.erase(m_pending_instance_constraints.begin() + static_cast<std::ptrdiff_t>(from), m_pending_instance_constraints.end());
-			return validated;
+			std::vector<MidoriType::ClassConstraint> in_force = std::exchange(m_active_constraints, pending.m_active_constraints);
+			MidoriResult::TypeResult validated = ValidateFunctionConstraints(pending.m_token, instance->GetType<MidoriType::FunctionType>());
+			m_active_constraints = std::move(in_force);
+			if (!validated.has_value())
+			{
+				error = std::move(validated.error());
+			}
 		}
 	}
-	m_pending_instance_constraints.erase(m_pending_instance_constraints.begin() + static_cast<std::ptrdiff_t>(from), m_pending_instance_constraints.end());
-	m_pending_instance_constraints.insert(m_pending_instance_constraints.end(), std::make_move_iterator(undecided.begin()), std::make_move_iterator(undecided.end()));
-	return type;
+	m_pending_instances.erase(m_pending_instances.begin() + static_cast<std::ptrdiff_t>(from), m_pending_instances.end());
+	m_pending_instances.insert(m_pending_instances.end(), std::make_move_iterator(waiting.begin()), std::make_move_iterator(waiting.end()));
+	return error;
 }
 
 MidoriResult::TypeResult TypeChecker::UseGenericInstance(const Token& token, std::shared_ptr<MidoriType> instance, std::string_view undecided_message)
@@ -5862,7 +5907,7 @@ MidoriResult::TypeResult TypeChecker::UseGenericInstance(const Token& token, std
 	}
 	if (!IsDecided(instance))
 	{
-		m_pending_instance_constraints.emplace_back(token, instance);
+		m_pending_instances.emplace_back(token, instance, m_active_constraints, std::string(undecided_message));
 		return instance;
 	}
 	return ValidateFunctionConstraints(token, instance->GetType<MidoriType::FunctionType>())

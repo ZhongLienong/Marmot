@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/generics/failure/generic_value_decided_by_return_type.mmt:12
+   |
+12 | def RangeHasher = fn<R>(sample : R) -> fn(Range<Int>) -> Int => Keep(HashOf);
+   |                                                                      ^^^^^^ Type Range<Int> does not satisfy constraint Hashable<Range<Int>> - no matching instance found
+   |

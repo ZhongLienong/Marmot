@@ -1,0 +1,7 @@
+[warning] 1 warning(s) in generic_value_decided_later.mmt
+Static Analyzer Warning at test/generics/success/generic_value_decided_later.mmt:15
+   |
+15 | def Hasher = fn<R>(sample : R) -> fn(R) -> Int where Hashable<R> => Keep(HashOf);
+   |                    ^^^^^^ Binding 'sample' is never read.
+   |
+41 0

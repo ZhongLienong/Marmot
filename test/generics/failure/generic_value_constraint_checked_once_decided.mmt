@@ -1,0 +1,18 @@
+module GenericValueConstraintCheckedOnceDecided
+
+import { "../../../MarmotPrelude/Hashable.mmt" }
+
+// `HashOf` used as a value has types nothing has decided yet where it is written,
+// so its where clause waits until they are. Each of these used to pass the type
+// checker and stop in lowering, inside HashOf's own body.
+
+def Keep = fn<A>(hash : fn(A) -> Int) -> fn(A) -> Int => hash;
+def Ignore = fn<A>(hash : fn(A) -> Int) -> Int => 0;
+def HashOf = fn<T>(value : T) -> Int where Hashable<T> => Hashable::Hash(value);
+
+// A later statement decides it, to a type the clause rejects.
+def kept = Keep(HashOf);
+def hashed = kept(0..1..3);
+
+// Nothing ever decides it.
+def ignored = Ignore(HashOf);

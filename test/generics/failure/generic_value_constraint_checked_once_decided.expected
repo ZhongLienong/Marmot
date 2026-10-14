@@ -1,0 +1,11 @@
+Compilation failed :(
+Type Checker Error at test/generics/failure/generic_value_constraint_checked_once_decided.mmt:14
+   |
+14 | def kept = Keep(HashOf);
+   |                 ^^^^^^ Type Range<Int> does not satisfy constraint Hashable<Range<Int>> - no matching instance found
+   |
+Type Checker Error at test/generics/failure/generic_value_constraint_checked_once_decided.mmt:18
+   |
+18 | def ignored = Ignore(HashOf);
+   |                      ^^^^^^ Name access expression type error: could not infer which types 'HashOf' is used at; pass it where a function type is expected, or write the type on the definition that holds it
+   |

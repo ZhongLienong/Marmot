@@ -1,0 +1,12 @@
+module GenericValueDecidedByReturnType
+
+import { "../../../MarmotPrelude/Hashable.mmt" }
+
+// `HashOf` used as a value is decided by the return type of the generic function it
+// ends, which comes after its body, and is checked there. It used to pass the type
+// checker and stop in lowering, inside HashOf's own body.
+
+def Keep = fn<A>(hash : fn(A) -> Int) -> fn(A) -> Int => hash;
+def HashOf = fn<T>(value : T) -> Int where Hashable<T> => Hashable::Hash(value);
+
+def RangeHasher = fn<R>(sample : R) -> fn(Range<Int>) -> Int => Keep(HashOf);
