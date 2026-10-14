@@ -637,6 +637,7 @@ public:
 			if (type->IsType<MidoriType::TypeVariable>() && m_type_checker.m_rigid_type_vars.emplace(type->GetType<MidoriType::TypeVariable>().m_id, name).second)
 			{
 				m_parameters.emplace_back(type->GetType<MidoriType::TypeVariable>().m_id, name);
+				m_type_checker.m_generic_parameter_ids.insert(type->GetType<MidoriType::TypeVariable>().m_id);
 			}
 		}
 		std::ranges::sort(m_parameters, {}, &std::pair<int, std::string>::second);
@@ -3020,6 +3021,10 @@ MidoriResult::TypeCheckerResult TypeChecker::TypeCheck()
 			{
 				ResolveRecordedTypes(*statement);
 			}
+			errors = std::move(m_undecided_call_errors);
+		}
+		if (errors.empty())
+		{
 			m_module_types = m_name_type_table.back();
 			return std::move(m_program_tree);
 		}
@@ -3116,7 +3121,14 @@ void TypeChecker::ResolveRecordedTypes(MidoriExpression& expression)
 		void operator()(MidoriExpression::Send& node) const { Resolve(node.m_channel); Resolve(node.m_value); }
 		void operator()(MidoriExpression::Receive& node) const { Resolve(node.m_channel); }
 		void operator()(MidoriExpression::NameAccess&) const {}
-		void operator()(MidoriExpression::Call& node) const { Resolve(node.m_callee); Resolve(node.m_arguments); }
+
+		void operator()(MidoriExpression::Call& node) const
+		{
+			Resolve(node.m_callee);
+			Resolve(node.m_arguments);
+			m_self.CheckCallTypeDecided(node);
+		}
+
 		void operator()(MidoriExpression::Function& node) const { Resolve(node.m_body); }
 		void operator()(MidoriExpression::Construct& node) const { Resolve(node.m_params); }
 		void operator()(MidoriExpression::IfElse& node) const { Resolve(node.m_condition); Resolve(node.m_true_branch); Resolve(node.m_else_branch); }
@@ -3211,6 +3223,30 @@ void TypeChecker::ResolveRecordedTypes(MidoriPattern& pattern)
 	{
 		std::ranges::for_each(pattern.GetPattern<MidoriPattern::Record>().m_fields, [this](MidoriPattern::Record::Field& field) { ResolveRecordedTypes(*field.m_pattern); });
 	}
+}
+
+// Only the call that brings a variable in reports it: one whose argument already
+// holds it, as `Id(Make(3))` does, is not where the type went missing.
+void TypeChecker::CheckCallTypeDecided(const MidoriExpression::Call& call)
+{
+	std::unordered_set<int> argument_variables;
+	for (const std::unique_ptr<MidoriExpression>& argument : call.m_arguments)
+	{
+		argument_variables.merge(CollectTypeVariableIds(argument->GetType()));
+	}
+	const bool is_undecided = std::ranges::any_of(CollectTypeVariableIds(call.m_type_data), [this, &argument_variables](int id)
+	{
+		return !m_generic_parameter_ids.contains(id) && !argument_variables.contains(id);
+	});
+	if (!is_undecided)
+	{
+		return;
+	}
+
+	const bool names_callee = call.m_callee->IsExpression<MidoriExpression::NameAccess>();
+	const Token& token = names_callee ? call.m_callee->GetExpression<MidoriExpression::NameAccess>().m_name : call.m_paren;
+	const std::string what = names_callee ? std::format("'{}' returns here", token.m_lexeme) : std::string("this call returns");
+	m_undecided_call_errors.push_back(MidoriError::GenerateTypeCheckerErrorWithContext(std::format("Call expression type error: could not infer the type {}; write the type on the definition that holds the result", what), token, m_file_name, m_source_lines));
 }
 
 // Extract type signatures from parsed AST without full type checking

@@ -1,0 +1,20 @@
+module CallResultNeverDecided
+
+// `Make` returns an Array<T> whose T no argument decides. When nothing after the
+// call decides it either, the call is the error: the compiler used to accept each of
+// these and then stop in the backend, unable to tell whether a T is a pointer.
+// Only the call that brings T in reports it, not `Id` around it.
+
+def Make = fn<T>(count : Int) -> Array<T> => [];
+def Id = fn<T>(value : T) -> T => value;
+
+def made = Make(3);
+
+def Count = fn() -> Int => {
+	def local = Make(2);
+	0
+};
+
+Make(1);
+
+def wrapped = Id(Make(4));

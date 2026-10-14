@@ -1,0 +1,13 @@
+module CallResultDecidedByLaterUse
+
+import { "../../../MarmotPrelude/IO.mmt" }
+
+// No argument decides the T of `Make`'s Array<T>, but a later statement does, so the
+// call is fine: a call's result only has to be decided once its module is checked.
+
+def Make = fn<T>(count : Int) -> Array<T> => [];
+
+def made = Make(3);
+def numbers : Array<Int> = made;
+
+IO::PrintLine("length " ++ ((#numbers) as Text));

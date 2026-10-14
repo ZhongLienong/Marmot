@@ -1,0 +1,7 @@
+[warning] 1 warning(s) in call_result_decided_by_later_use.mmt
+Static Analyzer Warning at test/generics/success/call_result_decided_by_later_use.mmt:8
+  |
+8 | def Make = fn<T>(count : Int) -> Array<T> => [];
+  |                  ^^^^^ Binding 'count' is never read.
+  |
+length 0

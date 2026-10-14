@@ -148,6 +148,12 @@ private:
 	// checked, with the name each was written as. A body may not decide one: it
 	// stands for whatever type a caller picks.
 	std::unordered_map<int, std::string> m_rigid_type_vars;
+	// Every variable that was ever one of those, kept after its definition is
+	// checked: once the module is, any other variable left in a call's type is
+	// one nothing decided.
+	std::unordered_set<int> m_generic_parameter_ids;
+	// Calls whose result type nothing decided, found once the module is checked.
+	std::vector<CompilerError> m_undecided_call_errors;
 	std::string m_file_name;
 	const std::vector<std::string>& m_source_lines;
 	std::shared_ptr<MidoriType> m_expected_return_type;
@@ -244,6 +250,8 @@ private:
 	void ResolveRecordedTypes(MidoriStatement& statement);
 	void ResolveRecordedTypes(MidoriExpression& expression);
 	void ResolveRecordedTypes(MidoriPattern& pattern);
+
+	void CheckCallTypeDecided(const MidoriExpression::Call& call);
 
 	std::shared_ptr<MidoriType> ApplySubstitution(const std::shared_ptr<MidoriType>& type, std::unordered_map<const MidoriType*, std::shared_ptr<MidoriType>>& cache);
 

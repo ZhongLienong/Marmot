@@ -1,0 +1,21 @@
+Compilation failed :(
+Type Checker Error at test/generics/failure/call_result_never_decided.mmt:11
+   |
+11 | def made = Make(3);
+   |            ^^^^ Call expression type error: could not infer the type 'Make' returns here; write the type on the definition that holds the result
+   |
+Type Checker Error at test/generics/failure/call_result_never_decided.mmt:14
+   |
+14 | 	def local = Make(2);
+   | 	            ^^^^ Call expression type error: could not infer the type 'Make' returns here; write the type on the definition that holds the result
+   |
+Type Checker Error at test/generics/failure/call_result_never_decided.mmt:18
+   |
+18 | Make(1);
+   | ^^^^ Call expression type error: could not infer the type 'Make' returns here; write the type on the definition that holds the result
+   |
+Type Checker Error at test/generics/failure/call_result_never_decided.mmt:20
+   |
+20 | def wrapped = Id(Make(4));
+   |                  ^^^^ Call expression type error: could not infer the type 'Make' returns here; write the type on the definition that holds the result
+   |
