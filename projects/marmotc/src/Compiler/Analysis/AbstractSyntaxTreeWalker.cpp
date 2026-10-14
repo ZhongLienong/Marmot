@@ -220,26 +220,6 @@ void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::RecordUpdate& 
 	}
 }
 
-void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::Spawn& spawn)
-{
-	for (std::unique_ptr<MidoriExpression>& argument : spawn.m_arguments)
-	{
-		VisitExpression(argument);
-	}
-
-	VisitExpression(spawn.m_callee);
-}
-
-void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::Join& join)
-{
-	VisitExpression(join.m_worker);
-}
-
-void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::ChannelCreate& channel_create)
-{
-	VisitExpression(channel_create.m_capacity);
-}
-
 void MidoriAbstractSyntaxTreeWalker::operator()(MidoriExpression::Send& send)
 {
 	VisitExpression(send.m_channel);

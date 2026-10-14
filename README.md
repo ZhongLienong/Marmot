@@ -648,7 +648,7 @@ cmake --preset linux-dev
 cmake --build --preset linux-dev --target marmotvm
 ```
 
-The opcode and builtin tables come from `format/mmc/registry-v15.json`.
+The opcode and builtin tables come from `format/mmc/registry-v16.json`.
 `python scripts/dev.py generate-mmc` updates their checked-in, project-private
 copies; `--check` checks freshness. Native builds use those copies directly.
 

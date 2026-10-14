@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/concurrency/failure/primitive_used_as_value.mmt:8
+  |
+8 | def close = Concurrency::Close;
+  |             ^^^^^^^^^^^ Name access expression type error: 'Concurrency::Close' is a primitive, an instruction rather than a function, so it can only be called
+  |

@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/concurrency/failure/primitive_declared_with_wrong_type.mmt:8
+  |
+8 | foreign "MIDORI_PRIMITIVE_Join" JoinNumber: fn(Int) -> Int;
+  |                                 ^^^^^^^^^^ Foreign declaration error: 'JoinNumber' declares the primitive "MIDORI_PRIMITIVE_Join", whose type must be fn(Worker<T>) -> R, a union whose member 0 holds T and member 1 an error, itself a union whose member 0 holds nothing and member 1 a Text
+  |

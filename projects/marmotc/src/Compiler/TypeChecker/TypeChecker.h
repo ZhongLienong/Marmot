@@ -205,7 +205,15 @@ private:
 	std::optional<CompilerError> CheckCaseReachable(const PatternCoverage& coverage, const MidoriExpression::Case& match_case);
 	std::optional<CompilerError> CheckCaseGuard(MidoriExpression::Case& case_expr);
 
-	std::optional<CompilerError> CheckSpawnArgument(MidoriExpression::Spawn& spawn, const MidoriType::FunctionType& function_type);
+	std::optional<MidoriPrimitive> CalledPrimitive(const MidoriExpression::Call& call) const;
+
+	MidoriResult::TypeResult CheckSpawnCall(MidoriExpression::Call& call);
+
+	std::optional<CompilerError> CheckSpawnArgument(MidoriExpression::Call& call, const MidoriType::FunctionType& function_type);
+
+	MidoriResult::TypeResult TakeExpectedElementType(MidoriExpression::Call& call, std::shared_ptr<MidoriType>&& channel_type, const std::shared_ptr<MidoriType>& expected_type);
+
+	std::optional<CompilerError> CheckPrimitiveDeclaration(const MidoriStatement::ForeignDefinition& foreign) const;
 
 
 	std::shared_ptr<MidoriType>* FindNameType(const std::string& name);
@@ -347,12 +355,6 @@ private:
 	MidoriResult::TypeResult operator()(MidoriExpression::Tuple& tuple);
 
 	MidoriResult::TypeResult operator()(MidoriExpression::UnaryPrefix& unary);
-
-	MidoriResult::TypeResult operator()(MidoriExpression::Spawn& spawn);
-
-	MidoriResult::TypeResult operator()(MidoriExpression::Join& join);
-
-	MidoriResult::TypeResult operator()(MidoriExpression::ChannelCreate& channel_create);
 
 	MidoriResult::TypeResult operator()(MidoriExpression::Send& send);
 

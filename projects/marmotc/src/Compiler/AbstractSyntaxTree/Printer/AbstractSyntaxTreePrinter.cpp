@@ -63,12 +63,6 @@ namespace
 
 		void operator()(const MidoriExpression::UnaryPrefix& unary, int depth = 0) const;
 
-		void operator()(const MidoriExpression::Spawn& spawn, int depth = 0) const;
-
-		void operator()(const MidoriExpression::Join& join, int depth = 0) const;
-
-		void operator()(const MidoriExpression::ChannelCreate& channel_create, int depth = 0) const;
-
 		void operator()(const MidoriExpression::Send& send, int depth = 0) const;
 
 		void operator()(const MidoriExpression::Receive& receive, int depth = 0) const;
@@ -332,40 +326,6 @@ void PrintAbstractSyntaxTree::operator()(const MidoriExpression::UnaryPrefix& un
 	PrintWithIndentation(depth + 1, "Operator: " + unary.m_op.m_lexeme);
 	PrintWithIndentation(depth + 1, "Operand: ");
 	Visit(unary.m_expr, depth + 2);
-	PrintWithIndentation(depth, "}");
-}
-
-void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Spawn& spawn, int depth) const
-{
-	PrintWithIndentation(depth, "Spawn {");
-	PrintWithIndentation(depth + 1, "Callee: ");
-	Visit(spawn.m_callee, depth + 2);
-	PrintWithIndentation(depth + 1, "Args: ");
-	std::ranges::for_each
-	(
-		spawn.m_arguments,
-		[depth, this](const std::unique_ptr<MidoriExpression>& argument)
-		{
-			Visit(argument, depth + 2);
-		}
-	);
-	PrintWithIndentation(depth, "}");
-}
-
-void PrintAbstractSyntaxTree::operator()(const MidoriExpression::Join& join, int depth) const
-{
-	PrintWithIndentation(depth, "Join {");
-	PrintWithIndentation(depth + 1, "Worker: ");
-	Visit(join.m_worker, depth + 2);
-	PrintWithIndentation(depth, "}");
-}
-
-void PrintAbstractSyntaxTree::operator()(const MidoriExpression::ChannelCreate& channel_create, int depth) const
-{
-	PrintWithIndentation(depth, "ChannelCreate {");
-	PrintWithIndentation(depth + 1, "ElementType: " + channel_create.m_element_type->ToString());
-	PrintWithIndentation(depth + 1, "Capacity: ");
-	Visit(channel_create.m_capacity, depth + 2);
 	PrintWithIndentation(depth, "}");
 }
 

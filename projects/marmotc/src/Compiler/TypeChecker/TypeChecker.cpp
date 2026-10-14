@@ -234,6 +234,50 @@ namespace
 		return ContainsType(type, [](const MidoriType& node) { return node.IsType<MidoriType::TypeVariable>() || node.IsType<MidoriType::AssociatedType>(); }, visited);
 	}
 
+	// A union's members' fields, in tag order: a member's tag is its place in the
+	// declaration.
+	std::vector<std::vector<std::shared_ptr<MidoriType>>> FieldsByTag(const MidoriType::UnionType& union_type)
+	{
+		std::vector<std::vector<std::shared_ptr<MidoriType>>> fields(union_type.m_member_info.size());
+		for (const std::pair<const std::string, MidoriType::UnionType::UnionMemberContext>& member : union_type.m_member_info)
+		{
+			fields[static_cast<size_t>(member.second.m_tag)] = member.second.m_member_types;
+		}
+		return fields;
+	}
+
+	bool IsSpawnSignature(const std::shared_ptr<MidoriType>& argument, const std::shared_ptr<MidoriType>& function, const std::shared_ptr<MidoriType>& result)
+	{
+		if (!function->IsType<MidoriType::FunctionType>() || !result->IsType<MidoriType::WorkerType>())
+		{
+			return false;
+		}
+		const MidoriType::FunctionType& spawned = function->GetType<MidoriType::FunctionType>();
+		return spawned.m_param_types.size() == 1u
+			&& *spawned.m_param_types[0u] == *argument
+			&& *spawned.m_return_type == *result->GetType<MidoriType::WorkerType>().m_result_type;
+	}
+
+	// What the VM builds when it joins a worker, by position rather than by name:
+	// member 0 holds the worker's value and member 1 why there is none, cancelled
+	// (member 0, no fields) or failed (member 1, the message).
+	bool IsJoinOutcome(const std::shared_ptr<MidoriType>& outcome, const std::shared_ptr<MidoriType>& value)
+	{
+		if (!outcome->IsType<MidoriType::UnionType>())
+		{
+			return false;
+		}
+		const std::vector<std::vector<std::shared_ptr<MidoriType>>> outcome_fields = FieldsByTag(outcome->GetType<MidoriType::UnionType>());
+		if (outcome_fields.size() != 2u || outcome_fields[0u].size() != 1u || *outcome_fields[0u][0u] != *value
+			|| outcome_fields[1u].size() != 1u || !outcome_fields[1u][0u]->IsType<MidoriType::UnionType>())
+		{
+			return false;
+		}
+		const std::vector<std::vector<std::shared_ptr<MidoriType>>> error_fields = FieldsByTag(outcome_fields[1u][0u]->GetType<MidoriType::UnionType>());
+		return error_fields.size() == 2u && error_fields[0u].empty()
+			&& error_fields[1u].size() == 1u && error_fields[1u][0u]->IsType<MidoriType::TextType>();
+	}
+
 	std::unordered_set<int> CollectTypeVariableIds(const std::shared_ptr<MidoriType>& type)
 	{
 		std::unordered_set<int> type_variable_ids;
@@ -3115,9 +3159,6 @@ void TypeChecker::ResolveRecordedTypes(MidoriExpression& expression)
 		void operator()(MidoriExpression::Tuple& node) const { Resolve(node.m_elements); }
 		void operator()(MidoriExpression::Literal&) const {}
 		void operator()(MidoriExpression::UnaryPrefix& node) const { Resolve(node.m_expr); }
-		void operator()(MidoriExpression::Spawn& node) const { Resolve(node.m_callee); Resolve(node.m_arguments); }
-		void operator()(MidoriExpression::Join& node) const { Resolve(node.m_worker); }
-		void operator()(MidoriExpression::ChannelCreate& node) const { Resolve(node.m_capacity); }
 		void operator()(MidoriExpression::Send& node) const { Resolve(node.m_channel); Resolve(node.m_value); }
 		void operator()(MidoriExpression::Receive& node) const { Resolve(node.m_channel); }
 		void operator()(MidoriExpression::NameAccess&) const {}
@@ -3879,8 +3920,50 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::FunctionDefini
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::ForeignDefinition& foreign)
 {
+	if (foreign.DeclaredPrimitive().has_value())
+	{
+		if (std::optional<CompilerError> error = CheckPrimitiveDeclaration(foreign))
+		{
+			return std::unexpected(std::move(*error));
+		}
+	}
+
 	m_name_type_table.back()[foreign.m_function_name.m_lexeme] = foreign.m_type;
 	return MidoriType::MakeUndecidedType();
+}
+
+// The VM gives a primitive's instruction only what its declaration says, so the
+// declaration must say what the instruction takes and gives.
+std::optional<CompilerError> TypeChecker::CheckPrimitiveDeclaration(const MidoriStatement::ForeignDefinition& foreign) const
+{
+	const MidoriType::FunctionType& signature = foreign.m_type->GetType<MidoriType::FunctionType>();
+	const std::vector<std::shared_ptr<MidoriType>>& params = signature.m_param_types;
+	const std::shared_ptr<MidoriType>& result = signature.m_return_type;
+	const bool takes_one = params.size() == 1u;
+	const auto [is_declared, expected] = [&]() -> std::pair<bool, std::string_view>
+	{
+		switch (foreign.DeclaredPrimitive().value())
+		{
+		case MidoriPrimitive::Spawn:
+			return { params.size() == 2u && IsSpawnSignature(params[0u], params[1u], result), "fn(A, fn(A) -> R) -> Worker<R>" };
+		case MidoriPrimitive::Join:
+			return { takes_one && params[0u]->IsType<MidoriType::WorkerType>() && IsJoinOutcome(result, params[0u]->GetType<MidoriType::WorkerType>().m_result_type), "fn(Worker<T>) -> R, a union whose member 0 holds T and member 1 an error, itself a union whose member 0 holds nothing and member 1 a Text" };
+		case MidoriPrimitive::ChannelNew:
+			return { takes_one && params[0u]->IsType<MidoriType::IntegerType>() && result->IsType<MidoriType::ChannelType>(), "fn(Int) -> Channel<T>" };
+		case MidoriPrimitive::ChannelClose:
+			return { takes_one && params[0u]->IsType<MidoriType::ChannelType>() && result->IsType<MidoriType::UnitType>(), "fn(Channel<T>) -> Unit" };
+		case MidoriPrimitive::WorkerIsDone:
+		case MidoriPrimitive::WorkerCancel:
+			return { takes_one && params[0u]->IsType<MidoriType::WorkerType>() && result->IsType<MidoriType::BoolType>(), "fn(Worker<T>) -> Bool" };
+		}
+		std::unreachable();
+	}();
+
+	if (is_declared)
+	{
+		return std::nullopt;
+	}
+	return MidoriError::GenerateTypeCheckerErrorWithContext(std::format("Foreign declaration error: '{}' declares the primitive \"{}\", whose type must be {}", foreign.m_function_name.m_lexeme, foreign.m_foreign_name, expected), foreign.m_function_name, m_file_name, m_source_lines);
 }
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Struct& struct_stmt)
@@ -5270,18 +5353,31 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::UnaryPrefix& 
 		);
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Spawn& spawn)
+// Spawn(argument, F) runs F in a new worker. Its one argument stands for all of
+// F's parameters, which no signature can say, and both what F takes and what it
+// gives back must be able to cross.
+MidoriResult::TypeResult TypeChecker::CheckSpawnCall(MidoriExpression::Call& call)
 {
+	const MidoriExpression::NameAccess& spawn_name = call.m_callee->GetExpression<MidoriExpression::NameAccess>();
+	const Token& spawn_token = spawn_name.m_name;
+	if (call.m_arguments.size() != 2u)
+	{
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, std::format("Call expression type error: incorrect arity: expected 2 argument(s), got {}", call.m_arguments.size()), call.m_paren, m_file_name, m_source_lines));
+	}
+
 	// The function is an ordinary value: it is evaluated here and transferred to the
 	// worker, captured cells and all, so a lambda closing over the enclosing scope
 	// works and a function held in a parameter can be spawned.
 	// The ambient expected type belongs to the spawn's own result, Worker<T>, and
 	// would otherwise be pushed onto a lambda written in callee position.
+	std::unique_ptr<MidoriExpression>& function = call.m_arguments[1u];
 	MidoriResult::TypeResult callee_result;
 	{
 		ExpectedTypeGuard guard(*this, nullptr);
-		m_callee_name = spawn.m_callee->IsExpression<MidoriExpression::NameAccess>() ? &spawn.m_callee->GetExpression<MidoriExpression::NameAccess>() : nullptr;
-		callee_result = Evaluate(spawn.m_callee);
+		m_callee_name = &spawn_name;
+		callee_result = Evaluate(call.m_callee);
+		m_callee_name = function->IsExpression<MidoriExpression::NameAccess>() ? &function->GetExpression<MidoriExpression::NameAccess>() : nullptr;
+		callee_result = std::move(callee_result).and_then([this, &function](std::shared_ptr<MidoriType>&&) { return Evaluate(function); });
 		m_callee_name = nullptr;
 	}
 
@@ -5293,35 +5389,34 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Spawn& spawn)
 	std::shared_ptr<MidoriType> callee_type = ApplySubstitution(callee_result.value());
 	if (!callee_type->IsType<MidoriType::FunctionType>())
 	{
-		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeNotCallable, "Spawn expression type error: the second argument to Concurrency::Spawn must be a function", spawn.m_spawn_keyword, m_file_name, m_source_lines, callee_type));
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeNotCallable, std::format("Spawn expression type error: the second argument to {} must be a function", spawn_token.m_lexeme), spawn_token, m_file_name, m_source_lines, callee_type));
 	}
 
 	MidoriType::FunctionType& function_type = callee_type->GetType<MidoriType::FunctionType>();
 	if (function_type.m_is_foreign)
 	{
-		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Spawn expression type error: foreign functions cannot be spawned", spawn.m_spawn_keyword, m_file_name, m_source_lines));
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Spawn expression type error: foreign functions cannot be spawned", spawn_token, m_file_name, m_source_lines));
 	}
 
-	if (std::optional<CompilerError> error = CheckSpawnArgument(spawn, function_type))
+	if (std::optional<CompilerError> error = CheckSpawnArgument(call, function_type))
 	{
 		return std::unexpected(std::move(*error));
 	}
 
 	std::shared_ptr<MidoriType> resolved_return_type = ApplySubstitution(function_type.m_return_type);
-	if (std::optional<CompilerError> error = EnsureTransferable(spawn.m_spawn_keyword, resolved_return_type))
+	if (std::optional<CompilerError> error = EnsureTransferable(spawn_token, resolved_return_type))
 	{
 		return std::unexpected(std::move(*error));
 	}
 
-	spawn.m_type_data = MidoriType::MakeWorkerType(resolved_return_type);
-	return spawn.m_type_data;
+	call.m_type_data = MidoriType::MakeWorkerType(resolved_return_type);
+	return call.m_type_data;
 }
 
-std::optional<CompilerError> TypeChecker::CheckSpawnArgument(MidoriExpression::Spawn& spawn, const MidoriType::FunctionType& function_type)
+std::optional<CompilerError> TypeChecker::CheckSpawnArgument(MidoriExpression::Call& call, const MidoriType::FunctionType& function_type)
 {
+	const Token& spawn_token = call.m_callee->GetExpression<MidoriExpression::NameAccess>().m_name;
 	const size_t arity = function_type.m_param_types.size();
-	spawn.m_callee_arity = static_cast<int>(arity);
-
 	std::shared_ptr<MidoriType> expected_type;
 	if (arity == 0u)
 	{
@@ -5338,7 +5433,7 @@ std::optional<CompilerError> TypeChecker::CheckSpawnArgument(MidoriExpression::S
 	}
 
 	ExpectedTypeGuard guard(*this, expected_type);
-	MidoriResult::TypeResult argument_result = Evaluate(spawn.m_arguments[0u]);
+	MidoriResult::TypeResult argument_result = Evaluate(call.m_arguments[0u]);
 	if (!argument_result.has_value())
 	{
 		return std::move(argument_result.error());
@@ -5350,11 +5445,11 @@ std::optional<CompilerError> TypeChecker::CheckSpawnArgument(MidoriExpression::S
 		const bool is_matching_tuple = actual_type->IsType<MidoriType::TupleType>() && actual_type->GetType<MidoriType::TupleType>().m_element_types.size() == arity;
 		if (!is_matching_tuple)
 		{
-			return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, std::format("Spawn expression type error: the spawned function takes {} parameters, so pass them to Concurrency::Spawn as one {}-element tuple", arity, arity), spawn.m_spawn_keyword, m_file_name, m_source_lines, actual_type, expected_type);
+			return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, std::format("Spawn expression type error: the spawned function takes {} parameters, so pass them to {} as one {}-element tuple", arity, spawn_token.m_lexeme, arity), spawn_token, m_file_name, m_source_lines, actual_type, expected_type);
 		}
 	}
 
-	MidoriResult::TypeResult unify_result = Unify(spawn.m_spawn_keyword, actual_type, expected_type, UnifyDiagnosticMode::ActualExpected);
+	MidoriResult::TypeResult unify_result = Unify(spawn_token, actual_type, expected_type, UnifyDiagnosticMode::ActualExpected);
 	if (!unify_result.has_value())
 	{
 		return std::move(unify_result.error());
@@ -5362,7 +5457,7 @@ std::optional<CompilerError> TypeChecker::CheckSpawnArgument(MidoriExpression::S
 
 	for (const std::shared_ptr<MidoriType>& param_type : function_type.m_param_types)
 	{
-		if (std::optional<CompilerError> error = EnsureTransferable(spawn.m_spawn_keyword, ApplySubstitution(param_type)))
+		if (std::optional<CompilerError> error = EnsureTransferable(spawn_token, ApplySubstitution(param_type)))
 		{
 			return error;
 		}
@@ -5371,115 +5466,27 @@ std::optional<CompilerError> TypeChecker::CheckSpawnArgument(MidoriExpression::S
 	return std::nullopt;
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Join& join)
+// MakeChannel(capacity) names no element type, so it takes the one its context
+// expects, as a generic constructor does, and only one that can cross.
+MidoriResult::TypeResult TypeChecker::TakeExpectedElementType(MidoriExpression::Call& call, std::shared_ptr<MidoriType>&& channel_type, const std::shared_ptr<MidoriType>& expected_type)
 {
-	return Evaluate(join.m_worker)
-		.and_then
-		(
-			[this, &join](std::shared_ptr<MidoriType>&& worker_type) -> MidoriResult::TypeResult
-			{
-				std::shared_ptr<MidoriType> resolved_worker_type = ApplySubstitution(worker_type);
-				if (!resolved_worker_type->IsType<MidoriType::WorkerType>())
-				{
-					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Join expression type error: expected Worker<T>", join.m_join_keyword, m_file_name, m_source_lines, resolved_worker_type));
-				}
-
-				std::shared_ptr<MidoriType> worker_result_type = ApplySubstitution(resolved_worker_type->GetType<MidoriType::WorkerType>().m_result_type);
-
-				// The VM builds these values itself, so the declarations it builds them
-				// from must have exactly the shape it assumes.
-				const std::shared_ptr<MidoriType>& result_type = join.m_result_type;
-				if (result_type == nullptr
-					|| !result_type->IsType<MidoriType::UnionType>()
-					|| result_type->GetType<MidoriType::UnionType>().m_generic_params.size() != 2u)
-				{
-					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Join expression type error: 'Result' must be declared as a union with two type parameters, Ok(T) | Err(E)", join.m_join_keyword, m_file_name, m_source_lines));
-				}
-
-				const MidoriType::UnionType& result_union = result_type->GetType<MidoriType::UnionType>();
-				const std::string ok_name = result_union.m_name + std::string(NameSeparator) + "Ok";
-				const std::string err_name = result_union.m_name + std::string(NameSeparator) + "Err";
-				if (!result_union.m_member_info.contains(ok_name) || result_union.m_member_info.at(ok_name).m_member_types.size() != 1u
-					|| !result_union.m_member_info.contains(err_name) || result_union.m_member_info.at(err_name).m_member_types.size() != 1u)
-				{
-					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Join expression type error: 'Result' must be declared as Ok(T) | Err(E)", join.m_join_keyword, m_file_name, m_source_lines, result_type));
-				}
-
-				const std::shared_ptr<MidoriType>& worker_error_type = join.m_worker_error_type;
-				if (worker_error_type == nullptr || !worker_error_type->IsType<MidoriType::UnionType>())
-				{
-					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Join expression type error: 'WorkerError' must be declared as a union, Cancelled | Failed(Text)", join.m_join_keyword, m_file_name, m_source_lines));
-				}
-
-				const MidoriType::UnionType& error_union = worker_error_type->GetType<MidoriType::UnionType>();
-				const std::string cancelled_name = error_union.m_name + std::string(NameSeparator) + "Cancelled";
-				const std::string failed_name = error_union.m_name + std::string(NameSeparator) + "Failed";
-				if (!error_union.m_generic_params.empty()
-					|| !error_union.m_member_info.contains(cancelled_name) || !error_union.m_member_info.at(cancelled_name).m_member_types.empty()
-					|| !error_union.m_member_info.contains(failed_name) || error_union.m_member_info.at(failed_name).m_member_types.size() != 1u
-					|| !error_union.m_member_info.at(failed_name).m_member_types[0u]->IsType<MidoriType::TextType>())
-				{
-					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Join expression type error: 'WorkerError' must be declared as Cancelled | Failed(Text)", join.m_join_keyword, m_file_name, m_source_lines, worker_error_type));
-				}
-
-				join.m_ok_tag = result_union.m_member_info.at(ok_name).m_tag;
-				join.m_err_tag = result_union.m_member_info.at(err_name).m_tag;
-				join.m_cancelled_tag = error_union.m_member_info.at(cancelled_name).m_tag;
-				join.m_failed_tag = error_union.m_member_info.at(failed_name).m_tag;
-
-				TypeEnvironment substitutions;
-				substitutions[result_union.m_generic_params[0u]] = worker_result_type;
-				substitutions[result_union.m_generic_params[1u]] = worker_error_type;
-				join.m_type_data = ApplySubstitution(MidoriType::SubstituteTypeParams(result_type, substitutions));
-				return join.m_type_data;
-			}
-		);
-}
-
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::ChannelCreate& channel_create)
-{
-	if (channel_create.m_element_type != nullptr)
+	const Token& name = call.m_callee->GetExpression<MidoriExpression::NameAccess>().m_name;
+	std::shared_ptr<MidoriType> expected = expected_type != nullptr ? ApplySubstitution(expected_type) : nullptr;
+	if (expected == nullptr || !expected->IsType<MidoriType::ChannelType>() || !IsDecided(expected->GetType<MidoriType::ChannelType>().m_element_type))
 	{
-		channel_create.m_element_type = InstantiateWrittenType(channel_create.m_element_type);
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(std::format("Channel creation type error: {} cannot tell what the channel carries. Annotate where it is bound, as in 'def ch : Channel<Int> = {}(4);'", name.m_lexeme, name.m_lexeme), name, m_file_name, m_source_lines));
 	}
 
-	if (channel_create.m_element_type == nullptr)
-	{
-		// Concurrency::MakeChannel(capacity) names no element type, so it takes the
-		// one its context expects, as a generic constructor does.
-		std::shared_ptr<MidoriType> expected_type = m_expected_expr_type != nullptr ? ApplySubstitution(m_expected_expr_type) : nullptr;
-		if (expected_type == nullptr || !expected_type->IsType<MidoriType::ChannelType>() || expected_type->GetType<MidoriType::ChannelType>().m_element_type->IsType<MidoriType::TypeVariable>())
+	return Unify(name, channel_type, expected, UnifyDiagnosticMode::ActualExpected)
+		.and_then([this, &call, &name, &expected](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Channel creation type error: Concurrency::MakeChannel cannot tell what the channel carries. Annotate where it is bound, as in 'def ch : Channel<Int> = Concurrency::MakeChannel(4);'", channel_create.m_channel_keyword, m_file_name, m_source_lines));
-		}
-
-		channel_create.m_element_type = expected_type->GetType<MidoriType::ChannelType>().m_element_type;
-	}
-
-	if (std::optional<CompilerError> error = EnsureTransferable(channel_create.m_channel_keyword, channel_create.m_element_type))
-	{
-		return std::unexpected(std::move(*error));
-	}
-
-	std::shared_ptr<MidoriType> expected_capacity_type = MidoriType::MakeLiteralType<MidoriType::IntegerType>();
-	ExpectedTypeGuard guard(*this, expected_capacity_type);
-	return Evaluate(channel_create.m_capacity)
-		.and_then
-		(
-			[this, &channel_create, expected_capacity_type](std::shared_ptr<MidoriType>&& capacity_type) mutable -> MidoriResult::TypeResult
+			if (std::optional<CompilerError> error = EnsureTransferable(name, expected->GetType<MidoriType::ChannelType>().m_element_type))
 			{
-				std::shared_ptr<MidoriType> actual_capacity_type = std::move(capacity_type);
-				MidoriResult::TypeResult unify_result = Unify(channel_create.m_channel_keyword, actual_capacity_type, expected_capacity_type, UnifyDiagnosticMode::ActualExpected);
-				if (!unify_result.has_value())
-				{
-					return unify_result;
-				}
-
-				channel_create.m_element_type = ApplySubstitution(channel_create.m_element_type);
-				channel_create.m_type_data = MidoriType::MakeChannelType(channel_create.m_element_type);
-				return channel_create.m_type_data;
+				return std::unexpected(std::move(*error));
 			}
-		);
+			call.m_type_data = ApplySubstitution(expected);
+			return call.m_type_data;
+		});
 }
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Send& send)
@@ -5799,8 +5806,28 @@ MidoriResult::TypeResult TypeChecker::CheckInstanceMethodCall(MidoriExpression::
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 {
 	const size_t pending = m_pending_instance_constraints.size();
-	return CheckCall(call)
+	const std::shared_ptr<MidoriType> expected_type = m_expected_expr_type;
+	call.m_primitive = CalledPrimitive(call);
+	MidoriResult::TypeResult checked = call.m_primitive == MidoriPrimitive::Spawn ? CheckSpawnCall(call) : CheckCall(call);
+	if (call.m_primitive == MidoriPrimitive::ChannelNew)
+	{
+		checked = std::move(checked).and_then([this, &call, &expected_type](std::shared_ptr<MidoriType>&& channel_type) { return TakeExpectedElementType(call, std::move(channel_type), expected_type); });
+	}
+	return std::move(checked)
 		.and_then([this, pending](std::shared_ptr<MidoriType>&& type) { return ValidatePendingInstanceConstraints(pending, std::move(type)); });
+}
+
+// The primitive whose declaration a call's callee names. Only a name can name
+// one, since a primitive is never a value.
+std::optional<MidoriPrimitive> TypeChecker::CalledPrimitive(const MidoriExpression::Call& call) const
+{
+	if (!call.m_callee->IsExpression<MidoriExpression::NameAccess>())
+	{
+		return std::nullopt;
+	}
+
+	const std::shared_ptr<MidoriType>* binding = FindNameType(call.m_callee->GetExpression<MidoriExpression::NameAccess>().m_name.m_lexeme);
+	return binding != nullptr && (*binding)->IsType<MidoriType::FunctionType>() ? (*binding)->GetType<MidoriType::FunctionType>().m_primitive : std::nullopt;
 }
 
 MidoriResult::TypeResult TypeChecker::ValidatePendingInstanceConstraints(size_t from, std::shared_ptr<MidoriType>&& type)
@@ -5866,63 +5893,6 @@ MidoriResult::TypeResult TypeChecker::CheckCall(MidoriExpression::Call& call)
 	{
 		MidoriExpression::NameAccess& callee_name = call.m_callee->GetExpression<MidoriExpression::NameAccess>();
 		const std::string& full_name = callee_name.m_name.m_lexeme;
-		// The parser turns a complete call to one of these into its own node, so a
-		// Call reaching here has the wrong number of arguments.
-		if (full_name == "Concurrency::Spawn")
-		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, "Call expression type error: Concurrency::Spawn takes two arguments, the value to pass and the function to run, as in 'Concurrency::Spawn(21, Double)'. Pass several values as a tuple.", call.m_paren, m_file_name, m_source_lines));
-		}
-		if (full_name == "Concurrency::Join" || full_name == "Concurrency::MakeChannel")
-		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, std::format("Call expression type error: {} takes exactly one argument", full_name), call.m_paren, m_file_name, m_source_lines));
-		}
-		if (full_name == "Concurrency::Close")
-		{
-			if (call.m_arguments.size() != 1u)
-			{
-				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, "Call expression type error: Concurrency::Close takes exactly one argument", call.m_paren, m_file_name, m_source_lines));
-			}
-
-			MidoriResult::TypeResult channel_result = Evaluate(call.m_arguments[0u]);
-			if (!channel_result.has_value())
-			{
-				return channel_result;
-			}
-
-			std::shared_ptr<MidoriType> resolved_channel_type = ApplySubstitution(channel_result.value());
-			if (!resolved_channel_type->IsType<MidoriType::ChannelType>())
-			{
-				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: Concurrency::Close takes a Channel<T>", call.m_paren, m_file_name, m_source_lines, resolved_channel_type));
-			}
-
-			call.m_is_foreign = false;
-			call.m_type_data = MidoriType::MakeLiteralType<MidoriType::UnitType>();
-			return call.m_type_data;
-		}
-		if (full_name == "Concurrency::IsDone" || full_name == "Concurrency::Cancel")
-		{
-			if (call.m_arguments.size() != 1u)
-			{
-				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, std::format("Call expression type error: {} takes exactly one argument", full_name), call.m_paren, m_file_name, m_source_lines));
-			}
-
-			MidoriResult::TypeResult worker_result = Evaluate(call.m_arguments[0u]);
-			if (!worker_result.has_value())
-			{
-				return worker_result;
-			}
-
-			std::shared_ptr<MidoriType> resolved_worker_type = ApplySubstitution(worker_result.value());
-			if (!resolved_worker_type->IsType<MidoriType::WorkerType>())
-			{
-				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(std::format("Call expression type error: {} takes a Worker<T>", full_name), call.m_paren, m_file_name, m_source_lines, resolved_worker_type));
-			}
-
-			call.m_is_foreign = false;
-			call.m_type_data = MidoriType::MakeLiteralType<MidoriType::BoolType>();
-			return call.m_type_data;
-		}
-
 		size_t separator_pos = full_name.rfind(NameSeparator.data());
 		if (separator_pos != std::string::npos)
 		{
@@ -6200,6 +6170,10 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::NameAccess& v
 	const bool is_defining = std::ranges::contains(m_defining_generic_names, variable.m_name.m_lexeme);
 	const std::vector<LocalGenericFunction>::const_reverse_iterator local_generic = std::ranges::find(m_local_generic_functions | std::views::reverse, variable.m_name.m_lexeme, &LocalGenericFunction::m_name);
 	const bool is_value = &variable != m_callee_name;
+	if (is_value && binding != nullptr && (*binding)->IsType<MidoriType::FunctionType>() && (*binding)->GetType<MidoriType::FunctionType>().m_primitive.has_value())
+	{
+		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(std::format("Name access expression type error: '{}' is a primitive, an instruction rather than a function, so it can only be called", variable.m_name.m_lexeme), variable.m_name, m_file_name, m_source_lines));
+	}
 	const std::function<MidoriResult::TypeResult()> use_as_value = [this, &variable]()
 	{
 		return UseGenericInstance(variable.m_name, variable.m_type_data, std::format("Name access expression type error: could not infer which types '{}' is used at; pass it where a function type is expected, or write the type on the definition that holds it", variable.m_name.m_lexeme))

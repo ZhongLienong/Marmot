@@ -67,7 +67,7 @@ Exit: a fixture under `test/generics/failure/` with the three forms; gate green.
 
 `MarmotPrelude/Concurrency.mmt` declares and exports:
 
-```
+```marmot
 foreign "MIDORI_PRIMITIVE_Spawn" Spawn: fn(A, fn(A) -> R) -> Worker<R>;
 foreign "MIDORI_PRIMITIVE_Join" Join: fn(Worker<T>) -> Result<T, WorkerError>;
 foreign "MIDORI_PRIMITIVE_ChannelNew" MakeChannel: fn(Int) -> Channel<T>;
@@ -151,3 +151,25 @@ The message does not show the variable, whose number would pin every unrelated
 change to the checker in the snapshot. Fixtures:
 `generics/failure/call_result_never_decided` and
 `generics/success/call_result_decided_by_later_use`.
+
+Phase 2: done. Choices the plan did not make:
+
+- The value-use error is in the checker's name lookup, keyed on the binding: a
+  call reaches a primitive only through its declaration's own name, so the
+  primitive mark never needs to travel on a copied type.
+- `MakeChannel` accepts an element type that is a generic parameter of the
+  definition being checked, so a generic function with `where Transferable<T>`
+  can make a `Channel<T>`. The intrinsic rejected every type variable.
+- A wrong argument count to a primitive is the ordinary arity error.
+- `JOIN_WORKER` is `[op][value kind]`; only the version byte changed in the
+  fixtures, since none of their sources joins.
+- `FindDeclaredTypeByName` went with its only caller. It found a type by scanning
+  every import for a bare name, the ambient fallback AGENTS.md rules out.
+- `feature-matrix.md` also lost "Callee must be a named `def`", which the same
+  cell already contradicted.
+
+New fixtures: `concurrency/success/join_without_result_import` (formerly
+`failure/join_requires_result_import`), `primitives_through_use`,
+`join_outcome_by_position`, `channel_of_generic_element`, and
+`concurrency/failure/primitive_used_as_value` and
+`primitive_declared_with_wrong_type`.

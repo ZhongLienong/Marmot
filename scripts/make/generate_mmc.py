@@ -13,8 +13,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from lib.host import REPO_ROOT
 
-REGISTRY = REPO_ROOT / "format" / "mmc" / "registry-v15.json"
-BANNER = "// Generated from format/mmc/registry-v15.json. Do not edit.\n// Regenerate: python scripts/dev.py generate-mmc\n\n"
+REGISTRY = REPO_ROOT / "format" / "mmc" / "registry-v16.json"
+BANNER = "// Generated from format/mmc/registry-v16.json. Do not edit.\n// Regenerate: python scripts/dev.py generate-mmc\n\n"
 
 
 def load_registry() -> dict:

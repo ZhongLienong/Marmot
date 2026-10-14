@@ -1,4 +1,4 @@
-// Generated from format/mmc/registry-v15.json. Do not edit.
+// Generated from format/mmc/registry-v16.json. Do not edit.
 // Regenerate: python scripts/dev.py generate-mmc
 
 // Constants and literals
@@ -193,7 +193,7 @@ MARMOT_OPCODE(HALT, 1)
 
 // Concurrency
 MARMOT_OPCODE(SPAWN_WORKER, 5) // [op][arity][shape lo][shape hi][result kind] pop the function and arity arguments, which cross as one tuple of that shape; result kind 1 when the worker's result is a pointer
-MARMOT_OPCODE(JOIN_WORKER, 6) // [op][ok][err][cancelled][failed][value kind] tags of Result and WorkerError; value kind 1 when Ok's value is a pointer
+MARMOT_OPCODE(JOIN_WORKER, 2) // [op][value kind] builds the outcome union: member 0 holding the value, or member 1 holding an error union whose member 0 is cancellation and member 1 failure with its message; value kind 1 when the value is a pointer
 MARMOT_OPCODE(CHANNEL_CREATE, 1)
 MARMOT_OPCODE(CHANNEL_SEND, 2) // [op][kind] pop a value and a channel and send it; kind 1 when the value is a pointer
 MARMOT_OPCODE(CHANNEL_RECEIVE, 1)

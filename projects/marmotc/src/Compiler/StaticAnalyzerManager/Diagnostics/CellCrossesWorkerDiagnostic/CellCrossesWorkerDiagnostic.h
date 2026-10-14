@@ -19,7 +19,6 @@ public:
 protected:
 	void Reset(MidoriProgramTree& program_tree) override;
 
-	void operator()(MidoriExpression::Spawn& spawn) override;
 	void operator()(MidoriExpression::Send& send) override;
 	void operator()(MidoriExpression::Call& call) override;
 

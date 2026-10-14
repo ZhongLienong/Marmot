@@ -1,0 +1,8 @@
+module PrimitiveDeclaredWithWrongType
+
+// A `foreign` with no library whose symbol names a primitive declares that
+// instruction, and the VM gives the instruction only what the declaration says. So
+// the declaration must say what the instruction takes and gives, and one that does
+// not is an error here rather than a fault in the VM.
+
+foreign "MIDORI_PRIMITIVE_Join" JoinNumber: fn(Int) -> Int;

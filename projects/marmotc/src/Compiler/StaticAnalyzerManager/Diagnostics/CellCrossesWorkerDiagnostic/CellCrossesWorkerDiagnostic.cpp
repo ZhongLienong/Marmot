@@ -214,17 +214,6 @@ void CellCrossesWorkerDiagnostic::WarnIfFunctionCarriesCells(MidoriExpression& v
 	}
 }
 
-void CellCrossesWorkerDiagnostic::operator()(MidoriExpression::Spawn& spawn)
-{
-	MidoriAbstractSyntaxTreeWalker::operator()(spawn);
-
-	for (const std::unique_ptr<MidoriExpression>& argument : spawn.m_arguments)
-	{
-		WarnIfCell(*argument, spawn.m_spawn_keyword);
-	}
-	WarnIfFunctionCarriesCells(*spawn.m_callee, spawn.m_spawn_keyword);
-}
-
 void CellCrossesWorkerDiagnostic::operator()(MidoriExpression::Send& send)
 {
 	MidoriAbstractSyntaxTreeWalker::operator()(send);
@@ -242,6 +231,13 @@ void CellCrossesWorkerDiagnostic::operator()(MidoriExpression::Call& call)
 	}
 
 	const MidoriExpression::NameAccess& callee = call.m_callee->GetExpression<MidoriExpression::NameAccess>();
+	if (call.m_primitive == MidoriPrimitive::Spawn)
+	{
+		WarnIfCell(*call.m_arguments[0u], callee.m_name);
+		WarnIfFunctionCarriesCells(*call.m_arguments[1u], callee.m_name);
+		return;
+	}
+
 	if (callee.m_name.m_lexeme != ParallelMapName || call.m_arguments.size() < 2u)
 	{
 		return;

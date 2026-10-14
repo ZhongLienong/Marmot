@@ -98,6 +98,9 @@ public:
 		std::optional<std::string> m_library;
 
 		ForeignDefinition(const Token& function_name, const std::string& foreign_name, std::shared_ptr<MidoriType>&& type, std::optional<int>&& local_index, std::optional<std::string> library = std::nullopt);
+
+		// The instruction it declares, when it declares one instead of a function.
+		std::optional<MidoriPrimitive> DeclaredPrimitive() const;
 	};
 
 	struct Struct
@@ -440,48 +443,6 @@ public:
 		UnaryPrefix(const Token& op, std::unique_ptr<MidoriExpression>&& expr);
 	};
 
-	struct Spawn : BaseExpression
-	{
-		Token m_spawn_keyword;
-		// Any expression of function type, evaluated on the spawning side and
-		// transferred to the worker: a name, a lambda, or a parameter holding one.
-		std::unique_ptr<MidoriExpression> m_callee;
-		std::vector<std::unique_ptr<MidoriExpression>> m_arguments;
-		// Concurrency::Spawn(argument, F): m_arguments holds the one argument, which
-		// stands for all of F's parameters - the value itself for one parameter, a
-		// tuple spread across them for several, and a Unit that is discarded for none.
-		// The type checker records F's arity so lowering knows which.
-		int m_callee_arity = -1;
-
-		Spawn(const Token& spawn_keyword, std::unique_ptr<MidoriExpression>&& callee, std::vector<std::unique_ptr<MidoriExpression>>&& arguments);
-	};
-
-	struct Join : BaseExpression
-	{
-		Token m_join_keyword;
-		std::unique_ptr<MidoriExpression> m_worker;
-		// `join w` has type Result<T, WorkerError>. The parser resolves both
-		// declarations by name where the join is written; the type checker
-		// instantiates Result and records the constructor tags the VM builds.
-		std::shared_ptr<MidoriType> m_result_type;
-		std::shared_ptr<MidoriType> m_worker_error_type;
-		int m_ok_tag = 0;
-		int m_err_tag = 0;
-		int m_cancelled_tag = 0;
-		int m_failed_tag = 0;
-
-		Join(const Token& join_keyword, std::unique_ptr<MidoriExpression>&& worker, std::shared_ptr<MidoriType>&& result_type, std::shared_ptr<MidoriType>&& worker_error_type);
-	};
-
-	struct ChannelCreate : BaseExpression
-	{
-		Token m_channel_keyword;
-		std::shared_ptr<MidoriType> m_element_type;
-		std::unique_ptr<MidoriExpression> m_capacity;
-
-		ChannelCreate(const Token& channel_keyword, std::shared_ptr<MidoriType>&& element_type, std::unique_ptr<MidoriExpression>&& capacity);
-	};
-
 	struct Send : BaseExpression
 	{
 		Token m_arrow;
@@ -513,6 +474,9 @@ public:
 		std::unique_ptr<MidoriExpression> m_callee;
 		std::vector<std::unique_ptr<MidoriExpression>> m_arguments;
 		bool m_is_foreign;
+		// Set by the type checker when the callee names a primitive's declaration,
+		// which lowering then emits as its instruction.
+		std::optional<MidoriPrimitive> m_primitive;
 
 		Call(const Token& paren, std::unique_ptr<MidoriExpression>&& callee, std::vector<std::unique_ptr<MidoriExpression>>&& arguments, bool is_foreign = false);
 	};
@@ -707,7 +671,7 @@ public:
 	};
 
 private:
-	using ExpressionUnion = std::variant<As, Binary, Group, Tuple, Literal, UnaryPrefix, Spawn, Join, ChannelCreate, Send, Receive, NameAccess, Call, Function, Construct, RecordUpdate, IfElse, MemberAccess, Array, IndexAccess, ArrayComprehension, RangeBinary, RangeTernary, Block, Match, Case, For>;
+	using ExpressionUnion = std::variant<As, Binary, Group, Tuple, Literal, UnaryPrefix, Send, Receive, NameAccess, Call, Function, Construct, RecordUpdate, IfElse, MemberAccess, Array, IndexAccess, ArrayComprehension, RangeBinary, RangeTernary, Block, Match, Case, For>;
 	ExpressionUnion m_variant;
 
 public:
@@ -766,25 +730,6 @@ public:
 			else if constexpr (std::is_same_v<T, MidoriExpression::UnaryPrefix>)
 			{
 				return node.m_expr->template Contains<Kind>();
-			}
-			else if constexpr (std::is_same_v<T, MidoriExpression::Spawn>)
-			{
-				return std::ranges::any_of
-				(
-					node.m_arguments,
-					[](const std::unique_ptr<MidoriExpression>& arg)
-					{
-						return arg->template Contains<Kind>();
-					}
-				);
-			}
-			else if constexpr (std::is_same_v<T, MidoriExpression::Join>)
-			{
-				return node.m_worker->template Contains<Kind>();
-			}
-			else if constexpr (std::is_same_v<T, MidoriExpression::ChannelCreate>)
-			{
-				return node.m_capacity->template Contains<Kind>();
 			}
 			else if constexpr (std::is_same_v<T, MidoriExpression::Send>)
 			{

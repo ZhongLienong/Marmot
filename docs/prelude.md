@@ -18,7 +18,7 @@ The documented examples in this file are mirrored by `test/prelude/success/docum
 - `Iter.mmt` provides lazy sequence pipelines over any `Iterable`. See [Sequence Pipelines](#sequence-pipelines).
 - `Prelude/Panic.mmt` contains the simple panic helper used by many tests and examples.
 - References are part of the language: `Ref<T>` and the `ref`, `*` and `:=` forms need no import. See [References](type-system.md#references).
-- `Concurrency.mmt` declares `WorkerError` (`Cancelled | Failed(Text)`), the error half of the `Result<T, WorkerError>` that `Concurrency::Join` evaluates to, `JoinedOrPanic` for code that treats a worker failure as fatal, and `ParallelMap`, which is written in Marmot rather than provided by the compiler. The compiler requires the `WorkerError` declaration to have exactly that shape.
+- `Concurrency.mmt` declares the primitives `Spawn`, `Join`, `MakeChannel`, `Close`, `IsDone` and `Cancel`, each one VM instruction declared as a `foreign` with no library; `WorkerError` (`Cancelled | Failed(Text)`), the error half of the `Result<T, WorkerError>` that `Concurrency::Join` evaluates to; `JoinedOrPanic` for code that treats a worker failure as fatal; and `ParallelMap`, written in Marmot over `Spawn` and `Join`. The VM builds `Join`'s result by position, so the compiler checks its declaration: `Result`'s first member holds the value and its second the `WorkerError`, whose first member holds nothing and second the worker's error message.
 
 ## Helper and Typeclass Modules
 

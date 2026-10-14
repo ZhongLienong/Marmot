@@ -53,9 +53,6 @@ protected:
 	virtual void operator()(MidoriExpression::Function& function);
 	virtual void operator()(MidoriExpression::Construct& construct);
 	virtual void operator()(MidoriExpression::RecordUpdate& record_update);
-	virtual void operator()(MidoriExpression::Spawn& spawn);
-	virtual void operator()(MidoriExpression::Join& join);
-	virtual void operator()(MidoriExpression::ChannelCreate& channel_create);
 	virtual void operator()(MidoriExpression::Send& send);
 	virtual void operator()(MidoriExpression::Receive& receive);
 	virtual void operator()(MidoriExpression::Array& array);

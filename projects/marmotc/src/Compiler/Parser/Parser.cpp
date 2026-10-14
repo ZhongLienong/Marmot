@@ -119,23 +119,6 @@ namespace
 		}
 	}
 
-	// Concurrency::Spawn, Join and MakeChannel are written as calls but have no
-	// declaration in Concurrency.mmt: the parser turns each call into the node the
-	// compiler already checks and lowers, as it resolves Result for Join by name.
-	constexpr std::string_view ConcurrencyModuleName = "Concurrency";
-	constexpr std::string_view SpawnIntrinsicName = "Concurrency::Spawn";
-	constexpr std::string_view JoinIntrinsicName = "Concurrency::Join";
-	constexpr std::string_view MakeChannelIntrinsicName = "Concurrency::MakeChannel";
-	constexpr std::string_view CloseIntrinsicName = "Concurrency::Close";
-	constexpr std::string_view IsDoneIntrinsicName = "Concurrency::IsDone";
-	constexpr std::string_view CancelIntrinsicName = "Concurrency::Cancel";
-
-	bool IsConcurrencyIntrinsicName(std::string_view name)
-	{
-		return name == SpawnIntrinsicName || name == JoinIntrinsicName || name == MakeChannelIntrinsicName
-			|| name == CloseIntrinsicName || name == IsDoneIntrinsicName || name == CancelIntrinsicName;
-	}
-
 	void CollectTypeConstraints(
 		const std::shared_ptr<MidoriType>& type,
 		std::vector<MidoriType::ClassConstraint>& constraints,
@@ -2200,56 +2183,9 @@ MidoriResult::ExpressionResult Parser::FinishCall(std::unique_ptr<MidoriExpressi
 		(
 			[&callee, this](std::vector<std::unique_ptr<MidoriExpression>>&& arguments) ->MidoriResult::ExpressionResult
 			{
-				return LowerConcurrencyIntrinsic(std::make_unique<MidoriExpression>(MidoriExpression::Call(Previous(), std::move(callee), std::move(arguments))));
+				return std::make_unique<MidoriExpression>(MidoriExpression::Call(Previous(), std::move(callee), std::move(arguments)));
 			}
 		);
-}
-
-MidoriResult::ExpressionResult Parser::LowerConcurrencyIntrinsic(std::unique_ptr<MidoriExpression>&& expr)
-{
-	// A call keeps its Call node until it has every argument, because a pipe
-	// prepends one later: `(ch, 5) |> Concurrency::Spawn(Producer)`. A call that
-	// never gets the right count stays a Call, and the type checker reports it.
-	if (!expr->IsExpression<MidoriExpression::Call>())
-	{
-		return std::move(expr);
-	}
-
-	MidoriExpression::Call& call = expr->GetExpression<MidoriExpression::Call>();
-	if (!call.m_callee->IsExpression<MidoriExpression::NameAccess>())
-	{
-		return std::move(expr);
-	}
-
-	const Token& callee_name = call.m_callee->GetExpression<MidoriExpression::NameAccess>().m_name;
-	if (callee_name.m_lexeme == SpawnIntrinsicName && call.m_arguments.size() == 2u)
-	{
-		std::vector<std::unique_ptr<MidoriExpression>> arguments;
-		arguments.emplace_back(std::move(call.m_arguments[0u]));
-		return std::make_unique<MidoriExpression>(MidoriExpression::Spawn(callee_name, std::move(call.m_arguments[1u]), std::move(arguments)));
-	}
-
-	if (callee_name.m_lexeme == JoinIntrinsicName && call.m_arguments.size() == 1u)
-	{
-		// Join evaluates to Result<T, WorkerError>, so both declarations must be
-		// visible where it is written.
-		std::shared_ptr<MidoriType> result_type = FindDeclaredTypeByName("Result");
-		std::shared_ptr<MidoriType> worker_error_type = FindDeclaredTypeByName("WorkerError");
-		if (result_type == nullptr || worker_error_type == nullptr)
-		{
-			return std::unexpected(GenerateParserError("'Concurrency::Join' evaluates to Result<T, WorkerError>. Import \"MarmotPrelude/Prelude/Result.mmt\" and \"MarmotPrelude/Concurrency.mmt\" to use it.", callee_name));
-		}
-
-		return std::make_unique<MidoriExpression>(MidoriExpression::Join(callee_name, std::move(call.m_arguments[0u]), std::move(result_type), std::move(worker_error_type)));
-	}
-
-	if (callee_name.m_lexeme == MakeChannelIntrinsicName && call.m_arguments.size() == 1u)
-	{
-		// The element type comes from the expected type during type checking.
-		return std::make_unique<MidoriExpression>(MidoriExpression::ChannelCreate(callee_name, nullptr, std::move(call.m_arguments[0u])));
-	}
-
-	return std::move(expr);
 }
 
 MidoriResult::ExpressionResult Parser::FinishConstruct(Token&& constructor_token, std::shared_ptr<MidoriType>&& constructed_type, bool is_struct)
@@ -2423,11 +2359,6 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 
 						std::unordered_map<std::string, std::unordered_set<std::string>>::const_iterator concrete_tc_it = m_state.m_class_methods.find(qualifier);
 						if (concrete_tc_it != m_state.m_class_methods.cend() && concrete_tc_it->second.contains(symbol_name))
-						{
-							return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(variable, MidoriExpression::NameContext::Global()));
-						}
-
-						if (qualifier == ConcurrencyModuleName && IsConcurrencyIntrinsicName(variable.m_lexeme) && IsModuleVisible(ConcurrencyModuleName))
 						{
 							return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(variable, MidoriExpression::NameContext::Global()));
 						}
@@ -2652,27 +2583,14 @@ MidoriResult::ExpressionResult Parser::ParsePipe()
 					// x |> Point(y) becomes Point(x, y)
 					// x |> Concurrency::Spawn(F) becomes Concurrency::Spawn(x, F)
 					// x |> f becomes f(x)
-					// A construction is not a Call node, so it needs its own branch. A call to
-					// Concurrency::Spawn, Join or MakeChannel becomes its own node only once the
-					// pipe has supplied its last argument.
+					// A construction is not a Call node, so it needs its own branch.
 					// Prepending at parse time is also what lets the piped value take part in generic
 					// inference on the same footing as a written argument.
 					if (right.value()->IsExpression<MidoriExpression::Call>())
 					{
 						MidoriExpression::Call& call_expr = right.value()->GetExpression<MidoriExpression::Call>();
 						call_expr.m_arguments.insert(call_expr.m_arguments.begin(), std::move(left_expr));
-						MidoriResult::ExpressionResult lowered = LowerConcurrencyIntrinsic(std::move(right.value()));
-						if (!lowered.has_value())
-						{
-							return std::unexpected(std::move(lowered.error()));
-						}
-						left_expr = std::move(lowered.value());
-					}
-					else if (right.value()->IsExpression<MidoriExpression::Join>()
-						|| right.value()->IsExpression<MidoriExpression::ChannelCreate>()
-						|| right.value()->IsExpression<MidoriExpression::Spawn>())
-					{
-						return std::unexpected(GenerateParserError("This call already has all of its arguments, so there is nothing for the pipe to fill. Pipe into it with one argument left out, as in 'w |> Concurrency::Join' or 'value |> Concurrency::Spawn(F)'.", pipe_op));
+						left_expr = std::move(right.value());
 					}
 					else if (right.value()->IsExpression<MidoriExpression::Construct>())
 					{
@@ -2684,39 +2602,13 @@ MidoriResult::ExpressionResult Parser::ParsePipe()
 					{
 						std::vector<std::unique_ptr<MidoriExpression>> arguments;
 						arguments.emplace_back(std::move(left_expr));
-						MidoriResult::ExpressionResult lowered = LowerConcurrencyIntrinsic(std::make_unique<MidoriExpression>(MidoriExpression::Call(pipe_op, std::move(right.value()), std::move(arguments))));
-						if (!lowered.has_value())
-						{
-							return std::unexpected(std::move(lowered.error()));
-						}
-						left_expr = std::move(lowered.value());
+						left_expr = std::make_unique<MidoriExpression>(MidoriExpression::Call(pipe_op, std::move(right.value()), std::move(arguments)));
 					}
 				}
 
 				return left_expr;
 			}
 		);
-}
-
-std::shared_ptr<MidoriType> Parser::FindDeclaredTypeByName(const std::string& name)
-{
-	std::string lookup_name = name;
-	std::vector<Scope>::const_reverse_iterator found_scope_it = FindTypeScope(lookup_name);
-	if (found_scope_it != m_state.m_scopes.crend())
-	{
-		return found_scope_it->m_defined_types.at(lookup_name);
-	}
-
-	for (const std::pair<const std::string, TypeEnvironment>& imported_module : m_context.m_imported_type_signatures)
-	{
-		TypeEnvironment::const_iterator type_it = imported_module.second.find(name);
-		if (type_it != imported_module.second.cend())
-		{
-			return type_it->second;
-		}
-	}
-
-	return nullptr;
 }
 
 bool Parser::ProbeRecordUpdate()
@@ -4620,6 +4512,10 @@ MidoriResult::StatementResult Parser::ParseForeignDeclaration(const Token& forei
 														(
 															[&foreign_name, &function_name, &type, &local_index, &library](Token&&) ->MidoriResult::StatementResult
 															{
+																if (!library.has_value())
+																{
+																	type->GetType<MidoriType::FunctionType>().m_primitive = FindPrimitive(foreign_name.m_lexeme);
+																}
 																return std::make_unique<MidoriStatement>(MidoriStatement::ForeignDefinition(function_name, foreign_name.m_lexeme, std::move(type), std::move(local_index), std::move(library)));
 															}
 														);

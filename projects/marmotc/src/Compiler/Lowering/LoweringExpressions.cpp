@@ -214,21 +214,6 @@ Lowering::Lowered Lowering::Lower(MidoriExpression& expression)
 			return m_self.LowerTuple(tuple);
 		}
 
-		Lowered operator()(MidoriExpression::Spawn& spawn) const
-		{
-			return m_self.LowerSpawn(spawn);
-		}
-
-		Lowered operator()(MidoriExpression::Join& join) const
-		{
-			return m_self.LowerJoin(join);
-		}
-
-		Lowered operator()(MidoriExpression::ChannelCreate& channel) const
-		{
-			return m_self.LowerOperation(MidoriIROp::ChannelNew, m_self.Concrete(channel.m_type_data), { channel.m_capacity.get() }, {}, channel.m_channel_keyword.m_line);
-		}
-
 		Lowered operator()(MidoriExpression::Send& send) const
 		{
 			return m_self.LowerOperation(MidoriIROp::Send, m_self.Concrete(send.m_type_data), { send.m_channel.get(), send.m_value.get() }, {}, send.m_arrow.m_line);
@@ -815,28 +800,30 @@ Lowering::Lowered Lowering::LowerRange(MidoriExpression& start, MidoriExpression
 // The one argument stands for all of the function's parameters: the value
 // itself for one, a tuple spread across them for several, and a discarded
 // Unit for none. The function is evaluated after it.
-Lowering::Lowered Lowering::LowerSpawn(MidoriExpression::Spawn& spawn)
+Lowering::Lowered Lowering::LowerSpawn(MidoriExpression::Call& spawn)
 {
-	const int line = spawn.m_spawn_keyword.m_line;
+	const int line = spawn.m_paren.m_line;
 	const TypeRef type = Concrete(spawn.m_type_data);
-	return Lower(*spawn.m_arguments.front())
+	MidoriExpression& function = *spawn.m_arguments[1u];
+	const size_t arity = Concrete(function.GetType())->GetType<MidoriType::FunctionType>().m_param_types.size();
+	return Lower(*spawn.m_arguments[0u])
 		.and_then([&](MidoriIRValueId argument) -> Lowered
 		{
 			std::vector<MidoriIRValueId> operands;
-			if (spawn.m_callee_arity == 1)
+			if (arity == 1u)
 			{
 				operands.push_back(argument);
 			}
-			else if (spawn.m_callee_arity >= 2 && !IsDead())
+			else if (arity >= 2u && !IsDead())
 			{
 				const std::vector<TypeRef>& element_types = GenericTypes::RepresentationOf(Scope().m_function.TypeOf(argument))->GetType<MidoriType::TupleType>().m_element_types;
-				for (uint32_t index = 0u; index < static_cast<uint32_t>(spawn.m_callee_arity); index += 1u)
+				for (uint32_t index = 0u; index < static_cast<uint32_t>(arity); index += 1u)
 				{
 					operands.push_back(Builder().AtLine(line).Emit(MidoriIROp::TupleGet, element_types[index], { argument }, MidoriIRIndex{ index }));
 				}
 			}
 
-			return Lower(*spawn.m_callee)
+			return Lower(function)
 				.transform([&](MidoriIRValueId callee)
 				{
 					if (IsDead())
@@ -847,11 +834,4 @@ Lowering::Lowered Lowering::LowerSpawn(MidoriExpression::Spawn& spawn)
 					return Builder().AtLine(line).Emit(MidoriIROp::Spawn, type, std::move(operands));
 				});
 		});
-}
-
-// `join` builds Result<T, WorkerError> itself, from the tags the type checker
-// recorded.
-Lowering::Lowered Lowering::LowerJoin(MidoriExpression::Join& join)
-{
-	return LowerOperation(MidoriIROp::Join, Concrete(join.m_type_data), { join.m_worker.get() }, MidoriIRJoinTags{ join.m_ok_tag, join.m_err_tag, join.m_cancelled_tag, join.m_failed_tag }, join.m_join_keyword.m_line);
 }

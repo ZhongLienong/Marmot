@@ -52,7 +52,12 @@
 // find on a frame's operand stack has a kind, each aggregate a shape naming its
 // pointer fields, and the instructions that build arrays, tuples, structs,
 // unions and cells, and that send values between workers, carry them.
-inline constexpr uint32_t VmMbcFormatVersion = 15u;
+//
+// Bumped 2026-10-13 (16): JOIN_WORKER lost its four tag operands. Join is a
+// declared primitive whose result type is checked by position, so the VM builds
+// member 0 for a value and member 1 for an error, cancellation as 0 and failure
+// as 1, without being told.
+inline constexpr uint32_t VmMbcFormatVersion = 16u;
 
 inline constexpr int VM_MAX_UNION_TAG{ UINT8_MAX };
 

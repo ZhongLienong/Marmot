@@ -3,11 +3,14 @@
 #include <algorithm>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <ranges>
 #include <string>
 #include <unordered_map>
 #include <variant>
 #include <vector>
+
+#include "Compiler/Primitive/Primitive.h"
 
 class MidoriType
 {
@@ -126,6 +129,9 @@ public:
 		std::shared_ptr<MidoriType> m_return_type;
 		std::vector<ClassConstraint> m_constraints;
 		bool m_is_foreign = false;
+		// On a primitive's declared type only. A primitive can only be called, by
+		// the name of its declaration, so no copy of this type needs it.
+		std::optional<MidoriPrimitive> m_primitive;
 	};
 
 	struct StructType

@@ -1,0 +1,25 @@
+module JoinOutcomeByPosition
+
+import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/IO.mmt" }
+
+// The VM builds a join's result by position, not by name: member 0 holds the
+// worker's value and member 1 why there is none, which is member 0 when the worker
+// was cancelled and member 1, with the message, when it failed. Any declaration of
+// that shape works, whatever its types and members are called.
+
+type Why = Stopped | Broke(Text);
+type Outcome<T, E> = Finished(T) | Missing(E);
+
+foreign "MIDORI_PRIMITIVE_Join" Await: fn(Worker<T>) -> Outcome<T, Why>;
+
+def Describe = fn(outcome : Outcome<Int, Why>) -> Text =>
+	match outcome with
+		case Outcome::Finished(value) => "finished with " ++ (value as Text)
+		case Outcome::Missing(Why::Stopped()) => "stopped"
+		case Outcome::Missing(Why::Broke(message)) => "broke: " ++ message;
+
+def Triple = fn(n : Int) -> Int => n * 3;
+def Divide = fn(n : Int) -> Int => 10 / n;
+
+IO::PrintLine(Describe(Await(Concurrency::Spawn(14, Triple))));
+IO::PrintLine(Describe(Await(Concurrency::Spawn(0, Divide))));

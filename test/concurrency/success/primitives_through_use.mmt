@@ -1,0 +1,22 @@
+module PrimitivesThroughUse
+
+import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/IO.mmt" }
+
+use Concurrency.{ MakeChannel, Spawn, Join, JoinedOrPanic, Close, IsDone }
+
+// The concurrency primitives are declared and exported by Concurrency.mmt like
+// anything else it exports, so `use` brings them in by their bare names, and a pipe
+// fills their first argument as it does any call's.
+
+def Producer = fn(ch : Channel<Int>, n : Int) -> Int => {
+	ch -> n;
+	n
+};
+
+def ch : Channel<Int> = MakeChannel(2);
+def worker = (ch, 7) |> Spawn(Producer);
+def received = <- ch;
+def joined = worker |> Join;
+Close(ch);
+
+IO::PrintLine("received " ++ (received as Text) ++ ", joined " ++ (JoinedOrPanic(joined) as Text) ++ ", done " ++ (IsDone(worker) as Text));

@@ -205,28 +205,6 @@ MidoriExpression::UnaryPrefix::UnaryPrefix(const Token& op, std::unique_ptr<Mido
 {
 }
 
-MidoriExpression::Spawn::Spawn(const Token& spawn_keyword, std::unique_ptr<MidoriExpression>&& callee, std::vector<std::unique_ptr<MidoriExpression>>&& arguments)
-	: m_spawn_keyword(spawn_keyword),
-	m_callee(std::move(callee)),
-	m_arguments(std::move(arguments))
-{
-}
-
-MidoriExpression::Join::Join(const Token& join_keyword, std::unique_ptr<MidoriExpression>&& worker, std::shared_ptr<MidoriType>&& result_type, std::shared_ptr<MidoriType>&& worker_error_type)
-	: m_join_keyword(join_keyword),
-	m_worker(std::move(worker)),
-	m_result_type(std::move(result_type)),
-	m_worker_error_type(std::move(worker_error_type))
-{
-}
-
-MidoriExpression::ChannelCreate::ChannelCreate(const Token& channel_keyword, std::shared_ptr<MidoriType>&& element_type, std::unique_ptr<MidoriExpression>&& capacity)
-	: m_channel_keyword(channel_keyword),
-	m_element_type(std::move(element_type)),
-	m_capacity(std::move(capacity))
-{
-}
-
 MidoriExpression::Send::Send(const Token& arrow, std::unique_ptr<MidoriExpression>&& channel, std::unique_ptr<MidoriExpression>&& value)
 	: m_arrow(arrow),
 	m_channel(std::move(channel)),
@@ -540,6 +518,11 @@ MidoriStatement::ForeignDefinition::ForeignDefinition(const Token& function_name
 	m_local_index(std::move(local_index)),
 	m_library(std::move(library))
 {
+}
+
+std::optional<MidoriPrimitive> MidoriStatement::ForeignDefinition::DeclaredPrimitive() const
+{
+	return m_type->GetType<MidoriType::FunctionType>().m_primitive;
 }
 
 MidoriStatement::Struct::Struct(const Token& name, std::vector<Token>&& generic_params, std::vector<MidoriType::ClassConstraint>&& constraints, std::shared_ptr<MidoriType>&& self_type)

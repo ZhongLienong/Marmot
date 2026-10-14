@@ -52,7 +52,7 @@ Functions, blocks and globals are kept in vectors, in the order lowering creates
 | Closures | `MakeClosure f` with the captures as operands, `BindCaptures #i closure, value`, `GetCapture #i` | `MakeClosure` may leave out captures at the end, which `BindCaptures` fills before the closure is called; that is how local functions that name themselves or each other reach one another |
 | References | `CellNew`, `CellRead`, `CellWrite cell, value` | Only for the language's `Ref<T>`. `CellWrite` gives the value it writes |
 | Globals | `GlobalDefine @slot`, `GlobalGet @slot`, `GlobalSet @slot` | |
-| Concurrency | `Spawn args..., function`, `Join tags ok err cancelled failed`, `WorkerCancel` `WorkerIsDone` `ChannelNew` `Send` `Receive` `ChannelClose` | `Join` builds its Result from the union tags its immediate names |
+| Concurrency | `Spawn args..., function`, `Join worker`, `WorkerCancel` `WorkerIsDone` `ChannelNew` `Send` `Receive` `ChannelClose` | `Join` gives a union whose member 0 holds the worker's value and member 1 its error, a union of a field-less member 0 and a member 1 holding a Text; the declaration of the primitive it comes from is checked for that shape |
 | Terminators | `Jump`, `Branch`, `Return`, `TailCall`, `Unreachable` | See below |
 
 The source form `ref value` lowers to `CellNew`, and `*reference` to

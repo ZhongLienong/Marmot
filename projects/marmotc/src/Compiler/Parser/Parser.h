@@ -549,8 +549,7 @@ private:
 
 	ImportedSymbolAccess ResolveImportedSymbolAccess(const std::string& module_name, const std::string& symbol_name) const;
 
-	// True when this file imports the module, or is the module: the rule that makes
-	// compiler-provided names such as Concurrency::Spawn available.
+	// True when this file imports the module, or is the module.
 	bool IsModuleVisible(std::string_view module_name) const;
 
 	// Parses the '<T>' after the built-in type name Cell.
@@ -675,7 +674,6 @@ private:
 
 	MidoriResult::ExpressionResult FinishCall(std::unique_ptr<MidoriExpression>&& callee);
 
-	MidoriResult::ExpressionResult LowerConcurrencyIntrinsic(std::unique_ptr<MidoriExpression>&& expr);
 
 	// Operators of different precedence bind by a table the reader has to remember,
 	// so mixing them in one expression needs parentheses instead. Returns the class
@@ -705,7 +703,6 @@ private:
 
 	// The type declared under `name` in this module or any module it imports, or
 	// nullptr. For compiler-required declarations such as `Result`.
-	std::shared_ptr<MidoriType> FindDeclaredTypeByName(const std::string& name);
 
 	MidoriResult::ExpressionResult ParseBlockExpression();
 

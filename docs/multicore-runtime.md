@@ -92,9 +92,10 @@ the program's initializers already holds every global and takes none.
 
 ## Concurrency Functions
 
-Workers and channels are created with functions from `MarmotPrelude/Concurrency.mmt`.
-They are called like any other function, but the compiler provides them, so
-importing that module is what makes them available:
+Workers and channels are created with primitives from `MarmotPrelude/Concurrency.mmt`.
+Each is one instruction of the VM, which the module declares as a `foreign` with no
+library and exports like anything else, so `use Concurrency.{ Spawn }` works. A
+primitive is called like a function, but it is not a value:
 
 ```marmot-test name=multicore/concurrency_surface path=.doc_example_multicore_surface.mmt module=MulticoreConcurrencySurface
 import { "./MarmotPrelude/Concurrency.mmt", "./MarmotPrelude/Prelude/Result.mmt" }
@@ -118,20 +119,20 @@ Concurrency::Close(ch);
 - `Concurrency::Join(w)` blocks and evaluates to `Result<T, WorkerError>`:
   `Ok(value)` when the worker returned, `Err(WorkerError::Cancelled())` when it was
   cancelled, and `Err(WorkerError::Failed(message))` when it stopped with a runtime
-  error. A file that joins must also import `MarmotPrelude/Prelude/Result.mmt`.
-  `Concurrency.mmt` declares `WorkerError`, and `JoinedOrPanic` for code that
+  error. Matching on it, as `Result::Ok(value)`, needs `MarmotPrelude/Prelude/Result.mmt`
+  imported. `Concurrency.mmt` declares `WorkerError`, and `JoinedOrPanic` for code that
   treats a worker failure as fatal.
 - `Concurrency::MakeChannel(capacity)` creates a typed bounded channel. It takes its
   element type from context, so annotate the binding: `def ch : Channel<Int> = ...`.
 - `->` (send) and `<-` (receive) are type-checked binary/unary operators
 
 Auxiliary operations: `Concurrency::Close(ch)`, `Concurrency::IsDone(w)`,
-`Concurrency::Cancel(w)`. Like the three above, they are compiler-provided and
-need `Concurrency.mmt` imported.
+`Concurrency::Cancel(w)`. Like the three above, they are primitives declared in
+`Concurrency.mmt`.
 
 `Concurrency::ParallelMap(values, work, chunk_size)` maps `work` over `values` one
 worker per chunk. It is ordinary Marmot in `MarmotPrelude/Concurrency.mmt`, not a
-compiler builtin: the per-chunk worker is a lambda that captured `work` and crosses
+primitive: the per-chunk worker is a lambda that captured `work` and crosses
 with it.
 
 ## Worker Lifecycle

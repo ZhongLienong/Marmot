@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the frozen version-15 .mmc fixtures against marmotc and marmotvm."""
+"""Check the frozen version-16 .mmc fixtures against marmotc and marmotvm."""
 
 from __future__ import annotations
 
@@ -87,8 +87,8 @@ def normalize_artifact(blob: bytes) -> bytes:
     if len(blob) < HEADER.size:
         raise ValueError("truncated .mmc header")
     magic, version, major, minor, patch, reserved, flags, size, crc = HEADER.unpack_from(blob)
-    if magic != b"MBC\0" or version != 15:
-        raise ValueError("expected a version-15 .mmc artifact")
+    if magic != b"MBC\0" or version != 16:
+        raise ValueError("expected a version-16 .mmc artifact")
     original = blob[HEADER.size:]
     if len(original) != size or zlib.crc32(original) != crc:
         raise ValueError("invalid original payload size or CRC")
@@ -169,7 +169,7 @@ def source_registry(side: Path, *, signatures: bool) -> dict[str, object]:
 
 def check_registry() -> None:
     generate_mmc.check_generated()
-    frozen = json.loads((CONTRACT_DIR / "registry-v15.json").read_text(encoding="utf-8"))
+    frozen = json.loads((CONTRACT_DIR / "registry-v16.json").read_text(encoding="utf-8"))
     for name, side, version_name in (
         ("marmotc", REPO_ROOT / "projects/marmotc/src/Bytecode", "MbcFormatVersion"),
         ("marmotvm", REPO_ROOT / "projects/marmotvm/src/Bytecode", "VmMbcFormatVersion"),
@@ -181,7 +181,7 @@ def check_registry() -> None:
                         [{key: builtin[key] for key in ("id", "name")} for builtin in frozen["builtins"]],
         }
         if source_registry(side, signatures=name == "marmotvm") != expected:
-            raise AssertionError(f"{name} opcode or builtin table differs from the frozen version-15 registry")
+            raise AssertionError(f"{name} opcode or builtin table differs from the frozen version-16 registry")
         format_header = (side / "Format/Format.h").read_text(encoding="utf-8")
         version = re.search(rf"{version_name}\s*=\s*(\d+)u", format_header)
         if version is None or int(version.group(1)) != frozen["format_version"]:
@@ -256,7 +256,7 @@ def main(argv: list[str]) -> int:
         check_valid(tree, fixture)
     for fixture in manifest["invalid"]:
         check_invalid(tree, fixture)
-    print("[OK] version-15 .mmc contract")
+    print("[OK] version-16 .mmc contract")
     return 0
 
 

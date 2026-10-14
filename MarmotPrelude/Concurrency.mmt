@@ -3,18 +3,29 @@ import { "./Prelude/Result.mmt", "./Prelude/Panic.mmt", "./ArrayUtil.mmt", "./Tr
 use Result.{
     Result
 }
-public export { WorkerError, JoinedOrPanic, ParallelMap }
-// Concurrency::Spawn(argument, F), Concurrency::Join(w) and
-// Concurrency::MakeChannel(capacity) are called like functions from this module,
-// but the compiler provides them: importing this module is what makes them
-// available. Spawn passes one argument, a tuple for a function with several
-// parameters, so a value can be piped in: `(ch, 5) |> Concurrency::Spawn(Producer)`.
+public export { Spawn, Join, MakeChannel, Close, IsDone, Cancel, WorkerError, JoinedOrPanic, ParallelMap }
+// Each of these six is one instruction of the VM, declared as a `foreign` with no
+// library whose symbol names the instruction: a primitive. A primitive is called like
+// a function, but it is not a value.
 //
-// What Join reports when a worker does not produce its value. `Concurrency::Join(w)`
-// has type Result<T, WorkerError>, so a cancelled or failed worker is an ordinary
-// value the joining code can inspect and recover from, rather than an error that
-// stops it. The compiler requires this declaration's shape: `Cancelled` with no
-// fields and `Failed` carrying the worker's error message.
+// Spawn(argument, F) runs F in a new worker. The one argument stands for all of F's
+// parameters: the value itself for one, a tuple spread across them for several, and
+// `()` for none, so a value can be piped in: `(ch, 5) |> Concurrency::Spawn(Producer)`.
+// The type written here is the one-parameter case, and the compiler checks the others.
+foreign "MIDORI_PRIMITIVE_Spawn" Spawn: fn(A, fn(A) -> R) -> Worker < R >;
+// Join(w) waits for the worker. A cancelled or failed worker is an ordinary value the
+// joining code can inspect and recover from, rather than an error that stops it. The
+// VM builds the result by position, so the compiler checks that Result's first member
+// holds the value and its second a WorkerError, and that WorkerError's first member
+// holds nothing and its second the worker's error message.
+foreign "MIDORI_PRIMITIVE_Join" Join: fn(Worker < T >) -> Result < T, WorkerError >;
+// MakeChannel(capacity) takes its element type from where it is bound:
+// `def ch : Channel<Int> = Concurrency::MakeChannel(4);`.
+foreign "MIDORI_PRIMITIVE_ChannelNew" MakeChannel: fn(Int) -> Channel < T >;
+foreign "MIDORI_PRIMITIVE_ChannelClose" Close: fn(Channel < T >) -> Unit;
+foreign "MIDORI_PRIMITIVE_WorkerIsDone" IsDone: fn(Worker < T >) -> Bool;
+foreign "MIDORI_PRIMITIVE_WorkerCancel" Cancel: fn(Worker < T >) -> Bool;
+// What Join reports when a worker does not produce its value.
 type WorkerError = Cancelled | Failed(Text);
 // For code that treats a worker failure as fatal, which is what joining itself did
 // before it returned a Result.
@@ -41,7 +52,7 @@ def ParallelMap = fn < A, B >(values: Array < A >, work: fn(A) -> B, chunk_size:
     def count = ArrayUtil::Length(values);
     def size = if chunk_size < 1 then 1 else chunk_size;
     def chunk_count = (count + size - 1) / size;
-    def workers = [Concurrency::Spawn(ArrayUtil::Slice(values, index * size, (index + 1) * size), fn(chunk: Array < A >) -> Array < B > => [work(item) for item in chunk]) for index in 0..1..chunk_count];
-    def chunks = [JoinedOrPanic(Concurrency::Join(worker)) for worker in workers];
+    def workers = [Spawn(ArrayUtil::Slice(values, index * size, (index + 1) * size), fn(chunk: Array < A >) -> Array < B > => [work(item) for item in chunk]) for index in 0..1..chunk_count];
+    def chunks = [JoinedOrPanic(Join(worker)) for worker in workers];
     ConcatChunks(chunks, 0, [])
 };

@@ -1,0 +1,17 @@
+module ChannelOfGenericElement
+
+import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Transferable.mmt", "../../../MarmotPrelude/IO.mmt" }
+
+// MakeChannel takes its element type from where it is bound, and that type only has
+// to be transferable: a generic function's parameter is, under `where Transferable<T>`.
+
+def Holding = fn<T>(value : T) -> Channel<T> where Transferable<T> => {
+	def ch : Channel<T> = Concurrency::MakeChannel(1);
+	ch -> value;
+	ch
+};
+
+def texts = Holding("hello");
+def numbers = Holding(42);
+
+IO::PrintLine((<- texts) ++ " " ++ ((<- numbers) as Text));

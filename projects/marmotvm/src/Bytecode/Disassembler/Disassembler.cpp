@@ -337,23 +337,6 @@ namespace
 		Terminal::Print(output, formated_str.str());
 	}
 
-	void JoinWorkerInstruction(std::FILE* output, std::string_view name, const VmExecutable& executable, int proc_index, int& offset)
-	{
-		const int ok_tag = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
-		const int err_tag = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
-		const int cancelled_tag = static_cast<int>(executable.ReadByteCode(offset + 3, proc_index));
-		const int failed_tag = static_cast<int>(executable.ReadByteCode(offset + 4, proc_index));
-		const int value_kind = static_cast<int>(executable.ReadByteCode(offset + 5, proc_index));
-		offset += 6;
-		std::ostringstream formated_str;
-
-		formated_str << Terminal::Colored<Terminal::Color::BRIGHT_WHITE>(std::string(name));
-		formated_str << " " << Terminal::Colored<Terminal::Color::CYAN>(std::format("{} {} {} {}", ok_tag, err_tag, cancelled_tag, failed_tag));
-		formated_str << "  " << Terminal::Colored<Terminal::Color::DARK_GRAY>(std::format("// tags: Ok {}, Err {}, Cancelled {}, Failed {}; Ok's value {}", ok_tag, err_tag, cancelled_tag, failed_tag, KindName(value_kind)));
-		formated_str << '\n';
-		Terminal::Print(output, formated_str.str());
-	}
-
 	void ConstructUnionInstruction(std::FILE* output, std::string_view name, const VmExecutable& executable, int proc_index, int& offset)
 	{
 		int size = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
@@ -795,7 +778,7 @@ namespace Disassembler
 			SpawnWorkerInstruction(output, "SPAWN_WORKER", executable, proc_index, offset);
 			break;
 		case VmOpCode::JOIN_WORKER:
-			JoinWorkerInstruction(output, "JOIN_WORKER", executable, proc_index, offset);
+			KindInstruction(output, "JOIN_WORKER", executable, proc_index, offset);
 			break;
 		case VmOpCode::CHANNEL_CREATE:
 			SimpleInstruction(output, "CHANNEL_CREATE", offset);

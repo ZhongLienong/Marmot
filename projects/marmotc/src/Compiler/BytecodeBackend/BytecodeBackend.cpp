@@ -1793,20 +1793,9 @@ namespace
 						EmitOperand(Kind(GenericTypes::RepresentationOf(instruction.m_type)->GetType<MidoriType::WorkerType>().m_result_type), line);
 					});
 			case MidoriIROp::Join:
-			{
-				const MidoriIRJoinTags& tags = std::get<MidoriIRJoinTags>(instruction.m_immediate);
-				if (std::ranges::any_of(std::array<int, 4u>{ tags.m_ok, tags.m_err, tags.m_cancelled, tags.m_failed }, [](int tag) { return tag > MAX_UNION_TAG; }))
-				{
-					return std::unexpected(m_backend.LimitExceeded("Union tag for 'join' result exceeds the supported maximum", line));
-				}
 				EmitByte(OpCode::JOIN_WORKER, line);
-				EmitOperand(tags.m_ok, line);
-				EmitOperand(tags.m_err, line);
-				EmitOperand(tags.m_cancelled, line);
-				EmitOperand(tags.m_failed, line);
 				EmitOperand(Kind(GenericTypes::RepresentationOf(m_function.TypeOf(instruction.m_operands.front()))->GetType<MidoriType::WorkerType>().m_result_type), line);
 				return {};
-			}
 			case MidoriIROp::ChannelNew:
 				EmitByte(OpCode::CHANNEL_CREATE, line);
 				return {};

@@ -1,5 +1,5 @@
 {
-  "format_version": 15,
+  "format_version": 16,
   "builtin_abi_version": 1,
   "opcodes": [
     {
@@ -950,9 +950,9 @@
     {
       "id": 155,
       "name": "JOIN_WORKER",
-      "length": 6,
+      "length": 2,
       "category": "Concurrency",
-      "description": "[op][ok][err][cancelled][failed][value kind] tags of Result and WorkerError; value kind 1 when Ok's value is a pointer"
+      "description": "[op][value kind] builds the outcome union: member 0 holding the value, or member 1 holding an error union whose member 0 is cancellation and member 1 failure with its message; value kind 1 when the value is a pointer"
     },
     {
       "id": 156,

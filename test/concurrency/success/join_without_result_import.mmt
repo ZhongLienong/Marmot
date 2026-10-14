@@ -1,0 +1,17 @@
+module JoinWithoutResultImport
+
+import { "../../../MarmotPrelude/Concurrency.mmt" }
+
+import { "../../../MarmotPrelude/IO.mmt" }
+
+// `Concurrency::Join` evaluates to Result<T, WorkerError>, and it is declared in
+// Concurrency.mmt, which names both types itself. So a file that joins and hands the
+// result on, without matching on it, need not import Result.mmt. It used to be a
+// parse error, from when the parser looked `Result` up by name where the join was.
+
+def Double = fn(n : Int) -> Int => n * 2;
+
+def worker = Concurrency::Spawn(21, Double);
+def result = Concurrency::Join(worker);
+
+IO::PrintLine((Concurrency::JoinedOrPanic(result)) as Text);

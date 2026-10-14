@@ -13,13 +13,25 @@ namespace
 {
 	using TypeRef = std::shared_ptr<MidoriType>;
 
-	// Called like functions, but each is one instruction.
-	constexpr std::array<std::string_view, 3u> s_intrinsic_calls =
+	MidoriIROp InstructionOf(MidoriPrimitive primitive)
 	{
-		"Concurrency::Close",
-		"Concurrency::IsDone",
-		"Concurrency::Cancel"
-	};
+		switch (primitive)
+		{
+		case MidoriPrimitive::Spawn:
+			return MidoriIROp::Spawn;
+		case MidoriPrimitive::Join:
+			return MidoriIROp::Join;
+		case MidoriPrimitive::ChannelNew:
+			return MidoriIROp::ChannelNew;
+		case MidoriPrimitive::ChannelClose:
+			return MidoriIROp::ChannelClose;
+		case MidoriPrimitive::WorkerIsDone:
+			return MidoriIROp::WorkerIsDone;
+		case MidoriPrimitive::WorkerCancel:
+			return MidoriIROp::WorkerCancel;
+		}
+		std::unreachable();
+	}
 
 	// The type a closure of a function with this signature has.
 	TypeRef ClosureType(const TypeRef& function_type)
@@ -337,6 +349,10 @@ Lowering::Emitted Lowering::ReserveTopLevelName(MidoriStatement& statement)
 
 		Emitted operator()(MidoriStatement::ForeignDefinition& foreign) const
 		{
+			if (foreign.DeclaredPrimitive().has_value())
+			{
+				return {};
+			}
 			return m_self.ReserveForeign(foreign);
 		}
 
@@ -501,7 +517,7 @@ std::vector<LoweredExport> Lowering::CollectExports() const
 		{
 			export_name(statement->GetStatement<MidoriStatement::VariableDefinition>().m_name, BytecodeModule::SymbolType::GLOBAL_VARIABLE);
 		}
-		else if (statement->IsStatement<MidoriStatement::ForeignDefinition>())
+		else if (statement->IsStatement<MidoriStatement::ForeignDefinition>() && !statement->GetStatement<MidoriStatement::ForeignDefinition>().DeclaredPrimitive().has_value())
 		{
 			export_name(statement->GetStatement<MidoriStatement::ForeignDefinition>().m_function_name, BytecodeModule::SymbolType::FOREIGN_FUNCTION);
 		}
@@ -536,6 +552,10 @@ Lowering::Emitted Lowering::LowerTopLevelStatement(MidoriStatement& statement)
 	if (statement.IsStatement<MidoriStatement::ForeignDefinition>())
 	{
 		const MidoriStatement::ForeignDefinition& foreign = statement.GetStatement<MidoriStatement::ForeignDefinition>();
+		if (foreign.DeclaredPrimitive().has_value())
+		{
+			return {};
+		}
 		const std::string value = foreign.m_library.has_value() ? foreign.m_library.value() + NATIVE_SYMBOL_SEPARATOR + foreign.m_foreign_name : foreign.m_foreign_name;
 		Builder().AtLine(foreign.m_function_name.m_line);
 		Builder().Emit(MidoriIROp::GlobalDefine, UnitType(), { Builder().ConstText(value) }, m_top_level_names.at(foreign.m_function_name.m_lexeme).m_slot);
@@ -659,6 +679,10 @@ Lowering::Emitted Lowering::LowerStatement(MidoriStatement& statement)
 
 		Emitted operator()(MidoriStatement::ForeignDefinition& foreign) const
 		{
+			if (foreign.DeclaredPrimitive().has_value())
+			{
+				return {};
+			}
 			return m_self.ForeignName(foreign)
 				.transform([this, &foreign](const std::string& value)
 				{
@@ -1223,43 +1247,26 @@ Lowering::Lowered Lowering::CallResolved(const std::string& resolved_name, std::
 		});
 }
 
-std::optional<std::string> Lowering::IntrinsicName(const MidoriExpression::Call& call) const
+// A primitive is its instruction, whichever module declared it.
+Lowering::Lowered Lowering::LowerPrimitive(MidoriExpression::Call& call)
 {
-	const MidoriExpression::NameAccess* name = GlobalName(*call.m_callee);
-	if (name == nullptr || !std::ranges::contains(s_intrinsic_calls, name->m_name.m_lexeme))
+	const MidoriPrimitive primitive = call.m_primitive.value();
+	if (primitive == MidoriPrimitive::Spawn)
 	{
-		return std::nullopt;
+		return LowerSpawn(call);
 	}
-	return name->m_name.m_lexeme;
-}
 
-Lowering::Lowered Lowering::LowerIntrinsic(const std::string& name, MidoriExpression::Call& call)
-{
-	struct Intrinsic
-	{
-		std::string_view m_name;
-		MidoriIROp m_op;
-	};
-	static constexpr std::array<Intrinsic, 3u> s_intrinsics =
-	{{
-		{ "Concurrency::Close", MidoriIROp::ChannelClose },
-		{ "Concurrency::IsDone", MidoriIROp::WorkerIsDone },
-		{ "Concurrency::Cancel", MidoriIROp::WorkerCancel }
-	}};
-
-	const MidoriIROp op = std::ranges::find(s_intrinsics, name, &Intrinsic::m_name)->m_op;
 	std::vector<MidoriExpression*> operands = call.m_arguments
 		| std::views::transform([](std::unique_ptr<MidoriExpression>& argument) { return argument.get(); })
 		| std::ranges::to<std::vector>();
-	return LowerOperation(op, Concrete(call.m_type_data), std::move(operands), {}, call.m_paren.m_line);
+	return LowerOperation(InstructionOf(primitive), Concrete(call.m_type_data), std::move(operands), {}, call.m_paren.m_line);
 }
 
 Lowering::Lowered Lowering::LowerCall(MidoriExpression::Call& call)
 {
-	const std::optional<std::string> intrinsic = IntrinsicName(call);
-	if (intrinsic.has_value())
+	if (call.m_primitive.has_value())
 	{
-		return LowerIntrinsic(intrinsic.value(), call);
+		return LowerPrimitive(call);
 	}
 
 	const TypeRef call_type = Concrete(call.m_type_data);
@@ -1284,7 +1291,7 @@ Lowering::Lowered Lowering::LowerCall(MidoriExpression::Call& call)
 // and a call whose result is not the function's is not one it can return.
 Lowering::Emitted Lowering::LowerTailCall(MidoriExpression::Call& call)
 {
-	if (call.m_is_foreign || IntrinsicName(call).has_value())
+	if (call.m_is_foreign || call.m_primitive.has_value())
 	{
 		return LowerCall(call)
 			.transform([this](MidoriIRValueId value)

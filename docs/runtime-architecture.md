@@ -47,7 +47,7 @@ holds at most 65,535.
 
 `MidoriValue` is an untagged word in release builds, and nothing decides from
 its bits whether it is a pointer. The compiler writes down where every pointer
-is (format 15): a kind for each global; for each procedure, a kind for each
+is (since format 15): a kind for each global; for each procedure, a kind for each
 frame slot, which holds one kind of value for the whole procedure, and the
 kinds of the temporaries on its operand stack where a collection can start
 with some there; and a shape for each aggregate, listing its pointer fields.

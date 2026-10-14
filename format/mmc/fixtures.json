@@ -1,5 +1,5 @@
 {
-  "format_version": 15,
+  "format_version": 16,
   "baseline_commit": "b8cea1dc5a9d12ce66b91f4c4600d4d924c3ec71",
   "producer": "marmotc build, Development profile, from the baseline compiler source",
   "path_normalization": "Serialized paths beneath the checkout were changed to repository-relative forward-slash paths; payload size and CRC32 were recomputed. All other fields are unchanged.",
@@ -48,8 +48,8 @@
     },
     {
       "name": "old_version",
-      "derived_from": "minimal.mmc with format_version changed from 15 to 11",
-      "stderr_contains": "format version mismatch: expected 15, got 11"
+      "derived_from": "minimal.mmc with format_version changed from 16 to 11",
+      "stderr_contains": "format version mismatch: expected 16, got 11"
     }
   ]
 }

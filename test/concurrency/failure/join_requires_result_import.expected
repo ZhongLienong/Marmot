@@ -1,6 +1,0 @@
-Compilation failed :( 
-Parser Error at test/concurrency/failure/join_requires_result_import.mmt:14
-   |
-14 | def result = Concurrency::Join(worker);
-   |              ^^^^^^^^^^^ 'Concurrency::Join' evaluates to Result<T, WorkerError>. Import "MarmotPrelude/Prelude/Result.mmt" and "MarmotPrelude/Concurrency.mmt" to use it.
-   |

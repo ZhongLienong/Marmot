@@ -290,8 +290,7 @@ private:
 
 	Lowered LowerCall(MidoriExpression::Call& call);
 	Emitted LowerTailCall(MidoriExpression::Call& call);
-	std::optional<std::string> IntrinsicName(const MidoriExpression::Call& call) const;
-	Lowered LowerIntrinsic(const std::string& name, MidoriExpression::Call& call);
+	Lowered LowerPrimitive(MidoriExpression::Call& call);
 	std::expected<Callee, CompilerError> ResolveCallee(MidoriExpression::Call& call, const std::vector<MidoriIRValueId>& arguments, const TypeRef& call_type);
 	TypeRef ResultTypeOf(const Callee& callee, const TypeRef& call_type);
 	MidoriIRValueId EmitCall(const Callee& callee, std::vector<MidoriIRValueId> arguments, const TypeRef& call_type, int line);
@@ -318,8 +317,7 @@ private:
 	Lowered LowerUpdatedRecord(MidoriIRValueId source, const TypeRef& type, const std::vector<MidoriExpression::RecordUpdate::FieldUpdate*>& updates, size_t depth, int line);
 	Lowered LowerMemberAccess(MidoriExpression::MemberAccess& member);
 	Lowered LowerRange(MidoriExpression& start, MidoriExpression* step, MidoriExpression& end, const TypeRef& range_type, int line);
-	Lowered LowerSpawn(MidoriExpression::Spawn& spawn);
-	Lowered LowerJoin(MidoriExpression::Join& join);
+	Lowered LowerSpawn(MidoriExpression::Call& spawn);
 	Lowered LowerOperation(MidoriIROp op, const TypeRef& type, std::vector<MidoriExpression*> operands, MidoriIRImmediate immediate, int line);
 
 	// LoweringControl.cpp: control flow.

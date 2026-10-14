@@ -162,17 +162,6 @@ struct MidoriIRGlobalSlot
 	bool operator==(const MidoriIRGlobalSlot&) const = default;
 };
 
-// The union tags `join` builds its Result<T, WorkerError> from.
-struct MidoriIRJoinTags
-{
-	int m_ok;
-	int m_err;
-	int m_cancelled;
-	int m_failed;
-
-	bool operator==(const MidoriIRJoinTags&) const = default;
-};
-
 struct MidoriIRForeign
 {
 	std::string m_name;
@@ -196,8 +185,7 @@ using MidoriIRImmediate = std::variant
 	MidoriIRUnionField,
 	MidoriIRGlobalSlot,
 	MidoriIRFunctionId,
-	MidoriIRForeign,
-	MidoriIRJoinTags
+	MidoriIRForeign
 >;
 
 // Where a terminator goes, with the arguments it passes to that block's

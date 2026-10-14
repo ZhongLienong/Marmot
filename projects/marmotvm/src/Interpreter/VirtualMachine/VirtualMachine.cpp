@@ -506,20 +506,22 @@ MIDORI_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(VmOpCode inst
 	}
 	case VmOpCode::JOIN_WORKER:
 	{
-		const int ok_tag = static_cast<int>(ReadByte(ip));
-		const int err_tag = static_cast<int>(ReadByte(ip));
-		const int cancelled_tag = static_cast<int>(ReadByte(ip));
-		const int failed_tag = static_cast<int>(ReadByte(ip));
 		const uint16_t ok_shape = ReadByte(ip) != VmOpCode{ 0u } ? VM_FIRST_FIELD_SHAPE : VM_SCALAR_SHAPE;
 
-		// `join` evaluates to Result<T, WorkerError>. A worker that failed or was
-		// cancelled becomes Err(...) for the joining code to handle; it no longer
-		// terminates the joining VM.
+		// The compiler checks Join's declared result by position: member 0 holds the
+		// worker's value and member 1 why there is none, itself member 0 when the
+		// worker was cancelled and member 1, with the message, when it failed. A
+		// worker that failed is a value for the joining code to handle, not an end
+		// to the joining VM.
+		static constexpr int s_ok_tag = 0;
+		static constexpr int s_err_tag = 1;
+		static constexpr int s_cancelled_tag = 0;
+		static constexpr int s_failed_tag = 1;
 		const int worker_id = static_cast<int>(Pop().GetInteger());
 		std::expected<TransferPayload, WorkerError> worker_result = WorkerRegistry::GetInstance().JoinWorkerValue(worker_id);
 
 		MidoriValue payload;
-		int result_tag = ok_tag;
+		int result_tag = s_ok_tag;
 		uint16_t result_shape = ok_shape;
 		if (worker_result.has_value())
 		{
@@ -529,14 +531,14 @@ MIDORI_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(VmOpCode inst
 		{
 			if (worker_result.error().m_cancelled)
 			{
-				payload = AllocateAggregate(MidoriTraceable::TraceableType::Union, {}, cancelled_tag, VM_SCALAR_SHAPE);
+				payload = AllocateAggregate(MidoriTraceable::TraceableType::Union, {}, s_cancelled_tag, VM_SCALAR_SHAPE);
 			}
 			else
 			{
 				const MidoriValue message = AllocateTraceable(MidoriText(worker_result.error().m_message.c_str()));
-				payload = AllocateAggregate(MidoriTraceable::TraceableType::Union, std::span<const MidoriValue>(&message, 1uz), failed_tag, VM_FIRST_FIELD_SHAPE);
+				payload = AllocateAggregate(MidoriTraceable::TraceableType::Union, std::span<const MidoriValue>(&message, 1uz), s_failed_tag, VM_FIRST_FIELD_SHAPE);
 			}
-			result_tag = err_tag;
+			result_tag = s_err_tag;
 			result_shape = VM_FIRST_FIELD_SHAPE;
 		}
 
