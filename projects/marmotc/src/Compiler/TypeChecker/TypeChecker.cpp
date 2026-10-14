@@ -3940,7 +3940,12 @@ std::optional<CompilerError> TypeChecker::CheckPrimitiveDeclaration(const Midori
 	const std::vector<std::shared_ptr<MidoriType>>& params = signature.m_param_types;
 	const std::shared_ptr<MidoriType>& result = signature.m_return_type;
 	const bool takes_one = params.size() == 1u;
-	const auto [is_declared, expected] = [&]() -> std::pair<bool, std::string_view>
+	struct DeclaredShape
+	{
+		bool m_matches;
+		std::string_view m_expected;
+	};
+	const DeclaredShape shape = [&]() -> DeclaredShape
 	{
 		switch (foreign.DeclaredPrimitive().value())
 		{
@@ -3959,11 +3964,11 @@ std::optional<CompilerError> TypeChecker::CheckPrimitiveDeclaration(const Midori
 		std::unreachable();
 	}();
 
-	if (is_declared)
+	if (shape.m_matches)
 	{
 		return std::nullopt;
 	}
-	return MidoriError::GenerateTypeCheckerErrorWithContext(std::format("Foreign declaration error: '{}' declares the primitive \"{}\", whose type must be {}", foreign.m_function_name.m_lexeme, foreign.m_foreign_name, expected), foreign.m_function_name, m_file_name, m_source_lines);
+	return MidoriError::GenerateTypeCheckerErrorWithContext(std::format("Foreign declaration error: '{}' declares the primitive \"{}\", whose type must be {}", foreign.m_function_name.m_lexeme, foreign.m_foreign_name, shape.m_expected), foreign.m_function_name, m_file_name, m_source_lines);
 }
 
 MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Struct& struct_stmt)

@@ -116,7 +116,7 @@ Current expression variants:
 - `Tuple`
 - `Literal` (one node; `m_kind` is `Bool`, `Integer`, `Byte`, `Word`, `Float`, `Text` or `Unit`)
 - `UnaryPrefix`
-- `Spawn`, `Join`, `ChannelCreate`, `Send`, `Receive`
+- `Send`, `Receive`
 - `NameAccess`
 - `Call`, `Function`
 - `Construct`, `RecordUpdate`
@@ -174,6 +174,8 @@ It also records whether some operators should lower through typeclass dispatch, 
 Source: `projects/marmotc/src/Compiler/StaticAnalyzerManager/`
 
 Static analysis runs after type checking and before lowering. It emits warnings without mutating the AST.
+
+Before the passes run, it finds a summary of each top-level function (`projects/marmotc/src/Compiler/Analysis/WorkerCrossing`): which parameters reach a worker, and whether the result comes back from one. The module's interface carries them, so `CellCrossesWorkerDiagnostic` warns at a call to an imported function that spawns as it does at a spawn.
 
 Current warning passes:
 
