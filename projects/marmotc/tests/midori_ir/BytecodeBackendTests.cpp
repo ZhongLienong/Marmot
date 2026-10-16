@@ -7,7 +7,6 @@
 #include "Compiler/MidoriIR/Builder/MidoriIRBuilder.h"
 #include "Compiler/MidoriIR/Verifier/MidoriIRVerifier.h"
 #include "support/CompileHelpers.h"
-#include "support/OutputCapture.h"
 
 #include <format>
 #include <ranges>

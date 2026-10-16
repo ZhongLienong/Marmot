@@ -11,38 +11,6 @@
 #include <string_view>
 #include <vector>
 
-namespace
-{
-	std::string StripAnsiCodes(std::string_view text)
-	{
-		std::string stripped;
-		stripped.reserve(text.size());
-
-		bool in_escape = false;
-		for (const char ch : text)
-		{
-			if (ch == '\033')
-			{
-				in_escape = true;
-				continue;
-			}
-
-			if (in_escape)
-			{
-				if (ch == 'm')
-				{
-					in_escape = false;
-				}
-				continue;
-			}
-
-			stripped.push_back(ch);
-		}
-
-		return stripped;
-	}
-}
-
 TEST_CASE("CompilerError WithContext renders source, caret, and suggestion", "[error][format]")
 {
 	const CompilerError error = CompilerError::WithContext(
@@ -63,7 +31,7 @@ TEST_CASE("CompilerError WithContext renders source, caret, and suggestion", "[e
 		"  |\n"
 		"  | Try adding a literal\n";
 
-	REQUIRE(StripAnsiCodes(error.Rendered()) == expected_render);
+	REQUIRE(MidoriTest::StripAnsiCodes(error.Rendered()) == expected_render);
 }
 
 TEST_CASE("CompilerWarning WithToken highlights the matching token span", "[warning][format]")
@@ -91,7 +59,7 @@ TEST_CASE("CompilerWarning WithToken highlights the matching token span", "[warn
 		"  |\n"
 		"  | Prefix with '_' if intentional\n";
 
-	REQUIRE(StripAnsiCodes(warning.Rendered()) == expected_render);
+	REQUIRE(MidoriTest::StripAnsiCodes(warning.Rendered()) == expected_render);
 	REQUIRE(warning.m_code == CompilerWarningCode::UnusedLocal);
 }
 
@@ -117,7 +85,7 @@ TEST_CASE("CompilerError WithToken uses the stored token span instead of searchi
 		"  | " + std::string(20u, ' ') + "^^^^^ Unexpected identifier\n"
 		"  |\n";
 
-	REQUIRE(StripAnsiCodes(error.Rendered()) == expected_render);
+	REQUIRE(MidoriTest::StripAnsiCodes(error.Rendered()) == expected_render);
 }
 
 TEST_CASE("CompilerError WithToken renders a single caret for zero-length token spans", "[error][format]")
@@ -142,7 +110,7 @@ TEST_CASE("CompilerError WithToken renders a single caret for zero-length token 
 		"  | " + std::string(13u, ' ') + "^ Unexpected end of file\n"
 		"  |\n";
 
-	REQUIRE(StripAnsiCodes(error.Rendered()) == expected_render);
+	REQUIRE(MidoriTest::StripAnsiCodes(error.Rendered()) == expected_render);
 }
 
 TEST_CASE("Unlocated compiler diagnostics render under their stage header", "[error][warning][format]")
@@ -150,8 +118,8 @@ TEST_CASE("Unlocated compiler diagnostics render under their stage header", "[er
 	const CompilerError error = CompilerError::Simple(CompilerStage::Module, "Missing import");
 	const CompilerWarning warning = CompilerWarning::Simple(CompilerStage::StaticAnalyzer, "Local 'count' is never used");
 
-	REQUIRE(StripAnsiCodes(error.Rendered()) == "Module Error\n  Missing import\n");
-	REQUIRE(StripAnsiCodes(warning.Rendered()) == "Static Analyzer Warning\n  Local 'count' is never used\n");
+	REQUIRE(MidoriTest::StripAnsiCodes(error.Rendered()) == "Module Error\n  Missing import\n");
+	REQUIRE(MidoriTest::StripAnsiCodes(warning.Rendered()) == "Static Analyzer Warning\n  Local 'count' is never used\n");
 }
 
 TEST_CASE("Compiler report renders grouped warnings and structured machine-readable warnings", "[compiler][warning][report]")
@@ -196,7 +164,7 @@ TEST_CASE("Compiler report renders grouped warnings and structured machine-reada
 		beta_warning
 	}));
 
-	const std::string rendered = StripAnsiCodes(report.RenderedWarnings());
+	const std::string rendered = MidoriTest::StripAnsiCodes(report.RenderedWarnings());
 	CHECK(rendered.find("[warning] 2 warning(s) in Alpha.mmt\n") != std::string::npos);
 	CHECK(rendered.find("[warning] 1 warning(s) in Beta.mmt\n") != std::string::npos);
 
@@ -254,7 +222,7 @@ TEST_CASE("Driver renders compilation warnings and errors behind one banner", "[
 		MidoriDriver::DriverError::Compilation(MidoriResult::CompilerReport(
 			MidoriResult::CompilerWarnings(std::move(warning)),
 			MidoriResult::CompilerDiagnostics(std::move(errors))));
-	const std::string rendered = StripAnsiCodes(error.Rendered());
+	const std::string rendered = MidoriTest::StripAnsiCodes(error.Rendered());
 
 	REQUIRE(rendered.starts_with("Compilation failed :( \n"));
 
