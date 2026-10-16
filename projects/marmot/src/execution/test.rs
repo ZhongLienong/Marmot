@@ -236,10 +236,8 @@ fn snapshot_text(text: &str, root_prefix: &str) -> String {
 }
 
 fn normalized_warning(mut warning: Value, root_prefix: &str) -> Value {
-    for member in ["file", "file_path"] {
-        if let Some(text) = warning.get(member).and_then(Value::as_str) {
-            warning[member] = Value::from(without_root(text, root_prefix));
-        }
+    if let Some(text) = warning.get("file").and_then(Value::as_str) {
+        warning["file"] = Value::from(without_root(text, root_prefix));
     }
     warning
 }

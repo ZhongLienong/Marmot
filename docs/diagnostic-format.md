@@ -63,7 +63,6 @@ Compiler diagnostics in `report.diagnostics`, `report.warnings`, and
   "code": "UnusedLocal",
   "message": "Binding 'unused' is never read.",
   "file": "test/static_analyzer/success/unused_local_warning.mmt",
-  "file_path": "test/static_analyzer/success/unused_local_warning.mmt",
   "line": 4,
   "column": 4,
   "endLine": 4,
@@ -88,9 +87,8 @@ Stable fields:
 - `endColumn`
 - `suggestion`
 
-Compatibility alias:
+Compatibility field:
 
-- `file_path`: legacy alias for `file`
 - `caret_length`: retained for existing tooling; editors should prefer
   `endLine` / `endColumn`
 
@@ -111,7 +109,6 @@ but the diagnostic object includes runtime-specific fields:
   "kind": "panic",
   "message": "Stack overflow - exceeded maximum call depth.",
   "file": "Runtime.mmt",
-  "file_path": "Runtime.mmt",
   "line": 5,
   "column": null,
   "endLine": 5,
@@ -124,7 +121,6 @@ but the diagnostic object includes runtime-specific fields:
       "procedure": "recurse",
       "module": "Runtime",
       "file": "Runtime.mmt",
-      "file_path": "Runtime.mmt",
       "line": 2,
       "column": null,
       "endLine": 2,
@@ -149,7 +145,6 @@ Runtime stack frame fields:
 - `procedure`
 - `module`
 - `file`
-- `file_path`
 - `line`
 - `column`
 - `endLine`
@@ -238,7 +233,6 @@ Current `CompilerWarningCode` values:
   "code": "UnusedLocal",
   "message": "Binding 'unused' is never read.",
   "file": "test/static_analyzer/success/unused_local_warning.mmt",
-  "file_path": "test/static_analyzer/success/unused_local_warning.mmt",
   "line": 4,
   "column": 4,
   "endLine": 4,
@@ -259,7 +253,6 @@ Current `CompilerWarningCode` values:
   "code": "None",
   "message": "Expected expression.",
   "file": "test/expression/failure/missing_rhs.mmt",
-  "file_path": "test/expression/failure/missing_rhs.mmt",
   "line": 2,
   "column": 12,
   "endLine": 2,
@@ -281,7 +274,6 @@ Current `CompilerWarningCode` values:
   "kind": "panic",
   "message": "Stack overflow - exceeded maximum call depth.",
   "file": "Runtime.mmt",
-  "file_path": "Runtime.mmt",
   "line": 5,
   "column": null,
   "endLine": 5,
@@ -361,8 +353,8 @@ Stability guarantees:
 
 - existing fields listed above are stable within schema version `1`
 - new fields may be added in future versions without removing existing fields
-- `file_path` and `caret_length` are compatibility fields and may be removed in
-  a future schema version after a deprecation window
+- `caret_length` is a compatibility field and may be removed in a future
+  schema version after a deprecation window
 - example messages above are illustrative; the exact wording of any specific
   diagnostic may change between releases. Tooling should match on `code`, not
   on the human-readable `message`.

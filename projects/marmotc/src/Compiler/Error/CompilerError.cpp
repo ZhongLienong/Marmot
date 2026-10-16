@@ -204,7 +204,6 @@ namespace
 
 			CompilerJson::AppendStringField(object, "message", item.m_message, first_field);
 			CompilerJson::AppendStringField(object, "file", file, first_field);
-			CompilerJson::AppendStringField(object, "file_path", file, first_field);
 			CompilerJson::AppendNumberField(object, "line", line, first_field);
 			CompilerJson::AppendNumberField(object, "column", item.m_location.m_column, first_field);
 			CompilerJson::AppendNumberField(object, "endLine", end_line, first_field);
@@ -264,7 +263,6 @@ namespace
 		CompilerJson::AppendStringField(serialized, "code", code_name, first_field);
 		CompilerJson::AppendStringField(serialized, "message", message, first_field);
 		CompilerJson::AppendStringField(serialized, "file", file, first_field);
-		CompilerJson::AppendStringField(serialized, "file_path", file, first_field);
 		CompilerJson::AppendNumberField(serialized, "line", line, first_field);
 		CompilerJson::AppendNumberField(serialized, "column", column, first_field);
 		CompilerJson::AppendNumberField(serialized, "endLine", end_line, first_field);

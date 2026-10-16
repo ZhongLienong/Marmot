@@ -6,7 +6,6 @@
     "code": "CellCrossesWorker",
     "message": "This reference is copied into the worker; writes on either side are not seen by the other.",
     "file": "test/static_analyzer/success/cell_crosses_worker_capture.mmt",
-    "file_path": "test/static_analyzer/success/cell_crosses_worker_capture.mmt",
     "line": 25,
     "column": 2,
     "endLine": 25,

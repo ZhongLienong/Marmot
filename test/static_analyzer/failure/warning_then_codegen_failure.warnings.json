@@ -6,7 +6,6 @@
     "code": "UnusedLocal",
     "message": "Binding 'unused' is never read.",
     "file": "test/static_analyzer/failure/warning_then_codegen_failure.mmt",
-    "file_path": "test/static_analyzer/failure/warning_then_codegen_failure.mmt",
     "line": 10,
     "column": 4,
     "endLine": 10,

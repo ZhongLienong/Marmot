@@ -6,7 +6,6 @@
     "code": "UnusedLocal",
     "message": "Binding 'ignored' is never read.",
     "file": "test/static_analyzer/success/unused_local_nested_capture.mmt",
-    "file_path": "test/static_analyzer/success/unused_local_nested_capture.mmt",
     "line": 10,
     "column": 6,
     "endLine": 10,

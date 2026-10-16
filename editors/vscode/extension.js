@@ -56,7 +56,7 @@ function refreshDiagnostics(document, collection) {
             const mapped = diagnostics
                 .filter((item) => typeof item === "object" && item !== null)
                 .filter((item) => {
-                    const file = item.file ?? item.file_path;
+                    const file = item.file;
                     return typeof file !== "string" || normalizePath(file) === documentKey;
                 })
                 .map((item) => {

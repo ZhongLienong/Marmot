@@ -229,7 +229,6 @@ namespace
 		RuntimeJson::AppendStringField(payload, "code", "None", first_field);
 		RuntimeJson::AppendStringField(payload, "message", message, first_field);
 		RuntimeJson::AppendStringField(payload, "file", no_text, first_field);
-		RuntimeJson::AppendStringField(payload, "file_path", no_text, first_field);
 		RuntimeJson::AppendNumberField(payload, "line", no_number, first_field);
 		RuntimeJson::AppendNumberField(payload, "column", no_number, first_field);
 		RuntimeJson::AppendNumberField(payload, "endLine", no_number, first_field);

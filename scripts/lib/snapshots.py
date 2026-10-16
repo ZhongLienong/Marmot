@@ -27,7 +27,7 @@ def snapshot_text(text: str) -> str:
 
 
 def normalized_warning(warning: dict) -> dict:
-    return {key: without_checkout(value) if key in ("file", "file_path") and isinstance(value, str) else value
+    return {key: without_checkout(value) if key == "file" and isinstance(value, str) else value
             for key, value in warning.items()}
 
 

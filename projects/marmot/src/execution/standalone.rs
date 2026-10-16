@@ -93,7 +93,7 @@ fn print_diagnostics(payload: &Value) -> Result<(), String> {
         let message = diagnostic["message"]
             .as_str()
             .ok_or("compiler reported an invalid diagnostic message")?;
-        if let Some(file) = diagnostic["file_path"].as_str() {
+        if let Some(file) = diagnostic["file"].as_str() {
             eprint!("{file}");
             if let Some(line) = diagnostic["line"].as_u64() {
                 eprint!(":{line}");
@@ -111,7 +111,7 @@ fn packaging_failure(payload: &mut Value, message: &str) {
     payload.as_object_mut().unwrap().remove("artifact");
     let diagnostic = serde_json::json!({
         "source": "marmot", "severity": "error", "stage": "Compiler", "code": "None",
-        "message": message, "file": null, "file_path": null, "line": null,
+        "message": message, "file": null, "line": null,
         "column": null, "endLine": null, "endColumn": null, "caret_length": null,
         "suggestion": null, "relatedInformation": [],
     });

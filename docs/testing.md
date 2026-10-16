@@ -62,7 +62,6 @@ Regression tests:
     "stage": "StaticAnalyzer",
     "code": "UnusedLocal",
     "file": "test/static_analyzer/success/unused_local_warning.mmt",
-    "file_path": "test/static_analyzer/success/unused_local_warning.mmt",
     "line": 4,
     "column": 4,
     "endLine": 4,

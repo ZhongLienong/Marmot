@@ -203,7 +203,7 @@ TEST_CASE("Compiler report renders grouped warnings and structured machine-reada
 	const std::string machine = report.MachineReadableWarnings();
 	CHECK(machine.find("\"stage\":\"StaticAnalyzer\"") != std::string::npos);
 	CHECK(machine.find("\"code\":\"UnusedLocal\"") != std::string::npos);
-	CHECK(machine.find("\"file_path\":\"C:/repo/Alpha.mmt\"") != std::string::npos);
+	CHECK(machine.find("\"file\":\"C:/repo/Alpha.mmt\"") != std::string::npos);
 	CHECK(machine.find("\"column\":4") != std::string::npos);
 	CHECK(machine.find("\"caret_length\":6") != std::string::npos);
 	CHECK(machine.find("\"suggestion\":\"Prefix with '_' if intentional\"") != std::string::npos);
@@ -284,7 +284,7 @@ TEST_CASE("Machine-readable errors serialize location and code metadata", "[comp
 	const std::string serialized = SerializeMachineReadableError(error);
 	CHECK(serialized.find("\"stage\":\"CodeGenerator\"") != std::string::npos);
 	CHECK(serialized.find("\"code\":\"LoweringUnsupportedConstruct\"") != std::string::npos);
-	CHECK(serialized.find("\"file_path\":\"Lowering.mmt\"") != std::string::npos);
+	CHECK(serialized.find("\"file\":\"Lowering.mmt\"") != std::string::npos);
 	CHECK(serialized.find("\"line\":6") != std::string::npos);
 	CHECK(serialized.find("\"column\":3") != std::string::npos);
 	CHECK(serialized.find("\"caret_length\":5") != std::string::npos);

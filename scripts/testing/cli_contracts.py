@@ -165,7 +165,7 @@ def scenario_check_json_success_finds_imports_through_marmot_path(tree: BuildTre
         warning = warnings[0]
         assert_condition(warning["stage"] == "StaticAnalyzer", f"Unexpected warning stage: {warning}")
         assert_condition(warning["code"] == "UnusedLocal", f"Unexpected warning code: {warning}")
-        assert_condition(str(warning["file_path"]).endswith("Main.mmt"), f"Unexpected warning file_path: {warning}")
+        assert_condition(str(warning["file"]).endswith("Main.mmt"), f"Unexpected warning file: {warning}")
 
 
 def scenario_check_json_failure_reports_parser_errors(tree: BuildTree) -> None:
@@ -200,7 +200,7 @@ def scenario_check_json_failure_reports_parser_errors(tree: BuildTree) -> None:
             "Expected expression" in str(error["message"]),
             f"Expected parser message to mention 'Expected expression', got: {error}",
         )
-        assert_condition(str(error["file_path"]).endswith("Broken.mmt"), f"Unexpected file_path: {error}")
+        assert_condition(str(error["file"]).endswith("Broken.mmt"), f"Unexpected file: {error}")
 
 
 def scenario_check_reads_only_regular_files(tree: BuildTree) -> None:

@@ -110,7 +110,6 @@ namespace
 			RuntimeJson::AppendStringField(object, "procedure", frame.m_procedure_name, first_field);
 			RuntimeJson::AppendStringField(object, "module", frame.m_module_name.empty() ? std::optional<std::string_view>(std::nullopt) : std::optional<std::string_view>(frame.m_module_name), first_field);
 			RuntimeJson::AppendStringField(object, "file", file, first_field);
-			RuntimeJson::AppendStringField(object, "file_path", file, first_field);
 			RuntimeJson::AppendNumberField(object, "line", line, first_field);
 			RuntimeJson::AppendNumberField(object, "column", frame.m_location.m_column, first_field);
 			RuntimeJson::AppendNumberField(object, "endLine", end_line, first_field);
@@ -168,7 +167,6 @@ namespace
 		RuntimeJson::AppendStringField(serialized, "kind", error.m_kind == RuntimeDiagnosticKind::Panic ? "panic" : "error", first_field);
 		RuntimeJson::AppendStringField(serialized, "message", error.m_message, first_field);
 		RuntimeJson::AppendStringField(serialized, "file", file, first_field);
-		RuntimeJson::AppendStringField(serialized, "file_path", file, first_field);
 		RuntimeJson::AppendNumberField(serialized, "line", line, first_field);
 		RuntimeJson::AppendNumberField(serialized, "column", column, first_field);
 		RuntimeJson::AppendNumberField(serialized, "endLine", end_line, first_field);
