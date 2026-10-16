@@ -66,10 +66,10 @@ def steps(args: argparse.Namespace, tree: BuildTree) -> dict[str, Callable[[], i
         "build": lambda: build_everything(tree),
         "unit": lambda: unit.main(common),
         "mmc": lambda: mmc_contract.main(common),
-        "docs": lambda: doc_examples.main(common + verbose),
+        "docs": lambda: doc_examples.main(common),
         "cli": lambda: cli_contracts.main(common + verbose),
         "format": lambda: formatting.main(common + verbose),
-        "benchmarks": lambda: benchmarks.main(common + verbose),
+        "benchmarks": lambda: benchmarks.main(common),
         "tool": lambda: tool.main(common),
         "language": lambda: language.main(common),
     }

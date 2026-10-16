@@ -25,10 +25,10 @@ if sys.version_info < (3, 10):
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from lib import console
-from lib.presets import BuildTree
+from lib.presets import BuildTree, UNIT_TARGETS as TEST_BINARIES
 
 COMPILER_AND_VM = ["marmotc", "marmotvm"]
-UNIT_TARGETS = ["MarmotcUnitTests", "MarmotvmUnitTests", "MarmotIntegrationTests", *COMPILER_AND_VM]
+UNIT_TARGETS = [*TEST_BINARIES, *COMPILER_AND_VM]
 
 
 @dataclass(frozen=True)

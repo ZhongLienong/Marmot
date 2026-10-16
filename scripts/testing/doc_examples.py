@@ -289,7 +289,7 @@ def load_expected_output(root: Path, example: DocExample) -> Optional[str]:
     return expected_path.read_text(encoding="utf-8")
 
 
-def run_example(root: Path, compiler: Path, example: DocExample, verbose: bool) -> Optional[str]:
+def run_example(root: Path, compiler: Path, example: DocExample) -> Optional[str]:
     compile_source = example.generated_source()
     compile_path = example.compile_path
     expected_output = load_expected_output(root, example)
@@ -337,7 +337,7 @@ def run_example(root: Path, compiler: Path, example: DocExample, verbose: bool) 
 
     status = "[OK]" if passed else "[FAIL]"
     print(f"{status} {example.kind.upper()} {example.name}")
-    if passed is False and (verbose or True):
+    if passed is False:
         print(f"  Source: {example.doc_path}:{example.start_line}")
         print(f"  Mirror: {mirror_path(root, example)}")
         print(f"  Temp:   {compile_path.relative_to(root)}")
@@ -358,11 +358,6 @@ def main(argv: list[str]) -> int:
         "--skip-run",
         action="store_true",
         help="Only perform mirror sync/check; do not compile extracted examples.",
-    )
-    parser.add_argument(
-        "--verbose",
-        action="store_true",
-        help="Show more detail for failures.",
     )
     args = parser.parse_args(argv)
 
@@ -389,7 +384,7 @@ def main(argv: list[str]) -> int:
 
     failures = []
     try:
-        failures = [error for example in examples if (error := run_example(root, compiler, example, args.verbose)) is not None]
+        failures = [error for example in examples if (error := run_example(root, compiler, example)) is not None]
     finally:
         remove_artifacts(root, (".doc_example_*.mmt", ".doc_examples", *BUILD_ARTIFACTS))
 

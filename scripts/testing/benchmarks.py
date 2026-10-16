@@ -98,11 +98,6 @@ def main(argv: list[str]) -> int:
         default=300.0,
         help="Per-benchmark run timeout in seconds when --run is given (default: 300).",
     )
-    parser.add_argument(
-        "--verbose",
-        action="store_true",
-        help="Accepted for consistency with the other check scripts.",
-    )
     args = parser.parse_args(argv)
 
     root = REPO_ROOT
