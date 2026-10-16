@@ -25,23 +25,11 @@ namespace
 	{
 #ifdef _WIN32
 		constexpr char separator = ';';
-		char* raw = nullptr;
-		size_t length = 0u;
-		if (_dupenv_s(&raw, &length, name) != 0 || raw == nullptr)
-		{
-			return {};
-		}
-		const std::string value(raw);
-		free(raw);
 #else
 		constexpr char separator = ':';
-		const char* raw = std::getenv(name);
-		if (raw == nullptr)
-		{
-			return {};
-		}
-		const std::string value(raw);
 #endif
+		const char* raw = std::getenv(name);
+		const std::string value = raw == nullptr ? std::string() : std::string(raw);
 		using Segment = std::ranges::subrange<std::string::const_iterator>;
 		return value
 			| std::views::split(separator)
@@ -50,34 +38,42 @@ namespace
 			| std::ranges::to<std::vector<std::filesystem::path>>();
 	}
 
-	[[nodiscard]] bool ShouldEmitMachineReadableWarnings()
+	// The source file could not be read, so nothing was compiled.
+	[[nodiscard]] MidoriDriver::DriverError FileSystemError(std::string_view message, const std::filesystem::path& file_path)
 	{
-#ifdef _WIN32
-		char* warning_format = nullptr;
-		size_t warning_format_length = 0u;
-		const errno_t result = _dupenv_s(&warning_format, &warning_format_length, "MARMOT_TEST_WARNING_FORMAT");
-		if (result != 0 || warning_format == nullptr)
+		MidoriDriver::DriverError error;
+		error.m_report = MidoriResult::CompilerReport(CompilerError::WithFile(CompilerStage::Compiler, message, file_path.string()));
+		return error;
+	}
+
+	[[nodiscard]] std::expected<std::string, MidoriDriver::DriverError> ReadSourceFile(const std::filesystem::path& file_path)
+	{
+		// Linux opens a directory as a stream that reads nothing.
+		std::ifstream file(file_path, std::ios::binary);
+		if (std::filesystem::is_directory(file_path) || !file.is_open())
 		{
-			return false;
+			return std::unexpected(FileSystemError("Could not open file", file_path));
 		}
 
-		const bool enabled = std::string_view(warning_format) == "machine";
-		free(warning_format);
-		return enabled;
-#else
-		const char* warning_format = std::getenv("MARMOT_TEST_WARNING_FORMAT");
-		return warning_format != nullptr && std::string_view(warning_format) == "machine";
-#endif
+		// Not `!buffer`: inserting an empty file's rdbuf sets failbit, and an
+		// empty file is a program.
+		std::ostringstream buffer;
+		buffer << file.rdbuf();
+		if (file.bad())
+		{
+			return std::unexpected(FileSystemError("Could not read file", file_path));
+		}
+
+		return buffer.str();
 	}
 }
 
 namespace MidoriDriver
 {
-	DriverError DriverError::FileSystem(std::string_view message, const std::filesystem::path& file_path)
+	bool ShouldEmitMachineReadableWarnings()
 	{
-		DriverError error;
-		error.m_report = MidoriResult::CompilerReport(CompilerError::WithFile(CompilerStage::Compiler, message, file_path.string()));
-		return error;
+		const char* warning_format = std::getenv("MARMOT_TEST_WARNING_FORMAT");
+		return warning_format != nullptr && std::string_view(warning_format) == "machine";
 	}
 
 	DriverError DriverError::Compilation(MidoriResult::CompilerReport report)
@@ -99,48 +95,9 @@ namespace MidoriDriver
 		return rendered;
 	}
 
-	SourceReadResult ReadSourceFile(const std::filesystem::path& file_path)
-	{
-		// Linux opens a directory as a stream that reads nothing.
-		std::ifstream file(file_path, std::ios::binary);
-		if (std::filesystem::is_directory(file_path) || !file.is_open())
-		{
-			return std::unexpected(DriverError::FileSystem("Could not open file", file_path));
-		}
-
-		// Not `!buffer`: inserting an empty file's rdbuf sets failbit, and an
-		// empty file is a program.
-		std::ostringstream buffer;
-		buffer << file.rdbuf();
-		if (file.bad())
-		{
-			return std::unexpected(DriverError::FileSystem("Could not read file", file_path));
-		}
-
-		return buffer.str();
-	}
-
-	std::vector<std::filesystem::path> EnvironmentSearchPaths()
-	{
-		return ReadPathList("MARMOT_PATH");
-	}
-
 	CompilationInputs EnvironmentCompilationInputs()
 	{
-		return CompilationInputs().WithSearchPaths(EnvironmentSearchPaths());
-	}
-
-	MidoriResult::CompilerResult CompileSource(std::string source_code, std::string file_name)
-	{
-		MidoriResult::CompilationResult compile_result = CompileSourceWithReport(std::move(source_code), std::move(file_name));
-		if (!compile_result.has_value())
-		{
-			// Legacy callers still depend on the executable-or-errors shape; preserve
-			// the report on the new path and narrow only here.
-			return std::unexpected(std::move(compile_result.error().m_errors));
-		}
-
-		return std::move(compile_result.value()).TakeExecutable();
+		return CompilationInputs().WithSearchPaths(ReadPathList("MARMOT_PATH"));
 	}
 
 	MidoriResult::CompilationResult CompileSourceWithReport(std::string source_code, std::string file_name)
@@ -160,7 +117,7 @@ namespace MidoriDriver
 
 	CompileFileWithReportResult CompileFileWithReport(const std::filesystem::path& file_path, CompilationInputs inputs)
 	{
-		SourceReadResult source_result = ReadSourceFile(file_path);
+		std::expected<std::string, DriverError> source_result = ReadSourceFile(file_path);
 		if (!source_result.has_value())
 		{
 			return std::unexpected(std::move(source_result.error()));

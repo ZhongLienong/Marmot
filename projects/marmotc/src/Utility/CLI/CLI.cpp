@@ -85,12 +85,6 @@ namespace
 		CommandHandler m_handler;
 	};
 
-	[[nodiscard]] bool ShouldEmitMachineReadableWarnings()
-	{
-		const char* warning_format = std::getenv("MARMOT_TEST_WARNING_FORMAT");
-		return warning_format != nullptr && std::string_view(warning_format) == "machine";
-	}
-
 	[[nodiscard]] std::string_view Environment(const char* name)
 	{
 		const char* value = std::getenv(name);
@@ -899,7 +893,7 @@ namespace
 		}
 
 		std::print(stderr, "{}", compiled_program.Report().RenderedWarnings());
-		if (ShouldEmitMachineReadableWarnings())
+		if (MidoriDriver::ShouldEmitMachineReadableWarnings())
 		{
 			std::print(stderr, "{}", compiled_program.Report().MachineReadableWarnings());
 		}

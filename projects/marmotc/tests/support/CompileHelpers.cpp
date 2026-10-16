@@ -306,8 +306,9 @@ namespace MidoriTest
 
 	MidoriResult::CompilerResult CompileSnippet(std::string source_code, std::string file_name)
 	{
-
-		return MidoriDriver::CompileSource(std::move(source_code), std::move(file_name));
+		return MidoriDriver::CompileSourceWithReport(std::move(source_code), std::move(file_name))
+			.transform([](MidoriResult::CompiledProgram&& program) { return std::move(program).TakeExecutable(); })
+			.transform_error([](MidoriResult::CompilerReport&& report) { return std::move(report.m_errors); });
 	}
 
 	std::expected<ExecutedSnippet, CompilerError> ExecuteSnippet(std::string source_code, std::string file_name)
