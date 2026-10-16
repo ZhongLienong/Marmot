@@ -189,8 +189,6 @@ private:
 public:
     ExecuteResult Execute() noexcept;
 
-    const GarbageCollector& GetGC() const noexcept { return m_gc; }
-
     MidoriValue* GetValueStackPointer() noexcept { return m_value_stack_pointer; }
 
     void AdvanceValueStackPointer() noexcept { ++m_value_stack_pointer; }

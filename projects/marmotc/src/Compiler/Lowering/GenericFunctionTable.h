@@ -24,7 +24,6 @@ public:
 	void Add(const std::string& name, GenericFunctionInfo info);
 	bool Contains(const std::string& key) const;
 	const GenericFunctionInfo& At(const std::string& key) const;
-	const Functions& All() const;
 	Functions TakeAll() &&;
 
 	std::optional<std::string> KeyIn(const std::string& module_name, const std::string& symbol_name) const;

@@ -23,11 +23,6 @@ const GenericFunctionInfo& GenericFunctionTable::At(const std::string& key) cons
 	return m_functions.at(key);
 }
 
-const GenericFunctionTable::Functions& GenericFunctionTable::All() const
-{
-	return m_functions;
-}
-
 GenericFunctionTable::Functions GenericFunctionTable::TakeAll() &&
 {
 	return std::move(m_functions);
