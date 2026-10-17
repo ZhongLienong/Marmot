@@ -84,7 +84,9 @@ endif()
 option(MIDORI_BUILD_TESTS "Build Marmot implementation unit tests" ${MIDORI_BUILD_TESTS_DEFAULT})
 
 if(MSVC)
-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>" CACHE STRING "Use static MSVC runtime (/MT, /MTd in Debug)" FORCE)
+    # Debug takes the shared runtime (/MDd): each static debug runtime has its own
+    # heap, and the VM frees the buffers a native library returns.
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:DebugDLL>" CACHE STRING "Use static MSVC runtime (/MT), shared in Debug (/MDd)" FORCE)
 endif()
 
 # Output directories for build artifacts
