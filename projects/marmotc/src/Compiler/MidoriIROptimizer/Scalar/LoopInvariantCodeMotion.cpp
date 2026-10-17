@@ -62,10 +62,6 @@ namespace
 		{
 			return false;
 		}
-		if (instruction.m_op == MidoriIROp::Const)
-		{
-			return true;
-		}
 		switch (instruction.m_effect.m_kind)
 		{
 		case MidoriIREffectKind::Pure:

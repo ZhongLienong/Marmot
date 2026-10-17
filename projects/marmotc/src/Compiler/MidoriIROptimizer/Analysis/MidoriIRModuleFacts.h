@@ -13,6 +13,7 @@ class MidoriIRModuleFacts
 private:
 	std::vector<std::optional<MidoriIRFunctionId>> m_global_functions;
 	std::vector<std::vector<bool>> m_self_captures;
+	bool m_binds_only_known_closures;
 
 public:
 	explicit MidoriIRModuleFacts(const MidoriIRModule& module);
@@ -24,4 +25,7 @@ public:
 	// Whether every closure of `function` the module makes has this capture
 	// bound to the closure itself, as a local function that names itself does.
 	bool IsSelfCapture(MidoriIRFunctionId function, uint32_t capture) const;
+
+	// Whether every BindCaptures fills a closure its own function makes.
+	bool BindsOnlyKnownClosures() const;
 };

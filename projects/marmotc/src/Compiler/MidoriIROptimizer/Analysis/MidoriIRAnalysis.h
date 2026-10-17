@@ -42,6 +42,14 @@ struct MidoriIRSite
 	uint32_t m_position;
 };
 
+// An edge into a block: the terminator of `m_block` and which of its
+// successors it is.
+struct MidoriIREdge
+{
+	uint32_t m_block;
+	size_t m_successor;
+};
+
 namespace MidoriIRAnalysis
 {
 	template<typename Transform>
@@ -55,29 +63,11 @@ namespace MidoriIRAnalysis
 		return changed;
 	}
 
-	// Every value an instruction reads: its operands, then its successors'
-	// arguments.
-	template<typename Visit>
-	void ForEachUse(const MidoriIRInstruction& instruction, const Visit& visit)
-	{
-		std::ranges::for_each(instruction.m_operands, visit);
-		for (const MidoriIRSuccessor& successor : instruction.m_successors)
-		{
-			std::ranges::for_each(successor.m_arguments, visit);
-		}
-	}
-
-	template<typename Visit>
-	void ForEachUse(MidoriIRInstruction& instruction, const Visit& visit)
-	{
-		std::ranges::for_each(instruction.m_operands, visit);
-		for (MidoriIRSuccessor& successor : instruction.m_successors)
-		{
-			std::ranges::for_each(successor.m_arguments, visit);
-		}
-	}
-
 	std::vector<uint32_t> CountUses(const MidoriIRFunction& function);
+
+	// Each block's incoming edges.
+	std::vector<std::vector<MidoriIREdge>> IncomingEdges(const MidoriIRFunction& function);
+	MidoriIRSuccessor& SuccessorOf(MidoriIRFunction& function, const MidoriIREdge& edge);
 
 	// Where each value an instruction defines is defined; nothing for a block
 	// parameter or a value no instruction defines.
@@ -100,10 +90,17 @@ namespace MidoriIRAnalysis
 	// old order, the entry staying bb0.
 	void RemoveUnreachableBlocks(MidoriIRFunction& function);
 
-	bool IsNever(const std::shared_ptr<MidoriType>& type);
-
+	MidoriIRInstruction Const(MidoriIRValueId result, std::shared_ptr<MidoriType> type, MidoriIRImmediate value, int line);
 	MidoriIRInstruction Jump(MidoriIRSuccessor target, int line);
 	MidoriIRInstruction Unreachable(int line);
+
+	// The type a constant of this immediate has, which the verifier checks a
+	// Const's type against: a newtype's constant is its representation's.
+	std::shared_ptr<MidoriType> ConstantType(const MidoriIRImmediate& value, const std::shared_ptr<MidoriType>& fallback);
+
+	// Floats compare by their bits: 0.0 and -0.0 are two constants, and a
+	// NaN is itself.
+	bool SameImmediate(const MidoriIRImmediate& left, const MidoriIRImmediate& right);
 
 	// The number of instructions a function runs besides constants, which the
 	// backend pushes where they are used.

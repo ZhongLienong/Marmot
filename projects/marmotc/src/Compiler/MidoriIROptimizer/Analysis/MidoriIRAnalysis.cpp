@@ -1,5 +1,6 @@
 #include "MidoriIRAnalysis.h"
 
+#include <bit>
 #include <ranges>
 #include <utility>
 
@@ -155,10 +156,29 @@ namespace MidoriIRAnalysis
 		{
 			for (const MidoriIRInstruction& instruction : block.m_instructions)
 			{
-				ForEachUse(instruction, [&uses](MidoriIRValueId value) { uses[value.m_index] += 1u; });
+				ForEachMidoriIRUse(instruction, [&uses](MidoriIRValueId value) { uses[value.m_index] += 1u; });
 			}
 		}
 		return uses;
+	}
+
+	std::vector<std::vector<MidoriIREdge>> IncomingEdges(const MidoriIRFunction& function)
+	{
+		std::vector<std::vector<MidoriIREdge>> incoming(function.m_blocks.size());
+		for (uint32_t block = 0u; block < function.m_blocks.size(); block += 1u)
+		{
+			const std::vector<MidoriIRSuccessor>& successors = function.m_blocks[block].m_instructions.back().m_successors;
+			for (size_t successor = 0u; successor < successors.size(); successor += 1u)
+			{
+				incoming[successors[successor].m_block.m_index].push_back(MidoriIREdge{ block, successor });
+			}
+		}
+		return incoming;
+	}
+
+	MidoriIRSuccessor& SuccessorOf(MidoriIRFunction& function, const MidoriIREdge& edge)
+	{
+		return function.m_blocks[edge.m_block].m_instructions.back().m_successors[edge.m_successor];
 	}
 
 	std::vector<std::optional<MidoriIRSite>> DefinitionSites(const MidoriIRFunction& function)
@@ -202,7 +222,7 @@ namespace MidoriIRAnalysis
 		{
 			for (MidoriIRInstruction& instruction : block.m_instructions)
 			{
-				ForEachUse(instruction, [&resolve](MidoriIRValueId& value) { value = resolve(value); });
+				ForEachMidoriIRUse(instruction, [&resolve](MidoriIRValueId& value) { value = resolve(value); });
 			}
 		}
 	}
@@ -252,9 +272,9 @@ namespace MidoriIRAnalysis
 		function.m_blocks = std::move(kept);
 	}
 
-	bool IsNever(const std::shared_ptr<MidoriType>& type)
+	MidoriIRInstruction Const(MidoriIRValueId result, std::shared_ptr<MidoriType> type, MidoriIRImmediate value, int line)
 	{
-		return type->IsType<MidoriType::NeverType>();
+		return MidoriIRInstruction(MidoriIROp::Const, result, std::move(type), {}, std::move(value), {}, line);
 	}
 
 	MidoriIRInstruction Jump(MidoriIRSuccessor target, int line)
@@ -265,6 +285,55 @@ namespace MidoriIRAnalysis
 	MidoriIRInstruction Unreachable(int line)
 	{
 		return MidoriIRInstruction(MidoriIROp::Unreachable, std::nullopt, MidoriType::MakeLiteralType<MidoriType::NeverType>(), {}, {}, {}, line);
+	}
+
+	std::shared_ptr<MidoriType> ConstantType(const MidoriIRImmediate& value, const std::shared_ptr<MidoriType>& fallback)
+	{
+		return std::visit([&fallback](const auto& constant) -> std::shared_ptr<MidoriType>
+		{
+			using Immediate = std::decay_t<decltype(constant)>;
+			if constexpr (std::is_same_v<Immediate, int64_t>)
+			{
+				return MidoriIRScalarType(MidoriIRScalar::Int);
+			}
+			else if constexpr (std::is_same_v<Immediate, double>)
+			{
+				return MidoriIRScalarType(MidoriIRScalar::Float);
+			}
+			else if constexpr (std::is_same_v<Immediate, bool>)
+			{
+				return MidoriIRScalarType(MidoriIRScalar::Bool);
+			}
+			else if constexpr (std::is_same_v<Immediate, std::string>)
+			{
+				return MidoriIRScalarType(MidoriIRScalar::Text);
+			}
+			else if constexpr (std::is_same_v<Immediate, MidoriIRByte>)
+			{
+				return MidoriIRScalarType(MidoriIRScalar::Byte);
+			}
+			else if constexpr (std::is_same_v<Immediate, MidoriIRWord>)
+			{
+				return MidoriIRScalarType(MidoriIRScalar::Word);
+			}
+			else if constexpr (std::is_same_v<Immediate, std::monostate>)
+			{
+				return MidoriType::MakeLiteralType<MidoriType::UnitType>();
+			}
+			else
+			{
+				return fallback;
+			}
+		}, value);
+	}
+
+	bool SameImmediate(const MidoriIRImmediate& left, const MidoriIRImmediate& right)
+	{
+		if (std::holds_alternative<double>(left) && std::holds_alternative<double>(right))
+		{
+			return std::bit_cast<uint64_t>(std::get<double>(left)) == std::bit_cast<uint64_t>(std::get<double>(right));
+		}
+		return left == right;
 	}
 
 	size_t Size(const MidoriIRFunction& function)

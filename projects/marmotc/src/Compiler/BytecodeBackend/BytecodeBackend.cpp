@@ -600,7 +600,7 @@ namespace
 			bool used = false;
 			for (const MidoriIRInstruction& instruction : std::ranges::subrange(after, instructions.end()))
 			{
-				ForEachUse(instruction, [&](MidoriIRValueId use) { used = used || use == value; });
+				ForEachMidoriIRUse(instruction, [&](MidoriIRValueId use) { used = used || use == value; });
 			}
 			return used;
 		}
@@ -972,17 +972,6 @@ namespace
 			return m_storage[value.m_index] == Storage::Slot;
 		}
 
-		// What an instruction reads: its operands and its successors' arguments.
-		template<typename Visit>
-		void ForEachUse(const MidoriIRInstruction& instruction, const Visit& visit) const
-		{
-			std::ranges::for_each(instruction.m_operands, visit);
-			for (const MidoriIRSuccessor& successor : instruction.m_successors)
-			{
-				std::ranges::for_each(successor.m_arguments, visit);
-			}
-		}
-
 		std::vector<bool> LiveOut(uint32_t block, const std::vector<std::vector<bool>>& live_in) const
 		{
 			std::vector<bool> live(m_function.m_values.size(), false);
@@ -1010,7 +999,7 @@ namespace
 					define(instruction.m_result.value(), live);
 					live[instruction.m_result->m_index] = false;
 				}
-				ForEachUse(instruction, [&](MidoriIRValueId value)
+				ForEachMidoriIRUse(instruction, [&](MidoriIRValueId value)
 				{
 					if (IsInSlot(value))
 					{

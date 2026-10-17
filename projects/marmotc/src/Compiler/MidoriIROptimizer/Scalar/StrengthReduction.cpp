@@ -236,7 +236,7 @@ namespace
 		bool IsFloat(MidoriIRValueId value, double expected) const
 		{
 			const MidoriIRImmediate* constant = Constant(value);
-			return constant != nullptr && std::holds_alternative<double>(*constant) && std::bit_cast<uint64_t>(std::get<double>(*constant)) == std::bit_cast<uint64_t>(expected);
+			return constant != nullptr && MidoriIRAnalysis::SameImmediate(*constant, expected);
 		}
 
 		bool IsBool(MidoriIRValueId value, bool expected) const
@@ -274,19 +274,6 @@ namespace
 		}
 	};
 
-	std::shared_ptr<MidoriType> ConstantType(const MidoriIRImmediate& constant)
-	{
-		if (std::holds_alternative<MidoriIRByte>(constant))
-		{
-			return MidoriIRScalarType(MidoriIRScalar::Byte);
-		}
-		if (std::holds_alternative<MidoriIRWord>(constant))
-		{
-			return MidoriIRScalarType(MidoriIRScalar::Word);
-		}
-		return std::holds_alternative<bool>(constant) ? MidoriIRScalarType(MidoriIRScalar::Bool) : MidoriIRScalarType(MidoriIRScalar::Int);
-	}
-
 	bool ReduceFunction(MidoriIRFunction& function)
 	{
 		bool changed = false;
@@ -314,16 +301,16 @@ namespace
 					reduced.push_back(instruction);
 					break;
 				case Reduction::Kind::Constant:
-					reduced.emplace_back(MidoriIROp::Const, result, ConstantType(reduction->m_constant), std::vector<MidoriIRValueId>{}, reduction->m_constant, std::vector<MidoriIRSuccessor>{}, instruction.m_line);
+					reduced.push_back(MidoriIRAnalysis::Const(result, MidoriIRAnalysis::ConstantType(reduction->m_constant, instruction.m_type), reduction->m_constant, instruction.m_line));
 					break;
 				case Reduction::Kind::Unary:
 					reduced.emplace_back(reduction->m_op, result, instruction.m_type, std::vector<MidoriIRValueId>{ reduction->m_operand }, MidoriIRImmediate{}, std::vector<MidoriIRSuccessor>{}, instruction.m_line);
 					break;
 				case Reduction::Kind::WithConstant:
 				{
-					const std::shared_ptr<MidoriType> type = ConstantType(reduction->m_constant);
+					const std::shared_ptr<MidoriType> type = MidoriIRAnalysis::ConstantType(reduction->m_constant, instruction.m_type);
 					const MidoriIRValueId constant = MidoriIRAnalysis::AddValue(function, type);
-					reduced.emplace_back(MidoriIROp::Const, constant, type, std::vector<MidoriIRValueId>{}, reduction->m_constant, std::vector<MidoriIRSuccessor>{}, instruction.m_line);
+					reduced.push_back(MidoriIRAnalysis::Const(constant, type, reduction->m_constant, instruction.m_line));
 					reduced.emplace_back(reduction->m_op, result, instruction.m_type, std::vector<MidoriIRValueId>{ reduction->m_operand, constant }, MidoriIRImmediate{}, std::vector<MidoriIRSuccessor>{}, instruction.m_line);
 					break;
 				}

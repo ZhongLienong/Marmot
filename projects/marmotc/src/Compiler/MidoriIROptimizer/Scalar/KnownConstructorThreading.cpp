@@ -15,14 +15,6 @@ namespace
 
 	using MidoriIRKnown = std::variant<int64_t, bool>;
 
-	// An edge into a block: the terminator of `m_block` and which of its
-	// successors it is.
-	struct Edge
-	{
-		uint32_t m_block;
-		size_t m_successor;
-	};
-
 	// A block that only looks at values and branches on what it sees: running
 	// it again elsewhere changes nothing but where its values are.
 	bool IsInspection(const MidoriIRBlock& block)
@@ -135,13 +127,13 @@ namespace
 	private:
 		MidoriIRFunction& m_function;
 		const MidoriIRControlFlow& m_control_flow;
-		Edge m_edge;
+		MidoriIREdge m_edge;
 		uint32_t m_inspection;
 		uint32_t m_target;
 		std::vector<bool> m_defined_by_inspection;
 
 	public:
-		Threading(MidoriIRFunction& function, const MidoriIRControlFlow& control_flow, Edge edge, uint32_t inspection, uint32_t target)
+		Threading(MidoriIRFunction& function, const MidoriIRControlFlow& control_flow, MidoriIREdge edge, uint32_t inspection, uint32_t target)
 			: m_function(function),
 			m_control_flow(control_flow),
 			m_edge(edge),
@@ -188,7 +180,7 @@ namespace
 
 		void Apply()
 		{
-			const std::vector<MidoriIRValueId> passed = SuccessorOf(m_edge).m_arguments;
+			const std::vector<MidoriIRValueId> passed = MidoriIRAnalysis::SuccessorOf(m_function, m_edge).m_arguments;
 			MidoriIRBlock& inspection = m_function.m_blocks[m_inspection];
 			const size_t decided = static_cast<size_t>(std::ranges::find_if(inspection.m_instructions.back().m_successors, [this](const MidoriIRSuccessor& successor) { return successor.m_block.m_index == m_target; }) - inspection.m_instructions.back().m_successors.begin());
 
@@ -227,7 +219,7 @@ namespace
 
 			std::vector<MidoriIRInstruction>& predecessor = m_function.m_blocks[m_edge.m_block].m_instructions;
 			predecessor.insert(predecessor.end() - 1, std::make_move_iterator(copies.begin()), std::make_move_iterator(copies.end()));
-			SuccessorOf(m_edge) = MidoriIRSuccessor(MidoriIRBlockId{ m_target }, std::move(threaded));
+			MidoriIRAnalysis::SuccessorOf(m_function, m_edge) = MidoriIRSuccessor(MidoriIRBlockId{ m_target }, std::move(threaded));
 
 			for (uint32_t block = 0u; block < m_function.m_blocks.size(); block += 1u)
 			{
@@ -237,7 +229,7 @@ namespace
 				}
 				for (MidoriIRInstruction& instruction : m_function.m_blocks[block].m_instructions)
 				{
-					MidoriIRAnalysis::ForEachUse(instruction, [&renamed](MidoriIRValueId& value)
+					ForEachMidoriIRUse(instruction, [&renamed](MidoriIRValueId& value)
 					{
 						value = value.m_index < renamed.size() ? renamed[value.m_index].value_or(value) : value;
 					});
@@ -246,17 +238,12 @@ namespace
 		}
 
 	private:
-		MidoriIRSuccessor& SuccessorOf(const Edge& edge)
-		{
-			return m_function.m_blocks[edge.m_block].m_instructions.back().m_successors[edge.m_successor];
-		}
-
 		bool ReadsInspection(uint32_t block) const
 		{
 			return std::ranges::any_of(m_function.m_blocks[block].m_instructions, [this](const MidoriIRInstruction& instruction)
 			{
 				bool reads = false;
-				MidoriIRAnalysis::ForEachUse(instruction, [this, &reads](MidoriIRValueId value) { reads = reads || m_defined_by_inspection[value.m_index]; });
+				ForEachMidoriIRUse(instruction, [this, &reads](MidoriIRValueId value) { reads = reads || m_defined_by_inspection[value.m_index]; });
 				return reads;
 			});
 		}
@@ -274,7 +261,7 @@ namespace
 				}
 				for (const MidoriIRInstruction& instruction : m_function.m_blocks[block].m_instructions)
 				{
-					MidoriIRAnalysis::ForEachUse(instruction, [this, &read](MidoriIRValueId value)
+					ForEachMidoriIRUse(instruction, [this, &read](MidoriIRValueId value)
 					{
 						read[value.m_index] = read[value.m_index] || m_defined_by_inspection[value.m_index];
 					});
@@ -313,7 +300,7 @@ namespace
 					{
 						continue;
 					}
-					Threading threading(function, control_flow, Edge{ predecessor, successor }, inspection, block.m_instructions.back().m_successors[decided.value()].m_block.m_index);
+					Threading threading(function, control_flow, MidoriIREdge{ predecessor, successor }, inspection, block.m_instructions.back().m_successors[decided.value()].m_block.m_index);
 					if (threading.IsPossible())
 					{
 						threading.Apply();

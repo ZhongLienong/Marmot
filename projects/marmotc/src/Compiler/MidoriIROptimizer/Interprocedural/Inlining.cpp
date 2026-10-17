@@ -1,3 +1,4 @@
+#include "Compiler/Lowering/GenericTypes.h"
 #include "Compiler/MidoriIROptimizer/Analysis/MidoriIRAnalysis.h"
 #include "Compiler/MidoriIROptimizer/Interprocedural/MidoriIRBodyCopy.h"
 #include "Compiler/MidoriIROptimizer/MidoriIRPasses.h"
@@ -21,6 +22,29 @@ namespace
 			return std::nullopt;
 		}
 		return std::get<MidoriIRFunctionId>(instruction.m_immediate);
+	}
+
+	// The return type of what a call or tail call calls.
+	std::shared_ptr<MidoriType> CalleeReturnType(const MidoriIRModule& module, const MidoriIRFunction& caller, const MidoriIRInstruction& call)
+	{
+		if (std::holds_alternative<MidoriIRFunctionId>(call.m_immediate))
+		{
+			return module.Function(std::get<MidoriIRFunctionId>(call.m_immediate)).m_return_type;
+		}
+		const std::shared_ptr<MidoriType> callee = std::holds_alternative<MidoriIRGlobalSlot>(call.m_immediate)
+			? module.m_globals[std::get<MidoriIRGlobalSlot>(call.m_immediate).m_value].m_type
+			: caller.TypeOf(call.m_operands.front());
+		return GenericTypes::RepresentationOf(callee)->GetType<MidoriType::FunctionType>().m_return_type;
+	}
+
+	// Turns a tail call into the call it makes, defining `result`: a
+	// TailCall's callee is a function, a global or its first operand.
+	MidoriIRInstruction AsCall(const MidoriIRInstruction& tail_call, MidoriIRValueId result, std::shared_ptr<MidoriType> type)
+	{
+		const MidoriIROp op = std::holds_alternative<MidoriIRFunctionId>(tail_call.m_immediate) ? MidoriIROp::Call
+			: std::holds_alternative<MidoriIRGlobalSlot>(tail_call.m_immediate) ? MidoriIROp::CallGlobal
+			: MidoriIROp::CallValue;
+		return MidoriIRInstruction(op, result, std::move(type), tail_call.m_operands, tail_call.m_immediate, {}, tail_call.m_line);
 	}
 
 	// The functions each calls directly, and how many times the module names
@@ -174,11 +198,11 @@ namespace
 			{
 				// The callee's frame was gone by the time this call ran, so
 				// a trace through it shows the call that reached the callee.
-				const std::shared_ptr<MidoriType> type = MidoriIRBodyCopy::CalleeReturnType(module, caller, terminator);
+				const std::shared_ptr<MidoriType> type = CalleeReturnType(module, caller, terminator);
 				const MidoriIRValueId result = MidoriIRAnalysis::AddValue(caller, type);
-				copied.push_back(MidoriIRBodyCopy::AsCall(terminator, result, type));
+				copied.push_back(AsCall(terminator, result, type));
 				copied.back().m_line = call.m_line;
-				copied.push_back(MidoriIRAnalysis::IsNever(type) ? MidoriIRAnalysis::Unreachable(terminator.m_line) : MidoriIRAnalysis::Jump(MidoriIRSuccessor(rejoin, { result }), terminator.m_line));
+				copied.push_back(type->IsType<MidoriType::NeverType>() ? MidoriIRAnalysis::Unreachable(terminator.m_line) : MidoriIRAnalysis::Jump(MidoriIRSuccessor(rejoin, { result }), terminator.m_line));
 				break;
 			}
 			default:
@@ -196,7 +220,7 @@ namespace
 			return false;
 		}
 		const MidoriIRFunction& callee = module.Function(callee_id.value());
-		if (!callee.m_capture_types.empty() || MidoriIRAnalysis::IsNever(callee.m_return_type) || !MidoriIRAnalysis::IsFrameTransparent(callee))
+		if (!callee.m_capture_types.empty() || callee.m_return_type->IsType<MidoriType::NeverType>() || !MidoriIRAnalysis::IsFrameTransparent(callee))
 		{
 			return false;
 		}

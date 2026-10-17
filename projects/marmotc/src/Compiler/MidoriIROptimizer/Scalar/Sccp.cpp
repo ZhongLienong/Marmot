@@ -3,7 +3,6 @@
 #include "Compiler/MidoriIROptimizer/Analysis/MidoriIRAnalysis.h"
 #include "Compiler/MidoriIROptimizer/MidoriIRPasses.h"
 
-#include <bit>
 #include <cmath>
 #include <limits>
 #include <ranges>
@@ -37,17 +36,6 @@ namespace
 		}
 	};
 
-	// Floats compare by their bits: 0.0 and -0.0 are two constants, and a
-	// NaN is itself.
-	bool SameConstant(const MidoriIRImmediate& left, const MidoriIRImmediate& right)
-	{
-		if (std::holds_alternative<double>(left) && std::holds_alternative<double>(right))
-		{
-			return std::bit_cast<uint64_t>(std::get<double>(left)) == std::bit_cast<uint64_t>(std::get<double>(right));
-		}
-		return left == right;
-	}
-
 	// Lowers `cell` to what it and `incoming` have in common; true if it moved.
 	bool Meet(Cell& cell, const Cell& incoming)
 	{
@@ -60,7 +48,7 @@ namespace
 			cell = incoming;
 			return true;
 		}
-		if (incoming.m_level == Level::Varying || !SameConstant(cell.m_value, incoming.m_value))
+		if (incoming.m_level == Level::Varying || !MidoriIRAnalysis::SameImmediate(cell.m_value, incoming.m_value))
 		{
 			cell = Cell::Varying();
 			return true;
@@ -76,24 +64,9 @@ namespace
 		return std::get<T>(*operands[index]);
 	}
 
-	uint8_t ByteAt(const Immediates& operands, size_t index)
-	{
-		return At<MidoriIRByte>(operands, index).m_value;
-	}
-
-	uint64_t WordAt(const Immediates& operands, size_t index)
-	{
-		return At<MidoriIRWord>(operands, index).m_value;
-	}
-
 	MidoriIRImmediate Byte(unsigned value)
 	{
 		return MidoriIRByte{ static_cast<uint8_t>(value) };
-	}
-
-	MidoriIRImmediate Word(uint64_t value)
-	{
-		return MidoriIRWord{ value };
 	}
 
 	// What the VM computes, for the operations whose result is the same on
@@ -106,6 +79,8 @@ namespace
 		using enum MidoriIROp;
 		const auto int_at = [&operands](size_t index) { return At<int64_t>(operands, index); };
 		const auto float_at = [&operands](size_t index) { return At<double>(operands, index); };
+		const auto byte_at = [&operands](size_t index) { return At<MidoriIRByte>(operands, index).m_value; };
+		const auto word_at = [&operands](size_t index) { return At<MidoriIRWord>(operands, index).m_value; };
 		switch (op)
 		{
 		case AddInt: return Add(int_at(0u), int_at(1u));
@@ -126,16 +101,16 @@ namespace
 		case DivFloat: return float_at(0u) / float_at(1u);
 		case ModFloat: return std::fmod(float_at(0u), float_at(1u));
 		case NegFloat: return -float_at(0u);
-		case AddByte: return Byte(ByteAt(operands, 0u) + ByteAt(operands, 1u));
-		case SubByte: return Byte(static_cast<unsigned>(ByteAt(operands, 0u) - ByteAt(operands, 1u)));
-		case MulByte: return Byte(static_cast<unsigned>(ByteAt(operands, 0u) * ByteAt(operands, 1u)));
-		case DivByte: return ByteAt(operands, 1u) == 0u ? std::nullopt : std::optional<MidoriIRImmediate>(Byte(ByteAt(operands, 0u) / ByteAt(operands, 1u)));
-		case ModByte: return ByteAt(operands, 1u) == 0u ? std::nullopt : std::optional<MidoriIRImmediate>(Byte(ByteAt(operands, 0u) % ByteAt(operands, 1u)));
-		case AddWord: return Word(WordAt(operands, 0u) + WordAt(operands, 1u));
-		case SubWord: return Word(WordAt(operands, 0u) - WordAt(operands, 1u));
-		case MulWord: return Word(WordAt(operands, 0u) * WordAt(operands, 1u));
-		case DivWord: return WordAt(operands, 1u) == 0u ? std::nullopt : std::optional<MidoriIRImmediate>(Word(WordAt(operands, 0u) / WordAt(operands, 1u)));
-		case ModWord: return WordAt(operands, 1u) == 0u ? std::nullopt : std::optional<MidoriIRImmediate>(Word(WordAt(operands, 0u) % WordAt(operands, 1u)));
+		case AddByte: return Byte(byte_at(0u) + byte_at(1u));
+		case SubByte: return Byte(static_cast<unsigned>(byte_at(0u) - byte_at(1u)));
+		case MulByte: return Byte(static_cast<unsigned>(byte_at(0u) * byte_at(1u)));
+		case DivByte: return byte_at(1u) == 0u ? std::nullopt : std::optional<MidoriIRImmediate>(Byte(byte_at(0u) / byte_at(1u)));
+		case ModByte: return byte_at(1u) == 0u ? std::nullopt : std::optional<MidoriIRImmediate>(Byte(byte_at(0u) % byte_at(1u)));
+		case AddWord: return MidoriIRWord{ word_at(0u) + word_at(1u) };
+		case SubWord: return MidoriIRWord{ word_at(0u) - word_at(1u) };
+		case MulWord: return MidoriIRWord{ word_at(0u) * word_at(1u) };
+		case DivWord: return word_at(1u) == 0u ? std::nullopt : std::optional<MidoriIRImmediate>(MidoriIRWord{ word_at(0u) / word_at(1u) });
+		case ModWord: return word_at(1u) == 0u ? std::nullopt : std::optional<MidoriIRImmediate>(MidoriIRWord{ word_at(0u) % word_at(1u) });
 		case EqInt: return int_at(0u) == int_at(1u);
 		case NeInt: return int_at(0u) != int_at(1u);
 		case LtInt: return int_at(0u) < int_at(1u);
@@ -148,18 +123,18 @@ namespace
 		case LeFloat: return float_at(0u) <= float_at(1u);
 		case GtFloat: return float_at(0u) > float_at(1u);
 		case GeFloat: return float_at(0u) >= float_at(1u);
-		case EqByte: return ByteAt(operands, 0u) == ByteAt(operands, 1u);
-		case NeByte: return ByteAt(operands, 0u) != ByteAt(operands, 1u);
-		case LtByte: return ByteAt(operands, 0u) < ByteAt(operands, 1u);
-		case LeByte: return ByteAt(operands, 0u) <= ByteAt(operands, 1u);
-		case GtByte: return ByteAt(operands, 0u) > ByteAt(operands, 1u);
-		case GeByte: return ByteAt(operands, 0u) >= ByteAt(operands, 1u);
-		case EqWord: return WordAt(operands, 0u) == WordAt(operands, 1u);
-		case NeWord: return WordAt(operands, 0u) != WordAt(operands, 1u);
-		case LtWord: return WordAt(operands, 0u) < WordAt(operands, 1u);
-		case LeWord: return WordAt(operands, 0u) <= WordAt(operands, 1u);
-		case GtWord: return WordAt(operands, 0u) > WordAt(operands, 1u);
-		case GeWord: return WordAt(operands, 0u) >= WordAt(operands, 1u);
+		case EqByte: return byte_at(0u) == byte_at(1u);
+		case NeByte: return byte_at(0u) != byte_at(1u);
+		case LtByte: return byte_at(0u) < byte_at(1u);
+		case LeByte: return byte_at(0u) <= byte_at(1u);
+		case GtByte: return byte_at(0u) > byte_at(1u);
+		case GeByte: return byte_at(0u) >= byte_at(1u);
+		case EqWord: return word_at(0u) == word_at(1u);
+		case NeWord: return word_at(0u) != word_at(1u);
+		case LtWord: return word_at(0u) < word_at(1u);
+		case LeWord: return word_at(0u) <= word_at(1u);
+		case GtWord: return word_at(0u) > word_at(1u);
+		case GeWord: return word_at(0u) >= word_at(1u);
 		case EqBool: return At<bool>(operands, 0u) == At<bool>(operands, 1u);
 		case NeBool: return At<bool>(operands, 0u) != At<bool>(operands, 1u);
 		case NotBool: return !At<bool>(operands, 0u);
@@ -173,14 +148,14 @@ namespace
 			const bool fits = value >= -9223372036854775808.0 && value < 9223372036854775808.0;
 			return fits ? std::optional<MidoriIRImmediate>(static_cast<int64_t>(value)) : std::nullopt;
 		}
-		case ByteToInt: return static_cast<int64_t>(ByteAt(operands, 0u));
+		case ByteToInt: return static_cast<int64_t>(byte_at(0u));
 		case IntToByte: return Byte(static_cast<unsigned>(int_at(0u) & 0xFF));
-		case ByteToWord: return Word(ByteAt(operands, 0u));
-		case WordToByte: return Byte(static_cast<unsigned>(WordAt(operands, 0u) & 0xFFu));
-		case WordToInt: return static_cast<int64_t>(WordAt(operands, 0u));
-		case IntToWord: return Word(static_cast<uint64_t>(int_at(0u)));
-		case ByteToFloat: return static_cast<double>(ByteAt(operands, 0u));
-		case WordToFloat: return static_cast<double>(WordAt(operands, 0u));
+		case ByteToWord: return MidoriIRWord{ byte_at(0u) };
+		case WordToByte: return Byte(static_cast<unsigned>(word_at(0u) & 0xFFu));
+		case WordToInt: return static_cast<int64_t>(word_at(0u));
+		case IntToWord: return MidoriIRWord{ static_cast<uint64_t>(int_at(0u)) };
+		case ByteToFloat: return static_cast<double>(byte_at(0u));
+		case WordToFloat: return static_cast<double>(word_at(0u));
 		// A folded Extend gives a text constant, which every load shares, so
 		// Rewrite turns an Extend of it into a Concat.
 		case Concat:
@@ -199,48 +174,6 @@ namespace
 	{
 		const MidoriIRArity arity = GetMidoriIROpInfo(op).m_arity;
 		return arity == MidoriIRArity::Unary || arity == MidoriIRArity::Binary || op == MidoriIROp::Concat || op == MidoriIROp::Extend;
-	}
-
-	// The type a constant of this immediate has, which the verifier checks a
-	// Const's type against: a newtype's constant is its representation's.
-	std::shared_ptr<MidoriType> ConstantType(const MidoriIRImmediate& value, const std::shared_ptr<MidoriType>& fallback)
-	{
-		return std::visit([&fallback](const auto& constant) -> std::shared_ptr<MidoriType>
-		{
-			using Immediate = std::decay_t<decltype(constant)>;
-			if constexpr (std::is_same_v<Immediate, int64_t>)
-			{
-				return MidoriIRScalarType(MidoriIRScalar::Int);
-			}
-			else if constexpr (std::is_same_v<Immediate, double>)
-			{
-				return MidoriIRScalarType(MidoriIRScalar::Float);
-			}
-			else if constexpr (std::is_same_v<Immediate, bool>)
-			{
-				return MidoriIRScalarType(MidoriIRScalar::Bool);
-			}
-			else if constexpr (std::is_same_v<Immediate, std::string>)
-			{
-				return MidoriIRScalarType(MidoriIRScalar::Text);
-			}
-			else if constexpr (std::is_same_v<Immediate, MidoriIRByte>)
-			{
-				return MidoriIRScalarType(MidoriIRScalar::Byte);
-			}
-			else if constexpr (std::is_same_v<Immediate, MidoriIRWord>)
-			{
-				return MidoriIRScalarType(MidoriIRScalar::Word);
-			}
-			else if constexpr (std::is_same_v<Immediate, std::monostate>)
-			{
-				return MidoriType::MakeLiteralType<MidoriType::UnitType>();
-			}
-			else
-			{
-				return fallback;
-			}
-		}, value);
 	}
 
 	using GlobalConstants = std::unordered_map<uint32_t, MidoriIRImmediate>;
@@ -333,9 +266,9 @@ namespace
 					{
 						continue;
 					}
-					const std::shared_ptr<MidoriType> type = ConstantType(cell.m_value, m_function.TypeOf(parameter));
+					const std::shared_ptr<MidoriType> type = MidoriIRAnalysis::ConstantType(cell.m_value, m_function.TypeOf(parameter));
 					const MidoriIRValueId constant = MidoriIRAnalysis::AddValue(m_function, type);
-					constants.emplace_back(MidoriIROp::Const, constant, type, std::vector<MidoriIRValueId>{}, cell.m_value, std::vector<MidoriIRSuccessor>{}, FirstLine(block));
+					constants.push_back(MidoriIRAnalysis::Const(constant, type, cell.m_value, FirstLine(block)));
 					replacements[parameter.m_index] = constant;
 					changed = true;
 				}
@@ -345,11 +278,8 @@ namespace
 				{
 					if (instruction.m_result.has_value() && instruction.m_op != MidoriIROp::Const && m_cells[instruction.m_result->m_index].m_level == Level::Constant)
 					{
-						instruction.m_immediate = m_cells[instruction.m_result->m_index].m_value;
-						instruction.m_type = ConstantType(instruction.m_immediate, instruction.m_type);
-						instruction.m_op = MidoriIROp::Const;
-						instruction.m_operands.clear();
-						instruction.m_effect = MidoriIREffect();
+						const MidoriIRImmediate& value = m_cells[instruction.m_result->m_index].m_value;
+						instruction = MidoriIRAnalysis::Const(instruction.m_result.value(), MidoriIRAnalysis::ConstantType(value, instruction.m_type), value, instruction.m_line);
 						changed = true;
 					}
 					else if (instruction.m_op == MidoriIROp::Extend && m_cells[instruction.m_operands.front().m_index].m_level == Level::Constant)
@@ -362,11 +292,7 @@ namespace
 				if (terminator.m_op == MidoriIROp::Branch && m_cells[terminator.m_operands.front().m_index].m_level == Level::Constant)
 				{
 					const bool condition = std::get<bool>(m_cells[terminator.m_operands.front().m_index].m_value);
-					MidoriIRSuccessor taken = std::move(terminator.m_successors[condition ? 0u : 1u]);
-					terminator.m_op = MidoriIROp::Jump;
-					terminator.m_operands.clear();
-					terminator.m_successors.clear();
-					terminator.m_successors.push_back(std::move(taken));
+					terminator = MidoriIRAnalysis::Jump(std::move(terminator.m_successors[condition ? 0u : 1u]), terminator.m_line);
 					changed = true;
 				}
 				instructions.insert(instructions.begin(), std::make_move_iterator(constants.begin()), std::make_move_iterator(constants.end()));

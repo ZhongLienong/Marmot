@@ -99,15 +99,7 @@ namespace
 
 		bool operator==(const ValueKey& other) const
 		{
-			if (m_op != other.m_op || m_operands != other.m_operands)
-			{
-				return false;
-			}
-			if (std::holds_alternative<double>(m_immediate) && std::holds_alternative<double>(other.m_immediate))
-			{
-				return std::bit_cast<uint64_t>(std::get<double>(m_immediate)) == std::bit_cast<uint64_t>(std::get<double>(other.m_immediate));
-			}
-			return m_immediate == other.m_immediate;
+			return m_op == other.m_op && m_operands == other.m_operands && MidoriIRAnalysis::SameImmediate(m_immediate, other.m_immediate);
 		}
 	};
 
@@ -234,15 +226,11 @@ namespace
 				}
 				for (MidoriIRInstruction& instruction : function.m_blocks[block].m_instructions)
 				{
-					MidoriIRAnalysis::ForEachUse(instruction, [&resolve](MidoriIRValueId& value) { value = resolve(value); });
+					ForEachMidoriIRUse(instruction, [&resolve](MidoriIRValueId& value) { value = resolve(value); });
 					if (instruction.m_op == MidoriIROp::Branch && conditions[instruction.m_operands.front().m_index].has_value())
 					{
 						const bool condition = conditions[instruction.m_operands.front().m_index].value();
-						MidoriIRSuccessor taken = std::move(instruction.m_successors[condition ? 0u : 1u]);
-						instruction.m_op = MidoriIROp::Jump;
-						instruction.m_operands.clear();
-						instruction.m_successors.clear();
-						instruction.m_successors.push_back(std::move(taken));
+						instruction = MidoriIRAnalysis::Jump(std::move(instruction.m_successors[condition ? 0u : 1u]), instruction.m_line);
 						changed = true;
 					}
 					if (instruction.m_op == MidoriIROp::GlobalDefine)

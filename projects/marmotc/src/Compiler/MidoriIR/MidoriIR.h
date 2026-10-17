@@ -2,6 +2,7 @@
 
 #include "Compiler/AbstractSyntaxTree/Type.h"
 
+#include <algorithm>
 #include <compare>
 #include <cstdint>
 #include <memory>
@@ -196,6 +197,8 @@ struct MidoriIRSuccessor
 	std::vector<MidoriIRValueId> m_arguments;
 
 	MidoriIRSuccessor(MidoriIRBlockId block, std::vector<MidoriIRValueId> arguments = {});
+
+	bool operator==(const MidoriIRSuccessor&) const = default;
 };
 
 // Every instruction but a terminator defines exactly one value, of type
@@ -213,6 +216,15 @@ struct MidoriIRInstruction
 
 	MidoriIRInstruction(MidoriIROp op, std::optional<MidoriIRValueId> result, std::shared_ptr<MidoriType> type, std::vector<MidoriIRValueId> operands, MidoriIRImmediate immediate, std::vector<MidoriIRSuccessor> successors, int line);
 };
+
+// Every value an instruction reads: its operands, then its successors'
+// arguments. The instruction may be const or not.
+template<typename Instruction, typename Visit>
+void ForEachMidoriIRUse(Instruction& instruction, const Visit& visit)
+{
+	std::ranges::for_each(instruction.m_operands, visit);
+	std::ranges::for_each(instruction.m_successors, [&visit](auto& successor) { std::ranges::for_each(successor.m_arguments, visit); });
+}
 
 struct MidoriIRBlock
 {

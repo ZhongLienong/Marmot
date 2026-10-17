@@ -121,12 +121,8 @@ namespace
 					replacements[instruction.m_result->m_index] = std::get<MidoriIRValueId>(forwarded.value());
 					continue;
 				}
-				instruction.m_op = MidoriIROp::Const;
 				changed = true;
-				instruction.m_immediate = static_cast<int64_t>(std::get<int>(forwarded.value()));
-				instruction.m_operands.clear();
-				instruction.m_type = MidoriIRScalarType(MidoriIRScalar::Int);
-				instruction.m_effect = MidoriIREffect();
+				instruction = MidoriIRAnalysis::Const(instruction.m_result.value(), MidoriIRScalarType(MidoriIRScalar::Int), static_cast<int64_t>(std::get<int>(forwarded.value())), instruction.m_line);
 			}
 		}
 		MidoriIRAnalysis::ReplaceUses(function, replacements);

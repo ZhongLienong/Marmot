@@ -6,38 +6,11 @@
 
 namespace
 {
-	// An edge into a block: the terminator of `m_block` and which of its
-	// successors it is.
-	struct Edge
-	{
-		uint32_t m_block;
-		size_t m_successor;
-	};
-
-	std::vector<std::vector<Edge>> IncomingEdges(const MidoriIRFunction& function)
-	{
-		std::vector<std::vector<Edge>> incoming(function.m_blocks.size());
-		for (uint32_t block = 0u; block < function.m_blocks.size(); block += 1u)
-		{
-			const std::vector<MidoriIRSuccessor>& successors = function.m_blocks[block].m_instructions.back().m_successors;
-			for (size_t successor = 0u; successor < successors.size(); successor += 1u)
-			{
-				incoming[successors[successor].m_block.m_index].push_back(Edge{ block, successor });
-			}
-		}
-		return incoming;
-	}
-
-	MidoriIRSuccessor& SuccessorOf(MidoriIRFunction& function, const Edge& edge)
-	{
-		return function.m_blocks[edge.m_block].m_instructions.back().m_successors[edge.m_successor];
-	}
-
 	// A parameter every edge passes the same value to, or itself, is that
 	// value. It dominates each edge, so it dominates the block.
 	bool RemoveRedundantParameters(MidoriIRFunction& function)
 	{
-		const std::vector<std::vector<Edge>> incoming = IncomingEdges(function);
+		const std::vector<std::vector<MidoriIREdge>> incoming = MidoriIRAnalysis::IncomingEdges(function);
 		std::vector<std::optional<MidoriIRValueId>> replacements(function.m_values.size());
 		bool changed = false;
 		for (uint32_t block = 1u; block < function.m_blocks.size(); block += 1u)
@@ -48,9 +21,9 @@ namespace
 				const MidoriIRValueId parameter = parameters[index];
 				std::optional<MidoriIRValueId> only;
 				bool is_redundant = true;
-				for (const Edge& edge : incoming[block])
+				for (const MidoriIREdge& edge : incoming[block])
 				{
-					const MidoriIRValueId argument = SuccessorOf(function, edge).m_arguments[index];
+					const MidoriIRValueId argument = MidoriIRAnalysis::SuccessorOf(function, edge).m_arguments[index];
 					if (argument == parameter || argument == only)
 					{
 						continue;
@@ -68,9 +41,9 @@ namespace
 				}
 				replacements[parameter.m_index] = only;
 				parameters.erase(parameters.begin() + static_cast<std::ptrdiff_t>(index));
-				for (const Edge& edge : incoming[block])
+				for (const MidoriIREdge& edge : incoming[block])
 				{
-					std::vector<MidoriIRValueId>& arguments = SuccessorOf(function, edge).m_arguments;
+					std::vector<MidoriIRValueId>& arguments = MidoriIRAnalysis::SuccessorOf(function, edge).m_arguments;
 					arguments.erase(arguments.begin() + static_cast<std::ptrdiff_t>(index));
 				}
 				changed = true;
@@ -89,7 +62,7 @@ namespace
 	bool RemoveDeadValues(MidoriIRFunction& function)
 	{
 		const std::vector<std::optional<MidoriIRSite>> sites = MidoriIRAnalysis::DefinitionSites(function);
-		const std::vector<std::vector<Edge>> incoming = IncomingEdges(function);
+		const std::vector<std::vector<MidoriIREdge>> incoming = MidoriIRAnalysis::IncomingEdges(function);
 		std::vector<std::optional<std::pair<uint32_t, size_t>>> parameter_of(function.m_values.size());
 		for (uint32_t block = 0u; block < function.m_blocks.size(); block += 1u)
 		{
@@ -140,9 +113,9 @@ namespace
 			else if (parameter_of[value.m_index].has_value())
 			{
 				const auto [block, index] = parameter_of[value.m_index].value();
-				for (const Edge& edge : incoming[block])
+				for (const MidoriIREdge& edge : incoming[block])
 				{
-					mark(SuccessorOf(function, edge).m_arguments[index]);
+					mark(MidoriIRAnalysis::SuccessorOf(function, edge).m_arguments[index]);
 				}
 			}
 		}
@@ -167,9 +140,9 @@ namespace
 					continue;
 				}
 				parameters.erase(parameters.begin() + static_cast<std::ptrdiff_t>(index));
-				for (const Edge& edge : incoming[block])
+				for (const MidoriIREdge& edge : incoming[block])
 				{
-					std::vector<MidoriIRValueId>& arguments = SuccessorOf(function, edge).m_arguments;
+					std::vector<MidoriIRValueId>& arguments = MidoriIRAnalysis::SuccessorOf(function, edge).m_arguments;
 					arguments.erase(arguments.begin() + static_cast<std::ptrdiff_t>(index));
 				}
 				changed = true;
@@ -186,11 +159,6 @@ namespace
 			return std::nullopt;
 		}
 		return std::get<bool>(definition->m_immediate);
-	}
-
-	bool SameSuccessor(const MidoriIRSuccessor& left, const MidoriIRSuccessor& right)
-	{
-		return left.m_block == right.m_block && left.m_arguments == right.m_arguments;
 	}
 
 	bool IsOnlyUnreachable(const MidoriIRFunction& function, const MidoriIRSuccessor& successor)
@@ -234,15 +202,11 @@ namespace
 				continue;
 			}
 			const std::optional<bool> condition = TakenEdge(function, sites, terminator);
-			if (!condition.has_value() && !SameSuccessor(terminator.m_successors[0u], terminator.m_successors[1u]))
+			if (!condition.has_value() && terminator.m_successors[0u] != terminator.m_successors[1u])
 			{
 				continue;
 			}
-			MidoriIRSuccessor taken = std::move(terminator.m_successors[condition.value_or(true) ? 0u : 1u]);
-			terminator.m_op = MidoriIROp::Jump;
-			terminator.m_operands.clear();
-			terminator.m_successors.clear();
-			terminator.m_successors.push_back(std::move(taken));
+			terminator = MidoriIRAnalysis::Jump(std::move(terminator.m_successors[condition.value_or(true) ? 0u : 1u]), terminator.m_line);
 			changed = true;
 		}
 		return changed;

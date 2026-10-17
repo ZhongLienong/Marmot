@@ -64,46 +64,7 @@ namespace
 	// Leaves a Unit where an instruction was, for anything that used it.
 	void MakeUnit(MidoriIRInstruction& instruction)
 	{
-		instruction.m_op = MidoriIROp::Const;
-		instruction.m_operands.clear();
-		instruction.m_immediate = std::monostate{};
-		instruction.m_type = MidoriType::MakeLiteralType<MidoriType::UnitType>();
-		instruction.m_effect = MidoriIREffect();
-	}
-
-	bool BindsOnlyKnownClosures(const MidoriIRModule& module)
-	{
-		for (const MidoriIRFunction& function : module.m_functions)
-		{
-			const std::vector<std::optional<MidoriIRSite>> sites = MidoriIRAnalysis::DefinitionSites(function);
-			for (const MidoriIRBlock& block : function.m_blocks)
-			{
-				for (const MidoriIRInstruction& instruction : block.m_instructions)
-				{
-					if (instruction.m_op != MidoriIROp::BindCaptures)
-					{
-						continue;
-					}
-					const MidoriIRInstruction* closure = MidoriIRAnalysis::Definition(function, sites, instruction.m_operands[0u]);
-					if (closure == nullptr || closure->m_op != MidoriIROp::MakeClosure)
-					{
-						return false;
-					}
-				}
-			}
-		}
-		return true;
-	}
-
-	// The closure a BindCaptures fills, as the function it is of.
-	std::optional<MidoriIRFunctionId> BoundFunction(const MidoriIRFunction& function, const std::vector<std::optional<MidoriIRSite>>& sites, const MidoriIRInstruction& bind)
-	{
-		const MidoriIRInstruction* closure = MidoriIRAnalysis::Definition(function, sites, bind.m_operands[0u]);
-		if (closure == nullptr || closure->m_op != MidoriIROp::MakeClosure)
-		{
-			return std::nullopt;
-		}
-		return std::get<MidoriIRFunctionId>(closure->m_immediate);
+		instruction = MidoriIRAnalysis::Const(instruction.m_result.value(), MidoriType::MakeLiteralType<MidoriType::UnitType>(), std::monostate{}, instruction.m_line);
 	}
 
 	// A capture nothing reads is not captured: each closure is made without
@@ -163,7 +124,7 @@ namespace
 			// MakeClosure, which does not change.
 			for (MidoriIRInstruction* bind : binds)
 			{
-				const MidoriIRFunctionId bound = BoundFunction(function, sites, *bind).value();
+				const MidoriIRFunctionId bound = std::get<MidoriIRFunctionId>(MidoriIRAnalysis::Definition(function, sites, bind->m_operands[0u])->m_immediate);
 				const std::optional<uint32_t> capture = renumbered[bound.m_index][std::get<MidoriIRIndex>(bind->m_immediate).m_value];
 				if (capture.has_value())
 				{
@@ -365,7 +326,7 @@ namespace
 
 bool RunClosureConversion(MidoriIRModule& module)
 {
-	if (!BindsOnlyKnownClosures(module))
+	if (!MidoriIRModuleFacts(module).BindsOnlyKnownClosures())
 	{
 		return false;
 	}

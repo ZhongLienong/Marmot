@@ -7,12 +7,6 @@
 
 namespace
 {
-	struct Edge
-	{
-		uint32_t m_block;
-		size_t m_successor;
-	};
-
 	// The reads of each part of a block parameter, and whether anything else
 	// reads it: passing it back to its own block unchanged does not.
 	struct Reads
@@ -31,22 +25,14 @@ namespace
 	private:
 		MidoriIRFunction& m_function;
 		std::vector<std::optional<MidoriIRSite>> m_sites;
-		std::vector<std::vector<Edge>> m_incoming;
+		std::vector<std::vector<MidoriIREdge>> m_incoming;
 
 	public:
 		explicit Unboxing(MidoriIRFunction& function)
 			: m_function(function),
 			m_sites(MidoriIRAnalysis::DefinitionSites(function)),
-			m_incoming(function.m_blocks.size())
+			m_incoming(MidoriIRAnalysis::IncomingEdges(function))
 		{
-			for (uint32_t block = 0u; block < function.m_blocks.size(); block += 1u)
-			{
-				const std::vector<MidoriIRSuccessor>& successors = function.m_blocks[block].m_instructions.back().m_successors;
-				for (size_t successor = 0u; successor < successors.size(); successor += 1u)
-				{
-					m_incoming[successors[successor].m_block.m_index].push_back(Edge{ block, successor });
-				}
-			}
 		}
 
 		bool UnboxOne()
@@ -73,11 +59,6 @@ namespace
 		}
 
 	private:
-		MidoriIRSuccessor& SuccessorOf(const Edge& edge)
-		{
-			return m_function.m_blocks[edge.m_block].m_instructions.back().m_successors[edge.m_successor];
-		}
-
 		// Construct or MakeTuple when every edge passes a value made by it, or
 		// passes the parameter back to its own block, and at least one makes
 		// it.
@@ -85,9 +66,9 @@ namespace
 		{
 			const MidoriIRValueId parameter = m_function.m_blocks[block].m_parameters[index];
 			std::optional<MidoriIROp> constructor;
-			for (const Edge& edge : m_incoming[block])
+			for (const MidoriIREdge& edge : m_incoming[block])
 			{
-				const MidoriIRValueId argument = SuccessorOf(edge).m_arguments[index];
+				const MidoriIRValueId argument = MidoriIRAnalysis::SuccessorOf(m_function, edge).m_arguments[index];
 				if (argument == parameter)
 				{
 					continue;
@@ -149,9 +130,9 @@ namespace
 				}
 			}
 
-			for (const Edge& edge : m_incoming[block])
+			for (const MidoriIREdge& edge : m_incoming[block])
 			{
-				std::vector<MidoriIRValueId>& arguments = SuccessorOf(edge).m_arguments;
+				std::vector<MidoriIRValueId>& arguments = MidoriIRAnalysis::SuccessorOf(m_function, edge).m_arguments;
 				const MidoriIRValueId whole = arguments[index];
 				arguments.erase(arguments.begin() + static_cast<std::ptrdiff_t>(index));
 				if (whole == parameter)

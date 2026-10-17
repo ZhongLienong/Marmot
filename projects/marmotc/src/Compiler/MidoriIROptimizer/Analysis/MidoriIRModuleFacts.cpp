@@ -6,7 +6,8 @@
 
 MidoriIRModuleFacts::MidoriIRModuleFacts(const MidoriIRModule& module)
 	: m_global_functions(module.m_globals.size()),
-	m_self_captures(module.m_functions.size())
+	m_self_captures(module.m_functions.size()),
+	m_binds_only_known_closures(true)
 {
 	std::vector<uint32_t> closures_made(module.m_functions.size(), 0u);
 	// Per function, whether each capture was bound to its own closure at every
@@ -17,7 +18,6 @@ MidoriIRModuleFacts::MidoriIRModuleFacts(const MidoriIRModule& module)
 		bound_to_self[function].assign(module.m_functions[function].m_capture_types.size(), true);
 	}
 
-	bool binds_unknown_closure = false;
 	for (const MidoriIRFunction& maker : module.m_functions)
 	{
 		const std::vector<std::optional<MidoriIRSite>> sites = MidoriIRAnalysis::DefinitionSites(maker);
@@ -47,7 +47,7 @@ MidoriIRModuleFacts::MidoriIRModuleFacts(const MidoriIRModule& module)
 				else if (instruction.m_op == MidoriIROp::BindCaptures)
 				{
 					const MidoriIRInstruction* closure = MidoriIRAnalysis::Definition(maker, sites, instruction.m_operands[0u]);
-					binds_unknown_closure = binds_unknown_closure || closure == nullptr || closure->m_op != MidoriIROp::MakeClosure;
+					m_binds_only_known_closures = m_binds_only_known_closures && closure != nullptr && closure->m_op == MidoriIROp::MakeClosure;
 				}
 				else if (instruction.m_op == MidoriIROp::GlobalDefine && module.m_top_level.has_value() && &maker == &module.Function(module.m_top_level.value()))
 				{
@@ -69,7 +69,7 @@ MidoriIRModuleFacts::MidoriIRModuleFacts(const MidoriIRModule& module)
 	{
 		const bool is_made = closures_made[function] != 0u;
 		m_self_captures[function] = bound_to_self[function]
-			| std::views::transform([&](bool bound) { return bound && is_made && !binds_unknown_closure; })
+			| std::views::transform([&](bool bound) { return bound && is_made && m_binds_only_known_closures; })
 			| std::ranges::to<std::vector>();
 	}
 }
@@ -82,4 +82,9 @@ std::optional<MidoriIRFunctionId> MidoriIRModuleFacts::GlobalFunction(MidoriIRGl
 bool MidoriIRModuleFacts::IsSelfCapture(MidoriIRFunctionId function, uint32_t capture) const
 {
 	return m_self_captures[function.m_index][capture];
+}
+
+bool MidoriIRModuleFacts::BindsOnlyKnownClosures() const
+{
+	return m_binds_only_known_closures;
 }

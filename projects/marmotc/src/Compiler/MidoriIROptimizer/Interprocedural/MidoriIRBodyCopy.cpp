@@ -1,6 +1,5 @@
 #include "MidoriIRBodyCopy.h"
 #include "Compiler/MidoriIROptimizer/Analysis/MidoriIRAnalysis.h"
-#include "Compiler/Lowering/GenericTypes.h"
 
 #include <ranges>
 #include <utility>
@@ -47,7 +46,7 @@ namespace MidoriIRBodyCopy
 			for (const MidoriIRInstruction& instruction : original.m_instructions)
 			{
 				MidoriIRInstruction copied = instruction;
-				MidoriIRAnalysis::ForEachUse(copied, [&rename](MidoriIRValueId& value) { value = rename(value); });
+				ForEachMidoriIRUse(copied,[&rename](MidoriIRValueId& value) { value = rename(value); });
 				if (copied.m_result.has_value())
 				{
 					copied.m_result = rename(copied.m_result.value());
@@ -62,25 +61,5 @@ namespace MidoriIRBodyCopy
 		}
 		target.m_blocks.insert(target.m_blocks.begin() + at, std::make_move_iterator(copies.begin()), std::make_move_iterator(copies.end()));
 		return MidoriIRCopiedBody{ at, count };
-	}
-
-	std::shared_ptr<MidoriType> CalleeReturnType(const MidoriIRModule& module, const MidoriIRFunction& caller, const MidoriIRInstruction& call)
-	{
-		if (std::holds_alternative<MidoriIRFunctionId>(call.m_immediate))
-		{
-			return module.Function(std::get<MidoriIRFunctionId>(call.m_immediate)).m_return_type;
-		}
-		const std::shared_ptr<MidoriType> callee = std::holds_alternative<MidoriIRGlobalSlot>(call.m_immediate)
-			? module.m_globals[std::get<MidoriIRGlobalSlot>(call.m_immediate).m_value].m_type
-			: caller.TypeOf(call.m_operands.front());
-		return GenericTypes::RepresentationOf(callee)->GetType<MidoriType::FunctionType>().m_return_type;
-	}
-
-	MidoriIRInstruction AsCall(const MidoriIRInstruction& tail_call, MidoriIRValueId result, std::shared_ptr<MidoriType> type)
-	{
-		const MidoriIROp op = std::holds_alternative<MidoriIRFunctionId>(tail_call.m_immediate) ? MidoriIROp::Call
-			: std::holds_alternative<MidoriIRGlobalSlot>(tail_call.m_immediate) ? MidoriIROp::CallGlobal
-			: MidoriIROp::CallValue;
-		return MidoriIRInstruction(op, result, std::move(type), tail_call.m_operands, tail_call.m_immediate, {}, tail_call.m_line);
 	}
 }
