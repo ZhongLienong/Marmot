@@ -1,14 +1,20 @@
 #include "Support/Cancellation/Cancellation.h"
 #include "Library/MidoriStdLibExports.h"
+#include "Library/FFIAllocation/FFIAllocation.h"
+#include "Value/Value.h"
 
+#include <array>
 #include <cerrno>
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
+#include <expected>
 #include <filesystem>
+#include <ranges>
 #include <string>
 #include <system_error>
 #include <thread>
+#include <vector>
 
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
@@ -18,6 +24,13 @@
 #else
 #include <sys/wait.h>
 #include <unistd.h>
+#endif
+
+#if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
+#include <fcntl.h>
+#include <spawn.h>
+
+extern char** environ;
 #endif
 
 namespace
@@ -36,28 +49,9 @@ namespace
 		std::string m_message;
 	};
 
+	using FFIAllocation::AllocateString;
+
 	thread_local SystemErrorState s_last_system_error{};
-
-	char* AllocateString(const std::string& str)
-	{
-		const size_t size = str.size() + 1u;
-		char* buffer = static_cast<char*>(std::malloc(size));
-		if (buffer != nullptr)
-		{
-			std::memcpy(buffer, str.c_str(), size);
-		}
-		return buffer;
-	}
-
-	char* AllocateEmptyString()
-	{
-		char* buffer = static_cast<char*>(std::malloc(1u));
-		if (buffer != nullptr)
-		{
-			buffer[0u] = '\0';
-		}
-		return buffer;
-	}
 
 	void ClearLastSystemError()
 	{
@@ -81,6 +75,244 @@ namespace
 
 		SetLastSystemError(SystemErrorKind::InvalidDirectory, ec.message());
 	}
+
+	struct ProcessOutcome
+	{
+		int m_exit_code = 0;
+		std::string m_output;
+		std::string m_error;
+	};
+
+#if defined(__EMSCRIPTEN__)
+	std::expected<ProcessOutcome, std::string> RunToCompletion(const std::vector<std::string>&, const std::string&)
+	{
+		return std::unexpected(std::string("WebAssembly cannot start a process."));
+	}
+#elif defined(_WIN32)
+	std::wstring Widen(std::string_view text)
+	{
+		const int length = MultiByteToWideChar(CP_UTF8, 0u, text.data(), static_cast<int>(text.size()), nullptr, 0);
+		std::wstring wide(static_cast<size_t>(length), L'\0');
+		MultiByteToWideChar(CP_UTF8, 0u, text.data(), static_cast<int>(text.size()), wide.data(), length);
+		return wide;
+	}
+
+	// Quoted the way the C runtime splits a command line back into arguments:
+	// backslashes are literal except in a run that ends at a quote.
+	void AppendQuoted(std::wstring& command_line, std::wstring_view argument)
+	{
+		if (!argument.empty() && argument.find_first_of(L" \t\n\v\"") == std::wstring_view::npos)
+		{
+			command_line.append(argument);
+			return;
+		}
+
+		command_line.push_back(L'"');
+		size_t backslashes = 0u;
+		for (const wchar_t character : argument)
+		{
+			if (character == L'\\')
+			{
+				backslashes += 1u;
+				continue;
+			}
+
+			command_line.append(character == L'"' ? (backslashes * 2u) + 1u : backslashes, L'\\');
+			command_line.push_back(character);
+			backslashes = 0u;
+		}
+		command_line.append(backslashes * 2u, L'\\');
+		command_line.push_back(L'"');
+	}
+
+	void CloseIfOpen(std::initializer_list<HANDLE> handles)
+	{
+		for (const HANDLE handle : handles)
+		{
+			if (handle != nullptr && handle != INVALID_HANDLE_VALUE)
+			{
+				CloseHandle(handle);
+			}
+		}
+	}
+
+	std::string ReadAll(HANDLE pipe)
+	{
+		std::string text;
+		std::array<char, 4096u> buffer{};
+		DWORD count = 0u;
+		while (ReadFile(pipe, buffer.data(), static_cast<DWORD>(buffer.size()), &count, nullptr) && count > 0u)
+		{
+			text.append(buffer.data(), count);
+		}
+		CloseHandle(pipe);
+		return text;
+	}
+
+	std::expected<ProcessOutcome, std::string> RunToCompletion(const std::vector<std::string>& arguments, const std::string& directory)
+	{
+		SECURITY_ATTRIBUTES inheritable{ sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE };
+		HANDLE output_read = nullptr;
+		HANDLE output_write = nullptr;
+		HANDLE error_read = nullptr;
+		HANDLE error_write = nullptr;
+		const HANDLE input = CreateFileW(L"NUL", GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, &inheritable, OPEN_EXISTING, 0u, nullptr);
+		if (input == INVALID_HANDLE_VALUE
+			|| !CreatePipe(&output_read, &output_write, &inheritable, 0u)
+			|| !CreatePipe(&error_read, &error_write, &inheritable, 0u))
+		{
+			const DWORD error = GetLastError();
+			CloseIfOpen({ input, output_read, output_write, error_read, error_write });
+			return std::unexpected(std::system_category().message(static_cast<int>(error)));
+		}
+
+		// Only the child's ends cross, so a process another worker starts at
+		// the same moment cannot hold this one's pipes open.
+		std::array<HANDLE, 3u> inherited{ input, output_write, error_write };
+		SIZE_T attributes_size = 0u;
+		InitializeProcThreadAttributeList(nullptr, 1u, 0u, &attributes_size);
+		std::vector<std::byte> attributes_storage(attributes_size);
+		const LPPROC_THREAD_ATTRIBUTE_LIST attributes = reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(attributes_storage.data());
+		InitializeProcThreadAttributeList(attributes, 1u, 0u, &attributes_size);
+		UpdateProcThreadAttribute(attributes, 0u, PROC_THREAD_ATTRIBUTE_HANDLE_LIST, inherited.data(), sizeof(inherited), nullptr, nullptr);
+
+		STARTUPINFOEXW startup{};
+		startup.StartupInfo.cb = sizeof(startup);
+		startup.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
+		startup.StartupInfo.hStdInput = input;
+		startup.StartupInfo.hStdOutput = output_write;
+		startup.StartupInfo.hStdError = error_write;
+		startup.lpAttributeList = attributes;
+
+		std::wstring command_line;
+		for (const std::string& argument : arguments)
+		{
+			if (!command_line.empty())
+			{
+				command_line.push_back(L' ');
+			}
+			AppendQuoted(command_line, Widen(argument));
+		}
+
+		const std::wstring wide_directory = Widen(directory);
+		PROCESS_INFORMATION process{};
+		const BOOL created = CreateProcessW(nullptr, command_line.data(), nullptr, nullptr, TRUE, EXTENDED_STARTUPINFO_PRESENT, nullptr, wide_directory.empty() ? nullptr : wide_directory.c_str(), &startup.StartupInfo, &process);
+		const DWORD create_error = GetLastError();
+		DeleteProcThreadAttributeList(attributes);
+		CloseIfOpen({ input, output_write, error_write });
+		if (!created)
+		{
+			CloseIfOpen({ output_read, error_read });
+			return std::unexpected(std::system_category().message(static_cast<int>(create_error)));
+		}
+		CloseHandle(process.hThread);
+
+		ProcessOutcome outcome;
+		{
+			std::jthread error_reader([&outcome, error_read]() { outcome.m_error = ReadAll(error_read); });
+			outcome.m_output = ReadAll(output_read);
+		}
+
+		WaitForSingleObject(process.hProcess, INFINITE);
+		DWORD exit_code = 0u;
+		GetExitCodeProcess(process.hProcess, &exit_code);
+		CloseHandle(process.hProcess);
+		outcome.m_exit_code = static_cast<int>(exit_code);
+		return outcome;
+	}
+#else
+	// Close-on-exec from the start, so a process another worker starts at the
+	// same moment cannot inherit this one's pipe and hold it open.
+	bool MakePipe(std::array<int, 2u>& ends)
+	{
+#ifdef __linux__
+		return pipe2(ends.data(), O_CLOEXEC) == 0;
+#else
+		return pipe(ends.data()) == 0
+			&& fcntl(ends[0u], F_SETFD, FD_CLOEXEC) == 0
+			&& fcntl(ends[1u], F_SETFD, FD_CLOEXEC) == 0;
+#endif
+	}
+
+	std::string ReadAll(int descriptor)
+	{
+		std::string text;
+		std::array<char, 4096u> buffer{};
+		for (;;)
+		{
+			const ssize_t count = read(descriptor, buffer.data(), buffer.size());
+			if (count > 0)
+			{
+				text.append(buffer.data(), static_cast<size_t>(count));
+			}
+			else if (count == 0 || errno != EINTR)
+			{
+				break;
+			}
+		}
+		close(descriptor);
+		return text;
+	}
+
+	std::expected<ProcessOutcome, std::string> RunToCompletion(const std::vector<std::string>& arguments, const std::string& directory)
+	{
+		std::array<int, 2u> output{ -1, -1 };
+		std::array<int, 2u> error{ -1, -1 };
+		if (!MakePipe(output) || !MakePipe(error))
+		{
+			const int pipe_error = errno;
+			for (const int descriptor : { output[0u], output[1u], error[0u], error[1u] })
+			{
+				if (descriptor != -1)
+				{
+					close(descriptor);
+				}
+			}
+			return std::unexpected(std::generic_category().message(pipe_error));
+		}
+
+		posix_spawn_file_actions_t actions;
+		posix_spawn_file_actions_init(&actions);
+		posix_spawn_file_actions_addopen(&actions, STDIN_FILENO, "/dev/null", O_RDONLY, 0);
+		posix_spawn_file_actions_adddup2(&actions, output[1u], STDOUT_FILENO);
+		posix_spawn_file_actions_adddup2(&actions, error[1u], STDERR_FILENO);
+		if (!directory.empty())
+		{
+			posix_spawn_file_actions_addchdir_np(&actions, directory.c_str());
+		}
+
+		std::vector<char*> argv = arguments
+			| std::views::transform([](const std::string& argument) { return const_cast<char*>(argument.c_str()); })
+			| std::ranges::to<std::vector>();
+		argv.push_back(nullptr);
+
+		pid_t process = 0;
+		const int spawned = posix_spawnp(&process, argv.front(), &actions, nullptr, argv.data(), environ);
+		posix_spawn_file_actions_destroy(&actions);
+		close(output[1u]);
+		close(error[1u]);
+		if (spawned != 0)
+		{
+			close(output[0u]);
+			close(error[0u]);
+			return std::unexpected(std::generic_category().message(spawned));
+		}
+
+		ProcessOutcome outcome;
+		{
+			std::jthread error_reader([&outcome, descriptor = error[0u]]() { outcome.m_error = ReadAll(descriptor); });
+			outcome.m_output = ReadAll(output[0u]);
+		}
+
+		int status = 0;
+		while (waitpid(process, &status, 0) == -1 && errno == EINTR)
+		{
+		}
+		// A program killed by a signal reports 128 + the signal, as a shell does.
+		outcome.m_exit_code = WIFEXITED(status) ? WEXITSTATUS(status) : 128 + WTERMSIG(status);
+		return outcome;
+	}
+#endif
 }
 
 extern "C"
@@ -110,7 +342,7 @@ extern "C"
 				SetLastSystemError(SystemErrorKind::Unknown, std::system_category().message(static_cast<int>(error)));
 			}
 
-			char* empty = AllocateEmptyString();
+			char* empty = AllocateString("");
 			const int64_t ptr = reinterpret_cast<int64_t>(empty);
 			std::memcpy(ret, &ptr, sizeof(int64_t));
 			return;
@@ -122,7 +354,7 @@ extern "C"
 		{
 			const DWORD error = GetLastError();
 			SetLastSystemError(SystemErrorKind::Unknown, std::system_category().message(static_cast<int>(error)));
-			char* empty = AllocateEmptyString();
+			char* empty = AllocateString("");
 			const int64_t ptr = reinterpret_cast<int64_t>(empty);
 			std::memcpy(ret, &ptr, sizeof(int64_t));
 			return;
@@ -135,7 +367,7 @@ extern "C"
 		if (value == nullptr)
 		{
 			SetLastSystemError(SystemErrorKind::MissingEnv, std::string(var_name));
-			char* empty = AllocateEmptyString();
+			char* empty = AllocateString("");
 			const int64_t ptr = reinterpret_cast<int64_t>(empty);
 			std::memcpy(ret, &ptr, sizeof(int64_t));
 			return;
@@ -163,7 +395,7 @@ extern "C"
 		const std::filesystem::path cwd = std::filesystem::current_path(ec);
 		SetLastSystemErrorFromDirectoryCode(ec);
 
-		char* result = ec ? AllocateEmptyString() : AllocateString(cwd.string());
+		char* result = ec ? AllocateString("") : AllocateString(cwd.string());
 		const int64_t ptr = reinterpret_cast<int64_t>(result);
 		std::memcpy(ret, &ptr, sizeof(int64_t));
 	}
@@ -238,6 +470,42 @@ extern "C"
 		std::memcpy(ret, &result, sizeof(int64_t));
 	}
 
+	// The arguments reach the program exactly, with no shell between. Both
+	// outputs are read while it runs, so neither pipe fills and stops it. The
+	// result is the exit code, the output and the error output, as text.
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(RunProcess)(void** args, void* ret) noexcept
+	{
+		const MidoriArray& values = static_cast<MidoriTraceable*>(args[0u])->GetTraceable<MidoriArray>();
+		const std::vector<std::string> arguments = std::views::iota(0, values.GetLength())
+			| std::views::transform([&values](int index) { return std::string(values[index].GetPointer()->GetTraceable<MidoriText>().View()); })
+			| std::ranges::to<std::vector>();
+		const std::string directory(reinterpret_cast<const char*>(args[1u]));
+
+		std::error_code ec;
+		if (!directory.empty() && !std::filesystem::is_directory(directory, ec))
+		{
+			SetLastSystemError(SystemErrorKind::InvalidDirectory, "Not a directory.");
+			const int64_t null_ptr = 0;
+			std::memcpy(ret, &null_ptr, sizeof(int64_t));
+			return;
+		}
+
+		const std::expected<ProcessOutcome, std::string> outcome = RunToCompletion(arguments, directory);
+		if (outcome.has_value())
+		{
+			ClearLastSystemError();
+		}
+		else
+		{
+			SetLastSystemError(SystemErrorKind::Unknown, outcome.error());
+		}
+
+		const int64_t ptr = outcome.has_value()
+			? reinterpret_cast<int64_t>(FFIAllocation::AllocateStringArray({ std::to_string(outcome->m_exit_code), outcome->m_output, outcome->m_error }))
+			: 0;
+		std::memcpy(ret, &ptr, sizeof(int64_t));
+	}
+
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetPlatform)(void**, void* ret) noexcept
 	{
 #if defined(_WIN32)
@@ -273,9 +541,7 @@ extern "C"
 
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetLastSystemErrorMessage)(void**, void* ret) noexcept
 	{
-		char* result = s_last_system_error.m_message.empty()
-			? AllocateEmptyString()
-			: AllocateString(s_last_system_error.m_message);
+		char* result = AllocateString(s_last_system_error.m_message);
 		const int64_t ptr = reinterpret_cast<int64_t>(result);
 		std::memcpy(ret, &ptr, sizeof(int64_t));
 	}

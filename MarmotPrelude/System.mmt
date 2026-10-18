@@ -6,11 +6,16 @@ use Option.{
 use Result.{
     Result
 }
-public export { SystemError, Platform, ProcessResult, Exit, Sleep, TryGetEnv, SetEnv, CurrentDirectory, TrySetCurrentDirectory, Run, CurrentPlatform, CurrentProcessId }
+public export { SystemError, Platform, ProcessResult, ProcessOutput, Exit, Sleep, TryGetEnv, SetEnv, CurrentDirectory, TrySetCurrentDirectory, Run, RunProcess, CurrentPlatform, CurrentProcessId }
 type SystemError = InvalidDirectory(Text) | CommandFailed(Int) | UnknownSystem(Text);
 type Platform = Windows | MacOS | Linux | WebAssembly | Unknown(Text);
 type ProcessResult = {
     exit_code: Int
+};
+type ProcessOutput = {
+    exit_code: Int,
+    stdout: Text,
+    stderr: Text
 };
 foreign "MIDORI_FFI_Exit" ExitRaw: fn(Int) -> Unit;
 foreign "MIDORI_FFI_GetEnv" GetEnvRaw: fn(Text) -> Text;
@@ -19,6 +24,7 @@ foreign "MIDORI_FFI_Sleep" SleepRaw: fn(Int) -> Unit;
 foreign "MIDORI_FFI_GetCurrentDirectory" GetCurrentDirectoryRaw: fn() -> Text;
 foreign "MIDORI_FFI_SetCurrentDirectory" SetCurrentDirectoryRaw: fn(Text) -> Bool;
 foreign "MIDORI_FFI_Execute" ExecuteRaw: fn(Text) -> Int;
+foreign "MIDORI_FFI_RunProcess" RunProcessRaw: fn(Array < Text >, Text) -> Array < Text >;
 foreign "MIDORI_FFI_GetPlatform" GetPlatformRaw: fn() -> Text;
 foreign "MIDORI_FFI_GetProcessId" GetProcessIdRaw: fn() -> Int;
 foreign "MIDORI_FFI_GetLastSystemErrorKind" GetLastSystemErrorKindRaw: fn() -> Int;
@@ -57,6 +63,19 @@ def Run = fn(command: Text) -> Result < ProcessResult, SystemError > => {
     def error_kind = GetLastSystemErrorKindRaw();
     if error_kind != 0 then Result::Err (MakeSystemError(command, error_kind)) else if exit_code == 0 then Result::Ok (ProcessResult(exit_code)) else Result::Err (SystemError::CommandFailed(exit_code))
 };
+// Runs `arguments[0]`, found on PATH, with the rest as its arguments exactly:
+// there is no shell, so nothing in them is interpreted. It runs in `directory`,
+// or the current directory when that is empty, with nothing on its input. A
+// program that ran is Ok whatever its exit code, with everything it wrote.
+def RunProcess = fn(arguments: Array < Text >, directory: Text) -> Result < ProcessOutput, SystemError > =>
+    if #arguments == 0
+    then Result::Err (SystemError::UnknownSystem("RunProcess needs a program to run"))
+    else {
+        def parts = RunProcessRaw(arguments, directory);
+        def error_kind = GetLastSystemErrorKindRaw();
+        def context = if error_kind == 2 then directory else arguments[0];
+        if error_kind != 0 then Result::Err (MakeSystemError(context, error_kind)) else Result::Ok (ProcessOutput (parts[0] as Int, parts[1], parts[2]))
+    };
 def CurrentPlatform = fn() -> Platform => {
     def platform = GetPlatformRaw();
     if platform == "Windows" then Platform::Windows() else if platform == "macOS" then Platform::MacOS() else if platform == "Linux" then Platform::Linux() else if platform == "WebAssembly" then Platform::WebAssembly() else if platform == "WebAssembly (wasm64)" then Platform::WebAssembly() else Platform::Unknown(platform)

@@ -1835,6 +1835,15 @@
         "CString"
       ],
       "returns": "CString"
+    },
+    {
+      "id": 105,
+      "name": "MIDORI_FFI_RunProcess",
+      "arguments": [
+        "TraceableHandle",
+        "CString"
+      ],
+      "returns": "ArrayStrings"
     }
   ]
 }

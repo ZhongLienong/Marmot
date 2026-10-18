@@ -126,7 +126,9 @@ Public system entry points:
 
 - `TryGetEnv`, `SetEnv`
 - `CurrentDirectory`, `TrySetCurrentDirectory`
-- `Run`, `CurrentPlatform`, `CurrentProcessId`
+- `Run(command)`: runs a shell command and is `Err(CommandFailed(code))` when it exits nonzero
+- `RunProcess(arguments, directory) -> Result<ProcessOutput, SystemError>`: runs `arguments[0]` from `PATH` with the rest passed exactly, no shell, in `directory` (the current one when empty) with nothing on its input. A program that ran is `Ok` whatever its `exit_code`, with its `stdout` and `stderr` kept apart
+- `CurrentPlatform`, `CurrentProcessId`
 - `Exit`, `Sleep`
 
 The raw foreign declarations remain module-internal implementation details and are not the public API to build against.

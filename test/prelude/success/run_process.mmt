@@ -1,0 +1,75 @@
+module PreludeRunProcess
+
+import
+{
+    "../../../MarmotPrelude/IO.mmt",
+    "../../../MarmotPrelude/System.mmt",
+    "../../../MarmotPrelude/TextUtil.mmt",
+    "../../../MarmotPrelude/Prelude/Result.mmt",
+    "../../../MarmotPrelude/Prelude/Panic.mmt"
+}
+use IO.{IOError}
+use Result.{Result}
+use System.{Platform, ProcessOutput, SystemError}
+
+// Python is the program both CI platforms and every developer machine have,
+// and it splits its command line the way the C runtime does, which is what
+// the quoting on Windows has to get right.
+
+def Expect = fn(condition: Bool, message: Text) -> Unit => {
+    if condition
+    then ()
+    else Panic::Panic(message)
+};
+
+def python = match System::CurrentPlatform() with
+    case Platform::Windows() => "python"
+    case _ => "python3";
+
+def Run = fn(script: Text, rest: Array<Text>, directory: Text) -> ProcessOutput => {
+    match System::RunProcess([python, "-c", script] ++ rest, directory) with
+        case Result::Ok(output) => output
+        case Result::Err(_) => Panic::Panic("System::RunProcess should run " ++ python)
+};
+
+def Failure = fn(result: Result<ProcessOutput, SystemError>) -> Text => {
+    match result with
+        case Result::Ok(_) => "ok"
+        case Result::Err(error) => {
+            match error with
+                case SystemError::InvalidDirectory(path) => "invalid directory " ++ path
+                case SystemError::CommandFailed(code) => "failed " ++ (code as Text)
+                case SystemError::UnknownSystem(_) => "unknown"
+        }
+};
+
+def IgnoreIO = fn(result: Result<Unit, IOError>) -> Unit => {
+    match result with
+        case Result::Ok(_) => ()
+        case Result::Err(_) => ()
+};
+
+def both = Run("import sys; sys.stdout.write('out'); sys.stderr.write('err'); sys.exit(3)", [], "");
+Expect(both.exit_code == 3, "System::RunProcess should give the exit code, and a nonzero one is Ok");
+Expect((both.stdout == "out") && (both.stderr == "err"), "System::RunProcess should keep the output and the error output apart");
+
+def echoed = Run("import sys; sys.stdout.write('|'.join(sys.argv[1:]))", ["a b", "c\"d", "", "back\\slash\\", "tab\there"], "");
+Expect(echoed.stdout == "a b|c\"d||back\\slash\\|tab\there", "System::RunProcess should pass every argument exactly");
+
+def large = Run("import sys; [(sys.stdout.write('o' * 500), sys.stderr.write('e' * 500)) for i in range(2000)]", [], "");
+Expect((TextUtil::Length(large.stdout) == 1000000) && (TextUtil::Length(large.stderr) == 1000000), "System::RunProcess should read both outputs while the program writes them");
+
+def quiet = Run("import sys; sys.stdout.write(repr(sys.stdin.read()))", [], "");
+Expect(quiet.stdout == "''", "System::RunProcess should give the program nothing on its input");
+
+def directory = "marmot_run_process_" ++ (System::CurrentProcessId() as Text);
+IgnoreIO(IO::TryMakeDirectory(directory));
+def located = Run("import os, sys; sys.stdout.write(os.path.basename(os.getcwd()))", [], directory);
+Expect(located.stdout == directory, "System::RunProcess should run the program in the directory given");
+IgnoreIO(IO::TryDeleteFile(directory));
+
+Expect(Failure(System::RunProcess([python, "-c", "pass"], directory)) == ("invalid directory " ++ directory), "System::RunProcess should report a missing directory");
+Expect(Failure(System::RunProcess(["marmot-no-such-program"], "")) == "unknown", "System::RunProcess should report a program it cannot start");
+Expect(Failure(System::RunProcess([], "")) == "unknown", "System::RunProcess should need a program");
+
+IO::PrintLine("prelude_run_process: PASS");
