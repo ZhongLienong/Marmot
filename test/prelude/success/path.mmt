@@ -1,0 +1,38 @@
+module PreludePath
+
+import
+{
+    "../../../MarmotPrelude/IO.mmt",
+    "../../../MarmotPrelude/Path.mmt",
+    "../../../MarmotPrelude/Prelude/Panic.mmt"
+}
+
+def Expect = fn(condition: Bool, message: Text) -> Unit => {
+    if condition
+    then ()
+    else Panic::Panic(message)
+};
+
+Expect(Path::Join("src", "main.cc") == "src/main.cc", "Path::Join should put a separator between the parts");
+Expect(Path::Join("src/", "main.cc") == "src/main.cc", "Path::Join should not double a trailing separator");
+Expect(Path::Join("", "main.cc") == "main.cc", "Path::Join onto nothing should be the name");
+Expect(Path::Join("src", "/usr/include") == "/usr/include", "Path::Join with an absolute name should be the name");
+Expect(Path::Join("C:\\work\\", "main.cc") == "C:\\work\\main.cc", "Path::Join should accept a Windows separator");
+
+Expect(Path::FileName("src/engine/main.cc") == "main.cc", "Path::FileName should take the last part");
+Expect(Path::FileName("main.cc") == "main.cc", "Path::FileName of a bare name should be the name");
+Expect(Path::FileName("src/") == "", "Path::FileName after a trailing separator should be empty");
+Expect(Path::FileName("C:\\work\\main.cc") == "main.cc", "Path::FileName should split a Windows path");
+
+Expect(Path::Directory("src/engine/main.cc") == "src/engine", "Path::Directory should drop the last part");
+Expect(Path::Directory("main.cc") == "", "Path::Directory of a bare name should be empty");
+Expect(Path::Directory("/main.cc") == "/", "Path::Directory of a root file should be the root");
+Expect(Path::Directory("C:\\work\\main.cc") == "C:\\work", "Path::Directory should keep a Windows path's separators");
+
+Expect(Path::Extension("src/main.cc") == "cc", "Path::Extension should be the text after the last dot");
+Expect(Path::Extension("archive.tar.gz") == "gz", "Path::Extension should take only the last dot");
+Expect(Path::Extension("Makefile") == "", "Path::Extension without a dot should be empty");
+Expect(Path::Extension(".gitignore") == "", "Path::Extension of a dotfile should be empty");
+Expect(Path::Extension("v1.2/README") == "", "Path::Extension should ignore dots in the directory");
+
+IO::PrintLine("prelude_path: PASS");

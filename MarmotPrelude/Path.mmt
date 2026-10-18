@@ -1,0 +1,23 @@
+module Path
+import { "./TextUtil.mmt" }
+public export { Join, Directory, FileName, Extension }
+// Both separators are read, so a Windows path splits too. Join writes `/`,
+// which Windows also accepts.
+def Separated = fn(path: Text) -> Text => TextUtil::Replace(path, "\\", "/");
+def Join = fn(directory: Text, name: Text) -> Text =>
+    if (directory == "") || TextUtil::StartsWith(Separated(name), "/")
+    then name
+    else if TextUtil::EndsWith(Separated(directory), "/") then directory ++ name else directory ++ "/" ++ name;
+def FileName = fn(path: Text) -> Text => {
+    def parts = TextUtil::Split(Separated(path), "/");
+    parts[#parts - 1]
+};
+def Directory = fn(path: Text) -> Text => {
+    def cut = TextUtil::Length(path) - TextUtil::Length(FileName(path)) - 1;
+    def end = if cut == 0 then 1 else cut;
+    if cut < 0 then "" else TextUtil::Substring(path, 0, end)
+};
+def Extension = fn(path: Text) -> Text => {
+    def parts = TextUtil::Split(FileName(path), ".");
+    if (#parts < 2) || ((#parts == 2) && (parts[0] == "")) then "" else parts[#parts - 1]
+};

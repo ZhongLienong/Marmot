@@ -441,7 +441,7 @@ def updated_text = text ++ suffix;
 - **Core ADTs** - `Prelude/Option.mmt`, `Prelude/Result.mmt`, `Prelude/List.mmt`
 - **Collections** - `Collections/Map.mmt`, `Collections/Set.mmt`
 - **Effects** - `IO.mmt`, `System.mmt`, `DateTime.mmt`
-- **Built-in helpers** - `TextUtil.mmt`, `ArrayUtil.mmt`, `Math.mmt`
+- **Built-in helpers** - `TextUtil.mmt`, `ArrayUtil.mmt`, `Path.mmt`, `Math.mmt`
 - **Shared state** - native `Ref<T>` with `ref`, `*` and `:=`
 - **Helper / typeclass modules** - `Concatenable`, `Convertable`, `Countable`, `Equatable`, `Hashable`, `Iterable`, `Orderable`, `Prelude/Panic`
 

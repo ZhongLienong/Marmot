@@ -1794,6 +1794,15 @@
       "name": "MIDORI_FFI_GetMonotonicNanos",
       "arguments": [],
       "returns": "RawValue"
+    },
+    {
+      "id": 100,
+      "name": "MIDORI_FFI_TextCompare",
+      "arguments": [
+        "TraceableHandle",
+        "TraceableHandle"
+      ],
+      "returns": "RawValue"
     }
   ]
 }

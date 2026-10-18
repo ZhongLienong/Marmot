@@ -420,7 +420,7 @@ The shipped prelude provides the following related modules:
 - `Equatable`
 - `Orderable`
 
-The concrete coverage is intentionally uneven today. For example, `Orderable` is provided as a class surface, but most interesting instances are still expected to come from user code rather than the prelude.
+The concrete coverage is intentionally uneven today. For example, `Orderable` ships instances only for `Int`, `Float`, `Byte`, `Word` and `Text`; instances for user types come from user code.
 
 ### Immutable Bindings
 

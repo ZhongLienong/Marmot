@@ -30,5 +30,16 @@ Expect((split_code_points[0] == "g") && (split_code_points[1] == "o"), "TextUtil
 Expect(TextUtil::Replace("one two one", "one", "1") == "1 two 1", "TextUtil::Replace should replace every match");
 Expect(TextUtil::Trim(" \t hi \n") == "hi", "TextUtil::Trim should strip ASCII edge whitespace");
 Expect(TextUtil::Reverse("stressed") == "desserts", "TextUtil::Reverse should reverse the text");
+Expect(TextUtil::StartsWith("src/main.cc", "src/"), "TextUtil::StartsWith should accept a prefix");
+Expect(TextUtil::StartsWith("src", ""), "TextUtil::StartsWith should accept the empty prefix");
+Expect(!TextUtil::StartsWith("src", "src/main"), "TextUtil::StartsWith should reject a prefix longer than the text");
+Expect(TextUtil::EndsWith("main.cc", ".cc"), "TextUtil::EndsWith should accept a suffix");
+Expect(TextUtil::EndsWith("main.cc", ""), "TextUtil::EndsWith should accept the empty suffix");
+Expect(!TextUtil::EndsWith("cc", "main.cc"), "TextUtil::EndsWith should reject a suffix longer than the text");
+Expect(TextUtil::EndsWith("naïve", "ïve"), "TextUtil::EndsWith should count code points");
+Expect(TextUtil::Join(["a", "b", "c"], ", ") == "a, b, c", "TextUtil::Join should put the delimiter between pieces");
+Expect(TextUtil::Join([], ",") == "", "TextUtil::Join of no pieces should be empty");
+Expect(TextUtil::Join(["only"], ",") == "only", "TextUtil::Join of one piece should be that piece");
+Expect(TextUtil::Join(split, "--") == "alpha--beta--", "TextUtil::Join should undo TextUtil::Split");
 
 IO::PrintLine("prelude_text_util: PASS");

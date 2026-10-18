@@ -299,6 +299,13 @@ extern "C"
 		WriteBool(ret, RequireText(args[0u]).ParseFloat().has_value());
 	}
 
+	// UTF-8 byte order is code point order.
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextCompare)(void** args, void* ret) noexcept
+	{
+		const int order = RequireText(args[0u]).View().compare(RequireText(args[1u]).View());
+		WriteInt(ret, (order > 0) - (order < 0));
+	}
+
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextContains)(void** args, void* ret) noexcept
 	{
 		WriteBool(ret, RequireText(args[0u]).Contains(RequireText(args[1u])));

@@ -1,6 +1,9 @@
 module ArrayUtil
-import { "./Equatable.mmt" }
-public export { Length, Contains, Slice, Reverse, Copy, Concat, WithAppended, WithReplaced, WithInserted, WithRemoved }
+import { "./Equatable.mmt", "./Orderable.mmt", "./Prelude/List.mmt" }
+public export { Length, Contains, Slice, Reverse, Copy, Concat, WithAppended, WithReplaced, WithInserted, WithRemoved, Sort, SortBy }
+use List.{
+    List, ListToArray
+}
 def Length = fn < T >(array: Array < T >) -> Int =>#array;
 def ContainsFrom = fn < T >(array: Array < T >, value: T, index: Int) -> Bool where Equatable < T > =>
     if index >= Length(array)
@@ -21,3 +24,22 @@ def WithRemoved = fn < T >(array: Array < T >, index: Int) -> Array < T > =>
     if (index < 0) || (index >= Length(array)) then Copy(array) else ArraySlice(array, 0, index) ++ ArraySlice(array, index + 1, Length(array));
 def Slice = fn < T >(array: Array < T >, start: Int, end: Int) -> Array < T > => ArraySlice(array, start, end);
 def Reverse = fn < T >(array: Array < T >) -> Array < T > => ArrayReverse(array);
+// Merges from the back, prepending, so the list comes out in order with the
+// call in tail position. Taking right on a tie keeps equal elements in their
+// original order.
+def MergeFrom = fn < T >(left: Array < T >, right: Array < T >, i: Int, j: Int, compare: fn(T, T) -> Int, merged: List < T >) -> List < T > =>
+    if (i < 0) && (j < 0)
+    then merged
+    else if (j < 0) || ((i >= 0) && (compare(left[i], right[j]) > 0))
+    then MergeFrom(left, right, i - 1, j, compare, List::Cons (left[i], merged))
+    else MergeFrom(left, right, i, j - 1, compare, List::Cons (right[j], merged));
+def SortBy = fn < T >(array: Array < T >, compare: fn(T, T) -> Int) -> Array < T > =>
+    if Length(array) <= 1
+    then array
+    else {
+        def middle = Length(array) / 2;
+        def left = SortBy(ArraySlice(array, 0, middle), compare);
+        def right = SortBy(ArraySlice(array, middle, Length(array)), compare);
+        ListToArray(MergeFrom(left, right, Length(left) - 1, Length(right) - 1, compare, List::Nil ()))
+    };
+def Sort = fn < T >(array: Array < T >) -> Array < T > where Orderable < T > => SortBy(array, fn(a: T, b: T) -> Int => Orderable::Compare(a, b));

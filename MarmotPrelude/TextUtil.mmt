@@ -3,7 +3,7 @@ import { "./Prelude/Option.mmt" }
 use Option.{
     Option
 }
-public export { Length, Contains, Substring, Split, Replace, Trim, Reverse, FromCodePoint, CodePointAt, ParseInt, ParseFloat }
+public export { Length, Contains, StartsWith, EndsWith, Substring, Split, Join, Replace, Trim, Reverse, FromCodePoint, CodePointAt, ParseInt, ParseFloat }
 foreign "MIDORI_FFI_TextLength" TextLengthRaw: fn(Text) -> Int;
 foreign "MIDORI_FFI_TextSubstring" TextSubstringRaw: fn(Text, Int, Int) -> Text;
 foreign "MIDORI_FFI_TextSplit" TextSplitRaw: fn(Text, Text) -> Array < Text >;
@@ -18,7 +18,12 @@ foreign "MIDORI_FFI_TextIsFloat" TextIsFloatRaw: fn(Text) -> Bool;
 def Length = fn(text: Text) -> Int => TextLengthRaw(text);
 def Contains = fn(text: Text, substring: Text) -> Bool => TextContainsRaw(text, substring);
 def Substring = fn(text: Text, start: Int, end: Int) -> Text => TextSubstringRaw(text, start, end);
+def StartsWith = fn(text: Text, prefix: Text) -> Bool => Substring(text, 0, Length(prefix)) == prefix;
+def EndsWith = fn(text: Text, suffix: Text) -> Bool => Substring(text, Length(text) - Length(suffix), Length(text)) == suffix;
 def Split = fn(text: Text, delimiter: Text) -> Array < Text > => TextSplitRaw(text, delimiter);
+def JoinFrom = fn(pieces: Array < Text >, delimiter: Text, index: Int, joined: Text) -> Text =>
+    if index >= #pieces then joined else JoinFrom(pieces, delimiter, index + 1, joined ++ delimiter ++ pieces[index]);
+def Join = fn(pieces: Array < Text >, delimiter: Text) -> Text => if #pieces == 0 then "" else JoinFrom(pieces, delimiter, 1, pieces[0]);
 def Replace = fn(text: Text, target: Text, replacement: Text) -> Text => TextReplaceRaw(text, target, replacement);
 def Trim = fn(text: Text) -> Text => TextTrimRaw(text);
 def Reverse = fn(text: Text) -> Text => TextReverseRaw(text);

@@ -101,3 +101,4 @@ MARMOT_BUILTIN(MIDORI_FFI_TextIsFloat, MakeVmFFIArgKinds(VmFFIArgumentKind::Trac
 MARMOT_BUILTIN(MIDORI_FFI_HashText, MakeVmFFIArgKinds(VmFFIArgumentKind::CString), VmFFIReturnKind::RawValue)
 MARMOT_BUILTIN(MIDORI_FFI_HashFloat, {}, VmFFIReturnKind::RawValue)
 MARMOT_BUILTIN(MIDORI_FFI_GetMonotonicNanos, {}, VmFFIReturnKind::RawValue)
+MARMOT_BUILTIN(MIDORI_FFI_TextCompare, MakeVmFFIArgKinds(VmFFIArgumentKind::TraceableHandle, VmFFIArgumentKind::TraceableHandle), VmFFIReturnKind::RawValue)

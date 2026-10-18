@@ -1,0 +1,44 @@
+module PreludeArraySort
+
+import
+{
+    "../../../MarmotPrelude/ArrayUtil.mmt",
+    "../../../MarmotPrelude/IO.mmt",
+    "../../../MarmotPrelude/Orderable.mmt",
+    "../../../MarmotPrelude/Prelude/Panic.mmt"
+}
+
+type Item = {
+    key: Int,
+    label: Text
+};
+
+def Expect = fn(condition: Bool, message: Text) -> Unit => {
+    if condition
+    then ()
+    else Panic::Panic(message)
+};
+
+def IsSorted = fn<T>(values: Array<T>, index: Int) -> Bool where Orderable<T> =>
+    if index >= #values
+    then true
+    else if values[index - 1] > values[index] then false else IsSorted(values, index + 1);
+
+def numbers = ArrayUtil::Sort([5, 3, 9, 1, 3, 7]);
+def words = ArrayUtil::Sort(["pear", "apple", "zebra", "éclair", "Apple"]);
+def floats = ArrayUtil::Sort([2.5, -1.0, 0.5]);
+def items = [Item(2, "first two"), Item(1, "first one"), Item(2, "second two"), Item(1, "second one")];
+def by_key = ArrayUtil::SortBy(items, fn(a: Item, b: Item) -> Int => Orderable::Compare(a.key, b.key));
+def empty : Array<Int> = [];
+def large = ArrayUtil::Sort([200000 - offset for offset in 0..1..200000]);
+
+Expect((numbers[0] == 1) && (numbers[1] == 3) && (numbers[2] == 3) && (numbers[5] == 9), "ArrayUtil::Sort should order integers");
+Expect((words[0] == "Apple") && (words[1] == "apple") && (words[3] == "zebra") && (words[4] == "éclair"), "ArrayUtil::Sort should order text by code point");
+Expect((floats[0] == -1.0) && (floats[2] == 2.5), "ArrayUtil::Sort should order floats");
+Expect((by_key[0].label == "first one") && (by_key[1].label == "second one"), "ArrayUtil::SortBy should keep equal keys in their original order");
+Expect((by_key[2].label == "first two") && (by_key[3].label == "second two"), "ArrayUtil::SortBy should keep equal keys in their original order");
+Expect(#ArrayUtil::Sort(empty) == 0, "ArrayUtil::Sort of an empty array should be empty");
+Expect((#large == 200000) && (large[0] == 1) && IsSorted(large, 1), "ArrayUtil::Sort should sort a large array without overflowing the stack");
+Expect(("apple" < "banana") && ("b" > "abc") && ("same" <= "same"), "Text should compare through Orderable");
+
+IO::PrintLine("prelude_array_sort: PASS");
