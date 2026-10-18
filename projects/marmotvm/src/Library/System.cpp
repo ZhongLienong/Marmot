@@ -1,6 +1,7 @@
 #include "Support/Cancellation/Cancellation.h"
 #include "Library/MidoriStdLibExports.h"
 #include "Library/FFIAllocation/FFIAllocation.h"
+#include "Library/TextPath/TextPath.h"
 #include "Value/Value.h"
 
 #include <array>
@@ -395,7 +396,7 @@ extern "C"
 		const std::filesystem::path cwd = std::filesystem::current_path(ec);
 		SetLastSystemErrorFromDirectoryCode(ec);
 
-		char* result = ec ? AllocateString("") : AllocateString(cwd.string());
+		char* result = ec ? AllocateString("") : AllocateString(TextPath::ToText(cwd));
 		const int64_t ptr = reinterpret_cast<int64_t>(result);
 		std::memcpy(ret, &ptr, sizeof(int64_t));
 	}
@@ -404,7 +405,7 @@ extern "C"
 	{
 		const char* path = reinterpret_cast<const char*>(args[0u]);
 		std::error_code ec;
-		std::filesystem::current_path(path, ec);
+		std::filesystem::current_path(TextPath::FromText(path), ec);
 		SetLastSystemErrorFromDirectoryCode(ec);
 
 		const int64_t success = ec ? 0 : 1;
@@ -482,7 +483,7 @@ extern "C"
 		const std::string directory(reinterpret_cast<const char*>(args[1u]));
 
 		std::error_code ec;
-		if (!directory.empty() && !std::filesystem::is_directory(directory, ec))
+		if (!directory.empty() && !std::filesystem::is_directory(TextPath::FromText(directory), ec))
 		{
 			SetLastSystemError(SystemErrorKind::InvalidDirectory, "Not a directory.");
 			const int64_t null_ptr = 0;

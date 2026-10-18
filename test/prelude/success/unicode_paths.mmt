@@ -1,0 +1,84 @@
+module PreludeUnicodePaths
+
+import
+{
+    "../../../MarmotPrelude/IO.mmt",
+    "../../../MarmotPrelude/System.mmt",
+    "../../../MarmotPrelude/TextUtil.mmt",
+    "../../../MarmotPrelude/Prelude/Result.mmt",
+    "../../../MarmotPrelude/Prelude/Panic.mmt"
+}
+use IO.{IOError}
+use Result.{Result}
+use System.{Platform, SystemError}
+
+// Text is UTF-8, and every path below holds characters outside ASCII. Windows
+// read a path through the code page, so these names were mangled there or
+// could not be made at all; Linux paths are bytes, so they always worked.
+
+def Expect = fn(condition: Bool, message: Text) -> Unit => {
+    if condition
+    then ()
+    else Panic::Panic(message)
+};
+
+def Succeeded = fn<T>(result: Result<T, IOError>) -> Bool => {
+    match result with
+        case Result::Ok(_) => true
+        case Result::Err(_) => false
+};
+
+def ReadOr = fn(result: Result<Text, IOError>, otherwise: Text) -> Text => {
+    match result with
+        case Result::Ok(value) => value
+        case Result::Err(_) => otherwise
+};
+
+def Listed = fn(path: Text) -> Text => {
+    match IO::TryListDirectory(path) with
+        case Result::Ok(names) => TextUtil::Join(names, ",")
+        case Result::Err(_) => "error"
+};
+
+def python = match System::CurrentPlatform() with
+    case Platform::Windows() => "python"
+    case _ => "python3";
+
+def directory = "marmot_ünïcode_" ++ (System::CurrentProcessId() as Text) ++ "_目录";
+def file = directory ++ "/naïve.txt";
+def renamed = directory ++ "/名前.txt";
+
+Expect(Succeeded(IO::TryMakeDirectory(directory)), "IO::TryMakeDirectory should make a directory with a Unicode name");
+Expect(IO::DirectoryExists(directory), "IO::DirectoryExists should find it");
+Expect(Succeeded(IO::TryWriteFile(file, "café")), "IO::TryWriteFile should write a file with a Unicode name");
+Expect(IO::FileExists(file), "IO::FileExists should find it");
+Expect(ReadOr(IO::TryReadFile(file), "missing") == "café", "IO::TryReadFile should read it back");
+Expect(Listed(directory) == "naïve.txt", "IO::TryListDirectory should give the name as written");
+Expect(Succeeded(IO::TryFileChecksum(file)), "IO::TryFileChecksum should open it");
+Expect(Succeeded(IO::TryRenameFile(file, renamed)), "IO::TryRenameFile should rename it to another Unicode name");
+Expect(Listed(directory) == "名前.txt", "IO::TryListDirectory should give the new name");
+
+def located = match System::RunProcess([python, "-c", "import os, sys; sys.stdout.buffer.write(os.path.basename(os.getcwd()).encode('utf-8'))"], directory) with
+    case Result::Ok(output) => output.stdout
+    case Result::Err(_) => "error";
+Expect(located == directory, "System::RunProcess should run in a directory with a Unicode name");
+
+def SetDirectory = fn(path: Text) -> Bool => {
+    match System::TrySetCurrentDirectory(path) with
+        case Result::Ok(_) => true
+        case Result::Err(_) => false
+};
+def CurrentOr = fn(otherwise: Text) -> Text => {
+    match System::CurrentDirectory() with
+        case Result::Ok(path) => path
+        case Result::Err(_) => otherwise
+};
+def start = CurrentOr("");
+Expect(SetDirectory(directory), "System::TrySetCurrentDirectory should enter a directory with a Unicode name");
+Expect(TextUtil::EndsWith(CurrentOr(""), directory), "System::CurrentDirectory should give the Unicode name back");
+Expect(SetDirectory(start), "System::TrySetCurrentDirectory should go back");
+
+Expect(Succeeded(IO::TryDeleteFile(renamed)), "IO::TryDeleteFile should delete the file");
+Expect(Succeeded(IO::TryDeleteFile(directory)), "IO::TryDeleteFile should delete the empty directory");
+
+IO::PrintLine("prelude_unicode_paths: PASS");

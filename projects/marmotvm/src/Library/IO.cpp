@@ -1,6 +1,7 @@
 #include "Library/MidoriStdLibExports.h"
 
 #include "Library/FFIAllocation/FFIAllocation.h"
+#include "Library/TextPath/TextPath.h"
 #include "Support/Checksum/Checksum.h"
 
 #include <algorithm>
@@ -228,7 +229,7 @@ extern "C"
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ReadFile)(void** args, void* ret) noexcept
 	{
 		const char* file_path = reinterpret_cast<const char*>(args[0u]);
-		const std::filesystem::path path(file_path);
+		const std::filesystem::path path = TextPath::FromText(file_path);
 
 		// Linux opens a directory as a stream that reads nothing.
 		std::ifstream file(path, std::ios::in | std::ios::binary);
@@ -262,7 +263,7 @@ extern "C"
 	{
 		const char* file_name = reinterpret_cast<const char*>(args[0u]);
 		const char* text = reinterpret_cast<const char*>(args[1u]);
-		const std::filesystem::path path(file_name);
+		const std::filesystem::path path = TextPath::FromText(file_name);
 
 		std::ofstream file(path, std::ios::out | std::ios::binary);
 		if (!file.is_open())
@@ -292,7 +293,7 @@ extern "C"
 	{
 		const char* file_name = reinterpret_cast<const char*>(args[0u]);
 		const char* text = reinterpret_cast<const char*>(args[1u]);
-		const std::filesystem::path path(file_name);
+		const std::filesystem::path path = TextPath::FromText(file_name);
 
 		std::ofstream file(path, std::ios::out | std::ios::app | std::ios::binary);
 		if (!file.is_open())
@@ -321,7 +322,7 @@ extern "C"
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ReadBinaryFile)(void** args, void* ret) noexcept
 	{
 		const char* file_path = reinterpret_cast<const char*>(args[0u]);
-		const std::filesystem::path path(file_path);
+		const std::filesystem::path path = TextPath::FromText(file_path);
 
 		// Linux opens a directory as a stream that reads nothing.
 		std::ifstream file(path, std::ios::in | std::ios::binary);
@@ -415,7 +416,7 @@ extern "C"
 			return;
 		}
 
-		const std::filesystem::path path(file_name);
+		const std::filesystem::path path = TextPath::FromText(file_name);
 		std::ofstream file(path, std::ios::out | std::ios::binary);
 		if (!file.is_open())
 		{
@@ -463,7 +464,7 @@ extern "C"
 	{
 		const char* file_path = reinterpret_cast<const char*>(args[0u]);
 		std::error_code ec;
-		const bool exists = std::filesystem::exists(file_path, ec);
+		const bool exists = std::filesystem::exists(TextPath::FromText(file_path), ec);
 		SetLastIOErrorFromCode(ec);
 
 		std::memset(ret, 0, sizeof(double));
@@ -474,7 +475,7 @@ extern "C"
 	{
 		const char* file_path = reinterpret_cast<const char*>(args[0u]);
 		std::error_code ec;
-		const bool success = std::filesystem::remove(file_path, ec);
+		const bool success = std::filesystem::remove(TextPath::FromText(file_path), ec);
 		if (!success && !ec)
 		{
 			ec = std::make_error_code(std::errc::no_such_file_or_directory);
@@ -490,7 +491,7 @@ extern "C"
 		const char* old_path = reinterpret_cast<const char*>(args[0u]);
 		const char* new_path = reinterpret_cast<const char*>(args[1u]);
 		std::error_code ec;
-		std::filesystem::rename(old_path, new_path, ec);
+		std::filesystem::rename(TextPath::FromText(old_path), TextPath::FromText(new_path), ec);
 		SetLastIOErrorFromCode(ec);
 
 		std::memset(ret, 0, sizeof(double));
@@ -501,7 +502,7 @@ extern "C"
 	{
 		const char* file_path = reinterpret_cast<const char*>(args[0u]);
 		std::error_code ec;
-		const std::uintmax_t size = std::filesystem::file_size(file_path, ec);
+		const std::uintmax_t size = std::filesystem::file_size(TextPath::FromText(file_path), ec);
 		SetLastIOErrorFromCode(ec);
 
 		const int64_t result = ec ? -1 : static_cast<int64_t>(size);
@@ -514,10 +515,9 @@ extern "C"
 		const char* directory_path = reinterpret_cast<const char*>(args[0u]);
 		std::error_code ec;
 		std::vector<std::string> names;
-		for (std::filesystem::directory_iterator entry(directory_path, ec); !ec && entry != std::filesystem::directory_iterator(); entry.increment(ec))
+		for (std::filesystem::directory_iterator entry(TextPath::FromText(directory_path), ec); !ec && entry != std::filesystem::directory_iterator(); entry.increment(ec))
 		{
-			const std::u8string name = entry->path().filename().u8string();
-			names.emplace_back(name.begin(), name.end());
+			names.push_back(TextPath::ToText(entry->path().filename()));
 		}
 		std::ranges::sort(names);
 		SetLastIOErrorFromCode(ec);
@@ -531,7 +531,7 @@ extern "C"
 	{
 		const char* directory_path = reinterpret_cast<const char*>(args[0u]);
 		std::error_code ec;
-		std::filesystem::create_directories(directory_path, ec);
+		std::filesystem::create_directories(TextPath::FromText(directory_path), ec);
 		SetLastIOErrorFromCode(ec);
 
 		std::memset(ret, 0, sizeof(double));
@@ -542,7 +542,7 @@ extern "C"
 	{
 		const char* directory_path = reinterpret_cast<const char*>(args[0u]);
 		std::error_code ec;
-		const bool exists = std::filesystem::is_directory(directory_path, ec);
+		const bool exists = std::filesystem::is_directory(TextPath::FromText(directory_path), ec);
 		SetLastIOErrorFromCode(ec);
 
 		std::memset(ret, 0, sizeof(double));
@@ -551,7 +551,7 @@ extern "C"
 
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(FileChecksum)(void** args, void* ret) noexcept
 	{
-		const std::filesystem::path path(reinterpret_cast<const char*>(args[0u]));
+		const std::filesystem::path path = TextPath::FromText(reinterpret_cast<const char*>(args[0u]));
 		// Linux opens a directory as a stream that reads nothing.
 		const std::expected<std::string, std::string> checksum = std::filesystem::is_directory(path)
 			? std::unexpected(std::string())
