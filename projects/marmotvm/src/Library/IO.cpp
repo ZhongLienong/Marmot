@@ -1,5 +1,6 @@
 #include "Library/MidoriStdLibExports.h"
 
+#include "Library/FFIAllocation/FFIAllocation.h"
 #include "Support/Checksum/Checksum.h"
 
 #include <algorithm>
@@ -32,57 +33,11 @@ namespace
 		std::string m_message;
 	};
 
+	using FFIAllocation::AllocateString;
+	using FFIAllocation::AllocateStringArray;
+	using FFIAllocation::FFIArray;
+
 	thread_local IOErrorState s_last_io_error{};
-
-	struct FFIArray
-	{
-		void* data;
-		int length;
-	};
-
-	char* AllocateString(const std::string& str)
-	{
-		const size_t size = str.size() + 1u;
-		char* buffer = static_cast<char*>(std::malloc(size));
-		if (buffer != nullptr)
-		{
-			std::memcpy(buffer, str.c_str(), size);
-		}
-		return buffer;
-	}
-
-	char* AllocateEmptyString()
-	{
-		char* buffer = static_cast<char*>(std::malloc(1u));
-		if (buffer != nullptr)
-		{
-			buffer[0u] = '\0';
-		}
-		return buffer;
-	}
-
-	// The VM takes the array and every string in it, and reads no array as an
-	// empty one.
-	FFIArray* AllocateStringArray(const std::vector<std::string>& values)
-	{
-		if (values.empty())
-		{
-			return nullptr;
-		}
-
-		FFIArray* result = static_cast<FFIArray*>(std::malloc(sizeof(FFIArray)));
-		char** data = static_cast<char**>(std::malloc(values.size() * sizeof(char*)));
-		if (result == nullptr || data == nullptr)
-		{
-			std::free(result);
-			std::free(data);
-			return nullptr;
-		}
-
-		std::ranges::transform(values, data, AllocateString);
-		*result = FFIArray{ data, static_cast<int>(values.size()) };
-		return result;
-	}
 
 	void ClearLastIOError()
 	{
@@ -264,7 +219,7 @@ extern "C"
 		}
 		else
 		{
-			char* empty = AllocateEmptyString();
+			char* empty = AllocateString("");
 			const int64_t ptr = reinterpret_cast<int64_t>(empty);
 			std::memcpy(ret, &ptr, sizeof(double));
 		}
@@ -280,7 +235,7 @@ extern "C"
 		if (std::filesystem::is_directory(path) || !file.is_open())
 		{
 			SetLastIOErrorFromCode(DiagnoseReadOpenFailure(path));
-			char* empty = AllocateEmptyString();
+			char* empty = AllocateString("");
 			const int64_t ptr = reinterpret_cast<int64_t>(empty);
 			std::memcpy(ret, &ptr, sizeof(double));
 			return;
@@ -291,7 +246,7 @@ extern "C"
 		if (file.bad())
 		{
 			SetLastIOError(IOErrorKind::Unknown, "Failed to read file.");
-			char* empty = AllocateEmptyString();
+			char* empty = AllocateString("");
 			const int64_t ptr = reinterpret_cast<int64_t>(empty);
 			std::memcpy(ret, &ptr, sizeof(double));
 			return;
@@ -610,7 +565,7 @@ extern "C"
 			SetLastIOErrorFromCode(DiagnoseReadOpenFailure(path));
 		}
 
-		char* result = checksum.has_value() ? AllocateString(checksum.value()) : AllocateEmptyString();
+		char* result = AllocateString(checksum.value_or(""));
 		const int64_t ptr = reinterpret_cast<int64_t>(result);
 		std::memcpy(ret, &ptr, sizeof(int64_t));
 	}
@@ -623,9 +578,7 @@ extern "C"
 
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetLastIOErrorMessage)(void**, void* ret) noexcept
 	{
-		char* result = s_last_io_error.m_message.empty()
-			? AllocateEmptyString()
-			: AllocateString(s_last_io_error.m_message);
+		char* result = AllocateString(s_last_io_error.m_message);
 		const int64_t ptr = reinterpret_cast<int64_t>(result);
 		std::memcpy(ret, &ptr, sizeof(int64_t));
 	}

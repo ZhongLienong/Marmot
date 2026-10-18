@@ -1,4 +1,5 @@
 #include "Library/MidoriStdLibExports.h"
+#include "Library/FFIAllocation/FFIAllocation.h"
 
 #include <chrono>
 #include <cstring>
@@ -10,16 +11,7 @@
 
 namespace
 {
-	char* AllocateString(const std::string& str)
-	{
-		const size_t size = str.size() + 1u;
-		char* buffer = static_cast<char*>(std::malloc(size));
-		if (buffer != nullptr)
-		{
-			std::memcpy(buffer, str.c_str(), size);
-		}
-		return buffer;
-	}
+	using FFIAllocation::AllocateString;
 
 	std::tm GetLocalTime()
 	{
