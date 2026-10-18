@@ -1,0 +1,20 @@
+module BareNameAboveItsDefinitionIsLocal
+
+// `Trim` and `Length` below are this module's, defined after the function that
+// calls them. TextUtil exports both names too, and a use above the local
+// definition used to bind TextUtil's, so the call failed on the wrong arity or
+// the program ran the import.
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"../../../MarmotPrelude/TextUtil.mmt"
+}
+
+def Describe = fn(text: Text) -> Text => Trim(text, "-") ++ " " ++ (Length(text) as Text);
+
+def Trim = fn(text: Text, edge: Text) -> Text => edge ++ text ++ edge;
+def Length = fn(text: Text) -> Int => 10 * TextUtil::Length(text);
+
+IO::PrintLine(Describe("local"));
+IO::PrintLine(TextUtil::Trim("  imported  ") ++ " " ++ (TextUtil::Length("five!") as Text));

@@ -3004,6 +3004,22 @@ void TypeChecker::CollectLaterDefinitions()
 			}
 		}
 	}
+
+	// The only scope yet is the imported names. A bare name this module
+	// defines is its own, so an import's entry under it would bind a use
+	// above the definition to the import instead.
+	if (!m_name_type_table.empty())
+	{
+		TypeEnvironment& imported_names = m_name_type_table.front();
+		for (const std::string& name : m_later_definitions | std::views::keys)
+		{
+			imported_names.erase(name);
+		}
+		for (const std::string& name : m_later_unannotated)
+		{
+			imported_names.erase(name);
+		}
+	}
 }
 
 void TypeChecker::RecordFailedDefinition(const MidoriStatement& statement)
