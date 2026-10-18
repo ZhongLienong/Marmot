@@ -1,0 +1,87 @@
+module PreludeIoDirectories
+
+import
+{
+    "../../../MarmotPrelude/IO.mmt",
+    "../../../MarmotPrelude/System.mmt",
+    "../../../MarmotPrelude/TextUtil.mmt",
+    "../../../MarmotPrelude/Prelude/Result.mmt",
+    "../../../MarmotPrelude/Prelude/Panic.mmt"
+}
+use IO.{IOError}
+use Result.{Result}
+
+def Expect = fn(condition: Bool, message: Text) -> Unit => {
+    if condition
+    then ()
+    else Panic::Panic(message)
+};
+
+def Outcome = fn<T>(result: Result<T, IOError>) -> Text => {
+    match result with
+        case Result::Ok(_) => "ok"
+        case Result::Err(error) => {
+            match error with
+                case IOError::NotFound(_) => "not found"
+                case IOError::PermissionDenied(_) => "permission denied"
+                case IOError::InvalidPath(_) => "invalid path"
+                case IOError::UnknownIO(_) => "unknown"
+        }
+};
+
+def Listed = fn(path: Text) -> Text => {
+    match IO::TryListDirectory(path) with
+        case Result::Ok(names) => TextUtil::Join(names, ",")
+        case Result::Err(_) => "error"
+};
+
+def Checksum = fn(path: Text) -> Text => {
+    match IO::TryFileChecksum(path) with
+        case Result::Ok(checksum) => checksum
+        case Result::Err(_) => "error"
+};
+
+def Ignore = fn<T>(result: Result<T, IOError>) -> Unit => {
+    match result with
+        case Result::Ok(_) => ()
+        case Result::Err(_) => ()
+};
+
+def root = "marmot_io_directories_" ++ (System::CurrentProcessId() as Text);
+def nested = root ++ "/a/b";
+def text_file = root ++ "/zeta.txt";
+def empty_file = root ++ "/alpha.txt";
+
+def CleanUp = fn() -> Unit => {
+    Ignore(IO::TryDeleteFile(text_file));
+    Ignore(IO::TryDeleteFile(empty_file));
+    Ignore(IO::TryDeleteFile(nested));
+    Ignore(IO::TryDeleteFile(root ++ "/a"));
+    Ignore(IO::TryDeleteFile(root));
+};
+
+CleanUp();
+Expect(!IO::DirectoryExists(root), "IO::DirectoryExists should be false for a missing path");
+Expect(Outcome(IO::TryMakeDirectory(nested)) == "ok", "IO::TryMakeDirectory should make the missing parents");
+Expect(IO::DirectoryExists(nested), "IO::DirectoryExists should see a made directory");
+Expect(Outcome(IO::TryMakeDirectory(nested)) == "ok", "IO::TryMakeDirectory of a directory already there should succeed");
+
+Expect(Outcome(IO::TryWriteFile(text_file, "abc")) == "ok", "writing a file to list");
+Expect(Outcome(IO::TryWriteFile(empty_file, "")) == "ok", "writing an empty file to list");
+Expect(Listed(root) == "a,alpha.txt,zeta.txt", "IO::TryListDirectory should give the sorted names");
+Expect(Listed(nested) == "", "IO::TryListDirectory of an empty directory should give no names");
+Expect(Outcome(IO::TryListDirectory(root ++ "/missing")) == "not found", "IO::TryListDirectory should report a missing directory");
+Expect(Outcome(IO::TryListDirectory(text_file)) == "invalid path", "IO::TryListDirectory of a file should be an invalid path");
+Expect(!IO::DirectoryExists(text_file), "IO::DirectoryExists should be false for a file");
+Expect(IO::FileExists(text_file), "IO::FileExists should still see the file");
+Expect(Outcome(IO::TryMakeDirectory(text_file)) != "ok", "IO::TryMakeDirectory over a file should fail");
+
+Expect(Checksum(text_file) == "sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", "IO::TryFileChecksum should hash the contents");
+Expect(Checksum(empty_file) == "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "IO::TryFileChecksum should hash an empty file");
+Expect(Outcome(IO::TryFileChecksum(root ++ "/missing.txt")) == "not found", "IO::TryFileChecksum should report a missing file");
+Expect(Outcome(IO::TryFileChecksum(root)) == "invalid path", "IO::TryFileChecksum of a directory should be an invalid path");
+
+CleanUp();
+Expect(!IO::DirectoryExists(root), "the test should leave nothing behind");
+
+IO::PrintLine("prelude_io_directories: PASS");

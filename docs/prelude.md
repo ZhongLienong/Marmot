@@ -116,6 +116,10 @@ Public IO entry points:
 - `TryReadFile`, `TryWriteFile`, `TryAppendToFile`
 - `TryReadBinaryFile`, `TryWriteBinaryFile`
 - `TryDeleteFile`, `TryRenameFile`, `TryGetFileSize`
+- `FileExists`, which is also true for a directory, and `DirectoryExists`
+- `TryListDirectory`: the names in a directory, sorted, without the directory in front
+- `TryMakeDirectory`: makes the missing parents too; a directory already there is not an error
+- `TryFileChecksum`: `sha256:` and the file's SHA-256 in hex, the form plans and lockfiles use
 - Console helpers such as `PrintLine`, `PrintErrorLine`, `ReadInput`, and `ReadLine`
 
 Public system entry points:

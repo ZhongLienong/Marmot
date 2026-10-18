@@ -1803,6 +1803,38 @@
         "TraceableHandle"
       ],
       "returns": "RawValue"
+    },
+    {
+      "id": 101,
+      "name": "MIDORI_FFI_ListDirectory",
+      "arguments": [
+        "CString"
+      ],
+      "returns": "ArrayStrings"
+    },
+    {
+      "id": 102,
+      "name": "MIDORI_FFI_MakeDirectory",
+      "arguments": [
+        "CString"
+      ],
+      "returns": "RawValue"
+    },
+    {
+      "id": 103,
+      "name": "MIDORI_FFI_DirectoryExists",
+      "arguments": [
+        "CString"
+      ],
+      "returns": "RawValue"
+    },
+    {
+      "id": 104,
+      "name": "MIDORI_FFI_FileChecksum",
+      "arguments": [
+        "CString"
+      ],
+      "returns": "CString"
     }
   ]
 }

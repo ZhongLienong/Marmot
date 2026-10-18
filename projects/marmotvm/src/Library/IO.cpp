@@ -1,8 +1,12 @@
 #include "Library/MidoriStdLibExports.h"
 
+#include "Support/Checksum/Checksum.h"
+
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <expected>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -30,6 +34,12 @@ namespace
 
 	thread_local IOErrorState s_last_io_error{};
 
+	struct FFIArray
+	{
+		void* data;
+		int length;
+	};
+
 	char* AllocateString(const std::string& str)
 	{
 		const size_t size = str.size() + 1u;
@@ -49,6 +59,29 @@ namespace
 			buffer[0u] = '\0';
 		}
 		return buffer;
+	}
+
+	// The VM takes the array and every string in it, and reads no array as an
+	// empty one.
+	FFIArray* AllocateStringArray(const std::vector<std::string>& values)
+	{
+		if (values.empty())
+		{
+			return nullptr;
+		}
+
+		FFIArray* result = static_cast<FFIArray*>(std::malloc(sizeof(FFIArray)));
+		char** data = static_cast<char**>(std::malloc(values.size() * sizeof(char*)));
+		if (result == nullptr || data == nullptr)
+		{
+			std::free(result);
+			std::free(data);
+			return nullptr;
+		}
+
+		std::ranges::transform(values, data, AllocateString);
+		*result = FFIArray{ data, static_cast<int>(values.size()) };
+		return result;
 	}
 
 	void ClearLastIOError()
@@ -332,12 +365,6 @@ extern "C"
 
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ReadBinaryFile)(void** args, void* ret) noexcept
 	{
-		struct FFIArray
-		{
-			void* data;
-			int length;
-		};
-
 		const char* file_path = reinterpret_cast<const char*>(args[0u]);
 		const std::filesystem::path path(file_path);
 
@@ -524,6 +551,68 @@ extern "C"
 
 		const int64_t result = ec ? -1 : static_cast<int64_t>(size);
 		std::memcpy(ret, &result, sizeof(int64_t));
+	}
+
+	// Sorted, so a listing is the same on every machine.
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ListDirectory)(void** args, void* ret) noexcept
+	{
+		const char* directory_path = reinterpret_cast<const char*>(args[0u]);
+		std::error_code ec;
+		std::vector<std::string> names;
+		for (std::filesystem::directory_iterator entry(directory_path, ec); !ec && entry != std::filesystem::directory_iterator(); entry.increment(ec))
+		{
+			const std::u8string name = entry->path().filename().u8string();
+			names.emplace_back(name.begin(), name.end());
+		}
+		std::ranges::sort(names);
+		SetLastIOErrorFromCode(ec);
+
+		const int64_t ptr = ec ? 0 : reinterpret_cast<int64_t>(AllocateStringArray(names));
+		std::memcpy(ret, &ptr, sizeof(int64_t));
+	}
+
+	// Makes the missing parents too. A directory already there is made.
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(MakeDirectory)(void** args, void* ret) noexcept
+	{
+		const char* directory_path = reinterpret_cast<const char*>(args[0u]);
+		std::error_code ec;
+		std::filesystem::create_directories(directory_path, ec);
+		SetLastIOErrorFromCode(ec);
+
+		std::memset(ret, 0, sizeof(double));
+		*reinterpret_cast<bool*>(ret) = !ec;
+	}
+
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(DirectoryExists)(void** args, void* ret) noexcept
+	{
+		const char* directory_path = reinterpret_cast<const char*>(args[0u]);
+		std::error_code ec;
+		const bool exists = std::filesystem::is_directory(directory_path, ec);
+		SetLastIOErrorFromCode(ec);
+
+		std::memset(ret, 0, sizeof(double));
+		*reinterpret_cast<bool*>(ret) = exists;
+	}
+
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(FileChecksum)(void** args, void* ret) noexcept
+	{
+		const std::filesystem::path path(reinterpret_cast<const char*>(args[0u]));
+		// Linux opens a directory as a stream that reads nothing.
+		const std::expected<std::string, std::string> checksum = std::filesystem::is_directory(path)
+			? std::unexpected(std::string())
+			: MidoriChecksum::HashFile(path);
+		if (checksum.has_value())
+		{
+			ClearLastIOError();
+		}
+		else
+		{
+			SetLastIOErrorFromCode(DiagnoseReadOpenFailure(path));
+		}
+
+		char* result = checksum.has_value() ? AllocateString(checksum.value()) : AllocateEmptyString();
+		const int64_t ptr = reinterpret_cast<int64_t>(result);
+		std::memcpy(ret, &ptr, sizeof(int64_t));
 	}
 
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetLastIOErrorKind)(void**, void* ret) noexcept

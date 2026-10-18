@@ -102,3 +102,7 @@ MARMOT_BUILTIN(MIDORI_FFI_HashText, MakeVmFFIArgKinds(VmFFIArgumentKind::CString
 MARMOT_BUILTIN(MIDORI_FFI_HashFloat, {}, VmFFIReturnKind::RawValue)
 MARMOT_BUILTIN(MIDORI_FFI_GetMonotonicNanos, {}, VmFFIReturnKind::RawValue)
 MARMOT_BUILTIN(MIDORI_FFI_TextCompare, MakeVmFFIArgKinds(VmFFIArgumentKind::TraceableHandle, VmFFIArgumentKind::TraceableHandle), VmFFIReturnKind::RawValue)
+MARMOT_BUILTIN(MIDORI_FFI_ListDirectory, MakeVmFFIArgKinds(VmFFIArgumentKind::CString), VmFFIReturnKind::ArrayStrings)
+MARMOT_BUILTIN(MIDORI_FFI_MakeDirectory, MakeVmFFIArgKinds(VmFFIArgumentKind::CString), VmFFIReturnKind::RawValue)
+MARMOT_BUILTIN(MIDORI_FFI_DirectoryExists, MakeVmFFIArgKinds(VmFFIArgumentKind::CString), VmFFIReturnKind::RawValue)
+MARMOT_BUILTIN(MIDORI_FFI_FileChecksum, MakeVmFFIArgKinds(VmFFIArgumentKind::CString), VmFFIReturnKind::CString)

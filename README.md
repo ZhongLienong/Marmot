@@ -447,7 +447,7 @@ def updated_text = text ++ suffix;
 
 The public IO and system surface now prefers typed wrappers over sentinel values. Common entry points include:
 
-- `IO::TryReadFile`, `IO::TryWriteFile`, `IO::TryAppendToFile`, `IO::TryDeleteFile`, `IO::TryRenameFile`, and `IO::TryGetFileSize`
+- `IO::TryReadFile`, `IO::TryWriteFile`, `IO::TryAppendToFile`, `IO::TryDeleteFile`, `IO::TryRenameFile`, `IO::TryGetFileSize`, `IO::TryListDirectory`, `IO::TryMakeDirectory`, and `IO::TryFileChecksum`
 - `System::TryGetEnv`, `System::CurrentDirectory`, `System::TrySetCurrentDirectory`, `System::Run`, `System::CurrentPlatform`, and `System::CurrentProcessId`
 - `DateTime::LocalNow`, `DateTime::UtcNow`, `DateTime::NowUnixMillis`, `DateTime::NowMonotonicNanos`, and `DateTime::FormatLocal`
 - `TextUtil::Length`, `TextUtil::Split`, `TextUtil::Replace`, `TextUtil::Trim`, and `TextUtil::Reverse`

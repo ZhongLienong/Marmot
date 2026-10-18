@@ -3,7 +3,7 @@ import { "./Prelude/Result.mmt", "./Transferable.mmt" }
 use Result.{
     Result
 }
-public export { IOError, Print, PrintLine, PrintError, PrintErrorLine, ReadInput, ReadLine, FileExists, TryReadFile, TryWriteFile, TryAppendToFile, TryReadBinaryFile, TryWriteBinaryFile, TryDeleteFile, TryRenameFile, TryGetFileSize }
+public export { IOError, Print, PrintLine, PrintError, PrintErrorLine, ReadInput, ReadLine, FileExists, DirectoryExists, TryReadFile, TryWriteFile, TryAppendToFile, TryReadBinaryFile, TryWriteBinaryFile, TryDeleteFile, TryRenameFile, TryGetFileSize, TryListDirectory, TryMakeDirectory, TryFileChecksum }
 type IOError = NotFound(Text) | PermissionDenied(Text) | InvalidPath(Text) | UnknownIO(Text);
 foreign "MIDORI_FFI_Print" PrintRaw: fn(Text) -> Unit;
 foreign "MIDORI_FFI_PrintError" PrintErrorRaw: fn(Text) -> Unit;
@@ -18,6 +18,10 @@ foreign "MIDORI_FFI_FileExists" FileExistsRaw: fn(Text) -> Bool;
 foreign "MIDORI_FFI_DeleteFile" DeleteFileRaw: fn(Text) -> Bool;
 foreign "MIDORI_FFI_RenameFile" RenameFileRaw: fn(Text, Text) -> Bool;
 foreign "MIDORI_FFI_GetFileSize" GetFileSizeRaw: fn(Text) -> Int;
+foreign "MIDORI_FFI_ListDirectory" ListDirectoryRaw: fn(Text) -> Array < Text >;
+foreign "MIDORI_FFI_MakeDirectory" MakeDirectoryRaw: fn(Text) -> Bool;
+foreign "MIDORI_FFI_DirectoryExists" DirectoryExistsRaw: fn(Text) -> Bool;
+foreign "MIDORI_FFI_FileChecksum" FileChecksumRaw: fn(Text) -> Text;
 foreign "MIDORI_FFI_GetLastIOErrorKind" GetLastIOErrorKindRaw: fn() -> Int;
 foreign "MIDORI_FFI_GetLastIOErrorMessage" GetLastIOErrorMessageRaw: fn() -> Text;
 def Print = fn(text: Text) -> Unit => PrintRaw(text);
@@ -31,6 +35,7 @@ def PrintErrorLine = fn(text: Text) -> Unit => {
 def ReadInput = fn() -> Text => ReadInputRaw();
 def ReadLine = fn() -> Text => ReadLineRaw();
 def FileExists = fn(path: Text) -> Bool => FileExistsRaw(path);
+def DirectoryExists = fn(path: Text) -> Bool => DirectoryExistsRaw(path);
 def UnknownIOContext = fn(path: Text, message: Text) -> Text => {
     if message == "" then path else path ++ ": " ++ message
 };
@@ -73,4 +78,19 @@ def TryRenameFile = fn(old_path: Text, new_path: Text) -> Result < Unit, IOError
 def TryGetFileSize = fn(path: Text) -> Result < Int, IOError > => {
     def size = GetFileSizeRaw(path);
     IOResultFromStatus(path, size)
+};
+// The names in the directory, sorted, without the directory in front.
+def TryListDirectory = fn(path: Text) -> Result < Array < Text >, IOError > => {
+    def names = ListDirectoryRaw(path);
+    IOResultFromStatus(path, names)
+};
+// Makes the missing parents too. A directory already there is made.
+def TryMakeDirectory = fn(path: Text) -> Result < Unit, IOError > => {
+    MakeDirectoryRaw(path);
+    IOResultFromStatus(path, ())
+};
+// `sha256:` and the file's SHA-256 in hex, the form plans and lockfiles use.
+def TryFileChecksum = fn(path: Text) -> Result < Text, IOError > => {
+    def checksum = FileChecksumRaw(path);
+    IOResultFromStatus(path, checksum)
 };
