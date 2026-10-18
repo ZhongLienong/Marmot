@@ -77,6 +77,26 @@ namespace
 		SetLastSystemError(SystemErrorKind::InvalidDirectory, ec.message());
 	}
 
+#ifdef _WIN32
+	// Text is UTF-8, and the wide Windows calls take it as UTF-16; the narrow
+	// ones would read it in the code page.
+	std::wstring Widen(std::string_view text)
+	{
+		const int length = MultiByteToWideChar(CP_UTF8, 0u, text.data(), static_cast<int>(text.size()), nullptr, 0);
+		std::wstring wide(static_cast<size_t>(length), L'\0');
+		MultiByteToWideChar(CP_UTF8, 0u, text.data(), static_cast<int>(text.size()), wide.data(), length);
+		return wide;
+	}
+
+	std::string Narrow(std::wstring_view text)
+	{
+		const int length = WideCharToMultiByte(CP_UTF8, 0u, text.data(), static_cast<int>(text.size()), nullptr, 0, nullptr, nullptr);
+		std::string narrow(static_cast<size_t>(length), '\0');
+		WideCharToMultiByte(CP_UTF8, 0u, text.data(), static_cast<int>(text.size()), narrow.data(), length, nullptr, nullptr);
+		return narrow;
+	}
+#endif
+
 	struct ProcessOutcome
 	{
 		int m_exit_code = 0;
@@ -90,14 +110,6 @@ namespace
 		return std::unexpected(std::string("WebAssembly cannot start a process."));
 	}
 #elif defined(_WIN32)
-	std::wstring Widen(std::string_view text)
-	{
-		const int length = MultiByteToWideChar(CP_UTF8, 0u, text.data(), static_cast<int>(text.size()), nullptr, 0);
-		std::wstring wide(static_cast<size_t>(length), L'\0');
-		MultiByteToWideChar(CP_UTF8, 0u, text.data(), static_cast<int>(text.size()), wide.data(), length);
-		return wide;
-	}
-
 	// Quoted the way the C runtime splits a command line back into arguments:
 	// backslashes are literal except in a run that ends at a quote.
 	void AppendQuoted(std::wstring& command_line, std::wstring_view argument)
@@ -330,7 +342,8 @@ extern "C"
 		const char* var_name = reinterpret_cast<const char*>(args[0u]);
 
 #ifdef _WIN32
-		const DWORD required_size = GetEnvironmentVariableA(var_name, nullptr, 0u);
+		const std::wstring wide_name = Widen(var_name);
+		const DWORD required_size = GetEnvironmentVariableW(wide_name.c_str(), nullptr, 0u);
 		if (required_size == 0u)
 		{
 			const DWORD error = GetLastError();
@@ -349,8 +362,8 @@ extern "C"
 			return;
 		}
 
-		std::string value(static_cast<size_t>(required_size) - 1u, '\0');
-		const DWORD written = GetEnvironmentVariableA(var_name, value.data(), required_size);
+		std::wstring value(static_cast<size_t>(required_size) - 1u, L'\0');
+		const DWORD written = GetEnvironmentVariableW(wide_name.c_str(), value.data(), required_size);
 		if (written + 1u != required_size)
 		{
 			const DWORD error = GetLastError();
@@ -362,7 +375,7 @@ extern "C"
 		}
 
 		ClearLastSystemError();
-		char* result = AllocateString(value);
+		char* result = AllocateString(Narrow(value));
 #else
 		const char* value = std::getenv(var_name);
 		if (value == nullptr)
@@ -419,7 +432,7 @@ extern "C"
 		int result = 0;
 
 #ifdef _WIN32
-		const BOOL set_result = SetEnvironmentVariableA(name, value);
+		const BOOL set_result = SetEnvironmentVariableW(Widen(name).c_str(), Widen(value).c_str());
 		result = set_result != 0 ? 1 : 0;
 		if (result != 0)
 		{
@@ -450,7 +463,11 @@ extern "C"
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(Execute)(void** args, void* ret) noexcept
 	{
 		const char* command = reinterpret_cast<const char*>(args[0u]);
+#ifdef _WIN32
+		const int status = _wsystem(Widen(command).c_str());
+#else
 		const int status = std::system(command);
+#endif
 		if (status == -1)
 		{
 			SetLastSystemError(SystemErrorKind::Unknown, "Failed to execute command.");

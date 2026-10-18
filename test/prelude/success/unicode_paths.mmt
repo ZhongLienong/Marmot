@@ -5,16 +5,19 @@ import
     "../../../MarmotPrelude/IO.mmt",
     "../../../MarmotPrelude/System.mmt",
     "../../../MarmotPrelude/TextUtil.mmt",
+    "../../../MarmotPrelude/Prelude/Option.mmt",
     "../../../MarmotPrelude/Prelude/Result.mmt",
     "../../../MarmotPrelude/Prelude/Panic.mmt"
 }
 use IO.{IOError}
 use Result.{Result}
+use Option.{Option}
 use System.{Platform, SystemError}
 
-// Text is UTF-8, and every path below holds characters outside ASCII. Windows
-// read a path through the code page, so these names were mangled there or
-// could not be made at all; Linux paths are bytes, so they always worked.
+// Text is UTF-8, and every path, environment value and command below holds
+// characters outside ASCII and outside Windows' usual code page. Windows read
+// them through the code page, so they were mangled there or could not be made
+// at all; Linux takes them as bytes, so they always worked.
 
 def Expect = fn(condition: Bool, message: Text) -> Unit => {
     if condition
@@ -80,5 +83,22 @@ Expect(SetDirectory(start), "System::TrySetCurrentDirectory should go back");
 
 Expect(Succeeded(IO::TryDeleteFile(renamed)), "IO::TryDeleteFile should delete the file");
 Expect(Succeeded(IO::TryDeleteFile(directory)), "IO::TryDeleteFile should delete the empty directory");
+
+def SystemSucceeded = fn<T>(result: Result<T, SystemError>) -> Bool => {
+    match result with
+        case Result::Ok(_) => true
+        case Result::Err(_) => false
+};
+
+Expect(SystemSucceeded(System::SetEnv("MARMOT_UNICODE_TEST", "値é")), "System::SetEnv should set a Unicode value");
+def read_back = match System::TryGetEnv("MARMOT_UNICODE_TEST") with
+    case Option::Some(value) => value
+    case Option::None() => "missing";
+Expect(read_back == "値é", "System::TryGetEnv should give the Unicode value back");
+def inherited = match System::RunProcess([python, "-c", "import os, sys; sys.stdout.buffer.write(os.environ['MARMOT_UNICODE_TEST'].encode('utf-8'))"], "") with
+    case Result::Ok(output) => output.stdout
+    case Result::Err(_) => "error";
+Expect(inherited == "値é", "a process should see the Unicode value System::SetEnv set");
+Expect(SystemSucceeded(System::Run(python ++ " -c \"import sys; sys.exit(0 if sys.argv[1] == '値' else 3)\" 値")), "System::Run should pass a Unicode command");
 
 IO::PrintLine("prelude_unicode_paths: PASS");
