@@ -73,7 +73,7 @@ field        = IDENTIFIER ':' type ;
 variants     = variant ('|' variant)* ;
 variant      = IDENTIFIER ('(' type (',' type)* ')')? ;
 deriving     = 'deriving' '(' IDENTIFIER (',' IDENTIFIER)* ')' ;
-             // a record derives Equatable, Hashable or Transferable;
+             // a record derives Equatable, Hashable, Orderable or Transferable;
              // a union those, plus Map, Bind and Unwrap
 
 alias        = 'alias' IDENTIFIER typeParams? '=' type ';' ;

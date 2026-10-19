@@ -382,7 +382,7 @@ def answer = A(10, fn() -> Int => 1, fn() -> Int => -1, fn() -> Int => -1, fn() 
 - **Generic Parameters**: Single and multiple type parameters
 - **Type Constraints**: `where` constraints on functions, structs, and unions
 - **Associated Types**: Projections such as `Iterable::Item<Iter>`
-- **Deriving**: `Equatable`, `Hashable`, `Map`, `Bind`, and `Unwrap`
+- **Deriving**: `Equatable`, `Hashable`, `Orderable`, `Map`, `Bind`, and `Unwrap`
 - **Type Inference**: Automatic type deduction for instantiation, constructors, and context-aware lambdas
 - **Tuple Destructuring**: `def (x, y) = pair;`
 

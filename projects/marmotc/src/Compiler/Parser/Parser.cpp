@@ -399,6 +399,44 @@ namespace
 		{
 			return std::make_unique<MidoriExpression>(MidoriExpression::Literal(Token(std::to_string(value), Token::Name::INTEGER_LITERAL, m_anchor), MidoriExpression::LiteralKind::Integer));
 		}
+
+		std::unique_ptr<MidoriExpression> Match(std::unique_ptr<MidoriExpression>&& scrutinee, std::vector<std::unique_ptr<MidoriExpression>>&& cases) const
+		{
+			return std::make_unique<MidoriExpression>(MidoriExpression::Match(Token("match", Token::Name::MATCH, m_anchor), std::move(scrutinee), std::move(cases)));
+		}
+
+		std::unique_ptr<MidoriExpression> Case(std::unique_ptr<MidoriPattern>&& pattern, std::unique_ptr<MidoriExpression>&& body) const
+		{
+			return std::make_unique<MidoriExpression>(MidoriExpression::Case(Token("case", Token::Name::CASE, m_anchor), std::move(pattern), std::move(body)));
+		}
+
+		std::unique_ptr<MidoriPattern> BindingPattern(const std::string& name, int index) const
+		{
+			return std::make_unique<MidoriPattern>(MidoriPattern::Binding(Token(name, Token::Name::IDENTIFIER_LITERAL, m_anchor), index));
+		}
+
+		std::unique_ptr<MidoriPattern> WildcardPattern() const
+		{
+			return std::make_unique<MidoriPattern>(MidoriPattern::Wildcard(Token("_", Token::Name::IDENTIFIER_LITERAL, m_anchor)));
+		}
+
+		std::unique_ptr<MidoriPattern> ConstructorPattern(const std::string& name, std::vector<std::unique_ptr<MidoriPattern>>&& fields) const
+		{
+			return std::make_unique<MidoriPattern>(MidoriPattern::Constructor(Token(name, Token::Name::IDENTIFIER_LITERAL, m_anchor), std::string(name), std::move(fields), true));
+		}
+
+		// `Orderable::Compare(left, right)`, or `equal` when that is 0. The
+		// comparison is held in local `slot` on its way out.
+		std::unique_ptr<MidoriExpression> CompareThen(std::unique_ptr<MidoriExpression>&& left, std::unique_ptr<MidoriExpression>&& right, int slot, std::unique_ptr<MidoriExpression>&& equal) const
+		{
+			std::vector<std::unique_ptr<MidoriExpression>> operands;
+			operands.emplace_back(std::move(left));
+			operands.emplace_back(std::move(right));
+			std::vector<std::unique_ptr<MidoriExpression>> cases;
+			cases.emplace_back(Case(std::make_unique<MidoriPattern>(MidoriPattern::Literal(Token("0", Token::Name::INTEGER_LITERAL, m_anchor), MidoriPattern::LiteralKind::Integer)), std::move(equal)));
+			cases.emplace_back(Case(BindingPattern("order", slot), LocalName("order", slot)));
+			return Match(QualifiedCall(std::string(ORDERABLE_CLASS_NAME), std::string(COMPARE_METHOD_NAME), std::move(operands)), std::move(cases));
+		}
 	};
 }
 
@@ -6106,7 +6144,7 @@ std::expected<void, CompilerError> Parser::QueueDerivedStructStatements(const Mi
 
 	for (const Token& derive_target : deriving_targets)
 	{
-		if (derive_target.m_lexeme != EQUATABLE_CLASS_NAME && derive_target.m_lexeme != HASHABLE_CLASS_NAME && derive_target.m_lexeme != TRANSFERABLE_CLASS_NAME)
+		if (derive_target.m_lexeme != EQUATABLE_CLASS_NAME && derive_target.m_lexeme != HASHABLE_CLASS_NAME && derive_target.m_lexeme != ORDERABLE_CLASS_NAME && derive_target.m_lexeme != TRANSFERABLE_CLASS_NAME)
 		{
 			return std::unexpected(GenerateParserError("Unsupported deriving target for struct.", derive_target));
 		}
@@ -6150,6 +6188,38 @@ std::expected<void, CompilerError> Parser::QueueDerivedStructStatements(const Mi
 				std::make_unique<MidoriStatement>
 				(
 					MidoriStatement::FunctionDefinition(method_token, {}, std::move(params), std::move(param_types), std::shared_ptr<MidoriType>(MidoriType::MakeLiteralType<MidoriType::BoolType>()), std::move(body), std::nullopt, 0, {})
+				)
+			);
+			mangled_method_names.emplace_back(mangled_name);
+		}
+		else if (derive_target.m_lexeme == ORDERABLE_CLASS_NAME)
+		{
+			const std::string mangled_name = MidoriType::MangleInstanceMethodName(std::string(COMPARE_METHOD_NAME), derive_target.m_lexeme, type_args);
+			Token method_token = MakeSyntheticToken(mangled_name, Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name);
+			std::vector<Token> params
+			{
+				MakeSyntheticToken("a", Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name),
+				MakeSyntheticToken("b", Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name)
+			};
+			std::vector<std::shared_ptr<MidoriType>> param_types{ std::shared_ptr<MidoriType>(struct_stmt.m_self_type), std::shared_ptr<MidoriType>(struct_stmt.m_self_type) };
+
+			// The first field that differs, in declaration order, decides.
+			std::unique_ptr<MidoriExpression> body = syntax.IntLiteral(0);
+			for (size_t i = struct_type.m_member_types.size(); i > 0u; i -= 1u)
+			{
+				const size_t field = i - 1u;
+				body = syntax.CompareThen(
+					make_member_access("a", 0, struct_type.m_member_names[field], static_cast<int>(field)),
+					make_member_access("b", 1, struct_type.m_member_names[field], static_cast<int>(field)),
+					2 + static_cast<int>(field),
+					std::move(body));
+			}
+
+			methods.emplace_back
+			(
+				std::make_unique<MidoriStatement>
+				(
+					MidoriStatement::FunctionDefinition(method_token, {}, std::move(params), std::move(param_types), std::shared_ptr<MidoriType>(MidoriType::MakeLiteralType<MidoriType::IntegerType>()), std::move(body), std::nullopt, 0, {})
 				)
 			);
 			mangled_method_names.emplace_back(mangled_name);
@@ -6201,41 +6271,14 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 
 	const SyntheticSyntax syntax(union_stmt.m_name);
 
-	auto make_binding_pattern = [this, &union_stmt](const std::string& name, int local_index) -> std::unique_ptr<MidoriPattern>
+	auto make_constructor_pattern = [&syntax](const std::string& ctor_name, int first_local_index, size_t field_count, const std::string& prefix) -> std::unique_ptr<MidoriPattern>
 	{
-		Token token = MakeSyntheticToken(name, Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name);
-		return std::make_unique<MidoriPattern>(MidoriPattern::Binding(token, local_index));
-	};
-
-	auto make_constructor_pattern = [this, &union_stmt, &make_binding_pattern](const std::string& ctor_name, int first_local_index, size_t field_count, const std::string& prefix) -> std::unique_ptr<MidoriPattern>
-	{
-		Token ctor_token = MakeSyntheticToken(ctor_name, Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name);
 		std::vector<std::unique_ptr<MidoriPattern>> args;
 		for (size_t i = 0u; i < field_count; i += 1u)
 		{
-			args.emplace_back(make_binding_pattern(prefix + std::to_string(i), first_local_index + static_cast<int>(i)));
+			args.emplace_back(syntax.BindingPattern(prefix + std::to_string(i), first_local_index + static_cast<int>(i)));
 		}
-		return std::make_unique<MidoriPattern>(MidoriPattern::Constructor(ctor_token, std::string(ctor_name), std::move(args), true));
-	};
-
-	auto make_case = [this, &union_stmt](std::unique_ptr<MidoriPattern>&& pattern, std::unique_ptr<MidoriExpression>&& expr) -> std::unique_ptr<MidoriExpression>
-	{
-		Token case_token = MakeSyntheticToken("case", Token::Name::CASE, union_stmt.m_name);
-		return std::make_unique<MidoriExpression>(MidoriExpression::Case(case_token, std::move(pattern), std::move(expr)));
-	};
-
-	auto make_default_case = [this, &union_stmt](std::unique_ptr<MidoriExpression>&& expr) -> std::unique_ptr<MidoriExpression>
-	{
-		Token case_token = MakeSyntheticToken("case", Token::Name::CASE, union_stmt.m_name);
-		Token wildcard_token = MakeSyntheticToken("_", Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name);
-		std::unique_ptr<MidoriPattern> wildcard = std::make_unique<MidoriPattern>(MidoriPattern::Wildcard(wildcard_token));
-		return std::make_unique<MidoriExpression>(MidoriExpression::Case(case_token, std::move(wildcard), std::move(expr)));
-	};
-
-	auto make_match = [this, &union_stmt](std::unique_ptr<MidoriExpression>&& scrutinee, std::vector<std::unique_ptr<MidoriExpression>>&& cases) -> std::unique_ptr<MidoriExpression>
-	{
-		Token match_token = MakeSyntheticToken("match", Token::Name::MATCH, union_stmt.m_name);
-		return std::make_unique<MidoriExpression>(MidoriExpression::Match(match_token, std::move(scrutinee), std::move(cases)));
+		return syntax.ConstructorPattern(ctor_name, std::move(args));
 	};
 
 	auto make_union_construct = [this, &union_stmt](const std::string& ctor_name, int tag, std::vector<std::unique_ptr<MidoriExpression>>&& args, const std::shared_ptr<MidoriType>& return_type) -> std::unique_ptr<MidoriExpression>
@@ -6246,7 +6289,7 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 
 	for (const Token& derive_target : deriving_targets)
 	{
-		const bool is_structural = derive_target.m_lexeme == EQUATABLE_CLASS_NAME || derive_target.m_lexeme == HASHABLE_CLASS_NAME;
+		const bool is_structural = derive_target.m_lexeme == EQUATABLE_CLASS_NAME || derive_target.m_lexeme == HASHABLE_CLASS_NAME || derive_target.m_lexeme == ORDERABLE_CLASS_NAME;
 		const bool is_transferable = derive_target.m_lexeme == TRANSFERABLE_CLASS_NAME;
 		const bool is_container = derive_target.m_lexeme == "Map" || derive_target.m_lexeme == "Bind" || derive_target.m_lexeme == "Unwrap";
 		if (!is_structural && !is_transferable && !is_container)
@@ -6304,30 +6347,91 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 
 					inner_cases.emplace_back
 					(
-						make_case
+						syntax.Case
 						(
 							make_constructor_pattern(ctor_name.m_lexeme, inner_binding_start, member_ctx.m_member_types.size(), "rhs"),
 							std::move(inner_body)
 						)
 					);
-					inner_cases.emplace_back(make_default_case(syntax.BoolLiteral(false)));
+					inner_cases.emplace_back(syntax.Case(syntax.WildcardPattern(), syntax.BoolLiteral(false)));
 
 					outer_cases.emplace_back
 					(
-						make_case
+						syntax.Case
 						(
 							make_constructor_pattern(ctor_name.m_lexeme, outer_binding_start, member_ctx.m_member_types.size(), "lhs"),
-							make_match(syntax.LocalName("b", 1), std::move(inner_cases))
+							syntax.Match(syntax.LocalName("b", 1), std::move(inner_cases))
 						)
 					);
 				}
 
-				std::unique_ptr<MidoriExpression> body = make_match(syntax.LocalName("a", 0), std::move(outer_cases));
+				std::unique_ptr<MidoriExpression> body = syntax.Match(syntax.LocalName("a", 0), std::move(outer_cases));
 				methods.emplace_back
 				(
 					std::make_unique<MidoriStatement>
 					(
 						MidoriStatement::FunctionDefinition(method_token, {}, std::move(params), std::move(param_types), std::shared_ptr<MidoriType>(MidoriType::MakeLiteralType<MidoriType::BoolType>()), std::move(body), std::nullopt, 0, {})
+					)
+				);
+				mangled_method_names.emplace_back(mangled_name);
+			}
+			else if (derive_target.m_lexeme == ORDERABLE_CLASS_NAME)
+			{
+				const std::string mangled_name = MidoriType::MangleInstanceMethodName(std::string(COMPARE_METHOD_NAME), derive_target.m_lexeme, type_args);
+				Token method_token = MakeSyntheticToken(mangled_name, Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name);
+				std::vector<Token> params
+				{
+					MakeSyntheticToken("a", Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name),
+					MakeSyntheticToken("b", Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name)
+				};
+				std::vector<std::shared_ptr<MidoriType>> param_types{ std::shared_ptr<MidoriType>(union_stmt.m_self_type), std::shared_ptr<MidoriType>(union_stmt.m_self_type) };
+
+				// A variant declared earlier is the smaller; the same variant
+				// compares its fields in order.
+				const std::vector<Token>& variants = union_stmt.m_constructor_names;
+				std::vector<std::unique_ptr<MidoriExpression>> outer_cases;
+				for (size_t left = 0u; left < variants.size(); left += 1u)
+				{
+					const size_t field_count = union_type.m_member_info.at(variants[left].m_lexeme).m_member_types.size();
+					const int left_start = 2;
+					const int right_start = left_start + static_cast<int>(field_count);
+					const int order_start = right_start + static_cast<int>(field_count);
+
+					std::vector<std::unique_ptr<MidoriExpression>> inner_cases;
+					for (size_t right = 0u; right < variants.size(); right += 1u)
+					{
+						if (right == left)
+						{
+							std::unique_ptr<MidoriExpression> same = syntax.IntLiteral(0);
+							for (size_t i = field_count; i > 0u; i -= 1u)
+							{
+								const int field = static_cast<int>(i - 1u);
+								same = syntax.CompareThen(syntax.LocalName("lhs" + std::to_string(field), left_start + field), syntax.LocalName("rhs" + std::to_string(field), right_start + field), order_start + field, std::move(same));
+							}
+							inner_cases.emplace_back(syntax.Case(make_constructor_pattern(variants[right].m_lexeme, right_start, field_count, "rhs"), std::move(same)));
+							continue;
+						}
+
+						std::vector<std::unique_ptr<MidoriPattern>> wildcards;
+						for (size_t i = 0u; i < union_type.m_member_info.at(variants[right].m_lexeme).m_member_types.size(); i += 1u)
+						{
+							wildcards.emplace_back(syntax.WildcardPattern());
+						}
+						std::unique_ptr<MidoriExpression> order = right < left
+							? syntax.IntLiteral(1)
+							: syntax.Binary(Token::Name::SINGLE_MINUS, "-", syntax.IntLiteral(0), syntax.IntLiteral(1));
+						inner_cases.emplace_back(syntax.Case(syntax.ConstructorPattern(variants[right].m_lexeme, std::move(wildcards)), std::move(order)));
+					}
+
+					outer_cases.emplace_back(syntax.Case(make_constructor_pattern(variants[left].m_lexeme, left_start, field_count, "lhs"), syntax.Match(syntax.LocalName("b", 1), std::move(inner_cases))));
+				}
+
+				std::unique_ptr<MidoriExpression> body = syntax.Match(syntax.LocalName("a", 0), std::move(outer_cases));
+				methods.emplace_back
+				(
+					std::make_unique<MidoriStatement>
+					(
+						MidoriStatement::FunctionDefinition(method_token, {}, std::move(params), std::move(param_types), std::shared_ptr<MidoriType>(MidoriType::MakeLiteralType<MidoriType::IntegerType>()), std::move(body), std::nullopt, 0, {})
 					)
 				);
 				mangled_method_names.emplace_back(mangled_name);
@@ -6356,7 +6460,7 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 
 					cases.emplace_back
 					(
-						make_case
+						syntax.Case
 						(
 							make_constructor_pattern(ctor_name.m_lexeme, 1, member_ctx.m_member_types.size(), "field"),
 							std::move(case_body)
@@ -6364,7 +6468,7 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 					);
 				}
 
-				std::unique_ptr<MidoriExpression> body = make_match(syntax.LocalName("value", 0), std::move(cases));
+				std::unique_ptr<MidoriExpression> body = syntax.Match(syntax.LocalName("value", 0), std::move(cases));
 				methods.emplace_back
 				(
 					std::make_unique<MidoriStatement>
@@ -6497,7 +6601,7 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 
 				cases.emplace_back
 				(
-						make_case
+						syntax.Case
 						(
 							make_constructor_pattern(ctor_name.m_lexeme, case_binding_base_index, member_ctx.m_member_types.size(), "field"),
 							make_union_construct(ctor_name.m_lexeme, member_ctx.m_tag, std::move(ctor_args), output_union_type)
@@ -6505,7 +6609,7 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 					);
 			}
 
-			std::unique_ptr<MidoriExpression> body = make_match(syntax.LocalName("value", 0), std::move(cases));
+			std::unique_ptr<MidoriExpression> body = syntax.Match(syntax.LocalName("value", 0), std::move(cases));
 			m_pending_statements.emplace
 			(
 				std::make_unique<MidoriStatement>
@@ -6552,7 +6656,7 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 
 				cases.emplace_back
 				(
-						make_case
+						syntax.Case
 						(
 							make_constructor_pattern(ctor_name.m_lexeme, case_binding_base_index, member_ctx.m_member_types.size(), "field"),
 							std::move(case_body)
@@ -6560,7 +6664,7 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 					);
 			}
 
-			std::unique_ptr<MidoriExpression> body = make_match(syntax.LocalName("value", 0), std::move(cases));
+			std::unique_ptr<MidoriExpression> body = syntax.Match(syntax.LocalName("value", 0), std::move(cases));
 			m_pending_statements.emplace
 			(
 				std::make_unique<MidoriStatement>
@@ -6596,7 +6700,7 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 			// program never wrote.
 			cases.emplace_back
 			(
-				make_case
+				syntax.Case
 				(
 					make_constructor_pattern(ctor_name.m_lexeme, case_binding_base_index, member_ctx.m_member_types.size(), mapped_field_index >= 0 ? "field" : "_field"),
 					std::move(case_body)
@@ -6604,7 +6708,7 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 			);
 		}
 
-		std::unique_ptr<MidoriExpression> body = make_match(syntax.LocalName("value", 0), std::move(cases));
+		std::unique_ptr<MidoriExpression> body = syntax.Match(syntax.LocalName("value", 0), std::move(cases));
 		m_pending_statements.emplace
 		(
 			std::make_unique<MidoriStatement>

@@ -221,6 +221,17 @@ type Point =
 } deriving (Equatable, Hashable);
 ```
 
+`Orderable` compares a record field by field, in the order the fields are
+declared, and the first field that differs decides. A union compares the order
+its variants are declared in first, so `Dot < Circle(9.0)` when `Dot` comes
+first, and two values of the same variant compare its fields the same way. Each
+field's type needs its own instance, and a generic type's instance requires
+`Orderable` of each type parameter.
+
+```marmot
+type Version = { major: Int, minor: Int, label: Text } deriving (Equatable, Orderable);
+```
+
 Container deriving on unions:
 
 ```marmot

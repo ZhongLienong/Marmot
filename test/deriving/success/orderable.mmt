@@ -1,0 +1,44 @@
+module DerivingOrderable
+
+import
+{
+    "../../../MarmotPrelude/IO.mmt",
+    "../../../MarmotPrelude/ArrayUtil.mmt",
+    "../../../MarmotPrelude/Orderable.mmt"
+}
+
+// A record compares field by field in declaration order; a union compares
+// the order its variants are declared in, then the fields of the same one.
+
+type Version = { major: Int, minor: Int, label: Text } deriving (Orderable);
+
+type Shape = Dot | Circle(Float) | Box(Int, Int) deriving (Orderable);
+
+type Tree = Leaf | Node(Tree, Int, Tree) deriving (Orderable);
+
+type Pair<A, B> = { first: A, second: B } deriving (Orderable);
+
+def Sign = fn(order: Int) -> Text => if order < 0 then "<" else if order > 0 then ">" else "=";
+
+def Describe = fn(version: Version) -> Text => (version.major as Text) ++ "." ++ (version.minor as Text) ++ "-" ++ version.label;
+
+IO::PrintLine(Sign(Orderable::Compare(Version(1, 2, "a"), Version(1, 10, "a"))));
+IO::PrintLine(Sign(Orderable::Compare(Version(2, 0, "a"), Version(1, 10, "a"))));
+IO::PrintLine(Sign(Orderable::Compare(Version(1, 2, "b"), Version(1, 2, "a"))));
+IO::PrintLine(Sign(Orderable::Compare(Version(1, 2, "a"), Version(1, 2, "a"))));
+
+def sorted = ArrayUtil::Sort([Version(1, 10, "b"), Version(0, 9, "z"), Version(1, 2, "a"), Version(1, 10, "a")]);
+IO::PrintLine(Describe(sorted[0]) ++ " " ++ Describe(sorted[1]) ++ " " ++ Describe(sorted[2]) ++ " " ++ Describe(sorted[3]));
+
+IO::PrintLine(Sign(Orderable::Compare(Shape::Dot(), Shape::Circle(9.0))));
+IO::PrintLine(Sign(Orderable::Compare(Shape::Box(0, 0), Shape::Circle(9.0))));
+IO::PrintLine(Sign(Orderable::Compare(Shape::Circle(1.5), Shape::Circle(2.5))));
+IO::PrintLine(Sign(Orderable::Compare(Shape::Box(1, 2), Shape::Box(1, 1))));
+IO::PrintLine(Sign(Orderable::Compare(Shape::Dot(), Shape::Dot())));
+
+IO::PrintLine(Sign(Orderable::Compare(Tree::Node(Tree::Leaf(), 1, Tree::Leaf()), Tree::Node(Tree::Leaf(), 1, Tree::Node(Tree::Leaf(), 0, Tree::Leaf())))));
+IO::PrintLine(Sign(Orderable::Compare(Tree::Leaf(), Tree::Node(Tree::Leaf(), 0, Tree::Leaf()))));
+
+IO::PrintLine(Sign(Orderable::Compare(Pair("x", 2), Pair("x", 1))));
+IO::PrintLine(if Version(1, 0, "a") < Version(1, 1, "a") then "operators use it" else "wrong");
+IO::PrintLine(if Shape::Box(3, 3) >= Shape::Box(3, 3) then "and on unions" else "wrong");

@@ -1,0 +1,9 @@
+module OrderableRequiresFieldInstances
+
+import { "../../../MarmotPrelude/Orderable.mmt" }
+
+type Unordered = { n: Int };
+
+type Box<T> = { value: T } deriving (Orderable);
+
+def order = Orderable::Compare(Box(Unordered(1)), Box(Unordered(2)));
