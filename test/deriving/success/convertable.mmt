@@ -1,0 +1,30 @@
+module DerivingConvertable
+
+import
+{
+    "../../../MarmotPrelude/IO.mmt",
+    "../../../MarmotPrelude/Convertable.mmt"
+}
+
+// Deriving Convertable gives `as Text`: a record as it is written with names,
+// a variant as it is written with its union, and every field as its own
+// `as Text` gives it.
+
+type Version = { major: Int, minor: Int, label: Text } deriving (Convertable);
+
+type Shape = Dot | Circle(Float) | Box(Int, Int) deriving (Convertable);
+
+type Tree = Leaf | Node(Tree, Int, Tree) deriving (Convertable);
+
+type Pair<A, B> = { first: A, second: B } deriving (Convertable);
+
+type Release = { version: Version, shapes: Array<Shape>, ready: Bool, flags: Byte } deriving (Convertable);
+
+IO::PrintLine(Version(1, 2, "beta") as Text);
+IO::PrintLine(Shape::Dot() as Text);
+IO::PrintLine(Shape::Circle(1.5) as Text);
+IO::PrintLine(Shape::Box(3, 4) as Text);
+IO::PrintLine(Tree::Node(Tree::Leaf(), 1, Tree::Node(Tree::Leaf(), 2, Tree::Leaf())) as Text);
+IO::PrintLine(Pair("x", Pair(1, 2.5)) as Text);
+IO::PrintLine(Release(Version(2, 0, "rc"), [Shape::Dot(), Shape::Box(1, 1)], true, 7 as Byte) as Text);
+IO::PrintLine([[1, 2], [], [3]] as Text);

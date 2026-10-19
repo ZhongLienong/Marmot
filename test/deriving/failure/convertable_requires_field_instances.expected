@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/deriving/failure/convertable_requires_field_instances.mmt:9
+  |
+9 | def shown = Box(Plain(1)) as Text;
+  |                           ^^ Type Plain does not satisfy constraint Convertable<Plain, Text> - no matching instance found
+  |

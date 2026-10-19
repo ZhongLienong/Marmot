@@ -1,0 +1,9 @@
+module ConvertableRequiresFieldInstances
+
+import { "../../../MarmotPrelude/Convertable.mmt" }
+
+type Plain = { n: Int };
+
+type Box<T> = { value: T } deriving (Convertable);
+
+def shown = Box(Plain(1)) as Text;

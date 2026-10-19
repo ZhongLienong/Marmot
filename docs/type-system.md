@@ -232,6 +232,14 @@ field's type needs its own instance, and a generic type's instance requires
 type Version = { major: Int, minor: Int, label: Text } deriving (Equatable, Orderable);
 ```
 
+`Convertable` derives the conversion to `Text`, so `value as Text` shows the
+value as it is written: a record with its field names, `Version { major = 1,
+minor = 2, label = beta }`, and a variant with its union, `Shape::Box(3, 4)`.
+Each field shows as its own `as Text` gives it, so a text field is not quoted,
+and its type needs a conversion to `Text`: the built-in types have one, an
+array has one when its elements do, and a generic type's instance requires
+`Convertable<T, Text>` of each type parameter.
+
 Container deriving on unions:
 
 ```marmot

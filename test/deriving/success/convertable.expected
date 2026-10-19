@@ -1,0 +1,8 @@
+Version { major = 1, minor = 2, label = beta }
+Shape::Dot()
+Shape::Circle(1.5)
+Shape::Box(3, 4)
+Tree::Node(Tree::Leaf(), 1, Tree::Node(Tree::Leaf(), 2, Tree::Leaf()))
+Pair { first = x, second = Pair { first = 1, second = 2.5 } }
+Release { version = Version { major = 2, minor = 0, label = rc }, shapes = [Shape::Dot(), Shape::Box(1, 1)], ready = true, flags = 7 }
+[[1, 2], [], [3]]

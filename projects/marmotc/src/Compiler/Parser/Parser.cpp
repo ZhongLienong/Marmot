@@ -258,10 +258,17 @@ namespace
 		return type->IsType<MidoriType::GenericParam>() && type->GetType<MidoriType::GenericParam>().m_name == name;
 	}
 
-	std::vector<MidoriType::ClassConstraint> DerivedConstraints(const std::string& class_name, const std::vector<Token>& generic_params)
+	// Each type parameter in the derived class, with the instance's type
+	// arguments after the first: Convertable<T, Text> for Convertable<P, Text>.
+	std::vector<MidoriType::ClassConstraint> DerivedConstraints(const std::string& class_name, const std::vector<Token>& generic_params, const std::vector<std::shared_ptr<MidoriType>>& type_args)
 	{
 		return generic_params
-			| std::views::transform([&class_name](const Token& param) { return MidoriType::ClassConstraint(class_name, std::vector<std::shared_ptr<MidoriType>>{ MidoriType::MakeGenericType(param.m_lexeme) }); })
+			| std::views::transform([&class_name, &type_args](const Token& param)
+			{
+				std::vector<std::shared_ptr<MidoriType>> constraint_args{ MidoriType::MakeGenericType(param.m_lexeme) };
+				constraint_args.insert(constraint_args.end(), std::next(type_args.begin()), type_args.end());
+				return MidoriType::ClassConstraint(class_name, std::move(constraint_args));
+			})
 			| std::ranges::to<std::vector>();
 	}
 
@@ -423,6 +430,21 @@ namespace
 		std::unique_ptr<MidoriPattern> ConstructorPattern(const std::string& name, std::vector<std::unique_ptr<MidoriPattern>>&& fields) const
 		{
 			return std::make_unique<MidoriPattern>(MidoriPattern::Constructor(Token(name, Token::Name::IDENTIFIER_LITERAL, m_anchor), std::string(name), std::move(fields), true));
+		}
+
+		std::unique_ptr<MidoriExpression> TextLiteral(const std::string& value) const
+		{
+			return std::make_unique<MidoriExpression>(MidoriExpression::Literal(Token(value, Token::Name::TEXT_LITERAL, m_anchor), MidoriExpression::LiteralKind::Text));
+		}
+
+		std::unique_ptr<MidoriExpression> Concat(std::unique_ptr<MidoriExpression>&& left, std::unique_ptr<MidoriExpression>&& right) const
+		{
+			return Binary(Token::Name::DOUBLE_PLUS, "++", std::move(left), std::move(right));
+		}
+
+		std::unique_ptr<MidoriExpression> AsText(std::unique_ptr<MidoriExpression>&& value) const
+		{
+			return std::make_unique<MidoriExpression>(MidoriExpression::As(Token("as", Token::Name::AS, m_anchor), MidoriType::MakeLiteralType<MidoriType::TextType>(), std::move(value)));
 		}
 
 		// `Orderable::Compare(left, right)`, or `equal` when that is 0. The
@@ -6144,12 +6166,16 @@ std::expected<void, CompilerError> Parser::QueueDerivedStructStatements(const Mi
 
 	for (const Token& derive_target : deriving_targets)
 	{
-		if (derive_target.m_lexeme != EQUATABLE_CLASS_NAME && derive_target.m_lexeme != HASHABLE_CLASS_NAME && derive_target.m_lexeme != ORDERABLE_CLASS_NAME && derive_target.m_lexeme != TRANSFERABLE_CLASS_NAME)
+		if (derive_target.m_lexeme != EQUATABLE_CLASS_NAME && derive_target.m_lexeme != HASHABLE_CLASS_NAME && derive_target.m_lexeme != ORDERABLE_CLASS_NAME && derive_target.m_lexeme != CONVERTABLE_CLASS_NAME && derive_target.m_lexeme != TRANSFERABLE_CLASS_NAME)
 		{
 			return std::unexpected(GenerateParserError("Unsupported deriving target for struct.", derive_target));
 		}
 
 		std::vector<std::shared_ptr<MidoriType>> type_args{ std::shared_ptr<MidoriType>(struct_stmt.m_self_type) };
+		if (derive_target.m_lexeme == CONVERTABLE_CLASS_NAME)
+		{
+			type_args.emplace_back(MidoriType::MakeLiteralType<MidoriType::TextType>());
+		}
 		Token class_token = MakeSyntheticToken(derive_target.m_lexeme, Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name);
 		std::vector<std::unique_ptr<MidoriStatement>> methods;
 		std::vector<std::string> mangled_method_names;
@@ -6188,6 +6214,31 @@ std::expected<void, CompilerError> Parser::QueueDerivedStructStatements(const Mi
 				std::make_unique<MidoriStatement>
 				(
 					MidoriStatement::FunctionDefinition(method_token, {}, std::move(params), std::move(param_types), std::shared_ptr<MidoriType>(MidoriType::MakeLiteralType<MidoriType::BoolType>()), std::move(body), std::nullopt, 0, {})
+				)
+			);
+			mangled_method_names.emplace_back(mangled_name);
+		}
+		else if (derive_target.m_lexeme == CONVERTABLE_CLASS_NAME)
+		{
+			const std::string mangled_name = MidoriType::MangleInstanceMethodName(std::string(CONVERT_METHOD_NAME), derive_target.m_lexeme, type_args);
+			Token method_token = MakeSyntheticToken(mangled_name, Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name);
+			std::vector<Token> params{ MakeSyntheticToken("value", Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name) };
+			std::vector<std::shared_ptr<MidoriType>> param_types{ std::shared_ptr<MidoriType>(struct_stmt.m_self_type) };
+
+			// `Name { field = value, ... }`, each field as its own `as Text` gives it.
+			std::unique_ptr<MidoriExpression> body = syntax.TextLiteral(struct_type.m_name + " { ");
+			for (size_t i = 0u; i < struct_type.m_member_types.size(); i += 1u)
+			{
+				body = syntax.Concat(std::move(body), syntax.TextLiteral((i == 0u ? "" : ", ") + struct_type.m_member_names[i] + " = "));
+				body = syntax.Concat(std::move(body), syntax.AsText(make_member_access("value", 0, struct_type.m_member_names[i], static_cast<int>(i))));
+			}
+			body = syntax.Concat(std::move(body), syntax.TextLiteral(" }"));
+
+			methods.emplace_back
+			(
+				std::make_unique<MidoriStatement>
+				(
+					MidoriStatement::FunctionDefinition(method_token, {}, std::move(params), std::move(param_types), std::shared_ptr<MidoriType>(MidoriType::MakeLiteralType<MidoriType::TextType>()), std::move(body), std::nullopt, 0, {})
 				)
 			);
 			mangled_method_names.emplace_back(mangled_name);
@@ -6252,7 +6303,7 @@ std::expected<void, CompilerError> Parser::QueueDerivedStructStatements(const Mi
 			mangled_method_names.emplace_back(mangled_name);
 		}
 
-		std::vector<MidoriType::ClassConstraint> constraints = DerivedConstraints(derive_target.m_lexeme, struct_stmt.m_generic_params);
+		std::vector<MidoriType::ClassConstraint> constraints = DerivedConstraints(derive_target.m_lexeme, struct_stmt.m_generic_params, type_args);
 		RegisterSyntheticInstanceMetadata(derive_target.m_lexeme, type_args, constraints, mangled_method_names);
 		m_pending_statements.emplace(std::make_unique<MidoriStatement>(MidoriStatement::Instance(class_token, std::move(type_args), std::move(constraints), {}, std::move(methods))));
 	}
@@ -6289,7 +6340,7 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 
 	for (const Token& derive_target : deriving_targets)
 	{
-		const bool is_structural = derive_target.m_lexeme == EQUATABLE_CLASS_NAME || derive_target.m_lexeme == HASHABLE_CLASS_NAME || derive_target.m_lexeme == ORDERABLE_CLASS_NAME;
+		const bool is_structural = derive_target.m_lexeme == EQUATABLE_CLASS_NAME || derive_target.m_lexeme == HASHABLE_CLASS_NAME || derive_target.m_lexeme == ORDERABLE_CLASS_NAME || derive_target.m_lexeme == CONVERTABLE_CLASS_NAME;
 		const bool is_transferable = derive_target.m_lexeme == TRANSFERABLE_CLASS_NAME;
 		const bool is_container = derive_target.m_lexeme == "Map" || derive_target.m_lexeme == "Bind" || derive_target.m_lexeme == "Unwrap";
 		if (!is_structural && !is_transferable && !is_container)
@@ -6311,6 +6362,10 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 		if (is_structural)
 		{
 			std::vector<std::shared_ptr<MidoriType>> type_args{ std::shared_ptr<MidoriType>(union_stmt.m_self_type) };
+			if (derive_target.m_lexeme == CONVERTABLE_CLASS_NAME)
+			{
+				type_args.emplace_back(MidoriType::MakeLiteralType<MidoriType::TextType>());
+			}
 			Token class_token = MakeSyntheticToken(derive_target.m_lexeme, Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name);
 			std::vector<std::unique_ptr<MidoriStatement>> methods;
 			std::vector<std::string> mangled_method_names;
@@ -6371,6 +6426,41 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 					std::make_unique<MidoriStatement>
 					(
 						MidoriStatement::FunctionDefinition(method_token, {}, std::move(params), std::move(param_types), std::shared_ptr<MidoriType>(MidoriType::MakeLiteralType<MidoriType::BoolType>()), std::move(body), std::nullopt, 0, {})
+					)
+				);
+				mangled_method_names.emplace_back(mangled_name);
+			}
+			else if (derive_target.m_lexeme == CONVERTABLE_CLASS_NAME)
+			{
+				const std::string mangled_name = MidoriType::MangleInstanceMethodName(std::string(CONVERT_METHOD_NAME), derive_target.m_lexeme, type_args);
+				Token method_token = MakeSyntheticToken(mangled_name, Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name);
+				std::vector<Token> params{ MakeSyntheticToken("value", Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name) };
+				std::vector<std::shared_ptr<MidoriType>> param_types{ std::shared_ptr<MidoriType>(union_stmt.m_self_type) };
+
+				// `Union::Variant(field, ...)`, as a variant is written.
+				std::vector<std::unique_ptr<MidoriExpression>> cases;
+				for (const Token& ctor_name : union_stmt.m_constructor_names)
+				{
+					const MidoriType::UnionType::UnionMemberContext& member_ctx = union_type.m_member_info.at(ctor_name.m_lexeme);
+					std::unique_ptr<MidoriExpression> case_body = syntax.TextLiteral(ctor_name.m_lexeme + "(");
+					for (size_t i = 0u; i < member_ctx.m_member_types.size(); i += 1u)
+					{
+						if (i != 0u)
+						{
+							case_body = syntax.Concat(std::move(case_body), syntax.TextLiteral(", "));
+						}
+						case_body = syntax.Concat(std::move(case_body), syntax.AsText(syntax.LocalName("field" + std::to_string(i), 1 + static_cast<int>(i))));
+					}
+					case_body = syntax.Concat(std::move(case_body), syntax.TextLiteral(")"));
+					cases.emplace_back(syntax.Case(make_constructor_pattern(ctor_name.m_lexeme, 1, member_ctx.m_member_types.size(), "field"), std::move(case_body)));
+				}
+
+				std::unique_ptr<MidoriExpression> body = syntax.Match(syntax.LocalName("value", 0), std::move(cases));
+				methods.emplace_back
+				(
+					std::make_unique<MidoriStatement>
+					(
+						MidoriStatement::FunctionDefinition(method_token, {}, std::move(params), std::move(param_types), std::shared_ptr<MidoriType>(MidoriType::MakeLiteralType<MidoriType::TextType>()), std::move(body), std::nullopt, 0, {})
 					)
 				);
 				mangled_method_names.emplace_back(mangled_name);
@@ -6479,7 +6569,7 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 				mangled_method_names.emplace_back(mangled_name);
 			}
 
-			std::vector<MidoriType::ClassConstraint> constraints = DerivedConstraints(derive_target.m_lexeme, union_stmt.m_generic_params);
+			std::vector<MidoriType::ClassConstraint> constraints = DerivedConstraints(derive_target.m_lexeme, union_stmt.m_generic_params, type_args);
 			RegisterSyntheticInstanceMetadata(derive_target.m_lexeme, type_args, constraints, mangled_method_names);
 			m_pending_statements.emplace(std::make_unique<MidoriStatement>(MidoriStatement::Instance(class_token, std::move(type_args), std::move(constraints), {}, std::move(methods))));
 			continue;

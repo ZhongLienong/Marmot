@@ -48,3 +48,9 @@ instance Convertable < Bool, Text > {
 instance Convertable < Bool, Bool > {
     def Convert = fn(value: Bool) -> Bool => value;
 };
+def ShownElementsFrom = fn < T >(values: Array < T >, index: Int, shown: Text) -> Text where Convertable < T, Text > =>
+    if index >= #values then shown else ShownElementsFrom(values, index + 1, (if index == 0 then shown else shown ++ ", ") ++ (values[index] as Text));
+// `[a, b]`, each element as its own `as Text` gives it.
+instance Convertable < Array < T >, Text > where Convertable < T, Text > {
+    def Convert = fn(value: Array < T >) -> Text => "[" ++ ShownElementsFrom(value, 0, "") ++ "]";
+};

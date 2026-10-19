@@ -25,7 +25,7 @@ The documented examples in this file are mirrored by `test/prelude/success/docum
 The prelude is not only collections and IO wrappers. It also ships the public helper/typeclass modules that the compiler and standard data structures lean on:
 
 - `Concatenable` backs `++` and currently ships concrete instances for `Text` and `Array<T>`.
-- `Convertable` exposes the generic conversion surface used by `as` in constrained code and ships the current primitive conversion instances.
+- `Convertable` exposes the generic conversion surface used by `as` in constrained code and ships the current primitive conversion instances, plus `Array<T>` to `Text`, shown as `[a, b]`, when its elements convert. A record or union can `deriving (Convertable)` to get its own conversion to `Text`.
 - `Numeric` and `Bitwise` are marker classes for generic code: a parameter is used with arithmetic and ranges only under `where Numeric<T>`, and with the bit operators only under `where Bitwise<T>`. The compiler does these operations itself, so the instances are fixed: `Int`, `Float`, `Byte` and `Word`, and `Int`, `Byte` and `Word`.
 - `Countable` exposes the generic counting surface used by `#`. The prelude currently ships a `Text` instance; arrays and several standard collections also have direct lowering paths in the compiler/runtime.
 - `Equatable` and `Hashable` provide the comparison and hashing surface used by derived code and collections.
