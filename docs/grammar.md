@@ -78,7 +78,7 @@ deriving     = 'deriving' '(' IDENTIFIER (',' IDENTIFIER)* ')' ;
 
 alias        = 'alias' IDENTIFIER typeParams? '=' type ';' ;
 
-class        = 'class' IDENTIFIER typeParams constraints? '{' classMember* '}' ';' ;
+class        = 'class' IDENTIFIER typeParams '{' classMember* '}' ';' ;
 classMember  = IDENTIFIER ':' type ';'                     // a method's signature
              | 'type' IDENTIFIER ';' ;                     // an associated type
 
