@@ -2276,6 +2276,60 @@ MidoriResult::ExpressionResult Parser::FinishConstruct(Token&& constructor_token
 	return std::make_unique<MidoriExpression>(MidoriExpression::Construct(constructor_token, std::move(arguments.value()), std::move(constructed_type), false, MidoriExpression::Construct::Union(tag)));
 }
 
+// The record's fields by name, in any order, each exactly once. The type
+// checker places them, since a record declared further down has no fields yet.
+MidoriResult::ExpressionResult Parser::FinishNamedConstruct(Token&& constructor_token, std::shared_ptr<MidoriType>&& constructed_type)
+{
+	MidoriResult::TokenResult left_brace = Consume(Token::Name::LEFT_BRACE, "Expected '{' after the record type.");
+	if (!left_brace.has_value())
+	{
+		return std::unexpected(std::move(left_brace.error()));
+	}
+
+	std::vector<Token> names;
+	std::vector<std::unique_ptr<MidoriExpression>> values;
+	do
+	{
+		if (Check(Token::Name::RIGHT_BRACE, 0))
+		{
+			break;
+		}
+
+		MidoriResult::TokenResult name = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected a field name.");
+		if (!name.has_value())
+		{
+			return std::unexpected(std::move(name.error()));
+		}
+		if (std::ranges::contains(names, name->m_lexeme, &Token::m_lexeme))
+		{
+			return std::unexpected(GenerateParserError(std::format("Field '{}' is given more than once in this construction.", name->m_lexeme), name.value()));
+		}
+
+		MidoriResult::TokenResult equal = Consume(Token::Name::SINGLE_EQUAL, "Expected '=' after the field name.");
+		if (!equal.has_value())
+		{
+			return std::unexpected(std::move(equal.error()));
+		}
+		MidoriResult::ExpressionResult value = ParseExpression();
+		if (!value.has_value())
+		{
+			return std::unexpected(std::move(value.error()));
+		}
+		names.push_back(std::move(name.value()));
+		values.push_back(std::move(value.value()));
+	} while (Match(Token::Name::COMMA));
+
+	MidoriResult::TokenResult right_brace = Consume(Token::Name::RIGHT_BRACE, "Expected '}' after the fields.");
+	if (!right_brace.has_value())
+	{
+		return std::unexpected(std::move(right_brace.error()));
+	}
+
+	std::unique_ptr<MidoriExpression> construct = std::make_unique<MidoriExpression>(MidoriExpression::Construct(constructor_token, std::move(values), std::move(constructed_type), false, MidoriExpression::Construct::Struct{}));
+	construct->GetExpression<MidoriExpression::Construct>().m_field_names = std::move(names);
+	return construct;
+}
+
 MidoriResult::ExpressionResult Parser::ParsePrimary()
 {
 	if (Match(Token::Name::LEFT_BRACE))
@@ -2382,6 +2436,13 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 							ConstructorResolution& constructor = resolution.value().value();
 							Token constructor_token = variable;
 							constructor_token.m_lexeme = constructor.m_constructor_name;
+
+							// `Point { x = 1 }`: a block cannot start with `name =`, since
+							// nothing assigns, so this is never a type before a block.
+							if (constructor.m_is_struct && Check(Token::Name::LEFT_BRACE, 0) && Check(Token::Name::IDENTIFIER_LITERAL, 1) && Check(Token::Name::SINGLE_EQUAL, 2))
+							{
+								return FinishNamedConstruct(std::move(constructor_token), std::move(constructor.m_type));
+							}
 
 							if (!Check(Token::Name::LEFT_PAREN, 0))
 							{

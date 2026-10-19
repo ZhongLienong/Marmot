@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/struct/failure/named_construction_missing_field.mmt:5
+  |
+5 | def point = Point { y = 2 };
+  |             ^^^^^ Construct expression type error: 'Point' needs a value for 'x'
+  |

@@ -506,6 +506,9 @@ public:
 
 		Token m_data_name;
 		std::vector<std::unique_ptr<MidoriExpression>> m_params;
+		// `Point { y = 2, x = 1 }`: each value's field, in the order written.
+		// The type checker puts the values in their fields' order and empties it.
+		std::vector<Token> m_field_names;
 		std::shared_ptr<MidoriType> m_return_type;
 		bool m_has_explicit_type_args = false;
 		ConstructContext m_construct_ctx;

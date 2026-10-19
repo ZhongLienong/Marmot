@@ -1,0 +1,11 @@
+Point { x = 1, y = 2 }
+same as positional
+Box { value = 3 }
+Box { value = text }
+Segment { from = Point { x = 1, y = 1 }, to = Point { x = 100, y = 100 } }
+declared below
+1 one
+evaluating x
+evaluating y
+Box { value = 2 }
+a block after a name is still a block: 1

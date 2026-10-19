@@ -1,0 +1,5 @@
+module NamedConstructionDuplicateField
+
+type Point = { x: Int, y: Int };
+
+def point = Point { x = 1, x = 2 };

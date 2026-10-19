@@ -165,7 +165,7 @@ primary      = INTEGER | FLOAT | TEXT | 'true' | 'false'
              | '(' expression ')'
              | '(' expression (',' expression)+ ')'        // a tuple
              | array | comprehension | block | function
-             | if | match | for | recordUpdate ;
+             | if | match | for | recordUpdate | construct ;
 
 array        = '[' (expression (',' expression)* ','?)? ']' ;
 comprehension= '[' expression 'for' IDENTIFIER 'in' expression ']' ;
@@ -177,12 +177,20 @@ if           = 'if' expression 'then' expression 'else' expression ;
 for          = 'for' IDENTIFIER 'in' expression block ;
 recordUpdate = '{' expression 'with' fieldSet (',' fieldSet)* '}' ;
 fieldSet     = IDENTIFIER ('.' IDENTIFIER)* '=' expression ;
+construct    = (IDENTIFIER ('.' IDENTIFIER)* '::')? IDENTIFIER       // a record type
+               '{' fieldValue (',' fieldValue)* ','? '}' ;
+fieldValue   = IDENTIFIER '=' expression ;
 match        = 'match' expression 'with' case+ ;
 case         = 'case' pattern ('if' expression)? '=>' expression ;
 ```
 
-A record is built by calling its type's name: `Point(1, 2)`. `for` evaluates
-its body for each element and has no value of its own.
+A record is built by calling its type's name, `Point(1, 2)`, or by naming its
+fields, in any order and each exactly once, `Point { y = 2, x = 1 }`. The fields
+are evaluated in the order the type declares them, as a record update's are. A
+brace after a name is a construction only when the name is a record type and
+`field =` follows it, so a block after a name is still a block. A union's
+variants hold their fields by position, so they are built only by calling.
+`for` evaluates its body for each element and has no value of its own.
 
 `ref e` creates a `Ref<T>` holding `e`, `*e` reads a reference's contents,
 and `cell := value` replaces those contents and evaluates to `Unit`. These

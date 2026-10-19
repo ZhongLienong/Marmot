@@ -687,6 +687,8 @@ private:
 	// deriving synthesiser builds Construct nodes directly with an already-resolved return type.
 	MidoriResult::ExpressionResult FinishConstruct(Token&& constructor_token, std::shared_ptr<MidoriType>&& constructed_type, bool is_struct);
 
+	MidoriResult::ExpressionResult FinishNamedConstruct(Token&& constructor_token, std::shared_ptr<MidoriType>&& constructed_type);
+
 	MidoriResult::ExpressionResult ParsePrimary();
 
 	// `1e300` lexes as the number 1 and the name e300; say that a number has no exponent

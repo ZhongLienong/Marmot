@@ -1,0 +1,50 @@
+module NamedConstruction
+
+import
+{
+    "../../MarmotPrelude/IO.mmt",
+    "../../MarmotPrelude/Convertable.mmt",
+    "../../MarmotPrelude/Equatable.mmt",
+    "../../MarmotPrelude/Collections/Map.mmt"
+}
+
+// `Point { x = 1, y = 2 }` names each field once, in any order, and is the
+// same value `Point(1, 2)` is. The fields are evaluated in the order the type
+// declares them, as a record update's are.
+
+type Point = { x: Int, y: Int } deriving (Convertable, Equatable);
+
+type Box<T> = { value: T } deriving (Convertable);
+
+type Segment = { from: Point, to: Point } deriving (Convertable);
+
+def Trace = fn(label: Text, value: Int) -> Int => {
+    IO::PrintLine("evaluating " ++ label);
+    value
+};
+
+def Origin = fn(far: Bool) -> Point => if far then Point { y = 100, x = 100 } else Point { x = 0, y = 0 };
+
+IO::PrintLine(Point { y = 2, x = 1 } as Text);
+IO::PrintLine(if (Point { x = 1, y = 2 }) == Point(1, 2) then "same as positional" else "different");
+IO::PrintLine(Box { value = 3 } as Text);
+IO::PrintLine(Box { value = "text", } as Text);
+IO::PrintLine(Segment { to = Origin(true), from = Point { x = 1, y = 1 } } as Text);
+IO::PrintLine(Later { name = "declared below" }.name);
+
+def entry = Map::Entry { value = "one", key = 1 };
+IO::PrintLine((entry.key as Text) ++ " " ++ entry.value);
+
+def ordered = Point { y = Trace("y", 2), x = Trace("x", 1) };
+
+def shown = match ordered with
+    case Point { x = 1, .. } => Box { value = ordered.y } as Text
+    case _ => "no";
+IO::PrintLine(shown);
+
+def points = [Point(1, 2)];
+for point in points {
+    IO::PrintLine("a block after a name is still a block: " ++ (point.x as Text));
+};
+
+type Later = { name: Text };

@@ -1,0 +1,6 @@
+Compilation failed :(
+Parser Error at test/struct/failure/named_construction_duplicate_field.mmt:5
+  |
+5 | def point = Point { x = 1, x = 2 };
+  |                            ^ Field 'x' is given more than once in this construction.
+  |

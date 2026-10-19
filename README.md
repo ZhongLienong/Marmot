@@ -154,6 +154,7 @@ type Box<T> = {
 };
 
 def origin = Point(0.0, 0.0);
+def corner = Point { y = 1.0, x = 2.0 };
 def boxed = Box(42);
 def x_coord = origin.x;
 ```

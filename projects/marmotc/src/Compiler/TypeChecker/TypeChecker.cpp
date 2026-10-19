@@ -6480,6 +6480,36 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Function& fun
 	});
 }
 
+// Each value moved to its field's position, which makes a named construction
+// the positional one.
+std::optional<CompilerError> TypeChecker::PlaceNamedFields(MidoriExpression::Construct& construct, const MidoriType::StructType& struct_type)
+{
+	std::vector<std::unique_ptr<MidoriExpression>> placed(struct_type.m_member_names.size());
+	for (size_t written = 0u; written < construct.m_field_names.size(); written += 1u)
+	{
+		const Token& field = construct.m_field_names[written];
+		const std::vector<std::string>::const_iterator found = std::ranges::find(struct_type.m_member_names, field.m_lexeme);
+		if (found == struct_type.m_member_names.cend())
+		{
+			return MidoriError::GenerateTypeCheckerErrorWithContext(std::format("Construct expression type error: '{}' has no field named '{}'", struct_type.m_name, field.m_lexeme), field, m_file_name, m_source_lines);
+		}
+		placed[static_cast<size_t>(std::distance(struct_type.m_member_names.cbegin(), found))] = std::move(construct.m_params[written]);
+	}
+
+	const std::vector<std::string> missing = std::views::iota(0u, placed.size())
+		| std::views::filter([&placed](size_t index) { return placed[index] == nullptr; })
+		| std::views::transform([&struct_type](size_t index) { return std::format("'{}'", struct_type.m_member_names[index]); })
+		| std::ranges::to<std::vector>();
+	if (!missing.empty())
+	{
+		return MidoriError::GenerateTypeCheckerErrorWithContext(std::format("Construct expression type error: '{}' needs a value for {}", struct_type.m_name, missing | std::views::join_with(std::string_view(", ")) | std::ranges::to<std::string>()), construct.m_data_name, m_file_name, m_source_lines);
+	}
+
+	construct.m_params = std::move(placed);
+	construct.m_field_names.clear();
+	return std::nullopt;
+}
+
 MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Construct& construct)
 {
 	const std::shared_ptr<MidoriType>& return_type = construct.m_return_type;
@@ -6506,6 +6536,15 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Construct& co
 	if (constructor_type_ptr == nullptr)
 	{
 		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Construct expression type error: struct or union not found", construct.m_data_name, m_file_name, m_source_lines));
+	}
+
+	if (!construct.m_field_names.empty())
+	{
+		const TypeDefinitionMap::const_iterator definition = m_struct_type_definitions.find(ConstructorKey(declaring_module_name, actual_type_name));
+		if (std::optional<CompilerError> error = PlaceNamedFields(construct, definition->second->GetType<MidoriType::StructType>()))
+		{
+			return std::unexpected(std::move(*error));
+		}
 	}
 
 	bool is_generic = false;

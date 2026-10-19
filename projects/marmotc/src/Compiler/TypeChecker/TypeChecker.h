@@ -389,6 +389,8 @@ private:
 
 	MidoriResult::TypeResult operator()(MidoriExpression::Construct& construct);
 
+	std::optional<CompilerError> PlaceNamedFields(MidoriExpression::Construct& construct, const MidoriType::StructType& struct_type);
+
 	MidoriResult::TypeResult operator()(MidoriExpression::RecordUpdate& record_update);
 
 	MidoriResult::TypeResult operator()(MidoriExpression::Array& array);

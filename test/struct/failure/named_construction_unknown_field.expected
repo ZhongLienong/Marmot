@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/struct/failure/named_construction_unknown_field.mmt:5
+  |
+5 | def point = Point { x = 1, z = 2 };
+  |                            ^ Construct expression type error: 'Point' has no field named 'z'
+  |
