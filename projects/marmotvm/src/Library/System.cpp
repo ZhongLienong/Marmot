@@ -1,6 +1,7 @@
 #include "Support/Cancellation/Cancellation.h"
 #include "Library/MidoriStdLibExports.h"
 #include "Library/FFIAllocation/FFIAllocation.h"
+#include "Library/ProgramArguments/ProgramArguments.h"
 #include "Library/TextPath/TextPath.h"
 #include "Value/Value.h"
 
@@ -521,6 +522,12 @@ extern "C"
 		const int64_t ptr = outcome.has_value()
 			? reinterpret_cast<int64_t>(FFIAllocation::AllocateStringArray({ std::to_string(outcome->m_exit_code), outcome->m_output, outcome->m_error }))
 			: 0;
+		std::memcpy(ret, &ptr, sizeof(int64_t));
+	}
+
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetArguments)(void**, void* ret) noexcept
+	{
+		const int64_t ptr = reinterpret_cast<int64_t>(FFIAllocation::AllocateStringArray(ProgramArguments::Get()));
 		std::memcpy(ret, &ptr, sizeof(int64_t));
 	}
 

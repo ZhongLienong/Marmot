@@ -128,6 +128,7 @@ Public system entry points:
 - `CurrentDirectory`, `TrySetCurrentDirectory`
 - `Run(command)`: runs a shell command and is `Err(CommandFailed(code))` when it exits nonzero
 - `RunProcess(arguments, directory) -> Result<ProcessOutput, SystemError>`: runs `arguments[0]` from `PATH` with the rest passed exactly, no shell, in `directory` (the current one when empty) with nothing on its input. A program that ran is `Ok` whatever its `exit_code`, with its `stdout` and `stderr` kept apart
+- `Arguments() -> Array<Text>`: what the program was started with. `marmotvm run`, `marmot run` and `dev.py run` give it everything after `--`; a standalone executable gives it everything after its name
 - `CurrentPlatform`, `CurrentProcessId`
 - `Exit`, `Sleep`
 

@@ -1,0 +1,12 @@
+module PreludeArguments
+
+import
+{
+    "../../../MarmotPrelude/IO.mmt",
+    "../../../MarmotPrelude/System.mmt"
+}
+
+// The suite starts every program without arguments; what a program is given
+// is checked by the CLI contracts, which can pass some.
+
+IO::PrintLine("arguments: " ++ (#System::Arguments() as Text));

@@ -358,6 +358,35 @@ def scenario_marmotvm_runs_what_marmotc_built(tree: BuildTree) -> None:
         assert_condition(payload["report"]["errors"][0]["code"] == "IndexOutOfBounds", f"Unexpected errors: {payload['report']}")
 
 
+def scenario_marmotvm_passes_program_arguments(tree: BuildTree) -> None:
+    with tempfile.TemporaryDirectory(prefix="marmot-cli-arguments-") as temp_dir_raw:
+        temp_dir = Path(temp_dir_raw)
+        source_path = temp_dir / "Main.mmt"
+        prelude = (REPO_ROOT / "MarmotPrelude").as_posix()
+        write_text(
+            source_path,
+            "module Main\n"
+            f'import {{ "{prelude}/IO.mmt", "{prelude}/System.mmt", "{prelude}/TextUtil.mmt" }}\n'
+            "def given = System::Arguments();\n"
+            'IO::PrintLine((#given as Text) ++ " [" ++ TextUtil::Join(given, "|") ++ "]");\n',
+        )
+        program = temp_dir / "Main.mmc"
+        built = run_midori(tree, ["build", str(source_path), "-o", str(program), "--quiet"], env_overrides={"MARMOT_PATH": None})
+        assert_condition(built.returncode == 0 and program.exists(), f"build: expected {program}: {built.stdout}{built.stderr}")
+
+        # Everything after the first `--` is the program's, a second `--` included.
+        given = run_vm(tree, ["run", str(program), "--", "a", "b c", "--", "\u5024", "--format"])
+        assert_condition(given.returncode == 0 and given.stdout == "5 [a|b c|--|\u5024|--format]\n", f"program arguments: {given.stdout!r}{given.stderr}")
+
+        # The VM's own options still come before it.
+        as_json = run_vm(tree, ["run", str(program), "--format", "json", "--", "x"])
+        payload = parse_command_json("marmotvm_passes_program_arguments", as_json)
+        assert_condition(payload.get("stdout") == "1 [x]\n", f"program arguments with --format json: {payload}")
+
+        none = run_vm(tree, ["run", str(program)])
+        assert_condition(none.stdout == "0 []\n", f"no program arguments: {none.stdout!r}{none.stderr}")
+
+
 def scenario_marmotvm_command_line(tree: BuildTree) -> None:
     version = run_vm(tree, ["--version"])
     assert_condition(version.returncode == 0 and re.fullmatch(r"marmotvm \d+\.\d+\.\d+\s*", version.stdout) is not None, f"Unexpected version output:\n{version.stdout}{version.stderr}")
@@ -718,6 +747,7 @@ SCENARIOS: list[tuple[str, Any]] = [
     ("emit_ir_feature", scenario_emit_ir_feature),
     ("emit_ast_feature", scenario_emit_ast_feature),
     ("marmotvm_runs_what_marmotc_built", scenario_marmotvm_runs_what_marmotc_built),
+    ("marmotvm_passes_program_arguments", scenario_marmotvm_passes_program_arguments),
     ("marmotvm_command_line", scenario_marmotvm_command_line),
     ("build_command_compiles_without_running", scenario_build_command_compiles_without_running),
     ("native_library_loads_only_to_run", scenario_native_library_loads_only_to_run),

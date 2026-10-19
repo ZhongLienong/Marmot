@@ -7,8 +7,9 @@ Usage: marmot <command> [arguments] [options]
 Resolves a Marmot project and runs the compiler on it through a build plan.
 
 Commands:
-  run [file]            Build the program into target/ and run it in marmotvm;
-                        an unchanged program is not built again
+  run [file] [-- args]  Build the program into target/ and run it in marmotvm,
+                        passing it what follows --; an unchanged program is
+                        not built again
   check [file]          Type-check without running
   build [file]          Compile to a .mmc artifact; with --executable, produce
                         a standalone executable for this platform
@@ -128,6 +129,8 @@ pub(crate) struct Options {
     pub(crate) timings: bool,
     /// Everything after the command, for commands passed through as they are.
     pub(crate) raw: Vec<String>,
+    /// What follows `--` on `run`, for the program.
+    pub(crate) program_arguments: Vec<String>,
 }
 
 pub(crate) fn parse_options(kind: CommandKind, args: &[String]) -> Result<Options, String> {
@@ -158,6 +161,10 @@ pub(crate) fn parse_options(kind: CommandKind, args: &[String]) -> Result<Option
                 .ok_or_else(|| format!("missing value for {arg}"))
         };
         match arg {
+            "--" if kind == CommandKind::Run => {
+                options.program_arguments = args[index + 1..].to_vec();
+                break;
+            }
             "--format"
                 if matches!(
                     kind,
@@ -247,6 +254,19 @@ pub(crate) fn parse_options(kind: CommandKind, args: &[String]) -> Result<Option
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn run_passes_what_follows_the_separator_to_the_program() {
+        let options = parse_options(
+            CommandKind::Run,
+            &["src/Main.mmt", "--rebuild", "--", "--rebuild", "a b"].map(String::from),
+        )
+        .unwrap();
+        assert_eq!(options.argument.as_deref(), Some("src/Main.mmt"));
+        assert!(options.rebuild);
+        assert_eq!(options.program_arguments, ["--rebuild", "a b"]);
+        assert!(parse_options(CommandKind::Check, &["--", "a"].map(String::from)).is_err());
+    }
 
     #[test]
     fn executable_build_options_are_order_independent_and_stay_with_build() {

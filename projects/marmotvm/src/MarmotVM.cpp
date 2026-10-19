@@ -6,6 +6,8 @@
 #include "Error/RuntimeError.h"
 #include "Support/Json/Json.h"
 #include "Support/OutputCapture/OutputCapture.h"
+#include "Library/ProgramArguments/ProgramArguments.h"
+#include "Library/TextPath/TextPath.h"
 #include "Loader/ProgramLoader.h"
 #include "Loader/Standalone.h"
 
@@ -15,15 +17,28 @@
 #include <format>
 #include <optional>
 #include <print>
+#include <ranges>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
+
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#include <shellapi.h>
+#endif
 
 namespace
 {
 	constexpr std::string_view USAGE =
 		"Usage: marmotvm run <program.mmc> [--library <name>=<file>]... [--library-path <dir>]...\n"
-		"                [--format json]\n"
+		"                [--format json] [-- <argument>...]\n"
 		"       marmotvm disassemble <program.mmc>\n"
 #if MIDORI_ENABLE_OPCODE_METRICS
 		"Run diagnostics: --opcode-metrics, --gc-metrics (stderr).\n"
@@ -34,7 +49,8 @@ namespace
 		"Run a compiled Marmot program.\n\n"
 		"A native library the program names (foreign ... from \"name\") is looked for\n"
 		"at its --library file, then in each --library-path, then in MARMOT_LIBRARY_PATH,\n"
-		"then beside the module that declared it (lib/<platform>/, then the directory).\n\n"
+		"then beside the module that declared it (lib/<platform>/, then the directory).\n"
+		"Everything after -- goes to the program, which reads it with System::Arguments.\n\n"
 		"Examples:\n"
 		"  marmotvm run target/Main.mmc\n"
 		"  marmotvm disassemble target/Main.mmc\n"
@@ -51,6 +67,7 @@ namespace
 	{
 		std::optional<CommandKind> m_command;
 		std::filesystem::path m_program;
+		std::vector<std::string> m_program_arguments;
 		MidoriProgramLoader::NativeLibraryLocations m_locations;
 		bool m_json = false;
 		bool m_show_help = false;
@@ -61,24 +78,47 @@ namespace
 		bool m_gc_metrics = false;
 	};
 
-	// The value after the option at `index`, which moves past it.
-	[[nodiscard]] std::optional<std::string_view> TakeValue(int argc, char* argv[], int& index)
+	// Everything after the executable's own name, as UTF-8 text. Windows hands
+	// main its arguments in the code page, so there they come from the wide
+	// command line instead, through a path, which is how UTF-16 becomes text.
+	[[nodiscard]] std::vector<std::string> Utf8Arguments([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 	{
-		if (index + 1 >= argc)
+#ifdef _WIN32
+		int count = 0;
+		LPWSTR* wide = CommandLineToArgvW(GetCommandLineW(), &count);
+		std::vector<std::string> arguments = std::views::iota(1, count)
+			| std::views::transform([wide](int index) { return TextPath::ToText(std::filesystem::path(wide[index])); })
+			| std::ranges::to<std::vector>();
+		LocalFree(wide);
+		return arguments;
+#else
+		return std::vector<std::string>(argv + 1, argv + argc);
+#endif
+	}
+
+	// The value after the option at `index`, which moves past it.
+	[[nodiscard]] std::optional<std::string_view> TakeValue(std::span<const std::string> arguments, size_t& index)
+	{
+		if (index + 1u >= arguments.size())
 		{
 			return std::nullopt;
 		}
-		index += 1;
-		return std::string_view(argv[index]);
+		index += 1u;
+		return std::string_view(arguments[index]);
 	}
 
-	[[nodiscard]] std::expected<Invocation, std::string> Parse(int argc, char* argv[])
+	[[nodiscard]] std::expected<Invocation, std::string> Parse(std::span<const std::string> arguments)
 	{
 		Invocation invocation;
-		for (int index = 1; index < argc; index += 1)
+		for (size_t index = 0u; index < arguments.size(); index += 1u)
 		{
-			const std::string_view arg = argv[index];
+			const std::string_view arg = arguments[index];
 
+			if (arg == "--")
+			{
+				invocation.m_program_arguments.assign(arguments.begin() + static_cast<std::ptrdiff_t>(index) + 1, arguments.end());
+				break;
+			}
 			if (arg == "-h" || arg == "--help")
 			{
 				invocation.m_show_help = true;
@@ -116,7 +156,7 @@ namespace
 			}
 			else if (arg == "--format")
 			{
-				const std::optional<std::string_view> value = TakeValue(argc, argv, index);
+				const std::optional<std::string_view> value = TakeValue(arguments, index);
 				if (!value.has_value() || value.value() != "json")
 				{
 					return std::unexpected("--format takes 'json'.");
@@ -125,22 +165,22 @@ namespace
 			}
 			else if (arg == "--library-path")
 			{
-				const std::optional<std::string_view> value = TakeValue(argc, argv, index);
+				const std::optional<std::string_view> value = TakeValue(arguments, index);
 				if (!value.has_value())
 				{
 					return std::unexpected("Missing value for --library-path.");
 				}
-				invocation.m_locations.m_search_paths.emplace_back(value.value());
+				invocation.m_locations.m_search_paths.emplace_back(TextPath::FromText(value.value()));
 			}
 			else if (arg == "--library")
 			{
-				const std::optional<std::string_view> value = TakeValue(argc, argv, index);
+				const std::optional<std::string_view> value = TakeValue(arguments, index);
 				const size_t equals = value.has_value() ? value->find('=') : std::string_view::npos;
 				if (equals == std::string_view::npos || equals == 0u || equals + 1u == value->size())
 				{
 					return std::unexpected("--library takes <name>=<file>.");
 				}
-				invocation.m_locations.m_files.insert_or_assign(std::string(value->substr(0u, equals)), std::filesystem::path(value->substr(equals + 1u)));
+				invocation.m_locations.m_files.insert_or_assign(std::string(value->substr(0u, equals)), TextPath::FromText(value->substr(equals + 1u)));
 			}
 			else if (!arg.empty() && arg.front() == '-')
 			{
@@ -167,7 +207,7 @@ namespace
 			}
 			else
 			{
-				invocation.m_program = std::filesystem::path(arg);
+				invocation.m_program = TextPath::FromText(arg);
 			}
 		}
 
@@ -185,7 +225,7 @@ namespace
 		}
 		if (invocation.m_command == CommandKind::Disassemble &&
 			(invocation.m_json || invocation.m_trace || invocation.m_opcode_metrics || invocation.m_gc_metrics ||
-			 !invocation.m_locations.m_files.empty() || !invocation.m_locations.m_search_paths.empty()))
+			 !invocation.m_locations.m_files.empty() || !invocation.m_locations.m_search_paths.empty() || !invocation.m_program_arguments.empty()))
 		{
 			return std::unexpected("disassemble takes only a .mmc file; execution options belong to run.");
 		}
@@ -309,6 +349,7 @@ namespace
 
 int main(int argc, char* argv[])
 {
+	std::vector<std::string> arguments = Utf8Arguments(argc, argv);
 	std::expected<std::optional<MidoriStandalone::Package>, std::string> embedded =
 		MidoriStandalone::ReadCurrentExecutable();
 	if (!embedded.has_value())
@@ -318,6 +359,7 @@ int main(int argc, char* argv[])
 	}
 	if (embedded->has_value())
 	{
+		ProgramArguments::Set(std::move(arguments));
 		const std::expected<int, std::string> result = MidoriStandalone::Run(std::move(embedded->value()));
 		if (!result.has_value())
 		{
@@ -326,7 +368,7 @@ int main(int argc, char* argv[])
 		}
 		return result.value();
 	}
-	const std::expected<Invocation, std::string> invocation = Parse(argc, argv);
+	const std::expected<Invocation, std::string> invocation = Parse(arguments);
 	if (!invocation.has_value())
 	{
 		std::print(stderr, "{}\n\n{}", invocation.error(), USAGE);
@@ -359,6 +401,7 @@ int main(int argc, char* argv[])
 		return EXIT_SUCCESS;
 	}
 
+	ProgramArguments::Set(invocation->m_program_arguments);
 	RuntimeDiagnostics::Configure(invocation->m_trace, invocation->m_opcode_metrics, invocation->m_gc_metrics);
 	return Execute(invocation.value());
 }

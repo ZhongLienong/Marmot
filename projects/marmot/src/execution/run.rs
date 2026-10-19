@@ -98,6 +98,8 @@ pub(crate) struct RunRequest<'a> {
     pub(crate) rebuild: bool,
     pub(crate) jobs: Option<NonZeroUsize>,
     pub(crate) timings: bool,
+    /// What the program is given, after marmotvm's `--`.
+    pub(crate) arguments: &'a [String],
 }
 
 /// The build's report when it was skipped: the stamp replays it, and an older
@@ -168,6 +170,9 @@ pub(crate) fn run(request: &RunRequest) -> Result<ExitCode, String> {
     for library in &request.plan.native_libraries {
         vm.arg("--library")
             .arg(format!("{}={}", library.name, library.path));
+    }
+    if !request.arguments.is_empty() {
+        vm.arg("--").args(request.arguments);
     }
 
     if !request.json {

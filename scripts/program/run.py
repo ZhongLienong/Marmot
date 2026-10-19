@@ -9,6 +9,7 @@ Examples:
     python scripts/dev.py run --build Release benchmarks/all.mmt
     python scripts/dev.py run --check scratch.mmt
     python scripts/dev.py run -o scratch.mmc scratch.mmt
+    python scripts/dev.py run scratch.mmt -- input.txt --verbose
 """
 
 from __future__ import annotations
@@ -32,7 +33,10 @@ def main(argv: list[str]) -> int:
     parser.add_argument("-o", "--output", default=None, help="Keep the built .mmc here.")
     parser.add_argument("--embed-sources", action="store_true", help="Embed the sources, for runtime errors that show them.")
     parser.add_argument("file", help="The .mmt file to run.")
-    args = parser.parse_args(argv)
+    # What follows `--` is the program's, which reads it with System::Arguments.
+    separator = argv.index("--") if "--" in argv else len(argv)
+    args = parser.parse_args(argv[:separator])
+    program_arguments = argv[separator:]
 
     tree = BuildTree.from_args(args)
     compiler = str(tree.require_compiler())
@@ -46,7 +50,7 @@ def main(argv: list[str]) -> int:
         built = subprocess.run(build, env=environment, check=False)
         if built.returncode != 0:
             return built.returncode
-        return subprocess.run([str(tree.vm), "run", program], env=environment, check=False).returncode
+        return subprocess.run([str(tree.vm), "run", program, *program_arguments], env=environment, check=False).returncode
 
 
 if __name__ == "__main__":

@@ -6,7 +6,7 @@ use Option.{
 use Result.{
     Result
 }
-public export { SystemError, Platform, ProcessResult, ProcessOutput, Exit, Sleep, TryGetEnv, SetEnv, CurrentDirectory, TrySetCurrentDirectory, Run, RunProcess, CurrentPlatform, CurrentProcessId }
+public export { SystemError, Platform, ProcessResult, ProcessOutput, Exit, Sleep, TryGetEnv, SetEnv, CurrentDirectory, TrySetCurrentDirectory, Run, RunProcess, Arguments, CurrentPlatform, CurrentProcessId }
 type SystemError = InvalidDirectory(Text) | CommandFailed(Int) | UnknownSystem(Text);
 type Platform = Windows | MacOS | Linux | WebAssembly | Unknown(Text);
 type ProcessResult = {
@@ -26,6 +26,7 @@ foreign "MIDORI_FFI_SetCurrentDirectory" SetCurrentDirectoryRaw: fn(Text) -> Boo
 foreign "MIDORI_FFI_Execute" ExecuteRaw: fn(Text) -> Int;
 foreign "MIDORI_FFI_RunProcess" RunProcessRaw: fn(Array < Text >, Text) -> Array < Text >;
 foreign "MIDORI_FFI_GetPlatform" GetPlatformRaw: fn() -> Text;
+foreign "MIDORI_FFI_GetArguments" GetArgumentsRaw: fn() -> Array < Text >;
 foreign "MIDORI_FFI_GetProcessId" GetProcessIdRaw: fn() -> Int;
 foreign "MIDORI_FFI_GetLastSystemErrorKind" GetLastSystemErrorKindRaw: fn() -> Int;
 foreign "MIDORI_FFI_GetLastSystemErrorMessage" GetLastSystemErrorMessageRaw: fn() -> Text;
@@ -76,6 +77,9 @@ def RunProcess = fn(arguments: Array < Text >, directory: Text) -> Result < Proc
         def context = if error_kind == 2 then directory else arguments[0];
         if error_kind != 0 then Result::Err (MakeSystemError(context, error_kind)) else Result::Ok (ProcessOutput (parts[0] as Int, parts[1], parts[2]))
     };
+// What the program was started with: everything after `--` for marmotvm and
+// marmot run, everything after its name for a standalone executable.
+def Arguments = fn() -> Array < Text > => GetArgumentsRaw();
 def CurrentPlatform = fn() -> Platform => {
     def platform = GetPlatformRaw();
     if platform == "Windows" then Platform::Windows() else if platform == "macOS" then Platform::MacOS() else if platform == "Linux" then Platform::Linux() else if platform == "WebAssembly" then Platform::WebAssembly() else if platform == "WebAssembly (wasm64)" then Platform::WebAssembly() else Platform::Unknown(platform)

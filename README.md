@@ -448,7 +448,7 @@ def updated_text = text ++ suffix;
 The public IO and system surface now prefers typed wrappers over sentinel values. Common entry points include:
 
 - `IO::TryReadFile`, `IO::TryWriteFile`, `IO::TryAppendToFile`, `IO::TryDeleteFile`, `IO::TryRenameFile`, `IO::TryGetFileSize`, `IO::TryListDirectory`, `IO::TryMakeDirectory`, and `IO::TryFileChecksum`
-- `System::TryGetEnv`, `System::CurrentDirectory`, `System::TrySetCurrentDirectory`, `System::Run`, `System::RunProcess`, `System::CurrentPlatform`, and `System::CurrentProcessId`
+- `System::TryGetEnv`, `System::CurrentDirectory`, `System::TrySetCurrentDirectory`, `System::Run`, `System::RunProcess`, `System::Arguments`, `System::CurrentPlatform`, and `System::CurrentProcessId`
 - `DateTime::LocalNow`, `DateTime::UtcNow`, `DateTime::NowUnixMillis`, `DateTime::NowMonotonicNanos`, and `DateTime::FormatLocal`
 - `TextUtil::Length`, `TextUtil::Split`, `TextUtil::Replace`, `TextUtil::Trim`, and `TextUtil::Reverse`
 - `ArrayUtil::WithAppended`, `ArrayUtil::Slice`, and `ArrayUtil::Reverse` (arrays are immutable; these return new arrays)
@@ -670,6 +670,7 @@ the installed tools. By hand:
 marmotc check path/to/program.mmt     # type-check only
 marmotc build path/to/program.mmt    # compile to path/to/program.mmc (or -o)
 marmotvm run path/to/program.mmc      # run the compiled program
+marmotvm run path/to/program.mmc -- a b   # System::Arguments() is ["a", "b"]
 marmotvm disassemble path/to/program.mmc
 ```
 

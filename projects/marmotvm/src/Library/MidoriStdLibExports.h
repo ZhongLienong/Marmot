@@ -117,6 +117,7 @@ extern "C"
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(SetCurrentDirectory)(void** args, void* ret) noexcept;
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(Execute)(void** args, void* ret) noexcept;
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(RunProcess)(void** args, void* ret) noexcept;
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetArguments)(void** args, void* ret) noexcept;
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetPlatform)(void** args, void* ret) noexcept;
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetProcessId)(void** args, void* ret) noexcept;
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetLastSystemErrorKind)(void** args, void* ret) noexcept;

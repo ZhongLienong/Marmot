@@ -58,6 +58,7 @@ pub(super) fn execute(
             rebuild: options.rebuild,
             jobs: options.jobs,
             timings: options.timings,
+            arguments: &options.program_arguments,
         });
     }
 

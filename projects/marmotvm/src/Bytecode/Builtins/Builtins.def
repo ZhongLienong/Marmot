@@ -107,3 +107,4 @@ MARMOT_BUILTIN(MIDORI_FFI_MakeDirectory, MakeVmFFIArgKinds(VmFFIArgumentKind::CS
 MARMOT_BUILTIN(MIDORI_FFI_DirectoryExists, MakeVmFFIArgKinds(VmFFIArgumentKind::CString), VmFFIReturnKind::RawValue)
 MARMOT_BUILTIN(MIDORI_FFI_FileChecksum, MakeVmFFIArgKinds(VmFFIArgumentKind::CString), VmFFIReturnKind::CString)
 MARMOT_BUILTIN(MIDORI_FFI_RunProcess, MakeVmFFIArgKinds(VmFFIArgumentKind::TraceableHandle, VmFFIArgumentKind::CString), VmFFIReturnKind::ArrayStrings)
+MARMOT_BUILTIN(MIDORI_FFI_GetArguments, {}, VmFFIReturnKind::ArrayStrings)

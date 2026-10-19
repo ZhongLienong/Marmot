@@ -1844,6 +1844,12 @@
         "CString"
       ],
       "returns": "ArrayStrings"
+    },
+    {
+      "id": 106,
+      "name": "MIDORI_FFI_GetArguments",
+      "arguments": [],
+      "returns": "ArrayStrings"
     }
   ]
 }
