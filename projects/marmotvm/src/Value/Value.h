@@ -305,6 +305,13 @@ public:
 
 	MidoriText Reverse() const;
 
+	// Every code point, in one pass. A byte that starts no UTF-8 sequence is
+	// one code point of its own value, as GetLength counts it.
+	std::vector<MidoriInteger> CodePoints() const;
+
+	// The caller has checked each is a Unicode scalar value other than U+0000.
+	static MidoriText FromCodePoints(std::span<const MidoriInteger> code_points);
+
 	bool Contains(const MidoriText& other) const;
 
 	MidoriText Replace(const MidoriText& old_value, const MidoriText& new_value) const;

@@ -3,7 +3,7 @@ import { "./Prelude/Option.mmt" }
 use Option.{
     Option
 }
-public export { Length, Contains, StartsWith, EndsWith, Substring, Split, Join, Replace, Trim, Reverse, FromCodePoint, CodePointAt, ParseInt, ParseFloat }
+public export { Length, Contains, StartsWith, EndsWith, Substring, Split, Join, Replace, Trim, Reverse, FromCodePoint, FromCodePoints, CodePointAt, CodePoints, ParseInt, ParseFloat }
 foreign "MIDORI_FFI_TextLength" TextLengthRaw: fn(Text) -> Int;
 foreign "MIDORI_FFI_TextSubstring" TextSubstringRaw: fn(Text, Int, Int) -> Text;
 foreign "MIDORI_FFI_TextSplit" TextSplitRaw: fn(Text, Text) -> Array < Text >;
@@ -13,6 +13,8 @@ foreign "MIDORI_FFI_TextReplace" TextReplaceRaw: fn(Text, Text, Text) -> Text;
 foreign "MIDORI_FFI_TextTrim" TextTrimRaw: fn(Text) -> Text;
 foreign "MIDORI_FFI_TextFromCodePoint" TextFromCodePointRaw: fn(Int) -> Text;
 foreign "MIDORI_FFI_TextCodePointAt" TextCodePointAtRaw: fn(Text, Int) -> Int;
+foreign "MIDORI_FFI_TextCodePoints" TextCodePointsRaw: fn(Text) -> Array < Int >;
+foreign "MIDORI_FFI_TextFromCodePoints" TextFromCodePointsRaw: fn(Array < Int >) -> Text;
 foreign "MIDORI_FFI_TextIsInteger" TextIsIntegerRaw: fn(Text) -> Bool;
 foreign "MIDORI_FFI_TextIsFloat" TextIsFloatRaw: fn(Text) -> Bool;
 def Length = fn(text: Text) -> Int => TextLengthRaw(text);
@@ -33,5 +35,12 @@ def CodePointAt = fn(text: Text, index: Int) -> Option < Int > => {
     def code_point = TextCodePointAtRaw(text, index);
     if code_point < 0 then Option::None() else Option::Some(code_point)
 };
+// Every code point in one pass. Index the array rather than calling CodePointAt
+// in a loop, which finds each code point from the start of the text.
+def CodePoints = fn(text: Text) -> Array < Int > => TextCodePointsRaw(text);
+def AreScalarValuesFrom = fn(code_points: Array < Int >, index: Int) -> Bool =>
+    if index >= #code_points then true else if IsScalarValue(code_points[index]) then AreScalarValuesFrom(code_points, index + 1) else false;
+// None when one of them is not a code point FromCodePoint would take.
+def FromCodePoints = fn(code_points: Array < Int >) -> Option < Text > => if AreScalarValuesFrom(code_points, 0) then Option::Some(TextFromCodePointsRaw(code_points)) else Option::None();
 def ParseInt = fn(text: Text) -> Option < Int > => if TextIsIntegerRaw(text) then Option::Some(text as Int) else Option::None();
 def ParseFloat = fn(text: Text) -> Option < Float > => if TextIsFloatRaw(text) then Option::Some(text as Float) else Option::None();

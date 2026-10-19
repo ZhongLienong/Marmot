@@ -3,9 +3,11 @@
 #include "Error/RuntimeError.h"
 #include "Value/Value.h"
 
+#include <array>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <ranges>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -238,31 +240,28 @@ extern "C"
 	// and that it is not U+0000, which text cannot hold.
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextFromCodePoint)(void** args, void* ret) noexcept
 	{
-		const std::uint32_t code_point = static_cast<std::uint32_t>(ReadInt(args, 0u));
-		char encoded[5] = {};
-		if (code_point < 0x80u)
+		const std::array<MidoriInteger, 1u> code_point{ ReadInt(args, 0u) };
+		WritePointerResult(ret, AllocateCString(MidoriText::FromCodePoints(code_point)));
+	}
+
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextCodePoints)(void** args, void* ret) noexcept
+	{
+		const std::vector<MidoriInteger> code_points = RequireText(args[0u]).CodePoints();
+		MidoriArray values(static_cast<int>(code_points.size()));
+		for (int index = 0; index < values.GetLength(); index += 1)
 		{
-			encoded[0] = static_cast<char>(code_point);
+			values[index] = MidoriValue(code_points[static_cast<size_t>(index)]);
 		}
-		else if (code_point < 0x800u)
-		{
-			encoded[0] = static_cast<char>(0xC0u | (code_point >> 6u));
-			encoded[1] = static_cast<char>(0x80u | (code_point & 0x3Fu));
-		}
-		else if (code_point < 0x10000u)
-		{
-			encoded[0] = static_cast<char>(0xE0u | (code_point >> 12u));
-			encoded[1] = static_cast<char>(0x80u | ((code_point >> 6u) & 0x3Fu));
-			encoded[2] = static_cast<char>(0x80u | (code_point & 0x3Fu));
-		}
-		else
-		{
-			encoded[0] = static_cast<char>(0xF0u | (code_point >> 18u));
-			encoded[1] = static_cast<char>(0x80u | ((code_point >> 12u) & 0x3Fu));
-			encoded[2] = static_cast<char>(0x80u | ((code_point >> 6u) & 0x3Fu));
-			encoded[3] = static_cast<char>(0x80u | (code_point & 0x3Fu));
-		}
-		WritePointerResult(ret, AllocateCString(MidoriText(encoded)));
+		WritePointerResult(ret, AllocateValueArray(values));
+	}
+
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextFromCodePoints)(void** args, void* ret) noexcept
+	{
+		const MidoriArray& values = RequireArray(args[0u]);
+		const std::vector<MidoriInteger> code_points = std::views::iota(0, values.GetLength())
+			| std::views::transform([&values](int index) { return values[index].GetInteger(); })
+			| std::ranges::to<std::vector>();
+		WritePointerResult(ret, AllocateCString(MidoriText::FromCodePoints(code_points)));
 	}
 
 	// The code point at a code-point index, or -1 past the end.

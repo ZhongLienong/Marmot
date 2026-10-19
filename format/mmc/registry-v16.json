@@ -1850,6 +1850,22 @@
       "name": "MIDORI_FFI_GetArguments",
       "arguments": [],
       "returns": "ArrayStrings"
+    },
+    {
+      "id": 107,
+      "name": "MIDORI_FFI_TextCodePoints",
+      "arguments": [
+        "TraceableHandle"
+      ],
+      "returns": "ArrayValues"
+    },
+    {
+      "id": 108,
+      "name": "MIDORI_FFI_TextFromCodePoints",
+      "arguments": [
+        "TraceableHandle"
+      ],
+      "returns": "CString"
     }
   ]
 }

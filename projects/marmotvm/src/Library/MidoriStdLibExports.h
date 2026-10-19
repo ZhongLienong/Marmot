@@ -144,6 +144,8 @@ extern "C"
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextIsInteger)(void** args, void* ret) noexcept;
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextIsFloat)(void** args, void* ret) noexcept;
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextCompare)(void** args, void* ret) noexcept;
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextCodePoints)(void** args, void* ret) noexcept;
+	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextFromCodePoints)(void** args, void* ret) noexcept;
 
 	// Hashing
 	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(HashText)(void** args, void* ret) noexcept;

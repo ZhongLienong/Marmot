@@ -30,3 +30,10 @@ IO::PrintLine(ShowText(TextUtil::FromCodePoint(0)) ++ " " ++ ShowText(TextUtil::
 IO::PrintLine(ShowInt(TextUtil::CodePointAt("aé中😀", 0)) ++ " " ++ ShowInt(TextUtil::CodePointAt("aé中😀", 1)) ++ " " ++ ShowInt(TextUtil::CodePointAt("aé中😀", 2)) ++ " " ++ ShowInt(TextUtil::CodePointAt("aé中😀", 3)) ++ " " ++ ShowInt(TextUtil::CodePointAt("aé中😀", 4)) ++ " " ++ ShowInt(TextUtil::CodePointAt("aé", -1)));
 IO::PrintLine(ShowInt(TextUtil::ParseInt("42")) ++ " " ++ ShowInt(TextUtil::ParseInt("-7")) ++ " " ++ ShowInt(TextUtil::ParseInt("12abc")) ++ " " ++ ShowInt(TextUtil::ParseInt(" 1")) ++ " " ++ ShowInt(TextUtil::ParseInt("")));
 IO::PrintLine(ShowFloat(TextUtil::ParseFloat("2.5")) ++ " " ++ ShowFloat(TextUtil::ParseFloat("1e3")) ++ " " ++ ShowFloat(TextUtil::ParseFloat("1.2.3")) ++ " " ++ ShowFloat(TextUtil::ParseFloat("abc")));
+
+def Codes = fn(text: Text) -> Text => TextUtil::Join([code as Text for code in TextUtil::CodePoints(text)], " ");
+def mixed = "aé中😀 ok";
+IO::PrintLine(Codes("aé中😀") ++ " | " ++ ((#TextUtil::CodePoints("")) as Text) ++ " | " ++ (if #TextUtil::CodePoints(mixed) == TextUtil::Length(mixed) then "same count as Length" else "count differs"));
+IO::PrintLine(ShowText(TextUtil::FromCodePoints([72, 105, 0x1F600])) ++ " [" ++ ShowText(TextUtil::FromCodePoints([])) ++ "] " ++ (if ShowText(TextUtil::FromCodePoints(TextUtil::CodePoints(mixed))) == mixed then "round trip" else "lost"));
+IO::PrintLine(ShowText(TextUtil::FromCodePoints([65, 0xD800])) ++ " " ++ ShowText(TextUtil::FromCodePoints([0])) ++ " " ++ ShowText(TextUtil::FromCodePoints([0x110000])));
+IO::PrintLine((#TextUtil::CodePoints(TextUtil::Join(["é" for index in 0..1..100000], ""))) as Text);

@@ -167,6 +167,32 @@ namespace UTF8
 		}
 	}
 
+	void Append(std::string& encoded, std::uint32_t code_point)
+	{
+		if (code_point < 0x80u)
+		{
+			encoded.push_back(static_cast<char>(code_point));
+		}
+		else if (code_point < 0x800u)
+		{
+			encoded.push_back(static_cast<char>(0xC0u | (code_point >> 6u)));
+			encoded.push_back(static_cast<char>(0x80u | (code_point & 0x3Fu)));
+		}
+		else if (code_point < 0x10000u)
+		{
+			encoded.push_back(static_cast<char>(0xE0u | (code_point >> 12u)));
+			encoded.push_back(static_cast<char>(0x80u | ((code_point >> 6u) & 0x3Fu)));
+			encoded.push_back(static_cast<char>(0x80u | (code_point & 0x3Fu)));
+		}
+		else
+		{
+			encoded.push_back(static_cast<char>(0xF0u | (code_point >> 18u)));
+			encoded.push_back(static_cast<char>(0x80u | ((code_point >> 12u) & 0x3Fu)));
+			encoded.push_back(static_cast<char>(0x80u | ((code_point >> 6u) & 0x3Fu)));
+			encoded.push_back(static_cast<char>(0x80u | (code_point & 0x3Fu)));
+		}
+	}
+
 	int CountCodePoints(const char* str, int byte_length)
 	{
 		int count = 0;
@@ -1223,6 +1249,39 @@ MidoriText MidoriText::Reverse() const
 	}
 
 	return MidoriText(reversed.c_str());
+}
+
+std::vector<MidoriInteger> MidoriText::CodePoints() const
+{
+	const std::string_view bytes = View();
+	std::vector<MidoriInteger> code_points;
+	for (size_t offset = 0u; offset < bytes.size();)
+	{
+		const size_t length = static_cast<size_t>(UTF8::GetCharacterByteCount(bytes.data() + offset));
+		const unsigned char lead = static_cast<unsigned char>(bytes[offset]);
+		std::uint32_t code_point = (length == 1u) ? lead
+			: (length == 2u) ? (lead & 0x1Fu)
+			: (length == 3u) ? (lead & 0x0Fu)
+			: (lead & 0x07u);
+		for (size_t continuation = 1u; (continuation < length) && (offset + continuation < bytes.size()); continuation += 1u)
+		{
+			code_point = (code_point << 6u) | (static_cast<unsigned char>(bytes[offset + continuation]) & 0x3Fu);
+		}
+		code_points.push_back(static_cast<MidoriInteger>(code_point));
+		offset += length;
+	}
+	return code_points;
+}
+
+MidoriText MidoriText::FromCodePoints(std::span<const MidoriInteger> code_points)
+{
+	std::string encoded;
+	encoded.reserve(code_points.size());
+	for (const MidoriInteger code_point : code_points)
+	{
+		UTF8::Append(encoded, static_cast<std::uint32_t>(code_point));
+	}
+	return MidoriText(encoded.c_str());
 }
 
 bool MidoriText::Contains(const MidoriText& other) const
