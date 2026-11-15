@@ -31,3 +31,6 @@ node_modules/
 # Generated doc-example compile sandboxes
 .doc_examples/
 .doc_example_*.mmt
+
+# Generated Graphify graph, report, and cache
+graphify-out/
