@@ -50,7 +50,7 @@ namespace
 	}
 }
 
-namespace MidoriProgramLoader
+namespace MarmotProgramLoader
 {
 	std::vector<std::filesystem::path> EnvironmentLibraryPaths()
 	{

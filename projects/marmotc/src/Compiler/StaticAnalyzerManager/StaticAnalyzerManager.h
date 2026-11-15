@@ -11,7 +11,7 @@ class StaticAnalyzerManager
 public:
 	explicit StaticAnalyzerManager(const WorkerCrossings& crossings);
 
-	std::vector<CompilerWarning> Analyze(MidoriProgramTree& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines);
+	std::vector<CompilerWarning> Analyze(MarmotProgramTree& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines);
 
 private:
 	std::vector<std::unique_ptr<DiagnosticPass>> m_passes;

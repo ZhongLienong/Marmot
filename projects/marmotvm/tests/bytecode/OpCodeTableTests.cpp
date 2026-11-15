@@ -58,7 +58,7 @@ TEST_CASE("The disassembler reads each instruction's length from OpCodes.def", "
 		executable.AttachProcedures(std::move(procedures));
 
 		int offset = 0;
-		MidoriUtility::OutputCapture capture;
+		MarmotUtility::OutputCapture capture;
 		Disassembler::DisassembleInstruction(stdout, executable, 0, offset);
 		static_cast<void>(capture.Stop());
 

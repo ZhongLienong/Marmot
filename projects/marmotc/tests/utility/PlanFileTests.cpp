@@ -1,7 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "Utility/BuildPlan/BuildPlan.h"
-#include "Utility/Driver/MidoriDriver.h"
+#include "Utility/Driver/MarmotDriver.h"
 #include "support/ScopedEnvVar.h"
 #include "support/CompileHelpers.h"
 #include "support/TempProject.h"
@@ -15,19 +15,19 @@
 
 namespace
 {
-	MidoriTest::TempProject PlanProject()
+	MarmotTest::TempProject PlanProject()
 	{
-		return MidoriTest::TempProject
+		return MarmotTest::TempProject
 		({
-			MidoriTest::TempProjectFile("src/Main.mmt", "module Main\nimport { \"<Greeting>\" }\ndef main = fn() -> Int => Greeting::Answer();\n"),
-			MidoriTest::TempProjectFile("lib/Greeting.mmt", "module Greeting\npublic export { Answer }\ndef Answer = fn() -> Int => 42;\n"),
-			MidoriTest::TempProjectFile("native/bin/native.dll", "not a library\n"),
+			MarmotTest::TempProjectFile("src/Main.mmt", "module Main\nimport { \"<Greeting>\" }\ndef main = fn() -> Int => Greeting::Answer();\n"),
+			MarmotTest::TempProjectFile("lib/Greeting.mmt", "module Greeting\npublic export { Answer }\ndef Answer = fn() -> Int => 42;\n"),
+			MarmotTest::TempProjectFile("native/bin/native.dll", "not a library\n"),
 		});
 	}
 
 	std::string CheckError(std::string_view json, const std::filesystem::path& base)
 	{
-		const std::expected<BuildPlan, std::string> plan = MidoriBuildPlan::Parse(json, base);
+		const std::expected<BuildPlan, std::string> plan = MarmotBuildPlan::Parse(json, base);
 		REQUIRE_FALSE(plan.has_value());
 		return plan.error();
 	}
@@ -35,8 +35,8 @@ namespace
 
 TEST_CASE("A build plan resolves its paths against the plan's directory", "[plan]")
 {
-	const MidoriTest::TempProject project = PlanProject();
-	const std::expected<BuildPlan, std::string> plan = MidoriBuildPlan::Parse(R"({
+	const MarmotTest::TempProject project = PlanProject();
+	const std::expected<BuildPlan, std::string> plan = MarmotBuildPlan::Parse(R"({
 		"version": 1,
 		"entry": "src/Main.mmt",
 		"search_paths": ["lib"],
@@ -62,13 +62,13 @@ TEST_CASE("A build plan resolves its paths against the plan's directory", "[plan
 
 TEST_CASE("A build plan rejects what it does not understand", "[plan]")
 {
-	const MidoriTest::TempProject project = PlanProject();
+	const MarmotTest::TempProject project = PlanProject();
 	const std::filesystem::path base = project.Root();
 
 	CHECK(CheckError(R"([])", base) == "the plan must be a JSON object, found array");
 	CHECK(CheckError(R"({"entry": "src/Main.mmt"})", base) == "plan: missing \"version\"");
 	CHECK(CheckError(R"({"version": 2, "entry": "src/Main.mmt"})", base) == "version: this compiler reads plan version 1; the plan says 2");
-	const std::expected<BuildPlan, std::string> without_entry = MidoriBuildPlan::Parse(R"({"version": 1, "search_paths": ["lib"]})", base);
+	const std::expected<BuildPlan, std::string> without_entry = MarmotBuildPlan::Parse(R"({"version": 1, "search_paths": ["lib"]})", base);
 	REQUIRE(without_entry.has_value());
 	CHECK_FALSE(without_entry->m_entry.has_value());
 	CHECK(CheckError(R"({"version": 1, "entry": "src/Missing.mmt"})", base).starts_with("entry: no such file: "));

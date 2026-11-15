@@ -5,7 +5,7 @@
 Marmot uses an **isolated-worker** concurrency model. Each worker is a full
 `VirtualMachine` instance with its own allocator, garbage collector, value
 stack, call stack, and global variables. Workers share read-only bytecode
-(`std::shared_ptr<const MidoriExecutable>`) but cannot share mutable values.
+(`std::shared_ptr<const MarmotExecutable>`) but cannot share mutable values.
 
 Communication between workers happens exclusively through message passing
 (typed binary-serialized values via channels).
@@ -14,13 +14,13 @@ Communication between workers happens exclusively through message passing
 
 | Component | Shared? | Notes |
 |-----------|---------|-------|
-| Bytecode (`MidoriExecutable`) | Yes (read-only) | Via `shared_ptr<const>` |
+| Bytecode (`MarmotExecutable`) | Yes (read-only) | Via `shared_ptr<const>` |
 | Builtin FFI table | Yes (immutable) | `constexpr` array, compile-time |
 | Dynamic FFI function pointers | Snapshot per VM | Lock-free lookup during execution |
 | Shared library handles | Yes (cache) | `SharedLibraryCache` singleton, load-time only |
 | Value stack | No | Per-VM, 10k slots |
 | Call stack | No | Per-VM, 10k slots |
-| Heap / Allocator | No | Per-VM `MidoriAllocator` |
+| Heap / Allocator | No | Per-VM `MarmotAllocator` |
 | Garbage collector | No | Per-VM, independent generational collection |
 | Global variables | No | Per-VM; a worker holds copies of the globals its code can read |
 | String literal cache | No | Per-VM |

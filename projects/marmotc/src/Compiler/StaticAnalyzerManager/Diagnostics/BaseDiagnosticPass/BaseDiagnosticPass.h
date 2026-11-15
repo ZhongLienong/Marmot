@@ -10,13 +10,13 @@
 #include <vector>
 
 // One walk over a checked module that reports warnings.
-class DiagnosticPass : protected MidoriAbstractSyntaxTreeWalker
+class DiagnosticPass : protected MarmotAbstractSyntaxTreeWalker
 {
 public:
-	std::vector<CompilerWarning> Run(MidoriProgramTree& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines);
+	std::vector<CompilerWarning> Run(MarmotProgramTree& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines);
 
 protected:
-	virtual void Reset(MidoriProgramTree& program_tree);
+	virtual void Reset(MarmotProgramTree& program_tree);
 
 	virtual void Finish();
 

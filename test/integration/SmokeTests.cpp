@@ -13,7 +13,7 @@ TEST_CASE("The Marmot libraries link into the unit test target", "[smoke]")
 		"\n"
 		"def main = fn() -> Int => 0;\n";
 
-	std::expected<MidoriTest::ExecutedSnippet, CompilerError> run_result = MidoriTest::ExecuteSnippet(std::move(source_code), "Smoke.mmt");
+	std::expected<MarmotTest::ExecutedSnippet, CompilerError> run_result = MarmotTest::ExecuteSnippet(std::move(source_code), "Smoke.mmt");
 	if (!run_result.has_value())
 	{
 		FAIL(std::string(run_result.error().Rendered()));

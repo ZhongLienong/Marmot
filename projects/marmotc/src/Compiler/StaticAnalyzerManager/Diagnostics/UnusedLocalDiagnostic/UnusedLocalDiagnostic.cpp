@@ -4,7 +4,7 @@
 
 #include <format>
 
-void UnusedLocalDiagnostic::Reset(MidoriProgramTree&)
+void UnusedLocalDiagnostic::Reset(MarmotProgramTree&)
 {
 	m_functions.clear();
 	PushFunctionContext();
@@ -92,7 +92,7 @@ void UnusedLocalDiagnostic::RegisterBinding(const Token& token, std::optional<in
 		BindingInfo
 		{
 			token,
-			MidoriAnalysis::DemangleDisplayName(token.m_lexeme),
+			MarmotAnalysis::DemangleDisplayName(token.m_lexeme),
 			false,
 			suppressed
 		}
@@ -107,15 +107,15 @@ void UnusedLocalDiagnostic::RegisterParameterBindings(const std::vector<Token>& 
 	for (std::size_t index = 0u; index < params.size(); index += 1u)
 	{
 		const Token& token = params[index];
-		RegisterBinding(token, static_cast<int>(index), MidoriAnalysis::IsIgnoredBindingName(MidoriAnalysis::DemangleDisplayName(token.m_lexeme)));
+		RegisterBinding(token, static_cast<int>(index), MarmotAnalysis::IsIgnoredBindingName(MarmotAnalysis::DemangleDisplayName(token.m_lexeme)));
 	}
 }
 
-void UnusedLocalDiagnostic::MarkRead(const Token& name, const MidoriExpression::NameContext::Tag& name_ctx)
+void UnusedLocalDiagnostic::MarkRead(const Token& name, const MarmotExpression::NameContext::Tag& name_ctx)
 {
-	if (std::holds_alternative<MidoriExpression::NameContext::Local>(name_ctx))
+	if (std::holds_alternative<MarmotExpression::NameContext::Local>(name_ctx))
 	{
-		const int local_index = std::get<MidoriExpression::NameContext::Local>(name_ctx).m_index;
+		const int local_index = std::get<MarmotExpression::NameContext::Local>(name_ctx).m_index;
 		const std::unordered_map<int, int>::const_iterator it = m_functions.back().m_active_locals.find(local_index);
 		if (it != m_functions.back().m_active_locals.end())
 		{
@@ -124,7 +124,7 @@ void UnusedLocalDiagnostic::MarkRead(const Token& name, const MidoriExpression::
 		return;
 	}
 
-	if (std::holds_alternative<MidoriExpression::NameContext::Cell>(name_ctx))
+	if (std::holds_alternative<MarmotExpression::NameContext::Cell>(name_ctx))
 	{
 		MarkCapturedReadByName(name);
 	}
@@ -162,27 +162,27 @@ void UnusedLocalDiagnostic::MarkCapturedReadByName(const Token& name)
 	}
 }
 
-void UnusedLocalDiagnostic::operator()(MidoriStatement::VariableDefinition& def)
+void UnusedLocalDiagnostic::operator()(MarmotStatement::VariableDefinition& def)
 {
-	RegisterBinding(def.m_name, def.m_local_index, def.m_is_elided || MidoriAnalysis::IsIgnoredBindingName(MidoriAnalysis::DemangleDisplayName(def.m_name.m_lexeme)));
+	RegisterBinding(def.m_name, def.m_local_index, def.m_is_elided || MarmotAnalysis::IsIgnoredBindingName(MarmotAnalysis::DemangleDisplayName(def.m_name.m_lexeme)));
 	VisitExpression(def.m_value);
 }
 
-void UnusedLocalDiagnostic::operator()(MidoriStatement::TupleDefinition& def_tuple)
+void UnusedLocalDiagnostic::operator()(MarmotStatement::TupleDefinition& def_tuple)
 {
 	for (std::size_t index = 0u; index < def_tuple.m_names.size(); index += 1u)
 	{
 		const Token& token = def_tuple.m_names[index];
 		const std::optional<int>& local_index = def_tuple.m_local_indices[index];
-		RegisterBinding(token, local_index, MidoriAnalysis::IsIgnoredBindingName(MidoriAnalysis::DemangleDisplayName(token.m_lexeme)));
+		RegisterBinding(token, local_index, MarmotAnalysis::IsIgnoredBindingName(MarmotAnalysis::DemangleDisplayName(token.m_lexeme)));
 	}
 
 	VisitExpression(def_tuple.m_value);
 }
 
-void UnusedLocalDiagnostic::operator()(MidoriStatement::FunctionDefinition& defun)
+void UnusedLocalDiagnostic::operator()(MarmotStatement::FunctionDefinition& defun)
 {
-	RegisterBinding(defun.m_name, defun.m_local_index, MidoriAnalysis::IsIgnoredBindingName(MidoriAnalysis::DemangleDisplayName(defun.m_name.m_lexeme)));
+	RegisterBinding(defun.m_name, defun.m_local_index, MarmotAnalysis::IsIgnoredBindingName(MarmotAnalysis::DemangleDisplayName(defun.m_name.m_lexeme)));
 
 	PushFunctionContext();
 	RegisterParameterBindings(defun.m_params);
@@ -190,22 +190,22 @@ void UnusedLocalDiagnostic::operator()(MidoriStatement::FunctionDefinition& defu
 	PopFunctionContext();
 }
 
-void UnusedLocalDiagnostic::operator()(MidoriStatement::ForeignDefinition& foreign)
+void UnusedLocalDiagnostic::operator()(MarmotStatement::ForeignDefinition& foreign)
 {
-	RegisterBinding(foreign.m_function_name, foreign.m_local_index, MidoriAnalysis::IsIgnoredBindingName(MidoriAnalysis::DemangleDisplayName(foreign.m_function_name.m_lexeme)));
+	RegisterBinding(foreign.m_function_name, foreign.m_local_index, MarmotAnalysis::IsIgnoredBindingName(MarmotAnalysis::DemangleDisplayName(foreign.m_function_name.m_lexeme)));
 }
 
-void UnusedLocalDiagnostic::operator()(MidoriPattern::Binding& binding)
+void UnusedLocalDiagnostic::operator()(MarmotPattern::Binding& binding)
 {
-	RegisterBinding(binding.m_name, binding.m_local_index, MidoriAnalysis::IsIgnoredBindingName(MidoriAnalysis::DemangleDisplayName(binding.m_name.m_lexeme)));
+	RegisterBinding(binding.m_name, binding.m_local_index, MarmotAnalysis::IsIgnoredBindingName(MarmotAnalysis::DemangleDisplayName(binding.m_name.m_lexeme)));
 }
 
-void UnusedLocalDiagnostic::operator()(MidoriExpression::NameAccess& access)
+void UnusedLocalDiagnostic::operator()(MarmotExpression::NameAccess& access)
 {
 	MarkRead(access.m_name, access.m_name_ctx);
 }
 
-void UnusedLocalDiagnostic::operator()(MidoriExpression::Function& function)
+void UnusedLocalDiagnostic::operator()(MarmotExpression::Function& function)
 {
 	PushFunctionContext();
 	RegisterParameterBindings(function.m_params);
@@ -213,11 +213,11 @@ void UnusedLocalDiagnostic::operator()(MidoriExpression::Function& function)
 	PopFunctionContext();
 }
 
-void UnusedLocalDiagnostic::operator()(MidoriExpression::Block& block)
+void UnusedLocalDiagnostic::operator()(MarmotExpression::Block& block)
 {
 	PushScope();
 
-	for (std::unique_ptr<MidoriStatement>& statement : block.m_stmts)
+	for (std::unique_ptr<MarmotStatement>& statement : block.m_stmts)
 	{
 		VisitStatement(statement);
 	}
@@ -230,7 +230,7 @@ void UnusedLocalDiagnostic::operator()(MidoriExpression::Block& block)
 	PopScope();
 }
 
-void UnusedLocalDiagnostic::operator()(MidoriExpression::Case& case_expr)
+void UnusedLocalDiagnostic::operator()(MarmotExpression::Case& case_expr)
 {
 	PushScope();
 	VisitPattern(case_expr.m_pattern);

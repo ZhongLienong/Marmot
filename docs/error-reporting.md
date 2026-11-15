@@ -13,7 +13,7 @@ Source:
 - `projects/marmotvm/src/Error/RuntimeError.h`
 - `projects/marmotvm/src/Error/RuntimeError.cpp`
 - `projects/marmotc/src/Compiler/Result/Result.h`
-- `projects/marmotc/src/Utility/Driver/MidoriDriver.cpp`
+- `projects/marmotc/src/Utility/Driver/MarmotDriver.cpp`
 
 Main types:
 
@@ -25,9 +25,9 @@ Main types:
 - `RuntimeErrorCode`
 - `RuntimeDiagnosticKind`
 - `RuntimeStackFrame`
-- `MidoriResult::CompilerWarnings`
-- `MidoriResult::CompilerDiagnostics`
-- `MidoriResult::CompilerReport`
+- `MarmotResult::CompilerWarnings`
+- `MarmotResult::CompilerDiagnostics`
+- `MarmotResult::CompilerReport`
 
 ## Stages
 
@@ -204,7 +204,7 @@ That ordering is tested in:
 
 ## Driver Behavior
 
-`MidoriDriver` uses the report/runtime types like this:
+`MarmotDriver` uses the report/runtime types like this:
 
 - `CompileSourceWithReport(...)` preserves warnings and errors together
 - `RunExecutable(...)` returns `std::expected<int, RuntimeError>`
@@ -248,10 +248,10 @@ APIs:
 
 - `SerializeMachineReadableError(...)`
 - `SerializeMachineReadableWarningPayload(...)`
-- `MidoriResult::CompilerWarnings::MachineReadable()`
-- `MidoriResult::CompilerWarnings::MachineReadableJson()`
-- `MidoriResult::CompilerDiagnostics::MachineReadableJson()`
-- `MidoriResult::CompilerReport::MachineReadableJson()`
+- `MarmotResult::CompilerWarnings::MachineReadable()`
+- `MarmotResult::CompilerWarnings::MachineReadableJson()`
+- `MarmotResult::CompilerDiagnostics::MachineReadableJson()`
+- `MarmotResult::CompilerReport::MachineReadableJson()`
 
 ### Runtime JSON Payloads
 

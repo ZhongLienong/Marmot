@@ -3,7 +3,7 @@
 #include <string>
 #include <string_view>
 
-namespace MidoriSource
+namespace MarmotSource
 {
 	// Editors on Windows write this at the start of a UTF-8 file. It is not part
 	// of the program.

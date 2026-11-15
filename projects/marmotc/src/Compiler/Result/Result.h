@@ -16,7 +16,7 @@
 #include "Compiler/Module/CompiledModule.h"
 #include "Compiler/BuildGraph/BuildGraph.h"
 
-namespace MidoriResult
+namespace MarmotResult
 {
 	// Diagnostics of one kind, in the order they were reported.
 	template<typename Diagnostic>
@@ -246,17 +246,17 @@ namespace MidoriResult
 
 	struct CompiledProgram
 	{
-		MidoriExecutable m_executable;
+		MarmotExecutable m_executable;
 		CompilerReport m_report;
 		// Every file the program was compiled from, sorted: the entry and every
 		// module it reached. What a build depends on.
 		std::vector<std::string> m_source_files;
-		// Each module's MidoriIR as text, in link order, when --emit-ir asked.
-		std::vector<std::string> m_midori_ir;
+		// Each module's MarmotIR as text, in link order, when --emit-ir asked.
+		std::vector<std::string> m_marmot_ir;
 		// Each module's checked syntax tree as text, in link order, when --emit-ast asked.
 		std::vector<std::string> m_ast;
 
-		CompiledProgram(MidoriExecutable executable, CompilerReport report = {}, std::vector<std::string> source_files = {})
+		CompiledProgram(MarmotExecutable executable, CompilerReport report = {}, std::vector<std::string> source_files = {})
 			: m_executable(std::move(executable)),
 			m_report(std::move(report)),
 			m_source_files(std::move(source_files))
@@ -268,7 +268,7 @@ namespace MidoriResult
 			return m_report;
 		}
 
-		[[nodiscard]] MidoriExecutable TakeExecutable() &&
+		[[nodiscard]] MarmotExecutable TakeExecutable() &&
 		{
 			return std::move(m_executable);
 		}
@@ -282,21 +282,21 @@ namespace MidoriResult
 
 	using TokenResult = Result<Token>;
 	using TokenListResult = Result<std::vector<Token>>;
-	using FunctionParamResult = Result<std::pair<Token, std::shared_ptr<MidoriType>>>;
-	using FunctionParamsResult = Result<std::vector<std::pair<Token, std::shared_ptr<MidoriType>>>>;
+	using FunctionParamResult = Result<std::pair<Token, std::shared_ptr<MarmotType>>>;
+	using FunctionParamsResult = Result<std::vector<std::pair<Token, std::shared_ptr<MarmotType>>>>;
 	using LexerResult = Result<TokenStream>;
 	using ModuleManagerResult = Result<BuildGraph>;
-	using BytecodeLinkerResult = Result<MidoriExecutable>;
-	using ExpressionResult = Result<std::unique_ptr<MidoriExpression>>;
-	using PatternResult = Result<std::unique_ptr<MidoriPattern>>;
-	using StatementResult = Result<std::unique_ptr<MidoriStatement>>;
-	using ParserResult = DiagnosticsResult<MidoriProgramTree>;
-	using TypeResult = Result<std::shared_ptr<MidoriType>>;
-	using TypeListResult = Result<std::vector<std::shared_ptr<MidoriType>>>;
-	using TypeCheckerResult = DiagnosticsResult<MidoriProgramTree>;
+	using BytecodeLinkerResult = Result<MarmotExecutable>;
+	using ExpressionResult = Result<std::unique_ptr<MarmotExpression>>;
+	using PatternResult = Result<std::unique_ptr<MarmotPattern>>;
+	using StatementResult = Result<std::unique_ptr<MarmotStatement>>;
+	using ParserResult = DiagnosticsResult<MarmotProgramTree>;
+	using TypeResult = Result<std::shared_ptr<MarmotType>>;
+	using TypeListResult = Result<std::vector<std::shared_ptr<MarmotType>>>;
+	using TypeCheckerResult = DiagnosticsResult<MarmotProgramTree>;
 	using BytecodeBackendResult = DiagnosticsResult<BytecodeModule>;
 	using CompiledModuleReportResult = ReportResult<CompiledModule>;
-	using CompilerResult = DiagnosticsResult<MidoriExecutable>;
+	using CompilerResult = DiagnosticsResult<MarmotExecutable>;
 	using CompilationResult = ReportResult<CompiledProgram>;
 
 	using VoidResult = Result<void>;

@@ -88,14 +88,14 @@ namespace
 		{
 			return StartFailure(result, program.error());
 		}
-		const std::expected<void, std::string> libraries = MidoriProgramLoader::LoadNativeLibraries(program.value(), {});
+		const std::expected<void, std::string> libraries = MarmotProgramLoader::LoadNativeLibraries(program.value(), {});
 		if (!libraries.has_value())
 		{
 			return StartFailure(result, libraries.error());
 		}
 
 		const StreamCapture capture;
-		const std::expected<int, RuntimeError> executed = MidoriProgramLoader::Run(std::move(program).value());
+		const std::expected<int, RuntimeError> executed = MarmotProgramLoader::Run(std::move(program).value());
 		result.set("output", capture.Stdout());
 		result.set("error", capture.Stderr());
 		if (!executed.has_value())

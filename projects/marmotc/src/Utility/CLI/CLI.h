@@ -1,6 +1,6 @@
 #pragma once
 
-namespace MidoriCLI
+namespace MarmotCLI
 {
 	int Run(int argc, char* argv[]);
 }

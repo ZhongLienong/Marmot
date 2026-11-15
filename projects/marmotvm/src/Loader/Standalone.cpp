@@ -100,8 +100,8 @@ namespace
 			}
 		}
 
-		[[nodiscard]] std::expected<MidoriProgramLoader::NativeLibraryLocations, std::string> Write(
-			const std::vector<MidoriStandalone::NativeLibrary>& libraries)
+		[[nodiscard]] std::expected<MarmotProgramLoader::NativeLibraryLocations, std::string> Write(
+			const std::vector<MarmotStandalone::NativeLibrary>& libraries)
 		{
 			std::error_code error;
 			const std::filesystem::path temporary = std::filesystem::temp_directory_path(error);
@@ -129,10 +129,10 @@ namespace
 				return std::unexpected(std::format("Cannot set permissions on {}: {}", directory.string(), error.message()));
 			}
 
-			MidoriProgramLoader::NativeLibraryLocations locations;
+			MarmotProgramLoader::NativeLibraryLocations locations;
 			for (size_t index = 0u; index < libraries.size(); index += 1u)
 			{
-				const MidoriStandalone::NativeLibrary& library = libraries[index];
+				const MarmotStandalone::NativeLibrary& library = libraries[index];
 				const std::filesystem::path library_directory = directory / std::to_string(index);
 				std::filesystem::create_directory(library_directory, error);
 				if (error)
@@ -153,7 +153,7 @@ namespace
 		}
 	};
 
-	[[nodiscard]] std::expected<MidoriStandalone::Package, std::string> ReadPackage(std::span<const char> bytes)
+	[[nodiscard]] std::expected<MarmotStandalone::Package, std::string> ReadPackage(std::span<const char> bytes)
 	{
 		PackageReader reader(bytes);
 		std::expected<std::string, std::string> bytecode = reader.ReadBlob();
@@ -177,7 +177,7 @@ namespace
 		{
 			return std::unexpected("Truncated standalone executable: invalid native library count.");
 		}
-		std::vector<MidoriStandalone::NativeLibrary> libraries;
+		std::vector<MarmotStandalone::NativeLibrary> libraries;
 		for (uint64_t index = 0u; index < count.value(); index += 1u)
 		{
 			std::expected<std::string, std::string> name = reader.ReadBlob();
@@ -213,26 +213,26 @@ namespace
 		}
 		for (const VmNativeLibraryImport& imported : program->GetNativeLibraries())
 		{
-			if (std::ranges::count(libraries, imported.m_name, &MidoriStandalone::NativeLibrary::m_name) != 1)
+			if (std::ranges::count(libraries, imported.m_name, &MarmotStandalone::NativeLibrary::m_name) != 1)
 			{
 				return std::unexpected(std::format("Corrupt standalone executable: native library '{}' is missing or repeated.", imported.m_name));
 			}
 		}
-		return MidoriStandalone::Package(std::move(program).value(), std::move(libraries));
+		return MarmotStandalone::Package(std::move(program).value(), std::move(libraries));
 	}
 }
 
-MidoriStandalone::NativeLibrary::NativeLibrary(std::string name, std::filesystem::path file_name, std::string bytes)
+MarmotStandalone::NativeLibrary::NativeLibrary(std::string name, std::filesystem::path file_name, std::string bytes)
 	: m_name(std::move(name)), m_file_name(std::move(file_name)), m_bytes(std::move(bytes))
 {
 }
 
-MidoriStandalone::Package::Package(VmExecutable program, std::vector<NativeLibrary> libraries)
+MarmotStandalone::Package::Package(VmExecutable program, std::vector<NativeLibrary> libraries)
 	: m_program(std::move(program)), m_libraries(std::move(libraries))
 {
 }
 
-std::expected<std::optional<MidoriStandalone::Package>, std::string> MidoriStandalone::Read(std::istream& image)
+std::expected<std::optional<MarmotStandalone::Package>, std::string> MarmotStandalone::Read(std::istream& image)
 {
 	image.seekg(0, std::ios::end);
 	const std::streamoff image_size = image.tellg();
@@ -280,7 +280,7 @@ std::expected<std::optional<MidoriStandalone::Package>, std::string> MidoriStand
 	});
 }
 
-std::expected<std::filesystem::path, std::string> MidoriStandalone::CurrentExecutablePath()
+std::expected<std::filesystem::path, std::string> MarmotStandalone::CurrentExecutablePath()
 {
 #ifdef _WIN32
 	std::wstring buffer(32768u, L'\0');
@@ -304,7 +304,7 @@ std::expected<std::filesystem::path, std::string> MidoriStandalone::CurrentExecu
 #endif
 }
 
-std::expected<std::optional<MidoriStandalone::Package>, std::string> MidoriStandalone::ReadCurrentExecutable()
+std::expected<std::optional<MarmotStandalone::Package>, std::string> MarmotStandalone::ReadCurrentExecutable()
 {
 #if defined(_WIN32) || defined(__linux__)
 #ifdef _WIN32
@@ -327,26 +327,26 @@ std::expected<std::optional<MidoriStandalone::Package>, std::string> MidoriStand
 #endif
 }
 
-std::expected<int, std::string> MidoriStandalone::Run(Package&& package)
+std::expected<int, std::string> MarmotStandalone::Run(Package&& package)
 {
 	if (!package.m_libraries.empty())
 	{
 		// Static lifetime also cleans up when a program calls System::Exit.
 		static ExtractedLibraries extracted;
-		const std::expected<MidoriProgramLoader::NativeLibraryLocations, std::string> locations =
+		const std::expected<MarmotProgramLoader::NativeLibraryLocations, std::string> locations =
 			extracted.Write(package.m_libraries);
 		if (!locations.has_value())
 		{
 			return std::unexpected(locations.error());
 		}
 		const std::expected<void, std::string> loaded =
-			MidoriProgramLoader::LoadNativeLibraries(package.m_program, locations.value());
+			MarmotProgramLoader::LoadNativeLibraries(package.m_program, locations.value());
 		if (!loaded.has_value())
 		{
 			return std::unexpected(loaded.error());
 		}
 	}
-	const std::expected<int, RuntimeError> result = MidoriProgramLoader::Run(std::move(package.m_program));
+	const std::expected<int, RuntimeError> result = MarmotProgramLoader::Run(std::move(package.m_program));
 	if (!result.has_value())
 	{
 		std::print("{}", result.error().Rendered());

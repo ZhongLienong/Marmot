@@ -6,20 +6,20 @@ import
     "../../../MarmotPrelude/Prelude/Panic.mmt",
 }
 
-// Previously also covered MIDORI_FFI_TextAppend and MIDORI_FFI_TextPrepend,
+// Previously also covered MARMOT_FFI_TextAppend and MARMOT_FFI_TextPrepend,
 // which mutated their argument in place and were deleted along with the
 // TEXT_APPEND opcode. What remains here is the FFI surface that returns new
 // values or reads without mutating.
 
-foreign "MIDORI_FFI_TextConcat" TextConcat : fn(Text, Text) -> Text;
-foreign "MIDORI_FFI_TextLength" TextLength : fn(Text) -> Int;
-foreign "MIDORI_FFI_TextSubstring" TextSubstring : fn(Text, Int, Int) -> Text;
-foreign "MIDORI_FFI_TextSplit" TextSplit : fn(Text, Text) -> Array<Text>;
-foreign "MIDORI_FFI_TextReverse" TextReverse : fn(Text) -> Text;
-foreign "MIDORI_FFI_TextContains" TextContains : fn(Text, Text) -> Bool;
-foreign "MIDORI_FFI_TextReplace" TextReplace : fn(Text, Text, Text) -> Text;
-foreign "MIDORI_FFI_TextTrim" TextTrim : fn(Text) -> Text;
-foreign "MIDORI_FFI_ArrayLength" ArrayLengthText : fn(Array<Text>) -> Int;
+foreign "MARMOT_FFI_TextConcat" TextConcat : fn(Text, Text) -> Text;
+foreign "MARMOT_FFI_TextLength" TextLength : fn(Text) -> Int;
+foreign "MARMOT_FFI_TextSubstring" TextSubstring : fn(Text, Int, Int) -> Text;
+foreign "MARMOT_FFI_TextSplit" TextSplit : fn(Text, Text) -> Array<Text>;
+foreign "MARMOT_FFI_TextReverse" TextReverse : fn(Text) -> Text;
+foreign "MARMOT_FFI_TextContains" TextContains : fn(Text, Text) -> Bool;
+foreign "MARMOT_FFI_TextReplace" TextReplace : fn(Text, Text, Text) -> Text;
+foreign "MARMOT_FFI_TextTrim" TextTrim : fn(Text) -> Text;
+foreign "MARMOT_FFI_ArrayLength" ArrayLengthText : fn(Array<Text>) -> Int;
 
 def joined = TextConcat("hello", " world");
 if joined == "hello world" then () else Panic::Panic("TextConcat should return a combined text");

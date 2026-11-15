@@ -5,7 +5,7 @@ module HiddenLocalCaptureInOperandPosition
 //
 // The code generator shifted the match's locals above the pending operand but
 // found captures by their parser index, so it read unrelated memory, and later
-// rejected the program. MidoriIR captures values, not frame slots, so there is
+// rejected the program. MarmotIR captures values, not frame slots, so there is
 // nothing to shift.
 
 import { "../../../MarmotPrelude/IO.mmt" }

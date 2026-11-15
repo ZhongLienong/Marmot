@@ -44,8 +44,8 @@ namespace
 		offset += 9;
 
 		std::ostringstream formated_str;
-		MidoriFloat as_float = std::bit_cast<MidoriFloat>(operand_bytes);
-		MidoriInteger as_integer = std::bit_cast<MidoriInteger>(operand_bytes);
+		MarmotFloat as_float = std::bit_cast<MarmotFloat>(operand_bytes);
+		MarmotInteger as_integer = std::bit_cast<MarmotInteger>(operand_bytes);
 
 		formated_str << Terminal::Colored<Terminal::Color::BRIGHT_WHITE>(std::string(name));
 		if (is_integer)
@@ -64,7 +64,7 @@ namespace
 
 	void ByteConstantInstruction(std::FILE* output, std::string_view name, const VmExecutable& executable, int proc_index, int& offset)
 	{
-		MidoriByte operand = static_cast<MidoriByte>(executable.ReadByteCode(offset + 1, proc_index));
+		MarmotByte operand = static_cast<MarmotByte>(executable.ReadByteCode(offset + 1, proc_index));
 		offset += 2;
 
 		std::ostringstream formated_str;
@@ -85,7 +85,7 @@ namespace
 		offset += 9;
 
 		std::ostringstream formated_str;
-		MidoriWord operand = std::bit_cast<MidoriWord>(operand_bytes);
+		MarmotWord operand = std::bit_cast<MarmotWord>(operand_bytes);
 
 		formated_str << Terminal::Colored<Terminal::Color::BRIGHT_WHITE>(std::string(name));
 		formated_str << " " << Terminal::Colored<Terminal::Color::CYAN>(std::to_string(operand));

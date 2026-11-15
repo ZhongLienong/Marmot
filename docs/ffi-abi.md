@@ -31,7 +31,7 @@ using FFIFunction = void(*)(void** args, void* ret);
 Related runtime constants:
 
 - `VmBuiltins::ABI_VERSION == 1`
-- `MIDORI_FFI_MAX_ARITY == 4`
+- `MARMOT_FFI_MAX_ARITY == 4`
 
 Call contract:
 
@@ -75,12 +75,12 @@ struct FFIArray
 
 ### `TraceableHandle`
 
-- The slot contains a `MidoriTraceable*` managed by the Marmot GC.
+- The slot contains a `MarmotTraceable*` managed by the Marmot GC.
 - The handle is borrowed and only valid during the call.
 
 ### `ValueHandle`
 
-- The slot contains `MidoriValue*` pointing at a VM-owned value.
+- The slot contains `MarmotValue*` pointing at a VM-owned value.
 - The pointee is borrowed and only valid during the call.
 
 A native library's function gets its kinds from its `foreign` declaration's
@@ -91,7 +91,7 @@ array as `ArrayValues`, and anything else as `RawValue`. An array a native
 function returns holds texts or scalars: the compiler rejects a declaration
 that returns an array of other values, whose elements the VM would have to
 take as pointers. The compiler rejects a
-call to a native function with more than `MIDORI_FFI_MAX_ARITY` arguments.
+call to a native function with more than `MARMOT_FFI_MAX_ARITY` arguments.
 
 ## Return Value Marshalling
 
@@ -127,7 +127,7 @@ The runtime uses `FFIReturnKind` to describe how `ret` is interpreted.
 
 ### `Value`
 
-- Native code writes a `MidoriValue` into `ret`.
+- Native code writes a `MarmotValue` into `ret`.
 - Ownership remains with the VM unless the returned value itself refers to
   native memory described by another return kind.
 

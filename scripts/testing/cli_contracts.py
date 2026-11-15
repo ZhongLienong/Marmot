@@ -37,7 +37,7 @@ def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def run_midori(
+def run_marmot(
     tree: BuildTree,
     args: list[str],
     env_overrides: dict[str, str | None] | None = None,
@@ -145,7 +145,7 @@ def scenario_check_json_success_finds_imports_through_marmot_path(tree: BuildTre
         # the import finds.
         write_text(temp_dir / "project.marmot", "[project]\nsource_dir = \"nowhere\"\n")
 
-        completed = run_midori(
+        completed = run_marmot(
             tree,
             ["check", str(main_path), "--format", "json"],
             env_overrides={"MARMOT_PATH": str(library_dir)},
@@ -178,7 +178,7 @@ def scenario_check_json_failure_reports_parser_errors(tree: BuildTree) -> None:
             "def value = ;\n",
         )
 
-        completed = run_midori(
+        completed = run_marmot(
             tree,
             ["check", str(source_path), "--format", "json"],
             env_overrides={"MARMOT_PATH": None},
@@ -210,13 +210,13 @@ def scenario_check_reads_only_regular_files(tree: BuildTree) -> None:
         temp_dir = Path(temp_dir_raw)
         empty_path = temp_dir / "Empty.mmt"
         write_text(empty_path, "")
-        empty = run_midori(tree, ["check", str(empty_path)], env_overrides={"MARMOT_PATH": None})
+        empty = run_marmot(tree, ["check", str(empty_path)], env_overrides={"MARMOT_PATH": None})
         empty_output = empty.stdout + empty.stderr
         assert_condition(empty.returncode != 0 and "Module declaration required" in empty_output, f"check_reads_only_regular_files: an empty file should reach the module check:\n{empty_output}")
 
         directory_path = temp_dir / "Folder.mmt"
         directory_path.mkdir()
-        directory = run_midori(tree, ["check", str(directory_path)], env_overrides={"MARMOT_PATH": None})
+        directory = run_marmot(tree, ["check", str(directory_path)], env_overrides={"MARMOT_PATH": None})
         directory_output = directory.stdout + directory.stderr
         assert_condition(directory.returncode != 0 and "Could not open file" in directory_output, f"check_reads_only_regular_files: a directory should not open:\n{directory_output}")
 
@@ -225,19 +225,19 @@ def scenario_diagnostics_go_to_stderr_in_colour_only_when_asked(tree: BuildTree)
     with tempfile.TemporaryDirectory(prefix="marmot-cli-stderr-") as temp_dir_raw:
         source_path = Path(temp_dir_raw) / "Broken.mmt"
         write_text(source_path, "module Broken\ndef value = ;\n")
-        captured = run_midori(tree, ["check", str(source_path)], env_overrides={"MARMOT_PATH": None, "NO_COLOR": None, "CLICOLOR_FORCE": None})
+        captured = run_marmot(tree, ["check", str(source_path)], env_overrides={"MARMOT_PATH": None, "NO_COLOR": None, "CLICOLOR_FORCE": None})
         assert_condition(captured.returncode != 0 and captured.stdout == "", f"diagnostics should not go to stdout:\n{captured.stdout}")
         assert_condition("Parser Error" in captured.stderr and "\x1b[" not in captured.stderr, f"captured stderr should carry the error without colour:\n{captured.stderr}")
 
-        forced = run_midori(tree, ["check", str(source_path)], env_overrides={"MARMOT_PATH": None, "NO_COLOR": None, "CLICOLOR_FORCE": "1"})
+        forced = run_marmot(tree, ["check", str(source_path)], env_overrides={"MARMOT_PATH": None, "NO_COLOR": None, "CLICOLOR_FORCE": "1"})
         assert_condition("\x1b[" in forced.stderr, f"CLICOLOR_FORCE should colour the diagnostics:\n{forced.stderr}")
 
-        refused = run_midori(tree, ["check", str(source_path)], env_overrides={"MARMOT_PATH": None, "NO_COLOR": "1", "CLICOLOR_FORCE": "1"})
+        refused = run_marmot(tree, ["check", str(source_path)], env_overrides={"MARMOT_PATH": None, "NO_COLOR": "1", "CLICOLOR_FORCE": "1"})
         assert_condition("\x1b[" not in refused.stderr, f"NO_COLOR should win over CLICOLOR_FORCE:\n{refused.stderr}")
 
 
 def scenario_version_output_format(tree: BuildTree) -> None:
-    completed = run_midori(tree, ["--version"], env_overrides={"MARMOT_PATH": None})
+    completed = run_marmot(tree, ["--version"], env_overrides={"MARMOT_PATH": None})
     assert_condition(completed.returncode == 0, f"version_output_format: expected exit code 0, got {completed.returncode}.")
     assert_condition(completed.stderr.strip() == "", f"Expected empty stderr, got:\n{completed.stderr}")
     assert_condition(
@@ -247,17 +247,17 @@ def scenario_version_output_format(tree: BuildTree) -> None:
 
 
 def scenario_help_lists_new_commands(tree: BuildTree) -> None:
-    completed = run_midori(tree, [], env_overrides={"MARMOT_PATH": None})
+    completed = run_marmot(tree, [], env_overrides={"MARMOT_PATH": None})
     assert_condition(completed.returncode == 0, f"help_lists_new_commands: expected exit code 0, got {completed.returncode}.")
     assert_condition("fmt" in completed.stdout and "check" in completed.stdout and "build" in completed.stdout, f"Unexpected help output:\n{completed.stdout}")
 
     # Projects moved to the marmot tool; running and testing to marmotvm and the tool.
     for removed in ("init", "install", "update", "remove", "list", "run", "test"):
         assert_condition(f"  {removed} " not in completed.stdout, f"help should not list {removed}:\n{completed.stdout}")
-        moved = run_midori(tree, [removed], env_overrides={"MARMOT_PATH": None})
+        moved = run_marmot(tree, [removed], env_overrides={"MARMOT_PATH": None})
         assert_condition(moved.returncode != 0, f"marmotc {removed} should be an unknown command.")
 
-    per_command = run_midori(tree, ["help", "build"], env_overrides={"MARMOT_PATH": None})
+    per_command = run_marmot(tree, ["help", "build"], env_overrides={"MARMOT_PATH": None})
     assert_condition(per_command.returncode == 0, f"help_build: expected exit code 0, got {per_command.returncode}.")
     for flag in ("--plan", "-o", "--embed-sources", "--quiet"):
         assert_condition(flag in per_command.stdout, f"Expected {flag} in the build help:\n{per_command.stdout}")
@@ -265,7 +265,7 @@ def scenario_help_lists_new_commands(tree: BuildTree) -> None:
 
 def scenario_emit_ir_feature(tree: BuildTree) -> None:
     for command in ("check", "build"):
-        help_output = run_midori(tree, ["help", command], env_overrides={"MARMOT_PATH": None})
+        help_output = run_marmot(tree, ["help", command], env_overrides={"MARMOT_PATH": None})
         assert_condition("--emit-ir" in help_output.stdout, f"help {command} should list --emit-ir:\n{help_output.stdout}")
 
     with tempfile.TemporaryDirectory(prefix="marmot-cli-emit-ir-") as temp_dir_raw:
@@ -273,16 +273,16 @@ def scenario_emit_ir_feature(tree: BuildTree) -> None:
         source_path = temp_dir / "Backend.mmt"
         write_text(source_path, "module Backend\ndef value = 1 + 2;\n")
 
-        emitted = run_midori(tree, ["check", str(source_path), "--emit-ir"], env_overrides={"MARMOT_PATH": None})
+        emitted = run_marmot(tree, ["check", str(source_path), "--emit-ir"], env_overrides={"MARMOT_PATH": None})
         assert_condition(
             emitted.returncode == 0 and "module Backend\nglobal @0 value: Int\n" in emitted.stdout and "fn $main$() -> Unit" in emitted.stdout,
-            f"check --emit-ir should print the module's MidoriIR:\n{emitted.stdout}{emitted.stderr}",
+            f"check --emit-ir should print the module's MarmotIR:\n{emitted.stdout}{emitted.stderr}",
         )
 
         # Lowering reports its diagnostics under its own stage.
         unsupported_path = temp_dir / "Unsupported.mmt"
-        write_text(unsupported_path, "module Unsupported\nforeign \"MIDORI_FFI_Nope\" Nope: fn() -> Unit;\n")
-        unsupported = run_midori(tree, ["check", str(unsupported_path), "--format", "json"], env_overrides={"MARMOT_PATH": None})
+        write_text(unsupported_path, "module Unsupported\nforeign \"MARMOT_FFI_Nope\" Nope: fn() -> Unit;\n")
+        unsupported = run_marmot(tree, ["check", str(unsupported_path), "--format", "json"], env_overrides={"MARMOT_PATH": None})
         errors = require_report(parse_command_json("emit_ir_feature", unsupported), "emit_ir_feature")["errors"]
         assert_condition(unsupported.returncode != 0, "check should fail on an unknown builtin.")
         assert_condition(
@@ -290,20 +290,20 @@ def scenario_emit_ir_feature(tree: BuildTree) -> None:
             f"check: expected LoweringUnknownForeignFunction from Lowering, got: {errors}",
         )
 
-        # MidoriIR is the only path, so the option that chose one is gone.
-        removed = run_midori(tree, ["build", str(source_path), "--backend", "ir"], env_overrides={"MARMOT_PATH": None})
+        # MarmotIR is the only path, so the option that chose one is gone.
+        removed = run_marmot(tree, ["build", str(source_path), "--backend", "ir"], env_overrides={"MARMOT_PATH": None})
         removed_output = removed.stdout + removed.stderr
         assert_condition(removed.returncode != 0 and "Unknown option: --backend" in removed_output, f"build --backend should be rejected:\n{removed_output}")
 
         # The IR is text, not JSON.
-        rejected = run_midori(tree, ["check", str(source_path), "--emit-ir", "--format", "json"], env_overrides={"MARMOT_PATH": None})
+        rejected = run_marmot(tree, ["check", str(source_path), "--emit-ir", "--format", "json"], env_overrides={"MARMOT_PATH": None})
         rejected_output = rejected.stdout + rejected.stderr
         assert_condition(rejected.returncode != 0 and "--emit-ir prints text" in rejected_output, f"--emit-ir --format json should be rejected:\n{rejected_output}")
 
 
 def scenario_emit_ast_feature(tree: BuildTree) -> None:
     for command in ("check", "build"):
-        help_output = run_midori(tree, ["help", command], env_overrides={"MARMOT_PATH": None})
+        help_output = run_marmot(tree, ["help", command], env_overrides={"MARMOT_PATH": None})
         assert_condition("--emit-ast" in help_output.stdout, f"help {command} should list --emit-ast:\n{help_output.stdout}")
 
     with tempfile.TemporaryDirectory(prefix="marmot-cli-emit-ast-") as temp_dir_raw:
@@ -311,19 +311,19 @@ def scenario_emit_ast_feature(tree: BuildTree) -> None:
         source_path = temp_dir / "Tree.mmt"
         write_text(source_path, "module Tree\ndef value = 1 + 2;\n")
 
-        emitted = run_midori(tree, ["check", str(source_path), "--emit-ast"], env_overrides={"MARMOT_PATH": None})
+        emitted = run_marmot(tree, ["check", str(source_path), "--emit-ast"], env_overrides={"MARMOT_PATH": None})
         assert_condition(
             emitted.returncode == 0 and emitted.stdout.startswith("module Tree\nDefine {\n Name: value\n") and "Operator: +" in emitted.stdout,
             f"check --emit-ast should print the module's syntax tree:\n{emitted.stdout}{emitted.stderr}",
         )
 
         # Both dumps at once: the tree first, then the IR.
-        both = run_midori(tree, ["check", str(source_path), "--emit-ast", "--emit-ir"], env_overrides={"MARMOT_PATH": None})
+        both = run_marmot(tree, ["check", str(source_path), "--emit-ast", "--emit-ir"], env_overrides={"MARMOT_PATH": None})
         tree_at = both.stdout.find("Define {")
         ir_at = both.stdout.find("global @0 value: Int")
         assert_condition(both.returncode == 0 and 0 <= tree_at < ir_at, f"--emit-ast --emit-ir should print the tree, then the IR:\n{both.stdout}{both.stderr}")
 
-        rejected = run_midori(tree, ["check", str(source_path), "--emit-ast", "--format", "json"], env_overrides={"MARMOT_PATH": None})
+        rejected = run_marmot(tree, ["check", str(source_path), "--emit-ast", "--format", "json"], env_overrides={"MARMOT_PATH": None})
         rejected_output = rejected.stdout + rejected.stderr
         assert_condition(rejected.returncode != 0 and "--emit-ast prints text" in rejected_output, f"--emit-ast --format json should be rejected:\n{rejected_output}")
 
@@ -338,7 +338,7 @@ def scenario_marmotvm_runs_what_marmotc_built(tree: BuildTree) -> None:
             "def main = fn() -> Int => 0;\n",
         )
         program = temp_dir / "Main.mmc"
-        built = run_midori(tree, ["build", str(source_path), "-o", str(program), "--quiet"], env_overrides={"MARMOT_PATH": None})
+        built = run_marmot(tree, ["build", str(source_path), "-o", str(program), "--quiet"], env_overrides={"MARMOT_PATH": None})
         assert_condition(built.returncode == 0 and program.exists(), f"build: expected {program}: {built.stdout}{built.stderr}")
 
         completed = run_vm(tree, ["run", str(program), "--format", "json"])
@@ -351,7 +351,7 @@ def scenario_marmotvm_runs_what_marmotc_built(tree: BuildTree) -> None:
 
         # A runtime error is the run's report and its exit status.
         write_text(source_path, "module Main\ndef xs = [1];\ndef x = xs[5];\n")
-        run_midori(tree, ["build", str(source_path), "-o", str(program), "--quiet"], env_overrides={"MARMOT_PATH": None})
+        run_marmot(tree, ["build", str(source_path), "-o", str(program), "--quiet"], env_overrides={"MARMOT_PATH": None})
         failed = run_vm(tree, ["run", str(program), "--format", "json"])
         payload = parse_command_json("marmotvm_runs_what_marmotc_built", failed)
         assert_condition(failed.returncode != 0 and payload.get("success") is False, f"Expected a failed run: {payload}")
@@ -371,7 +371,7 @@ def scenario_marmotvm_passes_program_arguments(tree: BuildTree) -> None:
             'IO::PrintLine((#given as Text) ++ " [" ++ TextUtil::Join(given, "|") ++ "]");\n',
         )
         program = temp_dir / "Main.mmc"
-        built = run_midori(tree, ["build", str(source_path), "-o", str(program), "--quiet"], env_overrides={"MARMOT_PATH": None})
+        built = run_marmot(tree, ["build", str(source_path), "-o", str(program), "--quiet"], env_overrides={"MARMOT_PATH": None})
         assert_condition(built.returncode == 0 and program.exists(), f"build: expected {program}: {built.stdout}{built.stderr}")
 
         # Everything after the first `--` is the program's, a second `--` included.
@@ -411,7 +411,7 @@ def scenario_build_command_compiles_without_running(tree: BuildTree) -> None:
             "def main = fn() -> Int => 13;\n",
         )
 
-        completed = run_midori(
+        completed = run_marmot(
             tree,
             ["build", str(source_path), "--format", "json"],
             env_overrides={"MARMOT_PATH": None},
@@ -434,7 +434,7 @@ def scenario_build_command_compiles_without_running(tree: BuildTree) -> None:
 
         # -o puts the program anywhere, making the directories it needs.
         elsewhere = temp_dir / "target" / "deep" / "Main.mmc"
-        built_elsewhere = run_midori(tree, ["build", str(source_path), "-o", str(elsewhere), "--quiet"], env_overrides={"MARMOT_PATH": None})
+        built_elsewhere = run_marmot(tree, ["build", str(source_path), "-o", str(elsewhere), "--quiet"], env_overrides={"MARMOT_PATH": None})
         assert_condition(built_elsewhere.returncode == 0 and elsewhere.exists(), f"build -o: expected {elsewhere}: {built_elsewhere.stdout}{built_elsewhere.stderr}")
         assert_condition(built_elsewhere.stdout.strip() == "", f"build --quiet: expected no summary, got: {built_elsewhere.stdout}")
 
@@ -452,7 +452,7 @@ def scenario_build_command_compiles_without_running(tree: BuildTree) -> None:
             "import { <Support> }\n"
             "def main = fn() -> Int => Support::Value();\n",
         )
-        listed = run_midori(
+        listed = run_marmot(
             tree,
             ["build", str(source_path), "--deps", str(deps), "--quiet"],
             env_overrides={"MARMOT_PATH": str(temp_dir / "lib")},
@@ -503,12 +503,12 @@ def scenario_native_library_loads_only_to_run(tree: BuildTree) -> None:
             }),
         )
 
-        checked = run_midori(tree, ["check", "--plan", str(plan_path), "--format", "json"], env_overrides={"MARMOT_PATH": None})
+        checked = run_marmot(tree, ["check", "--plan", str(plan_path), "--format", "json"], env_overrides={"MARMOT_PATH": None})
         check_report = require_report(parse_command_json("native_library_loads_only_to_run", checked), "native_library_loads_only_to_run")
         assert_condition(checked.returncode == 0, f"native_library_loads_only_to_run: check should not load the library, got exit {checked.returncode}: {check_report['errors']}")
 
         program = temp_dir / "Main.mmc"
-        built = run_midori(tree, ["build", "--plan", str(plan_path), "-o", str(program), "--quiet"], env_overrides={"MARMOT_PATH": None})
+        built = run_marmot(tree, ["build", "--plan", str(plan_path), "-o", str(program), "--quiet"], env_overrides={"MARMOT_PATH": None})
         assert_condition(built.returncode == 0, f"native_library_loads_only_to_run: build should not load the library: {built.stdout}{built.stderr}")
 
         ran = run_vm(tree, ["run", str(program), "--library-path", str(temp_dir / "stub"), "--format", "json"])
@@ -521,10 +521,10 @@ def scenario_native_library_loads_only_to_run(tree: BuildTree) -> None:
         # Without --library-path nothing says where the library is: the program still
         # compiles, and the run stops because the library is not found.
         unplanned_env = {"MARMOT_PATH": str(package_dir), "MARMOT_LIBRARY_PATH": None}
-        unplanned_check = run_midori(tree, ["check", str(temp_dir / "app" / "Main.mmt"), "--format", "json"], env_overrides=unplanned_env)
+        unplanned_check = run_marmot(tree, ["check", str(temp_dir / "app" / "Main.mmt"), "--format", "json"], env_overrides=unplanned_env)
         assert_condition(unplanned_check.returncode == 0, f"Without a plan, the program should still compile: {unplanned_check.stdout}{unplanned_check.stderr}")
         unplanned_program = temp_dir / "Unplanned.mmc"
-        run_midori(tree, ["build", str(temp_dir / "app" / "Main.mmt"), "-o", str(unplanned_program), "--quiet"], env_overrides=unplanned_env)
+        run_marmot(tree, ["build", str(temp_dir / "app" / "Main.mmt"), "-o", str(unplanned_program), "--quiet"], env_overrides=unplanned_env)
         unplanned = run_vm(tree, ["run", str(unplanned_program), "--format", "json"], env_overrides=unplanned_env)
         unplanned_report = require_report(parse_command_json("native_library_loads_only_to_run", unplanned), "native_library_loads_only_to_run")
         assert_condition(unplanned.returncode != 0, "Without a plan, the run should not find the library.")
@@ -562,19 +562,19 @@ def scenario_plan_replaces_discovery(tree: BuildTree) -> None:
         env = {"MARMOT_PATH": str(temp_dir / "decoy")}
 
         for command in ("check", "build"):
-            completed = run_midori(tree, [command, "--plan", str(plan_path), "--format", "json"], env_overrides=env)
+            completed = run_marmot(tree, [command, "--plan", str(plan_path), "--format", "json"], env_overrides=env)
             report = require_report(parse_command_json("plan_replaces_discovery", completed), "plan_replaces_discovery")
             assert_condition(completed.returncode == 0, f"plan_replaces_discovery: {command} --plan failed with exit {completed.returncode}: {report['errors']}")
 
-        built = run_midori(tree, ["build", "--plan", str(plan_path)], env_overrides=env)
+        built = run_marmot(tree, ["build", "--plan", str(plan_path)], env_overrides=env)
         assert_condition(built.returncode == 0, f"plan_replaces_discovery: build --plan failed: {built.stdout}{built.stderr}")
         assert_condition((temp_dir / "src" / "Main.mmc").exists(), "plan_replaces_discovery: build --plan should write src/Main.mmc beside the entry.")
 
-        both = run_midori(tree, ["check", str(temp_dir / "src" / "Main.mmt"), "--plan", str(plan_path)], env_overrides=env)
+        both = run_marmot(tree, ["check", str(temp_dir / "src" / "Main.mmt"), "--plan", str(plan_path)], env_overrides=env)
         assert_condition(both.returncode != 0 and "not both" in both.stdout + both.stderr, f"plan_replaces_discovery: a file and --plan together should be refused: {both.stdout}{both.stderr}")
 
         write_text(plan_path, json.dumps({"version": 1, "entry": "src/Main.mmt", "serach_paths": ["lib"]}))
-        misspelt = run_midori(tree, ["check", "--plan", str(plan_path)], env_overrides=env)
+        misspelt = run_marmot(tree, ["check", "--plan", str(plan_path)], env_overrides=env)
         output = misspelt.stdout + misspelt.stderr
         assert_condition(misspelt.returncode != 0, "plan_replaces_discovery: a misspelt plan member should fail.")
         assert_condition("unknown member \"serach_paths\"" in output, f"plan_replaces_discovery: expected the misspelt member to be named, got: {output}")
@@ -591,12 +591,12 @@ def scenario_fmt_check_and_write(tree: BuildTree) -> None:
             "def main = fn()->Int=>0; // trailing\n",
         )
 
-        check_before = run_midori(tree, ["fmt", str(source_path), "--check", "--format", "json"], env_overrides={"MARMOT_PATH": None})
+        check_before = run_marmot(tree, ["fmt", str(source_path), "--check", "--format", "json"], env_overrides={"MARMOT_PATH": None})
         check_before_payload = parse_command_json("fmt_check_before_write", check_before)
         assert_condition(check_before.returncode != 0, "fmt_check_before_write: expected non-zero exit code.")
         assert_condition(check_before_payload.get("changedCount") == 1, f"Expected one changed file before write, got: {check_before_payload}")
 
-        write_completed = run_midori(tree, ["fmt", str(source_path), "--write", "--format", "json"], env_overrides={"MARMOT_PATH": None})
+        write_completed = run_marmot(tree, ["fmt", str(source_path), "--write", "--format", "json"], env_overrides={"MARMOT_PATH": None})
         write_payload = parse_command_json("fmt_write", write_completed)
         assert_condition(write_completed.returncode == 0, f"fmt_write: expected exit code 0, got {write_completed.returncode}.")
         assert_condition(write_payload.get("changedCount") == 1, f"Expected one changed file during write, got: {write_payload}")
@@ -604,19 +604,19 @@ def scenario_fmt_check_and_write(tree: BuildTree) -> None:
         assert_condition("// comment" in formatted_text, f"Expected leading comment to be preserved, got:\n{formatted_text}")
         assert_condition("// trailing" in formatted_text, f"Expected trailing comment to be preserved, got:\n{formatted_text}")
 
-        check_after = run_midori(tree, ["fmt", str(source_path), "--check", "--format", "json"], env_overrides={"MARMOT_PATH": None})
+        check_after = run_marmot(tree, ["fmt", str(source_path), "--check", "--format", "json"], env_overrides={"MARMOT_PATH": None})
         check_after_payload = parse_command_json("fmt_check_after_write", check_after)
         assert_condition(check_after.returncode == 0, f"fmt_check_after_write: expected exit code 0, got {check_after.returncode}.")
         assert_condition(check_after_payload.get("changedCount") == 0, f"Expected no changed files after write, got: {check_after_payload}")
 
         # Several paths in one call: a file and a directory, checked together.
         write_text(temp_dir / "lib" / "Lib.mmt", "module Lib\ndef x = fn()->Int=>1;\n")
-        several = run_midori(tree, ["fmt", str(source_path), str(temp_dir / "lib"), "--check", "--format", "json"], env_overrides={"MARMOT_PATH": None})
+        several = run_marmot(tree, ["fmt", str(source_path), str(temp_dir / "lib"), "--check", "--format", "json"], env_overrides={"MARMOT_PATH": None})
         several_payload = parse_command_json("fmt_several_paths", several)
         assert_condition(several.returncode != 0, "fmt_several_paths: the unformatted file in lib should fail the check.")
         assert_condition(len(several_payload.get("files", [])) == 2 and several_payload.get("changedCount") == 1, f"Expected two files, one changed, got: {several_payload}")
 
-        printed = run_midori(tree, ["fmt", str(source_path), str(temp_dir / "lib")], env_overrides={"MARMOT_PATH": None})
+        printed = run_marmot(tree, ["fmt", str(source_path), str(temp_dir / "lib")], env_overrides={"MARMOT_PATH": None})
         assert_condition(printed.returncode != 0 and "requires --write or --check" in printed.stdout + printed.stderr, f"fmt_several_paths: printing several paths should be refused: {printed.stdout}{printed.stderr}")
 
 
@@ -664,17 +664,17 @@ def scenario_profile_features(tree: BuildTree) -> None:
     with tempfile.TemporaryDirectory(prefix="marmot-profile-") as directory:
         artifact = Path(directory) / "program.mmc"
         args = ["build", source, "-o", str(artifact), "--quiet"]
-        ordinary_build = run_midori(tree, args)
+        ordinary_build = run_marmot(tree, args)
         assert_condition(ordinary_build.returncode == 0 and ordinary_build.stdout == "" and ordinary_build.stderr == "",
                          f"Ordinary compilation must be quiet: {ordinary_build}")
         baseline = artifact.read_bytes()
-        stats = run_midori(tree, [*args, "--optimizer-stats", "--format", "json"])
+        stats = run_marmot(tree, [*args, "--optimizer-stats", "--format", "json"])
         if tree.build_type == "Release":
             assert_condition(stats.returncode != 0 and "requires a Debug or Dev build" in stats.stdout + stats.stderr,
                              "Release must reject compiler instrumentation.")
         else:
             payload = json.loads(stats.stdout)
-            assert_condition(stats.returncode == 0 and payload["success"] and "MidoriIR optimizer" in stats.stderr,
+            assert_condition(stats.returncode == 0 and payload["success"] and "MarmotIR optimizer" in stats.stderr,
                              f"Optimizer statistics must leave JSON stdout clean: {stats}")
             assert_condition(artifact.read_bytes() == baseline, "Statistics must not change emitted .mmc bytes.")
 
@@ -684,7 +684,7 @@ def scenario_compiler_parallelism(tree: BuildTree) -> None:
         directory = Path(raw)
         sources = {
             "Shared.mmt": ("module Shared\npublic export { Identity, Middle, Shade, Base }\n"
-                           'foreign "MIDORI_FFI_ArraySlice" ArraySlice: fn(Array<T>, Int, Int) -> Array<T>;\n'
+                           'foreign "MARMOT_FFI_ArraySlice" ArraySlice: fn(Array<T>, Int, Int) -> Array<T>;\n'
                            "def Identity = fn<T>(value: T) -> T => value;\n"
                            "def Middle = fn<T>(items: Array<T>) -> Array<T> => ArraySlice(items, 1, #items - 1);\n"
                            "type Shade = Light | Dark(Int);\ndef Base = 20;\n"),
@@ -703,7 +703,7 @@ def scenario_compiler_parallelism(tree: BuildTree) -> None:
         expected = None
         expected_ir = None
         for jobs in (1, 2, 4, 2):
-            built = run_midori(tree, ["build", str(entry), "-o", str(artifact), "--jobs", str(jobs),
+            built = run_marmot(tree, ["build", str(entry), "-o", str(artifact), "--jobs", str(jobs),
                                         "--timings", "--format", "json"], {"MARMOT_PATH": None})
             payload = json.loads(built.stdout)
             assert_condition(built.returncode == 0 and payload["success"], f"build --jobs {jobs}: {built}")
@@ -714,22 +714,22 @@ def scenario_compiler_parallelism(tree: BuildTree) -> None:
             emitted = artifact.read_bytes()
             assert_condition(expected is None or emitted == expected, "--jobs and --timings changed emitted bytecode")
             expected = emitted
-            checked = run_midori(tree, ["check", str(entry), "--jobs", str(jobs), "--emit-ir"], {"MARMOT_PATH": None})
+            checked = run_marmot(tree, ["check", str(entry), "--jobs", str(jobs), "--emit-ir"], {"MARMOT_PATH": None})
             assert_condition(checked.returncode == 0 and not checked.stderr, f"untimed check: {checked}")
             assert_condition(expected_ir is None or checked.stdout == expected_ir, "--jobs changed checked IR or diagnostic ordering")
             expected_ir = checked.stdout
 
         for command in ("check", "build"):
             for value in ("0", "-1", "1.5", "abc", "18446744073709551616"):
-                rejected = run_midori(tree, [command, str(entry), "--jobs", value], {"MARMOT_PATH": None})
+                rejected = run_marmot(tree, [command, str(entry), "--jobs", value], {"MARMOT_PATH": None})
                 assert_condition(rejected.returncode != 0 and "positive integer" in rejected.stdout + rejected.stderr,
                                  f"invalid --jobs {value}: {rejected}")
-            missing = run_midori(tree, [command, str(entry), "--jobs"], {"MARMOT_PATH": None})
+            missing = run_marmot(tree, [command, str(entry), "--jobs"], {"MARMOT_PATH": None})
             assert_condition(missing.returncode != 0 and "Missing value for --jobs" in missing.stdout + missing.stderr,
                              f"missing --jobs value: {missing}")
 
         write_text(directory / "Broken.mmt", "module Broken\ndef value = ;\n")
-        failed = run_midori(tree, ["check", str(directory / "Broken.mmt"), "--jobs", "1", "--timings", "--format", "json"],
+        failed = run_marmot(tree, ["check", str(directory / "Broken.mmt"), "--jobs", "1", "--timings", "--format", "json"],
                             {"MARMOT_PATH": None})
         assert_condition(failed.returncode != 0 and not json.loads(failed.stdout)["success"] and "Compilation timings" in failed.stderr,
                          f"timings must preserve failed compilation reports: {failed}")

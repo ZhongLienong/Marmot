@@ -1,6 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
-#include "Interpreter/Allocator/MidoriAllocator.h"
+#include "Interpreter/Allocator/MarmotAllocator.h"
 
 #include <array>
 #include <cstdint>
@@ -10,10 +10,10 @@
 
 TEST_CASE("Slot index round-trips through SlotAt", "[allocator][gc]")
 {
-	MidoriAllocator allocator;
+	MarmotAllocator allocator;
 
-	void* first = allocator.Allocate(MidoriAllocator::MAX_SLOT_SIZE);
-	void* second = allocator.Allocate(MidoriAllocator::MAX_SLOT_SIZE);
+	void* first = allocator.Allocate(MarmotAllocator::MAX_SLOT_SIZE);
+	void* second = allocator.Allocate(MarmotAllocator::MAX_SLOT_SIZE);
 	REQUIRE(first != nullptr);
 	REQUIRE(second != nullptr);
 
@@ -31,14 +31,14 @@ TEST_CASE("Slot index round-trips through SlotAt", "[allocator][gc]")
 
 TEST_CASE("A freed slot is allocated again under its own index", "[allocator][gc]")
 {
-	MidoriAllocator allocator;
+	MarmotAllocator allocator;
 
-	void* slot = allocator.Allocate(MidoriAllocator::MAX_SLOT_SIZE);
+	void* slot = allocator.Allocate(MarmotAllocator::MAX_SLOT_SIZE);
 	const std::optional<size_t> index = allocator.TryGetSlotIndex(slot);
 	REQUIRE(index.has_value());
 	allocator.Free(slot, *index);
 
-	REQUIRE(allocator.Allocate(MidoriAllocator::MAX_SLOT_SIZE) == slot);
+	REQUIRE(allocator.Allocate(MarmotAllocator::MAX_SLOT_SIZE) == slot);
 	const uint64_t* words = allocator.LiveBitWords();
 	REQUIRE((words[*index / 64uz] & (1ull << (*index % 64uz))) != 0ull);
 	REQUIRE(allocator.LiveSlotCount() == 1uz);
@@ -46,9 +46,9 @@ TEST_CASE("A freed slot is allocated again under its own index", "[allocator][gc
 
 TEST_CASE("Slot index rejects foreign and misaligned pointers", "[allocator][gc]")
 {
-	MidoriAllocator allocator;
+	MarmotAllocator allocator;
 
-	void* slot = allocator.Allocate(MidoriAllocator::MAX_SLOT_SIZE);
+	void* slot = allocator.Allocate(MarmotAllocator::MAX_SLOT_SIZE);
 	REQUIRE(slot != nullptr);
 
 	int stack_object = 0;
@@ -60,16 +60,16 @@ TEST_CASE("Slot index rejects foreign and misaligned pointers", "[allocator][gc]
 
 	// A whole number of slots past the last one in the block lands in its tail
 	// padding, not in a slot.
-	constexpr size_t SLOTS_PER_BLOCK = MidoriAllocator::BLOCK_SIZE / MidoriAllocator::MAX_SLOT_SIZE;
-	uint8_t* padding_ptr = static_cast<uint8_t*>(allocator.SlotAt(0uz)) + SLOTS_PER_BLOCK * MidoriAllocator::MAX_SLOT_SIZE;
+	constexpr size_t SLOTS_PER_BLOCK = MarmotAllocator::BLOCK_SIZE / MarmotAllocator::MAX_SLOT_SIZE;
+	uint8_t* padding_ptr = static_cast<uint8_t*>(allocator.SlotAt(0uz)) + SLOTS_PER_BLOCK * MarmotAllocator::MAX_SLOT_SIZE;
 	REQUIRE_FALSE(allocator.TryGetSlotIndex(padding_ptr).has_value());
 }
 
 TEST_CASE("Live bit words reflect allocation state", "[allocator][gc]")
 {
-	MidoriAllocator allocator;
+	MarmotAllocator allocator;
 
-	void* slot = allocator.Allocate(MidoriAllocator::MAX_SLOT_SIZE);
+	void* slot = allocator.Allocate(MarmotAllocator::MAX_SLOT_SIZE);
 	std::optional<size_t> index = allocator.TryGetSlotIndex(slot);
 	REQUIRE(index.has_value());
 
@@ -83,14 +83,14 @@ TEST_CASE("Live bit words reflect allocation state", "[allocator][gc]")
 
 TEST_CASE("Slot indices stay valid past the first commit granules", "[allocator][gc]")
 {
-	MidoriAllocator allocator;
+	MarmotAllocator allocator;
 
 	// 5 MB of slots spans three 2 MB granules on POSIX and 80 blocks everywhere.
-	constexpr size_t SLOT_COUNT = (5uz << 20uz) / MidoriAllocator::MAX_SLOT_SIZE;
+	constexpr size_t SLOT_COUNT = (5uz << 20uz) / MarmotAllocator::MAX_SLOT_SIZE;
 	std::vector<std::pair<void*, size_t>> slots;
 	for (size_t i = 0uz; i < SLOT_COUNT; i += 1uz)
 	{
-		void* slot = allocator.Allocate(MidoriAllocator::MAX_SLOT_SIZE);
+		void* slot = allocator.Allocate(MarmotAllocator::MAX_SLOT_SIZE);
 		REQUIRE(slot != nullptr);
 
 		std::optional<size_t> index = allocator.TryGetSlotIndex(slot);
@@ -110,12 +110,12 @@ TEST_CASE("Slot indices stay valid past the first commit granules", "[allocator]
 
 TEST_CASE("Slots of every size keep their own indices in interleaved blocks", "[allocator][gc]")
 {
-	MidoriAllocator allocator;
+	MarmotAllocator allocator;
 
 	// Enough of each size to fill several blocks, allocated round-robin so
 	// blocks of different sizes sit next to each other in the region.
 	constexpr std::array<size_t, 5uz> SIZES{ 16uz, 24uz, 40uz, 64uz, 80uz };
-	constexpr size_t ROUNDS = 3uz * MidoriAllocator::BLOCK_SIZE / 16uz;
+	constexpr size_t ROUNDS = 3uz * MarmotAllocator::BLOCK_SIZE / 16uz;
 	std::vector<std::pair<void*, size_t>> slots;
 	void* last_48_byte_slot = nullptr;
 	for (size_t round = 0uz; round < ROUNDS; round += 1uz)
@@ -127,14 +127,14 @@ TEST_CASE("Slots of every size keep their own indices in interleaved blocks", "[
 			REQUIRE(index.has_value());
 			REQUIRE(allocator.SlotAt(*index) == slot);
 			REQUIRE(allocator.SlotIndexOf(slot) == *index);
-			REQUIRE(reinterpret_cast<uintptr_t>(slot) % MidoriAllocator::SLOT_GRANULE == 0uz);
+			REQUIRE(reinterpret_cast<uintptr_t>(slot) % MarmotAllocator::SLOT_GRANULE == 0uz);
 
 			// Inside the slot rather than at its start, as a stale or computed
 			// value on the stack might be.
 			REQUIRE_FALSE(allocator.TryGetSlotIndex(static_cast<uint8_t*>(slot) + 8).has_value());
-			if (MidoriAllocator::SlotSizeFor(size) > MidoriAllocator::SLOT_GRANULE)
+			if (MarmotAllocator::SlotSizeFor(size) > MarmotAllocator::SLOT_GRANULE)
 			{
-				REQUIRE_FALSE(allocator.TryGetSlotIndex(static_cast<uint8_t*>(slot) + MidoriAllocator::SLOT_GRANULE).has_value());
+				REQUIRE_FALSE(allocator.TryGetSlotIndex(static_cast<uint8_t*>(slot) + MarmotAllocator::SLOT_GRANULE).has_value());
 			}
 
 			if (size == 40uz)
@@ -158,13 +158,13 @@ TEST_CASE("Slots of every size keep their own indices in interleaved blocks", "[
 
 TEST_CASE("A block emptied of one size is reused for another", "[allocator][gc]")
 {
-	MidoriAllocator allocator;
+	MarmotAllocator allocator;
 
-	constexpr size_t SLOTS_PER_BLOCK = MidoriAllocator::BLOCK_SIZE / MidoriAllocator::MAX_SLOT_SIZE;
+	constexpr size_t SLOTS_PER_BLOCK = MarmotAllocator::BLOCK_SIZE / MarmotAllocator::MAX_SLOT_SIZE;
 	std::vector<std::pair<void*, size_t>> slots;
 	for (size_t i = 0uz; i < SLOTS_PER_BLOCK; i += 1uz)
 	{
-		void* slot = allocator.Allocate(MidoriAllocator::MAX_SLOT_SIZE);
+		void* slot = allocator.Allocate(MarmotAllocator::MAX_SLOT_SIZE);
 		slots.emplace_back(slot, allocator.SlotIndexOf(slot));
 	}
 	for (const auto& [slot, index] : slots)
@@ -174,14 +174,14 @@ TEST_CASE("A block emptied of one size is reused for another", "[allocator][gc]"
 	const size_t word_count = allocator.SlotWordCount();
 
 	// The emptied block's first slot, now a small one, and no block was added.
-	void* small = allocator.Allocate(MidoriAllocator::SLOT_GRANULE);
+	void* small = allocator.Allocate(MarmotAllocator::SLOT_GRANULE);
 	REQUIRE(small == slots.front().first);
 	REQUIRE(allocator.SlotWordCount() == word_count);
-	REQUIRE(allocator.TryGetSlotIndex(static_cast<uint8_t*>(small) + MidoriAllocator::SLOT_GRANULE).has_value());
+	REQUIRE(allocator.TryGetSlotIndex(static_cast<uint8_t*>(small) + MarmotAllocator::SLOT_GRANULE).has_value());
 
 	// Its large slots left the free list with it, so a large slot needs a new block.
-	void* large = allocator.Allocate(MidoriAllocator::MAX_SLOT_SIZE);
-	REQUIRE(allocator.SlotIndexOf(large) / MidoriAllocator::BLOCK_SLOT_BITS != allocator.SlotIndexOf(small) / MidoriAllocator::BLOCK_SLOT_BITS);
+	void* large = allocator.Allocate(MarmotAllocator::MAX_SLOT_SIZE);
+	REQUIRE(allocator.SlotIndexOf(large) / MarmotAllocator::BLOCK_SLOT_BITS != allocator.SlotIndexOf(small) / MarmotAllocator::BLOCK_SLOT_BITS);
 	REQUIRE(allocator.SlotAt(allocator.SlotIndexOf(large)) == large);
 	REQUIRE(allocator.LiveSlotCount() == 2uz);
 }

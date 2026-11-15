@@ -5,7 +5,7 @@
 #include "Compiler/Lexer/Lexer.h"
 #include "Compiler/ModuleManager/ModuleManager.h"
 #include "Compiler/Token/Token.h"
-#include "Utility/Driver/MidoriDriver.h"
+#include "Utility/Driver/MarmotDriver.h"
 #include "support/CompileHelpers.h"
 #include "support/DiagnosticMatchers.h"
 #include "support/SourceFixture.h"
@@ -34,14 +34,14 @@ namespace
 		std::ostringstream buffer;
 		buffer << input_file.rdbuf();
 
-		MidoriTest::SourceFixture source_fixture(buffer.str(), file_path.string());
-		MidoriResult::LexerResult lex_result = Lexer(std::string(source_fixture.SourceCode()), source_fixture.FileName()).Lex();
+		MarmotTest::SourceFixture source_fixture(buffer.str(), file_path.string());
+		MarmotResult::LexerResult lex_result = Lexer(std::string(source_fixture.SourceCode()), source_fixture.FileName()).Lex();
 		if (!lex_result.has_value())
 		{
 			return std::unexpected(std::move(lex_result.error()));
 		}
 
-		return ModuleManager(std::move(lex_result.value()), source_fixture.FileName(), source_fixture.SourceLines(), MidoriDriver::EnvironmentCompilationInputs().WithJobs(jobs)).GenerateBuildGraph();
+		return ModuleManager(std::move(lex_result.value()), source_fixture.FileName(), source_fixture.SourceLines(), MarmotDriver::EnvironmentCompilationInputs().WithJobs(jobs)).GenerateBuildGraph();
 	}
 
 	void CheckDiagnosticLocation(const CompilerError& error, const std::filesystem::path& expected_file_path, int expected_line)
@@ -51,10 +51,10 @@ namespace
 		CHECK(error.m_location->m_line == expected_line);
 	}
 
-	void RequireErrorMatches(const CompilerError& error, const MidoriTest::ErrorExpectation& expectation)
+	void RequireErrorMatches(const CompilerError& error, const MarmotTest::ErrorExpectation& expectation)
 	{
 		std::string mismatch;
-		const bool matched = MidoriTest::Matches(error, expectation, &mismatch);
+		const bool matched = MarmotTest::Matches(error, expectation, &mismatch);
 		CAPTURE(mismatch);
 		REQUIRE(matched);
 	}
@@ -62,17 +62,17 @@ namespace
 
 TEST_CASE("Discovery reports errors in import traversal order across job counts", "[module][discovery]")
 {
-	const MidoriTest::TempProject project
+	const MarmotTest::TempProject project
 	({
-		MidoriTest::TempProjectFile("Main.mmt", "module Main\nimport { \"First.mmt\", \"Second.mmt\", \"Missing.mmt\" }\n"),
-		MidoriTest::TempProjectFile("First.mmt", "def value = 1;\n"),
-		MidoriTest::TempProjectFile("Second.mmt", "module Second\ndef value = \"unterminated\n")
+		MarmotTest::TempProjectFile("Main.mmt", "module Main\nimport { \"First.mmt\", \"Second.mmt\", \"Missing.mmt\" }\n"),
+		MarmotTest::TempProjectFile("First.mmt", "def value = 1;\n"),
+		MarmotTest::TempProjectFile("Second.mmt", "module Second\ndef value = \"unterminated\n")
 	});
 	const std::filesystem::path main = std::filesystem::weakly_canonical(project.Path("Main.mmt"));
 	std::string expected;
 	for (size_t jobs : { 1u, 2u, 4u })
 	{
-		MidoriResult::ModuleManagerResult graph = GenerateBuildGraphFromFile(main, jobs);
+		MarmotResult::ModuleManagerResult graph = GenerateBuildGraphFromFile(main, jobs);
 		REQUIRE(!graph.has_value());
 		REQUIRE(graph.error().m_code == CompilerErrorCode::ModuleDeclarationMissing);
 		CheckDiagnosticLocation(graph.error(), std::filesystem::weakly_canonical(project.Path("First.mmt")), 1);
@@ -87,17 +87,17 @@ TEST_CASE("Discovery reports errors in import traversal order across job counts"
 
 TEST_CASE("Discovery attributes a shared prefetched open failure to the first importer", "[module][discovery]")
 {
-	const MidoriTest::TempProject project
+	const MarmotTest::TempProject project
 	({
-		MidoriTest::TempProjectFile("Main.mmt", "module Main\nimport { \"Nested.mmt\", \"Directory.mmt\" }\n"),
-		MidoriTest::TempProjectFile("Nested.mmt", "module Nested\nimport { \"Directory.mmt\" }\n")
+		MarmotTest::TempProjectFile("Main.mmt", "module Main\nimport { \"Nested.mmt\", \"Directory.mmt\" }\n"),
+		MarmotTest::TempProjectFile("Nested.mmt", "module Nested\nimport { \"Directory.mmt\" }\n")
 	});
 	std::filesystem::create_directory(project.Path("Directory.mmt"));
 	const std::filesystem::path main = std::filesystem::weakly_canonical(project.Path("Main.mmt"));
 	std::string expected;
 	for (size_t jobs : { 1u, 2u, 4u })
 	{
-		MidoriResult::ModuleManagerResult graph = GenerateBuildGraphFromFile(main, jobs);
+		MarmotResult::ModuleManagerResult graph = GenerateBuildGraphFromFile(main, jobs);
 		REQUIRE(!graph.has_value());
 		REQUIRE(graph.error().m_code == CompilerErrorCode::ModuleImportFileOpenFailed);
 		CheckDiagnosticLocation(graph.error(), std::filesystem::weakly_canonical(project.Path("Nested.mmt")), 2);
@@ -145,9 +145,9 @@ TEST_CASE("BuildGraph computes deterministic compilation tiers for shared depend
 
 TEST_CASE("ModuleManager preserves dependency metadata and strips module statements from nodes", "[module][graph]")
 {
-	const MidoriTest::TempProject project
+	const MarmotTest::TempProject project
 	({
-		MidoriTest::TempProjectFile
+		MarmotTest::TempProjectFile
 		(
 			"Main.mmt",
 			"module Main\n"
@@ -155,7 +155,7 @@ TEST_CASE("ModuleManager preserves dependency metadata and strips module stateme
 			"use Lib.{PrintLine, Parse}\n"
 			"def main = fn() -> Int => 0;\n"
 		),
-		MidoriTest::TempProjectFile
+		MarmotTest::TempProjectFile
 		(
 			"Lib.mmt",
 			"module Lib\n"
@@ -163,7 +163,7 @@ TEST_CASE("ModuleManager preserves dependency metadata and strips module stateme
 			"def PrintLine = fn() -> Int => 0;\n"
 			"def Parse = fn() -> Int => 0;\n"
 		),
-		MidoriTest::TempProjectFile
+		MarmotTest::TempProjectFile
 		(
 			"Util.mmt",
 			"module Util\n"
@@ -201,7 +201,7 @@ TEST_CASE("ModuleManager preserves dependency metadata and strips module stateme
 	REQUIRE(graph.m_module_declarations.at(lib_file_path.string()).HasExport("PrintLine"));
 	REQUIRE(graph.m_module_declarations.at(lib_file_path.string()).HasExport("Parse"));
 
-	const std::vector<Token::Name> remaining_tokens = MidoriTest::CollectTokenNames(main_node.m_tokens);
+	const std::vector<Token::Name> remaining_tokens = MarmotTest::CollectTokenNames(main_node.m_tokens);
 	CHECK(std::ranges::find(remaining_tokens, Token::Name::MODULE) == remaining_tokens.end());
 	CHECK(std::ranges::find(remaining_tokens, Token::Name::IMPORT) == remaining_tokens.end());
 	CHECK(std::ranges::find(remaining_tokens, Token::Name::USE) == remaining_tokens.end());
@@ -217,9 +217,9 @@ TEST_CASE("ModuleManager preserves dependency metadata and strips module stateme
 
 TEST_CASE("ModuleManager preserves dotted module names in use imports", "[module][graph]")
 {
-	const MidoriTest::TempProject project
+	const MarmotTest::TempProject project
 	({
-		MidoriTest::TempProjectFile
+		MarmotTest::TempProjectFile
 		(
 			"Main.mmt",
 			"module Main\n"
@@ -227,7 +227,7 @@ TEST_CASE("ModuleManager preserves dotted module names in use imports", "[module
 			"use Math.Vector.{add, sub}\n"
 			"def main = fn() -> Int => 0;\n"
 		),
-		MidoriTest::TempProjectFile
+		MarmotTest::TempProjectFile
 		(
 			"MathVector.mmt",
 			"module Math.Vector\n"
@@ -255,9 +255,9 @@ TEST_CASE("ModuleManager preserves dotted module names in use imports", "[module
 
 TEST_CASE("ModuleManager requires an explicit module declaration in every file", "[module][graph]")
 {
-	const MidoriTest::TempProject project
+	const MarmotTest::TempProject project
 	({
-		MidoriTest::TempProjectFile
+		MarmotTest::TempProjectFile
 		(
 			"MissingModule.mmt",
 			"def value = 1;\n"
@@ -268,7 +268,7 @@ TEST_CASE("ModuleManager requires an explicit module declaration in every file",
 	REQUIRE_FALSE(graph_result.has_value());
 
 	const CompilerError& error = graph_result.error();
-	MidoriTest::ErrorExpectation expectation;
+	MarmotTest::ErrorExpectation expectation;
 	expectation.m_stage = CompilerStage::Module;
 	expectation.m_code = CompilerErrorCode::ModuleDeclarationMissing;
 	expectation.m_message_substrings = { "Module declaration required", "exactly one" };
@@ -277,9 +277,9 @@ TEST_CASE("ModuleManager requires an explicit module declaration in every file",
 
 TEST_CASE("ModuleManager rejects multiple module declarations in one file", "[module][graph]")
 {
-	const MidoriTest::TempProject project
+	const MarmotTest::TempProject project
 	({
-		MidoriTest::TempProjectFile
+		MarmotTest::TempProjectFile
 		(
 			"MultipleModules.mmt",
 			"module First\n"
@@ -292,7 +292,7 @@ TEST_CASE("ModuleManager rejects multiple module declarations in one file", "[mo
 	REQUIRE_FALSE(graph_result.has_value());
 
 	const CompilerError& error = graph_result.error();
-	MidoriTest::ErrorExpectation expectation;
+	MarmotTest::ErrorExpectation expectation;
 	expectation.m_stage = CompilerStage::Module;
 	expectation.m_code = CompilerErrorCode::ModuleDeclarationDuplicate;
 	expectation.m_message_substrings = { "Multiple module declarations", "exactly one" };
@@ -301,9 +301,9 @@ TEST_CASE("ModuleManager rejects multiple module declarations in one file", "[mo
 
 TEST_CASE("ModuleManager requires the module declaration to be the first top-level statement", "[module][graph]")
 {
-	const MidoriTest::TempProject project
+	const MarmotTest::TempProject project
 	({
-		MidoriTest::TempProjectFile
+		MarmotTest::TempProjectFile
 		(
 			"LateModule.mmt",
 			"def value = 1;\n"
@@ -315,7 +315,7 @@ TEST_CASE("ModuleManager requires the module declaration to be the first top-lev
 	REQUIRE_FALSE(graph_result.has_value());
 
 	const CompilerError& error = graph_result.error();
-	MidoriTest::ErrorExpectation expectation;
+	MarmotTest::ErrorExpectation expectation;
 	expectation.m_stage = CompilerStage::Module;
 	expectation.m_message_substrings = { "first top-level statement" };
 	RequireErrorMatches(error, expectation);
@@ -323,9 +323,9 @@ TEST_CASE("ModuleManager requires the module declaration to be the first top-lev
 
 TEST_CASE("ModuleManager returns a diagnostic for reserved-keyword module names", "[module][graph]")
 {
-	const MidoriTest::TempProject project
+	const MarmotTest::TempProject project
 	({
-		MidoriTest::TempProjectFile(
+		MarmotTest::TempProjectFile(
 			"Invalid.mmt",
 			"module def\n"
 			"def value = 1;\n"
@@ -336,7 +336,7 @@ TEST_CASE("ModuleManager returns a diagnostic for reserved-keyword module names"
 	REQUIRE_FALSE(graph_result.has_value());
 
 	const CompilerError& error = graph_result.error();
-	MidoriTest::ErrorExpectation expectation;
+	MarmotTest::ErrorExpectation expectation;
 	expectation.m_stage = CompilerStage::Module;
 	expectation.m_message_substrings = { "reserved keyword", "cannot be used as a module name" };
 	RequireErrorMatches(error, expectation);
@@ -344,9 +344,9 @@ TEST_CASE("ModuleManager returns a diagnostic for reserved-keyword module names"
 
 TEST_CASE("ModuleManager returns a diagnostic for malformed dotted use syntax", "[module][graph]")
 {
-	const MidoriTest::TempProject project
+	const MarmotTest::TempProject project
 	({
-		MidoriTest::TempProjectFile
+		MarmotTest::TempProjectFile
 		(
 			"InvalidUse.mmt",
 			"module Main\n"
@@ -359,7 +359,7 @@ TEST_CASE("ModuleManager returns a diagnostic for malformed dotted use syntax", 
 	REQUIRE_FALSE(graph_result.has_value());
 
 	const CompilerError& error = graph_result.error();
-	MidoriTest::ErrorExpectation expectation;
+	MarmotTest::ErrorExpectation expectation;
 	expectation.m_stage = CompilerStage::Module;
 	expectation.m_rendered_substrings = { "use statement" };
 	RequireErrorMatches(error, expectation);
@@ -367,9 +367,9 @@ TEST_CASE("ModuleManager returns a diagnostic for malformed dotted use syntax", 
 
 TEST_CASE("ModuleManager returns a diagnostic for import statements without braces", "[module][graph]")
 {
-	const MidoriTest::TempProject project
+	const MarmotTest::TempProject project
 	({
-		MidoriTest::TempProjectFile
+		MarmotTest::TempProjectFile
 		(
 			"InvalidImport.mmt",
 			"module Main\n"
@@ -384,7 +384,7 @@ TEST_CASE("ModuleManager returns a diagnostic for import statements without brac
 	const CompilerError& error = graph_result.error();
 	CheckDiagnosticLocation(error, std::filesystem::weakly_canonical(project.Path("InvalidImport.mmt")), 2);
 
-	MidoriTest::ErrorExpectation expectation;
+	MarmotTest::ErrorExpectation expectation;
 	expectation.m_stage = CompilerStage::Module;
 	expectation.m_line = 2;
 	expectation.m_message_substrings = { "Expected '{' after 'import'." };
@@ -394,23 +394,23 @@ TEST_CASE("ModuleManager returns a diagnostic for import statements without brac
 
 TEST_CASE("ModuleManager preserves imported child lexer diagnostics across recursive imports", "[module][graph]")
 {
-	const MidoriTest::TempProject project
+	const MarmotTest::TempProject project
 	({
-		MidoriTest::TempProjectFile
+		MarmotTest::TempProjectFile
 		(
 			"Main.mmt",
 			"module Main\n"
 			"import { \"./Parent.mmt\" }\n"
 			"def main = fn() -> Int => 0;\n"
 		),
-		MidoriTest::TempProjectFile
+		MarmotTest::TempProjectFile
 		(
 			"Parent.mmt",
 			"module Parent\n"
 			"import { \"./Broken.mmt\" }\n"
 			"def value = 1;\n"
 		),
-		MidoriTest::TempProjectFile
+		MarmotTest::TempProjectFile
 		(
 			"Broken.mmt",
 			"module Broken\n"
@@ -435,23 +435,23 @@ TEST_CASE("ModuleManager preserves imported child lexer diagnostics across recur
 
 TEST_CASE("ModuleManager preserves imported child module diagnostics across recursive imports", "[module][graph]")
 {
-	const MidoriTest::TempProject project
+	const MarmotTest::TempProject project
 	({
-		MidoriTest::TempProjectFile
+		MarmotTest::TempProjectFile
 		(
 			"Main.mmt",
 			"module Main\n"
 			"import { \"./Parent.mmt\" }\n"
 			"def main = fn() -> Int => 0;\n"
 		),
-		MidoriTest::TempProjectFile
+		MarmotTest::TempProjectFile
 		(
 			"Parent.mmt",
 			"module Parent\n"
 			"import { \"./Broken.mmt\" }\n"
 			"def value = 1;\n"
 		),
-		MidoriTest::TempProjectFile
+		MarmotTest::TempProjectFile
 		(
 			"Broken.mmt",
 			"def value = 1;\n"
@@ -468,7 +468,7 @@ TEST_CASE("ModuleManager preserves imported child module diagnostics across recu
 	const CompilerError& error = graph_result.error();
 	CHECK(error.m_stage == CompilerStage::Module);
 	CheckDiagnosticLocation(error, broken_file_path, 1);
-	MidoriTest::ErrorExpectation expectation;
+	MarmotTest::ErrorExpectation expectation;
 	expectation.m_stage = CompilerStage::Module;
 	expectation.m_code = CompilerErrorCode::ModuleDeclarationMissing;
 	expectation.m_message_substrings = { "Module declaration required" };
@@ -479,9 +479,9 @@ TEST_CASE("ModuleManager preserves imported child module diagnostics across recu
 
 TEST_CASE("ModuleManager tags unresolved imports with a stable diagnostic code", "[module][graph]")
 {
-	const MidoriTest::TempProject project
+	const MarmotTest::TempProject project
 	({
-		MidoriTest::TempProjectFile
+		MarmotTest::TempProjectFile
 		(
 			"Main.mmt",
 			"module Main\n"
@@ -493,7 +493,7 @@ TEST_CASE("ModuleManager tags unresolved imports with a stable diagnostic code",
 	std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(project.Path("Main.mmt"));
 	REQUIRE_FALSE(graph_result.has_value());
 
-	MidoriTest::ErrorExpectation expectation;
+	MarmotTest::ErrorExpectation expectation;
 	expectation.m_stage = CompilerStage::Module;
 	expectation.m_code = CompilerErrorCode::ModuleImportResolutionFailed;
 	expectation.m_line = 2;
@@ -503,9 +503,9 @@ TEST_CASE("ModuleManager tags unresolved imports with a stable diagnostic code",
 
 TEST_CASE("ModuleManager tags import file open failures with a stable diagnostic code", "[module][graph]")
 {
-	const MidoriTest::TempProject project
+	const MarmotTest::TempProject project
 	({
-		MidoriTest::TempProjectFile
+		MarmotTest::TempProjectFile
 		(
 			"Main.mmt",
 			"module Main\n"
@@ -519,7 +519,7 @@ TEST_CASE("ModuleManager tags import file open failures with a stable diagnostic
 	std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(project.Path("Main.mmt"));
 	REQUIRE_FALSE(graph_result.has_value());
 
-	MidoriTest::ErrorExpectation expectation;
+	MarmotTest::ErrorExpectation expectation;
 	expectation.m_stage = CompilerStage::Module;
 	expectation.m_code = CompilerErrorCode::ModuleImportFileOpenFailed;
 	expectation.m_line = 2;
@@ -529,23 +529,23 @@ TEST_CASE("ModuleManager tags import file open failures with a stable diagnostic
 
 TEST_CASE("ModuleManager tags circular dependencies with a stable diagnostic code", "[module][graph]")
 {
-	const MidoriTest::TempProject project
+	const MarmotTest::TempProject project
 	({
-		MidoriTest::TempProjectFile
+		MarmotTest::TempProjectFile
 		(
 			"Main.mmt",
 			"module Main\n"
 			"import { \"./A.mmt\" }\n"
 			"def main = fn() -> Int => 0;\n"
 		),
-		MidoriTest::TempProjectFile
+		MarmotTest::TempProjectFile
 		(
 			"A.mmt",
 			"module A\n"
 			"import { \"./B.mmt\" }\n"
 			"def value = 1;\n"
 		),
-		MidoriTest::TempProjectFile
+		MarmotTest::TempProjectFile
 		(
 			"B.mmt",
 			"module B\n"
@@ -557,7 +557,7 @@ TEST_CASE("ModuleManager tags circular dependencies with a stable diagnostic cod
 	std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(project.Path("Main.mmt"));
 	REQUIRE_FALSE(graph_result.has_value());
 
-	MidoriTest::ErrorExpectation expectation;
+	MarmotTest::ErrorExpectation expectation;
 	expectation.m_stage = CompilerStage::Module;
 	expectation.m_code = CompilerErrorCode::ModuleCircularDependency;
 	expectation.m_message_substrings = { "Import cycle: A -> B -> A." };
@@ -566,11 +566,11 @@ TEST_CASE("ModuleManager tags circular dependencies with a stable diagnostic cod
 
 TEST_CASE("Discovery names each cycle at the import that closes it across job counts", "[module][discovery]")
 {
-	const MidoriTest::TempProject project
+	const MarmotTest::TempProject project
 	({
-		MidoriTest::TempProjectFile("Main.mmt", "module Main\nimport { \"A.mmt\" }\n"),
-		MidoriTest::TempProjectFile("A.mmt", "module A\nimport { \"B.mmt\" }\n"),
-		MidoriTest::TempProjectFile("B.mmt", "module B\nimport { \"C.mmt\" }\n")
+		MarmotTest::TempProjectFile("Main.mmt", "module Main\nimport { \"A.mmt\" }\n"),
+		MarmotTest::TempProjectFile("A.mmt", "module A\nimport { \"B.mmt\" }\n"),
+		MarmotTest::TempProjectFile("B.mmt", "module B\nimport { \"C.mmt\" }\n")
 	});
 	std::string chain = "B -> C -> B";
 
@@ -592,7 +592,7 @@ TEST_CASE("Discovery names each cycle at the import that closes it across job co
 	std::string expected;
 	for (size_t jobs : { 1u, 2u, 4u })
 	{
-		MidoriResult::ModuleManagerResult graph = GenerateBuildGraphFromFile(project.Path("Main.mmt"), jobs);
+		MarmotResult::ModuleManagerResult graph = GenerateBuildGraphFromFile(project.Path("Main.mmt"), jobs);
 		REQUIRE(!graph.has_value());
 		REQUIRE(graph.error().m_code == CompilerErrorCode::ModuleCircularDependency);
 		CHECK(graph.error().m_message == std::format("Import cycle: {}.", chain));
@@ -608,11 +608,11 @@ TEST_CASE("Discovery names each cycle at the import that closes it across job co
 
 TEST_CASE("Discovery preserves cycle error precedence within and after its owning module", "[module][discovery]")
 {
-	const MidoriTest::TempProject project
+	const MarmotTest::TempProject project
 	({
-		MidoriTest::TempProjectFile("Main.mmt", "module Main\nimport { \"A.mmt\" }\n"),
-		MidoriTest::TempProjectFile("A.mmt", "module A\nimport { \"B.mmt\" }\n"),
-		MidoriTest::TempProjectFile("B.mmt", "module B\nimport { \"A.mmt\" }\n")
+		MarmotTest::TempProjectFile("Main.mmt", "module Main\nimport { \"A.mmt\" }\n"),
+		MarmotTest::TempProjectFile("A.mmt", "module A\nimport { \"B.mmt\" }\n"),
+		MarmotTest::TempProjectFile("B.mmt", "module B\nimport { \"A.mmt\" }\n")
 	});
 	CompilerErrorCode code = CompilerErrorCode::ModuleCircularDependency;
 	std::filesystem::path file = project.Path("B.mmt");
@@ -629,7 +629,7 @@ TEST_CASE("Discovery preserves cycle error precedence within and after its ownin
 
 	for (size_t jobs : { 1u, 2u, 4u })
 	{
-		MidoriResult::ModuleManagerResult graph = GenerateBuildGraphFromFile(project.Path("Main.mmt"), jobs);
+		MarmotResult::ModuleManagerResult graph = GenerateBuildGraphFromFile(project.Path("Main.mmt"), jobs);
 		REQUIRE(!graph.has_value());
 		REQUIRE(graph.error().m_code == code);
 		CheckDiagnosticLocation(graph.error(), std::filesystem::weakly_canonical(file), 2);
@@ -638,12 +638,12 @@ TEST_CASE("Discovery preserves cycle error precedence within and after its ownin
 
 TEST_CASE("Discovery retains shared and duplicate import edges once", "[module][discovery]")
 {
-	const MidoriTest::TempProject project
+	const MarmotTest::TempProject project
 	({
-		MidoriTest::TempProjectFile("Main.mmt", "module Main\nimport { \"Left.mmt\", \"Right.mmt\", \"Left.mmt\" }\n"),
-		MidoriTest::TempProjectFile("Left.mmt", "module Left\nimport { \"Shared.mmt\" }\n"),
-		MidoriTest::TempProjectFile("Right.mmt", "module Right\nimport { \"Shared.mmt\", \"Left.mmt\" }\n"),
-		MidoriTest::TempProjectFile("Shared.mmt", "module Shared\npublic export { Value }\ndef Value = 1;\n")
+		MarmotTest::TempProjectFile("Main.mmt", "module Main\nimport { \"Left.mmt\", \"Right.mmt\", \"Left.mmt\" }\n"),
+		MarmotTest::TempProjectFile("Left.mmt", "module Left\nimport { \"Shared.mmt\" }\n"),
+		MarmotTest::TempProjectFile("Right.mmt", "module Right\nimport { \"Shared.mmt\", \"Left.mmt\" }\n"),
+		MarmotTest::TempProjectFile("Shared.mmt", "module Shared\npublic export { Value }\ndef Value = 1;\n")
 	});
 	const std::string main = std::filesystem::weakly_canonical(project.Path("Main.mmt")).string();
 	const std::string left = std::filesystem::weakly_canonical(project.Path("Left.mmt")).string();
@@ -651,7 +651,7 @@ TEST_CASE("Discovery retains shared and duplicate import edges once", "[module][
 	const std::string shared = std::filesystem::weakly_canonical(project.Path("Shared.mmt")).string();
 	for (size_t jobs : { 1u, 2u, 4u })
 	{
-		MidoriResult::ModuleManagerResult graph = GenerateBuildGraphFromFile(main, jobs);
+		MarmotResult::ModuleManagerResult graph = GenerateBuildGraphFromFile(main, jobs);
 		REQUIRE(graph.has_value());
 		REQUIRE(graph->m_nodes.size() == 4u);
 		REQUIRE(graph->m_module_declarations.size() == 4u);
@@ -670,10 +670,10 @@ public export { missing }
 def main = fn() -> Int => 0;
 )";
 
-	MidoriResult::CompilerResult compile_result = MidoriTest::CompileSnippet(source_code, "MissingExport.mmt");
+	MarmotResult::CompilerResult compile_result = MarmotTest::CompileSnippet(source_code, "MissingExport.mmt");
 	REQUIRE_FALSE(compile_result.has_value());
 
-	MidoriTest::ErrorExpectation expectation;
+	MarmotTest::ErrorExpectation expectation;
 	expectation.m_stage = CompilerStage::Module;
 	expectation.m_code = CompilerErrorCode::ModuleMissingExportedSymbol;
 	expectation.m_message_substrings = { "exported but not defined", "missing" };

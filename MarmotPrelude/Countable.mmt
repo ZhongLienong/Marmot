@@ -3,8 +3,8 @@ public export { Countable }
 class Countable < T > {
     Count: fn(value: T) -> Int;
 };
-foreign "MIDORI_FFI_TextLength" TextLength: fn(Text) -> Int;
-foreign "MIDORI_FFI_ArrayLength" ArrayLength: fn(Array < T >) -> Int;
+foreign "MARMOT_FFI_TextLength" TextLength: fn(Text) -> Int;
+foreign "MARMOT_FFI_ArrayLength" ArrayLength: fn(Array < T >) -> Int;
 instance Countable < Text > {
     def Count = fn(value: Text) -> Int => TextLength(value);
 };

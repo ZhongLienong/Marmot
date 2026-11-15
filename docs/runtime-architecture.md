@@ -4,7 +4,7 @@ Marmot runs programs on a single `VirtualMachine` execution path.
 
 ## Execution Flow
 
-1. The compiler produces one `MidoriExecutable`.
+1. The compiler produces one `MarmotExecutable`.
 2. Native and WASM entry points construct `VirtualMachine(std::move(executable))`.
 3. The VM executes the bootstrap procedure, module initializers, and user code through `Execute()`.
 
@@ -37,7 +37,7 @@ All GC-managed objects are VM-local:
 - References (`Ref<T>`)
 - Range objects
 
-Every GC-managed object is one `MidoriTraceable` in one allocator slot. It
+Every GC-managed object is one `MarmotTraceable` in one allocator slot. It
 starts with an 8-byte header (its type; whether an array's or a cell's values
 are pointers; a union's tag or a closure's procedure; and an aggregate's
 16-bit length and 16-bit shape), so a match reads the tag on the same cache
@@ -45,7 +45,7 @@ line as the first fields. A tuple, struct, union or closure keeps up to nine
 values right after the header, and longer ones in a buffer of their own, and
 holds at most 65,535.
 
-`MidoriValue` is an untagged word in release builds, and nothing decides from
+`MarmotValue` is an untagged word in release builds, and nothing decides from
 its bits whether it is a pointer. The compiler writes down where every pointer
 is (since format 15): a kind for each global; for each procedure, a kind for each
 frame slot, which holds one kind of value for the whole procedure, and the
@@ -61,7 +61,7 @@ collector is non-moving.
 
 ### Allocator
 
-`MidoriAllocator` carves slots out of 64 KB blocks. Slots come in five sizes,
+`MarmotAllocator` carves slots out of 64 KB blocks. Slots come in five sizes,
 16 to 80 bytes in steps of 16, and each block holds one size for good: a
 two-field union takes 32 bytes, text and arrays take 80.
 
@@ -83,7 +83,7 @@ two-field union takes 32 bytes, text and arrays take 80.
 - The allocator only ever hands out slots. The buffers behind long `Text`,
   `Array`, and aggregate payloads come from the value buffer pool in `projects/marmotvm/src/Value`
   and are never traced or treated as roots — only their owning
-  `MidoriTraceable` is.
+  `MarmotTraceable` is.
 
 ### Garbage Collector
 

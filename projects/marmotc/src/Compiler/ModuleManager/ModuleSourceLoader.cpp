@@ -61,7 +61,7 @@ ModuleSourceLoader::LoadResult ModuleSourceLoader::Read(const std::string& file_
 	{
 		source_lines.push_back(std::move(line));
 	}
-	MidoriResult::LexerResult lexed = Lexer(std::move(source), file_path).Lex();
+	MarmotResult::LexerResult lexed = Lexer(std::move(source), file_path).Lex();
 	if (!lexed.has_value())
 	{
 		return std::unexpected(std::move(lexed.error()));
@@ -143,7 +143,7 @@ ModuleSourceLoader::LoadResult ModuleSourceLoader::Await(std::future<LoadResult>
 	return result.get();
 }
 
-MidoriResult::Result<ImportedSource> ModuleSourceLoader::Take(const std::string& file_path, const std::string& importer, int line)
+MarmotResult::Result<ImportedSource> ModuleSourceLoader::Take(const std::string& file_path, const std::string& importer, int line)
 {
 	LoadResult loaded = m_worker_limit == 0u
 		? m_reader(file_path)
@@ -156,7 +156,7 @@ MidoriResult::Result<ImportedSource> ModuleSourceLoader::Take(const std::string&
 	{
 		// The first importer in traversal order owns this diagnostic, even
 		// when another importer prefetched the same file first.
-		return std::unexpected(MidoriError::GenerateModuleErrorWithContext(
+		return std::unexpected(MarmotError::GenerateModuleErrorWithContext(
 			CompilerErrorCode::ModuleImportFileOpenFailed, "Could not open import file: " + file_path, line, importer));
 	}
 	return std::unexpected(std::move(std::get<CompilerError>(loaded.error())));

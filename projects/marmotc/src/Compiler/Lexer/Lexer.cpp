@@ -158,17 +158,17 @@ Token Lexer::MakeEndOfFileToken() const
 	return Token(std::string{}, Token::Name::END_OF_FILE, line, m_source.m_file_name, column, 0u);
 }
 
-MidoriResult::TokenResult Lexer::MakeTokenResult(Token::Name type) const
+MarmotResult::TokenResult Lexer::MakeTokenResult(Token::Name type) const
 {
 	return MakeToken(type);
 }
 
-MidoriResult::TokenResult Lexer::MakeTokenResult(Token::Name type, std::string&& lexeme) const
+MarmotResult::TokenResult Lexer::MakeTokenResult(Token::Name type, std::string&& lexeme) const
 {
 	return MakeToken(type, std::move(lexeme));
 }
 
-MidoriResult::TokenResult Lexer::MakeEndOfFileTokenResult() const
+MarmotResult::TokenResult Lexer::MakeEndOfFileTokenResult() const
 {
 	return MakeEndOfFileToken();
 }
@@ -183,13 +183,13 @@ int Lexer::ConsumeAlphaNumeric()
 	return ConsumeWhile(IsAlphaNumeric);
 }
 
-MidoriResult::VoidResult Lexer::SkipLineComment()
+MarmotResult::VoidResult Lexer::SkipLineComment()
 {
 	ConsumeWhile([](char c) { return c != '\n'; });
 	return {};
 }
 
-MidoriResult::VoidResult Lexer::SkipBlockComment()
+MarmotResult::VoidResult Lexer::SkipBlockComment()
 {
 	while (true)
 	{
@@ -202,7 +202,7 @@ MidoriResult::VoidResult Lexer::SkipBlockComment()
 
 		if (IsAtEnd(0))
 		{
-			return std::unexpected(MidoriError::GenerateLexerErrorWithContext("Unterminated block comment", m_cursor.m_begin_line, BeginColumn(), m_source.m_file_name, m_source.m_lines));
+			return std::unexpected(MarmotError::GenerateLexerErrorWithContext("Unterminated block comment", m_cursor.m_begin_line, BeginColumn(), m_source.m_file_name, m_source.m_lines));
 		}
 
 		if (LookAhead(0) == '\n')
@@ -215,7 +215,7 @@ MidoriResult::VoidResult Lexer::SkipBlockComment()
 	}
 }
 
-MidoriResult::VoidResult Lexer::SkipWhitespaceAndComments()
+MarmotResult::VoidResult Lexer::SkipWhitespaceAndComments()
 {
 	while (true)
 	{
@@ -248,7 +248,7 @@ MidoriResult::VoidResult Lexer::SkipWhitespaceAndComments()
 				Advance(); // '/'
 				Advance(); // '/'
 				return SkipLineComment()
-					.and_then([this]() -> MidoriResult::VoidResult { return SkipWhitespaceAndComments(); });
+					.and_then([this]() -> MarmotResult::VoidResult { return SkipWhitespaceAndComments(); });
 			}
 			else if (LookAhead(1) == '*')
 			{
@@ -261,7 +261,7 @@ MidoriResult::VoidResult Lexer::SkipWhitespaceAndComments()
 				Advance(); // '/'
 				Advance(); // '*'
 				return SkipBlockComment()
-					.and_then([this]() -> MidoriResult::VoidResult { return SkipWhitespaceAndComments(); });
+					.and_then([this]() -> MarmotResult::VoidResult { return SkipWhitespaceAndComments(); });
 			}
 			return {};
 		}
@@ -271,13 +271,13 @@ MidoriResult::VoidResult Lexer::SkipWhitespaceAndComments()
 	}
 }
 
-MidoriResult::TokenResult Lexer::MatchStringRecursive(std::string&& acc)
+MarmotResult::TokenResult Lexer::MatchStringRecursive(std::string&& acc)
 {
 	while (true)
 	{
 		if (IsAtEnd(0))
 		{
-			return std::unexpected(MidoriError::GenerateLexerErrorWithContext("Unterminated string", m_cursor.m_begin_line, BeginColumn(), m_source.m_file_name, m_source.m_lines));
+			return std::unexpected(MarmotError::GenerateLexerErrorWithContext("Unterminated string", m_cursor.m_begin_line, BeginColumn(), m_source.m_file_name, m_source.m_lines));
 		}
 
 		if (LookAhead(0) == '"')
@@ -340,12 +340,12 @@ MidoriResult::TokenResult Lexer::MatchStringRecursive(std::string&& acc)
 	}
 }
 
-MidoriResult::TokenResult Lexer::MatchString()
+MarmotResult::TokenResult Lexer::MatchString()
 {
 	return MatchStringRecursive(std::string{});
 }
 
-MidoriResult::TokenResult Lexer::MatchNumber()
+MarmotResult::TokenResult Lexer::MatchNumber()
 {
 	if (IsHexPrefix())
 	{
@@ -360,7 +360,7 @@ MidoriResult::TokenResult Lexer::MatchNumber()
 	return MatchDecimalNumber();
 }
 
-MidoriResult::TokenResult Lexer::MatchDecimalNumber()
+MarmotResult::TokenResult Lexer::MatchDecimalNumber()
 {
 	ConsumeDigits();
 
@@ -376,7 +376,7 @@ MidoriResult::TokenResult Lexer::MatchDecimalNumber()
 	return MakeTokenResult(Token::Name::FLOAT_LITERAL);
 }
 
-MidoriResult::TokenResult Lexer::MatchPrefixedInteger(bool (*predicate)(char))
+MarmotResult::TokenResult Lexer::MatchPrefixedInteger(bool (*predicate)(char))
 {
 	Advance();
 	ConsumeWhile(predicate);
@@ -403,7 +403,7 @@ bool Lexer::IsBinaryDigit(char c)
 	return c == '0' || c == '1';
 }
 
-MidoriResult::TokenResult Lexer::MatchIdentifierOrReserved()
+MarmotResult::TokenResult Lexer::MatchIdentifierOrReserved()
 {
 	ConsumeAlphaNumeric();
 
@@ -414,14 +414,14 @@ MidoriResult::TokenResult Lexer::MatchIdentifierOrReserved()
 		: MakeTokenResult(Token::Name::IDENTIFIER_LITERAL);
 }
 
-MidoriResult::TokenResult Lexer::LexTokenAfterWhitespace()
+MarmotResult::TokenResult Lexer::LexTokenAfterWhitespace()
 {
 	return IsAtEnd(0)
 		? MakeEndOfFileTokenResult()
 		: BeginToken().LexTokenFrom(Advance());
 }
 
-MidoriResult::TokenResult Lexer::LexTokenFrom(char next_char)
+MarmotResult::TokenResult Lexer::LexTokenFrom(char next_char)
 {
 	switch (next_char)
 	{
@@ -480,7 +480,7 @@ MidoriResult::TokenResult Lexer::LexTokenFrom(char next_char)
 	}
 }
 
-MidoriResult::TokenResult Lexer::MatchDot()
+MarmotResult::TokenResult Lexer::MatchDot()
 {
 	if (IsDigit(LookAhead(0)))
 	{
@@ -492,14 +492,14 @@ MidoriResult::TokenResult Lexer::MatchDot()
 		: MakeTokenResult(Token::Name::SINGLE_DOT);
 }
 
-MidoriResult::TokenResult Lexer::MatchPlus()
+MarmotResult::TokenResult Lexer::MatchPlus()
 {
 	return MatchNext('+')
 		? MakeTokenResult(Token::Name::DOUBLE_PLUS)
 		: MakeTokenResult(Token::Name::SINGLE_PLUS);
 }
 
-MidoriResult::TokenResult Lexer::MatchMinus()
+MarmotResult::TokenResult Lexer::MatchMinus()
 {
 	if (MatchNext('>'))
 	{
@@ -509,7 +509,7 @@ MidoriResult::TokenResult Lexer::MatchMinus()
 	return MakeTokenResult(Token::Name::SINGLE_MINUS);
 }
 
-MidoriResult::TokenResult Lexer::MatchColon()
+MarmotResult::TokenResult Lexer::MatchColon()
 {
 	if (MatchNext(':'))
 	{
@@ -520,17 +520,17 @@ MidoriResult::TokenResult Lexer::MatchColon()
 		: MakeTokenResult(Token::Name::SINGLE_COLON);
 }
 
-MidoriResult::TokenResult Lexer::MatchPercent()
+MarmotResult::TokenResult Lexer::MatchPercent()
 {
 	return MakeTokenResult(Token::Name::PERCENT);
 }
 
-MidoriResult::TokenResult Lexer::MatchStar()
+MarmotResult::TokenResult Lexer::MatchStar()
 {
 	return MakeTokenResult(Token::Name::STAR);
 }
 
-MidoriResult::TokenResult Lexer::MatchSlash()
+MarmotResult::TokenResult Lexer::MatchSlash()
 {
 	if (m_options.m_preserve_comments && LookAhead(0) == '/')
 	{
@@ -545,14 +545,14 @@ MidoriResult::TokenResult Lexer::MatchSlash()
 	return MakeTokenResult(Token::Name::SLASH);
 }
 
-MidoriResult::TokenResult Lexer::MatchLineComment()
+MarmotResult::TokenResult Lexer::MatchLineComment()
 {
 	Advance();
 	ConsumeWhile([](char c) { return c != '\n' && c != '\r'; });
 	return MakeTokenResult(Token::Name::LINE_COMMENT);
 }
 
-MidoriResult::TokenResult Lexer::MatchBlockComment()
+MarmotResult::TokenResult Lexer::MatchBlockComment()
 {
 	Advance();
 
@@ -567,7 +567,7 @@ MidoriResult::TokenResult Lexer::MatchBlockComment()
 
 		if (IsAtEnd(0))
 		{
-			return std::unexpected(MidoriError::GenerateLexerErrorWithContext("Unterminated block comment", m_cursor.m_begin_line, BeginColumn(), m_source.m_file_name, m_source.m_lines));
+			return std::unexpected(MarmotError::GenerateLexerErrorWithContext("Unterminated block comment", m_cursor.m_begin_line, BeginColumn(), m_source.m_file_name, m_source.m_lines));
 		}
 
 		if (LookAhead(0) == '\n')
@@ -580,7 +580,7 @@ MidoriResult::TokenResult Lexer::MatchBlockComment()
 	}
 }
 
-MidoriResult::TokenResult Lexer::MatchPipe()
+MarmotResult::TokenResult Lexer::MatchPipe()
 {
 	if (MatchNext('|'))
 	{
@@ -595,12 +595,12 @@ MidoriResult::TokenResult Lexer::MatchPipe()
 	return MakeTokenResult(Token::Name::SINGLE_BAR);
 }
 
-MidoriResult::TokenResult Lexer::MatchCaret()
+MarmotResult::TokenResult Lexer::MatchCaret()
 {
 	return MakeTokenResult(Token::Name::CARET);
 }
 
-MidoriResult::TokenResult Lexer::MatchAmpersand()
+MarmotResult::TokenResult Lexer::MatchAmpersand()
 {
 	if (MatchNext('&'))
 	{
@@ -610,14 +610,14 @@ MidoriResult::TokenResult Lexer::MatchAmpersand()
 	return MakeTokenResult(Token::Name::SINGLE_AMPERSAND);
 }
 
-MidoriResult::TokenResult Lexer::MatchBang()
+MarmotResult::TokenResult Lexer::MatchBang()
 {
 	return MatchNext('=')
 		? MakeTokenResult(Token::Name::BANG_EQUAL)
 		: MakeTokenResult(Token::Name::BANG);
 }
 
-MidoriResult::TokenResult Lexer::MatchEqual()
+MarmotResult::TokenResult Lexer::MatchEqual()
 {
 	if (MatchNext('='))
 	{
@@ -632,7 +632,7 @@ MidoriResult::TokenResult Lexer::MatchEqual()
 	return MakeTokenResult(Token::Name::SINGLE_EQUAL);
 }
 
-MidoriResult::TokenResult Lexer::MatchGreater()
+MarmotResult::TokenResult Lexer::MatchGreater()
 {
 	if (MatchNext('>'))
 	{
@@ -644,7 +644,7 @@ MidoriResult::TokenResult Lexer::MatchGreater()
 		: MakeTokenResult(Token::Name::RIGHT_ANGLE);
 }
 
-MidoriResult::TokenResult Lexer::MatchLess()
+MarmotResult::TokenResult Lexer::MatchLess()
 {
 	if (MatchNext('-'))
 	{
@@ -664,22 +664,22 @@ MidoriResult::TokenResult Lexer::MatchLess()
 	return MakeTokenResult(Token::Name::LEFT_ANGLE);
 }
 
-MidoriResult::TokenResult Lexer::MatchLeftShift()
+MarmotResult::TokenResult Lexer::MatchLeftShift()
 {
 	return MakeTokenResult(Token::Name::LEFT_SHIFT);
 }
 
-MidoriResult::TokenResult Lexer::MatchTilde()
+MarmotResult::TokenResult Lexer::MatchTilde()
 {
 	return MakeTokenResult(Token::Name::TILDE);
 }
 
-MidoriResult::TokenResult Lexer::MatchRightShift()
+MarmotResult::TokenResult Lexer::MatchRightShift()
 {
 	return MakeTokenResult(Token::Name::RIGHT_SHIFT);
 }
 
-MidoriResult::TokenResult Lexer::MatchLiteralOrIdentifier(char next_char)
+MarmotResult::TokenResult Lexer::MatchLiteralOrIdentifier(char next_char)
 {
 	if (IsDigit(next_char))
 	{
@@ -699,12 +699,12 @@ MidoriResult::TokenResult Lexer::MatchLiteralOrIdentifier(char next_char)
 	return MakeInvalidCharacterError(next_char);
 }
 
-MidoriResult::TokenResult Lexer::MakeInvalidCharacterError(char next_char) const
+MarmotResult::TokenResult Lexer::MakeInvalidCharacterError(char next_char) const
 {
-	return std::unexpected(MidoriError::GenerateLexerErrorWithContext("Invalid character: "s + next_char, m_cursor.m_line, BeginColumn(), m_source.m_file_name, m_source.m_lines));
+	return std::unexpected(MarmotError::GenerateLexerErrorWithContext("Invalid character: "s + next_char, m_cursor.m_line, BeginColumn(), m_source.m_file_name, m_source.m_lines));
 }
 
-MidoriResult::Result<Lexer::LexState> Lexer::RecordTokenOrError(LexState state)
+MarmotResult::Result<Lexer::LexState> Lexer::RecordTokenOrError(LexState state)
 {
 	return LexOneToken()
 		.transform
@@ -724,10 +724,10 @@ MidoriResult::Result<Lexer::LexState> Lexer::RecordTokenOrError(LexState state)
 		);
 }
 
-MidoriResult::TokenResult Lexer::LexOneToken()
+MarmotResult::TokenResult Lexer::LexOneToken()
 {
 	return SkipWhitespaceAndComments()
-		.and_then([this]() -> MidoriResult::TokenResult { return LexTokenAfterWhitespace(); });
+		.and_then([this]() -> MarmotResult::TokenResult { return LexTokenAfterWhitespace(); });
 }
 
 std::vector<std::string> Lexer::SplitIntoLines(const std::string& source)
@@ -746,7 +746,7 @@ std::vector<std::string> Lexer::SplitIntoLines(const std::string& source)
 
 Lexer::Source Lexer::BuildSource(std::string&& source_code, std::string_view file_name)
 {
-	MidoriSource::RemoveByteOrderMark(source_code);
+	MarmotSource::RemoveByteOrderMark(source_code);
 	std::vector<std::string> lines = SplitIntoLines(source_code);
 	return Source{ std::move(source_code), std::string(file_name), std::move(lines) };
 }
@@ -762,14 +762,14 @@ Lexer::Lexer(std::string&& source_code, std::string_view file_name, Options opti
 {
 }
 
-MidoriResult::LexerResult Lexer::LexRecursive(LexState state)
+MarmotResult::LexerResult Lexer::LexRecursive(LexState state)
 {
 	while (!IsAtEnd(0))
 	{
-		MidoriResult::VoidResult step = RecordTokenOrError(std::move(state))
+		MarmotResult::VoidResult step = RecordTokenOrError(std::move(state))
 			.and_then
 			(
-				[&state](LexState&& next_state) -> MidoriResult::VoidResult
+				[&state](LexState&& next_state) -> MarmotResult::VoidResult
 				{
 					state = std::move(next_state);
 					return {};
@@ -790,12 +790,12 @@ MidoriResult::LexerResult Lexer::LexRecursive(LexState state)
 	return std::move(state.m_tokens);
 }
 
-MidoriResult::LexerResult Lexer::Lex() &
+MarmotResult::LexerResult Lexer::Lex() &
 {
 	return LexRecursive(LexState{ TokenStream{} });
 }
 
-MidoriResult::LexerResult Lexer::Lex() &&
+MarmotResult::LexerResult Lexer::Lex() &&
 {
 	return LexRecursive(LexState{ TokenStream{} });
 }

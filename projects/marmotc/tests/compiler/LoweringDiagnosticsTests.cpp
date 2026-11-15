@@ -12,10 +12,10 @@ using namespace std::string_literals;
 
 namespace
 {
-	void RequireErrorMatches(const CompilerError& error, const MidoriTest::ErrorExpectation& expectation)
+	void RequireErrorMatches(const CompilerError& error, const MarmotTest::ErrorExpectation& expectation)
 	{
 		std::string mismatch;
-		const bool matched = MidoriTest::Matches(error, expectation, &mismatch);
+		const bool matched = MarmotTest::Matches(error, expectation, &mismatch);
 		CAPTURE(mismatch);
 		REQUIRE(matched);
 	}
@@ -28,8 +28,8 @@ type Pair =
 {
 	value: Int
 };
-foreign "MIDORI_FFI_ReadPairA" ReadPairA : fn() -> Pair;
-foreign "MIDORI_FFI_ReadPairB" ReadPairB : fn() -> Pair;
+foreign "MARMOT_FFI_ReadPairA" ReadPairA : fn() -> Pair;
+foreign "MARMOT_FFI_ReadPairB" ReadPairB : fn() -> Pair;
 def main = fn() -> Int => {
 	ReadPairA();
 	ReadPairB();
@@ -43,20 +43,20 @@ TEST_CASE("Lowering rejects a foreign name that is neither builtin nor package-d
 {
 	const std::string source =
 		R"(module ForeignTypo
-foreign "MIDORI_FFI_Print" Print : fn(Text) -> Unit;
-foreign "MIDORI_FFI_PrintLin" PrintTypo : fn(Text) -> Unit;
+foreign "MARMOT_FFI_Print" Print : fn(Text) -> Unit;
+foreign "MARMOT_FFI_PrintLin" PrintTypo : fn(Text) -> Unit;
 )";
 
-	std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> bytecode_result =
-		MidoriTest::GenerateBytecodeSnippetWithDiagnostics(source, "ForeignTypo.mmt");
+	std::expected<BytecodeModule, MarmotResult::CompilerDiagnostics> bytecode_result =
+		MarmotTest::GenerateBytecodeSnippetWithDiagnostics(source, "ForeignTypo.mmt");
 	REQUIRE_FALSE(bytecode_result.has_value());
 	REQUIRE(bytecode_result.error().Size() == 1u);
 
-	MidoriTest::ErrorExpectation expectation;
+	MarmotTest::ErrorExpectation expectation;
 	expectation.m_stage = CompilerStage::Lowering;
 	expectation.m_code = CompilerErrorCode::LoweringUnknownForeignFunction;
 	expectation.m_line = 3;
-	expectation.m_message_substrings = { "Unknown foreign function 'MIDORI_FFI_PrintLin'" };
+	expectation.m_message_substrings = { "Unknown foreign function 'MARMOT_FFI_PrintLin'" };
 	expectation.m_rendered_substrings = { "Lowering Error", "ForeignTypo.mmt:3" };
 	RequireErrorMatches(bytecode_result.error().m_items[0u], expectation);
 }
@@ -71,12 +71,12 @@ foreign "marmot_image"
 	"image_read_info" ReadInfo : fn(Text) -> Array<Int>;
 	"image_version" Version : fn() -> Int;
 }
-foreign "MIDORI_FFI_Print" Print : fn(Text) -> Unit;
+foreign "MARMOT_FFI_Print" Print : fn(Text) -> Unit;
 foreign "helper" Helper : fn() -> Int from "other";
 )";
 
-	std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> bytecode_result =
-		MidoriTest::GenerateBytecodeSnippetWithDiagnostics(source, "pkg/Image.mmt");
+	std::expected<BytecodeModule, MarmotResult::CompilerDiagnostics> bytecode_result =
+		MarmotTest::GenerateBytecodeSnippetWithDiagnostics(source, "pkg/Image.mmt");
 	REQUIRE(bytecode_result.has_value());
 
 	const std::vector<NativeLibraryImport>& libraries = bytecode_result->m_native_libraries;
@@ -96,12 +96,12 @@ TEST_CASE("Lowering asks for the library of a foreign function that is not a bui
 foreign "image_read_info" ReadInfo : fn(Text) -> Array<Int>;
 )";
 
-	std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> bytecode_result =
-		MidoriTest::GenerateBytecodeSnippetWithDiagnostics(source, "Image.mmt");
+	std::expected<BytecodeModule, MarmotResult::CompilerDiagnostics> bytecode_result =
+		MarmotTest::GenerateBytecodeSnippetWithDiagnostics(source, "Image.mmt");
 	REQUIRE_FALSE(bytecode_result.has_value());
 	REQUIRE(bytecode_result.error().Size() == 1u);
 
-	MidoriTest::ErrorExpectation expectation;
+	MarmotTest::ErrorExpectation expectation;
 	expectation.m_stage = CompilerStage::Lowering;
 	expectation.m_code = CompilerErrorCode::LoweringUnknownForeignFunction;
 	expectation.m_line = 2;
@@ -118,27 +118,27 @@ def main = fn() -> Int => {
 	0
 };
 )";
-	std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> local_result =
-		MidoriTest::GenerateBytecodeSnippetWithDiagnostics(local_block, "Local.mmt");
+	std::expected<BytecodeModule, MarmotResult::CompilerDiagnostics> local_result =
+		MarmotTest::GenerateBytecodeSnippetWithDiagnostics(local_block, "Local.mmt");
 	REQUIRE_FALSE(local_result.has_value());
 	CHECK(local_result.error().m_items[0u].m_message.find("top level") != std::string::npos);
 
 	const std::string empty_block = "module Empty\nforeign \"lib\" { }\n";
-	std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> empty_result =
-		MidoriTest::GenerateBytecodeSnippetWithDiagnostics(empty_block, "Empty.mmt");
+	std::expected<BytecodeModule, MarmotResult::CompilerDiagnostics> empty_result =
+		MarmotTest::GenerateBytecodeSnippetWithDiagnostics(empty_block, "Empty.mmt");
 	REQUIRE_FALSE(empty_result.has_value());
 	CHECK(empty_result.error().m_items[0u].m_message.find("declares no functions") != std::string::npos);
 }
 
 TEST_CASE("Lowering reports every unsupported foreign return type, not only the first", "[compiler][lowering][diagnostics]")
 {
-	std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> bytecode_result =
-		MidoriTest::GenerateBytecodeSnippetWithDiagnostics(UnsupportedForeignReturnSource(), "ForeignDiagnostics.mmt");
+	std::expected<BytecodeModule, MarmotResult::CompilerDiagnostics> bytecode_result =
+		MarmotTest::GenerateBytecodeSnippetWithDiagnostics(UnsupportedForeignReturnSource(), "ForeignDiagnostics.mmt");
 	REQUIRE_FALSE(bytecode_result.has_value());
 	REQUIRE(bytecode_result.error().Size() == 2u);
-	REQUIRE(MidoriTest::FindError(bytecode_result.error(), CompilerStage::Lowering, CompilerErrorCode::LoweringUnsupportedConstruct) != nullptr);
+	REQUIRE(MarmotTest::FindError(bytecode_result.error(), CompilerStage::Lowering, CompilerErrorCode::LoweringUnsupportedConstruct) != nullptr);
 
-	MidoriTest::ErrorExpectation first_expectation;
+	MarmotTest::ErrorExpectation first_expectation;
 	first_expectation.m_stage = CompilerStage::Lowering;
 	first_expectation.m_code = CompilerErrorCode::LoweringUnsupportedConstruct;
 	first_expectation.m_line = 6;
@@ -146,7 +146,7 @@ TEST_CASE("Lowering reports every unsupported foreign return type, not only the 
 	first_expectation.m_rendered_substrings = { "Lowering Error", "ForeignDiagnostics.mmt:6" };
 	RequireErrorMatches(bytecode_result.error().m_items[0u], first_expectation);
 
-	MidoriTest::ErrorExpectation second_expectation;
+	MarmotTest::ErrorExpectation second_expectation;
 	second_expectation.m_stage = CompilerStage::Lowering;
 	second_expectation.m_code = CompilerErrorCode::LoweringUnsupportedConstruct;
 	second_expectation.m_line = 7;
@@ -157,12 +157,12 @@ TEST_CASE("Lowering reports every unsupported foreign return type, not only the 
 
 TEST_CASE("Compiler preserves all lowering diagnostics through the compile boundary", "[compiler][lowering][diagnostics]")
 {
-	MidoriResult::CompilerResult compile_result = MidoriTest::CompileSnippet(UnsupportedForeignReturnSource(), "ForeignDiagnostics.mmt");
+	MarmotResult::CompilerResult compile_result = MarmotTest::CompileSnippet(UnsupportedForeignReturnSource(), "ForeignDiagnostics.mmt");
 	REQUIRE_FALSE(compile_result.has_value());
 	REQUIRE(compile_result.error().Size() == 2u);
-	REQUIRE(MidoriTest::FindError(compile_result.error(), CompilerStage::Lowering, CompilerErrorCode::LoweringUnsupportedConstruct) != nullptr);
+	REQUIRE(MarmotTest::FindError(compile_result.error(), CompilerStage::Lowering, CompilerErrorCode::LoweringUnsupportedConstruct) != nullptr);
 
-	MidoriTest::ErrorExpectation expectation;
+	MarmotTest::ErrorExpectation expectation;
 	expectation.m_stage = CompilerStage::Lowering;
 	expectation.m_code = CompilerErrorCode::LoweringUnsupportedConstruct;
 	expectation.m_line = 6;
@@ -170,7 +170,7 @@ TEST_CASE("Compiler preserves all lowering diagnostics through the compile bound
 	expectation.m_rendered_substrings = { "Lowering Error", "ForeignDiagnostics.mmt:6" };
 	RequireErrorMatches(compile_result.error().m_items[0u], expectation);
 
-	MidoriTest::ErrorExpectation second_expectation;
+	MarmotTest::ErrorExpectation second_expectation;
 	second_expectation.m_stage = CompilerStage::Lowering;
 	second_expectation.m_code = CompilerErrorCode::LoweringUnsupportedConstruct;
 	second_expectation.m_line = 7;

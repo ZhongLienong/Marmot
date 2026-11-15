@@ -27,7 +27,7 @@
 #include "Compiler/Json/Json.h"
 #include "Compiler/Terminal/Terminal.h"
 #include "Utility/BuildPlan/BuildPlan.h"
-#include "Utility/Driver/MidoriDriver.h"
+#include "Utility/Driver/MarmotDriver.h"
 #include "Utility/Formatter/Formatter.h"
 
 namespace
@@ -66,7 +66,7 @@ namespace
 		std::optional<std::filesystem::path> m_deps_path = std::nullopt;
 		bool m_quiet = false;
 		// check and build: --emit-ir and --emit-ast, which print each
-		// module's MidoriIR and checked syntax tree. They need text output.
+		// module's MarmotIR and checked syntax tree. They need text output.
 		bool m_emit_ir = false;
 		bool m_emit_ast = false;
 		bool m_optimizer_stats = false;
@@ -126,7 +126,7 @@ namespace
 				"Options: --emit-ast (checked AST), --emit-ir (optimized IR).\n"
 				"         --jobs N (maximum workers; default: hardware concurrency).\n"
 				"         --timings (stage times and worker utilization on stderr).\n"
-#if MIDORI_ENABLE_OPTIMIZER_STATS
+#if MARMOT_ENABLE_OPTIMIZER_STATS
 				"         --optimizer-stats (pass statistics on stderr).\n"
 #endif
 
@@ -152,7 +152,7 @@ namespace
 				"Options: --emit-ast (checked AST), --emit-ir (optimized IR).\n"
 				"         --jobs N (maximum workers; default: hardware concurrency).\n"
 				"         --timings (stage times and worker utilization on stderr).\n"
-#if MIDORI_ENABLE_OPTIMIZER_STATS
+#if MARMOT_ENABLE_OPTIMIZER_STATS
 				"         --optimizer-stats (pass statistics on stderr).\n"
 #endif
 
@@ -303,7 +303,7 @@ namespace
 			return {};
 		}
 
-		std::expected<BuildPlan, std::string> plan = MidoriBuildPlan::ReadFile(plan_file.value());
+		std::expected<BuildPlan, std::string> plan = MarmotBuildPlan::ReadFile(plan_file.value());
 		if (!plan.has_value())
 		{
 			return std::unexpected(std::format("Invalid build plan: {}", plan.error()));
@@ -428,7 +428,7 @@ namespace
 
 			if (arg == "--optimizer-stats")
 			{
-#if MIDORI_ENABLE_OPTIMIZER_STATS
+#if MARMOT_ENABLE_OPTIMIZER_STATS
 				invocation.m_optimizer_stats = true;
 				continue;
 #else
@@ -669,7 +669,7 @@ namespace
 	[[nodiscard]] std::string CommandJson(
 		std::string_view command,
 		bool success,
-		const MidoriResult::CompilerReport& report,
+		const MarmotResult::CompilerReport& report,
 		std::optional<int> exit_code = std::nullopt,
 		std::string_view stdout_text = {},
 		std::string_view stderr_text = {},
@@ -711,37 +711,37 @@ namespace
 			CompilerJson::AppendStringField(payload, "source", "marmot", first_field);
 			CompilerJson::AppendStringField(payload, "command", "version", first_field);
 			CompilerJson::AppendBoolField(payload, "success", true, first_field);
-			CompilerJson::AppendStringField(payload, "marmotVersion", MIDORI_VERSION_STRING, first_field);
+			CompilerJson::AppendStringField(payload, "marmotVersion", MARMOT_VERSION_STRING, first_field);
 			payload.push_back('}');
 			std::print("{}", payload);
 		}
 		else
 		{
-			std::print("marmotc {}\n", MIDORI_VERSION_STRING);
+			std::print("marmotc {}\n", MARMOT_VERSION_STRING);
 		}
 		return EXIT_SUCCESS;
 	}
 
 	// Compiles the invocation's source file from its plan's inputs, or from the
 	// inputs the CLI discovers when there is no plan.
-	[[nodiscard]] MidoriDriver::CompileFileWithReportResult CompileInvocation(const Invocation& invocation)
+	[[nodiscard]] MarmotDriver::CompileFileWithReportResult CompileInvocation(const Invocation& invocation)
 	{
-		CompilationInputs inputs = invocation.m_plan_inputs.value_or(MidoriDriver::EnvironmentCompilationInputs());
-		return MidoriDriver::CompileFileWithReport(invocation.m_source_file, std::move(inputs)
-			.WithEmitMidoriIR(invocation.m_emit_ir)
+		CompilationInputs inputs = invocation.m_plan_inputs.value_or(MarmotDriver::EnvironmentCompilationInputs());
+		return MarmotDriver::CompileFileWithReport(invocation.m_source_file, std::move(inputs)
+			.WithEmitMarmotIR(invocation.m_emit_ir)
 			.WithEmitAst(invocation.m_emit_ast)
 			.WithJobs(invocation.m_jobs)
 			.WithTimings(invocation.m_timings));
 	}
 
-	// Each module's syntax tree, then each module's MidoriIR, as asked.
-	void PrintDumps(const MidoriResult::CompiledProgram& compiled_program)
+	// Each module's syntax tree, then each module's MarmotIR, as asked.
+	void PrintDumps(const MarmotResult::CompiledProgram& compiled_program)
 	{
 		for (const std::string& module_ast : compiled_program.m_ast)
 		{
 			std::print("{}\n", module_ast);
 		}
-		for (const std::string& module_ir : compiled_program.m_midori_ir)
+		for (const std::string& module_ir : compiled_program.m_marmot_ir)
 		{
 			std::print("{}\n", module_ir);
 		}
@@ -756,10 +756,10 @@ namespace
 		}
 
 		const CompilerDiagnostics::ScopedStatistics statistics(invocation.m_optimizer_stats);
-		const MidoriDriver::CompileFileWithReportResult compile_result = CompileInvocation(invocation);
+		const MarmotDriver::CompileFileWithReportResult compile_result = CompileInvocation(invocation);
 		if (!compile_result.has_value())
 		{
-			const MidoriResult::CompilerReport& report = compile_result.error().m_report;
+			const MarmotResult::CompilerReport& report = compile_result.error().m_report;
 			if (invocation.m_format == OutputFormat::Json)
 			{
 				std::print("{}", CommandJson("check", false, report, EXIT_FAILURE));
@@ -772,7 +772,7 @@ namespace
 		}
 
 		PrintDumps(*compile_result);
-		const MidoriResult::CompilerReport& report = compile_result->Report();
+		const MarmotResult::CompilerReport& report = compile_result->Report();
 		if (invocation.m_format == OutputFormat::Json)
 		{
 			std::print("{}", CommandJson("check", true, report, EXIT_SUCCESS));
@@ -794,10 +794,10 @@ namespace
 		}
 
 		const CompilerDiagnostics::ScopedStatistics statistics(invocation.m_optimizer_stats);
-		const MidoriDriver::CompileFileWithReportResult compile_result = CompileInvocation(invocation);
+		const MarmotDriver::CompileFileWithReportResult compile_result = CompileInvocation(invocation);
 		if (!compile_result.has_value())
 		{
-			const MidoriResult::CompilerReport& report = compile_result.error().m_report;
+			const MarmotResult::CompilerReport& report = compile_result.error().m_report;
 			if (invocation.m_format == OutputFormat::Json)
 			{
 				std::print("{}", CommandJson("build", false, report, EXIT_FAILURE));
@@ -809,9 +809,9 @@ namespace
 			return EXIT_FAILURE;
 		}
 
-		const MidoriResult::CompiledProgram& compiled_program = *compile_result;
+		const MarmotResult::CompiledProgram& compiled_program = *compile_result;
 		PrintDumps(compiled_program);
-		const MidoriExecutable& executable = compiled_program.m_executable;
+		const MarmotExecutable& executable = compiled_program.m_executable;
 
 		std::filesystem::path artifact_path = invocation.m_output_path.value_or(invocation.m_source_file);
 		if (!invocation.m_output_path.has_value())
@@ -831,7 +831,7 @@ namespace
 		}
 		else
 		{
-			write_result = MidoriBinaryArtifact::WriteExecutableToFile(executable, artifact_path, invocation.m_embed_sources);
+			write_result = MarmotBinaryArtifact::WriteExecutableToFile(executable, artifact_path, invocation.m_embed_sources);
 		}
 
 		if (write_result.has_value() && invocation.m_deps_path.has_value())
@@ -853,8 +853,8 @@ namespace
 
 		if (!write_result.has_value())
 		{
-			MidoriResult::CompilerReport report = compiled_program.Report();
-			report.m_errors.Append(MidoriResult::CompilerDiagnostics(
+			MarmotResult::CompilerReport report = compiled_program.Report();
+			report.m_errors.Append(MarmotResult::CompilerDiagnostics(
 				CompilerError::Simple(CompilerStage::Compiler, write_result.error())));
 			if (invocation.m_format == OutputFormat::Json)
 			{
@@ -893,7 +893,7 @@ namespace
 		}
 
 		std::print(stderr, "{}", compiled_program.Report().RenderedWarnings());
-		if (MidoriDriver::ShouldEmitMachineReadableWarnings())
+		if (MarmotDriver::ShouldEmitMachineReadableWarnings())
 		{
 			std::print(stderr, "{}", compiled_program.Report().MachineReadableWarnings());
 		}
@@ -956,7 +956,7 @@ namespace
 				return EXIT_FAILURE;
 			}
 
-			const std::expected<std::string, CompilerError> format_result = MidoriFormatter::FormatSource(read_result.value(), first_path.string());
+			const std::expected<std::string, CompilerError> format_result = MarmotFormatter::FormatSource(read_result.value(), first_path.string());
 			if (!format_result.has_value())
 			{
 				PrintCliError(format_result.error().Rendered());
@@ -983,12 +983,12 @@ namespace
 			return EXIT_SUCCESS;
 		}
 
-		MidoriFormatter::RunResult result;
+		MarmotFormatter::RunResult result;
 		for (const std::filesystem::path& path : invocation.m_fmt_paths)
 		{
-			MidoriFormatter::RunResult path_result = MidoriFormatter::FormatPath(
+			MarmotFormatter::RunResult path_result = MarmotFormatter::FormatPath(
 				path,
-				MidoriFormatter::Options{ invocation.m_fmt_write, invocation.m_fmt_check });
+				MarmotFormatter::Options{ invocation.m_fmt_write, invocation.m_fmt_check });
 			std::ranges::move(path_result.m_files, std::back_inserter(result.m_files));
 		}
 
@@ -1002,7 +1002,7 @@ namespace
 					files_json.push_back(',');
 				}
 
-				const MidoriFormatter::FileResult& file = result.m_files[index];
+				const MarmotFormatter::FileResult& file = result.m_files[index];
 				std::string object = "{";
 				bool first_field = true;
 				CompilerJson::AppendStringField(object, "path", file.m_path.generic_string(), first_field);
@@ -1032,7 +1032,7 @@ namespace
 		}
 		else
 		{
-			for (const MidoriFormatter::FileResult& file : result.m_files)
+			for (const MarmotFormatter::FileResult& file : result.m_files)
 			{
 				if (file.m_error.has_value())
 				{
@@ -1108,7 +1108,7 @@ namespace
 	}
 }
 
-namespace MidoriCLI
+namespace MarmotCLI
 {
 	int Run(int argc, char* argv[])
 	{

@@ -5,5 +5,5 @@
 class IntegerOverflowDiagnostic final : public DiagnosticPass
 {
 protected:
-	void operator()(MidoriExpression::Binary& binary) override;
+	void operator()(MarmotExpression::Binary& binary) override;
 };

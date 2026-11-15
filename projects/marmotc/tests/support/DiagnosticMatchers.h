@@ -7,7 +7,7 @@
 #include <string_view>
 #include <vector>
 
-namespace MidoriTest
+namespace MarmotTest
 {
 	struct WarningExpectation
 	{
@@ -33,19 +33,19 @@ namespace MidoriTest
 
 	[[nodiscard]] bool Matches(const CompilerError& error, const ErrorExpectation& expectation, std::string* mismatch = nullptr);
 
-	[[nodiscard]] const CompilerWarning* FindWarning(const MidoriResult::CompilerWarnings& warnings, CompilerWarningCode code);
-	[[nodiscard]] const CompilerWarning* FindWarning(const MidoriResult::CompilerWarnings& warnings, CompilerStage stage);
-	[[nodiscard]] const CompilerWarning* FindWarning(const MidoriResult::CompilerWarnings& warnings, CompilerStage stage, CompilerWarningCode code);
-	[[nodiscard]] const CompilerWarning* FindWarning(const MidoriResult::CompilerReport& report, CompilerWarningCode code);
-	[[nodiscard]] const CompilerWarning* FindWarning(const MidoriResult::CompilerReport& report, CompilerStage stage);
-	[[nodiscard]] const CompilerWarning* FindWarning(const MidoriResult::CompilerReport& report, CompilerStage stage, CompilerWarningCode code);
+	[[nodiscard]] const CompilerWarning* FindWarning(const MarmotResult::CompilerWarnings& warnings, CompilerWarningCode code);
+	[[nodiscard]] const CompilerWarning* FindWarning(const MarmotResult::CompilerWarnings& warnings, CompilerStage stage);
+	[[nodiscard]] const CompilerWarning* FindWarning(const MarmotResult::CompilerWarnings& warnings, CompilerStage stage, CompilerWarningCode code);
+	[[nodiscard]] const CompilerWarning* FindWarning(const MarmotResult::CompilerReport& report, CompilerWarningCode code);
+	[[nodiscard]] const CompilerWarning* FindWarning(const MarmotResult::CompilerReport& report, CompilerStage stage);
+	[[nodiscard]] const CompilerWarning* FindWarning(const MarmotResult::CompilerReport& report, CompilerStage stage, CompilerWarningCode code);
 	[[nodiscard]] const CompilerWarning* FindWarning(const std::vector<CompilerWarning>& warnings, CompilerWarningCode code);
 	[[nodiscard]] const CompilerWarning* FindWarning(const std::vector<CompilerWarning>& warnings, CompilerStage stage);
 	[[nodiscard]] const CompilerWarning* FindWarning(const std::vector<CompilerWarning>& warnings, CompilerStage stage, CompilerWarningCode code);
 
-	[[nodiscard]] const CompilerError* FindError(const MidoriResult::CompilerDiagnostics& diagnostics, CompilerStage stage);
-	[[nodiscard]] const CompilerError* FindError(const MidoriResult::CompilerDiagnostics& diagnostics, CompilerErrorCode code);
-	[[nodiscard]] const CompilerError* FindError(const MidoriResult::CompilerDiagnostics& diagnostics, CompilerStage stage, CompilerErrorCode code);
+	[[nodiscard]] const CompilerError* FindError(const MarmotResult::CompilerDiagnostics& diagnostics, CompilerStage stage);
+	[[nodiscard]] const CompilerError* FindError(const MarmotResult::CompilerDiagnostics& diagnostics, CompilerErrorCode code);
+	[[nodiscard]] const CompilerError* FindError(const MarmotResult::CompilerDiagnostics& diagnostics, CompilerStage stage, CompilerErrorCode code);
 
 	[[nodiscard]] const CompilerError* FindError(const std::vector<CompilerError>& errors, CompilerStage stage);
 	[[nodiscard]] const CompilerError* FindError(const std::vector<CompilerError>& errors, CompilerErrorCode code);

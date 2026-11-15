@@ -6,17 +6,17 @@ import
     "../../../MarmotPrelude/Prelude/Panic.mmt",
 }
 
-// Previously also covered MIDORI_FFI_ArrayAppend and MIDORI_FFI_ArrayPop, both
+// Previously also covered MARMOT_FFI_ArrayAppend and MARMOT_FFI_ArrayPop, both
 // of which mutated their argument in place and were deleted along with the
-// ARRAY_APPEND opcode (ArrayAppend) and MidoriArray::Pop (ArrayPop). What
+// ARRAY_APPEND opcode (ArrayAppend) and MarmotArray::Pop (ArrayPop). What
 // remains here is the FFI surface that returns new values or reads without
 // mutating.
 
-foreign "MIDORI_FFI_ArrayConcat" ArrayConcatInt : fn(Array<Int>, Array<Int>) -> Array<Int>;
-foreign "MIDORI_FFI_ArrayLength" ArrayLengthInt : fn(Array<Int>) -> Int;
-foreign "MIDORI_FFI_ArraySlice" ArraySliceInt : fn(Array<Int>, Int, Int) -> Array<Int>;
-foreign "MIDORI_FFI_ArrayReverse" ArrayReverseInt : fn(Array<Int>) -> Array<Int>;
-foreign "MIDORI_FFI_ArrayContains" ArrayContainsInt : fn(Array<Int>, Int) -> Bool;
+foreign "MARMOT_FFI_ArrayConcat" ArrayConcatInt : fn(Array<Int>, Array<Int>) -> Array<Int>;
+foreign "MARMOT_FFI_ArrayLength" ArrayLengthInt : fn(Array<Int>) -> Int;
+foreign "MARMOT_FFI_ArraySlice" ArraySliceInt : fn(Array<Int>, Int, Int) -> Array<Int>;
+foreign "MARMOT_FFI_ArrayReverse" ArrayReverseInt : fn(Array<Int>) -> Array<Int>;
+foreign "MARMOT_FFI_ArrayContains" ArrayContainsInt : fn(Array<Int>, Int) -> Bool;
 
 def arr = [1, 2, 3];
 if ArrayLengthInt(arr) == 3 then () else Panic::Panic("ArrayLength should report the array size");

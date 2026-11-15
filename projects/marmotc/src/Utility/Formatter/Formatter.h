@@ -8,7 +8,7 @@
 
 #include "Compiler/Error/CompilerError.h"
 
-namespace MidoriFormatter
+namespace MarmotFormatter
 {
 	struct Options
 	{

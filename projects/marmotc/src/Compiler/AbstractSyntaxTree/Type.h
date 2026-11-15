@@ -12,7 +12,7 @@
 
 #include "Compiler/Primitive/Primitive.h"
 
-class MidoriType
+class MarmotType
 {
 public:
 	struct UndecidedType {};
@@ -44,32 +44,32 @@ public:
 
 	struct ArrayType
 	{
-		std::shared_ptr<MidoriType> m_element_type;
+		std::shared_ptr<MarmotType> m_element_type;
 	};
 
 	struct WorkerType
 	{
-		std::shared_ptr<MidoriType> m_result_type;
+		std::shared_ptr<MarmotType> m_result_type;
 	};
 
 	struct ChannelType
 	{
-		std::shared_ptr<MidoriType> m_element_type;
+		std::shared_ptr<MarmotType> m_element_type;
 	};
 
 	struct CellType
 	{
-		std::shared_ptr<MidoriType> m_element_type;
+		std::shared_ptr<MarmotType> m_element_type;
 	};
 
 	struct RangeType
 	{
-		std::shared_ptr<MidoriType> m_element_type;
+		std::shared_ptr<MarmotType> m_element_type;
 	};
 
 	struct TupleType
 	{
-		std::vector<std::shared_ptr<MidoriType>> m_element_types;
+		std::vector<std::shared_ptr<MarmotType>> m_element_types;
 	};
 
 	struct ClassConstraint
@@ -85,14 +85,14 @@ public:
 		};
 
 		std::string m_class_name;
-		std::vector<std::shared_ptr<MidoriType>> m_type_args;
+		std::vector<std::shared_ptr<MarmotType>> m_type_args;
 		Kind m_kind = Kind::Class;
-		std::shared_ptr<MidoriType> m_equality_lhs;
-		std::shared_ptr<MidoriType> m_equality_rhs;
+		std::shared_ptr<MarmotType> m_equality_lhs;
+		std::shared_ptr<MarmotType> m_equality_rhs;
 
 		ClassConstraint() = default;
-		ClassConstraint(const std::string& typeclass_name, std::vector<std::shared_ptr<MidoriType>>&& type_args);
-		ClassConstraint(std::shared_ptr<MidoriType>&& equality_lhs, std::shared_ptr<MidoriType>&& equality_rhs);
+		ClassConstraint(const std::string& typeclass_name, std::vector<std::shared_ptr<MarmotType>>&& type_args);
+		ClassConstraint(std::shared_ptr<MarmotType>&& equality_lhs, std::shared_ptr<MarmotType>&& equality_rhs);
 		bool operator==(const ClassConstraint& other) const;
 		bool IsEquality() const;
 
@@ -116,34 +116,34 @@ public:
 	{
 		std::string m_class_name;
 		std::string m_name;
-		std::vector<std::shared_ptr<MidoriType>> m_type_args;
+		std::vector<std::shared_ptr<MarmotType>> m_type_args;
 
 		AssociatedType() = default;
-		AssociatedType(const std::string& class_name, const std::string& name, std::vector<std::shared_ptr<MidoriType>>&& type_args);
+		AssociatedType(const std::string& class_name, const std::string& name, std::vector<std::shared_ptr<MarmotType>>&& type_args);
 		bool operator==(const AssociatedType& other) const;
 	};
 
 	struct FunctionType
 	{
-		std::vector<std::shared_ptr<MidoriType>> m_param_types;
-		std::shared_ptr<MidoriType> m_return_type;
+		std::vector<std::shared_ptr<MarmotType>> m_param_types;
+		std::shared_ptr<MarmotType> m_return_type;
 		std::vector<ClassConstraint> m_constraints;
 		bool m_is_foreign = false;
 		// On a primitive's declared type only. A primitive can only be called, by
 		// the name of its declaration, so no copy of this type needs it.
-		std::optional<MidoriPrimitive> m_primitive;
+		std::optional<MarmotPrimitive> m_primitive;
 	};
 
 	struct StructType
 	{
-		std::vector<std::shared_ptr<MidoriType>> m_member_types;
+		std::vector<std::shared_ptr<MarmotType>> m_member_types;
 		std::vector<std::string> m_member_names;
 		std::string m_name;
 		// The module that declared it. Two modules may declare a type of the
 		// same name, and those are two types.
 		std::string m_module_name;
 		std::vector<std::string> m_generic_params;
-		std::vector<std::shared_ptr<MidoriType>> m_type_arguments;
+		std::vector<std::shared_ptr<MarmotType>> m_type_arguments;
 		std::vector<ClassConstraint> m_constraints;
 		bool m_is_generic_instantiation = false;
 	};
@@ -152,7 +152,7 @@ public:
 	{
 		struct UnionMemberContext
 		{
-			std::vector<std::shared_ptr<MidoriType>> m_member_types;
+			std::vector<std::shared_ptr<MarmotType>> m_member_types;
 			int m_tag;
 		};
 
@@ -160,7 +160,7 @@ public:
 		std::string m_name;
 		std::string m_module_name;
 		std::vector<std::string> m_generic_params;
-		std::vector<std::shared_ptr<MidoriType>> m_type_arguments;
+		std::vector<std::shared_ptr<MarmotType>> m_type_arguments;
 		std::vector<ClassConstraint> m_constraints;
 		bool m_is_generic_instantiation = false;
 
@@ -171,14 +171,14 @@ public:
 	{
 		std::string m_name;
 		std::string m_module_name;
-		std::shared_ptr<MidoriType> m_representation;
+		std::shared_ptr<MarmotType> m_representation;
 		std::vector<std::string> m_generic_params;
-		std::vector<std::shared_ptr<MidoriType>> m_type_arguments;
+		std::vector<std::shared_ptr<MarmotType>> m_type_arguments;
 		std::vector<ClassConstraint> m_constraints;
 		bool m_is_generic_instantiation = false;
 	};
 
-	using MidoriTypeUnion = std::variant
+	using MarmotTypeUnion = std::variant
 	<
 		UndecidedType,
 		GenericParam,
@@ -205,9 +205,9 @@ public:
 		ClassConstraint
 	>;
 
-	MidoriTypeUnion m_type;
+	MarmotTypeUnion m_type;
 
-	MidoriType(MidoriTypeUnion&& actual_type);
+	MarmotType(MarmotTypeUnion&& actual_type);
 
 public:
 	template<typename T>
@@ -237,36 +237,36 @@ public:
 	         std::is_same_v<T, TextType> ||
 	         std::is_same_v<T, UnitType> ||
 	         std::is_same_v<T, NeverType>
-	static const std::shared_ptr<MidoriType>& MakeLiteralType()
+	static const std::shared_ptr<MarmotType>& MakeLiteralType()
 	{
-		static std::shared_ptr<MidoriType> s_literal_type = std::make_shared<MidoriType>(T{});
+		static std::shared_ptr<MarmotType> s_literal_type = std::make_shared<MarmotType>(T{});
 		return s_literal_type;
 	}
 
-	static const std::shared_ptr<MidoriType> MakeUndecidedType();
-	static std::shared_ptr<MidoriType> MakeGenericType(const std::string& name);
-	static std::shared_ptr<MidoriType> MakeTypeVariable(int id);
-	static std::shared_ptr<MidoriType> MakeAssociatedType(const std::string& class_name, const std::string& name, std::vector<std::shared_ptr<MidoriType>>&& type_args);
-	static std::shared_ptr<MidoriType> MakeArrayType(const std::shared_ptr<MidoriType>& element_type);
-	static std::shared_ptr<MidoriType> MakeWorkerType(const std::shared_ptr<MidoriType>& result_type);
-	static std::shared_ptr<MidoriType> MakeChannelType(const std::shared_ptr<MidoriType>& element_type);
-	static std::shared_ptr<MidoriType> MakeCellType(const std::shared_ptr<MidoriType>& element_type);
-	static std::shared_ptr<MidoriType> MakeRangeType(const std::shared_ptr<MidoriType>& element_type);
-	static std::shared_ptr<MidoriType> MakeTupleType(std::vector<std::shared_ptr<MidoriType>>&& element_types);
-	static std::shared_ptr<MidoriType> MakeFunctionType(const std::vector<std::shared_ptr<MidoriType>>& param_types, std::shared_ptr<MidoriType>&& return_type, bool is_foreign = false);
-	static std::shared_ptr<MidoriType> MakeStructType(const std::string& name, const std::string& module_name, std::vector<std::shared_ptr<MidoriType>>&& member_types, std::vector<std::string>&& member_names, std::vector<std::string>&& generic_params = {});
-	static std::shared_ptr<MidoriType> MakeUnionType(const std::string& name, const std::string& module_name, std::vector<std::string>&& generic_params = {});
-	static std::shared_ptr<MidoriType> MakeNewType(const std::string& name, const std::string& module_name, const std::shared_ptr<MidoriType>& representation, std::vector<std::string>&& generic_params = {});
+	static const std::shared_ptr<MarmotType> MakeUndecidedType();
+	static std::shared_ptr<MarmotType> MakeGenericType(const std::string& name);
+	static std::shared_ptr<MarmotType> MakeTypeVariable(int id);
+	static std::shared_ptr<MarmotType> MakeAssociatedType(const std::string& class_name, const std::string& name, std::vector<std::shared_ptr<MarmotType>>&& type_args);
+	static std::shared_ptr<MarmotType> MakeArrayType(const std::shared_ptr<MarmotType>& element_type);
+	static std::shared_ptr<MarmotType> MakeWorkerType(const std::shared_ptr<MarmotType>& result_type);
+	static std::shared_ptr<MarmotType> MakeChannelType(const std::shared_ptr<MarmotType>& element_type);
+	static std::shared_ptr<MarmotType> MakeCellType(const std::shared_ptr<MarmotType>& element_type);
+	static std::shared_ptr<MarmotType> MakeRangeType(const std::shared_ptr<MarmotType>& element_type);
+	static std::shared_ptr<MarmotType> MakeTupleType(std::vector<std::shared_ptr<MarmotType>>&& element_types);
+	static std::shared_ptr<MarmotType> MakeFunctionType(const std::vector<std::shared_ptr<MarmotType>>& param_types, std::shared_ptr<MarmotType>&& return_type, bool is_foreign = false);
+	static std::shared_ptr<MarmotType> MakeStructType(const std::string& name, const std::string& module_name, std::vector<std::shared_ptr<MarmotType>>&& member_types, std::vector<std::string>&& member_names, std::vector<std::string>&& generic_params = {});
+	static std::shared_ptr<MarmotType> MakeUnionType(const std::string& name, const std::string& module_name, std::vector<std::string>&& generic_params = {});
+	static std::shared_ptr<MarmotType> MakeNewType(const std::string& name, const std::string& module_name, const std::shared_ptr<MarmotType>& representation, std::vector<std::string>&& generic_params = {});
 
-	static std::shared_ptr<MidoriType> SubstituteTypeParams(const std::shared_ptr<MidoriType>& type, const std::unordered_map<std::string, std::shared_ptr<MidoriType>>& substitutions);
+	static std::shared_ptr<MarmotType> SubstituteTypeParams(const std::shared_ptr<MarmotType>& type, const std::unordered_map<std::string, std::shared_ptr<MarmotType>>& substitutions);
 
 	// The same instantiation of a declared type, built in `target`, which a
 	// program may already name.
-	static void SubstituteTypeParamsInto(const std::shared_ptr<MidoriType>& target, const std::shared_ptr<MidoriType>& type, const std::unordered_map<std::string, std::shared_ptr<MidoriType>>& substitutions);
+	static void SubstituteTypeParamsInto(const std::shared_ptr<MarmotType>& target, const std::shared_ptr<MarmotType>& type, const std::unordered_map<std::string, std::shared_ptr<MarmotType>>& substitutions);
 
-	using TypeArgumentSubstituteFn = std::function<std::shared_ptr<MidoriType>(const std::shared_ptr<MidoriType>&)>;
+	using TypeArgumentSubstituteFn = std::function<std::shared_ptr<MarmotType>(const std::shared_ptr<MarmotType>&)>;
 
-	static std::vector<std::shared_ptr<MidoriType>> InstantiateTypeArguments(const std::vector<std::string>& generic_params, const std::vector<std::shared_ptr<MidoriType>>& type_arguments, const TypeArgumentSubstituteFn& substitute);
+	static std::vector<std::shared_ptr<MarmotType>> InstantiateTypeArguments(const std::vector<std::string>& generic_params, const std::vector<std::shared_ptr<MarmotType>>& type_arguments, const TypeArgumentSubstituteFn& substitute);
 
 	template<typename MapFn>
 	static std::vector<ClassConstraint> MapConstraints(const std::vector<ClassConstraint>& constraints, MapFn&& map)
@@ -288,15 +288,15 @@ public:
 	std::string DisplayString(const std::unordered_map<int, std::string>& variable_names) const;
 
 	// Each type's ToString, joined with ", ".
-	static std::string JoinToStrings(const std::vector<std::shared_ptr<MidoriType>>& types);
+	static std::string JoinToStrings(const std::vector<std::shared_ptr<MarmotType>>& types);
 
-	static std::string MangleInstanceMethodName(const std::string& method_name, const std::string& typeclass_name, const std::vector<std::shared_ptr<MidoriType>>& type_args);
+	static std::string MangleInstanceMethodName(const std::string& method_name, const std::string& typeclass_name, const std::vector<std::shared_ptr<MarmotType>>& type_args);
 
 	static std::string DemangleInstanceMethodName(const std::string& mangled_name, const std::string& typeclass_name);
 
 	bool IsNumericType() const;
 
-	friend bool operator==(const MidoriType& lhs, const MidoriType& rhs);
+	friend bool operator==(const MarmotType& lhs, const MarmotType& rhs);
 
 private:
 	std::string Stringify(bool qualify, const std::unordered_map<int, std::string>* variable_names) const;
@@ -308,7 +308,7 @@ private:
 	static bool CompareGenericUnions(const UnionType& a, const UnionType& b);
 	static bool CompareInstantiatedStructs(const StructType& a, const StructType& b);
 	static bool CompareInstantiatedUnions(const UnionType& a, const UnionType& b);
-	static bool CompareTypeArguments(const std::vector<std::shared_ptr<MidoriType>>& a, const std::vector<std::shared_ptr<MidoriType>>& b);
+	static bool CompareTypeArguments(const std::vector<std::shared_ptr<MarmotType>>& a, const std::vector<std::shared_ptr<MarmotType>>& b);
 };
 
-bool operator==(const MidoriType& lhs, const MidoriType& rhs);
+bool operator==(const MarmotType& lhs, const MarmotType& rhs);

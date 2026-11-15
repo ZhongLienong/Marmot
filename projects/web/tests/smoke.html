@@ -63,7 +63,7 @@
         check(runtime.error.includes("def missing = xs[4];"), "Runtime diagnostics use source embedded in .mmc bytes");
         const again = module.executeMarmotCode(source);
         check(again.success && again.output === "browser hello\n", "Execution recovers after compiler and runtime errors");
-        const errorOutput = module.executeMarmotCode('module Stderr\nforeign "MIDORI_FFI_PrintError" PrintError : fn(Text) -> Unit;\nPrintError("stderr test\\n");');
+        const errorOutput = module.executeMarmotCode('module Stderr\nforeign "MARMOT_FFI_PrintError" PrintError : fn(Text) -> Unit;\nPrintError("stderr test\\n");');
         check(errorOutput.success && errorOutput.output === "" && errorOutput.error === "stderr test\n", "Program stderr is captured separately from stdout");
 
         const nativeProduced = module.runMarmotBytecode(await fixture("control"));

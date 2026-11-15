@@ -5,7 +5,7 @@
 #include <string>
 #include <string_view>
 
-namespace MidoriUtility
+namespace MarmotUtility
 {
 	struct CapturedOutput
 	{

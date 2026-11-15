@@ -179,7 +179,7 @@ namespace
 	}
 }
 
-namespace MidoriBuildPlan
+namespace MarmotBuildPlan
 {
 	std::expected<BuildPlan, std::string> Parse(std::string_view json, const std::filesystem::path& base_directory)
 	{

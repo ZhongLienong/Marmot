@@ -271,18 +271,18 @@ BytecodeLinker::BytecodeLinker(std::vector<BytecodeModule>&& modules, std::strin
 {
 }
 
-MidoriResult::BytecodeLinkerResult BytecodeLinker::Link()
+MarmotResult::BytecodeLinkerResult BytecodeLinker::Link()
 {
 	AssignModuleBaseOffsets();
 
-	MidoriResult::VoidResult symbol_result = BuildGlobalSymbolTable();
+	MarmotResult::VoidResult symbol_result = BuildGlobalSymbolTable();
 	if (!symbol_result.has_value())
 	{
 		return std::unexpected(symbol_result.error());
 	}
 
 	MergeConstantPools();
-	MidoriResult::VoidResult shape_result = MergeShapes();
+	MarmotResult::VoidResult shape_result = MergeShapes();
 	if (!shape_result.has_value())
 	{
 		return std::unexpected(shape_result.error());
@@ -300,7 +300,7 @@ MidoriResult::BytecodeLinkerResult BytecodeLinker::Link()
 		}
 	}
 
-	MidoriResult::VoidResult import_result = ResolveImportsAndPatch();
+	MarmotResult::VoidResult import_result = ResolveImportsAndPatch();
 	if (!import_result.has_value())
 	{
 		return std::unexpected(import_result.error());
@@ -332,7 +332,7 @@ MidoriResult::BytecodeLinkerResult BytecodeLinker::Link()
 
 	m_global_procedures[0u] = BuildBootstrapProcedure();
 
-	MidoriExecutable executable;
+	MarmotExecutable executable;
 	executable.AttachProcedures(std::move(m_global_procedures));
 	executable.AttachProcedureNames(std::move(m_global_procedure_names));
 	executable.AttachProcedureSourcePaths(std::move(m_global_procedure_source_paths));
@@ -368,7 +368,7 @@ void BytecodeLinker::AssignModuleBaseOffsets()
 	);
 }
 
-MidoriResult::VoidResult BytecodeLinker::BuildGlobalSymbolTable()
+MarmotResult::VoidResult BytecodeLinker::BuildGlobalSymbolTable()
 {
 	for (const BytecodeModule& module : m_modules)
 	{
@@ -431,7 +431,7 @@ void BytecodeLinker::MergeConstantPools()
 	);
 }
 
-MidoriResult::VoidResult BytecodeLinker::MergeShapes()
+MarmotResult::VoidResult BytecodeLinker::MergeShapes()
 {
 	for (const BytecodeModule& module : m_modules)
 	{
@@ -521,13 +521,13 @@ void BytecodeLinker::MergeGlobalVariables()
 	);
 }
 
-MidoriResult::VoidResult BytecodeLinker::ResolveImportsAndPatch()
+MarmotResult::VoidResult BytecodeLinker::ResolveImportsAndPatch()
 {
 	for (const BytecodeModule& module : m_modules)
 	{
 		for (const BytecodeModule::ImportedSymbol& import : module.m_imports)
 		{
-			const MidoriResult::VoidResult result = ValidateImport(module, import);
+			const MarmotResult::VoidResult result = ValidateImport(module, import);
 			if (!result.has_value())
 			{
 				return result;
@@ -729,7 +729,7 @@ std::optional<size_t> BytecodeLinker::FindSymbolInGlobals(const BytecodeModule& 
 	return base_global_offset + local_index;
 }
 
-MidoriResult::VoidResult BytecodeLinker::ValidateImport(const BytecodeModule& module, const BytecodeModule::ImportedSymbol& import) const
+MarmotResult::VoidResult BytecodeLinker::ValidateImport(const BytecodeModule& module, const BytecodeModule::ImportedSymbol& import) const
 {
 	const BytecodeModule* imported_module = DefiningModule(import.m_from_module, import.m_name);
 	if (imported_module != nullptr && m_global_symbol_table.contains(MakeSymbolKey(imported_module->m_module_name, import.m_name)))

@@ -15,11 +15,11 @@ instance Hashable < Byte > {
 instance Hashable < Word > {
     def Hash = fn(value: Word) -> Int => value as Int;
 };
-foreign "MIDORI_FFI_HashText" HashText: fn(Text) -> Int;
+foreign "MARMOT_FFI_HashText" HashText: fn(Text) -> Int;
 instance Hashable < Text > {
     def Hash = fn(value: Text) -> Int => HashText(value);
 };
-foreign "MIDORI_FFI_HashFloat" HashFloat: fn(Float) -> Int;
+foreign "MARMOT_FFI_HashFloat" HashFloat: fn(Float) -> Int;
 instance Hashable < Float > {
     def Hash = fn(value: Float) -> Int => HashFloat(value);
 };

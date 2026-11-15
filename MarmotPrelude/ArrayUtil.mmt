@@ -12,8 +12,8 @@ def ContainsFrom = fn < T >(array: Array < T >, value: T, index: Int) -> Bool wh
 def Contains = fn < T >(array: Array < T >, value: T) -> Bool where Equatable < T > => ContainsFrom(array, value, 0);
 // The copies are the runtime's: element by element in Marmot, WithAppended
 // in a loop was about thirty times slower, on top of being quadratic.
-foreign "MIDORI_FFI_ArraySlice" ArraySlice: fn(Array < T >, Int, Int) -> Array < T >;
-foreign "MIDORI_FFI_ArrayReverse" ArrayReverse: fn(Array < T >) -> Array < T >;
+foreign "MARMOT_FFI_ArraySlice" ArraySlice: fn(Array < T >, Int, Int) -> Array < T >;
+foreign "MARMOT_FFI_ArrayReverse" ArrayReverse: fn(Array < T >) -> Array < T >;
 def Copy = fn < T >(array: Array < T >) -> Array < T > => ArraySlice(array, 0, Length(array));
 def Concat = fn < T >(first: Array < T >, second: Array < T >) -> Array < T > => first ++ second;
 def WithAppended = fn < T >(array: Array < T >, value: T) -> Array < T > => array ++ [value];

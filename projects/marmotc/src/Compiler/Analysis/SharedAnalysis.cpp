@@ -2,7 +2,7 @@
 
 #include "Compiler/Constant/Constant.h"
 
-namespace MidoriAnalysis
+namespace MarmotAnalysis
 {
 	std::string DemangleDisplayName(std::string_view qualified_name)
 	{

@@ -1,6 +1,6 @@
 #include "Compiler/Source/Source.h"
 
-namespace MidoriSource
+namespace MarmotSource
 {
 	bool StartsWithByteOrderMark(std::string_view text)
 	{

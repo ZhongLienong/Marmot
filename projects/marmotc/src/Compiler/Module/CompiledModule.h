@@ -35,8 +35,8 @@ struct CompiledModule
 
 	[[nodiscard]] BytecodeModule TakeBytecode() &&;
 
-	// The module's MidoriIR as text, when --emit-ir asked for it; empty otherwise.
-	[[nodiscard]] const std::string& MidoriIR() const;
+	// The module's MarmotIR as text, when --emit-ir asked for it; empty otherwise.
+	[[nodiscard]] const std::string& MarmotIR() const;
 
 	// The module's checked syntax tree as text, when --emit-ast asked for it; empty otherwise.
 	[[nodiscard]] const std::string& Ast() const;
@@ -45,7 +45,7 @@ struct CompiledModule
 
 	[[nodiscard]] CompiledModule WithBytecode(BytecodeModule bytecode) &&;
 
-	[[nodiscard]] CompiledModule WithMidoriIR(std::string midori_ir) &&;
+	[[nodiscard]] CompiledModule WithMarmotIR(std::string marmot_ir) &&;
 
 	[[nodiscard]] CompiledModule WithAst(std::string ast) &&;
 
@@ -53,6 +53,6 @@ private:
 	std::shared_ptr<const ModuleInterface> m_interface;
 	std::vector<CompilerWarning> m_warnings;
 	std::optional<BytecodeModule> m_bytecode;        // Per-module bytecode for incremental compilation
-	std::string m_midori_ir;
+	std::string m_marmot_ir;
 	std::string m_ast;
 };

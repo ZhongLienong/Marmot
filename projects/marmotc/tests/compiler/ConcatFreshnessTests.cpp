@@ -14,7 +14,7 @@ namespace
 	// Pins where the backend may extend text in place. `++` on a left operand
 	// nothing else can see is EXTEND_TEXT; on a name, which other code can
 	// still read, or on a text literal, which every load shares, it is
-	// CONCAT_TEXT. All go through the MidoriIR optimizer, because
+	// CONCAT_TEXT. All go through the MarmotIR optimizer, because
 	// test/prelude/success/concat_does_not_mutate_aliases.mmt and
 	// test/text/literal_left_of_concat.mmt prove the same property only by
 	// their output: if a pass folded their probes away, they would keep
@@ -106,8 +106,8 @@ namespace
 
 TEST_CASE("A text literal left operand of ++ emits CONCAT_TEXT and never EXTEND_TEXT", "[compiler][backend][concat]")
 {
-	std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> module_result =
-		MidoriTest::GenerateBytecodeSnippetWithDiagnostics(LITERAL_LEFT_SOURCE, "LiteralLeftProbe.mmt");
+	std::expected<BytecodeModule, MarmotResult::CompilerDiagnostics> module_result =
+		MarmotTest::GenerateBytecodeSnippetWithDiagnostics(LITERAL_LEFT_SOURCE, "LiteralLeftProbe.mmt");
 	REQUIRE(module_result.has_value());
 
 	const BytecodeStream& main_procedure = MainProcedureOrFail(module_result.value());
@@ -117,8 +117,8 @@ TEST_CASE("A text literal left operand of ++ emits CONCAT_TEXT and never EXTEND_
 
 TEST_CASE("A ++ on the result of another ++ emits EXTEND_TEXT", "[compiler][backend][concat]")
 {
-	std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> module_result =
-		MidoriTest::GenerateBytecodeSnippetWithDiagnostics(CHAIN_SOURCE, "ChainProbe.mmt");
+	std::expected<BytecodeModule, MarmotResult::CompilerDiagnostics> module_result =
+		MarmotTest::GenerateBytecodeSnippetWithDiagnostics(CHAIN_SOURCE, "ChainProbe.mmt");
 	REQUIRE(module_result.has_value());
 
 	const BytecodeStream& main_procedure = MainProcedureOrFail(module_result.value());
@@ -127,8 +127,8 @@ TEST_CASE("A ++ on the result of another ++ emits EXTEND_TEXT", "[compiler][back
 
 TEST_CASE("A ++ on a folded text constant emits CONCAT_TEXT and never EXTEND_TEXT", "[compiler][backend][concat]")
 {
-	std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> module_result =
-		MidoriTest::GenerateBytecodeSnippetWithDiagnostics(FOLDED_CHAIN_SOURCE, "FoldedChainProbe.mmt");
+	std::expected<BytecodeModule, MarmotResult::CompilerDiagnostics> module_result =
+		MarmotTest::GenerateBytecodeSnippetWithDiagnostics(FOLDED_CHAIN_SOURCE, "FoldedChainProbe.mmt");
 	REQUIRE(module_result.has_value());
 
 	const BytecodeStream& main_procedure = MainProcedureOrFail(module_result.value());
@@ -138,8 +138,8 @@ TEST_CASE("A ++ on a folded text constant emits CONCAT_TEXT and never EXTEND_TEX
 
 TEST_CASE("A name as the left operand of ++ emits CONCAT_TEXT and never EXTEND_TEXT", "[compiler][backend][concat]")
 {
-	std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> module_result =
-		MidoriTest::GenerateBytecodeSnippetWithDiagnostics(CONCAT_SHAPE_SOURCE, "ConcatTextProbe.mmt");
+	std::expected<BytecodeModule, MarmotResult::CompilerDiagnostics> module_result =
+		MarmotTest::GenerateBytecodeSnippetWithDiagnostics(CONCAT_SHAPE_SOURCE, "ConcatTextProbe.mmt");
 	REQUIRE(module_result.has_value());
 
 	const BytecodeStream& main_procedure = MainProcedureOrFail(module_result.value());

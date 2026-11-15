@@ -40,21 +40,21 @@ private:
 	std::vector<Shape> m_global_shapes{ Shape{}, Shape{ 0u } };
 	std::map<Shape, uint16_t> m_global_shape_indices{ { Shape{}, SCALAR_SHAPE }, { Shape{ 0u }, FIRST_FIELD_SHAPE } };
 	std::unordered_map<std::string, std::vector<uint16_t>> m_module_shape_mappings;
-	MidoriExecutable::SourceFileTable m_global_source_files;
+	MarmotExecutable::SourceFileTable m_global_source_files;
 
 public:
 	BytecodeLinker(std::vector<BytecodeModule>&& modules, std::string_view entry_module_name);
 
-	MidoriResult::BytecodeLinkerResult Link();
+	MarmotResult::BytecodeLinkerResult Link();
 
 private:
 	void AssignModuleBaseOffsets();
 
-	MidoriResult::VoidResult BuildGlobalSymbolTable();
+	MarmotResult::VoidResult BuildGlobalSymbolTable();
 
 	void MergeConstantPools();
 
-	MidoriResult::VoidResult MergeShapes();
+	MarmotResult::VoidResult MergeShapes();
 
 	void MergeFunctionNames();
 
@@ -62,7 +62,7 @@ private:
 
 	std::vector<NativeLibraryImport> MergeNativeLibraries() const;
 
-	MidoriResult::VoidResult ResolveImportsAndPatch();
+	MarmotResult::VoidResult ResolveImportsAndPatch();
 
 	void ConcatenateBytecode();
 
@@ -88,7 +88,7 @@ private:
 
 	std::optional<size_t> FindSymbolInGlobals(const BytecodeModule& module, const std::string& symbol_name, size_t base_global_offset) const;
 
-	MidoriResult::VoidResult ValidateImport(const BytecodeModule& module, const BytecodeModule::ImportedSymbol& import) const;
+	MarmotResult::VoidResult ValidateImport(const BytecodeModule& module, const BytecodeModule::ImportedSymbol& import) const;
 
 	std::vector<size_t> ResolveImports(const BytecodeModule& module) const;
 

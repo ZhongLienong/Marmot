@@ -60,7 +60,7 @@ struct BytecodeModule
 	using GlobalVariableList = std::vector<std::string>;
 	// An exported name this module does not define: the module it came from.
 	using ReexportMap = std::unordered_map<std::string, std::string>;
-	using SourceFileTable = MidoriExecutable::SourceFileTable;
+	using SourceFileTable = MarmotExecutable::SourceFileTable;
 
 	std::string m_module_name;
 	std::filesystem::path m_source_path;

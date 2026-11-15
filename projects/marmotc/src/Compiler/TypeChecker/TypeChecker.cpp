@@ -21,7 +21,7 @@ namespace
 	// Two types as a person reads them. The module comes back only when the
 	// short names are the same, which is the one case where a short name says
 	// nothing.
-	std::pair<std::string, std::string> DescribeTypePair(const MidoriType& first, const MidoriType& second)
+	std::pair<std::string, std::string> DescribeTypePair(const MarmotType& first, const MarmotType& second)
 	{
 		std::string first_name = first.DisplayString();
 		std::string second_name = second.DisplayString();
@@ -40,50 +40,50 @@ namespace
 		return module_name.empty() ? constructor_name : module_name + std::string(NameSeparator) + constructor_name;
 	}
 
-	const Token& GetPatternToken(const MidoriPattern& pattern)
+	const Token& GetPatternToken(const MarmotPattern& pattern)
 	{
 		return std::visit
 		(
 			[]<typename T>(const T& node) -> const Token&
 			{
 				using Node = std::decay_t<T>;
-				if constexpr (std::is_same_v<Node, MidoriPattern::Binding>)
+				if constexpr (std::is_same_v<Node, MarmotPattern::Binding>)
 				{
 					return node.m_name;
 				}
-				else if constexpr (std::is_same_v<Node, MidoriPattern::Wildcard>)
+				else if constexpr (std::is_same_v<Node, MarmotPattern::Wildcard>)
 				{
 					return node.m_token;
 				}
-				else if constexpr (std::is_same_v<Node, MidoriPattern::Literal>)
+				else if constexpr (std::is_same_v<Node, MarmotPattern::Literal>)
 				{
 					return node.m_token;
 				}
-				else if constexpr (std::is_same_v<Node, MidoriPattern::Tuple>)
+				else if constexpr (std::is_same_v<Node, MarmotPattern::Tuple>)
 				{
 					return node.m_left_paren;
 				}
-				else if constexpr (std::is_same_v<Node, MidoriPattern::Array>)
+				else if constexpr (std::is_same_v<Node, MarmotPattern::Array>)
 				{
 					return node.m_left_bracket;
 				}
-				else if constexpr (std::is_same_v<Node, MidoriPattern::Constructor>)
+				else if constexpr (std::is_same_v<Node, MarmotPattern::Constructor>)
 				{
 					return node.m_name_token;
 				}
-				else if constexpr (std::is_same_v<Node, MidoriPattern::As>)
+				else if constexpr (std::is_same_v<Node, MarmotPattern::As>)
 				{
 					return GetPatternToken(*node.m_pattern);
 				}
-				else if constexpr (std::is_same_v<Node, MidoriPattern::Or>)
+				else if constexpr (std::is_same_v<Node, MarmotPattern::Or>)
 				{
 					return GetPatternToken(*node.m_alternatives.front());
 				}
-				else if constexpr (std::is_same_v<Node, MidoriPattern::Range>)
+				else if constexpr (std::is_same_v<Node, MarmotPattern::Range>)
 				{
 					return node.m_start;
 				}
-				else if constexpr (std::is_same_v<Node, MidoriPattern::Record>)
+				else if constexpr (std::is_same_v<Node, MarmotPattern::Record>)
 				{
 					return node.m_name_token;
 				}
@@ -99,18 +99,18 @@ namespace
 
 	// What a type is built from, one level down. Every walk over a type descends
 	// through this one function, so no walk can skip a part another one sees.
-	void ForEachComponent(const MidoriType& type, const std::function<void(const std::shared_ptr<MidoriType>&)>& visit)
+	void ForEachComponent(const MarmotType& type, const std::function<void(const std::shared_ptr<MarmotType>&)>& visit)
 	{
-		const std::function<void(const std::vector<std::shared_ptr<MidoriType>>&)> visit_all = [&visit](const std::vector<std::shared_ptr<MidoriType>>& components)
+		const std::function<void(const std::vector<std::shared_ptr<MarmotType>>&)> visit_all = [&visit](const std::vector<std::shared_ptr<MarmotType>>& components)
 		{
-			for (const std::shared_ptr<MidoriType>& component : components)
+			for (const std::shared_ptr<MarmotType>& component : components)
 			{
 				visit(component);
 			}
 		};
-		const std::function<void(const std::vector<MidoriType::ClassConstraint>&)> visit_constraints = [&visit, &visit_all](const std::vector<MidoriType::ClassConstraint>& constraints)
+		const std::function<void(const std::vector<MarmotType::ClassConstraint>&)> visit_constraints = [&visit, &visit_all](const std::vector<MarmotType::ClassConstraint>& constraints)
 		{
-			for (const MidoriType::ClassConstraint& constraint : constraints)
+			for (const MarmotType::ClassConstraint& constraint : constraints)
 			{
 				visit_all(constraint.m_type_args);
 				if (constraint.IsEquality())
@@ -126,31 +126,31 @@ namespace
 			[&visit, &visit_all, &visit_constraints]<typename T>(const T& node)
 			{
 				using Node = std::decay_t<T>;
-				if constexpr (std::is_same_v<Node, MidoriType::ArrayType> || std::is_same_v<Node, MidoriType::ChannelType> || std::is_same_v<Node, MidoriType::CellType> || std::is_same_v<Node, MidoriType::RangeType>)
+				if constexpr (std::is_same_v<Node, MarmotType::ArrayType> || std::is_same_v<Node, MarmotType::ChannelType> || std::is_same_v<Node, MarmotType::CellType> || std::is_same_v<Node, MarmotType::RangeType>)
 				{
 					visit(node.m_element_type);
 				}
-				else if constexpr (std::is_same_v<Node, MidoriType::WorkerType>)
+				else if constexpr (std::is_same_v<Node, MarmotType::WorkerType>)
 				{
 					visit(node.m_result_type);
 				}
-				else if constexpr (std::is_same_v<Node, MidoriType::TupleType>)
+				else if constexpr (std::is_same_v<Node, MarmotType::TupleType>)
 				{
 					visit_all(node.m_element_types);
 				}
-				else if constexpr (std::is_same_v<Node, MidoriType::FunctionType>)
+				else if constexpr (std::is_same_v<Node, MarmotType::FunctionType>)
 				{
 					visit_all(node.m_param_types);
 					visit(node.m_return_type);
 					visit_constraints(node.m_constraints);
 				}
-				else if constexpr (std::is_same_v<Node, MidoriType::StructType>)
+				else if constexpr (std::is_same_v<Node, MarmotType::StructType>)
 				{
 					visit_all(node.m_member_types);
 					visit_all(node.m_type_arguments);
 					visit_constraints(node.m_constraints);
 				}
-				else if constexpr (std::is_same_v<Node, MidoriType::UnionType>)
+				else if constexpr (std::is_same_v<Node, MarmotType::UnionType>)
 				{
 					for (const auto& [_, member_ctx] : node.m_member_info)
 					{
@@ -159,13 +159,13 @@ namespace
 					visit_all(node.m_type_arguments);
 					visit_constraints(node.m_constraints);
 				}
-				else if constexpr (std::is_same_v<Node, MidoriType::NewType>)
+				else if constexpr (std::is_same_v<Node, MarmotType::NewType>)
 				{
 					visit(node.m_representation);
 					visit_all(node.m_type_arguments);
 					visit_constraints(node.m_constraints);
 				}
-				else if constexpr (std::is_same_v<Node, MidoriType::AssociatedType> || std::is_same_v<Node, MidoriType::ClassConstraint>)
+				else if constexpr (std::is_same_v<Node, MarmotType::AssociatedType> || std::is_same_v<Node, MarmotType::ClassConstraint>)
 				{
 					visit_all(node.m_type_args);
 				}
@@ -177,22 +177,22 @@ namespace
 	// A newtype with `map` applied to what it is built from: its representation,
 	// type arguments and constraints.
 	template<typename MapFn>
-	std::shared_ptr<MidoriType> MapNewType(const std::shared_ptr<MidoriType>& type, MapFn&& map)
+	std::shared_ptr<MarmotType> MapNewType(const std::shared_ptr<MarmotType>& type, MapFn&& map)
 	{
-		const MidoriType::NewType& new_type = type->GetType<MidoriType::NewType>();
+		const MarmotType::NewType& new_type = type->GetType<MarmotType::NewType>();
 		std::vector<std::string> generic_params = new_type.m_generic_params;
-		std::shared_ptr<MidoriType> mapped = MidoriType::MakeNewType(new_type.m_name, new_type.m_module_name, map(new_type.m_representation), std::move(generic_params));
-		MidoriType::NewType& mapped_ref = mapped->GetType<MidoriType::NewType>();
-		mapped_ref.m_constraints = MidoriType::MapConstraints(new_type.m_constraints, map);
+		std::shared_ptr<MarmotType> mapped = MarmotType::MakeNewType(new_type.m_name, new_type.m_module_name, map(new_type.m_representation), std::move(generic_params));
+		MarmotType::NewType& mapped_ref = mapped->GetType<MarmotType::NewType>();
+		mapped_ref.m_constraints = MarmotType::MapConstraints(new_type.m_constraints, map);
 		if (!new_type.m_generic_params.empty() || new_type.m_is_generic_instantiation)
 		{
 			mapped_ref.m_is_generic_instantiation = true;
-			mapped_ref.m_type_arguments = MidoriType::InstantiateTypeArguments(new_type.m_generic_params, new_type.m_type_arguments, map);
+			mapped_ref.m_type_arguments = MarmotType::InstantiateTypeArguments(new_type.m_generic_params, new_type.m_type_arguments, map);
 		}
 		return mapped;
 	}
 
-	void ForEachType(const std::shared_ptr<MidoriType>& type, const std::function<void(const MidoriType&)>& visit, std::unordered_set<const MidoriType*>& visited)
+	void ForEachType(const std::shared_ptr<MarmotType>& type, const std::function<void(const MarmotType&)>& visit, std::unordered_set<const MarmotType*>& visited)
 	{
 		if (type == nullptr || !visited.insert(type.get()).second)
 		{
@@ -200,10 +200,10 @@ namespace
 		}
 
 		visit(*type);
-		ForEachComponent(*type, [&visit, &visited](const std::shared_ptr<MidoriType>& component) { ForEachType(component, visit, visited); });
+		ForEachComponent(*type, [&visit, &visited](const std::shared_ptr<MarmotType>& component) { ForEachType(component, visit, visited); });
 	}
 
-	bool ContainsType(const std::shared_ptr<MidoriType>& type, const std::function<bool(const MidoriType&)>& is_wanted, std::unordered_set<const MidoriType*>& visited)
+	bool ContainsType(const std::shared_ptr<MarmotType>& type, const std::function<bool(const MarmotType&)>& is_wanted, std::unordered_set<const MarmotType*>& visited)
 	{
 		if (type == nullptr || !visited.insert(type.get()).second)
 		{
@@ -216,80 +216,80 @@ namespace
 		}
 
 		bool found = false;
-		ForEachComponent(*type, [&found, &is_wanted, &visited](const std::shared_ptr<MidoriType>& component) { found = found || ContainsType(component, is_wanted, visited); });
+		ForEachComponent(*type, [&found, &is_wanted, &visited](const std::shared_ptr<MarmotType>& component) { found = found || ContainsType(component, is_wanted, visited); });
 		return found;
 	}
 
-	bool HasTypeVariables(const std::shared_ptr<MidoriType>& type)
+	bool HasTypeVariables(const std::shared_ptr<MarmotType>& type)
 	{
-		std::unordered_set<const MidoriType*> visited;
-		return ContainsType(type, [](const MidoriType& node) { return node.IsType<MidoriType::TypeVariable>(); }, visited);
+		std::unordered_set<const MarmotType*> visited;
+		return ContainsType(type, [](const MarmotType& node) { return node.IsType<MarmotType::TypeVariable>(); }, visited);
 	}
 
 	// Whether substitution can change the type: a variable may be bound, and a
 	// projection may reduce.
-	bool NeedsSubstitution(const std::shared_ptr<MidoriType>& type)
+	bool NeedsSubstitution(const std::shared_ptr<MarmotType>& type)
 	{
-		std::unordered_set<const MidoriType*> visited;
-		return ContainsType(type, [](const MidoriType& node) { return node.IsType<MidoriType::TypeVariable>() || node.IsType<MidoriType::AssociatedType>(); }, visited);
+		std::unordered_set<const MarmotType*> visited;
+		return ContainsType(type, [](const MarmotType& node) { return node.IsType<MarmotType::TypeVariable>() || node.IsType<MarmotType::AssociatedType>(); }, visited);
 	}
 
 	// A union's members' fields, in tag order: a member's tag is its place in the
 	// declaration.
-	std::vector<std::vector<std::shared_ptr<MidoriType>>> FieldsByTag(const MidoriType::UnionType& union_type)
+	std::vector<std::vector<std::shared_ptr<MarmotType>>> FieldsByTag(const MarmotType::UnionType& union_type)
 	{
-		std::vector<std::vector<std::shared_ptr<MidoriType>>> fields(union_type.m_member_info.size());
-		for (const std::pair<const std::string, MidoriType::UnionType::UnionMemberContext>& member : union_type.m_member_info)
+		std::vector<std::vector<std::shared_ptr<MarmotType>>> fields(union_type.m_member_info.size());
+		for (const std::pair<const std::string, MarmotType::UnionType::UnionMemberContext>& member : union_type.m_member_info)
 		{
 			fields[static_cast<size_t>(member.second.m_tag)] = member.second.m_member_types;
 		}
 		return fields;
 	}
 
-	bool IsSpawnSignature(const std::shared_ptr<MidoriType>& argument, const std::shared_ptr<MidoriType>& function, const std::shared_ptr<MidoriType>& result)
+	bool IsSpawnSignature(const std::shared_ptr<MarmotType>& argument, const std::shared_ptr<MarmotType>& function, const std::shared_ptr<MarmotType>& result)
 	{
-		if (!function->IsType<MidoriType::FunctionType>() || !result->IsType<MidoriType::WorkerType>())
+		if (!function->IsType<MarmotType::FunctionType>() || !result->IsType<MarmotType::WorkerType>())
 		{
 			return false;
 		}
-		const MidoriType::FunctionType& spawned = function->GetType<MidoriType::FunctionType>();
+		const MarmotType::FunctionType& spawned = function->GetType<MarmotType::FunctionType>();
 		return spawned.m_param_types.size() == 1u
 			&& *spawned.m_param_types[0u] == *argument
-			&& *spawned.m_return_type == *result->GetType<MidoriType::WorkerType>().m_result_type;
+			&& *spawned.m_return_type == *result->GetType<MarmotType::WorkerType>().m_result_type;
 	}
 
 	// What the VM builds when it joins a worker, by position rather than by name:
 	// member 0 holds the worker's value and member 1 why there is none, cancelled
 	// (member 0, no fields) or failed (member 1, the message).
-	bool IsJoinOutcome(const std::shared_ptr<MidoriType>& outcome, const std::shared_ptr<MidoriType>& value)
+	bool IsJoinOutcome(const std::shared_ptr<MarmotType>& outcome, const std::shared_ptr<MarmotType>& value)
 	{
-		if (!outcome->IsType<MidoriType::UnionType>())
+		if (!outcome->IsType<MarmotType::UnionType>())
 		{
 			return false;
 		}
-		const std::vector<std::vector<std::shared_ptr<MidoriType>>> outcome_fields = FieldsByTag(outcome->GetType<MidoriType::UnionType>());
+		const std::vector<std::vector<std::shared_ptr<MarmotType>>> outcome_fields = FieldsByTag(outcome->GetType<MarmotType::UnionType>());
 		if (outcome_fields.size() != 2u || outcome_fields[0u].size() != 1u || *outcome_fields[0u][0u] != *value
-			|| outcome_fields[1u].size() != 1u || !outcome_fields[1u][0u]->IsType<MidoriType::UnionType>())
+			|| outcome_fields[1u].size() != 1u || !outcome_fields[1u][0u]->IsType<MarmotType::UnionType>())
 		{
 			return false;
 		}
-		const std::vector<std::vector<std::shared_ptr<MidoriType>>> error_fields = FieldsByTag(outcome_fields[1u][0u]->GetType<MidoriType::UnionType>());
+		const std::vector<std::vector<std::shared_ptr<MarmotType>>> error_fields = FieldsByTag(outcome_fields[1u][0u]->GetType<MarmotType::UnionType>());
 		return error_fields.size() == 2u && error_fields[0u].empty()
-			&& error_fields[1u].size() == 1u && error_fields[1u][0u]->IsType<MidoriType::TextType>();
+			&& error_fields[1u].size() == 1u && error_fields[1u][0u]->IsType<MarmotType::TextType>();
 	}
 
-	std::unordered_set<int> CollectTypeVariableIds(const std::shared_ptr<MidoriType>& type)
+	std::unordered_set<int> CollectTypeVariableIds(const std::shared_ptr<MarmotType>& type)
 	{
 		std::unordered_set<int> type_variable_ids;
-		std::unordered_set<const MidoriType*> visited;
+		std::unordered_set<const MarmotType*> visited;
 		ForEachType
 		(
 			type,
-			[&type_variable_ids](const MidoriType& node)
+			[&type_variable_ids](const MarmotType& node)
 			{
-				if (node.IsType<MidoriType::TypeVariable>())
+				if (node.IsType<MarmotType::TypeVariable>())
 				{
-					type_variable_ids.insert(node.GetType<MidoriType::TypeVariable>().m_id);
+					type_variable_ids.insert(node.GetType<MarmotType::TypeVariable>().m_id);
 				}
 			},
 			visited
@@ -297,20 +297,20 @@ namespace
 		return type_variable_ids;
 	}
 
-	std::unordered_set<std::string> CollectGenericParamNames(const std::vector<std::shared_ptr<MidoriType>>& types)
+	std::unordered_set<std::string> CollectGenericParamNames(const std::vector<std::shared_ptr<MarmotType>>& types)
 	{
 		std::unordered_set<std::string> names;
-		std::unordered_set<const MidoriType*> visited;
-		for (const std::shared_ptr<MidoriType>& type : types)
+		std::unordered_set<const MarmotType*> visited;
+		for (const std::shared_ptr<MarmotType>& type : types)
 		{
 			ForEachType
 			(
 				type,
-				[&names](const MidoriType& node)
+				[&names](const MarmotType& node)
 				{
-					if (node.IsType<MidoriType::GenericParam>())
+					if (node.IsType<MarmotType::GenericParam>())
 					{
-						names.insert(node.GetType<MidoriType::GenericParam>().m_name);
+						names.insert(node.GetType<MarmotType::GenericParam>().m_name);
 					}
 				},
 				visited
@@ -323,29 +323,29 @@ namespace
 	// through the projection on its left side. Both must refer to a declared class,
 	// so validation sites ask for the name rather than reading m_class_name, which
 	// is empty for an equality.
-	const std::string& ConstrainedClassName(const MidoriType::ClassConstraint& constraint)
+	const std::string& ConstrainedClassName(const MarmotType::ClassConstraint& constraint)
 	{
-		if (constraint.IsEquality() && constraint.m_equality_lhs->IsType<MidoriType::AssociatedType>())
+		if (constraint.IsEquality() && constraint.m_equality_lhs->IsType<MarmotType::AssociatedType>())
 		{
-			return constraint.m_equality_lhs->GetType<MidoriType::AssociatedType>().m_class_name;
+			return constraint.m_equality_lhs->GetType<MarmotType::AssociatedType>().m_class_name;
 		}
 
 		return constraint.m_class_name;
 	}
 
-	bool ContainsConstraint(const std::vector<MidoriType::ClassConstraint>& constraints, const MidoriType::ClassConstraint& constraint)
+	bool ContainsConstraint(const std::vector<MarmotType::ClassConstraint>& constraints, const MarmotType::ClassConstraint& constraint)
 	{
 		return std::ranges::any_of
 		(
 			constraints,
-			[&constraint](const MidoriType::ClassConstraint& existing)
+			[&constraint](const MarmotType::ClassConstraint& existing)
 			{
 				return existing == constraint;
 			}
 		);
 	}
 
-	void AppendUniqueConstraint(std::vector<MidoriType::ClassConstraint>& constraints, MidoriType::ClassConstraint&& constraint)
+	void AppendUniqueConstraint(std::vector<MarmotType::ClassConstraint>& constraints, MarmotType::ClassConstraint&& constraint)
 	{
 		if (!ContainsConstraint(constraints, constraint))
 		{
@@ -353,31 +353,31 @@ namespace
 		}
 	}
 
-	std::vector<MidoriType::ClassConstraint> CollectSignatureConstraints(
-		const std::vector<std::shared_ptr<MidoriType>>& param_types,
-		const std::shared_ptr<MidoriType>& return_type
+	std::vector<MarmotType::ClassConstraint> CollectSignatureConstraints(
+		const std::vector<std::shared_ptr<MarmotType>>& param_types,
+		const std::shared_ptr<MarmotType>& return_type
 	)
 	{
-		std::vector<MidoriType::ClassConstraint> constraints;
-		std::unordered_set<const MidoriType*> visited;
-		const std::function<void(const MidoriType&)> collect = [&constraints](const MidoriType& node)
+		std::vector<MarmotType::ClassConstraint> constraints;
+		std::unordered_set<const MarmotType*> visited;
+		const std::function<void(const MarmotType&)> collect = [&constraints](const MarmotType& node)
 		{
-			const std::vector<MidoriType::ClassConstraint>* node_constraints = node.IsType<MidoriType::FunctionType>() ? &node.GetType<MidoriType::FunctionType>().m_constraints
-				: node.IsType<MidoriType::StructType>() ? &node.GetType<MidoriType::StructType>().m_constraints
-				: node.IsType<MidoriType::UnionType>() ? &node.GetType<MidoriType::UnionType>().m_constraints
+			const std::vector<MarmotType::ClassConstraint>* node_constraints = node.IsType<MarmotType::FunctionType>() ? &node.GetType<MarmotType::FunctionType>().m_constraints
+				: node.IsType<MarmotType::StructType>() ? &node.GetType<MarmotType::StructType>().m_constraints
+				: node.IsType<MarmotType::UnionType>() ? &node.GetType<MarmotType::UnionType>().m_constraints
 				: nullptr;
 			if (node_constraints == nullptr)
 			{
 				return;
 			}
 
-			for (const MidoriType::ClassConstraint& constraint : *node_constraints)
+			for (const MarmotType::ClassConstraint& constraint : *node_constraints)
 			{
-				AppendUniqueConstraint(constraints, MidoriType::ClassConstraint(constraint));
+				AppendUniqueConstraint(constraints, MarmotType::ClassConstraint(constraint));
 			}
 		};
 
-		for (const std::shared_ptr<MidoriType>& param_type : param_types)
+		for (const std::shared_ptr<MarmotType>& param_type : param_types)
 		{
 			ForEachType(param_type, collect, visited);
 		}
@@ -391,15 +391,15 @@ namespace
 		return names | std::views::join_with(std::string_view(", ")) | std::ranges::to<std::string>();
 	}
 
-	bool MatchInstanceTypeArg(const std::shared_ptr<MidoriType>& pattern, const std::shared_ptr<MidoriType>& concrete, std::unordered_map<std::string, std::shared_ptr<MidoriType>>& substitutions, std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash>& visited);
+	bool MatchInstanceTypeArg(const std::shared_ptr<MarmotType>& pattern, const std::shared_ptr<MarmotType>& concrete, std::unordered_map<std::string, std::shared_ptr<MarmotType>>& substitutions, std::unordered_set<std::pair<MarmotType*, MarmotType*>, TypePairHash>& visited);
 
-	bool MatchInstanceTypeArguments(const std::vector<std::string>& pattern_generic_params, const std::vector<std::shared_ptr<MidoriType>>& pattern_type_arguments, const std::vector<std::shared_ptr<MidoriType>>& concrete_type_arguments, std::unordered_map<std::string, std::shared_ptr<MidoriType>>& substitutions, std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash>& visited)
+	bool MatchInstanceTypeArguments(const std::vector<std::string>& pattern_generic_params, const std::vector<std::shared_ptr<MarmotType>>& pattern_type_arguments, const std::vector<std::shared_ptr<MarmotType>>& concrete_type_arguments, std::unordered_map<std::string, std::shared_ptr<MarmotType>>& substitutions, std::unordered_set<std::pair<MarmotType*, MarmotType*>, TypePairHash>& visited)
 	{
-		const std::vector<std::shared_ptr<MidoriType>> resolved_pattern_type_arguments = MidoriType::InstantiateTypeArguments
+		const std::vector<std::shared_ptr<MarmotType>> resolved_pattern_type_arguments = MarmotType::InstantiateTypeArguments
 		(
 			pattern_generic_params,
 			pattern_type_arguments,
-			[](const std::shared_ptr<MidoriType>& type_argument) { return type_argument; }
+			[](const std::shared_ptr<MarmotType>& type_argument) { return type_argument; }
 		);
 
 		if (resolved_pattern_type_arguments.size() != concrete_type_arguments.size())
@@ -418,24 +418,24 @@ namespace
 		return true;
 	}
 
-	bool MatchInstanceTypeArg(const std::shared_ptr<MidoriType>& pattern, const std::shared_ptr<MidoriType>& concrete, std::unordered_map<std::string, std::shared_ptr<MidoriType>>& substitutions, std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash>& visited)
+	bool MatchInstanceTypeArg(const std::shared_ptr<MarmotType>& pattern, const std::shared_ptr<MarmotType>& concrete, std::unordered_map<std::string, std::shared_ptr<MarmotType>>& substitutions, std::unordered_set<std::pair<MarmotType*, MarmotType*>, TypePairHash>& visited)
 	{
 		if (!pattern || !concrete)
 		{
 			return false;
 		}
 
-		std::pair<MidoriType*, MidoriType*> key{ pattern.get(), concrete.get() };
+		std::pair<MarmotType*, MarmotType*> key{ pattern.get(), concrete.get() };
 		if (visited.contains(key))
 		{
 			return true;
 		}
 		visited.emplace(key);
 
-		if (pattern->IsType<MidoriType::GenericParam>())
+		if (pattern->IsType<MarmotType::GenericParam>())
 		{
-			const std::string& param_name = pattern->GetType<MidoriType::GenericParam>().m_name;
-			std::unordered_map<std::string, std::shared_ptr<MidoriType>>::iterator it = substitutions.find(param_name);
+			const std::string& param_name = pattern->GetType<MarmotType::GenericParam>().m_name;
+			std::unordered_map<std::string, std::shared_ptr<MarmotType>>::iterator it = substitutions.find(param_name);
 			if (it != substitutions.end())
 			{
 				return *it->second == *concrete;
@@ -444,42 +444,42 @@ namespace
 			return true;
 		}
 
-		if (pattern->IsType<MidoriType::ArrayType>())
+		if (pattern->IsType<MarmotType::ArrayType>())
 		{
-			if (!concrete->IsType<MidoriType::ArrayType>())
+			if (!concrete->IsType<MarmotType::ArrayType>())
 			{
 				return false;
 			}
-			return MatchInstanceTypeArg(pattern->GetType<MidoriType::ArrayType>().m_element_type, concrete->GetType<MidoriType::ArrayType>().m_element_type, substitutions, visited);
+			return MatchInstanceTypeArg(pattern->GetType<MarmotType::ArrayType>().m_element_type, concrete->GetType<MarmotType::ArrayType>().m_element_type, substitutions, visited);
 		}
 
-		if (pattern->IsType<MidoriType::CellType>())
+		if (pattern->IsType<MarmotType::CellType>())
 		{
-			if (!concrete->IsType<MidoriType::CellType>())
+			if (!concrete->IsType<MarmotType::CellType>())
 			{
 				return false;
 			}
-			return MatchInstanceTypeArg(pattern->GetType<MidoriType::CellType>().m_element_type, concrete->GetType<MidoriType::CellType>().m_element_type, substitutions, visited);
+			return MatchInstanceTypeArg(pattern->GetType<MarmotType::CellType>().m_element_type, concrete->GetType<MarmotType::CellType>().m_element_type, substitutions, visited);
 		}
 
-		if (pattern->IsType<MidoriType::RangeType>())
+		if (pattern->IsType<MarmotType::RangeType>())
 		{
-			if (!concrete->IsType<MidoriType::RangeType>())
+			if (!concrete->IsType<MarmotType::RangeType>())
 			{
 				return false;
 			}
-			return MatchInstanceTypeArg(pattern->GetType<MidoriType::RangeType>().m_element_type, concrete->GetType<MidoriType::RangeType>().m_element_type, substitutions, visited);
+			return MatchInstanceTypeArg(pattern->GetType<MarmotType::RangeType>().m_element_type, concrete->GetType<MarmotType::RangeType>().m_element_type, substitutions, visited);
 		}
 
-		if (pattern->IsType<MidoriType::TupleType>())
+		if (pattern->IsType<MarmotType::TupleType>())
 		{
-			if (!concrete->IsType<MidoriType::TupleType>())
+			if (!concrete->IsType<MarmotType::TupleType>())
 			{
 				return false;
 			}
 
-			const MidoriType::TupleType& pattern_tuple = pattern->GetType<MidoriType::TupleType>();
-			const MidoriType::TupleType& concrete_tuple = concrete->GetType<MidoriType::TupleType>();
+			const MarmotType::TupleType& pattern_tuple = pattern->GetType<MarmotType::TupleType>();
+			const MarmotType::TupleType& concrete_tuple = concrete->GetType<MarmotType::TupleType>();
 			if (pattern_tuple.m_element_types.size() != concrete_tuple.m_element_types.size())
 			{
 				return false;
@@ -494,15 +494,15 @@ namespace
 			return true;
 		}
 
-		if (pattern->IsType<MidoriType::FunctionType>())
+		if (pattern->IsType<MarmotType::FunctionType>())
 		{
-			if (!concrete->IsType<MidoriType::FunctionType>())
+			if (!concrete->IsType<MarmotType::FunctionType>())
 			{
 				return false;
 			}
 
-			const MidoriType::FunctionType& pattern_func = pattern->GetType<MidoriType::FunctionType>();
-			const MidoriType::FunctionType& concrete_func = concrete->GetType<MidoriType::FunctionType>();
+			const MarmotType::FunctionType& pattern_func = pattern->GetType<MarmotType::FunctionType>();
+			const MarmotType::FunctionType& concrete_func = concrete->GetType<MarmotType::FunctionType>();
 			if (pattern_func.m_param_types.size() != concrete_func.m_param_types.size())
 			{
 				return false;
@@ -517,15 +517,15 @@ namespace
 			return MatchInstanceTypeArg(pattern_func.m_return_type, concrete_func.m_return_type, substitutions, visited);
 		}
 
-		if (pattern->IsType<MidoriType::StructType>())
+		if (pattern->IsType<MarmotType::StructType>())
 		{
-			if (!concrete->IsType<MidoriType::StructType>())
+			if (!concrete->IsType<MarmotType::StructType>())
 			{
 				return false;
 			}
 
-			const MidoriType::StructType& pattern_struct = pattern->GetType<MidoriType::StructType>();
-			const MidoriType::StructType& concrete_struct = concrete->GetType<MidoriType::StructType>();
+			const MarmotType::StructType& pattern_struct = pattern->GetType<MarmotType::StructType>();
+			const MarmotType::StructType& concrete_struct = concrete->GetType<MarmotType::StructType>();
 			if (pattern_struct.m_name != concrete_struct.m_name ||
 				pattern_struct.m_module_name != concrete_struct.m_module_name ||
 				pattern_struct.m_member_types.size() != concrete_struct.m_member_types.size())
@@ -548,15 +548,15 @@ namespace
 			return true;
 		}
 
-		if (pattern->IsType<MidoriType::UnionType>())
+		if (pattern->IsType<MarmotType::UnionType>())
 		{
-			if (!concrete->IsType<MidoriType::UnionType>())
+			if (!concrete->IsType<MarmotType::UnionType>())
 			{
 				return false;
 			}
 
-			const MidoriType::UnionType& pattern_union = pattern->GetType<MidoriType::UnionType>();
-			const MidoriType::UnionType& concrete_union = concrete->GetType<MidoriType::UnionType>();
+			const MarmotType::UnionType& pattern_union = pattern->GetType<MarmotType::UnionType>();
+			const MarmotType::UnionType& concrete_union = concrete->GetType<MarmotType::UnionType>();
 			if (pattern_union.m_name != concrete_union.m_name ||
 				pattern_union.m_module_name != concrete_union.m_module_name ||
 				pattern_union.m_member_info.size() != concrete_union.m_member_info.size())
@@ -571,13 +571,13 @@ namespace
 
 			for (const auto& [member_name, pattern_ctx] : pattern_union.m_member_info)
 			{
-				std::unordered_map<std::string, MidoriType::UnionType::UnionMemberContext>::const_iterator concrete_it =
+				std::unordered_map<std::string, MarmotType::UnionType::UnionMemberContext>::const_iterator concrete_it =
 					concrete_union.m_member_info.find(member_name);
 				if (concrete_it == concrete_union.m_member_info.end())
 				{
 					return false;
 				}
-				const MidoriType::UnionType::UnionMemberContext& concrete_ctx = concrete_it->second;
+				const MarmotType::UnionType::UnionMemberContext& concrete_ctx = concrete_it->second;
 				if (pattern_ctx.m_member_types.size() != concrete_ctx.m_member_types.size())
 				{
 					return false;
@@ -593,15 +593,15 @@ namespace
 			return true;
 		}
 
-		if (pattern->IsType<MidoriType::NewType>())
+		if (pattern->IsType<MarmotType::NewType>())
 		{
-			if (!concrete->IsType<MidoriType::NewType>())
+			if (!concrete->IsType<MarmotType::NewType>())
 			{
 				return false;
 			}
 
-			const MidoriType::NewType& pattern_new_type = pattern->GetType<MidoriType::NewType>();
-			const MidoriType::NewType& concrete_new_type = concrete->GetType<MidoriType::NewType>();
+			const MarmotType::NewType& pattern_new_type = pattern->GetType<MarmotType::NewType>();
+			const MarmotType::NewType& concrete_new_type = concrete->GetType<MarmotType::NewType>();
 			return pattern_new_type.m_name == concrete_new_type.m_name
 				&& pattern_new_type.m_module_name == concrete_new_type.m_module_name
 				&& MatchInstanceTypeArguments(pattern_new_type.m_generic_params, pattern_new_type.m_type_arguments, concrete_new_type.m_type_arguments, substitutions, visited)
@@ -678,10 +678,10 @@ public:
 	{
 		for (const auto& [name, type] : generic_params)
 		{
-			if (type->IsType<MidoriType::TypeVariable>() && m_type_checker.m_rigid_type_vars.emplace(type->GetType<MidoriType::TypeVariable>().m_id, name).second)
+			if (type->IsType<MarmotType::TypeVariable>() && m_type_checker.m_rigid_type_vars.emplace(type->GetType<MarmotType::TypeVariable>().m_id, name).second)
 			{
-				m_parameters.emplace_back(type->GetType<MidoriType::TypeVariable>().m_id, name);
-				m_type_checker.m_generic_parameter_ids.insert(type->GetType<MidoriType::TypeVariable>().m_id);
+				m_parameters.emplace_back(type->GetType<MarmotType::TypeVariable>().m_id, name);
+				m_type_checker.m_generic_parameter_ids.insert(type->GetType<MarmotType::TypeVariable>().m_id);
 			}
 		}
 		std::ranges::sort(m_parameters, {}, &std::pair<int, std::string>::second);
@@ -737,10 +737,10 @@ class ExpectedTypeGuard
 {
 private:
 	TypeChecker& m_type_checker;
-	std::shared_ptr<MidoriType> m_saved_type;
+	std::shared_ptr<MarmotType> m_saved_type;
 
 public:
-	ExpectedTypeGuard(TypeChecker& tc, std::shared_ptr<MidoriType> new_expected)
+	ExpectedTypeGuard(TypeChecker& tc, std::shared_ptr<MarmotType> new_expected)
 		: m_type_checker(tc), m_saved_type(tc.m_expected_expr_type)
 	{
 		m_type_checker.m_expected_expr_type = std::move(new_expected);
@@ -755,10 +755,10 @@ public:
 	ExpectedTypeGuard& operator=(const ExpectedTypeGuard&) = delete;
 };
 
-std::size_t TypePairHash::operator()(const std::pair<MidoriType*, MidoriType*>& pair) const noexcept
+std::size_t TypePairHash::operator()(const std::pair<MarmotType*, MarmotType*>& pair) const noexcept
 {
-	std::size_t h1 = std::hash<MidoriType*>{}(pair.first);
-	std::size_t h2 = std::hash<MidoriType*>{}(pair.second);
+	std::size_t h1 = std::hash<MarmotType*>{}(pair.first);
+	std::size_t h2 = std::hash<MarmotType*>{}(pair.second);
 	return h1 ^ (h2 * 0x9e3779b97f4a7c15 + 0x9e3779b9 + (h1 << 6) + (h1 >> 2));
 }
 
@@ -792,7 +792,7 @@ const std::array<Token::Name, 5u> TypeChecker::kBinaryBitwiseOperators{
 	Token::Name::LEFT_SHIFT
 };
 
-std::string TypeChecker::DescribeConstraint(const MidoriType::ClassConstraint& constraint) const
+std::string TypeChecker::DescribeConstraint(const MarmotType::ClassConstraint& constraint) const
 {
 	if (constraint.IsEquality())
 	{
@@ -805,13 +805,13 @@ std::string TypeChecker::DescribeConstraint(const MidoriType::ClassConstraint& c
 	}
 
 	const std::string type_args = constraint.m_type_args
-		| std::views::transform([this](const std::shared_ptr<MidoriType>& type_arg) { return type_arg->DisplayString(m_rigid_type_vars); })
+		| std::views::transform([this](const std::shared_ptr<MarmotType>& type_arg) { return type_arg->DisplayString(m_rigid_type_vars); })
 		| std::views::join_with(std::string_view(", "))
 		| std::ranges::to<std::string>();
 	return std::format("{}<{}>", constraint.m_class_name, type_args);
 }
 
-CompilerError TypeChecker::MakeConstraintFailureError(const Token& token, const MidoriType::ClassConstraint& constraint, std::optional<std::string_view> suggestion) const
+CompilerError TypeChecker::MakeConstraintFailureError(const Token& token, const MarmotType::ClassConstraint& constraint, std::optional<std::string_view> suggestion) const
 {
 	std::string message;
 	if (!constraint.m_type_args.empty())
@@ -828,21 +828,21 @@ CompilerError TypeChecker::MakeConstraintFailureError(const Token& token, const 
 		message = std::format("Constraint {} is not satisfied - no matching instance found", DescribeConstraint(constraint));
 	}
 
-	return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnsatisfiedConstraint, message, token, m_file_name, m_source_lines, suggestion);
+	return MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnsatisfiedConstraint, message, token, m_file_name, m_source_lines, suggestion);
 }
 
-bool TypeChecker::HasActiveConstraint(const std::string& class_name, const std::shared_ptr<MidoriType>& type)
+bool TypeChecker::HasActiveConstraint(const std::string& class_name, const std::shared_ptr<MarmotType>& type)
 {
-	std::shared_ptr<MidoriType> resolved_type = ApplySubstitution(type);
+	std::shared_ptr<MarmotType> resolved_type = ApplySubstitution(type);
 
-	for (const MidoriType::ClassConstraint& constraint : m_active_constraints)
+	for (const MarmotType::ClassConstraint& constraint : m_active_constraints)
 	{
 		if (constraint.m_class_name != class_name || constraint.m_type_args.size() != 1u)
 		{
 			continue;
 		}
 
-		std::shared_ptr<MidoriType> resolved_constraint_type = ApplySubstitution(constraint.m_type_args[0u]);
+		std::shared_ptr<MarmotType> resolved_constraint_type = ApplySubstitution(constraint.m_type_args[0u]);
 		if (*resolved_constraint_type == *resolved_type)
 		{
 			return true;
@@ -852,21 +852,21 @@ bool TypeChecker::HasActiveConstraint(const std::string& class_name, const std::
 	return false;
 }
 
-std::optional<CompilerError> TypeChecker::EnsureTransferable(const Token& token, const std::shared_ptr<MidoriType>& type)
+std::optional<CompilerError> TypeChecker::EnsureTransferable(const Token& token, const std::shared_ptr<MarmotType>& type)
 {
-	std::unordered_set<const MidoriType*> visited;
+	std::unordered_set<const MarmotType*> visited;
 	return EnsureTransferable(token, type, visited);
 }
 
-std::optional<CompilerError> TypeChecker::EnsureTransferable(const Token& token, const std::shared_ptr<MidoriType>& type, std::unordered_set<const MidoriType*>& visited)
+std::optional<CompilerError> TypeChecker::EnsureTransferable(const Token& token, const std::shared_ptr<MarmotType>& type, std::unordered_set<const MarmotType*>& visited)
 {
-	const std::shared_ptr<MidoriType> resolved_type = ApplySubstitution(type);
+	const std::shared_ptr<MarmotType> resolved_type = ApplySubstitution(type);
 	if (!visited.insert(resolved_type.get()).second)
 	{
 		return std::nullopt;
 	}
 
-	const MidoriType::ClassConstraint transferable_constraint(std::string(TRANSFERABLE_CLASS_NAME), { resolved_type });
+	const MarmotType::ClassConstraint transferable_constraint(std::string(TRANSFERABLE_CLASS_NAME), { resolved_type });
 
 	const auto fail = [&](std::optional<std::string_view> suggestion = std::nullopt) -> std::optional<CompilerError>
 	{
@@ -880,39 +880,39 @@ std::optional<CompilerError> TypeChecker::EnsureTransferable(const Token& token,
 	};
 
 	if (
-		resolved_type->IsType<MidoriType::IntegerType>() ||
-		resolved_type->IsType<MidoriType::FloatType>() ||
-		resolved_type->IsType<MidoriType::ByteType>() ||
-		resolved_type->IsType<MidoriType::WordType>() ||
-		resolved_type->IsType<MidoriType::BoolType>() ||
-		resolved_type->IsType<MidoriType::TextType>() ||
-		resolved_type->IsType<MidoriType::UnitType>() ||
-		resolved_type->IsType<MidoriType::NeverType>()
+		resolved_type->IsType<MarmotType::IntegerType>() ||
+		resolved_type->IsType<MarmotType::FloatType>() ||
+		resolved_type->IsType<MarmotType::ByteType>() ||
+		resolved_type->IsType<MarmotType::WordType>() ||
+		resolved_type->IsType<MarmotType::BoolType>() ||
+		resolved_type->IsType<MarmotType::TextType>() ||
+		resolved_type->IsType<MarmotType::UnitType>() ||
+		resolved_type->IsType<MarmotType::NeverType>()
 	)
 	{
 		return std::nullopt;
 	}
 
-	if (resolved_type->IsType<MidoriType::ArrayType>())
+	if (resolved_type->IsType<MarmotType::ArrayType>())
 	{
-		return EnsureTransferable(token, resolved_type->GetType<MidoriType::ArrayType>().m_element_type, visited);
+		return EnsureTransferable(token, resolved_type->GetType<MarmotType::ArrayType>().m_element_type, visited);
 	}
 
-	if (resolved_type->IsType<MidoriType::ChannelType>())
+	if (resolved_type->IsType<MarmotType::ChannelType>())
 	{
-		return EnsureTransferable(token, resolved_type->GetType<MidoriType::ChannelType>().m_element_type, visited);
+		return EnsureTransferable(token, resolved_type->GetType<MarmotType::ChannelType>().m_element_type, visited);
 	}
 
 	// A cell reaching a worker is copied (the CellCrossesWorker warning says so),
 	// so it is transferable exactly when what it holds is.
-	if (resolved_type->IsType<MidoriType::CellType>())
+	if (resolved_type->IsType<MarmotType::CellType>())
 	{
-		return EnsureTransferable(token, resolved_type->GetType<MidoriType::CellType>().m_element_type, visited);
+		return EnsureTransferable(token, resolved_type->GetType<MarmotType::CellType>().m_element_type, visited);
 	}
 
-	if (resolved_type->IsType<MidoriType::TupleType>())
+	if (resolved_type->IsType<MarmotType::TupleType>())
 	{
-		for (const std::shared_ptr<MidoriType>& element_type : resolved_type->GetType<MidoriType::TupleType>().m_element_types)
+		for (const std::shared_ptr<MarmotType>& element_type : resolved_type->GetType<MarmotType::TupleType>().m_element_types)
 		{
 			if (std::optional<CompilerError> error = EnsureTransferable(token, element_type, visited))
 			{
@@ -922,17 +922,17 @@ std::optional<CompilerError> TypeChecker::EnsureTransferable(const Token& token,
 		return std::nullopt;
 	}
 
-	if (resolved_type->IsType<MidoriType::WorkerType>())
+	if (resolved_type->IsType<MarmotType::WorkerType>())
 	{
 		return fail("Worker values cannot cross worker boundaries.");
 	}
 
-	if (resolved_type->IsType<MidoriType::RangeType>())
+	if (resolved_type->IsType<MarmotType::RangeType>())
 	{
 		return fail("Range values are not transferable.");
 	}
 
-	if (resolved_type->IsType<MidoriType::FunctionType>())
+	if (resolved_type->IsType<MarmotType::FunctionType>())
 	{
 		// A function value crosses as its procedure index plus a copy of its captured
 		// cells, which is what lets `Concurrency::Spawn` take a function at all, and
@@ -944,23 +944,23 @@ std::optional<CompilerError> TypeChecker::EnsureTransferable(const Token& token,
 		return std::nullopt;
 	}
 
-	if (resolved_type->IsType<MidoriType::GenericParam>() ||
-		resolved_type->IsType<MidoriType::TypeVariable>() ||
-		resolved_type->IsType<MidoriType::AssociatedType>())
+	if (resolved_type->IsType<MarmotType::GenericParam>() ||
+		resolved_type->IsType<MarmotType::TypeVariable>() ||
+		resolved_type->IsType<MarmotType::AssociatedType>())
 	{
 		return has_transferable_marker()
 			? std::nullopt
 			: fail("Add a 'where Transferable<T>' constraint or import an instance.");
 	}
 
-	if (resolved_type->IsType<MidoriType::StructType>())
+	if (resolved_type->IsType<MarmotType::StructType>())
 	{
 		if (!has_transferable_marker())
 		{
 			return fail("Add 'deriving (Transferable)' or define an instance.");
 		}
 
-		for (const std::shared_ptr<MidoriType>& member_type : resolved_type->GetType<MidoriType::StructType>().m_member_types)
+		for (const std::shared_ptr<MarmotType>& member_type : resolved_type->GetType<MarmotType::StructType>().m_member_types)
 		{
 			if (std::optional<CompilerError> error = EnsureTransferable(token, member_type, visited))
 			{
@@ -970,16 +970,16 @@ std::optional<CompilerError> TypeChecker::EnsureTransferable(const Token& token,
 		return std::nullopt;
 	}
 
-	if (resolved_type->IsType<MidoriType::UnionType>())
+	if (resolved_type->IsType<MarmotType::UnionType>())
 	{
 		if (!has_transferable_marker())
 		{
 			return fail("Add 'deriving (Transferable)' or define an instance.");
 		}
 
-		for (const auto& [_, member_ctx] : resolved_type->GetType<MidoriType::UnionType>().m_member_info)
+		for (const auto& [_, member_ctx] : resolved_type->GetType<MarmotType::UnionType>().m_member_info)
 		{
-			for (const std::shared_ptr<MidoriType>& member_type : member_ctx.m_member_types)
+			for (const std::shared_ptr<MarmotType>& member_type : member_ctx.m_member_types)
 			{
 				if (std::optional<CompilerError> error = EnsureTransferable(token, member_type, visited))
 				{
@@ -1011,7 +1011,7 @@ CompilerError TypeChecker::MakeFunctionArityError(const Token& token, size_t lef
 		message = std::format("Function type mismatch: {} argument(s) in one context but {} in another", left_count, right_count);
 	}
 
-	return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, message, token, m_file_name, m_source_lines);
+	return MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, message, token, m_file_name, m_source_lines);
 }
 
 CompilerError TypeChecker::MakeTupleArityError(const Token& token, size_t left_count, size_t right_count, UnifyDiagnosticMode diagnostic_mode) const
@@ -1030,19 +1030,19 @@ CompilerError TypeChecker::MakeTupleArityError(const Token& token, size_t left_c
 		message = std::format("Tuple type mismatch: {} element(s) in one context but {} in another", left_count, right_count);
 	}
 
-	return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, message, token, m_file_name, m_source_lines);
+	return MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, message, token, m_file_name, m_source_lines);
 }
 
-std::optional<std::vector<std::pair<std::string, std::shared_ptr<MidoriType>>>> TypeChecker::ResolveGenericTypeArguments(const std::shared_ptr<MidoriType>& prototype, const std::shared_ptr<MidoriType>& concrete_type) const
+std::optional<std::vector<std::pair<std::string, std::shared_ptr<MarmotType>>>> TypeChecker::ResolveGenericTypeArguments(const std::shared_ptr<MarmotType>& prototype, const std::shared_ptr<MarmotType>& concrete_type) const
 {
 	std::vector<std::string> param_names;
-	if (prototype->IsType<MidoriType::StructType>())
+	if (prototype->IsType<MarmotType::StructType>())
 	{
-		param_names = prototype->GetType<MidoriType::StructType>().m_generic_params;
+		param_names = prototype->GetType<MarmotType::StructType>().m_generic_params;
 	}
-	else if (prototype->IsType<MidoriType::UnionType>())
+	else if (prototype->IsType<MarmotType::UnionType>())
 	{
-		param_names = prototype->GetType<MidoriType::UnionType>().m_generic_params;
+		param_names = prototype->GetType<MarmotType::UnionType>().m_generic_params;
 	}
 	else
 	{
@@ -1054,18 +1054,18 @@ std::optional<std::vector<std::pair<std::string, std::shared_ptr<MidoriType>>>> 
 		return std::nullopt;
 	}
 
-	std::unordered_map<std::string, std::shared_ptr<MidoriType>> substitutions;
-	std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash> visited;
+	std::unordered_map<std::string, std::shared_ptr<MarmotType>> substitutions;
+	std::unordered_set<std::pair<MarmotType*, MarmotType*>, TypePairHash> visited;
 	if (!MatchInstanceTypeArg(prototype, concrete_type, substitutions, visited))
 	{
 		return std::nullopt;
 	}
 
-	std::vector<std::pair<std::string, std::shared_ptr<MidoriType>>> resolved_args;
+	std::vector<std::pair<std::string, std::shared_ptr<MarmotType>>> resolved_args;
 	resolved_args.reserve(param_names.size());
 	for (const std::string& param_name : param_names)
 	{
-		std::unordered_map<std::string, std::shared_ptr<MidoriType>>::const_iterator it = substitutions.find(param_name);
+		std::unordered_map<std::string, std::shared_ptr<MarmotType>>::const_iterator it = substitutions.find(param_name);
 		if (it == substitutions.cend())
 		{
 			return std::nullopt;
@@ -1077,7 +1077,7 @@ std::optional<std::vector<std::pair<std::string, std::shared_ptr<MidoriType>>>> 
 	return resolved_args;
 }
 
-std::optional<TypeChecker::ResolvedInstanceMatch> TypeChecker::FindMatchingInstance(const std::string& class_name, const std::vector<std::shared_ptr<MidoriType>>& type_args) const
+std::optional<TypeChecker::ResolvedInstanceMatch> TypeChecker::FindMatchingInstance(const std::string& class_name, const std::vector<std::shared_ptr<MarmotType>>& type_args) const
 {
 	std::vector<ResolvedInstanceMatch> matches = FindMatchingInstances(class_name, type_args);
 	if (matches.size() != 1u)
@@ -1087,7 +1087,7 @@ std::optional<TypeChecker::ResolvedInstanceMatch> TypeChecker::FindMatchingInsta
 	return std::move(matches.front());
 }
 
-std::vector<TypeChecker::ResolvedInstanceMatch> TypeChecker::FindMatchingInstances(const std::string& class_name, const std::vector<std::shared_ptr<MidoriType>>& type_args) const
+std::vector<TypeChecker::ResolvedInstanceMatch> TypeChecker::FindMatchingInstances(const std::string& class_name, const std::vector<std::shared_ptr<MarmotType>>& type_args) const
 {
 	std::vector<ResolvedInstanceMatch> matches;
 
@@ -1099,7 +1099,7 @@ std::vector<TypeChecker::ResolvedInstanceMatch> TypeChecker::FindMatchingInstanc
 		}
 
 		TypeEnvironment substitutions;
-		std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash> visited;
+		std::unordered_set<std::pair<MarmotType*, MarmotType*>, TypePairHash> visited;
 		bool matched = true;
 		for (size_t idx = 0u; idx < type_args.size(); idx += 1u)
 		{
@@ -1121,7 +1121,7 @@ std::vector<TypeChecker::ResolvedInstanceMatch> TypeChecker::FindMatchingInstanc
 	return matches;
 }
 
-std::optional<CompilerError> TypeChecker::DischargeEqualityConstraint(const Token& token, const MidoriType::ClassConstraint& constraint, const std::shared_ptr<MidoriType>& resolved_lhs, const std::shared_ptr<MidoriType>& resolved_rhs)
+std::optional<CompilerError> TypeChecker::DischargeEqualityConstraint(const Token& token, const MarmotType::ClassConstraint& constraint, const std::shared_ptr<MarmotType>& resolved_lhs, const std::shared_ptr<MarmotType>& resolved_rhs)
 {
 	if (*resolved_lhs == *resolved_rhs)
 	{
@@ -1131,10 +1131,10 @@ std::optional<CompilerError> TypeChecker::DischargeEqualityConstraint(const Toke
 	// An equality constraint also *solves*: `Iterable::Item<S> ~ A` with `A` still
 	// unbound is what tells the call site what A is. `Iter::ToArray` has no other
 	// argument mentioning A, so without this it could never be called.
-	if (resolved_lhs->IsType<MidoriType::TypeVariable>() || resolved_rhs->IsType<MidoriType::TypeVariable>())
+	if (resolved_lhs->IsType<MarmotType::TypeVariable>() || resolved_rhs->IsType<MarmotType::TypeVariable>())
 	{
-		std::shared_ptr<MidoriType> lhs = resolved_lhs;
-		std::shared_ptr<MidoriType> rhs = resolved_rhs;
+		std::shared_ptr<MarmotType> lhs = resolved_lhs;
+		std::shared_ptr<MarmotType> rhs = resolved_rhs;
 		if (Unify(token, lhs, rhs).has_value())
 		{
 			return std::nullopt;
@@ -1142,15 +1142,15 @@ std::optional<CompilerError> TypeChecker::DischargeEqualityConstraint(const Toke
 	}
 
 	const std::pair<std::string, std::string> described = DescribeTypePair(*resolved_lhs, *resolved_rhs);
-	return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnsatisfiedConstraint, std::format("Equality constraint is not satisfied: '{}' resolves to '{}', not '{}'", constraint.m_equality_lhs->DisplayString(), described.first, described.second), token, m_file_name, m_source_lines);
+	return MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnsatisfiedConstraint, std::format("Equality constraint is not satisfied: '{}' resolves to '{}', not '{}'", constraint.m_equality_lhs->DisplayString(), described.first, described.second), token, m_file_name, m_source_lines);
 }
 
-bool TypeChecker::IsSatisfiedByActiveConstraint(const MidoriType::ClassConstraint& resolved_constraint)
+bool TypeChecker::IsSatisfiedByActiveConstraint(const MarmotType::ClassConstraint& resolved_constraint)
 {
 	return std::ranges::any_of
 	(
 		m_active_constraints,
-		[this, &resolved_constraint](const MidoriType::ClassConstraint& active_constraint) -> bool
+		[this, &resolved_constraint](const MarmotType::ClassConstraint& active_constraint) -> bool
 		{
 			if (active_constraint.m_class_name != resolved_constraint.m_class_name || active_constraint.m_type_args.size() != resolved_constraint.m_type_args.size())
 			{
@@ -1172,7 +1172,7 @@ bool TypeChecker::IsSatisfiedByActiveConstraint(const MidoriType::ClassConstrain
 // A class constraint holds when a where clause in force states it, or when
 // exactly one instance matches and that instance's own where clauses hold.
 // Two matching instances are not a missing one, and the error says which.
-std::optional<CompilerError> TypeChecker::CheckConstraintHolds(const Token& token, const MidoriType::ClassConstraint& resolved_constraint, size_t depth, std::optional<std::string_view> suggestion)
+std::optional<CompilerError> TypeChecker::CheckConstraintHolds(const Token& token, const MarmotType::ClassConstraint& resolved_constraint, size_t depth, std::optional<std::string_view> suggestion)
 {
 	if (resolved_constraint.m_class_name == TRANSFERABLE_CLASS_NAME)
 	{
@@ -1192,17 +1192,17 @@ std::optional<CompilerError> TypeChecker::CheckConstraintHolds(const Token& toke
 	if (matches.size() > 1u)
 	{
 		const std::vector<std::string> candidates = matches
-			| std::views::transform([this](const ResolvedInstanceMatch& match) { return std::format("'{}'", DescribeConstraint(MidoriType::ClassConstraint(match.m_instance->m_class_name, std::vector<std::shared_ptr<MidoriType>>(match.m_instance->m_type_args)))); })
+			| std::views::transform([this](const ResolvedInstanceMatch& match) { return std::format("'{}'", DescribeConstraint(MarmotType::ClassConstraint(match.m_instance->m_class_name, std::vector<std::shared_ptr<MarmotType>>(match.m_instance->m_type_args)))); })
 			| std::ranges::to<std::vector>();
-		return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnsatisfiedConstraint, std::format("Constraint {} is ambiguous: {} instances match it ({})", DescribeConstraint(resolved_constraint), matches.size(), JoinSortedNames(candidates)), token, m_file_name, m_source_lines);
+		return MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnsatisfiedConstraint, std::format("Constraint {} is ambiguous: {} instances match it ({})", DescribeConstraint(resolved_constraint), matches.size(), JoinSortedNames(candidates)), token, m_file_name, m_source_lines);
 	}
 
 	if (depth >= s_max_instance_constraint_depth)
 	{
-		return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnsatisfiedConstraint, std::format("Constraint {} could not be decided: its instances' where clauses nest more than {} deep", DescribeConstraint(resolved_constraint), s_max_instance_constraint_depth), token, m_file_name, m_source_lines);
+		return MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnsatisfiedConstraint, std::format("Constraint {} could not be decided: its instances' where clauses nest more than {} deep", DescribeConstraint(resolved_constraint), s_max_instance_constraint_depth), token, m_file_name, m_source_lines);
 	}
 
-	MidoriResult::TypeResult nested_result = ValidateInstanceConstraints(token, *matches.front().m_instance, matches.front().m_substitutions, depth + 1u);
+	MarmotResult::TypeResult nested_result = ValidateInstanceConstraints(token, *matches.front().m_instance, matches.front().m_substitutions, depth + 1u);
 	if (!nested_result.has_value())
 	{
 		return std::move(nested_result.error());
@@ -1210,16 +1210,16 @@ std::optional<CompilerError> TypeChecker::CheckConstraintHolds(const Token& toke
 	return std::nullopt;
 }
 
-MidoriResult::TypeResult TypeChecker::ValidateFunctionConstraints(const Token& token, const MidoriType::FunctionType& function_type)
+MarmotResult::TypeResult TypeChecker::ValidateFunctionConstraints(const Token& token, const MarmotType::FunctionType& function_type)
 {
-	for (const MidoriType::ClassConstraint& constraint : function_type.m_constraints)
+	for (const MarmotType::ClassConstraint& constraint : function_type.m_constraints)
 	{
 		// An equality constraint is discharged by reduction, not by instance
 		// selection: resolve both sides at the call site and compare them.
 		if (constraint.IsEquality())
 		{
-			std::shared_ptr<MidoriType> resolved_equality_lhs = ApplySubstitution(constraint.m_equality_lhs);
-			std::shared_ptr<MidoriType> resolved_equality_rhs = ApplySubstitution(constraint.m_equality_rhs);
+			std::shared_ptr<MarmotType> resolved_equality_lhs = ApplySubstitution(constraint.m_equality_lhs);
+			std::shared_ptr<MarmotType> resolved_equality_rhs = ApplySubstitution(constraint.m_equality_rhs);
 			if (std::optional<CompilerError> error = DischargeEqualityConstraint(token, constraint, resolved_equality_lhs, resolved_equality_rhs))
 			{
 				return std::unexpected(std::move(*error));
@@ -1227,38 +1227,38 @@ MidoriResult::TypeResult TypeChecker::ValidateFunctionConstraints(const Token& t
 
 			continue;
 		}
-		std::vector<std::shared_ptr<MidoriType>> resolved_type_args;
+		std::vector<std::shared_ptr<MarmotType>> resolved_type_args;
 		resolved_type_args.reserve(constraint.m_type_args.size());
-		for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
+		for (const std::shared_ptr<MarmotType>& type_arg : constraint.m_type_args)
 		{
 			resolved_type_args.emplace_back(ApplySubstitution(type_arg));
 		}
 
 		// No instance is picked for a type nothing has decided yet.
-		if (!std::ranges::all_of(resolved_type_args, [this](const std::shared_ptr<MidoriType>& type_arg) { return IsDecided(type_arg); }))
+		if (!std::ranges::all_of(resolved_type_args, [this](const std::shared_ptr<MarmotType>& type_arg) { return IsDecided(type_arg); }))
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnsatisfiedConstraint, std::format("Call expression type error: could not infer the type this call's {} constraint is on; write the type on the definition that holds the result", constraint.m_class_name), token, m_file_name, m_source_lines));
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnsatisfiedConstraint, std::format("Call expression type error: could not infer the type this call's {} constraint is on; write the type on the definition that holds the result", constraint.m_class_name), token, m_file_name, m_source_lines));
 		}
 
-		if (std::optional<CompilerError> error = CheckConstraintHolds(token, MidoriType::ClassConstraint(constraint.m_class_name, std::move(resolved_type_args)), 0u))
+		if (std::optional<CompilerError> error = CheckConstraintHolds(token, MarmotType::ClassConstraint(constraint.m_class_name, std::move(resolved_type_args)), 0u))
 		{
 			return std::unexpected(std::move(*error));
 		}
 	}
 
-	return MidoriType::MakeUndecidedType();
+	return MarmotType::MakeUndecidedType();
 }
 
-MidoriResult::TypeResult TypeChecker::ValidateInstanceConstraints(const Token& token, const InstanceInfo& instance_info, const TypeEnvironment& substitutions, size_t depth)
+MarmotResult::TypeResult TypeChecker::ValidateInstanceConstraints(const Token& token, const InstanceInfo& instance_info, const TypeEnvironment& substitutions, size_t depth)
 {
-	for (const MidoriType::ClassConstraint& constraint : instance_info.m_constraints)
+	for (const MarmotType::ClassConstraint& constraint : instance_info.m_constraints)
 	{
 		// An equality constraint is discharged by reduction, not by instance
 		// selection: resolve both sides at the call site and compare them.
 		if (constraint.IsEquality())
 		{
-			std::shared_ptr<MidoriType> resolved_equality_lhs = ApplySubstitution(MidoriType::SubstituteTypeParams(constraint.m_equality_lhs, substitutions));
-			std::shared_ptr<MidoriType> resolved_equality_rhs = ApplySubstitution(MidoriType::SubstituteTypeParams(constraint.m_equality_rhs, substitutions));
+			std::shared_ptr<MarmotType> resolved_equality_lhs = ApplySubstitution(MarmotType::SubstituteTypeParams(constraint.m_equality_lhs, substitutions));
+			std::shared_ptr<MarmotType> resolved_equality_rhs = ApplySubstitution(MarmotType::SubstituteTypeParams(constraint.m_equality_rhs, substitutions));
 			if (std::optional<CompilerError> error = DischargeEqualityConstraint(token, constraint, resolved_equality_lhs, resolved_equality_rhs))
 			{
 				return std::unexpected(std::move(*error));
@@ -1266,27 +1266,27 @@ MidoriResult::TypeResult TypeChecker::ValidateInstanceConstraints(const Token& t
 
 			continue;
 		}
-		std::vector<std::shared_ptr<MidoriType>> resolved_type_args;
+		std::vector<std::shared_ptr<MarmotType>> resolved_type_args;
 		resolved_type_args.reserve(constraint.m_type_args.size());
-		for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
+		for (const std::shared_ptr<MarmotType>& type_arg : constraint.m_type_args)
 		{
-			resolved_type_args.emplace_back(ApplySubstitution(MidoriType::SubstituteTypeParams(type_arg, substitutions)));
+			resolved_type_args.emplace_back(ApplySubstitution(MarmotType::SubstituteTypeParams(type_arg, substitutions)));
 		}
 
-		if (std::optional<CompilerError> error = CheckConstraintHolds(token, MidoriType::ClassConstraint(constraint.m_class_name, std::move(resolved_type_args)), depth))
+		if (std::optional<CompilerError> error = CheckConstraintHolds(token, MarmotType::ClassConstraint(constraint.m_class_name, std::move(resolved_type_args)), depth))
 		{
 			return std::unexpected(std::move(*error));
 		}
 	}
 
-	return MidoriType::MakeUndecidedType();
+	return MarmotType::MakeUndecidedType();
 }
 
-std::shared_ptr<MidoriType> TypeChecker::ResolveAssociatedType(const MidoriType::AssociatedType& associated_type)
+std::shared_ptr<MarmotType> TypeChecker::ResolveAssociatedType(const MarmotType::AssociatedType& associated_type)
 {
-	std::vector<std::shared_ptr<MidoriType>> resolved_type_args;
+	std::vector<std::shared_ptr<MarmotType>> resolved_type_args;
 	resolved_type_args.reserve(associated_type.m_type_args.size());
-	for (const std::shared_ptr<MidoriType>& type_arg : associated_type.m_type_args)
+	for (const std::shared_ptr<MarmotType>& type_arg : associated_type.m_type_args)
 	{
 		resolved_type_args.emplace_back(ApplySubstitution(type_arg));
 	}
@@ -1294,28 +1294,28 @@ std::shared_ptr<MidoriType> TypeChecker::ResolveAssociatedType(const MidoriType:
 	std::unordered_map<std::string, ClassInfo>::const_iterator class_it = m_classes.find(associated_type.m_class_name);
 	if (class_it == m_classes.cend() || !class_it->second.m_associated_types.contains(associated_type.m_name))
 	{
-		std::shared_ptr<MidoriType> unresolved_projection = MidoriType::MakeAssociatedType(associated_type.m_class_name, associated_type.m_name, std::move(resolved_type_args));
-		std::shared_ptr<MidoriType> equated_projection = ReduceProjectionByEqualityConstraint(unresolved_projection);
+		std::shared_ptr<MarmotType> unresolved_projection = MarmotType::MakeAssociatedType(associated_type.m_class_name, associated_type.m_name, std::move(resolved_type_args));
+		std::shared_ptr<MarmotType> equated_projection = ReduceProjectionByEqualityConstraint(unresolved_projection);
 		return equated_projection != nullptr ? equated_projection : unresolved_projection;
 	}
 
 	std::optional<ResolvedInstanceMatch> resolved_match = FindMatchingInstance(associated_type.m_class_name, resolved_type_args);
 	if (!resolved_match.has_value())
 	{
-		std::shared_ptr<MidoriType> unresolved_projection = MidoriType::MakeAssociatedType(associated_type.m_class_name, associated_type.m_name, std::move(resolved_type_args));
-		std::shared_ptr<MidoriType> equated_projection = ReduceProjectionByEqualityConstraint(unresolved_projection);
+		std::shared_ptr<MarmotType> unresolved_projection = MarmotType::MakeAssociatedType(associated_type.m_class_name, associated_type.m_name, std::move(resolved_type_args));
+		std::shared_ptr<MarmotType> equated_projection = ReduceProjectionByEqualityConstraint(unresolved_projection);
 		return equated_projection != nullptr ? equated_projection : unresolved_projection;
 	}
 
 	AssociatedTypeEnvironment::const_iterator binding_it = resolved_match->m_instance->m_associated_type_bindings.find(associated_type.m_name);
 	if (binding_it == resolved_match->m_instance->m_associated_type_bindings.cend())
 	{
-		std::shared_ptr<MidoriType> unresolved_projection = MidoriType::MakeAssociatedType(associated_type.m_class_name, associated_type.m_name, std::move(resolved_type_args));
-		std::shared_ptr<MidoriType> equated_projection = ReduceProjectionByEqualityConstraint(unresolved_projection);
+		std::shared_ptr<MarmotType> unresolved_projection = MarmotType::MakeAssociatedType(associated_type.m_class_name, associated_type.m_name, std::move(resolved_type_args));
+		std::shared_ptr<MarmotType> equated_projection = ReduceProjectionByEqualityConstraint(unresolved_projection);
 		return equated_projection != nullptr ? equated_projection : unresolved_projection;
 	}
 
-	std::shared_ptr<MidoriType> concrete_binding = MidoriType::SubstituteTypeParams(binding_it->second, resolved_match->m_substitutions);
+	std::shared_ptr<MarmotType> concrete_binding = MarmotType::SubstituteTypeParams(binding_it->second, resolved_match->m_substitutions);
 	return ApplySubstitution(concrete_binding);
 }
 
@@ -1323,17 +1323,17 @@ std::shared_ptr<MidoriType> TypeChecker::ResolveAssociatedType(const MidoriType:
 // by instance selection, because there is no instance to select yet. A where
 // clause of the form 'Class::Assoc<S> ~ Type' states the answer directly, so a
 // projection that matches one is replaced by the type it was equated to.
-std::shared_ptr<MidoriType> TypeChecker::ReduceProjectionByEqualityConstraint(const std::shared_ptr<MidoriType>& type) const
+std::shared_ptr<MarmotType> TypeChecker::ReduceProjectionByEqualityConstraint(const std::shared_ptr<MarmotType>& type) const
 {
-	if (!type->IsType<MidoriType::AssociatedType>())
+	if (!type->IsType<MarmotType::AssociatedType>())
 	{
 		return nullptr;
 	}
 
-	std::vector<MidoriType::ClassConstraint>::const_iterator match = std::ranges::find_if
+	std::vector<MarmotType::ClassConstraint>::const_iterator match = std::ranges::find_if
 	(
 		m_active_constraints,
-		[&type](const MidoriType::ClassConstraint& constraint)
+		[&type](const MarmotType::ClassConstraint& constraint)
 		{
 			return constraint.IsEquality() && *constraint.m_equality_lhs == *type;
 		}
@@ -1342,15 +1342,15 @@ std::shared_ptr<MidoriType> TypeChecker::ReduceProjectionByEqualityConstraint(co
 	return match != m_active_constraints.cend() ? match->m_equality_rhs : nullptr;
 }
 
-std::optional<CompilerError> TypeChecker::TryMakeGenericParameterMismatchError(const Token& token, const std::shared_ptr<MidoriType>& left, const std::shared_ptr<MidoriType>& right) const
+std::optional<CompilerError> TypeChecker::TryMakeGenericParameterMismatchError(const Token& token, const std::shared_ptr<MarmotType>& left, const std::shared_ptr<MarmotType>& right) const
 {
-	std::shared_ptr<MidoriType> prototype;
+	std::shared_ptr<MarmotType> prototype;
 	std::string type_name;
 
-	if (left->IsType<MidoriType::StructType>() && right->IsType<MidoriType::StructType>())
+	if (left->IsType<MarmotType::StructType>() && right->IsType<MarmotType::StructType>())
 	{
-		const MidoriType::StructType& left_struct = left->GetType<MidoriType::StructType>();
-		const MidoriType::StructType& right_struct = right->GetType<MidoriType::StructType>();
+		const MarmotType::StructType& left_struct = left->GetType<MarmotType::StructType>();
+		const MarmotType::StructType& right_struct = right->GetType<MarmotType::StructType>();
 		if (left_struct.m_name != right_struct.m_name || left_struct.m_module_name != right_struct.m_module_name)
 		{
 			return std::nullopt;
@@ -1364,10 +1364,10 @@ std::optional<CompilerError> TypeChecker::TryMakeGenericParameterMismatchError(c
 		}
 		prototype = it->second;
 	}
-	else if (left->IsType<MidoriType::UnionType>() && right->IsType<MidoriType::UnionType>())
+	else if (left->IsType<MarmotType::UnionType>() && right->IsType<MarmotType::UnionType>())
 	{
-		const MidoriType::UnionType& left_union = left->GetType<MidoriType::UnionType>();
-		const MidoriType::UnionType& right_union = right->GetType<MidoriType::UnionType>();
+		const MarmotType::UnionType& left_union = left->GetType<MarmotType::UnionType>();
+		const MarmotType::UnionType& right_union = right->GetType<MarmotType::UnionType>();
 		if (left_union.m_name != right_union.m_name || left_union.m_module_name != right_union.m_module_name)
 		{
 			return std::nullopt;
@@ -1386,8 +1386,8 @@ std::optional<CompilerError> TypeChecker::TryMakeGenericParameterMismatchError(c
 		return std::nullopt;
 	}
 
-	std::optional<std::vector<std::pair<std::string, std::shared_ptr<MidoriType>>>> left_args = ResolveGenericTypeArguments(prototype, left);
-	std::optional<std::vector<std::pair<std::string, std::shared_ptr<MidoriType>>>> right_args = ResolveGenericTypeArguments(prototype, right);
+	std::optional<std::vector<std::pair<std::string, std::shared_ptr<MarmotType>>>> left_args = ResolveGenericTypeArguments(prototype, left);
+	std::optional<std::vector<std::pair<std::string, std::shared_ptr<MarmotType>>>> right_args = ResolveGenericTypeArguments(prototype, right);
 	if (!left_args.has_value() || !right_args.has_value() || left_args->size() != right_args->size())
 	{
 		return std::nullopt;
@@ -1406,15 +1406,15 @@ std::optional<CompilerError> TypeChecker::TryMakeGenericParameterMismatchError(c
 	for (size_t idx = 0u; idx < left_args->size(); idx += 1u)
 	{
 		const std::string& param_name = left_args->at(idx).first;
-		const std::shared_ptr<MidoriType>& left_arg = left_args->at(idx).second;
-		const std::shared_ptr<MidoriType>& right_arg = right_args->at(idx).second;
+		const std::shared_ptr<MarmotType>& left_arg = left_args->at(idx).second;
+		const std::shared_ptr<MarmotType>& right_arg = right_args->at(idx).second;
 		if (*left_arg == *right_arg)
 		{
 			continue;
 		}
 
 		if (HasTypeVariables(left_arg) || HasTypeVariables(right_arg)
-			|| left_arg->IsType<MidoriType::UndecidedType>() || right_arg->IsType<MidoriType::UndecidedType>())
+			|| left_arg->IsType<MarmotType::UndecidedType>() || right_arg->IsType<MarmotType::UndecidedType>())
 		{
 			continue;
 		}
@@ -1427,20 +1427,20 @@ std::optional<CompilerError> TypeChecker::TryMakeGenericParameterMismatchError(c
 			DescribeTypePair(*left_arg, *right_arg).first,
 			DescribeTypePair(*left_arg, *right_arg).second
 		);
-		return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, message, token, m_file_name, m_source_lines);
+		return MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, message, token, m_file_name, m_source_lines);
 	}
 
 	return std::nullopt;
 }
 
-CompilerError TypeChecker::MakeUnificationError(const Token& token, const std::shared_ptr<MidoriType>& left, const std::shared_ptr<MidoriType>& right, UnifyDiagnosticMode diagnostic_mode) const
+CompilerError TypeChecker::MakeUnificationError(const Token& token, const std::shared_ptr<MarmotType>& left, const std::shared_ptr<MarmotType>& right, UnifyDiagnosticMode diagnostic_mode) const
 {
 	if (std::optional<CompilerError> generic_mismatch = TryMakeGenericParameterMismatchError(token, left, right))
 	{
 		return std::move(*generic_mismatch);
 	}
 
-	auto build_expected_message = [](const std::shared_ptr<MidoriType>& expected, const std::shared_ptr<MidoriType>& actual)
+	auto build_expected_message = [](const std::shared_ptr<MarmotType>& expected, const std::shared_ptr<MarmotType>& actual)
 	{
 		const std::pair<std::string, std::string> described = DescribeTypePair(*expected, *actual);
 		return std::format("Expected type '{}' but got '{}'", described.first, described.second);
@@ -1448,14 +1448,14 @@ CompilerError TypeChecker::MakeUnificationError(const Token& token, const std::s
 
 	if (diagnostic_mode == UnifyDiagnosticMode::ActualExpected)
 	{
-		return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, build_expected_message(right, left), token, m_file_name, m_source_lines);
+		return MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, build_expected_message(right, left), token, m_file_name, m_source_lines);
 	}
 	if (diagnostic_mode == UnifyDiagnosticMode::ExpectedActual)
 	{
-		return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, build_expected_message(left, right), token, m_file_name, m_source_lines);
+		return MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, build_expected_message(left, right), token, m_file_name, m_source_lines);
 	}
 
-	return MidoriError::GenerateTypeCheckerErrorWithContext
+	return MarmotError::GenerateTypeCheckerErrorWithContext
 	(
 		CompilerErrorCode::TypeMismatch,
 		std::format("Type mismatch between '{}' and '{}'", DescribeTypePair(*left, *right).first, DescribeTypePair(*left, *right).second),
@@ -1465,34 +1465,34 @@ CompilerError TypeChecker::MakeUnificationError(const Token& token, const std::s
 	);
 }
 
-MidoriResult::TypeResult TypeChecker::UnifyTypeArguments(const Token& token, std::vector<std::shared_ptr<MidoriType>>& left, std::vector<std::shared_ptr<MidoriType>>& right, UnifyDiagnosticMode diagnostic_mode)
+MarmotResult::TypeResult TypeChecker::UnifyTypeArguments(const Token& token, std::vector<std::shared_ptr<MarmotType>>& left, std::vector<std::shared_ptr<MarmotType>>& right, UnifyDiagnosticMode diagnostic_mode)
 {
 	if (left.size() != right.size())
 	{
-		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, std::format("Type mismatch: {} type argument(s) in one context but {} in another", left.size(), right.size()), token, m_file_name, m_source_lines));
+		return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, std::format("Type mismatch: {} type argument(s) in one context but {} in another", left.size(), right.size()), token, m_file_name, m_source_lines));
 	}
 
 	for (size_t idx : std::views::iota(0u, left.size()))
 	{
-		MidoriResult::TypeResult result = Unify(token, left[idx], right[idx], diagnostic_mode);
+		MarmotResult::TypeResult result = Unify(token, left[idx], right[idx], diagnostic_mode);
 		if (!result.has_value())
 		{
 			return result;
 		}
 	}
 
-	return MidoriType::MakeLiteralType<MidoriType::UnitType>();
+	return MarmotType::MakeLiteralType<MarmotType::UnitType>();
 }
 
-MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<MidoriType>& left, std::shared_ptr<MidoriType>& right, UnifyDiagnosticMode diagnostic_mode)
+MarmotResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<MarmotType>& left, std::shared_ptr<MarmotType>& right, UnifyDiagnosticMode diagnostic_mode)
 {
 	// Apply current substitutions first
-	std::shared_ptr<MidoriType> left_subst = ApplySubstitution(left);
-	std::shared_ptr<MidoriType> right_subst = ApplySubstitution(right);
+	std::shared_ptr<MarmotType> left_subst = ApplySubstitution(left);
+	std::shared_ptr<MarmotType> right_subst = ApplySubstitution(right);
 
 	// Recursion guard to prevent infinite loops when unifying recursive types
-	std::pair<MidoriType*, MidoriType*> orig_pair{ left.get(), right.get() };
-	std::pair<MidoriType*, MidoriType*> subst_pair{ left_subst.get(), right_subst.get() };
+	std::pair<MarmotType*, MarmotType*> orig_pair{ left.get(), right.get() };
+	std::pair<MarmotType*, MarmotType*> subst_pair{ left_subst.get(), right_subst.get() };
 	if (m_unify_visited.contains(orig_pair) || m_unify_visited.contains(subst_pair))
 	{
 		return left_subst;
@@ -1500,10 +1500,10 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 
 	struct RecursionGuard
 	{
-		std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash>& m_visited;
-		std::vector<std::pair<MidoriType*, MidoriType*>> m_pairs;
+		std::unordered_set<std::pair<MarmotType*, MarmotType*>, TypePairHash>& m_visited;
+		std::vector<std::pair<MarmotType*, MarmotType*>> m_pairs;
 
-		RecursionGuard(std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash>& visited, std::pair<MidoriType*, MidoriType*> first, std::pair<MidoriType*, MidoriType*> second)
+		RecursionGuard(std::unordered_set<std::pair<MarmotType*, MarmotType*>, TypePairHash>& visited, std::pair<MarmotType*, MarmotType*> first, std::pair<MarmotType*, MarmotType*> second)
 			: m_visited(visited)
 		{
 			m_pairs.push_back(first);
@@ -1512,7 +1512,7 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 				m_pairs.push_back(second);
 			}
 
-			for (const std::pair<MidoriType*, MidoriType*>& pair : m_pairs)
+			for (const std::pair<MarmotType*, MarmotType*>& pair : m_pairs)
 			{
 				m_visited.emplace(pair);
 			}
@@ -1520,7 +1520,7 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 
 		~RecursionGuard()
 		{
-			for (const std::pair<MidoriType*, MidoriType*>& pair : m_pairs)
+			for (const std::pair<MarmotType*, MarmotType*>& pair : m_pairs)
 			{
 				m_visited.erase(pair);
 			}
@@ -1530,33 +1530,33 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 	RecursionGuard guard(m_unify_visited, orig_pair, subst_pair);
 
 	bool is_complex_type = 
-		left_subst->IsType<MidoriType::StructType>() || 
-		left_subst->IsType<MidoriType::UnionType>() ||
-		left_subst->IsType<MidoriType::NewType>() ||
-		left_subst->IsType<MidoriType::ArrayType>() ||
-		left_subst->IsType<MidoriType::RangeType>() ||
-		left_subst->IsType<MidoriType::WorkerType>() ||
-		left_subst->IsType<MidoriType::ChannelType>() ||
-		left_subst->IsType<MidoriType::CellType>() ||
-		left_subst->IsType<MidoriType::FunctionType>();
+		left_subst->IsType<MarmotType::StructType>() ||
+		left_subst->IsType<MarmotType::UnionType>() ||
+		left_subst->IsType<MarmotType::NewType>() ||
+		left_subst->IsType<MarmotType::ArrayType>() ||
+		left_subst->IsType<MarmotType::RangeType>() ||
+		left_subst->IsType<MarmotType::WorkerType>() ||
+		left_subst->IsType<MarmotType::ChannelType>() ||
+		left_subst->IsType<MarmotType::CellType>() ||
+		left_subst->IsType<MarmotType::FunctionType>();
 
 	// Never is the type of an expression that does not finish, so it may stand
 	// where any type is expected. Where Never itself is expected, as in the body
 	// of a function declared to return it, nothing else fits.
-	const std::shared_ptr<MidoriType>* expected_side = diagnostic_mode == UnifyDiagnosticMode::ActualExpected ? &right_subst
+	const std::shared_ptr<MarmotType>* expected_side = diagnostic_mode == UnifyDiagnosticMode::ActualExpected ? &right_subst
 		: diagnostic_mode == UnifyDiagnosticMode::ExpectedActual ? &left_subst
 		: nullptr;
-	const std::shared_ptr<MidoriType>* actual_side = expected_side == &right_subst ? &left_subst : &right_subst;
-	const bool actual_is_open = (*actual_side)->IsType<MidoriType::NeverType>() || (*actual_side)->IsType<MidoriType::TypeVariable>() || (*actual_side)->IsType<MidoriType::UndecidedType>();
+	const std::shared_ptr<MarmotType>* actual_side = expected_side == &right_subst ? &left_subst : &right_subst;
+	const bool actual_is_open = (*actual_side)->IsType<MarmotType::NeverType>() || (*actual_side)->IsType<MarmotType::TypeVariable>() || (*actual_side)->IsType<MarmotType::UndecidedType>();
 
 	// Two Undecided types that meet must end up as one type: `[[], []]` is
 	// told its element type later, by one use, and both elements need it.
 	// Undecided is refined by overwriting it in place, which reaches only one
 	// of the two, so both become the same fresh variable instead, and whatever
 	// that variable is bound to reaches every node that holds either.
-	if (left_subst->IsType<MidoriType::UndecidedType>() && right_subst->IsType<MidoriType::UndecidedType>() && left.get() != right.get())
+	if (left_subst->IsType<MarmotType::UndecidedType>() && right_subst->IsType<MarmotType::UndecidedType>() && left.get() != right.get())
 	{
-		const std::shared_ptr<MidoriType> shared = FreshTypeVar();
+		const std::shared_ptr<MarmotType> shared = FreshTypeVar();
 		*left = *shared;
 		*right = *shared;
 		return left;
@@ -1566,27 +1566,27 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 	{
 		return left_subst;
 	}
-	else if (expected_side != nullptr && (*expected_side)->IsType<MidoriType::NeverType>() && !actual_is_open)
+	else if (expected_side != nullptr && (*expected_side)->IsType<MarmotType::NeverType>() && !actual_is_open)
 	{
 		return std::unexpected(MakeUnificationError(token, left_subst, right_subst, diagnostic_mode));
 	}
 	// Never type unifies with any type (it's the bottom type)
-	else if (left_subst->IsType<MidoriType::NeverType>())
+	else if (left_subst->IsType<MarmotType::NeverType>())
 	{
 		return right_subst;
 	}
-	else if (right_subst->IsType<MidoriType::NeverType>())
+	else if (right_subst->IsType<MarmotType::NeverType>())
 	{
 		return left_subst;
 	}
 	// Undecided holds no information, so it takes the other side. It is never
 	// bound into a variable: a variable bound to Undecided has lost what it was.
-	else if (left_subst->IsType<MidoriType::UndecidedType>() && !right_subst->IsType<MidoriType::UndecidedType>())
+	else if (left_subst->IsType<MarmotType::UndecidedType>() && !right_subst->IsType<MarmotType::UndecidedType>())
 	{
 		*left = *right_subst;
 		return left;
 	}
-	else if (!left_subst->IsType<MidoriType::UndecidedType>() && right_subst->IsType<MidoriType::UndecidedType>())
+	else if (!left_subst->IsType<MarmotType::UndecidedType>() && right_subst->IsType<MarmotType::UndecidedType>())
 	{
 		*right = *left_subst;
 		return left;
@@ -1595,77 +1595,77 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 	// parameters are the oldest variables in its body, so a call's freshened ones
 	// resolve to them; binding the other way round left the result of a nested
 	// generic call typed by a variable the specialization had never heard of.
-	else if (left_subst->IsType<MidoriType::TypeVariable>() && !(right_subst->IsType<MidoriType::TypeVariable>() && right_subst->GetType<MidoriType::TypeVariable>().m_id > left_subst->GetType<MidoriType::TypeVariable>().m_id))
+	else if (left_subst->IsType<MarmotType::TypeVariable>() && !(right_subst->IsType<MarmotType::TypeVariable>() && right_subst->GetType<MarmotType::TypeVariable>().m_id > left_subst->GetType<MarmotType::TypeVariable>().m_id))
 	{
-		int var_id = left_subst->GetType<MidoriType::TypeVariable>().m_id;
+		int var_id = left_subst->GetType<MarmotType::TypeVariable>().m_id;
 		if (OccursCheck(var_id, right_subst))
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Infinite type detected (occurs check failed)", token, m_file_name, m_source_lines, left_subst, right_subst));
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Infinite type detected (occurs check failed)", token, m_file_name, m_source_lines, left_subst, right_subst));
 		}
 		m_type_substitution[var_id] = right_subst;
 		*left = *right_subst;
 		return left;
 	}
-	else if (right_subst->IsType<MidoriType::TypeVariable>())
+	else if (right_subst->IsType<MarmotType::TypeVariable>())
 	{
-		int var_id = right_subst->GetType<MidoriType::TypeVariable>().m_id;
+		int var_id = right_subst->GetType<MarmotType::TypeVariable>().m_id;
 		if (OccursCheck(var_id, left_subst))
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Infinite type detected (occurs check failed)", token, m_file_name, m_source_lines, left_subst, right_subst));
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Infinite type detected (occurs check failed)", token, m_file_name, m_source_lines, left_subst, right_subst));
 		}
 		m_type_substitution[var_id] = left_subst;
 		*right = *left_subst;
 		return left;
 	}
-	else if (left_subst->IsType<MidoriType::ArrayType>() && right_subst->IsType<MidoriType::ArrayType>())
+	else if (left_subst->IsType<MarmotType::ArrayType>() && right_subst->IsType<MarmotType::ArrayType>())
 	{
-		MidoriResult::TypeResult result = Unify(token, left_subst->GetType<MidoriType::ArrayType>().m_element_type, right_subst->GetType<MidoriType::ArrayType>().m_element_type, diagnostic_mode);
+		MarmotResult::TypeResult result = Unify(token, left_subst->GetType<MarmotType::ArrayType>().m_element_type, right_subst->GetType<MarmotType::ArrayType>().m_element_type, diagnostic_mode);
 		if (!result.has_value())
 		{
 			return result;
 		}
 		return left;
 	}
-	else if (left_subst->IsType<MidoriType::WorkerType>() && right_subst->IsType<MidoriType::WorkerType>())
+	else if (left_subst->IsType<MarmotType::WorkerType>() && right_subst->IsType<MarmotType::WorkerType>())
 	{
-		MidoriResult::TypeResult result = Unify(token, left_subst->GetType<MidoriType::WorkerType>().m_result_type, right_subst->GetType<MidoriType::WorkerType>().m_result_type, diagnostic_mode);
+		MarmotResult::TypeResult result = Unify(token, left_subst->GetType<MarmotType::WorkerType>().m_result_type, right_subst->GetType<MarmotType::WorkerType>().m_result_type, diagnostic_mode);
 		if (!result.has_value())
 		{
 			return result;
 		}
 		return left;
 	}
-	else if (left_subst->IsType<MidoriType::ChannelType>() && right_subst->IsType<MidoriType::ChannelType>())
+	else if (left_subst->IsType<MarmotType::ChannelType>() && right_subst->IsType<MarmotType::ChannelType>())
 	{
-		MidoriResult::TypeResult result = Unify(token, left_subst->GetType<MidoriType::ChannelType>().m_element_type, right_subst->GetType<MidoriType::ChannelType>().m_element_type, diagnostic_mode);
+		MarmotResult::TypeResult result = Unify(token, left_subst->GetType<MarmotType::ChannelType>().m_element_type, right_subst->GetType<MarmotType::ChannelType>().m_element_type, diagnostic_mode);
 		if (!result.has_value())
 		{
 			return result;
 		}
 		return left;
 	}
-	else if (left_subst->IsType<MidoriType::CellType>() && right_subst->IsType<MidoriType::CellType>())
+	else if (left_subst->IsType<MarmotType::CellType>() && right_subst->IsType<MarmotType::CellType>())
 	{
-		MidoriResult::TypeResult result = Unify(token, left_subst->GetType<MidoriType::CellType>().m_element_type, right_subst->GetType<MidoriType::CellType>().m_element_type, diagnostic_mode);
+		MarmotResult::TypeResult result = Unify(token, left_subst->GetType<MarmotType::CellType>().m_element_type, right_subst->GetType<MarmotType::CellType>().m_element_type, diagnostic_mode);
 		if (!result.has_value())
 		{
 			return result;
 		}
 		return left;
 	}
-	else if (left_subst->IsType<MidoriType::RangeType>() && right_subst->IsType<MidoriType::RangeType>())
+	else if (left_subst->IsType<MarmotType::RangeType>() && right_subst->IsType<MarmotType::RangeType>())
 	{
-		MidoriResult::TypeResult result = Unify(token, left_subst->GetType<MidoriType::RangeType>().m_element_type, right_subst->GetType<MidoriType::RangeType>().m_element_type, diagnostic_mode);
+		MarmotResult::TypeResult result = Unify(token, left_subst->GetType<MarmotType::RangeType>().m_element_type, right_subst->GetType<MarmotType::RangeType>().m_element_type, diagnostic_mode);
 		if (!result.has_value())
 		{
 			return result;
 		}
 		return left;
 	}
-	else if (left_subst->IsType<MidoriType::FunctionType>() && right_subst->IsType<MidoriType::FunctionType>())
+	else if (left_subst->IsType<MarmotType::FunctionType>() && right_subst->IsType<MarmotType::FunctionType>())
 	{
-		MidoriType::FunctionType& left_func = left_subst->GetType<MidoriType::FunctionType>();
-		MidoriType::FunctionType& right_func = right_subst->GetType<MidoriType::FunctionType>();
+		MarmotType::FunctionType& left_func = left_subst->GetType<MarmotType::FunctionType>();
+		MarmotType::FunctionType& right_func = right_subst->GetType<MarmotType::FunctionType>();
 
 		// Function types must have the same number of parameters
 		if (left_func.m_param_types.size() != right_func.m_param_types.size())
@@ -1673,7 +1673,7 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 			return std::unexpected(MakeFunctionArityError(token, left_func.m_param_types.size(), right_func.m_param_types.size(), diagnostic_mode));
 		}
 
-		MidoriResult::TypeResult result;
+		MarmotResult::TypeResult result;
 
 		for (size_t idx : std::views::iota(0u, left_func.m_param_types.size()))
 		{
@@ -1691,27 +1691,27 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 		}
 		return left;
 	}
-	else if (left_subst->IsType<MidoriType::NewType>() && right_subst->IsType<MidoriType::NewType>())
+	else if (left_subst->IsType<MarmotType::NewType>() && right_subst->IsType<MarmotType::NewType>())
 	{
-		MidoriType::NewType& left_new_type = left_subst->GetType<MidoriType::NewType>();
-		MidoriType::NewType& right_new_type = right_subst->GetType<MidoriType::NewType>();
+		MarmotType::NewType& left_new_type = left_subst->GetType<MarmotType::NewType>();
+		MarmotType::NewType& right_new_type = right_subst->GetType<MarmotType::NewType>();
 		if (left_new_type.m_name != right_new_type.m_name || left_new_type.m_module_name != right_new_type.m_module_name)
 		{
 			return std::unexpected(MakeUnificationError(token, left_subst, right_subst, diagnostic_mode));
 		}
 
 		// The type arguments decide the representation, so they are all there is to unify.
-		MidoriResult::TypeResult type_argument_result = UnifyTypeArguments(token, left_new_type.m_type_arguments, right_new_type.m_type_arguments, diagnostic_mode);
+		MarmotResult::TypeResult type_argument_result = UnifyTypeArguments(token, left_new_type.m_type_arguments, right_new_type.m_type_arguments, diagnostic_mode);
 		if (!type_argument_result.has_value())
 		{
 			return type_argument_result;
 		}
 		return left;
 	}
-	else if (left_subst->IsType<MidoriType::StructType>() && right_subst->IsType<MidoriType::StructType>())
+	else if (left_subst->IsType<MarmotType::StructType>() && right_subst->IsType<MarmotType::StructType>())
 	{
-		MidoriType::StructType& left_struct = left_subst->GetType<MidoriType::StructType>();
-		MidoriType::StructType& right_struct = right_subst->GetType<MidoriType::StructType>();
+		MarmotType::StructType& left_struct = left_subst->GetType<MarmotType::StructType>();
+		MarmotType::StructType& right_struct = right_subst->GetType<MarmotType::StructType>();
 
 		// Struct types must have the same name and same number of members
 		if (left_struct.m_name != right_struct.m_name || left_struct.m_module_name != right_struct.m_module_name || left_struct.m_member_types.size() != right_struct.m_member_types.size())
@@ -1724,7 +1724,7 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 			return std::unexpected(std::move(*generic_mismatch));
 		}
 
-		MidoriResult::TypeResult type_argument_result = UnifyTypeArguments(token, left_struct.m_type_arguments, right_struct.m_type_arguments, diagnostic_mode);
+		MarmotResult::TypeResult type_argument_result = UnifyTypeArguments(token, left_struct.m_type_arguments, right_struct.m_type_arguments, diagnostic_mode);
 		if (!type_argument_result.has_value())
 		{
 			return type_argument_result;
@@ -1733,7 +1733,7 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 		// Unify each member type
 		for (size_t idx : std::views::iota(0u, left_struct.m_member_types.size()))
 		{
-			MidoriResult::TypeResult result = Unify(token, left_struct.m_member_types[idx], right_struct.m_member_types[idx], diagnostic_mode);
+			MarmotResult::TypeResult result = Unify(token, left_struct.m_member_types[idx], right_struct.m_member_types[idx], diagnostic_mode);
 			if (!result.has_value())
 			{
 				return result;
@@ -1742,10 +1742,10 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 
 		return left;
 	}
-	else if (left_subst->IsType<MidoriType::UnionType>() && right_subst->IsType<MidoriType::UnionType>())
+	else if (left_subst->IsType<MarmotType::UnionType>() && right_subst->IsType<MarmotType::UnionType>())
 	{
-		MidoriType::UnionType& left_union = left_subst->GetType<MidoriType::UnionType>();
-		MidoriType::UnionType& right_union = right_subst->GetType<MidoriType::UnionType>();
+		MarmotType::UnionType& left_union = left_subst->GetType<MarmotType::UnionType>();
+		MarmotType::UnionType& right_union = right_subst->GetType<MarmotType::UnionType>();
 
 		// Union types must have the same name and same members
 		if (left_union.m_name != right_union.m_name || left_union.m_module_name != right_union.m_module_name || left_union.m_member_info.size() != right_union.m_member_info.size())
@@ -1758,7 +1758,7 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 			return std::unexpected(std::move(*generic_mismatch));
 		}
 
-		MidoriResult::TypeResult type_argument_result = UnifyTypeArguments(token, left_union.m_type_arguments, right_union.m_type_arguments, diagnostic_mode);
+		MarmotResult::TypeResult type_argument_result = UnifyTypeArguments(token, left_union.m_type_arguments, right_union.m_type_arguments, diagnostic_mode);
 		if (!type_argument_result.has_value())
 		{
 			return type_argument_result;
@@ -1776,13 +1776,13 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 
 		for (auto& [member_name, left_ctx] : left_union.m_member_info)
 		{
-			std::unordered_map<std::string, MidoriType::UnionType::UnionMemberContext>::iterator right_it = right_union.m_member_info.find(member_name);
+			std::unordered_map<std::string, MarmotType::UnionType::UnionMemberContext>::iterator right_it = right_union.m_member_info.find(member_name);
 			if (right_it == right_union.m_member_info.end())
 			{
 				return std::unexpected(MakeUnificationError(token, left_subst, right_subst, diagnostic_mode));
 			}
 
-			MidoriType::UnionType::UnionMemberContext& right_ctx = right_it->second;
+			MarmotType::UnionType::UnionMemberContext& right_ctx = right_it->second;
 			if (left_ctx.m_member_types.size() != right_ctx.m_member_types.size())
 			{
 				return std::unexpected(MakeUnificationError(token, left_subst, right_subst, diagnostic_mode));
@@ -1790,7 +1790,7 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 
 			for (size_t idx : std::views::iota(0u, left_ctx.m_member_types.size()))
 			{
-				MidoriResult::TypeResult result = Unify(token, left_ctx.m_member_types[idx], right_ctx.m_member_types[idx], diagnostic_mode);
+				MarmotResult::TypeResult result = Unify(token, left_ctx.m_member_types[idx], right_ctx.m_member_types[idx], diagnostic_mode);
 				if (!result.has_value())
 				{
 					return result;
@@ -1800,10 +1800,10 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 
 		return left;
 	}
-	else if (left_subst->IsType<MidoriType::TupleType>() && right_subst->IsType<MidoriType::TupleType>())
+	else if (left_subst->IsType<MarmotType::TupleType>() && right_subst->IsType<MarmotType::TupleType>())
 	{
-		MidoriType::TupleType& left_tuple = left_subst->GetType<MidoriType::TupleType>();
-		MidoriType::TupleType& right_tuple = right_subst->GetType<MidoriType::TupleType>();
+		MarmotType::TupleType& left_tuple = left_subst->GetType<MarmotType::TupleType>();
+		MarmotType::TupleType& right_tuple = right_subst->GetType<MarmotType::TupleType>();
 
 		// Tuple types must have the same number of elements
 		if (left_tuple.m_element_types.size() != right_tuple.m_element_types.size())
@@ -1814,7 +1814,7 @@ MidoriResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 		// Unify each element type
 		for (size_t idx : std::views::iota(0u, left_tuple.m_element_types.size()))
 		{
-			MidoriResult::TypeResult result = Unify(token, left_tuple.m_element_types[idx], right_tuple.m_element_types[idx], diagnostic_mode);
+			MarmotResult::TypeResult result = Unify(token, left_tuple.m_element_types[idx], right_tuple.m_element_types[idx], diagnostic_mode);
 			if (!result.has_value())
 			{
 				return result;
@@ -1842,7 +1842,7 @@ TypeChecker& TypeChecker::EndScope()
 	return *this;
 }
 
-std::shared_ptr<MidoriType>* TypeChecker::FindNameType(const std::string& name)
+std::shared_ptr<MarmotType>* TypeChecker::FindNameType(const std::string& name)
 {
 	for (TypeChecker::TypeEnvironmentStack::reverse_iterator it = m_name_type_table.rbegin(); it != m_name_type_table.rend(); ++it)
 	{
@@ -1855,7 +1855,7 @@ std::shared_ptr<MidoriType>* TypeChecker::FindNameType(const std::string& name)
 	return nullptr;
 }
 
-const std::shared_ptr<MidoriType>* TypeChecker::FindNameType(const std::string& name) const
+const std::shared_ptr<MarmotType>* TypeChecker::FindNameType(const std::string& name) const
 {
 	for (TypeChecker::TypeEnvironmentStack::const_reverse_iterator it = m_name_type_table.crbegin(); it != m_name_type_table.crend(); ++it)
 	{
@@ -1868,11 +1868,11 @@ const std::shared_ptr<MidoriType>* TypeChecker::FindNameType(const std::string& 
 	return nullptr;
 }
 
-MidoriResult::TypeResult TypeChecker::Evaluate(const std::unique_ptr<MidoriStatement>& statement)
+MarmotResult::TypeResult TypeChecker::Evaluate(const std::unique_ptr<MarmotStatement>& statement)
 {
 	return VisitNode
 	(
-		[this]<typename T>(T& stmt) -> MidoriResult::TypeResult
+		[this]<typename T>(T& stmt) -> MarmotResult::TypeResult
 		{
 			return (*this)(stmt);
 		},
@@ -1880,11 +1880,11 @@ MidoriResult::TypeResult TypeChecker::Evaluate(const std::unique_ptr<MidoriState
 	);
 }
 
-MidoriResult::TypeResult TypeChecker::Evaluate(const std::unique_ptr<MidoriExpression>& expression)
+MarmotResult::TypeResult TypeChecker::Evaluate(const std::unique_ptr<MarmotExpression>& expression)
 {
 	return VisitNode
 	(
-		[this]<typename T>(T& expr) -> MidoriResult::TypeResult
+		[this]<typename T>(T& expr) -> MarmotResult::TypeResult
 		{
 			return (*this)(expr);
 		},
@@ -1892,78 +1892,78 @@ MidoriResult::TypeResult TypeChecker::Evaluate(const std::unique_ptr<MidoriExpre
 	);
 }
 
-MidoriResult::TypeResult TypeChecker::CheckPattern(MidoriPattern& pattern, const std::shared_ptr<MidoriType>& expected_type)
+MarmotResult::TypeResult TypeChecker::CheckPattern(MarmotPattern& pattern, const std::shared_ptr<MarmotType>& expected_type)
 {
-	std::shared_ptr<MidoriType> resolved_expected = ApplySubstitution(expected_type);
+	std::shared_ptr<MarmotType> resolved_expected = ApplySubstitution(expected_type);
 
 	return std::visit
 	(
-		[&]<typename T>(T&& node) -> MidoriResult::TypeResult
+		[&]<typename T>(T&& node) -> MarmotResult::TypeResult
 		{
 			using Node = std::decay_t<T>;
-			if constexpr (std::is_same_v<Node, MidoriPattern::Binding>)
+			if constexpr (std::is_same_v<Node, MarmotPattern::Binding>)
 			{
 				node.m_type_data = resolved_expected;
 				m_name_type_table.back()[node.m_name.m_lexeme] = resolved_expected;
 				return node.m_type_data;
 			}
-			else if constexpr (std::is_same_v<Node, MidoriPattern::Wildcard>)
+			else if constexpr (std::is_same_v<Node, MarmotPattern::Wildcard>)
 			{
 				node.m_type_data = resolved_expected;
 				return node.m_type_data;
 			}
-			else if constexpr (std::is_same_v<Node, MidoriPattern::Literal>)
+			else if constexpr (std::is_same_v<Node, MarmotPattern::Literal>)
 			{
 				switch (node.m_kind)
 				{
-				case MidoriPattern::LiteralKind::Bool:
-					node.m_type_data = MidoriType::MakeLiteralType<MidoriType::BoolType>();
+				case MarmotPattern::LiteralKind::Bool:
+					node.m_type_data = MarmotType::MakeLiteralType<MarmotType::BoolType>();
 					break;
-				case MidoriPattern::LiteralKind::Float:
-					node.m_type_data = MidoriType::MakeLiteralType<MidoriType::FloatType>();
+				case MarmotPattern::LiteralKind::Float:
+					node.m_type_data = MarmotType::MakeLiteralType<MarmotType::FloatType>();
 					break;
-				case MidoriPattern::LiteralKind::Integer:
-					node.m_type_data = MidoriType::MakeLiteralType<MidoriType::IntegerType>();
+				case MarmotPattern::LiteralKind::Integer:
+					node.m_type_data = MarmotType::MakeLiteralType<MarmotType::IntegerType>();
 					break;
-				case MidoriPattern::LiteralKind::Byte:
-					node.m_type_data = MidoriType::MakeLiteralType<MidoriType::ByteType>();
+				case MarmotPattern::LiteralKind::Byte:
+					node.m_type_data = MarmotType::MakeLiteralType<MarmotType::ByteType>();
 					break;
-				case MidoriPattern::LiteralKind::Word:
-					node.m_type_data = MidoriType::MakeLiteralType<MidoriType::WordType>();
+				case MarmotPattern::LiteralKind::Word:
+					node.m_type_data = MarmotType::MakeLiteralType<MarmotType::WordType>();
 					break;
-				case MidoriPattern::LiteralKind::Text:
-					node.m_type_data = MidoriType::MakeLiteralType<MidoriType::TextType>();
+				case MarmotPattern::LiteralKind::Text:
+					node.m_type_data = MarmotType::MakeLiteralType<MarmotType::TextType>();
 					break;
-				case MidoriPattern::LiteralKind::Unit:
-					node.m_type_data = MidoriType::MakeLiteralType<MidoriType::UnitType>();
+				case MarmotPattern::LiteralKind::Unit:
+					node.m_type_data = MarmotType::MakeLiteralType<MarmotType::UnitType>();
 					break;
 				}
 
 				// Literals do not take their type from where they are used, so a hex or
 				// binary literal up to 0xFF is a Byte even against an Int.
-				if (node.m_kind == MidoriPattern::LiteralKind::Byte && resolved_expected->IsType<MidoriType::IntegerType>())
+				if (node.m_kind == MarmotPattern::LiteralKind::Byte && resolved_expected->IsType<MarmotType::IntegerType>())
 				{
-					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, std::format("Pattern type error: '{}' is a Byte, since a hex or binary literal up to 0xFF is one; write {} to match an Int", node.m_token.m_lexeme, ParseUnsignedLiteral(node.m_token.m_lexeme).value()), node.m_token, m_file_name, m_source_lines));
+					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, std::format("Pattern type error: '{}' is a Byte, since a hex or binary literal up to 0xFF is one; write {} to match an Int", node.m_token.m_lexeme, ParseUnsignedLiteral(node.m_token.m_lexeme).value()), node.m_token, m_file_name, m_source_lines));
 				}
 				return Unify(node.m_token, node.m_type_data, resolved_expected, UnifyDiagnosticMode::ActualExpected)
-					.and_then([&node](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult { return node.m_type_data; });
+					.and_then([&node](std::shared_ptr<MarmotType>&&) -> MarmotResult::TypeResult { return node.m_type_data; });
 			}
-			else if constexpr (std::is_same_v<Node, MidoriPattern::Tuple>)
+			else if constexpr (std::is_same_v<Node, MarmotPattern::Tuple>)
 			{
-				if (!resolved_expected->IsType<MidoriType::TupleType>())
+				if (!resolved_expected->IsType<MarmotType::TupleType>())
 				{
-					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: expected tuple type", node.m_left_paren, m_file_name, m_source_lines, resolved_expected));
+					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Pattern type error: expected tuple type", node.m_left_paren, m_file_name, m_source_lines, resolved_expected));
 				}
 
-				const MidoriType::TupleType& tuple_type = resolved_expected->GetType<MidoriType::TupleType>();
+				const MarmotType::TupleType& tuple_type = resolved_expected->GetType<MarmotType::TupleType>();
 				if (tuple_type.m_element_types.size() != node.m_elements.size())
 				{
-					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: tuple arity mismatch", node.m_left_paren, m_file_name, m_source_lines));
+					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Pattern type error: tuple arity mismatch", node.m_left_paren, m_file_name, m_source_lines));
 				}
 
 				for (size_t i = 0u; i < node.m_elements.size(); i += 1u)
 				{
-					MidoriResult::TypeResult elem_result = CheckPattern(*node.m_elements[i], tuple_type.m_element_types[i]);
+					MarmotResult::TypeResult elem_result = CheckPattern(*node.m_elements[i], tuple_type.m_element_types[i]);
 					if (!elem_result.has_value())
 					{
 						return std::unexpected(std::move(elem_result.error()));
@@ -1973,17 +1973,17 @@ MidoriResult::TypeResult TypeChecker::CheckPattern(MidoriPattern& pattern, const
 				node.m_type_data = resolved_expected;
 				return node.m_type_data;
 			}
-			else if constexpr (std::is_same_v<Node, MidoriPattern::Array>)
+			else if constexpr (std::is_same_v<Node, MarmotPattern::Array>)
 			{
-				if (!resolved_expected->IsType<MidoriType::ArrayType>())
+				if (!resolved_expected->IsType<MarmotType::ArrayType>())
 				{
-					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: expected array type", node.m_left_bracket, m_file_name, m_source_lines, resolved_expected));
+					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Pattern type error: expected array type", node.m_left_bracket, m_file_name, m_source_lines, resolved_expected));
 				}
 
-				const MidoriType::ArrayType& array_type = resolved_expected->GetType<MidoriType::ArrayType>();
-				for (const std::unique_ptr<MidoriPattern>& elem : node.m_elements)
+				const MarmotType::ArrayType& array_type = resolved_expected->GetType<MarmotType::ArrayType>();
+				for (const std::unique_ptr<MarmotPattern>& elem : node.m_elements)
 				{
-					MidoriResult::TypeResult elem_result = CheckPattern(*elem, array_type.m_element_type);
+					MarmotResult::TypeResult elem_result = CheckPattern(*elem, array_type.m_element_type);
 					if (!elem_result.has_value())
 					{
 						return std::unexpected(std::move(elem_result.error()));
@@ -1992,7 +1992,7 @@ MidoriResult::TypeResult TypeChecker::CheckPattern(MidoriPattern& pattern, const
 
 				if (node.m_rest.has_value())
 				{
-					MidoriResult::TypeResult rest_result = CheckPattern(*node.m_rest->m_pattern, resolved_expected);
+					MarmotResult::TypeResult rest_result = CheckPattern(*node.m_rest->m_pattern, resolved_expected);
 					if (!rest_result.has_value())
 					{
 						return std::unexpected(std::move(rest_result.error()));
@@ -2002,31 +2002,31 @@ MidoriResult::TypeResult TypeChecker::CheckPattern(MidoriPattern& pattern, const
 				node.m_type_data = resolved_expected;
 				return node.m_type_data;
 			}
-			else if constexpr (std::is_same_v<Node, MidoriPattern::Constructor>)
+			else if constexpr (std::is_same_v<Node, MarmotPattern::Constructor>)
 			{
 				if (node.m_is_union)
 				{
-					if (!resolved_expected->IsType<MidoriType::UnionType>())
+					if (!resolved_expected->IsType<MarmotType::UnionType>())
 					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: expected union type", node.m_name_token, m_file_name, m_source_lines, resolved_expected));
+						return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Pattern type error: expected union type", node.m_name_token, m_file_name, m_source_lines, resolved_expected));
 					}
 
-					MidoriType::UnionType& union_type = resolved_expected->GetType<MidoriType::UnionType>();
+					MarmotType::UnionType& union_type = resolved_expected->GetType<MarmotType::UnionType>();
 					if (!union_type.m_member_info.contains(node.m_name))
 					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(std::format("Pattern type error: unrecognized union member '{}'", node.m_name), node.m_name_token, m_file_name, m_source_lines));
+						return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(std::format("Pattern type error: unrecognized union member '{}'", node.m_name), node.m_name_token, m_file_name, m_source_lines));
 					}
 
-					const MidoriType::UnionType::UnionMemberContext& member_ctx = union_type.m_member_info.at(node.m_name);
+					const MarmotType::UnionType::UnionMemberContext& member_ctx = union_type.m_member_info.at(node.m_name);
 					if (member_ctx.m_member_types.size() != node.m_args.size())
 					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: incorrect union arity", node.m_name_token, m_file_name, m_source_lines));
+						return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Pattern type error: incorrect union arity", node.m_name_token, m_file_name, m_source_lines));
 					}
 
 					node.m_tag = member_ctx.m_tag;
 					for (size_t i = 0u; i < node.m_args.size(); i += 1u)
 					{
-						MidoriResult::TypeResult arg_result = CheckPattern(*node.m_args[i], member_ctx.m_member_types[i]);
+						MarmotResult::TypeResult arg_result = CheckPattern(*node.m_args[i], member_ctx.m_member_types[i]);
 						if (!arg_result.has_value())
 						{
 							return std::unexpected(std::move(arg_result.error()));
@@ -2037,25 +2037,25 @@ MidoriResult::TypeResult TypeChecker::CheckPattern(MidoriPattern& pattern, const
 					return node.m_type_data;
 				}
 
-				if (!resolved_expected->IsType<MidoriType::StructType>())
+				if (!resolved_expected->IsType<MarmotType::StructType>())
 				{
-					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: expected struct type", node.m_name_token, m_file_name, m_source_lines, resolved_expected));
+					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Pattern type error: expected struct type", node.m_name_token, m_file_name, m_source_lines, resolved_expected));
 				}
 
-				const MidoriType::StructType& struct_type = resolved_expected->GetType<MidoriType::StructType>();
+				const MarmotType::StructType& struct_type = resolved_expected->GetType<MarmotType::StructType>();
 				if (struct_type.m_name != node.m_name)
 				{
-					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: struct name mismatch", node.m_name_token, m_file_name, m_source_lines));
+					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Pattern type error: struct name mismatch", node.m_name_token, m_file_name, m_source_lines));
 				}
 
 				if (struct_type.m_member_types.size() != node.m_args.size())
 				{
-					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: incorrect struct arity", node.m_name_token, m_file_name, m_source_lines));
+					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Pattern type error: incorrect struct arity", node.m_name_token, m_file_name, m_source_lines));
 				}
 
 				for (size_t i = 0u; i < node.m_args.size(); i += 1u)
 				{
-					MidoriResult::TypeResult arg_result = CheckPattern(*node.m_args[i], struct_type.m_member_types[i]);
+					MarmotResult::TypeResult arg_result = CheckPattern(*node.m_args[i], struct_type.m_member_types[i]);
 					if (!arg_result.has_value())
 					{
 						return std::unexpected(std::move(arg_result.error()));
@@ -2065,42 +2065,42 @@ MidoriResult::TypeResult TypeChecker::CheckPattern(MidoriPattern& pattern, const
 				node.m_type_data = resolved_expected;
 				return node.m_type_data;
 			}
-			else if constexpr (std::is_same_v<Node, MidoriPattern::As>)
+			else if constexpr (std::is_same_v<Node, MarmotPattern::As>)
 			{
 				return CheckPattern(*node.m_pattern, resolved_expected)
-					.and_then([&](std::shared_ptr<MidoriType>&&) { return CheckPattern(*node.m_binding, resolved_expected); })
-					.transform([&node, &resolved_expected](std::shared_ptr<MidoriType>&&)
+					.and_then([&](std::shared_ptr<MarmotType>&&) { return CheckPattern(*node.m_binding, resolved_expected); })
+					.transform([&node, &resolved_expected](std::shared_ptr<MarmotType>&&)
 					{
 						node.m_type_data = resolved_expected;
 						return node.m_type_data;
 					});
 			}
-			else if constexpr (std::is_same_v<Node, MidoriPattern::Record>)
+			else if constexpr (std::is_same_v<Node, MarmotPattern::Record>)
 			{
-				if (!resolved_expected->IsType<MidoriType::StructType>() || resolved_expected->GetType<MidoriType::StructType>().m_name != node.m_name)
+				if (!resolved_expected->IsType<MarmotType::StructType>() || resolved_expected->GetType<MarmotType::StructType>().m_name != node.m_name)
 				{
-					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: expected struct type", node.m_name_token, m_file_name, m_source_lines, resolved_expected));
+					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Pattern type error: expected struct type", node.m_name_token, m_file_name, m_source_lines, resolved_expected));
 				}
 
-				const MidoriType::StructType& struct_type = resolved_expected->GetType<MidoriType::StructType>();
+				const MarmotType::StructType& struct_type = resolved_expected->GetType<MarmotType::StructType>();
 				std::vector<bool> is_matched(struct_type.m_member_names.size(), false);
-				for (MidoriPattern::Record::Field& field : node.m_fields)
+				for (MarmotPattern::Record::Field& field : node.m_fields)
 				{
 					const std::vector<std::string>::const_iterator found = std::ranges::find(struct_type.m_member_names, field.m_name.m_lexeme);
 					if (found == struct_type.m_member_names.cend())
 					{
 						const std::string suggestion = std::format("Struct '{}' does not have a member named '{}'", struct_type.m_name, field.m_name.m_lexeme);
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Unknown struct member in record pattern", field.m_name, m_file_name, m_source_lines, std::optional<std::string_view>(suggestion)));
+						return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Unknown struct member in record pattern", field.m_name, m_file_name, m_source_lines, std::optional<std::string_view>(suggestion)));
 					}
 
 					field.m_index = static_cast<int>(std::distance(struct_type.m_member_names.cbegin(), found));
 					if (is_matched[static_cast<size_t>(field.m_index)])
 					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(std::format("Pattern type error: '{}' is matched twice in this record pattern", field.m_name.m_lexeme), field.m_name, m_file_name, m_source_lines));
+						return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(std::format("Pattern type error: '{}' is matched twice in this record pattern", field.m_name.m_lexeme), field.m_name, m_file_name, m_source_lines));
 					}
 					is_matched[static_cast<size_t>(field.m_index)] = true;
 
-					MidoriResult::TypeResult field_result = CheckPattern(*field.m_pattern, struct_type.m_member_types[static_cast<size_t>(field.m_index)]);
+					MarmotResult::TypeResult field_result = CheckPattern(*field.m_pattern, struct_type.m_member_types[static_cast<size_t>(field.m_index)]);
 					if (!field_result.has_value())
 					{
 						return field_result;
@@ -2113,50 +2113,50 @@ MidoriResult::TypeResult TypeChecker::CheckPattern(MidoriPattern& pattern, const
 					| std::ranges::to<std::vector>();
 				if (!node.m_rest.has_value() && !left_out.empty())
 				{
-					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(std::format("Pattern type error: this record pattern leaves out {}; match each, as in 'field = _', or end with '..' to leave them out", left_out | std::views::join_with(std::string_view(", ")) | std::ranges::to<std::string>()), node.m_name_token, m_file_name, m_source_lines));
+					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(std::format("Pattern type error: this record pattern leaves out {}; match each, as in 'field = _', or end with '..' to leave them out", left_out | std::views::join_with(std::string_view(", ")) | std::ranges::to<std::string>()), node.m_name_token, m_file_name, m_source_lines));
 				}
 				if (node.m_rest.has_value() && left_out.empty())
 				{
-					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: every field is matched already, so '..' leaves nothing out", node.m_rest.value(), m_file_name, m_source_lines));
+					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Pattern type error: every field is matched already, so '..' leaves nothing out", node.m_rest.value(), m_file_name, m_source_lines));
 				}
 
 				node.m_type_data = resolved_expected;
 				return node.m_type_data;
 			}
-			else if constexpr (std::is_same_v<Node, MidoriPattern::Range>)
+			else if constexpr (std::is_same_v<Node, MarmotPattern::Range>)
 			{
-				node.m_type_data = MidoriType::MakeLiteralType<MidoriType::IntegerType>();
+				node.m_type_data = MarmotType::MakeLiteralType<MarmotType::IntegerType>();
 				return Unify(node.m_start, node.m_type_data, resolved_expected, UnifyDiagnosticMode::ActualExpected)
-					.and_then([&node](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult { return node.m_type_data; });
+					.and_then([&node](std::shared_ptr<MarmotType>&&) -> MarmotResult::TypeResult { return node.m_type_data; });
 			}
-			else if constexpr (std::is_same_v<Node, MidoriPattern::Or>)
+			else if constexpr (std::is_same_v<Node, MarmotPattern::Or>)
 			{
 				// Each alternative binds the same names; the first decides their types and
 				// every later one must agree with it.
-				MidoriResult::TypeResult first = CheckPattern(*node.m_alternatives.front(), resolved_expected);
+				MarmotResult::TypeResult first = CheckPattern(*node.m_alternatives.front(), resolved_expected);
 				if (!first.has_value())
 				{
 					return first;
 				}
-				std::unordered_map<std::string, std::shared_ptr<MidoriType>>& names = m_name_type_table.back();
-				const std::vector<std::pair<std::string, std::shared_ptr<MidoriType>>> bound = node.m_alternatives.front()->Bindings(false)
-					| std::views::transform([&names](const MidoriPattern::Binding* binding) { return std::pair{ binding->m_name.m_lexeme, names.at(binding->m_name.m_lexeme) }; })
+				std::unordered_map<std::string, std::shared_ptr<MarmotType>>& names = m_name_type_table.back();
+				const std::vector<std::pair<std::string, std::shared_ptr<MarmotType>>> bound = node.m_alternatives.front()->Bindings(false)
+					| std::views::transform([&names](const MarmotPattern::Binding* binding) { return std::pair{ binding->m_name.m_lexeme, names.at(binding->m_name.m_lexeme) }; })
 					| std::ranges::to<std::vector>();
 
-				for (std::unique_ptr<MidoriPattern>& alternative : node.m_alternatives | std::views::drop(1))
+				for (std::unique_ptr<MarmotPattern>& alternative : node.m_alternatives | std::views::drop(1))
 				{
-					MidoriResult::TypeResult checked = CheckPattern(*alternative, resolved_expected);
+					MarmotResult::TypeResult checked = CheckPattern(*alternative, resolved_expected);
 					if (!checked.has_value())
 					{
 						return checked;
 					}
 					for (const auto& [name, type] : bound)
 					{
-						std::shared_ptr<MidoriType> resolved_type = ApplySubstitution(type);
-						std::shared_ptr<MidoriType> alternative_type = ApplySubstitution(names.at(name));
+						std::shared_ptr<MarmotType> resolved_type = ApplySubstitution(type);
+						std::shared_ptr<MarmotType> alternative_type = ApplySubstitution(names.at(name));
 						if (!Unify(GetPatternToken(*alternative), resolved_type, alternative_type).has_value())
 						{
-							return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, std::format("Pattern type error: '{}' has a different type in this alternative than in the first", name), GetPatternToken(*alternative), m_file_name, m_source_lines, alternative_type, resolved_type));
+							return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, std::format("Pattern type error: '{}' has a different type in this alternative than in the first", name), GetPatternToken(*alternative), m_file_name, m_source_lines, alternative_type, resolved_type));
 						}
 						names[name] = type;
 					}
@@ -2167,7 +2167,7 @@ MidoriResult::TypeResult TypeChecker::CheckPattern(MidoriPattern& pattern, const
 			}
 			else
 			{
-				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Pattern type error: unsupported pattern", GetPatternToken(pattern), m_file_name, m_source_lines));
+				return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Pattern type error: unsupported pattern", GetPatternToken(pattern), m_file_name, m_source_lines));
 			}
 		},
 		*pattern
@@ -2181,7 +2181,7 @@ TypeChecker::LocalGenericFunction::LocalGenericFunction(size_t depth, std::strin
 {
 }
 
-TypeChecker::PendingInstance::PendingInstance(const Token& token, std::shared_ptr<MidoriType> instance, std::vector<MidoriType::ClassConstraint> active_constraints, std::string undecided_message)
+TypeChecker::PendingInstance::PendingInstance(const Token& token, std::shared_ptr<MarmotType> instance, std::vector<MarmotType::ClassConstraint> active_constraints, std::string undecided_message)
 	: m_token(token),
 	m_instance(std::move(instance)),
 	m_active_constraints(std::move(active_constraints)),
@@ -2189,47 +2189,47 @@ TypeChecker::PendingInstance::PendingInstance(const Token& token, std::shared_pt
 {
 }
 
-std::shared_ptr<MidoriType> TypeChecker::Instantiate(const std::shared_ptr<MidoriType>& type, const std::vector<int>& parameters)
+std::shared_ptr<MarmotType> TypeChecker::Instantiate(const std::shared_ptr<MarmotType>& type, const std::vector<int>& parameters)
 {
 	std::ranges::for_each(parameters, [this](int parameter) { m_type_substitution.emplace(parameter, FreshTypeVar()); });
-	std::shared_ptr<MidoriType> instance = ApplySubstitution(type);
+	std::shared_ptr<MarmotType> instance = ApplySubstitution(type);
 	std::ranges::for_each(parameters, [this](int parameter) { m_type_substitution.erase(parameter); });
 	return instance;
 }
 
-std::shared_ptr<MidoriType> TypeChecker::FreshTypeVar()
+std::shared_ptr<MarmotType> TypeChecker::FreshTypeVar()
 {
-	return MidoriType::MakeTypeVariable(m_next_type_var_id++);
+	return MarmotType::MakeTypeVariable(m_next_type_var_id++);
 }
 
-std::shared_ptr<MidoriType> TypeChecker::Freshen(const std::shared_ptr<MidoriType>& type)
+std::shared_ptr<MarmotType> TypeChecker::Freshen(const std::shared_ptr<MarmotType>& type)
 {
 	FresheningContext context;
 	return Freshen(type, context);
 }
 
-std::shared_ptr<MidoriType> TypeChecker::Freshen(const std::shared_ptr<MidoriType>& type, FresheningContext& context)
+std::shared_ptr<MarmotType> TypeChecker::Freshen(const std::shared_ptr<MarmotType>& type, FresheningContext& context)
 {
 	// Check cache first to handle recursive types
-	std::unordered_map<const MidoriType*, std::shared_ptr<MidoriType>>::iterator cache_it = context.m_type_cache.find(type.get());
+	std::unordered_map<const MarmotType*, std::shared_ptr<MarmotType>>::iterator cache_it = context.m_type_cache.find(type.get());
 	if (cache_it != context.m_type_cache.end())
 	{
 		return cache_it->second;
 	}
 
-	auto freshen = [this, &context](const std::shared_ptr<MidoriType>& part) { return Freshen(part, context); };
-	auto freshen_all = [&freshen](const std::vector<std::shared_ptr<MidoriType>>& parts) { return parts | std::views::transform(freshen) | std::ranges::to<std::vector>(); };
+	auto freshen = [this, &context](const std::shared_ptr<MarmotType>& part) { return Freshen(part, context); };
+	auto freshen_all = [&freshen](const std::vector<std::shared_ptr<MarmotType>>& parts) { return parts | std::views::transform(freshen) | std::ranges::to<std::vector>(); };
 
-	if (type->IsType<MidoriType::UndecidedType>() || type->IsType<MidoriType::TypeVariable>())
+	if (type->IsType<MarmotType::UndecidedType>() || type->IsType<MarmotType::TypeVariable>())
 	{
-		std::shared_ptr<MidoriType> fresh_var = FreshTypeVar();
+		std::shared_ptr<MarmotType> fresh_var = FreshTypeVar();
 		context.m_type_cache[type.get()] = fresh_var;
 		return fresh_var;
 	}
-	else if (type->IsType<MidoriType::GenericParam>())
+	else if (type->IsType<MarmotType::GenericParam>())
 	{
 		// For GenericParam, check if we've already freshened this parameter name
-		const std::string& param_name = type->GetType<MidoriType::GenericParam>().m_name;
+		const std::string& param_name = type->GetType<MarmotType::GenericParam>().m_name;
 		TypeEnvironment::iterator it = context.m_generic_params.find(param_name);
 		if (it != context.m_generic_params.end())
 		{
@@ -2239,93 +2239,93 @@ std::shared_ptr<MidoriType> TypeChecker::Freshen(const std::shared_ptr<MidoriTyp
 		else
 		{
 			// First time seeing this generic parameter - create a fresh type variable and store it
-			std::shared_ptr<MidoriType> fresh_var = FreshTypeVar();
+			std::shared_ptr<MarmotType> fresh_var = FreshTypeVar();
 			context.m_generic_params[param_name] = fresh_var;
 			return fresh_var;
 		}
 	}
-	else if (type->IsType<MidoriType::ArrayType>())
+	else if (type->IsType<MarmotType::ArrayType>())
 	{
-		return MidoriType::MakeArrayType(freshen(type->GetType<MidoriType::ArrayType>().m_element_type));
+		return MarmotType::MakeArrayType(freshen(type->GetType<MarmotType::ArrayType>().m_element_type));
 	}
-	else if (type->IsType<MidoriType::RangeType>())
+	else if (type->IsType<MarmotType::RangeType>())
 	{
-		return MidoriType::MakeRangeType(freshen(type->GetType<MidoriType::RangeType>().m_element_type));
+		return MarmotType::MakeRangeType(freshen(type->GetType<MarmotType::RangeType>().m_element_type));
 	}
-	else if (type->IsType<MidoriType::WorkerType>())
+	else if (type->IsType<MarmotType::WorkerType>())
 	{
-		return MidoriType::MakeWorkerType(freshen(type->GetType<MidoriType::WorkerType>().m_result_type));
+		return MarmotType::MakeWorkerType(freshen(type->GetType<MarmotType::WorkerType>().m_result_type));
 	}
-	else if (type->IsType<MidoriType::ChannelType>())
+	else if (type->IsType<MarmotType::ChannelType>())
 	{
-		return MidoriType::MakeChannelType(freshen(type->GetType<MidoriType::ChannelType>().m_element_type));
+		return MarmotType::MakeChannelType(freshen(type->GetType<MarmotType::ChannelType>().m_element_type));
 	}
-	else if (type->IsType<MidoriType::CellType>())
+	else if (type->IsType<MarmotType::CellType>())
 	{
-		return MidoriType::MakeCellType(freshen(type->GetType<MidoriType::CellType>().m_element_type));
+		return MarmotType::MakeCellType(freshen(type->GetType<MarmotType::CellType>().m_element_type));
 	}
-	else if (type->IsType<MidoriType::FunctionType>())
+	else if (type->IsType<MarmotType::FunctionType>())
 	{
-		MidoriType::FunctionType& func_type = type->GetType<MidoriType::FunctionType>();
-		std::vector<std::shared_ptr<MidoriType>> fresh_params = freshen_all(func_type.m_param_types);
-		std::shared_ptr<MidoriType> fresh_return = freshen(func_type.m_return_type);
-		std::shared_ptr<MidoriType> fresh_function = MidoriType::MakeFunctionType(fresh_params, std::move(fresh_return), func_type.m_is_foreign);
-		fresh_function->GetType<MidoriType::FunctionType>().m_constraints = MidoriType::MapConstraints(func_type.m_constraints, freshen);
+		MarmotType::FunctionType& func_type = type->GetType<MarmotType::FunctionType>();
+		std::vector<std::shared_ptr<MarmotType>> fresh_params = freshen_all(func_type.m_param_types);
+		std::shared_ptr<MarmotType> fresh_return = freshen(func_type.m_return_type);
+		std::shared_ptr<MarmotType> fresh_function = MarmotType::MakeFunctionType(fresh_params, std::move(fresh_return), func_type.m_is_foreign);
+		fresh_function->GetType<MarmotType::FunctionType>().m_constraints = MarmotType::MapConstraints(func_type.m_constraints, freshen);
 		return fresh_function;
 	}
-	else if (type->IsType<MidoriType::StructType>())
+	else if (type->IsType<MarmotType::StructType>())
 	{
-		MidoriType::StructType& struct_type = type->GetType<MidoriType::StructType>();
+		MarmotType::StructType& struct_type = type->GetType<MarmotType::StructType>();
 
 		// Create fresh struct and add to cache BEFORE recursing to handle cycles
-		std::vector<std::shared_ptr<MidoriType>> empty_member_types;
+		std::vector<std::shared_ptr<MarmotType>> empty_member_types;
 		std::vector<std::string> member_names_copy = struct_type.m_member_names;
 		std::vector<std::string> instantiated_generic_params;
-		std::shared_ptr<MidoriType> fresh_struct = MidoriType::MakeStructType(struct_type.m_name, struct_type.m_module_name, std::move(empty_member_types), std::move(member_names_copy), std::move(instantiated_generic_params));
-		MidoriType::StructType& fresh_struct_ref = fresh_struct->GetType<MidoriType::StructType>();
+		std::shared_ptr<MarmotType> fresh_struct = MarmotType::MakeStructType(struct_type.m_name, struct_type.m_module_name, std::move(empty_member_types), std::move(member_names_copy), std::move(instantiated_generic_params));
+		MarmotType::StructType& fresh_struct_ref = fresh_struct->GetType<MarmotType::StructType>();
 		fresh_struct_ref.m_is_generic_instantiation = struct_type.m_is_generic_instantiation || !struct_type.m_generic_params.empty();
 		context.m_type_cache[type.get()] = fresh_struct;
 
 		if (fresh_struct_ref.m_is_generic_instantiation)
 		{
-			fresh_struct_ref.m_type_arguments = MidoriType::InstantiateTypeArguments(struct_type.m_generic_params, struct_type.m_type_arguments, freshen);
+			fresh_struct_ref.m_type_arguments = MarmotType::InstantiateTypeArguments(struct_type.m_generic_params, struct_type.m_type_arguments, freshen);
 		}
 		fresh_struct_ref.m_member_types = freshen_all(struct_type.m_member_types);
-		fresh_struct_ref.m_constraints = MidoriType::MapConstraints(struct_type.m_constraints, freshen);
+		fresh_struct_ref.m_constraints = MarmotType::MapConstraints(struct_type.m_constraints, freshen);
 		return fresh_struct;
 	}
-	else if (type->IsType<MidoriType::UnionType>())
+	else if (type->IsType<MarmotType::UnionType>())
 	{
-		MidoriType::UnionType& union_type = type->GetType<MidoriType::UnionType>();
+		MarmotType::UnionType& union_type = type->GetType<MarmotType::UnionType>();
 
 		// Create fresh union and add to cache BEFORE recursing to handle cycles
 		std::vector<std::string> instantiated_generic_params;
-		std::shared_ptr<MidoriType> fresh_union = MidoriType::MakeUnionType(union_type.m_name, union_type.m_module_name, std::move(instantiated_generic_params));
+		std::shared_ptr<MarmotType> fresh_union = MarmotType::MakeUnionType(union_type.m_name, union_type.m_module_name, std::move(instantiated_generic_params));
 		context.m_type_cache[type.get()] = fresh_union;
-		MidoriType::UnionType& fresh_union_ref = fresh_union->GetType<MidoriType::UnionType>();
+		MarmotType::UnionType& fresh_union_ref = fresh_union->GetType<MarmotType::UnionType>();
 		fresh_union_ref.m_is_generic_instantiation = union_type.m_is_generic_instantiation || !union_type.m_generic_params.empty();
 
 		if (fresh_union_ref.m_is_generic_instantiation)
 		{
-			fresh_union_ref.m_type_arguments = MidoriType::InstantiateTypeArguments(union_type.m_generic_params, union_type.m_type_arguments, freshen);
+			fresh_union_ref.m_type_arguments = MarmotType::InstantiateTypeArguments(union_type.m_generic_params, union_type.m_type_arguments, freshen);
 		}
-		fresh_union_ref.m_constraints = MidoriType::MapConstraints(union_type.m_constraints, freshen);
+		fresh_union_ref.m_constraints = MarmotType::MapConstraints(union_type.m_constraints, freshen);
 		for (const auto& [member_name, member_ctx] : union_type.m_member_info)
 		{
-			fresh_union_ref.m_member_info.emplace(member_name, MidoriType::UnionType::UnionMemberContext(freshen_all(member_ctx.m_member_types), member_ctx.m_tag));
+			fresh_union_ref.m_member_info.emplace(member_name, MarmotType::UnionType::UnionMemberContext(freshen_all(member_ctx.m_member_types), member_ctx.m_tag));
 		}
 		return fresh_union;
 	}
-	else if (type->IsType<MidoriType::TupleType>())
+	else if (type->IsType<MarmotType::TupleType>())
 	{
-		return MidoriType::MakeTupleType(freshen_all(type->GetType<MidoriType::TupleType>().m_element_types));
+		return MarmotType::MakeTupleType(freshen_all(type->GetType<MarmotType::TupleType>().m_element_types));
 	}
-	else if (type->IsType<MidoriType::AssociatedType>())
+	else if (type->IsType<MarmotType::AssociatedType>())
 	{
-		MidoriType::AssociatedType& associated_type = type->GetType<MidoriType::AssociatedType>();
-		return MidoriType::MakeAssociatedType(associated_type.m_class_name, associated_type.m_name, freshen_all(associated_type.m_type_args));
+		MarmotType::AssociatedType& associated_type = type->GetType<MarmotType::AssociatedType>();
+		return MarmotType::MakeAssociatedType(associated_type.m_class_name, associated_type.m_name, freshen_all(associated_type.m_type_args));
 	}
-	else if (type->IsType<MidoriType::NewType>())
+	else if (type->IsType<MarmotType::NewType>())
 	{
 		return MapNewType(type, freshen);
 	}
@@ -2347,17 +2347,17 @@ std::optional<CompilerError> TypeChecker::CheckGenericParametersStayGeneric(cons
 	std::unordered_map<int, std::string> owners;
 	for (const auto& [id, name] : generic_params)
 	{
-		const std::shared_ptr<MidoriType> resolved = ApplySubstitution(MidoriType::MakeTypeVariable(id));
-		if (!resolved->IsType<MidoriType::TypeVariable>())
+		const std::shared_ptr<MarmotType> resolved = ApplySubstitution(MarmotType::MakeTypeVariable(id));
+		if (!resolved->IsType<MarmotType::TypeVariable>())
 		{
-			return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, std::format("Generic parameter '{}' stands for any type, but the body uses it as '{}'", name, resolved->DisplayString()), token_of(name), m_file_name, m_source_lines);
+			return MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, std::format("Generic parameter '{}' stands for any type, but the body uses it as '{}'", name, resolved->DisplayString()), token_of(name), m_file_name, m_source_lines);
 		}
 
-		const int resolved_id = resolved->GetType<MidoriType::TypeVariable>().m_id;
+		const int resolved_id = resolved->GetType<MarmotType::TypeVariable>().m_id;
 		const std::unordered_map<int, std::string>::const_iterator owner = owners.find(resolved_id);
 		if (owner != owners.cend())
 		{
-			return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, std::format("Generic parameters '{}' and '{}' stand for two types a caller picks, but the body uses them as one", owner->second, name), token_of(name), m_file_name, m_source_lines);
+			return MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, std::format("Generic parameters '{}' and '{}' stand for two types a caller picks, but the body uses them as one", owner->second, name), token_of(name), m_file_name, m_source_lines);
 		}
 		owners.emplace(resolved_id, name);
 	}
@@ -2368,7 +2368,7 @@ std::optional<CompilerError> TypeChecker::CheckGenericParametersStayGeneric(cons
 // A type written inside a generic body names the body's parameters as the parser
 // read them, by name. The body checks them as its own variables, so a written
 // type is put in those terms before anything is unified with it.
-std::shared_ptr<MidoriType> TypeChecker::InstantiateWrittenType(const std::shared_ptr<MidoriType>& written_type) const
+std::shared_ptr<MarmotType> TypeChecker::InstantiateWrittenType(const std::shared_ptr<MarmotType>& written_type) const
 {
 	if (m_rigid_type_vars.empty())
 	{
@@ -2378,7 +2378,7 @@ std::shared_ptr<MidoriType> TypeChecker::InstantiateWrittenType(const std::share
 	TypeEnvironment parameters;
 	for (const auto& [id, name] : m_rigid_type_vars)
 	{
-		parameters.emplace(name, MidoriType::MakeTypeVariable(id));
+		parameters.emplace(name, MarmotType::MakeTypeVariable(id));
 	}
 
 	const std::unordered_set<std::string> written_names = CollectGenericParamNames({ written_type });
@@ -2386,17 +2386,17 @@ std::shared_ptr<MidoriType> TypeChecker::InstantiateWrittenType(const std::share
 	{
 		return written_type;
 	}
-	return MidoriType::SubstituteTypeParams(written_type, parameters);
+	return MarmotType::SubstituteTypeParams(written_type, parameters);
 }
 
-std::optional<std::string> TypeChecker::RigidParameterName(const std::shared_ptr<MidoriType>& resolved_type) const
+std::optional<std::string> TypeChecker::RigidParameterName(const std::shared_ptr<MarmotType>& resolved_type) const
 {
-	if (!resolved_type->IsType<MidoriType::TypeVariable>())
+	if (!resolved_type->IsType<MarmotType::TypeVariable>())
 	{
 		return std::nullopt;
 	}
 
-	const std::unordered_map<int, std::string>::const_iterator rigid = m_rigid_type_vars.find(resolved_type->GetType<MidoriType::TypeVariable>().m_id);
+	const std::unordered_map<int, std::string>::const_iterator rigid = m_rigid_type_vars.find(resolved_type->GetType<MarmotType::TypeVariable>().m_id);
 	return rigid != m_rigid_type_vars.cend() ? std::optional<std::string>(rigid->second) : std::nullopt;
 }
 
@@ -2412,8 +2412,8 @@ TypeChecker::FresheningContext TypeChecker::MakeLambdaFresheningContext()
 				continue;
 			}
 
-			std::shared_ptr<MidoriType> resolved_type = ApplySubstitution(bound_type);
-			if (!resolved_type->IsType<MidoriType::TypeVariable>())
+			std::shared_ptr<MarmotType> resolved_type = ApplySubstitution(bound_type);
+			if (!resolved_type->IsType<MarmotType::TypeVariable>())
 			{
 				continue;
 			}
@@ -2448,9 +2448,9 @@ std::unordered_set<int> TypeChecker::CollectEnclosingTypeVariableIds()
 		}
 	}
 
-	for (const MidoriType::ClassConstraint& constraint : m_active_constraints)
+	for (const MarmotType::ClassConstraint& constraint : m_active_constraints)
 	{
-		for (const std::shared_ptr<MidoriType>& type_arg : constraint.m_type_args)
+		for (const std::shared_ptr<MarmotType>& type_arg : constraint.m_type_args)
 		{
 			std::unordered_set<int> constraint_type_vars = CollectTypeVariableIds(ApplySubstitution(type_arg));
 			enclosing_type_vars.insert(constraint_type_vars.cbegin(), constraint_type_vars.cend());
@@ -2466,35 +2466,35 @@ std::unordered_set<int> TypeChecker::CollectEnclosingTypeVariableIds()
 	return enclosing_type_vars;
 }
 
-std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr<MidoriType>& type)
+std::shared_ptr<MarmotType> TypeChecker::ApplySubstitution(const std::shared_ptr<MarmotType>& type)
 {
 	if (!NeedsSubstitution(type))
 	{
 		return type;
 	}
 
-	std::unordered_map<const MidoriType*, std::shared_ptr<MidoriType>> cache;
+	std::unordered_map<const MarmotType*, std::shared_ptr<MarmotType>> cache;
 	return ApplySubstitution(type, cache);
 }
 
-std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr<MidoriType>& type, std::unordered_map<const MidoriType*, std::shared_ptr<MidoriType>>& cache)
+std::shared_ptr<MarmotType> TypeChecker::ApplySubstitution(const std::shared_ptr<MarmotType>& type, std::unordered_map<const MarmotType*, std::shared_ptr<MarmotType>>& cache)
 {
 	if (
-			type->IsType<MidoriType::IntegerType>() ||
-			type->IsType<MidoriType::FloatType>() ||
-			type->IsType<MidoriType::BoolType>() ||
-			type->IsType<MidoriType::UnitType>() ||
-			type->IsType<MidoriType::TextType>() ||
-			type->IsType<MidoriType::ByteType>() ||
-			type->IsType<MidoriType::WordType>() ||
-			type->IsType<MidoriType::NeverType>()
+			type->IsType<MarmotType::IntegerType>() ||
+			type->IsType<MarmotType::FloatType>() ||
+			type->IsType<MarmotType::BoolType>() ||
+			type->IsType<MarmotType::UnitType>() ||
+			type->IsType<MarmotType::TextType>() ||
+			type->IsType<MarmotType::ByteType>() ||
+			type->IsType<MarmotType::WordType>() ||
+			type->IsType<MarmotType::NeverType>()
 		)
 	{
 		return type;
 	}
 
 	// Check cache first to handle recursive types
-	std::unordered_map<const MidoriType*, std::shared_ptr<MidoriType>>::iterator cache_it = cache.find(type.get());
+	std::unordered_map<const MarmotType*, std::shared_ptr<MarmotType>>::iterator cache_it = cache.find(type.get());
 	if (cache_it != cache.end())
 	{
 		return cache_it->second;
@@ -2504,7 +2504,7 @@ std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr
 	// rebuilding it then marks it changed whether or not anything in it was. It
 	// is the only node worth asking before descending; any other node rebuilds
 	// only when a part of it did.
-	if ((type->IsType<MidoriType::StructType>() || type->IsType<MidoriType::UnionType>()) && !NeedsSubstitution(type))
+	if ((type->IsType<MarmotType::StructType>() || type->IsType<MarmotType::UnionType>()) && !NeedsSubstitution(type))
 	{
 		return type;
 	}
@@ -2512,17 +2512,17 @@ std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr
 	// Each part substituted, noting whether any came back different: a node
 	// none of whose parts changed is returned as it is.
 	bool changed = false;
-	auto apply = [this, &cache, &changed](const std::shared_ptr<MidoriType>& part)
+	auto apply = [this, &cache, &changed](const std::shared_ptr<MarmotType>& part)
 	{
-		std::shared_ptr<MidoriType> applied = ApplySubstitution(part, cache);
+		std::shared_ptr<MarmotType> applied = ApplySubstitution(part, cache);
 		changed = changed || applied != part;
 		return applied;
 	};
-	auto apply_all = [&apply](const std::vector<std::shared_ptr<MidoriType>>& parts) { return parts | std::views::transform(apply) | std::ranges::to<std::vector>(); };
+	auto apply_all = [&apply](const std::vector<std::shared_ptr<MarmotType>>& parts) { return parts | std::views::transform(apply) | std::ranges::to<std::vector>(); };
 
-	if (type->IsType<MidoriType::TypeVariable>())
+	if (type->IsType<MarmotType::TypeVariable>())
 	{
-		int var_id = type->GetType<MidoriType::TypeVariable>().m_id;
+		int var_id = type->GetType<MarmotType::TypeVariable>().m_id;
 		TypeSubstitution::iterator it = m_type_substitution.find(var_id);
 		if (it != m_type_substitution.end())
 		{
@@ -2531,77 +2531,77 @@ std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr
 		}
 		return type;
 	}
-	else if (type->IsType<MidoriType::AssociatedType>())
+	else if (type->IsType<MarmotType::AssociatedType>())
 	{
-		MidoriType::AssociatedType& associated_type = type->GetType<MidoriType::AssociatedType>();
-		std::vector<std::shared_ptr<MidoriType>> substituted_type_args = apply_all(associated_type.m_type_args);
-		std::shared_ptr<MidoriType> associated_type_ref = changed
-			? MidoriType::MakeAssociatedType(associated_type.m_class_name, associated_type.m_name, std::move(substituted_type_args))
+		MarmotType::AssociatedType& associated_type = type->GetType<MarmotType::AssociatedType>();
+		std::vector<std::shared_ptr<MarmotType>> substituted_type_args = apply_all(associated_type.m_type_args);
+		std::shared_ptr<MarmotType> associated_type_ref = changed
+			? MarmotType::MakeAssociatedType(associated_type.m_class_name, associated_type.m_name, std::move(substituted_type_args))
 			: type;
-		std::shared_ptr<MidoriType> resolved_type = ResolveAssociatedType(associated_type_ref->GetType<MidoriType::AssociatedType>());
+		std::shared_ptr<MarmotType> resolved_type = ResolveAssociatedType(associated_type_ref->GetType<MarmotType::AssociatedType>());
 		cache[type.get()] = resolved_type;
 		return resolved_type;
 	}
-	else if (type->IsType<MidoriType::ArrayType>())
+	else if (type->IsType<MarmotType::ArrayType>())
 	{
-		std::shared_ptr<MidoriType> element_type = apply(type->GetType<MidoriType::ArrayType>().m_element_type);
-		return changed ? MidoriType::MakeArrayType(element_type) : type;
+		std::shared_ptr<MarmotType> element_type = apply(type->GetType<MarmotType::ArrayType>().m_element_type);
+		return changed ? MarmotType::MakeArrayType(element_type) : type;
 	}
-	else if (type->IsType<MidoriType::RangeType>())
+	else if (type->IsType<MarmotType::RangeType>())
 	{
-		std::shared_ptr<MidoriType> element_type = apply(type->GetType<MidoriType::RangeType>().m_element_type);
-		return changed ? MidoriType::MakeRangeType(element_type) : type;
+		std::shared_ptr<MarmotType> element_type = apply(type->GetType<MarmotType::RangeType>().m_element_type);
+		return changed ? MarmotType::MakeRangeType(element_type) : type;
 	}
-	else if (type->IsType<MidoriType::WorkerType>())
+	else if (type->IsType<MarmotType::WorkerType>())
 	{
-		std::shared_ptr<MidoriType> result_type = apply(type->GetType<MidoriType::WorkerType>().m_result_type);
-		return changed ? MidoriType::MakeWorkerType(result_type) : type;
+		std::shared_ptr<MarmotType> result_type = apply(type->GetType<MarmotType::WorkerType>().m_result_type);
+		return changed ? MarmotType::MakeWorkerType(result_type) : type;
 	}
-	else if (type->IsType<MidoriType::ChannelType>())
+	else if (type->IsType<MarmotType::ChannelType>())
 	{
-		std::shared_ptr<MidoriType> element_type = apply(type->GetType<MidoriType::ChannelType>().m_element_type);
-		return changed ? MidoriType::MakeChannelType(element_type) : type;
+		std::shared_ptr<MarmotType> element_type = apply(type->GetType<MarmotType::ChannelType>().m_element_type);
+		return changed ? MarmotType::MakeChannelType(element_type) : type;
 	}
-	else if (type->IsType<MidoriType::CellType>())
+	else if (type->IsType<MarmotType::CellType>())
 	{
-		std::shared_ptr<MidoriType> element_type = apply(type->GetType<MidoriType::CellType>().m_element_type);
-		return changed ? MidoriType::MakeCellType(element_type) : type;
+		std::shared_ptr<MarmotType> element_type = apply(type->GetType<MarmotType::CellType>().m_element_type);
+		return changed ? MarmotType::MakeCellType(element_type) : type;
 	}
-	else if (type->IsType<MidoriType::FunctionType>())
+	else if (type->IsType<MarmotType::FunctionType>())
 	{
-		MidoriType::FunctionType& func_type = type->GetType<MidoriType::FunctionType>();
-		std::vector<std::shared_ptr<MidoriType>> new_param_types = apply_all(func_type.m_param_types);
-		std::shared_ptr<MidoriType> new_return_type = apply(func_type.m_return_type);
-		std::vector<MidoriType::ClassConstraint> new_constraints = MidoriType::MapConstraints(func_type.m_constraints, apply);
+		MarmotType::FunctionType& func_type = type->GetType<MarmotType::FunctionType>();
+		std::vector<std::shared_ptr<MarmotType>> new_param_types = apply_all(func_type.m_param_types);
+		std::shared_ptr<MarmotType> new_return_type = apply(func_type.m_return_type);
+		std::vector<MarmotType::ClassConstraint> new_constraints = MarmotType::MapConstraints(func_type.m_constraints, apply);
 		if (!changed)
 		{
 			return type;
 		}
-		std::shared_ptr<MidoriType> new_function = MidoriType::MakeFunctionType(new_param_types, std::move(new_return_type), func_type.m_is_foreign);
-		new_function->GetType<MidoriType::FunctionType>().m_constraints = std::move(new_constraints);
+		std::shared_ptr<MarmotType> new_function = MarmotType::MakeFunctionType(new_param_types, std::move(new_return_type), func_type.m_is_foreign);
+		new_function->GetType<MarmotType::FunctionType>().m_constraints = std::move(new_constraints);
 		return new_function;
 	}
-	else if (type->IsType<MidoriType::StructType>())
+	else if (type->IsType<MarmotType::StructType>())
 	{
-		MidoriType::StructType& struct_type = type->GetType<MidoriType::StructType>();
+		MarmotType::StructType& struct_type = type->GetType<MarmotType::StructType>();
 
 		// Create new struct and add to cache BEFORE recursing to handle cycles
-		std::vector<std::shared_ptr<MidoriType>> empty_member_types;
+		std::vector<std::shared_ptr<MarmotType>> empty_member_types;
 		std::vector<std::string> member_names_copy = struct_type.m_member_names;
 		std::vector<std::string> instantiated_generic_params;
-		std::shared_ptr<MidoriType> new_struct = MidoriType::MakeStructType(struct_type.m_name, struct_type.m_module_name, std::move(empty_member_types), std::move(member_names_copy), std::move(instantiated_generic_params));
+		std::shared_ptr<MarmotType> new_struct = MarmotType::MakeStructType(struct_type.m_name, struct_type.m_module_name, std::move(empty_member_types), std::move(member_names_copy), std::move(instantiated_generic_params));
 		cache[type.get()] = new_struct;
 
-		std::vector<std::shared_ptr<MidoriType>> new_member_types = apply_all(struct_type.m_member_types);
-		std::vector<MidoriType::ClassConstraint> new_constraints = MidoriType::MapConstraints(struct_type.m_constraints, apply);
-		std::vector<std::shared_ptr<MidoriType>> new_type_arguments = apply_all(struct_type.m_type_arguments);
+		std::vector<std::shared_ptr<MarmotType>> new_member_types = apply_all(struct_type.m_member_types);
+		std::vector<MarmotType::ClassConstraint> new_constraints = MarmotType::MapConstraints(struct_type.m_constraints, apply);
+		std::vector<std::shared_ptr<MarmotType>> new_type_arguments = apply_all(struct_type.m_type_arguments);
 		if (!changed)
 		{
 			cache[type.get()] = type;
 			return type;
 		}
 
-		MidoriType::StructType& new_struct_ref = new_struct->GetType<MidoriType::StructType>();
+		MarmotType::StructType& new_struct_ref = new_struct->GetType<MarmotType::StructType>();
 		new_struct_ref.m_member_types = std::move(new_member_types);
 		new_struct_ref.m_constraints = std::move(new_constraints);
 		new_struct_ref.m_type_arguments = std::move(new_type_arguments);
@@ -2612,21 +2612,21 @@ std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr
 		}
 		return new_struct;
 	}
-	else if (type->IsType<MidoriType::UnionType>())
+	else if (type->IsType<MarmotType::UnionType>())
 	{
-		MidoriType::UnionType& union_type = type->GetType<MidoriType::UnionType>();
+		MarmotType::UnionType& union_type = type->GetType<MarmotType::UnionType>();
 
 		// Create new union and add to cache BEFORE recursing to handle cycles
 		std::vector<std::string> instantiated_generic_params;
-		std::shared_ptr<MidoriType> new_union = MidoriType::MakeUnionType(union_type.m_name, union_type.m_module_name, std::move(instantiated_generic_params));
+		std::shared_ptr<MarmotType> new_union = MarmotType::MakeUnionType(union_type.m_name, union_type.m_module_name, std::move(instantiated_generic_params));
 		cache[type.get()] = new_union;
-		MidoriType::UnionType& new_union_ref = new_union->GetType<MidoriType::UnionType>();
+		MarmotType::UnionType& new_union_ref = new_union->GetType<MarmotType::UnionType>();
 
-		new_union_ref.m_constraints = MidoriType::MapConstraints(union_type.m_constraints, apply);
+		new_union_ref.m_constraints = MarmotType::MapConstraints(union_type.m_constraints, apply);
 		new_union_ref.m_type_arguments = apply_all(union_type.m_type_arguments);
 		for (const auto& [member_name, member_ctx] : union_type.m_member_info)
 		{
-			new_union_ref.m_member_info.emplace(member_name, MidoriType::UnionType::UnionMemberContext(apply_all(member_ctx.m_member_types), member_ctx.m_tag));
+			new_union_ref.m_member_info.emplace(member_name, MarmotType::UnionType::UnionMemberContext(apply_all(member_ctx.m_member_types), member_ctx.m_tag));
 		}
 
 		if (!changed)
@@ -2641,12 +2641,12 @@ std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr
 		}
 		return new_union;
 	}
-	else if (type->IsType<MidoriType::TupleType>())
+	else if (type->IsType<MarmotType::TupleType>())
 	{
-		std::vector<std::shared_ptr<MidoriType>> new_element_types = apply_all(type->GetType<MidoriType::TupleType>().m_element_types);
-		return changed ? MidoriType::MakeTupleType(std::move(new_element_types)) : type;
+		std::vector<std::shared_ptr<MarmotType>> new_element_types = apply_all(type->GetType<MarmotType::TupleType>().m_element_types);
+		return changed ? MarmotType::MakeTupleType(std::move(new_element_types)) : type;
 	}
-	else if (type->IsType<MidoriType::NewType>())
+	else if (type->IsType<MarmotType::NewType>())
 	{
 		return MapNewType(type, apply);
 	}
@@ -2654,13 +2654,13 @@ std::shared_ptr<MidoriType> TypeChecker::ApplySubstitution(const std::shared_ptr
 	return type;
 }
 
-bool TypeChecker::OccursCheck(int var_id, const std::shared_ptr<MidoriType>& type)
+bool TypeChecker::OccursCheck(int var_id, const std::shared_ptr<MarmotType>& type)
 {
-	std::unordered_set<const MidoriType*> visited;
+	std::unordered_set<const MarmotType*> visited;
 	return OccursCheck(var_id, type, visited);
 }
 
-bool TypeChecker::OccursCheck(int var_id, const std::shared_ptr<MidoriType>& type, std::unordered_set<const MidoriType*>& visited)
+bool TypeChecker::OccursCheck(int var_id, const std::shared_ptr<MarmotType>& type, std::unordered_set<const MarmotType*>& visited)
 {
 	// Guard on the incoming node before substituting. ApplySubstitution rebuilds any
 	// type that still carries type variables, so it hands back a fresh pointer on
@@ -2672,7 +2672,7 @@ bool TypeChecker::OccursCheck(int var_id, const std::shared_ptr<MidoriType>& typ
 	}
 	visited.insert(type.get());
 
-	std::shared_ptr<MidoriType> subst_type = ApplySubstitution(type);
+	std::shared_ptr<MarmotType> subst_type = ApplySubstitution(type);
 
 	if (visited.contains(subst_type.get()))
 	{
@@ -2680,34 +2680,34 @@ bool TypeChecker::OccursCheck(int var_id, const std::shared_ptr<MidoriType>& typ
 	}
 	visited.insert(subst_type.get());
 
-	if (subst_type->IsType<MidoriType::TypeVariable>())
+	if (subst_type->IsType<MarmotType::TypeVariable>())
 	{
-		return subst_type->GetType<MidoriType::TypeVariable>().m_id == var_id;
+		return subst_type->GetType<MarmotType::TypeVariable>().m_id == var_id;
 	}
-	else if (subst_type->IsType<MidoriType::ArrayType>())
+	else if (subst_type->IsType<MarmotType::ArrayType>())
 	{
-		return OccursCheck(var_id, subst_type->GetType<MidoriType::ArrayType>().m_element_type, visited);
+		return OccursCheck(var_id, subst_type->GetType<MarmotType::ArrayType>().m_element_type, visited);
 	}
-	else if (subst_type->IsType<MidoriType::RangeType>())
+	else if (subst_type->IsType<MarmotType::RangeType>())
 	{
-		return OccursCheck(var_id, subst_type->GetType<MidoriType::RangeType>().m_element_type, visited);
+		return OccursCheck(var_id, subst_type->GetType<MarmotType::RangeType>().m_element_type, visited);
 	}
-	else if (subst_type->IsType<MidoriType::WorkerType>())
+	else if (subst_type->IsType<MarmotType::WorkerType>())
 	{
-		return OccursCheck(var_id, subst_type->GetType<MidoriType::WorkerType>().m_result_type, visited);
+		return OccursCheck(var_id, subst_type->GetType<MarmotType::WorkerType>().m_result_type, visited);
 	}
-	else if (subst_type->IsType<MidoriType::ChannelType>())
+	else if (subst_type->IsType<MarmotType::ChannelType>())
 	{
-		return OccursCheck(var_id, subst_type->GetType<MidoriType::ChannelType>().m_element_type, visited);
+		return OccursCheck(var_id, subst_type->GetType<MarmotType::ChannelType>().m_element_type, visited);
 	}
-	else if (subst_type->IsType<MidoriType::CellType>())
+	else if (subst_type->IsType<MarmotType::CellType>())
 	{
-		return OccursCheck(var_id, subst_type->GetType<MidoriType::CellType>().m_element_type, visited);
+		return OccursCheck(var_id, subst_type->GetType<MarmotType::CellType>().m_element_type, visited);
 	}
-	else if (subst_type->IsType<MidoriType::FunctionType>())
+	else if (subst_type->IsType<MarmotType::FunctionType>())
 	{
-		MidoriType::FunctionType& func_type = subst_type->GetType<MidoriType::FunctionType>();
-		for (const std::shared_ptr<MidoriType>& param_type : func_type.m_param_types)
+		MarmotType::FunctionType& func_type = subst_type->GetType<MarmotType::FunctionType>();
+		for (const std::shared_ptr<MarmotType>& param_type : func_type.m_param_types)
 		{
 			if (OccursCheck(var_id, param_type, visited))
 			{
@@ -2716,17 +2716,17 @@ bool TypeChecker::OccursCheck(int var_id, const std::shared_ptr<MidoriType>& typ
 		}
 		return OccursCheck(var_id, func_type.m_return_type, visited);
 	}
-	else if (subst_type->IsType<MidoriType::StructType>())
+	else if (subst_type->IsType<MarmotType::StructType>())
 	{
-		MidoriType::StructType& struct_type = subst_type->GetType<MidoriType::StructType>();
-		for (const std::shared_ptr<MidoriType>& member_type : struct_type.m_member_types)
+		MarmotType::StructType& struct_type = subst_type->GetType<MarmotType::StructType>();
+		for (const std::shared_ptr<MarmotType>& member_type : struct_type.m_member_types)
 		{
 			if (OccursCheck(var_id, member_type, visited))
 			{
 				return true;
 			}
 		}
-		for (const std::shared_ptr<MidoriType>& type_argument : struct_type.m_type_arguments)
+		for (const std::shared_ptr<MarmotType>& type_argument : struct_type.m_type_arguments)
 		{
 			if (OccursCheck(var_id, type_argument, visited))
 			{
@@ -2735,9 +2735,9 @@ bool TypeChecker::OccursCheck(int var_id, const std::shared_ptr<MidoriType>& typ
 		}
 		return false;
 	}
-	else if (subst_type->IsType<MidoriType::UnionType>())
+	else if (subst_type->IsType<MarmotType::UnionType>())
 	{
-		MidoriType::UnionType& union_type = subst_type->GetType<MidoriType::UnionType>();
+		MarmotType::UnionType& union_type = subst_type->GetType<MarmotType::UnionType>();
 		// A variable can only reach a nominal type through its type arguments, which
 		// are checked below. Walking the members again is redundant and does not
 		// terminate when a member reaches the type through a fresh node.
@@ -2746,7 +2746,7 @@ bool TypeChecker::OccursCheck(int var_id, const std::shared_ptr<MidoriType>& typ
 		{
 			for (const auto& [member_name, member_ctx] : union_type.m_member_info)
 			{
-				for (const std::shared_ptr<MidoriType>& member_type : member_ctx.m_member_types)
+				for (const std::shared_ptr<MarmotType>& member_type : member_ctx.m_member_types)
 				{
 					if (OccursCheck(var_id, member_type, visited))
 					{
@@ -2755,7 +2755,7 @@ bool TypeChecker::OccursCheck(int var_id, const std::shared_ptr<MidoriType>& typ
 				}
 			}
 		}
-		for (const std::shared_ptr<MidoriType>& type_argument : union_type.m_type_arguments)
+		for (const std::shared_ptr<MarmotType>& type_argument : union_type.m_type_arguments)
 		{
 			if (OccursCheck(var_id, type_argument, visited))
 			{
@@ -2764,10 +2764,10 @@ bool TypeChecker::OccursCheck(int var_id, const std::shared_ptr<MidoriType>& typ
 		}
 		return false;
 	}
-	else if (subst_type->IsType<MidoriType::TupleType>())
+	else if (subst_type->IsType<MarmotType::TupleType>())
 	{
-		MidoriType::TupleType& tuple_type = subst_type->GetType<MidoriType::TupleType>();
-		for (const std::shared_ptr<MidoriType>& element_type : tuple_type.m_element_types)
+		MarmotType::TupleType& tuple_type = subst_type->GetType<MarmotType::TupleType>();
+		for (const std::shared_ptr<MarmotType>& element_type : tuple_type.m_element_types)
 		{
 			if (OccursCheck(var_id, element_type, visited))
 			{
@@ -2776,10 +2776,10 @@ bool TypeChecker::OccursCheck(int var_id, const std::shared_ptr<MidoriType>& typ
 		}
 		return false;
 	}
-	else if (subst_type->IsType<MidoriType::AssociatedType>())
+	else if (subst_type->IsType<MarmotType::AssociatedType>())
 	{
-		MidoriType::AssociatedType& associated_type = subst_type->GetType<MidoriType::AssociatedType>();
-		for (const std::shared_ptr<MidoriType>& type_arg : associated_type.m_type_args)
+		MarmotType::AssociatedType& associated_type = subst_type->GetType<MarmotType::AssociatedType>();
+		for (const std::shared_ptr<MarmotType>& type_arg : associated_type.m_type_args)
 		{
 			if (OccursCheck(var_id, type_arg, visited))
 			{
@@ -2800,7 +2800,7 @@ TypeChecker::ClassInfo::ClassInfo(const std::string& name, std::vector<std::stri
 {
 }
 
-TypeChecker::InstanceInfo::InstanceInfo(const std::string& tc_name, std::vector<std::shared_ptr<MidoriType>>&& args, std::vector<MidoriType::ClassConstraint>&& constraints, AssociatedTypeEnvironment&& associated_type_bindings, std::unordered_map<std::string, std::unique_ptr<MidoriStatement>>&& methods, bool is_derived)
+TypeChecker::InstanceInfo::InstanceInfo(const std::string& tc_name, std::vector<std::shared_ptr<MarmotType>>&& args, std::vector<MarmotType::ClassConstraint>&& constraints, AssociatedTypeEnvironment&& associated_type_bindings, std::unordered_map<std::string, std::unique_ptr<MarmotStatement>>&& methods, bool is_derived)
 	: m_class_name(tc_name),
 	m_type_args(std::move(args)),
 	m_constraints(std::move(constraints)),
@@ -2827,7 +2827,7 @@ std::size_t TypeChecker::InstanceKeyHash::operator()(const InstanceKey& key) con
 }
 
 TypeChecker::TypeChecker(
-	MidoriProgramTree&& parser_result,
+	MarmotProgramTree&& parser_result,
 	std::string_view file_name,
 	const std::vector<std::string>& source_lines,
 	TypeEnvironment imported_types,
@@ -2853,9 +2853,9 @@ TypeChecker::TypeChecker(
 			// is its constructor.
 			const size_t separator_pos = name.rfind(NameSeparator);
 			const std::string_view bare_name = separator_pos == std::string::npos ? std::string_view(name) : std::string_view(name).substr(separator_pos + NameSeparator.length());
-			if (type->IsType<MidoriType::StructType>() && type->GetType<MidoriType::StructType>().m_name == bare_name)
+			if (type->IsType<MarmotType::StructType>() && type->GetType<MarmotType::StructType>().m_name == bare_name)
 			{
-				const MidoriType::StructType& struct_type = type->GetType<MidoriType::StructType>();
+				const MarmotType::StructType& struct_type = type->GetType<MarmotType::StructType>();
 				m_struct_type_definitions[ConstructorKey(struct_type.m_module_name, struct_type.m_name)] = type;
 				if (!struct_type.m_generic_params.empty())
 				{
@@ -2869,8 +2869,8 @@ TypeChecker::TypeChecker(
 				// registered just above.
 				// It carries the struct's where clause, as the declaring module's does,
 				// so constructing one here is held to the same constraints.
-				std::shared_ptr<MidoriType> constructor_type = MidoriType::MakeFunctionType(struct_type.m_member_types, std::shared_ptr<MidoriType>(type));
-				constructor_type->GetType<MidoriType::FunctionType>().m_constraints = struct_type.m_constraints;
+				std::shared_ptr<MarmotType> constructor_type = MarmotType::MakeFunctionType(struct_type.m_member_types, std::shared_ptr<MarmotType>(type));
+				constructor_type->GetType<MarmotType::FunctionType>().m_constraints = struct_type.m_constraints;
 				imported_names[name] = std::move(constructor_type);
 				continue;
 			}
@@ -2878,15 +2878,15 @@ TypeChecker::TypeChecker(
 			// The declaring module derives a newtype's conversions to and from its
 			// representation itself, so they are not among the instances it
 			// exports; without them `4 as Module::Meters` found no instance.
-			if (type->IsType<MidoriType::NewType>())
+			if (type->IsType<MarmotType::NewType>())
 			{
-				RegisterIdentityConversion(type, type->GetType<MidoriType::NewType>().m_representation);
-				RegisterIdentityConversion(type->GetType<MidoriType::NewType>().m_representation, type);
+				RegisterIdentityConversion(type, type->GetType<MarmotType::NewType>().m_representation);
+				RegisterIdentityConversion(type->GetType<MarmotType::NewType>().m_representation, type);
 			}
 
-			if (type->IsType<MidoriType::UnionType>())
+			if (type->IsType<MarmotType::UnionType>())
 			{
-				const MidoriType::UnionType& union_type = type->GetType<MidoriType::UnionType>();
+				const MarmotType::UnionType& union_type = type->GetType<MarmotType::UnionType>();
 				m_union_type_definitions[ConstructorKey(union_type.m_module_name, union_type.m_name)] = type;
 				if (!union_type.m_generic_params.empty())
 				{
@@ -2906,7 +2906,7 @@ TypeChecker::TypeChecker(
 		{
 			for (size_t instance_idx = 0u; instance_idx < instances.size(); instance_idx += 1u)
 			{
-				const std::vector<std::shared_ptr<MidoriType>>& type_args = instances[instance_idx];
+				const std::vector<std::shared_ptr<MarmotType>>& type_args = instances[instance_idx];
 				if (type_args.empty())
 				{
 					continue;
@@ -2914,7 +2914,7 @@ TypeChecker::TypeChecker(
 
 				std::vector<std::string> concrete_type_names;
 				concrete_type_names.reserve(type_args.size());
-				for (const std::shared_ptr<MidoriType>& type_arg : type_args)
+				for (const std::shared_ptr<MarmotType>& type_arg : type_args)
 				{
 					concrete_type_names.emplace_back(type_arg->ToString());
 				}
@@ -2922,7 +2922,7 @@ TypeChecker::TypeChecker(
 				InstanceKey instance_key{ class_name, std::move(concrete_type_names) };
 				if (!m_instances.contains(instance_key))
 				{
-					std::vector<std::shared_ptr<MidoriType>> type_args_copy = type_args;
+					std::vector<std::shared_ptr<MarmotType>> type_args_copy = type_args;
 					AssociatedTypeEnvironment associated_type_bindings;
 					TypeclassInstanceAssociatedTypeBindingMap::const_iterator imported_bindings_it = imported_instance_associated_type_bindings.find(class_name);
 					if (imported_bindings_it != imported_instance_associated_type_bindings.cend() && instance_idx < imported_bindings_it->second.size())
@@ -2931,13 +2931,13 @@ TypeChecker::TypeChecker(
 					}
 					// An imported instance keeps its where clause: selecting it here holds
 					// the same constraints as selecting it in the module that declared it.
-					std::vector<MidoriType::ClassConstraint> constraints;
+					std::vector<MarmotType::ClassConstraint> constraints;
 					TypeclassInstanceConstraintMap::const_iterator imported_constraints_it = imported_instance_constraints.find(class_name);
 					if (imported_constraints_it != imported_instance_constraints.cend() && instance_idx < imported_constraints_it->second.size())
 					{
 						constraints = imported_constraints_it->second[instance_idx];
 					}
-					m_instances.emplace(std::move(instance_key), InstanceInfo(class_name, std::move(type_args_copy), std::move(constraints), std::move(associated_type_bindings), std::unordered_map<std::string, std::unique_ptr<MidoriStatement>>()));
+					m_instances.emplace(std::move(instance_key), InstanceInfo(class_name, std::move(type_args_copy), std::move(constraints), std::move(associated_type_bindings), std::unordered_map<std::string, std::unique_ptr<MarmotStatement>>()));
 				}
 			}
 		}
@@ -2951,32 +2951,32 @@ const TypeChecker::TypeEnvironment& TypeChecker::ModuleTypes() const noexcept
 
 namespace
 {
-	bool IsWrittenDown(const std::shared_ptr<MidoriType>& type)
+	bool IsWrittenDown(const std::shared_ptr<MarmotType>& type)
 	{
-		return !type->IsType<MidoriType::UndecidedType>();
+		return !type->IsType<MarmotType::UndecidedType>();
 	}
 }
 
 void TypeChecker::CollectLaterDefinitions()
 {
-	for (const std::unique_ptr<MidoriStatement>& statement : m_program_tree)
+	for (const std::unique_ptr<MarmotStatement>& statement : m_program_tree)
 	{
-		if (statement->IsStatement<MidoriStatement::VariableDefinition>())
+		if (statement->IsStatement<MarmotStatement::VariableDefinition>())
 		{
-			const MidoriStatement::VariableDefinition& def = statement->GetStatement<MidoriStatement::VariableDefinition>();
+			const MarmotStatement::VariableDefinition& def = statement->GetStatement<MarmotStatement::VariableDefinition>();
 			if (def.m_annotated_type.has_value())
 			{
 				m_later_definitions[def.m_name.m_lexeme] = def.m_annotated_type.value();
 				continue;
 			}
 
-			if ((def.m_value != nullptr) && def.m_value->IsExpression<MidoriExpression::Function>())
+			if ((def.m_value != nullptr) && def.m_value->IsExpression<MarmotExpression::Function>())
 			{
-				const MidoriExpression::Function& function = def.m_value->GetExpression<MidoriExpression::Function>();
+				const MarmotExpression::Function& function = def.m_value->GetExpression<MarmotExpression::Function>();
 				if (std::ranges::all_of(function.m_param_types, IsWrittenDown) && IsWrittenDown(function.m_return_type))
 				{
-					std::shared_ptr<MidoriType> function_type = MidoriType::MakeFunctionType(function.m_param_types, std::shared_ptr<MidoriType>(function.m_return_type));
-					function_type->GetType<MidoriType::FunctionType>().m_constraints = function.m_constraints;
+					std::shared_ptr<MarmotType> function_type = MarmotType::MakeFunctionType(function.m_param_types, std::shared_ptr<MarmotType>(function.m_return_type));
+					function_type->GetType<MarmotType::FunctionType>().m_constraints = function.m_constraints;
 					m_later_definitions[def.m_name.m_lexeme] = std::move(function_type);
 					continue;
 				}
@@ -2984,21 +2984,21 @@ void TypeChecker::CollectLaterDefinitions()
 
 			m_later_unannotated.insert(def.m_name.m_lexeme);
 		}
-		else if (statement->IsStatement<MidoriStatement::FunctionDefinition>())
+		else if (statement->IsStatement<MarmotStatement::FunctionDefinition>())
 		{
-			const MidoriStatement::FunctionDefinition& defun = statement->GetStatement<MidoriStatement::FunctionDefinition>();
-			std::shared_ptr<MidoriType> function_type = MidoriType::MakeFunctionType(defun.m_param_types, std::shared_ptr<MidoriType>(defun.m_return_type));
-			function_type->GetType<MidoriType::FunctionType>().m_constraints = defun.m_constraints;
+			const MarmotStatement::FunctionDefinition& defun = statement->GetStatement<MarmotStatement::FunctionDefinition>();
+			std::shared_ptr<MarmotType> function_type = MarmotType::MakeFunctionType(defun.m_param_types, std::shared_ptr<MarmotType>(defun.m_return_type));
+			function_type->GetType<MarmotType::FunctionType>().m_constraints = defun.m_constraints;
 			m_later_definitions[defun.m_name.m_lexeme] = std::move(function_type);
 		}
-		else if (statement->IsStatement<MidoriStatement::ForeignDefinition>())
+		else if (statement->IsStatement<MarmotStatement::ForeignDefinition>())
 		{
-			const MidoriStatement::ForeignDefinition& foreign = statement->GetStatement<MidoriStatement::ForeignDefinition>();
+			const MarmotStatement::ForeignDefinition& foreign = statement->GetStatement<MarmotStatement::ForeignDefinition>();
 			m_later_definitions[foreign.m_function_name.m_lexeme] = foreign.m_type;
 		}
-		else if (statement->IsStatement<MidoriStatement::TupleDefinition>())
+		else if (statement->IsStatement<MarmotStatement::TupleDefinition>())
 		{
-			for (const Token& name : statement->GetStatement<MidoriStatement::TupleDefinition>().m_names)
+			for (const Token& name : statement->GetStatement<MarmotStatement::TupleDefinition>().m_names)
 			{
 				m_later_unannotated.insert(name.m_lexeme);
 			}
@@ -3022,40 +3022,40 @@ void TypeChecker::CollectLaterDefinitions()
 	}
 }
 
-void TypeChecker::RecordFailedDefinition(const MidoriStatement& statement)
+void TypeChecker::RecordFailedDefinition(const MarmotStatement& statement)
 {
-	if (statement.IsStatement<MidoriStatement::VariableDefinition>())
+	if (statement.IsStatement<MarmotStatement::VariableDefinition>())
 	{
-		m_failed_definitions.insert(statement.GetStatement<MidoriStatement::VariableDefinition>().m_name.m_lexeme);
+		m_failed_definitions.insert(statement.GetStatement<MarmotStatement::VariableDefinition>().m_name.m_lexeme);
 	}
-	else if (statement.IsStatement<MidoriStatement::TupleDefinition>())
+	else if (statement.IsStatement<MarmotStatement::TupleDefinition>())
 	{
-		for (const Token& name : statement.GetStatement<MidoriStatement::TupleDefinition>().m_names)
+		for (const Token& name : statement.GetStatement<MarmotStatement::TupleDefinition>().m_names)
 		{
 			m_failed_definitions.insert(name.m_lexeme);
 		}
 	}
 }
 
-MidoriResult::TypeCheckerResult TypeChecker::TypeCheck()
+MarmotResult::TypeCheckerResult TypeChecker::TypeCheck()
 {
 	CollectLaterDefinitions();
 
-	return ScopeSession(*this).Then([&]() -> MidoriResult::TypeCheckerResult
+	return ScopeSession(*this).Then([&]() -> MarmotResult::TypeCheckerResult
 	{
 		std::vector<CompilerError> errors;
 
 		// Declarations first: a type may be named and constructed, and an
 		// instance selected, anywhere in its module, and declaring one runs
 		// nothing. An instance's method bodies are code, checked in order.
-		const std::function<bool(const std::unique_ptr<MidoriStatement>&)> is_declaration = [](const std::unique_ptr<MidoriStatement>& statement)
+		const std::function<bool(const std::unique_ptr<MarmotStatement>&)> is_declaration = [](const std::unique_ptr<MarmotStatement>& statement)
 			{
-				return statement->IsStatement<MidoriStatement::Class>()
-					|| statement->IsStatement<MidoriStatement::Struct>()
-					|| statement->IsStatement<MidoriStatement::Union>()
-					|| statement->IsStatement<MidoriStatement::TypeAlias>();
+				return statement->IsStatement<MarmotStatement::Class>()
+					|| statement->IsStatement<MarmotStatement::Struct>()
+					|| statement->IsStatement<MarmotStatement::Union>()
+					|| statement->IsStatement<MarmotStatement::TypeAlias>();
 			};
-		const std::function<void(MidoriResult::TypeResult&&)> collect = [&errors](MidoriResult::TypeResult&& result)
+		const std::function<void(MarmotResult::TypeResult&&)> collect = [&errors](MarmotResult::TypeResult&& result)
 			{
 				if (!result.has_value())
 				{
@@ -3063,26 +3063,26 @@ MidoriResult::TypeCheckerResult TypeChecker::TypeCheck()
 				}
 			};
 
-		for (std::unique_ptr<MidoriStatement>& statement : m_program_tree | std::views::filter(is_declaration))
+		for (std::unique_ptr<MarmotStatement>& statement : m_program_tree | std::views::filter(is_declaration))
 		{
 			collect(Evaluate(statement));
 		}
-		for (std::unique_ptr<MidoriStatement>& statement : m_program_tree)
+		for (std::unique_ptr<MarmotStatement>& statement : m_program_tree)
 		{
-			if (statement->IsStatement<MidoriStatement::Instance>())
+			if (statement->IsStatement<MarmotStatement::Instance>())
 			{
-				collect(RegisterInstance(statement->GetStatement<MidoriStatement::Instance>()));
+				collect(RegisterInstance(statement->GetStatement<MarmotStatement::Instance>()));
 			}
 		}
 		if (!errors.empty())
 		{
-			return std::unexpected(MidoriResult::CompilerDiagnostics(std::move(errors)));
+			return std::unexpected(MarmotResult::CompilerDiagnostics(std::move(errors)));
 		}
 
-		for (std::unique_ptr<MidoriStatement>& statement : m_program_tree | std::views::filter([&is_declaration](const std::unique_ptr<MidoriStatement>& statement) { return !is_declaration(statement); }))
+		for (std::unique_ptr<MarmotStatement>& statement : m_program_tree | std::views::filter([&is_declaration](const std::unique_ptr<MarmotStatement>& statement) { return !is_declaration(statement); }))
 		{
 			m_used_failed_definition = false;
-			MidoriResult::TypeResult result = Evaluate(statement);
+			MarmotResult::TypeResult result = Evaluate(statement);
 			if (!result.has_value())
 			{
 				RecordFailedDefinition(*statement);
@@ -3102,12 +3102,12 @@ MidoriResult::TypeCheckerResult TypeChecker::TypeCheck()
 			}
 			for (const PendingInstance& undecided : m_pending_instances)
 			{
-				errors.push_back(MidoriError::GenerateTypeCheckerErrorWithContext(undecided.m_undecided_message, undecided.m_token, m_file_name, m_source_lines));
+				errors.push_back(MarmotError::GenerateTypeCheckerErrorWithContext(undecided.m_undecided_message, undecided.m_token, m_file_name, m_source_lines));
 			}
 		}
 		if (errors.empty())
 		{
-			for (std::unique_ptr<MidoriStatement>& statement : m_program_tree)
+			for (std::unique_ptr<MarmotStatement>& statement : m_program_tree)
 			{
 				ResolveRecordedTypes(*statement);
 			}
@@ -3118,22 +3118,22 @@ MidoriResult::TypeCheckerResult TypeChecker::TypeCheck()
 			m_module_types = m_name_type_table.back();
 			return std::move(m_program_tree);
 		}
-		return std::unexpected(MidoriResult::CompilerDiagnostics(std::move(errors)));
+		return std::unexpected(MarmotResult::CompilerDiagnostics(std::move(errors)));
 	});
 }
 
-void TypeChecker::ResolveRecordedTypes(MidoriStatement& statement)
+void TypeChecker::ResolveRecordedTypes(MarmotStatement& statement)
 {
 	struct StatementResolver
 	{
 		TypeChecker& m_self;
 
-		void operator()(MidoriStatement::ExpressionStatement& expression_statement) const
+		void operator()(MarmotStatement::ExpressionStatement& expression_statement) const
 		{
 			m_self.ResolveRecordedTypes(*expression_statement.m_expr);
 		}
 
-		void operator()(MidoriStatement::VariableDefinition& definition) const
+		void operator()(MarmotStatement::VariableDefinition& definition) const
 		{
 			if (definition.m_value != nullptr)
 			{
@@ -3141,12 +3141,12 @@ void TypeChecker::ResolveRecordedTypes(MidoriStatement& statement)
 			}
 		}
 
-		void operator()(MidoriStatement::TupleDefinition& definition) const
+		void operator()(MarmotStatement::TupleDefinition& definition) const
 		{
 			m_self.ResolveRecordedTypes(*definition.m_value);
 		}
 
-		void operator()(MidoriStatement::FunctionDefinition& definition) const
+		void operator()(MarmotStatement::FunctionDefinition& definition) const
 		{
 			if (definition.m_body != nullptr)
 			{
@@ -3154,31 +3154,31 @@ void TypeChecker::ResolveRecordedTypes(MidoriStatement& statement)
 			}
 		}
 
-		void operator()(MidoriStatement::Instance& instance) const
+		void operator()(MarmotStatement::Instance& instance) const
 		{
-			for (std::unique_ptr<MidoriStatement>& method : instance.m_methods)
+			for (std::unique_ptr<MarmotStatement>& method : instance.m_methods)
 			{
 				m_self.ResolveRecordedTypes(*method);
 			}
 		}
 
-		void operator()(MidoriStatement::ForeignDefinition&) const {}
-		void operator()(MidoriStatement::Struct&) const {}
-		void operator()(MidoriStatement::Union&) const {}
-		void operator()(MidoriStatement::Class&) const {}
-		void operator()(MidoriStatement::TypeAlias&) const {}
+		void operator()(MarmotStatement::ForeignDefinition&) const {}
+		void operator()(MarmotStatement::Struct&) const {}
+		void operator()(MarmotStatement::Union&) const {}
+		void operator()(MarmotStatement::Class&) const {}
+		void operator()(MarmotStatement::TypeAlias&) const {}
 	};
 
 	VisitNode(StatementResolver{ *this }, statement);
 }
 
-void TypeChecker::ResolveRecordedTypes(MidoriExpression& expression)
+void TypeChecker::ResolveRecordedTypes(MarmotExpression& expression)
 {
 	struct ExpressionResolver
 	{
 		TypeChecker& m_self;
 
-		void Resolve(std::unique_ptr<MidoriExpression>& child) const
+		void Resolve(std::unique_ptr<MarmotExpression>& child) const
 		{
 			if (child != nullptr)
 			{
@@ -3186,12 +3186,12 @@ void TypeChecker::ResolveRecordedTypes(MidoriExpression& expression)
 			}
 		}
 
-		void Resolve(std::vector<std::unique_ptr<MidoriExpression>>& children) const
+		void Resolve(std::vector<std::unique_ptr<MarmotExpression>>& children) const
 		{
-			std::ranges::for_each(children, [this](std::unique_ptr<MidoriExpression>& child) { Resolve(child); });
+			std::ranges::for_each(children, [this](std::unique_ptr<MarmotExpression>& child) { Resolve(child); });
 		}
 
-		void Resolve(std::shared_ptr<MidoriType>& type) const
+		void Resolve(std::shared_ptr<MarmotType>& type) const
 		{
 			if (type != nullptr)
 			{
@@ -3199,40 +3199,40 @@ void TypeChecker::ResolveRecordedTypes(MidoriExpression& expression)
 			}
 		}
 
-		void operator()(MidoriExpression::As& node) const { Resolve(node.m_to_type); Resolve(node.m_expr); }
-		void operator()(MidoriExpression::Binary& node) const { Resolve(node.m_left); Resolve(node.m_right); }
-		void operator()(MidoriExpression::Group& node) const { Resolve(node.m_expr_in); }
-		void operator()(MidoriExpression::Tuple& node) const { Resolve(node.m_elements); }
-		void operator()(MidoriExpression::Literal&) const {}
-		void operator()(MidoriExpression::UnaryPrefix& node) const { Resolve(node.m_expr); }
-		void operator()(MidoriExpression::Send& node) const { Resolve(node.m_channel); Resolve(node.m_value); }
-		void operator()(MidoriExpression::Receive& node) const { Resolve(node.m_channel); }
-		void operator()(MidoriExpression::NameAccess&) const {}
+		void operator()(MarmotExpression::As& node) const { Resolve(node.m_to_type); Resolve(node.m_expr); }
+		void operator()(MarmotExpression::Binary& node) const { Resolve(node.m_left); Resolve(node.m_right); }
+		void operator()(MarmotExpression::Group& node) const { Resolve(node.m_expr_in); }
+		void operator()(MarmotExpression::Tuple& node) const { Resolve(node.m_elements); }
+		void operator()(MarmotExpression::Literal&) const {}
+		void operator()(MarmotExpression::UnaryPrefix& node) const { Resolve(node.m_expr); }
+		void operator()(MarmotExpression::Send& node) const { Resolve(node.m_channel); Resolve(node.m_value); }
+		void operator()(MarmotExpression::Receive& node) const { Resolve(node.m_channel); }
+		void operator()(MarmotExpression::NameAccess&) const {}
 
-		void operator()(MidoriExpression::Call& node) const
+		void operator()(MarmotExpression::Call& node) const
 		{
 			Resolve(node.m_callee);
 			Resolve(node.m_arguments);
 			m_self.CheckCallTypeDecided(node);
 		}
 
-		void operator()(MidoriExpression::Function& node) const { Resolve(node.m_body); }
-		void operator()(MidoriExpression::Construct& node) const { Resolve(node.m_params); }
-		void operator()(MidoriExpression::IfElse& node) const { Resolve(node.m_condition); Resolve(node.m_true_branch); Resolve(node.m_else_branch); }
-		void operator()(MidoriExpression::MemberAccess& node) const { Resolve(node.m_struct); }
-		void operator()(MidoriExpression::Array& node) const { Resolve(node.m_elems); }
-		void operator()(MidoriExpression::IndexAccess& node) const { Resolve(node.m_arr_var); Resolve(node.m_index); }
-		void operator()(MidoriExpression::RangeBinary& node) const { Resolve(node.m_start); Resolve(node.m_end); }
-		void operator()(MidoriExpression::RangeTernary& node) const { Resolve(node.m_start); Resolve(node.m_step); Resolve(node.m_end); }
-		void operator()(MidoriExpression::Match& node) const { Resolve(node.m_arg_expr); Resolve(node.m_cases); }
+		void operator()(MarmotExpression::Function& node) const { Resolve(node.m_body); }
+		void operator()(MarmotExpression::Construct& node) const { Resolve(node.m_params); }
+		void operator()(MarmotExpression::IfElse& node) const { Resolve(node.m_condition); Resolve(node.m_true_branch); Resolve(node.m_else_branch); }
+		void operator()(MarmotExpression::MemberAccess& node) const { Resolve(node.m_struct); }
+		void operator()(MarmotExpression::Array& node) const { Resolve(node.m_elems); }
+		void operator()(MarmotExpression::IndexAccess& node) const { Resolve(node.m_arr_var); Resolve(node.m_index); }
+		void operator()(MarmotExpression::RangeBinary& node) const { Resolve(node.m_start); Resolve(node.m_end); }
+		void operator()(MarmotExpression::RangeTernary& node) const { Resolve(node.m_start); Resolve(node.m_step); Resolve(node.m_end); }
+		void operator()(MarmotExpression::Match& node) const { Resolve(node.m_arg_expr); Resolve(node.m_cases); }
 
-		void operator()(MidoriExpression::RecordUpdate& node) const
+		void operator()(MarmotExpression::RecordUpdate& node) const
 		{
 			Resolve(node.m_source);
-			std::ranges::for_each(node.m_updates, [this](MidoriExpression::RecordUpdate::FieldUpdate& update) { Resolve(update.m_value); });
+			std::ranges::for_each(node.m_updates, [this](MarmotExpression::RecordUpdate::FieldUpdate& update) { Resolve(update.m_value); });
 		}
 
-		void operator()(MidoriExpression::ArrayComprehension& node) const
+		void operator()(MarmotExpression::ArrayComprehension& node) const
 		{
 			Resolve(node.m_iterable_item_type);
 			Resolve(node.m_iterable_next_type);
@@ -3240,16 +3240,16 @@ void TypeChecker::ResolveRecordedTypes(MidoriExpression& expression)
 			Resolve(node.m_range);
 		}
 
-		void operator()(MidoriExpression::Block& node) const
+		void operator()(MarmotExpression::Block& node) const
 		{
-			std::ranges::for_each(node.m_stmts, [this](std::unique_ptr<MidoriStatement>& statement) { m_self.ResolveRecordedTypes(*statement); });
+			std::ranges::for_each(node.m_stmts, [this](std::unique_ptr<MarmotStatement>& statement) { m_self.ResolveRecordedTypes(*statement); });
 			if (node.m_final_expr.has_value())
 			{
 				Resolve(node.m_final_expr.value());
 			}
 		}
 
-		void operator()(MidoriExpression::Case& node) const
+		void operator()(MarmotExpression::Case& node) const
 		{
 			m_self.ResolveRecordedTypes(*node.m_pattern);
 			Resolve(node.m_expr);
@@ -3259,7 +3259,7 @@ void TypeChecker::ResolveRecordedTypes(MidoriExpression& expression)
 			}
 		}
 
-		void operator()(MidoriExpression::For& node) const
+		void operator()(MarmotExpression::For& node) const
 		{
 			Resolve(node.m_iterable_item_type);
 			Resolve(node.m_iterable_next_type);
@@ -3272,52 +3272,52 @@ void TypeChecker::ResolveRecordedTypes(MidoriExpression& expression)
 	VisitNode(ExpressionResolver{ *this }, expression);
 }
 
-void TypeChecker::ResolveRecordedTypes(MidoriPattern& pattern)
+void TypeChecker::ResolveRecordedTypes(MarmotPattern& pattern)
 {
 	pattern.GetType() = ApplySubstitution(pattern.GetType());
-	const auto resolve_all = [this](std::vector<std::unique_ptr<MidoriPattern>>& children)
+	const auto resolve_all = [this](std::vector<std::unique_ptr<MarmotPattern>>& children)
 	{
-		std::ranges::for_each(children, [this](std::unique_ptr<MidoriPattern>& child) { ResolveRecordedTypes(*child); });
+		std::ranges::for_each(children, [this](std::unique_ptr<MarmotPattern>& child) { ResolveRecordedTypes(*child); });
 	};
-	if (pattern.IsPattern<MidoriPattern::Tuple>())
+	if (pattern.IsPattern<MarmotPattern::Tuple>())
 	{
-		resolve_all(pattern.GetPattern<MidoriPattern::Tuple>().m_elements);
+		resolve_all(pattern.GetPattern<MarmotPattern::Tuple>().m_elements);
 	}
-	else if (pattern.IsPattern<MidoriPattern::Array>())
+	else if (pattern.IsPattern<MarmotPattern::Array>())
 	{
-		MidoriPattern::Array& array = pattern.GetPattern<MidoriPattern::Array>();
+		MarmotPattern::Array& array = pattern.GetPattern<MarmotPattern::Array>();
 		resolve_all(array.m_elements);
 		if (array.m_rest.has_value())
 		{
 			ResolveRecordedTypes(*array.m_rest->m_pattern);
 		}
 	}
-	else if (pattern.IsPattern<MidoriPattern::Constructor>())
+	else if (pattern.IsPattern<MarmotPattern::Constructor>())
 	{
-		resolve_all(pattern.GetPattern<MidoriPattern::Constructor>().m_args);
+		resolve_all(pattern.GetPattern<MarmotPattern::Constructor>().m_args);
 	}
-	else if (pattern.IsPattern<MidoriPattern::As>())
+	else if (pattern.IsPattern<MarmotPattern::As>())
 	{
-		MidoriPattern::As& as = pattern.GetPattern<MidoriPattern::As>();
+		MarmotPattern::As& as = pattern.GetPattern<MarmotPattern::As>();
 		ResolveRecordedTypes(*as.m_pattern);
 		ResolveRecordedTypes(*as.m_binding);
 	}
-	else if (pattern.IsPattern<MidoriPattern::Or>())
+	else if (pattern.IsPattern<MarmotPattern::Or>())
 	{
-		resolve_all(pattern.GetPattern<MidoriPattern::Or>().m_alternatives);
+		resolve_all(pattern.GetPattern<MarmotPattern::Or>().m_alternatives);
 	}
-	else if (pattern.IsPattern<MidoriPattern::Record>())
+	else if (pattern.IsPattern<MarmotPattern::Record>())
 	{
-		std::ranges::for_each(pattern.GetPattern<MidoriPattern::Record>().m_fields, [this](MidoriPattern::Record::Field& field) { ResolveRecordedTypes(*field.m_pattern); });
+		std::ranges::for_each(pattern.GetPattern<MarmotPattern::Record>().m_fields, [this](MarmotPattern::Record::Field& field) { ResolveRecordedTypes(*field.m_pattern); });
 	}
 }
 
 // Only the call that brings a variable in reports it: one whose argument already
 // holds it, as `Id(Make(3))` does, is not where the type went missing.
-void TypeChecker::CheckCallTypeDecided(const MidoriExpression::Call& call)
+void TypeChecker::CheckCallTypeDecided(const MarmotExpression::Call& call)
 {
 	std::unordered_set<int> argument_variables;
-	for (const std::unique_ptr<MidoriExpression>& argument : call.m_arguments)
+	for (const std::unique_ptr<MarmotExpression>& argument : call.m_arguments)
 	{
 		argument_variables.merge(CollectTypeVariableIds(argument->GetType()));
 	}
@@ -3330,77 +3330,77 @@ void TypeChecker::CheckCallTypeDecided(const MidoriExpression::Call& call)
 		return;
 	}
 
-	const bool names_callee = call.m_callee->IsExpression<MidoriExpression::NameAccess>();
-	const Token& token = names_callee ? call.m_callee->GetExpression<MidoriExpression::NameAccess>().m_name : call.m_paren;
+	const bool names_callee = call.m_callee->IsExpression<MarmotExpression::NameAccess>();
+	const Token& token = names_callee ? call.m_callee->GetExpression<MarmotExpression::NameAccess>().m_name : call.m_paren;
 	const std::string what = names_callee ? std::format("'{}' returns here", token.m_lexeme) : std::string("this call returns");
-	m_undecided_call_errors.push_back(MidoriError::GenerateTypeCheckerErrorWithContext(std::format("Call expression type error: could not infer the type {}; write the type on the definition that holds the result", what), token, m_file_name, m_source_lines));
+	m_undecided_call_errors.push_back(MarmotError::GenerateTypeCheckerErrorWithContext(std::format("Call expression type error: could not infer the type {}; write the type on the definition that holds the result", what), token, m_file_name, m_source_lines));
 }
 
 // Extract type signatures from parsed AST without full type checking
 // This allows parallel type checking of dependent modules
-TypeChecker::TypeEnvironment TypeChecker::ExtractTypeSignatures(const MidoriProgramTree& ast, const std::unordered_set<std::string>* exported_symbols)
+TypeChecker::TypeEnvironment TypeChecker::ExtractTypeSignatures(const MarmotProgramTree& ast, const std::unordered_set<std::string>* exported_symbols)
 {
 	TypeEnvironment signatures;
 
-	for (const std::unique_ptr<MidoriStatement>& statement : ast)
+	for (const std::unique_ptr<MarmotStatement>& statement : ast)
 	{
 		std::visit(
 			[&signatures, exported_symbols]<typename T>(const T& stmt) {
 				using Node = std::decay_t<T>;
 
-				if constexpr (std::is_same_v<Node, MidoriStatement::FunctionDefinition>)
+				if constexpr (std::is_same_v<Node, MarmotStatement::FunctionDefinition>)
 				{
 					if (exported_symbols == nullptr || exported_symbols->contains(stmt.m_name.m_lexeme))
 					{
-						std::shared_ptr<MidoriType> function_type = MidoriType::MakeFunctionType(
+						std::shared_ptr<MarmotType> function_type = MarmotType::MakeFunctionType(
 							stmt.m_param_types,
-							std::shared_ptr<MidoriType>(stmt.m_return_type)
+							std::shared_ptr<MarmotType>(stmt.m_return_type)
 						);
-						function_type->GetType<MidoriType::FunctionType>().m_constraints = stmt.m_constraints;
+						function_type->GetType<MarmotType::FunctionType>().m_constraints = stmt.m_constraints;
 						signatures[stmt.m_name.m_lexeme] = function_type;
 					}
 				}
-				else if constexpr (std::is_same_v<Node, MidoriStatement::Struct>)
+				else if constexpr (std::is_same_v<Node, MarmotStatement::Struct>)
 				{
 					if (exported_symbols == nullptr || exported_symbols->contains(stmt.m_name.m_lexeme))
 					{
 						signatures[stmt.m_name.m_lexeme] = stmt.m_self_type;
 					}
 				}
-				else if constexpr (std::is_same_v<Node, MidoriStatement::Union>)
+				else if constexpr (std::is_same_v<Node, MarmotStatement::Union>)
 				{
 					if (exported_symbols == nullptr || exported_symbols->contains(stmt.m_name.m_lexeme))
 					{
 						signatures[stmt.m_name.m_lexeme] = stmt.m_self_type;
 
-						if (stmt.m_self_type->template IsType<MidoriType::UnionType>())
+						if (stmt.m_self_type->template IsType<MarmotType::UnionType>())
 						{
-							const MidoriType::UnionType& union_type = stmt.m_self_type->template GetType<MidoriType::UnionType>();
+							const MarmotType::UnionType& union_type = stmt.m_self_type->template GetType<MarmotType::UnionType>();
 							for (const auto& [member_name, member_ctx] : union_type.m_member_info)
 							{
-								std::vector<std::shared_ptr<MidoriType>> member_types_copy = member_ctx.m_member_types;
-								std::shared_ptr<MidoriType> union_constructor_type = MidoriType::MakeFunctionType(std::move(member_types_copy), std::shared_ptr<MidoriType>(stmt.m_self_type));
-								union_constructor_type->GetType<MidoriType::FunctionType>().m_constraints = stmt.m_constraints;
+								std::vector<std::shared_ptr<MarmotType>> member_types_copy = member_ctx.m_member_types;
+								std::shared_ptr<MarmotType> union_constructor_type = MarmotType::MakeFunctionType(std::move(member_types_copy), std::shared_ptr<MarmotType>(stmt.m_self_type));
+								union_constructor_type->GetType<MarmotType::FunctionType>().m_constraints = stmt.m_constraints;
 								signatures[member_name] = union_constructor_type;
 							}
 						}
 					}
 				}
-				else if constexpr (std::is_same_v<Node, MidoriStatement::ForeignDefinition>)
+				else if constexpr (std::is_same_v<Node, MarmotStatement::ForeignDefinition>)
 				{
 					if (exported_symbols == nullptr || exported_symbols->contains(stmt.m_function_name.m_lexeme))
 					{
 						signatures[stmt.m_function_name.m_lexeme] = stmt.m_type;
 					}
 				}
-				else if constexpr (std::is_same_v<Node, MidoriStatement::TypeAlias>)
+				else if constexpr (std::is_same_v<Node, MarmotStatement::TypeAlias>)
 				{
 					if (exported_symbols == nullptr || exported_symbols->contains(stmt.m_name.m_lexeme))
 					{
 						signatures[stmt.m_name.m_lexeme] = stmt.m_aliased_type;
 					}
 				}
-				else if constexpr (std::is_same_v<Node, MidoriStatement::VariableDefinition>)
+				else if constexpr (std::is_same_v<Node, MarmotStatement::VariableDefinition>)
 				{
 					if (exported_symbols == nullptr || exported_symbols->contains(stmt.m_name.m_lexeme))
 					{
@@ -3408,14 +3408,14 @@ TypeChecker::TypeEnvironment TypeChecker::ExtractTypeSignatures(const MidoriProg
 						{
 							signatures[stmt.m_name.m_lexeme] = stmt.m_annotated_type.value();
 						}
-						else if (stmt.m_value != nullptr && stmt.m_value->template IsExpression<MidoriExpression::Function>())
+						else if (stmt.m_value != nullptr && stmt.m_value->template IsExpression<MarmotExpression::Function>())
 						{
-							const MidoriExpression::Function& function = stmt.m_value->template GetExpression<MidoriExpression::Function>();
-							std::shared_ptr<MidoriType> function_type = MidoriType::MakeFunctionType(
+							const MarmotExpression::Function& function = stmt.m_value->template GetExpression<MarmotExpression::Function>();
+							std::shared_ptr<MarmotType> function_type = MarmotType::MakeFunctionType(
 								function.m_param_types,
-								std::shared_ptr<MidoriType>(function.m_return_type)
+								std::shared_ptr<MarmotType>(function.m_return_type)
 							);
-							function_type->GetType<MidoriType::FunctionType>().m_constraints = function.m_constraints;
+							function_type->GetType<MarmotType::FunctionType>().m_constraints = function.m_constraints;
 							signatures[stmt.m_name.m_lexeme] = function_type;
 						}
 					}
@@ -3428,29 +3428,29 @@ TypeChecker::TypeEnvironment TypeChecker::ExtractTypeSignatures(const MidoriProg
 	return signatures;
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::ExpressionStatement& simple)
+MarmotResult::TypeResult TypeChecker::operator()(MarmotStatement::ExpressionStatement& simple)
 {
 	return Evaluate(simple.m_expr)
 		.and_then
 		(
-			[](std::shared_ptr<MidoriType>&&) ->MidoriResult::TypeResult
+			[](std::shared_ptr<MarmotType>&&) ->MarmotResult::TypeResult
 			{
-				return MidoriType::MakeUndecidedType();
+				return MarmotType::MakeUndecidedType();
 			}
 		);
 }
 
-MidoriResult::TypeResult TypeChecker::TypeCheckGenericLambdaDefinition(MidoriStatement::VariableDefinition& def, MidoriExpression::Function& function)
+MarmotResult::TypeResult TypeChecker::TypeCheckGenericLambdaDefinition(MarmotStatement::VariableDefinition& def, MarmotExpression::Function& function)
 {
 	if (def.m_annotated_type.has_value())
 	{
-		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Function expression type error: a generic lambda cannot carry a type annotation, because its type differs at each call site", function.m_function_keyword, m_file_name, m_source_lines));
+		return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Function expression type error: a generic lambda cannot carry a type annotation, because its type differs at each call site", function.m_function_keyword, m_file_name, m_source_lines));
 	}
 
 	// Bound before the body so the lambda can recurse, and recorded as generic so
 	// each use is instantiated instead of pinned to one.
 	const std::string& name = def.m_name.m_lexeme;
-	return CheckGenericLambda(function, def.m_name, name, [this, &def, &name](const std::shared_ptr<MidoriType>& function_type, const std::vector<int>& parameters)
+	return CheckGenericLambda(function, def.m_name, name, [this, &def, &name](const std::shared_ptr<MarmotType>& function_type, const std::vector<int>& parameters)
 	{
 		def.m_value->GetType() = function_type;
 		m_name_type_table.back()[name] = function_type;
@@ -3465,7 +3465,7 @@ MidoriResult::TypeResult TypeChecker::TypeCheckGenericLambdaDefinition(MidoriSta
 	});
 }
 
-MidoriResult::TypeResult TypeChecker::CheckGenericLambda(MidoriExpression::Function& function, const Token& anchor, const std::string& name, const std::function<void(const std::shared_ptr<MidoriType>&, const std::vector<int>&)>& bind)
+MarmotResult::TypeResult TypeChecker::CheckGenericLambda(MarmotExpression::Function& function, const Token& anchor, const std::string& name, const std::function<void(const std::shared_ptr<MarmotType>&, const std::vector<int>&)>& bind)
 {
 	// Validate that generic parameter names are unique
 	std::unordered_set<std::string> generic_param_names;
@@ -3473,7 +3473,7 @@ MidoriResult::TypeResult TypeChecker::CheckGenericLambda(MidoriExpression::Funct
 	{
 		if (!generic_param_names.insert(generic_param.m_lexeme).second)
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Function expression type error: duplicate generic parameter name", generic_param, m_file_name, m_source_lines));
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Function expression type error: duplicate generic parameter name", generic_param, m_file_name, m_source_lines));
 		}
 	}
 
@@ -3482,21 +3482,21 @@ MidoriResult::TypeResult TypeChecker::CheckGenericLambda(MidoriExpression::Funct
 	{
 		if (generic_param_names.contains(param.m_lexeme))
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Function expression type error: generic parameter conflicts with function parameter", param, m_file_name, m_source_lines));
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Function expression type error: generic parameter conflicts with function parameter", param, m_file_name, m_source_lines));
 		}
 	}
 
-	std::vector<MidoriType::ClassConstraint> propagated_constraints = CollectSignatureConstraints(function.m_param_types, function.m_return_type);
-	for (MidoriType::ClassConstraint& propagated_constraint : propagated_constraints)
+	std::vector<MarmotType::ClassConstraint> propagated_constraints = CollectSignatureConstraints(function.m_param_types, function.m_return_type);
+	for (MarmotType::ClassConstraint& propagated_constraint : propagated_constraints)
 	{
 		AppendUniqueConstraint(function.m_constraints, std::move(propagated_constraint));
 	}
 
-	for (const MidoriType::ClassConstraint& constraint : function.m_constraints)
+	for (const MarmotType::ClassConstraint& constraint : function.m_constraints)
 	{
 		if (!m_classes.contains(ConstrainedClassName(constraint)))
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Function expression type error: undefined class '" + ConstrainedClassName(constraint) + "' in constraint", function.m_function_keyword, m_file_name, m_source_lines));
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Function expression type error: undefined class '" + ConstrainedClassName(constraint) + "' in constraint", function.m_function_keyword, m_file_name, m_source_lines));
 		}
 
 		// An equality constraint names no class of its own, so the arity check
@@ -3510,12 +3510,12 @@ MidoriResult::TypeResult TypeChecker::CheckGenericLambda(MidoriExpression::Funct
 
 		if (constraint.m_type_args.size() != tc_info.m_type_param_names.size())
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Function expression type error: class '" + constraint.m_class_name + "' expects " + std::to_string(tc_info.m_type_param_names.size()) + " type argument(s) but got " + std::to_string(constraint.m_type_args.size()), function.m_function_keyword, m_file_name, m_source_lines));
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Function expression type error: class '" + constraint.m_class_name + "' expects " + std::to_string(tc_info.m_type_param_names.size()) + " type argument(s) but got " + std::to_string(constraint.m_type_args.size()), function.m_function_keyword, m_file_name, m_source_lines));
 		}
 	}
 
 	FresheningContext freshening_context;
-	for (std::shared_ptr<MidoriType>& param_type : function.m_param_types)
+	for (std::shared_ptr<MarmotType>& param_type : function.m_param_types)
 	{
 		param_type = Freshen(param_type, freshening_context);
 	}
@@ -3523,19 +3523,19 @@ MidoriResult::TypeResult TypeChecker::CheckGenericLambda(MidoriExpression::Funct
 	// An equality constraint's types are its operands, which Map freshens with the
 	// signature: otherwise the projection would never match the one built at the
 	// use site.
-	function.m_constraints = MidoriType::MapConstraints(function.m_constraints, [this, &freshening_context](const std::shared_ptr<MidoriType>& constraint_type) { return Freshen(constraint_type, freshening_context); });
+	function.m_constraints = MarmotType::MapConstraints(function.m_constraints, [this, &freshening_context](const std::shared_ptr<MarmotType>& constraint_type) { return Freshen(constraint_type, freshening_context); });
 
-	std::shared_ptr<MidoriType> return_type_copy = function.m_return_type;
-	std::shared_ptr<MidoriType> function_type = MidoriType::MakeFunctionType(function.m_param_types, std::move(return_type_copy));
-	function_type->GetType<MidoriType::FunctionType>().m_constraints = function.m_constraints;
+	std::shared_ptr<MarmotType> return_type_copy = function.m_return_type;
+	std::shared_ptr<MarmotType> function_type = MarmotType::MakeFunctionType(function.m_param_types, std::move(return_type_copy));
+	function_type->GetType<MarmotType::FunctionType>().m_constraints = function.m_constraints;
 	function.m_type_data = function_type;
 	bind(function_type, freshening_context.m_generic_params
 		| std::views::values
-		| std::views::filter([](const std::shared_ptr<MidoriType>& type) { return type->IsType<MidoriType::TypeVariable>(); })
-		| std::views::transform([](const std::shared_ptr<MidoriType>& type) { return type->GetType<MidoriType::TypeVariable>().m_id; })
+		| std::views::filter([](const std::shared_ptr<MarmotType>& type) { return type->IsType<MarmotType::TypeVariable>(); })
+		| std::views::transform([](const std::shared_ptr<MarmotType>& type) { return type->GetType<MarmotType::TypeVariable>().m_id; })
 		| std::ranges::to<std::vector>());
 
-	return ScopeSession(*this).Then([&]() -> MidoriResult::TypeResult
+	return ScopeSession(*this).Then([&]() -> MarmotResult::TypeResult
 	{
 		for (const Token& generic_param : function.m_generic_params)
 		{
@@ -3543,7 +3543,7 @@ MidoriResult::TypeResult TypeChecker::CheckGenericLambda(MidoriExpression::Funct
 			TypeEnvironment::iterator it = freshening_context.m_generic_params.find(param_name);
 			if (it == freshening_context.m_generic_params.end())
 			{
-				std::shared_ptr<MidoriType> fresh_var = FreshTypeVar();
+				std::shared_ptr<MarmotType> fresh_var = FreshTypeVar();
 				it = freshening_context.m_generic_params.emplace(param_name, std::move(fresh_var)).first;
 			}
 			m_name_type_table.back().emplace(param_name, it->second);
@@ -3558,11 +3558,11 @@ MidoriResult::TypeResult TypeChecker::CheckGenericLambda(MidoriExpression::Funct
 			}
 		);
 
-		std::shared_ptr<MidoriType> saved_expected_return_type = m_expected_return_type;
+		std::shared_ptr<MarmotType> saved_expected_return_type = m_expected_return_type;
 		m_expected_return_type = function.m_return_type;
 
 		size_t prev_constraints_size = m_active_constraints.size();
-		for (const MidoriType::ClassConstraint& constraint : function.m_constraints)
+		for (const MarmotType::ClassConstraint& constraint : function.m_constraints)
 		{
 			if (!ContainsConstraint(m_active_constraints, constraint))
 			{
@@ -3578,7 +3578,7 @@ MidoriResult::TypeResult TypeChecker::CheckGenericLambda(MidoriExpression::Funct
 		return Evaluate(function.m_body)
 			.and_then
 			(
-				[&function, &anchor, &rigid_guard, &saved_expected_return_type, prev_constraints_size, pending_start, this](std::shared_ptr<MidoriType>&& body_type) -> MidoriResult::TypeResult
+				[&function, &anchor, &rigid_guard, &saved_expected_return_type, prev_constraints_size, pending_start, this](std::shared_ptr<MarmotType>&& body_type) -> MarmotResult::TypeResult
 				{
 					m_expected_return_type = saved_expected_return_type;
 					m_active_constraints.resize(prev_constraints_size);
@@ -3586,7 +3586,7 @@ MidoriResult::TypeResult TypeChecker::CheckGenericLambda(MidoriExpression::Funct
 					return Unify(function.m_function_keyword, function.m_return_type, body_type, UnifyDiagnosticMode::ExpectedActual)
 						.and_then
 						(
-							[&function, &anchor, &rigid_guard, pending_start, this](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
+							[&function, &anchor, &rigid_guard, pending_start, this](std::shared_ptr<MarmotType>&&) -> MarmotResult::TypeResult
 							{
 								if (std::optional<CompilerError> error = CheckGenericParametersStayGeneric(rigid_guard.Parameters(), function.m_generic_params, anchor))
 								{
@@ -3597,13 +3597,13 @@ MidoriResult::TypeResult TypeChecker::CheckGenericLambda(MidoriExpression::Funct
 								{
 									return std::unexpected(std::move(*error));
 								}
-								return MidoriType::MakeUndecidedType();
+								return MarmotType::MakeUndecidedType();
 							}
 						);
 				}
 			).or_else
 			(
-				[&saved_expected_return_type, prev_constraints_size, this](CompilerError&& error) -> MidoriResult::TypeResult
+				[&saved_expected_return_type, prev_constraints_size, this](CompilerError&& error) -> MarmotResult::TypeResult
 				{
 					m_expected_return_type = saved_expected_return_type;
 					m_active_constraints.resize(prev_constraints_size);
@@ -3613,7 +3613,7 @@ MidoriResult::TypeResult TypeChecker::CheckGenericLambda(MidoriExpression::Funct
 	});
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::VariableDefinition& def)
+MarmotResult::TypeResult TypeChecker::operator()(MarmotStatement::VariableDefinition& def)
 {
 	if (def.m_annotated_type.has_value())
 	{
@@ -3621,9 +3621,9 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::VariableDefini
 	}
 
 	// Special handling for functions (scope management required)
-	if (def.m_value->IsExpression<MidoriExpression::Function>())
+	if (def.m_value->IsExpression<MarmotExpression::Function>())
 	{
-		MidoriExpression::Function& function = def.m_value->GetExpression<MidoriExpression::Function>();
+		MarmotExpression::Function& function = def.m_value->GetExpression<MarmotExpression::Function>();
 
 		// A generic lambda is a definition, not an ordinary initializer: it must be
 		// registered by name so each use site is instantiated separately.
@@ -3635,9 +3635,9 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::VariableDefini
 		bool has_inferred_param_types = std::ranges::any_of
 		(
 			function.m_param_types,
-			[](const std::shared_ptr<MidoriType>& param_type)
+			[](const std::shared_ptr<MarmotType>& param_type)
 			{
-				return param_type->IsType<MidoriType::UndecidedType>();
+				return param_type->IsType<MarmotType::UndecidedType>();
 			}
 		);
 
@@ -3645,7 +3645,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::VariableDefini
 		{
 			return std::unexpected
 			(
-				MidoriError::GenerateTypeCheckerErrorWithContext
+				MarmotError::GenerateTypeCheckerErrorWithContext
 				(
 					"Function expression type error: could not infer all lambda parameter or return types",
 					function.m_function_keyword,
@@ -3656,40 +3656,40 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::VariableDefini
 		}
 
 		// Freshen any UndecidedType parameters to TypeVariables
-		for (std::shared_ptr<MidoriType>& param_type : function.m_param_types)
+		for (std::shared_ptr<MarmotType>& param_type : function.m_param_types)
 		{
 			param_type = Freshen(param_type);
 		}
 		function.m_return_type = Freshen(function.m_return_type);
 
-		std::shared_ptr<MidoriType> return_type_copy = function.m_return_type;
-		std::shared_ptr<MidoriType> function_type = MidoriType::MakeFunctionType(function.m_param_types, std::move(return_type_copy));
+		std::shared_ptr<MarmotType> return_type_copy = function.m_return_type;
+		std::shared_ptr<MarmotType> function_type = MarmotType::MakeFunctionType(function.m_param_types, std::move(return_type_copy));
 		function.m_type_data = function_type;
 		def.m_value->GetType() = function.m_type_data;
 
 		if (def.m_annotated_type.has_value())
 		{
-			std::shared_ptr<MidoriType>& annotated_type = def.m_annotated_type.value();
-			MidoriResult::TypeResult annotation_result = Unify(def.m_name, function_type, annotated_type, UnifyDiagnosticMode::ActualExpected);
+			std::shared_ptr<MarmotType>& annotated_type = def.m_annotated_type.value();
+			MarmotResult::TypeResult annotation_result = Unify(def.m_name, function_type, annotated_type, UnifyDiagnosticMode::ActualExpected);
 			if (!annotation_result.has_value())
 			{
-				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Define statement type error: function type annotation doesn't match function signature", def.m_name, m_file_name, m_source_lines, function_type, annotated_type));
+				return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Define statement type error: function type annotation doesn't match function signature", def.m_name, m_file_name, m_source_lines, function_type, annotated_type));
 			}
 
 			function.m_type_data = ApplySubstitution(function_type);
 			def.m_value->GetType() = function.m_type_data;
-			const MidoriType::FunctionType& resolved_function_type = function.m_type_data->GetType<MidoriType::FunctionType>();
+			const MarmotType::FunctionType& resolved_function_type = function.m_type_data->GetType<MarmotType::FunctionType>();
 			function.m_param_types = resolved_function_type.m_param_types;
 			function.m_return_type = resolved_function_type.m_return_type;
 		}
 
-		std::vector<MidoriType::ClassConstraint> function_constraints = CollectSignatureConstraints(function.m_param_types, function.m_return_type);
-		def.m_value->GetType()->GetType<MidoriType::FunctionType>().m_constraints = function_constraints;
+		std::vector<MarmotType::ClassConstraint> function_constraints = CollectSignatureConstraints(function.m_param_types, function.m_return_type);
+		def.m_value->GetType()->GetType<MarmotType::FunctionType>().m_constraints = function_constraints;
 
 		m_name_type_table.back().emplace(def.m_name.m_lexeme, def.m_value->GetType());
-		MidoriType::FunctionType& function_type_ref = def.m_value->GetType()->GetType<MidoriType::FunctionType>();
+		MarmotType::FunctionType& function_type_ref = def.m_value->GetType()->GetType<MarmotType::FunctionType>();
 
-		return ScopeSession(*this).Then([&]() -> MidoriResult::TypeResult
+		return ScopeSession(*this).Then([&]() -> MarmotResult::TypeResult
 		{
 			std::ranges::for_each
 			(
@@ -3700,15 +3700,15 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::VariableDefini
 			return Evaluate(def.m_value)
 				.and_then
 				(
-					[&def, &function, this](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
+					[&def, &function, this](std::shared_ptr<MarmotType>&&) -> MarmotResult::TypeResult
 					{
-						std::shared_ptr<MidoriType> resolved_function_type = ApplySubstitution(def.m_value->GetType());
+						std::shared_ptr<MarmotType> resolved_function_type = ApplySubstitution(def.m_value->GetType());
 						def.m_value->GetType() = resolved_function_type;
 						function.m_type_data = resolved_function_type;
 
-						if (resolved_function_type->IsType<MidoriType::FunctionType>())
+						if (resolved_function_type->IsType<MarmotType::FunctionType>())
 						{
-							const MidoriType::FunctionType& resolved_signature = resolved_function_type->GetType<MidoriType::FunctionType>();
+							const MarmotType::FunctionType& resolved_signature = resolved_function_type->GetType<MarmotType::FunctionType>();
 							function.m_param_types = resolved_signature.m_param_types;
 							function.m_return_type = resolved_signature.m_return_type;
 						}
@@ -3717,7 +3717,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::VariableDefini
 						{
 							return std::unexpected
 							(
-								MidoriError::GenerateTypeCheckerErrorWithContext
+								MarmotError::GenerateTypeCheckerErrorWithContext
 								(
 									"Function expression type error: could not infer all lambda parameter or return types",
 									function.m_function_keyword,
@@ -3727,12 +3727,12 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::VariableDefini
 							);
 						}
 
-						if (std::shared_ptr<MidoriType>* binding = FindNameType(def.m_name.m_lexeme))
+						if (std::shared_ptr<MarmotType>* binding = FindNameType(def.m_name.m_lexeme))
 						{
 							*binding = resolved_function_type;
 						}
 
-						return MidoriType::MakeUndecidedType();
+						return MarmotType::MakeUndecidedType();
 					}
 				);
 		});
@@ -3749,19 +3749,19 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::VariableDefini
 	return Evaluate(def.m_value)
 		.and_then
 		(
-			[&def, this](std::shared_ptr<MidoriType>&& type)->MidoriResult::TypeResult
+			[&def, this](std::shared_ptr<MarmotType>&& type)->MarmotResult::TypeResult
 			{
 				if (def.m_annotated_type.has_value())
 				{
-					std::shared_ptr<MidoriType>& annotated_type = def.m_annotated_type.value();
+					std::shared_ptr<MarmotType>& annotated_type = def.m_annotated_type.value();
 
 					// Reject NeverType values with concrete type annotations
 					// NeverType represents expressions that never return (infinite loops, unconditional returns/breaks)
 					// They cannot be assigned to variables with concrete types
-					if (type->IsType<MidoriType::NeverType>() && !annotated_type->IsType<MidoriType::NeverType>())
+					if (type->IsType<MarmotType::NeverType>() && !annotated_type->IsType<MarmotType::NeverType>())
 					{
 						return std::unexpected(
-							MidoriError::GenerateTypeCheckerErrorWithContext(
+							MarmotError::GenerateTypeCheckerErrorWithContext(
 								"Cannot assign a never-returning expression to a variable with type " + annotated_type->DisplayString(),
 								def.m_name,
 								m_file_name,
@@ -3773,7 +3773,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::VariableDefini
 					return Unify(def.m_name, annotated_type, type, UnifyDiagnosticMode::ExpectedActual)
 						.and_then
 						(
-							[&def, &annotated_type, this](std::shared_ptr<MidoriType>&& unified_type)->MidoriResult::TypeResult
+							[&def, &annotated_type, this](std::shared_ptr<MarmotType>&& unified_type)->MarmotResult::TypeResult
 							{
 								m_name_type_table.back().emplace(def.m_name.m_lexeme, annotated_type);
 								return unified_type;
@@ -3782,39 +3782,39 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::VariableDefini
 				}
 
 				// Check if this is an empty array without type annotation
-				if (type->IsType<MidoriType::ArrayType>())
+				if (type->IsType<MarmotType::ArrayType>())
 				{
-					const MidoriType::ArrayType& array_type = type->GetType<MidoriType::ArrayType>();
-					if (array_type.m_element_type->IsType<MidoriType::UndecidedType>())
+					const MarmotType::ArrayType& array_type = type->GetType<MarmotType::ArrayType>();
+					if (array_type.m_element_type->IsType<MarmotType::UndecidedType>())
 					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Define statement type error: empty arrays require type annotations. Use 'def " + def.m_name.m_lexeme + " : Array<ElementType> = [];'", def.m_name, m_file_name, m_source_lines));
+						return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Define statement type error: empty arrays require type annotations. Use 'def " + def.m_name.m_lexeme + " : Array<ElementType> = [];'", def.m_name, m_file_name, m_source_lines));
 					}
 				}
 
 				m_name_type_table.back().emplace(def.m_name.m_lexeme, type);
-				return MidoriType::MakeUndecidedType();
+				return MarmotType::MakeUndecidedType();
 			}
 		);
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::TupleDefinition& def_tuple)
+MarmotResult::TypeResult TypeChecker::operator()(MarmotStatement::TupleDefinition& def_tuple)
 {
 	return Evaluate(def_tuple.m_value)
 		.and_then
 		(
-			[&def_tuple, this](std::shared_ptr<MidoriType>&& type)->MidoriResult::TypeResult
+			[&def_tuple, this](std::shared_ptr<MarmotType>&& type)->MarmotResult::TypeResult
 			{
-				if (!type->IsType<MidoriType::TupleType>())
+				if (!type->IsType<MarmotType::TupleType>())
 				{
-					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("DefineTuple statement type error: expected tuple expression on right-hand side", def_tuple.m_names[0], m_file_name, m_source_lines));
+					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("DefineTuple statement type error: expected tuple expression on right-hand side", def_tuple.m_names[0], m_file_name, m_source_lines));
 				}
 
-				const MidoriType::TupleType& tuple_type = type->GetType<MidoriType::TupleType>();
+				const MarmotType::TupleType& tuple_type = type->GetType<MarmotType::TupleType>();
 
 
 				if (def_tuple.m_names.size() != tuple_type.m_element_types.size())
 				{
-					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("DefineTuple statement type error: tuple pattern has " + std::to_string(def_tuple.m_names.size()) + " bindings but tuple has " + std::to_string(tuple_type.m_element_types.size()) + " elements", def_tuple.m_names[0u], m_file_name, m_source_lines));
+					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("DefineTuple statement type error: tuple pattern has " + std::to_string(def_tuple.m_names.size()) + " bindings but tuple has " + std::to_string(tuple_type.m_element_types.size()) + " elements", def_tuple.m_names[0u], m_file_name, m_source_lines));
 				}
 
 				for (size_t i = 0u; i < def_tuple.m_names.size(); i += 1u)
@@ -3822,12 +3822,12 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::TupleDefinitio
 					m_name_type_table.back().emplace(def_tuple.m_names[i].m_lexeme, tuple_type.m_element_types[i]);
 				}
 
-				return MidoriType::MakeUndecidedType();
+				return MarmotType::MakeUndecidedType();
 			}
 		);
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::FunctionDefinition& defun)
+MarmotResult::TypeResult TypeChecker::operator()(MarmotStatement::FunctionDefinition& defun)
 {
 	// If function has generic parameters, check for lambda syntax error
 	if (!defun.m_generic_params.empty())
@@ -3838,7 +3838,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::FunctionDefini
 		{
 			if (!generic_param_names.insert(generic_param.m_lexeme).second)
 			{
-				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("DefineFunction type error: duplicate generic parameter name", generic_param, m_file_name, m_source_lines));
+				return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("DefineFunction type error: duplicate generic parameter name", generic_param, m_file_name, m_source_lines));
 			}
 		}
 
@@ -3847,22 +3847,22 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::FunctionDefini
 		{
 			if (generic_param_names.contains(param.m_lexeme))
 			{
-				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("DefineFunction type error: generic parameter conflicts with function parameter", param, m_file_name, m_source_lines));
+				return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("DefineFunction type error: generic parameter conflicts with function parameter", param, m_file_name, m_source_lines));
 			}
 		}
 	}
 
-	std::vector<MidoriType::ClassConstraint> propagated_constraints = CollectSignatureConstraints(defun.m_param_types, defun.m_return_type);
-	for (MidoriType::ClassConstraint& propagated_constraint : propagated_constraints)
+	std::vector<MarmotType::ClassConstraint> propagated_constraints = CollectSignatureConstraints(defun.m_param_types, defun.m_return_type);
+	for (MarmotType::ClassConstraint& propagated_constraint : propagated_constraints)
 	{
 		AppendUniqueConstraint(defun.m_constraints, std::move(propagated_constraint));
 	}
 
-	for (const MidoriType::ClassConstraint& constraint : defun.m_constraints)
+	for (const MarmotType::ClassConstraint& constraint : defun.m_constraints)
 	{
 		if (!m_classes.contains(ConstrainedClassName(constraint)))
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("DefineFunction type error: undefined class '" + ConstrainedClassName(constraint) + "' in constraint", defun.m_name, m_file_name, m_source_lines));
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("DefineFunction type error: undefined class '" + ConstrainedClassName(constraint) + "' in constraint", defun.m_name, m_file_name, m_source_lines));
 		}
 
 		// An equality constraint names no class of its own, so the arity check
@@ -3876,12 +3876,12 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::FunctionDefini
 
 		if (constraint.m_type_args.size() != tc_info.m_type_param_names.size())
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("DefineFunction type error: class '" + constraint.m_class_name + "' expects " + std::to_string(tc_info.m_type_param_names.size()) + " type argument(s) but got " + std::to_string(constraint.m_type_args.size()), defun.m_name, m_file_name, m_source_lines));
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("DefineFunction type error: class '" + constraint.m_class_name + "' expects " + std::to_string(tc_info.m_type_param_names.size()) + " type argument(s) but got " + std::to_string(constraint.m_type_args.size()), defun.m_name, m_file_name, m_source_lines));
 		}
 	}
 
 	FresheningContext freshening_context;
-	for (std::shared_ptr<MidoriType>& param_type : defun.m_param_types)
+	for (std::shared_ptr<MarmotType>& param_type : defun.m_param_types)
 	{
 		param_type = Freshen(param_type, freshening_context);
 	}
@@ -3889,18 +3889,18 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::FunctionDefini
 	// An equality constraint's types are its operands, which Map freshens with the
 	// signature: otherwise the projection would never match the one built at the
 	// use site.
-	defun.m_constraints = MidoriType::MapConstraints(defun.m_constraints, [this, &freshening_context](const std::shared_ptr<MidoriType>& constraint_type) { return Freshen(constraint_type, freshening_context); });
+	defun.m_constraints = MarmotType::MapConstraints(defun.m_constraints, [this, &freshening_context](const std::shared_ptr<MarmotType>& constraint_type) { return Freshen(constraint_type, freshening_context); });
 
-	std::shared_ptr<MidoriType> return_type_copy = defun.m_return_type;
-	std::shared_ptr<MidoriType> function_type = MidoriType::MakeFunctionType(defun.m_param_types, std::move(return_type_copy));
-	function_type->GetType<MidoriType::FunctionType>().m_constraints = defun.m_constraints;
+	std::shared_ptr<MarmotType> return_type_copy = defun.m_return_type;
+	std::shared_ptr<MarmotType> function_type = MarmotType::MakeFunctionType(defun.m_param_types, std::move(return_type_copy));
+	function_type->GetType<MarmotType::FunctionType>().m_constraints = defun.m_constraints;
 	m_name_type_table.back()[defun.m_name.m_lexeme] = function_type;
 	if (!defun.m_generic_params.empty())
 	{
 		m_generic_functions.insert(defun.m_name.m_lexeme);
 	}
 
-	return ScopeSession(*this).Then([&]() -> MidoriResult::TypeResult
+	return ScopeSession(*this).Then([&]() -> MarmotResult::TypeResult
 	{
 		for (const Token& generic_param : defun.m_generic_params)
 		{
@@ -3908,7 +3908,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::FunctionDefini
 			TypeEnvironment::iterator it = freshening_context.m_generic_params.find(param_name);
 			if (it == freshening_context.m_generic_params.end())
 			{
-				std::shared_ptr<MidoriType> fresh_var = FreshTypeVar();
+				std::shared_ptr<MarmotType> fresh_var = FreshTypeVar();
 				it = freshening_context.m_generic_params.emplace(param_name, std::move(fresh_var)).first;
 			}
 			m_name_type_table.back().emplace(param_name, it->second);
@@ -3922,12 +3922,12 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::FunctionDefini
 			}
 		);
 
-		std::shared_ptr<MidoriType> saved_expected_return_type = m_expected_return_type;
+		std::shared_ptr<MarmotType> saved_expected_return_type = m_expected_return_type;
 		m_expected_return_type = defun.m_return_type;
 
 		size_t prev_constraints_size = m_active_constraints.size();
 
-		for (const MidoriType::ClassConstraint& constraint : defun.m_constraints)
+		for (const MarmotType::ClassConstraint& constraint : defun.m_constraints)
 		{
 			if (!ContainsConstraint(m_active_constraints, constraint))
 			{
@@ -3941,7 +3941,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::FunctionDefini
 		return Evaluate(defun.m_body)
 			.and_then
 			(
-				[&defun, &rigid_guard, &saved_expected_return_type, prev_constraints_size, pending_start, this](std::shared_ptr<MidoriType>&& function_return_value_type) ->MidoriResult::TypeResult
+				[&defun, &rigid_guard, &saved_expected_return_type, prev_constraints_size, pending_start, this](std::shared_ptr<MarmotType>&& function_return_value_type) ->MarmotResult::TypeResult
 				{
 					m_expected_return_type = saved_expected_return_type;
 					m_active_constraints.resize(prev_constraints_size);
@@ -3949,7 +3949,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::FunctionDefini
 					return Unify(defun.m_name, defun.m_return_type, function_return_value_type, UnifyDiagnosticMode::ExpectedActual)
 						.and_then
 						(
-							[&defun, &rigid_guard, pending_start, this](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
+							[&defun, &rigid_guard, pending_start, this](std::shared_ptr<MarmotType>&&) -> MarmotResult::TypeResult
 							{
 								if (std::optional<CompilerError> error = CheckGenericParametersStayGeneric(rigid_guard.Parameters(), defun.m_generic_params, defun.m_name))
 								{
@@ -3966,7 +3966,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::FunctionDefini
 				}
 			).or_else
 			(
-				[&saved_expected_return_type, prev_constraints_size, this](CompilerError&& error) -> MidoriResult::TypeResult
+				[&saved_expected_return_type, prev_constraints_size, this](CompilerError&& error) -> MarmotResult::TypeResult
 				{
 					m_expected_return_type = saved_expected_return_type; 
 					m_active_constraints.resize(prev_constraints_size);
@@ -3976,7 +3976,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::FunctionDefini
 	});
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::ForeignDefinition& foreign)
+MarmotResult::TypeResult TypeChecker::operator()(MarmotStatement::ForeignDefinition& foreign)
 {
 	if (foreign.DeclaredPrimitive().has_value())
 	{
@@ -3987,16 +3987,16 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::ForeignDefinit
 	}
 
 	m_name_type_table.back()[foreign.m_function_name.m_lexeme] = foreign.m_type;
-	return MidoriType::MakeUndecidedType();
+	return MarmotType::MakeUndecidedType();
 }
 
 // The VM gives a primitive's instruction only what its declaration says, so the
 // declaration must say what the instruction takes and gives.
-std::optional<CompilerError> TypeChecker::CheckPrimitiveDeclaration(const MidoriStatement::ForeignDefinition& foreign) const
+std::optional<CompilerError> TypeChecker::CheckPrimitiveDeclaration(const MarmotStatement::ForeignDefinition& foreign) const
 {
-	const MidoriType::FunctionType& signature = foreign.m_type->GetType<MidoriType::FunctionType>();
-	const std::vector<std::shared_ptr<MidoriType>>& params = signature.m_param_types;
-	const std::shared_ptr<MidoriType>& result = signature.m_return_type;
+	const MarmotType::FunctionType& signature = foreign.m_type->GetType<MarmotType::FunctionType>();
+	const std::vector<std::shared_ptr<MarmotType>>& params = signature.m_param_types;
+	const std::shared_ptr<MarmotType>& result = signature.m_return_type;
 	const bool takes_one = params.size() == 1u;
 	struct DeclaredShape
 	{
@@ -4007,17 +4007,17 @@ std::optional<CompilerError> TypeChecker::CheckPrimitiveDeclaration(const Midori
 	{
 		switch (foreign.DeclaredPrimitive().value())
 		{
-		case MidoriPrimitive::Spawn:
+		case MarmotPrimitive::Spawn:
 			return { params.size() == 2u && IsSpawnSignature(params[0u], params[1u], result), "fn(A, fn(A) -> R) -> Worker<R>" };
-		case MidoriPrimitive::Join:
-			return { takes_one && params[0u]->IsType<MidoriType::WorkerType>() && IsJoinOutcome(result, params[0u]->GetType<MidoriType::WorkerType>().m_result_type), "fn(Worker<T>) -> R, a union whose member 0 holds T and member 1 an error, itself a union whose member 0 holds nothing and member 1 a Text" };
-		case MidoriPrimitive::ChannelNew:
-			return { takes_one && params[0u]->IsType<MidoriType::IntegerType>() && result->IsType<MidoriType::ChannelType>(), "fn(Int) -> Channel<T>" };
-		case MidoriPrimitive::ChannelClose:
-			return { takes_one && params[0u]->IsType<MidoriType::ChannelType>() && result->IsType<MidoriType::UnitType>(), "fn(Channel<T>) -> Unit" };
-		case MidoriPrimitive::WorkerIsDone:
-		case MidoriPrimitive::WorkerCancel:
-			return { takes_one && params[0u]->IsType<MidoriType::WorkerType>() && result->IsType<MidoriType::BoolType>(), "fn(Worker<T>) -> Bool" };
+		case MarmotPrimitive::Join:
+			return { takes_one && params[0u]->IsType<MarmotType::WorkerType>() && IsJoinOutcome(result, params[0u]->GetType<MarmotType::WorkerType>().m_result_type), "fn(Worker<T>) -> R, a union whose member 0 holds T and member 1 an error, itself a union whose member 0 holds nothing and member 1 a Text" };
+		case MarmotPrimitive::ChannelNew:
+			return { takes_one && params[0u]->IsType<MarmotType::IntegerType>() && result->IsType<MarmotType::ChannelType>(), "fn(Int) -> Channel<T>" };
+		case MarmotPrimitive::ChannelClose:
+			return { takes_one && params[0u]->IsType<MarmotType::ChannelType>() && result->IsType<MarmotType::UnitType>(), "fn(Channel<T>) -> Unit" };
+		case MarmotPrimitive::WorkerIsDone:
+		case MarmotPrimitive::WorkerCancel:
+			return { takes_one && params[0u]->IsType<MarmotType::WorkerType>() && result->IsType<MarmotType::BoolType>(), "fn(Worker<T>) -> Bool" };
 		}
 		std::unreachable();
 	}();
@@ -4026,10 +4026,10 @@ std::optional<CompilerError> TypeChecker::CheckPrimitiveDeclaration(const Midori
 	{
 		return std::nullopt;
 	}
-	return MidoriError::GenerateTypeCheckerErrorWithContext(std::format("Foreign declaration error: '{}' declares the primitive \"{}\", whose type must be {}", foreign.m_function_name.m_lexeme, foreign.m_foreign_name, shape.m_expected), foreign.m_function_name, m_file_name, m_source_lines);
+	return MarmotError::GenerateTypeCheckerErrorWithContext(std::format("Foreign declaration error: '{}' declares the primitive \"{}\", whose type must be {}", foreign.m_function_name.m_lexeme, foreign.m_foreign_name, shape.m_expected), foreign.m_function_name, m_file_name, m_source_lines);
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Struct& struct_stmt)
+MarmotResult::TypeResult TypeChecker::operator()(MarmotStatement::Struct& struct_stmt)
 {
 	if (!struct_stmt.m_generic_params.empty())
 	{
@@ -4038,25 +4038,25 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Struct& struct
 		{
 			if (!generic_param_names.insert(generic_param.m_lexeme).second)
 			{
-				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Struct declaration type error: duplicate generic parameter name", generic_param, m_file_name, m_source_lines));
+				return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Struct declaration type error: duplicate generic parameter name", generic_param, m_file_name, m_source_lines));
 			}
 		}
 
-		m_generic_structs.insert(ConstructorKey(struct_stmt.m_self_type->GetType<MidoriType::StructType>().m_module_name, struct_stmt.m_name.m_lexeme));
+		m_generic_structs.insert(ConstructorKey(struct_stmt.m_self_type->GetType<MarmotType::StructType>().m_module_name, struct_stmt.m_name.m_lexeme));
 	}
 
 	if (!struct_stmt.m_constraints.empty())
 	{
 		if (struct_stmt.m_generic_params.empty())
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Struct declaration error: constraints require at least one type parameter", struct_stmt.m_name, m_file_name, m_source_lines));
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Struct declaration error: constraints require at least one type parameter", struct_stmt.m_name, m_file_name, m_source_lines));
 		}
 
-		for (const MidoriType::ClassConstraint& constraint : struct_stmt.m_constraints)
+		for (const MarmotType::ClassConstraint& constraint : struct_stmt.m_constraints)
 		{
 			if (!m_classes.contains(ConstrainedClassName(constraint)))
 			{
-				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Struct declaration error: undefined class '" + ConstrainedClassName(constraint) + "' in constraint", struct_stmt.m_name, m_file_name, m_source_lines));
+				return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Struct declaration error: undefined class '" + ConstrainedClassName(constraint) + "' in constraint", struct_stmt.m_name, m_file_name, m_source_lines));
 			}
 
 			// An equality constraint names no class of its own, so the arity check
@@ -4069,23 +4069,23 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Struct& struct
 			const ClassInfo& tc_info = m_classes.at(constraint.m_class_name);
 			if (constraint.m_type_args.size() != tc_info.m_type_param_names.size())
 			{
-				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Struct declaration error: class '" + constraint.m_class_name + "' expects " + std::to_string(tc_info.m_type_param_names.size()) + " type argument(s) but got " + std::to_string(constraint.m_type_args.size()), struct_stmt.m_name, m_file_name, m_source_lines));
+				return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Struct declaration error: class '" + constraint.m_class_name + "' expects " + std::to_string(tc_info.m_type_param_names.size()) + " type argument(s) but got " + std::to_string(constraint.m_type_args.size()), struct_stmt.m_name, m_file_name, m_source_lines));
 			}
 		}
 	}
 
-	struct_stmt.m_self_type->GetType<MidoriType::StructType>().m_constraints = struct_stmt.m_constraints;
-	const std::string struct_module_name = struct_stmt.m_self_type->GetType<MidoriType::StructType>().m_module_name;
-	std::shared_ptr<MidoriType> struct_constructor_type = MidoriType::MakeFunctionType(struct_stmt.m_self_type->GetType<MidoriType::StructType>().m_member_types, std::move(struct_stmt.m_self_type));
-	struct_constructor_type->GetType<MidoriType::FunctionType>().m_constraints = struct_stmt.m_constraints;
+	struct_stmt.m_self_type->GetType<MarmotType::StructType>().m_constraints = struct_stmt.m_constraints;
+	const std::string struct_module_name = struct_stmt.m_self_type->GetType<MarmotType::StructType>().m_module_name;
+	std::shared_ptr<MarmotType> struct_constructor_type = MarmotType::MakeFunctionType(struct_stmt.m_self_type->GetType<MarmotType::StructType>().m_member_types, std::move(struct_stmt.m_self_type));
+	struct_constructor_type->GetType<MarmotType::FunctionType>().m_constraints = struct_stmt.m_constraints;
 	m_name_type_table.back()[struct_stmt.m_name.m_lexeme] = struct_constructor_type;
 	m_name_type_table.back()[ConstructorKey(struct_module_name, struct_stmt.m_name.m_lexeme)] = struct_constructor_type;
-	m_struct_type_definitions[ConstructorKey(struct_module_name, struct_stmt.m_name.m_lexeme)] = struct_constructor_type->GetType<MidoriType::FunctionType>().m_return_type;
+	m_struct_type_definitions[ConstructorKey(struct_module_name, struct_stmt.m_name.m_lexeme)] = struct_constructor_type->GetType<MarmotType::FunctionType>().m_return_type;
 
-	return MidoriType::MakeUndecidedType();
+	return MarmotType::MakeUndecidedType();
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Union& union_stmt)
+MarmotResult::TypeResult TypeChecker::operator()(MarmotStatement::Union& union_stmt)
 {
 	if (!union_stmt.m_generic_params.empty())
 	{
@@ -4094,25 +4094,25 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Union& union_s
 		{
 			if (!generic_param_names.insert(generic_param.m_lexeme).second)
 			{
-				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Union declaration type error: duplicate generic parameter name", generic_param, m_file_name, m_source_lines));
+				return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Union declaration type error: duplicate generic parameter name", generic_param, m_file_name, m_source_lines));
 			}
 		}
 
-		m_generic_unions.insert(ConstructorKey(union_stmt.m_self_type->GetType<MidoriType::UnionType>().m_module_name, union_stmt.m_name.m_lexeme));
+		m_generic_unions.insert(ConstructorKey(union_stmt.m_self_type->GetType<MarmotType::UnionType>().m_module_name, union_stmt.m_name.m_lexeme));
 	}
 
 	if (!union_stmt.m_constraints.empty())
 	{
 		if (union_stmt.m_generic_params.empty())
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Union declaration error: constraints require at least one type parameter", union_stmt.m_name, m_file_name, m_source_lines));
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Union declaration error: constraints require at least one type parameter", union_stmt.m_name, m_file_name, m_source_lines));
 		}
 
-		for (const MidoriType::ClassConstraint& constraint : union_stmt.m_constraints)
+		for (const MarmotType::ClassConstraint& constraint : union_stmt.m_constraints)
 		{
 			if (!m_classes.contains(ConstrainedClassName(constraint)))
 			{
-				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Union declaration error: undefined class '" + ConstrainedClassName(constraint) + "' in constraint", union_stmt.m_name, m_file_name, m_source_lines));
+				return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Union declaration error: undefined class '" + ConstrainedClassName(constraint) + "' in constraint", union_stmt.m_name, m_file_name, m_source_lines));
 			}
 
 			// An equality constraint names no class of its own, so the arity check
@@ -4125,83 +4125,83 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Union& union_s
 			const ClassInfo& tc_info = m_classes.at(constraint.m_class_name);
 			if (constraint.m_type_args.size() != tc_info.m_type_param_names.size())
 			{
-				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Union declaration error: class '" + constraint.m_class_name + "' expects " + std::to_string(tc_info.m_type_param_names.size()) + " type argument(s) but got " + std::to_string(constraint.m_type_args.size()), union_stmt.m_name, m_file_name, m_source_lines));
+				return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Union declaration error: class '" + constraint.m_class_name + "' expects " + std::to_string(tc_info.m_type_param_names.size()) + " type argument(s) but got " + std::to_string(constraint.m_type_args.size()), union_stmt.m_name, m_file_name, m_source_lines));
 			}
 		}
 	}
 
-	MidoriType::UnionType& union_type = union_stmt.m_self_type->GetType<MidoriType::UnionType>();
+	MarmotType::UnionType& union_type = union_stmt.m_self_type->GetType<MarmotType::UnionType>();
 	union_type.m_constraints = union_stmt.m_constraints;
 	for (auto& [member_name, member_ctx] : union_type.m_member_info)
 	{
-		std::vector<std::shared_ptr<MidoriType>> member_types_copy = member_ctx.m_member_types;
-		std::shared_ptr<MidoriType> union_constructor_type = MidoriType::MakeFunctionType(std::move(member_types_copy), std::shared_ptr(union_stmt.m_self_type));
-		union_constructor_type->GetType<MidoriType::FunctionType>().m_constraints = union_stmt.m_constraints;
+		std::vector<std::shared_ptr<MarmotType>> member_types_copy = member_ctx.m_member_types;
+		std::shared_ptr<MarmotType> union_constructor_type = MarmotType::MakeFunctionType(std::move(member_types_copy), std::shared_ptr(union_stmt.m_self_type));
+		union_constructor_type->GetType<MarmotType::FunctionType>().m_constraints = union_stmt.m_constraints;
 		m_name_type_table.back()[member_name] = union_constructor_type;
 		m_name_type_table.back()[ConstructorKey(union_type.m_module_name, member_name)] = union_constructor_type;
 	}
 	m_union_type_definitions[ConstructorKey(union_type.m_module_name, union_stmt.m_name.m_lexeme)] = union_stmt.m_self_type;
 
-	return MidoriType::MakeUndecidedType();
+	return MarmotType::MakeUndecidedType();
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Class& class_stmt)
+MarmotResult::TypeResult TypeChecker::operator()(MarmotStatement::Class& class_stmt)
 {
 	std::unordered_set<std::string> type_param_names;
 	for (const Token& type_param : class_stmt.m_type_params)
 	{
 		if (!type_param_names.insert(type_param.m_lexeme).second)
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Class declaration error: duplicate type parameter name", type_param, m_file_name, m_source_lines));
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Class declaration error: duplicate type parameter name", type_param, m_file_name, m_source_lines));
 		}
 	}
 
 	if (m_classes.contains(class_stmt.m_name.m_lexeme))
 	{
-		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Class declaration error: class already defined", class_stmt.m_name, m_file_name, m_source_lines));
+		return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Class declaration error: class already defined", class_stmt.m_name, m_file_name, m_source_lines));
 	}
 
 	AssociatedTypeEnvironment associated_types;
-	for (const MidoriStatement::Class::AssociatedTypeDeclaration& associated_type_decl : class_stmt.m_associated_types)
+	for (const MarmotStatement::Class::AssociatedTypeDeclaration& associated_type_decl : class_stmt.m_associated_types)
 	{
 		if (type_param_names.contains(associated_type_decl.m_name.m_lexeme))
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Class declaration error: associated type name conflicts with class type parameter", associated_type_decl.m_name, m_file_name, m_source_lines));
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Class declaration error: associated type name conflicts with class type parameter", associated_type_decl.m_name, m_file_name, m_source_lines));
 		}
 		if (associated_types.contains(associated_type_decl.m_name.m_lexeme))
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Class declaration error: duplicate associated type name", associated_type_decl.m_name, m_file_name, m_source_lines));
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Class declaration error: duplicate associated type name", associated_type_decl.m_name, m_file_name, m_source_lines));
 		}
 
-		std::vector<std::shared_ptr<MidoriType>> associated_type_args;
+		std::vector<std::shared_ptr<MarmotType>> associated_type_args;
 		associated_type_args.reserve(class_stmt.m_type_params.size());
 		for (const Token& type_param : class_stmt.m_type_params)
 		{
-			associated_type_args.emplace_back(MidoriType::MakeGenericType(type_param.m_lexeme));
+			associated_type_args.emplace_back(MarmotType::MakeGenericType(type_param.m_lexeme));
 		}
 
 		associated_types.emplace
 		(
 			associated_type_decl.m_name.m_lexeme,
-			MidoriType::MakeAssociatedType(class_stmt.m_name.m_lexeme, associated_type_decl.m_name.m_lexeme, std::move(associated_type_args))
+			MarmotType::MakeAssociatedType(class_stmt.m_name.m_lexeme, associated_type_decl.m_name.m_lexeme, std::move(associated_type_args))
 		);
 	}
 
 	TypeEnvironment method_types;
-	for (std::unique_ptr<MidoriStatement>& method : class_stmt.m_methods)
+	for (std::unique_ptr<MarmotStatement>& method : class_stmt.m_methods)
 	{
-		if (!method->IsStatement<MidoriStatement::FunctionDefinition>())
+		if (!method->IsStatement<MarmotStatement::FunctionDefinition>())
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Class declaration error: methods must be function definitions", class_stmt.m_name, m_file_name, m_source_lines));
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Class declaration error: methods must be function definitions", class_stmt.m_name, m_file_name, m_source_lines));
 		}
 
-		MidoriStatement::FunctionDefinition& defun = method->GetStatement<MidoriStatement::FunctionDefinition>();
+		MarmotStatement::FunctionDefinition& defun = method->GetStatement<MarmotStatement::FunctionDefinition>();
 		if (method_types.contains(defun.m_name.m_lexeme))
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Class declaration error: duplicate method name", defun.m_name, m_file_name, m_source_lines));
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Class declaration error: duplicate method name", defun.m_name, m_file_name, m_source_lines));
 		}
 
-		std::shared_ptr<MidoriType> method_type = MidoriType::MakeFunctionType(defun.m_param_types, std::shared_ptr<MidoriType>(defun.m_return_type));
+		std::shared_ptr<MarmotType> method_type = MarmotType::MakeFunctionType(defun.m_param_types, std::shared_ptr<MarmotType>(defun.m_return_type));
 
 		method_types[defun.m_name.m_lexeme] = method_type;
 	}
@@ -4214,40 +4214,40 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Class& class_s
 
 	m_classes[class_stmt.m_name.m_lexeme] = ClassInfo(class_stmt.m_name.m_lexeme, std::move(param_names), std::move(associated_types), std::move(method_types));
 
-	return MidoriType::MakeUndecidedType();
+	return MarmotType::MakeUndecidedType();
 }
 
 // An instance is registered with the declarations, so code anywhere in the
 // module can select it; its method bodies are checked where it stands.
-MidoriResult::TypeResult TypeChecker::RegisterInstance(MidoriStatement::Instance& instance_stmt)
+MarmotResult::TypeResult TypeChecker::RegisterInstance(MarmotStatement::Instance& instance_stmt)
 {
 	std::unordered_map<std::string, ClassInfo>::iterator tc_it = m_classes.find(instance_stmt.m_class_name.m_lexeme);
 	if (tc_it == m_classes.end())
 	{
-		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: unknown class '" + instance_stmt.m_class_name.m_lexeme + "'", instance_stmt.m_class_name, m_file_name, m_source_lines));
+		return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: unknown class '" + instance_stmt.m_class_name.m_lexeme + "'", instance_stmt.m_class_name, m_file_name, m_source_lines));
 	}
 
 	const ClassInfo& tc_info = tc_it->second;
 	if (instance_stmt.m_type_args.size() != tc_info.m_type_param_names.size())
 	{
-		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: type argument count mismatch", instance_stmt.m_class_name, m_file_name, m_source_lines));
+		return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: type argument count mismatch", instance_stmt.m_class_name, m_file_name, m_source_lines));
 	}
 
 	// The compiler, not an instance, does arithmetic and bit operations, so an
 	// instance for a type it cannot do them on would let a generic body claim
 	// what no specialization can do.
-	const std::shared_ptr<MidoriType>& first_type_arg = instance_stmt.m_type_args.front();
+	const std::shared_ptr<MarmotType>& first_type_arg = instance_stmt.m_type_args.front();
 	if (instance_stmt.m_class_name.m_lexeme == NUMERIC_CLASS_NAME && !first_type_arg->IsNumericType())
 	{
-		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnsatisfiedConstraint, std::format("Instance declaration error: the compiler does arithmetic itself, on Int, Float, Byte and Word only, so there is no Numeric<{}>", first_type_arg->DisplayString()), instance_stmt.m_class_name, m_file_name, m_source_lines));
+		return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnsatisfiedConstraint, std::format("Instance declaration error: the compiler does arithmetic itself, on Int, Float, Byte and Word only, so there is no Numeric<{}>", first_type_arg->DisplayString()), instance_stmt.m_class_name, m_file_name, m_source_lines));
 	}
-	if (instance_stmt.m_class_name.m_lexeme == BITWISE_CLASS_NAME && !first_type_arg->IsType<MidoriType::IntegerType>() && !first_type_arg->IsType<MidoriType::ByteType>() && !first_type_arg->IsType<MidoriType::WordType>())
+	if (instance_stmt.m_class_name.m_lexeme == BITWISE_CLASS_NAME && !first_type_arg->IsType<MarmotType::IntegerType>() && !first_type_arg->IsType<MarmotType::ByteType>() && !first_type_arg->IsType<MarmotType::WordType>())
 	{
-		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnsatisfiedConstraint, std::format("Instance declaration error: the compiler does bit operations itself, on Int, Byte and Word only, so there is no Bitwise<{}>", first_type_arg->DisplayString()), instance_stmt.m_class_name, m_file_name, m_source_lines));
+		return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnsatisfiedConstraint, std::format("Instance declaration error: the compiler does bit operations itself, on Int, Byte and Word only, so there is no Bitwise<{}>", first_type_arg->DisplayString()), instance_stmt.m_class_name, m_file_name, m_source_lines));
 	}
 
 	std::vector<std::string> concrete_type_names;
-	for (const std::shared_ptr<MidoriType>& type_arg : instance_stmt.m_type_args)
+	for (const std::shared_ptr<MarmotType>& type_arg : instance_stmt.m_type_args)
 	{
 		concrete_type_names.push_back(type_arg->ToString());
 	}
@@ -4263,22 +4263,22 @@ MidoriResult::TypeResult TypeChecker::RegisterInstance(MidoriStatement::Instance
 		// this is the only order in which the two can meet.
 		if (!existing_instance_it->second.m_is_derived)
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: instance already defined for this type", instance_stmt.m_class_name, m_file_name, m_source_lines));
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: instance already defined for this type", instance_stmt.m_class_name, m_file_name, m_source_lines));
 		}
 
 		m_instances.erase(existing_instance_it);
 	}
 
 	AssociatedTypeEnvironment associated_type_bindings;
-	for (const MidoriStatement::Instance::AssociatedTypeBinding& binding : instance_stmt.m_associated_types)
+	for (const MarmotStatement::Instance::AssociatedTypeBinding& binding : instance_stmt.m_associated_types)
 	{
 		if (!tc_info.m_associated_types.contains(binding.m_name.m_lexeme))
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: unknown associated type '" + binding.m_name.m_lexeme + "'", binding.m_name, m_file_name, m_source_lines));
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: unknown associated type '" + binding.m_name.m_lexeme + "'", binding.m_name, m_file_name, m_source_lines));
 		}
 		if (associated_type_bindings.contains(binding.m_name.m_lexeme))
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: duplicate associated type binding", binding.m_name, m_file_name, m_source_lines));
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: duplicate associated type binding", binding.m_name, m_file_name, m_source_lines));
 		}
 
 		associated_type_bindings.emplace(binding.m_name.m_lexeme, binding.m_type);
@@ -4288,7 +4288,7 @@ MidoriResult::TypeResult TypeChecker::RegisterInstance(MidoriStatement::Instance
 	{
 		if (!associated_type_bindings.contains(associated_type_name))
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: missing binding for associated type '" + associated_type_name + "'", instance_stmt.m_class_name, m_file_name, m_source_lines));
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: missing binding for associated type '" + associated_type_name + "'", instance_stmt.m_class_name, m_file_name, m_source_lines));
 		}
 	}
 
@@ -4298,10 +4298,10 @@ MidoriResult::TypeResult TypeChecker::RegisterInstance(MidoriStatement::Instance
 		InstanceInfo
 		(
 			instance_stmt.m_class_name.m_lexeme,
-			std::vector<std::shared_ptr<MidoriType>>(instance_stmt.m_type_args),
-			std::vector<MidoriType::ClassConstraint>(instance_stmt.m_constraints),
+			std::vector<std::shared_ptr<MarmotType>>(instance_stmt.m_type_args),
+			std::vector<MarmotType::ClassConstraint>(instance_stmt.m_constraints),
 			AssociatedTypeEnvironment(associated_type_bindings),
-			std::unordered_map<std::string, std::unique_ptr<MidoriStatement>>()
+			std::unordered_map<std::string, std::unique_ptr<MarmotStatement>>()
 		)
 	);
 
@@ -4321,25 +4321,25 @@ MidoriResult::TypeResult TypeChecker::RegisterInstance(MidoriStatement::Instance
 	} registration_guard{ &m_instances, instance_key, false };
 
 	std::unordered_set<std::string> implemented_methods;
-	for (std::unique_ptr<MidoriStatement>& method : instance_stmt.m_methods)
+	for (std::unique_ptr<MarmotStatement>& method : instance_stmt.m_methods)
 	{
-		if (!method->IsStatement<MidoriStatement::FunctionDefinition>())
+		if (!method->IsStatement<MarmotStatement::FunctionDefinition>())
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: methods must be function definitions", instance_stmt.m_class_name, m_file_name, m_source_lines));
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: methods must be function definitions", instance_stmt.m_class_name, m_file_name, m_source_lines));
 		}
 
-		MidoriStatement::FunctionDefinition& defun = method->GetStatement<MidoriStatement::FunctionDefinition>();
+		MarmotStatement::FunctionDefinition& defun = method->GetStatement<MarmotStatement::FunctionDefinition>();
 		std::string mangled_name = defun.m_name.m_lexeme;
-		std::string method_name = MidoriType::DemangleInstanceMethodName(mangled_name, instance_stmt.m_class_name.m_lexeme);
+		std::string method_name = MarmotType::DemangleInstanceMethodName(mangled_name, instance_stmt.m_class_name.m_lexeme);
 
 		if (!tc_info.m_method_types.contains(method_name))
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' not defined in typeclass", defun.m_name, m_file_name, m_source_lines));
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' not defined in typeclass", defun.m_name, m_file_name, m_source_lines));
 		}
 
 		if (implemented_methods.contains(method_name))
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: duplicate method implementation", defun.m_name, m_file_name, m_source_lines));
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: duplicate method implementation", defun.m_name, m_file_name, m_source_lines));
 		}
 
 		implemented_methods.emplace(method_name);
@@ -4349,7 +4349,7 @@ MidoriResult::TypeResult TypeChecker::RegisterInstance(MidoriStatement::Instance
 	{
 		if (!implemented_methods.contains(method_name))
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: missing implementation for method '" + method_name + "'", instance_stmt.m_class_name, m_file_name, m_source_lines));
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: missing implementation for method '" + method_name + "'", instance_stmt.m_class_name, m_file_name, m_source_lines));
 		}
 	}
 
@@ -4359,63 +4359,63 @@ MidoriResult::TypeResult TypeChecker::RegisterInstance(MidoriStatement::Instance
 		type_param_substitutions.emplace(tc_info.m_type_param_names[i], instance_stmt.m_type_args[i]);
 	}
 
-	for (const std::unique_ptr<MidoriStatement>& method : instance_stmt.m_methods)
+	for (const std::unique_ptr<MarmotStatement>& method : instance_stmt.m_methods)
 	{
-		const MidoriStatement::FunctionDefinition& defun = method->GetStatement<MidoriStatement::FunctionDefinition>();
+		const MarmotStatement::FunctionDefinition& defun = method->GetStatement<MarmotStatement::FunctionDefinition>();
 		const std::string mangled_name = defun.m_name.m_lexeme;
-		const std::string method_name = MidoriType::DemangleInstanceMethodName(mangled_name, instance_stmt.m_class_name.m_lexeme);
+		const std::string method_name = MarmotType::DemangleInstanceMethodName(mangled_name, instance_stmt.m_class_name.m_lexeme);
 
 		if (!defun.m_generic_params.empty())
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: instance methods cannot declare generic parameters", defun.m_name, m_file_name, m_source_lines));
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: instance methods cannot declare generic parameters", defun.m_name, m_file_name, m_source_lines));
 		}
 
 		TypeEnvironment::const_iterator expected_it = tc_info.m_method_types.find(method_name);
 		if (expected_it == tc_info.m_method_types.cend())
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' not defined in class", defun.m_name, m_file_name, m_source_lines));
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' not defined in class", defun.m_name, m_file_name, m_source_lines));
 		}
 
-		std::shared_ptr<MidoriType> expected_signature = ApplySubstitution(MidoriType::SubstituteTypeParams(expected_it->second, type_param_substitutions));
-		std::shared_ptr<MidoriType> actual_signature = ApplySubstitution(MidoriType::MakeFunctionType(defun.m_param_types, std::shared_ptr<MidoriType>(defun.m_return_type)));
+		std::shared_ptr<MarmotType> expected_signature = ApplySubstitution(MarmotType::SubstituteTypeParams(expected_it->second, type_param_substitutions));
+		std::shared_ptr<MarmotType> actual_signature = ApplySubstitution(MarmotType::MakeFunctionType(defun.m_param_types, std::shared_ptr<MarmotType>(defun.m_return_type)));
 
 		if (*expected_signature != *actual_signature)
 		{
-			if (expected_signature->IsType<MidoriType::FunctionType>() && actual_signature->IsType<MidoriType::FunctionType>())
+			if (expected_signature->IsType<MarmotType::FunctionType>() && actual_signature->IsType<MarmotType::FunctionType>())
 			{
-				const MidoriType::FunctionType& expected_type = expected_signature->GetType<MidoriType::FunctionType>();
-				const MidoriType::FunctionType& actual_type = actual_signature->GetType<MidoriType::FunctionType>();
+				const MarmotType::FunctionType& expected_type = expected_signature->GetType<MarmotType::FunctionType>();
+				const MarmotType::FunctionType& actual_type = actual_signature->GetType<MarmotType::FunctionType>();
 
 				if (expected_type.m_param_types.size() != actual_type.m_param_types.size())
 				{
-					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' parameter count does not match class declaration", defun.m_name, m_file_name, m_source_lines, actual_signature, expected_signature));
+					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' parameter count does not match class declaration", defun.m_name, m_file_name, m_source_lines, actual_signature, expected_signature));
 				}
 
 				for (size_t i = 0u; i < expected_type.m_param_types.size(); i += 1u)
 				{
-					const std::shared_ptr<MidoriType>& expected_param = expected_type.m_param_types[i];
-					const std::shared_ptr<MidoriType>& actual_param = actual_type.m_param_types[i];
+					const std::shared_ptr<MarmotType>& expected_param = expected_type.m_param_types[i];
+					const std::shared_ptr<MarmotType>& actual_param = actual_type.m_param_types[i];
 					if (*expected_param != *actual_param)
 					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(std::format("Instance declaration error: method '{}' parameter {} type does not match class declaration", method_name, i + 1u), defun.m_name, m_file_name, m_source_lines, actual_param, expected_param));
+						return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(std::format("Instance declaration error: method '{}' parameter {} type does not match class declaration", method_name, i + 1u), defun.m_name, m_file_name, m_source_lines, actual_param, expected_param));
 					}
 				}
 
 				if (*expected_type.m_return_type != *actual_type.m_return_type)
 				{
-					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' return type does not match class declaration", defun.m_name, m_file_name, m_source_lines, actual_type.m_return_type, expected_type.m_return_type));
+					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' return type does not match class declaration", defun.m_name, m_file_name, m_source_lines, actual_type.m_return_type, expected_type.m_return_type));
 				}
 			}
 
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' signature does not match class declaration", defun.m_name, m_file_name, m_source_lines, actual_signature, expected_signature));
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' signature does not match class declaration", defun.m_name, m_file_name, m_source_lines, actual_signature, expected_signature));
 		}
 	}
 
 	registration_guard.m_keep = true;
-	return MidoriType::MakeUndecidedType();
+	return MarmotType::MakeUndecidedType();
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Instance& instance_stmt)
+MarmotResult::TypeResult TypeChecker::operator()(MarmotStatement::Instance& instance_stmt)
 {
 	// AppendUniqueConstraint does NOT make this append idempotent: on a second visit the stored
 	// constraint has been freshened in place by the function-definition path while the incoming one has not,
@@ -4424,25 +4424,25 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::Instance& inst
 	// the duplicate-instance guard above rejects a repeated instance key before reaching here,
 	// and each module gets its own TypeChecker owning its own tree (imports carry instance
 	// metadata, not Instance AST nodes). Preserve that property before reusing this loop.
-	for (std::unique_ptr<MidoriStatement>& method : instance_stmt.m_methods)
+	for (std::unique_ptr<MarmotStatement>& method : instance_stmt.m_methods)
 	{
-		MidoriStatement::FunctionDefinition& defun = method->GetStatement<MidoriStatement::FunctionDefinition>();
-		for (const MidoriType::ClassConstraint& constraint : instance_stmt.m_constraints)
+		MarmotStatement::FunctionDefinition& defun = method->GetStatement<MarmotStatement::FunctionDefinition>();
+		for (const MarmotType::ClassConstraint& constraint : instance_stmt.m_constraints)
 		{
-			AppendUniqueConstraint(defun.m_constraints, MidoriType::ClassConstraint(constraint));
+			AppendUniqueConstraint(defun.m_constraints, MarmotType::ClassConstraint(constraint));
 		}
 
-		MidoriResult::TypeResult result = Evaluate(method);
+		MarmotResult::TypeResult result = Evaluate(method);
 		if (!result.has_value())
 		{
 			return result;
 		}
 	}
 
-	return MidoriType::MakeUndecidedType();
+	return MarmotType::MakeUndecidedType();
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::TypeAlias& type_alias)
+MarmotResult::TypeResult TypeChecker::operator()(MarmotStatement::TypeAlias& type_alias)
 {
 	if (!type_alias.m_generic_params.empty())
 	{
@@ -4451,24 +4451,24 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriStatement::TypeAlias& typ
 		{
 			if (!generic_param_names.insert(generic_param.m_lexeme).second)
 			{
-				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Type alias declaration error: duplicate generic parameter name", generic_param, m_file_name, m_source_lines));
+				return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Type alias declaration error: duplicate generic parameter name", generic_param, m_file_name, m_source_lines));
 			}
 		}
 	}
 
-	if (type_alias.m_aliased_type->IsType<MidoriType::NewType>())
+	if (type_alias.m_aliased_type->IsType<MarmotType::NewType>())
 	{
-		const MidoriType::NewType& new_type = type_alias.m_aliased_type->GetType<MidoriType::NewType>();
+		const MarmotType::NewType& new_type = type_alias.m_aliased_type->GetType<MarmotType::NewType>();
 		RegisterIdentityConversion(type_alias.m_aliased_type, new_type.m_representation);
 		RegisterIdentityConversion(new_type.m_representation, type_alias.m_aliased_type);
 	}
 
 	// Type alias is already registered in the parser's type table
 	// Nothing more to do at type-checking time - the alias is resolved at parse time
-	return MidoriType::MakeUndecidedType();
+	return MarmotType::MakeUndecidedType();
 }
 
-void TypeChecker::RegisterIdentityConversion(const std::shared_ptr<MidoriType>& from_type, const std::shared_ptr<MidoriType>& to_type)
+void TypeChecker::RegisterIdentityConversion(const std::shared_ptr<MarmotType>& from_type, const std::shared_ptr<MarmotType>& to_type)
 {
 	InstanceKey conversion_key{ std::string(CONVERTABLE_CLASS_NAME), { from_type->ToString(), to_type->ToString() } };
 	if (m_instances.contains(conversion_key))
@@ -4476,7 +4476,7 @@ void TypeChecker::RegisterIdentityConversion(const std::shared_ptr<MidoriType>& 
 		return;
 	}
 
-	std::vector<std::shared_ptr<MidoriType>> type_args{ from_type, to_type };
+	std::vector<std::shared_ptr<MarmotType>> type_args{ from_type, to_type };
 	m_instances.emplace
 	(
 		std::move(conversion_key),
@@ -4484,10 +4484,10 @@ void TypeChecker::RegisterIdentityConversion(const std::shared_ptr<MidoriType>& 
 	);
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
+MarmotResult::TypeResult TypeChecker::operator()(MarmotExpression::Match& match)
 {
 	// The type demanded of the match is its cases' type, not the scrutinee's.
-	const auto evaluate_scrutinee = [&match, this]() -> MidoriResult::TypeResult
+	const auto evaluate_scrutinee = [&match, this]() -> MarmotResult::TypeResult
 	{
 		ExpectedTypeGuard guard(*this, nullptr);
 		return Evaluate(match.m_arg_expr);
@@ -4496,27 +4496,27 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 	return evaluate_scrutinee()
 		.and_then
 		(
-			[&match, this](std::shared_ptr<MidoriType>&& arg_type) -> MidoriResult::TypeResult
+			[&match, this](std::shared_ptr<MarmotType>&& arg_type) -> MarmotResult::TypeResult
 			{
-				std::shared_ptr<MidoriType> resolved_arg_type = ApplySubstitution(arg_type);
-				std::shared_ptr<MidoriType> prev_case_type = nullptr;
+				std::shared_ptr<MarmotType> resolved_arg_type = ApplySubstitution(arg_type);
+				std::shared_ptr<MarmotType> prev_case_type = nullptr;
 				PatternCoverage coverage;
 
-				for (const std::unique_ptr<MidoriExpression>& case_expr : match.m_cases)
+				for (const std::unique_ptr<MarmotExpression>& case_expr : match.m_cases)
 				{
 					ScopeSession scope(*this);
-					MidoriExpression::Case& match_case = case_expr->GetExpression<MidoriExpression::Case>();
+					MarmotExpression::Case& match_case = case_expr->GetExpression<MarmotExpression::Case>();
 
 					// Before the case's own pattern is checked: a match in an arm without
 					// braces takes the enclosing match's later cases, whose patterns are
 					// likely of another type, and this is the error that says why.
 					if (&case_expr != &match.m_cases.front() && coverage.IsExhaustive())
 					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnreachableCase, "The cases above already match every value, so this one can never run. If it belongs to an enclosing match, put the match above it in braces.", match_case.m_keyword, m_file_name, m_source_lines));
+						return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnreachableCase, "The cases above already match every value, so this one can never run. If it belongs to an enclosing match, put the match above it in braces.", match_case.m_keyword, m_file_name, m_source_lines));
 					}
 
-					MidoriResult::TypeResult case_result = CheckPattern(*match_case.m_pattern, resolved_arg_type)
-						.and_then([&](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
+					MarmotResult::TypeResult case_result = CheckPattern(*match_case.m_pattern, resolved_arg_type)
+						.and_then([&](std::shared_ptr<MarmotType>&&) -> MarmotResult::TypeResult
 						{
 							const std::optional<CompilerError> error = CheckCaseReachable(coverage, match_case);
 							if (error.has_value())
@@ -4525,7 +4525,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 							}
 							return {};
 						})
-						.and_then([&](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
+						.and_then([&](std::shared_ptr<MarmotType>&&) -> MarmotResult::TypeResult
 						{
 							const std::optional<CompilerError> error = match_case.HasGuard() ? CheckCaseGuard(match_case) : std::nullopt;
 							if (error.has_value())
@@ -4546,18 +4546,18 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 						coverage.Add(*match_case.m_pattern);
 					}
 
-					std::shared_ptr<MidoriType> resolved_case_type = ApplySubstitution(case_result.value());
+					std::shared_ptr<MarmotType> resolved_case_type = ApplySubstitution(case_result.value());
 					if (prev_case_type == nullptr)
 					{
 						prev_case_type = resolved_case_type;
 					}
 					else
 					{
-						std::shared_ptr<MidoriType> resolved_prev_case_type = ApplySubstitution(prev_case_type);
-						MidoriResult::TypeResult unify_result = Unify(match.m_match_keyword, resolved_prev_case_type, resolved_case_type);
+						std::shared_ptr<MarmotType> resolved_prev_case_type = ApplySubstitution(prev_case_type);
+						MarmotResult::TypeResult unify_result = Unify(match.m_match_keyword, resolved_prev_case_type, resolved_case_type);
 						if (!unify_result.has_value())
 						{
-							return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, "Match expression type error: case types do not match", match.m_match_keyword, m_file_name, m_source_lines, resolved_prev_case_type, resolved_case_type));
+							return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, "Match expression type error: case types do not match", match.m_match_keyword, m_file_name, m_source_lines, resolved_prev_case_type, resolved_case_type));
 						}
 
 						// What unification gives back, not the previous arm's type: an arm
@@ -4570,12 +4570,12 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 
 				if (unmatched == std::vector<std::string>{ "_" })
 				{
-					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeNonExhaustiveMatch, "Match expression type error: non-union matches need a catch-all arm such as 'case _ =>'", match.m_match_keyword, m_file_name, m_source_lines));
+					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeNonExhaustiveMatch, "Match expression type error: non-union matches need a catch-all arm such as 'case _ =>'", match.m_match_keyword, m_file_name, m_source_lines));
 				}
 				if (!unmatched.empty())
 				{
 					const std::string message = std::format("Match expression type error: non-exhaustive match: no case matches {}", unmatched | std::views::join_with(std::string_view(", ")) | std::ranges::to<std::string>());
-					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeNonExhaustiveMatch, message, match.m_match_keyword, m_file_name, m_source_lines));
+					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeNonExhaustiveMatch, message, match.m_match_keyword, m_file_name, m_source_lines));
 				}
 
 				match.m_type_data = prev_case_type;
@@ -4586,40 +4586,40 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Match& match)
 
 // A case, and each alternative of every or-pattern in it, must match some value
 // nothing before it does.
-std::optional<CompilerError> TypeChecker::CheckCaseReachable(const PatternCoverage& coverage, const MidoriExpression::Case& match_case)
+std::optional<CompilerError> TypeChecker::CheckCaseReachable(const PatternCoverage& coverage, const MarmotExpression::Case& match_case)
 {
 	if (!coverage.IsUseful(*match_case.m_pattern))
 	{
-		return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnreachableCase, "The cases above already match every value this one does, so it can never run.", match_case.m_keyword, m_file_name, m_source_lines);
+		return MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnreachableCase, "The cases above already match every value this one does, so it can never run.", match_case.m_keyword, m_file_name, m_source_lines);
 	}
 
-	const MidoriPattern* alternative = coverage.FindUnreachableAlternative(*match_case.m_pattern);
+	const MarmotPattern* alternative = coverage.FindUnreachableAlternative(*match_case.m_pattern);
 	if (alternative != nullptr)
 	{
-		return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnreachableCase, "The cases and alternatives before this one already match every value it does, so it can never match.", GetPatternToken(*alternative), m_file_name, m_source_lines);
+		return MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUnreachableCase, "The cases and alternatives before this one already match every value it does, so it can never match.", GetPatternToken(*alternative), m_file_name, m_source_lines);
 	}
 	return std::nullopt;
 }
 
-std::optional<CompilerError> TypeChecker::CheckCaseGuard(MidoriExpression::Case& case_expr)
+std::optional<CompilerError> TypeChecker::CheckCaseGuard(MarmotExpression::Case& case_expr)
 {
-	MidoriResult::TypeResult guard_result = Evaluate(case_expr.m_guard.value());
+	MarmotResult::TypeResult guard_result = Evaluate(case_expr.m_guard.value());
 	if (!guard_result.has_value())
 	{
 		return std::move(guard_result.error());
 	}
 
-	std::shared_ptr<MidoriType> bool_type = MidoriType::MakeLiteralType<MidoriType::BoolType>();
-	std::shared_ptr<MidoriType> resolved_guard_type = ApplySubstitution(guard_result.value());
+	std::shared_ptr<MarmotType> bool_type = MarmotType::MakeLiteralType<MarmotType::BoolType>();
+	std::shared_ptr<MarmotType> resolved_guard_type = ApplySubstitution(guard_result.value());
 	if (!Unify(case_expr.m_keyword, bool_type, resolved_guard_type).has_value())
 	{
-		return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, "Match expression type error: case guard must be of type Bool", case_expr.m_keyword, m_file_name, m_source_lines, resolved_guard_type, bool_type);
+		return MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, "Match expression type error: case guard must be of type Bool", case_expr.m_keyword, m_file_name, m_source_lines, resolved_guard_type, bool_type);
 	}
 
 	return std::nullopt;
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Case& case_expr)
+MarmotResult::TypeResult TypeChecker::operator()(MarmotExpression::Case& case_expr)
 {
 	if (case_expr.HasGuard())
 	{
@@ -4633,7 +4633,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Case& case_ex
 	return Evaluate(case_expr.m_expr)
 		.and_then
 		(
-			[&case_expr, this](std::shared_ptr<MidoriType>&& expr_type) ->MidoriResult::TypeResult
+			[&case_expr, this](std::shared_ptr<MarmotType>&& expr_type) ->MarmotResult::TypeResult
 			{
 				return Unify(case_expr.m_keyword, case_expr.m_type_data, expr_type);
 			}
@@ -4644,26 +4644,26 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Case& case_ex
 // a Range, an Array, or anything with an Iterable instance or constraint. This
 // decides which, records it on the node, and gives the element type.
 template <typename IterationNode>
-MidoriResult::TypeResult TypeChecker::ResolveIteration(IterationNode& node, const std::shared_ptr<MidoriType>& range_type, std::string_view error_prefix)
+MarmotResult::TypeResult TypeChecker::ResolveIteration(IterationNode& node, const std::shared_ptr<MarmotType>& range_type, std::string_view error_prefix)
 {
-	const std::shared_ptr<MidoriType> resolved_range = ApplySubstitution(range_type);
+	const std::shared_ptr<MarmotType> resolved_range = ApplySubstitution(range_type);
 	const Token& token = node.m_in_keyword;
-	const std::function<CompilerError(std::string_view, const std::shared_ptr<MidoriType>&)> fail = [this, &token, error_prefix](std::string_view message, const std::shared_ptr<MidoriType>& shown_type)
+	const std::function<CompilerError(std::string_view, const std::shared_ptr<MarmotType>&)> fail = [this, &token, error_prefix](std::string_view message, const std::shared_ptr<MarmotType>& shown_type)
 	{
-		return MidoriError::GenerateTypeCheckerErrorWithContext(std::format("{} type error: {}", error_prefix, message), token, m_file_name, m_source_lines, shown_type);
+		return MarmotError::GenerateTypeCheckerErrorWithContext(std::format("{} type error: {}", error_prefix, message), token, m_file_name, m_source_lines, shown_type);
 	};
 
-	if (resolved_range->IsType<MidoriType::RangeType>())
+	if (resolved_range->IsType<MarmotType::RangeType>())
 	{
 		node.m_is_array_iteration = false;
 		node.m_is_iterable_iteration = false;
-		return resolved_range->GetType<MidoriType::RangeType>().m_element_type;
+		return resolved_range->GetType<MarmotType::RangeType>().m_element_type;
 	}
-	if (resolved_range->IsType<MidoriType::ArrayType>())
+	if (resolved_range->IsType<MarmotType::ArrayType>())
 	{
 		node.m_is_array_iteration = true;
 		node.m_is_iterable_iteration = false;
-		return resolved_range->GetType<MidoriType::ArrayType>().m_element_type;
+		return resolved_range->GetType<MarmotType::ArrayType>().m_element_type;
 	}
 
 	std::unordered_map<std::string, ClassInfo>::iterator class_it = m_classes.find(std::string(ITERABLE_CLASS_NAME));
@@ -4673,13 +4673,13 @@ MidoriResult::TypeResult TypeChecker::ResolveIteration(IterationNode& node, cons
 	}
 
 	const bool uses_associated_item = class_it->second.m_associated_types.contains(std::string(ITEM_ASSOCIATED_TYPE_NAME));
-	std::shared_ptr<MidoriType> iterable_item_type;
+	std::shared_ptr<MarmotType> iterable_item_type;
 	bool is_iterable = false;
 
 	// A bare variable stands for a type nothing is known about yet, so only a
 	// where clause can say it is iterable; any other type may match an instance,
 	// generic or not.
-	if (!resolved_range->IsType<MidoriType::TypeVariable>())
+	if (!resolved_range->IsType<MarmotType::TypeVariable>())
 	{
 		if (uses_associated_item)
 		{
@@ -4689,7 +4689,7 @@ MidoriResult::TypeResult TypeChecker::ResolveIteration(IterationNode& node, cons
 				AssociatedTypeEnvironment::const_iterator binding_it = resolved_match->m_instance->m_associated_type_bindings.find(std::string(ITEM_ASSOCIATED_TYPE_NAME));
 				if (binding_it != resolved_match->m_instance->m_associated_type_bindings.cend())
 				{
-					iterable_item_type = ApplySubstitution(MidoriType::SubstituteTypeParams(binding_it->second, resolved_match->m_substitutions));
+					iterable_item_type = ApplySubstitution(MarmotType::SubstituteTypeParams(binding_it->second, resolved_match->m_substitutions));
 					is_iterable = true;
 				}
 			}
@@ -4703,8 +4703,8 @@ MidoriResult::TypeResult TypeChecker::ResolveIteration(IterationNode& node, cons
 					continue;
 				}
 
-				std::unordered_map<std::string, std::shared_ptr<MidoriType>> substitutions;
-				std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash> visited;
+				std::unordered_map<std::string, std::shared_ptr<MarmotType>> substitutions;
+				std::unordered_set<std::pair<MarmotType*, MarmotType*>, TypePairHash> visited;
 				if (!MatchInstanceTypeArg(info.m_type_args[0u], resolved_range, substitutions, visited))
 				{
 					continue;
@@ -4714,7 +4714,7 @@ MidoriResult::TypeResult TypeChecker::ResolveIteration(IterationNode& node, cons
 				{
 					return std::unexpected(fail("ambiguous Iterable instance for iterator type", resolved_range));
 				}
-				iterable_item_type = MidoriType::SubstituteTypeParams(info.m_type_args[1u], substitutions);
+				iterable_item_type = MarmotType::SubstituteTypeParams(info.m_type_args[1u], substitutions);
 				is_iterable = true;
 			}
 		}
@@ -4722,13 +4722,13 @@ MidoriResult::TypeResult TypeChecker::ResolveIteration(IterationNode& node, cons
 
 	if (!is_iterable)
 	{
-		for (const MidoriType::ClassConstraint& constraint : m_active_constraints)
+		for (const MarmotType::ClassConstraint& constraint : m_active_constraints)
 		{
 			if (constraint.m_class_name == ITERABLE_CLASS_NAME && constraint.m_type_args.size() == class_it->second.m_type_param_names.size() && !constraint.m_type_args.empty() && *ApplySubstitution(constraint.m_type_args[0u]) == *resolved_range)
 			{
 				if (uses_associated_item)
 				{
-					iterable_item_type = ResolveAssociatedType(MidoriType::AssociatedType(std::string(ITERABLE_CLASS_NAME), std::string(ITEM_ASSOCIATED_TYPE_NAME), std::vector<std::shared_ptr<MidoriType>>(constraint.m_type_args)));
+					iterable_item_type = ResolveAssociatedType(MarmotType::AssociatedType(std::string(ITERABLE_CLASS_NAME), std::string(ITEM_ASSOCIATED_TYPE_NAME), std::vector<std::shared_ptr<MarmotType>>(constraint.m_type_args)));
 				}
 				else if (constraint.m_type_args.size() >= 2u)
 				{
@@ -4742,10 +4742,10 @@ MidoriResult::TypeResult TypeChecker::ResolveIteration(IterationNode& node, cons
 
 	if (!is_iterable)
 	{
-		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(std::format("{} type error: expected Range, Array, or Iterable type for iteration", error_prefix), token, m_file_name, m_source_lines, resolved_range, MidoriType::MakeRangeType(MidoriType::MakeLiteralType<MidoriType::IntegerType>())));
+		return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(std::format("{} type error: expected Range, Array, or Iterable type for iteration", error_prefix), token, m_file_name, m_source_lines, resolved_range, MarmotType::MakeRangeType(MarmotType::MakeLiteralType<MarmotType::IntegerType>())));
 	}
 
-	std::unordered_map<std::string, std::shared_ptr<MidoriType>>::iterator method_it = class_it->second.m_method_types.find(std::string(NEXT_METHOD_NAME));
+	std::unordered_map<std::string, std::shared_ptr<MarmotType>>::iterator method_it = class_it->second.m_method_types.find(std::string(NEXT_METHOD_NAME));
 	if (method_it == class_it->second.m_method_types.end())
 	{
 		return std::unexpected(fail("Iterable::Next not found", resolved_range));
@@ -4762,26 +4762,26 @@ MidoriResult::TypeResult TypeChecker::ResolveIteration(IterationNode& node, cons
 		}
 	}
 
-	std::shared_ptr<MidoriType> next_type = ApplySubstitution(MidoriType::SubstituteTypeParams(method_it->second, substitutions));
-	if (!next_type->IsType<MidoriType::FunctionType>())
+	std::shared_ptr<MarmotType> next_type = ApplySubstitution(MarmotType::SubstituteTypeParams(method_it->second, substitutions));
+	if (!next_type->IsType<MarmotType::FunctionType>())
 	{
 		return std::unexpected(fail("Iterable::Next must be a function", resolved_range));
 	}
 
-	std::shared_ptr<MidoriType> next_return = ApplySubstitution(next_type->GetType<MidoriType::FunctionType>().m_return_type);
-	if (!next_return->IsType<MidoriType::UnionType>())
+	std::shared_ptr<MarmotType> next_return = ApplySubstitution(next_type->GetType<MarmotType::FunctionType>().m_return_type);
+	if (!next_return->IsType<MarmotType::UnionType>())
 	{
 		return std::unexpected(fail("Iterable::Next must return an Option-like union", next_return));
 	}
 
-	const MidoriType::UnionType& option_union = next_return->GetType<MidoriType::UnionType>();
+	const MarmotType::UnionType& option_union = next_return->GetType<MarmotType::UnionType>();
 	const std::string some_name = option_union.m_name + std::string(NameSeparator) + "Some";
 	if (!option_union.m_member_info.contains(some_name))
 	{
 		return std::unexpected(fail("Iterable::Next return type is missing 'Some' constructor", next_return));
 	}
 
-	const MidoriType::UnionType::UnionMemberContext& some_ctx = option_union.m_member_info.at(some_name);
+	const MarmotType::UnionType::UnionMemberContext& some_ctx = option_union.m_member_info.at(some_name);
 	if (some_ctx.m_member_types.size() != 1u)
 	{
 		return std::unexpected(fail("Iterable::Next 'Some' constructor must contain exactly one value", next_return));
@@ -4790,13 +4790,13 @@ MidoriResult::TypeResult TypeChecker::ResolveIteration(IterationNode& node, cons
 	// Next returns Option<(Item, Iter)>. The payload is a pair whose first
 	// element is the item and whose second is the advanced iterator, so the
 	// loop variable takes element 0 rather than the payload itself.
-	std::shared_ptr<MidoriType> some_payload = ApplySubstitution(some_ctx.m_member_types[0u]);
-	if (!some_payload->IsType<MidoriType::TupleType>() || some_payload->GetType<MidoriType::TupleType>().m_element_types.size() != 2u)
+	std::shared_ptr<MarmotType> some_payload = ApplySubstitution(some_ctx.m_member_types[0u]);
+	if (!some_payload->IsType<MarmotType::TupleType>() || some_payload->GetType<MarmotType::TupleType>().m_element_types.size() != 2u)
 	{
 		return std::unexpected(fail("Iterable::Next must return Option<(Item, Iter)>", some_payload));
 	}
 
-	iterable_item_type = ApplySubstitution(some_payload->GetType<MidoriType::TupleType>().m_element_types[0u]);
+	iterable_item_type = ApplySubstitution(some_payload->GetType<MarmotType::TupleType>().m_element_types[0u]);
 	node.m_is_array_iteration = false;
 	node.m_is_iterable_iteration = true;
 	node.m_iterable_item_type = iterable_item_type;
@@ -4805,13 +4805,13 @@ MidoriResult::TypeResult TypeChecker::ResolveIteration(IterationNode& node, cons
 	return iterable_item_type;
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::For& for_expr)
+MarmotResult::TypeResult TypeChecker::operator()(MarmotExpression::For& for_expr)
 {
 	return Evaluate(for_expr.m_range)
-		.and_then([&for_expr, this](std::shared_ptr<MidoriType>&& range_type) { return ResolveIteration(for_expr, range_type, "For loop expression"); })
+		.and_then([&for_expr, this](std::shared_ptr<MarmotType>&& range_type) { return ResolveIteration(for_expr, range_type, "For loop expression"); })
 		.and_then
 		(
-			[&for_expr, this](std::shared_ptr<MidoriType>&& element_type) -> MidoriResult::TypeResult
+			[&for_expr, this](std::shared_ptr<MarmotType>&& element_type) -> MarmotResult::TypeResult
 			{
 				ScopeSession scope(*this);
 				m_name_type_table.back()[for_expr.m_loop_variable.m_lexeme] = element_type;
@@ -4819,11 +4819,11 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::For& for_expr
 				return Evaluate(for_expr.m_body)
 					.and_then
 					(
-						[&for_expr](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
+						[&for_expr](std::shared_ptr<MarmotType>&&) -> MarmotResult::TypeResult
 						{
 							// A `for` loop consumes an iterable for its effects, so it is Unit.
 							// It used to take its type from whatever `break` carried out of it.
-							for_expr.m_type_data = MidoriType::MakeLiteralType<MidoriType::UnitType>();
+							for_expr.m_type_data = MarmotType::MakeLiteralType<MarmotType::UnitType>();
 							return for_expr.m_type_data;
 						}
 					);
@@ -4831,13 +4831,13 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::For& for_expr
 		);
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::ArrayComprehension& comp)
+MarmotResult::TypeResult TypeChecker::operator()(MarmotExpression::ArrayComprehension& comp)
 {
 	return Evaluate(comp.m_range)
-		.and_then([&comp, this](std::shared_ptr<MidoriType>&& range_type) { return ResolveIteration(comp, range_type, "Array comprehension"); })
+		.and_then([&comp, this](std::shared_ptr<MarmotType>&& range_type) { return ResolveIteration(comp, range_type, "Array comprehension"); })
 		.and_then
 		(
-			[&comp, this](std::shared_ptr<MidoriType>&& element_type) -> MidoriResult::TypeResult
+			[&comp, this](std::shared_ptr<MarmotType>&& element_type) -> MarmotResult::TypeResult
 			{
 				ScopeSession scope(*this);
 				m_name_type_table.back()[comp.m_loop_variable.m_lexeme] = element_type;
@@ -4846,15 +4846,15 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::ArrayComprehe
 				// the expected array's element type, never the array type itself. Leaving
 				// the ambient type in place pushes Array<T> into a construction here,
 				// which then cannot infer its own arguments.
-				const std::shared_ptr<MidoriType> ambient_expected_type = m_expected_expr_type;
-				ExpectedTypeGuard transform_guard(*this, (ambient_expected_type != nullptr && ambient_expected_type->IsType<MidoriType::ArrayType>()) ? ambient_expected_type->GetType<MidoriType::ArrayType>().m_element_type : std::shared_ptr<MidoriType>{});
+				const std::shared_ptr<MarmotType> ambient_expected_type = m_expected_expr_type;
+				ExpectedTypeGuard transform_guard(*this, (ambient_expected_type != nullptr && ambient_expected_type->IsType<MarmotType::ArrayType>()) ? ambient_expected_type->GetType<MarmotType::ArrayType>().m_element_type : std::shared_ptr<MarmotType>{});
 
 				return Evaluate(comp.m_transform_expr)
 					.and_then
 					(
-						[&comp, this](std::shared_ptr<MidoriType>&& transform_type) -> MidoriResult::TypeResult
+						[&comp, this](std::shared_ptr<MarmotType>&& transform_type) -> MarmotResult::TypeResult
 						{
-							comp.m_type_data = MidoriType::MakeArrayType(ApplySubstitution(transform_type));
+							comp.m_type_data = MarmotType::MakeArrayType(ApplySubstitution(transform_type));
 							return comp.m_type_data;
 						}
 					);
@@ -4862,68 +4862,68 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::ArrayComprehe
 		);
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::As& as)
+MarmotResult::TypeResult TypeChecker::operator()(MarmotExpression::As& as)
 {
 	// A cast's operand is typed on its own terms. The ambient expected type
 	// describes the result of the cast, not its source, so leaving it in place
 	// pushes the target type into a construction on the left of 'as'.
-	ExpectedTypeGuard operand_guard(*this, std::shared_ptr<MidoriType>{});
+	ExpectedTypeGuard operand_guard(*this, std::shared_ptr<MarmotType>{});
 	as.m_to_type = InstantiateWrittenType(as.m_to_type);
 
 	return Evaluate(as.m_expr)
 		.and_then
 		(
-			[&as, this](std::shared_ptr<MidoriType>&& expr_type) ->MidoriResult::TypeResult
+			[&as, this](std::shared_ptr<MarmotType>&& expr_type) ->MarmotResult::TypeResult
 			{
 				// Instance selection matches the resolved types, so a variable inference
 				// has bound casts as its type, and a generic instance is found.
-				const std::shared_ptr<MidoriType> from_type = ApplySubstitution(expr_type);
-				const std::shared_ptr<MidoriType> to_type = ApplySubstitution(as.m_to_type);
-				const MidoriType::ClassConstraint conversion(std::string(CONVERTABLE_CLASS_NAME), { from_type, to_type });
+				const std::shared_ptr<MarmotType> from_type = ApplySubstitution(expr_type);
+				const std::shared_ptr<MarmotType> to_type = ApplySubstitution(as.m_to_type);
+				const MarmotType::ClassConstraint conversion(std::string(CONVERTABLE_CLASS_NAME), { from_type, to_type });
 				const bool has_convertable_instance = !FindMatchingInstances(conversion.m_class_name, conversion.m_type_args).empty();
 				const bool has_convertable_constraint = !has_convertable_instance && IsSatisfiedByActiveConstraint(conversion);
 
 				// Check if this is a built-in conversion
 				bool is_builtin_conversion = false;
-				if (to_type->IsType<MidoriType::StructType>() && from_type->IsType<MidoriType::StructType>())
+				if (to_type->IsType<MarmotType::StructType>() && from_type->IsType<MarmotType::StructType>())
 				{
 					if (!has_convertable_instance && !has_convertable_constraint)
 					{
-						const MidoriType::StructType& from_struct_type = from_type->GetType<MidoriType::StructType>();
-						const MidoriType::StructType& to_struct_type = to_type->GetType<MidoriType::StructType>();
+						const MarmotType::StructType& from_struct_type = from_type->GetType<MarmotType::StructType>();
+						const MarmotType::StructType& to_struct_type = to_type->GetType<MarmotType::StructType>();
 						if (to_struct_type.m_member_types.size() != from_struct_type.m_member_types.size())
 						{
-							return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Type cast expression type error: struct member count mismatch", as.m_as_keyword, m_file_name, m_source_lines, from_type, to_type));
+							return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Type cast expression type error: struct member count mismatch", as.m_as_keyword, m_file_name, m_source_lines, from_type, to_type));
 						}
 
 						for (size_t i : std::views::iota(0u, to_struct_type.m_member_types.size()))
 						{
 							if (*from_struct_type.m_member_types[i] != *to_struct_type.m_member_types[i])
 							{
-								return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Type cast expression type error: struct member type mismatch", as.m_as_keyword, m_file_name, m_source_lines, from_struct_type.m_member_types[i], to_struct_type.m_member_types[i]));
+								return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Type cast expression type error: struct member type mismatch", as.m_as_keyword, m_file_name, m_source_lines, from_struct_type.m_member_types[i], to_struct_type.m_member_types[i]));
 							}
 						}
 						is_builtin_conversion = true;
 					}
 				}
-				else if (to_type->IsType<MidoriType::StructType>() && !has_convertable_instance && !has_convertable_constraint)
+				else if (to_type->IsType<MarmotType::StructType>() && !has_convertable_instance && !has_convertable_constraint)
 				{
-					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Type cast expression type error: cannot cast to struct type", as.m_as_keyword, m_file_name, m_source_lines, from_type, to_type));
+					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Type cast expression type error: cannot cast to struct type", as.m_as_keyword, m_file_name, m_source_lines, from_type, to_type));
 				}
 
 				// Check for built-in primitive conversions
-				bool const is_from_int = from_type->IsType<MidoriType::IntegerType>();
-				bool const is_from_float = from_type->IsType<MidoriType::FloatType>();
-				bool const is_from_text = from_type->IsType<MidoriType::TextType>();
-				bool const is_from_byte = from_type->IsType<MidoriType::ByteType>();
-				bool const is_from_word = from_type->IsType<MidoriType::WordType>();
-				bool const is_from_bool = from_type->IsType<MidoriType::BoolType>();
+				bool const is_from_int = from_type->IsType<MarmotType::IntegerType>();
+				bool const is_from_float = from_type->IsType<MarmotType::FloatType>();
+				bool const is_from_text = from_type->IsType<MarmotType::TextType>();
+				bool const is_from_byte = from_type->IsType<MarmotType::ByteType>();
+				bool const is_from_word = from_type->IsType<MarmotType::WordType>();
+				bool const is_from_bool = from_type->IsType<MarmotType::BoolType>();
 
-				bool const is_to_int = to_type->IsType<MidoriType::IntegerType>();
-				bool const is_to_float = to_type->IsType<MidoriType::FloatType>();
-				bool const is_to_text = to_type->IsType<MidoriType::TextType>();
-				bool const is_to_byte = to_type->IsType<MidoriType::ByteType>();
-				bool const is_to_word = to_type->IsType<MidoriType::WordType>();
+				bool const is_to_int = to_type->IsType<MarmotType::IntegerType>();
+				bool const is_to_float = to_type->IsType<MarmotType::FloatType>();
+				bool const is_to_text = to_type->IsType<MarmotType::TextType>();
+				bool const is_to_byte = to_type->IsType<MarmotType::ByteType>();
+				bool const is_to_word = to_type->IsType<MarmotType::WordType>();
 
 				if ((is_from_int && (is_to_float || is_to_text || is_to_byte || is_to_word)) ||
 					(is_from_float && (is_to_int || is_to_text || is_to_byte || is_to_word)) ||
@@ -4941,7 +4941,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::As& as)
 				// Verify that either Convertable instance exists, constraint exists, or it's a built-in conversion
 				if (!has_convertable_instance && !has_convertable_constraint && !is_builtin_conversion && !is_identity_conversion)
 				{
-					MidoriType::ClassConstraint constraint(std::string(CONVERTABLE_CLASS_NAME), { from_type, to_type });
+					MarmotType::ClassConstraint constraint(std::string(CONVERTABLE_CLASS_NAME), { from_type, to_type });
 					const std::string suggestion = std::format("Define 'instance Convertable<{}, {}>' to enable this conversion.", from_type->DisplayString(), to_type->DisplayString());
 					return std::unexpected(MakeConstraintFailureError(as.m_as_keyword, constraint, suggestion));
 				}
@@ -4967,23 +4967,23 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::As& as)
 
 // A hex or binary literal up to 0xFF is a Byte: it is how a Byte is written.
 // Beside an Int, the plain mismatch reads as a mistake in the other operand.
-std::optional<CompilerError> TypeChecker::ByteLiteralBesideInt(const MidoriExpression::Binary& binary, const std::shared_ptr<MidoriType>& left_type, const std::shared_ptr<MidoriType>& right_type)
+std::optional<CompilerError> TypeChecker::ByteLiteralBesideInt(const MarmotExpression::Binary& binary, const std::shared_ptr<MarmotType>& left_type, const std::shared_ptr<MarmotType>& right_type)
 {
-	const std::shared_ptr<MidoriType> resolved_left = ApplySubstitution(left_type);
-	const std::shared_ptr<MidoriType> resolved_right = ApplySubstitution(right_type);
-	const std::function<const MidoriExpression::Literal*(const std::unique_ptr<MidoriExpression>&, const std::shared_ptr<MidoriType>&)> byte_literal_facing_int =
-		[](const std::unique_ptr<MidoriExpression>& operand, const std::shared_ptr<MidoriType>& other_type) -> const MidoriExpression::Literal*
+	const std::shared_ptr<MarmotType> resolved_left = ApplySubstitution(left_type);
+	const std::shared_ptr<MarmotType> resolved_right = ApplySubstitution(right_type);
+	const std::function<const MarmotExpression::Literal*(const std::unique_ptr<MarmotExpression>&, const std::shared_ptr<MarmotType>&)> byte_literal_facing_int =
+		[](const std::unique_ptr<MarmotExpression>& operand, const std::shared_ptr<MarmotType>& other_type) -> const MarmotExpression::Literal*
 		{
-			if (!other_type->IsType<MidoriType::IntegerType>() || !operand->IsExpression<MidoriExpression::Literal>())
+			if (!other_type->IsType<MarmotType::IntegerType>() || !operand->IsExpression<MarmotExpression::Literal>())
 			{
 				return nullptr;
 			}
 
-			const MidoriExpression::Literal& literal = operand->GetExpression<MidoriExpression::Literal>();
-			return literal.m_kind == MidoriExpression::LiteralKind::Byte ? &literal : nullptr;
+			const MarmotExpression::Literal& literal = operand->GetExpression<MarmotExpression::Literal>();
+			return literal.m_kind == MarmotExpression::LiteralKind::Byte ? &literal : nullptr;
 		};
 
-	const MidoriExpression::Literal* literal = byte_literal_facing_int(binary.m_left, resolved_right);
+	const MarmotExpression::Literal* literal = byte_literal_facing_int(binary.m_left, resolved_right);
 	if (literal == nullptr)
 	{
 		literal = byte_literal_facing_int(binary.m_right, resolved_left);
@@ -4994,28 +4994,28 @@ std::optional<CompilerError> TypeChecker::ByteLiteralBesideInt(const MidoriExpre
 	}
 
 	const std::string& lexeme = literal->m_token.m_lexeme;
-	return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, std::format("'{0}' is a Byte: a hex or binary literal up to 0xFF is how a Byte is written. For an Int here, write {1}, or {0} as Int.", lexeme, ParseUnsignedLiteral(lexeme).value()), literal->m_token, m_file_name, m_source_lines);
+	return MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, std::format("'{0}' is a Byte: a hex or binary literal up to 0xFF is how a Byte is written. For an Int here, write {1}, or {0} as Int.", lexeme, ParseUnsignedLiteral(lexeme).value()), literal->m_token, m_file_name, m_source_lines);
 }
 
-MidoriResult::TypeResult TypeChecker::CheckRefNew(const std::unique_ptr<MidoriExpression>& value)
+MarmotResult::TypeResult TypeChecker::CheckRefNew(const std::unique_ptr<MarmotExpression>& value)
 {
-	std::shared_ptr<MidoriType> expected_element = nullptr;
-	const std::shared_ptr<MidoriType> expected_type = m_expected_expr_type != nullptr ? ApplySubstitution(m_expected_expr_type) : nullptr;
-	if (expected_type != nullptr && expected_type->IsType<MidoriType::CellType>())
+	std::shared_ptr<MarmotType> expected_element = nullptr;
+	const std::shared_ptr<MarmotType> expected_type = m_expected_expr_type != nullptr ? ApplySubstitution(m_expected_expr_type) : nullptr;
+	if (expected_type != nullptr && expected_type->IsType<MarmotType::CellType>())
 	{
-		expected_element = expected_type->GetType<MidoriType::CellType>().m_element_type;
+		expected_element = expected_type->GetType<MarmotType::CellType>().m_element_type;
 	}
 
 	ExpectedTypeGuard guard(*this, expected_element);
-	return Evaluate(value).transform([this](const std::shared_ptr<MidoriType>& value_type)
+	return Evaluate(value).transform([this](const std::shared_ptr<MarmotType>& value_type)
 	{
-		return MidoriType::MakeCellType(ApplySubstitution(value_type));
+		return MarmotType::MakeCellType(ApplySubstitution(value_type));
 	});
 }
 
-MidoriResult::TypeResult TypeChecker::CheckRefAccess(const std::unique_ptr<MidoriExpression>& cell, const std::unique_ptr<MidoriExpression>* value, const Token& token, std::string_view error_message)
+MarmotResult::TypeResult TypeChecker::CheckRefAccess(const std::unique_ptr<MarmotExpression>& cell, const std::unique_ptr<MarmotExpression>* value, const Token& token, std::string_view error_message)
 {
-	MidoriResult::TypeResult cell_result = [this, &cell]() -> MidoriResult::TypeResult
+	MarmotResult::TypeResult cell_result = [this, &cell]() -> MarmotResult::TypeResult
 	{
 		ExpectedTypeGuard guard(*this, nullptr);
 		return Evaluate(cell);
@@ -5025,32 +5025,32 @@ MidoriResult::TypeResult TypeChecker::CheckRefAccess(const std::unique_ptr<Midor
 		return cell_result;
 	}
 
-	std::shared_ptr<MidoriType> cell_type = ApplySubstitution(cell_result.value());
-	if (cell_type->IsType<MidoriType::TypeVariable>())
+	std::shared_ptr<MarmotType> cell_type = ApplySubstitution(cell_result.value());
+	if (cell_type->IsType<MarmotType::TypeVariable>())
 	{
-		std::shared_ptr<MidoriType> expected_cell = MidoriType::MakeCellType(FreshTypeVar());
-		MidoriResult::TypeResult unified = Unify(token, cell_type, expected_cell);
+		std::shared_ptr<MarmotType> expected_cell = MarmotType::MakeCellType(FreshTypeVar());
+		MarmotResult::TypeResult unified = Unify(token, cell_type, expected_cell);
 		if (!unified.has_value())
 		{
 			return unified;
 		}
 		cell_type = ApplySubstitution(cell_type);
 	}
-	if (!cell_type->IsType<MidoriType::CellType>())
+	if (!cell_type->IsType<MarmotType::CellType>())
 	{
-		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(std::string(error_message), token, m_file_name, m_source_lines, cell_type));
+		return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(std::string(error_message), token, m_file_name, m_source_lines, cell_type));
 	}
 
-	std::shared_ptr<MidoriType> element_type = cell_type->GetType<MidoriType::CellType>().m_element_type;
+	std::shared_ptr<MarmotType> element_type = cell_type->GetType<MarmotType::CellType>().m_element_type;
 	if (value != nullptr)
 	{
 		ExpectedTypeGuard guard(*this, element_type);
-		MidoriResult::TypeResult value_result = Evaluate(*value);
+		MarmotResult::TypeResult value_result = Evaluate(*value);
 		if (!value_result.has_value())
 		{
 			return value_result;
 		}
-		MidoriResult::TypeResult unified = Unify(token, element_type, value_result.value());
+		MarmotResult::TypeResult unified = Unify(token, element_type, value_result.value());
 		if (!unified.has_value())
 		{
 			return unified;
@@ -5059,14 +5059,14 @@ MidoriResult::TypeResult TypeChecker::CheckRefAccess(const std::unique_ptr<Midor
 	return ApplySubstitution(element_type);
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Binary& binary)
+MarmotResult::TypeResult TypeChecker::operator()(MarmotExpression::Binary& binary)
 {
 	if (binary.m_op.m_token_name == Token::Name::COLON_EQUAL)
 	{
 		return CheckRefAccess(binary.m_left, &binary.m_right, binary.m_op, "Reference write operator requires a Ref<T>")
-			.transform([&binary](const std::shared_ptr<MidoriType>&)
+			.transform([&binary](const std::shared_ptr<MarmotType>&)
 			{
-				binary.m_type_data = MidoriType::MakeLiteralType<MidoriType::UnitType>();
+				binary.m_type_data = MarmotType::MakeLiteralType<MarmotType::UnitType>();
 				return binary.m_type_data;
 			});
 	}
@@ -5087,12 +5087,12 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Binary& binar
 	return Evaluate(binary.m_left)
 		.and_then
 		(
-			[&binary, this](std::shared_ptr<MidoriType>&& left_type) -> MidoriResult::TypeResult
+			[&binary, this](std::shared_ptr<MarmotType>&& left_type) -> MarmotResult::TypeResult
 			{
 				return Evaluate(binary.m_right)
 					.and_then
 					(
-						[&left_type, &binary, this](std::shared_ptr<MidoriType>&& right_type) -> MidoriResult::TypeResult
+						[&left_type, &binary, this](std::shared_ptr<MarmotType>&& right_type) -> MarmotResult::TypeResult
 						{
 							return CheckBinaryOperator(binary, left_type, right_type);
 						}
@@ -5104,9 +5104,9 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Binary& binar
 // The class an operand must belong to for an operator to apply. A generic
 // parameter belongs to one only where its definition says so, and it is shown
 // by the name it was written as, with the where clause that would say so.
-std::optional<CompilerError> TypeChecker::RequireOperandClass(const Token& op, std::string_view class_name, const std::shared_ptr<MidoriType>& resolved_operand)
+std::optional<CompilerError> TypeChecker::RequireOperandClass(const Token& op, std::string_view class_name, const std::shared_ptr<MarmotType>& resolved_operand)
 {
-	std::optional<CompilerError> error = CheckConstraintHolds(op, MidoriType::ClassConstraint(std::string(class_name), { resolved_operand }), 0u);
+	std::optional<CompilerError> error = CheckConstraintHolds(op, MarmotType::ClassConstraint(std::string(class_name), { resolved_operand }), 0u);
 	const std::optional<std::string> param_name = RigidParameterName(resolved_operand);
 	if (!error.has_value() || !param_name.has_value())
 	{
@@ -5117,7 +5117,7 @@ std::optional<CompilerError> TypeChecker::RequireOperandClass(const Token& op, s
 	const std::string hint = m_classes.contains(std::string(class_name))
 		? std::format("'{0}' is a generic parameter, so it is only known to be one when the definition says 'where {1}<{0}>'.", param_name.value(), class_name)
 		: std::format("'{0}' is a generic parameter. Import MarmotPrelude/{2}.mmt, which declares {1}, and say 'where {1}<{0}>' on the definition.", param_name.value(), class_name, declaring_file);
-	return MakeConstraintFailureError(op, MidoriType::ClassConstraint(std::string(class_name), { MidoriType::MakeGenericType(param_name.value()) }), hint);
+	return MakeConstraintFailureError(op, MarmotType::ClassConstraint(std::string(class_name), { MarmotType::MakeGenericType(param_name.value()) }), hint);
 }
 
 // An operand whose type is still a variable is one inference has not decided
@@ -5126,18 +5126,18 @@ std::optional<CompilerError> TypeChecker::RequireOperandClass(const Token& op, s
 // where a where clause names the class that provides the operator: Numeric for
 // arithmetic, Bitwise for the bit operators, Equatable, Orderable and
 // Concatenable for the rest.
-MidoriResult::TypeResult TypeChecker::CheckBinaryOperator(MidoriExpression::Binary& binary, std::shared_ptr<MidoriType>& left_type, std::shared_ptr<MidoriType>& right_type)
+MarmotResult::TypeResult TypeChecker::CheckBinaryOperator(MarmotExpression::Binary& binary, std::shared_ptr<MarmotType>& left_type, std::shared_ptr<MarmotType>& right_type)
 {
 	const Token& op = binary.m_op;
 	if (op.m_token_name == Token::Name::LEFT_SHIFT || op.m_token_name == Token::Name::RIGHT_SHIFT)
 	{
-		const std::shared_ptr<MidoriType> resolved_left = ApplySubstitution(left_type);
-		const std::shared_ptr<MidoriType> resolved_right = ApplySubstitution(right_type);
+		const std::shared_ptr<MarmotType> resolved_left = ApplySubstitution(left_type);
+		const std::shared_ptr<MarmotType> resolved_right = ApplySubstitution(right_type);
 
-		if (resolved_right->IsType<MidoriType::TypeVariable>() && !RigidParameterName(resolved_right).has_value())
+		if (resolved_right->IsType<MarmotType::TypeVariable>() && !RigidParameterName(resolved_right).has_value())
 		{
-			std::shared_ptr<MidoriType> int_type = MidoriType::MakeLiteralType<MidoriType::IntegerType>();
-			MidoriResult::TypeResult unified = Unify(op, right_type, int_type, UnifyDiagnosticMode::ActualExpected);
+			std::shared_ptr<MarmotType> int_type = MarmotType::MakeLiteralType<MarmotType::IntegerType>();
+			MarmotResult::TypeResult unified = Unify(op, right_type, int_type, UnifyDiagnosticMode::ActualExpected);
 			if (!unified.has_value())
 			{
 				return unified;
@@ -5145,11 +5145,11 @@ MidoriResult::TypeResult TypeChecker::CheckBinaryOperator(MidoriExpression::Bina
 		}
 		else if (const std::optional<std::string> amount_param = RigidParameterName(resolved_right))
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Shift operator type error: shift amount must be Int", op, m_file_name, m_source_lines, MidoriType::MakeGenericType(amount_param.value()), MidoriType::MakeLiteralType<MidoriType::IntegerType>()));
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Shift operator type error: shift amount must be Int", op, m_file_name, m_source_lines, MarmotType::MakeGenericType(amount_param.value()), MarmotType::MakeLiteralType<MarmotType::IntegerType>()));
 		}
-		else if (!resolved_right->IsType<MidoriType::IntegerType>())
+		else if (!resolved_right->IsType<MarmotType::IntegerType>())
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Shift operator type error: shift amount must be Int", op, m_file_name, m_source_lines, resolved_right, MidoriType::MakeLiteralType<MidoriType::IntegerType>()));
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Shift operator type error: shift amount must be Int", op, m_file_name, m_source_lines, resolved_right, MarmotType::MakeLiteralType<MarmotType::IntegerType>()));
 		}
 
 		if (RigidParameterName(resolved_left).has_value())
@@ -5159,9 +5159,9 @@ MidoriResult::TypeResult TypeChecker::CheckBinaryOperator(MidoriExpression::Bina
 				return std::unexpected(std::move(*error));
 			}
 		}
-		else if (!resolved_left->IsType<MidoriType::IntegerType>() && !resolved_left->IsType<MidoriType::ByteType>() && !resolved_left->IsType<MidoriType::WordType>() && !resolved_left->IsType<MidoriType::TypeVariable>())
+		else if (!resolved_left->IsType<MarmotType::IntegerType>() && !resolved_left->IsType<MarmotType::ByteType>() && !resolved_left->IsType<MarmotType::WordType>() && !resolved_left->IsType<MarmotType::TypeVariable>())
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Shift operator type error: can only shift Int, Byte, or Word types", op, m_file_name, m_source_lines, resolved_left, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::ByteType>(), MidoriType::MakeLiteralType<MidoriType::WordType>()));
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Shift operator type error: can only shift Int, Byte, or Word types", op, m_file_name, m_source_lines, resolved_left, MarmotType::MakeLiteralType<MarmotType::IntegerType>(), MarmotType::MakeLiteralType<MarmotType::ByteType>(), MarmotType::MakeLiteralType<MarmotType::WordType>()));
 		}
 
 		binary.m_type_data = left_type;
@@ -5173,15 +5173,15 @@ MidoriResult::TypeResult TypeChecker::CheckBinaryOperator(MidoriExpression::Bina
 		return std::unexpected(std::move(byte_literal_error.value()));
 	}
 
-	MidoriResult::TypeResult unified = Unify(op, left_type, right_type);
+	MarmotResult::TypeResult unified = Unify(op, left_type, right_type);
 	if (!unified.has_value())
 	{
 		return unified;
 	}
 
-	const std::shared_ptr<MidoriType> resolved = ApplySubstitution(left_type);
+	const std::shared_ptr<MarmotType> resolved = ApplySubstitution(left_type);
 	const std::optional<std::string> param_name = RigidParameterName(resolved);
-	const bool is_undecided = resolved->IsType<MidoriType::TypeVariable>() && !param_name.has_value();
+	const bool is_undecided = resolved->IsType<MarmotType::TypeVariable>() && !param_name.has_value();
 	binary.m_type_data = left_type;
 
 	if (std::ranges::contains(kBinaryPartialOrderComparisonOperators, op.m_token_name))
@@ -5195,7 +5195,7 @@ MidoriResult::TypeResult TypeChecker::CheckBinaryOperator(MidoriExpression::Bina
 			binary.m_uses_orderable = true;
 		}
 
-		binary.m_type_data = MidoriType::MakeLiteralType<MidoriType::BoolType>();
+		binary.m_type_data = MarmotType::MakeLiteralType<MarmotType::BoolType>();
 		return binary.m_type_data;
 	}
 
@@ -5210,7 +5210,7 @@ MidoriResult::TypeResult TypeChecker::CheckBinaryOperator(MidoriExpression::Bina
 		}
 		else if (!resolved->IsNumericType() && !is_undecided)
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Binary expression type error: expected numeric type", op, m_file_name, m_source_lines, resolved, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::FloatType>()));
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Binary expression type error: expected numeric type", op, m_file_name, m_source_lines, resolved, MarmotType::MakeLiteralType<MarmotType::IntegerType>(), MarmotType::MakeLiteralType<MarmotType::FloatType>()));
 		}
 		return binary.m_type_data;
 	}
@@ -5224,16 +5224,16 @@ MidoriResult::TypeResult TypeChecker::CheckBinaryOperator(MidoriExpression::Bina
 				return std::unexpected(std::move(*error));
 			}
 		}
-		else if (!resolved->IsType<MidoriType::IntegerType>() && !resolved->IsType<MidoriType::ByteType>() && !resolved->IsType<MidoriType::WordType>() && !is_undecided)
+		else if (!resolved->IsType<MarmotType::IntegerType>() && !resolved->IsType<MarmotType::ByteType>() && !resolved->IsType<MarmotType::WordType>() && !is_undecided)
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Binary expression type error: expected integer, byte, or word type", op, m_file_name, m_source_lines, resolved, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::ByteType>(), MidoriType::MakeLiteralType<MidoriType::WordType>()));
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Binary expression type error: expected integer, byte, or word type", op, m_file_name, m_source_lines, resolved, MarmotType::MakeLiteralType<MarmotType::IntegerType>(), MarmotType::MakeLiteralType<MarmotType::ByteType>(), MarmotType::MakeLiteralType<MarmotType::WordType>()));
 		}
 		return binary.m_type_data;
 	}
 
 	if (std::ranges::contains(kBinaryEqualityOperators, op.m_token_name))
 	{
-		const bool is_builtin = resolved->IsNumericType() || resolved->IsType<MidoriType::TextType>() || resolved->IsType<MidoriType::BoolType>() || is_undecided;
+		const bool is_builtin = resolved->IsNumericType() || resolved->IsType<MarmotType::TextType>() || resolved->IsType<MarmotType::BoolType>() || is_undecided;
 		if (!is_builtin)
 		{
 			if (std::optional<CompilerError> error = RequireOperandClass(op, EQUATABLE_CLASS_NAME, resolved))
@@ -5243,24 +5243,24 @@ MidoriResult::TypeResult TypeChecker::CheckBinaryOperator(MidoriExpression::Bina
 			binary.m_uses_equatable = true;
 		}
 
-		binary.m_type_data = MidoriType::MakeLiteralType<MidoriType::BoolType>();
+		binary.m_type_data = MarmotType::MakeLiteralType<MarmotType::BoolType>();
 		return binary.m_type_data;
 	}
 
 	if (std::ranges::contains(kBinaryLogicalOperators, op.m_token_name))
 	{
-		std::shared_ptr<MidoriType> bool_type = MidoriType::MakeLiteralType<MidoriType::BoolType>();
+		std::shared_ptr<MarmotType> bool_type = MarmotType::MakeLiteralType<MarmotType::BoolType>();
 		if (is_undecided)
 		{
-			MidoriResult::TypeResult bool_result = Unify(op, left_type, bool_type, UnifyDiagnosticMode::ActualExpected);
+			MarmotResult::TypeResult bool_result = Unify(op, left_type, bool_type, UnifyDiagnosticMode::ActualExpected);
 			if (!bool_result.has_value())
 			{
 				return bool_result;
 			}
 		}
-		else if (!resolved->IsType<MidoriType::BoolType>())
+		else if (!resolved->IsType<MarmotType::BoolType>())
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Binary expression type error: expected boolean type", op, m_file_name, m_source_lines, resolved, bool_type));
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Binary expression type error: expected boolean type", op, m_file_name, m_source_lines, resolved, bool_type));
 		}
 
 		binary.m_type_data = bool_type;
@@ -5269,7 +5269,7 @@ MidoriResult::TypeResult TypeChecker::CheckBinaryOperator(MidoriExpression::Bina
 
 	if (std::ranges::contains(kBinaryConcatenationOperators, op.m_token_name))
 	{
-		if (!resolved->IsType<MidoriType::TextType>() && !resolved->IsType<MidoriType::ArrayType>())
+		if (!resolved->IsType<MarmotType::TextType>() && !resolved->IsType<MarmotType::ArrayType>())
 		{
 			if (std::optional<CompilerError> error = RequireOperandClass(op, CONCATENABLE_CLASS_NAME, resolved))
 			{
@@ -5282,12 +5282,12 @@ MidoriResult::TypeResult TypeChecker::CheckBinaryOperator(MidoriExpression::Bina
 	return binary.m_type_data;
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Group& group)
+MarmotResult::TypeResult TypeChecker::operator()(MarmotExpression::Group& group)
 {
 	return Evaluate(group.m_expr_in)
 		.and_then
 		(
-			[&group](std::shared_ptr<MidoriType>&& actual_type) ->MidoriResult::TypeResult
+			[&group](std::shared_ptr<MarmotType>&& actual_type) ->MarmotResult::TypeResult
 			{
 				group.m_type_data = std::move(actual_type);
 				return group.m_type_data;
@@ -5295,31 +5295,31 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Group& group)
 		);
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Tuple& tuple)
+MarmotResult::TypeResult TypeChecker::operator()(MarmotExpression::Tuple& tuple)
 {
 	if (tuple.m_elements.empty())
 	{
 		// Empty tuple is Unit type
-		tuple.m_type_data = MidoriType::MakeLiteralType<MidoriType::UnitType>();
+		tuple.m_type_data = MarmotType::MakeLiteralType<MarmotType::UnitType>();
 		return tuple.m_type_data;
 	}
 
-	std::vector<std::shared_ptr<MidoriType>> element_types;
+	std::vector<std::shared_ptr<MarmotType>> element_types;
 	element_types.reserve(tuple.m_elements.size());
 
-	const std::shared_ptr<MidoriType> ambient_expected_type = m_expected_expr_type;
+	const std::shared_ptr<MarmotType> ambient_expected_type = m_expected_expr_type;
 	const bool expected_tuple_matches = ambient_expected_type != nullptr
-		&& ambient_expected_type->IsType<MidoriType::TupleType>()
-		&& ambient_expected_type->GetType<MidoriType::TupleType>().m_element_types.size() == tuple.m_elements.size();
+		&& ambient_expected_type->IsType<MarmotType::TupleType>()
+		&& ambient_expected_type->GetType<MarmotType::TupleType>().m_element_types.size() == tuple.m_elements.size();
 
 	for (size_t index : std::views::iota(0u, tuple.m_elements.size()))
 	{
 		// An element's expected type is its own slot in the expected tuple, never
 		// the whole tuple. Leaving the ambient type in place leaks it into the
 		// element, so a construction there would infer against the tuple type.
-		ExpectedTypeGuard element_guard(*this, expected_tuple_matches ? ambient_expected_type->GetType<MidoriType::TupleType>().m_element_types[index] : std::shared_ptr<MidoriType>{});
+		ExpectedTypeGuard element_guard(*this, expected_tuple_matches ? ambient_expected_type->GetType<MarmotType::TupleType>().m_element_types[index] : std::shared_ptr<MarmotType>{});
 
-		MidoriResult::TypeResult result = Evaluate(tuple.m_elements[index]);
+		MarmotResult::TypeResult result = Evaluate(tuple.m_elements[index]);
 		if (!result.has_value())
 		{
 			return result;
@@ -5328,18 +5328,18 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Tuple& tuple)
 		element_types.emplace_back(std::move(result.value()));
 	}
 
-	tuple.m_type_data = MidoriType::MakeTupleType(std::move(element_types));
+	tuple.m_type_data = MarmotType::MakeTupleType(std::move(element_types));
 	return tuple.m_type_data;
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::UnaryPrefix& unary)
+MarmotResult::TypeResult TypeChecker::operator()(MarmotExpression::UnaryPrefix& unary)
 {
 	if (unary.m_op.m_token_name == Token::Name::REF || unary.m_op.m_token_name == Token::Name::STAR)
 	{
-		MidoriResult::TypeResult result = unary.m_op.m_token_name == Token::Name::REF
+		MarmotResult::TypeResult result = unary.m_op.m_token_name == Token::Name::REF
 			? CheckRefNew(unary.m_expr)
 			: CheckRefAccess(unary.m_expr, nullptr, unary.m_op, "Dereference operator requires a Ref<T>");
-		return result.transform([&unary](std::shared_ptr<MidoriType> type)
+		return result.transform([&unary](std::shared_ptr<MarmotType> type)
 		{
 			unary.m_type_data = std::move(type);
 			return unary.m_type_data;
@@ -5349,9 +5349,9 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::UnaryPrefix& 
 	return Evaluate(unary.m_expr)
 		.and_then
 		(
-			[this, &unary](std::shared_ptr<MidoriType>&& operand_type) -> MidoriResult::TypeResult
+			[this, &unary](std::shared_ptr<MarmotType>&& operand_type) -> MarmotResult::TypeResult
 			{
-				std::shared_ptr<MidoriType> actual_type = ApplySubstitution(operand_type);
+				std::shared_ptr<MarmotType> actual_type = ApplySubstitution(operand_type);
 				if (unary.m_op.m_token_name == Token::Name::SINGLE_MINUS || unary.m_op.m_token_name == Token::Name::SINGLE_PLUS)
 				{
 					if (RigidParameterName(actual_type).has_value())
@@ -5363,14 +5363,14 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::UnaryPrefix& 
 					}
 					else if (!actual_type->IsNumericType())
 					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Unary operator requires numeric type", unary.m_op, m_file_name, m_source_lines, actual_type, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::FloatType>()));
+						return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Unary operator requires numeric type", unary.m_op, m_file_name, m_source_lines, actual_type, MarmotType::MakeLiteralType<MarmotType::IntegerType>(), MarmotType::MakeLiteralType<MarmotType::FloatType>()));
 					}
 				}
 				else if (unary.m_op.m_token_name == Token::Name::BANG)
 				{
-					if (!actual_type->IsType<MidoriType::BoolType>())
+					if (!actual_type->IsType<MarmotType::BoolType>())
 					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Logical NOT operator requires boolean type", unary.m_op, m_file_name, m_source_lines, actual_type, MidoriType::MakeLiteralType<MidoriType::BoolType>()));
+						return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Logical NOT operator requires boolean type", unary.m_op, m_file_name, m_source_lines, actual_type, MarmotType::MakeLiteralType<MarmotType::BoolType>()));
 					}
 				}
 				else if (unary.m_op.m_token_name == Token::Name::TILDE)
@@ -5382,31 +5382,31 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::UnaryPrefix& 
 							return std::unexpected(std::move(*error));
 						}
 					}
-					else if (!actual_type->IsType<MidoriType::IntegerType>() && !actual_type->IsType<MidoriType::ByteType>() && !actual_type->IsType<MidoriType::WordType>())
+					else if (!actual_type->IsType<MarmotType::IntegerType>() && !actual_type->IsType<MarmotType::ByteType>() && !actual_type->IsType<MarmotType::WordType>())
 					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Bitwise NOT operator requires an integer, byte, or word type", unary.m_op, m_file_name, m_source_lines, actual_type, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::ByteType>(), MidoriType::MakeLiteralType<MidoriType::WordType>()));
+						return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Bitwise NOT operator requires an integer, byte, or word type", unary.m_op, m_file_name, m_source_lines, actual_type, MarmotType::MakeLiteralType<MarmotType::IntegerType>(), MarmotType::MakeLiteralType<MarmotType::ByteType>(), MarmotType::MakeLiteralType<MarmotType::WordType>()));
 					}
 				}
 				else if (unary.m_op.m_token_name == Token::Name::HASH)
 				{
-					if (actual_type->IsType<MidoriType::ArrayType>())
+					if (actual_type->IsType<MarmotType::ArrayType>())
 					{
-						unary.m_type_data = MidoriType::MakeLiteralType<MidoriType::IntegerType>();
+						unary.m_type_data = MarmotType::MakeLiteralType<MarmotType::IntegerType>();
 						return unary.m_type_data;
 					}
 
 					const std::string suggestion = m_classes.contains(std::string(COUNTABLE_CLASS_NAME))
 						? std::format("Define 'instance Countable<{}>' to give it a length.", actual_type->DisplayString())
-						: actual_type->IsType<MidoriType::TextType>()
+						: actual_type->IsType<MarmotType::TextType>()
 						? std::string("Import MarmotPrelude/Countable.mmt: it declares Countable and its instance for Text.")
 						: std::format("Import MarmotPrelude/Countable.mmt, which declares Countable, and define 'instance Countable<{}>'.", actual_type->DisplayString());
-					if (std::optional<CompilerError> error = CheckConstraintHolds(unary.m_op, MidoriType::ClassConstraint(std::string(COUNTABLE_CLASS_NAME), { actual_type }), 0u, suggestion))
+					if (std::optional<CompilerError> error = CheckConstraintHolds(unary.m_op, MarmotType::ClassConstraint(std::string(COUNTABLE_CLASS_NAME), { actual_type }), 0u, suggestion))
 					{
 						return std::unexpected(std::move(*error));
 					}
 
 					unary.m_uses_countable = true;
-					unary.m_type_data = MidoriType::MakeLiteralType<MidoriType::IntegerType>();
+					unary.m_type_data = MarmotType::MakeLiteralType<MarmotType::IntegerType>();
 					return unary.m_type_data;
 				}
 
@@ -5419,13 +5419,13 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::UnaryPrefix& 
 // Spawn(argument, F) runs F in a new worker. Its one argument stands for all of
 // F's parameters, which no signature can say, and both what F takes and what it
 // gives back must be able to cross.
-MidoriResult::TypeResult TypeChecker::CheckSpawnCall(MidoriExpression::Call& call)
+MarmotResult::TypeResult TypeChecker::CheckSpawnCall(MarmotExpression::Call& call)
 {
-	const MidoriExpression::NameAccess& spawn_name = call.m_callee->GetExpression<MidoriExpression::NameAccess>();
+	const MarmotExpression::NameAccess& spawn_name = call.m_callee->GetExpression<MarmotExpression::NameAccess>();
 	const Token& spawn_token = spawn_name.m_name;
 	if (call.m_arguments.size() != 2u)
 	{
-		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, std::format("Call expression type error: incorrect arity: expected 2 argument(s), got {}", call.m_arguments.size()), call.m_paren, m_file_name, m_source_lines));
+		return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, std::format("Call expression type error: incorrect arity: expected 2 argument(s), got {}", call.m_arguments.size()), call.m_paren, m_file_name, m_source_lines));
 	}
 
 	// The function is an ordinary value: it is evaluated here and transferred to the
@@ -5433,14 +5433,14 @@ MidoriResult::TypeResult TypeChecker::CheckSpawnCall(MidoriExpression::Call& cal
 	// works and a function held in a parameter can be spawned.
 	// The ambient expected type belongs to the spawn's own result, Worker<T>, and
 	// would otherwise be pushed onto a lambda written in callee position.
-	std::unique_ptr<MidoriExpression>& function = call.m_arguments[1u];
-	MidoriResult::TypeResult callee_result;
+	std::unique_ptr<MarmotExpression>& function = call.m_arguments[1u];
+	MarmotResult::TypeResult callee_result;
 	{
 		ExpectedTypeGuard guard(*this, nullptr);
 		m_callee_name = &spawn_name;
 		callee_result = Evaluate(call.m_callee);
-		m_callee_name = function->IsExpression<MidoriExpression::NameAccess>() ? &function->GetExpression<MidoriExpression::NameAccess>() : nullptr;
-		callee_result = std::move(callee_result).and_then([this, &function](std::shared_ptr<MidoriType>&&) { return Evaluate(function); });
+		m_callee_name = function->IsExpression<MarmotExpression::NameAccess>() ? &function->GetExpression<MarmotExpression::NameAccess>() : nullptr;
+		callee_result = std::move(callee_result).and_then([this, &function](std::shared_ptr<MarmotType>&&) { return Evaluate(function); });
 		m_callee_name = nullptr;
 	}
 
@@ -5449,16 +5449,16 @@ MidoriResult::TypeResult TypeChecker::CheckSpawnCall(MidoriExpression::Call& cal
 		return callee_result;
 	}
 
-	std::shared_ptr<MidoriType> callee_type = ApplySubstitution(callee_result.value());
-	if (!callee_type->IsType<MidoriType::FunctionType>())
+	std::shared_ptr<MarmotType> callee_type = ApplySubstitution(callee_result.value());
+	if (!callee_type->IsType<MarmotType::FunctionType>())
 	{
-		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeNotCallable, std::format("Spawn expression type error: the second argument to {} must be a function", spawn_token.m_lexeme), spawn_token, m_file_name, m_source_lines, callee_type));
+		return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeNotCallable, std::format("Spawn expression type error: the second argument to {} must be a function", spawn_token.m_lexeme), spawn_token, m_file_name, m_source_lines, callee_type));
 	}
 
-	MidoriType::FunctionType& function_type = callee_type->GetType<MidoriType::FunctionType>();
+	MarmotType::FunctionType& function_type = callee_type->GetType<MarmotType::FunctionType>();
 	if (function_type.m_is_foreign)
 	{
-		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Spawn expression type error: foreign functions cannot be spawned", spawn_token, m_file_name, m_source_lines));
+		return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Spawn expression type error: foreign functions cannot be spawned", spawn_token, m_file_name, m_source_lines));
 	}
 
 	if (std::optional<CompilerError> error = CheckSpawnArgument(call, function_type))
@@ -5466,24 +5466,24 @@ MidoriResult::TypeResult TypeChecker::CheckSpawnCall(MidoriExpression::Call& cal
 		return std::unexpected(std::move(*error));
 	}
 
-	std::shared_ptr<MidoriType> resolved_return_type = ApplySubstitution(function_type.m_return_type);
+	std::shared_ptr<MarmotType> resolved_return_type = ApplySubstitution(function_type.m_return_type);
 	if (std::optional<CompilerError> error = EnsureTransferable(spawn_token, resolved_return_type))
 	{
 		return std::unexpected(std::move(*error));
 	}
 
-	call.m_type_data = MidoriType::MakeWorkerType(resolved_return_type);
+	call.m_type_data = MarmotType::MakeWorkerType(resolved_return_type);
 	return call.m_type_data;
 }
 
-std::optional<CompilerError> TypeChecker::CheckSpawnArgument(MidoriExpression::Call& call, const MidoriType::FunctionType& function_type)
+std::optional<CompilerError> TypeChecker::CheckSpawnArgument(MarmotExpression::Call& call, const MarmotType::FunctionType& function_type)
 {
-	const Token& spawn_token = call.m_callee->GetExpression<MidoriExpression::NameAccess>().m_name;
+	const Token& spawn_token = call.m_callee->GetExpression<MarmotExpression::NameAccess>().m_name;
 	const size_t arity = function_type.m_param_types.size();
-	std::shared_ptr<MidoriType> expected_type;
+	std::shared_ptr<MarmotType> expected_type;
 	if (arity == 0u)
 	{
-		expected_type = MidoriType::MakeLiteralType<MidoriType::UnitType>();
+		expected_type = MarmotType::MakeLiteralType<MarmotType::UnitType>();
 	}
 	else if (arity == 1u)
 	{
@@ -5491,34 +5491,34 @@ std::optional<CompilerError> TypeChecker::CheckSpawnArgument(MidoriExpression::C
 	}
 	else
 	{
-		std::vector<std::shared_ptr<MidoriType>> element_types(function_type.m_param_types.begin(), function_type.m_param_types.end());
-		expected_type = MidoriType::MakeTupleType(std::move(element_types));
+		std::vector<std::shared_ptr<MarmotType>> element_types(function_type.m_param_types.begin(), function_type.m_param_types.end());
+		expected_type = MarmotType::MakeTupleType(std::move(element_types));
 	}
 
 	ExpectedTypeGuard guard(*this, expected_type);
-	MidoriResult::TypeResult argument_result = Evaluate(call.m_arguments[0u]);
+	MarmotResult::TypeResult argument_result = Evaluate(call.m_arguments[0u]);
 	if (!argument_result.has_value())
 	{
 		return std::move(argument_result.error());
 	}
 
-	std::shared_ptr<MidoriType> actual_type = ApplySubstitution(argument_result.value());
+	std::shared_ptr<MarmotType> actual_type = ApplySubstitution(argument_result.value());
 	if (arity >= 2u)
 	{
-		const bool is_matching_tuple = actual_type->IsType<MidoriType::TupleType>() && actual_type->GetType<MidoriType::TupleType>().m_element_types.size() == arity;
+		const bool is_matching_tuple = actual_type->IsType<MarmotType::TupleType>() && actual_type->GetType<MarmotType::TupleType>().m_element_types.size() == arity;
 		if (!is_matching_tuple)
 		{
-			return MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, std::format("Spawn expression type error: the spawned function takes {} parameters, so pass them to {} as one {}-element tuple", arity, spawn_token.m_lexeme, arity), spawn_token, m_file_name, m_source_lines, actual_type, expected_type);
+			return MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, std::format("Spawn expression type error: the spawned function takes {} parameters, so pass them to {} as one {}-element tuple", arity, spawn_token.m_lexeme, arity), spawn_token, m_file_name, m_source_lines, actual_type, expected_type);
 		}
 	}
 
-	MidoriResult::TypeResult unify_result = Unify(spawn_token, actual_type, expected_type, UnifyDiagnosticMode::ActualExpected);
+	MarmotResult::TypeResult unify_result = Unify(spawn_token, actual_type, expected_type, UnifyDiagnosticMode::ActualExpected);
 	if (!unify_result.has_value())
 	{
 		return std::move(unify_result.error());
 	}
 
-	for (const std::shared_ptr<MidoriType>& param_type : function_type.m_param_types)
+	for (const std::shared_ptr<MarmotType>& param_type : function_type.m_param_types)
 	{
 		if (std::optional<CompilerError> error = EnsureTransferable(spawn_token, ApplySubstitution(param_type)))
 		{
@@ -5529,40 +5529,40 @@ std::optional<CompilerError> TypeChecker::CheckSpawnArgument(MidoriExpression::C
 	return std::nullopt;
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Send& send)
+MarmotResult::TypeResult TypeChecker::operator()(MarmotExpression::Send& send)
 {
 	return Evaluate(send.m_channel)
 		.and_then
 		(
-			[this, &send](std::shared_ptr<MidoriType>&& channel_type) -> MidoriResult::TypeResult
+			[this, &send](std::shared_ptr<MarmotType>&& channel_type) -> MarmotResult::TypeResult
 			{
-				std::shared_ptr<MidoriType> resolved_channel_type = ApplySubstitution(channel_type);
-				if (!resolved_channel_type->IsType<MidoriType::ChannelType>())
+				std::shared_ptr<MarmotType> resolved_channel_type = ApplySubstitution(channel_type);
+				if (!resolved_channel_type->IsType<MarmotType::ChannelType>())
 				{
-					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Send expression type error: left operand must be Channel<T>", send.m_arrow, m_file_name, m_source_lines, resolved_channel_type));
+					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Send expression type error: left operand must be Channel<T>", send.m_arrow, m_file_name, m_source_lines, resolved_channel_type));
 				}
 
-				std::shared_ptr<MidoriType> element_type = resolved_channel_type->GetType<MidoriType::ChannelType>().m_element_type;
+				std::shared_ptr<MarmotType> element_type = resolved_channel_type->GetType<MarmotType::ChannelType>().m_element_type;
 				ExpectedTypeGuard guard(*this, element_type);
 				return Evaluate(send.m_value)
 					.and_then
 					(
-						[this, &send, element_type](std::shared_ptr<MidoriType>&& value_type) mutable -> MidoriResult::TypeResult
+						[this, &send, element_type](std::shared_ptr<MarmotType>&& value_type) mutable -> MarmotResult::TypeResult
 						{
-							std::shared_ptr<MidoriType> actual_value_type = std::move(value_type);
-							MidoriResult::TypeResult unify_result = Unify(send.m_arrow, actual_value_type, element_type, UnifyDiagnosticMode::ActualExpected);
+							std::shared_ptr<MarmotType> actual_value_type = std::move(value_type);
+							MarmotResult::TypeResult unify_result = Unify(send.m_arrow, actual_value_type, element_type, UnifyDiagnosticMode::ActualExpected);
 							if (!unify_result.has_value())
 							{
 								return unify_result;
 							}
 
-							std::shared_ptr<MidoriType> resolved_element_type = ApplySubstitution(element_type);
+							std::shared_ptr<MarmotType> resolved_element_type = ApplySubstitution(element_type);
 							if (std::optional<CompilerError> error = EnsureTransferable(send.m_arrow, resolved_element_type))
 							{
 								return std::unexpected(std::move(*error));
 							}
 
-							send.m_type_data = MidoriType::MakeLiteralType<MidoriType::BoolType>();
+							send.m_type_data = MarmotType::MakeLiteralType<MarmotType::BoolType>();
 							return send.m_type_data;
 						}
 					);
@@ -5570,28 +5570,28 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Send& send)
 		);
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Receive& receive)
+MarmotResult::TypeResult TypeChecker::operator()(MarmotExpression::Receive& receive)
 {
 	return Evaluate(receive.m_channel)
 		.and_then
 		(
-			[this, &receive](std::shared_ptr<MidoriType>&& channel_type) -> MidoriResult::TypeResult
+			[this, &receive](std::shared_ptr<MarmotType>&& channel_type) -> MarmotResult::TypeResult
 			{
-				std::shared_ptr<MidoriType> resolved_channel_type = ApplySubstitution(channel_type);
-				if (!resolved_channel_type->IsType<MidoriType::ChannelType>())
+				std::shared_ptr<MarmotType> resolved_channel_type = ApplySubstitution(channel_type);
+				if (!resolved_channel_type->IsType<MarmotType::ChannelType>())
 				{
-					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Receive expression type error: expected Channel<T>", receive.m_arrow, m_file_name, m_source_lines, resolved_channel_type));
+					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Receive expression type error: expected Channel<T>", receive.m_arrow, m_file_name, m_source_lines, resolved_channel_type));
 				}
 
-				receive.m_type_data = ApplySubstitution(resolved_channel_type->GetType<MidoriType::ChannelType>().m_element_type);
+				receive.m_type_data = ApplySubstitution(resolved_channel_type->GetType<MarmotType::ChannelType>().m_element_type);
 				return receive.m_type_data;
 			}
 		);
 }
 
-std::shared_ptr<MidoriType> TypeChecker::NarrowClassMethodType(const std::string& class_name, const ClassInfo& class_info, const std::shared_ptr<MidoriType>& declared_method_type, const std::vector<std::shared_ptr<MidoriType>>& known_arg_types, size_t arity)
+std::shared_ptr<MarmotType> TypeChecker::NarrowClassMethodType(const std::string& class_name, const ClassInfo& class_info, const std::shared_ptr<MarmotType>& declared_method_type, const std::vector<std::shared_ptr<MarmotType>>& known_arg_types, size_t arity)
 {
-	std::shared_ptr<MidoriType> narrowed_method_type;
+	std::shared_ptr<MarmotType> narrowed_method_type;
 
 	for (const std::pair<const InstanceKey, InstanceInfo>& instance_entry : m_instances)
 	{
@@ -5607,20 +5607,20 @@ std::shared_ptr<MidoriType> TypeChecker::NarrowClassMethodType(const std::string
 			class_substitutions.emplace(class_info.m_type_param_names[idx], instance_info.m_type_args[idx]);
 		}
 
-		std::shared_ptr<MidoriType> candidate_method_type = ApplySubstitution(MidoriType::SubstituteTypeParams(declared_method_type, class_substitutions));
-		if (!candidate_method_type->IsType<MidoriType::FunctionType>())
+		std::shared_ptr<MarmotType> candidate_method_type = ApplySubstitution(MarmotType::SubstituteTypeParams(declared_method_type, class_substitutions));
+		if (!candidate_method_type->IsType<MarmotType::FunctionType>())
 		{
 			continue;
 		}
 
-		const MidoriType::FunctionType& candidate_function_type = candidate_method_type->GetType<MidoriType::FunctionType>();
+		const MarmotType::FunctionType& candidate_function_type = candidate_method_type->GetType<MarmotType::FunctionType>();
 		if (candidate_function_type.m_param_types.size() != arity)
 		{
 			continue;
 		}
 
-		std::unordered_map<std::string, std::shared_ptr<MidoriType>> substitutions;
-		std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash> visited;
+		std::unordered_map<std::string, std::shared_ptr<MarmotType>> substitutions;
+		std::unordered_set<std::pair<MarmotType*, MarmotType*>, TypePairHash> visited;
 		bool matched = std::ranges::all_of
 		(
 			std::views::iota(0u, known_arg_types.size()),
@@ -5637,7 +5637,7 @@ std::shared_ptr<MidoriType> TypeChecker::NarrowClassMethodType(const std::string
 
 		if (narrowed_method_type != nullptr)
 		{
-			return std::shared_ptr<MidoriType>{};
+			return std::shared_ptr<MarmotType>{};
 		}
 
 		// The narrowed type becomes an argument's expected type, so a parameter of the
@@ -5650,7 +5650,7 @@ std::shared_ptr<MidoriType> TypeChecker::NarrowClassMethodType(const std::string
 
 		// SubstituteTypeParams with an empty map is not the identity - it rebuilds a struct with
 		// its generic parameters cleared - so a match that derived no bindings keeps the candidate.
-		narrowed_method_type = substitutions.empty() ? candidate_method_type : ApplySubstitution(MidoriType::SubstituteTypeParams(candidate_method_type, substitutions));
+		narrowed_method_type = substitutions.empty() ? candidate_method_type : ApplySubstitution(MarmotType::SubstituteTypeParams(candidate_method_type, substitutions));
 	}
 
 	return narrowed_method_type;
@@ -5658,7 +5658,7 @@ std::shared_ptr<MidoriType> TypeChecker::NarrowClassMethodType(const std::string
 
 // A class method called on the type a where clause in force names: the
 // constraint, not an instance, says what the method's type is.
-MidoriResult::TypeResult TypeChecker::CheckConstrainedMethodCall(MidoriExpression::Call& call, const ClassInfo& tc_info, const std::shared_ptr<MidoriType>& method_type, const MidoriType::ClassConstraint& constraint, std::vector<std::shared_ptr<MidoriType>>& arg_results)
+MarmotResult::TypeResult TypeChecker::CheckConstrainedMethodCall(MarmotExpression::Call& call, const ClassInfo& tc_info, const std::shared_ptr<MarmotType>& method_type, const MarmotType::ClassConstraint& constraint, std::vector<std::shared_ptr<MarmotType>>& arg_results)
 {
 	TypeEnvironment class_substitutions;
 	for (size_t i = 0u; i < tc_info.m_type_param_names.size(); i += 1u)
@@ -5666,21 +5666,21 @@ MidoriResult::TypeResult TypeChecker::CheckConstrainedMethodCall(MidoriExpressio
 		class_substitutions.emplace(tc_info.m_type_param_names[i], ApplySubstitution(constraint.m_type_args[i]));
 	}
 
-	std::shared_ptr<MidoriType> resolved_method_type = ApplySubstitution(MidoriType::SubstituteTypeParams(method_type, class_substitutions));
-	if (!resolved_method_type->IsType<MidoriType::FunctionType>())
+	std::shared_ptr<MarmotType> resolved_method_type = ApplySubstitution(MarmotType::SubstituteTypeParams(method_type, class_substitutions));
+	if (!resolved_method_type->IsType<MarmotType::FunctionType>())
 	{
-		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeNotCallable, "Call expression type error: not a callable", call.m_paren, m_file_name, m_source_lines, resolved_method_type));
+		return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeNotCallable, "Call expression type error: not a callable", call.m_paren, m_file_name, m_source_lines, resolved_method_type));
 	}
 
-	MidoriType::FunctionType& function_type = resolved_method_type->GetType<MidoriType::FunctionType>();
+	MarmotType::FunctionType& function_type = resolved_method_type->GetType<MarmotType::FunctionType>();
 	if (function_type.m_param_types.size() != arg_results.size())
 	{
-		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, std::format("Call expression type error: incorrect arity: expected {} argument(s), got {}", function_type.m_param_types.size(), arg_results.size()), call.m_paren, m_file_name, m_source_lines));
+		return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, std::format("Call expression type error: incorrect arity: expected {} argument(s), got {}", function_type.m_param_types.size(), arg_results.size()), call.m_paren, m_file_name, m_source_lines));
 	}
 
 	for (size_t idx : std::views::iota(0u, arg_results.size()))
 	{
-		MidoriResult::TypeResult result = Unify(call.m_paren, arg_results[idx], function_type.m_param_types[idx], UnifyDiagnosticMode::ActualExpected);
+		MarmotResult::TypeResult result = Unify(call.m_paren, arg_results[idx], function_type.m_param_types[idx], UnifyDiagnosticMode::ActualExpected);
 		if (!result.has_value())
 		{
 			return result;
@@ -5695,7 +5695,7 @@ MidoriResult::TypeResult TypeChecker::CheckConstrainedMethodCall(MidoriExpressio
 // A class method selected from the instances by its arguments. `arg_results`
 // holds the arguments already checked, which may be none; the rest are checked
 // here, each against what the instances still matching say it must be.
-MidoriResult::TypeResult TypeChecker::CheckInstanceMethodCall(MidoriExpression::Call& call, const std::string& qualifier, const std::string& method_name, const ClassInfo& tc_info, const std::shared_ptr<MidoriType>& method_type, std::vector<std::shared_ptr<MidoriType>>&& arg_results)
+MarmotResult::TypeResult TypeChecker::CheckInstanceMethodCall(MarmotExpression::Call& call, const std::string& qualifier, const std::string& method_name, const ClassInfo& tc_info, const std::shared_ptr<MarmotType>& method_type, std::vector<std::shared_ptr<MarmotType>>&& arg_results)
 {
 	arg_results.reserve(call.m_arguments.size());
 	for (size_t idx : std::views::iota(arg_results.size(), call.m_arguments.size()))
@@ -5707,11 +5707,11 @@ MidoriResult::TypeResult TypeChecker::CheckInstanceMethodCall(MidoriExpression::
 		// container it is appended to. A prefix that picks out no single instance leaves the
 		// argument checked with no expected type, as before. Selection below is unchanged and
 		// still consults every argument.
-		std::shared_ptr<MidoriType> narrowed_method_type = NarrowClassMethodType(qualifier, tc_info, method_type, arg_results, call.m_arguments.size());
-		std::shared_ptr<MidoriType> expected_param_type = narrowed_method_type != nullptr ? narrowed_method_type->GetType<MidoriType::FunctionType>().m_param_types[idx] : std::shared_ptr<MidoriType>{};
+		std::shared_ptr<MarmotType> narrowed_method_type = NarrowClassMethodType(qualifier, tc_info, method_type, arg_results, call.m_arguments.size());
+		std::shared_ptr<MarmotType> expected_param_type = narrowed_method_type != nullptr ? narrowed_method_type->GetType<MarmotType::FunctionType>().m_param_types[idx] : std::shared_ptr<MarmotType>{};
 		ExpectedTypeGuard guard(*this, std::move(expected_param_type));
 
-		MidoriResult::TypeResult arg_result = Evaluate(call.m_arguments[idx]);
+		MarmotResult::TypeResult arg_result = Evaluate(call.m_arguments[idx]);
 		if (!arg_result.has_value())
 		{
 			return arg_result;
@@ -5721,12 +5721,12 @@ MidoriResult::TypeResult TypeChecker::CheckInstanceMethodCall(MidoriExpression::
 
 	struct ConcreteMethodCandidate
 	{
-		std::shared_ptr<MidoriType> m_method_type;
+		std::shared_ptr<MarmotType> m_method_type;
 		const InstanceInfo* m_instance;
 		TypeEnvironment m_substitutions;
 		bool m_matches_expected_type;
 
-		ConcreteMethodCandidate(std::shared_ptr<MidoriType>&& method_type, const InstanceInfo* instance, TypeEnvironment&& substitutions, bool matches_expected_type)
+		ConcreteMethodCandidate(std::shared_ptr<MarmotType>&& method_type, const InstanceInfo* instance, TypeEnvironment&& substitutions, bool matches_expected_type)
 			: m_method_type(std::move(method_type)), m_instance(instance), m_substitutions(std::move(substitutions)), m_matches_expected_type(matches_expected_type)
 		{
 		}
@@ -5746,25 +5746,25 @@ MidoriResult::TypeResult TypeChecker::CheckInstanceMethodCall(MidoriExpression::
 			class_substitutions.emplace(tc_info.m_type_param_names[i], instance_info.m_type_args[i]);
 		}
 
-		std::shared_ptr<MidoriType> candidate_method_type = ApplySubstitution(MidoriType::SubstituteTypeParams(method_type, class_substitutions));
-		if (!candidate_method_type->IsType<MidoriType::FunctionType>())
+		std::shared_ptr<MarmotType> candidate_method_type = ApplySubstitution(MarmotType::SubstituteTypeParams(method_type, class_substitutions));
+		if (!candidate_method_type->IsType<MarmotType::FunctionType>())
 		{
 			continue;
 		}
 
-		const MidoriType::FunctionType& candidate_function_type = candidate_method_type->GetType<MidoriType::FunctionType>();
+		const MarmotType::FunctionType& candidate_function_type = candidate_method_type->GetType<MarmotType::FunctionType>();
 		if (candidate_function_type.m_param_types.size() != arg_results.size())
 		{
 			continue;
 		}
 
-		std::unordered_map<std::string, std::shared_ptr<MidoriType>> substitutions;
-		std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash> visited;
+		std::unordered_map<std::string, std::shared_ptr<MarmotType>> substitutions;
+		std::unordered_set<std::pair<MarmotType*, MarmotType*>, TypePairHash> visited;
 		bool matched = true;
 
 		for (size_t i = 0u; i < arg_results.size(); i += 1u)
 		{
-			std::shared_ptr<MidoriType> resolved_arg = ApplySubstitution(arg_results[i]);
+			std::shared_ptr<MarmotType> resolved_arg = ApplySubstitution(arg_results[i]);
 			if (!MatchInstanceTypeArg(candidate_function_type.m_param_types[i], resolved_arg, substitutions, visited))
 			{
 				matched = false;
@@ -5785,9 +5785,9 @@ MidoriResult::TypeResult TypeChecker::CheckInstanceMethodCall(MidoriExpression::
 		bool matches_expected_type = false;
 		if (m_expected_expr_type != nullptr)
 		{
-			std::unordered_map<std::string, std::shared_ptr<MidoriType>> expected_substitutions = substitutions;
-			std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash> expected_visited = visited;
-			std::shared_ptr<MidoriType> expected_type = ApplySubstitution(m_expected_expr_type);
+			std::unordered_map<std::string, std::shared_ptr<MarmotType>> expected_substitutions = substitutions;
+			std::unordered_set<std::pair<MarmotType*, MarmotType*>, TypePairHash> expected_visited = visited;
+			std::shared_ptr<MarmotType> expected_type = ApplySubstitution(m_expected_expr_type);
 			if (MatchInstanceTypeArg(candidate_function_type.m_return_type, expected_type, expected_substitutions, expected_visited))
 			{
 				matches_expected_type = true;
@@ -5796,35 +5796,35 @@ MidoriResult::TypeResult TypeChecker::CheckInstanceMethodCall(MidoriExpression::
 			}
 		}
 
-		std::shared_ptr<MidoriType> resolved_method_type = ApplySubstitution(MidoriType::SubstituteTypeParams(candidate_method_type, substitutions));
+		std::shared_ptr<MarmotType> resolved_method_type = ApplySubstitution(MarmotType::SubstituteTypeParams(candidate_method_type, substitutions));
 		candidates.emplace_back(std::move(resolved_method_type), &instance_info, std::move(substitutions), matches_expected_type);
 	}
 
 	if (candidates.empty())
 	{
-		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: no matching concrete instance for '" + qualifier + NameSeparator.data() + method_name + "'", call.m_paren, m_file_name, m_source_lines));
+		return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Call expression type error: no matching concrete instance for '" + qualifier + NameSeparator.data() + method_name + "'", call.m_paren, m_file_name, m_source_lines));
 	}
 	if (candidates.size() != 1u)
 	{
 		if (std::ranges::count_if(candidates, &ConcreteMethodCandidate::m_matches_expected_type) != 1)
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: ambiguous concrete instance for '" + qualifier + NameSeparator.data() + method_name + "'", call.m_paren, m_file_name, m_source_lines));
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Call expression type error: ambiguous concrete instance for '" + qualifier + NameSeparator.data() + method_name + "'", call.m_paren, m_file_name, m_source_lines));
 		}
 
 		std::erase_if(candidates, [](const ConcreteMethodCandidate& candidate) -> bool { return !candidate.m_matches_expected_type; });
 	}
 
-	MidoriType::FunctionType& function_type = candidates[0u].m_method_type->GetType<MidoriType::FunctionType>();
+	MarmotType::FunctionType& function_type = candidates[0u].m_method_type->GetType<MarmotType::FunctionType>();
 	for (size_t idx : std::views::iota(0u, arg_results.size()))
 	{
-		MidoriResult::TypeResult result = Unify(call.m_paren, arg_results[idx], function_type.m_param_types[idx], UnifyDiagnosticMode::ActualExpected);
+		MarmotResult::TypeResult result = Unify(call.m_paren, arg_results[idx], function_type.m_param_types[idx], UnifyDiagnosticMode::ActualExpected);
 		if (!result.has_value())
 		{
 			return result;
 		}
 	}
 
-	MidoriResult::TypeResult constraint_result = ValidateFunctionConstraints(call.m_paren, function_type);
+	MarmotResult::TypeResult constraint_result = ValidateFunctionConstraints(call.m_paren, function_type);
 	if (!constraint_result.has_value())
 	{
 		return constraint_result;
@@ -5832,7 +5832,7 @@ MidoriResult::TypeResult TypeChecker::CheckInstanceMethodCall(MidoriExpression::
 
 	// function_type comes from the class declaration, so it never carries the
 	// selected instance's where-clause - that lives on InstanceInfo instead.
-	MidoriResult::TypeResult instance_constraint_result = ValidateInstanceConstraints(call.m_paren, *candidates[0u].m_instance, candidates[0u].m_substitutions, 0u);
+	MarmotResult::TypeResult instance_constraint_result = ValidateInstanceConstraints(call.m_paren, *candidates[0u].m_instance, candidates[0u].m_substitutions, 0u);
 	if (!instance_constraint_result.has_value())
 	{
 		return instance_constraint_result;
@@ -5843,13 +5843,13 @@ MidoriResult::TypeResult TypeChecker::CheckInstanceMethodCall(MidoriExpression::
 	return call.m_type_data;
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
+MarmotResult::TypeResult TypeChecker::operator()(MarmotExpression::Call& call)
 {
 	const size_t pending = m_pending_instances.size();
 	call.m_primitive = CalledPrimitive(call);
-	MidoriResult::TypeResult checked = call.m_primitive == MidoriPrimitive::Spawn ? CheckSpawnCall(call) : CheckCall(call);
+	MarmotResult::TypeResult checked = call.m_primitive == MarmotPrimitive::Spawn ? CheckSpawnCall(call) : CheckCall(call);
 	return std::move(checked)
-		.and_then([this, pending](std::shared_ptr<MidoriType>&& type) -> MidoriResult::TypeResult
+		.and_then([this, pending](std::shared_ptr<MarmotType>&& type) -> MarmotResult::TypeResult
 		{
 			if (std::optional<CompilerError> error = CheckDecidedPendingInstances(pending))
 			{
@@ -5861,15 +5861,15 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Call& call)
 
 // The primitive whose declaration a call's callee names. Only a name can name
 // one, since a primitive is never a value.
-std::optional<MidoriPrimitive> TypeChecker::CalledPrimitive(const MidoriExpression::Call& call) const
+std::optional<MarmotPrimitive> TypeChecker::CalledPrimitive(const MarmotExpression::Call& call) const
 {
-	if (!call.m_callee->IsExpression<MidoriExpression::NameAccess>())
+	if (!call.m_callee->IsExpression<MarmotExpression::NameAccess>())
 	{
 		return std::nullopt;
 	}
 
-	const std::shared_ptr<MidoriType>* binding = FindNameType(call.m_callee->GetExpression<MidoriExpression::NameAccess>().m_name.m_lexeme);
-	return binding != nullptr && (*binding)->IsType<MidoriType::FunctionType>() ? (*binding)->GetType<MidoriType::FunctionType>().m_primitive : std::nullopt;
+	const std::shared_ptr<MarmotType>* binding = FindNameType(call.m_callee->GetExpression<MarmotExpression::NameAccess>().m_name.m_lexeme);
+	return binding != nullptr && (*binding)->IsType<MarmotType::FunctionType>() ? (*binding)->GetType<MarmotType::FunctionType>().m_primitive : std::nullopt;
 }
 
 // The waiting instances from `from` on whose types are now decided, each checked
@@ -5880,7 +5880,7 @@ std::optional<CompilerError> TypeChecker::CheckDecidedPendingInstances(size_t fr
 	std::optional<CompilerError> error;
 	for (PendingInstance& pending : m_pending_instances | std::views::drop(from))
 	{
-		const std::shared_ptr<MidoriType> instance = ApplySubstitution(pending.m_instance);
+		const std::shared_ptr<MarmotType> instance = ApplySubstitution(pending.m_instance);
 		if (!IsDecided(instance))
 		{
 			waiting.push_back(std::move(pending));
@@ -5888,8 +5888,8 @@ std::optional<CompilerError> TypeChecker::CheckDecidedPendingInstances(size_t fr
 		}
 		if (!error.has_value())
 		{
-			std::vector<MidoriType::ClassConstraint> in_force = std::exchange(m_active_constraints, pending.m_active_constraints);
-			MidoriResult::TypeResult validated = ValidateFunctionConstraints(pending.m_token, instance->GetType<MidoriType::FunctionType>());
+			std::vector<MarmotType::ClassConstraint> in_force = std::exchange(m_active_constraints, pending.m_active_constraints);
+			MarmotResult::TypeResult validated = ValidateFunctionConstraints(pending.m_token, instance->GetType<MarmotType::FunctionType>());
 			m_active_constraints = std::move(in_force);
 			if (!validated.has_value())
 			{
@@ -5902,12 +5902,12 @@ std::optional<CompilerError> TypeChecker::CheckDecidedPendingInstances(size_t fr
 	return error;
 }
 
-MidoriResult::TypeResult TypeChecker::UseGenericInstance(const Token& token, std::shared_ptr<MidoriType> instance, std::string_view undecided_message)
+MarmotResult::TypeResult TypeChecker::UseGenericInstance(const Token& token, std::shared_ptr<MarmotType> instance, std::string_view undecided_message)
 {
 	std::unordered_set<int> visible_type_vars = CollectEnclosingTypeVariableIds();
 	if (m_expected_expr_type != nullptr)
 	{
-		MidoriResult::TypeResult expected_result = Unify(token, instance, m_expected_expr_type, UnifyDiagnosticMode::ActualExpected);
+		MarmotResult::TypeResult expected_result = Unify(token, instance, m_expected_expr_type, UnifyDiagnosticMode::ActualExpected);
 		if (!expected_result.has_value())
 		{
 			return expected_result;
@@ -5919,28 +5919,28 @@ MidoriResult::TypeResult TypeChecker::UseGenericInstance(const Token& token, std
 	instance = ApplySubstitution(instance);
 	if (!std::ranges::all_of(CollectTypeVariableIds(instance), [&visible_type_vars](int id) { return visible_type_vars.contains(id); }))
 	{
-		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(std::string(undecided_message), token, m_file_name, m_source_lines));
+		return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(std::string(undecided_message), token, m_file_name, m_source_lines));
 	}
 	if (!IsDecided(instance))
 	{
 		m_pending_instances.emplace_back(token, instance, m_active_constraints, std::string(undecided_message));
 		return instance;
 	}
-	return ValidateFunctionConstraints(token, instance->GetType<MidoriType::FunctionType>())
-		.transform([&instance](std::shared_ptr<MidoriType>&&) { return instance; });
+	return ValidateFunctionConstraints(token, instance->GetType<MarmotType::FunctionType>())
+		.transform([&instance](std::shared_ptr<MarmotType>&&) { return instance; });
 }
 
 // Decided: every variable left is a generic parameter of a definition being checked.
-bool TypeChecker::IsDecided(const std::shared_ptr<MidoriType>& type) const
+bool TypeChecker::IsDecided(const std::shared_ptr<MarmotType>& type) const
 {
 	return std::ranges::all_of(CollectTypeVariableIds(type), [this](int id) { return m_rigid_type_vars.contains(id); });
 }
 
-MidoriResult::TypeResult TypeChecker::CheckCall(MidoriExpression::Call& call)
+MarmotResult::TypeResult TypeChecker::CheckCall(MarmotExpression::Call& call)
 {
-	if (call.m_callee->IsExpression<MidoriExpression::NameAccess>())
+	if (call.m_callee->IsExpression<MarmotExpression::NameAccess>())
 	{
-		MidoriExpression::NameAccess& callee_name = call.m_callee->GetExpression<MidoriExpression::NameAccess>();
+		MarmotExpression::NameAccess& callee_name = call.m_callee->GetExpression<MarmotExpression::NameAccess>();
 		const std::string& full_name = callee_name.m_name.m_lexeme;
 		size_t separator_pos = full_name.rfind(NameSeparator.data());
 		if (separator_pos != std::string::npos)
@@ -5955,18 +5955,18 @@ MidoriResult::TypeResult TypeChecker::CheckCall(MidoriExpression::Call& call)
 				TypeEnvironment::const_iterator method_it = tc_info.m_method_types.find(method_name);
 				if (method_it != tc_info.m_method_types.cend())
 				{
-					std::vector<std::shared_ptr<MidoriType>> arg_results;
-					const std::vector<const MidoriType::ClassConstraint*> matching_constraints = m_active_constraints
-						| std::views::filter([&qualifier](const MidoriType::ClassConstraint& constraint) { return constraint.m_class_name == qualifier; })
-						| std::views::transform([](const MidoriType::ClassConstraint& constraint) { return &constraint; })
+					std::vector<std::shared_ptr<MarmotType>> arg_results;
+					const std::vector<const MarmotType::ClassConstraint*> matching_constraints = m_active_constraints
+						| std::views::filter([&qualifier](const MarmotType::ClassConstraint& constraint) { return constraint.m_class_name == qualifier; })
+						| std::views::transform([](const MarmotType::ClassConstraint& constraint) { return &constraint; })
 						| std::ranges::to<std::vector>();
 
 					if (!matching_constraints.empty())
 					{
 						arg_results.reserve(call.m_arguments.size());
-						for (std::unique_ptr<MidoriExpression>& call_arg : call.m_arguments)
+						for (std::unique_ptr<MarmotExpression>& call_arg : call.m_arguments)
 						{
-							MidoriResult::TypeResult arg_result = Evaluate(call_arg);
+							MarmotResult::TypeResult arg_result = Evaluate(call_arg);
 							if (!arg_result.has_value())
 							{
 								return arg_result;
@@ -5977,14 +5977,14 @@ MidoriResult::TypeResult TypeChecker::CheckCall(MidoriExpression::Call& call)
 						// A where clause in force answers for the type it names. The method is
 						// picked by its first argument, so a call on any other type - a concrete
 						// one with an instance of its own - is selected from the instances.
-						std::vector<const MidoriType::ClassConstraint*> selected_constraints = matching_constraints;
+						std::vector<const MarmotType::ClassConstraint*> selected_constraints = matching_constraints;
 						if (!arg_results.empty())
 						{
-							const std::shared_ptr<MidoriType> first_arg_type = ApplySubstitution(arg_results[0u]);
+							const std::shared_ptr<MarmotType> first_arg_type = ApplySubstitution(arg_results[0u]);
 							std::erase_if
 							(
 								selected_constraints,
-								[this, &first_arg_type](const MidoriType::ClassConstraint* constraint)
+								[this, &first_arg_type](const MarmotType::ClassConstraint* constraint)
 								{
 									return constraint->m_type_args.empty() || *ApplySubstitution(constraint->m_type_args[0u]) != *first_arg_type;
 								}
@@ -5994,7 +5994,7 @@ MidoriResult::TypeResult TypeChecker::CheckCall(MidoriExpression::Call& call)
 						if (selected_constraints.size() > 1u)
 						{
 							const std::string first_arg_name = arg_results.empty() ? std::string("no arguments") : ApplySubstitution(arg_results[0u])->DisplayString();
-							return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Call expression type error: ambiguous class method '" + qualifier + NameSeparator.data() + method_name + "' for argument type '" + first_arg_name + "'", call.m_paren, m_file_name, m_source_lines));
+							return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Call expression type error: ambiguous class method '" + qualifier + NameSeparator.data() + method_name + "' for argument type '" + first_arg_name + "'", call.m_paren, m_file_name, m_source_lines));
 						}
 						if (selected_constraints.size() == 1u)
 						{
@@ -6010,19 +6010,19 @@ MidoriResult::TypeResult TypeChecker::CheckCall(MidoriExpression::Call& call)
 
 	// A lambda is called directly only from inside parentheses: `fn(x) => x(3)`
 	// would put the call in its body.
-	const MidoriExpression* callee_inside_groups = call.m_callee.get();
-	while (callee_inside_groups->IsExpression<MidoriExpression::Group>())
+	const MarmotExpression* callee_inside_groups = call.m_callee.get();
+	while (callee_inside_groups->IsExpression<MarmotExpression::Group>())
 	{
-		callee_inside_groups = callee_inside_groups->GetExpression<MidoriExpression::Group>().m_expr_in.get();
+		callee_inside_groups = callee_inside_groups->GetExpression<MarmotExpression::Group>().m_expr_in.get();
 	}
 
-	if (callee_inside_groups->IsExpression<MidoriExpression::Function>())
+	if (callee_inside_groups->IsExpression<MarmotExpression::Function>())
 	{
-		std::vector<std::shared_ptr<MidoriType>> arg_results;
+		std::vector<std::shared_ptr<MarmotType>> arg_results;
 		arg_results.reserve(call.m_arguments.size());
-		for (std::unique_ptr<MidoriExpression>& call_arg : call.m_arguments)
+		for (std::unique_ptr<MarmotExpression>& call_arg : call.m_arguments)
 		{
-			MidoriResult::TypeResult arg_result = Evaluate(call_arg);
+			MarmotResult::TypeResult arg_result = Evaluate(call_arg);
 			if (!arg_result.has_value())
 			{
 				return arg_result;
@@ -6030,32 +6030,32 @@ MidoriResult::TypeResult TypeChecker::CheckCall(MidoriExpression::Call& call)
 			arg_results.emplace_back(std::move(arg_result.value()));
 		}
 
-		std::shared_ptr<MidoriType> expected_return_type = m_expected_expr_type != nullptr ? std::shared_ptr<MidoriType>(m_expected_expr_type) : FreshTypeVar();
-		std::shared_ptr<MidoriType> expected_callee_type = MidoriType::MakeFunctionType(arg_results, std::move(expected_return_type));
+		std::shared_ptr<MarmotType> expected_return_type = m_expected_expr_type != nullptr ? std::shared_ptr<MarmotType>(m_expected_expr_type) : FreshTypeVar();
+		std::shared_ptr<MarmotType> expected_callee_type = MarmotType::MakeFunctionType(arg_results, std::move(expected_return_type));
 		ExpectedTypeGuard guard(*this, expected_callee_type);
 
 		return Evaluate(call.m_callee)
 			.and_then
 			(
-				[&call, &arg_results, this](std::shared_ptr<MidoriType>&& actual_type) -> MidoriResult::TypeResult
+				[&call, &arg_results, this](std::shared_ptr<MarmotType>&& actual_type) -> MarmotResult::TypeResult
 				{
-					std::shared_ptr<MidoriType> resolved_type = ApplySubstitution(actual_type);
-					if (!resolved_type->IsType<MidoriType::FunctionType>())
+					std::shared_ptr<MarmotType> resolved_type = ApplySubstitution(actual_type);
+					if (!resolved_type->IsType<MarmotType::FunctionType>())
 					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeNotCallable, "Call expression type error: not a callable", call.m_paren, m_file_name, m_source_lines, resolved_type));
+						return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeNotCallable, "Call expression type error: not a callable", call.m_paren, m_file_name, m_source_lines, resolved_type));
 					}
 
-					MidoriType::FunctionType& function_type = resolved_type->GetType<MidoriType::FunctionType>();
+					MarmotType::FunctionType& function_type = resolved_type->GetType<MarmotType::FunctionType>();
 					if (function_type.m_param_types.size() != call.m_arguments.size())
 					{
-						return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, std::format("Call expression type error: incorrect arity: expected {} argument(s), got {}", function_type.m_param_types.size(), call.m_arguments.size()), call.m_paren, m_file_name, m_source_lines));
+						return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, std::format("Call expression type error: incorrect arity: expected {} argument(s), got {}", function_type.m_param_types.size(), call.m_arguments.size()), call.m_paren, m_file_name, m_source_lines));
 					}
 
 					for (size_t idx : std::views::iota(0u, arg_results.size()))
 					{
-						std::shared_ptr<MidoriType>& actual_param_type = arg_results[idx];
-						std::shared_ptr<MidoriType>& param_type = function_type.m_param_types[idx];
-						MidoriResult::TypeResult result = Unify(call.m_paren, actual_param_type, param_type, UnifyDiagnosticMode::ActualExpected);
+						std::shared_ptr<MarmotType>& actual_param_type = arg_results[idx];
+						std::shared_ptr<MarmotType>& param_type = function_type.m_param_types[idx];
+						MarmotResult::TypeResult result = Unify(call.m_paren, actual_param_type, param_type, UnifyDiagnosticMode::ActualExpected);
 						if (!result.has_value())
 						{
 							return result;
@@ -6070,11 +6070,11 @@ MidoriResult::TypeResult TypeChecker::CheckCall(MidoriExpression::Call& call)
 	}
 
 	// The type expected of the call is its result's, not the callee's.
-	MidoriResult::TypeResult callee_result = [&call, this]() -> MidoriResult::TypeResult
+	MarmotResult::TypeResult callee_result = [&call, this]() -> MarmotResult::TypeResult
 		{
 			ExpectedTypeGuard guard(*this, nullptr);
-			m_callee_name = call.m_callee->IsExpression<MidoriExpression::NameAccess>() ? &call.m_callee->GetExpression<MidoriExpression::NameAccess>() : nullptr;
-			MidoriResult::TypeResult result = Evaluate(call.m_callee);
+			m_callee_name = call.m_callee->IsExpression<MarmotExpression::NameAccess>() ? &call.m_callee->GetExpression<MarmotExpression::NameAccess>() : nullptr;
+			MarmotResult::TypeResult result = Evaluate(call.m_callee);
 			m_callee_name = nullptr;
 			return result;
 		}();
@@ -6082,19 +6082,19 @@ MidoriResult::TypeResult TypeChecker::CheckCall(MidoriExpression::Call& call)
 	return std::move(callee_result)
 		.and_then
 		(
-			[&call, this](std::shared_ptr<MidoriType>&& actual_type) ->MidoriResult::TypeResult
+			[&call, this](std::shared_ptr<MarmotType>&& actual_type) ->MarmotResult::TypeResult
 			{
-				std::shared_ptr<MidoriType> resolved_type = ApplySubstitution(actual_type);
+				std::shared_ptr<MarmotType> resolved_type = ApplySubstitution(actual_type);
 
-				if (!resolved_type->IsType<MidoriType::FunctionType>())
+				if (!resolved_type->IsType<MarmotType::FunctionType>())
 				{
-					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeNotCallable, "Call expression type error: not a callable", call.m_paren, m_file_name, m_source_lines, resolved_type));
+					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeNotCallable, "Call expression type error: not a callable", call.m_paren, m_file_name, m_source_lines, resolved_type));
 				}
 
-				MidoriType::FunctionType& function_type = resolved_type->GetType<MidoriType::FunctionType>();
+				MarmotType::FunctionType& function_type = resolved_type->GetType<MarmotType::FunctionType>();
 				if (function_type.m_param_types.size() != call.m_arguments.size())
 				{
-					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, std::format("Call expression type error: incorrect arity: expected {} argument(s), got {}", function_type.m_param_types.size(), call.m_arguments.size()), call.m_paren, m_file_name, m_source_lines));
+					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, std::format("Call expression type error: incorrect arity: expected {} argument(s), got {}", function_type.m_param_types.size(), call.m_arguments.size()), call.m_paren, m_file_name, m_source_lines));
 				}
 
 				for (size_t idx : std::views::iota(0u, call.m_arguments.size()))
@@ -6106,13 +6106,13 @@ MidoriResult::TypeResult TypeChecker::CheckCall(MidoriExpression::Call& call)
 					// `fn<T>(Array<T>, T) -> Unit` checked the construction against a bare T and rejected it.
 					ExpectedTypeGuard guard(*this, function_type.m_param_types[idx]);
 
-					MidoriResult::TypeResult arg_result = Evaluate(call.m_arguments[idx]);
+					MarmotResult::TypeResult arg_result = Evaluate(call.m_arguments[idx]);
 					if (!arg_result.has_value())
 					{
 						return arg_result;
 					}
 
-					MidoriResult::TypeResult unify_result = Unify(call.m_paren, arg_result.value(), function_type.m_param_types[idx], UnifyDiagnosticMode::ActualExpected);
+					MarmotResult::TypeResult unify_result = Unify(call.m_paren, arg_result.value(), function_type.m_param_types[idx], UnifyDiagnosticMode::ActualExpected);
 					if (!unify_result.has_value())
 					{
 						return unify_result;
@@ -6123,14 +6123,14 @@ MidoriResult::TypeResult TypeChecker::CheckCall(MidoriExpression::Call& call)
 				// result goes decides, as it does for a generic used as a value.
 				if (!function_type.m_constraints.empty() && m_expected_expr_type != nullptr && !IsDecided(ApplySubstitution(function_type.m_return_type)))
 				{
-					MidoriResult::TypeResult expected_result = Unify(call.m_paren, function_type.m_return_type, m_expected_expr_type, UnifyDiagnosticMode::ActualExpected);
+					MarmotResult::TypeResult expected_result = Unify(call.m_paren, function_type.m_return_type, m_expected_expr_type, UnifyDiagnosticMode::ActualExpected);
 					if (!expected_result.has_value())
 					{
 						return expected_result;
 					}
 				}
 
-				MidoriResult::TypeResult constraint_result = ValidateFunctionConstraints(call.m_paren, function_type);
+				MarmotResult::TypeResult constraint_result = ValidateFunctionConstraints(call.m_paren, function_type);
 				if (!constraint_result.has_value())
 				{
 					return constraint_result;
@@ -6144,32 +6144,32 @@ MidoriResult::TypeResult TypeChecker::CheckCall(MidoriExpression::Call& call)
 		);
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::MemberAccess& get)
+MarmotResult::TypeResult TypeChecker::operator()(MarmotExpression::MemberAccess& get)
 {
 	// The type the context demands of `a.b` describes the member, not the object: `a`'s type is
 	// settled by `a` alone, and the member name then picks a field out of it. Carrying the
 	// demand into the object let a construction there unify its own struct type with whatever
 	// the surrounding call wanted, so `IO::PrintLine((new Point(7, 8)).x as Text)` was rejected
 	// for building a Point where Text was expected.
-	ExpectedTypeGuard object_guard(*this, std::shared_ptr<MidoriType>{});
+	ExpectedTypeGuard object_guard(*this, std::shared_ptr<MarmotType>{});
 
 	return Evaluate(get.m_struct)
 		.and_then
 		(
-			[this, &get](std::shared_ptr<MidoriType>&& object_type) -> MidoriResult::TypeResult
+			[this, &get](std::shared_ptr<MarmotType>&& object_type) -> MarmotResult::TypeResult
 			{
-				const std::shared_ptr<MidoriType> actual_type = ApplySubstitution(object_type);
-				if (!actual_type->IsType<MidoriType::StructType>())
+				const std::shared_ptr<MarmotType> actual_type = ApplySubstitution(object_type);
+				if (!actual_type->IsType<MarmotType::StructType>())
 				{
-					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Cannot access member on non-struct type", get.m_member_name, m_file_name, m_source_lines));
+					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Cannot access member on non-struct type", get.m_member_name, m_file_name, m_source_lines));
 				}
 
-				const MidoriType::StructType& struct_type = actual_type->GetType<MidoriType::StructType>();
+				const MarmotType::StructType& struct_type = actual_type->GetType<MarmotType::StructType>();
 				std::vector<std::string>::const_iterator find_result = std::find(struct_type.m_member_names.cbegin(), struct_type.m_member_names.cend(), get.m_member_name.m_lexeme);
 				if (find_result == struct_type.m_member_names.cend())
 				{
 					std::string suggestion = std::format("Struct '{}' does not have a member named '{}'", struct_type.m_name, get.m_member_name.m_lexeme);
-					return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Unknown struct member", get.m_member_name, m_file_name, m_source_lines, suggestion));
+					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Unknown struct member", get.m_member_name, m_file_name, m_source_lines, suggestion));
 				}
 
 				get.m_index = static_cast<int>(find_result - struct_type.m_member_names.cbegin());
@@ -6180,7 +6180,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::MemberAccess&
 		);
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::NameAccess& variable)
+MarmotResult::TypeResult TypeChecker::operator()(MarmotExpression::NameAccess& variable)
 {
 	size_t separator_pos = variable.m_name.m_lexeme.rfind(NameSeparator.data());
 	if (separator_pos != std::string::npos)
@@ -6188,7 +6188,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::NameAccess& v
 		std::string qualifier = variable.m_name.m_lexeme.substr(0u, separator_pos);
 		std::string symbol_name = variable.m_name.m_lexeme.substr(separator_pos + NameSeparator.length());
 
-		for (const MidoriType::ClassConstraint& constraint : m_active_constraints)
+		for (const MarmotType::ClassConstraint& constraint : m_active_constraints)
 		{
 			if (constraint.m_class_name != qualifier)
 			{
@@ -6214,7 +6214,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::NameAccess& v
 		{
 			std::vector<std::string> active_classes;
 			active_classes.reserve(m_active_constraints.size());
-			for (const MidoriType::ClassConstraint& constraint : m_active_constraints)
+			for (const MarmotType::ClassConstraint& constraint : m_active_constraints)
 			{
 				active_classes.push_back(constraint.m_class_name);
 			}
@@ -6222,22 +6222,22 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::NameAccess& v
 			std::string suggestion = active_classes.empty()
 				? "No matching class constraints are active in this scope."
 				: "Active constraints: " + JoinSortedNames(std::move(active_classes));
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Name access expression type error: class method is not available in the current constraint scope", variable.m_name, m_file_name, m_source_lines, suggestion));
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Name access expression type error: class method is not available in the current constraint scope", variable.m_name, m_file_name, m_source_lines, suggestion));
 		}
 	}
 
-	const std::shared_ptr<MidoriType>* binding = FindNameType(variable.m_name.m_lexeme);
+	const std::shared_ptr<MarmotType>* binding = FindNameType(variable.m_name.m_lexeme);
 	const bool is_defining = std::ranges::contains(m_defining_generic_names, variable.m_name.m_lexeme);
 	const std::vector<LocalGenericFunction>::const_reverse_iterator local_generic = std::ranges::find(m_local_generic_functions | std::views::reverse, variable.m_name.m_lexeme, &LocalGenericFunction::m_name);
 	const bool is_value = &variable != m_callee_name;
-	if (is_value && binding != nullptr && (*binding)->IsType<MidoriType::FunctionType>() && (*binding)->GetType<MidoriType::FunctionType>().m_primitive.has_value())
+	if (is_value && binding != nullptr && (*binding)->IsType<MarmotType::FunctionType>() && (*binding)->GetType<MarmotType::FunctionType>().m_primitive.has_value())
 	{
-		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(std::format("Name access expression type error: '{}' is a primitive, an instruction rather than a function, so it can only be called", variable.m_name.m_lexeme), variable.m_name, m_file_name, m_source_lines));
+		return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(std::format("Name access expression type error: '{}' is a primitive, an instruction rather than a function, so it can only be called", variable.m_name.m_lexeme), variable.m_name, m_file_name, m_source_lines));
 	}
-	const std::function<MidoriResult::TypeResult()> use_as_value = [this, &variable]()
+	const std::function<MarmotResult::TypeResult()> use_as_value = [this, &variable]()
 	{
 		return UseGenericInstance(variable.m_name, variable.m_type_data, std::format("Name access expression type error: could not infer which types '{}' is used at; pass it where a function type is expected, or write the type on the definition that holds it", variable.m_name.m_lexeme))
-			.transform([&variable](std::shared_ptr<MidoriType>&& instance) { return variable.m_type_data = std::move(instance); });
+			.transform([&variable](std::shared_ptr<MarmotType>&& instance) { return variable.m_type_data = std::move(instance); });
 	};
 	if (binding != nullptr && !is_defining && local_generic != m_local_generic_functions.crend())
 	{
@@ -6249,13 +6249,13 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::NameAccess& v
 		const bool binding_is_generic_function =
 			m_generic_functions.contains(variable.m_name.m_lexeme)
 			&& std::ranges::find(m_defining_generic_names, variable.m_name.m_lexeme) == m_defining_generic_names.cend()
-			&& binding->get()->IsType<MidoriType::FunctionType>();
+			&& binding->get()->IsType<MarmotType::FunctionType>();
 		if (binding_is_generic_function
 			|| variable.m_name.m_lexeme.find("::") != std::string::npos
-			|| (binding->get()->IsType<MidoriType::FunctionType>() && binding->get()->GetType<MidoriType::FunctionType>().m_is_foreign))
+			|| (binding->get()->IsType<MarmotType::FunctionType>() && binding->get()->GetType<MarmotType::FunctionType>().m_is_foreign))
 		{
 			variable.m_type_data = Freshen(*binding);
-			if (is_value && variable.m_type_data->IsType<MidoriType::FunctionType>() && !CollectTypeVariableIds(variable.m_type_data).empty())
+			if (is_value && variable.m_type_data->IsType<MarmotType::FunctionType>() && !CollectTypeVariableIds(variable.m_type_data).empty())
 			{
 				return use_as_value();
 			}
@@ -6269,7 +6269,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::NameAccess& v
 		return variable.m_type_data;
 	}
 
-	for (const MidoriType::ClassConstraint& constraint : m_active_constraints)
+	for (const MarmotType::ClassConstraint& constraint : m_active_constraints)
 	{
 		std::unordered_map<std::string, ClassInfo>::iterator tc_it = m_classes.find(constraint.m_class_name);
 		if (tc_it != m_classes.end())
@@ -6304,45 +6304,45 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::NameAccess& v
 
 	if (m_later_unannotated.contains(variable.m_name.m_lexeme))
 	{
-		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUndefinedName, std::format("'{}' is defined further down, and its type is not written on it, so it is not known here. Give it a type -- its parameter and return types, for a function -- or move it above this.", variable.m_name.m_lexeme), variable.m_name, m_file_name, m_source_lines));
+		return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUndefinedName, std::format("'{}' is defined further down, and its type is not written on it, so it is not known here. Give it a type -- its parameter and return types, for a function -- or move it above this.", variable.m_name.m_lexeme), variable.m_name, m_file_name, m_source_lines));
 	}
 
-	return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUndefinedName, "Name access expression type error: variable not found", variable.m_name, m_file_name, m_source_lines));
+	return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUndefinedName, "Name access expression type error: variable not found", variable.m_name, m_file_name, m_source_lines));
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Literal& literal)
+MarmotResult::TypeResult TypeChecker::operator()(MarmotExpression::Literal& literal)
 {
 	switch (literal.m_kind)
 	{
-	case MidoriExpression::LiteralKind::Text:
-		literal.m_type_data = MidoriType::MakeLiteralType<MidoriType::TextType>();
+	case MarmotExpression::LiteralKind::Text:
+		literal.m_type_data = MarmotType::MakeLiteralType<MarmotType::TextType>();
 		break;
-	case MidoriExpression::LiteralKind::Bool:
-		literal.m_type_data = MidoriType::MakeLiteralType<MidoriType::BoolType>();
+	case MarmotExpression::LiteralKind::Bool:
+		literal.m_type_data = MarmotType::MakeLiteralType<MarmotType::BoolType>();
 		break;
-	case MidoriExpression::LiteralKind::Float:
-		literal.m_type_data = MidoriType::MakeLiteralType<MidoriType::FloatType>();
+	case MarmotExpression::LiteralKind::Float:
+		literal.m_type_data = MarmotType::MakeLiteralType<MarmotType::FloatType>();
 		break;
-	case MidoriExpression::LiteralKind::Integer:
-		literal.m_type_data = MidoriType::MakeLiteralType<MidoriType::IntegerType>();
+	case MarmotExpression::LiteralKind::Integer:
+		literal.m_type_data = MarmotType::MakeLiteralType<MarmotType::IntegerType>();
 		break;
-	case MidoriExpression::LiteralKind::Byte:
-		literal.m_type_data = MidoriType::MakeLiteralType<MidoriType::ByteType>();
+	case MarmotExpression::LiteralKind::Byte:
+		literal.m_type_data = MarmotType::MakeLiteralType<MarmotType::ByteType>();
 		break;
-	case MidoriExpression::LiteralKind::Word:
-		literal.m_type_data = MidoriType::MakeLiteralType<MidoriType::WordType>();
+	case MarmotExpression::LiteralKind::Word:
+		literal.m_type_data = MarmotType::MakeLiteralType<MarmotType::WordType>();
 		break;
-	case MidoriExpression::LiteralKind::Unit:
-		literal.m_type_data = MidoriType::MakeLiteralType<MidoriType::UnitType>();
+	case MarmotExpression::LiteralKind::Unit:
+		literal.m_type_data = MarmotType::MakeLiteralType<MarmotType::UnitType>();
 		break;
 	}
 	return literal.m_type_data;
 }
 
-MidoriResult::TypeResult TypeChecker::ResolveFunctionExpressionSignature(MidoriExpression::Function& function, const std::unordered_set<int>& outer_visible_type_vars)
+MarmotResult::TypeResult TypeChecker::ResolveFunctionExpressionSignature(MarmotExpression::Function& function, const std::unordered_set<int>& outer_visible_type_vars)
 {
 	function.m_type_data = ApplySubstitution(function.m_type_data);
-	const MidoriType::FunctionType& resolved_type = function.m_type_data->GetType<MidoriType::FunctionType>();
+	const MarmotType::FunctionType& resolved_type = function.m_type_data->GetType<MarmotType::FunctionType>();
 	function.m_param_types = resolved_type.m_param_types;
 	function.m_return_type = resolved_type.m_return_type;
 
@@ -6359,7 +6359,7 @@ MidoriResult::TypeResult TypeChecker::ResolveFunctionExpressionSignature(MidoriE
 		{
 			return std::unexpected
 			(
-				MidoriError::GenerateTypeCheckerErrorWithContext
+				MarmotError::GenerateTypeCheckerErrorWithContext
 				(
 					"Function expression type error: could not infer all lambda parameter or return types",
 					function.m_function_keyword,
@@ -6373,7 +6373,7 @@ MidoriResult::TypeResult TypeChecker::ResolveFunctionExpressionSignature(MidoriE
 	return function.m_type_data;
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Function& function)
+MarmotResult::TypeResult TypeChecker::operator()(MarmotExpression::Function& function)
 {
 	// An anonymous generic lambda is one value, so it takes one instance of its
 	// generic type, which the context decides. Its parameter and return types
@@ -6381,36 +6381,36 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Function& fun
 	if (!function.m_generic_params.empty())
 	{
 		std::vector<int> parameters;
-		return CheckGenericLambda(function, function.m_function_keyword, std::string(), [&parameters](const std::shared_ptr<MidoriType>&, const std::vector<int>& own) { parameters = own; })
-			.and_then([&](std::shared_ptr<MidoriType>&&) { return UseGenericInstance(function.m_function_keyword, Instantiate(function.m_type_data, parameters), "Function expression type error: could not infer which types this generic lambda is used at"); })
-			.transform([&function](std::shared_ptr<MidoriType>&& instance) { return function.m_type_data = std::move(instance); });
+		return CheckGenericLambda(function, function.m_function_keyword, std::string(), [&parameters](const std::shared_ptr<MarmotType>&, const std::vector<int>& own) { parameters = own; })
+			.and_then([&](std::shared_ptr<MarmotType>&&) { return UseGenericInstance(function.m_function_keyword, Instantiate(function.m_type_data, parameters), "Function expression type error: could not infer which types this generic lambda is used at"); })
+			.transform([&function](std::shared_ptr<MarmotType>&& instance) { return function.m_type_data = std::move(instance); });
 	}
 
 	// Preserve visible generic type variables when a lambda annotation refers to them.
 	FresheningContext freshening_context = MakeLambdaFresheningContext();
 
 	// Freshen any UndecidedType parameters to TypeVariables
-	for (std::shared_ptr<MidoriType>& param_type : function.m_param_types)
+	for (std::shared_ptr<MarmotType>& param_type : function.m_param_types)
 	{
 		param_type = Freshen(param_type, freshening_context);
 	}
 	function.m_return_type = Freshen(function.m_return_type, freshening_context);
 
 	// Create the function type and store it so it can be returned
-	std::shared_ptr<MidoriType> return_type_copy = function.m_return_type;
-	function.m_type_data = MidoriType::MakeFunctionType(function.m_param_types, std::move(return_type_copy));
+	std::shared_ptr<MarmotType> return_type_copy = function.m_return_type;
+	function.m_type_data = MarmotType::MakeFunctionType(function.m_param_types, std::move(return_type_copy));
 
 	if (m_expected_expr_type != nullptr)
 	{
-		std::shared_ptr<MidoriType> expected_type = m_expected_expr_type;
-		MidoriResult::TypeResult expected_result = Unify(function.m_function_keyword, function.m_type_data, expected_type, UnifyDiagnosticMode::ActualExpected);
+		std::shared_ptr<MarmotType> expected_type = m_expected_expr_type;
+		MarmotResult::TypeResult expected_result = Unify(function.m_function_keyword, function.m_type_data, expected_type, UnifyDiagnosticMode::ActualExpected);
 		if (!expected_result.has_value())
 		{
 			return expected_result;
 		}
 
 		function.m_type_data = ApplySubstitution(function.m_type_data);
-		const MidoriType::FunctionType& inferred_type = function.m_type_data->GetType<MidoriType::FunctionType>();
+		const MarmotType::FunctionType& inferred_type = function.m_type_data->GetType<MarmotType::FunctionType>();
 		function.m_param_types = inferred_type.m_param_types;
 		function.m_return_type = inferred_type.m_return_type;
 	}
@@ -6424,10 +6424,10 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Function& fun
 		outer_visible_type_vars.insert(expected_type_vars.cbegin(), expected_type_vars.cend());
 	}
 
-	std::vector<MidoriType::ClassConstraint> function_constraints = CollectSignatureConstraints(function.m_param_types, function.m_return_type);
-	function.m_type_data->GetType<MidoriType::FunctionType>().m_constraints = function_constraints;
+	std::vector<MarmotType::ClassConstraint> function_constraints = CollectSignatureConstraints(function.m_param_types, function.m_return_type);
+	function.m_type_data->GetType<MarmotType::FunctionType>().m_constraints = function_constraints;
 
-	return ScopeSession(*this).Then([&]() -> MidoriResult::TypeResult
+	return ScopeSession(*this).Then([&]() -> MarmotResult::TypeResult
 	{
 		std::ranges::for_each
 		(
@@ -6436,7 +6436,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Function& fun
 		);
 
 		size_t prev_constraints_size = m_active_constraints.size();
-		for (const MidoriType::ClassConstraint& constraint : function_constraints)
+		for (const MarmotType::ClassConstraint& constraint : function_constraints)
 		{
 			if (!ContainsConstraint(m_active_constraints, constraint))
 			{
@@ -6447,14 +6447,14 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Function& fun
 		// A return inside the body is validated against this, and only types itself as
 		// Never once it is set. Leaving it unset made `{ return 1; }` type as Int, which
 		// broke every enclosing unification the function-definition path handles correctly.
-		std::shared_ptr<MidoriType> saved_expected_return_type = m_expected_return_type;
+		std::shared_ptr<MarmotType> saved_expected_return_type = m_expected_return_type;
 		m_expected_return_type = function.m_return_type;
 
 		ExpectedTypeGuard expected_expr_guard(*this, function.m_return_type);
 		return Evaluate(function.m_body)
 			.and_then
 			(
-				[&function, &outer_visible_type_vars, &saved_expected_return_type, prev_constraints_size, this](std::shared_ptr<MidoriType>&& function_return_value_type) ->MidoriResult::TypeResult
+				[&function, &outer_visible_type_vars, &saved_expected_return_type, prev_constraints_size, this](std::shared_ptr<MarmotType>&& function_return_value_type) ->MarmotResult::TypeResult
 				{
 					m_expected_return_type = saved_expected_return_type;
 					m_active_constraints.resize(prev_constraints_size);
@@ -6462,7 +6462,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Function& fun
 					return Unify(function.m_function_keyword, function.m_return_type, function_return_value_type, UnifyDiagnosticMode::ExpectedActual)
 						.and_then
 						(
-							[&function, &outer_visible_type_vars, this](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
+							[&function, &outer_visible_type_vars, this](std::shared_ptr<MarmotType>&&) -> MarmotResult::TypeResult
 							{
 								return ResolveFunctionExpressionSignature(function, outer_visible_type_vars);
 							}
@@ -6470,7 +6470,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Function& fun
 				}
 			).or_else
 			(
-				[&saved_expected_return_type, prev_constraints_size, this](CompilerError&& error) -> MidoriResult::TypeResult
+				[&saved_expected_return_type, prev_constraints_size, this](CompilerError&& error) -> MarmotResult::TypeResult
 				{
 					m_expected_return_type = saved_expected_return_type;
 					m_active_constraints.resize(prev_constraints_size);
@@ -6482,16 +6482,16 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Function& fun
 
 // Each value moved to its field's position, which makes a named construction
 // the positional one.
-std::optional<CompilerError> TypeChecker::PlaceNamedFields(MidoriExpression::Construct& construct, const MidoriType::StructType& struct_type)
+std::optional<CompilerError> TypeChecker::PlaceNamedFields(MarmotExpression::Construct& construct, const MarmotType::StructType& struct_type)
 {
-	std::vector<std::unique_ptr<MidoriExpression>> placed(struct_type.m_member_names.size());
+	std::vector<std::unique_ptr<MarmotExpression>> placed(struct_type.m_member_names.size());
 	for (size_t written = 0u; written < construct.m_field_names.size(); written += 1u)
 	{
 		const Token& field = construct.m_field_names[written];
 		const std::vector<std::string>::const_iterator found = std::ranges::find(struct_type.m_member_names, field.m_lexeme);
 		if (found == struct_type.m_member_names.cend())
 		{
-			return MidoriError::GenerateTypeCheckerErrorWithContext(std::format("Construct expression type error: '{}' has no field named '{}'", struct_type.m_name, field.m_lexeme), field, m_file_name, m_source_lines);
+			return MarmotError::GenerateTypeCheckerErrorWithContext(std::format("Construct expression type error: '{}' has no field named '{}'", struct_type.m_name, field.m_lexeme), field, m_file_name, m_source_lines);
 		}
 		placed[static_cast<size_t>(std::distance(struct_type.m_member_names.cbegin(), found))] = std::move(construct.m_params[written]);
 	}
@@ -6502,7 +6502,7 @@ std::optional<CompilerError> TypeChecker::PlaceNamedFields(MidoriExpression::Con
 		| std::ranges::to<std::vector>();
 	if (!missing.empty())
 	{
-		return MidoriError::GenerateTypeCheckerErrorWithContext(std::format("Construct expression type error: '{}' needs a value for {}", struct_type.m_name, missing | std::views::join_with(std::string_view(", ")) | std::ranges::to<std::string>()), construct.m_data_name, m_file_name, m_source_lines);
+		return MarmotError::GenerateTypeCheckerErrorWithContext(std::format("Construct expression type error: '{}' needs a value for {}", struct_type.m_name, missing | std::views::join_with(std::string_view(", ")) | std::ranges::to<std::string>()), construct.m_data_name, m_file_name, m_source_lines);
 	}
 
 	construct.m_params = std::move(placed);
@@ -6510,45 +6510,45 @@ std::optional<CompilerError> TypeChecker::PlaceNamedFields(MidoriExpression::Con
 	return std::nullopt;
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Construct& construct)
+MarmotResult::TypeResult TypeChecker::operator()(MarmotExpression::Construct& construct)
 {
-	const std::shared_ptr<MidoriType>& return_type = construct.m_return_type;
+	const std::shared_ptr<MarmotType>& return_type = construct.m_return_type;
 	std::string constructor_name;
 	std::string actual_type_name;
 	std::string declaring_module_name;
 
-	if (construct.IsConstructTypeOf<MidoriExpression::Construct::Struct>())
+	if (construct.IsConstructTypeOf<MarmotExpression::Construct::Struct>())
 	{
-		const MidoriType::StructType& struct_type = return_type->GetType<MidoriType::StructType>();
+		const MarmotType::StructType& struct_type = return_type->GetType<MarmotType::StructType>();
 		actual_type_name = struct_type.m_name;
 		constructor_name = actual_type_name;
 		declaring_module_name = struct_type.m_module_name;
 	}
 	else
 	{
-		const MidoriType::UnionType& union_type = return_type->GetType<MidoriType::UnionType>();
+		const MarmotType::UnionType& union_type = return_type->GetType<MarmotType::UnionType>();
 		constructor_name = construct.m_data_name.m_lexeme;
 		actual_type_name = union_type.m_name;
 		declaring_module_name = union_type.m_module_name;
 	}
 
-	const std::shared_ptr<MidoriType>* constructor_type_ptr = FindNameType(ConstructorKey(declaring_module_name, constructor_name));
+	const std::shared_ptr<MarmotType>* constructor_type_ptr = FindNameType(ConstructorKey(declaring_module_name, constructor_name));
 	if (constructor_type_ptr == nullptr)
 	{
-		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Construct expression type error: struct or union not found", construct.m_data_name, m_file_name, m_source_lines));
+		return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Construct expression type error: struct or union not found", construct.m_data_name, m_file_name, m_source_lines));
 	}
 
 	if (!construct.m_field_names.empty())
 	{
 		const TypeDefinitionMap::const_iterator definition = m_struct_type_definitions.find(ConstructorKey(declaring_module_name, actual_type_name));
-		if (std::optional<CompilerError> error = PlaceNamedFields(construct, definition->second->GetType<MidoriType::StructType>()))
+		if (std::optional<CompilerError> error = PlaceNamedFields(construct, definition->second->GetType<MarmotType::StructType>()))
 		{
 			return std::unexpected(std::move(*error));
 		}
 	}
 
 	bool is_generic = false;
-	if (construct.IsConstructTypeOf<MidoriExpression::Construct::Struct>())
+	if (construct.IsConstructTypeOf<MarmotExpression::Construct::Struct>())
 	{
 		is_generic = m_generic_structs.contains(ConstructorKey(declaring_module_name, actual_type_name));
 	}
@@ -6557,22 +6557,22 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Construct& co
 		is_generic = m_generic_unions.contains(ConstructorKey(declaring_module_name, actual_type_name));
 	}
 
-	std::shared_ptr<MidoriType> constructor_type_shared = is_generic ? Freshen(*constructor_type_ptr) : *constructor_type_ptr;
+	std::shared_ptr<MarmotType> constructor_type_shared = is_generic ? Freshen(*constructor_type_ptr) : *constructor_type_ptr;
 
 	// The name must resolve to the constructor's function type. It does not when a
 	// struct is imported into another module, where the name binds to the type
 	// itself, and reading it as a function would be undefined rather than an error.
-	if (!constructor_type_shared->IsType<MidoriType::FunctionType>())
+	if (!constructor_type_shared->IsType<MarmotType::FunctionType>())
 	{
-		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Construct expression type error: '" + constructor_name + "' does not name a constructor here (it resolved to '" + constructor_type_shared->DisplayString() + "')", construct.m_data_name, m_file_name, m_source_lines));
+		return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Construct expression type error: '" + constructor_name + "' does not name a constructor here (it resolved to '" + constructor_type_shared->DisplayString() + "')", construct.m_data_name, m_file_name, m_source_lines));
 	}
 
-	MidoriType::FunctionType& constructor_type = constructor_type_shared->GetType<MidoriType::FunctionType>();
+	MarmotType::FunctionType& constructor_type = constructor_type_shared->GetType<MarmotType::FunctionType>();
 
 	if (construct.m_has_explicit_type_args)
 	{
 		construct.m_return_type = InstantiateWrittenType(construct.m_return_type);
-		MidoriResult::TypeResult explicit_type_result = Unify(construct.m_data_name, constructor_type.m_return_type, construct.m_return_type, UnifyDiagnosticMode::ActualExpected);
+		MarmotResult::TypeResult explicit_type_result = Unify(construct.m_data_name, constructor_type.m_return_type, construct.m_return_type, UnifyDiagnosticMode::ActualExpected);
 		if (!explicit_type_result.has_value())
 		{
 			return explicit_type_result;
@@ -6580,8 +6580,8 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Construct& co
 	}
 	else if (m_expected_expr_type != nullptr)
 	{
-		std::shared_ptr<MidoriType> expected_type = m_expected_expr_type;
-		MidoriResult::TypeResult expected_type_result = Unify(construct.m_data_name, constructor_type.m_return_type, expected_type, UnifyDiagnosticMode::ActualExpected);
+		std::shared_ptr<MarmotType> expected_type = m_expected_expr_type;
+		MarmotResult::TypeResult expected_type_result = Unify(construct.m_data_name, constructor_type.m_return_type, expected_type, UnifyDiagnosticMode::ActualExpected);
 		if (!expected_type_result.has_value())
 		{
 			return expected_type_result;
@@ -6590,28 +6590,28 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Construct& co
 
 	if (constructor_type.m_param_types.size() != construct.m_params.size())
 	{
-		return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, std::format("Construct expression type error: incorrect arity: expected {} argument(s), got {}", constructor_type.m_param_types.size(), construct.m_params.size()), construct.m_data_name, m_file_name, m_source_lines));
+		return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeIncorrectArity, std::format("Construct expression type error: incorrect arity: expected {} argument(s), got {}", constructor_type.m_param_types.size(), construct.m_params.size()), construct.m_data_name, m_file_name, m_source_lines));
 	}
 
 	for (size_t idx : std::views::iota(0u, construct.m_params.size()))
 	{
-		std::unique_ptr<MidoriExpression>& param = construct.m_params[idx];
+		std::unique_ptr<MarmotExpression>& param = construct.m_params[idx];
 		ExpectedTypeGuard guard(*this, constructor_type.m_param_types[idx]);
-		MidoriResult::TypeResult param_result = Evaluate(param);
+		MarmotResult::TypeResult param_result = Evaluate(param);
 		if (!param_result.has_value())
 		{
 			return param_result;
 		}
 
-		std::shared_ptr<MidoriType> param_type = constructor_type.m_param_types[idx];
-		MidoriResult::TypeResult unify_result = Unify(construct.m_data_name, param_result.value(), param_type, UnifyDiagnosticMode::ActualExpected);
+		std::shared_ptr<MarmotType> param_type = constructor_type.m_param_types[idx];
+		MarmotResult::TypeResult unify_result = Unify(construct.m_data_name, param_result.value(), param_type, UnifyDiagnosticMode::ActualExpected);
 		if (!unify_result.has_value())
 		{
 			return unify_result;
 		}
 	}
 
-	MidoriResult::TypeResult constraint_result = ValidateFunctionConstraints(construct.m_data_name, constructor_type);
+	MarmotResult::TypeResult constraint_result = ValidateFunctionConstraints(construct.m_data_name, constructor_type);
 	if (!constraint_result.has_value())
 	{
 		return constraint_result;
@@ -6640,7 +6640,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Construct& co
 		if (!only_enclosing_type_vars_remain)
 		{
 			return std::unexpected(
-				MidoriError::GenerateTypeCheckerErrorWithContext(
+				MarmotError::GenerateTypeCheckerErrorWithContext(
 					std::format("Construct expression type error: could not infer all type arguments for '{}'", actual_type_name),
 					construct.m_data_name,
 					m_file_name,
@@ -6651,55 +6651,55 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Construct& co
 	}
 
 	// Mark as generic instantiation if this was a generic struct/union
-	if (construct.IsConstructTypeOf<MidoriExpression::Construct::Struct>())
+	if (construct.IsConstructTypeOf<MarmotExpression::Construct::Struct>())
 	{
-		if (is_generic && construct.m_type_data->IsType<MidoriType::StructType>())
+		if (is_generic && construct.m_type_data->IsType<MarmotType::StructType>())
 		{
-			construct.m_type_data->GetType<MidoriType::StructType>().m_is_generic_instantiation = true;
+			construct.m_type_data->GetType<MarmotType::StructType>().m_is_generic_instantiation = true;
 		}
 	}
-	else if (is_generic && construct.m_type_data->IsType<MidoriType::UnionType>())
+	else if (is_generic && construct.m_type_data->IsType<MarmotType::UnionType>())
 	{
-		construct.m_type_data->GetType<MidoriType::UnionType>().m_is_generic_instantiation = true;
+		construct.m_type_data->GetType<MarmotType::UnionType>().m_is_generic_instantiation = true;
 	}
 
 	return construct.m_type_data;
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::RecordUpdate& record_update)
+MarmotResult::TypeResult TypeChecker::operator()(MarmotExpression::RecordUpdate& record_update)
 {
-	MidoriResult::TypeResult source_result = Evaluate(record_update.m_source);
+	MarmotResult::TypeResult source_result = Evaluate(record_update.m_source);
 	if (!source_result.has_value())
 	{
 		return source_result;
 	}
 
-	std::shared_ptr<MidoriType> source_type = ApplySubstitution(source_result.value());
+	std::shared_ptr<MarmotType> source_type = ApplySubstitution(source_result.value());
 
-	for (MidoriExpression::RecordUpdate::FieldUpdate& update : record_update.m_updates)
+	for (MarmotExpression::RecordUpdate::FieldUpdate& update : record_update.m_updates)
 	{
-		std::shared_ptr<MidoriType> member_type = source_type;
+		std::shared_ptr<MarmotType> member_type = source_type;
 		update.m_indices.clear();
 		for (const Token& step : update.m_path)
 		{
 			// A union's variants hold their fields by position, so there is no name to set.
-			if (member_type->IsType<MidoriType::UnionType>())
+			if (member_type->IsType<MarmotType::UnionType>())
 			{
-				std::string suggestion = std::format("'{}' is a union, whose variants' fields have no names; match on it and construct the variant instead", member_type->GetType<MidoriType::UnionType>().m_name);
-				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Record update expression type error: not a record", step, m_file_name, m_source_lines, std::optional<std::string_view>(suggestion)));
+				std::string suggestion = std::format("'{}' is a union, whose variants' fields have no names; match on it and construct the variant instead", member_type->GetType<MarmotType::UnionType>().m_name);
+				return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Record update expression type error: not a record", step, m_file_name, m_source_lines, std::optional<std::string_view>(suggestion)));
 			}
 
-			if (!member_type->IsType<MidoriType::StructType>())
+			if (!member_type->IsType<MarmotType::StructType>())
 			{
-				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Record update expression type error: not a struct", step, m_file_name, m_source_lines, member_type));
+				return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Record update expression type error: not a struct", step, m_file_name, m_source_lines, member_type));
 			}
 
-			const MidoriType::StructType& struct_type = member_type->GetType<MidoriType::StructType>();
+			const MarmotType::StructType& struct_type = member_type->GetType<MarmotType::StructType>();
 			std::vector<std::string>::const_iterator find_result = std::ranges::find(struct_type.m_member_names, step.m_lexeme);
 			if (find_result == struct_type.m_member_names.cend())
 			{
 				std::string suggestion = std::format("Struct '{}' does not have a member named '{}'", struct_type.m_name, step.m_lexeme);
-				return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Unknown struct member in record update", step, m_file_name, m_source_lines, std::optional<std::string_view>(suggestion)));
+				return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Unknown struct member in record update", step, m_file_name, m_source_lines, std::optional<std::string_view>(suggestion)));
 			}
 
 			const size_t index = static_cast<size_t>(find_result - struct_type.m_member_names.cbegin());
@@ -6708,13 +6708,13 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::RecordUpdate&
 		}
 
 		ExpectedTypeGuard guard(*this, member_type);
-		MidoriResult::TypeResult value_result = Evaluate(update.m_value);
+		MarmotResult::TypeResult value_result = Evaluate(update.m_value);
 		if (!value_result.has_value())
 		{
 			return value_result;
 		}
 
-		MidoriResult::TypeResult unify_result = Unify(update.m_path.back(), member_type, value_result.value(), UnifyDiagnosticMode::ExpectedActual);
+		MarmotResult::TypeResult unify_result = Unify(update.m_path.back(), member_type, value_result.value(), UnifyDiagnosticMode::ExpectedActual);
 		if (!unify_result.has_value())
 		{
 			return unify_result;
@@ -6731,34 +6731,34 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::RecordUpdate&
 	return record_update.m_type_data;
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Array& array)
+MarmotResult::TypeResult TypeChecker::operator()(MarmotExpression::Array& array)
 {
-	std::shared_ptr<MidoriType> expected_array_type;
-	std::shared_ptr<MidoriType> expected_element_type;
+	std::shared_ptr<MarmotType> expected_array_type;
+	std::shared_ptr<MarmotType> expected_element_type;
 	if (m_expected_expr_type != nullptr)
 	{
-		std::shared_ptr<MidoriType> resolved_expected_type = ApplySubstitution(m_expected_expr_type);
-		if (resolved_expected_type->IsType<MidoriType::ArrayType>())
+		std::shared_ptr<MarmotType> resolved_expected_type = ApplySubstitution(m_expected_expr_type);
+		if (resolved_expected_type->IsType<MarmotType::ArrayType>())
 		{
 			expected_array_type = resolved_expected_type;
-			expected_element_type = resolved_expected_type->GetType<MidoriType::ArrayType>().m_element_type;
+			expected_element_type = resolved_expected_type->GetType<MarmotType::ArrayType>().m_element_type;
 		}
 	}
 
 	if (array.m_elems.empty())
 	{
-		array.m_type_data = expected_array_type != nullptr ? expected_array_type : MidoriType::MakeArrayType(MidoriType::MakeUndecidedType());
+		array.m_type_data = expected_array_type != nullptr ? expected_array_type : MarmotType::MakeArrayType(MarmotType::MakeUndecidedType());
 		return array.m_type_data;
 	}
 
 	ExpectedTypeGuard element_guard(*this, expected_element_type);
 
-	std::vector<std::shared_ptr<MidoriType>> element_results;
+	std::vector<std::shared_ptr<MarmotType>> element_results;
 	element_results.reserve(array.m_elems.size());
 
-	for (std::unique_ptr<MidoriExpression>& element : array.m_elems)
+	for (std::unique_ptr<MarmotExpression>& element : array.m_elems)
 	{
-		MidoriResult::TypeResult result = Evaluate(element);
+		MarmotResult::TypeResult result = Evaluate(element);
 		if (!result.has_value())
 		{
 			return result;
@@ -6769,25 +6769,25 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Array& array)
 
 	// The elements share one type, which each may tell more of: `[[], [1]]` is
 	// Array<Array<Int>>, and an element that never finishes takes the others' type.
-	std::shared_ptr<MidoriType> element_type = element_results[0u];
-	for (std::shared_ptr<MidoriType>& element_result : element_results | std::views::drop(1))
+	std::shared_ptr<MarmotType> element_type = element_results[0u];
+	for (std::shared_ptr<MarmotType>& element_result : element_results | std::views::drop(1))
 	{
-		std::shared_ptr<MidoriType> resolved_element_type = ApplySubstitution(element_type);
-		MidoriResult::TypeResult unified = Unify(array.m_op, resolved_element_type, element_result);
+		std::shared_ptr<MarmotType> resolved_element_type = ApplySubstitution(element_type);
+		MarmotResult::TypeResult unified = Unify(array.m_op, resolved_element_type, element_result);
 		if (!unified.has_value())
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Array expression type error: inconsistent element types", array.m_op, m_file_name, m_source_lines, ApplySubstitution(element_result), ApplySubstitution(element_type)));
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Array expression type error: inconsistent element types", array.m_op, m_file_name, m_source_lines, ApplySubstitution(element_result), ApplySubstitution(element_type)));
 		}
 		element_type = unified.value();
 	}
 
-	array.m_type_data = MidoriType::MakeArrayType(ApplySubstitution(element_type));
+	array.m_type_data = MarmotType::MakeArrayType(ApplySubstitution(element_type));
 	return array.m_type_data;
 }
 
-MidoriResult::TypeResult TypeChecker::ResolveIndexableElementType(const Token& op, const std::shared_ptr<MidoriType>& container_type, const std::shared_ptr<MidoriType>& index_type)
+MarmotResult::TypeResult TypeChecker::ResolveIndexableElementType(const Token& op, const std::shared_ptr<MarmotType>& container_type, const std::shared_ptr<MarmotType>& index_type)
 {
-	const MidoriType::ClassConstraint constraint(std::string(INDEXABLE_CLASS_NAME), { container_type, index_type });
+	const MarmotType::ClassConstraint constraint(std::string(INDEXABLE_CLASS_NAME), { container_type, index_type });
 
 	std::optional<ResolvedInstanceMatch> resolved_match = FindMatchingInstance(std::string(INDEXABLE_CLASS_NAME), constraint.m_type_args);
 	if (resolved_match.has_value())
@@ -6795,50 +6795,50 @@ MidoriResult::TypeResult TypeChecker::ResolveIndexableElementType(const Token& o
 		AssociatedTypeEnvironment::const_iterator binding_it = resolved_match->m_instance->m_associated_type_bindings.find(std::string(ELEMENT_ASSOCIATED_TYPE_NAME));
 		if (binding_it == resolved_match->m_instance->m_associated_type_bindings.cend())
 		{
-			return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Index expression type error: the matching Indexable instance does not bind Element", op, m_file_name, m_source_lines, container_type));
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Index expression type error: the matching Indexable instance does not bind Element", op, m_file_name, m_source_lines, container_type));
 		}
 
-		return ApplySubstitution(MidoriType::SubstituteTypeParams(binding_it->second, resolved_match->m_substitutions));
+		return ApplySubstitution(MarmotType::SubstituteTypeParams(binding_it->second, resolved_match->m_substitutions));
 	}
 
 	if (IsSatisfiedByActiveConstraint(constraint))
 	{
-		return ApplySubstitution(MidoriType::MakeAssociatedType(std::string(INDEXABLE_CLASS_NAME), std::string(ELEMENT_ASSOCIATED_TYPE_NAME), { container_type, index_type }));
+		return ApplySubstitution(MarmotType::MakeAssociatedType(std::string(INDEXABLE_CLASS_NAME), std::string(ELEMENT_ASSOCIATED_TYPE_NAME), { container_type, index_type }));
 	}
 
 	return std::unexpected(MakeConstraintFailureError(op, constraint));
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::IndexAccess& array_get)
+MarmotResult::TypeResult TypeChecker::operator()(MarmotExpression::IndexAccess& array_get)
 {
 	return Evaluate(array_get.m_arr_var)
 		.and_then
 		(
-			[&array_get, this](std::shared_ptr<MidoriType>&& container_type) ->MidoriResult::TypeResult
+			[&array_get, this](std::shared_ptr<MarmotType>&& container_type) ->MarmotResult::TypeResult
 			{
 				return Evaluate(array_get.m_index)
 					.and_then
 					(
-						[&array_get, &container_type, this](std::shared_ptr<MidoriType>&& raw_index_type) ->MidoriResult::TypeResult
+						[&array_get, &container_type, this](std::shared_ptr<MarmotType>&& raw_index_type) ->MarmotResult::TypeResult
 						{
-							std::shared_ptr<MidoriType> index_type = ApplySubstitution(raw_index_type);
+							std::shared_ptr<MarmotType> index_type = ApplySubstitution(raw_index_type);
 							container_type = ApplySubstitution(container_type);
 
-							if (container_type->IsType<MidoriType::ArrayType>())
+							if (container_type->IsType<MarmotType::ArrayType>())
 							{
-								if (!index_type->IsType<MidoriType::IntegerType>())
+								if (!index_type->IsType<MarmotType::IntegerType>())
 								{
-									return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Array get expression type error: index must be integer", array_get.m_op, m_file_name, m_source_lines, index_type, MidoriType::MakeLiteralType<MidoriType::IntegerType>()));
+									return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Array get expression type error: index must be integer", array_get.m_op, m_file_name, m_source_lines, index_type, MarmotType::MakeLiteralType<MarmotType::IntegerType>()));
 								}
 
-								array_get.m_type_data = ApplySubstitution(container_type->GetType<MidoriType::ArrayType>().m_element_type);
+								array_get.m_type_data = ApplySubstitution(container_type->GetType<MarmotType::ArrayType>().m_element_type);
 								return array_get.m_type_data;
 							}
 
 							return ResolveIndexableElementType(array_get.m_op, container_type, index_type)
 								.and_then
 								(
-									[&array_get, this](std::shared_ptr<MidoriType>&& element_type) ->MidoriResult::TypeResult
+									[&array_get, this](std::shared_ptr<MarmotType>&& element_type) ->MarmotResult::TypeResult
 									{
 										array_get.m_uses_indexable = true;
 										array_get.m_type_data = ApplySubstitution(element_type);
@@ -6851,24 +6851,24 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::IndexAccess& 
 		);
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::RangeBinary& range_binary)
+MarmotResult::TypeResult TypeChecker::operator()(MarmotExpression::RangeBinary& range_binary)
 {
 	return Evaluate(range_binary.m_start)
 		.and_then
 		(
-			[&range_binary, this](std::shared_ptr<MidoriType>&& start_type) -> MidoriResult::TypeResult
+			[&range_binary, this](std::shared_ptr<MarmotType>&& start_type) -> MarmotResult::TypeResult
 			{
 				return Evaluate(range_binary.m_end)
 					.and_then
 					(
-						[&start_type, &range_binary, this](std::shared_ptr<MidoriType>&& end_type) -> MidoriResult::TypeResult
+						[&start_type, &range_binary, this](std::shared_ptr<MarmotType>&& end_type) -> MarmotResult::TypeResult
 						{
 							return Unify(range_binary.m_range_op, start_type, end_type)
 								.and_then
 								(
-									[&range_binary, &start_type, this](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
+									[&range_binary, &start_type, this](std::shared_ptr<MarmotType>&&) -> MarmotResult::TypeResult
 									{
-										std::shared_ptr<MidoriType> resolved_type = ApplySubstitution(start_type);
+										std::shared_ptr<MarmotType> resolved_type = ApplySubstitution(start_type);
 
 										if (RigidParameterName(resolved_type).has_value())
 										{
@@ -6877,12 +6877,12 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::RangeBinary& 
 												return std::unexpected(std::move(*error));
 											}
 										}
-										else if (!resolved_type->IsNumericType() && !resolved_type->IsType<MidoriType::TypeVariable>())
+										else if (!resolved_type->IsNumericType() && !resolved_type->IsType<MarmotType::TypeVariable>())
 										{
-											return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Range expression type error: expected numeric type", range_binary.m_range_op, m_file_name, m_source_lines, resolved_type, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::FloatType>()));
+											return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Range expression type error: expected numeric type", range_binary.m_range_op, m_file_name, m_source_lines, resolved_type, MarmotType::MakeLiteralType<MarmotType::IntegerType>(), MarmotType::MakeLiteralType<MarmotType::FloatType>()));
 										}
 
-										range_binary.m_type_data = MidoriType::MakeRangeType(start_type);
+										range_binary.m_type_data = MarmotType::MakeRangeType(start_type);
 										return range_binary.m_type_data;
 									}
 								);
@@ -6892,34 +6892,34 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::RangeBinary& 
 		);
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::RangeTernary& range_ternary)
+MarmotResult::TypeResult TypeChecker::operator()(MarmotExpression::RangeTernary& range_ternary)
 {
 	return Evaluate(range_ternary.m_start)
 		.and_then
 		(
-			[&range_ternary, this](std::shared_ptr<MidoriType>&& start_type) -> MidoriResult::TypeResult
+			[&range_ternary, this](std::shared_ptr<MarmotType>&& start_type) -> MarmotResult::TypeResult
 			{
 				return Evaluate(range_ternary.m_step)
 					.and_then
 					(
-						[&start_type, &range_ternary, this](std::shared_ptr<MidoriType>&& step_type) -> MidoriResult::TypeResult
+						[&start_type, &range_ternary, this](std::shared_ptr<MarmotType>&& step_type) -> MarmotResult::TypeResult
 						{
 							return Unify(range_ternary.m_first_range_op, start_type, step_type)
 								.and_then
 								(
-									[&start_type, &range_ternary, this](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
+									[&start_type, &range_ternary, this](std::shared_ptr<MarmotType>&&) -> MarmotResult::TypeResult
 									{
 										return Evaluate(range_ternary.m_end)
 											.and_then
 											(
-												[&start_type, &range_ternary, this](std::shared_ptr<MidoriType>&& end_type) -> MidoriResult::TypeResult
+												[&start_type, &range_ternary, this](std::shared_ptr<MarmotType>&& end_type) -> MarmotResult::TypeResult
 												{
 													return Unify(range_ternary.m_second_range_op, start_type, end_type)
 														.and_then
 														(
-															[&range_ternary, &start_type, this](std::shared_ptr<MidoriType>&&) -> MidoriResult::TypeResult
+															[&range_ternary, &start_type, this](std::shared_ptr<MarmotType>&&) -> MarmotResult::TypeResult
 															{
-																std::shared_ptr<MidoriType> resolved_type = ApplySubstitution(start_type);
+																std::shared_ptr<MarmotType> resolved_type = ApplySubstitution(start_type);
 
 																if (RigidParameterName(resolved_type).has_value())
 																{
@@ -6928,12 +6928,12 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::RangeTernary&
 																		return std::unexpected(std::move(*error));
 																	}
 																}
-																else if (!resolved_type->IsNumericType() && !resolved_type->IsType<MidoriType::TypeVariable>())
+																else if (!resolved_type->IsNumericType() && !resolved_type->IsType<MarmotType::TypeVariable>())
 																{
-																	return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("Range expression type error: expected numeric type", range_ternary.m_first_range_op, m_file_name, m_source_lines, resolved_type, MidoriType::MakeLiteralType<MidoriType::IntegerType>(), MidoriType::MakeLiteralType<MidoriType::FloatType>()));
+																	return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Range expression type error: expected numeric type", range_ternary.m_first_range_op, m_file_name, m_source_lines, resolved_type, MarmotType::MakeLiteralType<MarmotType::IntegerType>(), MarmotType::MakeLiteralType<MarmotType::FloatType>()));
 																}
 
-																range_ternary.m_type_data = MidoriType::MakeRangeType(start_type);
+																range_ternary.m_type_data = MarmotType::MakeRangeType(start_type);
 																return range_ternary.m_type_data;
 															}
 														);
@@ -6947,11 +6947,11 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::RangeTernary&
 		);
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::IfElse& if_else)
+MarmotResult::TypeResult TypeChecker::operator()(MarmotExpression::IfElse& if_else)
 {
 	// The type demanded of the if is the type of its branches, not of its
 	// condition: `C(x) == C(1)` as a condition was checked against Option<C>.
-	const auto evaluate_condition = [&if_else, this]() -> MidoriResult::TypeResult
+	const auto evaluate_condition = [&if_else, this]() -> MarmotResult::TypeResult
 	{
 		ExpectedTypeGuard guard(*this, nullptr);
 		return Evaluate(if_else.m_condition);
@@ -6960,20 +6960,20 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::IfElse& if_el
 	return evaluate_condition()
 		.and_then
 		(
-			[&if_else, this](std::shared_ptr<MidoriType>&& actual_type) ->MidoriResult::TypeResult
+			[&if_else, this](std::shared_ptr<MarmotType>&& actual_type) ->MarmotResult::TypeResult
 			{
-				std::shared_ptr<MidoriType> bool_type = MidoriType::MakeLiteralType<MidoriType::BoolType>();
+				std::shared_ptr<MarmotType> bool_type = MarmotType::MakeLiteralType<MarmotType::BoolType>();
 				return Unify(if_else.m_if_token, bool_type, actual_type, UnifyDiagnosticMode::ExpectedActual)
 					.and_then
 					(
-						[&if_else, this](std::shared_ptr<MidoriType>&& type)->MidoriResult::TypeResult
+						[&if_else, this](std::shared_ptr<MarmotType>&& type)->MarmotResult::TypeResult
 						{
-							if (!type->IsType<MidoriType::BoolType>())
+							if (!type->IsType<MarmotType::BoolType>())
 							{
-								return std::unexpected(MidoriError::GenerateTypeCheckerErrorWithContext("IfElse expression type error: condition must be boolean", if_else.m_if_token, m_file_name, m_source_lines, type, MidoriType::MakeLiteralType<MidoriType::BoolType>()));
+								return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("IfElse expression type error: condition must be boolean", if_else.m_if_token, m_file_name, m_source_lines, type, MarmotType::MakeLiteralType<MarmotType::BoolType>()));
 							}
 
-							auto evaluate_branch_with_expected = [this](const std::unique_ptr<MidoriExpression>& branch) -> MidoriResult::TypeResult
+							auto evaluate_branch_with_expected = [this](const std::unique_ptr<MarmotExpression>& branch) -> MarmotResult::TypeResult
 							{
 								if (m_expected_expr_type != nullptr)
 								{
@@ -6987,12 +6987,12 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::IfElse& if_el
 							return evaluate_branch_with_expected(if_else.m_true_branch)
 								.and_then
 								(
-									[&if_else, &evaluate_branch_with_expected, this](std::shared_ptr<MidoriType>&& true_branch_type) ->MidoriResult::TypeResult
+									[&if_else, &evaluate_branch_with_expected, this](std::shared_ptr<MarmotType>&& true_branch_type) ->MarmotResult::TypeResult
 									{
 										// With nothing demanded of the whole if, the else branch is
 										// still known to need the then branch's type, which lets
 										// `if c then Some(x) else None()` decide None's type.
-										const auto evaluate_else = [&if_else, &true_branch_type, &evaluate_branch_with_expected, this]() -> MidoriResult::TypeResult
+										const auto evaluate_else = [&if_else, &true_branch_type, &evaluate_branch_with_expected, this]() -> MarmotResult::TypeResult
 										{
 											if (m_expected_expr_type == nullptr)
 											{
@@ -7004,12 +7004,12 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::IfElse& if_el
 										return evaluate_else()
 											.and_then
 											(
-												[&true_branch_type, &if_else, this](std::shared_ptr<MidoriType>&& else_branch_type)->MidoriResult::TypeResult
+												[&true_branch_type, &if_else, this](std::shared_ptr<MarmotType>&& else_branch_type)->MarmotResult::TypeResult
 												{
 													return Unify(if_else.m_else_token, true_branch_type, else_branch_type)
 														.and_then
 														(
-															[&if_else](std::shared_ptr<MidoriType>&& type)->MidoriResult::TypeResult
+															[&if_else](std::shared_ptr<MarmotType>&& type)->MarmotResult::TypeResult
 															{
 																if_else.m_type_data = type;
 																return if_else.m_type_data;
@@ -7025,14 +7025,14 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::IfElse& if_el
 		);
 }
 
-MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Block& block)
+MarmotResult::TypeResult TypeChecker::operator()(MarmotExpression::Block& block)
 {
-	return ScopeSession(*this).Then([&]() -> MidoriResult::TypeResult
+	return ScopeSession(*this).Then([&]() -> MarmotResult::TypeResult
 	{
-		for (const std::unique_ptr<MidoriStatement>& stmt : block.m_stmts)
+		for (const std::unique_ptr<MarmotStatement>& stmt : block.m_stmts)
 		{
-			ExpectedTypeGuard statement_guard(*this, std::shared_ptr<MidoriType>{});
-			MidoriResult::TypeResult result = Evaluate(stmt);
+			ExpectedTypeGuard statement_guard(*this, std::shared_ptr<MarmotType>{});
+			MarmotResult::TypeResult result = Evaluate(stmt);
 			if (!result.has_value())
 			{
 				return result;
@@ -7046,7 +7046,7 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Block& block)
 			return Evaluate(*block.m_final_expr)
 				.and_then
 				(
-					[&block, this](std::shared_ptr<MidoriType>&& final_value) -> MidoriResult::TypeResult
+					[&block, this](std::shared_ptr<MarmotType>&& final_value) -> MarmotResult::TypeResult
 					{
 						return Unify(block.m_right_brace, block.m_type_data, final_value, UnifyDiagnosticMode::ExpectedActual);
 					}
@@ -7054,9 +7054,9 @@ MidoriResult::TypeResult TypeChecker::operator()(MidoriExpression::Block& block)
 		}
 
 		// Blocks without final expressions have Unit type
-		if (block.m_type_data->IsType<MidoriType::UndecidedType>())
+		if (block.m_type_data->IsType<MarmotType::UndecidedType>())
 		{
-			block.m_type_data = MidoriType::MakeLiteralType<MidoriType::UnitType>();
+			block.m_type_data = MarmotType::MakeLiteralType<MarmotType::UnitType>();
 		}
 		return block.m_type_data;
 	});

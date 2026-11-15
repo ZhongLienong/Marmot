@@ -1112,7 +1112,7 @@
   "builtins": [
     {
       "id": 0,
-      "name": "MIDORI_FFI_Print",
+      "name": "MARMOT_FFI_Print",
       "arguments": [
         "CString"
       ],
@@ -1120,7 +1120,7 @@
     },
     {
       "id": 1,
-      "name": "MIDORI_FFI_PrintError",
+      "name": "MARMOT_FFI_PrintError",
       "arguments": [
         "CString"
       ],
@@ -1128,19 +1128,19 @@
     },
     {
       "id": 2,
-      "name": "MIDORI_FFI_ReadInput",
+      "name": "MARMOT_FFI_ReadInput",
       "arguments": [],
       "returns": "CString"
     },
     {
       "id": 3,
-      "name": "MIDORI_FFI_ReadLine",
+      "name": "MARMOT_FFI_ReadLine",
       "arguments": [],
       "returns": "CString"
     },
     {
       "id": 4,
-      "name": "MIDORI_FFI_ReadFile",
+      "name": "MARMOT_FFI_ReadFile",
       "arguments": [
         "CString"
       ],
@@ -1148,7 +1148,7 @@
     },
     {
       "id": 5,
-      "name": "MIDORI_FFI_WriteFile",
+      "name": "MARMOT_FFI_WriteFile",
       "arguments": [
         "CString",
         "CString"
@@ -1157,7 +1157,7 @@
     },
     {
       "id": 6,
-      "name": "MIDORI_FFI_AppendToFile",
+      "name": "MARMOT_FFI_AppendToFile",
       "arguments": [
         "CString",
         "CString"
@@ -1166,7 +1166,7 @@
     },
     {
       "id": 7,
-      "name": "MIDORI_FFI_ReadBinaryFile",
+      "name": "MARMOT_FFI_ReadBinaryFile",
       "arguments": [
         "CString"
       ],
@@ -1174,7 +1174,7 @@
     },
     {
       "id": 8,
-      "name": "MIDORI_FFI_WriteBinaryFile",
+      "name": "MARMOT_FFI_WriteBinaryFile",
       "arguments": [
         "CString",
         "ArrayView"
@@ -1183,7 +1183,7 @@
     },
     {
       "id": 9,
-      "name": "MIDORI_FFI_FileExists",
+      "name": "MARMOT_FFI_FileExists",
       "arguments": [
         "CString"
       ],
@@ -1191,7 +1191,7 @@
     },
     {
       "id": 10,
-      "name": "MIDORI_FFI_DeleteFile",
+      "name": "MARMOT_FFI_DeleteFile",
       "arguments": [
         "CString"
       ],
@@ -1199,7 +1199,7 @@
     },
     {
       "id": 11,
-      "name": "MIDORI_FFI_RenameFile",
+      "name": "MARMOT_FFI_RenameFile",
       "arguments": [
         "CString",
         "CString"
@@ -1208,7 +1208,7 @@
     },
     {
       "id": 12,
-      "name": "MIDORI_FFI_GetFileSize",
+      "name": "MARMOT_FFI_GetFileSize",
       "arguments": [
         "CString"
       ],
@@ -1216,283 +1216,283 @@
     },
     {
       "id": 13,
-      "name": "MIDORI_FFI_GetLastIOErrorKind",
+      "name": "MARMOT_FFI_GetLastIOErrorKind",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 14,
-      "name": "MIDORI_FFI_GetLastIOErrorMessage",
+      "name": "MARMOT_FFI_GetLastIOErrorMessage",
       "arguments": [],
       "returns": "CString"
     },
     {
       "id": 15,
-      "name": "MIDORI_FFI_SquareRoot",
+      "name": "MARMOT_FFI_SquareRoot",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 16,
-      "name": "MIDORI_FFI_Abs",
+      "name": "MARMOT_FFI_Abs",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 17,
-      "name": "MIDORI_FFI_Pow",
+      "name": "MARMOT_FFI_Pow",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 18,
-      "name": "MIDORI_FFI_Exp",
+      "name": "MARMOT_FFI_Exp",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 19,
-      "name": "MIDORI_FFI_Log",
+      "name": "MARMOT_FFI_Log",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 20,
-      "name": "MIDORI_FFI_Log10",
+      "name": "MARMOT_FFI_Log10",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 21,
-      "name": "MIDORI_FFI_Log2",
+      "name": "MARMOT_FFI_Log2",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 22,
-      "name": "MIDORI_FFI_Sin",
+      "name": "MARMOT_FFI_Sin",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 23,
-      "name": "MIDORI_FFI_Cos",
+      "name": "MARMOT_FFI_Cos",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 24,
-      "name": "MIDORI_FFI_Tan",
+      "name": "MARMOT_FFI_Tan",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 25,
-      "name": "MIDORI_FFI_Asin",
+      "name": "MARMOT_FFI_Asin",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 26,
-      "name": "MIDORI_FFI_Acos",
+      "name": "MARMOT_FFI_Acos",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 27,
-      "name": "MIDORI_FFI_Atan",
+      "name": "MARMOT_FFI_Atan",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 28,
-      "name": "MIDORI_FFI_Atan2",
+      "name": "MARMOT_FFI_Atan2",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 29,
-      "name": "MIDORI_FFI_Sinh",
+      "name": "MARMOT_FFI_Sinh",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 30,
-      "name": "MIDORI_FFI_Cosh",
+      "name": "MARMOT_FFI_Cosh",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 31,
-      "name": "MIDORI_FFI_Tanh",
+      "name": "MARMOT_FFI_Tanh",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 32,
-      "name": "MIDORI_FFI_Floor",
+      "name": "MARMOT_FFI_Floor",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 33,
-      "name": "MIDORI_FFI_Ceil",
+      "name": "MARMOT_FFI_Ceil",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 34,
-      "name": "MIDORI_FFI_Round",
+      "name": "MARMOT_FFI_Round",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 35,
-      "name": "MIDORI_FFI_Trunc",
+      "name": "MARMOT_FFI_Trunc",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 36,
-      "name": "MIDORI_FFI_Min",
+      "name": "MARMOT_FFI_Min",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 37,
-      "name": "MIDORI_FFI_Max",
+      "name": "MARMOT_FFI_Max",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 38,
-      "name": "MIDORI_FFI_Clamp",
+      "name": "MARMOT_FFI_Clamp",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 39,
-      "name": "MIDORI_FFI_Sign",
+      "name": "MARMOT_FFI_Sign",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 40,
-      "name": "MIDORI_FFI_Fmod",
+      "name": "MARMOT_FFI_Fmod",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 41,
-      "name": "MIDORI_FFI_Hypot",
+      "name": "MARMOT_FFI_Hypot",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 42,
-      "name": "MIDORI_FFI_Random",
+      "name": "MARMOT_FFI_Random",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 43,
-      "name": "MIDORI_FFI_RandomInt",
+      "name": "MARMOT_FFI_RandomInt",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 44,
-      "name": "MIDORI_FFI_RandomFloat",
+      "name": "MARMOT_FFI_RandomFloat",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 45,
-      "name": "MIDORI_FFI_ToRadians",
+      "name": "MARMOT_FFI_ToRadians",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 46,
-      "name": "MIDORI_FFI_ToDegrees",
+      "name": "MARMOT_FFI_ToDegrees",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 47,
-      "name": "MIDORI_FFI_IsNaN",
+      "name": "MARMOT_FFI_IsNaN",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 48,
-      "name": "MIDORI_FFI_IsInf",
+      "name": "MARMOT_FFI_IsInf",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 49,
-      "name": "MIDORI_FFI_IsFinite",
+      "name": "MARMOT_FFI_IsFinite",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 50,
-      "name": "MIDORI_FFI_GetTime",
+      "name": "MARMOT_FFI_GetTime",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 51,
-      "name": "MIDORI_FFI_GetYear",
+      "name": "MARMOT_FFI_GetYear",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 52,
-      "name": "MIDORI_FFI_GetMonth",
+      "name": "MARMOT_FFI_GetMonth",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 53,
-      "name": "MIDORI_FFI_GetDay",
+      "name": "MARMOT_FFI_GetDay",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 54,
-      "name": "MIDORI_FFI_GetHour",
+      "name": "MARMOT_FFI_GetHour",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 55,
-      "name": "MIDORI_FFI_GetMinute",
+      "name": "MARMOT_FFI_GetMinute",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 56,
-      "name": "MIDORI_FFI_GetSecond",
+      "name": "MARMOT_FFI_GetSecond",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 57,
-      "name": "MIDORI_FFI_GetDayOfWeek",
+      "name": "MARMOT_FFI_GetDayOfWeek",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 58,
-      "name": "MIDORI_FFI_GetDayOfYear",
+      "name": "MARMOT_FFI_GetDayOfYear",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 59,
-      "name": "MIDORI_FFI_FormatTime",
+      "name": "MARMOT_FFI_FormatTime",
       "arguments": [
         "CString"
       ],
@@ -1500,67 +1500,67 @@
     },
     {
       "id": 60,
-      "name": "MIDORI_FFI_GetTimezoneOffset",
+      "name": "MARMOT_FFI_GetTimezoneOffset",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 61,
-      "name": "MIDORI_FFI_GetUtcYear",
+      "name": "MARMOT_FFI_GetUtcYear",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 62,
-      "name": "MIDORI_FFI_GetUtcMonth",
+      "name": "MARMOT_FFI_GetUtcMonth",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 63,
-      "name": "MIDORI_FFI_GetUtcDay",
+      "name": "MARMOT_FFI_GetUtcDay",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 64,
-      "name": "MIDORI_FFI_GetUtcHour",
+      "name": "MARMOT_FFI_GetUtcHour",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 65,
-      "name": "MIDORI_FFI_GetUtcMinute",
+      "name": "MARMOT_FFI_GetUtcMinute",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 66,
-      "name": "MIDORI_FFI_GetUtcSecond",
+      "name": "MARMOT_FFI_GetUtcSecond",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 67,
-      "name": "MIDORI_FFI_GetUtcDayOfWeek",
+      "name": "MARMOT_FFI_GetUtcDayOfWeek",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 68,
-      "name": "MIDORI_FFI_GetUtcDayOfYear",
+      "name": "MARMOT_FFI_GetUtcDayOfYear",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 69,
-      "name": "MIDORI_FFI_Exit",
+      "name": "MARMOT_FFI_Exit",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 70,
-      "name": "MIDORI_FFI_GetEnv",
+      "name": "MARMOT_FFI_GetEnv",
       "arguments": [
         "CString"
       ],
@@ -1568,7 +1568,7 @@
     },
     {
       "id": 71,
-      "name": "MIDORI_FFI_SetEnv",
+      "name": "MARMOT_FFI_SetEnv",
       "arguments": [
         "CString",
         "CString"
@@ -1577,19 +1577,19 @@
     },
     {
       "id": 72,
-      "name": "MIDORI_FFI_Sleep",
+      "name": "MARMOT_FFI_Sleep",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 73,
-      "name": "MIDORI_FFI_GetCurrentDirectory",
+      "name": "MARMOT_FFI_GetCurrentDirectory",
       "arguments": [],
       "returns": "CString"
     },
     {
       "id": 74,
-      "name": "MIDORI_FFI_SetCurrentDirectory",
+      "name": "MARMOT_FFI_SetCurrentDirectory",
       "arguments": [
         "CString"
       ],
@@ -1597,7 +1597,7 @@
     },
     {
       "id": 75,
-      "name": "MIDORI_FFI_Execute",
+      "name": "MARMOT_FFI_Execute",
       "arguments": [
         "CString"
       ],
@@ -1605,31 +1605,31 @@
     },
     {
       "id": 76,
-      "name": "MIDORI_FFI_GetPlatform",
+      "name": "MARMOT_FFI_GetPlatform",
       "arguments": [],
       "returns": "CString"
     },
     {
       "id": 77,
-      "name": "MIDORI_FFI_GetProcessId",
+      "name": "MARMOT_FFI_GetProcessId",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 78,
-      "name": "MIDORI_FFI_GetLastSystemErrorKind",
+      "name": "MARMOT_FFI_GetLastSystemErrorKind",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 79,
-      "name": "MIDORI_FFI_GetLastSystemErrorMessage",
+      "name": "MARMOT_FFI_GetLastSystemErrorMessage",
       "arguments": [],
       "returns": "CString"
     },
     {
       "id": 80,
-      "name": "MIDORI_FFI_ArrayConcat",
+      "name": "MARMOT_FFI_ArrayConcat",
       "arguments": [
         "TraceableHandle",
         "TraceableHandle"
@@ -1638,7 +1638,7 @@
     },
     {
       "id": 81,
-      "name": "MIDORI_FFI_ArrayLength",
+      "name": "MARMOT_FFI_ArrayLength",
       "arguments": [
         "TraceableHandle"
       ],
@@ -1646,7 +1646,7 @@
     },
     {
       "id": 82,
-      "name": "MIDORI_FFI_ArraySlice",
+      "name": "MARMOT_FFI_ArraySlice",
       "arguments": [
         "TraceableHandle",
         "ValueHandle",
@@ -1656,7 +1656,7 @@
     },
     {
       "id": 83,
-      "name": "MIDORI_FFI_ArrayReverse",
+      "name": "MARMOT_FFI_ArrayReverse",
       "arguments": [
         "TraceableHandle"
       ],
@@ -1664,7 +1664,7 @@
     },
     {
       "id": 84,
-      "name": "MIDORI_FFI_ArrayContains",
+      "name": "MARMOT_FFI_ArrayContains",
       "arguments": [
         "TraceableHandle",
         "ValueHandle"
@@ -1673,7 +1673,7 @@
     },
     {
       "id": 85,
-      "name": "MIDORI_FFI_TextConcat",
+      "name": "MARMOT_FFI_TextConcat",
       "arguments": [
         "TraceableHandle",
         "TraceableHandle"
@@ -1682,7 +1682,7 @@
     },
     {
       "id": 86,
-      "name": "MIDORI_FFI_TextLength",
+      "name": "MARMOT_FFI_TextLength",
       "arguments": [
         "CString"
       ],
@@ -1690,7 +1690,7 @@
     },
     {
       "id": 87,
-      "name": "MIDORI_FFI_TextSubstring",
+      "name": "MARMOT_FFI_TextSubstring",
       "arguments": [
         "TraceableHandle",
         "ValueHandle",
@@ -1700,7 +1700,7 @@
     },
     {
       "id": 88,
-      "name": "MIDORI_FFI_TextSplit",
+      "name": "MARMOT_FFI_TextSplit",
       "arguments": [
         "TraceableHandle",
         "TraceableHandle"
@@ -1709,7 +1709,7 @@
     },
     {
       "id": 89,
-      "name": "MIDORI_FFI_TextReverse",
+      "name": "MARMOT_FFI_TextReverse",
       "arguments": [
         "TraceableHandle"
       ],
@@ -1717,7 +1717,7 @@
     },
     {
       "id": 90,
-      "name": "MIDORI_FFI_TextContains",
+      "name": "MARMOT_FFI_TextContains",
       "arguments": [
         "TraceableHandle",
         "TraceableHandle"
@@ -1726,7 +1726,7 @@
     },
     {
       "id": 91,
-      "name": "MIDORI_FFI_TextReplace",
+      "name": "MARMOT_FFI_TextReplace",
       "arguments": [
         "TraceableHandle",
         "TraceableHandle",
@@ -1736,7 +1736,7 @@
     },
     {
       "id": 92,
-      "name": "MIDORI_FFI_TextTrim",
+      "name": "MARMOT_FFI_TextTrim",
       "arguments": [
         "TraceableHandle"
       ],
@@ -1744,7 +1744,7 @@
     },
     {
       "id": 93,
-      "name": "MIDORI_FFI_TextFromCodePoint",
+      "name": "MARMOT_FFI_TextFromCodePoint",
       "arguments": [
         "ValueHandle"
       ],
@@ -1752,7 +1752,7 @@
     },
     {
       "id": 94,
-      "name": "MIDORI_FFI_TextCodePointAt",
+      "name": "MARMOT_FFI_TextCodePointAt",
       "arguments": [
         "TraceableHandle",
         "ValueHandle"
@@ -1761,7 +1761,7 @@
     },
     {
       "id": 95,
-      "name": "MIDORI_FFI_TextIsInteger",
+      "name": "MARMOT_FFI_TextIsInteger",
       "arguments": [
         "TraceableHandle"
       ],
@@ -1769,7 +1769,7 @@
     },
     {
       "id": 96,
-      "name": "MIDORI_FFI_TextIsFloat",
+      "name": "MARMOT_FFI_TextIsFloat",
       "arguments": [
         "TraceableHandle"
       ],
@@ -1777,7 +1777,7 @@
     },
     {
       "id": 97,
-      "name": "MIDORI_FFI_HashText",
+      "name": "MARMOT_FFI_HashText",
       "arguments": [
         "CString"
       ],
@@ -1785,19 +1785,19 @@
     },
     {
       "id": 98,
-      "name": "MIDORI_FFI_HashFloat",
+      "name": "MARMOT_FFI_HashFloat",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 99,
-      "name": "MIDORI_FFI_GetMonotonicNanos",
+      "name": "MARMOT_FFI_GetMonotonicNanos",
       "arguments": [],
       "returns": "RawValue"
     },
     {
       "id": 100,
-      "name": "MIDORI_FFI_TextCompare",
+      "name": "MARMOT_FFI_TextCompare",
       "arguments": [
         "TraceableHandle",
         "TraceableHandle"
@@ -1806,7 +1806,7 @@
     },
     {
       "id": 101,
-      "name": "MIDORI_FFI_ListDirectory",
+      "name": "MARMOT_FFI_ListDirectory",
       "arguments": [
         "CString"
       ],
@@ -1814,7 +1814,7 @@
     },
     {
       "id": 102,
-      "name": "MIDORI_FFI_MakeDirectory",
+      "name": "MARMOT_FFI_MakeDirectory",
       "arguments": [
         "CString"
       ],
@@ -1822,7 +1822,7 @@
     },
     {
       "id": 103,
-      "name": "MIDORI_FFI_DirectoryExists",
+      "name": "MARMOT_FFI_DirectoryExists",
       "arguments": [
         "CString"
       ],
@@ -1830,7 +1830,7 @@
     },
     {
       "id": 104,
-      "name": "MIDORI_FFI_FileChecksum",
+      "name": "MARMOT_FFI_FileChecksum",
       "arguments": [
         "CString"
       ],
@@ -1838,7 +1838,7 @@
     },
     {
       "id": 105,
-      "name": "MIDORI_FFI_RunProcess",
+      "name": "MARMOT_FFI_RunProcess",
       "arguments": [
         "TraceableHandle",
         "CString"
@@ -1847,13 +1847,13 @@
     },
     {
       "id": 106,
-      "name": "MIDORI_FFI_GetArguments",
+      "name": "MARMOT_FFI_GetArguments",
       "arguments": [],
       "returns": "ArrayStrings"
     },
     {
       "id": 107,
-      "name": "MIDORI_FFI_TextCodePoints",
+      "name": "MARMOT_FFI_TextCodePoints",
       "arguments": [
         "TraceableHandle"
       ],
@@ -1861,7 +1861,7 @@
     },
     {
       "id": 108,
-      "name": "MIDORI_FFI_TextFromCodePoints",
+      "name": "MARMOT_FFI_TextFromCodePoints",
       "arguments": [
         "TraceableHandle"
       ],

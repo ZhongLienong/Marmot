@@ -12,7 +12,7 @@
 // Everything between a compiled program and its run: reading a .mmc, loading
 // the native libraries it names, and running it. marmotvm is a thin command
 // line over this; nothing here compiles.
-namespace MidoriProgramLoader
+namespace MarmotProgramLoader
 {
 	// Where the native libraries a program names are, on this machine.
 	struct NativeLibraryLocations

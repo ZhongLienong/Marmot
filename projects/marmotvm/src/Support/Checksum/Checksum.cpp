@@ -159,7 +159,7 @@ namespace
 
 }
 
-namespace MidoriChecksum
+namespace MarmotChecksum
 {
 
 	std::expected<std::string, std::string> HashFile(const std::filesystem::path& path)

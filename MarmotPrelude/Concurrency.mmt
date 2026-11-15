@@ -12,21 +12,21 @@ public export { Spawn, Join, MakeChannel, Close, IsDone, Cancel, WorkerError, Jo
 // parameters: the value itself for one, a tuple spread across them for several, and
 // `()` for none, so a value can be piped in: `(ch, 5) |> Concurrency::Spawn(Producer)`.
 // The type written here is the one-parameter case, and the compiler checks the others.
-foreign "MIDORI_PRIMITIVE_Spawn" Spawn: fn(A, fn(A) -> R) -> Worker < R >;
+foreign "MARMOT_PRIMITIVE_Spawn" Spawn: fn(A, fn(A) -> R) -> Worker < R >;
 // Join(w) waits for the worker. A cancelled or failed worker is an ordinary value the
 // joining code can inspect and recover from, rather than an error that stops it. The
 // VM builds the result by position, so the compiler checks that Result's first member
 // holds the value and its second a WorkerError, and that WorkerError's first member
 // holds nothing and its second the worker's error message.
-foreign "MIDORI_PRIMITIVE_Join" Join: fn(Worker < T >) -> Result < T, WorkerError >;
+foreign "MARMOT_PRIMITIVE_Join" Join: fn(Worker < T >) -> Result < T, WorkerError >;
 // MakeChannel(capacity) takes its element type from where it is bound:
 // `def ch : Channel<Int> = Concurrency::MakeChannel(4);`. Only a transferable value
 // can go through a channel, so only such a channel can be made.
-foreign "MIDORI_PRIMITIVE_ChannelNew" ChannelNew: fn(Int) -> Channel < T >;
+foreign "MARMOT_PRIMITIVE_ChannelNew" ChannelNew: fn(Int) -> Channel < T >;
 def MakeChannel = fn < T >(capacity: Int) -> Channel < T > where Transferable < T > => ChannelNew(capacity);
-foreign "MIDORI_PRIMITIVE_ChannelClose" Close: fn(Channel < T >) -> Unit;
-foreign "MIDORI_PRIMITIVE_WorkerIsDone" IsDone: fn(Worker < T >) -> Bool;
-foreign "MIDORI_PRIMITIVE_WorkerCancel" Cancel: fn(Worker < T >) -> Bool;
+foreign "MARMOT_PRIMITIVE_ChannelClose" Close: fn(Channel < T >) -> Unit;
+foreign "MARMOT_PRIMITIVE_WorkerIsDone" IsDone: fn(Worker < T >) -> Bool;
+foreign "MARMOT_PRIMITIVE_WorkerCancel" Cancel: fn(Worker < T >) -> Bool;
 // What Join reports when a worker does not produce its value.
 type WorkerError = Cancelled | Failed(Text);
 // For code that treats a worker failure as fatal, which is what joining itself did

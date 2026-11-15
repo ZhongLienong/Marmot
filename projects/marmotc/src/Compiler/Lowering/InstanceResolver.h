@@ -59,8 +59,8 @@ class InstanceResolver
 public:
 	using ClassMethods = std::unordered_map<std::string, std::unordered_set<std::string>>;
 	using ClassInstances = std::unordered_map<std::string, std::vector<std::string>>;
-	using ClassInstanceTypes = std::unordered_map<std::string, std::vector<std::vector<std::shared_ptr<MidoriType>>>>;
-	using AssociatedTypeBindings = std::unordered_map<std::string, std::shared_ptr<MidoriType>>;
+	using ClassInstanceTypes = std::unordered_map<std::string, std::vector<std::vector<std::shared_ptr<MarmotType>>>>;
+	using AssociatedTypeBindings = std::unordered_map<std::string, std::shared_ptr<MarmotType>>;
 	// Each class's instances' associated type bindings, in the order of their
 	// type arguments in ClassInstanceTypes.
 	using ClassInstanceAssociatedTypes = std::unordered_map<std::string, std::vector<AssociatedTypeBindings>>;
@@ -70,52 +70,52 @@ private:
 	ClassMethods m_class_methods;
 	ClassInstances m_class_instances;
 	ClassInstanceTypes m_class_instance_type_args;
-	std::unordered_map<std::string, std::vector<std::pair<std::vector<std::shared_ptr<MidoriType>>, AssociatedTypeBindings>>> m_associated_types;
+	std::unordered_map<std::string, std::vector<std::pair<std::vector<std::shared_ptr<MarmotType>>, AssociatedTypeBindings>>> m_associated_types;
 	IsModuleGlobal m_is_module_global;
 
 public:
 	InstanceResolver(ClassMethods class_methods, ClassInstances class_instances, ClassInstanceTypes class_instance_type_args, const ClassInstanceAssociatedTypes& associated_types, IsModuleGlobal is_module_global);
 
 	void AddClass(const std::string& class_name, std::unordered_set<std::string> method_names);
-	void AddInstanceTypeArgs(const std::string& class_name, const std::vector<std::shared_ptr<MidoriType>>& type_args);
+	void AddInstanceTypeArgs(const std::string& class_name, const std::vector<std::shared_ptr<MarmotType>>& type_args);
 	void AddInstanceMethod(const std::string& class_name, const std::string& method_name);
-	void AddAssociatedTypes(const std::string& class_name, const std::vector<std::shared_ptr<MidoriType>>& type_args, AssociatedTypeBindings bindings);
+	void AddAssociatedTypes(const std::string& class_name, const std::vector<std::shared_ptr<MarmotType>>& type_args, AssociatedTypeBindings bindings);
 
 	bool IsClassMethod(const std::string& qualified_name) const;
 
 	std::optional<std::string> ResolveInstanceName(const std::string& class_name, const std::string& base_name) const;
 	// What the instance its concrete type arguments select binds a projection to.
-	std::optional<std::shared_ptr<MidoriType>> ResolveAssociatedType(const MidoriType::AssociatedType& projection) const;
-	std::optional<std::string> ResolveInstanceNameForTypeArgs(const std::string& class_name, const std::string& method_name, const std::vector<std::shared_ptr<MidoriType>>& concrete_type_args) const;
+	std::optional<std::shared_ptr<MarmotType>> ResolveAssociatedType(const MarmotType::AssociatedType& projection) const;
+	std::optional<std::string> ResolveInstanceNameForTypeArgs(const std::string& class_name, const std::string& method_name, const std::vector<std::shared_ptr<MarmotType>>& concrete_type_args) const;
 
 	// The candidates a specialization's constraints give each of their
 	// classes' methods, once `substitutions` makes their type arguments concrete.
-	MethodResolutionMap ResolveConstraints(const std::vector<MidoriType::ClassConstraint>& constraints, const GenericTypes::TypeEnvironment& substitutions) const;
+	MethodResolutionMap ResolveConstraints(const std::vector<MarmotType::ClassConstraint>& constraints, const GenericTypes::TypeEnvironment& substitutions) const;
 
 	// A call of a method a constraint in scope provides; nothing when no
 	// constraint is on the first argument's type, a call at a concrete type.
-	MethodResolution<std::optional<std::string>> ResolveConstrainedCall(const MethodResolutionMap& resolutions, const std::string& callee_name, const std::shared_ptr<MidoriType>* first_argument_type, const std::shared_ptr<MidoriType>& return_type) const;
+	MethodResolution<std::optional<std::string>> ResolveConstrainedCall(const MethodResolutionMap& resolutions, const std::string& callee_name, const std::shared_ptr<MarmotType>* first_argument_type, const std::shared_ptr<MarmotType>& return_type) const;
 	// A method a constraint in scope provides, used as a value.
 	MethodResolution<std::string> ResolveConstrainedValue(const MethodResolutionMap& resolutions, const std::string& name) const;
 	// A call of `Class::Method` with concrete arguments; nothing when the name
 	// is no class method.
-	MethodResolution<std::optional<std::string>> ResolveConcreteCall(const std::string& callee_name, const std::vector<std::shared_ptr<MidoriType>>& argument_types, const std::shared_ptr<MidoriType>& return_type) const;
+	MethodResolution<std::optional<std::string>> ResolveConcreteCall(const std::string& callee_name, const std::vector<std::shared_ptr<MarmotType>>& argument_types, const std::shared_ptr<MarmotType>& return_type) const;
 
-	MethodResolution<std::string> ResolveConcat(const MethodResolutionMap& resolutions, const std::shared_ptr<MidoriType>& operand_type) const;
-	MethodResolution<std::string> ResolveEquals(const std::shared_ptr<MidoriType>& operand_type) const;
-	MethodResolution<std::string> ResolveCompare(const std::shared_ptr<MidoriType>& operand_type) const;
-	MethodResolution<std::string> ResolveOperandInstance(const std::string& class_name, const std::string& method_name, const std::shared_ptr<MidoriType>& operand_type) const;
+	MethodResolution<std::string> ResolveConcat(const MethodResolutionMap& resolutions, const std::shared_ptr<MarmotType>& operand_type) const;
+	MethodResolution<std::string> ResolveEquals(const std::shared_ptr<MarmotType>& operand_type) const;
+	MethodResolution<std::string> ResolveCompare(const std::shared_ptr<MarmotType>& operand_type) const;
+	MethodResolution<std::string> ResolveOperandInstance(const std::string& class_name, const std::string& method_name, const std::shared_ptr<MarmotType>& operand_type) const;
 	// Nothing when `#` does not need Countable.
-	MethodResolution<std::optional<std::string>> ResolveCount(const MethodResolutionMap& resolutions, const std::shared_ptr<MidoriType>& operand_type, bool uses_countable) const;
-	MethodResolution<std::string> ResolveIndex(const MethodResolutionMap& resolutions, const std::shared_ptr<MidoriType>& container_type, const std::shared_ptr<MidoriType>& index_type) const;
+	MethodResolution<std::optional<std::string>> ResolveCount(const MethodResolutionMap& resolutions, const std::shared_ptr<MarmotType>& operand_type, bool uses_countable) const;
+	MethodResolution<std::string> ResolveIndex(const MethodResolutionMap& resolutions, const std::shared_ptr<MarmotType>& container_type, const std::shared_ptr<MarmotType>& index_type) const;
 	// Nothing when the conversion is a builtin one or erases a newtype. A
 	// constraint in scope is looked up by `concrete_from_type`, the operand's
 	// type once the specialization being emitted substitutes it.
-	MethodResolution<std::optional<std::string>> ResolveConvert(const MethodResolutionMap& resolutions, const std::shared_ptr<MidoriType>& concrete_from_type, const std::shared_ptr<MidoriType>& from_type, const std::shared_ptr<MidoriType>& to_type, bool uses_convertable) const;
-	MethodResolution<std::string> ResolveIterableNext(const MethodResolutionMap& resolutions, const std::shared_ptr<MidoriType>& iterator_type, const std::shared_ptr<MidoriType>& item_type) const;
+	MethodResolution<std::optional<std::string>> ResolveConvert(const MethodResolutionMap& resolutions, const std::shared_ptr<MarmotType>& concrete_from_type, const std::shared_ptr<MarmotType>& from_type, const std::shared_ptr<MarmotType>& to_type, bool uses_convertable) const;
+	MethodResolution<std::string> ResolveIterableNext(const MethodResolutionMap& resolutions, const std::shared_ptr<MarmotType>& iterator_type, const std::shared_ptr<MarmotType>& item_type) const;
 
 private:
 	// The one instance of `class_name` whose type arguments match, through
 	// `matches`; an error names `description` when two do.
-	MethodResolution<std::optional<std::string>> MatchSingleInstance(const std::string& class_name, const std::string& method_name, const std::function<bool(const std::vector<std::shared_ptr<MidoriType>>&, GenericTypes::TypeEnvironment&)>& matches, const std::string& ambiguity_message) const;
+	MethodResolution<std::optional<std::string>> MatchSingleInstance(const std::string& class_name, const std::string& method_name, const std::function<bool(const std::vector<std::shared_ptr<MarmotType>>&, GenericTypes::TypeEnvironment&)>& matches, const std::string& ambiguity_message) const;
 };

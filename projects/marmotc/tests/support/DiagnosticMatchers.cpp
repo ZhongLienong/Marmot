@@ -59,7 +59,7 @@ namespace
 			}
 		}
 
-		const std::string stripped_rendered = MidoriTest::StripAnsiCodes(diagnostic.Rendered());
+		const std::string stripped_rendered = MarmotTest::StripAnsiCodes(diagnostic.Rendered());
 		for (const std::string& substring : rendered_substrings)
 		{
 			if (stripped_rendered.find(substring) == std::string::npos)
@@ -73,7 +73,7 @@ namespace
 	}
 }
 
-namespace MidoriTest
+namespace MarmotTest
 {
 	std::string StripAnsiCodes(std::string_view text)
 	{
@@ -128,32 +128,32 @@ namespace MidoriTest
 			mismatch);
 	}
 
-	const CompilerWarning* FindWarning(const MidoriResult::CompilerWarnings& warnings, CompilerWarningCode code)
+	const CompilerWarning* FindWarning(const MarmotResult::CompilerWarnings& warnings, CompilerWarningCode code)
 	{
 		return FindWarning(warnings.m_items, code);
 	}
 
-	const CompilerWarning* FindWarning(const MidoriResult::CompilerWarnings& warnings, CompilerStage stage)
+	const CompilerWarning* FindWarning(const MarmotResult::CompilerWarnings& warnings, CompilerStage stage)
 	{
 		return FindWarning(warnings.m_items, stage);
 	}
 
-	const CompilerWarning* FindWarning(const MidoriResult::CompilerWarnings& warnings, CompilerStage stage, CompilerWarningCode code)
+	const CompilerWarning* FindWarning(const MarmotResult::CompilerWarnings& warnings, CompilerStage stage, CompilerWarningCode code)
 	{
 		return FindWarning(warnings.m_items, stage, code);
 	}
 
-	const CompilerWarning* FindWarning(const MidoriResult::CompilerReport& report, CompilerWarningCode code)
+	const CompilerWarning* FindWarning(const MarmotResult::CompilerReport& report, CompilerWarningCode code)
 	{
 		return FindWarning(report.m_warnings, code);
 	}
 
-	const CompilerWarning* FindWarning(const MidoriResult::CompilerReport& report, CompilerStage stage)
+	const CompilerWarning* FindWarning(const MarmotResult::CompilerReport& report, CompilerStage stage)
 	{
 		return FindWarning(report.m_warnings, stage);
 	}
 
-	const CompilerWarning* FindWarning(const MidoriResult::CompilerReport& report, CompilerStage stage, CompilerWarningCode code)
+	const CompilerWarning* FindWarning(const MarmotResult::CompilerReport& report, CompilerStage stage, CompilerWarningCode code)
 	{
 		return FindWarning(report.m_warnings, stage, code);
 	}
@@ -215,17 +215,17 @@ namespace MidoriTest
 		return std::addressof(*warning_it);
 	}
 
-	const CompilerError* FindError(const MidoriResult::CompilerDiagnostics& diagnostics, CompilerStage stage)
+	const CompilerError* FindError(const MarmotResult::CompilerDiagnostics& diagnostics, CompilerStage stage)
 	{
 		return FindError(diagnostics.m_items, stage);
 	}
 
-	const CompilerError* FindError(const MidoriResult::CompilerDiagnostics& diagnostics, CompilerErrorCode code)
+	const CompilerError* FindError(const MarmotResult::CompilerDiagnostics& diagnostics, CompilerErrorCode code)
 	{
 		return FindError(diagnostics.m_items, code);
 	}
 
-	const CompilerError* FindError(const MidoriResult::CompilerDiagnostics& diagnostics, CompilerStage stage, CompilerErrorCode code)
+	const CompilerError* FindError(const MarmotResult::CompilerDiagnostics& diagnostics, CompilerStage stage, CompilerErrorCode code)
 	{
 		return FindError(diagnostics.m_items, stage, code);
 	}

@@ -3,8 +3,8 @@ type Pair =
 {
 value: Int
 };
-foreign "MIDORI_FFI_ReadPairA" ReadPairA : fn() -> Pair;
-foreign "MIDORI_FFI_ReadPairB" ReadPairB : fn() -> Pair;
+foreign "MARMOT_FFI_ReadPairA" ReadPairA : fn() -> Pair;
+foreign "MARMOT_FFI_ReadPairB" ReadPairB : fn() -> Pair;
 def main = fn() -> Int => {
 def used = 1;
 def unused = 2;

@@ -39,7 +39,7 @@ TEST_CASE("Source prefetch overlaps reads within the shared job budget", "[modul
 	loader.Prefetch({ "First", "Second" });
 	for (const std::string& file_path : { "First", "Second", "Third" })
 	{
-		MidoriResult::Result<ImportedSource> source = loader.Take(file_path, "Main", 2);
+		MarmotResult::Result<ImportedSource> source = loader.Take(file_path, "Main", 2);
 		REQUIRE(source.has_value());
 		REQUIRE(source->m_source_lines == std::vector<std::string>{ file_path });
 	}
@@ -70,7 +70,7 @@ TEST_CASE("Prefetched open errors name the importer that consumes the file", "[m
 		return std::unexpected(ModuleSourceLoader::OpenFailure::File);
 	});
 	loader.Prefetch({ "Directory.mmt", "Other.mmt" });
-	MidoriResult::Result<ImportedSource> source = loader.Take("Directory.mmt", "Nested.mmt", 7);
+	MarmotResult::Result<ImportedSource> source = loader.Take("Directory.mmt", "Nested.mmt", 7);
 	REQUIRE(!source.has_value());
 	REQUIRE(source.error().m_code == CompilerErrorCode::ModuleImportFileOpenFailed);
 	REQUIRE(source.error().m_location.has_value());

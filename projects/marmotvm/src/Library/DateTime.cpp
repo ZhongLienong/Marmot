@@ -1,4 +1,4 @@
-#include "Library/MidoriStdLibExports.h"
+#include "Library/MarmotStdLibExports.h"
 #include "Library/FFIAllocation/FFIAllocation.h"
 
 #include <chrono>
@@ -40,7 +40,7 @@ namespace
 
 extern "C"
 {
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetTime)(void**, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(GetTime)(void**, void* ret) noexcept
 	{
 		const std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
 		const std::chrono::time_point now_ms = std::chrono::time_point_cast<std::chrono::milliseconds>(now);
@@ -51,69 +51,69 @@ extern "C"
 		std::memcpy(ret, &val, sizeof(double));
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetMonotonicNanos)(void**, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(GetMonotonicNanos)(void**, void* ret) noexcept
 	{
 		const int64_t nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 		std::memcpy(ret, &nanos, sizeof(int64_t));
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetYear)(void**, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(GetYear)(void**, void* ret) noexcept
 	{
 		const std::tm local_tm = GetLocalTime();
 		const int64_t year = static_cast<int64_t>(local_tm.tm_year + 1900);
 		std::memcpy(ret, &year, sizeof(int64_t));
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetMonth)(void**, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(GetMonth)(void**, void* ret) noexcept
 	{
 		const std::tm local_tm = GetLocalTime();
 		const int64_t month = static_cast<int64_t>(local_tm.tm_mon + 1);
 		std::memcpy(ret, &month, sizeof(int64_t));
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetDay)(void**, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(GetDay)(void**, void* ret) noexcept
 	{
 		const std::tm local_tm = GetLocalTime();
 		const int64_t day = static_cast<int64_t>(local_tm.tm_mday);
 		std::memcpy(ret, &day, sizeof(int64_t));
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetHour)(void**, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(GetHour)(void**, void* ret) noexcept
 	{
 		const std::tm local_tm = GetLocalTime();
 		const int64_t hour = static_cast<int64_t>(local_tm.tm_hour);
 		std::memcpy(ret, &hour, sizeof(int64_t));
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetMinute)(void**, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(GetMinute)(void**, void* ret) noexcept
 	{
 		const std::tm local_tm = GetLocalTime();
 		const int64_t minute = static_cast<int64_t>(local_tm.tm_min);
 		std::memcpy(ret, &minute, sizeof(int64_t));
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetSecond)(void**, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(GetSecond)(void**, void* ret) noexcept
 	{
 		const std::tm local_tm = GetLocalTime();
 		const int64_t second = static_cast<int64_t>(local_tm.tm_sec);
 		std::memcpy(ret, &second, sizeof(int64_t));
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetDayOfWeek)(void**, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(GetDayOfWeek)(void**, void* ret) noexcept
 	{
 		const std::tm local_tm = GetLocalTime();
 		const int64_t day_of_week = static_cast<int64_t>(local_tm.tm_wday);
 		std::memcpy(ret, &day_of_week, sizeof(int64_t));
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetDayOfYear)(void**, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(GetDayOfYear)(void**, void* ret) noexcept
 	{
 		const std::tm local_tm = GetLocalTime();
 		const int64_t day_of_year = static_cast<int64_t>(local_tm.tm_yday + 1);
 		std::memcpy(ret, &day_of_year, sizeof(int64_t));
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(FormatTime)(void** args, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(FormatTime)(void** args, void* ret) noexcept
 	{
 		const char* format = reinterpret_cast<const char*>(args[0u]);
 		const std::tm local_tm = GetLocalTime();
@@ -126,7 +126,7 @@ extern "C"
 		std::memcpy(ret, &ptr, sizeof(int64_t));
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetTimezoneOffset)(void**, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(GetTimezoneOffset)(void**, void* ret) noexcept
 	{
 		const std::time_t now = std::time(nullptr);
 		std::tm local_tm{};
@@ -147,56 +147,56 @@ extern "C"
 		std::memcpy(ret, &offset_minutes, sizeof(int64_t));
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetUtcYear)(void**, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(GetUtcYear)(void**, void* ret) noexcept
 	{
 		const std::tm utc_tm = GetUtcTime();
 		const int64_t year = static_cast<int64_t>(utc_tm.tm_year + 1900);
 		std::memcpy(ret, &year, sizeof(int64_t));
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetUtcMonth)(void**, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(GetUtcMonth)(void**, void* ret) noexcept
 	{
 		const std::tm utc_tm = GetUtcTime();
 		const int64_t month = static_cast<int64_t>(utc_tm.tm_mon + 1);
 		std::memcpy(ret, &month, sizeof(int64_t));
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetUtcDay)(void**, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(GetUtcDay)(void**, void* ret) noexcept
 	{
 		const std::tm utc_tm = GetUtcTime();
 		const int64_t day = static_cast<int64_t>(utc_tm.tm_mday);
 		std::memcpy(ret, &day, sizeof(int64_t));
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetUtcHour)(void**, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(GetUtcHour)(void**, void* ret) noexcept
 	{
 		const std::tm utc_tm = GetUtcTime();
 		const int64_t hour = static_cast<int64_t>(utc_tm.tm_hour);
 		std::memcpy(ret, &hour, sizeof(int64_t));
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetUtcMinute)(void**, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(GetUtcMinute)(void**, void* ret) noexcept
 	{
 		const std::tm utc_tm = GetUtcTime();
 		const int64_t minute = static_cast<int64_t>(utc_tm.tm_min);
 		std::memcpy(ret, &minute, sizeof(int64_t));
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetUtcSecond)(void**, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(GetUtcSecond)(void**, void* ret) noexcept
 	{
 		const std::tm utc_tm = GetUtcTime();
 		const int64_t second = static_cast<int64_t>(utc_tm.tm_sec);
 		std::memcpy(ret, &second, sizeof(int64_t));
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetUtcDayOfWeek)(void**, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(GetUtcDayOfWeek)(void**, void* ret) noexcept
 	{
 		const std::tm utc_tm = GetUtcTime();
 		const int64_t day_of_week = static_cast<int64_t>(utc_tm.tm_wday);
 		std::memcpy(ret, &day_of_week, sizeof(int64_t));
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetUtcDayOfYear)(void**, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(GetUtcDayOfYear)(void**, void* ret) noexcept
 	{
 		const std::tm utc_tm = GetUtcTime();
 		const int64_t day_of_year = static_cast<int64_t>(utc_tm.tm_yday + 1);

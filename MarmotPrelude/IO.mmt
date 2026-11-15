@@ -5,25 +5,25 @@ use Result.{
 }
 public export { IOError, Print, PrintLine, PrintError, PrintErrorLine, ReadInput, ReadLine, FileExists, DirectoryExists, TryReadFile, TryWriteFile, TryAppendToFile, TryReadBinaryFile, TryWriteBinaryFile, TryDeleteFile, TryRenameFile, TryGetFileSize, TryListDirectory, TryMakeDirectory, TryFileChecksum }
 type IOError = NotFound(Text) | PermissionDenied(Text) | InvalidPath(Text) | UnknownIO(Text);
-foreign "MIDORI_FFI_Print" PrintRaw: fn(Text) -> Unit;
-foreign "MIDORI_FFI_PrintError" PrintErrorRaw: fn(Text) -> Unit;
-foreign "MIDORI_FFI_ReadInput" ReadInputRaw: fn() -> Text;
-foreign "MIDORI_FFI_ReadLine" ReadLineRaw: fn() -> Text;
-foreign "MIDORI_FFI_ReadFile" ReadFileRaw: fn(Text) -> Text;
-foreign "MIDORI_FFI_WriteFile" WriteFileRaw: fn(Text, Text) -> Bool;
-foreign "MIDORI_FFI_AppendToFile" AppendToFileRaw: fn(Text, Text) -> Bool;
-foreign "MIDORI_FFI_ReadBinaryFile" ReadBinaryFileRaw: fn(Text) -> Array < Byte >;
-foreign "MIDORI_FFI_WriteBinaryFile" WriteBinaryFileRaw: fn(Text, Array < Byte >) -> Bool;
-foreign "MIDORI_FFI_FileExists" FileExistsRaw: fn(Text) -> Bool;
-foreign "MIDORI_FFI_DeleteFile" DeleteFileRaw: fn(Text) -> Bool;
-foreign "MIDORI_FFI_RenameFile" RenameFileRaw: fn(Text, Text) -> Bool;
-foreign "MIDORI_FFI_GetFileSize" GetFileSizeRaw: fn(Text) -> Int;
-foreign "MIDORI_FFI_ListDirectory" ListDirectoryRaw: fn(Text) -> Array < Text >;
-foreign "MIDORI_FFI_MakeDirectory" MakeDirectoryRaw: fn(Text) -> Bool;
-foreign "MIDORI_FFI_DirectoryExists" DirectoryExistsRaw: fn(Text) -> Bool;
-foreign "MIDORI_FFI_FileChecksum" FileChecksumRaw: fn(Text) -> Text;
-foreign "MIDORI_FFI_GetLastIOErrorKind" GetLastIOErrorKindRaw: fn() -> Int;
-foreign "MIDORI_FFI_GetLastIOErrorMessage" GetLastIOErrorMessageRaw: fn() -> Text;
+foreign "MARMOT_FFI_Print" PrintRaw: fn(Text) -> Unit;
+foreign "MARMOT_FFI_PrintError" PrintErrorRaw: fn(Text) -> Unit;
+foreign "MARMOT_FFI_ReadInput" ReadInputRaw: fn() -> Text;
+foreign "MARMOT_FFI_ReadLine" ReadLineRaw: fn() -> Text;
+foreign "MARMOT_FFI_ReadFile" ReadFileRaw: fn(Text) -> Text;
+foreign "MARMOT_FFI_WriteFile" WriteFileRaw: fn(Text, Text) -> Bool;
+foreign "MARMOT_FFI_AppendToFile" AppendToFileRaw: fn(Text, Text) -> Bool;
+foreign "MARMOT_FFI_ReadBinaryFile" ReadBinaryFileRaw: fn(Text) -> Array < Byte >;
+foreign "MARMOT_FFI_WriteBinaryFile" WriteBinaryFileRaw: fn(Text, Array < Byte >) -> Bool;
+foreign "MARMOT_FFI_FileExists" FileExistsRaw: fn(Text) -> Bool;
+foreign "MARMOT_FFI_DeleteFile" DeleteFileRaw: fn(Text) -> Bool;
+foreign "MARMOT_FFI_RenameFile" RenameFileRaw: fn(Text, Text) -> Bool;
+foreign "MARMOT_FFI_GetFileSize" GetFileSizeRaw: fn(Text) -> Int;
+foreign "MARMOT_FFI_ListDirectory" ListDirectoryRaw: fn(Text) -> Array < Text >;
+foreign "MARMOT_FFI_MakeDirectory" MakeDirectoryRaw: fn(Text) -> Bool;
+foreign "MARMOT_FFI_DirectoryExists" DirectoryExistsRaw: fn(Text) -> Bool;
+foreign "MARMOT_FFI_FileChecksum" FileChecksumRaw: fn(Text) -> Text;
+foreign "MARMOT_FFI_GetLastIOErrorKind" GetLastIOErrorKindRaw: fn() -> Int;
+foreign "MARMOT_FFI_GetLastIOErrorMessage" GetLastIOErrorMessageRaw: fn() -> Text;
 def Print = fn(text: Text) -> Unit => PrintRaw(text);
 def PrintLine = fn(text: Text) -> Unit => {
     Print(text ++ "\n");

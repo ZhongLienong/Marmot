@@ -18,7 +18,7 @@ class CompilationInputs
 private:
 	std::vector<std::filesystem::path> m_search_paths;
 	std::unordered_map<std::string, NativeLibraryPolicy> m_native_library_policies;
-	bool m_emit_midori_ir = false;
+	bool m_emit_marmot_ir = false;
 	bool m_emit_ast = false;
 	std::optional<size_t> m_jobs;
 	bool m_emit_timings = false;
@@ -36,10 +36,10 @@ public:
 
 	const std::unordered_map<std::string, NativeLibraryPolicy>& NativeLibraryPolicies() const;
 
-	// Keep each module's MidoriIR as text in the compiled program.
-	CompilationInputs WithEmitMidoriIR(bool emit_midori_ir) &&;
+	// Keep each module's MarmotIR as text in the compiled program.
+	CompilationInputs WithEmitMarmotIR(bool emit_marmot_ir) &&;
 
-	bool EmitsMidoriIR() const;
+	bool EmitsMarmotIR() const;
 
 	// Keep each module's checked syntax tree as text in the compiled program.
 	CompilationInputs WithEmitAst(bool emit_ast) &&;

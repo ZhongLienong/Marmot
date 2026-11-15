@@ -152,20 +152,20 @@ def TestArrayFilter = fn(size : Int) -> Unit =>
 	IO::PrintLine("Array filter (even from " ++ (size as Text) ++ " elements, kept " ++ ((#filtered) as Text) ++ "): " ++ ((end - start) as Text) ++ " ms");
 };
 
-IO::PrintLine("=== MidoriText Benchmarks ===");
+IO::PrintLine("=== MarmotText Benchmarks ===");
 TestTextConcatenation(10000);
 TestTextAppend(10000);
 TestTextBuilding(5000);
 
 IO::PrintLine("");
-IO::PrintLine("=== MidoriArray<Int> Benchmarks ===");
+IO::PrintLine("=== MarmotArray<Int> Benchmarks ===");
 TestArrayAppend(10000);
 TestArrayConcatenation(5000);
 TestArrayAccess(10000, 100000);
 TestArrayIteration(50000);
 
 IO::PrintLine("");
-IO::PrintLine("=== MidoriArray<Text> Benchmarks ===");
+IO::PrintLine("=== MarmotArray<Text> Benchmarks ===");
 TestArrayOfText(5000);
 
 IO::PrintLine("");

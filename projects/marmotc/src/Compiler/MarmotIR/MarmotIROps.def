@@ -1,0 +1,176 @@
+// Every MarmotIR instruction. Include this after defining the macros you need;
+// any left undefined expands to nothing.
+//
+// MARMOT_IR_UNARY(name, operand, result, effect, fault)
+// MARMOT_IR_BINARY(name, operand, result, effect, fault)
+//     A fixed signature over scalar types, checked by the verifier from here.
+// MARMOT_IR_SPECIAL(name, effect, fault)
+//     A signature that depends on the operands' types, checked by hand.
+// MARMOT_IR_TERMINATOR(name)
+//     Ends a block. Defines no value.
+//
+// `effect` and `fault` are what the builder gives the instruction; a pass may
+// weaken them once it proves more, as SCCP does for a non-zero constant divisor.
+
+#ifndef MARMOT_IR_UNARY
+#define MARMOT_IR_UNARY(name, operand, result, effect, fault)
+#endif
+#ifndef MARMOT_IR_BINARY
+#define MARMOT_IR_BINARY(name, operand, result, effect, fault)
+#endif
+#ifndef MARMOT_IR_SPECIAL
+#define MARMOT_IR_SPECIAL(name, effect, fault)
+#endif
+#ifndef MARMOT_IR_TERMINATOR
+#define MARMOT_IR_TERMINATOR(name)
+#endif
+
+MARMOT_IR_SPECIAL(Const, Pure, None)
+
+MARMOT_IR_BINARY(AddInt, Int, Int, Pure, None)
+MARMOT_IR_BINARY(SubInt, Int, Int, Pure, None)
+MARMOT_IR_BINARY(MulInt, Int, Int, Pure, None)
+MARMOT_IR_BINARY(DivInt, Int, Int, Fault, DivisionByZero)
+MARMOT_IR_BINARY(ModInt, Int, Int, Fault, DivisionByZero)
+MARMOT_IR_UNARY(NegInt, Int, Int, Pure, None)
+MARMOT_IR_BINARY(AddFloat, Float, Float, Pure, None)
+MARMOT_IR_BINARY(SubFloat, Float, Float, Pure, None)
+MARMOT_IR_BINARY(MulFloat, Float, Float, Pure, None)
+MARMOT_IR_BINARY(DivFloat, Float, Float, Pure, None)
+MARMOT_IR_BINARY(ModFloat, Float, Float, Pure, None)
+MARMOT_IR_UNARY(NegFloat, Float, Float, Pure, None)
+MARMOT_IR_BINARY(AddByte, Byte, Byte, Pure, None)
+MARMOT_IR_BINARY(SubByte, Byte, Byte, Pure, None)
+MARMOT_IR_BINARY(MulByte, Byte, Byte, Pure, None)
+MARMOT_IR_BINARY(DivByte, Byte, Byte, Fault, DivisionByZero)
+MARMOT_IR_BINARY(ModByte, Byte, Byte, Fault, DivisionByZero)
+MARMOT_IR_BINARY(AddWord, Word, Word, Pure, None)
+MARMOT_IR_BINARY(SubWord, Word, Word, Pure, None)
+MARMOT_IR_BINARY(MulWord, Word, Word, Pure, None)
+MARMOT_IR_BINARY(DivWord, Word, Word, Fault, DivisionByZero)
+MARMOT_IR_BINARY(ModWord, Word, Word, Fault, DivisionByZero)
+
+MARMOT_IR_BINARY(BitAndInt, Int, Int, Pure, None)
+MARMOT_IR_BINARY(BitOrInt, Int, Int, Pure, None)
+MARMOT_IR_BINARY(BitXorInt, Int, Int, Pure, None)
+MARMOT_IR_UNARY(BitNotInt, Int, Int, Pure, None)
+MARMOT_IR_BINARY(ShlInt, Int, Int, Pure, None)
+MARMOT_IR_BINARY(ShrInt, Int, Int, Pure, None)
+MARMOT_IR_BINARY(BitAndByte, Byte, Byte, Pure, None)
+MARMOT_IR_BINARY(BitOrByte, Byte, Byte, Pure, None)
+MARMOT_IR_BINARY(BitXorByte, Byte, Byte, Pure, None)
+MARMOT_IR_UNARY(BitNotByte, Byte, Byte, Pure, None)
+MARMOT_IR_SPECIAL(ShlByte, Pure, None)
+MARMOT_IR_SPECIAL(ShrByte, Pure, None)
+MARMOT_IR_BINARY(BitAndWord, Word, Word, Pure, None)
+MARMOT_IR_BINARY(BitOrWord, Word, Word, Pure, None)
+MARMOT_IR_BINARY(BitXorWord, Word, Word, Pure, None)
+MARMOT_IR_UNARY(BitNotWord, Word, Word, Pure, None)
+MARMOT_IR_SPECIAL(ShlWord, Pure, None)
+MARMOT_IR_SPECIAL(ShrWord, Pure, None)
+
+MARMOT_IR_BINARY(EqInt, Int, Bool, Pure, None)
+MARMOT_IR_BINARY(NeInt, Int, Bool, Pure, None)
+MARMOT_IR_BINARY(LtInt, Int, Bool, Pure, None)
+MARMOT_IR_BINARY(LeInt, Int, Bool, Pure, None)
+MARMOT_IR_BINARY(GtInt, Int, Bool, Pure, None)
+MARMOT_IR_BINARY(GeInt, Int, Bool, Pure, None)
+MARMOT_IR_BINARY(EqFloat, Float, Bool, Pure, None)
+MARMOT_IR_BINARY(NeFloat, Float, Bool, Pure, None)
+MARMOT_IR_BINARY(LtFloat, Float, Bool, Pure, None)
+MARMOT_IR_BINARY(LeFloat, Float, Bool, Pure, None)
+MARMOT_IR_BINARY(GtFloat, Float, Bool, Pure, None)
+MARMOT_IR_BINARY(GeFloat, Float, Bool, Pure, None)
+MARMOT_IR_BINARY(EqByte, Byte, Bool, Pure, None)
+MARMOT_IR_BINARY(NeByte, Byte, Bool, Pure, None)
+MARMOT_IR_BINARY(LtByte, Byte, Bool, Pure, None)
+MARMOT_IR_BINARY(LeByte, Byte, Bool, Pure, None)
+MARMOT_IR_BINARY(GtByte, Byte, Bool, Pure, None)
+MARMOT_IR_BINARY(GeByte, Byte, Bool, Pure, None)
+MARMOT_IR_BINARY(EqWord, Word, Bool, Pure, None)
+MARMOT_IR_BINARY(NeWord, Word, Bool, Pure, None)
+MARMOT_IR_BINARY(LtWord, Word, Bool, Pure, None)
+MARMOT_IR_BINARY(LeWord, Word, Bool, Pure, None)
+MARMOT_IR_BINARY(GtWord, Word, Bool, Pure, None)
+MARMOT_IR_BINARY(GeWord, Word, Bool, Pure, None)
+MARMOT_IR_BINARY(EqBool, Bool, Bool, Pure, None)
+MARMOT_IR_BINARY(NeBool, Bool, Bool, Pure, None)
+MARMOT_IR_UNARY(NotBool, Bool, Bool, Pure, None)
+MARMOT_IR_BINARY(EqText, Text, Bool, Pure, None)
+MARMOT_IR_BINARY(NeText, Text, Bool, Pure, None)
+
+MARMOT_IR_UNARY(IntToFloat, Int, Float, Pure, None)
+MARMOT_IR_UNARY(FloatToInt, Float, Int, Pure, None)
+MARMOT_IR_UNARY(IntToText, Int, Text, Alloc, None)
+MARMOT_IR_UNARY(FloatToText, Float, Text, Alloc, None)
+MARMOT_IR_UNARY(WordToText, Word, Text, Alloc, None)
+MARMOT_IR_UNARY(TextToInt, Text, Int, Fault, Conversion)
+MARMOT_IR_UNARY(TextToFloat, Text, Float, Fault, Conversion)
+MARMOT_IR_UNARY(ByteToInt, Byte, Int, Pure, None)
+MARMOT_IR_UNARY(IntToByte, Int, Byte, Pure, None)
+MARMOT_IR_UNARY(ByteToWord, Byte, Word, Pure, None)
+MARMOT_IR_UNARY(WordToByte, Word, Byte, Pure, None)
+MARMOT_IR_UNARY(WordToInt, Word, Int, Pure, None)
+MARMOT_IR_UNARY(IntToWord, Int, Word, Pure, None)
+MARMOT_IR_UNARY(ByteToFloat, Byte, Float, Pure, None)
+MARMOT_IR_UNARY(FloatToByte, Float, Byte, Pure, None)
+MARMOT_IR_UNARY(WordToFloat, Word, Float, Pure, None)
+MARMOT_IR_UNARY(FloatToWord, Float, Word, Pure, None)
+
+MARMOT_IR_SPECIAL(MakeTuple, Alloc, None)
+MARMOT_IR_SPECIAL(TupleGet, Pure, None)
+MARMOT_IR_SPECIAL(MakeArray, Alloc, None)
+MARMOT_IR_SPECIAL(ArrayGet, Fault, Index)
+MARMOT_IR_SPECIAL(ArrayLength, Pure, None)
+MARMOT_IR_SPECIAL(Construct, Alloc, None)
+MARMOT_IR_SPECIAL(GetMember, Pure, None)
+MARMOT_IR_SPECIAL(RecordUpdate, Alloc, None)
+MARMOT_IR_SPECIAL(MakeRange, Alloc, None)
+MARMOT_IR_SPECIAL(RangeStart, Pure, None)
+MARMOT_IR_SPECIAL(RangeEnd, Pure, None)
+MARMOT_IR_SPECIAL(RangeStep, Pure, None)
+
+MARMOT_IR_SPECIAL(MakeUnion, Alloc, None)
+MARMOT_IR_SPECIAL(GetTag, Pure, None)
+MARMOT_IR_SPECIAL(UnionField, Pure, None)
+
+MARMOT_IR_SPECIAL(Concat, Alloc, None)
+MARMOT_IR_SPECIAL(Extend, Alloc, None)
+MARMOT_IR_SPECIAL(ArrayAppend, Alloc, None)
+
+MARMOT_IR_SPECIAL(Call, Call, None)
+MARMOT_IR_SPECIAL(CallGlobal, Call, None)
+MARMOT_IR_SPECIAL(CallForeign, Io, None)
+MARMOT_IR_SPECIAL(CallValue, Call, None)
+
+MARMOT_IR_SPECIAL(MakeClosure, Alloc, None)
+MARMOT_IR_SPECIAL(BindCaptures, Io, None)
+MARMOT_IR_SPECIAL(GetCapture, Pure, None)
+
+MARMOT_IR_SPECIAL(CellNew, Alloc, None)
+MARMOT_IR_SPECIAL(CellRead, Read, None)
+MARMOT_IR_SPECIAL(CellWrite, Io, None)
+
+MARMOT_IR_SPECIAL(GlobalDefine, Io, None)
+MARMOT_IR_SPECIAL(GlobalGet, Read, None)
+MARMOT_IR_SPECIAL(GlobalSet, Io, None)
+
+MARMOT_IR_SPECIAL(Spawn, Io, None)
+MARMOT_IR_SPECIAL(Join, Io, None)
+MARMOT_IR_SPECIAL(WorkerCancel, Io, None)
+MARMOT_IR_SPECIAL(WorkerIsDone, Io, None)
+MARMOT_IR_SPECIAL(ChannelNew, Io, None)
+MARMOT_IR_SPECIAL(Send, Io, None)
+MARMOT_IR_SPECIAL(Receive, Io, None)
+MARMOT_IR_SPECIAL(ChannelClose, Io, None)
+
+MARMOT_IR_TERMINATOR(Jump)
+MARMOT_IR_TERMINATOR(Branch)
+MARMOT_IR_TERMINATOR(Return)
+MARMOT_IR_TERMINATOR(TailCall)
+MARMOT_IR_TERMINATOR(Unreachable)
+
+#undef MARMOT_IR_UNARY
+#undef MARMOT_IR_BINARY
+#undef MARMOT_IR_SPECIAL
+#undef MARMOT_IR_TERMINATOR

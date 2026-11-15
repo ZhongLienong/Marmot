@@ -10,17 +10,17 @@
 
 namespace
 {
-	using TypeRef = std::shared_ptr<MidoriType>;
+	using TypeRef = std::shared_ptr<MarmotType>;
 
 	struct TypePairHash
 	{
-		size_t operator()(const std::pair<MidoriType*, MidoriType*>& pair) const
+		size_t operator()(const std::pair<MarmotType*, MarmotType*>& pair) const
 		{
-			return std::hash<MidoriType*>{}(pair.first) ^ (std::hash<MidoriType*>{}(pair.second) << 1u);
+			return std::hash<MarmotType*>{}(pair.first) ^ (std::hash<MarmotType*>{}(pair.second) << 1u);
 		}
 	};
 
-	using VisitedPairs = std::unordered_set<std::pair<MidoriType*, MidoriType*>, TypePairHash>;
+	using VisitedPairs = std::unordered_set<std::pair<MarmotType*, MarmotType*>, TypePairHash>;
 
 	bool MatchInstanceTypeArg(const TypeRef& pattern, const TypeRef& concrete, GenericTypes::TypeEnvironment& substitutions, VisitedPairs& visited);
 
@@ -54,9 +54,9 @@ namespace
 			return true;
 		}
 
-		if (pattern->IsType<MidoriType::GenericParam>())
+		if (pattern->IsType<MarmotType::GenericParam>())
 		{
-			const std::string& param_name = pattern->GetType<MidoriType::GenericParam>().m_name;
+			const std::string& param_name = pattern->GetType<MarmotType::GenericParam>().m_name;
 			const GenericTypes::TypeEnvironment::const_iterator bound = substitutions.find(param_name);
 			if (bound != substitutions.cend())
 			{
@@ -66,86 +66,86 @@ namespace
 			return true;
 		}
 
-		if (pattern->IsType<MidoriType::ArrayType>())
+		if (pattern->IsType<MarmotType::ArrayType>())
 		{
-			return concrete->IsType<MidoriType::ArrayType>() && MatchInstanceTypeArg(pattern->GetType<MidoriType::ArrayType>().m_element_type, concrete->GetType<MidoriType::ArrayType>().m_element_type, substitutions, visited);
+			return concrete->IsType<MarmotType::ArrayType>() && MatchInstanceTypeArg(pattern->GetType<MarmotType::ArrayType>().m_element_type, concrete->GetType<MarmotType::ArrayType>().m_element_type, substitutions, visited);
 		}
 
-		if (pattern->IsType<MidoriType::CellType>())
+		if (pattern->IsType<MarmotType::CellType>())
 		{
-			return concrete->IsType<MidoriType::CellType>() && MatchInstanceTypeArg(pattern->GetType<MidoriType::CellType>().m_element_type, concrete->GetType<MidoriType::CellType>().m_element_type, substitutions, visited);
+			return concrete->IsType<MarmotType::CellType>() && MatchInstanceTypeArg(pattern->GetType<MarmotType::CellType>().m_element_type, concrete->GetType<MarmotType::CellType>().m_element_type, substitutions, visited);
 		}
 
-		if (pattern->IsType<MidoriType::RangeType>())
+		if (pattern->IsType<MarmotType::RangeType>())
 		{
-			return concrete->IsType<MidoriType::RangeType>() && MatchInstanceTypeArg(pattern->GetType<MidoriType::RangeType>().m_element_type, concrete->GetType<MidoriType::RangeType>().m_element_type, substitutions, visited);
+			return concrete->IsType<MarmotType::RangeType>() && MatchInstanceTypeArg(pattern->GetType<MarmotType::RangeType>().m_element_type, concrete->GetType<MarmotType::RangeType>().m_element_type, substitutions, visited);
 		}
 
-		if (pattern->IsType<MidoriType::TupleType>())
+		if (pattern->IsType<MarmotType::TupleType>())
 		{
-			return concrete->IsType<MidoriType::TupleType>() && MatchAll(pattern->GetType<MidoriType::TupleType>().m_element_types, concrete->GetType<MidoriType::TupleType>().m_element_types, substitutions, visited);
+			return concrete->IsType<MarmotType::TupleType>() && MatchAll(pattern->GetType<MarmotType::TupleType>().m_element_types, concrete->GetType<MarmotType::TupleType>().m_element_types, substitutions, visited);
 		}
 
-		if (pattern->IsType<MidoriType::FunctionType>())
+		if (pattern->IsType<MarmotType::FunctionType>())
 		{
-			if (!concrete->IsType<MidoriType::FunctionType>())
+			if (!concrete->IsType<MarmotType::FunctionType>())
 			{
 				return false;
 			}
-			const MidoriType::FunctionType& pattern_function = pattern->GetType<MidoriType::FunctionType>();
-			const MidoriType::FunctionType& concrete_function = concrete->GetType<MidoriType::FunctionType>();
+			const MarmotType::FunctionType& pattern_function = pattern->GetType<MarmotType::FunctionType>();
+			const MarmotType::FunctionType& concrete_function = concrete->GetType<MarmotType::FunctionType>();
 			return MatchAll(pattern_function.m_param_types, concrete_function.m_param_types, substitutions, visited) && MatchInstanceTypeArg(pattern_function.m_return_type, concrete_function.m_return_type, substitutions, visited);
 		}
 
-		if (pattern->IsType<MidoriType::StructType>())
+		if (pattern->IsType<MarmotType::StructType>())
 		{
-			if (!concrete->IsType<MidoriType::StructType>())
+			if (!concrete->IsType<MarmotType::StructType>())
 			{
 				return false;
 			}
-			const MidoriType::StructType& pattern_struct = pattern->GetType<MidoriType::StructType>();
-			const MidoriType::StructType& concrete_struct = concrete->GetType<MidoriType::StructType>();
+			const MarmotType::StructType& pattern_struct = pattern->GetType<MarmotType::StructType>();
+			const MarmotType::StructType& concrete_struct = concrete->GetType<MarmotType::StructType>();
 			return pattern_struct.m_name == concrete_struct.m_name && pattern_struct.m_module_name == concrete_struct.m_module_name && MatchAll(pattern_struct.m_member_types, concrete_struct.m_member_types, substitutions, visited) && MatchTypeArguments(pattern_struct.m_type_arguments, concrete_struct.m_type_arguments, substitutions, visited);
 		}
 
-		if (pattern->IsType<MidoriType::UnionType>())
+		if (pattern->IsType<MarmotType::UnionType>())
 		{
-			if (!concrete->IsType<MidoriType::UnionType>())
+			if (!concrete->IsType<MarmotType::UnionType>())
 			{
 				return false;
 			}
-			const MidoriType::UnionType& pattern_union = pattern->GetType<MidoriType::UnionType>();
-			const MidoriType::UnionType& concrete_union = concrete->GetType<MidoriType::UnionType>();
+			const MarmotType::UnionType& pattern_union = pattern->GetType<MarmotType::UnionType>();
+			const MarmotType::UnionType& concrete_union = concrete->GetType<MarmotType::UnionType>();
 			if (pattern_union.m_name != concrete_union.m_name || pattern_union.m_module_name != concrete_union.m_module_name || pattern_union.m_member_info.size() != concrete_union.m_member_info.size() || !MatchTypeArguments(pattern_union.m_type_arguments, concrete_union.m_type_arguments, substitutions, visited))
 			{
 				return false;
 			}
-			return std::ranges::all_of(pattern_union.m_member_info, [&](const std::pair<const std::string, MidoriType::UnionType::UnionMemberContext>& member)
+			return std::ranges::all_of(pattern_union.m_member_info, [&](const std::pair<const std::string, MarmotType::UnionType::UnionMemberContext>& member)
 			{
-				const std::unordered_map<std::string, MidoriType::UnionType::UnionMemberContext>::const_iterator concrete_member = concrete_union.m_member_info.find(member.first);
+				const std::unordered_map<std::string, MarmotType::UnionType::UnionMemberContext>::const_iterator concrete_member = concrete_union.m_member_info.find(member.first);
 				return concrete_member != concrete_union.m_member_info.cend() && MatchAll(member.second.m_member_types, concrete_member->second.m_member_types, substitutions, visited);
 			});
 		}
 
-		if (pattern->IsType<MidoriType::NewType>())
+		if (pattern->IsType<MarmotType::NewType>())
 		{
-			if (!concrete->IsType<MidoriType::NewType>())
+			if (!concrete->IsType<MarmotType::NewType>())
 			{
 				return false;
 			}
-			const MidoriType::NewType& pattern_new_type = pattern->GetType<MidoriType::NewType>();
-			const MidoriType::NewType& concrete_new_type = concrete->GetType<MidoriType::NewType>();
+			const MarmotType::NewType& pattern_new_type = pattern->GetType<MarmotType::NewType>();
+			const MarmotType::NewType& concrete_new_type = concrete->GetType<MarmotType::NewType>();
 			return pattern_new_type.m_name == concrete_new_type.m_name && pattern_new_type.m_module_name == concrete_new_type.m_module_name && MatchInstanceTypeArg(pattern_new_type.m_representation, concrete_new_type.m_representation, substitutions, visited) && MatchTypeArguments(pattern_new_type.m_type_arguments, concrete_new_type.m_type_arguments, substitutions, visited);
 		}
 
-		if (pattern->IsType<MidoriType::AssociatedType>())
+		if (pattern->IsType<MarmotType::AssociatedType>())
 		{
-			if (!concrete->IsType<MidoriType::AssociatedType>())
+			if (!concrete->IsType<MarmotType::AssociatedType>())
 			{
 				return false;
 			}
-			const MidoriType::AssociatedType& pattern_associated = pattern->GetType<MidoriType::AssociatedType>();
-			const MidoriType::AssociatedType& concrete_associated = concrete->GetType<MidoriType::AssociatedType>();
+			const MarmotType::AssociatedType& pattern_associated = pattern->GetType<MarmotType::AssociatedType>();
+			const MarmotType::AssociatedType& concrete_associated = concrete->GetType<MarmotType::AssociatedType>();
 			return pattern_associated.m_class_name == concrete_associated.m_class_name && pattern_associated.m_name == concrete_associated.m_name && MatchAll(pattern_associated.m_type_args, concrete_associated.m_type_args, substitutions, visited);
 		}
 
@@ -204,7 +204,7 @@ InstanceResolver::InstanceResolver(ClassMethods class_methods, ClassInstances cl
 	}
 }
 
-void InstanceResolver::AddAssociatedTypes(const std::string& class_name, const std::vector<std::shared_ptr<MidoriType>>& type_args, AssociatedTypeBindings bindings)
+void InstanceResolver::AddAssociatedTypes(const std::string& class_name, const std::vector<std::shared_ptr<MarmotType>>& type_args, AssociatedTypeBindings bindings)
 {
 	if (!bindings.empty())
 	{
@@ -212,7 +212,7 @@ void InstanceResolver::AddAssociatedTypes(const std::string& class_name, const s
 	}
 }
 
-std::optional<std::shared_ptr<MidoriType>> InstanceResolver::ResolveAssociatedType(const MidoriType::AssociatedType& projection) const
+std::optional<std::shared_ptr<MarmotType>> InstanceResolver::ResolveAssociatedType(const MarmotType::AssociatedType& projection) const
 {
 	const std::unordered_map<std::string, std::vector<std::pair<std::vector<TypeRef>, AssociatedTypeBindings>>>::const_iterator instances = m_associated_types.find(projection.m_class_name);
 	if (instances == m_associated_types.cend())
@@ -238,7 +238,7 @@ void InstanceResolver::AddClass(const std::string& class_name, std::unordered_se
 	m_class_methods[class_name] = std::move(method_names);
 }
 
-void InstanceResolver::AddInstanceTypeArgs(const std::string& class_name, const std::vector<std::shared_ptr<MidoriType>>& type_args)
+void InstanceResolver::AddInstanceTypeArgs(const std::string& class_name, const std::vector<std::shared_ptr<MarmotType>>& type_args)
 {
 	std::vector<std::vector<TypeRef>>& existing = m_class_instance_type_args[class_name];
 	const bool is_present = std::ranges::any_of(existing, [&type_args](const std::vector<TypeRef>& candidate)
@@ -292,9 +292,9 @@ std::optional<std::string> InstanceResolver::ResolveInstanceName(const std::stri
 	return found == instances->second.cend() ? std::nullopt : std::optional<std::string>(*found);
 }
 
-std::optional<std::string> InstanceResolver::ResolveInstanceNameForTypeArgs(const std::string& class_name, const std::string& method_name, const std::vector<std::shared_ptr<MidoriType>>& concrete_type_args) const
+std::optional<std::string> InstanceResolver::ResolveInstanceNameForTypeArgs(const std::string& class_name, const std::string& method_name, const std::vector<std::shared_ptr<MarmotType>>& concrete_type_args) const
 {
-	const std::optional<std::string> exact = ResolveInstanceName(class_name, MidoriType::MangleInstanceMethodName(method_name, class_name, concrete_type_args));
+	const std::optional<std::string> exact = ResolveInstanceName(class_name, MarmotType::MangleInstanceMethodName(method_name, class_name, concrete_type_args));
 	if (exact.has_value())
 	{
 		return exact;
@@ -315,7 +315,7 @@ std::optional<std::string> InstanceResolver::ResolveInstanceNameForTypeArgs(cons
 			continue;
 		}
 
-		const std::optional<std::string> candidate = ResolveInstanceName(class_name, MidoriType::MangleInstanceMethodName(method_name, class_name, candidate_args));
+		const std::optional<std::string> candidate = ResolveInstanceName(class_name, MarmotType::MangleInstanceMethodName(method_name, class_name, candidate_args));
 		if (candidate.has_value())
 		{
 			return candidate;
@@ -324,10 +324,10 @@ std::optional<std::string> InstanceResolver::ResolveInstanceNameForTypeArgs(cons
 	return std::nullopt;
 }
 
-MethodResolutionMap InstanceResolver::ResolveConstraints(const std::vector<MidoriType::ClassConstraint>& constraints, const GenericTypes::TypeEnvironment& substitutions) const
+MethodResolutionMap InstanceResolver::ResolveConstraints(const std::vector<MarmotType::ClassConstraint>& constraints, const GenericTypes::TypeEnvironment& substitutions) const
 {
 	MethodResolutionMap resolutions;
-	for (const MidoriType::ClassConstraint& constraint : constraints)
+	for (const MarmotType::ClassConstraint& constraint : constraints)
 	{
 		const ClassMethods::const_iterator methods = m_class_methods.find(constraint.m_class_name);
 		if (methods == m_class_methods.cend())
@@ -344,14 +344,14 @@ MethodResolutionMap InstanceResolver::ResolveConstraints(const std::vector<Midor
 		for (const std::string& method_name : methods->second)
 		{
 			const std::optional<std::string> instance = ResolveInstanceNameForTypeArgs(constraint.m_class_name, method_name, concrete_type_args);
-			const std::string resolved = instance.value_or(MidoriType::MangleInstanceMethodName(method_name, constraint.m_class_name, concrete_type_args));
+			const std::string resolved = instance.value_or(MarmotType::MangleInstanceMethodName(method_name, constraint.m_class_name, concrete_type_args));
 			resolutions[QualifiedMethod(constraint.m_class_name, method_name)].emplace_back(first_type_name, second_type_name, resolved, instance.has_value());
 		}
 	}
 	return resolutions;
 }
 
-MethodResolution<std::optional<std::string>> InstanceResolver::ResolveConstrainedCall(const MethodResolutionMap& resolutions, const std::string& callee_name, const std::shared_ptr<MidoriType>* first_argument_type, const std::shared_ptr<MidoriType>& return_type) const
+MethodResolution<std::optional<std::string>> InstanceResolver::ResolveConstrainedCall(const MethodResolutionMap& resolutions, const std::string& callee_name, const std::shared_ptr<MarmotType>* first_argument_type, const std::shared_ptr<MarmotType>& return_type) const
 {
 	const std::vector<ResolvedMethodCandidate>& candidates = resolutions.at(callee_name);
 	if (first_argument_type == nullptr)
@@ -434,7 +434,7 @@ MethodResolution<std::string> InstanceResolver::ResolveConstrainedValue(const Me
 	return candidates[0u].m_resolved_name;
 }
 
-MethodResolution<std::optional<std::string>> InstanceResolver::ResolveConcreteCall(const std::string& callee_name, const std::vector<std::shared_ptr<MidoriType>>& argument_types, const std::shared_ptr<MidoriType>& return_type) const
+MethodResolution<std::optional<std::string>> InstanceResolver::ResolveConcreteCall(const std::string& callee_name, const std::vector<std::shared_ptr<MarmotType>>& argument_types, const std::shared_ptr<MarmotType>& return_type) const
 {
 	if (!IsClassMethod(callee_name))
 	{
@@ -489,7 +489,7 @@ MethodResolution<std::optional<std::string>> InstanceResolver::ResolveConcreteCa
 			continue;
 		}
 
-		const std::string mangled_name = MidoriType::MangleInstanceMethodName(method_name, qualifier, candidate_args);
+		const std::string mangled_name = MarmotType::MangleInstanceMethodName(method_name, qualifier, candidate_args);
 		const std::optional<std::string> resolved_name = ResolveInstanceName(qualifier, mangled_name);
 		candidates.emplace_back(candidate_args[0u]->ToString(), candidate_args.size() > 1u ? candidate_args[1u]->ToString() : std::string(), resolved_name.value_or(mangled_name), resolved_name.has_value());
 	}
@@ -509,7 +509,7 @@ MethodResolution<std::optional<std::string>> InstanceResolver::ResolveConcreteCa
 	return std::optional<std::string>(candidates[0u].m_resolved_name);
 }
 
-MethodResolution<std::optional<std::string>> InstanceResolver::MatchSingleInstance(const std::string& class_name, const std::string& method_name, const std::function<bool(const std::vector<std::shared_ptr<MidoriType>>&, GenericTypes::TypeEnvironment&)>& matches, const std::string& ambiguity_message) const
+MethodResolution<std::optional<std::string>> InstanceResolver::MatchSingleInstance(const std::string& class_name, const std::string& method_name, const std::function<bool(const std::vector<std::shared_ptr<MarmotType>>&, GenericTypes::TypeEnvironment&)>& matches, const std::string& ambiguity_message) const
 {
 	const ClassInstanceTypes::const_iterator instance_args = m_class_instance_type_args.find(class_name);
 	if (instance_args == m_class_instance_type_args.cend())
@@ -526,7 +526,7 @@ MethodResolution<std::optional<std::string>> InstanceResolver::MatchSingleInstan
 			continue;
 		}
 
-		std::optional<std::string> candidate = ResolveInstanceName(class_name, MidoriType::MangleInstanceMethodName(method_name, class_name, candidate_args));
+		std::optional<std::string> candidate = ResolveInstanceName(class_name, MarmotType::MangleInstanceMethodName(method_name, class_name, candidate_args));
 		if (!candidate.has_value())
 		{
 			continue;
@@ -540,7 +540,7 @@ MethodResolution<std::optional<std::string>> InstanceResolver::MatchSingleInstan
 	return resolved;
 }
 
-MethodResolution<std::string> InstanceResolver::ResolveConcat(const MethodResolutionMap& resolutions, const std::shared_ptr<MidoriType>& operand_type) const
+MethodResolution<std::string> InstanceResolver::ResolveConcat(const MethodResolutionMap& resolutions, const std::shared_ptr<MarmotType>& operand_type) const
 {
 	std::optional<std::string> resolved;
 	const std::vector<ResolvedMethodCandidate>* candidates = FindCandidates(resolutions, CONCATENABLE_CLASS_NAME, CONCAT_METHOD_NAME);
@@ -577,26 +577,26 @@ MethodResolution<std::string> InstanceResolver::ResolveConcat(const MethodResolu
 
 	if (!resolved.has_value())
 	{
-		return std::unexpected(MethodResolutionError(CompilerErrorCode::None, std::format("Concatenable instance method '{}' not found", MidoriType::MangleInstanceMethodName(std::string(CONCAT_METHOD_NAME), std::string(CONCATENABLE_CLASS_NAME), { operand_type }))));
+		return std::unexpected(MethodResolutionError(CompilerErrorCode::None, std::format("Concatenable instance method '{}' not found", MarmotType::MangleInstanceMethodName(std::string(CONCAT_METHOD_NAME), std::string(CONCATENABLE_CLASS_NAME), { operand_type }))));
 	}
 	return resolved.value();
 }
 
-MethodResolution<std::string> InstanceResolver::ResolveEquals(const std::shared_ptr<MidoriType>& operand_type) const
+MethodResolution<std::string> InstanceResolver::ResolveEquals(const std::shared_ptr<MarmotType>& operand_type) const
 {
 	return ResolveOperandInstance(std::string(EQUATABLE_CLASS_NAME), std::string(EQUALS_METHOD_NAME), operand_type);
 }
 
-MethodResolution<std::string> InstanceResolver::ResolveCompare(const std::shared_ptr<MidoriType>& operand_type) const
+MethodResolution<std::string> InstanceResolver::ResolveCompare(const std::shared_ptr<MarmotType>& operand_type) const
 {
 	return ResolveOperandInstance(std::string(ORDERABLE_CLASS_NAME), std::string(COMPARE_METHOD_NAME), operand_type);
 }
 
 // The instance an operator on one operand type calls: the one declared for
 // exactly that type, or else the single generic instance that matches it.
-MethodResolution<std::string> InstanceResolver::ResolveOperandInstance(const std::string& class_name, const std::string& method_name, const std::shared_ptr<MidoriType>& operand_type) const
+MethodResolution<std::string> InstanceResolver::ResolveOperandInstance(const std::string& class_name, const std::string& method_name, const std::shared_ptr<MarmotType>& operand_type) const
 {
-	const std::string mangled_name = MidoriType::MangleInstanceMethodName(method_name, class_name, { operand_type });
+	const std::string mangled_name = MarmotType::MangleInstanceMethodName(method_name, class_name, { operand_type });
 	if (m_is_module_global(mangled_name))
 	{
 		return mangled_name;
@@ -618,7 +618,7 @@ MethodResolution<std::string> InstanceResolver::ResolveOperandInstance(const std
 	return matched.value().value();
 }
 
-MethodResolution<std::optional<std::string>> InstanceResolver::ResolveCount(const MethodResolutionMap& resolutions, const std::shared_ptr<MidoriType>& operand_type, bool uses_countable) const
+MethodResolution<std::optional<std::string>> InstanceResolver::ResolveCount(const MethodResolutionMap& resolutions, const std::shared_ptr<MarmotType>& operand_type, bool uses_countable) const
 {
 	const std::vector<ResolvedMethodCandidate>* candidates = FindCandidates(resolutions, COUNTABLE_CLASS_NAME, COUNT_METHOD_NAME);
 	if (candidates != nullptr)
@@ -631,7 +631,7 @@ MethodResolution<std::optional<std::string>> InstanceResolver::ResolveCount(cons
 		}
 	}
 
-	if (operand_type->IsType<MidoriType::TypeVariable>())
+	if (operand_type->IsType<MarmotType::TypeVariable>())
 	{
 		if (uses_countable)
 		{
@@ -647,12 +647,12 @@ MethodResolution<std::optional<std::string>> InstanceResolver::ResolveCount(cons
 	}
 	if (uses_countable)
 	{
-		return std::unexpected(MethodResolutionError(CompilerErrorCode::None, std::format("Countable instance method '{}' not found", MidoriType::MangleInstanceMethodName(std::string(COUNT_METHOD_NAME), std::string(COUNTABLE_CLASS_NAME), { operand_type }))));
+		return std::unexpected(MethodResolutionError(CompilerErrorCode::None, std::format("Countable instance method '{}' not found", MarmotType::MangleInstanceMethodName(std::string(COUNT_METHOD_NAME), std::string(COUNTABLE_CLASS_NAME), { operand_type }))));
 	}
 	return std::nullopt;
 }
 
-MethodResolution<std::string> InstanceResolver::ResolveIndex(const MethodResolutionMap& resolutions, const std::shared_ptr<MidoriType>& container_type, const std::shared_ptr<MidoriType>& index_type) const
+MethodResolution<std::string> InstanceResolver::ResolveIndex(const MethodResolutionMap& resolutions, const std::shared_ptr<MarmotType>& container_type, const std::shared_ptr<MarmotType>& index_type) const
 {
 	const std::vector<ResolvedMethodCandidate>* candidates = FindCandidates(resolutions, INDEXABLE_CLASS_NAME, GET_METHOD_NAME);
 	if (candidates != nullptr)
@@ -669,7 +669,7 @@ MethodResolution<std::string> InstanceResolver::ResolveIndex(const MethodResolut
 		}
 	}
 
-	if (container_type->IsType<MidoriType::TypeVariable>())
+	if (container_type->IsType<MarmotType::TypeVariable>())
 	{
 		return std::unexpected(MethodResolutionError(CompilerErrorCode::None, "Cannot resolve Indexable instance for type variables outside of specialization context"));
 	}
@@ -679,12 +679,12 @@ MethodResolution<std::string> InstanceResolver::ResolveIndex(const MethodResolut
 	{
 		return resolved.value();
 	}
-	return std::unexpected(MethodResolutionError(CompilerErrorCode::None, std::format("Indexable instance method '{}' not found", MidoriType::MangleInstanceMethodName(std::string(GET_METHOD_NAME), std::string(INDEXABLE_CLASS_NAME), { container_type }))));
+	return std::unexpected(MethodResolutionError(CompilerErrorCode::None, std::format("Indexable instance method '{}' not found", MarmotType::MangleInstanceMethodName(std::string(GET_METHOD_NAME), std::string(INDEXABLE_CLASS_NAME), { container_type }))));
 }
 
-MethodResolution<std::optional<std::string>> InstanceResolver::ResolveConvert(const MethodResolutionMap& resolutions, const std::shared_ptr<MidoriType>& concrete_from_type, const std::shared_ptr<MidoriType>& from_type, const std::shared_ptr<MidoriType>& to_type, bool uses_convertable) const
+MethodResolution<std::optional<std::string>> InstanceResolver::ResolveConvert(const MethodResolutionMap& resolutions, const std::shared_ptr<MarmotType>& concrete_from_type, const std::shared_ptr<MarmotType>& from_type, const std::shared_ptr<MarmotType>& to_type, bool uses_convertable) const
 {
-	const bool has_type_variable = from_type->IsType<MidoriType::TypeVariable>() || to_type->IsType<MidoriType::TypeVariable>();
+	const bool has_type_variable = from_type->IsType<MarmotType::TypeVariable>() || to_type->IsType<MarmotType::TypeVariable>();
 	if (!uses_convertable && !has_type_variable)
 	{
 		return std::nullopt;
@@ -718,7 +718,7 @@ MethodResolution<std::optional<std::string>> InstanceResolver::ResolveConvert(co
 		return std::nullopt;
 	}
 
-	const std::string mangled_name = MidoriType::MangleInstanceMethodName(std::string(CONVERT_METHOD_NAME), std::string(CONVERTABLE_CLASS_NAME), { from_type, to_type });
+	const std::string mangled_name = MarmotType::MangleInstanceMethodName(std::string(CONVERT_METHOD_NAME), std::string(CONVERTABLE_CLASS_NAME), { from_type, to_type });
 	if (m_is_module_global(mangled_name))
 	{
 		return std::optional<std::string>(mangled_name);
@@ -740,7 +740,7 @@ MethodResolution<std::optional<std::string>> InstanceResolver::ResolveConvert(co
 	return std::nullopt;
 }
 
-MethodResolution<std::string> InstanceResolver::ResolveIterableNext(const MethodResolutionMap& resolutions, const std::shared_ptr<MidoriType>& iterator_type, const std::shared_ptr<MidoriType>& item_type) const
+MethodResolution<std::string> InstanceResolver::ResolveIterableNext(const MethodResolutionMap& resolutions, const std::shared_ptr<MarmotType>& iterator_type, const std::shared_ptr<MarmotType>& item_type) const
 {
 	const std::vector<ResolvedMethodCandidate>* candidates = FindCandidates(resolutions, ITERABLE_CLASS_NAME, NEXT_METHOD_NAME);
 	if (candidates != nullptr)
@@ -761,7 +761,7 @@ MethodResolution<std::string> InstanceResolver::ResolveIterableNext(const Method
 		}
 	}
 
-	if (iterator_type->IsType<MidoriType::TypeVariable>() || item_type->IsType<MidoriType::TypeVariable>())
+	if (iterator_type->IsType<MarmotType::TypeVariable>() || item_type->IsType<MarmotType::TypeVariable>())
 	{
 		return std::unexpected(MethodResolutionError(CompilerErrorCode::None, "Cannot resolve Iterable instance for type variables outside of specialization context"));
 	}

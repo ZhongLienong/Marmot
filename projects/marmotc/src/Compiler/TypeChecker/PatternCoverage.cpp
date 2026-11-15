@@ -20,20 +20,20 @@ PatternCoverage::Head::Head(int64_t low, int64_t high) : m_key(std::format("{}..
 {
 }
 
-PatternCoverage::Choice::Choice(const MidoriPattern* either, size_t begin, size_t end) : m_or(either), m_begin(begin), m_end(end)
+PatternCoverage::Choice::Choice(const MarmotPattern* either, size_t begin, size_t end) : m_or(either), m_begin(begin), m_end(end)
 {
 }
 
-PatternCoverage::NestedOr::NestedOr(const MidoriPattern* either, std::vector<Choice>&& path) : m_or(either), m_path(std::move(path))
+PatternCoverage::NestedOr::NestedOr(const MarmotPattern* either, std::vector<Choice>&& path) : m_or(either), m_path(std::move(path))
 {
 }
 
-void PatternCoverage::Add(const MidoriPattern& pattern)
+void PatternCoverage::Add(const MarmotPattern& pattern)
 {
 	m_rows.push_back(Row{ Strip(&pattern) });
 }
 
-bool PatternCoverage::IsUseful(const MidoriPattern& pattern) const
+bool PatternCoverage::IsUseful(const MarmotPattern& pattern) const
 {
 	return Useful(m_rows, Row{ Strip(&pattern) });
 }
@@ -43,7 +43,7 @@ bool PatternCoverage::IsUseful(const MidoriPattern& pattern) const
 // the branch that leads there. It can match when some such value is taken
 // neither by an earlier case, nor by an earlier alternative of this or-pattern,
 // nor by an earlier alternative of one around it.
-const MidoriPattern* PatternCoverage::FindUnreachableAlternative(const MidoriPattern& pattern) const
+const MarmotPattern* PatternCoverage::FindUnreachableAlternative(const MarmotPattern& pattern) const
 {
 	std::vector<Choice> path;
 	std::vector<NestedOr> ors;
@@ -51,10 +51,10 @@ const MidoriPattern* PatternCoverage::FindUnreachableAlternative(const MidoriPat
 
 	for (const NestedOr& nested : ors)
 	{
-		const std::vector<std::unique_ptr<MidoriPattern>>& alternatives = nested.m_or->GetPattern<MidoriPattern::Or>().m_alternatives;
+		const std::vector<std::unique_ptr<MarmotPattern>>& alternatives = nested.m_or->GetPattern<MarmotPattern::Or>().m_alternatives;
 		for (size_t index = 0uz; index < alternatives.size(); index += 1uz)
 		{
-			std::vector<std::unique_ptr<MidoriPattern>> narrowed;
+			std::vector<std::unique_ptr<MarmotPattern>> narrowed;
 			std::vector<Row> rows = m_rows;
 			const auto add_row = [&narrowed, &rows, &pattern](std::vector<Choice>&& choices)
 				{
@@ -81,7 +81,7 @@ const MidoriPattern* PatternCoverage::FindUnreachableAlternative(const MidoriPat
 
 			std::vector<Choice> choices = nested.m_path;
 			choices.emplace_back(nested.m_or, index, index + 1uz);
-			const std::unique_ptr<MidoriPattern> candidate = Narrowed(pattern, choices);
+			const std::unique_ptr<MarmotPattern> candidate = Narrowed(pattern, choices);
 			if (!Useful(rows, Row{ Strip(candidate.get()) }))
 			{
 				return alternatives[index].get();
@@ -93,11 +93,11 @@ const MidoriPattern* PatternCoverage::FindUnreachableAlternative(const MidoriPat
 
 // Every or-pattern in the pattern, outer ones first, each with the branches of
 // the ones around it that lead to it.
-void PatternCoverage::CollectOrs(const MidoriPattern& pattern, std::vector<Choice>& path, std::vector<NestedOr>& found)
+void PatternCoverage::CollectOrs(const MarmotPattern& pattern, std::vector<Choice>& path, std::vector<NestedOr>& found)
 {
-	const auto children = [&path, &found](std::span<const std::unique_ptr<MidoriPattern>> patterns)
+	const auto children = [&path, &found](std::span<const std::unique_ptr<MarmotPattern>> patterns)
 		{
-			for (const std::unique_ptr<MidoriPattern>& child : patterns)
+			for (const std::unique_ptr<MarmotPattern>& child : patterns)
 			{
 				CollectOrs(*child, path, found);
 			}
@@ -108,7 +108,7 @@ void PatternCoverage::CollectOrs(const MidoriPattern& pattern, std::vector<Choic
 		[&]<typename T>(const T& node)
 		{
 			using Node = std::decay_t<T>;
-			if constexpr (std::is_same_v<Node, MidoriPattern::Or>)
+			if constexpr (std::is_same_v<Node, MarmotPattern::Or>)
 			{
 				found.emplace_back(&pattern, std::vector<Choice>(path));
 				for (size_t index = 0uz; index < node.m_alternatives.size(); index += 1uz)
@@ -118,25 +118,25 @@ void PatternCoverage::CollectOrs(const MidoriPattern& pattern, std::vector<Choic
 					path.pop_back();
 				}
 			}
-			else if constexpr (std::is_same_v<Node, MidoriPattern::Tuple>)
+			else if constexpr (std::is_same_v<Node, MarmotPattern::Tuple>)
 			{
 				children(node.m_elements);
 			}
-			else if constexpr (std::is_same_v<Node, MidoriPattern::Array>)
+			else if constexpr (std::is_same_v<Node, MarmotPattern::Array>)
 			{
 				children(node.m_elements);
 			}
-			else if constexpr (std::is_same_v<Node, MidoriPattern::Constructor>)
+			else if constexpr (std::is_same_v<Node, MarmotPattern::Constructor>)
 			{
 				children(node.m_args);
 			}
-			else if constexpr (std::is_same_v<Node, MidoriPattern::As>)
+			else if constexpr (std::is_same_v<Node, MarmotPattern::As>)
 			{
 				CollectOrs(*node.m_pattern, path, found);
 			}
-			else if constexpr (std::is_same_v<Node, MidoriPattern::Record>)
+			else if constexpr (std::is_same_v<Node, MarmotPattern::Record>)
 			{
-				for (const MidoriPattern::Record::Field& field : node.m_fields)
+				for (const MarmotPattern::Record::Field& field : node.m_fields)
 				{
 					CollectOrs(*field.m_pattern, path, found);
 				}
@@ -148,73 +148,73 @@ void PatternCoverage::CollectOrs(const MidoriPattern& pattern, std::vector<Choic
 
 // A copy of the pattern with each or-pattern the choices name cut down to their
 // alternatives. It keeps every type the checker recorded, which coverage reads.
-std::unique_ptr<MidoriPattern> PatternCoverage::Narrowed(const MidoriPattern& pattern, std::span<const Choice> choices)
+std::unique_ptr<MarmotPattern> PatternCoverage::Narrowed(const MarmotPattern& pattern, std::span<const Choice> choices)
 {
-	const auto copies = [choices](std::span<const std::unique_ptr<MidoriPattern>> patterns)
+	const auto copies = [choices](std::span<const std::unique_ptr<MarmotPattern>> patterns)
 		{
 			return patterns
-				| std::views::transform([choices](const std::unique_ptr<MidoriPattern>& child) { return Narrowed(*child, choices); })
+				| std::views::transform([choices](const std::unique_ptr<MarmotPattern>& child) { return Narrowed(*child, choices); })
 				| std::ranges::to<std::vector>();
 		};
 
 	const std::span<const Choice>::iterator choice = std::ranges::find(choices, &pattern, &Choice::m_or);
 	if (choice != choices.end())
 	{
-		const std::span<const std::unique_ptr<MidoriPattern>> kept = std::span(pattern.GetPattern<MidoriPattern::Or>().m_alternatives).subspan(choice->m_begin, choice->m_end - choice->m_begin);
+		const std::span<const std::unique_ptr<MarmotPattern>> kept = std::span(pattern.GetPattern<MarmotPattern::Or>().m_alternatives).subspan(choice->m_begin, choice->m_end - choice->m_begin);
 		if (kept.size() == 1uz)
 		{
 			return Narrowed(*kept.front(), choices);
 		}
-		std::unique_ptr<MidoriPattern> either = std::make_unique<MidoriPattern>(MidoriPattern::Or(copies(kept)));
+		std::unique_ptr<MarmotPattern> either = std::make_unique<MarmotPattern>(MarmotPattern::Or(copies(kept)));
 		either->GetType() = pattern.GetType();
 		return either;
 	}
 
-	std::unique_ptr<MidoriPattern> copy = std::visit
+	std::unique_ptr<MarmotPattern> copy = std::visit
 	(
-		[&copies, choices]<typename T>(const T& node) -> std::unique_ptr<MidoriPattern>
+		[&copies, choices]<typename T>(const T& node) -> std::unique_ptr<MarmotPattern>
 		{
 			using Node = std::decay_t<T>;
-			if constexpr (std::is_same_v<Node, MidoriPattern::Tuple>)
+			if constexpr (std::is_same_v<Node, MarmotPattern::Tuple>)
 			{
-				return std::make_unique<MidoriPattern>(MidoriPattern::Tuple(node.m_left_paren, copies(node.m_elements)));
+				return std::make_unique<MarmotPattern>(MarmotPattern::Tuple(node.m_left_paren, copies(node.m_elements)));
 			}
-			else if constexpr (std::is_same_v<Node, MidoriPattern::Array>)
+			else if constexpr (std::is_same_v<Node, MarmotPattern::Array>)
 			{
-				std::optional<MidoriPattern::Array::Rest> rest;
+				std::optional<MarmotPattern::Array::Rest> rest;
 				if (node.m_rest.has_value())
 				{
 					rest.emplace(node.m_rest->m_position, Narrowed(*node.m_rest->m_pattern, choices));
 				}
-				return std::make_unique<MidoriPattern>(MidoriPattern::Array(node.m_left_bracket, copies(node.m_elements), std::move(rest)));
+				return std::make_unique<MarmotPattern>(MarmotPattern::Array(node.m_left_bracket, copies(node.m_elements), std::move(rest)));
 			}
-			else if constexpr (std::is_same_v<Node, MidoriPattern::Constructor>)
+			else if constexpr (std::is_same_v<Node, MarmotPattern::Constructor>)
 			{
-				MidoriPattern::Constructor constructor(node.m_name_token, std::string(node.m_name), copies(node.m_args), node.m_is_union);
+				MarmotPattern::Constructor constructor(node.m_name_token, std::string(node.m_name), copies(node.m_args), node.m_is_union);
 				constructor.m_tag = node.m_tag;
-				return std::make_unique<MidoriPattern>(std::move(constructor));
+				return std::make_unique<MarmotPattern>(std::move(constructor));
 			}
-			else if constexpr (std::is_same_v<Node, MidoriPattern::As>)
+			else if constexpr (std::is_same_v<Node, MarmotPattern::As>)
 			{
-				return std::make_unique<MidoriPattern>(MidoriPattern::As(Narrowed(*node.m_pattern, choices), Narrowed(*node.m_binding, choices)));
+				return std::make_unique<MarmotPattern>(MarmotPattern::As(Narrowed(*node.m_pattern, choices), Narrowed(*node.m_binding, choices)));
 			}
-			else if constexpr (std::is_same_v<Node, MidoriPattern::Or>)
+			else if constexpr (std::is_same_v<Node, MarmotPattern::Or>)
 			{
-				return std::make_unique<MidoriPattern>(MidoriPattern::Or(copies(node.m_alternatives)));
+				return std::make_unique<MarmotPattern>(MarmotPattern::Or(copies(node.m_alternatives)));
 			}
-			else if constexpr (std::is_same_v<Node, MidoriPattern::Record>)
+			else if constexpr (std::is_same_v<Node, MarmotPattern::Record>)
 			{
-				std::vector<MidoriPattern::Record::Field> fields;
-				for (const MidoriPattern::Record::Field& field : node.m_fields)
+				std::vector<MarmotPattern::Record::Field> fields;
+				for (const MarmotPattern::Record::Field& field : node.m_fields)
 				{
 					fields.emplace_back(field.m_name, Narrowed(*field.m_pattern, choices));
 					fields.back().m_index = field.m_index;
 				}
-				return std::make_unique<MidoriPattern>(MidoriPattern::Record(node.m_name_token, std::string(node.m_name), std::move(fields), std::optional<Token>(node.m_rest)));
+				return std::make_unique<MarmotPattern>(MarmotPattern::Record(node.m_name_token, std::string(node.m_name), std::move(fields), std::optional<Token>(node.m_rest)));
 			}
 			else
 			{
-				return std::make_unique<MidoriPattern>(Node(node));
+				return std::make_unique<MarmotPattern>(Node(node));
 			}
 		},
 		*pattern
@@ -252,9 +252,9 @@ std::vector<PatternCoverage::Witness> PatternCoverage::Unmatched(const std::vect
 
 	const std::vector<Row> rows = Expanded(unexpanded);
 
-	const std::vector<const MidoriPattern*> column = rows
+	const std::vector<const MarmotPattern*> column = rows
 		| std::views::transform([](const Row& row) { return row.front(); })
-		| std::views::filter([](const MidoriPattern* pattern) { return !IsWildcard(pattern); })
+		| std::views::filter([](const MarmotPattern* pattern) { return !IsWildcard(pattern); })
 		| std::ranges::to<std::vector>();
 	const std::optional<std::vector<Head>> signature = column.empty() ? std::nullopt : Signature(column);
 	if (!signature.has_value())
@@ -293,20 +293,20 @@ bool PatternCoverage::Useful(const std::vector<Row>& unexpanded, const Row& cand
 		return false;
 	}
 
-	const MidoriPattern* head = candidate.front();
-	const std::span<const MidoriPattern* const> rest = std::span(candidate).subspan(1uz);
-	if (!IsWildcard(head) && head->IsPattern<MidoriPattern::Or>())
+	const MarmotPattern* head = candidate.front();
+	const std::span<const MarmotPattern* const> rest = std::span(candidate).subspan(1uz);
+	if (!IsWildcard(head) && head->IsPattern<MarmotPattern::Or>())
 	{
-		return std::ranges::any_of(head->GetPattern<MidoriPattern::Or>().m_alternatives, [&unexpanded, rest](const std::unique_ptr<MidoriPattern>& alternative)
+		return std::ranges::any_of(head->GetPattern<MarmotPattern::Or>().m_alternatives, [&unexpanded, rest](const std::unique_ptr<MarmotPattern>& alternative)
 			{
 				return Useful(unexpanded, Joined(Row{ Strip(alternative.get()) }, rest));
 			});
 	}
 
 	const std::vector<Row> rows = Expanded(unexpanded);
-	std::vector<const MidoriPattern*> column = rows
+	std::vector<const MarmotPattern*> column = rows
 		| std::views::transform([](const Row& row) { return row.front(); })
-		| std::views::filter([](const MidoriPattern* pattern) { return !IsWildcard(pattern); })
+		| std::views::filter([](const MarmotPattern* pattern) { return !IsWildcard(pattern); })
 		| std::ranges::to<std::vector>();
 	if (!IsWildcard(head))
 	{
@@ -333,12 +333,12 @@ bool PatternCoverage::Useful(const std::vector<Row>& unexpanded, const Row& cand
 
 // Every Int, split where an interval the column names starts or stops, so that
 // each piece lies wholly inside or wholly outside every one of them.
-std::optional<std::vector<PatternCoverage::Head>> PatternCoverage::Pieces(std::span<const MidoriPattern* const> column)
+std::optional<std::vector<PatternCoverage::Head>> PatternCoverage::Pieces(std::span<const MarmotPattern* const> column)
 {
 	constexpr int64_t low = std::numeric_limits<int64_t>::min();
 	constexpr int64_t high = std::numeric_limits<int64_t>::max();
 	std::vector<int64_t> starts{ low };
-	for (const MidoriPattern* pattern : column)
+	for (const MarmotPattern* pattern : column)
 	{
 		const std::optional<Interval> other = IntervalOf(*pattern);
 		if (!other.has_value())
@@ -368,22 +368,22 @@ std::optional<std::vector<PatternCoverage::Head>> PatternCoverage::Pieces(std::s
 
 // Int literals and ranges, which are the patterns an Int column tells apart by
 // value. A literal too large for an Int has none; lowering reports it.
-std::optional<PatternCoverage::Interval> PatternCoverage::IntervalOf(const MidoriPattern& pattern)
+std::optional<PatternCoverage::Interval> PatternCoverage::IntervalOf(const MarmotPattern& pattern)
 {
-	if (pattern.IsPattern<MidoriPattern::Range>())
+	if (pattern.IsPattern<MarmotPattern::Range>())
 	{
-		const MidoriPattern::Range& range = pattern.GetPattern<MidoriPattern::Range>();
+		const MarmotPattern::Range& range = pattern.GetPattern<MarmotPattern::Range>();
 		return Interval{ range.m_low, range.m_high };
 	}
-	if (pattern.IsPattern<MidoriPattern::Literal>() && pattern.GetPattern<MidoriPattern::Literal>().m_kind == MidoriPattern::LiteralKind::Integer)
+	if (pattern.IsPattern<MarmotPattern::Literal>() && pattern.GetPattern<MarmotPattern::Literal>().m_kind == MarmotPattern::LiteralKind::Integer)
 	{
-		return ParseIntegerLiteral(pattern.GetPattern<MidoriPattern::Literal>().m_token.m_lexeme)
+		return ParseIntegerLiteral(pattern.GetPattern<MarmotPattern::Literal>().m_token.m_lexeme)
 			.transform([](int64_t value) { return Interval{ value, value }; });
 	}
 	return std::nullopt;
 }
 
-PatternCoverage::Row PatternCoverage::Joined(Row&& first, std::span<const MidoriPattern* const> rest)
+PatternCoverage::Row PatternCoverage::Joined(Row&& first, std::span<const MarmotPattern* const> rest)
 {
 	first.insert(first.end(), rest.begin(), rest.end());
 	return std::move(first);
@@ -404,14 +404,14 @@ std::vector<PatternCoverage::Row> PatternCoverage::Expanded(const std::vector<Ro
 	std::vector<Row> expanded;
 	for (const Row& row : rows)
 	{
-		if (IsWildcard(row.front()) || !row.front()->IsPattern<MidoriPattern::Or>())
+		if (IsWildcard(row.front()) || !row.front()->IsPattern<MarmotPattern::Or>())
 		{
 			expanded.push_back(row);
 			continue;
 		}
 
-		const std::vector<Row> alternatives = row.front()->GetPattern<MidoriPattern::Or>().m_alternatives
-			| std::views::transform([&row](const std::unique_ptr<MidoriPattern>& alternative)
+		const std::vector<Row> alternatives = row.front()->GetPattern<MarmotPattern::Or>().m_alternatives
+			| std::views::transform([&row](const std::unique_ptr<MarmotPattern>& alternative)
 				{
 					Row alternative_row{ Strip(alternative.get()) };
 					alternative_row.insert(alternative_row.end(), row.begin() + 1, row.end());
@@ -452,23 +452,23 @@ std::vector<PatternCoverage::Row> PatternCoverage::Default(const std::vector<Row
 // From the longest prefix plus the longest suffix any rest pattern has, no
 // pattern's prefix and suffix meet, so every longer length is matched alike and
 // stands as one open head; it also starts past every length written without a rest.
-std::optional<std::vector<PatternCoverage::Head>> PatternCoverage::Signature(std::span<const MidoriPattern* const> column)
+std::optional<std::vector<PatternCoverage::Head>> PatternCoverage::Signature(std::span<const MarmotPattern* const> column)
 {
 	return std::visit
 	(
 		[column]<typename T>(const T& node) -> std::optional<std::vector<Head>>
 		{
 			using Node = std::decay_t<T>;
-			if constexpr (std::is_same_v<Node, MidoriPattern::Constructor>)
+			if constexpr (std::is_same_v<Node, MarmotPattern::Constructor>)
 			{
 				if (!node.m_is_union)
 				{
 					return std::vector<Head>{ Head(std::string(node.m_name), Shape::Named, node.m_args.size()) };
 				}
 
-				const MidoriType::UnionType& union_type = node.m_type_data->template GetType<MidoriType::UnionType>();
+				const MarmotType::UnionType& union_type = node.m_type_data->template GetType<MarmotType::UnionType>();
 				std::vector<std::pair<int, Head>> members = union_type.m_member_info
-					| std::views::transform([](const std::pair<const std::string, MidoriType::UnionType::UnionMemberContext>& member)
+					| std::views::transform([](const std::pair<const std::string, MarmotType::UnionType::UnionMemberContext>& member)
 						{
 							return std::pair<int, Head>{ member.second.m_tag, Head(std::string(member.first), Shape::Named, member.second.m_member_types.size()) };
 						})
@@ -476,20 +476,20 @@ std::optional<std::vector<PatternCoverage::Head>> PatternCoverage::Signature(std
 				std::ranges::sort(members, {}, &std::pair<int, Head>::first);
 				return members | std::views::values | std::ranges::to<std::vector>();
 			}
-			else if constexpr (std::is_same_v<Node, MidoriPattern::Record>)
+			else if constexpr (std::is_same_v<Node, MarmotPattern::Record>)
 			{
-				return std::vector<Head>{ Head(std::string(node.m_name), Shape::Named, node.m_type_data->template GetType<MidoriType::StructType>().m_member_types.size()) };
+				return std::vector<Head>{ Head(std::string(node.m_name), Shape::Named, node.m_type_data->template GetType<MarmotType::StructType>().m_member_types.size()) };
 			}
-			else if constexpr (std::is_same_v<Node, MidoriPattern::Tuple>)
+			else if constexpr (std::is_same_v<Node, MarmotPattern::Tuple>)
 			{
 				return std::vector<Head>{ Head("()", Shape::Tuple, node.m_elements.size()) };
 			}
-			else if constexpr (std::is_same_v<Node, MidoriPattern::Array>)
+			else if constexpr (std::is_same_v<Node, MarmotPattern::Array>)
 			{
-				const std::vector<const MidoriPattern::Array*> arrays = column
-					| std::views::transform([](const MidoriPattern* pattern) { return &pattern->GetPattern<MidoriPattern::Array>(); })
+				const std::vector<const MarmotPattern::Array*> arrays = column
+					| std::views::transform([](const MarmotPattern* pattern) { return &pattern->GetPattern<MarmotPattern::Array>(); })
 					| std::ranges::to<std::vector>();
-				if (std::ranges::none_of(arrays, [](const MidoriPattern::Array* array) { return array->m_rest.has_value(); }))
+				if (std::ranges::none_of(arrays, [](const MarmotPattern::Array* array) { return array->m_rest.has_value(); }))
 				{
 					return std::nullopt;
 				}
@@ -497,7 +497,7 @@ std::optional<std::vector<PatternCoverage::Head>> PatternCoverage::Signature(std
 				size_t before = 0uz;
 				size_t after = 0uz;
 				size_t past_closed = 0uz;
-				for (const MidoriPattern::Array* array : arrays)
+				for (const MarmotPattern::Array* array : arrays)
 				{
 					if (array->m_rest.has_value())
 					{
@@ -518,21 +518,21 @@ std::optional<std::vector<PatternCoverage::Head>> PatternCoverage::Signature(std
 				lengths.emplace_back(std::format("[{}..]", open_from), Shape::OpenArray, open_from, before);
 				return lengths;
 			}
-			else if constexpr (std::is_same_v<Node, MidoriPattern::Range>)
+			else if constexpr (std::is_same_v<Node, MarmotPattern::Range>)
 			{
 				return Pieces(column);
 			}
-			else if constexpr (std::is_same_v<Node, MidoriPattern::Literal>)
+			else if constexpr (std::is_same_v<Node, MarmotPattern::Literal>)
 			{
-				if (node.m_kind == MidoriPattern::LiteralKind::Integer)
+				if (node.m_kind == MarmotPattern::LiteralKind::Integer)
 				{
 					return Pieces(column);
 				}
-				if (node.m_kind == MidoriPattern::LiteralKind::Bool)
+				if (node.m_kind == MarmotPattern::LiteralKind::Bool)
 				{
 					return std::vector<Head>{ Head("true", Shape::Literal, 0uz), Head("false", Shape::Literal, 0uz) };
 				}
-				if (node.m_kind == MidoriPattern::LiteralKind::Unit)
+				if (node.m_kind == MarmotPattern::LiteralKind::Unit)
 				{
 					return std::vector<Head>{ Head("()", Shape::Literal, 0uz) };
 				}
@@ -550,12 +550,12 @@ std::optional<std::vector<PatternCoverage::Head>> PatternCoverage::Signature(std
 // The patterns for a head's arguments when `pattern` matches values that start
 // with it. An array with a rest matches every length it has room for, with
 // wildcards where the rest is.
-std::optional<PatternCoverage::Row> PatternCoverage::ArgumentsFor(const MidoriPattern& pattern, const Head& head)
+std::optional<PatternCoverage::Row> PatternCoverage::ArgumentsFor(const MarmotPattern& pattern, const Head& head)
 {
-	const auto pointers = [](std::span<const std::unique_ptr<MidoriPattern>> patterns)
+	const auto pointers = [](std::span<const std::unique_ptr<MarmotPattern>> patterns)
 		{
 			return patterns
-				| std::views::transform([](const std::unique_ptr<MidoriPattern>& argument) { return Strip(argument.get()); })
+				| std::views::transform([](const std::unique_ptr<MarmotPattern>& argument) { return Strip(argument.get()); })
 				| std::ranges::to<Row>();
 		};
 
@@ -564,28 +564,28 @@ std::optional<PatternCoverage::Row> PatternCoverage::ArgumentsFor(const MidoriPa
 		[&pattern, &head, &pointers]<typename T>(const T& node) -> std::optional<Row>
 		{
 			using Node = std::decay_t<T>;
-			if constexpr (std::is_same_v<Node, MidoriPattern::Constructor>)
+			if constexpr (std::is_same_v<Node, MarmotPattern::Constructor>)
 			{
 				return node.m_name == head.m_key ? std::optional<Row>(pointers(node.m_args)) : std::nullopt;
 			}
-			else if constexpr (std::is_same_v<Node, MidoriPattern::Record>)
+			else if constexpr (std::is_same_v<Node, MarmotPattern::Record>)
 			{
 				if (node.m_name != head.m_key)
 				{
 					return std::nullopt;
 				}
 				Row arguments(head.m_arity, nullptr);
-				for (const MidoriPattern::Record::Field& field : node.m_fields)
+				for (const MarmotPattern::Record::Field& field : node.m_fields)
 				{
 					arguments[static_cast<size_t>(field.m_index)] = Strip(field.m_pattern.get());
 				}
 				return arguments;
 			}
-			else if constexpr (std::is_same_v<Node, MidoriPattern::Tuple>)
+			else if constexpr (std::is_same_v<Node, MarmotPattern::Tuple>)
 			{
 				return pointers(node.m_elements);
 			}
-			else if constexpr (std::is_same_v<Node, MidoriPattern::Array>)
+			else if constexpr (std::is_same_v<Node, MarmotPattern::Array>)
 			{
 				if (!node.m_rest.has_value())
 				{
@@ -596,14 +596,14 @@ std::optional<PatternCoverage::Row> PatternCoverage::ArgumentsFor(const MidoriPa
 					return std::nullopt;
 				}
 
-				const std::span<const std::unique_ptr<MidoriPattern>> elements(node.m_elements);
+				const std::span<const std::unique_ptr<MarmotPattern>> elements(node.m_elements);
 				Row arguments = pointers(elements.first(node.m_rest->m_position));
 				arguments.insert(arguments.end(), head.m_arity - elements.size(), nullptr);
 				const Row after = pointers(elements.subspan(node.m_rest->m_position));
 				arguments.insert(arguments.end(), after.begin(), after.end());
 				return arguments;
 			}
-			else if constexpr (std::is_same_v<Node, MidoriPattern::Literal> || std::is_same_v<Node, MidoriPattern::Range>)
+			else if constexpr (std::is_same_v<Node, MarmotPattern::Literal> || std::is_same_v<Node, MarmotPattern::Range>)
 			{
 				if (head.m_shape == Shape::Interval)
 				{
@@ -611,7 +611,7 @@ std::optional<PatternCoverage::Row> PatternCoverage::ArgumentsFor(const MidoriPa
 					const bool contains = interval.has_value() && interval->first <= head.m_low && head.m_high <= interval->second;
 					return contains ? std::optional<Row>(Row{}) : std::nullopt;
 				}
-				if constexpr (std::is_same_v<Node, MidoriPattern::Literal>)
+				if constexpr (std::is_same_v<Node, MarmotPattern::Literal>)
 				{
 					return LiteralKey(node) == head.m_key ? std::optional<Row>(Row{}) : std::nullopt;
 				}
@@ -619,7 +619,7 @@ std::optional<PatternCoverage::Row> PatternCoverage::ArgumentsFor(const MidoriPa
 			}
 			else
 			{
-				static_assert(std::is_same_v<Node, MidoriPattern::Binding> || std::is_same_v<Node, MidoriPattern::Wildcard> || std::is_same_v<Node, MidoriPattern::As> || std::is_same_v<Node, MidoriPattern::Or>);
+				static_assert(std::is_same_v<Node, MarmotPattern::Binding> || std::is_same_v<Node, MarmotPattern::Wildcard> || std::is_same_v<Node, MarmotPattern::As> || std::is_same_v<Node, MarmotPattern::Or>);
 				std::unreachable();
 			}
 		},
@@ -629,28 +629,28 @@ std::optional<PatternCoverage::Row> PatternCoverage::ArgumentsFor(const MidoriPa
 
 // The one constructor a pattern names in a column with no finite signature: a
 // literal, or an array of one exact length.
-PatternCoverage::Head PatternCoverage::OwnHead(const MidoriPattern& pattern)
+PatternCoverage::Head PatternCoverage::OwnHead(const MarmotPattern& pattern)
 {
-	if (pattern.IsPattern<MidoriPattern::Array>())
+	if (pattern.IsPattern<MarmotPattern::Array>())
 	{
-		const size_t length = pattern.GetPattern<MidoriPattern::Array>().m_elements.size();
+		const size_t length = pattern.GetPattern<MarmotPattern::Array>().m_elements.size();
 		return Head(std::format("[{}]", length), Shape::ClosedArray, length);
 	}
-	return Head(LiteralKey(pattern.GetPattern<MidoriPattern::Literal>()), Shape::Literal, 0uz);
+	return Head(LiteralKey(pattern.GetPattern<MarmotPattern::Literal>()), Shape::Literal, 0uz);
 }
 
 // Literals that denote one value share a key however they are written, so `16`
 // and `0x10` are the same case.
-std::string PatternCoverage::LiteralKey(const MidoriPattern::Literal& literal)
+std::string PatternCoverage::LiteralKey(const MarmotPattern::Literal& literal)
 {
 	const std::string_view lexeme = literal.m_token.m_lexeme;
 	switch (literal.m_kind)
 	{
-	case MidoriPattern::LiteralKind::Unit:
+	case MarmotPattern::LiteralKind::Unit:
 		return "()";
-	case MidoriPattern::LiteralKind::Integer:
-	case MidoriPattern::LiteralKind::Byte:
-	case MidoriPattern::LiteralKind::Word:
+	case MarmotPattern::LiteralKind::Integer:
+	case MarmotPattern::LiteralKind::Byte:
+	case MarmotPattern::LiteralKind::Word:
 	{
 		// A literal too large for 64 bits is reported by lowering; until then its
 		// lexeme stands for it.
@@ -659,28 +659,28 @@ std::string PatternCoverage::LiteralKey(const MidoriPattern::Literal& literal)
 			.transform([is_negative](uint64_t magnitude) { return std::format("{}{}", is_negative && magnitude != 0u ? "-" : "", magnitude); })
 			.value_or(std::string(lexeme));
 	}
-	case MidoriPattern::LiteralKind::Float:
+	case MarmotPattern::LiteralKind::Float:
 	{
 		double value = 0.0;
 		std::from_chars(lexeme.data(), lexeme.data() + lexeme.size(), value);
 		return std::format("{}", value);
 	}
-	case MidoriPattern::LiteralKind::Bool:
-	case MidoriPattern::LiteralKind::Text:
+	case MarmotPattern::LiteralKind::Bool:
+	case MarmotPattern::LiteralKind::Text:
 		return std::string(lexeme);
 	}
 	std::unreachable();
 }
 
 // Rows never hold an `as`: it matches what its pattern does.
-const MidoriPattern* PatternCoverage::Strip(const MidoriPattern* pattern)
+const MarmotPattern* PatternCoverage::Strip(const MarmotPattern* pattern)
 {
-	return pattern->IsPattern<MidoriPattern::As>() ? Strip(pattern->GetPattern<MidoriPattern::As>().m_pattern.get()) : pattern;
+	return pattern->IsPattern<MarmotPattern::As>() ? Strip(pattern->GetPattern<MarmotPattern::As>().m_pattern.get()) : pattern;
 }
 
-bool PatternCoverage::IsWildcard(const MidoriPattern* pattern)
+bool PatternCoverage::IsWildcard(const MarmotPattern* pattern)
 {
-	return pattern == nullptr || pattern->IsPattern<MidoriPattern::Binding>() || pattern->IsPattern<MidoriPattern::Wildcard>();
+	return pattern == nullptr || pattern->IsPattern<MarmotPattern::Binding>() || pattern->IsPattern<MarmotPattern::Wildcard>();
 }
 
 std::string PatternCoverage::Display(const Head& head, std::span<const std::string> arguments)

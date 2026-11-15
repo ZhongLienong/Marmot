@@ -89,79 +89,79 @@ FrameMap& BytecodeStream::GetFrameMap()
 	return m_frame;
 }
 
-int MidoriExecutable::AddGlobalVariable(std::string&& name, bool is_pointer)
+int MarmotExecutable::AddGlobalVariable(std::string&& name, bool is_pointer)
 {
 	m_globals.emplace_back(std::move(name));
 	m_global_pointers.push_back(is_pointer);
 	return static_cast<int>(m_globals.size()) - 1;
 }
 
-const std::string& MidoriExecutable::GetGlobalVariable(int index) const
+const std::string& MarmotExecutable::GetGlobalVariable(int index) const
 {
 	return m_globals[static_cast<size_t>(index)];
 }
 
-bool MidoriExecutable::IsGlobalPointer(int index) const
+bool MarmotExecutable::IsGlobalPointer(int index) const
 {
 	return m_global_pointers[static_cast<size_t>(index)];
 }
 
-void MidoriExecutable::AttachShapes(std::vector<Shape>&& shapes)
+void MarmotExecutable::AttachShapes(std::vector<Shape>&& shapes)
 {
 	m_shapes = std::move(shapes);
 }
 
-const std::vector<Shape>& MidoriExecutable::GetShapes() const
+const std::vector<Shape>& MarmotExecutable::GetShapes() const
 {
 	return m_shapes;
 }
 
-void MidoriExecutable::AttachProcedures(Procedures&& bytecode)
+void MarmotExecutable::AttachProcedures(Procedures&& bytecode)
 {
 	m_procedures = std::move(bytecode);
 }
 
-void MidoriExecutable::AddStringPool(StringPool&& string_pool)
+void MarmotExecutable::AddStringPool(StringPool&& string_pool)
 {
 	m_string_pool = std::move(string_pool);
 }
 
-void MidoriExecutable::AttachProcedureNames(std::vector<std::string>&& procedure_names)
+void MarmotExecutable::AttachProcedureNames(std::vector<std::string>&& procedure_names)
 {
 	m_procedure_names = std::move(procedure_names);
 }
 
-void MidoriExecutable::AttachProcedureSourcePaths(ProcedureSourcePaths&& procedure_source_paths)
+void MarmotExecutable::AttachProcedureSourcePaths(ProcedureSourcePaths&& procedure_source_paths)
 {
 	m_procedure_source_paths = std::move(procedure_source_paths);
 }
 
-void MidoriExecutable::AttachSourceFiles(SourceFileTable&& source_files)
+void MarmotExecutable::AttachSourceFiles(SourceFileTable&& source_files)
 {
 	m_source_files = std::move(source_files);
 }
 
-void MidoriExecutable::AttachNativeLibraries(std::vector<NativeLibraryImport>&& native_libraries)
+void MarmotExecutable::AttachNativeLibraries(std::vector<NativeLibraryImport>&& native_libraries)
 {
 	m_native_libraries = std::move(native_libraries);
 }
 
-const std::vector<NativeLibraryImport>& MidoriExecutable::GetNativeLibraries() const
+const std::vector<NativeLibraryImport>& MarmotExecutable::GetNativeLibraries() const
 {
 	return m_native_libraries;
 }
 
-void MidoriExecutable::SetFileName(std::string&& file_name)
+void MarmotExecutable::SetFileName(std::string&& file_name)
 {
 	m_file_name = std::move(file_name);
 }
 
-std::string_view MidoriExecutable::GetFileName() const
+std::string_view MarmotExecutable::GetFileName() const
 {
 	return m_file_name;
 }
 
-std::string_view MidoriExecutable::GetProcedureSourcePath(int proc_index) const
+std::string_view MarmotExecutable::GetProcedureSourcePath(int proc_index) const
 {
 	if (proc_index < 0 || proc_index >= static_cast<int>(m_procedure_source_paths.size()))
 	{
@@ -177,37 +177,37 @@ std::string_view MidoriExecutable::GetProcedureSourcePath(int proc_index) const
 	return source_path;
 }
 
-const BytecodeStream& MidoriExecutable::GetBytecodeStream(int proc_index) const
+const BytecodeStream& MarmotExecutable::GetBytecodeStream(int proc_index) const
 {
 	return m_procedures[static_cast<size_t>(proc_index)];
 }
 
-OpCode MidoriExecutable::ReadByteCode(int instr_index, int proc_index) const
+OpCode MarmotExecutable::ReadByteCode(int instr_index, int proc_index) const
 {
 	return m_procedures[static_cast<size_t>(proc_index)].ReadByteCode(instr_index);
 }
 
-int MidoriExecutable::GetByteCodeSize(int proc_index) const
+int MarmotExecutable::GetByteCodeSize(int proc_index) const
 {
 	return m_procedures[static_cast<size_t>(proc_index)].GetByteCodeSize();
 }
 
-int MidoriExecutable::GetProcedureCount() const
+int MarmotExecutable::GetProcedureCount() const
 {
 	return static_cast<int>(m_procedures.size());
 }
 
-int MidoriExecutable::GetGlobalVariableCount() const
+int MarmotExecutable::GetGlobalVariableCount() const
 {
 	return static_cast<int>(m_globals.size());
 }
 
-const MidoriExecutable::StringPool& MidoriExecutable::GetStringPool() const
+const MarmotExecutable::StringPool& MarmotExecutable::GetStringPool() const
 {
 	return m_string_pool;
 }
 
-const std::vector<std::string>* MidoriExecutable::FindSourceLines(std::string_view file_name) const
+const std::vector<std::string>* MarmotExecutable::FindSourceLines(std::string_view file_name) const
 {
 	const SourceFileTable::const_iterator it = m_source_files.find(std::string(file_name));
 	if (it != m_source_files.end())

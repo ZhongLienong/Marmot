@@ -43,8 +43,8 @@ int main()
     std::expected<int, int> result = values.front();
     std::print(\"{}\", result.value());
 }
-" MIDORI_HAS_CXX23_LIBRARY)
-if(NOT MIDORI_HAS_CXX23_LIBRARY)
+" MARMOT_HAS_CXX23_LIBRARY)
+if(NOT MARMOT_HAS_CXX23_LIBRARY)
     message(FATAL_ERROR
         "Marmot needs a C++23 standard library with <print>, <expected> and std::ranges::to.\n"
         "Detected compiler: ${CMAKE_CXX_COMPILER} (${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION})\n"
@@ -70,18 +70,18 @@ if(NOT CMAKE_GENERATOR_MULTI_CONFIG)
 endif()
 
 # Release optimization preserves the language's Float semantics.
-option(MIDORI_ENABLE_LTO "Enable link-time optimization for Release builds" ON)
+option(MARMOT_ENABLE_LTO "Enable link-time optimization for Release builds" ON)
 
-set(MIDORI_BUILD_TESTS_DEFAULT ON)
+set(MARMOT_BUILD_TESTS_DEFAULT ON)
 if(EMSCRIPTEN)
-    set(MIDORI_BUILD_TESTS_DEFAULT OFF)
+    set(MARMOT_BUILD_TESTS_DEFAULT OFF)
 elseif(NOT CMAKE_GENERATOR_MULTI_CONFIG)
-    string(TOUPPER "${CMAKE_BUILD_TYPE}" MIDORI_BUILD_TYPE_UPPER)
-    if(MIDORI_BUILD_TYPE_UPPER STREQUAL "RELEASE")
-        set(MIDORI_BUILD_TESTS_DEFAULT OFF)
+    string(TOUPPER "${CMAKE_BUILD_TYPE}" MARMOT_BUILD_TYPE_UPPER)
+    if(MARMOT_BUILD_TYPE_UPPER STREQUAL "RELEASE")
+        set(MARMOT_BUILD_TESTS_DEFAULT OFF)
     endif()
 endif()
-option(MIDORI_BUILD_TESTS "Build Marmot implementation unit tests" ${MIDORI_BUILD_TESTS_DEFAULT})
+option(MARMOT_BUILD_TESTS "Build Marmot implementation unit tests" ${MARMOT_BUILD_TESTS_DEFAULT})
 
 if(MSVC)
     # Debug takes the shared runtime (/MDd): each static debug runtime has its own
@@ -90,17 +90,17 @@ if(MSVC)
 endif()
 
 # Output directories for build artifacts
-set(MIDORI_OUTPUT_DIR "${CMAKE_BINARY_DIR}/out")
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${MIDORI_OUTPUT_DIR}")
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${MIDORI_OUTPUT_DIR}")
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${MIDORI_OUTPUT_DIR}")
+set(MARMOT_OUTPUT_DIR "${CMAKE_BINARY_DIR}/out")
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${MARMOT_OUTPUT_DIR}")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${MARMOT_OUTPUT_DIR}")
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${MARMOT_OUTPUT_DIR}")
 
 # ============================================================================
 # External Dependencies
 # ============================================================================
 include(FetchContent)
 
-if(MIDORI_BUILD_TESTS AND NOT EMSCRIPTEN)
+if(MARMOT_BUILD_TESTS AND NOT EMSCRIPTEN)
     enable_testing()
 
     FetchContent_Declare(
@@ -115,19 +115,19 @@ endif()
 # not set here: each component library exports only its own src/ root, so a
 # target can include a header only from the components it links (see the
 # dependency graph below and scripts/testing/layering.py).
-function(midori_configure_target target_name)
+function(marmot_configure_target target_name)
     # PUBLIC, so every target that links a Marmot library compiles its headers
     # with the same values as the library. Headers change on them:
-    # sizeof(MidoriValue) is 8 without MIDORI_DEBUG_FULL and 16 with it, and a
+    # sizeof(MarmotValue) is 8 without MARMOT_DEBUG_FULL and 16 with it, and a
     # unit test target that once compiled at a different level from the library
-    # read past the end of every MidoriValue it passed across. Pinned by
+    # read past the end of every MarmotValue it passed across. Pinned by
     # tests/runtime/AbiConsistencyTests.cpp.
     target_compile_definitions(${target_name} PUBLIC
-        MIDORI_VERSION_STRING="${PROJECT_VERSION}"
-        MIDORI_DEBUG_FULL=$<CONFIG:Debug>
-        MIDORI_DEBUG_INFO=$<CONFIG:Debug,RelWithDebInfo>
-        MIDORI_ENABLE_EXECUTION_TRACE=$<CONFIG:Debug>
-        MIDORI_ENABLE_OPCODE_METRICS=$<CONFIG:Debug,RelWithDebInfo>
+        MARMOT_VERSION_STRING="${PROJECT_VERSION}"
+        MARMOT_DEBUG_FULL=$<CONFIG:Debug>
+        MARMOT_DEBUG_INFO=$<CONFIG:Debug,RelWithDebInfo>
+        MARMOT_ENABLE_EXECUTION_TRACE=$<CONFIG:Debug>
+        MARMOT_ENABLE_OPCODE_METRICS=$<CONFIG:Debug,RelWithDebInfo>
     )
 endfunction()
 
@@ -135,12 +135,12 @@ file(GLOB_RECURSE MARMOT_RUNTIME_SOURCES CONFIGURE_DEPENDS "src/*.cpp")
 list(FILTER MARMOT_RUNTIME_SOURCES EXCLUDE REGEX "/src/(MarmotVM.cpp$|Wasm/)")
 add_library(MarmotRuntime STATIC ${MARMOT_RUNTIME_SOURCES})
 target_include_directories(MarmotRuntime PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
-set(MIDORI_LIBRARY_TARGETS MarmotRuntime)
+set(MARMOT_LIBRARY_TARGETS MarmotRuntime)
 if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     set_source_files_properties(src/Interpreter/VirtualMachine/VirtualMachine.cpp PROPERTIES COMPILE_OPTIONS "/GL-")
 endif()
-foreach(target_name IN LISTS MIDORI_LIBRARY_TARGETS)
-    midori_configure_target(${target_name})
+foreach(target_name IN LISTS MARMOT_LIBRARY_TARGETS)
+    marmot_configure_target(${target_name})
 endforeach()
 if(UNIX)
     target_link_libraries(MarmotRuntime PUBLIC ${CMAKE_DL_LIBS})
@@ -148,9 +148,9 @@ endif()
 if(NOT EMSCRIPTEN)
     add_executable(marmotvm src/MarmotVM.cpp)
     target_link_libraries(marmotvm PRIVATE MarmotRuntime)
-    set(MIDORI_NATIVE_COMPILE_TARGETS ${MIDORI_LIBRARY_TARGETS} marmotvm)
-    set(MIDORI_NATIVE_LINK_TARGETS marmotvm)
-    foreach(target_name IN LISTS MIDORI_NATIVE_COMPILE_TARGETS)
+    set(MARMOT_NATIVE_COMPILE_TARGETS ${MARMOT_LIBRARY_TARGETS} marmotvm)
+    set(MARMOT_NATIVE_LINK_TARGETS marmotvm)
+    foreach(target_name IN LISTS MARMOT_NATIVE_COMPILE_TARGETS)
         target_compile_definitions(${target_name} PUBLIC
             $<$<CONFIG:Release>:NDEBUG>
         )
@@ -172,7 +172,7 @@ if(NOT EMSCRIPTEN)
         endforeach()
 
         # Common MSVC flags for Marmot executable
-        foreach(target_name IN LISTS MIDORI_NATIVE_COMPILE_TARGETS)
+        foreach(target_name IN LISTS MARMOT_NATIVE_COMPILE_TARGETS)
             target_compile_options(${target_name} PRIVATE
             /GR-            # Disable RTTI
             /permissive-    # Standards-conformant mode
@@ -190,21 +190,21 @@ if(NOT EMSCRIPTEN)
 
             # Release configuration - maximum speed
             $<$<CONFIG:Release>:/O2>    # Maximize speed
-            $<$<AND:$<CONFIG:Release>,$<BOOL:${MIDORI_ENABLE_LTO}>,$<CXX_COMPILER_ID:MSVC>>:/GL>    # MSVC whole program optimization
-            $<$<AND:$<CONFIG:Release>,$<BOOL:${MIDORI_ENABLE_LTO}>,$<CXX_COMPILER_ID:Clang>>:-flto=thin>    # clang-cl LTO
+            $<$<AND:$<CONFIG:Release>,$<BOOL:${MARMOT_ENABLE_LTO}>,$<CXX_COMPILER_ID:MSVC>>:/GL>    # MSVC whole program optimization
+            $<$<AND:$<CONFIG:Release>,$<BOOL:${MARMOT_ENABLE_LTO}>,$<CXX_COMPILER_ID:Clang>>:-flto=thin>    # clang-cl LTO
             $<$<CONFIG:Release>:/Gw>    # Optimize global data
             )
         endforeach()
 
         # MSVC linker flags
-        foreach(target_name IN LISTS MIDORI_NATIVE_LINK_TARGETS)
+        foreach(target_name IN LISTS MARMOT_NATIVE_LINK_TARGETS)
             target_link_options(${target_name} PRIVATE
                 $<$<CONFIG:RelWithDebInfo>:/DEBUG>
                 $<$<CONFIG:RelWithDebInfo>:/OPT:REF>
                 $<$<CONFIG:RelWithDebInfo>:/OPT:ICF>
 
-                $<$<AND:$<CONFIG:Release>,$<BOOL:${MIDORI_ENABLE_LTO}>,$<CXX_COMPILER_ID:MSVC>>:/LTCG>
-                $<$<AND:$<CONFIG:Release>,$<BOOL:${MIDORI_ENABLE_LTO}>,$<CXX_COMPILER_ID:Clang>>:-flto=thin>
+                $<$<AND:$<CONFIG:Release>,$<BOOL:${MARMOT_ENABLE_LTO}>,$<CXX_COMPILER_ID:MSVC>>:/LTCG>
+                $<$<AND:$<CONFIG:Release>,$<BOOL:${MARMOT_ENABLE_LTO}>,$<CXX_COMPILER_ID:Clang>>:-flto=thin>
                 $<$<CONFIG:Release>:/OPT:REF>
                 $<$<CONFIG:Release>:/OPT:ICF>
                 $<$<CONFIG:Release>:/RELEASE>
@@ -215,23 +215,23 @@ if(NOT EMSCRIPTEN)
     if(NOT MSVC)
         # GCC's plain -flto runs the link-time step on one thread and warns so.
         if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-            set(MIDORI_LTO_FLAG "-flto=auto")
+            set(MARMOT_LTO_FLAG "-flto=auto")
         else()
-            set(MIDORI_LTO_FLAG "-flto")
+            set(MARMOT_LTO_FLAG "-flto")
         endif()
 
-        foreach(target_name IN LISTS MIDORI_NATIVE_COMPILE_TARGETS)
+        foreach(target_name IN LISTS MARMOT_NATIVE_COMPILE_TARGETS)
             target_compile_options(${target_name} PRIVATE
                 $<$<CONFIG:RelWithDebInfo>:-O2>
                 $<$<CONFIG:RelWithDebInfo>:-g>
                 $<$<CONFIG:Release>:-O3>
-                $<$<AND:$<CONFIG:Release>,$<BOOL:${MIDORI_ENABLE_LTO}>>:${MIDORI_LTO_FLAG}>
+                $<$<AND:$<CONFIG:Release>,$<BOOL:${MARMOT_ENABLE_LTO}>>:${MARMOT_LTO_FLAG}>
             )
         endforeach()
 
-        foreach(target_name IN LISTS MIDORI_NATIVE_LINK_TARGETS)
+        foreach(target_name IN LISTS MARMOT_NATIVE_LINK_TARGETS)
             target_link_options(${target_name} PRIVATE
-                $<$<AND:$<CONFIG:Release>,$<BOOL:${MIDORI_ENABLE_LTO}>>:${MIDORI_LTO_FLAG}>
+                $<$<AND:$<CONFIG:Release>,$<BOOL:${MARMOT_ENABLE_LTO}>>:${MARMOT_LTO_FLAG}>
             )
         endforeach()
     endif()
@@ -240,6 +240,6 @@ if(NOT EMSCRIPTEN)
 else()
     include(cmake/Wasm.cmake)
 endif()
-if(MIDORI_BUILD_TESTS AND NOT EMSCRIPTEN)
+if(MARMOT_BUILD_TESTS AND NOT EMSCRIPTEN)
     include(cmake/UnitTests.cmake)
 endif()

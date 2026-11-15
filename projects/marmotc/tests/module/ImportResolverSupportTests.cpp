@@ -1,23 +1,23 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "Compiler/ImportResolver/ImportResolver.h"
-#include "Utility/Driver/MidoriDriver.h"
+#include "Utility/Driver/MarmotDriver.h"
 #include "support/ScopedEnvVar.h"
 #include "support/TempProject.h"
 
 TEST_CASE("TempProject and ScopedEnvVar make system import resolution deterministic", "[module][support]")
 {
-	const MidoriTest::TempProject project
+	const MarmotTest::TempProject project
 	({
-		MidoriTest::TempProjectFile("Main.mmt", "module Main\n"),
-		MidoriTest::TempProjectFile("stdlib/Std/IO.mmt", "module Std.IO\n")
+		MarmotTest::TempProjectFile("Main.mmt", "module Main\n"),
+		MarmotTest::TempProjectFile("stdlib/Std/IO.mmt", "module Std.IO\n")
 	});
 
 	const std::filesystem::path main_file_path = project.Path("Main.mmt");
 	const std::filesystem::path module_file_path = std::filesystem::weakly_canonical(project.Path("stdlib/Std/IO.mmt"));
-	const MidoriTest::ScopedEnvVar marmot_path("MARMOT_PATH", project.Path("stdlib").string());
+	const MarmotTest::ScopedEnvVar marmot_path("MARMOT_PATH", project.Path("stdlib").string());
 
-	const ImportResolver resolver(main_file_path.string(), MidoriDriver::EnvironmentCompilationInputs().SearchPaths());
+	const ImportResolver resolver(main_file_path.string(), MarmotDriver::EnvironmentCompilationInputs().SearchPaths());
 	const std::optional<std::string> resolved_import = resolver.Resolve("<Std.IO>");
 
 	REQUIRE(resolved_import.has_value());

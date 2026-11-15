@@ -125,14 +125,14 @@ def FailureCommand = fn(platform: Platform) -> Text =>
     ;
 
 def suffix = System::CurrentProcessId() as Text;
-def file_path = "midori_phase3_io_" ++ suffix ++ ".txt";
-def renamed_path = "midori_phase3_io_" ++ suffix ++ "_renamed.txt";
-def empty_file_path = "midori_phase3_io_" ++ suffix ++ "_empty.txt";
-def missing_file_path = "midori_phase3_io_" ++ suffix ++ "_missing.txt";
-def missing_dir_path = "midori_phase3_missing_dir_" ++ suffix;
+def file_path = "marmot_phase3_io_" ++ suffix ++ ".txt";
+def renamed_path = "marmot_phase3_io_" ++ suffix ++ "_renamed.txt";
+def empty_file_path = "marmot_phase3_io_" ++ suffix ++ "_empty.txt";
+def missing_file_path = "marmot_phase3_io_" ++ suffix ++ "_missing.txt";
+def missing_dir_path = "marmot_phase3_missing_dir_" ++ suffix;
 def nested_missing_file_path = missing_dir_path ++ "/child.txt";
-def empty_env_name = "MIDORI_PHASE3_EMPTY_" ++ suffix;
-def missing_env_name = "MIDORI_PHASE3_MISSING_" ++ suffix;
+def empty_env_name = "MARMOT_PHASE3_EMPTY_" ++ suffix;
+def missing_env_name = "MARMOT_PHASE3_MISSING_" ++ suffix;
 
 IgnoreIOResult(IO::TryDeleteFile(file_path));
 IgnoreIOResult(IO::TryDeleteFile(renamed_path));

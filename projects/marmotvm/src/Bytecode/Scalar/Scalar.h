@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-using MidoriInteger = int64_t;
-using MidoriFloat = double;
-using MidoriByte = uint8_t;
-using MidoriWord = uint64_t;
+using MarmotInteger = int64_t;
+using MarmotFloat = double;
+using MarmotByte = uint8_t;
+using MarmotWord = uint64_t;

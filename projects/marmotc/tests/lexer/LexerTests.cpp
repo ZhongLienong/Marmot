@@ -34,7 +34,7 @@ TEST_CASE("Lexer tokenizes literal variants and decodes string escapes", "[lexer
 		R"(def values = [42, 0x2A, 0b1010, 3.5, "line\n\t\"\\q"];
 )";
 
-	std::expected<MidoriTest::LexedSnippet, CompilerError> lex_result = MidoriTest::LexSnippet(source_code, "LiteralForms.mmt");
+	std::expected<MarmotTest::LexedSnippet, CompilerError> lex_result = MarmotTest::LexSnippet(source_code, "LiteralForms.mmt");
 	if (!lex_result.has_value())
 	{
 		FAIL(std::string(lex_result.error().Rendered()));
@@ -60,7 +60,7 @@ TEST_CASE("Lexer tokenizes literal variants and decodes string escapes", "[lexer
 		Token::Name::SINGLE_SEMICOLON
 	};
 
-	REQUIRE(MidoriTest::CollectTokenNames(tokens) == expected_names);
+	REQUIRE(MarmotTest::CollectTokenNames(tokens) == expected_names);
 	CHECK(tokens[4].m_lexeme == "42");
 	CHECK(tokens[6].m_lexeme == "0x2A");
 	CHECK(tokens[8].m_lexeme == "0b1010");
@@ -79,7 +79,7 @@ still in the comment */
 def other = 2;
 )";
 
-	std::expected<MidoriTest::LexedSnippet, CompilerError> lex_result = MidoriTest::LexSnippet(source_code, "Comments.mmt");
+	std::expected<MarmotTest::LexedSnippet, CompilerError> lex_result = MarmotTest::LexSnippet(source_code, "Comments.mmt");
 	if (!lex_result.has_value())
 	{
 		FAIL(std::string(lex_result.error().Rendered()));
@@ -102,7 +102,7 @@ def other = 2;
 		Token::Name::SINGLE_SEMICOLON
 	};
 
-	REQUIRE(MidoriTest::CollectTokenNames(tokens) == expected_names);
+	REQUIRE(MarmotTest::CollectTokenNames(tokens) == expected_names);
 
 	const Token* other_token = FindTokenByLexeme(tokens, "other");
 	REQUIRE(other_token != nullptr);
@@ -117,7 +117,7 @@ TEST_CASE("Lexer preserves comment tokens when requested", "[lexer]")
 def value = /* inline */ 1;
 )";
 
-	MidoriResult::LexerResult lex_result = Lexer(
+	MarmotResult::LexerResult lex_result = Lexer(
 		std::string(source_code),
 		"PreserveComments.mmt",
 		Lexer::Options{ .m_preserve_comments = true }).Lex();
@@ -127,7 +127,7 @@ def value = /* inline */ 1;
 	}
 
 	const TokenStream& tokens = lex_result.value();
-	REQUIRE(MidoriTest::CollectTokenNames(tokens, false, true) == std::vector<Token::Name>
+	REQUIRE(MarmotTest::CollectTokenNames(tokens, false, true) == std::vector<Token::Name>
 	{
 		Token::Name::MODULE,
 		Token::Name::IDENTIFIER_LITERAL,
@@ -157,7 +157,7 @@ TEST_CASE("Lexer records exact token columns and source spans", "[lexer]")
 		R"(def alpha = alpha + alpha;
 )";
 
-	std::expected<MidoriTest::LexedSnippet, CompilerError> lex_result = MidoriTest::LexSnippet(source_code, "TokenSpans.mmt");
+	std::expected<MarmotTest::LexedSnippet, CompilerError> lex_result = MarmotTest::LexSnippet(source_code, "TokenSpans.mmt");
 	if (!lex_result.has_value())
 	{
 		FAIL(std::string(lex_result.error().Rendered()));
@@ -187,7 +187,7 @@ stream |> sink;
 joined = left ++ right;
 )";
 
-	std::expected<MidoriTest::LexedSnippet, CompilerError> lex_result = MidoriTest::LexSnippet(source_code, "Operators.mmt");
+	std::expected<MarmotTest::LexedSnippet, CompilerError> lex_result = MarmotTest::LexSnippet(source_code, "Operators.mmt");
 	if (!lex_result.has_value())
 	{
 		FAIL(std::string(lex_result.error().Rendered()));
@@ -226,7 +226,7 @@ joined = left ++ right;
 	const Token* concat_token = FindTokenByLexeme(tokens, "++");
 	const Token* tilde_token = FindTokenByLexeme(tokens, "~");
 
-	REQUIRE(MidoriTest::CollectTokenNames(tokens) == expected_names);
+	REQUIRE(MarmotTest::CollectTokenNames(tokens) == expected_names);
 	REQUIRE(left_shift_token != nullptr);
 	REQUIRE(right_shift_token != nullptr);
 	REQUIRE(concat_token != nullptr);
@@ -240,25 +240,25 @@ joined = left ++ right;
 
 TEST_CASE("Lexer errors and tokens after a multi-line string point at their own columns", "[lexer]")
 {
-	const std::expected<MidoriTest::LexedSnippet, CompilerError> invalid = MidoriTest::LexSnippet("def s = 1 $ 2;\ndef t = 1 ` 2;\n", "InvalidCharacter.mmt");
+	const std::expected<MarmotTest::LexedSnippet, CompilerError> invalid = MarmotTest::LexSnippet("def s = 1 $ 2;\ndef t = 1 ` 2;\n", "InvalidCharacter.mmt");
 	REQUIRE_FALSE(invalid.has_value());
 	REQUIRE(invalid.error().m_location.has_value());
 	CHECK(invalid.error().m_location->m_line == 1);
 	CHECK(invalid.error().m_location->m_column == 10);
 
-	const std::expected<MidoriTest::LexedSnippet, CompilerError> unterminated = MidoriTest::LexSnippet("def a = 1;\ndef s = \"abc;\n", "UnterminatedString.mmt");
+	const std::expected<MarmotTest::LexedSnippet, CompilerError> unterminated = MarmotTest::LexSnippet("def a = 1;\ndef s = \"abc;\n", "UnterminatedString.mmt");
 	REQUIRE_FALSE(unterminated.has_value());
 	REQUIRE(unterminated.error().m_location.has_value());
 	CHECK(unterminated.error().m_location->m_line == 2);
 	CHECK(unterminated.error().m_location->m_column == 8);
 
-	const std::expected<MidoriTest::LexedSnippet, CompilerError> unterminated_comment = MidoriTest::LexSnippet("def a = 1;\n  /* never closed\ndef b = 2;\n", "UnterminatedComment.mmt");
+	const std::expected<MarmotTest::LexedSnippet, CompilerError> unterminated_comment = MarmotTest::LexSnippet("def a = 1;\n  /* never closed\ndef b = 2;\n", "UnterminatedComment.mmt");
 	REQUIRE_FALSE(unterminated_comment.has_value());
 	REQUIRE(unterminated_comment.error().m_location.has_value());
 	CHECK(unterminated_comment.error().m_location->m_line == 2);
 	CHECK(unterminated_comment.error().m_location->m_column == 2);
 
-	const std::expected<MidoriTest::LexedSnippet, CompilerError> multi_line = MidoriTest::LexSnippet("def s = \"abcdef\nb\"; def t = 1;\n", "MultiLineString.mmt");
+	const std::expected<MarmotTest::LexedSnippet, CompilerError> multi_line = MarmotTest::LexSnippet("def s = \"abcdef\nb\"; def t = 1;\n", "MultiLineString.mmt");
 	if (!multi_line.has_value())
 	{
 		FAIL(std::string(multi_line.error().Rendered()));

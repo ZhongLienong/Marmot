@@ -50,9 +50,9 @@ namespace
 	}
 }
 
-namespace MidoriTest
+namespace MarmotTest
 {
-	std::pair<int, CapturedOutput> RunExecutable(const MidoriExecutable& executable, const std::vector<std::string>& arguments)
+	std::pair<int, CapturedOutput> RunExecutable(const MarmotExecutable& executable, const std::vector<std::string>& arguments)
 	{
 		const char* vm = std::getenv("MARMOTVM");
 		if (vm == nullptr)
@@ -61,7 +61,7 @@ namespace MidoriTest
 		}
 		const TempDir temporary("marmot-integration");
 		const std::filesystem::path artifact = temporary.Path() / "program.mmc";
-		MidoriBinaryArtifact::WriteExecutableToFile(executable, artifact, true).value();
+		MarmotBinaryArtifact::WriteExecutableToFile(executable, artifact, true).value();
 		std::string command = QuoteArgument(vm) + " run " + QuoteArgument(artifact.string());
 		for (const std::string& argument : arguments)
 		{

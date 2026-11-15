@@ -5,7 +5,7 @@
 #include <string>
 #include <string_view>
 
-namespace MidoriChecksum
+namespace MarmotChecksum
 {
 
 	[[nodiscard]] std::expected<std::string, std::string> HashFile(const std::filesystem::path& path);

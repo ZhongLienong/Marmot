@@ -13,7 +13,7 @@ namespace
 	std::atomic_uint64_t s_temp_dir_counter = 0u;
 }
 
-namespace MidoriTest
+namespace MarmotTest
 {
 	TempDir::TempDir()
 		: TempDir("marmot-test")

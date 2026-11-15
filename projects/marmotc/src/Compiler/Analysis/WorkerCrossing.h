@@ -24,10 +24,10 @@ using WorkerCrossings = std::unordered_map<std::string, WorkerCrossing>;
 
 // What a call hands to another worker, from the primitive it is or the summary of
 // the function it names; null when it hands nothing.
-const WorkerCrossing* FindCallCrossing(const MidoriExpression::Call& call, const WorkerCrossings& crossings);
+const WorkerCrossing* FindCallCrossing(const MarmotExpression::Call& call, const WorkerCrossings& crossings);
 
 // The summaries of a checked module's top-level functions that hand anything
 // across, given those of the modules it imports.
-WorkerCrossings FindWorkerCrossings(MidoriProgramTree& program_tree, const WorkerCrossings& imported);
+WorkerCrossings FindWorkerCrossings(MarmotProgramTree& program_tree, const WorkerCrossings& imported);
 
-bool ContainsCell(const std::shared_ptr<MidoriType>& type);
+bool ContainsCell(const std::shared_ptr<MarmotType>& type);

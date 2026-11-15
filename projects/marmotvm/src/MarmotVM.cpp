@@ -40,10 +40,10 @@ namespace
 		"Usage: marmotvm run <program.mmc> [--library <name>=<file>]... [--library-path <dir>]...\n"
 		"                [--format json] [-- <argument>...]\n"
 		"       marmotvm disassemble <program.mmc>\n"
-#if MIDORI_ENABLE_OPCODE_METRICS
+#if MARMOT_ENABLE_OPCODE_METRICS
 		"Run diagnostics: --opcode-metrics, --gc-metrics (stderr).\n"
 #endif
-#if MIDORI_ENABLE_EXECUTION_TRACE
+#if MARMOT_ENABLE_EXECUTION_TRACE
 		"                --trace (instructions and stack on stderr).\n"
 #endif
 		"Run a compiled Marmot program.\n\n"
@@ -68,7 +68,7 @@ namespace
 		std::optional<CommandKind> m_command;
 		std::filesystem::path m_program;
 		std::vector<std::string> m_program_arguments;
-		MidoriProgramLoader::NativeLibraryLocations m_locations;
+		MarmotProgramLoader::NativeLibraryLocations m_locations;
 		bool m_json = false;
 		bool m_show_help = false;
 		bool m_show_version = false;
@@ -133,7 +133,7 @@ namespace
 			}
 			else if (arg == "--trace")
 			{
-#if MIDORI_ENABLE_EXECUTION_TRACE
+#if MARMOT_ENABLE_EXECUTION_TRACE
 				invocation.m_trace = true;
 #else
 				return std::unexpected("--trace requires a Debug build.");
@@ -141,7 +141,7 @@ namespace
 			}
 			else if (arg == "--opcode-metrics" || arg == "--gc-metrics")
 			{
-#if MIDORI_ENABLE_OPCODE_METRICS
+#if MARMOT_ENABLE_OPCODE_METRICS
 				if (arg == "--opcode-metrics")
 				{
 					invocation.m_opcode_metrics = true;
@@ -296,7 +296,7 @@ namespace
 
 	[[nodiscard]] int Execute(const Invocation& invocation)
 	{
-		std::expected<VmExecutable, std::string> program = MidoriProgramLoader::ReadProgram(invocation.m_program);
+		std::expected<VmExecutable, std::string> program = MarmotProgramLoader::ReadProgram(invocation.m_program);
 		if (!program.has_value())
 		{
 			return FailToStart(invocation, program.error());
@@ -310,12 +310,12 @@ namespace
 			return EXIT_SUCCESS;
 		}
 
-		MidoriProgramLoader::NativeLibraryLocations locations = invocation.m_locations;
-		for (const std::filesystem::path& directory : MidoriProgramLoader::EnvironmentLibraryPaths())
+		MarmotProgramLoader::NativeLibraryLocations locations = invocation.m_locations;
+		for (const std::filesystem::path& directory : MarmotProgramLoader::EnvironmentLibraryPaths())
 		{
 			locations.m_search_paths.push_back(directory);
 		}
-		const std::expected<void, std::string> loaded = MidoriProgramLoader::LoadNativeLibraries(program.value(), locations);
+		const std::expected<void, std::string> loaded = MarmotProgramLoader::LoadNativeLibraries(program.value(), locations);
 		if (!loaded.has_value())
 		{
 			return FailToStart(invocation, loaded.error());
@@ -324,9 +324,9 @@ namespace
 		if (invocation.m_json)
 		{
 			const RuntimeDiagnostics::ScopedOutput diagnostic_output;
-			MidoriUtility::OutputCapture capture;
-			const std::expected<int, RuntimeError> run_result = MidoriProgramLoader::Run(std::move(program).value());
-			const MidoriUtility::CapturedOutput output = capture.Stop();
+			MarmotUtility::OutputCapture capture;
+			const std::expected<int, RuntimeError> run_result = MarmotProgramLoader::Run(std::move(program).value());
+			const MarmotUtility::CapturedOutput output = capture.Stop();
 			if (!run_result.has_value())
 			{
 				std::print("{}", RunJson(false, run_result.error().ExitCode(), output.m_stdout, output.m_stderr, SerializeMachineReadableRuntimeError(run_result.error())));
@@ -337,7 +337,7 @@ namespace
 			return run_result.value();
 		}
 
-		const std::expected<int, RuntimeError> run_result = MidoriProgramLoader::Run(std::move(program).value());
+		const std::expected<int, RuntimeError> run_result = MarmotProgramLoader::Run(std::move(program).value());
 		if (!run_result.has_value())
 		{
 			std::print("{}", run_result.error().Rendered());
@@ -350,8 +350,8 @@ namespace
 int main(int argc, char* argv[])
 {
 	std::vector<std::string> arguments = Utf8Arguments(argc, argv);
-	std::expected<std::optional<MidoriStandalone::Package>, std::string> embedded =
-		MidoriStandalone::ReadCurrentExecutable();
+	std::expected<std::optional<MarmotStandalone::Package>, std::string> embedded =
+		MarmotStandalone::ReadCurrentExecutable();
 	if (!embedded.has_value())
 	{
 		std::print(stderr, "{}\n", embedded.error());
@@ -360,7 +360,7 @@ int main(int argc, char* argv[])
 	if (embedded->has_value())
 	{
 		ProgramArguments::Set(std::move(arguments));
-		const std::expected<int, std::string> result = MidoriStandalone::Run(std::move(embedded->value()));
+		const std::expected<int, std::string> result = MarmotStandalone::Run(std::move(embedded->value()));
 		if (!result.has_value())
 		{
 			std::print(stderr, "{}\n", result.error());
@@ -383,12 +383,12 @@ int main(int argc, char* argv[])
 
 	if (invocation->m_show_version)
 	{
-		std::print("marmotvm {}\n", MIDORI_VERSION_STRING);
+		std::print("marmotvm {}\n", MARMOT_VERSION_STRING);
 		return EXIT_SUCCESS;
 	}
 	if (invocation->m_standalone_version)
 	{
-		const std::expected<std::filesystem::path, std::string> path = MidoriStandalone::CurrentExecutablePath();
+		const std::expected<std::filesystem::path, std::string> path = MarmotStandalone::CurrentExecutablePath();
 		if (!path.has_value())
 		{
 			std::print(stderr, "{}\n", path.error());
@@ -396,7 +396,7 @@ int main(int argc, char* argv[])
 		}
 		const std::u8string utf8_path = path->generic_u8string();
 		std::print("{{\"version\":{},\"executable\":\"{}\"}}\n",
-			MidoriStandalone::s_format_version,
+			MarmotStandalone::s_format_version,
 			RuntimeJson::EscapeString(std::string(utf8_path.begin(), utf8_path.end())));
 		return EXIT_SUCCESS;
 	}

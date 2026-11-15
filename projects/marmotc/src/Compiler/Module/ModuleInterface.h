@@ -13,7 +13,7 @@
 
 struct ModuleInterface
 {
-	using TypeEnvironment = std::unordered_map<std::string, std::shared_ptr<MidoriType>>;
+	using TypeEnvironment = std::unordered_map<std::string, std::shared_ptr<MarmotType>>;
 	using ExportSet = std::unordered_set<std::string>;
 	using ExportVisibilityMap = std::unordered_map<std::string, VisibilityLevel>;
 
@@ -36,17 +36,17 @@ struct ModuleInterface
 
 	struct TypeclassMetadata
 	{
-		std::unordered_map<std::string, std::shared_ptr<MidoriType>> m_method_types;
+		std::unordered_map<std::string, std::shared_ptr<MarmotType>> m_method_types;
 		std::unordered_set<std::string> m_method_names;
 		std::vector<std::string> m_type_param_names;
 		std::vector<std::string> m_associated_type_names;
 		std::vector<std::string> m_instance_methods;  // Mangled instance method names (e.g., show_Show_Int)
-		std::vector<std::vector<std::shared_ptr<MidoriType>>> m_instance_type_args;
+		std::vector<std::vector<std::shared_ptr<MarmotType>>> m_instance_type_args;
 		// Of those, the ones this module declares itself.
-		std::vector<std::vector<std::shared_ptr<MidoriType>>> m_declared_instance_type_args;
-		std::vector<std::unordered_map<std::string, std::shared_ptr<MidoriType>>> m_instance_associated_type_bindings;
+		std::vector<std::vector<std::shared_ptr<MarmotType>>> m_declared_instance_type_args;
+		std::vector<std::unordered_map<std::string, std::shared_ptr<MarmotType>>> m_instance_associated_type_bindings;
 		// Each instance's where clause, in step with m_instance_type_args.
-		std::vector<std::vector<MidoriType::ClassConstraint>> m_instance_constraints;
+		std::vector<std::vector<MarmotType::ClassConstraint>> m_instance_constraints;
 	};
 	using TypeclassMethodMap = std::unordered_map<std::string, std::unordered_set<std::string>>;
 	using TypeclassInstanceMap = std::unordered_map<std::string, std::vector<std::string>>;

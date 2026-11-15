@@ -20,20 +20,20 @@ public:
 	explicit CellCrossesWorkerDiagnostic(const WorkerCrossings& crossings);
 
 protected:
-	void Reset(MidoriProgramTree& program_tree) override;
+	void Reset(MarmotProgramTree& program_tree) override;
 
-	void operator()(MidoriExpression::Send& send) override;
-	void operator()(MidoriExpression::Call& call) override;
+	void operator()(MarmotExpression::Send& send) override;
+	void operator()(MarmotExpression::Call& call) override;
 
 private:
-	void WarnIfCell(const MidoriExpression& expression, const Token& token);
+	void WarnIfCell(const MarmotExpression& expression, const Token& token);
 
 	// Warns about the cells a function value takes with it, when `value` is a
 	// lambda or names one of this module's functions.
-	void WarnIfFunctionCarriesCells(MidoriExpression& value, const Token& token);
+	void WarnIfFunctionCarriesCells(MarmotExpression& value, const Token& token);
 
 	// This module's functions' summaries and those of what it imports.
 	const WorkerCrossings& m_crossings;
 	// This module's top-level functions, by name.
-	std::unordered_map<std::string, MidoriExpression::Function*> m_module_functions;
+	std::unordered_map<std::string, MarmotExpression::Function*> m_module_functions;
 };

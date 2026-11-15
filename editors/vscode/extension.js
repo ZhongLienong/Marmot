@@ -83,7 +83,7 @@ function refreshDiagnostics(document, collection) {
                                 info.message
                             ))
                         : [];
-                    diagnostic.midoriSuggestion = typeof item.suggestion === "string" ? item.suggestion : undefined;
+                    diagnostic.marmotSuggestion = typeof item.suggestion === "string" ? item.suggestion : undefined;
                     return diagnostic;
                 });
 
@@ -95,16 +95,16 @@ function refreshDiagnostics(document, collection) {
 class SuggestionCodeActionProvider {
     provideCodeActions(_document, _range, context) {
         return context.diagnostics
-            .filter((diagnostic) => typeof diagnostic.midoriSuggestion === "string")
+            .filter((diagnostic) => typeof diagnostic.marmotSuggestion === "string")
             .map((diagnostic) => {
                 const action = new vscode.CodeAction(
-                    diagnostic.midoriSuggestion,
+                    diagnostic.marmotSuggestion,
                     vscode.CodeActionKind.QuickFix
                 );
                 action.command = {
                     command: "marmot.showSuggestion",
-                    title: diagnostic.midoriSuggestion,
-                    arguments: [diagnostic.midoriSuggestion]
+                    title: diagnostic.marmotSuggestion,
+                    arguments: [diagnostic.marmotSuggestion]
                 };
                 action.diagnostics = [diagnostic];
                 return action;

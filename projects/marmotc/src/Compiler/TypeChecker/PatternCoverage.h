@@ -16,23 +16,23 @@ class PatternCoverage
 public:
 	PatternCoverage() = default;
 
-	void Add(const MidoriPattern& pattern);
+	void Add(const MarmotPattern& pattern);
 
 	// Whether the pattern matches some value no pattern added so far does.
-	bool IsUseful(const MidoriPattern& pattern) const;
+	bool IsUseful(const MarmotPattern& pattern) const;
 
 	bool IsExhaustive() const;
 
 	// An alternative of an or-pattern, at any depth, that can never match: what
 	// reaches it is taken by the patterns added so far or by an alternative tried
 	// before it. Nothing when every alternative can match.
-	const MidoriPattern* FindUnreachableAlternative(const MidoriPattern& pattern) const;
+	const MarmotPattern* FindUnreachableAlternative(const MarmotPattern& pattern) const;
 
 	// Values no pattern added so far matches, written as patterns, at most a few.
 	std::vector<std::string> FindUnmatched() const;
 
 private:
-	using Row = std::vector<const MidoriPattern*>;
+	using Row = std::vector<const MarmotPattern*>;
 	using Witness = std::vector<std::string>;
 
 	enum class Shape
@@ -66,20 +66,20 @@ private:
 	// An or-pattern narrowed to its alternatives from `m_begin` up to `m_end`.
 	struct Choice
 	{
-		const MidoriPattern* m_or;
+		const MarmotPattern* m_or;
 		size_t m_begin;
 		size_t m_end;
 
-		Choice(const MidoriPattern* either, size_t begin, size_t end);
+		Choice(const MarmotPattern* either, size_t begin, size_t end);
 	};
 
 	struct NestedOr
 	{
-		const MidoriPattern* m_or;
+		const MarmotPattern* m_or;
 		// The alternative each or-pattern around it takes to reach it.
 		std::vector<Choice> m_path;
 
-		NestedOr(const MidoriPattern* either, std::vector<Choice>&& path);
+		NestedOr(const MarmotPattern* either, std::vector<Choice>&& path);
 	};
 
 	std::vector<Row> m_rows;
@@ -88,7 +88,7 @@ private:
 
 	static bool Useful(const std::vector<Row>& rows, const Row& candidate);
 
-	static Row Joined(Row&& first, std::span<const MidoriPattern* const> rest);
+	static Row Joined(Row&& first, std::span<const MarmotPattern* const> rest);
 
 	static std::vector<Witness> Prefixed(const std::string& first, std::vector<Witness>&& rest);
 
@@ -98,25 +98,25 @@ private:
 
 	static std::vector<Row> Default(const std::vector<Row>& rows);
 
-	static std::optional<std::vector<Head>> Signature(std::span<const MidoriPattern* const> column);
+	static std::optional<std::vector<Head>> Signature(std::span<const MarmotPattern* const> column);
 
-	static std::optional<Row> ArgumentsFor(const MidoriPattern& pattern, const Head& head);
+	static std::optional<Row> ArgumentsFor(const MarmotPattern& pattern, const Head& head);
 
-	static Head OwnHead(const MidoriPattern& pattern);
+	static Head OwnHead(const MarmotPattern& pattern);
 
-	static std::optional<Interval> IntervalOf(const MidoriPattern& pattern);
+	static std::optional<Interval> IntervalOf(const MarmotPattern& pattern);
 
-	static std::optional<std::vector<Head>> Pieces(std::span<const MidoriPattern* const> column);
+	static std::optional<std::vector<Head>> Pieces(std::span<const MarmotPattern* const> column);
 
-	static std::string LiteralKey(const MidoriPattern::Literal& literal);
+	static std::string LiteralKey(const MarmotPattern::Literal& literal);
 
-	static const MidoriPattern* Strip(const MidoriPattern* pattern);
+	static const MarmotPattern* Strip(const MarmotPattern* pattern);
 
-	static void CollectOrs(const MidoriPattern& pattern, std::vector<Choice>& path, std::vector<NestedOr>& found);
+	static void CollectOrs(const MarmotPattern& pattern, std::vector<Choice>& path, std::vector<NestedOr>& found);
 
-	static std::unique_ptr<MidoriPattern> Narrowed(const MidoriPattern& pattern, std::span<const Choice> choices);
+	static std::unique_ptr<MarmotPattern> Narrowed(const MarmotPattern& pattern, std::span<const Choice> choices);
 
-	static bool IsWildcard(const MidoriPattern* pattern);
+	static bool IsWildcard(const MarmotPattern* pattern);
 
 	static std::string Display(const Head& head, std::span<const std::string> arguments);
 };

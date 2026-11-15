@@ -31,14 +31,14 @@ namespace
 	public:
 		explicit PayloadWriter(VirtualMachine& source_vm);
 
-		TransferPayload Write(MidoriValue value, bool is_pointer) &&;
+		TransferPayload Write(MarmotValue value, bool is_pointer) &&;
 
 	private:
-		SerializedValue Reference(MidoriValue value, bool is_pointer);
+		SerializedValue Reference(MarmotValue value, bool is_pointer);
 
-		std::vector<SerializedValue> ReferenceAll(std::span<const MidoriValue> values, std::span<const uint32_t> pointer_fields);
+		std::vector<SerializedValue> ReferenceAll(std::span<const MarmotValue> values, std::span<const uint32_t> pointer_fields);
 
-		SerializedObject Copy(MidoriTraceable* source);
+		SerializedObject Copy(MarmotTraceable* source);
 
 		void CopyPendingObjects();
 
@@ -50,8 +50,8 @@ namespace
 
 		VirtualMachine& m_source_vm;
 		TransferPayload m_payload;
-		std::unordered_map<MidoriTraceable*, MidoriWord> m_object_indices;
-		std::vector<std::pair<MidoriTraceable*, size_t>> m_pending_objects;
+		std::unordered_map<MarmotTraceable*, MarmotWord> m_object_indices;
+		std::vector<std::pair<MarmotTraceable*, size_t>> m_pending_objects;
 		std::unordered_set<int> m_reached_procedures;
 		std::vector<int> m_pending_procedures;
 		std::unordered_set<int> m_reached_globals;
@@ -62,7 +62,7 @@ namespace
 	{
 	}
 
-	TransferPayload PayloadWriter::Write(MidoriValue value, bool is_pointer) &&
+	TransferPayload PayloadWriter::Write(MarmotValue value, bool is_pointer) &&
 	{
 		m_payload.m_root = Reference(value, is_pointer);
 		CopyPendingObjects();
@@ -77,14 +77,14 @@ namespace
 		return std::move(m_payload);
 	}
 
-	SerializedValue PayloadWriter::Reference(MidoriValue value, bool is_pointer)
+	SerializedValue PayloadWriter::Reference(MarmotValue value, bool is_pointer)
 	{
 		if (!is_pointer || value.GetPointer() == nullptr)
 		{
 			return SerializedValue{ value.GetRawBits(), false };
 		}
 
-		const auto [entry, inserted] = m_object_indices.try_emplace(value.GetPointer(), static_cast<MidoriWord>(m_payload.m_objects.size()));
+		const auto [entry, inserted] = m_object_indices.try_emplace(value.GetPointer(), static_cast<MarmotWord>(m_payload.m_objects.size()));
 		if (inserted)
 		{
 			m_payload.m_objects.emplace_back();
@@ -94,7 +94,7 @@ namespace
 	}
 
 	// The values in order, the fields the shape lists as pointers among them.
-	std::vector<SerializedValue> PayloadWriter::ReferenceAll(std::span<const MidoriValue> values, std::span<const uint32_t> pointer_fields)
+	std::vector<SerializedValue> PayloadWriter::ReferenceAll(std::span<const MarmotValue> values, std::span<const uint32_t> pointer_fields)
 	{
 		std::vector<SerializedValue> references;
 		references.reserve(values.size());
@@ -119,17 +119,17 @@ namespace
 		}
 	}
 
-	SerializedObject PayloadWriter::Copy(MidoriTraceable* source)
+	SerializedObject PayloadWriter::Copy(MarmotTraceable* source)
 	{
 		switch (source->GetType())
 		{
-		case MidoriTraceable::TraceableType::Text:
+		case MarmotTraceable::TraceableType::Text:
 		{
-			return SerializedObject{ SerializedObject::Text{ std::string(source->GetTraceable<MidoriText>().View()) } };
+			return SerializedObject{ SerializedObject::Text{ std::string(source->GetTraceable<MarmotText>().View()) } };
 		}
-		case MidoriTraceable::TraceableType::Array:
+		case MarmotTraceable::TraceableType::Array:
 		{
-			const MidoriArray& array = source->GetTraceable<MidoriArray>();
+			const MarmotArray& array = source->GetTraceable<MarmotArray>();
 			const bool holds_pointers = source->HoldsPointers();
 			return SerializedObject
 			{
@@ -144,17 +144,17 @@ namespace
 		}
 		// A closure is immutable once built (v2 has no assignment), so a structural
 		// copy is the same value.
-		case MidoriTraceable::TraceableType::Tuple:
-		case MidoriTraceable::TraceableType::Struct:
-		case MidoriTraceable::TraceableType::Union:
-		case MidoriTraceable::TraceableType::Closure:
+		case MarmotTraceable::TraceableType::Tuple:
+		case MarmotTraceable::TraceableType::Struct:
+		case MarmotTraceable::TraceableType::Union:
+		case MarmotTraceable::TraceableType::Closure:
 		{
-			if (source->GetType() == MidoriTraceable::TraceableType::Closure)
+			if (source->GetType() == MarmotTraceable::TraceableType::Closure)
 			{
 				ReachProcedure(source->GetIndex());
 			}
 
-			const std::span<const MidoriValue> values(source->GetValues(), static_cast<size_t>(source->GetLength()));
+			const std::span<const MarmotValue> values(source->GetValues(), static_cast<size_t>(source->GetLength()));
 			const VmShape& shape = m_source_vm.GetExecutable().GetShapes()[source->GetShape()];
 			return SerializedObject
 			{
@@ -167,19 +167,19 @@ namespace
 				}
 			};
 		}
-		case MidoriTraceable::TraceableType::IntRange:
+		case MarmotTraceable::TraceableType::IntRange:
 		{
-			const MidoriIntRange& range = source->GetTraceable<MidoriIntRange>();
+			const MarmotIntRange& range = source->GetTraceable<MarmotIntRange>();
 			return SerializedObject{ SerializedObject::IntRange{ range.GetStart(), range.GetEnd(), range.GetStep() } };
 		}
-		case MidoriTraceable::TraceableType::FloatRange:
+		case MarmotTraceable::TraceableType::FloatRange:
 		{
-			const MidoriFloatRange& range = source->GetTraceable<MidoriFloatRange>();
+			const MarmotFloatRange& range = source->GetTraceable<MarmotFloatRange>();
 			return SerializedObject{ SerializedObject::FloatRange{ range.GetStart(), range.GetEnd(), range.GetStep() } };
 		}
-		case MidoriTraceable::TraceableType::MutableCell:
+		case MarmotTraceable::TraceableType::MutableCell:
 		{
-			return SerializedObject{ SerializedObject::MutableCell{ Reference(source->GetTraceable<MidoriMutableCell>().m_value, source->HoldsPointers()), source->HoldsPointers() } };
+			return SerializedObject{ SerializedObject::MutableCell{ Reference(source->GetTraceable<MarmotMutableCell>().m_value, source->HoldsPointers()), source->HoldsPointers() } };
 		}
 		}
 
@@ -236,43 +236,43 @@ namespace
 		}
 	}
 
-	MidoriTraceable* Allocate(const SerializedObject& object, VirtualMachine& target_vm)
+	MarmotTraceable* Allocate(const SerializedObject& object, VirtualMachine& target_vm)
 	{
 		return std::visit
 		(
 			Overloaded
 			{
-				[&target_vm](const SerializedObject::Text& text) -> MidoriTraceable*
+				[&target_vm](const SerializedObject::Text& text) -> MarmotTraceable*
 				{
-					return target_vm.AllocateTraceable(MidoriText(text.m_text.c_str()));
+					return target_vm.AllocateTraceable(MarmotText(text.m_text.c_str()));
 				},
-				[&target_vm](const SerializedObject::Array& array) -> MidoriTraceable*
+				[&target_vm](const SerializedObject::Array& array) -> MarmotTraceable*
 				{
-					return target_vm.AllocateArray(MidoriArray(static_cast<int>(array.m_elements.size())), array.m_holds_pointers);
+					return target_vm.AllocateArray(MarmotArray(static_cast<int>(array.m_elements.size())), array.m_holds_pointers);
 				},
-				[&target_vm](const SerializedObject::Aggregate& aggregate) -> MidoriTraceable*
+				[&target_vm](const SerializedObject::Aggregate& aggregate) -> MarmotTraceable*
 				{
 					// A capture-free function goes through the target VM's static closure
 					// cache, exactly as MAKE_FUNCTION_WIDE would produce it there.
-					if (aggregate.m_type == MidoriTraceable::TraceableType::Closure && aggregate.m_values.empty())
+					if (aggregate.m_type == MarmotTraceable::TraceableType::Closure && aggregate.m_values.empty())
 					{
 						return target_vm.MakeFunctionValue(aggregate.m_index).GetPointer();
 					}
 
-					const std::vector<MidoriValue> placeholders(aggregate.m_values.size());
+					const std::vector<MarmotValue> placeholders(aggregate.m_values.size());
 					return target_vm.AllocateAggregate(aggregate.m_type, placeholders, aggregate.m_index, aggregate.m_shape);
 				},
-				[&target_vm](const SerializedObject::IntRange& range) -> MidoriTraceable*
+				[&target_vm](const SerializedObject::IntRange& range) -> MarmotTraceable*
 				{
-					return target_vm.AllocateTraceable(MidoriIntRange(range.m_start, range.m_end, range.m_step));
+					return target_vm.AllocateTraceable(MarmotIntRange(range.m_start, range.m_end, range.m_step));
 				},
-				[&target_vm](const SerializedObject::FloatRange& range) -> MidoriTraceable*
+				[&target_vm](const SerializedObject::FloatRange& range) -> MarmotTraceable*
 				{
-					return target_vm.AllocateTraceable(MidoriFloatRange(range.m_start, range.m_end, range.m_step));
+					return target_vm.AllocateTraceable(MarmotFloatRange(range.m_start, range.m_end, range.m_step));
 				},
-				[&target_vm](const SerializedObject::MutableCell& cell) -> MidoriTraceable*
+				[&target_vm](const SerializedObject::MutableCell& cell) -> MarmotTraceable*
 				{
-					return target_vm.AllocateCell(MidoriValue(), cell.m_holds_pointer);
+					return target_vm.AllocateCell(MarmotValue(), cell.m_holds_pointer);
 				}
 			},
 			object.m_data
@@ -281,7 +281,7 @@ namespace
 }
 
 // Most messages are a number or a flag, which need none of the writer's tables.
-TransferPayload ValueTransfer::Serialize(MidoriValue value, bool is_pointer, VirtualMachine& source_vm)
+TransferPayload ValueTransfer::Serialize(MarmotValue value, bool is_pointer, VirtualMachine& source_vm)
 {
 	if (!is_pointer)
 	{
@@ -291,28 +291,28 @@ TransferPayload ValueTransfer::Serialize(MidoriValue value, bool is_pointer, Vir
 	return PayloadWriter(source_vm).Write(value, true);
 }
 
-MidoriValue ValueTransfer::Deserialize(const TransferPayload& payload, VirtualMachine& target_vm)
+MarmotValue ValueTransfer::Deserialize(const TransferPayload& payload, VirtualMachine& target_vm)
 {
 	// Every object is allocated before any is filled in, so a reference to any of
 	// them, back or forward, is a lookup.
-	const std::vector<MidoriTraceable*> objects = payload.m_objects
-		| std::views::transform([&target_vm](const SerializedObject& object) -> MidoriTraceable* { return Allocate(object, target_vm); })
-		| std::ranges::to<std::vector<MidoriTraceable*>>();
-	const auto resolve = [&objects](SerializedValue value) -> MidoriValue
+	const std::vector<MarmotTraceable*> objects = payload.m_objects
+		| std::views::transform([&target_vm](const SerializedObject& object) -> MarmotTraceable* { return Allocate(object, target_vm); })
+		| std::ranges::to<std::vector<MarmotTraceable*>>();
+	const auto resolve = [&objects](SerializedValue value) -> MarmotValue
 	{
-		return value.m_is_object ? MidoriValue(objects[static_cast<size_t>(value.m_bits)]) : MidoriValue::FromRawBits(value.m_bits);
+		return value.m_is_object ? MarmotValue(objects[static_cast<size_t>(value.m_bits)]) : MarmotValue::FromRawBits(value.m_bits);
 	};
 
 	for (size_t index = 0uz; index < objects.size(); index += 1uz)
 	{
-		MidoriTraceable* transferred = objects[index];
+		MarmotTraceable* transferred = objects[index];
 		std::visit
 		(
 			Overloaded
 			{
 				[transferred, &resolve](const SerializedObject::Array& array)
 				{
-					MidoriArray& elements = transferred->GetTraceable<MidoriArray>();
+					MarmotArray& elements = transferred->GetTraceable<MarmotArray>();
 					for (size_t element = 0uz; element < array.m_elements.size(); element += 1uz)
 					{
 						elements[static_cast<int>(element)] = resolve(array.m_elements[element]);
@@ -324,7 +324,7 @@ MidoriValue ValueTransfer::Deserialize(const TransferPayload& payload, VirtualMa
 				},
 				[transferred, &resolve](const SerializedObject::MutableCell& cell)
 				{
-					transferred->GetTraceable<MidoriMutableCell>().m_value = resolve(cell.m_value);
+					transferred->GetTraceable<MarmotMutableCell>().m_value = resolve(cell.m_value);
 				},
 				[](const auto&)
 				{

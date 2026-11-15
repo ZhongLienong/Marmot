@@ -15,7 +15,7 @@
 #include <utility>
 #include <vector>
 
-namespace MidoriTest
+namespace MarmotTest
 {
 	struct LexedSnippet
 	{
@@ -28,30 +28,30 @@ namespace MidoriTest
 	struct ParsedSnippet
 	{
 		SourceFixture m_source;
-		MidoriProgramTree m_program;
+		MarmotProgramTree m_program;
 		std::vector<CompilerWarning> m_warnings;
 		std::optional<ModuleDeclaration> m_module_declaration;
 		std::vector<UseImport> m_use_imports;
 
-		ParsedSnippet(SourceFixture source, MidoriProgramTree&& program, std::vector<CompilerWarning>&& warnings, std::optional<ModuleDeclaration>&& module_declaration, std::vector<UseImport>&& use_imports);
+		ParsedSnippet(SourceFixture source, MarmotProgramTree&& program, std::vector<CompilerWarning>&& warnings, std::optional<ModuleDeclaration>&& module_declaration, std::vector<UseImport>&& use_imports);
 	};
 
 	struct TypedSnippet
 	{
 		SourceFixture m_source;
-		MidoriProgramTree m_program;
+		MarmotProgramTree m_program;
 		std::vector<CompilerWarning> m_warnings;
 
-		TypedSnippet(SourceFixture source, MidoriProgramTree&& program, std::vector<CompilerWarning>&& warnings);
+		TypedSnippet(SourceFixture source, MarmotProgramTree&& program, std::vector<CompilerWarning>&& warnings);
 	};
 
 	struct AnalyzedSnippet
 	{
 		SourceFixture m_source;
-		MidoriProgramTree m_program;
+		MarmotProgramTree m_program;
 		std::vector<CompilerWarning> m_warnings;
 
-		AnalyzedSnippet(SourceFixture source, MidoriProgramTree&& program, std::vector<CompilerWarning>&& warnings);
+		AnalyzedSnippet(SourceFixture source, MarmotProgramTree&& program, std::vector<CompilerWarning>&& warnings);
 	};
 
 	struct ExecutedSnippet
@@ -67,24 +67,24 @@ namespace MidoriTest
 
 	[[nodiscard]] std::expected<ParsedSnippet, CompilerError> ParseSnippet(std::string source_code, std::string file_name = "Test.mmt");
 
-	[[nodiscard]] std::expected<TypedSnippet, MidoriResult::CompilerDiagnostics> TypeCheckSnippetWithDiagnostics(std::string source_code, std::string file_name = "Test.mmt");
+	[[nodiscard]] std::expected<TypedSnippet, MarmotResult::CompilerDiagnostics> TypeCheckSnippetWithDiagnostics(std::string source_code, std::string file_name = "Test.mmt");
 
 	[[nodiscard]] std::expected<TypedSnippet, CompilerError> TypeCheckSnippet(std::string source_code, std::string file_name = "Test.mmt");
 
-	// Lowers one module to MidoriIR, as the compiler's lowering stage does.
-	[[nodiscard]] std::expected<LoweredModule, MidoriResult::CompilerDiagnostics> LowerSnippetWithDiagnostics(std::string source_code, std::string file_name = "Test.mmt");
+	// Lowers one module to MarmotIR, as the compiler's lowering stage does.
+	[[nodiscard]] std::expected<LoweredModule, MarmotResult::CompilerDiagnostics> LowerSnippetWithDiagnostics(std::string source_code, std::string file_name = "Test.mmt");
 
-	// Lowers one module, optimizes its MidoriIR and emits it, as the compiler
+	// Lowers one module, optimizes its MarmotIR and emits it, as the compiler
 	// does after static analysis.
-	[[nodiscard]] std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> GenerateBytecodeSnippetWithDiagnostics(std::string source_code, std::string file_name = "Test.mmt");
+	[[nodiscard]] std::expected<BytecodeModule, MarmotResult::CompilerDiagnostics> GenerateBytecodeSnippetWithDiagnostics(std::string source_code, std::string file_name = "Test.mmt");
 
 	[[nodiscard]] std::expected<AnalyzedSnippet, CompilerError> AnalyzeSnippet(std::string source_code, std::string file_name = "Test.mmt");
 
-	[[nodiscard]] MidoriResult::CompilationResult CompileSnippetWithReport(std::string source_code, std::string file_name = "Test.mmt");
-	[[nodiscard]] const MidoriResult::CompilerReport& CompilationReport(const MidoriResult::CompilationResult& compilation_result);
+	[[nodiscard]] MarmotResult::CompilationResult CompileSnippetWithReport(std::string source_code, std::string file_name = "Test.mmt");
+	[[nodiscard]] const MarmotResult::CompilerReport& CompilationReport(const MarmotResult::CompilationResult& compilation_result);
 
-	[[nodiscard]] MidoriResult::CompilerResult CompileSnippet(std::string source_code, std::string file_name = "Test.mmt");
-	[[nodiscard]] std::pair<int, CapturedOutput> RunExecutable(const MidoriExecutable& executable, const std::vector<std::string>& arguments = {});
+	[[nodiscard]] MarmotResult::CompilerResult CompileSnippet(std::string source_code, std::string file_name = "Test.mmt");
+	[[nodiscard]] std::pair<int, CapturedOutput> RunExecutable(const MarmotExecutable& executable, const std::vector<std::string>& arguments = {});
 
 	[[nodiscard]] std::expected<ExecutedSnippet, CompilerError> ExecuteSnippet(std::string source_code, std::string file_name = "Test.mmt");
 

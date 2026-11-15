@@ -1,4 +1,4 @@
-#include "Library/MidoriStdLibExports.h"
+#include "Library/MarmotStdLibExports.h"
 
 #include <cstdint>
 #include <cstring>
@@ -30,7 +30,7 @@ namespace
 
 extern "C"
 {
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextLength)(void** args, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(TextLength)(void** args, void* ret) noexcept
 	{
 		const char* text = reinterpret_cast<const char*>(args[0u]);
 		int64_t length = CountCodePoints(text);

@@ -17,7 +17,7 @@ namespace
 		return std::filesystem::path(MARMOT_REPO_ROOT);
 	}
 
-	std::string MidoriPathLiteral(const std::filesystem::path& path)
+	std::string MarmotPathLiteral(const std::filesystem::path& path)
 	{
 		std::error_code error_code;
 		const std::filesystem::path canonical_path = std::filesystem::weakly_canonical(path, error_code);
@@ -36,10 +36,10 @@ namespace
 		const std::filesystem::path prelude = RepositoryRoot() / "MarmotPrelude";
 		return std::format(
 			R"(import {{ "{}", "{}", "{}", "{}" }})",
-			MidoriPathLiteral(prelude / "System.mmt"),
-			MidoriPathLiteral(prelude / "IO.mmt"),
-			MidoriPathLiteral(prelude / "Concurrency.mmt"),
-			MidoriPathLiteral(prelude / "Prelude" / "Result.mmt"))
+			MarmotPathLiteral(prelude / "System.mmt"),
+			MarmotPathLiteral(prelude / "IO.mmt"),
+			MarmotPathLiteral(prelude / "Concurrency.mmt"),
+			MarmotPathLiteral(prelude / "Prelude" / "Result.mmt"))
 			+ R"(
 use Result.{Result}
 use Concurrency.{WorkerError})";
@@ -56,7 +56,7 @@ use Concurrency.{WorkerError})";
 IO::PrintLine("join: " ++ Describe(r));
 )";
 
-	const MidoriTest::ExecutedSnippet& RequireExecutedSnippet(const std::expected<MidoriTest::ExecutedSnippet, CompilerError>& run_result)
+	const MarmotTest::ExecutedSnippet& RequireExecutedSnippet(const std::expected<MarmotTest::ExecutedSnippet, CompilerError>& run_result)
 	{
 		if (!run_result.has_value())
 		{
@@ -69,7 +69,7 @@ IO::PrintLine("join: " ++ Describe(r));
 
 TEST_CASE("Joining a cancelled spinning worker yields a cancellation error value", "[runtime][worker][cancel]")
 {
-	const MidoriTest::TempDir temp_dir("marmot-worker-cancel");
+	const MarmotTest::TempDir temp_dir("marmot-worker-cancel");
 	const std::filesystem::path source_file_path = temp_dir.Path() / "WorkerCancelJoin.mmt";
 
 	const std::string source_code = std::format(
@@ -85,9 +85,9 @@ def r = Concurrency::Join(w);
 )",
 		JoinImports(), DESCRIBE_JOIN);
 
-	const std::expected<MidoriTest::ExecutedSnippet, CompilerError> run_result =
-		MidoriTest::ExecuteSnippet(source_code, source_file_path.string());
-	const MidoriTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
+	const std::expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
+		MarmotTest::ExecuteSnippet(source_code, source_file_path.string());
+	const MarmotTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
 
 	CAPTURE(executed.m_output.m_stdout);
 	REQUIRE(executed.m_exit_code == EXIT_SUCCESS);
@@ -97,7 +97,7 @@ def r = Concurrency::Join(w);
 
 TEST_CASE("Joining a cancelled tail-recursive worker yields a cancellation error value", "[runtime][worker][cancel]")
 {
-	const MidoriTest::TempDir temp_dir("marmot-worker-cancel-tail");
+	const MarmotTest::TempDir temp_dir("marmot-worker-cancel-tail");
 	const std::filesystem::path source_file_path = temp_dir.Path() / "WorkerCancelTailJoin.mmt";
 
 	const std::string source_code = std::format(
@@ -111,9 +111,9 @@ def r = Concurrency::Join(w);
 {})",
 		JoinImports(), DESCRIBE_JOIN);
 
-	const std::expected<MidoriTest::ExecutedSnippet, CompilerError> run_result =
-		MidoriTest::ExecuteSnippet(source_code, source_file_path.string());
-	const MidoriTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
+	const std::expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
+		MarmotTest::ExecuteSnippet(source_code, source_file_path.string());
+	const MarmotTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
 
 	CAPTURE(executed.m_output.m_stdout);
 	REQUIRE(executed.m_exit_code == EXIT_SUCCESS);
@@ -122,7 +122,7 @@ def r = Concurrency::Join(w);
 
 TEST_CASE("Joining a cancelled worker reports cancellation, not a generic failure", "[runtime][worker][cancel]")
 {
-	const MidoriTest::TempDir temp_dir("marmot-worker-cancel-code");
+	const MarmotTest::TempDir temp_dir("marmot-worker-cancel-code");
 	const std::filesystem::path source_file_path = temp_dir.Path() / "WorkerCancelCode.mmt";
 
 	// The worker's WorkerCancelled code must map to WorkerError::Cancelled, not be
@@ -139,9 +139,9 @@ def r = Concurrency::Join(w);
 {})",
 		JoinImports(), DESCRIBE_JOIN);
 
-	const std::expected<MidoriTest::ExecutedSnippet, CompilerError> run_result =
-		MidoriTest::ExecuteSnippet(source_code, source_file_path.string());
-	const MidoriTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
+	const std::expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
+		MarmotTest::ExecuteSnippet(source_code, source_file_path.string());
+	const MarmotTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
 
 	CAPTURE(executed.m_output.m_stdout);
 	REQUIRE(executed.m_exit_code == EXIT_SUCCESS);
@@ -152,7 +152,7 @@ def r = Concurrency::Join(w);
 
 TEST_CASE("Cancelling a worker blocked in a sleep wakes it promptly", "[runtime][worker][cancel]")
 {
-	const MidoriTest::TempDir temp_dir("marmot-worker-cancel-sleep");
+	const MarmotTest::TempDir temp_dir("marmot-worker-cancel-sleep");
 	const std::filesystem::path source_file_path = temp_dir.Path() / "WorkerCancelSleep.mmt";
 
 	const std::string source_code = std::format(
@@ -170,10 +170,10 @@ def r = Concurrency::Join(w);
 		JoinImports(), DESCRIBE_JOIN);
 
 	const std::chrono::steady_clock::time_point start_time = std::chrono::steady_clock::now();
-	const std::expected<MidoriTest::ExecutedSnippet, CompilerError> run_result =
-		MidoriTest::ExecuteSnippet(source_code, source_file_path.string());
+	const std::expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
+		MarmotTest::ExecuteSnippet(source_code, source_file_path.string());
 	const std::chrono::steady_clock::duration elapsed = std::chrono::steady_clock::now() - start_time;
-	const MidoriTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
+	const MarmotTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
 
 	CAPTURE(executed.m_output.m_stdout);
 	REQUIRE(executed.m_exit_code == EXIT_SUCCESS);

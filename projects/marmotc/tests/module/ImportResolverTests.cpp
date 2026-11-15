@@ -2,7 +2,7 @@
 
 #include "Compiler/CompilationInputs/CompilationInputs.h"
 #include "Compiler/ImportResolver/ImportResolver.h"
-#include "Utility/Driver/MidoriDriver.h"
+#include "Utility/Driver/MarmotDriver.h"
 #include "support/ScopedEnvVar.h"
 #include "support/TempProject.h"
 
@@ -22,10 +22,10 @@ namespace
 
 TEST_CASE("ImportResolver resolves relative path imports against the current file", "[module][import]")
 {
-	const MidoriTest::TempProject project
+	const MarmotTest::TempProject project
 	({
-		MidoriTest::TempProjectFile("src/Main.mmt", "module Main\n"),
-		MidoriTest::TempProjectFile("src/lib/Helper.mmt", "module Helper\n")
+		MarmotTest::TempProjectFile("src/Main.mmt", "module Main\n"),
+		MarmotTest::TempProjectFile("src/lib/Helper.mmt", "module Helper\n")
 	});
 
 	const std::filesystem::path main_file_path = std::filesystem::weakly_canonical(project.Path("src/Main.mmt"));
@@ -40,10 +40,10 @@ TEST_CASE("ImportResolver resolves relative path imports against the current fil
 
 TEST_CASE("ImportResolver resolves dotted system imports from explicit search paths", "[module][import]")
 {
-	const MidoriTest::TempProject project
+	const MarmotTest::TempProject project
 	({
-		MidoriTest::TempProjectFile("Main.mmt", "module Main\n"),
-		MidoriTest::TempProjectFile("stdlib/Std/IO.mmt", "module Std.IO\n")
+		MarmotTest::TempProjectFile("Main.mmt", "module Main\n"),
+		MarmotTest::TempProjectFile("stdlib/Std/IO.mmt", "module Std.IO\n")
 	});
 
 	const std::filesystem::path main_file_path = std::filesystem::weakly_canonical(project.Path("Main.mmt"));
@@ -58,19 +58,19 @@ TEST_CASE("ImportResolver resolves dotted system imports from explicit search pa
 
 TEST_CASE("MARMOT_PATH entries become canonical search paths and missing directories are dropped", "[module][import]")
 {
-	const MidoriTest::TempProject project
+	const MarmotTest::TempProject project
 	({
-		MidoriTest::TempProjectFile("Main.mmt", "module Main\n"),
-		MidoriTest::TempProjectFile("stdlib/Std/Math.mmt", "module Std.Math\n")
+		MarmotTest::TempProjectFile("Main.mmt", "module Main\n"),
+		MarmotTest::TempProjectFile("stdlib/Std/Math.mmt", "module Std.Math\n")
 	});
 
 	const std::filesystem::path main_file_path = std::filesystem::weakly_canonical(project.Path("Main.mmt"));
 	const std::filesystem::path stdlib_path = std::filesystem::weakly_canonical(project.Path("stdlib"));
 	const std::filesystem::path math_module_path = std::filesystem::weakly_canonical(project.Path("stdlib/Std/Math.mmt"));
 	const std::string marmot_path_value = project.Path("missing").string() + std::string(1, s_search_path_separator) + project.Path("stdlib").string();
-	const MidoriTest::ScopedEnvVar marmot_path("MARMOT_PATH", marmot_path_value);
+	const MarmotTest::ScopedEnvVar marmot_path("MARMOT_PATH", marmot_path_value);
 
-	const CompilationInputs inputs = MidoriDriver::EnvironmentCompilationInputs();
+	const CompilationInputs inputs = MarmotDriver::EnvironmentCompilationInputs();
 
 	REQUIRE(inputs.SearchPaths().size() == 1);
 	CHECK(inputs.SearchPaths().front() == stdlib_path);
@@ -83,20 +83,20 @@ TEST_CASE("MARMOT_PATH entries become canonical search paths and missing directo
 
 TEST_CASE("The compiler's inputs ignore MARMOT_PATH unless the caller reads it", "[module][import]")
 {
-	const MidoriTest::TempProject project
+	const MarmotTest::TempProject project
 	({
-		MidoriTest::TempProjectFile("stdlib/Std/Math.mmt", "module Std.Math\n")
+		MarmotTest::TempProjectFile("stdlib/Std/Math.mmt", "module Std.Math\n")
 	});
-	const MidoriTest::ScopedEnvVar marmot_path("MARMOT_PATH", project.Path("stdlib").string());
+	const MarmotTest::ScopedEnvVar marmot_path("MARMOT_PATH", project.Path("stdlib").string());
 
 	CHECK(CompilationInputs().SearchPaths().empty());
 }
 
 TEST_CASE("ImportResolver returns nullopt for missing imports", "[module][import]")
 {
-	const MidoriTest::TempProject project
+	const MarmotTest::TempProject project
 	({
-		MidoriTest::TempProjectFile("Main.mmt", "module Main\n")
+		MarmotTest::TempProjectFile("Main.mmt", "module Main\n")
 	});
 
 	const std::filesystem::path main_file_path = std::filesystem::weakly_canonical(project.Path("Main.mmt"));

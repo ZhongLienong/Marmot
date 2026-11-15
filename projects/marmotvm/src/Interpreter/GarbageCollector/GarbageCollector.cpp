@@ -1,14 +1,14 @@
 #include "GarbageCollector.h"
 #include "Support/Attributes/Attributes.h"
 #include "Support/Diagnostics/Diagnostics.h"
-#include "Interpreter/Allocator/MidoriAllocator.h"
+#include "Interpreter/Allocator/MarmotAllocator.h"
 
 #include <algorithm>
 #include <bit>
 #include <optional>
 #include <print>
 
-#if MIDORI_DEBUG_INFO
+#if MARMOT_DEBUG_INFO
 #include "Support/Terminal/Terminal.h"
 
 #include <chrono>
@@ -87,7 +87,7 @@ namespace
 }
 #endif
 
-void GarbageCollector::WriteBarrier(MidoriTraceable* target) noexcept
+void GarbageCollector::WriteBarrier(MarmotTraceable* target) noexcept
 {
 	if (m_allocator == nullptr)
 	{
@@ -108,7 +108,7 @@ void GarbageCollector::WriteBarrier(MidoriTraceable* target) noexcept
 	Remember(target, word_index, mask);
 }
 
-void GarbageCollector::Remember(MidoriTraceable* target, size_t word_index, uint64_t mask) noexcept
+void GarbageCollector::Remember(MarmotTraceable* target, size_t word_index, uint64_t mask) noexcept
 {
 	if (m_logged_bits.size() < m_mark_bits.size())
 	{
@@ -120,7 +120,7 @@ void GarbageCollector::Remember(MidoriTraceable* target, size_t word_index, uint
 
 // A pointer the maps call one is null or a live object: never bits that might
 // name one.
-MIDORI_FORCE_INLINE void GarbageCollector::TryMark(MidoriTraceable* child_ptr)
+MARMOT_FORCE_INLINE void GarbageCollector::TryMark(MarmotTraceable* child_ptr)
 {
 	if (child_ptr == nullptr)
 	{
@@ -130,7 +130,7 @@ MIDORI_FORCE_INLINE void GarbageCollector::TryMark(MidoriTraceable* child_ptr)
 	const size_t slot_index = m_allocator->SlotIndexOf(child_ptr);
 	const size_t word_index = slot_index / 64uz;
 	const uint64_t mask = 1ull << (slot_index % 64uz);
-#if MIDORI_DEBUG_FULL
+#if MARMOT_DEBUG_FULL
 	if ((m_allocator->LiveBitWords()[word_index] & mask) == 0ull)
 	{
 		std::println(stderr, "internal error: the collector reached {:p}, which is not a live object.", static_cast<void*>(child_ptr));
@@ -142,7 +142,7 @@ MIDORI_FORCE_INLINE void GarbageCollector::TryMark(MidoriTraceable* child_ptr)
 		return;
 	}
 
-#if MIDORI_DEBUG_FULL
+#if MARMOT_DEBUG_FULL
 	if (RuntimeDiagnostics::GcMetricsEnabled())
 	{
 		RuntimeDiagnostics::Print(std::format("Marking traceable pointer: {:p}\n", static_cast<void*>(child_ptr)));
@@ -157,7 +157,7 @@ void GarbageCollector::Trace(const GarbageCollectionRoots& roots)
 {
 	m_mark_stack.clear();
 
-	for (MidoriTraceable* root : roots)
+	for (MarmotTraceable* root : roots)
 	{
 		TryMark(root);
 	}
@@ -166,18 +166,18 @@ void GarbageCollector::Trace(const GarbageCollectionRoots& roots)
 
 	while (!m_mark_stack.empty())
 	{
-		MidoriTraceable* current = m_mark_stack.back();
+		MarmotTraceable* current = m_mark_stack.back();
 		m_mark_stack.pop_back();
 
 		switch (current->GetType())
 		{
-		case MidoriTraceable::TraceableType::Array:
+		case MarmotTraceable::TraceableType::Array:
 		{
 			if (!current->HoldsPointers())
 			{
 				break;
 			}
-			MidoriArray& arr = current->GetTraceable<MidoriArray>();
+			MarmotArray& arr = current->GetTraceable<MarmotArray>();
 			const int length = arr.GetLength();
 			for (int idx = 0; idx < length; idx += 1)
 			{
@@ -185,33 +185,33 @@ void GarbageCollector::Trace(const GarbageCollectionRoots& roots)
 			}
 			break;
 		}
-		case MidoriTraceable::TraceableType::Tuple:
-		case MidoriTraceable::TraceableType::Struct:
-		case MidoriTraceable::TraceableType::Union:
-		case MidoriTraceable::TraceableType::Closure:
+		case MarmotTraceable::TraceableType::Tuple:
+		case MarmotTraceable::TraceableType::Struct:
+		case MarmotTraceable::TraceableType::Union:
+		case MarmotTraceable::TraceableType::Closure:
 		{
-			const MidoriValue* values = current->GetValues();
+			const MarmotValue* values = current->GetValues();
 			for (const uint32_t field : (*m_shapes)[current->GetShape()])
 			{
 				TryMark(values[field].GetPointer());
 			}
 			break;
 		}
-		case MidoriTraceable::TraceableType::MutableCell:
+		case MarmotTraceable::TraceableType::MutableCell:
 			if (current->HoldsPointers())
 			{
-				TryMark(current->GetTraceable<MidoriMutableCell>().m_value.GetPointer());
+				TryMark(current->GetTraceable<MarmotMutableCell>().m_value.GetPointer());
 			}
 			break;
-		case MidoriTraceable::TraceableType::Text:
-		case MidoriTraceable::TraceableType::IntRange:
-		case MidoriTraceable::TraceableType::FloatRange:
+		case MarmotTraceable::TraceableType::Text:
+		case MarmotTraceable::TraceableType::IntRange:
+		case MarmotTraceable::TraceableType::FloatRange:
 			break;
 		}
 	}
 }
 
-void GarbageCollector::Sweep(MidoriAllocator& allocator, size_t& sweep_count, size_t& bytes_reclaimed)
+void GarbageCollector::Sweep(MarmotAllocator& allocator, size_t& sweep_count, size_t& bytes_reclaimed)
 {
 	const uint64_t* live_words = allocator.LiveBitWords();
 	const size_t word_count = allocator.SlotWordCount();
@@ -225,13 +225,13 @@ void GarbageCollector::Sweep(MidoriAllocator& allocator, size_t& sweep_count, si
 			garbage &= garbage - 1ull;
 
 			const size_t slot_index = word_index * 64uz + bit;
-			MidoriTraceable* ptr = static_cast<MidoriTraceable*>(allocator.SlotAt(slot_index));
+			MarmotTraceable* ptr = static_cast<MarmotTraceable*>(allocator.SlotAt(slot_index));
 			const size_t registered_size = ptr->GetSize();
 			bytes_reclaimed += registered_size;
 			m_total_bytes_allocated -= std::min(registered_size, m_total_bytes_allocated);
 			sweep_count += 1uz;
 
-			ptr->~MidoriTraceable();
+			ptr->~MarmotTraceable();
 			allocator.Free(ptr, slot_index);
 		}
 	}
@@ -243,14 +243,14 @@ void GarbageCollector::ClearRememberedSet() noexcept
 	std::fill(m_logged_bits.begin(), m_logged_bits.end(), 0ull);
 }
 
-void GarbageCollector::CollectNow(const GarbageCollectionRoots& roots, MidoriAllocator& allocator, CollectionKind kind)
+void GarbageCollector::CollectNow(const GarbageCollectionRoots& roots, MarmotAllocator& allocator, CollectionKind kind)
 {
 	// Captured before any ClearRememberedSet() call in this function (the Major-path clear
 	// below, or the Minor-path clear after sweep) so the debug telemetry below reports the
 	// remembered-set size that was actually traced, not zero.
 	const size_t remembered_count = m_remembered_set.size();
 
-#if MIDORI_DEBUG_INFO
+#if MARMOT_DEBUG_INFO
 	const bool emit_gc_diagnostics = RuntimeDiagnostics::GcMetricsEnabled();
 	using Clock = std::chrono::high_resolution_clock;
 	using TimePoint = Clock::time_point;
@@ -267,7 +267,7 @@ void GarbageCollector::CollectNow(const GarbageCollectionRoots& roots, MidoriAll
 	}
 #endif
 
-#if MIDORI_DEBUG_INFO
+#if MARMOT_DEBUG_INFO
 	if (emit_gc_diagnostics)
 	{
 		t_mark_start = Clock::now();
@@ -289,7 +289,7 @@ void GarbageCollector::CollectNow(const GarbageCollectionRoots& roots, MidoriAll
 	}
 
 	Trace(roots);
-#if MIDORI_DEBUG_INFO
+#if MARMOT_DEBUG_INFO
 	if (emit_gc_diagnostics)
 	{
 		t_mark_end = Clock::now();
@@ -298,7 +298,7 @@ void GarbageCollector::CollectNow(const GarbageCollectionRoots& roots, MidoriAll
 
 	size_t sweep_count = 0uz;
 	size_t bytes_reclaimed = 0uz;
-#if MIDORI_DEBUG_INFO
+#if MARMOT_DEBUG_INFO
 	if (emit_gc_diagnostics)
 	{
 		t_sweep_start = Clock::now();
@@ -320,7 +320,7 @@ void GarbageCollector::CollectNow(const GarbageCollectionRoots& roots, MidoriAll
 		m_major_growth = bytes_reclaimed * 4uz < m_total_bytes_allocated + bytes_reclaimed ? MAJOR_GROWTH_WHILE_GROWING : MAJOR_GROWTH;
 	}
 
-#if MIDORI_DEBUG_INFO
+#if MARMOT_DEBUG_INFO
 	if (emit_gc_diagnostics)
 	{
 		t_sweep_end = Clock::now();
@@ -371,7 +371,7 @@ void GarbageCollector::CollectNow(const GarbageCollectionRoots& roots, MidoriAll
 	m_gc_threshold = std::max(m_total_bytes_allocated + headroom, MIN_GC_THRESHOLD);
 }
 
-void GarbageCollector::ReclaimMemory(const GarbageCollectionRoots& roots, MidoriAllocator& allocator, bool force_clean)
+void GarbageCollector::ReclaimMemory(const GarbageCollectionRoots& roots, MarmotAllocator& allocator, bool force_clean)
 {
 	if (m_total_bytes_allocated < m_gc_threshold && !force_clean)
 	{
@@ -391,7 +391,7 @@ void GarbageCollector::ReclaimMemory(const GarbageCollectionRoots& roots, Midori
 	}
 }
 
-#if MIDORI_DEBUG_INFO
+#if MARMOT_DEBUG_INFO
 void GarbageCollector::PrintMemoryTelemetry()
 {
 	RuntimeDiagnostics::Print

@@ -16,7 +16,7 @@ StaticAnalyzerManager::StaticAnalyzerManager(const WorkerCrossings& crossings)
 	m_passes.emplace_back(std::make_unique<IntegerOverflowDiagnostic>());
 }
 
-std::vector<CompilerWarning> StaticAnalyzerManager::Analyze(MidoriProgramTree& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines)
+std::vector<CompilerWarning> StaticAnalyzerManager::Analyze(MarmotProgramTree& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines)
 {
 	std::vector<CompilerWarning> warnings;
 	for (const std::unique_ptr<DiagnosticPass>& pass : m_passes)

@@ -42,7 +42,7 @@ STEPS = ["layering", "build", "unit", "mmc", "docs", "cli", "format", "benchmark
 # What a step stopped part way can leave behind: build output, extracted doc
 # examples, and the files the IO tests write and delete again.
 LEFTOVERS = (*BUILD_ARTIFACTS, ".doc_example_*.mmt", ".doc_examples",
-             "midori_phase3_io_*", "midori_phase8_doc_*", "midori_phase3_missing_dir_*")
+             "marmot_phase3_io_*", "marmot_phase8_doc_*", "marmot_phase3_missing_dir_*")
 
 
 def tree_arguments(args: argparse.Namespace) -> list[str]:

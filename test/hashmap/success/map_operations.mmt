@@ -13,7 +13,7 @@ use Option.{ Option }
 
 def Expect = fn(condition: Bool, message: Text) -> Unit => if condition then () else Panic::Panic(message);
 
-// Text keys go through MIDORI_FFI_HashText, which can return a negative hash.
+// Text keys go through MARMOT_FFI_HashText, which can return a negative hash.
 def words0 : Map::Map < Text, Int > = Map::Empty();
 def words = Map::With(Map::With(Map::With(words0, "alpha", 1), "beta", 2), "gamma", 3);
 Expect(Map::Count(words) == 3, "text keys are stored");

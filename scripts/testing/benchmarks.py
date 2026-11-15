@@ -35,10 +35,10 @@ def discover_benchmarks(root: Path) -> list[Path]:
     return sorted((root / "benchmarks").glob("*.mmt"))
 
 
-def check_benchmark(root: Path, midori_exe: Path, benchmark: Path, env: dict[str, str]) -> Optional[str]:
+def check_benchmark(root: Path, marmot_exe: Path, benchmark: Path, env: dict[str, str]) -> Optional[str]:
     relative_path = str(benchmark.relative_to(root))
     completed = subprocess.run(
-        [str(midori_exe), "check", relative_path, "--format", "json"],
+        [str(marmot_exe), "check", relative_path, "--format", "json"],
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -66,12 +66,12 @@ def check_benchmark(root: Path, midori_exe: Path, benchmark: Path, env: dict[str
     return None
 
 
-def run_benchmark(root: Path, midori_exe: Path, benchmark: Path, env: dict[str, str], timeout: float) -> Optional[str]:
+def run_benchmark(root: Path, marmot_exe: Path, benchmark: Path, env: dict[str, str], timeout: float) -> Optional[str]:
     relative_path = str(benchmark.relative_to(root))
     start = time.perf_counter()
     try:
         with removing_new_files(root):
-            completed = build_and_run(midori_exe, relative_path, cwd=root, env=env, timeout=timeout)
+            completed = build_and_run(marmot_exe, relative_path, cwd=root, env=env, timeout=timeout)
     except subprocess.TimeoutExpired:
         return f"did not finish within {timeout:.0f}s"
 

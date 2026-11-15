@@ -1,7 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "Compiler/AbstractSyntaxTree/Printer/AbstractSyntaxTreePrinter.h"
-#include "Utility/Driver/MidoriDriver.h"
+#include "Utility/Driver/MarmotDriver.h"
 #include "support/CompileHelpers.h"
 
 #include <filesystem>
@@ -14,7 +14,7 @@
 
 TEST_CASE("The AST printer writes classes, instances, aliases and comprehensions", "[ast][printer]")
 {
-	std::expected<MidoriTest::TypedSnippet, CompilerError> typed = MidoriTest::TypeCheckSnippet(R"(module Shapes
+	std::expected<MarmotTest::TypedSnippet, CompilerError> typed = MarmotTest::TypeCheckSnippet(R"(module Shapes
 alias Meters = Int;
 
 class Describe<T>
@@ -59,7 +59,7 @@ TEST_CASE("Every prelude module prints its syntax tree", "[ast][printer][prelude
 	for (const std::filesystem::path& module : modules)
 	{
 		INFO(module.string());
-		MidoriDriver::CompileFileWithReportResult compiled = MidoriDriver::CompileFileWithReport(module, MidoriDriver::EnvironmentCompilationInputs().WithEmitAst(true));
+		MarmotDriver::CompileFileWithReportResult compiled = MarmotDriver::CompileFileWithReport(module, MarmotDriver::EnvironmentCompilationInputs().WithEmitAst(true));
 		if (!compiled.has_value())
 		{
 			FAIL(compiled.error().Rendered());

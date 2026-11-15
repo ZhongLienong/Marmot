@@ -6,54 +6,54 @@
 
 namespace
 {
-	using TypeRef = std::shared_ptr<MidoriType>;
+	using TypeRef = std::shared_ptr<MarmotType>;
 
 	const TypeRef& IntType()
 	{
-		return MidoriType::MakeLiteralType<MidoriType::IntegerType>();
+		return MarmotType::MakeLiteralType<MarmotType::IntegerType>();
 	}
 
-	const MidoriType::UnionType::UnionMemberContext& UnionMember(const TypeRef& union_type, int tag)
+	const MarmotType::UnionType::UnionMemberContext& UnionMember(const TypeRef& union_type, int tag)
 	{
-		const MidoriType::UnionType& members = GenericTypes::RepresentationOf(union_type)->GetType<MidoriType::UnionType>();
-		return std::ranges::find_if(members.m_member_info, [tag](const std::pair<const std::string, MidoriType::UnionType::UnionMemberContext>& member) { return member.second.m_tag == tag; })->second;
+		const MarmotType::UnionType& members = GenericTypes::RepresentationOf(union_type)->GetType<MarmotType::UnionType>();
+		return std::ranges::find_if(members.m_member_info, [tag](const std::pair<const std::string, MarmotType::UnionType::UnionMemberContext>& member) { return member.second.m_tag == tag; })->second;
 	}
 
-	MidoriIROp EqualityOf(MidoriLiteralKind kind)
+	MarmotIROp EqualityOf(MarmotLiteralKind kind)
 	{
 		switch (kind)
 		{
-		case MidoriLiteralKind::Float:
-			return MidoriIROp::EqFloat;
-		case MidoriLiteralKind::Byte:
-			return MidoriIROp::EqByte;
-		case MidoriLiteralKind::Word:
-			return MidoriIROp::EqWord;
-		case MidoriLiteralKind::Text:
-			return MidoriIROp::EqText;
-		case MidoriLiteralKind::Bool:
-			return MidoriIROp::EqBool;
+		case MarmotLiteralKind::Float:
+			return MarmotIROp::EqFloat;
+		case MarmotLiteralKind::Byte:
+			return MarmotIROp::EqByte;
+		case MarmotLiteralKind::Word:
+			return MarmotIROp::EqWord;
+		case MarmotLiteralKind::Text:
+			return MarmotIROp::EqText;
+		case MarmotLiteralKind::Bool:
+			return MarmotIROp::EqBool;
 		default:
-			return MidoriIROp::EqInt;
+			return MarmotIROp::EqInt;
 		}
 	}
 
-	const TypeRef& LiteralType(MidoriLiteralKind kind)
+	const TypeRef& LiteralType(MarmotLiteralKind kind)
 	{
 		switch (kind)
 		{
-		case MidoriLiteralKind::Float:
-			return MidoriIRScalarType(MidoriIRScalar::Float);
-		case MidoriLiteralKind::Byte:
-			return MidoriIRScalarType(MidoriIRScalar::Byte);
-		case MidoriLiteralKind::Word:
-			return MidoriIRScalarType(MidoriIRScalar::Word);
-		case MidoriLiteralKind::Text:
-			return MidoriIRScalarType(MidoriIRScalar::Text);
-		case MidoriLiteralKind::Bool:
-			return MidoriIRScalarType(MidoriIRScalar::Bool);
+		case MarmotLiteralKind::Float:
+			return MarmotIRScalarType(MarmotIRScalar::Float);
+		case MarmotLiteralKind::Byte:
+			return MarmotIRScalarType(MarmotIRScalar::Byte);
+		case MarmotLiteralKind::Word:
+			return MarmotIRScalarType(MarmotIRScalar::Word);
+		case MarmotLiteralKind::Text:
+			return MarmotIRScalarType(MarmotIRScalar::Text);
+		case MarmotLiteralKind::Bool:
+			return MarmotIRScalarType(MarmotIRScalar::Bool);
 		default:
-			return MidoriIRScalarType(MidoriIRScalar::Int);
+			return MarmotIRScalarType(MarmotIRScalar::Int);
 		}
 	}
 }
@@ -61,9 +61,9 @@ namespace
 // A call in tail position runs without a new frame, whatever it calls: the
 // language promises it. Tail position reaches through `if` branches, match
 // arms and a block's final expression.
-Lowering::Emitted Lowering::LowerReturn(MidoriExpression& expression)
+Lowering::Emitted Lowering::LowerReturn(MarmotExpression& expression)
 {
-	const BranchSink tail = [this](MidoriExpression* branch) -> Emitted
+	const BranchSink tail = [this](MarmotExpression* branch) -> Emitted
 	{
 		if (branch == nullptr)
 		{
@@ -73,21 +73,21 @@ Lowering::Emitted Lowering::LowerReturn(MidoriExpression& expression)
 		return LowerReturn(*branch);
 	};
 
-	if (expression.IsExpression<MidoriExpression::Group>())
+	if (expression.IsExpression<MarmotExpression::Group>())
 	{
-		return LowerReturn(*expression.GetExpression<MidoriExpression::Group>().m_expr_in);
+		return LowerReturn(*expression.GetExpression<MarmotExpression::Group>().m_expr_in);
 	}
-	if (expression.IsExpression<MidoriExpression::IfElse>())
+	if (expression.IsExpression<MarmotExpression::IfElse>())
 	{
-		return LowerIfWith(expression.GetExpression<MidoriExpression::IfElse>(), tail);
+		return LowerIfWith(expression.GetExpression<MarmotExpression::IfElse>(), tail);
 	}
-	if (expression.IsExpression<MidoriExpression::Match>())
+	if (expression.IsExpression<MarmotExpression::Match>())
 	{
-		return LowerMatchWith(expression.GetExpression<MidoriExpression::Match>(), tail);
+		return LowerMatchWith(expression.GetExpression<MarmotExpression::Match>(), tail);
 	}
-	if (expression.IsExpression<MidoriExpression::Block>())
+	if (expression.IsExpression<MarmotExpression::Block>())
 	{
-		MidoriExpression::Block& block = expression.GetExpression<MidoriExpression::Block>();
+		MarmotExpression::Block& block = expression.GetExpression<MarmotExpression::Block>();
 		PushLocalFrame();
 		const Emitted lowered = LowerStatements(block)
 			.and_then([&]() -> Emitted
@@ -102,13 +102,13 @@ Lowering::Emitted Lowering::LowerReturn(MidoriExpression& expression)
 		PopLocalFrame();
 		return lowered;
 	}
-	if (expression.IsExpression<MidoriExpression::Call>())
+	if (expression.IsExpression<MarmotExpression::Call>())
 	{
-		return LowerTailCall(expression.GetExpression<MidoriExpression::Call>());
+		return LowerTailCall(expression.GetExpression<MarmotExpression::Call>());
 	}
 
 	return Lower(expression)
-		.transform([this](MidoriIRValueId value)
+		.transform([this](MarmotIRValueId value)
 		{
 			Builder().Return(value);
 		});
@@ -116,15 +116,15 @@ Lowering::Emitted Lowering::LowerReturn(MidoriExpression& expression)
 
 // Each branch goes to `sink`, which ends its block. An `if` without an `else`
 // is Unit when its condition fails.
-Lowering::Emitted Lowering::LowerIfWith(MidoriExpression::IfElse& if_else, const BranchSink& sink)
+Lowering::Emitted Lowering::LowerIfWith(MarmotExpression::IfElse& if_else, const BranchSink& sink)
 {
 	return Lower(*if_else.m_condition)
-		.and_then([&](MidoriIRValueId condition) -> Emitted
+		.and_then([&](MarmotIRValueId condition) -> Emitted
 		{
-			const MidoriIRBlockId then_block = NewBlock();
-			const MidoriIRBlockId else_block = NewBlock();
+			const MarmotIRBlockId then_block = NewBlock();
+			const MarmotIRBlockId else_block = NewBlock();
 			Builder().AtLine(if_else.m_if_token.m_line);
-			Branch(condition, MidoriIRSuccessor(then_block), MidoriIRSuccessor(else_block));
+			Branch(condition, MarmotIRSuccessor(then_block), MarmotIRSuccessor(else_block));
 
 			PositionAt(then_block);
 			return sink(if_else.m_true_branch.get())
@@ -142,12 +142,12 @@ Lowering::Emitted Lowering::LowerIfWith(MidoriExpression::IfElse& if_else, const
 std::pair<std::shared_ptr<Lowering::JoinPoint>, Lowering::BranchSink> Lowering::Join(const TypeRef& type)
 {
 	const std::shared_ptr<JoinPoint> join = std::make_shared<JoinPoint>(NewBlock(), type);
-	BranchSink sink = [this, join](MidoriExpression* branch) -> Emitted
+	BranchSink sink = [this, join](MarmotExpression* branch) -> Emitted
 	{
 		const Lowered value = branch == nullptr ? Lowered(Builder().ConstUnit()) : Lower(*branch);
-		return value.transform([this, &join](MidoriIRValueId branch_value)
+		return value.transform([this, &join](MarmotIRValueId branch_value)
 		{
-			if (!IsDead() && join->m_type->IsType<MidoriType::NeverType>())
+			if (!IsDead() && join->m_type->IsType<MarmotType::NeverType>())
 			{
 				join->m_type = Scope().m_function.TypeOf(branch_value);
 			}
@@ -157,14 +157,14 @@ std::pair<std::shared_ptr<Lowering::JoinPoint>, Lowering::BranchSink> Lowering::
 	return { join, std::move(sink) };
 }
 
-MidoriIRValueId Lowering::EnterJoin(const JoinPoint& join)
+MarmotIRValueId Lowering::EnterJoin(const JoinPoint& join)
 {
-	const MidoriIRValueId result = Builder().AddParameter(join.m_block, join.m_type);
+	const MarmotIRValueId result = Builder().AddParameter(join.m_block, join.m_type);
 	PositionAt(join.m_block);
 	return result;
 }
 
-Lowering::Lowered Lowering::LowerIf(MidoriExpression::IfElse& if_else)
+Lowering::Lowered Lowering::LowerIf(MarmotExpression::IfElse& if_else)
 {
 	const auto [join, sink] = Join(Concrete(if_else.m_type_data));
 	return LowerIfWith(if_else, sink)
@@ -174,9 +174,9 @@ Lowering::Lowered Lowering::LowerIf(MidoriExpression::IfElse& if_else)
 		});
 }
 
-Lowering::Emitted Lowering::LowerStatements(MidoriExpression::Block& block)
+Lowering::Emitted Lowering::LowerStatements(MarmotExpression::Block& block)
 {
-	for (std::unique_ptr<MidoriStatement>& statement : block.m_stmts)
+	for (std::unique_ptr<MarmotStatement>& statement : block.m_stmts)
 	{
 		const Emitted lowered = LowerStatement(*statement);
 		if (!lowered.has_value())
@@ -187,7 +187,7 @@ Lowering::Emitted Lowering::LowerStatements(MidoriExpression::Block& block)
 	return {};
 }
 
-Lowering::Lowered Lowering::LowerBlock(MidoriExpression::Block& block)
+Lowering::Lowered Lowering::LowerBlock(MarmotExpression::Block& block)
 {
 	PushLocalFrame();
 	const Lowered lowered = LowerStatements(block)
@@ -207,16 +207,16 @@ Lowering::Lowered Lowering::LowerBlock(MidoriExpression::Block& block)
 // case on the first that fails, binding its names as it goes. The type checker
 // makes a match exhaustive, so nothing follows the last case; a case that
 // cannot fail ends the chain.
-Lowering::Emitted Lowering::LowerMatchWith(MidoriExpression::Match& match, const BranchSink& sink)
+Lowering::Emitted Lowering::LowerMatchWith(MarmotExpression::Match& match, const BranchSink& sink)
 {
 	return Lower(*match.m_arg_expr)
-		.and_then([&](MidoriIRValueId scrutinee) -> Emitted
+		.and_then([&](MarmotIRValueId scrutinee) -> Emitted
 		{
 			Builder().AtLine(match.m_match_keyword.m_line);
-			for (std::unique_ptr<MidoriExpression>& case_expression : match.m_cases)
+			for (std::unique_ptr<MarmotExpression>& case_expression : match.m_cases)
 			{
-				MidoriExpression::Case& match_case = case_expression->GetExpression<MidoriExpression::Case>();
-				const MidoriIRBlockId fail = NewBlock();
+				MarmotExpression::Case& match_case = case_expression->GetExpression<MarmotExpression::Case>();
+				const MarmotIRBlockId fail = NewBlock();
 				PushLocalFrame();
 				const Emitted lowered = LowerPattern(*match_case.m_pattern, scrutinee, fail)
 					.and_then([&]() -> Emitted
@@ -226,7 +226,7 @@ Lowering::Emitted Lowering::LowerMatchWith(MidoriExpression::Match& match, const
 							return {};
 						}
 						return Lower(*match_case.m_guard.value())
-							.and_then([&](MidoriIRValueId guard) { return TestOrFail(guard, fail); });
+							.and_then([&](MarmotIRValueId guard) { return TestOrFail(guard, fail); });
 					})
 					.and_then([&]() { return sink(match_case.m_expr.get()); });
 				PopLocalFrame();
@@ -246,7 +246,7 @@ Lowering::Emitted Lowering::LowerMatchWith(MidoriExpression::Match& match, const
 		});
 }
 
-Lowering::Lowered Lowering::LowerMatch(MidoriExpression::Match& match)
+Lowering::Lowered Lowering::LowerMatch(MarmotExpression::Match& match)
 {
 	const auto [join, sink] = Join(Concrete(match.m_type_data));
 	return LowerMatchWith(match, sink)
@@ -256,25 +256,25 @@ Lowering::Lowered Lowering::LowerMatch(MidoriExpression::Match& match)
 		});
 }
 
-Lowering::Emitted Lowering::TestOrFail(MidoriIRValueId condition, MidoriIRBlockId fail)
+Lowering::Emitted Lowering::TestOrFail(MarmotIRValueId condition, MarmotIRBlockId fail)
 {
-	const MidoriIRBlockId matched = NewBlock();
-	Branch(condition, MidoriIRSuccessor(matched), MidoriIRSuccessor(fail));
+	const MarmotIRBlockId matched = NewBlock();
+	Branch(condition, MarmotIRSuccessor(matched), MarmotIRSuccessor(fail));
 	PositionAt(matched);
 	return {};
 }
 
 // Tests `value` against the pattern, going to `fail` when it does not match,
 // and defines the names it binds on the way.
-Lowering::Emitted Lowering::LowerPattern(const MidoriPattern& pattern, MidoriIRValueId value, MidoriIRBlockId fail)
+Lowering::Emitted Lowering::LowerPattern(const MarmotPattern& pattern, MarmotIRValueId value, MarmotIRBlockId fail)
 {
 	struct PatternLowering
 	{
 		Lowering& m_self;
-		MidoriIRValueId m_value;
-		MidoriIRBlockId m_fail;
+		MarmotIRValueId m_value;
+		MarmotIRBlockId m_fail;
 
-		MidoriIRBuilder& Builder() const
+		MarmotIRBuilder& Builder() const
 		{
 			return m_self.Builder();
 		}
@@ -284,7 +284,7 @@ Lowering::Emitted Lowering::LowerPattern(const MidoriPattern& pattern, MidoriIRV
 			return GenericTypes::RepresentationOf(m_self.Scope().m_function.TypeOf(m_value));
 		}
 
-		Emitted Elements(const std::vector<std::unique_ptr<MidoriPattern>>& elements, const std::function<MidoriIRValueId(uint32_t)>& element) const
+		Emitted Elements(const std::vector<std::unique_ptr<MarmotPattern>>& elements, const std::function<MarmotIRValueId(uint32_t)>& element) const
 		{
 			for (uint32_t index = 0u; index < elements.size(); index += 1u)
 			{
@@ -297,7 +297,7 @@ Lowering::Emitted Lowering::LowerPattern(const MidoriPattern& pattern, MidoriIRV
 			return {};
 		}
 
-		Emitted operator()(const MidoriPattern::Binding& binding) const
+		Emitted operator()(const MarmotPattern::Binding& binding) const
 		{
 			if (binding.m_local_index.has_value())
 			{
@@ -306,80 +306,80 @@ Lowering::Emitted Lowering::LowerPattern(const MidoriPattern& pattern, MidoriIRV
 			return {};
 		}
 
-		Emitted operator()(const MidoriPattern::Wildcard&) const
+		Emitted operator()(const MarmotPattern::Wildcard&) const
 		{
 			return {};
 		}
 
-		Emitted operator()(const MidoriPattern::Literal& literal) const
+		Emitted operator()(const MarmotPattern::Literal& literal) const
 		{
-			if (literal.m_kind == MidoriLiteralKind::Unit)
+			if (literal.m_kind == MarmotLiteralKind::Unit)
 			{
 				return {};
 			}
-			const std::optional<MidoriIRImmediate> constant = m_self.ConstantOf(literal.m_kind, literal.m_token.m_lexeme);
+			const std::optional<MarmotIRImmediate> constant = m_self.ConstantOf(literal.m_kind, literal.m_token.m_lexeme);
 			if (!constant.has_value())
 			{
 				return std::unexpected(m_self.Error(CompilerErrorCode::None, "Invalid literal in pattern '" + literal.m_token.m_lexeme + "'", literal.m_token));
 			}
 			Builder().AtLine(literal.m_token.m_line);
-			const MidoriIRValueId expected = Builder().Emit(MidoriIROp::Const, LiteralType(literal.m_kind), {}, constant.value());
+			const MarmotIRValueId expected = Builder().Emit(MarmotIROp::Const, LiteralType(literal.m_kind), {}, constant.value());
 			return m_self.TestOrFail(Builder().Binary(EqualityOf(literal.m_kind), m_value, expected), m_fail);
 		}
 
-		Emitted operator()(const MidoriPattern::Tuple& tuple) const
+		Emitted operator()(const MarmotPattern::Tuple& tuple) const
 		{
-			const std::vector<TypeRef> element_types = Representation()->GetType<MidoriType::TupleType>().m_element_types;
+			const std::vector<TypeRef> element_types = Representation()->GetType<MarmotType::TupleType>().m_element_types;
 			Builder().AtLine(tuple.m_left_paren.m_line);
 			return Elements(tuple.m_elements, [&](uint32_t index)
 			{
-				return Builder().Emit(MidoriIROp::TupleGet, element_types[index], { m_value }, MidoriIRIndex{ index });
+				return Builder().Emit(MarmotIROp::TupleGet, element_types[index], { m_value }, MarmotIRIndex{ index });
 			});
 		}
 
 		// With a rest, the elements after it are counted from the end, and the rest
 		// is the slice between the two ends.
-		Emitted operator()(const MidoriPattern::Array& array) const
+		Emitted operator()(const MarmotPattern::Array& array) const
 		{
 			const TypeRef array_type = Representation();
-			const TypeRef element_type = array_type->GetType<MidoriType::ArrayType>().m_element_type;
+			const TypeRef element_type = array_type->GetType<MarmotType::ArrayType>().m_element_type;
 			const int64_t count = static_cast<int64_t>(array.m_elements.size());
 			const int64_t before = array.m_rest.has_value() ? static_cast<int64_t>(array.m_rest->m_position) : count;
 			Builder().AtLine(array.m_left_bracket.m_line);
-			const MidoriIRValueId length = Builder().Emit(MidoriIROp::ArrayLength, IntType(), { m_value });
-			const MidoriIROp comparison = array.m_rest.has_value() ? MidoriIROp::GeInt : MidoriIROp::EqInt;
+			const MarmotIRValueId length = Builder().Emit(MarmotIROp::ArrayLength, IntType(), { m_value });
+			const MarmotIROp comparison = array.m_rest.has_value() ? MarmotIROp::GeInt : MarmotIROp::EqInt;
 			const auto from_end = [&](int64_t distance)
 				{
-					return Builder().Binary(MidoriIROp::SubInt, length, Builder().ConstInt(distance));
+					return Builder().Binary(MarmotIROp::SubInt, length, Builder().ConstInt(distance));
 				};
 			return m_self.TestOrFail(Builder().Binary(comparison, length, Builder().ConstInt(count)), m_fail)
 				.and_then([&]()
 				{
 					return Elements(array.m_elements, [&](uint32_t index)
 					{
-						const MidoriIRValueId position = index < before ? Builder().ConstInt(index) : from_end(count - index);
-						return Builder().Emit(MidoriIROp::ArrayGet, element_type, { m_value, position });
+						const MarmotIRValueId position = index < before ? Builder().ConstInt(index) : from_end(count - index);
+						return Builder().Emit(MarmotIROp::ArrayGet, element_type, { m_value, position });
 					});
 				})
 				.and_then([&]() -> Emitted
 				{
-					if (!array.m_rest.has_value() || !array.m_rest->m_pattern->IsPattern<MidoriPattern::Binding>())
+					if (!array.m_rest.has_value() || !array.m_rest->m_pattern->IsPattern<MarmotPattern::Binding>())
 					{
 						return {};
 					}
-					const MidoriIRValueId rest = Builder().Emit(MidoriIROp::CallForeign, array_type, { m_value, Builder().ConstInt(before), from_end(count - before) }, MidoriIRForeign{ "MIDORI_FFI_ArraySlice" });
+					const MarmotIRValueId rest = Builder().Emit(MarmotIROp::CallForeign, array_type, { m_value, Builder().ConstInt(before), from_end(count - before) }, MarmotIRForeign{ "MARMOT_FFI_ArraySlice" });
 					return m_self.LowerPattern(*array.m_rest->m_pattern, rest, m_fail);
 				});
 		}
 
-		Emitted operator()(const MidoriPattern::Record& record) const
+		Emitted operator()(const MarmotPattern::Record& record) const
 		{
 			Builder().AtLine(record.m_name_token.m_line);
-			const std::vector<TypeRef> member_types = Representation()->GetType<MidoriType::StructType>().m_member_types;
-			for (const MidoriPattern::Record::Field& field : record.m_fields)
+			const std::vector<TypeRef> member_types = Representation()->GetType<MarmotType::StructType>().m_member_types;
+			for (const MarmotPattern::Record::Field& field : record.m_fields)
 			{
 				const uint32_t index = static_cast<uint32_t>(field.m_index);
-				const MidoriIRValueId member = Builder().Emit(MidoriIROp::GetMember, member_types[index], { m_value }, MidoriIRIndex{ index });
+				const MarmotIRValueId member = Builder().Emit(MarmotIROp::GetMember, member_types[index], { m_value }, MarmotIRIndex{ index });
 				const Emitted lowered = m_self.LowerPattern(*field.m_pattern, member, m_fail);
 				if (!lowered.has_value())
 				{
@@ -389,27 +389,27 @@ Lowering::Emitted Lowering::LowerPattern(const MidoriPattern& pattern, MidoriIRV
 			return {};
 		}
 
-		Emitted operator()(const MidoriPattern::Range& range) const
+		Emitted operator()(const MarmotPattern::Range& range) const
 		{
 			Builder().AtLine(range.m_start.m_line);
-			return m_self.TestOrFail(Builder().Binary(MidoriIROp::GeInt, m_value, Builder().ConstInt(range.m_low)), m_fail)
-				.and_then([&]() { return m_self.TestOrFail(Builder().Binary(MidoriIROp::LeInt, m_value, Builder().ConstInt(range.m_high)), m_fail); });
+			return m_self.TestOrFail(Builder().Binary(MarmotIROp::GeInt, m_value, Builder().ConstInt(range.m_low)), m_fail)
+				.and_then([&]() { return m_self.TestOrFail(Builder().Binary(MarmotIROp::LeInt, m_value, Builder().ConstInt(range.m_high)), m_fail); });
 		}
 
 		// Each alternative that matches jumps to one block with what it bound, so
 		// the case reads its names from that block's parameters.
-		Emitted operator()(const MidoriPattern::Or& either) const
+		Emitted operator()(const MarmotPattern::Or& either) const
 		{
 			const std::vector<int> locals = either.m_alternatives.front()->Bindings()
-				| std::views::filter([](const MidoriPattern::Binding* binding) { return binding->m_local_index.has_value(); })
-				| std::views::transform([](const MidoriPattern::Binding* binding) { return binding->m_local_index.value(); })
+				| std::views::filter([](const MarmotPattern::Binding* binding) { return binding->m_local_index.has_value(); })
+				| std::views::transform([](const MarmotPattern::Binding* binding) { return binding->m_local_index.value(); })
 				| std::ranges::to<std::vector>();
-			const MidoriIRBlockId matched = m_self.NewBlock();
-			std::vector<MidoriIRValueId> parameters;
+			const MarmotIRBlockId matched = m_self.NewBlock();
+			std::vector<MarmotIRValueId> parameters;
 			for (size_t index = 0uz; index < either.m_alternatives.size(); index += 1uz)
 			{
 				const bool is_last = index + 1uz == either.m_alternatives.size();
-				const MidoriIRBlockId next = is_last ? m_fail : m_self.NewBlock();
+				const MarmotIRBlockId next = is_last ? m_fail : m_self.NewBlock();
 				m_self.PushLocalFrame();
 				const Emitted lowered = m_self.LowerPattern(*either.m_alternatives[index], m_value, next);
 				if (!lowered.has_value())
@@ -418,13 +418,13 @@ Lowering::Emitted Lowering::LowerPattern(const MidoriPattern& pattern, MidoriIRV
 					return lowered;
 				}
 
-				const std::vector<MidoriIRValueId> values = locals
+				const std::vector<MarmotIRValueId> values = locals
 					| std::views::transform([this](int local) { return m_self.Scope().m_locals.at(local); })
 					| std::ranges::to<std::vector>();
 				if (index == 0uz)
 				{
 					parameters = values
-						| std::views::transform([this, matched](MidoriIRValueId value) { return Builder().AddParameter(matched, m_self.Scope().m_function.TypeOf(value)); })
+						| std::views::transform([this, matched](MarmotIRValueId value) { return Builder().AddParameter(matched, m_self.Scope().m_function.TypeOf(value)); })
 						| std::ranges::to<std::vector>();
 				}
 				m_self.PopLocalFrame();
@@ -443,35 +443,35 @@ Lowering::Emitted Lowering::LowerPattern(const MidoriPattern& pattern, MidoriIRV
 			return {};
 		}
 
-		Emitted operator()(const MidoriPattern::As& as) const
+		Emitted operator()(const MarmotPattern::As& as) const
 		{
 			return m_self.LowerPattern(*as.m_pattern, m_value, m_fail)
 				.and_then([&]() { return m_self.LowerPattern(*as.m_binding, m_value, m_fail); });
 		}
 
-		Emitted operator()(const MidoriPattern::Constructor& constructor) const
+		Emitted operator()(const MarmotPattern::Constructor& constructor) const
 		{
 			Builder().AtLine(constructor.m_name_token.m_line);
 			const TypeRef type = Representation();
 			if (!constructor.m_is_union)
 			{
-				const std::vector<TypeRef> member_types = type->GetType<MidoriType::StructType>().m_member_types;
+				const std::vector<TypeRef> member_types = type->GetType<MarmotType::StructType>().m_member_types;
 				return Elements(constructor.m_args, [&](uint32_t index)
 				{
-					return Builder().Emit(MidoriIROp::GetMember, member_types[index], { m_value }, MidoriIRIndex{ index });
+					return Builder().Emit(MarmotIROp::GetMember, member_types[index], { m_value }, MarmotIRIndex{ index });
 				});
 			}
 
 			const int tag = constructor.m_tag;
 			const std::vector<TypeRef> field_types = UnionMember(type, tag).m_member_types;
-			const MidoriIRValueId actual = Builder().Emit(MidoriIROp::GetTag, IntType(), { m_value });
-			const MidoriIRValueId expected = Builder().ConstInt(tag);
-			return m_self.TestOrFail(Builder().Binary(MidoriIROp::EqInt, actual, expected), m_fail)
+			const MarmotIRValueId actual = Builder().Emit(MarmotIROp::GetTag, IntType(), { m_value });
+			const MarmotIRValueId expected = Builder().ConstInt(tag);
+			return m_self.TestOrFail(Builder().Binary(MarmotIROp::EqInt, actual, expected), m_fail)
 				.and_then([&]()
 				{
 					return Elements(constructor.m_args, [&](uint32_t index)
 					{
-						return Builder().Emit(MidoriIROp::UnionField, field_types[index], { m_value }, MidoriIRUnionField{ tag, index });
+						return Builder().Emit(MarmotIROp::UnionField, field_types[index], { m_value }, MarmotIRUnionField{ tag, index });
 					});
 				});
 		}
@@ -484,14 +484,14 @@ Lowering::Emitted Lowering::LowerPattern(const MidoriPattern& pattern, MidoriIRV
 // captures that iteration's. The header's parameter is where the loop is: the
 // element for a range, the index for an array, the iterator for an Iterable.
 // `carried` goes round the loop beside it, and out of the loop when it ends.
-std::expected<std::vector<MidoriIRValueId>, CompilerError> Lowering::LowerLoop(MidoriExpression& iterated, const LoopKind& kind, int loop_variable, std::vector<MidoriIRValueId> carried, const LoopBody& body, const Token& at)
+std::expected<std::vector<MarmotIRValueId>, CompilerError> Lowering::LowerLoop(MarmotExpression& iterated, const LoopKind& kind, int loop_variable, std::vector<MarmotIRValueId> carried, const LoopBody& body, const Token& at)
 {
 	const Lowered lowered_source = Lower(iterated);
 	if (!lowered_source.has_value())
 	{
 		return std::unexpected(lowered_source.error());
 	}
-	const MidoriIRValueId source = lowered_source.value();
+	const MarmotIRValueId source = lowered_source.value();
 	if (IsDead())
 	{
 		return carried;
@@ -502,61 +502,61 @@ std::expected<std::vector<MidoriIRValueId>, CompilerError> Lowering::LowerLoop(M
 	Builder().AtLine(at.m_line);
 
 	TypeRef position_type = source_type;
-	MidoriIRValueId start = source;
-	MidoriIRValueId step = source;
-	MidoriIRValueId end = source;
+	MarmotIRValueId start = source;
+	MarmotIRValueId step = source;
+	MarmotIRValueId end = source;
 	const bool is_range = !kind.m_is_array && !kind.m_is_iterable;
 	bool is_float = false;
 	if (kind.m_is_array)
 	{
 		position_type = IntType();
 		start = Builder().ConstInt(0);
-		end = Builder().Emit(MidoriIROp::ArrayLength, IntType(), { source });
+		end = Builder().Emit(MarmotIROp::ArrayLength, IntType(), { source });
 	}
 	else if (is_range)
 	{
-		position_type = source_type->GetType<MidoriType::RangeType>().m_element_type;
-		is_float = position_type->IsType<MidoriType::FloatType>();
-		start = Builder().Emit(MidoriIROp::RangeStart, position_type, { source });
-		step = Builder().Emit(MidoriIROp::RangeStep, position_type, { source });
-		end = Builder().Emit(MidoriIROp::RangeEnd, position_type, { source });
+		position_type = source_type->GetType<MarmotType::RangeType>().m_element_type;
+		is_float = position_type->IsType<MarmotType::FloatType>();
+		start = Builder().Emit(MarmotIROp::RangeStart, position_type, { source });
+		step = Builder().Emit(MarmotIROp::RangeStep, position_type, { source });
+		end = Builder().Emit(MarmotIROp::RangeEnd, position_type, { source });
 	}
 
-	const MidoriIRBlockId header = NewBlock();
-	const MidoriIRValueId position = Builder().AddParameter(header, position_type);
-	const std::vector<MidoriIRValueId> header_carried = carried_types
+	const MarmotIRBlockId header = NewBlock();
+	const MarmotIRValueId position = Builder().AddParameter(header, position_type);
+	const std::vector<MarmotIRValueId> header_carried = carried_types
 		| std::views::transform([&](const TypeRef& type) { return Builder().AddParameter(header, type); })
 		| std::ranges::to<std::vector>();
-	const MidoriIRBlockId body_block = NewBlock();
-	const MidoriIRBlockId exit = NewBlock();
-	const std::vector<MidoriIRValueId> exit_carried = carried_types
+	const MarmotIRBlockId body_block = NewBlock();
+	const MarmotIRBlockId exit = NewBlock();
+	const std::vector<MarmotIRValueId> exit_carried = carried_types
 		| std::views::transform([&](const TypeRef& type) { return Builder().AddParameter(exit, type); })
 		| std::ranges::to<std::vector>();
 
-	std::vector<MidoriIRValueId> entry_arguments = { start };
+	std::vector<MarmotIRValueId> entry_arguments = { start };
 	entry_arguments.insert(entry_arguments.end(), carried.begin(), carried.end());
 	Jump(header, std::move(entry_arguments));
 	PositionAt(header);
 
-	MidoriIRValueId element = position;
-	std::optional<MidoriIRValueId> next_iterator;
+	MarmotIRValueId element = position;
+	std::optional<MarmotIRValueId> next_iterator;
 	if (kind.m_is_array)
 	{
-		Branch(Builder().Binary(MidoriIROp::LtInt, position, end), MidoriIRSuccessor(body_block), MidoriIRSuccessor(exit, header_carried));
+		Branch(Builder().Binary(MarmotIROp::LtInt, position, end), MarmotIRSuccessor(body_block), MarmotIRSuccessor(exit, header_carried));
 		PositionAt(body_block);
-		element = Builder().Emit(MidoriIROp::ArrayGet, source_type->GetType<MidoriType::ArrayType>().m_element_type, { source, position });
+		element = Builder().Emit(MarmotIROp::ArrayGet, source_type->GetType<MarmotType::ArrayType>().m_element_type, { source, position });
 	}
 	else if (is_range)
 	{
 		// A positive step counts up to the end, any other down to it.
-		const MidoriIRValueId zero = is_float ? Builder().ConstFloat(0.0) : Builder().ConstInt(0);
-		const MidoriIRBlockId upward = NewBlock();
-		const MidoriIRBlockId downward = NewBlock();
-		Branch(Builder().Binary(is_float ? MidoriIROp::GtFloat : MidoriIROp::GtInt, step, zero), MidoriIRSuccessor(upward), MidoriIRSuccessor(downward));
+		const MarmotIRValueId zero = is_float ? Builder().ConstFloat(0.0) : Builder().ConstInt(0);
+		const MarmotIRBlockId upward = NewBlock();
+		const MarmotIRBlockId downward = NewBlock();
+		Branch(Builder().Binary(is_float ? MarmotIROp::GtFloat : MarmotIROp::GtInt, step, zero), MarmotIRSuccessor(upward), MarmotIRSuccessor(downward));
 		PositionAt(upward);
-		Branch(Builder().Binary(is_float ? MidoriIROp::LtFloat : MidoriIROp::LtInt, position, end), MidoriIRSuccessor(body_block), MidoriIRSuccessor(exit, header_carried));
+		Branch(Builder().Binary(is_float ? MarmotIROp::LtFloat : MarmotIROp::LtInt, position, end), MarmotIRSuccessor(body_block), MarmotIRSuccessor(exit, header_carried));
 		PositionAt(downward);
-		Branch(Builder().Binary(is_float ? MidoriIROp::GtFloat : MidoriIROp::GtInt, position, end), MidoriIRSuccessor(body_block), MidoriIRSuccessor(exit, header_carried));
+		Branch(Builder().Binary(is_float ? MarmotIROp::GtFloat : MarmotIROp::GtInt, position, end), MarmotIRSuccessor(body_block), MarmotIRSuccessor(exit, header_carried));
 		PositionAt(body_block);
 	}
 	else
@@ -568,19 +568,19 @@ std::expected<std::vector<MidoriIRValueId>, CompilerError> Lowering::LowerLoop(M
 			return std::unexpected(next.error());
 		}
 		const TypeRef next_type = Scope().m_function.TypeOf(next.value());
-		const MidoriIRValueId tag = Builder().AtLine(at.m_line).Emit(MidoriIROp::GetTag, IntType(), { next.value() });
-		Branch(Builder().Binary(MidoriIROp::EqInt, tag, Builder().ConstInt(kind.m_some_tag)), MidoriIRSuccessor(body_block), MidoriIRSuccessor(exit, header_carried));
+		const MarmotIRValueId tag = Builder().AtLine(at.m_line).Emit(MarmotIROp::GetTag, IntType(), { next.value() });
+		Branch(Builder().Binary(MarmotIROp::EqInt, tag, Builder().ConstInt(kind.m_some_tag)), MarmotIRSuccessor(body_block), MarmotIRSuccessor(exit, header_carried));
 		PositionAt(body_block);
 		const TypeRef payload_type = UnionMember(next_type, kind.m_some_tag).m_member_types.front();
-		const std::vector<TypeRef>& pair_types = GenericTypes::RepresentationOf(payload_type)->GetType<MidoriType::TupleType>().m_element_types;
-		const MidoriIRValueId payload = Builder().Emit(MidoriIROp::UnionField, payload_type, { next.value() }, MidoriIRUnionField{ kind.m_some_tag, 0u });
-		element = Builder().Emit(MidoriIROp::TupleGet, pair_types[0u], { payload }, MidoriIRIndex{ 0u });
-		next_iterator = Builder().Emit(MidoriIROp::TupleGet, pair_types[1u], { payload }, MidoriIRIndex{ 1u });
+		const std::vector<TypeRef>& pair_types = GenericTypes::RepresentationOf(payload_type)->GetType<MarmotType::TupleType>().m_element_types;
+		const MarmotIRValueId payload = Builder().Emit(MarmotIROp::UnionField, payload_type, { next.value() }, MarmotIRUnionField{ kind.m_some_tag, 0u });
+		element = Builder().Emit(MarmotIROp::TupleGet, pair_types[0u], { payload }, MarmotIRIndex{ 0u });
+		next_iterator = Builder().Emit(MarmotIROp::TupleGet, pair_types[1u], { payload }, MarmotIRIndex{ 1u });
 	}
 
 	PushLocalFrame();
 	DefineLocal(loop_variable, element);
-	std::expected<std::vector<MidoriIRValueId>, CompilerError> updated = body(header_carried);
+	std::expected<std::vector<MarmotIRValueId>, CompilerError> updated = body(header_carried);
 	PopLocalFrame();
 	if (!updated.has_value())
 	{
@@ -588,24 +588,24 @@ std::expected<std::vector<MidoriIRValueId>, CompilerError> Lowering::LowerLoop(M
 	}
 
 	Builder().AtLine(at.m_line);
-	const MidoriIRValueId advanced = next_iterator.has_value()
+	const MarmotIRValueId advanced = next_iterator.has_value()
 		? next_iterator.value()
-		: Builder().Binary(kind.m_is_array ? MidoriIROp::AddInt : is_float ? MidoriIROp::AddFloat : MidoriIROp::AddInt, position, kind.m_is_array ? Builder().ConstInt(1) : step);
-	std::vector<MidoriIRValueId> back_arguments = { advanced };
+		: Builder().Binary(kind.m_is_array ? MarmotIROp::AddInt : is_float ? MarmotIROp::AddFloat : MarmotIROp::AddInt, position, kind.m_is_array ? Builder().ConstInt(1) : step);
+	std::vector<MarmotIRValueId> back_arguments = { advanced };
 	back_arguments.insert(back_arguments.end(), updated.value().begin(), updated.value().end());
 	Jump(header, std::move(back_arguments));
 	PositionAt(exit);
 	return exit_carried;
 }
 
-Lowering::Lowered Lowering::LowerFor(MidoriExpression::For& for_expression)
+Lowering::Lowered Lowering::LowerFor(MarmotExpression::For& for_expression)
 {
 	const LoopKind kind = LoopKindOf(for_expression.m_is_array_iteration, for_expression.m_is_iterable_iteration, for_expression.m_iterable_item_type, for_expression.m_iterable_next_type, for_expression.m_iterable_some_tag);
-	return LowerLoop(*for_expression.m_range, kind, for_expression.m_loop_variable_index, {}, [&](std::vector<MidoriIRValueId> carried) -> std::expected<std::vector<MidoriIRValueId>, CompilerError>
+	return LowerLoop(*for_expression.m_range, kind, for_expression.m_loop_variable_index, {}, [&](std::vector<MarmotIRValueId> carried) -> std::expected<std::vector<MarmotIRValueId>, CompilerError>
 		{
-			return Lower(*for_expression.m_body).transform([&carried](MidoriIRValueId) { return carried; });
+			return Lower(*for_expression.m_body).transform([&carried](MarmotIRValueId) { return carried; });
 		}, for_expression.m_for_keyword)
-		.transform([this](std::vector<MidoriIRValueId>)
+		.transform([this](std::vector<MarmotIRValueId>)
 		{
 			return Builder().ConstUnit();
 		});
@@ -613,20 +613,20 @@ Lowering::Lowered Lowering::LowerFor(MidoriExpression::For& for_expression)
 
 // The result grows by one element each iteration; nothing else holds it, so
 // it grows in place.
-Lowering::Lowered Lowering::LowerComprehension(MidoriExpression::ArrayComprehension& comprehension)
+Lowering::Lowered Lowering::LowerComprehension(MarmotExpression::ArrayComprehension& comprehension)
 {
 	const LoopKind kind = LoopKindOf(comprehension.m_is_array_iteration, comprehension.m_is_iterable_iteration, comprehension.m_iterable_item_type, comprehension.m_iterable_next_type, comprehension.m_iterable_some_tag);
 	const TypeRef type = Concrete(comprehension.m_type_data);
-	const MidoriIRValueId empty = Builder().AtLine(comprehension.m_bracket.m_line).Emit(MidoriIROp::MakeArray, type);
-	return LowerLoop(*comprehension.m_range, kind, comprehension.m_loop_variable_index, { empty }, [&](std::vector<MidoriIRValueId> carried) -> std::expected<std::vector<MidoriIRValueId>, CompilerError>
+	const MarmotIRValueId empty = Builder().AtLine(comprehension.m_bracket.m_line).Emit(MarmotIROp::MakeArray, type);
+	return LowerLoop(*comprehension.m_range, kind, comprehension.m_loop_variable_index, { empty }, [&](std::vector<MarmotIRValueId> carried) -> std::expected<std::vector<MarmotIRValueId>, CompilerError>
 		{
 			return Lower(*comprehension.m_transform_expr)
-				.transform([&](MidoriIRValueId element)
+				.transform([&](MarmotIRValueId element)
 				{
-					return std::vector<MidoriIRValueId>{ Builder().AtLine(comprehension.m_bracket.m_line).Emit(MidoriIROp::ArrayAppend, type, { carried.front(), element }) };
+					return std::vector<MarmotIRValueId>{ Builder().AtLine(comprehension.m_bracket.m_line).Emit(MarmotIROp::ArrayAppend, type, { carried.front(), element }) };
 				});
 		}, comprehension.m_bracket)
-		.transform([](std::vector<MidoriIRValueId> result)
+		.transform([](std::vector<MarmotIRValueId> result)
 		{
 			return result.front();
 		});
@@ -637,7 +637,7 @@ Lowering::LoopKind Lowering::LoopKindOf(bool is_array, bool is_iterable, const T
 	return LoopKind{ is_array, is_iterable, is_iterable ? Concrete(item_type) : nullptr, is_iterable ? Concrete(next_type) : nullptr, some_tag };
 }
 
-Lowering::Lowered Lowering::CallIterableNext(MidoriIRValueId iterator, const TypeRef& item_type, const TypeRef& next_type, const Token& at)
+Lowering::Lowered Lowering::CallIterableNext(MarmotIRValueId iterator, const TypeRef& item_type, const TypeRef& next_type, const Token& at)
 {
 	const TypeRef iterator_type = Scope().m_function.TypeOf(iterator);
 	const MethodResolution<std::string> resolved = m_resolver.ResolveIterableNext(Scope().m_specialization.m_methods, iterator_type, item_type);

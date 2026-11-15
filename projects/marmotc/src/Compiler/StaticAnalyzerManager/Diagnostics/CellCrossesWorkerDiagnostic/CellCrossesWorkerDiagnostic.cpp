@@ -25,15 +25,15 @@ namespace
 	// The globals it reads go too, and those read by this module's functions it
 	// names, followed in turn. A global reached only through another global's value,
 	// or through another module's function, is not seen.
-	class CarriedCellFinder final : public MidoriAbstractSyntaxTreeWalker
+	class CarriedCellFinder final : public MarmotAbstractSyntaxTreeWalker
 	{
 	public:
-		explicit CarriedCellFinder(const std::unordered_map<std::string, MidoriExpression::Function*>& module_functions)
+		explicit CarriedCellFinder(const std::unordered_map<std::string, MarmotExpression::Function*>& module_functions)
 			: m_module_functions(module_functions)
 		{
 		}
 
-		CarriedCells Find(MidoriExpression::Function& function)
+		CarriedCells Find(MarmotExpression::Function& function)
 		{
 			m_visited_functions.insert(&function);
 			m_captured_count = function.m_captured_count;
@@ -43,7 +43,7 @@ namespace
 			m_captured_count = 0;
 			while (!m_pending_functions.empty())
 			{
-				MidoriExpression::Function* named = m_pending_functions.back();
+				MarmotExpression::Function* named = m_pending_functions.back();
 				m_pending_functions.pop_back();
 				VisitExpression(named->m_body);
 			}
@@ -51,9 +51,9 @@ namespace
 		}
 
 	protected:
-		void operator()(MidoriExpression::NameAccess& access) override
+		void operator()(MarmotExpression::NameAccess& access) override
 		{
-			if (const MidoriExpression::NameContext::Cell* captured = std::get_if<MidoriExpression::NameContext::Cell>(&access.m_name_ctx))
+			if (const MarmotExpression::NameContext::Cell* captured = std::get_if<MarmotExpression::NameContext::Cell>(&access.m_name_ctx))
 			{
 				if (captured->m_index < m_captured_count && ContainsCell(access.m_type_data) && m_seen_cells.insert(captured->m_index).second)
 				{
@@ -62,7 +62,7 @@ namespace
 				return;
 			}
 
-			if (!std::holds_alternative<MidoriExpression::NameContext::Global>(access.m_name_ctx))
+			if (!std::holds_alternative<MarmotExpression::NameContext::Global>(access.m_name_ctx))
 			{
 				return;
 			}
@@ -76,7 +76,7 @@ namespace
 				return;
 			}
 
-			const std::unordered_map<std::string, MidoriExpression::Function*>::const_iterator named = m_module_functions.find(access.m_name.m_lexeme);
+			const std::unordered_map<std::string, MarmotExpression::Function*>::const_iterator named = m_module_functions.find(access.m_name.m_lexeme);
 			if (named != m_module_functions.cend() && m_visited_functions.insert(named->second).second)
 			{
 				m_pending_functions.push_back(named->second);
@@ -84,10 +84,10 @@ namespace
 		}
 
 	private:
-		const std::unordered_map<std::string, MidoriExpression::Function*>& m_module_functions;
+		const std::unordered_map<std::string, MarmotExpression::Function*>& m_module_functions;
 		int m_captured_count = 0;
-		std::vector<MidoriExpression::Function*> m_pending_functions;
-		std::unordered_set<const MidoriExpression::Function*> m_visited_functions;
+		std::vector<MarmotExpression::Function*> m_pending_functions;
+		std::unordered_set<const MarmotExpression::Function*> m_visited_functions;
 		std::unordered_set<int> m_seen_cells;
 		std::unordered_set<std::string> m_seen_globals;
 		CarriedCells m_found;
@@ -99,25 +99,25 @@ CellCrossesWorkerDiagnostic::CellCrossesWorkerDiagnostic(const WorkerCrossings& 
 {
 }
 
-void CellCrossesWorkerDiagnostic::Reset(MidoriProgramTree& program_tree)
+void CellCrossesWorkerDiagnostic::Reset(MarmotProgramTree& program_tree)
 {
 	m_module_functions.clear();
-	for (std::unique_ptr<MidoriStatement>& statement : program_tree)
+	for (std::unique_ptr<MarmotStatement>& statement : program_tree)
 	{
-		if (!statement->IsStatement<MidoriStatement::VariableDefinition>())
+		if (!statement->IsStatement<MarmotStatement::VariableDefinition>())
 		{
 			continue;
 		}
 
-		MidoriStatement::VariableDefinition& definition = statement->GetStatement<MidoriStatement::VariableDefinition>();
-		if (definition.m_value->IsExpression<MidoriExpression::Function>())
+		MarmotStatement::VariableDefinition& definition = statement->GetStatement<MarmotStatement::VariableDefinition>();
+		if (definition.m_value->IsExpression<MarmotExpression::Function>())
 		{
-			m_module_functions.emplace(definition.m_name.m_lexeme, &definition.m_value->GetExpression<MidoriExpression::Function>());
+			m_module_functions.emplace(definition.m_name.m_lexeme, &definition.m_value->GetExpression<MarmotExpression::Function>());
 		}
 	}
 }
 
-void CellCrossesWorkerDiagnostic::WarnIfCell(const MidoriExpression& expression, const Token& token)
+void CellCrossesWorkerDiagnostic::WarnIfCell(const MarmotExpression& expression, const Token& token)
 {
 	if (ContainsCell(expression.GetType()))
 	{
@@ -125,16 +125,16 @@ void CellCrossesWorkerDiagnostic::WarnIfCell(const MidoriExpression& expression,
 	}
 }
 
-void CellCrossesWorkerDiagnostic::WarnIfFunctionCarriesCells(MidoriExpression& value, const Token& token)
+void CellCrossesWorkerDiagnostic::WarnIfFunctionCarriesCells(MarmotExpression& value, const Token& token)
 {
-	MidoriExpression::Function* function = nullptr;
-	if (value.IsExpression<MidoriExpression::Function>())
+	MarmotExpression::Function* function = nullptr;
+	if (value.IsExpression<MarmotExpression::Function>())
 	{
-		function = &value.GetExpression<MidoriExpression::Function>();
+		function = &value.GetExpression<MarmotExpression::Function>();
 	}
-	else if (value.IsExpression<MidoriExpression::NameAccess>() && std::holds_alternative<MidoriExpression::NameContext::Global>(value.GetExpression<MidoriExpression::NameAccess>().m_name_ctx))
+	else if (value.IsExpression<MarmotExpression::NameAccess>() && std::holds_alternative<MarmotExpression::NameContext::Global>(value.GetExpression<MarmotExpression::NameAccess>().m_name_ctx))
 	{
-		const std::unordered_map<std::string, MidoriExpression::Function*>::const_iterator named = m_module_functions.find(value.GetExpression<MidoriExpression::NameAccess>().m_name.m_lexeme);
+		const std::unordered_map<std::string, MarmotExpression::Function*>::const_iterator named = m_module_functions.find(value.GetExpression<MarmotExpression::NameAccess>().m_name.m_lexeme);
 		function = named != m_module_functions.cend() ? named->second : nullptr;
 	}
 
@@ -154,16 +154,16 @@ void CellCrossesWorkerDiagnostic::WarnIfFunctionCarriesCells(MidoriExpression& v
 	}
 }
 
-void CellCrossesWorkerDiagnostic::operator()(MidoriExpression::Send& send)
+void CellCrossesWorkerDiagnostic::operator()(MarmotExpression::Send& send)
 {
-	MidoriAbstractSyntaxTreeWalker::operator()(send);
+	MarmotAbstractSyntaxTreeWalker::operator()(send);
 	WarnIfCell(*send.m_value, send.m_arrow);
 	WarnIfFunctionCarriesCells(*send.m_value, send.m_arrow);
 }
 
-void CellCrossesWorkerDiagnostic::operator()(MidoriExpression::Call& call)
+void CellCrossesWorkerDiagnostic::operator()(MarmotExpression::Call& call)
 {
-	MidoriAbstractSyntaxTreeWalker::operator()(call);
+	MarmotAbstractSyntaxTreeWalker::operator()(call);
 
 	const WorkerCrossing* crossing = FindCallCrossing(call, m_crossings);
 	if (crossing == nullptr)
@@ -171,7 +171,7 @@ void CellCrossesWorkerDiagnostic::operator()(MidoriExpression::Call& call)
 		return;
 	}
 
-	const Token& callee = call.m_callee->GetExpression<MidoriExpression::NameAccess>().m_name;
+	const Token& callee = call.m_callee->GetExpression<MarmotExpression::NameAccess>().m_name;
 	for (size_t index : crossing->m_crossing_parameters)
 	{
 		WarnIfCell(*call.m_arguments[index], callee);

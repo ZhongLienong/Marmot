@@ -18,7 +18,7 @@ namespace
 	// What an editor on Windows writes at the start of a UTF-8 file.
 	std::string WithByteOrderMark(std::string_view source_code)
 	{
-		return std::string(MidoriSource::UTF8_BYTE_ORDER_MARK) + std::string(source_code);
+		return std::string(MarmotSource::UTF8_BYTE_ORDER_MARK) + std::string(source_code);
 	}
 
 	std::string ReadFile(const std::filesystem::path& path)
@@ -30,7 +30,7 @@ namespace
 
 TEST_CASE("A byte order mark is not part of the program", "[lexer][source]")
 {
-	const std::expected<MidoriTest::ExecutedSnippet, CompilerError> executed = MidoriTest::ExecuteSnippet(
+	const std::expected<MarmotTest::ExecutedSnippet, CompilerError> executed = MarmotTest::ExecuteSnippet(
 		WithByteOrderMark("module Main\ndef main = fn() -> Int => 0;\n"));
 
 	REQUIRE(executed.has_value());

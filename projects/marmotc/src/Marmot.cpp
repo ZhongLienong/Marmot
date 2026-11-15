@@ -2,5 +2,5 @@
 
 int main(int argc, char* argv[])
 {
-	return MidoriCLI::Run(argc, argv);
+	return MarmotCLI::Run(argc, argv);
 }

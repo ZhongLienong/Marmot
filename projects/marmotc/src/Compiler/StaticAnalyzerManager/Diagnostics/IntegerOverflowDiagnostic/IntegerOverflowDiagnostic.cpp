@@ -8,26 +8,26 @@
 
 namespace
 {
-	std::optional<MidoriInteger> TryParseIntegerLiteral(const MidoriExpression& expression)
+	std::optional<MarmotInteger> TryParseIntegerLiteral(const MarmotExpression& expression)
 	{
-		const MidoriExpression* current = &expression;
-		while (current->IsExpression<MidoriExpression::Group>())
+		const MarmotExpression* current = &expression;
+		while (current->IsExpression<MarmotExpression::Group>())
 		{
-			current = current->GetExpression<MidoriExpression::Group>().m_expr_in.get();
+			current = current->GetExpression<MarmotExpression::Group>().m_expr_in.get();
 		}
 
-		if (current->IsLiteral(MidoriExpression::LiteralKind::Integer))
+		if (current->IsLiteral(MarmotExpression::LiteralKind::Integer))
 		{
-			return ParseIntegerLiteral(current->GetExpression<MidoriExpression::Literal>().m_token.m_lexeme);
+			return ParseIntegerLiteral(current->GetExpression<MarmotExpression::Literal>().m_token.m_lexeme);
 		}
 
-		if (current->IsExpression<MidoriExpression::UnaryPrefix>())
+		if (current->IsExpression<MarmotExpression::UnaryPrefix>())
 		{
-			const MidoriExpression::UnaryPrefix& unary = current->GetExpression<MidoriExpression::UnaryPrefix>();
+			const MarmotExpression::UnaryPrefix& unary = current->GetExpression<MarmotExpression::UnaryPrefix>();
 			if (unary.m_op.m_token_name == Token::Name::SINGLE_MINUS)
 			{
-				const std::optional<MidoriInteger> inner = TryParseIntegerLiteral(*unary.m_expr);
-				if (!inner.has_value() || *inner == (std::numeric_limits<MidoriInteger>::min)())
+				const std::optional<MarmotInteger> inner = TryParseIntegerLiteral(*unary.m_expr);
+				if (!inner.has_value() || *inner == (std::numeric_limits<MarmotInteger>::min)())
 				{
 					return std::nullopt;
 				}
@@ -38,10 +38,10 @@ namespace
 		return std::nullopt;
 	}
 
-	bool WouldAdditionOverflow(MidoriInteger left, MidoriInteger right)
+	bool WouldAdditionOverflow(MarmotInteger left, MarmotInteger right)
 	{
-		const MidoriInteger max_value = (std::numeric_limits<MidoriInteger>::max)();
-		const MidoriInteger min_value = (std::numeric_limits<MidoriInteger>::min)();
+		const MarmotInteger max_value = (std::numeric_limits<MarmotInteger>::max)();
+		const MarmotInteger min_value = (std::numeric_limits<MarmotInteger>::min)();
 		if (right > 0)
 		{
 			return left > max_value - right;
@@ -53,10 +53,10 @@ namespace
 		return false;
 	}
 
-	bool WouldSubtractionOverflow(MidoriInteger left, MidoriInteger right)
+	bool WouldSubtractionOverflow(MarmotInteger left, MarmotInteger right)
 	{
-		const MidoriInteger max_value = (std::numeric_limits<MidoriInteger>::max)();
-		const MidoriInteger min_value = (std::numeric_limits<MidoriInteger>::min)();
+		const MarmotInteger max_value = (std::numeric_limits<MarmotInteger>::max)();
+		const MarmotInteger min_value = (std::numeric_limits<MarmotInteger>::min)();
 		if (right > 0)
 		{
 			return left < min_value + right;
@@ -68,10 +68,10 @@ namespace
 		return false;
 	}
 
-	bool WouldMultiplicationOverflow(MidoriInteger left, MidoriInteger right)
+	bool WouldMultiplicationOverflow(MarmotInteger left, MarmotInteger right)
 	{
-		const MidoriInteger max_value = (std::numeric_limits<MidoriInteger>::max)();
-		const MidoriInteger min_value = (std::numeric_limits<MidoriInteger>::min)();
+		const MarmotInteger max_value = (std::numeric_limits<MarmotInteger>::max)();
+		const MarmotInteger min_value = (std::numeric_limits<MarmotInteger>::min)();
 
 		if (left == 0 || right == 0)
 		{
@@ -96,10 +96,10 @@ namespace
 		return left < max_value / right;
 	}
 
-	bool WouldLeftShiftOverflow(MidoriInteger value, MidoriInteger shift_amount)
+	bool WouldLeftShiftOverflow(MarmotInteger value, MarmotInteger shift_amount)
 	{
-		constexpr int bit_width = std::numeric_limits<MidoriInteger>::digits;
-		const MidoriInteger max_value = (std::numeric_limits<MidoriInteger>::max)();
+		constexpr int bit_width = std::numeric_limits<MarmotInteger>::digits;
+		const MarmotInteger max_value = (std::numeric_limits<MarmotInteger>::max)();
 
 		if (shift_amount < 0 || shift_amount >= bit_width)
 		{
@@ -118,18 +118,18 @@ namespace
 	}
 }
 
-void IntegerOverflowDiagnostic::operator()(MidoriExpression::Binary& binary)
+void IntegerOverflowDiagnostic::operator()(MarmotExpression::Binary& binary)
 {
 	VisitExpression(binary.m_left);
 	VisitExpression(binary.m_right);
 
-	if (!binary.m_type_data->IsType<MidoriType::IntegerType>())
+	if (!binary.m_type_data->IsType<MarmotType::IntegerType>())
 	{
 		return;
 	}
 
-	const std::optional<MidoriInteger> left_value = TryParseIntegerLiteral(*binary.m_left);
-	const std::optional<MidoriInteger> right_value = TryParseIntegerLiteral(*binary.m_right);
+	const std::optional<MarmotInteger> left_value = TryParseIntegerLiteral(*binary.m_left);
+	const std::optional<MarmotInteger> right_value = TryParseIntegerLiteral(*binary.m_right);
 	if (!left_value.has_value() || !right_value.has_value())
 	{
 		return;

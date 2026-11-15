@@ -14,7 +14,7 @@ Source
   -> TypeChecker
   -> StaticAnalyzerManager
   -> Lowering
-  -> MidoriIROptimizer
+  -> MarmotIROptimizer
   -> BytecodeBackend
   -> BytecodeLinker
   -> VirtualMachine
@@ -82,7 +82,7 @@ The build graph stores:
 
 Source: `projects/marmotc/src/Compiler/Parser/`
 
-The parser converts each module's `TokenStream` into a `MidoriProgramTree`.
+The parser converts each module's `TokenStream` into a `MarmotProgramTree`.
 
 The parser is a recursive-descent parser with precedence handling, contextual rewrites, and error recovery.
 
@@ -186,19 +186,19 @@ Current warning passes:
 
 Warnings remain structured as `CompilerWarning` values and are appended to the compile-wide report.
 
-`marmotc check` and `marmotc build` accept `--emit-ast`, which is listed in the per-command help in every profile. It prints each module's checked AST, as it stands after static analysis, with how every name resolved (a local and its slot, a cell, or a global), in link order. It cannot be combined with `--format json`. With `--emit-ir` as well, every module's AST comes first, then every module's MidoriIR.
+`marmotc check` and `marmotc build` accept `--emit-ast`, which is listed in the per-command help in every profile. It prints each module's checked AST, as it stands after static analysis, with how every name resolved (a local and its slot, a cell, or a global), in link order. It cannot be combined with `--format json`. With `--emit-ir` as well, every module's AST comes first, then every module's MarmotIR.
 
 ## Phase 6: Lowering
 
 Source: `projects/marmotc/src/Compiler/Lowering/`
 
-Lowering turns the checked AST of one module into MidoriIR, a typed SSA IR with one graph per function (see [MidoriIR](midori-ir.md)). Every top-level definition gets its global slot before any function is lowered. Generic functions are specialized here, on demand, one function per set of argument types, including generics imported from other modules; class methods and operators that dispatch through type classes are resolved to instance methods here too. Its diagnostics are reported under the `Lowering` stage.
+Lowering turns the checked AST of one module into MarmotIR, a typed SSA IR with one graph per function (see [MarmotIR](marmot-ir.md)). Every top-level definition gets its global slot before any function is lowered. Generic functions are specialized here, on demand, one function per set of argument types, including generics imported from other modules; class methods and operators that dispatch through type classes are resolved to instance methods here too. Its diagnostics are reported under the `Lowering` stage.
 
-The MidoriIR verifier checks the result. Dev and Debug builds verify after lowering and after every optimizer pass, Release builds once, before the backend; a violation is a compiler bug, reported as `CompilerInternalError`.
+The MarmotIR verifier checks the result. Dev and Debug builds verify after lowering and after every optimizer pass, Release builds once, before the backend; a violation is a compiler bug, reported as `CompilerInternalError`.
 
-## Phase 7: MidoriIR Optimization
+## Phase 7: MarmotIR Optimization
 
-Source: `projects/marmotc/src/Compiler/MidoriIROptimizer/`
+Source: `projects/marmotc/src/Compiler/MarmotIROptimizer/`
 
 The optimizer runs the following passes over each module. Steps 1–2 run once; steps 3–14 repeat until unchanged, for at most eight rounds, so inlining and scalar simplification can expose work for earlier passes. Steps 15–16 run once:
 
@@ -219,13 +219,13 @@ The optimizer runs the following passes over each module. Steps 1–2 run once; 
 15. `LoopInvariantCodeMotion`
 16. `DeadCodeElimination`
 
-Each pass reports whether it changed the IR. [MidoriIR](midori-ir.md#optimizer) describes each pass and what they all keep: tail calls, stack traces and source lines.
+Each pass reports whether it changed the IR. [MarmotIR](marmot-ir.md#optimizer) describes each pass and what they all keep: tail calls, stack traces and source lines.
 
 ## Phase 8: Bytecode Emission
 
 Source: `projects/marmotc/src/Compiler/BytecodeBackend/`
 
-The bytecode backend turns each module's MidoriIR into a `BytecodeModule`. It chooses where each value lives (a frame slot shared by liveness, the operand stack, or nowhere) and which opcodes to use, superinstructions included. Its only diagnostics are the encoding's limits, reported as `CodeGeneratorLimitExceeded` under the `CodeGenerator` stage.
+The bytecode backend turns each module's MarmotIR into a `BytecodeModule`. It chooses where each value lives (a frame slot shared by liveness, the operand stack, or nowhere) and which opcodes to use, superinstructions included. Its only diagnostics are the encoding's limits, reported as `CodeGeneratorLimitExceeded` under the `CodeGenerator` stage.
 
 Important opcode families in the current executable format:
 
@@ -252,7 +252,7 @@ Procedures, globals and text constants are named only in two bytes, by the `WIDE
 
 Source: `projects/marmotc/src/Compiler/BytecodeLinker/`
 
-`BytecodeLinker` merges per-module bytecode into a single `MidoriExecutable`.
+`BytecodeLinker` merges per-module bytecode into a single `MarmotExecutable`.
 
 Linking performs:
 

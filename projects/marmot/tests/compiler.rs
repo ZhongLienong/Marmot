@@ -413,7 +413,7 @@ fn an_installed_tool_uses_its_siblings_and_installed_prelude() {
         "install/MarmotPrelude/Installed.mmt",
         "module Installed\npublic export { Value }\ndef Value = 42;\n",
     );
-    project.write("Main.mmt", "module Main\nimport { <Installed> }\nforeign \"MIDORI_FFI_Print\" Print : fn(Text) -> Unit;\nPrint(Installed::Value as Text);\n");
+    project.write("Main.mmt", "module Main\nimport { <Installed> }\nforeign \"MARMOT_FFI_Print\" Print : fn(Text) -> Unit;\nPrint(Installed::Value as Text);\n");
     let invoke = |command| {
         Command::new(&tool)
             .args([command, "Main.mmt"])

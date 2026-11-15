@@ -17,9 +17,9 @@ namespace
 	// skipped, because a regression that reintroduces boxing would otherwise
 	// pass the entire suite.
 
-	[[nodiscard]] MidoriExecutable CompileOrFail(std::string source)
+	[[nodiscard]] MarmotExecutable CompileOrFail(std::string source)
 	{
-		MidoriResult::CompilerResult result = MidoriTest::CompileSnippet(std::move(source));
+		MarmotResult::CompilerResult result = MarmotTest::CompileSnippet(std::move(source));
 		if (!result.has_value())
 		{
 			FAIL("Test snippet failed to compile.");
@@ -27,7 +27,7 @@ namespace
 		return std::move(result).value();
 	}
 
-	[[nodiscard]] std::optional<int> FindMainProcedureIndex(const MidoriExecutable& executable)
+	[[nodiscard]] std::optional<int> FindMainProcedureIndex(const MarmotExecutable& executable)
 	{
 		for (size_t index = 0u; index < executable.m_procedure_names.size(); index += 1u)
 		{
@@ -67,8 +67,8 @@ namespace
 
 TEST_CASE("Newtype arithmetic compiles to byte-identical opcodes as its representation", "[backend][newtype]")
 {
-	const MidoriExecutable newtype_executable = CompileOrFail(NEWTYPE_SOURCE);
-	const MidoriExecutable representation_executable = CompileOrFail(REPRESENTATION_SOURCE);
+	const MarmotExecutable newtype_executable = CompileOrFail(NEWTYPE_SOURCE);
+	const MarmotExecutable representation_executable = CompileOrFail(REPRESENTATION_SOURCE);
 
 	const std::optional<int> newtype_main = FindMainProcedureIndex(newtype_executable);
 	const std::optional<int> representation_main = FindMainProcedureIndex(representation_executable);
@@ -91,7 +91,7 @@ TEST_CASE("Newtype arithmetic compiles to byte-identical opcodes as its represen
 
 TEST_CASE("Newtype arithmetic never emits CONSTRUCT_UNION", "[backend][newtype]")
 {
-	const MidoriExecutable executable = CompileOrFail(NEWTYPE_SOURCE);
+	const MarmotExecutable executable = CompileOrFail(NEWTYPE_SOURCE);
 	const std::optional<int> main_index = FindMainProcedureIndex(executable);
 	REQUIRE(main_index.has_value());
 

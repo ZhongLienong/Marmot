@@ -10,10 +10,10 @@ class AbstractSyntaxTreePrinter
 {
 private:
 	std::string_view m_module_name;
-	const MidoriProgramTree& m_program;
+	const MarmotProgramTree& m_program;
 
 public:
-	AbstractSyntaxTreePrinter(std::string_view module_name, const MidoriProgramTree& program);
+	AbstractSyntaxTreePrinter(std::string_view module_name, const MarmotProgramTree& program);
 
 	[[nodiscard]] std::string Print() const;
 };

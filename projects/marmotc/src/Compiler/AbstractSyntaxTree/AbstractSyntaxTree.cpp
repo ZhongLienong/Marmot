@@ -67,7 +67,7 @@ namespace
 	struct TypeDataAccessor
 	{
 		template<typename T>
-		std::shared_ptr<MidoriType>& operator()(T& arg) const
+		std::shared_ptr<MarmotType>& operator()(T& arg) const
 		{
 			return arg.m_type_data;
 		}
@@ -76,60 +76,60 @@ namespace
 	struct ConstTypeDataAccessor
 	{
 		template<typename T>
-		const std::shared_ptr<MidoriType>& operator()(const T& arg) const
+		const std::shared_ptr<MarmotType>& operator()(const T& arg) const
 		{
 			return arg.m_type_data;
 		}
 	};
 
-	std::optional<std::unique_ptr<MidoriExpression>> MakeOptionalExpression(std::unique_ptr<MidoriExpression>&& expr)
+	std::optional<std::unique_ptr<MarmotExpression>> MakeOptionalExpression(std::unique_ptr<MarmotExpression>&& expr)
 	{
 		if (expr == nullptr)
 		{
 			return std::nullopt;
 		}
 
-		return std::optional<std::unique_ptr<MidoriExpression>>(std::move(expr));
+		return std::optional<std::unique_ptr<MarmotExpression>>(std::move(expr));
 	}
 }
 
-MidoriPattern::Binding::Binding(const Token& name, std::optional<int> local_index)
+MarmotPattern::Binding::Binding(const Token& name, std::optional<int> local_index)
 	: m_name(name),
 	m_local_index(std::move(local_index))
 {
 }
 
-MidoriPattern::Wildcard::Wildcard(const Token& token)
+MarmotPattern::Wildcard::Wildcard(const Token& token)
 	: m_token(token)
 {
 }
 
-MidoriPattern::Literal::Literal(const Token& token, LiteralKind kind)
+MarmotPattern::Literal::Literal(const Token& token, LiteralKind kind)
 	: m_token(token),
 	m_kind(kind)
 {
 }
 
-MidoriPattern::Tuple::Tuple(const Token& left_paren, std::vector<std::unique_ptr<MidoriPattern>>&& elements)
+MarmotPattern::Tuple::Tuple(const Token& left_paren, std::vector<std::unique_ptr<MarmotPattern>>&& elements)
 	: m_left_paren(left_paren),
 	m_elements(std::move(elements))
 {
 }
 
-MidoriPattern::Array::Rest::Rest(size_t position, std::unique_ptr<MidoriPattern>&& pattern)
+MarmotPattern::Array::Rest::Rest(size_t position, std::unique_ptr<MarmotPattern>&& pattern)
 	: m_position(position),
 	m_pattern(std::move(pattern))
 {
 }
 
-MidoriPattern::Array::Array(const Token& left_bracket, std::vector<std::unique_ptr<MidoriPattern>>&& elements, std::optional<Rest>&& rest)
+MarmotPattern::Array::Array(const Token& left_bracket, std::vector<std::unique_ptr<MarmotPattern>>&& elements, std::optional<Rest>&& rest)
 	: m_left_bracket(left_bracket),
 	m_elements(std::move(elements)),
 	m_rest(std::move(rest))
 {
 }
 
-MidoriPattern::Constructor::Constructor(const Token& name_token, std::string&& name, std::vector<std::unique_ptr<MidoriPattern>>&& args, bool is_union)
+MarmotPattern::Constructor::Constructor(const Token& name_token, std::string&& name, std::vector<std::unique_ptr<MarmotPattern>>&& args, bool is_union)
 	: m_name_token(name_token),
 	m_name(std::move(name)),
 	m_args(std::move(args)),
@@ -137,31 +137,31 @@ MidoriPattern::Constructor::Constructor(const Token& name_token, std::string&& n
 {
 }
 
-MidoriPattern::As::As(std::unique_ptr<MidoriPattern>&& pattern, std::unique_ptr<MidoriPattern>&& binding)
+MarmotPattern::As::As(std::unique_ptr<MarmotPattern>&& pattern, std::unique_ptr<MarmotPattern>&& binding)
 	: m_pattern(std::move(pattern)),
 	m_binding(std::move(binding))
 {
 }
 
-MidoriPattern::Or::Or(std::vector<std::unique_ptr<MidoriPattern>>&& alternatives)
+MarmotPattern::Or::Or(std::vector<std::unique_ptr<MarmotPattern>>&& alternatives)
 	: m_alternatives(std::move(alternatives))
 {
 }
 
-MidoriPattern::Range::Range(const Token& start, int64_t low, int64_t high)
+MarmotPattern::Range::Range(const Token& start, int64_t low, int64_t high)
 	: m_start(start),
 	m_low(low),
 	m_high(high)
 {
 }
 
-MidoriPattern::Record::Field::Field(const Token& name, std::unique_ptr<MidoriPattern>&& pattern)
+MarmotPattern::Record::Field::Field(const Token& name, std::unique_ptr<MarmotPattern>&& pattern)
 	: m_name(name),
 	m_pattern(std::move(pattern))
 {
 }
 
-MidoriPattern::Record::Record(const Token& name_token, std::string&& name, std::vector<Field>&& fields, std::optional<Token>&& rest)
+MarmotPattern::Record::Record(const Token& name_token, std::string&& name, std::vector<Field>&& fields, std::optional<Token>&& rest)
 	: m_name_token(name_token),
 	m_name(std::move(name)),
 	m_fields(std::move(fields)),
@@ -169,62 +169,62 @@ MidoriPattern::Record::Record(const Token& name_token, std::string&& name, std::
 {
 }
 
-MidoriExpression::As::As(const Token& as_keyword, std::shared_ptr<MidoriType> to_type, std::unique_ptr<MidoriExpression>&& expr)
+MarmotExpression::As::As(const Token& as_keyword, std::shared_ptr<MarmotType> to_type, std::unique_ptr<MarmotExpression>&& expr)
 	: m_as_keyword(as_keyword),
 	m_to_type(std::move(to_type)),
 	m_expr(std::move(expr))
 {
 }
 
-MidoriExpression::Binary::Binary(const Token& op, std::unique_ptr<MidoriExpression>&& left, std::unique_ptr<MidoriExpression>&& right)
+MarmotExpression::Binary::Binary(const Token& op, std::unique_ptr<MarmotExpression>&& left, std::unique_ptr<MarmotExpression>&& right)
 	: m_op(op),
 	m_left(std::move(left)),
 	m_right(std::move(right))
 {
 }
 
-MidoriExpression::Group::Group(std::unique_ptr<MidoriExpression>&& expr_in)
+MarmotExpression::Group::Group(std::unique_ptr<MarmotExpression>&& expr_in)
 	: m_expr_in(std::move(expr_in))
 {
 }
 
-MidoriExpression::Tuple::Tuple(const Token& op, std::vector<std::unique_ptr<MidoriExpression>>&& elements)
+MarmotExpression::Tuple::Tuple(const Token& op, std::vector<std::unique_ptr<MarmotExpression>>&& elements)
 	: m_op(op), m_elements(std::move(elements))
 {
 }
 
-MidoriExpression::Literal::Literal(const Token& token, LiteralKind kind)
+MarmotExpression::Literal::Literal(const Token& token, LiteralKind kind)
 	: m_token(token),
 	m_kind(kind)
 {
 }
 
-MidoriExpression::UnaryPrefix::UnaryPrefix(const Token& op, std::unique_ptr<MidoriExpression>&& expr)
+MarmotExpression::UnaryPrefix::UnaryPrefix(const Token& op, std::unique_ptr<MarmotExpression>&& expr)
 	: m_op(op),
 	m_expr(std::move(expr))
 {
 }
 
-MidoriExpression::Send::Send(const Token& arrow, std::unique_ptr<MidoriExpression>&& channel, std::unique_ptr<MidoriExpression>&& value)
+MarmotExpression::Send::Send(const Token& arrow, std::unique_ptr<MarmotExpression>&& channel, std::unique_ptr<MarmotExpression>&& value)
 	: m_arrow(arrow),
 	m_channel(std::move(channel)),
 	m_value(std::move(value))
 {
 }
 
-MidoriExpression::Receive::Receive(const Token& arrow, std::unique_ptr<MidoriExpression>&& channel)
+MarmotExpression::Receive::Receive(const Token& arrow, std::unique_ptr<MarmotExpression>&& channel)
 	: m_arrow(arrow),
 	m_channel(std::move(channel))
 {
 }
 
-MidoriExpression::NameAccess::NameAccess(const Token& name, NameContext::Tag&& name_ctx)
+MarmotExpression::NameAccess::NameAccess(const Token& name, NameContext::Tag&& name_ctx)
 	: m_name(name),
 	m_name_ctx(std::move(name_ctx))
 {
 }
 
-MidoriExpression::Call::Call(const Token& paren, std::unique_ptr<MidoriExpression>&& callee, std::vector<std::unique_ptr<MidoriExpression>>&& arguments, bool is_foreign)
+MarmotExpression::Call::Call(const Token& paren, std::unique_ptr<MarmotExpression>&& callee, std::vector<std::unique_ptr<MarmotExpression>>&& arguments, bool is_foreign)
 	: m_paren(paren),
 	m_callee(std::move(callee)),
 	m_arguments(std::move(arguments)),
@@ -232,7 +232,7 @@ MidoriExpression::Call::Call(const Token& paren, std::unique_ptr<MidoriExpressio
 {
 }
 
-MidoriExpression::Function::Function(const Token& function_keyword, std::vector<Token>&& generic_params, std::vector<Token>&& params, std::vector<std::shared_ptr<MidoriType>>&& param_types, std::shared_ptr<MidoriType>&& return_type, std::unique_ptr<MidoriExpression>&& body, int captured_count, std::vector<MidoriType::ClassConstraint>&& constraints)
+MarmotExpression::Function::Function(const Token& function_keyword, std::vector<Token>&& generic_params, std::vector<Token>&& params, std::vector<std::shared_ptr<MarmotType>>&& param_types, std::shared_ptr<MarmotType>&& return_type, std::unique_ptr<MarmotExpression>&& body, int captured_count, std::vector<MarmotType::ClassConstraint>&& constraints)
 	: m_function_keyword(function_keyword),
 	m_generic_params(std::move(generic_params)),
 	m_params(std::move(params)),
@@ -244,7 +244,7 @@ MidoriExpression::Function::Function(const Token& function_keyword, std::vector<
 {
 }
 
-MidoriExpression::Construct::Construct(const Token& data_name, std::vector<std::unique_ptr<MidoriExpression>>&& params, std::shared_ptr<MidoriType>&& return_type, bool has_explicit_type_args, ConstructContext&& construct_ctx)
+MarmotExpression::Construct::Construct(const Token& data_name, std::vector<std::unique_ptr<MarmotExpression>>&& params, std::shared_ptr<MarmotType>&& return_type, bool has_explicit_type_args, ConstructContext&& construct_ctx)
 	: m_data_name(data_name),
 	m_params(std::move(params)),
 	m_return_type(std::move(return_type)),
@@ -253,20 +253,20 @@ MidoriExpression::Construct::Construct(const Token& data_name, std::vector<std::
 {
 }
 
-MidoriExpression::RecordUpdate::FieldUpdate::FieldUpdate(std::vector<Token>&& path, std::unique_ptr<MidoriExpression>&& value)
+MarmotExpression::RecordUpdate::FieldUpdate::FieldUpdate(std::vector<Token>&& path, std::unique_ptr<MarmotExpression>&& value)
 	: m_path(std::move(path)),
 	m_value(std::move(value))
 {
 }
 
-MidoriExpression::RecordUpdate::RecordUpdate(const Token& with_keyword, std::unique_ptr<MidoriExpression>&& source, std::vector<FieldUpdate>&& updates)
+MarmotExpression::RecordUpdate::RecordUpdate(const Token& with_keyword, std::unique_ptr<MarmotExpression>&& source, std::vector<FieldUpdate>&& updates)
 	: m_with_keyword(with_keyword),
 	m_source(std::move(source)),
 	m_updates(std::move(updates))
 {
 }
 
-MidoriExpression::IfElse::IfElse(const Token& if_token, const Token& then_token, const Token& else_token, std::unique_ptr<MidoriExpression>&& condition, std::unique_ptr<MidoriExpression>&& true_branch, std::unique_ptr<MidoriExpression>&& else_branch)
+MarmotExpression::IfElse::IfElse(const Token& if_token, const Token& then_token, const Token& else_token, std::unique_ptr<MarmotExpression>&& condition, std::unique_ptr<MarmotExpression>&& true_branch, std::unique_ptr<MarmotExpression>&& else_branch)
 	:
 	m_if_token(if_token),
 	m_then_token(then_token),
@@ -277,28 +277,28 @@ MidoriExpression::IfElse::IfElse(const Token& if_token, const Token& then_token,
 {
 }
 
-MidoriExpression::MemberAccess::MemberAccess(const Token& member_name, std::unique_ptr<MidoriExpression>&& struct_expr, int index)
+MarmotExpression::MemberAccess::MemberAccess(const Token& member_name, std::unique_ptr<MarmotExpression>&& struct_expr, int index)
 	: m_member_name(member_name),
 	m_struct(std::move(struct_expr)),
 	m_index(index)
 {
 }
 
-MidoriExpression::Array::Array(const Token& op, std::vector<std::unique_ptr<MidoriExpression>>&& elems)
+MarmotExpression::Array::Array(const Token& op, std::vector<std::unique_ptr<MarmotExpression>>&& elems)
 	: m_op(op),
 	m_elems(std::move(elems))
 {
 }
 
-MidoriExpression::IndexAccess::IndexAccess(const Token& op, std::unique_ptr<MidoriExpression>&& index, std::unique_ptr<MidoriExpression>&& arr_var)
+MarmotExpression::IndexAccess::IndexAccess(const Token& op, std::unique_ptr<MarmotExpression>&& index, std::unique_ptr<MarmotExpression>&& arr_var)
 	: m_op(op),
 	m_index(std::move(index)),
 	m_arr_var(std::move(arr_var))
 {
 }
 
-MidoriExpression::ArrayComprehension::ArrayComprehension(const Token& bracket, const Token& loop_variable, const Token& in_keyword,
-	std::unique_ptr<MidoriExpression>&& transform_expr, std::unique_ptr<MidoriExpression>&& range)
+MarmotExpression::ArrayComprehension::ArrayComprehension(const Token& bracket, const Token& loop_variable, const Token& in_keyword,
+	std::unique_ptr<MarmotExpression>&& transform_expr, std::unique_ptr<MarmotExpression>&& range)
 	: m_bracket(bracket),
 	m_loop_variable(loop_variable),
 	m_in_keyword(in_keyword),
@@ -307,14 +307,14 @@ MidoriExpression::ArrayComprehension::ArrayComprehension(const Token& bracket, c
 {
 }
 
-MidoriExpression::RangeBinary::RangeBinary(const Token& range_op, std::unique_ptr<MidoriExpression>&& start, std::unique_ptr<MidoriExpression>&& end)
+MarmotExpression::RangeBinary::RangeBinary(const Token& range_op, std::unique_ptr<MarmotExpression>&& start, std::unique_ptr<MarmotExpression>&& end)
 	: m_range_op(range_op),
 	m_start(std::move(start)),
 	m_end(std::move(end))
 {
 }
 
-MidoriExpression::RangeTernary::RangeTernary(const Token& first_op, const Token& second_op, std::unique_ptr<MidoriExpression>&& start, std::unique_ptr<MidoriExpression>&& step, std::unique_ptr<MidoriExpression>&& end)
+MarmotExpression::RangeTernary::RangeTernary(const Token& first_op, const Token& second_op, std::unique_ptr<MarmotExpression>&& start, std::unique_ptr<MarmotExpression>&& step, std::unique_ptr<MarmotExpression>&& end)
 	: m_first_range_op(first_op),
 	m_second_range_op(second_op),
 	m_start(std::move(start)),
@@ -323,21 +323,21 @@ MidoriExpression::RangeTernary::RangeTernary(const Token& first_op, const Token&
 {
 }
 
-MidoriExpression::Block::Block(const Token& right_brace, std::vector<std::unique_ptr<MidoriStatement>>&& stmts, std::unique_ptr<MidoriExpression>&& final_expr)
+MarmotExpression::Block::Block(const Token& right_brace, std::vector<std::unique_ptr<MarmotStatement>>&& stmts, std::unique_ptr<MarmotExpression>&& final_expr)
 	: m_right_brace(right_brace),
 	m_stmts(std::move(stmts)),
 	m_final_expr(MakeOptionalExpression(std::move(final_expr)))
 {
 }
 
-MidoriExpression::Match::Match(const Token& switch_keyword, std::unique_ptr<MidoriExpression>&& arg_expr, std::vector<std::unique_ptr<MidoriExpression>>&& cases)
+MarmotExpression::Match::Match(const Token& switch_keyword, std::unique_ptr<MarmotExpression>&& arg_expr, std::vector<std::unique_ptr<MarmotExpression>>&& cases)
 	: m_match_keyword(switch_keyword),
 	m_arg_expr(std::move(arg_expr)),
 	m_cases(std::move(cases))
 {
 }
 
-MidoriExpression::Case::Case(const Token& keyword, std::unique_ptr<MidoriPattern>&& pattern, std::unique_ptr<MidoriExpression>&& expr, std::unique_ptr<MidoriExpression>&& guard)
+MarmotExpression::Case::Case(const Token& keyword, std::unique_ptr<MarmotPattern>&& pattern, std::unique_ptr<MarmotExpression>&& expr, std::unique_ptr<MarmotExpression>&& guard)
 	: m_keyword(keyword),
 	m_pattern(std::move(pattern)),
 	m_expr(std::move(expr)),
@@ -345,13 +345,13 @@ MidoriExpression::Case::Case(const Token& keyword, std::unique_ptr<MidoriPattern
 {
 }
 
-bool MidoriExpression::Case::HasGuard() const
+bool MarmotExpression::Case::HasGuard() const
 {
 	return m_guard.has_value();
 }
 
-MidoriExpression::For::For(const Token& for_keyword, const Token& loop_variable, const Token& in_keyword,
-	std::unique_ptr<MidoriExpression>&& range, std::unique_ptr<MidoriExpression>&& body)
+MarmotExpression::For::For(const Token& for_keyword, const Token& loop_variable, const Token& in_keyword,
+	std::unique_ptr<MarmotExpression>&& range, std::unique_ptr<MarmotExpression>&& body)
 	: m_for_keyword(for_keyword),
 	m_loop_variable(loop_variable),
 	m_in_keyword(in_keyword),
@@ -360,22 +360,22 @@ MidoriExpression::For::For(const Token& for_keyword, const Token& loop_variable,
 {
 }
 
-MidoriPattern::PatternUnion& MidoriPattern::operator*()
+MarmotPattern::PatternUnion& MarmotPattern::operator*()
 {
 	return m_variant;
 }
 
-const MidoriPattern::PatternUnion& MidoriPattern::operator*() const
+const MarmotPattern::PatternUnion& MarmotPattern::operator*() const
 {
 	return m_variant;
 }
 
-std::shared_ptr<MidoriType>& MidoriPattern::GetType()
+std::shared_ptr<MarmotType>& MarmotPattern::GetType()
 {
 	return std::visit(TypeDataAccessor{}, m_variant);
 }
 
-const std::shared_ptr<MidoriType>& MidoriPattern::GetType() const
+const std::shared_ptr<MarmotType>& MarmotPattern::GetType() const
 {
 	return std::visit(ConstTypeDataAccessor{}, m_variant);
 }
@@ -398,15 +398,15 @@ namespace
 			[&]<typename T>(T& node)
 			{
 				using Node = std::remove_const_t<T>;
-				if constexpr (std::is_same_v<Node, MidoriPattern::Binding>)
+				if constexpr (std::is_same_v<Node, MarmotPattern::Binding>)
 				{
 					bindings.push_back(&node);
 				}
-				else if constexpr (std::is_same_v<Node, MidoriPattern::Tuple>)
+				else if constexpr (std::is_same_v<Node, MarmotPattern::Tuple>)
 				{
 					children(node.m_elements);
 				}
-				else if constexpr (std::is_same_v<Node, MidoriPattern::Array>)
+				else if constexpr (std::is_same_v<Node, MarmotPattern::Array>)
 				{
 					children(node.m_elements);
 					if (node.m_rest.has_value())
@@ -414,23 +414,23 @@ namespace
 						CollectBindings(*node.m_rest->m_pattern, every_alternative, bindings);
 					}
 				}
-				else if constexpr (std::is_same_v<Node, MidoriPattern::Constructor>)
+				else if constexpr (std::is_same_v<Node, MarmotPattern::Constructor>)
 				{
 					children(node.m_args);
 				}
-				else if constexpr (std::is_same_v<Node, MidoriPattern::Record>)
+				else if constexpr (std::is_same_v<Node, MarmotPattern::Record>)
 				{
 					for (auto& field : node.m_fields)
 					{
 						CollectBindings(*field.m_pattern, every_alternative, bindings);
 					}
 				}
-				else if constexpr (std::is_same_v<Node, MidoriPattern::As>)
+				else if constexpr (std::is_same_v<Node, MarmotPattern::As>)
 				{
 					CollectBindings(*node.m_pattern, every_alternative, bindings);
 					CollectBindings(*node.m_binding, every_alternative, bindings);
 				}
-				else if constexpr (std::is_same_v<Node, MidoriPattern::Or>)
+				else if constexpr (std::is_same_v<Node, MarmotPattern::Or>)
 				{
 					if (every_alternative)
 					{
@@ -447,56 +447,56 @@ namespace
 	}
 }
 
-std::vector<MidoriPattern::Binding*> MidoriPattern::Bindings(bool every_alternative)
+std::vector<MarmotPattern::Binding*> MarmotPattern::Bindings(bool every_alternative)
 {
 	std::vector<Binding*> bindings;
 	CollectBindings(*this, every_alternative, bindings);
 	return bindings;
 }
 
-std::vector<const MidoriPattern::Binding*> MidoriPattern::Bindings() const
+std::vector<const MarmotPattern::Binding*> MarmotPattern::Bindings() const
 {
 	std::vector<const Binding*> bindings;
 	CollectBindings(*this, false, bindings);
 	return bindings;
 }
 
-MidoriExpression::ExpressionUnion& MidoriExpression::operator*()
+MarmotExpression::ExpressionUnion& MarmotExpression::operator*()
 {
 	return m_variant;
 }
 
-const MidoriExpression::ExpressionUnion& MidoriExpression::operator*() const
+const MarmotExpression::ExpressionUnion& MarmotExpression::operator*() const
 {
 	return m_variant;
 }
 
-std::shared_ptr<MidoriType>& MidoriExpression::GetType()
+std::shared_ptr<MarmotType>& MarmotExpression::GetType()
 {
 	return std::visit(TypeDataAccessor{}, m_variant);
 }
 
-const std::shared_ptr<MidoriType>& MidoriExpression::GetType() const
+const std::shared_ptr<MarmotType>& MarmotExpression::GetType() const
 {
 	return std::visit(ConstTypeDataAccessor{}, m_variant);
 }
 
-MidoriStatement::StatementUnion& MidoriStatement::operator*()
+MarmotStatement::StatementUnion& MarmotStatement::operator*()
 {
 	return m_variant;
 }
 
-const MidoriStatement::StatementUnion& MidoriStatement::operator*() const
+const MarmotStatement::StatementUnion& MarmotStatement::operator*() const
 {
 	return m_variant;
 }
 
-MidoriStatement::ExpressionStatement::ExpressionStatement(const Token& semicolon, std::unique_ptr<MidoriExpression>&& expr)
+MarmotStatement::ExpressionStatement::ExpressionStatement(const Token& semicolon, std::unique_ptr<MarmotExpression>&& expr)
 	: m_semicolon(semicolon), m_expr(std::move(expr))
 {
 }
 
-MidoriStatement::VariableDefinition::VariableDefinition(const Token& name, std::unique_ptr<MidoriExpression>&& value, std::optional<std::shared_ptr<MidoriType>>&& annotated_type, std::optional<int>&& local_index)
+MarmotStatement::VariableDefinition::VariableDefinition(const Token& name, std::unique_ptr<MarmotExpression>&& value, std::optional<std::shared_ptr<MarmotType>>&& annotated_type, std::optional<int>&& local_index)
 	: m_name(name),
 	m_value(std::move(value)),
 	m_annotated_type(std::move(annotated_type)),
@@ -504,14 +504,14 @@ MidoriStatement::VariableDefinition::VariableDefinition(const Token& name, std::
 {
 }
 
-MidoriStatement::TupleDefinition::TupleDefinition(std::vector<Token>&& names, std::unique_ptr<MidoriExpression>&& value, std::vector<std::optional<int>>&& local_indices)
+MarmotStatement::TupleDefinition::TupleDefinition(std::vector<Token>&& names, std::unique_ptr<MarmotExpression>&& value, std::vector<std::optional<int>>&& local_indices)
 	: m_names(std::move(names)),
 	m_value(std::move(value)),
 	m_local_indices(std::move(local_indices))
 {
 }
 
-MidoriStatement::ForeignDefinition::ForeignDefinition(const Token& function_name, const std::string& foreign_name, std::shared_ptr<MidoriType>&& type, std::optional<int>&& local_index, std::optional<std::string> library)
+MarmotStatement::ForeignDefinition::ForeignDefinition(const Token& function_name, const std::string& foreign_name, std::shared_ptr<MarmotType>&& type, std::optional<int>&& local_index, std::optional<std::string> library)
 	: m_function_name(function_name),
 	m_foreign_name(foreign_name),
 	m_type(std::move(type)),
@@ -520,12 +520,12 @@ MidoriStatement::ForeignDefinition::ForeignDefinition(const Token& function_name
 {
 }
 
-std::optional<MidoriPrimitive> MidoriStatement::ForeignDefinition::DeclaredPrimitive() const
+std::optional<MarmotPrimitive> MarmotStatement::ForeignDefinition::DeclaredPrimitive() const
 {
-	return m_type->GetType<MidoriType::FunctionType>().m_primitive;
+	return m_type->GetType<MarmotType::FunctionType>().m_primitive;
 }
 
-MidoriStatement::Struct::Struct(const Token& name, std::vector<Token>&& generic_params, std::vector<MidoriType::ClassConstraint>&& constraints, std::shared_ptr<MidoriType>&& self_type)
+MarmotStatement::Struct::Struct(const Token& name, std::vector<Token>&& generic_params, std::vector<MarmotType::ClassConstraint>&& constraints, std::shared_ptr<MarmotType>&& self_type)
 	: m_name(name),
 	m_generic_params(std::move(generic_params)),
 	m_constraints(std::move(constraints)),
@@ -533,7 +533,7 @@ MidoriStatement::Struct::Struct(const Token& name, std::vector<Token>&& generic_
 {
 }
 
-MidoriStatement::Union::Union(const Token& name, std::vector<Token>&& generic_params, std::vector<Token>&& constructor_names, std::vector<MidoriType::ClassConstraint>&& constraints, std::shared_ptr<MidoriType>&& self_type)
+MarmotStatement::Union::Union(const Token& name, std::vector<Token>&& generic_params, std::vector<Token>&& constructor_names, std::vector<MarmotType::ClassConstraint>&& constraints, std::shared_ptr<MarmotType>&& self_type)
 	: m_name(name),
 	m_generic_params(std::move(generic_params)),
 	m_constructor_names(std::move(constructor_names)),
@@ -542,7 +542,7 @@ MidoriStatement::Union::Union(const Token& name, std::vector<Token>&& generic_pa
 {
 }
 
-MidoriStatement::FunctionDefinition::FunctionDefinition(const Token& name, std::vector<Token>&& generic_params, std::vector<Token>&& params, std::vector<std::shared_ptr<MidoriType>>&& param_types, std::shared_ptr<MidoriType>&& return_type, std::unique_ptr<MidoriExpression>&& body, std::optional<int>&& local_index, int captured_count, std::vector<MidoriType::ClassConstraint>&& constraints)
+MarmotStatement::FunctionDefinition::FunctionDefinition(const Token& name, std::vector<Token>&& generic_params, std::vector<Token>&& params, std::vector<std::shared_ptr<MarmotType>>&& param_types, std::shared_ptr<MarmotType>&& return_type, std::unique_ptr<MarmotExpression>&& body, std::optional<int>&& local_index, int captured_count, std::vector<MarmotType::ClassConstraint>&& constraints)
 	: m_name(name),
 	m_generic_params(std::move(generic_params)),
 	m_params(std::move(params)),
@@ -555,12 +555,12 @@ MidoriStatement::FunctionDefinition::FunctionDefinition(const Token& name, std::
 {
 }
 
-MidoriStatement::Class::AssociatedTypeDeclaration::AssociatedTypeDeclaration(const Token& name)
+MarmotStatement::Class::AssociatedTypeDeclaration::AssociatedTypeDeclaration(const Token& name)
 	: m_name(name)
 {
 }
 
-MidoriStatement::Class::Class(const Token& name, std::vector<Token>&& type_params, std::vector<AssociatedTypeDeclaration>&& associated_types, std::vector<std::unique_ptr<MidoriStatement>>&& methods)
+MarmotStatement::Class::Class(const Token& name, std::vector<Token>&& type_params, std::vector<AssociatedTypeDeclaration>&& associated_types, std::vector<std::unique_ptr<MarmotStatement>>&& methods)
 	: m_name(name),
 	m_type_params(std::move(type_params)),
 	m_associated_types(std::move(associated_types)),
@@ -568,13 +568,13 @@ MidoriStatement::Class::Class(const Token& name, std::vector<Token>&& type_param
 {
 }
 
-MidoriStatement::Instance::AssociatedTypeBinding::AssociatedTypeBinding(const Token& name, std::shared_ptr<MidoriType>&& type)
+MarmotStatement::Instance::AssociatedTypeBinding::AssociatedTypeBinding(const Token& name, std::shared_ptr<MarmotType>&& type)
 	: m_name(name),
 	m_type(std::move(type))
 {
 }
 
-MidoriStatement::Instance::Instance(const Token& class_name, std::vector<std::shared_ptr<MidoriType>>&& type_args, std::vector<MidoriType::ClassConstraint>&& constraints, std::vector<AssociatedTypeBinding>&& associated_types, std::vector<std::unique_ptr<MidoriStatement>>&& methods)
+MarmotStatement::Instance::Instance(const Token& class_name, std::vector<std::shared_ptr<MarmotType>>&& type_args, std::vector<MarmotType::ClassConstraint>&& constraints, std::vector<AssociatedTypeBinding>&& associated_types, std::vector<std::unique_ptr<MarmotStatement>>&& methods)
 	: m_class_name(class_name),
 	m_type_args(std::move(type_args)),
 	m_constraints(std::move(constraints)),
@@ -583,7 +583,7 @@ MidoriStatement::Instance::Instance(const Token& class_name, std::vector<std::sh
 {
 }
 
-MidoriStatement::TypeAlias::TypeAlias(const Token& name, std::vector<Token>&& generic_params, std::shared_ptr<MidoriType>&& aliased_type)
+MarmotStatement::TypeAlias::TypeAlias(const Token& name, std::vector<Token>&& generic_params, std::shared_ptr<MarmotType>&& aliased_type)
 	: m_name(name),
 	m_generic_params(std::move(generic_params)),
 	m_aliased_type(std::move(aliased_type))

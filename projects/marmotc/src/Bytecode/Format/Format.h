@@ -37,7 +37,7 @@
 // Bumped 2026-09-17 (9): MAKE_CELL, READ_CELL and WRITE_CELL were inserted
 // after SET_CELL for Ref<T>, which renumbered every later opcode.
 //
-// Bumped 2026-09-27 (12): once MidoriIR's backend was the only emitter,
+// Bumped 2026-09-27 (12): once MarmotIR's backend was the only emitter,
 // the 30 opcodes nothing emitted were deleted (the frame-prefix closure
 // opcodes, the one-byte procedure, global and text forms, the scope pops
 // and others), and the local-operand superinstructions lost the padding

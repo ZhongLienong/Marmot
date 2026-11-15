@@ -1,9 +1,9 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "Compiler/Lowering/Lowering.h"
-#include "Compiler/MidoriIR/Printer/MidoriIRPrinter.h"
-#include "Compiler/MidoriIR/Verifier/MidoriIRVerifier.h"
-#include "Utility/Driver/MidoriDriver.h"
+#include "Compiler/MarmotIR/Printer/MarmotIRPrinter.h"
+#include "Compiler/MarmotIR/Verifier/MarmotIRVerifier.h"
+#include "Utility/Driver/MarmotDriver.h"
 #include "support/CompileHelpers.h"
 #include "support/DiagnosticMatchers.h"
 #include "support/TempProject.h"
@@ -16,13 +16,13 @@ namespace
 {
 	LoweredModule RequireLowered(std::string source)
 	{
-		std::expected<LoweredModule, MidoriResult::CompilerDiagnostics> lowered = MidoriTest::LowerSnippetWithDiagnostics(std::move(source));
+		std::expected<LoweredModule, MarmotResult::CompilerDiagnostics> lowered = MarmotTest::LowerSnippetWithDiagnostics(std::move(source));
 		if (!lowered.has_value())
 		{
 			FAIL(lowered.error().Rendered());
 		}
-		const std::vector<MidoriIRViolation> violations = MidoriIRVerifier(lowered->m_module).Verify();
-		for (const MidoriIRViolation& violation : violations)
+		const std::vector<MarmotIRViolation> violations = MarmotIRVerifier(lowered->m_module).Verify();
+		for (const MarmotIRViolation& violation : violations)
 		{
 			UNSCOPED_INFO(violation.ToString());
 		}
@@ -32,25 +32,25 @@ namespace
 
 	CompilerError RequireLoweringError(std::string source)
 	{
-		std::expected<LoweredModule, MidoriResult::CompilerDiagnostics> lowered = MidoriTest::LowerSnippetWithDiagnostics(std::move(source));
+		std::expected<LoweredModule, MarmotResult::CompilerDiagnostics> lowered = MarmotTest::LowerSnippetWithDiagnostics(std::move(source));
 		REQUIRE_FALSE(lowered.has_value());
 		REQUIRE(lowered.error().Size() == 1u);
 		return lowered.error().m_items.front();
 	}
 
-	void RequireErrorMatches(const CompilerError& error, const MidoriTest::ErrorExpectation& expectation)
+	void RequireErrorMatches(const CompilerError& error, const MarmotTest::ErrorExpectation& expectation)
 	{
 		std::string mismatch;
-		const bool matched = MidoriTest::Matches(error, expectation, &mismatch);
+		const bool matched = MarmotTest::Matches(error, expectation, &mismatch);
 		CAPTURE(mismatch);
 		REQUIRE(matched);
 	}
 }
 
-TEST_CASE("A program of scalars, branches and tail calls prints what it computes", "[midori_ir][lowering][backend]")
+TEST_CASE("A program of scalars, branches and tail calls prints what it computes", "[marmot_ir][lowering][backend]")
 {
-	const std::expected<MidoriTest::ExecutedSnippet, CompilerError> executed = MidoriTest::ExecuteSnippet(R"(module Parity
-foreign "MIDORI_FFI_Print" Print: fn(Text) -> Unit;
+	const std::expected<MarmotTest::ExecutedSnippet, CompilerError> executed = MarmotTest::ExecuteSnippet(R"(module Parity
+foreign "MARMOT_FFI_Print" Print: fn(Text) -> Unit;
 def Fib = fn(n: Int, a: Int, b: Int) -> Int => if n == 0 then a else Fib(n - 1, b, a + b);
 def Show = fn(label: Text, value: Int) -> Unit => Print(label ++ "=" ++ (value as Text) ++ "\n");
 def Pick = fn(flag: Bool) -> Text => if flag then "yes" else "no";

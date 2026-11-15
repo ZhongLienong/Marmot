@@ -8,13 +8,13 @@
 
 namespace
 {
-	void RequireWarningMatches(const std::vector<CompilerWarning>& warnings, CompilerWarningCode code, const MidoriTest::WarningExpectation& expectation)
+	void RequireWarningMatches(const std::vector<CompilerWarning>& warnings, CompilerWarningCode code, const MarmotTest::WarningExpectation& expectation)
 	{
-		const CompilerWarning* warning = MidoriTest::FindWarning(warnings, code);
+		const CompilerWarning* warning = MarmotTest::FindWarning(warnings, code);
 		REQUIRE(warning != nullptr);
 
 		std::string mismatch;
-		const bool matched = MidoriTest::Matches(*warning, expectation, &mismatch);
+		const bool matched = MarmotTest::Matches(*warning, expectation, &mismatch);
 		CAPTURE(mismatch);
 		REQUIRE(matched);
 	}
@@ -31,7 +31,7 @@ def Compute = fn() -> Int => {
 };
 )";
 
-	std::expected<MidoriTest::AnalyzedSnippet, CompilerError> analyze_result = MidoriTest::AnalyzeSnippet(source_code, "AnalyzerUnused.mmt");
+	std::expected<MarmotTest::AnalyzedSnippet, CompilerError> analyze_result = MarmotTest::AnalyzeSnippet(source_code, "AnalyzerUnused.mmt");
 	if (!analyze_result.has_value())
 	{
 		FAIL(std::string(analyze_result.error().Rendered()));
@@ -40,7 +40,7 @@ def Compute = fn() -> Int => {
 	RequireWarningMatches(
 		analyze_result->m_warnings,
 		CompilerWarningCode::UnusedLocal,
-		MidoriTest::WarningExpectation
+		MarmotTest::WarningExpectation
 		{
 			.m_stage = CompilerStage::StaticAnalyzer,
 			.m_code = CompilerWarningCode::UnusedLocal,
@@ -63,7 +63,7 @@ def Compute = fn(value : Int) -> Int => {
 };
 )";
 
-	std::expected<MidoriTest::AnalyzedSnippet, CompilerError> analyze_result = MidoriTest::AnalyzeSnippet(source_code, "AnalyzerShadowing.mmt");
+	std::expected<MarmotTest::AnalyzedSnippet, CompilerError> analyze_result = MarmotTest::AnalyzeSnippet(source_code, "AnalyzerShadowing.mmt");
 	if (!analyze_result.has_value())
 	{
 		FAIL(std::string(analyze_result.error().Rendered()));
@@ -72,7 +72,7 @@ def Compute = fn(value : Int) -> Int => {
 	RequireWarningMatches(
 		analyze_result->m_warnings,
 		CompilerWarningCode::NameShadowing,
-		MidoriTest::WarningExpectation
+		MarmotTest::WarningExpectation
 		{
 			.m_stage = CompilerStage::StaticAnalyzer,
 			.m_code = CompilerWarningCode::NameShadowing,
@@ -96,7 +96,7 @@ def MakeCounter = fn() -> fn() -> Int => {
 def Add = fn(a: Int) -> fn(Int) -> Int => fn(b: Int) -> Int => a + b;
 )";
 
-	std::expected<MidoriTest::AnalyzedSnippet, CompilerError> analyze_result = MidoriTest::AnalyzeSnippet(source_code, "AnalyzerCapture.mmt");
+	std::expected<MarmotTest::AnalyzedSnippet, CompilerError> analyze_result = MarmotTest::AnalyzeSnippet(source_code, "AnalyzerCapture.mmt");
 	if (!analyze_result.has_value())
 	{
 		FAIL(std::string(analyze_result.error().Rendered()));
@@ -114,7 +114,7 @@ def shifted = 1 << 63;
 def main = fn() -> Int => too_big + shifted;
 )";
 
-	std::expected<MidoriTest::AnalyzedSnippet, CompilerError> analyze_result = MidoriTest::AnalyzeSnippet(source_code, "AnalyzerOverflow.mmt");
+	std::expected<MarmotTest::AnalyzedSnippet, CompilerError> analyze_result = MarmotTest::AnalyzeSnippet(source_code, "AnalyzerOverflow.mmt");
 	if (!analyze_result.has_value())
 	{
 		FAIL(std::string(analyze_result.error().Rendered()));
@@ -123,7 +123,7 @@ def main = fn() -> Int => too_big + shifted;
 	RequireWarningMatches(
 		analyze_result->m_warnings,
 		CompilerWarningCode::IntegerOverflow,
-		MidoriTest::WarningExpectation
+		MarmotTest::WarningExpectation
 		{
 			.m_stage = CompilerStage::StaticAnalyzer,
 			.m_code = CompilerWarningCode::IntegerOverflow,
@@ -142,11 +142,11 @@ def Compute = fn(x : Int) -> Int => {
 };
 )";
 
-	std::expected<MidoriTest::AnalyzedSnippet, CompilerError> analyze_result = MidoriTest::AnalyzeSnippet(source_code, "AnalyzerOverflowSafe.mmt");
+	std::expected<MarmotTest::AnalyzedSnippet, CompilerError> analyze_result = MarmotTest::AnalyzeSnippet(source_code, "AnalyzerOverflowSafe.mmt");
 	if (!analyze_result.has_value())
 	{
 		FAIL(std::string(analyze_result.error().Rendered()));
 	}
 
-	CHECK(MidoriTest::FindWarning(analyze_result->m_warnings, CompilerWarningCode::IntegerOverflow) == nullptr);
+	CHECK(MarmotTest::FindWarning(analyze_result->m_warnings, CompilerWarningCode::IntegerOverflow) == nullptr);
 }

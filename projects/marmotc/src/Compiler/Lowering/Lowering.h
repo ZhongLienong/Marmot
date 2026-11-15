@@ -5,8 +5,8 @@
 #include "Compiler/Lowering/GenericFunctionTable.h"
 #include "Compiler/Lowering/GenericTypes.h"
 #include "Compiler/Lowering/InstanceResolver.h"
-#include "Compiler/MidoriIR/MidoriIR.h"
-#include "Compiler/MidoriIR/Builder/MidoriIRBuilder.h"
+#include "Compiler/MarmotIR/MarmotIR.h"
+#include "Compiler/MarmotIR/Builder/MarmotIRBuilder.h"
 #include "Compiler/Result/Result.h"
 
 #include <deque>
@@ -27,34 +27,34 @@ struct LoweredExport
 {
 	std::string m_name;
 	BytecodeModule::SymbolType m_kind;
-	std::optional<MidoriIRGlobalSlot> m_slot;
-	std::optional<MidoriIRFunctionId> m_function;
+	std::optional<MarmotIRGlobalSlot> m_slot;
+	std::optional<MarmotIRFunctionId> m_function;
 	Token m_token;
 
-	LoweredExport(std::string name, BytecodeModule::SymbolType kind, std::optional<MidoriIRGlobalSlot> slot, std::optional<MidoriIRFunctionId> function, Token token);
+	LoweredExport(std::string name, BytecodeModule::SymbolType kind, std::optional<MarmotIRGlobalSlot> slot, std::optional<MarmotIRFunctionId> function, Token token);
 };
 
 // Where an imported global is first named, for the linker's diagnostics.
 struct LoweredImport
 {
-	MidoriIRGlobalSlot m_slot;
+	MarmotIRGlobalSlot m_slot;
 	Token m_token;
 
-	LoweredImport(MidoriIRGlobalSlot slot, Token token);
+	LoweredImport(MarmotIRGlobalSlot slot, Token token);
 };
 
-// What the backend needs: the module's MidoriIR, and what the IR does not
+// What the backend needs: the module's MarmotIR, and what the IR does not
 // carry: the names it exports and imports, the generics a module importing it
 // specializes, and the native libraries its foreign functions come from.
 struct LoweredModule
 {
-	MidoriIRModule m_module;
+	MarmotIRModule m_module;
 	std::vector<LoweredExport> m_exports;
 	std::vector<LoweredImport> m_imports;
 	GenericFunctionTable::Functions m_generic_functions;
 	std::map<std::string, std::set<std::string>> m_native_imports;
 
-	explicit LoweredModule(MidoriIRModule module);
+	explicit LoweredModule(MarmotIRModule module);
 };
 
 // What lowering must know about the modules this one imports.
@@ -67,19 +67,19 @@ struct LoweringImports
 	InstanceResolver::ClassInstanceAssociatedTypes m_class_instance_associated_types;
 };
 
-// The typed AST of one module to MidoriIR. Lowering is where each construct
+// The typed AST of one module to MarmotIR. Lowering is where each construct
 // becomes blocks and instructions, where generics are specialized and where
 // class methods resolve to instances; nothing downstream sees the AST. It
 // changes the AST only to take the bodies of this module's generics, and never
 // changes a generic's body: every module that imports it specializes it too.
-// docs/midori-ir.md describes what each construct becomes.
+// docs/marmot-ir.md describes what each construct becomes.
 class Lowering
 {
 private:
-	using TypeRef = std::shared_ptr<MidoriType>;
-	using Lowered = std::expected<MidoriIRValueId, CompilerError>;
+	using TypeRef = std::shared_ptr<MarmotType>;
+	using Lowered = std::expected<MarmotIRValueId, CompilerError>;
 	using Emitted = std::expected<void, CompilerError>;
-	using LoweredValues = std::expected<std::vector<MidoriIRValueId>, CompilerError>;
+	using LoweredValues = std::expected<std::vector<MarmotIRValueId>, CompilerError>;
 	using ForeignIndices = std::unordered_map<std::string, size_t>;
 
 	// What a function's body is lowered against. A specialization substitutes
@@ -112,7 +112,7 @@ private:
 	// fills the capture once the local is defined.
 	struct PendingCapture
 	{
-		MidoriIRValueId m_closure;
+		MarmotIRValueId m_closure;
 		uint32_t m_capture;
 		int m_local;
 	};
@@ -122,9 +122,9 @@ private:
 	// specialization's wherever it is first called.
 	struct FunctionScope
 	{
-		MidoriIRFunctionId m_id;
-		MidoriIRFunction& m_function;
-		MidoriIRBuilder m_builder;
+		MarmotIRFunctionId m_id;
+		MarmotIRFunction& m_function;
+		MarmotIRBuilder m_builder;
 		const Specialization& m_specialization;
 		// The function a lambda is written in; a Cell name reaches its locals.
 		FunctionScope* m_parent;
@@ -132,19 +132,19 @@ private:
 		// own, its m_captured_count. A Cell index below it names one of the
 		// parent's own captures; past it, one of the parent's locals.
 		int m_environment_length;
-		std::unordered_map<int, MidoriIRValueId> m_locals;
+		std::unordered_map<int, MarmotIRValueId> m_locals;
 		std::vector<std::vector<int>> m_local_frames;
 		std::vector<LocalKey> m_captures;
-		std::vector<MidoriIRValueId> m_capture_values;
+		std::vector<MarmotIRValueId> m_capture_values;
 		std::vector<PendingCapture> m_pending_captures;
 		// A block is live once a live block jumps to it; the entry is. Code
 		// after a call that returns Never goes to a block nothing reaches.
 		std::vector<bool> m_live_blocks;
 		// A generic lambda bound by a local 'def', by local index. It has no
 		// value of its own: each use makes the closure for its types.
-		std::unordered_map<int, MidoriExpression::Function*> m_local_generics;
+		std::unordered_map<int, MarmotExpression::Function*> m_local_generics;
 
-		FunctionScope(MidoriIRFunctionId id, MidoriIRFunction& function, const Specialization& specialization, FunctionScope* parent, int environment_length);
+		FunctionScope(MarmotIRFunctionId id, MarmotIRFunction& function, const Specialization& specialization, FunctionScope* parent, int environment_length);
 	};
 
 	// A local generic lambda's closure for one set of types, while its body is
@@ -152,59 +152,59 @@ private:
 	// as a local of the scope that makes it, numbered below the parser's.
 	struct ActiveGenericLambda
 	{
-		const MidoriExpression::Function* m_function;
+		const MarmotExpression::Function* m_function;
 		std::string m_signature;
 		LocalKey m_self;
 
-		ActiveGenericLambda(const MidoriExpression::Function* function, std::string signature, LocalKey self);
+		ActiveGenericLambda(const MarmotExpression::Function* function, std::string signature, LocalKey self);
 	};
 
 	// A top-level definition: its global, and, for a function, the function
 	// that is its value, which a call may name directly.
 	struct TopLevelName
 	{
-		MidoriIRGlobalSlot m_slot;
-		std::optional<MidoriIRFunctionId> m_function;
+		MarmotIRGlobalSlot m_slot;
+		std::optional<MarmotIRFunctionId> m_function;
 	};
 
 	// What a call runs.
 	struct Callee
 	{
-		MidoriIRImmediate m_target;
-		std::optional<MidoriIRValueId> m_value;
+		MarmotIRImmediate m_target;
+		std::optional<MarmotIRValueId> m_value;
 	};
 
 	// Where the value of an `if` branch or a match arm goes: a join block's
 	// parameter, or, in tail position, the function's return.
-	using BranchSink = std::function<Emitted(MidoriExpression*)>;
+	using BranchSink = std::function<Emitted(MarmotExpression*)>;
 
 	struct JoinPoint
 	{
-		MidoriIRBlockId m_block;
+		MarmotIRBlockId m_block;
 		TypeRef m_type;
 
-		JoinPoint(MidoriIRBlockId block, TypeRef type);
+		JoinPoint(MarmotIRBlockId block, TypeRef type);
 	};
 
-	MidoriProgramTree& m_program;
+	MarmotProgramTree& m_program;
 	std::string m_file_name;
 	const std::vector<std::string>& m_source_lines;
 	std::string m_module_name;
 	const std::unordered_set<std::string>& m_export_symbols;
 
-	MidoriIRModule m_module;
+	MarmotIRModule m_module;
 	// Functions are built here, where a reference to one survives adding
 	// another, and moved into the module at the end.
-	std::deque<MidoriIRFunction> m_functions;
+	std::deque<MarmotIRFunction> m_functions;
 	std::deque<Specialization> m_specializations;
 	std::vector<ActiveGenericLambda> m_active_generic_lambdas;
 	int m_next_synthetic_local = -1;
-	std::unordered_map<std::string, MidoriIRFunctionId> m_specialized_functions;
+	std::unordered_map<std::string, MarmotIRFunctionId> m_specialized_functions;
 	// The first specialization for each set of argument types, for a call whose
 	// type the type checker left undecided.
-	std::unordered_map<std::string, MidoriIRFunctionId> m_specializations_by_arguments;
+	std::unordered_map<std::string, MarmotIRFunctionId> m_specializations_by_arguments;
 	std::unordered_map<std::string, TopLevelName> m_top_level_names;
-	std::unordered_map<std::string, MidoriIRGlobalSlot> m_import_slots;
+	std::unordered_map<std::string, MarmotIRGlobalSlot> m_import_slots;
 	std::vector<LoweredImport> m_import_tokens;
 	// This module's builtin foreign functions, by the name it declares them
 	// as. Shared with the generics it exports, whose bodies may call them.
@@ -215,9 +215,9 @@ private:
 	std::vector<FunctionScope*> m_scopes;
 
 public:
-	Lowering(MidoriProgramTree& program, std::string_view file_name, const std::vector<std::string>& source_lines, std::string module_name, const std::unordered_set<std::string>& export_symbols, const LoweringImports& imports);
+	Lowering(MarmotProgramTree& program, std::string_view file_name, const std::vector<std::string>& source_lines, std::string module_name, const std::unordered_set<std::string>& export_symbols, const LoweringImports& imports);
 
-	MidoriResult::DiagnosticsResult<LoweredModule> Lower() &&;
+	MarmotResult::DiagnosticsResult<LoweredModule> Lower() &&;
 
 private:
 	// Lowering.cpp: the module, functions, names and calls.
@@ -226,115 +226,115 @@ private:
 	CompilerError ResolutionError(const MethodResolutionError& error, const Token& token) const;
 
 	FunctionScope& Scope();
-	MidoriIRBuilder& Builder();
-	MidoriIRFunctionId NewFunction(std::string name, TypeRef return_type, const Specialization& specialization);
+	MarmotIRBuilder& Builder();
+	MarmotIRFunctionId NewFunction(std::string name, TypeRef return_type, const Specialization& specialization);
 	TypeRef Concrete(const TypeRef& type);
 	TypeRef Substitute(const TypeRef& type, const GenericTypes::TypeEnvironment& types) const;
-	TypeRef TypeOf(const MidoriExpression& expression);
+	TypeRef TypeOf(const MarmotExpression& expression);
 	// The type an instance is selected by: the expression's own, which a
 	// conversion that erases a newtype keeps nominal, unless the type checker
 	// left it undecided.
-	TypeRef NominalType(const MidoriExpression& expression, MidoriIRValueId value);
+	TypeRef NominalType(const MarmotExpression& expression, MarmotIRValueId value);
 
-	MidoriIRBlockId NewBlock();
+	MarmotIRBlockId NewBlock();
 	bool IsDead();
-	void PositionAt(MidoriIRBlockId block);
-	void Jump(MidoriIRBlockId target, std::vector<MidoriIRValueId> arguments = {});
-	void Branch(MidoriIRValueId condition, MidoriIRSuccessor if_true, MidoriIRSuccessor if_false);
+	void PositionAt(MarmotIRBlockId block);
+	void Jump(MarmotIRBlockId target, std::vector<MarmotIRValueId> arguments = {});
+	void Branch(MarmotIRValueId condition, MarmotIRSuccessor if_true, MarmotIRSuccessor if_false);
 	// A value of any type, standing in for one that code nothing runs would
 	// have computed.
-	MidoriIRValueId Placeholder(const TypeRef& type);
+	MarmotIRValueId Placeholder(const TypeRef& type);
 	// Ends the block after a call that returns Never, and goes on in one
 	// nothing reaches.
 	void AfterNever();
 
 	std::vector<CompilerError> ReserveTopLevelNames();
-	Emitted ReserveTopLevelName(MidoriStatement& statement);
+	Emitted ReserveTopLevelName(MarmotStatement& statement);
 	Emitted ReserveFunction(const std::string& name, const TypeRef& closure_type);
-	Emitted ReserveForeign(const MidoriStatement::ForeignDefinition& foreign);
+	Emitted ReserveForeign(const MarmotStatement::ForeignDefinition& foreign);
 	// A foreign function's value is the name the VM looks it up by.
-	std::expected<std::string, CompilerError> ForeignName(const MidoriStatement::ForeignDefinition& foreign);
-	void RegisterGeneric(const std::string& name, const std::vector<Token>& params, const std::vector<TypeRef>& param_types, const std::vector<Token>& generic_params, const std::vector<MidoriType::ClassConstraint>& constraints, const TypeRef& return_type, std::unique_ptr<MidoriExpression>& body, int captured_count);
-	bool IsGenericMethod(const MidoriStatement::Instance& instance, const MidoriStatement::FunctionDefinition& method) const;
+	std::expected<std::string, CompilerError> ForeignName(const MarmotStatement::ForeignDefinition& foreign);
+	void RegisterGeneric(const std::string& name, const std::vector<Token>& params, const std::vector<TypeRef>& param_types, const std::vector<Token>& generic_params, const std::vector<MarmotType::ClassConstraint>& constraints, const TypeRef& return_type, std::unique_ptr<MarmotExpression>& body, int captured_count);
+	bool IsGenericMethod(const MarmotStatement::Instance& instance, const MarmotStatement::FunctionDefinition& method) const;
 	std::vector<LoweredExport> CollectExports() const;
 
-	Emitted LowerTopLevelStatement(MidoriStatement& statement);
-	Emitted LowerTopLevelFunction(const std::string& name, const std::vector<Token>& params, MidoriExpression& body, int line);
-	Emitted LowerStatement(MidoriStatement& statement);
-	Emitted LowerLocalDefinition(MidoriStatement::VariableDefinition& definition);
-	Emitted LowerTupleDefinition(MidoriStatement::TupleDefinition& definition);
+	Emitted LowerTopLevelStatement(MarmotStatement& statement);
+	Emitted LowerTopLevelFunction(const std::string& name, const std::vector<Token>& params, MarmotExpression& body, int line);
+	Emitted LowerStatement(MarmotStatement& statement);
+	Emitted LowerLocalDefinition(MarmotStatement::VariableDefinition& definition);
+	Emitted LowerTupleDefinition(MarmotStatement::TupleDefinition& definition);
 
 	void PushLocalFrame();
 	void PopLocalFrame();
-	void DefineLocal(int index, MidoriIRValueId value);
+	void DefineLocal(int index, MarmotIRValueId value);
 	LocalKey KeyForCell(const FunctionScope& scope, int cell_index) const;
-	MidoriIRValueId CaptureFor(FunctionScope& scope, const LocalKey& key, const TypeRef& type);
+	MarmotIRValueId CaptureFor(FunctionScope& scope, const LocalKey& key, const TypeRef& type);
 
-	Emitted LowerFunctionBody(FunctionScope& scope, const std::vector<TypeRef>& param_types, const std::vector<Token>& params, MidoriExpression& body);
+	Emitted LowerFunctionBody(FunctionScope& scope, const std::vector<TypeRef>& param_types, const std::vector<Token>& params, MarmotExpression& body);
 	Lowered MakeClosure(FunctionScope& child, const TypeRef& closure_type, int line, std::string name = {});
-	Lowered LowerFunction(MidoriExpression::Function& function);
-	Lowered LowerGenericLambda(MidoriExpression::Function& function, const TypeRef& type, std::string name, int line);
-	Lowered LowerLocalGeneric(MidoriExpression::Function& function, const TypeRef& type, const Token& name);
-	std::expected<MidoriIRFunctionId, CompilerError> Specialize(const std::string& key, const std::vector<TypeRef>& argument_types, const TypeRef& call_type);
+	Lowered LowerFunction(MarmotExpression::Function& function);
+	Lowered LowerGenericLambda(MarmotExpression::Function& function, const TypeRef& type, std::string name, int line);
+	Lowered LowerLocalGeneric(MarmotExpression::Function& function, const TypeRef& type, const Token& name);
+	std::expected<MarmotIRFunctionId, CompilerError> Specialize(const std::string& key, const std::vector<TypeRef>& argument_types, const TypeRef& call_type);
 
-	Lowered LowerName(const MidoriExpression::NameAccess& name);
+	Lowered LowerName(const MarmotExpression::NameAccess& name);
 	bool IsForeignFunction(const TypeRef& type) const;
 	bool IsForeignDeclaration(const std::string& name);
 	Lowered LowerForeignValue(const Token& name, const TypeRef& type);
-	std::expected<MidoriIRGlobalSlot, CompilerError> GlobalFor(const Token& name, const TypeRef& type);
-	std::expected<MidoriIRGlobalSlot, CompilerError> GlobalForResolved(const std::string& resolved_name, const TypeRef& type, const Token& at);
-	MidoriIRGlobalSlot ImportGlobal(const std::string& module, const std::string& symbol, const TypeRef& type, const Token& at);
+	std::expected<MarmotIRGlobalSlot, CompilerError> GlobalFor(const Token& name, const TypeRef& type);
+	std::expected<MarmotIRGlobalSlot, CompilerError> GlobalForResolved(const std::string& resolved_name, const TypeRef& type, const Token& at);
+	MarmotIRGlobalSlot ImportGlobal(const std::string& module, const std::string& symbol, const TypeRef& type, const Token& at);
 	Lowered LoadResolved(const std::string& resolved_name, const TypeRef& type, const Token& at);
 	// A call of a class method an instance provides, by its resolved name.
-	Lowered CallResolved(const std::string& resolved_name, std::vector<MidoriIRValueId> arguments, const std::vector<TypeRef>& argument_types, const TypeRef& result_type, const Token& at);
+	Lowered CallResolved(const std::string& resolved_name, std::vector<MarmotIRValueId> arguments, const std::vector<TypeRef>& argument_types, const TypeRef& result_type, const Token& at);
 
-	Lowered LowerCall(MidoriExpression::Call& call);
-	Emitted LowerTailCall(MidoriExpression::Call& call);
-	Lowered LowerPrimitive(MidoriExpression::Call& call);
-	std::expected<Callee, CompilerError> ResolveCallee(MidoriExpression::Call& call, const std::vector<MidoriIRValueId>& arguments, const TypeRef& call_type);
+	Lowered LowerCall(MarmotExpression::Call& call);
+	Emitted LowerTailCall(MarmotExpression::Call& call);
+	Lowered LowerPrimitive(MarmotExpression::Call& call);
+	std::expected<Callee, CompilerError> ResolveCallee(MarmotExpression::Call& call, const std::vector<MarmotIRValueId>& arguments, const TypeRef& call_type);
 	TypeRef ResultTypeOf(const Callee& callee, const TypeRef& call_type);
-	MidoriIRValueId EmitCall(const Callee& callee, std::vector<MidoriIRValueId> arguments, const TypeRef& call_type, int line);
-	LoweredValues LowerArguments(std::vector<std::unique_ptr<MidoriExpression>>& arguments);
-	std::vector<TypeRef> TypesOf(const std::vector<MidoriIRValueId>& values);
+	MarmotIRValueId EmitCall(const Callee& callee, std::vector<MarmotIRValueId> arguments, const TypeRef& call_type, int line);
+	LoweredValues LowerArguments(std::vector<std::unique_ptr<MarmotExpression>>& arguments);
+	std::vector<TypeRef> TypesOf(const std::vector<MarmotIRValueId>& values);
 
 	// LoweringExpressions.cpp: values.
-	Lowered Lower(MidoriExpression& expression);
-	std::optional<MidoriIRImmediate> ConstantOf(MidoriLiteralKind kind, const std::string& lexeme) const;
-	Lowered LowerLiteral(const MidoriExpression::Literal& literal);
-	Lowered LowerBinary(MidoriExpression::Binary& binary);
-	Lowered LowerShortCircuit(MidoriExpression::Binary& binary);
-	Lowered LowerClassOperator(MidoriExpression::Binary& binary, MidoriIRValueId left, MidoriIRValueId right);
-	Lowered LowerConcat(MidoriExpression::Binary& binary, MidoriIRValueId left, MidoriIRValueId right);
-	Lowered LowerUnary(MidoriExpression::UnaryPrefix& unary);
-	Lowered LowerCount(MidoriExpression::UnaryPrefix& unary, MidoriIRValueId operand);
-	Lowered LowerAs(MidoriExpression::As& as);
-	Lowered LowerBoolToText(MidoriIRValueId value, int line);
-	Lowered LowerTuple(MidoriExpression::Tuple& tuple);
-	Lowered LowerArray(MidoriExpression::Array& array);
-	Lowered LowerIndex(MidoriExpression::IndexAccess& index);
-	Lowered LowerConstruct(MidoriExpression::Construct& construct);
-	Lowered LowerRecordUpdate(MidoriExpression::RecordUpdate& record_update);
-	Lowered LowerUpdatedRecord(MidoriIRValueId source, const TypeRef& type, const std::vector<MidoriExpression::RecordUpdate::FieldUpdate*>& updates, size_t depth, int line);
-	Lowered LowerMemberAccess(MidoriExpression::MemberAccess& member);
-	Lowered LowerRange(MidoriExpression& start, MidoriExpression* step, MidoriExpression& end, const TypeRef& range_type, int line);
-	Lowered LowerSpawn(MidoriExpression::Call& spawn);
-	Lowered LowerOperation(MidoriIROp op, const TypeRef& type, std::vector<MidoriExpression*> operands, MidoriIRImmediate immediate, int line);
+	Lowered Lower(MarmotExpression& expression);
+	std::optional<MarmotIRImmediate> ConstantOf(MarmotLiteralKind kind, const std::string& lexeme) const;
+	Lowered LowerLiteral(const MarmotExpression::Literal& literal);
+	Lowered LowerBinary(MarmotExpression::Binary& binary);
+	Lowered LowerShortCircuit(MarmotExpression::Binary& binary);
+	Lowered LowerClassOperator(MarmotExpression::Binary& binary, MarmotIRValueId left, MarmotIRValueId right);
+	Lowered LowerConcat(MarmotExpression::Binary& binary, MarmotIRValueId left, MarmotIRValueId right);
+	Lowered LowerUnary(MarmotExpression::UnaryPrefix& unary);
+	Lowered LowerCount(MarmotExpression::UnaryPrefix& unary, MarmotIRValueId operand);
+	Lowered LowerAs(MarmotExpression::As& as);
+	Lowered LowerBoolToText(MarmotIRValueId value, int line);
+	Lowered LowerTuple(MarmotExpression::Tuple& tuple);
+	Lowered LowerArray(MarmotExpression::Array& array);
+	Lowered LowerIndex(MarmotExpression::IndexAccess& index);
+	Lowered LowerConstruct(MarmotExpression::Construct& construct);
+	Lowered LowerRecordUpdate(MarmotExpression::RecordUpdate& record_update);
+	Lowered LowerUpdatedRecord(MarmotIRValueId source, const TypeRef& type, const std::vector<MarmotExpression::RecordUpdate::FieldUpdate*>& updates, size_t depth, int line);
+	Lowered LowerMemberAccess(MarmotExpression::MemberAccess& member);
+	Lowered LowerRange(MarmotExpression& start, MarmotExpression* step, MarmotExpression& end, const TypeRef& range_type, int line);
+	Lowered LowerSpawn(MarmotExpression::Call& spawn);
+	Lowered LowerOperation(MarmotIROp op, const TypeRef& type, std::vector<MarmotExpression*> operands, MarmotIRImmediate immediate, int line);
 
 	// LoweringControl.cpp: control flow.
-	Emitted LowerReturn(MidoriExpression& expression);
-	Emitted LowerIfWith(MidoriExpression::IfElse& if_else, const BranchSink& sink);
-	Lowered LowerIf(MidoriExpression::IfElse& if_else);
-	Emitted LowerStatements(MidoriExpression::Block& block);
-	Lowered LowerBlock(MidoriExpression::Block& block);
-	Emitted LowerMatchWith(MidoriExpression::Match& match, const BranchSink& sink);
-	Lowered LowerMatch(MidoriExpression::Match& match);
-	Emitted LowerPattern(const MidoriPattern& pattern, MidoriIRValueId value, MidoriIRBlockId fail);
-	Emitted TestOrFail(MidoriIRValueId condition, MidoriIRBlockId fail);
+	Emitted LowerReturn(MarmotExpression& expression);
+	Emitted LowerIfWith(MarmotExpression::IfElse& if_else, const BranchSink& sink);
+	Lowered LowerIf(MarmotExpression::IfElse& if_else);
+	Emitted LowerStatements(MarmotExpression::Block& block);
+	Lowered LowerBlock(MarmotExpression::Block& block);
+	Emitted LowerMatchWith(MarmotExpression::Match& match, const BranchSink& sink);
+	Lowered LowerMatch(MarmotExpression::Match& match);
+	Emitted LowerPattern(const MarmotPattern& pattern, MarmotIRValueId value, MarmotIRBlockId fail);
+	Emitted TestOrFail(MarmotIRValueId condition, MarmotIRBlockId fail);
 	// A join block whose parameter is the value of the construct that jumps
 	// to it, and the sink each branch lowers into. EnterJoin gives the
 	// parameter its type once every branch has jumped.
 	std::pair<std::shared_ptr<JoinPoint>, BranchSink> Join(const TypeRef& type);
-	MidoriIRValueId EnterJoin(const JoinPoint& join);
+	MarmotIRValueId EnterJoin(const JoinPoint& join);
 
 	// What `for` and an array comprehension iterate: a range, an array, or an
 	// Iterable, whose Next gives Some((item, next iterator)) with m_some_tag.
@@ -349,10 +349,10 @@ private:
 
 	// `body` is lowered once, with the loop variable defined, and gets the
 	// values the loop carries round, which it returns updated.
-	using LoopBody = std::function<std::expected<std::vector<MidoriIRValueId>, CompilerError>(std::vector<MidoriIRValueId>)>;
-	std::expected<std::vector<MidoriIRValueId>, CompilerError> LowerLoop(MidoriExpression& iterated, const LoopKind& kind, int loop_variable, std::vector<MidoriIRValueId> carried, const LoopBody& body, const Token& at);
+	using LoopBody = std::function<std::expected<std::vector<MarmotIRValueId>, CompilerError>(std::vector<MarmotIRValueId>)>;
+	std::expected<std::vector<MarmotIRValueId>, CompilerError> LowerLoop(MarmotExpression& iterated, const LoopKind& kind, int loop_variable, std::vector<MarmotIRValueId> carried, const LoopBody& body, const Token& at);
 	LoopKind LoopKindOf(bool is_array, bool is_iterable, const TypeRef& item_type, const TypeRef& next_type, int some_tag);
-	Lowered LowerFor(MidoriExpression::For& for_expression);
-	Lowered LowerComprehension(MidoriExpression::ArrayComprehension& comprehension);
-	Lowered CallIterableNext(MidoriIRValueId iterator, const TypeRef& item_type, const TypeRef& next_type, const Token& at);
+	Lowered LowerFor(MarmotExpression::For& for_expression);
+	Lowered LowerComprehension(MarmotExpression::ArrayComprehension& comprehension);
+	Lowered CallIterableNext(MarmotIRValueId iterator, const TypeRef& item_type, const TypeRef& next_type, const Token& at);
 };

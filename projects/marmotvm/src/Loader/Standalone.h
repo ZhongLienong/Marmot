@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-namespace MidoriStandalone
+namespace MarmotStandalone
 {
 	inline constexpr int s_format_version = 1;
 

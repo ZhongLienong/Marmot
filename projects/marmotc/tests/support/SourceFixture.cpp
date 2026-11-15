@@ -3,7 +3,7 @@
 #include <sstream>
 #include <utility>
 
-namespace MidoriTest
+namespace MarmotTest
 {
 	SourceFixture::SourceFixture(std::string source_code, std::string file_name)
 		: m_source_code(std::move(source_code)),

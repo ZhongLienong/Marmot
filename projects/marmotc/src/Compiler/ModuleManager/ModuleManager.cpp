@@ -45,12 +45,12 @@ ModuleManager::ModuleManager(TokenStream&& main_file_tokens, std::string_view ma
 {
 }
 
-MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraph()
+MarmotResult::ModuleManagerResult ModuleManager::GenerateBuildGraph()
 {
 	BuildGraph build_graph;
 	ModuleSourceLoader source_loader(m_inputs.Jobs().value_or(std::max(1u, std::thread::hardware_concurrency())));
 	DiscoveryState discovery;
-	MidoriResult::VoidResult result = GenerateBuildGraphImpl(build_graph, source_loader, discovery);
+	MarmotResult::VoidResult result = GenerateBuildGraphImpl(build_graph, source_loader, discovery);
 	if (!result.has_value())
 	{
 		return std::unexpected(std::move(result.error()));
@@ -59,13 +59,13 @@ MidoriResult::ModuleManagerResult ModuleManager::GenerateBuildGraph()
 	return build_graph;
 }
 
-MidoriResult::VoidResult ModuleManager::GenerateBuildGraphImpl(BuildGraph& build_graph, ModuleSourceLoader& source_loader, DiscoveryState& discovery)
+MarmotResult::VoidResult ModuleManager::GenerateBuildGraphImpl(BuildGraph& build_graph, ModuleSourceLoader& source_loader, DiscoveryState& discovery)
 {
 	if (m_main_token_stream.Size() != 0)
 	{
 		std::vector<StatementSpan> spans = ScanModuleStatements(m_main_token_stream);
 
-		MidoriResult::Result<std::tuple<std::string, std::vector<ModuleExport>>> module_result = ExtractModuleDeclaration(m_main_token_stream, spans);
+		MarmotResult::Result<std::tuple<std::string, std::vector<ModuleExport>>> module_result = ExtractModuleDeclaration(m_main_token_stream, spans);
 		if (!module_result.has_value())
 		{
 			return std::unexpected(std::move(module_result.error()));
@@ -78,7 +78,7 @@ MidoriResult::VoidResult ModuleManager::GenerateBuildGraphImpl(BuildGraph& build
 			const std::string& existing_file = build_graph.m_module_name_to_file.at(module_name);
 			if (existing_file != m_main_file_name)
 			{
-				return std::unexpected(MidoriError::GenerateModuleErrorWithContext(
+				return std::unexpected(MarmotError::GenerateModuleErrorWithContext(
 					CompilerErrorCode::ModuleDeclarationDuplicate,
 					std::format
 					(
@@ -104,14 +104,14 @@ MidoriResult::VoidResult ModuleManager::GenerateBuildGraphImpl(BuildGraph& build
 			.WithExports(std::move(exports));
 		build_graph.m_module_declarations.emplace(m_main_file_name, std::move(module_decl));
 
-		MidoriResult::Result<std::vector<std::pair<std::string, Token>>> import_result = ExtractImports(m_main_token_stream, spans);
+		MarmotResult::Result<std::vector<std::pair<std::string, Token>>> import_result = ExtractImports(m_main_token_stream, spans);
 		if (!import_result.has_value())
 		{
 			return std::unexpected(std::move(import_result.error()));
 		}
 
 		std::vector<std::pair<std::string, Token>> import_paths = std::move(import_result.value());
-		MidoriResult::Result<std::vector<UseImport>> use_import_result = ExtractUseStatements(m_main_token_stream, spans);
+		MarmotResult::Result<std::vector<UseImport>> use_import_result = ExtractUseStatements(m_main_token_stream, spans);
 		if (!use_import_result.has_value())
 		{
 			return std::unexpected(std::move(use_import_result.error()));
@@ -179,14 +179,14 @@ MidoriResult::VoidResult ModuleManager::GenerateBuildGraphImpl(BuildGraph& build
 				continue;
 			}
 
-			MidoriResult::Result<ImportedSource> source = source_loader.Take(include_absolute_path_str, m_main_file_name, import_token.m_line);
+			MarmotResult::Result<ImportedSource> source = source_loader.Take(include_absolute_path_str, m_main_file_name, import_token.m_line);
 			if (!source.has_value())
 			{
 				return std::unexpected(std::move(source.error()));
 			}
 
 			ModuleManager module_manager(std::move(source->m_tokens), include_absolute_path_str, std::move(source->m_source_lines), m_inputs);
-			MidoriResult::VoidResult nested_build_graph_result = module_manager.GenerateBuildGraphImpl(build_graph, source_loader, discovery);
+			MarmotResult::VoidResult nested_build_graph_result = module_manager.GenerateBuildGraphImpl(build_graph, source_loader, discovery);
 			if (!nested_build_graph_result.has_value())
 			{
 				return std::unexpected(std::move(nested_build_graph_result.error()));
@@ -402,7 +402,7 @@ bool ModuleManager::IsKeyword(Token::Name token_name)
 	       static_cast<int>(token_name) >= static_cast<int>(Token::Name::ELSE);
 }
 
-MidoriResult::VoidResult ModuleManager::ValidateModuleDeclarationPolicy(const TokenStream& tokens, const std::vector<StatementSpan>& spans) const
+MarmotResult::VoidResult ModuleManager::ValidateModuleDeclarationPolicy(const TokenStream& tokens, const std::vector<StatementSpan>& spans) const
 {
 	std::vector<const StatementSpan*> module_spans;
 	for (const StatementSpan& span : spans)
@@ -417,7 +417,7 @@ MidoriResult::VoidResult ModuleManager::ValidateModuleDeclarationPolicy(const To
 	{
 		return std::unexpected
 		(
-			MidoriError::GenerateModuleErrorWithContext
+			MarmotError::GenerateModuleErrorWithContext
 			(
 				CompilerErrorCode::ModuleDeclarationMissing,
 				"Module declaration required. Each .mmt file must contain exactly one 'module ModuleName' declaration as its first top-level statement.",
@@ -431,7 +431,7 @@ MidoriResult::VoidResult ModuleManager::ValidateModuleDeclarationPolicy(const To
 	{
 		return std::unexpected
 		(
-			MidoriError::GenerateModuleErrorWithContext
+			MarmotError::GenerateModuleErrorWithContext
 			(
 				CompilerErrorCode::ModuleDeclarationDuplicate,
 				"Multiple module declarations found. Each .mmt file must contain exactly one 'module ModuleName' declaration.",
@@ -452,7 +452,7 @@ MidoriResult::VoidResult ModuleManager::ValidateModuleDeclarationPolicy(const To
 	{
 		return std::unexpected
 		(
-			MidoriError::GenerateModuleErrorWithContext
+			MarmotError::GenerateModuleErrorWithContext
 			(
 				"Module declaration must be the first top-level statement in the file.",
 				module_spans.front()->m_line,
@@ -464,7 +464,7 @@ MidoriResult::VoidResult ModuleManager::ValidateModuleDeclarationPolicy(const To
 	return {};
 }
 
-MidoriResult::Result<std::string> ModuleManager::ExtractModuleName(const TokenStream& tokens, const StatementSpan& module_span) const
+MarmotResult::Result<std::string> ModuleManager::ExtractModuleName(const TokenStream& tokens, const StatementSpan& module_span) const
 {
 	std::string module_name;
 	int current = module_span.m_start + 1;
@@ -474,7 +474,7 @@ MidoriResult::Result<std::string> ModuleManager::ExtractModuleName(const TokenSt
 	{
 		return std::unexpected
 		(
-			MidoriError::GenerateModuleErrorWithContext
+			MarmotError::GenerateModuleErrorWithContext
 			(
 				"Expected module name after 'module'.",
 				module_span.m_line,
@@ -502,7 +502,7 @@ MidoriResult::Result<std::string> ModuleManager::ExtractModuleName(const TokenSt
 			{
 				return std::unexpected
 				(
-					MidoriError::GenerateModuleErrorWithContext
+					MarmotError::GenerateModuleErrorWithContext
 					(
 						"'" + token.m_lexeme + "' is a reserved keyword and cannot be used as a module name.",
 						token.m_line,
@@ -513,7 +513,7 @@ MidoriResult::Result<std::string> ModuleManager::ExtractModuleName(const TokenSt
 
 			return std::unexpected
 			(
-				MidoriError::GenerateModuleErrorWithContext
+				MarmotError::GenerateModuleErrorWithContext
 				(
 					"Expected identifier in module declaration.",
 					token.m_line,
@@ -526,7 +526,7 @@ MidoriResult::Result<std::string> ModuleManager::ExtractModuleName(const TokenSt
 		{
 			return std::unexpected
 			(
-				MidoriError::GenerateModuleErrorWithContext
+				MarmotError::GenerateModuleErrorWithContext
 				(
 					"Unexpected token in module declaration.",
 					token.m_line,
@@ -545,7 +545,7 @@ MidoriResult::Result<std::string> ModuleManager::ExtractModuleName(const TokenSt
 	{
 		return std::unexpected
 		(
-			MidoriError::GenerateModuleErrorWithContext
+			MarmotError::GenerateModuleErrorWithContext
 			(
 				"Expected identifier after '.' in module declaration.",
 				module_span.m_line,
@@ -557,10 +557,10 @@ MidoriResult::Result<std::string> ModuleManager::ExtractModuleName(const TokenSt
 	return module_name;
 }
 
-MidoriResult::Result<std::tuple<std::string, std::vector<ModuleExport>>> ModuleManager::ExtractModuleDeclaration(const TokenStream& tokens, const std::vector<StatementSpan>& spans)
+MarmotResult::Result<std::tuple<std::string, std::vector<ModuleExport>>> ModuleManager::ExtractModuleDeclaration(const TokenStream& tokens, const std::vector<StatementSpan>& spans)
 {
 	std::vector<ModuleExport> all_exports;
-	MidoriResult::VoidResult validation_result = ValidateModuleDeclarationPolicy(tokens, spans);
+	MarmotResult::VoidResult validation_result = ValidateModuleDeclarationPolicy(tokens, spans);
 	if (!validation_result.has_value())
 	{
 		return std::unexpected(std::move(validation_result.error()));
@@ -580,7 +580,7 @@ MidoriResult::Result<std::tuple<std::string, std::vector<ModuleExport>>> ModuleM
 	{
 		return std::unexpected
 		(
-			MidoriError::GenerateModuleErrorWithContext
+			MarmotError::GenerateModuleErrorWithContext
 			(
 				CompilerErrorCode::ModuleDeclarationMissing,
 				"Module declaration required. Each .mmt file must contain exactly one 'module ModuleName' declaration as its first top-level statement.",
@@ -590,7 +590,7 @@ MidoriResult::Result<std::tuple<std::string, std::vector<ModuleExport>>> ModuleM
 		);
 	}
 
-	MidoriResult::Result<std::string> module_name_result = ExtractModuleName(tokens, *module_span);
+	MarmotResult::Result<std::string> module_name_result = ExtractModuleName(tokens, *module_span);
 	if (!module_name_result.has_value())
 	{
 		return std::unexpected(std::move(module_name_result.error()));
@@ -659,7 +659,7 @@ MidoriResult::Result<std::tuple<std::string, std::vector<ModuleExport>>> ModuleM
 	return std::make_tuple(std::move(module_name), std::move(all_exports));
 }
 
-MidoriResult::Result<std::vector<std::pair<std::string, Token>>> ModuleManager::ExtractImports(const TokenStream& tokens, const std::vector<StatementSpan>& spans)
+MarmotResult::Result<std::vector<std::pair<std::string, Token>>> ModuleManager::ExtractImports(const TokenStream& tokens, const std::vector<StatementSpan>& spans)
 {
 	std::vector<std::pair<std::string, Token>> import_paths;
 	const std::string_view import_suggestion = R"(Use 'import { <IO> }' for system modules or 'import { "./File.mmt" }' for path imports.)";
@@ -784,10 +784,10 @@ MidoriResult::Result<std::vector<std::pair<std::string, Token>>> ModuleManager::
 		}
 	}
 
-	return MidoriResult::Result<std::vector<std::pair<std::string, Token>>>(std::move(import_paths));
+	return MarmotResult::Result<std::vector<std::pair<std::string, Token>>>(std::move(import_paths));
 }
 
-MidoriResult::Result<std::vector<UseImport>> ModuleManager::ExtractUseStatements(const TokenStream& tokens, const std::vector<StatementSpan>& spans)
+MarmotResult::Result<std::vector<UseImport>> ModuleManager::ExtractUseStatements(const TokenStream& tokens, const std::vector<StatementSpan>& spans)
 {
 	std::vector<UseImport> use_imports;
 
@@ -802,7 +802,7 @@ MidoriResult::Result<std::vector<UseImport>> ModuleManager::ExtractUseStatements
 			{
 				return std::unexpected
 				(
-					MidoriError::GenerateModuleErrorWithContext
+					MarmotError::GenerateModuleErrorWithContext
 					(
 						"Expected module name after 'use'.",
 						span.m_line,
@@ -827,7 +827,7 @@ MidoriResult::Result<std::vector<UseImport>> ModuleManager::ExtractUseStatements
 				{
 					return std::unexpected
 					(
-						MidoriError::GenerateModuleErrorWithContext
+						MarmotError::GenerateModuleErrorWithContext
 						(
 							"Expected identifier or '{' after '.' in use statement.",
 							dot_token.m_line,
@@ -846,7 +846,7 @@ MidoriResult::Result<std::vector<UseImport>> ModuleManager::ExtractUseStatements
 					{
 						return std::unexpected
 						(
-							MidoriError::GenerateModuleErrorWithContext
+							MarmotError::GenerateModuleErrorWithContext
 							(
 								"Expected at least one identifier in use import list.",
 								tokens[current].m_line,
@@ -861,7 +861,7 @@ MidoriResult::Result<std::vector<UseImport>> ModuleManager::ExtractUseStatements
 						{
 							return std::unexpected
 							(
-								MidoriError::GenerateModuleErrorWithContext
+								MarmotError::GenerateModuleErrorWithContext
 								(
 									"Expected identifier in use import list.",
 									tokens[current].m_line,
@@ -883,7 +883,7 @@ MidoriResult::Result<std::vector<UseImport>> ModuleManager::ExtractUseStatements
 						{
 							return std::unexpected
 							(
-								MidoriError::GenerateModuleErrorWithContext
+								MarmotError::GenerateModuleErrorWithContext
 								(
 									"Expected ',' or '}' in use import list.",
 									tokens[current].m_line,
@@ -897,7 +897,7 @@ MidoriResult::Result<std::vector<UseImport>> ModuleManager::ExtractUseStatements
 					{
 						return std::unexpected
 						(
-							MidoriError::GenerateModuleErrorWithContext
+							MarmotError::GenerateModuleErrorWithContext
 							(
 								"Expected '}' to close use import list.",
 								span.m_line,
@@ -916,7 +916,7 @@ MidoriResult::Result<std::vector<UseImport>> ModuleManager::ExtractUseStatements
 				{
 					return std::unexpected
 					(
-						MidoriError::GenerateModuleErrorWithContext
+						MarmotError::GenerateModuleErrorWithContext
 						(
 							"Expected identifier or '{' after '.' in use statement.",
 							tokens[current].m_line,
@@ -936,7 +936,7 @@ MidoriResult::Result<std::vector<UseImport>> ModuleManager::ExtractUseStatements
 				{
 					return std::unexpected
 					(
-						MidoriError::GenerateModuleErrorWithContext
+						MarmotError::GenerateModuleErrorWithContext
 						(
 							"Expected imported symbol after module qualifier in use statement.",
 							span.m_line,
@@ -960,7 +960,7 @@ MidoriResult::Result<std::vector<UseImport>> ModuleManager::ExtractUseStatements
 			{
 				return std::unexpected
 				(
-					MidoriError::GenerateModuleErrorWithContext
+					MarmotError::GenerateModuleErrorWithContext
 					(
 						"Unexpected token in use statement.",
 						tokens[current].m_line,

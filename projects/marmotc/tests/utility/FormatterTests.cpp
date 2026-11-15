@@ -11,7 +11,7 @@ namespace
 	[[nodiscard]] std::string FormatOrFail(std::string_view source_code, std::string_view file_name)
 	{
 		const std::expected<std::string, CompilerError> format_result =
-			MidoriFormatter::FormatSource(source_code, file_name);
+			MarmotFormatter::FormatSource(source_code, file_name);
 		if (!format_result.has_value())
 		{
 			FAIL(std::string(format_result.error().Rendered()));

@@ -12,8 +12,8 @@ TEST_CASE("A newtype renders as its own name, never its representation", "[type]
 	// this single behaviour is what gives a newtype independent typeclass
 	// instances. If it ever renders as "Int", Hashable<Meters> collapses into
 	// Hashable<Int> and the feature is gone.
-	const std::shared_ptr<MidoriType> representation = MidoriType::MakeLiteralType<MidoriType::IntegerType>();
-	const std::shared_ptr<MidoriType> meters = MidoriType::MakeNewType("Meters", "TypeTests", representation, {});
+	const std::shared_ptr<MarmotType> representation = MarmotType::MakeLiteralType<MarmotType::IntegerType>();
+	const std::shared_ptr<MarmotType> meters = MarmotType::MakeNewType("Meters", "TypeTests", representation, {});
 
 	REQUIRE(meters->ToString() == "TypeTests::Meters");
 	REQUIRE(meters->DisplayString() == "Meters");
@@ -22,8 +22,8 @@ TEST_CASE("A newtype renders as its own name, never its representation", "[type]
 
 TEST_CASE("A newtype is unequal to its representation in both directions", "[type]")
 {
-	const std::shared_ptr<MidoriType> representation = MidoriType::MakeLiteralType<MidoriType::IntegerType>();
-	const std::shared_ptr<MidoriType> meters = MidoriType::MakeNewType("Meters", "TypeTests", representation, {});
+	const std::shared_ptr<MarmotType> representation = MarmotType::MakeLiteralType<MarmotType::IntegerType>();
+	const std::shared_ptr<MarmotType> meters = MarmotType::MakeNewType("Meters", "TypeTests", representation, {});
 
 	REQUIRE_FALSE(*meters == *representation);
 	REQUIRE_FALSE(*representation == *meters);
@@ -33,18 +33,18 @@ TEST_CASE("Two newtypes over one representation are distinct from each other", "
 {
 	// Without this, `Meters` and `Seconds` would silently interconvert, which is
 	// the exact confusion the feature exists to prevent.
-	const std::shared_ptr<MidoriType> representation = MidoriType::MakeLiteralType<MidoriType::IntegerType>();
-	const std::shared_ptr<MidoriType> meters = MidoriType::MakeNewType("Meters", "TypeTests", representation, {});
-	const std::shared_ptr<MidoriType> seconds = MidoriType::MakeNewType("Seconds", "TypeTests", representation, {});
+	const std::shared_ptr<MarmotType> representation = MarmotType::MakeLiteralType<MarmotType::IntegerType>();
+	const std::shared_ptr<MarmotType> meters = MarmotType::MakeNewType("Meters", "TypeTests", representation, {});
+	const std::shared_ptr<MarmotType> seconds = MarmotType::MakeNewType("Seconds", "TypeTests", representation, {});
 
 	REQUIRE_FALSE(*meters == *seconds);
 }
 
 TEST_CASE("A newtype equals another newtype with the same name", "[type]")
 {
-	const std::shared_ptr<MidoriType> representation = MidoriType::MakeLiteralType<MidoriType::IntegerType>();
-	const std::shared_ptr<MidoriType> left = MidoriType::MakeNewType("Meters", "TypeTests", representation, {});
-	const std::shared_ptr<MidoriType> right = MidoriType::MakeNewType("Meters", "TypeTests", representation, {});
+	const std::shared_ptr<MarmotType> representation = MarmotType::MakeLiteralType<MarmotType::IntegerType>();
+	const std::shared_ptr<MarmotType> left = MarmotType::MakeNewType("Meters", "TypeTests", representation, {});
+	const std::shared_ptr<MarmotType> right = MarmotType::MakeNewType("Meters", "TypeTests", representation, {});
 
 	REQUIRE(*left == *right);
 }
@@ -54,32 +54,32 @@ TEST_CASE("Two modules' types of the same name are two types", "[type]")
 	// The name alone is not the identity: a module may declare `Wrap` while an
 	// imported module declares its own, and a value of one is not a value of
 	// the other. The rendering says which is which.
-	const std::shared_ptr<MidoriType> representation = MidoriType::MakeLiteralType<MidoriType::IntegerType>();
-	const std::shared_ptr<MidoriType> mine = MidoriType::MakeNewType("Wrap", "Mine", representation, {});
-	const std::shared_ptr<MidoriType> theirs = MidoriType::MakeNewType("Wrap", "Theirs", representation, {});
+	const std::shared_ptr<MarmotType> representation = MarmotType::MakeLiteralType<MarmotType::IntegerType>();
+	const std::shared_ptr<MarmotType> mine = MarmotType::MakeNewType("Wrap", "Mine", representation, {});
+	const std::shared_ptr<MarmotType> theirs = MarmotType::MakeNewType("Wrap", "Theirs", representation, {});
 
 	REQUIRE_FALSE(*mine == *theirs);
 	REQUIRE(mine->ToString() != theirs->ToString());
 	REQUIRE(mine->DisplayString() == theirs->DisplayString());
 
-	std::vector<std::shared_ptr<MidoriType>> member_types{ representation };
+	std::vector<std::shared_ptr<MarmotType>> member_types{ representation };
 	std::vector<std::string> member_names{ "value" };
-	std::vector<std::shared_ptr<MidoriType>> other_member_types{ representation };
+	std::vector<std::shared_ptr<MarmotType>> other_member_types{ representation };
 	std::vector<std::string> other_member_names{ "value" };
-	const std::shared_ptr<MidoriType> my_struct = MidoriType::MakeStructType("Point", "Mine", std::move(member_types), std::move(member_names));
-	const std::shared_ptr<MidoriType> their_struct = MidoriType::MakeStructType("Point", "Theirs", std::move(other_member_types), std::move(other_member_names));
+	const std::shared_ptr<MarmotType> my_struct = MarmotType::MakeStructType("Point", "Mine", std::move(member_types), std::move(member_names));
+	const std::shared_ptr<MarmotType> their_struct = MarmotType::MakeStructType("Point", "Theirs", std::move(other_member_types), std::move(other_member_names));
 
 	REQUIRE_FALSE(*my_struct == *their_struct);
 
-	const std::shared_ptr<MidoriType> my_union = MidoriType::MakeUnionType("Shade", "Mine");
-	const std::shared_ptr<MidoriType> their_union = MidoriType::MakeUnionType("Shade", "Theirs");
+	const std::shared_ptr<MarmotType> my_union = MarmotType::MakeUnionType("Shade", "Mine");
+	const std::shared_ptr<MarmotType> their_union = MarmotType::MakeUnionType("Shade", "Theirs");
 
 	REQUIRE_FALSE(*my_union == *their_union);
 }
 
 TEST_CASE("A self-referential newtype's ToString recursion guard preserves nominal identity", "[type]")
 {
-	// FINDING 1 regression test. MidoriType::ToString()'s outer recursion guard
+	// FINDING 1 regression test. MarmotType::ToString()'s outer recursion guard
 	// special-cases StructType and UnionType to return their own name on cycle
 	// re-entry, and previously fell through to the literal string "Recursive"
 	// for every other alternative, NewType included. Since InstanceKey and
@@ -96,13 +96,13 @@ TEST_CASE("A self-referential newtype's ToString recursion guard preserves nomin
 	// generic instantiation, which StringifyTypeArguments does recurse into, so
 	// that is what this test constructs -- directly through the public API, no
 	// undefined behaviour.
-	const std::shared_ptr<MidoriType> meters = MidoriType::MakeNewType("Meters", "TypeTests", MidoriType::MakeLiteralType<MidoriType::IntegerType>(), {});
-	MidoriType::NewType& meters_data = meters->GetType<MidoriType::NewType>();
+	const std::shared_ptr<MarmotType> meters = MarmotType::MakeNewType("Meters", "TypeTests", MarmotType::MakeLiteralType<MarmotType::IntegerType>(), {});
+	MarmotType::NewType& meters_data = meters->GetType<MarmotType::NewType>();
 	meters_data.m_is_generic_instantiation = true;
 	meters_data.m_type_arguments = { meters };
 
-	const std::shared_ptr<MidoriType> seconds = MidoriType::MakeNewType("Seconds", "TypeTests", MidoriType::MakeLiteralType<MidoriType::IntegerType>(), {});
-	MidoriType::NewType& seconds_data = seconds->GetType<MidoriType::NewType>();
+	const std::shared_ptr<MarmotType> seconds = MarmotType::MakeNewType("Seconds", "TypeTests", MarmotType::MakeLiteralType<MarmotType::IntegerType>(), {});
+	MarmotType::NewType& seconds_data = seconds->GetType<MarmotType::NewType>();
 	seconds_data.m_is_generic_instantiation = true;
 	seconds_data.m_type_arguments = { seconds };
 
@@ -113,21 +113,21 @@ TEST_CASE("A self-referential newtype's ToString recursion guard preserves nomin
 
 TEST_CASE("Substituting a newtype's parameter rewrites its representation", "[type]")
 {
-	const std::shared_ptr<MidoriType> element = MidoriType::MakeGenericType("T");
-	const std::shared_ptr<MidoriType> representation = MidoriType::MakeArrayType(element);
-	const std::shared_ptr<MidoriType> boxed = MidoriType::MakeNewType("Boxed", "TypeTests", representation, {"T"});
+	const std::shared_ptr<MarmotType> element = MarmotType::MakeGenericType("T");
+	const std::shared_ptr<MarmotType> representation = MarmotType::MakeArrayType(element);
+	const std::shared_ptr<MarmotType> boxed = MarmotType::MakeNewType("Boxed", "TypeTests", representation, {"T"});
 
-	std::unordered_map<std::string, std::shared_ptr<MidoriType>> substitutions;
-	substitutions["T"] = MidoriType::MakeLiteralType<MidoriType::IntegerType>();
+	std::unordered_map<std::string, std::shared_ptr<MarmotType>> substitutions;
+	substitutions["T"] = MarmotType::MakeLiteralType<MarmotType::IntegerType>();
 
-	const std::shared_ptr<MidoriType> instantiated = MidoriType::SubstituteTypeParams(boxed, substitutions);
+	const std::shared_ptr<MarmotType> instantiated = MarmotType::SubstituteTypeParams(boxed, substitutions);
 
-	REQUIRE(instantiated->IsType<MidoriType::NewType>());
+	REQUIRE(instantiated->IsType<MarmotType::NewType>());
 
-	const MidoriType::NewType& result = instantiated->GetType<MidoriType::NewType>();
+	const MarmotType::NewType& result = instantiated->GetType<MarmotType::NewType>();
 	REQUIRE(result.m_name == "Boxed");
-	REQUIRE(result.m_representation->IsType<MidoriType::ArrayType>());
-	REQUIRE(result.m_representation->GetType<MidoriType::ArrayType>().m_element_type->IsType<MidoriType::IntegerType>());
+	REQUIRE(result.m_representation->IsType<MarmotType::ArrayType>());
+	REQUIRE(result.m_representation->GetType<MarmotType::ArrayType>().m_element_type->IsType<MarmotType::IntegerType>());
 }
 
 TEST_CASE("Substituting a newtype with an empty map preserves its parameters", "[type]")
@@ -135,15 +135,15 @@ TEST_CASE("Substituting a newtype with an empty map preserves its parameters", "
 	// Trap 1: since e730762, SubstituteTypeParams with an empty map is not the
 	// identity for StructType - it rebuilds with m_generic_params cleared. The
 	// NewType arm must not inherit that behaviour.
-	const std::shared_ptr<MidoriType> element = MidoriType::MakeGenericType("T");
-	const std::shared_ptr<MidoriType> representation = MidoriType::MakeArrayType(element);
-	const std::shared_ptr<MidoriType> boxed = MidoriType::MakeNewType("Boxed", "TypeTests", representation, {"T"});
+	const std::shared_ptr<MarmotType> element = MarmotType::MakeGenericType("T");
+	const std::shared_ptr<MarmotType> representation = MarmotType::MakeArrayType(element);
+	const std::shared_ptr<MarmotType> boxed = MarmotType::MakeNewType("Boxed", "TypeTests", representation, {"T"});
 
-	const std::unordered_map<std::string, std::shared_ptr<MidoriType>> empty;
-	const std::shared_ptr<MidoriType> result = MidoriType::SubstituteTypeParams(boxed, empty);
+	const std::unordered_map<std::string, std::shared_ptr<MarmotType>> empty;
+	const std::shared_ptr<MarmotType> result = MarmotType::SubstituteTypeParams(boxed, empty);
 
-	REQUIRE(result->IsType<MidoriType::NewType>());
-	REQUIRE(result->GetType<MidoriType::NewType>().m_generic_params == std::vector<std::string>{"T"});
+	REQUIRE(result->IsType<MarmotType::NewType>());
+	REQUIRE(result->GetType<MarmotType::NewType>().m_generic_params == std::vector<std::string>{"T"});
 }
 
 TEST_CASE("A substituted newtype renders its type argument, not its parameter name", "[type]")
@@ -154,14 +154,14 @@ TEST_CASE("A substituted newtype renders its type argument, not its parameter na
 	// m_generic_params (trap 1). InstanceKey and MangleInstanceMethodName are
 	// keyed on ToString, so that would collapse every instantiation onto one
 	// instance slot.
-	const std::shared_ptr<MidoriType> element = MidoriType::MakeGenericType("T");
-	const std::shared_ptr<MidoriType> representation = MidoriType::MakeArrayType(element);
-	const std::shared_ptr<MidoriType> boxed = MidoriType::MakeNewType("Boxed", "TypeTests", representation, {"T"});
+	const std::shared_ptr<MarmotType> element = MarmotType::MakeGenericType("T");
+	const std::shared_ptr<MarmotType> representation = MarmotType::MakeArrayType(element);
+	const std::shared_ptr<MarmotType> boxed = MarmotType::MakeNewType("Boxed", "TypeTests", representation, {"T"});
 
-	std::unordered_map<std::string, std::shared_ptr<MidoriType>> substitutions;
-	substitutions["T"] = MidoriType::MakeLiteralType<MidoriType::IntegerType>();
+	std::unordered_map<std::string, std::shared_ptr<MarmotType>> substitutions;
+	substitutions["T"] = MarmotType::MakeLiteralType<MarmotType::IntegerType>();
 
-	const std::shared_ptr<MidoriType> instantiated = MidoriType::SubstituteTypeParams(boxed, substitutions);
+	const std::shared_ptr<MarmotType> instantiated = MarmotType::SubstituteTypeParams(boxed, substitutions);
 
 	REQUIRE(instantiated->ToString() == "TypeTests::Boxed<Int>");
 	REQUIRE(instantiated->DisplayString() == "Boxed<Int>");
@@ -172,35 +172,35 @@ TEST_CASE("Two distinct newtype instantiations render differently", "[type]")
 	// This is the assertion that actually pins the InstanceKey property: case
 	// above alone would still pass if both instantiations collapsed onto some
 	// other shared string, so long as it wasn't "Boxed<T>".
-	const std::shared_ptr<MidoriType> element = MidoriType::MakeGenericType("T");
-	const std::shared_ptr<MidoriType> representation = MidoriType::MakeArrayType(element);
-	const std::shared_ptr<MidoriType> boxed = MidoriType::MakeNewType("Boxed", "TypeTests", representation, {"T"});
+	const std::shared_ptr<MarmotType> element = MarmotType::MakeGenericType("T");
+	const std::shared_ptr<MarmotType> representation = MarmotType::MakeArrayType(element);
+	const std::shared_ptr<MarmotType> boxed = MarmotType::MakeNewType("Boxed", "TypeTests", representation, {"T"});
 
-	std::unordered_map<std::string, std::shared_ptr<MidoriType>> int_substitutions;
-	int_substitutions["T"] = MidoriType::MakeLiteralType<MidoriType::IntegerType>();
-	const std::shared_ptr<MidoriType> boxed_int = MidoriType::SubstituteTypeParams(boxed, int_substitutions);
+	std::unordered_map<std::string, std::shared_ptr<MarmotType>> int_substitutions;
+	int_substitutions["T"] = MarmotType::MakeLiteralType<MarmotType::IntegerType>();
+	const std::shared_ptr<MarmotType> boxed_int = MarmotType::SubstituteTypeParams(boxed, int_substitutions);
 
-	std::unordered_map<std::string, std::shared_ptr<MidoriType>> text_substitutions;
-	text_substitutions["T"] = MidoriType::MakeLiteralType<MidoriType::TextType>();
-	const std::shared_ptr<MidoriType> boxed_text = MidoriType::SubstituteTypeParams(boxed, text_substitutions);
+	std::unordered_map<std::string, std::shared_ptr<MarmotType>> text_substitutions;
+	text_substitutions["T"] = MarmotType::MakeLiteralType<MarmotType::TextType>();
+	const std::shared_ptr<MarmotType> boxed_text = MarmotType::SubstituteTypeParams(boxed, text_substitutions);
 
 	REQUIRE(boxed_int->ToString() != boxed_text->ToString());
 }
 
 TEST_CASE("Ref<T> renders with its element type", "[type][cell]")
 {
-	const std::shared_ptr<MidoriType> element = MidoriType::MakeLiteralType<MidoriType::IntegerType>();
-	const std::shared_ptr<MidoriType> cell = MidoriType::MakeCellType(element);
+	const std::shared_ptr<MarmotType> element = MarmotType::MakeLiteralType<MarmotType::IntegerType>();
+	const std::shared_ptr<MarmotType> cell = MarmotType::MakeCellType(element);
 
 	REQUIRE(cell->ToString() == "Ref<Int>");
 }
 
 TEST_CASE("Cell types are equal exactly when their element types are", "[type][cell]")
 {
-	const std::shared_ptr<MidoriType> int_cell = MidoriType::MakeCellType(MidoriType::MakeLiteralType<MidoriType::IntegerType>());
-	const std::shared_ptr<MidoriType> other_int_cell = MidoriType::MakeCellType(MidoriType::MakeLiteralType<MidoriType::IntegerType>());
-	const std::shared_ptr<MidoriType> text_cell = MidoriType::MakeCellType(MidoriType::MakeLiteralType<MidoriType::TextType>());
-	const std::shared_ptr<MidoriType> int_channel = MidoriType::MakeChannelType(MidoriType::MakeLiteralType<MidoriType::IntegerType>());
+	const std::shared_ptr<MarmotType> int_cell = MarmotType::MakeCellType(MarmotType::MakeLiteralType<MarmotType::IntegerType>());
+	const std::shared_ptr<MarmotType> other_int_cell = MarmotType::MakeCellType(MarmotType::MakeLiteralType<MarmotType::IntegerType>());
+	const std::shared_ptr<MarmotType> text_cell = MarmotType::MakeCellType(MarmotType::MakeLiteralType<MarmotType::TextType>());
+	const std::shared_ptr<MarmotType> int_channel = MarmotType::MakeChannelType(MarmotType::MakeLiteralType<MarmotType::IntegerType>());
 
 	REQUIRE(*int_cell == *other_int_cell);
 	REQUIRE_FALSE(*int_cell == *text_cell);

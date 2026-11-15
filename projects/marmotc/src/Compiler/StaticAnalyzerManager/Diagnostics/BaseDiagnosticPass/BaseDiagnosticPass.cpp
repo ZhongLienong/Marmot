@@ -2,7 +2,7 @@
 
 #include <utility>
 
-std::vector<CompilerWarning> DiagnosticPass::Run(MidoriProgramTree& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines)
+std::vector<CompilerWarning> DiagnosticPass::Run(MarmotProgramTree& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines)
 {
 	m_file_name = file_name;
 	m_source_lines = &source_lines;
@@ -13,7 +13,7 @@ std::vector<CompilerWarning> DiagnosticPass::Run(MidoriProgramTree& program_tree
 	return std::exchange(m_warnings, {});
 }
 
-void DiagnosticPass::Reset(MidoriProgramTree&)
+void DiagnosticPass::Reset(MarmotProgramTree&)
 {
 }
 

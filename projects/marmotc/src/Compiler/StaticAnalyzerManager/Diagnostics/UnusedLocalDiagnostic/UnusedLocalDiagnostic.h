@@ -10,19 +10,19 @@
 class UnusedLocalDiagnostic final : public DiagnosticPass
 {
 protected:
-	void Reset(MidoriProgramTree& program_tree) override;
+	void Reset(MarmotProgramTree& program_tree) override;
 
 	void Finish() override;
 
-	void operator()(MidoriStatement::VariableDefinition& def) override;
-	void operator()(MidoriStatement::TupleDefinition& def_tuple) override;
-	void operator()(MidoriStatement::FunctionDefinition& defun) override;
-	void operator()(MidoriStatement::ForeignDefinition& foreign) override;
-	void operator()(MidoriPattern::Binding& binding) override;
-	void operator()(MidoriExpression::NameAccess& access) override;
-	void operator()(MidoriExpression::Function& function) override;
-	void operator()(MidoriExpression::Block& block) override;
-	void operator()(MidoriExpression::Case& case_expr) override;
+	void operator()(MarmotStatement::VariableDefinition& def) override;
+	void operator()(MarmotStatement::TupleDefinition& def_tuple) override;
+	void operator()(MarmotStatement::FunctionDefinition& defun) override;
+	void operator()(MarmotStatement::ForeignDefinition& foreign) override;
+	void operator()(MarmotPattern::Binding& binding) override;
+	void operator()(MarmotExpression::NameAccess& access) override;
+	void operator()(MarmotExpression::Function& function) override;
+	void operator()(MarmotExpression::Block& block) override;
+	void operator()(MarmotExpression::Case& case_expr) override;
 
 private:
 	struct BindingInfo
@@ -51,7 +51,7 @@ private:
 	void PopScope();
 	void RegisterBinding(const Token& token, std::optional<int> local_index, bool suppressed);
 	void RegisterParameterBindings(const std::vector<Token>& params);
-	void MarkRead(const Token& name, const MidoriExpression::NameContext::Tag& name_ctx);
+	void MarkRead(const Token& name, const MarmotExpression::NameContext::Tag& name_ctx);
 	void MarkCapturedReadByName(const Token& name);
 
 	std::vector<FunctionContext> m_functions;

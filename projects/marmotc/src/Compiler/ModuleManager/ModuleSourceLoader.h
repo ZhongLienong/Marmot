@@ -35,7 +35,7 @@ public:
 	ModuleSourceLoader& operator=(const ModuleSourceLoader&) = delete;
 
 	void Prefetch(const std::vector<std::string>& file_paths);
-	MidoriResult::Result<ImportedSource> Take(const std::string& file_path, const std::string& importer, int line);
+	MarmotResult::Result<ImportedSource> Take(const std::string& file_path, const std::string& importer, int line);
 
 private:
 	using LoadTask = std::packaged_task<LoadResult()>;

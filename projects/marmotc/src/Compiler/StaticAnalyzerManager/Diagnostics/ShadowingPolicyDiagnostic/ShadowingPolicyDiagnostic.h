@@ -10,21 +10,21 @@
 class ShadowingPolicyDiagnostic final : public DiagnosticPass
 {
 protected:
-	void Reset(MidoriProgramTree& program_tree) override;
+	void Reset(MarmotProgramTree& program_tree) override;
 
 	void Finish() override;
 
-	void operator()(MidoriStatement::VariableDefinition& def) override;
-	void operator()(MidoriStatement::TupleDefinition& def_tuple) override;
-	void operator()(MidoriStatement::FunctionDefinition& defun) override;
-	void operator()(MidoriStatement::ForeignDefinition& foreign) override;
-	void operator()(MidoriStatement::Struct& struct_stmt) override;
-	void operator()(MidoriStatement::Union& union_stmt) override;
-	void operator()(MidoriStatement::TypeAlias& type_alias) override;
-	void operator()(MidoriPattern::Binding& binding) override;
-	void operator()(MidoriExpression::Function& function) override;
-	void operator()(MidoriExpression::Block& block) override;
-	void operator()(MidoriExpression::Case& case_expr) override;
+	void operator()(MarmotStatement::VariableDefinition& def) override;
+	void operator()(MarmotStatement::TupleDefinition& def_tuple) override;
+	void operator()(MarmotStatement::FunctionDefinition& defun) override;
+	void operator()(MarmotStatement::ForeignDefinition& foreign) override;
+	void operator()(MarmotStatement::Struct& struct_stmt) override;
+	void operator()(MarmotStatement::Union& union_stmt) override;
+	void operator()(MarmotStatement::TypeAlias& type_alias) override;
+	void operator()(MarmotPattern::Binding& binding) override;
+	void operator()(MarmotExpression::Function& function) override;
+	void operator()(MarmotExpression::Block& block) override;
+	void operator()(MarmotExpression::Case& case_expr) override;
 
 private:
 	struct Scope

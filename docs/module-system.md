@@ -281,7 +281,7 @@ After module resolution, each module is compiled through:
 3. type checking
 4. static analysis
 5. lowering
-6. MidoriIR optimization
+6. MarmotIR optimization
 7. bytecode emission
 
 Each completed module contributes:

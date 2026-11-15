@@ -74,15 +74,15 @@ TEST_CASE("The VM runs artifacts with and without embedded sources", "[bytecode-
 
 	std::expected<VmExecutable, std::string> control = VmBinaryArtifact::ReadExecutableFromFile(Fixture("control"));
 	REQUIRE(control.has_value());
-	MidoriUtility::OutputCapture capture;
-	const std::expected<int, RuntimeError> executed = MidoriProgramLoader::Run(std::move(control).value());
-	const MidoriUtility::CapturedOutput output = capture.Stop();
+	MarmotUtility::OutputCapture capture;
+	const std::expected<int, RuntimeError> executed = MarmotProgramLoader::Run(std::move(control).value());
+	const MarmotUtility::CapturedOutput output = capture.Stop();
 	REQUIRE(executed.has_value());
 	CHECK(executed.value() == 0);
 	CHECK(output.m_stdout == "large\n");
 	std::expected<VmExecutable, std::string> embedded = VmBinaryArtifact::ReadExecutableFromFile(Fixture("embedded_error"));
 	REQUIRE(embedded.has_value());
-	const std::expected<int, RuntimeError> failed = MidoriProgramLoader::Run(std::move(embedded).value());
+	const std::expected<int, RuntimeError> failed = MarmotProgramLoader::Run(std::move(embedded).value());
 	REQUIRE_FALSE(failed.has_value());
 	CHECK(failed.error().Rendered().find("def missing = values[4];") != std::string::npos);
 }

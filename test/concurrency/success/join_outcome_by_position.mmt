@@ -10,7 +10,7 @@ import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/IO.mm
 type Why = Stopped | Broke(Text);
 type Outcome<T, E> = Finished(T) | Missing(E);
 
-foreign "MIDORI_PRIMITIVE_Join" Await: fn(Worker<T>) -> Outcome<T, Why>;
+foreign "MARMOT_PRIMITIVE_Join" Await: fn(Worker<T>) -> Outcome<T, Why>;
 
 def Describe = fn(outcome : Outcome<Int, Why>) -> Text =>
 	match outcome with

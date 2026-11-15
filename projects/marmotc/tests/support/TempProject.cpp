@@ -2,7 +2,7 @@
 
 #include <utility>
 
-namespace MidoriTest
+namespace MarmotTest
 {
 	TempProjectFile::TempProjectFile(std::filesystem::path relative_path, std::string contents)
 		: m_relative_path(std::move(relative_path)),

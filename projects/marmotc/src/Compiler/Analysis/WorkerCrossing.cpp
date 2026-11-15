@@ -33,7 +33,7 @@ namespace
 
 	// Everything an expression reads, which over-approximates where its value came
 	// from: a lambda's value is what it captured.
-	class OriginCollector final : public MidoriAbstractSyntaxTreeWalker
+	class OriginCollector final : public MarmotAbstractSyntaxTreeWalker
 	{
 	public:
 		OriginCollector(const LocalOrigins& locals, const WorkerCrossings& crossings, int captured_count)
@@ -43,17 +43,17 @@ namespace
 		{
 		}
 
-		Origins Collect(MidoriExpression& expression)
+		Origins Collect(MarmotExpression& expression)
 		{
 			VisitExpression(expression);
 			return std::move(m_origins);
 		}
 
 	protected:
-		void operator()(MidoriExpression::NameAccess& access) override
+		void operator()(MarmotExpression::NameAccess& access) override
 		{
-			const MidoriExpression::NameContext::Local* local = std::get_if<MidoriExpression::NameContext::Local>(&access.m_name_ctx);
-			const MidoriExpression::NameContext::Cell* cell = std::get_if<MidoriExpression::NameContext::Cell>(&access.m_name_ctx);
+			const MarmotExpression::NameContext::Local* local = std::get_if<MarmotExpression::NameContext::Local>(&access.m_name_ctx);
+			const MarmotExpression::NameContext::Cell* cell = std::get_if<MarmotExpression::NameContext::Cell>(&access.m_name_ctx);
 			if (local == nullptr && cell == nullptr)
 			{
 				return;
@@ -66,16 +66,16 @@ namespace
 			}
 		}
 
-		void operator()(MidoriExpression::Function& function) override
+		void operator()(MarmotExpression::Function& function) override
 		{
 			m_captured_counts.push_back(function.m_captured_count);
-			MidoriAbstractSyntaxTreeWalker::operator()(function);
+			MarmotAbstractSyntaxTreeWalker::operator()(function);
 			m_captured_counts.pop_back();
 		}
 
-		void operator()(MidoriExpression::Call& call) override
+		void operator()(MarmotExpression::Call& call) override
 		{
-			MidoriAbstractSyntaxTreeWalker::operator()(call);
+			MarmotAbstractSyntaxTreeWalker::operator()(call);
 			const WorkerCrossing* crossing = FindCallCrossing(call, m_crossings);
 			m_origins.m_from_worker = m_origins.m_from_worker || (crossing != nullptr && crossing->m_returns_from_worker);
 		}
@@ -91,7 +91,7 @@ namespace
 	// it, or a local that came from it, is an argument a call hands to a worker or
 	// a value sent through a channel; a read inside a lambda counts, since the
 	// lambda carries it.
-	class SummaryFinder final : public MidoriAbstractSyntaxTreeWalker
+	class SummaryFinder final : public MarmotAbstractSyntaxTreeWalker
 	{
 	public:
 		explicit SummaryFinder(const WorkerCrossings& crossings)
@@ -102,7 +102,7 @@ namespace
 		// A parameter whose declared type already holds a cell was warned about
 		// inside the function, where it crossed, so it is left out. A function
 		// stays in: what a function captured is not in its type.
-		WorkerCrossing Find(MidoriExpression::Function& function)
+		WorkerCrossing Find(MarmotExpression::Function& function)
 		{
 			m_captured_counts.push_back(function.m_captured_count);
 			for (size_t index = 0u; index < function.m_params.size(); index += 1u)
@@ -113,13 +113,13 @@ namespace
 			const bool returns_from_worker = OriginsOf(*function.m_body).m_from_worker;
 			m_captured_counts.pop_back();
 
-			const MidoriType::FunctionType& signature = function.m_type_data->GetType<MidoriType::FunctionType>();
+			const MarmotType::FunctionType& signature = function.m_type_data->GetType<MarmotType::FunctionType>();
 			WorkerCrossing crossing;
 			crossing.m_crossing_parameters = m_crossing_parameters
 				| std::views::filter([&signature](size_t index)
 				{
-					const std::shared_ptr<MidoriType>& parameter = signature.m_param_types[index];
-					return parameter->IsType<MidoriType::FunctionType>() || !ContainsCell(parameter);
+					const std::shared_ptr<MarmotType>& parameter = signature.m_param_types[index];
+					return parameter->IsType<MarmotType::FunctionType>() || !ContainsCell(parameter);
 				})
 				| std::ranges::to<std::vector>();
 			crossing.m_returns_from_worker = returns_from_worker && !ContainsCell(signature.m_return_type);
@@ -127,18 +127,18 @@ namespace
 		}
 
 	protected:
-		void operator()(MidoriStatement::VariableDefinition& definition) override
+		void operator()(MarmotStatement::VariableDefinition& definition) override
 		{
-			MidoriAbstractSyntaxTreeWalker::operator()(definition);
+			MarmotAbstractSyntaxTreeWalker::operator()(definition);
 			if (definition.m_local_index.has_value())
 			{
 				m_locals.insert_or_assign(Place(definition.m_local_index.value()), OriginsOf(*definition.m_value));
 			}
 		}
 
-		void operator()(MidoriStatement::TupleDefinition& definition) override
+		void operator()(MarmotStatement::TupleDefinition& definition) override
 		{
-			MidoriAbstractSyntaxTreeWalker::operator()(definition);
+			MarmotAbstractSyntaxTreeWalker::operator()(definition);
 			const Origins origins = OriginsOf(*definition.m_value);
 			for (const std::optional<int>& local_index : definition.m_local_indices)
 			{
@@ -149,7 +149,7 @@ namespace
 			}
 		}
 
-		void operator()(MidoriPattern::Binding& binding) override
+		void operator()(MarmotPattern::Binding& binding) override
 		{
 			if (binding.m_local_index.has_value())
 			{
@@ -157,41 +157,41 @@ namespace
 			}
 		}
 
-		void operator()(MidoriExpression::Match& match) override
+		void operator()(MarmotExpression::Match& match) override
 		{
 			VisitExpression(match.m_arg_expr);
 			m_scrutinees.push_back(OriginsOf(*match.m_arg_expr));
-			for (std::unique_ptr<MidoriExpression>& case_expr : match.m_cases)
+			for (std::unique_ptr<MarmotExpression>& case_expr : match.m_cases)
 			{
 				VisitExpression(case_expr);
 			}
 			m_scrutinees.pop_back();
 		}
 
-		void operator()(MidoriExpression::For& for_expr) override
+		void operator()(MarmotExpression::For& for_expr) override
 		{
 			VisitExpression(for_expr.m_range);
 			m_locals.insert_or_assign(Place(for_expr.m_loop_variable_index), OriginsOf(*for_expr.m_range));
 			VisitExpression(for_expr.m_body);
 		}
 
-		void operator()(MidoriExpression::ArrayComprehension& comprehension) override
+		void operator()(MarmotExpression::ArrayComprehension& comprehension) override
 		{
 			VisitExpression(comprehension.m_range);
 			m_locals.insert_or_assign(Place(comprehension.m_loop_variable_index), OriginsOf(*comprehension.m_range));
 			VisitExpression(comprehension.m_transform_expr);
 		}
 
-		void operator()(MidoriExpression::Function& function) override
+		void operator()(MarmotExpression::Function& function) override
 		{
 			m_captured_counts.push_back(function.m_captured_count);
-			MidoriAbstractSyntaxTreeWalker::operator()(function);
+			MarmotAbstractSyntaxTreeWalker::operator()(function);
 			m_captured_counts.pop_back();
 		}
 
-		void operator()(MidoriExpression::Call& call) override
+		void operator()(MarmotExpression::Call& call) override
 		{
-			MidoriAbstractSyntaxTreeWalker::operator()(call);
+			MarmotAbstractSyntaxTreeWalker::operator()(call);
 			const WorkerCrossing* crossing = FindCallCrossing(call, m_crossings);
 			if (crossing == nullptr)
 			{
@@ -203,9 +203,9 @@ namespace
 			}
 		}
 
-		void operator()(MidoriExpression::Send& send) override
+		void operator()(MarmotExpression::Send& send) override
 		{
-			MidoriAbstractSyntaxTreeWalker::operator()(send);
+			MarmotAbstractSyntaxTreeWalker::operator()(send);
 			Cross(OriginsOf(*send.m_value));
 		}
 
@@ -215,7 +215,7 @@ namespace
 			return m_captured_counts.back() + local_index;
 		}
 
-		Origins OriginsOf(MidoriExpression& expression) const
+		Origins OriginsOf(MarmotExpression& expression) const
 		{
 			return OriginCollector(m_locals, m_crossings, m_captured_counts.back()).Collect(expression);
 		}
@@ -232,40 +232,40 @@ namespace
 		std::set<size_t> m_crossing_parameters;
 	};
 
-	bool HoldsCell(const std::shared_ptr<MidoriType>& type, std::unordered_set<const MidoriType*>& visited)
+	bool HoldsCell(const std::shared_ptr<MarmotType>& type, std::unordered_set<const MarmotType*>& visited)
 	{
 		if (type == nullptr || !visited.insert(type.get()).second)
 		{
 			return false;
 		}
 
-		const std::function<bool(const std::shared_ptr<MidoriType>&)> contains = [&visited](const std::shared_ptr<MidoriType>& part)
+		const std::function<bool(const std::shared_ptr<MarmotType>&)> contains = [&visited](const std::shared_ptr<MarmotType>& part)
 		{
 			return HoldsCell(part, visited);
 		};
-		if (type->IsType<MidoriType::CellType>())
+		if (type->IsType<MarmotType::CellType>())
 		{
 			return true;
 		}
-		if (type->IsType<MidoriType::ArrayType>())
+		if (type->IsType<MarmotType::ArrayType>())
 		{
-			return contains(type->GetType<MidoriType::ArrayType>().m_element_type);
+			return contains(type->GetType<MarmotType::ArrayType>().m_element_type);
 		}
-		if (type->IsType<MidoriType::ChannelType>())
+		if (type->IsType<MarmotType::ChannelType>())
 		{
-			return contains(type->GetType<MidoriType::ChannelType>().m_element_type);
+			return contains(type->GetType<MarmotType::ChannelType>().m_element_type);
 		}
-		if (type->IsType<MidoriType::TupleType>())
+		if (type->IsType<MarmotType::TupleType>())
 		{
-			return std::ranges::any_of(type->GetType<MidoriType::TupleType>().m_element_types, contains);
+			return std::ranges::any_of(type->GetType<MarmotType::TupleType>().m_element_types, contains);
 		}
-		if (type->IsType<MidoriType::StructType>())
+		if (type->IsType<MarmotType::StructType>())
 		{
-			return std::ranges::any_of(type->GetType<MidoriType::StructType>().m_member_types, contains);
+			return std::ranges::any_of(type->GetType<MarmotType::StructType>().m_member_types, contains);
 		}
-		if (type->IsType<MidoriType::UnionType>())
+		if (type->IsType<MarmotType::UnionType>())
 		{
-			return std::ranges::any_of(type->GetType<MidoriType::UnionType>().m_member_info, [&contains](const std::pair<const std::string, MidoriType::UnionType::UnionMemberContext>& member)
+			return std::ranges::any_of(type->GetType<MarmotType::UnionType>().m_member_info, [&contains](const std::pair<const std::string, MarmotType::UnionType::UnionMemberContext>& member)
 			{
 				return std::ranges::any_of(member.second.m_member_types, contains);
 			});
@@ -274,25 +274,25 @@ namespace
 	}
 }
 
-const WorkerCrossing* FindCallCrossing(const MidoriExpression::Call& call, const WorkerCrossings& crossings)
+const WorkerCrossing* FindCallCrossing(const MarmotExpression::Call& call, const WorkerCrossings& crossings)
 {
 	static const WorkerCrossing s_spawn{ { 0u, 1u }, false };
 	static const WorkerCrossing s_join{ {}, true };
-	if (call.m_primitive == MidoriPrimitive::Spawn)
+	if (call.m_primitive == MarmotPrimitive::Spawn)
 	{
 		return &s_spawn;
 	}
-	if (call.m_primitive == MidoriPrimitive::Join)
+	if (call.m_primitive == MarmotPrimitive::Join)
 	{
 		return &s_join;
 	}
-	if (!call.m_callee->IsExpression<MidoriExpression::NameAccess>())
+	if (!call.m_callee->IsExpression<MarmotExpression::NameAccess>())
 	{
 		return nullptr;
 	}
 
-	const MidoriExpression::NameAccess& callee = call.m_callee->GetExpression<MidoriExpression::NameAccess>();
-	if (!std::holds_alternative<MidoriExpression::NameContext::Global>(callee.m_name_ctx))
+	const MarmotExpression::NameAccess& callee = call.m_callee->GetExpression<MarmotExpression::NameAccess>();
+	if (!std::holds_alternative<MarmotExpression::NameContext::Global>(callee.m_name_ctx))
 	{
 		return nullptr;
 	}
@@ -302,19 +302,19 @@ const WorkerCrossing* FindCallCrossing(const MidoriExpression::Call& call, const
 
 // Each function's summary depends on those of the functions it calls, which may
 // call it back, so all are found again until none changes. They only grow.
-WorkerCrossings FindWorkerCrossings(MidoriProgramTree& program_tree, const WorkerCrossings& imported)
+WorkerCrossings FindWorkerCrossings(MarmotProgramTree& program_tree, const WorkerCrossings& imported)
 {
-	std::vector<std::pair<std::string, MidoriExpression::Function*>> functions;
-	for (std::unique_ptr<MidoriStatement>& statement : program_tree)
+	std::vector<std::pair<std::string, MarmotExpression::Function*>> functions;
+	for (std::unique_ptr<MarmotStatement>& statement : program_tree)
 	{
-		if (!statement->IsStatement<MidoriStatement::VariableDefinition>())
+		if (!statement->IsStatement<MarmotStatement::VariableDefinition>())
 		{
 			continue;
 		}
-		MidoriStatement::VariableDefinition& definition = statement->GetStatement<MidoriStatement::VariableDefinition>();
-		if (definition.m_value->IsExpression<MidoriExpression::Function>())
+		MarmotStatement::VariableDefinition& definition = statement->GetStatement<MarmotStatement::VariableDefinition>();
+		if (definition.m_value->IsExpression<MarmotExpression::Function>())
 		{
-			functions.emplace_back(definition.m_name.m_lexeme, &definition.m_value->GetExpression<MidoriExpression::Function>());
+			functions.emplace_back(definition.m_name.m_lexeme, &definition.m_value->GetExpression<MarmotExpression::Function>());
 		}
 	}
 
@@ -323,7 +323,7 @@ WorkerCrossings FindWorkerCrossings(MidoriProgramTree& program_tree, const Worke
 	while (changed)
 	{
 		changed = false;
-		for (const std::pair<std::string, MidoriExpression::Function*>& function : functions)
+		for (const std::pair<std::string, MarmotExpression::Function*>& function : functions)
 		{
 			WorkerCrossing found = SummaryFinder(crossings).Find(*function.second);
 			const bool hands_across = !found.m_crossing_parameters.empty() || found.m_returns_from_worker;
@@ -337,13 +337,13 @@ WorkerCrossings FindWorkerCrossings(MidoriProgramTree& program_tree, const Worke
 	}
 
 	return functions
-		| std::views::filter([&crossings](const std::pair<std::string, MidoriExpression::Function*>& function) { return crossings.contains(function.first); })
-		| std::views::transform([&crossings](const std::pair<std::string, MidoriExpression::Function*>& function) { return std::pair<const std::string, WorkerCrossing>(function.first, crossings.at(function.first)); })
+		| std::views::filter([&crossings](const std::pair<std::string, MarmotExpression::Function*>& function) { return crossings.contains(function.first); })
+		| std::views::transform([&crossings](const std::pair<std::string, MarmotExpression::Function*>& function) { return std::pair<const std::string, WorkerCrossing>(function.first, crossings.at(function.first)); })
 		| std::ranges::to<WorkerCrossings>();
 }
 
-bool ContainsCell(const std::shared_ptr<MidoriType>& type)
+bool ContainsCell(const std::shared_ptr<MarmotType>& type)
 {
-	std::unordered_set<const MidoriType*> visited;
+	std::unordered_set<const MarmotType*> visited;
 	return HoldsCell(type, visited);
 }

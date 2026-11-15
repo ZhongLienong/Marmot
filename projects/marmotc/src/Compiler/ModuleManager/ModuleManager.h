@@ -42,24 +42,24 @@ private:
 public:
 	ModuleManager(TokenStream&& main_file_tokens, std::string_view main_file_name, std::vector<std::string> main_source_lines = {}, CompilationInputs inputs = {});
 
-	MidoriResult::ModuleManagerResult GenerateBuildGraph();
+	MarmotResult::ModuleManagerResult GenerateBuildGraph();
 
 private:
-	MidoriResult::VoidResult GenerateBuildGraphImpl(BuildGraph& build_graph, ModuleSourceLoader& source_loader, DiscoveryState& discovery);
+	MarmotResult::VoidResult GenerateBuildGraphImpl(BuildGraph& build_graph, ModuleSourceLoader& source_loader, DiscoveryState& discovery);
 
 	std::vector<StatementSpan> ScanModuleStatements(const TokenStream& tokens);
 
 	int ComputeStatementEnd(const TokenStream& tokens, int start, StatementType type);
 
-	MidoriResult::VoidResult ValidateModuleDeclarationPolicy(const TokenStream& tokens, const std::vector<StatementSpan>& spans) const;
+	MarmotResult::VoidResult ValidateModuleDeclarationPolicy(const TokenStream& tokens, const std::vector<StatementSpan>& spans) const;
 
-	MidoriResult::Result<std::string> ExtractModuleName(const TokenStream& tokens, const StatementSpan& module_span) const;
+	MarmotResult::Result<std::string> ExtractModuleName(const TokenStream& tokens, const StatementSpan& module_span) const;
 
-	MidoriResult::Result<std::tuple<std::string, std::vector<ModuleExport>>> ExtractModuleDeclaration(const TokenStream& tokens, const std::vector<StatementSpan>& spans);
+	MarmotResult::Result<std::tuple<std::string, std::vector<ModuleExport>>> ExtractModuleDeclaration(const TokenStream& tokens, const std::vector<StatementSpan>& spans);
 
-	MidoriResult::Result<std::vector<std::pair<std::string, Token>>> ExtractImports(const TokenStream& tokens, const std::vector<StatementSpan>& spans);
+	MarmotResult::Result<std::vector<std::pair<std::string, Token>>> ExtractImports(const TokenStream& tokens, const std::vector<StatementSpan>& spans);
 
-	MidoriResult::Result<std::vector<UseImport>> ExtractUseStatements(const TokenStream& tokens, const std::vector<StatementSpan>& spans);
+	MarmotResult::Result<std::vector<UseImport>> ExtractUseStatements(const TokenStream& tokens, const std::vector<StatementSpan>& spans);
 
 	static void SkipWhiteSpace(const TokenStream& tokens, int& current_index);
 

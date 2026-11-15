@@ -89,7 +89,7 @@ namespace
 	}
 }
 
-namespace MidoriTest
+namespace MarmotTest
 {
 	CapturedOutput::CapturedOutput(std::string stdout_output, std::string stderr_output)
 		: m_stdout(std::move(stdout_output)),

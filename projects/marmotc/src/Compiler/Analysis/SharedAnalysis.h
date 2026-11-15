@@ -3,7 +3,7 @@
 #include <string>
 #include <string_view>
 
-namespace MidoriAnalysis
+namespace MarmotAnalysis
 {
 	std::string DemangleDisplayName(std::string_view qualified_name);
 

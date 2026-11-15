@@ -12,14 +12,14 @@
 TEST_CASE("ScopedEnvVar restores the prior environment value", "[support][env]")
 {
 	const std::string env_name = "MARMOT_PHASE2_SUPPORT_ENV";
-	const MidoriTest::ScopedEnvVar clear_guard(env_name, std::nullopt);
+	const MarmotTest::ScopedEnvVar clear_guard(env_name, std::nullopt);
 
 	{
-		const MidoriTest::ScopedEnvVar value_guard(env_name, std::string("phase2"));
-		REQUIRE(MidoriTest::ScopedEnvVar::Read(env_name) == std::optional<std::string>("phase2"));
+		const MarmotTest::ScopedEnvVar value_guard(env_name, std::string("phase2"));
+		REQUIRE(MarmotTest::ScopedEnvVar::Read(env_name) == std::optional<std::string>("phase2"));
 	}
 
-	REQUIRE_FALSE(MidoriTest::ScopedEnvVar::Read(env_name).has_value());
+	REQUIRE_FALSE(MarmotTest::ScopedEnvVar::Read(env_name).has_value());
 }
 
 TEST_CASE("TempDir creates files that are removed with the fixture", "[support][tempdir]")
@@ -28,7 +28,7 @@ TEST_CASE("TempDir creates files that are removed with the fixture", "[support][
 	std::filesystem::path file_path;
 
 	{
-		const MidoriTest::TempDir temp_dir("marmot-support-tempdir");
+		const MarmotTest::TempDir temp_dir("marmot-support-tempdir");
 		root_path = temp_dir.Path();
 		file_path = temp_dir.WriteTextFile("nested/sample.txt", "contents");
 
@@ -43,11 +43,11 @@ TEST_CASE("TempDir creates files that are removed with the fixture", "[support][
 
 TEST_CASE("OutputCapture captures stdout and stderr from native utilities", "[support][output]")
 {
-	MidoriTest::OutputCapture capture;
+	MarmotTest::OutputCapture capture;
 	std::print("captured stdout");
 	std::fputs("captured stderr", stderr);
 
-	const MidoriTest::CapturedOutput output = capture.Stop();
+	const MarmotTest::CapturedOutput output = capture.Stop();
 
 	REQUIRE(output.m_stdout.find("captured stdout") != std::string::npos);
 	REQUIRE(output.m_stderr.find("captured stderr") != std::string::npos);

@@ -1,7 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "Bytecode/Artifact/BinaryArtifact.h"
-#include "Utility/Driver/MidoriDriver.h"
+#include "Utility/Driver/MarmotDriver.h"
 #include "support/OutputCapture.h"
 #include "support/CompileHelpers.h"
 #include "support/TempProject.h"
@@ -37,7 +37,7 @@ namespace
 	{
 		return std::format(
 			"module Main\n"
-			"foreign \"MIDORI_FFI_Print\" Print : fn(Text) -> Unit;\n"
+			"foreign \"MARMOT_FFI_Print\" Print : fn(Text) -> Unit;\n"
 			"foreign \"{}\"\n"
 			"{{\n"
 			"\t\"marmot_test_add\" Add : fn(Int, Int) -> Int;\n"
@@ -47,17 +47,17 @@ namespace
 			library);
 	}
 
-	MidoriExecutable Compile(const MidoriTest::TempProject& project, std::string_view file, CompilationInputs inputs = CompilationInputs())
+	MarmotExecutable Compile(const MarmotTest::TempProject& project, std::string_view file, CompilationInputs inputs = CompilationInputs())
 	{
 
-		MidoriDriver::CompileFileWithReportResult compiled = MidoriDriver::CompileFileWithReport(project.Path(std::string(file)), std::move(inputs));
+		MarmotDriver::CompileFileWithReportResult compiled = MarmotDriver::CompileFileWithReport(project.Path(std::string(file)), std::move(inputs));
 		REQUIRE(compiled.has_value());
 		return std::move(compiled).value().TakeExecutable();
 	}
 
-	std::string Run(const MidoriExecutable& executable, const std::vector<std::string>& arguments = {})
+	std::string Run(const MarmotExecutable& executable, const std::vector<std::string>& arguments = {})
 	{
-		const std::pair<int, MidoriTest::CapturedOutput> result = MidoriTest::RunExecutable(executable, arguments);
+		const std::pair<int, MarmotTest::CapturedOutput> result = MarmotTest::RunExecutable(executable, arguments);
 		INFO(result.second.m_stderr);
 		REQUIRE(result.first == 0);
 		return result.second.m_stdout;
@@ -87,9 +87,9 @@ namespace
 			library);
 	}
 
-	std::string LoadError(const MidoriExecutable& executable, const std::vector<std::string>& arguments = {})
+	std::string LoadError(const MarmotExecutable& executable, const std::vector<std::string>& arguments = {})
 	{
-		const std::pair<int, MidoriTest::CapturedOutput> result = MidoriTest::RunExecutable(executable, arguments);
+		const std::pair<int, MarmotTest::CapturedOutput> result = MarmotTest::RunExecutable(executable, arguments);
 		REQUIRE(result.first != 0);
 		return result.second.m_stderr;
 	}
@@ -98,8 +98,8 @@ namespace
 
 TEST_CASE("A foreign function from a native library runs when found through the library path", "[ffi][native]")
 {
-	const MidoriTest::TempProject project({ MidoriTest::TempProjectFile("Main.mmt", AddingProgram("marmot_test_native")) });
-	MidoriExecutable executable = Compile(project, "Main.mmt");
+	const MarmotTest::TempProject project({ MarmotTest::TempProjectFile("Main.mmt", AddingProgram("marmot_test_native")) });
+	MarmotExecutable executable = Compile(project, "Main.mmt");
 
 	REQUIRE(executable.GetNativeLibraries().size() == 1u);
 	CHECK(executable.GetNativeLibraries()[0u].m_name == "marmot_test_native");
@@ -110,7 +110,7 @@ TEST_CASE("A foreign function from a native library runs when found through the 
 
 TEST_CASE("A native library beside the declaring module is found without a library path", "[ffi][native]")
 {
-	const MidoriTest::TempProject project({ MidoriTest::TempProjectFile("pkg/Main.mmt", AddingProgram("marmot_test_native_beside")) });
+	const MarmotTest::TempProject project({ MarmotTest::TempProjectFile("pkg/Main.mmt", AddingProgram("marmot_test_native_beside")) });
 #if defined(_WIN32)
 	const std::filesystem::path platform_directory = std::filesystem::path("lib") / "windows" / "x64";
 #elif defined(__APPLE__)
@@ -121,22 +121,22 @@ TEST_CASE("A native library beside the declaring module is found without a libra
 	std::filesystem::create_directories(project.Path("pkg") / platform_directory);
 	std::filesystem::copy_file(TestLibraryFile("marmot_test_native"), project.Path("pkg") / platform_directory / PlatformFileName("marmot_test_native_beside"));
 
-	MidoriExecutable executable = Compile(project, "pkg/Main.mmt");
+	MarmotExecutable executable = Compile(project, "pkg/Main.mmt");
 	CHECK(Run(std::move(executable)) == "ok");
 }
 
 TEST_CASE("A .mmc records its native libraries and runs from them", "[ffi][native][bytecode-artifact]")
 {
-	const MidoriTest::TempProject project({ MidoriTest::TempProjectFile("Main.mmt", AddingProgram("marmot_test_native_artifact")) });
+	const MarmotTest::TempProject project({ MarmotTest::TempProjectFile("Main.mmt", AddingProgram("marmot_test_native_artifact")) });
 	// Beside the module: the .mmc finds it through the module's directory.
 	std::filesystem::copy_file(TestLibraryFile("marmot_test_native"), project.Root() / PlatformFileName("marmot_test_native_artifact"));
-	const MidoriExecutable executable = Compile(
+	const MarmotExecutable executable = Compile(
 		project,
 		"Main.mmt",
 		CompilationInputs().WithNativeLibraryPolicies({ { "marmot_test_native_artifact", NativeLibraryPolicy{ .m_thread_safe = true } } }));
 
 	std::stringstream artifact;
-	REQUIRE(MidoriBinaryArtifact::WriteExecutable(executable, artifact, false).has_value());
+	REQUIRE(MarmotBinaryArtifact::WriteExecutable(executable, artifact, false).has_value());
 	const NativeLibraryImport& library = executable.GetNativeLibraries()[0u];
 	CHECK(library.m_name == "marmot_test_native_artifact");
 	CHECK(library.m_symbols == std::vector<std::string>{ "marmot_test_add", "marmot_test_answer" });
@@ -147,12 +147,12 @@ TEST_CASE("A .mmc records its native libraries and runs from them", "[ffi][nativ
 
 TEST_CASE("A native library that cannot be found or lacks a symbol stops the run", "[ffi][native]")
 {
-	const MidoriTest::TempProject missing({ MidoriTest::TempProjectFile("Main.mmt", AddingProgram("marmot_no_such_library")) });
+	const MarmotTest::TempProject missing({ MarmotTest::TempProjectFile("Main.mmt", AddingProgram("marmot_no_such_library")) });
 	const std::string not_found = LoadError(Compile(missing, "Main.mmt"), { "--library-path", MARMOT_TEST_NATIVE_DIR });
 	CHECK(not_found.find("native library 'marmot_no_such_library' not found") != std::string::npos);
 	CHECK(not_found.find(PlatformFileName("marmot_no_such_library").string()) != std::string::npos);
 
-	const MidoriTest::TempProject lacking({ MidoriTest::TempProjectFile(
+	const MarmotTest::TempProject lacking({ MarmotTest::TempProjectFile(
 		"Main.mmt",
 		"module Main\n"
 		"foreign \"marmot_test_nothing\" Nothing : fn() -> Int from \"marmot_test_native_lacking\";\n"
@@ -164,19 +164,19 @@ TEST_CASE("A native library that cannot be found or lacks a symbol stops the run
 
 TEST_CASE("Only the libraries a program imports decide whether it may spawn workers", "[ffi][native][worker]")
 {
-	const MidoriTest::TempProject project({
-		MidoriTest::TempProjectFile("Unsafe.mmt", WorkerProgram("marmot_test_native_unsafe")),
-		MidoriTest::TempProjectFile("Safe.mmt", WorkerProgram("marmot_test_native_safe")),
+	const MarmotTest::TempProject project({
+		MarmotTest::TempProjectFile("Unsafe.mmt", WorkerProgram("marmot_test_native_unsafe")),
+		MarmotTest::TempProjectFile("Safe.mmt", WorkerProgram("marmot_test_native_safe")),
 	});
 	std::filesystem::copy_file(TestLibraryFile("marmot_test_native"), project.Root() / PlatformFileName("marmot_test_native_unsafe"));
 	std::filesystem::copy_file(TestLibraryFile("marmot_test_native"), project.Root() / PlatformFileName("marmot_test_native_safe"));
 
-	MidoriExecutable unsafe = Compile(project, "Unsafe.mmt");
+	MarmotExecutable unsafe = Compile(project, "Unsafe.mmt");
 	const std::string refused = Run(std::move(unsafe));
 	CHECK(refused.find("native libraries are not declared thread_safe: 'marmot_test_native_unsafe'") != std::string::npos);
 
 	// The policy is serialized into the program for the VM process.
-	MidoriExecutable safe = Compile(
+	MarmotExecutable safe = Compile(
 		project,
 		"Safe.mmt",
 		CompilationInputs().WithNativeLibraryPolicies({ { "marmot_test_native_safe", NativeLibraryPolicy{ .m_thread_safe = true } } }));
@@ -186,21 +186,21 @@ TEST_CASE("Only the libraries a program imports decide whether it may spawn work
 
 TEST_CASE("A native library's file can be named directly, whatever it is called", "[ffi][native]")
 {
-	const MidoriTest::TempProject project({ MidoriTest::TempProjectFile("Main.mmt", AddingProgram("marmot_test_native_named")) });
+	const MarmotTest::TempProject project({ MarmotTest::TempProjectFile("Main.mmt", AddingProgram("marmot_test_native_named")) });
 	// Not the platform's file name for the library, and nowhere it is searched for.
 	std::filesystem::create_directories(project.Path("bin"));
 	std::filesystem::copy_file(TestLibraryFile("marmot_test_native"), project.Path("bin") / "renamed.bin");
 
-	MidoriExecutable executable = Compile(project, "Main.mmt");
+	MarmotExecutable executable = Compile(project, "Main.mmt");
 	CHECK(Run(executable, { "--library", "marmot_test_native_named=" + (project.Path("bin") / "renamed.bin").string() }) == "ok");
 }
 
 TEST_CASE("A native function receives and returns each argument as its declared type says", "[ffi][native]")
 {
-	const MidoriTest::TempProject project({ MidoriTest::TempProjectFile(
+	const MarmotTest::TempProject project({ MarmotTest::TempProjectFile(
 		"Main.mmt",
 		"module Main\n"
-		"foreign \"MIDORI_FFI_Print\" Print : fn(Text) -> Unit;\n"
+		"foreign \"MARMOT_FFI_Print\" Print : fn(Text) -> Unit;\n"
 		"foreign \"marmot_test_native\"\n"
 		"{\n"
 		"\t\"marmot_test_length\" Length : fn(Text) -> Int;\n"
@@ -217,12 +217,12 @@ TEST_CASE("A native function receives and returns each argument as its declared 
 
 TEST_CASE("A native function takes at most four arguments", "[ffi][native]")
 {
-	const MidoriTest::TempProject project({ MidoriTest::TempProjectFile(
+	const MarmotTest::TempProject project({ MarmotTest::TempProjectFile(
 		"Main.mmt",
 		"module Main\n"
 		"foreign \"marmot_test_add\" Add : fn(Int, Int, Int, Int, Int) -> Int from \"marmot_test_native\";\n"
 		"Add(1, 2, 3, 4, 5);\n") });
-	const MidoriDriver::CompileFileWithReportResult compiled = MidoriDriver::CompileFileWithReport(project.Path("Main.mmt"), CompilationInputs());
+	const MarmotDriver::CompileFileWithReportResult compiled = MarmotDriver::CompileFileWithReport(project.Path("Main.mmt"), CompilationInputs());
 	REQUIRE_FALSE(compiled.has_value());
 	CHECK(compiled.error().Rendered().find("Too many arguments to a native function (max 4)") != std::string::npos);
 }

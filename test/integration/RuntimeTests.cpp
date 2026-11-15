@@ -19,7 +19,7 @@ namespace
 		return std::filesystem::path(MARMOT_REPO_ROOT);
 	}
 
-	std::string MidoriPathLiteral(const std::filesystem::path& path)
+	std::string MarmotPathLiteral(const std::filesystem::path& path)
 	{
 		std::error_code error_code;
 		const std::filesystem::path canonical_path = std::filesystem::weakly_canonical(path, error_code);
@@ -37,7 +37,7 @@ namespace
 		return std::string(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
 	}
 
-	const MidoriTest::ExecutedSnippet& RequireExecutedSnippet(const std::expected<MidoriTest::ExecutedSnippet, CompilerError>& run_result)
+	const MarmotTest::ExecutedSnippet& RequireExecutedSnippet(const std::expected<MarmotTest::ExecutedSnippet, CompilerError>& run_result)
 	{
 		if (!run_result.has_value())
 		{
@@ -52,7 +52,7 @@ TEST_CASE("VM executes file-backed runtime behavior inside a temporary directory
 {
 	const std::filesystem::path io_module_path = RepositoryRoot() / "MarmotPrelude" / "IO.mmt";
 	const std::filesystem::path result_module_path = RepositoryRoot() / "MarmotPrelude" / "Prelude" / "Result.mmt";
-	const MidoriTest::TempDir temp_dir("marmot-runtime-files");
+	const MarmotTest::TempDir temp_dir("marmot-runtime-files");
 	const std::filesystem::path data_file_path = temp_dir.Path() / "state.txt";
 	const std::filesystem::path source_file_path = temp_dir.Path() / "RuntimeFileIO.mmt";
 
@@ -79,15 +79,15 @@ IO::PrintLine(if exists then "exists" else "missing");
 IO::PrintLine(DescribeRead(contents));
 def main = fn() -> Int => 0;
 )",
-		MidoriPathLiteral(io_module_path),
-		MidoriPathLiteral(result_module_path),
-		MidoriPathLiteral(data_file_path),
-		MidoriPathLiteral(data_file_path),
-		MidoriPathLiteral(data_file_path));
+		MarmotPathLiteral(io_module_path),
+		MarmotPathLiteral(result_module_path),
+		MarmotPathLiteral(data_file_path),
+		MarmotPathLiteral(data_file_path),
+		MarmotPathLiteral(data_file_path));
 
-	const std::expected<MidoriTest::ExecutedSnippet, CompilerError> run_result =
-		MidoriTest::ExecuteSnippet(source_code, source_file_path.string());
-	const MidoriTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
+	const std::expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
+		MarmotTest::ExecuteSnippet(source_code, source_file_path.string());
+	const MarmotTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
 
 	REQUIRE(executed.m_exit_code == EXIT_SUCCESS);
 	REQUIRE(executed.m_output.m_stdout == "wrote\nexists\nalpha\n");
@@ -102,7 +102,7 @@ TEST_CASE("VM reports reading a directory as an IO error", "[runtime][vm][filesy
 	// an empty file.
 	const std::filesystem::path io_module_path = RepositoryRoot() / "MarmotPrelude" / "IO.mmt";
 	const std::filesystem::path result_module_path = RepositoryRoot() / "MarmotPrelude" / "Prelude" / "Result.mmt";
-	const MidoriTest::TempDir temp_dir("marmot-runtime-directory");
+	const MarmotTest::TempDir temp_dir("marmot-runtime-directory");
 	const std::filesystem::path directory_path = temp_dir.Path() / "folder";
 	std::filesystem::create_directories(directory_path);
 	const std::filesystem::path source_file_path = temp_dir.Path() / "RuntimeDirectoryRead.mmt";
@@ -118,14 +118,14 @@ match IO::TryReadBinaryFile("{}") with
     case Result::Ok(_) => IO::PrintLine("bytes read")
     case Result::Err(_) => IO::PrintLine("bytes failed");
 )",
-		MidoriPathLiteral(io_module_path),
-		MidoriPathLiteral(result_module_path),
-		MidoriPathLiteral(directory_path),
-		MidoriPathLiteral(directory_path));
+		MarmotPathLiteral(io_module_path),
+		MarmotPathLiteral(result_module_path),
+		MarmotPathLiteral(directory_path),
+		MarmotPathLiteral(directory_path));
 
-	const std::expected<MidoriTest::ExecutedSnippet, CompilerError> run_result =
-		MidoriTest::ExecuteSnippet(source_code, source_file_path.string());
-	const MidoriTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
+	const std::expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
+		MarmotTest::ExecuteSnippet(source_code, source_file_path.string());
+	const MarmotTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
 
 	REQUIRE(executed.m_exit_code == EXIT_SUCCESS);
 	REQUIRE(executed.m_output.m_stdout == "text failed\nbytes failed\n");
@@ -141,11 +141,11 @@ import {{ "{}" }}
 IO::PrintErrorLine("panic on stderr");
 def main = fn() -> Int => 0;
 )",
-		MidoriPathLiteral(io_module_path));
+		MarmotPathLiteral(io_module_path));
 
-	const std::expected<MidoriTest::ExecutedSnippet, CompilerError> run_result =
-		MidoriTest::ExecuteSnippet(source_code, "RuntimeStderr.mmt");
-	const MidoriTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
+	const std::expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
+		MarmotTest::ExecuteSnippet(source_code, "RuntimeStderr.mmt");
+	const MarmotTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
 
 	REQUIRE(executed.m_exit_code == EXIT_SUCCESS);
 	REQUIRE(executed.m_output.m_stdout.empty());
@@ -174,11 +174,11 @@ match values with
 ;
 def main = fn() -> Int => 0;
 )",
-		MidoriPathLiteral(io_module_path));
+		MarmotPathLiteral(io_module_path));
 
-	const std::expected<MidoriTest::ExecutedSnippet, CompilerError> run_result =
-		MidoriTest::ExecuteSnippet(source_code, "RuntimeClosure.mmt");
-	const MidoriTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
+	const std::expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
+		MarmotTest::ExecuteSnippet(source_code, "RuntimeClosure.mmt");
+	const MarmotTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
 
 	REQUIRE(executed.m_exit_code == EXIT_SUCCESS);
 	REQUIRE(executed.m_output.m_stdout == "7\n7\n");
@@ -204,11 +204,11 @@ IO::PrintLine("tuple_sum=" ++ (tuple_sum as Text));
 IO::PrintLine("range_sum=" ++ (total as Text));
 def main = fn() -> Int => 0;
 )",
-		MidoriPathLiteral(io_module_path));
+		MarmotPathLiteral(io_module_path));
 
-	const std::expected<MidoriTest::ExecutedSnippet, CompilerError> run_result =
-		MidoriTest::ExecuteSnippet(source_code, "RuntimeAggregate.mmt");
-	const MidoriTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
+	const std::expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
+		MarmotTest::ExecuteSnippet(source_code, "RuntimeAggregate.mmt");
+	const MarmotTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
 
 	REQUIRE(executed.m_exit_code == EXIT_SUCCESS);
 	REQUIRE(executed.m_output.m_stdout == "tuple_sum=5\nrange_sum=30\n");
@@ -217,7 +217,7 @@ def main = fn() -> Int => 0;
 
 TEST_CASE("VM reports deterministic runtime errors for invalid array access", "[runtime][vm][error]")
 {
-	const MidoriTest::TempDir temp_dir("marmot-runtime-error");
+	const MarmotTest::TempDir temp_dir("marmot-runtime-error");
 	const std::filesystem::path source_file_path = temp_dir.Path() / "RuntimeError.mmt";
 	const std::string source_code =
 		R"(module RuntimeError
@@ -226,9 +226,9 @@ def main = fn() -> Int => 0;
 )";
 	std::ofstream(source_file_path) << source_code;
 
-	const std::expected<MidoriTest::ExecutedSnippet, CompilerError> run_result =
-		MidoriTest::ExecuteSnippet(source_code, source_file_path.string());
-	const MidoriTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
+	const std::expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
+		MarmotTest::ExecuteSnippet(source_code, source_file_path.string());
+	const MarmotTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
 
 	REQUIRE(executed.m_exit_code == 1);
 	REQUIRE(executed.m_output.m_stderr.empty());
@@ -244,7 +244,7 @@ def main = fn() -> Int => 0;
 
 TEST_CASE("VM collapses recursive frames for stack overflow diagnostics", "[runtime][vm][error][stack]")
 {
-	const MidoriTest::TempDir temp_dir("marmot-runtime-stack-overflow");
+	const MarmotTest::TempDir temp_dir("marmot-runtime-stack-overflow");
 	const std::filesystem::path source_file_path = temp_dir.Path() / "RuntimeStackOverflow.mmt";
 	const std::string source_code =
 		R"(module RuntimeStackOverflow
@@ -254,9 +254,9 @@ def main = fn() -> Int => 0;
 )";
 	std::ofstream(source_file_path) << source_code;
 
-	const std::expected<MidoriTest::ExecutedSnippet, CompilerError> run_result =
-		MidoriTest::ExecuteSnippet(source_code, source_file_path.string());
-	const MidoriTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
+	const std::expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
+		MarmotTest::ExecuteSnippet(source_code, source_file_path.string());
+	const MarmotTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
 
 	REQUIRE(executed.m_exit_code == 2);
 	REQUIRE(executed.m_output.m_stderr.empty());
@@ -272,7 +272,7 @@ TEST_CASE("VM reports a stack overflow in the function that overflowed", "[runti
 {
 	// The overflow was reported at the last place the dispatch loop had stored
 	// its instruction pointer: here, inside Helper, which had already returned.
-	const MidoriTest::TempDir temp_dir("marmot-runtime-stack-overflow-location");
+	const MarmotTest::TempDir temp_dir("marmot-runtime-stack-overflow-location");
 	const std::filesystem::path source_file_path = temp_dir.Path() / "RuntimeStackOverflowLocation.mmt";
 	const std::string source_code =
 		R"(module RuntimeStackOverflowLocation
@@ -283,9 +283,9 @@ def value = Deep(1000000);
 )";
 	std::ofstream(source_file_path) << source_code;
 
-	const std::expected<MidoriTest::ExecutedSnippet, CompilerError> run_result =
-		MidoriTest::ExecuteSnippet(source_code, source_file_path.string());
-	const MidoriTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
+	const std::expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
+		MarmotTest::ExecuteSnippet(source_code, source_file_path.string());
+	const MarmotTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
 
 	REQUIRE(executed.m_exit_code == 2);
 	REQUIRE(executed.m_output.m_stdout.find("panic[StackOverflow]") != std::string::npos);
@@ -297,7 +297,7 @@ TEST_CASE("VM reports an error inside an imported generic in the generic's own f
 {
 	// The specialization is emitted in the importing module, and was reported
 	// in that module's file at a line of the generic's.
-	const MidoriTest::TempDir temp_dir("marmot-runtime-generic-origin");
+	const MarmotTest::TempDir temp_dir("marmot-runtime-generic-origin");
 	const std::filesystem::path library_path = temp_dir.Path() / "GenericOriginLib.mmt";
 	std::ofstream(library_path) << "module GenericOriginLib\npublic export { Sixth }\n\ndef Sixth = fn<T>(values: Array<T>) -> T => values[5];\n";
 	const std::filesystem::path source_file_path = temp_dir.Path() / "GenericOriginMain.mmt";
@@ -306,12 +306,12 @@ TEST_CASE("VM reports an error inside an imported generic in the generic's own f
 import {{ "{}" }}
 def value = GenericOriginLib::Sixth([1, 2]);
 )",
-		MidoriPathLiteral(library_path));
+		MarmotPathLiteral(library_path));
 	std::ofstream(source_file_path) << source_code;
 
-	const std::expected<MidoriTest::ExecutedSnippet, CompilerError> run_result =
-		MidoriTest::ExecuteSnippet(source_code, source_file_path.string());
-	const MidoriTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
+	const std::expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
+		MarmotTest::ExecuteSnippet(source_code, source_file_path.string());
+	const MarmotTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
 
 	REQUIRE(executed.m_exit_code == 1);
 	REQUIRE(executed.m_output.m_stdout.find("error[IndexOutOfBounds]") != std::string::npos);
@@ -328,9 +328,9 @@ def value = [1, 2][4];
 def main = fn() -> Int => 0;
 )";
 
-	const std::expected<MidoriTest::ExecutedSnippet, CompilerError> run_result =
-		MidoriTest::ExecuteSnippet(source_code, "EmbeddedRuntimeError.mmt");
-	const MidoriTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
+	const std::expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
+		MarmotTest::ExecuteSnippet(source_code, "EmbeddedRuntimeError.mmt");
+	const MarmotTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
 
 	REQUIRE(executed.m_exit_code == 1);
 	REQUIRE(executed.m_output.m_stdout.find("def value = [1, 2][4];") != std::string::npos);
@@ -345,9 +345,9 @@ def value = 10 / 0;
 def main = fn() -> Int => 0;
 )";
 
-	const std::expected<MidoriTest::ExecutedSnippet, CompilerError> run_result =
-		MidoriTest::ExecuteSnippet(source_code, "RuntimeDivision.mmt");
-	const MidoriTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
+	const std::expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
+		MarmotTest::ExecuteSnippet(source_code, "RuntimeDivision.mmt");
+	const MarmotTest::ExecutedSnippet& executed = RequireExecutedSnippet(run_result);
 
 	REQUIRE(executed.m_exit_code == 1);
 	REQUIRE(executed.m_output.m_stdout.find("error[DivisionByZero]") != std::string::npos);

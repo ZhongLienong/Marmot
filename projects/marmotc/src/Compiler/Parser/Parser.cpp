@@ -16,20 +16,20 @@ using namespace std::string_literals;
 
 namespace
 {
-	using ParamTuple = std::pair<Token, std::shared_ptr<MidoriType>>;
-	using StructMemberTuple = std::tuple<std::shared_ptr<MidoriType>, std::string>;
-	using UnionMemberTuple = std::tuple<std::string, std::vector<std::shared_ptr<MidoriType>>, int>;
-	using UnionMemberInfo = std::unordered_map<std::string, MidoriType::UnionType::UnionMemberContext>;
+	using ParamTuple = std::pair<Token, std::shared_ptr<MarmotType>>;
+	using StructMemberTuple = std::tuple<std::shared_ptr<MarmotType>, std::string>;
+	using UnionMemberTuple = std::tuple<std::string, std::vector<std::shared_ptr<MarmotType>>, int>;
+	using UnionMemberInfo = std::unordered_map<std::string, MarmotType::UnionType::UnionMemberContext>;
 
 	struct ParamSplit
 	{
 		std::vector<Token> m_params;
-		std::vector<std::shared_ptr<MidoriType>> m_types;
+		std::vector<std::shared_ptr<MarmotType>> m_types;
 	};
 
 	struct StructMemberSplit
 	{
-		std::vector<std::shared_ptr<MidoriType>> m_types;
+		std::vector<std::shared_ptr<MarmotType>> m_types;
 		std::vector<std::string> m_names;
 	};
 
@@ -60,26 +60,26 @@ namespace
 	}
 
 	// The type a keyword names on its own, such as `Int`.
-	std::optional<std::shared_ptr<MidoriType>> KeywordType(Token::Name name)
+	std::optional<std::shared_ptr<MarmotType>> KeywordType(Token::Name name)
 	{
 		switch (name)
 		{
 		case Token::Name::TEXT:
-			return MidoriType::MakeLiteralType<MidoriType::TextType>();
+			return MarmotType::MakeLiteralType<MarmotType::TextType>();
 		case Token::Name::FLOAT:
-			return MidoriType::MakeLiteralType<MidoriType::FloatType>();
+			return MarmotType::MakeLiteralType<MarmotType::FloatType>();
 		case Token::Name::INTEGER:
-			return MidoriType::MakeLiteralType<MidoriType::IntegerType>();
+			return MarmotType::MakeLiteralType<MarmotType::IntegerType>();
 		case Token::Name::BYTE:
-			return MidoriType::MakeLiteralType<MidoriType::ByteType>();
+			return MarmotType::MakeLiteralType<MarmotType::ByteType>();
 		case Token::Name::WORD:
-			return MidoriType::MakeLiteralType<MidoriType::WordType>();
+			return MarmotType::MakeLiteralType<MarmotType::WordType>();
 		case Token::Name::BOOL:
-			return MidoriType::MakeLiteralType<MidoriType::BoolType>();
+			return MarmotType::MakeLiteralType<MarmotType::BoolType>();
 		case Token::Name::UNIT:
-			return MidoriType::MakeLiteralType<MidoriType::UnitType>();
+			return MarmotType::MakeLiteralType<MarmotType::UnitType>();
 		case Token::Name::NEVER:
-			return MidoriType::MakeLiteralType<MidoriType::NeverType>();
+			return MarmotType::MakeLiteralType<MarmotType::NeverType>();
 		default:
 			return std::nullopt;
 		}
@@ -92,26 +92,26 @@ namespace
 		for (UnionMemberTuple& member : members)
 		{
 			std::string& name = std::get<0>(member);
-			std::vector<std::shared_ptr<MidoriType>>& types = std::get<1>(member);
+			std::vector<std::shared_ptr<MarmotType>>& types = std::get<1>(member);
 			int tag = std::get<2>(member);
-			info.emplace(std::move(name), MidoriType::UnionType::UnionMemberContext{ std::move(types), tag });
+			info.emplace(std::move(name), MarmotType::UnionType::UnionMemberContext{ std::move(types), tag });
 		}
 		return info;
 	}
 
-	bool ContainsConstraint(const std::vector<MidoriType::ClassConstraint>& constraints, const MidoriType::ClassConstraint& constraint)
+	bool ContainsConstraint(const std::vector<MarmotType::ClassConstraint>& constraints, const MarmotType::ClassConstraint& constraint)
 	{
 		return std::ranges::any_of
 		(
 			constraints,
-			[&constraint](const MidoriType::ClassConstraint& existing)
+			[&constraint](const MarmotType::ClassConstraint& existing)
 			{
 				return existing == constraint;
 			}
 		);
 	}
 
-	void AppendUniqueConstraint(std::vector<MidoriType::ClassConstraint>& constraints, MidoriType::ClassConstraint&& constraint)
+	void AppendUniqueConstraint(std::vector<MarmotType::ClassConstraint>& constraints, MarmotType::ClassConstraint&& constraint)
 	{
 		if (!ContainsConstraint(constraints, constraint))
 		{
@@ -120,9 +120,9 @@ namespace
 	}
 
 	void CollectTypeConstraints(
-		const std::shared_ptr<MidoriType>& type,
-		std::vector<MidoriType::ClassConstraint>& constraints,
-		std::unordered_set<const MidoriType*>& visited
+		const std::shared_ptr<MarmotType>& type,
+		std::vector<MarmotType::ClassConstraint>& constraints,
+		std::unordered_set<const MarmotType*>& visited
 	)
 	{
 		if (type == nullptr || !visited.insert(type.get()).second)
@@ -130,72 +130,72 @@ namespace
 			return;
 		}
 
-		if (type->IsType<MidoriType::ArrayType>())
+		if (type->IsType<MarmotType::ArrayType>())
 		{
-			CollectTypeConstraints(type->GetType<MidoriType::ArrayType>().m_element_type, constraints, visited);
+			CollectTypeConstraints(type->GetType<MarmotType::ArrayType>().m_element_type, constraints, visited);
 			return;
 		}
 
-		if (type->IsType<MidoriType::CellType>())
+		if (type->IsType<MarmotType::CellType>())
 		{
-			CollectTypeConstraints(type->GetType<MidoriType::CellType>().m_element_type, constraints, visited);
+			CollectTypeConstraints(type->GetType<MarmotType::CellType>().m_element_type, constraints, visited);
 			return;
 		}
 
-		if (type->IsType<MidoriType::RangeType>())
+		if (type->IsType<MarmotType::RangeType>())
 		{
-			CollectTypeConstraints(type->GetType<MidoriType::RangeType>().m_element_type, constraints, visited);
+			CollectTypeConstraints(type->GetType<MarmotType::RangeType>().m_element_type, constraints, visited);
 			return;
 		}
 
-		if (type->IsType<MidoriType::TupleType>())
+		if (type->IsType<MarmotType::TupleType>())
 		{
-			for (const std::shared_ptr<MidoriType>& element_type : type->GetType<MidoriType::TupleType>().m_element_types)
+			for (const std::shared_ptr<MarmotType>& element_type : type->GetType<MarmotType::TupleType>().m_element_types)
 			{
 				CollectTypeConstraints(element_type, constraints, visited);
 			}
 			return;
 		}
 
-		if (type->IsType<MidoriType::FunctionType>())
+		if (type->IsType<MarmotType::FunctionType>())
 		{
-			const MidoriType::FunctionType& function_type = type->GetType<MidoriType::FunctionType>();
-			for (const std::shared_ptr<MidoriType>& param_type : function_type.m_param_types)
+			const MarmotType::FunctionType& function_type = type->GetType<MarmotType::FunctionType>();
+			for (const std::shared_ptr<MarmotType>& param_type : function_type.m_param_types)
 			{
 				CollectTypeConstraints(param_type, constraints, visited);
 			}
 			CollectTypeConstraints(function_type.m_return_type, constraints, visited);
-			for (const MidoriType::ClassConstraint& constraint : function_type.m_constraints)
+			for (const MarmotType::ClassConstraint& constraint : function_type.m_constraints)
 			{
-				AppendUniqueConstraint(constraints, MidoriType::ClassConstraint(constraint));
+				AppendUniqueConstraint(constraints, MarmotType::ClassConstraint(constraint));
 			}
 			return;
 		}
 
-		if (type->IsType<MidoriType::StructType>())
+		if (type->IsType<MarmotType::StructType>())
 		{
-			const MidoriType::StructType& struct_type = type->GetType<MidoriType::StructType>();
-			for (const MidoriType::ClassConstraint& constraint : struct_type.m_constraints)
+			const MarmotType::StructType& struct_type = type->GetType<MarmotType::StructType>();
+			for (const MarmotType::ClassConstraint& constraint : struct_type.m_constraints)
 			{
-				AppendUniqueConstraint(constraints, MidoriType::ClassConstraint(constraint));
+				AppendUniqueConstraint(constraints, MarmotType::ClassConstraint(constraint));
 			}
-			for (const std::shared_ptr<MidoriType>& member_type : struct_type.m_member_types)
+			for (const std::shared_ptr<MarmotType>& member_type : struct_type.m_member_types)
 			{
 				CollectTypeConstraints(member_type, constraints, visited);
 			}
 			return;
 		}
 
-		if (type->IsType<MidoriType::UnionType>())
+		if (type->IsType<MarmotType::UnionType>())
 		{
-			const MidoriType::UnionType& union_type = type->GetType<MidoriType::UnionType>();
-			for (const MidoriType::ClassConstraint& constraint : union_type.m_constraints)
+			const MarmotType::UnionType& union_type = type->GetType<MarmotType::UnionType>();
+			for (const MarmotType::ClassConstraint& constraint : union_type.m_constraints)
 			{
-				AppendUniqueConstraint(constraints, MidoriType::ClassConstraint(constraint));
+				AppendUniqueConstraint(constraints, MarmotType::ClassConstraint(constraint));
 			}
 			for (const auto& [_, member_ctx] : union_type.m_member_info)
 			{
-				for (const std::shared_ptr<MidoriType>& member_type : member_ctx.m_member_types)
+				for (const std::shared_ptr<MarmotType>& member_type : member_ctx.m_member_types)
 				{
 					CollectTypeConstraints(member_type, constraints, visited);
 				}
@@ -203,14 +203,14 @@ namespace
 		}
 	}
 
-	std::vector<MidoriType::ClassConstraint> CollectSignatureConstraints(
-		const std::vector<std::shared_ptr<MidoriType>>& param_types,
-		const std::shared_ptr<MidoriType>& return_type
+	std::vector<MarmotType::ClassConstraint> CollectSignatureConstraints(
+		const std::vector<std::shared_ptr<MarmotType>>& param_types,
+		const std::shared_ptr<MarmotType>& return_type
 	)
 	{
-		std::vector<MidoriType::ClassConstraint> constraints;
-		std::unordered_set<const MidoriType*> visited;
-		for (const std::shared_ptr<MidoriType>& param_type : param_types)
+		std::vector<MarmotType::ClassConstraint> constraints;
+		std::unordered_set<const MarmotType*> visited;
+		for (const std::shared_ptr<MarmotType>& param_type : param_types)
 		{
 			CollectTypeConstraints(param_type, constraints, visited);
 		}
@@ -218,20 +218,20 @@ namespace
 		return constraints;
 	}
 
-	bool IsDecimalIntegerLiteral(const MidoriExpression& expr)
+	bool IsDecimalIntegerLiteral(const MarmotExpression& expr)
 	{
-		if (!expr.IsLiteral(MidoriExpression::LiteralKind::Integer))
+		if (!expr.IsLiteral(MarmotExpression::LiteralKind::Integer))
 		{
 			return false;
 		}
 
-		const std::string& lexeme = expr.GetExpression<MidoriExpression::Literal>().m_token.m_lexeme;
+		const std::string& lexeme = expr.GetExpression<MarmotExpression::Literal>().m_token.m_lexeme;
 		return !lexeme.empty()
 			&& std::isdigit(static_cast<unsigned char>(lexeme[0u])) != 0
 			&& !(lexeme.size() >= 2u && lexeme[0u] == '0' && (lexeme[1u] == 'x' || lexeme[1u] == 'X' || lexeme[1u] == 'b' || lexeme[1u] == 'B'));
 	}
 
-	std::unique_ptr<MidoriPattern> MakeNumericLiteralPattern(Token token)
+	std::unique_ptr<MarmotPattern> MakeNumericLiteralPattern(Token token)
 	{
 		const std::string& lexeme = token.m_lexeme;
 		if (lexeme.size() >= 3u && lexeme[0u] == '0' && (lexeme[1u] == 'x' || lexeme[1u] == 'X' || lexeme[1u] == 'b' || lexeme[1u] == 'B'))
@@ -241,43 +241,43 @@ namespace
 
 			if (value <= 0xFF)
 			{
-				return std::make_unique<MidoriPattern>(MidoriPattern::Literal(token, MidoriPattern::LiteralKind::Byte));
+				return std::make_unique<MarmotPattern>(MarmotPattern::Literal(token, MarmotPattern::LiteralKind::Byte));
 			}
 			if (value <= static_cast<uint64_t>(std::numeric_limits<int64_t>::max()))
 			{
-				return std::make_unique<MidoriPattern>(MidoriPattern::Literal(token, MidoriPattern::LiteralKind::Integer));
+				return std::make_unique<MarmotPattern>(MarmotPattern::Literal(token, MarmotPattern::LiteralKind::Integer));
 			}
-			return std::make_unique<MidoriPattern>(MidoriPattern::Literal(token, MidoriPattern::LiteralKind::Word));
+			return std::make_unique<MarmotPattern>(MarmotPattern::Literal(token, MarmotPattern::LiteralKind::Word));
 		}
 
-		return std::make_unique<MidoriPattern>(MidoriPattern::Literal(token, MidoriPattern::LiteralKind::Integer));
+		return std::make_unique<MarmotPattern>(MarmotPattern::Literal(token, MarmotPattern::LiteralKind::Integer));
 	}
 
-	bool IsExactGenericParam(const std::shared_ptr<MidoriType>& type, std::string_view name)
+	bool IsExactGenericParam(const std::shared_ptr<MarmotType>& type, std::string_view name)
 	{
-		return type->IsType<MidoriType::GenericParam>() && type->GetType<MidoriType::GenericParam>().m_name == name;
+		return type->IsType<MarmotType::GenericParam>() && type->GetType<MarmotType::GenericParam>().m_name == name;
 	}
 
 	// Each type parameter in the derived class, with the instance's type
 	// arguments after the first: Convertable<T, Text> for Convertable<P, Text>.
-	std::vector<MidoriType::ClassConstraint> DerivedConstraints(const std::string& class_name, const std::vector<Token>& generic_params, const std::vector<std::shared_ptr<MidoriType>>& type_args)
+	std::vector<MarmotType::ClassConstraint> DerivedConstraints(const std::string& class_name, const std::vector<Token>& generic_params, const std::vector<std::shared_ptr<MarmotType>>& type_args)
 	{
 		return generic_params
 			| std::views::transform([&class_name, &type_args](const Token& param)
 			{
-				std::vector<std::shared_ptr<MidoriType>> constraint_args{ MidoriType::MakeGenericType(param.m_lexeme) };
+				std::vector<std::shared_ptr<MarmotType>> constraint_args{ MarmotType::MakeGenericType(param.m_lexeme) };
 				constraint_args.insert(constraint_args.end(), std::next(type_args.begin()), type_args.end());
-				return MidoriType::ClassConstraint(class_name, std::move(constraint_args));
+				return MarmotType::ClassConstraint(class_name, std::move(constraint_args));
 			})
 			| std::ranges::to<std::vector>();
 	}
 
-	bool IsUnionSelfReference(const std::shared_ptr<MidoriType>& type, std::string_view union_name)
+	bool IsUnionSelfReference(const std::shared_ptr<MarmotType>& type, std::string_view union_name)
 	{
-		return type->IsType<MidoriType::UnionType>() && type->GetType<MidoriType::UnionType>().m_name == union_name;
+		return type->IsType<MarmotType::UnionType>() && type->GetType<MarmotType::UnionType>().m_name == union_name;
 	}
 
-	bool ContainsGenericParam(const std::shared_ptr<MidoriType>& type, std::string_view name, std::unordered_set<const MidoriType*>& visited)
+	bool ContainsGenericParam(const std::shared_ptr<MarmotType>& type, std::string_view name, std::unordered_set<const MarmotType*>& visited)
 	{
 		if (visited.contains(type.get()))
 		{
@@ -289,22 +289,22 @@ namespace
 		{
 			return true;
 		}
-		if (type->IsType<MidoriType::ArrayType>())
+		if (type->IsType<MarmotType::ArrayType>())
 		{
-			return ContainsGenericParam(type->GetType<MidoriType::ArrayType>().m_element_type, name, visited);
+			return ContainsGenericParam(type->GetType<MarmotType::ArrayType>().m_element_type, name, visited);
 		}
 
-		if (type->IsType<MidoriType::CellType>())
+		if (type->IsType<MarmotType::CellType>())
 		{
-			return ContainsGenericParam(type->GetType<MidoriType::CellType>().m_element_type, name, visited);
+			return ContainsGenericParam(type->GetType<MarmotType::CellType>().m_element_type, name, visited);
 		}
-		if (type->IsType<MidoriType::RangeType>())
+		if (type->IsType<MarmotType::RangeType>())
 		{
-			return ContainsGenericParam(type->GetType<MidoriType::RangeType>().m_element_type, name, visited);
+			return ContainsGenericParam(type->GetType<MarmotType::RangeType>().m_element_type, name, visited);
 		}
-		if (type->IsType<MidoriType::TupleType>())
+		if (type->IsType<MarmotType::TupleType>())
 		{
-			for (const std::shared_ptr<MidoriType>& elem_type : type->GetType<MidoriType::TupleType>().m_element_types)
+			for (const std::shared_ptr<MarmotType>& elem_type : type->GetType<MarmotType::TupleType>().m_element_types)
 			{
 				if (ContainsGenericParam(elem_type, name, visited))
 				{
@@ -313,10 +313,10 @@ namespace
 			}
 			return false;
 		}
-		if (type->IsType<MidoriType::FunctionType>())
+		if (type->IsType<MarmotType::FunctionType>())
 		{
-			const MidoriType::FunctionType& function_type = type->GetType<MidoriType::FunctionType>();
-			for (const std::shared_ptr<MidoriType>& param_type : function_type.m_param_types)
+			const MarmotType::FunctionType& function_type = type->GetType<MarmotType::FunctionType>();
+			for (const std::shared_ptr<MarmotType>& param_type : function_type.m_param_types)
 			{
 				if (ContainsGenericParam(param_type, name, visited))
 				{
@@ -325,9 +325,9 @@ namespace
 			}
 			return ContainsGenericParam(function_type.m_return_type, name, visited);
 		}
-		if (type->IsType<MidoriType::StructType>())
+		if (type->IsType<MarmotType::StructType>())
 		{
-			for (const std::shared_ptr<MidoriType>& member_type : type->GetType<MidoriType::StructType>().m_member_types)
+			for (const std::shared_ptr<MarmotType>& member_type : type->GetType<MarmotType::StructType>().m_member_types)
 			{
 				if (ContainsGenericParam(member_type, name, visited))
 				{
@@ -336,11 +336,11 @@ namespace
 			}
 			return false;
 		}
-		if (type->IsType<MidoriType::UnionType>())
+		if (type->IsType<MarmotType::UnionType>())
 		{
-			for (const auto& [member_name, member_ctx] : type->GetType<MidoriType::UnionType>().m_member_info)
+			for (const auto& [member_name, member_ctx] : type->GetType<MarmotType::UnionType>().m_member_info)
 			{
-				for (const std::shared_ptr<MidoriType>& member_type : member_ctx.m_member_types)
+				for (const std::shared_ptr<MarmotType>& member_type : member_ctx.m_member_types)
 				{
 					if (ContainsGenericParam(member_type, name, visited))
 					{
@@ -353,9 +353,9 @@ namespace
 		return false;
 	}
 
-	bool ContainsGenericParam(const std::shared_ptr<MidoriType>& type, std::string_view name)
+	bool ContainsGenericParam(const std::shared_ptr<MarmotType>& type, std::string_view name)
 	{
-		std::unordered_set<const MidoriType*> visited;
+		std::unordered_set<const MarmotType*> visited;
 		return ContainsGenericParam(type, name, visited);
 	}
 
@@ -372,90 +372,90 @@ namespace
 		{
 		}
 
-		std::unique_ptr<MidoriExpression> LocalName(const std::string& name, int index) const
+		std::unique_ptr<MarmotExpression> LocalName(const std::string& name, int index) const
 		{
-			return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(Token(name, Token::Name::IDENTIFIER_LITERAL, m_anchor), MidoriExpression::NameContext::Local{ index }));
+			return std::make_unique<MarmotExpression>(MarmotExpression::NameAccess(Token(name, Token::Name::IDENTIFIER_LITERAL, m_anchor), MarmotExpression::NameContext::Local{ index }));
 		}
 
-		std::unique_ptr<MidoriExpression> GlobalName(const std::string& name) const
+		std::unique_ptr<MarmotExpression> GlobalName(const std::string& name) const
 		{
-			return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(Token(name, Token::Name::IDENTIFIER_LITERAL, m_anchor), MidoriExpression::NameContext::Global{}));
+			return std::make_unique<MarmotExpression>(MarmotExpression::NameAccess(Token(name, Token::Name::IDENTIFIER_LITERAL, m_anchor), MarmotExpression::NameContext::Global{}));
 		}
 
-		std::unique_ptr<MidoriExpression> Call(std::unique_ptr<MidoriExpression>&& callee, std::vector<std::unique_ptr<MidoriExpression>>&& args) const
+		std::unique_ptr<MarmotExpression> Call(std::unique_ptr<MarmotExpression>&& callee, std::vector<std::unique_ptr<MarmotExpression>>&& args) const
 		{
-			return std::make_unique<MidoriExpression>(MidoriExpression::Call(Token("(", Token::Name::LEFT_PAREN, m_anchor), std::move(callee), std::move(args)));
+			return std::make_unique<MarmotExpression>(MarmotExpression::Call(Token("(", Token::Name::LEFT_PAREN, m_anchor), std::move(callee), std::move(args)));
 		}
 
-		std::unique_ptr<MidoriExpression> QualifiedCall(const std::string& qualifier, const std::string& method_name, std::vector<std::unique_ptr<MidoriExpression>>&& args) const
+		std::unique_ptr<MarmotExpression> QualifiedCall(const std::string& qualifier, const std::string& method_name, std::vector<std::unique_ptr<MarmotExpression>>&& args) const
 		{
 			return Call(GlobalName(qualifier + std::string(NameSeparator) + method_name), std::move(args));
 		}
 
-		std::unique_ptr<MidoriExpression> Binary(Token::Name token_name, const std::string& lexeme, std::unique_ptr<MidoriExpression>&& left, std::unique_ptr<MidoriExpression>&& right) const
+		std::unique_ptr<MarmotExpression> Binary(Token::Name token_name, const std::string& lexeme, std::unique_ptr<MarmotExpression>&& left, std::unique_ptr<MarmotExpression>&& right) const
 		{
-			return std::make_unique<MidoriExpression>(MidoriExpression::Binary(Token(lexeme, token_name, m_anchor), std::move(left), std::move(right)));
+			return std::make_unique<MarmotExpression>(MarmotExpression::Binary(Token(lexeme, token_name, m_anchor), std::move(left), std::move(right)));
 		}
 
-		std::unique_ptr<MidoriExpression> BoolLiteral(bool value) const
+		std::unique_ptr<MarmotExpression> BoolLiteral(bool value) const
 		{
-			return std::make_unique<MidoriExpression>(MidoriExpression::Literal(Token(value ? "true" : "false", value ? Token::Name::TRUE : Token::Name::FALSE, m_anchor), MidoriExpression::LiteralKind::Bool));
+			return std::make_unique<MarmotExpression>(MarmotExpression::Literal(Token(value ? "true" : "false", value ? Token::Name::TRUE : Token::Name::FALSE, m_anchor), MarmotExpression::LiteralKind::Bool));
 		}
 
-		std::unique_ptr<MidoriExpression> IntLiteral(int value) const
+		std::unique_ptr<MarmotExpression> IntLiteral(int value) const
 		{
-			return std::make_unique<MidoriExpression>(MidoriExpression::Literal(Token(std::to_string(value), Token::Name::INTEGER_LITERAL, m_anchor), MidoriExpression::LiteralKind::Integer));
+			return std::make_unique<MarmotExpression>(MarmotExpression::Literal(Token(std::to_string(value), Token::Name::INTEGER_LITERAL, m_anchor), MarmotExpression::LiteralKind::Integer));
 		}
 
-		std::unique_ptr<MidoriExpression> Match(std::unique_ptr<MidoriExpression>&& scrutinee, std::vector<std::unique_ptr<MidoriExpression>>&& cases) const
+		std::unique_ptr<MarmotExpression> Match(std::unique_ptr<MarmotExpression>&& scrutinee, std::vector<std::unique_ptr<MarmotExpression>>&& cases) const
 		{
-			return std::make_unique<MidoriExpression>(MidoriExpression::Match(Token("match", Token::Name::MATCH, m_anchor), std::move(scrutinee), std::move(cases)));
+			return std::make_unique<MarmotExpression>(MarmotExpression::Match(Token("match", Token::Name::MATCH, m_anchor), std::move(scrutinee), std::move(cases)));
 		}
 
-		std::unique_ptr<MidoriExpression> Case(std::unique_ptr<MidoriPattern>&& pattern, std::unique_ptr<MidoriExpression>&& body) const
+		std::unique_ptr<MarmotExpression> Case(std::unique_ptr<MarmotPattern>&& pattern, std::unique_ptr<MarmotExpression>&& body) const
 		{
-			return std::make_unique<MidoriExpression>(MidoriExpression::Case(Token("case", Token::Name::CASE, m_anchor), std::move(pattern), std::move(body)));
+			return std::make_unique<MarmotExpression>(MarmotExpression::Case(Token("case", Token::Name::CASE, m_anchor), std::move(pattern), std::move(body)));
 		}
 
-		std::unique_ptr<MidoriPattern> BindingPattern(const std::string& name, int index) const
+		std::unique_ptr<MarmotPattern> BindingPattern(const std::string& name, int index) const
 		{
-			return std::make_unique<MidoriPattern>(MidoriPattern::Binding(Token(name, Token::Name::IDENTIFIER_LITERAL, m_anchor), index));
+			return std::make_unique<MarmotPattern>(MarmotPattern::Binding(Token(name, Token::Name::IDENTIFIER_LITERAL, m_anchor), index));
 		}
 
-		std::unique_ptr<MidoriPattern> WildcardPattern() const
+		std::unique_ptr<MarmotPattern> WildcardPattern() const
 		{
-			return std::make_unique<MidoriPattern>(MidoriPattern::Wildcard(Token("_", Token::Name::IDENTIFIER_LITERAL, m_anchor)));
+			return std::make_unique<MarmotPattern>(MarmotPattern::Wildcard(Token("_", Token::Name::IDENTIFIER_LITERAL, m_anchor)));
 		}
 
-		std::unique_ptr<MidoriPattern> ConstructorPattern(const std::string& name, std::vector<std::unique_ptr<MidoriPattern>>&& fields) const
+		std::unique_ptr<MarmotPattern> ConstructorPattern(const std::string& name, std::vector<std::unique_ptr<MarmotPattern>>&& fields) const
 		{
-			return std::make_unique<MidoriPattern>(MidoriPattern::Constructor(Token(name, Token::Name::IDENTIFIER_LITERAL, m_anchor), std::string(name), std::move(fields), true));
+			return std::make_unique<MarmotPattern>(MarmotPattern::Constructor(Token(name, Token::Name::IDENTIFIER_LITERAL, m_anchor), std::string(name), std::move(fields), true));
 		}
 
-		std::unique_ptr<MidoriExpression> TextLiteral(const std::string& value) const
+		std::unique_ptr<MarmotExpression> TextLiteral(const std::string& value) const
 		{
-			return std::make_unique<MidoriExpression>(MidoriExpression::Literal(Token(value, Token::Name::TEXT_LITERAL, m_anchor), MidoriExpression::LiteralKind::Text));
+			return std::make_unique<MarmotExpression>(MarmotExpression::Literal(Token(value, Token::Name::TEXT_LITERAL, m_anchor), MarmotExpression::LiteralKind::Text));
 		}
 
-		std::unique_ptr<MidoriExpression> Concat(std::unique_ptr<MidoriExpression>&& left, std::unique_ptr<MidoriExpression>&& right) const
+		std::unique_ptr<MarmotExpression> Concat(std::unique_ptr<MarmotExpression>&& left, std::unique_ptr<MarmotExpression>&& right) const
 		{
 			return Binary(Token::Name::DOUBLE_PLUS, "++", std::move(left), std::move(right));
 		}
 
-		std::unique_ptr<MidoriExpression> AsText(std::unique_ptr<MidoriExpression>&& value) const
+		std::unique_ptr<MarmotExpression> AsText(std::unique_ptr<MarmotExpression>&& value) const
 		{
-			return std::make_unique<MidoriExpression>(MidoriExpression::As(Token("as", Token::Name::AS, m_anchor), MidoriType::MakeLiteralType<MidoriType::TextType>(), std::move(value)));
+			return std::make_unique<MarmotExpression>(MarmotExpression::As(Token("as", Token::Name::AS, m_anchor), MarmotType::MakeLiteralType<MarmotType::TextType>(), std::move(value)));
 		}
 
 		// `Orderable::Compare(left, right)`, or `equal` when that is 0. The
 		// comparison is held in local `slot` on its way out.
-		std::unique_ptr<MidoriExpression> CompareThen(std::unique_ptr<MidoriExpression>&& left, std::unique_ptr<MidoriExpression>&& right, int slot, std::unique_ptr<MidoriExpression>&& equal) const
+		std::unique_ptr<MarmotExpression> CompareThen(std::unique_ptr<MarmotExpression>&& left, std::unique_ptr<MarmotExpression>&& right, int slot, std::unique_ptr<MarmotExpression>&& equal) const
 		{
-			std::vector<std::unique_ptr<MidoriExpression>> operands;
+			std::vector<std::unique_ptr<MarmotExpression>> operands;
 			operands.emplace_back(std::move(left));
 			operands.emplace_back(std::move(right));
-			std::vector<std::unique_ptr<MidoriExpression>> cases;
-			cases.emplace_back(Case(std::make_unique<MidoriPattern>(MidoriPattern::Literal(Token("0", Token::Name::INTEGER_LITERAL, m_anchor), MidoriPattern::LiteralKind::Integer)), std::move(equal)));
+			std::vector<std::unique_ptr<MarmotExpression>> cases;
+			cases.emplace_back(Case(std::make_unique<MarmotPattern>(MarmotPattern::Literal(Token("0", Token::Name::INTEGER_LITERAL, m_anchor), MarmotPattern::LiteralKind::Integer)), std::move(equal)));
 			cases.emplace_back(Case(BindingPattern("order", slot), LocalName("order", slot)));
 			return Match(QualifiedCall(std::string(ORDERABLE_CLASS_NAME), std::string(COMPARE_METHOD_NAME), std::move(operands)), std::move(cases));
 		}
@@ -569,7 +569,7 @@ std::string Parser::ExtractQualifier(const std::string& qualified_name) const
 	}
 }
 
-MidoriResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_token, const std::string& mangled_name)
+MarmotResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_token, const std::string& mangled_name)
 {
 	std::string lookup_name = mangled_name;
 	std::vector<Scope>::const_reverse_iterator found_scope_it = FindVariableScope(lookup_name);
@@ -582,12 +582,12 @@ MidoriResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 		if (IsGlobalName(found_scope_it))
 		{
 			RecordTopLevelReference(name_token);
-			return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(name_token, MidoriExpression::NameContext::Global()));
+			return std::make_unique<MarmotExpression>(MarmotExpression::NameAccess(name_token, MarmotExpression::NameContext::Global()));
 		}
 		// Local
 		else if (IsLocalName(find_result))
 		{
-			return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(name_token, MidoriExpression::NameContext::Local(find_result->second.m_relative_index.value())));
+			return std::make_unique<MarmotExpression>(MarmotExpression::NameAccess(name_token, MarmotExpression::NameContext::Local(find_result->second.m_relative_index.value())));
 		}
 		// Cell
 		else
@@ -595,7 +595,7 @@ MidoriResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 			int var_depth = find_result->second.m_function_depth.value();
 			int parent_base = (var_depth >= 1) ? m_state.m_function_base_variable_index[static_cast<size_t>(var_depth - 1)] : 0;
 			int cell_index = find_result->second.m_absolute_index.value() - parent_base;
-			return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(name_token, MidoriExpression::NameContext::Cell(cell_index)));
+			return std::make_unique<MarmotExpression>(MarmotExpression::NameAccess(name_token, MarmotExpression::NameContext::Cell(cell_index)));
 		}
 	}
 
@@ -603,7 +603,7 @@ MidoriResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 	if (m_state.m_top_level_names.contains(lookup_name))
 	{
 		RecordTopLevelReference(name_token);
-		return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(name_token, MidoriExpression::NameContext::Global()));
+		return std::make_unique<MarmotExpression>(MarmotExpression::NameAccess(name_token, MarmotExpression::NameContext::Global()));
 	}
 
 	// Not found in local scopes - check imported modules (for bare imports)
@@ -621,7 +621,7 @@ MidoriResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 		{
 			Token qualified_token = name_token;
 			qualified_token.m_lexeme = imported_module_name + NameSeparator.data() + lookup_name;
-			return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(qualified_token, MidoriExpression::NameContext::Global()));
+			return std::make_unique<MarmotExpression>(MarmotExpression::NameAccess(qualified_token, MarmotExpression::NameContext::Global()));
 		}
 
 		return std::unexpected(GenerateParserError(BuildImportedSymbolAccessError(imported_module_name, lookup_name, access), name_token));
@@ -631,9 +631,9 @@ MidoriResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 	{
 		const Token op("ref", Token::Name::REF, name_token);
 		return ParseUnaryLogicalBitwise()
-			.transform([&op](std::unique_ptr<MidoriExpression>&& value)
+			.transform([&op](std::unique_ptr<MarmotExpression>&& value)
 			{
-				return std::make_unique<MidoriExpression>(MidoriExpression::UnaryPrefix(op, std::move(value)));
+				return std::make_unique<MarmotExpression>(MarmotExpression::UnaryPrefix(op, std::move(value)));
 			});
 	}
 
@@ -644,7 +644,7 @@ MidoriResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 	}
 
 	std::vector<std::string> matching_typeclasses;
-	for (const MidoriType::ClassConstraint& constraint : m_state.m_active_constraints)
+	for (const MarmotType::ClassConstraint& constraint : m_state.m_active_constraints)
 	{
 		std::unordered_map<std::string, std::unordered_set<std::string>>::const_iterator tc_it = m_state.m_class_methods.find(constraint.m_class_name);
 		if (tc_it != m_state.m_class_methods.cend() && tc_it->second.contains(lookup_name))
@@ -692,11 +692,11 @@ Parser::ConstructorResolutionResult Parser::ResolveConstructorName(const Token& 
 		const Scope& scope = *scopes_iter;
 		if (scope.m_union_constructors.contains(mangled_name))
 		{
-			return ConstructorResolution(std::shared_ptr<MidoriType>(scope.m_union_constructors.at(mangled_name)), std::string(mangled_name), false);
+			return ConstructorResolution(std::shared_ptr<MarmotType>(scope.m_union_constructors.at(mangled_name)), std::string(mangled_name), false);
 		}
 		else if (scope.m_struct_constructors.contains(mangled_name))
 		{
-			return ConstructorResolution(std::shared_ptr<MidoriType>(scope.m_struct_constructors.at(mangled_name)), std::string(mangled_name), true);
+			return ConstructorResolution(std::shared_ptr<MarmotType>(scope.m_struct_constructors.at(mangled_name)), std::string(mangled_name), true);
 		}
 	}
 
@@ -721,19 +721,19 @@ Parser::ConstructorResolutionResult Parser::ResolveConstructorName(const Token& 
 			const TypeEnvironment& env = m_context.m_imported_type_signatures.at(module_name);
 			if (env.contains(lookup_base))
 			{
-				std::shared_ptr<MidoriType> type = env.at(lookup_base);
+				std::shared_ptr<MarmotType> type = env.at(lookup_base);
 				// The signatures hold exported values beside types, so a name is a
 				// constructor only when its type is the type of that same name.
-				if (type->IsType<MidoriType::UnionType>() && separator_pos != std::string::npos && type->GetType<MidoriType::UnionType>().m_name == lookup_base)
+				if (type->IsType<MarmotType::UnionType>() && separator_pos != std::string::npos && type->GetType<MarmotType::UnionType>().m_name == lookup_base)
 				{
-					const MidoriType::UnionType& union_type = type->GetType<MidoriType::UnionType>();
+					const MarmotType::UnionType& union_type = type->GetType<MarmotType::UnionType>();
 					std::string member_key = union_type.m_name + NameSeparator.data() + mangled_name.substr(separator_pos + NameSeparator.length());
 					if (union_type.m_member_info.contains(member_key))
 					{
 						return ConstructorResolution(std::move(type), std::move(member_key), false);
 					}
 				}
-				else if (type->IsType<MidoriType::StructType>() && lookup_base == mangled_name && type->GetType<MidoriType::StructType>().m_name == lookup_base)
+				else if (type->IsType<MarmotType::StructType>() && lookup_base == mangled_name && type->GetType<MarmotType::StructType>().m_name == lookup_base)
 				{
 					return ConstructorResolution(std::move(type), std::string(mangled_name), true);
 				}
@@ -762,18 +762,18 @@ Parser::ConstructorResolutionResult Parser::ResolveConstructorName(const Token& 
 
 				// The module's signatures hold its exported values beside its types,
 				// so the name is a constructor only when it names a type, not a value.
-				if (member_pos == std::string::npos && type_it->second->IsType<MidoriType::StructType>() && type_it->second->GetType<MidoriType::StructType>().m_name == type_name)
+				if (member_pos == std::string::npos && type_it->second->IsType<MarmotType::StructType>() && type_it->second->GetType<MarmotType::StructType>().m_name == type_name)
 				{
-					return ConstructorResolution(std::shared_ptr<MidoriType>(type_it->second), std::move(type_name), true);
+					return ConstructorResolution(std::shared_ptr<MarmotType>(type_it->second), std::move(type_name), true);
 				}
 
-				if (member_pos != std::string::npos && type_it->second->IsType<MidoriType::UnionType>() && type_it->second->GetType<MidoriType::UnionType>().m_name == type_name)
+				if (member_pos != std::string::npos && type_it->second->IsType<MarmotType::UnionType>() && type_it->second->GetType<MarmotType::UnionType>().m_name == type_name)
 				{
-					const MidoriType::UnionType& union_type = type_it->second->GetType<MidoriType::UnionType>();
+					const MarmotType::UnionType& union_type = type_it->second->GetType<MarmotType::UnionType>();
 					std::string member_key = union_type.m_name + NameSeparator.data() + symbol_name.substr(member_pos + NameSeparator.length());
 					if (union_type.m_member_info.contains(member_key))
 					{
-						return ConstructorResolution(std::shared_ptr<MidoriType>(type_it->second), std::move(member_key), false);
+						return ConstructorResolution(std::shared_ptr<MarmotType>(type_it->second), std::move(member_key), false);
 					}
 				}
 			}
@@ -1098,10 +1098,10 @@ void Parser::PredeclareType(int type_keyword_index)
 
 	const int body_index = cursor + 1;
 	Scope& module_scope = m_state.m_scopes.front();
-	std::shared_ptr<MidoriType> placeholder;
+	std::shared_ptr<MarmotType> placeholder;
 	if (tokens[static_cast<size_t>(body_index)].m_token_name == Token::Name::LEFT_BRACE)
 	{
-		placeholder = MidoriType::MakeStructType(name.m_lexeme, CurrentModuleName(), {}, {}, std::move(generic_params));
+		placeholder = MarmotType::MakeStructType(name.m_lexeme, CurrentModuleName(), {}, {}, std::move(generic_params));
 		module_scope.m_struct_constructors[name.m_lexeme] = placeholder;
 	}
 	else
@@ -1112,12 +1112,12 @@ void Parser::PredeclareType(int type_keyword_index)
 		m_state.m_current_token_index = resume_index;
 		if (is_union)
 		{
-			placeholder = MidoriType::MakeUnionType(name.m_lexeme, CurrentModuleName(), std::move(generic_params));
+			placeholder = MarmotType::MakeUnionType(name.m_lexeme, CurrentModuleName(), std::move(generic_params));
 			PredeclareVariants(placeholder, body_index);
 		}
 		else
 		{
-			placeholder = MidoriType::MakeNewType(name.m_lexeme, CurrentModuleName(), MidoriType::MakeLiteralType<MidoriType::UnitType>(), std::move(generic_params));
+			placeholder = MarmotType::MakeNewType(name.m_lexeme, CurrentModuleName(), MarmotType::MakeLiteralType<MarmotType::UnitType>(), std::move(generic_params));
 		}
 	}
 
@@ -1129,15 +1129,15 @@ void Parser::PredeclareType(int type_keyword_index)
 // A constructor is resolved, and a construction given its tag, while parsing,
 // so the variants' names and tags are registered with the type: the
 // declaration replaces them with the same ones and their field types.
-void Parser::PredeclareVariants(const std::shared_ptr<MidoriType>& union_type, int body_index)
+void Parser::PredeclareVariants(const std::shared_ptr<MarmotType>& union_type, int body_index)
 {
 	const TokenStream& tokens = m_context.m_tokens;
-	MidoriType::UnionType& union_type_ref = union_type->GetType<MidoriType::UnionType>();
+	MarmotType::UnionType& union_type_ref = union_type->GetType<MarmotType::UnionType>();
 	int cursor = tokens[static_cast<size_t>(body_index)].m_token_name == Token::Name::SINGLE_BAR ? body_index + 1 : body_index;
 	for (int tag = 0; tokens[static_cast<size_t>(cursor)].m_token_name == Token::Name::IDENTIFIER_LITERAL; tag += 1)
 	{
 		const std::string member_name = union_type_ref.m_name + std::string(NameSeparator) + tokens[static_cast<size_t>(cursor)].m_lexeme;
-		union_type_ref.m_member_info.emplace(member_name, MidoriType::UnionType::UnionMemberContext{ {}, tag });
+		union_type_ref.m_member_info.emplace(member_name, MarmotType::UnionType::UnionMemberContext{ {}, tag });
 		m_state.m_scopes.front().m_union_constructors[member_name] = union_type;
 
 		cursor += 1;
@@ -1165,7 +1165,7 @@ void Parser::PredeclareVariants(const std::shared_ptr<MidoriType>& union_type, i
 
 // The object a declaration fills: the one registered for it before parsing
 // began, or, for a type declared inside a block, the one it just made.
-std::shared_ptr<MidoriType> Parser::DeclaredTypeFor(const TypeDeclarationHeader& header, std::shared_ptr<MidoriType>&& fresh_type)
+std::shared_ptr<MarmotType> Parser::DeclaredTypeFor(const TypeDeclarationHeader& header, std::shared_ptr<MarmotType>&& fresh_type)
 {
 	if (header.m_predeclared_type == nullptr)
 	{
@@ -1176,14 +1176,14 @@ std::shared_ptr<MidoriType> Parser::DeclaredTypeFor(const TypeDeclarationHeader&
 	return header.m_predeclared_type;
 }
 
-void Parser::CompleteType(const std::shared_ptr<MidoriType>& type)
+void Parser::CompleteType(const std::shared_ptr<MarmotType>& type)
 {
 	m_undeclared_types.erase(type.get());
 }
 
 // Whether `type` names `newtype` without a record's or union's fields in
 // between: those are nominal, and nothing that erases a newtype looks inside them.
-bool Parser::RepresentationNames(const std::shared_ptr<MidoriType>& type, const MidoriType* newtype, std::unordered_set<const MidoriType*>& visited)
+bool Parser::RepresentationNames(const std::shared_ptr<MarmotType>& type, const MarmotType* newtype, std::unordered_set<const MarmotType*>& visited)
 {
 	if (type.get() == newtype)
 	{
@@ -1194,57 +1194,57 @@ bool Parser::RepresentationNames(const std::shared_ptr<MidoriType>& type, const 
 		return false;
 	}
 
-	const auto names_any = [newtype, &visited](const std::vector<std::shared_ptr<MidoriType>>& types)
+	const auto names_any = [newtype, &visited](const std::vector<std::shared_ptr<MarmotType>>& types)
 		{
-			return std::ranges::any_of(types, [newtype, &visited](const std::shared_ptr<MidoriType>& inner) { return RepresentationNames(inner, newtype, visited); });
+			return std::ranges::any_of(types, [newtype, &visited](const std::shared_ptr<MarmotType>& inner) { return RepresentationNames(inner, newtype, visited); });
 		};
 
-	if (type->IsType<MidoriType::NewType>())
+	if (type->IsType<MarmotType::NewType>())
 	{
-		const MidoriType::NewType& inner = type->GetType<MidoriType::NewType>();
+		const MarmotType::NewType& inner = type->GetType<MarmotType::NewType>();
 		return RepresentationNames(inner.m_representation, newtype, visited) || names_any(inner.m_type_arguments);
 	}
-	if (type->IsType<MidoriType::StructType>())
+	if (type->IsType<MarmotType::StructType>())
 	{
-		return names_any(type->GetType<MidoriType::StructType>().m_type_arguments);
+		return names_any(type->GetType<MarmotType::StructType>().m_type_arguments);
 	}
-	if (type->IsType<MidoriType::UnionType>())
+	if (type->IsType<MarmotType::UnionType>())
 	{
-		return names_any(type->GetType<MidoriType::UnionType>().m_type_arguments);
+		return names_any(type->GetType<MarmotType::UnionType>().m_type_arguments);
 	}
-	if (type->IsType<MidoriType::ArrayType>())
+	if (type->IsType<MarmotType::ArrayType>())
 	{
-		return RepresentationNames(type->GetType<MidoriType::ArrayType>().m_element_type, newtype, visited);
+		return RepresentationNames(type->GetType<MarmotType::ArrayType>().m_element_type, newtype, visited);
 	}
-	if (type->IsType<MidoriType::CellType>())
+	if (type->IsType<MarmotType::CellType>())
 	{
-		return RepresentationNames(type->GetType<MidoriType::CellType>().m_element_type, newtype, visited);
+		return RepresentationNames(type->GetType<MarmotType::CellType>().m_element_type, newtype, visited);
 	}
-	if (type->IsType<MidoriType::ChannelType>())
+	if (type->IsType<MarmotType::ChannelType>())
 	{
-		return RepresentationNames(type->GetType<MidoriType::ChannelType>().m_element_type, newtype, visited);
+		return RepresentationNames(type->GetType<MarmotType::ChannelType>().m_element_type, newtype, visited);
 	}
-	if (type->IsType<MidoriType::RangeType>())
+	if (type->IsType<MarmotType::RangeType>())
 	{
-		return RepresentationNames(type->GetType<MidoriType::RangeType>().m_element_type, newtype, visited);
+		return RepresentationNames(type->GetType<MarmotType::RangeType>().m_element_type, newtype, visited);
 	}
-	if (type->IsType<MidoriType::WorkerType>())
+	if (type->IsType<MarmotType::WorkerType>())
 	{
-		return RepresentationNames(type->GetType<MidoriType::WorkerType>().m_result_type, newtype, visited);
+		return RepresentationNames(type->GetType<MarmotType::WorkerType>().m_result_type, newtype, visited);
 	}
-	if (type->IsType<MidoriType::TupleType>())
+	if (type->IsType<MarmotType::TupleType>())
 	{
-		return names_any(type->GetType<MidoriType::TupleType>().m_element_types);
+		return names_any(type->GetType<MarmotType::TupleType>().m_element_types);
 	}
-	if (type->IsType<MidoriType::FunctionType>())
+	if (type->IsType<MarmotType::FunctionType>())
 	{
-		const MidoriType::FunctionType& function = type->GetType<MidoriType::FunctionType>();
+		const MarmotType::FunctionType& function = type->GetType<MarmotType::FunctionType>();
 		return names_any(function.m_param_types) || RepresentationNames(function.m_return_type, newtype, visited);
 	}
 	return false;
 }
 
-bool Parser::Reaches(const std::shared_ptr<MidoriType>& type, const std::function<bool(const MidoriType*)>& is_sought, std::unordered_set<const MidoriType*>& visited)
+bool Parser::Reaches(const std::shared_ptr<MarmotType>& type, const std::function<bool(const MarmotType*)>& is_sought, std::unordered_set<const MarmotType*>& visited)
 {
 	if (is_sought(type.get()))
 	{
@@ -1255,79 +1255,79 @@ bool Parser::Reaches(const std::shared_ptr<MidoriType>& type, const std::functio
 		return false;
 	}
 
-	const auto reaches_any = [&is_sought, &visited](const std::vector<std::shared_ptr<MidoriType>>& types)
+	const auto reaches_any = [&is_sought, &visited](const std::vector<std::shared_ptr<MarmotType>>& types)
 		{
-			return std::ranges::any_of(types, [&is_sought, &visited](const std::shared_ptr<MidoriType>& inner) { return Reaches(inner, is_sought, visited); });
+			return std::ranges::any_of(types, [&is_sought, &visited](const std::shared_ptr<MarmotType>& inner) { return Reaches(inner, is_sought, visited); });
 		};
 
-	if (type->IsType<MidoriType::StructType>())
+	if (type->IsType<MarmotType::StructType>())
 	{
-		const MidoriType::StructType& struct_type = type->GetType<MidoriType::StructType>();
+		const MarmotType::StructType& struct_type = type->GetType<MarmotType::StructType>();
 		return reaches_any(struct_type.m_member_types) || reaches_any(struct_type.m_type_arguments);
 	}
-	if (type->IsType<MidoriType::UnionType>())
+	if (type->IsType<MarmotType::UnionType>())
 	{
-		const MidoriType::UnionType& union_type = type->GetType<MidoriType::UnionType>();
+		const MarmotType::UnionType& union_type = type->GetType<MarmotType::UnionType>();
 		return reaches_any(union_type.m_type_arguments) || std::ranges::any_of
 		(
 			union_type.m_member_info | std::views::values,
-			[&reaches_any](const MidoriType::UnionType::UnionMemberContext& member) { return reaches_any(member.m_member_types); }
+			[&reaches_any](const MarmotType::UnionType::UnionMemberContext& member) { return reaches_any(member.m_member_types); }
 		);
 	}
-	if (type->IsType<MidoriType::NewType>())
+	if (type->IsType<MarmotType::NewType>())
 	{
-		const MidoriType::NewType& new_type = type->GetType<MidoriType::NewType>();
+		const MarmotType::NewType& new_type = type->GetType<MarmotType::NewType>();
 		return Reaches(new_type.m_representation, is_sought, visited) || reaches_any(new_type.m_type_arguments);
 	}
-	if (type->IsType<MidoriType::ArrayType>())
+	if (type->IsType<MarmotType::ArrayType>())
 	{
-		return Reaches(type->GetType<MidoriType::ArrayType>().m_element_type, is_sought, visited);
+		return Reaches(type->GetType<MarmotType::ArrayType>().m_element_type, is_sought, visited);
 	}
-	if (type->IsType<MidoriType::CellType>())
+	if (type->IsType<MarmotType::CellType>())
 	{
-		return Reaches(type->GetType<MidoriType::CellType>().m_element_type, is_sought, visited);
+		return Reaches(type->GetType<MarmotType::CellType>().m_element_type, is_sought, visited);
 	}
-	if (type->IsType<MidoriType::ChannelType>())
+	if (type->IsType<MarmotType::ChannelType>())
 	{
-		return Reaches(type->GetType<MidoriType::ChannelType>().m_element_type, is_sought, visited);
+		return Reaches(type->GetType<MarmotType::ChannelType>().m_element_type, is_sought, visited);
 	}
-	if (type->IsType<MidoriType::RangeType>())
+	if (type->IsType<MarmotType::RangeType>())
 	{
-		return Reaches(type->GetType<MidoriType::RangeType>().m_element_type, is_sought, visited);
+		return Reaches(type->GetType<MarmotType::RangeType>().m_element_type, is_sought, visited);
 	}
-	if (type->IsType<MidoriType::WorkerType>())
+	if (type->IsType<MarmotType::WorkerType>())
 	{
-		return Reaches(type->GetType<MidoriType::WorkerType>().m_result_type, is_sought, visited);
+		return Reaches(type->GetType<MarmotType::WorkerType>().m_result_type, is_sought, visited);
 	}
-	if (type->IsType<MidoriType::TupleType>())
+	if (type->IsType<MarmotType::TupleType>())
 	{
-		return reaches_any(type->GetType<MidoriType::TupleType>().m_element_types);
+		return reaches_any(type->GetType<MarmotType::TupleType>().m_element_types);
 	}
-	if (type->IsType<MidoriType::FunctionType>())
+	if (type->IsType<MarmotType::FunctionType>())
 	{
-		const MidoriType::FunctionType& function = type->GetType<MidoriType::FunctionType>();
+		const MarmotType::FunctionType& function = type->GetType<MarmotType::FunctionType>();
 		return reaches_any(function.m_param_types) || Reaches(function.m_return_type, is_sought, visited);
 	}
 	return false;
 }
 
 // Not whole: undeclared, being declared, or an instantiation not yet filled.
-bool Parser::ReachesUnfinishedType(const std::shared_ptr<MidoriType>& type) const
+bool Parser::ReachesUnfinishedType(const std::shared_ptr<MarmotType>& type) const
 {
 	if (m_undeclared_types.empty() && m_state.m_types_being_declared.empty() && m_unfilled_instantiations.empty())
 	{
 		return false;
 	}
 
-	std::unordered_set<const MidoriType*> visited;
+	std::unordered_set<const MarmotType*> visited;
 	return Reaches
 	(
 		type,
-		[this](const MidoriType* candidate)
+		[this](const MarmotType* candidate)
 		{
 			return m_undeclared_types.contains(candidate)
 				|| m_unfilled_instantiations.contains(candidate)
-				|| std::ranges::any_of(m_state.m_types_being_declared, [candidate](const std::shared_ptr<MidoriType>& declaring) { return declaring.get() == candidate; });
+				|| std::ranges::any_of(m_state.m_types_being_declared, [candidate](const std::shared_ptr<MarmotType>& declaring) { return declaring.get() == candidate; });
 		},
 		visited
 	);
@@ -1349,25 +1349,25 @@ std::optional<CompilerError> Parser::FillDeferredInstantiations()
 			waiting,
 			[this](const DeferredInstantiation* deferred)
 			{
-				std::unordered_set<const MidoriType*> visited;
-				return !Reaches(deferred->m_template, [this](const MidoriType* candidate) { return m_unfilled_instantiations.contains(candidate); }, visited);
+				std::unordered_set<const MarmotType*> visited;
+				return !Reaches(deferred->m_template, [this](const MarmotType* candidate) { return m_unfilled_instantiations.contains(candidate); }, visited);
 			}
 		);
 		if (ready == waiting.end())
 		{
 			const DeferredInstantiation& stuck = *waiting.front();
 			std::vector<std::string> own_parameters;
-			if (stuck.m_template->IsType<MidoriType::UnionType>())
+			if (stuck.m_template->IsType<MarmotType::UnionType>())
 			{
-				own_parameters = stuck.m_template->GetType<MidoriType::UnionType>().m_generic_params;
+				own_parameters = stuck.m_template->GetType<MarmotType::UnionType>().m_generic_params;
 			}
-			else if (stuck.m_template->IsType<MidoriType::StructType>())
+			else if (stuck.m_template->IsType<MarmotType::StructType>())
 			{
-				own_parameters = stuck.m_template->GetType<MidoriType::StructType>().m_generic_params;
+				own_parameters = stuck.m_template->GetType<MarmotType::StructType>().m_generic_params;
 			}
 			else
 			{
-				own_parameters = stuck.m_template->GetType<MidoriType::NewType>().m_generic_params;
+				own_parameters = stuck.m_template->GetType<MarmotType::NewType>().m_generic_params;
 			}
 			const std::string parameter_list = std::ranges::fold_left
 			(
@@ -1378,7 +1378,7 @@ std::optional<CompilerError> Parser::FillDeferredInstantiations()
 			return GenerateParserError(std::format("'{0}' and the types it holds instantiate each other with arguments other than their own type parameters, which cannot be built. Name it here with its own type parameters, {0}<{1}>, and use the same parameter names in the declarations that name each other.", stuck.m_reference.m_lexeme, parameter_list), stuck.m_reference);
 		}
 
-		MidoriType::SubstituteTypeParamsInto((*ready)->m_target, (*ready)->m_template, (*ready)->m_substitutions);
+		MarmotType::SubstituteTypeParamsInto((*ready)->m_target, (*ready)->m_template, (*ready)->m_substitutions);
 		m_unfilled_instantiations.erase((*ready)->m_target.get());
 		waiting.erase(ready);
 	}
@@ -1391,7 +1391,7 @@ std::optional<CompilerError> Parser::FillDeferredInstantiations()
 // empty. In a type's body, named with its own parameters, it is the template
 // itself, as a union names itself. Otherwise the instantiation is made at the
 // end of the parse, when every type is whole.
-MidoriResult::TypeResult Parser::InstantiateUnfinishedType(const Token& type_name, const std::shared_ptr<MidoriType>& type_template, const std::vector<std::string>& generic_params, std::vector<std::shared_ptr<MidoriType>>&& type_args)
+MarmotResult::TypeResult Parser::InstantiateUnfinishedType(const Token& type_name, const std::shared_ptr<MarmotType>& type_template, const std::vector<std::string>& generic_params, std::vector<std::shared_ptr<MarmotType>>&& type_args)
 {
 	if (!m_state.m_types_being_declared.empty())
 	{
@@ -1399,9 +1399,9 @@ MidoriResult::TypeResult Parser::InstantiateUnfinishedType(const Token& type_nam
 		(
 			type_args,
 			generic_params,
-			[](const std::shared_ptr<MidoriType>& type_arg, const std::string& generic_param)
+			[](const std::shared_ptr<MarmotType>& type_arg, const std::string& generic_param)
 			{
-				return type_arg->IsType<MidoriType::GenericParam>() && (type_arg->GetType<MidoriType::GenericParam>().m_name == generic_param);
+				return type_arg->IsType<MarmotType::GenericParam>() && (type_arg->GetType<MarmotType::GenericParam>().m_name == generic_param);
 			}
 		);
 		if (names_own_parameters)
@@ -1410,24 +1410,24 @@ MidoriResult::TypeResult Parser::InstantiateUnfinishedType(const Token& type_nam
 		}
 	}
 
-	std::unordered_map<std::string, std::shared_ptr<MidoriType>> substitutions;
+	std::unordered_map<std::string, std::shared_ptr<MarmotType>> substitutions;
 	for (size_t index = 0uz; index < generic_params.size(); index += 1uz)
 	{
 		substitutions.emplace(generic_params[index], std::move(type_args[index]));
 	}
 
-	std::shared_ptr<MidoriType> instantiation = std::make_shared<MidoriType>(*type_template);
+	std::shared_ptr<MarmotType> instantiation = std::make_shared<MarmotType>(*type_template);
 	m_unfilled_instantiations.insert(instantiation.get());
 	m_deferred_instantiations.emplace_back(instantiation, type_template, std::move(substitutions), type_name);
 	return instantiation;
 }
 
-Parser::DeferredInstantiation::DeferredInstantiation(std::shared_ptr<MidoriType> target, std::shared_ptr<MidoriType> type_template, std::unordered_map<std::string, std::shared_ptr<MidoriType>> substitutions, Token reference)
+Parser::DeferredInstantiation::DeferredInstantiation(std::shared_ptr<MarmotType> target, std::shared_ptr<MarmotType> type_template, std::unordered_map<std::string, std::shared_ptr<MarmotType>> substitutions, Token reference)
 	: m_target(std::move(target)), m_template(std::move(type_template)), m_substitutions(std::move(substitutions)), m_reference(std::move(reference))
 {
 }
 
-Parser::DeclaringTypeScope::DeclaringTypeScope(std::vector<std::shared_ptr<MidoriType>>& stack, const std::shared_ptr<MidoriType>& type)
+Parser::DeclaringTypeScope::DeclaringTypeScope(std::vector<std::shared_ptr<MarmotType>>& stack, const std::shared_ptr<MarmotType>& type)
 	: m_stack(stack)
 {
 	m_stack.push_back(type);
@@ -1438,29 +1438,29 @@ Parser::DeclaringTypeScope::~DeclaringTypeScope()
 	m_stack.pop_back();
 }
 
-void Parser::RecordTopLevelDefinition(const MidoriStatement& statement, int statement_index)
+void Parser::RecordTopLevelDefinition(const MarmotStatement& statement, int statement_index)
 {
-	if (statement.IsStatement<MidoriStatement::VariableDefinition>())
+	if (statement.IsStatement<MarmotStatement::VariableDefinition>())
 	{
-		const MidoriStatement::VariableDefinition& def = statement.GetStatement<MidoriStatement::VariableDefinition>();
-		const bool is_function = (def.m_value != nullptr) && def.m_value->IsExpression<MidoriExpression::Function>();
+		const MarmotStatement::VariableDefinition& def = statement.GetStatement<MarmotStatement::VariableDefinition>();
+		const bool is_function = (def.m_value != nullptr) && def.m_value->IsExpression<MarmotExpression::Function>();
 		m_state.m_top_level_definitions.insert_or_assign(def.m_name.m_lexeme, TopLevelDefinition(statement_index, def.m_name.m_line, is_function));
 	}
-	else if (statement.IsStatement<MidoriStatement::TupleDefinition>())
+	else if (statement.IsStatement<MarmotStatement::TupleDefinition>())
 	{
-		for (const Token& name : statement.GetStatement<MidoriStatement::TupleDefinition>().m_names)
+		for (const Token& name : statement.GetStatement<MarmotStatement::TupleDefinition>().m_names)
 		{
 			m_state.m_top_level_definitions.insert_or_assign(name.m_lexeme, TopLevelDefinition(statement_index, name.m_line, false));
 		}
 	}
-	else if (statement.IsStatement<MidoriStatement::FunctionDefinition>())
+	else if (statement.IsStatement<MarmotStatement::FunctionDefinition>())
 	{
-		const MidoriStatement::FunctionDefinition& defun = statement.GetStatement<MidoriStatement::FunctionDefinition>();
+		const MarmotStatement::FunctionDefinition& defun = statement.GetStatement<MarmotStatement::FunctionDefinition>();
 		m_state.m_top_level_definitions.insert_or_assign(defun.m_name.m_lexeme, TopLevelDefinition(statement_index, defun.m_name.m_line, true));
 	}
-	else if (statement.IsStatement<MidoriStatement::ForeignDefinition>())
+	else if (statement.IsStatement<MarmotStatement::ForeignDefinition>())
 	{
-		const MidoriStatement::ForeignDefinition& foreign = statement.GetStatement<MidoriStatement::ForeignDefinition>();
+		const MarmotStatement::ForeignDefinition& foreign = statement.GetStatement<MarmotStatement::ForeignDefinition>();
 		m_state.m_top_level_definitions.insert_or_assign(foreign.m_function_name.m_lexeme, TopLevelDefinition(statement_index, foreign.m_function_name.m_line, false));
 	}
 }
@@ -1596,11 +1596,11 @@ CompilerError Parser::GenerateParserError(CompilerErrorCode code, std::string&& 
 			{
 				token_source_lines.emplace_back(std::move(line));
 			}
-			return MidoriError::GenerateParserErrorWithContext(code, std::move(message), token, token.m_file_name, token_source_lines);
+			return MarmotError::GenerateParserErrorWithContext(code, std::move(message), token, token.m_file_name, token_source_lines);
 		}
 	}
 
-	return MidoriError::GenerateParserErrorWithContext(code, std::move(message), token, token.m_file_name, *m_context.m_source_lines);
+	return MarmotError::GenerateParserErrorWithContext(code, std::move(message), token, token.m_file_name, *m_context.m_source_lines);
 }
 
 bool Parser::IsNoMatchError(const CompilerError& error) const
@@ -1734,7 +1734,7 @@ Token& Parser::Advance()
 	return Advance(m_state);
 }
 
-MidoriResult::TokenResult Parser::Consume(Token::Name type, std::string_view message)
+MarmotResult::TokenResult Parser::Consume(Token::Name type, std::string_view message)
 {
 	if (Check(type, 0))
 	{
@@ -1746,7 +1746,7 @@ MidoriResult::TokenResult Parser::Consume(Token::Name type, std::string_view mes
 	}
 }
 
-MidoriResult::TokenResult Parser::ConsumeTypeRightAngle(std::string_view message)
+MarmotResult::TokenResult Parser::ConsumeTypeRightAngle(std::string_view message)
 {
 	if (Check(Token::Name::RIGHT_ANGLE, 0))
 	{
@@ -1774,7 +1774,7 @@ MidoriResult::TokenResult Parser::ConsumeTypeRightAngle(std::string_view message
 	return std::unexpected(GenerateParserError(std::string(message), Peek(0)));
 }
 
-MidoriResult::TokenResult Parser::ConsumeReturnTypeSeparator(std::string_view message)
+MarmotResult::TokenResult Parser::ConsumeReturnTypeSeparator(std::string_view message)
 {
 	if (Check(Token::Name::THIN_ARROW, 0))
 	{
@@ -1848,7 +1848,7 @@ std::string Parser::Mangle(std::string_view name)
 	}
 }
 
-MidoriResult::TokenResult Parser::DefineName(Token& name, bool is_variable)
+MarmotResult::TokenResult Parser::DefineName(Token& name, bool is_variable)
 {
 	name.m_lexeme = Mangle(name.m_lexeme);
 
@@ -1918,19 +1918,19 @@ std::optional<int> Parser::BinaryOperatorClass(Token::Name name)
 	}
 }
 
-std::optional<CompilerError> Parser::CheckOperatorMixing(const Token& op, const MidoriExpression& operand)
+std::optional<CompilerError> Parser::CheckOperatorMixing(const Token& op, const MarmotExpression& operand)
 {
 	// Two operators of different precedence in one expression bind by a table the
 	// reader has to remember. Parentheses say it instead, so they are required:
 	// `a + b * c` is written `a + (b * c)`. A chain of one operator, or of operators
 	// that bind equally like `+` and `-`, needs none.
-	if (!operand.IsExpression<MidoriExpression::Binary>())
+	if (!operand.IsExpression<MarmotExpression::Binary>())
 	{
 		return std::nullopt;
 	}
 
 	const std::optional<int> outer_class = BinaryOperatorClass(op.m_token_name);
-	const Token& inner_op = operand.GetExpression<MidoriExpression::Binary>().m_op;
+	const Token& inner_op = operand.GetExpression<MarmotExpression::Binary>().m_op;
 	const std::optional<int> inner_class = BinaryOperatorClass(inner_op.m_token_name);
 	if (!outer_class.has_value() || !inner_class.has_value() || outer_class.value() == inner_class.value())
 	{
@@ -1940,22 +1940,22 @@ std::optional<CompilerError> Parser::CheckOperatorMixing(const Token& op, const 
 	return GenerateParserError(std::format("'{}' and '{}' do not bind equally, so mixing them needs parentheses: write the '{}' operand in its own parentheses.", op.m_lexeme, inner_op.m_lexeme, inner_op.m_lexeme), op);
 }
 
-MidoriResult::ExpressionResult Parser::ParseFactor()
+MarmotResult::ExpressionResult Parser::ParseFactor()
 {
 	return ParseBinary(&Parser::ParseUnaryLogicalBitwise, Token::Name::STAR, Token::Name::SLASH, Token::Name::PERCENT);
 }
 
-MidoriResult::ExpressionResult Parser::ParseShift()
+MarmotResult::ExpressionResult Parser::ParseShift()
 {
 	return ParseBinary(&Parser::ParseTerm, Token::Name::LEFT_SHIFT, Token::Name::RIGHT_SHIFT);
 }
 
-MidoriResult::ExpressionResult Parser::ParseRange()
+MarmotResult::ExpressionResult Parser::ParseRange()
 {
 	return ParseShift()
 		.and_then
 		(
-			[this](std::unique_ptr<MidoriExpression>&& start) -> MidoriResult::ExpressionResult
+			[this](std::unique_ptr<MarmotExpression>&& start) -> MarmotResult::ExpressionResult
 			{
 				if (!Match(Token::Name::DOUBLE_DOT))
 				{
@@ -1967,11 +1967,11 @@ MidoriResult::ExpressionResult Parser::ParseRange()
 				return ParseShift()
 					.and_then
 					(
-						[this, &first_range_op, &start](std::unique_ptr<MidoriExpression>&& middle) -> MidoriResult::ExpressionResult
+						[this, &first_range_op, &start](std::unique_ptr<MarmotExpression>&& middle) -> MarmotResult::ExpressionResult
 						{
 							if (!Match(Token::Name::DOUBLE_DOT))
 							{
-								return std::make_unique<MidoriExpression>(MidoriExpression::RangeBinary(first_range_op, std::move(start), std::move(middle)));
+								return std::make_unique<MarmotExpression>(MarmotExpression::RangeBinary(first_range_op, std::move(start), std::move(middle)));
 							}
 
 							Token second_range_op = Previous();
@@ -1979,9 +1979,9 @@ MidoriResult::ExpressionResult Parser::ParseRange()
 							return ParseShift()
 								.and_then
 								(
-									[&first_range_op, &second_range_op, &start, &middle](std::unique_ptr<MidoriExpression>&& end) -> MidoriResult::ExpressionResult
+									[&first_range_op, &second_range_op, &start, &middle](std::unique_ptr<MarmotExpression>&& end) -> MarmotResult::ExpressionResult
 									{
-										return std::make_unique<MidoriExpression>(MidoriExpression::RangeTernary(first_range_op, second_range_op, std::move(start), std::move(middle), std::move(end)));
+										return std::make_unique<MarmotExpression>(MarmotExpression::RangeTernary(first_range_op, second_range_op, std::move(start), std::move(middle), std::move(end)));
 									}
 								);
 						}
@@ -1990,37 +1990,37 @@ MidoriResult::ExpressionResult Parser::ParseRange()
 		);
 }
 
-MidoriResult::ExpressionResult Parser::ParseTerm()
+MarmotResult::ExpressionResult Parser::ParseTerm()
 {
 	return ParseBinary(&Parser::ParseFactor, Token::Name::SINGLE_PLUS, Token::Name::DOUBLE_PLUS, Token::Name::SINGLE_MINUS);
 }
 
-MidoriResult::ExpressionResult Parser::ParseComparison()
+MarmotResult::ExpressionResult Parser::ParseComparison()
 {
 	return ParseBinary(&Parser::ParseRange, Token::Name::LEFT_ANGLE, Token::Name::LESS_EQUAL, Token::Name::RIGHT_ANGLE, Token::Name::GREATER_EQUAL);
 }
 
-MidoriResult::ExpressionResult Parser::ParseEquality()
+MarmotResult::ExpressionResult Parser::ParseEquality()
 {
 	return ParseBinary(&Parser::ParseComparison, Token::Name::BANG_EQUAL, Token::Name::DOUBLE_EQUAL);
 }
 
-MidoriResult::ExpressionResult Parser::ParseBitwiseAnd()
+MarmotResult::ExpressionResult Parser::ParseBitwiseAnd()
 {
 	return ParseBinary(&Parser::ParseEquality, Token::Name::SINGLE_AMPERSAND);
 }
 
-MidoriResult::ExpressionResult Parser::ParseBitwiseXor()
+MarmotResult::ExpressionResult Parser::ParseBitwiseXor()
 {
 	return ParseBinary(&Parser::ParseBitwiseAnd, Token::Name::CARET);
 }
 
-MidoriResult::ExpressionResult Parser::ParseBitwiseOr()
+MarmotResult::ExpressionResult Parser::ParseBitwiseOr()
 {
 	return ParseBinary(&Parser::ParseBitwiseXor, Token::Name::SINGLE_BAR);
 }
 
-MidoriResult::ExpressionResult Parser::ParseUnaryLogicalBitwise()
+MarmotResult::ExpressionResult Parser::ParseUnaryLogicalBitwise()
 {
 	if (Match(Token::Name::BANG, Token::Name::TILDE, Token::Name::HASH, Token::Name::STAR))
 	{
@@ -2028,9 +2028,9 @@ MidoriResult::ExpressionResult Parser::ParseUnaryLogicalBitwise()
 		return ParseUnaryLogicalBitwise()
 			.and_then
 			(
-				[&op](std::unique_ptr<MidoriExpression>&& right) -> MidoriResult::ExpressionResult
+				[&op](std::unique_ptr<MarmotExpression>&& right) -> MarmotResult::ExpressionResult
 				{
-					return std::make_unique<MidoriExpression>(MidoriExpression::UnaryPrefix(op, std::move(right)));
+					return std::make_unique<MarmotExpression>(MarmotExpression::UnaryPrefix(op, std::move(right)));
 				}
 			);
 	}
@@ -2038,7 +2038,7 @@ MidoriResult::ExpressionResult Parser::ParseUnaryLogicalBitwise()
 	return ParseUnaryArithmetic();
 }
 
-MidoriResult::ExpressionResult Parser::ParseUnaryArithmetic()
+MarmotResult::ExpressionResult Parser::ParseUnaryArithmetic()
 {
 	if (Match(Token::Name::LEFT_ARROW, Token::Name::SINGLE_MINUS, Token::Name::SINGLE_PLUS))
 	{
@@ -2046,23 +2046,23 @@ MidoriResult::ExpressionResult Parser::ParseUnaryArithmetic()
 		return ParseUnaryLogicalBitwise()
 			.and_then
 			(
-				[&op](std::unique_ptr<MidoriExpression>&& right) -> MidoriResult::ExpressionResult
+				[&op](std::unique_ptr<MarmotExpression>&& right) -> MarmotResult::ExpressionResult
 				{
 					if (op.m_token_name == Token::Name::LEFT_ARROW)
 					{
-						return std::make_unique<MidoriExpression>(MidoriExpression::Receive(op, std::move(right)));
+						return std::make_unique<MarmotExpression>(MarmotExpression::Receive(op, std::move(right)));
 					}
 
 					// The smallest Int has no positive counterpart, so `-9223372036854775808` is one
 					// literal rather than a negation of a literal that is out of range.
 					if (op.m_token_name == Token::Name::SINGLE_MINUS && IsDecimalIntegerLiteral(*right))
 					{
-						MidoriExpression::Literal& literal = right->GetExpression<MidoriExpression::Literal>();
+						MarmotExpression::Literal& literal = right->GetExpression<MarmotExpression::Literal>();
 						literal.m_token.m_lexeme.insert(0u, 1u, '-');
 						return std::move(right);
 					}
 
-					return std::make_unique<MidoriExpression>(MidoriExpression::UnaryPrefix(op, std::move(right)));
+					return std::make_unique<MarmotExpression>(MarmotExpression::UnaryPrefix(op, std::move(right)));
 				}
 			);
 	}
@@ -2072,9 +2072,9 @@ MidoriResult::ExpressionResult Parser::ParseUnaryArithmetic()
 	}
 }
 
-MidoriResult::ExpressionResult Parser::RejectExponent(std::unique_ptr<MidoriExpression>&& literal)
+MarmotResult::ExpressionResult Parser::RejectExponent(std::unique_ptr<MarmotExpression>&& literal)
 {
-	const Token& number = literal->GetExpression<MidoriExpression::Literal>().m_token;
+	const Token& number = literal->GetExpression<MarmotExpression::Literal>().m_token;
 	const Token& next = Peek(0);
 	const bool adjacent = next.m_token_name == Token::Name::IDENTIFIER_LITERAL
 		&& next.m_line == number.m_line
@@ -2091,10 +2091,10 @@ MidoriResult::ExpressionResult Parser::RejectExponent(std::unique_ptr<MidoriExpr
 	return std::move(literal);
 }
 
-MidoriResult::ExpressionResult Parser::ParseExpression()
+MarmotResult::ExpressionResult Parser::ParseExpression()
 {
 	return ParseAs()
-		.and_then([this](std::unique_ptr<MidoriExpression>&& cell) -> MidoriResult::ExpressionResult
+		.and_then([this](std::unique_ptr<MarmotExpression>&& cell) -> MarmotResult::ExpressionResult
 		{
 			if (!Match(Token::Name::COLON_EQUAL))
 			{
@@ -2102,30 +2102,30 @@ MidoriResult::ExpressionResult Parser::ParseExpression()
 			}
 			const Token& op = Previous();
 			return ParseExpression()
-				.transform([&cell, &op](std::unique_ptr<MidoriExpression>&& value)
+				.transform([&cell, &op](std::unique_ptr<MarmotExpression>&& value)
 				{
-					return std::make_unique<MidoriExpression>(MidoriExpression::Binary(op, std::move(cell), std::move(value)));
+					return std::make_unique<MarmotExpression>(MarmotExpression::Binary(op, std::move(cell), std::move(value)));
 				});
 		});
 }
 
-MidoriResult::ExpressionResult Parser::ParseAs()
+MarmotResult::ExpressionResult Parser::ParseAs()
 {
 	return ParseLogicalOr()
 		.and_then
 		(
-			[this](std::unique_ptr<MidoriExpression>&& expr) ->MidoriResult::ExpressionResult
+			[this](std::unique_ptr<MarmotExpression>&& expr) ->MarmotResult::ExpressionResult
 			{
 				while (Match(Token::Name::AS))
 				{
 					Token& as = Previous();
-					MidoriResult::TypeResult type = ParseType();
+					MarmotResult::TypeResult type = ParseType();
 					if (!type.has_value())
 					{
 						return std::unexpected(type.error());
 					}
 
-					expr = std::make_unique<MidoriExpression>(MidoriExpression::As(as, std::move(type.value()), std::move(expr)));
+					expr = std::make_unique<MarmotExpression>(MarmotExpression::As(as, std::move(type.value()), std::move(expr)));
 				}
 
 				return expr;
@@ -2133,26 +2133,26 @@ MidoriResult::ExpressionResult Parser::ParseAs()
 		);
 }
 
-MidoriResult::ExpressionResult Parser::ParseArrayAccessHelper(std::unique_ptr<MidoriExpression>&& arr_var)
+MarmotResult::ExpressionResult Parser::ParseArrayAccessHelper(std::unique_ptr<MarmotExpression>&& arr_var)
 {
 	Token& op = Previous();
 
 	return Consume(Token::Name::LEFT_BRACKET, "Expected '[' before index.")
 		.and_then
 		(
-			[&op, &arr_var, this](Token&&) ->MidoriResult::ExpressionResult
+			[&op, &arr_var, this](Token&&) ->MarmotResult::ExpressionResult
 			{
 				return ParseLogicalOr()
 					.and_then
 					(
-						[&op, &arr_var, this](std::unique_ptr<MidoriExpression>&& index) ->MidoriResult::ExpressionResult
+						[&op, &arr_var, this](std::unique_ptr<MarmotExpression>&& index) ->MarmotResult::ExpressionResult
 						{
 							return Consume(Token::Name::RIGHT_BRACKET, "Expected ']' after index.")
 								.and_then
 								(
-									[&op, &arr_var, index = std::move(index)](Token&&) mutable ->MidoriResult::ExpressionResult
+									[&op, &arr_var, index = std::move(index)](Token&&) mutable ->MarmotResult::ExpressionResult
 									{
-										return std::make_unique<MidoriExpression>(MidoriExpression::IndexAccess(op, std::move(index), std::move(arr_var)));
+										return std::make_unique<MarmotExpression>(MarmotExpression::IndexAccess(op, std::move(index), std::move(arr_var)));
 									}
 								);
 						}
@@ -2161,12 +2161,12 @@ MidoriResult::ExpressionResult Parser::ParseArrayAccessHelper(std::unique_ptr<Mi
 		);
 }
 
-MidoriResult::ExpressionResult Parser::ParseArrayAccess()
+MarmotResult::ExpressionResult Parser::ParseArrayAccess()
 {
 	return ParsePrimary()
 		.and_then
 		(
-			[this](std::unique_ptr<MidoriExpression>&& arr_var) -> MidoriResult::ExpressionResult
+			[this](std::unique_ptr<MarmotExpression>&& arr_var) -> MarmotResult::ExpressionResult
 			{
 				// Check if we can do array access: next token is '['.
 				bool has_bracket_for_access = Check(Token::Name::LEFT_BRACKET, 0);
@@ -2178,14 +2178,14 @@ MidoriResult::ExpressionResult Parser::ParseArrayAccess()
 		);
 }
 
-MidoriResult::ExpressionResult Parser::ParsePostfixChain(std::unique_ptr<MidoriExpression>&& expr)
+MarmotResult::ExpressionResult Parser::ParsePostfixChain(std::unique_ptr<MarmotExpression>&& expr)
 {
 	if (Match(Token::Name::LEFT_PAREN))
 	{
 		return FinishCall(std::move(expr))
 			.and_then
 			(
-				[this](std::unique_ptr<MidoriExpression>&& called) -> MidoriResult::ExpressionResult
+				[this](std::unique_ptr<MarmotExpression>&& called) -> MarmotResult::ExpressionResult
 				{
 					return ParsePostfixChain(std::move(called));
 				}
@@ -2196,9 +2196,9 @@ MidoriResult::ExpressionResult Parser::ParsePostfixChain(std::unique_ptr<MidoriE
 		return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected identifier after '.'.")
 			.and_then
 			(
-				[&expr, this](Token&& name) -> MidoriResult::ExpressionResult
+				[&expr, this](Token&& name) -> MarmotResult::ExpressionResult
 				{
-					return ParsePostfixChain(std::make_unique<MidoriExpression>(MidoriExpression::MemberAccess(name, std::move(expr))));
+					return ParsePostfixChain(std::make_unique<MarmotExpression>(MarmotExpression::MemberAccess(name, std::move(expr))));
 				}
 			);
 	}
@@ -2207,7 +2207,7 @@ MidoriResult::ExpressionResult Parser::ParsePostfixChain(std::unique_ptr<MidoriE
 		return ParseArrayAccessHelper(std::move(expr))
 			.and_then
 			(
-				[this](std::unique_ptr<MidoriExpression>&& indexed) -> MidoriResult::ExpressionResult
+				[this](std::unique_ptr<MarmotExpression>&& indexed) -> MarmotResult::ExpressionResult
 				{
 					return ParsePostfixChain(std::move(indexed));
 				}
@@ -2219,21 +2219,21 @@ MidoriResult::ExpressionResult Parser::ParsePostfixChain(std::unique_ptr<MidoriE
 	}
 }
 
-MidoriResult::ExpressionResult Parser::ParseCall()
+MarmotResult::ExpressionResult Parser::ParseCall()
 {
 	return ParseArrayAccess()
 		.and_then
 		(
-			[this](std::unique_ptr<MidoriExpression>&& expr)
+			[this](std::unique_ptr<MarmotExpression>&& expr)
 			{
 				return ParsePostfixChain(std::move(expr));
 			}
 		);
 }
 
-MidoriResult::ExpressionResult Parser::FinishCall(std::unique_ptr<MidoriExpression>&& callee)
+MarmotResult::ExpressionResult Parser::FinishCall(std::unique_ptr<MarmotExpression>&& callee)
 {
-	return ParseDelimitedZeroOrMoreLimited<std::unique_ptr<MidoriExpression>>
+	return ParseDelimitedZeroOrMoreLimited<std::unique_ptr<MarmotExpression>>
 		(
 			[this]() { return ParseExpression(); },
 			[this]() { return Consume(Token::Name::COMMA, "Expected ',' after expression."); },
@@ -2241,22 +2241,22 @@ MidoriResult::ExpressionResult Parser::FinishCall(std::unique_ptr<MidoriExpressi
 		)
 		.and_then
 		(
-			[&callee, this](std::vector<std::unique_ptr<MidoriExpression>>&& arguments) ->MidoriResult::ExpressionResult
+			[&callee, this](std::vector<std::unique_ptr<MarmotExpression>>&& arguments) ->MarmotResult::ExpressionResult
 			{
-				return std::make_unique<MidoriExpression>(MidoriExpression::Call(Previous(), std::move(callee), std::move(arguments)));
+				return std::make_unique<MarmotExpression>(MarmotExpression::Call(Previous(), std::move(callee), std::move(arguments)));
 			}
 		);
 }
 
-MidoriResult::ExpressionResult Parser::FinishConstruct(Token&& constructor_token, std::shared_ptr<MidoriType>&& constructed_type, bool is_struct)
+MarmotResult::ExpressionResult Parser::FinishConstruct(Token&& constructor_token, std::shared_ptr<MarmotType>&& constructed_type, bool is_struct)
 {
-	MidoriResult::TokenResult left_paren = Consume(Token::Name::LEFT_PAREN, "Expected '(' after type.");
+	MarmotResult::TokenResult left_paren = Consume(Token::Name::LEFT_PAREN, "Expected '(' after type.");
 	if (!left_paren.has_value())
 	{
 		return std::unexpected(std::move(left_paren.error()));
 	}
 
-	MidoriResult::Result<std::vector<std::unique_ptr<MidoriExpression>>> arguments = ParseDelimitedZeroOrMoreLimited<std::unique_ptr<MidoriExpression>>
+	MarmotResult::Result<std::vector<std::unique_ptr<MarmotExpression>>> arguments = ParseDelimitedZeroOrMoreLimited<std::unique_ptr<MarmotExpression>>
 		(
 			[this]() { return ParseExpression(); },
 			[this]() { return Consume(Token::Name::COMMA, "Expected ',' after expression."); },
@@ -2269,25 +2269,25 @@ MidoriResult::ExpressionResult Parser::FinishConstruct(Token&& constructor_token
 
 	if (is_struct)
 	{
-		return std::make_unique<MidoriExpression>(MidoriExpression::Construct(constructor_token, std::move(arguments.value()), std::move(constructed_type), false, MidoriExpression::Construct::Struct{}));
+		return std::make_unique<MarmotExpression>(MarmotExpression::Construct(constructor_token, std::move(arguments.value()), std::move(constructed_type), false, MarmotExpression::Construct::Struct{}));
 	}
 
-	const int tag = constructed_type->GetType<MidoriType::UnionType>().m_member_info.at(constructor_token.m_lexeme).m_tag;
-	return std::make_unique<MidoriExpression>(MidoriExpression::Construct(constructor_token, std::move(arguments.value()), std::move(constructed_type), false, MidoriExpression::Construct::Union(tag)));
+	const int tag = constructed_type->GetType<MarmotType::UnionType>().m_member_info.at(constructor_token.m_lexeme).m_tag;
+	return std::make_unique<MarmotExpression>(MarmotExpression::Construct(constructor_token, std::move(arguments.value()), std::move(constructed_type), false, MarmotExpression::Construct::Union(tag)));
 }
 
 // The record's fields by name, in any order, each exactly once. The type
 // checker places them, since a record declared further down has no fields yet.
-MidoriResult::ExpressionResult Parser::FinishNamedConstruct(Token&& constructor_token, std::shared_ptr<MidoriType>&& constructed_type)
+MarmotResult::ExpressionResult Parser::FinishNamedConstruct(Token&& constructor_token, std::shared_ptr<MarmotType>&& constructed_type)
 {
-	MidoriResult::TokenResult left_brace = Consume(Token::Name::LEFT_BRACE, "Expected '{' after the record type.");
+	MarmotResult::TokenResult left_brace = Consume(Token::Name::LEFT_BRACE, "Expected '{' after the record type.");
 	if (!left_brace.has_value())
 	{
 		return std::unexpected(std::move(left_brace.error()));
 	}
 
 	std::vector<Token> names;
-	std::vector<std::unique_ptr<MidoriExpression>> values;
+	std::vector<std::unique_ptr<MarmotExpression>> values;
 	do
 	{
 		if (Check(Token::Name::RIGHT_BRACE, 0))
@@ -2295,7 +2295,7 @@ MidoriResult::ExpressionResult Parser::FinishNamedConstruct(Token&& constructor_
 			break;
 		}
 
-		MidoriResult::TokenResult name = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected a field name.");
+		MarmotResult::TokenResult name = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected a field name.");
 		if (!name.has_value())
 		{
 			return std::unexpected(std::move(name.error()));
@@ -2305,12 +2305,12 @@ MidoriResult::ExpressionResult Parser::FinishNamedConstruct(Token&& constructor_
 			return std::unexpected(GenerateParserError(std::format("Field '{}' is given more than once in this construction.", name->m_lexeme), name.value()));
 		}
 
-		MidoriResult::TokenResult equal = Consume(Token::Name::SINGLE_EQUAL, "Expected '=' after the field name.");
+		MarmotResult::TokenResult equal = Consume(Token::Name::SINGLE_EQUAL, "Expected '=' after the field name.");
 		if (!equal.has_value())
 		{
 			return std::unexpected(std::move(equal.error()));
 		}
-		MidoriResult::ExpressionResult value = ParseExpression();
+		MarmotResult::ExpressionResult value = ParseExpression();
 		if (!value.has_value())
 		{
 			return std::unexpected(std::move(value.error()));
@@ -2319,18 +2319,18 @@ MidoriResult::ExpressionResult Parser::FinishNamedConstruct(Token&& constructor_
 		values.push_back(std::move(value.value()));
 	} while (Match(Token::Name::COMMA));
 
-	MidoriResult::TokenResult right_brace = Consume(Token::Name::RIGHT_BRACE, "Expected '}' after the fields.");
+	MarmotResult::TokenResult right_brace = Consume(Token::Name::RIGHT_BRACE, "Expected '}' after the fields.");
 	if (!right_brace.has_value())
 	{
 		return std::unexpected(std::move(right_brace.error()));
 	}
 
-	std::unique_ptr<MidoriExpression> construct = std::make_unique<MidoriExpression>(MidoriExpression::Construct(constructor_token, std::move(values), std::move(constructed_type), false, MidoriExpression::Construct::Struct{}));
-	construct->GetExpression<MidoriExpression::Construct>().m_field_names = std::move(names);
+	std::unique_ptr<MarmotExpression> construct = std::make_unique<MarmotExpression>(MarmotExpression::Construct(constructor_token, std::move(values), std::move(constructed_type), false, MarmotExpression::Construct::Struct{}));
+	construct->GetExpression<MarmotExpression::Construct>().m_field_names = std::move(names);
 	return construct;
 }
 
-MidoriResult::ExpressionResult Parser::ParsePrimary()
+MarmotResult::ExpressionResult Parser::ParsePrimary()
 {
 	if (Match(Token::Name::LEFT_BRACE))
 	{
@@ -2345,24 +2345,24 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 		if (Match(Token::Name::RIGHT_PAREN))
 		{
 			// Empty tuple is unit
-			return std::make_unique<MidoriExpression>(MidoriExpression::Literal(Previous(), MidoriExpression::LiteralKind::Unit));
+			return std::make_unique<MarmotExpression>(MarmotExpression::Literal(Previous(), MarmotExpression::LiteralKind::Unit));
 		}
 
 		return ParseExpression()
 			.and_then
 			(
-				[this, left_paren](std::unique_ptr<MidoriExpression>&& first_expr) -> MidoriResult::ExpressionResult
+				[this, left_paren](std::unique_ptr<MarmotExpression>&& first_expr) -> MarmotResult::ExpressionResult
 				{
 					if (Match(Token::Name::COMMA))
 					{
 						// It's a tuple - parse remaining elements
-						std::vector<std::unique_ptr<MidoriExpression>> elements;
+						std::vector<std::unique_ptr<MarmotExpression>> elements;
 						elements.push_back(std::move(first_expr));
 
 						// Parse remaining tuple elements
 						do
 						{
-							MidoriResult::ExpressionResult elem_result = ParseExpression();
+							MarmotResult::ExpressionResult elem_result = ParseExpression();
 							if (!elem_result)
 							{
 								return elem_result;
@@ -2373,9 +2373,9 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 						return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after tuple elements.")
 							.and_then
 							(
-								[&elements, left_paren](Token&&) -> MidoriResult::ExpressionResult
+								[&elements, left_paren](Token&&) -> MarmotResult::ExpressionResult
 								{
-									return std::make_unique<MidoriExpression>(MidoriExpression::Tuple(left_paren, std::move(elements)));
+									return std::make_unique<MarmotExpression>(MarmotExpression::Tuple(left_paren, std::move(elements)));
 								}
 							);
 					}
@@ -2384,9 +2384,9 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 						return Consume(Token::Name::RIGHT_PAREN, "Expected right parentheses.")
 							.and_then
 							(
-								[&first_expr](Token&&) -> MidoriResult::ExpressionResult
+								[&first_expr](Token&&) -> MarmotResult::ExpressionResult
 								{
-									return std::make_unique<MidoriExpression>(MidoriExpression::Group(std::move(first_expr)));
+									return std::make_unique<MarmotExpression>(MarmotExpression::Group(std::move(first_expr)));
 								}
 							);
 					}
@@ -2398,7 +2398,7 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 		return MatchNameResolution()
 			.and_then
 			(
-				[this](Token&& variable) -> MidoriResult::ExpressionResult
+				[this](Token&& variable) -> MarmotResult::ExpressionResult
 				{
 					std::string mangled_name = Mangle(variable.m_lexeme);
 					std::string symbol_name = ExtractSymbolName(variable.m_lexeme);
@@ -2464,7 +2464,7 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 					if (!qualifier.empty())
 					{
 						// Qualified class method call (e.g., Show::show)
-						for (const MidoriType::ClassConstraint& constraint : m_state.m_active_constraints)
+						for (const MarmotType::ClassConstraint& constraint : m_state.m_active_constraints)
 						{
 							if (constraint.m_class_name != qualifier)
 							{
@@ -2474,21 +2474,21 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 							std::unordered_map<std::string, std::unordered_set<std::string>>::const_iterator tc_it = m_state.m_class_methods.find(constraint.m_class_name);
 							if (tc_it != m_state.m_class_methods.cend() && tc_it->second.contains(symbol_name))
 							{
-								return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(variable, MidoriExpression::NameContext::Global()));
+								return std::make_unique<MarmotExpression>(MarmotExpression::NameAccess(variable, MarmotExpression::NameContext::Global()));
 							}
 						}
 
 						std::unordered_map<std::string, std::unordered_set<std::string>>::const_iterator concrete_tc_it = m_state.m_class_methods.find(qualifier);
 						if (concrete_tc_it != m_state.m_class_methods.cend() && concrete_tc_it->second.contains(symbol_name))
 						{
-							return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(variable, MidoriExpression::NameContext::Global()));
+							return std::make_unique<MarmotExpression>(MarmotExpression::NameAccess(variable, MarmotExpression::NameContext::Global()));
 						}
 
 						const ImportedSymbolAccess access = ResolveImportedSymbolAccess(qualifier, symbol_name);
 						if (access == ImportedSymbolAccess::Accessible)
 						{
 							// Keep the fully qualified name so lowering can identify imports
-							return std::make_unique<MidoriExpression>(MidoriExpression::NameAccess(variable, MidoriExpression::NameContext::Global()));
+							return std::make_unique<MarmotExpression>(MarmotExpression::NameAccess(variable, MarmotExpression::NameContext::Global()));
 						}
 
 						return std::unexpected(GenerateParserError(BuildImportedSymbolAccessError(qualifier, symbol_name, access), variable));
@@ -2504,11 +2504,11 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 	}
 	else if (Match(Token::Name::TRUE, Token::Name::FALSE))
 	{
-		return std::make_unique<MidoriExpression>(MidoriExpression::Literal(Previous(), MidoriExpression::LiteralKind::Bool));
+		return std::make_unique<MarmotExpression>(MarmotExpression::Literal(Previous(), MarmotExpression::LiteralKind::Bool));
 	}
 	else if (Match(Token::Name::FLOAT_LITERAL))
 	{
-		return RejectExponent(std::make_unique<MidoriExpression>(MidoriExpression::Literal(Previous(), MidoriExpression::LiteralKind::Float)));
+		return RejectExponent(std::make_unique<MarmotExpression>(MarmotExpression::Literal(Previous(), MarmotExpression::LiteralKind::Float)));
 	}
 	else if (Match(Token::Name::INTEGER_LITERAL))
 	{
@@ -2525,28 +2525,28 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 			if (value <= 0xFF)
 			{
 				// Fits in Byte (0-255)
-				return std::make_unique<MidoriExpression>(MidoriExpression::Literal(token, MidoriExpression::LiteralKind::Byte));
+				return std::make_unique<MarmotExpression>(MarmotExpression::Literal(token, MarmotExpression::LiteralKind::Byte));
 			}
 			else if (value <= static_cast<uint64_t>(std::numeric_limits<int64_t>::max()))
 			{
 				// Fits in signed Int
-				return std::make_unique<MidoriExpression>(MidoriExpression::Literal(token, MidoriExpression::LiteralKind::Integer));
+				return std::make_unique<MarmotExpression>(MarmotExpression::Literal(token, MarmotExpression::LiteralKind::Integer));
 			}
 			else
 			{
 				// Needs Word (unsigned 64-bit)
-				return std::make_unique<MidoriExpression>(MidoriExpression::Literal(token, MidoriExpression::LiteralKind::Word));
+				return std::make_unique<MarmotExpression>(MarmotExpression::Literal(token, MarmotExpression::LiteralKind::Word));
 			}
 		}
 		else
 		{
 			// Decimal literal - an Integer literal
-			return RejectExponent(std::make_unique<MidoriExpression>(MidoriExpression::Literal(token, MidoriExpression::LiteralKind::Integer)));
+			return RejectExponent(std::make_unique<MarmotExpression>(MarmotExpression::Literal(token, MarmotExpression::LiteralKind::Integer)));
 		}
 	}
 	else if (Match(Token::Name::TEXT_LITERAL))
 	{
-		return std::make_unique<MidoriExpression>(MidoriExpression::Literal(Previous(), MidoriExpression::LiteralKind::Text));
+		return std::make_unique<MarmotExpression>(MarmotExpression::Literal(Previous(), MarmotExpression::LiteralKind::Text));
 	}
 	else if (Match(Token::Name::LEFT_BRACKET))
 	{
@@ -2555,7 +2555,7 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 		// Check for empty array first
 		if (Match(Token::Name::RIGHT_BRACKET))
 		{
-			return std::make_unique<MidoriExpression>(MidoriExpression::Array(op, {}));
+			return std::make_unique<MarmotExpression>(MarmotExpression::Array(op, {}));
 		}
 
 		// Probe for comprehension intent before parsing the first element.
@@ -2571,16 +2571,16 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 		return ParseExpression()
 			.and_then
 			(
-				[&op, this](std::unique_ptr<MidoriExpression>&& first_expr) -> MidoriResult::ExpressionResult
+				[&op, this](std::unique_ptr<MarmotExpression>&& first_expr) -> MarmotResult::ExpressionResult
 				{
 					if (Match(Token::Name::COMMA))
 					{
 						// Parse remaining elements
-						return ParseDelimitedZeroOrMoreLimited<std::unique_ptr<MidoriExpression>>
+						return ParseDelimitedZeroOrMoreLimited<std::unique_ptr<MarmotExpression>>
 							(
 								[this]() { return ParseExpression(); },
 								[this]() { return Consume(Token::Name::COMMA, "Expected ',' after expression."); },
-								[this]() -> MidoriResult::TokenResult
+								[this]() -> MarmotResult::TokenResult
 								{
 									if (Match(Token::Name::RIGHT_BRACKET))
 									{
@@ -2594,19 +2594,19 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 							)
 							.and_then
 							(
-								[&op, first_expr = std::move(first_expr)](std::vector<std::unique_ptr<MidoriExpression>>&& expressions) mutable -> MidoriResult::ExpressionResult
+								[&op, first_expr = std::move(first_expr)](std::vector<std::unique_ptr<MarmotExpression>>&& expressions) mutable -> MarmotResult::ExpressionResult
 								{
 									expressions.insert(expressions.begin(), std::move(first_expr));
-									return std::make_unique<MidoriExpression>(MidoriExpression::Array(op, std::move(expressions)));
+									return std::make_unique<MarmotExpression>(MarmotExpression::Array(op, std::move(expressions)));
 								}
 							);
 					}
 					else if (Match(Token::Name::RIGHT_BRACKET))
 					{
 						// Single element array
-						std::vector<std::unique_ptr<MidoriExpression>> expressions;
+						std::vector<std::unique_ptr<MarmotExpression>> expressions;
 						expressions.emplace_back(std::move(first_expr));
-						return std::make_unique<MidoriExpression>(MidoriExpression::Array(op, std::move(expressions)));
+						return std::make_unique<MarmotExpression>(MarmotExpression::Array(op, std::move(expressions)));
 					}
 					else
 					{
@@ -2633,33 +2633,33 @@ MidoriResult::ExpressionResult Parser::ParsePrimary()
 	}
 }
 
-MidoriResult::ExpressionResult Parser::ParseLogicalAnd()
+MarmotResult::ExpressionResult Parser::ParseLogicalAnd()
 {
 	return ParseBinary(&Parser::ParseSend, Token::Name::DOUBLE_AMPERSAND);
 }
 
-MidoriResult::ExpressionResult Parser::ParseLogicalOr()
+MarmotResult::ExpressionResult Parser::ParseLogicalOr()
 {
 	return ParseBinary(&Parser::ParseLogicalAnd, Token::Name::DOUBLE_BAR);
 }
 
-MidoriResult::ExpressionResult Parser::ParseSend()
+MarmotResult::ExpressionResult Parser::ParseSend()
 {
 	return ParsePipe()
 		.and_then
 		(
-			[this](std::unique_ptr<MidoriExpression>&& left_expr) -> MidoriResult::ExpressionResult
+			[this](std::unique_ptr<MarmotExpression>&& left_expr) -> MarmotResult::ExpressionResult
 			{
 				while (Match(Token::Name::THIN_ARROW))
 				{
 					Token& arrow = Previous();
-					MidoriResult::ExpressionResult right = ParsePipe();
+					MarmotResult::ExpressionResult right = ParsePipe();
 					if (!right.has_value())
 					{
 						return std::unexpected(std::move(right.error()));
 					}
 
-					left_expr = std::make_unique<MidoriExpression>(MidoriExpression::Send(arrow, std::move(left_expr), std::move(right.value())));
+					left_expr = std::make_unique<MarmotExpression>(MarmotExpression::Send(arrow, std::move(left_expr), std::move(right.value())));
 				}
 
 				return left_expr;
@@ -2667,12 +2667,12 @@ MidoriResult::ExpressionResult Parser::ParseSend()
 		);
 }
 
-MidoriResult::ExpressionResult Parser::ParsePipe()
+MarmotResult::ExpressionResult Parser::ParsePipe()
 {
 	return ParseBitwiseOr()
 		.and_then
 		(
-			[this](std::unique_ptr<MidoriExpression>&& left_expr) -> MidoriResult::ExpressionResult
+			[this](std::unique_ptr<MarmotExpression>&& left_expr) -> MarmotResult::ExpressionResult
 			{
 				while (Match(Token::Name::BAR_BRACKET))
 				{
@@ -2681,7 +2681,7 @@ MidoriResult::ExpressionResult Parser::ParsePipe()
 					if (Match(Token::Name::MATCH))
 					{
 						Token& match_keyword = Previous();
-						MidoriResult::ExpressionResult right = ParseMatchExpressionWithScrutinee(match_keyword, std::move(left_expr));
+						MarmotResult::ExpressionResult right = ParseMatchExpressionWithScrutinee(match_keyword, std::move(left_expr));
 						if (!right.has_value())
 						{
 							return std::unexpected(std::move(right.error()));
@@ -2692,7 +2692,7 @@ MidoriResult::ExpressionResult Parser::ParsePipe()
 					}
 
 					m_state.m_next_function_is_pipe_stage = Peek(0).m_token_name == Token::Name::FUNCTION;
-					MidoriResult::ExpressionResult right = ParseBitwiseOr();
+					MarmotResult::ExpressionResult right = ParseBitwiseOr();
 					if (!right.has_value())
 					{
 						return std::unexpected(std::move(right.error()));
@@ -2707,23 +2707,23 @@ MidoriResult::ExpressionResult Parser::ParsePipe()
 					// A construction is not a Call node, so it needs its own branch.
 					// Prepending at parse time is also what lets the piped value take part in generic
 					// inference on the same footing as a written argument.
-					if (right.value()->IsExpression<MidoriExpression::Call>())
+					if (right.value()->IsExpression<MarmotExpression::Call>())
 					{
-						MidoriExpression::Call& call_expr = right.value()->GetExpression<MidoriExpression::Call>();
+						MarmotExpression::Call& call_expr = right.value()->GetExpression<MarmotExpression::Call>();
 						call_expr.m_arguments.insert(call_expr.m_arguments.begin(), std::move(left_expr));
 						left_expr = std::move(right.value());
 					}
-					else if (right.value()->IsExpression<MidoriExpression::Construct>())
+					else if (right.value()->IsExpression<MarmotExpression::Construct>())
 					{
-						MidoriExpression::Construct& construct_expr = right.value()->GetExpression<MidoriExpression::Construct>();
+						MarmotExpression::Construct& construct_expr = right.value()->GetExpression<MarmotExpression::Construct>();
 						construct_expr.m_params.insert(construct_expr.m_params.begin(), std::move(left_expr));
 						left_expr = std::move(right.value());
 					}
 					else
 					{
-						std::vector<std::unique_ptr<MidoriExpression>> arguments;
+						std::vector<std::unique_ptr<MarmotExpression>> arguments;
 						arguments.emplace_back(std::move(left_expr));
-						left_expr = std::make_unique<MidoriExpression>(MidoriExpression::Call(pipe_op, std::move(right.value()), std::move(arguments)));
+						left_expr = std::make_unique<MarmotExpression>(MarmotExpression::Call(pipe_op, std::move(right.value()), std::move(arguments)));
 					}
 				}
 
@@ -2805,24 +2805,24 @@ bool Parser::ProbeRecordUpdate()
 	}
 }
 
-MidoriResult::ExpressionResult Parser::ParseRecordUpdate()
+MarmotResult::ExpressionResult Parser::ParseRecordUpdate()
 {
 	// Called with the opening '{' already consumed and ProbeRecordUpdate() having said
 	// there is a 'with' at depth 0 ahead of any ';' or '}'.
-	MidoriResult::ExpressionResult source_result = ParseExpression();
+	MarmotResult::ExpressionResult source_result = ParseExpression();
 	if (!source_result.has_value())
 	{
 		return source_result;
 	}
 
-	MidoriResult::TokenResult with_result = Consume(Token::Name::WITH, "Expected 'with' in record update.");
+	MarmotResult::TokenResult with_result = Consume(Token::Name::WITH, "Expected 'with' in record update.");
 	if (!with_result.has_value())
 	{
 		return std::unexpected(std::move(with_result.error()));
 	}
 	Token with_keyword = with_result.value();
 
-	std::vector<MidoriExpression::RecordUpdate::FieldUpdate> updates;
+	std::vector<MarmotExpression::RecordUpdate::FieldUpdate> updates;
 	std::vector<std::string> seen_paths;
 
 	while (true)
@@ -2830,7 +2830,7 @@ MidoriResult::ExpressionResult Parser::ParseRecordUpdate()
 		std::vector<Token> path;
 		do
 		{
-			MidoriResult::TokenResult name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected field name in record update.");
+			MarmotResult::TokenResult name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected field name in record update.");
 			if (!name_result.has_value())
 			{
 				return std::unexpected(std::move(name_result.error()));
@@ -2850,13 +2850,13 @@ MidoriResult::ExpressionResult Parser::ParseRecordUpdate()
 		}
 		seen_paths.push_back(joined);
 
-		MidoriResult::TokenResult equal_result = Consume(Token::Name::SINGLE_EQUAL, "Expected '=' after field name in record update.");
+		MarmotResult::TokenResult equal_result = Consume(Token::Name::SINGLE_EQUAL, "Expected '=' after field name in record update.");
 		if (!equal_result.has_value())
 		{
 			return std::unexpected(std::move(equal_result.error()));
 		}
 
-		MidoriResult::ExpressionResult value_result = ParseExpression();
+		MarmotResult::ExpressionResult value_result = ParseExpression();
 		if (!value_result.has_value())
 		{
 			return value_result;
@@ -2879,16 +2879,16 @@ MidoriResult::ExpressionResult Parser::ParseRecordUpdate()
 	return Consume(Token::Name::RIGHT_BRACE, "Expected '}' after record update fields.")
 		.and_then
 		(
-			[&with_keyword, &source_result, &updates](Token&&) -> MidoriResult::ExpressionResult
+			[&with_keyword, &source_result, &updates](Token&&) -> MarmotResult::ExpressionResult
 			{
-				return std::make_unique<MidoriExpression>(MidoriExpression::RecordUpdate(with_keyword, std::move(source_result.value()), std::move(updates)));
+				return std::make_unique<MarmotExpression>(MarmotExpression::RecordUpdate(with_keyword, std::move(source_result.value()), std::move(updates)));
 			}
 		);
 }
 
-MidoriResult::ExpressionResult Parser::ParseBlockExpression()
+MarmotResult::ExpressionResult Parser::ParseBlockExpression()
 {
-	std::function<MidoriResult::ExpressionResult(std::vector<std::unique_ptr<MidoriStatement>>&&, std::unique_ptr<MidoriExpression>&&)> build_block = [this](std::vector<std::unique_ptr<MidoriStatement>>&& stmts, std::unique_ptr<MidoriExpression>&& final_expr) -> MidoriResult::ExpressionResult
+	std::function<MarmotResult::ExpressionResult(std::vector<std::unique_ptr<MarmotStatement>>&&, std::unique_ptr<MarmotExpression>&&)> build_block = [this](std::vector<std::unique_ptr<MarmotStatement>>&& stmts, std::unique_ptr<MarmotExpression>&& final_expr) -> MarmotResult::ExpressionResult
 		{
 			return Consume(Token::Name::RIGHT_BRACE, "Expected '}' after block expression.")
 				.and_then
@@ -2897,21 +2897,21 @@ MidoriResult::ExpressionResult Parser::ParseBlockExpression()
 					{
 						EndScope();
 						return final_expr != nullptr
-							? MidoriResult::ExpressionResult(std::make_unique<MidoriExpression>(MidoriExpression::Block(right_brace, std::move(stmts), std::move(final_expr))))
-							: MidoriResult::ExpressionResult(std::make_unique<MidoriExpression>(MidoriExpression::Block(right_brace, std::move(stmts))));
+							? MarmotResult::ExpressionResult(std::make_unique<MarmotExpression>(MarmotExpression::Block(right_brace, std::move(stmts), std::move(final_expr))))
+							: MarmotResult::ExpressionResult(std::make_unique<MarmotExpression>(MarmotExpression::Block(right_brace, std::move(stmts))));
 					}
 				);
 		};
 
 	BeginScope();
-	return ParseZeroOrMoreUnlimited<std::unique_ptr<MidoriStatement>>([this]() { return ParseDeclaration(); })
+	return ParseZeroOrMoreUnlimited<std::unique_ptr<MarmotStatement>>([this]() { return ParseDeclaration(); })
 		.and_then
 		(
-			[&build_block, this](std::vector<std::unique_ptr<MidoriStatement>>&& stmts) ->MidoriResult::ExpressionResult
+			[&build_block, this](std::vector<std::unique_ptr<MarmotStatement>>&& stmts) ->MarmotResult::ExpressionResult
 			{
-				return TryParser<std::unique_ptr<MidoriExpression>>
+				return TryParser<std::unique_ptr<MarmotExpression>>
 					(
-						[this]() -> MidoriResult::ExpressionResult
+						[this]() -> MarmotResult::ExpressionResult
 						{
 							// Peek ahead: if next token is '}', do NOT try to parse an expression
 							if (Check(Token::Name::RIGHT_BRACE, 0))
@@ -2926,14 +2926,14 @@ MidoriResult::ExpressionResult Parser::ParseBlockExpression()
 					)
 					.and_then
 					(
-						[&stmts, &build_block](std::unique_ptr<MidoriExpression>&& final_expr) -> MidoriResult::ExpressionResult
+						[&stmts, &build_block](std::unique_ptr<MarmotExpression>&& final_expr) -> MarmotResult::ExpressionResult
 						{
 							return build_block(std::move(stmts), std::move(final_expr));
 						}
 					)
 					.or_else
 					(
-						[&stmts, &build_block](CompilerError&& err) -> MidoriResult::ExpressionResult
+						[&stmts, &build_block](CompilerError&& err) -> MarmotResult::ExpressionResult
 						{
 							// Only fall back if this was an intentional absence
 							if (err.IsNoMatch())
@@ -2948,7 +2948,7 @@ MidoriResult::ExpressionResult Parser::ParseBlockExpression()
 		);
 }
 
-MidoriResult::ExpressionResult Parser::ParseForExpression()
+MarmotResult::ExpressionResult Parser::ParseForExpression()
 {
 	Token& for_keyword = Previous();
 
@@ -2967,7 +2967,7 @@ MidoriResult::ExpressionResult Parser::ParseForExpression()
 	return ParseExpression()
 		.and_then
 		(
-			[&for_keyword, &loop_variable, &in_keyword, this](std::unique_ptr<MidoriExpression>&& range)->MidoriResult::ExpressionResult
+			[&for_keyword, &loop_variable, &in_keyword, this](std::unique_ptr<MarmotExpression>&& range)->MarmotResult::ExpressionResult
 			{
 				BeginScope();
 
@@ -2982,12 +2982,12 @@ MidoriResult::ExpressionResult Parser::ParseForExpression()
 				return ParseExpression()
 					.and_then
 					(
-						[&for_keyword, &loop_variable, &in_keyword, range = std::move(range), var_index, this](std::unique_ptr<MidoriExpression>&& body) mutable ->MidoriResult::ExpressionResult
+						[&for_keyword, &loop_variable, &in_keyword, range = std::move(range), var_index, this](std::unique_ptr<MarmotExpression>&& body) mutable ->MarmotResult::ExpressionResult
 						{
 							EndScope();
 
-							std::unique_ptr<MidoriExpression> for_expr = std::make_unique<MidoriExpression>(MidoriExpression::For(for_keyword, loop_variable, in_keyword, std::move(range), std::move(body)));
-							MidoriExpression::For& for_expr_ref = for_expr->GetExpression<MidoriExpression::For>();
+							std::unique_ptr<MarmotExpression> for_expr = std::make_unique<MarmotExpression>(MarmotExpression::For(for_keyword, loop_variable, in_keyword, std::move(range), std::move(body)));
+							MarmotExpression::For& for_expr_ref = for_expr->GetExpression<MarmotExpression::For>();
 							for_expr_ref.m_loop_variable_index = var_index;
 							return for_expr;
 						}
@@ -3081,7 +3081,7 @@ Parser::ArrayComprehensionProbe Parser::ProbeArrayComprehension()
 	}
 }
 
-MidoriResult::ExpressionResult Parser::ParseArrayComprehension(Token& bracket, const ArrayComprehensionProbe& probe)
+MarmotResult::ExpressionResult Parser::ParseArrayComprehension(Token& bracket, const ArrayComprehensionProbe& probe)
 {
 	bool scope_open = false;
 	auto close_scope = [this, &scope_open]()
@@ -3111,7 +3111,7 @@ MidoriResult::ExpressionResult Parser::ParseArrayComprehension(Token& bracket, c
 	return ParseExpression()
 		.and_then
 		(
-			[&bracket, &close_scope, var_index, this](std::unique_ptr<MidoriExpression>&& transform_expr) -> MidoriResult::ExpressionResult
+			[&bracket, &close_scope, var_index, this](std::unique_ptr<MarmotExpression>&& transform_expr) -> MarmotResult::ExpressionResult
 			{
 				if (!Match(Token::Name::FOR))
 				{
@@ -3136,7 +3136,7 @@ MidoriResult::ExpressionResult Parser::ParseArrayComprehension(Token& bracket, c
 				return ParseExpression()
 					.and_then
 					(
-						[&bracket, &actual_loop_var, &in_keyword, &close_scope, var_index, transform_expr = std::move(transform_expr), this](std::unique_ptr<MidoriExpression>&& range) mutable -> MidoriResult::ExpressionResult
+						[&bracket, &actual_loop_var, &in_keyword, &close_scope, var_index, transform_expr = std::move(transform_expr), this](std::unique_ptr<MarmotExpression>&& range) mutable -> MarmotResult::ExpressionResult
 						{
 							if (!Match(Token::Name::RIGHT_BRACKET))
 							{
@@ -3150,9 +3150,9 @@ MidoriResult::ExpressionResult Parser::ParseArrayComprehension(Token& bracket, c
 								return std::unexpected(GenerateParserError("Internal error: array comprehension loop binding was not initialized.", actual_loop_var));
 							}
 
-							std::unique_ptr<MidoriExpression> comp_expr = std::make_unique<MidoriExpression>(MidoriExpression::ArrayComprehension(bracket, actual_loop_var, in_keyword, std::move(transform_expr), std::move(range)));
+							std::unique_ptr<MarmotExpression> comp_expr = std::make_unique<MarmotExpression>(MarmotExpression::ArrayComprehension(bracket, actual_loop_var, in_keyword, std::move(transform_expr), std::move(range)));
 
-							MidoriExpression::ArrayComprehension& comp_ref = comp_expr->GetExpression<MidoriExpression::ArrayComprehension>();
+							MarmotExpression::ArrayComprehension& comp_ref = comp_expr->GetExpression<MarmotExpression::ArrayComprehension>();
 							comp_ref.m_loop_variable_index = var_index;
 
 							return comp_expr;
@@ -3160,7 +3160,7 @@ MidoriResult::ExpressionResult Parser::ParseArrayComprehension(Token& bracket, c
 					)
 					.or_else
 					(
-						[&close_scope](CompilerError&& error) -> MidoriResult::ExpressionResult
+						[&close_scope](CompilerError&& error) -> MarmotResult::ExpressionResult
 						{
 							close_scope();
 							return std::unexpected(std::move(error));
@@ -3170,7 +3170,7 @@ MidoriResult::ExpressionResult Parser::ParseArrayComprehension(Token& bracket, c
 		)
 		.or_else
 		(
-			[&close_scope](CompilerError&& error) -> MidoriResult::ExpressionResult
+			[&close_scope](CompilerError&& error) -> MarmotResult::ExpressionResult
 			{
 				close_scope();
 				return std::unexpected(std::move(error));
@@ -3178,7 +3178,7 @@ MidoriResult::ExpressionResult Parser::ParseArrayComprehension(Token& bracket, c
 		);
 }
 
-MidoriResult::StatementResult Parser::ParseDefineStatement()
+MarmotResult::StatementResult Parser::ParseDefineStatement()
 {
 	if (Match(Token::Name::LEFT_PAREN))
 	{
@@ -3187,7 +3187,7 @@ MidoriResult::StatementResult Parser::ParseDefineStatement()
 
 		do
 		{
-			MidoriResult::TokenResult name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected identifier in tuple pattern.");
+			MarmotResult::TokenResult name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected identifier in tuple pattern.");
 			if (!name_result)
 			{
 				return std::unexpected(name_result.error());
@@ -3196,7 +3196,7 @@ MidoriResult::StatementResult Parser::ParseDefineStatement()
 			Token var_name = std::move(name_result.value());
 			constexpr bool is_variable = true;
 
-			MidoriResult::TokenResult defined_name_result = DefineName(var_name, is_variable);
+			MarmotResult::TokenResult defined_name_result = DefineName(var_name, is_variable);
 			if (!defined_name_result)
 			{
 				return std::unexpected(defined_name_result.error());
@@ -3213,12 +3213,12 @@ MidoriResult::StatementResult Parser::ParseDefineStatement()
 		return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after tuple pattern.")
 			.and_then
 			(
-				[&names, &local_indices, this](Token&&) -> MidoriResult::StatementResult
+				[&names, &local_indices, this](Token&&) -> MarmotResult::StatementResult
 				{
 					return Consume(Token::Name::SINGLE_EQUAL, "Expected '=' after tuple pattern.")
 						.and_then
 						(
-							[&names, &local_indices, this](Token&&) -> MidoriResult::StatementResult
+							[&names, &local_indices, this](Token&&) -> MarmotResult::StatementResult
 							{
 								std::vector<std::string> pending_names;
 								pending_names.reserve(names.size());
@@ -3228,14 +3228,14 @@ MidoriResult::StatementResult Parser::ParseDefineStatement()
 								return ParseExpression()
 									.and_then
 									(
-										[&names, &local_indices, this](std::unique_ptr<MidoriExpression>&& expr) -> MidoriResult::StatementResult
+										[&names, &local_indices, this](std::unique_ptr<MarmotExpression>&& expr) -> MarmotResult::StatementResult
 										{
 											return Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after tuple binding.")
 												.and_then
 												(
-													[&names, &local_indices, &expr](Token&&) -> MidoriResult::StatementResult
+													[&names, &local_indices, &expr](Token&&) -> MarmotResult::StatementResult
 													{
-														return std::make_unique<MidoriStatement>(MidoriStatement::TupleDefinition(std::move(names), std::move(expr), std::move(local_indices)));
+														return std::make_unique<MarmotStatement>(MarmotStatement::TupleDefinition(std::move(names), std::move(expr), std::move(local_indices)));
 													}
 												);
 										}
@@ -3250,35 +3250,35 @@ MidoriResult::StatementResult Parser::ParseDefineStatement()
 	return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected name.")
 		.and_then
 		(
-			[this](Token&& var_name) -> MidoriResult::StatementResult
+			[this](Token&& var_name) -> MarmotResult::StatementResult
 			{
 				constexpr bool is_variable = true;
 				return DefineName(var_name, is_variable)
 					.and_then
 					(
-						[this](Token&& define_name) -> MidoriResult::StatementResult
+						[this](Token&& define_name) -> MarmotResult::StatementResult
 						{
-							std::function<MidoriResult::StatementResult(std::optional<std::shared_ptr<MidoriType>>)> def_aux_func = [&define_name, this](std::optional<std::shared_ptr<MidoriType>> type_annotation)
+							std::function<MarmotResult::StatementResult(std::optional<std::shared_ptr<MarmotType>>)> def_aux_func = [&define_name, this](std::optional<std::shared_ptr<MarmotType>> type_annotation)
 								{
 									std::optional<int> local_index = RegisterOrUpdateLocalVariable(define_name.m_lexeme);
 
 									return Consume(Token::Name::SINGLE_EQUAL, "Expected '=' after defining a name.")
 										.and_then
 										(
-											[&define_name, &type_annotation, &local_index, this](Token&&) -> MidoriResult::StatementResult
+											[&define_name, &type_annotation, &local_index, this](Token&&) -> MarmotResult::StatementResult
 											{
 												const PendingDefinitionGuard pending(this, { define_name.m_lexeme });
 												return ParseExpression()
 													.and_then
 													(
-														[&define_name, &type_annotation, &local_index, this](std::unique_ptr<MidoriExpression>&& expr) -> MidoriResult::StatementResult
+														[&define_name, &type_annotation, &local_index, this](std::unique_ptr<MarmotExpression>&& expr) -> MarmotResult::StatementResult
 														{
 															return Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after name binding.")
 																.and_then
 																(
-																	[&define_name, &expr, &type_annotation, &local_index](Token&&) -> MidoriResult::StatementResult
+																	[&define_name, &expr, &type_annotation, &local_index](Token&&) -> MarmotResult::StatementResult
 																	{
-																		return std::make_unique<MidoriStatement>(MidoriStatement::VariableDefinition(define_name, std::move(expr), std::move(type_annotation), std::move(local_index)));
+																		return std::make_unique<MarmotStatement>(MarmotStatement::VariableDefinition(define_name, std::move(expr), std::move(type_annotation), std::move(local_index)));
 																	}
 																);
 														}
@@ -3292,7 +3292,7 @@ MidoriResult::StatementResult Parser::ParseDefineStatement()
 								return ParseType()
 									.and_then
 									(
-										[&def_aux_func](std::shared_ptr<MidoriType>&& type)->MidoriResult::StatementResult
+										[&def_aux_func](std::shared_ptr<MarmotType>&& type)->MarmotResult::StatementResult
 										{
 											return def_aux_func(std::move(type));
 										}
@@ -3310,7 +3310,7 @@ MidoriResult::StatementResult Parser::ParseDefineStatement()
 
 std::expected<Parser::TypeDeclarationHeader, CompilerError> Parser::ParseTypeDeclarationHeader(std::string_view noun, std::string_view capitalized_noun)
 {
-	MidoriResult::TokenResult name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected "s + std::string(noun) + " name."s);
+	MarmotResult::TokenResult name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected "s + std::string(noun) + " name."s);
 	if (!name_result.has_value())
 	{
 		return std::unexpected(name_result.error());
@@ -3326,7 +3326,7 @@ std::expected<Parser::TypeDeclarationHeader, CompilerError> Parser::ParseTypeDec
 	}
 
 	constexpr bool is_variable = false;
-	MidoriResult::TokenResult defined_name_result = DefineName(declaration_name, is_variable);
+	MarmotResult::TokenResult defined_name_result = DefineName(declaration_name, is_variable);
 	if (!defined_name_result.has_value())
 	{
 		return std::unexpected(defined_name_result.error());
@@ -3341,7 +3341,7 @@ std::expected<Parser::TypeDeclarationHeader, CompilerError> Parser::ParseTypeDec
 		header.m_has_generic_params = true;
 		BeginScope();
 
-		MidoriResult::TokenListResult generic_parse_result = ParseGenericParameters(&header.m_generic_param_types);
+		MarmotResult::TokenListResult generic_parse_result = ParseGenericParameters(&header.m_generic_param_types);
 		if (!generic_parse_result.has_value())
 		{
 			EndScope();
@@ -3358,7 +3358,7 @@ std::expected<Parser::TypeDeclarationHeader, CompilerError> Parser::ParseTypeDec
 			return std::unexpected(GenerateParserError(std::string(capitalized_noun) + " constraints require at least one type parameter."s, header.m_name));
 		}
 
-		std::expected<std::vector<MidoriType::ClassConstraint>, CompilerError> constraints_result = ParseClassConstraints(header.m_name);
+		std::expected<std::vector<MarmotType::ClassConstraint>, CompilerError> constraints_result = ParseClassConstraints(header.m_name);
 		if (!constraints_result.has_value())
 		{
 			return std::unexpected(constraints_result.error());
@@ -3370,9 +3370,9 @@ std::expected<Parser::TypeDeclarationHeader, CompilerError> Parser::ParseTypeDec
 	return header;
 }
 
-MidoriResult::StatementResult Parser::ParseStructBody(TypeDeclarationHeader&& header)
+MarmotResult::StatementResult Parser::ParseStructBody(TypeDeclarationHeader&& header)
 {
-	MidoriResult::TokenResult brace_result = Consume(Token::Name::LEFT_BRACE, "Expected '{' before struct body.");
+	MarmotResult::TokenResult brace_result = Consume(Token::Name::LEFT_BRACE, "Expected '{' before struct body.");
 	if (!brace_result.has_value())
 	{
 		return std::unexpected(brace_result.error());
@@ -3383,8 +3383,8 @@ MidoriResult::StatementResult Parser::ParseStructBody(TypeDeclarationHeader&& he
 
 	// Registered before the fields are parsed, as a union is before its variants,
 	// so a field can name the record it belongs to.
-	std::shared_ptr<MidoriType> struct_type = DeclaredTypeFor(header, MidoriType::MakeStructType(header.m_name.m_lexeme, CurrentModuleName(), {}, {}, std::move(generic_param_names)));
-	struct_type->GetType<MidoriType::StructType>().m_constraints = header.m_constraints;
+	std::shared_ptr<MarmotType> struct_type = DeclaredTypeFor(header, MarmotType::MakeStructType(header.m_name.m_lexeme, CurrentModuleName(), {}, {}, std::move(generic_param_names)));
+	struct_type->GetType<MarmotType::StructType>().m_constraints = header.m_constraints;
 	const size_t type_scope_idx = header.m_has_generic_params ? m_state.m_scopes.size() - 2uz : m_state.m_scopes.size() - 1uz;
 	m_state.m_scopes[type_scope_idx].m_defined_types[header.m_name.m_lexeme] = struct_type;
 
@@ -3393,7 +3393,7 @@ MidoriResult::StatementResult Parser::ParseStructBody(TypeDeclarationHeader&& he
 	(
 		[this]() -> std::expected<StructMemberTuple, CompilerError>
 		{
-			MidoriResult::TokenResult member_name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected struct member name.");
+			MarmotResult::TokenResult member_name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected struct member name.");
 			if (!member_name_result.has_value())
 			{
 				return std::unexpected(member_name_result.error());
@@ -3401,13 +3401,13 @@ MidoriResult::StatementResult Parser::ParseStructBody(TypeDeclarationHeader&& he
 
 			Token member_name = std::move(member_name_result.value());
 
-			MidoriResult::TokenResult colon_result = Consume(Token::Name::SINGLE_COLON, "Expected ':' before struct member type token.");
+			MarmotResult::TokenResult colon_result = Consume(Token::Name::SINGLE_COLON, "Expected ':' before struct member type token.");
 			if (!colon_result.has_value())
 			{
 				return std::unexpected(colon_result.error());
 			}
 
-			MidoriResult::TypeResult member_type_result = ParseType();
+			MarmotResult::TypeResult member_type_result = ParseType();
 			if (!member_type_result.has_value())
 			{
 				return std::unexpected(member_type_result.error());
@@ -3435,15 +3435,15 @@ MidoriResult::StatementResult Parser::ParseStructBody(TypeDeclarationHeader&& he
 		deriving_targets = std::move(deriving_result.value());
 	}
 
-	MidoriResult::TokenResult semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after struct body.");
+	MarmotResult::TokenResult semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after struct body.");
 	if (!semicolon_result.has_value())
 	{
 		return std::unexpected(semicolon_result.error());
 	}
 
 	StructMemberSplit member_split = SplitStructMemberTuples(std::move(members_result.value()));
-	struct_type->GetType<MidoriType::StructType>().m_member_types = std::move(member_split.m_types);
-	struct_type->GetType<MidoriType::StructType>().m_member_names = std::move(member_split.m_names);
+	struct_type->GetType<MarmotType::StructType>().m_member_types = std::move(member_split.m_types);
+	struct_type->GetType<MarmotType::StructType>().m_member_names = std::move(member_split.m_names);
 	CompleteType(struct_type);
 
 	// End the generic param scope if it was created
@@ -3454,7 +3454,7 @@ MidoriResult::StatementResult Parser::ParseStructBody(TypeDeclarationHeader&& he
 
 	m_state.m_scopes.back().m_struct_constructors[header.m_name.m_lexeme] = struct_type;
 
-	MidoriStatement::Struct struct_stmt(header.m_name, std::vector<Token>(header.m_generic_params), std::vector<MidoriType::ClassConstraint>(header.m_constraints), std::shared_ptr<MidoriType>(struct_type));
+	MarmotStatement::Struct struct_stmt(header.m_name, std::vector<Token>(header.m_generic_params), std::vector<MarmotType::ClassConstraint>(header.m_constraints), std::shared_ptr<MarmotType>(struct_type));
 	if (!deriving_targets.empty())
 	{
 		std::expected<void, CompilerError> derive_result = QueueDerivedStructStatements(struct_stmt, deriving_targets);
@@ -3464,18 +3464,18 @@ MidoriResult::StatementResult Parser::ParseStructBody(TypeDeclarationHeader&& he
 		}
 	}
 
-	return std::make_unique<MidoriStatement>(MidoriStatement::Struct(std::move(header.m_name), std::move(header.m_generic_params), std::move(header.m_constraints), std::move(struct_type)));
+	return std::make_unique<MarmotStatement>(MarmotStatement::Struct(std::move(header.m_name), std::move(header.m_generic_params), std::move(header.m_constraints), std::move(struct_type)));
 }
 
-MidoriResult::StatementResult Parser::ParseUnionBody(TypeDeclarationHeader&& header)
+MarmotResult::StatementResult Parser::ParseUnionBody(TypeDeclarationHeader&& header)
 {
 	// The caller has already consumed the '=': ParseTypeDeclaration takes it before
 	// dispatching on the shape of the body that follows.
 	std::vector<std::string> generic_param_names;
 	std::ranges::transform(header.m_generic_params, std::back_inserter(generic_param_names), [](const Token& tok) { return tok.m_lexeme; });
 
-	std::shared_ptr<MidoriType> union_type = DeclaredTypeFor(header, MidoriType::MakeUnionType(header.m_name.m_lexeme, CurrentModuleName(), std::move(generic_param_names)));
-	MidoriType::UnionType& union_type_ref = union_type->GetType<MidoriType::UnionType>();
+	std::shared_ptr<MarmotType> union_type = DeclaredTypeFor(header, MarmotType::MakeUnionType(header.m_name.m_lexeme, CurrentModuleName(), std::move(generic_param_names)));
+	MarmotType::UnionType& union_type_ref = union_type->GetType<MarmotType::UnionType>();
 	union_type_ref.m_constraints = header.m_constraints;
 
 	// Registered before the body is parsed so that a variant can name the union it
@@ -3495,7 +3495,7 @@ MidoriResult::StatementResult Parser::ParseUnionBody(TypeDeclarationHeader&& hea
 		(
 			[&constructor_names, &tag, this]() -> std::expected<UnionMemberTuple, CompilerError>
 			{
-				MidoriResult::TokenResult member_name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected union member name.");
+				MarmotResult::TokenResult member_name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected union member name.");
 				if (!member_name_result.has_value())
 				{
 					return std::unexpected(member_name_result.error());
@@ -3505,7 +3505,7 @@ MidoriResult::StatementResult Parser::ParseUnionBody(TypeDeclarationHeader&& hea
 				member_name.m_lexeme = Mangle(member_name.m_lexeme);
 
 				constexpr bool is_variable = false;
-				MidoriResult::TokenResult defined_member_result = DefineName(member_name, is_variable);
+				MarmotResult::TokenResult defined_member_result = DefineName(member_name, is_variable);
 				if (!defined_member_result.has_value())
 				{
 					return std::unexpected(defined_member_result.error());
@@ -3514,10 +3514,10 @@ MidoriResult::StatementResult Parser::ParseUnionBody(TypeDeclarationHeader&& hea
 				member_name = std::move(defined_member_result.value());
 				constructor_names.push_back(member_name);
 
-				std::vector<std::shared_ptr<MidoriType>> member_types;
+				std::vector<std::shared_ptr<MarmotType>> member_types;
 				if (Match(Token::Name::LEFT_PAREN))
 				{
-					MidoriResult::TypeListResult member_types_result = ParseDelimitedZeroOrMoreLimited<std::shared_ptr<MidoriType>>
+					MarmotResult::TypeListResult member_types_result = ParseDelimitedZeroOrMoreLimited<std::shared_ptr<MarmotType>>
 					(
 						[this]() { return ParseType(); },
 						[this]() { return Consume(Token::Name::COMMA, "Expected ',' after type."); },
@@ -3553,7 +3553,7 @@ MidoriResult::StatementResult Parser::ParseUnionBody(TypeDeclarationHeader&& hea
 		? m_state.m_scopes[m_state.m_scopes.size() - 2]
 		: m_state.m_scopes.back();
 
-	for (const std::pair<const std::string, MidoriType::UnionType::UnionMemberContext>& member_info_entry : union_type_ref.m_member_info)
+	for (const std::pair<const std::string, MarmotType::UnionType::UnionMemberContext>& member_info_entry : union_type_ref.m_member_info)
 	{
 		constructor_scope.m_union_constructors[member_info_entry.first] = union_type;
 	}
@@ -3570,7 +3570,7 @@ MidoriResult::StatementResult Parser::ParseUnionBody(TypeDeclarationHeader&& hea
 		deriving_targets = std::move(deriving_result.value());
 	}
 
-	MidoriResult::TokenResult semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after union body.");
+	MarmotResult::TokenResult semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after union body.");
 	if (!semicolon_result.has_value())
 	{
 		return std::unexpected(semicolon_result.error());
@@ -3583,7 +3583,7 @@ MidoriResult::StatementResult Parser::ParseUnionBody(TypeDeclarationHeader&& hea
 		EndScope();
 	}
 
-	MidoriStatement::Union union_stmt(header.m_name, std::vector<Token>(header.m_generic_params), std::vector<Token>(constructor_names), std::vector<MidoriType::ClassConstraint>(header.m_constraints), std::shared_ptr<MidoriType>(union_type));
+	MarmotStatement::Union union_stmt(header.m_name, std::vector<Token>(header.m_generic_params), std::vector<Token>(constructor_names), std::vector<MarmotType::ClassConstraint>(header.m_constraints), std::shared_ptr<MarmotType>(union_type));
 	if (!deriving_targets.empty())
 	{
 		std::expected<void, CompilerError> derive_result = QueueDerivedUnionStatements(union_stmt, deriving_targets);
@@ -3593,7 +3593,7 @@ MidoriResult::StatementResult Parser::ParseUnionBody(TypeDeclarationHeader&& hea
 		}
 	}
 
-	return std::make_unique<MidoriStatement>(MidoriStatement::Union(std::move(header.m_name), std::move(header.m_generic_params), std::move(constructor_names), std::move(header.m_constraints), std::move(union_type)));
+	return std::make_unique<MarmotStatement>(MarmotStatement::Union(std::move(header.m_name), std::move(header.m_generic_params), std::move(constructor_names), std::move(header.m_constraints), std::move(union_type)));
 }
 
 bool Parser::TypeBodyHasTopLevelBar()
@@ -3688,15 +3688,15 @@ bool Parser::TypeBodyHasTopLevelBar()
 	return false;
 }
 
-MidoriResult::StatementResult Parser::ParseNewTypeBody(TypeDeclarationHeader&& header)
+MarmotResult::StatementResult Parser::ParseNewTypeBody(TypeDeclarationHeader&& header)
 {
 	std::vector<std::string> generic_param_names;
 	std::ranges::transform(header.m_generic_params, std::back_inserter(generic_param_names), [](const Token& generic_param) { return generic_param.m_lexeme; });
 
-	std::shared_ptr<MidoriType> new_type = DeclaredTypeFor(header, MidoriType::MakeNewType(header.m_name.m_lexeme, CurrentModuleName(), MidoriType::MakeLiteralType<MidoriType::UnitType>(), std::move(generic_param_names)));
-	new_type->GetType<MidoriType::NewType>().m_constraints = header.m_constraints;
+	std::shared_ptr<MarmotType> new_type = DeclaredTypeFor(header, MarmotType::MakeNewType(header.m_name.m_lexeme, CurrentModuleName(), MarmotType::MakeLiteralType<MarmotType::UnitType>(), std::move(generic_param_names)));
+	new_type->GetType<MarmotType::NewType>().m_constraints = header.m_constraints;
 
-	MidoriResult::TypeResult representation_result = [&new_type, this]()
+	MarmotResult::TypeResult representation_result = [&new_type, this]()
 		{
 			DeclaringTypeScope declaring_scope(m_state.m_types_being_declared, new_type);
 			return ParseType();
@@ -3706,18 +3706,18 @@ MidoriResult::StatementResult Parser::ParseNewTypeBody(TypeDeclarationHeader&& h
 		return std::unexpected(representation_result.error());
 	}
 
-	new_type->GetType<MidoriType::NewType>().m_representation = std::move(representation_result.value());
+	new_type->GetType<MarmotType::NewType>().m_representation = std::move(representation_result.value());
 	CompleteType(new_type);
 
 	// A newtype is its representation wherever it is erased, so one that
 	// contains itself, directly or through another newtype, never ends.
-	std::unordered_set<const MidoriType*> visited;
-	if (RepresentationNames(new_type->GetType<MidoriType::NewType>().m_representation, new_type.get(), visited))
+	std::unordered_set<const MarmotType*> visited;
+	if (RepresentationNames(new_type->GetType<MarmotType::NewType>().m_representation, new_type.get(), visited))
 	{
-		return std::unexpected(GenerateParserError(std::format("A newtype cannot contain itself: '{}' is represented by {}.", header.m_name.m_lexeme, new_type->GetType<MidoriType::NewType>().m_representation->DisplayString()), header.m_name));
+		return std::unexpected(GenerateParserError(std::format("A newtype cannot contain itself: '{}' is represented by {}.", header.m_name.m_lexeme, new_type->GetType<MarmotType::NewType>().m_representation->DisplayString()), header.m_name));
 	}
 
-	MidoriResult::TokenResult semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after newtype definition.");
+	MarmotResult::TokenResult semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after newtype definition.");
 	if (!semicolon_result.has_value())
 	{
 		return std::unexpected(semicolon_result.error());
@@ -3732,10 +3732,10 @@ MidoriResult::StatementResult Parser::ParseNewTypeBody(TypeDeclarationHeader&& h
 	// nominal type rather than to its representation.
 	m_state.m_scopes.back().m_defined_types[header.m_name.m_lexeme] = new_type;
 
-	return std::make_unique<MidoriStatement>(MidoriStatement::TypeAlias(std::move(header.m_name), std::move(header.m_generic_params), std::move(new_type)));
+	return std::make_unique<MarmotStatement>(MarmotStatement::TypeAlias(std::move(header.m_name), std::move(header.m_generic_params), std::move(new_type)));
 }
 
-MidoriResult::StatementResult Parser::ParseTypeDeclaration()
+MarmotResult::StatementResult Parser::ParseTypeDeclaration()
 {
 	const bool is_top_level = m_state.m_scopes.size() == 1uz;
 	std::expected<TypeDeclarationHeader, CompilerError> header_result = ParseTypeDeclarationHeader("type", "Type");
@@ -3744,7 +3744,7 @@ MidoriResult::StatementResult Parser::ParseTypeDeclaration()
 		return std::unexpected(header_result.error());
 	}
 
-	MidoriResult::TokenResult equal_result = Consume(Token::Name::SINGLE_EQUAL, "Expected '=' after type name.");
+	MarmotResult::TokenResult equal_result = Consume(Token::Name::SINGLE_EQUAL, "Expected '=' after type name.");
 	if (!equal_result.has_value())
 	{
 		return std::unexpected(equal_result.error());
@@ -3781,7 +3781,7 @@ MidoriResult::StatementResult Parser::ParseTypeDeclaration()
 	return ParseUnionBody(std::move(header_result.value()));
 }
 
-MidoriResult::StatementResult Parser::ParseAliasDeclaration()
+MarmotResult::StatementResult Parser::ParseAliasDeclaration()
 {
 	// The header gives an alias the same prologue every nominal declaration has, and
 	// with it the scope that binds `T` while `= Box<T>` is parsed.
@@ -3800,21 +3800,21 @@ MidoriResult::StatementResult Parser::ParseAliasDeclaration()
 		return std::unexpected(GenerateParserError("Alias declarations cannot carry 'where' constraints. Constrain the type the alias expands to instead.", header.m_name));
 	}
 
-	MidoriResult::TokenResult equal_result = Consume(Token::Name::SINGLE_EQUAL, "Expected '=' after alias name.");
+	MarmotResult::TokenResult equal_result = Consume(Token::Name::SINGLE_EQUAL, "Expected '=' after alias name.");
 	if (!equal_result.has_value())
 	{
 		return std::unexpected(equal_result.error());
 	}
 
-	MidoriResult::TypeResult aliased_type_result = ParseType();
+	MarmotResult::TypeResult aliased_type_result = ParseType();
 	if (!aliased_type_result.has_value())
 	{
 		return std::unexpected(aliased_type_result.error());
 	}
 
-	std::shared_ptr<MidoriType> aliased_type = std::move(aliased_type_result.value());
+	std::shared_ptr<MarmotType> aliased_type = std::move(aliased_type_result.value());
 
-	MidoriResult::TokenResult semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after alias definition.");
+	MarmotResult::TokenResult semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after alias definition.");
 	if (!semicolon_result.has_value())
 	{
 		return std::unexpected(semicolon_result.error());
@@ -3839,12 +3839,12 @@ MidoriResult::StatementResult Parser::ParseAliasDeclaration()
 		m_state.m_scopes.back().m_alias_generic_params[header.m_name.m_lexeme] = std::move(generic_param_names);
 	}
 
-	return std::make_unique<MidoriStatement>(MidoriStatement::TypeAlias(std::move(header.m_name), std::move(header.m_generic_params), std::move(aliased_type)));
+	return std::make_unique<MarmotStatement>(MarmotStatement::TypeAlias(std::move(header.m_name), std::move(header.m_generic_params), std::move(aliased_type)));
 }
 
-MidoriResult::StatementResult Parser::ParseClassDeclaration()
+MarmotResult::StatementResult Parser::ParseClassDeclaration()
 {
-	MidoriResult::TokenResult class_name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected class name.");
+	MarmotResult::TokenResult class_name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected class name.");
 	if (!class_name_result.has_value())
 	{
 		return std::unexpected(class_name_result.error());
@@ -3857,7 +3857,7 @@ MidoriResult::StatementResult Parser::ParseClassDeclaration()
 		return std::unexpected(GenerateParserError("Class name must start with a capital letter.", typeclass_name));
 	}
 
-	MidoriResult::TokenResult defined_name_result = DefineName(typeclass_name, false);
+	MarmotResult::TokenResult defined_name_result = DefineName(typeclass_name, false);
 	if (!defined_name_result.has_value())
 	{
 		return std::unexpected(defined_name_result.error());
@@ -3889,8 +3889,8 @@ MidoriResult::StatementResult Parser::ParseClassDeclaration()
 	} scope_guard(this);
 
 	std::vector<Token> type_params;
-	std::vector<std::shared_ptr<MidoriType>> type_param_types;
-	MidoriResult::TokenListResult generic_parse_result = ParseGenericParameters(&type_param_types);
+	std::vector<std::shared_ptr<MarmotType>> type_param_types;
+	MarmotResult::TokenListResult generic_parse_result = ParseGenericParameters(&type_param_types);
 	if (!generic_parse_result.has_value())
 	{
 		return std::unexpected(generic_parse_result.error());
@@ -3903,14 +3903,14 @@ MidoriResult::StatementResult Parser::ParseClassDeclaration()
 	std::vector<std::string>& associated_type_names = m_state.m_typeclass_associated_types[typeclass_name.m_lexeme];
 	associated_type_names.clear();
 
-	MidoriResult::TokenResult brace_result = Consume(Token::Name::LEFT_BRACE, "Expected '{' before class body.");
+	MarmotResult::TokenResult brace_result = Consume(Token::Name::LEFT_BRACE, "Expected '{' before class body.");
 	if (!brace_result.has_value())
 	{
 		return std::unexpected(brace_result.error());
 	}
 
-	std::vector<MidoriStatement::Class::AssociatedTypeDeclaration> associated_types;
-	std::vector<std::unique_ptr<MidoriStatement>> methods;
+	std::vector<MarmotStatement::Class::AssociatedTypeDeclaration> associated_types;
+	std::vector<std::unique_ptr<MarmotStatement>> methods;
 	while (!Match(Token::Name::RIGHT_BRACE))
 	{
 		if (IsAtEnd())
@@ -3920,7 +3920,7 @@ MidoriResult::StatementResult Parser::ParseClassDeclaration()
 
 		if (Match(Token::Name::TYPE))
 		{
-			MidoriResult::TokenResult assoc_name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected associated type name.");
+			MarmotResult::TokenResult assoc_name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected associated type name.");
 			if (!assoc_name_result.has_value())
 			{
 				return std::unexpected(assoc_name_result.error());
@@ -3933,27 +3933,27 @@ MidoriResult::StatementResult Parser::ParseClassDeclaration()
 				return std::unexpected(GenerateParserError("Associated type name must start with a capital letter.", assoc_name));
 			}
 
-			MidoriResult::TokenResult defined_assoc_result = DefineName(assoc_name, false);
+			MarmotResult::TokenResult defined_assoc_result = DefineName(assoc_name, false);
 			if (!defined_assoc_result.has_value())
 			{
 				return std::unexpected(defined_assoc_result.error());
 			}
 			assoc_name = std::move(defined_assoc_result.value());
 
-			MidoriResult::TokenResult assoc_semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after associated type declaration.");
+			MarmotResult::TokenResult assoc_semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after associated type declaration.");
 			if (!assoc_semicolon_result.has_value())
 			{
 				return std::unexpected(assoc_semicolon_result.error());
 			}
 
 			associated_type_names.push_back(assoc_name.m_lexeme);
-			std::vector<std::shared_ptr<MidoriType>> associated_type_args = type_param_types;
-			m_state.m_scopes.back().m_defined_types[assoc_name.m_lexeme] = MidoriType::MakeAssociatedType(typeclass_name.m_lexeme, assoc_name.m_lexeme, std::move(associated_type_args));
+			std::vector<std::shared_ptr<MarmotType>> associated_type_args = type_param_types;
+			m_state.m_scopes.back().m_defined_types[assoc_name.m_lexeme] = MarmotType::MakeAssociatedType(typeclass_name.m_lexeme, assoc_name.m_lexeme, std::move(associated_type_args));
 			associated_types.emplace_back(assoc_name);
 			continue;
 		}
 
-		MidoriResult::TokenResult method_name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected method name.");
+		MarmotResult::TokenResult method_name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected method name.");
 		if (!method_name_result.has_value())
 		{
 			return std::unexpected(method_name_result.error());
@@ -3962,43 +3962,43 @@ MidoriResult::StatementResult Parser::ParseClassDeclaration()
 		Token method_name = std::move(method_name_result.value());
 		std::string method_name_str = method_name.m_lexeme;
 
-		MidoriResult::TokenResult colon_result = Consume(Token::Name::SINGLE_COLON, "Expected ':' after method name.");
+		MarmotResult::TokenResult colon_result = Consume(Token::Name::SINGLE_COLON, "Expected ':' after method name.");
 		if (!colon_result.has_value())
 		{
 			return std::unexpected(colon_result.error());
 		}
 
-		MidoriResult::TokenResult function_result = Consume(Token::Name::FUNCTION, "Expected 'fn' in method signature.");
+		MarmotResult::TokenResult function_result = Consume(Token::Name::FUNCTION, "Expected 'fn' in method signature.");
 		if (!function_result.has_value())
 		{
 			return std::unexpected(function_result.error());
 		}
 
-		MidoriResult::TokenResult left_paren_result = Consume(Token::Name::LEFT_PAREN, "Expected '(' before method parameters.");
+		MarmotResult::TokenResult left_paren_result = Consume(Token::Name::LEFT_PAREN, "Expected '(' before method parameters.");
 		if (!left_paren_result.has_value())
 		{
 			return std::unexpected(left_paren_result.error());
 		}
 
-		using MethodParam = std::tuple<Token, std::shared_ptr<MidoriType>>;
+		using MethodParam = std::tuple<Token, std::shared_ptr<MarmotType>>;
 		std::expected<std::vector<MethodParam>, CompilerError> params_result = ParseDelimitedZeroOrMoreLimited<MethodParam>
 		(
 			[this]() -> std::expected<MethodParam, CompilerError>
 			{
-				MidoriResult::TokenResult param_name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected parameter name.");
+				MarmotResult::TokenResult param_name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected parameter name.");
 				if (!param_name_result.has_value())
 				{
 					return std::unexpected(param_name_result.error());
 				}
 
 				Token param_name = std::move(param_name_result.value());
-				MidoriResult::TokenResult param_colon_result = Consume(Token::Name::SINGLE_COLON, "Expected ':' after parameter name.");
+				MarmotResult::TokenResult param_colon_result = Consume(Token::Name::SINGLE_COLON, "Expected ':' after parameter name.");
 				if (!param_colon_result.has_value())
 				{
 					return std::unexpected(param_colon_result.error());
 				}
 
-				MidoriResult::TypeResult param_type_result = ParseType();
+				MarmotResult::TypeResult param_type_result = ParseType();
 				if (!param_type_result.has_value())
 				{
 					return std::unexpected(param_type_result.error());
@@ -4014,26 +4014,26 @@ MidoriResult::StatementResult Parser::ParseClassDeclaration()
 			return std::unexpected(std::move(params_result.error()));
 		}
 
-		MidoriResult::TokenResult arrow_result = Consume(Token::Name::THIN_ARROW, "Expected '->' before return type.");
+		MarmotResult::TokenResult arrow_result = Consume(Token::Name::THIN_ARROW, "Expected '->' before return type.");
 		if (!arrow_result.has_value())
 		{
 			return std::unexpected(arrow_result.error());
 		}
 
-		MidoriResult::TypeResult return_type_result = ParseType();
+		MarmotResult::TypeResult return_type_result = ParseType();
 		if (!return_type_result.has_value())
 		{
 			return std::unexpected(return_type_result.error());
 		}
-		std::shared_ptr<MidoriType> return_type = std::move(return_type_result.value());
+		std::shared_ptr<MarmotType> return_type = std::move(return_type_result.value());
 
-		MidoriResult::TokenResult method_semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after method signature.");
+		MarmotResult::TokenResult method_semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after method signature.");
 		if (!method_semicolon_result.has_value())
 		{
 			return std::unexpected(method_semicolon_result.error());
 		}
 
-		std::vector<std::shared_ptr<MidoriType>> param_types;
+		std::vector<std::shared_ptr<MarmotType>> param_types;
 		std::vector<Token> param_tokens;
 		param_types.reserve(params_result->size());
 		param_tokens.reserve(params_result->size());
@@ -4043,22 +4043,22 @@ MidoriResult::StatementResult Parser::ParseClassDeclaration()
 			param_tokens.emplace_back(std::move(std::get<0>(tuple)));
 		}
 
-		std::vector<std::shared_ptr<MidoriType>> param_types_copy = param_types;
-		std::shared_ptr<MidoriType> return_type_copy = return_type;
-		std::shared_ptr<MidoriType> method_type = MidoriType::MakeFunctionType(std::move(param_types_copy), std::move(return_type_copy));
+		std::vector<std::shared_ptr<MarmotType>> param_types_copy = param_types;
+		std::shared_ptr<MarmotType> return_type_copy = return_type;
+		std::shared_ptr<MarmotType> method_type = MarmotType::MakeFunctionType(std::move(param_types_copy), std::move(return_type_copy));
 
 		m_state.m_class_methods[typeclass_name.m_lexeme].insert(method_name_str);
 		m_state.m_typeclass_method_types[typeclass_name.m_lexeme][method_name_str] = method_type;
 		methods.emplace_back
 		(
-			std::make_unique<MidoriStatement>
+			std::make_unique<MarmotStatement>
 			(
-				MidoriStatement::FunctionDefinition(method_name, std::vector<Token>(), std::move(param_tokens), std::move(param_types), std::move(return_type), nullptr, std::nullopt, 0, std::vector<MidoriType::ClassConstraint>())
+				MarmotStatement::FunctionDefinition(method_name, std::vector<Token>(), std::move(param_tokens), std::move(param_types), std::move(return_type), nullptr, std::nullopt, 0, std::vector<MarmotType::ClassConstraint>())
 			)
 		);
 	}
 
-	MidoriResult::TokenResult class_semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after class body.");
+	MarmotResult::TokenResult class_semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after class body.");
 	if (!class_semicolon_result.has_value())
 	{
 		return std::unexpected(class_semicolon_result.error());
@@ -4067,15 +4067,15 @@ MidoriResult::StatementResult Parser::ParseClassDeclaration()
 	scope_guard.m_parser = nullptr;
 	EndScope();
 
-	return std::make_unique<MidoriStatement>
+	return std::make_unique<MarmotStatement>
 	(
-		MidoriStatement::Class(std::move(typeclass_name), std::move(type_params), std::move(associated_types), std::move(methods))
+		MarmotStatement::Class(std::move(typeclass_name), std::move(type_params), std::move(associated_types), std::move(methods))
 	);
 }
 
-MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
+MarmotResult::StatementResult Parser::ParseInstanceDeclaration()
 {
-	MidoriResult::TokenResult class_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected class name.");
+	MarmotResult::TokenResult class_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected class name.");
 	if (!class_result.has_value())
 	{
 		return std::unexpected(class_result.error());
@@ -4087,7 +4087,7 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 		return std::unexpected(GenerateParserError("Unknown class '" + typeclass_name.m_lexeme + "'.", typeclass_name));
 	}
 
-	MidoriResult::TokenResult angle_result = Consume(Token::Name::LEFT_ANGLE, "Expected '<' before type arguments.");
+	MarmotResult::TokenResult angle_result = Consume(Token::Name::LEFT_ANGLE, "Expected '<' before type arguments.");
 	if (!angle_result.has_value())
 	{
 		return std::unexpected(angle_result.error());
@@ -4139,10 +4139,10 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 		ImplicitGenericParamGuard& operator=(const ImplicitGenericParamGuard&) = delete;
 	};
 
-	std::vector<std::shared_ptr<MidoriType>> type_args;
+	std::vector<std::shared_ptr<MarmotType>> type_args;
 	{
 		ImplicitGenericParamGuard implicit_guard(this);
-		MidoriResult::TypeListResult type_args_result = ParseDelimitedZeroOrMoreLimited<std::shared_ptr<MidoriType>>
+		MarmotResult::TypeListResult type_args_result = ParseDelimitedZeroOrMoreLimited<std::shared_ptr<MarmotType>>
 			(
 				[this]() { return ParseType(); },
 				[this]() { return Consume(Token::Name::COMMA, "Expected ',' between type arguments."); },
@@ -4160,10 +4160,10 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 		return std::unexpected(GenerateParserError("Instance must have at least one type argument.", typeclass_name));
 	}
 
-	std::vector<MidoriType::ClassConstraint> constraints;
+	std::vector<MarmotType::ClassConstraint> constraints;
 	if (Match(Token::Name::WHERE))
 	{
-		std::expected<std::vector<MidoriType::ClassConstraint>, CompilerError> constraints_result = ParseClassConstraints(typeclass_name);
+		std::expected<std::vector<MarmotType::ClassConstraint>, CompilerError> constraints_result = ParseClassConstraints(typeclass_name);
 		if (!constraints_result.has_value())
 		{
 			return std::unexpected(constraints_result.error());
@@ -4176,16 +4176,16 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 	PushActiveConstraints(constraints);
 	ActiveConstraintGuard constraint_guard(this, prev_constraints_size);
 
-	MidoriResult::TokenResult brace_result = Consume(Token::Name::LEFT_BRACE, "Expected '{' before instance methods.");
+	MarmotResult::TokenResult brace_result = Consume(Token::Name::LEFT_BRACE, "Expected '{' before instance methods.");
 	if (!brace_result.has_value())
 	{
 		return std::unexpected(brace_result.error());
 	}
 
 	const std::vector<std::string>& declared_associated_types = m_state.m_typeclass_associated_types[typeclass_name.m_lexeme];
-	std::vector<MidoriStatement::Instance::AssociatedTypeBinding> associated_types;
+	std::vector<MarmotStatement::Instance::AssociatedTypeBinding> associated_types;
 	std::unordered_set<std::string> bound_associated_type_names;
-	std::vector<std::unique_ptr<MidoriStatement>> methods;
+	std::vector<std::unique_ptr<MarmotStatement>> methods;
 
 	while (!Match(Token::Name::RIGHT_BRACE))
 	{
@@ -4196,7 +4196,7 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 
 		if (Match(Token::Name::TYPE))
 		{
-			MidoriResult::TokenResult assoc_name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected associated type name.");
+			MarmotResult::TokenResult assoc_name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected associated type name.");
 			if (!assoc_name_result.has_value())
 			{
 				return std::unexpected(assoc_name_result.error());
@@ -4213,34 +4213,34 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 				return std::unexpected(GenerateParserError("Duplicate associated type binding '" + assoc_name.m_lexeme + "'.", assoc_name));
 			}
 
-			MidoriResult::TokenResult defined_assoc_result = DefineName(assoc_name, false);
+			MarmotResult::TokenResult defined_assoc_result = DefineName(assoc_name, false);
 			if (!defined_assoc_result.has_value())
 			{
 				return std::unexpected(defined_assoc_result.error());
 			}
 			assoc_name = std::move(defined_assoc_result.value());
 
-			MidoriResult::TokenResult equals_result = Consume(Token::Name::SINGLE_EQUAL, "Expected '=' after associated type name.");
+			MarmotResult::TokenResult equals_result = Consume(Token::Name::SINGLE_EQUAL, "Expected '=' after associated type name.");
 			if (!equals_result.has_value())
 			{
 				return std::unexpected(equals_result.error());
 			}
 
-			MidoriResult::TypeResult assoc_type_result = ParseType();
+			MarmotResult::TypeResult assoc_type_result = ParseType();
 			if (!assoc_type_result.has_value())
 			{
 				return std::unexpected(assoc_type_result.error());
 			}
-			std::shared_ptr<MidoriType> assoc_type = std::move(assoc_type_result.value());
+			std::shared_ptr<MarmotType> assoc_type = std::move(assoc_type_result.value());
 
-			MidoriResult::TokenResult assoc_semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after associated type binding.");
+			MarmotResult::TokenResult assoc_semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after associated type binding.");
 			if (!assoc_semicolon_result.has_value())
 			{
 				return std::unexpected(assoc_semicolon_result.error());
 			}
 
 			m_state.m_scopes.back().m_defined_types[assoc_name.m_lexeme] = assoc_type;
-			associated_types.emplace_back(assoc_name, std::shared_ptr<MidoriType>(assoc_type));
+			associated_types.emplace_back(assoc_name, std::shared_ptr<MarmotType>(assoc_type));
 			continue;
 		}
 
@@ -4251,20 +4251,20 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 			return std::unexpected(GenerateParserError("Expected 'def' or associated type binding in instance body.", Peek(0)));
 		}
 
-		MidoriResult::TokenResult method_name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected method name.");
+		MarmotResult::TokenResult method_name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected method name.");
 		if (!method_name_result.has_value())
 		{
 			return std::unexpected(method_name_result.error());
 		}
 		Token method_name = std::move(method_name_result.value());
 
-		MidoriResult::TokenResult method_equal_result = Consume(Token::Name::SINGLE_EQUAL, "Expected '=' after instance method name.");
+		MarmotResult::TokenResult method_equal_result = Consume(Token::Name::SINGLE_EQUAL, "Expected '=' after instance method name.");
 		if (!method_equal_result.has_value())
 		{
 			return std::unexpected(method_equal_result.error());
 		}
 
-		MidoriResult::TokenResult method_function_result = Consume(Token::Name::FUNCTION, "Expected 'fn' after '=' in an instance method binding.");
+		MarmotResult::TokenResult method_function_result = Consume(Token::Name::FUNCTION, "Expected 'fn' after '=' in an instance method binding.");
 		if (!method_function_result.has_value())
 		{
 			return std::unexpected(method_function_result.error());
@@ -4277,7 +4277,7 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 			has_generic_params = true;
 			BeginScope();
 
-			MidoriResult::TokenListResult generic_parse_result = ParseGenericParameters(nullptr);
+			MarmotResult::TokenListResult generic_parse_result = ParseGenericParameters(nullptr);
 			if (!generic_parse_result.has_value())
 			{
 				EndScope();
@@ -4287,7 +4287,7 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 			generic_params = std::move(generic_parse_result.value());
 		}
 
-		MidoriResult::TokenResult left_paren_result = Consume(Token::Name::LEFT_PAREN, "Expected '(' before method parameters.");
+		MarmotResult::TokenResult left_paren_result = Consume(Token::Name::LEFT_PAREN, "Expected '(' before method parameters.");
 		if (!left_paren_result.has_value())
 		{
 			if (has_generic_params)
@@ -4303,7 +4303,7 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 		m_state.m_total_locals_in_curr_scope = 0;
 		BeginScope();
 
-		MidoriResult::FunctionParamsResult params_parse_result = ParseFunctionParameters();
+		MarmotResult::FunctionParamsResult params_parse_result = ParseFunctionParameters();
 		if (!params_parse_result.has_value())
 		{
 			EndScope();
@@ -4317,12 +4317,12 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 			return std::unexpected(params_parse_result.error());
 		}
 
-		std::vector<std::pair<Token, std::shared_ptr<MidoriType>>> param_tuples = std::move(params_parse_result.value());
+		std::vector<std::pair<Token, std::shared_ptr<MarmotType>>> param_tuples = std::move(params_parse_result.value());
 		ParamSplit split = SplitParamTuples(std::move(param_tuples));
 		std::vector<Token> params = std::move(split.m_params);
-		std::vector<std::shared_ptr<MidoriType>> param_types = std::move(split.m_types);
+		std::vector<std::shared_ptr<MarmotType>> param_types = std::move(split.m_types);
 
-		MidoriResult::TokenResult return_colon_result = ConsumeReturnTypeSeparator("Expected '->' before return type.");
+		MarmotResult::TokenResult return_colon_result = ConsumeReturnTypeSeparator("Expected '->' before return type.");
 		if (!return_colon_result.has_value())
 		{
 			EndScope();
@@ -4336,7 +4336,7 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 			return std::unexpected(return_colon_result.error());
 		}
 
-		MidoriResult::TypeResult return_type_result = ParseType();
+		MarmotResult::TypeResult return_type_result = ParseType();
 		if (!return_type_result.has_value())
 		{
 			EndScope();
@@ -4349,9 +4349,9 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 			}
 			return std::unexpected(return_type_result.error());
 		}
-		std::shared_ptr<MidoriType> return_type = std::move(return_type_result.value());
+		std::shared_ptr<MarmotType> return_type = std::move(return_type_result.value());
 
-		MidoriResult::TokenResult fat_arrow_result = Consume(Token::Name::FAT_ARROW, "Expected '=>' before method body.");
+		MarmotResult::TokenResult fat_arrow_result = Consume(Token::Name::FAT_ARROW, "Expected '=>' before method body.");
 		if (!fat_arrow_result.has_value())
 		{
 			EndScope();
@@ -4365,7 +4365,7 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 			return std::unexpected(fat_arrow_result.error());
 		}
 
-		MidoriResult::ExpressionResult body_result = ParseExpression();
+		MarmotResult::ExpressionResult body_result = ParseExpression();
 		if (!body_result.has_value())
 		{
 			EndScope();
@@ -4378,9 +4378,9 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 			}
 			return std::unexpected(body_result.error());
 		}
-		std::unique_ptr<MidoriExpression> body = std::move(body_result.value());
+		std::unique_ptr<MarmotExpression> body = std::move(body_result.value());
 
-		MidoriResult::TokenResult method_semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after method body.");
+		MarmotResult::TokenResult method_semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after method body.");
 		if (!method_semicolon_result.has_value())
 		{
 			EndScope();
@@ -4405,9 +4405,9 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 
 		methods.emplace_back
 		(
-			std::make_unique<MidoriStatement>
+			std::make_unique<MarmotStatement>
 			(
-				MidoriStatement::FunctionDefinition(
+				MarmotStatement::FunctionDefinition(
 					method_name,
 					std::move(generic_params),
 					std::move(params),
@@ -4416,38 +4416,38 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 					std::move(body),
 					std::nullopt,
 					0,
-					std::vector<MidoriType::ClassConstraint>()
+					std::vector<MarmotType::ClassConstraint>()
 				)
 			)
 		);
 	}
 
-	MidoriResult::TokenResult instance_semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after instance body.");
+	MarmotResult::TokenResult instance_semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after instance body.");
 	if (!instance_semicolon_result.has_value())
 	{
 		return std::unexpected(instance_semicolon_result.error());
 	}
 
-	std::vector<std::shared_ptr<MidoriType>> type_args_copy = type_args;
+	std::vector<std::shared_ptr<MarmotType>> type_args_copy = type_args;
 	m_state.m_declared_class_instance_type_args[typeclass_name.m_lexeme].push_back(type_args_copy);
 	m_state.m_class_instance_type_args[typeclass_name.m_lexeme].push_back(std::move(type_args_copy));
 
-	std::unordered_map<std::string, std::shared_ptr<MidoriType>> associated_type_bindings;
-	for (const MidoriStatement::Instance::AssociatedTypeBinding& binding : associated_types)
+	std::unordered_map<std::string, std::shared_ptr<MarmotType>> associated_type_bindings;
+	for (const MarmotStatement::Instance::AssociatedTypeBinding& binding : associated_types)
 	{
 		associated_type_bindings.emplace(binding.m_name.m_lexeme, binding.m_type);
 	}
 	m_state.m_class_instance_associated_type_bindings[typeclass_name.m_lexeme].push_back(associated_type_bindings);
 	m_state.m_class_instance_constraints[typeclass_name.m_lexeme].push_back(constraints);
 
-	for (std::unique_ptr<MidoriStatement>& method_stmt : methods)
+	for (std::unique_ptr<MarmotStatement>& method_stmt : methods)
 	{
-		if (method_stmt->IsStatement<MidoriStatement::FunctionDefinition>())
+		if (method_stmt->IsStatement<MarmotStatement::FunctionDefinition>())
 		{
-			MidoriStatement::FunctionDefinition& defun = method_stmt->GetStatement<MidoriStatement::FunctionDefinition>();
+			MarmotStatement::FunctionDefinition& defun = method_stmt->GetStatement<MarmotStatement::FunctionDefinition>();
 
 			std::string method_name = defun.m_name.m_lexeme;
-			std::string mangled_name = MidoriType::MangleInstanceMethodName(method_name, typeclass_name.m_lexeme, type_args);
+			std::string mangled_name = MarmotType::MangleInstanceMethodName(method_name, typeclass_name.m_lexeme, type_args);
 			std::string mangled_name_with_module = mangled_name;
 			if (m_context.m_current_module && m_context.m_current_module->HasModuleDeclaration())
 			{
@@ -4461,36 +4461,36 @@ MidoriResult::StatementResult Parser::ParseInstanceDeclaration()
 	scope_guard.m_parser = nullptr;
 	EndScope();
 
-	return std::make_unique<MidoriStatement>
+	return std::make_unique<MarmotStatement>
 	(
-		MidoriStatement::Instance(std::move(typeclass_name), std::move(type_args), std::move(constraints), std::move(associated_types), std::move(methods))
+		MarmotStatement::Instance(std::move(typeclass_name), std::move(type_args), std::move(constraints), std::move(associated_types), std::move(methods))
 	);
 }
 
-MidoriResult::StatementResult Parser::ParseSimpleStatement()
+MarmotResult::StatementResult Parser::ParseSimpleStatement()
 {
 	ParseState checkpoint = m_state;
 
-	MidoriResult::ExpressionResult expr_result = ParseExpression();
+	MarmotResult::ExpressionResult expr_result = ParseExpression();
 	if (!expr_result.has_value())
 	{
 		return std::unexpected(std::move(expr_result.error()));
 	}
 
-	std::unique_ptr<MidoriExpression> expr = std::move(expr_result.value());
-	MidoriResult::TokenResult semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after expression.");
+	std::unique_ptr<MarmotExpression> expr = std::move(expr_result.value());
+	MarmotResult::TokenResult semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after expression.");
 	if (!semicolon_result.has_value())
 	{
 		if (Check(Token::Name::RIGHT_BRACE, 0))
 		{
 			m_state = std::move(checkpoint);
-			return NoMatch<std::unique_ptr<MidoriStatement>>();
+			return NoMatch<std::unique_ptr<MarmotStatement>>();
 		}
 
 		// A for loop ends in a block, so it reads as finished, but it is an
 		// expression like any other: the missing ';' belongs after its '}',
 		// not before the line that follows.
-		if (expr->IsExpression<MidoriExpression::For>())
+		if (expr->IsExpression<MarmotExpression::For>())
 		{
 			return std::unexpected(GenerateParserError("Expected ';' after the for loop: it is an expression, and as a statement it ends with ';'.", Previous()));
 		}
@@ -4499,15 +4499,15 @@ MidoriResult::StatementResult Parser::ParseSimpleStatement()
 	}
 
 	Token semi_colon = std::move(semicolon_result.value());
-	return std::make_unique<MidoriStatement>(MidoriStatement::ExpressionStatement(semi_colon, std::move(expr)));
+	return std::make_unique<MarmotStatement>(MarmotStatement::ExpressionStatement(semi_colon, std::move(expr)));
 }
 
-MidoriResult::StatementResult Parser::ParseForeignStatement()
+MarmotResult::StatementResult Parser::ParseForeignStatement()
 {
 	return Consume(Token::Name::TEXT_LITERAL, "Expected the foreign symbol, or the library of a foreign block.")
 		.and_then
 		(
-			[this](Token&& name) -> MidoriResult::StatementResult
+			[this](Token&& name) -> MarmotResult::StatementResult
 			{
 				if (Match(Token::Name::LEFT_BRACE))
 				{
@@ -4521,24 +4521,24 @@ MidoriResult::StatementResult Parser::ParseForeignStatement()
 
 // foreign "library" { "symbol" Name : Type; ... } declares each function as if
 // it were written `foreign "symbol" Name : Type from "library";`.
-MidoriResult::StatementResult Parser::ParseForeignBlock(const Token& library)
+MarmotResult::StatementResult Parser::ParseForeignBlock(const Token& library)
 {
-	std::vector<std::unique_ptr<MidoriStatement>> declarations;
+	std::vector<std::unique_ptr<MarmotStatement>> declarations;
 	while (!Check(Token::Name::RIGHT_BRACE, 0) && !IsAtEnd())
 	{
-		MidoriResult::TokenResult symbol = Consume(Token::Name::TEXT_LITERAL, "Expected the symbol of a foreign function in the foreign block.");
+		MarmotResult::TokenResult symbol = Consume(Token::Name::TEXT_LITERAL, "Expected the symbol of a foreign function in the foreign block.");
 		if (!symbol.has_value())
 		{
 			return std::unexpected(std::move(symbol.error()));
 		}
 
-		MidoriResult::StatementResult declaration = ParseForeignDeclaration(symbol.value(), library.m_lexeme);
+		MarmotResult::StatementResult declaration = ParseForeignDeclaration(symbol.value(), library.m_lexeme);
 		if (!declaration.has_value())
 		{
 			return declaration;
 		}
 
-		if (declaration.value()->GetStatement<MidoriStatement::ForeignDefinition>().m_local_index.has_value())
+		if (declaration.value()->GetStatement<MarmotStatement::ForeignDefinition>().m_local_index.has_value())
 		{
 			return std::unexpected(GenerateParserError("A foreign block can only appear at the top level of a module.", library));
 		}
@@ -4546,7 +4546,7 @@ MidoriResult::StatementResult Parser::ParseForeignBlock(const Token& library)
 		declarations.emplace_back(std::move(declaration.value()));
 	}
 
-	MidoriResult::TokenResult closing = Consume(Token::Name::RIGHT_BRACE, "Expected '}' after the foreign block.");
+	MarmotResult::TokenResult closing = Consume(Token::Name::RIGHT_BRACE, "Expected '}' after the foreign block.");
 	if (!closing.has_value())
 	{
 		return std::unexpected(std::move(closing.error()));
@@ -4564,25 +4564,25 @@ MidoriResult::StatementResult Parser::ParseForeignBlock(const Token& library)
 	return std::move(declarations.front());
 }
 
-MidoriResult::StatementResult Parser::ParseForeignDeclaration(const Token& foreign_name, const std::optional<std::string>& block_library)
+MarmotResult::StatementResult Parser::ParseForeignDeclaration(const Token& foreign_name, const std::optional<std::string>& block_library)
 {
 	return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected foreign function name.")
 		.and_then
 		(
-			[this, &foreign_name, &block_library](Token&& function_name) ->MidoriResult::StatementResult
+			[this, &foreign_name, &block_library](Token&& function_name) ->MarmotResult::StatementResult
 			{
 				function_name.m_lexeme = Mangle(function_name.m_lexeme);
 
 				return Consume(Token::Name::SINGLE_COLON, "Expected ':' before foreign function type.")
 					.and_then
 					(
-						[&foreign_name, &function_name, &block_library, this](Token&&) ->MidoriResult::StatementResult
+						[&foreign_name, &function_name, &block_library, this](Token&&) ->MarmotResult::StatementResult
 						{
 							constexpr bool is_variable = true;
 							return DefineName(function_name, is_variable)
 								.and_then
 								(
-									[&foreign_name, &function_name, &block_library, this](Token&& name) ->MidoriResult::StatementResult
+									[&foreign_name, &function_name, &block_library, this](Token&& name) ->MarmotResult::StatementResult
 									{
 										std::optional<int> local_index = RegisterOrUpdateLocalVariable(name.m_lexeme);
 										constexpr bool is_foreign = true;
@@ -4609,9 +4609,9 @@ MidoriResult::StatementResult Parser::ParseForeignDeclaration(const Token& forei
 										return ParseType(is_foreign)
 											.and_then
 											(
-												[&foreign_name, &function_name, &local_index, &block_library, this](std::shared_ptr<MidoriType>&& type)->MidoriResult::StatementResult
+												[&foreign_name, &function_name, &local_index, &block_library, this](std::shared_ptr<MarmotType>&& type)->MarmotResult::StatementResult
 												{
-													if (!type->IsType<MidoriType::FunctionType>())
+													if (!type->IsType<MarmotType::FunctionType>())
 													{
 														return std::unexpected(GenerateParserError("'foreign' only applies to function types.", function_name));
 													}
@@ -4620,7 +4620,7 @@ MidoriResult::StatementResult Parser::ParseForeignDeclaration(const Token& forei
 													if (!block_library.has_value() && Check(Token::Name::IDENTIFIER_LITERAL, 0) && Peek(0).m_lexeme == "from")
 													{
 														Advance();
-														MidoriResult::TokenResult library_name = Consume(Token::Name::TEXT_LITERAL, "Expected the library name after 'from'.");
+														MarmotResult::TokenResult library_name = Consume(Token::Name::TEXT_LITERAL, "Expected the library name after 'from'.");
 														if (!library_name.has_value())
 														{
 															return std::unexpected(std::move(library_name.error()));
@@ -4631,13 +4631,13 @@ MidoriResult::StatementResult Parser::ParseForeignDeclaration(const Token& forei
 													return Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after foreign function type.")
 														.and_then
 														(
-															[&foreign_name, &function_name, &type, &local_index, &library](Token&&) ->MidoriResult::StatementResult
+															[&foreign_name, &function_name, &type, &local_index, &library](Token&&) ->MarmotResult::StatementResult
 															{
 																if (!library.has_value())
 																{
-																	type->GetType<MidoriType::FunctionType>().m_primitive = FindPrimitive(foreign_name.m_lexeme);
+																	type->GetType<MarmotType::FunctionType>().m_primitive = FindPrimitive(foreign_name.m_lexeme);
 																}
-																return std::make_unique<MidoriStatement>(MidoriStatement::ForeignDefinition(function_name, foreign_name.m_lexeme, std::move(type), std::move(local_index), std::move(library)));
+																return std::make_unique<MarmotStatement>(MarmotStatement::ForeignDefinition(function_name, foreign_name.m_lexeme, std::move(type), std::move(local_index), std::move(library)));
 															}
 														);
 												}
@@ -4650,19 +4650,19 @@ MidoriResult::StatementResult Parser::ParseForeignDeclaration(const Token& forei
 		);
 }
 
-MidoriResult::ExpressionResult Parser::ParseMatchExpressionWithScrutinee(Token& match_keyword, std::unique_ptr<MidoriExpression>&& expr)
+MarmotResult::ExpressionResult Parser::ParseMatchExpressionWithScrutinee(Token& match_keyword, std::unique_ptr<MarmotExpression>&& expr)
 {
 	return Consume(Token::Name::WITH, "Expected 'with' after match expression.")
 		.and_then
 		(
-			[expr = std::move(expr), &match_keyword, this](Token&&) mutable ->MidoriResult::ExpressionResult
+			[expr = std::move(expr), &match_keyword, this](Token&&) mutable ->MarmotResult::ExpressionResult
 			{
-				std::vector<std::unique_ptr<MidoriExpression>> cases;
+				std::vector<std::unique_ptr<MarmotExpression>> cases;
 
 				while (Match(Token::Name::CASE))
 				{
 					Token& case_keyword = Previous();
-					MidoriResult::ExpressionResult case_result = ParseCaseExpression(case_keyword);
+					MarmotResult::ExpressionResult case_result = ParseCaseExpression(case_keyword);
 					if (!case_result.has_value())
 					{
 						return std::unexpected(std::move(case_result.error()));
@@ -4675,53 +4675,53 @@ MidoriResult::ExpressionResult Parser::ParseMatchExpressionWithScrutinee(Token& 
 					return std::unexpected(GenerateParserError("Expected at least one case.", match_keyword));
 				}
 
-				return std::make_unique<MidoriExpression>(MidoriExpression::Match(match_keyword, std::move(expr), std::move(cases)));
+				return std::make_unique<MarmotExpression>(MarmotExpression::Match(match_keyword, std::move(expr), std::move(cases)));
 			}
 		);
 }
 
-MidoriResult::ExpressionResult Parser::ParseMatchExpression()
+MarmotResult::ExpressionResult Parser::ParseMatchExpression()
 {
 	Token& match_keyword = Previous();
 	return ParseExpression()
 		.and_then
 		(
-			[&match_keyword, this](std::unique_ptr<MidoriExpression>&& expr) ->MidoriResult::ExpressionResult
+			[&match_keyword, this](std::unique_ptr<MarmotExpression>&& expr) ->MarmotResult::ExpressionResult
 			{
 				return ParseMatchExpressionWithScrutinee(match_keyword, std::move(expr));
 			}
 		);
 }
 
-MidoriResult::ExpressionResult Parser::ParseIfElseExpression()
+MarmotResult::ExpressionResult Parser::ParseIfElseExpression()
 {
 	Token& if_token = Previous();
 	return ParseExpression()
 		.and_then
 		(
-			[&if_token, this](std::unique_ptr<MidoriExpression>&& condition) -> MidoriResult::ExpressionResult
+			[&if_token, this](std::unique_ptr<MarmotExpression>&& condition) -> MarmotResult::ExpressionResult
 			{
 				return Consume(Token::Name::THEN, "Expected 'then'.")
 					.and_then
 					(
-						[&if_token, &condition, this](Token&& then_token) -> MidoriResult::ExpressionResult
+						[&if_token, &condition, this](Token&& then_token) -> MarmotResult::ExpressionResult
 						{
 							return ParseExpression()
 								.and_then
 								(
-									[&if_token, &condition, &then_token, this](std::unique_ptr<MidoriExpression>&& true_branch) -> MidoriResult::ExpressionResult
+									[&if_token, &condition, &then_token, this](std::unique_ptr<MarmotExpression>&& true_branch) -> MarmotResult::ExpressionResult
 									{
 										return Consume(Token::Name::ELSE, "Expected 'else'.")
 											.and_then
 											(
-												[&if_token, &condition, &true_branch, &then_token, this](Token&& else_token) -> MidoriResult::ExpressionResult
+												[&if_token, &condition, &true_branch, &then_token, this](Token&& else_token) -> MarmotResult::ExpressionResult
 												{
 													return ParseExpression()
 														.and_then
 														(
-															[&if_token, &condition, &true_branch, &then_token, &else_token](std::unique_ptr<MidoriExpression>&& else_branch) -> MidoriResult::ExpressionResult
+															[&if_token, &condition, &true_branch, &then_token, &else_token](std::unique_ptr<MarmotExpression>&& else_branch) -> MarmotResult::ExpressionResult
 															{
-																return std::make_unique<MidoriExpression>(MidoriExpression::IfElse(if_token, then_token, else_token, std::move(condition), std::move(true_branch), std::move(else_branch)));
+																return std::make_unique<MarmotExpression>(MarmotExpression::IfElse(if_token, then_token, else_token, std::move(condition), std::move(true_branch), std::move(else_branch)));
 															}
 														);
 												}
@@ -4734,7 +4734,7 @@ MidoriResult::ExpressionResult Parser::ParseIfElseExpression()
 		);
 }
 
-MidoriResult::ExpressionResult Parser::ParseFunctionExpression()
+MarmotResult::ExpressionResult Parser::ParseFunctionExpression()
 {
 	Token& keyword = Previous();
 	// In `x |> fn(a) => f(a) |> g` the lambda is one stage: its body stops before the
@@ -4744,7 +4744,7 @@ MidoriResult::ExpressionResult Parser::ParseFunctionExpression()
 	// Parse optional generic parameters <T, U, ...>
 	// Create scope BEFORE parsing so DefineName() in ParseGenericParameters adds them to this scope
 	std::vector<Token> generic_params;
-	std::vector<std::shared_ptr<MidoriType>> generic_param_types;
+	std::vector<std::shared_ptr<MarmotType>> generic_param_types;
 	bool has_generic_params = false;
 
 	if (Match(Token::Name::LEFT_ANGLE))
@@ -4752,7 +4752,7 @@ MidoriResult::ExpressionResult Parser::ParseFunctionExpression()
 		has_generic_params = true;
 		BeginScope();  // Create scope for generic parameters
 
-		MidoriResult::TokenListResult generic_parse_result = ParseGenericParameters(&generic_param_types);
+		MarmotResult::TokenListResult generic_parse_result = ParseGenericParameters(&generic_param_types);
 		if (!generic_parse_result.has_value())
 		{
 			EndScope();  // Clean up scope on error
@@ -4762,7 +4762,7 @@ MidoriResult::ExpressionResult Parser::ParseFunctionExpression()
 		generic_params = std::move(generic_parse_result.value());
 	}
 
-	MidoriResult::TokenResult left_paren_result = Consume(Token::Name::LEFT_PAREN, "Expected '(' before function parameters.");
+	MarmotResult::TokenResult left_paren_result = Consume(Token::Name::LEFT_PAREN, "Expected '(' before function parameters.");
 	if (!left_paren_result.has_value())
 	{
 		if (has_generic_params)
@@ -4791,22 +4791,22 @@ MidoriResult::ExpressionResult Parser::ParseFunctionExpression()
 		}
 	};
 
-	MidoriResult::FunctionParamsResult params_parse_result = ParseFunctionParameters(true);
+	MarmotResult::FunctionParamsResult params_parse_result = ParseFunctionParameters(true);
 	if (!params_parse_result.has_value())
 	{
 		unwind_function_state();
 		return std::unexpected(params_parse_result.error());
 	}
 
-	std::vector<std::pair<Token, std::shared_ptr<MidoriType>>> param_tuples = std::move(params_parse_result.value());
+	std::vector<std::pair<Token, std::shared_ptr<MarmotType>>> param_tuples = std::move(params_parse_result.value());
 	ParamSplit split = SplitParamTuples(std::move(param_tuples));
 	std::vector<Token> params = std::move(split.m_params);
-	std::vector<std::shared_ptr<MidoriType>> param_types = std::move(split.m_types);
+	std::vector<std::shared_ptr<MarmotType>> param_types = std::move(split.m_types);
 
-	std::shared_ptr<MidoriType> return_type = MidoriType::MakeUndecidedType();
+	std::shared_ptr<MarmotType> return_type = MarmotType::MakeUndecidedType();
 	if (Match(Token::Name::THIN_ARROW))
 	{
-		MidoriResult::TypeResult return_type_result = ParseType();
+		MarmotResult::TypeResult return_type_result = ParseType();
 		if (!return_type_result.has_value())
 		{
 			unwind_function_state();
@@ -4818,10 +4818,10 @@ MidoriResult::ExpressionResult Parser::ParseFunctionExpression()
 
 	// Parse optional 'where' clauses. A where clause may name constraints the
 	// signature never mentions, so they must be recorded explicitly.
-	std::vector<MidoriType::ClassConstraint> constraints;
+	std::vector<MarmotType::ClassConstraint> constraints;
 	if (Match(Token::Name::WHERE))
 	{
-		std::expected<std::vector<MidoriType::ClassConstraint>, CompilerError> constraints_result = ParseClassConstraints(keyword);
+		std::expected<std::vector<MarmotType::ClassConstraint>, CompilerError> constraints_result = ParseClassConstraints(keyword);
 		if (!constraints_result.has_value())
 		{
 			unwind_function_state();
@@ -4831,7 +4831,7 @@ MidoriResult::ExpressionResult Parser::ParseFunctionExpression()
 		constraints = std::move(constraints_result.value());
 	}
 
-	MidoriResult::TokenResult fat_arrow_result = Consume(Token::Name::FAT_ARROW, "Expected '=>' before function body.");
+	MarmotResult::TokenResult fat_arrow_result = Consume(Token::Name::FAT_ARROW, "Expected '=>' before function body.");
 	if (!fat_arrow_result.has_value())
 	{
 		unwind_function_state();
@@ -4839,8 +4839,8 @@ MidoriResult::ExpressionResult Parser::ParseFunctionExpression()
 	}
 
 	size_t prev_constraints_size = m_state.m_active_constraints.size();
-	std::vector<MidoriType::ClassConstraint> propagated_constraints = CollectSignatureConstraints(param_types, return_type);
-	for (MidoriType::ClassConstraint& propagated_constraint : propagated_constraints)
+	std::vector<MarmotType::ClassConstraint> propagated_constraints = CollectSignatureConstraints(param_types, return_type);
+	for (MarmotType::ClassConstraint& propagated_constraint : propagated_constraints)
 	{
 		AppendUniqueConstraint(constraints, std::move(propagated_constraint));
 	}
@@ -4854,7 +4854,7 @@ MidoriResult::ExpressionResult Parser::ParseFunctionExpression()
 	// or call straight away, so `=> { c with p = 1 }.port` must behave exactly as it does
 	// in expression position. It therefore does continue through the postfix chain. The
 	// asymmetry is deliberate - the two constructs genuinely differ.
-	MidoriResult::ExpressionResult body_result = [this, is_pipe_stage]() -> MidoriResult::ExpressionResult
+	MarmotResult::ExpressionResult body_result = [this, is_pipe_stage]() -> MarmotResult::ExpressionResult
 		{
 			if (!Match(Token::Name::LEFT_BRACE))
 			{
@@ -4869,7 +4869,7 @@ MidoriResult::ExpressionResult Parser::ParseFunctionExpression()
 			return ParseRecordUpdate()
 				.and_then
 				(
-					[this](std::unique_ptr<MidoriExpression>&& record_update) -> MidoriResult::ExpressionResult
+					[this](std::unique_ptr<MarmotExpression>&& record_update) -> MarmotResult::ExpressionResult
 					{
 						return ParsePostfixChain(std::move(record_update));
 					}
@@ -4884,25 +4884,25 @@ MidoriResult::ExpressionResult Parser::ParseFunctionExpression()
 
 	unwind_function_state();
 
-	return std::make_unique<MidoriExpression>(MidoriExpression::Function(keyword, std::move(generic_params), std::move(params), std::move(param_types), std::move(return_type), std::move(body_result.value()), m_state.m_total_variables, std::move(constraints)));
+	return std::make_unique<MarmotExpression>(MarmotExpression::Function(keyword, std::move(generic_params), std::move(params), std::move(param_types), std::move(return_type), std::move(body_result.value()), m_state.m_total_variables, std::move(constraints)));
 }
 
-MidoriResult::ExpressionResult Parser::ParseCaseExpression(Token& keyword)
+MarmotResult::ExpressionResult Parser::ParseCaseExpression(Token& keyword)
 {
 	BeginScope();
-	MidoriResult::PatternResult pattern_result = ParsePattern();
+	MarmotResult::PatternResult pattern_result = ParsePattern();
 	if (!pattern_result.has_value())
 	{
 		EndScope();
 		return std::unexpected(std::move(pattern_result.error()));
 	}
 
-	std::unique_ptr<MidoriPattern> pattern = std::move(pattern_result.value());
+	std::unique_ptr<MarmotPattern> pattern = std::move(pattern_result.value());
 
-	std::unique_ptr<MidoriExpression> guard = nullptr;
+	std::unique_ptr<MarmotExpression> guard = nullptr;
 	if (Match(Token::Name::IF))
 	{
-		MidoriResult::ExpressionResult guard_result = ParseExpression();
+		MarmotResult::ExpressionResult guard_result = ParseExpression();
 		if (!guard_result.has_value())
 		{
 			EndScope();
@@ -4914,24 +4914,24 @@ MidoriResult::ExpressionResult Parser::ParseCaseExpression(Token& keyword)
 	return Consume(Token::Name::FAT_ARROW, "Expected '=>' after case.")
 		.and_then
 		(
-			[&keyword, &pattern, &guard, this](Token&&)->MidoriResult::ExpressionResult
+			[&keyword, &pattern, &guard, this](Token&&)->MarmotResult::ExpressionResult
 			{
 				return ParseExpression()
 					.and_then
 					(
-						[&keyword, &pattern, &guard, this](std::unique_ptr<MidoriExpression>&& case_expr)->MidoriResult::ExpressionResult
+						[&keyword, &pattern, &guard, this](std::unique_ptr<MarmotExpression>&& case_expr)->MarmotResult::ExpressionResult
 						{
 							EndScope();
-							return std::make_unique<MidoriExpression>(MidoriExpression::Case(keyword, std::move(pattern), std::move(case_expr), std::move(guard)));
+							return std::make_unique<MarmotExpression>(MarmotExpression::Case(keyword, std::move(pattern), std::move(case_expr), std::move(guard)));
 						}
 					);
 			}
 		);
 }
 
-MidoriResult::PatternResult Parser::ParsePattern()
+MarmotResult::PatternResult Parser::ParsePattern()
 {
-	MidoriResult::PatternResult pattern = ParseAlternatives();
+	MarmotResult::PatternResult pattern = ParseAlternatives();
 	while (pattern.has_value() && Match(Token::Name::AS))
 	{
 		const Token as = Previous();
@@ -4941,9 +4941,9 @@ MidoriResult::PatternResult Parser::ParsePattern()
 		}
 
 		pattern = ParseBindingPattern(Token(Previous()))
-			.transform([&pattern](std::unique_ptr<MidoriPattern>&& binding)
+			.transform([&pattern](std::unique_ptr<MarmotPattern>&& binding)
 			{
-				return std::make_unique<MidoriPattern>(MidoriPattern::As(std::move(pattern.value()), std::move(binding)));
+				return std::make_unique<MarmotPattern>(MarmotPattern::As(std::move(pattern.value()), std::move(binding)));
 			});
 	}
 	return pattern;
@@ -4952,33 +4952,33 @@ MidoriResult::PatternResult Parser::ParsePattern()
 // An alternative after the first is parsed in a scope of its own, so it may bind
 // the names the first does, and its bindings then take the first's locals: the
 // case sees one set of names, whichever alternative matched.
-MidoriResult::PatternResult Parser::ParseAlternatives()
+MarmotResult::PatternResult Parser::ParseAlternatives()
 {
-	MidoriResult::PatternResult first = ParsePrimaryPattern();
+	MarmotResult::PatternResult first = ParsePrimaryPattern();
 	if (!first.has_value() || !Check(Token::Name::SINGLE_BAR, 0))
 	{
 		return first;
 	}
 
-	std::vector<std::unique_ptr<MidoriPattern>> alternatives;
+	std::vector<std::unique_ptr<MarmotPattern>> alternatives;
 	alternatives.push_back(std::move(first.value()));
 	const std::unordered_map<std::string, std::optional<int>> locals = alternatives.front()->Bindings(false)
-		| std::views::transform([](const MidoriPattern::Binding* binding) { return std::pair{ binding->m_name.m_lexeme, binding->m_local_index }; })
+		| std::views::transform([](const MarmotPattern::Binding* binding) { return std::pair{ binding->m_name.m_lexeme, binding->m_local_index }; })
 		| std::ranges::to<std::unordered_map>();
 
 	while (Match(Token::Name::SINGLE_BAR))
 	{
 		const Token bar = Previous();
 		BeginScope();
-		MidoriResult::PatternResult alternative = ParsePrimaryPattern();
+		MarmotResult::PatternResult alternative = ParsePrimaryPattern();
 		EndScope();
 		if (!alternative.has_value())
 		{
 			return alternative;
 		}
 
-		const std::vector<MidoriPattern::Binding*> bound = alternative.value()->Bindings(false);
-		for (const MidoriPattern::Binding* binding : bound)
+		const std::vector<MarmotPattern::Binding*> bound = alternative.value()->Bindings(false);
+		for (const MarmotPattern::Binding* binding : bound)
 		{
 			if (!locals.contains(binding->m_name.m_lexeme))
 			{
@@ -4987,23 +4987,23 @@ MidoriResult::PatternResult Parser::ParseAlternatives()
 		}
 		for (const std::string& name : locals | std::views::keys)
 		{
-			if (std::ranges::none_of(bound, [&name](const MidoriPattern::Binding* binding) { return binding->m_name.m_lexeme == name; }))
+			if (std::ranges::none_of(bound, [&name](const MarmotPattern::Binding* binding) { return binding->m_name.m_lexeme == name; }))
 			{
 				return std::unexpected(GenerateParserError(std::format("The first alternative binds '{}' and this one does not; every alternative of '|' binds the same names.", name), bar));
 			}
 		}
 
-		for (MidoriPattern::Binding* binding : alternative.value()->Bindings(true))
+		for (MarmotPattern::Binding* binding : alternative.value()->Bindings(true))
 		{
 			binding->m_local_index = locals.at(binding->m_name.m_lexeme);
 		}
 		alternatives.push_back(std::move(alternative.value()));
 	}
 
-	return std::make_unique<MidoriPattern>(MidoriPattern::Or(std::move(alternatives)));
+	return std::make_unique<MarmotPattern>(MarmotPattern::Or(std::move(alternatives)));
 }
 
-MidoriResult::PatternResult Parser::ParsePrimaryPattern()
+MarmotResult::PatternResult Parser::ParsePrimaryPattern()
 {
 	if (Match(Token::Name::LEFT_PAREN))
 	{
@@ -5011,22 +5011,22 @@ MidoriResult::PatternResult Parser::ParsePrimaryPattern()
 
 		if (Match(Token::Name::RIGHT_PAREN))
 		{
-			return std::make_unique<MidoriPattern>(MidoriPattern::Literal(Previous(), MidoriPattern::LiteralKind::Unit));
+			return std::make_unique<MarmotPattern>(MarmotPattern::Literal(Previous(), MarmotPattern::LiteralKind::Unit));
 		}
 
 		return ParsePattern()
 			.and_then
 			(
-				[this, left_paren](std::unique_ptr<MidoriPattern>&& first_pattern) -> MidoriResult::PatternResult
+				[this, left_paren](std::unique_ptr<MarmotPattern>&& first_pattern) -> MarmotResult::PatternResult
 				{
 					if (Match(Token::Name::COMMA))
 					{
-						std::vector<std::unique_ptr<MidoriPattern>> elements;
+						std::vector<std::unique_ptr<MarmotPattern>> elements;
 						elements.push_back(std::move(first_pattern));
 
 						do
 						{
-							MidoriResult::PatternResult elem_result = ParsePattern();
+							MarmotResult::PatternResult elem_result = ParsePattern();
 							if (!elem_result)
 							{
 								return std::unexpected(elem_result.error());
@@ -5037,9 +5037,9 @@ MidoriResult::PatternResult Parser::ParsePrimaryPattern()
 						return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after tuple pattern.")
 							.and_then
 							(
-								[&elements, left_paren](Token&&) -> MidoriResult::PatternResult
+								[&elements, left_paren](Token&&) -> MarmotResult::PatternResult
 								{
-									return std::make_unique<MidoriPattern>(MidoriPattern::Tuple(left_paren, std::move(elements)));
+									return std::make_unique<MarmotPattern>(MarmotPattern::Tuple(left_paren, std::move(elements)));
 								}
 							);
 					}
@@ -5047,7 +5047,7 @@ MidoriResult::PatternResult Parser::ParsePrimaryPattern()
 					return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after pattern.")
 						.and_then
 						(
-							[pattern = std::move(first_pattern)](Token&&) mutable -> MidoriResult::PatternResult
+							[pattern = std::move(first_pattern)](Token&&) mutable -> MarmotResult::PatternResult
 							{
 								return std::move(pattern);
 							}
@@ -5059,8 +5059,8 @@ MidoriResult::PatternResult Parser::ParsePrimaryPattern()
 	if (Match(Token::Name::LEFT_BRACKET))
 	{
 		Token left_bracket = Previous();
-		std::vector<std::unique_ptr<MidoriPattern>> elements;
-		std::optional<MidoriPattern::Array::Rest> rest;
+		std::vector<std::unique_ptr<MarmotPattern>> elements;
+		std::optional<MarmotPattern::Array::Rest> rest;
 		if (!Check(Token::Name::RIGHT_BRACKET, 0))
 		{
 			do
@@ -5073,7 +5073,7 @@ MidoriResult::PatternResult Parser::ParsePrimaryPattern()
 						return std::unexpected(GenerateParserError("An array pattern takes at most one '..'.", dots));
 					}
 
-					MidoriResult::PatternResult rest_result = ParseArrayRest(std::move(dots));
+					MarmotResult::PatternResult rest_result = ParseArrayRest(std::move(dots));
 					if (!rest_result)
 					{
 						return std::unexpected(rest_result.error());
@@ -5082,7 +5082,7 @@ MidoriResult::PatternResult Parser::ParsePrimaryPattern()
 				}
 				else
 				{
-					MidoriResult::PatternResult elem_result = ParsePattern();
+					MarmotResult::PatternResult elem_result = ParsePattern();
 					if (!elem_result)
 					{
 						return std::unexpected(elem_result.error());
@@ -5095,22 +5095,22 @@ MidoriResult::PatternResult Parser::ParsePrimaryPattern()
 		return Consume(Token::Name::RIGHT_BRACKET, "Expected ']' after array pattern.")
 			.and_then
 			(
-				[&elements, &rest, left_bracket](Token&&) -> MidoriResult::PatternResult
+				[&elements, &rest, left_bracket](Token&&) -> MarmotResult::PatternResult
 				{
-					return std::make_unique<MidoriPattern>(MidoriPattern::Array(left_bracket, std::move(elements), std::move(rest)));
+					return std::make_unique<MarmotPattern>(MarmotPattern::Array(left_bracket, std::move(elements), std::move(rest)));
 				}
 			);
 	}
 
 	if (Match(Token::Name::TRUE, Token::Name::FALSE))
 	{
-		return std::make_unique<MidoriPattern>(MidoriPattern::Literal(Previous(), MidoriPattern::LiteralKind::Bool));
+		return std::make_unique<MarmotPattern>(MarmotPattern::Literal(Previous(), MarmotPattern::LiteralKind::Bool));
 	}
 
 	if (Check(Token::Name::FLOAT_LITERAL, 0) || Check(Token::Name::INTEGER_LITERAL, 0) || Check(Token::Name::SINGLE_MINUS, 0) || Check(Token::Name::SINGLE_PLUS, 0))
 	{
 		return ParseNumericLiteralPattern()
-			.and_then([this](std::unique_ptr<MidoriPattern>&& literal) -> MidoriResult::PatternResult
+			.and_then([this](std::unique_ptr<MarmotPattern>&& literal) -> MarmotResult::PatternResult
 			{
 				return Check(Token::Name::DOUBLE_DOT, 0) ? ParseRangePattern(std::move(literal)) : std::move(literal);
 			});
@@ -5118,7 +5118,7 @@ MidoriResult::PatternResult Parser::ParsePrimaryPattern()
 
 	if (Match(Token::Name::TEXT_LITERAL))
 	{
-		return std::make_unique<MidoriPattern>(MidoriPattern::Literal(Previous(), MidoriPattern::LiteralKind::Text));
+		return std::make_unique<MarmotPattern>(MarmotPattern::Literal(Previous(), MarmotPattern::LiteralKind::Text));
 	}
 
 	if (Match(Token::Name::IDENTIFIER_LITERAL))
@@ -5126,13 +5126,13 @@ MidoriResult::PatternResult Parser::ParsePrimaryPattern()
 		Token identifier = Previous();
 		if (identifier.m_lexeme == "_")
 		{
-			return std::make_unique<MidoriPattern>(MidoriPattern::Wildcard(identifier));
+			return std::make_unique<MarmotPattern>(MarmotPattern::Wildcard(identifier));
 		}
 
 		return MatchNameResolution()
 			.and_then
 			(
-				[&identifier, this](Token&& resolved) -> MidoriResult::PatternResult
+				[&identifier, this](Token&& resolved) -> MarmotResult::PatternResult
 				{
 					resolved.m_lexeme = Mangle(resolved.m_lexeme);
 
@@ -5159,12 +5159,12 @@ MidoriResult::PatternResult Parser::ParsePrimaryPattern()
 						}
 						if (Match(Token::Name::LEFT_PAREN))
 						{
-							std::vector<std::unique_ptr<MidoriPattern>> args;
+							std::vector<std::unique_ptr<MarmotPattern>> args;
 							if (!Match(Token::Name::RIGHT_PAREN))
 							{
 								do
 								{
-									MidoriResult::PatternResult arg_result = ParsePattern();
+									MarmotResult::PatternResult arg_result = ParsePattern();
 									if (!arg_result)
 									{
 										return std::unexpected(arg_result.error());
@@ -5178,10 +5178,10 @@ MidoriResult::PatternResult Parser::ParsePrimaryPattern()
 								}
 							}
 
-							return std::make_unique<MidoriPattern>(MidoriPattern::Constructor(resolved, std::string(resolved.m_lexeme), std::move(args), is_union));
+							return std::make_unique<MarmotPattern>(MarmotPattern::Constructor(resolved, std::string(resolved.m_lexeme), std::move(args), is_union));
 						}
 
-						return std::make_unique<MidoriPattern>(MidoriPattern::Constructor(resolved, std::string(resolved.m_lexeme), {}, is_union));
+						return std::make_unique<MarmotPattern>(MarmotPattern::Constructor(resolved, std::string(resolved.m_lexeme), {}, is_union));
 					}
 
 					if (resolved.m_lexeme.find(NameSeparator) != std::string::npos)
@@ -5197,7 +5197,7 @@ MidoriResult::PatternResult Parser::ParsePrimaryPattern()
 	return std::unexpected(GenerateParserError("Expected pattern.", Peek(0)));
 }
 
-MidoriResult::PatternResult Parser::ParseNumericLiteralPattern()
+MarmotResult::PatternResult Parser::ParseNumericLiteralPattern()
 {
 	std::string sign;
 	if (Match(Token::Name::SINGLE_MINUS, Token::Name::SINGLE_PLUS))
@@ -5213,7 +5213,7 @@ MidoriResult::PatternResult Parser::ParseNumericLiteralPattern()
 	{
 		Token literal = Previous();
 		literal.m_lexeme = sign + literal.m_lexeme;
-		return std::make_unique<MidoriPattern>(MidoriPattern::Literal(literal, MidoriPattern::LiteralKind::Float));
+		return std::make_unique<MarmotPattern>(MarmotPattern::Literal(literal, MarmotPattern::LiteralKind::Float));
 	}
 	if (Match(Token::Name::INTEGER_LITERAL))
 	{
@@ -5227,13 +5227,13 @@ MidoriResult::PatternResult Parser::ParseNumericLiteralPattern()
 // `start..end` and `start..step..end` match the Ints the same range visits. The
 // step is 1 or -1, which keeps what a case covers an interval; other steps belong
 // in a guard.
-MidoriResult::PatternResult Parser::ParseRangePattern(std::unique_ptr<MidoriPattern>&& start)
+MarmotResult::PatternResult Parser::ParseRangePattern(std::unique_ptr<MarmotPattern>&& start)
 {
-	std::vector<std::unique_ptr<MidoriPattern>> parts;
+	std::vector<std::unique_ptr<MarmotPattern>> parts;
 	parts.push_back(std::move(start));
 	while (parts.size() < 3uz && Match(Token::Name::DOUBLE_DOT))
 	{
-		MidoriResult::PatternResult part = ParseNumericLiteralPattern();
+		MarmotResult::PatternResult part = ParseNumericLiteralPattern();
 		if (!part.has_value())
 		{
 			return part;
@@ -5242,10 +5242,10 @@ MidoriResult::PatternResult Parser::ParseRangePattern(std::unique_ptr<MidoriPatt
 	}
 
 	std::vector<int64_t> values;
-	for (const std::unique_ptr<MidoriPattern>& part : parts)
+	for (const std::unique_ptr<MarmotPattern>& part : parts)
 	{
-		const MidoriPattern::Literal& literal = part->GetPattern<MidoriPattern::Literal>();
-		if (literal.m_kind != MidoriPattern::LiteralKind::Integer)
+		const MarmotPattern::Literal& literal = part->GetPattern<MarmotPattern::Literal>();
+		if (literal.m_kind != MarmotPattern::LiteralKind::Integer)
 		{
 			return std::unexpected(GenerateParserError("A range pattern's start, step and end are Int literals.", literal.m_token));
 		}
@@ -5257,28 +5257,28 @@ MidoriResult::PatternResult Parser::ParseRangePattern(std::unique_ptr<MidoriPatt
 		values.push_back(value.value());
 	}
 
-	const Token& start_token = parts.front()->GetPattern<MidoriPattern::Literal>().m_token;
+	const Token& start_token = parts.front()->GetPattern<MarmotPattern::Literal>().m_token;
 	const int64_t first = values.front();
 	const int64_t step = values.size() == 3uz ? values[1uz] : 1;
 	const int64_t end = values.back();
 	if (step != 1 && step != -1)
 	{
-		return std::unexpected(GenerateParserError("A range pattern steps by 1 or -1; test other steps with a guard, as in 'case n if n % 2 == 0'.", parts[1uz]->GetPattern<MidoriPattern::Literal>().m_token));
+		return std::unexpected(GenerateParserError("A range pattern steps by 1 or -1; test other steps with a guard, as in 'case n if n % 2 == 0'.", parts[1uz]->GetPattern<MarmotPattern::Literal>().m_token));
 	}
 	if (step == 1 ? first >= end : first <= end)
 	{
 		return std::unexpected(GenerateParserError("This range visits no value, so the pattern can never match.", start_token));
 	}
 	return step == 1
-		? std::make_unique<MidoriPattern>(MidoriPattern::Range(start_token, first, end - 1))
-		: std::make_unique<MidoriPattern>(MidoriPattern::Range(start_token, end + 1, first));
+		? std::make_unique<MarmotPattern>(MarmotPattern::Range(start_token, first, end - 1))
+		: std::make_unique<MarmotPattern>(MarmotPattern::Range(start_token, end + 1, first));
 }
 
 // Every field is named with `=`, and `..`, last, says the fields not named are
 // left out on purpose; which ones exist is the type checker's to say.
-MidoriResult::PatternResult Parser::ParseRecordPattern(Token&& name)
+MarmotResult::PatternResult Parser::ParseRecordPattern(Token&& name)
 {
-	std::vector<MidoriPattern::Record::Field> fields;
+	std::vector<MarmotPattern::Record::Field> fields;
 	std::optional<Token> rest;
 	do
 	{
@@ -5287,17 +5287,17 @@ MidoriResult::PatternResult Parser::ParseRecordPattern(Token&& name)
 			rest = Previous();
 			break;
 		}
-		MidoriResult::TokenResult field = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected a field name, or '..' to leave the rest out, in a record pattern.");
+		MarmotResult::TokenResult field = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected a field name, or '..' to leave the rest out, in a record pattern.");
 		if (!field.has_value())
 		{
 			return std::unexpected(field.error());
 		}
-		MidoriResult::TokenResult equal = Consume(Token::Name::SINGLE_EQUAL, "Expected '=' after the field name; a record pattern names each field as 'field = pattern'.");
+		MarmotResult::TokenResult equal = Consume(Token::Name::SINGLE_EQUAL, "Expected '=' after the field name; a record pattern names each field as 'field = pattern'.");
 		if (!equal.has_value())
 		{
 			return std::unexpected(equal.error());
 		}
-		MidoriResult::PatternResult pattern = ParsePattern();
+		MarmotResult::PatternResult pattern = ParsePattern();
 		if (!pattern.has_value())
 		{
 			return pattern;
@@ -5308,55 +5308,55 @@ MidoriResult::PatternResult Parser::ParseRecordPattern(Token&& name)
 	return Consume(Token::Name::RIGHT_BRACE, rest.has_value() ? "Expected '}' after '..'; it comes last in a record pattern." : "Expected '}' after record pattern.")
 		.transform([&name, &fields, &rest](Token&&)
 		{
-			return std::make_unique<MidoriPattern>(MidoriPattern::Record(name, std::string(name.m_lexeme), std::move(fields), std::move(rest)));
+			return std::make_unique<MarmotPattern>(MarmotPattern::Record(name, std::string(name.m_lexeme), std::move(fields), std::move(rest)));
 		});
 }
 
-MidoriResult::PatternResult Parser::ParseBindingPattern(Token&& name)
+MarmotResult::PatternResult Parser::ParseBindingPattern(Token&& name)
 {
 	constexpr bool is_variable = true;
 	return DefineName(name, is_variable)
 		.and_then
 		(
-			[this](Token&& defined_name) -> MidoriResult::PatternResult
+			[this](Token&& defined_name) -> MarmotResult::PatternResult
 			{
 				std::optional<int> local_index = RegisterOrUpdateLocalVariable(defined_name.m_lexeme);
-				return std::make_unique<MidoriPattern>(MidoriPattern::Binding(defined_name, std::move(local_index)));
+				return std::make_unique<MarmotPattern>(MarmotPattern::Binding(defined_name, std::move(local_index)));
 			}
 		);
 }
 
-MidoriResult::PatternResult Parser::ParseArrayRest(Token&& dots)
+MarmotResult::PatternResult Parser::ParseArrayRest(Token&& dots)
 {
 	if (!Match(Token::Name::IDENTIFIER_LITERAL))
 	{
-		return std::make_unique<MidoriPattern>(MidoriPattern::Wildcard(dots));
+		return std::make_unique<MarmotPattern>(MarmotPattern::Wildcard(dots));
 	}
 
 	Token name = Previous();
 	if (name.m_lexeme == "_")
 	{
-		return std::make_unique<MidoriPattern>(MidoriPattern::Wildcard(name));
+		return std::make_unique<MarmotPattern>(MarmotPattern::Wildcard(name));
 	}
 	return ParseBindingPattern(std::move(name));
 }
 
-MidoriResult::StatementResult Parser::ParseStatement()
+MarmotResult::StatementResult Parser::ParseStatement()
 {
 	return ParseSimpleStatement();
 }
 
-MidoriResult::TypeResult Parser::ParseTypeOfOne(Token::Name keyword, std::string_view keyword_text, std::string_view argument_noun, MakeTypeOfOne make)
+MarmotResult::TypeResult Parser::ParseTypeOfOne(Token::Name keyword, std::string_view keyword_text, std::string_view argument_noun, MakeTypeOfOne make)
 {
-	return ParseWhen<std::shared_ptr<MidoriType>>(m_state,
+	return ParseWhen<std::shared_ptr<MarmotType>>(m_state,
 		keyword,
-		[this, keyword_text, argument_noun, make](Token&&) -> MidoriResult::TypeResult
+		[this, keyword_text, argument_noun, make](Token&&) -> MarmotResult::TypeResult
 		{
 			return Consume(Token::Name::LEFT_ANGLE, std::format("Expected '<' after '{}'.", keyword_text))
 				.and_then([this](Token&&) { return ParseType(); })
 				.and_then
 				(
-					[this, argument_noun, make](std::shared_ptr<MidoriType>&& type) -> MidoriResult::TypeResult
+					[this, argument_noun, make](std::shared_ptr<MarmotType>&& type) -> MarmotResult::TypeResult
 					{
 						return ConsumeTypeRightAngle(std::format("Expected '>' after {}.", argument_noun))
 							.transform([&type, make](Token&&) { return make(type); });
@@ -5366,55 +5366,55 @@ MidoriResult::TypeResult Parser::ParseTypeOfOne(Token::Name keyword, std::string
 	);
 }
 
-MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
+MarmotResult::TypeResult Parser::ParseType(bool is_foreign)
 {
-	return ParseChoice<std::shared_ptr<MidoriType>>(m_state,
-		[this]() -> MidoriResult::TypeResult
+	return ParseChoice<std::shared_ptr<MarmotType>>(m_state,
+		[this]() -> MarmotResult::TypeResult
 		{
-			const std::optional<std::shared_ptr<MidoriType>> keyword_type = KeywordType(Peek(m_state, 0).m_token_name);
+			const std::optional<std::shared_ptr<MarmotType>> keyword_type = KeywordType(Peek(m_state, 0).m_token_name);
 			if (!keyword_type.has_value())
 			{
-				return NoMatch<std::shared_ptr<MidoriType>>();
+				return NoMatch<std::shared_ptr<MarmotType>>();
 			}
 
 			Advance(m_state);
 			return *keyword_type;
 		},
-		[this]() -> MidoriResult::TypeResult
+		[this]() -> MarmotResult::TypeResult
 		{
-			return ParseTypeOfOne(Token::Name::ARRAY, "Array", "array type", &MidoriType::MakeArrayType);
+			return ParseTypeOfOne(Token::Name::ARRAY, "Array", "array type", &MarmotType::MakeArrayType);
 		},
-		[this]() -> MidoriResult::TypeResult
+		[this]() -> MarmotResult::TypeResult
 		{
-			return ParseTypeOfOne(Token::Name::RANGE, "Range", "range element type", &MidoriType::MakeRangeType);
+			return ParseTypeOfOne(Token::Name::RANGE, "Range", "range element type", &MarmotType::MakeRangeType);
 		},
-		[this]() -> MidoriResult::TypeResult
+		[this]() -> MarmotResult::TypeResult
 		{
-			return ParseTypeOfOne(Token::Name::WORKER, "Worker", "worker result type", &MidoriType::MakeWorkerType);
+			return ParseTypeOfOne(Token::Name::WORKER, "Worker", "worker result type", &MarmotType::MakeWorkerType);
 		},
-		[this]() -> MidoriResult::TypeResult
+		[this]() -> MarmotResult::TypeResult
 		{
-			return ParseTypeOfOne(Token::Name::CHANNEL_TYPE, "Channel", "channel element type", &MidoriType::MakeChannelType);
+			return ParseTypeOfOne(Token::Name::CHANNEL_TYPE, "Channel", "channel element type", &MarmotType::MakeChannelType);
 		},
-		[this, is_foreign]() -> MidoriResult::TypeResult
+		[this, is_foreign]() -> MarmotResult::TypeResult
 		{
-			return ParseWhen<std::shared_ptr<MidoriType>>(m_state,
+			return ParseWhen<std::shared_ptr<MarmotType>>(m_state,
 				Token::Name::FUNCTION,
-				[this, is_foreign](Token&&) -> MidoriResult::TypeResult
+				[this, is_foreign](Token&&) -> MarmotResult::TypeResult
 				{
-					std::function<MidoriResult::TypeResult(std::vector<std::shared_ptr<MidoriType>>&&)> func_type_aux_func = [is_foreign, this](std::vector<std::shared_ptr<MidoriType>>&& types) ->MidoriResult::TypeResult
+					std::function<MarmotResult::TypeResult(std::vector<std::shared_ptr<MarmotType>>&&)> func_type_aux_func = [is_foreign, this](std::vector<std::shared_ptr<MarmotType>>&& types) ->MarmotResult::TypeResult
 						{
 							return Consume(Token::Name::THIN_ARROW, "Expected '->' before return type token.")
 								.and_then
 								(
-									[&types, is_foreign, this](Token&&) ->MidoriResult::TypeResult
+									[&types, is_foreign, this](Token&&) ->MarmotResult::TypeResult
 									{
 										return ParseType()
 											.and_then
 											(
-												[&types, is_foreign](std::shared_ptr<MidoriType>&& return_type) ->MidoriResult::TypeResult
+												[&types, is_foreign](std::shared_ptr<MarmotType>&& return_type) ->MarmotResult::TypeResult
 												{
-													return MidoriType::MakeFunctionType(std::move(types), std::move(return_type), is_foreign);
+													return MarmotType::MakeFunctionType(std::move(types), std::move(return_type), is_foreign);
 												}
 											);
 									}
@@ -5427,7 +5427,7 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 							{
 								if (!Match(Token::Name::RIGHT_PAREN))
 								{
-									return ParseDelimitedZeroOrMoreLimited<std::shared_ptr<MidoriType>>
+									return ParseDelimitedZeroOrMoreLimited<std::shared_ptr<MarmotType>>
 										(
 											[this]() { return ParseType(); },
 											[this]() { return Consume(Token::Name::COMMA, "Expected ',' after argument type"); },
@@ -5435,7 +5435,7 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 										)
 										.and_then
 										(
-											[&func_type_aux_func](std::vector<std::shared_ptr<MidoriType>>&& types) ->MidoriResult::TypeResult
+											[&func_type_aux_func](std::vector<std::shared_ptr<MarmotType>>&& types) ->MarmotResult::TypeResult
 											{
 												return func_type_aux_func(std::move(types));
 											}
@@ -5450,30 +5450,30 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 				}
 			);
 		},
-		[this]() -> MidoriResult::TypeResult
+		[this]() -> MarmotResult::TypeResult
 		{
-			return ParseWhen<std::shared_ptr<MidoriType>>(m_state,
+			return ParseWhen<std::shared_ptr<MarmotType>>(m_state,
 				Token::Name::LEFT_PAREN,
-				[this](Token&&) -> MidoriResult::TypeResult
+				[this](Token&&) -> MarmotResult::TypeResult
 				{
 					if (Match(Token::Name::RIGHT_PAREN))
 					{
-						return MidoriType::MakeLiteralType<MidoriType::UnitType>();
+						return MarmotType::MakeLiteralType<MarmotType::UnitType>();
 					}
 
 					return ParseType()
 						.and_then
 						(
-							[this](std::shared_ptr<MidoriType>&& first_type) -> MidoriResult::TypeResult
+							[this](std::shared_ptr<MarmotType>&& first_type) -> MarmotResult::TypeResult
 							{
 								if (Match(Token::Name::COMMA))
 								{
-									std::vector<std::shared_ptr<MidoriType>> element_types;
+									std::vector<std::shared_ptr<MarmotType>> element_types;
 									element_types.push_back(std::move(first_type));
 
 									do
 									{
-										MidoriResult::TypeResult elem_result = ParseType();
+										MarmotResult::TypeResult elem_result = ParseType();
 										if (!elem_result)
 										{
 											return elem_result;
@@ -5484,9 +5484,9 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 									return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after tuple types.")
 										.and_then
 										(
-											[&element_types](Token&&) -> MidoriResult::TypeResult
+											[&element_types](Token&&) -> MarmotResult::TypeResult
 											{
-												return MidoriType::MakeTupleType(std::move(element_types));
+												return MarmotType::MakeTupleType(std::move(element_types));
 											}
 										);
 								}
@@ -5495,7 +5495,7 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 									return Consume
 									(
 										Token::Name::RIGHT_PAREN, "Expected ')' after type.")
-										.and_then([&first_type](Token&&) -> MidoriResult::TypeResult
+										.and_then([&first_type](Token&&) -> MarmotResult::TypeResult
 											{
 												return first_type;
 											}
@@ -5506,16 +5506,16 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 				}
 			);
 		},
-		[this]() -> MidoriResult::TypeResult
+		[this]() -> MarmotResult::TypeResult
 		{
-			return ParseWhen<std::shared_ptr<MidoriType>>(m_state,
+			return ParseWhen<std::shared_ptr<MarmotType>>(m_state,
 				Token::Name::IDENTIFIER_LITERAL,
-				[this](Token&&) -> MidoriResult::TypeResult
+				[this](Token&&) -> MarmotResult::TypeResult
 				{
 					return MatchNameResolution()
 						.and_then
 						(
-							[this](Token&& type_name) ->MidoriResult::TypeResult
+							[this](Token&& type_name) ->MarmotResult::TypeResult
 							{
 								std::string mangled_name = Mangle(type_name.m_lexeme);
 								std::vector<Scope>::const_reverse_iterator found_scope_it = FindTypeScope(type_name.m_lexeme);
@@ -5526,9 +5526,9 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 									return ParseRefTypeArguments();
 								}
 
-								std::shared_ptr<MidoriType> base_type = nullptr;
+								std::shared_ptr<MarmotType> base_type = nullptr;
 								const std::vector<std::string>* alias_generic_params = nullptr;
-								auto try_parse_associated_type = [this, &type_name]() -> MidoriResult::TypeResult
+								auto try_parse_associated_type = [this, &type_name]() -> MarmotResult::TypeResult
 								{
 									std::string associated_type_qualifier = ExtractQualifier(type_name.m_lexeme);
 									if (associated_type_qualifier.empty())
@@ -5549,7 +5549,7 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 										return std::unexpected(GenerateParserError("Expected '<' after associated type name.", type_name));
 									}
 
-									MidoriResult::TypeListResult type_args_result = ParseDelimitedZeroOrMoreLimited<std::shared_ptr<MidoriType>>
+									MarmotResult::TypeListResult type_args_result = ParseDelimitedZeroOrMoreLimited<std::shared_ptr<MarmotType>>
 									(
 										[this]() { return ParseType(); },
 										[this]() { return Consume(Token::Name::COMMA, "Expected ',' after associated type argument."); },
@@ -5563,7 +5563,7 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 									const size_t expected_arg_count = m_state.m_typeclass_type_params.contains(associated_type_qualifier)
 										? m_state.m_typeclass_type_params.at(associated_type_qualifier).size()
 										: 0u;
-									std::vector<std::shared_ptr<MidoriType>> type_args = std::move(type_args_result.value());
+									std::vector<std::shared_ptr<MarmotType>> type_args = std::move(type_args_result.value());
 									if (type_args.size() != expected_arg_count)
 									{
 										return std::unexpected
@@ -5577,7 +5577,7 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 										);
 									}
 
-									return MidoriType::MakeAssociatedType(associated_type_qualifier, associated_type_name, std::move(type_args));
+									return MarmotType::MakeAssociatedType(associated_type_qualifier, associated_type_name, std::move(type_args));
 								};
 
 								if (found_scope_it != m_state.m_scopes.crend())
@@ -5674,7 +5674,7 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 
 										if (m_state.m_allow_implicit_generic_params && type_name.m_lexeme.find(NameSeparator) == std::string::npos)
 										{
-											std::shared_ptr<MidoriType> generic_type = MidoriType::MakeGenericType(type_name.m_lexeme);
+											std::shared_ptr<MarmotType> generic_type = MarmotType::MakeGenericType(type_name.m_lexeme);
 											m_state.m_scopes.back().m_defined_types[type_name.m_lexeme] = generic_type;
 											base_type = generic_type;
 										}
@@ -5687,7 +5687,7 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 
 								if (Match(Token::Name::LEFT_ANGLE))
 								{
-									MidoriResult::TypeListResult type_args_result = ParseDelimitedZeroOrMoreLimited<std::shared_ptr<MidoriType>>
+									MarmotResult::TypeListResult type_args_result = ParseDelimitedZeroOrMoreLimited<std::shared_ptr<MarmotType>>
 										(
 											[this]() { return ParseType(); },
 											[this]() { return Consume(Token::Name::COMMA, "Expected ',' after type argument."); },
@@ -5699,7 +5699,7 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 										return std::unexpected(type_args_result.error());
 									}
 
-									std::vector<std::shared_ptr<MidoriType>> type_args = std::move(type_args_result.value());
+									std::vector<std::shared_ptr<MarmotType>> type_args = std::move(type_args_result.value());
 
 									// An alias binds its own parameters, and its expansion no longer
 									// carries any, so the alias is asked first and the expansion
@@ -5709,15 +5709,15 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 									{
 										generic_params = *alias_generic_params;
 									}
-									else if (base_type->IsType<MidoriType::StructType>())
+									else if (base_type->IsType<MarmotType::StructType>())
 									{
-										generic_params = base_type->GetType<MidoriType::StructType>().m_generic_params;
+										generic_params = base_type->GetType<MarmotType::StructType>().m_generic_params;
 									}
-									else if (base_type->IsType<MidoriType::UnionType>())
+									else if (base_type->IsType<MarmotType::UnionType>())
 									{
-										generic_params = base_type->GetType<MidoriType::UnionType>().m_generic_params;
+										generic_params = base_type->GetType<MarmotType::UnionType>().m_generic_params;
 									}
-									else if (base_type->IsType<MidoriType::NewType>())
+									else if (base_type->IsType<MarmotType::NewType>())
 									{
 										// A newtype is not transparent like an alias: it carries its own
 										// m_generic_params (Task 2's substitution arm deliberately
@@ -5726,7 +5726,7 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 										// for struct and union. No alias_generic_params side table is
 										// needed because there is no separate "expansion" whose params
 										// could differ from the declaration's own.
-										generic_params = base_type->GetType<MidoriType::NewType>().m_generic_params;
+										generic_params = base_type->GetType<MarmotType::NewType>().m_generic_params;
 									}
 
 									if (type_args.size() != generic_params.size())
@@ -5740,13 +5740,13 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 										return InstantiateUnfinishedType(type_name, base_type, generic_params, std::move(type_args));
 									}
 
-									std::unordered_map<std::string, std::shared_ptr<MidoriType>> substitutions;
+									std::unordered_map<std::string, std::shared_ptr<MarmotType>> substitutions;
 									for (size_t i = 0; i < generic_params.size(); ++i)
 									{
 										substitutions[generic_params[i]] = type_args[i];
 									}
 
-									return MidoriType::SubstituteTypeParams(base_type, substitutions);
+									return MarmotType::SubstituteTypeParams(base_type, substitutions);
 								}
 
 								// Without arguments a parameterised alias would hand back a template
@@ -5763,92 +5763,92 @@ MidoriResult::TypeResult Parser::ParseType(bool is_foreign)
 				}
 			);
 		},
-		[this]() -> MidoriResult::TypeResult
+		[this]() -> MarmotResult::TypeResult
 		{
 			return std::unexpected(GenerateParserError("Expected type token.", Peek(0)));
 		}
 	);
 }
 
-MidoriResult::StatementResult Parser::ParseDeclaration()
+MarmotResult::StatementResult Parser::ParseDeclaration()
 {
 	// End of current block: no further declarations to parse here.
 	if (Check(Token::Name::RIGHT_BRACE, 0))
 	{
-		return NoMatch<std::unique_ptr<MidoriStatement>>();
+		return NoMatch<std::unique_ptr<MarmotStatement>>();
 	}
 
-	return ParseChoice<std::unique_ptr<MidoriStatement>>(m_state,
-		[this]() -> MidoriResult::StatementResult
+	return ParseChoice<std::unique_ptr<MarmotStatement>>(m_state,
+		[this]() -> MarmotResult::StatementResult
 		{
-			return ParseWhen<std::unique_ptr<MidoriStatement>>(m_state,
+			return ParseWhen<std::unique_ptr<MarmotStatement>>(m_state,
 				Token::Name::DEF,
-				[this](Token&&) -> MidoriResult::StatementResult
+				[this](Token&&) -> MarmotResult::StatementResult
 				{
 					return ParseDefineStatement();
 				}
 			);
 		},
-		[this]() -> MidoriResult::StatementResult
+		[this]() -> MarmotResult::StatementResult
 		{
-			return ParseWhen<std::unique_ptr<MidoriStatement>>(m_state,
+			return ParseWhen<std::unique_ptr<MarmotStatement>>(m_state,
 				Token::Name::CLASS,
-				[this](Token&&) -> MidoriResult::StatementResult
+				[this](Token&&) -> MarmotResult::StatementResult
 				{
 					return ParseClassDeclaration();
 				}
 			);
 		},
-		[this]() -> MidoriResult::StatementResult
+		[this]() -> MarmotResult::StatementResult
 		{
-			return ParseWhen<std::unique_ptr<MidoriStatement>>(m_state,
+			return ParseWhen<std::unique_ptr<MarmotStatement>>(m_state,
 				Token::Name::INSTANCE,
-				[this](Token&&) -> MidoriResult::StatementResult
+				[this](Token&&) -> MarmotResult::StatementResult
 				{
 					return ParseInstanceDeclaration();
 				}
 			);
 		},
-		[this]() -> MidoriResult::StatementResult
+		[this]() -> MarmotResult::StatementResult
 		{
-			return ParseWhen<std::unique_ptr<MidoriStatement>>(m_state,
+			return ParseWhen<std::unique_ptr<MarmotStatement>>(m_state,
 				Token::Name::FOREIGN,
-				[this](Token&&) -> MidoriResult::StatementResult
+				[this](Token&&) -> MarmotResult::StatementResult
 				{
 					return ParseForeignStatement();
 				}
 			);
 		},
-		[this]() -> MidoriResult::StatementResult
+		[this]() -> MarmotResult::StatementResult
 		{
-			return ParseWhen<std::unique_ptr<MidoriStatement>>(m_state,
+			return ParseWhen<std::unique_ptr<MarmotStatement>>(m_state,
 				Token::Name::TYPE,
-				[this](Token&&) -> MidoriResult::StatementResult
+				[this](Token&&) -> MarmotResult::StatementResult
 				{
 					return ParseTypeDeclaration();
 				}
 			);
 		},
-		[this]() -> MidoriResult::StatementResult
+		[this]() -> MarmotResult::StatementResult
 		{
-			return ParseWhen<std::unique_ptr<MidoriStatement>>(m_state,
+			return ParseWhen<std::unique_ptr<MarmotStatement>>(m_state,
 				Token::Name::ALIAS,
-				[this](Token&&) -> MidoriResult::StatementResult
+				[this](Token&&) -> MarmotResult::StatementResult
 				{
 					return ParseAliasDeclaration();
 				}
 			);
 		},
-		[this]() -> MidoriResult::StatementResult
+		[this]() -> MarmotResult::StatementResult
 		{
 			return ParseStatement();
 		}
 	);
 }
 
-MidoriResult::ParserResult Parser::Parse()
+MarmotResult::ParserResult Parser::Parse()
 {
-	MidoriProgramTree programTree;
+	MarmotProgramTree programTree;
 	CollectTopLevelNames();
 
 	while (!IsAtEnd() || !m_pending_statements.empty())
@@ -5861,7 +5861,7 @@ MidoriResult::ParserResult Parser::Parse()
 		}
 
 		m_state.m_statement_index = static_cast<int>(programTree.size());
-		MidoriResult::StatementResult result = ParseDeclaration();
+		MarmotResult::StatementResult result = ParseDeclaration();
 		if (result.has_value())
 		{
 			RecordTopLevelDefinition(*result.value(), m_state.m_statement_index);
@@ -5872,24 +5872,24 @@ MidoriResult::ParserResult Parser::Parse()
 			// Phase 2 recovery policy: Parse() is the single recovery boundary for hard parser errors.
 			// The parser still stops at the first hard error after synchronizing to the next declaration starter.
 			Synchronize();
-			return std::unexpected(MidoriResult::CompilerDiagnostics(std::move(result.error())));
+			return std::unexpected(MarmotResult::CompilerDiagnostics(std::move(result.error())));
 		}
 	}
 
 	if (std::optional<CompilerError> instantiation_error = FillDeferredInstantiations())
 	{
-		return std::unexpected(MidoriResult::CompilerDiagnostics(std::move(instantiation_error.value())));
+		return std::unexpected(MarmotResult::CompilerDiagnostics(std::move(instantiation_error.value())));
 	}
 
 	if (std::optional<CompilerError> order_error = CheckDefinitionOrder())
 	{
-		return std::unexpected(MidoriResult::CompilerDiagnostics(std::move(order_error.value())));
+		return std::unexpected(MarmotResult::CompilerDiagnostics(std::move(order_error.value())));
 	}
 
-	return MidoriResult::ParserResult(std::move(programTree));
+	return MarmotResult::ParserResult(std::move(programTree));
 }
 
-MidoriResult::TokenResult Parser::MatchNameResolution()
+MarmotResult::TokenResult Parser::MatchNameResolution()
 {
 	Token resolved_name = Previous();
 	std::string& resolved_name_str = resolved_name.m_lexeme;
@@ -5928,24 +5928,24 @@ MidoriResult::TokenResult Parser::MatchNameResolution()
 	return resolved_name;
 }
 
-MidoriResult::TokenListResult Parser::ParseGenericParameters(std::vector<std::shared_ptr<MidoriType>>* out_types)
+MarmotResult::TokenListResult Parser::ParseGenericParameters(std::vector<std::shared_ptr<MarmotType>>* out_types)
 {
 	return ParseDelimitedZeroOrMoreLimited<Token>
 		(
-			[this, out_types]() -> MidoriResult::TokenResult
+			[this, out_types]() -> MarmotResult::TokenResult
 			{
 				return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected generic parameter name.")
 					.and_then
 					(
-						[this, out_types](Token&& param_name) -> MidoriResult::TokenResult
+						[this, out_types](Token&& param_name) -> MarmotResult::TokenResult
 						{
 							constexpr bool is_variable = false;
 							return DefineName(param_name, is_variable)
 								.and_then
 								(
-									[this, out_types](Token&& param_name) -> MidoriResult::TokenResult
+									[this, out_types](Token&& param_name) -> MarmotResult::TokenResult
 									{
-										std::shared_ptr<MidoriType> param_type = MidoriType::MakeGenericType(param_name.m_lexeme);
+										std::shared_ptr<MarmotType> param_type = MarmotType::MakeGenericType(param_name.m_lexeme);
 										m_state.m_scopes.back().m_defined_types[param_name.m_lexeme] = param_type;
 
 										// Keep the type alive if requested
@@ -5965,9 +5965,9 @@ MidoriResult::TokenListResult Parser::ParseGenericParameters(std::vector<std::sh
 		);
 }
 
-void Parser::PushActiveConstraints(const std::vector<MidoriType::ClassConstraint>& constraints)
+void Parser::PushActiveConstraints(const std::vector<MarmotType::ClassConstraint>& constraints)
 {
-	for (const MidoriType::ClassConstraint& constraint : constraints)
+	for (const MarmotType::ClassConstraint& constraint : constraints)
 	{
 		if (!ContainsConstraint(m_state.m_active_constraints, constraint))
 		{
@@ -5976,20 +5976,20 @@ void Parser::PushActiveConstraints(const std::vector<MidoriType::ClassConstraint
 	}
 }
 
-std::expected<std::vector<MidoriType::ClassConstraint>, CompilerError> Parser::ParseClassConstraints(const Token& context_token)
+std::expected<std::vector<MarmotType::ClassConstraint>, CompilerError> Parser::ParseClassConstraints(const Token& context_token)
 {
 	// An equality constraint reads 'Class::Assoc<S> ~ Type'. The '::' one token
 	// past the leading identifier is what distinguishes it from a class
 	// constraint, which reads 'Class<Type,...>'.
-	std::function<std::expected<MidoriType::ClassConstraint, CompilerError>()> parse_equality_constraint = [this]() -> std::expected<MidoriType::ClassConstraint, CompilerError>
+	std::function<std::expected<MarmotType::ClassConstraint, CompilerError>()> parse_equality_constraint = [this]() -> std::expected<MarmotType::ClassConstraint, CompilerError>
 		{
 			Token projection_token = Peek(0);
 			return ParseType()
 				.and_then
 				(
-					[&projection_token, this](std::shared_ptr<MidoriType>&& equality_lhs) -> std::expected<MidoriType::ClassConstraint, CompilerError>
+					[&projection_token, this](std::shared_ptr<MarmotType>&& equality_lhs) -> std::expected<MarmotType::ClassConstraint, CompilerError>
 					{
-						if (!equality_lhs->IsType<MidoriType::AssociatedType>())
+						if (!equality_lhs->IsType<MarmotType::AssociatedType>())
 						{
 							return std::unexpected(GenerateParserError("The left side of a '~' constraint must be an associated type projection, such as 'Stepper::Item<S>'.", projection_token));
 						}
@@ -5997,14 +5997,14 @@ std::expected<std::vector<MidoriType::ClassConstraint>, CompilerError> Parser::P
 						return Consume(Token::Name::TILDE, "Expected '~' after the associated type projection in an equality constraint.")
 							.and_then
 							(
-								[&equality_lhs, this](Token&&) -> std::expected<MidoriType::ClassConstraint, CompilerError>
+								[&equality_lhs, this](Token&&) -> std::expected<MarmotType::ClassConstraint, CompilerError>
 								{
 									return ParseType()
 										.and_then
 										(
-											[&equality_lhs](std::shared_ptr<MidoriType>&& equality_rhs) -> std::expected<MidoriType::ClassConstraint, CompilerError>
+											[&equality_lhs](std::shared_ptr<MarmotType>&& equality_rhs) -> std::expected<MarmotType::ClassConstraint, CompilerError>
 											{
-												return MidoriType::ClassConstraint{ std::move(equality_lhs), std::move(equality_rhs) };
+												return MarmotType::ClassConstraint{ std::move(equality_lhs), std::move(equality_rhs) };
 											}
 										);
 								}
@@ -6013,7 +6013,7 @@ std::expected<std::vector<MidoriType::ClassConstraint>, CompilerError> Parser::P
 				);
 		};
 
-	std::function<std::expected<MidoriType::ClassConstraint, CompilerError>()> parse_constraint = [&parse_equality_constraint, this]() -> std::expected<MidoriType::ClassConstraint, CompilerError>
+	std::function<std::expected<MarmotType::ClassConstraint, CompilerError>()> parse_constraint = [&parse_equality_constraint, this]() -> std::expected<MarmotType::ClassConstraint, CompilerError>
 		{
 			// A leading '~' after the identifier routes here too, so that 'T ~ Int'
 			// is rejected by the rule it actually breaks rather than by a missing '<'.
@@ -6025,15 +6025,15 @@ std::expected<std::vector<MidoriType::ClassConstraint>, CompilerError> Parser::P
 			return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected class name in constraint.")
 				.and_then
 				(
-					[this](Token&& first_token) -> std::expected<MidoriType::ClassConstraint, CompilerError>
+					[this](Token&& first_token) -> std::expected<MarmotType::ClassConstraint, CompilerError>
 					{
 						Token typeclass_name = std::move(first_token);
 						return Consume(Token::Name::LEFT_ANGLE, "Expected '<' after class name in constraint (e.g., 'Show<T>').")
 							.and_then
 							(
-								[&typeclass_name, this](Token&&) -> std::expected<MidoriType::ClassConstraint, CompilerError>
+								[&typeclass_name, this](Token&&) -> std::expected<MarmotType::ClassConstraint, CompilerError>
 								{
-									return ParseDelimitedZeroOrMoreLimited<std::shared_ptr<MidoriType>>
+									return ParseDelimitedZeroOrMoreLimited<std::shared_ptr<MarmotType>>
 										(
 											[this]() { return ParseType(); },
 											[this]() { return Consume(Token::Name::COMMA, "Expected ',' between type arguments."); },
@@ -6041,9 +6041,9 @@ std::expected<std::vector<MidoriType::ClassConstraint>, CompilerError> Parser::P
 										)
 										.and_then
 										(
-											[&typeclass_name](std::vector<std::shared_ptr<MidoriType>>&& type_args) -> std::expected<MidoriType::ClassConstraint, CompilerError>
+											[&typeclass_name](std::vector<std::shared_ptr<MarmotType>>&& type_args) -> std::expected<MarmotType::ClassConstraint, CompilerError>
 											{
-												return MidoriType::ClassConstraint{ typeclass_name.m_lexeme, std::move(type_args) };
+												return MarmotType::ClassConstraint{ typeclass_name.m_lexeme, std::move(type_args) };
 											}
 										);
 								}
@@ -6052,7 +6052,7 @@ std::expected<std::vector<MidoriType::ClassConstraint>, CompilerError> Parser::P
 				);
 		};
 
-	std::expected<std::vector<MidoriType::ClassConstraint>, CompilerError> constraints_result = ParseDelimitedOneOrMoreUnlimited<MidoriType::ClassConstraint>
+	std::expected<std::vector<MarmotType::ClassConstraint>, CompilerError> constraints_result = ParseDelimitedOneOrMoreUnlimited<MarmotType::ClassConstraint>
 	(
 		parse_constraint,
 		[this]() { return Consume(Token::Name::COMMA, "Expected ',' between constraints."); }
@@ -6076,12 +6076,12 @@ std::expected<std::vector<Token>, CompilerError> Parser::ParseDerivingTargets(co
 				std::unordered_set<std::string> seen_targets;
 				return ParseDelimitedZeroOrMoreLimited<Token>
 					(
-						[&seen_targets, this]() -> MidoriResult::TokenResult
+						[&seen_targets, this]() -> MarmotResult::TokenResult
 						{
 							return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected deriving target.")
 								.and_then
 								(
-									[&seen_targets, this](Token&& target) -> MidoriResult::TokenResult
+									[&seen_targets, this](Token&& target) -> MarmotResult::TokenResult
 									{
 										if (!seen_targets.insert(target.m_lexeme).second)
 										{
@@ -6130,13 +6130,13 @@ std::string Parser::AppendSuffixToQualifiedName(std::string_view qualified_name,
 	return result;
 }
 
-MidoriResult::TokenResult Parser::RegisterSyntheticGlobalName(const std::string& name, const Token& anchor)
+MarmotResult::TokenResult Parser::RegisterSyntheticGlobalName(const std::string& name, const Token& anchor)
 {
 	Token synthetic_name = MakeSyntheticToken(name, Token::Name::IDENTIFIER_LITERAL, anchor);
 	return DefineName(synthetic_name, true);
 }
 
-void Parser::RegisterSyntheticInstanceMetadata(const std::string& class_name, const std::vector<std::shared_ptr<MidoriType>>& type_args, const std::vector<MidoriType::ClassConstraint>& constraints, const std::vector<std::string>& mangled_method_names)
+void Parser::RegisterSyntheticInstanceMetadata(const std::string& class_name, const std::vector<std::shared_ptr<MarmotType>>& type_args, const std::vector<MarmotType::ClassConstraint>& constraints, const std::vector<std::string>& mangled_method_names)
 {
 	if (m_state.m_class_methods.contains(class_name))
 	{
@@ -6158,23 +6158,23 @@ void Parser::RegisterSyntheticInstanceMetadata(const std::string& class_name, co
 	}
 }
 
-MidoriResult::FunctionParamsResult Parser::ParseFunctionParameters(bool allow_inferred_types)
+MarmotResult::FunctionParamsResult Parser::ParseFunctionParameters(bool allow_inferred_types)
 {
-	return ParseDelimitedZeroOrMoreLimited<std::pair<Token, std::shared_ptr<MidoriType>>>
+	return ParseDelimitedZeroOrMoreLimited<std::pair<Token, std::shared_ptr<MarmotType>>>
 		(
-			[this, allow_inferred_types]() -> MidoriResult::FunctionParamResult
+			[this, allow_inferred_types]() -> MarmotResult::FunctionParamResult
 			{
 				return Consume(Token::Name::IDENTIFIER_LITERAL, "Expected parameter name.")
 					.and_then
 					(
-						[this, allow_inferred_types](Token&& param_name) -> MidoriResult::FunctionParamResult
+						[this, allow_inferred_types](Token&& param_name) -> MarmotResult::FunctionParamResult
 						{
 							return DefineName(param_name, true)
 								.and_then
 								(
-									[this, allow_inferred_types](Token&& param_name) -> MidoriResult::FunctionParamResult
+									[this, allow_inferred_types](Token&& param_name) -> MarmotResult::FunctionParamResult
 									{
-										auto finish_param = [&param_name, this](std::shared_ptr<MidoriType>&& type) -> MidoriResult::FunctionParamResult
+										auto finish_param = [&param_name, this](std::shared_ptr<MarmotType>&& type) -> MarmotResult::FunctionParamResult
 										{
 											RegisterOrUpdateLocalVariable(param_name.m_lexeme);
 											return std::make_pair(std::move(param_name), std::move(type));
@@ -6185,7 +6185,7 @@ MidoriResult::FunctionParamsResult Parser::ParseFunctionParameters(bool allow_in
 											return ParseType()
 												.and_then
 												(
-													[&finish_param](std::shared_ptr<MidoriType>&& type) -> MidoriResult::FunctionParamResult
+													[&finish_param](std::shared_ptr<MarmotType>&& type) -> MarmotResult::FunctionParamResult
 													{
 														return finish_param(std::move(type));
 													}
@@ -6197,7 +6197,7 @@ MidoriResult::FunctionParamsResult Parser::ParseFunctionParameters(bool allow_in
 											return std::unexpected(GenerateParserError("Expected ':' after parameter name.", param_name));
 										}
 
-										return finish_param(std::shared_ptr<MidoriType>(MidoriType::MakeUndecidedType()));
+										return finish_param(std::shared_ptr<MarmotType>(MarmotType::MakeUndecidedType()));
 									}
 								);
 						}
@@ -6208,21 +6208,21 @@ MidoriResult::FunctionParamsResult Parser::ParseFunctionParameters(bool allow_in
 		);
 }
 
-std::expected<void, CompilerError> Parser::QueueDerivedStructStatements(const MidoriStatement::Struct& struct_stmt, const std::vector<Token>& deriving_targets)
+std::expected<void, CompilerError> Parser::QueueDerivedStructStatements(const MarmotStatement::Struct& struct_stmt, const std::vector<Token>& deriving_targets)
 {
 	if (!IsAtGlobalScope())
 	{
 		return std::unexpected(GenerateParserError("Deriving declarations are only supported at global scope.", struct_stmt.m_name));
 	}
 
-	const MidoriType::StructType& struct_type = struct_stmt.m_self_type->GetType<MidoriType::StructType>();
+	const MarmotType::StructType& struct_type = struct_stmt.m_self_type->GetType<MarmotType::StructType>();
 
 	const SyntheticSyntax syntax(struct_stmt.m_name);
 
-	auto make_member_access = [this, &struct_stmt, &syntax](const std::string& base_name, int base_index, const std::string& member_name, int member_index) -> std::unique_ptr<MidoriExpression>
+	auto make_member_access = [this, &struct_stmt, &syntax](const std::string& base_name, int base_index, const std::string& member_name, int member_index) -> std::unique_ptr<MarmotExpression>
 	{
 		Token member_token = MakeSyntheticToken(member_name, Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name);
-		return std::make_unique<MidoriExpression>(MidoriExpression::MemberAccess(member_token, syntax.LocalName(base_name, base_index), member_index));
+		return std::make_unique<MarmotExpression>(MarmotExpression::MemberAccess(member_token, syntax.LocalName(base_name, base_index), member_index));
 	};
 
 	for (const Token& derive_target : deriving_targets)
@@ -6232,62 +6232,62 @@ std::expected<void, CompilerError> Parser::QueueDerivedStructStatements(const Mi
 			return std::unexpected(GenerateParserError("Unsupported deriving target for struct.", derive_target));
 		}
 
-		std::vector<std::shared_ptr<MidoriType>> type_args{ std::shared_ptr<MidoriType>(struct_stmt.m_self_type) };
+		std::vector<std::shared_ptr<MarmotType>> type_args{ std::shared_ptr<MarmotType>(struct_stmt.m_self_type) };
 		if (derive_target.m_lexeme == CONVERTABLE_CLASS_NAME)
 		{
-			type_args.emplace_back(MidoriType::MakeLiteralType<MidoriType::TextType>());
+			type_args.emplace_back(MarmotType::MakeLiteralType<MarmotType::TextType>());
 		}
 		Token class_token = MakeSyntheticToken(derive_target.m_lexeme, Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name);
-		std::vector<std::unique_ptr<MidoriStatement>> methods;
+		std::vector<std::unique_ptr<MarmotStatement>> methods;
 		std::vector<std::string> mangled_method_names;
 
 		if (derive_target.m_lexeme == TRANSFERABLE_CLASS_NAME)
 		{
 			RegisterSyntheticInstanceMetadata(derive_target.m_lexeme, type_args, {}, mangled_method_names);
-			m_pending_statements.emplace(std::make_unique<MidoriStatement>(MidoriStatement::Instance(class_token, std::move(type_args), {}, {}, std::move(methods))));
+			m_pending_statements.emplace(std::make_unique<MarmotStatement>(MarmotStatement::Instance(class_token, std::move(type_args), {}, {}, std::move(methods))));
 			continue;
 		}
 
 		if (derive_target.m_lexeme == EQUATABLE_CLASS_NAME)
 		{
-			const std::string mangled_name = MidoriType::MangleInstanceMethodName(std::string(EQUALS_METHOD_NAME), derive_target.m_lexeme, type_args);
+			const std::string mangled_name = MarmotType::MangleInstanceMethodName(std::string(EQUALS_METHOD_NAME), derive_target.m_lexeme, type_args);
 			Token method_token = MakeSyntheticToken(mangled_name, Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name);
 			std::vector<Token> params
 			{
 				MakeSyntheticToken("a", Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name),
 				MakeSyntheticToken("b", Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name)
 			};
-			std::vector<std::shared_ptr<MidoriType>> param_types{ std::shared_ptr<MidoriType>(struct_stmt.m_self_type), std::shared_ptr<MidoriType>(struct_stmt.m_self_type) };
+			std::vector<std::shared_ptr<MarmotType>> param_types{ std::shared_ptr<MarmotType>(struct_stmt.m_self_type), std::shared_ptr<MarmotType>(struct_stmt.m_self_type) };
 
-			std::unique_ptr<MidoriExpression> body = syntax.BoolLiteral(true);
+			std::unique_ptr<MarmotExpression> body = syntax.BoolLiteral(true);
 			for (size_t i = 0u; i < struct_type.m_member_types.size(); i += 1u)
 			{
-				std::vector<std::unique_ptr<MidoriExpression>> eq_args;
+				std::vector<std::unique_ptr<MarmotExpression>> eq_args;
 				eq_args.emplace_back(make_member_access("a", 0, struct_type.m_member_names[i], static_cast<int>(i)));
 				eq_args.emplace_back(make_member_access("b", 1, struct_type.m_member_names[i], static_cast<int>(i)));
 
-				std::unique_ptr<MidoriExpression> compare_expr = syntax.QualifiedCall(std::string(EQUATABLE_CLASS_NAME), std::string(EQUALS_METHOD_NAME), std::move(eq_args));
+				std::unique_ptr<MarmotExpression> compare_expr = syntax.QualifiedCall(std::string(EQUATABLE_CLASS_NAME), std::string(EQUALS_METHOD_NAME), std::move(eq_args));
 				body = syntax.Binary(Token::Name::DOUBLE_AMPERSAND, "&&", std::move(body), std::move(compare_expr));
 			}
 
 			methods.emplace_back
 			(
-				std::make_unique<MidoriStatement>
+				std::make_unique<MarmotStatement>
 				(
-					MidoriStatement::FunctionDefinition(method_token, {}, std::move(params), std::move(param_types), std::shared_ptr<MidoriType>(MidoriType::MakeLiteralType<MidoriType::BoolType>()), std::move(body), std::nullopt, 0, {})
+					MarmotStatement::FunctionDefinition(method_token, {}, std::move(params), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::BoolType>()), std::move(body), std::nullopt, 0, {})
 				)
 			);
 			mangled_method_names.emplace_back(mangled_name);
 		}
 		else if (derive_target.m_lexeme == CONVERTABLE_CLASS_NAME)
 		{
-			const std::string mangled_name = MidoriType::MangleInstanceMethodName(std::string(CONVERT_METHOD_NAME), derive_target.m_lexeme, type_args);
+			const std::string mangled_name = MarmotType::MangleInstanceMethodName(std::string(CONVERT_METHOD_NAME), derive_target.m_lexeme, type_args);
 			Token method_token = MakeSyntheticToken(mangled_name, Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name);
 			std::vector<Token> params{ MakeSyntheticToken("value", Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name) };
-			std::vector<std::shared_ptr<MidoriType>> param_types{ std::shared_ptr<MidoriType>(struct_stmt.m_self_type) };
+			std::vector<std::shared_ptr<MarmotType>> param_types{ std::shared_ptr<MarmotType>(struct_stmt.m_self_type) };
 
 			// `Name { field = value, ... }`, each field as its own `as Text` gives it.
-			std::unique_ptr<MidoriExpression> body = syntax.TextLiteral(struct_type.m_name + " { ");
+			std::unique_ptr<MarmotExpression> body = syntax.TextLiteral(struct_type.m_name + " { ");
 			for (size_t i = 0u; i < struct_type.m_member_types.size(); i += 1u)
 			{
 				body = syntax.Concat(std::move(body), syntax.TextLiteral((i == 0u ? "" : ", ") + struct_type.m_member_names[i] + " = "));
@@ -6297,26 +6297,26 @@ std::expected<void, CompilerError> Parser::QueueDerivedStructStatements(const Mi
 
 			methods.emplace_back
 			(
-				std::make_unique<MidoriStatement>
+				std::make_unique<MarmotStatement>
 				(
-					MidoriStatement::FunctionDefinition(method_token, {}, std::move(params), std::move(param_types), std::shared_ptr<MidoriType>(MidoriType::MakeLiteralType<MidoriType::TextType>()), std::move(body), std::nullopt, 0, {})
+					MarmotStatement::FunctionDefinition(method_token, {}, std::move(params), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::TextType>()), std::move(body), std::nullopt, 0, {})
 				)
 			);
 			mangled_method_names.emplace_back(mangled_name);
 		}
 		else if (derive_target.m_lexeme == ORDERABLE_CLASS_NAME)
 		{
-			const std::string mangled_name = MidoriType::MangleInstanceMethodName(std::string(COMPARE_METHOD_NAME), derive_target.m_lexeme, type_args);
+			const std::string mangled_name = MarmotType::MangleInstanceMethodName(std::string(COMPARE_METHOD_NAME), derive_target.m_lexeme, type_args);
 			Token method_token = MakeSyntheticToken(mangled_name, Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name);
 			std::vector<Token> params
 			{
 				MakeSyntheticToken("a", Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name),
 				MakeSyntheticToken("b", Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name)
 			};
-			std::vector<std::shared_ptr<MidoriType>> param_types{ std::shared_ptr<MidoriType>(struct_stmt.m_self_type), std::shared_ptr<MidoriType>(struct_stmt.m_self_type) };
+			std::vector<std::shared_ptr<MarmotType>> param_types{ std::shared_ptr<MarmotType>(struct_stmt.m_self_type), std::shared_ptr<MarmotType>(struct_stmt.m_self_type) };
 
 			// The first field that differs, in declaration order, decides.
-			std::unique_ptr<MidoriExpression> body = syntax.IntLiteral(0);
+			std::unique_ptr<MarmotExpression> body = syntax.IntLiteral(0);
 			for (size_t i = struct_type.m_member_types.size(); i > 0u; i -= 1u)
 			{
 				const size_t field = i - 1u;
@@ -6329,63 +6329,63 @@ std::expected<void, CompilerError> Parser::QueueDerivedStructStatements(const Mi
 
 			methods.emplace_back
 			(
-				std::make_unique<MidoriStatement>
+				std::make_unique<MarmotStatement>
 				(
-					MidoriStatement::FunctionDefinition(method_token, {}, std::move(params), std::move(param_types), std::shared_ptr<MidoriType>(MidoriType::MakeLiteralType<MidoriType::IntegerType>()), std::move(body), std::nullopt, 0, {})
+					MarmotStatement::FunctionDefinition(method_token, {}, std::move(params), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::IntegerType>()), std::move(body), std::nullopt, 0, {})
 				)
 			);
 			mangled_method_names.emplace_back(mangled_name);
 		}
 		else
 		{
-			const std::string mangled_name = MidoriType::MangleInstanceMethodName(std::string(HASH_METHOD_NAME), derive_target.m_lexeme, type_args);
+			const std::string mangled_name = MarmotType::MangleInstanceMethodName(std::string(HASH_METHOD_NAME), derive_target.m_lexeme, type_args);
 			Token method_token = MakeSyntheticToken(mangled_name, Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name);
 			std::vector<Token> params{ MakeSyntheticToken("value", Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name) };
-			std::vector<std::shared_ptr<MidoriType>> param_types{ std::shared_ptr<MidoriType>(struct_stmt.m_self_type) };
+			std::vector<std::shared_ptr<MarmotType>> param_types{ std::shared_ptr<MarmotType>(struct_stmt.m_self_type) };
 
-			std::unique_ptr<MidoriExpression> body = syntax.IntLiteral(0);
+			std::unique_ptr<MarmotExpression> body = syntax.IntLiteral(0);
 			for (size_t i = 0u; i < struct_type.m_member_types.size(); i += 1u)
 			{
-				std::vector<std::unique_ptr<MidoriExpression>> hash_args;
+				std::vector<std::unique_ptr<MarmotExpression>> hash_args;
 				hash_args.emplace_back(make_member_access("value", 0, struct_type.m_member_names[i], static_cast<int>(i)));
 
-				std::unique_ptr<MidoriExpression> member_hash = syntax.QualifiedCall(std::string(HASHABLE_CLASS_NAME), std::string(HASH_METHOD_NAME), std::move(hash_args));
-				std::unique_ptr<MidoriExpression> scaled = syntax.Binary(Token::Name::STAR, "*", std::move(body), syntax.IntLiteral(31));
+				std::unique_ptr<MarmotExpression> member_hash = syntax.QualifiedCall(std::string(HASHABLE_CLASS_NAME), std::string(HASH_METHOD_NAME), std::move(hash_args));
+				std::unique_ptr<MarmotExpression> scaled = syntax.Binary(Token::Name::STAR, "*", std::move(body), syntax.IntLiteral(31));
 				body = syntax.Binary(Token::Name::SINGLE_PLUS, "+", std::move(scaled), std::move(member_hash));
 			}
 
 			methods.emplace_back
 			(
-				std::make_unique<MidoriStatement>
+				std::make_unique<MarmotStatement>
 				(
-					MidoriStatement::FunctionDefinition(method_token, {}, std::move(params), std::move(param_types), std::shared_ptr<MidoriType>(MidoriType::MakeLiteralType<MidoriType::IntegerType>()), std::move(body), std::nullopt, 0, {})
+					MarmotStatement::FunctionDefinition(method_token, {}, std::move(params), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::IntegerType>()), std::move(body), std::nullopt, 0, {})
 				)
 			);
 			mangled_method_names.emplace_back(mangled_name);
 		}
 
-		std::vector<MidoriType::ClassConstraint> constraints = DerivedConstraints(derive_target.m_lexeme, struct_stmt.m_generic_params, type_args);
+		std::vector<MarmotType::ClassConstraint> constraints = DerivedConstraints(derive_target.m_lexeme, struct_stmt.m_generic_params, type_args);
 		RegisterSyntheticInstanceMetadata(derive_target.m_lexeme, type_args, constraints, mangled_method_names);
-		m_pending_statements.emplace(std::make_unique<MidoriStatement>(MidoriStatement::Instance(class_token, std::move(type_args), std::move(constraints), {}, std::move(methods))));
+		m_pending_statements.emplace(std::make_unique<MarmotStatement>(MarmotStatement::Instance(class_token, std::move(type_args), std::move(constraints), {}, std::move(methods))));
 	}
 
 	return {};
 }
 
-std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const MidoriStatement::Union& union_stmt, const std::vector<Token>& deriving_targets)
+std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const MarmotStatement::Union& union_stmt, const std::vector<Token>& deriving_targets)
 {
 	if (!IsAtGlobalScope())
 	{
 		return std::unexpected(GenerateParserError("Deriving declarations are only supported at global scope.", union_stmt.m_name));
 	}
 
-	const MidoriType::UnionType& union_type = union_stmt.m_self_type->GetType<MidoriType::UnionType>();
+	const MarmotType::UnionType& union_type = union_stmt.m_self_type->GetType<MarmotType::UnionType>();
 
 	const SyntheticSyntax syntax(union_stmt.m_name);
 
-	auto make_constructor_pattern = [&syntax](const std::string& ctor_name, int first_local_index, size_t field_count, const std::string& prefix) -> std::unique_ptr<MidoriPattern>
+	auto make_constructor_pattern = [&syntax](const std::string& ctor_name, int first_local_index, size_t field_count, const std::string& prefix) -> std::unique_ptr<MarmotPattern>
 	{
-		std::vector<std::unique_ptr<MidoriPattern>> args;
+		std::vector<std::unique_ptr<MarmotPattern>> args;
 		for (size_t i = 0u; i < field_count; i += 1u)
 		{
 			args.emplace_back(syntax.BindingPattern(prefix + std::to_string(i), first_local_index + static_cast<int>(i)));
@@ -6393,10 +6393,10 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 		return syntax.ConstructorPattern(ctor_name, std::move(args));
 	};
 
-	auto make_union_construct = [this, &union_stmt](const std::string& ctor_name, int tag, std::vector<std::unique_ptr<MidoriExpression>>&& args, const std::shared_ptr<MidoriType>& return_type) -> std::unique_ptr<MidoriExpression>
+	auto make_union_construct = [this, &union_stmt](const std::string& ctor_name, int tag, std::vector<std::unique_ptr<MarmotExpression>>&& args, const std::shared_ptr<MarmotType>& return_type) -> std::unique_ptr<MarmotExpression>
 	{
 		Token ctor_token = MakeSyntheticToken(ctor_name, Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name);
-		return std::make_unique<MidoriExpression>(MidoriExpression::Construct(ctor_token, std::move(args), std::shared_ptr<MidoriType>(return_type), true, MidoriExpression::Construct::Union(tag)));
+		return std::make_unique<MarmotExpression>(MarmotExpression::Construct(ctor_token, std::move(args), std::shared_ptr<MarmotType>(return_type), true, MarmotExpression::Construct::Union(tag)));
 	};
 
 	for (const Token& derive_target : deriving_targets)
@@ -6411,53 +6411,53 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 
 		if (is_transferable)
 		{
-			std::vector<std::shared_ptr<MidoriType>> type_args{ std::shared_ptr<MidoriType>(union_stmt.m_self_type) };
+			std::vector<std::shared_ptr<MarmotType>> type_args{ std::shared_ptr<MarmotType>(union_stmt.m_self_type) };
 			Token class_token = MakeSyntheticToken(derive_target.m_lexeme, Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name);
-			std::vector<std::unique_ptr<MidoriStatement>> methods;
+			std::vector<std::unique_ptr<MarmotStatement>> methods;
 			std::vector<std::string> mangled_method_names;
 			RegisterSyntheticInstanceMetadata(derive_target.m_lexeme, type_args, {}, mangled_method_names);
-			m_pending_statements.emplace(std::make_unique<MidoriStatement>(MidoriStatement::Instance(class_token, std::move(type_args), {}, {}, std::move(methods))));
+			m_pending_statements.emplace(std::make_unique<MarmotStatement>(MarmotStatement::Instance(class_token, std::move(type_args), {}, {}, std::move(methods))));
 			continue;
 		}
 
 		if (is_structural)
 		{
-			std::vector<std::shared_ptr<MidoriType>> type_args{ std::shared_ptr<MidoriType>(union_stmt.m_self_type) };
+			std::vector<std::shared_ptr<MarmotType>> type_args{ std::shared_ptr<MarmotType>(union_stmt.m_self_type) };
 			if (derive_target.m_lexeme == CONVERTABLE_CLASS_NAME)
 			{
-				type_args.emplace_back(MidoriType::MakeLiteralType<MidoriType::TextType>());
+				type_args.emplace_back(MarmotType::MakeLiteralType<MarmotType::TextType>());
 			}
 			Token class_token = MakeSyntheticToken(derive_target.m_lexeme, Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name);
-			std::vector<std::unique_ptr<MidoriStatement>> methods;
+			std::vector<std::unique_ptr<MarmotStatement>> methods;
 			std::vector<std::string> mangled_method_names;
 
 			if (derive_target.m_lexeme == EQUATABLE_CLASS_NAME)
 			{
-				const std::string mangled_name = MidoriType::MangleInstanceMethodName(std::string(EQUALS_METHOD_NAME), derive_target.m_lexeme, type_args);
+				const std::string mangled_name = MarmotType::MangleInstanceMethodName(std::string(EQUALS_METHOD_NAME), derive_target.m_lexeme, type_args);
 				Token method_token = MakeSyntheticToken(mangled_name, Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name);
 				std::vector<Token> params
 				{
 					MakeSyntheticToken("a", Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name),
 					MakeSyntheticToken("b", Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name)
 				};
-				std::vector<std::shared_ptr<MidoriType>> param_types{ std::shared_ptr<MidoriType>(union_stmt.m_self_type), std::shared_ptr<MidoriType>(union_stmt.m_self_type) };
+				std::vector<std::shared_ptr<MarmotType>> param_types{ std::shared_ptr<MarmotType>(union_stmt.m_self_type), std::shared_ptr<MarmotType>(union_stmt.m_self_type) };
 
-				std::vector<std::unique_ptr<MidoriExpression>> outer_cases;
+				std::vector<std::unique_ptr<MarmotExpression>> outer_cases;
 				for (const Token& ctor_name : union_stmt.m_constructor_names)
 				{
-					const MidoriType::UnionType::UnionMemberContext& member_ctx = union_type.m_member_info.at(ctor_name.m_lexeme);
+					const MarmotType::UnionType::UnionMemberContext& member_ctx = union_type.m_member_info.at(ctor_name.m_lexeme);
 					const int outer_binding_start = 2;
 					const int inner_binding_start = outer_binding_start + static_cast<int>(member_ctx.m_member_types.size());
 
-					std::vector<std::unique_ptr<MidoriExpression>> inner_cases;
-					std::unique_ptr<MidoriExpression> inner_body = syntax.BoolLiteral(true);
+					std::vector<std::unique_ptr<MarmotExpression>> inner_cases;
+					std::unique_ptr<MarmotExpression> inner_body = syntax.BoolLiteral(true);
 					for (size_t i = 0u; i < member_ctx.m_member_types.size(); i += 1u)
 					{
-						std::vector<std::unique_ptr<MidoriExpression>> eq_args;
+						std::vector<std::unique_ptr<MarmotExpression>> eq_args;
 						eq_args.emplace_back(syntax.LocalName("lhs" + std::to_string(i), outer_binding_start + static_cast<int>(i)));
 						eq_args.emplace_back(syntax.LocalName("rhs" + std::to_string(i), inner_binding_start + static_cast<int>(i)));
 
-						std::unique_ptr<MidoriExpression> compare_expr = syntax.QualifiedCall(std::string(EQUATABLE_CLASS_NAME), std::string(EQUALS_METHOD_NAME), std::move(eq_args));
+						std::unique_ptr<MarmotExpression> compare_expr = syntax.QualifiedCall(std::string(EQUATABLE_CLASS_NAME), std::string(EQUALS_METHOD_NAME), std::move(eq_args));
 						inner_body = syntax.Binary(Token::Name::DOUBLE_AMPERSAND, "&&", std::move(inner_body), std::move(compare_expr));
 					}
 
@@ -6481,29 +6481,29 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 					);
 				}
 
-				std::unique_ptr<MidoriExpression> body = syntax.Match(syntax.LocalName("a", 0), std::move(outer_cases));
+				std::unique_ptr<MarmotExpression> body = syntax.Match(syntax.LocalName("a", 0), std::move(outer_cases));
 				methods.emplace_back
 				(
-					std::make_unique<MidoriStatement>
+					std::make_unique<MarmotStatement>
 					(
-						MidoriStatement::FunctionDefinition(method_token, {}, std::move(params), std::move(param_types), std::shared_ptr<MidoriType>(MidoriType::MakeLiteralType<MidoriType::BoolType>()), std::move(body), std::nullopt, 0, {})
+						MarmotStatement::FunctionDefinition(method_token, {}, std::move(params), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::BoolType>()), std::move(body), std::nullopt, 0, {})
 					)
 				);
 				mangled_method_names.emplace_back(mangled_name);
 			}
 			else if (derive_target.m_lexeme == CONVERTABLE_CLASS_NAME)
 			{
-				const std::string mangled_name = MidoriType::MangleInstanceMethodName(std::string(CONVERT_METHOD_NAME), derive_target.m_lexeme, type_args);
+				const std::string mangled_name = MarmotType::MangleInstanceMethodName(std::string(CONVERT_METHOD_NAME), derive_target.m_lexeme, type_args);
 				Token method_token = MakeSyntheticToken(mangled_name, Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name);
 				std::vector<Token> params{ MakeSyntheticToken("value", Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name) };
-				std::vector<std::shared_ptr<MidoriType>> param_types{ std::shared_ptr<MidoriType>(union_stmt.m_self_type) };
+				std::vector<std::shared_ptr<MarmotType>> param_types{ std::shared_ptr<MarmotType>(union_stmt.m_self_type) };
 
 				// `Union::Variant(field, ...)`, as a variant is written.
-				std::vector<std::unique_ptr<MidoriExpression>> cases;
+				std::vector<std::unique_ptr<MarmotExpression>> cases;
 				for (const Token& ctor_name : union_stmt.m_constructor_names)
 				{
-					const MidoriType::UnionType::UnionMemberContext& member_ctx = union_type.m_member_info.at(ctor_name.m_lexeme);
-					std::unique_ptr<MidoriExpression> case_body = syntax.TextLiteral(ctor_name.m_lexeme + "(");
+					const MarmotType::UnionType::UnionMemberContext& member_ctx = union_type.m_member_info.at(ctor_name.m_lexeme);
+					std::unique_ptr<MarmotExpression> case_body = syntax.TextLiteral(ctor_name.m_lexeme + "(");
 					for (size_t i = 0u; i < member_ctx.m_member_types.size(); i += 1u)
 					{
 						if (i != 0u)
@@ -6516,31 +6516,31 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 					cases.emplace_back(syntax.Case(make_constructor_pattern(ctor_name.m_lexeme, 1, member_ctx.m_member_types.size(), "field"), std::move(case_body)));
 				}
 
-				std::unique_ptr<MidoriExpression> body = syntax.Match(syntax.LocalName("value", 0), std::move(cases));
+				std::unique_ptr<MarmotExpression> body = syntax.Match(syntax.LocalName("value", 0), std::move(cases));
 				methods.emplace_back
 				(
-					std::make_unique<MidoriStatement>
+					std::make_unique<MarmotStatement>
 					(
-						MidoriStatement::FunctionDefinition(method_token, {}, std::move(params), std::move(param_types), std::shared_ptr<MidoriType>(MidoriType::MakeLiteralType<MidoriType::TextType>()), std::move(body), std::nullopt, 0, {})
+						MarmotStatement::FunctionDefinition(method_token, {}, std::move(params), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::TextType>()), std::move(body), std::nullopt, 0, {})
 					)
 				);
 				mangled_method_names.emplace_back(mangled_name);
 			}
 			else if (derive_target.m_lexeme == ORDERABLE_CLASS_NAME)
 			{
-				const std::string mangled_name = MidoriType::MangleInstanceMethodName(std::string(COMPARE_METHOD_NAME), derive_target.m_lexeme, type_args);
+				const std::string mangled_name = MarmotType::MangleInstanceMethodName(std::string(COMPARE_METHOD_NAME), derive_target.m_lexeme, type_args);
 				Token method_token = MakeSyntheticToken(mangled_name, Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name);
 				std::vector<Token> params
 				{
 					MakeSyntheticToken("a", Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name),
 					MakeSyntheticToken("b", Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name)
 				};
-				std::vector<std::shared_ptr<MidoriType>> param_types{ std::shared_ptr<MidoriType>(union_stmt.m_self_type), std::shared_ptr<MidoriType>(union_stmt.m_self_type) };
+				std::vector<std::shared_ptr<MarmotType>> param_types{ std::shared_ptr<MarmotType>(union_stmt.m_self_type), std::shared_ptr<MarmotType>(union_stmt.m_self_type) };
 
 				// A variant declared earlier is the smaller; the same variant
 				// compares its fields in order.
 				const std::vector<Token>& variants = union_stmt.m_constructor_names;
-				std::vector<std::unique_ptr<MidoriExpression>> outer_cases;
+				std::vector<std::unique_ptr<MarmotExpression>> outer_cases;
 				for (size_t left = 0u; left < variants.size(); left += 1u)
 				{
 					const size_t field_count = union_type.m_member_info.at(variants[left].m_lexeme).m_member_types.size();
@@ -6548,12 +6548,12 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 					const int right_start = left_start + static_cast<int>(field_count);
 					const int order_start = right_start + static_cast<int>(field_count);
 
-					std::vector<std::unique_ptr<MidoriExpression>> inner_cases;
+					std::vector<std::unique_ptr<MarmotExpression>> inner_cases;
 					for (size_t right = 0u; right < variants.size(); right += 1u)
 					{
 						if (right == left)
 						{
-							std::unique_ptr<MidoriExpression> same = syntax.IntLiteral(0);
+							std::unique_ptr<MarmotExpression> same = syntax.IntLiteral(0);
 							for (size_t i = field_count; i > 0u; i -= 1u)
 							{
 								const int field = static_cast<int>(i - 1u);
@@ -6563,12 +6563,12 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 							continue;
 						}
 
-						std::vector<std::unique_ptr<MidoriPattern>> wildcards;
+						std::vector<std::unique_ptr<MarmotPattern>> wildcards;
 						for (size_t i = 0u; i < union_type.m_member_info.at(variants[right].m_lexeme).m_member_types.size(); i += 1u)
 						{
 							wildcards.emplace_back(syntax.WildcardPattern());
 						}
-						std::unique_ptr<MidoriExpression> order = right < left
+						std::unique_ptr<MarmotExpression> order = right < left
 							? syntax.IntLiteral(1)
 							: syntax.Binary(Token::Name::SINGLE_MINUS, "-", syntax.IntLiteral(0), syntax.IntLiteral(1));
 						inner_cases.emplace_back(syntax.Case(syntax.ConstructorPattern(variants[right].m_lexeme, std::move(wildcards)), std::move(order)));
@@ -6577,35 +6577,35 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 					outer_cases.emplace_back(syntax.Case(make_constructor_pattern(variants[left].m_lexeme, left_start, field_count, "lhs"), syntax.Match(syntax.LocalName("b", 1), std::move(inner_cases))));
 				}
 
-				std::unique_ptr<MidoriExpression> body = syntax.Match(syntax.LocalName("a", 0), std::move(outer_cases));
+				std::unique_ptr<MarmotExpression> body = syntax.Match(syntax.LocalName("a", 0), std::move(outer_cases));
 				methods.emplace_back
 				(
-					std::make_unique<MidoriStatement>
+					std::make_unique<MarmotStatement>
 					(
-						MidoriStatement::FunctionDefinition(method_token, {}, std::move(params), std::move(param_types), std::shared_ptr<MidoriType>(MidoriType::MakeLiteralType<MidoriType::IntegerType>()), std::move(body), std::nullopt, 0, {})
+						MarmotStatement::FunctionDefinition(method_token, {}, std::move(params), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::IntegerType>()), std::move(body), std::nullopt, 0, {})
 					)
 				);
 				mangled_method_names.emplace_back(mangled_name);
 			}
 			else
 			{
-				const std::string mangled_name = MidoriType::MangleInstanceMethodName(std::string(HASH_METHOD_NAME), derive_target.m_lexeme, type_args);
+				const std::string mangled_name = MarmotType::MangleInstanceMethodName(std::string(HASH_METHOD_NAME), derive_target.m_lexeme, type_args);
 				Token method_token = MakeSyntheticToken(mangled_name, Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name);
 				std::vector<Token> params{ MakeSyntheticToken("value", Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name) };
-				std::vector<std::shared_ptr<MidoriType>> param_types{ std::shared_ptr<MidoriType>(union_stmt.m_self_type) };
+				std::vector<std::shared_ptr<MarmotType>> param_types{ std::shared_ptr<MarmotType>(union_stmt.m_self_type) };
 
-				std::vector<std::unique_ptr<MidoriExpression>> cases;
+				std::vector<std::unique_ptr<MarmotExpression>> cases;
 				for (const Token& ctor_name : union_stmt.m_constructor_names)
 				{
-					const MidoriType::UnionType::UnionMemberContext& member_ctx = union_type.m_member_info.at(ctor_name.m_lexeme);
-					std::unique_ptr<MidoriExpression> case_body = syntax.IntLiteral(member_ctx.m_tag);
+					const MarmotType::UnionType::UnionMemberContext& member_ctx = union_type.m_member_info.at(ctor_name.m_lexeme);
+					std::unique_ptr<MarmotExpression> case_body = syntax.IntLiteral(member_ctx.m_tag);
 					for (size_t i = 0u; i < member_ctx.m_member_types.size(); i += 1u)
 					{
-						std::vector<std::unique_ptr<MidoriExpression>> hash_args;
+						std::vector<std::unique_ptr<MarmotExpression>> hash_args;
 						hash_args.emplace_back(syntax.LocalName("field" + std::to_string(i), 1 + static_cast<int>(i)));
 
-						std::unique_ptr<MidoriExpression> member_hash = syntax.QualifiedCall(std::string(HASHABLE_CLASS_NAME), std::string(HASH_METHOD_NAME), std::move(hash_args));
-						std::unique_ptr<MidoriExpression> scaled = syntax.Binary(Token::Name::STAR, "*", std::move(case_body), syntax.IntLiteral(31));
+						std::unique_ptr<MarmotExpression> member_hash = syntax.QualifiedCall(std::string(HASHABLE_CLASS_NAME), std::string(HASH_METHOD_NAME), std::move(hash_args));
+						std::unique_ptr<MarmotExpression> scaled = syntax.Binary(Token::Name::STAR, "*", std::move(case_body), syntax.IntLiteral(31));
 						case_body = syntax.Binary(Token::Name::SINGLE_PLUS, "+", std::move(scaled), std::move(member_hash));
 					}
 
@@ -6619,20 +6619,20 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 					);
 				}
 
-				std::unique_ptr<MidoriExpression> body = syntax.Match(syntax.LocalName("value", 0), std::move(cases));
+				std::unique_ptr<MarmotExpression> body = syntax.Match(syntax.LocalName("value", 0), std::move(cases));
 				methods.emplace_back
 				(
-					std::make_unique<MidoriStatement>
+					std::make_unique<MarmotStatement>
 					(
-						MidoriStatement::FunctionDefinition(method_token, {}, std::move(params), std::move(param_types), std::shared_ptr<MidoriType>(MidoriType::MakeLiteralType<MidoriType::IntegerType>()), std::move(body), std::nullopt, 0, {})
+						MarmotStatement::FunctionDefinition(method_token, {}, std::move(params), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::IntegerType>()), std::move(body), std::nullopt, 0, {})
 					)
 				);
 				mangled_method_names.emplace_back(mangled_name);
 			}
 
-			std::vector<MidoriType::ClassConstraint> constraints = DerivedConstraints(derive_target.m_lexeme, union_stmt.m_generic_params, type_args);
+			std::vector<MarmotType::ClassConstraint> constraints = DerivedConstraints(derive_target.m_lexeme, union_stmt.m_generic_params, type_args);
 			RegisterSyntheticInstanceMetadata(derive_target.m_lexeme, type_args, constraints, mangled_method_names);
-			m_pending_statements.emplace(std::make_unique<MidoriStatement>(MidoriStatement::Instance(class_token, std::move(type_args), std::move(constraints), {}, std::move(methods))));
+			m_pending_statements.emplace(std::make_unique<MarmotStatement>(MarmotStatement::Instance(class_token, std::move(type_args), std::move(constraints), {}, std::move(methods))));
 			continue;
 		}
 
@@ -6645,13 +6645,13 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 
 		// Bind and Unwrap take each variant as it is or by its one field of the
 		// first type parameter: the index of that field, or -1 for none.
-		auto mapped_field_of = [this, &union_stmt, &union_type, &first_type_param, &derive_target](const MidoriType::UnionType::UnionMemberContext& member_ctx) -> std::expected<int, CompilerError>
+		auto mapped_field_of = [this, &union_stmt, &union_type, &first_type_param, &derive_target](const MarmotType::UnionType::UnionMemberContext& member_ctx) -> std::expected<int, CompilerError>
 		{
 			int mapped_field_index = -1;
 			bool has_other_generic_field = false;
 			for (size_t i = 0u; i < member_ctx.m_member_types.size(); i += 1u)
 			{
-				const std::shared_ptr<MidoriType>& member_type = member_ctx.m_member_types[i];
+				const std::shared_ptr<MarmotType>& member_type = member_ctx.m_member_types[i];
 				if (IsExactGenericParam(member_type, first_type_param))
 				{
 					if (mapped_field_index != -1)
@@ -6691,51 +6691,51 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 			generic_params.push_back(union_stmt.m_generic_params[i]);
 		}
 
-		MidoriResult::TokenResult function_name_result = RegisterSyntheticGlobalName(AppendSuffixToQualifiedName(union_stmt.m_name.m_lexeme, derive_target.m_lexeme), union_stmt.m_name);
+		MarmotResult::TokenResult function_name_result = RegisterSyntheticGlobalName(AppendSuffixToQualifiedName(union_stmt.m_name.m_lexeme, derive_target.m_lexeme), union_stmt.m_name);
 		if (!function_name_result.has_value())
 		{
 			return std::unexpected(std::move(function_name_result.error()));
 		}
 		Token function_name = std::move(function_name_result.value());
 
-		std::shared_ptr<MidoriType> input_union_type = std::shared_ptr<MidoriType>(union_stmt.m_self_type);
-		std::shared_ptr<MidoriType> mapped_type = MidoriType::MakeGenericType(mapped_type_param_name);
-		std::shared_ptr<MidoriType> source_type = MidoriType::MakeGenericType(first_type_param);
-		std::unordered_map<std::string, std::shared_ptr<MidoriType>> output_substitutions;
+		std::shared_ptr<MarmotType> input_union_type = std::shared_ptr<MarmotType>(union_stmt.m_self_type);
+		std::shared_ptr<MarmotType> mapped_type = MarmotType::MakeGenericType(mapped_type_param_name);
+		std::shared_ptr<MarmotType> source_type = MarmotType::MakeGenericType(first_type_param);
+		std::unordered_map<std::string, std::shared_ptr<MarmotType>> output_substitutions;
 		output_substitutions.emplace(first_type_param, mapped_type);
-		std::shared_ptr<MidoriType> output_union_type = MidoriType::SubstituteTypeParams(union_stmt.m_self_type, output_substitutions);
+		std::shared_ptr<MarmotType> output_union_type = MarmotType::SubstituteTypeParams(union_stmt.m_self_type, output_substitutions);
 
 		std::vector<Token> params;
-		std::vector<std::shared_ptr<MidoriType>> param_types;
+		std::vector<std::shared_ptr<MarmotType>> param_types;
 		params.emplace_back(MakeSyntheticToken("value", Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name));
 		param_types.emplace_back(input_union_type);
 
 		if (derive_target.m_lexeme == "Map")
 		{
 			params.emplace_back(MakeSyntheticToken("f", Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name));
-			param_types.emplace_back(MidoriType::MakeFunctionType(std::vector<std::shared_ptr<MidoriType>>{ source_type }, std::shared_ptr<MidoriType>(mapped_type)));
+			param_types.emplace_back(MarmotType::MakeFunctionType(std::vector<std::shared_ptr<MarmotType>>{ source_type }, std::shared_ptr<MarmotType>(mapped_type)));
 			const int case_binding_base_index = static_cast<int>(params.size());
 
-			std::vector<std::unique_ptr<MidoriExpression>> cases;
+			std::vector<std::unique_ptr<MarmotExpression>> cases;
 			for (const Token& ctor_name : union_stmt.m_constructor_names)
 			{
-				const MidoriType::UnionType::UnionMemberContext& member_ctx = union_type.m_member_info.at(ctor_name.m_lexeme);
-				std::vector<std::unique_ptr<MidoriExpression>> ctor_args;
+				const MarmotType::UnionType::UnionMemberContext& member_ctx = union_type.m_member_info.at(ctor_name.m_lexeme);
+				std::vector<std::unique_ptr<MarmotExpression>> ctor_args;
 				for (size_t i = 0u; i < member_ctx.m_member_types.size(); i += 1u)
 				{
-					const std::shared_ptr<MidoriType>& member_type = member_ctx.m_member_types[i];
+					const std::shared_ptr<MarmotType>& member_type = member_ctx.m_member_types[i];
 					const int local_index = case_binding_base_index + static_cast<int>(i);
 					const std::string binding_name = "field" + std::to_string(i);
 
 					if (IsExactGenericParam(member_type, first_type_param))
 					{
-						std::vector<std::unique_ptr<MidoriExpression>> call_args;
+						std::vector<std::unique_ptr<MarmotExpression>> call_args;
 						call_args.emplace_back(syntax.LocalName(binding_name, local_index));
 						ctor_args.emplace_back(syntax.Call(syntax.LocalName("f", 1), std::move(call_args)));
 					}
 					else if (IsUnionSelfReference(member_type, union_type.m_name))
 					{
-						std::vector<std::unique_ptr<MidoriExpression>> call_args;
+						std::vector<std::unique_ptr<MarmotExpression>> call_args;
 						call_args.emplace_back(syntax.LocalName(binding_name, local_index));
 						call_args.emplace_back(syntax.LocalName("f", 1));
 						ctor_args.emplace_back(syntax.Call(syntax.GlobalName(function_name.m_lexeme), std::move(call_args)));
@@ -6760,12 +6760,12 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 					);
 			}
 
-			std::unique_ptr<MidoriExpression> body = syntax.Match(syntax.LocalName("value", 0), std::move(cases));
+			std::unique_ptr<MarmotExpression> body = syntax.Match(syntax.LocalName("value", 0), std::move(cases));
 			m_pending_statements.emplace
 			(
-				std::make_unique<MidoriStatement>
+				std::make_unique<MarmotStatement>
 				(
-					MidoriStatement::FunctionDefinition(function_name, std::move(generic_params), std::move(params), std::move(param_types), std::move(output_union_type), std::move(body), std::nullopt, 0, {})
+					MarmotStatement::FunctionDefinition(function_name, std::move(generic_params), std::move(params), std::move(param_types), std::move(output_union_type), std::move(body), std::nullopt, 0, {})
 				)
 			);
 			continue;
@@ -6774,13 +6774,13 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 		if (derive_target.m_lexeme == "Bind")
 		{
 			params.emplace_back(MakeSyntheticToken("f", Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name));
-			param_types.emplace_back(MidoriType::MakeFunctionType(std::vector<std::shared_ptr<MidoriType>>{ source_type }, std::shared_ptr<MidoriType>(output_union_type)));
+			param_types.emplace_back(MarmotType::MakeFunctionType(std::vector<std::shared_ptr<MarmotType>>{ source_type }, std::shared_ptr<MarmotType>(output_union_type)));
 			const int case_binding_base_index = static_cast<int>(params.size());
 
-			std::vector<std::unique_ptr<MidoriExpression>> cases;
+			std::vector<std::unique_ptr<MarmotExpression>> cases;
 			for (const Token& ctor_name : union_stmt.m_constructor_names)
 			{
-				const MidoriType::UnionType::UnionMemberContext& member_ctx = union_type.m_member_info.at(ctor_name.m_lexeme);
+				const MarmotType::UnionType::UnionMemberContext& member_ctx = union_type.m_member_info.at(ctor_name.m_lexeme);
 				const std::expected<int, CompilerError> mapped_field = mapped_field_of(member_ctx);
 				if (!mapped_field.has_value())
 				{
@@ -6788,16 +6788,16 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 				}
 				const int mapped_field_index = mapped_field.value();
 
-				std::unique_ptr<MidoriExpression> case_body;
+				std::unique_ptr<MarmotExpression> case_body;
 				if (mapped_field_index >= 0)
 				{
-					std::vector<std::unique_ptr<MidoriExpression>> call_args;
+					std::vector<std::unique_ptr<MarmotExpression>> call_args;
 					call_args.emplace_back(syntax.LocalName("field" + std::to_string(mapped_field_index), case_binding_base_index + mapped_field_index));
 					case_body = syntax.Call(syntax.LocalName("f", 1), std::move(call_args));
 				}
 				else
 				{
-					std::vector<std::unique_ptr<MidoriExpression>> ctor_args;
+					std::vector<std::unique_ptr<MarmotExpression>> ctor_args;
 					for (size_t i = 0u; i < member_ctx.m_member_types.size(); i += 1u)
 					{
 						ctor_args.emplace_back(syntax.LocalName("field" + std::to_string(i), case_binding_base_index + static_cast<int>(i)));
@@ -6815,12 +6815,12 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 					);
 			}
 
-			std::unique_ptr<MidoriExpression> body = syntax.Match(syntax.LocalName("value", 0), std::move(cases));
+			std::unique_ptr<MarmotExpression> body = syntax.Match(syntax.LocalName("value", 0), std::move(cases));
 			m_pending_statements.emplace
 			(
-				std::make_unique<MidoriStatement>
+				std::make_unique<MarmotStatement>
 				(
-					MidoriStatement::FunctionDefinition(function_name, std::move(generic_params), std::move(params), std::move(param_types), std::move(output_union_type), std::move(body), std::nullopt, 0, {})
+					MarmotStatement::FunctionDefinition(function_name, std::move(generic_params), std::move(params), std::move(param_types), std::move(output_union_type), std::move(body), std::nullopt, 0, {})
 				)
 			);
 			continue;
@@ -6830,10 +6830,10 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 		param_types.emplace_back(source_type);
 		const int case_binding_base_index = static_cast<int>(params.size());
 
-		std::vector<std::unique_ptr<MidoriExpression>> cases;
+		std::vector<std::unique_ptr<MarmotExpression>> cases;
 		for (const Token& ctor_name : union_stmt.m_constructor_names)
 		{
-			const MidoriType::UnionType::UnionMemberContext& member_ctx = union_type.m_member_info.at(ctor_name.m_lexeme);
+			const MarmotType::UnionType::UnionMemberContext& member_ctx = union_type.m_member_info.at(ctor_name.m_lexeme);
 			const std::expected<int, CompilerError> mapped_field = mapped_field_of(member_ctx);
 			if (!mapped_field.has_value())
 			{
@@ -6841,7 +6841,7 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 			}
 			const int mapped_field_index = mapped_field.value();
 
-			std::unique_ptr<MidoriExpression> case_body =
+			std::unique_ptr<MarmotExpression> case_body =
 				mapped_field_index >= 0
 				? syntax.LocalName("field" + std::to_string(mapped_field_index), case_binding_base_index + mapped_field_index)
 				: syntax.LocalName("default_value", 1);
@@ -6859,12 +6859,12 @@ std::expected<void, CompilerError> Parser::QueueDerivedUnionStatements(const Mid
 			);
 		}
 
-		std::unique_ptr<MidoriExpression> body = syntax.Match(syntax.LocalName("value", 0), std::move(cases));
+		std::unique_ptr<MarmotExpression> body = syntax.Match(syntax.LocalName("value", 0), std::move(cases));
 		m_pending_statements.emplace
 		(
-			std::make_unique<MidoriStatement>
+			std::make_unique<MarmotStatement>
 			(
-				MidoriStatement::FunctionDefinition(function_name, std::move(generic_params), std::move(params), std::move(param_types), std::move(source_type), std::move(body), std::nullopt, 0, {})
+				MarmotStatement::FunctionDefinition(function_name, std::move(generic_params), std::move(params), std::move(param_types), std::move(source_type), std::move(body), std::nullopt, 0, {})
 			)
 		);
 	}
@@ -6965,24 +6965,24 @@ bool Parser::IsModuleVisible(std::string_view module_name) const
 		|| (m_context.m_current_module != nullptr && m_context.m_current_module->ModuleName() == module_name);
 }
 
-MidoriResult::TypeResult Parser::ParseRefTypeArguments()
+MarmotResult::TypeResult Parser::ParseRefTypeArguments()
 {
 	return Consume(Token::Name::LEFT_ANGLE, "Expected '<' after 'Ref'.")
 		.and_then
 		(
-			[this](Token&&) -> MidoriResult::TypeResult
+			[this](Token&&) -> MarmotResult::TypeResult
 			{
 				return ParseType()
 					.and_then
 					(
-						[this](std::shared_ptr<MidoriType>&& element_type) -> MidoriResult::TypeResult
+						[this](std::shared_ptr<MarmotType>&& element_type) -> MarmotResult::TypeResult
 						{
 							return ConsumeTypeRightAngle("Expected '>' after reference element type.")
 								.and_then
 								(
-									[&element_type](Token&&) -> MidoriResult::TypeResult
+									[&element_type](Token&&) -> MarmotResult::TypeResult
 									{
-										return MidoriType::MakeCellType(element_type);
+										return MarmotType::MakeCellType(element_type);
 									}
 								);
 						}

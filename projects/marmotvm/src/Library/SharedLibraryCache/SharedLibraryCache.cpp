@@ -53,7 +53,7 @@ std::expected<void, std::string> SharedLibraryCache::LoadLibraryWithFunctions(
 
 	for (const std::pair<const std::string, std::string>& func_pair : function_mappings)
 	{
-		const std::string& midori_name = func_pair.first;
+		const std::string& marmot_name = func_pair.first;
 		const std::string& native_name = func_pair.second;
 
 		void* func_ptr = GetPlatformFunction(handle, native_name);
@@ -67,7 +67,7 @@ std::expected<void, std::string> SharedLibraryCache::LoadLibraryWithFunctions(
 				library_path.string()));
 		}
 
-		resolved_functions.emplace(midori_name, reinterpret_cast<VmFFIFunction>(func_ptr));
+		resolved_functions.emplace(marmot_name, reinterpret_cast<VmFFIFunction>(func_ptr));
 	}
 
 	SharedLibraryEntry entry;
@@ -190,7 +190,7 @@ std::expected<void, std::string> SharedLibraryCache::VerifyLibraryChecksum(const
 		return {};
 	}
 
-	const std::expected<bool, std::string> verification = MidoriChecksum::VerifyFileChecksum(library_path, *expected_checksum);
+	const std::expected<bool, std::string> verification = MarmotChecksum::VerifyFileChecksum(library_path, *expected_checksum);
 	if (!verification.has_value())
 	{
 		return std::unexpected(std::format(

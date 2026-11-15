@@ -1084,7 +1084,7 @@ namespace
 	}
 }
 
-namespace MidoriFormatter
+namespace MarmotFormatter
 {
 	bool RunResult::HasErrors() const
 	{
@@ -1108,7 +1108,7 @@ namespace MidoriFormatter
 
 	std::expected<std::string, CompilerError> FormatSource(std::string_view source_code, std::string_view file_name)
 	{
-		MidoriResult::LexerResult lex_result = Lexer(
+		MarmotResult::LexerResult lex_result = Lexer(
 			std::string(source_code),
 			file_name,
 			Lexer::Options{ .m_preserve_comments = true }).Lex();
@@ -1149,8 +1149,8 @@ namespace MidoriFormatter
 
 			// A file keeps the byte order mark it came with: formatting a file is
 			// not a decision about its encoding.
-			file_result.m_formatted_text = MidoriSource::StartsWithByteOrderMark(file_result.m_original_text)
-				? std::string(MidoriSource::UTF8_BYTE_ORDER_MARK) + format_result.value()
+			file_result.m_formatted_text = MarmotSource::StartsWithByteOrderMark(file_result.m_original_text)
+				? std::string(MarmotSource::UTF8_BYTE_ORDER_MARK) + format_result.value()
 				: format_result.value();
 			file_result.m_changed = file_result.m_formatted_text != file_result.m_original_text;
 			if (options.m_write_in_place && file_result.m_changed)

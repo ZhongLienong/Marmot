@@ -36,7 +36,7 @@ namespace
 	}
 }
 
-void ShadowingPolicyDiagnostic::Reset(MidoriProgramTree&)
+void ShadowingPolicyDiagnostic::Reset(MarmotProgramTree&)
 {
 	m_scopes.clear();
 	PushScope();
@@ -151,7 +151,7 @@ std::vector<std::string_view> ShadowingPolicyDiagnostic::CollectShadowKinds(cons
 
 void ShadowingPolicyDiagnostic::EmitShadowWarning(const Token& token, const std::vector<std::string_view>& kinds)
 {
-	const std::string display_name = MidoriAnalysis::DemangleDisplayName(token.m_lexeme);
+	const std::string display_name = MarmotAnalysis::DemangleDisplayName(token.m_lexeme);
 	EmitWarning
 	(
 		CompilerWarningCode::NameShadowing,
@@ -160,13 +160,13 @@ void ShadowingPolicyDiagnostic::EmitShadowWarning(const Token& token, const std:
 	);
 }
 
-void ShadowingPolicyDiagnostic::operator()(MidoriStatement::VariableDefinition& def)
+void ShadowingPolicyDiagnostic::operator()(MarmotStatement::VariableDefinition& def)
 {
 	DefineVariable(def.m_name);
 	VisitExpression(def.m_value);
 }
 
-void ShadowingPolicyDiagnostic::operator()(MidoriStatement::TupleDefinition& def_tuple)
+void ShadowingPolicyDiagnostic::operator()(MarmotStatement::TupleDefinition& def_tuple)
 {
 	for (const Token& token : def_tuple.m_names)
 	{
@@ -176,7 +176,7 @@ void ShadowingPolicyDiagnostic::operator()(MidoriStatement::TupleDefinition& def
 	VisitExpression(def_tuple.m_value);
 }
 
-void ShadowingPolicyDiagnostic::operator()(MidoriStatement::FunctionDefinition& defun)
+void ShadowingPolicyDiagnostic::operator()(MarmotStatement::FunctionDefinition& defun)
 {
 	DefineVariable(defun.m_name);
 
@@ -200,12 +200,12 @@ void ShadowingPolicyDiagnostic::operator()(MidoriStatement::FunctionDefinition& 
 	}
 }
 
-void ShadowingPolicyDiagnostic::operator()(MidoriStatement::ForeignDefinition& foreign)
+void ShadowingPolicyDiagnostic::operator()(MarmotStatement::ForeignDefinition& foreign)
 {
 	DefineVariable(foreign.m_function_name);
 }
 
-void ShadowingPolicyDiagnostic::operator()(MidoriStatement::Struct& struct_stmt)
+void ShadowingPolicyDiagnostic::operator()(MarmotStatement::Struct& struct_stmt)
 {
 	DefineStruct(struct_stmt.m_name);
 
@@ -217,7 +217,7 @@ void ShadowingPolicyDiagnostic::operator()(MidoriStatement::Struct& struct_stmt)
 	}
 }
 
-void ShadowingPolicyDiagnostic::operator()(MidoriStatement::Union& union_stmt)
+void ShadowingPolicyDiagnostic::operator()(MarmotStatement::Union& union_stmt)
 {
 	DefineType(union_stmt.m_name);
 
@@ -238,7 +238,7 @@ void ShadowingPolicyDiagnostic::operator()(MidoriStatement::Union& union_stmt)
 	}
 }
 
-void ShadowingPolicyDiagnostic::operator()(MidoriStatement::TypeAlias& type_alias)
+void ShadowingPolicyDiagnostic::operator()(MarmotStatement::TypeAlias& type_alias)
 {
 	DefineType(type_alias.m_name);
 
@@ -250,12 +250,12 @@ void ShadowingPolicyDiagnostic::operator()(MidoriStatement::TypeAlias& type_alia
 	}
 }
 
-void ShadowingPolicyDiagnostic::operator()(MidoriPattern::Binding& binding)
+void ShadowingPolicyDiagnostic::operator()(MarmotPattern::Binding& binding)
 {
 	DefineVariable(binding.m_name);
 }
 
-void ShadowingPolicyDiagnostic::operator()(MidoriExpression::Function& function)
+void ShadowingPolicyDiagnostic::operator()(MarmotExpression::Function& function)
 {
 	if (!function.m_generic_params.empty())
 	{
@@ -277,11 +277,11 @@ void ShadowingPolicyDiagnostic::operator()(MidoriExpression::Function& function)
 	}
 }
 
-void ShadowingPolicyDiagnostic::operator()(MidoriExpression::Block& block)
+void ShadowingPolicyDiagnostic::operator()(MarmotExpression::Block& block)
 {
 	PushScope();
 
-	for (std::unique_ptr<MidoriStatement>& statement : block.m_stmts)
+	for (std::unique_ptr<MarmotStatement>& statement : block.m_stmts)
 	{
 		VisitStatement(statement);
 	}
@@ -294,7 +294,7 @@ void ShadowingPolicyDiagnostic::operator()(MidoriExpression::Block& block)
 	PopScope();
 }
 
-void ShadowingPolicyDiagnostic::operator()(MidoriExpression::Case& case_expr)
+void ShadowingPolicyDiagnostic::operator()(MarmotExpression::Case& case_expr)
 {
 	PushScope();
 	VisitPattern(case_expr.m_pattern);

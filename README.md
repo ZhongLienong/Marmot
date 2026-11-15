@@ -473,13 +473,13 @@ Use the `foreign` keyword to declare external functions:
 
 ```marmot
 // Declare a foreign function
-foreign "MIDORI_FFI_Print" Print : fn(Text) -> Unit;
+foreign "MARMOT_FFI_Print" Print : fn(Text) -> Unit;
 
 // With multiple parameters
-foreign "MIDORI_FFI_WriteFile" WriteFile : fn(Text, Text) -> Bool;
+foreign "MARMOT_FFI_WriteFile" WriteFile : fn(Text, Text) -> Bool;
 
 // Returning complex types
-foreign "MIDORI_FFI_ReadBinaryFile" ReadBinaryFile : fn(Text) -> Array<Byte>;
+foreign "MARMOT_FFI_ReadBinaryFile" ReadBinaryFile : fn(Text) -> Array<Byte>;
 
 // From a native library: the symbol, then the library that exports it
 foreign "marmot_image_width" Width : fn(Int) -> Int from "marmot_image";
@@ -508,7 +508,7 @@ All FFI functions must follow this signature:
 
 ```cpp
 extern "C" {
-    MIDORI_STDLIB_API void MIDORI_FFI_FunctionName(void** args, void* ret) noexcept;
+    MARMOT_STDLIB_API void MARMOT_FFI_FunctionName(void** args, void* ret) noexcept;
 }
 ```
 
@@ -605,7 +605,7 @@ For flat scalar arrays, each element slot should use Marmot's 8-byte runtime val
 
 - Use `malloc` / `free` compatible allocation for returned text and arrays.
 - Do not free returned buffers after writing their pointer into `ret`; the VM takes ownership.
-- Returned arrays are wrapped through `MidoriArray::FromFFI`.
+- Returned arrays are wrapped through `MarmotArray::FromFFI`.
 - Short returned arrays are copied into Marmot small-object storage and their original FFI buffer is freed.
 - Longer returned arrays are adopted directly without an element copy.
 - The outer `FFIArray` wrapper itself is always freed by the VM.
@@ -763,7 +763,7 @@ def map = fn<A, B>(list: List<A>, f: fn(A) -> B) -> List<B> =>
 ## Architecture
 
 - **Frontend**: Lexer → Module Manager → Parser → Type Checker → Static Analyzer
-- **Middle end**: Lowering to MidoriIR, a typed SSA IR in which generics are specialized → MidoriIR optimizer (constant propagation, inlining, contification, scalar replacement, GVN, loop-invariant code motion and others, run once)
+- **Middle end**: Lowering to MarmotIR, a typed SSA IR in which generics are specialized → MarmotIR optimizer (constant propagation, inlining, contification, scalar replacement, GVN, loop-invariant code motion and others, run once)
 - **Backend**: Bytecode backend → Linker
 - **Runtime**: Single `VirtualMachine` execution path with a non-moving, generational (bitmap mark-sweep) garbage collector
 
@@ -777,7 +777,7 @@ See the [docs](docs/) folder for detailed technical documentation:
 - [Grammar](docs/grammar.md) - the language's syntax, fixed at v1
 - [Prelude](docs/prelude.md) - Standard-library module map and typed wrapper examples
 - [Compilation Workflow](docs/compilation-workflow.md) - Complete pipeline from lexing to linking
-- [MidoriIR](docs/midori-ir.md) - The compiler's typed SSA IR: structure, instructions, effects, verifier rules, optimizer passes and bytecode emission
+- [MarmotIR](docs/marmot-ir.md) - The compiler's typed SSA IR: structure, instructions, effects, verifier rules, optimizer passes and bytecode emission
 - [Feature Matrix](docs/feature-matrix.md) - Current feature status, stability levels, and primary automated coverage
 - [Versioning Policy](docs/versioning-policy.md) - Compatibility rules for releases, deprecation, and breaking changes
 - [Error Reporting](docs/error-reporting.md) - Structured diagnostics, warning/error codes, and machine-readable output

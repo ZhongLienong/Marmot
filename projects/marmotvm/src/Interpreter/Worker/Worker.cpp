@@ -19,10 +19,10 @@ namespace
 	void InstallPayload(VirtualMachine& worker_vm, TransferPayload payload)
 	{
 		// The spawn sends the arguments, then the function, as one tuple.
-		MidoriTraceable* crossing = ValueTransfer::Deserialize(payload, worker_vm).GetPointer();
-		const std::span<const MidoriValue> values(crossing->GetValues(), static_cast<size_t>(crossing->GetLength()));
+		MarmotTraceable* crossing = ValueTransfer::Deserialize(payload, worker_vm).GetPointer();
+		const std::span<const MarmotValue> values(crossing->GetValues(), static_cast<size_t>(crossing->GetLength()));
 		worker_vm.PrepareWorkerCall(values.back());
-		for (MidoriValue argument : values.first(values.size() - 1uz))
+		for (MarmotValue argument : values.first(values.size() - 1uz))
 		{
 			worker_vm.GetValueStackPointer()[0] = argument;
 			worker_vm.AdvanceValueStackPointer();

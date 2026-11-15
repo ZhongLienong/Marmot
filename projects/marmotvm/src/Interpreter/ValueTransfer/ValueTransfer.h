@@ -12,7 +12,7 @@ class VirtualMachine;
 // the object's copy in the payload.
 struct SerializedValue
 {
-	MidoriWord m_bits = 0u;
+	MarmotWord m_bits = 0u;
 	bool m_is_object = false;
 };
 
@@ -33,7 +33,7 @@ struct SerializedObject
 	// procedure, and a closure's values are what it captured.
 	struct Aggregate
 	{
-		MidoriTraceable::TraceableType m_type = MidoriTraceable::TraceableType::Tuple;
+		MarmotTraceable::TraceableType m_type = MarmotTraceable::TraceableType::Tuple;
 		int m_index = 0;
 		uint16_t m_shape = 0u;
 		std::vector<SerializedValue> m_values;
@@ -41,16 +41,16 @@ struct SerializedObject
 
 	struct IntRange
 	{
-		MidoriInteger m_start = 0;
-		MidoriInteger m_end = 0;
-		MidoriInteger m_step = 0;
+		MarmotInteger m_start = 0;
+		MarmotInteger m_end = 0;
+		MarmotInteger m_step = 0;
 	};
 
 	struct FloatRange
 	{
-		MidoriFloat m_start = 0.0;
-		MidoriFloat m_end = 0.0;
-		MidoriFloat m_step = 0.0;
+		MarmotFloat m_start = 0.0;
+		MarmotFloat m_end = 0.0;
+		MarmotFloat m_step = 0.0;
 	};
 
 	// A user Ref<T>, copied: two references to one cell in one payload arrive as
@@ -87,9 +87,9 @@ class ValueTransfer
 {
 public:
 	// A value of the kind `is_pointer` says, which the compiler decided.
-	static TransferPayload Serialize(MidoriValue value, bool is_pointer, VirtualMachine& source_vm);
+	static TransferPayload Serialize(MarmotValue value, bool is_pointer, VirtualMachine& source_vm);
 
 	// The payload's value, rebuilt in `target_vm`'s heap. Its globals are offered
 	// to `target_vm`, which keeps the ones it does not have yet.
-	static MidoriValue Deserialize(const TransferPayload& payload, VirtualMachine& target_vm);
+	static MarmotValue Deserialize(const TransferPayload& payload, VirtualMachine& target_vm);
 };

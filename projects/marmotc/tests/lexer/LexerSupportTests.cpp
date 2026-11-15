@@ -8,13 +8,13 @@ TEST_CASE("LexSnippet returns concise token sequences for expression tests", "[l
 	const std::string source_code =
 		"def value = 1 + 2 * 3;\n";
 
-	std::expected<MidoriTest::LexedSnippet, CompilerError> lex_result = MidoriTest::LexSnippet(source_code, "LexerSupport.mmt");
+	std::expected<MarmotTest::LexedSnippet, CompilerError> lex_result = MarmotTest::LexSnippet(source_code, "LexerSupport.mmt");
 	if (!lex_result.has_value())
 	{
 		FAIL(std::string(lex_result.error().Rendered()));
 	}
 
-	const std::vector<Token::Name> token_names = MidoriTest::CollectTokenNames(lex_result.value().m_tokens);
+	const std::vector<Token::Name> token_names = MarmotTest::CollectTokenNames(lex_result.value().m_tokens);
 	const std::vector<Token::Name> expected_names
 	{
 		Token::Name::DEF,

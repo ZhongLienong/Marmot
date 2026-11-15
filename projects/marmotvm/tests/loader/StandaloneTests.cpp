@@ -50,10 +50,10 @@ namespace
 		return payload;
 	}
 
-	std::expected<std::optional<MidoriStandalone::Package>, std::string> Read(std::string bytes)
+	std::expected<std::optional<MarmotStandalone::Package>, std::string> Read(std::string bytes)
 	{
 		std::istringstream in(std::move(bytes));
-		return MidoriStandalone::Read(in);
+		return MarmotStandalone::Read(in);
 	}
 }
 
@@ -61,7 +61,7 @@ TEST_CASE("An ordinary VM image has no bundled program", "[standalone]")
 {
 	for (const std::string& image : { std::string("runtime"), std::string(64u, 'x') })
 	{
-		const std::expected<std::optional<MidoriStandalone::Package>, std::string> package = Read(image);
+		const std::expected<std::optional<MarmotStandalone::Package>, std::string> package = Read(image);
 		REQUIRE(package.has_value());
 		CHECK_FALSE(package->has_value());
 	}
@@ -69,7 +69,7 @@ TEST_CASE("An ordinary VM image has no bundled program", "[standalone]")
 
 TEST_CASE("A standalone image reads the existing bytecode contract", "[standalone]")
 {
-	const std::expected<std::optional<MidoriStandalone::Package>, std::string> package =
+	const std::expected<std::optional<MarmotStandalone::Package>, std::string> package =
 		Read(Image(Payload("minimal", 0u)));
 	REQUIRE(package.has_value());
 	REQUIRE(package->has_value());
@@ -84,21 +84,21 @@ TEST_CASE("Standalone package lengths and bytecode corruption are rejected", "[s
 	{
 		truncated[index] = static_cast<char>(0xffu);
 	}
-	const std::expected<std::optional<MidoriStandalone::Package>, std::string> oversized = Read(truncated);
+	const std::expected<std::optional<MarmotStandalone::Package>, std::string> oversized = Read(truncated);
 	REQUIRE_FALSE(oversized.has_value());
 	CHECK(oversized.error().find("package exceeds") != std::string::npos);
 
-	const std::expected<std::optional<MidoriStandalone::Package>, std::string> bad_count =
+	const std::expected<std::optional<MarmotStandalone::Package>, std::string> bad_count =
 		Read(Image(Payload("minimal", 1u)));
 	REQUIRE_FALSE(bad_count.has_value());
 	CHECK(bad_count.error().find("library count") != std::string::npos);
 
-	const std::expected<std::optional<MidoriStandalone::Package>, std::string> corrupt =
+	const std::expected<std::optional<MarmotStandalone::Package>, std::string> corrupt =
 		Read(Image(Payload("checksum", 0u)));
 	REQUIRE_FALSE(corrupt.has_value());
 	CHECK(corrupt.error().find("CRC32 mismatch") != std::string::npos);
 
-	const std::expected<std::optional<MidoriStandalone::Package>, std::string> trailing =
+	const std::expected<std::optional<MarmotStandalone::Package>, std::string> trailing =
 		Read(Image(Payload("minimal", 0u) + "extra"));
 	REQUIRE_FALSE(trailing.has_value());
 	CHECK(trailing.error().find("trailing package bytes") != std::string::npos);
@@ -112,7 +112,7 @@ TEST_CASE("Standalone native libraries have file names confined to the extractio
 		AppendBlob(payload, "marmot_test_native");
 		AppendBlob(payload, file_name);
 		AppendBlob(payload, "library");
-		const std::expected<std::optional<MidoriStandalone::Package>, std::string> package = Read(Image(payload));
+		const std::expected<std::optional<MarmotStandalone::Package>, std::string> package = Read(Image(payload));
 		if (file_name == "lib test.bin")
 		{
 			REQUIRE(package.has_value());

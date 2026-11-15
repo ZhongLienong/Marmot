@@ -94,8 +94,8 @@ def CellAt = fn(node: Node) -> Text =>
 		if (node.col < 0) || (node.col >= TextUtilLength(line)) then "#" else TextUtilSubstring(line, node.col, node.col + 1)
 	};
 
-foreign "MIDORI_FFI_TextLength" TextUtilLength: fn(Text) -> Int;
-foreign "MIDORI_FFI_TextSubstring" TextUtilSubstring: fn(Text, Int, Int) -> Text;
+foreign "MARMOT_FFI_TextLength" TextUtilLength: fn(Text) -> Int;
+foreign "MARMOT_FFI_TextSubstring" TextUtilSubstring: fn(Text, Int, Int) -> Text;
 
 def Neighbours = fn(node: Node) -> Array<Edge> =>
 {

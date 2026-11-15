@@ -35,7 +35,7 @@ jobs:
         platform: [linux, windows]
         # Pushes and pull requests gate Dev. The nightly run, and one started by
         # hand, gate every configuration and package the Release builds. Debug
-        # turns on MIDORI_DEBUG_FULL: 16-byte values, so object sizes, inline
+        # turns on MARMOT_DEBUG_FULL: 16-byte values, so object sizes, inline
         # capacities and the VM's type checks differ from Dev. Release is what
         # gets installed: NDEBUG, -O3 and link-time optimization.
         build: ${{ fromJSON((github.event_name == 'push' || github.event_name == 'pull_request') && '["Dev"]' || '["Dev", "Debug", "Release"]') }}

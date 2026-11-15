@@ -323,7 +323,7 @@ are emitted with the same shape as the full examples above.
 | `LoweringUnresolvedMethodResolution` | `Lowering` | `Could not resolve method 'show' for type 'T'.` |
 | `LoweringAmbiguousMethodResolution` | `Lowering` | `Ambiguous method 'show' for type 'T'.` |
 | `LoweringUnsupportedConstruct` | `Lowering` | `Cannot lower expression to bytecode.` |
-| `LoweringUnknownForeignFunction` | `Lowering` | `Unknown foreign function 'MIDORI_FFI_Foo': it is not a Marmot builtin. Name the library that exports it: foreign "MIDORI_FFI_Foo" ... from "library";` |
+| `LoweringUnknownForeignFunction` | `Lowering` | `Unknown foreign function 'MARMOT_FFI_Foo': it is not a Marmot builtin. Name the library that exports it: foreign "MARMOT_FFI_Foo" ... from "library";` |
 | `BytecodeLinkerDuplicateExportedSymbol` | `BytecodeLinker` | `Duplicate exported symbol 'main' in 'A' and 'B'.` |
 | `BytecodeLinkerUnresolvedImport` | `BytecodeLinker` | `Unresolved import 'foo' from module 'A'.` |
 | `CompilerInternalError` | `Compiler` | `Internal compiler error in the type checker stage: bad_alloc` |
@@ -333,7 +333,7 @@ are emitted with the same shape as the full examples above.
 | Code | Stage | Kind | Example message |
 |------|-------|------|-----------------|
 | `IndexOutOfBounds` | `Runtime` | `error` | `Array index 5 out of bounds for length 3.` |
-| `FFIFunctionNotFound` | `Runtime` | `error` | `FFI function 'MIDORI_FFI_Foo' not found.` |
+| `FFIFunctionNotFound` | `Runtime` | `error` | `FFI function 'MARMOT_FFI_Foo' not found.` |
 | `StackOverflow` | `Runtime` | `panic` | `Stack overflow - exceeded maximum call depth.` |
 | `MemoryAccessViolation` | `Runtime` | `panic` | `Memory access violation.` |
 | `DivisionByZero` | `Runtime` | `error` | `Division by zero.` |

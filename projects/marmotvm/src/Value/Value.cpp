@@ -1,7 +1,7 @@
 #include "Support/Attributes/Attributes.h"
 #include "Value.h"
 #include "Error/RuntimeError.h"
-#include "Interpreter/Allocator/MidoriAllocator.h"
+#include "Interpreter/Allocator/MarmotAllocator.h"
 
 #include <algorithm>
 #include <array>
@@ -20,7 +20,7 @@
 
 namespace
 {
-	// Size-classed recycler for MidoriArray, MidoriText and long aggregate
+	// Size-classed recycler for MarmotArray, MarmotText and long aggregate
 	// buffers. Those never migrate between threads (workers exchange values
 	// only through serialization), so each thread recycles its own buffers.
 	class ValueBufferPool
@@ -37,7 +37,7 @@ namespace
 			}
 		}
 
-		MIDORI_NOINLINE void* Allocate(size_t& size)
+		MARMOT_NOINLINE void* Allocate(size_t& size)
 		{
 			const size_t class_index = GetClassIndex(size);
 			size = MIN_CLASS_SIZE << class_index;
@@ -53,7 +53,7 @@ namespace
 			return node;
 		}
 
-		MIDORI_NOINLINE void Free(void* ptr, size_t size) noexcept
+		MARMOT_NOINLINE void Free(void* ptr, size_t size) noexcept
 		{
 			const size_t class_index = GetClassIndex(size);
 			FreeNode* node = static_cast<FreeNode*>(ptr);
@@ -76,7 +76,7 @@ namespace
 			return static_cast<size_t>(std::bit_width(rounded) - std::bit_width(MIN_CLASS_SIZE));
 		}
 
-		MIDORI_NOINLINE bool Refill(size_t class_index)
+		MARMOT_NOINLINE bool Refill(size_t class_index)
 		{
 			void* slab = std::malloc(SLAB_SIZE);
 			if (slab == nullptr)
@@ -109,7 +109,7 @@ namespace
 
 	// Rounds the request up to the granted capacity; callers must record it and
 	// pass the same value back to FreeValueBuffer.
-	MIDORI_NOINLINE void* AllocateValueBuffer(size_t& size)
+	MARMOT_NOINLINE void* AllocateValueBuffer(size_t& size)
 	{
 		if (size > ValueBufferPool::MAX_CLASS_SIZE)
 		{
@@ -118,7 +118,7 @@ namespace
 		return GetValueBufferPool().Allocate(size);
 	}
 
-	MIDORI_NOINLINE void FreeValueBuffer(void* ptr, size_t size) noexcept
+	MARMOT_NOINLINE void FreeValueBuffer(void* ptr, size_t size) noexcept
 	{
 		if (ptr == nullptr)
 		{
@@ -234,10 +234,10 @@ namespace UTF8
 	}
 }
 
-MidoriText ConvertToQuotedText(const MidoriText& input)
+MarmotText ConvertToQuotedText(const MarmotText& input)
 {
 	const int byte_len = input.GetByteLength();
-	MidoriText result;
+	MarmotText result;
 	result.Reserve(byte_len + 2);
 	result.Append('\"');
 
@@ -287,48 +287,48 @@ MidoriText ConvertToQuotedText(const MidoriText& input)
 	return result;
 }
 
-// Deliberately outside every MIDORI_DEBUG_* block: this exists to be compared
+// Deliberately outside every MARMOT_DEBUG_* block: this exists to be compared
 // across build configurations, so it must be compiled in all of them.
-std::size_t MidoriValue::LibrarySize() noexcept
+std::size_t MarmotValue::LibrarySize() noexcept
 {
-	return sizeof(MidoriValue);
+	return sizeof(MarmotValue);
 }
 
-#if MIDORI_DEBUG_FULL
-MidoriText MidoriValue::ToText() const
+#if MARMOT_DEBUG_FULL
+MarmotText MarmotValue::ToText() const
 {
 	switch (m_tag)
 	{
-		case MidoriValue::FLOAT:
-			return MidoriText::FromFloat(GetFloat());
-		case MidoriValue::INT:
-			return MidoriText::FromInteger(GetInteger());
-		case MidoriValue::BYTE:
-			return MidoriText::FromInteger(static_cast<MidoriInteger>(GetByte()));
-		case MidoriValue::WORD:
-			return MidoriText::FromWord(GetWord());
-		case MidoriValue::BOOL:
+		case MarmotValue::FLOAT:
+			return MarmotText::FromFloat(GetFloat());
+		case MarmotValue::INT:
+			return MarmotText::FromInteger(GetInteger());
+		case MarmotValue::BYTE:
+			return MarmotText::FromInteger(static_cast<MarmotInteger>(GetByte()));
+		case MarmotValue::WORD:
+			return MarmotText::FromWord(GetWord());
+		case MarmotValue::BOOL:
 			return GetBool() ? "true" : "false";
-		case MidoriValue::UNIT:
+		case MarmotValue::UNIT:
 			return "()";
-		case MidoriValue::POINTER:
+		case MarmotValue::POINTER:
 			return GetPointer()->ToText();
 		default:
 			return "!!!UNKNOWN!!!";
 	}
 }
 
-bool MidoriValue::IsPointer() const noexcept
+bool MarmotValue::IsPointer() const noexcept
 {
 	return m_tag == POINTER;
 }
 
-MidoriValue::DebugTypeTag MidoriValue::GetTag() const noexcept
+MarmotValue::DebugTypeTag MarmotValue::GetTag() const noexcept
 {
 	return m_tag;
 }
 
-bool MidoriValue::AgreesWithKind(bool is_pointer) const noexcept
+bool MarmotValue::AgreesWithKind(bool is_pointer) const noexcept
 {
 	switch (m_tag)
 	{
@@ -344,29 +344,29 @@ bool MidoriValue::AgreesWithKind(bool is_pointer) const noexcept
 }
 #endif
 
-MidoriTraceable::MidoriTraceable(MidoriText&& str) noexcept : m_type(TraceableType::Text), m_holds_pointers(false), m_text(std::move(str))
+MarmotTraceable::MarmotTraceable(MarmotText&& str) noexcept : m_type(TraceableType::Text), m_holds_pointers(false), m_text(std::move(str))
 {
 }
 
-MidoriTraceable::MidoriTraceable(MidoriArray&& array, bool holds_pointers) noexcept : m_type(TraceableType::Array), m_holds_pointers(holds_pointers), m_array(std::move(array))
+MarmotTraceable::MarmotTraceable(MarmotArray&& array, bool holds_pointers) noexcept : m_type(TraceableType::Array), m_holds_pointers(holds_pointers), m_array(std::move(array))
 {
 }
 
-MidoriTraceable::MidoriTraceable(MidoriIntRange&& range) noexcept : m_type(TraceableType::IntRange), m_holds_pointers(false), m_int_range(std::move(range))
+MarmotTraceable::MarmotTraceable(MarmotIntRange&& range) noexcept : m_type(TraceableType::IntRange), m_holds_pointers(false), m_int_range(std::move(range))
 {
 }
 
-MidoriTraceable::MidoriTraceable(MidoriFloatRange&& range) noexcept : m_type(TraceableType::FloatRange), m_holds_pointers(false), m_float_range(std::move(range))
+MarmotTraceable::MarmotTraceable(MarmotFloatRange&& range) noexcept : m_type(TraceableType::FloatRange), m_holds_pointers(false), m_float_range(std::move(range))
 {
 }
 
-MidoriTraceable::MidoriTraceable(MidoriMutableCell&& mutable_cell, bool holds_pointer) noexcept : m_type(TraceableType::MutableCell), m_holds_pointers(holds_pointer), m_mutable_cell(std::move(mutable_cell))
+MarmotTraceable::MarmotTraceable(MarmotMutableCell&& mutable_cell, bool holds_pointer) noexcept : m_type(TraceableType::MutableCell), m_holds_pointers(holds_pointer), m_mutable_cell(std::move(mutable_cell))
 {
 }
 
 // Only the header and the values are written: the slot may be smaller than
-// sizeof(MidoriTraceable).
-MidoriTraceable::MidoriTraceable(TraceableType type, std::span<const MidoriValue> values, int index, uint16_t shape) noexcept
+// sizeof(MarmotTraceable).
+MarmotTraceable::MarmotTraceable(TraceableType type, std::span<const MarmotValue> values, int index, uint16_t shape) noexcept
 	: m_type(type), m_holds_pointers(false), m_index(static_cast<uint16_t>(index)), m_length(static_cast<uint16_t>(values.size())), m_shape(shape)
 {
 	if (values.size() > static_cast<size_t>(INLINE_CAPACITY))
@@ -383,10 +383,10 @@ MidoriTraceable::MidoriTraceable(TraceableType type, std::span<const MidoriValue
 	}
 }
 
-void MidoriTraceable::InitializeExternalValues(std::span<const MidoriValue> values)
+void MarmotTraceable::InitializeExternalValues(std::span<const MarmotValue> values)
 {
 	size_t bytes = values.size_bytes();
-	m_external_values = static_cast<MidoriValue*>(AllocateValueBuffer(bytes));
+	m_external_values = static_cast<MarmotValue*>(AllocateValueBuffer(bytes));
 	if (m_external_values == nullptr)
 	{
 		FatalOutOfMemory("an aggregate's values", bytes);
@@ -394,15 +394,15 @@ void MidoriTraceable::InitializeExternalValues(std::span<const MidoriValue> valu
 	std::memcpy(static_cast<void*>(m_external_values), values.data(), values.size_bytes());
 }
 
-MidoriTraceable::~MidoriTraceable()
+MarmotTraceable::~MarmotTraceable()
 {
 	switch (m_type)
 	{
 	case TraceableType::Text:
-		m_text.~MidoriText();
+		m_text.~MarmotText();
 		break;
 	case TraceableType::Array:
-		m_array.~MidoriArray();
+		m_array.~MarmotArray();
 		break;
 	case TraceableType::IntRange:
 	case TraceableType::FloatRange:
@@ -416,14 +416,14 @@ MidoriTraceable::~MidoriTraceable()
 		{
 			// The pool finds the size class from the requested bytes as well as
 			// from the granted ones, so the length is enough to free it.
-			FreeValueBuffer(m_external_values, static_cast<size_t>(m_length) * sizeof(MidoriValue));
+			FreeValueBuffer(m_external_values, static_cast<size_t>(m_length) * sizeof(MarmotValue));
 		}
 		break;
 	}
 }
 
-#if MIDORI_DEBUG_FULL
-MidoriText MidoriTraceable::ToText()
+#if MARMOT_DEBUG_FULL
+MarmotText MarmotTraceable::ToText()
 {
 	switch (m_type)
 	{
@@ -433,11 +433,11 @@ MidoriText MidoriTraceable::ToText()
 	{
 		if (m_array.GetLength() == 0)
 		{
-			return MidoriText("[]");
+			return MarmotText("[]");
 		}
 
 		const int len = m_array.GetLength();
-		MidoriText result("[");
+		MarmotText result("[");
 		result.Append(m_array[0].ToText());
 		for (int idx = 1; idx < len; idx += 1)
 		{
@@ -449,13 +449,13 @@ MidoriText MidoriTraceable::ToText()
 	}
 	case TraceableType::Tuple:
 	{
-		const MidoriValue* values = GetValues();
+		const MarmotValue* values = GetValues();
 		if (GetLength() == 0)
 		{
-			return MidoriText("()");
+			return MarmotText("()");
 		}
 
-		MidoriText result("(");
+		MarmotText result("(");
 		result.Append(values[0].ToText());
 		for (int idx = 1; idx < GetLength(); idx += 1)
 		{
@@ -466,22 +466,22 @@ MidoriText MidoriTraceable::ToText()
 		return result;
 	}
 	case TraceableType::IntRange:
-		return MidoriText("IntRange");
+		return MarmotText("IntRange");
 	case TraceableType::FloatRange:
-		return MidoriText("FloatRange");
+		return MarmotText("FloatRange");
 	case TraceableType::MutableCell:
-		return MidoriText("ref (").Append(m_mutable_cell.m_value.ToText()).Append(")");
+		return MarmotText("ref (").Append(m_mutable_cell.m_value.ToText()).Append(")");
 	case TraceableType::Closure:
 	{
 		char buffer[64];
 		std::snprintf(buffer, sizeof(buffer), "<closure at: %p>", (void*)this);
-		return MidoriText(buffer);
+		return MarmotText(buffer);
 	}
 	case TraceableType::Union:
 	case TraceableType::Struct:
 	{
-		const MidoriValue* values = GetValues();
-		MidoriText result(m_type == TraceableType::Union ? "Union{" : "Struct{");
+		const MarmotValue* values = GetValues();
+		MarmotText result(m_type == TraceableType::Union ? "Union{" : "Struct{");
 		for (int idx = 0; idx < GetLength(); idx += 1)
 		{
 			if (idx > 0)
@@ -494,144 +494,144 @@ MidoriText MidoriTraceable::ToText()
 		return result;
 	}
 	default:
-		return MidoriText("Unknown MidoriTraceable");
+		return MarmotText("Unknown MarmotTraceable");
 	}
 }
 #endif
 
-size_t MidoriTraceable::GetSize() const
+size_t MarmotTraceable::GetSize() const
 {
 	switch (m_type)
 	{
 	case TraceableType::Text:
-		return MidoriAllocator::SlotSizeFor(HEADER_SIZE + sizeof(MidoriText)) + m_text.GetOwnedBytes();
+		return MarmotAllocator::SlotSizeFor(HEADER_SIZE + sizeof(MarmotText)) + m_text.GetOwnedBytes();
 	case TraceableType::Array:
-		return MidoriAllocator::SlotSizeFor(HEADER_SIZE + sizeof(MidoriArray)) + m_array.GetCapacity();
+		return MarmotAllocator::SlotSizeFor(HEADER_SIZE + sizeof(MarmotArray)) + m_array.GetCapacity();
 	case TraceableType::IntRange:
-		return MidoriAllocator::SlotSizeFor(HEADER_SIZE + sizeof(MidoriIntRange));
+		return MarmotAllocator::SlotSizeFor(HEADER_SIZE + sizeof(MarmotIntRange));
 	case TraceableType::FloatRange:
-		return MidoriAllocator::SlotSizeFor(HEADER_SIZE + sizeof(MidoriFloatRange));
+		return MarmotAllocator::SlotSizeFor(HEADER_SIZE + sizeof(MarmotFloatRange));
 	case TraceableType::MutableCell:
-		return MidoriAllocator::SlotSizeFor(HEADER_SIZE + sizeof(MidoriMutableCell));
+		return MarmotAllocator::SlotSizeFor(HEADER_SIZE + sizeof(MarmotMutableCell));
 	case TraceableType::Tuple:
 	case TraceableType::Struct:
 	case TraceableType::Union:
 	case TraceableType::Closure:
 		break;
 	}
-	const size_t external_bytes = m_length > static_cast<uint16_t>(INLINE_CAPACITY) ? static_cast<size_t>(m_length) * sizeof(MidoriValue) : 0uz;
-	return MidoriAllocator::SlotSizeFor(AggregateBytes(GetLength())) + external_bytes;
+	const size_t external_bytes = m_length > static_cast<uint16_t>(INLINE_CAPACITY) ? static_cast<size_t>(m_length) * sizeof(MarmotValue) : 0uz;
+	return MarmotAllocator::SlotSizeFor(AggregateBytes(GetLength())) + external_bytes;
 }
 
-void* MidoriTraceable::operator new(size_t size) noexcept
+void* MarmotTraceable::operator new(size_t size) noexcept
 {
 	void* object = ::operator new(size);
 	return object;
 }
 
-void* MidoriTraceable::operator new(size_t size, std::align_val_t al) noexcept
+void* MarmotTraceable::operator new(size_t size, std::align_val_t al) noexcept
 {
 	void* object = ::operator new(size, al);
 	return object;
 }
 
-void* MidoriTraceable::operator new(size_t, void* ptr) noexcept
+void* MarmotTraceable::operator new(size_t, void* ptr) noexcept
 {
 	return ptr;
 }
 
-void* MidoriTraceable::operator new(size_t, std::align_val_t, void* ptr) noexcept
+void* MarmotTraceable::operator new(size_t, std::align_val_t, void* ptr) noexcept
 {
 	return ptr;
 }
 
-void MidoriTraceable::operator delete(void*, void*) noexcept
+void MarmotTraceable::operator delete(void*, void*) noexcept
 {
 }
 
-void MidoriTraceable::operator delete(void*, std::align_val_t, void*) noexcept
+void MarmotTraceable::operator delete(void*, std::align_val_t, void*) noexcept
 {
 }
 
-void MidoriTraceable::operator delete(void* object, size_t size) noexcept
+void MarmotTraceable::operator delete(void* object, size_t size) noexcept
 {
-	MidoriTraceable* traceable = static_cast<MidoriTraceable*>(object);
+	MarmotTraceable* traceable = static_cast<MarmotTraceable*>(object);
 	(void)traceable;  // Unused but needed for potential future debugging
 
 	::operator delete(object, size);
 }
 
-void MidoriTraceable::operator delete(void* object, std::align_val_t al) noexcept
+void MarmotTraceable::operator delete(void* object, std::align_val_t al) noexcept
 {
 	::operator delete(object, al);
 }
 
-MidoriArray::MidoriArray()
+MarmotArray::MarmotArray()
 {
-	std::memset(this, 0, sizeof(MidoriArray));
+	std::memset(this, 0, sizeof(MarmotArray));
 	SetShortSize(0);
 }
 
-MidoriArray::MidoriArray(int size)
+MarmotArray::MarmotArray(int size)
 {
 	if (size <= SOO_CAPACITY)
 	{
-		std::memset(this, 0, sizeof(MidoriArray));
+		std::memset(this, 0, sizeof(MarmotArray));
 		SetShortSize(size);
 		for (int i = 0; i < size; i += 1)
 		{
-			new (&m_short.m_buffer[i]) MidoriValue();
+			new (&m_short.m_buffer[i]) MarmotValue();
 		}
 	}
 	else
 	{
-		size_t bytes = static_cast<size_t>(size) * sizeof(MidoriValue);
-		m_long.m_ptr = static_cast<MidoriValue*>(AllocateValueBuffer(bytes));
+		size_t bytes = static_cast<size_t>(size) * sizeof(MarmotValue);
+		m_long.m_ptr = static_cast<MarmotValue*>(AllocateValueBuffer(bytes));
 		if (!m_long.m_ptr)
 		{
-			FatalOutOfMemory("MidoriArray::MidoriArray", bytes);
+			FatalOutOfMemory("MarmotArray::MarmotArray", bytes);
 		}
 		m_long.m_size = size;
-		m_long.m_capacity = static_cast<int>(bytes / sizeof(MidoriValue));
+		m_long.m_capacity = static_cast<int>(bytes / sizeof(MarmotValue));
 		m_long.m_flag = 0;
 		m_short.m_size_flag = 0;
 		for (int i = 0; i < size; i += 1)
 		{
-			new (&m_long.m_ptr[i]) MidoriValue();
+			new (&m_long.m_ptr[i]) MarmotValue();
 		}
 	}
 }
 
-MidoriArray::MidoriArray(const MidoriArray& other)
+MarmotArray::MarmotArray(const MarmotArray& other)
 {
 	if (other.IsShort())
 	{
-		std::memcpy(this, &other, sizeof(MidoriArray));
+		std::memcpy(this, &other, sizeof(MarmotArray));
 	}
 	else
 	{
-		size_t bytes = static_cast<size_t>(other.m_long.m_capacity) * sizeof(MidoriValue);
-		m_long.m_ptr = static_cast<MidoriValue*>(AllocateValueBuffer(bytes));
+		size_t bytes = static_cast<size_t>(other.m_long.m_capacity) * sizeof(MarmotValue);
+		m_long.m_ptr = static_cast<MarmotValue*>(AllocateValueBuffer(bytes));
 		if (!m_long.m_ptr)
 		{
-			FatalOutOfMemory("MidoriArray::MidoriArray copy", bytes);
+			FatalOutOfMemory("MarmotArray::MarmotArray copy", bytes);
 		}
-		std::memcpy(m_long.m_ptr, other.m_long.m_ptr, static_cast<size_t>(other.m_long.m_size) * sizeof(MidoriValue));
+		std::memcpy(m_long.m_ptr, other.m_long.m_ptr, static_cast<size_t>(other.m_long.m_size) * sizeof(MarmotValue));
 		m_long.m_size = other.m_long.m_size;
-		m_long.m_capacity = static_cast<int>(bytes / sizeof(MidoriValue));
+		m_long.m_capacity = static_cast<int>(bytes / sizeof(MarmotValue));
 		m_long.m_flag = 0;
 		m_short.m_size_flag = 0;
 	}
 }
 
-MidoriArray::MidoriArray(MidoriArray&& other) noexcept
+MarmotArray::MarmotArray(MarmotArray&& other) noexcept
 {
-	std::memcpy(this, &other, sizeof(MidoriArray));
-	std::memset(&other, 0, sizeof(MidoriArray));
+	std::memcpy(this, &other, sizeof(MarmotArray));
+	std::memset(&other, 0, sizeof(MarmotArray));
 	other.SetShortSize(0);
 }
 
-MidoriArray& MidoriArray::operator=(const MidoriArray& other)
+MarmotArray& MarmotArray::operator=(const MarmotArray& other)
 {
 	if (this == &other)
 	{
@@ -640,31 +640,31 @@ MidoriArray& MidoriArray::operator=(const MidoriArray& other)
 
 	if (!IsShort())
 	{
-		FreeValueBuffer(m_long.m_ptr, static_cast<size_t>(m_long.m_capacity) * sizeof(MidoriValue));
+		FreeValueBuffer(m_long.m_ptr, static_cast<size_t>(m_long.m_capacity) * sizeof(MarmotValue));
 	}
 
 	if (other.IsShort())
 	{
-		std::memcpy(this, &other, sizeof(MidoriArray));
+		std::memcpy(this, &other, sizeof(MarmotArray));
 	}
 	else
 	{
-		size_t bytes = static_cast<size_t>(other.m_long.m_capacity) * sizeof(MidoriValue);
-		m_long.m_ptr = static_cast<MidoriValue*>(AllocateValueBuffer(bytes));
+		size_t bytes = static_cast<size_t>(other.m_long.m_capacity) * sizeof(MarmotValue);
+		m_long.m_ptr = static_cast<MarmotValue*>(AllocateValueBuffer(bytes));
 		if (!m_long.m_ptr)
 		{
-			FatalOutOfMemory("MidoriArray::operator= copy", bytes);
+			FatalOutOfMemory("MarmotArray::operator= copy", bytes);
 		}
-		std::memcpy(m_long.m_ptr, other.m_long.m_ptr, static_cast<size_t>(other.m_long.m_size) * sizeof(MidoriValue));
+		std::memcpy(m_long.m_ptr, other.m_long.m_ptr, static_cast<size_t>(other.m_long.m_size) * sizeof(MarmotValue));
 		m_long.m_size = other.m_long.m_size;
-		m_long.m_capacity = static_cast<int>(bytes / sizeof(MidoriValue));
+		m_long.m_capacity = static_cast<int>(bytes / sizeof(MarmotValue));
 		m_long.m_flag = 0;
 		m_short.m_size_flag = 0;
 	}
 	return *this;
 }
 
-MidoriArray& MidoriArray::operator=(MidoriArray&& other) noexcept
+MarmotArray& MarmotArray::operator=(MarmotArray&& other) noexcept
 {
 	if (this == &other)
 	{
@@ -673,42 +673,42 @@ MidoriArray& MidoriArray::operator=(MidoriArray&& other) noexcept
 
 	if (!IsShort())
 	{
-		FreeValueBuffer(m_long.m_ptr, static_cast<size_t>(m_long.m_capacity) * sizeof(MidoriValue));
+		FreeValueBuffer(m_long.m_ptr, static_cast<size_t>(m_long.m_capacity) * sizeof(MarmotValue));
 	}
 
-	std::memcpy(this, &other, sizeof(MidoriArray));
-	std::memset(&other, 0, sizeof(MidoriArray));
+	std::memcpy(this, &other, sizeof(MarmotArray));
+	std::memset(&other, 0, sizeof(MarmotArray));
 	other.SetShortSize(0);
 	return *this;
 }
 
-MidoriArray::~MidoriArray()
+MarmotArray::~MarmotArray()
 {
 	if (!IsShort())
 	{
-		FreeValueBuffer(m_long.m_ptr, static_cast<size_t>(m_long.m_capacity) * sizeof(MidoriValue));
+		FreeValueBuffer(m_long.m_ptr, static_cast<size_t>(m_long.m_capacity) * sizeof(MarmotValue));
 	}
 }
 
-void MidoriArray::Expand(int new_capacity)
+void MarmotArray::Expand(int new_capacity)
 {
 	if (IsShort())
 	{
 		int current_size = GetShortSize();
 		int capacity = new_capacity > 0 ? new_capacity : (current_size < s_initial_capacity ? s_initial_capacity : current_size * 2);
 
-		size_t bytes = static_cast<size_t>(capacity) * sizeof(MidoriValue);
-		MidoriValue* new_data = static_cast<MidoriValue*>(AllocateValueBuffer(bytes));
+		size_t bytes = static_cast<size_t>(capacity) * sizeof(MarmotValue);
+		MarmotValue* new_data = static_cast<MarmotValue*>(AllocateValueBuffer(bytes));
 		if (!new_data)
 		{
-			FatalOutOfMemory("MidoriArray::Expand", bytes);
+			FatalOutOfMemory("MarmotArray::Expand", bytes);
 		}
 
-		std::memcpy(new_data, m_short.m_buffer, static_cast<size_t>(current_size) * sizeof(MidoriValue));
+		std::memcpy(new_data, m_short.m_buffer, static_cast<size_t>(current_size) * sizeof(MarmotValue));
 
 		m_long.m_ptr = new_data;
 		m_long.m_size = current_size;
-		m_long.m_capacity = static_cast<int>(bytes / sizeof(MidoriValue));
+		m_long.m_capacity = static_cast<int>(bytes / sizeof(MarmotValue));
 		m_long.m_flag = 0;
 		m_short.m_size_flag = 0;
 	}
@@ -720,71 +720,71 @@ void MidoriArray::Expand(int new_capacity)
 			return;
 		}
 
-		const size_t old_bytes = static_cast<size_t>(m_long.m_capacity) * sizeof(MidoriValue);
-		size_t new_bytes = static_cast<size_t>(capacity) * sizeof(MidoriValue);
+		const size_t old_bytes = static_cast<size_t>(m_long.m_capacity) * sizeof(MarmotValue);
+		size_t new_bytes = static_cast<size_t>(capacity) * sizeof(MarmotValue);
 		if (old_bytes > ValueBufferPool::MAX_CLASS_SIZE && new_bytes > ValueBufferPool::MAX_CLASS_SIZE)
 		{
-			MidoriValue* new_data = static_cast<MidoriValue*>(std::realloc(m_long.m_ptr, new_bytes));
+			MarmotValue* new_data = static_cast<MarmotValue*>(std::realloc(m_long.m_ptr, new_bytes));
 			if (!new_data)
 			{
-				FatalOutOfMemory("MidoriArray::Expand", new_bytes);
+				FatalOutOfMemory("MarmotArray::Expand", new_bytes);
 			}
 			m_long.m_ptr = new_data;
 			m_long.m_capacity = capacity;
 		}
 		else
 		{
-			MidoriValue* new_data = static_cast<MidoriValue*>(AllocateValueBuffer(new_bytes));
+			MarmotValue* new_data = static_cast<MarmotValue*>(AllocateValueBuffer(new_bytes));
 			if (!new_data)
 			{
-				FatalOutOfMemory("MidoriArray::Expand", new_bytes);
+				FatalOutOfMemory("MarmotArray::Expand", new_bytes);
 			}
-			std::memcpy(new_data, m_long.m_ptr, static_cast<size_t>(m_long.m_size) * sizeof(MidoriValue));
+			std::memcpy(new_data, m_long.m_ptr, static_cast<size_t>(m_long.m_size) * sizeof(MarmotValue));
 			FreeValueBuffer(m_long.m_ptr, old_bytes);
 			m_long.m_ptr = new_data;
-			m_long.m_capacity = static_cast<int>(new_bytes / sizeof(MidoriValue));
+			m_long.m_capacity = static_cast<int>(new_bytes / sizeof(MarmotValue));
 		}
 	}
 }
 
-MidoriArray MidoriArray::Slice(int start, int end) const
+MarmotArray MarmotArray::Slice(int start, int end) const
 {
 	const int len = GetLength();
 	start = std::clamp(start, 0, len);
 	end = std::clamp(end, 0, len);
 	if (end <= start)
 	{
-		return MidoriArray();
+		return MarmotArray();
 	}
 
 	const int slice_len = end - start;
-	const MidoriValue* source = IsShort() ? m_short.m_buffer : m_long.m_ptr;
+	const MarmotValue* source = IsShort() ? m_short.m_buffer : m_long.m_ptr;
 
-	MidoriArray result;
+	MarmotArray result;
 	if (slice_len <= SOO_CAPACITY)
 	{
 		result.SetShortSize(slice_len);
-		std::memcpy(result.m_short.m_buffer, source + start, static_cast<size_t>(slice_len) * sizeof(MidoriValue));
+		std::memcpy(result.m_short.m_buffer, source + start, static_cast<size_t>(slice_len) * sizeof(MarmotValue));
 	}
 	else
 	{
 		result.Expand(slice_len);
 		result.m_long.m_size = slice_len;
-		std::memcpy(result.m_long.m_ptr, source + start, static_cast<size_t>(slice_len) * sizeof(MidoriValue));
+		std::memcpy(result.m_long.m_ptr, source + start, static_cast<size_t>(slice_len) * sizeof(MarmotValue));
 	}
 
 	return result;
 }
 
-MidoriArray MidoriArray::Reverse() const
+MarmotArray MarmotArray::Reverse() const
 {
 	const int len = GetLength();
 	if (len <= 1)
 	{
-		return MidoriArray(*this);
+		return MarmotArray(*this);
 	}
 
-	MidoriArray result;
+	MarmotArray result;
 	if (len <= SOO_CAPACITY)
 	{
 		result.SetShortSize(len);
@@ -806,7 +806,7 @@ MidoriArray MidoriArray::Reverse() const
 	return result;
 }
 
-bool MidoriArray::Contains(const MidoriValue& value) const
+bool MarmotArray::Contains(const MarmotValue& value) const
 {
 	// This is a raw-value comparison for now; typeclass-driven equality comes later.
 	for (int idx = 0; idx < GetLength(); idx += 1)
@@ -819,7 +819,7 @@ bool MidoriArray::Contains(const MidoriValue& value) const
 	return false;
 }
 
-void MidoriArray::AddBack(const MidoriValue& value)
+void MarmotArray::AddBack(const MarmotValue& value)
 {
 	if (IsShort())
 	{
@@ -847,7 +847,7 @@ void MidoriArray::AddBack(const MidoriValue& value)
 	}
 }
 
-void MidoriArray::Extend(const MidoriArray& other)
+void MarmotArray::Extend(const MarmotArray& other)
 {
 	int other_len = other.GetLength();
 	if (other_len == 0)
@@ -862,8 +862,8 @@ void MidoriArray::Extend(const MidoriArray& other)
 	{
 		if (new_len <= SOO_CAPACITY)
 		{
-			const MidoriValue* other_data = other.IsShort() ? other.m_short.m_buffer : other.m_long.m_ptr;
-			std::memcpy(m_short.m_buffer + current_len, other_data, static_cast<size_t>(other_len) * sizeof(MidoriValue));
+			const MarmotValue* other_data = other.IsShort() ? other.m_short.m_buffer : other.m_long.m_ptr;
+			std::memcpy(m_short.m_buffer + current_len, other_data, static_cast<size_t>(other_len) * sizeof(MarmotValue));
 			SetShortSize(new_len);
 			return;
 		}
@@ -876,48 +876,48 @@ void MidoriArray::Extend(const MidoriArray& other)
 		// The pool's power-of-two classes already amortize repeated growth, so
 		// request the exact size to keep capacities (and the GC's byte
 		// accounting) tight; above the pool ceiling keep geometric growth.
-		int new_capacity = static_cast<size_t>(new_len) * sizeof(MidoriValue) > ValueBufferPool::MAX_CLASS_SIZE
+		int new_capacity = static_cast<size_t>(new_len) * sizeof(MarmotValue) > ValueBufferPool::MAX_CLASS_SIZE
 			? std::max(new_len, m_long.m_capacity * 2)
 			: new_len;
 		Expand(new_capacity);
 	}
 
-	const MidoriValue* other_data = other.IsShort() ? other.m_short.m_buffer : other.m_long.m_ptr;
-	std::memcpy(m_long.m_ptr + current_len, other_data, static_cast<size_t>(other_len) * sizeof(MidoriValue));
+	const MarmotValue* other_data = other.IsShort() ? other.m_short.m_buffer : other.m_long.m_ptr;
+	std::memcpy(m_long.m_ptr + current_len, other_data, static_cast<size_t>(other_len) * sizeof(MarmotValue));
 	m_long.m_size = new_len;
 }
 
-size_t MidoriArray::GetCapacity() const
+size_t MarmotArray::GetCapacity() const
 {
-	return IsShort() ? static_cast<size_t>(SOO_CAPACITY) * sizeof(MidoriValue) : static_cast<size_t>(m_long.m_capacity) * sizeof(MidoriValue);
+	return IsShort() ? static_cast<size_t>(SOO_CAPACITY) * sizeof(MarmotValue) : static_cast<size_t>(m_long.m_capacity) * sizeof(MarmotValue);
 }
 
-MidoriArray MidoriArray::Concatenate(const MidoriArray& a, const MidoriArray& b)
+MarmotArray MarmotArray::Concatenate(const MarmotArray& a, const MarmotArray& b)
 {
 	int a_len = a.GetLength();
 	int b_len = b.GetLength();
 	int total_len = a_len + b_len;
 
-	MidoriArray result;
+	MarmotArray result;
 	if (total_len <= SOO_CAPACITY)
 	{
 		result.SetShortSize(total_len);
 		if (a.IsShort())
 		{
-			std::memcpy(result.m_short.m_buffer, a.m_short.m_buffer, a_len * sizeof(MidoriValue));
+			std::memcpy(result.m_short.m_buffer, a.m_short.m_buffer, a_len * sizeof(MarmotValue));
 		}
 		else
 		{
-			std::memcpy(result.m_short.m_buffer, a.m_long.m_ptr, a_len * sizeof(MidoriValue));
+			std::memcpy(result.m_short.m_buffer, a.m_long.m_ptr, a_len * sizeof(MarmotValue));
 		}
 
 		if (b.IsShort())
 		{
-			std::memcpy(result.m_short.m_buffer + a_len, b.m_short.m_buffer, b_len * sizeof(MidoriValue));
+			std::memcpy(result.m_short.m_buffer + a_len, b.m_short.m_buffer, b_len * sizeof(MarmotValue));
 		}
 		else
 		{
-			std::memcpy(result.m_short.m_buffer + a_len, b.m_long.m_ptr, b_len * sizeof(MidoriValue));
+			std::memcpy(result.m_short.m_buffer + a_len, b.m_long.m_ptr, b_len * sizeof(MarmotValue));
 		}
 	}
 	else
@@ -925,24 +925,24 @@ MidoriArray MidoriArray::Concatenate(const MidoriArray& a, const MidoriArray& b)
 		result.Expand(total_len); 
 		result.m_long.m_size = total_len;
 
-		MidoriValue* dest = result.m_long.m_ptr;
+		MarmotValue* dest = result.m_long.m_ptr;
 		if (a.IsShort())
-			std::memcpy(dest, a.m_short.m_buffer, a_len * sizeof(MidoriValue));
+			std::memcpy(dest, a.m_short.m_buffer, a_len * sizeof(MarmotValue));
 		else
-			std::memcpy(dest, a.m_long.m_ptr, a_len * sizeof(MidoriValue));
+			std::memcpy(dest, a.m_long.m_ptr, a_len * sizeof(MarmotValue));
 
 		if (b.IsShort())
-			std::memcpy(dest + a_len, b.m_short.m_buffer, b_len * sizeof(MidoriValue));
+			std::memcpy(dest + a_len, b.m_short.m_buffer, b_len * sizeof(MarmotValue));
 		else
-			std::memcpy(dest + a_len, b.m_long.m_ptr, b_len * sizeof(MidoriValue));
+			std::memcpy(dest + a_len, b.m_long.m_ptr, b_len * sizeof(MarmotValue));
 	}
 
 	return result;
 }
 
-MidoriArray MidoriArray::FromFFI(MidoriValue* ffi_allocated_data, int length)
+MarmotArray MarmotArray::FromFFI(MarmotValue* ffi_allocated_data, int length)
 {
-	MidoriArray result;
+	MarmotArray result;
 	if (ffi_allocated_data == nullptr || length <= 0)
 	{
 		std::free(ffi_allocated_data);
@@ -952,21 +952,21 @@ MidoriArray MidoriArray::FromFFI(MidoriValue* ffi_allocated_data, int length)
 	if (length <= SOO_CAPACITY)
 	{
 		result.SetShortSize(length);
-		std::memcpy(result.m_short.m_buffer, ffi_allocated_data, static_cast<size_t>(length) * sizeof(MidoriValue));
+		std::memcpy(result.m_short.m_buffer, ffi_allocated_data, static_cast<size_t>(length) * sizeof(MarmotValue));
 	}
 	else
 	{
 		// Copy instead of adopting: the FFI buffer came from the CRT heap and
 		// must not enter the pooled free lists.
-		size_t bytes = static_cast<size_t>(length) * sizeof(MidoriValue);
-		result.m_long.m_ptr = static_cast<MidoriValue*>(AllocateValueBuffer(bytes));
+		size_t bytes = static_cast<size_t>(length) * sizeof(MarmotValue);
+		result.m_long.m_ptr = static_cast<MarmotValue*>(AllocateValueBuffer(bytes));
 		if (!result.m_long.m_ptr)
 		{
-			FatalOutOfMemory("MidoriArray::FromFFI", bytes);
+			FatalOutOfMemory("MarmotArray::FromFFI", bytes);
 		}
-		std::memcpy(result.m_long.m_ptr, ffi_allocated_data, static_cast<size_t>(length) * sizeof(MidoriValue));
+		std::memcpy(result.m_long.m_ptr, ffi_allocated_data, static_cast<size_t>(length) * sizeof(MarmotValue));
 		result.m_long.m_size = length;
-		result.m_long.m_capacity = static_cast<int>(bytes / sizeof(MidoriValue));
+		result.m_long.m_capacity = static_cast<int>(bytes / sizeof(MarmotValue));
 		result.m_long.m_flag = 0;
 		result.m_short.m_size_flag = 0;
 	}
@@ -975,54 +975,54 @@ MidoriArray MidoriArray::FromFFI(MidoriValue* ffi_allocated_data, int length)
 	return result;
 }
 
-MidoriIntRange::MidoriIntRange(MidoriInteger start, MidoriInteger end, MidoriInteger step)
+MarmotIntRange::MarmotIntRange(MarmotInteger start, MarmotInteger end, MarmotInteger step)
 	: m_start(start), m_end(end), m_step(step)
 {
 }
 
-MidoriInteger MidoriIntRange::GetStart() const
+MarmotInteger MarmotIntRange::GetStart() const
 {
 	return m_start;
 }
 
-MidoriInteger MidoriIntRange::GetEnd() const
+MarmotInteger MarmotIntRange::GetEnd() const
 {
 	return m_end;
 }
 
-MidoriInteger MidoriIntRange::GetStep() const
+MarmotInteger MarmotIntRange::GetStep() const
 {
 	return m_step;
 }
 
-MidoriFloatRange::MidoriFloatRange(MidoriFloat start, MidoriFloat end, MidoriFloat step)
+MarmotFloatRange::MarmotFloatRange(MarmotFloat start, MarmotFloat end, MarmotFloat step)
 	: m_start(start), m_end(end), m_step(step)
 {
 }
 
-MidoriFloat MidoriFloatRange::GetStart() const
+MarmotFloat MarmotFloatRange::GetStart() const
 {
 	return m_start;
 }
 
-MidoriFloat MidoriFloatRange::GetEnd() const
+MarmotFloat MarmotFloatRange::GetEnd() const
 {
 	return m_end;
 }
 
-MidoriFloat MidoriFloatRange::GetStep() const
+MarmotFloat MarmotFloatRange::GetStep() const
 {
 	return m_step;
 }
 
-MidoriText::MidoriText()
+MarmotText::MarmotText()
 {
 	m_short.m_buffer[0] = '\0';
 	SetShortSize(0);
 }
 
-MidoriText::MidoriText(const char* str)
-	: MidoriText()
+MarmotText::MarmotText(const char* str)
+	: MarmotText()
 {
 	if (str != nullptr)
 	{
@@ -1030,9 +1030,9 @@ MidoriText::MidoriText(const char* str)
 	}
 }
 
-MidoriText::MidoriText(const MidoriText& other)
+MarmotText::MarmotText(const MarmotText& other)
 {
-	std::memcpy(this, &other, sizeof(MidoriText));
+	std::memcpy(this, &other, sizeof(MarmotText));
 	if (!IsShort())
 	{
 		GetBuffer().m_references += 1;
@@ -1040,14 +1040,14 @@ MidoriText::MidoriText(const MidoriText& other)
 	}
 }
 
-MidoriText::MidoriText(MidoriText&& other) noexcept
+MarmotText::MarmotText(MarmotText&& other) noexcept
 {
-	std::memcpy(this, &other, sizeof(MidoriText));
+	std::memcpy(this, &other, sizeof(MarmotText));
 	other.m_short.m_buffer[0] = '\0';
 	other.SetShortSize(0);
 }
 
-MidoriText& MidoriText::operator=(const MidoriText& other)
+MarmotText& MarmotText::operator=(const MarmotText& other)
 {
 	if (this == &other)
 	{
@@ -1055,7 +1055,7 @@ MidoriText& MidoriText::operator=(const MidoriText& other)
 	}
 
 	Release();
-	std::memcpy(this, &other, sizeof(MidoriText));
+	std::memcpy(this, &other, sizeof(MarmotText));
 	if (!IsShort())
 	{
 		GetBuffer().m_references += 1;
@@ -1064,7 +1064,7 @@ MidoriText& MidoriText::operator=(const MidoriText& other)
 	return *this;
 }
 
-MidoriText& MidoriText::operator=(MidoriText&& other) noexcept
+MarmotText& MarmotText::operator=(MarmotText&& other) noexcept
 {
 	if (this == &other)
 	{
@@ -1072,18 +1072,18 @@ MidoriText& MidoriText::operator=(MidoriText&& other) noexcept
 	}
 
 	Release();
-	std::memcpy(this, &other, sizeof(MidoriText));
+	std::memcpy(this, &other, sizeof(MarmotText));
 	other.m_short.m_buffer[0] = '\0';
 	other.SetShortSize(0);
 	return *this;
 }
 
-MidoriText::~MidoriText()
+MarmotText::~MarmotText()
 {
 	Release();
 }
 
-int MidoriText::GetLength() const noexcept
+int MarmotText::GetLength() const noexcept
 {
 	if (IsShort())
 	{
@@ -1096,7 +1096,7 @@ int MidoriText::GetLength() const noexcept
 	return m_long.m_length_cache;
 }
 
-MidoriText& MidoriText::Pop()
+MarmotText& MarmotText::Pop()
 {
 	const int size = GetByteLength();
 	if (size == 0)
@@ -1126,27 +1126,27 @@ MidoriText& MidoriText::Pop()
 	return *this;
 }
 
-MidoriText& MidoriText::Append(const char* str)
+MarmotText& MarmotText::Append(const char* str)
 {
 	return str == nullptr ? *this : AppendBytes(std::string_view(str), -1);
 }
 
-MidoriText& MidoriText::Append(char c)
+MarmotText& MarmotText::Append(char c)
 {
 	return AppendBytes(std::string_view(&c, 1uz), UTF8::IsContinuationByte(c) ? 0 : 1);
 }
 
-MidoriText& MidoriText::Append(const MidoriText& other)
+MarmotText& MarmotText::Append(const MarmotText& other)
 {
 	if (&other == this)
 	{
-		const MidoriText copy(other);
+		const MarmotText copy(other);
 		return Append(copy);
 	}
 	return AppendBytes(other.View(), other.IsShort() ? -1 : other.m_long.m_length_cache);
 }
 
-void MidoriText::Reserve(int capacity)
+void MarmotText::Reserve(int capacity)
 {
 	if (IsShort() ? capacity > SSO_CAPACITY : !CanWriteAtEnd(capacity))
 	{
@@ -1154,34 +1154,34 @@ void MidoriText::Reserve(int capacity)
 	}
 }
 
-MidoriText& MidoriText::Prepend(const char* str)
+MarmotText& MarmotText::Prepend(const char* str)
 {
 	return str == nullptr ? *this : PrependBytes(std::string_view(str));
 }
 
-MidoriText& MidoriText::Prepend(char c)
+MarmotText& MarmotText::Prepend(char c)
 {
 	return PrependBytes(std::string_view(&c, 1uz));
 }
 
-MidoriText& MidoriText::Prepend(const MidoriText& other)
+MarmotText& MarmotText::Prepend(const MarmotText& other)
 {
 	if (&other == this)
 	{
-		const MidoriText copy(other);
+		const MarmotText copy(other);
 		return Prepend(copy);
 	}
 	return PrependBytes(other.View());
 }
 
-MidoriText MidoriText::Substring(int start, int end) const
+MarmotText MarmotText::Substring(int start, int end) const
 {
 	const int len = GetLength();
 	start = std::clamp(start, 0, len);
 	end = std::clamp(end, 0, len);
 	if (end <= start)
 	{
-		return MidoriText();
+		return MarmotText();
 	}
 
 	// The length is cached, and a text as long in code points as in bytes is
@@ -1193,12 +1193,12 @@ MidoriText MidoriText::Substring(int start, int end) const
 	const int start_offset = is_ascii ? start : UTF8::GetByteOffsetOfCodePoint(source, byte_len, start);
 	const int end_offset = is_ascii ? end : UTF8::GetByteOffsetOfCodePoint(source, byte_len, end);
 	std::string slice(source + start_offset, source + end_offset);
-	return MidoriText(slice.c_str());
+	return MarmotText(slice.c_str());
 }
 
-std::vector<MidoriText> MidoriText::Split(const MidoriText& delimiter) const
+std::vector<MarmotText> MarmotText::Split(const MarmotText& delimiter) const
 {
-	std::vector<MidoriText> parts;
+	std::vector<MarmotText> parts;
 	const std::string_view source = View();
 	const std::string_view needle = delimiter.View();
 
@@ -1234,7 +1234,7 @@ std::vector<MidoriText> MidoriText::Split(const MidoriText& delimiter) const
 	}
 }
 
-MidoriText MidoriText::Reverse() const
+MarmotText MarmotText::Reverse() const
 {
 	const char* source = View().data();
 	const int byte_len = GetByteLength();
@@ -1248,13 +1248,13 @@ MidoriText MidoriText::Reverse() const
 		end = start;
 	}
 
-	return MidoriText(reversed.c_str());
+	return MarmotText(reversed.c_str());
 }
 
-std::vector<MidoriInteger> MidoriText::CodePoints() const
+std::vector<MarmotInteger> MarmotText::CodePoints() const
 {
 	const std::string_view bytes = View();
-	std::vector<MidoriInteger> code_points;
+	std::vector<MarmotInteger> code_points;
 	for (size_t offset = 0u; offset < bytes.size();)
 	{
 		const size_t length = static_cast<size_t>(UTF8::GetCharacterByteCount(bytes.data() + offset));
@@ -1267,29 +1267,29 @@ std::vector<MidoriInteger> MidoriText::CodePoints() const
 		{
 			code_point = (code_point << 6u) | (static_cast<unsigned char>(bytes[offset + continuation]) & 0x3Fu);
 		}
-		code_points.push_back(static_cast<MidoriInteger>(code_point));
+		code_points.push_back(static_cast<MarmotInteger>(code_point));
 		offset += length;
 	}
 	return code_points;
 }
 
-MidoriText MidoriText::FromCodePoints(std::span<const MidoriInteger> code_points)
+MarmotText MarmotText::FromCodePoints(std::span<const MarmotInteger> code_points)
 {
 	std::string encoded;
 	encoded.reserve(code_points.size());
-	for (const MidoriInteger code_point : code_points)
+	for (const MarmotInteger code_point : code_points)
 	{
 		UTF8::Append(encoded, static_cast<std::uint32_t>(code_point));
 	}
-	return MidoriText(encoded.c_str());
+	return MarmotText(encoded.c_str());
 }
 
-bool MidoriText::Contains(const MidoriText& other) const
+bool MarmotText::Contains(const MarmotText& other) const
 {
 	return View().find(other.View()) != std::string_view::npos;
 }
 
-MidoriText MidoriText::Replace(const MidoriText& old_value, const MidoriText& new_value) const
+MarmotText MarmotText::Replace(const MarmotText& old_value, const MarmotText& new_value) const
 {
 	const std::string_view source = View();
 	const std::string_view needle = old_value.View();
@@ -1297,7 +1297,7 @@ MidoriText MidoriText::Replace(const MidoriText& old_value, const MidoriText& ne
 
 	if (needle.empty())
 	{
-		return MidoriText(*this);
+		return MarmotText(*this);
 	}
 
 	std::string replaced;
@@ -1316,10 +1316,10 @@ MidoriText MidoriText::Replace(const MidoriText& old_value, const MidoriText& ne
 		start = found + needle.size();
 	}
 
-	return MidoriText(replaced.c_str());
+	return MarmotText(replaced.c_str());
 }
 
-MidoriText MidoriText::Trim() const
+MarmotText MarmotText::Trim() const
 {
 	const std::string_view source = View();
 	size_t start = 0u;
@@ -1334,31 +1334,31 @@ MidoriText MidoriText::Trim() const
 		end -= 1u;
 	}
 
-	return MidoriText(std::string(source.substr(start, end - start)).c_str());
+	return MarmotText(std::string(source.substr(start, end - start)).c_str());
 }
 
-char MidoriText::operator[](int index) const
+char MarmotText::operator[](int index) const
 {
 	const std::string_view bytes = View();
 	return bytes[static_cast<size_t>(UTF8::GetByteOffsetOfCodePoint(bytes.data(), GetByteLength(), index))];
 }
 
-bool MidoriText::operator==(const MidoriText& other) const
+bool MarmotText::operator==(const MarmotText& other) const
 {
 	return View() == other.View();
 }
 
-bool MidoriText::operator!=(const MidoriText& other) const
+bool MarmotText::operator!=(const MarmotText& other) const
 {
 	return !(*this == other);
 }
 
-std::optional<MidoriInteger> MidoriText::ParseInteger() const
+std::optional<MarmotInteger> MarmotText::ParseInteger() const
 {
 	const std::string_view bytes = View();
 	const char* begin = bytes.data();
 	const char* end = begin + bytes.size();
-	MidoriInteger value = 0;
+	MarmotInteger value = 0;
 	const std::from_chars_result result = std::from_chars(begin, end, value);
 	if ((begin == end) || (result.ec != std::errc()) || (result.ptr != end))
 	{
@@ -1367,12 +1367,12 @@ std::optional<MidoriInteger> MidoriText::ParseInteger() const
 	return value;
 }
 
-std::optional<MidoriFloat> MidoriText::ParseFloat() const
+std::optional<MarmotFloat> MarmotText::ParseFloat() const
 {
 	const std::string_view bytes = View();
 	const char* begin = bytes.data();
 	const char* end = begin + bytes.size();
-	MidoriFloat value = 0.0;
+	MarmotFloat value = 0.0;
 	const std::from_chars_result result = std::from_chars(begin, end, value);
 	if ((begin == end) || (result.ec != std::errc()) || (result.ptr != end))
 	{
@@ -1381,39 +1381,39 @@ std::optional<MidoriFloat> MidoriText::ParseFloat() const
 	return value;
 }
 
-MidoriText MidoriText::FromInteger(MidoriInteger value)
+MarmotText MarmotText::FromInteger(MarmotInteger value)
 {
 	char buffer[32];
 	std::to_chars_result result = std::to_chars(std::begin(buffer), std::end(buffer), value);
 	if (result.ec != std::errc())
 	{
-		return MidoriText();
+		return MarmotText();
 	}
 	*result.ptr = '\0';
-	return MidoriText(buffer);
+	return MarmotText(buffer);
 }
 
-MidoriText MidoriText::FromWord(MidoriWord value)
+MarmotText MarmotText::FromWord(MarmotWord value)
 {
 	char buffer[32];
 	std::to_chars_result result = std::to_chars(std::begin(buffer), std::end(buffer), value);
 	if (result.ec != std::errc())
 	{
-		return MidoriText();
+		return MarmotText();
 	}
 	*result.ptr = '\0';
-	return MidoriText(buffer);
+	return MarmotText(buffer);
 }
 
 // The shortest text that reads back as the same Float, and one that still
 // looks like a Float when the value is whole: 3.0, not 3.
-MidoriText MidoriText::FromFloat(MidoriFloat value)
+MarmotText MarmotText::FromFloat(MarmotFloat value)
 {
 	// A NaN's sign bit means nothing, and 0.0 / 0.0 sets it on x86 but not on
 	// ARM, so printing it made the same program's output differ by machine.
 	if (std::isnan(value))
 	{
-		return MidoriText("nan");
+		return MarmotText("nan");
 	}
 
 	char buffer[64];
@@ -1426,34 +1426,34 @@ MidoriText MidoriText::FromFloat(MidoriFloat value)
 		*end++ = '0';
 	}
 	*end = '\0';
-	return MidoriText(buffer);
+	return MarmotText(buffer);
 }
 
 // `a` copied shares its buffer, so appending `b` to the copy writes in place
 // when `a` ends where the buffer has been written to, and otherwise moves the
 // copy to a buffer twice `a`'s size: a chain of `++` is linear either way.
-MidoriText MidoriText::Concatenate(const MidoriText& a, const MidoriText& b)
+MarmotText MarmotText::Concatenate(const MarmotText& a, const MarmotText& b)
 {
-	MidoriText result(a);
+	MarmotText result(a);
 	result.AppendBytes(b.View(), b.IsShort() ? -1 : b.m_long.m_length_cache);
 	return result;
 }
 
-MidoriText MidoriText::FromFFI(char* ffi_allocated_string)
+MarmotText MarmotText::FromFFI(char* ffi_allocated_string)
 {
 	// Copy instead of adopting: the FFI buffer came from the CRT heap and must
 	// not enter the pooled free lists.
 	if (!ffi_allocated_string)
 	{
-		return MidoriText();
+		return MarmotText();
 	}
 
-	MidoriText result(ffi_allocated_string);
+	MarmotText result(ffi_allocated_string);
 	std::free(ffi_allocated_string);
 	return result;
 }
 
-const char* MidoriText::CString()
+const char* MarmotText::CString()
 {
 	if (!IsShort() && m_long.m_size != GetBuffer().m_written)
 	{
@@ -1462,27 +1462,27 @@ const char* MidoriText::CString()
 	return IsShort() ? m_short.m_buffer : m_long.m_ptr;
 }
 
-size_t MidoriText::GetOwnedBytes() const
+size_t MarmotText::GetOwnedBytes() const
 {
 	return IsShort() ? 0uz : static_cast<size_t>(m_long.m_owned_bytes);
 }
 
-MidoriText::Buffer& MidoriText::GetBuffer() const noexcept
+MarmotText::Buffer& MarmotText::GetBuffer() const noexcept
 {
 	return *(reinterpret_cast<Buffer*>(m_long.m_ptr) - 1);
 }
 
-bool MidoriText::CanWriteAtEnd(int size) const noexcept
+bool MarmotText::CanWriteAtEnd(int size) const noexcept
 {
 	return !IsShort() && m_long.m_size == GetBuffer().m_written && size <= GetBuffer().m_capacity;
 }
 
-bool MidoriText::IsPrivate() const noexcept
+bool MarmotText::IsPrivate() const noexcept
 {
 	return IsShort() || (GetBuffer().m_references == 1 && m_long.m_size == GetBuffer().m_written);
 }
 
-MIDORI_NOINLINE void MidoriText::Reallocate(int capacity)
+MARMOT_NOINLINE void MarmotText::Reallocate(int capacity)
 {
 	const std::string_view bytes = View();
 	const int size = static_cast<int>(bytes.size());
@@ -1490,7 +1490,7 @@ MIDORI_NOINLINE void MidoriText::Reallocate(int capacity)
 	Buffer* buffer = static_cast<Buffer*>(AllocateValueBuffer(granted));
 	if (buffer == nullptr)
 	{
-		FatalOutOfMemory("MidoriText::Reallocate", granted);
+		FatalOutOfMemory("MarmotText::Reallocate", granted);
 	}
 	char* characters = reinterpret_cast<char*>(buffer + 1);
 	std::memcpy(characters, bytes.data(), bytes.size());
@@ -1506,7 +1506,7 @@ MIDORI_NOINLINE void MidoriText::Reallocate(int capacity)
 	m_long.m_flag = 0;
 }
 
-void MidoriText::Release() noexcept
+void MarmotText::Release() noexcept
 {
 	if (IsShort())
 	{
@@ -1520,7 +1520,7 @@ void MidoriText::Release() noexcept
 	}
 }
 
-MidoriText& MidoriText::AppendBytes(std::string_view bytes, int length)
+MarmotText& MarmotText::AppendBytes(std::string_view bytes, int length)
 {
 	if (bytes.empty())
 	{
@@ -1548,7 +1548,7 @@ MidoriText& MidoriText::AppendBytes(std::string_view bytes, int length)
 	return *this;
 }
 
-MidoriText& MidoriText::PrependBytes(std::string_view bytes)
+MarmotText& MarmotText::PrependBytes(std::string_view bytes)
 {
 	if (bytes.empty())
 	{
@@ -1578,7 +1578,7 @@ MidoriText& MidoriText::PrependBytes(std::string_view bytes)
 	return *this;
 }
 
-MidoriMutableCell::MidoriMutableCell(MidoriValue value) noexcept
+MarmotMutableCell::MarmotMutableCell(MarmotValue value) noexcept
 	: m_value(value)
 {
 }

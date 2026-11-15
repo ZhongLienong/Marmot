@@ -1,11 +1,11 @@
 add_executable(marmotvm src/Wasm/Bindings.cpp)
 target_link_libraries(marmotvm PRIVATE MarmotRuntime)
-foreach(target_name IN LISTS MIDORI_LIBRARY_TARGETS ITEMS marmotvm)
-    target_compile_definitions(${target_name} PRIVATE MIDORI_WASM=1)
+foreach(target_name IN LISTS MARMOT_LIBRARY_TARGETS ITEMS marmotvm)
+    target_compile_definitions(${target_name} PRIVATE MARMOT_WASM=1)
     target_compile_options(${target_name} PRIVATE
         -fexceptions
         -Wno-deprecated-literal-operator
-        $<$<AND:$<CONFIG:Release>,$<BOOL:${MIDORI_ENABLE_LTO}>>:-flto>
+        $<$<AND:$<CONFIG:Release>,$<BOOL:${MARMOT_ENABLE_LTO}>>:-flto>
         -sMEMORY64=1
     )
 endforeach()
@@ -22,7 +22,7 @@ target_link_options(marmotvm PRIVATE
     -sNO_DISABLE_EXCEPTION_CATCHING
     -sFORCE_FILESYSTEM=1
     -sEXPORTED_RUNTIME_METHODS=FS,FS_createPath,FS_createDataFile
-    $<$<AND:$<CONFIG:Release>,$<BOOL:${MIDORI_ENABLE_LTO}>>:-flto>
+    $<$<AND:$<CONFIG:Release>,$<BOOL:${MARMOT_ENABLE_LTO}>>:-flto>
     -sMEMORY64=1
 )
 set_target_properties(marmotvm PROPERTIES SUFFIX ".js")

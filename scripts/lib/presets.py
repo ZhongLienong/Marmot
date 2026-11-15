@@ -48,9 +48,9 @@ class ProjectBuild:
         if fresh:
             command.append("--fresh")
         if with_unit_tests:
-            command.append("-DMIDORI_BUILD_TESTS=ON")
+            command.append("-DMARMOT_BUILD_TESTS=ON")
             if self.project == "marmotc":
-                command.append("-DMIDORI_BUILD_INTEGRATION_TESTS=ON")
+                command.append("-DMARMOT_BUILD_INTEGRATION_TESTS=ON")
         return toolchain.run(command, cwd=self.source_dir,
                              environment=toolchain.build_environment(configuring=fresh or not self.is_configured))
 

@@ -149,7 +149,7 @@ struct NativeLibraryImport
 // NATIVE_SYMBOL_SEPARATOR. A builtin's value is its bare name.
 inline constexpr char NATIVE_SYMBOL_SEPARATOR = '\x1f';
 
-class MidoriExecutable
+class MarmotExecutable
 {
 public:
 	using GlobalNames = std::vector<std::string>;

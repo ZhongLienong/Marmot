@@ -1,12 +1,12 @@
 module ArrayPopRemoved
 
-// MIDORI_FFI_ArrayPop mutated its argument array in place and was deleted
-// along with MidoriArray::Pop(). This asserts the FFI entry is genuinely
+// MARMOT_FFI_ArrayPop mutated its argument array in place and was deleted
+// along with MarmotArray::Pop(). This asserts the FFI entry is genuinely
 // gone: a foreign declaration without `from "library"` must name a builtin,
 // so declaring it is rejected
 // at compile time instead of failing later at the call site.
 
-foreign "MIDORI_FFI_ArrayPop" Pop : fn(Array<Int>) -> Int;
+foreign "MARMOT_FFI_ArrayPop" Pop : fn(Array<Int>) -> Int;
 
 def a = [1, 2, 3];
 def b = a;

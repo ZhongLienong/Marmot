@@ -24,7 +24,7 @@ versioned `.mmc` contract under `format/mmc/`.
 | `projects/marmotc/src/Bytecode` | Compiler-side opcode and builtin IDs, executable model, `.mmc` writer |
 | `projects/marmotvm/src/Bytecode` | VM-side opcode and builtin IDs, loaded-program model, `.mmc` reader and disassembler |
 | `format/mmc` | Language-neutral v16 contract and compatibility fixtures |
-| `projects/marmotc/src/Compiler` | Compiler errors, lexer, parser, type checker, static analysis, lowering, MidoriIR optimizer, bytecode backend, linker |
+| `projects/marmotc/src/Compiler` | Compiler errors, lexer, parser, type checker, static analysis, lowering, MarmotIR optimizer, bytecode backend, linker |
 | `projects/marmotvm/src` | Values, runtime errors, the interpreter, the GC, workers, the builtin FFI library and VM entry point |
 | `projects/marmot/src` | The `marmot` tool |
 | `MarmotPrelude` | The prelude, written in Marmot |
@@ -132,7 +132,7 @@ Worth knowing before editing the front end, because each was a bug once:
 
 - A name resolves by **one** rule. There is no ambient fallback that scans every
   import.
-- `MidoriType::ToString()` is the **identity** string — it carries the module,
+- `MarmotType::ToString()` is the **identity** string — it carries the module,
   and `InstanceKey` and `MangleInstanceMethodName` key on it. `DisplayString()`
   is what a diagnostic shows; it qualifies only when both sides would read the
   same.
@@ -142,10 +142,10 @@ Worth knowing before editing the front end, because each was a bug once:
 - `==` and `!=` are emitted by one function, so their type cases cannot drift.
 - Every top-level definition gets its global slot before any function is
   lowered. Verifier rule 5 checks that every global read names a reserved slot.
-- The MidoriIR verifier runs after lowering and after every optimizer pass in
+- The MarmotIR verifier runs after lowering and after every optimizer pass in
   Dev and Debug builds, and once before the backend in Release. A
   violation is a compiler bug, never a user error. `marmotc check --emit-ir`
-  prints each module's IR after optimization; see `docs/midori-ir.md`.
+  prints each module's IR after optimization; see `docs/marmot-ir.md`.
   `--emit-ast` prints each module's checked AST, before lowering.
 
 ## Gotchas

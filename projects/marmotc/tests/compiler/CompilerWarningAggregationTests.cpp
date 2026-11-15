@@ -3,7 +3,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-#include "Utility/Driver/MidoriDriver.h"
+#include "Utility/Driver/MarmotDriver.h"
 #include "support/CompileHelpers.h"
 #include "support/DiagnosticMatchers.h"
 #include "support/OutputCapture.h"
@@ -11,27 +11,27 @@
 
 namespace
 {
-	void RequireWarningMatches(const CompilerWarning& warning, const MidoriTest::WarningExpectation& expectation)
+	void RequireWarningMatches(const CompilerWarning& warning, const MarmotTest::WarningExpectation& expectation)
 	{
 		std::string mismatch;
-		const bool matched = MidoriTest::Matches(warning, expectation, &mismatch);
+		const bool matched = MarmotTest::Matches(warning, expectation, &mismatch);
 		CAPTURE(mismatch);
 		REQUIRE(matched);
 	}
 
 	std::string RenderedFailure(const std::filesystem::path& main_file_path, size_t jobs)
 	{
-		const MidoriDriver::CompileFileWithReportResult compiled = MidoriDriver::CompileFileWithReport(main_file_path, MidoriDriver::EnvironmentCompilationInputs().WithJobs(jobs));
+		const MarmotDriver::CompileFileWithReportResult compiled = MarmotDriver::CompileFileWithReport(main_file_path, MarmotDriver::EnvironmentCompilationInputs().WithJobs(jobs));
 		REQUIRE_FALSE(compiled.has_value());
-		return MidoriTest::StripAnsiCodes(compiled.error().Rendered());
+		return MarmotTest::StripAnsiCodes(compiled.error().Rendered());
 	}
 }
 
 TEST_CASE("CompileFileWithReport preserves aggregated warning order without rendering warnings early", "[compiler][warning][report]")
 {
-	const MidoriTest::TempProject project
+	const MarmotTest::TempProject project
 	({
-		MidoriTest::TempProjectFile
+		MarmotTest::TempProjectFile
 		(
 			"Alpha.mmt",
 			R"(module Alpha
@@ -43,7 +43,7 @@ def Value = fn() -> Int => {
 };
 )"
 		),
-		MidoriTest::TempProjectFile
+		MarmotTest::TempProjectFile
 		(
 			"Zulu.mmt",
 			R"(module Zulu
@@ -55,7 +55,7 @@ def Value = fn() -> Int => {
 };
 )"
 		),
-		MidoriTest::TempProjectFile
+		MarmotTest::TempProjectFile
 		(
 			"Main.mmt",
 			R"(module Main
@@ -67,15 +67,15 @@ def main = fn() -> Int => Alpha::Value() + Zulu::Value();
 
 	const std::filesystem::path main_file_path = std::filesystem::weakly_canonical(project.Path("Main.mmt"));
 
-	MidoriTest::OutputCapture capture;
-	MidoriDriver::CompileFileWithReportResult compile_result = MidoriDriver::CompileFileWithReport(main_file_path);
-	const MidoriTest::CapturedOutput output = capture.Stop();
+	MarmotTest::OutputCapture capture;
+	MarmotDriver::CompileFileWithReportResult compile_result = MarmotDriver::CompileFileWithReport(main_file_path);
+	const MarmotTest::CapturedOutput output = capture.Stop();
 	if (!compile_result.has_value())
 	{
-		FAIL(MidoriTest::StripAnsiCodes(compile_result.error().Rendered()));
+		FAIL(MarmotTest::StripAnsiCodes(compile_result.error().Rendered()));
 	}
 
-	const MidoriResult::CompilerReport& report = compile_result->Report();
+	const MarmotResult::CompilerReport& report = compile_result->Report();
 	REQUIRE(report.m_warnings.Size() == 2u);
 	REQUIRE(report.m_errors.Empty());
 	REQUIRE(report.m_warnings.m_items[0u].m_location.has_value());
@@ -83,7 +83,7 @@ def main = fn() -> Int => Alpha::Value() + Zulu::Value();
 	CHECK(std::filesystem::path(report.m_warnings.m_items[0u].m_location->m_file_name).filename().string() == "Alpha.mmt");
 	CHECK(std::filesystem::path(report.m_warnings.m_items[1u].m_location->m_file_name).filename().string() == "Zulu.mmt");
 
-	const std::string rendered_output = MidoriTest::StripAnsiCodes(output.m_stdout);
+	const std::string rendered_output = MarmotTest::StripAnsiCodes(output.m_stdout);
 	CHECK(rendered_output.find("1 warning(s) in Alpha.mmt") == std::string::npos);
 	CHECK(rendered_output.find("1 warning(s) in Zulu.mmt") == std::string::npos);
 	CHECK(rendered_output.find("Static Analyzer Warning at") == std::string::npos);
@@ -97,8 +97,8 @@ type Pair =
 {
 	value: Int
 };
-foreign "MIDORI_FFI_ReadPairA" ReadPairA : fn() -> Pair;
-foreign "MIDORI_FFI_ReadPairB" ReadPairB : fn() -> Pair;
+foreign "MARMOT_FFI_ReadPairA" ReadPairA : fn() -> Pair;
+foreign "MARMOT_FFI_ReadPairB" ReadPairB : fn() -> Pair;
 def main = fn() -> Int => {
 	def used = 1;
 	def unused = 2;
@@ -108,36 +108,36 @@ def main = fn() -> Int => {
 };
 )";
 
-	MidoriResult::CompilationResult compile_result =
-		MidoriTest::CompileSnippetWithReport(source_code, "WarningWithCodegenFailure.mmt");
+	MarmotResult::CompilationResult compile_result =
+		MarmotTest::CompileSnippetWithReport(source_code, "WarningWithCodegenFailure.mmt");
 	REQUIRE_FALSE(compile_result.has_value());
 
-	const MidoriResult::CompilerReport& report = MidoriTest::CompilationReport(compile_result);
+	const MarmotResult::CompilerReport& report = MarmotTest::CompilationReport(compile_result);
 	REQUIRE_FALSE(report.m_warnings.Empty());
 	REQUIRE_FALSE(report.m_errors.Empty());
 	REQUIRE(report.m_warnings.Size() == 1u);
 	REQUIRE(report.m_errors.Size() == 2u);
 
 	const CompilerWarning* warning =
-		MidoriTest::FindWarning(report, CompilerStage::StaticAnalyzer, CompilerWarningCode::UnusedLocal);
+		MarmotTest::FindWarning(report, CompilerStage::StaticAnalyzer, CompilerWarningCode::UnusedLocal);
 	REQUIRE(warning != nullptr);
 	RequireWarningMatches(
 		*warning,
-		MidoriTest::WarningExpectation
+		MarmotTest::WarningExpectation
 		{
 			.m_stage = CompilerStage::StaticAnalyzer,
 			.m_code = CompilerWarningCode::UnusedLocal,
 			.m_line = 10
 		});
 
-	REQUIRE(MidoriTest::FindError(report.m_errors, CompilerStage::Lowering, CompilerErrorCode::LoweringUnsupportedConstruct) != nullptr);
+	REQUIRE(MarmotTest::FindError(report.m_errors, CompilerStage::Lowering, CompilerErrorCode::LoweringUnsupportedConstruct) != nullptr);
 }
 
 TEST_CASE("A successful compile renders its warnings from the final report", "[compiler][warning][driver]")
 {
-	const MidoriTest::TempProject project
+	const MarmotTest::TempProject project
 	({
-		MidoriTest::TempProjectFile
+		MarmotTest::TempProjectFile
 		(
 			"Main.mmt",
 			R"(module Main
@@ -152,10 +152,10 @@ def main = fn() -> Int => {
 
 	const std::filesystem::path main_file_path = std::filesystem::weakly_canonical(project.Path("Main.mmt"));
 
-	const MidoriDriver::CompileFileWithReportResult compiled = MidoriDriver::CompileFileWithReport(main_file_path);
+	const MarmotDriver::CompileFileWithReportResult compiled = MarmotDriver::CompileFileWithReport(main_file_path);
 	REQUIRE(compiled.has_value());
 
-	const std::string rendered_output = MidoriTest::StripAnsiCodes(compiled->Report().RenderedWarnings());
+	const std::string rendered_output = MarmotTest::StripAnsiCodes(compiled->Report().RenderedWarnings());
 	const size_t summary_position = rendered_output.find("[warning] 1 warning(s) in Main.mmt");
 	const size_t warning_position = rendered_output.find("Static Analyzer Warning at");
 	REQUIRE(summary_position != std::string::npos);
@@ -166,9 +166,9 @@ def main = fn() -> Int => {
 
 TEST_CASE("Every failing module is reported in build order for any worker count", "[compiler][report]")
 {
-	const MidoriTest::TempProject project
+	const MarmotTest::TempProject project
 	({
-		MidoriTest::TempProjectFile
+		MarmotTest::TempProjectFile
 		(
 			"Alpha.mmt",
 			R"(module Alpha
@@ -176,7 +176,7 @@ public export { Value }
 def Value: Int = "alpha";
 )"
 		),
-		MidoriTest::TempProjectFile
+		MarmotTest::TempProjectFile
 		(
 			"Zulu.mmt",
 			R"(module Zulu
@@ -184,7 +184,7 @@ public export { Value }
 def Value: Int = "zulu";
 )"
 		),
-		MidoriTest::TempProjectFile
+		MarmotTest::TempProjectFile
 		(
 			"Main.mmt",
 			R"(module Main

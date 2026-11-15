@@ -17,7 +17,7 @@
 
 namespace
 {
-	using TypeRef = std::shared_ptr<MidoriType>;
+	using TypeRef = std::shared_ptr<MarmotType>;
 
 	// Where a value lives between its definition and its uses.
 	enum class Storage : uint8_t
@@ -32,9 +32,9 @@ namespace
 		Discarded
 	};
 
-	std::optional<OpCode> ScalarOpCode(MidoriIROp op)
+	std::optional<OpCode> ScalarOpCode(MarmotIROp op)
 	{
-		using enum MidoriIROp;
+		using enum MarmotIROp;
 		switch (op)
 		{
 		case AddInt: return OpCode::ADD_INTEGER;
@@ -133,9 +133,9 @@ namespace
 	}
 
 	// Jumps when the comparison fails, taking both operands.
-	std::optional<OpCode> CompareAndJumpOpCode(MidoriIROp op)
+	std::optional<OpCode> CompareAndJumpOpCode(MarmotIROp op)
 	{
-		using enum MidoriIROp;
+		using enum MarmotIROp;
 		switch (op)
 		{
 		case LtInt: return OpCode::IF_INTEGER_LESS;
@@ -155,9 +155,9 @@ namespace
 	}
 
 	// Jumps when the comparison of two locals fails.
-	std::optional<OpCode> CompareLocalsAndJumpOpCode(MidoriIROp op)
+	std::optional<OpCode> CompareLocalsAndJumpOpCode(MarmotIROp op)
 	{
-		using enum MidoriIROp;
+		using enum MarmotIROp;
 		switch (op)
 		{
 		case LtInt: return OpCode::IF_LOCAL_LT_LOCAL;
@@ -168,9 +168,9 @@ namespace
 	}
 
 	// Operations whose operands may be pushed in either order.
-	bool IsCommutative(MidoriIROp op)
+	bool IsCommutative(MarmotIROp op)
 	{
-		using enum MidoriIROp;
+		using enum MarmotIROp;
 		switch (op)
 		{
 		case AddInt:
@@ -226,7 +226,7 @@ namespace
 
 	bool IsUnit(const TypeRef& type)
 	{
-		return type->IsType<MidoriType::UnitType>();
+		return type->IsType<MarmotType::UnitType>();
 	}
 
 	using GenericTypes::IsPointer;
@@ -238,7 +238,7 @@ namespace
 
 	TypeRef ElementType(const TypeRef& array_type)
 	{
-		return GenericTypes::RepresentationOf(array_type)->GetType<MidoriType::ArrayType>().m_element_type;
+		return GenericTypes::RepresentationOf(array_type)->GetType<MarmotType::ArrayType>().m_element_type;
 	}
 
 	// What a foreign call's result is, so the VM knows how to take it back:
@@ -247,14 +247,14 @@ namespace
 	// array of values may return one of texts or other objects.
 	uint8_t ForeignReturnTag(const TypeRef& type)
 	{
-		if (type->IsType<MidoriType::TextType>())
+		if (type->IsType<MarmotType::TextType>())
 		{
 			return 1u;
 		}
-		if (type->IsType<MidoriType::ArrayType>())
+		if (type->IsType<MarmotType::ArrayType>())
 		{
-			const TypeRef& element = type->GetType<MidoriType::ArrayType>().m_element_type;
-			const uint8_t kind = element->IsType<MidoriType::TextType>() ? 3u : 2u;
+			const TypeRef& element = type->GetType<MarmotType::ArrayType>().m_element_type;
+			const uint8_t kind = element->IsType<MarmotType::TextType>() ? 3u : 2u;
 			return IsPointer(element) ? static_cast<uint8_t>(kind | 0x80u) : kind;
 		}
 		return 0u;
@@ -262,43 +262,43 @@ namespace
 
 	// How a native library receives each argument, two bits apiece from the
 	// first: raw bits, a C string, or a view of an array's elements.
-	uint8_t ForeignArgumentKinds(const MidoriIRFunction& function, std::span<const MidoriIRValueId> arguments)
+	uint8_t ForeignArgumentKinds(const MarmotIRFunction& function, std::span<const MarmotIRValueId> arguments)
 	{
 		// zip with iota rather than enumerate, which Emscripten's libc++ lacks.
-		return std::ranges::fold_left(std::views::zip(std::views::iota(0), arguments), uint8_t{ 0u }, [&function](uint8_t kinds, const std::tuple<int, const MidoriIRValueId&>& argument)
+		return std::ranges::fold_left(std::views::zip(std::views::iota(0), arguments), uint8_t{ 0u }, [&function](uint8_t kinds, const std::tuple<int, const MarmotIRValueId&>& argument)
 		{
 			const TypeRef& type = function.TypeOf(std::get<1>(argument));
-			const uint8_t kind = type->IsType<MidoriType::TextType>() ? 1u : type->IsType<MidoriType::ArrayType>() ? 2u : 0u;
+			const uint8_t kind = type->IsType<MarmotType::TextType>() ? 1u : type->IsType<MarmotType::ArrayType>() ? 2u : 0u;
 			return static_cast<uint8_t>(kinds | (kind << (2 * std::get<0>(argument))));
 		});
 	}
 
 	// A call whose first operand is what it calls, which the VM takes from on
 	// top of the arguments: a closure, or a foreign function's name.
-	bool CallsClosureOperand(const MidoriIRInstruction& instruction)
+	bool CallsClosureOperand(const MarmotIRInstruction& instruction)
 	{
 		const bool has_no_callee = std::holds_alternative<std::monostate>(instruction.m_immediate);
-		return instruction.m_op == MidoriIROp::CallValue || (has_no_callee && (instruction.m_op == MidoriIROp::TailCall || instruction.m_op == MidoriIROp::CallForeign));
+		return instruction.m_op == MarmotIROp::CallValue || (has_no_callee && (instruction.m_op == MarmotIROp::TailCall || instruction.m_op == MarmotIROp::CallForeign));
 	}
 
 	// Whether the instruction leaves its value on the stack.
-	bool PushesResult(const MidoriIRInstruction& instruction)
+	bool PushesResult(const MarmotIRInstruction& instruction)
 	{
-		return !IsMidoriIRTerminator(instruction.m_op) && instruction.m_op != MidoriIROp::GlobalDefine && instruction.m_op != MidoriIROp::GlobalSet && instruction.m_op != MidoriIROp::BindCaptures;
+		return !IsMarmotIRTerminator(instruction.m_op) && instruction.m_op != MarmotIROp::GlobalDefine && instruction.m_op != MarmotIROp::GlobalSet && instruction.m_op != MarmotIROp::BindCaptures;
 	}
 
 	// The blocks a path from the entry runs, in order. The others hold only
 	// code after a call that returns Never, and are not emitted.
-	std::vector<bool> ReachableBlocks(const MidoriIRFunction& function)
+	std::vector<bool> ReachableBlocks(const MarmotIRFunction& function)
 	{
 		std::vector<bool> reachable(function.m_blocks.size(), false);
-		std::vector<uint32_t> pending = { MidoriIRFunction::s_entry_block.m_index };
-		reachable[MidoriIRFunction::s_entry_block.m_index] = true;
+		std::vector<uint32_t> pending = { MarmotIRFunction::s_entry_block.m_index };
+		reachable[MarmotIRFunction::s_entry_block.m_index] = true;
 		while (!pending.empty())
 		{
 			const uint32_t block = pending.back();
 			pending.pop_back();
-			for (const MidoriIRSuccessor& successor : function.m_blocks[block].m_instructions.back().m_successors)
+			for (const MarmotIRSuccessor& successor : function.m_blocks[block].m_instructions.back().m_successors)
 			{
 				if (!reachable[successor.m_block.m_index])
 				{
@@ -316,18 +316,18 @@ namespace
 		struct Fixup
 		{
 			int m_operand;
-			MidoriIRBlockId m_target;
+			MarmotIRBlockId m_target;
 			int m_line;
 		};
 
 		using Emitted = std::expected<void, CompilerError>;
 
 		BytecodeBackend& m_backend;
-		const MidoriIRFunction& m_function;
+		const MarmotIRFunction& m_function;
 		BytecodeStream m_stream;
 		std::vector<Storage> m_storage;
 		std::vector<int> m_slots;
-		std::vector<const MidoriIRInstruction*> m_definitions;
+		std::vector<const MarmotIRInstruction*> m_definitions;
 		std::vector<int> m_block_offsets;
 		std::vector<bool> m_reachable;
 		// The block emitted after each, where a jump to it falls through.
@@ -343,16 +343,16 @@ namespace
 		// Whether each slot holds pointers, by slot.
 		std::vector<bool> m_slot_pointers;
 		// What each safepoint finds on the operand stack below its operands.
-		std::unordered_map<const MidoriIRInstruction*, std::vector<MidoriIRValueId>> m_stack_below;
+		std::unordered_map<const MarmotIRInstruction*, std::vector<MarmotIRValueId>> m_stack_below;
 		std::vector<FrameMap::Safepoint> m_safepoints;
 		// The instruction emitted after the current one in its block.
-		const MidoriIRInstruction* m_next = nullptr;
+		const MarmotIRInstruction* m_next = nullptr;
 		// A value just stored and left on the stack too, because the next
 		// instruction pushes it first.
-		std::optional<MidoriIRValueId> m_kept;
+		std::optional<MarmotIRValueId> m_kept;
 
 	public:
-		FunctionEmitter(BytecodeBackend& backend, const MidoriIRFunction& function)
+		FunctionEmitter(BytecodeBackend& backend, const MarmotIRFunction& function)
 			: m_backend(backend),
 			m_function(function),
 			m_storage(function.m_values.size(), Storage::Slot),
@@ -396,7 +396,7 @@ namespace
 				return std::unexpected(capture_shape.error());
 			}
 
-			const int arity = static_cast<int>(m_function.Block(MidoriIRFunction::s_entry_block).m_parameters.size());
+			const int arity = static_cast<int>(m_function.Block(MarmotIRFunction::s_entry_block).m_parameters.size());
 			for (int slot = arity; slot < m_slot_count; slot += BYTE_MASK)
 			{
 				EmitByte(OpCode::PUSH_PLACEHOLDER, FirstLine());
@@ -410,19 +410,19 @@ namespace
 					continue;
 				}
 				m_block_offsets[block] = m_stream.GetByteCodeSize();
-				const std::vector<MidoriIRInstruction>& instructions = m_function.m_blocks[block].m_instructions;
+				const std::vector<MarmotIRInstruction>& instructions = m_function.m_blocks[block].m_instructions;
 				for (size_t position = 0u; position < instructions.size(); position += 1u)
 				{
 					m_next = position + 1u < instructions.size() ? &instructions[position + 1u] : nullptr;
-					const std::optional<MidoriIRValueId> kept = m_kept;
-					const Emitted emitted = EmitInstruction(MidoriIRBlockId{ block }, instructions[position]);
+					const std::optional<MarmotIRValueId> kept = m_kept;
+					const Emitted emitted = EmitInstruction(MarmotIRBlockId{ block }, instructions[position]);
 					if (!emitted.has_value())
 					{
 						return std::unexpected(emitted.error());
 					}
 					if (kept.has_value() && m_kept == kept)
 					{
-						throw std::logic_error(std::format("{} did not take the value left for it on the stack", GetMidoriIROpInfo(instructions[position].m_op).m_name));
+						throw std::logic_error(std::format("{} did not take the value left for it on the stack", GetMarmotIROpInfo(instructions[position].m_op).m_name));
 					}
 				}
 			}
@@ -442,11 +442,11 @@ namespace
 	private:
 		int FirstLine() const
 		{
-			const std::vector<MidoriIRInstruction>& entry = m_function.Block(MidoriIRFunction::s_entry_block).m_instructions;
+			const std::vector<MarmotIRInstruction>& entry = m_function.Block(MarmotIRFunction::s_entry_block).m_instructions;
 			return entry.empty() ? 0 : entry.front().m_line;
 		}
 
-		const MidoriIRBlock& TargetOf(const MidoriIRSuccessor& successor) const
+		const MarmotIRBlock& TargetOf(const MarmotIRSuccessor& successor) const
 		{
 			return m_function.Block(successor.m_block);
 		}
@@ -454,15 +454,15 @@ namespace
 		// The values an instruction needs on the stack, bottom first. A call
 		// of a closure takes it on top of its arguments; a jump takes the
 		// arguments it stores into its target's parameters.
-		std::vector<MidoriIRValueId> PushSequence(const MidoriIRInstruction& instruction) const
+		std::vector<MarmotIRValueId> PushSequence(const MarmotIRInstruction& instruction) const
 		{
 			if (CallsClosureOperand(instruction))
 			{
-				std::vector<MidoriIRValueId> sequence(instruction.m_operands.begin() + 1, instruction.m_operands.end());
+				std::vector<MarmotIRValueId> sequence(instruction.m_operands.begin() + 1, instruction.m_operands.end());
 				sequence.push_back(instruction.m_operands.front());
 				return sequence;
 			}
-			if (instruction.m_op == MidoriIROp::Jump)
+			if (instruction.m_op == MarmotIROp::Jump)
 			{
 				return MoveArguments(instruction.m_successors.front());
 			}
@@ -480,10 +480,10 @@ namespace
 
 		// A successor's arguments that its parameters keep; a Unit parameter
 		// keeps nothing.
-		std::vector<MidoriIRValueId> MoveArguments(const MidoriIRSuccessor& successor) const
+		std::vector<MarmotIRValueId> MoveArguments(const MarmotIRSuccessor& successor) const
 		{
-			const std::vector<MidoriIRValueId>& parameters = TargetOf(successor).m_parameters;
-			std::vector<MidoriIRValueId> arguments;
+			const std::vector<MarmotIRValueId>& parameters = TargetOf(successor).m_parameters;
+			std::vector<MarmotIRValueId> arguments;
 			for (size_t index = 0u; index < parameters.size(); index += 1u)
 			{
 				if (m_storage[parameters[index].m_index] == Storage::Slot)
@@ -509,29 +509,29 @@ namespace
 				{
 					continue;
 				}
-				for (const MidoriIRValueId parameter : m_function.m_blocks[block].m_parameters)
+				for (const MarmotIRValueId parameter : m_function.m_blocks[block].m_parameters)
 				{
 					is_parameter[parameter.m_index] = true;
 				}
-				for (const MidoriIRInstruction& instruction : m_function.m_blocks[block].m_instructions)
+				for (const MarmotIRInstruction& instruction : m_function.m_blocks[block].m_instructions)
 				{
 					if (instruction.m_result.has_value())
 					{
 						definition_blocks[instruction.m_result->m_index] = block;
 						m_definitions[instruction.m_result->m_index] = &instruction;
 					}
-					for (const MidoriIRValueId operand : instruction.m_operands)
+					for (const MarmotIRValueId operand : instruction.m_operands)
 					{
 						uses[operand.m_index] += 1u;
 						use_blocks[operand.m_index] = block;
 					}
-					for (const MidoriIRSuccessor& successor : instruction.m_successors)
+					for (const MarmotIRSuccessor& successor : instruction.m_successors)
 					{
-						for (const MidoriIRValueId argument : successor.m_arguments)
+						for (const MarmotIRValueId argument : successor.m_arguments)
 						{
 							uses[argument.m_index] += 1u;
 							use_blocks[argument.m_index] = block;
-							is_edge_argument[argument.m_index] = is_edge_argument[argument.m_index] || instruction.m_op != MidoriIROp::Jump;
+							is_edge_argument[argument.m_index] = is_edge_argument[argument.m_index] || instruction.m_op != MarmotIROp::Jump;
 						}
 					}
 				}
@@ -539,8 +539,8 @@ namespace
 
 			for (size_t value = 0u; value < count; value += 1u)
 			{
-				const MidoriIRInstruction* definition = m_definitions[value];
-				const bool is_constant = definition != nullptr && definition->m_op == MidoriIROp::Const && !definition->m_type->IsType<MidoriType::TextType>();
+				const MarmotIRInstruction* definition = m_definitions[value];
+				const bool is_constant = definition != nullptr && definition->m_op == MarmotIROp::Const && !definition->m_type->IsType<MarmotType::TextType>();
 				if (IsUnit(m_function.m_values[value].m_type) || is_constant)
 				{
 					m_storage[value] = Storage::Rematerialized;
@@ -568,22 +568,22 @@ namespace
 		{
 			for (uint32_t block = 0u; block < m_function.m_blocks.size(); block += 1u)
 			{
-				const std::vector<MidoriIRInstruction>& instructions = m_function.m_blocks[block].m_instructions;
-				if (!m_reachable[block] || instructions.back().m_op != MidoriIROp::Jump)
+				const std::vector<MarmotIRInstruction>& instructions = m_function.m_blocks[block].m_instructions;
+				if (!m_reachable[block] || instructions.back().m_op != MarmotIROp::Jump)
 				{
 					continue;
 				}
-				const MidoriIRSuccessor& target = instructions.back().m_successors.front();
-				const std::vector<MidoriIRValueId>& parameters = TargetOf(target).m_parameters;
+				const MarmotIRSuccessor& target = instructions.back().m_successors.front();
+				const std::vector<MarmotIRValueId>& parameters = TargetOf(target).m_parameters;
 				for (size_t index = 0u; index < parameters.size(); index += 1u)
 				{
-					const MidoriIRValueId argument = target.m_arguments[index];
-					const MidoriIRInstruction* definition = m_definitions[argument.m_index];
+					const MarmotIRValueId argument = target.m_arguments[index];
+					const MarmotIRInstruction* definition = m_definitions[argument.m_index];
 					if (m_storage[argument.m_index] != Storage::Stack || definition == nullptr)
 					{
 						continue;
 					}
-					const std::optional<std::pair<MidoriIRValueId, int64_t>> step = LocalStep(*definition);
+					const std::optional<std::pair<MarmotIRValueId, int64_t>> step = LocalStep(*definition);
 					if (step.has_value() && step->first == parameters[index] && !IsUsedAfter(block, *definition, step->first))
 					{
 						m_storage[argument.m_index] = Storage::Slot;
@@ -593,14 +593,14 @@ namespace
 		}
 
 		// Whether an instruction after `definition` in the block reads `value`.
-		bool IsUsedAfter(uint32_t block, const MidoriIRInstruction& definition, MidoriIRValueId value) const
+		bool IsUsedAfter(uint32_t block, const MarmotIRInstruction& definition, MarmotIRValueId value) const
 		{
-			const std::vector<MidoriIRInstruction>& instructions = m_function.m_blocks[block].m_instructions;
-			const std::vector<MidoriIRInstruction>::const_iterator after = std::ranges::find_if(instructions, [&definition](const MidoriIRInstruction& instruction) { return &instruction == &definition; }) + 1;
+			const std::vector<MarmotIRInstruction>& instructions = m_function.m_blocks[block].m_instructions;
+			const std::vector<MarmotIRInstruction>::const_iterator after = std::ranges::find_if(instructions, [&definition](const MarmotIRInstruction& instruction) { return &instruction == &definition; }) + 1;
 			bool used = false;
-			for (const MidoriIRInstruction& instruction : std::ranges::subrange(after, instructions.end()))
+			for (const MarmotIRInstruction& instruction : std::ranges::subrange(after, instructions.end()))
 			{
-				ForEachMidoriIRUse(instruction, [&](MidoriIRValueId use) { used = used || use == value; });
+				ForEachMarmotIRUse(instruction, [&](MarmotIRValueId use) { used = used || use == value; });
 			}
 			return used;
 		}
@@ -620,17 +620,17 @@ namespace
 				{
 					continue;
 				}
-				std::vector<MidoriIRValueId> pending;
-				for (const MidoriIRInstruction& instruction : m_function.m_blocks[block_index].m_instructions)
+				std::vector<MarmotIRValueId> pending;
+				for (const MarmotIRInstruction& instruction : m_function.m_blocks[block_index].m_instructions)
 				{
-					std::vector<MidoriIRValueId> sequence = PushSequence(instruction);
-					std::vector<MidoriIRValueId> taken = StackValues(sequence);
+					std::vector<MarmotIRValueId> sequence = PushSequence(instruction);
+					std::vector<MarmotIRValueId> taken = StackValues(sequence);
 					while (!IsTakenFromTop(sequence, taken, pending))
 					{
-						for (const MidoriIRValueId value : taken)
+						for (const MarmotIRValueId value : taken)
 						{
-							const MidoriIRInstruction* definition = m_definitions[value.m_index];
-							m_storage[value.m_index] = definition->m_op == MidoriIROp::Const ? Storage::Rematerialized : Storage::Slot;
+							const MarmotIRInstruction* definition = m_definitions[value.m_index];
+							m_storage[value.m_index] = definition->m_op == MarmotIROp::Const ? Storage::Rematerialized : Storage::Slot;
 							std::erase(pending, value);
 						}
 						sequence = PushSequence(instruction);
@@ -649,23 +649,23 @@ namespace
 		// What each safepoint finds on the operand stack below the values it
 		// takes, bottom first, walked again once ScheduleStack has settled where
 		// every value lives.
-		std::unordered_map<const MidoriIRInstruction*, std::vector<MidoriIRValueId>> StackBelow() const
+		std::unordered_map<const MarmotIRInstruction*, std::vector<MarmotIRValueId>> StackBelow() const
 		{
-			std::unordered_map<const MidoriIRInstruction*, std::vector<MidoriIRValueId>> below;
+			std::unordered_map<const MarmotIRInstruction*, std::vector<MarmotIRValueId>> below;
 			for (uint32_t block_index = 0u; block_index < m_function.m_blocks.size(); block_index += 1u)
 			{
 				if (!m_reachable[block_index])
 				{
 					continue;
 				}
-				std::vector<MidoriIRValueId> pending;
-				for (const MidoriIRInstruction& instruction : m_function.m_blocks[block_index].m_instructions)
+				std::vector<MarmotIRValueId> pending;
+				for (const MarmotIRInstruction& instruction : m_function.m_blocks[block_index].m_instructions)
 				{
-					const std::vector<MidoriIRValueId> sequence = PushSequence(instruction);
-					const std::vector<MidoriIRValueId> taken = StackValues(sequence);
+					const std::vector<MarmotIRValueId> sequence = PushSequence(instruction);
+					const std::vector<MarmotIRValueId> taken = StackValues(sequence);
 					if (!IsTakenFromTop(sequence, taken, pending))
 					{
-						throw std::logic_error(std::format("{} does not take its stack operands from the top", GetMidoriIROpInfo(instruction.m_op).m_name));
+						throw std::logic_error(std::format("{} does not take its stack operands from the top", GetMarmotIROpInfo(instruction.m_op).m_name));
 					}
 					pending.resize(pending.size() - taken.size());
 					if (IsSafepoint(instruction.m_op))
@@ -684,19 +684,19 @@ namespace
 		// An instruction whose opcode a collection can start after, with the
 		// operand stack holding more than the frame's slots: a call, once it
 		// returns, and an operation that collects once its result is pushed.
-		static bool IsSafepoint(MidoriIROp op)
+		static bool IsSafepoint(MarmotIROp op)
 		{
-			return op == MidoriIROp::Call || op == MidoriIROp::CallGlobal || op == MidoriIROp::CallValue || op == MidoriIROp::Concat || op == MidoriIROp::CellNew;
+			return op == MarmotIROp::Call || op == MarmotIROp::CallGlobal || op == MarmotIROp::CallValue || op == MarmotIROp::Concat || op == MarmotIROp::CellNew;
 		}
 
 		// Called once the safepoint's opcode and operands are emitted, so the
 		// offset is where the collection finds the frame.
-		void RecordSafepoint(const MidoriIRInstruction& instruction)
+		void RecordSafepoint(const MarmotIRInstruction& instruction)
 		{
 			m_safepoints.push_back(FrameMap::Safepoint
 			{
 				m_stream.GetByteCodeSize(),
-				m_stack_below.at(&instruction) | std::views::transform([this](MidoriIRValueId value) { return IsPointer(m_function.TypeOf(value)); }) | std::ranges::to<std::vector<bool>>(),
+				m_stack_below.at(&instruction) | std::views::transform([this](MarmotIRValueId value) { return IsPointer(m_function.TypeOf(value)); }) | std::ranges::to<std::vector<bool>>(),
 				IsPointer(instruction.m_type)
 			});
 		}
@@ -714,19 +714,19 @@ namespace
 			return m_backend.ShapeIndex(pointer_fields, line);
 		}
 
-		std::expected<uint16_t, CompilerError> ShapeOfValues(std::span<const MidoriIRValueId> values, int line)
+		std::expected<uint16_t, CompilerError> ShapeOfValues(std::span<const MarmotIRValueId> values, int line)
 		{
-			return ShapeOf(values | std::views::transform([this](MidoriIRValueId value) { return m_function.TypeOf(value); }) | std::ranges::to<std::vector<TypeRef>>(), line);
+			return ShapeOf(values | std::views::transform([this](MarmotIRValueId value) { return m_function.TypeOf(value); }) | std::ranges::to<std::vector<TypeRef>>(), line);
 		}
 
-		std::vector<MidoriIRValueId> StackValues(const std::vector<MidoriIRValueId>& values) const
+		std::vector<MarmotIRValueId> StackValues(const std::vector<MarmotIRValueId>& values) const
 		{
 			return values
-				| std::views::filter([this](MidoriIRValueId value) { return m_storage[value.m_index] == Storage::Stack; })
+				| std::views::filter([this](MarmotIRValueId value) { return m_storage[value.m_index] == Storage::Stack; })
 				| std::ranges::to<std::vector>();
 		}
 
-		static bool IsTakenFromTop(const std::vector<MidoriIRValueId>& sequence, const std::vector<MidoriIRValueId>& taken, const std::vector<MidoriIRValueId>& pending)
+		static bool IsTakenFromTop(const std::vector<MarmotIRValueId>& sequence, const std::vector<MarmotIRValueId>& taken, const std::vector<MarmotIRValueId>& pending)
 		{
 			const bool is_prefix = std::ranges::equal(std::views::take(sequence, taken.size()), taken);
 			const bool is_on_top = pending.size() >= taken.size() && std::ranges::equal(std::views::drop(pending, pending.size() - taken.size()), taken);
@@ -734,15 +734,15 @@ namespace
 		}
 
 		// A local an opcode names in one byte.
-		bool IsByteLocal(MidoriIRValueId value) const
+		bool IsByteLocal(MarmotIRValueId value) const
 		{
 			return m_storage[value.m_index] == Storage::Slot && m_slots[value.m_index] <= MAX_LOCAL_VARIABLES;
 		}
 
 		// An Int constant an opcode carries in one signed byte.
-		std::optional<int8_t> ByteConstant(MidoriIRValueId value) const
+		std::optional<int8_t> ByteConstant(MarmotIRValueId value) const
 		{
-			const MidoriIRInstruction* definition = m_definitions[value.m_index];
+			const MarmotIRInstruction* definition = m_definitions[value.m_index];
 			if (m_storage[value.m_index] != Storage::Rematerialized || definition == nullptr || !std::holds_alternative<int64_t>(definition->m_immediate))
 			{
 				return std::nullopt;
@@ -755,32 +755,32 @@ namespace
 		{
 			for (uint32_t block = 0u; block < m_function.m_blocks.size(); block += 1u)
 			{
-				const std::vector<MidoriIRInstruction>& instructions = m_function.m_blocks[block].m_instructions;
-				if (!m_reachable[block] || instructions.size() < 2u || instructions.back().m_op != MidoriIROp::Branch)
+				const std::vector<MarmotIRInstruction>& instructions = m_function.m_blocks[block].m_instructions;
+				if (!m_reachable[block] || instructions.size() < 2u || instructions.back().m_op != MarmotIROp::Branch)
 				{
 					continue;
 				}
-				const MidoriIRValueId condition = instructions.back().m_operands.front();
-				const MidoriIRInstruction& comparison = instructions[instructions.size() - 2u];
+				const MarmotIRValueId condition = instructions.back().m_operands.front();
+				const MarmotIRInstruction& comparison = instructions[instructions.size() - 2u];
 				const std::optional<OpCode> jump = CompareAndJumpOpCode(comparison.m_op);
 				if (comparison.m_result != condition || m_storage[condition.m_index] != Storage::Stack || !jump.has_value())
 				{
 					continue;
 				}
 
-				const MidoriIRValueId left = comparison.m_operands[0u];
-				const MidoriIRValueId right = comparison.m_operands[1u];
-				const std::optional<MidoriIRValueId> tag = FusableTag(instructions, comparison);
+				const MarmotIRValueId left = comparison.m_operands[0u];
+				const MarmotIRValueId right = comparison.m_operands[1u];
+				const std::optional<MarmotIRValueId> tag = FusableTag(instructions, comparison);
 				if (tag.has_value())
 				{
 					m_fused_branches[condition.m_index] = OpCode::IF_LOCAL_TAG_NOT;
 					m_fused_tags[tag->m_index] = true;
 				}
-				else if (comparison.m_op == MidoriIROp::LeInt && IsByteLocal(left) && ByteConstant(right).has_value())
+				else if (comparison.m_op == MarmotIROp::LeInt && IsByteLocal(left) && ByteConstant(right).has_value())
 				{
 					m_fused_branches[condition.m_index] = OpCode::IF_LOCAL_LE_INT;
 				}
-				else if (comparison.m_op == MidoriIROp::LtInt && IsByteLocal(left) && ByteConstant(right).has_value())
+				else if (comparison.m_op == MarmotIROp::LtInt && IsByteLocal(left) && ByteConstant(right).has_value())
 				{
 					m_fused_branches[condition.m_index] = OpCode::IF_LOCAL_LT_INT;
 				}
@@ -799,34 +799,34 @@ namespace
 		// k fits a byte, so the branch reads the tag from the union's slot.
 		// Nothing emitted may lie between the GetTag and the comparison,
 		// since another value may take the union's slot once the tag is read.
-		std::optional<MidoriIRValueId> FusableTag(const std::vector<MidoriIRInstruction>& instructions, const MidoriIRInstruction& comparison) const
+		std::optional<MarmotIRValueId> FusableTag(const std::vector<MarmotIRInstruction>& instructions, const MarmotIRInstruction& comparison) const
 		{
-			if (comparison.m_op != MidoriIROp::EqInt)
+			if (comparison.m_op != MarmotIROp::EqInt)
 			{
 				return std::nullopt;
 			}
 			const bool is_tag_first = TagConstant(comparison.m_operands[1u]).has_value();
-			const MidoriIRValueId tag = comparison.m_operands[is_tag_first ? 0u : 1u];
-			const MidoriIRInstruction* get_tag = m_definitions[tag.m_index];
-			if (!TagConstant(comparison.m_operands[is_tag_first ? 1u : 0u]).has_value() || get_tag == nullptr || get_tag->m_op != MidoriIROp::GetTag || m_storage[tag.m_index] != Storage::Stack || !IsByteLocal(get_tag->m_operands.front()))
+			const MarmotIRValueId tag = comparison.m_operands[is_tag_first ? 0u : 1u];
+			const MarmotIRInstruction* get_tag = m_definitions[tag.m_index];
+			if (!TagConstant(comparison.m_operands[is_tag_first ? 1u : 0u]).has_value() || get_tag == nullptr || get_tag->m_op != MarmotIROp::GetTag || m_storage[tag.m_index] != Storage::Stack || !IsByteLocal(get_tag->m_operands.front()))
 			{
 				return std::nullopt;
 			}
-			const auto position = [&instructions](const MidoriIRInstruction& target)
+			const auto position = [&instructions](const MarmotIRInstruction& target)
 			{
-				return std::ranges::find_if(instructions, [&target](const MidoriIRInstruction& instruction) { return &instruction == &target; });
+				return std::ranges::find_if(instructions, [&target](const MarmotIRInstruction& instruction) { return &instruction == &target; });
 			};
-			const bool emits_nothing_between = std::ranges::all_of(std::ranges::subrange(position(*get_tag) + 1, position(comparison)), [this](const MidoriIRInstruction& instruction)
+			const bool emits_nothing_between = std::ranges::all_of(std::ranges::subrange(position(*get_tag) + 1, position(comparison)), [this](const MarmotIRInstruction& instruction)
 			{
 				const Storage storage = m_storage[instruction.m_result->m_index];
-				return instruction.m_op == MidoriIROp::Const && (storage == Storage::Rematerialized || storage == Storage::Discarded);
+				return instruction.m_op == MarmotIROp::Const && (storage == Storage::Rematerialized || storage == Storage::Discarded);
 			});
 			return emits_nothing_between ? std::optional(tag) : std::nullopt;
 		}
 
-		std::optional<uint8_t> TagConstant(MidoriIRValueId value) const
+		std::optional<uint8_t> TagConstant(MarmotIRValueId value) const
 		{
-			const MidoriIRInstruction* definition = m_definitions[value.m_index];
+			const MarmotIRInstruction* definition = m_definitions[value.m_index];
 			if (m_storage[value.m_index] != Storage::Rematerialized || definition == nullptr || !std::holds_alternative<int64_t>(definition->m_immediate))
 			{
 				return std::nullopt;
@@ -849,8 +849,8 @@ namespace
 		{
 			const std::vector<std::vector<uint32_t>> interference = Interference();
 			const std::vector<std::vector<uint32_t>> hints = SlotHints();
-			const std::vector<MidoriIRValueId>& parameters = m_function.Block(MidoriIRFunction::s_entry_block).m_parameters;
-			for (const MidoriIRValueId parameter : parameters)
+			const std::vector<MarmotIRValueId>& parameters = m_function.Block(MarmotIRFunction::s_entry_block).m_parameters;
+			for (const MarmotIRValueId parameter : parameters)
 			{
 				m_slots[parameter.m_index] = m_slot_count++;
 				m_slot_pointers.push_back(IsPointer(m_function.m_values[parameter.m_index].m_type));
@@ -861,7 +861,7 @@ namespace
 			{
 				if (m_reachable[block])
 				{
-					std::ranges::transform(m_function.m_blocks[block].m_parameters, std::back_inserter(order), [](MidoriIRValueId parameter) { return parameter.m_index; });
+					std::ranges::transform(m_function.m_blocks[block].m_parameters, std::back_inserter(order), [](MarmotIRValueId parameter) { return parameter.m_index; });
 				}
 			}
 			std::ranges::copy(std::views::iota(0u, static_cast<uint32_t>(m_slots.size())), std::back_inserter(order));
@@ -905,7 +905,7 @@ namespace
 		std::vector<std::vector<uint32_t>> SlotHints() const
 		{
 			std::vector<std::vector<uint32_t>> hints(m_function.m_values.size());
-			const auto pair = [&](MidoriIRValueId left, MidoriIRValueId right)
+			const auto pair = [&](MarmotIRValueId left, MarmotIRValueId right)
 			{
 				if (left != right && IsInSlot(left) && IsInSlot(right))
 				{
@@ -919,20 +919,20 @@ namespace
 				{
 					continue;
 				}
-				for (const MidoriIRInstruction& instruction : m_function.m_blocks[block].m_instructions)
+				for (const MarmotIRInstruction& instruction : m_function.m_blocks[block].m_instructions)
 				{
-					const std::optional<std::pair<MidoriIRValueId, int64_t>> step = LocalStep(instruction);
+					const std::optional<std::pair<MarmotIRValueId, int64_t>> step = LocalStep(instruction);
 					if (step.has_value())
 					{
 						pair(instruction.m_result.value(), step->first);
 					}
-					if (instruction.m_op == MidoriIROp::ArrayAppend)
+					if (instruction.m_op == MarmotIROp::ArrayAppend)
 					{
 						pair(instruction.m_result.value(), instruction.m_operands.front());
 					}
-					for (const MidoriIRSuccessor& successor : instruction.m_successors)
+					for (const MarmotIRSuccessor& successor : instruction.m_successors)
 					{
-						const std::vector<MidoriIRValueId>& target = TargetOf(successor).m_parameters;
+						const std::vector<MarmotIRValueId>& target = TargetOf(successor).m_parameters;
 						for (size_t index = 0u; index < target.size(); index += 1u)
 						{
 							pair(successor.m_arguments[index], target[index]);
@@ -945,29 +945,29 @@ namespace
 
 		// A sum or difference of a value and a small constant, as the value
 		// and what it adds.
-		std::optional<std::pair<MidoriIRValueId, int64_t>> LocalStep(const MidoriIRInstruction& instruction) const
+		std::optional<std::pair<MarmotIRValueId, int64_t>> LocalStep(const MarmotIRInstruction& instruction) const
 		{
-			if (instruction.m_op != MidoriIROp::AddInt && instruction.m_op != MidoriIROp::SubInt)
+			if (instruction.m_op != MarmotIROp::AddInt && instruction.m_op != MarmotIROp::SubInt)
 			{
 				return std::nullopt;
 			}
-			const MidoriIRValueId left = instruction.m_operands[0u];
-			const MidoriIRValueId right = instruction.m_operands[1u];
+			const MarmotIRValueId left = instruction.m_operands[0u];
+			const MarmotIRValueId right = instruction.m_operands[1u];
 			const std::optional<int8_t> right_constant = ByteConstant(right);
 			if (right_constant.has_value() && m_storage[left.m_index] != Storage::Rematerialized)
 			{
 				const int64_t constant = right_constant.value();
-				return std::pair{ left, instruction.m_op == MidoriIROp::AddInt ? constant : -constant };
+				return std::pair{ left, instruction.m_op == MarmotIROp::AddInt ? constant : -constant };
 			}
 			const std::optional<int8_t> left_constant = ByteConstant(left);
-			if (instruction.m_op == MidoriIROp::AddInt && left_constant.has_value() && m_storage[right.m_index] != Storage::Rematerialized)
+			if (instruction.m_op == MarmotIROp::AddInt && left_constant.has_value() && m_storage[right.m_index] != Storage::Rematerialized)
 			{
 				return std::pair{ right, static_cast<int64_t>(left_constant.value()) };
 			}
 			return std::nullopt;
 		}
 
-		bool IsInSlot(MidoriIRValueId value) const
+		bool IsInSlot(MarmotIRValueId value) const
 		{
 			return m_storage[value.m_index] == Storage::Slot;
 		}
@@ -975,7 +975,7 @@ namespace
 		std::vector<bool> LiveOut(uint32_t block, const std::vector<std::vector<bool>>& live_in) const
 		{
 			std::vector<bool> live(m_function.m_values.size(), false);
-			for (const MidoriIRSuccessor& successor : m_function.m_blocks[block].m_instructions.back().m_successors)
+			for (const MarmotIRSuccessor& successor : m_function.m_blocks[block].m_instructions.back().m_successors)
 			{
 				const std::vector<bool>& successor_live = live_in[successor.m_block.m_index];
 				for (size_t value = 0u; value < live.size(); value += 1u)
@@ -991,15 +991,15 @@ namespace
 		template<typename Define>
 		std::vector<bool> WalkBackward(uint32_t block, std::vector<bool> live, const Define& define) const
 		{
-			const std::vector<MidoriIRInstruction>& instructions = m_function.m_blocks[block].m_instructions;
-			for (const MidoriIRInstruction& instruction : instructions | std::views::reverse)
+			const std::vector<MarmotIRInstruction>& instructions = m_function.m_blocks[block].m_instructions;
+			for (const MarmotIRInstruction& instruction : instructions | std::views::reverse)
 			{
 				if (instruction.m_result.has_value() && IsInSlot(instruction.m_result.value()))
 				{
 					define(instruction.m_result.value(), live);
 					live[instruction.m_result->m_index] = false;
 				}
-				ForEachMidoriIRUse(instruction, [&](MidoriIRValueId value)
+				ForEachMarmotIRUse(instruction, [&](MarmotIRValueId value)
 				{
 					if (IsInSlot(value))
 					{
@@ -1014,7 +1014,7 @@ namespace
 		{
 			const size_t block_count = m_function.m_blocks.size();
 			std::vector<std::vector<bool>> live_in(block_count, std::vector<bool>(m_function.m_values.size(), false));
-			const auto no_definition = [](MidoriIRValueId, const std::vector<bool>&) {};
+			const auto no_definition = [](MarmotIRValueId, const std::vector<bool>&) {};
 			bool changed = true;
 			while (changed)
 			{
@@ -1026,7 +1026,7 @@ namespace
 						continue;
 					}
 					std::vector<bool> live = WalkBackward(block, LiveOut(block, live_in), no_definition);
-					for (const MidoriIRValueId parameter : m_function.m_blocks[block].m_parameters)
+					for (const MarmotIRValueId parameter : m_function.m_blocks[block].m_parameters)
 					{
 						live[parameter.m_index] = false;
 					}
@@ -1056,16 +1056,16 @@ namespace
 				{
 					continue;
 				}
-				std::vector<bool> live = WalkBackward(block, LiveOut(block, live_in), [&](MidoriIRValueId value, const std::vector<bool>& live_after)
+				std::vector<bool> live = WalkBackward(block, LiveOut(block, live_in), [&](MarmotIRValueId value, const std::vector<bool>& live_after)
 				{
 					interfere(value.m_index, live_after);
 				});
-				const std::vector<MidoriIRValueId>& parameters = m_function.m_blocks[block].m_parameters;
-				for (const MidoriIRValueId parameter : parameters)
+				const std::vector<MarmotIRValueId>& parameters = m_function.m_blocks[block].m_parameters;
+				for (const MarmotIRValueId parameter : parameters)
 				{
 					live[parameter.m_index] = true;
 				}
-				for (const MidoriIRValueId parameter : parameters)
+				for (const MarmotIRValueId parameter : parameters)
 				{
 					interfere(parameter.m_index, live);
 				}
@@ -1114,7 +1114,7 @@ namespace
 			}
 		}
 
-		Emitted EmitConstant(const MidoriIRInstruction& constant, int line)
+		Emitted EmitConstant(const MarmotIRInstruction& constant, int line)
 		{
 			return std::visit([this, line](const auto& value) -> Emitted
 			{
@@ -1152,13 +1152,13 @@ namespace
 							EmitOperand(index >> SHIFT_8_BITS, line);
 						});
 				}
-				else if constexpr (std::is_same_v<Immediate, MidoriIRByte>)
+				else if constexpr (std::is_same_v<Immediate, MarmotIRByte>)
 				{
 					EmitByte(OpCode::BYTE_CONSTANT, line);
 					EmitOperand(value.m_value, line);
 					return {};
 				}
-				else if constexpr (std::is_same_v<Immediate, MidoriIRWord>)
+				else if constexpr (std::is_same_v<Immediate, MarmotIRWord>)
 				{
 					EmitByte(OpCode::WORD_CONSTANT, line);
 					EmitEightBytes(value.m_value, line);
@@ -1176,7 +1176,7 @@ namespace
 			}, constant.m_immediate);
 		}
 
-		Emitted Load(MidoriIRValueId value, int line)
+		Emitted Load(MarmotIRValueId value, int line)
 		{
 			if (m_kept == value)
 			{
@@ -1203,7 +1203,7 @@ namespace
 			throw std::logic_error("a use of a value that has none");
 		}
 
-		Emitted LoadAll(const std::vector<MidoriIRValueId>& values, int line)
+		Emitted LoadAll(const std::vector<MarmotIRValueId>& values, int line)
 		{
 			for (size_t index = 0u; index < values.size(); index += 1u)
 			{
@@ -1225,7 +1225,7 @@ namespace
 			return {};
 		}
 
-		void Store(MidoriIRValueId value, int line)
+		void Store(MarmotIRValueId value, int line)
 		{
 			switch (m_storage[value.m_index])
 			{
@@ -1241,7 +1241,7 @@ namespace
 			}
 		}
 
-		void StoreInSlot(MidoriIRValueId value, int line)
+		void StoreInSlot(MarmotIRValueId value, int line)
 		{
 			const int slot = m_slots[value.m_index];
 			if (IsLoadedNext(value) || slot > MAX_LOCAL_VARIABLES)
@@ -1254,14 +1254,14 @@ namespace
 			EmitOperand(slot, line);
 		}
 
-		bool IsLoadedNext(MidoriIRValueId value) const
+		bool IsLoadedNext(MarmotIRValueId value) const
 		{
 			return m_next != nullptr && FirstLoad(*m_next) == value;
 		}
 
 		// A value in its slot that is also on top of the stack stays there
 		// when the next instruction would push it first.
-		void KeepOrPop(MidoriIRValueId value, int line)
+		void KeepOrPop(MarmotIRValueId value, int line)
 		{
 			if (IsLoadedNext(value))
 			{
@@ -1274,24 +1274,24 @@ namespace
 		// The value an instruction's emission loads first, as EmitInstruction
 		// and EmitTerminator do it; nothing when it reads slots directly or
 		// loads nothing.
-		std::optional<MidoriIRValueId> FirstLoad(const MidoriIRInstruction& instruction) const
+		std::optional<MarmotIRValueId> FirstLoad(const MarmotIRInstruction& instruction) const
 		{
-			const auto first = [](const std::vector<MidoriIRValueId>& values) { return values.empty() ? std::nullopt : std::optional(values.front()); };
+			const auto first = [](const std::vector<MarmotIRValueId>& values) { return values.empty() ? std::nullopt : std::optional(values.front()); };
 			switch (instruction.m_op)
 			{
-			case MidoriIROp::Const:
-			case MidoriIROp::Unreachable:
+			case MarmotIROp::Const:
+			case MarmotIROp::Unreachable:
 				return std::nullopt;
-			case MidoriIROp::Jump:
+			case MarmotIROp::Jump:
 			{
-				const std::vector<std::pair<MidoriIRValueId, MidoriIRValueId>> moves = Moves(instruction.m_successors.front());
+				const std::vector<std::pair<MarmotIRValueId, MarmotIRValueId>> moves = Moves(instruction.m_successors.front());
 				return moves.empty() ? std::nullopt : std::optional(moves.front().first);
 			}
-			case MidoriIROp::Branch:
+			case MarmotIROp::Branch:
 				return m_fused_branches[instruction.m_operands.front().m_index].has_value() ? std::nullopt : std::optional(instruction.m_operands.front());
-			case MidoriIROp::Return:
+			case MarmotIROp::Return:
 				return instruction.m_operands.front();
-			case MidoriIROp::TailCall:
+			case MarmotIROp::TailCall:
 				return first(PushSequence(instruction));
 			default:
 				break;
@@ -1304,10 +1304,10 @@ namespace
 			return first(PushSequence(instruction));
 		}
 
-		Emitted EmitInstruction(MidoriIRBlockId block, const MidoriIRInstruction& instruction)
+		Emitted EmitInstruction(MarmotIRBlockId block, const MarmotIRInstruction& instruction)
 		{
 			const int line = instruction.m_line;
-			if (instruction.m_op == MidoriIROp::Const)
+			if (instruction.m_op == MarmotIROp::Const)
 			{
 				const Storage storage = m_storage[instruction.m_result->m_index];
 				if (storage == Storage::Rematerialized || storage == Storage::Discarded)
@@ -1318,7 +1318,7 @@ namespace
 					.transform([this, &instruction, line]() { Store(instruction.m_result.value(), line); });
 			}
 
-			if (IsMidoriIRTerminator(instruction.m_op))
+			if (IsMarmotIRTerminator(instruction.m_op))
 			{
 				return EmitTerminator(block, instruction);
 			}
@@ -1365,59 +1365,59 @@ namespace
 		// opcode does without the stack: a union's field, an array's element,
 		// a union of two fields, and an append that grows the array in the slot
 		// it is stored back in.
-		bool ReadsAndWritesLocals(const MidoriIRInstruction& instruction) const
+		bool ReadsAndWritesLocals(const MarmotIRInstruction& instruction) const
 		{
-			const std::vector<MidoriIRValueId>& operands = instruction.m_operands;
+			const std::vector<MarmotIRValueId>& operands = instruction.m_operands;
 			switch (instruction.m_op)
 			{
-			case MidoriIROp::UnionField:
+			case MarmotIROp::UnionField:
 				return IsByteLocal(operands.front()) && IsByteLocal(instruction.m_result.value());
-			case MidoriIROp::ArrayGet:
+			case MarmotIROp::ArrayGet:
 				return IsByteLocal(operands[0u]) && IsByteLocal(operands[1u]) && IsByteLocal(instruction.m_result.value());
-			case MidoriIROp::ArrayAppend:
+			case MarmotIROp::ArrayAppend:
 				return IsByteLocal(operands[0u]) && IsByteLocal(operands[1u]) && IsInSlot(instruction.m_result.value()) && m_slots[instruction.m_result->m_index] == m_slots[operands[0u].m_index];
-			case MidoriIROp::MakeUnion:
-				return operands.size() == 2u && std::get<MidoriIRTag>(instruction.m_immediate).m_value <= MAX_UNION_TAG && IsByteLocal(operands[0u]) && IsByteLocal(operands[1u]) && IsByteLocal(instruction.m_result.value());
+			case MarmotIROp::MakeUnion:
+				return operands.size() == 2u && std::get<MarmotIRTag>(instruction.m_immediate).m_value <= MAX_UNION_TAG && IsByteLocal(operands[0u]) && IsByteLocal(operands[1u]) && IsByteLocal(instruction.m_result.value());
 			default:
 				return false;
 			}
 		}
 
-		Emitted EmitLocalsOperation(const MidoriIRInstruction& instruction, int line)
+		Emitted EmitLocalsOperation(const MarmotIRInstruction& instruction, int line)
 		{
-			const std::vector<MidoriIRValueId>& operands = instruction.m_operands;
+			const std::vector<MarmotIRValueId>& operands = instruction.m_operands;
 			switch (instruction.m_op)
 			{
-			case MidoriIROp::UnionField:
+			case MarmotIROp::UnionField:
 				EmitByte(OpCode::LOCAL_UNION_FIELD, line);
 				EmitOperand(m_slots[operands.front().m_index], line);
-				EmitOperand(static_cast<int>(std::get<MidoriIRUnionField>(instruction.m_immediate).m_index), line);
+				EmitOperand(static_cast<int>(std::get<MarmotIRUnionField>(instruction.m_immediate).m_index), line);
 				EmitOperand(m_slots[instruction.m_result->m_index], line);
 				return {};
-			case MidoriIROp::ArrayGet:
+			case MarmotIROp::ArrayGet:
 				EmitByte(OpCode::LOCAL_ARRAY_GET, line);
 				EmitOperand(m_slots[operands[0u].m_index], line);
 				EmitOperand(m_slots[operands[1u].m_index], line);
 				EmitOperand(m_slots[instruction.m_result->m_index], line);
 				return {};
-			case MidoriIROp::ArrayAppend:
+			case MarmotIROp::ArrayAppend:
 				EmitByte(OpCode::APPEND_LOCAL, line);
 				EmitOperand(m_slots[operands[0u].m_index], line);
 				EmitOperand(m_slots[operands[1u].m_index], line);
 				return {};
-			case MidoriIROp::MakeUnion:
+			case MarmotIROp::MakeUnion:
 				return ShapeOfValues(operands, line)
 					.transform([&](uint16_t shape)
 					{
 						EmitByte(OpCode::LOCAL_UNION2, line);
-						EmitOperand(std::get<MidoriIRTag>(instruction.m_immediate).m_value, line);
+						EmitOperand(std::get<MarmotIRTag>(instruction.m_immediate).m_value, line);
 						EmitOperand(m_slots[operands[0u].m_index], line);
 						EmitOperand(m_slots[operands[1u].m_index], line);
 						EmitOperand(m_slots[instruction.m_result->m_index], line);
 						EmitShape(shape, line);
 					});
 			default:
-				throw std::logic_error(std::format("{} does not read and write locals", GetMidoriIROpInfo(instruction.m_op).m_name));
+				throw std::logic_error(std::format("{} does not read and write locals", GetMarmotIROpInfo(instruction.m_op).m_name));
 			}
 		}
 
@@ -1425,27 +1425,27 @@ namespace
 		// own slot, which it may share only when the local dies here, it is
 		// STEP_LOCAL, or ADD_LOCAL_INT when the next instruction takes it from
 		// the stack; otherwise PUSH_LOCAL_SUB_INT pushes it.
-		bool IsLocalStep(const MidoriIRInstruction& instruction) const
+		bool IsLocalStep(const MarmotIRInstruction& instruction) const
 		{
-			const std::optional<std::pair<MidoriIRValueId, int64_t>> step = LocalStep(instruction);
+			const std::optional<std::pair<MarmotIRValueId, int64_t>> step = LocalStep(instruction);
 			if (!step.has_value() || !IsByteLocal(step->first))
 			{
 				return false;
 			}
 			const auto [local, delta] = step.value();
-			const MidoriIRValueId result = instruction.m_result.value();
+			const MarmotIRValueId result = instruction.m_result.value();
 			const bool is_in_place = IsInSlot(result) && m_slots[result.m_index] == m_slots[local.m_index] && delta >= INT8_MIN && delta <= INT8_MAX;
 			return is_in_place || (-delta >= INT8_MIN && -delta <= INT8_MAX);
 		}
 
-		bool EmitLocalStep(const MidoriIRInstruction& instruction, int line)
+		bool EmitLocalStep(const MarmotIRInstruction& instruction, int line)
 		{
 			if (!IsLocalStep(instruction))
 			{
 				return false;
 			}
 			const auto [local, delta] = LocalStep(instruction).value();
-			const MidoriIRValueId result = instruction.m_result.value();
+			const MarmotIRValueId result = instruction.m_result.value();
 			const int slot = m_slots[local.m_index];
 			if (IsInSlot(result) && m_slots[result.m_index] == slot && delta >= INT8_MIN && delta <= INT8_MAX)
 			{
@@ -1475,7 +1475,7 @@ namespace
 			return {};
 		}
 
-		std::expected<int, CompilerError> Procedure(MidoriIRFunctionId function, int line) const
+		std::expected<int, CompilerError> Procedure(MarmotIRFunctionId function, int line) const
 		{
 			const size_t procedure = m_backend.ProcedureIndex(function);
 			if (procedure > static_cast<size_t>(UINT16_MAX))
@@ -1508,7 +1508,7 @@ namespace
 
 		static bool IsText(const TypeRef& type)
 		{
-			return GenericTypes::RepresentationOf(type)->IsType<MidoriType::TextType>();
+			return GenericTypes::RepresentationOf(type)->IsType<MarmotType::TextType>();
 		}
 
 		Emitted CheckByte(size_t count, std::string_view what, int line) const
@@ -1555,9 +1555,9 @@ namespace
 		// A function with no captures is one shared value. A closure's
 		// captures follow its operands, and the ones BindCaptures fills are
 		// held by Unit until it does.
-		Emitted EmitMakeClosure(const MidoriIRInstruction& instruction, int line)
+		Emitted EmitMakeClosure(const MarmotIRInstruction& instruction, int line)
 		{
-			const MidoriIRFunctionId function = std::get<MidoriIRFunctionId>(instruction.m_immediate);
+			const MarmotIRFunctionId function = std::get<MarmotIRFunctionId>(instruction.m_immediate);
 			const size_t capture_count = m_backend.CaptureCount(function);
 			if (capture_count > static_cast<size_t>(MAX_CAPTURED_COUNT))
 			{
@@ -1581,9 +1581,9 @@ namespace
 		}
 
 		// A union with no fields is one shared value per tag.
-		Emitted EmitMakeUnion(const MidoriIRInstruction& instruction, int line)
+		Emitted EmitMakeUnion(const MarmotIRInstruction& instruction, int line)
 		{
-			const int tag = std::get<MidoriIRTag>(instruction.m_immediate).m_value;
+			const int tag = std::get<MarmotIRTag>(instruction.m_immediate).m_value;
 			if (tag > MAX_UNION_TAG)
 			{
 				return std::unexpected(m_backend.LimitExceeded(std::format("Union tag too large (max {})", MAX_UNION_TAG + 1), line));
@@ -1606,7 +1606,7 @@ namespace
 				});
 		}
 
-		Emitted EmitOperation(const MidoriIRInstruction& instruction, int line)
+		Emitted EmitOperation(const MarmotIRInstruction& instruction, int line)
 		{
 			const std::optional<OpCode> scalar = ScalarOpCode(instruction.m_op);
 			if (scalar.has_value())
@@ -1618,63 +1618,63 @@ namespace
 			const size_t operand_count = instruction.m_operands.size();
 			switch (instruction.m_op)
 			{
-			case MidoriIROp::NeText:
+			case MarmotIROp::NeText:
 				EmitByte(OpCode::EQUAL_TEXT, line);
 				EmitByte(OpCode::NOT, line);
 				return {};
 			// BITWISE_NOT flips all 64 bits; a Byte keeps the low eight.
-			case MidoriIROp::BitNotByte:
+			case MarmotIROp::BitNotByte:
 				EmitByte(OpCode::BITWISE_NOT, line);
 				EmitByte(OpCode::INT_TO_BYTE, line);
 				return {};
-			case MidoriIROp::Concat:
+			case MarmotIROp::Concat:
 				EmitByte(IsText(instruction.m_type) ? OpCode::CONCAT_TEXT : OpCode::CONCAT_ARRAY, line);
 				RecordSafepoint(instruction);
 				return {};
-			case MidoriIROp::Extend:
+			case MarmotIROp::Extend:
 				EmitByte(IsText(instruction.m_type) ? OpCode::EXTEND_TEXT : OpCode::EXTEND_ARRAY, line);
 				return {};
-			case MidoriIROp::ArrayAppend:
+			case MarmotIROp::ArrayAppend:
 				EmitByte(OpCode::ADD_BACK_ARRAY, line);
 				return {};
-			case MidoriIROp::Call:
+			case MarmotIROp::Call:
 				return CheckArity(operand_count, line)
-					.and_then([&]() { return Procedure(std::get<MidoriIRFunctionId>(instruction.m_immediate), line); })
+					.and_then([&]() { return Procedure(std::get<MarmotIRFunctionId>(instruction.m_immediate), line); })
 					.transform([&](int procedure)
 					{
 						EmitProcedure(OpCode::CALL_PROC_WIDE, procedure, line);
 						EmitOperand(static_cast<int>(operand_count), line);
 						RecordSafepoint(instruction);
 					});
-			case MidoriIROp::CallGlobal:
+			case MarmotIROp::CallGlobal:
 				return CheckArity(operand_count, line)
 					.transform([&]()
 					{
-						EmitGlobal(OpCode::CALL_GLOBAL_WIDE, m_backend.GlobalOperand(std::get<MidoriIRGlobalSlot>(instruction.m_immediate)), line);
+						EmitGlobal(OpCode::CALL_GLOBAL_WIDE, m_backend.GlobalOperand(std::get<MarmotIRGlobalSlot>(instruction.m_immediate)), line);
 						EmitOperand(static_cast<int>(operand_count), line);
 						RecordSafepoint(instruction);
 					});
-			case MidoriIROp::CallValue:
+			case MarmotIROp::CallValue:
 				return CheckArity(operand_count - 1u, line)
 					.and_then([&]() { return EmitCallOf(OpCode::CALL, OpCode::CALL_0, operand_count - 1u, line); })
 					.transform([&]() { RecordSafepoint(instruction); });
-			case MidoriIROp::CallForeign:
+			case MarmotIROp::CallForeign:
 			{
 				// A builtin is called by its index; a native library's function
 				// by the name its first operand holds, with how each argument is
 				// passed.
-				if (std::holds_alternative<MidoriIRForeign>(instruction.m_immediate))
+				if (std::holds_alternative<MarmotIRForeign>(instruction.m_immediate))
 				{
 					return CheckArity(operand_count, line)
 						.transform([&]()
 						{
 							EmitByte(OpCode::CALL_FOREIGN_INDEXED, line);
-							EmitOperand(static_cast<int>(MarmotBuiltins::FindIndex(std::get<MidoriIRForeign>(instruction.m_immediate).m_name).value()), line);
+							EmitOperand(static_cast<int>(MarmotBuiltins::FindIndex(std::get<MarmotIRForeign>(instruction.m_immediate).m_name).value()), line);
 							EmitOperand(static_cast<int>(operand_count), line);
 							EmitOperand(ForeignReturnTag(instruction.m_type), line);
 						});
 				}
-				const std::span<const MidoriIRValueId> arguments = std::span(instruction.m_operands).subspan(1u);
+				const std::span<const MarmotIRValueId> arguments = std::span(instruction.m_operands).subspan(1u);
 				if (arguments.size() > MAX_NATIVE_ARITY)
 				{
 					return std::unexpected(m_backend.LimitExceeded(std::format("Too many arguments to a native function (max {})", MAX_NATIVE_ARITY), line));
@@ -1685,26 +1685,26 @@ namespace
 				EmitOperand(ForeignArgumentKinds(m_function, arguments), line);
 				return {};
 			}
-			case MidoriIROp::MakeClosure:
+			case MarmotIROp::MakeClosure:
 				return EmitMakeClosure(instruction, line);
-			case MidoriIROp::BindCaptures:
+			case MarmotIROp::BindCaptures:
 				EmitByte(OpCode::SET_CAPTURE, line);
-				EmitOperand(static_cast<int>(std::get<MidoriIRIndex>(instruction.m_immediate).m_value), line);
+				EmitOperand(static_cast<int>(std::get<MarmotIRIndex>(instruction.m_immediate).m_value), line);
 				return {};
-			case MidoriIROp::GetCapture:
-				EmitVariable(OpCode::GET_CELL, static_cast<int>(std::get<MidoriIRIndex>(instruction.m_immediate).m_value), line);
+			case MarmotIROp::GetCapture:
+				EmitVariable(OpCode::GET_CELL, static_cast<int>(std::get<MarmotIRIndex>(instruction.m_immediate).m_value), line);
 				return {};
-			case MidoriIROp::GlobalDefine:
-				EmitGlobal(OpCode::DEFINE_GLOBAL_WIDE, m_backend.GlobalOperand(std::get<MidoriIRGlobalSlot>(instruction.m_immediate)), line);
+			case MarmotIROp::GlobalDefine:
+				EmitGlobal(OpCode::DEFINE_GLOBAL_WIDE, m_backend.GlobalOperand(std::get<MarmotIRGlobalSlot>(instruction.m_immediate)), line);
 				return {};
-			case MidoriIROp::GlobalGet:
-				EmitGlobal(OpCode::GET_GLOBAL_WIDE, m_backend.GlobalOperand(std::get<MidoriIRGlobalSlot>(instruction.m_immediate)), line);
+			case MarmotIROp::GlobalGet:
+				EmitGlobal(OpCode::GET_GLOBAL_WIDE, m_backend.GlobalOperand(std::get<MarmotIRGlobalSlot>(instruction.m_immediate)), line);
 				return {};
-			case MidoriIROp::GlobalSet:
-				EmitGlobal(OpCode::SET_GLOBAL_WIDE, m_backend.GlobalOperand(std::get<MidoriIRGlobalSlot>(instruction.m_immediate)), line);
+			case MarmotIROp::GlobalSet:
+				EmitGlobal(OpCode::SET_GLOBAL_WIDE, m_backend.GlobalOperand(std::get<MarmotIRGlobalSlot>(instruction.m_immediate)), line);
 				EmitByte(OpCode::POP, line);
 				return {};
-			case MidoriIROp::MakeTuple:
+			case MarmotIROp::MakeTuple:
 				if (operand_count > static_cast<size_t>(UINT16_MAX))
 				{
 					return std::unexpected(m_backend.LimitExceeded(std::format("Too many tuple elements (max {})", UINT16_MAX), line));
@@ -1712,20 +1712,20 @@ namespace
 				return EmitCount(OpCode::CREATE_TUPLE, operand_count, line)
 					.and_then([&]() { return ShapeOfValues(instruction.m_operands, line); })
 					.transform([&](uint16_t shape) { EmitShape(shape, line); });
-			case MidoriIROp::MakeArray:
+			case MarmotIROp::MakeArray:
 				return EmitCount(OpCode::CREATE_ARRAY, operand_count, line)
 					.transform([&]() { EmitOperand(Kind(ElementType(instruction.m_type)), line); });
-			case MidoriIROp::TupleGet:
-				EmitSmallInt(std::get<MidoriIRIndex>(instruction.m_immediate).m_value, line);
+			case MarmotIROp::TupleGet:
+				EmitSmallInt(std::get<MarmotIRIndex>(instruction.m_immediate).m_value, line);
 				EmitByte(OpCode::GET_TUPLE, line);
 				return {};
-			case MidoriIROp::ArrayGet:
+			case MarmotIROp::ArrayGet:
 				EmitByte(OpCode::GET_ARRAY, line);
 				return {};
-			case MidoriIROp::ArrayLength:
+			case MarmotIROp::ArrayLength:
 				EmitByte(OpCode::GET_ARRAY_LENGTH, line);
 				return {};
-			case MidoriIROp::Construct:
+			case MarmotIROp::Construct:
 				return CheckByte(operand_count, "Too many struct members", line)
 					.and_then([&]() { return ShapeOfValues(instruction.m_operands, line); })
 					.transform([&](uint16_t shape)
@@ -1734,43 +1734,43 @@ namespace
 						EmitOperand(static_cast<int>(operand_count), line);
 						EmitShape(shape, line);
 					});
-			case MidoriIROp::GetMember:
+			case MarmotIROp::GetMember:
 				EmitByte(OpCode::GET_MEMBER, line);
-				EmitOperand(static_cast<int>(std::get<MidoriIRIndex>(instruction.m_immediate).m_value), line);
+				EmitOperand(static_cast<int>(std::get<MarmotIRIndex>(instruction.m_immediate).m_value), line);
 				return {};
-			case MidoriIROp::MakeUnion:
+			case MarmotIROp::MakeUnion:
 				return EmitMakeUnion(instruction, line);
-			case MidoriIROp::GetTag:
+			case MarmotIROp::GetTag:
 				EmitByte(OpCode::GET_TAG, line);
 				return {};
-			case MidoriIROp::UnionField:
+			case MarmotIROp::UnionField:
 				EmitByte(OpCode::GET_UNION_FIELD, line);
-				EmitOperand(static_cast<int>(std::get<MidoriIRUnionField>(instruction.m_immediate).m_index), line);
+				EmitOperand(static_cast<int>(std::get<MarmotIRUnionField>(instruction.m_immediate).m_index), line);
 				return {};
-			case MidoriIROp::MakeRange:
-				EmitByte(instruction.m_type->GetType<MidoriType::RangeType>().m_element_type->IsType<MidoriType::FloatType>() ? OpCode::CREATE_FLOAT_RANGE : OpCode::CREATE_INT_RANGE, line);
+			case MarmotIROp::MakeRange:
+				EmitByte(instruction.m_type->GetType<MarmotType::RangeType>().m_element_type->IsType<MarmotType::FloatType>() ? OpCode::CREATE_FLOAT_RANGE : OpCode::CREATE_INT_RANGE, line);
 				return {};
-			case MidoriIROp::RangeStart:
+			case MarmotIROp::RangeStart:
 				EmitByte(OpCode::GET_RANGE_START, line);
 				return {};
-			case MidoriIROp::RangeEnd:
+			case MarmotIROp::RangeEnd:
 				EmitByte(OpCode::GET_RANGE_END, line);
 				return {};
-			case MidoriIROp::RangeStep:
+			case MarmotIROp::RangeStep:
 				EmitByte(OpCode::GET_RANGE_STEP, line);
 				return {};
-			case MidoriIROp::CellNew:
+			case MarmotIROp::CellNew:
 				EmitByte(OpCode::MAKE_CELL, line);
 				EmitOperand(Kind(m_function.TypeOf(instruction.m_operands.front())), line);
 				RecordSafepoint(instruction);
 				return {};
-			case MidoriIROp::CellRead:
+			case MarmotIROp::CellRead:
 				EmitByte(OpCode::READ_CELL, line);
 				return {};
-			case MidoriIROp::CellWrite:
+			case MarmotIROp::CellWrite:
 				EmitByte(OpCode::WRITE_CELL, line);
 				return {};
-			case MidoriIROp::Spawn:
+			case MarmotIROp::Spawn:
 				// The arguments, then the function, cross as one tuple.
 				return CheckArity(operand_count - 1u, line)
 					.and_then([&]() { return ShapeOfValues(instruction.m_operands, line); })
@@ -1779,46 +1779,46 @@ namespace
 						EmitByte(OpCode::SPAWN_WORKER, line);
 						EmitOperand(static_cast<int>(operand_count - 1u), line);
 						EmitShape(shape, line);
-						EmitOperand(Kind(GenericTypes::RepresentationOf(instruction.m_type)->GetType<MidoriType::WorkerType>().m_result_type), line);
+						EmitOperand(Kind(GenericTypes::RepresentationOf(instruction.m_type)->GetType<MarmotType::WorkerType>().m_result_type), line);
 					});
-			case MidoriIROp::Join:
+			case MarmotIROp::Join:
 				EmitByte(OpCode::JOIN_WORKER, line);
-				EmitOperand(Kind(GenericTypes::RepresentationOf(m_function.TypeOf(instruction.m_operands.front()))->GetType<MidoriType::WorkerType>().m_result_type), line);
+				EmitOperand(Kind(GenericTypes::RepresentationOf(m_function.TypeOf(instruction.m_operands.front()))->GetType<MarmotType::WorkerType>().m_result_type), line);
 				return {};
-			case MidoriIROp::ChannelNew:
+			case MarmotIROp::ChannelNew:
 				EmitByte(OpCode::CHANNEL_CREATE, line);
 				return {};
-			case MidoriIROp::Send:
+			case MarmotIROp::Send:
 				EmitByte(OpCode::CHANNEL_SEND, line);
 				EmitOperand(Kind(m_function.TypeOf(instruction.m_operands[1u])), line);
 				return {};
-			case MidoriIROp::Receive:
+			case MarmotIROp::Receive:
 				EmitByte(OpCode::CHANNEL_RECEIVE, line);
 				return {};
-			case MidoriIROp::ChannelClose:
+			case MarmotIROp::ChannelClose:
 				EmitByte(OpCode::CHANNEL_CLOSE, line);
 				return {};
-			case MidoriIROp::WorkerIsDone:
+			case MarmotIROp::WorkerIsDone:
 				EmitByte(OpCode::WORKER_IS_DONE, line);
 				return {};
-			case MidoriIROp::WorkerCancel:
+			case MarmotIROp::WorkerCancel:
 				EmitByte(OpCode::WORKER_CANCEL, line);
 				return {};
 			default:
-				throw std::logic_error(std::format("the bytecode backend cannot emit {} yet", GetMidoriIROpInfo(instruction.m_op).m_name));
+				throw std::logic_error(std::format("the bytecode backend cannot emit {} yet", GetMarmotIROpInfo(instruction.m_op).m_name));
 			}
 		}
 
 		// The (argument, parameter) pairs a jump must move: a Unit parameter
 		// keeps nothing, and an argument already in its parameter's slot is
 		// there.
-		std::vector<std::pair<MidoriIRValueId, MidoriIRValueId>> Moves(const MidoriIRSuccessor& successor) const
+		std::vector<std::pair<MarmotIRValueId, MarmotIRValueId>> Moves(const MarmotIRSuccessor& successor) const
 		{
-			const std::vector<MidoriIRValueId>& parameters = TargetOf(successor).m_parameters;
-			std::vector<std::pair<MidoriIRValueId, MidoriIRValueId>> moves;
+			const std::vector<MarmotIRValueId>& parameters = TargetOf(successor).m_parameters;
+			std::vector<std::pair<MarmotIRValueId, MarmotIRValueId>> moves;
 			for (size_t index = 0u; index < parameters.size(); index += 1u)
 			{
-				const MidoriIRValueId argument = successor.m_arguments[index];
+				const MarmotIRValueId argument = successor.m_arguments[index];
 				const bool is_in_place = IsInSlot(argument) && m_slots[argument.m_index] == m_slots[parameters[index].m_index];
 				if (IsInSlot(parameters[index]) && !is_in_place)
 				{
@@ -1832,14 +1832,14 @@ namespace
 		// that passes one parameter's value to another reads it first. A
 		// parameter's slot is written by no other of the block's parameters,
 		// which are all live at once, so a pair already in place is left out.
-		Emitted EmitMoves(const MidoriIRSuccessor& successor, int line)
+		Emitted EmitMoves(const MarmotIRSuccessor& successor, int line)
 		{
-			const std::vector<std::pair<MidoriIRValueId, MidoriIRValueId>> moves = Moves(successor);
-			const std::vector<MidoriIRValueId> arguments = moves | std::views::keys | std::ranges::to<std::vector>();
+			const std::vector<std::pair<MarmotIRValueId, MarmotIRValueId>> moves = Moves(successor);
+			const std::vector<MarmotIRValueId> arguments = moves | std::views::keys | std::ranges::to<std::vector>();
 			return LoadAll(arguments, line)
 				.transform([this, &moves, line]()
 				{
-					for (const MidoriIRValueId parameter : moves | std::views::values | std::views::reverse)
+					for (const MarmotIRValueId parameter : moves | std::views::values | std::views::reverse)
 					{
 						Store(parameter, line);
 					}
@@ -1847,7 +1847,7 @@ namespace
 		}
 
 		// A jump to the block laid out next is left out unless code follows it.
-		Emitted EmitJumpTo(MidoriIRBlockId from, MidoriIRBlockId target, bool may_fall_through, int line)
+		Emitted EmitJumpTo(MarmotIRBlockId from, MarmotIRBlockId target, bool may_fall_through, int line)
 		{
 			if (may_fall_through && m_next_emitted[from.m_index] == target.m_index)
 			{
@@ -1900,9 +1900,9 @@ namespace
 
 		// The comparison `condition` was not emitted; this opcode makes it and
 		// jumps when it fails.
-		int EmitFusedBranch(OpCode op, MidoriIRValueId condition, int line)
+		int EmitFusedBranch(OpCode op, MarmotIRValueId condition, int line)
 		{
-			const std::vector<MidoriIRValueId>& operands = m_definitions[condition.m_index]->m_operands;
+			const std::vector<MarmotIRValueId>& operands = m_definitions[condition.m_index]->m_operands;
 			EmitByte(op, line);
 			if (op == OpCode::IF_LOCAL_LE_INT || op == OpCode::IF_LOCAL_LT_INT)
 			{
@@ -1912,7 +1912,7 @@ namespace
 			else if (op == OpCode::IF_LOCAL_TAG_NOT)
 			{
 				const bool is_tag_first = TagConstant(operands[1u]).has_value();
-				const MidoriIRValueId tag = operands[is_tag_first ? 0u : 1u];
+				const MarmotIRValueId tag = operands[is_tag_first ? 0u : 1u];
 				EmitOperand(m_slots[m_definitions[tag.m_index]->m_operands.front().m_index], line);
 				EmitOperand(TagConstant(operands[is_tag_first ? 1u : 0u]).value(), line);
 			}
@@ -1927,22 +1927,22 @@ namespace
 			return offset;
 		}
 
-		Emitted EmitTerminator(MidoriIRBlockId block, const MidoriIRInstruction& instruction)
+		Emitted EmitTerminator(MarmotIRBlockId block, const MarmotIRInstruction& instruction)
 		{
 			const int line = instruction.m_line;
 			switch (instruction.m_op)
 			{
-			case MidoriIROp::Jump:
+			case MarmotIROp::Jump:
 			{
-				const MidoriIRSuccessor& target = instruction.m_successors.front();
+				const MarmotIRSuccessor& target = instruction.m_successors.front();
 				return EmitMoves(target, line)
 					.and_then([&]() { return EmitJumpTo(block, target.m_block, true, line); });
 			}
-			case MidoriIROp::Branch:
+			case MarmotIROp::Branch:
 			{
 				// JUMP_IF_FALSE leaves the condition, so each path pops it.
-				const MidoriIRSuccessor& if_true = instruction.m_successors[0u];
-				const MidoriIRSuccessor& if_false = instruction.m_successors[1u];
+				const MarmotIRSuccessor& if_true = instruction.m_successors[0u];
+				const MarmotIRSuccessor& if_false = instruction.m_successors[1u];
 				const std::optional<OpCode> fused = m_fused_branches[instruction.m_operands.front().m_index];
 				// A fused comparison leaves nothing to pop, so when the false
 				// edge moves nothing it jumps straight to its block, and the
@@ -1973,20 +1973,20 @@ namespace
 							.and_then([&]() { return EmitJumpTo(block, if_false.m_block, true, line); });
 					});
 			}
-			case MidoriIROp::Return:
+			case MarmotIROp::Return:
 				return Load(instruction.m_operands.front(), line)
 					.transform([&]() { EmitByte(OpCode::RETURN, line); });
-			case MidoriIROp::TailCall:
+			case MarmotIROp::TailCall:
 				return EmitTailCall(instruction, line);
-			case MidoriIROp::Unreachable:
+			case MarmotIROp::Unreachable:
 				return {};
 			default:
-				throw std::logic_error(std::format("the bytecode backend cannot emit {} yet", GetMidoriIROpInfo(instruction.m_op).m_name));
+				throw std::logic_error(std::format("the bytecode backend cannot emit {} yet", GetMarmotIROpInfo(instruction.m_op).m_name));
 			}
 		}
 
 		// TAIL_CALL takes the callee on top of its arguments.
-		Emitted EmitTailCall(const MidoriIRInstruction& instruction, int line)
+		Emitted EmitTailCall(const MarmotIRInstruction& instruction, int line)
 		{
 			const bool is_closure = CallsClosureOperand(instruction);
 			const size_t arity = instruction.m_operands.size() - (is_closure ? 1u : 0u);
@@ -1994,17 +1994,17 @@ namespace
 				.and_then([&]() { return LoadAll(PushSequence(instruction), line); })
 				.and_then([&]() -> Emitted
 				{
-					if (std::holds_alternative<MidoriIRFunctionId>(instruction.m_immediate))
+					if (std::holds_alternative<MarmotIRFunctionId>(instruction.m_immediate))
 					{
-						return Procedure(std::get<MidoriIRFunctionId>(instruction.m_immediate), line)
+						return Procedure(std::get<MarmotIRFunctionId>(instruction.m_immediate), line)
 							.transform([&](int procedure)
 							{
 								EmitProcedure(OpCode::MAKE_FUNCTION_WIDE, procedure, line);
 							});
 					}
-					if (std::holds_alternative<MidoriIRGlobalSlot>(instruction.m_immediate))
+					if (std::holds_alternative<MarmotIRGlobalSlot>(instruction.m_immediate))
 					{
-						EmitGlobal(OpCode::GET_GLOBAL_WIDE, m_backend.GlobalOperand(std::get<MidoriIRGlobalSlot>(instruction.m_immediate)), line);
+						EmitGlobal(OpCode::GET_GLOBAL_WIDE, m_backend.GlobalOperand(std::get<MarmotIRGlobalSlot>(instruction.m_immediate)), line);
 					}
 					return {};
 				})
@@ -2024,10 +2024,10 @@ BytecodeBackend::BytecodeBackend(const LoweredModule& lowered, std::string_view 
 {
 }
 
-MidoriResult::BytecodeBackendResult BytecodeBackend::Emit() &&
+MarmotResult::BytecodeBackendResult BytecodeBackend::Emit() &&
 {
-	const MidoriIRModule& module = m_lowered.m_module;
-	const MidoriIRFunctionId top_level = module.m_top_level.value();
+	const MarmotIRModule& module = m_lowered.m_module;
+	const MarmotIRFunctionId top_level = module.m_top_level.value();
 
 	// The top-level function is procedure 0, which the linker runs to
 	// initialise the module; the others follow in order.
@@ -2041,7 +2041,7 @@ MidoriResult::BytecodeBackendResult BytecodeBackend::Emit() &&
 	std::expected<std::vector<BytecodeModule::ImportedSymbol>, CompilerError> imports = AssignGlobals();
 	if (!imports.has_value())
 	{
-		return std::unexpected(MidoriResult::CompilerDiagnostics(std::move(imports.error())));
+		return std::unexpected(MarmotResult::CompilerDiagnostics(std::move(imports.error())));
 	}
 
 	BytecodeModule bytecode(module.m_name, std::filesystem::path(m_file_name));
@@ -2049,11 +2049,11 @@ MidoriResult::BytecodeBackendResult BytecodeBackend::Emit() &&
 	bytecode.m_procedure_names.resize(module.m_functions.size());
 	for (uint32_t function = 0u; function < module.m_functions.size(); function += 1u)
 	{
-		const MidoriIRFunction& ir_function = module.m_functions[function];
+		const MarmotIRFunction& ir_function = module.m_functions[function];
 		std::expected<BytecodeStream, CompilerError> procedure = FunctionEmitter(*this, ir_function).Emit();
 		if (!procedure.has_value())
 		{
-			return std::unexpected(MidoriResult::CompilerDiagnostics(std::move(procedure.error())));
+			return std::unexpected(MarmotResult::CompilerDiagnostics(std::move(procedure.error())));
 		}
 		// A specialization of another module's generic runs that module's
 		// source, and its runtime errors point there.
@@ -2066,12 +2066,12 @@ MidoriResult::BytecodeBackendResult BytecodeBackend::Emit() &&
 	bytecode.m_string_pool = std::move(m_string_pool);
 	bytecode.m_imports = std::move(imports).value();
 	bytecode.m_global_variables = module.m_globals
-		| std::views::filter([](const MidoriIRGlobal& global) { return !global.IsImported(); })
-		| std::views::transform([](const MidoriIRGlobal& global) { return global.m_name; })
+		| std::views::filter([](const MarmotIRGlobal& global) { return !global.IsImported(); })
+		| std::views::transform([](const MarmotIRGlobal& global) { return global.m_name; })
 		| std::ranges::to<std::vector>();
 	bytecode.m_global_pointers = module.m_globals
-		| std::views::filter([](const MidoriIRGlobal& global) { return !global.IsImported(); })
-		| std::views::transform([](const MidoriIRGlobal& global) { return IsPointer(global.m_type); })
+		| std::views::filter([](const MarmotIRGlobal& global) { return !global.IsImported(); })
+		| std::views::transform([](const MarmotIRGlobal& global) { return IsPointer(global.m_type); })
 		| std::ranges::to<std::vector<bool>>();
 	bytecode.m_shapes = std::move(m_shapes);
 	bytecode.m_exports = m_lowered.m_exports
@@ -2124,20 +2124,20 @@ std::optional<BytecodeModule::SourceProvenance> BytecodeBackend::MakeSourceProve
 
 CompilerError BytecodeBackend::LimitExceeded(std::string_view message, int line) const
 {
-	return MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorLimitExceeded, message, line, m_file_name, m_source_lines);
+	return MarmotError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode::CodeGeneratorLimitExceeded, message, line, m_file_name, m_source_lines);
 }
 
-size_t BytecodeBackend::ProcedureIndex(MidoriIRFunctionId function) const
+size_t BytecodeBackend::ProcedureIndex(MarmotIRFunctionId function) const
 {
 	return m_procedure_indices[function.m_index];
 }
 
-size_t BytecodeBackend::CaptureCount(MidoriIRFunctionId function) const
+size_t BytecodeBackend::CaptureCount(MarmotIRFunctionId function) const
 {
 	return m_lowered.m_module.Function(function).m_capture_types.size();
 }
 
-int BytecodeBackend::GlobalOperand(MidoriIRGlobalSlot slot) const
+int BytecodeBackend::GlobalOperand(MarmotIRGlobalSlot slot) const
 {
 	return m_global_operands[slot.m_value];
 }
@@ -2182,7 +2182,7 @@ std::expected<uint16_t, CompilerError> BytecodeBackend::ShapeIndex(const Shape& 
 // placeholder the linker replaces with the global of the module defining it.
 std::expected<std::vector<BytecodeModule::ImportedSymbol>, CompilerError> BytecodeBackend::AssignGlobals()
 {
-	const MidoriIRModule& module = m_lowered.m_module;
+	const MarmotIRModule& module = m_lowered.m_module;
 	std::unordered_map<uint32_t, const Token*> import_tokens;
 	for (const LoweredImport& imported : m_lowered.m_imports)
 	{
@@ -2194,7 +2194,7 @@ std::expected<std::vector<BytecodeModule::ImportedSymbol>, CompilerError> Byteco
 	m_global_operands.reserve(module.m_globals.size());
 	for (uint32_t slot = 0u; slot < module.m_globals.size(); slot += 1u)
 	{
-		const MidoriIRGlobal& global = module.m_globals[slot];
+		const MarmotIRGlobal& global = module.m_globals[slot];
 		if (!global.IsImported())
 		{
 			if (next_global > MAX_VARIABLES)

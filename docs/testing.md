@@ -97,8 +97,8 @@ The helpers in `projects/marmotc/tests/support/` exist to keep new tests short a
 - `ParseSnippet(source, file_name)` returns parsed statements, module declaration metadata, and collected `use` imports
 - `TypeCheckSnippet(source, file_name)` returns the typed program tree and warnings
 - `AnalyzeSnippet(source, file_name)` returns warnings and static-analyzer errors
-- `CompileSnippetWithReport(source, file_name)` returns the final `MidoriResult::CompilationResult` from the driver boundary
-- `CompilationReport(result)` returns the final `MidoriResult::CompilerReport` for either a successful or failed compile result
+- `CompileSnippetWithReport(source, file_name)` returns the final `MarmotResult::CompilationResult` from the driver boundary
+- `CompilationReport(result)` returns the final `MarmotResult::CompilerReport` for either a successful or failed compile result
 - `CompileSnippet(source, file_name)` compiles through the driver layer without launching the CLI
 - `ExecuteSnippet(source, file_name)` compiles a snippet, writes a temporary artifact, and captures stdout/stderr from the VM subprocess
 - `CollectTokenNames(tokens)` turns a token stream into a concise sequence for lexer assertions
@@ -121,11 +121,11 @@ Diagnostic helpers:
 Example patterns:
 
 ```cpp
-const std::expected<MidoriTest::LexedSnippet, CompilerError> lex_result =
-	MidoriTest::LexSnippet("def value = 1;\n", "Value.mmt");
+const std::expected<MarmotTest::LexedSnippet, CompilerError> lex_result =
+	MarmotTest::LexSnippet("def value = 1;\n", "Value.mmt");
 
 REQUIRE(lex_result.has_value());
-REQUIRE(MidoriTest::CollectTokenNames(lex_result->m_tokens) == std::vector<Token::Name>
+REQUIRE(MarmotTest::CollectTokenNames(lex_result->m_tokens) == std::vector<Token::Name>
 {
 	Token::Name::DEF,
 	Token::Name::IDENTIFIER_LITERAL,
@@ -136,21 +136,21 @@ REQUIRE(MidoriTest::CollectTokenNames(lex_result->m_tokens) == std::vector<Token
 ```
 
 ```cpp
-const MidoriTest::TempProject project
+const MarmotTest::TempProject project
 ({
-	MidoriTest::TempProjectFile("Main.mmt", "module Main\nimport { \"./Lib.mmt\" }\ndef main = fn() -> Int => 0;\n"),
-	MidoriTest::TempProjectFile("Lib.mmt", "module Lib\ndef value = 1;\n")
+	MarmotTest::TempProjectFile("Main.mmt", "module Main\nimport { \"./Lib.mmt\" }\ndef main = fn() -> Int => 0;\n"),
+	MarmotTest::TempProjectFile("Lib.mmt", "module Lib\ndef value = 1;\n")
 });
 ```
 
 ```cpp
-const CompilerWarning* warning = MidoriTest::FindWarning(analyze_result->m_warnings, CompilerWarningCode::UnusedLocal);
+const CompilerWarning* warning = MarmotTest::FindWarning(analyze_result->m_warnings, CompilerWarningCode::UnusedLocal);
 REQUIRE(warning != nullptr);
 
 std::string mismatch;
-REQUIRE(MidoriTest::Matches(
+REQUIRE(MarmotTest::Matches(
 	*warning,
-	MidoriTest::WarningExpectation
+	MarmotTest::WarningExpectation
 	{
 		.m_stage = CompilerStage::StaticAnalyzer,
 		.m_line = 4,
@@ -225,7 +225,7 @@ python scripts/dev.py unit --tag "[runtime]"      # Catch2 tags
 python scripts/dev.py unit --tag "[module][import]" --build Debug
 ```
 
-Release builds leave `MIDORI_BUILD_TESTS` off by default;
+Release builds leave `MARMOT_BUILD_TESTS` off by default;
 `python scripts/dev.py configure --build Release --unit-tests` opts in, and the
 Release gate does that itself. By hand, the presets are `x64-*` on Windows and
 `linux-*` on Linux:

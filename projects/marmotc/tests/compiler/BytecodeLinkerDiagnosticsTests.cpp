@@ -8,10 +8,10 @@
 
 namespace
 {
-	void RequireErrorMatches(const CompilerError& error, const MidoriTest::ErrorExpectation& expectation)
+	void RequireErrorMatches(const CompilerError& error, const MarmotTest::ErrorExpectation& expectation)
 	{
 		std::string mismatch;
-		const bool matched = MidoriTest::Matches(error, expectation, &mismatch);
+		const bool matched = MarmotTest::Matches(error, expectation, &mismatch);
 		CAPTURE(mismatch);
 		REQUIRE(matched);
 	}
@@ -32,10 +32,10 @@ TEST_CASE("Bytecode linker reports unresolved imports with importer source prove
 	std::vector<BytecodeModule> modules;
 	modules.emplace_back(std::move(importer));
 
-	MidoriResult::BytecodeLinkerResult link_result = BytecodeLinker(std::move(modules), "Importer").Link();
+	MarmotResult::BytecodeLinkerResult link_result = BytecodeLinker(std::move(modules), "Importer").Link();
 	REQUIRE_FALSE(link_result.has_value());
 
-	MidoriTest::ErrorExpectation expectation;
+	MarmotTest::ErrorExpectation expectation;
 	expectation.m_stage = CompilerStage::BytecodeLinker;
 	expectation.m_code = CompilerErrorCode::BytecodeLinkerUnresolvedImport;
 	expectation.m_line = 4;
@@ -74,10 +74,10 @@ TEST_CASE("Bytecode linker reports duplicate exports with source-aware conflict 
 	modules.emplace_back(std::move(first_module));
 	modules.emplace_back(std::move(second_module));
 
-	MidoriResult::BytecodeLinkerResult link_result = BytecodeLinker(std::move(modules), "Shared").Link();
+	MarmotResult::BytecodeLinkerResult link_result = BytecodeLinker(std::move(modules), "Shared").Link();
 	REQUIRE_FALSE(link_result.has_value());
 
-	MidoriTest::ErrorExpectation expectation;
+	MarmotTest::ErrorExpectation expectation;
 	expectation.m_stage = CompilerStage::BytecodeLinker;
 	expectation.m_code = CompilerErrorCode::BytecodeLinkerDuplicateExportedSymbol;
 	expectation.m_line = 5;

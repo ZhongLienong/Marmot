@@ -4,11 +4,11 @@
 #include "Compiler/BytecodeBackend/BytecodeBackend.h"
 #include "Compiler/Lexer/Lexer.h"
 #include "Compiler/ModuleManager/ModuleManager.h"
-#include "Compiler/MidoriIROptimizer/MidoriIROptimizer.h"
+#include "Compiler/MarmotIROptimizer/MarmotIROptimizer.h"
 #include "Compiler/Parser/Parser.h"
 #include "Compiler/StaticAnalyzerManager/StaticAnalyzerManager.h"
 #include "Compiler/TypeChecker/TypeChecker.h"
-#include "Utility/Driver/MidoriDriver.h"
+#include "Utility/Driver/MarmotDriver.h"
 #include "Bytecode/Artifact/BinaryArtifact.h"
 
 #include <filesystem>
@@ -23,12 +23,12 @@ namespace
 {
 	struct PreparedModule
 	{
-		MidoriTest::SourceFixture m_source;
+		MarmotTest::SourceFixture m_source;
 		TokenStream m_tokens;
 		std::optional<ModuleDeclaration> m_module_declaration;
 		std::vector<UseImport> m_use_imports;
 
-		PreparedModule(MidoriTest::SourceFixture source, TokenStream&& tokens, std::optional<ModuleDeclaration>&& module_declaration, std::vector<UseImport>&& use_imports)
+		PreparedModule(MarmotTest::SourceFixture source, TokenStream&& tokens, std::optional<ModuleDeclaration>&& module_declaration, std::vector<UseImport>&& use_imports)
 			: m_source(std::move(source)),
 			m_tokens(std::move(tokens)),
 			m_module_declaration(std::move(module_declaration)),
@@ -39,12 +39,12 @@ namespace
 
 	struct PreparedTypedModule
 	{
-		MidoriTest::SourceFixture m_source;
-		MidoriProgramTree m_program;
+		MarmotTest::SourceFixture m_source;
+		MarmotProgramTree m_program;
 		std::vector<CompilerWarning> m_warnings;
 		std::optional<ModuleDeclaration> m_module_declaration;
 
-		PreparedTypedModule(MidoriTest::SourceFixture source, MidoriProgramTree&& program, std::vector<CompilerWarning>&& warnings, std::optional<ModuleDeclaration>&& module_declaration)
+		PreparedTypedModule(MarmotTest::SourceFixture source, MarmotProgramTree&& program, std::vector<CompilerWarning>&& warnings, std::optional<ModuleDeclaration>&& module_declaration)
 			: m_source(std::move(source)),
 			m_program(std::move(program)),
 			m_warnings(std::move(warnings)),
@@ -53,15 +53,15 @@ namespace
 		}
 	};
 
-	std::expected<PreparedModule, CompilerError> PrepareSingleModule(MidoriTest::SourceFixture&& source)
+	std::expected<PreparedModule, CompilerError> PrepareSingleModule(MarmotTest::SourceFixture&& source)
 	{
-		MidoriResult::LexerResult lex_result = Lexer(std::string(source.SourceCode()), source.FileName()).Lex();
+		MarmotResult::LexerResult lex_result = Lexer(std::string(source.SourceCode()), source.FileName()).Lex();
 		if (!lex_result.has_value())
 		{
 			return std::unexpected(std::move(lex_result.error()));
 		}
 
-		MidoriResult::ModuleManagerResult build_graph_result = ModuleManager(std::move(lex_result.value()), source.FileName(), source.SourceLines(), MidoriDriver::EnvironmentCompilationInputs()).GenerateBuildGraph();
+		MarmotResult::ModuleManagerResult build_graph_result = ModuleManager(std::move(lex_result.value()), source.FileName(), source.SourceLines(), MarmotDriver::EnvironmentCompilationInputs()).GenerateBuildGraph();
 		if (!build_graph_result.has_value())
 		{
 			return std::unexpected(std::move(build_graph_result.error()));
@@ -86,20 +86,20 @@ namespace
 		return PreparedModule(std::move(source), std::move(tokens), std::move(module_declaration), std::move(use_imports));
 	}
 
-	std::expected<PreparedTypedModule, MidoriResult::CompilerDiagnostics> TypeCheckPreparedModuleWithDiagnostics(PreparedModule&& prepared)
+	std::expected<PreparedTypedModule, MarmotResult::CompilerDiagnostics> TypeCheckPreparedModuleWithDiagnostics(PreparedModule&& prepared)
 	{
 		const ModuleDeclaration* module_declaration = prepared.m_module_declaration.has_value()
 			? &prepared.m_module_declaration.value()
 			: nullptr;
 		Parser parser(std::move(prepared.m_tokens), prepared.m_source.FileName(), prepared.m_source.SourceLines(), {}, {}, prepared.m_use_imports, module_declaration);
-		MidoriResult::ParserResult parse_result = parser.Parse();
+		MarmotResult::ParserResult parse_result = parser.Parse();
 		if (!parse_result.has_value())
 		{
 			return std::unexpected(std::move(parse_result.error()));
 		}
 
 		std::vector<CompilerWarning> warnings = parser.GetWarnings();
-		MidoriResult::TypeCheckerResult typecheck_result = TypeChecker(std::move(parse_result).value(), prepared.m_source.FileName(), prepared.m_source.SourceLines()).TypeCheck();
+		MarmotResult::TypeCheckerResult typecheck_result = TypeChecker(std::move(parse_result).value(), prepared.m_source.FileName(), prepared.m_source.SourceLines()).TypeCheck();
 		if (!typecheck_result.has_value())
 		{
 			return std::unexpected(std::move(typecheck_result.error()));
@@ -125,7 +125,7 @@ namespace
 	}
 }
 
-namespace MidoriTest
+namespace MarmotTest
 {
 	LexedSnippet::LexedSnippet(SourceFixture source, TokenStream&& tokens)
 		: m_source(std::move(source)),
@@ -133,7 +133,7 @@ namespace MidoriTest
 	{
 	}
 
-	ParsedSnippet::ParsedSnippet(SourceFixture source, MidoriProgramTree&& program, std::vector<CompilerWarning>&& warnings, std::optional<ModuleDeclaration>&& module_declaration, std::vector<UseImport>&& use_imports)
+	ParsedSnippet::ParsedSnippet(SourceFixture source, MarmotProgramTree&& program, std::vector<CompilerWarning>&& warnings, std::optional<ModuleDeclaration>&& module_declaration, std::vector<UseImport>&& use_imports)
 		: m_source(std::move(source)),
 		m_program(std::move(program)),
 		m_warnings(std::move(warnings)),
@@ -142,14 +142,14 @@ namespace MidoriTest
 	{
 	}
 
-	TypedSnippet::TypedSnippet(SourceFixture source, MidoriProgramTree&& program, std::vector<CompilerWarning>&& warnings)
+	TypedSnippet::TypedSnippet(SourceFixture source, MarmotProgramTree&& program, std::vector<CompilerWarning>&& warnings)
 		: m_source(std::move(source)),
 		m_program(std::move(program)),
 		m_warnings(std::move(warnings))
 	{
 	}
 
-	AnalyzedSnippet::AnalyzedSnippet(SourceFixture source, MidoriProgramTree&& program, std::vector<CompilerWarning>&& warnings)
+	AnalyzedSnippet::AnalyzedSnippet(SourceFixture source, MarmotProgramTree&& program, std::vector<CompilerWarning>&& warnings)
 		: m_source(std::move(source)),
 		m_program(std::move(program)),
 		m_warnings(std::move(warnings))
@@ -166,7 +166,7 @@ namespace MidoriTest
 	std::expected<LexedSnippet, CompilerError> LexSnippet(std::string source_code, std::string file_name)
 	{
 		SourceFixture source(std::move(source_code), std::move(file_name));
-		MidoriResult::LexerResult lex_result = Lexer(std::string(source.SourceCode()), source.FileName()).Lex();
+		MarmotResult::LexerResult lex_result = Lexer(std::string(source.SourceCode()), source.FileName()).Lex();
 		if (!lex_result.has_value())
 		{
 			return std::unexpected(std::move(lex_result.error()));
@@ -188,7 +188,7 @@ namespace MidoriTest
 			? &prepared.m_module_declaration.value()
 			: nullptr;
 		Parser parser(std::move(prepared.m_tokens), prepared.m_source.FileName(), prepared.m_source.SourceLines(), {}, {}, prepared.m_use_imports, module_declaration);
-		MidoriResult::ParserResult parse_result = parser.Parse();
+		MarmotResult::ParserResult parse_result = parser.Parse();
 		if (!parse_result.has_value())
 		{
 			// Test helpers still offer single-error adapters for legacy callers; preserve
@@ -200,15 +200,15 @@ namespace MidoriTest
 		return ParsedSnippet(std::move(prepared.m_source), std::move(parse_result.value()), std::move(warnings), std::move(prepared.m_module_declaration), std::move(prepared.m_use_imports));
 	}
 
-	std::expected<TypedSnippet, MidoriResult::CompilerDiagnostics> TypeCheckSnippetWithDiagnostics(std::string source_code, std::string file_name)
+	std::expected<TypedSnippet, MarmotResult::CompilerDiagnostics> TypeCheckSnippetWithDiagnostics(std::string source_code, std::string file_name)
 	{
 		std::expected<PreparedModule, CompilerError> prepared_result = PrepareSingleModule(SourceFixture(std::move(source_code), std::move(file_name)));
 		if (!prepared_result.has_value())
 		{
-			return std::unexpected(MidoriResult::CompilerDiagnostics(std::move(prepared_result.error())));
+			return std::unexpected(MarmotResult::CompilerDiagnostics(std::move(prepared_result.error())));
 		}
 
-		std::expected<PreparedTypedModule, MidoriResult::CompilerDiagnostics> typed_result =
+		std::expected<PreparedTypedModule, MarmotResult::CompilerDiagnostics> typed_result =
 			TypeCheckPreparedModuleWithDiagnostics(std::move(prepared_result.value()));
 		if (!typed_result.has_value())
 		{
@@ -221,7 +221,7 @@ namespace MidoriTest
 
 	std::expected<TypedSnippet, CompilerError> TypeCheckSnippet(std::string source_code, std::string file_name)
 	{
-		std::expected<TypedSnippet, MidoriResult::CompilerDiagnostics> typed_result = TypeCheckSnippetWithDiagnostics(std::move(source_code), std::move(file_name));
+		std::expected<TypedSnippet, MarmotResult::CompilerDiagnostics> typed_result = TypeCheckSnippetWithDiagnostics(std::move(source_code), std::move(file_name));
 		if (!typed_result.has_value())
 		{
 			// Test helpers still offer single-error adapters for legacy callers; preserve
@@ -232,15 +232,15 @@ namespace MidoriTest
 		return std::move(typed_result.value());
 	}
 
-	std::expected<LoweredModule, MidoriResult::CompilerDiagnostics> LowerSnippetWithDiagnostics(std::string source_code, std::string file_name)
+	std::expected<LoweredModule, MarmotResult::CompilerDiagnostics> LowerSnippetWithDiagnostics(std::string source_code, std::string file_name)
 	{
 		std::expected<PreparedModule, CompilerError> prepared_result = PrepareSingleModule(SourceFixture(std::move(source_code), std::move(file_name)));
 		if (!prepared_result.has_value())
 		{
-			return std::unexpected(MidoriResult::CompilerDiagnostics(std::move(prepared_result.error())));
+			return std::unexpected(MarmotResult::CompilerDiagnostics(std::move(prepared_result.error())));
 		}
 
-		std::expected<PreparedTypedModule, MidoriResult::CompilerDiagnostics> typed_result =
+		std::expected<PreparedTypedModule, MarmotResult::CompilerDiagnostics> typed_result =
 			TypeCheckPreparedModuleWithDiagnostics(std::move(prepared_result.value()));
 		if (!typed_result.has_value())
 		{
@@ -256,19 +256,19 @@ namespace MidoriTest
 		return Lowering(typed.m_program, typed.m_source.FileName(), typed.m_source.SourceLines(), module_name, exports, imports).Lower();
 	}
 
-	std::expected<BytecodeModule, MidoriResult::CompilerDiagnostics> GenerateBytecodeSnippetWithDiagnostics(std::string source_code, std::string file_name)
+	std::expected<BytecodeModule, MarmotResult::CompilerDiagnostics> GenerateBytecodeSnippetWithDiagnostics(std::string source_code, std::string file_name)
 	{
 		SourceFixture source(std::move(source_code), std::move(file_name));
-		std::expected<LoweredModule, MidoriResult::CompilerDiagnostics> lowered = LowerSnippetWithDiagnostics(std::string(source.SourceCode()), source.FileName());
+		std::expected<LoweredModule, MarmotResult::CompilerDiagnostics> lowered = LowerSnippetWithDiagnostics(std::string(source.SourceCode()), source.FileName());
 		if (!lowered.has_value())
 		{
 			return std::unexpected(std::move(lowered.error()));
 		}
 
-		std::expected<void, MidoriIRPassFailure> optimized = MidoriIROptimizer().Optimize(lowered->m_module);
+		std::expected<void, MarmotIRPassFailure> optimized = MarmotIROptimizer().Optimize(lowered->m_module);
 		if (!optimized.has_value())
 		{
-			return std::unexpected(MidoriResult::CompilerDiagnostics(CompilerError::Simple(CompilerStage::Lowering, std::format("The MidoriIR pass {} produced invalid MidoriIR.", optimized.error().m_pass), CompilerErrorCode::CompilerInternalError)));
+			return std::unexpected(MarmotResult::CompilerDiagnostics(CompilerError::Simple(CompilerStage::Lowering, std::format("The MarmotIR pass {} produced invalid MarmotIR.", optimized.error().m_pass), CompilerErrorCode::CompilerInternalError)));
 		}
 
 		return BytecodeBackend(lowered.value(), source.FileName(), source.SourceLines()).Emit();
@@ -288,13 +288,13 @@ namespace MidoriTest
 		return AnalyzedSnippet(std::move(typed.m_source), std::move(typed.m_program), std::move(warnings));
 	}
 
-	MidoriResult::CompilationResult CompileSnippetWithReport(std::string source_code, std::string file_name)
+	MarmotResult::CompilationResult CompileSnippetWithReport(std::string source_code, std::string file_name)
 	{
 
-		return MidoriDriver::CompileSourceWithReport(std::move(source_code), std::move(file_name));
+		return MarmotDriver::CompileSourceWithReport(std::move(source_code), std::move(file_name));
 	}
 
-	const MidoriResult::CompilerReport& CompilationReport(const MidoriResult::CompilationResult& compilation_result)
+	const MarmotResult::CompilerReport& CompilationReport(const MarmotResult::CompilationResult& compilation_result)
 	{
 		if (compilation_result.has_value())
 		{
@@ -304,18 +304,18 @@ namespace MidoriTest
 		return compilation_result.error();
 	}
 
-	MidoriResult::CompilerResult CompileSnippet(std::string source_code, std::string file_name)
+	MarmotResult::CompilerResult CompileSnippet(std::string source_code, std::string file_name)
 	{
-		return MidoriDriver::CompileSourceWithReport(std::move(source_code), std::move(file_name))
-			.transform([](MidoriResult::CompiledProgram&& program) { return std::move(program).TakeExecutable(); })
-			.transform_error([](MidoriResult::CompilerReport&& report) { return std::move(report.m_errors); });
+		return MarmotDriver::CompileSourceWithReport(std::move(source_code), std::move(file_name))
+			.transform([](MarmotResult::CompiledProgram&& program) { return std::move(program).TakeExecutable(); })
+			.transform_error([](MarmotResult::CompilerReport&& report) { return std::move(report.m_errors); });
 	}
 
 	std::expected<ExecutedSnippet, CompilerError> ExecuteSnippet(std::string source_code, std::string file_name)
 	{
 		SourceFixture source(std::move(source_code), std::move(file_name));
 
-		MidoriResult::CompilationResult compile_result = MidoriDriver::CompileSourceWithReport(std::string(source.SourceCode()), source.FileName(), MidoriDriver::EnvironmentCompilationInputs());
+		MarmotResult::CompilationResult compile_result = MarmotDriver::CompileSourceWithReport(std::string(source.SourceCode()), source.FileName(), MarmotDriver::EnvironmentCompilationInputs());
 		if (!compile_result.has_value())
 		{
 			// Execution helpers keep a single-error surface for legacy tests; compile-time

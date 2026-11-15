@@ -52,9 +52,9 @@ public:
 	Lexer(std::string&& source_code, std::string_view file_name) noexcept;
 	Lexer(std::string&& source_code, std::string_view file_name, Options options) noexcept;
 
-	MidoriResult::LexerResult Lex() &;
+	MarmotResult::LexerResult Lex() &;
 
-	MidoriResult::LexerResult Lex() &&;
+	MarmotResult::LexerResult Lex() &&;
 
 private:
 
@@ -86,73 +86,73 @@ private:
 
 	Token MakeEndOfFileToken() const;
 
-	MidoriResult::TokenResult MakeTokenResult(Token::Name type) const;
+	MarmotResult::TokenResult MakeTokenResult(Token::Name type) const;
 
-	MidoriResult::TokenResult MakeTokenResult(Token::Name type, std::string&& lexeme) const;
+	MarmotResult::TokenResult MakeTokenResult(Token::Name type, std::string&& lexeme) const;
 
-	MidoriResult::TokenResult MakeEndOfFileTokenResult() const;
+	MarmotResult::TokenResult MakeEndOfFileTokenResult() const;
 
-	MidoriResult::Result<LexState> RecordTokenOrError(LexState state);
+	MarmotResult::Result<LexState> RecordTokenOrError(LexState state);
 
-	MidoriResult::TokenResult LexOneToken();
+	MarmotResult::TokenResult LexOneToken();
 
-	MidoriResult::TokenResult LexTokenAfterWhitespace();
+	MarmotResult::TokenResult LexTokenAfterWhitespace();
 
-	MidoriResult::TokenResult LexTokenFrom(char next_char);
+	MarmotResult::TokenResult LexTokenFrom(char next_char);
 
-	MidoriResult::TokenResult MatchDot();
+	MarmotResult::TokenResult MatchDot();
 
-	MidoriResult::TokenResult MatchPlus();
+	MarmotResult::TokenResult MatchPlus();
 
-	MidoriResult::TokenResult MatchMinus();
+	MarmotResult::TokenResult MatchMinus();
 
-	MidoriResult::TokenResult MatchColon();
+	MarmotResult::TokenResult MatchColon();
 
-	MidoriResult::TokenResult MatchPercent();
+	MarmotResult::TokenResult MatchPercent();
 
-	MidoriResult::TokenResult MatchStar();
+	MarmotResult::TokenResult MatchStar();
 
-	MidoriResult::TokenResult MatchSlash();
+	MarmotResult::TokenResult MatchSlash();
 
-	MidoriResult::TokenResult MatchLineComment();
+	MarmotResult::TokenResult MatchLineComment();
 
-	MidoriResult::TokenResult MatchBlockComment();
+	MarmotResult::TokenResult MatchBlockComment();
 
-	MidoriResult::TokenResult MatchPipe();
+	MarmotResult::TokenResult MatchPipe();
 
-	MidoriResult::TokenResult MatchCaret();
+	MarmotResult::TokenResult MatchCaret();
 
-	MidoriResult::TokenResult MatchAmpersand();
+	MarmotResult::TokenResult MatchAmpersand();
 
-	MidoriResult::TokenResult MatchBang();
+	MarmotResult::TokenResult MatchBang();
 
-	MidoriResult::TokenResult MatchEqual();
-
-
-	MidoriResult::TokenResult MatchGreater();
-
-	MidoriResult::TokenResult MatchLess();
-
-	MidoriResult::TokenResult MatchLeftShift();
-
-	MidoriResult::TokenResult MatchTilde();
-
-	MidoriResult::TokenResult MatchRightShift();
+	MarmotResult::TokenResult MatchEqual();
 
 
-	MidoriResult::TokenResult MatchLiteralOrIdentifier(char next_char);
+	MarmotResult::TokenResult MatchGreater();
 
-	MidoriResult::TokenResult MakeInvalidCharacterError(char next_char) const;
+	MarmotResult::TokenResult MatchLess();
 
-	MidoriResult::VoidResult SkipWhitespaceAndComments();
+	MarmotResult::TokenResult MatchLeftShift();
 
-	MidoriResult::TokenResult MatchString();
+	MarmotResult::TokenResult MatchTilde();
 
-	MidoriResult::TokenResult MatchNumber();
+	MarmotResult::TokenResult MatchRightShift();
 
-	MidoriResult::TokenResult MatchDecimalNumber();
 
-	MidoriResult::TokenResult MatchPrefixedInteger(bool (*predicate)(char));
+	MarmotResult::TokenResult MatchLiteralOrIdentifier(char next_char);
+
+	MarmotResult::TokenResult MakeInvalidCharacterError(char next_char) const;
+
+	MarmotResult::VoidResult SkipWhitespaceAndComments();
+
+	MarmotResult::TokenResult MatchString();
+
+	MarmotResult::TokenResult MatchNumber();
+
+	MarmotResult::TokenResult MatchDecimalNumber();
+
+	MarmotResult::TokenResult MatchPrefixedInteger(bool (*predicate)(char));
 
 	bool IsHexPrefix() const;
 
@@ -162,22 +162,22 @@ private:
 
 	static bool IsBinaryDigit(char c);
 
-	MidoriResult::TokenResult MatchIdentifierOrReserved();
+	MarmotResult::TokenResult MatchIdentifierOrReserved();
 
 	template<typename Predicate>
 	int ConsumeWhile(Predicate&& pred);
 
-	MidoriResult::TokenResult MatchStringRecursive(std::string&& acc);
+	MarmotResult::TokenResult MatchStringRecursive(std::string&& acc);
 
-	MidoriResult::VoidResult SkipLineComment();
+	MarmotResult::VoidResult SkipLineComment();
 
-	MidoriResult::VoidResult SkipBlockComment();
+	MarmotResult::VoidResult SkipBlockComment();
 
 	int ConsumeDigits();
 
 	int ConsumeAlphaNumeric();
 
-	MidoriResult::LexerResult LexRecursive(LexState state);
+	MarmotResult::LexerResult LexRecursive(LexState state);
 
 	static Source BuildSource(std::string&& source_code, std::string_view file_name);
 

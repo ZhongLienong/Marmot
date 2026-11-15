@@ -5,7 +5,7 @@ module ConstructorInferenceUnownedTypeVar
 // `Option::None` unifies against is invented here and nothing will ever decide it.
 //
 // This is the boundary case for the relaxed guard in
-// TypeChecker::operator()(MidoriExpression::Construct&): admitting the expected type of
+// TypeChecker::operator()(MarmotExpression::Construct&): admitting the expected type of
 // the expression itself into the set of owned type variables would let this compile.
 
 type Option<T> = Some(T) | None;

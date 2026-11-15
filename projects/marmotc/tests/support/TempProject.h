@@ -7,7 +7,7 @@
 #include <string_view>
 #include <vector>
 
-namespace MidoriTest
+namespace MarmotTest
 {
 	struct TempProjectFile
 	{

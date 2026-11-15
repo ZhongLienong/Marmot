@@ -10,7 +10,7 @@
 #include <memory>
 
 struct Token;
-class MidoriType;
+class MarmotType;
 
 enum class CompilerStage
 {
@@ -157,7 +157,7 @@ namespace std
 	};
 }
 
-class MidoriError
+class MarmotError
 {
 private:
 
@@ -183,13 +183,13 @@ public:
 	static CompilerError GenerateTypeCheckerErrorWithContext(CompilerErrorCode code, std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion = std::nullopt);
 
 	template <typename... ExpectedTypes>
-	static CompilerError GenerateTypeCheckerErrorWithContext(std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, const std::shared_ptr<MidoriType>& actual = nullptr, ExpectedTypes&&... expected)
+	static CompilerError GenerateTypeCheckerErrorWithContext(std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, const std::shared_ptr<MarmotType>& actual = nullptr, ExpectedTypes&&... expected)
 	{
 		return GenerateTypeCheckerErrorWithContext(CompilerErrorCode::None, message, token, file_name, source_lines, actual, expected...);
 	}
 
 	template <typename... ExpectedTypes>
-	static CompilerError GenerateTypeCheckerErrorWithContext(CompilerErrorCode code, std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, const std::shared_ptr<MidoriType>& actual = nullptr, ExpectedTypes&&... expected)
+	static CompilerError GenerateTypeCheckerErrorWithContext(CompilerErrorCode code, std::string_view message, const Token& token, std::string_view file_name, const std::vector<std::string>& source_lines, const std::shared_ptr<MarmotType>& actual = nullptr, ExpectedTypes&&... expected)
 	{
 		std::string full_message = std::string(message);
 
@@ -203,5 +203,5 @@ public:
 	}
 
 	// "<message>\nExpected A or B, but got C".
-	static std::string FormatTypeMismatch(std::string_view message, const std::vector<std::string>& expected_names, const std::shared_ptr<MidoriType>& actual);
+	static std::string FormatTypeMismatch(std::string_view message, const std::vector<std::string>& expected_names, const std::shared_ptr<MarmotType>& actual);
 };

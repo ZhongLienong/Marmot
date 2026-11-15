@@ -11,24 +11,24 @@
 
 namespace
 {
-	using TypeRef = std::shared_ptr<MidoriType>;
+	using TypeRef = std::shared_ptr<MarmotType>;
 
-	MidoriIROp InstructionOf(MidoriPrimitive primitive)
+	MarmotIROp InstructionOf(MarmotPrimitive primitive)
 	{
 		switch (primitive)
 		{
-		case MidoriPrimitive::Spawn:
-			return MidoriIROp::Spawn;
-		case MidoriPrimitive::Join:
-			return MidoriIROp::Join;
-		case MidoriPrimitive::ChannelNew:
-			return MidoriIROp::ChannelNew;
-		case MidoriPrimitive::ChannelClose:
-			return MidoriIROp::ChannelClose;
-		case MidoriPrimitive::WorkerIsDone:
-			return MidoriIROp::WorkerIsDone;
-		case MidoriPrimitive::WorkerCancel:
-			return MidoriIROp::WorkerCancel;
+		case MarmotPrimitive::Spawn:
+			return MarmotIROp::Spawn;
+		case MarmotPrimitive::Join:
+			return MarmotIROp::Join;
+		case MarmotPrimitive::ChannelNew:
+			return MarmotIROp::ChannelNew;
+		case MarmotPrimitive::ChannelClose:
+			return MarmotIROp::ChannelClose;
+		case MarmotPrimitive::WorkerIsDone:
+			return MarmotIROp::WorkerIsDone;
+		case MarmotPrimitive::WorkerCancel:
+			return MarmotIROp::WorkerCancel;
 		}
 		std::unreachable();
 	}
@@ -36,37 +36,37 @@ namespace
 	// The type a closure of a function with this signature has.
 	TypeRef ClosureType(const TypeRef& function_type)
 	{
-		const MidoriType::FunctionType& signature = function_type->GetType<MidoriType::FunctionType>();
-		return MidoriType::MakeFunctionType(signature.m_param_types, TypeRef(signature.m_return_type));
+		const MarmotType::FunctionType& signature = function_type->GetType<MarmotType::FunctionType>();
+		return MarmotType::MakeFunctionType(signature.m_param_types, TypeRef(signature.m_return_type));
 	}
 
 	const TypeRef& UnitType()
 	{
-		return MidoriType::MakeLiteralType<MidoriType::UnitType>();
+		return MarmotType::MakeLiteralType<MarmotType::UnitType>();
 	}
 
 	const TypeRef& TextType()
 	{
-		return MidoriType::MakeLiteralType<MidoriType::TextType>();
+		return MarmotType::MakeLiteralType<MarmotType::TextType>();
 	}
 
 	bool IsNever(const TypeRef& type)
 	{
-		return type->IsType<MidoriType::NeverType>();
+		return type->IsType<MarmotType::NeverType>();
 	}
 
-	const MidoriExpression::NameAccess* GlobalName(const MidoriExpression& expression)
+	const MarmotExpression::NameAccess* GlobalName(const MarmotExpression& expression)
 	{
-		if (!expression.IsExpression<MidoriExpression::NameAccess>())
+		if (!expression.IsExpression<MarmotExpression::NameAccess>())
 		{
 			return nullptr;
 		}
-		const MidoriExpression::NameAccess& name = expression.GetExpression<MidoriExpression::NameAccess>();
-		return std::holds_alternative<MidoriExpression::NameContext::Global>(name.m_name_ctx) ? &name : nullptr;
+		const MarmotExpression::NameAccess& name = expression.GetExpression<MarmotExpression::NameAccess>();
+		return std::holds_alternative<MarmotExpression::NameContext::Global>(name.m_name_ctx) ? &name : nullptr;
 	}
 }
 
-LoweredExport::LoweredExport(std::string name, BytecodeModule::SymbolType kind, std::optional<MidoriIRGlobalSlot> slot, std::optional<MidoriIRFunctionId> function, Token token)
+LoweredExport::LoweredExport(std::string name, BytecodeModule::SymbolType kind, std::optional<MarmotIRGlobalSlot> slot, std::optional<MarmotIRFunctionId> function, Token token)
 	: m_name(std::move(name)),
 	m_kind(kind),
 	m_slot(slot),
@@ -75,13 +75,13 @@ LoweredExport::LoweredExport(std::string name, BytecodeModule::SymbolType kind, 
 {
 }
 
-LoweredImport::LoweredImport(MidoriIRGlobalSlot slot, Token token)
+LoweredImport::LoweredImport(MarmotIRGlobalSlot slot, Token token)
 	: m_slot(slot),
 	m_token(std::move(token))
 {
 }
 
-LoweredModule::LoweredModule(MidoriIRModule module)
+LoweredModule::LoweredModule(MarmotIRModule module)
 	: m_module(std::move(module))
 {
 }
@@ -94,13 +94,13 @@ Lowering::Specialization::Specialization(GenericTypes::TypeEnvironment types, Me
 {
 }
 
-Lowering::JoinPoint::JoinPoint(MidoriIRBlockId block, TypeRef type)
+Lowering::JoinPoint::JoinPoint(MarmotIRBlockId block, TypeRef type)
 	: m_block(block),
 	m_type(std::move(type))
 {
 }
 
-Lowering::FunctionScope::FunctionScope(MidoriIRFunctionId id, MidoriIRFunction& function, const Specialization& specialization, FunctionScope* parent, int environment_length)
+Lowering::FunctionScope::FunctionScope(MarmotIRFunctionId id, MarmotIRFunction& function, const Specialization& specialization, FunctionScope* parent, int environment_length)
 	: m_id(id),
 	m_function(function),
 	m_builder(function),
@@ -112,14 +112,14 @@ Lowering::FunctionScope::FunctionScope(MidoriIRFunctionId id, MidoriIRFunction& 
 {
 }
 
-Lowering::ActiveGenericLambda::ActiveGenericLambda(const MidoriExpression::Function* function, std::string signature, LocalKey self)
+Lowering::ActiveGenericLambda::ActiveGenericLambda(const MarmotExpression::Function* function, std::string signature, LocalKey self)
 	: m_function(function),
 	m_signature(std::move(signature)),
 	m_self(self)
 {
 }
 
-Lowering::Lowering(MidoriProgramTree& program, std::string_view file_name, const std::vector<std::string>& source_lines, std::string module_name, const std::unordered_set<std::string>& export_symbols, const LoweringImports& imports)
+Lowering::Lowering(MarmotProgramTree& program, std::string_view file_name, const std::vector<std::string>& source_lines, std::string module_name, const std::unordered_set<std::string>& export_symbols, const LoweringImports& imports)
 	: m_program(program),
 	m_file_name(file_name),
 	m_source_lines(source_lines),
@@ -133,10 +133,10 @@ Lowering::Lowering(MidoriProgramTree& program, std::string_view file_name, const
 	m_specializations.emplace_back(GenericTypes::TypeEnvironment{}, MethodResolutionMap{}, std::nullopt, m_foreign_indices);
 }
 
-MidoriResult::DiagnosticsResult<LoweredModule> Lowering::Lower() &&
+MarmotResult::DiagnosticsResult<LoweredModule> Lowering::Lower() &&
 {
 	const Specialization& module_context = m_specializations.front();
-	const MidoriIRFunctionId top_level = NewFunction(std::string(MAIN_PROCEDURE_PREFIX), UnitType(), module_context);
+	const MarmotIRFunctionId top_level = NewFunction(std::string(MAIN_PROCEDURE_PREFIX), UnitType(), module_context);
 	m_module.m_top_level = top_level;
 	FunctionScope scope(top_level, m_functions[top_level.m_index], module_context, nullptr, 0);
 	m_scopes.push_back(&scope);
@@ -145,12 +145,12 @@ MidoriResult::DiagnosticsResult<LoweredModule> Lowering::Lower() &&
 	if (!reservation_errors.empty())
 	{
 		m_scopes.pop_back();
-		return std::unexpected(MidoriResult::CompilerDiagnostics(std::move(reservation_errors)));
+		return std::unexpected(MarmotResult::CompilerDiagnostics(std::move(reservation_errors)));
 	}
 
 	const Emitted lowered = [this]() -> Emitted
 	{
-		for (std::unique_ptr<MidoriStatement>& statement : m_program)
+		for (std::unique_ptr<MarmotStatement>& statement : m_program)
 		{
 			const Emitted statement_lowered = LowerTopLevelStatement(*statement);
 			if (!statement_lowered.has_value())
@@ -165,7 +165,7 @@ MidoriResult::DiagnosticsResult<LoweredModule> Lowering::Lower() &&
 
 	if (!lowered.has_value())
 	{
-		return std::unexpected(MidoriResult::CompilerDiagnostics(lowered.error()));
+		return std::unexpected(MarmotResult::CompilerDiagnostics(lowered.error()));
 	}
 
 	std::ranges::move(m_functions, std::back_inserter(m_module.m_functions));
@@ -179,17 +179,17 @@ MidoriResult::DiagnosticsResult<LoweredModule> Lowering::Lower() &&
 
 CompilerError Lowering::Unsupported(std::string_view construct, const Token& token) const
 {
-	return Error(CompilerErrorCode::LoweringUnsupportedConstruct, std::format("The MidoriIR backend cannot lower {} yet.", construct), token);
+	return Error(CompilerErrorCode::LoweringUnsupportedConstruct, std::format("The MarmotIR backend cannot lower {} yet.", construct), token);
 }
 
 CompilerError Lowering::Error(CompilerErrorCode code, std::string_view message, const Token& token) const
 {
-	return MidoriError::GenerateLoweringErrorWithContext(code, message, token, m_file_name, m_source_lines);
+	return MarmotError::GenerateLoweringErrorWithContext(code, message, token, m_file_name, m_source_lines);
 }
 
 CompilerError Lowering::ResolutionError(const MethodResolutionError& error, const Token& token) const
 {
-	return MidoriError::GenerateLoweringErrorWithContext(error.m_code, error.m_message, token.m_line, m_file_name, m_source_lines);
+	return MarmotError::GenerateLoweringErrorWithContext(error.m_code, error.m_message, token.m_line, m_file_name, m_source_lines);
 }
 
 Lowering::FunctionScope& Lowering::Scope()
@@ -197,16 +197,16 @@ Lowering::FunctionScope& Lowering::Scope()
 	return *m_scopes.back();
 }
 
-MidoriIRBuilder& Lowering::Builder()
+MarmotIRBuilder& Lowering::Builder()
 {
 	return Scope().m_builder;
 }
 
-MidoriIRFunctionId Lowering::NewFunction(std::string name, TypeRef return_type, const Specialization& specialization)
+MarmotIRFunctionId Lowering::NewFunction(std::string name, TypeRef return_type, const Specialization& specialization)
 {
-	MidoriIRFunction& function = m_functions.emplace_back(std::move(name), std::move(return_type));
+	MarmotIRFunction& function = m_functions.emplace_back(std::move(name), std::move(return_type));
 	function.m_source_module = specialization.m_source_module.value_or(std::string());
-	return MidoriIRFunctionId{ static_cast<uint32_t>(m_functions.size() - 1u) };
+	return MarmotIRFunctionId{ static_cast<uint32_t>(m_functions.size() - 1u) };
 }
 
 Lowering::TypeRef Lowering::Concrete(const TypeRef& type)
@@ -218,21 +218,21 @@ Lowering::TypeRef Lowering::Concrete(const TypeRef& type)
 // A projection such as Iterable::Item<S> means a type once S is one.
 Lowering::TypeRef Lowering::Substitute(const TypeRef& type, const GenericTypes::TypeEnvironment& types) const
 {
-	return GenericTypes::Substitute(type, types, [this](const MidoriType::AssociatedType& projection) { return m_resolver.ResolveAssociatedType(projection); });
+	return GenericTypes::Substitute(type, types, [this](const MarmotType::AssociatedType& projection) { return m_resolver.ResolveAssociatedType(projection); });
 }
 
-Lowering::TypeRef Lowering::TypeOf(const MidoriExpression& expression)
+Lowering::TypeRef Lowering::TypeOf(const MarmotExpression& expression)
 {
 	return Concrete(expression.GetType());
 }
 
-Lowering::TypeRef Lowering::NominalType(const MidoriExpression& expression, MidoriIRValueId value)
+Lowering::TypeRef Lowering::NominalType(const MarmotExpression& expression, MarmotIRValueId value)
 {
 	const TypeRef type = TypeOf(expression);
 	return !IsNever(type) && GenericTypes::IsConcrete(type) ? type : Scope().m_function.TypeOf(value);
 }
 
-MidoriIRBlockId Lowering::NewBlock()
+MarmotIRBlockId Lowering::NewBlock()
 {
 	Scope().m_live_blocks.push_back(false);
 	return Builder().CreateBlock();
@@ -243,12 +243,12 @@ bool Lowering::IsDead()
 	return !Scope().m_live_blocks[Builder().CurrentBlock().m_index];
 }
 
-void Lowering::PositionAt(MidoriIRBlockId block)
+void Lowering::PositionAt(MarmotIRBlockId block)
 {
 	Builder().PositionAt(block);
 }
 
-void Lowering::Jump(MidoriIRBlockId target, std::vector<MidoriIRValueId> arguments)
+void Lowering::Jump(MarmotIRBlockId target, std::vector<MarmotIRValueId> arguments)
 {
 	if (!IsDead())
 	{
@@ -257,7 +257,7 @@ void Lowering::Jump(MidoriIRBlockId target, std::vector<MidoriIRValueId> argumen
 	Builder().Jump(target, std::move(arguments));
 }
 
-void Lowering::Branch(MidoriIRValueId condition, MidoriIRSuccessor if_true, MidoriIRSuccessor if_false)
+void Lowering::Branch(MarmotIRValueId condition, MarmotIRSuccessor if_true, MarmotIRSuccessor if_false)
 {
 	if (!IsDead())
 	{
@@ -267,9 +267,9 @@ void Lowering::Branch(MidoriIRValueId condition, MidoriIRSuccessor if_true, Mido
 	Builder().Branch(condition, std::move(if_true), std::move(if_false));
 }
 
-MidoriIRValueId Lowering::Placeholder(const TypeRef& type)
+MarmotIRValueId Lowering::Placeholder(const TypeRef& type)
 {
-	return Builder().Emit(MidoriIROp::Const, type);
+	return Builder().Emit(MarmotIROp::Const, type);
 }
 
 void Lowering::AfterNever()
@@ -279,14 +279,14 @@ void Lowering::AfterNever()
 }
 
 // A body may name a top-level definition that comes after it, so every one has
-// its global, every function its MidoriIR function, every generic its template
+// its global, every function its MarmotIR function, every generic its template
 // and every class and instance its entry before any body is lowered.
 // Every name is reserved even after one fails, so each declaration the module
 // cannot lower is reported, not only the first.
 std::vector<CompilerError> Lowering::ReserveTopLevelNames()
 {
 	std::vector<CompilerError> errors;
-	for (std::unique_ptr<MidoriStatement>& statement : m_program)
+	for (std::unique_ptr<MarmotStatement>& statement : m_program)
 	{
 		Emitted reserved = ReserveTopLevelName(*statement);
 		if (!reserved.has_value())
@@ -297,13 +297,13 @@ std::vector<CompilerError> Lowering::ReserveTopLevelNames()
 	return errors;
 }
 
-Lowering::Emitted Lowering::ReserveTopLevelName(MidoriStatement& statement)
+Lowering::Emitted Lowering::ReserveTopLevelName(MarmotStatement& statement)
 {
 	struct Reserver
 	{
 		Lowering& m_self;
 
-		Emitted operator()(MidoriStatement::VariableDefinition& definition) const
+		Emitted operator()(MarmotStatement::VariableDefinition& definition) const
 		{
 			if (definition.m_is_elided)
 			{
@@ -311,13 +311,13 @@ Lowering::Emitted Lowering::ReserveTopLevelName(MidoriStatement& statement)
 			}
 
 			const std::string& name = definition.m_name.m_lexeme;
-			if (!definition.m_value->IsExpression<MidoriExpression::Function>())
+			if (!definition.m_value->IsExpression<MarmotExpression::Function>())
 			{
 				m_self.m_top_level_names.emplace(name, TopLevelName{ m_self.m_module.ReserveGlobal(name, definition.m_value->GetType()), std::nullopt });
 				return {};
 			}
 
-			MidoriExpression::Function& function = definition.m_value->GetExpression<MidoriExpression::Function>();
+			MarmotExpression::Function& function = definition.m_value->GetExpression<MarmotExpression::Function>();
 			if (!function.m_generic_params.empty())
 			{
 				m_self.RegisterGeneric(name, function.m_params, function.m_param_types, function.m_generic_params, function.m_constraints, function.m_return_type, function.m_body, function.m_captured_count);
@@ -326,9 +326,9 @@ Lowering::Emitted Lowering::ReserveTopLevelName(MidoriStatement& statement)
 			return m_self.ReserveFunction(name, ClosureType(definition.m_value->GetType()));
 		}
 
-		Emitted operator()(MidoriStatement::TupleDefinition& definition) const
+		Emitted operator()(MarmotStatement::TupleDefinition& definition) const
 		{
-			const std::vector<TypeRef>& element_types = GenericTypes::RepresentationOf(definition.m_value->GetType())->GetType<MidoriType::TupleType>().m_element_types;
+			const std::vector<TypeRef>& element_types = GenericTypes::RepresentationOf(definition.m_value->GetType())->GetType<MarmotType::TupleType>().m_element_types;
 			for (size_t index = 0u; index < definition.m_names.size(); index += 1u)
 			{
 				const std::string& name = definition.m_names[index].m_lexeme;
@@ -337,17 +337,17 @@ Lowering::Emitted Lowering::ReserveTopLevelName(MidoriStatement& statement)
 			return {};
 		}
 
-		Emitted operator()(MidoriStatement::FunctionDefinition& definition) const
+		Emitted operator()(MarmotStatement::FunctionDefinition& definition) const
 		{
 			if (!definition.m_generic_params.empty())
 			{
 				m_self.RegisterGeneric(definition.m_name.m_lexeme, definition.m_params, definition.m_param_types, definition.m_generic_params, definition.m_constraints, definition.m_return_type, definition.m_body, definition.m_captured_count);
 				return {};
 			}
-			return m_self.ReserveFunction(definition.m_name.m_lexeme, MidoriType::MakeFunctionType(definition.m_param_types, TypeRef(definition.m_return_type)));
+			return m_self.ReserveFunction(definition.m_name.m_lexeme, MarmotType::MakeFunctionType(definition.m_param_types, TypeRef(definition.m_return_type)));
 		}
 
-		Emitted operator()(MidoriStatement::ForeignDefinition& foreign) const
+		Emitted operator()(MarmotStatement::ForeignDefinition& foreign) const
 		{
 			if (foreign.DeclaredPrimitive().has_value())
 			{
@@ -356,11 +356,11 @@ Lowering::Emitted Lowering::ReserveTopLevelName(MidoriStatement& statement)
 			return m_self.ReserveForeign(foreign);
 		}
 
-		Emitted operator()(MidoriStatement::Class& class_statement) const
+		Emitted operator()(MarmotStatement::Class& class_statement) const
 		{
 			std::unordered_set<std::string> method_names = class_statement.m_methods
-				| std::views::filter([](const std::unique_ptr<MidoriStatement>& method) { return method->IsStatement<MidoriStatement::FunctionDefinition>(); })
-				| std::views::transform([](const std::unique_ptr<MidoriStatement>& method) { return method->GetStatement<MidoriStatement::FunctionDefinition>().m_name.m_lexeme; })
+				| std::views::filter([](const std::unique_ptr<MarmotStatement>& method) { return method->IsStatement<MarmotStatement::FunctionDefinition>(); })
+				| std::views::transform([](const std::unique_ptr<MarmotStatement>& method) { return method->GetStatement<MarmotStatement::FunctionDefinition>().m_name.m_lexeme; })
 				| std::ranges::to<std::unordered_set<std::string>>();
 			m_self.m_resolver.AddClass(class_statement.m_name.m_lexeme, std::move(method_names));
 			return {};
@@ -368,20 +368,20 @@ Lowering::Emitted Lowering::ReserveTopLevelName(MidoriStatement& statement)
 
 		// A method of an instance over a generic head is a generic, specialized
 		// where it is called; any other is an ordinary function.
-		Emitted operator()(MidoriStatement::Instance& instance) const
+		Emitted operator()(MarmotStatement::Instance& instance) const
 		{
 			m_self.m_resolver.AddInstanceTypeArgs(instance.m_class_name.m_lexeme, instance.m_type_args);
 			m_self.m_resolver.AddAssociatedTypes(instance.m_class_name.m_lexeme, instance.m_type_args, instance.m_associated_types
-				| std::views::transform([](const MidoriStatement::Instance::AssociatedTypeBinding& binding) { return std::pair{ binding.m_name.m_lexeme, binding.m_type }; })
+				| std::views::transform([](const MarmotStatement::Instance::AssociatedTypeBinding& binding) { return std::pair{ binding.m_name.m_lexeme, binding.m_type }; })
 				| std::ranges::to<InstanceResolver::AssociatedTypeBindings>());
-			for (std::unique_ptr<MidoriStatement>& statement : instance.m_methods)
+			for (std::unique_ptr<MarmotStatement>& statement : instance.m_methods)
 			{
-				if (!statement->IsStatement<MidoriStatement::FunctionDefinition>())
+				if (!statement->IsStatement<MarmotStatement::FunctionDefinition>())
 				{
 					continue;
 				}
 
-				MidoriStatement::FunctionDefinition& method = statement->GetStatement<MidoriStatement::FunctionDefinition>();
+				MarmotStatement::FunctionDefinition& method = statement->GetStatement<MarmotStatement::FunctionDefinition>();
 				m_self.m_resolver.AddInstanceMethod(instance.m_class_name.m_lexeme, method.m_name.m_lexeme);
 				if (m_self.IsGenericMethod(instance, method))
 				{
@@ -389,7 +389,7 @@ Lowering::Emitted Lowering::ReserveTopLevelName(MidoriStatement& statement)
 					continue;
 				}
 
-				const Emitted reserved = m_self.ReserveFunction(method.m_name.m_lexeme, MidoriType::MakeFunctionType(method.m_param_types, TypeRef(method.m_return_type)));
+				const Emitted reserved = m_self.ReserveFunction(method.m_name.m_lexeme, MarmotType::MakeFunctionType(method.m_param_types, TypeRef(method.m_return_type)));
 				if (!reserved.has_value())
 				{
 					return reserved;
@@ -398,22 +398,22 @@ Lowering::Emitted Lowering::ReserveTopLevelName(MidoriStatement& statement)
 			return {};
 		}
 
-		Emitted operator()(MidoriStatement::ExpressionStatement&) const
+		Emitted operator()(MarmotStatement::ExpressionStatement&) const
 		{
 			return {};
 		}
 
-		Emitted operator()(MidoriStatement::Struct&) const
+		Emitted operator()(MarmotStatement::Struct&) const
 		{
 			return {};
 		}
 
-		Emitted operator()(MidoriStatement::Union&) const
+		Emitted operator()(MarmotStatement::Union&) const
 		{
 			return {};
 		}
 
-		Emitted operator()(MidoriStatement::TypeAlias&) const
+		Emitted operator()(MarmotStatement::TypeAlias&) const
 		{
 			return {};
 		}
@@ -424,14 +424,14 @@ Lowering::Emitted Lowering::ReserveTopLevelName(MidoriStatement& statement)
 
 Lowering::Emitted Lowering::ReserveFunction(const std::string& name, const TypeRef& closure_type)
 {
-	const MidoriIRFunctionId function = NewFunction(name, closure_type->GetType<MidoriType::FunctionType>().m_return_type, m_specializations.front());
+	const MarmotIRFunctionId function = NewFunction(name, closure_type->GetType<MarmotType::FunctionType>().m_return_type, m_specializations.front());
 	m_top_level_names.emplace(name, TopLevelName{ m_module.ReserveGlobal(name, closure_type), function });
 	return {};
 }
 
 // A foreign function's global holds the name the VM looks it up by, which is
 // how another module calls it.
-Lowering::Emitted Lowering::ReserveForeign(const MidoriStatement::ForeignDefinition& foreign)
+Lowering::Emitted Lowering::ReserveForeign(const MarmotStatement::ForeignDefinition& foreign)
 {
 	return ForeignName(foreign)
 		.transform([this, &foreign](const std::string&)
@@ -444,11 +444,11 @@ Lowering::Emitted Lowering::ReserveForeign(const MidoriStatement::ForeignDefinit
 // A builtin's own name, or its library's and its symbol's. A builtin is also
 // recorded by the name the module declares it as, so a call of it is one by
 // index.
-std::expected<std::string, CompilerError> Lowering::ForeignName(const MidoriStatement::ForeignDefinition& foreign)
+std::expected<std::string, CompilerError> Lowering::ForeignName(const MarmotStatement::ForeignDefinition& foreign)
 {
 	const Token& name = foreign.m_function_name;
-	const TypeRef& return_type = foreign.m_type->GetType<MidoriType::FunctionType>().m_return_type;
-	const bool is_supported_return = return_type->IsType<MidoriType::IntegerType>() || return_type->IsType<MidoriType::FloatType>() || return_type->IsType<MidoriType::BoolType>() || return_type->IsType<MidoriType::UnitType>() || return_type->IsType<MidoriType::TextType>() || return_type->IsType<MidoriType::ArrayType>() || return_type->IsType<MidoriType::ByteType>() || return_type->IsType<MidoriType::WordType>();
+	const TypeRef& return_type = foreign.m_type->GetType<MarmotType::FunctionType>().m_return_type;
+	const bool is_supported_return = return_type->IsType<MarmotType::IntegerType>() || return_type->IsType<MarmotType::FloatType>() || return_type->IsType<MarmotType::BoolType>() || return_type->IsType<MarmotType::UnitType>() || return_type->IsType<MarmotType::TextType>() || return_type->IsType<MarmotType::ArrayType>() || return_type->IsType<MarmotType::ByteType>() || return_type->IsType<MarmotType::WordType>();
 	if (!is_supported_return)
 	{
 		return std::unexpected(Error(CompilerErrorCode::LoweringUnsupportedConstruct, "Unsupported return type for foreign function", name));
@@ -457,10 +457,10 @@ std::expected<std::string, CompilerError> Lowering::ForeignName(const MidoriStat
 	// Native code builds an array out of bits, so it can return one of texts or of
 	// scalars; one of other objects would hand the VM bits to take as pointers. A
 	// builtin can return any array, since it copies the VM's own values.
-	if (foreign.m_library.has_value() && return_type->IsType<MidoriType::ArrayType>())
+	if (foreign.m_library.has_value() && return_type->IsType<MarmotType::ArrayType>())
 	{
-		const TypeRef& element = return_type->GetType<MidoriType::ArrayType>().m_element_type;
-		if (!element->IsType<MidoriType::TextType>() && GenericTypes::IsPointer(element))
+		const TypeRef& element = return_type->GetType<MarmotType::ArrayType>().m_element_type;
+		if (!element->IsType<MarmotType::TextType>() && GenericTypes::IsPointer(element))
 		{
 			return std::unexpected(Error(CompilerErrorCode::LoweringUnsupportedConstruct, std::format("A native function cannot return {}: native code can return an array of Text or of scalars, not of other values", return_type->DisplayString()), name));
 		}
@@ -483,15 +483,15 @@ std::expected<std::string, CompilerError> Lowering::ForeignName(const MidoriStat
 
 // A generic's body moves out of this module's AST into its template, which the
 // modules that import it specialize too.
-void Lowering::RegisterGeneric(const std::string& name, const std::vector<Token>& params, const std::vector<TypeRef>& param_types, const std::vector<Token>& generic_params, const std::vector<MidoriType::ClassConstraint>& constraints, const TypeRef& return_type, std::unique_ptr<MidoriExpression>& body, int captured_count)
+void Lowering::RegisterGeneric(const std::string& name, const std::vector<Token>& params, const std::vector<TypeRef>& param_types, const std::vector<Token>& generic_params, const std::vector<MarmotType::ClassConstraint>& constraints, const TypeRef& return_type, std::unique_ptr<MarmotExpression>& body, int captured_count)
 {
-	m_generics.Add(name, GenericFunctionInfo(name, params, param_types, generic_params, constraints, return_type, std::shared_ptr<MidoriExpression>(std::move(body)), captured_count, m_module_name, m_foreign_indices));
+	m_generics.Add(name, GenericFunctionInfo(name, params, param_types, generic_params, constraints, return_type, std::shared_ptr<MarmotExpression>(std::move(body)), captured_count, m_module_name, m_foreign_indices));
 }
 
-// Every value in MidoriIR has one type, so a method of an instance whose head
+// Every value in MarmotIR has one type, so a method of an instance whose head
 // names a type parameter, `instance Indexable<Array<T>, Int>`, is specialized
 // for each set of argument types it is called with, as a generic is.
-bool Lowering::IsGenericMethod(const MidoriStatement::Instance& instance, const MidoriStatement::FunctionDefinition& method) const
+bool Lowering::IsGenericMethod(const MarmotStatement::Instance& instance, const MarmotStatement::FunctionDefinition& method) const
 {
 	return !method.m_generic_params.empty() || GenericTypes::IsGenericInstanceHead(instance.m_type_args);
 }
@@ -506,65 +506,65 @@ std::vector<LoweredExport> Lowering::CollectExports() const
 			return;
 		}
 		const std::unordered_map<std::string, TopLevelName>::const_iterator name = m_top_level_names.find(token.m_lexeme);
-		const std::optional<MidoriIRGlobalSlot> slot = name == m_top_level_names.cend() ? std::nullopt : std::optional<MidoriIRGlobalSlot>(name->second.m_slot);
-		const std::optional<MidoriIRFunctionId> function = name == m_top_level_names.cend() ? std::nullopt : name->second.m_function;
+		const std::optional<MarmotIRGlobalSlot> slot = name == m_top_level_names.cend() ? std::nullopt : std::optional<MarmotIRGlobalSlot>(name->second.m_slot);
+		const std::optional<MarmotIRFunctionId> function = name == m_top_level_names.cend() ? std::nullopt : name->second.m_function;
 		exports.emplace_back(token.m_lexeme, kind, slot, function, token);
 	};
 
-	for (const std::unique_ptr<MidoriStatement>& statement : m_program)
+	for (const std::unique_ptr<MarmotStatement>& statement : m_program)
 	{
-		if (statement->IsStatement<MidoriStatement::VariableDefinition>())
+		if (statement->IsStatement<MarmotStatement::VariableDefinition>())
 		{
-			export_name(statement->GetStatement<MidoriStatement::VariableDefinition>().m_name, BytecodeModule::SymbolType::GLOBAL_VARIABLE);
+			export_name(statement->GetStatement<MarmotStatement::VariableDefinition>().m_name, BytecodeModule::SymbolType::GLOBAL_VARIABLE);
 		}
-		else if (statement->IsStatement<MidoriStatement::ForeignDefinition>() && !statement->GetStatement<MidoriStatement::ForeignDefinition>().DeclaredPrimitive().has_value())
+		else if (statement->IsStatement<MarmotStatement::ForeignDefinition>() && !statement->GetStatement<MarmotStatement::ForeignDefinition>().DeclaredPrimitive().has_value())
 		{
-			export_name(statement->GetStatement<MidoriStatement::ForeignDefinition>().m_function_name, BytecodeModule::SymbolType::FOREIGN_FUNCTION);
+			export_name(statement->GetStatement<MarmotStatement::ForeignDefinition>().m_function_name, BytecodeModule::SymbolType::FOREIGN_FUNCTION);
 		}
-		else if (statement->IsStatement<MidoriStatement::FunctionDefinition>())
+		else if (statement->IsStatement<MarmotStatement::FunctionDefinition>())
 		{
-			export_name(statement->GetStatement<MidoriStatement::FunctionDefinition>().m_name, BytecodeModule::SymbolType::FUNCTION);
+			export_name(statement->GetStatement<MarmotStatement::FunctionDefinition>().m_name, BytecodeModule::SymbolType::FUNCTION);
 		}
-		else if (statement->IsStatement<MidoriStatement::Instance>())
+		else if (statement->IsStatement<MarmotStatement::Instance>())
 		{
-			for (const std::unique_ptr<MidoriStatement>& method : statement->GetStatement<MidoriStatement::Instance>().m_methods)
+			for (const std::unique_ptr<MarmotStatement>& method : statement->GetStatement<MarmotStatement::Instance>().m_methods)
 			{
-				if (method->IsStatement<MidoriStatement::FunctionDefinition>())
+				if (method->IsStatement<MarmotStatement::FunctionDefinition>())
 				{
-					export_name(method->GetStatement<MidoriStatement::FunctionDefinition>().m_name, BytecodeModule::SymbolType::FUNCTION);
+					export_name(method->GetStatement<MarmotStatement::FunctionDefinition>().m_name, BytecodeModule::SymbolType::FUNCTION);
 				}
 			}
 		}
-		else if (statement->IsStatement<MidoriStatement::Struct>())
+		else if (statement->IsStatement<MarmotStatement::Struct>())
 		{
-			export_name(statement->GetStatement<MidoriStatement::Struct>().m_name, BytecodeModule::SymbolType::STRUCT_TYPE);
+			export_name(statement->GetStatement<MarmotStatement::Struct>().m_name, BytecodeModule::SymbolType::STRUCT_TYPE);
 		}
-		else if (statement->IsStatement<MidoriStatement::Union>())
+		else if (statement->IsStatement<MarmotStatement::Union>())
 		{
-			export_name(statement->GetStatement<MidoriStatement::Union>().m_name, BytecodeModule::SymbolType::UNION_TYPE);
+			export_name(statement->GetStatement<MarmotStatement::Union>().m_name, BytecodeModule::SymbolType::UNION_TYPE);
 		}
 	}
 	return exports;
 }
 
-Lowering::Emitted Lowering::LowerTopLevelStatement(MidoriStatement& statement)
+Lowering::Emitted Lowering::LowerTopLevelStatement(MarmotStatement& statement)
 {
-	if (statement.IsStatement<MidoriStatement::ForeignDefinition>())
+	if (statement.IsStatement<MarmotStatement::ForeignDefinition>())
 	{
-		const MidoriStatement::ForeignDefinition& foreign = statement.GetStatement<MidoriStatement::ForeignDefinition>();
+		const MarmotStatement::ForeignDefinition& foreign = statement.GetStatement<MarmotStatement::ForeignDefinition>();
 		if (foreign.DeclaredPrimitive().has_value())
 		{
 			return {};
 		}
 		const std::string value = foreign.m_library.has_value() ? foreign.m_library.value() + NATIVE_SYMBOL_SEPARATOR + foreign.m_foreign_name : foreign.m_foreign_name;
 		Builder().AtLine(foreign.m_function_name.m_line);
-		Builder().Emit(MidoriIROp::GlobalDefine, UnitType(), { Builder().ConstText(value) }, m_top_level_names.at(foreign.m_function_name.m_lexeme).m_slot);
+		Builder().Emit(MarmotIROp::GlobalDefine, UnitType(), { Builder().ConstText(value) }, m_top_level_names.at(foreign.m_function_name.m_lexeme).m_slot);
 		return {};
 	}
 
-	if (statement.IsStatement<MidoriStatement::FunctionDefinition>())
+	if (statement.IsStatement<MarmotStatement::FunctionDefinition>())
 	{
-		MidoriStatement::FunctionDefinition& definition = statement.GetStatement<MidoriStatement::FunctionDefinition>();
+		MarmotStatement::FunctionDefinition& definition = statement.GetStatement<MarmotStatement::FunctionDefinition>();
 		if (!definition.m_generic_params.empty())
 		{
 			return {};
@@ -572,16 +572,16 @@ Lowering::Emitted Lowering::LowerTopLevelStatement(MidoriStatement& statement)
 		return LowerTopLevelFunction(definition.m_name.m_lexeme, definition.m_params, *definition.m_body, definition.m_name.m_line);
 	}
 
-	if (statement.IsStatement<MidoriStatement::Instance>())
+	if (statement.IsStatement<MarmotStatement::Instance>())
 	{
-		MidoriStatement::Instance& instance = statement.GetStatement<MidoriStatement::Instance>();
-		for (std::unique_ptr<MidoriStatement>& method_statement : instance.m_methods)
+		MarmotStatement::Instance& instance = statement.GetStatement<MarmotStatement::Instance>();
+		for (std::unique_ptr<MarmotStatement>& method_statement : instance.m_methods)
 		{
-			if (!method_statement->IsStatement<MidoriStatement::FunctionDefinition>())
+			if (!method_statement->IsStatement<MarmotStatement::FunctionDefinition>())
 			{
 				continue;
 			}
-			MidoriStatement::FunctionDefinition& method = method_statement->GetStatement<MidoriStatement::FunctionDefinition>();
+			MarmotStatement::FunctionDefinition& method = method_statement->GetStatement<MarmotStatement::FunctionDefinition>();
 			if (IsGenericMethod(instance, method))
 			{
 				continue;
@@ -595,22 +595,22 @@ Lowering::Emitted Lowering::LowerTopLevelStatement(MidoriStatement& statement)
 		return {};
 	}
 
-	if (statement.IsStatement<MidoriStatement::Class>())
+	if (statement.IsStatement<MarmotStatement::Class>())
 	{
 		return {};
 	}
 
-	if (statement.IsStatement<MidoriStatement::TupleDefinition>())
+	if (statement.IsStatement<MarmotStatement::TupleDefinition>())
 	{
-		return LowerTupleDefinition(statement.GetStatement<MidoriStatement::TupleDefinition>());
+		return LowerTupleDefinition(statement.GetStatement<MarmotStatement::TupleDefinition>());
 	}
 
-	if (!statement.IsStatement<MidoriStatement::VariableDefinition>())
+	if (!statement.IsStatement<MarmotStatement::VariableDefinition>())
 	{
 		return LowerStatement(statement);
 	}
 
-	MidoriStatement::VariableDefinition& definition = statement.GetStatement<MidoriStatement::VariableDefinition>();
+	MarmotStatement::VariableDefinition& definition = statement.GetStatement<MarmotStatement::VariableDefinition>();
 	if (definition.m_is_elided)
 	{
 		return {};
@@ -625,59 +625,59 @@ Lowering::Emitted Lowering::LowerTopLevelStatement(MidoriStatement& statement)
 	const int line = definition.m_name.m_line;
 	if (name->second.m_function.has_value())
 	{
-		MidoriExpression::Function& function = definition.m_value->GetExpression<MidoriExpression::Function>();
+		MarmotExpression::Function& function = definition.m_value->GetExpression<MarmotExpression::Function>();
 		return LowerTopLevelFunction(definition.m_name.m_lexeme, function.m_params, *function.m_body, line);
 	}
 
-	const MidoriIRGlobalSlot slot = name->second.m_slot;
+	const MarmotIRGlobalSlot slot = name->second.m_slot;
 	return Lower(*definition.m_value)
-		.transform([this, slot, line](MidoriIRValueId value)
+		.transform([this, slot, line](MarmotIRValueId value)
 		{
-			Builder().AtLine(line).Emit(MidoriIROp::GlobalDefine, UnitType(), { value }, slot);
+			Builder().AtLine(line).Emit(MarmotIROp::GlobalDefine, UnitType(), { value }, slot);
 		});
 }
 
-Lowering::Emitted Lowering::LowerTopLevelFunction(const std::string& name, const std::vector<Token>& params, MidoriExpression& body, int line)
+Lowering::Emitted Lowering::LowerTopLevelFunction(const std::string& name, const std::vector<Token>& params, MarmotExpression& body, int line)
 {
 	const TopLevelName& top_level_name = m_top_level_names.at(name);
 	const TypeRef closure_type = m_module.m_globals[top_level_name.m_slot.m_value].m_type;
-	const MidoriIRFunctionId id = top_level_name.m_function.value();
+	const MarmotIRFunctionId id = top_level_name.m_function.value();
 	FunctionScope scope(id, m_functions[id.m_index], m_specializations.front(), &Scope(), 0);
-	return LowerFunctionBody(scope, closure_type->GetType<MidoriType::FunctionType>().m_param_types, params, body)
+	return LowerFunctionBody(scope, closure_type->GetType<MarmotType::FunctionType>().m_param_types, params, body)
 		.and_then([&]() { return MakeClosure(scope, closure_type, line, name); })
-		.transform([this, &top_level_name, line](MidoriIRValueId closure)
+		.transform([this, &top_level_name, line](MarmotIRValueId closure)
 		{
-			Builder().AtLine(line).Emit(MidoriIROp::GlobalDefine, UnitType(), { closure }, top_level_name.m_slot);
+			Builder().AtLine(line).Emit(MarmotIROp::GlobalDefine, UnitType(), { closure }, top_level_name.m_slot);
 		});
 }
 
-Lowering::Emitted Lowering::LowerStatement(MidoriStatement& statement)
+Lowering::Emitted Lowering::LowerStatement(MarmotStatement& statement)
 {
 	struct StatementLowering
 	{
 		Lowering& m_self;
 
-		Emitted operator()(MidoriStatement::ExpressionStatement& expression_statement) const
+		Emitted operator()(MarmotStatement::ExpressionStatement& expression_statement) const
 		{
-			return m_self.Lower(*expression_statement.m_expr).transform([](MidoriIRValueId) {});
+			return m_self.Lower(*expression_statement.m_expr).transform([](MarmotIRValueId) {});
 		}
 
-		Emitted operator()(MidoriStatement::VariableDefinition& definition) const
+		Emitted operator()(MarmotStatement::VariableDefinition& definition) const
 		{
 			return m_self.LowerLocalDefinition(definition);
 		}
 
-		Emitted operator()(MidoriStatement::TupleDefinition& definition) const
+		Emitted operator()(MarmotStatement::TupleDefinition& definition) const
 		{
 			return m_self.LowerTupleDefinition(definition);
 		}
 
-		Emitted operator()(MidoriStatement::FunctionDefinition& definition) const
+		Emitted operator()(MarmotStatement::FunctionDefinition& definition) const
 		{
 			return std::unexpected(m_self.Unsupported("a local function definition", definition.m_name));
 		}
 
-		Emitted operator()(MidoriStatement::ForeignDefinition& foreign) const
+		Emitted operator()(MarmotStatement::ForeignDefinition& foreign) const
 		{
 			if (foreign.DeclaredPrimitive().has_value())
 			{
@@ -691,27 +691,27 @@ Lowering::Emitted Lowering::LowerStatement(MidoriStatement& statement)
 		}
 
 		// Only at the top level.
-		Emitted operator()(MidoriStatement::Class&) const
+		Emitted operator()(MarmotStatement::Class&) const
 		{
 			std::unreachable();
 		}
 
-		Emitted operator()(MidoriStatement::Instance&) const
+		Emitted operator()(MarmotStatement::Instance&) const
 		{
 			std::unreachable();
 		}
 
-		Emitted operator()(MidoriStatement::Struct&) const
+		Emitted operator()(MarmotStatement::Struct&) const
 		{
 			return {};
 		}
 
-		Emitted operator()(MidoriStatement::Union&) const
+		Emitted operator()(MarmotStatement::Union&) const
 		{
 			return {};
 		}
 
-		Emitted operator()(MidoriStatement::TypeAlias&) const
+		Emitted operator()(MarmotStatement::TypeAlias&) const
 		{
 			return {};
 		}
@@ -720,7 +720,7 @@ Lowering::Emitted Lowering::LowerStatement(MidoriStatement& statement)
 	return VisitNode(StatementLowering{ *this }, statement);
 }
 
-Lowering::Emitted Lowering::LowerLocalDefinition(MidoriStatement::VariableDefinition& definition)
+Lowering::Emitted Lowering::LowerLocalDefinition(MarmotStatement::VariableDefinition& definition)
 {
 	if (definition.m_is_elided)
 	{
@@ -728,14 +728,14 @@ Lowering::Emitted Lowering::LowerLocalDefinition(MidoriStatement::VariableDefini
 	}
 
 	const int local_index = definition.m_local_index.value();
-	if (definition.m_value->IsExpression<MidoriExpression::Function>() && !definition.m_value->GetExpression<MidoriExpression::Function>().m_generic_params.empty())
+	if (definition.m_value->IsExpression<MarmotExpression::Function>() && !definition.m_value->GetExpression<MarmotExpression::Function>().m_generic_params.empty())
 	{
-		Scope().m_local_generics.emplace(local_index, &definition.m_value->GetExpression<MidoriExpression::Function>());
+		Scope().m_local_generics.emplace(local_index, &definition.m_value->GetExpression<MarmotExpression::Function>());
 		Scope().m_local_frames.back().push_back(local_index);
 		return {};
 	}
 	return Lower(*definition.m_value)
-		.transform([this, local_index](MidoriIRValueId value)
+		.transform([this, local_index](MarmotIRValueId value)
 		{
 			DefineLocal(local_index, value);
 		});
@@ -743,19 +743,19 @@ Lowering::Emitted Lowering::LowerLocalDefinition(MidoriStatement::VariableDefini
 
 // Each name takes its element of the tuple, as a local or, at the top level,
 // as a global.
-Lowering::Emitted Lowering::LowerTupleDefinition(MidoriStatement::TupleDefinition& definition)
+Lowering::Emitted Lowering::LowerTupleDefinition(MarmotStatement::TupleDefinition& definition)
 {
 	const int line = definition.m_names.front().m_line;
 	return Lower(*definition.m_value)
-		.transform([this, &definition, line](MidoriIRValueId tuple)
+		.transform([this, &definition, line](MarmotIRValueId tuple)
 		{
 			const bool is_dead = IsDead();
 			Builder().AtLine(line);
 			for (size_t index = 0u; index < definition.m_names.size(); index += 1u)
 			{
-				const MidoriIRValueId element = is_dead
+				const MarmotIRValueId element = is_dead
 					? Placeholder(UnitType())
-					: Builder().Emit(MidoriIROp::TupleGet, GenericTypes::RepresentationOf(Scope().m_function.TypeOf(tuple))->GetType<MidoriType::TupleType>().m_element_types[index], { tuple }, MidoriIRIndex{ static_cast<uint32_t>(index) }, definition.m_names[index].m_lexeme);
+					: Builder().Emit(MarmotIROp::TupleGet, GenericTypes::RepresentationOf(Scope().m_function.TypeOf(tuple))->GetType<MarmotType::TupleType>().m_element_types[index], { tuple }, MarmotIRIndex{ static_cast<uint32_t>(index) }, definition.m_names[index].m_lexeme);
 				const std::optional<int>& local_index = definition.m_local_indices[index];
 				if (local_index.has_value())
 				{
@@ -763,7 +763,7 @@ Lowering::Emitted Lowering::LowerTupleDefinition(MidoriStatement::TupleDefinitio
 				}
 				else if (!is_dead)
 				{
-					Builder().Emit(MidoriIROp::GlobalDefine, UnitType(), { element }, m_top_level_names.at(definition.m_names[index].m_lexeme).m_slot);
+					Builder().Emit(MarmotIROp::GlobalDefine, UnitType(), { element }, m_top_level_names.at(definition.m_names[index].m_lexeme).m_slot);
 				}
 			}
 		});
@@ -786,7 +786,7 @@ void Lowering::PopLocalFrame()
 }
 
 // A closure made before this local, which captures it, gets it now.
-void Lowering::DefineLocal(int index, MidoriIRValueId value)
+void Lowering::DefineLocal(int index, MarmotIRValueId value)
 {
 	FunctionScope& scope = Scope();
 	scope.m_locals.insert_or_assign(index, value);
@@ -798,7 +798,7 @@ void Lowering::DefineLocal(int index, MidoriIRValueId value)
 		{
 			return false;
 		}
-		Builder().Emit(MidoriIROp::BindCaptures, UnitType(), { pending.m_closure, value }, MidoriIRIndex{ pending.m_capture });
+		Builder().Emit(MarmotIROp::BindCaptures, UnitType(), { pending.m_closure, value }, MarmotIRIndex{ pending.m_capture });
 		return true;
 	});
 }
@@ -815,7 +815,7 @@ Lowering::LocalKey Lowering::KeyForCell(const FunctionScope& scope, int cell_ind
 
 // A capture is read once, at the top of the function, so its value dominates
 // every use.
-MidoriIRValueId Lowering::CaptureFor(FunctionScope& scope, const LocalKey& key, const TypeRef& type)
+MarmotIRValueId Lowering::CaptureFor(FunctionScope& scope, const LocalKey& key, const TypeRef& type)
 {
 	const std::vector<LocalKey>::const_iterator found = std::ranges::find(scope.m_captures, key);
 	if (found != scope.m_captures.cend())
@@ -824,11 +824,11 @@ MidoriIRValueId Lowering::CaptureFor(FunctionScope& scope, const LocalKey& key, 
 	}
 
 	const uint32_t index = static_cast<uint32_t>(scope.m_captures.size());
-	MidoriIRFunction& function = scope.m_function;
+	MarmotIRFunction& function = scope.m_function;
 	function.m_values.emplace_back(type, std::string());
-	const MidoriIRValueId value{ static_cast<uint32_t>(function.m_values.size() - 1u) };
-	std::vector<MidoriIRInstruction>& entry = function.Block(MidoriIRFunction::s_entry_block).m_instructions;
-	entry.emplace(entry.begin() + index, MidoriIRInstruction(MidoriIROp::GetCapture, value, type, {}, MidoriIRIndex{ index }, {}, 0));
+	const MarmotIRValueId value{ static_cast<uint32_t>(function.m_values.size() - 1u) };
+	std::vector<MarmotIRInstruction>& entry = function.Block(MarmotIRFunction::s_entry_block).m_instructions;
+	entry.emplace(entry.begin() + index, MarmotIRInstruction(MarmotIROp::GetCapture, value, type, {}, MarmotIRIndex{ index }, {}, 0));
 
 	function.m_capture_types.push_back(type);
 	scope.m_captures.push_back(key);
@@ -837,11 +837,11 @@ MidoriIRValueId Lowering::CaptureFor(FunctionScope& scope, const LocalKey& key, 
 }
 
 // Parameters are the parser's first locals, so parameter i is local i.
-Lowering::Emitted Lowering::LowerFunctionBody(FunctionScope& scope, const std::vector<TypeRef>& param_types, const std::vector<Token>& params, MidoriExpression& body)
+Lowering::Emitted Lowering::LowerFunctionBody(FunctionScope& scope, const std::vector<TypeRef>& param_types, const std::vector<Token>& params, MarmotExpression& body)
 {
 	for (size_t index = 0u; index < params.size(); index += 1u)
 	{
-		const MidoriIRValueId parameter = scope.m_builder.AddParameter(MidoriIRFunction::s_entry_block, param_types[index], params[index].m_lexeme);
+		const MarmotIRValueId parameter = scope.m_builder.AddParameter(MarmotIRFunction::s_entry_block, param_types[index], params[index].m_lexeme);
 		scope.m_locals.emplace(static_cast<int>(index), parameter);
 		scope.m_local_frames.back().push_back(static_cast<int>(index));
 	}
@@ -860,7 +860,7 @@ Lowering::Lowered Lowering::MakeClosure(FunctionScope& child, const TypeRef& clo
 	FunctionScope& parent = Scope();
 	std::vector<size_t> order;
 	std::vector<size_t> late;
-	std::vector<MidoriIRValueId> operands;
+	std::vector<MarmotIRValueId> operands;
 	for (size_t index = 0u; index < child.m_captures.size(); index += 1u)
 	{
 		const LocalKey& key = child.m_captures[index];
@@ -871,7 +871,7 @@ Lowering::Lowered Lowering::MakeClosure(FunctionScope& child, const TypeRef& clo
 			continue;
 		}
 
-		const std::unordered_map<int, MidoriIRValueId>::const_iterator local = parent.m_locals.find(key.m_index);
+		const std::unordered_map<int, MarmotIRValueId>::const_iterator local = parent.m_locals.find(key.m_index);
 		if (local == parent.m_locals.cend())
 		{
 			late.push_back(index);
@@ -890,16 +890,16 @@ Lowering::Lowered Lowering::MakeClosure(FunctionScope& child, const TypeRef& clo
 	child.m_function.m_capture_types = order
 		| std::views::transform([&child](size_t index) { return child.m_function.m_capture_types[index]; })
 		| std::ranges::to<std::vector>();
-	for (MidoriIRInstruction& instruction : child.m_function.Block(MidoriIRFunction::s_entry_block).m_instructions)
+	for (MarmotIRInstruction& instruction : child.m_function.Block(MarmotIRFunction::s_entry_block).m_instructions)
 	{
-		if (instruction.m_op == MidoriIROp::GetCapture)
+		if (instruction.m_op == MarmotIROp::GetCapture)
 		{
-			MidoriIRIndex& capture = std::get<MidoriIRIndex>(instruction.m_immediate);
+			MarmotIRIndex& capture = std::get<MarmotIRIndex>(instruction.m_immediate);
 			capture.m_value = position[capture.m_value];
 		}
 	}
 
-	const MidoriIRValueId closure = Builder().AtLine(line).Emit(MidoriIROp::MakeClosure, closure_type, std::move(operands), child.m_id, std::move(name));
+	const MarmotIRValueId closure = Builder().AtLine(line).Emit(MarmotIROp::MakeClosure, closure_type, std::move(operands), child.m_id, std::move(name));
 	for (const size_t index : late)
 	{
 		parent.m_pending_captures.push_back(PendingCapture{ closure, position[index], child.m_captures[index].m_index });
@@ -907,7 +907,7 @@ Lowering::Lowered Lowering::MakeClosure(FunctionScope& child, const TypeRef& clo
 	return closure;
 }
 
-Lowering::Lowered Lowering::LowerFunction(MidoriExpression::Function& function)
+Lowering::Lowered Lowering::LowerFunction(MarmotExpression::Function& function)
 {
 	const int line = function.m_function_keyword.m_line;
 	if (!function.m_generic_params.empty())
@@ -915,8 +915,8 @@ Lowering::Lowered Lowering::LowerFunction(MidoriExpression::Function& function)
 		return LowerGenericLambda(function, Concrete(function.m_type_data), std::format("Anonymous Function at line: {}", line), line);
 	}
 	const TypeRef closure_type = ClosureType(Concrete(function.m_type_data));
-	const MidoriType::FunctionType& signature = closure_type->GetType<MidoriType::FunctionType>();
-	const MidoriIRFunctionId id = NewFunction(std::format("Anonymous Function at line: {}", line), signature.m_return_type, Scope().m_specialization);
+	const MarmotType::FunctionType& signature = closure_type->GetType<MarmotType::FunctionType>();
+	const MarmotIRFunctionId id = NewFunction(std::format("Anonymous Function at line: {}", line), signature.m_return_type, Scope().m_specialization);
 	FunctionScope scope(id, m_functions[id.m_index], Scope().m_specialization, &Scope(), function.m_captured_count);
 	return LowerFunctionBody(scope, signature.m_param_types, function.m_params, *function.m_body)
 		.and_then([&]() { return MakeClosure(scope, closure_type, line); });
@@ -924,9 +924,9 @@ Lowering::Lowered Lowering::LowerFunction(MidoriExpression::Function& function)
 
 // A generic lambda's closure for the types `type` gives its parameters, with
 // the enclosing function's types and the methods its constraints resolve to.
-Lowering::Lowered Lowering::LowerGenericLambda(MidoriExpression::Function& function, const TypeRef& type, std::string name, int line)
+Lowering::Lowered Lowering::LowerGenericLambda(MarmotExpression::Function& function, const TypeRef& type, std::string name, int line)
 {
-	const MidoriType::FunctionType& instance = type->GetType<MidoriType::FunctionType>();
+	const MarmotType::FunctionType& instance = type->GetType<MarmotType::FunctionType>();
 	GenericTypes::TypeEnvironment types = Scope().m_specialization.m_types;
 	GenericTypes::Deduce(function.m_return_type, instance.m_return_type, types);
 	for (size_t index = 0u; index < function.m_param_types.size(); index += 1u)
@@ -942,14 +942,14 @@ Lowering::Lowered Lowering::LowerGenericLambda(MidoriExpression::Function& funct
 	const Specialization& specialization = m_specializations.emplace_back(std::move(types), std::move(methods), Scope().m_specialization.m_source_module, Scope().m_specialization.m_foreign_indices);
 
 	const TypeRef closure_type = ClosureType(type);
-	const MidoriType::FunctionType& signature = closure_type->GetType<MidoriType::FunctionType>();
-	const MidoriIRFunctionId id = NewFunction(std::move(name), signature.m_return_type, specialization);
+	const MarmotType::FunctionType& signature = closure_type->GetType<MarmotType::FunctionType>();
+	const MarmotIRFunctionId id = NewFunction(std::move(name), signature.m_return_type, specialization);
 	FunctionScope scope(id, m_functions[id.m_index], specialization, &Scope(), function.m_captured_count);
 	return LowerFunctionBody(scope, signature.m_param_types, function.m_params, *function.m_body)
 		.and_then([&]() { return MakeClosure(scope, closure_type, line); });
 }
 
-Lowering::Lowered Lowering::LowerLocalGeneric(MidoriExpression::Function& function, const TypeRef& type, const Token& name)
+Lowering::Lowered Lowering::LowerLocalGeneric(MarmotExpression::Function& function, const TypeRef& type, const Token& name)
 {
 	const std::string signature = type->ToString();
 	const std::vector<ActiveGenericLambda>::const_iterator active = std::ranges::find_if(m_active_generic_lambdas, [&function, &signature](const ActiveGenericLambda& lambda)
@@ -966,7 +966,7 @@ Lowering::Lowered Lowering::LowerLocalGeneric(MidoriExpression::Function& functi
 	m_active_generic_lambdas.emplace_back(&function, signature, self);
 	const Lowered closure = LowerGenericLambda(function, type, name.m_lexeme, name.m_line);
 	m_active_generic_lambdas.pop_back();
-	return closure.transform([this, &self](MidoriIRValueId value)
+	return closure.transform([this, &self](MarmotIRValueId value)
 	{
 		DefineLocal(self.m_index, value);
 		return value;
@@ -975,7 +975,7 @@ Lowering::Lowered Lowering::LowerLocalGeneric(MidoriExpression::Function& functi
 
 // One function per generic and set of argument types. Its types come from the
 // arguments', and from the call's where only the result names a type parameter.
-std::expected<MidoriIRFunctionId, CompilerError> Lowering::Specialize(const std::string& key, const std::vector<TypeRef>& argument_types, const TypeRef& call_type)
+std::expected<MarmotIRFunctionId, CompilerError> Lowering::Specialize(const std::string& key, const std::vector<TypeRef>& argument_types, const TypeRef& call_type)
 {
 	const GenericFunctionInfo& info = m_generics.At(key);
 	GenericTypes::TypeEnvironment types;
@@ -985,7 +985,7 @@ std::expected<MidoriIRFunctionId, CompilerError> Lowering::Specialize(const std:
 		GenericTypes::Deduce(info.m_param_types[index], argument_types[index], types);
 	}
 	// `where Iterable::Item<S> ~ A` is what says A, once S is known.
-	for (const MidoriType::ClassConstraint& constraint : info.m_constraints)
+	for (const MarmotType::ClassConstraint& constraint : info.m_constraints)
 	{
 		if (!constraint.IsEquality())
 		{
@@ -1005,12 +1005,12 @@ std::expected<MidoriIRFunctionId, CompilerError> Lowering::Specialize(const std:
 	const TypeRef declared_return = Substitute(info.m_generic_return_type, types);
 	const TypeRef return_type = GenericTypes::IsConcrete(declared_return) ? declared_return : call_type;
 	const std::string cache_key = std::format("{}->{}", signature, return_type->ToString());
-	const std::unordered_map<std::string, MidoriIRFunctionId>::const_iterator existing = m_specialized_functions.find(cache_key);
+	const std::unordered_map<std::string, MarmotIRFunctionId>::const_iterator existing = m_specialized_functions.find(cache_key);
 	if (existing != m_specialized_functions.cend())
 	{
 		return existing->second;
 	}
-	const std::unordered_map<std::string, MidoriIRFunctionId>::const_iterator by_arguments = m_specializations_by_arguments.find(signature);
+	const std::unordered_map<std::string, MarmotIRFunctionId>::const_iterator by_arguments = m_specializations_by_arguments.find(signature);
 	if (!GenericTypes::IsConcrete(return_type) && by_arguments != m_specializations_by_arguments.cend())
 	{
 		return by_arguments->second;
@@ -1022,11 +1022,11 @@ std::expected<MidoriIRFunctionId, CompilerError> Lowering::Specialize(const std:
 	MethodResolutionMap methods = m_resolver.ResolveConstraints(info.m_constraints, types);
 	const Specialization& specialization = m_specializations.emplace_back(std::move(types), std::move(methods), source_module, foreign_indices);
 
-	const MidoriIRFunctionId id = NewFunction(signature, return_type, specialization);
+	const MarmotIRFunctionId id = NewFunction(signature, return_type, specialization);
 	m_specialized_functions.emplace(cache_key, id);
 	m_specializations_by_arguments.emplace(signature, id);
 	FunctionScope scope(id, m_functions[id.m_index], specialization, nullptr, info.m_captured_count);
-	const std::shared_ptr<MidoriExpression> body = info.m_body;
+	const std::shared_ptr<MarmotExpression> body = info.m_body;
 	const std::vector<Token> params = info.m_params;
 	return LowerFunctionBody(scope, argument_types, params, *body)
 		.transform([id]() { return id; });
@@ -1034,7 +1034,7 @@ std::expected<MidoriIRFunctionId, CompilerError> Lowering::Specialize(const std:
 
 bool Lowering::IsForeignFunction(const TypeRef& type) const
 {
-	return type->IsType<MidoriType::FunctionType>() && type->GetType<MidoriType::FunctionType>().m_is_foreign;
+	return type->IsType<MarmotType::FunctionType>() && type->GetType<MarmotType::FunctionType>().m_is_foreign;
 }
 
 // A foreign declaration's global holds its name: this module's, one another
@@ -1043,20 +1043,20 @@ bool Lowering::IsForeignDeclaration(const std::string& name)
 {
 	const std::unordered_map<std::string, TopLevelName>::const_iterator own = m_top_level_names.find(name);
 	const bool is_own = !Scope().m_specialization.m_source_module.has_value() && own != m_top_level_names.cend();
-	return !is_own || m_module.m_globals[own->second.m_slot.m_value].m_type->IsType<MidoriType::TextType>();
+	return !is_own || m_module.m_globals[own->second.m_slot.m_value].m_type->IsType<MarmotType::TextType>();
 }
 
 // A foreign function used as a value is a function that calls it.
 Lowering::Lowered Lowering::LowerForeignValue(const Token& name, const TypeRef& type)
 {
 	const TypeRef closure_type = ClosureType(type);
-	const MidoriType::FunctionType& signature = closure_type->GetType<MidoriType::FunctionType>();
-	const MidoriIRFunctionId id = NewFunction(std::format("foreign {}", name.m_lexeme), signature.m_return_type, Scope().m_specialization);
+	const MarmotType::FunctionType& signature = closure_type->GetType<MarmotType::FunctionType>();
+	const MarmotIRFunctionId id = NewFunction(std::format("foreign {}", name.m_lexeme), signature.m_return_type, Scope().m_specialization);
 	FunctionScope scope(id, m_functions[id.m_index], Scope().m_specialization, &Scope(), 0);
-	std::vector<MidoriIRValueId> arguments;
+	std::vector<MarmotIRValueId> arguments;
 	for (const TypeRef& parameter_type : signature.m_param_types)
 	{
-		arguments.push_back(scope.m_builder.AddParameter(MidoriIRFunction::s_entry_block, parameter_type));
+		arguments.push_back(scope.m_builder.AddParameter(MarmotIRFunction::s_entry_block, parameter_type));
 	}
 
 	m_scopes.push_back(&scope);
@@ -1064,14 +1064,14 @@ Lowering::Lowered Lowering::LowerForeignValue(const Token& name, const TypeRef& 
 	const ForeignIndices::const_iterator builtin = Scope().m_specialization.m_foreign_indices->find(name.m_lexeme);
 	const Emitted lowered = builtin != Scope().m_specialization.m_foreign_indices->cend()
 		? Emitted()
-		: GlobalFor(name, TextType()).transform([this, &arguments](MidoriIRGlobalSlot slot)
+		: GlobalFor(name, TextType()).transform([this, &arguments](MarmotIRGlobalSlot slot)
 		{
-			arguments.insert(arguments.begin(), Builder().Emit(MidoriIROp::GlobalGet, TextType(), {}, slot));
+			arguments.insert(arguments.begin(), Builder().Emit(MarmotIROp::GlobalGet, TextType(), {}, slot));
 		});
 	if (lowered.has_value())
 	{
-		const MidoriIRImmediate foreign = builtin != Scope().m_specialization.m_foreign_indices->cend() ? MidoriIRImmediate(MidoriIRForeign{ std::string(MarmotBuiltins::At(builtin->second)) }) : MidoriIRImmediate();
-		const MidoriIRValueId result = Builder().Emit(MidoriIROp::CallForeign, signature.m_return_type, std::move(arguments), foreign);
+		const MarmotIRImmediate foreign = builtin != Scope().m_specialization.m_foreign_indices->cend() ? MarmotIRImmediate(MarmotIRForeign{ std::string(MarmotBuiltins::At(builtin->second)) }) : MarmotIRImmediate();
+		const MarmotIRValueId result = Builder().Emit(MarmotIROp::CallForeign, signature.m_return_type, std::move(arguments), foreign);
 		Builder().Return(result);
 	}
 	m_scopes.pop_back();
@@ -1082,17 +1082,17 @@ Lowering::Lowered Lowering::LowerForeignValue(const Token& name, const TypeRef& 
 	return MakeClosure(scope, closure_type, name.m_line);
 }
 
-Lowering::Lowered Lowering::LowerName(const MidoriExpression::NameAccess& name)
+Lowering::Lowered Lowering::LowerName(const MarmotExpression::NameAccess& name)
 {
 	const Token& token = name.m_name;
-	const bool is_local = std::holds_alternative<MidoriExpression::NameContext::Local>(name.m_name_ctx);
-	if (is_local || std::holds_alternative<MidoriExpression::NameContext::Cell>(name.m_name_ctx))
+	const bool is_local = std::holds_alternative<MarmotExpression::NameContext::Local>(name.m_name_ctx);
+	if (is_local || std::holds_alternative<MarmotExpression::NameContext::Cell>(name.m_name_ctx))
 	{
 		FunctionScope& scope = Scope();
 		const LocalKey key = is_local
-			? LocalKey{ &scope, std::get<MidoriExpression::NameContext::Local>(name.m_name_ctx).m_index }
-			: KeyForCell(scope, std::get<MidoriExpression::NameContext::Cell>(name.m_name_ctx).m_index);
-		const std::unordered_map<int, MidoriExpression::Function*>::const_iterator generic = key.m_owner->m_local_generics.find(key.m_index);
+			? LocalKey{ &scope, std::get<MarmotExpression::NameContext::Local>(name.m_name_ctx).m_index }
+			: KeyForCell(scope, std::get<MarmotExpression::NameContext::Cell>(name.m_name_ctx).m_index);
+		const std::unordered_map<int, MarmotExpression::Function*>::const_iterator generic = key.m_owner->m_local_generics.find(key.m_index);
 		if (generic != key.m_owner->m_local_generics.cend())
 		{
 			return LowerLocalGeneric(*generic->second, Concrete(name.m_type_data), token);
@@ -1118,11 +1118,11 @@ Lowering::Lowered Lowering::LowerName(const MidoriExpression::NameAccess& name)
 	if (generic_key.has_value())
 	{
 		const TypeRef type = Concrete(name.m_type_data);
-		const MidoriType::FunctionType& instance = type->GetType<MidoriType::FunctionType>();
+		const MarmotType::FunctionType& instance = type->GetType<MarmotType::FunctionType>();
 		return Specialize(generic_key.value(), instance.m_param_types, instance.m_return_type)
-			.transform([this, &type, &token](MidoriIRFunctionId function)
+			.transform([this, &type, &token](MarmotIRFunctionId function)
 			{
-				return Builder().AtLine(token.m_line).Emit(MidoriIROp::MakeClosure, ClosureType(type), {}, function, token.m_lexeme);
+				return Builder().AtLine(token.m_line).Emit(MarmotIROp::MakeClosure, ClosureType(type), {}, function, token.m_lexeme);
 			});
 	}
 	if (IsForeignFunction(name.m_type_data))
@@ -1135,19 +1135,19 @@ Lowering::Lowered Lowering::LowerName(const MidoriExpression::NameAccess& name)
 	}
 
 	return GlobalFor(token, Concrete(name.m_type_data))
-		.transform([this, &token](MidoriIRGlobalSlot slot)
+		.transform([this, &token](MarmotIRGlobalSlot slot)
 		{
-			const MidoriIRGlobal& global = m_module.m_globals[slot.m_value];
-			return Builder().AtLine(token.m_line).Emit(MidoriIROp::GlobalGet, global.m_type, {}, slot, global.m_name);
+			const MarmotIRGlobal& global = m_module.m_globals[slot.m_value];
+			return Builder().AtLine(token.m_line).Emit(MarmotIROp::GlobalGet, global.m_type, {}, slot, global.m_name);
 		});
 }
 
 // A bare name inside a specialization of another module's generic is one of
 // that module's, whatever this module defines.
-std::expected<MidoriIRGlobalSlot, CompilerError> Lowering::GlobalFor(const Token& name, const TypeRef& type)
+std::expected<MarmotIRGlobalSlot, CompilerError> Lowering::GlobalFor(const Token& name, const TypeRef& type)
 {
 	const std::string& lexeme = name.m_lexeme;
-	const TypeRef import_type = type->IsType<MidoriType::FunctionType>() ? ClosureType(type) : type;
+	const TypeRef import_type = type->IsType<MarmotType::FunctionType>() ? ClosureType(type) : type;
 	const size_t separator = lexeme.find(NameSeparator);
 	const std::optional<std::string>& source_module = Scope().m_specialization.m_source_module;
 	if (source_module.has_value() && separator == std::string::npos)
@@ -1169,7 +1169,7 @@ std::expected<MidoriIRGlobalSlot, CompilerError> Lowering::GlobalFor(const Token
 
 // A resolved instance method is `name`, a global of this module, or
 // `name@Module`, one of Module's.
-std::expected<MidoriIRGlobalSlot, CompilerError> Lowering::GlobalForResolved(const std::string& resolved_name, const TypeRef& type, const Token& at)
+std::expected<MarmotIRGlobalSlot, CompilerError> Lowering::GlobalForResolved(const std::string& resolved_name, const TypeRef& type, const Token& at)
 {
 	const ResolvedInstanceName name(resolved_name);
 	if (name.m_module.has_value())
@@ -1189,16 +1189,16 @@ std::expected<MidoriIRGlobalSlot, CompilerError> Lowering::GlobalForResolved(con
 	return own->second.m_slot;
 }
 
-MidoriIRGlobalSlot Lowering::ImportGlobal(const std::string& module, const std::string& symbol, const TypeRef& type, const Token& at)
+MarmotIRGlobalSlot Lowering::ImportGlobal(const std::string& module, const std::string& symbol, const TypeRef& type, const Token& at)
 {
 	const std::string key = module + std::string(NameSeparator) + symbol;
-	const std::unordered_map<std::string, MidoriIRGlobalSlot>::const_iterator imported = m_import_slots.find(key);
+	const std::unordered_map<std::string, MarmotIRGlobalSlot>::const_iterator imported = m_import_slots.find(key);
 	if (imported != m_import_slots.cend())
 	{
 		return imported->second;
 	}
 
-	const MidoriIRGlobalSlot slot = m_module.ReserveImport(module, symbol, type);
+	const MarmotIRGlobalSlot slot = m_module.ReserveImport(module, symbol, type);
 	m_import_slots.emplace(key, slot);
 	m_import_tokens.emplace_back(slot, at);
 	return slot;
@@ -1207,25 +1207,25 @@ MidoriIRGlobalSlot Lowering::ImportGlobal(const std::string& module, const std::
 Lowering::Lowered Lowering::LoadResolved(const std::string& resolved_name, const TypeRef& type, const Token& at)
 {
 	return GlobalForResolved(resolved_name, type, at)
-		.transform([this, &at](MidoriIRGlobalSlot slot)
+		.transform([this, &at](MarmotIRGlobalSlot slot)
 		{
-			const MidoriIRGlobal& global = m_module.m_globals[slot.m_value];
-			return Builder().AtLine(at.m_line).Emit(MidoriIROp::GlobalGet, global.m_type, {}, slot, global.m_name);
+			const MarmotIRGlobal& global = m_module.m_globals[slot.m_value];
+			return Builder().AtLine(at.m_line).Emit(MarmotIROp::GlobalGet, global.m_type, {}, slot, global.m_name);
 		});
 }
 
 // A constrained instance's method is a generic, specialized for these
 // arguments; this module's own is called directly; another module's through
 // its global.
-Lowering::Lowered Lowering::CallResolved(const std::string& resolved_name, std::vector<MidoriIRValueId> arguments, const std::vector<TypeRef>& argument_types, const TypeRef& result_type, const Token& at)
+Lowering::Lowered Lowering::CallResolved(const std::string& resolved_name, std::vector<MarmotIRValueId> arguments, const std::vector<TypeRef>& argument_types, const TypeRef& result_type, const Token& at)
 {
 	const std::optional<std::string> generic_key = m_generics.FindKey(resolved_name, Scope().m_specialization.m_source_module);
 	if (generic_key.has_value())
 	{
 		return Specialize(generic_key.value(), argument_types, result_type)
-			.transform([&](MidoriIRFunctionId function)
+			.transform([&](MarmotIRFunctionId function)
 			{
-				return Builder().AtLine(at.m_line).Emit(MidoriIROp::Call, m_functions[function.m_index].m_return_type, std::move(arguments), function);
+				return Builder().AtLine(at.m_line).Emit(MarmotIROp::Call, m_functions[function.m_index].m_return_type, std::move(arguments), function);
 			});
 	}
 
@@ -1235,34 +1235,34 @@ Lowering::Lowered Lowering::CallResolved(const std::string& resolved_name, std::
 		const std::unordered_map<std::string, TopLevelName>::const_iterator own = m_top_level_names.find(name.m_symbol);
 		if (own != m_top_level_names.cend() && own->second.m_function.has_value())
 		{
-			const MidoriIRFunctionId function = own->second.m_function.value();
-			return Builder().AtLine(at.m_line).Emit(MidoriIROp::Call, m_functions[function.m_index].m_return_type, std::move(arguments), function);
+			const MarmotIRFunctionId function = own->second.m_function.value();
+			return Builder().AtLine(at.m_line).Emit(MarmotIROp::Call, m_functions[function.m_index].m_return_type, std::move(arguments), function);
 		}
 	}
 
-	return GlobalForResolved(resolved_name, MidoriType::MakeFunctionType(argument_types, TypeRef(result_type)), at)
-		.transform([&](MidoriIRGlobalSlot slot)
+	return GlobalForResolved(resolved_name, MarmotType::MakeFunctionType(argument_types, TypeRef(result_type)), at)
+		.transform([&](MarmotIRGlobalSlot slot)
 		{
-			return Builder().AtLine(at.m_line).Emit(MidoriIROp::CallGlobal, result_type, std::move(arguments), slot);
+			return Builder().AtLine(at.m_line).Emit(MarmotIROp::CallGlobal, result_type, std::move(arguments), slot);
 		});
 }
 
 // A primitive is its instruction, whichever module declared it.
-Lowering::Lowered Lowering::LowerPrimitive(MidoriExpression::Call& call)
+Lowering::Lowered Lowering::LowerPrimitive(MarmotExpression::Call& call)
 {
-	const MidoriPrimitive primitive = call.m_primitive.value();
-	if (primitive == MidoriPrimitive::Spawn)
+	const MarmotPrimitive primitive = call.m_primitive.value();
+	if (primitive == MarmotPrimitive::Spawn)
 	{
 		return LowerSpawn(call);
 	}
 
-	std::vector<MidoriExpression*> operands = call.m_arguments
-		| std::views::transform([](std::unique_ptr<MidoriExpression>& argument) { return argument.get(); })
+	std::vector<MarmotExpression*> operands = call.m_arguments
+		| std::views::transform([](std::unique_ptr<MarmotExpression>& argument) { return argument.get(); })
 		| std::ranges::to<std::vector>();
 	return LowerOperation(InstructionOf(primitive), Concrete(call.m_type_data), std::move(operands), {}, call.m_paren.m_line);
 }
 
-Lowering::Lowered Lowering::LowerCall(MidoriExpression::Call& call)
+Lowering::Lowered Lowering::LowerCall(MarmotExpression::Call& call)
 {
 	if (call.m_primitive.has_value())
 	{
@@ -1272,7 +1272,7 @@ Lowering::Lowered Lowering::LowerCall(MidoriExpression::Call& call)
 	const TypeRef call_type = Concrete(call.m_type_data);
 	const int line = call.m_paren.m_line;
 	return LowerArguments(call.m_arguments)
-		.and_then([&](std::vector<MidoriIRValueId> arguments) -> Lowered
+		.and_then([&](std::vector<MarmotIRValueId> arguments) -> Lowered
 		{
 			if (IsDead())
 			{
@@ -1289,12 +1289,12 @@ Lowering::Lowered Lowering::LowerCall(MidoriExpression::Call& call)
 // The language promises that a call in tail position runs without a new
 // frame, whatever it calls. A foreign call has no frame of its own to reuse,
 // and a call whose result is not the function's is not one it can return.
-Lowering::Emitted Lowering::LowerTailCall(MidoriExpression::Call& call)
+Lowering::Emitted Lowering::LowerTailCall(MarmotExpression::Call& call)
 {
 	if (call.m_is_foreign || call.m_primitive.has_value())
 	{
 		return LowerCall(call)
-			.transform([this](MidoriIRValueId value)
+			.transform([this](MarmotIRValueId value)
 			{
 				Builder().Return(value);
 			});
@@ -1303,7 +1303,7 @@ Lowering::Emitted Lowering::LowerTailCall(MidoriExpression::Call& call)
 	const TypeRef call_type = Concrete(call.m_type_data);
 	const int line = call.m_paren.m_line;
 	return LowerArguments(call.m_arguments)
-		.and_then([&](std::vector<MidoriIRValueId> arguments) -> Emitted
+		.and_then([&](std::vector<MarmotIRValueId> arguments) -> Emitted
 		{
 			if (IsDead())
 			{
@@ -1314,7 +1314,7 @@ Lowering::Emitted Lowering::LowerTailCall(MidoriExpression::Call& call)
 				.transform([&](Callee callee)
 				{
 					const TypeRef result_type = ResultTypeOf(callee, call_type);
-					if (!IsNever(result_type) && !MidoriIRSameType(result_type, Scope().m_function.m_return_type))
+					if (!IsNever(result_type) && !MarmotIRSameType(result_type, Scope().m_function.m_return_type))
 					{
 						Builder().Return(EmitCall(callee, std::move(arguments), call_type, line));
 						return;
@@ -1334,15 +1334,15 @@ Lowering::TypeRef Lowering::ResultTypeOf(const Callee& callee, const TypeRef& ca
 {
 	const auto returned_by = [&call_type](const TypeRef& function_type)
 	{
-		return function_type->IsType<MidoriType::FunctionType>() ? function_type->GetType<MidoriType::FunctionType>().m_return_type : call_type;
+		return function_type->IsType<MarmotType::FunctionType>() ? function_type->GetType<MarmotType::FunctionType>().m_return_type : call_type;
 	};
-	if (std::holds_alternative<MidoriIRFunctionId>(callee.m_target))
+	if (std::holds_alternative<MarmotIRFunctionId>(callee.m_target))
 	{
-		return m_functions[std::get<MidoriIRFunctionId>(callee.m_target).m_index].m_return_type;
+		return m_functions[std::get<MarmotIRFunctionId>(callee.m_target).m_index].m_return_type;
 	}
-	if (std::holds_alternative<MidoriIRGlobalSlot>(callee.m_target))
+	if (std::holds_alternative<MarmotIRGlobalSlot>(callee.m_target))
 	{
-		return returned_by(m_module.m_globals[std::get<MidoriIRGlobalSlot>(callee.m_target).m_value].m_type);
+		return returned_by(m_module.m_globals[std::get<MarmotIRGlobalSlot>(callee.m_target).m_value].m_type);
 	}
 	if (callee.m_value.has_value())
 	{
@@ -1351,19 +1351,19 @@ Lowering::TypeRef Lowering::ResultTypeOf(const Callee& callee, const TypeRef& ca
 	return call_type;
 }
 
-MidoriIRValueId Lowering::EmitCall(const Callee& callee, std::vector<MidoriIRValueId> arguments, const TypeRef& call_type, int line)
+MarmotIRValueId Lowering::EmitCall(const Callee& callee, std::vector<MarmotIRValueId> arguments, const TypeRef& call_type, int line)
 {
 	const TypeRef result_type = ResultTypeOf(callee, call_type);
-	const bool is_foreign = std::holds_alternative<MidoriIRForeign>(callee.m_target) || (callee.m_value.has_value() && !Scope().m_function.TypeOf(callee.m_value.value())->IsType<MidoriType::FunctionType>());
+	const bool is_foreign = std::holds_alternative<MarmotIRForeign>(callee.m_target) || (callee.m_value.has_value() && !Scope().m_function.TypeOf(callee.m_value.value())->IsType<MarmotType::FunctionType>());
 	if (callee.m_value.has_value())
 	{
 		arguments.insert(arguments.begin(), callee.m_value.value());
 	}
-	const MidoriIROp op = std::holds_alternative<MidoriIRFunctionId>(callee.m_target) ? MidoriIROp::Call
-		: std::holds_alternative<MidoriIRGlobalSlot>(callee.m_target) ? MidoriIROp::CallGlobal
-		: is_foreign ? MidoriIROp::CallForeign
-		: MidoriIROp::CallValue;
-	const MidoriIRValueId result = Builder().AtLine(line).Emit(op, result_type, std::move(arguments), callee.m_target);
+	const MarmotIROp op = std::holds_alternative<MarmotIRFunctionId>(callee.m_target) ? MarmotIROp::Call
+		: std::holds_alternative<MarmotIRGlobalSlot>(callee.m_target) ? MarmotIROp::CallGlobal
+		: is_foreign ? MarmotIROp::CallForeign
+		: MarmotIROp::CallValue;
+	const MarmotIRValueId result = Builder().AtLine(line).Emit(op, result_type, std::move(arguments), callee.m_target);
 	if (IsNever(result_type))
 	{
 		AfterNever();
@@ -1375,9 +1375,9 @@ MidoriIRValueId Lowering::EmitCall(const Callee& callee, std::vector<MidoriIRVal
 // the name its global holds, the specialization of a generic, the instance
 // method a class method resolves to, this module's function, a global, or the
 // closure its callee evaluates to, after the arguments.
-std::expected<Lowering::Callee, CompilerError> Lowering::ResolveCallee(MidoriExpression::Call& call, const std::vector<MidoriIRValueId>& arguments, const TypeRef& call_type)
+std::expected<Lowering::Callee, CompilerError> Lowering::ResolveCallee(MarmotExpression::Call& call, const std::vector<MarmotIRValueId>& arguments, const TypeRef& call_type)
 {
-	const MidoriExpression::NameAccess* name = GlobalName(*call.m_callee);
+	const MarmotExpression::NameAccess* name = GlobalName(*call.m_callee);
 	const Specialization& specialization = Scope().m_specialization;
 	const Token& paren = call.m_paren;
 
@@ -1386,19 +1386,19 @@ std::expected<Lowering::Callee, CompilerError> Lowering::ResolveCallee(MidoriExp
 	// has a foreign function's type holds the closure that calls one.
 	if (call.m_is_foreign)
 	{
-		const MidoriExpression::NameAccess& foreign = call.m_callee->GetExpression<MidoriExpression::NameAccess>();
+		const MarmotExpression::NameAccess& foreign = call.m_callee->GetExpression<MarmotExpression::NameAccess>();
 		const ForeignIndices::const_iterator builtin = specialization.m_foreign_indices->find(foreign.m_name.m_lexeme);
 		if (builtin != specialization.m_foreign_indices->cend())
 		{
-			return Callee{ MidoriIRForeign{ std::string(MarmotBuiltins::At(builtin->second)) }, std::nullopt };
+			return Callee{ MarmotIRForeign{ std::string(MarmotBuiltins::At(builtin->second)) }, std::nullopt };
 		}
 		if (name != nullptr && IsForeignDeclaration(name->m_name.m_lexeme))
 		{
 			return GlobalFor(name->m_name, TextType())
-				.transform([this, &paren](MidoriIRGlobalSlot slot)
+				.transform([this, &paren](MarmotIRGlobalSlot slot)
 				{
-					const MidoriIRGlobal& global = m_module.m_globals[slot.m_value];
-					return Callee{ std::monostate{}, Builder().AtLine(paren.m_line).Emit(MidoriIROp::GlobalGet, global.m_type, {}, slot, global.m_name) };
+					const MarmotIRGlobal& global = m_module.m_globals[slot.m_value];
+					return Callee{ std::monostate{}, Builder().AtLine(paren.m_line).Emit(MarmotIROp::GlobalGet, global.m_type, {}, slot, global.m_name) };
 				});
 		}
 	}
@@ -1406,7 +1406,7 @@ std::expected<Lowering::Callee, CompilerError> Lowering::ResolveCallee(MidoriExp
 	if (name == nullptr)
 	{
 		return Lower(*call.m_callee)
-			.transform([](MidoriIRValueId closure) { return Callee{ std::monostate{}, closure }; });
+			.transform([](MarmotIRValueId closure) { return Callee{ std::monostate{}, closure }; });
 	}
 
 	const std::string& lexeme = name->m_name.m_lexeme;
@@ -1439,7 +1439,7 @@ std::expected<Lowering::Callee, CompilerError> Lowering::ResolveCallee(MidoriExp
 	if (generic_key.has_value())
 	{
 		return Specialize(generic_key.value(), argument_types, call_type)
-			.transform([](MidoriIRFunctionId function) { return Callee{ function, std::nullopt }; });
+			.transform([](MarmotIRFunctionId function) { return Callee{ function, std::nullopt }; });
 	}
 
 	if (resolved.has_value())
@@ -1450,8 +1450,8 @@ std::expected<Lowering::Callee, CompilerError> Lowering::ResolveCallee(MidoriExp
 		{
 			return Callee{ own->second.m_function.value(), std::nullopt };
 		}
-		return GlobalForResolved(resolved.value(), MidoriType::MakeFunctionType(argument_types, TypeRef(call_type)), paren)
-			.transform([](MidoriIRGlobalSlot slot) { return Callee{ slot, std::nullopt }; });
+		return GlobalForResolved(resolved.value(), MarmotType::MakeFunctionType(argument_types, TypeRef(call_type)), paren)
+			.transform([](MarmotIRGlobalSlot slot) { return Callee{ slot, std::nullopt }; });
 	}
 
 	if (!specialization.m_source_module.has_value())
@@ -1464,14 +1464,14 @@ std::expected<Lowering::Callee, CompilerError> Lowering::ResolveCallee(MidoriExp
 	}
 
 	return GlobalFor(name->m_name, Concrete(name->m_type_data))
-		.transform([](MidoriIRGlobalSlot slot) { return Callee{ slot, std::nullopt }; });
+		.transform([](MarmotIRGlobalSlot slot) { return Callee{ slot, std::nullopt }; });
 }
 
-Lowering::LoweredValues Lowering::LowerArguments(std::vector<std::unique_ptr<MidoriExpression>>& arguments)
+Lowering::LoweredValues Lowering::LowerArguments(std::vector<std::unique_ptr<MarmotExpression>>& arguments)
 {
-	std::vector<MidoriIRValueId> values;
+	std::vector<MarmotIRValueId> values;
 	values.reserve(arguments.size());
-	for (std::unique_ptr<MidoriExpression>& argument : arguments)
+	for (std::unique_ptr<MarmotExpression>& argument : arguments)
 	{
 		const Lowered value = Lower(*argument);
 		if (!value.has_value())
@@ -1483,10 +1483,10 @@ Lowering::LoweredValues Lowering::LowerArguments(std::vector<std::unique_ptr<Mid
 	return values;
 }
 
-std::vector<Lowering::TypeRef> Lowering::TypesOf(const std::vector<MidoriIRValueId>& values)
+std::vector<Lowering::TypeRef> Lowering::TypesOf(const std::vector<MarmotIRValueId>& values)
 {
-	const MidoriIRFunction& function = Scope().m_function;
+	const MarmotIRFunction& function = Scope().m_function;
 	return values
-		| std::views::transform([&function](MidoriIRValueId value) { return function.TypeOf(value); })
+		| std::views::transform([&function](MarmotIRValueId value) { return function.TypeOf(value); })
 		| std::ranges::to<std::vector>();
 }

@@ -3,8 +3,8 @@ public export { Concatenable }
 class Concatenable < T > {
     Concat: fn(left: T, right: T) -> T;
 };
-foreign "MIDORI_FFI_ArrayConcat" ArrayConcat: fn(Array < T >, Array < T >) -> Array < T >;
-foreign "MIDORI_FFI_TextConcat" TextConcat: fn(Text, Text) -> Text;
+foreign "MARMOT_FFI_ArrayConcat" ArrayConcat: fn(Array < T >, Array < T >) -> Array < T >;
+foreign "MARMOT_FFI_TextConcat" TextConcat: fn(Text, Text) -> Text;
 instance Concatenable < Array < T >> {
     def Concat = fn(left: Array < T >, right: Array < T >) -> Array < T > => ArrayConcat(left, right);
 };

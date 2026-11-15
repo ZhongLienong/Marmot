@@ -1,40 +1,40 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "Value/Value.h"
-#include "Interpreter/Allocator/MidoriAllocator.h"
+#include "Interpreter/Allocator/MarmotAllocator.h"
 #include "Interpreter/GarbageCollector/GarbageCollector.h"
 
 namespace
 {
-	MidoriTraceable* AllocateText(MidoriAllocator& allocator, GarbageCollector& gc, const char* content)
+	MarmotTraceable* AllocateText(MarmotAllocator& allocator, GarbageCollector& gc, const char* content)
 	{
-		void* memory = allocator.Allocate(sizeof(MidoriTraceable));
-		MidoriTraceable* traceable = new(memory) MidoriTraceable(MidoriText(content));
+		void* memory = allocator.Allocate(sizeof(MarmotTraceable));
+		MarmotTraceable* traceable = new(memory) MarmotTraceable(MarmotText(content));
 		gc.RegisterObject(traceable);
 		return traceable;
 	}
 
 	// An array of one text, or of none yet when `element` is null.
-	MidoriTraceable* AllocateArrayOf(MidoriAllocator& allocator, GarbageCollector& gc, MidoriTraceable* element)
+	MarmotTraceable* AllocateArrayOf(MarmotAllocator& allocator, GarbageCollector& gc, MarmotTraceable* element)
 	{
-		MidoriArray array;
-		array.AddBack(MidoriValue(element));
-		void* memory = allocator.Allocate(sizeof(MidoriTraceable));
-		MidoriTraceable* traceable = new(memory) MidoriTraceable(std::move(array), true);
+		MarmotArray array;
+		array.AddBack(MarmotValue(element));
+		void* memory = allocator.Allocate(sizeof(MarmotTraceable));
+		MarmotTraceable* traceable = new(memory) MarmotTraceable(std::move(array), true);
 		gc.RegisterObject(traceable);
 		return traceable;
 	}
 
-	// A text whose registered GetSize (sizeof(MidoriTraceable) + GetCapacity()) is large
+	// A text whose registered GetSize (sizeof(MarmotTraceable) + GetCapacity()) is large
 	// enough to push total allocated bytes past INITIAL_GC_THRESHOLD after only a few
-	// allocations. MidoriText::GetCapacity() reflects the long-buffer capacity reserved
+	// allocations. MarmotText::GetCapacity() reflects the long-buffer capacity reserved
 	// via Reserve(), not the logical string length.
-	MidoriTraceable* AllocateLargeText(MidoriAllocator& allocator, GarbageCollector& gc, int reserve_bytes)
+	MarmotTraceable* AllocateLargeText(MarmotAllocator& allocator, GarbageCollector& gc, int reserve_bytes)
 	{
-		MidoriText text;
+		MarmotText text;
 		text.Reserve(reserve_bytes);
-		void* memory = allocator.Allocate(sizeof(MidoriTraceable));
-		MidoriTraceable* traceable = new(memory) MidoriTraceable(std::move(text));
+		void* memory = allocator.Allocate(sizeof(MarmotTraceable));
+		MarmotTraceable* traceable = new(memory) MarmotTraceable(std::move(text));
 		gc.RegisterObject(traceable);
 		return traceable;
 	}
@@ -42,12 +42,12 @@ namespace
 
 TEST_CASE("Collection keeps rooted objects and reclaims garbage", "[gc]")
 {
-	MidoriAllocator allocator;
+	MarmotAllocator allocator;
 	GarbageCollector gc;
 	gc.SetAllocator(&allocator);
 
-	MidoriTraceable* rooted = AllocateText(allocator, gc, "rooted");
-	MidoriTraceable* garbage = AllocateText(allocator, gc, "garbage");
+	MarmotTraceable* rooted = AllocateText(allocator, gc, "rooted");
+	MarmotTraceable* garbage = AllocateText(allocator, gc, "garbage");
 
 	GarbageCollector::GarbageCollectionRoots roots{ rooted };
 	gc.ReclaimMemory(roots, allocator, true);
@@ -62,12 +62,12 @@ TEST_CASE("Collection keeps rooted objects and reclaims garbage", "[gc]")
 
 TEST_CASE("Collection traces through containers", "[gc]")
 {
-	MidoriAllocator allocator;
+	MarmotAllocator allocator;
 	GarbageCollector gc;
 	gc.SetAllocator(&allocator);
 
-	MidoriTraceable* leaf = AllocateText(allocator, gc, "leaf");
-	MidoriTraceable* holder = AllocateArrayOf(allocator, gc, leaf);
+	MarmotTraceable* leaf = AllocateText(allocator, gc, "leaf");
+	MarmotTraceable* holder = AllocateArrayOf(allocator, gc, leaf);
 
 	GarbageCollector::GarbageCollectionRoots roots{ holder };
 	gc.ReclaimMemory(roots, allocator, true);
@@ -83,11 +83,11 @@ TEST_CASE("Collection traces through containers", "[gc]")
 
 TEST_CASE("Collection survives repeated cycles with the same roots", "[gc]")
 {
-	MidoriAllocator allocator;
+	MarmotAllocator allocator;
 	GarbageCollector gc;
 	gc.SetAllocator(&allocator);
 
-	MidoriTraceable* rooted = AllocateText(allocator, gc, "stable");
+	MarmotTraceable* rooted = AllocateText(allocator, gc, "stable");
 	GarbageCollector::GarbageCollectionRoots roots{ rooted };
 
 	for (int cycle = 0; cycle < 5; cycle += 1)
@@ -103,20 +103,20 @@ TEST_CASE("Collection survives repeated cycles with the same roots", "[gc]")
 
 TEST_CASE("Collection updates byte accounting for reclaimed objects", "[gc]")
 {
-	MidoriAllocator allocator;
+	MarmotAllocator allocator;
 	GarbageCollector gc;
 	gc.SetAllocator(&allocator);
 
 	REQUIRE(gc.TotalBytesAllocated() == 0uz);
 
 	size_t expected_bytes = 0uz;
-	MidoriTraceable* first = AllocateText(allocator, gc, "first");
+	MarmotTraceable* first = AllocateText(allocator, gc, "first");
 	expected_bytes += first->GetSize();
 	REQUIRE(gc.TotalBytesAllocated() == expected_bytes);
 
-	MidoriTraceable* second = AllocateText(allocator, gc, "second");
+	MarmotTraceable* second = AllocateText(allocator, gc, "second");
 	expected_bytes += second->GetSize();
-	MidoriTraceable* third = AllocateText(allocator, gc, "third");
+	MarmotTraceable* third = AllocateText(allocator, gc, "third");
 	expected_bytes += third->GetSize();
 	REQUIRE(gc.TotalBytesAllocated() == expected_bytes);
 
@@ -132,7 +132,7 @@ TEST_CASE("Collection updates byte accounting for reclaimed objects", "[gc]")
 
 TEST_CASE("Collection sweeps garbage across multiple bitmap words", "[gc]")
 {
-	MidoriAllocator allocator;
+	MarmotAllocator allocator;
 	GarbageCollector gc;
 	gc.SetAllocator(&allocator);
 
@@ -140,7 +140,7 @@ TEST_CASE("Collection sweeps garbage across multiple bitmap words", "[gc]")
 	GarbageCollector::GarbageCollectionRoots roots;
 	for (size_t idx = 0uz; idx < OBJECT_COUNT; idx += 1uz)
 	{
-		MidoriTraceable* traceable = AllocateText(allocator, gc, "multi-word");
+		MarmotTraceable* traceable = AllocateText(allocator, gc, "multi-word");
 		if (idx % 10uz == 0uz)
 		{
 			roots.emplace_back(traceable);
@@ -149,7 +149,7 @@ TEST_CASE("Collection sweeps garbage across multiple bitmap words", "[gc]")
 
 	gc.ReclaimMemory(roots, allocator, true);
 
-	for (MidoriTraceable* rooted : roots)
+	for (MarmotTraceable* rooted : roots)
 	{
 		REQUIRE(allocator.Contains(rooted));
 	}
@@ -162,18 +162,18 @@ TEST_CASE("Collection sweeps garbage across multiple bitmap words", "[gc]")
 
 TEST_CASE("Minor collection skips old objects but write barrier keeps old-to-young edges alive", "[gc][generational]")
 {
-	MidoriAllocator allocator;
+	MarmotAllocator allocator;
 	GarbageCollector gc;
 	gc.SetAllocator(&allocator);
 
-	MidoriTraceable* old_holder = AllocateArrayOf(allocator, gc, nullptr);
+	MarmotTraceable* old_holder = AllocateArrayOf(allocator, gc, nullptr);
 	GarbageCollector::GarbageCollectionRoots holder_roots{ old_holder };
 	gc.CollectNow(holder_roots, allocator, GarbageCollector::CollectionKind::Minor);
 	REQUIRE(allocator.Contains(old_holder));
 
-	MidoriTraceable* young_child = AllocateText(allocator, gc, "young");
+	MarmotTraceable* young_child = AllocateText(allocator, gc, "young");
 	gc.WriteBarrier(old_holder);
-	old_holder->GetTraceable<MidoriArray>()[0] = MidoriValue(young_child);
+	old_holder->GetTraceable<MarmotArray>()[0] = MarmotValue(young_child);
 
 	gc.CollectNow(holder_roots, allocator, GarbageCollector::CollectionKind::Minor);
 	REQUIRE(allocator.Contains(old_holder));
@@ -187,15 +187,15 @@ TEST_CASE("Minor collection skips old objects but write barrier keeps old-to-you
 
 TEST_CASE("Minor collection without barrier does not retain unreferenced young objects", "[gc][generational]")
 {
-	MidoriAllocator allocator;
+	MarmotAllocator allocator;
 	GarbageCollector gc;
 	gc.SetAllocator(&allocator);
 
-	MidoriTraceable* rooted = AllocateText(allocator, gc, "rooted");
+	MarmotTraceable* rooted = AllocateText(allocator, gc, "rooted");
 	GarbageCollector::GarbageCollectionRoots roots{ rooted };
 	gc.CollectNow(roots, allocator, GarbageCollector::CollectionKind::Minor);
 
-	MidoriTraceable* young_garbage = AllocateText(allocator, gc, "young-garbage");
+	MarmotTraceable* young_garbage = AllocateText(allocator, gc, "young-garbage");
 	gc.CollectNow(roots, allocator, GarbageCollector::CollectionKind::Minor);
 
 	REQUIRE(allocator.Contains(rooted));
@@ -207,18 +207,18 @@ TEST_CASE("Minor collection without barrier does not retain unreferenced young o
 
 TEST_CASE("Minor collection loses old-to-young edges when the barrier is skipped", "[gc][generational]")
 {
-	MidoriAllocator allocator;
+	MarmotAllocator allocator;
 	GarbageCollector gc;
 	gc.SetAllocator(&allocator);
 
-	MidoriTraceable* old_holder = AllocateArrayOf(allocator, gc, nullptr);
+	MarmotTraceable* old_holder = AllocateArrayOf(allocator, gc, nullptr);
 	GarbageCollector::GarbageCollectionRoots holder_roots{ old_holder };
 	gc.CollectNow(holder_roots, allocator, GarbageCollector::CollectionKind::Minor);
 	REQUIRE(allocator.Contains(old_holder));
 
-	MidoriTraceable* young_text = AllocateText(allocator, gc, "young");
+	MarmotTraceable* young_text = AllocateText(allocator, gc, "young");
 	// Deliberately NO WriteBarrier here: the old-to-young edge is unrecorded.
-	old_holder->GetTraceable<MidoriArray>()[0] = MidoriValue(young_text);
+	old_holder->GetTraceable<MarmotArray>()[0] = MarmotValue(young_text);
 
 	gc.CollectNow(holder_roots, allocator, GarbageCollector::CollectionKind::Minor);
 	REQUIRE(allocator.Contains(old_holder));
@@ -232,12 +232,12 @@ TEST_CASE("Minor collection loses old-to-young edges when the barrier is skipped
 
 TEST_CASE("ReclaimMemory escalates to a major collection when live bytes stay high", "[gc][generational]")
 {
-	MidoriAllocator allocator;
+	MarmotAllocator allocator;
 	GarbageCollector gc;
 	gc.SetAllocator(&allocator);
 
 	// Each text reserves 4MB of long-buffer capacity, so registered GetSize() is
-	// roughly 4MB + sizeof(MidoriTraceable) per object (MidoriText::GetCapacity()
+	// roughly 4MB + sizeof(MarmotTraceable) per object (MarmotText::GetCapacity()
 	// reflects buffer capacity, not logical length). Three of them register
 	// ~12.6MB, comfortably above INITIAL_GC_THRESHOLD (4,096,000 bytes) so a
 	// non-forced ReclaimMemory actually collects, and comfortably above
@@ -258,7 +258,7 @@ TEST_CASE("ReclaimMemory escalates to a major collection when live bytes stay hi
 
 	REQUIRE(gc.MinorCollectionCount() == 1uz);
 	REQUIRE(gc.MajorCollectionCount() == 1uz);
-	for (MidoriTraceable* rooted : roots)
+	for (MarmotTraceable* rooted : roots)
 	{
 		REQUIRE(allocator.Contains(rooted));
 	}
@@ -271,7 +271,7 @@ TEST_CASE("ReclaimMemory escalates to a major collection when live bytes stay hi
 
 TEST_CASE("A major that reclaims little waits for the heap to quadruple before the next", "[gc][generational]")
 {
-	MidoriAllocator allocator;
+	MarmotAllocator allocator;
 	GarbageCollector gc;
 	gc.SetAllocator(&allocator);
 
@@ -302,7 +302,7 @@ TEST_CASE("A major that reclaims little waits for the heap to quadruple before t
 
 TEST_CASE("A major that reclaims most of the heap keeps the next one at twice the live bytes", "[gc][generational]")
 {
-	MidoriAllocator allocator;
+	MarmotAllocator allocator;
 	GarbageCollector gc;
 	gc.SetAllocator(&allocator);
 
@@ -335,7 +335,7 @@ namespace
 
 	// Roots enough 4MB texts to hold at least live_bytes, then collects, so the
 	// collector's next threshold is computed from that much live data.
-	GarbageCollector::GarbageCollectionRoots RootLiveBytes(MidoriAllocator& allocator, GarbageCollector& gc, size_t live_bytes)
+	GarbageCollector::GarbageCollectionRoots RootLiveBytes(MarmotAllocator& allocator, GarbageCollector& gc, size_t live_bytes)
 	{
 		GarbageCollector::GarbageCollectionRoots roots;
 		while (gc.TotalBytesAllocated() < live_bytes)
@@ -354,7 +354,7 @@ namespace
 // minutes instead of a tenth of a second.
 TEST_CASE("Threshold stays above live bytes when live data exceeds the headroom cap", "[gc][threshold]")
 {
-	MidoriAllocator allocator;
+	MarmotAllocator allocator;
 	GarbageCollector gc;
 	gc.SetAllocator(&allocator);
 
@@ -372,7 +372,7 @@ TEST_CASE("Threshold stays above live bytes when live data exceeds the headroom 
 
 TEST_CASE("Room before the next collection above a large heap is positive and capped", "[gc][threshold]")
 {
-	MidoriAllocator allocator;
+	MarmotAllocator allocator;
 	GarbageCollector gc;
 	gc.SetAllocator(&allocator);
 
@@ -397,11 +397,11 @@ TEST_CASE("Room before the next collection above a large heap is positive and ca
 
 TEST_CASE("Write barrier deduplicates remembered objects", "[gc][generational]")
 {
-	MidoriAllocator allocator;
+	MarmotAllocator allocator;
 	GarbageCollector gc;
 	gc.SetAllocator(&allocator);
 
-	MidoriTraceable* old_holder = AllocateArrayOf(allocator, gc, nullptr);
+	MarmotTraceable* old_holder = AllocateArrayOf(allocator, gc, nullptr);
 	GarbageCollector::GarbageCollectionRoots roots{ old_holder };
 	gc.CollectNow(roots, allocator, GarbageCollector::CollectionKind::Minor);
 

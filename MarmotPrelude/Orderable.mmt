@@ -15,7 +15,7 @@ instance Orderable < Byte > {
 instance Orderable < Word > {
     def Compare = fn(a: Word, b: Word) -> Int => if a < b then -1 else if a > b then 1 else 0;
 };
-foreign "MIDORI_FFI_TextCompare" TextCompare: fn(Text, Text) -> Int;
+foreign "MARMOT_FFI_TextCompare" TextCompare: fn(Text, Text) -> Int;
 instance Orderable < Text > {
     def Compare = fn(a: Text, b: Text) -> Int => TextCompare(a, b);
 };

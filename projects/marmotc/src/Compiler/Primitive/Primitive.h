@@ -4,9 +4,9 @@
 #include <string_view>
 
 // An operation the VM performs as an instruction, which Marmot declares as a
-// `foreign` with no library: `foreign "MIDORI_PRIMITIVE_Spawn" Spawn: ...;`. The
+// `foreign` with no library: `foreign "MARMOT_PRIMITIVE_Spawn" Spawn: ...;`. The
 // declaration is the only way the compiler knows one.
-enum class MidoriPrimitive
+enum class MarmotPrimitive
 {
 	Spawn,
 	Join,
@@ -16,4 +16,4 @@ enum class MidoriPrimitive
 	WorkerCancel,
 };
 
-std::optional<MidoriPrimitive> FindPrimitive(std::string_view symbol);
+std::optional<MarmotPrimitive> FindPrimitive(std::string_view symbol);

@@ -137,13 +137,13 @@ namespace
 
 	static constexpr uint32_t k_flag_embed_sources = 1u << 0;
 
-	void WritePayload(BinaryWriter& writer, const MidoriExecutable& executable, bool embed_sources)
+	void WritePayload(BinaryWriter& writer, const MarmotExecutable& executable, bool embed_sources)
 	{
 		// file_name
 		writer.WriteString(executable.GetFileName());
 
 		// string_pool
-		const MidoriExecutable::StringPool& string_pool = executable.GetStringPool();
+		const MarmotExecutable::StringPool& string_pool = executable.GetStringPool();
 		writer.WriteU32(static_cast<uint32_t>(string_pool.size()));
 		for (const std::string& entry : string_pool)
 		{
@@ -288,10 +288,10 @@ namespace
 		}
 	}
 }
-namespace MidoriBinaryArtifact
+namespace MarmotBinaryArtifact
 {
 	std::expected<void, std::string> WriteExecutable(
-		const MidoriExecutable& executable,
+		const MarmotExecutable& executable,
 		std::ostream& out,
 		bool embed_sources)
 	{
@@ -317,7 +317,7 @@ namespace MidoriBinaryArtifact
 		uint16_t ver_minor = 0u;
 		uint16_t ver_patch = 0u;
 		{
-			const std::string_view version = MIDORI_VERSION_STRING;
+			const std::string_view version = MARMOT_VERSION_STRING;
 			size_t pos = 0u;
 			size_t dot1 = version.find('.', pos);
 			size_t dot2 = dot1 != std::string_view::npos ? version.find('.', dot1 + 1u) : std::string_view::npos;
@@ -362,7 +362,7 @@ namespace MidoriBinaryArtifact
 	}
 
 	std::expected<void, std::string> WriteExecutableToFile(
-		const MidoriExecutable& executable,
+		const MarmotExecutable& executable,
 		const std::filesystem::path& path,
 		bool embed_sources)
 	{

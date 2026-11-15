@@ -3,7 +3,7 @@
 #include "Bytecode/Executable/Executable.h"
 #include "Value/Value.h"
 #include "Support/Attributes/Attributes.h"
-#include "Interpreter/Allocator/MidoriAllocator.h"
+#include "Interpreter/Allocator/MarmotAllocator.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -26,7 +26,7 @@ public:
 	static constexpr inline size_t MAJOR_GROWTH = 2uz;
 	static constexpr inline size_t MAJOR_GROWTH_WHILE_GROWING = 4uz;
 
-	using GarbageCollectionRoots = std::vector<MidoriTraceable*>;
+	using GarbageCollectionRoots = std::vector<MarmotTraceable*>;
 
 	enum class CollectionKind : uint8_t
 	{
@@ -41,12 +41,12 @@ private:
 	size_t m_major_growth = MAJOR_GROWTH;
 	std::vector<uint64_t> m_mark_bits;
 	std::vector<uint64_t> m_logged_bits;
-	std::vector<MidoriTraceable*> m_mark_stack;
-	std::vector<MidoriTraceable*> m_remembered_set;
-	const MidoriAllocator* m_allocator = nullptr;
+	std::vector<MarmotTraceable*> m_mark_stack;
+	std::vector<MarmotTraceable*> m_remembered_set;
+	const MarmotAllocator* m_allocator = nullptr;
 	// The program's shapes, which say an aggregate's pointer fields.
 	const std::vector<VmShape>* m_shapes = nullptr;
-	// Kept unconditional (not under #if MIDORI_DEBUG_INFO) so that sizeof(GarbageCollector)
+	// Kept unconditional (not under #if MARMOT_DEBUG_INFO) so that sizeof(GarbageCollector)
 	// cannot differ between translation units. This was first a workaround: the unit test
 	// targets used to be compiled without the build-level definitions, so guarding these members
 	// would have given a test TU a smaller object than the library, and CollectNow (in the library)
@@ -65,9 +65,9 @@ public:
 	GarbageCollector(const GarbageCollector&) = delete;
 	GarbageCollector& operator=(const GarbageCollector&) = delete;
 
-	void ReclaimMemory(const GarbageCollectionRoots& roots, MidoriAllocator& allocator, bool force_clean = false);
+	void ReclaimMemory(const GarbageCollectionRoots& roots, MarmotAllocator& allocator, bool force_clean = false);
 
-	void CollectNow(const GarbageCollectionRoots& roots, MidoriAllocator& allocator, CollectionKind kind);
+	void CollectNow(const GarbageCollectionRoots& roots, MarmotAllocator& allocator, CollectionKind kind);
 
 	size_t RememberedSetSize() const noexcept { return m_remembered_set.size(); }
 
@@ -75,39 +75,39 @@ public:
 
 	size_t MajorCollectionCount() const noexcept { return m_major_collection_count; }
 
-	// Out-of-line (MIDORI_NOINLINE): the barrier fires only on container-mutation opcodes,
+	// Out-of-line (MARMOT_NOINLINE): the barrier fires only on container-mutation opcodes,
 	// and keeping it out of the dispatch-loop TU minimizes code-size/alignment perturbation
 	// of ExecuteLoop, whose performance is highly layout-sensitive (see commit 0a7921e).
-	MIDORI_NOINLINE void WriteBarrier(MidoriTraceable* target) noexcept;
+	MARMOT_NOINLINE void WriteBarrier(MarmotTraceable* target) noexcept;
 
-	MIDORI_FORCE_INLINE bool ShouldCollect() const noexcept
+	MARMOT_FORCE_INLINE bool ShouldCollect() const noexcept
 	{
 		return m_total_bytes_allocated >= m_gc_threshold;
 	}
 
 	size_t TotalBytesAllocated() const noexcept { return m_total_bytes_allocated; }
 
-	void SetAllocator(const MidoriAllocator* allocator) noexcept { m_allocator = allocator; }
+	void SetAllocator(const MarmotAllocator* allocator) noexcept { m_allocator = allocator; }
 
 	void SetShapes(const std::vector<VmShape>* shapes) noexcept { m_shapes = shapes; }
 
-	MIDORI_FORCE_INLINE void RegisterObject(MidoriTraceable* traceable) noexcept
+	MARMOT_FORCE_INLINE void RegisterObject(MarmotTraceable* traceable) noexcept
 	{
 		m_total_bytes_allocated += traceable->GetSize();
 	}
 
 	// Declared unconditionally so the class definition is identical across translation
-	// units regardless of MIDORI_DEBUG_INFO; the definition (and every call site) stays
+	// units regardless of MARMOT_DEBUG_INFO; the definition (and every call site) stays
 	// guarded in the .cpp, so non-debug builds never reference it.
 	void PrintMemoryTelemetry();
 
 
 private:
 	void Trace(const GarbageCollectionRoots& roots);
-	void TryMark(MidoriTraceable* child_ptr);
-	void Sweep(MidoriAllocator& allocator, size_t& sweep_count, size_t& bytes_reclaimed);
+	void TryMark(MarmotTraceable* child_ptr);
+	void Sweep(MarmotAllocator& allocator, size_t& sweep_count, size_t& bytes_reclaimed);
 	void ClearRememberedSet() noexcept;
 	// Apart from WriteBarrier's checks, so the barrier saves no registers on
 	// the path nearly every call takes.
-	MIDORI_NOINLINE void Remember(MidoriTraceable* target, size_t word_index, uint64_t mask) noexcept;
+	MARMOT_NOINLINE void Remember(MarmotTraceable* target, size_t word_index, uint64_t mask) noexcept;
 };

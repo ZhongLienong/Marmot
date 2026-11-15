@@ -604,7 +604,7 @@ std::string_view CompilerWarning::Rendered() const
 	return m_rendered.empty() ? std::string_view(m_message) : std::string_view(m_rendered);
 }
 
-CompilerError MidoriError::GenerateRichError(CompilerStage stage, std::string_view message, int line, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<int> column, std::optional<size_t> caret_length, std::optional<std::string_view> suggestion, CompilerErrorCode code)
+CompilerError MarmotError::GenerateRichError(CompilerStage stage, std::string_view message, int line, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<int> column, std::optional<size_t> caret_length, std::optional<std::string_view> suggestion, CompilerErrorCode code)
 {
 	std::optional<std::string_view> source_line = std::nullopt;
 	if (line > 0 && static_cast<size_t>(line) <= source_lines.size())
@@ -615,29 +615,29 @@ CompilerError MidoriError::GenerateRichError(CompilerStage stage, std::string_vi
 	return CompilerError::WithContext(stage, message, line, file_name, column, caret_length, suggestion, source_line, code);
 }
 
-CompilerError MidoriError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode code, std::string_view message, int line, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion)
+CompilerError MarmotError::GenerateCodeGeneratorErrorWithContext(CompilerErrorCode code, std::string_view message, int line, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion)
 {
 	// Use unified implementation without column info (no caret)
 	return GenerateRichError(CompilerStage::CodeGenerator, message, line, file_name, source_lines, std::nullopt, std::nullopt, suggestion, code);
 }
 
-CompilerError MidoriError::GenerateLoweringErrorWithContext(CompilerErrorCode code, std::string_view message, int line, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion)
+CompilerError MarmotError::GenerateLoweringErrorWithContext(CompilerErrorCode code, std::string_view message, int line, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion)
 {
 	return GenerateRichError(CompilerStage::Lowering, message, line, file_name, source_lines, std::nullopt, std::nullopt, suggestion, code);
 }
 
-CompilerError MidoriError::GenerateLexerErrorWithContext(std::string_view message, int line, int column, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion)
+CompilerError MarmotError::GenerateLexerErrorWithContext(std::string_view message, int line, int column, std::string_view file_name, const std::vector<std::string>& source_lines, std::optional<std::string_view> suggestion)
 {
 	// Use unified implementation with column and single caret
 	return GenerateRichError(CompilerStage::Lexer, message, line, file_name, source_lines, column, 1, suggestion);
 }
 
-CompilerError MidoriError::GenerateModuleErrorWithContext(std::string_view message, int line, std::string_view file_name, std::optional<std::string_view> suggestion)
+CompilerError MarmotError::GenerateModuleErrorWithContext(std::string_view message, int line, std::string_view file_name, std::optional<std::string_view> suggestion)
 {
 	return GenerateModuleErrorWithContext(CompilerErrorCode::None, message, line, file_name, suggestion);
 }
 
-CompilerError MidoriError::GenerateModuleErrorWithContext(CompilerErrorCode code, std::string_view message, int line, std::string_view file_name, std::optional<std::string_view> suggestion)
+CompilerError MarmotError::GenerateModuleErrorWithContext(CompilerErrorCode code, std::string_view message, int line, std::string_view file_name, std::optional<std::string_view> suggestion)
 {
 	return CompilerError::WithContext(CompilerStage::Module, message, line, file_name, std::nullopt, std::nullopt, suggestion, std::nullopt, code);
 }

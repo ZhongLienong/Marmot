@@ -40,11 +40,11 @@
 using namespace std::string_literals;
 
 #if defined(_MSC_VER)
-#define MIDORI_NOINLINE __declspec(noinline)
+#define MARMOT_NOINLINE __declspec(noinline)
 #elif defined(__GNUC__) || defined(__clang__)
-#define MIDORI_NOINLINE __attribute__((noinline))
+#define MARMOT_NOINLINE __attribute__((noinline))
 #else
-#define MIDORI_NOINLINE
+#define MARMOT_NOINLINE
 #endif
 
 // Each handler ends in its own indirect jump to the next one, so the branch
@@ -57,11 +57,11 @@ using namespace std::string_literals;
 // merge into the dispatch block and make it one, and every handler would then
 // share one jump again. The empty asm keeps each handler a block of its own.
 #if (defined(__GNUC__) || defined(__clang__)) && !defined(__EMSCRIPTEN__)
-#define MIDORI_THREADED_DISPATCH 1
-#define MIDORI_HANDLER(name) case VmOpCode::name: handler_##name: __asm__ volatile("");
+#define MARMOT_THREADED_DISPATCH 1
+#define MARMOT_HANDLER(name) case VmOpCode::name: handler_##name: __asm__ volatile("");
 #else
-#define MIDORI_THREADED_DISPATCH 0
-#define MIDORI_HANDLER(name) case VmOpCode::name:
+#define MARMOT_THREADED_DISPATCH 0
+#define MARMOT_HANDLER(name) case VmOpCode::name:
 #endif
 
 namespace
@@ -327,7 +327,7 @@ VirtualMachine::VirtualMachine(std::shared_ptr<const VmExecutable> shared_execut
 	InitializeStacks();
 }
 
-void VirtualMachine::PrepareWorkerCall(MidoriValue worker_function) noexcept
+void VirtualMachine::PrepareWorkerCall(MarmotValue worker_function) noexcept
 {
 	m_value_stack_pointer = m_value_stack_begin;
 	m_value_stack_base_pointer = m_value_stack_begin;
@@ -338,7 +338,7 @@ void VirtualMachine::PrepareWorkerCall(MidoriValue worker_function) noexcept
 	// it is not on this VM's stack, so it is rooted here, and its cells are the
 	// environment the worker's first frame runs in - which is what lets a lambda
 	// that captured something be spawned.
-	MidoriTraceable* closure = worker_function.GetPointer();
+	MarmotTraceable* closure = worker_function.GetPointer();
 	m_curr_closure_traceable = closure;
 	m_curr_environment = closure->GetValues();
 
@@ -348,7 +348,7 @@ void VirtualMachine::PrepareWorkerCall(MidoriValue worker_function) noexcept
 	m_value_stack_base_pointer = m_value_stack_pointer;
 }
 
-void VirtualMachine::InstallGlobal(int global_index, MidoriValue value) noexcept
+void VirtualMachine::InstallGlobal(int global_index, MarmotValue value) noexcept
 {
 	const size_t slot = static_cast<size_t>(global_index);
 	if (m_is_worker && !m_installed_globals[slot])
@@ -369,22 +369,22 @@ int VirtualMachine::ProcedureAt(const VmOpCode* ip) const noexcept
 	return ip < range.m_end ? range.m_proc_index : -1;
 }
 
-#if MIDORI_DEBUG_FULL
-void VirtualMachine::KindMismatch(MidoriValue value, bool is_pointer, std::string_view where) const noexcept
+#if MARMOT_DEBUG_FULL
+void VirtualMachine::KindMismatch(MarmotValue value, bool is_pointer, std::string_view where) const noexcept
 {
 	std::println(stderr, "internal error: {} holds {}, but the compiler says it holds {}.", where, value.ToText().View(), is_pointer ? "a pointer" : "a scalar");
 	std::abort();
 }
 
-void VirtualMachine::CheckKinds(std::span<const MidoriValue> values, bool is_pointer, std::string_view where) const noexcept
+void VirtualMachine::CheckKinds(std::span<const MarmotValue> values, bool is_pointer, std::string_view where) const noexcept
 {
-	for (const MidoriValue value : values)
+	for (const MarmotValue value : values)
 	{
 		CheckKind(value, is_pointer, where);
 	}
 }
 
-void VirtualMachine::CheckShape(std::span<const MidoriValue> values, uint16_t shape, std::string_view where) const noexcept
+void VirtualMachine::CheckShape(std::span<const MarmotValue> values, uint16_t shape, std::string_view where) const noexcept
 {
 	const VmShape& pointer_fields = m_executable->GetShapes()[shape];
 	if (!pointer_fields.empty() && pointer_fields.back() >= values.size())
@@ -404,9 +404,9 @@ void VirtualMachine::CheckShape(std::span<const MidoriValue> values, uint16_t sh
 	}
 }
 
-void VirtualMachine::CheckFrame(const VmOpCode* ip, const MidoriValue* sp, const MidoriValue* bp) const noexcept
+void VirtualMachine::CheckFrame(const VmOpCode* ip, const MarmotValue* sp, const MarmotValue* bp) const noexcept
 {
-	VisitFrame(ip, bp, sp, [this, ip, bp](const MidoriValue& value, bool is_pointer)
+	VisitFrame(ip, bp, sp, [this, ip, bp](const MarmotValue& value, bool is_pointer)
 	{
 		if (!value.AgreesWithKind(is_pointer))
 		{
@@ -421,7 +421,7 @@ void VirtualMachine::CheckFrame(const VmOpCode* ip, const MidoriValue* sp, const
 // call has returned or an instruction has made it, the result. The VM's own
 // halt, below the first procedure, has none.
 template<typename Visit>
-void VirtualMachine::VisitFrame(const VmOpCode* ip, const MidoriValue* bp, const MidoriValue* end, const Visit& visit) const noexcept
+void VirtualMachine::VisitFrame(const VmOpCode* ip, const MarmotValue* bp, const MarmotValue* end, const Visit& visit) const noexcept
 {
 	const int proc_index = ProcedureAt(ip);
 	if (proc_index < 0)
@@ -455,7 +455,7 @@ void VirtualMachine::VisitFrame(const VmOpCode* ip, const MidoriValue* bp, const
 	}
 }
 
-MidoriValue VirtualMachine::MakeFunctionValue(int proc_index) noexcept
+MarmotValue VirtualMachine::MakeFunctionValue(int proc_index) noexcept
 {
 	const size_t cache_index = static_cast<size_t>(proc_index);
 	if (cache_index < m_static_closure_cache.size() && m_static_closure_cache[cache_index] != nullptr)
@@ -463,7 +463,7 @@ MidoriValue VirtualMachine::MakeFunctionValue(int proc_index) noexcept
 		return m_static_closure_cache[cache_index];
 	}
 
-	MidoriTraceable* closure = AllocateClosure(proc_index, {});
+	MarmotTraceable* closure = AllocateClosure(proc_index, {});
 	if (cache_index < m_static_closure_cache.size())
 	{
 		m_static_closure_cache[cache_index] = closure;
@@ -472,9 +472,9 @@ MidoriValue VirtualMachine::MakeFunctionValue(int proc_index) noexcept
 	return closure;
 }
 
-MIDORI_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(VmOpCode instruction, InstructionPointer& ip) noexcept
+MARMOT_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(VmOpCode instruction, InstructionPointer& ip) noexcept
 {
-#ifdef MIDORI_WASM
+#ifdef MARMOT_WASM
 	m_instruction_pointer = ip;
 	static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::UnsupportedPlatformOperation, "Concurrency is not supported in the WebAssembly build.", GetLine())));
 	return false;
@@ -498,10 +498,10 @@ MIDORI_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(VmOpCode inst
 		// function would see if it were called directly.
 		const size_t crossing_count = static_cast<size_t>(arg_count) + 1uz;
 		m_value_stack_pointer -= crossing_count;
-		const MidoriValue crossing = AllocateAggregate(MidoriTraceable::TraceableType::Tuple, std::span<const MidoriValue>(m_value_stack_pointer, crossing_count), 0, crossing_shape);
+		const MarmotValue crossing = AllocateAggregate(MarmotTraceable::TraceableType::Tuple, std::span<const MarmotValue>(m_value_stack_pointer, crossing_count), 0, crossing_shape);
 
 		const int worker_id = WorkerRegistry::GetInstance().SpawnWorker(m_owned_executable, ValueTransfer::Serialize(crossing, true, *this), result_is_pointer);
-		Push(static_cast<MidoriInteger>(worker_id));
+		Push(static_cast<MarmotInteger>(worker_id));
 		return true;
 	}
 	case VmOpCode::JOIN_WORKER:
@@ -520,7 +520,7 @@ MIDORI_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(VmOpCode inst
 		const int worker_id = static_cast<int>(Pop().GetInteger());
 		std::expected<TransferPayload, WorkerError> worker_result = WorkerRegistry::GetInstance().JoinWorkerValue(worker_id);
 
-		MidoriValue payload;
+		MarmotValue payload;
 		int result_tag = s_ok_tag;
 		uint16_t result_shape = ok_shape;
 		if (worker_result.has_value())
@@ -531,31 +531,31 @@ MIDORI_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(VmOpCode inst
 		{
 			if (worker_result.error().m_cancelled)
 			{
-				payload = AllocateAggregate(MidoriTraceable::TraceableType::Union, {}, s_cancelled_tag, VM_SCALAR_SHAPE);
+				payload = AllocateAggregate(MarmotTraceable::TraceableType::Union, {}, s_cancelled_tag, VM_SCALAR_SHAPE);
 			}
 			else
 			{
-				const MidoriValue message = AllocateTraceable(MidoriText(worker_result.error().m_message.c_str()));
-				payload = AllocateAggregate(MidoriTraceable::TraceableType::Union, std::span<const MidoriValue>(&message, 1uz), s_failed_tag, VM_FIRST_FIELD_SHAPE);
+				const MarmotValue message = AllocateTraceable(MarmotText(worker_result.error().m_message.c_str()));
+				payload = AllocateAggregate(MarmotTraceable::TraceableType::Union, std::span<const MarmotValue>(&message, 1uz), s_failed_tag, VM_FIRST_FIELD_SHAPE);
 			}
 			result_tag = s_err_tag;
 			result_shape = VM_FIRST_FIELD_SHAPE;
 		}
 
-		Push(AllocateAggregate(MidoriTraceable::TraceableType::Union, std::span<const MidoriValue>(&payload, 1uz), result_tag, result_shape));
+		Push(AllocateAggregate(MarmotTraceable::TraceableType::Union, std::span<const MarmotValue>(&payload, 1uz), result_tag, result_shape));
 		return true;
 	}
 	case VmOpCode::CHANNEL_CREATE:
 	{
 		const int capacity = static_cast<int>(Pop().GetInteger());
 		const int channel_id = ChannelRegistry::GetInstance().CreateChannel(capacity);
-		Push(static_cast<MidoriInteger>(channel_id));
+		Push(static_cast<MarmotInteger>(channel_id));
 		return true;
 	}
 	case VmOpCode::CHANNEL_SEND:
 	{
 		const bool value_is_pointer = ReadByte(ip) != VmOpCode{ 0u };
-		MidoriValue value = Pop();
+		MarmotValue value = Pop();
 		const int channel_id = static_cast<int>(Pop().GetInteger());
 		const ChannelOpStatus send_status = ChannelRegistry::GetInstance().Send(channel_id, ValueTransfer::Serialize(value, value_is_pointer, *this), m_stop_token);
 		if (send_status == ChannelOpStatus::Cancelled)
@@ -592,7 +592,7 @@ MIDORI_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(VmOpCode inst
 	{
 		const int channel_id = static_cast<int>(Pop().GetInteger());
 		ChannelRegistry::GetInstance().Close(channel_id);
-		Push(MidoriValue());
+		Push(MarmotValue());
 		return true;
 	}
 	case VmOpCode::WORKER_IS_DONE:
@@ -650,7 +650,7 @@ void VirtualMachine::InitializeStacks() noexcept
 	m_stack_page_size = page_size > 0 ? static_cast<size_t>(page_size) : 4096uz;
 #endif
 
-	const size_t value_stack_bytes = s_value_stack_size * sizeof(MidoriValue);
+	const size_t value_stack_bytes = s_value_stack_size * sizeof(MarmotValue);
 	const size_t value_usable_bytes = ((value_stack_bytes + m_stack_page_size - 1u) / m_stack_page_size) * m_stack_page_size;
 	const size_t value_total_size = value_usable_bytes + m_stack_page_size;
 
@@ -662,27 +662,27 @@ void VirtualMachine::InitializeStacks() noexcept
 	if (m_value_stack_region != nullptr)
 	{
 		char* value_region = static_cast<char*>(m_value_stack_region);
-		m_value_stack_begin = reinterpret_cast<MidoriValue*>(value_region + (value_usable_bytes - value_stack_bytes));
+		m_value_stack_begin = reinterpret_cast<MarmotValue*>(value_region + (value_usable_bytes - value_stack_bytes));
 		m_value_stack_region_size = value_total_size;
 		static_cast<void>(CommitStackPages(reinterpret_cast<uintptr_t>(m_value_stack_begin)));
 	}
 	else
 	{
-		m_value_stack_begin = static_cast<MidoriValue*>(std::malloc(value_stack_bytes));
+		m_value_stack_begin = static_cast<MarmotValue*>(std::malloc(value_stack_bytes));
 	}
 #else
 	m_value_stack_region = mmap(nullptr, value_total_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 	if (m_value_stack_region != MAP_FAILED)
 	{
 		char* value_region = static_cast<char*>(m_value_stack_region);
-		m_value_stack_begin = reinterpret_cast<MidoriValue*>(value_region + (value_usable_bytes - value_stack_bytes));
+		m_value_stack_begin = reinterpret_cast<MarmotValue*>(value_region + (value_usable_bytes - value_stack_bytes));
 		m_value_stack_region_size = value_total_size;
 		static_cast<void>(mprotect(value_region + value_usable_bytes, m_stack_page_size, PROT_NONE));
 	}
 	else
 	{
 		m_value_stack_region = nullptr;
-		m_value_stack_begin = static_cast<MidoriValue*>(std::malloc(value_stack_bytes));
+		m_value_stack_begin = static_cast<MarmotValue*>(std::malloc(value_stack_bytes));
 	}
 #endif
 
@@ -888,7 +888,7 @@ bool VirtualMachine::IsStackGuardFault(uintptr_t fault_address) const noexcept
 		return false;
 	}
 
-	const uintptr_t value_guard_begin = reinterpret_cast<uintptr_t>(m_value_stack_begin) + (s_value_stack_size * sizeof(MidoriValue));
+	const uintptr_t value_guard_begin = reinterpret_cast<uintptr_t>(m_value_stack_begin) + (s_value_stack_size * sizeof(MarmotValue));
 	const uintptr_t value_guard_end = value_guard_begin + m_stack_page_size;
 	if (fault_address >= value_guard_begin && fault_address < value_guard_end)
 	{
@@ -916,7 +916,7 @@ void VirtualMachine::LocateStackOverflowAtInnermostCall() noexcept
 	m_instruction_pointer = m_call_stack_pointer->m_return_ip;
 }
 
-int VirtualMachine::IndexOutOfBounds(MidoriInteger index) noexcept
+int VirtualMachine::IndexOutOfBounds(MarmotInteger index) noexcept
 {
 	return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::IndexOutOfBounds, std::format("Index out of bounds at index: {}.", index), GetLine()));
 }
@@ -924,7 +924,7 @@ int VirtualMachine::IndexOutOfBounds(MidoriInteger index) noexcept
 // What a foreign function returned, as a Marmot value: a C string or an array
 // it allocated becomes a Text or an Array, and is freed. For a function whose
 // signature returns a raw value, the call's return tag is the return kind.
-MIDORI_FORCE_INLINE MidoriValue VirtualMachine::TakeForeignResult(VmFFIReturnKind kind, uint8_t return_tag, MidoriValue result) noexcept
+MARMOT_FORCE_INLINE MarmotValue VirtualMachine::TakeForeignResult(VmFFIReturnKind kind, uint8_t return_tag, MarmotValue result) noexcept
 {
 	struct FFIArray
 	{
@@ -944,9 +944,9 @@ MIDORI_FORCE_INLINE MidoriValue VirtualMachine::TakeForeignResult(VmFFIReturnKin
 		char* ffi_string = reinterpret_cast<char*>(result.GetInteger());
 		if (ffi_string == nullptr)
 		{
-			return AllocateTraceable(MidoriText(""));
+			return AllocateTraceable(MarmotText(""));
 		}
-		MidoriTraceable* text = AllocateTraceable(MidoriText(ffi_string));
+		MarmotTraceable* text = AllocateTraceable(MarmotText(ffi_string));
 		std::free(ffi_string);
 		return text;
 	}
@@ -956,9 +956,9 @@ MIDORI_FORCE_INLINE MidoriValue VirtualMachine::TakeForeignResult(VmFFIReturnKin
 		const bool holds_pointers = (return_tag & VM_POINTER_ELEMENTS_TAG) != 0u;
 		if (ffi_array == nullptr)
 		{
-			return AllocateArray(MidoriArray(), holds_pointers);
+			return AllocateArray(MarmotArray(), holds_pointers);
 		}
-		MidoriTraceable* array = AllocateArray(MidoriArray::FromFFI(static_cast<MidoriValue*>(ffi_array->data), ffi_array->length), holds_pointers);
+		MarmotTraceable* array = AllocateArray(MarmotArray::FromFFI(static_cast<MarmotValue*>(ffi_array->data), ffi_array->length), holds_pointers);
 		std::free(ffi_array);
 		return array;
 	}
@@ -967,15 +967,15 @@ MIDORI_FORCE_INLINE MidoriValue VirtualMachine::TakeForeignResult(VmFFIReturnKin
 		FFIArray* ffi_array = reinterpret_cast<FFIArray*>(result.GetInteger());
 		if (ffi_array == nullptr)
 		{
-			return AllocateArray(MidoriArray(), true);
+			return AllocateArray(MarmotArray(), true);
 		}
 		char** ffi_strings = static_cast<char**>(ffi_array->data);
 		const int length = ffi_array->length;
-		MidoriArray wrapped_array(length);
+		MarmotArray wrapped_array(length);
 		for (int idx = 0; idx < length; idx += 1)
 		{
 			char* ffi_string = ffi_strings[idx];
-			wrapped_array[idx] = AllocateTraceable(MidoriText(ffi_string != nullptr ? ffi_string : ""));
+			wrapped_array[idx] = AllocateTraceable(MarmotText(ffi_string != nullptr ? ffi_string : ""));
 			std::free(ffi_string);
 		}
 		std::free(ffi_strings);
@@ -989,20 +989,20 @@ MIDORI_FORCE_INLINE MidoriValue VirtualMachine::TakeForeignResult(VmFFIReturnKin
 	std::unreachable();
 }
 
-#if MIDORI_DEBUG_FULL
+#if MARMOT_DEBUG_FULL
 // A Debug build's value is 16 bytes, its 8 beside a type tag, but a native library
 // sees an array as the ABI's 8-byte slots. An argument's elements are copied into
 // slots for the call, so a native write to them is not seen, and a returned
 // array's slots are widened into values before the result is taken.
-void VirtualMachine::CallNativeWithSlots(VmFFIFunction proc, uint8_t return_kind, MidoriValue& result) noexcept
+void VirtualMachine::CallNativeWithSlots(VmFFIFunction proc, uint8_t return_kind, MarmotValue& result) noexcept
 {
-	std::array<std::vector<MidoriWord>, VM_FFI_MAX_ARITY> slots;
+	std::array<std::vector<MarmotWord>, VM_FFI_MAX_ARITY> slots;
 	for (size_t index = 0uz; index < m_ffi_array_args.size(); index += 1uz)
 	{
 		FFIArrayArgument& argument = m_ffi_array_args[index];
-		slots[index] = std::span<const MidoriValue>(static_cast<const MidoriValue*>(argument.data), static_cast<size_t>(argument.length))
-			| std::views::transform(&MidoriValue::GetRawBits)
-			| std::ranges::to<std::vector<MidoriWord>>();
+		slots[index] = std::span<const MarmotValue>(static_cast<const MarmotValue*>(argument.data), static_cast<size_t>(argument.length))
+			| std::views::transform(&MarmotValue::GetRawBits)
+			| std::ranges::to<std::vector<MarmotWord>>();
 		argument.data = slots[index].data();
 	}
 
@@ -1014,13 +1014,13 @@ void VirtualMachine::CallNativeWithSlots(VmFFIFunction proc, uint8_t return_kind
 		return;
 	}
 
-	const size_t bytes = static_cast<size_t>(array->length) * sizeof(MidoriValue);
-	MidoriValue* values = static_cast<MidoriValue*>(std::malloc(bytes));
+	const size_t bytes = static_cast<size_t>(array->length) * sizeof(MarmotValue);
+	MarmotValue* values = static_cast<MarmotValue*>(std::malloc(bytes));
 	if (values == nullptr)
 	{
 		FatalOutOfMemory("a native array result", bytes);
 	}
-	std::ranges::transform(std::span<const MidoriWord>(static_cast<const MidoriWord*>(array->data), static_cast<size_t>(array->length)), values, &MidoriValue::FromRawBits);
+	std::ranges::transform(std::span<const MarmotWord>(static_cast<const MarmotWord*>(array->data), static_cast<size_t>(array->length)), values, &MarmotValue::FromRawBits);
 	std::free(array->data);
 	array->data = values;
 }
@@ -1028,14 +1028,14 @@ void VirtualMachine::CallNativeWithSlots(VmFFIFunction proc, uint8_t return_kind
 
 // An argument's kind comes from its parameter's type, so a text, an array or a
 // handle is the object its kind says.
-MIDORI_FORCE_INLINE void VirtualMachine::PassForeignArgument(VmFFIArgumentKind kind, size_t index, MidoriValue argument) noexcept
+MARMOT_FORCE_INLINE void VirtualMachine::PassForeignArgument(VmFFIArgumentKind kind, size_t index, MarmotValue argument) noexcept
 {
-	MidoriTraceable* pointer = argument.GetPointer();
-#if MIDORI_DEBUG_FULL
+	MarmotTraceable* pointer = argument.GetPointer();
+#if MARMOT_DEBUG_FULL
 	const bool is_object = kind == VmFFIArgumentKind::CString || kind == VmFFIArgumentKind::ArrayView || kind == VmFFIArgumentKind::TraceableHandle;
 	const bool is_its_kind = !is_object || (pointer != nullptr
-		&& (kind != VmFFIArgumentKind::CString || pointer->IsTraceable<MidoriText>())
-		&& (kind != VmFFIArgumentKind::ArrayView || pointer->IsTraceable<MidoriArray>()));
+		&& (kind != VmFFIArgumentKind::CString || pointer->IsTraceable<MarmotText>())
+		&& (kind != VmFFIArgumentKind::ArrayView || pointer->IsTraceable<MarmotArray>()));
 	if (!is_its_kind)
 	{
 		KindMismatch(argument, true, std::format("argument {} of a foreign call", index));
@@ -1044,11 +1044,11 @@ MIDORI_FORCE_INLINE void VirtualMachine::PassForeignArgument(VmFFIArgumentKind k
 	switch (kind)
 	{
 	case VmFFIArgumentKind::CString:
-		m_ffi_args[index] = (void*)pointer->GetTraceable<MidoriText>().CString();
+		m_ffi_args[index] = (void*)pointer->GetTraceable<MarmotText>().CString();
 		break;
 	case VmFFIArgumentKind::ArrayView:
 	{
-		MidoriArray& array = pointer->GetTraceable<MidoriArray>();
+		MarmotArray& array = pointer->GetTraceable<MarmotArray>();
 		m_ffi_array_args.push_back(FFIArrayArgument{ array.GetLength() > 0 ? static_cast<void*>(&array[0u]) : nullptr, array.GetLength() });
 		m_gc.WriteBarrier(pointer);
 		m_ffi_args[index] = &m_ffi_array_args.back();
@@ -1087,7 +1087,7 @@ void VirtualMachine::BuildGarbageCollectionRoots(GarbageCollector::GarbageCollec
 
 	// The top frame runs to the stack pointer, and each one below it, suspended
 	// at a call, to the base of the frame it called.
-	const auto add_pointers = [&roots](const MidoriValue& value, bool is_pointer)
+	const auto add_pointers = [&roots](const MarmotValue& value, bool is_pointer)
 	{
 		if (is_pointer && value.GetPointer() != nullptr)
 		{
@@ -1096,8 +1096,8 @@ void VirtualMachine::BuildGarbageCollectionRoots(GarbageCollector::GarbageCollec
 	};
 	if (stack_count > 0uz)
 	{
-		const MidoriValue* end = m_value_stack_pointer;
-		const MidoriValue* bp = m_value_stack_base_pointer;
+		const MarmotValue* end = m_value_stack_pointer;
+		const MarmotValue* bp = m_value_stack_base_pointer;
 		InstructionPointer ip = m_instruction_pointer;
 		for (CallStackPointer frame = m_call_stack_pointer; ; )
 		{
@@ -1134,7 +1134,7 @@ void VirtualMachine::BuildGarbageCollectionRoots(GarbageCollector::GarbageCollec
 		}
 	}
 
-	for (MidoriTraceable* cached_string : m_string_literal_cache)
+	for (MarmotTraceable* cached_string : m_string_literal_cache)
 	{
 		if (cached_string)
 		{
@@ -1142,7 +1142,7 @@ void VirtualMachine::BuildGarbageCollectionRoots(GarbageCollector::GarbageCollec
 		}
 	}
 
-	for (MidoriTraceable* cached_union : m_empty_union_cache)
+	for (MarmotTraceable* cached_union : m_empty_union_cache)
 	{
 		if (cached_union)
 		{
@@ -1152,7 +1152,7 @@ void VirtualMachine::BuildGarbageCollectionRoots(GarbageCollector::GarbageCollec
 
 	// A cached function is handed out again by MAKE_FUNCTION_WIDE, so it must
 	// outlive every value that held it.
-	for (MidoriTraceable* cached_function : m_static_closure_cache)
+	for (MarmotTraceable* cached_function : m_static_closure_cache)
 	{
 		if (cached_function)
 		{
@@ -1174,12 +1174,12 @@ int VirtualMachine::ExecuteLoop() noexcept
 	InstructionPointer ip = m_instruction_pointer;
 	ValueStackPointer sp = m_value_stack_pointer;
 	ValueStackPointer bp = m_value_stack_base_pointer;
-	MidoriValue* env = m_curr_environment;
-	MidoriTraceable* closure = m_curr_closure_traceable;
+	MarmotValue* env = m_curr_environment;
+	MarmotTraceable* closure = m_curr_closure_traceable;
 	CallStackPointer csp = m_call_stack_pointer;
 	const InstructionPointer* const proc_entries = m_proc_entry_cache.data();
 
-#if MIDORI_ENABLE_OPCODE_METRICS
+#if MARMOT_ENABLE_OPCODE_METRICS
 	const bool opcode_metrics = RuntimeDiagnostics::OpcodeMetricsEnabled();
 	std::array<uint64_t, 256> opcode_counts{};
 	struct OpcodeReport
@@ -1204,7 +1204,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 	const OpcodeReport opcode_report{opcode_metrics, opcode_counts};
 #endif
 
-#if MIDORI_THREADED_DISPATCH
+#if MARMOT_THREADED_DISPATCH
 	static const std::array<void*, VmOpCodeTable::COUNT> s_dispatch_table =
 	{
 #define MARMOT_OPCODE(name, length) &&handler_##name,
@@ -1216,7 +1216,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 	while (true)
 	{
 
-#if MIDORI_ENABLE_EXECUTION_TRACE
+#if MARMOT_ENABLE_EXECUTION_TRACE
 		if (RuntimeDiagnostics::TraceEnabled())
 		{
 			std::print(RuntimeDiagnostics::Output(), "Stack:");
@@ -1240,19 +1240,19 @@ int VirtualMachine::ExecuteLoop() noexcept
 #endif
 		const InstructionPointer inst_ip = ip;
 		VmOpCode instruction = ReadByte(ip);
-#if MIDORI_ENABLE_OPCODE_METRICS
+#if MARMOT_ENABLE_OPCODE_METRICS
 		if (opcode_metrics)
 		{
 			opcode_counts[static_cast<size_t>(instruction)] += 1u;
 		}
 #endif
 
-#if MIDORI_THREADED_DISPATCH
+#if MARMOT_THREADED_DISPATCH
 		goto *s_dispatch_table[static_cast<size_t>(instruction)];
 #endif
 		switch (instruction)
 		{
-		MIDORI_HANDLER(LOAD_STRING_WIDE)
+		MARMOT_HANDLER(LOAD_STRING_WIDE)
 		{
 			size_t index = static_cast<size_t>(ReadShort(ip));
 			if (index >= m_string_literal_cache.size() || !m_string_literal_cache[index])
@@ -1261,92 +1261,92 @@ int VirtualMachine::ExecuteLoop() noexcept
 				{
 					m_string_literal_cache.resize(index + 1, nullptr);
 				}
-				m_string_literal_cache[index] = AllocateTraceable(MidoriText(m_executable->GetStringPool()[index].data()));
+				m_string_literal_cache[index] = AllocateTraceable(MarmotText(m_executable->GetStringPool()[index].data()));
 			}
 			// Shared by every load: lowering never extends a text literal in place.
 			Push(sp, m_string_literal_cache[index]);
 			break;
 		}
-		MIDORI_HANDLER(INTEGER_CONSTANT)
+		MARMOT_HANDLER(INTEGER_CONSTANT)
 		{
 			Push(sp, ReadIntegerConstant(ip));
 			break;
 		}
-		MIDORI_HANDLER(FLOAT_CONSTANT)
+		MARMOT_HANDLER(FLOAT_CONSTANT)
 		{
 			Push(sp, ReadFloatConstant(ip));
 			break;
 		}
-		MIDORI_HANDLER(BYTE_CONSTANT)
+		MARMOT_HANDLER(BYTE_CONSTANT)
 		{
 			Push(sp, ReadByteConstant(ip));
 			break;
 		}
-		MIDORI_HANDLER(WORD_CONSTANT)
+		MARMOT_HANDLER(WORD_CONSTANT)
 		{
 			Push(sp, ReadWordConstant(ip));
 			break;
 		}
-		MIDORI_HANDLER(OP_UNIT)
+		MARMOT_HANDLER(OP_UNIT)
 		{
-			Push(sp, MidoriValue());
+			Push(sp, MarmotValue());
 			break;
 		}
-		MIDORI_HANDLER(OP_TRUE)
+		MARMOT_HANDLER(OP_TRUE)
 		{
 			Push(sp, true);
 			break;
 		}
-		MIDORI_HANDLER(OP_FALSE)
+		MARMOT_HANDLER(OP_FALSE)
 		{
 			Push(sp, false);
 			break;
 		}
-		MIDORI_HANDLER(INT_MINUS_1)
+		MARMOT_HANDLER(INT_MINUS_1)
 		{
-			Push(sp, MidoriInteger{-1});
+			Push(sp, MarmotInteger{-1});
 			break;
 		}
-		MIDORI_HANDLER(INT_0)
+		MARMOT_HANDLER(INT_0)
 		{
-			Push(sp, MidoriInteger{0});
+			Push(sp, MarmotInteger{0});
 			break;
 		}
-		MIDORI_HANDLER(INT_1)
+		MARMOT_HANDLER(INT_1)
 		{
-			Push(sp, MidoriInteger{1});
+			Push(sp, MarmotInteger{1});
 			break;
 		}
-		MIDORI_HANDLER(INT_2)
+		MARMOT_HANDLER(INT_2)
 		{
-			Push(sp, MidoriInteger{2});
+			Push(sp, MarmotInteger{2});
 			break;
 		}
-		MIDORI_HANDLER(INT_3)
+		MARMOT_HANDLER(INT_3)
 		{
-			Push(sp, MidoriInteger{3});
+			Push(sp, MarmotInteger{3});
 			break;
 		}
-		MIDORI_HANDLER(INT_4)
+		MARMOT_HANDLER(INT_4)
 		{
-			Push(sp, MidoriInteger{4});
+			Push(sp, MarmotInteger{4});
 			break;
 		}
-		MIDORI_HANDLER(INT_5)
+		MARMOT_HANDLER(INT_5)
 		{
-			Push(sp, MidoriInteger{5});
+			Push(sp, MarmotInteger{5});
 			break;
 		}
-		MIDORI_HANDLER(INT_10)
+		MARMOT_HANDLER(INT_10)
 		{
-			Push(sp, MidoriInteger{10});
+			Push(sp, MarmotInteger{10});
 			break;
 		}
-		MIDORI_HANDLER(CREATE_ARRAY)
+		MARMOT_HANDLER(CREATE_ARRAY)
 		{
 			int count = ReadThreeBytes(ip);
 			const bool holds_pointers = ReadByte(ip) != VmOpCode{ 0u };
-			MidoriArray arr(count);
+			MarmotArray arr(count);
 
 			for (int i = count - 1; i >= 0; i -= 1)
 			{
@@ -1356,23 +1356,23 @@ int VirtualMachine::ExecuteLoop() noexcept
 			Push(sp, AllocateArray(std::move(arr), holds_pointers));
 			break;
 		}
-		MIDORI_HANDLER(CREATE_TUPLE)
+		MARMOT_HANDLER(CREATE_TUPLE)
 		{
 			int count = ReadThreeBytes(ip);
 			const uint16_t shape = static_cast<uint16_t>(ReadShort(ip));
 			sp -= count;
-			Push(sp, AllocateAggregate(MidoriTraceable::TraceableType::Tuple, std::span<const MidoriValue>(sp, static_cast<size_t>(count)), 0, shape));
+			Push(sp, AllocateAggregate(MarmotTraceable::TraceableType::Tuple, std::span<const MarmotValue>(sp, static_cast<size_t>(count)), 0, shape));
 			break;
 		}
-		MIDORI_HANDLER(GET_ARRAY)
+		MARMOT_HANDLER(GET_ARRAY)
 		{
-			MidoriValue& index = *(sp - 1);
-			MidoriValue* arr_slot = sp - 2;
-			MidoriValue arr = *arr_slot;
-			MidoriArray& arr_ref = arr.GetPointer()->GetTraceable<MidoriArray>();
+			MarmotValue& index = *(sp - 1);
+			MarmotValue* arr_slot = sp - 2;
+			MarmotValue arr = *arr_slot;
+			MarmotArray& arr_ref = arr.GetPointer()->GetTraceable<MarmotArray>();
 			m_instruction_pointer = inst_ip;
 
-			int return_code = CheckIndexBounds(index, static_cast<MidoriInteger>(arr_ref.GetLength()));
+			int return_code = CheckIndexBounds(index, static_cast<MarmotInteger>(arr_ref.GetLength()));
 			if (return_code != 0)
 			{
 				m_value_stack_pointer = arr_slot;
@@ -1386,15 +1386,15 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		MIDORI_HANDLER(GET_TUPLE)
+		MARMOT_HANDLER(GET_TUPLE)
 		{
-			MidoriValue& index = *(sp - 1);
-			MidoriValue* tuple_slot = sp - 2;
-			MidoriValue tuple_value = *tuple_slot;
-			MidoriTraceable* tuple_ref = tuple_value.GetPointer();
+			MarmotValue& index = *(sp - 1);
+			MarmotValue* tuple_slot = sp - 2;
+			MarmotValue tuple_value = *tuple_slot;
+			MarmotTraceable* tuple_ref = tuple_value.GetPointer();
 			m_instruction_pointer = inst_ip;
 
-			int return_code = CheckIndexBounds(index, static_cast<MidoriInteger>(tuple_ref->GetLength()));
+			int return_code = CheckIndexBounds(index, static_cast<MarmotInteger>(tuple_ref->GetLength()));
 			if (return_code != 0)
 			{
 				m_value_stack_pointer = tuple_slot;
@@ -1408,101 +1408,101 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		MIDORI_HANDLER(ADD_BACK_ARRAY)
+		MARMOT_HANDLER(ADD_BACK_ARRAY)
 		{
-			MidoriValue val = Pop(sp);
-			MidoriValue& arr = Peek(sp);
+			MarmotValue val = Pop(sp);
+			MarmotValue& arr = Peek(sp);
 
-#if MIDORI_DEBUG_FULL
+#if MARMOT_DEBUG_FULL
 			CheckKind(val, arr.GetPointer()->HoldsPointers(), "an array appended to");
 #endif
 			m_gc.WriteBarrier(arr.GetPointer());
-			MidoriArray& arr_ref = arr.GetPointer()->GetTraceable<MidoriArray>();
+			MarmotArray& arr_ref = arr.GetPointer()->GetTraceable<MarmotArray>();
 			arr_ref.AddBack(val);
 
 			break;
 		}
-		MIDORI_HANDLER(GET_ARRAY_LENGTH)
+		MARMOT_HANDLER(GET_ARRAY_LENGTH)
 		{
-			MidoriValue arr = Pop(sp);
-			MidoriArray& arr_ref = arr.GetPointer()->GetTraceable<MidoriArray>();
-			MidoriInteger length = static_cast<MidoriInteger>(arr_ref.GetLength());
+			MarmotValue arr = Pop(sp);
+			MarmotArray& arr_ref = arr.GetPointer()->GetTraceable<MarmotArray>();
+			MarmotInteger length = static_cast<MarmotInteger>(arr_ref.GetLength());
 			Push(sp, length);
 			break;
 		}
-		MIDORI_HANDLER(CREATE_INT_RANGE)
+		MARMOT_HANDLER(CREATE_INT_RANGE)
 		{
-			MidoriValue end = Pop(sp);
-			MidoriValue step = Pop(sp);
-			MidoriValue start = Pop(sp);
+			MarmotValue end = Pop(sp);
+			MarmotValue step = Pop(sp);
+			MarmotValue start = Pop(sp);
 
-			MidoriIntRange range(start.GetInteger(), end.GetInteger(), step.GetInteger());
-
-			Push(sp, AllocateTraceable(std::move(range)));
-			break;
-		}
-		MIDORI_HANDLER(CREATE_FLOAT_RANGE)
-		{
-			MidoriValue end = Pop(sp);
-			MidoriValue step = Pop(sp);
-			MidoriValue start = Pop(sp);
-
-			MidoriFloatRange range(start.GetFloat(), end.GetFloat(), step.GetFloat());
+			MarmotIntRange range(start.GetInteger(), end.GetInteger(), step.GetInteger());
 
 			Push(sp, AllocateTraceable(std::move(range)));
 			break;
 		}
-		MIDORI_HANDLER(GET_RANGE_START)
+		MARMOT_HANDLER(CREATE_FLOAT_RANGE)
 		{
-			MidoriValue range_ptr = Pop(sp);
-			MidoriTraceable* ptr = range_ptr.GetPointer();
-			if (ptr->IsTraceable<MidoriIntRange>())
+			MarmotValue end = Pop(sp);
+			MarmotValue step = Pop(sp);
+			MarmotValue start = Pop(sp);
+
+			MarmotFloatRange range(start.GetFloat(), end.GetFloat(), step.GetFloat());
+
+			Push(sp, AllocateTraceable(std::move(range)));
+			break;
+		}
+		MARMOT_HANDLER(GET_RANGE_START)
+		{
+			MarmotValue range_ptr = Pop(sp);
+			MarmotTraceable* ptr = range_ptr.GetPointer();
+			if (ptr->IsTraceable<MarmotIntRange>())
 			{
-				Push(sp, ptr->GetTraceable<MidoriIntRange>().GetStart());
+				Push(sp, ptr->GetTraceable<MarmotIntRange>().GetStart());
 			}
 			else
 			{
-				Push(sp, ptr->GetTraceable<MidoriFloatRange>().GetStart());
+				Push(sp, ptr->GetTraceable<MarmotFloatRange>().GetStart());
 			}
 			break;
 		}
-		MIDORI_HANDLER(GET_RANGE_END)
+		MARMOT_HANDLER(GET_RANGE_END)
 		{
-			MidoriValue range_ptr = Pop(sp);
-			MidoriTraceable* ptr = range_ptr.GetPointer();
-			if (ptr->IsTraceable<MidoriIntRange>())
+			MarmotValue range_ptr = Pop(sp);
+			MarmotTraceable* ptr = range_ptr.GetPointer();
+			if (ptr->IsTraceable<MarmotIntRange>())
 			{
-				Push(sp, ptr->GetTraceable<MidoriIntRange>().GetEnd());
+				Push(sp, ptr->GetTraceable<MarmotIntRange>().GetEnd());
 			}
 			else
 			{
-				Push(sp, ptr->GetTraceable<MidoriFloatRange>().GetEnd());
+				Push(sp, ptr->GetTraceable<MarmotFloatRange>().GetEnd());
 			}
 			break;
 		}
-		MIDORI_HANDLER(GET_RANGE_STEP)
+		MARMOT_HANDLER(GET_RANGE_STEP)
 		{
-			MidoriValue range_ptr = Pop(sp);
-			MidoriTraceable* ptr = range_ptr.GetPointer();
-			if (ptr->IsTraceable<MidoriIntRange>())
+			MarmotValue range_ptr = Pop(sp);
+			MarmotTraceable* ptr = range_ptr.GetPointer();
+			if (ptr->IsTraceable<MarmotIntRange>())
 			{
-				Push(sp, ptr->GetTraceable<MidoriIntRange>().GetStep());
+				Push(sp, ptr->GetTraceable<MarmotIntRange>().GetStep());
 			}
 			else
 			{
-				Push(sp, ptr->GetTraceable<MidoriFloatRange>().GetStep());
+				Push(sp, ptr->GetTraceable<MarmotFloatRange>().GetStep());
 			}
 			break;
 		}
-		MIDORI_HANDLER(INT_TO_FLOAT)
+		MARMOT_HANDLER(INT_TO_FLOAT)
 		{
-			Peek(sp) = static_cast<MidoriFloat>(Peek(sp).GetInteger());
+			Peek(sp) = static_cast<MarmotFloat>(Peek(sp).GetInteger());
 			break;
 		}
-		MIDORI_HANDLER(TEXT_TO_FLOAT)
+		MARMOT_HANDLER(TEXT_TO_FLOAT)
 		{
-			const MidoriText& text = Peek(sp).GetPointer()->GetTraceable<MidoriText>();
-			const std::optional<MidoriFloat> parsed = text.ParseFloat();
+			const MarmotText& text = Peek(sp).GetPointer()->GetTraceable<MarmotText>();
+			const std::optional<MarmotFloat> parsed = text.ParseFloat();
 			if (!parsed.has_value())
 			{
 				m_instruction_pointer = inst_ip;
@@ -1514,15 +1514,15 @@ int VirtualMachine::ExecuteLoop() noexcept
 			Peek(sp) = parsed.value();
 			break;
 		}
-		MIDORI_HANDLER(FLOAT_TO_INT)
+		MARMOT_HANDLER(FLOAT_TO_INT)
 		{
-			Peek(sp) = static_cast<MidoriInteger>(Peek(sp).GetFloat());
+			Peek(sp) = static_cast<MarmotInteger>(Peek(sp).GetFloat());
 			break;
 		}
-		MIDORI_HANDLER(TEXT_TO_INT)
+		MARMOT_HANDLER(TEXT_TO_INT)
 		{
-			const MidoriText& text = Peek(sp).GetPointer()->GetTraceable<MidoriText>();
-			const std::optional<MidoriInteger> parsed = text.ParseInteger();
+			const MarmotText& text = Peek(sp).GetPointer()->GetTraceable<MarmotText>();
+			const std::optional<MarmotInteger> parsed = text.ParseInteger();
 			if (!parsed.has_value())
 			{
 				m_instruction_pointer = inst_ip;
@@ -1534,378 +1534,378 @@ int VirtualMachine::ExecuteLoop() noexcept
 			Peek(sp) = parsed.value();
 			break;
 		}
-		MIDORI_HANDLER(FLOAT_TO_TEXT)
+		MARMOT_HANDLER(FLOAT_TO_TEXT)
 		{
-			Peek(sp) = AllocateTraceable(MidoriText::FromFloat(Peek(sp).GetFloat()));
+			Peek(sp) = AllocateTraceable(MarmotText::FromFloat(Peek(sp).GetFloat()));
 			break;
 		}
-		MIDORI_HANDLER(INT_TO_TEXT)
+		MARMOT_HANDLER(INT_TO_TEXT)
 		{
-			Peek(sp) = AllocateTraceable(MidoriText::FromInteger(Peek(sp).GetInteger()));
+			Peek(sp) = AllocateTraceable(MarmotText::FromInteger(Peek(sp).GetInteger()));
 			break;
 		}
-		MIDORI_HANDLER(WORD_TO_TEXT)
+		MARMOT_HANDLER(WORD_TO_TEXT)
 		{
-			Peek(sp) = AllocateTraceable(MidoriText::FromWord(Peek(sp).GetWord()));
+			Peek(sp) = AllocateTraceable(MarmotText::FromWord(Peek(sp).GetWord()));
 			break;
 		}
-		MIDORI_HANDLER(BYTE_TO_INT)
+		MARMOT_HANDLER(BYTE_TO_INT)
 		{
-			Peek(sp) = static_cast<MidoriInteger>(Peek(sp).GetByte());
+			Peek(sp) = static_cast<MarmotInteger>(Peek(sp).GetByte());
 			break;
 		}
-		MIDORI_HANDLER(INT_TO_BYTE)
+		MARMOT_HANDLER(INT_TO_BYTE)
 		{
-			Peek(sp) = static_cast<MidoriByte>(Peek(sp).GetInteger() & 0xFF);
+			Peek(sp) = static_cast<MarmotByte>(Peek(sp).GetInteger() & 0xFF);
 			break;
 		}
-		MIDORI_HANDLER(BYTE_TO_WORD)
+		MARMOT_HANDLER(BYTE_TO_WORD)
 		{
-			Peek(sp) = static_cast<MidoriWord>(Peek(sp).GetByte());
+			Peek(sp) = static_cast<MarmotWord>(Peek(sp).GetByte());
 			break;
 		}
-		MIDORI_HANDLER(WORD_TO_BYTE)
+		MARMOT_HANDLER(WORD_TO_BYTE)
 		{
-			Peek(sp) = static_cast<MidoriByte>(Peek(sp).GetWord() & 0xFF);
+			Peek(sp) = static_cast<MarmotByte>(Peek(sp).GetWord() & 0xFF);
 			break;
 		}
-		MIDORI_HANDLER(WORD_TO_INT)
+		MARMOT_HANDLER(WORD_TO_INT)
 		{
-			Peek(sp) = static_cast<MidoriInteger>(Peek(sp).GetWord());
+			Peek(sp) = static_cast<MarmotInteger>(Peek(sp).GetWord());
 			break;
 		}
-		MIDORI_HANDLER(INT_TO_WORD)
+		MARMOT_HANDLER(INT_TO_WORD)
 		{
-			Peek(sp) = static_cast<MidoriWord>(Peek(sp).GetInteger());
+			Peek(sp) = static_cast<MarmotWord>(Peek(sp).GetInteger());
 			break;
 		}
-		MIDORI_HANDLER(BYTE_TO_FLOAT)
+		MARMOT_HANDLER(BYTE_TO_FLOAT)
 		{
-			Peek(sp) = static_cast<MidoriFloat>(Peek(sp).GetByte());
+			Peek(sp) = static_cast<MarmotFloat>(Peek(sp).GetByte());
 			break;
 		}
-		MIDORI_HANDLER(FLOAT_TO_BYTE)
+		MARMOT_HANDLER(FLOAT_TO_BYTE)
 		{
-			Peek(sp) = static_cast<MidoriByte>(Peek(sp).GetFloat());
+			Peek(sp) = static_cast<MarmotByte>(Peek(sp).GetFloat());
 			break;
 		}
-		MIDORI_HANDLER(WORD_TO_FLOAT)
+		MARMOT_HANDLER(WORD_TO_FLOAT)
 		{
-			Peek(sp) = static_cast<MidoriFloat>(Peek(sp).GetWord());
+			Peek(sp) = static_cast<MarmotFloat>(Peek(sp).GetWord());
 			break;
 		}
-		MIDORI_HANDLER(FLOAT_TO_WORD)
+		MARMOT_HANDLER(FLOAT_TO_WORD)
 		{
-			Peek(sp) = static_cast<MidoriWord>(Peek(sp).GetFloat());
+			Peek(sp) = static_cast<MarmotWord>(Peek(sp).GetFloat());
 			break;
 		}
-		MIDORI_HANDLER(LEFT_SHIFT)
+		MARMOT_HANDLER(LEFT_SHIFT)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
-			left = MidoriIntegerArithmetic::ShiftLeft(left.GetInteger(), static_cast<uint64_t>(right.GetInteger()));
+			left = MarmotIntegerArithmetic::ShiftLeft(left.GetInteger(), static_cast<uint64_t>(right.GetInteger()));
 			break;
 		}
-		MIDORI_HANDLER(RIGHT_SHIFT)
+		MARMOT_HANDLER(RIGHT_SHIFT)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
-			left = MidoriIntegerArithmetic::ShiftRight(left.GetInteger(), static_cast<uint64_t>(right.GetInteger()));
-
-			break;
-		}
-		MIDORI_HANDLER(LEFT_SHIFT_BYTE)
-		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
-
-			left = MidoriIntegerArithmetic::ShiftLeft(left.GetByte(), right.GetByte());
+			left = MarmotIntegerArithmetic::ShiftRight(left.GetInteger(), static_cast<uint64_t>(right.GetInteger()));
 
 			break;
 		}
-		MIDORI_HANDLER(RIGHT_SHIFT_BYTE)
+		MARMOT_HANDLER(LEFT_SHIFT_BYTE)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
-			left = MidoriIntegerArithmetic::ShiftRight(left.GetByte(), right.GetByte());
+			left = MarmotIntegerArithmetic::ShiftLeft(left.GetByte(), right.GetByte());
 
 			break;
 		}
-		MIDORI_HANDLER(LEFT_SHIFT_WORD)
+		MARMOT_HANDLER(RIGHT_SHIFT_BYTE)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
-			left = MidoriIntegerArithmetic::ShiftLeft(left.GetWord(), right.GetWord());
+			left = MarmotIntegerArithmetic::ShiftRight(left.GetByte(), right.GetByte());
 
 			break;
 		}
-		MIDORI_HANDLER(RIGHT_SHIFT_WORD)
+		MARMOT_HANDLER(LEFT_SHIFT_WORD)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
-			left = MidoriIntegerArithmetic::ShiftRight(left.GetWord(), right.GetWord());
+			left = MarmotIntegerArithmetic::ShiftLeft(left.GetWord(), right.GetWord());
 
 			break;
 		}
-		MIDORI_HANDLER(BITWISE_AND)
+		MARMOT_HANDLER(RIGHT_SHIFT_WORD)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
+
+			left = MarmotIntegerArithmetic::ShiftRight(left.GetWord(), right.GetWord());
+
+			break;
+		}
+		MARMOT_HANDLER(BITWISE_AND)
+		{
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
 			left = left.GetInteger() & right.GetInteger();
 
 			break;
 		}
-		MIDORI_HANDLER(BITWISE_OR)
+		MARMOT_HANDLER(BITWISE_OR)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
 			left = left.GetInteger() | right.GetInteger();
 
 			break;
 		}
-		MIDORI_HANDLER(BITWISE_XOR)
+		MARMOT_HANDLER(BITWISE_XOR)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
 			left = left.GetInteger() ^ right.GetInteger();
 
 			break;
 		}
-		MIDORI_HANDLER(BITWISE_NOT)
+		MARMOT_HANDLER(BITWISE_NOT)
 		{
-			MidoriValue& right = Peek(sp);
+			MarmotValue& right = Peek(sp);
 
 			right = ~right.GetInteger();
 
 			break;
 		}
-		MIDORI_HANDLER(ADD_FLOAT)
+		MARMOT_HANDLER(ADD_FLOAT)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
 			left = left.GetFloat() + right.GetFloat();
 
 			break;
 		}
-		MIDORI_HANDLER(SUBTRACT_FLOAT)
+		MARMOT_HANDLER(SUBTRACT_FLOAT)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
 			left = left.GetFloat() - right.GetFloat();
 
 			break;
 		}
-		MIDORI_HANDLER(MULTIPLY_FLOAT)
+		MARMOT_HANDLER(MULTIPLY_FLOAT)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
 			left = left.GetFloat() * right.GetFloat();
 
 			break;
 		}
-		MIDORI_HANDLER(DIVIDE_FLOAT)
+		MARMOT_HANDLER(DIVIDE_FLOAT)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
 			left = left.GetFloat() / right.GetFloat();
 
 			break;
 		}
-		MIDORI_HANDLER(MODULO_FLOAT)
+		MARMOT_HANDLER(MODULO_FLOAT)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
 			left = std::fmod(left.GetFloat(), right.GetFloat());
 
 			break;
 		}
-		MIDORI_HANDLER(ADD_INTEGER)
+		MARMOT_HANDLER(ADD_INTEGER)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
-			left = MidoriIntegerArithmetic::Add(left.GetInteger(), right.GetInteger());
+			left = MarmotIntegerArithmetic::Add(left.GetInteger(), right.GetInteger());
 
 			break;
 		}
-		MIDORI_HANDLER(SUBTRACT_INTEGER)
+		MARMOT_HANDLER(SUBTRACT_INTEGER)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
-			left = MidoriIntegerArithmetic::Subtract(left.GetInteger(), right.GetInteger());
+			left = MarmotIntegerArithmetic::Subtract(left.GetInteger(), right.GetInteger());
 
 			break;
 		}
-		MIDORI_HANDLER(MULTIPLY_INTEGER)
+		MARMOT_HANDLER(MULTIPLY_INTEGER)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
-			left = MidoriIntegerArithmetic::Multiply(left.GetInteger(), right.GetInteger());
+			left = MarmotIntegerArithmetic::Multiply(left.GetInteger(), right.GetInteger());
 
 			break;
 		}
-		MIDORI_HANDLER(DIVIDE_INTEGER)
+		MARMOT_HANDLER(DIVIDE_INTEGER)
 		{
 			m_instruction_pointer = inst_ip;
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
-			left = MidoriIntegerArithmetic::Divide(left.GetInteger(), right.GetInteger());
+			left = MarmotIntegerArithmetic::Divide(left.GetInteger(), right.GetInteger());
 
 			break;
 		}
-		MIDORI_HANDLER(MODULO_INTEGER)
+		MARMOT_HANDLER(MODULO_INTEGER)
 		{
 			m_instruction_pointer = inst_ip;
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
-			left = MidoriIntegerArithmetic::Remainder(left.GetInteger(), right.GetInteger());
+			left = MarmotIntegerArithmetic::Remainder(left.GetInteger(), right.GetInteger());
 
 			break;
 		}
-		MIDORI_HANDLER(ADD_BYTE)
+		MARMOT_HANDLER(ADD_BYTE)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
-			left = static_cast<MidoriByte>(left.GetByte() + right.GetByte());
+			left = static_cast<MarmotByte>(left.GetByte() + right.GetByte());
 
 			break;
 		}
-		MIDORI_HANDLER(SUBTRACT_BYTE)
+		MARMOT_HANDLER(SUBTRACT_BYTE)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
-			left = static_cast<MidoriByte>(left.GetByte() - right.GetByte());
+			left = static_cast<MarmotByte>(left.GetByte() - right.GetByte());
 
 			break;
 		}
-		MIDORI_HANDLER(MULTIPLY_BYTE)
+		MARMOT_HANDLER(MULTIPLY_BYTE)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
-			left = static_cast<MidoriByte>(left.GetByte() * right.GetByte());
-
-			break;
-		}
-		MIDORI_HANDLER(DIVIDE_BYTE)
-		{
-			m_instruction_pointer = inst_ip;
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
-
-			left = static_cast<MidoriByte>(left.GetByte() / right.GetByte());
+			left = static_cast<MarmotByte>(left.GetByte() * right.GetByte());
 
 			break;
 		}
-		MIDORI_HANDLER(MODULO_BYTE)
+		MARMOT_HANDLER(DIVIDE_BYTE)
 		{
 			m_instruction_pointer = inst_ip;
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
-			left = static_cast<MidoriByte>(left.GetByte() % right.GetByte());
+			left = static_cast<MarmotByte>(left.GetByte() / right.GetByte());
 
 			break;
 		}
-		MIDORI_HANDLER(ADD_WORD)
+		MARMOT_HANDLER(MODULO_BYTE)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			m_instruction_pointer = inst_ip;
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
+
+			left = static_cast<MarmotByte>(left.GetByte() % right.GetByte());
+
+			break;
+		}
+		MARMOT_HANDLER(ADD_WORD)
+		{
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
 			left = left.GetWord() + right.GetWord();
 
 			break;
 		}
-		MIDORI_HANDLER(SUBTRACT_WORD)
+		MARMOT_HANDLER(SUBTRACT_WORD)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
 			left = left.GetWord() - right.GetWord();
 
 			break;
 		}
-		MIDORI_HANDLER(MULTIPLY_WORD)
+		MARMOT_HANDLER(MULTIPLY_WORD)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
 			left = left.GetWord() * right.GetWord();
 
 			break;
 		}
-		MIDORI_HANDLER(DIVIDE_WORD)
+		MARMOT_HANDLER(DIVIDE_WORD)
 		{
 			m_instruction_pointer = inst_ip;
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
 			left = left.GetWord() / right.GetWord();
 
 			break;
 		}
-		MIDORI_HANDLER(MODULO_WORD)
+		MARMOT_HANDLER(MODULO_WORD)
 		{
 			m_instruction_pointer = inst_ip;
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
 			left = left.GetWord() % right.GetWord();
 
 			break;
 		}
-		MIDORI_HANDLER(CONCAT_ARRAY)
+		MARMOT_HANDLER(CONCAT_ARRAY)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
-			MidoriArray& left_value_vector_ref = left.GetPointer()->GetTraceable<MidoriArray>();
-			MidoriArray& right_value_vector_ref = right.GetPointer()->GetTraceable<MidoriArray>();
-			MidoriArray result = MidoriArray::Concatenate(left_value_vector_ref, right_value_vector_ref);
+			MarmotArray& left_value_vector_ref = left.GetPointer()->GetTraceable<MarmotArray>();
+			MarmotArray& right_value_vector_ref = right.GetPointer()->GetTraceable<MarmotArray>();
+			MarmotArray result = MarmotArray::Concatenate(left_value_vector_ref, right_value_vector_ref);
 
 			left = AllocateArray(std::move(result), left.GetPointer()->HoldsPointers());
 			TryCollect(ip, sp, bp, env, closure);
 			break;
 		}
-		MIDORI_HANDLER(CONCAT_TEXT)
+		MARMOT_HANDLER(CONCAT_TEXT)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
-			MidoriText& left_value_string_ref = left.GetPointer()->GetTraceable<MidoriText>();
-			MidoriText& right_value_string_ref = right.GetPointer()->GetTraceable<MidoriText>();
+			MarmotText& left_value_string_ref = left.GetPointer()->GetTraceable<MarmotText>();
+			MarmotText& right_value_string_ref = right.GetPointer()->GetTraceable<MarmotText>();
 
-			MidoriText result = MidoriText::Concatenate(left_value_string_ref, right_value_string_ref);
+			MarmotText result = MarmotText::Concatenate(left_value_string_ref, right_value_string_ref);
 
 			left = AllocateTraceable(std::move(result));
 			TryCollect(ip, sp, bp, env, closure);
 			break;
 		}
-		MIDORI_HANDLER(EXTEND_ARRAY)
+		MARMOT_HANDLER(EXTEND_ARRAY)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
-#if MIDORI_DEBUG_FULL
+#if MARMOT_DEBUG_FULL
 			if (left.GetPointer()->HoldsPointers() != right.GetPointer()->HoldsPointers())
 			{
 				std::println(stderr, "internal error: an array of {} is extended with one of {}.", left.GetPointer()->HoldsPointers() ? "pointers" : "scalars", right.GetPointer()->HoldsPointers() ? "pointers" : "scalars");
@@ -1913,42 +1913,42 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 #endif
 			m_gc.WriteBarrier(left.GetPointer());
-			left.GetPointer()->GetTraceable<MidoriArray>().Extend(right.GetPointer()->GetTraceable<MidoriArray>());
+			left.GetPointer()->GetTraceable<MarmotArray>().Extend(right.GetPointer()->GetTraceable<MarmotArray>());
 
 			break;
 		}
-		MIDORI_HANDLER(EXTEND_TEXT)
+		MARMOT_HANDLER(EXTEND_TEXT)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
-			left.GetPointer()->GetTraceable<MidoriText>().Append(right.GetPointer()->GetTraceable<MidoriText>());
+			left.GetPointer()->GetTraceable<MarmotText>().Append(right.GetPointer()->GetTraceable<MarmotText>());
 
 			break;
 		}
-		MIDORI_HANDLER(ADD_LOCAL_INT)
+		MARMOT_HANDLER(ADD_LOCAL_INT)
 		{
 			int local_index = static_cast<int>(ReadByte(ip));
-			MidoriInteger imm = static_cast<MidoriInteger>(static_cast<int8_t>(ReadByte(ip)));
+			MarmotInteger imm = static_cast<MarmotInteger>(static_cast<int8_t>(ReadByte(ip)));
 
-			MidoriValue& slot = *(bp + local_index);
-			MidoriInteger result = MidoriIntegerArithmetic::Add(slot.GetInteger(), imm);
+			MarmotValue& slot = *(bp + local_index);
+			MarmotInteger result = MarmotIntegerArithmetic::Add(slot.GetInteger(), imm);
 			slot = result;
 			Push(sp, result);
 			break;
 		}
-		MIDORI_HANDLER(PUSH_LOCAL_SUB_INT)
+		MARMOT_HANDLER(PUSH_LOCAL_SUB_INT)
 		{
 			int local_index = static_cast<int>(ReadByte(ip));
-			MidoriInteger imm = static_cast<MidoriInteger>(static_cast<int8_t>(ReadByte(ip)));
+			MarmotInteger imm = static_cast<MarmotInteger>(static_cast<int8_t>(ReadByte(ip)));
 
-			Push(sp, MidoriIntegerArithmetic::Subtract((bp + local_index)->GetInteger(), imm));
+			Push(sp, MarmotIntegerArithmetic::Subtract((bp + local_index)->GetInteger(), imm));
 			break;
 		}
-		MIDORI_HANDLER(IF_LOCAL_LE_INT)
+		MARMOT_HANDLER(IF_LOCAL_LE_INT)
 		{
 			int local_index = static_cast<int>(ReadByte(ip));
-			MidoriInteger imm = static_cast<MidoriInteger>(static_cast<int8_t>(ReadByte(ip)));
+			MarmotInteger imm = static_cast<MarmotInteger>(static_cast<int8_t>(ReadByte(ip)));
 			int offset = ReadShort(ip);
 
 			if (!((bp + local_index)->GetInteger() <= imm))
@@ -1957,7 +1957,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		MIDORI_HANDLER(IF_LOCAL_GE_LOCAL)
+		MARMOT_HANDLER(IF_LOCAL_GE_LOCAL)
 		{
 			int left_index = static_cast<int>(ReadByte(ip));
 			int right_index = static_cast<int>(ReadByte(ip));
@@ -1969,7 +1969,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		MIDORI_HANDLER(GET_LOCAL2)
+		MARMOT_HANDLER(GET_LOCAL2)
 		{
 			int first_index = static_cast<int>(ReadByte(ip));
 			int second_index = static_cast<int>(ReadByte(ip));
@@ -1978,13 +1978,13 @@ int VirtualMachine::ExecuteLoop() noexcept
 			Push(sp, *(bp + second_index));
 			break;
 		}
-		MIDORI_HANDLER(STORE_LOCAL)
+		MARMOT_HANDLER(STORE_LOCAL)
 		{
 			int offset = static_cast<int>(ReadByte(ip));
 			*(bp + offset) = Pop(sp);
 			break;
 		}
-		MIDORI_HANDLER(IF_LOCAL_TAG_NOT)
+		MARMOT_HANDLER(IF_LOCAL_TAG_NOT)
 		{
 			int local_index = static_cast<int>(ReadByte(ip));
 			int tag = static_cast<int>(ReadByte(ip));
@@ -1996,7 +1996,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		MIDORI_HANDLER(LOCAL_UNION_FIELD)
+		MARMOT_HANDLER(LOCAL_UNION_FIELD)
 		{
 			int union_index = static_cast<int>(ReadByte(ip));
 			int field_index = static_cast<int>(ReadByte(ip));
@@ -2005,10 +2005,10 @@ int VirtualMachine::ExecuteLoop() noexcept
 			*(bp + target_index) = (bp + union_index)->GetPointer()->GetValues()[static_cast<size_t>(field_index)];
 			break;
 		}
-		MIDORI_HANDLER(IF_LOCAL_LT_INT)
+		MARMOT_HANDLER(IF_LOCAL_LT_INT)
 		{
 			int local_index = static_cast<int>(ReadByte(ip));
-			MidoriInteger imm = static_cast<MidoriInteger>(static_cast<int8_t>(ReadByte(ip)));
+			MarmotInteger imm = static_cast<MarmotInteger>(static_cast<int8_t>(ReadByte(ip)));
 			int offset = ReadShort(ip);
 
 			if (!((bp + local_index)->GetInteger() < imm))
@@ -2017,7 +2017,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		MIDORI_HANDLER(IF_LOCAL_LT_LOCAL)
+		MARMOT_HANDLER(IF_LOCAL_LT_LOCAL)
 		{
 			int left_index = static_cast<int>(ReadByte(ip));
 			int right_index = static_cast<int>(ReadByte(ip));
@@ -2029,7 +2029,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		MIDORI_HANDLER(IF_LOCAL_EQ_LOCAL)
+		MARMOT_HANDLER(IF_LOCAL_EQ_LOCAL)
 		{
 			int left_index = static_cast<int>(ReadByte(ip));
 			int right_index = static_cast<int>(ReadByte(ip));
@@ -2041,23 +2041,23 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		MIDORI_HANDLER(STEP_LOCAL)
+		MARMOT_HANDLER(STEP_LOCAL)
 		{
 			int local_index = static_cast<int>(ReadByte(ip));
-			MidoriInteger imm = static_cast<MidoriInteger>(static_cast<int8_t>(ReadByte(ip)));
+			MarmotInteger imm = static_cast<MarmotInteger>(static_cast<int8_t>(ReadByte(ip)));
 
-			MidoriValue& slot = *(bp + local_index);
-			slot = MidoriIntegerArithmetic::Add(slot.GetInteger(), imm);
+			MarmotValue& slot = *(bp + local_index);
+			slot = MarmotIntegerArithmetic::Add(slot.GetInteger(), imm);
 			break;
 		}
-		MIDORI_HANDLER(LOCAL_ARRAY_GET)
+		MARMOT_HANDLER(LOCAL_ARRAY_GET)
 		{
-			MidoriArray& arr_ref = (bp + static_cast<int>(ReadByte(ip)))->GetPointer()->GetTraceable<MidoriArray>();
-			MidoriValue& index = *(bp + static_cast<int>(ReadByte(ip)));
+			MarmotArray& arr_ref = (bp + static_cast<int>(ReadByte(ip)))->GetPointer()->GetTraceable<MarmotArray>();
+			MarmotValue& index = *(bp + static_cast<int>(ReadByte(ip)));
 			int target_index = static_cast<int>(ReadByte(ip));
 			m_instruction_pointer = inst_ip;
 
-			int return_code = CheckIndexBounds(index, static_cast<MidoriInteger>(arr_ref.GetLength()));
+			int return_code = CheckIndexBounds(index, static_cast<MarmotInteger>(arr_ref.GetLength()));
 			if (return_code != 0)
 			{
 				m_value_stack_pointer = sp;
@@ -2069,274 +2069,274 @@ int VirtualMachine::ExecuteLoop() noexcept
 			*(bp + target_index) = arr_ref[static_cast<int>(index.GetInteger())];
 			break;
 		}
-		MIDORI_HANDLER(LOCAL_UNION2)
+		MARMOT_HANDLER(LOCAL_UNION2)
 		{
 			int tag = static_cast<int>(ReadByte(ip));
-			const std::array<MidoriValue, 2uz> fields{ *(bp + static_cast<int>(ReadByte(ip))), *(bp + static_cast<int>(ReadByte(ip))) };
+			const std::array<MarmotValue, 2uz> fields{ *(bp + static_cast<int>(ReadByte(ip))), *(bp + static_cast<int>(ReadByte(ip))) };
 			int target_index = static_cast<int>(ReadByte(ip));
 			const uint16_t shape = static_cast<uint16_t>(ReadShort(ip));
 
-			*(bp + target_index) = AllocateAggregate(MidoriTraceable::TraceableType::Union, std::span<const MidoriValue>(fields), tag, shape);
+			*(bp + target_index) = AllocateAggregate(MarmotTraceable::TraceableType::Union, std::span<const MarmotValue>(fields), tag, shape);
 			break;
 		}
-		MIDORI_HANDLER(APPEND_LOCAL)
+		MARMOT_HANDLER(APPEND_LOCAL)
 		{
-			MidoriTraceable* arr = (bp + static_cast<int>(ReadByte(ip)))->GetPointer();
-			MidoriValue val = *(bp + static_cast<int>(ReadByte(ip)));
+			MarmotTraceable* arr = (bp + static_cast<int>(ReadByte(ip)))->GetPointer();
+			MarmotValue val = *(bp + static_cast<int>(ReadByte(ip)));
 
-#if MIDORI_DEBUG_FULL
+#if MARMOT_DEBUG_FULL
 			CheckKind(val, arr->HoldsPointers(), "an array appended to");
 #endif
 			m_gc.WriteBarrier(arr);
-			arr->GetTraceable<MidoriArray>().AddBack(val);
+			arr->GetTraceable<MarmotArray>().AddBack(val);
 			break;
 		}
-		MIDORI_HANDLER(EQUAL_FLOAT)
+		MARMOT_HANDLER(EQUAL_FLOAT)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
 			left = left.GetFloat() == right.GetFloat();
 
 			break;
 		}
-		MIDORI_HANDLER(NOT_EQUAL_FLOAT)
+		MARMOT_HANDLER(NOT_EQUAL_FLOAT)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
 			left = left.GetFloat() != right.GetFloat();
 
 			break;
 		}
-		MIDORI_HANDLER(GREATER_FLOAT)
+		MARMOT_HANDLER(GREATER_FLOAT)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
 			left = left.GetFloat() > right.GetFloat();
 
 			break;
 		}
-		MIDORI_HANDLER(GREATER_EQUAL_FLOAT)
+		MARMOT_HANDLER(GREATER_EQUAL_FLOAT)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
 			left = left.GetFloat() >= right.GetFloat();
 
 			break;
 		}
-		MIDORI_HANDLER(LESS_FLOAT)
+		MARMOT_HANDLER(LESS_FLOAT)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
 			left = left.GetFloat() < right.GetFloat();
 
 			break;
 		}
-		MIDORI_HANDLER(LESS_EQUAL_FLOAT)
+		MARMOT_HANDLER(LESS_EQUAL_FLOAT)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
 			left = left.GetFloat() <= right.GetFloat();
 
 			break;
 		}
-		MIDORI_HANDLER(EQUAL_INTEGER)
+		MARMOT_HANDLER(EQUAL_INTEGER)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
 			left = left.GetInteger() == right.GetInteger();
 
 			break;
 		}
-		MIDORI_HANDLER(NOT_EQUAL_INTEGER)
+		MARMOT_HANDLER(NOT_EQUAL_INTEGER)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
 			left = left.GetInteger() != right.GetInteger();
 
 			break;
 		}
-		MIDORI_HANDLER(GREATER_INTEGER)
+		MARMOT_HANDLER(GREATER_INTEGER)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
 			left = left.GetInteger() > right.GetInteger();
 
 			break;
 		}
-		MIDORI_HANDLER(GREATER_EQUAL_INTEGER)
+		MARMOT_HANDLER(GREATER_EQUAL_INTEGER)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
 			left = left.GetInteger() >= right.GetInteger();
 
 			break;
 		}
-		MIDORI_HANDLER(LESS_INTEGER)
+		MARMOT_HANDLER(LESS_INTEGER)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
 			left = left.GetInteger() < right.GetInteger();
 
 			break;
 		}
-		MIDORI_HANDLER(LESS_EQUAL_INTEGER)
+		MARMOT_HANDLER(LESS_EQUAL_INTEGER)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
 			left = left.GetInteger() <= right.GetInteger();
 
 			break;
 		}
-		MIDORI_HANDLER(EQUAL_BYTE)
+		MARMOT_HANDLER(EQUAL_BYTE)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
 			left = left.GetByte() == right.GetByte();
 
 			break;
 		}
-		MIDORI_HANDLER(NOT_EQUAL_BYTE)
+		MARMOT_HANDLER(NOT_EQUAL_BYTE)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
 			left = left.GetByte() != right.GetByte();
 
 			break;
 		}
-		MIDORI_HANDLER(GREATER_BYTE)
+		MARMOT_HANDLER(GREATER_BYTE)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
 			left = left.GetByte() > right.GetByte();
 
 			break;
 		}
-		MIDORI_HANDLER(GREATER_EQUAL_BYTE)
+		MARMOT_HANDLER(GREATER_EQUAL_BYTE)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
 			left = left.GetByte() >= right.GetByte();
 
 			break;
 		}
-		MIDORI_HANDLER(LESS_BYTE)
+		MARMOT_HANDLER(LESS_BYTE)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
 			left = left.GetByte() < right.GetByte();
 
 			break;
 		}
-		MIDORI_HANDLER(LESS_EQUAL_BYTE)
+		MARMOT_HANDLER(LESS_EQUAL_BYTE)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
 			left = left.GetByte() <= right.GetByte();
 
 			break;
 		}
-		MIDORI_HANDLER(EQUAL_WORD)
+		MARMOT_HANDLER(EQUAL_WORD)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
 			left = left.GetWord() == right.GetWord();
 
 			break;
 		}
-		MIDORI_HANDLER(NOT_EQUAL_WORD)
+		MARMOT_HANDLER(NOT_EQUAL_WORD)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
 			left = left.GetWord() != right.GetWord();
 
 			break;
 		}
-		MIDORI_HANDLER(GREATER_WORD)
+		MARMOT_HANDLER(GREATER_WORD)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
 			left = left.GetWord() > right.GetWord();
 
 			break;
 		}
-		MIDORI_HANDLER(GREATER_EQUAL_WORD)
+		MARMOT_HANDLER(GREATER_EQUAL_WORD)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
 			left = left.GetWord() >= right.GetWord();
 
 			break;
 		}
-		MIDORI_HANDLER(LESS_WORD)
+		MARMOT_HANDLER(LESS_WORD)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
 			left = left.GetWord() < right.GetWord();
 
 			break;
 		}
-		MIDORI_HANDLER(LESS_EQUAL_WORD)
+		MARMOT_HANDLER(LESS_EQUAL_WORD)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
 			left = left.GetWord() <= right.GetWord();
 
 			break;
 		}
-		MIDORI_HANDLER(EQUAL_TEXT)
+		MARMOT_HANDLER(EQUAL_TEXT)
 		{
-			MidoriValue right = Pop(sp);
-			MidoriValue& left = Peek(sp);
+			MarmotValue right = Pop(sp);
+			MarmotValue& left = Peek(sp);
 
-			left = left.GetPointer()->GetTraceable<MidoriText>() == right.GetPointer()->GetTraceable<MidoriText>();
+			left = left.GetPointer()->GetTraceable<MarmotText>() == right.GetPointer()->GetTraceable<MarmotText>();
 
 			break;
 		}
-		MIDORI_HANDLER(NOT)
+		MARMOT_HANDLER(NOT)
 		{
-			MidoriValue& value = Peek(sp);
+			MarmotValue& value = Peek(sp);
 			value = !value.GetBool();
 			break;
 		}
-		MIDORI_HANDLER(NEGATE_FLOAT)
+		MARMOT_HANDLER(NEGATE_FLOAT)
 		{
-			MidoriValue& value = Peek(sp);
+			MarmotValue& value = Peek(sp);
 			value = -value.GetFloat();
 			break;
 		}
-		MIDORI_HANDLER(NEGATE_INTEGER)
+		MARMOT_HANDLER(NEGATE_INTEGER)
 		{
-			MidoriValue& value = Peek(sp);
-			value = MidoriIntegerArithmetic::Negate(value.GetInteger());
+			MarmotValue& value = Peek(sp);
+			value = MarmotIntegerArithmetic::Negate(value.GetInteger());
 			break;
 		}
-		MIDORI_HANDLER(JUMP_IF_FALSE)
+		MARMOT_HANDLER(JUMP_IF_FALSE)
 		{
-			MidoriValue value = Peek(sp);
+			MarmotValue value = Peek(sp);
 
 			int offset = ReadShort(ip);
 			if (!value.GetBool())
@@ -2345,13 +2345,13 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		MIDORI_HANDLER(JUMP)
+		MARMOT_HANDLER(JUMP)
 		{
 			int offset = ReadShort(ip);
 			ip += offset;
 			break;
 		}
-		MIDORI_HANDLER(JUMP_BACK)
+		MARMOT_HANDLER(JUMP_BACK)
 		{
 			int offset = ReadShort(ip);
 			ip -= offset;
@@ -2363,11 +2363,11 @@ int VirtualMachine::ExecuteLoop() noexcept
 			TryCollect(ip, sp, bp, env, closure);
 			break;
 		}
-		MIDORI_HANDLER(IF_INTEGER_LESS)
+		MARMOT_HANDLER(IF_INTEGER_LESS)
 		{
 			int offset = ReadShort(ip);
-			MidoriInteger right = Pop(sp).GetInteger();
-			MidoriInteger left = Pop(sp).GetInteger();
+			MarmotInteger right = Pop(sp).GetInteger();
+			MarmotInteger left = Pop(sp).GetInteger();
 
 			if (!(left < right))
 			{
@@ -2375,11 +2375,11 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		MIDORI_HANDLER(IF_INTEGER_LESS_EQUAL)
+		MARMOT_HANDLER(IF_INTEGER_LESS_EQUAL)
 		{
 			int offset = ReadShort(ip);
-			MidoriInteger right = Pop(sp).GetInteger();
-			MidoriInteger left = Pop(sp).GetInteger();
+			MarmotInteger right = Pop(sp).GetInteger();
+			MarmotInteger left = Pop(sp).GetInteger();
 
 			if (!(left <= right))
 			{
@@ -2387,11 +2387,11 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		MIDORI_HANDLER(IF_INTEGER_GREATER)
+		MARMOT_HANDLER(IF_INTEGER_GREATER)
 		{
 			int offset = ReadShort(ip);
-			MidoriInteger right = Pop(sp).GetInteger();
-			MidoriInteger left = Pop(sp).GetInteger();
+			MarmotInteger right = Pop(sp).GetInteger();
+			MarmotInteger left = Pop(sp).GetInteger();
 
 			if (!(left > right))
 			{
@@ -2399,11 +2399,11 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		MIDORI_HANDLER(IF_INTEGER_GREATER_EQUAL)
+		MARMOT_HANDLER(IF_INTEGER_GREATER_EQUAL)
 		{
 			int offset = ReadShort(ip);
-			MidoriInteger right = Pop(sp).GetInteger();
-			MidoriInteger left = Pop(sp).GetInteger();
+			MarmotInteger right = Pop(sp).GetInteger();
+			MarmotInteger left = Pop(sp).GetInteger();
 
 			if (!(left >= right))
 			{
@@ -2411,11 +2411,11 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		MIDORI_HANDLER(IF_INTEGER_EQUAL)
+		MARMOT_HANDLER(IF_INTEGER_EQUAL)
 		{
 			int offset = ReadShort(ip);
-			MidoriInteger right = Pop(sp).GetInteger();
-			MidoriInteger left = Pop(sp).GetInteger();
+			MarmotInteger right = Pop(sp).GetInteger();
+			MarmotInteger left = Pop(sp).GetInteger();
 
 			if (!(left == right))
 			{
@@ -2423,11 +2423,11 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		MIDORI_HANDLER(IF_INTEGER_NOT_EQUAL)
+		MARMOT_HANDLER(IF_INTEGER_NOT_EQUAL)
 		{
 			int offset = ReadShort(ip);
-			MidoriInteger right = Pop(sp).GetInteger();
-			MidoriInteger left = Pop(sp).GetInteger();
+			MarmotInteger right = Pop(sp).GetInteger();
+			MarmotInteger left = Pop(sp).GetInteger();
 
 			if (!(left != right))
 			{
@@ -2435,11 +2435,11 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		MIDORI_HANDLER(IF_FLOAT_LESS)
+		MARMOT_HANDLER(IF_FLOAT_LESS)
 		{
 			int offset = ReadShort(ip);
-			MidoriFloat right = Pop(sp).GetFloat();
-			MidoriFloat left = Pop(sp).GetFloat();
+			MarmotFloat right = Pop(sp).GetFloat();
+			MarmotFloat left = Pop(sp).GetFloat();
 
 			if (!(left < right))
 			{
@@ -2447,11 +2447,11 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		MIDORI_HANDLER(IF_FLOAT_LESS_EQUAL)
+		MARMOT_HANDLER(IF_FLOAT_LESS_EQUAL)
 		{
 			int offset = ReadShort(ip);
-			MidoriFloat right = Pop(sp).GetFloat();
-			MidoriFloat left = Pop(sp).GetFloat();
+			MarmotFloat right = Pop(sp).GetFloat();
+			MarmotFloat left = Pop(sp).GetFloat();
 
 			if (!(left <= right))
 			{
@@ -2459,11 +2459,11 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		MIDORI_HANDLER(IF_FLOAT_GREATER)
+		MARMOT_HANDLER(IF_FLOAT_GREATER)
 		{
 			int offset = ReadShort(ip);
-			MidoriFloat right = Pop(sp).GetFloat();
-			MidoriFloat left = Pop(sp).GetFloat();
+			MarmotFloat right = Pop(sp).GetFloat();
+			MarmotFloat left = Pop(sp).GetFloat();
 
 			if (!(left > right))
 			{
@@ -2471,11 +2471,11 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		MIDORI_HANDLER(IF_FLOAT_GREATER_EQUAL)
+		MARMOT_HANDLER(IF_FLOAT_GREATER_EQUAL)
 		{
 			int offset = ReadShort(ip);
-			MidoriFloat right = Pop(sp).GetFloat();
-			MidoriFloat left = Pop(sp).GetFloat();
+			MarmotFloat right = Pop(sp).GetFloat();
+			MarmotFloat left = Pop(sp).GetFloat();
 
 			if (!(left >= right))
 			{
@@ -2483,11 +2483,11 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		MIDORI_HANDLER(IF_FLOAT_EQUAL)
+		MARMOT_HANDLER(IF_FLOAT_EQUAL)
 		{
 			int offset = ReadShort(ip);
-			MidoriFloat right = Pop(sp).GetFloat();
-			MidoriFloat left = Pop(sp).GetFloat();
+			MarmotFloat right = Pop(sp).GetFloat();
+			MarmotFloat left = Pop(sp).GetFloat();
 
 			if (!(left == right))
 			{
@@ -2495,11 +2495,11 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		MIDORI_HANDLER(IF_FLOAT_NOT_EQUAL)
+		MARMOT_HANDLER(IF_FLOAT_NOT_EQUAL)
 		{
 			int offset = ReadShort(ip);
-			MidoriFloat right = Pop(sp).GetFloat();
-			MidoriFloat left = Pop(sp).GetFloat();
+			MarmotFloat right = Pop(sp).GetFloat();
+			MarmotFloat left = Pop(sp).GetFloat();
 
 			if (!(left != right))
 			{
@@ -2507,20 +2507,20 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			break;
 		}
-		MIDORI_HANDLER(GET_TAG)
+		MARMOT_HANDLER(GET_TAG)
 		{
-			MidoriValue union_val = Pop(sp);
-			Push(sp, static_cast<MidoriInteger>(union_val.GetPointer()->GetIndex()));
+			MarmotValue union_val = Pop(sp);
+			Push(sp, static_cast<MarmotInteger>(union_val.GetPointer()->GetIndex()));
 			break;
 		}
-		MIDORI_HANDLER(CALL_FOREIGN)
+		MARMOT_HANDLER(CALL_FOREIGN)
 		{
-			MidoriValue foreign_function_name = Pop(sp);
+			MarmotValue foreign_function_name = Pop(sp);
 			int arity = static_cast<int>(ReadByte(ip));
 			uint8_t return_type = static_cast<uint8_t>(ReadByte(ip));
 			uint8_t argument_kinds = static_cast<uint8_t>(ReadByte(ip));
 
-#if MIDORI_DEBUG_FULL
+#if MARMOT_DEBUG_FULL
 			if (!foreign_function_name.IsPointer())
 			{
 				SyncMachineState(ip, sp, bp, env, closure);
@@ -2528,7 +2528,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 #endif
 
-			MidoriText& foreign_function_name_ref = foreign_function_name.GetPointer()->GetTraceable<MidoriText>();
+			MarmotText& foreign_function_name_ref = foreign_function_name.GetPointer()->GetTraceable<MarmotText>();
 
 			VmFFIFunction proc = nullptr;
 			std::optional<size_t> ffi_idx = VmBuiltins::FindIndex(foreign_function_name_ref.View());
@@ -2567,8 +2567,8 @@ int VirtualMachine::ExecuteLoop() noexcept
 				PassForeignArgument(static_cast<VmFFIArgumentKind>((argument_kinds >> (2 * i)) & 3u), static_cast<size_t>(i), Pop(sp));
 			}
 
-			MidoriValue return_val;
-#if MIDORI_DEBUG_FULL
+			MarmotValue return_val;
+#if MARMOT_DEBUG_FULL
 			if (ffi_idx.has_value())
 			{
 				proc(m_ffi_args.data(), reinterpret_cast<void*>(&return_val));
@@ -2591,7 +2591,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		MIDORI_HANDLER(CALL_FOREIGN_INDEXED)
+		MARMOT_HANDLER(CALL_FOREIGN_INDEXED)
 		{
 			uint8_t ffi_index = static_cast<uint8_t>(ReadByte(ip));
 			int arity = static_cast<int>(ReadByte(ip));
@@ -2616,7 +2616,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 				PassForeignArgument(signature.m_arg_kinds[static_cast<size_t>(i)], static_cast<size_t>(i), Pop(sp));
 			}
 
-			MidoriValue return_val;
+			MarmotValue return_val;
 			proc(m_ffi_args.data(), reinterpret_cast<void*>(&return_val));
 
 			Push(sp, TakeForeignResult(signature.m_return_kind, return_type, return_val));
@@ -2629,12 +2629,12 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		MIDORI_HANDLER(CALL)
+		MARMOT_HANDLER(CALL)
 		{
-			MidoriValue callable = Pop(sp);
+			MarmotValue callable = Pop(sp);
 			int arity = static_cast<int>(ReadByte(ip));
 
-#if MIDORI_DEBUG_FULL
+#if MARMOT_DEBUG_FULL
 			if (!callable.IsPointer())
 			{
 				SyncMachineState(ip, sp, bp, env, closure);
@@ -2653,15 +2653,15 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		MIDORI_HANDLER(CALL_0)
-		MIDORI_HANDLER(CALL_1)
-		MIDORI_HANDLER(CALL_2)
-		MIDORI_HANDLER(CALL_3)
+		MARMOT_HANDLER(CALL_0)
+		MARMOT_HANDLER(CALL_1)
+		MARMOT_HANDLER(CALL_2)
+		MARMOT_HANDLER(CALL_3)
 		{
-			MidoriValue callable = Pop(sp);
+			MarmotValue callable = Pop(sp);
 			int arity = static_cast<int>(instruction) - static_cast<int>(VmOpCode::CALL_0);
 
-#if MIDORI_DEBUG_FULL
+#if MARMOT_DEBUG_FULL
 			if (!callable.IsPointer())
 			{
 				SyncMachineState(ip, sp, bp, env, closure);
@@ -2680,7 +2680,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		MIDORI_HANDLER(CALL_PROC_WIDE)
+		MARMOT_HANDLER(CALL_PROC_WIDE)
 		{
 			int proc_index = static_cast<int>(ReadByte(ip));
 			proc_index |= static_cast<int>(ReadByte(ip)) << 8;
@@ -2695,15 +2695,15 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		MIDORI_HANDLER(CALL_GLOBAL_WIDE)
+		MARMOT_HANDLER(CALL_GLOBAL_WIDE)
 		{
 			int high_byte = static_cast<int>(ReadByte(ip));
 			int low_byte = static_cast<int>(ReadByte(ip));
 			int global_idx = (high_byte << 8) | low_byte;
 			int arity = static_cast<int>(ReadByte(ip));
-			MidoriValue callable = (*m_global_vars)[global_idx];
+			MarmotValue callable = (*m_global_vars)[global_idx];
 
-#if MIDORI_DEBUG_FULL
+#if MARMOT_DEBUG_FULL
 			if (!callable.IsPointer())
 			{
 				SyncMachineState(ip, sp, bp, env, closure);
@@ -2721,12 +2721,12 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		MIDORI_HANDLER(TAIL_CALL)
+		MARMOT_HANDLER(TAIL_CALL)
 		{
-			MidoriValue callable = Pop(sp);
+			MarmotValue callable = Pop(sp);
 			int arity = static_cast<int>(ReadByte(ip));
 
-#if MIDORI_DEBUG_FULL
+#if MARMOT_DEBUG_FULL
 			if (!callable.IsPointer())
 			{
 				SyncMachineState(ip, sp, bp, env, closure);
@@ -2735,10 +2735,10 @@ int VirtualMachine::ExecuteLoop() noexcept
 #endif
 
 			// Move arguments down to base pointer
-			MidoriValue* args_source = sp - arity;
+			MarmotValue* args_source = sp - arity;
 			if (arity > 0 && args_source != bp)
 			{
-				std::memmove(bp, args_source, arity * sizeof(MidoriValue));
+				std::memmove(bp, args_source, arity * sizeof(MarmotValue));
 			}
 			sp = bp + arity;
 
@@ -2760,36 +2760,36 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		MIDORI_HANDLER(CONSTRUCT_STRUCT)
+		MARMOT_HANDLER(CONSTRUCT_STRUCT)
 		{
 			int size = static_cast<int>(ReadByte(ip));
 			const uint16_t shape = static_cast<uint16_t>(ReadShort(ip));
 			sp -= size;
-			Push(sp, AllocateAggregate(MidoriTraceable::TraceableType::Struct, std::span<const MidoriValue>(sp, static_cast<size_t>(size)), 0, shape));
+			Push(sp, AllocateAggregate(MarmotTraceable::TraceableType::Struct, std::span<const MarmotValue>(sp, static_cast<size_t>(size)), 0, shape));
 			break;
 		}
-		MIDORI_HANDLER(CONSTRUCT_UNION)
+		MARMOT_HANDLER(CONSTRUCT_UNION)
 		{
 			int size = static_cast<int>(ReadByte(ip));
 			int tag = static_cast<int>(ReadByte(ip));
 			const uint16_t shape = static_cast<uint16_t>(ReadShort(ip));
 			sp -= size;
-			Push(sp, AllocateAggregate(MidoriTraceable::TraceableType::Union, std::span<const MidoriValue>(sp, static_cast<size_t>(size)), tag, shape));
+			Push(sp, AllocateAggregate(MarmotTraceable::TraceableType::Union, std::span<const MarmotValue>(sp, static_cast<size_t>(size)), tag, shape));
 			break;
 		}
-		MIDORI_HANDLER(LOAD_EMPTY_UNION)
+		MARMOT_HANDLER(LOAD_EMPTY_UNION)
 		{
 			const size_t tag = static_cast<size_t>(ReadByte(ip));
-			MidoriTraceable*& cached = m_empty_union_cache[tag];
+			MarmotTraceable*& cached = m_empty_union_cache[tag];
 			if (cached == nullptr)
 			{
-				cached = AllocateAggregate(MidoriTraceable::TraceableType::Union, {}, static_cast<int>(tag), VM_SCALAR_SHAPE);
+				cached = AllocateAggregate(MarmotTraceable::TraceableType::Union, {}, static_cast<int>(tag), VM_SCALAR_SHAPE);
 			}
 
 			Push(sp, cached);
 			break;
 		}
-		MIDORI_HANDLER(MAKE_CLOSURE_OF)
+		MARMOT_HANDLER(MAKE_CLOSURE_OF)
 		{
 			int proc_index = static_cast<int>(ReadByte(ip));
 			proc_index |= static_cast<int>(ReadByte(ip)) << 8;
@@ -2798,31 +2798,31 @@ int VirtualMachine::ExecuteLoop() noexcept
 			// A capture is never written after SET_CAPTURE fills it, so the closure
 			// holds the values themselves rather than a cell for each.
 			ValueStackPointer captures = sp - count;
-			MidoriTraceable* made = AllocateClosure(proc_index, std::span<const MidoriValue>(captures, static_cast<size_t>(count)));
+			MarmotTraceable* made = AllocateClosure(proc_index, std::span<const MarmotValue>(captures, static_cast<size_t>(count)));
 			sp = captures;
 			Push(sp, made);
 			break;
 		}
-		MIDORI_HANDLER(SET_CAPTURE)
+		MARMOT_HANDLER(SET_CAPTURE)
 		{
 			int index = static_cast<int>(ReadByte(ip));
-			MidoriValue value = Pop(sp);
-			MidoriTraceable* target = Pop(sp).GetPointer();
-#if MIDORI_DEBUG_FULL
+			MarmotValue value = Pop(sp);
+			MarmotTraceable* target = Pop(sp).GetPointer();
+#if MARMOT_DEBUG_FULL
 			CheckKind(value, std::ranges::binary_search(m_executable->GetShapes()[target->GetShape()], static_cast<uint32_t>(index)), "a capture bound late");
 #endif
 			m_gc.WriteBarrier(target);
 			target->GetValues()[static_cast<size_t>(index)] = value;
 			break;
 		}
-		MIDORI_HANDLER(GET_UNION_FIELD)
+		MARMOT_HANDLER(GET_UNION_FIELD)
 		{
 			int index = static_cast<int>(ReadByte(ip));
-			MidoriValue& top = Peek(sp);
+			MarmotValue& top = Peek(sp);
 			top = top.GetPointer()->GetValues()[static_cast<size_t>(index)];
 			break;
 		}
-		MIDORI_HANDLER(MAKE_FUNCTION_WIDE)
+		MARMOT_HANDLER(MAKE_FUNCTION_WIDE)
 		{
 			int proc_index = static_cast<int>(ReadByte(ip));
 			proc_index |= static_cast<int>(ReadByte(ip)) << 8;
@@ -2834,7 +2834,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			else
 			{
-				MidoriTraceable* closure = AllocateClosure(proc_index, {});
+				MarmotTraceable* closure = AllocateClosure(proc_index, {});
 				if (cache_index < m_static_closure_cache.size())
 				{
 					m_static_closure_cache[cache_index] = closure;
@@ -2844,22 +2844,22 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		MIDORI_HANDLER(GET_LOCAL)
+		MARMOT_HANDLER(GET_LOCAL)
 		{
 			int offset = static_cast<int>(ReadByte(ip));
 			Push(sp, *(bp + offset));
 			break;
 		}
-		MIDORI_HANDLER(SET_LOCAL)
+		MARMOT_HANDLER(SET_LOCAL)
 		{
 			int offset = static_cast<int>(ReadByte(ip));
 			*(bp + offset) = Peek(sp);
 			break;
 		}
-		MIDORI_HANDLER(GET_CELL)
+		MARMOT_HANDLER(GET_CELL)
 		{
 			int offset = static_cast<int>(ReadByte(ip));
-#if MIDORI_DEBUG_FULL
+#if MARMOT_DEBUG_FULL
 			if (!env)
 			{
 				SyncMachineState(ip, sp, bp, env, closure);
@@ -2869,48 +2869,48 @@ int VirtualMachine::ExecuteLoop() noexcept
 			Push(sp, env[offset]);
 			break;
 		}
-		MIDORI_HANDLER(MAKE_CELL)
+		MARMOT_HANDLER(MAKE_CELL)
 		{
 			// The initial value stays on the stack, and so stays rooted, until the
 			// cell holding it replaces it.
 			const bool holds_pointer = ReadByte(ip) != VmOpCode{ 0u };
-			MidoriValue& top = Peek(sp);
+			MarmotValue& top = Peek(sp);
 			top = AllocateCell(top, holds_pointer);
 			TryCollect(ip, sp, bp, env, closure);
 			break;
 		}
-		MIDORI_HANDLER(READ_CELL)
+		MARMOT_HANDLER(READ_CELL)
 		{
-			MidoriValue& top = Peek(sp);
-			top = top.GetPointer()->GetTraceable<MidoriMutableCell>().m_value;
+			MarmotValue& top = Peek(sp);
+			top = top.GetPointer()->GetTraceable<MarmotMutableCell>().m_value;
 			break;
 		}
-		MIDORI_HANDLER(WRITE_CELL)
+		MARMOT_HANDLER(WRITE_CELL)
 		{
-			MidoriValue value = Pop(sp);
-			MidoriTraceable* cell = Pop(sp).GetPointer();
-#if MIDORI_DEBUG_FULL
+			MarmotValue value = Pop(sp);
+			MarmotTraceable* cell = Pop(sp).GetPointer();
+#if MARMOT_DEBUG_FULL
 			CheckKind(value, cell->HoldsPointers(), "a Ref written");
 #endif
 			m_gc.WriteBarrier(cell);
-			cell->GetTraceable<MidoriMutableCell>().m_value = value;
+			cell->GetTraceable<MarmotMutableCell>().m_value = value;
 			Push(sp, value);
 			break;
 		}
-		MIDORI_HANDLER(DEFINE_GLOBAL_WIDE)
+		MARMOT_HANDLER(DEFINE_GLOBAL_WIDE)
 		{
-			MidoriValue value = Pop(sp);
+			MarmotValue value = Pop(sp);
 			int high_byte = static_cast<int>(ReadByte(ip));
 			int low_byte = static_cast<int>(ReadByte(ip));
 			int global_idx = (high_byte << 8) | low_byte;
-#if MIDORI_DEBUG_FULL
+#if MARMOT_DEBUG_FULL
 			CheckKind(value, m_executable->IsGlobalPointer(global_idx), m_executable->GetGlobalVariable(global_idx));
 #endif
-			MidoriValue& var = (*m_global_vars)[global_idx];
+			MarmotValue& var = (*m_global_vars)[global_idx];
 			var = value;
 			break;
 		}
-		MIDORI_HANDLER(GET_GLOBAL_WIDE)
+		MARMOT_HANDLER(GET_GLOBAL_WIDE)
 		{
 			int high_byte = static_cast<int>(ReadByte(ip));
 			int low_byte = static_cast<int>(ReadByte(ip));
@@ -2918,19 +2918,19 @@ int VirtualMachine::ExecuteLoop() noexcept
 			Push(sp, (*m_global_vars)[global_idx]);
 			break;
 		}
-		MIDORI_HANDLER(SET_GLOBAL_WIDE)
+		MARMOT_HANDLER(SET_GLOBAL_WIDE)
 		{
 			int high_byte = static_cast<int>(ReadByte(ip));
 			int low_byte = static_cast<int>(ReadByte(ip));
 			int global_idx = (high_byte << 8) | low_byte;
-#if MIDORI_DEBUG_FULL
+#if MARMOT_DEBUG_FULL
 			CheckKind(Peek(sp), m_executable->IsGlobalPointer(global_idx), m_executable->GetGlobalVariable(global_idx));
 #endif
-			MidoriValue& var = (*m_global_vars)[global_idx];
+			MarmotValue& var = (*m_global_vars)[global_idx];
 			var = Peek(sp);
 			break;
 		}
-		MIDORI_HANDLER(GET_LOCAL_WIDE)
+		MARMOT_HANDLER(GET_LOCAL_WIDE)
 		{
 			int high_byte = static_cast<int>(ReadByte(ip));
 			int low_byte = static_cast<int>(ReadByte(ip));
@@ -2938,7 +2938,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			Push(sp, *(bp + offset));
 			break;
 		}
-		MIDORI_HANDLER(SET_LOCAL_WIDE)
+		MARMOT_HANDLER(SET_LOCAL_WIDE)
 		{
 			int high_byte = static_cast<int>(ReadByte(ip));
 			int low_byte = static_cast<int>(ReadByte(ip));
@@ -2946,7 +2946,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 			*(bp + offset) = Peek(sp);
 			break;
 		}
-		MIDORI_HANDLER(GET_CELL_WIDE)
+		MARMOT_HANDLER(GET_CELL_WIDE)
 		{
 			int high_byte = static_cast<int>(ReadByte(ip));
 			int low_byte = static_cast<int>(ReadByte(ip));
@@ -2954,21 +2954,21 @@ int VirtualMachine::ExecuteLoop() noexcept
 			Push(sp, env[offset]);
 			break;
 		}
-		MIDORI_HANDLER(GET_MEMBER)
+		MARMOT_HANDLER(GET_MEMBER)
 		{
 			int index = static_cast<int>(ReadByte(ip));
-			MidoriValue value = Pop(sp);
+			MarmotValue value = Pop(sp);
 			Push(sp, value.GetPointer()->GetValues()[static_cast<size_t>(index)]);
 			break;
 		}
-		MIDORI_HANDLER(POP)
+		MARMOT_HANDLER(POP)
 		{
 			--sp;
 			break;
 		}
-		MIDORI_HANDLER(RETURN)
+		MARMOT_HANDLER(RETURN)
 		{
-			MidoriValue value = Pop(sp);
+			MarmotValue value = Pop(sp);
 			--csp;
 			m_call_stack_pointer = csp;
 			const CallFrame& frame = *csp;
@@ -2995,25 +2995,25 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		MIDORI_HANDLER(HALT)
+		MARMOT_HANDLER(HALT)
 		{
 			SyncMachineState(ip, sp, bp, env, closure);
 			return 0;
 		}
-		MIDORI_HANDLER(PUSH_PLACEHOLDER)
+		MARMOT_HANDLER(PUSH_PLACEHOLDER)
 		{
 			int count = static_cast<int>(ReadByte(ip));
-			sp = std::fill_n(sp, count, MidoriValue());
+			sp = std::fill_n(sp, count, MarmotValue());
 			break;
 		}
-		MIDORI_HANDLER(SPAWN_WORKER)
-		MIDORI_HANDLER(JOIN_WORKER)
-		MIDORI_HANDLER(CHANNEL_CREATE)
-		MIDORI_HANDLER(CHANNEL_SEND)
-		MIDORI_HANDLER(CHANNEL_RECEIVE)
-		MIDORI_HANDLER(CHANNEL_CLOSE)
-		MIDORI_HANDLER(WORKER_IS_DONE)
-		MIDORI_HANDLER(WORKER_CANCEL)
+		MARMOT_HANDLER(SPAWN_WORKER)
+		MARMOT_HANDLER(JOIN_WORKER)
+		MARMOT_HANDLER(CHANNEL_CREATE)
+		MARMOT_HANDLER(CHANNEL_SEND)
+		MARMOT_HANDLER(CHANNEL_RECEIVE)
+		MARMOT_HANDLER(CHANNEL_CLOSE)
+		MARMOT_HANDLER(WORKER_IS_DONE)
+		MARMOT_HANDLER(WORKER_CANCEL)
 		{
 			SyncMachineState(ip, sp, bp, env, closure);
 			// Through a copy: once ip's address escapes, every dispatch stores it.

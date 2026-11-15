@@ -17,19 +17,19 @@ type ProcessOutput = {
     stdout: Text,
     stderr: Text
 };
-foreign "MIDORI_FFI_Exit" ExitRaw: fn(Int) -> Unit;
-foreign "MIDORI_FFI_GetEnv" GetEnvRaw: fn(Text) -> Text;
-foreign "MIDORI_FFI_SetEnv" SetEnvRaw: fn(Text, Text) -> Bool;
-foreign "MIDORI_FFI_Sleep" SleepRaw: fn(Int) -> Unit;
-foreign "MIDORI_FFI_GetCurrentDirectory" GetCurrentDirectoryRaw: fn() -> Text;
-foreign "MIDORI_FFI_SetCurrentDirectory" SetCurrentDirectoryRaw: fn(Text) -> Bool;
-foreign "MIDORI_FFI_Execute" ExecuteRaw: fn(Text) -> Int;
-foreign "MIDORI_FFI_RunProcess" RunProcessRaw: fn(Array < Text >, Text) -> Array < Text >;
-foreign "MIDORI_FFI_GetPlatform" GetPlatformRaw: fn() -> Text;
-foreign "MIDORI_FFI_GetArguments" GetArgumentsRaw: fn() -> Array < Text >;
-foreign "MIDORI_FFI_GetProcessId" GetProcessIdRaw: fn() -> Int;
-foreign "MIDORI_FFI_GetLastSystemErrorKind" GetLastSystemErrorKindRaw: fn() -> Int;
-foreign "MIDORI_FFI_GetLastSystemErrorMessage" GetLastSystemErrorMessageRaw: fn() -> Text;
+foreign "MARMOT_FFI_Exit" ExitRaw: fn(Int) -> Unit;
+foreign "MARMOT_FFI_GetEnv" GetEnvRaw: fn(Text) -> Text;
+foreign "MARMOT_FFI_SetEnv" SetEnvRaw: fn(Text, Text) -> Bool;
+foreign "MARMOT_FFI_Sleep" SleepRaw: fn(Int) -> Unit;
+foreign "MARMOT_FFI_GetCurrentDirectory" GetCurrentDirectoryRaw: fn() -> Text;
+foreign "MARMOT_FFI_SetCurrentDirectory" SetCurrentDirectoryRaw: fn(Text) -> Bool;
+foreign "MARMOT_FFI_Execute" ExecuteRaw: fn(Text) -> Int;
+foreign "MARMOT_FFI_RunProcess" RunProcessRaw: fn(Array < Text >, Text) -> Array < Text >;
+foreign "MARMOT_FFI_GetPlatform" GetPlatformRaw: fn() -> Text;
+foreign "MARMOT_FFI_GetArguments" GetArgumentsRaw: fn() -> Array < Text >;
+foreign "MARMOT_FFI_GetProcessId" GetProcessIdRaw: fn() -> Int;
+foreign "MARMOT_FFI_GetLastSystemErrorKind" GetLastSystemErrorKindRaw: fn() -> Int;
+foreign "MARMOT_FFI_GetLastSystemErrorMessage" GetLastSystemErrorMessageRaw: fn() -> Text;
 def Exit = fn(code: Int) -> Unit => ExitRaw(code);
 def Sleep = fn(milliseconds: Int) -> Unit => SleepRaw(milliseconds);
 def UnknownSystemContext = fn(context: Text, message: Text) -> Text => {

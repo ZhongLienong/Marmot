@@ -31,9 +31,9 @@ private:
 	struct Scope
 	{
 		using VariableTable = std::unordered_map<std::string, VariableContext>;
-		using StructConstructorTable = std::unordered_map<std::string, std::shared_ptr<MidoriType>>;
-		using UnionConstructorTable = std::unordered_map<std::string, std::shared_ptr<MidoriType>>;
-		using DefinedTypeTable = std::unordered_map<std::string, std::shared_ptr<MidoriType>>;
+		using StructConstructorTable = std::unordered_map<std::string, std::shared_ptr<MarmotType>>;
+		using UnionConstructorTable = std::unordered_map<std::string, std::shared_ptr<MarmotType>>;
+		using DefinedTypeTable = std::unordered_map<std::string, std::shared_ptr<MarmotType>>;
 		using AliasGenericParamTable = std::unordered_map<std::string, std::vector<std::string>>;
 		using DefinedNames = std::unordered_set<std::string>;
 
@@ -59,11 +59,11 @@ private:
 		Token m_name;
 		std::string m_name_before_mangle;
 		std::vector<Token> m_generic_params;
-		std::vector<std::shared_ptr<MidoriType>> m_generic_param_types;
-		std::vector<MidoriType::ClassConstraint> m_constraints;
+		std::vector<std::shared_ptr<MarmotType>> m_generic_param_types;
+		std::vector<MarmotType::ClassConstraint> m_constraints;
 		// The type CollectTopLevelNames registered for this declaration, which
 		// earlier declarations and signatures may already name.
-		std::shared_ptr<MidoriType> m_predeclared_type;
+		std::shared_ptr<MarmotType> m_predeclared_type;
 		bool m_has_generic_params = false;
 
 		TypeDeclarationHeader(Token&& name, std::string&& name_before_mangle)
@@ -77,28 +77,28 @@ private:
 	// leading keyword, so the lookup lives on its own.
 	struct ConstructorResolution
 	{
-		std::shared_ptr<MidoriType> m_type;
+		std::shared_ptr<MarmotType> m_type;
 		std::string m_constructor_name;
 		bool m_is_struct;
 
-		ConstructorResolution(std::shared_ptr<MidoriType>&& type, std::string&& constructor_name, bool is_struct)
+		ConstructorResolution(std::shared_ptr<MarmotType>&& type, std::string&& constructor_name, bool is_struct)
 			: m_type(std::move(type)), m_constructor_name(std::move(constructor_name)), m_is_struct(is_struct)
 		{
 		}
 	};
 
-	using ConstructorResolutionResult = MidoriResult::Result<std::optional<ConstructorResolution>>;
+	using ConstructorResolutionResult = MarmotResult::Result<std::optional<ConstructorResolution>>;
 
 	using Scopes = std::vector<Scope>;
 
 	using TypeclassMethodMap = std::unordered_map<std::string, std::unordered_set<std::string>>;
 	using TypeclassInstanceMap = std::unordered_map<std::string, std::vector<std::string>>;
-	using TypeclassInstanceTypeMap = std::unordered_map<std::string, std::vector<std::vector<std::shared_ptr<MidoriType>>>>;
+	using TypeclassInstanceTypeMap = std::unordered_map<std::string, std::vector<std::vector<std::shared_ptr<MarmotType>>>>;
 	using TypeclassAssociatedTypeMap = std::unordered_map<std::string, std::vector<std::string>>;
-	using TypeclassInstanceAssociatedTypeBindingMap = std::unordered_map<std::string, std::vector<std::unordered_map<std::string, std::shared_ptr<MidoriType>>>>;
-	using TypeclassInstanceConstraintMap = std::unordered_map<std::string, std::vector<std::vector<MidoriType::ClassConstraint>>>;
-	using TypeEnvironment = std::unordered_map<std::string, std::shared_ptr<MidoriType>>;
-	using TypeclassMethodTypeMap = std::unordered_map<std::string, std::unordered_map<std::string, std::shared_ptr<MidoriType>>>;
+	using TypeclassInstanceAssociatedTypeBindingMap = std::unordered_map<std::string, std::vector<std::unordered_map<std::string, std::shared_ptr<MarmotType>>>>;
+	using TypeclassInstanceConstraintMap = std::unordered_map<std::string, std::vector<std::vector<MarmotType::ClassConstraint>>>;
+	using TypeEnvironment = std::unordered_map<std::string, std::shared_ptr<MarmotType>>;
+	using TypeclassMethodTypeMap = std::unordered_map<std::string, std::unordered_map<std::string, std::shared_ptr<MarmotType>>>;
 
 	struct ParseContext
 	{
@@ -162,9 +162,9 @@ private:
 		std::vector<int> m_function_base_variable_index{0};
 		std::vector<UseImport> m_current_use_imports;
 		std::vector<std::string> m_namespaces;
-		std::vector<MidoriType::ClassConstraint> m_active_constraints;
+		std::vector<MarmotType::ClassConstraint> m_active_constraints;
 		// The types whose bodies are being parsed, innermost last.
-		std::vector<std::shared_ptr<MidoriType>> m_types_being_declared;
+		std::vector<std::shared_ptr<MarmotType>> m_types_being_declared;
 		std::vector<PendingDefinition> m_pending_definitions;
 		// Set by `|>` when its stage is a lambda, whose body then ends where a pipe
 		// operand does, so the next `|>` is the pipeline's next stage.
@@ -240,33 +240,33 @@ private:
 	ParseContext m_context;
 	ParseState m_state;
 	std::vector<CompilerWarning> m_warnings;
-	std::queue<std::unique_ptr<MidoriStatement>> m_pending_statements;
+	std::queue<std::unique_ptr<MarmotStatement>> m_pending_statements;
 	// By name: a module's top-level type names are unique.
-	std::unordered_map<std::string, std::shared_ptr<MidoriType>> m_predeclared_types;
+	std::unordered_map<std::string, std::shared_ptr<MarmotType>> m_predeclared_types;
 	// Registered, and not declared yet.
-	std::unordered_set<const MidoriType*> m_undeclared_types;
+	std::unordered_set<const MarmotType*> m_undeclared_types;
 
 	// An instantiation of a type that was not whole when it was named: filled
 	// in place once every declaration is parsed.
 	struct DeferredInstantiation
 	{
-		std::shared_ptr<MidoriType> m_target;
-		std::shared_ptr<MidoriType> m_template;
-		std::unordered_map<std::string, std::shared_ptr<MidoriType>> m_substitutions;
+		std::shared_ptr<MarmotType> m_target;
+		std::shared_ptr<MarmotType> m_template;
+		std::unordered_map<std::string, std::shared_ptr<MarmotType>> m_substitutions;
 		Token m_reference;
 
-		DeferredInstantiation(std::shared_ptr<MidoriType> target, std::shared_ptr<MidoriType> type_template, std::unordered_map<std::string, std::shared_ptr<MidoriType>> substitutions, Token reference);
+		DeferredInstantiation(std::shared_ptr<MarmotType> target, std::shared_ptr<MarmotType> type_template, std::unordered_map<std::string, std::shared_ptr<MarmotType>> substitutions, Token reference);
 	};
 	std::vector<DeferredInstantiation> m_deferred_instantiations;
-	std::unordered_set<const MidoriType*> m_unfilled_instantiations;
+	std::unordered_set<const MarmotType*> m_unfilled_instantiations;
 
 	class DeclaringTypeScope
 	{
 	private:
-		std::vector<std::shared_ptr<MidoriType>>& m_stack;
+		std::vector<std::shared_ptr<MarmotType>>& m_stack;
 
 	public:
-		DeclaringTypeScope(std::vector<std::shared_ptr<MidoriType>>& stack, const std::shared_ptr<MidoriType>& type);
+		DeclaringTypeScope(std::vector<std::shared_ptr<MarmotType>>& stack, const std::shared_ptr<MarmotType>& type);
 		~DeclaringTypeScope();
 		DeclaringTypeScope(const DeclaringTypeScope&) = delete;
 		DeclaringTypeScope& operator=(const DeclaringTypeScope&) = delete;
@@ -277,7 +277,7 @@ private:
 public:
 	Parser(TokenStream&& tokens, std::string_view file_name, const std::vector<std::string>& source_lines, const std::unordered_map<std::string, CompiledModule::SymbolTable>& imports, const std::unordered_map<std::string, TypeEnvironment>& imported_type_signatures, const std::vector<UseImport>& use_imports, const ModuleDeclaration* module_decl, const CompiledModule::TypeclassMetadataMap& imported_typeclass_metadata = {});
 
-	MidoriResult::ParserResult Parse();
+	MarmotResult::ParserResult Parse();
 
 	const std::vector<CompilerWarning>& GetWarnings() const;
 
@@ -299,17 +299,17 @@ private:
 	
 	template <typename... T>
 		requires (std::is_same_v<T, Token::Name> && ...)
-	MidoriResult::ExpressionResult ParseBinary(MidoriResult::ExpressionResult(Parser::* operand)(), T... tokens)
+	MarmotResult::ExpressionResult ParseBinary(MarmotResult::ExpressionResult(Parser::* operand)(), T... tokens)
 	{
 		return (this->*operand)()
 			.and_then
 			(
-				[operand, ...tokens = std::move(tokens), this](std::unique_ptr<MidoriExpression>&& lower_expr) ->MidoriResult::ExpressionResult
+				[operand, ...tokens = std::move(tokens), this](std::unique_ptr<MarmotExpression>&& lower_expr) ->MarmotResult::ExpressionResult
 				{
 					while (Match(tokens...))
 					{
 						Token& op = Previous();
-						MidoriResult::ExpressionResult right = (this->*operand)();
+						MarmotResult::ExpressionResult right = (this->*operand)();
 						if (!right.has_value())
 						{
 							return std::unexpected(std::move(right.error()));
@@ -324,7 +324,7 @@ private:
 							return std::unexpected(std::move(error.value()));
 						}
 
-						lower_expr = std::make_unique<MidoriExpression>(MidoriExpression::Binary(op, std::move(lower_expr), std::move(right.value())));
+						lower_expr = std::make_unique<MarmotExpression>(MarmotExpression::Binary(op, std::move(lower_expr), std::move(right.value())));
 					}
 
 					return lower_expr;
@@ -553,7 +553,7 @@ private:
 	bool IsModuleVisible(std::string_view module_name) const;
 
 	// Parses the '<T>' after the built-in type name Cell.
-	MidoriResult::TypeResult ParseRefTypeArguments();
+	MarmotResult::TypeResult ParseRefTypeArguments();
 
 	std::string BuildImportedSymbolAccessError(const std::string& module_name, const std::string& symbol_name, ImportedSymbolAccess access) const;
 
@@ -567,23 +567,23 @@ private:
 
 	void PredeclareType(int type_keyword_index);
 
-	void PredeclareVariants(const std::shared_ptr<MidoriType>& union_type, int body_index);
+	void PredeclareVariants(const std::shared_ptr<MarmotType>& union_type, int body_index);
 
-	std::shared_ptr<MidoriType> DeclaredTypeFor(const TypeDeclarationHeader& header, std::shared_ptr<MidoriType>&& fresh_type);
+	std::shared_ptr<MarmotType> DeclaredTypeFor(const TypeDeclarationHeader& header, std::shared_ptr<MarmotType>&& fresh_type);
 
-	void CompleteType(const std::shared_ptr<MidoriType>& type);
+	void CompleteType(const std::shared_ptr<MarmotType>& type);
 
-	static bool RepresentationNames(const std::shared_ptr<MidoriType>& type, const MidoriType* newtype, std::unordered_set<const MidoriType*>& visited);
+	static bool RepresentationNames(const std::shared_ptr<MarmotType>& type, const MarmotType* newtype, std::unordered_set<const MarmotType*>& visited);
 
-	static bool Reaches(const std::shared_ptr<MidoriType>& type, const std::function<bool(const MidoriType*)>& is_sought, std::unordered_set<const MidoriType*>& visited);
+	static bool Reaches(const std::shared_ptr<MarmotType>& type, const std::function<bool(const MarmotType*)>& is_sought, std::unordered_set<const MarmotType*>& visited);
 
-	bool ReachesUnfinishedType(const std::shared_ptr<MidoriType>& type) const;
+	bool ReachesUnfinishedType(const std::shared_ptr<MarmotType>& type) const;
 
 	std::optional<CompilerError> FillDeferredInstantiations();
 
-	MidoriResult::TypeResult InstantiateUnfinishedType(const Token& type_name, const std::shared_ptr<MidoriType>& type_template, const std::vector<std::string>& generic_params, std::vector<std::shared_ptr<MidoriType>>&& type_args);
+	MarmotResult::TypeResult InstantiateUnfinishedType(const Token& type_name, const std::shared_ptr<MarmotType>& type_template, const std::vector<std::string>& generic_params, std::vector<std::shared_ptr<MarmotType>>&& type_args);
 
-	void RecordTopLevelDefinition(const MidoriStatement& statement, int statement_index);
+	void RecordTopLevelDefinition(const MarmotStatement& statement, int statement_index);
 
 	void RecordTopLevelReference(const Token& name);
 
@@ -593,7 +593,7 @@ private:
 
 	std::string ExtractQualifier(const std::string& qualified_name) const;
 
-	MidoriResult::ExpressionResult ResolveQualifiedName(const Token& name_token, const std::string& mangled_name);
+	MarmotResult::ExpressionResult ResolveQualifiedName(const Token& name_token, const std::string& mangled_name);
 
 	ConstructorResolutionResult ResolveConstructorName(const Token& name_token, const std::string& mangled_name);
 
@@ -603,18 +603,18 @@ private:
 
 	Token& Advance();
 
-	MidoriResult::TokenResult Consume(Token::Name type, std::string_view message);
+	MarmotResult::TokenResult Consume(Token::Name type, std::string_view message);
 
-	MidoriResult::TokenResult ConsumeTypeRightAngle(std::string_view message);
+	MarmotResult::TokenResult ConsumeTypeRightAngle(std::string_view message);
 
 
-	MidoriResult::TokenResult ConsumeReturnTypeSeparator(std::string_view message);
+	MarmotResult::TokenResult ConsumeReturnTypeSeparator(std::string_view message);
 
-	MidoriResult::TokenResult MatchNameResolution();
+	MarmotResult::TokenResult MatchNameResolution();
 
-	MidoriResult::TokenListResult ParseGenericParameters(std::vector<std::shared_ptr<MidoriType>>* out_types = nullptr);
+	MarmotResult::TokenListResult ParseGenericParameters(std::vector<std::shared_ptr<MarmotType>>* out_types = nullptr);
 
-	MidoriResult::FunctionParamsResult ParseFunctionParameters(bool allow_inferred_types = false);
+	MarmotResult::FunctionParamsResult ParseFunctionParameters(bool allow_inferred_types = false);
 
 	Parser& BeginScope() &;
 
@@ -624,55 +624,55 @@ private:
 
 	std::string Mangle(std::string_view name);
 
-	MidoriResult::TokenResult DefineName(Token& name, bool is_variable);
+	MarmotResult::TokenResult DefineName(Token& name, bool is_variable);
 
 	std::optional<int> RegisterOrUpdateLocalVariable(const std::string& name);
 
 
 	ArrayComprehensionProbe ProbeArrayComprehension();
 
-	MidoriResult::TypeResult ParseType(bool is_foreign = false);
+	MarmotResult::TypeResult ParseType(bool is_foreign = false);
 
-	using MakeTypeOfOne = std::shared_ptr<MidoriType> (*)(const std::shared_ptr<MidoriType>&);
+	using MakeTypeOfOne = std::shared_ptr<MarmotType> (*)(const std::shared_ptr<MarmotType>&);
 
 	// `Keyword<T>`: a type made from one other, such as `Array<Int>`.
-	MidoriResult::TypeResult ParseTypeOfOne(Token::Name keyword, std::string_view keyword_text, std::string_view argument_noun, MakeTypeOfOne make);
+	MarmotResult::TypeResult ParseTypeOfOne(Token::Name keyword, std::string_view keyword_text, std::string_view argument_noun, MakeTypeOfOne make);
 
-	MidoriResult::ExpressionResult ParseExpression();
+	MarmotResult::ExpressionResult ParseExpression();
 
-	MidoriResult::ExpressionResult ParseFactor();
+	MarmotResult::ExpressionResult ParseFactor();
 
-	MidoriResult::ExpressionResult ParseShift();
+	MarmotResult::ExpressionResult ParseShift();
 
-	MidoriResult::ExpressionResult ParseRange();
+	MarmotResult::ExpressionResult ParseRange();
 
-	MidoriResult::ExpressionResult ParseTerm();
+	MarmotResult::ExpressionResult ParseTerm();
 
-	MidoriResult::ExpressionResult ParseComparison();
+	MarmotResult::ExpressionResult ParseComparison();
 
-	MidoriResult::ExpressionResult ParseEquality();
+	MarmotResult::ExpressionResult ParseEquality();
 
-	MidoriResult::ExpressionResult ParseBitwiseAnd();
+	MarmotResult::ExpressionResult ParseBitwiseAnd();
 
-	MidoriResult::ExpressionResult ParseBitwiseXor();
+	MarmotResult::ExpressionResult ParseBitwiseXor();
 
-	MidoriResult::ExpressionResult ParseBitwiseOr();
-
-
-	MidoriResult::ExpressionResult ParseUnaryLogicalBitwise();
-
-	MidoriResult::ExpressionResult ParseUnaryArithmetic();
-
-	MidoriResult::ExpressionResult ParseArrayAccessHelper(std::unique_ptr<MidoriExpression>&& arr_var);
-
-	MidoriResult::ExpressionResult ParseArrayAccess();
-
-	MidoriResult::ExpressionResult ParseCall();
-
-	MidoriResult::ExpressionResult ParseAs();
+	MarmotResult::ExpressionResult ParseBitwiseOr();
 
 
-	MidoriResult::ExpressionResult FinishCall(std::unique_ptr<MidoriExpression>&& callee);
+	MarmotResult::ExpressionResult ParseUnaryLogicalBitwise();
+
+	MarmotResult::ExpressionResult ParseUnaryArithmetic();
+
+	MarmotResult::ExpressionResult ParseArrayAccessHelper(std::unique_ptr<MarmotExpression>&& arr_var);
+
+	MarmotResult::ExpressionResult ParseArrayAccess();
+
+	MarmotResult::ExpressionResult ParseCall();
+
+	MarmotResult::ExpressionResult ParseAs();
+
+
+	MarmotResult::ExpressionResult FinishCall(std::unique_ptr<MarmotExpression>&& callee);
 
 
 	// Operators of different precedence bind by a table the reader has to remember,
@@ -680,108 +680,108 @@ private:
 	// an operator belongs to, or nullopt for one the rule does not cover.
 	static std::optional<int> BinaryOperatorClass(Token::Name name);
 
-	std::optional<CompilerError> CheckOperatorMixing(const Token& op, const MidoriExpression& operand);
+	std::optional<CompilerError> CheckOperatorMixing(const Token& op, const MarmotExpression& operand);
 
 	// A parsed construction never carries explicit type arguments: `new Name<T>(...)` was the
 	// only form that could state them and it is gone. The AST node keeps the flag, because the
 	// deriving synthesiser builds Construct nodes directly with an already-resolved return type.
-	MidoriResult::ExpressionResult FinishConstruct(Token&& constructor_token, std::shared_ptr<MidoriType>&& constructed_type, bool is_struct);
+	MarmotResult::ExpressionResult FinishConstruct(Token&& constructor_token, std::shared_ptr<MarmotType>&& constructed_type, bool is_struct);
 
-	MidoriResult::ExpressionResult FinishNamedConstruct(Token&& constructor_token, std::shared_ptr<MidoriType>&& constructed_type);
+	MarmotResult::ExpressionResult FinishNamedConstruct(Token&& constructor_token, std::shared_ptr<MarmotType>&& constructed_type);
 
-	MidoriResult::ExpressionResult ParsePrimary();
+	MarmotResult::ExpressionResult ParsePrimary();
 
 	// `1e300` lexes as the number 1 and the name e300; say that a number has no exponent
 	// form rather than asking for the comma the parser would otherwise want.
-	MidoriResult::ExpressionResult RejectExponent(std::unique_ptr<MidoriExpression>&& literal);
+	MarmotResult::ExpressionResult RejectExponent(std::unique_ptr<MarmotExpression>&& literal);
 
-	MidoriResult::ExpressionResult ParseLogicalAnd();
+	MarmotResult::ExpressionResult ParseLogicalAnd();
 
-	MidoriResult::ExpressionResult ParseLogicalOr();
+	MarmotResult::ExpressionResult ParseLogicalOr();
 
-	MidoriResult::ExpressionResult ParseSend();
+	MarmotResult::ExpressionResult ParseSend();
 
-	MidoriResult::ExpressionResult ParsePipe();
+	MarmotResult::ExpressionResult ParsePipe();
 
 	// The type declared under `name` in this module or any module it imports, or
 	// nullptr. For compiler-required declarations such as `Result`.
 
-	MidoriResult::ExpressionResult ParseBlockExpression();
+	MarmotResult::ExpressionResult ParseBlockExpression();
 
 	bool ProbeRecordUpdate();
 
-	MidoriResult::ExpressionResult ParseRecordUpdate();
+	MarmotResult::ExpressionResult ParseRecordUpdate();
 
-	MidoriResult::ExpressionResult ParsePostfixChain(std::unique_ptr<MidoriExpression>&& expr);
-
-
-	MidoriResult::ExpressionResult ParseForExpression();
-
-	MidoriResult::ExpressionResult ParseArrayComprehension(Token& bracket, const ArrayComprehensionProbe& probe);
+	MarmotResult::ExpressionResult ParsePostfixChain(std::unique_ptr<MarmotExpression>&& expr);
 
 
+	MarmotResult::ExpressionResult ParseForExpression();
 
-	MidoriResult::ExpressionResult ParseMatchExpressionWithScrutinee(Token& match_keyword, std::unique_ptr<MidoriExpression>&& expr);
-
-	MidoriResult::ExpressionResult ParseMatchExpression();
-
-	MidoriResult::ExpressionResult ParseIfElseExpression();
-
-	MidoriResult::ExpressionResult ParseFunctionExpression();
-
-	MidoriResult::ExpressionResult ParseCaseExpression(Token& keyword);
-
-	MidoriResult::PatternResult ParsePattern();
-
-	MidoriResult::PatternResult ParseAlternatives();
-
-	MidoriResult::PatternResult ParsePrimaryPattern();
-
-	MidoriResult::PatternResult ParseBindingPattern(Token&& name);
-
-	MidoriResult::PatternResult ParseRecordPattern(Token&& name);
-
-	MidoriResult::PatternResult ParseNumericLiteralPattern();
-
-	MidoriResult::PatternResult ParseRangePattern(std::unique_ptr<MidoriPattern>&& start);
-
-	MidoriResult::PatternResult ParseArrayRest(Token&& dots);
+	MarmotResult::ExpressionResult ParseArrayComprehension(Token& bracket, const ArrayComprehensionProbe& probe);
 
 
-	MidoriResult::StatementResult ParseDeclaration();
 
-	MidoriResult::StatementResult ParseDefineStatement();
+	MarmotResult::ExpressionResult ParseMatchExpressionWithScrutinee(Token& match_keyword, std::unique_ptr<MarmotExpression>&& expr);
+
+	MarmotResult::ExpressionResult ParseMatchExpression();
+
+	MarmotResult::ExpressionResult ParseIfElseExpression();
+
+	MarmotResult::ExpressionResult ParseFunctionExpression();
+
+	MarmotResult::ExpressionResult ParseCaseExpression(Token& keyword);
+
+	MarmotResult::PatternResult ParsePattern();
+
+	MarmotResult::PatternResult ParseAlternatives();
+
+	MarmotResult::PatternResult ParsePrimaryPattern();
+
+	MarmotResult::PatternResult ParseBindingPattern(Token&& name);
+
+	MarmotResult::PatternResult ParseRecordPattern(Token&& name);
+
+	MarmotResult::PatternResult ParseNumericLiteralPattern();
+
+	MarmotResult::PatternResult ParseRangePattern(std::unique_ptr<MarmotPattern>&& start);
+
+	MarmotResult::PatternResult ParseArrayRest(Token&& dots);
+
+
+	MarmotResult::StatementResult ParseDeclaration();
+
+	MarmotResult::StatementResult ParseDefineStatement();
 
 	std::expected<TypeDeclarationHeader, CompilerError> ParseTypeDeclarationHeader(std::string_view noun, std::string_view capitalized_noun);
 
-	MidoriResult::StatementResult ParseStructBody(TypeDeclarationHeader&& header);
+	MarmotResult::StatementResult ParseStructBody(TypeDeclarationHeader&& header);
 
-	MidoriResult::StatementResult ParseUnionBody(TypeDeclarationHeader&& header);
+	MarmotResult::StatementResult ParseUnionBody(TypeDeclarationHeader&& header);
 
 	bool TypeBodyHasTopLevelBar();
 
-	MidoriResult::StatementResult ParseNewTypeBody(TypeDeclarationHeader&& header);
+	MarmotResult::StatementResult ParseNewTypeBody(TypeDeclarationHeader&& header);
 
-	MidoriResult::StatementResult ParseClassDeclaration();
+	MarmotResult::StatementResult ParseClassDeclaration();
 
-	MidoriResult::StatementResult ParseInstanceDeclaration();
+	MarmotResult::StatementResult ParseInstanceDeclaration();
 
-	MidoriResult::StatementResult ParseTypeDeclaration();
+	MarmotResult::StatementResult ParseTypeDeclaration();
 
-	MidoriResult::StatementResult ParseAliasDeclaration();
+	MarmotResult::StatementResult ParseAliasDeclaration();
 
 
-	MidoriResult::StatementResult ParseSimpleStatement();
+	MarmotResult::StatementResult ParseSimpleStatement();
 
-	MidoriResult::StatementResult ParseForeignStatement();
+	MarmotResult::StatementResult ParseForeignStatement();
 
-	MidoriResult::StatementResult ParseForeignBlock(const Token& library);
+	MarmotResult::StatementResult ParseForeignBlock(const Token& library);
 
-	MidoriResult::StatementResult ParseForeignDeclaration(const Token& foreign_name, const std::optional<std::string>& block_library);
+	MarmotResult::StatementResult ParseForeignDeclaration(const Token& foreign_name, const std::optional<std::string>& block_library);
 
-	std::expected<std::vector<MidoriType::ClassConstraint>, CompilerError> ParseClassConstraints(const Token& context_token);
+	std::expected<std::vector<MarmotType::ClassConstraint>, CompilerError> ParseClassConstraints(const Token& context_token);
 
-	void PushActiveConstraints(const std::vector<MidoriType::ClassConstraint>& constraints);
+	void PushActiveConstraints(const std::vector<MarmotType::ClassConstraint>& constraints);
 
 	std::expected<std::vector<Token>, CompilerError> ParseDerivingTargets(const Token& context_token);
 
@@ -789,13 +789,13 @@ private:
 
 	std::string AppendSuffixToQualifiedName(std::string_view qualified_name, std::string_view suffix) const;
 
-	MidoriResult::TokenResult RegisterSyntheticGlobalName(const std::string& name, const Token& anchor);
+	MarmotResult::TokenResult RegisterSyntheticGlobalName(const std::string& name, const Token& anchor);
 
-	void RegisterSyntheticInstanceMetadata(const std::string& class_name, const std::vector<std::shared_ptr<MidoriType>>& type_args, const std::vector<MidoriType::ClassConstraint>& constraints, const std::vector<std::string>& mangled_method_names);
+	void RegisterSyntheticInstanceMetadata(const std::string& class_name, const std::vector<std::shared_ptr<MarmotType>>& type_args, const std::vector<MarmotType::ClassConstraint>& constraints, const std::vector<std::string>& mangled_method_names);
 
-	std::expected<void, CompilerError> QueueDerivedStructStatements(const MidoriStatement::Struct& struct_stmt, const std::vector<Token>& deriving_targets);
+	std::expected<void, CompilerError> QueueDerivedStructStatements(const MarmotStatement::Struct& struct_stmt, const std::vector<Token>& deriving_targets);
 
-	std::expected<void, CompilerError> QueueDerivedUnionStatements(const MidoriStatement::Union& union_stmt, const std::vector<Token>& deriving_targets);
+	std::expected<void, CompilerError> QueueDerivedUnionStatements(const MarmotStatement::Union& union_stmt, const std::vector<Token>& deriving_targets);
 
-	MidoriResult::StatementResult ParseStatement();
+	MarmotResult::StatementResult ParseStatement();
 };

@@ -90,10 +90,10 @@ public:
 	// intercept the call, and the position is known here at compile time.
 	static consteval size_t ExitIndex()
 	{
-		const std::optional<size_t> index = FindIndex("MIDORI_FFI_Exit");
+		const std::optional<size_t> index = FindIndex("MARMOT_FFI_Exit");
 		if (!index.has_value())
 		{
-			throw "MIDORI_FFI_Exit is missing from the builtin table";
+			throw "MARMOT_FFI_Exit is missing from the builtin table";
 		}
 		return index.value();
 	}

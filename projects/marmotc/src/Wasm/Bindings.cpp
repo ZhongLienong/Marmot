@@ -14,13 +14,13 @@ namespace
 	emscripten::val CompileMarmotCode(const std::string& source)
 	{
 		const CompilationInputs inputs = CompilationInputs().WithSearchPaths({std::filesystem::path("/MarmotPrelude")});
-		MidoriResult::CompilationResult compiled = Compiler(std::string(source), std::string("/playground.mmt"), inputs).CompileWithReport();
+		MarmotResult::CompilationResult compiled = Compiler(std::string(source), std::string("/playground.mmt"), inputs).CompileWithReport();
 		emscripten::val result = emscripten::val::object();
 		result.set("version", 1);
 		result.set("success", compiled.has_value());
 		result.set("exitCode", compiled.has_value() ? 0 : 1);
 		result.set("bytes", emscripten::val::global("Uint8Array").new_(0));
-		const MidoriResult::CompilerReport& report = compiled.has_value() ? compiled->Report() : compiled.error();
+		const MarmotResult::CompilerReport& report = compiled.has_value() ? compiled->Report() : compiled.error();
 		result.set("report", emscripten::val::global("JSON").call<emscripten::val>("parse", report.MachineReadableJson()));
 		result.set("output", report.RenderedWarnings());
 		result.set("error", report.m_errors.Rendered());
@@ -30,7 +30,7 @@ namespace
 		}
 
 		std::ostringstream artifact(std::ios::out | std::ios::binary);
-		const std::expected<void, std::string> written = MidoriBinaryArtifact::WriteExecutable(compiled->m_executable, artifact, true);
+		const std::expected<void, std::string> written = MarmotBinaryArtifact::WriteExecutable(compiled->m_executable, artifact, true);
 		if (!written.has_value())
 		{
 			result.set("success", false);

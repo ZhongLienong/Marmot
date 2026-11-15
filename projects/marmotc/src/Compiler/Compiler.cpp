@@ -11,9 +11,9 @@
 #include "Compiler/Lexer/Lexer.h"
 #include "Compiler/Lowering/Lowering.h"
 #include "Compiler/AbstractSyntaxTree/Printer/AbstractSyntaxTreePrinter.h"
-#include "Compiler/MidoriIR/Printer/MidoriIRPrinter.h"
-#include "Compiler/MidoriIR/Verifier/MidoriIRVerifier.h"
-#include "Compiler/MidoriIROptimizer/MidoriIROptimizer.h"
+#include "Compiler/MarmotIR/Printer/MarmotIRPrinter.h"
+#include "Compiler/MarmotIR/Verifier/MarmotIRVerifier.h"
+#include "Compiler/MarmotIROptimizer/MarmotIROptimizer.h"
 #include "Compiler/Module/CompiledModule.h"
 #include "Compiler/ModuleManager/ModuleManager.h"
 #include "Compiler/Parser/Parser.h"
@@ -51,7 +51,7 @@ namespace
 		std::unordered_map<std::string, TypeChecker::ClassInfo> m_imported_typeclass_infos;
 		CompiledModule::TypeclassMethodMap m_imported_typeclass_methods;
 		std::unordered_map<std::string, std::vector<std::string>> m_imported_typeclass_instances;
-		std::unordered_map<std::string, std::vector<std::vector<std::shared_ptr<MidoriType>>>> m_imported_typeclass_instance_types;
+		std::unordered_map<std::string, std::vector<std::vector<std::shared_ptr<MarmotType>>>> m_imported_typeclass_instance_types;
 		TypeChecker::TypeclassInstanceAssociatedTypeBindingMap m_imported_typeclass_instance_associated_type_bindings;
 		TypeChecker::TypeclassInstanceConstraintMap m_imported_typeclass_instance_constraints;
 		std::unordered_map<std::string, GenericFunctionInfo> m_imported_generic_functions;
@@ -60,7 +60,7 @@ namespace
 
 	struct ParsedModule
 	{
-		MidoriProgramTree m_ast;
+		MarmotProgramTree m_ast;
 		TypeChecker::TypeEnvironment m_type_signatures;
 		CompiledModule::TypeclassMetadataMap m_typeclass_metadata;
 		std::vector<CompilerWarning> m_warnings;
@@ -82,17 +82,17 @@ namespace
 		std::atomic<size_t>& m_completed_modules;
 		const std::vector<std::vector<std::string>>& m_tiers;
 		size_t m_total_modules;
-		bool m_emit_midori_ir;
+		bool m_emit_marmot_ir;
 		bool m_emit_ast;
 		CompilationTimings& m_timings;
 	};
 
 	struct CompileState;
-	using CompileStateResult = MidoriResult::ReportResult<CompileState>;
+	using CompileStateResult = MarmotResult::ReportResult<CompileState>;
 
 	struct TypeCheckedModule
 	{
-		MidoriProgramTree m_ast;
+		MarmotProgramTree m_ast;
 		// What checking inferred for the module's own names.
 		TypeChecker::TypeEnvironment m_module_types;
 	};
@@ -107,18 +107,18 @@ namespace
 		std::string m_module_name;
 		ImportContext m_import_context;
 		std::vector<std::string> m_source_lines;
-		MidoriResult::CompilerWarnings m_warnings;
+		MarmotResult::CompilerWarnings m_warnings;
 		ParsedModule m_parsed_module;
-		MidoriProgramTree m_ast;
+		MarmotProgramTree m_ast;
 		ModuleExportInfo m_export_info;
 		BytecodeModule m_bytecode;
 		std::optional<LoweredModule> m_lowered;
 		std::shared_ptr<const ModuleInterface> m_interface;
 		WorkerCrossings m_worker_crossings;
 		std::unordered_map<std::string, std::string> m_reexports;
-		std::string m_midori_ir;
+		std::string m_marmot_ir;
 		std::string m_ast_text;
-#if MIDORI_ENABLE_OPTIMIZER_STATS
+#if MARMOT_ENABLE_OPTIMIZER_STATS
 		std::string m_optimizer_log;
 #endif
 
@@ -131,15 +131,15 @@ namespace
 		CompileStateResult WithInterface() &&;
 		CompileStateResult WithOptimizedModule() &&;
 		CompileStateResult WithBackendBytecode() &&;
-		MidoriResult::CompiledModuleReportResult Finalize() &&;
+		MarmotResult::CompiledModuleReportResult Finalize() &&;
 	};
 
 	struct BuildGraphArtifacts
 	{
 		std::vector<BytecodeModule> m_bytecode_modules;
-		std::vector<std::string> m_midori_ir;
+		std::vector<std::string> m_marmot_ir;
 		std::vector<std::string> m_ast;
-		MidoriResult::CompilerWarnings m_warnings;
+		MarmotResult::CompilerWarnings m_warnings;
 	};
 
 	struct CompilerAccess : Compiler
@@ -150,24 +150,24 @@ namespace
 		using Compiler::TypeclassDefinitionsMatch;
 	};
 
-	static MidoriResult::CompilerReport MakeStateErrorReport(CompileState&& state, MidoriResult::CompilerDiagnostics diagnostics)
+	static MarmotResult::CompilerReport MakeStateErrorReport(CompileState&& state, MarmotResult::CompilerDiagnostics diagnostics)
 	{
-		return MidoriResult::CompilerReport(std::move(state.m_warnings), std::move(diagnostics));
+		return MarmotResult::CompilerReport(std::move(state.m_warnings), std::move(diagnostics));
 	}
 
 	template <typename T, CompileState (*Apply)(CompileState, T&&)>
-	static CompileStateResult ApplyToState(MidoriResult::Result<T>&& result, CompileState&& state)
+	static CompileStateResult ApplyToState(MarmotResult::Result<T>&& result, CompileState&& state)
 	{
 		if (!result.has_value())
 		{
-			return std::unexpected(MakeStateErrorReport(std::move(state), MidoriResult::CompilerDiagnostics(std::move(result.error()))));
+			return std::unexpected(MakeStateErrorReport(std::move(state), MarmotResult::CompilerDiagnostics(std::move(result.error()))));
 		}
 
 		return Apply(std::move(state), std::move(result).value());
 	}
 
 	template <typename T, CompileState (*Apply)(CompileState, T&&)>
-	static CompileStateResult ApplyToState(MidoriResult::DiagnosticsResult<T>&& result, CompileState&& state)
+	static CompileStateResult ApplyToState(MarmotResult::DiagnosticsResult<T>&& result, CompileState&& state)
 	{
 		if (!result.has_value())
 		{
@@ -229,7 +229,7 @@ namespace
 		return std::move(state);
 	}
 
-#if MIDORI_ENABLE_OPTIMIZER_STATS
+#if MARMOT_ENABLE_OPTIMIZER_STATS
 	static size_t ReportCompiled(CompileEnv& env, const std::string& file_path, size_t, const std::string& optimizer_log)
 #else
 	static size_t ReportCompiled(CompileEnv& env, const std::string& file_path, size_t)
@@ -237,45 +237,45 @@ namespace
 	{
 		const size_t current_module = env.m_completed_modules.fetch_add(1u) + 1u;
 		const std::string short_path = std::filesystem::path(file_path).filename().string();
-#if MIDORI_ENABLE_OPTIMIZER_STATS
+#if MARMOT_ENABLE_OPTIMIZER_STATS
 		if (CompilerDiagnostics::StatisticsEnabled())
 		{
 			std::lock_guard<std::mutex> lock(env.m_print_mutex);
-			std::print(stderr, "MidoriIR optimizer: {}\n{}", short_path, optimizer_log);
+			std::print(stderr, "MarmotIR optimizer: {}\n{}", short_path, optimizer_log);
 		}
 #endif
 
 		return current_module;
 	}
 
-	static MidoriResult::Result<std::vector<std::string>> LoadModuleSourceLines(const CompileEnv& env, const std::string& file_path)
+	static MarmotResult::Result<std::vector<std::string>> LoadModuleSourceLines(const CompileEnv& env, const std::string& file_path)
 	{
 		return env.m_build_graph.m_nodes.at(file_path).m_source_lines;
 	}
 
 	// Which module declared a nominal type. Anything else has no module of its
 	// own, so it answers with nothing.
-	static std::string DeclaringModuleName(const std::shared_ptr<MidoriType>& type)
+	static std::string DeclaringModuleName(const std::shared_ptr<MarmotType>& type)
 	{
-		if (type->IsType<MidoriType::StructType>())
+		if (type->IsType<MarmotType::StructType>())
 		{
-			return type->GetType<MidoriType::StructType>().m_module_name;
+			return type->GetType<MarmotType::StructType>().m_module_name;
 		}
 
-		if (type->IsType<MidoriType::UnionType>())
+		if (type->IsType<MarmotType::UnionType>())
 		{
-			return type->GetType<MidoriType::UnionType>().m_module_name;
+			return type->GetType<MarmotType::UnionType>().m_module_name;
 		}
 
-		if (type->IsType<MidoriType::NewType>())
+		if (type->IsType<MarmotType::NewType>())
 		{
-			return type->GetType<MidoriType::NewType>().m_module_name;
+			return type->GetType<MarmotType::NewType>().m_module_name;
 		}
 
 		return std::string();
 	}
 
-	static MidoriResult::Result<ImportContext> BuildImportContext(CompileEnv& env, const BuildGraph::BuildNode& node, const std::string& file_path)
+	static MarmotResult::Result<ImportContext> BuildImportContext(CompileEnv& env, const BuildGraph::BuildNode& node, const std::string& file_path)
 	{
 		ImportContext context;
 		std::unordered_map<std::string, std::string> imported_typeclass_sources;
@@ -337,9 +337,9 @@ namespace
 						return std::unexpected(CompilerError::WithToken(CompilerStage::Module, std::format("Typeclass '{}' is defined in multiple imported modules ('{}' and '{}')", tc_name, imported_typeclass_sources.at(tc_name), dep_module_name), *import_token, file_path, node.m_source_lines));
 					}
 
-					for (const std::vector<std::shared_ptr<MidoriType>>& type_args : metadata.m_declared_instance_type_args)
+					for (const std::vector<std::shared_ptr<MarmotType>>& type_args : metadata.m_declared_instance_type_args)
 					{
-						const std::string signature = MidoriType::JoinToStrings(type_args);
+						const std::string signature = MarmotType::JoinToStrings(type_args);
 						const std::unordered_map<std::string, std::string>::const_iterator previous = instance_sources[tc_name].find(signature);
 						if (previous != instance_sources[tc_name].cend() && previous->second != dep_module_name)
 						{
@@ -374,9 +374,9 @@ namespace
 					imported_typeclass_sources[tc_name] = dep_module_name;
 				}
 
-				for (const std::vector<std::shared_ptr<MidoriType>>& type_args : metadata.m_declared_instance_type_args)
+				for (const std::vector<std::shared_ptr<MarmotType>>& type_args : metadata.m_declared_instance_type_args)
 				{
-					instance_sources[tc_name].emplace(MidoriType::JoinToStrings(type_args), dep_module_name);
+					instance_sources[tc_name].emplace(MarmotType::JoinToStrings(type_args), dep_module_name);
 				}
 			}
 
@@ -431,13 +431,13 @@ namespace
 			TypeChecker::AssociatedTypeEnvironment associated_types;
 			for (const std::string& associated_type_name : metadata.m_associated_type_names)
 			{
-				std::vector<std::shared_ptr<MidoriType>> associated_type_args;
+				std::vector<std::shared_ptr<MarmotType>> associated_type_args;
 				associated_type_args.reserve(metadata.m_type_param_names.size());
 				for (const std::string& type_param_name : metadata.m_type_param_names)
 				{
-					associated_type_args.emplace_back(MidoriType::MakeGenericType(type_param_name));
+					associated_type_args.emplace_back(MarmotType::MakeGenericType(type_param_name));
 				}
-				associated_types.emplace(associated_type_name, MidoriType::MakeAssociatedType(typeclass_name, associated_type_name, std::move(associated_type_args)));
+				associated_types.emplace(associated_type_name, MarmotType::MakeAssociatedType(typeclass_name, associated_type_name, std::move(associated_type_args)));
 			}
 
 			TypeChecker::ClassInfo info(typeclass_name, std::vector<std::string>(metadata.m_type_param_names), std::move(associated_types), TypeChecker::TypeEnvironment(metadata.m_method_types));
@@ -452,10 +452,10 @@ namespace
 		return context;
 	}
 
-	static MidoriResult::DiagnosticsResult<ParsedModule> ParseModule(TokenStream&& tokens, const std::string& file_path, const std::vector<std::string>& module_source_lines, const ImportContext& import_context, const std::vector<UseImport>& use_imports, const ModuleDeclaration* module_decl)
+	static MarmotResult::DiagnosticsResult<ParsedModule> ParseModule(TokenStream&& tokens, const std::string& file_path, const std::vector<std::string>& module_source_lines, const ImportContext& import_context, const std::vector<UseImport>& use_imports, const ModuleDeclaration* module_decl)
 	{
 		Parser parser(std::move(tokens), file_path, module_source_lines, import_context.m_imported_symbols, import_context.m_imported_type_signatures, use_imports, module_decl, import_context.m_imported_typeclass_metadata);
-		MidoriResult::ParserResult ast = parser.Parse();
+		MarmotResult::ParserResult ast = parser.Parse();
 		if (!ast.has_value())
 		{
 			return std::unexpected(std::move(ast.error()));
@@ -483,10 +483,10 @@ namespace
 		};
 	}
 
-	static MidoriResult::DiagnosticsResult<TypeCheckedModule> TypeCheckModule(MidoriProgramTree&& ast, const std::string& file_path, const std::vector<std::string>& module_source_lines, const ImportContext& import_context)
+	static MarmotResult::DiagnosticsResult<TypeCheckedModule> TypeCheckModule(MarmotProgramTree&& ast, const std::string& file_path, const std::vector<std::string>& module_source_lines, const ImportContext& import_context)
 	{
 		TypeChecker type_checker(std::move(ast), file_path, module_source_lines, import_context.m_imported_types, import_context.m_imported_typeclass_infos, import_context.m_imported_typeclass_instance_types, import_context.m_imported_typeclass_instance_associated_type_bindings, import_context.m_imported_typeclass_instance_constraints);
-		MidoriResult::TypeCheckerResult typecheck_result = type_checker.TypeCheck();
+		MarmotResult::TypeCheckerResult typecheck_result = type_checker.TypeCheck();
 		if (!typecheck_result.has_value())
 		{
 			return std::unexpected(std::move(typecheck_result.error()));
@@ -521,7 +521,7 @@ namespace
 	}
 
 	static CompileStateResult ValidateExports(CompileState state);
-	static MidoriResult::CompiledModuleReportResult BuildCompiledModule(CompileState state);
+	static MarmotResult::CompiledModuleReportResult BuildCompiledModule(CompileState state);
 
 	CompileStateResult CompileState::WithImportContext() &&
 	{
@@ -546,7 +546,7 @@ namespace
 	CompileStateResult CompileState::WithParsedModule() &&
 	{
 		CompileState state = std::move(*this);
-		MidoriResult::DiagnosticsResult<ParsedModule> parse_result =
+		MarmotResult::DiagnosticsResult<ParsedModule> parse_result =
 			ParseModule(std::move(state.m_node->m_tokens), state.m_file_path, state.m_source_lines, state.m_import_context, state.m_node->m_use_imports, state.m_module_decl);
 		if (!parse_result.has_value())
 		{
@@ -590,55 +590,55 @@ namespace
 
 	// A violation is the compiler's bug, not the program's, so every one is
 	// reported and the module stops.
-	static CompilerError InvalidMidoriIR(const MidoriIRModule& module, const std::vector<MidoriIRViolation>& violations, std::string_view what, const std::string& file_path)
+	static CompilerError InvalidMarmotIR(const MarmotIRModule& module, const std::vector<MarmotIRViolation>& violations, std::string_view what, const std::string& file_path)
 	{
 
 		const std::string message = violations
-			| std::views::transform([](const MidoriIRViolation& violation) { return violation.ToString(); })
+			| std::views::transform([](const MarmotIRViolation& violation) { return violation.ToString(); })
 			| std::views::join_with('\n')
 			| std::ranges::to<std::string>();
-		const MidoriIRPrinter printer(module);
+		const MarmotIRPrinter printer(module);
 		const std::string functions = module.m_functions
-			| std::views::filter([&violations](const MidoriIRFunction& function)
+			| std::views::filter([&violations](const MarmotIRFunction& function)
 			{
-				return std::ranges::any_of(violations, [&function](const MidoriIRViolation& violation) { return violation.m_function == function.m_name; });
+				return std::ranges::any_of(violations, [&function](const MarmotIRViolation& violation) { return violation.m_function == function.m_name; });
 			})
-			| std::views::transform([&printer](const MidoriIRFunction& function) { return printer.PrintFunction(function); })
+			| std::views::transform([&printer](const MarmotIRFunction& function) { return printer.PrintFunction(function); })
 			| std::views::join_with('\n')
 			| std::ranges::to<std::string>();
-		return CompilerError::WithFile(CompilerStage::Lowering, std::format("{} produced invalid MidoriIR:\n{}\n\n{}", what, message, functions), file_path, CompilerErrorCode::CompilerInternalError);
+		return CompilerError::WithFile(CompilerStage::Lowering, std::format("{} produced invalid MarmotIR:\n{}\n\n{}", what, message, functions), file_path, CompilerErrorCode::CompilerInternalError);
 	}
 
-	static std::optional<CompilerError> VerifyMidoriIR(const MidoriIRModule& module, std::string_view what, const std::string& file_path)
+	static std::optional<CompilerError> VerifyMarmotIR(const MarmotIRModule& module, std::string_view what, const std::string& file_path)
 	{
-		const std::vector<MidoriIRViolation> violations = MidoriIRVerifier(module).Verify();
+		const std::vector<MarmotIRViolation> violations = MarmotIRVerifier(module).Verify();
 		if (violations.empty())
 		{
 			return std::nullopt;
 		}
-		return InvalidMidoriIR(module, violations, what, file_path);
+		return InvalidMarmotIR(module, violations, what, file_path);
 	}
 
 	// Dev builds verify after lowering and after every pass, Release
 	// builds once, before the backend.
-	static std::optional<CompilerError> OptimizeMidoriIR(MidoriIROptimizer& optimizer, MidoriIRModule& module, const std::string& file_path)
+	static std::optional<CompilerError> OptimizeMarmotIR(MarmotIROptimizer& optimizer, MarmotIRModule& module, const std::string& file_path)
 	{
-		if (MidoriIROptimizer::VerifiesEachPass())
+		if (MarmotIROptimizer::VerifiesEachPass())
 		{
-			std::optional<CompilerError> lowered = VerifyMidoriIR(module, "Lowering", file_path);
+			std::optional<CompilerError> lowered = VerifyMarmotIR(module, "Lowering", file_path);
 			if (lowered.has_value())
 			{
 				return lowered;
 			}
 		}
-		std::expected<void, MidoriIRPassFailure> optimized = optimizer.Optimize(module);
+		std::expected<void, MarmotIRPassFailure> optimized = optimizer.Optimize(module);
 		if (!optimized.has_value())
 		{
-			return InvalidMidoriIR(module, optimized.error().m_violations, std::format("The MidoriIR pass {}", optimized.error().m_pass), file_path);
+			return InvalidMarmotIR(module, optimized.error().m_violations, std::format("The MarmotIR pass {}", optimized.error().m_pass), file_path);
 		}
-		if (!MidoriIROptimizer::VerifiesEachPass())
+		if (!MarmotIROptimizer::VerifiesEachPass())
 		{
-			return VerifyMidoriIR(module, "The MidoriIR optimizer", file_path);
+			return VerifyMarmotIR(module, "The MarmotIR optimizer", file_path);
 		}
 		return std::nullopt;
 	}
@@ -655,7 +655,7 @@ namespace
 			state.m_ast_text = AbstractSyntaxTreePrinter(state.m_module_name, state.m_ast).Print();
 		}
 
-		MidoriResult::DiagnosticsResult<LoweredModule> lowered = Lowering(state.m_ast, state.m_file_path, state.m_source_lines, state.m_module_name, state.m_export_info.m_export_set, imports).Lower();
+		MarmotResult::DiagnosticsResult<LoweredModule> lowered = Lowering(state.m_ast, state.m_file_path, state.m_source_lines, state.m_module_name, state.m_export_info.m_export_set, imports).Lower();
 		if (!lowered.has_value())
 		{
 			return std::unexpected(MakeStateErrorReport(std::move(state), std::move(lowered.error())));
@@ -684,19 +684,19 @@ namespace
 	CompileStateResult CompileState::WithOptimizedModule() &&
 	{
 		CompileState state = std::move(*this);
-		MidoriIROptimizer optimizer;
-		std::optional<CompilerError> violation = OptimizeMidoriIR(optimizer, state.m_lowered->m_module, state.m_file_path);
+		MarmotIROptimizer optimizer;
+		std::optional<CompilerError> violation = OptimizeMarmotIR(optimizer, state.m_lowered->m_module, state.m_file_path);
 		if (violation.has_value())
 		{
-			return std::unexpected(MakeStateErrorReport(std::move(state), MidoriResult::CompilerDiagnostics(std::move(violation).value())));
+			return std::unexpected(MakeStateErrorReport(std::move(state), MarmotResult::CompilerDiagnostics(std::move(violation).value())));
 		}
-#if MIDORI_ENABLE_OPTIMIZER_STATS
+#if MARMOT_ENABLE_OPTIMIZER_STATS
 		state.m_optimizer_log = optimizer.Log();
 #endif
 
-		if (state.m_env->m_emit_midori_ir)
+		if (state.m_env->m_emit_marmot_ir)
 		{
-			state.m_midori_ir = MidoriIRPrinter(state.m_lowered->m_module).Print();
+			state.m_marmot_ir = MarmotIRPrinter(state.m_lowered->m_module).Print();
 		}
 		return state;
 	}
@@ -704,7 +704,7 @@ namespace
 	CompileStateResult CompileState::WithBackendBytecode() &&
 	{
 		CompileState state = std::move(*this);
-		MidoriResult::BytecodeBackendResult bytecode_result = BytecodeBackend(state.m_lowered.value(), state.m_file_path, state.m_source_lines).Emit();
+		MarmotResult::BytecodeBackendResult bytecode_result = BytecodeBackend(state.m_lowered.value(), state.m_file_path, state.m_source_lines).Emit();
 		if (!bytecode_result.has_value())
 		{
 			return std::unexpected(MakeStateErrorReport(std::move(state), std::move(bytecode_result.error())));
@@ -715,7 +715,7 @@ namespace
 		return ApplyBytecode(std::move(state), std::move(bytecode_result).value());
 	}
 
-	MidoriResult::CompiledModuleReportResult CompileState::Finalize() &&
+	MarmotResult::CompiledModuleReportResult CompileState::Finalize() &&
 	{
 		CompilationTimings::Timer timer(m_env->m_timings, CompilationTimings::Phase::Finalization);
 		return BuildCompiledModule(std::move(*this));
@@ -768,7 +768,7 @@ namespace
 
 		// The name itself, and a union's constructors, which are keyed under it.
 		const std::string member_prefix = exported_name + NameSeparator.data();
-		for (const std::pair<const std::string, std::shared_ptr<MidoriType>>& origin_type : state.m_import_context.m_imported_type_signatures.at(origin_module))
+		for (const std::pair<const std::string, std::shared_ptr<MarmotType>>& origin_type : state.m_import_context.m_imported_type_signatures.at(origin_module))
 		{
 			if (origin_type.first == exported_name || origin_type.first.starts_with(member_prefix))
 			{
@@ -840,18 +840,18 @@ namespace
 				: std::format("Symbol '{}' is re-exported by module '{}', but '{}' and '{}' both export it. Write 'use {}.{{{}}}' to say which one.", exported_name, module_name, origins.front(), origins[1u], origins.front(), exported_name);
 
 			CompilerError error = CompilerError::WithToken(CompilerStage::Module, message, exported.m_token, file_path, state.m_source_lines, std::nullopt, CompilerErrorCode::ModuleMissingExportedSymbol);
-			return std::unexpected(MakeStateErrorReport(std::move(state), MidoriResult::CompilerDiagnostics(std::move(error))));
+			return std::unexpected(MakeStateErrorReport(std::move(state), MarmotResult::CompilerDiagnostics(std::move(error))));
 		}
 
 		return state;
 	}
 
-	static MidoriResult::CompiledModuleReportResult BuildCompiledModule(CompileState state)
+	static MarmotResult::CompiledModuleReportResult BuildCompiledModule(CompileState state)
 	{
 		CompiledModule compiled_module = CompiledModule(std::move(state.m_interface))
 			.WithWarnings(std::move(state.m_warnings).TakeAll())
 			.WithBytecode(std::move(state.m_bytecode))
-			.WithMidoriIR(std::move(state.m_midori_ir))
+			.WithMarmotIR(std::move(state.m_marmot_ir))
 			.WithAst(std::move(state.m_ast_text));
 
 		ReportCompiled
@@ -859,7 +859,7 @@ namespace
 			*state.m_env,
 			state.m_file_path,
 			state.m_tier_idx
-#if MIDORI_ENABLE_OPTIMIZER_STATS
+#if MARMOT_ENABLE_OPTIMIZER_STATS
 			, state.m_optimizer_log
 #endif
 		);
@@ -932,7 +932,7 @@ namespace
 	class ModuleCompiler
 	{
 	public:
-		MidoriResult::CompiledModuleReportResult Compile(CompileEnv& env, const std::string& file_path, size_t tier_idx, const InterfaceReady& interface_ready) const
+		MarmotResult::CompiledModuleReportResult Compile(CompileEnv& env, const std::string& file_path, size_t tier_idx, const InterfaceReady& interface_ready) const
 		{
 			CompilationTimings::ModuleTimer timer(env.m_timings);
 			// A worker exception would terminate the process; use the same module
@@ -943,7 +943,7 @@ namespace
 					.and_then([&file_path, &interface_ready](CompileState state) { return RunStages(std::move(state), file_path, interface_ready); })
 					.and_then
 					(
-						[](CompileState state) -> MidoriResult::CompiledModuleReportResult
+						[](CompileState state) -> MarmotResult::CompiledModuleReportResult
 						{
 							return std::move(state).Finalize();
 						}
@@ -960,9 +960,9 @@ namespace
 		}
 
 	private:
-		static MidoriResult::CompilerReport InternalError(const std::string& file_path, std::string_view where, std::string_view detail)
+		static MarmotResult::CompilerReport InternalError(const std::string& file_path, std::string_view where, std::string_view detail)
 		{
-			return MidoriResult::CompilerReport(CompilerError::WithFile(CompilerStage::Compiler, std::format("Internal compiler error {}: {}", where, detail), file_path, CompilerErrorCode::CompilerInternalError));
+			return MarmotResult::CompilerReport(CompilerError::WithFile(CompilerStage::Compiler, std::format("Internal compiler error {}: {}", where, detail), file_path, CompilerErrorCode::CompilerInternalError));
 		}
 
 		using Stage = CompileStateResult(*)(CompileState);
@@ -1035,7 +1035,7 @@ namespace
 	struct CompletedModule
 	{
 		std::string m_file_path;
-		MidoriResult::CompiledModuleReportResult m_result;
+		MarmotResult::CompiledModuleReportResult m_result;
 	};
 
 	using ModuleEvent = std::variant<InterfacePublished, CompletedModule>;
@@ -1165,9 +1165,9 @@ namespace
 		std::vector<std::jthread> m_workers;
 	};
 
-	using ModuleFailures = std::unordered_map<std::string, MidoriResult::CompilerReport>;
+	using ModuleFailures = std::unordered_map<std::string, MarmotResult::CompilerReport>;
 
-	static void RecordCompiledModule(CompileEnv& env, ModuleFailures& failures, const std::string& file_path, MidoriResult::CompiledModuleReportResult&& result)
+	static void RecordCompiledModule(CompileEnv& env, ModuleFailures& failures, const std::string& file_path, MarmotResult::CompiledModuleReportResult&& result)
 	{
 		if (result.has_value())
 		{
@@ -1181,9 +1181,9 @@ namespace
 
 	// Warnings and errors in build-schedule order (tier order, then file path
 	// order). A module that failed keeps its warnings at its own position.
-	static MidoriResult::CompilerReport CollectFailureReport(const CompilationSchedule& schedule, const std::unordered_map<std::string, CompiledModule>& compiled_modules, ModuleFailures&& failures)
+	static MarmotResult::CompilerReport CollectFailureReport(const CompilationSchedule& schedule, const std::unordered_map<std::string, CompiledModule>& compiled_modules, ModuleFailures&& failures)
 	{
-		MidoriResult::CompilerReport report;
+		MarmotResult::CompilerReport report;
 		for (const std::string& file_path : schedule.m_tiers | std::views::join)
 		{
 			const ModuleFailures::iterator failed = failures.find(file_path);
@@ -1261,7 +1261,7 @@ namespace
 
 	static CompileEnv MakeCompileEnv(BuildGraph& build_graph, std::unordered_map<std::string, CompiledModule>& compiled_modules, std::unordered_map<std::string, std::shared_ptr<const ModuleInterface>>& interfaces, std::mutex& modules_mutex, std::mutex& print_mutex, std::atomic<size_t>& completed_modules, const CompilationSchedule& schedule, size_t total_modules, const CompilationInputs& inputs, CompilationTimings& timings)
 	{
-		return CompileEnv{ build_graph, compiled_modules, interfaces, modules_mutex, print_mutex, completed_modules, schedule.m_tiers, total_modules, inputs.EmitsMidoriIR(), inputs.EmitsAst(), timings };
+		return CompileEnv{ build_graph, compiled_modules, interfaces, modules_mutex, print_mutex, completed_modules, schedule.m_tiers, total_modules, inputs.EmitsMarmotIR(), inputs.EmitsAst(), timings };
 	}
 
 	static BuildGraphArtifacts CollectBytecodeModules(const CompilationSchedule& schedule, std::unordered_map<std::string, CompiledModule>& compiled_modules)
@@ -1272,9 +1272,9 @@ namespace
 		{
 			CompiledModule& compiled_module = compiled_modules.at(file_path);
 			artifacts.m_warnings.Append(compiled_module.Warnings());
-			if (!compiled_module.MidoriIR().empty())
+			if (!compiled_module.MarmotIR().empty())
 			{
-				artifacts.m_midori_ir.push_back(compiled_module.MidoriIR());
+				artifacts.m_marmot_ir.push_back(compiled_module.MarmotIR());
 			}
 			if (!compiled_module.Ast().empty())
 			{
@@ -1286,7 +1286,7 @@ namespace
 		return artifacts;
 	}
 
-	static MidoriResult::ReportResult<BuildGraphArtifacts> CompileBuildGraph(BuildGraph&& build_graph, const CompilationInputs& inputs, CompilationTimings& timings)
+	static MarmotResult::ReportResult<BuildGraphArtifacts> CompileBuildGraph(BuildGraph&& build_graph, const CompilationInputs& inputs, CompilationTimings& timings)
 	{
 		CompilationSchedule schedule = [&]()
 		{
@@ -1324,16 +1324,16 @@ namespace
 		return std::filesystem::path(entry_file_name).stem().string();
 	}
 
-	static MidoriResult::CompilationResult LinkBytecodeModules(BuildGraphArtifacts&& build_graph_artifacts, const std::string& entry_module_name)
+	static MarmotResult::CompilationResult LinkBytecodeModules(BuildGraphArtifacts&& build_graph_artifacts, const std::string& entry_module_name)
 	{
-		MidoriResult::BytecodeLinkerResult link_result = BytecodeLinker(std::move(build_graph_artifacts.m_bytecode_modules), entry_module_name).Link();
+		MarmotResult::BytecodeLinkerResult link_result = BytecodeLinker(std::move(build_graph_artifacts.m_bytecode_modules), entry_module_name).Link();
 		if (!link_result.has_value())
 		{
-			return std::unexpected(MidoriResult::CompilerReport(std::move(build_graph_artifacts.m_warnings), MidoriResult::CompilerDiagnostics(std::move(link_result.error()))));
+			return std::unexpected(MarmotResult::CompilerReport(std::move(build_graph_artifacts.m_warnings), MarmotResult::CompilerDiagnostics(std::move(link_result.error()))));
 		}
 
-		MidoriExecutable linked_executable = std::move(link_result.value());
-		return MidoriResult::CompiledProgram(std::move(linked_executable), MidoriResult::CompilerReport(std::move(build_graph_artifacts.m_warnings)));
+		MarmotExecutable linked_executable = std::move(link_result.value());
+		return MarmotResult::CompiledProgram(std::move(linked_executable), MarmotResult::CompilerReport(std::move(build_graph_artifacts.m_warnings)));
 	}
 }
 
@@ -1350,7 +1350,7 @@ std::vector<std::string>& Compiler::MergeInstanceMethods(std::vector<std::string
 	return target;
 }
 
-bool Compiler::InstanceTypeArgsEqual(const std::vector<std::shared_ptr<MidoriType>>& left, const std::vector<std::shared_ptr<MidoriType>>& right)
+bool Compiler::InstanceTypeArgsEqual(const std::vector<std::shared_ptr<MarmotType>>& left, const std::vector<std::shared_ptr<MarmotType>>& right)
 {
 	if (left.size() != right.size())
 	{
@@ -1368,12 +1368,12 @@ bool Compiler::InstanceTypeArgsEqual(const std::vector<std::shared_ptr<MidoriTyp
 	return true;
 }
 
-std::vector<std::vector<std::shared_ptr<MidoriType>>>& Compiler::MergeInstanceTypeArgs(std::vector<std::vector<std::shared_ptr<MidoriType>>>& target, const std::vector<std::vector<std::shared_ptr<MidoriType>>>& incoming)
+std::vector<std::vector<std::shared_ptr<MarmotType>>>& Compiler::MergeInstanceTypeArgs(std::vector<std::vector<std::shared_ptr<MarmotType>>>& target, const std::vector<std::vector<std::shared_ptr<MarmotType>>>& incoming)
 {
-	for (const std::vector<std::shared_ptr<MidoriType>>& incoming_args : incoming)
+	for (const std::vector<std::shared_ptr<MarmotType>>& incoming_args : incoming)
 	{
 		bool exists = false;
-		for (const std::vector<std::shared_ptr<MidoriType>>& existing_args : target)
+		for (const std::vector<std::shared_ptr<MarmotType>>& existing_args : target)
 		{
 			if (InstanceTypeArgsEqual(existing_args, incoming_args))
 			{
@@ -1394,17 +1394,17 @@ std::vector<std::vector<std::shared_ptr<MidoriType>>>& Compiler::MergeInstanceTy
 template <typename Entry>
 std::vector<Entry>& Compiler::MergeInstanceEntries(
 	std::vector<Entry>& target_entries,
-	const std::vector<std::vector<std::shared_ptr<MidoriType>>>& target_type_args,
+	const std::vector<std::vector<std::shared_ptr<MarmotType>>>& target_type_args,
 	const std::vector<Entry>& incoming_entries,
-	const std::vector<std::vector<std::shared_ptr<MidoriType>>>& incoming_type_args
+	const std::vector<std::vector<std::shared_ptr<MarmotType>>>& incoming_type_args
 )
 {
 	for (size_t incoming_idx = 0u; incoming_idx < incoming_type_args.size(); incoming_idx += 1u)
 	{
-		const std::vector<std::shared_ptr<MidoriType>>& incoming_args = incoming_type_args[incoming_idx];
+		const std::vector<std::shared_ptr<MarmotType>>& incoming_args = incoming_type_args[incoming_idx];
 
 		bool exists = false;
-		for (const std::vector<std::shared_ptr<MidoriType>>& existing_args : target_type_args)
+		for (const std::vector<std::shared_ptr<MarmotType>>& existing_args : target_type_args)
 		{
 			if (InstanceTypeArgsEqual(existing_args, incoming_args))
 			{
@@ -1449,7 +1449,7 @@ bool Compiler::TypeclassDefinitionsMatch(const CompiledModule::TypeclassMetadata
 	{
 		return false;
 	}
-	using MethodTypeMap = std::unordered_map<std::string, std::shared_ptr<MidoriType>>;
+	using MethodTypeMap = std::unordered_map<std::string, std::shared_ptr<MarmotType>>;
 	for (const auto& [method_name, method_type] : left.m_method_types)
 	{
 		MethodTypeMap::const_iterator it = right.m_method_types.find(method_name);
@@ -1470,7 +1470,7 @@ Compiler::Compiler(std::string&& source_code, std::string&& file_name, Compilati
 	m_file_name(std::move(file_name)),
 	m_inputs(std::move(inputs))
 {
-	MidoriSource::RemoveByteOrderMark(m_source_code);
+	MarmotSource::RemoveByteOrderMark(m_source_code);
 	std::istringstream stream(m_source_code);
 	std::string line;
 	while (std::getline(stream, line))
@@ -1488,35 +1488,35 @@ Compiler::Compiler(std::string&& source_code, std::string&& file_name, Compilati
 #endif
 }
 
-MidoriResult::CompilationResult Compiler::CompileWithReport()
+MarmotResult::CompilationResult Compiler::CompileWithReport()
 {
 	CompilationTimings timings(m_inputs.EmitsTimings());
-	MidoriResult::CompilationResult result = CompileWithTimings(timings);
+	MarmotResult::CompilationResult result = CompileWithTimings(timings);
 	timings.Print();
 	return result;
 }
 
-MidoriResult::CompilationResult Compiler::CompileWithTimings(CompilationTimings& timings)
+MarmotResult::CompilationResult Compiler::CompileWithTimings(CompilationTimings& timings)
 {
 	CompilationTimings::Timer total(timings, CompilationTimings::Phase::Total);
-	MidoriResult::LexerResult lex_result = [&]()
+	MarmotResult::LexerResult lex_result = [&]()
 	{
 		CompilationTimings::Timer timer(timings, CompilationTimings::Phase::Lexing);
 		return Lexer(std::move(m_source_code), m_file_name).Lex();
 	}();
 	if (!lex_result.has_value())
 	{
-		return std::unexpected(MidoriResult::CompilerReport(std::move(lex_result.error())));
+		return std::unexpected(MarmotResult::CompilerReport(std::move(lex_result.error())));
 	}
 
-	MidoriResult::ModuleManagerResult build_graph_result = [&]()
+	MarmotResult::ModuleManagerResult build_graph_result = [&]()
 	{
 		CompilationTimings::Timer timer(timings, CompilationTimings::Phase::Discovery);
 		return ModuleManager(std::move(lex_result.value()), m_file_name, m_source_lines, m_inputs).GenerateBuildGraph();
 	}();
 	if (!build_graph_result.has_value())
 	{
-		return std::unexpected(MidoriResult::CompilerReport(std::move(build_graph_result.error())));
+		return std::unexpected(MarmotResult::CompilerReport(std::move(build_graph_result.error())));
 	}
 
 	BuildGraph build_graph = std::move(build_graph_result.value());
@@ -1530,15 +1530,15 @@ MidoriResult::CompilationResult Compiler::CompileWithTimings(CompilationTimings&
 	}
 	std::ranges::sort(source_files);
 
-	MidoriResult::ReportResult<BuildGraphArtifacts> bytecode_result = CompileBuildGraph(std::move(build_graph), m_inputs, timings);
+	MarmotResult::ReportResult<BuildGraphArtifacts> bytecode_result = CompileBuildGraph(std::move(build_graph), m_inputs, timings);
 	if (!bytecode_result.has_value())
 	{
 		return std::unexpected(std::move(bytecode_result.error()));
 	}
 
-	std::vector<std::string> midori_ir = std::move(bytecode_result->m_midori_ir);
+	std::vector<std::string> marmot_ir = std::move(bytecode_result->m_marmot_ir);
 	std::vector<std::string> ast = std::move(bytecode_result->m_ast);
-	MidoriResult::CompilationResult linked = [&]()
+	MarmotResult::CompilationResult linked = [&]()
 	{
 		CompilationTimings::Timer timer(timings, CompilationTimings::Phase::Linking);
 		return LinkBytecodeModules(std::move(bytecode_result).value(), entry_module_name);
@@ -1546,7 +1546,7 @@ MidoriResult::CompilationResult Compiler::CompileWithTimings(CompilationTimings&
 	if (linked.has_value())
 	{
 		linked->m_source_files = std::move(source_files);
-		linked->m_midori_ir = std::move(midori_ir);
+		linked->m_marmot_ir = std::move(marmot_ir);
 		linked->m_ast = std::move(ast);
 	}
 	if (linked.has_value() && !m_inputs.NativeLibraryPolicies().empty())
@@ -1566,9 +1566,9 @@ MidoriResult::CompilationResult Compiler::CompileWithTimings(CompilationTimings&
 	return linked;
 }
 
-MidoriResult::CompilerResult Compiler::Compile()
+MarmotResult::CompilerResult Compiler::Compile()
 {
-	MidoriResult::CompilationResult compile_result = CompileWithReport();
+	MarmotResult::CompilationResult compile_result = CompileWithReport();
 	if (!compile_result.has_value())
 	{
 		// Legacy callers still expect an executable-or-errors shape; preserve the

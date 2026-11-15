@@ -1,6 +1,6 @@
 module MmcControl
 
-foreign "MIDORI_FFI_Print" PrintRaw : fn(Text) -> Unit;
+foreign "MARMOT_FFI_Print" PrintRaw : fn(Text) -> Unit;
 
 def Label = fn(value: Int) -> Text =>
     if value > 2 then "large" else "small";

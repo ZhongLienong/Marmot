@@ -11,7 +11,7 @@ using namespace std::string_literals;
 
 namespace
 {
-	using TypePtr = std::shared_ptr<MidoriType>;
+	using TypePtr = std::shared_ptr<MarmotType>;
 
 	struct TypeConstPairHash
 	{
@@ -24,9 +24,9 @@ namespace
 	};
 
 	using SubstitutionMap = std::unordered_map<std::string, TypePtr>;
-	using TypeCache = std::unordered_map<const MidoriType*, TypePtr>;
+	using TypeCache = std::unordered_map<const MarmotType*, TypePtr>;
 	using JoinWithCommaFn = std::function<std::string(const std::string&, const std::string&)>;
-	using ToStringFn = std::function<std::string(const MidoriType&)>;
+	using ToStringFn = std::function<std::string(const MarmotType&)>;
 
 	template<typename SubstituteFn>
 	struct SubstitutionVisitor
@@ -35,7 +35,7 @@ namespace
 		SubstituteFn& substitute;
 		TypeCache& cache;
 		const TypePtr& current_type;
-		const MidoriType* root = nullptr;
+		const MarmotType* root = nullptr;
 		const TypePtr* root_target = nullptr;
 
 		TypePtr InRootTarget(TypePtr&& fresh) const
@@ -52,121 +52,121 @@ namespace
 		template<typename T>
 		TypePtr operator()(const T& type_variant) const
 		{
-			if constexpr (std::is_same_v<T, MidoriType::GenericParam>)
+			if constexpr (std::is_same_v<T, MarmotType::GenericParam>)
 			{
 				SubstitutionMap::const_iterator it = substitutions.find(type_variant.m_name);
-				return (it != substitutions.end()) ? it->second : MidoriType::MakeGenericType(type_variant.m_name);
+				return (it != substitutions.end()) ? it->second : MarmotType::MakeGenericType(type_variant.m_name);
 			}
-			else if constexpr (std::is_same_v<T, MidoriType::ArrayType>)
+			else if constexpr (std::is_same_v<T, MarmotType::ArrayType>)
 			{
-				return MidoriType::MakeArrayType(substitute(type_variant.m_element_type));
+				return MarmotType::MakeArrayType(substitute(type_variant.m_element_type));
 			}
-			else if constexpr (std::is_same_v<T, MidoriType::WorkerType>)
+			else if constexpr (std::is_same_v<T, MarmotType::WorkerType>)
 			{
-				return MidoriType::MakeWorkerType(substitute(type_variant.m_result_type));
+				return MarmotType::MakeWorkerType(substitute(type_variant.m_result_type));
 			}
-			else if constexpr (std::is_same_v<T, MidoriType::ChannelType>)
+			else if constexpr (std::is_same_v<T, MarmotType::ChannelType>)
 			{
-				return MidoriType::MakeChannelType(substitute(type_variant.m_element_type));
+				return MarmotType::MakeChannelType(substitute(type_variant.m_element_type));
 			}
-			else if constexpr (std::is_same_v<T, MidoriType::CellType>)
+			else if constexpr (std::is_same_v<T, MarmotType::CellType>)
 			{
-				return MidoriType::MakeCellType(substitute(type_variant.m_element_type));
+				return MarmotType::MakeCellType(substitute(type_variant.m_element_type));
 			}
-			else if constexpr (std::is_same_v<T, MidoriType::RangeType>)
+			else if constexpr (std::is_same_v<T, MarmotType::RangeType>)
 			{
-				return MidoriType::MakeRangeType(substitute(type_variant.m_element_type));
+				return MarmotType::MakeRangeType(substitute(type_variant.m_element_type));
 			}
-			else if constexpr (std::is_same_v<T, MidoriType::TupleType>)
+			else if constexpr (std::is_same_v<T, MarmotType::TupleType>)
 			{
 				std::vector<TypePtr> new_element_types;
 				std::ranges::transform(type_variant.m_element_types, std::back_inserter(new_element_types), substitute);
-				return MidoriType::MakeTupleType(std::move(new_element_types));
+				return MarmotType::MakeTupleType(std::move(new_element_types));
 			}
-			else if constexpr (std::is_same_v<T, MidoriType::FunctionType>)
+			else if constexpr (std::is_same_v<T, MarmotType::FunctionType>)
 			{
 				std::vector<TypePtr> new_param_types;
 				std::ranges::transform(type_variant.m_param_types, std::back_inserter(new_param_types), substitute);
-				TypePtr new_function = MidoriType::MakeFunctionType(new_param_types, substitute(type_variant.m_return_type), type_variant.m_is_foreign);
-				new_function->GetType<MidoriType::FunctionType>().m_constraints = MidoriType::MapConstraints(type_variant.m_constraints, substitute);
+				TypePtr new_function = MarmotType::MakeFunctionType(new_param_types, substitute(type_variant.m_return_type), type_variant.m_is_foreign);
+				new_function->GetType<MarmotType::FunctionType>().m_constraints = MarmotType::MapConstraints(type_variant.m_constraints, substitute);
 				return new_function;
 			}
-			else if constexpr (std::is_same_v<T, MidoriType::StructType>)
+			else if constexpr (std::is_same_v<T, MarmotType::StructType>)
 			{
 				std::vector<TypePtr> empty_member_types;
 				std::vector<std::string> member_names_copy = type_variant.m_member_names;
 				std::vector<std::string> instantiated_generic_params;
-				TypePtr new_struct = InRootTarget(MidoriType::MakeStructType(type_variant.m_name, type_variant.m_module_name, std::move(empty_member_types), std::move(member_names_copy), std::move(instantiated_generic_params)));
+				TypePtr new_struct = InRootTarget(MarmotType::MakeStructType(type_variant.m_name, type_variant.m_module_name, std::move(empty_member_types), std::move(member_names_copy), std::move(instantiated_generic_params)));
 				cache[current_type.get()] = new_struct;
 
 				std::vector<TypePtr> new_member_types;
 				std::ranges::transform(type_variant.m_member_types, std::back_inserter(new_member_types), substitute);
-				new_struct->GetType<MidoriType::StructType>().m_member_types = std::move(new_member_types);
-				new_struct->GetType<MidoriType::StructType>().m_constraints = MidoriType::MapConstraints(type_variant.m_constraints, substitute);
+				new_struct->GetType<MarmotType::StructType>().m_member_types = std::move(new_member_types);
+				new_struct->GetType<MarmotType::StructType>().m_constraints = MarmotType::MapConstraints(type_variant.m_constraints, substitute);
 				if (!type_variant.m_generic_params.empty() || type_variant.m_is_generic_instantiation)
 				{
-					new_struct->GetType<MidoriType::StructType>().m_is_generic_instantiation = true;
-					new_struct->GetType<MidoriType::StructType>().m_type_arguments = MidoriType::InstantiateTypeArguments(type_variant.m_generic_params, type_variant.m_type_arguments, substitute);
+					new_struct->GetType<MarmotType::StructType>().m_is_generic_instantiation = true;
+					new_struct->GetType<MarmotType::StructType>().m_type_arguments = MarmotType::InstantiateTypeArguments(type_variant.m_generic_params, type_variant.m_type_arguments, substitute);
 				}
 				return new_struct;
 			}
-			else if constexpr (std::is_same_v<T, MidoriType::UnionType>)
+			else if constexpr (std::is_same_v<T, MarmotType::UnionType>)
 			{
 				std::vector<std::string> instantiated_generic_params;
-				TypePtr new_union_type = InRootTarget(MidoriType::MakeUnionType(type_variant.m_name, type_variant.m_module_name, std::move(instantiated_generic_params)));
-				MidoriType::UnionType& new_union_ref = new_union_type->GetType<MidoriType::UnionType>();
-				new_union_ref.m_constraints = MidoriType::MapConstraints(type_variant.m_constraints, substitute);
+				TypePtr new_union_type = InRootTarget(MarmotType::MakeUnionType(type_variant.m_name, type_variant.m_module_name, std::move(instantiated_generic_params)));
+				MarmotType::UnionType& new_union_ref = new_union_type->GetType<MarmotType::UnionType>();
+				new_union_ref.m_constraints = MarmotType::MapConstraints(type_variant.m_constraints, substitute);
 				if (!type_variant.m_generic_params.empty() || type_variant.m_is_generic_instantiation)
 				{
 					new_union_ref.m_is_generic_instantiation = true;
-					new_union_ref.m_type_arguments = MidoriType::InstantiateTypeArguments(type_variant.m_generic_params, type_variant.m_type_arguments, substitute);
+					new_union_ref.m_type_arguments = MarmotType::InstantiateTypeArguments(type_variant.m_generic_params, type_variant.m_type_arguments, substitute);
 				}
 				cache[current_type.get()] = new_union_type;
 
 				std::ranges::for_each
 				(
 					type_variant.m_member_info,
-					[this, &new_union_ref](const std::pair<const std::string, MidoriType::UnionType::UnionMemberContext>& member_pair)
+					[this, &new_union_ref](const std::pair<const std::string, MarmotType::UnionType::UnionMemberContext>& member_pair)
 					{
 						const std::string& member_name = member_pair.first;
-						const MidoriType::UnionType::UnionMemberContext& member_ctx = member_pair.second;
+						const MarmotType::UnionType::UnionMemberContext& member_ctx = member_pair.second;
 
 						std::vector<TypePtr> new_member_types;
 						std::ranges::transform(member_ctx.m_member_types, std::back_inserter(new_member_types), this->substitute);
 
-						new_union_ref.m_member_info.emplace(member_name, MidoriType::UnionType::UnionMemberContext{.m_member_types = std::move(new_member_types), .m_tag = member_ctx.m_tag});
+						new_union_ref.m_member_info.emplace(member_name, MarmotType::UnionType::UnionMemberContext{.m_member_types = std::move(new_member_types), .m_tag = member_ctx.m_tag});
 					}
 				);
 
 				return new_union_type;
 			}
-			else if constexpr (std::is_same_v<T, MidoriType::NewType>)
+			else if constexpr (std::is_same_v<T, MarmotType::NewType>)
 			{
 				std::vector<std::string> preserved_generic_params = type_variant.m_generic_params;
-				TypePtr new_newtype = InRootTarget(MidoriType::MakeNewType(type_variant.m_name, type_variant.m_module_name, type_variant.m_representation, std::move(preserved_generic_params)));
+				TypePtr new_newtype = InRootTarget(MarmotType::MakeNewType(type_variant.m_name, type_variant.m_module_name, type_variant.m_representation, std::move(preserved_generic_params)));
 				cache[current_type.get()] = new_newtype;
 
-				MidoriType::NewType& new_ref = new_newtype->GetType<MidoriType::NewType>();
+				MarmotType::NewType& new_ref = new_newtype->GetType<MarmotType::NewType>();
 				new_ref.m_representation = substitute(type_variant.m_representation);
-				new_ref.m_constraints = MidoriType::MapConstraints(type_variant.m_constraints, substitute);
+				new_ref.m_constraints = MarmotType::MapConstraints(type_variant.m_constraints, substitute);
 
 				if (!type_variant.m_generic_params.empty() || type_variant.m_is_generic_instantiation)
 				{
 					new_ref.m_is_generic_instantiation = true;
-					new_ref.m_type_arguments = MidoriType::InstantiateTypeArguments(type_variant.m_generic_params, type_variant.m_type_arguments, substitute);
+					new_ref.m_type_arguments = MarmotType::InstantiateTypeArguments(type_variant.m_generic_params, type_variant.m_type_arguments, substitute);
 				}
 
 				return new_newtype;
 			}
-			else if constexpr (std::is_same_v<T, MidoriType::AssociatedType>)
+			else if constexpr (std::is_same_v<T, MarmotType::AssociatedType>)
 			{
 				std::vector<TypePtr> new_type_args;
 				std::ranges::transform(type_variant.m_type_args, std::back_inserter(new_type_args), substitute);
-				return MidoriType::MakeAssociatedType(type_variant.m_class_name, type_variant.m_name, std::move(new_type_args));
+				return MarmotType::MakeAssociatedType(type_variant.m_class_name, type_variant.m_name, std::move(new_type_args));
 			}
 			else
 			{
-				return std::make_shared<MidoriType>(MidoriType::MidoriTypeUnion(type_variant));
+				return std::make_shared<MarmotType>(MarmotType::MarmotTypeUnion(type_variant));
 			}
 		}
 	};
@@ -202,15 +202,15 @@ namespace
 		template<typename Type>
 		std::string operator()(const Type& type_variant) const
 		{
-			if constexpr (std::is_same_v<Type, MidoriType::UndecidedType>)
+			if constexpr (std::is_same_v<Type, MarmotType::UndecidedType>)
 			{
 				return "Undecided"s;
 			}
-			else if constexpr (std::is_same_v<Type, MidoriType::GenericParam>)
+			else if constexpr (std::is_same_v<Type, MarmotType::GenericParam>)
 			{
 				return type_variant.m_name;
 			}
-			else if constexpr (std::is_same_v<Type, MidoriType::TypeVariable>)
+			else if constexpr (std::is_same_v<Type, MarmotType::TypeVariable>)
 			{
 				if (variable_names != nullptr)
 				{
@@ -222,59 +222,59 @@ namespace
 				}
 				return "T"s + std::to_string(type_variant.m_id);
 			}
-			else if constexpr (std::is_same_v<Type, MidoriType::FloatType>)
+			else if constexpr (std::is_same_v<Type, MarmotType::FloatType>)
 			{
 				return "Float"s;
 			}
-			else if constexpr (std::is_same_v<Type, MidoriType::IntegerType>)
+			else if constexpr (std::is_same_v<Type, MarmotType::IntegerType>)
 			{
 				return "Int"s;
 			}
-			else if constexpr (std::is_same_v<Type, MidoriType::ByteType>)
+			else if constexpr (std::is_same_v<Type, MarmotType::ByteType>)
 			{
 				return "Byte"s;
 			}
-			else if constexpr (std::is_same_v<Type, MidoriType::WordType>)
+			else if constexpr (std::is_same_v<Type, MarmotType::WordType>)
 			{
 				return "Word"s;
 			}
-			else if constexpr (std::is_same_v<Type, MidoriType::TextType>)
+			else if constexpr (std::is_same_v<Type, MarmotType::TextType>)
 			{
 				return "Text"s;
 			}
-			else if constexpr (std::is_same_v<Type, MidoriType::BoolType>)
+			else if constexpr (std::is_same_v<Type, MarmotType::BoolType>)
 			{
 				return "Bool"s;
 			}
-			else if constexpr (std::is_same_v<Type, MidoriType::UnitType>)
+			else if constexpr (std::is_same_v<Type, MarmotType::UnitType>)
 			{
 				return "Unit"s;
 			}
-			else if constexpr (std::is_same_v<Type, MidoriType::NeverType>)
+			else if constexpr (std::is_same_v<Type, MarmotType::NeverType>)
 			{
 				return "Never"s;
 			}
-			else if constexpr (std::is_same_v<Type, MidoriType::ArrayType>)
+			else if constexpr (std::is_same_v<Type, MarmotType::ArrayType>)
 			{
 				return "Array<"s + stringify(*type_variant.m_element_type) + ">"s;
 			}
-			else if constexpr (std::is_same_v<Type, MidoriType::WorkerType>)
+			else if constexpr (std::is_same_v<Type, MarmotType::WorkerType>)
 			{
 				return "Worker<"s + stringify(*type_variant.m_result_type) + ">"s;
 			}
-			else if constexpr (std::is_same_v<Type, MidoriType::ChannelType>)
+			else if constexpr (std::is_same_v<Type, MarmotType::ChannelType>)
 			{
 				return "Channel<"s + stringify(*type_variant.m_element_type) + ">"s;
 			}
-			else if constexpr (std::is_same_v<Type, MidoriType::CellType>)
+			else if constexpr (std::is_same_v<Type, MarmotType::CellType>)
 			{
 				return "Ref<"s + stringify(*type_variant.m_element_type) + ">"s;
 			}
-			else if constexpr (std::is_same_v<Type, MidoriType::RangeType>)
+			else if constexpr (std::is_same_v<Type, MarmotType::RangeType>)
 			{
 				return "Range<"s + stringify(*type_variant.m_element_type) + ">"s;
 			}
-			else if constexpr (std::is_same_v<Type, MidoriType::TupleType>)
+			else if constexpr (std::is_same_v<Type, MarmotType::TupleType>)
 			{
 				if (type_variant.m_element_types.empty())
 				{
@@ -291,7 +291,7 @@ namespace
 
 				return "("s + std::accumulate(std::next(type_strings.begin()), type_strings.end(), type_strings.front(), join_with_comma) + ")"s;
 			}
-			else if constexpr (std::is_same_v<Type, MidoriType::FunctionType>)
+			else if constexpr (std::is_same_v<Type, MarmotType::FunctionType>)
 			{
 				if (type_variant.m_param_types.empty())
 				{
@@ -308,7 +308,7 @@ namespace
 
 				return "fn("s + std::accumulate(std::next(param_strings.begin()), param_strings.end(), param_strings.front(), join_with_comma) + ") -> "s + stringify(*type_variant.m_return_type);
 			}
-			else if constexpr (std::is_same_v<Type, MidoriType::StructType>)
+			else if constexpr (std::is_same_v<Type, MarmotType::StructType>)
 			{
 				const std::string type_name = NominalName(type_variant.m_name, type_variant.m_module_name, qualify);
 				if (!type_variant.m_generic_params.empty())
@@ -336,7 +336,7 @@ namespace
 					return type_name;
 				}
 			}
-			else if constexpr (std::is_same_v<Type, MidoriType::UnionType>)
+			else if constexpr (std::is_same_v<Type, MarmotType::UnionType>)
 			{
 				const std::string type_name = NominalName(type_variant.m_name, type_variant.m_module_name, qualify);
 				if (!type_variant.m_generic_params.empty())
@@ -367,7 +367,7 @@ namespace
 						}
 						first = false;
 						
-						const MidoriType::UnionType::UnionMemberContext& ctx = type_variant.m_member_info.at(key);
+						const MarmotType::UnionType::UnionMemberContext& ctx = type_variant.m_member_info.at(key);
 						
 						sig += key;
 						if (!ctx.m_member_types.empty())
@@ -392,7 +392,7 @@ namespace
 					return type_name;
 				}
 			}
-			else if constexpr (std::is_same_v<Type, MidoriType::NewType>)
+			else if constexpr (std::is_same_v<Type, MarmotType::NewType>)
 			{
 				// Never renders its representation. InstanceKey and
 				// MangleInstanceMethodName key on this string, so rendering the
@@ -411,7 +411,7 @@ namespace
 
 				return type_name;
 			}
-			else if constexpr (std::is_same_v<Type, MidoriType::AssociatedType>)
+			else if constexpr (std::is_same_v<Type, MarmotType::AssociatedType>)
 			{
 				if (type_variant.m_type_args.empty())
 				{
@@ -439,7 +439,7 @@ namespace
 
 }
 
-struct MidoriType::TypeEqualityVisitor
+struct MarmotType::TypeEqualityVisitor
 {
 	template<typename TypeA, typename TypeB>
 	bool operator()(const TypeA& a, const TypeB& b) const
@@ -448,60 +448,60 @@ struct MidoriType::TypeEqualityVisitor
 		{
 			return false;
 		}
-		else if constexpr (std::is_same_v<TypeA, MidoriType::GenericParam>)
+		else if constexpr (std::is_same_v<TypeA, MarmotType::GenericParam>)
 		{
 			return a.m_name == b.m_name;
 		}
-		else if constexpr (std::is_same_v<TypeA, MidoriType::TypeVariable>)
+		else if constexpr (std::is_same_v<TypeA, MarmotType::TypeVariable>)
 		{
 			return a.m_id == b.m_id;
 		}
-		else if constexpr (std::is_same_v<TypeA, MidoriType::ArrayType>)
+		else if constexpr (std::is_same_v<TypeA, MarmotType::ArrayType>)
 		{
 			return *a.m_element_type == *b.m_element_type;
 		}
-		else if constexpr (std::is_same_v<TypeA, MidoriType::WorkerType>)
+		else if constexpr (std::is_same_v<TypeA, MarmotType::WorkerType>)
 		{
 			return *a.m_result_type == *b.m_result_type;
 		}
-		else if constexpr (std::is_same_v<TypeA, MidoriType::ChannelType>)
+		else if constexpr (std::is_same_v<TypeA, MarmotType::ChannelType>)
 		{
 			return *a.m_element_type == *b.m_element_type;
 		}
-		else if constexpr (std::is_same_v<TypeA, MidoriType::CellType>)
+		else if constexpr (std::is_same_v<TypeA, MarmotType::CellType>)
 		{
 			return *a.m_element_type == *b.m_element_type;
 		}
-		else if constexpr (std::is_same_v<TypeA, MidoriType::RangeType>)
+		else if constexpr (std::is_same_v<TypeA, MarmotType::RangeType>)
 		{
 			return *a.m_element_type == *b.m_element_type;
 		}
-		else if constexpr (std::is_same_v<TypeA, MidoriType::TupleType>)
+		else if constexpr (std::is_same_v<TypeA, MarmotType::TupleType>)
 		{
 			return a.m_element_types.size() == b.m_element_types.size()
 				&& std::ranges::equal
 				(
 					a.m_element_types,
 					b.m_element_types,
-					[](const std::shared_ptr<MidoriType>& t1, const std::shared_ptr<MidoriType>& t2)
+					[](const std::shared_ptr<MarmotType>& t1, const std::shared_ptr<MarmotType>& t2)
 					{
 						return *t1 == *t2;
 					}
 				);
 		}
-		else if constexpr (std::is_same_v<TypeA, MidoriType::FunctionType>)
+		else if constexpr (std::is_same_v<TypeA, MarmotType::FunctionType>)
 		{
 			return std::ranges::equal
 			(
 				a.m_param_types,
 				b.m_param_types,
-				[](const std::shared_ptr<MidoriType>& t1, const std::shared_ptr<MidoriType>& t2)
+				[](const std::shared_ptr<MarmotType>& t1, const std::shared_ptr<MarmotType>& t2)
 				{
 					return *t1 == *t2;
 				}
 			) && *a.m_return_type == *b.m_return_type;
 		}
-		else if constexpr (std::is_same_v<TypeA, MidoriType::StructType>)
+		else if constexpr (std::is_same_v<TypeA, MarmotType::StructType>)
 		{
 			thread_local std::unordered_set<std::pair<const void*, const void*>, TypeConstPairHash> s_visiting;
 			std::pair<const void*, const void*> key{&a, &b};
@@ -510,11 +510,11 @@ struct MidoriType::TypeEqualityVisitor
 				return true;
 			}
 			s_visiting.insert(key);
-			bool result = MidoriType::CompareStructTypes(a, b);
+			bool result = MarmotType::CompareStructTypes(a, b);
 			s_visiting.erase(key);
 			return result;
 		}
-		else if constexpr (std::is_same_v<TypeA, MidoriType::UnionType>)
+		else if constexpr (std::is_same_v<TypeA, MarmotType::UnionType>)
 		{
 			thread_local std::unordered_set<std::pair<const void*, const void*>, TypeConstPairHash> s_visiting;
 			std::pair<const void*, const void*> key{&a, &b};
@@ -523,11 +523,11 @@ struct MidoriType::TypeEqualityVisitor
 				return true;
 			}
 			s_visiting.insert(key);
-			bool result = MidoriType::CompareUnionTypes(a, b);
+			bool result = MarmotType::CompareUnionTypes(a, b);
 			s_visiting.erase(key);
 			return result;
 		}
-		else if constexpr (std::is_same_v<TypeA, MidoriType::NewType>)
+		else if constexpr (std::is_same_v<TypeA, MarmotType::NewType>)
 		{
 			// Name and type arguments only. Comparing representations would make
 			// Meters equal to Int, which is the whole thing this prevents.
@@ -538,15 +538,15 @@ struct MidoriType::TypeEqualityVisitor
 				return true;
 			}
 			s_visiting.insert(key);
-			bool result = a.m_name == b.m_name && a.m_module_name == b.m_module_name && MidoriType::CompareTypeArguments(a.m_type_arguments, b.m_type_arguments);
+			bool result = a.m_name == b.m_name && a.m_module_name == b.m_module_name && MarmotType::CompareTypeArguments(a.m_type_arguments, b.m_type_arguments);
 			s_visiting.erase(key);
 			return result;
 		}
-		else if constexpr (std::is_same_v<TypeA, MidoriType::AssociatedType>)
+		else if constexpr (std::is_same_v<TypeA, MarmotType::AssociatedType>)
 		{
 			return a == b;
 		}
-		else if constexpr (std::is_same_v<TypeA, MidoriType::ClassConstraint>)
+		else if constexpr (std::is_same_v<TypeA, MarmotType::ClassConstraint>)
 		{
 			return a == b;
 		}
@@ -557,51 +557,51 @@ struct MidoriType::TypeEqualityVisitor
 	}
 };
 
-MidoriType::MidoriType(MidoriType::MidoriTypeUnion&& actual_type) : m_type(std::move(actual_type))
+MarmotType::MarmotType(MarmotType::MarmotTypeUnion&& actual_type) : m_type(std::move(actual_type))
 {
 }
 
-MidoriType::GenericParam::GenericParam(const std::string& name) : m_name(name)
+MarmotType::GenericParam::GenericParam(const std::string& name) : m_name(name)
 {
 }
 
-bool MidoriType::GenericParam::operator==(const GenericParam& other) const
+bool MarmotType::GenericParam::operator==(const GenericParam& other) const
 {
 	return m_name == other.m_name;
 }
 
-MidoriType::TypeVariable::TypeVariable(int id) : m_id(id)
+MarmotType::TypeVariable::TypeVariable(int id) : m_id(id)
 {
 }
 
-bool MidoriType::TypeVariable::operator==(const TypeVariable& other) const
+bool MarmotType::TypeVariable::operator==(const TypeVariable& other) const
 {
 	return m_id == other.m_id;
 }
 
-MidoriType::UnionType::UnionType(const std::string& name, const std::string& module_name) : m_name(name), m_module_name(module_name)
+MarmotType::UnionType::UnionType(const std::string& name, const std::string& module_name) : m_name(name), m_module_name(module_name)
 {
 }
 
-MidoriType::ClassConstraint::ClassConstraint(const std::string& typeclass_name, std::vector<std::shared_ptr<MidoriType>>&& type_args)
+MarmotType::ClassConstraint::ClassConstraint(const std::string& typeclass_name, std::vector<std::shared_ptr<MarmotType>>&& type_args)
 	: m_class_name(typeclass_name), 
 	m_type_args(std::move(type_args))
 {
 }
 
-MidoriType::ClassConstraint::ClassConstraint(std::shared_ptr<MidoriType>&& equality_lhs, std::shared_ptr<MidoriType>&& equality_rhs)
+MarmotType::ClassConstraint::ClassConstraint(std::shared_ptr<MarmotType>&& equality_lhs, std::shared_ptr<MarmotType>&& equality_rhs)
 	: m_kind(Kind::Equality),
 	m_equality_lhs(std::move(equality_lhs)),
 	m_equality_rhs(std::move(equality_rhs))
 {
 }
 
-bool MidoriType::ClassConstraint::IsEquality() const
+bool MarmotType::ClassConstraint::IsEquality() const
 {
 	return m_kind == Kind::Equality;
 }
 
-bool MidoriType::ClassConstraint::operator==(const ClassConstraint& other) const
+bool MarmotType::ClassConstraint::operator==(const ClassConstraint& other) const
 {
 	if (m_kind != other.m_kind)
 	{
@@ -623,21 +623,21 @@ bool MidoriType::ClassConstraint::operator==(const ClassConstraint& other) const
 	(
 		m_type_args,
 		other.m_type_args,
-		[](const std::shared_ptr<MidoriType>& left, const std::shared_ptr<MidoriType>& right)
+		[](const std::shared_ptr<MarmotType>& left, const std::shared_ptr<MarmotType>& right)
 		{
 			return *left == *right;
 		}
 	);
 }
 
-MidoriType::AssociatedType::AssociatedType(const std::string& class_name, const std::string& name, std::vector<std::shared_ptr<MidoriType>>&& type_args)
+MarmotType::AssociatedType::AssociatedType(const std::string& class_name, const std::string& name, std::vector<std::shared_ptr<MarmotType>>&& type_args)
 	: m_class_name(class_name),
 	m_name(name),
 	m_type_args(std::move(type_args))
 {
 }
 
-bool MidoriType::AssociatedType::operator==(const AssociatedType& other) const
+bool MarmotType::AssociatedType::operator==(const AssociatedType& other) const
 {
 	if (m_class_name != other.m_class_name || m_name != other.m_name || m_type_args.size() != other.m_type_args.size())
 	{
@@ -648,87 +648,87 @@ bool MidoriType::AssociatedType::operator==(const AssociatedType& other) const
 	(
 		m_type_args,
 		other.m_type_args,
-		[](const std::shared_ptr<MidoriType>& left, const std::shared_ptr<MidoriType>& right)
+		[](const std::shared_ptr<MarmotType>& left, const std::shared_ptr<MarmotType>& right)
 		{
 			return *left == *right;
 		}
 	);
 }
 
-const std::shared_ptr<MidoriType> MidoriType::MakeUndecidedType()
+const std::shared_ptr<MarmotType> MarmotType::MakeUndecidedType()
 {
-	return std::make_shared<MidoriType>(MidoriTypeUnion(UndecidedType{}));
+	return std::make_shared<MarmotType>(MarmotTypeUnion(UndecidedType{}));
 }
 
-std::shared_ptr<MidoriType> MidoriType::MakeGenericType(const std::string& name)
+std::shared_ptr<MarmotType> MarmotType::MakeGenericType(const std::string& name)
 {
-	return std::make_shared<MidoriType>(MidoriTypeUnion(GenericParam(name)));
+	return std::make_shared<MarmotType>(MarmotTypeUnion(GenericParam(name)));
 }
 
-std::shared_ptr<MidoriType> MidoriType::MakeTypeVariable(int id)
+std::shared_ptr<MarmotType> MarmotType::MakeTypeVariable(int id)
 {
-	return std::make_shared<MidoriType>(MidoriTypeUnion(TypeVariable(id)));
+	return std::make_shared<MarmotType>(MarmotTypeUnion(TypeVariable(id)));
 }
 
-std::shared_ptr<MidoriType> MidoriType::MakeAssociatedType(const std::string& class_name, const std::string& name, std::vector<std::shared_ptr<MidoriType>>&& type_args)
+std::shared_ptr<MarmotType> MarmotType::MakeAssociatedType(const std::string& class_name, const std::string& name, std::vector<std::shared_ptr<MarmotType>>&& type_args)
 {
-	return std::make_shared<MidoriType>(MidoriTypeUnion(AssociatedType(class_name, name, std::move(type_args))));
+	return std::make_shared<MarmotType>(MarmotTypeUnion(AssociatedType(class_name, name, std::move(type_args))));
 }
 
-std::shared_ptr<MidoriType> MidoriType::MakeArrayType(const std::shared_ptr<MidoriType>& element_type)
+std::shared_ptr<MarmotType> MarmotType::MakeArrayType(const std::shared_ptr<MarmotType>& element_type)
 {
-	return std::make_shared<MidoriType>(MidoriTypeUnion(ArrayType{.m_element_type = element_type}));
+	return std::make_shared<MarmotType>(MarmotTypeUnion(ArrayType{.m_element_type = element_type}));
 }
 
-std::shared_ptr<MidoriType> MidoriType::MakeWorkerType(const std::shared_ptr<MidoriType>& result_type)
+std::shared_ptr<MarmotType> MarmotType::MakeWorkerType(const std::shared_ptr<MarmotType>& result_type)
 {
-	return std::make_shared<MidoriType>(MidoriTypeUnion(WorkerType{.m_result_type = result_type}));
+	return std::make_shared<MarmotType>(MarmotTypeUnion(WorkerType{.m_result_type = result_type}));
 }
 
-std::shared_ptr<MidoriType> MidoriType::MakeChannelType(const std::shared_ptr<MidoriType>& element_type)
+std::shared_ptr<MarmotType> MarmotType::MakeChannelType(const std::shared_ptr<MarmotType>& element_type)
 {
-	return std::make_shared<MidoriType>(MidoriTypeUnion(ChannelType{.m_element_type = element_type}));
+	return std::make_shared<MarmotType>(MarmotTypeUnion(ChannelType{.m_element_type = element_type}));
 }
 
-std::shared_ptr<MidoriType> MidoriType::MakeCellType(const std::shared_ptr<MidoriType>& element_type)
+std::shared_ptr<MarmotType> MarmotType::MakeCellType(const std::shared_ptr<MarmotType>& element_type)
 {
-	return std::make_shared<MidoriType>(MidoriTypeUnion(CellType{.m_element_type = element_type}));
+	return std::make_shared<MarmotType>(MarmotTypeUnion(CellType{.m_element_type = element_type}));
 }
 
-std::shared_ptr<MidoriType> MidoriType::MakeRangeType(const std::shared_ptr<MidoriType>& element_type)
+std::shared_ptr<MarmotType> MarmotType::MakeRangeType(const std::shared_ptr<MarmotType>& element_type)
 {
-	return std::make_shared<MidoriType>(MidoriTypeUnion(RangeType{.m_element_type = element_type}));
+	return std::make_shared<MarmotType>(MarmotTypeUnion(RangeType{.m_element_type = element_type}));
 }
 
-std::shared_ptr<MidoriType> MidoriType::MakeTupleType(std::vector<std::shared_ptr<MidoriType>>&& element_types)
+std::shared_ptr<MarmotType> MarmotType::MakeTupleType(std::vector<std::shared_ptr<MarmotType>>&& element_types)
 {
-	return std::make_shared<MidoriType>(MidoriTypeUnion(TupleType{.m_element_types = std::move(element_types)}));
+	return std::make_shared<MarmotType>(MarmotTypeUnion(TupleType{.m_element_types = std::move(element_types)}));
 }
 
-std::shared_ptr<MidoriType> MidoriType::MakeFunctionType(const std::vector<std::shared_ptr<MidoriType>>& param_types, std::shared_ptr<MidoriType>&& return_type, bool is_foreign)
+std::shared_ptr<MarmotType> MarmotType::MakeFunctionType(const std::vector<std::shared_ptr<MarmotType>>& param_types, std::shared_ptr<MarmotType>&& return_type, bool is_foreign)
 {
-	return std::make_shared<MidoriType>(MidoriTypeUnion(FunctionType{.m_param_types = param_types, .m_return_type = return_type, .m_constraints = {}, .m_is_foreign = is_foreign}));
+	return std::make_shared<MarmotType>(MarmotTypeUnion(FunctionType{.m_param_types = param_types, .m_return_type = return_type, .m_constraints = {}, .m_is_foreign = is_foreign}));
 }
 
-std::shared_ptr<MidoriType> MidoriType::MakeStructType(const std::string& name, const std::string& module_name, std::vector<std::shared_ptr<MidoriType>>&& member_types, std::vector<std::string>&& member_names, std::vector<std::string>&& generic_params)
+std::shared_ptr<MarmotType> MarmotType::MakeStructType(const std::string& name, const std::string& module_name, std::vector<std::shared_ptr<MarmotType>>&& member_types, std::vector<std::string>&& member_names, std::vector<std::string>&& generic_params)
 {
-	return std::make_shared<MidoriType>(MidoriTypeUnion(StructType{.m_member_types = std::move(member_types), .m_member_names = std::move(member_names), .m_name = name, .m_module_name = module_name, .m_generic_params = std::move(generic_params), .m_constraints = {}}));
+	return std::make_shared<MarmotType>(MarmotTypeUnion(StructType{.m_member_types = std::move(member_types), .m_member_names = std::move(member_names), .m_name = name, .m_module_name = module_name, .m_generic_params = std::move(generic_params), .m_constraints = {}}));
 }
 
-std::shared_ptr<MidoriType> MidoriType::MakeUnionType(const std::string& name, const std::string& module_name, std::vector<std::string>&& generic_params)
+std::shared_ptr<MarmotType> MarmotType::MakeUnionType(const std::string& name, const std::string& module_name, std::vector<std::string>&& generic_params)
 {
 	UnionType union_type(name, module_name);
 	union_type.m_generic_params = std::move(generic_params);
 	union_type.m_constraints = {};
-	return std::make_shared<MidoriType>(MidoriTypeUnion(std::move(union_type)));
+	return std::make_shared<MarmotType>(MarmotTypeUnion(std::move(union_type)));
 }
 
-std::shared_ptr<MidoriType> MidoriType::MakeNewType(const std::string& name, const std::string& module_name, const std::shared_ptr<MidoriType>& representation, std::vector<std::string>&& generic_params)
+std::shared_ptr<MarmotType> MarmotType::MakeNewType(const std::string& name, const std::string& module_name, const std::shared_ptr<MarmotType>& representation, std::vector<std::string>&& generic_params)
 {
-	return std::make_shared<MidoriType>(MidoriTypeUnion(NewType{.m_name = name, .m_module_name = module_name, .m_representation = representation, .m_generic_params = std::move(generic_params), .m_type_arguments = {}, .m_constraints = {}}));
+	return std::make_shared<MarmotType>(MarmotTypeUnion(NewType{.m_name = name, .m_module_name = module_name, .m_representation = representation, .m_generic_params = std::move(generic_params), .m_type_arguments = {}, .m_constraints = {}}));
 }
 
-std::shared_ptr<MidoriType> MidoriType::SubstituteTypeParams(const std::shared_ptr<MidoriType>& type, const std::unordered_map<std::string, std::shared_ptr<MidoriType>>& substitutions)
+std::shared_ptr<MarmotType> MarmotType::SubstituteTypeParams(const std::shared_ptr<MarmotType>& type, const std::unordered_map<std::string, std::shared_ptr<MarmotType>>& substitutions)
 {
 	using SubstituteFn = std::function<TypePtr(const TypePtr&)>;
 	TypeCache cache;
@@ -748,7 +748,7 @@ std::shared_ptr<MidoriType> MidoriType::SubstituteTypeParams(const std::shared_p
 	return substitute(type);
 }
 
-void MidoriType::SubstituteTypeParamsInto(const std::shared_ptr<MidoriType>& target, const std::shared_ptr<MidoriType>& type, const std::unordered_map<std::string, std::shared_ptr<MidoriType>>& substitutions)
+void MarmotType::SubstituteTypeParamsInto(const std::shared_ptr<MarmotType>& target, const std::shared_ptr<MarmotType>& type, const std::unordered_map<std::string, std::shared_ptr<MarmotType>>& substitutions)
 {
 	using SubstituteFn = std::function<TypePtr(const TypePtr&)>;
 	TypeCache cache;
@@ -768,9 +768,9 @@ void MidoriType::SubstituteTypeParamsInto(const std::shared_ptr<MidoriType>& tar
 	substitute(type);
 }
 
-std::vector<std::shared_ptr<MidoriType>> MidoriType::InstantiateTypeArguments(const std::vector<std::string>& generic_params, const std::vector<std::shared_ptr<MidoriType>>& type_arguments, const TypeArgumentSubstituteFn& substitute)
+std::vector<std::shared_ptr<MarmotType>> MarmotType::InstantiateTypeArguments(const std::vector<std::string>& generic_params, const std::vector<std::shared_ptr<MarmotType>>& type_arguments, const TypeArgumentSubstituteFn& substitute)
 {
-	std::vector<std::shared_ptr<MidoriType>> instantiated;
+	std::vector<std::shared_ptr<MarmotType>> instantiated;
 
 	if (!type_arguments.empty())
 	{
@@ -790,32 +790,32 @@ std::vector<std::shared_ptr<MidoriType>> MidoriType::InstantiateTypeArguments(co
 	return instantiated;
 }
 
-std::string MidoriType::ToString() const
+std::string MarmotType::ToString() const
 {
 	return Stringify(true, nullptr);
 }
 
-std::string MidoriType::DisplayString() const
+std::string MarmotType::DisplayString() const
 {
 	return Stringify(false, nullptr);
 }
 
-std::string MidoriType::DisplayString(const std::unordered_map<int, std::string>& variable_names) const
+std::string MarmotType::DisplayString(const std::unordered_map<int, std::string>& variable_names) const
 {
 	return Stringify(false, &variable_names);
 }
 
-std::string MidoriType::Stringify(bool qualify, const std::unordered_map<int, std::string>* variable_names) const
+std::string MarmotType::Stringify(bool qualify, const std::unordered_map<int, std::string>* variable_names) const
 {
 	JoinWithCommaFn join_with_comma = [](const std::string& acc, const std::string& elem)
 		{
 			return acc.empty() ? elem : acc + ", "s + elem;
 		};
 
-	std::unordered_set<const MidoriType*> visited;
+	std::unordered_set<const MarmotType*> visited;
 
 	ToStringFn stringify;
-	stringify = [&visited, &join_with_comma, &stringify, qualify, variable_names](const MidoriType& type) -> std::string
+	stringify = [&visited, &join_with_comma, &stringify, qualify, variable_names](const MarmotType& type) -> std::string
 	{
 		if (visited.contains(&type))
 		{
@@ -845,19 +845,19 @@ std::string MidoriType::Stringify(bool qualify, const std::unordered_map<int, st
 	return stringify(*this);
 }
 
-std::string MidoriType::JoinToStrings(const std::vector<std::shared_ptr<MidoriType>>& types)
+std::string MarmotType::JoinToStrings(const std::vector<std::shared_ptr<MarmotType>>& types)
 {
 	return types
-		| std::views::transform([](const std::shared_ptr<MidoriType>& type) { return type->ToString(); })
+		| std::views::transform([](const std::shared_ptr<MarmotType>& type) { return type->ToString(); })
 		| std::views::join_with(std::string_view(", "))
 		| std::ranges::to<std::string>();
 }
 
-std::string MidoriType::MangleInstanceMethodName(const std::string& method_name, const std::string& typeclass_name, const std::vector<std::shared_ptr<MidoriType>>& type_args)
+std::string MarmotType::MangleInstanceMethodName(const std::string& method_name, const std::string& typeclass_name, const std::vector<std::shared_ptr<MarmotType>>& type_args)
 {
 	std::string mangled = INTERNAL_NAME_PREFIX + method_name + "_"s + typeclass_name;
 
-	for (const std::shared_ptr<MidoriType>& type_arg : type_args)
+	for (const std::shared_ptr<MarmotType>& type_arg : type_args)
 	{
 		std::string type_str = type_arg->ToString();
 		std::ranges::replace_if(type_str, [](char c) { return !std::isalnum(c); }, '_');	// Replace special characters with underscores for valid identifier
@@ -867,7 +867,7 @@ std::string MidoriType::MangleInstanceMethodName(const std::string& method_name,
 	return mangled;
 }
 
-std::string MidoriType::DemangleInstanceMethodName(const std::string& mangled_name, const std::string& typeclass_name)
+std::string MarmotType::DemangleInstanceMethodName(const std::string& mangled_name, const std::string& typeclass_name)
 {
 	// mangled format: $methodName_TypeclassName_Type1_Type2
 	// Skip the INTERNAL_NAME_PREFIX if present
@@ -889,25 +889,25 @@ std::string MidoriType::DemangleInstanceMethodName(const std::string& mangled_na
 	return mangled_name.substr(start_pos);
 }
 
-bool MidoriType::IsNumericType() const
+bool MarmotType::IsNumericType() const
 {
 	return IsType<FloatType>() || IsType<IntegerType>() || IsType<ByteType>() || IsType<WordType>();
 }
 
-bool MidoriType::CompareTypeArguments(const std::vector<std::shared_ptr<MidoriType>>& a, const std::vector<std::shared_ptr<MidoriType>>& b)
+bool MarmotType::CompareTypeArguments(const std::vector<std::shared_ptr<MarmotType>>& a, const std::vector<std::shared_ptr<MarmotType>>& b)
 {
 	return std::ranges::equal
 	(
 		a,
 		b,
-		[](const std::shared_ptr<MidoriType>& left, const std::shared_ptr<MidoriType>& right)
+		[](const std::shared_ptr<MarmotType>& left, const std::shared_ptr<MarmotType>& right)
 		{
 			return *left == *right;
 		}
 	);
 }
 
-bool MidoriType::CompareGenericStructs(const StructType& a, const StructType& b)
+bool MarmotType::CompareGenericStructs(const StructType& a, const StructType& b)
 {
 	if (a.m_member_types.size() != b.m_member_types.size())
 	{
@@ -918,14 +918,14 @@ bool MidoriType::CompareGenericStructs(const StructType& a, const StructType& b)
 	(
 		a.m_member_types,
 		b.m_member_types,
-		[](const std::shared_ptr<MidoriType>& left, const std::shared_ptr<MidoriType>& right)
+		[](const std::shared_ptr<MarmotType>& left, const std::shared_ptr<MarmotType>& right)
 		{
 			return *left == *right;
 		}
 	);
 }
 
-bool MidoriType::CompareInstantiatedStructs(const StructType& a, const StructType& b)
+bool MarmotType::CompareInstantiatedStructs(const StructType& a, const StructType& b)
 {
 	if (a.m_member_types.size() != b.m_member_types.size() || !std::ranges::equal(a.m_member_names, b.m_member_names))
 	{
@@ -941,14 +941,14 @@ bool MidoriType::CompareInstantiatedStructs(const StructType& a, const StructTyp
 	(
 		a.m_member_types,
 		b.m_member_types,
-		[](const std::shared_ptr<MidoriType>& left, const std::shared_ptr<MidoriType>& right)
+		[](const std::shared_ptr<MarmotType>& left, const std::shared_ptr<MarmotType>& right)
 		{
 			return *left == *right;
 		}
 	);
 }
 
-bool MidoriType::CompareStructTypes(const StructType& a, const StructType& b)
+bool MarmotType::CompareStructTypes(const StructType& a, const StructType& b)
 {
 	if (a.m_name != b.m_name || a.m_module_name != b.m_module_name)
 	{
@@ -966,7 +966,7 @@ bool MidoriType::CompareStructTypes(const StructType& a, const StructType& b)
 	return CompareInstantiatedStructs(a, b);
 }
 
-bool MidoriType::CompareGenericUnions(const UnionType& a, const UnionType& b)
+bool MarmotType::CompareGenericUnions(const UnionType& a, const UnionType& b)
 {
 	using VariantPairCheckFn = std::function<bool(const std::pair<const std::string, UnionType::UnionMemberContext>&)>;
 
@@ -992,7 +992,7 @@ bool MidoriType::CompareGenericUnions(const UnionType& a, const UnionType& b)
 				(
 					a_ctx.m_member_types,
 					b_ctx.m_member_types,
-					[](const std::shared_ptr<MidoriType>& t1, const std::shared_ptr<MidoriType>& t2)
+					[](const std::shared_ptr<MarmotType>& t1, const std::shared_ptr<MarmotType>& t2)
 					{
 						return *t1 == *t2;
 					}
@@ -1002,7 +1002,7 @@ bool MidoriType::CompareGenericUnions(const UnionType& a, const UnionType& b)
 	return std::ranges::all_of(a.m_member_info, check_variant);
 }
 
-bool MidoriType::CompareInstantiatedUnions(const UnionType& a, const UnionType& b)
+bool MarmotType::CompareInstantiatedUnions(const UnionType& a, const UnionType& b)
 {
 	using VariantPairCheckFn = std::function<bool(const std::pair<const std::string, UnionType::UnionMemberContext>&)>;
 
@@ -1037,7 +1037,7 @@ bool MidoriType::CompareInstantiatedUnions(const UnionType& a, const UnionType& 
 			(
 				a_ctx.m_member_types,
 				b_ctx.m_member_types,
-				[](const std::shared_ptr<MidoriType>& left, const std::shared_ptr<MidoriType>& right)
+				[](const std::shared_ptr<MarmotType>& left, const std::shared_ptr<MarmotType>& right)
 				{
 					return *left == *right;
 				}
@@ -1047,7 +1047,7 @@ bool MidoriType::CompareInstantiatedUnions(const UnionType& a, const UnionType& 
 	return std::ranges::all_of(a.m_member_info, check_variant);
 }
 
-bool MidoriType::CompareUnionTypes(const UnionType& a, const UnionType& b)
+bool MarmotType::CompareUnionTypes(const UnionType& a, const UnionType& b)
 {
 	if (a.m_name != b.m_name || a.m_module_name != b.m_module_name)
 	{
@@ -1065,7 +1065,7 @@ bool MidoriType::CompareUnionTypes(const UnionType& a, const UnionType& b)
 	return CompareInstantiatedUnions(a, b);
 }
 
-bool operator==(const MidoriType& lhs, const MidoriType& rhs)
+bool operator==(const MarmotType& lhs, const MarmotType& rhs)
 {
-	return std::visit(MidoriType::TypeEqualityVisitor{}, lhs.m_type, rhs.m_type);
+	return std::visit(MarmotType::TypeEqualityVisitor{}, lhs.m_type, rhs.m_type);
 }

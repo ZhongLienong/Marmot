@@ -6,7 +6,7 @@ module GenericConstructionInCallArgument
 // The callee's type parameters are freshened at the call site, so the parameter type an
 // argument is checked against is only decided once an earlier argument has been unified
 // against its own parameter. Each argument is therefore unified before the next one is
-// checked - see TypeChecker::operator()(MidoriExpression::Call&). Deferring every
+// checked - see TypeChecker::operator()(MarmotExpression::Call&). Deferring every
 // unification to a second pass left `Slot::Empty()` below checked against a bare type
 // variable, which the Construct visitor rightly rejects as uninferred.
 //

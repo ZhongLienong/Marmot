@@ -8,7 +8,7 @@
 
 namespace
 {
-	TransferPayload Message(MidoriWord bits)
+	TransferPayload Message(MarmotWord bits)
 	{
 		return TransferPayload{ {}, {}, SerializedValue{ bits, false } };
 	}

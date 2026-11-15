@@ -17,31 +17,31 @@
 #include "Support/Attributes/Attributes.h"
 #include "Bytecode/Scalar/Scalar.h"
 
-class MidoriTraceable;
-class MidoriText;
+class MarmotTraceable;
+class MarmotText;
 
-using MidoriUnit = std::monostate;
-using MidoriBool = bool;
+using MarmotUnit = std::monostate;
+using MarmotBool = bool;
 
-class MidoriValue
+class MarmotValue
 {
 public:
 	constexpr static inline int DATA_BUFFER_SIZE = sizeof(double);
 
-	// sizeof(MidoriValue) as compiled inside MarmotRuntime. Out of line on purpose,
-	// so a consumer can compare it with its own sizeof(MidoriValue): the layout
-	// below depends on MIDORI_DEBUG_FULL, and a mismatch means objects passed
+	// sizeof(MarmotValue) as compiled inside MarmotRuntime. Out of line on purpose,
+	// so a consumer can compare it with its own sizeof(MarmotValue): the layout
+	// below depends on MARMOT_DEBUG_FULL, and a mismatch means objects passed
 	// across the library boundary are read with the wrong size.
 	[[nodiscard]] static std::size_t LibrarySize() noexcept;
 private:
 	union
 	{
-		MidoriFloat m_float;
-		MidoriInteger m_integer;
-		MidoriBool m_bool;
-		MidoriTraceable* m_pointer;
+		MarmotFloat m_float;
+		MarmotInteger m_integer;
+		MarmotBool m_bool;
+		MarmotTraceable* m_pointer;
 	} m_data;
-#if MIDORI_DEBUG_FULL
+#if MARMOT_DEBUG_FULL
 	enum DebugTypeTag : int64_t
 	{
 		FLOAT = 0,
@@ -61,121 +61,121 @@ public:
 	// Defined inline: these are the hottest functions in the interpreter loop,
 	// and relying on LTCG to inline them across translation units proved
 	// fragile (unrelated growth in Value.cpp flipped the inlining decision).
-	MIDORI_FORCE_INLINE MidoriValue() noexcept
+	MARMOT_FORCE_INLINE MarmotValue() noexcept
 		: m_data{.m_integer = 0}
-#if MIDORI_DEBUG_FULL
+#if MARMOT_DEBUG_FULL
 		, m_tag(UNIT)
 #endif
 	{
 	}
 
-	MIDORI_FORCE_INLINE MidoriValue(MidoriFloat d) noexcept
+	MARMOT_FORCE_INLINE MarmotValue(MarmotFloat d) noexcept
 		: m_data{.m_float = d}
-#if MIDORI_DEBUG_FULL
+#if MARMOT_DEBUG_FULL
 		, m_tag(FLOAT)
 #endif
 	{
 	}
 
-	MIDORI_FORCE_INLINE MidoriValue(MidoriInteger l) noexcept
+	MARMOT_FORCE_INLINE MarmotValue(MarmotInteger l) noexcept
 		: m_data{.m_integer = l}
-#if MIDORI_DEBUG_FULL
+#if MARMOT_DEBUG_FULL
 		, m_tag(INT)
 #endif
 	{
 	}
 
-	MIDORI_FORCE_INLINE MidoriValue(MidoriByte byte) noexcept
-		: m_data{.m_integer = static_cast<MidoriInteger>(byte)}
-#if MIDORI_DEBUG_FULL
+	MARMOT_FORCE_INLINE MarmotValue(MarmotByte byte) noexcept
+		: m_data{.m_integer = static_cast<MarmotInteger>(byte)}
+#if MARMOT_DEBUG_FULL
 		, m_tag(BYTE)
 #endif
 	{
 	}
 
-	MIDORI_FORCE_INLINE MidoriValue(MidoriWord word) noexcept
-		: m_data{.m_integer = static_cast<MidoriInteger>(word)}
-#if MIDORI_DEBUG_FULL
+	MARMOT_FORCE_INLINE MarmotValue(MarmotWord word) noexcept
+		: m_data{.m_integer = static_cast<MarmotInteger>(word)}
+#if MARMOT_DEBUG_FULL
 		, m_tag(WORD)
 #endif
 	{
 	}
 
-	MIDORI_FORCE_INLINE MidoriValue(MidoriBool b) noexcept
+	MARMOT_FORCE_INLINE MarmotValue(MarmotBool b) noexcept
 		: m_data{.m_bool = b}
-#if MIDORI_DEBUG_FULL
+#if MARMOT_DEBUG_FULL
 		, m_tag(BOOL)
 #endif
 	{
 	}
 
-	MIDORI_FORCE_INLINE MidoriValue(MidoriTraceable* o) noexcept
+	MARMOT_FORCE_INLINE MarmotValue(MarmotTraceable* o) noexcept
 		: m_data{.m_pointer = o}
-#if MIDORI_DEBUG_FULL
+#if MARMOT_DEBUG_FULL
 		, m_tag(POINTER)
 #endif
 	{
 	}
 
-	MidoriValue(const MidoriValue& other) noexcept = default;
+	MarmotValue(const MarmotValue& other) noexcept = default;
 
-	MidoriValue(MidoriValue&& other) noexcept = default;
+	MarmotValue(MarmotValue&& other) noexcept = default;
 
-	MidoriValue& operator=(const MidoriValue& other) noexcept = default;
+	MarmotValue& operator=(const MarmotValue& other) noexcept = default;
 
-	MidoriValue& operator=(MidoriValue&& other) noexcept = default;
+	MarmotValue& operator=(MarmotValue&& other) noexcept = default;
 
-	MIDORI_FORCE_INLINE MidoriFloat GetFloat() const noexcept
+	MARMOT_FORCE_INLINE MarmotFloat GetFloat() const noexcept
 	{
 		return m_data.m_float;
 	}
 
-	MIDORI_FORCE_INLINE MidoriInteger GetInteger() const noexcept
+	MARMOT_FORCE_INLINE MarmotInteger GetInteger() const noexcept
 	{
 		return m_data.m_integer;
 	}
 
-	MIDORI_FORCE_INLINE MidoriByte GetByte() const noexcept
+	MARMOT_FORCE_INLINE MarmotByte GetByte() const noexcept
 	{
-		return static_cast<MidoriByte>(m_data.m_integer & 0xFF);
+		return static_cast<MarmotByte>(m_data.m_integer & 0xFF);
 	}
 
-	MIDORI_FORCE_INLINE MidoriWord GetWord() const noexcept
+	MARMOT_FORCE_INLINE MarmotWord GetWord() const noexcept
 	{
-		return static_cast<MidoriWord>(m_data.m_integer);
+		return static_cast<MarmotWord>(m_data.m_integer);
 	}
 
-	MIDORI_FORCE_INLINE MidoriBool GetBool() const noexcept
+	MARMOT_FORCE_INLINE MarmotBool GetBool() const noexcept
 	{
 		return m_data.m_bool;
 	}
 
-	MIDORI_FORCE_INLINE MidoriTraceable* GetPointer() const noexcept
+	MARMOT_FORCE_INLINE MarmotTraceable* GetPointer() const noexcept
 	{
 		return m_data.m_pointer;
 	}
 
-	MIDORI_FORCE_INLINE MidoriWord GetRawBits() const noexcept
+	MARMOT_FORCE_INLINE MarmotWord GetRawBits() const noexcept
 	{
-		static_assert(sizeof(MidoriWord) == sizeof(m_data));
-		MidoriWord bits = 0u;
+		static_assert(sizeof(MarmotWord) == sizeof(m_data));
+		MarmotWord bits = 0u;
 		std::memcpy(&bits, &m_data, sizeof(bits));
 		return bits;
 	}
 
-	static MIDORI_FORCE_INLINE MidoriValue FromRawBits(MidoriWord bits) noexcept
+	static MARMOT_FORCE_INLINE MarmotValue FromRawBits(MarmotWord bits) noexcept
 	{
-		MidoriValue value;
-		static_assert(sizeof(MidoriWord) == sizeof(value.m_data));
+		MarmotValue value;
+		static_assert(sizeof(MarmotWord) == sizeof(value.m_data));
 		std::memcpy(&value.m_data, &bits, sizeof(bits));
-#if MIDORI_DEBUG_FULL
+#if MARMOT_DEBUG_FULL
 		value.m_tag = UNKNOWN;
 #endif
 		return value;
 	}
 
-#if MIDORI_DEBUG_FULL
-	MidoriText ToText() const;
+#if MARMOT_DEBUG_FULL
+	MarmotText ToText() const;
 
 	bool IsPointer() const noexcept;
 
@@ -189,18 +189,18 @@ public:
 };
 
 template<typename... Args>
-concept MidoriValueConstructible = std::constructible_from<MidoriValue, Args...>;
+concept MarmotValueConstructible = std::constructible_from<MarmotValue, Args...>;
 
 template<typename T>
-concept MidoriTraceableConstructible = std::constructible_from<MidoriTraceable, T>;
+concept MarmotTraceableConstructible = std::constructible_from<MarmotTraceable, T>;
 
 template <typename T>
-concept MidoriNumeric = std::same_as<T, MidoriFloat> || std::same_as<T, MidoriInteger> || std::same_as<T, MidoriByte> || std::same_as<T, MidoriWord>;
+concept MarmotNumeric = std::same_as<T, MarmotFloat> || std::same_as<T, MarmotInteger> || std::same_as<T, MarmotByte> || std::same_as<T, MarmotWord>;
 
-class MidoriText
+class MarmotText
 {
 private:
-	// Sized so MidoriTraceable fills the largest allocator slot; small payloads then
+	// Sized so MarmotTraceable fills the largest allocator slot; small payloads then
 	// never need a separate heap buffer.
 	static constexpr int STORAGE_SIZE = 72;
 	static constexpr int SSO_CAPACITY = STORAGE_SIZE - 2;
@@ -252,29 +252,29 @@ private:
 	};
 
 public:
-	MidoriText();
+	MarmotText();
 
-	MidoriText(const char* str);
+	MarmotText(const char* str);
 
-	MidoriText(const MidoriText& other);
+	MarmotText(const MarmotText& other);
 
-	MidoriText(MidoriText&& other) noexcept;
+	MarmotText(MarmotText&& other) noexcept;
 
-	MidoriText& operator=(const MidoriText& other);
+	MarmotText& operator=(const MarmotText& other);
 
-	MidoriText& operator=(MidoriText&& other) noexcept;
+	MarmotText& operator=(MarmotText&& other) noexcept;
 
-	~MidoriText();
+	~MarmotText();
 
 	int GetLength() const noexcept;
 
-	MIDORI_FORCE_INLINE int GetByteLength() const noexcept
+	MARMOT_FORCE_INLINE int GetByteLength() const noexcept
 	{
 		return IsShort() ? GetShortSize() : m_long.m_size;
 	}
 
 	// The text's bytes, with no promise of a NUL after them.
-	MIDORI_FORCE_INLINE std::string_view View() const noexcept
+	MARMOT_FORCE_INLINE std::string_view View() const noexcept
 	{
 		return IsShort() ? std::string_view(m_short.m_buffer, static_cast<size_t>(GetShortSize())) : std::string_view(m_long.m_ptr, static_cast<size_t>(m_long.m_size));
 	}
@@ -283,62 +283,62 @@ public:
 	// foreign function, a C API.
 	const char* CString();
 
-	MidoriText& Pop();
+	MarmotText& Pop();
 
-	MidoriText& Append(const char* str);
+	MarmotText& Append(const char* str);
 
-	MidoriText& Append(char c);
+	MarmotText& Append(char c);
 
-	MidoriText& Append(const MidoriText& other);
+	MarmotText& Append(const MarmotText& other);
 
 	void Reserve(int capacity);
 
-	MidoriText& Prepend(const char* str);
+	MarmotText& Prepend(const char* str);
 
-	MidoriText& Prepend(char c);
+	MarmotText& Prepend(char c);
 
-	MidoriText& Prepend(const MidoriText& other);
+	MarmotText& Prepend(const MarmotText& other);
 
-	MidoriText Substring(int start, int end) const;
+	MarmotText Substring(int start, int end) const;
 
-	std::vector<MidoriText> Split(const MidoriText& delimiter) const;
+	std::vector<MarmotText> Split(const MarmotText& delimiter) const;
 
-	MidoriText Reverse() const;
+	MarmotText Reverse() const;
 
 	// Every code point, in one pass. A byte that starts no UTF-8 sequence is
 	// one code point of its own value, as GetLength counts it.
-	std::vector<MidoriInteger> CodePoints() const;
+	std::vector<MarmotInteger> CodePoints() const;
 
 	// The caller has checked each is a Unicode scalar value other than U+0000.
-	static MidoriText FromCodePoints(std::span<const MidoriInteger> code_points);
+	static MarmotText FromCodePoints(std::span<const MarmotInteger> code_points);
 
-	bool Contains(const MidoriText& other) const;
+	bool Contains(const MarmotText& other) const;
 
-	MidoriText Replace(const MidoriText& old_value, const MidoriText& new_value) const;
+	MarmotText Replace(const MarmotText& old_value, const MarmotText& new_value) const;
 
-	MidoriText Trim() const;
+	MarmotText Trim() const;
 
 	char operator[](int index) const;
 
-	bool operator==(const MidoriText& other) const;
+	bool operator==(const MarmotText& other) const;
 
-	bool operator!=(const MidoriText& other) const;
+	bool operator!=(const MarmotText& other) const;
 
 	// The number the whole text spells, or nothing: "12abc", " 12" and "" are
 	// not numbers.
-	std::optional<MidoriInteger> ParseInteger() const;
+	std::optional<MarmotInteger> ParseInteger() const;
 
-	std::optional<MidoriFloat> ParseFloat() const;
+	std::optional<MarmotFloat> ParseFloat() const;
 
-	static MidoriText FromInteger(MidoriInteger value);
+	static MarmotText FromInteger(MarmotInteger value);
 
-	static MidoriText FromWord(MidoriWord value);
+	static MarmotText FromWord(MarmotWord value);
 
-	static MidoriText FromFloat(MidoriFloat value);
+	static MarmotText FromFloat(MarmotFloat value);
 
-	static MidoriText Concatenate(const MidoriText& a, const MidoriText& b);
+	static MarmotText Concatenate(const MarmotText& a, const MarmotText& b);
 
-	static MidoriText FromFFI(char* ffi_allocated_string);
+	static MarmotText FromFFI(char* ffi_allocated_string);
 
 	size_t GetOwnedBytes() const;
 
@@ -357,48 +357,48 @@ private:
 
 	void Release() noexcept;
 
-	MidoriText& AppendBytes(std::string_view bytes, int length);
+	MarmotText& AppendBytes(std::string_view bytes, int length);
 
-	MidoriText& PrependBytes(std::string_view bytes);
+	MarmotText& PrependBytes(std::string_view bytes);
 
-	MIDORI_FORCE_INLINE bool IsShort() const noexcept
+	MARMOT_FORCE_INLINE bool IsShort() const noexcept
 	{
 		return (m_short.m_size_flag & 1) != 0;
 	}
 
-	MIDORI_FORCE_INLINE void SetShortSize(int size)
+	MARMOT_FORCE_INLINE void SetShortSize(int size)
 	{
 		m_short.m_size_flag = static_cast<uint8_t>((size << 1) | 1);
 	}
 
-	MIDORI_FORCE_INLINE int GetShortSize() const
+	MARMOT_FORCE_INLINE int GetShortSize() const
 	{
 		return m_short.m_size_flag >> 1;
 	}
 };
 
-class MidoriArray
+class MarmotArray
 {
 private:
 	static constexpr int s_initial_capacity = 8;
-	// Sized so MidoriTraceable fills the largest allocator slot; small payloads then
+	// Sized so MarmotTraceable fills the largest allocator slot; small payloads then
 	// never need a separate heap buffer.
 	static constexpr int STORAGE_SIZE = 72;
-	static constexpr int SOO_CAPACITY = (STORAGE_SIZE - 8) / static_cast<int>(sizeof(MidoriValue));
+	static constexpr int SOO_CAPACITY = (STORAGE_SIZE - 8) / static_cast<int>(sizeof(MarmotValue));
 
 	struct LongLayout
 	{
-		MidoriValue* m_ptr;
+		MarmotValue* m_ptr;
 		int m_size;
 		int m_capacity;
-		uint8_t m_padding[STORAGE_SIZE - sizeof(MidoriValue*) - 2uz * sizeof(int) - 1uz];
+		uint8_t m_padding[STORAGE_SIZE - sizeof(MarmotValue*) - 2uz * sizeof(int) - 1uz];
 		uint8_t m_flag;
 	};
 
 	struct ShortLayout
 	{
-		MidoriValue m_buffer[SOO_CAPACITY];
-		uint8_t m_padding[STORAGE_SIZE - SOO_CAPACITY * sizeof(MidoriValue) - 1uz];
+		MarmotValue m_buffer[SOO_CAPACITY];
+		uint8_t m_padding[STORAGE_SIZE - SOO_CAPACITY * sizeof(MarmotValue) - 1uz];
 		uint8_t m_size_flag;
 	};
 
@@ -413,114 +413,114 @@ private:
 	};
 
 public:
-	MidoriArray();
+	MarmotArray();
 
-	MidoriArray(int size);
+	MarmotArray(int size);
 
-	MidoriArray(const MidoriArray& other);
+	MarmotArray(const MarmotArray& other);
 
-	MidoriArray(MidoriArray&& other) noexcept;
+	MarmotArray(MarmotArray&& other) noexcept;
 
-	MidoriArray& operator=(const MidoriArray& other);
+	MarmotArray& operator=(const MarmotArray& other);
 
-	MidoriArray& operator=(MidoriArray&& other) noexcept;
+	MarmotArray& operator=(MarmotArray&& other) noexcept;
 
-	~MidoriArray();
+	~MarmotArray();
 
-	MIDORI_FORCE_INLINE MidoriValue& operator[](int index)
+	MARMOT_FORCE_INLINE MarmotValue& operator[](int index)
 	{
 		return IsShort() ? m_short.m_buffer[index] : m_long.m_ptr[index];
 	}
 
-	MIDORI_FORCE_INLINE const MidoriValue& operator[](int index) const
+	MARMOT_FORCE_INLINE const MarmotValue& operator[](int index) const
 	{
 		return IsShort() ? m_short.m_buffer[index] : m_long.m_ptr[index];
 	}
 
-	void AddBack(const MidoriValue& value);
+	void AddBack(const MarmotValue& value);
 
-	void Extend(const MidoriArray& other);
+	void Extend(const MarmotArray& other);
 
-	MidoriArray Slice(int start, int end) const;
+	MarmotArray Slice(int start, int end) const;
 
-	MidoriArray Reverse() const;
+	MarmotArray Reverse() const;
 
-	bool Contains(const MidoriValue& value) const;
+	bool Contains(const MarmotValue& value) const;
 
-	MIDORI_FORCE_INLINE int GetLength() const
+	MARMOT_FORCE_INLINE int GetLength() const
 	{
 		return IsShort() ? GetShortSize() : m_long.m_size;
 	}
 
 	size_t GetCapacity() const;
 
-	static MidoriArray Concatenate(const MidoriArray& a, const MidoriArray& b);
+	static MarmotArray Concatenate(const MarmotArray& a, const MarmotArray& b);
 
-	static MidoriArray FromFFI(MidoriValue* ffi_allocated_data, int length);
+	static MarmotArray FromFFI(MarmotValue* ffi_allocated_data, int length);
 
 private:
 	void Expand(int new_capacity);
 
-	MIDORI_FORCE_INLINE bool IsShort() const noexcept
+	MARMOT_FORCE_INLINE bool IsShort() const noexcept
 	{
 		return (m_short.m_size_flag & 1) != 0;
 	}
 
-	MIDORI_FORCE_INLINE void SetShortSize(int size)
+	MARMOT_FORCE_INLINE void SetShortSize(int size)
 	{
 		m_short.m_size_flag = static_cast<uint8_t>((size << 1) | 1);
 	}
 
-	MIDORI_FORCE_INLINE int GetShortSize() const
+	MARMOT_FORCE_INLINE int GetShortSize() const
 	{
 		return m_short.m_size_flag >> 1;
 	}
 };
 
-class MidoriIntRange
+class MarmotIntRange
 {
 private:
-	MidoriInteger m_start;
-	MidoriInteger m_end;
-	MidoriInteger m_step;
+	MarmotInteger m_start;
+	MarmotInteger m_end;
+	MarmotInteger m_step;
 
 public:
-	MidoriIntRange() = default;
+	MarmotIntRange() = default;
 
-	MidoriIntRange(MidoriInteger start, MidoriInteger end, MidoriInteger step);
+	MarmotIntRange(MarmotInteger start, MarmotInteger end, MarmotInteger step);
 
-	MidoriInteger GetStart() const;
+	MarmotInteger GetStart() const;
 
-	MidoriInteger GetEnd() const;
+	MarmotInteger GetEnd() const;
 
-	MidoriInteger GetStep() const;
+	MarmotInteger GetStep() const;
 };
 
-class MidoriFloatRange
+class MarmotFloatRange
 {
 private:
-	MidoriFloat m_start;
-	MidoriFloat m_end;
-	MidoriFloat m_step;
+	MarmotFloat m_start;
+	MarmotFloat m_end;
+	MarmotFloat m_step;
 
 public:
-	MidoriFloatRange() = default;
+	MarmotFloatRange() = default;
 
-	MidoriFloatRange(MidoriFloat start, MidoriFloat end, MidoriFloat step);
+	MarmotFloatRange(MarmotFloat start, MarmotFloat end, MarmotFloat step);
 
-	MidoriFloat GetStart() const;
+	MarmotFloat GetStart() const;
 
-	MidoriFloat GetEnd() const;
+	MarmotFloat GetEnd() const;
 
-	MidoriFloat GetStep() const;
+	MarmotFloat GetStep() const;
 };
 
 // A user-visible Ref<T>.
-struct MidoriMutableCell
+struct MarmotMutableCell
 {
-	MidoriValue m_value;
+	MarmotValue m_value;
 
-	explicit MidoriMutableCell(MidoriValue value) noexcept;
+	explicit MarmotMutableCell(MarmotValue value) noexcept;
 };
 
 // Every heap object starts with the same 8-byte header, so a match reads its tag
@@ -528,7 +528,7 @@ struct MidoriMutableCell
 // for it rather than the largest. An aggregate (a tuple, struct, union or
 // closure) holds its values right after the header when they fit in the
 // largest slot, and in a buffer of its own when they do not.
-class MidoriTraceable
+class MarmotTraceable
 {
 public:
 	enum class TraceableType : uint8_t
@@ -545,12 +545,12 @@ public:
 	};
 
 	static constexpr size_t HEADER_SIZE = 8uz;
-	static constexpr int INLINE_CAPACITY = static_cast<int>(sizeof(MidoriText) / sizeof(MidoriValue));
+	static constexpr int INLINE_CAPACITY = static_cast<int>(sizeof(MarmotText) / sizeof(MarmotValue));
 
 	// The bytes an aggregate of `length` values takes in its slot.
 	static constexpr size_t AggregateBytes(int length) noexcept
 	{
-		return HEADER_SIZE + (length > 0 && length <= INLINE_CAPACITY ? static_cast<size_t>(length) * sizeof(MidoriValue) : sizeof(MidoriValue*));
+		return HEADER_SIZE + (length > 0 && length <= INLINE_CAPACITY ? static_cast<size_t>(length) * sizeof(MarmotValue) : sizeof(MarmotValue*));
 	}
 
 private:
@@ -565,47 +565,47 @@ private:
 	uint16_t m_shape;
 	union
 	{
-		MidoriText m_text;
-		MidoriArray m_array;
-		MidoriIntRange m_int_range;
-		MidoriFloatRange m_float_range;
-		MidoriMutableCell m_mutable_cell;
-		MidoriValue m_inline_values[INLINE_CAPACITY];
-		MidoriValue* m_external_values;
+		MarmotText m_text;
+		MarmotArray m_array;
+		MarmotIntRange m_int_range;
+		MarmotFloatRange m_float_range;
+		MarmotMutableCell m_mutable_cell;
+		MarmotValue m_inline_values[INLINE_CAPACITY];
+		MarmotValue* m_external_values;
 	};
 
 	template<typename T>
 	static constexpr TraceableType TypeToEnum()
 	{
-		if constexpr (std::is_same_v<T, MidoriText>)
+		if constexpr (std::is_same_v<T, MarmotText>)
 		{
 			return TraceableType::Text;
 		}
-		else if constexpr (std::is_same_v<T, MidoriArray>)
+		else if constexpr (std::is_same_v<T, MarmotArray>)
 		{
 			return TraceableType::Array;
 		}
-		else if constexpr (std::is_same_v<T, MidoriIntRange>)
+		else if constexpr (std::is_same_v<T, MarmotIntRange>)
 		{
 			return TraceableType::IntRange;
 		}
-		else if constexpr (std::is_same_v<T, MidoriFloatRange>)
+		else if constexpr (std::is_same_v<T, MarmotFloatRange>)
 		{
 			return TraceableType::FloatRange;
 		}
-		else if constexpr (std::is_same_v<T, MidoriMutableCell>)
+		else if constexpr (std::is_same_v<T, MarmotMutableCell>)
 		{
 			return TraceableType::MutableCell;
 		}
 		else
 		{
-			static_assert(std::is_same_v<T, void>, "Invalid type for MidoriTraceable");
+			static_assert(std::is_same_v<T, void>, "Invalid type for MarmotTraceable");
 		}
 	}
 
 public:
 
-	MIDORI_FORCE_INLINE TraceableType GetType() const noexcept
+	MARMOT_FORCE_INLINE TraceableType GetType() const noexcept
 	{
 		return m_type;
 	}
@@ -619,44 +619,44 @@ public:
 	template<typename T>
 	constexpr T& GetTraceable()
 	{
-		if constexpr (std::is_same_v<T, MidoriText>)
+		if constexpr (std::is_same_v<T, MarmotText>)
 		{
 			return m_text;
 		}
-		else if constexpr (std::is_same_v<T, MidoriArray>)
+		else if constexpr (std::is_same_v<T, MarmotArray>)
 		{
 			return m_array;
 		}
-		else if constexpr (std::is_same_v<T, MidoriIntRange>)
+		else if constexpr (std::is_same_v<T, MarmotIntRange>)
 		{
 			return m_int_range;
 		}
-		else if constexpr (std::is_same_v<T, MidoriFloatRange>)
+		else if constexpr (std::is_same_v<T, MarmotFloatRange>)
 		{
 			return m_float_range;
 		}
-		else if constexpr (std::is_same_v<T, MidoriMutableCell>)
+		else if constexpr (std::is_same_v<T, MarmotMutableCell>)
 		{
 			return m_mutable_cell;
 		}
 	}
 
-	MIDORI_FORCE_INLINE int GetIndex() const noexcept
+	MARMOT_FORCE_INLINE int GetIndex() const noexcept
 	{
 		return static_cast<int>(m_index);
 	}
 
-	MIDORI_FORCE_INLINE int GetLength() const noexcept
+	MARMOT_FORCE_INLINE int GetLength() const noexcept
 	{
 		return static_cast<int>(m_length);
 	}
 
-	MIDORI_FORCE_INLINE bool HoldsPointers() const noexcept
+	MARMOT_FORCE_INLINE bool HoldsPointers() const noexcept
 	{
 		return m_holds_pointers;
 	}
 
-	MIDORI_FORCE_INLINE uint16_t GetShape() const noexcept
+	MARMOT_FORCE_INLINE uint16_t GetShape() const noexcept
 	{
 		return m_shape;
 	}
@@ -664,12 +664,12 @@ public:
 	// An aggregate's GetLength() values. A pointer rather than a span: the
 	// dispatch loop and the collector read through it, and Debug builds do not
 	// inline span's members.
-	MIDORI_FORCE_INLINE MidoriValue* GetValues() noexcept
+	MARMOT_FORCE_INLINE MarmotValue* GetValues() noexcept
 	{
 		return m_length <= static_cast<uint16_t>(INLINE_CAPACITY) ? m_inline_values : m_external_values;
 	}
 
-	MIDORI_FORCE_INLINE const MidoriValue* GetValues() const noexcept
+	MARMOT_FORCE_INLINE const MarmotValue* GetValues() const noexcept
 	{
 		return m_length <= static_cast<uint16_t>(INLINE_CAPACITY) ? m_inline_values : m_external_values;
 	}
@@ -677,11 +677,11 @@ public:
 	// The bytes of the slot this object takes, and of any buffer it owns.
 	size_t GetSize() const;
 
-#if MIDORI_DEBUG_FULL
-	MidoriText ToText();
+#if MARMOT_DEBUG_FULL
+	MarmotText ToText();
 #endif
 
-	~MidoriTraceable();
+	~MarmotTraceable();
 
 	static void operator delete(void* object, size_t size) noexcept;
 	static void operator delete(void* object, std::align_val_t al) noexcept;
@@ -693,24 +693,24 @@ public:
 	static void operator delete(void*, void*) noexcept;
 	static void operator delete(void*, std::align_val_t, void*) noexcept;
 
-	MidoriTraceable(MidoriText&& str) noexcept;
-	MidoriTraceable(MidoriArray&& array, bool holds_pointers) noexcept;
-	MidoriTraceable(MidoriIntRange&& range) noexcept;
-	MidoriTraceable(MidoriFloatRange&& range) noexcept;
-	MidoriTraceable(MidoriMutableCell&& mutable_cell, bool holds_pointer) noexcept;
+	MarmotTraceable(MarmotText&& str) noexcept;
+	MarmotTraceable(MarmotArray&& array, bool holds_pointers) noexcept;
+	MarmotTraceable(MarmotIntRange&& range) noexcept;
+	MarmotTraceable(MarmotFloatRange&& range) noexcept;
+	MarmotTraceable(MarmotMutableCell&& mutable_cell, bool holds_pointer) noexcept;
 	// A tuple, struct, union or closure; `index` is a union's tag or a closure's procedure.
-	MidoriTraceable(TraceableType type, std::span<const MidoriValue> values, int index, uint16_t shape) noexcept;
+	MarmotTraceable(TraceableType type, std::span<const MarmotValue> values, int index, uint16_t shape) noexcept;
 
 private:
-	MIDORI_NOINLINE void InitializeExternalValues(std::span<const MidoriValue> values);
+	MARMOT_NOINLINE void InitializeExternalValues(std::span<const MarmotValue> values);
 
-	MidoriTraceable() = delete;
-	MidoriTraceable(const MidoriTraceable& other) = delete;
-	MidoriTraceable(MidoriTraceable&& other) noexcept = delete;
-	MidoriTraceable& operator=(const MidoriTraceable& other) = delete;
-	MidoriTraceable& operator=(MidoriTraceable&& other) noexcept = delete;
+	MarmotTraceable() = delete;
+	MarmotTraceable(const MarmotTraceable& other) = delete;
+	MarmotTraceable(MarmotTraceable&& other) noexcept = delete;
+	MarmotTraceable& operator=(const MarmotTraceable& other) = delete;
+	MarmotTraceable& operator=(MarmotTraceable&& other) noexcept = delete;
 };
 
 // A payload with no values in it, which needs no kind to be traced.
 template<typename T>
-concept MidoriScalarPayload = std::same_as<T, MidoriText> || std::same_as<T, MidoriIntRange> || std::same_as<T, MidoriFloatRange>;
+concept MarmotScalarPayload = std::same_as<T, MarmotText> || std::same_as<T, MarmotIntRange> || std::same_as<T, MarmotFloatRange>;

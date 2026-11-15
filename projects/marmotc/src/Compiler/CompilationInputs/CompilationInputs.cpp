@@ -41,15 +41,15 @@ const std::unordered_map<std::string, NativeLibraryPolicy>& CompilationInputs::N
 	return m_native_library_policies;
 }
 
-CompilationInputs CompilationInputs::WithEmitMidoriIR(bool emit_midori_ir) &&
+CompilationInputs CompilationInputs::WithEmitMarmotIR(bool emit_marmot_ir) &&
 {
-	m_emit_midori_ir = emit_midori_ir;
+	m_emit_marmot_ir = emit_marmot_ir;
 	return std::move(*this);
 }
 
-bool CompilationInputs::EmitsMidoriIR() const
+bool CompilationInputs::EmitsMarmotIR() const
 {
-	return m_emit_midori_ir;
+	return m_emit_marmot_ir;
 }
 
 CompilationInputs CompilationInputs::WithEmitAst(bool emit_ast) &&

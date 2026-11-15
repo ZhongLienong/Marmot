@@ -35,8 +35,8 @@ def IgnoreIOResult = fn<T>(result: Result<T, IOError>) -> Unit => {
 };
 
 def suffix = System::CurrentProcessId() as Text;
-def config_path = "midori_phase8_doc_" ++ suffix ++ ".txt";
-def env_name = "MIDORI_PHASE8_DOC_" ++ suffix;
+def config_path = "marmot_phase8_doc_" ++ suffix ++ ".txt";
+def env_name = "MARMOT_PHASE8_DOC_" ++ suffix;
 
 IgnoreIOResult(IO::TryDeleteFile(config_path));
 

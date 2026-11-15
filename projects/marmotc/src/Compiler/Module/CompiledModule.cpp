@@ -40,9 +40,9 @@ BytecodeModule CompiledModule::TakeBytecode() &&
 	return bytecode;
 }
 
-const std::string& CompiledModule::MidoriIR() const
+const std::string& CompiledModule::MarmotIR() const
 {
-	return m_midori_ir;
+	return m_marmot_ir;
 }
 
 const std::string& CompiledModule::Ast() const
@@ -62,9 +62,9 @@ CompiledModule CompiledModule::WithBytecode(BytecodeModule bytecode) &&
 	return std::move(*this);
 }
 
-CompiledModule CompiledModule::WithMidoriIR(std::string midori_ir) &&
+CompiledModule CompiledModule::WithMarmotIR(std::string marmot_ir) &&
 {
-	m_midori_ir = std::move(midori_ir);
+	m_marmot_ir = std::move(marmot_ir);
 	return std::move(*this);
 }
 

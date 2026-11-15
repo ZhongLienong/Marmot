@@ -1,4 +1,4 @@
-#include "Library/MidoriStdLibExports.h"
+#include "Library/MarmotStdLibExports.h"
 
 #include "Library/FFIAllocation/FFIAllocation.h"
 #include "Library/TextPath/TextPath.h"
@@ -169,7 +169,7 @@ namespace
 
 extern "C"
 {
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(Print)(void** args, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(Print)(void** args, void* ret) noexcept
 	{
 		const char* str = reinterpret_cast<const char*>(args[0u]);
 
@@ -184,7 +184,7 @@ extern "C"
 		std::memset(ret, 0, sizeof(double));
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(PrintError)(void** args, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(PrintError)(void** args, void* ret) noexcept
 	{
 		const char* str = reinterpret_cast<const char*>(args[0u]);
 
@@ -199,7 +199,7 @@ extern "C"
 		std::memset(ret, 0, sizeof(double));
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ReadInput)(void**, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(ReadInput)(void**, void* ret) noexcept
 	{
 		std::ostringstream buffer;
 		buffer << std::cin.rdbuf();
@@ -209,7 +209,7 @@ extern "C"
 		std::memcpy(ret, &ptr, sizeof(double));
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ReadLine)(void**, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(ReadLine)(void**, void* ret) noexcept
 	{
 		std::string line;
 		if (std::getline(std::cin, line))
@@ -226,7 +226,7 @@ extern "C"
 		}
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ReadFile)(void** args, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(ReadFile)(void** args, void* ret) noexcept
 	{
 		const char* file_path = reinterpret_cast<const char*>(args[0u]);
 		const std::filesystem::path path = TextPath::FromText(file_path);
@@ -259,7 +259,7 @@ extern "C"
 		std::memcpy(ret, &ptr, sizeof(double));
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(WriteFile)(void** args, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(WriteFile)(void** args, void* ret) noexcept
 	{
 		const char* file_name = reinterpret_cast<const char*>(args[0u]);
 		const char* text = reinterpret_cast<const char*>(args[1u]);
@@ -289,7 +289,7 @@ extern "C"
 		*reinterpret_cast<bool*>(ret) = success;
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(AppendToFile)(void** args, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(AppendToFile)(void** args, void* ret) noexcept
 	{
 		const char* file_name = reinterpret_cast<const char*>(args[0u]);
 		const char* text = reinterpret_cast<const char*>(args[1u]);
@@ -319,7 +319,7 @@ extern "C"
 		*reinterpret_cast<bool*>(ret) = success;
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ReadBinaryFile)(void** args, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(ReadBinaryFile)(void** args, void* ret) noexcept
 	{
 		const char* file_path = reinterpret_cast<const char*>(args[0u]);
 		const std::filesystem::path path = TextPath::FromText(file_path);
@@ -399,7 +399,7 @@ extern "C"
 		std::memcpy(ret, &ptr, sizeof(int64_t));
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(WriteBinaryFile)(void** args, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(WriteBinaryFile)(void** args, void* ret) noexcept
 	{
 		struct ArrayArgument
 		{
@@ -460,7 +460,7 @@ extern "C"
 		*reinterpret_cast<bool*>(ret) = success;
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(FileExists)(void** args, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(FileExists)(void** args, void* ret) noexcept
 	{
 		const char* file_path = reinterpret_cast<const char*>(args[0u]);
 		std::error_code ec;
@@ -471,7 +471,7 @@ extern "C"
 		*reinterpret_cast<bool*>(ret) = exists;
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(DeleteFile)(void** args, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(DeleteFile)(void** args, void* ret) noexcept
 	{
 		const char* file_path = reinterpret_cast<const char*>(args[0u]);
 		std::error_code ec;
@@ -486,7 +486,7 @@ extern "C"
 		*reinterpret_cast<bool*>(ret) = success && !ec;
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(RenameFile)(void** args, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(RenameFile)(void** args, void* ret) noexcept
 	{
 		const char* old_path = reinterpret_cast<const char*>(args[0u]);
 		const char* new_path = reinterpret_cast<const char*>(args[1u]);
@@ -498,7 +498,7 @@ extern "C"
 		*reinterpret_cast<bool*>(ret) = !ec;
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetFileSize)(void** args, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(GetFileSize)(void** args, void* ret) noexcept
 	{
 		const char* file_path = reinterpret_cast<const char*>(args[0u]);
 		std::error_code ec;
@@ -510,7 +510,7 @@ extern "C"
 	}
 
 	// Sorted, so a listing is the same on every machine.
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ListDirectory)(void** args, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(ListDirectory)(void** args, void* ret) noexcept
 	{
 		const char* directory_path = reinterpret_cast<const char*>(args[0u]);
 		std::error_code ec;
@@ -527,7 +527,7 @@ extern "C"
 	}
 
 	// Makes the missing parents too. A directory already there is made.
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(MakeDirectory)(void** args, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(MakeDirectory)(void** args, void* ret) noexcept
 	{
 		const char* directory_path = reinterpret_cast<const char*>(args[0u]);
 		std::error_code ec;
@@ -538,7 +538,7 @@ extern "C"
 		*reinterpret_cast<bool*>(ret) = !ec;
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(DirectoryExists)(void** args, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(DirectoryExists)(void** args, void* ret) noexcept
 	{
 		const char* directory_path = reinterpret_cast<const char*>(args[0u]);
 		std::error_code ec;
@@ -549,13 +549,13 @@ extern "C"
 		*reinterpret_cast<bool*>(ret) = exists;
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(FileChecksum)(void** args, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(FileChecksum)(void** args, void* ret) noexcept
 	{
 		const std::filesystem::path path = TextPath::FromText(reinterpret_cast<const char*>(args[0u]));
 		// Linux opens a directory as a stream that reads nothing.
 		const std::expected<std::string, std::string> checksum = std::filesystem::is_directory(path)
 			? std::unexpected(std::string())
-			: MidoriChecksum::HashFile(path);
+			: MarmotChecksum::HashFile(path);
 		if (checksum.has_value())
 		{
 			ClearLastIOError();
@@ -570,13 +570,13 @@ extern "C"
 		std::memcpy(ret, &ptr, sizeof(int64_t));
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetLastIOErrorKind)(void**, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(GetLastIOErrorKind)(void**, void* ret) noexcept
 	{
 		const int64_t result = static_cast<int64_t>(s_last_io_error.m_kind);
 		std::memcpy(ret, &result, sizeof(int64_t));
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(GetLastIOErrorMessage)(void**, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(GetLastIOErrorMessage)(void**, void* ret) noexcept
 	{
 		char* result = AllocateString(s_last_io_error.m_message);
 		const int64_t ptr = reinterpret_cast<int64_t>(result);

@@ -38,13 +38,13 @@ private:
 public:
 	BytecodeBackend(const LoweredModule& lowered, std::string_view file_name, const std::vector<std::string>& source_lines);
 
-	MidoriResult::BytecodeBackendResult Emit() &&;
+	MarmotResult::BytecodeBackendResult Emit() &&;
 
 	[[nodiscard]] std::optional<BytecodeModule::SourceProvenance> MakeSourceProvenance(const Token& token) const;
 	[[nodiscard]] CompilerError LimitExceeded(std::string_view message, int line) const;
-	size_t ProcedureIndex(MidoriIRFunctionId function) const;
-	size_t CaptureCount(MidoriIRFunctionId function) const;
-	int GlobalOperand(MidoriIRGlobalSlot slot) const;
+	size_t ProcedureIndex(MarmotIRFunctionId function) const;
+	size_t CaptureCount(MarmotIRFunctionId function) const;
+	int GlobalOperand(MarmotIRGlobalSlot slot) const;
 	std::expected<int, CompilerError> TextConstant(const std::string& text, int line);
 	std::expected<uint16_t, CompilerError> ShapeIndex(const Shape& pointer_fields, int line);
 

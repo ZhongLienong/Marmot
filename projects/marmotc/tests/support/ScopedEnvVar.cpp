@@ -9,7 +9,7 @@
 #include <stdlib.h>
 #endif
 
-namespace MidoriTest
+namespace MarmotTest
 {
 	ScopedEnvVar::ScopedEnvVar(std::string name, std::optional<std::string> value)
 		: m_name(std::move(name)),

@@ -1,4 +1,4 @@
-#include "Library/MidoriStdLibExports.h"
+#include "Library/MarmotStdLibExports.h"
 
 #include "Error/RuntimeError.h"
 #include "Value/Value.h"
@@ -32,22 +32,22 @@ namespace
 
 	void WriteBool(void* ret, bool value) noexcept
 	{
-		*static_cast<MidoriValue*>(ret) = MidoriValue(value);
+		*static_cast<MarmotValue*>(ret) = MarmotValue(value);
 	}
 
-	void WriteInt(void* ret, MidoriInteger value) noexcept
+	void WriteInt(void* ret, MarmotInteger value) noexcept
 	{
-		*static_cast<MidoriValue*>(ret) = MidoriValue(value);
+		*static_cast<MarmotValue*>(ret) = MarmotValue(value);
 	}
 
 	void WritePointerResult(void* ret, const void* pointer) noexcept
 	{
-		*static_cast<MidoriValue*>(ret) = static_cast<MidoriInteger>(reinterpret_cast<int64_t>(pointer));
+		*static_cast<MarmotValue*>(ret) = static_cast<MarmotInteger>(reinterpret_cast<int64_t>(pointer));
 	}
 
-	const MidoriValue& RequireValueArg(void** args, size_t index) noexcept
+	const MarmotValue& RequireValueArg(void** args, size_t index) noexcept
 	{
-		MidoriValue* value = static_cast<MidoriValue*>(args[index]);
+		MarmotValue* value = static_cast<MarmotValue*>(args[index]);
 		if (value == nullptr)
 		{
 			AbortRuntime("Built-in FFI expected value argument.");
@@ -55,19 +55,19 @@ namespace
 		return *value;
 	}
 
-	MidoriInteger ReadInt(void** args, size_t index) noexcept
+	MarmotInteger ReadInt(void** args, size_t index) noexcept
 	{
 		return RequireValueArg(args, index).GetInteger();
 	}
 
-	MidoriValue ReadValue(void** args, size_t index) noexcept
+	MarmotValue ReadValue(void** args, size_t index) noexcept
 	{
 		return RequireValueArg(args, index);
 	}
 
-	MidoriTraceable* RequireTraceable(void* handle, const char* expected_type) noexcept
+	MarmotTraceable* RequireTraceable(void* handle, const char* expected_type) noexcept
 	{
-		MidoriTraceable* traceable = static_cast<MidoriTraceable*>(handle);
+		MarmotTraceable* traceable = static_cast<MarmotTraceable*>(handle);
 		if (traceable == nullptr)
 		{
 			AbortRuntime(std::string("Built-in FFI expected ") + expected_type + ".");
@@ -75,27 +75,27 @@ namespace
 		return traceable;
 	}
 
-	MidoriArray& RequireArray(void* handle) noexcept
+	MarmotArray& RequireArray(void* handle) noexcept
 	{
-		MidoriTraceable* traceable = RequireTraceable(handle, "Array");
-		if (!traceable->IsTraceable<MidoriArray>())
+		MarmotTraceable* traceable = RequireTraceable(handle, "Array");
+		if (!traceable->IsTraceable<MarmotArray>())
 		{
 			AbortRuntime("Built-in FFI expected Array.");
 		}
-		return traceable->GetTraceable<MidoriArray>();
+		return traceable->GetTraceable<MarmotArray>();
 	}
 
-	MidoriText& RequireText(void* handle) noexcept
+	MarmotText& RequireText(void* handle) noexcept
 	{
-		MidoriTraceable* traceable = RequireTraceable(handle, "Text");
-		if (!traceable->IsTraceable<MidoriText>())
+		MarmotTraceable* traceable = RequireTraceable(handle, "Text");
+		if (!traceable->IsTraceable<MarmotText>())
 		{
 			AbortRuntime("Built-in FFI expected Text.");
 		}
-		return traceable->GetTraceable<MidoriText>();
+		return traceable->GetTraceable<MarmotText>();
 	}
 
-	char* AllocateCString(const MidoriText& text) noexcept
+	char* AllocateCString(const MarmotText& text) noexcept
 	{
 		const int byte_len = text.GetByteLength();
 		char* buffer = static_cast<char*>(std::malloc(static_cast<size_t>(byte_len) + 1u));
@@ -109,7 +109,7 @@ namespace
 		return buffer;
 	}
 
-	FFIArray* AllocateValueArray(const MidoriArray& array) noexcept
+	FFIArray* AllocateValueArray(const MarmotArray& array) noexcept
 	{
 		const int length = array.GetLength();
 		if (length <= 0)
@@ -117,13 +117,13 @@ namespace
 			return nullptr;
 		}
 
-		MidoriValue* data = static_cast<MidoriValue*>(std::malloc(static_cast<size_t>(length) * sizeof(MidoriValue)));
+		MarmotValue* data = static_cast<MarmotValue*>(std::malloc(static_cast<size_t>(length) * sizeof(MarmotValue)));
 		if (data == nullptr)
 		{
 			return nullptr;
 		}
 
-		std::memcpy(data, &array[0u], static_cast<size_t>(length) * sizeof(MidoriValue));
+		std::memcpy(data, &array[0u], static_cast<size_t>(length) * sizeof(MarmotValue));
 
 		FFIArray* result = static_cast<FFIArray*>(std::malloc(sizeof(FFIArray)));
 		if (result == nullptr)
@@ -137,7 +137,7 @@ namespace
 		return result;
 	}
 
-	FFIArray* AllocateStringArray(const std::vector<MidoriText>& values) noexcept
+	FFIArray* AllocateStringArray(const std::vector<MarmotText>& values) noexcept
 	{
 		if (values.empty())
 		{
@@ -184,91 +184,91 @@ namespace
 
 extern "C"
 {
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ArrayConcat)(void** args, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(ArrayConcat)(void** args, void* ret) noexcept
 	{
-		MidoriArray concatenated = MidoriArray::Concatenate(RequireArray(args[0u]), RequireArray(args[1u]));
+		MarmotArray concatenated = MarmotArray::Concatenate(RequireArray(args[0u]), RequireArray(args[1u]));
 		WritePointerResult(ret, AllocateValueArray(concatenated));
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ArrayLength)(void** args, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(ArrayLength)(void** args, void* ret) noexcept
 	{
 		WriteInt(ret, RequireArray(args[0u]).GetLength());
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ArraySlice)(void** args, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(ArraySlice)(void** args, void* ret) noexcept
 	{
-		MidoriArray sliced = RequireArray(args[0u]).Slice(static_cast<int>(ReadInt(args, 1u)), static_cast<int>(ReadInt(args, 2u)));
+		MarmotArray sliced = RequireArray(args[0u]).Slice(static_cast<int>(ReadInt(args, 1u)), static_cast<int>(ReadInt(args, 2u)));
 		WritePointerResult(ret, AllocateValueArray(sliced));
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ArrayReverse)(void** args, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(ArrayReverse)(void** args, void* ret) noexcept
 	{
-		MidoriArray reversed = RequireArray(args[0u]).Reverse();
+		MarmotArray reversed = RequireArray(args[0u]).Reverse();
 		WritePointerResult(ret, AllocateValueArray(reversed));
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(ArrayContains)(void** args, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(ArrayContains)(void** args, void* ret) noexcept
 	{
 		WriteBool(ret, RequireArray(args[0u]).Contains(ReadValue(args, 1u)));
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextConcat)(void** args, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(TextConcat)(void** args, void* ret) noexcept
 	{
-		MidoriText concatenated = MidoriText::Concatenate(RequireText(args[0u]), RequireText(args[1u]));
+		MarmotText concatenated = MarmotText::Concatenate(RequireText(args[0u]), RequireText(args[1u]));
 		WritePointerResult(ret, AllocateCString(concatenated));
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextSubstring)(void** args, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(TextSubstring)(void** args, void* ret) noexcept
 	{
-		MidoriText substring = RequireText(args[0u]).Substring(static_cast<int>(ReadInt(args, 1u)), static_cast<int>(ReadInt(args, 2u)));
+		MarmotText substring = RequireText(args[0u]).Substring(static_cast<int>(ReadInt(args, 1u)), static_cast<int>(ReadInt(args, 2u)));
 		WritePointerResult(ret, AllocateCString(substring));
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextSplit)(void** args, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(TextSplit)(void** args, void* ret) noexcept
 	{
-		std::vector<MidoriText> parts = RequireText(args[0u]).Split(RequireText(args[1u]));
+		std::vector<MarmotText> parts = RequireText(args[0u]).Split(RequireText(args[1u]));
 		WritePointerResult(ret, AllocateStringArray(parts));
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextReverse)(void** args, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(TextReverse)(void** args, void* ret) noexcept
 	{
-		MidoriText reversed = RequireText(args[0u]).Reverse();
+		MarmotText reversed = RequireText(args[0u]).Reverse();
 		WritePointerResult(ret, AllocateCString(reversed));
 	}
 
 	// The UTF-8 for one Unicode scalar value. The caller has checked it is one,
 	// and that it is not U+0000, which text cannot hold.
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextFromCodePoint)(void** args, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(TextFromCodePoint)(void** args, void* ret) noexcept
 	{
-		const std::array<MidoriInteger, 1u> code_point{ ReadInt(args, 0u) };
-		WritePointerResult(ret, AllocateCString(MidoriText::FromCodePoints(code_point)));
+		const std::array<MarmotInteger, 1u> code_point{ ReadInt(args, 0u) };
+		WritePointerResult(ret, AllocateCString(MarmotText::FromCodePoints(code_point)));
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextCodePoints)(void** args, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(TextCodePoints)(void** args, void* ret) noexcept
 	{
-		const std::vector<MidoriInteger> code_points = RequireText(args[0u]).CodePoints();
-		MidoriArray values(static_cast<int>(code_points.size()));
+		const std::vector<MarmotInteger> code_points = RequireText(args[0u]).CodePoints();
+		MarmotArray values(static_cast<int>(code_points.size()));
 		for (int index = 0; index < values.GetLength(); index += 1)
 		{
-			values[index] = MidoriValue(code_points[static_cast<size_t>(index)]);
+			values[index] = MarmotValue(code_points[static_cast<size_t>(index)]);
 		}
 		WritePointerResult(ret, AllocateValueArray(values));
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextFromCodePoints)(void** args, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(TextFromCodePoints)(void** args, void* ret) noexcept
 	{
-		const MidoriArray& values = RequireArray(args[0u]);
-		const std::vector<MidoriInteger> code_points = std::views::iota(0, values.GetLength())
+		const MarmotArray& values = RequireArray(args[0u]);
+		const std::vector<MarmotInteger> code_points = std::views::iota(0, values.GetLength())
 			| std::views::transform([&values](int index) { return values[index].GetInteger(); })
 			| std::ranges::to<std::vector>();
-		WritePointerResult(ret, AllocateCString(MidoriText::FromCodePoints(code_points)));
+		WritePointerResult(ret, AllocateCString(MarmotText::FromCodePoints(code_points)));
 	}
 
 	// The code point at a code-point index, or -1 past the end.
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextCodePointAt)(void** args, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(TextCodePointAt)(void** args, void* ret) noexcept
 	{
-		const MidoriInteger index = ReadInt(args, 1u);
-		const MidoriText character = RequireText(args[0u]).Substring(static_cast<int>(index), static_cast<int>(index) + 1);
+		const MarmotInteger index = ReadInt(args, 1u);
+		const MarmotText character = RequireText(args[0u]).Substring(static_cast<int>(index), static_cast<int>(index) + 1);
 		const unsigned char* bytes = reinterpret_cast<const unsigned char*>(character.View().data());
 		if ((index < 0) || character.View().empty())
 		{
@@ -285,40 +285,40 @@ extern "C"
 		{
 			code_point = (code_point << 6u) | (bytes[continuation] & 0x3Fu);
 		}
-		WriteInt(ret, static_cast<MidoriInteger>(code_point));
+		WriteInt(ret, static_cast<MarmotInteger>(code_point));
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextIsInteger)(void** args, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(TextIsInteger)(void** args, void* ret) noexcept
 	{
 		WriteBool(ret, RequireText(args[0u]).ParseInteger().has_value());
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextIsFloat)(void** args, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(TextIsFloat)(void** args, void* ret) noexcept
 	{
 		WriteBool(ret, RequireText(args[0u]).ParseFloat().has_value());
 	}
 
 	// UTF-8 byte order is code point order.
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextCompare)(void** args, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(TextCompare)(void** args, void* ret) noexcept
 	{
 		const int order = RequireText(args[0u]).View().compare(RequireText(args[1u]).View());
 		WriteInt(ret, (order > 0) - (order < 0));
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextContains)(void** args, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(TextContains)(void** args, void* ret) noexcept
 	{
 		WriteBool(ret, RequireText(args[0u]).Contains(RequireText(args[1u])));
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextReplace)(void** args, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(TextReplace)(void** args, void* ret) noexcept
 	{
-		MidoriText replaced = RequireText(args[0u]).Replace(RequireText(args[1u]), RequireText(args[2u]));
+		MarmotText replaced = RequireText(args[0u]).Replace(RequireText(args[1u]), RequireText(args[2u]));
 		WritePointerResult(ret, AllocateCString(replaced));
 	}
 
-	MIDORI_STDLIB_API void MIDORI_FFI_FUNC(TextTrim)(void** args, void* ret) noexcept
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(TextTrim)(void** args, void* ret) noexcept
 	{
-		MidoriText trimmed = RequireText(args[0u]).Trim();
+		MarmotText trimmed = RequireText(args[0u]).Trim();
 		WritePointerResult(ret, AllocateCString(trimmed));
 	}
 }

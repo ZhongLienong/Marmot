@@ -1,7 +1,7 @@
 module NeverReturnRejectsValue
 
 // Never fits where any type is expected, not the other way round: a function
-// declared to return Never cannot return an Int. This reached the MidoriIR
+// declared to return Never cannot return an Int. This reached the MarmotIR
 // verifier.
 
 def Liar = fn() -> Never => 5;

@@ -40,7 +40,7 @@ struct BuildPlan
 	CompilationInputs m_inputs;
 };
 
-namespace MidoriBuildPlan
+namespace MarmotBuildPlan
 {
 	// `base_directory` resolves the plan's relative paths.
 	[[nodiscard]] std::expected<BuildPlan, std::string> Parse(std::string_view json, const std::filesystem::path& base_directory);
