@@ -47,7 +47,15 @@ public:
 	};
 
 private:
-	using TypeEnvironmentStack = std::vector<TypeEnvironment>;
+	struct TypeScope
+	{
+		TypeEnvironment m_names;
+		std::unordered_map<int, std::shared_ptr<MarmotType>> m_generated;
+
+		TypeScope() = default;
+		explicit TypeScope(TypeEnvironment names);
+	};
+	using TypeEnvironmentStack = std::vector<TypeScope>;
 	using TypeSubstitution = std::unordered_map<int, std::shared_ptr<MarmotType>>;
 	using GenericFunctionNames = std::unordered_set<std::string>;
 	using GenericStructNames = std::unordered_set<std::string>;
@@ -94,7 +102,7 @@ private:
 	class ScopeSession;
 
 	MarmotProgramTree m_program_tree;
-	TypeEnvironmentStack m_name_type_table;
+	TypeEnvironmentStack m_type_scopes;
 	TypeEnvironment m_module_types;
 	// The written-down types of this module's top-level definitions, for a
 	// body that names one before the checker has reached it. A definition
@@ -203,6 +211,8 @@ private:
 	MarmotResult::TypeResult CheckRefNew(const std::unique_ptr<MarmotExpression>& value);
 
 	MarmotResult::TypeResult CheckRefAccess(const std::unique_ptr<MarmotExpression>& cell, const std::unique_ptr<MarmotExpression>* value, const Token& token, std::string_view error_message);
+
+	void BindParameters(const FunctionParameters& parameters, const std::vector<std::shared_ptr<MarmotType>>& types);
 
 	TypeChecker& BeginScope();
 

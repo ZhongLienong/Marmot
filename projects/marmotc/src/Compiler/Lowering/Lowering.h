@@ -251,12 +251,12 @@ private:
 	Emitted ReserveForeign(const MarmotStatement::ForeignDefinition& foreign);
 	// A foreign function's value is the name the VM looks it up by.
 	std::expected<std::string, CompilerError> ForeignName(const MarmotStatement::ForeignDefinition& foreign);
-	void RegisterGeneric(const std::string& name, const std::vector<Token>& params, const std::vector<TypeRef>& param_types, const std::vector<Token>& generic_params, const std::vector<MarmotType::ClassConstraint>& constraints, const TypeRef& return_type, std::unique_ptr<MarmotExpression>& body, int captured_count);
+	void RegisterGeneric(const std::string& name, const FunctionParameters& params, const std::vector<TypeRef>& param_types, const std::vector<Token>& generic_params, const std::vector<MarmotType::ClassConstraint>& constraints, const TypeRef& return_type, std::unique_ptr<MarmotExpression>& body, int captured_count);
 	bool IsGenericMethod(const MarmotStatement::Instance& instance, const MarmotStatement::FunctionDefinition& method) const;
 	std::vector<LoweredExport> CollectExports() const;
 
 	Emitted LowerTopLevelStatement(MarmotStatement& statement);
-	Emitted LowerTopLevelFunction(const std::string& name, const std::vector<Token>& params, MarmotExpression& body, int line);
+	Emitted LowerTopLevelFunction(const std::string& name, const FunctionParameters& params, MarmotExpression& body, int line);
 	Emitted LowerStatement(MarmotStatement& statement);
 	Emitted LowerLocalDefinition(MarmotStatement::VariableDefinition& definition);
 	Emitted LowerTupleDefinition(MarmotStatement::TupleDefinition& definition);
@@ -267,7 +267,7 @@ private:
 	LocalKey KeyForCell(const FunctionScope& scope, int cell_index) const;
 	MarmotIRValueId CaptureFor(FunctionScope& scope, const LocalKey& key, const TypeRef& type);
 
-	Emitted LowerFunctionBody(FunctionScope& scope, const std::vector<TypeRef>& param_types, const std::vector<Token>& params, MarmotExpression& body);
+	Emitted LowerFunctionBody(FunctionScope& scope, const std::vector<TypeRef>& param_types, const FunctionParameters& params, MarmotExpression& body);
 	Lowered MakeClosure(FunctionScope& child, const TypeRef& closure_type, int line, std::string name = {});
 	Lowered LowerFunction(MarmotExpression::Function& function);
 	Lowered LowerGenericLambda(MarmotExpression::Function& function, const TypeRef& type, std::string name, int line);

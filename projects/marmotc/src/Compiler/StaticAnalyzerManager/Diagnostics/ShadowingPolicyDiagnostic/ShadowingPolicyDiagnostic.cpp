@@ -187,9 +187,12 @@ void ShadowingPolicyDiagnostic::operator()(MarmotStatement::FunctionDefinition& 
 	}
 
 	PushScope();
-	for (const Token& token : defun.m_params)
+	for (size_t index = 0u; index < defun.m_params.Size(); index += 1u)
 	{
-		DefineVariable(token);
+		if (defun.m_params.GeneratedBindingAt(index) == nullptr)
+		{
+			DefineVariable(defun.m_params.SourceToken(index));
+		}
 	}
 	VisitExpression(defun.m_body);
 	PopScope();
@@ -252,7 +255,10 @@ void ShadowingPolicyDiagnostic::operator()(MarmotStatement::TypeAlias& type_alia
 
 void ShadowingPolicyDiagnostic::operator()(MarmotPattern::Binding& binding)
 {
-	DefineVariable(binding.m_name);
+	if (!binding.m_is_generated)
+	{
+		DefineVariable(binding.m_name);
+	}
 }
 
 void ShadowingPolicyDiagnostic::operator()(MarmotExpression::Function& function)
@@ -264,9 +270,12 @@ void ShadowingPolicyDiagnostic::operator()(MarmotExpression::Function& function)
 	}
 
 	PushScope();
-	for (const Token& token : function.m_params)
+	for (size_t index = 0u; index < function.m_params.Size(); index += 1u)
 	{
-		DefineVariable(token);
+		if (function.m_params.GeneratedBindingAt(index) == nullptr)
+		{
+			DefineVariable(function.m_params.SourceToken(index));
+		}
 	}
 	VisitExpression(function.m_body);
 	PopScope();

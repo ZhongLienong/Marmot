@@ -1194,7 +1194,7 @@ def inferred = fn(x) => x;
 	// The return type is still optional. Only its ':' spelling went.
 	const MarmotStatement::VariableDefinition& inferred_binding = RequireVariableDefinition(program, 2u, "inferred");
 	const MarmotExpression::Function& inferred = RequireExpression<MarmotExpression::Function>(inferred_binding.m_value);
-	REQUIRE(inferred.m_params.size() == 1u);
+	REQUIRE(inferred.m_params.Size() == 1u);
 	REQUIRE(inferred.m_return_type->ToString() != "Int");
 }
 
@@ -1236,7 +1236,7 @@ def Describe = fn(config: Config, label: Text) -> Text => label ++ config.host;
 	REQUIRE(predicate.m_annotated_type.value()->IsType<MarmotType::FunctionType>());
 
 	const MarmotExpression::Function& describe = RequireFunctionBinding(program, 5u, "Describe");
-	REQUIRE(describe.m_params.size() == 2u);
+	REQUIRE(describe.m_params.Size() == 2u);
 	REQUIRE(describe.m_return_type->ToString() == "Text");
 }
 

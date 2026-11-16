@@ -486,7 +486,7 @@ std::expected<std::string, CompilerError> Lowering::ForeignName(const MarmotStat
 
 // A generic's body moves out of this module's AST into its template, which the
 // modules that import it specialize too.
-void Lowering::RegisterGeneric(const std::string& name, const std::vector<Token>& params, const std::vector<TypeRef>& param_types, const std::vector<Token>& generic_params, const std::vector<MarmotType::ClassConstraint>& constraints, const TypeRef& return_type, std::unique_ptr<MarmotExpression>& body, int captured_count)
+void Lowering::RegisterGeneric(const std::string& name, const FunctionParameters& params, const std::vector<TypeRef>& param_types, const std::vector<Token>& generic_params, const std::vector<MarmotType::ClassConstraint>& constraints, const TypeRef& return_type, std::unique_ptr<MarmotExpression>& body, int captured_count)
 {
 	m_generics.Add(name, GenericFunctionInfo(name, params, param_types, generic_params, constraints, return_type, std::shared_ptr<MarmotExpression>(std::move(body)), captured_count, m_module_name, m_foreign_indices));
 }
@@ -640,7 +640,7 @@ Lowering::Emitted Lowering::LowerTopLevelStatement(MarmotStatement& statement)
 		});
 }
 
-Lowering::Emitted Lowering::LowerTopLevelFunction(const std::string& name, const std::vector<Token>& params, MarmotExpression& body, int line)
+Lowering::Emitted Lowering::LowerTopLevelFunction(const std::string& name, const FunctionParameters& params, MarmotExpression& body, int line)
 {
 	const TopLevelName& top_level_name = m_top_level_names.at(name);
 	const TypeRef closure_type = m_module.m_globals[top_level_name.m_slot.m_value].m_type;
@@ -839,14 +839,17 @@ MarmotIRValueId Lowering::CaptureFor(FunctionScope& scope, const LocalKey& key, 
 	return value;
 }
 
-// Parameters are the parser's first locals, so parameter i is local i.
-Lowering::Emitted Lowering::LowerFunctionBody(FunctionScope& scope, const std::vector<TypeRef>& param_types, const std::vector<Token>& params, MarmotExpression& body)
+// Source parameters occupy the parser's first locals; generated parameters
+// carry their local identities explicitly.
+Lowering::Emitted Lowering::LowerFunctionBody(FunctionScope& scope, const std::vector<TypeRef>& param_types, const FunctionParameters& params, MarmotExpression& body)
 {
-	for (size_t index = 0u; index < params.size(); index += 1u)
+	for (size_t index = 0u; index < params.Size(); index += 1u)
 	{
-		const MarmotIRValueId parameter = scope.m_builder.AddParameter(MarmotIRFunction::s_entry_block, param_types[index], params[index].m_lexeme);
-		scope.m_locals.emplace(static_cast<int>(index), parameter);
-		scope.m_local_frames.back().push_back(static_cast<int>(index));
+		const MarmotIRValueId parameter = scope.m_builder.AddParameter(MarmotIRFunction::s_entry_block, param_types[index], params.DisplayName(index));
+		const GeneratedBinding* generated = params.GeneratedBindingAt(index);
+		const int local_index = generated != nullptr ? generated->m_index : static_cast<int>(index);
+		scope.m_locals.emplace(local_index, parameter);
+		scope.m_local_frames.back().push_back(local_index);
 	}
 
 	m_scopes.push_back(&scope);
@@ -1030,7 +1033,7 @@ std::expected<MarmotIRFunctionId, CompilerError> Lowering::Specialize(const std:
 	m_specializations_by_arguments.emplace(signature, id);
 	FunctionScope scope(id, m_functions[id.m_index], specialization, nullptr, info.m_captured_count);
 	const std::shared_ptr<MarmotExpression> body = info.m_body;
-	const std::vector<Token> params = info.m_params;
+	const FunctionParameters params = info.m_params;
 	return LowerFunctionBody(scope, argument_types, params, *body)
 		.transform([id]() { return id; });
 }

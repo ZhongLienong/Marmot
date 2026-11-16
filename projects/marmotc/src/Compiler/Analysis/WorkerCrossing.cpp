@@ -105,9 +105,11 @@ namespace
 		WorkerCrossing Find(MarmotExpression::Function& function)
 		{
 			m_captured_counts.push_back(function.m_captured_count);
-			for (size_t index = 0u; index < function.m_params.size(); index += 1u)
+			for (size_t index = 0u; index < function.m_params.Size(); index += 1u)
 			{
-				m_locals.insert_or_assign(Place(static_cast<int>(index)), Origins{ { index }, false });
+				const GeneratedBinding* binding = function.m_params.GeneratedBindingAt(index);
+				const int local_index = binding != nullptr ? binding->m_index : static_cast<int>(index);
+				m_locals.insert_or_assign(Place(local_index), Origins{ { index }, false });
 			}
 			VisitExpression(function.m_body);
 			const bool returns_from_worker = OriginsOf(*function.m_body).m_from_worker;

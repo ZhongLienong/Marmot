@@ -216,15 +216,11 @@ void PrintAbstractSyntaxTree::operator()(const MarmotStatement::FunctionDefiniti
 	PrintWithIndentation(depth, "DefineFunction {");
 	PrintWithIndentation(depth + 1, "Name: " + defun.m_name.m_lexeme);
 	PrintWithIndentation(depth + 1, "Parameters: ");
-	std::ranges::for_each
-	(
-		std::ranges::views::zip(defun.m_params, defun.m_param_types),
-		[depth, this](const auto& param)
-		{
-			PrintWithIndentation(depth + 2, "ParameterName: " + std::get<0>(param).m_lexeme);
-			PrintWithIndentation(depth + 2, "ParameterType: " + std::get<1>(param)->ToString());
-		}
-	);
+	for (size_t index = 0u; index < defun.m_params.Size(); index += 1u)
+	{
+		PrintWithIndentation(depth + 2, "ParameterName: " + defun.m_params.DisplayName(index));
+		PrintWithIndentation(depth + 2, "ParameterType: " + defun.m_param_types[index]->ToString());
+	}
 	PrintWithIndentation(depth + 1, "ReturnType: " + defun.m_return_type->ToString());
 	// A class declares its methods' signatures only.
 	if (defun.m_body != nullptr)
@@ -376,7 +372,11 @@ void PrintAbstractSyntaxTree::operator()(const MarmotExpression::MemberAccess& g
 void PrintAbstractSyntaxTree::operator()(const MarmotExpression::NameAccess& variable, int depth) const
 {
 	PrintWithIndentation(depth, "BoundedName {");
-	PrintWithIndentation(depth + 1, "Name: " + variable.m_name.m_lexeme);
+	const MarmotExpression::NameContext::Local* local = std::get_if<MarmotExpression::NameContext::Local>(&variable.m_name_ctx);
+	const std::string name = local != nullptr && local->m_is_generated
+		? GeneratedBinding(local->m_index, variable.m_name).DisplayName()
+		: variable.m_name.m_lexeme;
+	PrintWithIndentation(depth + 1, "Name: " + name);
 	PrintWithIndentation(depth + 1, "NameContext {");
 	PrintVariableSemantic(depth + 2, variable.m_name_ctx);
 	PrintWithIndentation(depth + 1, "}");
@@ -419,15 +419,11 @@ void PrintAbstractSyntaxTree::operator()(const MarmotExpression::Function& closu
 {
 	PrintAbstractSyntaxTree::PrintWithIndentation(depth, "Function {");
 	PrintWithIndentation(depth + 1, "Parameters: ");
-	std::ranges::for_each
-	(
-		std::ranges::views::zip(closure.m_params, closure.m_param_types),
-		[depth, this](const auto& param)
-		{
-			PrintWithIndentation(depth + 2, "ParameterName: " + std::get<0>(param).m_lexeme);
-			PrintWithIndentation(depth + 2, "ParameterType: " + std::get<1>(param)->ToString());
-		}
-	);
+	for (size_t index = 0u; index < closure.m_params.Size(); index += 1u)
+	{
+		PrintWithIndentation(depth + 2, "ParameterName: " + closure.m_params.DisplayName(index));
+		PrintWithIndentation(depth + 2, "ParameterType: " + closure.m_param_types[index]->ToString());
+	}
 	PrintWithIndentation(depth + 1, "ReturnType: " + closure.m_return_type->ToString());
 	PrintWithIndentation(depth + 1, "Body: ");
 	Visit(closure.m_body, depth + 2);
@@ -593,7 +589,7 @@ void PrintAbstractSyntaxTree::operator()(const MarmotExpression::For& for_expr, 
 void PrintAbstractSyntaxTree::operator()(const MarmotPattern::Binding& binding, int depth) const
 {
 	PrintWithIndentation(depth, "BindingPattern {");
-	PrintWithIndentation(depth + 1, binding.m_name.m_lexeme);
+	PrintWithIndentation(depth + 1, binding.m_is_generated ? GeneratedBinding(binding.m_local_index.value(), binding.m_name).DisplayName() : binding.m_name.m_lexeme);
 	PrintWithIndentation(depth, "}");
 }
 

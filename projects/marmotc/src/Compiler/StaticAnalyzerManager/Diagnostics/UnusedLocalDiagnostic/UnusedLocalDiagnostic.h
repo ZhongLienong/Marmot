@@ -50,7 +50,7 @@ private:
 	void PushScope();
 	void PopScope();
 	void RegisterBinding(const Token& token, std::optional<int> local_index, bool suppressed);
-	void RegisterParameterBindings(const std::vector<Token>& params);
+	void RegisterParameterBindings(const FunctionParameters& params);
 	void MarkRead(const Token& name, const MarmotExpression::NameContext::Tag& name_ctx);
 	void MarkCapturedReadByName(const Token& name);
 

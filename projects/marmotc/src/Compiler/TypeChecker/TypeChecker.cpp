@@ -10,6 +10,7 @@
 #include "Compiler/Error/CompilerError.h"
 #include "PatternCoverage.h"
 #include "TypeChecker.h"
+#include <cassert>
 
 using namespace std::string_literals;
 
@@ -1829,25 +1830,45 @@ MarmotResult::TypeResult TypeChecker::Unify(const Token& token, std::shared_ptr<
 	}
 }
 
+TypeChecker::TypeScope::TypeScope(TypeEnvironment names)
+	: m_names(std::move(names))
+{
+}
+
+void TypeChecker::BindParameters(const FunctionParameters& parameters, const std::vector<std::shared_ptr<MarmotType>>& types)
+{
+	for (size_t index = 0u; index < parameters.Size(); index += 1u)
+	{
+		if (const GeneratedBinding* binding = parameters.GeneratedBindingAt(index))
+		{
+			m_type_scopes.back().m_generated.emplace(binding->m_index, types[index]);
+		}
+		else
+		{
+			m_type_scopes.back().m_names.emplace(parameters.SourceToken(index).m_lexeme, types[index]);
+		}
+	}
+}
+
 TypeChecker& TypeChecker::BeginScope()
 {
-	m_name_type_table.emplace_back();
+	m_type_scopes.emplace_back();
 	return *this;
 }
 
 TypeChecker& TypeChecker::EndScope()
 {
-	std::erase_if(m_local_generic_functions, [this](const LocalGenericFunction& local) { return local.m_depth == m_name_type_table.size(); });
-	m_name_type_table.pop_back();
+	std::erase_if(m_local_generic_functions, [this](const LocalGenericFunction& local) { return local.m_depth == m_type_scopes.size(); });
+	m_type_scopes.pop_back();
 	return *this;
 }
 
 std::shared_ptr<MarmotType>* TypeChecker::FindNameType(const std::string& name)
 {
-	for (TypeChecker::TypeEnvironmentStack::reverse_iterator it = m_name_type_table.rbegin(); it != m_name_type_table.rend(); ++it)
+	for (TypeChecker::TypeEnvironmentStack::reverse_iterator it = m_type_scopes.rbegin(); it != m_type_scopes.rend(); ++it)
 	{
-		TypeEnvironment::iterator found = it->find(name);
-		if (found != it->end())
+		TypeEnvironment::iterator found = it->m_names.find(name);
+		if (found != it->m_names.end())
 		{
 			return &found->second;
 		}
@@ -1857,10 +1878,10 @@ std::shared_ptr<MarmotType>* TypeChecker::FindNameType(const std::string& name)
 
 const std::shared_ptr<MarmotType>* TypeChecker::FindNameType(const std::string& name) const
 {
-	for (TypeChecker::TypeEnvironmentStack::const_reverse_iterator it = m_name_type_table.crbegin(); it != m_name_type_table.crend(); ++it)
+	for (TypeChecker::TypeEnvironmentStack::const_reverse_iterator it = m_type_scopes.crbegin(); it != m_type_scopes.crend(); ++it)
 	{
-		TypeEnvironment::const_iterator found = it->find(name);
-		if (found != it->cend())
+		TypeEnvironment::const_iterator found = it->m_names.find(name);
+		if (found != it->m_names.cend())
 		{
 			return &found->second;
 		}
@@ -1904,7 +1925,14 @@ MarmotResult::TypeResult TypeChecker::CheckPattern(MarmotPattern& pattern, const
 			if constexpr (std::is_same_v<Node, MarmotPattern::Binding>)
 			{
 				node.m_type_data = resolved_expected;
-				m_name_type_table.back()[node.m_name.m_lexeme] = resolved_expected;
+				if (node.m_is_generated)
+				{
+					m_type_scopes.back().m_generated[node.m_local_index.value()] = resolved_expected;
+				}
+				else
+				{
+					m_type_scopes.back().m_names[node.m_name.m_lexeme] = resolved_expected;
+				}
 				return node.m_type_data;
 			}
 			else if constexpr (std::is_same_v<Node, MarmotPattern::Wildcard>)
@@ -2138,7 +2166,7 @@ MarmotResult::TypeResult TypeChecker::CheckPattern(MarmotPattern& pattern, const
 				{
 					return first;
 				}
-				std::unordered_map<std::string, std::shared_ptr<MarmotType>>& names = m_name_type_table.back();
+				std::unordered_map<std::string, std::shared_ptr<MarmotType>>& names = m_type_scopes.back().m_names;
 				const std::vector<std::pair<std::string, std::shared_ptr<MarmotType>>> bound = node.m_alternatives.front()->Bindings(false)
 					| std::views::transform([&names](const MarmotPattern::Binding* binding) { return std::pair{ binding->m_name.m_lexeme, names.at(binding->m_name.m_lexeme) }; })
 					| std::ranges::to<std::vector>();
@@ -2403,9 +2431,9 @@ std::optional<std::string> TypeChecker::RigidParameterName(const std::shared_ptr
 TypeChecker::FresheningContext TypeChecker::MakeLambdaFresheningContext()
 {
 	FresheningContext context;
-	for (TypeEnvironmentStack::const_reverse_iterator scope_it = m_name_type_table.crbegin(); scope_it != m_name_type_table.crend(); ++scope_it)
+	for (TypeEnvironmentStack::const_reverse_iterator scope_it = m_type_scopes.crbegin(); scope_it != m_type_scopes.crend(); ++scope_it)
 	{
-		for (const auto& [name, bound_type] : *scope_it)
+		for (const auto& [name, bound_type] : scope_it->m_names)
 		{
 			if (context.m_generic_params.contains(name))
 			{
@@ -2439,12 +2467,20 @@ std::unordered_set<int> TypeChecker::CollectEnclosingTypeVariableIds()
 {
 	std::unordered_set<int> enclosing_type_vars;
 
-	for (const TypeEnvironment& scope : m_name_type_table)
+	const auto remember = [&](const std::shared_ptr<MarmotType>& type)
 	{
-		for (const auto& [_, bound_type] : scope)
+		const std::unordered_set<int> variables = CollectTypeVariableIds(ApplySubstitution(type));
+		enclosing_type_vars.insert(variables.cbegin(), variables.cend());
+	};
+	for (const TypeScope& scope : m_type_scopes)
+	{
+		for (const auto& [_, type] : scope.m_names)
 		{
-			std::unordered_set<int> scope_type_vars = CollectTypeVariableIds(ApplySubstitution(bound_type));
-			enclosing_type_vars.insert(scope_type_vars.cbegin(), scope_type_vars.cend());
+			remember(type);
+		}
+		for (const auto& [_, type] : scope.m_generated)
+		{
+			remember(type);
 		}
 	}
 
@@ -2908,7 +2944,7 @@ TypeChecker::TypeChecker(
 			imported_names[name] = type;
 		}
 
-		m_name_type_table.push_back(std::move(imported_names));
+		m_type_scopes.emplace_back(std::move(imported_names));
 	}
 
 	for (const auto& [class_name, metadata] : imported_typeclasses)
@@ -2994,9 +3030,9 @@ void TypeChecker::CollectLaterDefinitions()
 	// The only scope yet is the imported names. A bare name this module
 	// defines is its own, so an import's entry under it would bind a use
 	// above the definition to the import instead.
-	if (!m_name_type_table.empty())
+	if (!m_type_scopes.empty())
 	{
-		TypeEnvironment& imported_names = m_name_type_table.front();
+		TypeEnvironment& imported_names = m_type_scopes.front().m_names;
 		for (const std::string& name : m_later_definitions | std::views::keys)
 		{
 			imported_names.erase(name);
@@ -3101,7 +3137,7 @@ MarmotResult::TypeCheckerResult TypeChecker::TypeCheck()
 		}
 		if (errors.empty())
 		{
-			m_module_types = m_name_type_table.back();
+			m_module_types = m_type_scopes.back().m_names;
 			return std::move(m_program_tree);
 		}
 		return std::unexpected(MarmotResult::CompilerDiagnostics(std::move(errors)));
@@ -3439,10 +3475,10 @@ MarmotResult::TypeResult TypeChecker::TypeCheckGenericLambdaDefinition(MarmotSta
 	return CheckGenericLambda(function, def.m_name, name, [this, &def, &name](const std::shared_ptr<MarmotType>& function_type, const std::vector<int>& parameters)
 	{
 		def.m_value->GetType() = function_type;
-		m_name_type_table.back()[name] = function_type;
+		m_type_scopes.back().m_names[name] = function_type;
 		if (def.m_local_index.has_value())
 		{
-			m_local_generic_functions.emplace_back(m_name_type_table.size(), name, parameters);
+			m_local_generic_functions.emplace_back(m_type_scopes.size(), name, parameters);
 		}
 		else
 		{
@@ -3464,8 +3500,13 @@ MarmotResult::TypeResult TypeChecker::CheckGenericLambda(MarmotExpression::Funct
 	}
 
 	// Validate that generic parameters don't conflict with function parameters
-	for (const Token& param : function.m_params)
+	for (size_t index = 0u; index < function.m_params.Size(); index += 1u)
 	{
+		if (function.m_params.GeneratedBindingAt(index) != nullptr)
+		{
+			continue;
+		}
+		const Token& param = function.m_params.SourceToken(index);
 		if (generic_param_names.contains(param.m_lexeme))
 		{
 			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Function expression type error: generic parameter conflicts with function parameter", param, m_file_name, m_source_lines));
@@ -3532,17 +3573,10 @@ MarmotResult::TypeResult TypeChecker::CheckGenericLambda(MarmotExpression::Funct
 				std::shared_ptr<MarmotType> fresh_var = FreshTypeVar();
 				it = freshening_context.m_generic_params.emplace(param_name, std::move(fresh_var)).first;
 			}
-			m_name_type_table.back().emplace(param_name, it->second);
+			m_type_scopes.back().m_names.emplace(param_name, it->second);
 		}
 
-		std::ranges::for_each
-		(
-			std::views::iota(0u, function.m_params.size()),
-			[&function, this](size_t idx)
-			{
-				m_name_type_table.back().emplace(function.m_params[idx].m_lexeme, function.m_param_types[idx]);
-			}
-		);
+		BindParameters(function.m_params, function.m_param_types);
 
 		std::shared_ptr<MarmotType> saved_expected_return_type = m_expected_return_type;
 		m_expected_return_type = function.m_return_type;
@@ -3672,16 +3706,12 @@ MarmotResult::TypeResult TypeChecker::operator()(MarmotStatement::VariableDefini
 		std::vector<MarmotType::ClassConstraint> function_constraints = CollectSignatureConstraints(function.m_param_types, function.m_return_type);
 		def.m_value->GetType()->GetType<MarmotType::FunctionType>().m_constraints = function_constraints;
 
-		m_name_type_table.back().emplace(def.m_name.m_lexeme, def.m_value->GetType());
+		m_type_scopes.back().m_names.emplace(def.m_name.m_lexeme, def.m_value->GetType());
 		MarmotType::FunctionType& function_type_ref = def.m_value->GetType()->GetType<MarmotType::FunctionType>();
 
 		return ScopeSession(*this).Then([&]() -> MarmotResult::TypeResult
 		{
-			std::ranges::for_each
-			(
-				std::views::iota(0u, function_type_ref.m_param_types.size()),
-				[&function, &function_type_ref, this](size_t idx) { m_name_type_table.back().emplace(function.m_params[idx].m_lexeme, function_type_ref.m_param_types[idx]); }
-			);
+			BindParameters(function.m_params, function_type_ref.m_param_types);
 
 			return Evaluate(def.m_value)
 				.and_then
@@ -3761,7 +3791,7 @@ MarmotResult::TypeResult TypeChecker::operator()(MarmotStatement::VariableDefini
 						(
 							[&def, &annotated_type, this](std::shared_ptr<MarmotType>&& unified_type)->MarmotResult::TypeResult
 							{
-								m_name_type_table.back().emplace(def.m_name.m_lexeme, annotated_type);
+								m_type_scopes.back().m_names.emplace(def.m_name.m_lexeme, annotated_type);
 								return unified_type;
 							}
 						);
@@ -3777,7 +3807,7 @@ MarmotResult::TypeResult TypeChecker::operator()(MarmotStatement::VariableDefini
 					}
 				}
 
-				m_name_type_table.back().emplace(def.m_name.m_lexeme, type);
+				m_type_scopes.back().m_names.emplace(def.m_name.m_lexeme, type);
 				return MarmotType::MakeUndecidedType();
 			}
 		);
@@ -3805,7 +3835,7 @@ MarmotResult::TypeResult TypeChecker::operator()(MarmotStatement::TupleDefinitio
 
 				for (size_t i = 0u; i < def_tuple.m_names.size(); i += 1u)
 				{
-					m_name_type_table.back().emplace(def_tuple.m_names[i].m_lexeme, tuple_type.m_element_types[i]);
+					m_type_scopes.back().m_names.emplace(def_tuple.m_names[i].m_lexeme, tuple_type.m_element_types[i]);
 				}
 
 				return MarmotType::MakeUndecidedType();
@@ -3829,8 +3859,13 @@ MarmotResult::TypeResult TypeChecker::operator()(MarmotStatement::FunctionDefini
 		}
 
 		// Validate that generic parameters don't conflict with function parameters
-		for (const Token& param : defun.m_params)
+		for (size_t index = 0u; index < defun.m_params.Size(); index += 1u)
 		{
+			if (defun.m_params.GeneratedBindingAt(index) != nullptr)
+			{
+				continue;
+			}
+			const Token& param = defun.m_params.SourceToken(index);
 			if (generic_param_names.contains(param.m_lexeme))
 			{
 				return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("DefineFunction type error: generic parameter conflicts with function parameter", param, m_file_name, m_source_lines));
@@ -3880,7 +3915,7 @@ MarmotResult::TypeResult TypeChecker::operator()(MarmotStatement::FunctionDefini
 	std::shared_ptr<MarmotType> return_type_copy = defun.m_return_type;
 	std::shared_ptr<MarmotType> function_type = MarmotType::MakeFunctionType(defun.m_param_types, std::move(return_type_copy));
 	function_type->GetType<MarmotType::FunctionType>().m_constraints = defun.m_constraints;
-	m_name_type_table.back()[defun.m_name.m_lexeme] = function_type;
+	m_type_scopes.back().m_names[defun.m_name.m_lexeme] = function_type;
 	if (!defun.m_generic_params.empty())
 	{
 		m_generic_functions.insert(defun.m_name.m_lexeme);
@@ -3897,16 +3932,9 @@ MarmotResult::TypeResult TypeChecker::operator()(MarmotStatement::FunctionDefini
 				std::shared_ptr<MarmotType> fresh_var = FreshTypeVar();
 				it = freshening_context.m_generic_params.emplace(param_name, std::move(fresh_var)).first;
 			}
-			m_name_type_table.back().emplace(param_name, it->second);
+			m_type_scopes.back().m_names.emplace(param_name, it->second);
 		}
-		std::ranges::for_each
-		(
-			std::views::iota(0u, defun.m_params.size()),
-			[&defun, this](size_t idx) 
-			{
-				m_name_type_table.back().emplace(defun.m_params[idx].m_lexeme, defun.m_param_types[idx]);
-			}
-		);
+		BindParameters(defun.m_params, defun.m_param_types);
 
 		std::shared_ptr<MarmotType> saved_expected_return_type = m_expected_return_type;
 		m_expected_return_type = defun.m_return_type;
@@ -3972,7 +4000,7 @@ MarmotResult::TypeResult TypeChecker::operator()(MarmotStatement::ForeignDefinit
 		}
 	}
 
-	m_name_type_table.back()[foreign.m_function_name.m_lexeme] = foreign.m_type;
+	m_type_scopes.back().m_names[foreign.m_function_name.m_lexeme] = foreign.m_type;
 	return MarmotType::MakeUndecidedType();
 }
 
@@ -4064,8 +4092,8 @@ MarmotResult::TypeResult TypeChecker::operator()(MarmotStatement::Struct& struct
 	const std::string struct_module_name = struct_stmt.m_self_type->GetType<MarmotType::StructType>().m_module_name;
 	std::shared_ptr<MarmotType> struct_constructor_type = MarmotType::MakeFunctionType(struct_stmt.m_self_type->GetType<MarmotType::StructType>().m_member_types, std::move(struct_stmt.m_self_type));
 	struct_constructor_type->GetType<MarmotType::FunctionType>().m_constraints = struct_stmt.m_constraints;
-	m_name_type_table.back()[struct_stmt.m_name.m_lexeme] = struct_constructor_type;
-	m_name_type_table.back()[ConstructorKey(struct_module_name, struct_stmt.m_name.m_lexeme)] = struct_constructor_type;
+	m_type_scopes.back().m_names[struct_stmt.m_name.m_lexeme] = struct_constructor_type;
+	m_type_scopes.back().m_names[ConstructorKey(struct_module_name, struct_stmt.m_name.m_lexeme)] = struct_constructor_type;
 	m_struct_type_definitions[ConstructorKey(struct_module_name, struct_stmt.m_name.m_lexeme)] = struct_constructor_type->GetType<MarmotType::FunctionType>().m_return_type;
 
 	return MarmotType::MakeUndecidedType();
@@ -4123,8 +4151,8 @@ MarmotResult::TypeResult TypeChecker::operator()(MarmotStatement::Union& union_s
 		std::vector<std::shared_ptr<MarmotType>> member_types_copy = member_ctx.m_member_types;
 		std::shared_ptr<MarmotType> union_constructor_type = MarmotType::MakeFunctionType(std::move(member_types_copy), std::shared_ptr(union_stmt.m_self_type));
 		union_constructor_type->GetType<MarmotType::FunctionType>().m_constraints = union_stmt.m_constraints;
-		m_name_type_table.back()[member_name] = union_constructor_type;
-		m_name_type_table.back()[ConstructorKey(union_type.m_module_name, member_name)] = union_constructor_type;
+		m_type_scopes.back().m_names[member_name] = union_constructor_type;
+		m_type_scopes.back().m_names[ConstructorKey(union_type.m_module_name, member_name)] = union_constructor_type;
 	}
 	m_union_type_definitions[ConstructorKey(union_type.m_module_name, union_stmt.m_name.m_lexeme)] = union_stmt.m_self_type;
 
@@ -4800,7 +4828,7 @@ MarmotResult::TypeResult TypeChecker::operator()(MarmotExpression::For& for_expr
 			[&for_expr, this](std::shared_ptr<MarmotType>&& element_type) -> MarmotResult::TypeResult
 			{
 				ScopeSession scope(*this);
-				m_name_type_table.back()[for_expr.m_loop_variable.m_lexeme] = element_type;
+				m_type_scopes.back().m_names[for_expr.m_loop_variable.m_lexeme] = element_type;
 
 				return Evaluate(for_expr.m_body)
 					.and_then
@@ -4826,7 +4854,7 @@ MarmotResult::TypeResult TypeChecker::operator()(MarmotExpression::ArrayComprehe
 			[&comp, this](std::shared_ptr<MarmotType>&& element_type) -> MarmotResult::TypeResult
 			{
 				ScopeSession scope(*this);
-				m_name_type_table.back()[comp.m_loop_variable.m_lexeme] = element_type;
+				m_type_scopes.back().m_names[comp.m_loop_variable.m_lexeme] = element_type;
 
 				// The transform expression produces one element, so its expected type is
 				// the expected array's element type, never the array type itself. Leaving
@@ -6168,6 +6196,15 @@ MarmotResult::TypeResult TypeChecker::operator()(MarmotExpression::MemberAccess&
 
 MarmotResult::TypeResult TypeChecker::operator()(MarmotExpression::NameAccess& variable)
 {
+	const MarmotExpression::NameContext::Local* local = std::get_if<MarmotExpression::NameContext::Local>(&variable.m_name_ctx);
+	if (local != nullptr && local->m_is_generated)
+	{
+		const auto scopes = m_type_scopes | std::views::reverse;
+		const auto scope = std::ranges::find_if(scopes, [local](const TypeScope& candidate) { return candidate.m_generated.contains(local->m_index); });
+		assert(scope != scopes.end());
+		variable.m_type_data = ApplySubstitution(scope->m_generated.at(local->m_index));
+		return variable.m_type_data;
+	}
 	size_t separator_pos = variable.m_name.m_lexeme.rfind(NameSeparator.data());
 	if (separator_pos != std::string::npos)
 	{
@@ -6415,11 +6452,7 @@ MarmotResult::TypeResult TypeChecker::operator()(MarmotExpression::Function& fun
 
 	return ScopeSession(*this).Then([&]() -> MarmotResult::TypeResult
 	{
-		std::ranges::for_each
-		(
-			std::views::iota(0u, function.m_params.size()),
-			[&function, this](size_t idx) {m_name_type_table.back().emplace(function.m_params[idx].m_lexeme, function.m_param_types[idx]); }
-		);
+		BindParameters(function.m_params, function.m_param_types);
 
 		size_t prev_constraints_size = m_active_constraints.size();
 		for (const MarmotType::ClassConstraint& constraint : function_constraints)

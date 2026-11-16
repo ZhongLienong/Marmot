@@ -46,8 +46,8 @@ def after = 0;
 		const MarmotStatement::FunctionDefinition& function = program[indices[index]]->GetStatement<MarmotStatement::FunctionDefinition>();
 		CHECK(function.m_name.m_lexeme == names[index]);
 		CheckAnchor(function.m_name, anchor);
-		REQUIRE_FALSE(function.m_params.empty());
-		CheckAnchor(function.m_params[0], anchor);
+		REQUIRE_FALSE(function.m_params.Empty());
+		CheckAnchor(function.m_params.SourceToken(0), anchor);
 		REQUIRE(function.m_body->IsExpression<MarmotExpression::Match>());
 		CheckAnchor(function.m_body->GetExpression<MarmotExpression::Match>().m_match_keyword, anchor);
 	}

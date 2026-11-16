@@ -12,6 +12,8 @@
 #include <vector>
 
 #include "Compiler/Token/Token.h"
+#include "Compiler/AbstractSyntaxTree/FunctionParameters.h"
+#include "Compiler/AbstractSyntaxTree/GeneratedBinding.h"
 #include "Type.h"
 
 class MarmotExpression;
@@ -76,7 +78,7 @@ public:
 	{
 		Token m_name;
 		std::vector<Token> m_generic_params;
-		std::vector<Token> m_params;
+		FunctionParameters m_params;
 		std::vector<std::shared_ptr<MarmotType>> m_param_types;
 		std::vector<MarmotType::ClassConstraint> m_constraints;
 		std::shared_ptr<MarmotType> m_return_type;
@@ -84,7 +86,7 @@ public:
 		std::optional<int> m_local_index;
 		int m_captured_count;
 
-		FunctionDefinition(const Token& name, std::vector<Token>&& generic_params, std::vector<Token>&& params, std::vector<std::shared_ptr<MarmotType>>&& param_types, std::shared_ptr<MarmotType>&& return_type, std::unique_ptr<MarmotExpression>&& body, std::optional<int>&& local_index, int captured_count = 0, std::vector<MarmotType::ClassConstraint>&& constraints = {});
+		FunctionDefinition(const Token& name, std::vector<Token>&& generic_params, FunctionParameters&& params, std::vector<std::shared_ptr<MarmotType>>&& param_types, std::shared_ptr<MarmotType>&& return_type, std::unique_ptr<MarmotExpression>&& body, std::optional<int>&& local_index, int captured_count = 0, std::vector<MarmotType::ClassConstraint>&& constraints = {});
 	};
 
 	struct ForeignDefinition
@@ -216,7 +218,10 @@ public:
 		Token m_name;
 		std::optional<int> m_local_index;
 
+		bool m_is_generated = false;
+
 		Binding(const Token& name, std::optional<int> local_index);
+		explicit Binding(const GeneratedBinding& binding);
 	};
 
 	struct Wildcard : BasePattern
@@ -372,6 +377,7 @@ public:
 		struct Local
 		{
 			int m_index = 0;
+			bool m_is_generated = false;
 		};
 		struct Cell
 		{
@@ -466,6 +472,7 @@ public:
 		NameContext::Tag m_name_ctx;
 
 		NameAccess(const Token& name, NameContext::Tag&& name_ctx);
+		explicit NameAccess(const GeneratedBinding& binding);
 	};
 
 	struct Call : BaseExpression
@@ -485,14 +492,14 @@ public:
 	{
 		Token m_function_keyword;
 		std::vector<Token> m_generic_params;
-		std::vector<Token> m_params;
+		FunctionParameters m_params;
 		std::vector<std::shared_ptr<MarmotType>> m_param_types;
 		std::vector<MarmotType::ClassConstraint> m_constraints;
 		std::shared_ptr<MarmotType> m_return_type;
 		std::unique_ptr<MarmotExpression> m_body;
 		int m_captured_count;
 
-		Function(const Token& function_keyword, std::vector<Token>&& generic_params, std::vector<Token>&& params, std::vector<std::shared_ptr<MarmotType>>&& param_types, std::shared_ptr<MarmotType>&& return_type, std::unique_ptr<MarmotExpression>&& body, int captured_count = 0, std::vector<MarmotType::ClassConstraint>&& constraints = {});
+		Function(const Token& function_keyword, std::vector<Token>&& generic_params, FunctionParameters&& params, std::vector<std::shared_ptr<MarmotType>>&& param_types, std::shared_ptr<MarmotType>&& return_type, std::unique_ptr<MarmotExpression>&& body, int captured_count = 0, std::vector<MarmotType::ClassConstraint>&& constraints = {});
 	};
 
 	struct Construct : BaseExpression

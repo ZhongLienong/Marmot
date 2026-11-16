@@ -135,9 +135,14 @@ namespace
 		{
 		}
 
-		std::unique_ptr<MarmotExpression> LocalName(const std::string& name, int index) const
+		GeneratedBinding Local(int index) const
 		{
-			return std::make_unique<MarmotExpression>(MarmotExpression::NameAccess(Token(name, Token::Name::IDENTIFIER_LITERAL, m_anchor), MarmotExpression::NameContext::Local{ index }));
+			return GeneratedBinding(index, m_anchor);
+		}
+
+		std::unique_ptr<MarmotExpression> LocalName(const GeneratedBinding& binding) const
+		{
+			return std::make_unique<MarmotExpression>(MarmotExpression::NameAccess(binding));
 		}
 
 		std::unique_ptr<MarmotExpression> GlobalName(const std::string& name) const
@@ -180,9 +185,9 @@ namespace
 			return std::make_unique<MarmotExpression>(MarmotExpression::Case(Token("case", Token::Name::CASE, m_anchor), std::move(pattern), std::move(body)));
 		}
 
-		std::unique_ptr<MarmotPattern> BindingPattern(const std::string& name, int index) const
+		std::unique_ptr<MarmotPattern> BindingPattern(const GeneratedBinding& binding) const
 		{
-			return std::make_unique<MarmotPattern>(MarmotPattern::Binding(Token(name, Token::Name::IDENTIFIER_LITERAL, m_anchor), index));
+			return std::make_unique<MarmotPattern>(MarmotPattern::Binding(binding));
 		}
 
 		std::unique_ptr<MarmotPattern> WildcardPattern() const
@@ -219,7 +224,8 @@ namespace
 			operands.emplace_back(std::move(right));
 			std::vector<std::unique_ptr<MarmotExpression>> cases;
 			cases.emplace_back(Case(std::make_unique<MarmotPattern>(MarmotPattern::Literal(Token("0", Token::Name::INTEGER_LITERAL, m_anchor), MarmotPattern::LiteralKind::Integer)), std::move(equal)));
-			cases.emplace_back(Case(BindingPattern("order", slot), LocalName("order", slot)));
+			const GeneratedBinding order = Local(slot);
+			cases.emplace_back(Case(BindingPattern(order), LocalName(order)));
 			return Match(QualifiedCall(std::string(ORDERABLE_CLASS_NAME), std::string(COMPARE_METHOD_NAME), std::move(operands)), std::move(cases));
 		}
 	};
@@ -283,10 +289,10 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 
 	const SyntheticSyntax syntax(struct_stmt.m_name);
 
-	auto make_member_access = [&struct_stmt, &syntax](const std::string& base_name, int base_index, const std::string& member_name, int member_index) -> std::unique_ptr<MarmotExpression>
+	auto make_member_access = [&struct_stmt, &syntax](const GeneratedBinding& base, const std::string& member_name, int member_index) -> std::unique_ptr<MarmotExpression>
 	{
 		Token member_token(member_name, Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name);
-		return std::make_unique<MarmotExpression>(MarmotExpression::MemberAccess(member_token, syntax.LocalName(base_name, base_index), member_index));
+		return std::make_unique<MarmotExpression>(MarmotExpression::MemberAccess(member_token, syntax.LocalName(base), member_index));
 	};
 
 	std::vector<std::shared_ptr<MarmotType>> type_args{ std::shared_ptr<MarmotType>(struct_stmt.m_self_type) };
@@ -306,10 +312,10 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 	{
 		const std::string mangled_name = MarmotType::MangleInstanceMethodName(std::string(EQUALS_METHOD_NAME), derive_target.m_lexeme, type_args);
 		Token method_token(mangled_name, Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name);
-		std::vector<Token> params
+		std::vector<GeneratedBinding> params
 		{
-			Token("a", Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name),
-			Token("b", Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name)
+			syntax.Local(0),
+			syntax.Local(1)
 		};
 		std::vector<std::shared_ptr<MarmotType>> param_types{ std::shared_ptr<MarmotType>(struct_stmt.m_self_type), std::shared_ptr<MarmotType>(struct_stmt.m_self_type) };
 
@@ -317,8 +323,8 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 		for (size_t i = 0u; i < struct_type.m_member_types.size(); i += 1u)
 		{
 			std::vector<std::unique_ptr<MarmotExpression>> eq_args;
-			eq_args.emplace_back(make_member_access("a", 0, struct_type.m_member_names[i], static_cast<int>(i)));
-			eq_args.emplace_back(make_member_access("b", 1, struct_type.m_member_names[i], static_cast<int>(i)));
+			eq_args.emplace_back(make_member_access(params[0], struct_type.m_member_names[i], static_cast<int>(i)));
+			eq_args.emplace_back(make_member_access(params[1], struct_type.m_member_names[i], static_cast<int>(i)));
 
 			std::unique_ptr<MarmotExpression> compare_expr = syntax.QualifiedCall(std::string(EQUATABLE_CLASS_NAME), std::string(EQUALS_METHOD_NAME), std::move(eq_args));
 			body = syntax.Binary(Token::Name::DOUBLE_AMPERSAND, "&&", std::move(body), std::move(compare_expr));
@@ -328,7 +334,7 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 		(
 			std::make_unique<MarmotStatement>
 			(
-				MarmotStatement::FunctionDefinition(method_token, {}, std::move(params), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::BoolType>()), std::move(body), std::nullopt, 0, {})
+				MarmotStatement::FunctionDefinition(method_token, {}, FunctionParameters::Generated(std::move(params)), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::BoolType>()), std::move(body), std::nullopt, 0, {})
 			)
 		);
 	}
@@ -336,7 +342,7 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 	{
 		const std::string mangled_name = MarmotType::MangleInstanceMethodName(std::string(CONVERT_METHOD_NAME), derive_target.m_lexeme, type_args);
 		Token method_token(mangled_name, Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name);
-		std::vector<Token> params{ Token("value", Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name) };
+		std::vector<GeneratedBinding> params{ syntax.Local(0) };
 		std::vector<std::shared_ptr<MarmotType>> param_types{ std::shared_ptr<MarmotType>(struct_stmt.m_self_type) };
 
 		// `Name { field = value, ... }`, each field as its own `as Text` gives it.
@@ -344,7 +350,7 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 		for (size_t i = 0u; i < struct_type.m_member_types.size(); i += 1u)
 		{
 			body = syntax.Concat(std::move(body), syntax.TextLiteral((i == 0u ? "" : ", ") + struct_type.m_member_names[i] + " = "));
-			body = syntax.Concat(std::move(body), syntax.AsText(make_member_access("value", 0, struct_type.m_member_names[i], static_cast<int>(i))));
+			body = syntax.Concat(std::move(body), syntax.AsText(make_member_access(params[0], struct_type.m_member_names[i], static_cast<int>(i))));
 		}
 		body = syntax.Concat(std::move(body), syntax.TextLiteral(" }"));
 
@@ -352,7 +358,7 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 		(
 			std::make_unique<MarmotStatement>
 			(
-				MarmotStatement::FunctionDefinition(method_token, {}, std::move(params), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::TextType>()), std::move(body), std::nullopt, 0, {})
+				MarmotStatement::FunctionDefinition(method_token, {}, FunctionParameters::Generated(std::move(params)), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::TextType>()), std::move(body), std::nullopt, 0, {})
 			)
 		);
 	}
@@ -360,10 +366,10 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 	{
 		const std::string mangled_name = MarmotType::MangleInstanceMethodName(std::string(COMPARE_METHOD_NAME), derive_target.m_lexeme, type_args);
 		Token method_token(mangled_name, Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name);
-		std::vector<Token> params
+		std::vector<GeneratedBinding> params
 		{
-			Token("a", Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name),
-			Token("b", Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name)
+			syntax.Local(0),
+			syntax.Local(1)
 		};
 		std::vector<std::shared_ptr<MarmotType>> param_types{ std::shared_ptr<MarmotType>(struct_stmt.m_self_type), std::shared_ptr<MarmotType>(struct_stmt.m_self_type) };
 
@@ -373,8 +379,8 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 		{
 			const size_t field = i - 1u;
 			body = syntax.CompareThen(
-				make_member_access("a", 0, struct_type.m_member_names[field], static_cast<int>(field)),
-				make_member_access("b", 1, struct_type.m_member_names[field], static_cast<int>(field)),
+				make_member_access(params[0], struct_type.m_member_names[field], static_cast<int>(field)),
+				make_member_access(params[1], struct_type.m_member_names[field], static_cast<int>(field)),
 				2 + static_cast<int>(field),
 				std::move(body));
 		}
@@ -383,7 +389,7 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 		(
 			std::make_unique<MarmotStatement>
 			(
-				MarmotStatement::FunctionDefinition(method_token, {}, std::move(params), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::IntegerType>()), std::move(body), std::nullopt, 0, {})
+				MarmotStatement::FunctionDefinition(method_token, {}, FunctionParameters::Generated(std::move(params)), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::IntegerType>()), std::move(body), std::nullopt, 0, {})
 			)
 		);
 	}
@@ -391,14 +397,14 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 	{
 		const std::string mangled_name = MarmotType::MangleInstanceMethodName(std::string(HASH_METHOD_NAME), derive_target.m_lexeme, type_args);
 		Token method_token(mangled_name, Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name);
-		std::vector<Token> params{ Token("value", Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name) };
+		std::vector<GeneratedBinding> params{ syntax.Local(0) };
 		std::vector<std::shared_ptr<MarmotType>> param_types{ std::shared_ptr<MarmotType>(struct_stmt.m_self_type) };
 
 		std::unique_ptr<MarmotExpression> body = syntax.IntLiteral(0);
 		for (size_t i = 0u; i < struct_type.m_member_types.size(); i += 1u)
 		{
 			std::vector<std::unique_ptr<MarmotExpression>> hash_args;
-			hash_args.emplace_back(make_member_access("value", 0, struct_type.m_member_names[i], static_cast<int>(i)));
+			hash_args.emplace_back(make_member_access(params[0], struct_type.m_member_names[i], static_cast<int>(i)));
 
 			std::unique_ptr<MarmotExpression> member_hash = syntax.QualifiedCall(std::string(HASHABLE_CLASS_NAME), std::string(HASH_METHOD_NAME), std::move(hash_args));
 			std::unique_ptr<MarmotExpression> scaled = syntax.Binary(Token::Name::STAR, "*", std::move(body), syntax.IntLiteral(31));
@@ -409,7 +415,7 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 		(
 			std::make_unique<MarmotStatement>
 			(
-				MarmotStatement::FunctionDefinition(method_token, {}, std::move(params), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::IntegerType>()), std::move(body), std::nullopt, 0, {})
+				MarmotStatement::FunctionDefinition(method_token, {}, FunctionParameters::Generated(std::move(params)), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::IntegerType>()), std::move(body), std::nullopt, 0, {})
 			)
 		);
 	}
@@ -426,12 +432,12 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 
 	const SyntheticSyntax syntax(union_stmt.m_name);
 
-	auto make_constructor_pattern = [&syntax](const std::string& ctor_name, int first_local_index, size_t field_count, const std::string& prefix) -> std::unique_ptr<MarmotPattern>
+	auto make_constructor_pattern = [&syntax](const std::string& ctor_name, int first_local_index, size_t field_count) -> std::unique_ptr<MarmotPattern>
 	{
 		std::vector<std::unique_ptr<MarmotPattern>> args;
 		for (size_t i = 0u; i < field_count; i += 1u)
 		{
-			args.emplace_back(syntax.BindingPattern(prefix + std::to_string(i), first_local_index + static_cast<int>(i)));
+			args.emplace_back(syntax.BindingPattern(syntax.Local(first_local_index + static_cast<int>(i))));
 		}
 		return syntax.ConstructorPattern(ctor_name, std::move(args));
 	};
@@ -466,10 +472,10 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 		{
 			const std::string mangled_name = MarmotType::MangleInstanceMethodName(std::string(EQUALS_METHOD_NAME), derive_target.m_lexeme, type_args);
 			Token method_token(mangled_name, Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name);
-			std::vector<Token> params
+			std::vector<GeneratedBinding> params
 			{
-				Token("a", Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name),
-				Token("b", Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name)
+				syntax.Local(0),
+				syntax.Local(1)
 			};
 			std::vector<std::shared_ptr<MarmotType>> param_types{ std::shared_ptr<MarmotType>(union_stmt.m_self_type), std::shared_ptr<MarmotType>(union_stmt.m_self_type) };
 
@@ -485,8 +491,8 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 				for (size_t i = 0u; i < member_ctx.m_member_types.size(); i += 1u)
 				{
 					std::vector<std::unique_ptr<MarmotExpression>> eq_args;
-					eq_args.emplace_back(syntax.LocalName("lhs" + std::to_string(i), outer_binding_start + static_cast<int>(i)));
-					eq_args.emplace_back(syntax.LocalName("rhs" + std::to_string(i), inner_binding_start + static_cast<int>(i)));
+					eq_args.emplace_back(syntax.LocalName(syntax.Local(outer_binding_start + static_cast<int>(i))));
+					eq_args.emplace_back(syntax.LocalName(syntax.Local(inner_binding_start + static_cast<int>(i))));
 
 					std::unique_ptr<MarmotExpression> compare_expr = syntax.QualifiedCall(std::string(EQUATABLE_CLASS_NAME), std::string(EQUALS_METHOD_NAME), std::move(eq_args));
 					inner_body = syntax.Binary(Token::Name::DOUBLE_AMPERSAND, "&&", std::move(inner_body), std::move(compare_expr));
@@ -496,7 +502,7 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 				(
 					syntax.Case
 					(
-						make_constructor_pattern(ctor_name.m_lexeme, inner_binding_start, member_ctx.m_member_types.size(), "rhs"),
+						make_constructor_pattern(ctor_name.m_lexeme, inner_binding_start, member_ctx.m_member_types.size()),
 						std::move(inner_body)
 					)
 				);
@@ -506,18 +512,18 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 				(
 					syntax.Case
 					(
-						make_constructor_pattern(ctor_name.m_lexeme, outer_binding_start, member_ctx.m_member_types.size(), "lhs"),
-						syntax.Match(syntax.LocalName("b", 1), std::move(inner_cases))
+						make_constructor_pattern(ctor_name.m_lexeme, outer_binding_start, member_ctx.m_member_types.size()),
+						syntax.Match(syntax.LocalName(params[1]), std::move(inner_cases))
 					)
 				);
 			}
 
-			std::unique_ptr<MarmotExpression> body = syntax.Match(syntax.LocalName("a", 0), std::move(outer_cases));
+			std::unique_ptr<MarmotExpression> body = syntax.Match(syntax.LocalName(params[0]), std::move(outer_cases));
 			methods.emplace_back
 			(
 				std::make_unique<MarmotStatement>
 				(
-					MarmotStatement::FunctionDefinition(method_token, {}, std::move(params), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::BoolType>()), std::move(body), std::nullopt, 0, {})
+					MarmotStatement::FunctionDefinition(method_token, {}, FunctionParameters::Generated(std::move(params)), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::BoolType>()), std::move(body), std::nullopt, 0, {})
 				)
 			);
 		}
@@ -525,7 +531,7 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 		{
 			const std::string mangled_name = MarmotType::MangleInstanceMethodName(std::string(CONVERT_METHOD_NAME), derive_target.m_lexeme, type_args);
 			Token method_token(mangled_name, Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name);
-			std::vector<Token> params{ Token("value", Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name) };
+			std::vector<GeneratedBinding> params{ syntax.Local(0) };
 			std::vector<std::shared_ptr<MarmotType>> param_types{ std::shared_ptr<MarmotType>(union_stmt.m_self_type) };
 
 			// `Union::Variant(field, ...)`, as a variant is written.
@@ -540,18 +546,18 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 					{
 						case_body = syntax.Concat(std::move(case_body), syntax.TextLiteral(", "));
 					}
-					case_body = syntax.Concat(std::move(case_body), syntax.AsText(syntax.LocalName("field" + std::to_string(i), 1 + static_cast<int>(i))));
+					case_body = syntax.Concat(std::move(case_body), syntax.AsText(syntax.LocalName(syntax.Local(1 + static_cast<int>(i)))));
 				}
 				case_body = syntax.Concat(std::move(case_body), syntax.TextLiteral(")"));
-				cases.emplace_back(syntax.Case(make_constructor_pattern(ctor_name.m_lexeme, 1, member_ctx.m_member_types.size(), "field"), std::move(case_body)));
+				cases.emplace_back(syntax.Case(make_constructor_pattern(ctor_name.m_lexeme, 1, member_ctx.m_member_types.size()), std::move(case_body)));
 			}
 
-			std::unique_ptr<MarmotExpression> body = syntax.Match(syntax.LocalName("value", 0), std::move(cases));
+			std::unique_ptr<MarmotExpression> body = syntax.Match(syntax.LocalName(params[0]), std::move(cases));
 			methods.emplace_back
 			(
 				std::make_unique<MarmotStatement>
 				(
-					MarmotStatement::FunctionDefinition(method_token, {}, std::move(params), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::TextType>()), std::move(body), std::nullopt, 0, {})
+					MarmotStatement::FunctionDefinition(method_token, {}, FunctionParameters::Generated(std::move(params)), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::TextType>()), std::move(body), std::nullopt, 0, {})
 				)
 			);
 		}
@@ -559,10 +565,10 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 		{
 			const std::string mangled_name = MarmotType::MangleInstanceMethodName(std::string(COMPARE_METHOD_NAME), derive_target.m_lexeme, type_args);
 			Token method_token(mangled_name, Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name);
-			std::vector<Token> params
+			std::vector<GeneratedBinding> params
 			{
-				Token("a", Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name),
-				Token("b", Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name)
+				syntax.Local(0),
+				syntax.Local(1)
 			};
 			std::vector<std::shared_ptr<MarmotType>> param_types{ std::shared_ptr<MarmotType>(union_stmt.m_self_type), std::shared_ptr<MarmotType>(union_stmt.m_self_type) };
 
@@ -586,9 +592,9 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 						for (size_t i = field_count; i > 0u; i -= 1u)
 						{
 							const int field = static_cast<int>(i - 1u);
-							same = syntax.CompareThen(syntax.LocalName("lhs" + std::to_string(field), left_start + field), syntax.LocalName("rhs" + std::to_string(field), right_start + field), order_start + field, std::move(same));
+							same = syntax.CompareThen(syntax.LocalName(syntax.Local(left_start + field)), syntax.LocalName(syntax.Local(right_start + field)), order_start + field, std::move(same));
 						}
-						inner_cases.emplace_back(syntax.Case(make_constructor_pattern(variants[right].m_lexeme, right_start, field_count, "rhs"), std::move(same)));
+						inner_cases.emplace_back(syntax.Case(make_constructor_pattern(variants[right].m_lexeme, right_start, field_count), std::move(same)));
 						continue;
 					}
 
@@ -603,15 +609,15 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 					inner_cases.emplace_back(syntax.Case(syntax.ConstructorPattern(variants[right].m_lexeme, std::move(wildcards)), std::move(order)));
 				}
 
-				outer_cases.emplace_back(syntax.Case(make_constructor_pattern(variants[left].m_lexeme, left_start, field_count, "lhs"), syntax.Match(syntax.LocalName("b", 1), std::move(inner_cases))));
+				outer_cases.emplace_back(syntax.Case(make_constructor_pattern(variants[left].m_lexeme, left_start, field_count), syntax.Match(syntax.LocalName(params[1]), std::move(inner_cases))));
 			}
 
-			std::unique_ptr<MarmotExpression> body = syntax.Match(syntax.LocalName("a", 0), std::move(outer_cases));
+			std::unique_ptr<MarmotExpression> body = syntax.Match(syntax.LocalName(params[0]), std::move(outer_cases));
 			methods.emplace_back
 			(
 				std::make_unique<MarmotStatement>
 				(
-					MarmotStatement::FunctionDefinition(method_token, {}, std::move(params), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::IntegerType>()), std::move(body), std::nullopt, 0, {})
+					MarmotStatement::FunctionDefinition(method_token, {}, FunctionParameters::Generated(std::move(params)), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::IntegerType>()), std::move(body), std::nullopt, 0, {})
 				)
 			);
 		}
@@ -619,7 +625,7 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 		{
 			const std::string mangled_name = MarmotType::MangleInstanceMethodName(std::string(HASH_METHOD_NAME), derive_target.m_lexeme, type_args);
 			Token method_token(mangled_name, Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name);
-			std::vector<Token> params{ Token("value", Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name) };
+			std::vector<GeneratedBinding> params{ syntax.Local(0) };
 			std::vector<std::shared_ptr<MarmotType>> param_types{ std::shared_ptr<MarmotType>(union_stmt.m_self_type) };
 
 			std::vector<std::unique_ptr<MarmotExpression>> cases;
@@ -630,7 +636,7 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 				for (size_t i = 0u; i < member_ctx.m_member_types.size(); i += 1u)
 				{
 					std::vector<std::unique_ptr<MarmotExpression>> hash_args;
-					hash_args.emplace_back(syntax.LocalName("field" + std::to_string(i), 1 + static_cast<int>(i)));
+					hash_args.emplace_back(syntax.LocalName(syntax.Local(1 + static_cast<int>(i))));
 
 					std::unique_ptr<MarmotExpression> member_hash = syntax.QualifiedCall(std::string(HASHABLE_CLASS_NAME), std::string(HASH_METHOD_NAME), std::move(hash_args));
 					std::unique_ptr<MarmotExpression> scaled = syntax.Binary(Token::Name::STAR, "*", std::move(case_body), syntax.IntLiteral(31));
@@ -641,18 +647,18 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 				(
 					syntax.Case
 					(
-						make_constructor_pattern(ctor_name.m_lexeme, 1, member_ctx.m_member_types.size(), "field"),
+						make_constructor_pattern(ctor_name.m_lexeme, 1, member_ctx.m_member_types.size()),
 						std::move(case_body)
 					)
 				);
 			}
 
-			std::unique_ptr<MarmotExpression> body = syntax.Match(syntax.LocalName("value", 0), std::move(cases));
+			std::unique_ptr<MarmotExpression> body = syntax.Match(syntax.LocalName(params[0]), std::move(cases));
 			methods.emplace_back
 			(
 				std::make_unique<MarmotStatement>
 				(
-					MarmotStatement::FunctionDefinition(method_token, {}, std::move(params), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::IntegerType>()), std::move(body), std::nullopt, 0, {})
+					MarmotStatement::FunctionDefinition(method_token, {}, FunctionParameters::Generated(std::move(params)), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::IntegerType>()), std::move(body), std::nullopt, 0, {})
 				)
 			);
 		}
@@ -721,14 +727,14 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 	output_substitutions.emplace(first_type_param, mapped_type);
 	std::shared_ptr<MarmotType> output_union_type = MarmotType::SubstituteTypeParams(union_stmt.m_self_type, output_substitutions);
 
-	std::vector<Token> params;
+	std::vector<GeneratedBinding> params;
 	std::vector<std::shared_ptr<MarmotType>> param_types;
-	params.emplace_back(Token("value", Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name));
+	params.emplace_back(syntax.Local(0));
 	param_types.emplace_back(input_union_type);
 
 	if (derive_target.m_lexeme == "Map")
 	{
-		params.emplace_back(Token("f", Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name));
+		params.emplace_back(syntax.Local(1));
 		param_types.emplace_back(MarmotType::MakeFunctionType(std::vector<std::shared_ptr<MarmotType>>{ source_type }, std::shared_ptr<MarmotType>(mapped_type)));
 		const int case_binding_base_index = static_cast<int>(params.size());
 
@@ -741,19 +747,18 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 			{
 				const std::shared_ptr<MarmotType>& member_type = member_ctx.m_member_types[i];
 				const int local_index = case_binding_base_index + static_cast<int>(i);
-				const std::string binding_name = "field" + std::to_string(i);
 
 				if (IsExactGenericParam(member_type, first_type_param))
 				{
 					std::vector<std::unique_ptr<MarmotExpression>> call_args;
-					call_args.emplace_back(syntax.LocalName(binding_name, local_index));
-					ctor_args.emplace_back(syntax.Call(syntax.LocalName("f", 1), std::move(call_args)));
+					call_args.emplace_back(syntax.LocalName(syntax.Local(local_index)));
+					ctor_args.emplace_back(syntax.Call(syntax.LocalName(params[1]), std::move(call_args)));
 				}
 				else if (IsUnionSelfReference(member_type, union_type.m_name))
 				{
 					std::vector<std::unique_ptr<MarmotExpression>> call_args;
-					call_args.emplace_back(syntax.LocalName(binding_name, local_index));
-					call_args.emplace_back(syntax.LocalName("f", 1));
+					call_args.emplace_back(syntax.LocalName(syntax.Local(local_index)));
+					call_args.emplace_back(syntax.LocalName(params[1]));
 					ctor_args.emplace_back(syntax.Call(syntax.GlobalName(function_name.m_lexeme), std::move(call_args)));
 				}
 				else
@@ -762,7 +767,7 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 					{
 						return std::unexpected(DerivedDeclarationError("Map deriving only supports direct occurrences of the first type parameter or recursive self fields.", union_stmt.m_name));
 					}
-					ctor_args.emplace_back(syntax.LocalName(binding_name, local_index));
+					ctor_args.emplace_back(syntax.LocalName(syntax.Local(local_index)));
 				}
 			}
 
@@ -770,22 +775,22 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 			(
 					syntax.Case
 					(
-						make_constructor_pattern(ctor_name.m_lexeme, case_binding_base_index, member_ctx.m_member_types.size(), "field"),
+						make_constructor_pattern(ctor_name.m_lexeme, case_binding_base_index, member_ctx.m_member_types.size()),
 						make_union_construct(ctor_name.m_lexeme, member_ctx.m_tag, std::move(ctor_args), output_union_type)
 					)
 				);
 		}
 
-		std::unique_ptr<MarmotExpression> body = syntax.Match(syntax.LocalName("value", 0), std::move(cases));
+		std::unique_ptr<MarmotExpression> body = syntax.Match(syntax.LocalName(params[0]), std::move(cases));
 		return std::make_unique<MarmotStatement>
 		(
-			MarmotStatement::FunctionDefinition(function_name, std::move(generic_params), std::move(params), std::move(param_types), std::move(output_union_type), std::move(body), std::nullopt, 0, {})
+			MarmotStatement::FunctionDefinition(function_name, std::move(generic_params), FunctionParameters::Generated(std::move(params)), std::move(param_types), std::move(output_union_type), std::move(body), std::nullopt, 0, {})
 		);
 	}
 
 	if (derive_target.m_lexeme == "Bind")
 	{
-		params.emplace_back(Token("f", Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name));
+		params.emplace_back(syntax.Local(1));
 		param_types.emplace_back(MarmotType::MakeFunctionType(std::vector<std::shared_ptr<MarmotType>>{ source_type }, std::shared_ptr<MarmotType>(output_union_type)));
 		const int case_binding_base_index = static_cast<int>(params.size());
 
@@ -804,15 +809,15 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 			if (mapped_field_index >= 0)
 			{
 				std::vector<std::unique_ptr<MarmotExpression>> call_args;
-				call_args.emplace_back(syntax.LocalName("field" + std::to_string(mapped_field_index), case_binding_base_index + mapped_field_index));
-				case_body = syntax.Call(syntax.LocalName("f", 1), std::move(call_args));
+				call_args.emplace_back(syntax.LocalName(syntax.Local(case_binding_base_index + mapped_field_index)));
+				case_body = syntax.Call(syntax.LocalName(params[1]), std::move(call_args));
 			}
 			else
 			{
 				std::vector<std::unique_ptr<MarmotExpression>> ctor_args;
 				for (size_t i = 0u; i < member_ctx.m_member_types.size(); i += 1u)
 				{
-					ctor_args.emplace_back(syntax.LocalName("field" + std::to_string(i), case_binding_base_index + static_cast<int>(i)));
+					ctor_args.emplace_back(syntax.LocalName(syntax.Local(case_binding_base_index + static_cast<int>(i))));
 				}
 				case_body = make_union_construct(ctor_name.m_lexeme, member_ctx.m_tag, std::move(ctor_args), output_union_type);
 			}
@@ -821,20 +826,20 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 			(
 					syntax.Case
 					(
-						make_constructor_pattern(ctor_name.m_lexeme, case_binding_base_index, member_ctx.m_member_types.size(), "field"),
+						make_constructor_pattern(ctor_name.m_lexeme, case_binding_base_index, member_ctx.m_member_types.size()),
 						std::move(case_body)
 					)
 				);
 		}
 
-		std::unique_ptr<MarmotExpression> body = syntax.Match(syntax.LocalName("value", 0), std::move(cases));
+		std::unique_ptr<MarmotExpression> body = syntax.Match(syntax.LocalName(params[0]), std::move(cases));
 		return std::make_unique<MarmotStatement>
 		(
-			MarmotStatement::FunctionDefinition(function_name, std::move(generic_params), std::move(params), std::move(param_types), std::move(output_union_type), std::move(body), std::nullopt, 0, {})
+			MarmotStatement::FunctionDefinition(function_name, std::move(generic_params), FunctionParameters::Generated(std::move(params)), std::move(param_types), std::move(output_union_type), std::move(body), std::nullopt, 0, {})
 		);
 	}
 
-	params.emplace_back(Token("default_value", Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name));
+	params.emplace_back(syntax.Local(1));
 	param_types.emplace_back(source_type);
 	const int case_binding_base_index = static_cast<int>(params.size());
 
@@ -851,26 +856,23 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 
 		std::unique_ptr<MarmotExpression> case_body =
 			mapped_field_index >= 0
-			? syntax.LocalName("field" + std::to_string(mapped_field_index), case_binding_base_index + mapped_field_index)
-			: syntax.LocalName("default_value", 1);
+			? syntax.LocalName(syntax.Local(case_binding_base_index + mapped_field_index))
+			: syntax.LocalName(params[1]);
 
-		// A variant that falls back to the default reads none of its fields; the
-		// leading underscore is what keeps the unused-binding warning off code the
-		// program never wrote.
 		cases.emplace_back
 		(
 			syntax.Case
 			(
-				make_constructor_pattern(ctor_name.m_lexeme, case_binding_base_index, member_ctx.m_member_types.size(), mapped_field_index >= 0 ? "field" : "_field"),
+				make_constructor_pattern(ctor_name.m_lexeme, case_binding_base_index, member_ctx.m_member_types.size()),
 				std::move(case_body)
 			)
 		);
 	}
 
-	std::unique_ptr<MarmotExpression> body = syntax.Match(syntax.LocalName("value", 0), std::move(cases));
+	std::unique_ptr<MarmotExpression> body = syntax.Match(syntax.LocalName(params[0]), std::move(cases));
 	return std::make_unique<MarmotStatement>
 	(
-		MarmotStatement::FunctionDefinition(function_name, std::move(generic_params), std::move(params), std::move(param_types), std::move(source_type), std::move(body), std::nullopt, 0, {})
+		MarmotStatement::FunctionDefinition(function_name, std::move(generic_params), FunctionParameters::Generated(std::move(params)), std::move(param_types), std::move(source_type), std::move(body), std::nullopt, 0, {})
 	);
 }
 

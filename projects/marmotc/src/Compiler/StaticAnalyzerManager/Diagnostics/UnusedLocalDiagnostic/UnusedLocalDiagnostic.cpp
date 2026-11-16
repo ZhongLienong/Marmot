@@ -102,12 +102,13 @@ void UnusedLocalDiagnostic::RegisterBinding(const Token& token, std::optional<in
 	function.m_active_locals[local_index.value()] = binding_id;
 }
 
-void UnusedLocalDiagnostic::RegisterParameterBindings(const std::vector<Token>& params)
+void UnusedLocalDiagnostic::RegisterParameterBindings(const FunctionParameters& params)
 {
-	for (std::size_t index = 0u; index < params.size(); index += 1u)
+	for (std::size_t index = 0u; index < params.Size(); index += 1u)
 	{
-		const Token& token = params[index];
-		RegisterBinding(token, static_cast<int>(index), MarmotAnalysis::IsIgnoredBindingName(MarmotAnalysis::DemangleDisplayName(token.m_lexeme)));
+		const Token& token = params.SourceToken(index);
+		const GeneratedBinding* binding = params.GeneratedBindingAt(index);
+		RegisterBinding(token, binding != nullptr ? binding->m_index : static_cast<int>(index), binding != nullptr || MarmotAnalysis::IsIgnoredBindingName(MarmotAnalysis::DemangleDisplayName(token.m_lexeme)));
 	}
 }
 
@@ -197,7 +198,7 @@ void UnusedLocalDiagnostic::operator()(MarmotStatement::ForeignDefinition& forei
 
 void UnusedLocalDiagnostic::operator()(MarmotPattern::Binding& binding)
 {
-	RegisterBinding(binding.m_name, binding.m_local_index, MarmotAnalysis::IsIgnoredBindingName(MarmotAnalysis::DemangleDisplayName(binding.m_name.m_lexeme)));
+	RegisterBinding(binding.m_name, binding.m_local_index, binding.m_is_generated || MarmotAnalysis::IsIgnoredBindingName(MarmotAnalysis::DemangleDisplayName(binding.m_name.m_lexeme)));
 }
 
 void UnusedLocalDiagnostic::operator()(MarmotExpression::NameAccess& access)
