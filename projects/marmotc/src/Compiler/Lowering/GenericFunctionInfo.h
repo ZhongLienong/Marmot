@@ -17,7 +17,7 @@ struct GenericFunctionInfo
 	std::vector<MarmotType::ClassConstraint> m_constraints;
 	std::vector<std::shared_ptr<MarmotType>> m_generic_param_types;
 	std::shared_ptr<MarmotType> m_generic_return_type;
-	std::shared_ptr<MarmotExpression> m_body;
+	std::shared_ptr<const MarmotExpression> m_body;
 	std::string m_defining_module;
 	// The defining module's builtin foreign functions, by the name its source
 	// calls them. Shared with that module's lowering, which fills it as it
@@ -27,7 +27,7 @@ struct GenericFunctionInfo
 
 	GenericFunctionInfo() = default;
 
-	GenericFunctionInfo(std::string name, FunctionParameters params, std::vector<std::shared_ptr<MarmotType>> param_types, const std::vector<Token>& generic_params, std::vector<MarmotType::ClassConstraint> constraints, std::shared_ptr<MarmotType> return_type, std::shared_ptr<MarmotExpression> body, int captured_count, std::string defining_module, std::shared_ptr<const std::unordered_map<std::string, size_t>> builtin_foreign_indices)
+	GenericFunctionInfo(std::string name, FunctionParameters params, std::vector<std::shared_ptr<MarmotType>> param_types, const std::vector<Token>& generic_params, std::vector<MarmotType::ClassConstraint> constraints, std::shared_ptr<MarmotType> return_type, std::shared_ptr<const MarmotExpression> body, int captured_count, std::string defining_module, std::shared_ptr<const std::unordered_map<std::string, size_t>> builtin_foreign_indices)
 		: m_name(std::move(name)),
 		m_params(std::move(params)),
 		m_param_types(std::move(param_types)),

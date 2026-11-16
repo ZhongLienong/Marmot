@@ -153,135 +153,135 @@ namespace
 	}
 }
 
-Lowering::Lowered Lowering::Lower(MarmotExpression& expression)
+Lowering::Lowered Lowering::Lower(const MarmotExpression& expression)
 {
 	struct ExpressionLowering
 	{
 		Lowering& m_self;
 
-		Lowered operator()(MarmotExpression::Literal& literal) const
+		Lowered operator()(const MarmotExpression::Literal& literal) const
 		{
 			return m_self.LowerLiteral(literal);
 		}
 
-		Lowered operator()(MarmotExpression::Group& group) const
+		Lowered operator()(const MarmotExpression::Group& group) const
 		{
 			return m_self.Lower(*group.m_expr_in);
 		}
 
-		Lowered operator()(MarmotExpression::Binary& binary) const
+		Lowered operator()(const MarmotExpression::Binary& binary) const
 		{
 			return m_self.LowerBinary(binary);
 		}
 
-		Lowered operator()(MarmotExpression::UnaryPrefix& unary) const
+		Lowered operator()(const MarmotExpression::UnaryPrefix& unary) const
 		{
 			return m_self.LowerUnary(unary);
 		}
 
-		Lowered operator()(MarmotExpression::As& as) const
+		Lowered operator()(const MarmotExpression::As& as) const
 		{
 			return m_self.LowerAs(as);
 		}
 
-		Lowered operator()(MarmotExpression::NameAccess& name) const
+		Lowered operator()(const MarmotExpression::NameAccess& name) const
 		{
 			return m_self.LowerName(name);
 		}
 
-		Lowered operator()(MarmotExpression::IfElse& if_else) const
+		Lowered operator()(const MarmotExpression::IfElse& if_else) const
 		{
 			return m_self.LowerIf(if_else);
 		}
 
-		Lowered operator()(MarmotExpression::Block& block) const
+		Lowered operator()(const MarmotExpression::Block& block) const
 		{
 			return m_self.LowerBlock(block);
 		}
 
-		Lowered operator()(MarmotExpression::Function& function) const
+		Lowered operator()(const MarmotExpression::Function& function) const
 		{
 			return m_self.LowerFunction(function);
 		}
 
-		Lowered operator()(MarmotExpression::Call& call) const
+		Lowered operator()(const MarmotExpression::Call& call) const
 		{
 			return m_self.LowerCall(call);
 		}
 
-		Lowered operator()(MarmotExpression::Tuple& tuple) const
+		Lowered operator()(const MarmotExpression::Tuple& tuple) const
 		{
 			return m_self.LowerTuple(tuple);
 		}
 
-		Lowered operator()(MarmotExpression::Send& send) const
+		Lowered operator()(const MarmotExpression::Send& send) const
 		{
 			return m_self.LowerOperation(MarmotIROp::Send, m_self.Concrete(send.m_type_data), { send.m_channel.get(), send.m_value.get() }, {}, send.m_arrow.m_line);
 		}
 
-		Lowered operator()(MarmotExpression::Receive& receive) const
+		Lowered operator()(const MarmotExpression::Receive& receive) const
 		{
 			return m_self.LowerOperation(MarmotIROp::Receive, m_self.Concrete(receive.m_type_data), { receive.m_channel.get() }, {}, receive.m_arrow.m_line);
 		}
 
-		Lowered operator()(MarmotExpression::Construct& construct) const
+		Lowered operator()(const MarmotExpression::Construct& construct) const
 		{
 			return m_self.LowerConstruct(construct);
 		}
 
-		Lowered operator()(MarmotExpression::RecordUpdate& record_update) const
+		Lowered operator()(const MarmotExpression::RecordUpdate& record_update) const
 		{
 			return m_self.LowerRecordUpdate(record_update);
 		}
 
-		Lowered operator()(MarmotExpression::MemberAccess& member) const
+		Lowered operator()(const MarmotExpression::MemberAccess& member) const
 		{
 			return m_self.LowerMemberAccess(member);
 		}
 
-		Lowered operator()(MarmotExpression::Array& array) const
+		Lowered operator()(const MarmotExpression::Array& array) const
 		{
 			return m_self.LowerArray(array);
 		}
 
-		Lowered operator()(MarmotExpression::IndexAccess& index) const
+		Lowered operator()(const MarmotExpression::IndexAccess& index) const
 		{
 			return m_self.LowerIndex(index);
 		}
 
-		Lowered operator()(MarmotExpression::ArrayComprehension& comprehension) const
+		Lowered operator()(const MarmotExpression::ArrayComprehension& comprehension) const
 		{
 			return m_self.LowerComprehension(comprehension);
 		}
 
-		Lowered operator()(MarmotExpression::RangeBinary& range) const
+		Lowered operator()(const MarmotExpression::RangeBinary& range) const
 		{
 			return m_self.LowerRange(*range.m_start, nullptr, *range.m_end, m_self.Concrete(range.m_type_data), range.m_range_op.m_line);
 		}
 
-		Lowered operator()(MarmotExpression::RangeTernary& range) const
+		Lowered operator()(const MarmotExpression::RangeTernary& range) const
 		{
 			return m_self.LowerRange(*range.m_start, range.m_step.get(), *range.m_end, m_self.Concrete(range.m_type_data), range.m_first_range_op.m_line);
 		}
 
-		Lowered operator()(MarmotExpression::Match& match) const
+		Lowered operator()(const MarmotExpression::Match& match) const
 		{
 			return m_self.LowerMatch(match);
 		}
 
 		// Only a match holds its cases.
-		Lowered operator()(MarmotExpression::Case&) const
+		Lowered operator()(const MarmotExpression::Case&) const
 		{
 			std::unreachable();
 		}
 
-		Lowered operator()(MarmotExpression::For& for_expression) const
+		Lowered operator()(const MarmotExpression::For& for_expression) const
 		{
 			return m_self.LowerFor(for_expression);
 		}
 	};
 
-	return VisitNode(ExpressionLowering{ *this }, expression);
+	return std::visit(ExpressionLowering{ *this }, *expression);
 }
 
 std::optional<MarmotIRImmediate> Lowering::ConstantOf(MarmotLiteralKind kind, const std::string& lexeme) const
@@ -335,7 +335,7 @@ Lowering::Lowered Lowering::LowerLiteral(const MarmotExpression::Literal& litera
 	return Builder().AtLine(token.m_line).Emit(MarmotIROp::Const, type, {}, constant.value());
 }
 
-Lowering::Lowered Lowering::LowerBinary(MarmotExpression::Binary& binary)
+Lowering::Lowered Lowering::LowerBinary(const MarmotExpression::Binary& binary)
 {
 	const Token& op = binary.m_op;
 	if (op.m_token_name == Token::Name::DOUBLE_AMPERSAND || op.m_token_name == Token::Name::DOUBLE_BAR)
@@ -389,7 +389,7 @@ Lowering::Lowered Lowering::LowerBinary(MarmotExpression::Binary& binary)
 }
 
 // `a && b` is `b` when `a` holds and `a` otherwise; `a || b` the other way.
-Lowering::Lowered Lowering::LowerShortCircuit(MarmotExpression::Binary& binary)
+Lowering::Lowered Lowering::LowerShortCircuit(const MarmotExpression::Binary& binary)
 {
 	const bool is_and = binary.m_op.m_token_name == Token::Name::DOUBLE_AMPERSAND;
 	return Lower(*binary.m_left)
@@ -416,7 +416,7 @@ Lowering::Lowered Lowering::LowerShortCircuit(MarmotExpression::Binary& binary)
 
 // The operators a class provides call the instance method they resolve to,
 // keyed by the operand's own type: a newtype selects its own instance.
-Lowering::Lowered Lowering::LowerClassOperator(MarmotExpression::Binary& binary, MarmotIRValueId left, MarmotIRValueId right)
+Lowering::Lowered Lowering::LowerClassOperator(const MarmotExpression::Binary& binary, MarmotIRValueId left, MarmotIRValueId right)
 {
 	const Token& op = binary.m_op;
 	const TypeRef operand_type = NominalType(*binary.m_left, left);
@@ -462,7 +462,7 @@ Lowering::Lowered Lowering::LowerClassOperator(MarmotExpression::Binary& binary,
 		});
 }
 
-Lowering::Lowered Lowering::LowerConcat(MarmotExpression::Binary& binary, MarmotIRValueId left, MarmotIRValueId right)
+Lowering::Lowered Lowering::LowerConcat(const MarmotExpression::Binary& binary, MarmotIRValueId left, MarmotIRValueId right)
 {
 	const TypeRef type = GenericTypes::RepresentationOf(Scope().m_function.TypeOf(left));
 	if (!type->IsType<MarmotType::TextType>() && !type->IsType<MarmotType::ArrayType>())
@@ -473,7 +473,7 @@ Lowering::Lowered Lowering::LowerConcat(MarmotExpression::Binary& binary, Marmot
 	return Builder().AtLine(binary.m_op.m_line).Emit(op, type, { left, right });
 }
 
-Lowering::Lowered Lowering::LowerUnary(MarmotExpression::UnaryPrefix& unary)
+Lowering::Lowered Lowering::LowerUnary(const MarmotExpression::UnaryPrefix& unary)
 {
 	const Token& op = unary.m_op;
 	if (op.m_token_name == Token::Name::SINGLE_PLUS)
@@ -531,7 +531,7 @@ Lowering::Lowered Lowering::LowerUnary(MarmotExpression::UnaryPrefix& unary)
 		});
 }
 
-Lowering::Lowered Lowering::LowerCount(MarmotExpression::UnaryPrefix& unary, MarmotIRValueId operand)
+Lowering::Lowered Lowering::LowerCount(const MarmotExpression::UnaryPrefix& unary, MarmotIRValueId operand)
 {
 	const TypeRef operand_type = NominalType(*unary.m_expr, operand);
 	const MethodResolution<std::optional<ResolvedInstanceName>> resolved = m_resolver.ResolveCount(Scope().m_specialization.m_methods, operand_type, unary.m_uses_countable);
@@ -548,7 +548,7 @@ Lowering::Lowered Lowering::LowerCount(MarmotExpression::UnaryPrefix& unary, Mar
 
 // An instance a program writes wins over a builtin conversion; a conversion
 // between a newtype and its representation is no instruction at all.
-Lowering::Lowered Lowering::LowerAs(MarmotExpression::As& as)
+Lowering::Lowered Lowering::LowerAs(const MarmotExpression::As& as)
 {
 	const Token& keyword = as.m_as_keyword;
 	const TypeRef to_type = Concrete(as.m_to_type);
@@ -614,11 +614,11 @@ Lowering::Lowered Lowering::LowerBoolToText(MarmotIRValueId value, int line)
 	return text;
 }
 
-Lowering::Lowered Lowering::LowerOperation(MarmotIROp op, const TypeRef& type, std::vector<MarmotExpression*> operands, MarmotIRImmediate immediate, int line)
+Lowering::Lowered Lowering::LowerOperation(MarmotIROp op, const TypeRef& type, std::vector<const MarmotExpression*> operands, MarmotIRImmediate immediate, int line)
 {
 	std::vector<MarmotIRValueId> values;
 	values.reserve(operands.size());
-	for (MarmotExpression* operand : operands)
+	for (const MarmotExpression* operand : operands)
 	{
 		const Lowered value = Lower(*operand);
 		if (!value.has_value())
@@ -634,18 +634,18 @@ Lowering::Lowered Lowering::LowerOperation(MarmotIROp op, const TypeRef& type, s
 	return Builder().AtLine(line).Emit(op, type, std::move(values), std::move(immediate));
 }
 
-Lowering::Lowered Lowering::LowerTuple(MarmotExpression::Tuple& tuple)
+Lowering::Lowered Lowering::LowerTuple(const MarmotExpression::Tuple& tuple)
 {
-	std::vector<MarmotExpression*> elements = tuple.m_elements
-		| std::views::transform([](std::unique_ptr<MarmotExpression>& element) { return element.get(); })
+	std::vector<const MarmotExpression*> elements = tuple.m_elements
+		| std::views::transform([](const std::unique_ptr<MarmotExpression>& element) -> const MarmotExpression* { return element.get(); })
 		| std::ranges::to<std::vector>();
 	return LowerOperation(MarmotIROp::MakeTuple, Concrete(tuple.m_type_data), std::move(elements), {}, tuple.m_op.m_line);
 }
 
-Lowering::Lowered Lowering::LowerArray(MarmotExpression::Array& array)
+Lowering::Lowered Lowering::LowerArray(const MarmotExpression::Array& array)
 {
-	std::vector<MarmotExpression*> elements = array.m_elems
-		| std::views::transform([](std::unique_ptr<MarmotExpression>& element) { return element.get(); })
+	std::vector<const MarmotExpression*> elements = array.m_elems
+		| std::views::transform([](const std::unique_ptr<MarmotExpression>& element) -> const MarmotExpression* { return element.get(); })
 		| std::ranges::to<std::vector>();
 	return LowerOperation(MarmotIROp::MakeArray, Concrete(array.m_type_data), std::move(elements), {}, array.m_op.m_line);
 }
@@ -653,7 +653,7 @@ Lowering::Lowered Lowering::LowerArray(MarmotExpression::Array& array)
 // An array is indexed by the instruction. The array fast path is load-bearing:
 // the prelude's Indexable<Array<T>, Int> instance indexes an array in its
 // body, so sending arrays through the instance would make it call itself.
-Lowering::Lowered Lowering::LowerIndex(MarmotExpression::IndexAccess& index)
+Lowering::Lowered Lowering::LowerIndex(const MarmotExpression::IndexAccess& index)
 {
 	const Token& op = index.m_op;
 	const TypeRef result_type = Concrete(index.m_type_data);
@@ -686,10 +686,10 @@ Lowering::Lowered Lowering::LowerIndex(MarmotExpression::IndexAccess& index)
 		});
 }
 
-Lowering::Lowered Lowering::LowerConstruct(MarmotExpression::Construct& construct)
+Lowering::Lowered Lowering::LowerConstruct(const MarmotExpression::Construct& construct)
 {
-	std::vector<MarmotExpression*> fields = construct.m_params
-		| std::views::transform([](std::unique_ptr<MarmotExpression>& field) { return field.get(); })
+	std::vector<const MarmotExpression*> fields = construct.m_params
+		| std::views::transform([](const std::unique_ptr<MarmotExpression>& field) -> const MarmotExpression* { return field.get(); })
 		| std::ranges::to<std::vector>();
 	const TypeRef type = Concrete(construct.m_type_data);
 	const int line = construct.m_data_name.m_line;
@@ -704,12 +704,12 @@ Lowering::Lowered Lowering::LowerConstruct(MarmotExpression::Construct& construc
 // A copy of the source with some members replaced. Every replacement is
 // evaluated against the original, in member order, which is what makes
 // `{ r with a = r.b, b = r.a }` a swap rather than two updates.
-Lowering::Lowered Lowering::LowerRecordUpdate(MarmotExpression::RecordUpdate& record_update)
+Lowering::Lowered Lowering::LowerRecordUpdate(const MarmotExpression::RecordUpdate& record_update)
 {
 	const int line = record_update.m_with_keyword.m_line;
 	const TypeRef type = Concrete(record_update.m_type_data);
-	const std::vector<MarmotExpression::RecordUpdate::FieldUpdate*> updates = record_update.m_updates
-		| std::views::transform([](MarmotExpression::RecordUpdate::FieldUpdate& update) { return &update; })
+	const std::vector<const MarmotExpression::RecordUpdate::FieldUpdate*> updates = record_update.m_updates
+		| std::views::transform([](const MarmotExpression::RecordUpdate::FieldUpdate& update) { return &update; })
 		| std::ranges::to<std::vector>();
 	return Lower(*record_update.m_source)
 		.and_then([&](MarmotIRValueId source) -> Lowered
@@ -724,14 +724,14 @@ Lowering::Lowered Lowering::LowerRecordUpdate(MarmotExpression::RecordUpdate& re
 
 // `source` rebuilt with each update's value at the end of its path, a record
 // on the way rebuilt from its old members and the updates that pass through it.
-Lowering::Lowered Lowering::LowerUpdatedRecord(MarmotIRValueId source, const TypeRef& type, const std::vector<MarmotExpression::RecordUpdate::FieldUpdate*>& updates, size_t depth, int line)
+Lowering::Lowered Lowering::LowerUpdatedRecord(MarmotIRValueId source, const TypeRef& type, const std::vector<const MarmotExpression::RecordUpdate::FieldUpdate*>& updates, size_t depth, int line)
 {
 	const std::vector<TypeRef>& member_types = GenericTypes::RepresentationOf(Scope().m_function.TypeOf(source))->GetType<MarmotType::StructType>().m_member_types;
 	std::vector<MarmotIRValueId> members;
 	members.reserve(member_types.size());
 	for (size_t slot = 0u; slot < member_types.size(); slot += 1u)
 	{
-		const std::vector<MarmotExpression::RecordUpdate::FieldUpdate*> here = updates
+		const std::vector<const MarmotExpression::RecordUpdate::FieldUpdate*> here = updates
 			| std::views::filter([depth, slot](const MarmotExpression::RecordUpdate::FieldUpdate* update) { return static_cast<size_t>(update->m_indices[depth]) == slot; })
 			| std::ranges::to<std::vector>();
 		const Lowered value = [&]() -> Lowered
@@ -756,7 +756,7 @@ Lowering::Lowered Lowering::LowerUpdatedRecord(MarmotIRValueId source, const Typ
 	return Builder().AtLine(line).Emit(MarmotIROp::Construct, type, std::move(members));
 }
 
-Lowering::Lowered Lowering::LowerMemberAccess(MarmotExpression::MemberAccess& member)
+Lowering::Lowered Lowering::LowerMemberAccess(const MarmotExpression::MemberAccess& member)
 {
 	const int line = member.m_member_name.m_line;
 	return Lower(*member.m_struct)
@@ -773,7 +773,7 @@ Lowering::Lowered Lowering::LowerMemberAccess(MarmotExpression::MemberAccess& me
 }
 
 // A range without a step steps by one.
-Lowering::Lowered Lowering::LowerRange(MarmotExpression& start, MarmotExpression* step, MarmotExpression& end, const TypeRef& range_type, int line)
+Lowering::Lowered Lowering::LowerRange(const MarmotExpression& start, const MarmotExpression* step, const MarmotExpression& end, const TypeRef& range_type, int line)
 {
 	const bool is_float = range_type->GetType<MarmotType::RangeType>().m_element_type->IsType<MarmotType::FloatType>();
 	return Lower(start)
@@ -800,11 +800,11 @@ Lowering::Lowered Lowering::LowerRange(MarmotExpression& start, MarmotExpression
 // The one argument stands for all of the function's parameters: the value
 // itself for one, a tuple spread across them for several, and a discarded
 // Unit for none. The function is evaluated after it.
-Lowering::Lowered Lowering::LowerSpawn(MarmotExpression::Call& spawn)
+Lowering::Lowered Lowering::LowerSpawn(const MarmotExpression::Call& spawn)
 {
 	const int line = spawn.m_paren.m_line;
 	const TypeRef type = Concrete(spawn.m_type_data);
-	MarmotExpression& function = *spawn.m_arguments[1u];
+	const MarmotExpression& function = *spawn.m_arguments[1u];
 	const size_t arity = Concrete(function.GetType())->GetType<MarmotType::FunctionType>().m_param_types.size();
 	return Lower(*spawn.m_arguments[0u])
 		.and_then([&](MarmotIRValueId argument) -> Lowered

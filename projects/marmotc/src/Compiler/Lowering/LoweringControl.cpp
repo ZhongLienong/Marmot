@@ -61,9 +61,9 @@ namespace
 // A call in tail position runs without a new frame, whatever it calls: the
 // language promises it. Tail position reaches through `if` branches, match
 // arms and a block's final expression.
-Lowering::Emitted Lowering::LowerReturn(MarmotExpression& expression)
+Lowering::Emitted Lowering::LowerReturn(const MarmotExpression& expression)
 {
-	const BranchSink tail = [this](MarmotExpression* branch) -> Emitted
+	const BranchSink tail = [this](const MarmotExpression* branch) -> Emitted
 	{
 		if (branch == nullptr)
 		{
@@ -87,7 +87,7 @@ Lowering::Emitted Lowering::LowerReturn(MarmotExpression& expression)
 	}
 	if (expression.IsExpression<MarmotExpression::Block>())
 	{
-		MarmotExpression::Block& block = expression.GetExpression<MarmotExpression::Block>();
+		const MarmotExpression::Block& block = expression.GetExpression<MarmotExpression::Block>();
 		PushLocalFrame();
 		const Emitted lowered = LowerStatements(block)
 			.and_then([&]() -> Emitted
@@ -116,7 +116,7 @@ Lowering::Emitted Lowering::LowerReturn(MarmotExpression& expression)
 
 // Each branch goes to `sink`, which ends its block. An `if` without an `else`
 // is Unit when its condition fails.
-Lowering::Emitted Lowering::LowerIfWith(MarmotExpression::IfElse& if_else, const BranchSink& sink)
+Lowering::Emitted Lowering::LowerIfWith(const MarmotExpression::IfElse& if_else, const BranchSink& sink)
 {
 	return Lower(*if_else.m_condition)
 		.and_then([&](MarmotIRValueId condition) -> Emitted
@@ -142,7 +142,7 @@ Lowering::Emitted Lowering::LowerIfWith(MarmotExpression::IfElse& if_else, const
 std::pair<std::shared_ptr<Lowering::JoinPoint>, Lowering::BranchSink> Lowering::Join(const TypeRef& type)
 {
 	const std::shared_ptr<JoinPoint> join = std::make_shared<JoinPoint>(NewBlock(), type);
-	BranchSink sink = [this, join](MarmotExpression* branch) -> Emitted
+	BranchSink sink = [this, join](const MarmotExpression* branch) -> Emitted
 	{
 		const Lowered value = branch == nullptr ? Lowered(Builder().ConstUnit()) : Lower(*branch);
 		return value.transform([this, &join](MarmotIRValueId branch_value)
@@ -164,7 +164,7 @@ MarmotIRValueId Lowering::EnterJoin(const JoinPoint& join)
 	return result;
 }
 
-Lowering::Lowered Lowering::LowerIf(MarmotExpression::IfElse& if_else)
+Lowering::Lowered Lowering::LowerIf(const MarmotExpression::IfElse& if_else)
 {
 	const auto [join, sink] = Join(Concrete(if_else.m_type_data));
 	return LowerIfWith(if_else, sink)
@@ -174,9 +174,9 @@ Lowering::Lowered Lowering::LowerIf(MarmotExpression::IfElse& if_else)
 		});
 }
 
-Lowering::Emitted Lowering::LowerStatements(MarmotExpression::Block& block)
+Lowering::Emitted Lowering::LowerStatements(const MarmotExpression::Block& block)
 {
-	for (std::unique_ptr<MarmotStatement>& statement : block.m_stmts)
+	for (const std::unique_ptr<MarmotStatement>& statement : block.m_stmts)
 	{
 		const Emitted lowered = LowerStatement(*statement);
 		if (!lowered.has_value())
@@ -187,7 +187,7 @@ Lowering::Emitted Lowering::LowerStatements(MarmotExpression::Block& block)
 	return {};
 }
 
-Lowering::Lowered Lowering::LowerBlock(MarmotExpression::Block& block)
+Lowering::Lowered Lowering::LowerBlock(const MarmotExpression::Block& block)
 {
 	PushLocalFrame();
 	const Lowered lowered = LowerStatements(block)
@@ -207,15 +207,15 @@ Lowering::Lowered Lowering::LowerBlock(MarmotExpression::Block& block)
 // case on the first that fails, binding its names as it goes. The type checker
 // makes a match exhaustive, so nothing follows the last case; a case that
 // cannot fail ends the chain.
-Lowering::Emitted Lowering::LowerMatchWith(MarmotExpression::Match& match, const BranchSink& sink)
+Lowering::Emitted Lowering::LowerMatchWith(const MarmotExpression::Match& match, const BranchSink& sink)
 {
 	return Lower(*match.m_arg_expr)
 		.and_then([&](MarmotIRValueId scrutinee) -> Emitted
 		{
 			Builder().AtLine(match.m_match_keyword.m_line);
-			for (std::unique_ptr<MarmotExpression>& case_expression : match.m_cases)
+			for (const std::unique_ptr<MarmotExpression>& case_expression : match.m_cases)
 			{
-				MarmotExpression::Case& match_case = case_expression->GetExpression<MarmotExpression::Case>();
+				const MarmotExpression::Case& match_case = case_expression->GetExpression<MarmotExpression::Case>();
 				const MarmotIRBlockId fail = NewBlock();
 				PushLocalFrame();
 				const Emitted lowered = LowerPattern(*match_case.m_pattern, scrutinee, fail)
@@ -246,7 +246,7 @@ Lowering::Emitted Lowering::LowerMatchWith(MarmotExpression::Match& match, const
 		});
 }
 
-Lowering::Lowered Lowering::LowerMatch(MarmotExpression::Match& match)
+Lowering::Lowered Lowering::LowerMatch(const MarmotExpression::Match& match)
 {
 	const auto [join, sink] = Join(Concrete(match.m_type_data));
 	return LowerMatchWith(match, sink)
@@ -484,7 +484,7 @@ Lowering::Emitted Lowering::LowerPattern(const MarmotPattern& pattern, MarmotIRV
 // captures that iteration's. The header's parameter is where the loop is: the
 // element for a range, the index for an array, the iterator for an Iterable.
 // `carried` goes round the loop beside it, and out of the loop when it ends.
-std::expected<std::vector<MarmotIRValueId>, CompilerError> Lowering::LowerLoop(MarmotExpression& iterated, const LoopKind& kind, int loop_variable, std::vector<MarmotIRValueId> carried, const LoopBody& body, const Token& at)
+std::expected<std::vector<MarmotIRValueId>, CompilerError> Lowering::LowerLoop(const MarmotExpression& iterated, const LoopKind& kind, int loop_variable, std::vector<MarmotIRValueId> carried, const LoopBody& body, const Token& at)
 {
 	const Lowered lowered_source = Lower(iterated);
 	if (!lowered_source.has_value())
@@ -598,7 +598,7 @@ std::expected<std::vector<MarmotIRValueId>, CompilerError> Lowering::LowerLoop(M
 	return exit_carried;
 }
 
-Lowering::Lowered Lowering::LowerFor(MarmotExpression::For& for_expression)
+Lowering::Lowered Lowering::LowerFor(const MarmotExpression::For& for_expression)
 {
 	const LoopKind kind = LoopKindOf(for_expression.m_is_array_iteration, for_expression.m_is_iterable_iteration, for_expression.m_iterable_item_type, for_expression.m_iterable_next_type, for_expression.m_iterable_some_tag);
 	return LowerLoop(*for_expression.m_range, kind, for_expression.m_loop_variable_index, {}, [&](std::vector<MarmotIRValueId> carried) -> std::expected<std::vector<MarmotIRValueId>, CompilerError>
@@ -613,7 +613,7 @@ Lowering::Lowered Lowering::LowerFor(MarmotExpression::For& for_expression)
 
 // The result grows by one element each iteration; nothing else holds it, so
 // it grows in place.
-Lowering::Lowered Lowering::LowerComprehension(MarmotExpression::ArrayComprehension& comprehension)
+Lowering::Lowered Lowering::LowerComprehension(const MarmotExpression::ArrayComprehension& comprehension)
 {
 	const LoopKind kind = LoopKindOf(comprehension.m_is_array_iteration, comprehension.m_is_iterable_iteration, comprehension.m_iterable_item_type, comprehension.m_iterable_next_type, comprehension.m_iterable_some_tag);
 	const TypeRef type = Concrete(comprehension.m_type_data);

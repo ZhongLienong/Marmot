@@ -139,7 +139,7 @@ private:
 		std::vector<bool> m_live_blocks;
 		// A generic lambda bound by a local 'def', by local index. It has no
 		// value of its own: each use makes the closure for its types.
-		std::unordered_map<int, MarmotExpression::Function*> m_local_generics;
+		std::unordered_map<int, const MarmotExpression::Function*> m_local_generics;
 
 		FunctionScope(MarmotIRFunctionId id, MarmotIRFunction& function, const Specialization& specialization, FunctionScope* parent, int environment_length);
 	};
@@ -173,7 +173,7 @@ private:
 
 	// Where the value of an `if` branch or a match arm goes: a join block's
 	// parameter, or, in tail position, the function's return.
-	using BranchSink = std::function<Emitted(MarmotExpression*)>;
+	using BranchSink = std::function<Emitted(const MarmotExpression*)>;
 
 	struct JoinPoint
 	{
@@ -255,11 +255,11 @@ private:
 	bool IsGenericMethod(const MarmotStatement::Instance& instance, const MarmotStatement::FunctionDefinition& method) const;
 	std::vector<LoweredExport> CollectExports() const;
 
-	Emitted LowerTopLevelStatement(MarmotStatement& statement);
-	Emitted LowerTopLevelFunction(const std::string& name, const FunctionParameters& params, MarmotExpression& body, int line);
-	Emitted LowerStatement(MarmotStatement& statement);
-	Emitted LowerLocalDefinition(MarmotStatement::VariableDefinition& definition);
-	Emitted LowerTupleDefinition(MarmotStatement::TupleDefinition& definition);
+	Emitted LowerTopLevelStatement(const MarmotStatement& statement);
+	Emitted LowerTopLevelFunction(const std::string& name, const FunctionParameters& params, const MarmotExpression& body, int line);
+	Emitted LowerStatement(const MarmotStatement& statement);
+	Emitted LowerLocalDefinition(const MarmotStatement::VariableDefinition& definition);
+	Emitted LowerTupleDefinition(const MarmotStatement::TupleDefinition& definition);
 
 	void PushLocalFrame();
 	void PopLocalFrame();
@@ -267,11 +267,11 @@ private:
 	LocalKey KeyForCell(const FunctionScope& scope, int cell_index) const;
 	MarmotIRValueId CaptureFor(FunctionScope& scope, const LocalKey& key, const TypeRef& type);
 
-	Emitted LowerFunctionBody(FunctionScope& scope, const std::vector<TypeRef>& param_types, const FunctionParameters& params, MarmotExpression& body);
+	Emitted LowerFunctionBody(FunctionScope& scope, const std::vector<TypeRef>& param_types, const FunctionParameters& params, const MarmotExpression& body);
 	Lowered MakeClosure(FunctionScope& child, const TypeRef& closure_type, int line, std::string name = {});
-	Lowered LowerFunction(MarmotExpression::Function& function);
-	Lowered LowerGenericLambda(MarmotExpression::Function& function, const TypeRef& type, std::string name, int line);
-	Lowered LowerLocalGeneric(MarmotExpression::Function& function, const TypeRef& type, const Token& name);
+	Lowered LowerFunction(const MarmotExpression::Function& function);
+	Lowered LowerGenericLambda(const MarmotExpression::Function& function, const TypeRef& type, std::string name, int line);
+	Lowered LowerLocalGeneric(const MarmotExpression::Function& function, const TypeRef& type, const Token& name);
 	std::expected<MarmotIRFunctionId, CompilerError> Specialize(const std::string& key, const std::vector<TypeRef>& argument_types, const TypeRef& call_type);
 
 	Lowered LowerName(const MarmotExpression::NameAccess& name);
@@ -285,46 +285,46 @@ private:
 	// A call of a class method an instance provides, by its resolved name.
 	Lowered CallResolved(const ResolvedInstanceName& resolved_name, std::vector<MarmotIRValueId> arguments, const std::vector<TypeRef>& argument_types, const TypeRef& result_type, const Token& at);
 
-	Lowered LowerCall(MarmotExpression::Call& call);
-	Emitted LowerTailCall(MarmotExpression::Call& call);
-	Lowered LowerPrimitive(MarmotExpression::Call& call);
-	std::expected<Callee, CompilerError> ResolveCallee(MarmotExpression::Call& call, const std::vector<MarmotIRValueId>& arguments, const TypeRef& call_type);
+	Lowered LowerCall(const MarmotExpression::Call& call);
+	Emitted LowerTailCall(const MarmotExpression::Call& call);
+	Lowered LowerPrimitive(const MarmotExpression::Call& call);
+	std::expected<Callee, CompilerError> ResolveCallee(const MarmotExpression::Call& call, const std::vector<MarmotIRValueId>& arguments, const TypeRef& call_type);
 	TypeRef ResultTypeOf(const Callee& callee, const TypeRef& call_type);
 	MarmotIRValueId EmitCall(const Callee& callee, std::vector<MarmotIRValueId> arguments, const TypeRef& call_type, int line);
-	LoweredValues LowerArguments(std::vector<std::unique_ptr<MarmotExpression>>& arguments);
+	LoweredValues LowerArguments(const std::vector<std::unique_ptr<MarmotExpression>>& arguments);
 	std::vector<TypeRef> TypesOf(const std::vector<MarmotIRValueId>& values);
 
 	// LoweringExpressions.cpp: values.
-	Lowered Lower(MarmotExpression& expression);
+	Lowered Lower(const MarmotExpression& expression);
 	std::optional<MarmotIRImmediate> ConstantOf(MarmotLiteralKind kind, const std::string& lexeme) const;
 	Lowered LowerLiteral(const MarmotExpression::Literal& literal);
-	Lowered LowerBinary(MarmotExpression::Binary& binary);
-	Lowered LowerShortCircuit(MarmotExpression::Binary& binary);
-	Lowered LowerClassOperator(MarmotExpression::Binary& binary, MarmotIRValueId left, MarmotIRValueId right);
-	Lowered LowerConcat(MarmotExpression::Binary& binary, MarmotIRValueId left, MarmotIRValueId right);
-	Lowered LowerUnary(MarmotExpression::UnaryPrefix& unary);
-	Lowered LowerCount(MarmotExpression::UnaryPrefix& unary, MarmotIRValueId operand);
-	Lowered LowerAs(MarmotExpression::As& as);
+	Lowered LowerBinary(const MarmotExpression::Binary& binary);
+	Lowered LowerShortCircuit(const MarmotExpression::Binary& binary);
+	Lowered LowerClassOperator(const MarmotExpression::Binary& binary, MarmotIRValueId left, MarmotIRValueId right);
+	Lowered LowerConcat(const MarmotExpression::Binary& binary, MarmotIRValueId left, MarmotIRValueId right);
+	Lowered LowerUnary(const MarmotExpression::UnaryPrefix& unary);
+	Lowered LowerCount(const MarmotExpression::UnaryPrefix& unary, MarmotIRValueId operand);
+	Lowered LowerAs(const MarmotExpression::As& as);
 	Lowered LowerBoolToText(MarmotIRValueId value, int line);
-	Lowered LowerTuple(MarmotExpression::Tuple& tuple);
-	Lowered LowerArray(MarmotExpression::Array& array);
-	Lowered LowerIndex(MarmotExpression::IndexAccess& index);
-	Lowered LowerConstruct(MarmotExpression::Construct& construct);
-	Lowered LowerRecordUpdate(MarmotExpression::RecordUpdate& record_update);
-	Lowered LowerUpdatedRecord(MarmotIRValueId source, const TypeRef& type, const std::vector<MarmotExpression::RecordUpdate::FieldUpdate*>& updates, size_t depth, int line);
-	Lowered LowerMemberAccess(MarmotExpression::MemberAccess& member);
-	Lowered LowerRange(MarmotExpression& start, MarmotExpression* step, MarmotExpression& end, const TypeRef& range_type, int line);
-	Lowered LowerSpawn(MarmotExpression::Call& spawn);
-	Lowered LowerOperation(MarmotIROp op, const TypeRef& type, std::vector<MarmotExpression*> operands, MarmotIRImmediate immediate, int line);
+	Lowered LowerTuple(const MarmotExpression::Tuple& tuple);
+	Lowered LowerArray(const MarmotExpression::Array& array);
+	Lowered LowerIndex(const MarmotExpression::IndexAccess& index);
+	Lowered LowerConstruct(const MarmotExpression::Construct& construct);
+	Lowered LowerRecordUpdate(const MarmotExpression::RecordUpdate& record_update);
+	Lowered LowerUpdatedRecord(MarmotIRValueId source, const TypeRef& type, const std::vector<const MarmotExpression::RecordUpdate::FieldUpdate*>& updates, size_t depth, int line);
+	Lowered LowerMemberAccess(const MarmotExpression::MemberAccess& member);
+	Lowered LowerRange(const MarmotExpression& start, const MarmotExpression* step, const MarmotExpression& end, const TypeRef& range_type, int line);
+	Lowered LowerSpawn(const MarmotExpression::Call& spawn);
+	Lowered LowerOperation(MarmotIROp op, const TypeRef& type, std::vector<const MarmotExpression*> operands, MarmotIRImmediate immediate, int line);
 
 	// LoweringControl.cpp: control flow.
-	Emitted LowerReturn(MarmotExpression& expression);
-	Emitted LowerIfWith(MarmotExpression::IfElse& if_else, const BranchSink& sink);
-	Lowered LowerIf(MarmotExpression::IfElse& if_else);
-	Emitted LowerStatements(MarmotExpression::Block& block);
-	Lowered LowerBlock(MarmotExpression::Block& block);
-	Emitted LowerMatchWith(MarmotExpression::Match& match, const BranchSink& sink);
-	Lowered LowerMatch(MarmotExpression::Match& match);
+	Emitted LowerReturn(const MarmotExpression& expression);
+	Emitted LowerIfWith(const MarmotExpression::IfElse& if_else, const BranchSink& sink);
+	Lowered LowerIf(const MarmotExpression::IfElse& if_else);
+	Emitted LowerStatements(const MarmotExpression::Block& block);
+	Lowered LowerBlock(const MarmotExpression::Block& block);
+	Emitted LowerMatchWith(const MarmotExpression::Match& match, const BranchSink& sink);
+	Lowered LowerMatch(const MarmotExpression::Match& match);
 	Emitted LowerPattern(const MarmotPattern& pattern, MarmotIRValueId value, MarmotIRBlockId fail);
 	Emitted TestOrFail(MarmotIRValueId condition, MarmotIRBlockId fail);
 	// A join block whose parameter is the value of the construct that jumps
@@ -347,9 +347,9 @@ private:
 	// `body` is lowered once, with the loop variable defined, and gets the
 	// values the loop carries round, which it returns updated.
 	using LoopBody = std::function<std::expected<std::vector<MarmotIRValueId>, CompilerError>(std::vector<MarmotIRValueId>)>;
-	std::expected<std::vector<MarmotIRValueId>, CompilerError> LowerLoop(MarmotExpression& iterated, const LoopKind& kind, int loop_variable, std::vector<MarmotIRValueId> carried, const LoopBody& body, const Token& at);
+	std::expected<std::vector<MarmotIRValueId>, CompilerError> LowerLoop(const MarmotExpression& iterated, const LoopKind& kind, int loop_variable, std::vector<MarmotIRValueId> carried, const LoopBody& body, const Token& at);
 	LoopKind LoopKindOf(bool is_array, bool is_iterable, const TypeRef& item_type, const TypeRef& next_type, int some_tag);
-	Lowered LowerFor(MarmotExpression::For& for_expression);
-	Lowered LowerComprehension(MarmotExpression::ArrayComprehension& comprehension);
+	Lowered LowerFor(const MarmotExpression::For& for_expression);
+	Lowered LowerComprehension(const MarmotExpression::ArrayComprehension& comprehension);
 	Lowered CallIterableNext(MarmotIRValueId iterator, const TypeRef& item_type, const TypeRef& next_type, const Token& at);
 };
