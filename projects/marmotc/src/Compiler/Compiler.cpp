@@ -1,5 +1,4 @@
 #include "Utility/Diagnostics/Diagnostics.h"
-#include "Compiler/Names/SpecialNames.h"
 #include "Compiler/Terminal/Terminal.h"
 #include "Compiler/Source/Source.h"
 #include "Compiler.h"
@@ -16,6 +15,7 @@
 #include "Compiler/MarmotIR/Verifier/MarmotIRVerifier.h"
 #include "Compiler/MarmotIROptimizer/MarmotIROptimizer.h"
 #include "Compiler/Module/CompiledModule.h"
+#include "Compiler/Module/ModuleExports.h"
 #include "Compiler/Module/ModuleInterfaceRegistry.h"
 #include "Compiler/ModuleManager/ModuleManager.h"
 #include "Compiler/Parser/Parser.h"
@@ -35,32 +35,13 @@
 #include <thread>
 #include <utility>
 
-using namespace std::string_literals;
-
 namespace
 {
-	struct ImportContext
-	{
-		std::unordered_map<std::string, CompiledModule::SymbolTable> m_imported_symbols;
-		std::unordered_map<std::string, TypeChecker::TypeEnvironment> m_imported_type_signatures;
-		TypeChecker::TypeEnvironment m_imported_types;
-		TypeclassMetadataMap m_imported_typeclass_metadata;
-		std::unordered_map<std::string, GenericFunctionInfo> m_imported_generic_functions;
-		WorkerCrossings m_imported_worker_crossings;
-	};
-
 	struct ParsedModule
 	{
 		MarmotProgramTree m_ast;
-		TypeChecker::TypeEnvironment m_type_signatures;
-		TypeclassMetadataMap m_typeclass_metadata;
+		ModuleExports m_exports;
 		std::vector<CompilerWarning> m_warnings;
-	};
-
-	struct ModuleExportInfo
-	{
-		CompiledModule::SymbolTable m_symbols;
-		std::unordered_set<std::string> m_export_set;
 	};
 
 	struct ModuleCompilationInput
@@ -107,13 +88,11 @@ namespace
 		const ModuleCompilationOptions* m_options;
 		const ModuleDeclaration* m_module_decl;
 		std::string m_file_path;
-		std::string m_module_name;
-		ImportContext m_import_context;
+		ModuleImports m_imports;
 		std::vector<std::string> m_source_lines;
 		MarmotResult::CompilerWarnings m_warnings;
 		ParsedModule m_parsed_module;
 		MarmotProgramTree m_ast;
-		ModuleExportInfo m_export_info;
 		BytecodeModule m_bytecode;
 		std::optional<LoweredModule> m_lowered;
 		std::shared_ptr<const ModuleInterface> m_interface;
@@ -179,9 +158,9 @@ namespace
 		return Apply(std::move(state), std::move(result).value());
 	}
 
-	static CompileState ApplyImportContext(CompileState state, ImportContext&& import_context)
+	static CompileState ApplyImportContext(CompileState state, ModuleImports&& import_context)
 	{
-		state.m_import_context = std::move(import_context);
+		state.m_imports = std::move(import_context);
 		return std::move(state);
 	}
 
@@ -193,28 +172,9 @@ namespace
 		return std::move(state);
 	}
 
-	// An exported name whose type only inference knows - an un-annotated `def`
-	// - has no signature before the module is checked. Now that it is checked,
-	// record it, so a module that imports the name can see its type.
 	static CompileState ApplyTypeCheckedModule(CompileState state, TypeCheckedModule&& checked)
 	{
-		if (state.m_module_decl != nullptr)
-		{
-			for (const ModuleExport& exported : state.m_module_decl->Exports())
-			{
-				if (state.m_parsed_module.m_type_signatures.contains(exported.m_symbol_name))
-				{
-					continue;
-				}
-
-				const TypeChecker::TypeEnvironment::const_iterator inferred = checked.m_module_types.find(exported.m_symbol_name);
-				if (inferred != checked.m_module_types.end())
-				{
-					state.m_parsed_module.m_type_signatures[exported.m_symbol_name] = inferred->second;
-				}
-			}
-		}
-
+		state.m_parsed_module.m_exports.RecordInferredTypes(checked.m_module_types);
 		state.m_ast = std::move(checked.m_ast);
 		return std::move(state);
 	}
@@ -225,119 +185,18 @@ namespace
 		return std::move(state);
 	}
 
-	// Which module declared a nominal type. Anything else has no module of its
-	// own, so it answers with nothing.
-	static std::string DeclaringModuleName(const std::shared_ptr<MarmotType>& type)
+	static MarmotResult::Result<ModuleImports> BuildImportContext(const ModuleCompilationInput& input)
 	{
-		if (type->IsType<MarmotType::StructType>())
+		return ModuleImports::Collect(input.m_dependencies).transform_error([&input](ModuleImportConflict conflict)
 		{
-			return type->GetType<MarmotType::StructType>().m_module_name;
-		}
-
-		if (type->IsType<MarmotType::UnionType>())
-		{
-			return type->GetType<MarmotType::UnionType>().m_module_name;
-		}
-
-		if (type->IsType<MarmotType::NewType>())
-		{
-			return type->GetType<MarmotType::NewType>().m_module_name;
-		}
-
-		return std::string();
+			const BuildGraph::BuildNode& source = input.m_source;
+			return CompilerError::WithToken(CompilerStage::Module, conflict.m_message, source.m_import_tokens.at(conflict.m_dependency.string()), source.m_file_name, source.m_source_lines);
+		});
 	}
 
-	static MarmotResult::Result<ImportContext> BuildImportContext(const ModuleCompilationInput& input)
+	static MarmotResult::DiagnosticsResult<ParsedModule> ParseModule(TokenStream&& tokens, const std::string& file_path, const std::vector<std::string>& module_source_lines, const ModuleImports& import_context, const std::vector<UseImport>& use_imports, const ModuleDeclaration* module_decl)
 	{
-		ImportContext context;
-		TypeclassImports typeclass_imports;
-		const BuildGraph::BuildNode& node = input.m_source;
-		const std::string& file_path = node.m_file_name;
-		const std::vector<std::shared_ptr<const ModuleInterface>>& dependency_modules = input.m_dependencies;
-
-		size_t imported_type_count = 0u;
-		size_t imported_generic_function_count = 0u;
-		for (const std::shared_ptr<const ModuleInterface>& dep : dependency_modules)
-		{
-			imported_type_count += dep->m_type_signatures.size() * 2u;
-
-			imported_generic_function_count += dep->m_generic_functions.size() * 2u;
-		}
-
-		context.m_imported_symbols.reserve(dependency_modules.size());
-		context.m_imported_type_signatures.reserve(dependency_modules.size());
-		context.m_imported_types.reserve(imported_type_count);
-		context.m_imported_generic_functions.reserve(imported_generic_function_count);
-
-		for (const std::shared_ptr<const ModuleInterface>& dep : dependency_modules)
-		{
-			const Token& import_token = node.m_import_tokens.at(dep->m_file_path.string());
-			const std::string& dep_module_name = dep->m_module_name;
-			context.m_imported_symbols[dep_module_name] = dep->m_symbols;
-			context.m_imported_type_signatures[dep_module_name] = dep->m_type_signatures;
-			for (const std::pair<const std::string, WorkerCrossing>& crossing : dep->m_worker_crossings)
-			{
-				context.m_imported_worker_crossings.insert_or_assign(dep_module_name + NameSeparator.data() + crossing.first, crossing.second);
-			}
-
-			if (const std::optional<std::string> conflict = typeclass_imports.Import(dep_module_name, dep->m_typeclass_metadata))
-			{
-				return std::unexpected(CompilerError::WithToken(CompilerStage::Module, *conflict, import_token, file_path, node.m_source_lines));
-			}
-
-			// A type is also known by the module that declared it, which a
-			// re-export is not: a constructor is looked up by the type's own
-			// identity, and a union's members go with their union.
-			std::unordered_map<std::string, std::string> declaring_modules;
-			for (const auto& [name, type] : dep->m_type_signatures)
-			{
-				const std::string declaring_module_name = DeclaringModuleName(type);
-				if (!declaring_module_name.empty())
-				{
-					declaring_modules.emplace(name, declaring_module_name);
-				}
-			}
-
-			for (const auto& [name, type] : dep->m_type_signatures)
-			{
-				context.m_imported_types[name] = type;
-				context.m_imported_types[dep_module_name + NameSeparator.data() + name] = type;
-
-				const std::unordered_map<std::string, std::string>::const_iterator declaring_it =
-					declaring_modules.find(name.substr(0u, name.find(NameSeparator)));
-				if (declaring_it != declaring_modules.cend() && declaring_it->second != dep_module_name)
-				{
-					context.m_imported_types[declaring_it->second + NameSeparator.data() + name] = type;
-				}
-			}
-
-			// A dependency's own generics go under the module it was reached
-			// through and the module that defined it, never under the bare
-			// name, which belongs to this module's own. The ones it imported
-			// are already `Module::name`, and its generics may call them.
-			for (const auto& [name, info] : dep->m_generic_functions)
-			{
-				if (name.find(NameSeparator) != std::string::npos)
-				{
-					context.m_imported_generic_functions[name] = info;
-					continue;
-				}
-
-				context.m_imported_generic_functions[dep_module_name + NameSeparator.data() + name] = info;
-				if (!info.m_defining_module.empty() && info.m_defining_module != dep_module_name)
-				{
-					context.m_imported_generic_functions[info.m_defining_module + NameSeparator.data() + name] = info;
-				}
-			}
-		}
-
-		context.m_imported_typeclass_metadata = std::move(typeclass_imports).TakeMetadata();
-		return context;
-	}
-
-	static MarmotResult::DiagnosticsResult<ParsedModule> ParseModule(TokenStream&& tokens, const std::string& file_path, const std::vector<std::string>& module_source_lines, const ImportContext& import_context, const std::vector<UseImport>& use_imports, const ModuleDeclaration* module_decl)
-	{
-		Parser parser(std::move(tokens), file_path, module_source_lines, import_context.m_imported_symbols, import_context.m_imported_type_signatures, use_imports, module_decl, import_context.m_imported_typeclass_metadata);
+		Parser parser(std::move(tokens), file_path, module_source_lines, import_context, use_imports, module_decl);
 		MarmotResult::ParserResult ast = parser.Parse();
 		if (!ast.has_value())
 		{
@@ -360,15 +219,14 @@ namespace
 		return ParsedModule
 		{
 			std::move(*ast),
-			std::move(type_signatures),
-			parser.GetTypeclassMetadata(),
+			ModuleExports(module_decl, file_path, std::move(type_signatures), parser.GetTypeclassMetadata()),
 			std::move(warnings)
 		};
 	}
 
-	static MarmotResult::DiagnosticsResult<TypeCheckedModule> TypeCheckModule(MarmotProgramTree&& ast, const std::string& file_path, const std::vector<std::string>& module_source_lines, const ImportContext& import_context)
+	static MarmotResult::DiagnosticsResult<TypeCheckedModule> TypeCheckModule(MarmotProgramTree&& ast, const std::string& file_path, const std::vector<std::string>& module_source_lines, const ModuleImports& import_context)
 	{
-		TypeChecker type_checker(std::move(ast), file_path, module_source_lines, import_context.m_imported_types, import_context.m_imported_typeclass_metadata);
+		TypeChecker type_checker(std::move(ast), file_path, module_source_lines, import_context.Types(), import_context.Typeclasses());
 		MarmotResult::TypeCheckerResult typecheck_result = type_checker.TypeCheck();
 		if (!typecheck_result.has_value())
 		{
@@ -378,38 +236,12 @@ namespace
 		return TypeCheckedModule{ std::move(typecheck_result.value()), type_checker.ModuleTypes() };
 	}
 
-	static ModuleExportInfo BuildModuleExports(const ModuleDeclaration* module_decl, const TypeclassMetadataMap& typeclass_metadata)
-	{
-		ModuleExportInfo export_info;
-		if (module_decl)
-		{
-			for (const ModuleExport& exp : module_decl->Exports())
-			{
-				export_info.m_symbols = std::move(export_info.m_symbols).WithExport(exp.m_symbol_name, exp.m_visibility);
-				export_info.m_export_set.insert(exp.m_symbol_name);
-
-				if (typeclass_metadata.contains(exp.m_symbol_name))
-				{
-					const TypeclassMetadata& tc_metadata = typeclass_metadata.at(exp.m_symbol_name);
-					for (const std::string& instance_method : tc_metadata.InstanceMethods())
-					{
-						export_info.m_symbols = std::move(export_info.m_symbols).WithExport(instance_method, exp.m_visibility);
-						export_info.m_export_set.insert(instance_method);
-					}
-				}
-			}
-		}
-
-		return export_info;
-	}
-
-	static CompileStateResult ValidateExports(CompileState state);
 	static MarmotResult::CompiledModuleReportResult BuildCompiledModule(CompileState state);
 
 	CompileStateResult CompileState::WithImportContext() &&
 	{
 		CompileState state = std::move(*this);
-		return ApplyToState<ImportContext, ApplyImportContext>
+		return ApplyToState<ModuleImports, ApplyImportContext>
 		(
 			BuildImportContext(*state.m_input),
 			std::move(state)
@@ -427,7 +259,7 @@ namespace
 	{
 		CompileState state = std::move(*this);
 		MarmotResult::DiagnosticsResult<ParsedModule> parse_result =
-			ParseModule(std::move(state.m_input->m_source.m_tokens), state.m_file_path, state.m_source_lines, state.m_import_context, state.m_input->m_source.m_use_imports, state.m_module_decl);
+			ParseModule(std::move(state.m_input->m_source.m_tokens), state.m_file_path, state.m_source_lines, state.m_imports, state.m_input->m_source.m_use_imports, state.m_module_decl);
 		if (!parse_result.has_value())
 		{
 			return std::unexpected(MakeStateErrorReport(std::move(state), std::move(parse_result.error())));
@@ -442,7 +274,7 @@ namespace
 		CompileState state = std::move(*this);
 		return ApplyToState<TypeCheckedModule, ApplyTypeCheckedModule>
 		(
-			TypeCheckModule(std::move(state.m_ast), state.m_file_path, state.m_source_lines, state.m_import_context),
+			TypeCheckModule(std::move(state.m_ast), state.m_file_path, state.m_source_lines, state.m_imports),
 			std::move(state)
 		);
 	}
@@ -450,19 +282,11 @@ namespace
 	CompileStateResult CompileState::WithStaticAnalysis() &&
 	{
 		CompileState state = std::move(*this);
-		state.m_worker_crossings = FindWorkerCrossings(state.m_ast, state.m_import_context.m_imported_worker_crossings);
-		WorkerCrossings visible = state.m_import_context.m_imported_worker_crossings;
+		state.m_worker_crossings = FindWorkerCrossings(state.m_ast, state.m_imports.Crossings());
+		WorkerCrossings visible = state.m_imports.Crossings();
 		visible.insert(state.m_worker_crossings.cbegin(), state.m_worker_crossings.cend());
 		state.m_warnings.Append(StaticAnalyzerManager(visible).Analyze(state.m_ast, state.m_file_path, state.m_source_lines));
 		return state;
-	}
-
-	static LoweringImports MakeLoweringImports(const ImportContext& import_context)
-	{
-		LoweringImports imports;
-		imports.m_generic_functions = import_context.m_imported_generic_functions;
-		imports.m_typeclasses = import_context.m_imported_typeclass_metadata;
-		return imports;
 	}
 
 	// A violation is the compiler's bug, not the program's, so every one is
@@ -523,16 +347,14 @@ namespace
 	CompileStateResult CompileState::WithLoweredModule() &&
 	{
 		CompileState state = std::move(*this);
-		state.m_export_info = BuildModuleExports(state.m_module_decl, state.m_parsed_module.m_typeclass_metadata);
-		state.m_module_name = state.m_module_decl ? state.m_module_decl->ModuleName() : std::filesystem::path(state.m_file_path).stem().string();
-
-		const LoweringImports imports = MakeLoweringImports(state.m_import_context);
+		const ModuleExports& exports = state.m_parsed_module.m_exports;
+		const LoweringImports imports{ state.m_imports.Generics(), state.m_imports.Typeclasses() };
 		if (state.m_options->m_emit_ast)
 		{
-			state.m_ast_text = AbstractSyntaxTreePrinter(state.m_module_name, state.m_ast).Print();
+			state.m_ast_text = AbstractSyntaxTreePrinter(exports.ModuleName(), state.m_ast).Print();
 		}
 
-		MarmotResult::DiagnosticsResult<LoweredModule> lowered = Lowering(state.m_ast, state.m_file_path, state.m_source_lines, state.m_module_name, state.m_export_info.m_export_set, imports).Lower();
+		MarmotResult::DiagnosticsResult<LoweredModule> lowered = Lowering(state.m_ast, state.m_file_path, state.m_source_lines, exports.ModuleName(), exports.Names(), imports).Lower();
 		if (!lowered.has_value())
 		{
 			return std::unexpected(MakeStateErrorReport(std::move(state), std::move(lowered.error())));
@@ -544,14 +366,16 @@ namespace
 
 	CompileStateResult CompileState::WithInterface() &&
 	{
-		return ValidateExports(std::move(*this)).transform([](CompileState state)
+		CompileState state = std::move(*this);
+		std::expected<PublishedModuleInterface, CompilerError> published = std::move(state.m_parsed_module.m_exports).Publish(
+			*state.m_lowered, state.m_imports, state.m_input->m_source.m_use_imports, std::move(state.m_worker_crossings), state.m_source_lines);
+		if (!published.has_value())
 		{
-			state.m_interface = std::make_shared<const ModuleInterface>(
-				state.m_module_name, state.m_file_path, std::move(state.m_export_info.m_symbols),
-				std::move(state.m_parsed_module.m_type_signatures), std::move(state.m_parsed_module.m_typeclass_metadata),
-				std::move(state.m_lowered->m_generic_functions), std::move(state.m_worker_crossings));
-			return state;
-		});
+			return std::unexpected(MakeStateErrorReport(std::move(state), MarmotResult::CompilerDiagnostics(std::move(published.error()))));
+		}
+		state.m_interface = std::move(published->m_interface);
+		state.m_reexports = std::move(published->m_reexports);
+		return state;
 	}
 
 	CompileStateResult CompileState::WithOptimizedModule() &&
@@ -586,131 +410,6 @@ namespace
 		bytecode_result->m_reexports = std::move(state.m_reexports);
 		state.m_lowered.reset();
 		return ApplyBytecode(std::move(state), std::move(bytecode_result).value());
-	}
-
-	// A name a module exports without defining it may be one of its imports.
-	// These are the modules that export it to this one.
-	static std::vector<std::string> ReexportOrigins(const CompileState& state, const std::string& exported_name)
-	{
-		std::vector<std::string> origins;
-		for (const std::pair<const std::string, CompiledModule::SymbolTable>& imported : state.m_import_context.m_imported_symbols)
-		{
-			const VisibilityLevel* visibility = imported.second.FindExportVisibility(exported_name);
-			if (visibility == nullptr)
-			{
-				continue;
-			}
-
-			if (*visibility == VisibilityLevel::Public || SharesNamespace(state.m_module_name, imported.first))
-			{
-				origins.push_back(imported.first);
-			}
-		}
-
-		// `use` already says which module a name came from, so it is also how a
-		// facade picks between two imports that export the same one.
-		const std::vector<UseImport>::const_iterator used = std::ranges::find_if
-		(
-			state.m_input->m_source.m_use_imports,
-			[&exported_name, &origins](const UseImport& use_import)
-			{
-				return use_import.m_symbol_name == exported_name && std::ranges::find(origins, use_import.m_module_name) != origins.cend();
-			}
-		);
-		if (used != state.m_input->m_source.m_use_imports.cend())
-		{
-			return { used->m_module_name };
-		}
-
-		std::ranges::sort(origins);
-		return origins;
-	}
-
-	// The re-export aliases the original: `Facade::Value` and `Origin::Value`
-	// are one symbol, so the type, the generic body and the global all stay the
-	// origin's.
-	static void AliasReexport(CompileState& state, const std::string& exported_name, const std::string& origin_module)
-	{
-		state.m_reexports[exported_name] = origin_module;
-
-		// The name itself, and a union's constructors, which are keyed under it.
-		const std::string member_prefix = exported_name + NameSeparator.data();
-		for (const std::pair<const std::string, std::shared_ptr<MarmotType>>& origin_type : state.m_import_context.m_imported_type_signatures.at(origin_module))
-		{
-			if (origin_type.first == exported_name || origin_type.first.starts_with(member_prefix))
-			{
-				state.m_parsed_module.m_type_signatures[origin_type.first] = origin_type.second;
-			}
-		}
-
-		const std::unordered_map<std::string, GenericFunctionInfo>::const_iterator generic_it =
-			state.m_import_context.m_imported_generic_functions.find(origin_module + NameSeparator.data() + exported_name);
-		if (generic_it != state.m_import_context.m_imported_generic_functions.cend())
-		{
-			state.m_lowered->m_generic_functions[exported_name] = generic_it->second;
-		}
-	}
-
-	static CompileStateResult ValidateExports(CompileState state)
-	{
-		if (state.m_module_decl == nullptr)
-		{
-			return state;
-		}
-
-		const LoweredModule& lowered_module = state.m_lowered.value();
-		const TypeclassMetadataMap& typeclass_metadata = state.m_parsed_module.m_typeclass_metadata;
-		const TypeChecker::TypeEnvironment& type_signatures = state.m_parsed_module.m_type_signatures;
-		const std::string& module_name = state.m_module_name;
-		const std::string& file_path = state.m_file_path;
-
-		std::unordered_set<std::string> defined_exports;
-		for (const LoweredExport& exported_symbol : lowered_module.m_exports)
-		{
-			defined_exports.insert(exported_symbol.m_name);
-		}
-
-		for (const auto& [typeclass_name, tc_metadata] : typeclass_metadata)
-		{
-			defined_exports.insert(typeclass_name);
-			for (const std::string& instance_method : tc_metadata.InstanceMethods())
-			{
-				defined_exports.insert(instance_method);
-			}
-		}
-
-		// Include type signatures (structs, unions, type aliases) as valid exports
-		for (const auto& [type_name, type_ptr] : type_signatures)
-		{
-			defined_exports.insert(type_name);
-		}
-
-		// In the order the export list names them, so the first problem is the
-		// one reported.
-		for (const ModuleExport& exported : state.m_module_decl->Exports())
-		{
-			const std::string& exported_name = exported.m_symbol_name;
-			if (defined_exports.contains(exported_name))
-			{
-				continue;
-			}
-
-			const std::vector<std::string> origins = ReexportOrigins(state, exported_name);
-			if (origins.size() == 1u)
-			{
-				AliasReexport(state, exported_name, origins.front());
-				continue;
-			}
-
-			const std::string message = origins.empty()
-				? "Symbol '"s + exported_name + "' is exported but not defined in module '"s + module_name + "'"s
-				: std::format("Symbol '{}' is re-exported by module '{}', but '{}' and '{}' both export it. Write 'use {}.{{{}}}' to say which one.", exported_name, module_name, origins.front(), origins[1u], origins.front(), exported_name);
-
-			CompilerError error = CompilerError::WithToken(CompilerStage::Module, message, exported.m_token, file_path, state.m_source_lines, std::nullopt, CompilerErrorCode::ModuleMissingExportedSymbol);
-			return std::unexpected(MakeStateErrorReport(std::move(state), MarmotResult::CompilerDiagnostics(std::move(error))));
-		}
-
-		return state;
 	}
 
 	static MarmotResult::CompiledModuleReportResult BuildCompiledModule(CompileState state)

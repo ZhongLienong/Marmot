@@ -77,6 +77,7 @@ namespace
 		MarmotTest::SourceFixture m_source;
 		std::optional<ModuleDeclaration> m_module_declaration;
 		std::vector<UseImport> m_use_imports;
+		ModuleImports m_imports;
 		Parser m_parser;
 
 		PreparedParser(MarmotTest::SourceFixture source, TokenStream&& tokens, std::optional<ModuleDeclaration>&& module_declaration, std::vector<UseImport>&& use_imports)
@@ -88,8 +89,7 @@ namespace
 				std::move(tokens),
 				m_source.FileName(),
 				m_source.SourceLines(),
-				{},
-				{},
+				m_imports,
 				m_use_imports,
 				m_module_declaration.has_value() ? &m_module_declaration.value() : nullptr
 			)

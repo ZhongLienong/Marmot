@@ -10,7 +10,7 @@
 
 #include "Compiler/Error/CompilerError.h"
 #include "Compiler/AbstractSyntaxTree/AbstractSyntaxTree.h"
-#include "Compiler/Module/CompiledModule.h"
+#include "Compiler/Module/ModuleImports.h"
 #include "Compiler/Module/Module.h"
 #include "Compiler/Result/Result.h"
 
@@ -99,14 +99,13 @@ private:
 
 	struct ParseContext
 	{
-		std::unordered_map<std::string, CompiledModule::SymbolTable> m_imported_symbols;
-		std::unordered_map<std::string, TypeEnvironment> m_imported_type_signatures;
+		const ModuleImports& m_imports;
 		TokenStream m_tokens;
 		std::string m_file_name;
 		const ModuleDeclaration* m_current_module = nullptr;
 		const std::vector<std::string>* m_source_lines = nullptr;
 
-		ParseContext(TokenStream&& tokens, std::string_view file_name, const std::vector<std::string>& source_lines, const std::unordered_map<std::string, CompiledModule::SymbolTable>& imports, const std::unordered_map<std::string, TypeEnvironment>& imported_type_signatures, const ModuleDeclaration* module_decl);
+		ParseContext(TokenStream&& tokens, std::string_view file_name, const std::vector<std::string>& source_lines, const ModuleImports& imports, const ModuleDeclaration* module_decl);
 	};
 
 	// A `def` whose initializer is being parsed. Until it finishes, the name has
@@ -207,14 +206,6 @@ private:
 		std::optional<int> m_loop_variable_offset = std::nullopt;
 	};
 
-	enum class ImportedSymbolAccess
-	{
-		Accessible,
-		ModuleNotFound,
-		SymbolNotExported,
-		PrivateInaccessible
-	};
-
 	enum class UseImportResolutionStatus
 	{
 		NotImported,
@@ -267,7 +258,7 @@ private:
 	friend struct ParserTestAccess;
 
 public:
-	Parser(TokenStream&& tokens, std::string_view file_name, const std::vector<std::string>& source_lines, const std::unordered_map<std::string, CompiledModule::SymbolTable>& imports, const std::unordered_map<std::string, TypeEnvironment>& imported_type_signatures, const std::vector<UseImport>& use_imports, const ModuleDeclaration* module_decl, const TypeclassMetadataMap& imported_typeclass_metadata = {});
+	Parser(TokenStream&& tokens, std::string_view file_name, const std::vector<std::string>& source_lines, const ModuleImports& imports, const std::vector<UseImport>& use_imports, const ModuleDeclaration* module_decl);
 
 	MarmotResult::ParserResult Parse();
 
@@ -539,6 +530,8 @@ private:
 
 	static std::string BuildTypeArgumentCountMismatchMessage(const std::string& type_name, bool is_alias, size_t expected_count, size_t actual_count);
 
+	std::string_view DeclaredModuleName() const;
+	
 	ImportedSymbolAccess ResolveImportedSymbolAccess(const std::string& module_name, const std::string& symbol_name) const;
 
 	// True when this file imports the module, or is the module.

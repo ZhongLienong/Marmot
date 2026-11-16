@@ -91,7 +91,8 @@ namespace
 		const ModuleDeclaration* module_declaration = prepared.m_module_declaration.has_value()
 			? &prepared.m_module_declaration.value()
 			: nullptr;
-		Parser parser(std::move(prepared.m_tokens), prepared.m_source.FileName(), prepared.m_source.SourceLines(), {}, {}, prepared.m_use_imports, module_declaration);
+		const ModuleImports imports;
+		Parser parser(std::move(prepared.m_tokens), prepared.m_source.FileName(), prepared.m_source.SourceLines(), imports, prepared.m_use_imports, module_declaration);
 		MarmotResult::ParserResult parse_result = parser.Parse();
 		if (!parse_result.has_value())
 		{
@@ -187,7 +188,8 @@ namespace MarmotTest
 		const ModuleDeclaration* module_declaration = prepared.m_module_declaration.has_value()
 			? &prepared.m_module_declaration.value()
 			: nullptr;
-		Parser parser(std::move(prepared.m_tokens), prepared.m_source.FileName(), prepared.m_source.SourceLines(), {}, {}, prepared.m_use_imports, module_declaration);
+		const ModuleImports imports;
+		Parser parser(std::move(prepared.m_tokens), prepared.m_source.FileName(), prepared.m_source.SourceLines(), imports, prepared.m_use_imports, module_declaration);
 		MarmotResult::ParserResult parse_result = parser.Parse();
 		if (!parse_result.has_value())
 		{

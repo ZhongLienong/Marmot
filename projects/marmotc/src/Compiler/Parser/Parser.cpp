@@ -257,9 +257,8 @@ namespace
 
 }
 
-Parser::ParseContext::ParseContext(TokenStream&& tokens, std::string_view file_name, const std::vector<std::string>& source_lines, const std::unordered_map<std::string, CompiledModule::SymbolTable>& imports, const std::unordered_map<std::string, TypeEnvironment>& imported_type_signatures, const ModuleDeclaration* module_decl)
-	: m_imported_symbols(imports),
-	m_imported_type_signatures(imported_type_signatures),
+Parser::ParseContext::ParseContext(TokenStream&& tokens, std::string_view file_name, const std::vector<std::string>& source_lines, const ModuleImports& imports, const ModuleDeclaration* module_decl)
+	: m_imports(imports),
 	m_tokens(std::move(tokens)),
 	m_file_name(file_name),
 	m_current_module(module_decl),
@@ -321,11 +320,11 @@ Parser::ActiveConstraintGuard::~ActiveConstraintGuard()
 	}
 }
 
-Parser::Parser(TokenStream&& tokens,std::string_view file_name, const std::vector<std::string>& source_lines, const std::unordered_map<std::string, CompiledModule::SymbolTable>& imports, const std::unordered_map<std::string, TypeEnvironment>& imported_type_signatures, const std::vector<UseImport>& use_imports, const ModuleDeclaration* module_decl, const TypeclassMetadataMap& imported_typeclass_metadata)
-	: m_context(std::move(tokens), file_name, source_lines, imports, imported_type_signatures, module_decl),
+Parser::Parser(TokenStream&& tokens,std::string_view file_name, const std::vector<std::string>& source_lines, const ModuleImports& imports, const std::vector<UseImport>& use_imports, const ModuleDeclaration* module_decl)
+	: m_context(std::move(tokens), file_name, source_lines, imports, module_decl),
 	m_state(use_imports)
 {
-	for (const auto& [tc_name, metadata] : imported_typeclass_metadata)
+	for (const auto& [tc_name, metadata] : imports.Typeclasses())
 	{
 		m_state.m_class_methods[tc_name] = metadata.m_method_names;
 		m_state.m_typeclass_type_params[tc_name] = metadata.m_type_param_names;
@@ -508,9 +507,9 @@ Parser::ConstructorResolutionResult Parser::ResolveConstructorName(const Token& 
 	if (use_import_resolution.m_status == UseImportResolutionStatus::Resolved)
 	{
 		const std::string& module_name = use_import_resolution.m_module_name;
-		if (m_context.m_imported_type_signatures.contains(module_name))
+		if (m_context.m_imports.TypesByModule().contains(module_name))
 		{
-			const TypeEnvironment& env = m_context.m_imported_type_signatures.at(module_name);
+			const TypeEnvironment& env = m_context.m_imports.TypesByModule().at(module_name);
 			if (env.contains(lookup_base))
 			{
 				std::shared_ptr<MarmotType> type = env.at(lookup_base);
@@ -537,8 +536,8 @@ Parser::ConstructorResolutionResult Parser::ResolveConstructorName(const Token& 
 	// an imported module, and the type it exports carries the constructor.
 	if (separator_pos != std::string::npos)
 	{
-		const std::unordered_map<std::string, TypeEnvironment>::const_iterator module_it = m_context.m_imported_type_signatures.find(lookup_base);
-		if (module_it != m_context.m_imported_type_signatures.cend())
+		const std::unordered_map<std::string, TypeEnvironment>::const_iterator module_it = m_context.m_imports.TypesByModule().find(lookup_base);
+		if (module_it != m_context.m_imports.TypesByModule().cend())
 		{
 			const std::string symbol_name = mangled_name.substr(separator_pos + NameSeparator.length());
 			const size_t member_pos = symbol_name.find(NameSeparator);
@@ -620,16 +619,7 @@ std::string Parser::BuildTypeArgumentCountMismatchMessage(const std::string& typ
 
 std::vector<std::string> Parser::ModulesExporting(const std::string& symbol_name) const
 {
-	std::vector<std::string> modules;
-	for (const std::pair<const std::string, CompiledModule::SymbolTable>& imported : m_context.m_imported_symbols)
-	{
-		if (imported.second.HasExport(symbol_name) && ResolveImportedSymbolAccess(imported.first, symbol_name) == ImportedSymbolAccess::Accessible)
-		{
-			modules.push_back(imported.first);
-		}
-	}
-	std::ranges::sort(modules);
-	return modules;
+	return m_context.m_imports.ModulesExporting(DeclaredModuleName(), symbol_name);
 }
 
 std::string Parser::BuildUnimportedSymbolError(const std::string& symbol_name, const std::vector<std::string>& module_names) const
@@ -670,38 +660,16 @@ std::string Parser::BuildAmbiguousUseImportError(const std::string& symbol_name,
 	);
 }
 
-Parser::ImportedSymbolAccess Parser::ResolveImportedSymbolAccess(const std::string& module_name, const std::string& symbol_name) const
+std::string_view Parser::DeclaredModuleName() const
 {
-	const std::unordered_map<std::string, CompiledModule::SymbolTable>::const_iterator module_it = m_context.m_imported_symbols.find(module_name);
-	if (module_it == m_context.m_imported_symbols.cend())
-	{
-		return ImportedSymbolAccess::ModuleNotFound;
-	}
+	return m_context.m_current_module != nullptr && m_context.m_current_module->HasModuleDeclaration()
+		? std::string_view(m_context.m_current_module->ModuleName())
+		: std::string_view();
+}
 
-	const VisibilityLevel* visibility = module_it->second.FindExportVisibility(symbol_name);
-	if (visibility == nullptr)
-	{
-		return ImportedSymbolAccess::SymbolNotExported;
-	}
-
-	if (*visibility == VisibilityLevel::Public)
-	{
-		return ImportedSymbolAccess::Accessible;
-	}
-
-	if (*visibility == VisibilityLevel::Private)
-	{
-		if (m_context.m_current_module != nullptr &&
-			m_context.m_current_module->HasModuleDeclaration() &&
-			SharesNamespace(m_context.m_current_module->ModuleName(), module_name))
-		{
-			return ImportedSymbolAccess::Accessible;
-		}
-
-		return ImportedSymbolAccess::PrivateInaccessible;
-	}
-
-	return ImportedSymbolAccess::SymbolNotExported;
+ImportedSymbolAccess Parser::ResolveImportedSymbolAccess(const std::string& module_name, const std::string& symbol_name) const
+{
+	return m_context.m_imports.AccessFrom(DeclaredModuleName(), module_name, symbol_name);
 }
 
 // `Qualifier::Name` in a pattern named no constructor. Say which half is wrong,
@@ -710,8 +678,8 @@ std::string Parser::DescribeUnknownConstructor(const std::string& qualified_name
 {
 	std::string qualifier = ExtractQualifier(qualified_name);
 	const std::string constructor = ExtractSymbolName(qualified_name);
-	const std::unordered_map<std::string, TypeEnvironment>::const_iterator module_types = m_context.m_imported_type_signatures.find(ExtractQualifier(qualifier));
-	const bool is_imported_type = (module_types != m_context.m_imported_type_signatures.cend()) && module_types->second.contains(ExtractSymbolName(qualifier));
+	const std::unordered_map<std::string, TypeEnvironment>::const_iterator module_types = m_context.m_imports.TypesByModule().find(ExtractQualifier(qualifier));
+	const bool is_imported_type = (module_types != m_context.m_imports.TypesByModule().cend()) && module_types->second.contains(ExtractSymbolName(qualifier));
 	if ((FindTypeScope(qualifier) != m_state.m_scopes.crend()) || is_imported_type || IsModuleVisible(qualifier))
 	{
 		return std::format("'{}' has no constructor '{}'.", qualifier, constructor);
@@ -5377,8 +5345,8 @@ MarmotResult::TypeResult Parser::ParseType(bool is_foreign)
 
 									if (use_import_resolution.m_status == UseImportResolutionStatus::Resolved)
 									{
-										std::unordered_map<std::string, TypeEnvironment>::const_iterator module_it = m_context.m_imported_type_signatures.find(use_import_resolution.m_module_name);
-										if (module_it != m_context.m_imported_type_signatures.cend())
+										std::unordered_map<std::string, TypeEnvironment>::const_iterator module_it = m_context.m_imports.TypesByModule().find(use_import_resolution.m_module_name);
+										if (module_it != m_context.m_imports.TypesByModule().cend())
 										{
 											TypeEnvironment::const_iterator type_it = module_it->second.find(type_name.m_lexeme);
 											if (type_it != module_it->second.cend())
@@ -5410,8 +5378,8 @@ MarmotResult::TypeResult Parser::ParseType(bool is_foreign)
 										if (!qualifier.empty())
 										{
 											std::string symbol_name = ExtractSymbolName(type_name.m_lexeme);
-											std::unordered_map<std::string, TypeEnvironment>::const_iterator module_it = m_context.m_imported_type_signatures.find(qualifier);
-											if (module_it != m_context.m_imported_type_signatures.cend())
+											std::unordered_map<std::string, TypeEnvironment>::const_iterator module_it = m_context.m_imports.TypesByModule().find(qualifier);
+											if (module_it != m_context.m_imports.TypesByModule().cend())
 											{
 												TypeEnvironment::const_iterator type_it = module_it->second.find(symbol_name);
 												if (type_it != module_it->second.cend())
@@ -5420,8 +5388,7 @@ MarmotResult::TypeResult Parser::ParseType(bool is_foreign)
 												}
 												else
 												{
-													std::unordered_map<std::string, CompiledModule::SymbolTable>::const_iterator symbols_it = m_context.m_imported_symbols.find(qualifier);
-													if (symbols_it != m_context.m_imported_symbols.cend())
+													if (m_context.m_imports.ContainsModule(qualifier))
 													{
 														return std::unexpected(GenerateParserError("Type '" + symbol_name + "' is not exported by module '" + qualifier + "'.", type_name));
 													}
@@ -6060,7 +6027,7 @@ TypeclassMetadataMap Parser::GetTypeclassMetadata() const
 
 bool Parser::IsModuleVisible(std::string_view module_name) const
 {
-	return m_context.m_imported_symbols.contains(std::string(module_name))
+	return m_context.m_imports.ContainsModule(module_name)
 		|| (m_context.m_current_module != nullptr && m_context.m_current_module->ModuleName() == module_name);
 }
 
