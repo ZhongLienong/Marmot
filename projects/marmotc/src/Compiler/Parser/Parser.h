@@ -779,15 +779,10 @@ private:
 
 	Token MakeSyntheticToken(std::string lexeme, Token::Name token_name, const Token& anchor) const;
 
-	std::string AppendSuffixToQualifiedName(std::string_view qualified_name, std::string_view suffix) const;
-
-	MarmotResult::TokenResult RegisterSyntheticGlobalName(const std::string& name, const Token& anchor);
-
 	void RegisterSyntheticInstanceMetadata(const std::string& class_name, const std::vector<std::shared_ptr<MarmotType>>& type_args, const std::vector<MarmotType::ClassConstraint>& constraints, const std::vector<std::string>& mangled_method_names);
 
-	std::expected<void, CompilerError> QueueDerivedStructStatements(const MarmotStatement::Struct& struct_stmt, const std::vector<Token>& deriving_targets);
-
-	std::expected<void, CompilerError> QueueDerivedUnionStatements(const MarmotStatement::Union& union_stmt, const std::vector<Token>& deriving_targets);
+	template<typename Declaration>
+	std::expected<void, CompilerError> QueueDerivedStatements(const Declaration& declaration, const std::vector<Token>& deriving_targets);
 
 	MarmotResult::StatementResult ParseStatement();
 };
