@@ -96,6 +96,7 @@ private:
 	};
 
 	class ScopeSession;
+	class FunctionBodyContext;
 
 	MarmotProgramTree m_program_tree;
 	TypeEnvironmentStack m_type_scopes;
@@ -209,6 +210,8 @@ private:
 	MarmotResult::TypeResult CheckRefAccess(const std::unique_ptr<MarmotExpression>& cell, const std::unique_ptr<MarmotExpression>* value, const Token& token, std::string_view error_message);
 
 	void BindParameters(const FunctionParameters& parameters, const std::vector<std::shared_ptr<MarmotType>>& types);
+
+	MarmotResult::TypeResult CheckFunctionBody(const std::unique_ptr<MarmotExpression>& body, std::shared_ptr<MarmotType>& return_type, const std::vector<MarmotType::ClassConstraint>& constraints, const Token& token);
 
 	TypeChecker& BeginScope();
 

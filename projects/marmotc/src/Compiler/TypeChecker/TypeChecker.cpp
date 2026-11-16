@@ -328,6 +328,38 @@ private:
 	TypeChecker* m_checker;
 };
 
+class TypeChecker::FunctionBodyContext
+{
+public:
+	FunctionBodyContext(TypeChecker& checker, std::shared_ptr<MarmotType> return_type, const std::vector<MarmotType::ClassConstraint>& constraints)
+		: m_checker(checker),
+		m_enclosing_return_type(std::exchange(checker.m_expected_return_type, std::move(return_type))),
+		m_enclosing_constraint_count(checker.m_active_constraints.size())
+	{
+		for (const MarmotType::ClassConstraint& constraint : constraints)
+		{
+			if (!ContainsConstraint(m_checker.m_active_constraints, constraint))
+			{
+				m_checker.m_active_constraints.push_back(constraint);
+			}
+		}
+	}
+
+	~FunctionBodyContext()
+	{
+		m_checker.m_expected_return_type = std::move(m_enclosing_return_type);
+		m_checker.m_active_constraints.resize(m_enclosing_constraint_count);
+	}
+
+	FunctionBodyContext(const FunctionBodyContext&) = delete;
+	FunctionBodyContext& operator=(const FunctionBodyContext&) = delete;
+
+private:
+	TypeChecker& m_checker;
+	std::shared_ptr<MarmotType> m_enclosing_return_type;
+	size_t m_enclosing_constraint_count;
+};
+
 class DefiningGenericGuard
 {
 private:
@@ -2818,6 +2850,22 @@ MarmotResult::TypeResult TypeChecker::operator()(MarmotStatement::ExpressionStat
 		);
 }
 
+MarmotResult::TypeResult TypeChecker::CheckFunctionBody(const std::unique_ptr<MarmotExpression>& body, std::shared_ptr<MarmotType>& return_type, const std::vector<MarmotType::ClassConstraint>& constraints, const Token& token)
+{
+	ExpectedTypeGuard expected_expr_guard(*this, return_type);
+	const auto check_body = [&]() -> MarmotResult::TypeResult
+	{
+		FunctionBodyContext context(*this, return_type, constraints);
+		return Evaluate(body);
+	};
+	// Unification uses the enclosing constraints, after the body's assumptions
+	// have gone out of scope, so the body cannot justify its own result type.
+	return check_body().and_then([&](std::shared_ptr<MarmotType>&& body_type)
+	{
+		return Unify(token, return_type, body_type, UnifyDiagnosticMode::ExpectedActual);
+	});
+}
+
 MarmotResult::TypeResult TypeChecker::TypeCheckGenericLambdaDefinition(MarmotStatement::VariableDefinition& def, MarmotExpression::Function& function)
 {
 	if (def.m_annotated_type.has_value())
@@ -2928,58 +2976,23 @@ MarmotResult::TypeResult TypeChecker::CheckGenericLambda(MarmotExpression::Funct
 
 		BindParameters(function.m_params, function.m_param_types);
 
-		std::shared_ptr<MarmotType> saved_expected_return_type = m_expected_return_type;
-		m_expected_return_type = function.m_return_type;
-
-		size_t prev_constraints_size = m_active_constraints.size();
-		for (const MarmotType::ClassConstraint& constraint : function.m_constraints)
-		{
-			if (!ContainsConstraint(m_active_constraints, constraint))
-			{
-				m_active_constraints.push_back(constraint);
-			}
-		}
-
 		// Inside its own body, a recursive call is not a fresh instantiation.
 		DefiningGenericGuard defining_guard(*this, name);
-		ExpectedTypeGuard expected_expr_guard(*this, function.m_return_type);
 		RigidTypeVariablesGuard rigid_guard(*this, freshening_context.Bindings());
 		const size_t pending_start = m_pending_instances.size();
-		return Evaluate(function.m_body)
-			.and_then
-			(
-				[&function, &anchor, &rigid_guard, &saved_expected_return_type, prev_constraints_size, pending_start, this](std::shared_ptr<MarmotType>&& body_type) -> MarmotResult::TypeResult
+		return CheckFunctionBody(function.m_body, function.m_return_type, function.m_constraints, function.m_function_keyword)
+			.and_then([&function, &rigid_guard, pending_start, &anchor, this](std::shared_ptr<MarmotType>&&) -> MarmotResult::TypeResult
+			{
+				if (std::optional<CompilerError> error = CheckGenericParametersStayGeneric(rigid_guard.Parameters(), function.m_generic_params, anchor))
 				{
-					m_expected_return_type = saved_expected_return_type;
-					m_active_constraints.resize(prev_constraints_size);
-
-					return Unify(function.m_function_keyword, function.m_return_type, body_type, UnifyDiagnosticMode::ExpectedActual)
-						.and_then
-						(
-							[&function, &anchor, &rigid_guard, pending_start, this](std::shared_ptr<MarmotType>&&) -> MarmotResult::TypeResult
-							{
-								if (std::optional<CompilerError> error = CheckGenericParametersStayGeneric(rigid_guard.Parameters(), function.m_generic_params, anchor))
-								{
-									return std::unexpected(std::move(*error));
-								}
-								// Its parameters stop being rigid once it is checked.
-								if (std::optional<CompilerError> error = CheckDecidedPendingInstances(pending_start))
-								{
-									return std::unexpected(std::move(*error));
-								}
-								return MarmotType::MakeUndecidedType();
-							}
-						);
+					return std::unexpected(std::move(*error));
 				}
-			).or_else
-			(
-				[&saved_expected_return_type, prev_constraints_size, this](CompilerError&& error) -> MarmotResult::TypeResult
+				if (std::optional<CompilerError> error = CheckDecidedPendingInstances(pending_start))
 				{
-					m_expected_return_type = saved_expected_return_type;
-					m_active_constraints.resize(prev_constraints_size);
-					return std::unexpected(std::move(error));
+					return std::unexpected(std::move(*error));
 				}
-			);
+				return MarmotType::MakeUndecidedType();
+			});
 	});
 }
 
@@ -3280,57 +3293,21 @@ MarmotResult::TypeResult TypeChecker::operator()(MarmotStatement::FunctionDefini
 		}
 		BindParameters(defun.m_params, defun.m_param_types);
 
-		std::shared_ptr<MarmotType> saved_expected_return_type = m_expected_return_type;
-		m_expected_return_type = defun.m_return_type;
-
-		size_t prev_constraints_size = m_active_constraints.size();
-
-		for (const MarmotType::ClassConstraint& constraint : defun.m_constraints)
-		{
-			if (!ContainsConstraint(m_active_constraints, constraint))
-			{
-				m_active_constraints.push_back(constraint);
-			}
-		}
-
-		ExpectedTypeGuard expected_expr_guard(*this, defun.m_return_type);
 		RigidTypeVariablesGuard rigid_guard(*this, freshening_context.Bindings());
 		const size_t pending_start = m_pending_instances.size();
-		return Evaluate(defun.m_body)
-			.and_then
-			(
-				[&defun, &rigid_guard, &saved_expected_return_type, prev_constraints_size, pending_start, this](std::shared_ptr<MarmotType>&& function_return_value_type) ->MarmotResult::TypeResult
+		return CheckFunctionBody(defun.m_body, defun.m_return_type, defun.m_constraints, defun.m_name)
+			.and_then([&defun, &rigid_guard, pending_start, this](std::shared_ptr<MarmotType>&&) -> MarmotResult::TypeResult
+			{
+				if (std::optional<CompilerError> error = CheckGenericParametersStayGeneric(rigid_guard.Parameters(), defun.m_generic_params, defun.m_name))
 				{
-					m_expected_return_type = saved_expected_return_type;
-					m_active_constraints.resize(prev_constraints_size);
-
-					return Unify(defun.m_name, defun.m_return_type, function_return_value_type, UnifyDiagnosticMode::ExpectedActual)
-						.and_then
-						(
-							[&defun, &rigid_guard, pending_start, this](std::shared_ptr<MarmotType>&&) -> MarmotResult::TypeResult
-							{
-								if (std::optional<CompilerError> error = CheckGenericParametersStayGeneric(rigid_guard.Parameters(), defun.m_generic_params, defun.m_name))
-								{
-									return std::unexpected(std::move(*error));
-								}
-								// Its parameters stop being rigid once it is checked.
-								if (std::optional<CompilerError> error = CheckDecidedPendingInstances(pending_start))
-								{
-									return std::unexpected(std::move(*error));
-								}
-								return defun.m_return_type;
-							}
-						);
+					return std::unexpected(std::move(*error));
 				}
-			).or_else
-			(
-				[&saved_expected_return_type, prev_constraints_size, this](CompilerError&& error) -> MarmotResult::TypeResult
+				if (std::optional<CompilerError> error = CheckDecidedPendingInstances(pending_start))
 				{
-					m_expected_return_type = saved_expected_return_type; 
-					m_active_constraints.resize(prev_constraints_size);
-					return std::unexpected(std::move(error));
+					return std::unexpected(std::move(*error));
 				}
-			);
+				return defun.m_return_type;
+			});
 	});
 }
 
@@ -5787,48 +5764,11 @@ MarmotResult::TypeResult TypeChecker::operator()(MarmotExpression::Function& fun
 	{
 		BindParameters(function.m_params, function.m_param_types);
 
-		size_t prev_constraints_size = m_active_constraints.size();
-		for (const MarmotType::ClassConstraint& constraint : function_constraints)
-		{
-			if (!ContainsConstraint(m_active_constraints, constraint))
+		return CheckFunctionBody(function.m_body, function.m_return_type, function_constraints, function.m_function_keyword)
+			.and_then([&function, &outer_visible_type_vars, this](std::shared_ptr<MarmotType>&&) -> MarmotResult::TypeResult
 			{
-				m_active_constraints.push_back(constraint);
-			}
-		}
-
-		// A return inside the body is validated against this, and only types itself as
-		// Never once it is set. Leaving it unset made `{ return 1; }` type as Int, which
-		// broke every enclosing unification the function-definition path handles correctly.
-		std::shared_ptr<MarmotType> saved_expected_return_type = m_expected_return_type;
-		m_expected_return_type = function.m_return_type;
-
-		ExpectedTypeGuard expected_expr_guard(*this, function.m_return_type);
-		return Evaluate(function.m_body)
-			.and_then
-			(
-				[&function, &outer_visible_type_vars, &saved_expected_return_type, prev_constraints_size, this](std::shared_ptr<MarmotType>&& function_return_value_type) ->MarmotResult::TypeResult
-				{
-					m_expected_return_type = saved_expected_return_type;
-					m_active_constraints.resize(prev_constraints_size);
-
-					return Unify(function.m_function_keyword, function.m_return_type, function_return_value_type, UnifyDiagnosticMode::ExpectedActual)
-						.and_then
-						(
-							[&function, &outer_visible_type_vars, this](std::shared_ptr<MarmotType>&&) -> MarmotResult::TypeResult
-							{
-								return ResolveFunctionExpressionSignature(function, outer_visible_type_vars);
-							}
-						);
-				}
-			).or_else
-			(
-				[&saved_expected_return_type, prev_constraints_size, this](CompilerError&& error) -> MarmotResult::TypeResult
-				{
-					m_expected_return_type = saved_expected_return_type;
-					m_active_constraints.resize(prev_constraints_size);
-					return std::unexpected(std::move(error));
-				}
-			);
+				return ResolveFunctionExpressionSignature(function, outer_visible_type_vars);
+			});
 	});
 }
 
