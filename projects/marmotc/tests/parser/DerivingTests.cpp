@@ -3,6 +3,8 @@
 #include "support/CompileHelpers.h"
 
 #include <format>
+#include <string_view>
+#include <tuple>
 
 namespace
 {
@@ -53,6 +55,63 @@ def after = 0;
 	}
 	REQUIRE(program[6]->IsStatement<MarmotStatement::VariableDefinition>());
 	CHECK(program[6]->GetStatement<MarmotStatement::VariableDefinition>().m_name.m_lexeme == "after");
+}
+
+TEST_CASE("Deriving preserves each class target's generated method shape", "[parser][deriving]")
+{
+	const std::tuple<std::string_view, std::string_view, size_t, size_t> cases[]
+	{
+		{ "Transferable", "", 0u, 1u },
+		{ "Equatable", "Bool", 2u, 1u },
+		{ "Hashable", "Int", 1u, 1u },
+		{ "Orderable", "Int", 2u, 1u },
+		{ "Convertable", "Text", 1u, 2u }
+	};
+	for (const std::string_view declaration : { "type Sample = { value: Int }", "type Sample = Empty | Full(Int)" })
+	{
+		for (const auto& [target, return_type, parameter_count, type_argument_count] : cases)
+		{
+			INFO(declaration);
+			INFO(target);
+			const std::string source = std::format("module DeriveTargets\n{} deriving ({});\n", declaration, target);
+			const std::expected<MarmotTest::ParsedSnippet, CompilerError> parsed = MarmotTest::ParseSnippet(source);
+			REQUIRE(parsed.has_value());
+			REQUIRE(parsed->m_program.size() == 2u);
+			REQUIRE(parsed->m_program[1]->IsStatement<MarmotStatement::Instance>());
+			const MarmotStatement::Instance& instance = parsed->m_program[1]->GetStatement<MarmotStatement::Instance>();
+			CHECK(instance.m_class_name.m_lexeme == target);
+			CHECK(instance.m_type_args.size() == type_argument_count);
+			if (return_type.empty())
+			{
+				CHECK(instance.m_methods.empty());
+				continue;
+			}
+			REQUIRE(instance.m_methods.size() == 1u);
+			const MarmotStatement::FunctionDefinition& method = instance.m_methods[0]->GetStatement<MarmotStatement::FunctionDefinition>();
+			CHECK(method.m_params.Size() == parameter_count);
+			CHECK(method.m_return_type->ToString() == return_type);
+		}
+	}
+}
+
+TEST_CASE("Deriving rejects unsupported targets for each declaration shape", "[parser][deriving]")
+{
+	for (const std::string_view target : { "Map", "Bind", "Unwrap", "Bogus", "Numeric" })
+	{
+		INFO(target);
+		const std::string source = std::format("module InvalidRecord\ntype Sample = {{ value: Int }} deriving ({});\n", target);
+		const std::expected<MarmotTest::ParsedSnippet, CompilerError> parsed = MarmotTest::ParseSnippet(source);
+		REQUIRE_FALSE(parsed.has_value());
+		CHECK(parsed.error().m_message == "Unsupported deriving target for struct.");
+	}
+	for (const std::string_view target : { "Bogus", "Numeric", "map" })
+	{
+		INFO(target);
+		const std::string source = std::format("module InvalidUnion\ntype Sample<T> = Empty | Full(T) deriving ({});\n", target);
+		const std::expected<MarmotTest::ParsedSnippet, CompilerError> parsed = MarmotTest::ParseSnippet(source);
+		REQUIRE_FALSE(parsed.has_value());
+		CHECK(parsed.error().m_message == "Unsupported deriving target for union.");
+	}
 }
 
 TEST_CASE("Deriving reserves container names before validating their bodies", "[parser][deriving]")

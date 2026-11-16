@@ -11,11 +11,6 @@
 
 namespace
 {
-	bool IsStructuralTarget(std::string_view name)
-	{
-		return name == EQUATABLE_CLASS_NAME || name == HASHABLE_CLASS_NAME || name == ORDERABLE_CLASS_NAME || name == CONVERTABLE_CLASS_NAME;
-	}
-
 	bool IsExactGenericParam(const std::shared_ptr<MarmotType>& type, std::string_view name)
 	{
 		return type->IsType<MarmotType::GenericParam>() && type->GetType<MarmotType::GenericParam>().m_name == name;
@@ -237,31 +232,64 @@ DerivedDeclarationError::DerivedDeclarationError(std::string message, const Toke
 {
 }
 
-DerivedDeclarationGenerator::DerivedDeclarationGenerator(Declaration declaration, Token target, std::optional<Token> global_name)
+DerivedDeclarationGenerator::DerivedDeclarationGenerator(Declaration declaration, Operation operation, Token target, std::optional<Token> global_name)
 	: m_declaration(declaration),
+	m_operation(operation),
 	m_target(std::move(target)),
 	m_global_name(std::move(global_name))
 {
 }
 
+std::optional<DerivedDeclarationGenerator::Operation> DerivedDeclarationGenerator::ResolveOperation(std::string_view name)
+{
+	constexpr std::pair<std::string_view, Operation> operations[]
+	{
+		{ EQUATABLE_CLASS_NAME, Operation::Equatable },
+		{ HASHABLE_CLASS_NAME, Operation::Hashable },
+		{ ORDERABLE_CLASS_NAME, Operation::Orderable },
+		{ CONVERTABLE_CLASS_NAME, Operation::Convertable },
+		{ TRANSFERABLE_CLASS_NAME, Operation::Transferable },
+		{ MAP_DERIVING_NAME, Operation::Map },
+		{ BIND_DERIVING_NAME, Operation::Bind },
+		{ UNWRAP_DERIVING_NAME, Operation::Unwrap }
+	};
+	for (const auto& [spelling, operation] : operations)
+	{
+		if (spelling == name)
+		{
+			return operation;
+		}
+	}
+	return std::nullopt;
+}
+
+// Without higher-kinded type parameters, a class cannot abstract over F<T>
+// for a container constructor F. Map and Bind therefore derive per-union
+// functions; Unwrap uses the same function-generating path.
+bool DerivedDeclarationGenerator::IsContainer(Operation operation)
+{
+	return operation == Operation::Map || operation == Operation::Bind || operation == Operation::Unwrap;
+}
+
 std::expected<DerivedDeclarationGenerator, DerivedDeclarationError> DerivedDeclarationGenerator::Prepare(const MarmotStatement::Struct& declaration, const Token& target)
 {
-	if (!IsStructuralTarget(target.m_lexeme) && target.m_lexeme != TRANSFERABLE_CLASS_NAME)
+	const std::optional<Operation> operation = ResolveOperation(target.m_lexeme);
+	if (!operation.has_value() || IsContainer(operation.value()))
 	{
 		return std::unexpected(DerivedDeclarationError("Unsupported deriving target for struct.", target));
 	}
-	return DerivedDeclarationGenerator(&declaration, target, std::nullopt);
+	return DerivedDeclarationGenerator(&declaration, operation.value(), target, std::nullopt);
 }
 
 std::expected<DerivedDeclarationGenerator, DerivedDeclarationError> DerivedDeclarationGenerator::Prepare(const MarmotStatement::Union& declaration, const Token& target)
 {
-	const bool is_container = target.m_lexeme == "Map" || target.m_lexeme == "Bind" || target.m_lexeme == "Unwrap";
-	if (!IsStructuralTarget(target.m_lexeme) && target.m_lexeme != TRANSFERABLE_CLASS_NAME && !is_container)
+	const std::optional<Operation> operation = ResolveOperation(target.m_lexeme);
+	if (!operation.has_value())
 	{
 		return std::unexpected(DerivedDeclarationError("Unsupported deriving target for union.", target));
 	}
 	std::optional<Token> global_name;
-	if (is_container)
+	if (IsContainer(operation.value()))
 	{
 		if (declaration.m_self_type->GetType<MarmotType::UnionType>().m_generic_params.empty())
 		{
@@ -269,7 +297,7 @@ std::expected<DerivedDeclarationGenerator, DerivedDeclarationError> DerivedDecla
 		}
 		global_name.emplace(declaration.m_name.m_lexeme + target.m_lexeme, Token::Name::IDENTIFIER_LITERAL, declaration.m_name);
 	}
-	return DerivedDeclarationGenerator(&declaration, target, std::move(global_name));
+	return DerivedDeclarationGenerator(&declaration, operation.value(), target, std::move(global_name));
 }
 
 Token* DerivedDeclarationGenerator::NameToReserve()
@@ -296,19 +324,19 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 	};
 
 	std::vector<std::shared_ptr<MarmotType>> type_args{ std::shared_ptr<MarmotType>(struct_stmt.m_self_type) };
-	if (derive_target.m_lexeme == CONVERTABLE_CLASS_NAME)
+	if (m_operation == Operation::Convertable)
 	{
 		type_args.emplace_back(MarmotType::MakeLiteralType<MarmotType::TextType>());
 	}
 	Token class_token(derive_target.m_lexeme, Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name);
 	std::vector<std::unique_ptr<MarmotStatement>> methods;
 
-	if (derive_target.m_lexeme == TRANSFERABLE_CLASS_NAME)
+	if (m_operation == Operation::Transferable)
 	{
 		return std::make_unique<MarmotStatement>(MarmotStatement::Instance(class_token, std::move(type_args), {}, {}, std::move(methods)));
 	}
 
-	if (derive_target.m_lexeme == EQUATABLE_CLASS_NAME)
+	if (m_operation == Operation::Equatable)
 	{
 		const std::string mangled_name = MarmotType::MangleInstanceMethodName(std::string(EQUALS_METHOD_NAME), derive_target.m_lexeme, type_args);
 		Token method_token(mangled_name, Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name);
@@ -338,7 +366,7 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 			)
 		);
 	}
-	else if (derive_target.m_lexeme == CONVERTABLE_CLASS_NAME)
+	else if (m_operation == Operation::Convertable)
 	{
 		const std::string mangled_name = MarmotType::MangleInstanceMethodName(std::string(CONVERT_METHOD_NAME), derive_target.m_lexeme, type_args);
 		Token method_token(mangled_name, Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name);
@@ -362,7 +390,7 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 			)
 		);
 	}
-	else if (derive_target.m_lexeme == ORDERABLE_CLASS_NAME)
+	else if (m_operation == Operation::Orderable)
 	{
 		const std::string mangled_name = MarmotType::MangleInstanceMethodName(std::string(COMPARE_METHOD_NAME), derive_target.m_lexeme, type_args);
 		Token method_token(mangled_name, Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name);
@@ -448,8 +476,7 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 		return std::make_unique<MarmotExpression>(MarmotExpression::Construct(ctor_token, std::move(args), std::shared_ptr<MarmotType>(return_type), true, MarmotExpression::Construct::Union(tag)));
 	};
 
-	const bool is_structural = IsStructuralTarget(derive_target.m_lexeme);
-	if (derive_target.m_lexeme == TRANSFERABLE_CLASS_NAME)
+	if (m_operation == Operation::Transferable)
 	{
 		std::vector<std::shared_ptr<MarmotType>> type_args{ std::shared_ptr<MarmotType>(union_stmt.m_self_type) };
 		Token class_token(derive_target.m_lexeme, Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name);
@@ -458,17 +485,17 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 		return std::make_unique<MarmotStatement>(MarmotStatement::Instance(class_token, std::move(type_args), {}, {}, std::move(methods)));
 	}
 
-	if (is_structural)
+	if (!IsContainer(m_operation))
 	{
 		std::vector<std::shared_ptr<MarmotType>> type_args{ std::shared_ptr<MarmotType>(union_stmt.m_self_type) };
-		if (derive_target.m_lexeme == CONVERTABLE_CLASS_NAME)
+		if (m_operation == Operation::Convertable)
 		{
 			type_args.emplace_back(MarmotType::MakeLiteralType<MarmotType::TextType>());
 		}
 		Token class_token(derive_target.m_lexeme, Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name);
 		std::vector<std::unique_ptr<MarmotStatement>> methods;
 
-		if (derive_target.m_lexeme == EQUATABLE_CLASS_NAME)
+		if (m_operation == Operation::Equatable)
 		{
 			const std::string mangled_name = MarmotType::MangleInstanceMethodName(std::string(EQUALS_METHOD_NAME), derive_target.m_lexeme, type_args);
 			Token method_token(mangled_name, Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name);
@@ -527,7 +554,7 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 				)
 			);
 		}
-		else if (derive_target.m_lexeme == CONVERTABLE_CLASS_NAME)
+		else if (m_operation == Operation::Convertable)
 		{
 			const std::string mangled_name = MarmotType::MangleInstanceMethodName(std::string(CONVERT_METHOD_NAME), derive_target.m_lexeme, type_args);
 			Token method_token(mangled_name, Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name);
@@ -561,7 +588,7 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 				)
 			);
 		}
-		else if (derive_target.m_lexeme == ORDERABLE_CLASS_NAME)
+		else if (m_operation == Operation::Orderable)
 		{
 			const std::string mangled_name = MarmotType::MangleInstanceMethodName(std::string(COMPARE_METHOD_NAME), derive_target.m_lexeme, type_args);
 			Token method_token(mangled_name, Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name);
@@ -709,7 +736,7 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 	std::vector<Token> generic_params;
 	generic_params.reserve(union_stmt.m_generic_params.size() + 1u);
 	generic_params.push_back(union_stmt.m_generic_params[0u]);
-	if (derive_target.m_lexeme != "Unwrap")
+	if (m_operation != Operation::Unwrap)
 	{
 		generic_params.push_back(Token(mapped_type_param_name, Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name));
 	}
@@ -732,7 +759,7 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 	params.emplace_back(syntax.Local(0));
 	param_types.emplace_back(input_union_type);
 
-	if (derive_target.m_lexeme == "Map")
+	if (m_operation == Operation::Map)
 	{
 		params.emplace_back(syntax.Local(1));
 		param_types.emplace_back(MarmotType::MakeFunctionType(std::vector<std::shared_ptr<MarmotType>>{ source_type }, std::shared_ptr<MarmotType>(mapped_type)));
@@ -788,7 +815,7 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 		);
 	}
 
-	if (derive_target.m_lexeme == "Bind")
+	if (m_operation == Operation::Bind)
 	{
 		params.emplace_back(syntax.Local(1));
 		param_types.emplace_back(MarmotType::MakeFunctionType(std::vector<std::shared_ptr<MarmotType>>{ source_type }, std::shared_ptr<MarmotType>(output_union_type)));

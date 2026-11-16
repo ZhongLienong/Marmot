@@ -78,3 +78,8 @@ constexpr std::string_view TRANSFERABLE_CLASS_NAME = "Transferable";
 constexpr std::string_view INDEXABLE_CLASS_NAME = "Indexable";
 constexpr std::string_view GET_METHOD_NAME = "Get";
 constexpr std::string_view ELEMENT_ASSOCIATED_TYPE_NAME = "Element";
+
+// Container-deriving targets also form generated function suffixes, as in OptionBoxMap.
+constexpr std::string_view MAP_DERIVING_NAME = "Map";
+constexpr std::string_view BIND_DERIVING_NAME = "Bind";
+constexpr std::string_view UNWRAP_DERIVING_NAME = "Unwrap";

@@ -6,6 +6,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <variant>
 
 struct DerivedDeclarationError
@@ -19,14 +20,30 @@ struct DerivedDeclarationError
 class DerivedDeclarationGenerator
 {
 private:
+	enum class Operation
+	{
+		Equatable,
+		Hashable,
+		Orderable,
+		Convertable,
+		Transferable,
+		Map,
+		Bind,
+		Unwrap
+	};
+
 	using Declaration = std::variant<const MarmotStatement::Struct*, const MarmotStatement::Union*>;
 	using StatementResult = std::expected<std::unique_ptr<MarmotStatement>, DerivedDeclarationError>;
 
 	Declaration m_declaration;
+	Operation m_operation;
 	Token m_target;
 	std::optional<Token> m_global_name;
 
-	DerivedDeclarationGenerator(Declaration declaration, Token target, std::optional<Token> global_name);
+	DerivedDeclarationGenerator(Declaration declaration, Operation operation, Token target, std::optional<Token> global_name);
+
+	static std::optional<Operation> ResolveOperation(std::string_view name);
+	static bool IsContainer(Operation operation);
 
 	StatementResult Generate(const MarmotStatement::Struct& declaration) const;
 	StatementResult Generate(const MarmotStatement::Union& declaration) const;
