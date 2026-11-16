@@ -4781,7 +4781,7 @@ MarmotResult::TypeResult TypeChecker::ResolveIteration(IterationNode& node, cons
 	}
 
 	const MarmotType::UnionType& option_union = next_return->GetType<MarmotType::UnionType>();
-	const std::string some_name = option_union.m_name + std::string(NameSeparator) + "Some";
+	const std::string some_name = option_union.m_name + std::string(NameSeparator) + std::string(ITERABLE_SOME_CONSTRUCTOR_NAME);
 	if (!option_union.m_member_info.contains(some_name))
 	{
 		return std::unexpected(fail("Iterable::Next return type is missing 'Some' constructor", next_return));
@@ -6266,7 +6266,7 @@ MarmotResult::TypeResult TypeChecker::operator()(MarmotExpression::NameAccess& v
 			&& std::ranges::find(m_defining_generic_names, variable.m_name.m_lexeme) == m_defining_generic_names.cend()
 			&& binding->get()->IsType<MarmotType::FunctionType>();
 		if (binding_is_generic_function
-			|| variable.m_name.m_lexeme.find("::") != std::string::npos
+			|| variable.m_name.m_lexeme.find(NameSeparator) != std::string::npos
 			|| (binding->get()->IsType<MarmotType::FunctionType>() && binding->get()->GetType<MarmotType::FunctionType>().m_is_foreign))
 		{
 			variable.m_type_data = Freshen(*binding);

@@ -6,6 +6,7 @@
 #include <type_traits>
 
 #include "PatternCoverage.h"
+#include "Compiler/Token/Token.h"
 
 namespace
 {
@@ -530,7 +531,7 @@ std::optional<std::vector<PatternCoverage::Head>> PatternCoverage::Signature(std
 				}
 				if (node.m_kind == MarmotPattern::LiteralKind::Bool)
 				{
-					return std::vector<Head>{ Head("true", Shape::Literal, 0uz), Head("false", Shape::Literal, 0uz) };
+					return std::vector<Head>{ Head(std::string(Token::Spelling(Token::Name::TRUE)), Shape::Literal, 0uz), Head(std::string(Token::Spelling(Token::Name::FALSE)), Shape::Literal, 0uz) };
 				}
 				if (node.m_kind == MarmotPattern::LiteralKind::Unit)
 				{

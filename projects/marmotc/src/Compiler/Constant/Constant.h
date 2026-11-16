@@ -67,6 +67,7 @@ constexpr std::string_view HASH_METHOD_NAME = "Hash";
 constexpr std::string_view ITERABLE_CLASS_NAME = "Iterable";
 constexpr std::string_view NEXT_METHOD_NAME = "Next";
 constexpr std::string_view ITEM_ASSOCIATED_TYPE_NAME = "Item";
+constexpr std::string_view ITERABLE_SOME_CONSTRUCTOR_NAME = "Some";
 
 constexpr std::string_view NUMERIC_CLASS_NAME = "Numeric";
 constexpr std::string_view BITWISE_CLASS_NAME = "Bitwise";

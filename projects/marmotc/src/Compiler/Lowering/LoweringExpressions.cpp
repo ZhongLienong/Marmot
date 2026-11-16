@@ -291,7 +291,7 @@ std::optional<MarmotIRImmediate> Lowering::ConstantOf(MarmotLiteralKind kind, co
 	case MarmotLiteralKind::Text:
 		return MarmotIRImmediate(lexeme);
 	case MarmotLiteralKind::Bool:
-		return MarmotIRImmediate(lexeme == "true");
+		return MarmotIRImmediate(lexeme == Token::Spelling(Token::Name::TRUE));
 	case MarmotLiteralKind::Float:
 		return ParseFloatLiteral(lexeme).transform([](double value) { return MarmotIRImmediate(value); });
 	case MarmotLiteralKind::Unit:
@@ -607,9 +607,9 @@ Lowering::Lowered Lowering::LowerBoolToText(MarmotIRValueId value, int line)
 	Branch(value, MarmotIRSuccessor(when_true), MarmotIRSuccessor(when_false));
 
 	PositionAt(when_true);
-	Jump(join, { Builder().ConstText("true") });
+	Jump(join, { Builder().ConstText(std::string(Token::Spelling(Token::Name::TRUE))) });
 	PositionAt(when_false);
-	Jump(join, { Builder().ConstText("false") });
+	Jump(join, { Builder().ConstText(std::string(Token::Spelling(Token::Name::FALSE))) });
 	PositionAt(join);
 	return text;
 }

@@ -1,5 +1,6 @@
 #include "MarmotIRPrinter.h"
 #include "Compiler/Constant/Constant.h"
+#include "Compiler/Token/Token.h"
 
 #include <algorithm>
 #include <cctype>
@@ -174,7 +175,7 @@ std::string MarmotIRPrinter::PrintImmediate(const MarmotIRImmediate& immediate) 
 		std::string operator()(std::monostate) const { return {}; }
 		std::string operator()(int64_t value) const { return std::format("{}", value); }
 		std::string operator()(double value) const { return PrintFloat(value); }
-		std::string operator()(bool value) const { return value ? "true" : "false"; }
+		std::string operator()(bool value) const { return std::string(Token::Spelling(value ? Token::Name::TRUE : Token::Name::FALSE)); }
 		std::string operator()(const std::string& value) const { return QuoteText(value); }
 		std::string operator()(MarmotIRByte value) const { return std::format("{}", value.m_value); }
 		std::string operator()(MarmotIRWord value) const { return std::format("{}", value.m_value); }

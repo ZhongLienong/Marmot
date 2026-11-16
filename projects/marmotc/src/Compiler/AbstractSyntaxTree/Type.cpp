@@ -416,7 +416,7 @@ namespace
 			{
 				if (type_variant.m_type_args.empty())
 				{
-					return type_variant.m_class_name + "::"s + type_variant.m_name;
+					return type_variant.m_class_name + std::string(NameSeparator) + type_variant.m_name;
 				}
 
 				std::vector<std::string> type_arg_strings;
@@ -427,7 +427,7 @@ namespace
 					[this](const TypePtr& type_arg) { return stringify(*type_arg); }
 				);
 
-				return type_variant.m_class_name + "::"s + type_variant.m_name + "<"s +
+				return type_variant.m_class_name + std::string(NameSeparator) + type_variant.m_name + "<"s +
 					std::accumulate(std::next(type_arg_strings.begin()), type_arg_strings.end(), type_arg_strings.front(), join_with_comma) +
 					">"s;
 			}
