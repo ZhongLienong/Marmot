@@ -6,11 +6,9 @@
 #include <map>
 #include <set>
 #include <algorithm>
-#include <cctype>
 #include <format>
 #include <numeric>
 #include <ranges>
-#include <unordered_set>
 
 namespace
 {
@@ -34,12 +32,6 @@ namespace
 
 		return std::string(entry_module_name);
 	}
-
-	struct InstanceGlobalInit
-	{
-		size_t m_proc_index;
-		size_t m_global_index;
-	};
 
 	int ReadWideOperand(const BytecodeStream& procedure, int offset)
 	{
@@ -69,21 +61,6 @@ namespace
 		const int high_byte = (value >> SHIFT_8_BITS) & BYTE_MASK;
 		procedure.SetByteCode(offset + 1, static_cast<OpCode>(low_byte));
 		procedure.SetByteCode(offset + 2, static_cast<OpCode>(high_byte));
-	}
-
-	bool IsInstanceMethodName(std::string_view name)
-	{
-		const size_t first_underscore = name.find('_');
-		if (first_underscore == std::string::npos || first_underscore + 1u >= name.size())
-		{
-			return false;
-		}
-		if (std::isupper(static_cast<unsigned char>(name[first_underscore + 1u])) == 0)
-		{
-			return false;
-		}
-		const size_t second_underscore = name.find('_', first_underscore + 1u);
-		return second_underscore != std::string::npos;
 	}
 
 	// Where an instruction's shape operand starts, counted from its opcode.
@@ -127,67 +104,6 @@ namespace
 		// A module's top level returns Unit, onto an otherwise empty frame.
 		bootstrap.GetFrameMap().m_safepoints.push_back(FrameMap::Safepoint{ bootstrap.GetByteCodeSize(), {}, false });
 		bootstrap.AddByteCode(OpCode::POP, 0);
-	}
-
-	void EmitInstanceGlobal(BytecodeStream& stream, size_t proc_idx, size_t global_index)
-	{
-		AddProcedure(stream, proc_idx);
-		stream.AddByteCode(OpCode::DEFINE_GLOBAL_WIDE, 0);
-		const int high_byte = (static_cast<int>(global_index) >> SHIFT_8_BITS) & BYTE_MASK;
-		const int low_byte = static_cast<int>(global_index) & BYTE_MASK;
-		stream.AddByteCode(static_cast<OpCode>(high_byte), 0);
-		stream.AddByteCode(static_cast<OpCode>(low_byte), 0);
-	}
-
-	std::unordered_map<std::string, std::vector<InstanceGlobalInit>> BuildInstanceGlobalInits(const std::vector<std::string>& procedure_names, const std::vector<std::string>& global_variables)
-	{
-		std::unordered_map<std::string, std::vector<InstanceGlobalInit>> instance_inits_by_module;
-		std::unordered_set<size_t> initialized_globals;
-
-		for (size_t proc_idx = 0u; proc_idx < procedure_names.size(); proc_idx += 1u)
-		{
-			const std::string& proc_name = procedure_names[proc_idx];
-			const size_t at_pos = proc_name.find(ModuleSeparator);
-			if (at_pos == std::string::npos)
-			{
-				continue;
-			}
-
-			const std::string base_name = proc_name.substr(0u, at_pos);
-			if (base_name.starts_with(MAIN_PROCEDURE_PREFIX) || base_name.starts_with(MODULE_BOOTSTRAP_PREFIX))
-			{
-				continue;
-			}
-			if (!IsInstanceMethodName(base_name))
-			{
-				continue;
-			}
-
-			const std::vector<std::string>::const_iterator global_it = std::ranges::find_if
-			(
-				global_variables,
-				[&base_name](const std::string& global_name)
-				{
-					return global_name == base_name;
-				}
-			);
-
-			if (global_it == global_variables.end())
-			{
-				continue;
-			}
-
-			const size_t global_index = static_cast<size_t>(std::distance(global_variables.cbegin(), global_it));
-			if (!initialized_globals.insert(global_index).second)
-			{
-				continue;
-			}
-
-			const std::string module_name = proc_name.substr(at_pos + 1u);
-			instance_inits_by_module[module_name].push_back(InstanceGlobalInit{proc_idx, global_index});
-		}
-
-		return instance_inits_by_module;
 	}
 
 	// Its procedure is two bytes, low first, so it survives a program of more
@@ -606,29 +522,13 @@ void BytecodeLinker::PatchBootstrapOffsets()
 BytecodeStream BytecodeLinker::BuildBootstrapProcedure() const
 {
 	BytecodeStream bootstrap;
-	const std::unordered_map<std::string, std::vector<InstanceGlobalInit>> instance_inits_by_module = BuildInstanceGlobalInits(m_global_procedure_names, m_global_variables);
 
 	std::ranges::for_each
 	(
 		m_modules,
-		[this, &bootstrap, &instance_inits_by_module](const BytecodeModule& module)
+		[this, &bootstrap](const BytecodeModule& module)
 		{
 			AddModuleInitializer(bootstrap, module, m_module_base_procedure_indices);
-
-			const std::unordered_map<std::string, std::vector<InstanceGlobalInit>>::const_iterator init_it = instance_inits_by_module.find(module.m_module_name);
-			if (init_it == instance_inits_by_module.end())
-			{
-				return;
-			}
-
-			std::ranges::for_each
-			(
-				init_it->second,
-				[&bootstrap](const InstanceGlobalInit& init)
-				{
-					EmitInstanceGlobal(bootstrap, init.m_proc_index, init.m_global_index);
-				}
-			);
 		}
 	);
 

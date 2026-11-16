@@ -1,0 +1,11 @@
+module InitializerNameCollision
+
+import
+{
+	"../../../MarmotPrelude/IO.mmt",
+	"./initializer_name_collision_a.mmt",
+	"./initializer_name_collision_b.mmt"
+}
+
+IO::PrintLine(InitializerValue::foo_A_B as Text);
+IO::PrintLine(InitializerFunction::foo_A_B() as Text);
