@@ -87,3 +87,19 @@ TEST_CASE("Constrained calls keep unresolved return hints ambiguous", "[lowering
 		CHECK(resolved.error().m_code == CompilerErrorCode::LoweringAmbiguousMethodResolution);
 	}
 }
+
+TEST_CASE("Associated type resolution binds phantom parameters from a nominal prototype", "[lowering][instance-resolver][instance-matching]")
+{
+	const std::shared_ptr<MarmotType> integer = MarmotType::MakeLiteralType<MarmotType::IntegerType>();
+	const std::shared_ptr<MarmotType> parameter = MarmotType::MakeGenericType("T");
+	const std::shared_ptr<MarmotType> prototype = MarmotType::MakeStructType("Phantom", "Origin", {}, {}, { "T" });
+	const std::shared_ptr<MarmotType> concrete = MarmotType::SubstituteTypeParams(prototype, { { "T", integer } });
+	TypeclassMetadata metadata;
+	metadata.m_type_param_names = { "Container" };
+	metadata.m_associated_type_names = { "Item" };
+	metadata.m_instances.emplace_back(std::vector{ prototype }, TypeclassInstance::AssociatedTypes{ { "Item", parameter } }, std::vector<MarmotType::ClassConstraint>(), std::vector<std::string>(), "Origin");
+	const InstanceResolver resolver({ { "Extract", std::move(metadata) } });
+	const std::optional<std::shared_ptr<MarmotType>> resolved = resolver.ResolveAssociatedType(MarmotType::AssociatedType("Extract", "Item", { concrete }));
+	REQUIRE(resolved.has_value());
+	CHECK(**resolved == *integer);
+}

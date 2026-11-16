@@ -1,5 +1,6 @@
 #include "InstanceResolver.h"
 #include "Compiler/Names/SpecialNames.h"
+#include "Compiler/TypeMatching/InstanceTypeMatcher.h"
 
 #include <algorithm>
 #include <format>
@@ -9,146 +10,6 @@
 namespace
 {
 	using TypeRef = std::shared_ptr<MarmotType>;
-
-	struct TypePairHash
-	{
-		size_t operator()(const std::pair<MarmotType*, MarmotType*>& pair) const
-		{
-			return std::hash<MarmotType*>{}(pair.first) ^ (std::hash<MarmotType*>{}(pair.second) << 1u);
-		}
-	};
-
-	using VisitedPairs = std::unordered_set<std::pair<MarmotType*, MarmotType*>, TypePairHash>;
-
-	bool MatchInstanceTypeArg(const TypeRef& pattern, const TypeRef& concrete, GenericTypes::TypeEnvironment& substitutions, VisitedPairs& visited);
-
-	bool MatchAll(const std::vector<TypeRef>& patterns, const std::vector<TypeRef>& concretes, GenericTypes::TypeEnvironment& substitutions, VisitedPairs& visited)
-	{
-		if (patterns.size() != concretes.size())
-		{
-			return false;
-		}
-		for (size_t index = 0u; index < patterns.size(); index += 1u)
-		{
-			if (!MatchInstanceTypeArg(patterns[index], concretes[index], substitutions, visited))
-			{
-				return false;
-			}
-		}
-		return true;
-	}
-
-	// A type argument no member mentions, `Taken<S, A>`'s A, is matched by
-	// the arguments the type was instantiated with.
-	bool MatchTypeArguments(const std::vector<TypeRef>& patterns, const std::vector<TypeRef>& concretes, GenericTypes::TypeEnvironment& substitutions, VisitedPairs& visited)
-	{
-		return patterns.size() != concretes.size() || MatchAll(patterns, concretes, substitutions, visited);
-	}
-
-	bool MatchInstanceTypeArg(const TypeRef& pattern, const TypeRef& concrete, GenericTypes::TypeEnvironment& substitutions, VisitedPairs& visited)
-	{
-		if (!visited.emplace(pattern.get(), concrete.get()).second)
-		{
-			return true;
-		}
-
-		if (pattern->IsType<MarmotType::GenericParam>())
-		{
-			const std::string& param_name = pattern->GetType<MarmotType::GenericParam>().m_name;
-			const GenericTypes::TypeEnvironment::const_iterator bound = substitutions.find(param_name);
-			if (bound != substitutions.cend())
-			{
-				return *bound->second == *concrete;
-			}
-			substitutions.emplace(param_name, concrete);
-			return true;
-		}
-
-		if (pattern->IsType<MarmotType::ArrayType>())
-		{
-			return concrete->IsType<MarmotType::ArrayType>() && MatchInstanceTypeArg(pattern->GetType<MarmotType::ArrayType>().m_element_type, concrete->GetType<MarmotType::ArrayType>().m_element_type, substitutions, visited);
-		}
-
-		if (pattern->IsType<MarmotType::CellType>())
-		{
-			return concrete->IsType<MarmotType::CellType>() && MatchInstanceTypeArg(pattern->GetType<MarmotType::CellType>().m_element_type, concrete->GetType<MarmotType::CellType>().m_element_type, substitutions, visited);
-		}
-
-		if (pattern->IsType<MarmotType::RangeType>())
-		{
-			return concrete->IsType<MarmotType::RangeType>() && MatchInstanceTypeArg(pattern->GetType<MarmotType::RangeType>().m_element_type, concrete->GetType<MarmotType::RangeType>().m_element_type, substitutions, visited);
-		}
-
-		if (pattern->IsType<MarmotType::TupleType>())
-		{
-			return concrete->IsType<MarmotType::TupleType>() && MatchAll(pattern->GetType<MarmotType::TupleType>().m_element_types, concrete->GetType<MarmotType::TupleType>().m_element_types, substitutions, visited);
-		}
-
-		if (pattern->IsType<MarmotType::FunctionType>())
-		{
-			if (!concrete->IsType<MarmotType::FunctionType>())
-			{
-				return false;
-			}
-			const MarmotType::FunctionType& pattern_function = pattern->GetType<MarmotType::FunctionType>();
-			const MarmotType::FunctionType& concrete_function = concrete->GetType<MarmotType::FunctionType>();
-			return MatchAll(pattern_function.m_param_types, concrete_function.m_param_types, substitutions, visited) && MatchInstanceTypeArg(pattern_function.m_return_type, concrete_function.m_return_type, substitutions, visited);
-		}
-
-		if (pattern->IsType<MarmotType::StructType>())
-		{
-			if (!concrete->IsType<MarmotType::StructType>())
-			{
-				return false;
-			}
-			const MarmotType::StructType& pattern_struct = pattern->GetType<MarmotType::StructType>();
-			const MarmotType::StructType& concrete_struct = concrete->GetType<MarmotType::StructType>();
-			return pattern_struct.m_name == concrete_struct.m_name && pattern_struct.m_module_name == concrete_struct.m_module_name && MatchAll(pattern_struct.m_member_types, concrete_struct.m_member_types, substitutions, visited) && MatchTypeArguments(pattern_struct.m_type_arguments, concrete_struct.m_type_arguments, substitutions, visited);
-		}
-
-		if (pattern->IsType<MarmotType::UnionType>())
-		{
-			if (!concrete->IsType<MarmotType::UnionType>())
-			{
-				return false;
-			}
-			const MarmotType::UnionType& pattern_union = pattern->GetType<MarmotType::UnionType>();
-			const MarmotType::UnionType& concrete_union = concrete->GetType<MarmotType::UnionType>();
-			if (pattern_union.m_name != concrete_union.m_name || pattern_union.m_module_name != concrete_union.m_module_name || pattern_union.m_member_info.size() != concrete_union.m_member_info.size() || !MatchTypeArguments(pattern_union.m_type_arguments, concrete_union.m_type_arguments, substitutions, visited))
-			{
-				return false;
-			}
-			return std::ranges::all_of(pattern_union.m_member_info, [&](const std::pair<const std::string, MarmotType::UnionType::UnionMemberContext>& member)
-			{
-				const std::unordered_map<std::string, MarmotType::UnionType::UnionMemberContext>::const_iterator concrete_member = concrete_union.m_member_info.find(member.first);
-				return concrete_member != concrete_union.m_member_info.cend() && MatchAll(member.second.m_member_types, concrete_member->second.m_member_types, substitutions, visited);
-			});
-		}
-
-		if (pattern->IsType<MarmotType::NewType>())
-		{
-			if (!concrete->IsType<MarmotType::NewType>())
-			{
-				return false;
-			}
-			const MarmotType::NewType& pattern_new_type = pattern->GetType<MarmotType::NewType>();
-			const MarmotType::NewType& concrete_new_type = concrete->GetType<MarmotType::NewType>();
-			return pattern_new_type.m_name == concrete_new_type.m_name && pattern_new_type.m_module_name == concrete_new_type.m_module_name && MatchInstanceTypeArg(pattern_new_type.m_representation, concrete_new_type.m_representation, substitutions, visited) && MatchTypeArguments(pattern_new_type.m_type_arguments, concrete_new_type.m_type_arguments, substitutions, visited);
-		}
-
-		if (pattern->IsType<MarmotType::AssociatedType>())
-		{
-			if (!concrete->IsType<MarmotType::AssociatedType>())
-			{
-				return false;
-			}
-			const MarmotType::AssociatedType& pattern_associated = pattern->GetType<MarmotType::AssociatedType>();
-			const MarmotType::AssociatedType& concrete_associated = concrete->GetType<MarmotType::AssociatedType>();
-			return pattern_associated.m_class_name == concrete_associated.m_class_name && pattern_associated.m_name == concrete_associated.m_name && MatchAll(pattern_associated.m_type_args, concrete_associated.m_type_args, substitutions, visited);
-		}
-
-		return *pattern == *concrete;
-	}
 
 	std::string QualifiedMethod(std::string_view class_name, std::string_view method_name)
 	{
@@ -195,12 +56,11 @@ std::optional<std::shared_ptr<MarmotType>> InstanceResolver::ResolveAssociatedTy
 	}
 	for (const TypeclassInstance& instance : metadata->second.m_instances)
 	{
-		GenericTypes::TypeEnvironment substitutions;
-		VisitedPairs visited;
+		InstanceTypeMatcher matcher;
 		const TypeclassInstance::AssociatedTypes::const_iterator binding = instance.m_associated_type_bindings.find(projection.m_name);
-		if (binding != instance.m_associated_type_bindings.cend() && MatchAll(instance.m_type_args, projection.m_type_args, substitutions, visited))
+		if (binding != instance.m_associated_type_bindings.cend() && matcher.MatchAll(instance.m_type_args, projection.m_type_args))
 		{
-			return GenericTypes::Substitute(binding->second, substitutions);
+			return GenericTypes::Substitute(binding->second, matcher.Bindings());
 		}
 	}
 	return std::nullopt;
@@ -260,9 +120,8 @@ std::optional<ResolvedInstanceName> InstanceResolver::ResolveInstanceNameForType
 	for (const TypeclassInstance& instance : instance_args->second.m_instances)
 	{
 		const std::vector<TypeRef>& candidate_args = instance.m_type_args;
-		GenericTypes::TypeEnvironment substitutions;
-		VisitedPairs visited;
-		if (!MatchAll(candidate_args, concrete_type_args, substitutions, visited))
+		InstanceTypeMatcher matcher;
+		if (!matcher.MatchAll(candidate_args, concrete_type_args))
 		{
 			continue;
 		}
@@ -406,24 +265,23 @@ MethodResolution<std::optional<ResolvedInstanceName>> InstanceResolver::ResolveC
 			continue;
 		}
 
-		GenericTypes::TypeEnvironment substitutions;
-		VisitedPairs visited;
+		InstanceTypeMatcher matcher;
 		bool matched = true;
 		if (candidate_args.size() == 1u)
 		{
-			matched = std::ranges::all_of(argument_types, [&](const TypeRef& argument_type) { return MatchInstanceTypeArg(candidate_args[0u], argument_type, substitutions, visited); });
+			matched = std::ranges::all_of(argument_types, [&](const TypeRef& argument_type) { return matcher.Match(candidate_args[0u], argument_type); });
 		}
 		else
 		{
 			const size_t positional_count = std::min(candidate_args.size(), argument_types.size());
 			for (size_t index = 0u; index < positional_count && matched; index += 1u)
 			{
-				matched = MatchInstanceTypeArg(candidate_args[index], argument_types[index], substitutions, visited);
+				matched = matcher.Match(candidate_args[index], argument_types[index]);
 			}
 
 			if (matched && argument_types.size() + 1u == candidate_args.size())
 			{
-				matched = MatchInstanceTypeArg(candidate_args.back(), return_type, substitutions, visited);
+				matched = matcher.Match(candidate_args.back(), return_type);
 			}
 			else if (matched && argument_types.size() < candidate_args.size())
 			{
@@ -456,7 +314,7 @@ MethodResolution<std::optional<ResolvedInstanceName>> InstanceResolver::ResolveC
 	return candidates[0u].m_resolved_name;
 }
 
-MethodResolution<std::optional<ResolvedInstanceName>> InstanceResolver::MatchSingleInstance(const std::string& class_name, const std::string& method_name, const std::function<bool(const std::vector<std::shared_ptr<MarmotType>>&, GenericTypes::TypeEnvironment&)>& matches, const std::string& ambiguity_message) const
+MethodResolution<std::optional<ResolvedInstanceName>> InstanceResolver::MatchSingleInstance(const std::string& class_name, const std::string& method_name, const std::function<bool(const std::vector<std::shared_ptr<MarmotType>>&)>& matches, const std::string& ambiguity_message) const
 {
 	const TypeclassMetadataMap::const_iterator instance_args = m_classes.find(class_name);
 	if (instance_args == m_classes.cend())
@@ -468,8 +326,7 @@ MethodResolution<std::optional<ResolvedInstanceName>> InstanceResolver::MatchSin
 	for (const TypeclassInstance& instance : instance_args->second.m_instances)
 	{
 		const std::vector<TypeRef>& candidate_args = instance.m_type_args;
-		GenericTypes::TypeEnvironment substitutions;
-		if (!matches(candidate_args, substitutions))
+		if (!matches(candidate_args))
 		{
 			continue;
 		}
@@ -511,10 +368,10 @@ MethodResolution<ResolvedInstanceName> InstanceResolver::ResolveConcat(const Met
 
 	if (!resolved.has_value())
 	{
-		const MethodResolution<std::optional<ResolvedInstanceName>> matched = MatchSingleInstance(std::string(CONCATENABLE_CLASS_NAME), std::string(CONCAT_METHOD_NAME), [&operand_type](const std::vector<TypeRef>& candidate_args, GenericTypes::TypeEnvironment& substitutions)
+		const MethodResolution<std::optional<ResolvedInstanceName>> matched = MatchSingleInstance(std::string(CONCATENABLE_CLASS_NAME), std::string(CONCAT_METHOD_NAME), [&operand_type](const std::vector<TypeRef>& candidate_args)
 		{
-			VisitedPairs visited;
-			return candidate_args.size() == 1u && MatchInstanceTypeArg(candidate_args[0u], operand_type, substitutions, visited);
+			InstanceTypeMatcher matcher;
+			return candidate_args.size() == 1u && matcher.Match(candidate_args[0u], operand_type);
 		}, std::format("Concatenable instance method resolution is ambiguous for type '{}'", operand_type->DisplayString()));
 		if (!matched.has_value())
 		{
@@ -551,10 +408,10 @@ MethodResolution<ResolvedInstanceName> InstanceResolver::ResolveOperandInstance(
 		return exact.value();
 	}
 
-	const MethodResolution<std::optional<ResolvedInstanceName>> matched = MatchSingleInstance(class_name, method_name, [&operand_type](const std::vector<TypeRef>& candidate_args, GenericTypes::TypeEnvironment& substitutions)
+	const MethodResolution<std::optional<ResolvedInstanceName>> matched = MatchSingleInstance(class_name, method_name, [&operand_type](const std::vector<TypeRef>& candidate_args)
 	{
-		VisitedPairs visited;
-		return candidate_args.size() == 1u && MatchInstanceTypeArg(candidate_args[0u], operand_type, substitutions, visited);
+		InstanceTypeMatcher matcher;
+		return candidate_args.size() == 1u && matcher.Match(candidate_args[0u], operand_type);
 	}, std::format("{} instance method resolution is ambiguous for type '{}'", class_name, operand_type->DisplayString()));
 	if (!matched.has_value())
 	{
@@ -674,10 +531,10 @@ MethodResolution<std::optional<ResolvedInstanceName>> InstanceResolver::ResolveC
 		return exact;
 	}
 
-	const MethodResolution<std::optional<ResolvedInstanceName>> matched = MatchSingleInstance(std::string(CONVERTABLE_CLASS_NAME), std::string(CONVERT_METHOD_NAME), [&](const std::vector<TypeRef>& candidate_args, GenericTypes::TypeEnvironment& substitutions)
+	const MethodResolution<std::optional<ResolvedInstanceName>> matched = MatchSingleInstance(std::string(CONVERTABLE_CLASS_NAME), std::string(CONVERT_METHOD_NAME), [&](const std::vector<TypeRef>& candidate_args)
 	{
-		VisitedPairs visited;
-		return candidate_args.size() == 2u && MatchInstanceTypeArg(candidate_args[0u], from_type, substitutions, visited) && MatchInstanceTypeArg(candidate_args[1u], to_type, substitutions, visited);
+		InstanceTypeMatcher matcher;
+		return candidate_args.size() == 2u && matcher.Match(candidate_args[0u], from_type) && matcher.Match(candidate_args[1u], to_type);
 	}, std::format("Convertable instance method resolution is ambiguous for types '{}' -> '{}'", from_type->DisplayString(), to_type->DisplayString()));
 	if (!matched.has_value() || matched.value().has_value())
 	{
@@ -716,10 +573,10 @@ MethodResolution<ResolvedInstanceName> InstanceResolver::ResolveIterableNext(con
 		return std::unexpected(MethodResolutionError(CompilerErrorCode::None, "Cannot resolve Iterable instance for type variables outside of specialization context"));
 	}
 
-	const MethodResolution<std::optional<ResolvedInstanceName>> matched = MatchSingleInstance(std::string(ITERABLE_CLASS_NAME), std::string(NEXT_METHOD_NAME), [&](const std::vector<TypeRef>& candidate_args, GenericTypes::TypeEnvironment& substitutions)
+	const MethodResolution<std::optional<ResolvedInstanceName>> matched = MatchSingleInstance(std::string(ITERABLE_CLASS_NAME), std::string(NEXT_METHOD_NAME), [&](const std::vector<TypeRef>& candidate_args)
 	{
-		VisitedPairs visited;
-		return !candidate_args.empty() && MatchInstanceTypeArg(candidate_args[0u], iterator_type, substitutions, visited) && (candidate_args.size() == 1u || MatchInstanceTypeArg(candidate_args[1u], item_type, substitutions, visited));
+		InstanceTypeMatcher matcher;
+		return !candidate_args.empty() && matcher.Match(candidate_args[0u], iterator_type) && (candidate_args.size() == 1u || matcher.Match(candidate_args[1u], item_type));
 	}, std::format("Iterable instance method resolution is ambiguous for iterator type '{}'", iterator_type->DisplayString()));
 	if (!matched.has_value())
 	{

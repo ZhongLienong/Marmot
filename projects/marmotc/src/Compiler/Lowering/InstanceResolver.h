@@ -103,5 +103,5 @@ public:
 private:
 	// The one instance of `class_name` whose type arguments match, through
 	// `matches`; an error names `description` when two do.
-	MethodResolution<std::optional<ResolvedInstanceName>> MatchSingleInstance(const std::string& class_name, const std::string& method_name, const std::function<bool(const std::vector<std::shared_ptr<MarmotType>>&, GenericTypes::TypeEnvironment&)>& matches, const std::string& ambiguity_message) const;
+	MethodResolution<std::optional<ResolvedInstanceName>> MatchSingleInstance(const std::string& class_name, const std::string& method_name, const std::function<bool(const std::vector<std::shared_ptr<MarmotType>>&)>& matches, const std::string& ambiguity_message) const;
 };

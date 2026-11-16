@@ -11,6 +11,7 @@
 #include "Compiler/Error/CompilerError.h"
 #include "PatternCoverage.h"
 #include "TypeChecker.h"
+#include "Compiler/TypeMatching/InstanceTypeMatcher.h"
 #include <cassert>
 
 using namespace std::string_literals;
@@ -393,225 +394,6 @@ namespace
 		return names | std::views::join_with(std::string_view(", ")) | std::ranges::to<std::string>();
 	}
 
-	bool MatchInstanceTypeArg(const std::shared_ptr<MarmotType>& pattern, const std::shared_ptr<MarmotType>& concrete, std::unordered_map<std::string, std::shared_ptr<MarmotType>>& substitutions, std::unordered_set<std::pair<MarmotType*, MarmotType*>, TypePairHash>& visited);
-
-	bool MatchInstanceTypeArguments(const std::vector<std::string>& pattern_generic_params, const std::vector<std::shared_ptr<MarmotType>>& pattern_type_arguments, const std::vector<std::shared_ptr<MarmotType>>& concrete_type_arguments, std::unordered_map<std::string, std::shared_ptr<MarmotType>>& substitutions, std::unordered_set<std::pair<MarmotType*, MarmotType*>, TypePairHash>& visited)
-	{
-		const std::vector<std::shared_ptr<MarmotType>> resolved_pattern_type_arguments = MarmotType::InstantiateTypeArguments
-		(
-			pattern_generic_params,
-			pattern_type_arguments,
-			[](const std::shared_ptr<MarmotType>& type_argument) { return type_argument; }
-		);
-
-		if (resolved_pattern_type_arguments.size() != concrete_type_arguments.size())
-		{
-			return false;
-		}
-
-		for (size_t i = 0u; i < resolved_pattern_type_arguments.size(); i += 1u)
-		{
-			if (!MatchInstanceTypeArg(resolved_pattern_type_arguments[i], concrete_type_arguments[i], substitutions, visited))
-			{
-				return false;
-			}
-		}
-
-		return true;
-	}
-
-	bool MatchInstanceTypeArg(const std::shared_ptr<MarmotType>& pattern, const std::shared_ptr<MarmotType>& concrete, std::unordered_map<std::string, std::shared_ptr<MarmotType>>& substitutions, std::unordered_set<std::pair<MarmotType*, MarmotType*>, TypePairHash>& visited)
-	{
-		if (!pattern || !concrete)
-		{
-			return false;
-		}
-
-		std::pair<MarmotType*, MarmotType*> key{ pattern.get(), concrete.get() };
-		if (visited.contains(key))
-		{
-			return true;
-		}
-		visited.emplace(key);
-
-		if (pattern->IsType<MarmotType::GenericParam>())
-		{
-			const std::string& param_name = pattern->GetType<MarmotType::GenericParam>().m_name;
-			std::unordered_map<std::string, std::shared_ptr<MarmotType>>::iterator it = substitutions.find(param_name);
-			if (it != substitutions.end())
-			{
-				return *it->second == *concrete;
-			}
-			substitutions.emplace(param_name, concrete);
-			return true;
-		}
-
-		if (pattern->IsType<MarmotType::ArrayType>())
-		{
-			if (!concrete->IsType<MarmotType::ArrayType>())
-			{
-				return false;
-			}
-			return MatchInstanceTypeArg(pattern->GetType<MarmotType::ArrayType>().m_element_type, concrete->GetType<MarmotType::ArrayType>().m_element_type, substitutions, visited);
-		}
-
-		if (pattern->IsType<MarmotType::CellType>())
-		{
-			if (!concrete->IsType<MarmotType::CellType>())
-			{
-				return false;
-			}
-			return MatchInstanceTypeArg(pattern->GetType<MarmotType::CellType>().m_element_type, concrete->GetType<MarmotType::CellType>().m_element_type, substitutions, visited);
-		}
-
-		if (pattern->IsType<MarmotType::RangeType>())
-		{
-			if (!concrete->IsType<MarmotType::RangeType>())
-			{
-				return false;
-			}
-			return MatchInstanceTypeArg(pattern->GetType<MarmotType::RangeType>().m_element_type, concrete->GetType<MarmotType::RangeType>().m_element_type, substitutions, visited);
-		}
-
-		if (pattern->IsType<MarmotType::TupleType>())
-		{
-			if (!concrete->IsType<MarmotType::TupleType>())
-			{
-				return false;
-			}
-
-			const MarmotType::TupleType& pattern_tuple = pattern->GetType<MarmotType::TupleType>();
-			const MarmotType::TupleType& concrete_tuple = concrete->GetType<MarmotType::TupleType>();
-			if (pattern_tuple.m_element_types.size() != concrete_tuple.m_element_types.size())
-			{
-				return false;
-			}
-			for (size_t i = 0u; i < pattern_tuple.m_element_types.size(); i += 1u)
-			{
-				if (!MatchInstanceTypeArg(pattern_tuple.m_element_types[i], concrete_tuple.m_element_types[i], substitutions, visited))
-				{
-					return false;
-				}
-			}
-			return true;
-		}
-
-		if (pattern->IsType<MarmotType::FunctionType>())
-		{
-			if (!concrete->IsType<MarmotType::FunctionType>())
-			{
-				return false;
-			}
-
-			const MarmotType::FunctionType& pattern_func = pattern->GetType<MarmotType::FunctionType>();
-			const MarmotType::FunctionType& concrete_func = concrete->GetType<MarmotType::FunctionType>();
-			if (pattern_func.m_param_types.size() != concrete_func.m_param_types.size())
-			{
-				return false;
-			}
-			for (size_t i = 0u; i < pattern_func.m_param_types.size(); i += 1u)
-			{
-				if (!MatchInstanceTypeArg(pattern_func.m_param_types[i], concrete_func.m_param_types[i], substitutions, visited))
-				{
-					return false;
-				}
-			}
-			return MatchInstanceTypeArg(pattern_func.m_return_type, concrete_func.m_return_type, substitutions, visited);
-		}
-
-		if (pattern->IsType<MarmotType::StructType>())
-		{
-			if (!concrete->IsType<MarmotType::StructType>())
-			{
-				return false;
-			}
-
-			const MarmotType::StructType& pattern_struct = pattern->GetType<MarmotType::StructType>();
-			const MarmotType::StructType& concrete_struct = concrete->GetType<MarmotType::StructType>();
-			if (pattern_struct.m_name != concrete_struct.m_name ||
-				pattern_struct.m_module_name != concrete_struct.m_module_name ||
-				pattern_struct.m_member_types.size() != concrete_struct.m_member_types.size())
-			{
-				return false;
-			}
-
-			if (!MatchInstanceTypeArguments(pattern_struct.m_generic_params, pattern_struct.m_type_arguments, concrete_struct.m_type_arguments, substitutions, visited))
-			{
-				return false;
-			}
-
-			for (size_t i = 0u; i < pattern_struct.m_member_types.size(); i += 1u)
-			{
-				if (!MatchInstanceTypeArg(pattern_struct.m_member_types[i], concrete_struct.m_member_types[i], substitutions, visited))
-				{
-					return false;
-				}
-			}
-			return true;
-		}
-
-		if (pattern->IsType<MarmotType::UnionType>())
-		{
-			if (!concrete->IsType<MarmotType::UnionType>())
-			{
-				return false;
-			}
-
-			const MarmotType::UnionType& pattern_union = pattern->GetType<MarmotType::UnionType>();
-			const MarmotType::UnionType& concrete_union = concrete->GetType<MarmotType::UnionType>();
-			if (pattern_union.m_name != concrete_union.m_name ||
-				pattern_union.m_module_name != concrete_union.m_module_name ||
-				pattern_union.m_member_info.size() != concrete_union.m_member_info.size())
-			{
-				return false;
-			}
-
-			if (!MatchInstanceTypeArguments(pattern_union.m_generic_params, pattern_union.m_type_arguments, concrete_union.m_type_arguments, substitutions, visited))
-			{
-				return false;
-			}
-
-			for (const auto& [member_name, pattern_ctx] : pattern_union.m_member_info)
-			{
-				std::unordered_map<std::string, MarmotType::UnionType::UnionMemberContext>::const_iterator concrete_it =
-					concrete_union.m_member_info.find(member_name);
-				if (concrete_it == concrete_union.m_member_info.end())
-				{
-					return false;
-				}
-				const MarmotType::UnionType::UnionMemberContext& concrete_ctx = concrete_it->second;
-				if (pattern_ctx.m_member_types.size() != concrete_ctx.m_member_types.size())
-				{
-					return false;
-				}
-				for (size_t i = 0u; i < pattern_ctx.m_member_types.size(); i += 1u)
-				{
-					if (!MatchInstanceTypeArg(pattern_ctx.m_member_types[i], concrete_ctx.m_member_types[i], substitutions, visited))
-					{
-						return false;
-					}
-				}
-			}
-			return true;
-		}
-
-		if (pattern->IsType<MarmotType::NewType>())
-		{
-			if (!concrete->IsType<MarmotType::NewType>())
-			{
-				return false;
-			}
-
-			const MarmotType::NewType& pattern_new_type = pattern->GetType<MarmotType::NewType>();
-			const MarmotType::NewType& concrete_new_type = concrete->GetType<MarmotType::NewType>();
-			return pattern_new_type.m_name == concrete_new_type.m_name
-				&& pattern_new_type.m_module_name == concrete_new_type.m_module_name
-				&& MatchInstanceTypeArguments(pattern_new_type.m_generic_params, pattern_new_type.m_type_arguments, concrete_new_type.m_type_arguments, substitutions, visited)
-				&& MatchInstanceTypeArg(pattern_new_type.m_representation, concrete_new_type.m_representation, substitutions, visited);
-		}
-
-		return *pattern == *concrete;
-	}
 
 }
 
@@ -1056,13 +838,13 @@ std::optional<std::vector<std::pair<std::string, std::shared_ptr<MarmotType>>>> 
 		return std::nullopt;
 	}
 
-	std::unordered_map<std::string, std::shared_ptr<MarmotType>> substitutions;
-	std::unordered_set<std::pair<MarmotType*, MarmotType*>, TypePairHash> visited;
-	if (!MatchInstanceTypeArg(prototype, concrete_type, substitutions, visited))
+	InstanceTypeMatcher matcher;
+	if (!matcher.Match(prototype, concrete_type))
 	{
 		return std::nullopt;
 	}
 
+	const TypeEnvironment substitutions = std::move(matcher).TakeBindings();
 	std::vector<std::pair<std::string, std::shared_ptr<MarmotType>>> resolved_args;
 	resolved_args.reserve(param_names.size());
 	for (const std::string& param_name : param_names)
@@ -1092,34 +874,18 @@ std::optional<TypeChecker::ResolvedInstanceMatch> TypeChecker::FindMatchingInsta
 std::vector<TypeChecker::ResolvedInstanceMatch> TypeChecker::FindMatchingInstances(const std::string& class_name, const std::vector<std::shared_ptr<MarmotType>>& type_args) const
 {
 	std::vector<ResolvedInstanceMatch> matches;
-
 	for (const auto& [_, instance_info] : m_instances)
 	{
-		if (instance_info.m_class_name != class_name || instance_info.m_type_args.size() != type_args.size())
+		if (instance_info.m_class_name != class_name)
 		{
 			continue;
 		}
-
-		TypeEnvironment substitutions;
-		std::unordered_set<std::pair<MarmotType*, MarmotType*>, TypePairHash> visited;
-		bool matched = true;
-		for (size_t idx = 0u; idx < type_args.size(); idx += 1u)
+		InstanceTypeMatcher matcher;
+		if (matcher.MatchAll(instance_info.m_type_args, type_args))
 		{
-			if (!MatchInstanceTypeArg(instance_info.m_type_args[idx], type_args[idx], substitutions, visited))
-			{
-				matched = false;
-				break;
-			}
+			matches.push_back(ResolvedInstanceMatch{ .m_instance = &instance_info, .m_substitutions = std::move(matcher).TakeBindings() });
 		}
-
-		if (!matched)
-		{
-			continue;
-		}
-
-		matches.push_back(ResolvedInstanceMatch{ .m_instance = &instance_info, .m_substitutions = std::move(substitutions) });
 	}
-
 	return matches;
 }
 
@@ -4710,9 +4476,8 @@ MarmotResult::TypeResult TypeChecker::ResolveIteration(IterationNode& node, cons
 					continue;
 				}
 
-				std::unordered_map<std::string, std::shared_ptr<MarmotType>> substitutions;
-				std::unordered_set<std::pair<MarmotType*, MarmotType*>, TypePairHash> visited;
-				if (!MatchInstanceTypeArg(info.m_type_args[0u], resolved_range, substitutions, visited))
+				InstanceTypeMatcher matcher;
+				if (!matcher.Match(info.m_type_args[0u], resolved_range))
 				{
 					continue;
 				}
@@ -4721,7 +4486,7 @@ MarmotResult::TypeResult TypeChecker::ResolveIteration(IterationNode& node, cons
 				{
 					return std::unexpected(fail("ambiguous Iterable instance for iterator type", resolved_range));
 				}
-				iterable_item_type = MarmotType::SubstituteTypeParams(info.m_type_args[1u], substitutions);
+				iterable_item_type = MarmotType::SubstituteTypeParams(info.m_type_args[1u], matcher.Bindings());
 				is_iterable = true;
 			}
 		}
@@ -5626,14 +5391,13 @@ std::shared_ptr<MarmotType> TypeChecker::NarrowClassMethodType(const std::string
 			continue;
 		}
 
-		std::unordered_map<std::string, std::shared_ptr<MarmotType>> substitutions;
-		std::unordered_set<std::pair<MarmotType*, MarmotType*>, TypePairHash> visited;
+		InstanceTypeMatcher matcher;
 		bool matched = std::ranges::all_of
 		(
 			std::views::iota(0u, known_arg_types.size()),
-			[&candidate_function_type, &known_arg_types, &substitutions, &visited, this](size_t idx) -> bool
+			[&candidate_function_type, &known_arg_types, &matcher, this](size_t idx) -> bool
 			{
-				return MatchInstanceTypeArg(candidate_function_type.m_param_types[idx], ApplySubstitution(known_arg_types[idx]), substitutions, visited);
+				return matcher.Match(candidate_function_type.m_param_types[idx], ApplySubstitution(known_arg_types[idx]));
 			}
 		);
 
@@ -5646,6 +5410,8 @@ std::shared_ptr<MarmotType> TypeChecker::NarrowClassMethodType(const std::string
 		{
 			return std::shared_ptr<MarmotType>{};
 		}
+
+		TypeEnvironment substitutions = std::move(matcher).TakeBindings();
 
 		// The narrowed type becomes an argument's expected type, so a parameter of the
 		// instance that the arguments so far have not decided must be left open: as
@@ -5765,14 +5531,13 @@ MarmotResult::TypeResult TypeChecker::CheckInstanceMethodCall(MarmotExpression::
 			continue;
 		}
 
-		std::unordered_map<std::string, std::shared_ptr<MarmotType>> substitutions;
-		std::unordered_set<std::pair<MarmotType*, MarmotType*>, TypePairHash> visited;
+		InstanceTypeMatcher matcher;
 		bool matched = true;
 
 		for (size_t i = 0u; i < arg_results.size(); i += 1u)
 		{
 			std::shared_ptr<MarmotType> resolved_arg = ApplySubstitution(arg_results[i]);
-			if (!MatchInstanceTypeArg(candidate_function_type.m_param_types[i], resolved_arg, substitutions, visited))
+			if (!matcher.Match(candidate_function_type.m_param_types[i], resolved_arg))
 			{
 				matched = false;
 				break;
@@ -5792,17 +5557,16 @@ MarmotResult::TypeResult TypeChecker::CheckInstanceMethodCall(MarmotExpression::
 		bool matches_expected_type = false;
 		if (m_expected_expr_type != nullptr)
 		{
-			std::unordered_map<std::string, std::shared_ptr<MarmotType>> expected_substitutions = substitutions;
-			std::unordered_set<std::pair<MarmotType*, MarmotType*>, TypePairHash> expected_visited = visited;
+			InstanceTypeMatcher expected_matcher = matcher;
 			std::shared_ptr<MarmotType> expected_type = ApplySubstitution(m_expected_expr_type);
-			if (MatchInstanceTypeArg(candidate_function_type.m_return_type, expected_type, expected_substitutions, expected_visited))
+			if (expected_matcher.Match(candidate_function_type.m_return_type, expected_type))
 			{
 				matches_expected_type = true;
-				substitutions = std::move(expected_substitutions);
-				visited = std::move(expected_visited);
+				matcher = std::move(expected_matcher);
 			}
 		}
 
+		TypeEnvironment substitutions = std::move(matcher).TakeBindings();
 		std::shared_ptr<MarmotType> resolved_method_type = ApplySubstitution(MarmotType::SubstituteTypeParams(candidate_method_type, substitutions));
 		candidates.emplace_back(std::move(resolved_method_type), &instance_info, std::move(substitutions), matches_expected_type);
 	}

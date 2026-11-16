@@ -1,0 +1,45 @@
+module InstanceMatching
+
+import { "../../../MarmotPrelude/IO.mmt" }
+
+class Tagged<T>
+{
+	Name: fn(value: T) -> Text;
+};
+
+type Phantom<T> = {};
+type Chain<T> = Empty | Link(T, Chain<T>);
+type Pair<A, B> = { first: A, second: B };
+
+instance Tagged<Phantom<Int>>
+{
+	def Name = fn(value: Phantom<Int>) -> Text => "int";
+};
+
+instance Tagged<Phantom<Text>>
+{
+	def Name = fn(value: Phantom<Text>) -> Text => "text";
+};
+
+instance Tagged<Chain<T>>
+{
+	def Name = fn(value: Chain<T>) -> Text => "chain";
+};
+
+instance Tagged<Pair<T, T>>
+{
+	def Name = fn(value: Pair<T, T>) -> Text => "pair";
+};
+
+def Render = fn<T>(value: T) -> Text where Tagged<T> => Tagged::Name(value);
+
+def integer: Phantom<Int> = Phantom();
+def text: Phantom<Text> = Phantom();
+def chain: Chain<Int> = Chain::Link(7, Chain::Empty());
+
+IO::PrintLine(Tagged::Name(integer));
+IO::PrintLine(Tagged::Name(text));
+IO::PrintLine(Render(integer));
+IO::PrintLine(Render(text));
+IO::PrintLine(Render(chain));
+IO::PrintLine(Render(Pair(1, 2)));
