@@ -5,7 +5,7 @@
 #include <unordered_set>
 #include <utility>
 
-#include "Compiler/Constant/Constant.h"
+#include "Compiler/Names/SpecialNames.h"
 #include "Compiler/Token/Token.h"
 
 using namespace std::string_literals;

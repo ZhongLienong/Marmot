@@ -1,5 +1,5 @@
 #include "GenericFunctionTable.h"
-#include "Compiler/Constant/Constant.h"
+#include "Compiler/Names/SpecialNames.h"
 
 GenericFunctionTable::GenericFunctionTable(std::string module_name, Functions imported)
 	: m_module_name(std::move(module_name)),

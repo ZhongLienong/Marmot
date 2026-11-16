@@ -1,5 +1,5 @@
 #include "InstanceResolver.h"
-#include "Compiler/Constant/Constant.h"
+#include "Compiler/Names/SpecialNames.h"
 
 #include <algorithm>
 #include <format>

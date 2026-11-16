@@ -8,7 +8,7 @@
 #include <sstream>
 
 #include "Bytecode/Format/Format.h"
-#include "Compiler/Constant/Constant.h"
+#include "Compiler/Names/SpecialNames.h"
 #include "Compiler/DerivedDeclarationGenerator/DerivedDeclarationGenerator.h"
 #include "Compiler/Lexer/Lexer.h"
 #include "Parser.h"

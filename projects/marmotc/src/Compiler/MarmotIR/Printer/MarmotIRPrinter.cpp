@@ -1,5 +1,5 @@
 #include "MarmotIRPrinter.h"
-#include "Compiler/Constant/Constant.h"
+#include "Compiler/Names/SpecialNames.h"
 #include "Compiler/Token/Token.h"
 
 #include <algorithm>

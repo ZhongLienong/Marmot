@@ -7,6 +7,7 @@
 #include <type_traits>
 
 #include "Compiler/Constant/Constant.h"
+#include "Compiler/Names/SpecialNames.h"
 #include "Compiler/Error/CompilerError.h"
 #include "PatternCoverage.h"
 #include "TypeChecker.h"

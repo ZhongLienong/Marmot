@@ -1,5 +1,5 @@
 #include "Utility/Diagnostics/Diagnostics.h"
-#include "Compiler/Constant/Constant.h"
+#include "Compiler/Names/SpecialNames.h"
 #include "Compiler/Terminal/Terminal.h"
 #include "Compiler/Source/Source.h"
 #include "Compiler.h"

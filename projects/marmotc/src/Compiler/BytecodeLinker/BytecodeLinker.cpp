@@ -1,6 +1,7 @@
 #include "BytecodeLinker.h"
 #include "Bytecode/Format/Format.h"
 #include "Compiler/Constant/Constant.h"
+#include "Compiler/Names/SpecialNames.h"
 
 #include <map>
 #include <set>

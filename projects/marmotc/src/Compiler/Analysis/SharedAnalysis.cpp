@@ -1,6 +1,6 @@
 #include "SharedAnalysis.h"
 
-#include "Compiler/Constant/Constant.h"
+#include "Compiler/Names/SpecialNames.h"
 
 namespace MarmotAnalysis
 {
