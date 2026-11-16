@@ -28,6 +28,64 @@ namespace
 	}
 }
 
+TEST_CASE("Lexer recognizes the reserved vocabulary without reserving contextual names", "[lexer]")
+{
+	const std::string source_code =
+		"Float Int Byte Word Text Bool Unit Array Never Range Worker Channel "
+		"else false for in if true def fn as import foreign case then with match "
+		"module export public private use class instance where type alias deriving "
+		"ref Ref from moduleName ArrayUtil";
+	const std::vector<Token::Name> expected_names
+	{
+		Token::Name::FLOAT, Token::Name::INTEGER, Token::Name::BYTE, Token::Name::WORD,
+		Token::Name::TEXT, Token::Name::BOOL, Token::Name::UNIT, Token::Name::ARRAY,
+		Token::Name::NEVER, Token::Name::RANGE, Token::Name::WORKER, Token::Name::CHANNEL_TYPE,
+		Token::Name::ELSE, Token::Name::FALSE, Token::Name::FOR, Token::Name::IN,
+		Token::Name::IF, Token::Name::TRUE, Token::Name::DEF, Token::Name::FUNCTION,
+		Token::Name::AS, Token::Name::IMPORT, Token::Name::FOREIGN, Token::Name::CASE,
+		Token::Name::THEN, Token::Name::WITH, Token::Name::MATCH, Token::Name::MODULE,
+		Token::Name::EXPORT, Token::Name::PUBLIC, Token::Name::PRIVATE, Token::Name::USE,
+		Token::Name::CLASS, Token::Name::INSTANCE, Token::Name::WHERE, Token::Name::TYPE,
+		Token::Name::ALIAS, Token::Name::DERIVING,
+		Token::Name::IDENTIFIER_LITERAL, Token::Name::IDENTIFIER_LITERAL,
+		Token::Name::IDENTIFIER_LITERAL, Token::Name::IDENTIFIER_LITERAL, Token::Name::IDENTIFIER_LITERAL
+	};
+	const std::expected<MarmotTest::LexedSnippet, CompilerError> lexed = MarmotTest::LexSnippet(source_code);
+	REQUIRE(lexed.has_value());
+	CHECK(MarmotTest::CollectTokenNames(lexed->m_tokens) == expected_names);
+}
+
+TEST_CASE("Synthetic fixed tokens agree with source spellings and preserve their anchor", "[lexer][token]")
+{
+	const std::string source_code =
+		"-> <- => ( ) { } [ ] , . .. ; + ++ - << >> % * / | || |> ^ & && ! != = == > >= < <= : :: := ~ # "
+		"Float Int Byte Word Text Bool Unit Array Never Range Worker Channel "
+		"else false for in if true def fn as import foreign case then with match "
+		"module export public private use class instance where type alias deriving";
+	const std::expected<MarmotTest::LexedSnippet, CompilerError> lexed = MarmotTest::LexSnippet(source_code);
+	REQUIRE(lexed.has_value());
+	const Token anchor("Example", Token::Name::IDENTIFIER_LITERAL, 17, "Generated.mmt", 8, 7u);
+	for (int index = 0; index < lexed->m_tokens.Size(); index += 1)
+	{
+		const Token& source_token = lexed->m_tokens[index];
+		if (source_token.m_token_name == Token::Name::WHITESPACE || source_token.m_token_name == Token::Name::END_OF_FILE)
+		{
+			continue;
+		}
+		INFO(source_token.m_lexeme);
+		const Token generated(source_token.m_token_name, anchor);
+		CHECK(generated.m_lexeme == source_token.m_lexeme);
+		CHECK(generated.m_token_name == source_token.m_token_name);
+		CHECK(generated.m_file_name == anchor.m_file_name);
+		CHECK(generated.m_line == anchor.m_line);
+		CHECK(generated.m_column == anchor.m_column);
+		CHECK(generated.m_source_length == anchor.m_source_length);
+	}
+	const Token contextual_ref(Token::Name::REF, anchor);
+	CHECK(contextual_ref.m_lexeme == "ref");
+	CHECK_FALSE(Token::IsKeyword(contextual_ref.m_token_name));
+}
+
 TEST_CASE("Lexer tokenizes literal variants and decodes string escapes", "[lexer]")
 {
 	const std::string source_code =

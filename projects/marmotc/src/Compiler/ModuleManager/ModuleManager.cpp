@@ -316,7 +316,7 @@ int ModuleManager::ComputeStatementEnd(const TokenStream& tokens, int start, Sta
 			const Token::Name token_name = tokens[current].m_token_name;
 			if (expect_identifier)
 			{
-				if (token_name != Token::Name::IDENTIFIER_LITERAL && !IsKeyword(token_name))
+				if (token_name != Token::Name::IDENTIFIER_LITERAL && !Token::IsKeyword(token_name))
 				{
 					break;
 				}
@@ -389,17 +389,6 @@ int ModuleManager::ComputeStatementEnd(const TokenStream& tokens, int start, Sta
 	}
 
 	return current;
-}
-
-bool ModuleManager::IsKeyword(Token::Name token_name)
-{
-	return token_name != Token::Name::IDENTIFIER_LITERAL &&
-	       token_name != Token::Name::TEXT_LITERAL &&
-	       token_name != Token::Name::INTEGER_LITERAL &&
-	       token_name != Token::Name::FLOAT_LITERAL &&
-	       token_name != Token::Name::WHITESPACE &&
-	       token_name != Token::Name::END_OF_FILE &&
-	       static_cast<int>(token_name) >= static_cast<int>(Token::Name::ELSE);
 }
 
 MarmotResult::VoidResult ModuleManager::ValidateModuleDeclarationPolicy(const TokenStream& tokens, const std::vector<StatementSpan>& spans) const
@@ -498,7 +487,7 @@ MarmotResult::Result<std::string> ModuleManager::ExtractModuleName(const TokenSt
 				continue;
 			}
 
-			if (IsKeyword(token.m_token_name))
+			if (Token::IsKeyword(token.m_token_name))
 			{
 				return std::unexpected
 				(

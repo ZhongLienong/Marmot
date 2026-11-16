@@ -5,7 +5,6 @@
 
 #include <string>
 #include <string_view>
-#include <unordered_map>
 #include <vector>
 
 class Lexer
@@ -45,7 +44,6 @@ private:
 	Source m_source;
 	Cursor m_cursor;
 	Options m_options;
-	static const std::unordered_map<std::string, Token::Name> s_keywords;
 
 public:
 

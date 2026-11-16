@@ -1,7 +1,54 @@
 #include "Token.h"
 
+#include <array>
 #include <queue>
 #include <map>
+#include <unordered_map>
+
+namespace
+{
+	struct TokenDefinition
+	{
+		Token::Name m_name;
+		std::string_view m_spelling;
+		bool m_is_keyword;
+	};
+
+	constexpr std::array s_definitions
+	{
+#define MARMOT_TOKEN(name, spelling, is_keyword) TokenDefinition{ Token::Name::name, spelling, is_keyword },
+#include "Compiler/Token/Tokens.def"
+#undef MARMOT_TOKEN
+	};
+}
+
+std::string_view Token::Spelling(Name token_name)
+{
+	return s_definitions[static_cast<size_t>(token_name)].m_spelling;
+}
+
+std::optional<Token::Name> Token::KeywordName(std::string_view spelling)
+{
+	static const std::unordered_map<std::string_view, Name> s_keywords = []
+	{
+		std::unordered_map<std::string_view, Name> keywords;
+		for (const TokenDefinition& definition : s_definitions)
+		{
+			if (definition.m_is_keyword)
+			{
+				keywords.emplace(definition.m_spelling, definition.m_name);
+			}
+		}
+		return keywords;
+	}();
+	const std::unordered_map<std::string_view, Name>::const_iterator keyword = s_keywords.find(spelling);
+	return keyword == s_keywords.cend() ? std::nullopt : std::optional<Name>(keyword->second);
+}
+
+bool Token::IsKeyword(Name token_name)
+{
+	return s_definitions[static_cast<size_t>(token_name)].m_is_keyword;
+}
 
 Token::Token(std::string lexeme, Name token_name, int line, std::string_view file_name) noexcept
 	: m_file_name(file_name),
@@ -28,6 +75,11 @@ Token::Token(std::string lexeme, Name token_name, const Token& anchor) noexcept
 	m_line(anchor.m_line),
 	m_column(anchor.m_column),
 	m_source_length(anchor.m_source_length)
+{
+}
+
+Token::Token(Name token_name, const Token& anchor) noexcept
+	: Token(std::string(Spelling(token_name)), token_name, anchor)
 {
 }
 

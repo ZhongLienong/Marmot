@@ -152,7 +152,7 @@ namespace
 
 		std::unique_ptr<MarmotExpression> Call(std::unique_ptr<MarmotExpression>&& callee, std::vector<std::unique_ptr<MarmotExpression>>&& args) const
 		{
-			return std::make_unique<MarmotExpression>(MarmotExpression::Call(Token("(", Token::Name::LEFT_PAREN, m_anchor), std::move(callee), std::move(args)));
+			return std::make_unique<MarmotExpression>(MarmotExpression::Call(Token(Token::Name::LEFT_PAREN, m_anchor), std::move(callee), std::move(args)));
 		}
 
 		std::unique_ptr<MarmotExpression> QualifiedCall(const std::string& qualifier, const std::string& method_name, std::vector<std::unique_ptr<MarmotExpression>>&& args) const
@@ -160,14 +160,14 @@ namespace
 			return Call(GlobalName(qualifier + std::string(NameSeparator) + method_name), std::move(args));
 		}
 
-		std::unique_ptr<MarmotExpression> Binary(Token::Name token_name, const std::string& lexeme, std::unique_ptr<MarmotExpression>&& left, std::unique_ptr<MarmotExpression>&& right) const
+		std::unique_ptr<MarmotExpression> Binary(Token::Name token_name, std::unique_ptr<MarmotExpression>&& left, std::unique_ptr<MarmotExpression>&& right) const
 		{
-			return std::make_unique<MarmotExpression>(MarmotExpression::Binary(Token(lexeme, token_name, m_anchor), std::move(left), std::move(right)));
+			return std::make_unique<MarmotExpression>(MarmotExpression::Binary(Token(token_name, m_anchor), std::move(left), std::move(right)));
 		}
 
 		std::unique_ptr<MarmotExpression> BoolLiteral(bool value) const
 		{
-			return std::make_unique<MarmotExpression>(MarmotExpression::Literal(Token(value ? "true" : "false", value ? Token::Name::TRUE : Token::Name::FALSE, m_anchor), MarmotExpression::LiteralKind::Bool));
+			return std::make_unique<MarmotExpression>(MarmotExpression::Literal(Token(value ? Token::Name::TRUE : Token::Name::FALSE, m_anchor), MarmotExpression::LiteralKind::Bool));
 		}
 
 		std::unique_ptr<MarmotExpression> IntLiteral(int value) const
@@ -177,12 +177,12 @@ namespace
 
 		std::unique_ptr<MarmotExpression> Match(std::unique_ptr<MarmotExpression>&& scrutinee, std::vector<std::unique_ptr<MarmotExpression>>&& cases) const
 		{
-			return std::make_unique<MarmotExpression>(MarmotExpression::Match(Token("match", Token::Name::MATCH, m_anchor), std::move(scrutinee), std::move(cases)));
+			return std::make_unique<MarmotExpression>(MarmotExpression::Match(Token(Token::Name::MATCH, m_anchor), std::move(scrutinee), std::move(cases)));
 		}
 
 		std::unique_ptr<MarmotExpression> Case(std::unique_ptr<MarmotPattern>&& pattern, std::unique_ptr<MarmotExpression>&& body) const
 		{
-			return std::make_unique<MarmotExpression>(MarmotExpression::Case(Token("case", Token::Name::CASE, m_anchor), std::move(pattern), std::move(body)));
+			return std::make_unique<MarmotExpression>(MarmotExpression::Case(Token(Token::Name::CASE, m_anchor), std::move(pattern), std::move(body)));
 		}
 
 		std::unique_ptr<MarmotPattern> BindingPattern(const GeneratedBinding& binding) const
@@ -207,12 +207,12 @@ namespace
 
 		std::unique_ptr<MarmotExpression> Concat(std::unique_ptr<MarmotExpression>&& left, std::unique_ptr<MarmotExpression>&& right) const
 		{
-			return Binary(Token::Name::DOUBLE_PLUS, "++", std::move(left), std::move(right));
+			return Binary(Token::Name::DOUBLE_PLUS, std::move(left), std::move(right));
 		}
 
 		std::unique_ptr<MarmotExpression> AsText(std::unique_ptr<MarmotExpression>&& value) const
 		{
-			return std::make_unique<MarmotExpression>(MarmotExpression::As(Token("as", Token::Name::AS, m_anchor), MarmotType::MakeLiteralType<MarmotType::TextType>(), std::move(value)));
+			return std::make_unique<MarmotExpression>(MarmotExpression::As(Token(Token::Name::AS, m_anchor), MarmotType::MakeLiteralType<MarmotType::TextType>(), std::move(value)));
 		}
 
 		// `Orderable::Compare(left, right)`, or `equal` when that is 0. The
@@ -327,7 +327,7 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 			eq_args.emplace_back(make_member_access(params[1], struct_type.m_member_names[i], static_cast<int>(i)));
 
 			std::unique_ptr<MarmotExpression> compare_expr = syntax.QualifiedCall(std::string(EQUATABLE_CLASS_NAME), std::string(EQUALS_METHOD_NAME), std::move(eq_args));
-			body = syntax.Binary(Token::Name::DOUBLE_AMPERSAND, "&&", std::move(body), std::move(compare_expr));
+			body = syntax.Binary(Token::Name::DOUBLE_AMPERSAND, std::move(body), std::move(compare_expr));
 		}
 
 		methods.emplace_back
@@ -407,8 +407,8 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 			hash_args.emplace_back(make_member_access(params[0], struct_type.m_member_names[i], static_cast<int>(i)));
 
 			std::unique_ptr<MarmotExpression> member_hash = syntax.QualifiedCall(std::string(HASHABLE_CLASS_NAME), std::string(HASH_METHOD_NAME), std::move(hash_args));
-			std::unique_ptr<MarmotExpression> scaled = syntax.Binary(Token::Name::STAR, "*", std::move(body), syntax.IntLiteral(31));
-			body = syntax.Binary(Token::Name::SINGLE_PLUS, "+", std::move(scaled), std::move(member_hash));
+			std::unique_ptr<MarmotExpression> scaled = syntax.Binary(Token::Name::STAR, std::move(body), syntax.IntLiteral(31));
+			body = syntax.Binary(Token::Name::SINGLE_PLUS, std::move(scaled), std::move(member_hash));
 		}
 
 		methods.emplace_back
@@ -495,7 +495,7 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 					eq_args.emplace_back(syntax.LocalName(syntax.Local(inner_binding_start + static_cast<int>(i))));
 
 					std::unique_ptr<MarmotExpression> compare_expr = syntax.QualifiedCall(std::string(EQUATABLE_CLASS_NAME), std::string(EQUALS_METHOD_NAME), std::move(eq_args));
-					inner_body = syntax.Binary(Token::Name::DOUBLE_AMPERSAND, "&&", std::move(inner_body), std::move(compare_expr));
+					inner_body = syntax.Binary(Token::Name::DOUBLE_AMPERSAND, std::move(inner_body), std::move(compare_expr));
 				}
 
 				inner_cases.emplace_back
@@ -605,7 +605,7 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 					}
 					std::unique_ptr<MarmotExpression> order = right < left
 						? syntax.IntLiteral(1)
-						: syntax.Binary(Token::Name::SINGLE_MINUS, "-", syntax.IntLiteral(0), syntax.IntLiteral(1));
+						: syntax.Binary(Token::Name::SINGLE_MINUS, syntax.IntLiteral(0), syntax.IntLiteral(1));
 					inner_cases.emplace_back(syntax.Case(syntax.ConstructorPattern(variants[right].m_lexeme, std::move(wildcards)), std::move(order)));
 				}
 
@@ -639,8 +639,8 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 					hash_args.emplace_back(syntax.LocalName(syntax.Local(1 + static_cast<int>(i))));
 
 					std::unique_ptr<MarmotExpression> member_hash = syntax.QualifiedCall(std::string(HASHABLE_CLASS_NAME), std::string(HASH_METHOD_NAME), std::move(hash_args));
-					std::unique_ptr<MarmotExpression> scaled = syntax.Binary(Token::Name::STAR, "*", std::move(case_body), syntax.IntLiteral(31));
-					case_body = syntax.Binary(Token::Name::SINGLE_PLUS, "+", std::move(scaled), std::move(member_hash));
+					std::unique_ptr<MarmotExpression> scaled = syntax.Binary(Token::Name::STAR, std::move(case_body), syntax.IntLiteral(31));
+					case_body = syntax.Binary(Token::Name::SINGLE_PLUS, std::move(scaled), std::move(member_hash));
 				}
 
 				cases.emplace_back

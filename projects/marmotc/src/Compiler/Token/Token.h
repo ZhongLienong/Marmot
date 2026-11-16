@@ -5,6 +5,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -13,105 +14,9 @@ struct Token
 {
 	enum class Name
 	{
-		// symbol
-		THIN_ARROW,
-		LEFT_ARROW,
-		FAT_ARROW,
-		LEFT_PAREN,
-		RIGHT_PAREN,
-		LEFT_BRACE,
-		RIGHT_BRACE,
-		LEFT_BRACKET,
-		RIGHT_BRACKET,
-		COMMA,
-		SINGLE_DOT,
-		DOUBLE_DOT,
-		SINGLE_SEMICOLON,
-		SINGLE_PLUS,
-		DOUBLE_PLUS,
-		SINGLE_MINUS,
-		LEFT_SHIFT,
-		RIGHT_SHIFT,
-		PERCENT,
-		STAR,
-		SLASH,
-		SINGLE_BAR,
-		DOUBLE_BAR,
-		BAR_BRACKET,
-		CARET,
-		SINGLE_AMPERSAND,
-		DOUBLE_AMPERSAND,
-		BANG,
-		BANG_EQUAL,
-		SINGLE_EQUAL,
-		DOUBLE_EQUAL,
-		RIGHT_ANGLE,
-		GREATER_EQUAL,
-		LEFT_ANGLE,
-		LESS_EQUAL,
-		SINGLE_COLON,
-		DOUBLE_COLON,
-		COLON_EQUAL,
-		TILDE,
-		HASH,
-		// Contextual prefix form; lexed as an identifier so existing names still work.
-		REF,
-
-		// Literal
-		IDENTIFIER_LITERAL,
-		TEXT_LITERAL,
-		FLOAT_LITERAL,
-		INTEGER_LITERAL,
-
-		// reserved
-		ELSE,
-		FALSE,
-		FUNCTION,
-		FOR,
-		IN,
-		IF,
-		TRUE,
-		DEF,
-		IMPORT,
-		AS,
-		FOREIGN,
-		CASE,
-		MATCH,
-		THEN,
-		WITH,
-		MODULE,
-		EXPORT,
-		PUBLIC,
-		PRIVATE,
-		USE,
-		CLASS,
-		INSTANCE,
-		WHERE,
-		TYPE,
-		// Must stay inside this reserved block: ModuleManager::IsKeyword tests
-		// `>= Token::Name::ELSE` ordinally, so a keyword placed outside it stops
-		// being rejected as a module name, silently and with no test to catch it.
-		ALIAS,
-		DERIVING,
-
-		// types
-		FLOAT,
-		INTEGER,
-		BYTE,
-		WORD,
-		TEXT,
-		BOOL,
-		UNIT,
-		ARRAY,
-		NEVER,
-		RANGE,
-		WORKER,
-		CHANNEL_TYPE,
-
-		WHITESPACE,
-		LINE_COMMENT,
-		BLOCK_COMMENT,
-		END_OF_FILE,
+#define MARMOT_TOKEN(name, spelling, is_keyword) name,
+#include "Compiler/Token/Tokens.def"
+#undef MARMOT_TOKEN
 	};
 
 	std::string m_file_name;
@@ -124,6 +29,12 @@ struct Token
 	Token(std::string lexeme, Name token_name, int line, std::string_view file_name) noexcept;
 	Token(std::string lexeme, Name token_name, int line, std::string_view file_name, int column, size_t source_length) noexcept;
 	Token(std::string lexeme, Name token_name, const Token& anchor) noexcept;
+	Token(Name token_name, const Token& anchor) noexcept;
+
+	// Empty for tokens whose spelling comes from source.
+	static std::string_view Spelling(Name token_name);
+	static std::optional<Name> KeywordName(std::string_view spelling);
+	static bool IsKeyword(Name token_name);
 };
 
 // Tokens are held indirectly so that every Token keeps a stable address for the

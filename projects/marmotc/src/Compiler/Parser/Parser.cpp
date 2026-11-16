@@ -419,9 +419,9 @@ MarmotResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 		return std::unexpected(GenerateParserError(BuildImportedSymbolAccessError(imported_module_name, lookup_name, access), name_token));
 	}
 
-	if (name_token.m_lexeme == "ref")
+	if (name_token.m_lexeme == Token::Spelling(Token::Name::REF))
 	{
-		const Token op("ref", Token::Name::REF, name_token);
+		const Token op(Token::Name::REF, name_token);
 		return ParseUnaryLogicalBitwise()
 			.transform([&op](std::unique_ptr<MarmotExpression>&& value)
 			{
@@ -1548,8 +1548,8 @@ MarmotResult::TokenResult Parser::ConsumeTypeRightAngle(std::string_view message
 	if (Check(Token::Name::RIGHT_SHIFT, 0))
 	{
 		const Token anchor = Peek(0);
-		Token first_right_angle = MakeSyntheticToken(">", Token::Name::RIGHT_ANGLE, anchor);
-		Token second_right_angle = MakeSyntheticToken(">", Token::Name::RIGHT_ANGLE, anchor);
+		Token first_right_angle(Token::Name::RIGHT_ANGLE, anchor);
+		Token second_right_angle(Token::Name::RIGHT_ANGLE, anchor);
 
 		m_context.m_tokens[m_state.m_current_token_index] = std::move(first_right_angle);
 
@@ -5135,13 +5135,13 @@ MarmotResult::StatementResult Parser::ParseStatement()
 	return ParseSimpleStatement();
 }
 
-MarmotResult::TypeResult Parser::ParseTypeOfOne(Token::Name keyword, std::string_view keyword_text, std::string_view argument_noun, MakeTypeOfOne make)
+MarmotResult::TypeResult Parser::ParseTypeOfOne(Token::Name keyword, std::string_view argument_noun, MakeTypeOfOne make)
 {
 	return ParseWhen<std::shared_ptr<MarmotType>>(m_state,
 		keyword,
-		[this, keyword_text, argument_noun, make](Token&&) -> MarmotResult::TypeResult
+		[this, keyword, argument_noun, make](Token&&) -> MarmotResult::TypeResult
 		{
-			return Consume(Token::Name::LEFT_ANGLE, std::format("Expected '<' after '{}'.", keyword_text))
+			return Consume(Token::Name::LEFT_ANGLE, std::format("Expected '<' after '{}'.", Token::Spelling(keyword)))
 				.and_then([this](Token&&) { return ParseType(); })
 				.and_then
 				(
@@ -5171,19 +5171,19 @@ MarmotResult::TypeResult Parser::ParseType(bool is_foreign)
 		},
 		[this]() -> MarmotResult::TypeResult
 		{
-			return ParseTypeOfOne(Token::Name::ARRAY, "Array", "array type", &MarmotType::MakeArrayType);
+			return ParseTypeOfOne(Token::Name::ARRAY, "array type", &MarmotType::MakeArrayType);
 		},
 		[this]() -> MarmotResult::TypeResult
 		{
-			return ParseTypeOfOne(Token::Name::RANGE, "Range", "range element type", &MarmotType::MakeRangeType);
+			return ParseTypeOfOne(Token::Name::RANGE, "range element type", &MarmotType::MakeRangeType);
 		},
 		[this]() -> MarmotResult::TypeResult
 		{
-			return ParseTypeOfOne(Token::Name::WORKER, "Worker", "worker result type", &MarmotType::MakeWorkerType);
+			return ParseTypeOfOne(Token::Name::WORKER, "worker result type", &MarmotType::MakeWorkerType);
 		},
 		[this]() -> MarmotResult::TypeResult
 		{
-			return ParseTypeOfOne(Token::Name::CHANNEL_TYPE, "Channel", "channel element type", &MarmotType::MakeChannelType);
+			return ParseTypeOfOne(Token::Name::CHANNEL_TYPE, "channel element type", &MarmotType::MakeChannelType);
 		},
 		[this, is_foreign]() -> MarmotResult::TypeResult
 		{
@@ -5898,11 +5898,6 @@ std::expected<std::vector<Token>, CompilerError> Parser::ParseDerivingTargets(co
 					);
 			}
 		);
-}
-
-Token Parser::MakeSyntheticToken(std::string lexeme, Token::Name token_name, const Token& anchor) const
-{
-	return Token(std::move(lexeme), token_name, anchor);
 }
 
 void Parser::RegisterSyntheticInstanceMetadata(const std::string& class_name, const std::vector<std::shared_ptr<MarmotType>>& type_args, const std::vector<MarmotType::ClassConstraint>& constraints, const std::vector<std::string>& mangled_method_names)

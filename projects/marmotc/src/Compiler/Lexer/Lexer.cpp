@@ -6,51 +6,6 @@
 
 using namespace std::string_literals;
 
-const std::unordered_map<std::string, Token::Name> Lexer::s_keywords =
-{
-	// types
-	{"Float"s, Token::Name::FLOAT},
-	{"Int"s, Token::Name::INTEGER},
-	{"Byte"s, Token::Name::BYTE},
-	{"Word"s, Token::Name::WORD},
-	{"Text"s, Token::Name::TEXT},
-	{"Bool"s, Token::Name::BOOL},
-	{"Unit"s, Token::Name::UNIT},
-	{"Array"s, Token::Name::ARRAY},
-	{"Never"s, Token::Name::NEVER},
-	{"Range"s, Token::Name::RANGE},
-	{"Worker"s, Token::Name::WORKER},
-	{"Channel"s, Token::Name::CHANNEL_TYPE},
-
-	// reserved keywords
-	{"else"s, Token::Name::ELSE},
-	{"false"s, Token::Name::FALSE},
-	{"for"s, Token::Name::FOR},
-	{"in"s, Token::Name::IN},
-	{"if"s, Token::Name::IF},
-	{"true"s, Token::Name::TRUE},
-	{"def"s, Token::Name::DEF},
-	{"fn"s, Token::Name::FUNCTION},
-	{"as"s, Token::Name::AS},
-	{"import"s, Token::Name::IMPORT},
-	{"foreign"s, Token::Name::FOREIGN},
-	{"case"s, Token::Name::CASE},
-	{"then"s, Token::Name::THEN},
-	{"with"s, Token::Name::WITH},
-	{"match"s, Token::Name::MATCH},
-	{"module"s, Token::Name::MODULE},
-	{"export"s, Token::Name::EXPORT},
-	{"public"s, Token::Name::PUBLIC},
-	{"private"s, Token::Name::PRIVATE},
-	{"use"s, Token::Name::USE},
-	{"class"s, Token::Name::CLASS},
-	{"instance"s, Token::Name::INSTANCE},
-	{"where"s, Token::Name::WHERE},
-	{"type"s, Token::Name::TYPE},
-	{"alias"s, Token::Name::ALIAS},
-	{"deriving"s, Token::Name::DERIVING}
-};
-
 template<typename Predicate>
 int Lexer::ConsumeWhile(Predicate&& pred)
 {
@@ -409,9 +364,7 @@ MarmotResult::TokenResult Lexer::MatchIdentifierOrReserved()
 
 	std::string identifier = m_source.m_code.substr(m_cursor.m_begin, m_cursor.m_current - m_cursor.m_begin);
 
-	return s_keywords.contains(identifier)
-		? MakeTokenResult(s_keywords.at(identifier))
-		: MakeTokenResult(Token::Name::IDENTIFIER_LITERAL);
+	return MakeTokenResult(Token::KeywordName(identifier).value_or(Token::Name::IDENTIFIER_LITERAL));
 }
 
 MarmotResult::TokenResult Lexer::LexTokenAfterWhitespace()

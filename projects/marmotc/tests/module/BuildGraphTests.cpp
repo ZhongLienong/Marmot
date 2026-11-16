@@ -19,6 +19,7 @@
 #include <optional>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace
@@ -323,23 +324,40 @@ TEST_CASE("ModuleManager requires the module declaration to be the first top-lev
 
 TEST_CASE("ModuleManager returns a diagnostic for reserved-keyword module names", "[module][graph]")
 {
-	const MarmotTest::TempProject project
-	({
-		MarmotTest::TempProjectFile(
-			"Invalid.mmt",
-			"module def\n"
-			"def value = 1;\n"
-		)
-	});
+	for (const std::string_view keyword : {
+		"Float", "Int", "Byte", "Word", "Text", "Bool", "Unit", "Array", "Never", "Range", "Worker", "Channel",
+		"else", "false", "for", "in", "if", "true", "def", "fn", "as", "import", "foreign", "case", "then", "with", "match",
+		"module", "export", "public", "private", "use", "class", "instance", "where", "type", "alias", "deriving" })
+	{
+		INFO(keyword);
+		const MarmotTest::TempProject project
+		({
+			MarmotTest::TempProjectFile("Invalid.mmt", std::format("module {}\ndef value = 1;\n", keyword))
+		});
+		const std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(project.Path("Invalid.mmt"));
+		REQUIRE_FALSE(graph_result.has_value());
 
-	std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(project.Path("Invalid.mmt"));
-	REQUIRE_FALSE(graph_result.has_value());
+		const CompilerError& error = graph_result.error();
+		MarmotTest::ErrorExpectation expectation;
+		expectation.m_stage = CompilerStage::Module;
+		expectation.m_message_substrings = { "reserved keyword", "cannot be used as a module name" };
+		RequireErrorMatches(error, expectation);
+	}
+}
 
-	const CompilerError& error = graph_result.error();
-	MarmotTest::ErrorExpectation expectation;
-	expectation.m_stage = CompilerStage::Module;
-	expectation.m_message_substrings = { "reserved keyword", "cannot be used as a module name" };
-	RequireErrorMatches(error, expectation);
+TEST_CASE("ModuleManager accepts contextual and keyword-prefixed module names", "[module][graph]")
+{
+	for (const std::string_view name : { "ref", "Ref", "from", "moduleName", "ArrayUtil" })
+	{
+		INFO(name);
+		const MarmotTest::TempProject project
+		({
+			MarmotTest::TempProjectFile("Valid.mmt", std::format("module {}\ndef value = 1;\n", name))
+		});
+		const std::expected<BuildGraph, CompilerError> graph_result = GenerateBuildGraphFromFile(project.Path("Valid.mmt"));
+		REQUIRE(graph_result.has_value());
+		CHECK(graph_result->m_module_declarations.at(project.Path("Valid.mmt").string()).ModuleName() == name);
+	}
 }
 
 TEST_CASE("ModuleManager returns a diagnostic for malformed dotted use syntax", "[module][graph]")

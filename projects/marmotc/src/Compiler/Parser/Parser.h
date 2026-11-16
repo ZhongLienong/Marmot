@@ -628,7 +628,7 @@ private:
 	using MakeTypeOfOne = std::shared_ptr<MarmotType> (*)(const std::shared_ptr<MarmotType>&);
 
 	// `Keyword<T>`: a type made from one other, such as `Array<Int>`.
-	MarmotResult::TypeResult ParseTypeOfOne(Token::Name keyword, std::string_view keyword_text, std::string_view argument_noun, MakeTypeOfOne make);
+	MarmotResult::TypeResult ParseTypeOfOne(Token::Name keyword, std::string_view argument_noun, MakeTypeOfOne make);
 
 	MarmotResult::ExpressionResult ParseExpression();
 
@@ -776,8 +776,6 @@ private:
 	void PushActiveConstraints(const std::vector<MarmotType::ClassConstraint>& constraints);
 
 	std::expected<std::vector<Token>, CompilerError> ParseDerivingTargets(const Token& context_token);
-
-	Token MakeSyntheticToken(std::string lexeme, Token::Name token_name, const Token& anchor) const;
 
 	void RegisterSyntheticInstanceMetadata(const std::string& class_name, const std::vector<std::shared_ptr<MarmotType>>& type_args, const std::vector<MarmotType::ClassConstraint>& constraints, const std::vector<std::string>& mangled_method_names);
 

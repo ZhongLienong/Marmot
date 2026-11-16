@@ -6,6 +6,7 @@
 #include <utility>
 
 #include "Compiler/Constant/Constant.h"
+#include "Compiler/Token/Token.h"
 
 using namespace std::string_literals;
 
@@ -224,47 +225,47 @@ namespace
 			}
 			else if constexpr (std::is_same_v<Type, MarmotType::FloatType>)
 			{
-				return "Float"s;
+				return std::string(Token::Spelling(Token::Name::FLOAT));
 			}
 			else if constexpr (std::is_same_v<Type, MarmotType::IntegerType>)
 			{
-				return "Int"s;
+				return std::string(Token::Spelling(Token::Name::INTEGER));
 			}
 			else if constexpr (std::is_same_v<Type, MarmotType::ByteType>)
 			{
-				return "Byte"s;
+				return std::string(Token::Spelling(Token::Name::BYTE));
 			}
 			else if constexpr (std::is_same_v<Type, MarmotType::WordType>)
 			{
-				return "Word"s;
+				return std::string(Token::Spelling(Token::Name::WORD));
 			}
 			else if constexpr (std::is_same_v<Type, MarmotType::TextType>)
 			{
-				return "Text"s;
+				return std::string(Token::Spelling(Token::Name::TEXT));
 			}
 			else if constexpr (std::is_same_v<Type, MarmotType::BoolType>)
 			{
-				return "Bool"s;
+				return std::string(Token::Spelling(Token::Name::BOOL));
 			}
 			else if constexpr (std::is_same_v<Type, MarmotType::UnitType>)
 			{
-				return "Unit"s;
+				return std::string(Token::Spelling(Token::Name::UNIT));
 			}
 			else if constexpr (std::is_same_v<Type, MarmotType::NeverType>)
 			{
-				return "Never"s;
+				return std::string(Token::Spelling(Token::Name::NEVER));
 			}
 			else if constexpr (std::is_same_v<Type, MarmotType::ArrayType>)
 			{
-				return "Array<"s + stringify(*type_variant.m_element_type) + ">"s;
+				return std::string(Token::Spelling(Token::Name::ARRAY)) + "<"s + stringify(*type_variant.m_element_type) + ">"s;
 			}
 			else if constexpr (std::is_same_v<Type, MarmotType::WorkerType>)
 			{
-				return "Worker<"s + stringify(*type_variant.m_result_type) + ">"s;
+				return std::string(Token::Spelling(Token::Name::WORKER)) + "<"s + stringify(*type_variant.m_result_type) + ">"s;
 			}
 			else if constexpr (std::is_same_v<Type, MarmotType::ChannelType>)
 			{
-				return "Channel<"s + stringify(*type_variant.m_element_type) + ">"s;
+				return std::string(Token::Spelling(Token::Name::CHANNEL_TYPE)) + "<"s + stringify(*type_variant.m_element_type) + ">"s;
 			}
 			else if constexpr (std::is_same_v<Type, MarmotType::CellType>)
 			{
@@ -272,13 +273,13 @@ namespace
 			}
 			else if constexpr (std::is_same_v<Type, MarmotType::RangeType>)
 			{
-				return "Range<"s + stringify(*type_variant.m_element_type) + ">"s;
+				return std::string(Token::Spelling(Token::Name::RANGE)) + "<"s + stringify(*type_variant.m_element_type) + ">"s;
 			}
 			else if constexpr (std::is_same_v<Type, MarmotType::TupleType>)
 			{
 				if (type_variant.m_element_types.empty())
 				{
-					return "Unit"s;
+					return std::string(Token::Spelling(Token::Name::UNIT));
 				}
 
 				std::vector<std::string> type_strings;
