@@ -6,6 +6,7 @@
 #include "Compiler/BuildGraph/BuildGraph.h"
 #include "Compiler/CompilationTimings/CompilationTimings.h"
 #include "Compiler/CompilationSchedule/CompilationSchedule.h"
+#include "Compiler/CompilationSchedule/CompilationExecution.h"
 #include "Compiler/BytecodeBackend/BytecodeBackend.h"
 #include "Compiler/BytecodeLinker/BytecodeLinker.h"
 #include "Compiler/Lexer/Lexer.h"
@@ -24,11 +25,6 @@
 #include <array>
 #include <atomic>
 #include <chrono>
-#include <condition_variable>
-#include <deque>
-#include <functional>
-#include <queue>
-#include <variant>
 #include <filesystem>
 #include <mutex>
 #include <print>
@@ -69,7 +65,6 @@ namespace
 	struct CompileEnv
 	{
 		BuildGraph& m_build_graph;
-		std::unordered_map<std::string, CompiledModule>& m_compiled_modules;
 		std::unordered_map<std::string, std::shared_ptr<const ModuleInterface>>& m_interfaces;
 		std::mutex& m_modules_mutex;
 		std::mutex& m_print_mutex;
@@ -829,7 +824,7 @@ namespace
 		return std::move(state).WithBackendBytecode();
 	}
 
-	using InterfaceReady = std::function<void(const std::string&)>;
+	using InterfaceReady = CompilationExecution::InterfaceReady;
 
 	class ModuleCompiler
 	{
@@ -929,157 +924,7 @@ namespace
 		}
 	};
 
-	struct InterfacePublished
-	{
-		std::string m_file_path;
-	};
-
-	struct CompletedModule
-	{
-		std::string m_file_path;
-		MarmotResult::CompiledModuleReportResult m_result;
-	};
-
-	using ModuleEvent = std::variant<InterfacePublished, CompletedModule>;
-
-	class ModuleWorkQueue
-	{
-	public:
-		ModuleWorkQueue(CompileEnv& env, const ModuleCompiler& module_compiler, size_t worker_count)
-			: m_env(env),
-			m_module_compiler(module_compiler)
-		{
-			m_workers.reserve(worker_count);
-			for (size_t i = 0u; i < worker_count; i += 1u)
-			{
-				m_workers.emplace_back([this]() { WorkerLoop(); });
-			}
-		}
-
-		ModuleWorkQueue(const ModuleWorkQueue&) = delete;
-		ModuleWorkQueue& operator=(const ModuleWorkQueue&) = delete;
-
-		~ModuleWorkQueue()
-		{
-			Stop();
-		}
-
-		void Enqueue(std::vector<ScheduledModule> modules)
-		{
-			if (modules.empty())
-			{
-				return;
-			}
-			const size_t ready_count = modules.size();
-			{
-				std::lock_guard<std::mutex> lock(m_mutex);
-				for (ScheduledModule& module : modules)
-				{
-					m_ready.push(std::move(module));
-					m_in_flight += 1u;
-				}
-			}
-			if (ready_count == 1u)
-			{
-				m_ready_cv.notify_one();
-			}
-			else
-			{
-				m_ready_cv.notify_all();
-			}
-		}
-
-		ModuleEvent WaitForEvent()
-		{
-			std::unique_lock<std::mutex> lock(m_mutex);
-			m_events_cv.wait(lock, [this]() { return !m_events.empty(); });
-			ModuleEvent event = std::move(m_events.front());
-			m_events.pop_front();
-			if (std::holds_alternative<CompletedModule>(event))
-			{
-				m_in_flight -= 1u;
-			}
-			return event;
-		}
-
-		size_t InFlight() const
-		{
-			std::lock_guard<std::mutex> lock(m_mutex);
-			return m_in_flight;
-		}
-
-		void Stop()
-		{
-			{
-				std::lock_guard<std::mutex> lock(m_mutex);
-				m_stop = true;
-				m_ready = {};
-			}
-			m_ready_cv.notify_all();
-		}
-
-	private:
-		void Publish(ModuleEvent event)
-		{
-			{
-				std::lock_guard<std::mutex> lock(m_mutex);
-				m_events.push_back(std::move(event));
-			}
-			m_events_cv.notify_one();
-		}
-
-		void WorkerLoop()
-		{
-			const InterfaceReady interface_ready = [this](const std::string& file_path)
-			{
-				Publish(InterfacePublished{ file_path });
-			};
-			while (true)
-			{
-				std::optional<ScheduledModule> queued_module;
-				{
-					std::unique_lock<std::mutex> lock(m_mutex);
-					m_ready_cv.wait(lock, [this]() { return m_stop || !m_ready.empty(); });
-					if (m_stop)
-					{
-						return;
-					}
-					queued_module.emplace(m_ready.top());
-					m_ready.pop();
-				}
-
-				Publish(CompletedModule{
-					queued_module->m_file_path,
-					m_module_compiler.Compile(m_env, queued_module->m_file_path, queued_module->m_tier_idx, interface_ready) });
-			}
-		}
-
-		CompileEnv& m_env;
-		const ModuleCompiler& m_module_compiler;
-		mutable std::mutex m_mutex;
-		std::condition_variable m_ready_cv;
-		std::condition_variable m_events_cv;
-		std::priority_queue<ScheduledModule> m_ready;
-		std::deque<ModuleEvent> m_events;
-		size_t m_in_flight = 0u;
-		bool m_stop = false;
-		// Join workers before destroying the queues, mutex, or condition variables.
-		std::vector<std::jthread> m_workers;
-	};
-
 	using ModuleFailures = std::unordered_map<std::string, MarmotResult::CompilerReport>;
-
-	static void RecordCompiledModule(CompileEnv& env, ModuleFailures& failures, const std::string& file_path, MarmotResult::CompiledModuleReportResult&& result)
-	{
-		if (result.has_value())
-		{
-			env.m_compiled_modules.emplace(file_path, std::move(result).value());
-		}
-		else
-		{
-			failures.emplace(file_path, std::move(result).error());
-		}
-	}
 
 	// Warnings and errors in build-schedule order (tier order, then file path
 	// order). A module that failed keeps its warnings at its own position.
@@ -1104,66 +949,27 @@ namespace
 		return report;
 	}
 
-	// Every module whose imports all published their interfaces is compiled,
-	// even after another module fails, so which modules fail depends on neither
-	// the worker count nor which worker finishes first.
-	static ModuleFailures CompileModulesReadyQueue(CompileEnv& env, ModuleCompiler& module_compiler, CompilationSchedule& schedule, std::optional<size_t> jobs)
+	// Keep compiling eligible modules after failures so worker timing cannot
+	// change which diagnostics are collected.
+	static CompilationExecution::Results CompileModules(CompileEnv& env, ModuleCompiler& module_compiler, CompilationSchedule& schedule, std::optional<size_t> jobs)
 	{
 		CompilationTimings::Timer timer(env.m_timings, CompilationTimings::Phase::Modules);
-		ModuleFailures failures;
-
 #ifndef __EMSCRIPTEN__
 		const size_t worker_count = std::min(schedule.m_all_modules.size(), jobs.value_or(std::max(1u, std::thread::hardware_concurrency())));
-		env.m_timings.SetWorkerCount(worker_count);
-		if (worker_count > 1u)
-		{
-			ModuleWorkQueue work_queue(env, module_compiler, worker_count);
-			work_queue.Enqueue(schedule.InitialReady());
-
-			while (work_queue.InFlight() > 0u)
-			{
-				ModuleEvent event = work_queue.WaitForEvent();
-				if (const InterfacePublished* interface = std::get_if<InterfacePublished>(&event))
-				{
-					work_queue.Enqueue(schedule.InterfaceReady(interface->m_file_path));
-					continue;
-				}
-
-				CompletedModule& completed_module = std::get<CompletedModule>(event);
-				RecordCompiledModule(env, failures, completed_module.m_file_path, std::move(completed_module.m_result));
-			}
-			return failures;
-		}
 #else
 		(void)jobs;
-		env.m_timings.SetWorkerCount(1u);
+		const size_t worker_count = 1u;
 #endif
-
-		std::priority_queue<ScheduledModule> ready;
-		for (ScheduledModule& module : schedule.InitialReady())
+		env.m_timings.SetWorkerCount(worker_count);
+		return CompilationExecution::Run(schedule, worker_count, [&env, &module_compiler](const ScheduledModule& module, const InterfaceReady& interface_ready)
 		{
-			ready.push(std::move(module));
-		}
-		const InterfaceReady interface_ready = [&schedule, &ready](const std::string& file_path)
-		{
-			for (ScheduledModule& module : schedule.InterfaceReady(file_path))
-			{
-				ready.push(std::move(module));
-			}
-		};
-
-		while (!ready.empty())
-		{
-			const ScheduledModule module = ready.top();
-			ready.pop();
-			RecordCompiledModule(env, failures, module.m_file_path, module_compiler.Compile(env, module.m_file_path, module.m_tier_idx, interface_ready));
-		}
-		return failures;
+			return module_compiler.Compile(env, module.m_file_path, module.m_tier_idx, interface_ready);
+		});
 	}
 
-	static CompileEnv MakeCompileEnv(BuildGraph& build_graph, std::unordered_map<std::string, CompiledModule>& compiled_modules, std::unordered_map<std::string, std::shared_ptr<const ModuleInterface>>& interfaces, std::mutex& modules_mutex, std::mutex& print_mutex, std::atomic<size_t>& completed_modules, const CompilationSchedule& schedule, size_t total_modules, const CompilationInputs& inputs, CompilationTimings& timings)
+	static CompileEnv MakeCompileEnv(BuildGraph& build_graph, std::unordered_map<std::string, std::shared_ptr<const ModuleInterface>>& interfaces, std::mutex& modules_mutex, std::mutex& print_mutex, std::atomic<size_t>& completed_modules, const CompilationSchedule& schedule, size_t total_modules, const CompilationInputs& inputs, CompilationTimings& timings)
 	{
-		return CompileEnv{ build_graph, compiled_modules, interfaces, modules_mutex, print_mutex, completed_modules, schedule.m_tiers, total_modules, inputs.EmitsMarmotIR(), inputs.EmitsAst(), timings };
+		return CompileEnv{ build_graph, interfaces, modules_mutex, print_mutex, completed_modules, schedule.m_tiers, total_modules, inputs.EmitsMarmotIR(), inputs.EmitsAst(), timings };
 	}
 
 	static BuildGraphArtifacts CollectBytecodeModules(const CompilationSchedule& schedule, std::unordered_map<std::string, CompiledModule>& compiled_modules)
@@ -1204,9 +1010,21 @@ namespace
 		std::mutex print_mutex;
 		std::atomic<size_t> completed_modules{ 0u };
 
-		CompileEnv env = MakeCompileEnv(build_graph, compiled_modules, interfaces, modules_mutex, print_mutex, completed_modules, schedule, total_modules, inputs, timings);
+		CompileEnv env = MakeCompileEnv(build_graph, interfaces, modules_mutex, print_mutex, completed_modules, schedule, total_modules, inputs, timings);
 		ModuleCompiler module_compiler;
-		ModuleFailures failures = CompileModulesReadyQueue(env, module_compiler, schedule, inputs.Jobs());
+		CompilationExecution::Results results = CompileModules(env, module_compiler, schedule, inputs.Jobs());
+		ModuleFailures failures;
+		for (auto& [file_path, result] : results)
+		{
+			if (result.has_value())
+			{
+				compiled_modules.emplace(file_path, std::move(result).value());
+			}
+			else
+			{
+				failures.emplace(file_path, std::move(result).error());
+			}
+		}
 		if (!failures.empty())
 		{
 			return std::unexpected(CollectFailureReport(schedule, compiled_modules, std::move(failures)));

@@ -262,13 +262,13 @@ public export { Encode }
 
 The module system computes stable tiers, but compilation itself is dependency-driven.
 
-Current behavior in `Compiler.cpp`:
+Current behavior in `CompilationSchedule.cpp` and `CompilationExecution.cpp`:
 
-- `BuildGraph::GetCompilationTiers()` is used for deterministic progress output and final linking order.
+- `BuildGraph::GetCompilationTiers()` is used for deterministic diagnostic and final linking order.
 - The compiler separately tracks remaining dependency counts for each module.
 - Modules whose dependencies are satisfied are pushed into a ready queue immediately.
-- Native builds use a pool of `std::jthread` workers to consume the queue.
-- Emscripten builds use the same dependency logic with a single-threaded deque.
+- Native builds use `std::jthread` workers and the calling thread to consume the queue. Workers release newly eligible modules directly when a dependency publishes its interface.
+- Emscripten builds use the same worker loop on the calling thread.
 
 This means tiers are metadata for reporting and stable ordering, not a hard "finish tier N before starting tier N+1" execution barrier.
 

@@ -267,19 +267,21 @@ The linker works on modules in build-schedule order, which is deterministic even
 
 ## Scheduling Model
 
-Source: `projects/marmotc/src/Compiler/Compiler.cpp`
+Sources: `projects/marmotc/src/Compiler/CompilationSchedule/CompilationSchedule.cpp`,
+`projects/marmotc/src/Compiler/CompilationSchedule/CompilationExecution.cpp`
 
 The compiler derives stable compilation tiers from the dependency graph, but the actual scheduler is dependency-driven rather than tier-blocked.
 
 Current behavior:
 
-- `BuildGraph::GetCompilationTiers()` is used for deterministic progress reporting and final linking order.
+- `BuildGraph::GetCompilationTiers()` is used for deterministic diagnostic and final linking order.
 - The compiler builds a ready queue from modules whose dependency interfaces are ready, prioritizing the longest downstream path weighted by token count, with file paths breaking ties.
 - Native builds use `std::jthread` workers, capped by `--jobs N` or hardware concurrency by default; one worker compiles on the calling thread.
 - After checking, static analysis, lowering, and export validation, a module publishes its immutable interface and generic templates. Newly unblocked dependents can compile while that module optimizes and generates bytecode.
 - Linking waits for every module's bytecode; tiers keep its order stable regardless of interface or worker completion order.
 - A module that fails does not stop the others: every module whose imports published their interfaces still compiles, and a module waiting on a failed one never starts. The errors of every failed module are reported in build-schedule order, so the report is the same for any worker count.
-- On Emscripten builds, the same dependency logic runs through a single-threaded queue.
+- Workers release dependents directly when an interface is published. One scheduler lock protects the ready queue, dependency counts, active-work count, and results; stop-aware waits let `std::jthread` shutdown wake idle workers.
+- On Emscripten builds, the same worker loop runs only on the calling thread.
 
 ## FFI Notes
 
