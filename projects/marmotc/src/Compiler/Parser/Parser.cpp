@@ -4228,12 +4228,7 @@ MarmotResult::StatementResult Parser::ParseInstanceDeclaration()
 	{
 		MarmotStatement::FunctionDefinition& defun = method.m_definition;
 		std::string mangled_name = MarmotType::MangleInstanceMethodName(method.m_name.m_lexeme, typeclass_name.m_lexeme, type_args);
-		std::string mangled_name_with_module = mangled_name;
-		if (m_context.m_current_module && m_context.m_current_module->HasModuleDeclaration())
-		{
-			mangled_name_with_module += ModuleSeparator + m_context.m_current_module->ModuleName();
-		}
-		mangled_method_names.push_back(std::move(mangled_name_with_module));
+		mangled_method_names.push_back(mangled_name);
 		defun.m_name.m_lexeme = mangled_name;
 	}
 
@@ -5895,15 +5890,10 @@ std::expected<std::vector<Token>, CompilerError> Parser::ParseDerivingTargets(co
 
 void Parser::RegisterSyntheticInstanceMetadata(const std::string& class_name, const std::vector<std::shared_ptr<MarmotType>>& type_args, const std::vector<MarmotType::ClassConstraint>& constraints, const std::vector<std::string>& mangled_method_names)
 {
-	std::vector<std::string> methods;
 	const std::string declaring_module = m_context.m_current_module && m_context.m_current_module->HasModuleDeclaration() ? m_context.m_current_module->ModuleName() : std::string();
-	for (const std::string& method : mangled_method_names)
-	{
-		methods.push_back(declaring_module.empty() ? method : method + ModuleSeparator + declaring_module);
-	}
 	if (m_state.m_class_methods.contains(class_name))
 	{
-		m_state.m_class_instances[class_name].emplace_back(type_args, TypeclassInstance::AssociatedTypes(), constraints, std::move(methods), declaring_module);
+		m_state.m_class_instances[class_name].emplace_back(type_args, TypeclassInstance::AssociatedTypes(), constraints, mangled_method_names, declaring_module);
 	}
 }
 

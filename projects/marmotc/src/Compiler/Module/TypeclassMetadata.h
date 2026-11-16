@@ -17,6 +17,7 @@ struct TypeclassInstance
 	TypeArguments m_type_args;
 	AssociatedTypes m_associated_type_bindings;
 	std::vector<MarmotType::ClassConstraint> m_constraints;
+	// Bare emitted symbols; their origin is m_declaring_module.
 	std::vector<std::string> m_methods;
 	std::string m_declaring_module;
 
@@ -35,6 +36,7 @@ struct TypeclassMetadata
 
 	bool DefinitionMatches(const TypeclassMetadata& other) const;
 	void AddInstance(TypeclassInstance instance);
+	// Export names retain the existing symbol@Module spelling.
 	std::vector<std::string> InstanceMethods() const;
 };
 

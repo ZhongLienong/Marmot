@@ -279,11 +279,11 @@ private:
 	bool IsForeignDeclaration(const std::string& name);
 	Lowered LowerForeignValue(const Token& name, const TypeRef& type);
 	std::expected<MarmotIRGlobalSlot, CompilerError> GlobalFor(const Token& name, const TypeRef& type);
-	std::expected<MarmotIRGlobalSlot, CompilerError> GlobalForResolved(const std::string& resolved_name, const TypeRef& type, const Token& at);
+	std::expected<MarmotIRGlobalSlot, CompilerError> GlobalForResolved(const ResolvedInstanceName& resolved_name, const TypeRef& type, const Token& at);
 	MarmotIRGlobalSlot ImportGlobal(const std::string& module, const std::string& symbol, const TypeRef& type, const Token& at);
-	Lowered LoadResolved(const std::string& resolved_name, const TypeRef& type, const Token& at);
+	Lowered LoadResolved(const ResolvedInstanceName& resolved_name, const TypeRef& type, const Token& at);
 	// A call of a class method an instance provides, by its resolved name.
-	Lowered CallResolved(const std::string& resolved_name, std::vector<MarmotIRValueId> arguments, const std::vector<TypeRef>& argument_types, const TypeRef& result_type, const Token& at);
+	Lowered CallResolved(const ResolvedInstanceName& resolved_name, std::vector<MarmotIRValueId> arguments, const std::vector<TypeRef>& argument_types, const TypeRef& result_type, const Token& at);
 
 	Lowered LowerCall(MarmotExpression::Call& call);
 	Emitted LowerTailCall(MarmotExpression::Call& call);

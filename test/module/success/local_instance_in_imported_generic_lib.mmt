@@ -1,0 +1,14 @@
+module InstanceOriginLib
+public export { Echo, Apply, Wrapped }
+
+class Echo<T> {
+    Copy: fn(value: T) -> T;
+};
+
+type Wrapped<T> = { value: T };
+
+instance Echo<Wrapped<T>> {
+    def Copy = fn(value: Wrapped<T>) -> Wrapped<T> => value;
+};
+
+def Apply = fn<T>(value: T) -> T where Echo<T> => Echo::Copy(value);

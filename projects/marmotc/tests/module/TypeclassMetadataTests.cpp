@@ -27,9 +27,9 @@ TEST_CASE("Typeclass imports keep whole instance facts through a diamond and an 
 {
 	const TypeRef integer = MarmotType::MakeLiteralType<MarmotType::IntegerType>();
 	const TypeRef text = MarmotType::MakeLiteralType<MarmotType::TextType>();
-	const TypeclassMetadata shared = MakeClass({ MakeInstance(integer, text, "Origin", "Get_Int@Origin") });
+	const TypeclassMetadata shared = MakeClass({ MakeInstance(integer, text, "Origin", "Get_Int") });
 	TypeclassMetadata right = shared;
-	right.m_instances.push_back(MakeInstance(text, integer, "Right", "Get_Text@Right"));
+	right.m_instances.push_back(MakeInstance(text, integer, "Right", "Get_Text"));
 	TypeclassImports imports;
 	REQUIRE_FALSE(imports.Import("Left", { { "Select", shared } }).has_value());
 	REQUIRE_FALSE(imports.Import("Right", { { "Select", right } }).has_value());
@@ -41,10 +41,12 @@ TEST_CASE("Typeclass imports keep whole instance facts through a diamond and an 
 	CHECK(*instances[0].m_associated_type_bindings.at("Item") == *text);
 	CHECK(instances[0].m_constraints == shared.m_instances[0].m_constraints);
 	CHECK(instances[0].m_declaring_module == "Origin");
+	CHECK(instances[0].m_methods == std::vector<std::string>{ "Get_Int" });
 	CHECK(instances[1].HasTypeArguments({ text }));
 	CHECK(*instances[1].m_associated_type_bindings.at("Item") == *integer);
 	CHECK(instances[1].m_constraints == right.m_instances[1].m_constraints);
 	CHECK(instances[1].m_declaring_module == "Right");
+	CHECK(instances[1].m_methods == std::vector<std::string>{ "Get_Text" });
 	CHECK(merged.at("Select").InstanceMethods() == std::vector<std::string>{ "Get_Int@Origin", "Get_Text@Right" });
 }
 
@@ -52,8 +54,8 @@ TEST_CASE("Typeclass imports diagnose duplicate declarations at their direct ori
 {
 	const TypeRef integer = MarmotType::MakeLiteralType<MarmotType::IntegerType>();
 	TypeclassImports imports;
-	REQUIRE_FALSE(imports.Import("Left", { { "Select", MakeClass({ MakeInstance(integer, integer, "Left", "Get_Int@Left") }) } }).has_value());
-	const std::optional<std::string> conflict = imports.Import("Right", { { "Select", MakeClass({ MakeInstance(integer, integer, "Right", "Get_Int@Right") }) } });
+	REQUIRE_FALSE(imports.Import("Left", { { "Select", MakeClass({ MakeInstance(integer, integer, "Left", "Get_Int") }) } }).has_value());
+	const std::optional<std::string> conflict = imports.Import("Right", { { "Select", MakeClass({ MakeInstance(integer, integer, "Right", "Get_Int") }) } });
 	REQUIRE(conflict.has_value());
 	CHECK(*conflict == "Typeclass 'Select' has two instances for 'Int': one in module 'Left', one in module 'Right'. An instance belongs in the module that declares the class or the module that declares the type.");
 }

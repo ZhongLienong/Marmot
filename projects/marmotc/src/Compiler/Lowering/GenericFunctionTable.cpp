@@ -1,5 +1,4 @@
 #include "GenericFunctionTable.h"
-#include "Bytecode/Format/Format.h"
 #include "Compiler/Constant/Constant.h"
 
 GenericFunctionTable::GenericFunctionTable(std::string module_name, Functions imported)
@@ -36,12 +35,6 @@ std::optional<std::string> GenericFunctionTable::KeyIn(const std::string& module
 
 std::optional<std::string> GenericFunctionTable::FindKey(const std::string& resolved_name, const std::optional<std::string>& specialization_source_module) const
 {
-	const size_t at_pos = resolved_name.find(ModuleSeparator);
-	if (at_pos != std::string::npos)
-	{
-		return KeyIn(resolved_name.substr(at_pos + 1u), resolved_name.substr(0u, at_pos));
-	}
-
 	const size_t separator_pos = resolved_name.rfind(NameSeparator);
 	if (separator_pos != std::string::npos)
 	{

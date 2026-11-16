@@ -640,7 +640,7 @@ Lowering::LoopKind Lowering::LoopKindOf(bool is_array, bool is_iterable, const T
 Lowering::Lowered Lowering::CallIterableNext(MarmotIRValueId iterator, const TypeRef& item_type, const TypeRef& next_type, const Token& at)
 {
 	const TypeRef iterator_type = Scope().m_function.TypeOf(iterator);
-	const MethodResolution<std::string> resolved = m_resolver.ResolveIterableNext(Scope().m_specialization.m_methods, iterator_type, item_type);
+	const MethodResolution<ResolvedInstanceName> resolved = m_resolver.ResolveIterableNext(Scope().m_specialization.m_methods, iterator_type, item_type);
 	if (!resolved.has_value())
 	{
 		return std::unexpected(ResolutionError(resolved.error(), at));

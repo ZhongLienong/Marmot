@@ -1,8 +1,8 @@
 #include "TypeclassMetadata.h"
+#include "Bytecode/Format/Format.h"
 
 #include <algorithm>
 #include <format>
-#include <ranges>
 #include <utility>
 
 TypeclassInstance::TypeclassInstance(TypeArguments type_args, AssociatedTypes associated_type_bindings, std::vector<MarmotType::ClassConstraint> constraints, std::vector<std::string> methods, std::string declaring_module)
@@ -57,10 +57,15 @@ void TypeclassMetadata::AddInstance(TypeclassInstance instance)
 
 std::vector<std::string> TypeclassMetadata::InstanceMethods() const
 {
-	return m_instances
-		| std::views::transform([](const TypeclassInstance& instance) -> const std::vector<std::string>& { return instance.m_methods; })
-		| std::views::join
-		| std::ranges::to<std::vector<std::string>>();
+	std::vector<std::string> names;
+	for (const TypeclassInstance& instance : m_instances)
+	{
+		for (const std::string& method : instance.m_methods)
+		{
+			names.push_back(instance.m_declaring_module.empty() ? method : method + ModuleSeparator + instance.m_declaring_module);
+		}
+	}
+	return names;
 }
 
 std::optional<std::string> TypeclassImports::Import(const std::string& module_name, const TypeclassMetadataMap& metadata)

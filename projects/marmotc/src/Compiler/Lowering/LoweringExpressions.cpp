@@ -426,7 +426,7 @@ Lowering::Lowered Lowering::LowerClassOperator(MarmotExpression::Binary& binary,
 
 	if (binary.m_uses_concatenable)
 	{
-		const MethodResolution<std::string> resolved = m_resolver.ResolveConcat(methods, operand_type);
+		const MethodResolution<ResolvedInstanceName> resolved = m_resolver.ResolveConcat(methods, operand_type);
 		if (!resolved.has_value())
 		{
 			return std::unexpected(ResolutionError(resolved.error(), op));
@@ -436,7 +436,7 @@ Lowering::Lowered Lowering::LowerClassOperator(MarmotExpression::Binary& binary,
 
 	if (binary.m_uses_equatable)
 	{
-		const MethodResolution<std::string> resolved = m_resolver.ResolveEquals(operand_type);
+		const MethodResolution<ResolvedInstanceName> resolved = m_resolver.ResolveEquals(operand_type);
 		if (!resolved.has_value())
 		{
 			return std::unexpected(ResolutionError(resolved.error(), op));
@@ -448,7 +448,7 @@ Lowering::Lowered Lowering::LowerClassOperator(MarmotExpression::Binary& binary,
 			});
 	}
 
-	const MethodResolution<std::string> resolved = m_resolver.ResolveCompare(operand_type);
+	const MethodResolution<ResolvedInstanceName> resolved = m_resolver.ResolveCompare(operand_type);
 	if (!resolved.has_value())
 	{
 		return std::unexpected(ResolutionError(resolved.error(), op));
@@ -534,7 +534,7 @@ Lowering::Lowered Lowering::LowerUnary(MarmotExpression::UnaryPrefix& unary)
 Lowering::Lowered Lowering::LowerCount(MarmotExpression::UnaryPrefix& unary, MarmotIRValueId operand)
 {
 	const TypeRef operand_type = NominalType(*unary.m_expr, operand);
-	const MethodResolution<std::optional<std::string>> resolved = m_resolver.ResolveCount(Scope().m_specialization.m_methods, operand_type, unary.m_uses_countable);
+	const MethodResolution<std::optional<ResolvedInstanceName>> resolved = m_resolver.ResolveCount(Scope().m_specialization.m_methods, operand_type, unary.m_uses_countable);
 	if (!resolved.has_value())
 	{
 		return std::unexpected(ResolutionError(resolved.error(), unary.m_op));
@@ -561,7 +561,7 @@ Lowering::Lowered Lowering::LowerAs(MarmotExpression::As& as)
 			}
 
 			const TypeRef from_type = NominalType(*as.m_expr, value);
-			const MethodResolution<std::optional<std::string>> resolved = m_resolver.ResolveConvert(Scope().m_specialization.m_methods, from_type, from_type, to_type, as.m_uses_convertable);
+			const MethodResolution<std::optional<ResolvedInstanceName>> resolved = m_resolver.ResolveConvert(Scope().m_specialization.m_methods, from_type, from_type, to_type, as.m_uses_convertable);
 			if (!resolved.has_value())
 			{
 				return std::unexpected(ResolutionError(resolved.error(), keyword));
@@ -674,7 +674,7 @@ Lowering::Lowered Lowering::LowerIndex(MarmotExpression::IndexAccess& index)
 			if (index.m_uses_indexable)
 			{
 				const std::vector<TypeRef> argument_types = { NominalType(*index.m_arr_var, container), NominalType(*index.m_index, position) };
-				const MethodResolution<std::string> resolved = m_resolver.ResolveIndex(Scope().m_specialization.m_methods, argument_types[0u], argument_types[1u]);
+				const MethodResolution<ResolvedInstanceName> resolved = m_resolver.ResolveIndex(Scope().m_specialization.m_methods, argument_types[0u], argument_types[1u]);
 				if (!resolved.has_value())
 				{
 					return std::unexpected(ResolutionError(resolved.error(), op));

@@ -128,7 +128,7 @@ Lowering::Lowering(MarmotProgramTree& program, std::string_view file_name, const
 	m_module(module_name),
 	m_foreign_indices(std::make_shared<ForeignIndices>()),
 	m_generics(module_name, imports.m_generic_functions),
-	m_resolver(imports.m_typeclasses, [this](const std::string& name) { return m_top_level_names.contains(name); })
+	m_resolver(imports.m_typeclasses)
 {
 	m_specializations.emplace_back(GenericTypes::TypeEnvironment{}, MethodResolutionMap{}, std::nullopt, m_foreign_indices);
 }
@@ -1097,7 +1097,7 @@ Lowering::Lowered Lowering::LowerName(const MarmotExpression::NameAccess& name)
 	const Specialization& specialization = Scope().m_specialization;
 	if (specialization.m_methods.contains(lexeme))
 	{
-		const MethodResolution<std::string> resolved = m_resolver.ResolveConstrainedValue(specialization.m_methods, lexeme);
+		const MethodResolution<ResolvedInstanceName> resolved = m_resolver.ResolveConstrainedValue(specialization.m_methods, lexeme);
 		if (!resolved.has_value())
 		{
 			return std::unexpected(ResolutionError(resolved.error(), token));
@@ -1160,24 +1160,23 @@ std::expected<MarmotIRGlobalSlot, CompilerError> Lowering::GlobalFor(const Token
 	return ImportGlobal(lexeme.substr(0u, separator), lexeme.substr(separator + NameSeparator.length()), import_type, name);
 }
 
-// A resolved instance method is `name`, a global of this module, or
-// `name@Module`, one of Module's.
-std::expected<MarmotIRGlobalSlot, CompilerError> Lowering::GlobalForResolved(const std::string& resolved_name, const TypeRef& type, const Token& at)
+// A selected instance's declaring module determines its global, independently
+// of the source module of a generic currently being specialized.
+std::expected<MarmotIRGlobalSlot, CompilerError> Lowering::GlobalForResolved(const ResolvedInstanceName& name, const TypeRef& type, const Token& at)
 {
-	const ResolvedInstanceName name(resolved_name);
-	if (name.m_module.has_value())
+	if (name.m_declaring_module != m_module_name)
 	{
-		if (m_generics.FindKey(resolved_name, Scope().m_specialization.m_source_module).has_value())
+		if (m_generics.KeyIn(name.m_declaring_module, name.m_symbol).has_value())
 		{
-			return std::unexpected(Error(CompilerErrorCode::LoweringUnresolvedMethodResolution, std::format("Constrained instance method '{}' from module '{}' is monomorphised at each call site, so it has no address to take. Call it directly instead of using it through an operator or as a value.", name.m_symbol, name.m_module.value()), at));
+			return std::unexpected(Error(CompilerErrorCode::LoweringUnresolvedMethodResolution, std::format("Constrained instance method '{}' from module '{}' is monomorphised at each call site, so it has no address to take. Call it directly instead of using it through an operator or as a value.", name.m_symbol, name.m_declaring_module), at));
 		}
-		return ImportGlobal(name.m_module.value(), name.m_symbol, type, at);
+		return ImportGlobal(name.m_declaring_module, name.m_symbol, type, at);
 	}
 
 	const std::unordered_map<std::string, TopLevelName>::const_iterator own = m_top_level_names.find(name.m_symbol);
 	if (own == m_top_level_names.cend())
 	{
-		return std::unexpected(Error(CompilerErrorCode::None, std::format("Resolved symbol '{}' not found in globals.", resolved_name), at));
+		return std::unexpected(Error(CompilerErrorCode::None, std::format("Resolved symbol '{}' not found in globals.", name.m_symbol), at));
 	}
 	return own->second.m_slot;
 }
@@ -1197,7 +1196,7 @@ MarmotIRGlobalSlot Lowering::ImportGlobal(const std::string& module, const std::
 	return slot;
 }
 
-Lowering::Lowered Lowering::LoadResolved(const std::string& resolved_name, const TypeRef& type, const Token& at)
+Lowering::Lowered Lowering::LoadResolved(const ResolvedInstanceName& resolved_name, const TypeRef& type, const Token& at)
 {
 	return GlobalForResolved(resolved_name, type, at)
 		.transform([this, &at](MarmotIRGlobalSlot slot)
@@ -1210,9 +1209,9 @@ Lowering::Lowered Lowering::LoadResolved(const std::string& resolved_name, const
 // A constrained instance's method is a generic, specialized for these
 // arguments; this module's own is called directly; another module's through
 // its global.
-Lowering::Lowered Lowering::CallResolved(const std::string& resolved_name, std::vector<MarmotIRValueId> arguments, const std::vector<TypeRef>& argument_types, const TypeRef& result_type, const Token& at)
+Lowering::Lowered Lowering::CallResolved(const ResolvedInstanceName& name, std::vector<MarmotIRValueId> arguments, const std::vector<TypeRef>& argument_types, const TypeRef& result_type, const Token& at)
 {
-	const std::optional<std::string> generic_key = m_generics.FindKey(resolved_name, Scope().m_specialization.m_source_module);
+	const std::optional<std::string> generic_key = m_generics.KeyIn(name.m_declaring_module, name.m_symbol);
 	if (generic_key.has_value())
 	{
 		return Specialize(generic_key.value(), argument_types, result_type)
@@ -1222,8 +1221,7 @@ Lowering::Lowered Lowering::CallResolved(const std::string& resolved_name, std::
 			});
 	}
 
-	const ResolvedInstanceName name(resolved_name);
-	if (!name.m_module.has_value())
+	if (name.m_declaring_module == m_module_name)
 	{
 		const std::unordered_map<std::string, TopLevelName>::const_iterator own = m_top_level_names.find(name.m_symbol);
 		if (own != m_top_level_names.cend() && own->second.m_function.has_value())
@@ -1233,7 +1231,7 @@ Lowering::Lowered Lowering::CallResolved(const std::string& resolved_name, std::
 		}
 	}
 
-	return GlobalForResolved(resolved_name, MarmotType::MakeFunctionType(argument_types, TypeRef(result_type)), at)
+	return GlobalForResolved(name, MarmotType::MakeFunctionType(argument_types, TypeRef(result_type)), at)
 		.transform([&](MarmotIRGlobalSlot slot)
 		{
 			return Builder().AtLine(at.m_line).Emit(MarmotIROp::CallGlobal, result_type, std::move(arguments), slot);
@@ -1408,10 +1406,10 @@ std::expected<Lowering::Callee, CompilerError> Lowering::ResolveCallee(MarmotExp
 	{
 		argument_types.push_back(NominalType(*call.m_arguments[index], arguments[index]));
 	}
-	std::optional<std::string> resolved;
+	std::optional<ResolvedInstanceName> resolved;
 	if (specialization.m_methods.contains(lexeme))
 	{
-		const MethodResolution<std::optional<std::string>> method = m_resolver.ResolveConstrainedCall(specialization.m_methods, lexeme, argument_types.empty() ? nullptr : &argument_types.front(), call_type);
+		const MethodResolution<std::optional<ResolvedInstanceName>> method = m_resolver.ResolveConstrainedCall(specialization.m_methods, lexeme, argument_types.empty() ? nullptr : &argument_types.front(), call_type);
 		if (!method.has_value())
 		{
 			return std::unexpected(ResolutionError(method.error(), paren));
@@ -1420,7 +1418,7 @@ std::expected<Lowering::Callee, CompilerError> Lowering::ResolveCallee(MarmotExp
 	}
 	if (!resolved.has_value() && lexeme.find(NameSeparator) != std::string::npos)
 	{
-		const MethodResolution<std::optional<std::string>> method = m_resolver.ResolveConcreteCall(lexeme, argument_types, call_type);
+		const MethodResolution<std::optional<ResolvedInstanceName>> method = m_resolver.ResolveConcreteCall(lexeme, argument_types, call_type);
 		if (!method.has_value())
 		{
 			return std::unexpected(ResolutionError(method.error(), paren));
@@ -1428,7 +1426,9 @@ std::expected<Lowering::Callee, CompilerError> Lowering::ResolveCallee(MarmotExp
 		resolved = method.value();
 	}
 
-	const std::optional<std::string> generic_key = m_generics.FindKey(resolved.value_or(lexeme), specialization.m_source_module);
+	const std::optional<std::string> generic_key = resolved.has_value()
+		? m_generics.KeyIn(resolved->m_declaring_module, resolved->m_symbol)
+		: m_generics.FindKey(lexeme, specialization.m_source_module);
 	if (generic_key.has_value())
 	{
 		return Specialize(generic_key.value(), argument_types, call_type)
@@ -1437,8 +1437,8 @@ std::expected<Lowering::Callee, CompilerError> Lowering::ResolveCallee(MarmotExp
 
 	if (resolved.has_value())
 	{
-		const ResolvedInstanceName instance(resolved.value());
-		const std::unordered_map<std::string, TopLevelName>::const_iterator own = instance.m_module.has_value() ? m_top_level_names.cend() : m_top_level_names.find(instance.m_symbol);
+		const ResolvedInstanceName& instance = resolved.value();
+		const std::unordered_map<std::string, TopLevelName>::const_iterator own = instance.m_declaring_module != m_module_name ? m_top_level_names.cend() : m_top_level_names.find(instance.m_symbol);
 		if (own != m_top_level_names.cend() && own->second.m_function.has_value())
 		{
 			return Callee{ own->second.m_function.value(), std::nullopt };
