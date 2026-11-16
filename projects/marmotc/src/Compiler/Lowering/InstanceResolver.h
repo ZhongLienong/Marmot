@@ -3,6 +3,7 @@
 #include "Compiler/Error/CompilerError.h"
 #include "Compiler/AbstractSyntaxTree/Type.h"
 #include "Compiler/Lowering/GenericTypes.h"
+#include "Compiler/Module/TypeclassMetadata.h"
 
 #include <expected>
 #include <functional>
@@ -57,29 +58,17 @@ struct ResolvedInstanceName
 class InstanceResolver
 {
 public:
-	using ClassMethods = std::unordered_map<std::string, std::unordered_set<std::string>>;
-	using ClassInstances = std::unordered_map<std::string, std::vector<std::string>>;
-	using ClassInstanceTypes = std::unordered_map<std::string, std::vector<std::vector<std::shared_ptr<MarmotType>>>>;
-	using AssociatedTypeBindings = std::unordered_map<std::string, std::shared_ptr<MarmotType>>;
-	// Each class's instances' associated type bindings, in the order of their
-	// type arguments in ClassInstanceTypes.
-	using ClassInstanceAssociatedTypes = std::unordered_map<std::string, std::vector<AssociatedTypeBindings>>;
 	using IsModuleGlobal = std::function<bool(const std::string&)>;
 
 private:
-	ClassMethods m_class_methods;
-	ClassInstances m_class_instances;
-	ClassInstanceTypes m_class_instance_type_args;
-	std::unordered_map<std::string, std::vector<std::pair<std::vector<std::shared_ptr<MarmotType>>, AssociatedTypeBindings>>> m_associated_types;
+	TypeclassMetadataMap m_classes;
 	IsModuleGlobal m_is_module_global;
 
 public:
-	InstanceResolver(ClassMethods class_methods, ClassInstances class_instances, ClassInstanceTypes class_instance_type_args, const ClassInstanceAssociatedTypes& associated_types, IsModuleGlobal is_module_global);
+	InstanceResolver(TypeclassMetadataMap classes, IsModuleGlobal is_module_global);
 
 	void AddClass(const std::string& class_name, std::unordered_set<std::string> method_names);
-	void AddInstanceTypeArgs(const std::string& class_name, const std::vector<std::shared_ptr<MarmotType>>& type_args);
-	void AddInstanceMethod(const std::string& class_name, const std::string& method_name);
-	void AddAssociatedTypes(const std::string& class_name, const std::vector<std::shared_ptr<MarmotType>>& type_args, AssociatedTypeBindings bindings);
+	void AddInstance(const std::string& class_name, TypeclassInstance instance);
 
 	bool IsClassMethod(const std::string& qualified_name) const;
 

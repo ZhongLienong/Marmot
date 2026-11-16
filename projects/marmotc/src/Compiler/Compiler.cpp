@@ -47,13 +47,7 @@ namespace
 		std::unordered_map<std::string, CompiledModule::SymbolTable> m_imported_symbols;
 		std::unordered_map<std::string, TypeChecker::TypeEnvironment> m_imported_type_signatures;
 		TypeChecker::TypeEnvironment m_imported_types;
-		CompiledModule::TypeclassMetadataMap m_imported_typeclass_metadata;
-		std::unordered_map<std::string, TypeChecker::ClassInfo> m_imported_typeclass_infos;
-		CompiledModule::TypeclassMethodMap m_imported_typeclass_methods;
-		std::unordered_map<std::string, std::vector<std::string>> m_imported_typeclass_instances;
-		std::unordered_map<std::string, std::vector<std::vector<std::shared_ptr<MarmotType>>>> m_imported_typeclass_instance_types;
-		TypeChecker::TypeclassInstanceAssociatedTypeBindingMap m_imported_typeclass_instance_associated_type_bindings;
-		TypeChecker::TypeclassInstanceConstraintMap m_imported_typeclass_instance_constraints;
+		TypeclassMetadataMap m_imported_typeclass_metadata;
 		std::unordered_map<std::string, GenericFunctionInfo> m_imported_generic_functions;
 		WorkerCrossings m_imported_worker_crossings;
 	};
@@ -62,7 +56,7 @@ namespace
 	{
 		MarmotProgramTree m_ast;
 		TypeChecker::TypeEnvironment m_type_signatures;
-		CompiledModule::TypeclassMetadataMap m_typeclass_metadata;
+		TypeclassMetadataMap m_typeclass_metadata;
 		std::vector<CompilerWarning> m_warnings;
 	};
 
@@ -140,14 +134,6 @@ namespace
 		std::vector<std::string> m_marmot_ir;
 		std::vector<std::string> m_ast;
 		MarmotResult::CompilerWarnings m_warnings;
-	};
-
-	struct CompilerAccess : Compiler
-	{
-		using Compiler::MergeInstanceEntries;
-		using Compiler::MergeInstanceMethods;
-		using Compiler::MergeInstanceTypeArgs;
-		using Compiler::TypeclassDefinitionsMatch;
 	};
 
 	static MarmotResult::CompilerReport MakeStateErrorReport(CompileState&& state, MarmotResult::CompilerDiagnostics diagnostics)
@@ -278,7 +264,7 @@ namespace
 	static MarmotResult::Result<ImportContext> BuildImportContext(CompileEnv& env, const BuildGraph::BuildNode& node, const std::string& file_path)
 	{
 		ImportContext context;
-		std::unordered_map<std::string, std::string> imported_typeclass_sources;
+		TypeclassImports typeclass_imports;
 		// Each dependency's interface, and the import a conflict between two of
 		// them points at.
 		std::vector<std::pair<const ModuleInterface*, const Token*>> dependency_modules;
@@ -293,12 +279,10 @@ namespace
 		}
 
 		size_t imported_type_count = 0u;
-		size_t imported_typeclass_count = 0u;
 		size_t imported_generic_function_count = 0u;
 		for (const ModuleInterface* dep : dependency_modules | std::views::keys)
 		{
 			imported_type_count += dep->m_type_signatures.size() * 2u;
-			imported_typeclass_count += dep->m_typeclass_metadata.size();
 
 			imported_generic_function_count += dep->m_generic_functions.size() * 2u;
 		}
@@ -306,16 +290,7 @@ namespace
 		context.m_imported_symbols.reserve(dependency_modules.size());
 		context.m_imported_type_signatures.reserve(dependency_modules.size());
 		context.m_imported_types.reserve(imported_type_count);
-		context.m_imported_typeclass_metadata.reserve(imported_typeclass_count);
-		context.m_imported_typeclass_infos.reserve(imported_typeclass_count);
-		context.m_imported_typeclass_methods.reserve(imported_typeclass_count);
-		context.m_imported_typeclass_instances.reserve(imported_typeclass_count);
-		context.m_imported_typeclass_instance_types.reserve(imported_typeclass_count);
 		context.m_imported_generic_functions.reserve(imported_generic_function_count);
-		imported_typeclass_sources.reserve(imported_typeclass_count);
-		// Which module each instance came from, so two instances for the same
-		// type can name both.
-		std::unordered_map<std::string, std::unordered_map<std::string, std::string>> instance_sources;
 
 		for (const auto& [dep, import_token] : dependency_modules)
 		{
@@ -327,57 +302,9 @@ namespace
 				context.m_imported_worker_crossings.insert_or_assign(dep_module_name + NameSeparator.data() + crossing.first, crossing.second);
 			}
 
-			for (const auto& [tc_name, metadata] : dep->m_typeclass_metadata)
+			if (const std::optional<std::string> conflict = typeclass_imports.Import(dep_module_name, dep->m_typeclass_metadata))
 			{
-				std::unordered_map<std::string, CompiledModule::TypeclassMetadata>::iterator existing_it = context.m_imported_typeclass_metadata.find(tc_name);
-				if (existing_it != context.m_imported_typeclass_metadata.end())
-				{
-					if (!CompilerAccess::TypeclassDefinitionsMatch(existing_it->second, metadata))
-					{
-						return std::unexpected(CompilerError::WithToken(CompilerStage::Module, std::format("Typeclass '{}' is defined in multiple imported modules ('{}' and '{}')", tc_name, imported_typeclass_sources.at(tc_name), dep_module_name), *import_token, file_path, node.m_source_lines));
-					}
-
-					for (const std::vector<std::shared_ptr<MarmotType>>& type_args : metadata.m_declared_instance_type_args)
-					{
-						const std::string signature = MarmotType::JoinToStrings(type_args);
-						const std::unordered_map<std::string, std::string>::const_iterator previous = instance_sources[tc_name].find(signature);
-						if (previous != instance_sources[tc_name].cend() && previous->second != dep_module_name)
-						{
-							return std::unexpected(CompilerError::WithToken(
-								CompilerStage::Module,
-								std::format("Typeclass '{}' has two instances for '{}': one in module '{}', one in module '{}'. An instance belongs in the module that declares the class or the module that declares the type.",
-									tc_name, signature, previous->second, dep_module_name),
-								*import_token,
-								file_path,
-								node.m_source_lines));
-						}
-					}
-
-					CompilerAccess::MergeInstanceMethods(existing_it->second.m_instance_methods, metadata.m_instance_methods);
-					CompilerAccess::MergeInstanceEntries(
-						existing_it->second.m_instance_associated_type_bindings,
-						existing_it->second.m_instance_type_args,
-						metadata.m_instance_associated_type_bindings,
-						metadata.m_instance_type_args
-					);
-					CompilerAccess::MergeInstanceEntries(
-						existing_it->second.m_instance_constraints,
-						existing_it->second.m_instance_type_args,
-						metadata.m_instance_constraints,
-						metadata.m_instance_type_args
-					);
-					CompilerAccess::MergeInstanceTypeArgs(existing_it->second.m_instance_type_args, metadata.m_instance_type_args);
-				}
-				else
-				{
-					context.m_imported_typeclass_metadata[tc_name] = metadata;
-					imported_typeclass_sources[tc_name] = dep_module_name;
-				}
-
-				for (const std::vector<std::shared_ptr<MarmotType>>& type_args : metadata.m_declared_instance_type_args)
-				{
-					instance_sources[tc_name].emplace(MarmotType::JoinToStrings(type_args), dep_module_name);
-				}
+				return std::unexpected(CompilerError::WithToken(CompilerStage::Module, *conflict, *import_token, file_path, node.m_source_lines));
 			}
 
 			// A type is also known by the module that declared it, which a
@@ -426,29 +353,7 @@ namespace
 			}
 		}
 
-		for (const auto& [typeclass_name, metadata] : context.m_imported_typeclass_metadata)
-		{
-			TypeChecker::AssociatedTypeEnvironment associated_types;
-			for (const std::string& associated_type_name : metadata.m_associated_type_names)
-			{
-				std::vector<std::shared_ptr<MarmotType>> associated_type_args;
-				associated_type_args.reserve(metadata.m_type_param_names.size());
-				for (const std::string& type_param_name : metadata.m_type_param_names)
-				{
-					associated_type_args.emplace_back(MarmotType::MakeGenericType(type_param_name));
-				}
-				associated_types.emplace(associated_type_name, MarmotType::MakeAssociatedType(typeclass_name, associated_type_name, std::move(associated_type_args)));
-			}
-
-			TypeChecker::ClassInfo info(typeclass_name, std::vector<std::string>(metadata.m_type_param_names), std::move(associated_types), TypeChecker::TypeEnvironment(metadata.m_method_types));
-			context.m_imported_typeclass_infos[typeclass_name] = std::move(info);
-			context.m_imported_typeclass_methods[typeclass_name] = metadata.m_method_names;
-			context.m_imported_typeclass_instances[typeclass_name] = metadata.m_instance_methods;
-			context.m_imported_typeclass_instance_types[typeclass_name] = metadata.m_instance_type_args;
-			context.m_imported_typeclass_instance_associated_type_bindings[typeclass_name] = metadata.m_instance_associated_type_bindings;
-			context.m_imported_typeclass_instance_constraints[typeclass_name] = metadata.m_instance_constraints;
-		}
-
+		context.m_imported_typeclass_metadata = std::move(typeclass_imports).TakeMetadata();
 		return context;
 	}
 
@@ -485,7 +390,7 @@ namespace
 
 	static MarmotResult::DiagnosticsResult<TypeCheckedModule> TypeCheckModule(MarmotProgramTree&& ast, const std::string& file_path, const std::vector<std::string>& module_source_lines, const ImportContext& import_context)
 	{
-		TypeChecker type_checker(std::move(ast), file_path, module_source_lines, import_context.m_imported_types, import_context.m_imported_typeclass_infos, import_context.m_imported_typeclass_instance_types, import_context.m_imported_typeclass_instance_associated_type_bindings, import_context.m_imported_typeclass_instance_constraints);
+		TypeChecker type_checker(std::move(ast), file_path, module_source_lines, import_context.m_imported_types, import_context.m_imported_typeclass_metadata);
 		MarmotResult::TypeCheckerResult typecheck_result = type_checker.TypeCheck();
 		if (!typecheck_result.has_value())
 		{
@@ -495,7 +400,7 @@ namespace
 		return TypeCheckedModule{ std::move(typecheck_result.value()), type_checker.ModuleTypes() };
 	}
 
-	static ModuleExportInfo BuildModuleExports(const ModuleDeclaration* module_decl, const CompiledModule::TypeclassMetadataMap& typeclass_metadata)
+	static ModuleExportInfo BuildModuleExports(const ModuleDeclaration* module_decl, const TypeclassMetadataMap& typeclass_metadata)
 	{
 		ModuleExportInfo export_info;
 		if (module_decl)
@@ -507,8 +412,8 @@ namespace
 
 				if (typeclass_metadata.contains(exp.m_symbol_name))
 				{
-					const CompiledModule::TypeclassMetadata& tc_metadata = typeclass_metadata.at(exp.m_symbol_name);
-					for (const std::string& instance_method : tc_metadata.m_instance_methods)
+					const TypeclassMetadata& tc_metadata = typeclass_metadata.at(exp.m_symbol_name);
+					for (const std::string& instance_method : tc_metadata.InstanceMethods())
 					{
 						export_info.m_symbols = std::move(export_info.m_symbols).WithExport(instance_method, exp.m_visibility);
 						export_info.m_export_set.insert(instance_method);
@@ -581,10 +486,7 @@ namespace
 	{
 		LoweringImports imports;
 		imports.m_generic_functions = import_context.m_imported_generic_functions;
-		imports.m_class_methods = import_context.m_imported_typeclass_methods;
-		imports.m_class_instances = import_context.m_imported_typeclass_instances;
-		imports.m_class_instance_type_args = import_context.m_imported_typeclass_instance_types;
-		imports.m_class_instance_associated_types = import_context.m_imported_typeclass_instance_associated_type_bindings;
+		imports.m_typeclasses = import_context.m_imported_typeclass_metadata;
 		return imports;
 	}
 
@@ -792,7 +694,7 @@ namespace
 		}
 
 		const LoweredModule& lowered_module = state.m_lowered.value();
-		const CompiledModule::TypeclassMetadataMap& typeclass_metadata = state.m_parsed_module.m_typeclass_metadata;
+		const TypeclassMetadataMap& typeclass_metadata = state.m_parsed_module.m_typeclass_metadata;
 		const TypeChecker::TypeEnvironment& type_signatures = state.m_parsed_module.m_type_signatures;
 		const std::string& module_name = state.m_module_name;
 		const std::string& file_path = state.m_file_path;
@@ -806,7 +708,7 @@ namespace
 		for (const auto& [typeclass_name, tc_metadata] : typeclass_metadata)
 		{
 			defined_exports.insert(typeclass_name);
-			for (const std::string& instance_method : tc_metadata.m_instance_methods)
+			for (const std::string& instance_method : tc_metadata.InstanceMethods())
 			{
 				defined_exports.insert(instance_method);
 			}
@@ -1335,134 +1237,6 @@ namespace
 		MarmotExecutable linked_executable = std::move(link_result.value());
 		return MarmotResult::CompiledProgram(std::move(linked_executable), MarmotResult::CompilerReport(std::move(build_graph_artifacts.m_warnings)));
 	}
-}
-
-std::vector<std::string>& Compiler::MergeInstanceMethods(std::vector<std::string>& target, const std::vector<std::string>& incoming)
-{
-	for (const std::string& method_name : incoming)
-	{
-		if (std::ranges::find(target, method_name) == target.end())
-		{
-			target.emplace_back(method_name);
-		}
-	}
-
-	return target;
-}
-
-bool Compiler::InstanceTypeArgsEqual(const std::vector<std::shared_ptr<MarmotType>>& left, const std::vector<std::shared_ptr<MarmotType>>& right)
-{
-	if (left.size() != right.size())
-	{
-		return false;
-	}
-
-	for (size_t i = 0u; i < left.size(); i += 1u)
-	{
-		if (*left[i] != *right[i])
-		{
-			return false;
-		}
-	}
-
-	return true;
-}
-
-std::vector<std::vector<std::shared_ptr<MarmotType>>>& Compiler::MergeInstanceTypeArgs(std::vector<std::vector<std::shared_ptr<MarmotType>>>& target, const std::vector<std::vector<std::shared_ptr<MarmotType>>>& incoming)
-{
-	for (const std::vector<std::shared_ptr<MarmotType>>& incoming_args : incoming)
-	{
-		bool exists = false;
-		for (const std::vector<std::shared_ptr<MarmotType>>& existing_args : target)
-		{
-			if (InstanceTypeArgsEqual(existing_args, incoming_args))
-			{
-				exists = true;
-				break;
-			}
-		}
-
-		if (!exists)
-		{
-			target.push_back(incoming_args);
-		}
-	}
-
-	return target;
-}
-
-template <typename Entry>
-std::vector<Entry>& Compiler::MergeInstanceEntries(
-	std::vector<Entry>& target_entries,
-	const std::vector<std::vector<std::shared_ptr<MarmotType>>>& target_type_args,
-	const std::vector<Entry>& incoming_entries,
-	const std::vector<std::vector<std::shared_ptr<MarmotType>>>& incoming_type_args
-)
-{
-	for (size_t incoming_idx = 0u; incoming_idx < incoming_type_args.size(); incoming_idx += 1u)
-	{
-		const std::vector<std::shared_ptr<MarmotType>>& incoming_args = incoming_type_args[incoming_idx];
-
-		bool exists = false;
-		for (const std::vector<std::shared_ptr<MarmotType>>& existing_args : target_type_args)
-		{
-			if (InstanceTypeArgsEqual(existing_args, incoming_args))
-			{
-				exists = true;
-				break;
-			}
-		}
-
-		if (exists)
-		{
-			continue;
-		}
-
-		if (incoming_idx < incoming_entries.size())
-		{
-			target_entries.push_back(incoming_entries[incoming_idx]);
-		}
-		else
-		{
-			target_entries.emplace_back();
-		}
-	}
-
-	return target_entries;
-}
-
-bool Compiler::TypeclassDefinitionsMatch(const CompiledModule::TypeclassMetadata& left, const CompiledModule::TypeclassMetadata& right)
-{
-	if (left.m_method_names != right.m_method_names)
-	{
-		return false;
-	}
-	if (left.m_type_param_names != right.m_type_param_names)
-	{
-		return false;
-	}
-	if (left.m_associated_type_names != right.m_associated_type_names)
-	{
-		return false;
-	}
-	if (left.m_method_types.size() != right.m_method_types.size())
-	{
-		return false;
-	}
-	using MethodTypeMap = std::unordered_map<std::string, std::shared_ptr<MarmotType>>;
-	for (const auto& [method_name, method_type] : left.m_method_types)
-	{
-		MethodTypeMap::const_iterator it = right.m_method_types.find(method_name);
-		if (it == right.m_method_types.end())
-		{
-			return false;
-		}
-		if (*method_type != *it->second)
-		{
-			return false;
-		}
-	}
-	return true;
 }
 
 Compiler::Compiler(std::string&& source_code, std::string&& file_name, CompilationInputs inputs)

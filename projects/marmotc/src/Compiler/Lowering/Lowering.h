@@ -61,10 +61,7 @@ struct LoweredModule
 struct LoweringImports
 {
 	GenericFunctionTable::Functions m_generic_functions;
-	InstanceResolver::ClassMethods m_class_methods;
-	InstanceResolver::ClassInstances m_class_instances;
-	InstanceResolver::ClassInstanceTypes m_class_instance_type_args;
-	InstanceResolver::ClassInstanceAssociatedTypes m_class_instance_associated_types;
+	TypeclassMetadataMap m_typeclasses;
 };
 
 // The typed AST of one module to MarmotIR. Lowering is where each construct

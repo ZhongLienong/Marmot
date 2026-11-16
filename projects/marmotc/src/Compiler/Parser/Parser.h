@@ -93,10 +93,7 @@ private:
 
 	using TypeclassMethodMap = std::unordered_map<std::string, std::unordered_set<std::string>>;
 	using TypeclassInstanceMap = std::unordered_map<std::string, std::vector<std::string>>;
-	using TypeclassInstanceTypeMap = std::unordered_map<std::string, std::vector<std::vector<std::shared_ptr<MarmotType>>>>;
 	using TypeclassAssociatedTypeMap = std::unordered_map<std::string, std::vector<std::string>>;
-	using TypeclassInstanceAssociatedTypeBindingMap = std::unordered_map<std::string, std::vector<std::unordered_map<std::string, std::shared_ptr<MarmotType>>>>;
-	using TypeclassInstanceConstraintMap = std::unordered_map<std::string, std::vector<std::vector<MarmotType::ClassConstraint>>>;
 	using TypeEnvironment = std::unordered_map<std::string, std::shared_ptr<MarmotType>>;
 	using TypeclassMethodTypeMap = std::unordered_map<std::string, std::unordered_map<std::string, std::shared_ptr<MarmotType>>>;
 
@@ -151,12 +148,7 @@ private:
 		TypeclassMethodMap m_class_methods;
 		TypeclassInstanceMap m_typeclass_type_params;
 		TypeclassAssociatedTypeMap m_typeclass_associated_types;
-		TypeclassInstanceMap m_class_instances;
-		TypeclassInstanceTypeMap m_class_instance_type_args;
-		// The subset declared in the file being parsed.
-		TypeclassInstanceTypeMap m_declared_class_instance_type_args;
-		TypeclassInstanceAssociatedTypeBindingMap m_class_instance_associated_type_bindings;
-		TypeclassInstanceConstraintMap m_class_instance_constraints;
+		std::unordered_map<std::string, std::vector<TypeclassInstance>> m_class_instances;
 		TypeclassMethodTypeMap m_typeclass_method_types;
 		Scopes m_scopes{ Scope() };
 		std::vector<int> m_function_base_variable_index{0};
@@ -275,13 +267,13 @@ private:
 	friend struct ParserTestAccess;
 
 public:
-	Parser(TokenStream&& tokens, std::string_view file_name, const std::vector<std::string>& source_lines, const std::unordered_map<std::string, CompiledModule::SymbolTable>& imports, const std::unordered_map<std::string, TypeEnvironment>& imported_type_signatures, const std::vector<UseImport>& use_imports, const ModuleDeclaration* module_decl, const CompiledModule::TypeclassMetadataMap& imported_typeclass_metadata = {});
+	Parser(TokenStream&& tokens, std::string_view file_name, const std::vector<std::string>& source_lines, const std::unordered_map<std::string, CompiledModule::SymbolTable>& imports, const std::unordered_map<std::string, TypeEnvironment>& imported_type_signatures, const std::vector<UseImport>& use_imports, const ModuleDeclaration* module_decl, const TypeclassMetadataMap& imported_typeclass_metadata = {});
 
 	MarmotResult::ParserResult Parse();
 
 	const std::vector<CompilerWarning>& GetWarnings() const;
 
-	CompiledModule::TypeclassMetadataMap GetTypeclassMetadata() const;
+	TypeclassMetadataMap GetTypeclassMetadata() const;
 
 private:
 	

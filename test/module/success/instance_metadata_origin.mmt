@@ -1,0 +1,22 @@
+module InstanceMetadataOrigin
+public export { Select, Allowed, Box }
+
+class Allowed<T> {
+};
+
+instance Allowed<Int> {
+};
+
+class Select<S> {
+    type Item;
+    Get: fn(value: S) -> Item;
+};
+
+type Box<T> = {
+    value: T
+};
+
+instance Select<Box<T>> where Allowed<T> {
+    type Item = T;
+    def Get = fn(value: Box<T>) -> T => value.value;
+};

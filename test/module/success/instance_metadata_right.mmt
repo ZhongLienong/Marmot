@@ -1,0 +1,13 @@
+module InstanceMetadataRight
+import { "./instance_metadata_origin.mmt" }
+
+public export { Select, Extra }
+
+type Extra = {
+    value: Text
+};
+
+instance Select<Extra> {
+    type Item = Text;
+    def Get = fn(value: Extra) -> Text => value.value;
+};

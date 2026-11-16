@@ -7,6 +7,7 @@
 #include <unordered_set>
 
 #include "Compiler/Error/CompilerError.h"
+#include "Compiler/Module/TypeclassMetadata.h"
 #include "Compiler/Result/Result.h"
 
 class ExpectedTypeGuard;
@@ -26,10 +27,7 @@ class TypeChecker
 
 public:
 	using TypeEnvironment = std::unordered_map<std::string, std::shared_ptr<MarmotType>>;
-	using TypeclassInstanceTypeMap = std::unordered_map<std::string, std::vector<std::vector<std::shared_ptr<MarmotType>>>>;
 	using AssociatedTypeEnvironment = std::unordered_map<std::string, std::shared_ptr<MarmotType>>;
-	using TypeclassInstanceAssociatedTypeBindingMap = std::unordered_map<std::string, std::vector<AssociatedTypeEnvironment>>;
-	using TypeclassInstanceConstraintMap = std::unordered_map<std::string, std::vector<std::vector<MarmotType::ClassConstraint>>>;
 	enum class UnifyDiagnosticMode
 	{
 		Symmetric,
@@ -180,7 +178,7 @@ private:
 
 public:
 
-	TypeChecker(MarmotProgramTree&& parser_result, std::string_view file_name, const std::vector<std::string>& source_lines, TypeEnvironment imported_types = {}, const std::unordered_map<std::string, ClassInfo>& imported_typeclasses = {}, TypeclassInstanceTypeMap imported_instance_types = {}, TypeclassInstanceAssociatedTypeBindingMap imported_instance_associated_type_bindings = {}, TypeclassInstanceConstraintMap imported_instance_constraints = {});
+	TypeChecker(MarmotProgramTree&& parser_result, std::string_view file_name, const std::vector<std::string>& source_lines, TypeEnvironment imported_types = {}, const TypeclassMetadataMap& imported_typeclasses = {});
 
 	MarmotResult::TypeCheckerResult TypeCheck();
 

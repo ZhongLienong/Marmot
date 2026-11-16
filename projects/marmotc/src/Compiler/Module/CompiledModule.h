@@ -12,9 +12,6 @@
 struct CompiledModule
 {
 	using SymbolTable = ModuleInterface::SymbolTable;
-	using TypeclassMetadata = ModuleInterface::TypeclassMetadata;
-	using TypeclassMethodMap = ModuleInterface::TypeclassMethodMap;
-	using TypeclassMetadataMap = ModuleInterface::TypeclassMetadataMap;
 
 	explicit CompiledModule(std::shared_ptr<const ModuleInterface> interface);
 

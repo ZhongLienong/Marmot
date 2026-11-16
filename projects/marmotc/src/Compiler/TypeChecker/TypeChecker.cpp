@@ -2831,17 +2831,28 @@ TypeChecker::TypeChecker(
 	std::string_view file_name,
 	const std::vector<std::string>& source_lines,
 	TypeEnvironment imported_types,
-	const std::unordered_map<std::string, ClassInfo>& imported_typeclasses,
-	TypeclassInstanceTypeMap imported_instance_types,
-	TypeclassInstanceAssociatedTypeBindingMap imported_instance_associated_type_bindings,
-	TypeclassInstanceConstraintMap imported_instance_constraints
+	const TypeclassMetadataMap& imported_typeclasses
 )
 	: m_program_tree(std::move(parser_result)),
-	m_classes(imported_typeclasses),
 	m_file_name(file_name),
 	m_source_lines(source_lines),
 	m_next_type_var_id(0)
 {
+	for (const auto& [class_name, metadata] : imported_typeclasses)
+	{
+		AssociatedTypeEnvironment associated_types;
+		for (const std::string& name : metadata.m_associated_type_names)
+		{
+			std::vector<std::shared_ptr<MarmotType>> type_args;
+			for (const std::string& param : metadata.m_type_param_names)
+			{
+				type_args.emplace_back(MarmotType::MakeGenericType(param));
+			}
+			associated_types.emplace(name, MarmotType::MakeAssociatedType(class_name, name, std::move(type_args)));
+		}
+		m_classes.emplace(class_name, ClassInfo(class_name, std::vector<std::string>(metadata.m_type_param_names), std::move(associated_types), TypeEnvironment(metadata.m_method_types)));
+	}
+
 	// Pre-populate type environment with imported types
 	if (!imported_types.empty())
 	{
@@ -2900,45 +2911,20 @@ TypeChecker::TypeChecker(
 		m_name_type_table.push_back(std::move(imported_names));
 	}
 
-	if (!imported_instance_types.empty())
+	for (const auto& [class_name, metadata] : imported_typeclasses)
 	{
-		for (const auto& [class_name, instances] : imported_instance_types)
+		for (const TypeclassInstance& instance : metadata.m_instances)
 		{
-			for (size_t instance_idx = 0u; instance_idx < instances.size(); instance_idx += 1u)
+			std::vector<std::string> concrete_type_names;
+			concrete_type_names.reserve(instance.m_type_args.size());
+			for (const std::shared_ptr<MarmotType>& type_arg : instance.m_type_args)
 			{
-				const std::vector<std::shared_ptr<MarmotType>>& type_args = instances[instance_idx];
-				if (type_args.empty())
-				{
-					continue;
-				}
-
-				std::vector<std::string> concrete_type_names;
-				concrete_type_names.reserve(type_args.size());
-				for (const std::shared_ptr<MarmotType>& type_arg : type_args)
-				{
-					concrete_type_names.emplace_back(type_arg->ToString());
-				}
-
-				InstanceKey instance_key{ class_name, std::move(concrete_type_names) };
-				if (!m_instances.contains(instance_key))
-				{
-					std::vector<std::shared_ptr<MarmotType>> type_args_copy = type_args;
-					AssociatedTypeEnvironment associated_type_bindings;
-					TypeclassInstanceAssociatedTypeBindingMap::const_iterator imported_bindings_it = imported_instance_associated_type_bindings.find(class_name);
-					if (imported_bindings_it != imported_instance_associated_type_bindings.cend() && instance_idx < imported_bindings_it->second.size())
-					{
-						associated_type_bindings = imported_bindings_it->second[instance_idx];
-					}
-					// An imported instance keeps its where clause: selecting it here holds
-					// the same constraints as selecting it in the module that declared it.
-					std::vector<MarmotType::ClassConstraint> constraints;
-					TypeclassInstanceConstraintMap::const_iterator imported_constraints_it = imported_instance_constraints.find(class_name);
-					if (imported_constraints_it != imported_instance_constraints.cend() && instance_idx < imported_constraints_it->second.size())
-					{
-						constraints = imported_constraints_it->second[instance_idx];
-					}
-					m_instances.emplace(std::move(instance_key), InstanceInfo(class_name, std::move(type_args_copy), std::move(constraints), std::move(associated_type_bindings), std::unordered_map<std::string, std::unique_ptr<MarmotStatement>>()));
-				}
+				concrete_type_names.emplace_back(type_arg->ToString());
+			}
+			InstanceKey instance_key{ class_name, std::move(concrete_type_names) };
+			if (!m_instances.contains(instance_key))
+			{
+				m_instances.emplace(std::move(instance_key), InstanceInfo(class_name, TypeclassInstance::TypeArguments(instance.m_type_args), std::vector<MarmotType::ClassConstraint>(instance.m_constraints), AssociatedTypeEnvironment(instance.m_associated_type_bindings), std::unordered_map<std::string, std::unique_ptr<MarmotStatement>>()));
 			}
 		}
 	}

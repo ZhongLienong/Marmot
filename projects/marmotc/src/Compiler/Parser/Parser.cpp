@@ -526,7 +526,7 @@ Parser::ActiveConstraintGuard::~ActiveConstraintGuard()
 	}
 }
 
-Parser::Parser(TokenStream&& tokens,std::string_view file_name, const std::vector<std::string>& source_lines, const std::unordered_map<std::string, CompiledModule::SymbolTable>& imports, const std::unordered_map<std::string, TypeEnvironment>& imported_type_signatures, const std::vector<UseImport>& use_imports, const ModuleDeclaration* module_decl, const CompiledModule::TypeclassMetadataMap& imported_typeclass_metadata)
+Parser::Parser(TokenStream&& tokens,std::string_view file_name, const std::vector<std::string>& source_lines, const std::unordered_map<std::string, CompiledModule::SymbolTable>& imports, const std::unordered_map<std::string, TypeEnvironment>& imported_type_signatures, const std::vector<UseImport>& use_imports, const ModuleDeclaration* module_decl, const TypeclassMetadataMap& imported_typeclass_metadata)
 	: m_context(std::move(tokens), file_name, source_lines, imports, imported_type_signatures, module_decl),
 	m_state(use_imports)
 {
@@ -535,10 +535,7 @@ Parser::Parser(TokenStream&& tokens,std::string_view file_name, const std::vecto
 		m_state.m_class_methods[tc_name] = metadata.m_method_names;
 		m_state.m_typeclass_type_params[tc_name] = metadata.m_type_param_names;
 		m_state.m_typeclass_associated_types[tc_name] = metadata.m_associated_type_names;
-		m_state.m_class_instances[tc_name] = metadata.m_instance_methods;
-		m_state.m_class_instance_type_args[tc_name] = metadata.m_instance_type_args;
-		m_state.m_class_instance_associated_type_bindings[tc_name] = metadata.m_instance_associated_type_bindings;
-		m_state.m_class_instance_constraints[tc_name] = metadata.m_instance_constraints;
+		m_state.m_class_instances[tc_name] = metadata.m_instances;
 		m_state.m_typeclass_method_types[tc_name] = metadata.m_method_types;
 	}
 }
@@ -4428,18 +4425,12 @@ MarmotResult::StatementResult Parser::ParseInstanceDeclaration()
 		return std::unexpected(instance_semicolon_result.error());
 	}
 
-	std::vector<std::shared_ptr<MarmotType>> type_args_copy = type_args;
-	m_state.m_declared_class_instance_type_args[typeclass_name.m_lexeme].push_back(type_args_copy);
-	m_state.m_class_instance_type_args[typeclass_name.m_lexeme].push_back(std::move(type_args_copy));
-
 	std::unordered_map<std::string, std::shared_ptr<MarmotType>> associated_type_bindings;
 	for (const MarmotStatement::Instance::AssociatedTypeBinding& binding : associated_types)
 	{
 		associated_type_bindings.emplace(binding.m_name.m_lexeme, binding.m_type);
 	}
-	m_state.m_class_instance_associated_type_bindings[typeclass_name.m_lexeme].push_back(associated_type_bindings);
-	m_state.m_class_instance_constraints[typeclass_name.m_lexeme].push_back(constraints);
-
+	std::vector<std::string> mangled_method_names;
 	for (std::unique_ptr<MarmotStatement>& method_stmt : methods)
 	{
 		if (method_stmt->IsStatement<MarmotStatement::FunctionDefinition>())
@@ -4453,10 +4444,13 @@ MarmotResult::StatementResult Parser::ParseInstanceDeclaration()
 			{
 				mangled_name_with_module += ModuleSeparator + m_context.m_current_module->ModuleName();
 			}
-			m_state.m_class_instances[typeclass_name.m_lexeme].push_back(mangled_name_with_module);
+			mangled_method_names.push_back(std::move(mangled_name_with_module));
 			defun.m_name.m_lexeme = mangled_name;
 		}
 	}
+
+	const std::string declaring_module = m_context.m_current_module && m_context.m_current_module->HasModuleDeclaration() ? m_context.m_current_module->ModuleName() : std::string();
+	m_state.m_class_instances[typeclass_name.m_lexeme].emplace_back(type_args, std::move(associated_type_bindings), constraints, std::move(mangled_method_names), declaring_module);
 
 	scope_guard.m_parser = nullptr;
 	EndScope();
@@ -6138,23 +6132,15 @@ MarmotResult::TokenResult Parser::RegisterSyntheticGlobalName(const std::string&
 
 void Parser::RegisterSyntheticInstanceMetadata(const std::string& class_name, const std::vector<std::shared_ptr<MarmotType>>& type_args, const std::vector<MarmotType::ClassConstraint>& constraints, const std::vector<std::string>& mangled_method_names)
 {
+	std::vector<std::string> methods;
+	const std::string declaring_module = m_context.m_current_module && m_context.m_current_module->HasModuleDeclaration() ? m_context.m_current_module->ModuleName() : std::string();
+	for (const std::string& method : mangled_method_names)
+	{
+		methods.push_back(declaring_module.empty() ? method : method + ModuleSeparator + declaring_module);
+	}
 	if (m_state.m_class_methods.contains(class_name))
 	{
-		m_state.m_declared_class_instance_type_args[class_name].push_back(type_args);
-		m_state.m_class_instance_type_args[class_name].push_back(type_args);
-		m_state.m_class_instance_associated_type_bindings[class_name].emplace_back();
-		m_state.m_class_instance_constraints[class_name].push_back(constraints);
-	}
-
-	for (const std::string& mangled_method_name : mangled_method_names)
-	{
-		std::string mangled_name_with_module = mangled_method_name;
-		if (m_context.m_current_module && m_context.m_current_module->HasModuleDeclaration())
-		{
-			mangled_name_with_module += ModuleSeparator + m_context.m_current_module->ModuleName();
-		}
-
-		m_state.m_class_instances[class_name].push_back(std::move(mangled_name_with_module));
+		m_state.m_class_instances[class_name].emplace_back(type_args, TypeclassInstance::AssociatedTypes(), constraints, std::move(methods), declaring_module);
 	}
 }
 
@@ -6912,12 +6898,12 @@ const std::vector<CompilerWarning>& Parser::GetWarnings() const
 	return m_warnings;
 }
 
-CompiledModule::TypeclassMetadataMap Parser::GetTypeclassMetadata() const
+TypeclassMetadataMap Parser::GetTypeclassMetadata() const
 {
-	CompiledModule::TypeclassMetadataMap result;
+	TypeclassMetadataMap result;
 	for (const auto& [tc_name, type_params] : m_state.m_typeclass_type_params)
 	{
-		CompiledModule::TypeclassMetadata metadata;
+		TypeclassMetadata metadata;
 		if (m_state.m_class_methods.contains(tc_name))
 		{
 			metadata.m_method_names = m_state.m_class_methods.at(tc_name);
@@ -6932,23 +6918,7 @@ CompiledModule::TypeclassMetadataMap Parser::GetTypeclassMetadata() const
 		}
 		if (m_state.m_class_instances.contains(tc_name))
 		{
-			metadata.m_instance_methods = m_state.m_class_instances.at(tc_name);
-		}
-		if (m_state.m_class_instance_type_args.contains(tc_name))
-		{
-			metadata.m_instance_type_args = m_state.m_class_instance_type_args.at(tc_name);
-		}
-		if (m_state.m_declared_class_instance_type_args.contains(tc_name))
-		{
-			metadata.m_declared_instance_type_args = m_state.m_declared_class_instance_type_args.at(tc_name);
-		}
-		if (m_state.m_class_instance_associated_type_bindings.contains(tc_name))
-		{
-			metadata.m_instance_associated_type_bindings = m_state.m_class_instance_associated_type_bindings.at(tc_name);
-		}
-		if (m_state.m_class_instance_constraints.contains(tc_name))
-		{
-			metadata.m_instance_constraints = m_state.m_class_instance_constraints.at(tc_name);
+			metadata.m_instances = m_state.m_class_instances.at(tc_name);
 		}
 		if (m_state.m_typeclass_method_types.contains(tc_name))
 		{

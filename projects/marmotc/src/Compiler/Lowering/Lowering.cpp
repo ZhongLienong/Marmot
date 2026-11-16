@@ -128,7 +128,7 @@ Lowering::Lowering(MarmotProgramTree& program, std::string_view file_name, const
 	m_module(module_name),
 	m_foreign_indices(std::make_shared<ForeignIndices>()),
 	m_generics(module_name, imports.m_generic_functions),
-	m_resolver(imports.m_class_methods, imports.m_class_instances, imports.m_class_instance_type_args, imports.m_class_instance_associated_types, [this](const std::string& name) { return m_top_level_names.contains(name); })
+	m_resolver(imports.m_typeclasses, [this](const std::string& name) { return m_top_level_names.contains(name); })
 {
 	m_specializations.emplace_back(GenericTypes::TypeEnvironment{}, MethodResolutionMap{}, std::nullopt, m_foreign_indices);
 }
@@ -370,10 +370,14 @@ Lowering::Emitted Lowering::ReserveTopLevelName(MarmotStatement& statement)
 		// where it is called; any other is an ordinary function.
 		Emitted operator()(MarmotStatement::Instance& instance) const
 		{
-			m_self.m_resolver.AddInstanceTypeArgs(instance.m_class_name.m_lexeme, instance.m_type_args);
-			m_self.m_resolver.AddAssociatedTypes(instance.m_class_name.m_lexeme, instance.m_type_args, instance.m_associated_types
+			TypeclassInstance::AssociatedTypes associated_types = instance.m_associated_types
 				| std::views::transform([](const MarmotStatement::Instance::AssociatedTypeBinding& binding) { return std::pair{ binding.m_name.m_lexeme, binding.m_type }; })
-				| std::ranges::to<InstanceResolver::AssociatedTypeBindings>());
+				| std::ranges::to<TypeclassInstance::AssociatedTypes>();
+			std::vector<std::string> methods = instance.m_methods
+				| std::views::filter([](const std::unique_ptr<MarmotStatement>& method) { return method->IsStatement<MarmotStatement::FunctionDefinition>(); })
+				| std::views::transform([](const std::unique_ptr<MarmotStatement>& method) { return method->GetStatement<MarmotStatement::FunctionDefinition>().m_name.m_lexeme; })
+				| std::ranges::to<std::vector<std::string>>();
+			m_self.m_resolver.AddInstance(instance.m_class_name.m_lexeme, TypeclassInstance(instance.m_type_args, std::move(associated_types), instance.m_constraints, std::move(methods), m_self.m_module_name));
 			for (std::unique_ptr<MarmotStatement>& statement : instance.m_methods)
 			{
 				if (!statement->IsStatement<MarmotStatement::FunctionDefinition>())
@@ -382,7 +386,6 @@ Lowering::Emitted Lowering::ReserveTopLevelName(MarmotStatement& statement)
 				}
 
 				MarmotStatement::FunctionDefinition& method = statement->GetStatement<MarmotStatement::FunctionDefinition>();
-				m_self.m_resolver.AddInstanceMethod(instance.m_class_name.m_lexeme, method.m_name.m_lexeme);
 				if (m_self.IsGenericMethod(instance, method))
 				{
 					m_self.RegisterGeneric(method.m_name.m_lexeme, method.m_params, method.m_param_types, method.m_generic_params, method.m_constraints, method.m_return_type, method.m_body, method.m_captured_count);

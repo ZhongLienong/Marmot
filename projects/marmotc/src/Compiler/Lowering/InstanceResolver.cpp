@@ -188,44 +188,25 @@ ResolvedInstanceName::ResolvedInstanceName(const std::string& resolved_name)
 	}
 }
 
-InstanceResolver::InstanceResolver(ClassMethods class_methods, ClassInstances class_instances, ClassInstanceTypes class_instance_type_args, const ClassInstanceAssociatedTypes& associated_types, IsModuleGlobal is_module_global)
-	: m_class_methods(std::move(class_methods)),
-	m_class_instances(std::move(class_instances)),
-	m_class_instance_type_args(std::move(class_instance_type_args)),
+InstanceResolver::InstanceResolver(TypeclassMetadataMap classes, IsModuleGlobal is_module_global)
+	: m_classes(std::move(classes)),
 	m_is_module_global(std::move(is_module_global))
 {
-	for (const auto& [class_name, bindings] : associated_types)
-	{
-		const ClassInstanceTypes::const_iterator type_args = m_class_instance_type_args.find(class_name);
-		for (size_t index = 0u; type_args != m_class_instance_type_args.cend() && index < bindings.size() && index < type_args->second.size(); index += 1u)
-		{
-			AddAssociatedTypes(class_name, type_args->second[index], bindings[index]);
-		}
-	}
-}
-
-void InstanceResolver::AddAssociatedTypes(const std::string& class_name, const std::vector<std::shared_ptr<MarmotType>>& type_args, AssociatedTypeBindings bindings)
-{
-	if (!bindings.empty())
-	{
-		m_associated_types[class_name].emplace_back(type_args, std::move(bindings));
-	}
 }
 
 std::optional<std::shared_ptr<MarmotType>> InstanceResolver::ResolveAssociatedType(const MarmotType::AssociatedType& projection) const
 {
-	const std::unordered_map<std::string, std::vector<std::pair<std::vector<TypeRef>, AssociatedTypeBindings>>>::const_iterator instances = m_associated_types.find(projection.m_class_name);
-	if (instances == m_associated_types.cend())
+	const TypeclassMetadataMap::const_iterator metadata = m_classes.find(projection.m_class_name);
+	if (metadata == m_classes.cend())
 	{
 		return std::nullopt;
 	}
-
-	for (const auto& [type_args, bindings] : instances->second)
+	for (const TypeclassInstance& instance : metadata->second.m_instances)
 	{
 		GenericTypes::TypeEnvironment substitutions;
 		VisitedPairs visited;
-		const AssociatedTypeBindings::const_iterator binding = bindings.find(projection.m_name);
-		if (binding != bindings.cend() && MatchAll(type_args, projection.m_type_args, substitutions, visited))
+		const TypeclassInstance::AssociatedTypes::const_iterator binding = instance.m_associated_type_bindings.find(projection.m_name);
+		if (binding != instance.m_associated_type_bindings.cend() && MatchAll(instance.m_type_args, projection.m_type_args, substitutions, visited))
 		{
 			return GenericTypes::Substitute(binding->second, substitutions);
 		}
@@ -235,29 +216,12 @@ std::optional<std::shared_ptr<MarmotType>> InstanceResolver::ResolveAssociatedTy
 
 void InstanceResolver::AddClass(const std::string& class_name, std::unordered_set<std::string> method_names)
 {
-	m_class_methods[class_name] = std::move(method_names);
+	m_classes[class_name].m_method_names = std::move(method_names);
 }
 
-void InstanceResolver::AddInstanceTypeArgs(const std::string& class_name, const std::vector<std::shared_ptr<MarmotType>>& type_args)
+void InstanceResolver::AddInstance(const std::string& class_name, TypeclassInstance instance)
 {
-	std::vector<std::vector<TypeRef>>& existing = m_class_instance_type_args[class_name];
-	const bool is_present = std::ranges::any_of(existing, [&type_args](const std::vector<TypeRef>& candidate)
-	{
-		return std::ranges::equal(candidate, type_args, [](const TypeRef& left, const TypeRef& right) { return *left == *right; });
-	});
-	if (!is_present)
-	{
-		existing.push_back(type_args);
-	}
-}
-
-void InstanceResolver::AddInstanceMethod(const std::string& class_name, const std::string& method_name)
-{
-	std::vector<std::string>& methods = m_class_instances[class_name];
-	if (!std::ranges::contains(methods, method_name))
-	{
-		methods.push_back(method_name);
-	}
+	m_classes[class_name].AddInstance(std::move(instance));
 }
 
 bool InstanceResolver::IsClassMethod(const std::string& qualified_name) const
@@ -267,8 +231,8 @@ bool InstanceResolver::IsClassMethod(const std::string& qualified_name) const
 	{
 		return false;
 	}
-	const ClassMethods::const_iterator methods = m_class_methods.find(qualified_name.substr(0u, separator));
-	return methods != m_class_methods.cend() && methods->second.contains(qualified_name.substr(separator + NameSeparator.length()));
+	const TypeclassMetadataMap::const_iterator methods = m_classes.find(qualified_name.substr(0u, separator));
+	return methods != m_classes.cend() && methods->second.m_method_names.contains(qualified_name.substr(separator + NameSeparator.length()));
 }
 
 std::optional<std::string> InstanceResolver::ResolveInstanceName(const std::string& class_name, const std::string& base_name) const
@@ -278,18 +242,22 @@ std::optional<std::string> InstanceResolver::ResolveInstanceName(const std::stri
 		return base_name;
 	}
 
-	const ClassInstances::const_iterator instances = m_class_instances.find(class_name);
-	if (instances == m_class_instances.cend())
+	const TypeclassMetadataMap::const_iterator metadata = m_classes.find(class_name);
+	if (metadata != m_classes.cend())
 	{
-		return std::nullopt;
+		const std::string with_module = base_name + ModuleSeparator;
+		for (const TypeclassInstance& instance : metadata->second.m_instances)
+		{
+			for (const std::string& method : instance.m_methods)
+			{
+				if (method == base_name || method.starts_with(with_module))
+				{
+					return method;
+				}
+			}
+		}
 	}
-
-	const std::string with_module = base_name + ModuleSeparator;
-	const std::vector<std::string>::const_iterator found = std::ranges::find_if(instances->second, [&](const std::string& method)
-	{
-		return method == base_name || method.starts_with(with_module);
-	});
-	return found == instances->second.cend() ? std::nullopt : std::optional<std::string>(*found);
+	return std::nullopt;
 }
 
 std::optional<std::string> InstanceResolver::ResolveInstanceNameForTypeArgs(const std::string& class_name, const std::string& method_name, const std::vector<std::shared_ptr<MarmotType>>& concrete_type_args) const
@@ -300,14 +268,15 @@ std::optional<std::string> InstanceResolver::ResolveInstanceNameForTypeArgs(cons
 		return exact;
 	}
 
-	const ClassInstanceTypes::const_iterator instance_args = m_class_instance_type_args.find(class_name);
-	if (instance_args == m_class_instance_type_args.cend())
+	const TypeclassMetadataMap::const_iterator instance_args = m_classes.find(class_name);
+	if (instance_args == m_classes.cend())
 	{
 		return std::nullopt;
 	}
 
-	for (const std::vector<TypeRef>& candidate_args : instance_args->second)
+	for (const TypeclassInstance& instance : instance_args->second.m_instances)
 	{
+		const std::vector<TypeRef>& candidate_args = instance.m_type_args;
 		GenericTypes::TypeEnvironment substitutions;
 		VisitedPairs visited;
 		if (!MatchAll(candidate_args, concrete_type_args, substitutions, visited))
@@ -329,8 +298,8 @@ MethodResolutionMap InstanceResolver::ResolveConstraints(const std::vector<Marmo
 	MethodResolutionMap resolutions;
 	for (const MarmotType::ClassConstraint& constraint : constraints)
 	{
-		const ClassMethods::const_iterator methods = m_class_methods.find(constraint.m_class_name);
-		if (methods == m_class_methods.cend())
+		const TypeclassMetadataMap::const_iterator methods = m_classes.find(constraint.m_class_name);
+		if (methods == m_classes.cend())
 		{
 			continue;
 		}
@@ -341,7 +310,7 @@ MethodResolutionMap InstanceResolver::ResolveConstraints(const std::vector<Marmo
 		const std::string first_type_name = concrete_type_args.empty() ? std::string() : concrete_type_args[0u]->ToString();
 		const std::string second_type_name = concrete_type_args.size() > 1u ? concrete_type_args[1u]->ToString() : std::string();
 
-		for (const std::string& method_name : methods->second)
+		for (const std::string& method_name : methods->second.m_method_names)
 		{
 			const std::optional<std::string> instance = ResolveInstanceNameForTypeArgs(constraint.m_class_name, method_name, concrete_type_args);
 			const std::string resolved = instance.value_or(MarmotType::MangleInstanceMethodName(method_name, constraint.m_class_name, concrete_type_args));
@@ -445,15 +414,16 @@ MethodResolution<std::optional<std::string>> InstanceResolver::ResolveConcreteCa
 	const std::string qualifier = callee_name.substr(0u, separator);
 	const std::string method_name = callee_name.substr(separator + NameSeparator.length());
 
-	const ClassInstanceTypes::const_iterator instance_args = m_class_instance_type_args.find(qualifier);
-	if (instance_args == m_class_instance_type_args.cend())
+	const TypeclassMetadataMap::const_iterator instance_args = m_classes.find(qualifier);
+	if (instance_args == m_classes.cend())
 	{
 		return std::unexpected(MethodResolutionError(CompilerErrorCode::LoweringUnresolvedMethodResolution, std::format("Unresolved method '{}': no instance metadata found.", callee_name)));
 	}
 
 	std::vector<ResolvedMethodCandidate> candidates;
-	for (const std::vector<TypeRef>& candidate_args : instance_args->second)
+	for (const TypeclassInstance& instance : instance_args->second.m_instances)
 	{
+		const std::vector<TypeRef>& candidate_args = instance.m_type_args;
 		if (candidate_args.empty())
 		{
 			continue;
@@ -511,15 +481,16 @@ MethodResolution<std::optional<std::string>> InstanceResolver::ResolveConcreteCa
 
 MethodResolution<std::optional<std::string>> InstanceResolver::MatchSingleInstance(const std::string& class_name, const std::string& method_name, const std::function<bool(const std::vector<std::shared_ptr<MarmotType>>&, GenericTypes::TypeEnvironment&)>& matches, const std::string& ambiguity_message) const
 {
-	const ClassInstanceTypes::const_iterator instance_args = m_class_instance_type_args.find(class_name);
-	if (instance_args == m_class_instance_type_args.cend())
+	const TypeclassMetadataMap::const_iterator instance_args = m_classes.find(class_name);
+	if (instance_args == m_classes.cend())
 	{
 		return std::nullopt;
 	}
 
 	std::optional<std::string> resolved;
-	for (const std::vector<TypeRef>& candidate_args : instance_args->second)
+	for (const TypeclassInstance& instance : instance_args->second.m_instances)
 	{
+		const std::vector<TypeRef>& candidate_args = instance.m_type_args;
 		GenericTypes::TypeEnvironment substitutions;
 		if (!matches(candidate_args, substitutions))
 		{

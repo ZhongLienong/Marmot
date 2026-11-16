@@ -1,0 +1,10 @@
+module InstanceMetadataDiamond
+import { "../../../MarmotPrelude/IO.mmt", "./instance_metadata_left.mmt", "./instance_metadata_right.mmt" }
+
+// A shared constrained instance arrives twice beside a different associated type.
+def number: Int = Select::Get(InstanceMetadataLeft::Box(7));
+
+def text: Text = Select::Get(InstanceMetadataRight::Extra("ok"));
+
+IO::PrintLine(number as Text);
+IO::PrintLine(text);
