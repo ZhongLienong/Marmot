@@ -310,40 +310,6 @@ namespace
 		return CompilerError::WithFile(CompilerStage::Lowering, std::format("{} produced invalid MarmotIR:\n{}\n\n{}", what, message, functions), file_path, CompilerErrorCode::CompilerInternalError);
 	}
 
-	static std::optional<CompilerError> VerifyMarmotIR(const MarmotIRModule& module, std::string_view what, const std::string& file_path)
-	{
-		const std::vector<MarmotIRViolation> violations = MarmotIRVerifier(module).Verify();
-		if (violations.empty())
-		{
-			return std::nullopt;
-		}
-		return InvalidMarmotIR(module, violations, what, file_path);
-	}
-
-	// Dev builds verify after lowering and after every pass, Release
-	// builds once, before the backend.
-	static std::optional<CompilerError> OptimizeMarmotIR(MarmotIROptimizer& optimizer, MarmotIRModule& module, const std::string& file_path)
-	{
-		if (MarmotIROptimizer::VerifiesEachPass())
-		{
-			std::optional<CompilerError> lowered = VerifyMarmotIR(module, "Lowering", file_path);
-			if (lowered.has_value())
-			{
-				return lowered;
-			}
-		}
-		std::expected<void, MarmotIRPassFailure> optimized = optimizer.Optimize(module);
-		if (!optimized.has_value())
-		{
-			return InvalidMarmotIR(module, optimized.error().m_violations, std::format("The MarmotIR pass {}", optimized.error().m_pass), file_path);
-		}
-		if (!MarmotIROptimizer::VerifiesEachPass())
-		{
-			return VerifyMarmotIR(module, "The MarmotIR optimizer", file_path);
-		}
-		return std::nullopt;
-	}
-
 	CompileStateResult CompileState::WithLoweredModule() &&
 	{
 		CompileState state = std::move(*this);
@@ -382,10 +348,11 @@ namespace
 	{
 		CompileState state = std::move(*this);
 		MarmotIROptimizer optimizer;
-		std::optional<CompilerError> violation = OptimizeMarmotIR(optimizer, state.m_lowered->m_module, state.m_file_path);
-		if (violation.has_value())
+		std::expected<void, MarmotIROptimizationFailure> optimized = optimizer.Optimize(state.m_lowered->m_module);
+		if (!optimized.has_value())
 		{
-			return std::unexpected(MakeStateErrorReport(std::move(state), MarmotResult::CompilerDiagnostics(std::move(violation).value())));
+			CompilerError error = InvalidMarmotIR(state.m_lowered->m_module, optimized.error().m_violations, optimized.error().m_producer, state.m_file_path);
+			return std::unexpected(MakeStateErrorReport(std::move(state), MarmotResult::CompilerDiagnostics(std::move(error))));
 		}
 #if MARMOT_ENABLE_OPTIMIZER_STATS
 		state.m_optimizer_log = optimizer.Log();

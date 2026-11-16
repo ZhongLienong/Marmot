@@ -16,18 +16,20 @@ struct MarmotIRPass
 	bool (*m_run)(MarmotIRModule& module);
 };
 
-// The pass that left the module invalid, and what the verifier found.
-struct MarmotIRPassFailure
+// What produced invalid IR: lowering, a named pass, or the optimizer's final
+// output. The caller adds source context when rendering the violations.
+struct MarmotIROptimizationFailure
 {
-	std::string m_pass;
+	std::string m_producer;
 	std::vector<MarmotIRViolation> m_violations;
 
-	MarmotIRPassFailure(std::string pass, std::vector<MarmotIRViolation> violations);
+	MarmotIROptimizationFailure(std::string producer, std::vector<MarmotIRViolation> violations);
 };
 
 // Repeats transformations that expose opportunities for one another, stopping
-// when unchanged or at the round budget. A supplied pass list runs once. In
-// Dev and Debug builds the verifier runs after every pass.
+// when unchanged or at the round budget. A supplied pass list runs once.
+// Dev and Debug builds verify the input and every pass; Release verifies the
+// final output. Success guarantees valid IR with either pass schedule.
 class MarmotIROptimizer
 {
 private:
@@ -48,9 +50,7 @@ public:
 	MarmotIROptimizer();
 	explicit MarmotIROptimizer(std::vector<MarmotIRPass> passes);
 
-	std::expected<void, MarmotIRPassFailure> Optimize(MarmotIRModule& module);
-
-	static bool VerifiesEachPass();
+	std::expected<void, MarmotIROptimizationFailure> Optimize(MarmotIRModule& module);
 
 #if MARMOT_ENABLE_OPTIMIZER_STATS
 	// One line for each pass that changed the module, with instruction counts.

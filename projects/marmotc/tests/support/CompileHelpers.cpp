@@ -267,10 +267,10 @@ namespace MarmotTest
 			return std::unexpected(std::move(lowered.error()));
 		}
 
-		std::expected<void, MarmotIRPassFailure> optimized = MarmotIROptimizer().Optimize(lowered->m_module);
+		std::expected<void, MarmotIROptimizationFailure> optimized = MarmotIROptimizer().Optimize(lowered->m_module);
 		if (!optimized.has_value())
 		{
-			return std::unexpected(MarmotResult::CompilerDiagnostics(CompilerError::Simple(CompilerStage::Lowering, std::format("The MarmotIR pass {} produced invalid MarmotIR.", optimized.error().m_pass), CompilerErrorCode::CompilerInternalError)));
+			return std::unexpected(MarmotResult::CompilerDiagnostics(CompilerError::Simple(CompilerStage::Lowering, std::format("{} produced invalid MarmotIR.", optimized.error().m_producer), CompilerErrorCode::CompilerInternalError)));
 		}
 
 		return BytecodeBackend(lowered.value(), source.FileName(), source.SourceLines()).Emit();

@@ -1,17 +1,29 @@
 #include "MarmotIROptimizer.h"
 #include "Compiler/MarmotIROptimizer/MarmotIRPasses.h"
 
+#include <format>
 #include <utility>
 #include "Utility/Diagnostics/Diagnostics.h"
 
 #if MARMOT_ENABLE_OPTIMIZER_STATS
-#include <format>
 #include <iterator>
 #include <numeric>
 #endif
 
 namespace
 {
+	constexpr bool s_verify_each_pass = MARMOT_DEBUG_INFO;
+
+	std::expected<void, MarmotIROptimizationFailure> Verify(const MarmotIRModule& module, std::string_view producer)
+	{
+		std::vector<MarmotIRViolation> violations = MarmotIRVerifier(module).Verify();
+		if (violations.empty())
+		{
+			return {};
+		}
+		return std::unexpected(MarmotIROptimizationFailure(std::string(producer), std::move(violations)));
+	}
+
 #if MARMOT_ENABLE_OPTIMIZER_STATS
 	size_t InstructionCount(const MarmotIRModule& module)
 	{
@@ -26,8 +38,8 @@ namespace
 #endif
 }
 
-MarmotIRPassFailure::MarmotIRPassFailure(std::string pass, std::vector<MarmotIRViolation> violations)
-	: m_pass(std::move(pass)),
+MarmotIROptimizationFailure::MarmotIROptimizationFailure(std::string producer, std::vector<MarmotIRViolation> violations)
+	: m_producer(std::move(producer)),
 	m_violations(std::move(violations))
 {
 }
@@ -67,8 +79,16 @@ MarmotIROptimizer::MarmotIROptimizer(std::vector<MarmotIRPass> passes)
 	m_groups.emplace_back(std::move(passes), 1u);
 }
 
-std::expected<void, MarmotIRPassFailure> MarmotIROptimizer::Optimize(MarmotIRModule& module)
+std::expected<void, MarmotIROptimizationFailure> MarmotIROptimizer::Optimize(MarmotIRModule& module)
 {
+	if (s_verify_each_pass)
+	{
+		std::expected<void, MarmotIROptimizationFailure> verified = Verify(module, "Lowering");
+		if (!verified.has_value())
+		{
+			return verified;
+		}
+	}
 	for (const PassGroup& group : m_groups)
 	{
 		for (size_t round = 0u; round < group.m_max_rounds; round += 1u)
@@ -88,14 +108,14 @@ std::expected<void, MarmotIRPassFailure> MarmotIROptimizer::Optimize(MarmotIRMod
 				const bool pass_changed = pass.m_run(module);
 #endif
 				changed = changed || pass_changed;
-				if (!VerifiesEachPass())
+				if (!s_verify_each_pass)
 				{
 					continue;
 				}
 				std::vector<MarmotIRViolation> violations = MarmotIRVerifier(module).Verify();
 				if (!violations.empty())
 				{
-					return std::unexpected(MarmotIRPassFailure(std::string(pass.m_name), std::move(violations)));
+					return std::unexpected(MarmotIROptimizationFailure(std::format("The MarmotIR pass {}", pass.m_name), std::move(violations)));
 				}
 			}
 			if (!changed)
@@ -104,12 +124,11 @@ std::expected<void, MarmotIRPassFailure> MarmotIROptimizer::Optimize(MarmotIRMod
 			}
 		}
 	}
+	if (!s_verify_each_pass)
+	{
+		return Verify(module, "The MarmotIR optimizer");
+	}
 	return {};
-}
-
-bool MarmotIROptimizer::VerifiesEachPass()
-{
-	return MARMOT_DEBUG_INFO;
 }
 
 #if MARMOT_ENABLE_OPTIMIZER_STATS
