@@ -3,7 +3,6 @@
 #include "Compiler/Constant/Constant.h"
 
 #include <algorithm>
-#include <cctype>
 #include <format>
 #include <ranges>
 #include <utility>
@@ -345,17 +344,12 @@ MethodResolution<std::optional<std::string>> InstanceResolver::ResolveConstraine
 		return std::nullopt;
 	}
 
-	const bool return_type_is_concrete =
-		!return_type_name.empty() &&
-		return_type_name != "Undecided" &&
-		!(return_type_name.size() > 1u && return_type_name[0u] == 'T' && std::isdigit(static_cast<unsigned char>(return_type_name[1u])) != 0);
-
 	// This tiebreaker assumes a class's second type parameter is its return type,
 	// which holds for Convertable<From, To> and not in general. Indexable<C, I>
 	// violates it: the second parameter is the index type. Dormant for Indexable
 	// today because the type checker rejects two constraints on one class that
 	// differ only in the second parameter.
-	if (matching.size() > 1u && return_type_is_concrete)
+	if (matching.size() > 1u && GenericTypes::IsConcrete(return_type))
 	{
 		std::vector<const ResolvedMethodCandidate*> matching_by_return = matching
 			| std::views::filter([&](const ResolvedMethodCandidate* candidate) { return !candidate->m_second_type_name.empty() && candidate->m_second_type_name == return_type_name; })
