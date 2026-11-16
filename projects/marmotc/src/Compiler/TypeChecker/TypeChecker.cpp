@@ -3178,9 +3178,9 @@ void TypeChecker::ResolveRecordedTypes(MarmotStatement& statement)
 
 		void operator()(MarmotStatement::Instance& instance) const
 		{
-			for (std::unique_ptr<MarmotStatement>& method : instance.m_methods)
+			for (MarmotStatement::Instance::Method& method : instance.m_methods)
 			{
-				m_self.ResolveRecordedTypes(*method);
+				(*this)(method.m_definition);
 			}
 		}
 
@@ -4335,25 +4335,18 @@ MarmotResult::TypeResult TypeChecker::RegisterInstance(MarmotStatement::Instance
 	} registration_guard{ &m_instances, instance_key, false };
 
 	std::unordered_set<std::string> implemented_methods;
-	for (std::unique_ptr<MarmotStatement>& method : instance_stmt.m_methods)
+	for (const MarmotStatement::Instance::Method& method : instance_stmt.m_methods)
 	{
-		if (!method->IsStatement<MarmotStatement::FunctionDefinition>())
-		{
-			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: methods must be function definitions", instance_stmt.m_class_name, m_file_name, m_source_lines));
-		}
-
-		MarmotStatement::FunctionDefinition& defun = method->GetStatement<MarmotStatement::FunctionDefinition>();
-		std::string mangled_name = defun.m_name.m_lexeme;
-		std::string method_name = MarmotType::DemangleInstanceMethodName(mangled_name, instance_stmt.m_class_name.m_lexeme);
+		const std::string& method_name = method.m_name.m_lexeme;
 
 		if (!tc_info.m_method_types.contains(method_name))
 		{
-			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' not defined in typeclass", defun.m_name, m_file_name, m_source_lines));
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' not defined in typeclass", method.m_name, m_file_name, m_source_lines));
 		}
 
 		if (implemented_methods.contains(method_name))
 		{
-			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: duplicate method implementation", defun.m_name, m_file_name, m_source_lines));
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: duplicate method implementation", method.m_name, m_file_name, m_source_lines));
 		}
 
 		implemented_methods.emplace(method_name);
@@ -4373,21 +4366,20 @@ MarmotResult::TypeResult TypeChecker::RegisterInstance(MarmotStatement::Instance
 		type_param_substitutions.emplace(tc_info.m_type_param_names[i], instance_stmt.m_type_args[i]);
 	}
 
-	for (const std::unique_ptr<MarmotStatement>& method : instance_stmt.m_methods)
+	for (const MarmotStatement::Instance::Method& method : instance_stmt.m_methods)
 	{
-		const MarmotStatement::FunctionDefinition& defun = method->GetStatement<MarmotStatement::FunctionDefinition>();
-		const std::string mangled_name = defun.m_name.m_lexeme;
-		const std::string method_name = MarmotType::DemangleInstanceMethodName(mangled_name, instance_stmt.m_class_name.m_lexeme);
+		const MarmotStatement::FunctionDefinition& defun = method.m_definition;
+		const std::string& method_name = method.m_name.m_lexeme;
 
 		if (!defun.m_generic_params.empty())
 		{
-			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: instance methods cannot declare generic parameters", defun.m_name, m_file_name, m_source_lines));
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: instance methods cannot declare generic parameters", method.m_name, m_file_name, m_source_lines));
 		}
 
 		TypeEnvironment::const_iterator expected_it = tc_info.m_method_types.find(method_name);
 		if (expected_it == tc_info.m_method_types.cend())
 		{
-			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' not defined in class", defun.m_name, m_file_name, m_source_lines));
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' not defined in class", method.m_name, m_file_name, m_source_lines));
 		}
 
 		std::shared_ptr<MarmotType> expected_signature = ApplySubstitution(MarmotType::SubstituteTypeParams(expected_it->second, type_param_substitutions));
@@ -4402,7 +4394,7 @@ MarmotResult::TypeResult TypeChecker::RegisterInstance(MarmotStatement::Instance
 
 				if (expected_type.m_param_types.size() != actual_type.m_param_types.size())
 				{
-					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' parameter count does not match class declaration", defun.m_name, m_file_name, m_source_lines, actual_signature, expected_signature));
+					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' parameter count does not match class declaration", method.m_name, m_file_name, m_source_lines, actual_signature, expected_signature));
 				}
 
 				for (size_t i = 0u; i < expected_type.m_param_types.size(); i += 1u)
@@ -4411,17 +4403,17 @@ MarmotResult::TypeResult TypeChecker::RegisterInstance(MarmotStatement::Instance
 					const std::shared_ptr<MarmotType>& actual_param = actual_type.m_param_types[i];
 					if (*expected_param != *actual_param)
 					{
-						return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(std::format("Instance declaration error: method '{}' parameter {} type does not match class declaration", method_name, i + 1u), defun.m_name, m_file_name, m_source_lines, actual_param, expected_param));
+						return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(std::format("Instance declaration error: method '{}' parameter {} type does not match class declaration", method_name, i + 1u), method.m_name, m_file_name, m_source_lines, actual_param, expected_param));
 					}
 				}
 
 				if (*expected_type.m_return_type != *actual_type.m_return_type)
 				{
-					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' return type does not match class declaration", defun.m_name, m_file_name, m_source_lines, actual_type.m_return_type, expected_type.m_return_type));
+					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' return type does not match class declaration", method.m_name, m_file_name, m_source_lines, actual_type.m_return_type, expected_type.m_return_type));
 				}
 			}
 
-			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' signature does not match class declaration", defun.m_name, m_file_name, m_source_lines, actual_signature, expected_signature));
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' signature does not match class declaration", method.m_name, m_file_name, m_source_lines, actual_signature, expected_signature));
 		}
 	}
 
@@ -4438,15 +4430,15 @@ MarmotResult::TypeResult TypeChecker::operator()(MarmotStatement::Instance& inst
 	// the duplicate-instance guard above rejects a repeated instance key before reaching here,
 	// and each module gets its own TypeChecker owning its own tree (imports carry instance
 	// metadata, not Instance AST nodes). Preserve that property before reusing this loop.
-	for (std::unique_ptr<MarmotStatement>& method : instance_stmt.m_methods)
+	for (MarmotStatement::Instance::Method& method : instance_stmt.m_methods)
 	{
-		MarmotStatement::FunctionDefinition& defun = method->GetStatement<MarmotStatement::FunctionDefinition>();
+		MarmotStatement::FunctionDefinition& defun = method.m_definition;
 		for (const MarmotType::ClassConstraint& constraint : instance_stmt.m_constraints)
 		{
 			AppendUniqueConstraint(defun.m_constraints, MarmotType::ClassConstraint(constraint));
 		}
 
-		MarmotResult::TypeResult result = Evaluate(method);
+		MarmotResult::TypeResult result = (*this)(defun);
 		if (!result.has_value())
 		{
 			return result;

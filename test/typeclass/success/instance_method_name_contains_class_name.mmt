@@ -1,0 +1,24 @@
+module InstanceMethodNames
+
+foreign "MARMOT_FFI_Print" Print: fn(Text) -> Unit;
+
+// Recovering a method name by searching for "_Echo" truncates Call_Echo.
+class Echo<T> {
+    Call_Echo: fn(value: T) -> T;
+};
+
+instance Echo<Int> {
+    def Call_Echo = fn(value: Int) -> Int => value + 1;
+};
+
+type Box<T> = { value: T };
+
+instance Echo<Box<T>> {
+    def Call_Echo = fn(value: Box<T>) -> Box<T> => Box(value.value);
+};
+
+def Invoke = fn<T>(value: T) -> T where Echo<T> => Echo::Call_Echo(value);
+
+def direct = Echo::Call_Echo(4);
+def generic = Invoke(Box(7));
+Print(if (direct == 5) && (generic.value == 7) then "ok\n" else "wrong\n");

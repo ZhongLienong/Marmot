@@ -145,6 +145,15 @@ public:
 
 	struct Instance
 	{
+		struct Method
+		{
+			// Emitted symbols cannot be decoded unambiguously into source names.
+			Token m_name;
+			FunctionDefinition m_definition;
+
+			Method(const Token& name, FunctionDefinition&& definition);
+		};
+
 		struct AssociatedTypeBinding
 		{
 			Token m_name;
@@ -157,9 +166,9 @@ public:
 		std::vector<std::shared_ptr<MarmotType>> m_type_args;
 		std::vector<MarmotType::ClassConstraint> m_constraints;
 		std::vector<AssociatedTypeBinding> m_associated_types;
-		std::vector<std::unique_ptr<MarmotStatement>> m_methods;
+		std::vector<Method> m_methods;
 
-		Instance(const Token& class_name, std::vector<std::shared_ptr<MarmotType>>&& type_args, std::vector<MarmotType::ClassConstraint>&& constraints, std::vector<AssociatedTypeBinding>&& associated_types, std::vector<std::unique_ptr<MarmotStatement>>&& methods);
+		Instance(const Token& class_name, std::vector<std::shared_ptr<MarmotType>>&& type_args, std::vector<MarmotType::ClassConstraint>&& constraints, std::vector<AssociatedTypeBinding>&& associated_types, std::vector<Method>&& methods);
 	};
 
 	struct TypeAlias

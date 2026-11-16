@@ -292,8 +292,6 @@ public:
 
 	static std::string MangleInstanceMethodName(const std::string& method_name, const std::string& typeclass_name, const std::vector<std::shared_ptr<MarmotType>>& type_args);
 
-	static std::string DemangleInstanceMethodName(const std::string& mangled_name, const std::string& typeclass_name);
-
 	bool IsNumericType() const;
 
 	friend bool operator==(const MarmotType& lhs, const MarmotType& rhs);

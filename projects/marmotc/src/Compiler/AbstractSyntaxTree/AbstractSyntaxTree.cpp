@@ -581,13 +581,19 @@ MarmotStatement::Class::Class(const Token& name, std::vector<Token>&& type_param
 {
 }
 
+MarmotStatement::Instance::Method::Method(const Token& name, FunctionDefinition&& definition)
+	: m_name(name),
+	m_definition(std::move(definition))
+{
+}
+
 MarmotStatement::Instance::AssociatedTypeBinding::AssociatedTypeBinding(const Token& name, std::shared_ptr<MarmotType>&& type)
 	: m_name(name),
 	m_type(std::move(type))
 {
 }
 
-MarmotStatement::Instance::Instance(const Token& class_name, std::vector<std::shared_ptr<MarmotType>>&& type_args, std::vector<MarmotType::ClassConstraint>&& constraints, std::vector<AssociatedTypeBinding>&& associated_types, std::vector<std::unique_ptr<MarmotStatement>>&& methods)
+MarmotStatement::Instance::Instance(const Token& class_name, std::vector<std::shared_ptr<MarmotType>>&& type_args, std::vector<MarmotType::ClassConstraint>&& constraints, std::vector<AssociatedTypeBinding>&& associated_types, std::vector<Method>&& methods)
 	: m_class_name(class_name),
 	m_type_args(std::move(type_args)),
 	m_constraints(std::move(constraints)),

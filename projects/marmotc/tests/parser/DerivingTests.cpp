@@ -39,7 +39,9 @@ def after = 0;
 	CHECK(equality.m_class_name.m_lexeme == "Equatable");
 	CheckAnchor(equality.m_class_name, anchor);
 	REQUIRE(equality.m_methods.size() == 1u);
-	CheckAnchor(equality.m_methods[0]->GetStatement<MarmotStatement::FunctionDefinition>().m_name, anchor);
+	CHECK(equality.m_methods[0].m_name.m_lexeme == "Equals");
+	CheckAnchor(equality.m_methods[0].m_name, anchor);
+	CheckAnchor(equality.m_methods[0].m_definition.m_name, anchor);
 	const std::vector<size_t> indices{ 2u, 4u, 5u };
 	const std::vector<std::string> names{ "BoxMap", "BoxBind", "BoxUnwrap" };
 	for (size_t index = 0u; index < indices.size(); index += 1u)
@@ -87,7 +89,7 @@ TEST_CASE("Deriving preserves each class target's generated method shape", "[par
 				continue;
 			}
 			REQUIRE(instance.m_methods.size() == 1u);
-			const MarmotStatement::FunctionDefinition& method = instance.m_methods[0]->GetStatement<MarmotStatement::FunctionDefinition>();
+			const MarmotStatement::FunctionDefinition& method = instance.m_methods[0].m_definition;
 			CHECK(method.m_params.Size() == parameter_count);
 			CHECK(method.m_return_type->ToString() == return_type);
 		}

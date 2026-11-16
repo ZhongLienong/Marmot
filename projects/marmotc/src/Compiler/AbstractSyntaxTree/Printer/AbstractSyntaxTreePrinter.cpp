@@ -710,7 +710,7 @@ void PrintAbstractSyntaxTree::operator()(const MarmotStatement::Instance& instan
 	std::ranges::for_each(instance.m_constraints, [depth, this](const MarmotType::ClassConstraint& constraint) { PrintWithIndentation(depth + 1, "Where: " + DescribeConstraint(constraint)); });
 	std::ranges::for_each(instance.m_associated_types, [depth, this](const MarmotStatement::Instance::AssociatedTypeBinding& binding) { PrintWithIndentation(depth + 1, std::format("AssociatedType: {} = {}", binding.m_name.m_lexeme, binding.m_type->ToString())); });
 	PrintWithIndentation(depth + 1, "Methods: ");
-	std::ranges::for_each(instance.m_methods, [depth, this](const std::unique_ptr<MarmotStatement>& method) { Visit(method, depth + 2); });
+	std::ranges::for_each(instance.m_methods, [depth, this](const MarmotStatement::Instance::Method& method) { (*this)(method.m_definition, depth + 2); });
 	PrintWithIndentation(depth, "}");
 }
 

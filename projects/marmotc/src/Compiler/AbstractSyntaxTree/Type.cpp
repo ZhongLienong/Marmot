@@ -868,28 +868,6 @@ std::string MarmotType::MangleInstanceMethodName(const std::string& method_name,
 	return mangled;
 }
 
-std::string MarmotType::DemangleInstanceMethodName(const std::string& mangled_name, const std::string& typeclass_name)
-{
-	// mangled format: $methodName_TypeclassName_Type1_Type2
-	// Skip the INTERNAL_NAME_PREFIX if present
-	size_t start_pos = 0u;
-	if (!mangled_name.empty() && mangled_name[0u] == INTERNAL_NAME_PREFIX)
-	{
-		start_pos = 1u;
-	}
-
-	// Find the position of "_TypeclassName"
-	std::string suffix = "_"s + typeclass_name;
-	size_t pos = mangled_name.find(suffix, start_pos);
-
-	if (pos != std::string::npos)
-	{
-		return mangled_name.substr(start_pos, pos - start_pos);
-	}
-
-	return mangled_name.substr(start_pos);
-}
-
 bool MarmotType::IsNumericType() const
 {
 	return IsType<FloatType>() || IsType<IntegerType>() || IsType<ByteType>() || IsType<WordType>();

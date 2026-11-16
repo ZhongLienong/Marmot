@@ -38,6 +38,82 @@ namespace
 	}
 }
 
+TEST_CASE("Instance methods may contain their class name after an underscore", "[typechecker][instance-method-names]")
+{
+	const std::string source = R"(module MethodNames
+class Echo<T> {
+    Call_Echo: fn(value: T) -> T;
+};
+instance Echo<Int> {
+    def Call_Echo = fn(value: Int) -> Int => value;
+};
+def result = Echo::Call_Echo(7);
+)";
+	const std::expected<MarmotTest::TypedSnippet, CompilerError> checked = MarmotTest::TypeCheckSnippet(source);
+	if (!checked.has_value())
+	{
+		FAIL(checked.error().Rendered());
+	}
+}
+
+TEST_CASE("Parsed instance methods retain their source token and emitted symbol", "[parser][instance-method-names]")
+{
+	const std::string source = R"(module MethodTokens
+class Echo<T> {
+    Call_Echo: fn(value: T) -> T;
+};
+instance Echo<Int> {
+    def Call_Echo = fn(value: Int) -> Int => value;
+};
+)";
+	const std::expected<MarmotTest::ParsedSnippet, CompilerError> parsed = MarmotTest::ParseSnippet(source, "MethodTokens.mmt");
+	REQUIRE(parsed.has_value());
+	REQUIRE(parsed->m_program.size() == 2u);
+	const MarmotStatement::Instance& instance = parsed->m_program[1]->GetStatement<MarmotStatement::Instance>();
+	REQUIRE(instance.m_methods.size() == 1u);
+	const MarmotStatement::Instance::Method& method = instance.m_methods[0];
+	CHECK(method.m_name.m_lexeme == "Call_Echo");
+	CHECK(method.m_definition.m_name.m_lexeme == "$Call_Echo_Echo_Int");
+	CHECK(method.m_name.m_file_name == "MethodTokens.mmt");
+	CHECK(method.m_name.m_line == 6);
+	CHECK(method.m_name.m_column == 8);
+	CHECK(method.m_name.m_source_length == 9u);
+	CHECK(method.m_definition.m_name.m_column == method.m_name.m_column);
+	CHECK(method.m_definition.m_name.m_source_length == method.m_name.m_source_length);
+}
+
+TEST_CASE("Instance method validation uses the complete source name", "[typechecker][instance-method-names]")
+{
+	SECTION("A name containing the class name must not match a shorter declared method")
+	{
+		const std::string source = R"(module UnknownMethod
+class Echo<T> {
+    Call: fn(value: T) -> T;
+};
+instance Echo<Int> {
+    def Call_Echo = fn(value: Int) -> Int => value;
+};
+)";
+		const std::expected<MarmotTest::TypedSnippet, CompilerError> checked = MarmotTest::TypeCheckSnippet(source);
+		REQUIRE_FALSE(checked.has_value());
+		CHECK(checked.error().m_message == "Instance declaration error: method 'Call_Echo' not defined in typeclass");
+	}
+	SECTION("Signature diagnostics keep the complete method name")
+	{
+		const std::string source = R"(module MethodSignature
+class Echo<T> {
+    Call_Echo: fn(value: T) -> Text;
+};
+instance Echo<Int> {
+    def Call_Echo = fn(value: Int) -> Int => value;
+};
+)";
+		const std::expected<MarmotTest::TypedSnippet, CompilerError> checked = MarmotTest::TypeCheckSnippet(source);
+		REQUIRE_FALSE(checked.has_value());
+		CHECK(checked.error().m_message == "Instance declaration error: method 'Call_Echo' return type does not match class declaration\nExpected Text, but got Int");
+	}
+}
+
 TEST_CASE("TypeChecker infers lambda parameter and return types from an annotated binding", "[typechecker]")
 {
 	const std::string source_code =

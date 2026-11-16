@@ -329,7 +329,7 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 		type_args.emplace_back(MarmotType::MakeLiteralType<MarmotType::TextType>());
 	}
 	Token class_token(derive_target.m_lexeme, Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name);
-	std::vector<std::unique_ptr<MarmotStatement>> methods;
+	std::vector<MarmotStatement::Instance::Method> methods;
 
 	if (m_operation == Operation::Transferable)
 	{
@@ -360,10 +360,8 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 
 		methods.emplace_back
 		(
-			std::make_unique<MarmotStatement>
-			(
-				MarmotStatement::FunctionDefinition(method_token, {}, FunctionParameters::Generated(std::move(params)), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::BoolType>()), std::move(body), std::nullopt, 0, {})
-			)
+			Token(std::string(EQUALS_METHOD_NAME), Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name),
+			MarmotStatement::FunctionDefinition(method_token, {}, FunctionParameters::Generated(std::move(params)), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::BoolType>()), std::move(body), std::nullopt, 0, {})
 		);
 	}
 	else if (m_operation == Operation::Convertable)
@@ -384,10 +382,8 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 
 		methods.emplace_back
 		(
-			std::make_unique<MarmotStatement>
-			(
-				MarmotStatement::FunctionDefinition(method_token, {}, FunctionParameters::Generated(std::move(params)), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::TextType>()), std::move(body), std::nullopt, 0, {})
-			)
+			Token(std::string(CONVERT_METHOD_NAME), Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name),
+			MarmotStatement::FunctionDefinition(method_token, {}, FunctionParameters::Generated(std::move(params)), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::TextType>()), std::move(body), std::nullopt, 0, {})
 		);
 	}
 	else if (m_operation == Operation::Orderable)
@@ -415,10 +411,8 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 
 		methods.emplace_back
 		(
-			std::make_unique<MarmotStatement>
-			(
-				MarmotStatement::FunctionDefinition(method_token, {}, FunctionParameters::Generated(std::move(params)), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::IntegerType>()), std::move(body), std::nullopt, 0, {})
-			)
+			Token(std::string(COMPARE_METHOD_NAME), Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name),
+			MarmotStatement::FunctionDefinition(method_token, {}, FunctionParameters::Generated(std::move(params)), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::IntegerType>()), std::move(body), std::nullopt, 0, {})
 		);
 	}
 	else
@@ -441,10 +435,8 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 
 		methods.emplace_back
 		(
-			std::make_unique<MarmotStatement>
-			(
-				MarmotStatement::FunctionDefinition(method_token, {}, FunctionParameters::Generated(std::move(params)), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::IntegerType>()), std::move(body), std::nullopt, 0, {})
-			)
+			Token(std::string(HASH_METHOD_NAME), Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name),
+			MarmotStatement::FunctionDefinition(method_token, {}, FunctionParameters::Generated(std::move(params)), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::IntegerType>()), std::move(body), std::nullopt, 0, {})
 		);
 	}
 
@@ -480,7 +472,7 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 	{
 		std::vector<std::shared_ptr<MarmotType>> type_args{ std::shared_ptr<MarmotType>(union_stmt.m_self_type) };
 		Token class_token(derive_target.m_lexeme, Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name);
-		std::vector<std::unique_ptr<MarmotStatement>> methods;
+		std::vector<MarmotStatement::Instance::Method> methods;
 
 		return std::make_unique<MarmotStatement>(MarmotStatement::Instance(class_token, std::move(type_args), {}, {}, std::move(methods)));
 	}
@@ -493,7 +485,7 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 			type_args.emplace_back(MarmotType::MakeLiteralType<MarmotType::TextType>());
 		}
 		Token class_token(derive_target.m_lexeme, Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name);
-		std::vector<std::unique_ptr<MarmotStatement>> methods;
+		std::vector<MarmotStatement::Instance::Method> methods;
 
 		if (m_operation == Operation::Equatable)
 		{
@@ -548,10 +540,8 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 			std::unique_ptr<MarmotExpression> body = syntax.Match(syntax.LocalName(params[0]), std::move(outer_cases));
 			methods.emplace_back
 			(
-				std::make_unique<MarmotStatement>
-				(
-					MarmotStatement::FunctionDefinition(method_token, {}, FunctionParameters::Generated(std::move(params)), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::BoolType>()), std::move(body), std::nullopt, 0, {})
-				)
+				Token(std::string(EQUALS_METHOD_NAME), Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name),
+				MarmotStatement::FunctionDefinition(method_token, {}, FunctionParameters::Generated(std::move(params)), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::BoolType>()), std::move(body), std::nullopt, 0, {})
 			);
 		}
 		else if (m_operation == Operation::Convertable)
@@ -582,10 +572,8 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 			std::unique_ptr<MarmotExpression> body = syntax.Match(syntax.LocalName(params[0]), std::move(cases));
 			methods.emplace_back
 			(
-				std::make_unique<MarmotStatement>
-				(
-					MarmotStatement::FunctionDefinition(method_token, {}, FunctionParameters::Generated(std::move(params)), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::TextType>()), std::move(body), std::nullopt, 0, {})
-				)
+				Token(std::string(CONVERT_METHOD_NAME), Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name),
+				MarmotStatement::FunctionDefinition(method_token, {}, FunctionParameters::Generated(std::move(params)), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::TextType>()), std::move(body), std::nullopt, 0, {})
 			);
 		}
 		else if (m_operation == Operation::Orderable)
@@ -642,10 +630,8 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 			std::unique_ptr<MarmotExpression> body = syntax.Match(syntax.LocalName(params[0]), std::move(outer_cases));
 			methods.emplace_back
 			(
-				std::make_unique<MarmotStatement>
-				(
-					MarmotStatement::FunctionDefinition(method_token, {}, FunctionParameters::Generated(std::move(params)), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::IntegerType>()), std::move(body), std::nullopt, 0, {})
-				)
+				Token(std::string(COMPARE_METHOD_NAME), Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name),
+				MarmotStatement::FunctionDefinition(method_token, {}, FunctionParameters::Generated(std::move(params)), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::IntegerType>()), std::move(body), std::nullopt, 0, {})
 			);
 		}
 		else
@@ -683,10 +669,8 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 			std::unique_ptr<MarmotExpression> body = syntax.Match(syntax.LocalName(params[0]), std::move(cases));
 			methods.emplace_back
 			(
-				std::make_unique<MarmotStatement>
-				(
-					MarmotStatement::FunctionDefinition(method_token, {}, FunctionParameters::Generated(std::move(params)), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::IntegerType>()), std::move(body), std::nullopt, 0, {})
-				)
+				Token(std::string(HASH_METHOD_NAME), Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name),
+				MarmotStatement::FunctionDefinition(method_token, {}, FunctionParameters::Generated(std::move(params)), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::IntegerType>()), std::move(body), std::nullopt, 0, {})
 			);
 		}
 

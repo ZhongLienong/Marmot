@@ -3977,7 +3977,7 @@ MarmotResult::StatementResult Parser::ParseInstanceDeclaration()
 	const std::vector<std::string>& declared_associated_types = m_state.m_typeclass_associated_types[typeclass_name.m_lexeme];
 	std::vector<MarmotStatement::Instance::AssociatedTypeBinding> associated_types;
 	std::unordered_set<std::string> bound_associated_type_names;
-	std::vector<std::unique_ptr<MarmotStatement>> methods;
+	std::vector<MarmotStatement::Instance::Method> methods;
 
 	while (!Match(Token::Name::RIGHT_BRACE))
 	{
@@ -4197,19 +4197,17 @@ MarmotResult::StatementResult Parser::ParseInstanceDeclaration()
 
 		methods.emplace_back
 		(
-			std::make_unique<MarmotStatement>
-			(
-				MarmotStatement::FunctionDefinition(
-					method_name,
-					std::move(generic_params),
-					std::move(params),
-					std::move(param_types),
-					std::move(return_type),
-					std::move(body),
-					std::nullopt,
-					0,
-					std::vector<MarmotType::ClassConstraint>()
-				)
+			method_name,
+			MarmotStatement::FunctionDefinition(
+				method_name,
+				std::move(generic_params),
+				std::move(params),
+				std::move(param_types),
+				std::move(return_type),
+				std::move(body),
+				std::nullopt,
+				0,
+				std::vector<MarmotType::ClassConstraint>()
 			)
 		);
 	}
@@ -4226,22 +4224,17 @@ MarmotResult::StatementResult Parser::ParseInstanceDeclaration()
 		associated_type_bindings.emplace(binding.m_name.m_lexeme, binding.m_type);
 	}
 	std::vector<std::string> mangled_method_names;
-	for (std::unique_ptr<MarmotStatement>& method_stmt : methods)
+	for (MarmotStatement::Instance::Method& method : methods)
 	{
-		if (method_stmt->IsStatement<MarmotStatement::FunctionDefinition>())
+		MarmotStatement::FunctionDefinition& defun = method.m_definition;
+		std::string mangled_name = MarmotType::MangleInstanceMethodName(method.m_name.m_lexeme, typeclass_name.m_lexeme, type_args);
+		std::string mangled_name_with_module = mangled_name;
+		if (m_context.m_current_module && m_context.m_current_module->HasModuleDeclaration())
 		{
-			MarmotStatement::FunctionDefinition& defun = method_stmt->GetStatement<MarmotStatement::FunctionDefinition>();
-
-			std::string method_name = defun.m_name.m_lexeme;
-			std::string mangled_name = MarmotType::MangleInstanceMethodName(method_name, typeclass_name.m_lexeme, type_args);
-			std::string mangled_name_with_module = mangled_name;
-			if (m_context.m_current_module && m_context.m_current_module->HasModuleDeclaration())
-			{
-				mangled_name_with_module += ModuleSeparator + m_context.m_current_module->ModuleName();
-			}
-			mangled_method_names.push_back(std::move(mangled_name_with_module));
-			defun.m_name.m_lexeme = mangled_name;
+			mangled_name_with_module += ModuleSeparator + m_context.m_current_module->ModuleName();
 		}
+		mangled_method_names.push_back(std::move(mangled_name_with_module));
+		defun.m_name.m_lexeme = mangled_name;
 	}
 
 	const std::string declaring_module = m_context.m_current_module && m_context.m_current_module->HasModuleDeclaration() ? m_context.m_current_module->ModuleName() : std::string();
@@ -5995,7 +5988,7 @@ std::expected<void, CompilerError> Parser::QueueDerivedStatements(const Declarat
 		{
 			const MarmotStatement::Instance& instance = generated.value()->GetStatement<MarmotStatement::Instance>();
 			std::vector<std::string> methods = instance.m_methods
-				| std::views::transform([](const std::unique_ptr<MarmotStatement>& method) { return method->GetStatement<MarmotStatement::FunctionDefinition>().m_name.m_lexeme; })
+				| std::views::transform([](const MarmotStatement::Instance::Method& method) { return method.m_definition.m_name.m_lexeme; })
 				| std::ranges::to<std::vector<std::string>>();
 			RegisterSyntheticInstanceMetadata(instance.m_class_name.m_lexeme, instance.m_type_args, instance.m_constraints, methods);
 		}

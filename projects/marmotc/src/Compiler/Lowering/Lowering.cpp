@@ -374,18 +374,12 @@ Lowering::Emitted Lowering::ReserveTopLevelName(MarmotStatement& statement)
 				| std::views::transform([](const MarmotStatement::Instance::AssociatedTypeBinding& binding) { return std::pair{ binding.m_name.m_lexeme, binding.m_type }; })
 				| std::ranges::to<TypeclassInstance::AssociatedTypes>();
 			std::vector<std::string> methods = instance.m_methods
-				| std::views::filter([](const std::unique_ptr<MarmotStatement>& method) { return method->IsStatement<MarmotStatement::FunctionDefinition>(); })
-				| std::views::transform([](const std::unique_ptr<MarmotStatement>& method) { return method->GetStatement<MarmotStatement::FunctionDefinition>().m_name.m_lexeme; })
+				| std::views::transform([](const MarmotStatement::Instance::Method& method) { return method.m_definition.m_name.m_lexeme; })
 				| std::ranges::to<std::vector<std::string>>();
 			m_self.m_resolver.AddInstance(instance.m_class_name.m_lexeme, TypeclassInstance(instance.m_type_args, std::move(associated_types), instance.m_constraints, std::move(methods), m_self.m_module_name));
-			for (std::unique_ptr<MarmotStatement>& statement : instance.m_methods)
+			for (MarmotStatement::Instance::Method& instance_method : instance.m_methods)
 			{
-				if (!statement->IsStatement<MarmotStatement::FunctionDefinition>())
-				{
-					continue;
-				}
-
-				MarmotStatement::FunctionDefinition& method = statement->GetStatement<MarmotStatement::FunctionDefinition>();
+				MarmotStatement::FunctionDefinition& method = instance_method.m_definition;
 				if (m_self.IsGenericMethod(instance, method))
 				{
 					m_self.RegisterGeneric(method.m_name.m_lexeme, method.m_params, method.m_param_types, method.m_generic_params, method.m_constraints, method.m_return_type, method.m_body, method.m_captured_count);
@@ -530,12 +524,9 @@ std::vector<LoweredExport> Lowering::CollectExports() const
 		}
 		else if (statement->IsStatement<MarmotStatement::Instance>())
 		{
-			for (const std::unique_ptr<MarmotStatement>& method : statement->GetStatement<MarmotStatement::Instance>().m_methods)
+			for (const MarmotStatement::Instance::Method& method : statement->GetStatement<MarmotStatement::Instance>().m_methods)
 			{
-				if (method->IsStatement<MarmotStatement::FunctionDefinition>())
-				{
-					export_name(method->GetStatement<MarmotStatement::FunctionDefinition>().m_name, BytecodeModule::SymbolType::FUNCTION);
-				}
+				export_name(method.m_definition.m_name, BytecodeModule::SymbolType::FUNCTION);
 			}
 		}
 		else if (statement->IsStatement<MarmotStatement::Struct>())
@@ -578,13 +569,9 @@ Lowering::Emitted Lowering::LowerTopLevelStatement(MarmotStatement& statement)
 	if (statement.IsStatement<MarmotStatement::Instance>())
 	{
 		MarmotStatement::Instance& instance = statement.GetStatement<MarmotStatement::Instance>();
-		for (std::unique_ptr<MarmotStatement>& method_statement : instance.m_methods)
+		for (MarmotStatement::Instance::Method& instance_method : instance.m_methods)
 		{
-			if (!method_statement->IsStatement<MarmotStatement::FunctionDefinition>())
-			{
-				continue;
-			}
-			MarmotStatement::FunctionDefinition& method = method_statement->GetStatement<MarmotStatement::FunctionDefinition>();
+			MarmotStatement::FunctionDefinition& method = instance_method.m_definition;
 			if (IsGenericMethod(instance, method))
 			{
 				continue;
