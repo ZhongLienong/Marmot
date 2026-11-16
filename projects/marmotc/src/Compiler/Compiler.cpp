@@ -16,6 +16,7 @@
 #include "Compiler/MarmotIR/Verifier/MarmotIRVerifier.h"
 #include "Compiler/MarmotIROptimizer/MarmotIROptimizer.h"
 #include "Compiler/Module/CompiledModule.h"
+#include "Compiler/Module/ModuleInterfaceRegistry.h"
 #include "Compiler/ModuleManager/ModuleManager.h"
 #include "Compiler/Parser/Parser.h"
 #include "Compiler/StaticAnalyzerManager/StaticAnalyzerManager.h"
@@ -23,9 +24,9 @@
 
 #include <algorithm>
 #include <array>
-#include <atomic>
 #include <chrono>
 #include <filesystem>
+#include <functional>
 #include <mutex>
 #include <print>
 #include <ranges>
@@ -62,18 +63,32 @@ namespace
 		std::unordered_set<std::string> m_export_set;
 	};
 
-	struct CompileEnv
+	struct ModuleCompilationInput
 	{
-		BuildGraph& m_build_graph;
-		std::unordered_map<std::string, std::shared_ptr<const ModuleInterface>>& m_interfaces;
-		std::mutex& m_modules_mutex;
-		std::mutex& m_print_mutex;
-		std::atomic<size_t>& m_completed_modules;
-		const std::vector<std::vector<std::string>>& m_tiers;
-		size_t m_total_modules;
+		BuildGraph::BuildNode m_source;
+		std::optional<ModuleDeclaration> m_declaration;
+		std::vector<std::shared_ptr<const ModuleInterface>> m_dependencies;
+
+		ModuleCompilationInput(BuildGraph::BuildNode source, std::optional<ModuleDeclaration> declaration, std::vector<std::shared_ptr<const ModuleInterface>> dependencies)
+			: m_source(std::move(source)),
+			m_declaration(std::move(declaration)),
+			m_dependencies(std::move(dependencies))
+		{
+		}
+	};
+
+	struct ModuleCompilationOptions
+	{
 		bool m_emit_marmot_ir;
 		bool m_emit_ast;
 		CompilationTimings& m_timings;
+
+		ModuleCompilationOptions(const CompilationInputs& inputs, CompilationTimings& timings)
+			: m_emit_marmot_ir(inputs.EmitsMarmotIR()),
+			m_emit_ast(inputs.EmitsAst()),
+			m_timings(timings)
+		{
+		}
 	};
 
 	struct CompileState;
@@ -88,10 +103,9 @@ namespace
 
 	struct CompileState
 	{
-		CompileEnv* m_env = nullptr;
-		BuildGraph::BuildNode* m_node = nullptr;
-		const ModuleDeclaration* m_module_decl = nullptr;
-		size_t m_tier_idx = 0u;
+		ModuleCompilationInput* m_input;
+		const ModuleCompilationOptions* m_options;
+		const ModuleDeclaration* m_module_decl;
 		std::string m_file_path;
 		std::string m_module_name;
 		ImportContext m_import_context;
@@ -111,6 +125,14 @@ namespace
 		std::string m_optimizer_log;
 #endif
 
+		CompileState(ModuleCompilationInput& input, const ModuleCompilationOptions& options)
+			: m_input(&input),
+			m_options(&options),
+			m_module_decl(input.m_declaration.has_value() ? &*input.m_declaration : nullptr),
+			m_file_path(input.m_source.m_file_name)
+		{
+		}
+
 		CompileStateResult WithImportContext() &&;
 		CompileStateResult WithSourceLines() &&;
 		CompileStateResult WithParsedModule() &&;
@@ -120,7 +142,6 @@ namespace
 		CompileStateResult WithInterface() &&;
 		CompileStateResult WithOptimizedModule() &&;
 		CompileStateResult WithBackendBytecode() &&;
-		MarmotResult::CompiledModuleReportResult Finalize() &&;
 	};
 
 	struct BuildGraphArtifacts
@@ -164,12 +185,6 @@ namespace
 		return std::move(state);
 	}
 
-	static CompileState ApplySourceLines(CompileState state, std::vector<std::string>&& source_lines)
-	{
-		state.m_source_lines = std::move(source_lines);
-		return std::move(state);
-	}
-
 	static CompileState ApplyParsedModule(CompileState state, ParsedModule&& parsed_module)
 	{
 		state.m_warnings.Append(std::move(parsed_module.m_warnings));
@@ -210,30 +225,6 @@ namespace
 		return std::move(state);
 	}
 
-#if MARMOT_ENABLE_OPTIMIZER_STATS
-	static size_t ReportCompiled(CompileEnv& env, const std::string& file_path, size_t, const std::string& optimizer_log)
-#else
-	static size_t ReportCompiled(CompileEnv& env, const std::string& file_path, size_t)
-#endif
-	{
-		const size_t current_module = env.m_completed_modules.fetch_add(1u) + 1u;
-		const std::string short_path = std::filesystem::path(file_path).filename().string();
-#if MARMOT_ENABLE_OPTIMIZER_STATS
-		if (CompilerDiagnostics::StatisticsEnabled())
-		{
-			std::lock_guard<std::mutex> lock(env.m_print_mutex);
-			std::print(stderr, "MarmotIR optimizer: {}\n{}", short_path, optimizer_log);
-		}
-#endif
-
-		return current_module;
-	}
-
-	static MarmotResult::Result<std::vector<std::string>> LoadModuleSourceLines(const CompileEnv& env, const std::string& file_path)
-	{
-		return env.m_build_graph.m_nodes.at(file_path).m_source_lines;
-	}
-
 	// Which module declared a nominal type. Anything else has no module of its
 	// own, so it answers with nothing.
 	static std::string DeclaringModuleName(const std::shared_ptr<MarmotType>& type)
@@ -256,26 +247,17 @@ namespace
 		return std::string();
 	}
 
-	static MarmotResult::Result<ImportContext> BuildImportContext(CompileEnv& env, const BuildGraph::BuildNode& node, const std::string& file_path)
+	static MarmotResult::Result<ImportContext> BuildImportContext(const ModuleCompilationInput& input)
 	{
 		ImportContext context;
 		TypeclassImports typeclass_imports;
-		// Each dependency's interface, and the import a conflict between two of
-		// them points at.
-		std::vector<std::pair<const ModuleInterface*, const Token*>> dependency_modules;
-		dependency_modules.reserve(node.m_dependencies.size());
-
-		{
-			std::lock_guard<std::mutex> lock(env.m_modules_mutex);
-			for (const std::string& dep_path : node.m_dependencies)
-			{
-				dependency_modules.emplace_back(env.m_interfaces.at(dep_path).get(), &node.m_import_tokens.at(dep_path));
-			}
-		}
+		const BuildGraph::BuildNode& node = input.m_source;
+		const std::string& file_path = node.m_file_name;
+		const std::vector<std::shared_ptr<const ModuleInterface>>& dependency_modules = input.m_dependencies;
 
 		size_t imported_type_count = 0u;
 		size_t imported_generic_function_count = 0u;
-		for (const ModuleInterface* dep : dependency_modules | std::views::keys)
+		for (const std::shared_ptr<const ModuleInterface>& dep : dependency_modules)
 		{
 			imported_type_count += dep->m_type_signatures.size() * 2u;
 
@@ -287,8 +269,9 @@ namespace
 		context.m_imported_types.reserve(imported_type_count);
 		context.m_imported_generic_functions.reserve(imported_generic_function_count);
 
-		for (const auto& [dep, import_token] : dependency_modules)
+		for (const std::shared_ptr<const ModuleInterface>& dep : dependency_modules)
 		{
+			const Token& import_token = node.m_import_tokens.at(dep->m_file_path.string());
 			const std::string& dep_module_name = dep->m_module_name;
 			context.m_imported_symbols[dep_module_name] = dep->m_symbols;
 			context.m_imported_type_signatures[dep_module_name] = dep->m_type_signatures;
@@ -299,7 +282,7 @@ namespace
 
 			if (const std::optional<std::string> conflict = typeclass_imports.Import(dep_module_name, dep->m_typeclass_metadata))
 			{
-				return std::unexpected(CompilerError::WithToken(CompilerStage::Module, *conflict, *import_token, file_path, node.m_source_lines));
+				return std::unexpected(CompilerError::WithToken(CompilerStage::Module, *conflict, import_token, file_path, node.m_source_lines));
 			}
 
 			// A type is also known by the module that declared it, which a
@@ -428,7 +411,7 @@ namespace
 		CompileState state = std::move(*this);
 		return ApplyToState<ImportContext, ApplyImportContext>
 		(
-			BuildImportContext(*state.m_env, *state.m_node, state.m_file_path),
+			BuildImportContext(*state.m_input),
 			std::move(state)
 		);
 	}
@@ -436,18 +419,15 @@ namespace
 	CompileStateResult CompileState::WithSourceLines() &&
 	{
 		CompileState state = std::move(*this);
-		return ApplyToState<std::vector<std::string>, ApplySourceLines>
-		(
-			LoadModuleSourceLines(*state.m_env, state.m_file_path),
-			std::move(state)
-		);
+		state.m_source_lines = std::move(state.m_input->m_source.m_source_lines);
+		return state;
 	}
 
 	CompileStateResult CompileState::WithParsedModule() &&
 	{
 		CompileState state = std::move(*this);
 		MarmotResult::DiagnosticsResult<ParsedModule> parse_result =
-			ParseModule(std::move(state.m_node->m_tokens), state.m_file_path, state.m_source_lines, state.m_import_context, state.m_node->m_use_imports, state.m_module_decl);
+			ParseModule(std::move(state.m_input->m_source.m_tokens), state.m_file_path, state.m_source_lines, state.m_import_context, state.m_input->m_source.m_use_imports, state.m_module_decl);
 		if (!parse_result.has_value())
 		{
 			return std::unexpected(MakeStateErrorReport(std::move(state), std::move(parse_result.error())));
@@ -547,7 +527,7 @@ namespace
 		state.m_module_name = state.m_module_decl ? state.m_module_decl->ModuleName() : std::filesystem::path(state.m_file_path).stem().string();
 
 		const LoweringImports imports = MakeLoweringImports(state.m_import_context);
-		if (state.m_env->m_emit_ast)
+		if (state.m_options->m_emit_ast)
 		{
 			state.m_ast_text = AbstractSyntaxTreePrinter(state.m_module_name, state.m_ast).Print();
 		}
@@ -570,10 +550,6 @@ namespace
 				state.m_module_name, state.m_file_path, std::move(state.m_export_info.m_symbols),
 				std::move(state.m_parsed_module.m_type_signatures), std::move(state.m_parsed_module.m_typeclass_metadata),
 				std::move(state.m_lowered->m_generic_functions), std::move(state.m_worker_crossings));
-			{
-				std::lock_guard<std::mutex> lock(state.m_env->m_modules_mutex);
-				state.m_env->m_interfaces.emplace(state.m_file_path, state.m_interface);
-			}
 			return state;
 		});
 	}
@@ -591,7 +567,7 @@ namespace
 		state.m_optimizer_log = optimizer.Log();
 #endif
 
-		if (state.m_env->m_emit_marmot_ir)
+		if (state.m_options->m_emit_marmot_ir)
 		{
 			state.m_marmot_ir = MarmotIRPrinter(state.m_lowered->m_module).Print();
 		}
@@ -610,12 +586,6 @@ namespace
 		bytecode_result->m_reexports = std::move(state.m_reexports);
 		state.m_lowered.reset();
 		return ApplyBytecode(std::move(state), std::move(bytecode_result).value());
-	}
-
-	MarmotResult::CompiledModuleReportResult CompileState::Finalize() &&
-	{
-		CompilationTimings::Timer timer(m_env->m_timings, CompilationTimings::Phase::Finalization);
-		return BuildCompiledModule(std::move(*this));
 	}
 
 	// A name a module exports without defining it may be one of its imports.
@@ -641,13 +611,13 @@ namespace
 		// facade picks between two imports that export the same one.
 		const std::vector<UseImport>::const_iterator used = std::ranges::find_if
 		(
-			state.m_node->m_use_imports,
+			state.m_input->m_source.m_use_imports,
 			[&exported_name, &origins](const UseImport& use_import)
 			{
 				return use_import.m_symbol_name == exported_name && std::ranges::find(origins, use_import.m_module_name) != origins.cend();
 			}
 		);
-		if (used != state.m_node->m_use_imports.cend())
+		if (used != state.m_input->m_source.m_use_imports.cend())
 		{
 			return { used->m_module_name };
 		}
@@ -751,32 +721,7 @@ namespace
 			.WithMarmotIR(std::move(state.m_marmot_ir))
 			.WithAst(std::move(state.m_ast_text));
 
-		ReportCompiled
-		(
-			*state.m_env,
-			state.m_file_path,
-			state.m_tier_idx
-#if MARMOT_ENABLE_OPTIMIZER_STATS
-			, state.m_optimizer_log
-#endif
-		);
-
 		return compiled_module;
-	}
-
-	static CompileStateResult MakeCompileState(CompileEnv& env, const std::string& file_path, size_t tier_idx)
-	{
-		BuildGraph::BuildNode& node = env.m_build_graph.m_nodes.at(file_path);
-		const ModuleDeclaration* module_decl = env.m_build_graph.m_module_declarations.contains(file_path) ? &env.m_build_graph.m_module_declarations.at(file_path) : nullptr;
-
-		CompileState state;
-		state.m_env = &env;
-		state.m_file_path = file_path;
-		state.m_tier_idx = tier_idx;
-		state.m_node = &node;
-		state.m_module_decl = module_decl;
-
-		return state;
 	}
 
 	static CompileStateResult StageImportContext(CompileState state)
@@ -825,43 +770,45 @@ namespace
 	}
 
 	using InterfaceReady = CompilationExecution::InterfaceReady;
+	using InterfacePublisher = std::function<void(std::shared_ptr<const ModuleInterface>)>;
+
+	static MarmotResult::CompilerReport InternalError(const std::string& file_path, std::string_view where, std::string_view detail)
+	{
+		return MarmotResult::CompilerReport(CompilerError::WithFile(CompilerStage::Compiler, std::format("Internal compiler error {}: {}", where, detail), file_path, CompilerErrorCode::CompilerInternalError));
+	}
 
 	class ModuleCompiler
 	{
 	public:
-		MarmotResult::CompiledModuleReportResult Compile(CompileEnv& env, const std::string& file_path, size_t tier_idx, const InterfaceReady& interface_ready) const
+		ModuleCompiler(const CompilationInputs& inputs, CompilationTimings& timings)
+			: m_options(inputs, timings)
 		{
-			CompilationTimings::ModuleTimer timer(env.m_timings);
-			// A worker exception would terminate the process; use the same module
-			// diagnostic for worker threads and compilation on the calling thread.
-			try
-			{
-				return MakeCompileState(env, file_path, tier_idx)
-					.and_then([&file_path, &interface_ready](CompileState state) { return RunStages(std::move(state), file_path, interface_ready); })
-					.and_then
-					(
-						[](CompileState state) -> MarmotResult::CompiledModuleReportResult
-						{
-							return std::move(state).Finalize();
-						}
-					);
-			}
-			catch (const std::exception& e)
-			{
-				return std::unexpected(InternalError(file_path, "while compiling the module", e.what()));
-			}
-			catch (...)
-			{
-				return std::unexpected(InternalError(file_path, "while compiling the module", "unknown exception"));
-			}
+		}
+
+		MarmotResult::CompiledModuleReportResult Compile(ModuleCompilationInput input, const InterfacePublisher& publish) const
+		{
+			const std::string& file_path = input.m_source.m_file_name;
+			return RunStages(CompileState(input, m_options), file_path, publish)
+				.and_then([this](CompileState state) -> MarmotResult::CompiledModuleReportResult
+				{
+					CompilationTimings::Timer finalization(m_options.m_timings, CompilationTimings::Phase::Finalization);
+#if MARMOT_ENABLE_OPTIMIZER_STATS
+					const std::string& file_path = state.m_input->m_source.m_file_name;
+					const std::string optimizer_log = std::move(state.m_optimizer_log);
+#endif
+					MarmotResult::CompiledModuleReportResult result = BuildCompiledModule(std::move(state));
+#if MARMOT_ENABLE_OPTIMIZER_STATS
+					if (CompilerDiagnostics::StatisticsEnabled())
+					{
+						std::lock_guard<std::mutex> lock(m_print_mutex);
+						std::print(stderr, "MarmotIR optimizer: {}\n{}", std::filesystem::path(file_path).filename().string(), optimizer_log);
+					}
+#endif
+					return result;
+				});
 		}
 
 	private:
-		static MarmotResult::CompilerReport InternalError(const std::string& file_path, std::string_view where, std::string_view detail)
-		{
-			return MarmotResult::CompilerReport(CompilerError::WithFile(CompilerStage::Compiler, std::format("Internal compiler error {}: {}", where, detail), file_path, CompilerErrorCode::CompilerInternalError));
-		}
-
 		using Stage = CompileStateResult(*)(CompileState);
 
 		struct NamedStage
@@ -884,7 +831,7 @@ namespace
 			NamedStage{ StageBytecodeBackend, "bytecode backend", CompilationTimings::Phase::Backend }
 		};
 
-		static CompileStateResult RunStages(CompileState state, const std::string& file_path, const InterfaceReady& interface_ready)
+		static CompileStateResult RunStages(CompileState state, const std::string& file_path, const InterfacePublisher& publish)
 		{
 			for (const NamedStage& stage : s_pipeline)
 			{
@@ -893,7 +840,7 @@ namespace
 				// stage that produced it is still known.
 				CompileStateResult result = [&]() -> CompileStateResult
 				{
-					CompilationTimings::Timer timer(state.m_env->m_timings, stage.m_phase);
+					CompilationTimings::Timer timer(state.m_options->m_timings, stage.m_phase);
 					try
 					{
 						return stage.m_stage(std::move(state));
@@ -916,12 +863,17 @@ namespace
 				state = std::move(result).value();
 				if (stage.m_stage == StageInterface)
 				{
-					interface_ready(state.m_file_path);
+					publish(state.m_interface);
 				}
 			}
 
 			return state;
 		}
+
+		ModuleCompilationOptions m_options;
+#if MARMOT_ENABLE_OPTIMIZER_STATS
+		mutable std::mutex m_print_mutex;
+#endif
 	};
 
 	using ModuleFailures = std::unordered_map<std::string, MarmotResult::CompilerReport>;
@@ -949,27 +901,55 @@ namespace
 		return report;
 	}
 
-	// Keep compiling eligible modules after failures so worker timing cannot
-	// change which diagnostics are collected.
-	static CompilationExecution::Results CompileModules(CompileEnv& env, ModuleCompiler& module_compiler, CompilationSchedule& schedule, std::optional<size_t> jobs)
+	static MarmotResult::CompiledModuleReportResult CompileGraphModule(BuildGraph& build_graph, ModuleInterfaceRegistry& interfaces, const ModuleCompiler& compiler, const std::string& file_path, const InterfaceReady& interface_ready)
 	{
-		CompilationTimings::Timer timer(env.m_timings, CompilationTimings::Phase::Modules);
-#ifndef __EMSCRIPTEN__
-		const size_t worker_count = std::min(schedule.m_all_modules.size(), jobs.value_or(std::max(1u, std::thread::hardware_concurrency())));
-#else
-		(void)jobs;
-		const size_t worker_count = 1u;
-#endif
-		env.m_timings.SetWorkerCount(worker_count);
-		return CompilationExecution::Run(schedule, worker_count, [&env, &module_compiler](const ScheduledModule& module, const InterfaceReady& interface_ready)
+		// Include input preparation in the same exception handling on the caller
+		// and on workers, where an escaping exception would terminate the process.
+		try
 		{
-			return module_compiler.Compile(env, module.m_file_path, module.m_tier_idx, interface_ready);
-		});
+			BuildGraph::BuildNode& node = build_graph.m_nodes.at(file_path);
+			std::vector<std::shared_ptr<const ModuleInterface>> dependencies = interfaces.Snapshot(node.m_dependencies);
+			std::optional<ModuleDeclaration> declaration;
+			const std::unordered_map<std::string, ModuleDeclaration>::iterator declared = build_graph.m_module_declarations.find(file_path);
+			if (declared != build_graph.m_module_declarations.end())
+			{
+				declaration.emplace(std::move(declared->second));
+			}
+			ModuleCompilationInput input(std::move(node), std::move(declaration), std::move(dependencies));
+			return compiler.Compile(std::move(input), [&interfaces, &file_path, &interface_ready](std::shared_ptr<const ModuleInterface> interface)
+			{
+				interfaces.Publish(file_path, std::move(interface));
+				interface_ready(file_path);
+			});
+		}
+		catch (const std::exception& e)
+		{
+			return std::unexpected(InternalError(file_path, "while compiling the module", e.what()));
+		}
+		catch (...)
+		{
+			return std::unexpected(InternalError(file_path, "while compiling the module", "unknown exception"));
+		}
 	}
 
-	static CompileEnv MakeCompileEnv(BuildGraph& build_graph, std::unordered_map<std::string, std::shared_ptr<const ModuleInterface>>& interfaces, std::mutex& modules_mutex, std::mutex& print_mutex, std::atomic<size_t>& completed_modules, const CompilationSchedule& schedule, size_t total_modules, const CompilationInputs& inputs, CompilationTimings& timings)
+	// Keep compiling eligible modules after failures so worker timing cannot
+	// change which diagnostics are collected.
+	static CompilationExecution::Results CompileModules(BuildGraph& build_graph, CompilationSchedule& schedule, const CompilationInputs& inputs, CompilationTimings& timings)
 	{
-		return CompileEnv{ build_graph, interfaces, modules_mutex, print_mutex, completed_modules, schedule.m_tiers, total_modules, inputs.EmitsMarmotIR(), inputs.EmitsAst(), timings };
+		CompilationTimings::Timer timer(timings, CompilationTimings::Phase::Modules);
+#ifndef __EMSCRIPTEN__
+		const size_t worker_count = std::min(schedule.m_all_modules.size(), inputs.Jobs().value_or(std::max(1u, std::thread::hardware_concurrency())));
+#else
+		const size_t worker_count = 1u;
+#endif
+		timings.SetWorkerCount(worker_count);
+		ModuleInterfaceRegistry interfaces(schedule.m_all_modules.size());
+		ModuleCompiler compiler(inputs, timings);
+		return CompilationExecution::Run(schedule, worker_count, [&build_graph, &interfaces, &compiler, &timings](const ScheduledModule& module, const InterfaceReady& interface_ready)
+		{
+			CompilationTimings::ModuleTimer timer(timings);
+			return CompileGraphModule(build_graph, interfaces, compiler, module.m_file_path, interface_ready);
+		});
 	}
 
 	static BuildGraphArtifacts CollectBytecodeModules(const CompilationSchedule& schedule, std::unordered_map<std::string, CompiledModule>& compiled_modules)
@@ -1004,15 +984,7 @@ namespace
 		const size_t total_modules = schedule.m_all_modules.size();
 		std::unordered_map<std::string, CompiledModule> compiled_modules;
 		compiled_modules.reserve(total_modules);
-		std::unordered_map<std::string, std::shared_ptr<const ModuleInterface>> interfaces;
-		interfaces.reserve(total_modules);
-		std::mutex modules_mutex;
-		std::mutex print_mutex;
-		std::atomic<size_t> completed_modules{ 0u };
-
-		CompileEnv env = MakeCompileEnv(build_graph, interfaces, modules_mutex, print_mutex, completed_modules, schedule, total_modules, inputs, timings);
-		ModuleCompiler module_compiler;
-		CompilationExecution::Results results = CompileModules(env, module_compiler, schedule, inputs.Jobs());
+		CompilationExecution::Results results = CompileModules(build_graph, schedule, inputs, timings);
 		ModuleFailures failures;
 		for (auto& [file_path, result] : results)
 		{

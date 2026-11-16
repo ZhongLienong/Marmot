@@ -4,9 +4,8 @@
 #include <ranges>
 #include <utility>
 
-ScheduledModule::ScheduledModule(std::string file_path, size_t tier_idx, size_t priority)
+ScheduledModule::ScheduledModule(std::string file_path, size_t priority)
 	: m_file_path(std::move(file_path)),
-	m_tier_idx(tier_idx),
 	m_priority(priority)
 {
 }
@@ -31,14 +30,6 @@ CompilationSchedule::CompilationSchedule(const BuildGraph& build_graph)
 		m_dependents.emplace(file_path, std::vector<std::string>{});
 	}
 	std::ranges::sort(m_all_modules);
-
-	for (size_t tier_idx = 0u; tier_idx < m_tiers.size(); tier_idx += 1u)
-	{
-		for (const std::string& file_path : m_tiers[tier_idx])
-		{
-			m_tier_indices.emplace(file_path, tier_idx);
-		}
-	}
 
 	for (const std::string& file_path : m_all_modules)
 	{
@@ -66,7 +57,7 @@ CompilationSchedule::CompilationSchedule(const BuildGraph& build_graph)
 
 ScheduledModule CompilationSchedule::Schedule(const std::string& file_path) const
 {
-	return ScheduledModule(file_path, m_tier_indices.at(file_path), m_priorities.at(file_path));
+	return ScheduledModule(file_path, m_priorities.at(file_path));
 }
 
 std::vector<ScheduledModule> CompilationSchedule::InitialReady() const

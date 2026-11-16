@@ -45,7 +45,6 @@ TEST_CASE("Compilation prioritizes the longest downstream path", "[compiler][sch
 	// is still optimizing; it also takes priority over the older wide work.
 	Enqueue(ready, schedule.InterfaceReady("ZCritical"));
 	REQUIRE(ready.top().m_file_path == "Middle");
-	REQUIRE(ready.top().m_tier_idx == 1u);
 	ready.pop();
 	REQUIRE(schedule.InterfaceReady("Middle").empty());
 	REQUIRE(ready.top().m_file_path == "AWide");
