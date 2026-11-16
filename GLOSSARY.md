@@ -1,6 +1,6 @@
-# Marmot declarations
+# Marmot language
 
-Terms for Marmot's typeclass and derived declarations and their visibility between modules.
+Terms for Marmot's declarations, their visibility between modules, and type transformations.
 
 ## Language
 
@@ -20,3 +20,25 @@ module the declaring module of an instance.
 **Derived declaration**:
 A typeclass instance or container function generated from the shape of a record
 or union through its `deriving` clause.
+
+## Type transformations
+
+**Type transformation**:
+An operation producing a type from another type while preserving its declaring
+identity, with distinct rules for instantiation, freshening and substitution.
+
+**Type instantiation**:
+A use of a generic type with arguments for its declared parameters, including
+parameters that appear in no field or representation.
+
+**Type freshening**:
+A use of a generic signature with fresh inference variables, keeping repeated
+occurrences of each parameter tied to the same choice of type.
+
+**Inference substitution**:
+The interpretation of a type using the inference variables already decided and
+the associated types known in the current checking context.
+
+**Type specialization**:
+The interpretation of a generic body's types for the arguments and typeclass
+instances chosen at a use of that body.

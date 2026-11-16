@@ -1,4 +1,5 @@
 #include "InstanceResolver.h"
+#include "Compiler/TypeTransform/TypeTransform.h"
 #include "Compiler/Names/SpecialNames.h"
 #include "Compiler/TypeMatching/InstanceTypeMatcher.h"
 
@@ -60,7 +61,7 @@ std::optional<std::shared_ptr<MarmotType>> InstanceResolver::ResolveAssociatedTy
 		const TypeclassInstance::AssociatedTypes::const_iterator binding = instance.m_associated_type_bindings.find(projection.m_name);
 		if (binding != instance.m_associated_type_bindings.cend() && matcher.MatchAll(instance.m_type_args, projection.m_type_args))
 		{
-			return GenericTypes::Substitute(binding->second, matcher.Bindings());
+			return TypeTransform::Specialize(binding->second, matcher.Bindings());
 		}
 	}
 	return std::nullopt;
@@ -147,7 +148,7 @@ MethodResolutionMap InstanceResolver::ResolveConstraints(const std::vector<Marmo
 		}
 
 		const std::vector<TypeRef> concrete_type_args = constraint.m_type_args
-			| std::views::transform([&substitutions](const TypeRef& type_arg) { return GenericTypes::Substitute(type_arg, substitutions); })
+			| std::views::transform([&substitutions](const TypeRef& type_arg) { return TypeTransform::Specialize(type_arg, substitutions); })
 			| std::ranges::to<std::vector>();
 		const std::string first_type_name = concrete_type_args.empty() ? std::string() : concrete_type_args[0u]->ToString();
 		const std::string second_type_name = concrete_type_args.size() > 1u ? concrete_type_args[1u]->ToString() : std::string();

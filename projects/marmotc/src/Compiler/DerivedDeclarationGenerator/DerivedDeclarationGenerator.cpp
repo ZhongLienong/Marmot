@@ -1,4 +1,5 @@
 #include "DerivedDeclarationGenerator.h"
+#include "Compiler/TypeTransform/TypeTransform.h"
 #include "Bytecode/Format/Format.h"
 #include "Compiler/Names/SpecialNames.h"
 
@@ -736,7 +737,7 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 	std::shared_ptr<MarmotType> source_type = MarmotType::MakeGenericType(first_type_param);
 	std::unordered_map<std::string, std::shared_ptr<MarmotType>> output_substitutions;
 	output_substitutions.emplace(first_type_param, mapped_type);
-	std::shared_ptr<MarmotType> output_union_type = MarmotType::SubstituteTypeParams(union_stmt.m_self_type, output_substitutions);
+	std::shared_ptr<MarmotType> output_union_type = TypeTransform::Instantiate(union_stmt.m_self_type, output_substitutions);
 
 	std::vector<GeneratedBinding> params;
 	std::vector<std::shared_ptr<MarmotType>> param_types;

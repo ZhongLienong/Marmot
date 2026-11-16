@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "Compiler/TypeMatching/InstanceTypeMatcher.h"
+#include "Compiler/TypeTransform/TypeTransform.h"
 
 namespace
 {
@@ -34,8 +35,8 @@ TEST_CASE("Instance matching binds phantom arguments for every nominal type shap
 	};
 	for (const TypeRef& prototype : prototypes)
 	{
-		const TypeRef concrete = MarmotType::SubstituteTypeParams(prototype, { { "T", integer } });
-		const TypeRef other = MarmotType::SubstituteTypeParams(prototype, { { "T", text } });
+		const TypeRef concrete = TypeTransform::Instantiate(prototype, { { "T", integer } });
+		const TypeRef other = TypeTransform::Instantiate(prototype, { { "T", text } });
 		InstanceTypeMatcher match;
 		REQUIRE(match.Match(prototype, concrete));
 		CHECK(match.Bindings().at("T") == integer);
@@ -51,7 +52,7 @@ TEST_CASE("Instance matching keeps bindings from separate prototype expansions",
 	const TypeRef first = MarmotType::MakeStructType("Phantom", "Origin", {}, {}, { "T" });
 	const TypeRef second = MarmotType::MakeStructType("Phantom", "Origin", {}, {}, { "U" });
 	const TypeRef integer = MarmotType::MakeLiteralType<MarmotType::IntegerType>();
-	const TypeRef concrete = MarmotType::SubstituteTypeParams(first, { { "T", integer } });
+	const TypeRef concrete = TypeTransform::Instantiate(first, { { "T", integer } });
 	InstanceTypeMatcher matcher;
 	REQUIRE(matcher.MatchAll(std::vector<TypeRef>{ first, second }, std::vector<TypeRef>{ concrete, concrete }));
 	CHECK(matcher.Bindings().at("T") == integer);
@@ -64,7 +65,7 @@ TEST_CASE("Instance matching terminates on recursive nominal types", "[compiler]
 	const TypeRef integer = MarmotType::MakeLiteralType<MarmotType::IntegerType>();
 	const TypeRef pattern = MarmotType::MakeUnionType("Chain", "Origin", { "T" });
 	pattern->GetType<MarmotType::UnionType>().m_member_info.emplace("Link", MarmotType::UnionType::UnionMemberContext{ { parameter, pattern }, 0 });
-	const TypeRef concrete = MarmotType::SubstituteTypeParams(pattern, { { "T", integer } });
+	const TypeRef concrete = TypeTransform::Instantiate(pattern, { { "T", integer } });
 	InstanceTypeMatcher matcher;
 	CHECK(matcher.Match(pattern, concrete));
 	CHECK(matcher.Bindings().at("T") == integer);

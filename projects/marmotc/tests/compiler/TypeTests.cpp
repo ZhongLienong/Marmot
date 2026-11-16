@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "Compiler/AbstractSyntaxTree/Type.h"
+#include "Compiler/TypeTransform/TypeTransform.h"
 
 #include <memory>
 #include <string>
@@ -120,7 +121,7 @@ TEST_CASE("Substituting a newtype's parameter rewrites its representation", "[ty
 	std::unordered_map<std::string, std::shared_ptr<MarmotType>> substitutions;
 	substitutions["T"] = MarmotType::MakeLiteralType<MarmotType::IntegerType>();
 
-	const std::shared_ptr<MarmotType> instantiated = MarmotType::SubstituteTypeParams(boxed, substitutions);
+	const std::shared_ptr<MarmotType> instantiated = TypeTransform::Instantiate(boxed, substitutions);
 
 	REQUIRE(instantiated->IsType<MarmotType::NewType>());
 
@@ -132,15 +133,14 @@ TEST_CASE("Substituting a newtype's parameter rewrites its representation", "[ty
 
 TEST_CASE("Substituting a newtype with an empty map preserves its parameters", "[type]")
 {
-	// Trap 1: since e730762, SubstituteTypeParams with an empty map is not the
-	// identity for StructType - it rebuilds with m_generic_params cleared. The
-	// NewType arm must not inherit that behaviour.
+	// Newtype instantiation retains declaration parameters for representation
+	// checks, unlike record and union instantiation.
 	const std::shared_ptr<MarmotType> element = MarmotType::MakeGenericType("T");
 	const std::shared_ptr<MarmotType> representation = MarmotType::MakeArrayType(element);
 	const std::shared_ptr<MarmotType> boxed = MarmotType::MakeNewType("Boxed", "TypeTests", representation, {"T"});
 
 	const std::unordered_map<std::string, std::shared_ptr<MarmotType>> empty;
-	const std::shared_ptr<MarmotType> result = MarmotType::SubstituteTypeParams(boxed, empty);
+	const std::shared_ptr<MarmotType> result = TypeTransform::Instantiate(boxed, empty);
 
 	REQUIRE(result->IsType<MarmotType::NewType>());
 	REQUIRE(result->GetType<MarmotType::NewType>().m_generic_params == std::vector<std::string>{"T"});
@@ -150,8 +150,8 @@ TEST_CASE("A substituted newtype renders its type argument, not its parameter na
 {
 	// If ToStringVisitor's NewType arm tested m_generic_params before
 	// m_is_generic_instantiation, this would render "Boxed<T>" even after
-	// substitution -- since SubstitutionVisitor deliberately preserves
-	// m_generic_params (trap 1). InstanceKey and MangleInstanceMethodName are
+	// instantiation, which deliberately preserves m_generic_params.
+	// InstanceKey and MangleInstanceMethodName are
 	// keyed on ToString, so that would collapse every instantiation onto one
 	// instance slot.
 	const std::shared_ptr<MarmotType> element = MarmotType::MakeGenericType("T");
@@ -161,7 +161,7 @@ TEST_CASE("A substituted newtype renders its type argument, not its parameter na
 	std::unordered_map<std::string, std::shared_ptr<MarmotType>> substitutions;
 	substitutions["T"] = MarmotType::MakeLiteralType<MarmotType::IntegerType>();
 
-	const std::shared_ptr<MarmotType> instantiated = MarmotType::SubstituteTypeParams(boxed, substitutions);
+	const std::shared_ptr<MarmotType> instantiated = TypeTransform::Instantiate(boxed, substitutions);
 
 	REQUIRE(instantiated->ToString() == "TypeTests::Boxed<Int>");
 	REQUIRE(instantiated->DisplayString() == "Boxed<Int>");
@@ -178,11 +178,11 @@ TEST_CASE("Two distinct newtype instantiations render differently", "[type]")
 
 	std::unordered_map<std::string, std::shared_ptr<MarmotType>> int_substitutions;
 	int_substitutions["T"] = MarmotType::MakeLiteralType<MarmotType::IntegerType>();
-	const std::shared_ptr<MarmotType> boxed_int = MarmotType::SubstituteTypeParams(boxed, int_substitutions);
+	const std::shared_ptr<MarmotType> boxed_int = TypeTransform::Instantiate(boxed, int_substitutions);
 
 	std::unordered_map<std::string, std::shared_ptr<MarmotType>> text_substitutions;
 	text_substitutions["T"] = MarmotType::MakeLiteralType<MarmotType::TextType>();
-	const std::shared_ptr<MarmotType> boxed_text = MarmotType::SubstituteTypeParams(boxed, text_substitutions);
+	const std::shared_ptr<MarmotType> boxed_text = TypeTransform::Instantiate(boxed, text_substitutions);
 
 	REQUIRE(boxed_int->ToString() != boxed_text->ToString());
 }

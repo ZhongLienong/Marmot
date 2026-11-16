@@ -1,4 +1,5 @@
 #include "Lowering.h"
+#include "Compiler/TypeTransform/TypeTransform.h"
 #include "Bytecode/Builtins/BuiltinTable.h"
 #include "Bytecode/Format/Format.h"
 #include "Compiler/Names/SpecialNames.h"
@@ -218,7 +219,7 @@ Lowering::TypeRef Lowering::Concrete(const TypeRef& type)
 // A projection such as Iterable::Item<S> means a type once S is one.
 Lowering::TypeRef Lowering::Substitute(const TypeRef& type, const GenericTypes::TypeEnvironment& types) const
 {
-	return GenericTypes::Substitute(type, types, [this](const MarmotType::AssociatedType& projection) { return m_resolver.ResolveAssociatedType(projection); });
+	return TypeTransform::Specialize(type, types, [this](const MarmotType::AssociatedType& projection) { return m_resolver.ResolveAssociatedType(projection); });
 }
 
 Lowering::TypeRef Lowering::TypeOf(const MarmotExpression& expression)

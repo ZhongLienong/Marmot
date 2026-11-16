@@ -258,12 +258,6 @@ public:
 	static std::shared_ptr<MarmotType> MakeUnionType(const std::string& name, const std::string& module_name, std::vector<std::string>&& generic_params = {});
 	static std::shared_ptr<MarmotType> MakeNewType(const std::string& name, const std::string& module_name, const std::shared_ptr<MarmotType>& representation, std::vector<std::string>&& generic_params = {});
 
-	static std::shared_ptr<MarmotType> SubstituteTypeParams(const std::shared_ptr<MarmotType>& type, const std::unordered_map<std::string, std::shared_ptr<MarmotType>>& substitutions);
-
-	// The same instantiation of a declared type, built in `target`, which a
-	// program may already name.
-	static void SubstituteTypeParamsInto(const std::shared_ptr<MarmotType>& target, const std::shared_ptr<MarmotType>& type, const std::unordered_map<std::string, std::shared_ptr<MarmotType>>& substitutions);
-
 	using TypeArgumentSubstituteFn = std::function<std::shared_ptr<MarmotType>(const std::shared_ptr<MarmotType>&)>;
 
 	static std::vector<std::shared_ptr<MarmotType>> InstantiateTypeArguments(const std::vector<std::string>& generic_params, const std::vector<std::shared_ptr<MarmotType>>& type_arguments, const TypeArgumentSubstituteFn& substitute);

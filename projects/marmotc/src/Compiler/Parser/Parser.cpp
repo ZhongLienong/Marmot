@@ -12,6 +12,7 @@
 #include "Compiler/DerivedDeclarationGenerator/DerivedDeclarationGenerator.h"
 #include "Compiler/Lexer/Lexer.h"
 #include "Parser.h"
+#include "Compiler/TypeTransform/TypeTransform.h"
 
 using namespace std::string_literals;
 
@@ -1138,7 +1139,7 @@ std::optional<CompilerError> Parser::FillDeferredInstantiations()
 			return GenerateParserError(std::format("'{0}' and the types it holds instantiate each other with arguments other than their own type parameters, which cannot be built. Name it here with its own type parameters, {0}<{1}>, and use the same parameter names in the declarations that name each other.", stuck.m_reference.m_lexeme, parameter_list), stuck.m_reference);
 		}
 
-		MarmotType::SubstituteTypeParamsInto((*ready)->m_target, (*ready)->m_template, (*ready)->m_substitutions);
+		TypeTransform::InstantiateInto((*ready)->m_target, (*ready)->m_template, (*ready)->m_substitutions);
 		m_unfilled_instantiations.erase((*ready)->m_target.get());
 		waiting.erase(ready);
 	}
@@ -5490,7 +5491,7 @@ MarmotResult::TypeResult Parser::ParseType(bool is_foreign)
 										substitutions[generic_params[i]] = type_args[i];
 									}
 
-									return MarmotType::SubstituteTypeParams(base_type, substitutions);
+									return TypeTransform::Instantiate(base_type, substitutions);
 								}
 
 								// Without arguments a parameterised alias would hand back a template

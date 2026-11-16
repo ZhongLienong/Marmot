@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "Compiler/Lowering/InstanceResolver.h"
+#include "Compiler/TypeTransform/TypeTransform.h"
 
 #include <memory>
 #include <string>
@@ -93,7 +94,7 @@ TEST_CASE("Associated type resolution binds phantom parameters from a nominal pr
 	const std::shared_ptr<MarmotType> integer = MarmotType::MakeLiteralType<MarmotType::IntegerType>();
 	const std::shared_ptr<MarmotType> parameter = MarmotType::MakeGenericType("T");
 	const std::shared_ptr<MarmotType> prototype = MarmotType::MakeStructType("Phantom", "Origin", {}, {}, { "T" });
-	const std::shared_ptr<MarmotType> concrete = MarmotType::SubstituteTypeParams(prototype, { { "T", integer } });
+	const std::shared_ptr<MarmotType> concrete = TypeTransform::Instantiate(prototype, { { "T", integer } });
 	TypeclassMetadata metadata;
 	metadata.m_type_param_names = { "Container" };
 	metadata.m_associated_type_names = { "Item" };

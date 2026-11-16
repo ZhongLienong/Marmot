@@ -9,6 +9,7 @@
 #include "Compiler/Error/CompilerError.h"
 #include "Compiler/Module/TypeclassMetadata.h"
 #include "Compiler/Result/Result.h"
+#include "Compiler/TypeTransform/TypeTransform.h"
 
 class ExpectedTypeGuard;
 class PatternCoverage;
@@ -61,11 +62,6 @@ private:
 	using GenericStructNames = std::unordered_set<std::string>;
 	using GenericUnionNames = std::unordered_set<std::string>;
 	using TypeDefinitionMap = std::unordered_map<std::string, std::shared_ptr<MarmotType>>;
-	struct FresheningContext
-	{
-		std::unordered_map<std::string, std::shared_ptr<MarmotType>> m_generic_params;
-		std::unordered_map<const MarmotType*, std::shared_ptr<MarmotType>> m_type_cache;  // Maps type pointers to their fresh versions (for cycle detection)
-	};
 
 	struct InstanceKey
 	{
@@ -241,9 +237,7 @@ private:
 
 	std::shared_ptr<MarmotType> Freshen(const std::shared_ptr<MarmotType>& type);
 
-	std::shared_ptr<MarmotType> Freshen(const std::shared_ptr<MarmotType>& type, FresheningContext& context);
-
-	FresheningContext MakeLambdaFresheningContext();
+	TypeTransform::Freshener MakeLambdaFresheningContext();
 
 	std::unordered_set<int> CollectEnclosingTypeVariableIds();
 
@@ -277,8 +271,6 @@ private:
 	void ResolveRecordedTypes(MarmotPattern& pattern);
 
 	void CheckCallTypeDecided(const MarmotExpression::Call& call);
-
-	std::shared_ptr<MarmotType> ApplySubstitution(const std::shared_ptr<MarmotType>& type, std::unordered_map<const MarmotType*, std::shared_ptr<MarmotType>>& cache);
 
 	bool OccursCheck(int var_id, const std::shared_ptr<MarmotType>& type);
 

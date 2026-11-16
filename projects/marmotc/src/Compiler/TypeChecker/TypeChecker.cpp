@@ -12,6 +12,7 @@
 #include "PatternCoverage.h"
 #include "TypeChecker.h"
 #include "Compiler/TypeMatching/InstanceTypeMatcher.h"
+#include "Compiler/TypeTransform/TypeTransform.h"
 #include <cassert>
 
 using namespace std::string_literals;
@@ -100,101 +101,6 @@ namespace
 		);
 	}
 
-	// What a type is built from, one level down. Every walk over a type descends
-	// through this one function, so no walk can skip a part another one sees.
-	void ForEachComponent(const MarmotType& type, const std::function<void(const std::shared_ptr<MarmotType>&)>& visit)
-	{
-		const std::function<void(const std::vector<std::shared_ptr<MarmotType>>&)> visit_all = [&visit](const std::vector<std::shared_ptr<MarmotType>>& components)
-		{
-			for (const std::shared_ptr<MarmotType>& component : components)
-			{
-				visit(component);
-			}
-		};
-		const std::function<void(const std::vector<MarmotType::ClassConstraint>&)> visit_constraints = [&visit, &visit_all](const std::vector<MarmotType::ClassConstraint>& constraints)
-		{
-			for (const MarmotType::ClassConstraint& constraint : constraints)
-			{
-				visit_all(constraint.m_type_args);
-				if (constraint.IsEquality())
-				{
-					visit(constraint.m_equality_lhs);
-					visit(constraint.m_equality_rhs);
-				}
-			}
-		};
-
-		std::visit
-		(
-			[&visit, &visit_all, &visit_constraints]<typename T>(const T& node)
-			{
-				using Node = std::decay_t<T>;
-				if constexpr (std::is_same_v<Node, MarmotType::ArrayType> || std::is_same_v<Node, MarmotType::ChannelType> || std::is_same_v<Node, MarmotType::CellType> || std::is_same_v<Node, MarmotType::RangeType>)
-				{
-					visit(node.m_element_type);
-				}
-				else if constexpr (std::is_same_v<Node, MarmotType::WorkerType>)
-				{
-					visit(node.m_result_type);
-				}
-				else if constexpr (std::is_same_v<Node, MarmotType::TupleType>)
-				{
-					visit_all(node.m_element_types);
-				}
-				else if constexpr (std::is_same_v<Node, MarmotType::FunctionType>)
-				{
-					visit_all(node.m_param_types);
-					visit(node.m_return_type);
-					visit_constraints(node.m_constraints);
-				}
-				else if constexpr (std::is_same_v<Node, MarmotType::StructType>)
-				{
-					visit_all(node.m_member_types);
-					visit_all(node.m_type_arguments);
-					visit_constraints(node.m_constraints);
-				}
-				else if constexpr (std::is_same_v<Node, MarmotType::UnionType>)
-				{
-					for (const auto& [_, member_ctx] : node.m_member_info)
-					{
-						visit_all(member_ctx.m_member_types);
-					}
-					visit_all(node.m_type_arguments);
-					visit_constraints(node.m_constraints);
-				}
-				else if constexpr (std::is_same_v<Node, MarmotType::NewType>)
-				{
-					visit(node.m_representation);
-					visit_all(node.m_type_arguments);
-					visit_constraints(node.m_constraints);
-				}
-				else if constexpr (std::is_same_v<Node, MarmotType::AssociatedType> || std::is_same_v<Node, MarmotType::ClassConstraint>)
-				{
-					visit_all(node.m_type_args);
-				}
-			},
-			type.m_type
-		);
-	}
-
-	// A newtype with `map` applied to what it is built from: its representation,
-	// type arguments and constraints.
-	template<typename MapFn>
-	std::shared_ptr<MarmotType> MapNewType(const std::shared_ptr<MarmotType>& type, MapFn&& map)
-	{
-		const MarmotType::NewType& new_type = type->GetType<MarmotType::NewType>();
-		std::vector<std::string> generic_params = new_type.m_generic_params;
-		std::shared_ptr<MarmotType> mapped = MarmotType::MakeNewType(new_type.m_name, new_type.m_module_name, map(new_type.m_representation), std::move(generic_params));
-		MarmotType::NewType& mapped_ref = mapped->GetType<MarmotType::NewType>();
-		mapped_ref.m_constraints = MarmotType::MapConstraints(new_type.m_constraints, map);
-		if (!new_type.m_generic_params.empty() || new_type.m_is_generic_instantiation)
-		{
-			mapped_ref.m_is_generic_instantiation = true;
-			mapped_ref.m_type_arguments = MarmotType::InstantiateTypeArguments(new_type.m_generic_params, new_type.m_type_arguments, map);
-		}
-		return mapped;
-	}
-
 	void ForEachType(const std::shared_ptr<MarmotType>& type, const std::function<void(const MarmotType&)>& visit, std::unordered_set<const MarmotType*>& visited)
 	{
 		if (type == nullptr || !visited.insert(type.get()).second)
@@ -203,7 +109,7 @@ namespace
 		}
 
 		visit(*type);
-		ForEachComponent(*type, [&visit, &visited](const std::shared_ptr<MarmotType>& component) { ForEachType(component, visit, visited); });
+		TypeTransform::ForEachChild(*type, [&visit, &visited](const std::shared_ptr<MarmotType>& component) { ForEachType(component, visit, visited); });
 	}
 
 	bool ContainsType(const std::shared_ptr<MarmotType>& type, const std::function<bool(const MarmotType&)>& is_wanted, std::unordered_set<const MarmotType*>& visited)
@@ -219,7 +125,7 @@ namespace
 		}
 
 		bool found = false;
-		ForEachComponent(*type, [&found, &is_wanted, &visited](const std::shared_ptr<MarmotType>& component) { found = found || ContainsType(component, is_wanted, visited); });
+		TypeTransform::ForEachChild(*type, [&found, &is_wanted, &visited](const std::shared_ptr<MarmotType>& component) { found = found || ContainsType(component, is_wanted, visited); });
 		return found;
 	}
 
@@ -227,14 +133,6 @@ namespace
 	{
 		std::unordered_set<const MarmotType*> visited;
 		return ContainsType(type, [](const MarmotType& node) { return node.IsType<MarmotType::TypeVariable>(); }, visited);
-	}
-
-	// Whether substitution can change the type: a variable may be bound, and a
-	// projection may reduce.
-	bool NeedsSubstitution(const std::shared_ptr<MarmotType>& type)
-	{
-		std::unordered_set<const MarmotType*> visited;
-		return ContainsType(type, [](const MarmotType& node) { return node.IsType<MarmotType::TypeVariable>() || node.IsType<MarmotType::AssociatedType>(); }, visited);
 	}
 
 	// A union's members' fields, in tag order: a member's tag is its place in the
@@ -1025,8 +923,8 @@ MarmotResult::TypeResult TypeChecker::ValidateInstanceConstraints(const Token& t
 		// selection: resolve both sides at the call site and compare them.
 		if (constraint.IsEquality())
 		{
-			std::shared_ptr<MarmotType> resolved_equality_lhs = ApplySubstitution(MarmotType::SubstituteTypeParams(constraint.m_equality_lhs, substitutions));
-			std::shared_ptr<MarmotType> resolved_equality_rhs = ApplySubstitution(MarmotType::SubstituteTypeParams(constraint.m_equality_rhs, substitutions));
+			std::shared_ptr<MarmotType> resolved_equality_lhs = ApplySubstitution(TypeTransform::Instantiate(constraint.m_equality_lhs, substitutions));
+			std::shared_ptr<MarmotType> resolved_equality_rhs = ApplySubstitution(TypeTransform::Instantiate(constraint.m_equality_rhs, substitutions));
 			if (std::optional<CompilerError> error = DischargeEqualityConstraint(token, constraint, resolved_equality_lhs, resolved_equality_rhs))
 			{
 				return std::unexpected(std::move(*error));
@@ -1038,7 +936,7 @@ MarmotResult::TypeResult TypeChecker::ValidateInstanceConstraints(const Token& t
 		resolved_type_args.reserve(constraint.m_type_args.size());
 		for (const std::shared_ptr<MarmotType>& type_arg : constraint.m_type_args)
 		{
-			resolved_type_args.emplace_back(ApplySubstitution(MarmotType::SubstituteTypeParams(type_arg, substitutions)));
+			resolved_type_args.emplace_back(ApplySubstitution(TypeTransform::Instantiate(type_arg, substitutions)));
 		}
 
 		if (std::optional<CompilerError> error = CheckConstraintHolds(token, MarmotType::ClassConstraint(constraint.m_class_name, std::move(resolved_type_args)), depth))
@@ -1083,7 +981,7 @@ std::shared_ptr<MarmotType> TypeChecker::ResolveAssociatedType(const MarmotType:
 		return equated_projection != nullptr ? equated_projection : unresolved_projection;
 	}
 
-	std::shared_ptr<MarmotType> concrete_binding = MarmotType::SubstituteTypeParams(binding_it->second, resolved_match->m_substitutions);
+	std::shared_ptr<MarmotType> concrete_binding = TypeTransform::Instantiate(binding_it->second, resolved_match->m_substitutions);
 	return ApplySubstitution(concrete_binding);
 }
 
@@ -1999,132 +1897,7 @@ std::shared_ptr<MarmotType> TypeChecker::FreshTypeVar()
 
 std::shared_ptr<MarmotType> TypeChecker::Freshen(const std::shared_ptr<MarmotType>& type)
 {
-	FresheningContext context;
-	return Freshen(type, context);
-}
-
-std::shared_ptr<MarmotType> TypeChecker::Freshen(const std::shared_ptr<MarmotType>& type, FresheningContext& context)
-{
-	// Check cache first to handle recursive types
-	std::unordered_map<const MarmotType*, std::shared_ptr<MarmotType>>::iterator cache_it = context.m_type_cache.find(type.get());
-	if (cache_it != context.m_type_cache.end())
-	{
-		return cache_it->second;
-	}
-
-	auto freshen = [this, &context](const std::shared_ptr<MarmotType>& part) { return Freshen(part, context); };
-	auto freshen_all = [&freshen](const std::vector<std::shared_ptr<MarmotType>>& parts) { return parts | std::views::transform(freshen) | std::ranges::to<std::vector>(); };
-
-	if (type->IsType<MarmotType::UndecidedType>() || type->IsType<MarmotType::TypeVariable>())
-	{
-		std::shared_ptr<MarmotType> fresh_var = FreshTypeVar();
-		context.m_type_cache[type.get()] = fresh_var;
-		return fresh_var;
-	}
-	else if (type->IsType<MarmotType::GenericParam>())
-	{
-		// For GenericParam, check if we've already freshened this parameter name
-		const std::string& param_name = type->GetType<MarmotType::GenericParam>().m_name;
-		TypeEnvironment::iterator it = context.m_generic_params.find(param_name);
-		if (it != context.m_generic_params.end())
-		{
-			// We've already freshened this generic parameter - return the same type variable
-			return it->second;
-		}
-		else
-		{
-			// First time seeing this generic parameter - create a fresh type variable and store it
-			std::shared_ptr<MarmotType> fresh_var = FreshTypeVar();
-			context.m_generic_params[param_name] = fresh_var;
-			return fresh_var;
-		}
-	}
-	else if (type->IsType<MarmotType::ArrayType>())
-	{
-		return MarmotType::MakeArrayType(freshen(type->GetType<MarmotType::ArrayType>().m_element_type));
-	}
-	else if (type->IsType<MarmotType::RangeType>())
-	{
-		return MarmotType::MakeRangeType(freshen(type->GetType<MarmotType::RangeType>().m_element_type));
-	}
-	else if (type->IsType<MarmotType::WorkerType>())
-	{
-		return MarmotType::MakeWorkerType(freshen(type->GetType<MarmotType::WorkerType>().m_result_type));
-	}
-	else if (type->IsType<MarmotType::ChannelType>())
-	{
-		return MarmotType::MakeChannelType(freshen(type->GetType<MarmotType::ChannelType>().m_element_type));
-	}
-	else if (type->IsType<MarmotType::CellType>())
-	{
-		return MarmotType::MakeCellType(freshen(type->GetType<MarmotType::CellType>().m_element_type));
-	}
-	else if (type->IsType<MarmotType::FunctionType>())
-	{
-		MarmotType::FunctionType& func_type = type->GetType<MarmotType::FunctionType>();
-		std::vector<std::shared_ptr<MarmotType>> fresh_params = freshen_all(func_type.m_param_types);
-		std::shared_ptr<MarmotType> fresh_return = freshen(func_type.m_return_type);
-		std::shared_ptr<MarmotType> fresh_function = MarmotType::MakeFunctionType(fresh_params, std::move(fresh_return), func_type.m_is_foreign);
-		fresh_function->GetType<MarmotType::FunctionType>().m_constraints = MarmotType::MapConstraints(func_type.m_constraints, freshen);
-		return fresh_function;
-	}
-	else if (type->IsType<MarmotType::StructType>())
-	{
-		MarmotType::StructType& struct_type = type->GetType<MarmotType::StructType>();
-
-		// Create fresh struct and add to cache BEFORE recursing to handle cycles
-		std::vector<std::shared_ptr<MarmotType>> empty_member_types;
-		std::vector<std::string> member_names_copy = struct_type.m_member_names;
-		std::vector<std::string> instantiated_generic_params;
-		std::shared_ptr<MarmotType> fresh_struct = MarmotType::MakeStructType(struct_type.m_name, struct_type.m_module_name, std::move(empty_member_types), std::move(member_names_copy), std::move(instantiated_generic_params));
-		MarmotType::StructType& fresh_struct_ref = fresh_struct->GetType<MarmotType::StructType>();
-		fresh_struct_ref.m_is_generic_instantiation = struct_type.m_is_generic_instantiation || !struct_type.m_generic_params.empty();
-		context.m_type_cache[type.get()] = fresh_struct;
-
-		if (fresh_struct_ref.m_is_generic_instantiation)
-		{
-			fresh_struct_ref.m_type_arguments = MarmotType::InstantiateTypeArguments(struct_type.m_generic_params, struct_type.m_type_arguments, freshen);
-		}
-		fresh_struct_ref.m_member_types = freshen_all(struct_type.m_member_types);
-		fresh_struct_ref.m_constraints = MarmotType::MapConstraints(struct_type.m_constraints, freshen);
-		return fresh_struct;
-	}
-	else if (type->IsType<MarmotType::UnionType>())
-	{
-		MarmotType::UnionType& union_type = type->GetType<MarmotType::UnionType>();
-
-		// Create fresh union and add to cache BEFORE recursing to handle cycles
-		std::vector<std::string> instantiated_generic_params;
-		std::shared_ptr<MarmotType> fresh_union = MarmotType::MakeUnionType(union_type.m_name, union_type.m_module_name, std::move(instantiated_generic_params));
-		context.m_type_cache[type.get()] = fresh_union;
-		MarmotType::UnionType& fresh_union_ref = fresh_union->GetType<MarmotType::UnionType>();
-		fresh_union_ref.m_is_generic_instantiation = union_type.m_is_generic_instantiation || !union_type.m_generic_params.empty();
-
-		if (fresh_union_ref.m_is_generic_instantiation)
-		{
-			fresh_union_ref.m_type_arguments = MarmotType::InstantiateTypeArguments(union_type.m_generic_params, union_type.m_type_arguments, freshen);
-		}
-		fresh_union_ref.m_constraints = MarmotType::MapConstraints(union_type.m_constraints, freshen);
-		for (const auto& [member_name, member_ctx] : union_type.m_member_info)
-		{
-			fresh_union_ref.m_member_info.emplace(member_name, MarmotType::UnionType::UnionMemberContext(freshen_all(member_ctx.m_member_types), member_ctx.m_tag));
-		}
-		return fresh_union;
-	}
-	else if (type->IsType<MarmotType::TupleType>())
-	{
-		return MarmotType::MakeTupleType(freshen_all(type->GetType<MarmotType::TupleType>().m_element_types));
-	}
-	else if (type->IsType<MarmotType::AssociatedType>())
-	{
-		MarmotType::AssociatedType& associated_type = type->GetType<MarmotType::AssociatedType>();
-		return MarmotType::MakeAssociatedType(associated_type.m_class_name, associated_type.m_name, freshen_all(associated_type.m_type_args));
-	}
-	else if (type->IsType<MarmotType::NewType>())
-	{
-		return MapNewType(type, freshen);
-	}
-	return type;
+	return TypeTransform::Freshener([this]() { return FreshTypeVar(); }).Apply(type);
 }
 
 // A generic parameter is checked in its body as a type variable, so nothing but
@@ -2181,7 +1954,7 @@ std::shared_ptr<MarmotType> TypeChecker::InstantiateWrittenType(const std::share
 	{
 		return written_type;
 	}
-	return MarmotType::SubstituteTypeParams(written_type, parameters);
+	return TypeTransform::Instantiate(written_type, parameters);
 }
 
 std::optional<std::string> TypeChecker::RigidParameterName(const std::shared_ptr<MarmotType>& resolved_type) const
@@ -2195,14 +1968,14 @@ std::optional<std::string> TypeChecker::RigidParameterName(const std::shared_ptr
 	return rigid != m_rigid_type_vars.cend() ? std::optional<std::string>(rigid->second) : std::nullopt;
 }
 
-TypeChecker::FresheningContext TypeChecker::MakeLambdaFresheningContext()
+TypeTransform::Freshener TypeChecker::MakeLambdaFresheningContext()
 {
-	FresheningContext context;
+	TypeTransform::Freshener context([this]() { return FreshTypeVar(); });
 	for (TypeEnvironmentStack::const_reverse_iterator scope_it = m_type_scopes.crbegin(); scope_it != m_type_scopes.crend(); ++scope_it)
 	{
 		for (const auto& [name, bound_type] : scope_it->m_names)
 		{
-			if (context.m_generic_params.contains(name))
+			if (context.Bindings().contains(name))
 			{
 				continue;
 			}
@@ -2213,8 +1986,7 @@ TypeChecker::FresheningContext TypeChecker::MakeLambdaFresheningContext()
 				continue;
 			}
 
-			context.m_generic_params.emplace(name, resolved_type);
-			context.m_type_cache.emplace(resolved_type.get(), resolved_type);
+			context.KeepParameter(name, std::move(resolved_type));
 		}
 	}
 	return context;
@@ -2271,190 +2043,7 @@ std::unordered_set<int> TypeChecker::CollectEnclosingTypeVariableIds()
 
 std::shared_ptr<MarmotType> TypeChecker::ApplySubstitution(const std::shared_ptr<MarmotType>& type)
 {
-	if (!NeedsSubstitution(type))
-	{
-		return type;
-	}
-
-	std::unordered_map<const MarmotType*, std::shared_ptr<MarmotType>> cache;
-	return ApplySubstitution(type, cache);
-}
-
-std::shared_ptr<MarmotType> TypeChecker::ApplySubstitution(const std::shared_ptr<MarmotType>& type, std::unordered_map<const MarmotType*, std::shared_ptr<MarmotType>>& cache)
-{
-	if (
-			type->IsType<MarmotType::IntegerType>() ||
-			type->IsType<MarmotType::FloatType>() ||
-			type->IsType<MarmotType::BoolType>() ||
-			type->IsType<MarmotType::UnitType>() ||
-			type->IsType<MarmotType::TextType>() ||
-			type->IsType<MarmotType::ByteType>() ||
-			type->IsType<MarmotType::WordType>() ||
-			type->IsType<MarmotType::NeverType>()
-		)
-	{
-		return type;
-	}
-
-	// Check cache first to handle recursive types
-	std::unordered_map<const MarmotType*, std::shared_ptr<MarmotType>>::iterator cache_it = cache.find(type.get());
-	if (cache_it != cache.end())
-	{
-		return cache_it->second;
-	}
-
-	// A nominal type is the one node a walk can reach again through itself, and
-	// rebuilding it then marks it changed whether or not anything in it was. It
-	// is the only node worth asking before descending; any other node rebuilds
-	// only when a part of it did.
-	if ((type->IsType<MarmotType::StructType>() || type->IsType<MarmotType::UnionType>()) && !NeedsSubstitution(type))
-	{
-		return type;
-	}
-
-	// Each part substituted, noting whether any came back different: a node
-	// none of whose parts changed is returned as it is.
-	bool changed = false;
-	auto apply = [this, &cache, &changed](const std::shared_ptr<MarmotType>& part)
-	{
-		std::shared_ptr<MarmotType> applied = ApplySubstitution(part, cache);
-		changed = changed || applied != part;
-		return applied;
-	};
-	auto apply_all = [&apply](const std::vector<std::shared_ptr<MarmotType>>& parts) { return parts | std::views::transform(apply) | std::ranges::to<std::vector>(); };
-
-	if (type->IsType<MarmotType::TypeVariable>())
-	{
-		int var_id = type->GetType<MarmotType::TypeVariable>().m_id;
-		TypeSubstitution::iterator it = m_type_substitution.find(var_id);
-		if (it != m_type_substitution.end())
-		{
-			// Recursively apply substitution in case the substitution itself contains type variables
-			return ApplySubstitution(it->second, cache);
-		}
-		return type;
-	}
-	else if (type->IsType<MarmotType::AssociatedType>())
-	{
-		MarmotType::AssociatedType& associated_type = type->GetType<MarmotType::AssociatedType>();
-		std::vector<std::shared_ptr<MarmotType>> substituted_type_args = apply_all(associated_type.m_type_args);
-		std::shared_ptr<MarmotType> associated_type_ref = changed
-			? MarmotType::MakeAssociatedType(associated_type.m_class_name, associated_type.m_name, std::move(substituted_type_args))
-			: type;
-		std::shared_ptr<MarmotType> resolved_type = ResolveAssociatedType(associated_type_ref->GetType<MarmotType::AssociatedType>());
-		cache[type.get()] = resolved_type;
-		return resolved_type;
-	}
-	else if (type->IsType<MarmotType::ArrayType>())
-	{
-		std::shared_ptr<MarmotType> element_type = apply(type->GetType<MarmotType::ArrayType>().m_element_type);
-		return changed ? MarmotType::MakeArrayType(element_type) : type;
-	}
-	else if (type->IsType<MarmotType::RangeType>())
-	{
-		std::shared_ptr<MarmotType> element_type = apply(type->GetType<MarmotType::RangeType>().m_element_type);
-		return changed ? MarmotType::MakeRangeType(element_type) : type;
-	}
-	else if (type->IsType<MarmotType::WorkerType>())
-	{
-		std::shared_ptr<MarmotType> result_type = apply(type->GetType<MarmotType::WorkerType>().m_result_type);
-		return changed ? MarmotType::MakeWorkerType(result_type) : type;
-	}
-	else if (type->IsType<MarmotType::ChannelType>())
-	{
-		std::shared_ptr<MarmotType> element_type = apply(type->GetType<MarmotType::ChannelType>().m_element_type);
-		return changed ? MarmotType::MakeChannelType(element_type) : type;
-	}
-	else if (type->IsType<MarmotType::CellType>())
-	{
-		std::shared_ptr<MarmotType> element_type = apply(type->GetType<MarmotType::CellType>().m_element_type);
-		return changed ? MarmotType::MakeCellType(element_type) : type;
-	}
-	else if (type->IsType<MarmotType::FunctionType>())
-	{
-		MarmotType::FunctionType& func_type = type->GetType<MarmotType::FunctionType>();
-		std::vector<std::shared_ptr<MarmotType>> new_param_types = apply_all(func_type.m_param_types);
-		std::shared_ptr<MarmotType> new_return_type = apply(func_type.m_return_type);
-		std::vector<MarmotType::ClassConstraint> new_constraints = MarmotType::MapConstraints(func_type.m_constraints, apply);
-		if (!changed)
-		{
-			return type;
-		}
-		std::shared_ptr<MarmotType> new_function = MarmotType::MakeFunctionType(new_param_types, std::move(new_return_type), func_type.m_is_foreign);
-		new_function->GetType<MarmotType::FunctionType>().m_constraints = std::move(new_constraints);
-		return new_function;
-	}
-	else if (type->IsType<MarmotType::StructType>())
-	{
-		MarmotType::StructType& struct_type = type->GetType<MarmotType::StructType>();
-
-		// Create new struct and add to cache BEFORE recursing to handle cycles
-		std::vector<std::shared_ptr<MarmotType>> empty_member_types;
-		std::vector<std::string> member_names_copy = struct_type.m_member_names;
-		std::vector<std::string> instantiated_generic_params;
-		std::shared_ptr<MarmotType> new_struct = MarmotType::MakeStructType(struct_type.m_name, struct_type.m_module_name, std::move(empty_member_types), std::move(member_names_copy), std::move(instantiated_generic_params));
-		cache[type.get()] = new_struct;
-
-		std::vector<std::shared_ptr<MarmotType>> new_member_types = apply_all(struct_type.m_member_types);
-		std::vector<MarmotType::ClassConstraint> new_constraints = MarmotType::MapConstraints(struct_type.m_constraints, apply);
-		std::vector<std::shared_ptr<MarmotType>> new_type_arguments = apply_all(struct_type.m_type_arguments);
-		if (!changed)
-		{
-			cache[type.get()] = type;
-			return type;
-		}
-
-		MarmotType::StructType& new_struct_ref = new_struct->GetType<MarmotType::StructType>();
-		new_struct_ref.m_member_types = std::move(new_member_types);
-		new_struct_ref.m_constraints = std::move(new_constraints);
-		new_struct_ref.m_type_arguments = std::move(new_type_arguments);
-		// Mark this as a generic instantiation if the original had generic params
-		if (!struct_type.m_generic_params.empty() || struct_type.m_is_generic_instantiation)
-		{
-			new_struct_ref.m_is_generic_instantiation = true;
-		}
-		return new_struct;
-	}
-	else if (type->IsType<MarmotType::UnionType>())
-	{
-		MarmotType::UnionType& union_type = type->GetType<MarmotType::UnionType>();
-
-		// Create new union and add to cache BEFORE recursing to handle cycles
-		std::vector<std::string> instantiated_generic_params;
-		std::shared_ptr<MarmotType> new_union = MarmotType::MakeUnionType(union_type.m_name, union_type.m_module_name, std::move(instantiated_generic_params));
-		cache[type.get()] = new_union;
-		MarmotType::UnionType& new_union_ref = new_union->GetType<MarmotType::UnionType>();
-
-		new_union_ref.m_constraints = MarmotType::MapConstraints(union_type.m_constraints, apply);
-		new_union_ref.m_type_arguments = apply_all(union_type.m_type_arguments);
-		for (const auto& [member_name, member_ctx] : union_type.m_member_info)
-		{
-			new_union_ref.m_member_info.emplace(member_name, MarmotType::UnionType::UnionMemberContext(apply_all(member_ctx.m_member_types), member_ctx.m_tag));
-		}
-
-		if (!changed)
-		{
-			cache[type.get()] = type;
-			return type;
-		}
-		// Mark this as a generic instantiation if the original had generic params
-		if (!union_type.m_generic_params.empty() || union_type.m_is_generic_instantiation)
-		{
-			new_union_ref.m_is_generic_instantiation = true;
-		}
-		return new_union;
-	}
-	else if (type->IsType<MarmotType::TupleType>())
-	{
-		std::vector<std::shared_ptr<MarmotType>> new_element_types = apply_all(type->GetType<MarmotType::TupleType>().m_element_types);
-		return changed ? MarmotType::MakeTupleType(std::move(new_element_types)) : type;
-	}
-	else if (type->IsType<MarmotType::NewType>())
-	{
-		return MapNewType(type, apply);
-	}
-
-	return type;
+	return TypeTransform::Apply(type, m_type_substitution, [this](const MarmotType::AssociatedType& projection) { return ResolveAssociatedType(projection); });
 }
 
 bool TypeChecker::OccursCheck(int var_id, const std::shared_ptr<MarmotType>& type)
@@ -3308,22 +2897,22 @@ MarmotResult::TypeResult TypeChecker::CheckGenericLambda(MarmotExpression::Funct
 		}
 	}
 
-	FresheningContext freshening_context;
+	TypeTransform::Freshener freshening_context([this]() { return FreshTypeVar(); });
 	for (std::shared_ptr<MarmotType>& param_type : function.m_param_types)
 	{
-		param_type = Freshen(param_type, freshening_context);
+		param_type = freshening_context.Apply(param_type);
 	}
-	function.m_return_type = Freshen(function.m_return_type, freshening_context);
+	function.m_return_type = freshening_context.Apply(function.m_return_type);
 	// An equality constraint's types are its operands, which Map freshens with the
 	// signature: otherwise the projection would never match the one built at the
 	// use site.
-	function.m_constraints = MarmotType::MapConstraints(function.m_constraints, [this, &freshening_context](const std::shared_ptr<MarmotType>& constraint_type) { return Freshen(constraint_type, freshening_context); });
+	function.m_constraints = MarmotType::MapConstraints(function.m_constraints, [&freshening_context](const std::shared_ptr<MarmotType>& constraint_type) { return freshening_context.Apply(constraint_type); });
 
 	std::shared_ptr<MarmotType> return_type_copy = function.m_return_type;
 	std::shared_ptr<MarmotType> function_type = MarmotType::MakeFunctionType(function.m_param_types, std::move(return_type_copy));
 	function_type->GetType<MarmotType::FunctionType>().m_constraints = function.m_constraints;
 	function.m_type_data = function_type;
-	bind(function_type, freshening_context.m_generic_params
+	bind(function_type, freshening_context.Bindings()
 		| std::views::values
 		| std::views::filter([](const std::shared_ptr<MarmotType>& type) { return type->IsType<MarmotType::TypeVariable>(); })
 		| std::views::transform([](const std::shared_ptr<MarmotType>& type) { return type->GetType<MarmotType::TypeVariable>().m_id; })
@@ -3334,13 +2923,7 @@ MarmotResult::TypeResult TypeChecker::CheckGenericLambda(MarmotExpression::Funct
 		for (const Token& generic_param : function.m_generic_params)
 		{
 			const std::string& param_name = generic_param.m_lexeme;
-			TypeEnvironment::iterator it = freshening_context.m_generic_params.find(param_name);
-			if (it == freshening_context.m_generic_params.end())
-			{
-				std::shared_ptr<MarmotType> fresh_var = FreshTypeVar();
-				it = freshening_context.m_generic_params.emplace(param_name, std::move(fresh_var)).first;
-			}
-			m_type_scopes.back().m_names.emplace(param_name, it->second);
+			m_type_scopes.back().m_names.emplace(param_name, freshening_context.Parameter(param_name));
 		}
 
 		BindParameters(function.m_params, function.m_param_types);
@@ -3360,7 +2943,7 @@ MarmotResult::TypeResult TypeChecker::CheckGenericLambda(MarmotExpression::Funct
 		// Inside its own body, a recursive call is not a fresh instantiation.
 		DefiningGenericGuard defining_guard(*this, name);
 		ExpectedTypeGuard expected_expr_guard(*this, function.m_return_type);
-		RigidTypeVariablesGuard rigid_guard(*this, freshening_context.m_generic_params);
+		RigidTypeVariablesGuard rigid_guard(*this, freshening_context.Bindings());
 		const size_t pending_start = m_pending_instances.size();
 		return Evaluate(function.m_body)
 			.and_then
@@ -3668,16 +3251,16 @@ MarmotResult::TypeResult TypeChecker::operator()(MarmotStatement::FunctionDefini
 		}
 	}
 
-	FresheningContext freshening_context;
+	TypeTransform::Freshener freshening_context([this]() { return FreshTypeVar(); });
 	for (std::shared_ptr<MarmotType>& param_type : defun.m_param_types)
 	{
-		param_type = Freshen(param_type, freshening_context);
+		param_type = freshening_context.Apply(param_type);
 	}
-	defun.m_return_type = Freshen(defun.m_return_type, freshening_context);
+	defun.m_return_type = freshening_context.Apply(defun.m_return_type);
 	// An equality constraint's types are its operands, which Map freshens with the
 	// signature: otherwise the projection would never match the one built at the
 	// use site.
-	defun.m_constraints = MarmotType::MapConstraints(defun.m_constraints, [this, &freshening_context](const std::shared_ptr<MarmotType>& constraint_type) { return Freshen(constraint_type, freshening_context); });
+	defun.m_constraints = MarmotType::MapConstraints(defun.m_constraints, [&freshening_context](const std::shared_ptr<MarmotType>& constraint_type) { return freshening_context.Apply(constraint_type); });
 
 	std::shared_ptr<MarmotType> return_type_copy = defun.m_return_type;
 	std::shared_ptr<MarmotType> function_type = MarmotType::MakeFunctionType(defun.m_param_types, std::move(return_type_copy));
@@ -3693,13 +3276,7 @@ MarmotResult::TypeResult TypeChecker::operator()(MarmotStatement::FunctionDefini
 		for (const Token& generic_param : defun.m_generic_params)
 		{
 			const std::string& param_name = generic_param.m_lexeme;
-			TypeEnvironment::iterator it = freshening_context.m_generic_params.find(param_name);
-			if (it == freshening_context.m_generic_params.end())
-			{
-				std::shared_ptr<MarmotType> fresh_var = FreshTypeVar();
-				it = freshening_context.m_generic_params.emplace(param_name, std::move(fresh_var)).first;
-			}
-			m_type_scopes.back().m_names.emplace(param_name, it->second);
+			m_type_scopes.back().m_names.emplace(param_name, freshening_context.Parameter(param_name));
 		}
 		BindParameters(defun.m_params, defun.m_param_types);
 
@@ -3717,7 +3294,7 @@ MarmotResult::TypeResult TypeChecker::operator()(MarmotStatement::FunctionDefini
 		}
 
 		ExpectedTypeGuard expected_expr_guard(*this, defun.m_return_type);
-		RigidTypeVariablesGuard rigid_guard(*this, freshening_context.m_generic_params);
+		RigidTypeVariablesGuard rigid_guard(*this, freshening_context.Bindings());
 		const size_t pending_start = m_pending_instances.size();
 		return Evaluate(defun.m_body)
 			.and_then
@@ -4149,7 +3726,7 @@ MarmotResult::TypeResult TypeChecker::RegisterInstance(MarmotStatement::Instance
 			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Instance declaration error: method '" + method_name + "' not defined in class", method.m_name, m_file_name, m_source_lines));
 		}
 
-		std::shared_ptr<MarmotType> expected_signature = ApplySubstitution(MarmotType::SubstituteTypeParams(expected_it->second, type_param_substitutions));
+		std::shared_ptr<MarmotType> expected_signature = ApplySubstitution(TypeTransform::Instantiate(expected_it->second, type_param_substitutions));
 		std::shared_ptr<MarmotType> actual_signature = ApplySubstitution(MarmotType::MakeFunctionType(defun.m_param_types, std::shared_ptr<MarmotType>(defun.m_return_type)));
 
 		if (*expected_signature != *actual_signature)
@@ -4462,7 +4039,7 @@ MarmotResult::TypeResult TypeChecker::ResolveIteration(IterationNode& node, cons
 				AssociatedTypeEnvironment::const_iterator binding_it = resolved_match->m_instance->m_associated_type_bindings.find(std::string(ITEM_ASSOCIATED_TYPE_NAME));
 				if (binding_it != resolved_match->m_instance->m_associated_type_bindings.cend())
 				{
-					iterable_item_type = ApplySubstitution(MarmotType::SubstituteTypeParams(binding_it->second, resolved_match->m_substitutions));
+					iterable_item_type = ApplySubstitution(TypeTransform::Instantiate(binding_it->second, resolved_match->m_substitutions));
 					is_iterable = true;
 				}
 			}
@@ -4486,7 +4063,7 @@ MarmotResult::TypeResult TypeChecker::ResolveIteration(IterationNode& node, cons
 				{
 					return std::unexpected(fail("ambiguous Iterable instance for iterator type", resolved_range));
 				}
-				iterable_item_type = MarmotType::SubstituteTypeParams(info.m_type_args[1u], matcher.Bindings());
+				iterable_item_type = TypeTransform::Instantiate(info.m_type_args[1u], matcher.Bindings());
 				is_iterable = true;
 			}
 		}
@@ -4534,7 +4111,7 @@ MarmotResult::TypeResult TypeChecker::ResolveIteration(IterationNode& node, cons
 		}
 	}
 
-	std::shared_ptr<MarmotType> next_type = ApplySubstitution(MarmotType::SubstituteTypeParams(method_it->second, substitutions));
+	std::shared_ptr<MarmotType> next_type = ApplySubstitution(TypeTransform::Instantiate(method_it->second, substitutions));
 	if (!next_type->IsType<MarmotType::FunctionType>())
 	{
 		return std::unexpected(fail("Iterable::Next must be a function", resolved_range));
@@ -5379,7 +4956,7 @@ std::shared_ptr<MarmotType> TypeChecker::NarrowClassMethodType(const std::string
 			class_substitutions.emplace(class_info.m_type_param_names[idx], instance_info.m_type_args[idx]);
 		}
 
-		std::shared_ptr<MarmotType> candidate_method_type = ApplySubstitution(MarmotType::SubstituteTypeParams(declared_method_type, class_substitutions));
+		std::shared_ptr<MarmotType> candidate_method_type = ApplySubstitution(TypeTransform::Instantiate(declared_method_type, class_substitutions));
 		if (!candidate_method_type->IsType<MarmotType::FunctionType>())
 		{
 			continue;
@@ -5421,9 +4998,8 @@ std::shared_ptr<MarmotType> TypeChecker::NarrowClassMethodType(const std::string
 			substitutions.try_emplace(param_name, FreshTypeVar());
 		}
 
-		// SubstituteTypeParams with an empty map is not the identity - it rebuilds a struct with
-		// its generic parameters cleared - so a match that derived no bindings keeps the candidate.
-		narrowed_method_type = substitutions.empty() ? candidate_method_type : ApplySubstitution(MarmotType::SubstituteTypeParams(candidate_method_type, substitutions));
+		// A match with no instance parameters needs no further instantiation.
+		narrowed_method_type = substitutions.empty() ? candidate_method_type : ApplySubstitution(TypeTransform::Instantiate(candidate_method_type, substitutions));
 	}
 
 	return narrowed_method_type;
@@ -5439,7 +5015,7 @@ MarmotResult::TypeResult TypeChecker::CheckConstrainedMethodCall(MarmotExpressio
 		class_substitutions.emplace(tc_info.m_type_param_names[i], ApplySubstitution(constraint.m_type_args[i]));
 	}
 
-	std::shared_ptr<MarmotType> resolved_method_type = ApplySubstitution(MarmotType::SubstituteTypeParams(method_type, class_substitutions));
+	std::shared_ptr<MarmotType> resolved_method_type = ApplySubstitution(TypeTransform::Instantiate(method_type, class_substitutions));
 	if (!resolved_method_type->IsType<MarmotType::FunctionType>())
 	{
 		return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeNotCallable, "Call expression type error: not a callable", call.m_paren, m_file_name, m_source_lines, resolved_method_type));
@@ -5519,7 +5095,7 @@ MarmotResult::TypeResult TypeChecker::CheckInstanceMethodCall(MarmotExpression::
 			class_substitutions.emplace(tc_info.m_type_param_names[i], instance_info.m_type_args[i]);
 		}
 
-		std::shared_ptr<MarmotType> candidate_method_type = ApplySubstitution(MarmotType::SubstituteTypeParams(method_type, class_substitutions));
+		std::shared_ptr<MarmotType> candidate_method_type = ApplySubstitution(TypeTransform::Instantiate(method_type, class_substitutions));
 		if (!candidate_method_type->IsType<MarmotType::FunctionType>())
 		{
 			continue;
@@ -5567,7 +5143,7 @@ MarmotResult::TypeResult TypeChecker::CheckInstanceMethodCall(MarmotExpression::
 		}
 
 		TypeEnvironment substitutions = std::move(matcher).TakeBindings();
-		std::shared_ptr<MarmotType> resolved_method_type = ApplySubstitution(MarmotType::SubstituteTypeParams(candidate_method_type, substitutions));
+		std::shared_ptr<MarmotType> resolved_method_type = ApplySubstitution(TypeTransform::Instantiate(candidate_method_type, substitutions));
 		candidates.emplace_back(std::move(resolved_method_type), &instance_info, std::move(substitutions), matches_expected_type);
 	}
 
@@ -6167,14 +5743,14 @@ MarmotResult::TypeResult TypeChecker::operator()(MarmotExpression::Function& fun
 	}
 
 	// Preserve visible generic type variables when a lambda annotation refers to them.
-	FresheningContext freshening_context = MakeLambdaFresheningContext();
+	TypeTransform::Freshener freshening_context = MakeLambdaFresheningContext();
 
 	// Freshen any UndecidedType parameters to TypeVariables
 	for (std::shared_ptr<MarmotType>& param_type : function.m_param_types)
 	{
-		param_type = Freshen(param_type, freshening_context);
+		param_type = freshening_context.Apply(param_type);
 	}
-	function.m_return_type = Freshen(function.m_return_type, freshening_context);
+	function.m_return_type = freshening_context.Apply(function.m_return_type);
 
 	// Create the function type and store it so it can be returned
 	std::shared_ptr<MarmotType> return_type_copy = function.m_return_type;
@@ -6574,7 +6150,7 @@ MarmotResult::TypeResult TypeChecker::ResolveIndexableElementType(const Token& o
 			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Index expression type error: the matching Indexable instance does not bind Element", op, m_file_name, m_source_lines, container_type));
 		}
 
-		return ApplySubstitution(MarmotType::SubstituteTypeParams(binding_it->second, resolved_match->m_substitutions));
+		return ApplySubstitution(TypeTransform::Instantiate(binding_it->second, resolved_match->m_substitutions));
 	}
 
 	if (IsSatisfiedByActiveConstraint(constraint))

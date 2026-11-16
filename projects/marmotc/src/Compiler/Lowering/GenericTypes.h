@@ -2,9 +2,7 @@
 
 #include "Compiler/AbstractSyntaxTree/Type.h"
 
-#include <functional>
 #include <memory>
-#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -18,14 +16,6 @@ namespace GenericTypes
 	// Records in `map` what each type parameter and type variable in `pattern`
 	// stands for in `concrete`.
 	void Deduce(const std::shared_ptr<MarmotType>& pattern, const std::shared_ptr<MarmotType>& concrete, TypeEnvironment& map);
-
-	// What an associated type projection with concrete arguments is, or
-	// nothing when no instance says.
-	using AssociatedTypeResolver = std::function<std::optional<std::shared_ptr<MarmotType>>(const MarmotType::AssociatedType&)>;
-
-	std::shared_ptr<MarmotType> Substitute(const std::shared_ptr<MarmotType>& type, const TypeEnvironment& map);
-	// Also replaces each projection `resolve` knows with what it stands for.
-	std::shared_ptr<MarmotType> Substitute(const std::shared_ptr<MarmotType>& type, const TypeEnvironment& map, const AssociatedTypeResolver& resolve);
 
 	// Opcode selection only. Never use it for instance selection or generic
 	// deduction: a newtype must stay nominal there, or instance Foo<Int>
