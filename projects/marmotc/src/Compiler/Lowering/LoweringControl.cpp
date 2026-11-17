@@ -1,4 +1,4 @@
-#include "Lowering.h"
+#include "FunctionLowering.h"
 
 #include <algorithm>
 #include <ranges>
@@ -61,13 +61,13 @@ namespace
 // A call in tail position runs without a new frame, whatever it calls: the
 // language promises it. Tail position reaches through `if` branches, match
 // arms and a block's final expression.
-Lowering::Emitted Lowering::LowerReturn(const MarmotExpression& expression)
+Lowering::Emitted Lowering::FunctionLowering::LowerReturn(const MarmotExpression& expression)
 {
 	const BranchSink tail = [this](const MarmotExpression* branch) -> Emitted
 	{
 		if (branch == nullptr)
 		{
-			Builder().Return(Builder().ConstUnit());
+			m_builder.Return(m_builder.ConstUnit());
 			return {};
 		}
 		return LowerReturn(*branch);
@@ -93,7 +93,7 @@ Lowering::Emitted Lowering::LowerReturn(const MarmotExpression& expression)
 			{
 				if (!block.m_final_expr.has_value())
 				{
-					Builder().AtLine(block.m_right_brace.m_line).Return(Builder().ConstUnit());
+					m_builder.AtLine(block.m_right_brace.m_line).Return(m_builder.ConstUnit());
 					return {};
 				}
 				return LowerReturn(*block.m_final_expr.value());
@@ -108,20 +108,20 @@ Lowering::Emitted Lowering::LowerReturn(const MarmotExpression& expression)
 	return Lower(expression)
 		.transform([this](MarmotIRValueId value)
 		{
-			Builder().Return(value);
+			m_builder.Return(value);
 		});
 }
 
 // Each branch goes to `sink`, which ends its block. An `if` without an `else`
 // is Unit when its condition fails.
-Lowering::Emitted Lowering::LowerIfWith(const MarmotExpression::IfElse& if_else, const BranchSink& sink)
+Lowering::Emitted Lowering::FunctionLowering::LowerIfWith(const MarmotExpression::IfElse& if_else, const BranchSink& sink)
 {
 	return Lower(*if_else.m_condition)
 		.and_then([&](MarmotIRValueId condition) -> Emitted
 		{
 			const MarmotIRBlockId then_block = NewBlock();
 			const MarmotIRBlockId else_block = NewBlock();
-			Builder().AtLine(if_else.m_if_token.m_line);
+			m_builder.AtLine(if_else.m_if_token.m_line);
 			Branch(condition, MarmotIRSuccessor(then_block), MarmotIRSuccessor(else_block));
 
 			PositionAt(then_block);
@@ -137,17 +137,17 @@ Lowering::Emitted Lowering::LowerIfWith(const MarmotExpression::IfElse& if_else,
 // The join's parameter has the construct's type. The type checker gives one
 // whose first branch never returns Never, whatever the others give, so then it
 // takes the type of a value that reaches it.
-std::pair<std::shared_ptr<Lowering::JoinPoint>, Lowering::BranchSink> Lowering::Join(const TypeRef& type)
+std::pair<std::shared_ptr<Lowering::FunctionLowering::JoinPoint>, Lowering::FunctionLowering::BranchSink> Lowering::FunctionLowering::Join(const TypeRef& type)
 {
 	const std::shared_ptr<JoinPoint> join = std::make_shared<JoinPoint>(NewBlock(), type);
 	BranchSink sink = [this, join](const MarmotExpression* branch) -> Emitted
 	{
-		const Lowered value = branch == nullptr ? Lowered(Builder().ConstUnit()) : Lower(*branch);
+		const Lowered value = branch == nullptr ? Lowered(m_builder.ConstUnit()) : Lower(*branch);
 		return value.transform([this, &join](MarmotIRValueId branch_value)
 		{
 			if (!IsDead() && join->m_type->IsType<MarmotType::NeverType>())
 			{
-				join->m_type = Scope().m_function.TypeOf(branch_value);
+				join->m_type = m_function.TypeOf(branch_value);
 			}
 			Jump(join->m_block, { branch_value });
 		});
@@ -155,14 +155,14 @@ std::pair<std::shared_ptr<Lowering::JoinPoint>, Lowering::BranchSink> Lowering::
 	return { join, std::move(sink) };
 }
 
-MarmotIRValueId Lowering::EnterJoin(const JoinPoint& join)
+MarmotIRValueId Lowering::FunctionLowering::EnterJoin(const JoinPoint& join)
 {
-	const MarmotIRValueId result = Builder().AddParameter(join.m_block, join.m_type);
+	const MarmotIRValueId result = m_builder.AddParameter(join.m_block, join.m_type);
 	PositionAt(join.m_block);
 	return result;
 }
 
-Lowering::Lowered Lowering::LowerIf(const MarmotExpression::IfElse& if_else)
+Lowering::Lowered Lowering::FunctionLowering::LowerIf(const MarmotExpression::IfElse& if_else)
 {
 	const auto [join, sink] = Join(Concrete(if_else.m_type_data));
 	return LowerIfWith(if_else, sink)
@@ -172,7 +172,7 @@ Lowering::Lowered Lowering::LowerIf(const MarmotExpression::IfElse& if_else)
 		});
 }
 
-Lowering::Emitted Lowering::LowerStatements(const MarmotExpression::Block& block)
+Lowering::Emitted Lowering::FunctionLowering::LowerStatements(const MarmotExpression::Block& block)
 {
 	for (const std::unique_ptr<MarmotStatement>& statement : block.m_stmts)
 	{
@@ -185,7 +185,7 @@ Lowering::Emitted Lowering::LowerStatements(const MarmotExpression::Block& block
 	return {};
 }
 
-Lowering::Lowered Lowering::LowerBlock(const MarmotExpression::Block& block)
+Lowering::Lowered Lowering::FunctionLowering::LowerBlock(const MarmotExpression::Block& block)
 {
 	const Lowered lowered = LowerStatements(block)
 		.and_then([&]() -> Lowered
@@ -194,7 +194,7 @@ Lowering::Lowered Lowering::LowerBlock(const MarmotExpression::Block& block)
 			{
 				return Lower(*block.m_final_expr.value());
 			}
-			return Builder().AtLine(block.m_right_brace.m_line).ConstUnit();
+			return m_builder.AtLine(block.m_right_brace.m_line).ConstUnit();
 		});
 	return lowered;
 }
@@ -203,12 +203,12 @@ Lowering::Lowered Lowering::LowerBlock(const MarmotExpression::Block& block)
 // case on the first that fails, binding its names as it goes. The type checker
 // makes a match exhaustive, so nothing follows the last case; a case that
 // cannot fail ends the chain.
-Lowering::Emitted Lowering::LowerMatchWith(const MarmotExpression::Match& match, const BranchSink& sink)
+Lowering::Emitted Lowering::FunctionLowering::LowerMatchWith(const MarmotExpression::Match& match, const BranchSink& sink)
 {
 	return Lower(*match.m_arg_expr)
 		.and_then([&](MarmotIRValueId scrutinee) -> Emitted
 		{
-			Builder().AtLine(match.m_match_keyword.m_line);
+			m_builder.AtLine(match.m_match_keyword.m_line);
 			for (const std::unique_ptr<MarmotExpression>& case_expression : match.m_cases)
 			{
 				const MarmotExpression::Case& match_case = case_expression->GetExpression<MarmotExpression::Case>();
@@ -235,12 +235,12 @@ Lowering::Emitted Lowering::LowerMatchWith(const MarmotExpression::Match& match,
 					break;
 				}
 			}
-			Builder().Unreachable();
+			m_builder.Unreachable();
 			return {};
 		});
 }
 
-Lowering::Lowered Lowering::LowerMatch(const MarmotExpression::Match& match)
+Lowering::Lowered Lowering::FunctionLowering::LowerMatch(const MarmotExpression::Match& match)
 {
 	const auto [join, sink] = Join(Concrete(match.m_type_data));
 	return LowerMatchWith(match, sink)
@@ -250,7 +250,7 @@ Lowering::Lowered Lowering::LowerMatch(const MarmotExpression::Match& match)
 		});
 }
 
-Lowering::Emitted Lowering::TestOrFail(MarmotIRValueId condition, MarmotIRBlockId fail)
+Lowering::Emitted Lowering::FunctionLowering::TestOrFail(MarmotIRValueId condition, MarmotIRBlockId fail)
 {
 	const MarmotIRBlockId matched = NewBlock();
 	Branch(condition, MarmotIRSuccessor(matched), MarmotIRSuccessor(fail));
@@ -260,22 +260,17 @@ Lowering::Emitted Lowering::TestOrFail(MarmotIRValueId condition, MarmotIRBlockI
 
 // Tests `value` against the pattern, going to `fail` when it does not match,
 // and defines the names it binds on the way.
-Lowering::Emitted Lowering::LowerPattern(const MarmotPattern& pattern, MarmotIRValueId value, MarmotIRBlockId fail)
+Lowering::Emitted Lowering::FunctionLowering::LowerPattern(const MarmotPattern& pattern, MarmotIRValueId value, MarmotIRBlockId fail)
 {
 	struct PatternLowering
 	{
-		Lowering& m_self;
+		FunctionLowering& m_self;
 		MarmotIRValueId m_value;
 		MarmotIRBlockId m_fail;
 
-		MarmotIRBuilder& Builder() const
-		{
-			return m_self.Builder();
-		}
-
 		TypeRef Representation() const
 		{
-			return GenericTypes::RepresentationOf(m_self.Scope().m_function.TypeOf(m_value));
+			return GenericTypes::RepresentationOf(m_self.m_function.TypeOf(m_value));
 		}
 
 		Emitted Elements(const std::vector<std::unique_ptr<MarmotPattern>>& elements, const std::function<MarmotIRValueId(uint32_t)>& element) const
@@ -314,20 +309,20 @@ Lowering::Emitted Lowering::LowerPattern(const MarmotPattern& pattern, MarmotIRV
 			const std::optional<MarmotIRImmediate> constant = m_self.ConstantOf(literal.m_kind, literal.m_token.m_lexeme);
 			if (!constant.has_value())
 			{
-				return std::unexpected(m_self.Error(CompilerErrorCode::None, "Invalid literal in pattern '" + literal.m_token.m_lexeme + "'", literal.m_token));
+				return std::unexpected(m_self.m_owner.Error(CompilerErrorCode::None, "Invalid literal in pattern '" + literal.m_token.m_lexeme + "'", literal.m_token));
 			}
-			Builder().AtLine(literal.m_token.m_line);
-			const MarmotIRValueId expected = Builder().Emit(MarmotIROp::Const, LiteralType(literal.m_kind), {}, constant.value());
-			return m_self.TestOrFail(Builder().Binary(EqualityOf(literal.m_kind), m_value, expected), m_fail);
+			m_self.m_builder.AtLine(literal.m_token.m_line);
+			const MarmotIRValueId expected = m_self.m_builder.Emit(MarmotIROp::Const, LiteralType(literal.m_kind), {}, constant.value());
+			return m_self.TestOrFail(m_self.m_builder.Binary(EqualityOf(literal.m_kind), m_value, expected), m_fail);
 		}
 
 		Emitted operator()(const MarmotPattern::Tuple& tuple) const
 		{
 			const std::vector<TypeRef> element_types = Representation()->GetType<MarmotType::TupleType>().m_element_types;
-			Builder().AtLine(tuple.m_left_paren.m_line);
+			m_self.m_builder.AtLine(tuple.m_left_paren.m_line);
 			return Elements(tuple.m_elements, [&](uint32_t index)
 			{
-				return Builder().Emit(MarmotIROp::TupleGet, element_types[index], { m_value }, MarmotIRIndex{ index });
+				return m_self.m_builder.Emit(MarmotIROp::TupleGet, element_types[index], { m_value }, MarmotIRIndex{ index });
 			});
 		}
 
@@ -339,20 +334,20 @@ Lowering::Emitted Lowering::LowerPattern(const MarmotPattern& pattern, MarmotIRV
 			const TypeRef element_type = array_type->GetType<MarmotType::ArrayType>().m_element_type;
 			const int64_t count = static_cast<int64_t>(array.m_elements.size());
 			const int64_t before = array.m_rest.has_value() ? static_cast<int64_t>(array.m_rest->m_position) : count;
-			Builder().AtLine(array.m_left_bracket.m_line);
-			const MarmotIRValueId length = Builder().Emit(MarmotIROp::ArrayLength, IntType(), { m_value });
+			m_self.m_builder.AtLine(array.m_left_bracket.m_line);
+			const MarmotIRValueId length = m_self.m_builder.Emit(MarmotIROp::ArrayLength, IntType(), { m_value });
 			const MarmotIROp comparison = array.m_rest.has_value() ? MarmotIROp::GeInt : MarmotIROp::EqInt;
 			const auto from_end = [&](int64_t distance)
 				{
-					return Builder().Binary(MarmotIROp::SubInt, length, Builder().ConstInt(distance));
+					return m_self.m_builder.Binary(MarmotIROp::SubInt, length, m_self.m_builder.ConstInt(distance));
 				};
-			return m_self.TestOrFail(Builder().Binary(comparison, length, Builder().ConstInt(count)), m_fail)
+			return m_self.TestOrFail(m_self.m_builder.Binary(comparison, length, m_self.m_builder.ConstInt(count)), m_fail)
 				.and_then([&]()
 				{
 					return Elements(array.m_elements, [&](uint32_t index)
 					{
-						const MarmotIRValueId position = index < before ? Builder().ConstInt(index) : from_end(count - index);
-						return Builder().Emit(MarmotIROp::ArrayGet, element_type, { m_value, position });
+						const MarmotIRValueId position = index < before ? m_self.m_builder.ConstInt(index) : from_end(count - index);
+						return m_self.m_builder.Emit(MarmotIROp::ArrayGet, element_type, { m_value, position });
 					});
 				})
 				.and_then([&]() -> Emitted
@@ -361,19 +356,19 @@ Lowering::Emitted Lowering::LowerPattern(const MarmotPattern& pattern, MarmotIRV
 					{
 						return {};
 					}
-					const MarmotIRValueId rest = Builder().Emit(MarmotIROp::CallForeign, array_type, { m_value, Builder().ConstInt(before), from_end(count - before) }, MarmotIRForeign{ "MARMOT_FFI_ArraySlice" });
+					const MarmotIRValueId rest = m_self.m_builder.Emit(MarmotIROp::CallForeign, array_type, { m_value, m_self.m_builder.ConstInt(before), from_end(count - before) }, MarmotIRForeign{ "MARMOT_FFI_ArraySlice" });
 					return m_self.LowerPattern(*array.m_rest->m_pattern, rest, m_fail);
 				});
 		}
 
 		Emitted operator()(const MarmotPattern::Record& record) const
 		{
-			Builder().AtLine(record.m_name_token.m_line);
+			m_self.m_builder.AtLine(record.m_name_token.m_line);
 			const std::vector<TypeRef> member_types = Representation()->GetType<MarmotType::StructType>().m_member_types;
 			for (const MarmotPattern::Record::Field& field : record.m_fields)
 			{
 				const uint32_t index = static_cast<uint32_t>(field.m_index);
-				const MarmotIRValueId member = Builder().Emit(MarmotIROp::GetMember, member_types[index], { m_value }, MarmotIRIndex{ index });
+				const MarmotIRValueId member = m_self.m_builder.Emit(MarmotIROp::GetMember, member_types[index], { m_value }, MarmotIRIndex{ index });
 				const Emitted lowered = m_self.LowerPattern(*field.m_pattern, member, m_fail);
 				if (!lowered.has_value())
 				{
@@ -385,9 +380,9 @@ Lowering::Emitted Lowering::LowerPattern(const MarmotPattern& pattern, MarmotIRV
 
 		Emitted operator()(const MarmotPattern::Range& range) const
 		{
-			Builder().AtLine(range.m_start.m_line);
-			return m_self.TestOrFail(Builder().Binary(MarmotIROp::GeInt, m_value, Builder().ConstInt(range.m_low)), m_fail)
-				.and_then([&]() { return m_self.TestOrFail(Builder().Binary(MarmotIROp::LeInt, m_value, Builder().ConstInt(range.m_high)), m_fail); });
+			m_self.m_builder.AtLine(range.m_start.m_line);
+			return m_self.TestOrFail(m_self.m_builder.Binary(MarmotIROp::GeInt, m_value, m_self.m_builder.ConstInt(range.m_low)), m_fail)
+				.and_then([&]() { return m_self.TestOrFail(m_self.m_builder.Binary(MarmotIROp::LeInt, m_value, m_self.m_builder.ConstInt(range.m_high)), m_fail); });
 		}
 
 		// Each alternative that matches jumps to one block with what it bound, so
@@ -411,12 +406,12 @@ Lowering::Emitted Lowering::LowerPattern(const MarmotPattern& pattern, MarmotIRV
 				}
 
 				const std::vector<MarmotIRValueId> values = locals
-					| std::views::transform([this](const BindingId& local) { return m_self.Scope().m_locals.at(local); })
+					| std::views::transform([this](const BindingId& local) { return m_self.m_locals.at(local); })
 					| std::ranges::to<std::vector>();
 				if (index == 0uz)
 				{
 					parameters = values
-						| std::views::transform([this, matched](MarmotIRValueId value) { return Builder().AddParameter(matched, m_self.Scope().m_function.TypeOf(value)); })
+						| std::views::transform([this, matched](MarmotIRValueId value) { return m_self.m_builder.AddParameter(matched, m_self.m_function.TypeOf(value)); })
 						| std::ranges::to<std::vector>();
 				}
 				m_self.Jump(matched, values);
@@ -442,27 +437,27 @@ Lowering::Emitted Lowering::LowerPattern(const MarmotPattern& pattern, MarmotIRV
 
 		Emitted operator()(const MarmotPattern::Constructor& constructor) const
 		{
-			Builder().AtLine(constructor.m_name_token.m_line);
+			m_self.m_builder.AtLine(constructor.m_name_token.m_line);
 			const TypeRef type = Representation();
 			if (!constructor.m_is_union)
 			{
 				const std::vector<TypeRef> member_types = type->GetType<MarmotType::StructType>().m_member_types;
 				return Elements(constructor.m_args, [&](uint32_t index)
 				{
-					return Builder().Emit(MarmotIROp::GetMember, member_types[index], { m_value }, MarmotIRIndex{ index });
+					return m_self.m_builder.Emit(MarmotIROp::GetMember, member_types[index], { m_value }, MarmotIRIndex{ index });
 				});
 			}
 
 			const int tag = constructor.m_tag;
 			const std::vector<TypeRef> field_types = UnionMember(type, tag).m_member_types;
-			const MarmotIRValueId actual = Builder().Emit(MarmotIROp::GetTag, IntType(), { m_value });
-			const MarmotIRValueId expected = Builder().ConstInt(tag);
-			return m_self.TestOrFail(Builder().Binary(MarmotIROp::EqInt, actual, expected), m_fail)
+			const MarmotIRValueId actual = m_self.m_builder.Emit(MarmotIROp::GetTag, IntType(), { m_value });
+			const MarmotIRValueId expected = m_self.m_builder.ConstInt(tag);
+			return m_self.TestOrFail(m_self.m_builder.Binary(MarmotIROp::EqInt, actual, expected), m_fail)
 				.and_then([&]()
 				{
 					return Elements(constructor.m_args, [&](uint32_t index)
 					{
-						return Builder().Emit(MarmotIROp::UnionField, field_types[index], { m_value }, MarmotIRUnionField{ tag, index });
+						return m_self.m_builder.Emit(MarmotIROp::UnionField, field_types[index], { m_value }, MarmotIRUnionField{ tag, index });
 					});
 				});
 		}
@@ -475,7 +470,7 @@ Lowering::Emitted Lowering::LowerPattern(const MarmotPattern& pattern, MarmotIRV
 // captures that iteration's. The header's parameter is where the loop is: the
 // element for a range, the index for an array, the iterator for an Iterable.
 // `carried` goes round the loop beside it, and out of the loop when it ends.
-std::expected<std::vector<MarmotIRValueId>, CompilerError> Lowering::LowerLoop(const MarmotExpression& iterated, const LoopKind& kind, const BindingId& loop_variable, std::vector<MarmotIRValueId> carried, const LoopBody& body, const Token& at)
+std::expected<std::vector<MarmotIRValueId>, CompilerError> Lowering::FunctionLowering::LowerLoop(const MarmotExpression& iterated, const LoopKind& kind, const BindingId& loop_variable, std::vector<MarmotIRValueId> carried, const LoopBody& body, const Token& at)
 {
 	const Lowered lowered_source = Lower(iterated);
 	if (!lowered_source.has_value())
@@ -489,8 +484,8 @@ std::expected<std::vector<MarmotIRValueId>, CompilerError> Lowering::LowerLoop(c
 	}
 
 	const std::vector<TypeRef> carried_types = TypesOf(carried);
-	const TypeRef source_type = kind.m_is_iterable ? NominalType(iterated, source) : GenericTypes::RepresentationOf(Scope().m_function.TypeOf(source));
-	Builder().AtLine(at.m_line);
+	const TypeRef source_type = kind.m_is_iterable ? NominalType(iterated, source) : GenericTypes::RepresentationOf(m_function.TypeOf(source));
+	m_builder.AtLine(at.m_line);
 
 	TypeRef position_type = source_type;
 	MarmotIRValueId start = source;
@@ -501,27 +496,27 @@ std::expected<std::vector<MarmotIRValueId>, CompilerError> Lowering::LowerLoop(c
 	if (kind.m_is_array)
 	{
 		position_type = IntType();
-		start = Builder().ConstInt(0);
-		end = Builder().Emit(MarmotIROp::ArrayLength, IntType(), { source });
+		start = m_builder.ConstInt(0);
+		end = m_builder.Emit(MarmotIROp::ArrayLength, IntType(), { source });
 	}
 	else if (is_range)
 	{
 		position_type = source_type->GetType<MarmotType::RangeType>().m_element_type;
 		is_float = position_type->IsType<MarmotType::FloatType>();
-		start = Builder().Emit(MarmotIROp::RangeStart, position_type, { source });
-		step = Builder().Emit(MarmotIROp::RangeStep, position_type, { source });
-		end = Builder().Emit(MarmotIROp::RangeEnd, position_type, { source });
+		start = m_builder.Emit(MarmotIROp::RangeStart, position_type, { source });
+		step = m_builder.Emit(MarmotIROp::RangeStep, position_type, { source });
+		end = m_builder.Emit(MarmotIROp::RangeEnd, position_type, { source });
 	}
 
 	const MarmotIRBlockId header = NewBlock();
-	const MarmotIRValueId position = Builder().AddParameter(header, position_type);
+	const MarmotIRValueId position = m_builder.AddParameter(header, position_type);
 	const std::vector<MarmotIRValueId> header_carried = carried_types
-		| std::views::transform([&](const TypeRef& type) { return Builder().AddParameter(header, type); })
+		| std::views::transform([&](const TypeRef& type) { return m_builder.AddParameter(header, type); })
 		| std::ranges::to<std::vector>();
 	const MarmotIRBlockId body_block = NewBlock();
 	const MarmotIRBlockId exit = NewBlock();
 	const std::vector<MarmotIRValueId> exit_carried = carried_types
-		| std::views::transform([&](const TypeRef& type) { return Builder().AddParameter(exit, type); })
+		| std::views::transform([&](const TypeRef& type) { return m_builder.AddParameter(exit, type); })
 		| std::ranges::to<std::vector>();
 
 	std::vector<MarmotIRValueId> entry_arguments = { start };
@@ -533,21 +528,21 @@ std::expected<std::vector<MarmotIRValueId>, CompilerError> Lowering::LowerLoop(c
 	std::optional<MarmotIRValueId> next_iterator;
 	if (kind.m_is_array)
 	{
-		Branch(Builder().Binary(MarmotIROp::LtInt, position, end), MarmotIRSuccessor(body_block), MarmotIRSuccessor(exit, header_carried));
+		Branch(m_builder.Binary(MarmotIROp::LtInt, position, end), MarmotIRSuccessor(body_block), MarmotIRSuccessor(exit, header_carried));
 		PositionAt(body_block);
-		element = Builder().Emit(MarmotIROp::ArrayGet, source_type->GetType<MarmotType::ArrayType>().m_element_type, { source, position });
+		element = m_builder.Emit(MarmotIROp::ArrayGet, source_type->GetType<MarmotType::ArrayType>().m_element_type, { source, position });
 	}
 	else if (is_range)
 	{
 		// A positive step counts up to the end, any other down to it.
-		const MarmotIRValueId zero = is_float ? Builder().ConstFloat(0.0) : Builder().ConstInt(0);
+		const MarmotIRValueId zero = is_float ? m_builder.ConstFloat(0.0) : m_builder.ConstInt(0);
 		const MarmotIRBlockId upward = NewBlock();
 		const MarmotIRBlockId downward = NewBlock();
-		Branch(Builder().Binary(is_float ? MarmotIROp::GtFloat : MarmotIROp::GtInt, step, zero), MarmotIRSuccessor(upward), MarmotIRSuccessor(downward));
+		Branch(m_builder.Binary(is_float ? MarmotIROp::GtFloat : MarmotIROp::GtInt, step, zero), MarmotIRSuccessor(upward), MarmotIRSuccessor(downward));
 		PositionAt(upward);
-		Branch(Builder().Binary(is_float ? MarmotIROp::LtFloat : MarmotIROp::LtInt, position, end), MarmotIRSuccessor(body_block), MarmotIRSuccessor(exit, header_carried));
+		Branch(m_builder.Binary(is_float ? MarmotIROp::LtFloat : MarmotIROp::LtInt, position, end), MarmotIRSuccessor(body_block), MarmotIRSuccessor(exit, header_carried));
 		PositionAt(downward);
-		Branch(Builder().Binary(is_float ? MarmotIROp::GtFloat : MarmotIROp::GtInt, position, end), MarmotIRSuccessor(body_block), MarmotIRSuccessor(exit, header_carried));
+		Branch(m_builder.Binary(is_float ? MarmotIROp::GtFloat : MarmotIROp::GtInt, position, end), MarmotIRSuccessor(body_block), MarmotIRSuccessor(exit, header_carried));
 		PositionAt(body_block);
 	}
 	else
@@ -558,15 +553,15 @@ std::expected<std::vector<MarmotIRValueId>, CompilerError> Lowering::LowerLoop(c
 		{
 			return std::unexpected(next.error());
 		}
-		const TypeRef next_type = Scope().m_function.TypeOf(next.value());
-		const MarmotIRValueId tag = Builder().AtLine(at.m_line).Emit(MarmotIROp::GetTag, IntType(), { next.value() });
-		Branch(Builder().Binary(MarmotIROp::EqInt, tag, Builder().ConstInt(kind.m_some_tag)), MarmotIRSuccessor(body_block), MarmotIRSuccessor(exit, header_carried));
+		const TypeRef next_type = m_function.TypeOf(next.value());
+		const MarmotIRValueId tag = m_builder.AtLine(at.m_line).Emit(MarmotIROp::GetTag, IntType(), { next.value() });
+		Branch(m_builder.Binary(MarmotIROp::EqInt, tag, m_builder.ConstInt(kind.m_some_tag)), MarmotIRSuccessor(body_block), MarmotIRSuccessor(exit, header_carried));
 		PositionAt(body_block);
 		const TypeRef payload_type = UnionMember(next_type, kind.m_some_tag).m_member_types.front();
 		const std::vector<TypeRef>& pair_types = GenericTypes::RepresentationOf(payload_type)->GetType<MarmotType::TupleType>().m_element_types;
-		const MarmotIRValueId payload = Builder().Emit(MarmotIROp::UnionField, payload_type, { next.value() }, MarmotIRUnionField{ kind.m_some_tag, 0u });
-		element = Builder().Emit(MarmotIROp::TupleGet, pair_types[0u], { payload }, MarmotIRIndex{ 0u });
-		next_iterator = Builder().Emit(MarmotIROp::TupleGet, pair_types[1u], { payload }, MarmotIRIndex{ 1u });
+		const MarmotIRValueId payload = m_builder.Emit(MarmotIROp::UnionField, payload_type, { next.value() }, MarmotIRUnionField{ kind.m_some_tag, 0u });
+		element = m_builder.Emit(MarmotIROp::TupleGet, pair_types[0u], { payload }, MarmotIRIndex{ 0u });
+		next_iterator = m_builder.Emit(MarmotIROp::TupleGet, pair_types[1u], { payload }, MarmotIRIndex{ 1u });
 	}
 
 	DefineLocal(loop_variable, element);
@@ -576,10 +571,10 @@ std::expected<std::vector<MarmotIRValueId>, CompilerError> Lowering::LowerLoop(c
 		return updated;
 	}
 
-	Builder().AtLine(at.m_line);
+	m_builder.AtLine(at.m_line);
 	const MarmotIRValueId advanced = next_iterator.has_value()
 		? next_iterator.value()
-		: Builder().Binary(kind.m_is_array ? MarmotIROp::AddInt : is_float ? MarmotIROp::AddFloat : MarmotIROp::AddInt, position, kind.m_is_array ? Builder().ConstInt(1) : step);
+		: m_builder.Binary(kind.m_is_array ? MarmotIROp::AddInt : is_float ? MarmotIROp::AddFloat : MarmotIROp::AddInt, position, kind.m_is_array ? m_builder.ConstInt(1) : step);
 	std::vector<MarmotIRValueId> back_arguments = { advanced };
 	back_arguments.insert(back_arguments.end(), updated.value().begin(), updated.value().end());
 	Jump(header, std::move(back_arguments));
@@ -587,7 +582,7 @@ std::expected<std::vector<MarmotIRValueId>, CompilerError> Lowering::LowerLoop(c
 	return exit_carried;
 }
 
-Lowering::Lowered Lowering::LowerFor(const MarmotExpression::For& for_expression)
+Lowering::Lowered Lowering::FunctionLowering::LowerFor(const MarmotExpression::For& for_expression)
 {
 	const LoopKind kind = LoopKindOf(for_expression.m_is_array_iteration, for_expression.m_is_iterable_iteration, for_expression.m_iterable_item_type, for_expression.m_iterable_next_type, for_expression.m_iterable_some_tag);
 	return LowerLoop(*for_expression.m_range, kind, for_expression.m_loop_binding, {}, [&](std::vector<MarmotIRValueId> carried) -> std::expected<std::vector<MarmotIRValueId>, CompilerError>
@@ -596,23 +591,23 @@ Lowering::Lowered Lowering::LowerFor(const MarmotExpression::For& for_expression
 		}, for_expression.m_for_keyword)
 		.transform([this](std::vector<MarmotIRValueId>)
 		{
-			return Builder().ConstUnit();
+			return m_builder.ConstUnit();
 		});
 }
 
 // The result grows by one element each iteration; nothing else holds it, so
 // it grows in place.
-Lowering::Lowered Lowering::LowerComprehension(const MarmotExpression::ArrayComprehension& comprehension)
+Lowering::Lowered Lowering::FunctionLowering::LowerComprehension(const MarmotExpression::ArrayComprehension& comprehension)
 {
 	const LoopKind kind = LoopKindOf(comprehension.m_is_array_iteration, comprehension.m_is_iterable_iteration, comprehension.m_iterable_item_type, comprehension.m_iterable_next_type, comprehension.m_iterable_some_tag);
 	const TypeRef type = Concrete(comprehension.m_type_data);
-	const MarmotIRValueId empty = Builder().AtLine(comprehension.m_bracket.m_line).Emit(MarmotIROp::MakeArray, type);
+	const MarmotIRValueId empty = m_builder.AtLine(comprehension.m_bracket.m_line).Emit(MarmotIROp::MakeArray, type);
 	return LowerLoop(*comprehension.m_range, kind, comprehension.m_loop_binding, { empty }, [&](std::vector<MarmotIRValueId> carried) -> std::expected<std::vector<MarmotIRValueId>, CompilerError>
 		{
 			return Lower(*comprehension.m_transform_expr)
 				.transform([&](MarmotIRValueId element)
 				{
-					return std::vector<MarmotIRValueId>{ Builder().AtLine(comprehension.m_bracket.m_line).Emit(MarmotIROp::ArrayAppend, type, { carried.front(), element }) };
+					return std::vector<MarmotIRValueId>{ m_builder.AtLine(comprehension.m_bracket.m_line).Emit(MarmotIROp::ArrayAppend, type, { carried.front(), element }) };
 				});
 		}, comprehension.m_bracket)
 		.transform([](std::vector<MarmotIRValueId> result)
@@ -621,18 +616,18 @@ Lowering::Lowered Lowering::LowerComprehension(const MarmotExpression::ArrayComp
 		});
 }
 
-Lowering::LoopKind Lowering::LoopKindOf(bool is_array, bool is_iterable, const TypeRef& item_type, const TypeRef& next_type, int some_tag)
+Lowering::FunctionLowering::LoopKind Lowering::FunctionLowering::LoopKindOf(bool is_array, bool is_iterable, const TypeRef& item_type, const TypeRef& next_type, int some_tag)
 {
 	return LoopKind{ is_array, is_iterable, is_iterable ? Concrete(item_type) : nullptr, is_iterable ? Concrete(next_type) : nullptr, some_tag };
 }
 
-Lowering::Lowered Lowering::CallIterableNext(MarmotIRValueId iterator, const TypeRef& item_type, const TypeRef& next_type, const Token& at)
+Lowering::Lowered Lowering::FunctionLowering::CallIterableNext(MarmotIRValueId iterator, const TypeRef& item_type, const TypeRef& next_type, const Token& at)
 {
-	const TypeRef iterator_type = Scope().m_function.TypeOf(iterator);
-	const MethodResolution<ResolvedInstanceName> resolved = m_resolver.ResolveIterableNext(Scope().m_specialization.m_methods, iterator_type, item_type);
+	const TypeRef iterator_type = m_function.TypeOf(iterator);
+	const MethodResolution<ResolvedInstanceName> resolved = m_owner.m_resolver.ResolveIterableNext(m_specialization.m_methods, iterator_type, item_type);
 	if (!resolved.has_value())
 	{
-		return std::unexpected(ResolutionError(resolved.error(), at));
+		return std::unexpected(m_owner.ResolutionError(resolved.error(), at));
 	}
 	return CallResolved(resolved.value(), { iterator }, { iterator_type }, next_type, at);
 }

@@ -1,0 +1,26 @@
+module LoweringFunctionOwnership
+
+import { "../../../MarmotPrelude/IO.mmt" }
+
+foreign "MARMOT_FFI_Print" Print: fn(Text) -> Unit;
+
+def Identity = fn<T>(value: T) -> T => value;
+
+def Work = fn(seed: Int) -> Int =>
+{
+	def Local = fn<T>(value: T, count: Int) -> Int =>
+	{
+		def Step = fn(next: Int) -> Int => if next == 0 then seed else Local(value, next - 1);
+		Step(count)
+	};
+	def Add = fn(value: Int) -> Int => seed + value;
+	def Describe = fn(label: Text) -> Text => Identity(label) ++ (Add(1) as Text);
+	def printer: fn(Text) -> Unit = Print;
+	printer(Describe("seed=") ++ "\n");
+	def first = if seed > 0 then Local(Identity("text"), 3) else 0;
+	def second = Local(Identity(7), 2);
+	first + second + Add(2)
+};
+
+IO::PrintLine(Work(10) as Text);
+IO::PrintLine(Work(20) as Text);
