@@ -198,6 +198,21 @@ built before it.
 ## Code Shape
 
 - Favor function chaining and a functional style when it keeps the code clear.
+- For large calls, especially chained calls with substantial multiline lambdas,
+  put the opening and closing call parentheses on separate, aligned lines:
+
+  ```cpp
+  .and_then
+  (
+      [this](std::unique_ptr<MarmotExpression>&& expression) -> MarmotResult::ExpressionResult
+      {
+          return ParsePostfixChain(std::move(expression));
+      }
+  );
+  ```
+
+- Keep small calls and short lambdas compact. Do not expand them just to use
+  this layout; choose it when the size of the call benefits from the separation.
 - Avoid comments for self-explanatory code.
 - Comments say why, not what. A comment that restates the line below it is noise;
   one that records the mistake a line prevents is worth keeping.

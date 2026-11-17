@@ -261,39 +261,38 @@ private:
 		return false;
 	}
 	
+	template<typename Value, typename Condition, typename Step>
+	static std::expected<Value, CompilerError> FoldWhile(std::expected<Value, CompilerError> value, Condition&& condition, Step&& step)
+	{
+		while (value.has_value() && condition())
+		{
+			value = step(std::move(value.value()));
+		}
+		return value;
+	}
+
 	template <typename... T>
 		requires (std::is_same_v<T, Token::Name> && ...)
 	MarmotResult::ExpressionResult ParseBinary(MarmotResult::ExpressionResult(Parser::* operand)(), T... tokens)
 	{
-		return (this->*operand)()
-			.and_then
-			(
-				[operand, ...tokens = std::move(tokens), this](std::unique_ptr<MarmotExpression>&& lower_expr) ->MarmotResult::ExpressionResult
+		return FoldWhile((this->*operand)(),
+			[this, ...tokens = tokens]() { return Match(tokens...); },
+			[this, operand](std::unique_ptr<MarmotExpression>&& left) -> MarmotResult::ExpressionResult
+			{
+				const Token op = Previous();
+				return (this->*operand)().and_then([&](std::unique_ptr<MarmotExpression>&& right) -> MarmotResult::ExpressionResult
 				{
-					while (Match(tokens...))
+					if (std::optional<CompilerError> error = CheckOperatorMixing(op, *left))
 					{
-						Token& op = Previous();
-						MarmotResult::ExpressionResult right = (this->*operand)();
-						if (!right.has_value())
-						{
-							return std::unexpected(std::move(right.error()));
-						}
-
-						if (std::optional<CompilerError> error = CheckOperatorMixing(op, *lower_expr))
-						{
-							return std::unexpected(std::move(error.value()));
-						}
-						if (std::optional<CompilerError> error = CheckOperatorMixing(op, *right.value()))
-						{
-							return std::unexpected(std::move(error.value()));
-						}
-
-						lower_expr = std::make_unique<MarmotExpression>(MarmotExpression::Binary(op, std::move(lower_expr), std::move(right.value())));
+						return std::unexpected(std::move(error.value()));
 					}
-
-					return lower_expr;
-				}
-			);
+					if (std::optional<CompilerError> error = CheckOperatorMixing(op, *right))
+					{
+						return std::unexpected(std::move(error.value()));
+					}
+					return std::make_unique<MarmotExpression>(MarmotExpression::Binary(op, std::move(left), std::move(right)));
+				});
+			});
 	}
 
 	template<typename Parse>
@@ -663,8 +662,6 @@ private:
 	MarmotResult::ExpressionResult ParseUnaryArithmetic();
 
 	MarmotResult::ExpressionResult ParseArrayAccessHelper(std::unique_ptr<MarmotExpression>&& arr_var);
-
-	MarmotResult::ExpressionResult ParseArrayAccess();
 
 	MarmotResult::ExpressionResult ParseCall();
 

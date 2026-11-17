@@ -250,6 +250,103 @@ def shift = fn(value: Int, data: Array<Array<Text>>) -> Int where Show<Array<Arr
 	REQUIRE(shift_expr.m_op.m_token_name == Token::Name::RIGHT_SHIFT);
 }
 
+TEST_CASE("Parser folds casts, pipelines, postfixes and pattern aliases in source order", "[parser][fold]")
+{
+	const std::string source = R"(module ParserFolds
+def Wrap = fn(value, extra) => value;
+def Steps = fn(value) => value |> Wrap(2) |> Wrap(3);
+def Access = fn(value) => value(1).items[0](2).field;
+def converted = 7 as Float as Int as Text;
+def aliases = match 1 with case _ as first as second => (first, second);
+)";
+	std::expected<MarmotTest::ParsedSnippet, CompilerError> parsed = MarmotTest::ParseSnippet(source, "ParserFolds.mmt");
+	if (!parsed.has_value())
+	{
+		FAIL(parsed.error().Rendered());
+	}
+	const MarmotProgramTree& program = parsed->m_program;
+	const MarmotExpression::Call& outer_call = RequireExpression<MarmotExpression::Call>(RequireFunctionBinding(program, 1u, "Steps").m_body);
+	REQUIRE(outer_call.m_arguments.size() == 2u);
+	CHECK(RequireLiteral(outer_call.m_arguments[1u], MarmotExpression::LiteralKind::Integer).m_token.m_lexeme == "3");
+	const MarmotExpression::Call& inner_call = RequireExpression<MarmotExpression::Call>(outer_call.m_arguments[0u]);
+	REQUIRE(inner_call.m_arguments.size() == 2u);
+	CHECK(RequireExpression<MarmotExpression::NameAccess>(inner_call.m_arguments[0u]).m_name.m_lexeme == "value");
+	CHECK(RequireLiteral(inner_call.m_arguments[1u], MarmotExpression::LiteralKind::Integer).m_token.m_lexeme == "2");
+
+	const MarmotExpression::MemberAccess& field = RequireExpression<MarmotExpression::MemberAccess>(RequireFunctionBinding(program, 2u, "Access").m_body);
+	CHECK(field.m_member_name.m_lexeme == "field");
+	const MarmotExpression::Call& indexed_call = RequireExpression<MarmotExpression::Call>(field.m_struct);
+	const MarmotExpression::IndexAccess& index = RequireExpression<MarmotExpression::IndexAccess>(indexed_call.m_callee);
+	CHECK(RequireLiteral(index.m_index, MarmotExpression::LiteralKind::Integer).m_token.m_lexeme == "0");
+	const MarmotExpression::MemberAccess& items = RequireExpression<MarmotExpression::MemberAccess>(index.m_arr_var);
+	CHECK(items.m_member_name.m_lexeme == "items");
+	CHECK(RequireExpression<MarmotExpression::Call>(items.m_struct).m_arguments.size() == 1u);
+
+	const MarmotExpression::As& text = RequireExpression<MarmotExpression::As>(RequireVariableDefinition(program, 3u, "converted").m_value);
+	CHECK(text.m_to_type->ToString() == "Text");
+	const MarmotExpression::As& integer = RequireExpression<MarmotExpression::As>(text.m_expr);
+	CHECK(integer.m_to_type->ToString() == "Int");
+	const MarmotExpression::As& floating = RequireExpression<MarmotExpression::As>(integer.m_expr);
+	CHECK(floating.m_to_type->ToString() == "Float");
+	CHECK(RequireLiteral(floating.m_expr, MarmotExpression::LiteralKind::Integer).m_token.m_lexeme == "7");
+
+	const MarmotExpression::Match& match = RequireExpression<MarmotExpression::Match>(RequireVariableDefinition(program, 4u, "aliases").m_value);
+	REQUIRE(match.m_cases.size() == 1u);
+	const MarmotExpression::Case& match_case = RequireExpression<MarmotExpression::Case>(match.m_cases.front());
+	const MarmotPattern::As& second = RequirePattern<MarmotPattern::As>(match_case.m_pattern);
+	CHECK(RequirePattern<MarmotPattern::Binding>(second.m_binding).m_name.m_lexeme == "second");
+	const MarmotPattern::As& first = RequirePattern<MarmotPattern::As>(second.m_pattern);
+	CHECK(RequirePattern<MarmotPattern::Binding>(first.m_binding).m_name.m_lexeme == "first");
+	static_cast<void>(RequirePattern<MarmotPattern::Wildcard>(first.m_pattern));
+}
+
+TEST_CASE("Parser reports a failed cast suffix at its missing type", "[parser][fold][diagnostic]")
+{
+	for (const std::string suffix : { " as ;", " as Float as ;" })
+	{
+		const std::string line = "def value = 1" + suffix;
+		const std::string source = "module BadFold\n" + line + "\n";
+		std::expected<MarmotTest::ParsedSnippet, CompilerError> parsed = MarmotTest::ParseSnippet(source, "BadFold.mmt");
+		REQUIRE_FALSE(parsed.has_value());
+		CHECK(parsed.error().m_stage == CompilerStage::Parser);
+		CHECK(parsed.error().m_message == "Expected type token.");
+		REQUIRE(parsed.error().m_location.has_value());
+		CHECK(parsed.error().m_location->m_line == 2);
+		CHECK(parsed.error().m_location->m_source_line == line);
+	}
+}
+
+TEST_CASE("Parser folds long postfix chains without recursive parser calls", "[parser][fold][long]")
+{
+	constexpr size_t suffix_count = 4096u;
+	std::string source = "module LongPostfix\ndef Access = fn(value) => value";
+	for (size_t index = 0u; index < suffix_count; index += 1u)
+	{
+		source.append(".field");
+	}
+	source.append(";\n");
+	std::expected<MarmotTest::ParsedSnippet, CompilerError> parsed = MarmotTest::ParseSnippet(source);
+	if (!parsed.has_value())
+	{
+		FAIL(parsed.error().Rendered());
+	}
+	MarmotStatement::VariableDefinition& definition = parsed->m_program.front()->GetStatement<MarmotStatement::VariableDefinition>();
+	MarmotExpression::Function& function = definition.m_value->GetExpression<MarmotExpression::Function>();
+	std::unique_ptr<MarmotExpression> expression = std::move(function.m_body);
+
+	// Dismantle the tree iteratively so the test measures parsing, not AST destruction.
+	size_t suffixes = 0u;
+	while (expression->IsExpression<MarmotExpression::MemberAccess>())
+	{
+		MarmotExpression::MemberAccess& member = expression->GetExpression<MarmotExpression::MemberAccess>();
+		std::unique_ptr<MarmotExpression> parent = std::move(member.m_struct);
+		expression = std::move(parent);
+		suffixes += 1u;
+	}
+	CHECK(suffixes == suffix_count);
+	CHECK(RequireExpression<MarmotExpression::NameAccess>(expression).m_name.m_lexeme == "value");
+}
+
 TEST_CASE("Parser accepts associated type arguments with nested generic closers", "[parser]")
 {
 	const std::string source_code =
