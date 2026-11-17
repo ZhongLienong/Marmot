@@ -6,6 +6,8 @@ Marmot ships a first-party formatter through:
 marmotc.exe fmt <file|dir>
 ```
 
+`marmot fmt` delegates to the same formatter and uses the same style.
+
 ## Commands
 
 Format a single file to stdout:
@@ -67,12 +69,29 @@ list grows. Inline braces never trigger indentation.
 ### Line width
 
 - target line width is **100 characters**
-- the formatter does **not** automatically wrap or reflow expressions; long lines
-  remain as the author wrote them
-- authors are expected to break long lines manually, e.g. by introducing
-  intermediate `def` bindings or by splitting list literals across multiple lines
+- calls that exceed the target, or have arguments that require multiple lines,
+  use separate, aligned opening and closing parentheses; each argument is
+  indented one level and starts on its own line
+- small calls and short expression-bodied lambdas stay compact
+- other expressions are not automatically wrapped; use intermediate `def`
+  bindings or split list literals when that improves readability
 
 The line width is a guideline, not a hard limit. CI does not fail on long lines.
+
+For example, a call containing a block-bodied lambda is formatted as:
+
+```marmot
+def result = Apply
+(
+    fn(value: Int) -> Int => {
+        def doubled = value * 2;
+        doubled + 1
+    },
+    2
+);
+```
+
+Function parameter lists and parenthesized expressions keep their existing layout.
 
 ### Trailing commas
 
@@ -121,7 +140,8 @@ long as they sit between the pattern and the arrow.
 - one space around `=`, `=>`, `->`, `:=`, and infix operators
 - no space inside `(`, `[`, or after `.`, `..`, `::`, `#`
 - no space before `,`, `;`, `)`, `]`, `.`, `..`, `::`
-- no space between a function name and its `(` argument list; a `(` or `[`
+- compact calls have no space between a function name and its `(` argument list;
+  large calls use the multiline layout above; a `(` or `[`
   that opens an operand after an infix operator, `def`, `if`, `case` or
   `match` is spaced like any operand: `a / (b - c)`, `def (x, y) = pair`
 - no space around the angle brackets of type arguments: `Array<Text>`,

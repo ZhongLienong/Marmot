@@ -339,3 +339,71 @@ TEST_CASE("Formatter indents a match arm's block from its case", "[formatter]")
 	CHECK(formatted == expected);
 	RequireIdempotent(source_code, "ArmBlock.mmt");
 }
+
+TEST_CASE("Formatter gives large calls symmetrical parentheses", "[formatter][calls]")
+{
+	const std::string source = "def result=Apply(fn(value:Int)->Int=>{def doubled=value*2; doubled+1},2);\n";
+	const std::string expected =
+		"def result = Apply\n"
+		"(\n"
+		"    fn(value: Int) -> Int => {\n"
+		"        def doubled = value * 2;\n"
+		"        doubled + 1\n"
+		"    },\n"
+		"    2\n"
+		");\n";
+	CHECK(FormatOrFail(source, "LargeCall.mmt") == expected);
+	RequireIdempotent(source, "LargeCall.mmt");
+}
+
+TEST_CASE("Formatter splits long argument lists but keeps short calls compact", "[formatter][calls]")
+{
+	const std::string source =
+		"def result=Combine(first_argument_with_a_long_descriptive_name,second_argument_with_a_long_descriptive_name,third_argument_with_a_long_descriptive_name);\n"
+		"def small=Apply(1,fn(value:Int)->Int=>value+1);\n"
+		"def empty=Nothing();\n";
+	const std::string expected =
+		"def result = Combine\n"
+		"(\n"
+		"    first_argument_with_a_long_descriptive_name,\n"
+		"    second_argument_with_a_long_descriptive_name,\n"
+		"    third_argument_with_a_long_descriptive_name\n"
+		");\n"
+		"\n"
+		"def small = Apply(1, fn(value: Int) -> Int => value + 1);\n"
+		"\n"
+		"def empty = Nothing();\n";
+	CHECK(FormatOrFail(source, "CallSizes.mmt") == expected);
+	RequireIdempotent(source, "CallSizes.mmt");
+}
+
+TEST_CASE("Formatter nests large calls and preserves argument comments and trailing commas", "[formatter][calls]")
+{
+	const std::string source = "def result=Outer(Inner(fn(value:Int)->Int=>{value}),/* next */2,);\n";
+	const std::string expected =
+		"def result = Outer\n"
+		"(\n"
+		"    Inner\n"
+		"    (\n"
+		"        fn(value: Int) -> Int => {\n"
+		"            value\n"
+		"        }\n"
+		"    ),\n"
+		"    /* next */ 2,\n"
+		");\n";
+	CHECK(FormatOrFail(source, "NestedCalls.mmt") == expected);
+	RequireIdempotent(source, "NestedCalls.mmt");
+}
+
+TEST_CASE("Formatter keeps generic function parameter lists distinct from calls", "[formatter][calls]")
+{
+	const std::string source = "def Keep=fn<T>(first:Array<Pair<Int,Text>>,second:Array<Pair<Int,Text>>,third:Array<Pair<Int,Text>>)->Int=>0;\n";
+	CHECK(FormatOrFail(source, "FunctionParameters.mmt") == "def Keep = fn<T>(first: Array<Pair<Int, Text>>, second: Array<Pair<Int, Text>>, third: Array<Pair<Int, Text>>) -> Int => 0;\n");
+	RequireIdempotent(source, "FunctionParameters.mmt");
+	const std::string tuple_type = "type Pairs={entries:Array<(Int,Text)>};\n";
+	CHECK(FormatOrFail(tuple_type, "TupleArguments.mmt").find("entries: Array<(Int, Text)>") != std::string::npos);
+	RequireIdempotent(tuple_type, "TupleArguments.mmt");
+	const std::string long_signature = "def Keep=fn(first_argument_with_a_long_descriptive_name:Int,second_argument_with_a_long_descriptive_name:Int,third_argument_with_a_long_descriptive_name:Int)->Int=>Pick(1);\n";
+	CHECK(FormatOrFail(long_signature, "SmallCallAfterLongSignature.mmt").ends_with("-> Int => Pick(1);\n"));
+	RequireIdempotent(long_signature, "SmallCallAfterLongSignature.mmt");
+}

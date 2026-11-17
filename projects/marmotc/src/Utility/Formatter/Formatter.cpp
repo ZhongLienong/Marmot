@@ -6,6 +6,7 @@
 #include <fstream>
 #include <sstream>
 #include <string_view>
+#include <unordered_map>
 #include <unordered_set>
 
 #include "Compiler/Source/Source.h"
@@ -50,6 +51,15 @@ namespace
 		int m_paren_depth = 0;
 		int m_bracket_depth = 0;
 		int m_block_depth = 0;
+	};
+
+	struct CallContext
+	{
+		int m_indent;
+		int m_paren_depth;
+		int m_bracket_depth;
+		int m_block_depth;
+		int m_type_bracket_depth;
 	};
 
 	[[nodiscard]] bool IsComment(TokenName token_name)
@@ -409,6 +419,71 @@ namespace
 		return previous->m_token_name == TokenName::IMPORT || previous->m_token_name == TokenName::EXPORT;
 	}
 
+	[[nodiscard]] bool IsCallParenthesis(const std::vector<Token>& tokens, size_t index, const std::unordered_set<size_t>& type_brackets)
+	{
+		const Token* previous = PreviousNonCommentToken(tokens, index);
+		if (previous == nullptr)
+		{
+			return false;
+		}
+		const size_t previous_index = static_cast<size_t>(previous - tokens.data());
+		if (type_brackets.contains(previous_index)
+			&& (previous->m_token_name == TokenName::RIGHT_ANGLE || previous->m_token_name == TokenName::RIGHT_SHIFT))
+		{
+			// `fn<T>(...)` declares parameters; `Box<T>(...)` is a call.
+			size_t open = previous_index;
+			int depth = previous->m_token_name == TokenName::RIGHT_SHIFT ? 2 : 1;
+			while (depth > 0)
+			{
+				open -= 1u;
+				if (type_brackets.contains(open))
+				{
+					const TokenName name = tokens[open].m_token_name;
+					depth += name == TokenName::LEFT_ANGLE ? -1 : (name == TokenName::RIGHT_SHIFT ? 2 : 1);
+				}
+			}
+			return PreviousNonCommentToken(tokens, open)->m_token_name != TokenName::FUNCTION;
+		}
+		switch (previous->m_token_name)
+		{
+		case TokenName::IDENTIFIER_LITERAL:
+		case TokenName::INTEGER_LITERAL:
+		case TokenName::FLOAT_LITERAL:
+		case TokenName::TEXT_LITERAL:
+		case TokenName::TRUE:
+		case TokenName::FALSE:
+		case TokenName::RIGHT_PAREN:
+		case TokenName::RIGHT_BRACKET:
+		case TokenName::RIGHT_BRACE:
+			return true;
+		default:
+			return false;
+		}
+	}
+
+	[[nodiscard]] std::unordered_map<size_t, size_t> FindCallParentheses(const std::vector<Token>& tokens, const std::unordered_set<size_t>& type_brackets)
+	{
+		std::unordered_map<size_t, size_t> calls;
+		std::vector<size_t> opened;
+		for (size_t index = 0u; index < tokens.size(); index += 1u)
+		{
+			if (tokens[index].m_token_name == TokenName::LEFT_PAREN)
+			{
+				opened.push_back(index);
+			}
+			else if (tokens[index].m_token_name == TokenName::RIGHT_PAREN && !opened.empty())
+			{
+				const size_t open = opened.back();
+				opened.pop_back();
+				if (IsCallParenthesis(tokens, open, type_brackets))
+				{
+					calls.emplace(open, index);
+				}
+			}
+		}
+		return calls;
+	}
+
 	class FormatterEngine
 	{
 	private:
@@ -429,17 +504,20 @@ namespace
 		bool m_previous_was_type_bracket = false;
 		std::unordered_set<size_t> m_type_brackets;
 		std::unordered_set<size_t> m_record_pattern_braces;
+		std::unordered_map<size_t, size_t> m_call_closers;
 		// Type-argument brackets open around the current token: a comma inside them
 		// separates type arguments, never record fields.
 		int m_type_bracket_depth = 0;
 		std::vector<Context> m_contexts;
 		std::vector<MatchContext> m_match_contexts;
+		std::vector<CallContext> m_call_contexts;
 
 	public:
 		[[nodiscard]] std::string Format(const std::vector<Token>& tokens)
 		{
 			m_type_brackets = FindTypeArgumentBrackets(tokens);
 			m_record_pattern_braces = FindRecordPatternBraces(tokens);
+			m_call_closers = FindCallParentheses(tokens, m_type_brackets);
 			for (size_t index = 0u; index < tokens.size(); index += 1u)
 			{
 				FormatToken(tokens, index);
@@ -577,6 +655,7 @@ namespace
 
 			if (previous_same_line)
 			{
+				WriteCurrentIndent();
 				const bool inline_block_comment =
 					token.m_token_name == TokenName::BLOCK_COMMENT
 					&& next != nullptr
@@ -688,6 +767,45 @@ namespace
 				&& context.m_paren_depth == m_paren_depth
 				&& context.m_bracket_depth == m_bracket_depth
 				&& context.m_block_depth == m_block_depth;
+		}
+
+		[[nodiscard]] bool IsAtTopLevelOfCall() const
+		{
+			if (m_call_contexts.empty())
+			{
+				return false;
+			}
+			const CallContext& context = m_call_contexts.back();
+			return context.m_paren_depth == m_paren_depth
+				&& context.m_bracket_depth == m_bracket_depth
+				&& context.m_block_depth == m_block_depth
+				&& context.m_type_bracket_depth == m_type_bracket_depth;
+		}
+
+		[[nodiscard]] bool NeedsMultilineCall(const std::vector<Token>& tokens, size_t open, size_t close) const
+		{
+			if (close == open + 1u)
+			{
+				return false;
+			}
+			const size_t callee_width = TokenText(*PreviousNonCommentToken(tokens, open)).size();
+			FormatterEngine flat;
+			for (size_t index = open; index <= close; index += 1u)
+			{
+				const Token& token = tokens[index];
+				if (token.m_token_name == TokenName::LINE_COMMENT || token.m_token_name == TokenName::CASE
+					|| (token.m_token_name == TokenName::BLOCK_COMMENT && CountEmbeddedNewlines(token.m_lexeme) > 0)
+					|| (token.m_token_name == TokenName::LEFT_BRACE && !m_record_pattern_braces.contains(index) && !IsInlineBraceOpen(tokens, index)))
+				{
+					return true;
+				}
+				flat.WriteTokenText(token, m_type_brackets.contains(index));
+				if (callee_width + flat.m_output.size() > 100u)
+				{
+					return true;
+				}
+			}
+			return false;
 		}
 
 		void MaybeWriteSpace(TokenName current, bool is_type_bracket)
@@ -913,10 +1031,30 @@ namespace
 				return;
 			}
 			case TokenName::LEFT_PAREN:
+			{
+				const std::unordered_map<size_t, size_t>::const_iterator call = m_call_closers.find(index);
+				const bool multiline = call != m_call_closers.end() && NeedsMultilineCall(tokens, index, call->second);
+				if (multiline)
+				{
+					WriteNewline();
+				}
 				WriteTokenText(token);
 				m_paren_depth += 1;
+				if (multiline)
+				{
+					m_call_contexts.push_back(CallContext{ m_indent, m_paren_depth, m_bracket_depth, m_block_depth, m_type_bracket_depth });
+					m_indent += 1;
+					WriteNewline();
+				}
 				return;
+			}
 			case TokenName::RIGHT_PAREN:
+				if (!m_call_contexts.empty() && m_call_contexts.back().m_paren_depth == m_paren_depth)
+				{
+					WriteNewline();
+					m_indent = m_call_contexts.back().m_indent;
+					m_call_contexts.pop_back();
+				}
 				m_paren_depth = std::max(m_paren_depth - 1, 0);
 				WriteTokenText(token);
 				return;
@@ -930,7 +1068,7 @@ namespace
 				return;
 			case TokenName::COMMA:
 				WriteTokenText(token);
-				if (IsAtTopLevelOfBlock() && m_type_bracket_depth == 0)
+				if ((IsAtTopLevelOfBlock() && m_type_bracket_depth == 0) || IsAtTopLevelOfCall())
 				{
 					WriteNewline();
 				}

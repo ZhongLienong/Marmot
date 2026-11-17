@@ -681,6 +681,28 @@ fn fmt_without_a_path_formats_the_project_but_not_other_peoples_code() {
 }
 
 #[test]
+fn fmt_uses_symmetrical_parentheses_for_large_calls() {
+    let Some(compiler) = compiler() else { return };
+    let project = Project::new("fmt-large-calls");
+    project.write(
+        "Main.mmt",
+        concat!(
+            "module Main\n",
+            "def Apply=fn(f:fn(Int)->Int,value:Int)->Int=>f(value);\n",
+            "def result=Apply(fn(value:Int)->Int=>{def doubled=value*2;doubled+1},2);\n",
+            "def small=Apply(fn(value:Int)->Int=>value+1,2);\n",
+        ),
+    );
+    succeeded(&marmot(&compiler, &project.0, &["fmt", "Main.mmt", "-w"]));
+    let formatted = project.read("Main.mmt");
+    assert!(formatted.contains("def result = Apply\n(\n    fn(value: Int) -> Int => {\n"));
+    assert!(formatted.contains("    },\n    2\n);\n"));
+    assert!(formatted.contains("def small = Apply(fn(value: Int) -> Int => value + 1, 2);"));
+    succeeded(&marmot(&compiler, &project.0, &["fmt", "Main.mmt", "--check"]));
+    succeeded(&marmot(&compiler, &project.0, &["check", "Main.mmt"]));
+}
+
+#[test]
 fn run_in_json_reports_the_builds_warnings_and_the_runs_errors() {
     let Some(compiler) = compiler() else { return };
     let project = Project::new("run-json");
