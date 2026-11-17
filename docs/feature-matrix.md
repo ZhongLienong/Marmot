@@ -6,10 +6,11 @@ Status is based on the Phase 1 audit and the repo state checked on 2026-04-04.
 The coverage column points at the primary automated coverage for each row. It is
 not an exhaustive list of every relevant fixture.
 
-See [Versioning Policy](versioning-policy.md) for how `Stable`,
-`Experimental`, and `Planned` affect compatibility and releases.
+See [Versioning and Compatibility](versioning-policy.md) for Marmot's current compatibility
+posture. Feature statuses describe maturity and implementation coverage; they
+do not promise backward compatibility.
 
-## Stability Levels
+## Status Levels
 
 - **Stable**: implemented on its relevant end-to-end path, documented in tracked docs, and covered by automated tests. For language syntax, that normally means the lexer/parser/typechecker/lowering/runtime path exists and at least one `test/` or `tests/` fixture exercises it.
 - **Experimental**: implemented, but still limited, early, or thinly covered compared with the rest of the language.
@@ -77,11 +78,11 @@ See [Versioning Policy](versioning-policy.md) for how `Stable`,
 | Feature | Status | Primary Coverage | Notes |
 |---------|--------|------------------|-------|
 | Modules, path imports, system imports, `use`, exports, privacy, and qualified access | Stable | `test/module/`, `projects/marmotc/tests/module/`, `projects/marmotc/tests/parser/` | `module` must be first; import/use/export blocks can appear later and be scattered. |
-| Module diagnostics: circular imports, unresolved imports, missing exports, duplicate modules | Stable | `test/module/`, `projects/marmotc/tests/module/`, `projects/marmotc/tests/compiler/` | The compiler emits stable module error codes for these cases. |
+| Module diagnostics: circular imports, unresolved imports, missing exports, duplicate modules | Stable | `test/module/`, `projects/marmotc/tests/module/`, `projects/marmotc/tests/compiler/` | The compiler emits specific error codes for these cases. |
 | `foreign` declarations and builtin runtime FFI (`CALL_FOREIGN_INDEXED`) | Stable | `test/ffi/`, `test/prelude/` | This is the richer built-in FFI path backed by the `Builtins.def` table. |
 | Dynamic package FFI (`CALL_FOREIGN`) | Experimental | `test/integration/NativeLibraryTests.cpp`, `format/mmc/fixtures/native.mmc` | Each argument's and the result's marshalling kind comes from the `foreign` declaration's types (`Text` as a C string, `Array<T>` as an array view, an `Array<Text>` result as C strings); see [FFI ABI](ffi-abi.md). A native function takes at most four arguments. |
 | Native libraries (`foreign ... from "library"`, `package.marmot` `[ffi]`) | Experimental | `test/integration/NativeLibraryTests.cpp`, `projects/marmot/src/execution/plan/tests.rs`, `scripts/testing/cli_contracts.py` | Source names the library; the `.mmc` records it with its `thread_safe` flag and checksum. `marmotvm` finds and loads it before the program starts through `--library`, `--library-path`, `MARMOT_LIBRARY_PATH` or the declaring module's directory; `marmotc` never does. Without a prebuilt file the tool builds a missing or out-of-date one with `[build].command`. |
-| Structured compiler warnings/errors and stable diagnostic codes | Stable | `projects/marmotc/tests/compiler/`, `projects/marmotvm/tests/runtime/`, `test/static_analyzer/` | Warnings and errors are aggregated in `CompilerReport` instead of being printed ad hoc. |
+| Structured compiler warnings/errors and diagnostic codes | Stable | `projects/marmotc/tests/compiler/`, `projects/marmotvm/tests/runtime/`, `test/static_analyzer/` | Warnings and errors are aggregated in `CompilerReport` instead of being printed ad hoc. |
 | Machine-readable warnings and compiler-report JSON | Stable | `projects/marmotc/tests/compiler/`, `test/static_analyzer/`, `scripts/testing/cli_contracts.py` | `*.warnings.json` fixtures exercise the warning-stream path, and CLI contract checks cover `marmotc.exe check --format json`. |
 | Static-analyzer warnings: `UnusedLocal`, `ShadowingPolicy`, `IntegerOverflow`, `CellCrossesWorker` | Stable | `projects/marmotc/tests/static_analyzer/`, `test/static_analyzer/` | Warnings are preserved even when a later compile stage fails. |
 | Projects (`project.marmot`, `[project]` fallback, `marmot.lock`), package resolution and `marmot init` | Experimental | `projects/marmot/tests/` | The `marmot` tool's tests cover manifest lookup and precedence, resolution, vendoring, lockfiles, test discovery and scaffolding. |

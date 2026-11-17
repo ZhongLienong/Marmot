@@ -1,15 +1,14 @@
 # Grammar
 
-This is Marmot's grammar as of v1, and it is a contract: **nothing here is
-removed after v1.** Later versions may add rules, and a program written against
-this document keeps compiling.
+This document describes the grammar accepted by the current compiler. It is a
+snapshot of the language as it is today, not a promise that accepted programs
+will keep compiling unchanged in future releases.
 
-Additions under consideration — an error-propagation operator, waiting on
-several channels — would be new rules, not changes to these. The syntax that
-earlier versions dropped (`return`, `loop`, `break`, `continue`, binding assignment and
-its compound forms, `new`, `defun`, `struct`, `union`, `default`, the `spawn`,
-`join` and `channel` keywords) is gone for good; the compiler carries no trace
-of it, so those words are now ordinary identifiers.
+Forms removed from earlier versions (`return`, `loop`, `break`, `continue`,
+binding assignment and its compound forms, `new`, `defun`, `struct`, `union`,
+`default`, and the `spawn`, `join` and `channel` keywords) are not accepted by
+the current compiler. Their spellings currently behave as ordinary identifiers
+where the grammar permits identifiers; future language changes may reuse them.
 
 The notation: `X?` optional, `X*` zero or more, `X+` one or more,
 `X (',' X)*` a separated list, `'x'` a literal, `UPPERCASE` a token class.

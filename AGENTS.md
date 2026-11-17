@@ -17,13 +17,13 @@ Layering, enforced by `scripts/testing/layering.py`: the compiler owns its
 bytecode writer and the VM owns its reader and disassembler. The driver
 (`projects/marmotc/src/Utility/{CLI,Driver}`) builds on the compiler and `projects/marmotvm/src/MarmotVM.cpp` on
 the runtime; neither side links or includes the other. They agree through the
-versioned `.mmc` contract under `format/mmc/`.
+`.mmc` wire format documented under `format/mmc/`.
 
 | Path | What it holds |
 |---|---|
 | `projects/marmotc/src/Bytecode` | Compiler-side opcode and builtin IDs, executable model, `.mmc` writer |
 | `projects/marmotvm/src/Bytecode` | VM-side opcode and builtin IDs, loaded-program model, `.mmc` reader and disassembler |
-| `format/mmc` | Language-neutral v16 contract and compatibility fixtures |
+| `format/mmc` | Language-neutral v16 wire snapshot and fixtures |
 | `projects/marmotc/src/Compiler` | Compiler errors, lexer, parser, type checker, static analysis, lowering, MarmotIR optimizer, bytecode backend, linker |
 | `projects/marmotvm/src` | Values, runtime errors, the interpreter, the GC, workers, the builtin FFI library and VM entry point |
 | `projects/marmot/src` | The `marmot` tool |
@@ -76,9 +76,9 @@ Run the gate before committing. Do not commit or push unless asked.
   do not add a second resolution path "just in case" — several bugs here came
   from exactly that (two mangling paths, two equality switches, a bare-name
   fallback beside a qualified lookup).
-- **The grammar is sealed at v1.** `docs/grammar.md` is a contract: nothing in
-  it is removed, and later versions only add. Do not change the grammar without
-  being asked to.
+- **The grammar document describes current syntax, not a frozen contract.**
+  Keep `docs/grammar.md` aligned with the compiler. Syntax and previously
+  removed forms may change as the language evolves.
 - **Do not write documentation unless asked.** Updating a doc that a change
   makes wrong is part of the change, not new documentation.
 - **Tests are snapshots.** A `.mmt` under `test/` passes when its exit status

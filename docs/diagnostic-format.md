@@ -1,7 +1,7 @@
 # Diagnostic Format
 
-Marmot's machine-readable diagnostic contract is exposed through `--format json`
-on CLI commands such as:
+Marmot currently emits machine-readable diagnostics through `--format json` on
+CLI commands such as:
 
 ```powershell
 marmotc.exe check src/Main.mmt --format json
@@ -34,7 +34,7 @@ marmot run src/Main.mmt --format json
 }
 ```
 
-Stable fields:
+Current envelope fields:
 
 - `version`: schema version. Current value is `1`.
 - `source`: always `"marmot"`.
@@ -73,7 +73,7 @@ Compiler diagnostics in `report.diagnostics`, `report.warnings`, and
 }
 ```
 
-Stable fields:
+Current compiler diagnostic fields:
 
 - `source`
 - `severity`
@@ -87,7 +87,7 @@ Stable fields:
 - `endColumn`
 - `suggestion`
 
-Compatibility field:
+Also currently emitted:
 
 - `caret_length`: retained for existing tooling; editors should prefer
   `endLine` / `endColumn`
@@ -345,16 +345,11 @@ are emitted with the same shape as the full examples above.
 | `OutOfMemory` | `Runtime` | `panic` | `Out of memory while allocating 80 bytes (the heap is full).` |
 | `ChannelClosed` | `Runtime` | `error` | `Cannot receive from a closed and empty channel.` |
 
-## Stability
+## Current Schema
 
-Version `1` is intended for editor and automation integration.
-
-Stability guarantees:
-
-- existing fields listed above are stable within schema version `1`
-- new fields may be added in future versions without removing existing fields
-- `caret_length` is a compatibility field and may be removed in a future
-  schema version after a deprecation window
-- example messages above are illustrative; the exact wording of any specific
-  diagnostic may change between releases. Tooling should match on `code`, not
-  on the human-readable `message`.
+The examples above show the JSON currently emitted with schema version `1`.
+This is a description of current behavior, not a compatibility guarantee:
+fields, codes, and schema versions may change, and older schema versions are
+not guaranteed to remain supported. The exact wording of a diagnostic is
+illustrative and may change. When integrating with a matching Marmot build,
+prefer `code` over the human-readable `message`.

@@ -105,8 +105,8 @@ Current `RuntimeErrorCode` values:
 - `OutOfMemory`
 - `ChannelClosed`
 
-`RuntimeErrorCodeName(...)` provides the stable string form used in rendered and
-machine-readable output.
+`RuntimeErrorCodeName(...)` provides the current string form used in rendered
+and machine-readable output.
 
 ## Location Model
 
@@ -237,7 +237,7 @@ line stream.
 
 ### Compiler JSON Payloads
 
-The stable schema is documented in [Diagnostic Format](diagnostic-format.md).
+The current schema is documented in [Diagnostic Format](diagnostic-format.md).
 Compiler diagnostics populate:
 
 - `report.diagnostics`
@@ -285,8 +285,8 @@ legacy Python test runner.
 When adding new diagnostics:
 
 - prefer a specific `CompilerStage`
-- assign a stable error or warning code when the diagnostic should be
-  regression-tested
+- assign a specific error or warning code when tests need to distinguish the
+  diagnostic
 - use `WithToken(...)` whenever a token span exists
 - use `WithContext(...)` when the location is known but not anchored to one
   token

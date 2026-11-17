@@ -778,10 +778,10 @@ See the [docs](docs/) folder for detailed technical documentation:
 - [Prelude](docs/prelude.md) - Standard-library module map and typed wrapper examples
 - [Compilation Workflow](docs/compilation-workflow.md) - Complete pipeline from lexing to linking
 - [MarmotIR](docs/marmot-ir.md) - The compiler's typed SSA IR: structure, instructions, effects, verifier rules, optimizer passes and bytecode emission
-- [Feature Matrix](docs/feature-matrix.md) - Current feature status, stability levels, and primary automated coverage
-- [Versioning Policy](docs/versioning-policy.md) - Compatibility rules for releases, deprecation, and breaking changes
+- [Feature Matrix](docs/feature-matrix.md) - Current feature status, maturity levels, and primary automated coverage
+- [Versioning and Compatibility](docs/versioning-policy.md) - Current compatibility posture and release versioning
 - [Error Reporting](docs/error-reporting.md) - Structured diagnostics, warning/error codes, and machine-readable output
-- [Diagnostic Format](docs/diagnostic-format.md) - Stable JSON envelope and diagnostic object schema for tooling
+- [Diagnostic Format](docs/diagnostic-format.md) - Current JSON envelope and diagnostic object shape
 - [Formatting](docs/formatting.md) - Canonical formatter usage and current scope
 - [Package System](docs/package-system.md) - Creating and using packages with native FFI bindings
 - [Project Standard](docs/project-standard.md) - Standard project layout and manifest
