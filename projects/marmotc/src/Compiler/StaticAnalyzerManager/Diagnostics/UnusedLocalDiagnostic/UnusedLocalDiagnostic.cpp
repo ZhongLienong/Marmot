@@ -7,26 +7,23 @@
 void UnusedLocalDiagnostic::Reset(MarmotProgramTree&)
 {
 	m_bindings.clear();
-	m_scopes.clear();
-	PushScope();
+	m_root = Scope(nullptr);
+	m_scope = &m_root;
 }
 
 void UnusedLocalDiagnostic::Finish()
 {
-	while (!m_scopes.empty())
-	{
-		PopScope();
-	}
+	FinishScope(m_root);
 }
 
-void UnusedLocalDiagnostic::PushScope()
+UnusedLocalDiagnostic::Scope::Scope(Scope* parent)
+	: m_parent(parent)
 {
-	m_scopes.emplace_back();
 }
 
-void UnusedLocalDiagnostic::PopScope()
+void UnusedLocalDiagnostic::FinishScope(const Scope& scope)
 {
-	for (const BindingId& identity : m_scopes.back())
+	for (const BindingId& identity : scope.m_bindings)
 	{
 		const BindingInfo& binding = m_bindings.at(identity);
 		if (!binding.m_is_suppressed && !binding.m_is_read)
@@ -35,7 +32,6 @@ void UnusedLocalDiagnostic::PopScope()
 		}
 		m_bindings.erase(identity);
 	}
-	m_scopes.pop_back();
 }
 
 void UnusedLocalDiagnostic::RegisterBinding(const Token& token, const std::optional<BindingId>& binding, bool suppressed)
@@ -47,7 +43,7 @@ void UnusedLocalDiagnostic::RegisterBinding(const Token& token, const std::optio
 	const bool inserted = m_bindings.emplace(binding.value(), BindingInfo{ token, MarmotAnalysis::DemangleDisplayName(token.m_lexeme), false, suppressed }).second;
 	if (inserted)
 	{
-		m_scopes.back().push_back(binding.value());
+		m_scope->m_bindings.push_back(binding.value());
 	}
 }
 
@@ -103,10 +99,11 @@ void UnusedLocalDiagnostic::operator()(MarmotStatement::FunctionDefinition& defu
 {
 	RegisterBinding(defun.m_name, defun.m_binding, MarmotAnalysis::IsIgnoredBindingName(MarmotAnalysis::DemangleDisplayName(defun.m_name.m_lexeme)));
 
-	PushScope();
-	RegisterParameterBindings(defun.m_params);
-	VisitExpression(defun.m_body);
-	PopScope();
+	InScope([&]()
+	{
+		RegisterParameterBindings(defun.m_params);
+		VisitExpression(defun.m_body);
+	});
 }
 
 void UnusedLocalDiagnostic::operator()(MarmotStatement::ForeignDefinition& foreign)
@@ -126,37 +123,38 @@ void UnusedLocalDiagnostic::operator()(MarmotExpression::NameAccess& access)
 
 void UnusedLocalDiagnostic::operator()(MarmotExpression::Function& function)
 {
-	PushScope();
-	RegisterParameterBindings(function.m_params);
-	VisitExpression(function.m_body);
-	PopScope();
+	InScope([&]()
+	{
+		RegisterParameterBindings(function.m_params);
+		VisitExpression(function.m_body);
+	});
 }
 
 void UnusedLocalDiagnostic::operator()(MarmotExpression::Block& block)
 {
-	PushScope();
-
-	for (std::unique_ptr<MarmotStatement>& statement : block.m_stmts)
+	InScope([&]()
 	{
-		VisitStatement(statement);
-	}
+		for (std::unique_ptr<MarmotStatement>& statement : block.m_stmts)
+		{
+			VisitStatement(statement);
+		}
 
-	if (block.m_final_expr.has_value())
-	{
-		VisitExpression(block.m_final_expr.value());
-	}
-
-	PopScope();
+		if (block.m_final_expr.has_value())
+		{
+			VisitExpression(block.m_final_expr.value());
+		}
+	});
 }
 
 void UnusedLocalDiagnostic::operator()(MarmotExpression::Case& case_expr)
 {
-	PushScope();
-	VisitPattern(case_expr.m_pattern);
-	if (case_expr.HasGuard())
+	InScope([&]()
 	{
-		VisitExpression(case_expr.m_guard.value());
-	}
-	VisitExpression(case_expr.m_expr);
-	PopScope();
+		VisitPattern(case_expr.m_pattern);
+		if (case_expr.HasGuard())
+		{
+			VisitExpression(case_expr.m_guard.value());
+		}
+		VisitExpression(case_expr.m_expr);
+	});
 }

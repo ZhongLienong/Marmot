@@ -53,13 +53,25 @@ private:
 		// The type CollectTopLevelNames registered for this declaration, which
 		// earlier declarations and signatures may already name.
 		std::shared_ptr<MarmotType> m_predeclared_type;
+		size_t m_scope_index;
 		bool m_has_generic_params = false;
 
-		TypeDeclarationHeader(Token&& name, std::string&& name_before_mangle)
-			: m_name(std::move(name)), m_name_before_mangle(std::move(name_before_mangle))
+		TypeDeclarationHeader(Token&& name, std::string&& name_before_mangle, size_t scope_index)
+			: m_name(std::move(name)), m_name_before_mangle(std::move(name_before_mangle)), m_scope_index(scope_index)
 		{
 		}
 	};
+
+	struct ParsedTypeDeclaration
+	{
+		std::unique_ptr<MarmotStatement> m_statement;
+		std::vector<Token> m_deriving_targets;
+
+		explicit ParsedTypeDeclaration(std::unique_ptr<MarmotStatement> statement, std::vector<Token> deriving_targets = {});
+	};
+
+	using ParsedTypeResult = std::expected<ParsedTypeDeclaration, CompilerError>;
+	using TypeBodyParser = std::function<ParsedTypeResult(TypeDeclarationHeader&&)>;
 
 	// The result of matching a name against the struct and union constructor tables.
 	// A construction and an ordinary call are told apart by this lookup rather than by a
@@ -179,7 +191,6 @@ private:
 		ParseLifetime(const ParseLifetime&) = delete;
 		ParseLifetime& operator=(const ParseLifetime&) = delete;
 
-		void Restore() const;
 	};
 
 	struct ArrayComprehensionProbe
@@ -283,6 +294,46 @@ private:
 					return lower_expr;
 				}
 			);
+	}
+
+	template<typename Parse>
+	std::invoke_result_t<Parse> InContext(Parse&& parse)
+	{
+		const ParseLifetime lifetime(m_state);
+		return std::forward<Parse>(parse)();
+	}
+
+	template<typename Parse>
+	std::invoke_result_t<Parse> InScope(Parse&& parse)
+	{
+		return InContext([&]()
+		{
+			m_state.m_scopes.emplace_back();
+			return std::forward<Parse>(parse)();
+		});
+	}
+
+	template<typename Parse>
+	std::invoke_result_t<Parse, std::vector<Token>, std::vector<std::shared_ptr<MarmotType>>> WithGenericParameters(Parse&& parse)
+	{
+		using Result = std::invoke_result_t<Parse, std::vector<Token>, std::vector<std::shared_ptr<MarmotType>>>;
+		const auto parse_with_parameters = [&]() -> Result
+		{
+			std::vector<Token> names;
+			std::vector<std::shared_ptr<MarmotType>> types;
+			if (Match(Token::Name::LEFT_ANGLE))
+			{
+				MarmotResult::TokenListResult parameters = ParseGenericParameters(&types);
+				if (!parameters.has_value())
+				{
+					return std::unexpected(std::move(parameters.error()));
+				}
+				names = std::move(parameters.value());
+			}
+			return std::forward<Parse>(parse)(std::move(names), std::move(types));
+		};
+
+		return Check(Token::Name::LEFT_ANGLE, 0) ? InScope(parse_with_parameters) : parse_with_parameters();
 	}
 
 	template<typename OutputType, typename ParseFunc>
@@ -564,7 +615,6 @@ private:
 
 	MarmotResult::TokenResult ConsumeTypeRightAngle(std::string_view message);
 
-
 	MarmotResult::TokenResult ConsumeReturnTypeSeparator(std::string_view message);
 
 	MarmotResult::TokenResult MatchNameResolution();
@@ -573,14 +623,11 @@ private:
 
 	MarmotResult::FunctionParamsResult ParseFunctionParameters(bool allow_inferred_types = false);
 
-	void BeginScope();
-
 	std::string Mangle(std::string_view name);
 
 	MarmotResult::TokenResult DefineName(Token& name, bool is_variable);
 
 	std::optional<BindingId> RegisterLocalBinding(const std::string& name);
-
 
 	ArrayComprehensionProbe ProbeArrayComprehension();
 
@@ -611,7 +658,6 @@ private:
 
 	MarmotResult::ExpressionResult ParseBitwiseOr();
 
-
 	MarmotResult::ExpressionResult ParseUnaryLogicalBitwise();
 
 	MarmotResult::ExpressionResult ParseUnaryArithmetic();
@@ -624,9 +670,7 @@ private:
 
 	MarmotResult::ExpressionResult ParseAs();
 
-
 	MarmotResult::ExpressionResult FinishCall(std::unique_ptr<MarmotExpression>&& callee);
-
 
 	// Operators of different precedence bind by a table the reader has to remember,
 	// so mixing them in one expression needs parentheses instead. Returns the class
@@ -667,12 +711,9 @@ private:
 
 	MarmotResult::ExpressionResult ParsePostfixChain(std::unique_ptr<MarmotExpression>&& expr);
 
-
 	MarmotResult::ExpressionResult ParseForExpression();
 
 	MarmotResult::ExpressionResult ParseArrayComprehension(Token& bracket, const ArrayComprehensionProbe& probe);
-
-
 
 	MarmotResult::ExpressionResult ParseMatchExpressionWithScrutinee(Token& match_keyword, std::unique_ptr<MarmotExpression>&& expr);
 
@@ -700,20 +741,23 @@ private:
 
 	MarmotResult::PatternResult ParseArrayRest(Token&& dots);
 
-
 	MarmotResult::StatementResult ParseDeclaration();
 
 	MarmotResult::StatementResult ParseDefineStatement();
 
-	std::expected<TypeDeclarationHeader, CompilerError> ParseTypeDeclarationHeader(std::string_view noun, std::string_view capitalized_noun);
+	ParsedTypeResult WithTypeDeclarationHeader(std::string_view noun, std::string_view capitalized_noun, const TypeBodyParser& parse_body);
 
-	MarmotResult::StatementResult ParseStructBody(TypeDeclarationHeader&& header, const ParseLifetime& lifetime);
+	MarmotResult::StatementResult FinishTypeDeclaration(ParsedTypeDeclaration declaration);
 
-	MarmotResult::StatementResult ParseUnionBody(TypeDeclarationHeader&& header, const ParseLifetime& lifetime);
+	std::expected<MarmotStatement::FunctionDefinition, CompilerError> ParseInstanceMethodBody(const Token& method_name);
+
+	ParsedTypeResult ParseStructBody(TypeDeclarationHeader&& header);
+
+	ParsedTypeResult ParseUnionBody(TypeDeclarationHeader&& header);
 
 	bool TypeBodyHasTopLevelBar();
 
-	MarmotResult::StatementResult ParseNewTypeBody(TypeDeclarationHeader&& header, const ParseLifetime& lifetime);
+	ParsedTypeResult ParseNewTypeBody(TypeDeclarationHeader&& header);
 
 	MarmotResult::StatementResult ParseClassDeclaration();
 
@@ -723,6 +767,7 @@ private:
 
 	MarmotResult::StatementResult ParseAliasDeclaration();
 
+	ParsedTypeResult ParseAliasBody(TypeDeclarationHeader&& header);
 
 	MarmotResult::StatementResult ParseSimpleStatement();
 

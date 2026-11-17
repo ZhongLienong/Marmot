@@ -105,6 +105,48 @@ def Add = fn(a: Int) -> fn(Int) -> Int => fn(b: Int) -> Int => a + b;
 	CHECK(analyze_result->m_warnings.empty());
 }
 
+TEST_CASE("StaticAnalyzer keeps sibling scopes independent and reads enclosing bindings", "[static-analyzer]")
+{
+	const std::string source = R"(module AnalyzerScopeOwnership
+def Compute = fn(value: Int) -> Int => {
+	def first = {
+		def value = 2;
+		def unused = 3;
+		value
+	};
+	def second = {
+		def unused = 4;
+		value
+	};
+	first + second
+};
+)";
+	std::expected<MarmotTest::AnalyzedSnippet, CompilerError> analyzed = MarmotTest::AnalyzeSnippet(source, "AnalyzerScopeOwnership.mmt");
+	if (!analyzed.has_value())
+	{
+		FAIL(analyzed.error().Rendered());
+	}
+
+	std::vector<int> unused_lines;
+	std::vector<int> shadow_lines;
+	for (const CompilerWarning& warning : analyzed->m_warnings)
+	{
+		REQUIRE(warning.m_location.has_value());
+		if (warning.m_code == CompilerWarningCode::UnusedLocal)
+		{
+			CHECK(warning.m_message == "Binding 'unused' is never read.");
+			unused_lines.push_back(warning.m_location->m_line);
+		}
+		if (warning.m_code == CompilerWarningCode::NameShadowing)
+		{
+			CHECK(warning.m_message == "Name 'value' shadows a variable from an outer scope.");
+			shadow_lines.push_back(warning.m_location->m_line);
+		}
+	}
+	CHECK(unused_lines == std::vector<int>{ 5, 9 });
+	CHECK(shadow_lines == std::vector<int>{ 4 });
+}
+
 TEST_CASE("StaticAnalyzer warns on literal integer overflow patterns", "[static-analyzer]")
 {
 	const std::string source_code =

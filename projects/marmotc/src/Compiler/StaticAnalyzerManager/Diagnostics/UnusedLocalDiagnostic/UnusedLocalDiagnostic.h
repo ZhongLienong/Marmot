@@ -6,6 +6,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <utility>
 
 class UnusedLocalDiagnostic final : public DiagnosticPass
 {
@@ -34,10 +35,28 @@ private:
 	};
 
 	std::unordered_map<BindingId, BindingInfo> m_bindings;
-	std::vector<std::vector<BindingId>> m_scopes;
+	struct Scope
+	{
+		Scope* m_parent;
+		std::vector<BindingId> m_bindings;
 
-	void PushScope();
-	void PopScope();
+		explicit Scope(Scope* parent);
+	};
+
+	Scope m_root{ nullptr };
+	Scope* m_scope = &m_root;
+
+	template<typename Visit>
+	void InScope(Visit&& visit)
+	{
+		Scope scope(m_scope);
+		m_scope = &scope;
+		std::forward<Visit>(visit)();
+		m_scope = scope.m_parent;
+		FinishScope(scope);
+	}
+
+	void FinishScope(const Scope& scope);
 	void RegisterBinding(const Token& token, const std::optional<BindingId>& binding, bool suppressed);
 	void RegisterParameterBindings(const FunctionParameters& params);
 	void MarkRead(const MarmotExpression::NameContext::Tag& name_ctx);

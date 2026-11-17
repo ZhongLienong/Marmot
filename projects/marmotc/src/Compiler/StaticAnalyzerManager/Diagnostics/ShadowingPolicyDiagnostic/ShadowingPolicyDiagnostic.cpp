@@ -38,26 +38,13 @@ namespace
 
 void ShadowingPolicyDiagnostic::Reset(MarmotProgramTree&)
 {
-	m_scopes.clear();
-	PushScope();
+	m_root = Scope(nullptr);
+	m_scope = &m_root;
 }
 
-void ShadowingPolicyDiagnostic::Finish()
+ShadowingPolicyDiagnostic::Scope::Scope(Scope* parent)
+	: m_parent(parent)
 {
-	while (!m_scopes.empty())
-	{
-		PopScope();
-	}
-}
-
-void ShadowingPolicyDiagnostic::PushScope()
-{
-	m_scopes.emplace_back();
-}
-
-void ShadowingPolicyDiagnostic::PopScope()
-{
-	m_scopes.pop_back();
 }
 
 void ShadowingPolicyDiagnostic::DefineVariable(const Token& token)
@@ -68,7 +55,7 @@ void ShadowingPolicyDiagnostic::DefineVariable(const Token& token)
 		EmitShadowWarning(token, kinds);
 	}
 
-	m_scopes.back().m_variables.insert(token.m_lexeme);
+	m_scope->m_variables.insert(token.m_lexeme);
 }
 
 void ShadowingPolicyDiagnostic::DefineStruct(const Token& token)
@@ -79,8 +66,8 @@ void ShadowingPolicyDiagnostic::DefineStruct(const Token& token)
 		EmitShadowWarning(token, kinds);
 	}
 
-	m_scopes.back().m_structs.insert(token.m_lexeme);
-	m_scopes.back().m_types.insert(token.m_lexeme);
+	m_scope->m_structs.insert(token.m_lexeme);
+	m_scope->m_types.insert(token.m_lexeme);
 }
 
 void ShadowingPolicyDiagnostic::DefineUnionConstructor(const Token& token)
@@ -91,7 +78,7 @@ void ShadowingPolicyDiagnostic::DefineUnionConstructor(const Token& token)
 		EmitShadowWarning(token, kinds);
 	}
 
-	m_scopes.back().m_union_constructors.insert(token.m_lexeme);
+	m_scope->m_union_constructors.insert(token.m_lexeme);
 }
 
 void ShadowingPolicyDiagnostic::DefineType(const Token& token)
@@ -102,7 +89,7 @@ void ShadowingPolicyDiagnostic::DefineType(const Token& token)
 		EmitShadowWarning(token, kinds);
 	}
 
-	m_scopes.back().m_types.insert(token.m_lexeme);
+	m_scope->m_types.insert(token.m_lexeme);
 }
 
 void ShadowingPolicyDiagnostic::DefineGenericParams(const std::vector<Token>& generic_params)
@@ -120,13 +107,12 @@ std::vector<std::string_view> ShadowingPolicyDiagnostic::CollectShadowKinds(cons
 	bool shadows_union = false;
 	bool shadows_type = false;
 
-	for (std::size_t index = m_scopes.size(); index > 1u; index -= 1u)
+	for (const Scope* scope = m_scope->m_parent; scope != nullptr; scope = scope->m_parent)
 	{
-		const Scope& scope = m_scopes[index - 2u];
-		shadows_struct = shadows_struct || scope.m_structs.contains(mangled_name);
-		shadows_variable = shadows_variable || scope.m_variables.contains(mangled_name);
-		shadows_union = shadows_union || scope.m_union_constructors.contains(mangled_name);
-		shadows_type = shadows_type || scope.m_types.contains(mangled_name);
+		shadows_struct = shadows_struct || scope->m_structs.contains(mangled_name);
+		shadows_variable = shadows_variable || scope->m_variables.contains(mangled_name);
+		shadows_union = shadows_union || scope->m_union_constructors.contains(mangled_name);
+		shadows_type = shadows_type || scope->m_types.contains(mangled_name);
 	}
 
 	std::vector<std::string_view> kinds;
@@ -180,27 +166,20 @@ void ShadowingPolicyDiagnostic::operator()(MarmotStatement::FunctionDefinition& 
 {
 	DefineVariable(defun.m_name);
 
-	if (!defun.m_generic_params.empty())
+	WithGenericParameters(defun.m_generic_params, [&]()
 	{
-		PushScope();
-		DefineGenericParams(defun.m_generic_params);
-	}
-
-	PushScope();
-	for (size_t index = 0u; index < defun.m_params.Size(); index += 1u)
-	{
-		if (defun.m_params.GeneratedBindingAt(index) == nullptr)
+		InScope([&]()
 		{
-			DefineVariable(defun.m_params.SourceToken(index));
-		}
-	}
-	VisitExpression(defun.m_body);
-	PopScope();
-
-	if (!defun.m_generic_params.empty())
-	{
-		PopScope();
-	}
+			for (size_t index = 0u; index < defun.m_params.Size(); index += 1u)
+			{
+				if (defun.m_params.GeneratedBindingAt(index) == nullptr)
+				{
+					DefineVariable(defun.m_params.SourceToken(index));
+				}
+			}
+			VisitExpression(defun.m_body);
+		});
+	});
 }
 
 void ShadowingPolicyDiagnostic::operator()(MarmotStatement::ForeignDefinition& foreign)
@@ -212,45 +191,27 @@ void ShadowingPolicyDiagnostic::operator()(MarmotStatement::Struct& struct_stmt)
 {
 	DefineStruct(struct_stmt.m_name);
 
-	if (!struct_stmt.m_generic_params.empty())
-	{
-		PushScope();
-		DefineGenericParams(struct_stmt.m_generic_params);
-		PopScope();
-	}
+	WithGenericParameters(struct_stmt.m_generic_params, []() {});
 }
 
 void ShadowingPolicyDiagnostic::operator()(MarmotStatement::Union& union_stmt)
 {
 	DefineType(union_stmt.m_name);
 
-	if (!union_stmt.m_generic_params.empty())
+	WithGenericParameters(union_stmt.m_generic_params, [&]()
 	{
-		PushScope();
-		DefineGenericParams(union_stmt.m_generic_params);
-	}
-
-	for (const Token& constructor_name : union_stmt.m_constructor_names)
-	{
-		DefineUnionConstructor(constructor_name);
-	}
-
-	if (!union_stmt.m_generic_params.empty())
-	{
-		PopScope();
-	}
+		for (const Token& constructor_name : union_stmt.m_constructor_names)
+		{
+			DefineUnionConstructor(constructor_name);
+		}
+	});
 }
 
 void ShadowingPolicyDiagnostic::operator()(MarmotStatement::TypeAlias& type_alias)
 {
 	DefineType(type_alias.m_name);
 
-	if (!type_alias.m_generic_params.empty())
-	{
-		PushScope();
-		DefineGenericParams(type_alias.m_generic_params);
-		PopScope();
-	}
+	WithGenericParameters(type_alias.m_generic_params, []() {});
 }
 
 void ShadowingPolicyDiagnostic::operator()(MarmotPattern::Binding& binding)
@@ -263,54 +224,47 @@ void ShadowingPolicyDiagnostic::operator()(MarmotPattern::Binding& binding)
 
 void ShadowingPolicyDiagnostic::operator()(MarmotExpression::Function& function)
 {
-	if (!function.m_generic_params.empty())
+	WithGenericParameters(function.m_generic_params, [&]()
 	{
-		PushScope();
-		DefineGenericParams(function.m_generic_params);
-	}
-
-	PushScope();
-	for (size_t index = 0u; index < function.m_params.Size(); index += 1u)
-	{
-		if (function.m_params.GeneratedBindingAt(index) == nullptr)
+		InScope([&]()
 		{
-			DefineVariable(function.m_params.SourceToken(index));
-		}
-	}
-	VisitExpression(function.m_body);
-	PopScope();
-
-	if (!function.m_generic_params.empty())
-	{
-		PopScope();
-	}
+			for (size_t index = 0u; index < function.m_params.Size(); index += 1u)
+			{
+				if (function.m_params.GeneratedBindingAt(index) == nullptr)
+				{
+					DefineVariable(function.m_params.SourceToken(index));
+				}
+			}
+			VisitExpression(function.m_body);
+		});
+	});
 }
 
 void ShadowingPolicyDiagnostic::operator()(MarmotExpression::Block& block)
 {
-	PushScope();
-
-	for (std::unique_ptr<MarmotStatement>& statement : block.m_stmts)
+	InScope([&]()
 	{
-		VisitStatement(statement);
-	}
+		for (std::unique_ptr<MarmotStatement>& statement : block.m_stmts)
+		{
+			VisitStatement(statement);
+		}
 
-	if (block.m_final_expr.has_value())
-	{
-		VisitExpression(block.m_final_expr.value());
-	}
-
-	PopScope();
+		if (block.m_final_expr.has_value())
+		{
+			VisitExpression(block.m_final_expr.value());
+		}
+	});
 }
 
 void ShadowingPolicyDiagnostic::operator()(MarmotExpression::Case& case_expr)
 {
-	PushScope();
-	VisitPattern(case_expr.m_pattern);
-	if (case_expr.HasGuard())
+	InScope([&]()
 	{
-		VisitExpression(case_expr.m_guard.value());
-	}
-	VisitExpression(case_expr.m_expr);
-	PopScope();
+		VisitPattern(case_expr.m_pattern);
+		if (case_expr.HasGuard())
+		{
+			VisitExpression(case_expr.m_guard.value());
+		}
+		VisitExpression(case_expr.m_expr);
+	});
 }

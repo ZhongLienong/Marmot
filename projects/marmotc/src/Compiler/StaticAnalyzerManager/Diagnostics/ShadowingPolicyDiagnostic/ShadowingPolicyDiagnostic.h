@@ -6,13 +6,12 @@
 #include <string_view>
 #include <unordered_set>
 #include <vector>
+#include <utility>
 
 class ShadowingPolicyDiagnostic final : public DiagnosticPass
 {
 protected:
 	void Reset(MarmotProgramTree& program_tree) override;
-
-	void Finish() override;
 
 	void operator()(MarmotStatement::VariableDefinition& def) override;
 	void operator()(MarmotStatement::TupleDefinition& def_tuple) override;
@@ -29,14 +28,41 @@ protected:
 private:
 	struct Scope
 	{
+		Scope* m_parent;
 		std::unordered_set<std::string> m_variables;
 		std::unordered_set<std::string> m_structs;
 		std::unordered_set<std::string> m_union_constructors;
 		std::unordered_set<std::string> m_types;
+
+		explicit Scope(Scope* parent);
 	};
 
-	void PushScope();
-	void PopScope();
+	template<typename Visit>
+	void InScope(Visit&& visit)
+	{
+		Scope scope(m_scope);
+		m_scope = &scope;
+		std::forward<Visit>(visit)();
+		m_scope = scope.m_parent;
+	}
+
+	template<typename Visit>
+	void WithGenericParameters(const std::vector<Token>& parameters, Visit&& visit)
+	{
+		const auto visit_with_parameters = [&]()
+		{
+			DefineGenericParams(parameters);
+			std::forward<Visit>(visit)();
+		};
+		if (parameters.empty())
+		{
+			visit_with_parameters();
+		}
+		else
+		{
+			InScope(visit_with_parameters);
+		}
+	}
 	void DefineVariable(const Token& token);
 	void DefineStruct(const Token& token);
 	void DefineUnionConstructor(const Token& token);
@@ -45,5 +71,6 @@ private:
 	std::vector<std::string_view> CollectShadowKinds(const std::string& mangled_name) const;
 	void EmitShadowWarning(const Token& token, const std::vector<std::string_view>& kinds);
 
-	std::vector<Scope> m_scopes;
+	Scope m_root{ nullptr };
+	Scope* m_scope = &m_root;
 };
