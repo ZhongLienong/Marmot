@@ -291,34 +291,32 @@ Parser::TopLevelReference::TopLevelReference(int statement, const Token& name)
 {
 }
 
-Parser::PendingDefinitionGuard::PendingDefinitionGuard(Parser* parser, std::vector<std::string> names)
-	: m_parser(parser),
-	m_count(names.size())
-{
-	for (std::string& name : names)
-	{
-		m_parser->m_state.m_pending_definitions.emplace_back(std::move(name), m_parser->m_state.m_functions.back());
-	}
-}
-
-Parser::PendingDefinitionGuard::~PendingDefinitionGuard()
-{
-	std::vector<PendingDefinition>& pending = m_parser->m_state.m_pending_definitions;
-	pending.erase(std::prev(pending.end(), static_cast<std::ptrdiff_t>(m_count)), pending.end());
-}
-
-Parser::ActiveConstraintGuard::ActiveConstraintGuard(Parser* parser, size_t prev_size)
-	: m_parser(parser),
-	m_prev_size(prev_size)
+Parser::ParseLifetime::ParseLifetime(ParseState& state)
+	: m_state(state),
+	m_scope_count(state.m_scopes.size()),
+	m_namespace_count(state.m_namespaces.size()),
+	m_constraint_count(state.m_active_constraints.size()),
+	m_declaring_type_count(state.m_types_being_declared.size()),
+	m_pending_definition_count(state.m_pending_definitions.size()),
+	m_function(state.m_function),
+	m_allow_implicit_generic_params(state.m_allow_implicit_generic_params)
 {
 }
 
-Parser::ActiveConstraintGuard::~ActiveConstraintGuard()
+Parser::ParseLifetime::~ParseLifetime()
 {
-	if (m_parser != nullptr)
-	{
-		m_parser->m_state.m_active_constraints.resize(m_prev_size);
-	}
+	Restore();
+}
+
+void Parser::ParseLifetime::Restore() const
+{
+	m_state.m_scopes.resize(m_scope_count);
+	m_state.m_namespaces.resize(m_namespace_count);
+	m_state.m_active_constraints.resize(m_constraint_count);
+	m_state.m_types_being_declared.resize(m_declaring_type_count);
+	m_state.m_pending_definitions.erase(m_state.m_pending_definitions.begin() + static_cast<std::ptrdiff_t>(m_pending_definition_count), m_state.m_pending_definitions.end());
+	m_state.m_function = m_function;
+	m_state.m_allow_implicit_generic_params = m_allow_implicit_generic_params;
 }
 
 Parser::Parser(TokenStream&& tokens,std::string_view file_name, const std::vector<std::string>& source_lines, const ModuleImports& imports, const std::vector<UseImport>& use_imports, const ModuleDeclaration* module_decl)
@@ -727,7 +725,7 @@ bool Parser::IsBeingDefined(const std::string& name) const
 		m_state.m_pending_definitions,
 		[&name, this](const PendingDefinition& pending)
 		{
-			return pending.m_name == name && pending.m_function == m_state.m_functions.back();
+			return pending.m_name == name && pending.m_function == m_state.m_function;
 		}
 	);
 }
@@ -905,7 +903,11 @@ void Parser::PredeclareVariants(const std::shared_ptr<MarmotType>& union_type, i
 			{
 				const Token::Name token_name = tokens[static_cast<size_t>(cursor)].m_token_name;
 				depth += (token_name == Token::Name::LEFT_PAREN) ? 1 : ((token_name == Token::Name::RIGHT_PAREN) ? -1 : 0);
-				if ((depth == 0) || (token_name == Token::Name::END_OF_FILE))
+				if (token_name == Token::Name::END_OF_FILE)
+				{
+					return;
+				}
+				if (depth == 0)
 				{
 					break;
 				}
@@ -1185,17 +1187,6 @@ Parser::DeferredInstantiation::DeferredInstantiation(std::shared_ptr<MarmotType>
 {
 }
 
-Parser::DeclaringTypeScope::DeclaringTypeScope(std::vector<std::shared_ptr<MarmotType>>& stack, const std::shared_ptr<MarmotType>& type)
-	: m_stack(stack)
-{
-	m_stack.push_back(type);
-}
-
-Parser::DeclaringTypeScope::~DeclaringTypeScope()
-{
-	m_stack.pop_back();
-}
-
 void Parser::RecordTopLevelDefinition(const MarmotStatement& statement, int statement_index)
 {
 	if (statement.IsStatement<MarmotStatement::VariableDefinition>())
@@ -1327,7 +1318,7 @@ bool Parser::IsGlobalName(const std::vector<Scope>::const_reverse_iterator& foun
 
 bool Parser::IsLocalName(const Scope::VariableTable::const_iterator& found_tbl_it) const
 {
-	return found_tbl_it->second->m_function == m_state.m_functions.back();
+	return found_tbl_it->second->m_function == m_state.m_function;
 }
 
 bool Parser::IsAtGlobalScope() const
@@ -1542,21 +1533,9 @@ MarmotResult::TokenResult Parser::ConsumeReturnTypeSeparator(std::string_view me
 	return std::unexpected(GenerateParserError(std::string(message), Peek(0)));
 }
 
-Parser& Parser::BeginScope() &
+void Parser::BeginScope()
 {
 	m_state.m_scopes.emplace_back();
-	return *this;
-}
-
-Parser&& Parser::BeginScope() &&
-{
-	m_state.m_scopes.emplace_back();
-	return std::move(*this);
-}
-
-void Parser::EndScope()
-{
-	m_state.m_scopes.pop_back();
 }
 
 std::string Parser::Mangle(std::string_view name)
@@ -1627,7 +1606,7 @@ std::optional<BindingId> Parser::RegisterLocalBinding(const std::string& name)
 	{
 		return std::nullopt;
 	}
-	const BindingId binding = std::make_shared<BindingIdentity>(m_state.m_functions.back(), m_state.m_next_binding_index++);
+	const BindingId binding = std::make_shared<BindingIdentity>(m_state.m_function, m_state.m_next_binding_index++);
 	m_state.m_scopes.back().m_variables[name] = binding;
 	return binding;
 }
@@ -1640,7 +1619,7 @@ FunctionParameters Parser::ParametersFor(std::vector<Token> names) const
 	{
 		bindings.push_back(m_state.m_scopes.back().m_variables.at(name.m_lexeme));
 	}
-	return FunctionParameters(std::move(names), std::move(bindings), m_state.m_functions.back());
+	return FunctionParameters(std::move(names), std::move(bindings), m_state.m_function);
 }
 
 std::optional<int> Parser::BinaryOperatorClass(Token::Name name)
@@ -2652,14 +2631,14 @@ MarmotResult::ExpressionResult Parser::ParseRecordUpdate()
 
 MarmotResult::ExpressionResult Parser::ParseBlockExpression()
 {
+	const ParseLifetime lifetime(m_state);
 	std::function<MarmotResult::ExpressionResult(std::vector<std::unique_ptr<MarmotStatement>>&&, std::unique_ptr<MarmotExpression>&&)> build_block = [this](std::vector<std::unique_ptr<MarmotStatement>>&& stmts, std::unique_ptr<MarmotExpression>&& final_expr) -> MarmotResult::ExpressionResult
 		{
 			return Consume(Token::Name::RIGHT_BRACE, "Expected '}' after block expression.")
 				.and_then
 				(
-					[&stmts, &final_expr, this](Token&& right_brace)
+					[&stmts, &final_expr](Token&& right_brace)
 					{
-						EndScope();
 						return final_expr != nullptr
 							? MarmotResult::ExpressionResult(std::make_unique<MarmotExpression>(MarmotExpression::Block(right_brace, std::move(stmts), std::move(final_expr))))
 							: MarmotResult::ExpressionResult(std::make_unique<MarmotExpression>(MarmotExpression::Block(right_brace, std::move(stmts))));
@@ -2733,6 +2712,7 @@ MarmotResult::ExpressionResult Parser::ParseForExpression()
 		(
 			[&for_keyword, &loop_variable, &in_keyword, this](std::unique_ptr<MarmotExpression>&& range)->MarmotResult::ExpressionResult
 			{
+				const ParseLifetime lifetime(m_state);
 				BeginScope();
 				std::string var_name(loop_variable.m_lexeme);
 				std::optional<BindingId> binding = RegisterLocalBinding(var_name);
@@ -2741,10 +2721,8 @@ MarmotResult::ExpressionResult Parser::ParseForExpression()
 				return ParseExpression()
 					.and_then
 					(
-						[&for_keyword, &loop_variable, &in_keyword, range = std::move(range), loop_binding, this](std::unique_ptr<MarmotExpression>&& body) mutable ->MarmotResult::ExpressionResult
+						[&for_keyword, &loop_variable, &in_keyword, range = std::move(range), loop_binding](std::unique_ptr<MarmotExpression>&& body) mutable ->MarmotResult::ExpressionResult
 						{
-							EndScope();
-
 							std::unique_ptr<MarmotExpression> for_expr = std::make_unique<MarmotExpression>(MarmotExpression::For(for_keyword, loop_variable, in_keyword, std::move(range), std::move(body)));
 							MarmotExpression::For& for_expr_ref = for_expr->GetExpression<MarmotExpression::For>();
 							for_expr_ref.m_loop_binding = loop_binding;
@@ -2842,23 +2820,13 @@ Parser::ArrayComprehensionProbe Parser::ProbeArrayComprehension()
 
 MarmotResult::ExpressionResult Parser::ParseArrayComprehension(Token& bracket, const ArrayComprehensionProbe& probe)
 {
-	bool scope_open = false;
-	auto close_scope = [this, &scope_open]()
-		{
-			if (scope_open)
-			{
-				EndScope();
-				scope_open = false;
-			}
-		};
-
+	const ParseLifetime lifetime(m_state);
 	BindingId loop_binding;
 
 	if (probe.m_loop_variable_offset.has_value())
 	{
 		Token loop_variable = Peek(probe.m_loop_variable_offset.value());
 		BeginScope();
-		scope_open = true;
 
 		// The transform is parsed first, so its loop binding must already exist.
 		loop_binding = RegisterLocalBinding(std::string(loop_variable.m_lexeme)).value();
@@ -2867,24 +2835,21 @@ MarmotResult::ExpressionResult Parser::ParseArrayComprehension(Token& bracket, c
 	return ParseExpression()
 		.and_then
 		(
-			[&bracket, &close_scope, loop_binding, this](std::unique_ptr<MarmotExpression>&& transform_expr) -> MarmotResult::ExpressionResult
+			[&bracket, loop_binding, this](std::unique_ptr<MarmotExpression>&& transform_expr) -> MarmotResult::ExpressionResult
 			{
 				if (!Match(Token::Name::FOR))
 				{
-					close_scope();
 					return std::unexpected(GenerateParserError("Expected 'for' in array comprehension. Use '[expr for item in range]' syntax.", Peek(0)));
 				}
 
 				if (!Match(Token::Name::IDENTIFIER_LITERAL))
 				{
-					close_scope();
 					return std::unexpected(GenerateParserError("Expected identifier after 'for' in array comprehension.", Peek(0)));
 				}
 				Token actual_loop_var = Previous();
 
 				if (!Match(Token::Name::IN))
 				{
-					close_scope();
 					return std::unexpected(GenerateParserError("Expected 'in' after loop variable in array comprehension. Use '[expr for item in range]' syntax.", Peek(0)));
 				}
 				Token in_keyword = Previous();
@@ -2892,15 +2857,13 @@ MarmotResult::ExpressionResult Parser::ParseArrayComprehension(Token& bracket, c
 				return ParseExpression()
 					.and_then
 					(
-						[&bracket, &actual_loop_var, &in_keyword, &close_scope, loop_binding, transform_expr = std::move(transform_expr), this](std::unique_ptr<MarmotExpression>&& range) mutable -> MarmotResult::ExpressionResult
+						[&bracket, &actual_loop_var, &in_keyword, loop_binding, transform_expr = std::move(transform_expr), this](std::unique_ptr<MarmotExpression>&& range) mutable -> MarmotResult::ExpressionResult
 						{
 							if (!Match(Token::Name::RIGHT_BRACKET))
 							{
-								close_scope();
 								return std::unexpected(GenerateParserError("Expected ']' after array comprehension.", Peek(0)));
 							}
 
-							close_scope();
 							if (loop_binding < 0)
 							{
 								return std::unexpected(GenerateParserError("Internal error: array comprehension loop binding was not initialized.", actual_loop_var));
@@ -2913,23 +2876,7 @@ MarmotResult::ExpressionResult Parser::ParseArrayComprehension(Token& bracket, c
 
 							return comp_expr;
 						}
-					)
-					.or_else
-					(
-						[&close_scope](CompilerError&& error) -> MarmotResult::ExpressionResult
-						{
-							close_scope();
-							return std::unexpected(std::move(error));
-						}
 					);
-			}
-		)
-		.or_else
-		(
-			[&close_scope](CompilerError&& error) -> MarmotResult::ExpressionResult
-			{
-				close_scope();
-				return std::unexpected(std::move(error));
 			}
 		);
 }
@@ -2976,10 +2923,11 @@ MarmotResult::StatementResult Parser::ParseDefineStatement()
 						(
 							[&names, &bindings, this](Token&&) -> MarmotResult::StatementResult
 							{
-								std::vector<std::string> pending_names;
-								pending_names.reserve(names.size());
-								std::ranges::transform(names, std::back_inserter(pending_names), [](const Token& name) { return name.m_lexeme; });
-								const PendingDefinitionGuard pending(this, std::move(pending_names));
+								const ParseLifetime lifetime(m_state);
+								for (const Token& name : names)
+								{
+									m_state.m_pending_definitions.emplace_back(name.m_lexeme, m_state.m_function);
+								}
 
 								return ParseExpression()
 									.and_then
@@ -3023,7 +2971,8 @@ MarmotResult::StatementResult Parser::ParseDefineStatement()
 										(
 											[&define_name, &type_annotation, &binding, this](Token&&) -> MarmotResult::StatementResult
 											{
-												const PendingDefinitionGuard pending(this, { define_name.m_lexeme });
+												const ParseLifetime lifetime(m_state);
+												m_state.m_pending_definitions.emplace_back(define_name.m_lexeme, m_state.m_function);
 												return ParseExpression()
 													.and_then
 													(
@@ -3091,7 +3040,7 @@ std::expected<Parser::TypeDeclarationHeader, CompilerError> Parser::ParseTypeDec
 	TypeDeclarationHeader header(std::move(defined_name_result.value()), std::move(name_before_mangle));
 
 	// Generic parameters open a scope before they are parsed, so that DefineName()
-	// inside ParseGenericParameters() adds them to it. The body parsers close it.
+	// inside ParseGenericParameters() adds them to it. The declaration owns its lifetime.
 	if (Match(Token::Name::LEFT_ANGLE))
 	{
 		header.m_has_generic_params = true;
@@ -3100,7 +3049,6 @@ std::expected<Parser::TypeDeclarationHeader, CompilerError> Parser::ParseTypeDec
 		MarmotResult::TokenListResult generic_parse_result = ParseGenericParameters(&header.m_generic_param_types);
 		if (!generic_parse_result.has_value())
 		{
-			EndScope();
 			return std::unexpected(generic_parse_result.error());
 		}
 
@@ -3126,7 +3074,7 @@ std::expected<Parser::TypeDeclarationHeader, CompilerError> Parser::ParseTypeDec
 	return header;
 }
 
-MarmotResult::StatementResult Parser::ParseStructBody(TypeDeclarationHeader&& header)
+MarmotResult::StatementResult Parser::ParseStructBody(TypeDeclarationHeader&& header, const ParseLifetime& lifetime)
 {
 	MarmotResult::TokenResult brace_result = Consume(Token::Name::LEFT_BRACE, "Expected '{' before struct body.");
 	if (!brace_result.has_value())
@@ -3144,36 +3092,40 @@ MarmotResult::StatementResult Parser::ParseStructBody(TypeDeclarationHeader&& he
 	const size_t type_scope_idx = header.m_has_generic_params ? m_state.m_scopes.size() - 2uz : m_state.m_scopes.size() - 1uz;
 	m_state.m_scopes[type_scope_idx].m_defined_types[header.m_name.m_lexeme] = struct_type;
 
-	DeclaringTypeScope declaring_scope(m_state.m_types_being_declared, struct_type);
-	std::expected<std::vector<StructMemberTuple>, CompilerError> members_result = ParseDelimitedZeroOrMoreLimited<StructMemberTuple>
-	(
-		[this]() -> std::expected<StructMemberTuple, CompilerError>
-		{
-			MarmotResult::TokenResult member_name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected struct member name.");
-			if (!member_name_result.has_value())
+	std::expected<std::vector<StructMemberTuple>, CompilerError> members_result = [this, &struct_type]()
+	{
+		const ParseLifetime lifetime(m_state);
+		m_state.m_types_being_declared.push_back(struct_type);
+		return ParseDelimitedZeroOrMoreLimited<StructMemberTuple>
+		(
+			[this]() -> std::expected<StructMemberTuple, CompilerError>
 			{
-				return std::unexpected(member_name_result.error());
-			}
+				MarmotResult::TokenResult member_name_result = Consume(Token::Name::IDENTIFIER_LITERAL, "Expected struct member name.");
+				if (!member_name_result.has_value())
+				{
+					return std::unexpected(member_name_result.error());
+				}
 
-			Token member_name = std::move(member_name_result.value());
+				Token member_name = std::move(member_name_result.value());
 
-			MarmotResult::TokenResult colon_result = Consume(Token::Name::SINGLE_COLON, "Expected ':' before struct member type token.");
-			if (!colon_result.has_value())
-			{
-				return std::unexpected(colon_result.error());
-			}
+				MarmotResult::TokenResult colon_result = Consume(Token::Name::SINGLE_COLON, "Expected ':' before struct member type token.");
+				if (!colon_result.has_value())
+				{
+					return std::unexpected(colon_result.error());
+				}
 
-			MarmotResult::TypeResult member_type_result = ParseType();
-			if (!member_type_result.has_value())
-			{
-				return std::unexpected(member_type_result.error());
-			}
+				MarmotResult::TypeResult member_type_result = ParseType();
+				if (!member_type_result.has_value())
+				{
+					return std::unexpected(member_type_result.error());
+				}
 
-			return std::make_tuple(std::move(member_type_result.value()), member_name.m_lexeme);
-		},
-		[this]() { return Consume(Token::Name::COMMA, "Expected ',' struct member."); },
-		[this]() { return Consume(Token::Name::RIGHT_BRACE, "Expected '}' struct members."); }
-	);
+				return std::make_tuple(std::move(member_type_result.value()), member_name.m_lexeme);
+			},
+			[this]() { return Consume(Token::Name::COMMA, "Expected ',' struct member."); },
+			[this]() { return Consume(Token::Name::RIGHT_BRACE, "Expected '}' struct members."); }
+		);
+	}();
 	if (!members_result.has_value())
 	{
 		return std::unexpected(members_result.error());
@@ -3202,11 +3154,7 @@ MarmotResult::StatementResult Parser::ParseStructBody(TypeDeclarationHeader&& he
 	struct_type->GetType<MarmotType::StructType>().m_member_names = std::move(member_split.m_names);
 	CompleteType(struct_type);
 
-	// End the generic param scope if it was created
-	if (header.m_has_generic_params)
-	{
-		EndScope();
-	}
+	lifetime.Restore();
 
 	m_state.m_scopes.back().m_struct_constructors[header.m_name.m_lexeme] = struct_type;
 
@@ -3223,7 +3171,7 @@ MarmotResult::StatementResult Parser::ParseStructBody(TypeDeclarationHeader&& he
 	return std::make_unique<MarmotStatement>(MarmotStatement::Struct(std::move(header.m_name), std::move(header.m_generic_params), std::move(header.m_constraints), std::move(struct_type)));
 }
 
-MarmotResult::StatementResult Parser::ParseUnionBody(TypeDeclarationHeader&& header)
+MarmotResult::StatementResult Parser::ParseUnionBody(TypeDeclarationHeader&& header, const ParseLifetime& lifetime)
 {
 	// The caller has already consumed the '=': ParseTypeDeclaration takes it before
 	// dispatching on the shape of the body that follows.
@@ -3245,7 +3193,8 @@ MarmotResult::StatementResult Parser::ParseUnionBody(TypeDeclarationHeader&& hea
 
 	std::expected<std::vector<UnionMemberTuple>, CompilerError> members_result = [&constructor_names, &tag, &union_type, this]()
 	{
-		DeclaringTypeScope scope(m_state.m_types_being_declared, union_type);
+		const ParseLifetime lifetime(m_state);
+		m_state.m_types_being_declared.push_back(union_type);
 
 		return ParseDelimitedOneOrMoreUnlimited<UnionMemberTuple>
 		(
@@ -3332,12 +3281,7 @@ MarmotResult::StatementResult Parser::ParseUnionBody(TypeDeclarationHeader&& hea
 		return std::unexpected(semicolon_result.error());
 	}
 
-	m_state.m_namespaces.pop_back();
-
-	if (header.m_has_generic_params)
-	{
-		EndScope();
-	}
+	lifetime.Restore();
 
 	MarmotStatement::Union union_stmt(header.m_name, std::vector<Token>(header.m_generic_params), std::vector<Token>(constructor_names), std::vector<MarmotType::ClassConstraint>(header.m_constraints), std::shared_ptr<MarmotType>(union_type));
 	if (!deriving_targets.empty())
@@ -3444,7 +3388,7 @@ bool Parser::TypeBodyHasTopLevelBar()
 	return false;
 }
 
-MarmotResult::StatementResult Parser::ParseNewTypeBody(TypeDeclarationHeader&& header)
+MarmotResult::StatementResult Parser::ParseNewTypeBody(TypeDeclarationHeader&& header, const ParseLifetime& lifetime)
 {
 	std::vector<std::string> generic_param_names;
 	std::ranges::transform(header.m_generic_params, std::back_inserter(generic_param_names), [](const Token& generic_param) { return generic_param.m_lexeme; });
@@ -3454,7 +3398,8 @@ MarmotResult::StatementResult Parser::ParseNewTypeBody(TypeDeclarationHeader&& h
 
 	MarmotResult::TypeResult representation_result = [&new_type, this]()
 		{
-			DeclaringTypeScope declaring_scope(m_state.m_types_being_declared, new_type);
+			const ParseLifetime lifetime(m_state);
+			m_state.m_types_being_declared.push_back(new_type);
 			return ParseType();
 		}();
 	if (!representation_result.has_value())
@@ -3479,10 +3424,7 @@ MarmotResult::StatementResult Parser::ParseNewTypeBody(TypeDeclarationHeader&& h
 		return std::unexpected(semicolon_result.error());
 	}
 
-	if (header.m_has_generic_params)
-	{
-		EndScope();
-	}
+	lifetime.Restore();
 
 	// Registered in the enclosing scope so uses of the name resolve to the
 	// nominal type rather than to its representation.
@@ -3493,6 +3435,7 @@ MarmotResult::StatementResult Parser::ParseNewTypeBody(TypeDeclarationHeader&& h
 
 MarmotResult::StatementResult Parser::ParseTypeDeclaration()
 {
+	const ParseLifetime lifetime(m_state);
 	const bool is_top_level = m_state.m_scopes.size() == 1uz;
 	std::expected<TypeDeclarationHeader, CompilerError> header_result = ParseTypeDeclarationHeader("type", "Type");
 	if (!header_result.has_value())
@@ -3521,7 +3464,7 @@ MarmotResult::StatementResult Parser::ParseTypeDeclaration()
 	// finding any 'with' and answer "block", so it fails safe either way.
 	if (Check(Token::Name::LEFT_BRACE, 0))
 	{
-		return ParseStructBody(std::move(header_result.value()));
+		return ParseStructBody(std::move(header_result.value()), lifetime);
 	}
 
 	// A depth-0 '|' anywhere before the terminating ';' means a sum. Without one,
@@ -3530,15 +3473,16 @@ MarmotResult::StatementResult Parser::ParseTypeDeclaration()
 	// frees the bare-name spelling for newtypes.
 	if (!TypeBodyHasTopLevelBar())
 	{
-		return ParseNewTypeBody(std::move(header_result.value()));
+		return ParseNewTypeBody(std::move(header_result.value()), lifetime);
 	}
 
 	Match(Token::Name::SINGLE_BAR);
-	return ParseUnionBody(std::move(header_result.value()));
+	return ParseUnionBody(std::move(header_result.value()), lifetime);
 }
 
 MarmotResult::StatementResult Parser::ParseAliasDeclaration()
 {
+	const ParseLifetime lifetime(m_state);
 	// The header gives an alias the same prologue every nominal declaration has, and
 	// with it the scope that binds `T` while `= Box<T>` is parsed.
 	std::expected<TypeDeclarationHeader, CompilerError> header_result = ParseTypeDeclarationHeader("alias", "Alias");
@@ -3576,10 +3520,7 @@ MarmotResult::StatementResult Parser::ParseAliasDeclaration()
 		return std::unexpected(semicolon_result.error());
 	}
 
-	if (header.m_has_generic_params)
-	{
-		EndScope();
-	}
+	lifetime.Restore();
 
 	// aliased_type is already the template a use site needs: substituting Box's own
 	// parameters with the alias's left every occurrence of `T` in it standing for the
@@ -3625,24 +3566,8 @@ MarmotResult::StatementResult Parser::ParseClassDeclaration()
 		return std::unexpected(GenerateParserError("Class must have at least one type parameter.", typeclass_name));
 	}
 
+	const ParseLifetime lifetime(m_state);
 	BeginScope();
-	struct ScopeGuard
-	{
-		Parser* m_parser;
-
-		explicit ScopeGuard(Parser* parser)
-			: m_parser(parser)
-		{
-		}
-
-		~ScopeGuard()
-		{
-			if (m_parser != nullptr)
-			{
-				m_parser->EndScope();
-			}
-		}
-	} scope_guard(this);
 
 	std::vector<Token> type_params;
 	std::vector<std::shared_ptr<MarmotType>> type_param_types;
@@ -3823,9 +3748,6 @@ MarmotResult::StatementResult Parser::ParseClassDeclaration()
 		return std::unexpected(class_semicolon_result.error());
 	}
 
-	scope_guard.m_parser = nullptr;
-	EndScope();
-
 	return std::make_unique<MarmotStatement>
 	(
 		MarmotStatement::Class(std::move(typeclass_name), std::move(type_params), std::move(associated_types), std::move(methods))
@@ -3852,55 +3774,13 @@ MarmotResult::StatementResult Parser::ParseInstanceDeclaration()
 		return std::unexpected(angle_result.error());
 	}
 
+	const ParseLifetime lifetime(m_state);
 	BeginScope();
-	struct ScopeGuard
-	{
-		Parser* m_parser;
-
-		explicit ScopeGuard(Parser* parser)
-			: m_parser(parser)
-		{
-		}
-
-		~ScopeGuard()
-		{
-			if (m_parser != nullptr)
-			{
-				m_parser->EndScope();
-			}
-		}
-
-		ScopeGuard(const ScopeGuard&) = delete;
-		ScopeGuard& operator=(const ScopeGuard&) = delete;
-	} scope_guard(this);
-
-	struct ImplicitGenericParamGuard
-	{
-		Parser* m_parser;
-		bool m_prev_value;
-
-		explicit ImplicitGenericParamGuard(Parser* parser)
-			: m_parser(parser),
-			m_prev_value(parser->m_state.m_allow_implicit_generic_params)
-		{
-			m_parser->m_state.m_allow_implicit_generic_params = true;
-		}
-
-		~ImplicitGenericParamGuard()
-		{
-			if (m_parser != nullptr)
-			{
-				m_parser->m_state.m_allow_implicit_generic_params = m_prev_value;
-			}
-		}
-
-		ImplicitGenericParamGuard(const ImplicitGenericParamGuard&) = delete;
-		ImplicitGenericParamGuard& operator=(const ImplicitGenericParamGuard&) = delete;
-	};
 
 	std::vector<std::shared_ptr<MarmotType>> type_args;
 	{
-		ImplicitGenericParamGuard implicit_guard(this);
+		const ParseLifetime implicit_lifetime(m_state);
+		m_state.m_allow_implicit_generic_params = true;
 		MarmotResult::TypeListResult type_args_result = ParseDelimitedZeroOrMoreLimited<std::shared_ptr<MarmotType>>
 			(
 				[this]() { return ParseType(); },
@@ -3931,9 +3811,7 @@ MarmotResult::StatementResult Parser::ParseInstanceDeclaration()
 		constraints = std::move(constraints_result.value());
 	}
 
-	size_t prev_constraints_size = m_state.m_active_constraints.size();
 	PushActiveConstraints(constraints);
-	ActiveConstraintGuard constraint_guard(this, prev_constraints_size);
 
 	MarmotResult::TokenResult brace_result = Consume(Token::Name::LEFT_BRACE, "Expected '{' before instance methods.");
 	if (!brace_result.has_value())
@@ -4029,17 +3907,15 @@ MarmotResult::StatementResult Parser::ParseInstanceDeclaration()
 			return std::unexpected(method_function_result.error());
 		}
 
+		const ParseLifetime method_lifetime(m_state);
 		std::vector<Token> generic_params;
-		bool has_generic_params = false;
 		if (Match(Token::Name::LEFT_ANGLE))
 		{
-			has_generic_params = true;
 			BeginScope();
 
 			MarmotResult::TokenListResult generic_parse_result = ParseGenericParameters(nullptr);
 			if (!generic_parse_result.has_value())
 			{
-				EndScope();
 				return std::unexpected(generic_parse_result.error());
 			}
 
@@ -4049,25 +3925,15 @@ MarmotResult::StatementResult Parser::ParseInstanceDeclaration()
 		MarmotResult::TokenResult left_paren_result = Consume(Token::Name::LEFT_PAREN, "Expected '(' before method parameters.");
 		if (!left_paren_result.has_value())
 		{
-			if (has_generic_params)
-			{
-				EndScope();
-			}
 			return std::unexpected(left_paren_result.error());
 		}
 
-		m_state.m_functions.push_back(std::make_shared<LexicalFunction>());
+		m_state.m_function = std::make_shared<LexicalFunction>();
 		BeginScope();
 
 		MarmotResult::FunctionParamsResult params_parse_result = ParseFunctionParameters();
 		if (!params_parse_result.has_value())
 		{
-			EndScope();
-			m_state.m_functions.pop_back();
-			if (has_generic_params)
-			{
-				EndScope();
-			}
 			return std::unexpected(params_parse_result.error());
 		}
 
@@ -4079,24 +3945,12 @@ MarmotResult::StatementResult Parser::ParseInstanceDeclaration()
 		MarmotResult::TokenResult return_colon_result = ConsumeReturnTypeSeparator("Expected '->' before return type.");
 		if (!return_colon_result.has_value())
 		{
-			EndScope();
-			m_state.m_functions.pop_back();
-			if (has_generic_params)
-			{
-				EndScope();
-			}
 			return std::unexpected(return_colon_result.error());
 		}
 
 		MarmotResult::TypeResult return_type_result = ParseType();
 		if (!return_type_result.has_value())
 		{
-			EndScope();
-			m_state.m_functions.pop_back();
-			if (has_generic_params)
-			{
-				EndScope();
-			}
 			return std::unexpected(return_type_result.error());
 		}
 		std::shared_ptr<MarmotType> return_type = std::move(return_type_result.value());
@@ -4104,24 +3958,12 @@ MarmotResult::StatementResult Parser::ParseInstanceDeclaration()
 		MarmotResult::TokenResult fat_arrow_result = Consume(Token::Name::FAT_ARROW, "Expected '=>' before method body.");
 		if (!fat_arrow_result.has_value())
 		{
-			EndScope();
-			m_state.m_functions.pop_back();
-			if (has_generic_params)
-			{
-				EndScope();
-			}
 			return std::unexpected(fat_arrow_result.error());
 		}
 
 		MarmotResult::ExpressionResult body_result = ParseExpression();
 		if (!body_result.has_value())
 		{
-			EndScope();
-			m_state.m_functions.pop_back();
-			if (has_generic_params)
-			{
-				EndScope();
-			}
 			return std::unexpected(body_result.error());
 		}
 		std::unique_ptr<MarmotExpression> body = std::move(body_result.value());
@@ -4129,20 +3971,7 @@ MarmotResult::StatementResult Parser::ParseInstanceDeclaration()
 		MarmotResult::TokenResult method_semicolon_result = Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after method body.");
 		if (!method_semicolon_result.has_value())
 		{
-			EndScope();
-			m_state.m_functions.pop_back();
-			if (has_generic_params)
-			{
-				EndScope();
-			}
 			return std::unexpected(method_semicolon_result.error());
-		}
-
-		EndScope();
-		m_state.m_functions.pop_back();
-		if (has_generic_params)
-		{
-			EndScope();
 		}
 
 		methods.emplace_back
@@ -4183,9 +4012,6 @@ MarmotResult::StatementResult Parser::ParseInstanceDeclaration()
 
 	const std::string declaring_module = m_context.m_current_module && m_context.m_current_module->HasModuleDeclaration() ? m_context.m_current_module->ModuleName() : std::string();
 	m_state.m_class_instances[typeclass_name.m_lexeme].emplace_back(type_args, std::move(associated_type_bindings), constraints, std::move(mangled_method_names), declaring_module);
-
-	scope_guard.m_parser = nullptr;
-	EndScope();
 
 	return std::make_unique<MarmotStatement>
 	(
@@ -4312,25 +4138,9 @@ MarmotResult::StatementResult Parser::ParseForeignDeclaration(const Token& forei
 									{
 										std::optional<BindingId> binding = RegisterLocalBinding(name.m_lexeme);
 										constexpr bool is_foreign = true;
+										const ParseLifetime lifetime(m_state);
 										BeginScope();
-										struct ForeignTypeScopeGuard
-										{
-											Parser* m_parser;
-											bool m_prev_allow_implicit_generic_params;
-
-											explicit ForeignTypeScopeGuard(Parser* parser)
-												: m_parser(parser),
-												  m_prev_allow_implicit_generic_params(parser->m_state.m_allow_implicit_generic_params)
-											{
-												m_parser->m_state.m_allow_implicit_generic_params = true;
-											}
-
-											~ForeignTypeScopeGuard()
-											{
-												m_parser->m_state.m_allow_implicit_generic_params = m_prev_allow_implicit_generic_params;
-												m_parser->EndScope();
-											}
-										} foreign_type_scope_guard(this);
+										m_state.m_allow_implicit_generic_params = true;
 
 										return ParseType(is_foreign)
 											.and_then
@@ -4466,22 +4276,20 @@ MarmotResult::ExpressionResult Parser::ParseFunctionExpression()
 	// In `x |> fn(a) => f(a) |> g` the lambda is one stage: its body stops before the
 	// next `|>`, as any pipe operand does, rather than taking the rest of the pipeline.
 	const bool is_pipe_stage = std::exchange(m_state.m_next_function_is_pipe_stage, false);
+	const ParseLifetime lifetime(m_state);
 
 	// Parse optional generic parameters <T, U, ...>
 	// Create scope BEFORE parsing so DefineName() in ParseGenericParameters adds them to this scope
 	std::vector<Token> generic_params;
 	std::vector<std::shared_ptr<MarmotType>> generic_param_types;
-	bool has_generic_params = false;
 
 	if (Match(Token::Name::LEFT_ANGLE))
 	{
-		has_generic_params = true;
-		BeginScope();  // Create scope for generic parameters
+		BeginScope();
 
 		MarmotResult::TokenListResult generic_parse_result = ParseGenericParameters(&generic_param_types);
 		if (!generic_parse_result.has_value())
 		{
-			EndScope();  // Clean up scope on error
 			return std::unexpected(generic_parse_result.error());
 		}
 
@@ -4491,31 +4299,15 @@ MarmotResult::ExpressionResult Parser::ParseFunctionExpression()
 	MarmotResult::TokenResult left_paren_result = Consume(Token::Name::LEFT_PAREN, "Expected '(' before function parameters.");
 	if (!left_paren_result.has_value())
 	{
-		if (has_generic_params)
-		{
-			EndScope();
-		}
 		return std::unexpected(left_paren_result.error());
 	}
 
-	m_state.m_functions.push_back(std::make_shared<LexicalFunction>());
+	m_state.m_function = std::make_shared<LexicalFunction>();
 	BeginScope();
-
-	// Unwinds the function scope (and the generic parameter scope, if one was opened).
-	auto unwind_function_state = [has_generic_params, this]()
-	{
-		EndScope();
-		m_state.m_functions.pop_back();
-		if (has_generic_params)
-		{
-			EndScope();
-		}
-	};
 
 	MarmotResult::FunctionParamsResult params_parse_result = ParseFunctionParameters(true);
 	if (!params_parse_result.has_value())
 	{
-		unwind_function_state();
 		return std::unexpected(params_parse_result.error());
 	}
 
@@ -4530,7 +4322,6 @@ MarmotResult::ExpressionResult Parser::ParseFunctionExpression()
 		MarmotResult::TypeResult return_type_result = ParseType();
 		if (!return_type_result.has_value())
 		{
-			unwind_function_state();
 			return std::unexpected(return_type_result.error());
 		}
 
@@ -4545,7 +4336,6 @@ MarmotResult::ExpressionResult Parser::ParseFunctionExpression()
 		std::expected<std::vector<MarmotType::ClassConstraint>, CompilerError> constraints_result = ParseClassConstraints(keyword);
 		if (!constraints_result.has_value())
 		{
-			unwind_function_state();
 			return std::unexpected(constraints_result.error());
 		}
 
@@ -4555,18 +4345,15 @@ MarmotResult::ExpressionResult Parser::ParseFunctionExpression()
 	MarmotResult::TokenResult fat_arrow_result = Consume(Token::Name::FAT_ARROW, "Expected '=>' before function body.");
 	if (!fat_arrow_result.has_value())
 	{
-		unwind_function_state();
 		return std::unexpected(fat_arrow_result.error());
 	}
 
-	size_t prev_constraints_size = m_state.m_active_constraints.size();
 	std::vector<MarmotType::ClassConstraint> propagated_constraints = CollectSignatureConstraints(param_types, return_type);
 	for (MarmotType::ClassConstraint& propagated_constraint : propagated_constraints)
 	{
 		AppendUniqueConstraint(constraints, std::move(propagated_constraint));
 	}
 	PushActiveConstraints(constraints);
-	ActiveConstraintGuard constraint_guard(this, prev_constraints_size);
 
 	// If body is a block, parse just the block without continuing to parse calls
 	// This prevents `fn() => {}()` from parsing `()` as part of the function body.
@@ -4599,22 +4386,19 @@ MarmotResult::ExpressionResult Parser::ParseFunctionExpression()
 
 	if (!body_result.has_value())
 	{
-		unwind_function_state();
 		return std::unexpected(body_result.error());
 	}
-
-	unwind_function_state();
 
 	return std::make_unique<MarmotExpression>(MarmotExpression::Function(keyword, std::move(generic_params), std::move(params), std::move(param_types), std::move(return_type), std::move(body_result.value()), std::move(constraints)));
 }
 
 MarmotResult::ExpressionResult Parser::ParseCaseExpression(Token& keyword)
 {
+	const ParseLifetime lifetime(m_state);
 	BeginScope();
 	MarmotResult::PatternResult pattern_result = ParsePattern();
 	if (!pattern_result.has_value())
 	{
-		EndScope();
 		return std::unexpected(std::move(pattern_result.error()));
 	}
 
@@ -4626,7 +4410,6 @@ MarmotResult::ExpressionResult Parser::ParseCaseExpression(Token& keyword)
 		MarmotResult::ExpressionResult guard_result = ParseExpression();
 		if (!guard_result.has_value())
 		{
-			EndScope();
 			return std::unexpected(std::move(guard_result.error()));
 		}
 		guard = std::move(guard_result.value());
@@ -4640,9 +4423,8 @@ MarmotResult::ExpressionResult Parser::ParseCaseExpression(Token& keyword)
 				return ParseExpression()
 					.and_then
 					(
-						[&keyword, &pattern, &guard, this](std::unique_ptr<MarmotExpression>&& case_expr)->MarmotResult::ExpressionResult
+						[&keyword, &pattern, &guard](std::unique_ptr<MarmotExpression>&& case_expr)->MarmotResult::ExpressionResult
 						{
-							EndScope();
 							return std::make_unique<MarmotExpression>(MarmotExpression::Case(keyword, std::move(pattern), std::move(case_expr), std::move(guard)));
 						}
 					);
@@ -4690,9 +4472,9 @@ MarmotResult::PatternResult Parser::ParseAlternatives()
 	while (Match(Token::Name::SINGLE_BAR))
 	{
 		const Token bar = Previous();
+		const ParseLifetime lifetime(m_state);
 		BeginScope();
 		MarmotResult::PatternResult alternative = ParsePrimaryPattern();
-		EndScope();
 		if (!alternative.has_value())
 		{
 			return alternative;

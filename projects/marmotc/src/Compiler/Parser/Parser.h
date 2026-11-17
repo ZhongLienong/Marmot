@@ -139,7 +139,7 @@ private:
 		std::unordered_map<std::string, std::vector<TypeclassInstance>> m_class_instances;
 		TypeclassMethodTypeMap m_typeclass_method_types;
 		Scopes m_scopes{ Scope() };
-		std::vector<LexicalFunctionId> m_functions{ nullptr };
+		LexicalFunctionId m_function;
 		std::vector<UseImport> m_current_use_imports;
 		std::vector<std::string> m_namespaces;
 		std::vector<MarmotType::ClassConstraint> m_active_constraints;
@@ -160,31 +160,26 @@ private:
 		ParseState(const std::vector<UseImport>& use_imports);
 	};
 
-	struct ActiveConstraintGuard
+	// Restore lexical context without rewinding tokens or undoing declarations.
+	class ParseLifetime
 	{
-		Parser* m_parser = nullptr;
-		size_t m_prev_size = 0u;
+	private:
+		ParseState& m_state;
+		size_t m_scope_count;
+		size_t m_namespace_count;
+		size_t m_constraint_count;
+		size_t m_declaring_type_count;
+		size_t m_pending_definition_count;
+		LexicalFunctionId m_function;
+		bool m_allow_implicit_generic_params;
 
-		ActiveConstraintGuard(Parser* parser, size_t prev_size);
+	public:
+		explicit ParseLifetime(ParseState& state);
+		~ParseLifetime();
+		ParseLifetime(const ParseLifetime&) = delete;
+		ParseLifetime& operator=(const ParseLifetime&) = delete;
 
-		~ActiveConstraintGuard();
-
-		ActiveConstraintGuard(const ActiveConstraintGuard&) = delete;
-		ActiveConstraintGuard& operator=(const ActiveConstraintGuard&) = delete;
-	};
-
-	struct PendingDefinitionGuard
-	{
-		Parser* m_parser = nullptr;
-
-		size_t m_count = 0u;
-
-		PendingDefinitionGuard(Parser* parser, std::vector<std::string> names);
-
-		~PendingDefinitionGuard();
-
-		PendingDefinitionGuard(const PendingDefinitionGuard&) = delete;
-		PendingDefinitionGuard& operator=(const PendingDefinitionGuard&) = delete;
+		void Restore() const;
 	};
 
 	struct ArrayComprehensionProbe
@@ -229,18 +224,6 @@ private:
 	};
 	std::vector<DeferredInstantiation> m_deferred_instantiations;
 	std::unordered_set<const MarmotType*> m_unfilled_instantiations;
-
-	class DeclaringTypeScope
-	{
-	private:
-		std::vector<std::shared_ptr<MarmotType>>& m_stack;
-
-	public:
-		DeclaringTypeScope(std::vector<std::shared_ptr<MarmotType>>& stack, const std::shared_ptr<MarmotType>& type);
-		~DeclaringTypeScope();
-		DeclaringTypeScope(const DeclaringTypeScope&) = delete;
-		DeclaringTypeScope& operator=(const DeclaringTypeScope&) = delete;
-	};
 
 	friend struct ParserTestAccess;
 
@@ -590,11 +573,7 @@ private:
 
 	MarmotResult::FunctionParamsResult ParseFunctionParameters(bool allow_inferred_types = false);
 
-	Parser& BeginScope() &;
-
-	Parser&& BeginScope() &&;
-
-	void EndScope();
+	void BeginScope();
 
 	std::string Mangle(std::string_view name);
 
@@ -728,13 +707,13 @@ private:
 
 	std::expected<TypeDeclarationHeader, CompilerError> ParseTypeDeclarationHeader(std::string_view noun, std::string_view capitalized_noun);
 
-	MarmotResult::StatementResult ParseStructBody(TypeDeclarationHeader&& header);
+	MarmotResult::StatementResult ParseStructBody(TypeDeclarationHeader&& header, const ParseLifetime& lifetime);
 
-	MarmotResult::StatementResult ParseUnionBody(TypeDeclarationHeader&& header);
+	MarmotResult::StatementResult ParseUnionBody(TypeDeclarationHeader&& header, const ParseLifetime& lifetime);
 
 	bool TypeBodyHasTopLevelBar();
 
-	MarmotResult::StatementResult ParseNewTypeBody(TypeDeclarationHeader&& header);
+	MarmotResult::StatementResult ParseNewTypeBody(TypeDeclarationHeader&& header, const ParseLifetime& lifetime);
 
 	MarmotResult::StatementResult ParseClassDeclaration();
 

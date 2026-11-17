@@ -495,6 +495,51 @@ class Next<T> {
 	CHECK(ParserTestAccess::CurrentTokenName(prepared.m_parser) == Token::Name::CLASS);
 }
 
+TEST_CASE("Parser restores lexical lifetimes before recovering to the next declaration", "[parser][recovery]")
+{
+	struct RecoveryCase
+	{
+		std::string_view m_name;
+		std::string_view m_broken_declaration;
+	};
+	const std::vector<RecoveryCase> cases =
+	{
+		{ "block", "def broken = { 1 + };" },
+		{ "function", "def broken = fn<T>(value: T) -> T => { value + };" },
+		{ "for", "def broken = for item in [1] item + ;" },
+		{ "comprehension", "def broken = [item for item in ];" },
+		{ "case", "def broken = match 1 with case value => value + ;" },
+		{ "record", "type Broken<T> = { value T };" },
+		{ "union", "type Broken<T> = Left(T) | Right(;" },
+		{ "newtype", "type Broken<T> = Missing;" },
+		{ "alias", "alias Broken<T> = Missing;" },
+		{ "foreign", "foreign \"broken\" Broken: fn(T) -> ;" },
+		{ "instance method", R"(class Project<T> { project: fn(value: T) -> T; };
+instance Project<Int> { def project = fn<U>(value: U) -> U => { value + }; };)" },
+	};
+
+	for (const RecoveryCase& recovery_case : cases)
+	{
+		SECTION(std::string(recovery_case.m_name))
+		{
+			const std::string source = std::format("module LifetimeRecovery\n{}\ndef recovered = 1;\n", recovery_case.m_broken_declaration);
+			std::expected<std::unique_ptr<PreparedParser>, CompilerError> prepared = PrepareParser(source, "LifetimeRecovery.mmt");
+			REQUIRE(prepared.has_value());
+			Parser& parser = prepared.value()->m_parser;
+			REQUIRE_FALSE(parser.Parse().has_value());
+			REQUIRE(ParserTestAccess::CurrentTokenName(parser) == Token::Name::DEF);
+
+			MarmotResult::ParserResult recovered = parser.Parse();
+			if (!recovered.has_value())
+			{
+				FAIL(recovered.error().Rendered());
+			}
+			REQUIRE(recovered->size() == 1u);
+			CHECK_FALSE(RequireVariableDefinition(recovered.value(), 0u, "recovered").m_binding.has_value());
+		}
+	}
+}
+
 TEST_CASE("Parser rejects qualified access to private exports outside the current namespace", "[parser][module]")
 {
 	const MarmotTest::TempProject project
