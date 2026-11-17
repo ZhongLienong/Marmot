@@ -17,20 +17,9 @@
 class Parser
 {
 private:
-	struct VariableContext
-	{
-		std::optional<int> m_relative_index = std::nullopt;
-		std::optional<int> m_absolute_index = std::nullopt;
-		std::optional<int> m_function_depth = std::nullopt;
-
-		VariableContext() = default;
-
-		VariableContext(int relative_index, int absolute_index, int function_depth);
-	};
-
 	struct Scope
 	{
-		using VariableTable = std::unordered_map<std::string, VariableContext>;
+		using VariableTable = std::unordered_map<std::string, BindingId>;
 		using StructConstructorTable = std::unordered_map<std::string, std::shared_ptr<MarmotType>>;
 		using UnionConstructorTable = std::unordered_map<std::string, std::shared_ptr<MarmotType>>;
 		using DefinedTypeTable = std::unordered_map<std::string, std::shared_ptr<MarmotType>>;
@@ -115,9 +104,9 @@ private:
 	struct PendingDefinition
 	{
 		std::string m_name;
-		int m_function_depth = 0;
+		LexicalFunctionId m_function;
 
-		PendingDefinition(std::string name, int function_depth);
+		PendingDefinition(std::string name, LexicalFunctionId function);
 	};
 
 	// A top-level definition: which statement makes it, and whether it is a
@@ -150,7 +139,7 @@ private:
 		std::unordered_map<std::string, std::vector<TypeclassInstance>> m_class_instances;
 		TypeclassMethodTypeMap m_typeclass_method_types;
 		Scopes m_scopes{ Scope() };
-		std::vector<int> m_function_base_variable_index{0};
+		std::vector<LexicalFunctionId> m_functions{ nullptr };
 		std::vector<UseImport> m_current_use_imports;
 		std::vector<std::string> m_namespaces;
 		std::vector<MarmotType::ClassConstraint> m_active_constraints;
@@ -164,10 +153,8 @@ private:
 		std::unordered_map<std::string, TopLevelDefinition> m_top_level_definitions;
 		std::vector<TopLevelReference> m_top_level_references;
 		int m_statement_index = 0;
-		int m_function_depth = 0;
 		int m_current_token_index = 0;
-		int m_total_locals_in_curr_scope = 0;
-		int m_total_variables = 0;
+		int m_next_binding_index = 0;
 		bool m_allow_implicit_generic_params = false;
 
 		ParseState(const std::vector<UseImport>& use_imports);
@@ -485,6 +472,8 @@ private:
 	bool IsGlobalName(const std::vector<Scope>::const_reverse_iterator& found_scope_it) const;
 
 	bool IsLocalName(const Scope::VariableTable::const_iterator& found_scope_it) const;
+
+	FunctionParameters ParametersFor(std::vector<Token> names) const;
 	
 	Parser& Synchronize() &;
 
@@ -611,7 +600,7 @@ private:
 
 	MarmotResult::TokenResult DefineName(Token& name, bool is_variable);
 
-	std::optional<int> RegisterOrUpdateLocalVariable(const std::string& name);
+	std::optional<BindingId> RegisterLocalBinding(const std::string& name);
 
 
 	ArrayComprehensionProbe ProbeArrayComprehension();

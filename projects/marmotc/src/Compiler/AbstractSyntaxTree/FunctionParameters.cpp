@@ -2,19 +2,36 @@
 
 #include <utility>
 
-FunctionParameters::FunctionParameters(std::vector<Token> names)
-	: m_bindings(std::move(names))
+FunctionParameters::FunctionParameters(std::vector<Token> names, std::vector<BindingId> bindings, LexicalFunctionId function)
+	: m_bindings(std::move(names)),
+	m_source_bindings(std::move(bindings)),
+	m_function(std::move(function))
 {
 }
 
-FunctionParameters::FunctionParameters(std::vector<GeneratedBinding> bindings)
-	: m_bindings(std::move(bindings))
+FunctionParameters::FunctionParameters(std::vector<GeneratedBinding> bindings, LexicalFunctionId function)
+	: m_bindings(std::move(bindings)),
+	m_function(std::move(function))
 {
 }
 
-FunctionParameters FunctionParameters::Generated(std::vector<GeneratedBinding> bindings)
+FunctionParameters FunctionParameters::Generated(std::vector<GeneratedBinding> bindings, LexicalFunctionId function)
 {
-	return FunctionParameters(std::move(bindings));
+	return FunctionParameters(std::move(bindings), std::move(function));
+}
+
+const BindingId& FunctionParameters::BindingAt(size_t index) const
+{
+	if (const GeneratedBinding* binding = GeneratedBindingAt(index))
+	{
+		return binding->m_binding;
+	}
+	return m_source_bindings[index];
+}
+
+const LexicalFunctionId& FunctionParameters::Function() const
+{
+	return m_function;
 }
 
 size_t FunctionParameters::Size() const

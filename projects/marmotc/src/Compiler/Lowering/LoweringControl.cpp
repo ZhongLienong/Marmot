@@ -88,7 +88,6 @@ Lowering::Emitted Lowering::LowerReturn(const MarmotExpression& expression)
 	if (expression.IsExpression<MarmotExpression::Block>())
 	{
 		const MarmotExpression::Block& block = expression.GetExpression<MarmotExpression::Block>();
-		PushLocalFrame();
 		const Emitted lowered = LowerStatements(block)
 			.and_then([&]() -> Emitted
 			{
@@ -99,7 +98,6 @@ Lowering::Emitted Lowering::LowerReturn(const MarmotExpression& expression)
 				}
 				return LowerReturn(*block.m_final_expr.value());
 			});
-		PopLocalFrame();
 		return lowered;
 	}
 	if (expression.IsExpression<MarmotExpression::Call>())
@@ -189,7 +187,6 @@ Lowering::Emitted Lowering::LowerStatements(const MarmotExpression::Block& block
 
 Lowering::Lowered Lowering::LowerBlock(const MarmotExpression::Block& block)
 {
-	PushLocalFrame();
 	const Lowered lowered = LowerStatements(block)
 		.and_then([&]() -> Lowered
 		{
@@ -199,7 +196,6 @@ Lowering::Lowered Lowering::LowerBlock(const MarmotExpression::Block& block)
 			}
 			return Builder().AtLine(block.m_right_brace.m_line).ConstUnit();
 		});
-	PopLocalFrame();
 	return lowered;
 }
 
@@ -217,7 +213,6 @@ Lowering::Emitted Lowering::LowerMatchWith(const MarmotExpression::Match& match,
 			{
 				const MarmotExpression::Case& match_case = case_expression->GetExpression<MarmotExpression::Case>();
 				const MarmotIRBlockId fail = NewBlock();
-				PushLocalFrame();
 				const Emitted lowered = LowerPattern(*match_case.m_pattern, scrutinee, fail)
 					.and_then([&]() -> Emitted
 					{
@@ -229,7 +224,6 @@ Lowering::Emitted Lowering::LowerMatchWith(const MarmotExpression::Match& match,
 							.and_then([&](MarmotIRValueId guard) { return TestOrFail(guard, fail); });
 					})
 					.and_then([&]() { return sink(match_case.m_expr.get()); });
-				PopLocalFrame();
 				if (!lowered.has_value())
 				{
 					return lowered;
@@ -299,9 +293,9 @@ Lowering::Emitted Lowering::LowerPattern(const MarmotPattern& pattern, MarmotIRV
 
 		Emitted operator()(const MarmotPattern::Binding& binding) const
 		{
-			if (binding.m_local_index.has_value())
+			if (binding.m_binding.has_value())
 			{
-				m_self.DefineLocal(binding.m_local_index.value(), m_value);
+				m_self.DefineLocal(binding.m_binding.value(), m_value);
 			}
 			return {};
 		}
@@ -400,9 +394,9 @@ Lowering::Emitted Lowering::LowerPattern(const MarmotPattern& pattern, MarmotIRV
 		// the case reads its names from that block's parameters.
 		Emitted operator()(const MarmotPattern::Or& either) const
 		{
-			const std::vector<int> locals = either.m_alternatives.front()->Bindings()
-				| std::views::filter([](const MarmotPattern::Binding* binding) { return binding->m_local_index.has_value(); })
-				| std::views::transform([](const MarmotPattern::Binding* binding) { return binding->m_local_index.value(); })
+			const std::vector<BindingId> locals = either.m_alternatives.front()->Bindings()
+				| std::views::filter([](const MarmotPattern::Binding* binding) { return binding->m_binding.has_value(); })
+				| std::views::transform([](const MarmotPattern::Binding* binding) { return binding->m_binding.value(); })
 				| std::ranges::to<std::vector>();
 			const MarmotIRBlockId matched = m_self.NewBlock();
 			std::vector<MarmotIRValueId> parameters;
@@ -410,16 +404,14 @@ Lowering::Emitted Lowering::LowerPattern(const MarmotPattern& pattern, MarmotIRV
 			{
 				const bool is_last = index + 1uz == either.m_alternatives.size();
 				const MarmotIRBlockId next = is_last ? m_fail : m_self.NewBlock();
-				m_self.PushLocalFrame();
 				const Emitted lowered = m_self.LowerPattern(*either.m_alternatives[index], m_value, next);
 				if (!lowered.has_value())
 				{
-					m_self.PopLocalFrame();
 					return lowered;
 				}
 
 				const std::vector<MarmotIRValueId> values = locals
-					| std::views::transform([this](int local) { return m_self.Scope().m_locals.at(local); })
+					| std::views::transform([this](const BindingId& local) { return m_self.Scope().m_locals.at(local); })
 					| std::ranges::to<std::vector>();
 				if (index == 0uz)
 				{
@@ -427,7 +419,6 @@ Lowering::Emitted Lowering::LowerPattern(const MarmotPattern& pattern, MarmotIRV
 						| std::views::transform([this, matched](MarmotIRValueId value) { return Builder().AddParameter(matched, m_self.Scope().m_function.TypeOf(value)); })
 						| std::ranges::to<std::vector>();
 				}
-				m_self.PopLocalFrame();
 				m_self.Jump(matched, values);
 				if (!is_last)
 				{
@@ -484,7 +475,7 @@ Lowering::Emitted Lowering::LowerPattern(const MarmotPattern& pattern, MarmotIRV
 // captures that iteration's. The header's parameter is where the loop is: the
 // element for a range, the index for an array, the iterator for an Iterable.
 // `carried` goes round the loop beside it, and out of the loop when it ends.
-std::expected<std::vector<MarmotIRValueId>, CompilerError> Lowering::LowerLoop(const MarmotExpression& iterated, const LoopKind& kind, int loop_variable, std::vector<MarmotIRValueId> carried, const LoopBody& body, const Token& at)
+std::expected<std::vector<MarmotIRValueId>, CompilerError> Lowering::LowerLoop(const MarmotExpression& iterated, const LoopKind& kind, const BindingId& loop_variable, std::vector<MarmotIRValueId> carried, const LoopBody& body, const Token& at)
 {
 	const Lowered lowered_source = Lower(iterated);
 	if (!lowered_source.has_value())
@@ -578,10 +569,8 @@ std::expected<std::vector<MarmotIRValueId>, CompilerError> Lowering::LowerLoop(c
 		next_iterator = Builder().Emit(MarmotIROp::TupleGet, pair_types[1u], { payload }, MarmotIRIndex{ 1u });
 	}
 
-	PushLocalFrame();
 	DefineLocal(loop_variable, element);
 	std::expected<std::vector<MarmotIRValueId>, CompilerError> updated = body(header_carried);
-	PopLocalFrame();
 	if (!updated.has_value())
 	{
 		return updated;
@@ -601,7 +590,7 @@ std::expected<std::vector<MarmotIRValueId>, CompilerError> Lowering::LowerLoop(c
 Lowering::Lowered Lowering::LowerFor(const MarmotExpression::For& for_expression)
 {
 	const LoopKind kind = LoopKindOf(for_expression.m_is_array_iteration, for_expression.m_is_iterable_iteration, for_expression.m_iterable_item_type, for_expression.m_iterable_next_type, for_expression.m_iterable_some_tag);
-	return LowerLoop(*for_expression.m_range, kind, for_expression.m_loop_variable_index, {}, [&](std::vector<MarmotIRValueId> carried) -> std::expected<std::vector<MarmotIRValueId>, CompilerError>
+	return LowerLoop(*for_expression.m_range, kind, for_expression.m_loop_binding, {}, [&](std::vector<MarmotIRValueId> carried) -> std::expected<std::vector<MarmotIRValueId>, CompilerError>
 		{
 			return Lower(*for_expression.m_body).transform([&carried](MarmotIRValueId) { return carried; });
 		}, for_expression.m_for_keyword)
@@ -618,7 +607,7 @@ Lowering::Lowered Lowering::LowerComprehension(const MarmotExpression::ArrayComp
 	const LoopKind kind = LoopKindOf(comprehension.m_is_array_iteration, comprehension.m_is_iterable_iteration, comprehension.m_iterable_item_type, comprehension.m_iterable_next_type, comprehension.m_iterable_some_tag);
 	const TypeRef type = Concrete(comprehension.m_type_data);
 	const MarmotIRValueId empty = Builder().AtLine(comprehension.m_bracket.m_line).Emit(MarmotIROp::MakeArray, type);
-	return LowerLoop(*comprehension.m_range, kind, comprehension.m_loop_variable_index, { empty }, [&](std::vector<MarmotIRValueId> carried) -> std::expected<std::vector<MarmotIRValueId>, CompilerError>
+	return LowerLoop(*comprehension.m_range, kind, comprehension.m_loop_binding, { empty }, [&](std::vector<MarmotIRValueId> carried) -> std::expected<std::vector<MarmotIRValueId>, CompilerError>
 		{
 			return Lower(*comprehension.m_transform_expr)
 				.transform([&](MarmotIRValueId element)

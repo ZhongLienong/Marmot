@@ -95,11 +95,11 @@ private:
 
 	struct FunctionScope;
 
-	// A local of the function being lowered in `m_owner`, by the parser's index.
+	// A source binding in one lowered specialization of its declaring function.
 	struct LocalKey
 	{
 		const FunctionScope* m_owner;
-		int m_index;
+		BindingId m_binding;
 
 		bool operator==(const LocalKey&) const = default;
 	};
@@ -111,7 +111,7 @@ private:
 	{
 		MarmotIRValueId m_closure;
 		uint32_t m_capture;
-		int m_local;
+		BindingId m_binding;
 	};
 
 	// A function being built. Lowering a function nests inside lowering
@@ -125,28 +125,24 @@ private:
 		const Specialization& m_specialization;
 		// The function a lambda is written in; a Cell name reaches its locals.
 		FunctionScope* m_parent;
-		// How many enclosing locals the parser numbered before this function's
-		// own, its m_captured_count. A Cell index below it names one of the
-		// parent's own captures; past it, one of the parent's locals.
-		int m_environment_length;
-		std::unordered_map<int, MarmotIRValueId> m_locals;
-		std::vector<std::vector<int>> m_local_frames;
+		LexicalFunctionId m_identity;
+		std::unordered_map<BindingId, MarmotIRValueId> m_locals;
 		std::vector<LocalKey> m_captures;
 		std::vector<MarmotIRValueId> m_capture_values;
 		std::vector<PendingCapture> m_pending_captures;
 		// A block is live once a live block jumps to it; the entry is. Code
 		// after a call that returns Never goes to a block nothing reaches.
 		std::vector<bool> m_live_blocks;
-		// A generic lambda bound by a local 'def', by local index. It has no
+		// A generic lambda bound by a local 'def'. It has no
 		// value of its own: each use makes the closure for its types.
-		std::unordered_map<int, const MarmotExpression::Function*> m_local_generics;
+		std::unordered_map<BindingId, const MarmotExpression::Function*> m_local_generics;
 
-		FunctionScope(MarmotIRFunctionId id, MarmotIRFunction& function, const Specialization& specialization, FunctionScope* parent, int environment_length);
+		FunctionScope(MarmotIRFunctionId id, MarmotIRFunction& function, const Specialization& specialization, FunctionScope* parent, LexicalFunctionId identity);
 	};
 
 	// A local generic lambda's closure for one set of types, while its body is
 	// lowered. A use at the same types inside it is the closure itself, held
-	// as a local of the scope that makes it, numbered below the parser's.
+	// as a synthetic binding of the scope that makes it.
 	struct ActiveGenericLambda
 	{
 		const MarmotExpression::Function* m_function;
@@ -195,7 +191,6 @@ private:
 	std::deque<MarmotIRFunction> m_functions;
 	std::deque<Specialization> m_specializations;
 	std::vector<ActiveGenericLambda> m_active_generic_lambdas;
-	int m_next_synthetic_local = -1;
 	std::unordered_map<std::string, MarmotIRFunctionId> m_specialized_functions;
 	// The first specialization for each set of argument types, for a call whose
 	// type the type checker left undecided.
@@ -251,7 +246,7 @@ private:
 	Emitted ReserveForeign(const MarmotStatement::ForeignDefinition& foreign);
 	// A foreign function's value is the name the VM looks it up by.
 	std::expected<std::string, CompilerError> ForeignName(const MarmotStatement::ForeignDefinition& foreign);
-	void RegisterGeneric(const std::string& name, const FunctionParameters& params, const std::vector<TypeRef>& param_types, const std::vector<Token>& generic_params, const std::vector<MarmotType::ClassConstraint>& constraints, const TypeRef& return_type, std::unique_ptr<MarmotExpression>& body, int captured_count);
+	void RegisterGeneric(const std::string& name, const FunctionParameters& params, const std::vector<TypeRef>& param_types, const std::vector<Token>& generic_params, const std::vector<MarmotType::ClassConstraint>& constraints, const TypeRef& return_type, std::unique_ptr<MarmotExpression>& body);
 	bool IsGenericMethod(const MarmotStatement::Instance& instance, const MarmotStatement::FunctionDefinition& method) const;
 	std::vector<LoweredExport> CollectExports() const;
 
@@ -261,10 +256,8 @@ private:
 	Emitted LowerLocalDefinition(const MarmotStatement::VariableDefinition& definition);
 	Emitted LowerTupleDefinition(const MarmotStatement::TupleDefinition& definition);
 
-	void PushLocalFrame();
-	void PopLocalFrame();
-	void DefineLocal(int index, MarmotIRValueId value);
-	LocalKey KeyForCell(const FunctionScope& scope, int cell_index) const;
+	void DefineLocal(const BindingId& binding, MarmotIRValueId value);
+	LocalKey KeyForBinding(const FunctionScope& scope, const BindingId& binding) const;
 	MarmotIRValueId CaptureFor(FunctionScope& scope, const LocalKey& key, const TypeRef& type);
 
 	Emitted LowerFunctionBody(FunctionScope& scope, const std::vector<TypeRef>& param_types, const FunctionParameters& params, const MarmotExpression& body);
@@ -347,7 +340,7 @@ private:
 	// `body` is lowered once, with the loop variable defined, and gets the
 	// values the loop carries round, which it returns updated.
 	using LoopBody = std::function<std::expected<std::vector<MarmotIRValueId>, CompilerError>(std::vector<MarmotIRValueId>)>;
-	std::expected<std::vector<MarmotIRValueId>, CompilerError> LowerLoop(const MarmotExpression& iterated, const LoopKind& kind, int loop_variable, std::vector<MarmotIRValueId> carried, const LoopBody& body, const Token& at);
+	std::expected<std::vector<MarmotIRValueId>, CompilerError> LowerLoop(const MarmotExpression& iterated, const LoopKind& kind, const BindingId& loop_variable, std::vector<MarmotIRValueId> carried, const LoopBody& body, const Token& at);
 	LoopKind LoopKindOf(bool is_array, bool is_iterable, const TypeRef& item_type, const TypeRef& next_type, int some_tag);
 	Lowered LowerFor(const MarmotExpression::For& for_expression);
 	Lowered LowerComprehension(const MarmotExpression::ArrayComprehension& comprehension);

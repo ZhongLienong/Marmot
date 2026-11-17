@@ -33,26 +33,12 @@ private:
 		bool m_is_suppressed = false;
 	};
 
-	struct Scope
-	{
-		std::vector<int> m_binding_ids;
-	};
+	std::unordered_map<BindingId, BindingInfo> m_bindings;
+	std::vector<std::vector<BindingId>> m_scopes;
 
-	struct FunctionContext
-	{
-		std::vector<Scope> m_scopes;
-		std::unordered_map<int, int> m_active_locals;
-		std::vector<BindingInfo> m_bindings;
-	};
-
-	void PushFunctionContext();
-	void PopFunctionContext();
 	void PushScope();
 	void PopScope();
-	void RegisterBinding(const Token& token, std::optional<int> local_index, bool suppressed);
+	void RegisterBinding(const Token& token, const std::optional<BindingId>& binding, bool suppressed);
 	void RegisterParameterBindings(const FunctionParameters& params);
-	void MarkRead(const Token& name, const MarmotExpression::NameContext::Tag& name_ctx);
-	void MarkCapturedReadByName(const Token& name);
-
-	std::vector<FunctionContext> m_functions;
+	void MarkRead(const MarmotExpression::NameContext::Tag& name_ctx);
 };

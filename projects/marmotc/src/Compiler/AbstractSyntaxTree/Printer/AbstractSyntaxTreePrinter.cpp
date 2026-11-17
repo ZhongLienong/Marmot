@@ -148,7 +148,7 @@ void PrintAbstractSyntaxTree::PrintVariableSemantic(int depth, const MarmotExpre
 			if constexpr (std::is_same_v<T, MarmotExpression::NameContext::Local>)
 			{
 				PrintWithIndentation(depth, "Local");
-				PrintWithIndentation(depth, "Index: " + std::to_string(arg.m_index));
+				PrintWithIndentation(depth, "Binding: " + std::to_string(arg.m_binding->m_index));
 			}
 			else if constexpr (std::is_same_v<T, MarmotExpression::NameContext::Global>)
 			{
@@ -157,7 +157,7 @@ void PrintAbstractSyntaxTree::PrintVariableSemantic(int depth, const MarmotExpre
 			else if constexpr (std::is_same_v<T, MarmotExpression::NameContext::Cell>)
 			{
 				PrintWithIndentation(depth, "Cell");
-				PrintWithIndentation(depth, "Index: " + std::to_string(arg.m_index));
+				PrintWithIndentation(depth, "Binding: " + std::to_string(arg.m_binding->m_index));
 			}
 		}, tag
 	);
@@ -374,7 +374,7 @@ void PrintAbstractSyntaxTree::operator()(const MarmotExpression::NameAccess& var
 	PrintWithIndentation(depth, "BoundedName {");
 	const MarmotExpression::NameContext::Local* local = std::get_if<MarmotExpression::NameContext::Local>(&variable.m_name_ctx);
 	const std::string name = local != nullptr && local->m_is_generated
-		? GeneratedBinding(local->m_index, variable.m_name).DisplayName()
+		? std::format("%local{}", local->m_binding->m_index)
 		: variable.m_name.m_lexeme;
 	PrintWithIndentation(depth + 1, "Name: " + name);
 	PrintWithIndentation(depth + 1, "NameContext {");
@@ -589,7 +589,7 @@ void PrintAbstractSyntaxTree::operator()(const MarmotExpression::For& for_expr, 
 void PrintAbstractSyntaxTree::operator()(const MarmotPattern::Binding& binding, int depth) const
 {
 	PrintWithIndentation(depth, "BindingPattern {");
-	PrintWithIndentation(depth + 1, binding.m_is_generated ? GeneratedBinding(binding.m_local_index.value(), binding.m_name).DisplayName() : binding.m_name.m_lexeme);
+	PrintWithIndentation(depth + 1, binding.m_is_generated ? std::format("%local{}", binding.m_binding.value()->m_index) : binding.m_name.m_lexeme);
 	PrintWithIndentation(depth, "}");
 }
 

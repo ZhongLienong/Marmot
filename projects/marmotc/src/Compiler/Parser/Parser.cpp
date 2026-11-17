@@ -272,9 +272,9 @@ Parser::ParseState::ParseState(const std::vector<UseImport>& use_imports)
 {
 }
 
-Parser::PendingDefinition::PendingDefinition(std::string name, int function_depth)
+Parser::PendingDefinition::PendingDefinition(std::string name, LexicalFunctionId function)
 	: m_name(std::move(name)),
-	m_function_depth(function_depth)
+	m_function(std::move(function))
 {
 }
 
@@ -297,7 +297,7 @@ Parser::PendingDefinitionGuard::PendingDefinitionGuard(Parser* parser, std::vect
 {
 	for (std::string& name : names)
 	{
-		m_parser->m_state.m_pending_definitions.emplace_back(std::move(name), m_parser->m_state.m_function_depth);
+		m_parser->m_state.m_pending_definitions.emplace_back(std::move(name), m_parser->m_state.m_functions.back());
 	}
 }
 
@@ -379,15 +379,12 @@ MarmotResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 		// Local
 		else if (IsLocalName(find_result))
 		{
-			return std::make_unique<MarmotExpression>(MarmotExpression::NameAccess(name_token, MarmotExpression::NameContext::Local(find_result->second.m_relative_index.value())));
+			return std::make_unique<MarmotExpression>(MarmotExpression::NameAccess(name_token, MarmotExpression::NameContext::Local(find_result->second)));
 		}
 		// Cell
 		else
 		{
-			int var_depth = find_result->second.m_function_depth.value();
-			int parent_base = (var_depth >= 1) ? m_state.m_function_base_variable_index[static_cast<size_t>(var_depth - 1)] : 0;
-			int cell_index = find_result->second.m_absolute_index.value() - parent_base;
-			return std::make_unique<MarmotExpression>(MarmotExpression::NameAccess(name_token, MarmotExpression::NameContext::Cell(cell_index)));
+			return std::make_unique<MarmotExpression>(MarmotExpression::NameAccess(name_token, MarmotExpression::NameContext::Cell(find_result->second)));
 		}
 	}
 
@@ -730,7 +727,7 @@ bool Parser::IsBeingDefined(const std::string& name) const
 		m_state.m_pending_definitions,
 		[&name, this](const PendingDefinition& pending)
 		{
-			return pending.m_name == name && pending.m_function_depth == m_state.m_function_depth;
+			return pending.m_name == name && pending.m_function == m_state.m_functions.back();
 		}
 	);
 }
@@ -1330,7 +1327,7 @@ bool Parser::IsGlobalName(const std::vector<Scope>::const_reverse_iterator& foun
 
 bool Parser::IsLocalName(const Scope::VariableTable::const_iterator& found_tbl_it) const
 {
-	return m_state.m_function_depth == 0 || found_tbl_it->second.m_function_depth == m_state.m_function_depth;
+	return found_tbl_it->second->m_function == m_state.m_functions.back();
 }
 
 bool Parser::IsAtGlobalScope() const
@@ -1559,9 +1556,6 @@ Parser&& Parser::BeginScope() &&
 
 void Parser::EndScope()
 {
-	const int scope_local_count = static_cast<int>(m_state.m_scopes.back().m_variables.size());
-	m_state.m_total_locals_in_curr_scope -= scope_local_count;
-	m_state.m_total_variables -= scope_local_count;
 	m_state.m_scopes.pop_back();
 }
 
@@ -1621,23 +1615,32 @@ MarmotResult::TokenResult Parser::DefineName(Token& name, bool is_variable)
 	m_state.m_scopes.back().m_defined_names.emplace(name.m_lexeme);
 	if (is_variable)
 	{
-		m_state.m_scopes.back().m_variables.emplace(name.m_lexeme, VariableContext());
+		m_state.m_scopes.back().m_variables.emplace(name.m_lexeme, BindingId{});
 	}
 
 	return name;
 }
 
-std::optional<int> Parser::RegisterOrUpdateLocalVariable(const std::string& name)
+std::optional<BindingId> Parser::RegisterLocalBinding(const std::string& name)
 {
-	std::optional<int> local_index = std::nullopt;
-
-	if (!IsAtGlobalScope())
+	if (IsAtGlobalScope())
 	{
-		m_state.m_scopes.back().m_variables[name] = VariableContext(m_state.m_total_locals_in_curr_scope++, m_state.m_total_variables++, m_state.m_function_depth);
-		local_index.emplace(m_state.m_scopes.back().m_variables[name].m_relative_index.value());
+		return std::nullopt;
 	}
+	const BindingId binding = std::make_shared<BindingIdentity>(m_state.m_functions.back(), m_state.m_next_binding_index++);
+	m_state.m_scopes.back().m_variables[name] = binding;
+	return binding;
+}
 
-	return local_index;
+FunctionParameters Parser::ParametersFor(std::vector<Token> names) const
+{
+	std::vector<BindingId> bindings;
+	bindings.reserve(names.size());
+	for (const Token& name : names)
+	{
+		bindings.push_back(m_state.m_scopes.back().m_variables.at(name.m_lexeme));
+	}
+	return FunctionParameters(std::move(names), std::move(bindings), m_state.m_functions.back());
 }
 
 std::optional<int> Parser::BinaryOperatorClass(Token::Name name)
@@ -2731,25 +2734,20 @@ MarmotResult::ExpressionResult Parser::ParseForExpression()
 			[&for_keyword, &loop_variable, &in_keyword, this](std::unique_ptr<MarmotExpression>&& range)->MarmotResult::ExpressionResult
 			{
 				BeginScope();
-
-				// Add loop variable to scope. Every index here is the slot within this
-				// function's frame: the running m_total_variables count is absolute
-				// across nested functions, so using it addressed slots past the frame
-				// once a loop sat inside a nested lambda.
 				std::string var_name(loop_variable.m_lexeme);
-				std::optional<int> local_index = RegisterOrUpdateLocalVariable(var_name);
-				int var_index = local_index.value_or(m_state.m_total_variables - 1);
+				std::optional<BindingId> binding = RegisterLocalBinding(var_name);
+				const BindingId loop_binding = binding.value();
 
 				return ParseExpression()
 					.and_then
 					(
-						[&for_keyword, &loop_variable, &in_keyword, range = std::move(range), var_index, this](std::unique_ptr<MarmotExpression>&& body) mutable ->MarmotResult::ExpressionResult
+						[&for_keyword, &loop_variable, &in_keyword, range = std::move(range), loop_binding, this](std::unique_ptr<MarmotExpression>&& body) mutable ->MarmotResult::ExpressionResult
 						{
 							EndScope();
 
 							std::unique_ptr<MarmotExpression> for_expr = std::make_unique<MarmotExpression>(MarmotExpression::For(for_keyword, loop_variable, in_keyword, std::move(range), std::move(body)));
 							MarmotExpression::For& for_expr_ref = for_expr->GetExpression<MarmotExpression::For>();
-							for_expr_ref.m_loop_variable_index = var_index;
+							for_expr_ref.m_loop_binding = loop_binding;
 							return for_expr;
 						}
 					);
@@ -2854,7 +2852,7 @@ MarmotResult::ExpressionResult Parser::ParseArrayComprehension(Token& bracket, c
 			}
 		};
 
-	int var_index = -1;
+	BindingId loop_binding;
 
 	if (probe.m_loop_variable_offset.has_value())
 	{
@@ -2862,17 +2860,14 @@ MarmotResult::ExpressionResult Parser::ParseArrayComprehension(Token& bracket, c
 		BeginScope();
 		scope_open = true;
 
-		// Register the loop variable before parsing the transform expression so
-		// comprehensions like `[i for i in range]` resolve `i` correctly. Each index is
-		// the slot within this function's frame; m_total_variables counts across nested
-		// functions, so using it addressed slots past the frame from inside a lambda.
-		var_index = RegisterOrUpdateLocalVariable(std::string(loop_variable.m_lexeme)).value_or(m_state.m_total_variables - 1);
+		// The transform is parsed first, so its loop binding must already exist.
+		loop_binding = RegisterLocalBinding(std::string(loop_variable.m_lexeme)).value();
 	}
 
 	return ParseExpression()
 		.and_then
 		(
-			[&bracket, &close_scope, var_index, this](std::unique_ptr<MarmotExpression>&& transform_expr) -> MarmotResult::ExpressionResult
+			[&bracket, &close_scope, loop_binding, this](std::unique_ptr<MarmotExpression>&& transform_expr) -> MarmotResult::ExpressionResult
 			{
 				if (!Match(Token::Name::FOR))
 				{
@@ -2897,7 +2892,7 @@ MarmotResult::ExpressionResult Parser::ParseArrayComprehension(Token& bracket, c
 				return ParseExpression()
 					.and_then
 					(
-						[&bracket, &actual_loop_var, &in_keyword, &close_scope, var_index, transform_expr = std::move(transform_expr), this](std::unique_ptr<MarmotExpression>&& range) mutable -> MarmotResult::ExpressionResult
+						[&bracket, &actual_loop_var, &in_keyword, &close_scope, loop_binding, transform_expr = std::move(transform_expr), this](std::unique_ptr<MarmotExpression>&& range) mutable -> MarmotResult::ExpressionResult
 						{
 							if (!Match(Token::Name::RIGHT_BRACKET))
 							{
@@ -2906,7 +2901,7 @@ MarmotResult::ExpressionResult Parser::ParseArrayComprehension(Token& bracket, c
 							}
 
 							close_scope();
-							if (var_index < 0)
+							if (loop_binding < 0)
 							{
 								return std::unexpected(GenerateParserError("Internal error: array comprehension loop binding was not initialized.", actual_loop_var));
 							}
@@ -2914,7 +2909,7 @@ MarmotResult::ExpressionResult Parser::ParseArrayComprehension(Token& bracket, c
 							std::unique_ptr<MarmotExpression> comp_expr = std::make_unique<MarmotExpression>(MarmotExpression::ArrayComprehension(bracket, actual_loop_var, in_keyword, std::move(transform_expr), std::move(range)));
 
 							MarmotExpression::ArrayComprehension& comp_ref = comp_expr->GetExpression<MarmotExpression::ArrayComprehension>();
-							comp_ref.m_loop_variable_index = var_index;
+							comp_ref.m_loop_binding = loop_binding;
 
 							return comp_expr;
 						}
@@ -2944,7 +2939,7 @@ MarmotResult::StatementResult Parser::ParseDefineStatement()
 	if (Match(Token::Name::LEFT_PAREN))
 	{
 		std::vector<Token> names;
-		std::vector<std::optional<int>> local_indices;
+		std::vector<std::optional<BindingId>> bindings;
 
 		do
 		{
@@ -2964,22 +2959,22 @@ MarmotResult::StatementResult Parser::ParseDefineStatement()
 			}
 
 			Token defined_name = std::move(defined_name_result.value());
-			std::optional<int> local_index = RegisterOrUpdateLocalVariable(defined_name.m_lexeme);
+			std::optional<BindingId> binding = RegisterLocalBinding(defined_name.m_lexeme);
 
 			names.emplace_back(std::move(defined_name));
-			local_indices.emplace_back(std::move(local_index));
+			bindings.emplace_back(std::move(binding));
 
 		} while (Match(Token::Name::COMMA));
 
 		return Consume(Token::Name::RIGHT_PAREN, "Expected ')' after tuple pattern.")
 			.and_then
 			(
-				[&names, &local_indices, this](Token&&) -> MarmotResult::StatementResult
+				[&names, &bindings, this](Token&&) -> MarmotResult::StatementResult
 				{
 					return Consume(Token::Name::SINGLE_EQUAL, "Expected '=' after tuple pattern.")
 						.and_then
 						(
-							[&names, &local_indices, this](Token&&) -> MarmotResult::StatementResult
+							[&names, &bindings, this](Token&&) -> MarmotResult::StatementResult
 							{
 								std::vector<std::string> pending_names;
 								pending_names.reserve(names.size());
@@ -2989,14 +2984,14 @@ MarmotResult::StatementResult Parser::ParseDefineStatement()
 								return ParseExpression()
 									.and_then
 									(
-										[&names, &local_indices, this](std::unique_ptr<MarmotExpression>&& expr) -> MarmotResult::StatementResult
+										[&names, &bindings, this](std::unique_ptr<MarmotExpression>&& expr) -> MarmotResult::StatementResult
 										{
 											return Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after tuple binding.")
 												.and_then
 												(
-													[&names, &local_indices, &expr](Token&&) -> MarmotResult::StatementResult
+													[&names, &bindings, &expr](Token&&) -> MarmotResult::StatementResult
 													{
-														return std::make_unique<MarmotStatement>(MarmotStatement::TupleDefinition(std::move(names), std::move(expr), std::move(local_indices)));
+														return std::make_unique<MarmotStatement>(MarmotStatement::TupleDefinition(std::move(names), std::move(expr), std::move(bindings)));
 													}
 												);
 										}
@@ -3021,25 +3016,25 @@ MarmotResult::StatementResult Parser::ParseDefineStatement()
 						{
 							std::function<MarmotResult::StatementResult(std::optional<std::shared_ptr<MarmotType>>)> def_aux_func = [&define_name, this](std::optional<std::shared_ptr<MarmotType>> type_annotation)
 								{
-									std::optional<int> local_index = RegisterOrUpdateLocalVariable(define_name.m_lexeme);
+									std::optional<BindingId> binding = RegisterLocalBinding(define_name.m_lexeme);
 
 									return Consume(Token::Name::SINGLE_EQUAL, "Expected '=' after defining a name.")
 										.and_then
 										(
-											[&define_name, &type_annotation, &local_index, this](Token&&) -> MarmotResult::StatementResult
+											[&define_name, &type_annotation, &binding, this](Token&&) -> MarmotResult::StatementResult
 											{
 												const PendingDefinitionGuard pending(this, { define_name.m_lexeme });
 												return ParseExpression()
 													.and_then
 													(
-														[&define_name, &type_annotation, &local_index, this](std::unique_ptr<MarmotExpression>&& expr) -> MarmotResult::StatementResult
+														[&define_name, &type_annotation, &binding, this](std::unique_ptr<MarmotExpression>&& expr) -> MarmotResult::StatementResult
 														{
 															return Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after name binding.")
 																.and_then
 																(
-																	[&define_name, &expr, &type_annotation, &local_index](Token&&) -> MarmotResult::StatementResult
+																	[&define_name, &expr, &type_annotation, &binding](Token&&) -> MarmotResult::StatementResult
 																	{
-																		return std::make_unique<MarmotStatement>(MarmotStatement::VariableDefinition(define_name, std::move(expr), std::move(type_annotation), std::move(local_index)));
+																		return std::make_unique<MarmotStatement>(MarmotStatement::VariableDefinition(define_name, std::move(expr), std::move(type_annotation), std::move(binding)));
 																	}
 																);
 														}
@@ -3796,12 +3791,15 @@ MarmotResult::StatementResult Parser::ParseClassDeclaration()
 
 		std::vector<std::shared_ptr<MarmotType>> param_types;
 		std::vector<Token> param_tokens;
+		std::vector<BindingId> param_bindings;
+		const LexicalFunctionId method_function = std::make_shared<LexicalFunction>();
 		param_types.reserve(params_result->size());
 		param_tokens.reserve(params_result->size());
 		for (MethodParam& tuple : params_result.value())
 		{
 			param_types.emplace_back(std::get<1>(tuple));
 			param_tokens.emplace_back(std::move(std::get<0>(tuple)));
+			param_bindings.push_back(std::make_shared<BindingIdentity>(method_function, m_state.m_next_binding_index++));
 		}
 
 		std::vector<std::shared_ptr<MarmotType>> param_types_copy = param_types;
@@ -3814,7 +3812,7 @@ MarmotResult::StatementResult Parser::ParseClassDeclaration()
 		(
 			std::make_unique<MarmotStatement>
 			(
-				MarmotStatement::FunctionDefinition(method_name, std::vector<Token>(), std::move(param_tokens), std::move(param_types), std::move(return_type), nullptr, std::nullopt, 0, std::vector<MarmotType::ClassConstraint>())
+				MarmotStatement::FunctionDefinition(method_name, std::vector<Token>(), FunctionParameters(std::move(param_tokens), std::move(param_bindings), method_function), std::move(param_types), std::move(return_type), nullptr, std::nullopt, std::vector<MarmotType::ClassConstraint>())
 			)
 		);
 	}
@@ -4058,19 +4056,14 @@ MarmotResult::StatementResult Parser::ParseInstanceDeclaration()
 			return std::unexpected(left_paren_result.error());
 		}
 
-		m_state.m_function_depth += 1;
-		m_state.m_function_base_variable_index.push_back(m_state.m_total_variables);
-		int prev_total_locals = m_state.m_total_locals_in_curr_scope;
-		m_state.m_total_locals_in_curr_scope = 0;
+		m_state.m_functions.push_back(std::make_shared<LexicalFunction>());
 		BeginScope();
 
 		MarmotResult::FunctionParamsResult params_parse_result = ParseFunctionParameters();
 		if (!params_parse_result.has_value())
 		{
 			EndScope();
-			m_state.m_total_locals_in_curr_scope = prev_total_locals;
-			m_state.m_function_base_variable_index.pop_back();
-			m_state.m_function_depth -= 1;
+			m_state.m_functions.pop_back();
 			if (has_generic_params)
 			{
 				EndScope();
@@ -4080,16 +4073,14 @@ MarmotResult::StatementResult Parser::ParseInstanceDeclaration()
 
 		std::vector<std::pair<Token, std::shared_ptr<MarmotType>>> param_tuples = std::move(params_parse_result.value());
 		ParamSplit split = SplitParamTuples(std::move(param_tuples));
-		std::vector<Token> params = std::move(split.m_params);
+		FunctionParameters params = ParametersFor(std::move(split.m_params));
 		std::vector<std::shared_ptr<MarmotType>> param_types = std::move(split.m_types);
 
 		MarmotResult::TokenResult return_colon_result = ConsumeReturnTypeSeparator("Expected '->' before return type.");
 		if (!return_colon_result.has_value())
 		{
 			EndScope();
-			m_state.m_total_locals_in_curr_scope = prev_total_locals;
-			m_state.m_function_base_variable_index.pop_back();
-			m_state.m_function_depth -= 1;
+			m_state.m_functions.pop_back();
 			if (has_generic_params)
 			{
 				EndScope();
@@ -4101,9 +4092,7 @@ MarmotResult::StatementResult Parser::ParseInstanceDeclaration()
 		if (!return_type_result.has_value())
 		{
 			EndScope();
-			m_state.m_total_locals_in_curr_scope = prev_total_locals;
-			m_state.m_function_base_variable_index.pop_back();
-			m_state.m_function_depth -= 1;
+			m_state.m_functions.pop_back();
 			if (has_generic_params)
 			{
 				EndScope();
@@ -4116,9 +4105,7 @@ MarmotResult::StatementResult Parser::ParseInstanceDeclaration()
 		if (!fat_arrow_result.has_value())
 		{
 			EndScope();
-			m_state.m_total_locals_in_curr_scope = prev_total_locals;
-			m_state.m_function_base_variable_index.pop_back();
-			m_state.m_function_depth -= 1;
+			m_state.m_functions.pop_back();
 			if (has_generic_params)
 			{
 				EndScope();
@@ -4130,9 +4117,7 @@ MarmotResult::StatementResult Parser::ParseInstanceDeclaration()
 		if (!body_result.has_value())
 		{
 			EndScope();
-			m_state.m_total_locals_in_curr_scope = prev_total_locals;
-			m_state.m_function_base_variable_index.pop_back();
-			m_state.m_function_depth -= 1;
+			m_state.m_functions.pop_back();
 			if (has_generic_params)
 			{
 				EndScope();
@@ -4145,9 +4130,7 @@ MarmotResult::StatementResult Parser::ParseInstanceDeclaration()
 		if (!method_semicolon_result.has_value())
 		{
 			EndScope();
-			m_state.m_total_locals_in_curr_scope = prev_total_locals;
-			m_state.m_function_base_variable_index.pop_back();
-			m_state.m_function_depth -= 1;
+			m_state.m_functions.pop_back();
 			if (has_generic_params)
 			{
 				EndScope();
@@ -4156,9 +4139,7 @@ MarmotResult::StatementResult Parser::ParseInstanceDeclaration()
 		}
 
 		EndScope();
-		m_state.m_total_locals_in_curr_scope = prev_total_locals;
-		m_state.m_function_base_variable_index.pop_back();
-		m_state.m_function_depth -= 1;
+		m_state.m_functions.pop_back();
 		if (has_generic_params)
 		{
 			EndScope();
@@ -4175,7 +4156,6 @@ MarmotResult::StatementResult Parser::ParseInstanceDeclaration()
 				std::move(return_type),
 				std::move(body),
 				std::nullopt,
-				0,
 				std::vector<MarmotType::ClassConstraint>()
 			)
 		);
@@ -4284,7 +4264,7 @@ MarmotResult::StatementResult Parser::ParseForeignBlock(const Token& library)
 			return declaration;
 		}
 
-		if (declaration.value()->GetStatement<MarmotStatement::ForeignDefinition>().m_local_index.has_value())
+		if (declaration.value()->GetStatement<MarmotStatement::ForeignDefinition>().m_binding.has_value())
 		{
 			return std::unexpected(GenerateParserError("A foreign block can only appear at the top level of a module.", library));
 		}
@@ -4330,7 +4310,7 @@ MarmotResult::StatementResult Parser::ParseForeignDeclaration(const Token& forei
 								(
 									[&foreign_name, &function_name, &block_library, this](Token&& name) ->MarmotResult::StatementResult
 									{
-										std::optional<int> local_index = RegisterOrUpdateLocalVariable(name.m_lexeme);
+										std::optional<BindingId> binding = RegisterLocalBinding(name.m_lexeme);
 										constexpr bool is_foreign = true;
 										BeginScope();
 										struct ForeignTypeScopeGuard
@@ -4355,7 +4335,7 @@ MarmotResult::StatementResult Parser::ParseForeignDeclaration(const Token& forei
 										return ParseType(is_foreign)
 											.and_then
 											(
-												[&foreign_name, &function_name, &local_index, &block_library, this](std::shared_ptr<MarmotType>&& type)->MarmotResult::StatementResult
+												[&foreign_name, &function_name, &binding, &block_library, this](std::shared_ptr<MarmotType>&& type)->MarmotResult::StatementResult
 												{
 													if (!type->IsType<MarmotType::FunctionType>())
 													{
@@ -4377,13 +4357,13 @@ MarmotResult::StatementResult Parser::ParseForeignDeclaration(const Token& forei
 													return Consume(Token::Name::SINGLE_SEMICOLON, "Expected ';' after foreign function type.")
 														.and_then
 														(
-															[&foreign_name, &function_name, &type, &local_index, &library](Token&&) ->MarmotResult::StatementResult
+															[&foreign_name, &function_name, &type, &binding, &library](Token&&) ->MarmotResult::StatementResult
 															{
 																if (!library.has_value())
 																{
 																	type->GetType<MarmotType::FunctionType>().m_primitive = FindPrimitive(foreign_name.m_lexeme);
 																}
-																return std::make_unique<MarmotStatement>(MarmotStatement::ForeignDefinition(function_name, foreign_name.m_lexeme, std::move(type), std::move(local_index), std::move(library)));
+																return std::make_unique<MarmotStatement>(MarmotStatement::ForeignDefinition(function_name, foreign_name.m_lexeme, std::move(type), std::move(binding), std::move(library)));
 															}
 														);
 												}
@@ -4518,19 +4498,14 @@ MarmotResult::ExpressionResult Parser::ParseFunctionExpression()
 		return std::unexpected(left_paren_result.error());
 	}
 
-	m_state.m_function_depth += 1;
-	m_state.m_function_base_variable_index.push_back(m_state.m_total_variables);
-	int prev_total_locals = m_state.m_total_locals_in_curr_scope;
-	m_state.m_total_locals_in_curr_scope = 0;
+	m_state.m_functions.push_back(std::make_shared<LexicalFunction>());
 	BeginScope();
 
 	// Unwinds the function scope (and the generic parameter scope, if one was opened).
-	auto unwind_function_state = [prev_total_locals, has_generic_params, this]()
+	auto unwind_function_state = [has_generic_params, this]()
 	{
 		EndScope();
-		m_state.m_total_locals_in_curr_scope = prev_total_locals;
-		m_state.m_function_base_variable_index.pop_back();
-		m_state.m_function_depth -= 1;
+		m_state.m_functions.pop_back();
 		if (has_generic_params)
 		{
 			EndScope();
@@ -4546,7 +4521,7 @@ MarmotResult::ExpressionResult Parser::ParseFunctionExpression()
 
 	std::vector<std::pair<Token, std::shared_ptr<MarmotType>>> param_tuples = std::move(params_parse_result.value());
 	ParamSplit split = SplitParamTuples(std::move(param_tuples));
-	std::vector<Token> params = std::move(split.m_params);
+	FunctionParameters params = ParametersFor(std::move(split.m_params));
 	std::vector<std::shared_ptr<MarmotType>> param_types = std::move(split.m_types);
 
 	std::shared_ptr<MarmotType> return_type = MarmotType::MakeUndecidedType();
@@ -4630,7 +4605,7 @@ MarmotResult::ExpressionResult Parser::ParseFunctionExpression()
 
 	unwind_function_state();
 
-	return std::make_unique<MarmotExpression>(MarmotExpression::Function(keyword, std::move(generic_params), std::move(params), std::move(param_types), std::move(return_type), std::move(body_result.value()), m_state.m_total_variables, std::move(constraints)));
+	return std::make_unique<MarmotExpression>(MarmotExpression::Function(keyword, std::move(generic_params), std::move(params), std::move(param_types), std::move(return_type), std::move(body_result.value()), std::move(constraints)));
 }
 
 MarmotResult::ExpressionResult Parser::ParseCaseExpression(Token& keyword)
@@ -4708,8 +4683,8 @@ MarmotResult::PatternResult Parser::ParseAlternatives()
 
 	std::vector<std::unique_ptr<MarmotPattern>> alternatives;
 	alternatives.push_back(std::move(first.value()));
-	const std::unordered_map<std::string, std::optional<int>> locals = alternatives.front()->Bindings(false)
-		| std::views::transform([](const MarmotPattern::Binding* binding) { return std::pair{ binding->m_name.m_lexeme, binding->m_local_index }; })
+	const std::unordered_map<std::string, std::optional<BindingId>> locals = alternatives.front()->Bindings(false)
+		| std::views::transform([](const MarmotPattern::Binding* binding) { return std::pair{ binding->m_name.m_lexeme, binding->m_binding }; })
 		| std::ranges::to<std::unordered_map>();
 
 	while (Match(Token::Name::SINGLE_BAR))
@@ -4741,7 +4716,7 @@ MarmotResult::PatternResult Parser::ParseAlternatives()
 
 		for (MarmotPattern::Binding* binding : alternative.value()->Bindings(true))
 		{
-			binding->m_local_index = locals.at(binding->m_name.m_lexeme);
+			binding->m_binding = locals.at(binding->m_name.m_lexeme);
 		}
 		alternatives.push_back(std::move(alternative.value()));
 	}
@@ -5066,8 +5041,8 @@ MarmotResult::PatternResult Parser::ParseBindingPattern(Token&& name)
 		(
 			[this](Token&& defined_name) -> MarmotResult::PatternResult
 			{
-				std::optional<int> local_index = RegisterOrUpdateLocalVariable(defined_name.m_lexeme);
-				return std::make_unique<MarmotPattern>(MarmotPattern::Binding(defined_name, std::move(local_index)));
+				std::optional<BindingId> binding = RegisterLocalBinding(defined_name.m_lexeme);
+				return std::make_unique<MarmotPattern>(MarmotPattern::Binding(defined_name, std::move(binding)));
 			}
 		);
 }
@@ -5883,7 +5858,7 @@ MarmotResult::FunctionParamsResult Parser::ParseFunctionParameters(bool allow_in
 									{
 										auto finish_param = [&param_name, this](std::shared_ptr<MarmotType>&& type) -> MarmotResult::FunctionParamResult
 										{
-											RegisterOrUpdateLocalVariable(param_name.m_lexeme);
+											RegisterLocalBinding(param_name.m_lexeme);
 											return std::make_pair(std::move(param_name), std::move(type));
 										};
 
@@ -5981,13 +5956,6 @@ Parser&& Parser::Synchronize() &&
 {
 	Synchronize();
 	return std::move(*this);
-}
-
-Parser::VariableContext::VariableContext(int relative_index, int absolute_index, int function_depth)
-	: m_relative_index(relative_index),
-	m_absolute_index(absolute_index),
-	m_function_depth(function_depth)
-{
 }
 
 const std::vector<CompilerWarning>& Parser::GetWarnings() const

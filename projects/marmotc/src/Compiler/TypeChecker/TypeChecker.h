@@ -51,14 +51,14 @@ private:
 	struct TypeScope
 	{
 		TypeEnvironment m_names;
-		std::unordered_map<int, std::shared_ptr<MarmotType>> m_generated;
+		std::unordered_map<BindingId, std::shared_ptr<MarmotType>> m_bindings;
 
 		TypeScope() = default;
 		explicit TypeScope(TypeEnvironment names);
 	};
 	using TypeEnvironmentStack = std::vector<TypeScope>;
 	using TypeSubstitution = std::unordered_map<int, std::shared_ptr<MarmotType>>;
-	using GenericFunctionNames = std::unordered_set<std::string>;
+	using GenericFunctionNames = std::unordered_map<std::string, LexicalFunctionId>;
 	using GenericStructNames = std::unordered_set<std::string>;
 	using GenericUnionNames = std::unordered_set<std::string>;
 	using TypeDefinitionMap = std::unordered_map<std::string, std::shared_ptr<MarmotType>>;
@@ -126,19 +126,20 @@ private:
 	TypeDefinitionMap m_struct_type_definitions;
 	TypeDefinitionMap m_union_type_definitions;
 	std::vector<MarmotType::ClassConstraint> m_active_constraints;
-	// Names of the generic definitions whose bodies are currently being checked.
+	// Identities of the generic definitions whose bodies are currently being checked.
 	// A call to one of these from inside its own body must not be freshened: it is
 	// recursion, not a fresh instantiation.
-	std::vector<std::string> m_defining_generic_names;
+	std::vector<LexicalFunctionId> m_defining_generic_functions;
 	// A generic lambda bound by a 'def' inside a body: the scope it is bound
 	// in, and the variables that are its own, the ones a use picks.
 	struct LocalGenericFunction
 	{
 		size_t m_depth;
-		std::string m_name;
+		BindingId m_binding;
+		LexicalFunctionId m_function;
 		std::vector<int> m_parameters;
 
-		LocalGenericFunction(size_t depth, std::string name, std::vector<int> parameters);
+		LocalGenericFunction(size_t depth, BindingId binding, LexicalFunctionId function, std::vector<int> parameters);
 	};
 	std::vector<LocalGenericFunction> m_local_generic_functions;
 	// A generic used as a value before its types are decided, as the argument of a
@@ -210,6 +211,9 @@ private:
 	MarmotResult::TypeResult CheckRefAccess(const std::unique_ptr<MarmotExpression>& cell, const std::unique_ptr<MarmotExpression>* value, const Token& token, std::string_view error_message);
 
 	void BindParameters(const FunctionParameters& parameters, const std::vector<std::shared_ptr<MarmotType>>& types);
+	void BindValue(const Token& name, const std::optional<BindingId>& binding, std::shared_ptr<MarmotType> type);
+	std::shared_ptr<MarmotType>* FindBindingType(const BindingId& binding);
+	const std::shared_ptr<MarmotType>* FindValueType(const MarmotExpression::NameAccess& name) const;
 
 	MarmotResult::TypeResult CheckFunctionBody(const std::unique_ptr<MarmotExpression>& body, std::shared_ptr<MarmotType>& return_type, const std::vector<MarmotType::ClassConstraint>& constraints, const Token& token);
 
@@ -256,7 +260,7 @@ private:
 	// Checks the body once for any choice of the generic parameters. `bind` is
 	// given the generic type and its own variables before the body, so a named
 	// lambda can call itself.
-	MarmotResult::TypeResult CheckGenericLambda(MarmotExpression::Function& function, const Token& anchor, const std::string& name, const std::function<void(const std::shared_ptr<MarmotType>&, const std::vector<int>&)>& bind);
+	MarmotResult::TypeResult CheckGenericLambda(MarmotExpression::Function& function, const Token& anchor, const std::function<void(const std::shared_ptr<MarmotType>&, const std::vector<int>&)>& bind);
 
 	// `type` with each of `parameters` replaced by a fresh variable, and every
 	// other variable, an enclosing definition's, kept.

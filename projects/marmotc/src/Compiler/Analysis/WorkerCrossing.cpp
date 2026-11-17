@@ -26,20 +26,16 @@ namespace
 		}
 	};
 
-	// By a local's place in the one sequence that numbers a function's locals and
-	// those of the functions around it: a Local index counts from its function's
-	// captured count, and a Cell index is the place itself.
-	using LocalOrigins = std::unordered_map<int, Origins>;
+	using LocalOrigins = std::unordered_map<BindingId, Origins>;
 
 	// Everything an expression reads, which over-approximates where its value came
 	// from: a lambda's value is what it captured.
 	class OriginCollector final : public MarmotAbstractSyntaxTreeWalker
 	{
 	public:
-		OriginCollector(const LocalOrigins& locals, const WorkerCrossings& crossings, int captured_count)
+		OriginCollector(const LocalOrigins& locals, const WorkerCrossings& crossings)
 			: m_locals(locals),
-			m_crossings(crossings),
-			m_captured_counts{ captured_count }
+			m_crossings(crossings)
 		{
 		}
 
@@ -59,18 +55,11 @@ namespace
 				return;
 			}
 
-			const LocalOrigins::const_iterator found = m_locals.find(local != nullptr ? m_captured_counts.back() + local->m_index : cell->m_index);
+			const LocalOrigins::const_iterator found = m_locals.find(local != nullptr ? local->m_binding : cell->m_binding);
 			if (found != m_locals.cend())
 			{
 				m_origins |= found->second;
 			}
-		}
-
-		void operator()(MarmotExpression::Function& function) override
-		{
-			m_captured_counts.push_back(function.m_captured_count);
-			MarmotAbstractSyntaxTreeWalker::operator()(function);
-			m_captured_counts.pop_back();
 		}
 
 		void operator()(MarmotExpression::Call& call) override
@@ -83,7 +72,6 @@ namespace
 	private:
 		const LocalOrigins& m_locals;
 		const WorkerCrossings& m_crossings;
-		std::vector<int> m_captured_counts;
 		Origins m_origins;
 	};
 
@@ -104,16 +92,12 @@ namespace
 		// stays in: what a function captured is not in its type.
 		WorkerCrossing Find(MarmotExpression::Function& function)
 		{
-			m_captured_counts.push_back(function.m_captured_count);
 			for (size_t index = 0u; index < function.m_params.Size(); index += 1u)
 			{
-				const GeneratedBinding* binding = function.m_params.GeneratedBindingAt(index);
-				const int local_index = binding != nullptr ? binding->m_index : static_cast<int>(index);
-				m_locals.insert_or_assign(Place(local_index), Origins{ { index }, false });
+				m_locals.insert_or_assign(function.m_params.BindingAt(index), Origins{ { index }, false });
 			}
 			VisitExpression(function.m_body);
 			const bool returns_from_worker = OriginsOf(*function.m_body).m_from_worker;
-			m_captured_counts.pop_back();
 
 			const MarmotType::FunctionType& signature = function.m_type_data->GetType<MarmotType::FunctionType>();
 			WorkerCrossing crossing;
@@ -132,9 +116,9 @@ namespace
 		void operator()(MarmotStatement::VariableDefinition& definition) override
 		{
 			MarmotAbstractSyntaxTreeWalker::operator()(definition);
-			if (definition.m_local_index.has_value())
+			if (definition.m_binding.has_value())
 			{
-				m_locals.insert_or_assign(Place(definition.m_local_index.value()), OriginsOf(*definition.m_value));
+				m_locals.insert_or_assign(definition.m_binding.value(), OriginsOf(*definition.m_value));
 			}
 		}
 
@@ -142,20 +126,20 @@ namespace
 		{
 			MarmotAbstractSyntaxTreeWalker::operator()(definition);
 			const Origins origins = OriginsOf(*definition.m_value);
-			for (const std::optional<int>& local_index : definition.m_local_indices)
+			for (const std::optional<BindingId>& binding : definition.m_bindings)
 			{
-				if (local_index.has_value())
+				if (binding.has_value())
 				{
-					m_locals.insert_or_assign(Place(local_index.value()), origins);
+					m_locals.insert_or_assign(binding.value(), origins);
 				}
 			}
 		}
 
 		void operator()(MarmotPattern::Binding& binding) override
 		{
-			if (binding.m_local_index.has_value())
+			if (binding.m_binding.has_value())
 			{
-				m_locals.insert_or_assign(Place(binding.m_local_index.value()), m_scrutinees.back());
+				m_locals.insert_or_assign(binding.m_binding.value(), m_scrutinees.back());
 			}
 		}
 
@@ -173,22 +157,15 @@ namespace
 		void operator()(MarmotExpression::For& for_expr) override
 		{
 			VisitExpression(for_expr.m_range);
-			m_locals.insert_or_assign(Place(for_expr.m_loop_variable_index), OriginsOf(*for_expr.m_range));
+			m_locals.insert_or_assign(for_expr.m_loop_binding, OriginsOf(*for_expr.m_range));
 			VisitExpression(for_expr.m_body);
 		}
 
 		void operator()(MarmotExpression::ArrayComprehension& comprehension) override
 		{
 			VisitExpression(comprehension.m_range);
-			m_locals.insert_or_assign(Place(comprehension.m_loop_variable_index), OriginsOf(*comprehension.m_range));
+			m_locals.insert_or_assign(comprehension.m_loop_binding, OriginsOf(*comprehension.m_range));
 			VisitExpression(comprehension.m_transform_expr);
-		}
-
-		void operator()(MarmotExpression::Function& function) override
-		{
-			m_captured_counts.push_back(function.m_captured_count);
-			MarmotAbstractSyntaxTreeWalker::operator()(function);
-			m_captured_counts.pop_back();
 		}
 
 		void operator()(MarmotExpression::Call& call) override
@@ -212,14 +189,9 @@ namespace
 		}
 
 	private:
-		int Place(int local_index) const
-		{
-			return m_captured_counts.back() + local_index;
-		}
-
 		Origins OriginsOf(MarmotExpression& expression) const
 		{
-			return OriginCollector(m_locals, m_crossings, m_captured_counts.back()).Collect(expression);
+			return OriginCollector(m_locals, m_crossings).Collect(expression);
 		}
 
 		void Cross(const Origins& origins)
@@ -229,7 +201,6 @@ namespace
 
 		const WorkerCrossings& m_crossings;
 		LocalOrigins m_locals;
-		std::vector<int> m_captured_counts;
 		std::vector<Origins> m_scrutinees;
 		std::set<size_t> m_crossing_parameters;
 	};

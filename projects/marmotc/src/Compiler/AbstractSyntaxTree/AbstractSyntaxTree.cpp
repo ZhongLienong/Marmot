@@ -93,15 +93,15 @@ namespace
 	}
 }
 
-MarmotPattern::Binding::Binding(const Token& name, std::optional<int> local_index)
+MarmotPattern::Binding::Binding(const Token& name, std::optional<BindingId> binding)
 	: m_name(name),
-	m_local_index(std::move(local_index))
+	m_binding(std::move(binding))
 {
 }
 
 MarmotPattern::Binding::Binding(const GeneratedBinding& binding)
 	: m_name(binding.m_anchor),
-	m_local_index(binding.m_index),
+	m_binding(binding.m_binding),
 	m_is_generated(true)
 {
 }
@@ -233,7 +233,7 @@ MarmotExpression::NameAccess::NameAccess(const Token& name, NameContext::Tag&& n
 
 MarmotExpression::NameAccess::NameAccess(const GeneratedBinding& binding)
 	: m_name(binding.m_anchor),
-	m_name_ctx(NameContext::Local{ binding.m_index, true })
+	m_name_ctx(NameContext::Local{ binding.m_binding, true })
 {
 }
 
@@ -245,15 +245,14 @@ MarmotExpression::Call::Call(const Token& paren, std::unique_ptr<MarmotExpressio
 {
 }
 
-MarmotExpression::Function::Function(const Token& function_keyword, std::vector<Token>&& generic_params, FunctionParameters&& params, std::vector<std::shared_ptr<MarmotType>>&& param_types, std::shared_ptr<MarmotType>&& return_type, std::unique_ptr<MarmotExpression>&& body, int captured_count, std::vector<MarmotType::ClassConstraint>&& constraints)
+MarmotExpression::Function::Function(const Token& function_keyword, std::vector<Token>&& generic_params, FunctionParameters&& params, std::vector<std::shared_ptr<MarmotType>>&& param_types, std::shared_ptr<MarmotType>&& return_type, std::unique_ptr<MarmotExpression>&& body, std::vector<MarmotType::ClassConstraint>&& constraints)
 	: m_function_keyword(function_keyword),
 	m_generic_params(std::move(generic_params)),
 	m_params(std::move(params)),
 	m_param_types(std::move(param_types)),
 	m_constraints(std::move(constraints)),
 	m_return_type(std::move(return_type)),
-	m_body(std::move(body)),
-	m_captured_count(captured_count)
+	m_body(std::move(body))
 {
 }
 
@@ -509,26 +508,26 @@ MarmotStatement::ExpressionStatement::ExpressionStatement(const Token& semicolon
 {
 }
 
-MarmotStatement::VariableDefinition::VariableDefinition(const Token& name, std::unique_ptr<MarmotExpression>&& value, std::optional<std::shared_ptr<MarmotType>>&& annotated_type, std::optional<int>&& local_index)
+MarmotStatement::VariableDefinition::VariableDefinition(const Token& name, std::unique_ptr<MarmotExpression>&& value, std::optional<std::shared_ptr<MarmotType>>&& annotated_type, std::optional<BindingId>&& binding)
 	: m_name(name),
 	m_value(std::move(value)),
 	m_annotated_type(std::move(annotated_type)),
-	m_local_index(std::move(local_index))
+	m_binding(std::move(binding))
 {
 }
 
-MarmotStatement::TupleDefinition::TupleDefinition(std::vector<Token>&& names, std::unique_ptr<MarmotExpression>&& value, std::vector<std::optional<int>>&& local_indices)
+MarmotStatement::TupleDefinition::TupleDefinition(std::vector<Token>&& names, std::unique_ptr<MarmotExpression>&& value, std::vector<std::optional<BindingId>>&& bindings)
 	: m_names(std::move(names)),
 	m_value(std::move(value)),
-	m_local_indices(std::move(local_indices))
+	m_bindings(std::move(bindings))
 {
 }
 
-MarmotStatement::ForeignDefinition::ForeignDefinition(const Token& function_name, const std::string& foreign_name, std::shared_ptr<MarmotType>&& type, std::optional<int>&& local_index, std::optional<std::string> library)
+MarmotStatement::ForeignDefinition::ForeignDefinition(const Token& function_name, const std::string& foreign_name, std::shared_ptr<MarmotType>&& type, std::optional<BindingId>&& binding, std::optional<std::string> library)
 	: m_function_name(function_name),
 	m_foreign_name(foreign_name),
 	m_type(std::move(type)),
-	m_local_index(std::move(local_index)),
+	m_binding(std::move(binding)),
 	m_library(std::move(library))
 {
 }
@@ -555,16 +554,15 @@ MarmotStatement::Union::Union(const Token& name, std::vector<Token>&& generic_pa
 {
 }
 
-MarmotStatement::FunctionDefinition::FunctionDefinition(const Token& name, std::vector<Token>&& generic_params, FunctionParameters&& params, std::vector<std::shared_ptr<MarmotType>>&& param_types, std::shared_ptr<MarmotType>&& return_type, std::unique_ptr<MarmotExpression>&& body, std::optional<int>&& local_index, int captured_count, std::vector<MarmotType::ClassConstraint>&& constraints)
+MarmotStatement::FunctionDefinition::FunctionDefinition(const Token& name, std::vector<Token>&& generic_params, FunctionParameters&& params, std::vector<std::shared_ptr<MarmotType>>&& param_types, std::shared_ptr<MarmotType>&& return_type, std::unique_ptr<MarmotExpression>&& body, std::optional<BindingId>&& binding, std::vector<MarmotType::ClassConstraint>&& constraints)
 	: m_name(name),
 	m_generic_params(std::move(generic_params)),
 	m_params(std::move(params)),
 	m_param_types(std::move(param_types)),
+	m_constraints(std::move(constraints)),
 	m_return_type(std::move(return_type)),
 	m_body(std::move(body)),
-	m_local_index(std::move(local_index)),
-	m_captured_count(captured_count),
-	m_constraints(std::move(constraints))
+	m_binding(std::move(binding))
 {
 }
 

@@ -101,14 +101,13 @@ Lowering::JoinPoint::JoinPoint(MarmotIRBlockId block, TypeRef type)
 {
 }
 
-Lowering::FunctionScope::FunctionScope(MarmotIRFunctionId id, MarmotIRFunction& function, const Specialization& specialization, FunctionScope* parent, int environment_length)
+Lowering::FunctionScope::FunctionScope(MarmotIRFunctionId id, MarmotIRFunction& function, const Specialization& specialization, FunctionScope* parent, LexicalFunctionId identity)
 	: m_id(id),
 	m_function(function),
 	m_builder(function),
 	m_specialization(specialization),
 	m_parent(parent),
-	m_environment_length(environment_length),
-	m_local_frames(1u),
+	m_identity(std::move(identity)),
 	m_live_blocks(1u, true)
 {
 }
@@ -139,7 +138,7 @@ MarmotResult::DiagnosticsResult<LoweredModule> Lowering::Lower() &&
 	const Specialization& module_context = m_specializations.front();
 	const MarmotIRFunctionId top_level = NewFunction(std::string(MAIN_PROCEDURE_PREFIX), UnitType(), module_context);
 	m_module.m_top_level = top_level;
-	FunctionScope scope(top_level, m_functions[top_level.m_index], module_context, nullptr, 0);
+	FunctionScope scope(top_level, m_functions[top_level.m_index], module_context, nullptr, nullptr);
 	m_scopes.push_back(&scope);
 
 	std::vector<CompilerError> reservation_errors = ReserveTopLevelNames();
@@ -321,7 +320,7 @@ Lowering::Emitted Lowering::ReserveTopLevelName(MarmotStatement& statement)
 			MarmotExpression::Function& function = definition.m_value->GetExpression<MarmotExpression::Function>();
 			if (!function.m_generic_params.empty())
 			{
-				m_self.RegisterGeneric(name, function.m_params, function.m_param_types, function.m_generic_params, function.m_constraints, function.m_return_type, function.m_body, function.m_captured_count);
+				m_self.RegisterGeneric(name, function.m_params, function.m_param_types, function.m_generic_params, function.m_constraints, function.m_return_type, function.m_body);
 				return {};
 			}
 			return m_self.ReserveFunction(name, ClosureType(definition.m_value->GetType()));
@@ -342,7 +341,7 @@ Lowering::Emitted Lowering::ReserveTopLevelName(MarmotStatement& statement)
 		{
 			if (!definition.m_generic_params.empty())
 			{
-				m_self.RegisterGeneric(definition.m_name.m_lexeme, definition.m_params, definition.m_param_types, definition.m_generic_params, definition.m_constraints, definition.m_return_type, definition.m_body, definition.m_captured_count);
+				m_self.RegisterGeneric(definition.m_name.m_lexeme, definition.m_params, definition.m_param_types, definition.m_generic_params, definition.m_constraints, definition.m_return_type, definition.m_body);
 				return {};
 			}
 			return m_self.ReserveFunction(definition.m_name.m_lexeme, MarmotType::MakeFunctionType(definition.m_param_types, TypeRef(definition.m_return_type)));
@@ -383,7 +382,7 @@ Lowering::Emitted Lowering::ReserveTopLevelName(MarmotStatement& statement)
 				MarmotStatement::FunctionDefinition& method = instance_method.m_definition;
 				if (m_self.IsGenericMethod(instance, method))
 				{
-					m_self.RegisterGeneric(method.m_name.m_lexeme, method.m_params, method.m_param_types, method.m_generic_params, method.m_constraints, method.m_return_type, method.m_body, method.m_captured_count);
+					m_self.RegisterGeneric(method.m_name.m_lexeme, method.m_params, method.m_param_types, method.m_generic_params, method.m_constraints, method.m_return_type, method.m_body);
 					continue;
 				}
 
@@ -481,9 +480,9 @@ std::expected<std::string, CompilerError> Lowering::ForeignName(const MarmotStat
 
 // A generic's body moves out of this module's AST into its template, which the
 // modules that import it specialize too.
-void Lowering::RegisterGeneric(const std::string& name, const FunctionParameters& params, const std::vector<TypeRef>& param_types, const std::vector<Token>& generic_params, const std::vector<MarmotType::ClassConstraint>& constraints, const TypeRef& return_type, std::unique_ptr<MarmotExpression>& body, int captured_count)
+void Lowering::RegisterGeneric(const std::string& name, const FunctionParameters& params, const std::vector<TypeRef>& param_types, const std::vector<Token>& generic_params, const std::vector<MarmotType::ClassConstraint>& constraints, const TypeRef& return_type, std::unique_ptr<MarmotExpression>& body)
 {
-	m_generics.Add(name, GenericFunctionInfo(name, params, param_types, generic_params, constraints, return_type, std::shared_ptr<const MarmotExpression>(std::move(body)), captured_count, m_module_name, m_foreign_indices));
+	m_generics.Add(name, GenericFunctionInfo(name, params, param_types, generic_params, constraints, return_type, std::shared_ptr<const MarmotExpression>(std::move(body)), m_module_name, m_foreign_indices));
 }
 
 // Every value in MarmotIR has one type, so a method of an instance whose head
@@ -633,7 +632,7 @@ Lowering::Emitted Lowering::LowerTopLevelFunction(const std::string& name, const
 	const TopLevelName& top_level_name = m_top_level_names.at(name);
 	const TypeRef closure_type = m_module.m_globals[top_level_name.m_slot.m_value].m_type;
 	const MarmotIRFunctionId id = top_level_name.m_function.value();
-	FunctionScope scope(id, m_functions[id.m_index], m_specializations.front(), &Scope(), 0);
+	FunctionScope scope(id, m_functions[id.m_index], m_specializations.front(), &Scope(), params.Function());
 	return LowerFunctionBody(scope, closure_type->GetType<MarmotType::FunctionType>().m_param_types, params, body)
 		.and_then([&]() { return MakeClosure(scope, closure_type, line, name); })
 		.transform([this, &top_level_name, line](MarmotIRValueId closure)
@@ -677,7 +676,7 @@ Lowering::Emitted Lowering::LowerStatement(const MarmotStatement& statement)
 			return m_self.ForeignName(foreign)
 				.transform([this, &foreign](const std::string& value)
 				{
-					m_self.DefineLocal(foreign.m_local_index.value(), m_self.Builder().AtLine(foreign.m_function_name.m_line).ConstText(value));
+					m_self.DefineLocal(foreign.m_binding.value(), m_self.Builder().AtLine(foreign.m_function_name.m_line).ConstText(value));
 				});
 		}
 
@@ -718,17 +717,16 @@ Lowering::Emitted Lowering::LowerLocalDefinition(const MarmotStatement::Variable
 		return {};
 	}
 
-	const int local_index = definition.m_local_index.value();
+	const BindingId& binding = definition.m_binding.value();
 	if (definition.m_value->IsExpression<MarmotExpression::Function>() && !definition.m_value->GetExpression<MarmotExpression::Function>().m_generic_params.empty())
 	{
-		Scope().m_local_generics.emplace(local_index, &definition.m_value->GetExpression<MarmotExpression::Function>());
-		Scope().m_local_frames.back().push_back(local_index);
+		Scope().m_local_generics.emplace(binding, &definition.m_value->GetExpression<MarmotExpression::Function>());
 		return {};
 	}
 	return Lower(*definition.m_value)
-		.transform([this, local_index](MarmotIRValueId value)
+		.transform([this, binding](MarmotIRValueId value)
 		{
-			DefineLocal(local_index, value);
+			DefineLocal(binding, value);
 		});
 }
 
@@ -747,10 +745,10 @@ Lowering::Emitted Lowering::LowerTupleDefinition(const MarmotStatement::TupleDef
 				const MarmotIRValueId element = is_dead
 					? Placeholder(UnitType())
 					: Builder().Emit(MarmotIROp::TupleGet, GenericTypes::RepresentationOf(Scope().m_function.TypeOf(tuple))->GetType<MarmotType::TupleType>().m_element_types[index], { tuple }, MarmotIRIndex{ static_cast<uint32_t>(index) }, definition.m_names[index].m_lexeme);
-				const std::optional<int>& local_index = definition.m_local_indices[index];
-				if (local_index.has_value())
+				const std::optional<BindingId>& binding = definition.m_bindings[index];
+				if (binding.has_value())
 				{
-					DefineLocal(local_index.value(), element);
+					DefineLocal(binding.value(), element);
 				}
 				else if (!is_dead)
 				{
@@ -760,32 +758,15 @@ Lowering::Emitted Lowering::LowerTupleDefinition(const MarmotStatement::TupleDef
 		});
 }
 
-void Lowering::PushLocalFrame()
-{
-	Scope().m_local_frames.emplace_back();
-}
-
-void Lowering::PopLocalFrame()
-{
-	FunctionScope& scope = Scope();
-	for (const int index : scope.m_local_frames.back())
-	{
-		scope.m_locals.erase(index);
-		scope.m_local_generics.erase(index);
-	}
-	scope.m_local_frames.pop_back();
-}
-
 // A closure made before this local, which captures it, gets it now.
-void Lowering::DefineLocal(int index, MarmotIRValueId value)
+void Lowering::DefineLocal(const BindingId& binding, MarmotIRValueId value)
 {
 	FunctionScope& scope = Scope();
-	scope.m_locals.insert_or_assign(index, value);
-	scope.m_local_frames.back().push_back(index);
+	scope.m_locals.insert_or_assign(binding, value);
 
 	std::erase_if(scope.m_pending_captures, [&](const PendingCapture& pending)
 	{
-		if (pending.m_local != index)
+		if (pending.m_binding != binding)
 		{
 			return false;
 		}
@@ -794,14 +775,14 @@ void Lowering::DefineLocal(int index, MarmotIRValueId value)
 	});
 }
 
-// The parser numbers what a lambda captures as the VM used to lay out its
-// environment: its parent's environment first, then its parent's locals.
-Lowering::LocalKey Lowering::KeyForCell(const FunctionScope& scope, int cell_index) const
+Lowering::LocalKey Lowering::KeyForBinding(const FunctionScope& scope, const BindingId& binding) const
 {
-	const FunctionScope& parent = *scope.m_parent;
-	return cell_index < parent.m_environment_length
-		? KeyForCell(parent, cell_index)
-		: LocalKey{ &parent, cell_index - parent.m_environment_length };
+	const FunctionScope* owner = &scope;
+	while (owner->m_identity != binding->m_function)
+	{
+		owner = owner->m_parent;
+	}
+	return LocalKey{ owner, binding };
 }
 
 // A capture is read once, at the top of the function, so its value dominates
@@ -827,17 +808,12 @@ MarmotIRValueId Lowering::CaptureFor(FunctionScope& scope, const LocalKey& key, 
 	return value;
 }
 
-// Source parameters occupy the parser's first locals; generated parameters
-// carry their local identities explicitly.
 Lowering::Emitted Lowering::LowerFunctionBody(FunctionScope& scope, const std::vector<TypeRef>& param_types, const FunctionParameters& params, const MarmotExpression& body)
 {
 	for (size_t index = 0u; index < params.Size(); index += 1u)
 	{
 		const MarmotIRValueId parameter = scope.m_builder.AddParameter(MarmotIRFunction::s_entry_block, param_types[index], params.DisplayName(index));
-		const GeneratedBinding* generated = params.GeneratedBindingAt(index);
-		const int local_index = generated != nullptr ? generated->m_index : static_cast<int>(index);
-		scope.m_locals.emplace(local_index, parameter);
-		scope.m_local_frames.back().push_back(local_index);
+		scope.m_locals.emplace(params.BindingAt(index), parameter);
 	}
 
 	m_scopes.push_back(&scope);
@@ -865,7 +841,7 @@ Lowering::Lowered Lowering::MakeClosure(FunctionScope& child, const TypeRef& clo
 			continue;
 		}
 
-		const std::unordered_map<int, MarmotIRValueId>::const_iterator local = parent.m_locals.find(key.m_index);
+		const std::unordered_map<BindingId, MarmotIRValueId>::const_iterator local = parent.m_locals.find(key.m_binding);
 		if (local == parent.m_locals.cend())
 		{
 			late.push_back(index);
@@ -896,7 +872,7 @@ Lowering::Lowered Lowering::MakeClosure(FunctionScope& child, const TypeRef& clo
 	const MarmotIRValueId closure = Builder().AtLine(line).Emit(MarmotIROp::MakeClosure, closure_type, std::move(operands), child.m_id, std::move(name));
 	for (const size_t index : late)
 	{
-		parent.m_pending_captures.push_back(PendingCapture{ closure, position[index], child.m_captures[index].m_index });
+		parent.m_pending_captures.push_back(PendingCapture{ closure, position[index], child.m_captures[index].m_binding });
 	}
 	return closure;
 }
@@ -911,7 +887,7 @@ Lowering::Lowered Lowering::LowerFunction(const MarmotExpression::Function& func
 	const TypeRef closure_type = ClosureType(Concrete(function.m_type_data));
 	const MarmotType::FunctionType& signature = closure_type->GetType<MarmotType::FunctionType>();
 	const MarmotIRFunctionId id = NewFunction(std::format("Anonymous Function at line: {}", line), signature.m_return_type, Scope().m_specialization);
-	FunctionScope scope(id, m_functions[id.m_index], Scope().m_specialization, &Scope(), function.m_captured_count);
+	FunctionScope scope(id, m_functions[id.m_index], Scope().m_specialization, &Scope(), function.m_params.Function());
 	return LowerFunctionBody(scope, signature.m_param_types, function.m_params, *function.m_body)
 		.and_then([&]() { return MakeClosure(scope, closure_type, line); });
 }
@@ -938,7 +914,7 @@ Lowering::Lowered Lowering::LowerGenericLambda(const MarmotExpression::Function&
 	const TypeRef closure_type = ClosureType(type);
 	const MarmotType::FunctionType& signature = closure_type->GetType<MarmotType::FunctionType>();
 	const MarmotIRFunctionId id = NewFunction(std::move(name), signature.m_return_type, specialization);
-	FunctionScope scope(id, m_functions[id.m_index], specialization, &Scope(), function.m_captured_count);
+	FunctionScope scope(id, m_functions[id.m_index], specialization, &Scope(), function.m_params.Function());
 	return LowerFunctionBody(scope, signature.m_param_types, function.m_params, *function.m_body)
 		.and_then([&]() { return MakeClosure(scope, closure_type, line); });
 }
@@ -955,14 +931,13 @@ Lowering::Lowered Lowering::LowerLocalGeneric(const MarmotExpression::Function& 
 		return CaptureFor(Scope(), active->m_self, ClosureType(type));
 	}
 
-	const LocalKey self{ &Scope(), m_next_synthetic_local };
-	m_next_synthetic_local -= 1;
+	const LocalKey self{ &Scope(), std::make_shared<BindingIdentity>(Scope().m_identity, -1) };
 	m_active_generic_lambdas.emplace_back(&function, signature, self);
 	const Lowered closure = LowerGenericLambda(function, type, name.m_lexeme, name.m_line);
 	m_active_generic_lambdas.pop_back();
 	return closure.transform([this, &self](MarmotIRValueId value)
 	{
-		DefineLocal(self.m_index, value);
+		DefineLocal(self.m_binding, value);
 		return value;
 	});
 }
@@ -1019,7 +994,7 @@ std::expected<MarmotIRFunctionId, CompilerError> Lowering::Specialize(const std:
 	const MarmotIRFunctionId id = NewFunction(signature, return_type, specialization);
 	m_specialized_functions.emplace(cache_key, id);
 	m_specializations_by_arguments.emplace(signature, id);
-	FunctionScope scope(id, m_functions[id.m_index], specialization, nullptr, info.m_captured_count);
+	FunctionScope scope(id, m_functions[id.m_index], specialization, nullptr, info.m_params.Function());
 	const std::shared_ptr<const MarmotExpression> body = info.m_body;
 	const FunctionParameters params = info.m_params;
 	return LowerFunctionBody(scope, argument_types, params, *body)
@@ -1046,7 +1021,7 @@ Lowering::Lowered Lowering::LowerForeignValue(const Token& name, const TypeRef& 
 	const TypeRef closure_type = ClosureType(type);
 	const MarmotType::FunctionType& signature = closure_type->GetType<MarmotType::FunctionType>();
 	const MarmotIRFunctionId id = NewFunction(std::format("foreign {}", name.m_lexeme), signature.m_return_type, Scope().m_specialization);
-	FunctionScope scope(id, m_functions[id.m_index], Scope().m_specialization, &Scope(), 0);
+	FunctionScope scope(id, m_functions[id.m_index], Scope().m_specialization, &Scope(), nullptr);
 	std::vector<MarmotIRValueId> arguments;
 	for (const TypeRef& parameter_type : signature.m_param_types)
 	{
@@ -1083,15 +1058,16 @@ Lowering::Lowered Lowering::LowerName(const MarmotExpression::NameAccess& name)
 	if (is_local || std::holds_alternative<MarmotExpression::NameContext::Cell>(name.m_name_ctx))
 	{
 		FunctionScope& scope = Scope();
-		const LocalKey key = is_local
-			? LocalKey{ &scope, std::get<MarmotExpression::NameContext::Local>(name.m_name_ctx).m_index }
-			: KeyForCell(scope, std::get<MarmotExpression::NameContext::Cell>(name.m_name_ctx).m_index);
-		const std::unordered_map<int, const MarmotExpression::Function*>::const_iterator generic = key.m_owner->m_local_generics.find(key.m_index);
+		const BindingId& binding = is_local
+			? std::get<MarmotExpression::NameContext::Local>(name.m_name_ctx).m_binding
+			: std::get<MarmotExpression::NameContext::Cell>(name.m_name_ctx).m_binding;
+		const LocalKey key = KeyForBinding(scope, binding);
+		const std::unordered_map<BindingId, const MarmotExpression::Function*>::const_iterator generic = key.m_owner->m_local_generics.find(key.m_binding);
 		if (generic != key.m_owner->m_local_generics.cend())
 		{
 			return LowerLocalGeneric(*generic->second, Concrete(name.m_type_data), token);
 		}
-		return is_local ? scope.m_locals.at(key.m_index) : CaptureFor(scope, key, Concrete(name.m_type_data));
+		return is_local ? scope.m_locals.at(key.m_binding) : CaptureFor(scope, key, Concrete(name.m_type_data));
 	}
 
 	const std::string& lexeme = token.m_lexeme;

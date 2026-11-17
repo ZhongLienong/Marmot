@@ -18,13 +18,7 @@ namespace
 		std::vector<Token> m_globals;
 	};
 
-	// Finds the cells a function value takes into a worker. The parser numbers every
-	// enclosing local in one sequence, and a function's captured count is how many
-	// were numbered before its own, so a Cell name anywhere inside it, in a lambda
-	// within it too, whose index is below that count is a local from outside it.
-	// The globals it reads go too, and those read by this module's functions it
-	// names, followed in turn. A global reached only through another global's value,
-	// or through another module's function, is not seen.
+	// Captured bindings retain their declaring function even through nested lambdas.
 	class CarriedCellFinder final : public MarmotAbstractSyntaxTreeWalker
 	{
 	public:
@@ -36,26 +30,31 @@ namespace
 		CarriedCells Find(MarmotExpression::Function& function)
 		{
 			m_visited_functions.insert(&function);
-			m_captured_count = function.m_captured_count;
+			m_local_functions.insert(function.m_params.Function());
 			VisitExpression(function.m_body);
 
-			// A module function captures nothing.
-			m_captured_count = 0;
 			while (!m_pending_functions.empty())
 			{
 				MarmotExpression::Function* named = m_pending_functions.back();
 				m_pending_functions.pop_back();
+				m_local_functions.insert(named->m_params.Function());
 				VisitExpression(named->m_body);
 			}
 			return std::move(m_found);
 		}
 
 	protected:
+		void operator()(MarmotExpression::Function& function) override
+		{
+			m_local_functions.insert(function.m_params.Function());
+			MarmotAbstractSyntaxTreeWalker::operator()(function);
+		}
+
 		void operator()(MarmotExpression::NameAccess& access) override
 		{
 			if (const MarmotExpression::NameContext::Cell* captured = std::get_if<MarmotExpression::NameContext::Cell>(&access.m_name_ctx))
 			{
-				if (captured->m_index < m_captured_count && ContainsCell(access.m_type_data) && m_seen_cells.insert(captured->m_index).second)
+				if (!m_local_functions.contains(captured->m_binding->m_function) && ContainsCell(access.m_type_data) && m_seen_cells.insert(captured->m_binding).second)
 				{
 					m_found.m_captured.emplace_back(access.m_name);
 				}
@@ -85,10 +84,10 @@ namespace
 
 	private:
 		const std::unordered_map<std::string, MarmotExpression::Function*>& m_module_functions;
-		int m_captured_count = 0;
+		std::unordered_set<LexicalFunctionId> m_local_functions;
 		std::vector<MarmotExpression::Function*> m_pending_functions;
 		std::unordered_set<const MarmotExpression::Function*> m_visited_functions;
-		std::unordered_set<int> m_seen_cells;
+		std::unordered_set<BindingId> m_seen_cells;
 		std::unordered_set<std::string> m_seen_globals;
 		CarriedCells m_found;
 	};

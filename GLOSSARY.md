@@ -21,6 +21,16 @@ module the declaring module of an instance.
 A typeclass instance or container function generated from the shape of a record
 or union through its `deriving` clause.
 
+**Lexical binding**:
+A parameter, local definition, pattern binding or loop variable belonging to its
+declaring function. The alternatives of an or-pattern share one set of case
+bindings.
+
+**Binding identity**:
+The identity shared by a lexical binding and every reference to it, independent
+of its spelling or runtime storage. Specializing a generic body preserves its
+source bindings while giving their values separate execution contexts.
+
 ## Type transformations
 
 **Type transformation**:

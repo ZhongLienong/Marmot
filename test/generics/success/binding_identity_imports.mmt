@@ -1,0 +1,17 @@
+module BindingIdentityImports
+
+import {
+    "../../../MarmotPrelude/IO.mmt",
+    "binding_identity_left.mmt",
+    "binding_identity_right.mmt"
+}
+
+def first = BindingIdentityLeft::Make(7);
+def second = BindingIdentityRight::Make("right");
+def third = BindingIdentityLeft::Make("left");
+def fourth = BindingIdentityRight::Make(9);
+
+IO::PrintLine(first() as Text);
+IO::PrintLine(second());
+IO::PrintLine(third());
+IO::PrintLine(fourth() as Text);

@@ -41,9 +41,9 @@ TEST_CASE("Generated parameters resolve by identity through checking and lowerin
 		FAIL(parsed.error().Rendered());
 	}
 	MarmotExpression::Function& function = FunctionIn(*parsed);
-	const GeneratedBinding left(7, function.m_function_keyword);
-	const GeneratedBinding right(19, function.m_function_keyword);
-	function.m_params = FunctionParameters::Generated({ left, right });
+	const GeneratedBinding left(7, function.m_function_keyword, function.m_params.Function());
+	const GeneratedBinding right(19, function.m_function_keyword, function.m_params.Function());
+	function.m_params = FunctionParameters::Generated({ left, right }, function.m_params.Function());
 	function.m_body = std::make_unique<MarmotExpression>(MarmotExpression::NameAccess(right));
 	CHECK(function.m_params.SourceToken(0).m_lexeme == function.m_params.SourceToken(1).m_lexeme);
 	CHECK(function.m_params.DisplayName(0) != function.m_params.DisplayName(1));
@@ -59,10 +59,10 @@ TEST_CASE("Generated pattern bindings use identities independent of source token
 		FAIL(parsed.error().Rendered());
 	}
 	MarmotExpression::Function& function = FunctionIn(*parsed);
-	const GeneratedBinding input(7, function.m_function_keyword);
-	const GeneratedBinding left(19, function.m_function_keyword);
-	const GeneratedBinding right(31, function.m_function_keyword);
-	function.m_params = FunctionParameters::Generated({ input });
+	const GeneratedBinding input(7, function.m_function_keyword, function.m_params.Function());
+	const GeneratedBinding left(19, function.m_function_keyword, function.m_params.Function());
+	const GeneratedBinding right(31, function.m_function_keyword, function.m_params.Function());
+	function.m_params = FunctionParameters::Generated({ input }, function.m_params.Function());
 	MarmotExpression::Match& match = function.m_body->GetExpression<MarmotExpression::Match>();
 	match.m_arg_expr = std::make_unique<MarmotExpression>(MarmotExpression::NameAccess(input));
 	MarmotExpression::Case& arm = match.m_cases[0]->GetExpression<MarmotExpression::Case>();

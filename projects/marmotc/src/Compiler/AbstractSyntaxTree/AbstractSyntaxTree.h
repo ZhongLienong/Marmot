@@ -59,19 +59,19 @@ public:
 		Token m_name;
 		std::unique_ptr<MarmotExpression> m_value;
 		std::optional<std::shared_ptr<MarmotType>> m_annotated_type;
-		std::optional<int> m_local_index;
+		std::optional<BindingId> m_binding;
 		bool m_is_elided = false;
 
-		VariableDefinition(const Token& name, std::unique_ptr<MarmotExpression>&& value, std::optional<std::shared_ptr<MarmotType>>&& annotated_type, std::optional<int>&& local_index);
+		VariableDefinition(const Token& name, std::unique_ptr<MarmotExpression>&& value, std::optional<std::shared_ptr<MarmotType>>&& annotated_type, std::optional<BindingId>&& binding);
 	};
 
 	struct TupleDefinition
 	{
 		std::vector<Token> m_names;
 		std::unique_ptr<MarmotExpression> m_value;
-		std::vector<std::optional<int>> m_local_indices;
+		std::vector<std::optional<BindingId>> m_bindings;
 
-		TupleDefinition(std::vector<Token>&& names, std::unique_ptr<MarmotExpression>&& value, std::vector<std::optional<int>>&& local_indices);
+		TupleDefinition(std::vector<Token>&& names, std::unique_ptr<MarmotExpression>&& value, std::vector<std::optional<BindingId>>&& bindings);
 	};
 
 	struct FunctionDefinition
@@ -83,10 +83,9 @@ public:
 		std::vector<MarmotType::ClassConstraint> m_constraints;
 		std::shared_ptr<MarmotType> m_return_type;
 		std::unique_ptr<MarmotExpression> m_body;
-		std::optional<int> m_local_index;
-		int m_captured_count;
+		std::optional<BindingId> m_binding;
 
-		FunctionDefinition(const Token& name, std::vector<Token>&& generic_params, FunctionParameters&& params, std::vector<std::shared_ptr<MarmotType>>&& param_types, std::shared_ptr<MarmotType>&& return_type, std::unique_ptr<MarmotExpression>&& body, std::optional<int>&& local_index, int captured_count = 0, std::vector<MarmotType::ClassConstraint>&& constraints = {});
+		FunctionDefinition(const Token& name, std::vector<Token>&& generic_params, FunctionParameters&& params, std::vector<std::shared_ptr<MarmotType>>&& param_types, std::shared_ptr<MarmotType>&& return_type, std::unique_ptr<MarmotExpression>&& body, std::optional<BindingId>&& binding, std::vector<MarmotType::ClassConstraint>&& constraints = {});
 	};
 
 	struct ForeignDefinition
@@ -95,11 +94,11 @@ public:
 		// The symbol the library exports, or a builtin's name.
 		std::string m_foreign_name;
 		std::shared_ptr<MarmotType> m_type;
-		std::optional<int> m_local_index;
+		std::optional<BindingId> m_binding;
 		// The native library that exports m_foreign_name; none for a builtin.
 		std::optional<std::string> m_library;
 
-		ForeignDefinition(const Token& function_name, const std::string& foreign_name, std::shared_ptr<MarmotType>&& type, std::optional<int>&& local_index, std::optional<std::string> library = std::nullopt);
+		ForeignDefinition(const Token& function_name, const std::string& foreign_name, std::shared_ptr<MarmotType>&& type, std::optional<BindingId>&& binding, std::optional<std::string> library = std::nullopt);
 
 		// The instruction it declares, when it declares one instead of a function.
 		std::optional<MarmotPrimitive> DeclaredPrimitive() const;
@@ -225,11 +224,11 @@ public:
 	struct Binding : BasePattern
 	{
 		Token m_name;
-		std::optional<int> m_local_index;
+		std::optional<BindingId> m_binding;
 
 		bool m_is_generated = false;
 
-		Binding(const Token& name, std::optional<int> local_index);
+		Binding(const Token& name, std::optional<BindingId> binding);
 		explicit Binding(const GeneratedBinding& binding);
 	};
 
@@ -385,12 +384,12 @@ public:
 	{
 		struct Local
 		{
-			int m_index = 0;
+			BindingId m_binding;
 			bool m_is_generated = false;
 		};
 		struct Cell
 		{
-			int m_index = 0;
+			BindingId m_binding;
 		};
 		struct Global {};
 
@@ -506,9 +505,8 @@ public:
 		std::vector<MarmotType::ClassConstraint> m_constraints;
 		std::shared_ptr<MarmotType> m_return_type;
 		std::unique_ptr<MarmotExpression> m_body;
-		int m_captured_count;
 
-		Function(const Token& function_keyword, std::vector<Token>&& generic_params, FunctionParameters&& params, std::vector<std::shared_ptr<MarmotType>>&& param_types, std::shared_ptr<MarmotType>&& return_type, std::unique_ptr<MarmotExpression>&& body, int captured_count = 0, std::vector<MarmotType::ClassConstraint>&& constraints = {});
+		Function(const Token& function_keyword, std::vector<Token>&& generic_params, FunctionParameters&& params, std::vector<std::shared_ptr<MarmotType>>&& param_types, std::shared_ptr<MarmotType>&& return_type, std::unique_ptr<MarmotExpression>&& body, std::vector<MarmotType::ClassConstraint>&& constraints = {});
 	};
 
 	struct Construct : BaseExpression
@@ -612,7 +610,7 @@ public:
 		std::shared_ptr<MarmotType> m_iterable_item_type = nullptr;
 		// What Iterable::Next returns for this iterator: Option<(Item, Iter)>.
 		std::shared_ptr<MarmotType> m_iterable_next_type = nullptr;
-		int m_loop_variable_index = -1;
+		BindingId m_loop_binding;
 		int m_iterable_some_tag = -1;
 		bool m_is_array_iteration = false;
 		bool m_is_iterable_iteration = false;
@@ -681,7 +679,7 @@ public:
 		std::shared_ptr<MarmotType> m_iterable_item_type = nullptr;
 		// What Iterable::Next returns for this iterator: Option<(Item, Iter)>.
 		std::shared_ptr<MarmotType> m_iterable_next_type = nullptr;
-		int m_loop_variable_index = -1;
+		BindingId m_loop_binding;
 		int m_iterable_some_tag = -1;
 		bool m_is_array_iteration = false;
 		bool m_is_iterable_iteration = false;
