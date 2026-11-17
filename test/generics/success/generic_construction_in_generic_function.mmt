@@ -72,12 +72,12 @@ def some_text = Wrap("wrapped");
 
 match some_int with
 	case Option::Some(n) => IO::PrintLine("some_int: " ++ (n as Text))
-	case Option::None => IO::PrintLine("some_int: none")
+	case Option::None() => IO::PrintLine("some_int: none")
 ;
 
 match some_text with
 	case Option::Some(s) => IO::PrintLine("some_text: " ++ s)
-	case Option::None => IO::PrintLine("some_text: none")
+	case Option::None() => IO::PrintLine("some_text: none")
 ;
 
 def retagged_ints = Retag(ints, 99);

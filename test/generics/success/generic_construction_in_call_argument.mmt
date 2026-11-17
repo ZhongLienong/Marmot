@@ -61,5 +61,5 @@ IO::PrintLine("bags: " ++ (#bags_filled as Text) ++ " inner " ++ (#(bags_filled[
 
 match slots_filled[1] with
 	case Slot::Occupied(k, v) => IO::PrintLine("occupied: " ++ (k as Text) ++ "/" ++ v)
-	case Slot::Empty => IO::PrintLine("empty")
+	case Slot::Empty() => IO::PrintLine("empty")
 ;

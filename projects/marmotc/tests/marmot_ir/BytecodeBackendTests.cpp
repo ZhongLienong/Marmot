@@ -139,7 +139,7 @@ TEST_CASE("The backend reads a union's tag and fields straight from its slot in 
 type Chain = End | Link(Int, Chain);
 def Sum = fn(chain: Chain, total: Int) -> Int => match chain with
 	case Chain::Link(value, rest) => Sum(rest, total + value)
-	case Chain::End => total;
+	case Chain::End() => total;
 )");
 	REQUIRE(bytecode.has_value());
 

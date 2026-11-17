@@ -211,7 +211,7 @@ primary      = '_'                                        // wildcard
              | number | TEXT | 'true' | 'false'
              | integer '..' integer ('..' integer)?       // the Ints a range visits
              | IDENTIFIER                                 // binds the value
-             | IDENTIFIER '(' pattern (',' pattern)* ')'  // a variant or record, by position
+             | IDENTIFIER '(' (pattern (',' pattern)*)? ')' // a variant or record, by position
              | IDENTIFIER '{' fieldPatterns '}'           // a record, by field name
              | '(' pattern (',' pattern)+ ')'             // a tuple
              | '[' (element (',' element)*)? ']' ;        // an array
@@ -239,7 +239,8 @@ A record pattern names the fields it matches, in any order, each as
 unless the pattern ends in `..`, which leaves the ones it does not name out:
 `case Point { x = 0, .. }`. Leaving a field out without `..`, naming one twice,
 and a `..` that leaves nothing out are errors. A variant's fields have no
-names, so only `Name(...)` matches them.
+names, so only `Name(...)` matches them. Constructor patterns require parentheses
+even with no fields: `case List::Nil() => ...`.
 
 `pattern as name` matches what `pattern` matches and binds the whole value to
 `name` as well: `case Option::Some(inner) as whole => ...`.

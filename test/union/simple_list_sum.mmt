@@ -9,7 +9,7 @@ type List = Nil | Cons(Int, List);
 
 def list_sum = fn(lst : List) -> Int =>
 	match lst with
-		case List::Nil => 0
+		case List::Nil() => 0
 		case List::Cons(x, xs) => x + list_sum(xs)
 ;
 

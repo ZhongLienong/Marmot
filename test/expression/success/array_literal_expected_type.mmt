@@ -32,7 +32,7 @@ def wrapped = Maybe::Just([Row([11, 12])]);
 def lambdas : Array<fn(Int) -> Int> = [fn(a : Int) -> Int => a + 1];
 
 def wrapped_first = match wrapped with
-	case Maybe::Nothing => 0
+	case Maybe::Nothing() => 0
 	case Maybe::Just(rows) => rows[0].cells[0]
 ;
 

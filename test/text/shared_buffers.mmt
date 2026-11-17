@@ -60,7 +60,7 @@ def CheckPrefixes = fn(prefixes: List<Text>, index: Int, by_prefix: Map::Map<Tex
 			Expect(prefix == Rebuild(0, length, ""), "prefix " ++ (index as Text) ++ " equals the same text built apart");
 			CheckPrefixes(rest, index + 1, Map::With(by_prefix, prefix, index))
 		}
-		case List::Nil => by_prefix;
+		case List::Nil() => by_prefix;
 
 def by_prefix = CheckPrefixes(kept, 0, Map::Empty());
 IO::PrintLine("hashed: " ++ (Map::Count(by_prefix) as Text) ++ " prefixes");

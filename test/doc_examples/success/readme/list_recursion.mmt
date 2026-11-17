@@ -5,11 +5,11 @@ type List<T> = Cons(T, List<T>) | Nil;
 def length = fn<T>(list: List<T>) -> Int =>
     match list with
         case List::Cons(head, tail) => 1 + length(tail)
-        case List::Nil => 0;
+        case List::Nil() => 0;
 
 def map = fn<A, B>(list: List<A>, f: fn(A) -> B) -> List<B> =>
     match list with
         case List::Cons(head, tail) =>
             List::Cons(f(head), map(tail, f))
-        case List::Nil =>
+        case List::Nil() =>
             List::Nil();

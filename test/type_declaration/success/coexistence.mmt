@@ -32,7 +32,7 @@ def SumPoint = fn(p: Point) -> Int => p.x + p.y;
 
 def Describe = fn(f: Flag) -> Int =>
 	match f with
-		case Flag::Off => 0
+		case Flag::Off() => 0
 		case Flag::On(n) => n
 ;
 

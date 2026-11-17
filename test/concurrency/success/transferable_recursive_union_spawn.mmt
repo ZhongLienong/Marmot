@@ -8,7 +8,7 @@ type IntList = Nil | Cons(Int, IntList) deriving (Transferable);
 
 def Count = fn(list: IntList) -> Int =>
     match list with
-        case IntList::Nil => 0
+        case IntList::Nil() => 0
         case IntList::Cons(_, tail) => 1 + Count(tail)
 ;
 

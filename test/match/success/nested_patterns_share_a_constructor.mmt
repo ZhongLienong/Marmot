@@ -13,8 +13,8 @@ type Code = Alpha | Beta | Other(Int);
 def Describe = fn(result : Result<Int, Code>) -> Text =>
 	match result with
 		case Result::Ok(n) => "ok " ++ (n as Text)
-		case Result::Err(Code::Alpha) => "alpha"
-		case Result::Err(Code::Beta) => "beta"
+		case Result::Err(Code::Alpha()) => "alpha"
+		case Result::Err(Code::Beta()) => "beta"
 		case Result::Err(Code::Other(n)) => "other " ++ (n as Text);
 
 IO::PrintLine(Describe(Result::Ok(7)));

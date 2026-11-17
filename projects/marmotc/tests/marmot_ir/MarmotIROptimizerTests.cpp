@@ -162,7 +162,7 @@ TEST_CASE("DeadCodeElimination drops the test an exhaustive match leaves for its
 type Opt = None | Some(Int);
 def Get = fn(o: Opt) -> Int => match o with
 	case Opt::Some(v) => v
-	case Opt::None => 0;
+	case Opt::None() => 0;
 Get(Opt::Some(3));
 )");
 
@@ -414,7 +414,7 @@ def Pick = fn(n: Int) -> Int => {
 	def o = if n > 0 then Opt::Some(n) else Opt::None();
 	match o with
 		case Opt::Some(v) => v + 1
-		case Opt::None => 0
+		case Opt::None() => 0
 };
 Pick(3);
 )");
@@ -440,13 +440,13 @@ TEST_CASE("KnownConstructorThreading leaves a union read after the match is done
 type Opt = None | Some(Int);
 def Weigh = fn(o: Opt) -> Int => match o with
 	case Opt::Some(v) => v
-	case Opt::None => 0
+	case Opt::None() => 0
 ;
 def Pick = fn(n: Int) -> Int => {
 	def o = if n > 0 then Opt::Some(n) else Opt::None();
 	def r = match o with
 		case Opt::Some(v) => v + 1
-		case Opt::None => 0
+		case Opt::None() => 0
 	;
 	r + Weigh(o)
 };
@@ -466,7 +466,7 @@ def Pick = fn(n: Int) -> Int => {
 	Print("matching");
 	match o with
 		case Opt::Some(v) => v + 1
-		case Opt::None => 0
+		case Opt::None() => 0
 };
 Pick(3);
 )";
@@ -483,7 +483,7 @@ def Pick = fn(n: Int) -> Int => {
 	def o = if n > 0 then Opt::Some(n) else Make(n);
 	match o with
 		case Opt::Some(v) => v + 1
-		case Opt::None => 0
+		case Opt::None() => 0
 };
 Pick(3);
 )");

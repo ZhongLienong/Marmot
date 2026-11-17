@@ -17,7 +17,7 @@ def Measure = fn(shapes: Array<Shape>, index: Int, total: Int) -> Int =>
 	if index == #shapes
 	then total
 	else match shapes[index] with
-		case Shape::Dot => Measure(shapes, index + 1, total + 1)
+		case Shape::Dot() => Measure(shapes, index + 1, total + 1)
 		case Shape::Line(length) => Measure(shapes, index + 1, total + (length * 10))
 		case Shape::Box(width, height) => Measure(shapes, index + 1, total + (width * 1000) + (height * 100000));
 
@@ -49,7 +49,7 @@ def Build = fn(n: Int, chain: Chain) -> Chain =>
 
 def Show = fn(chain: Chain, shown: Text) -> Text => match chain with
 	case Chain::Link(value, rest) => Show(rest, shown ++ (value as Text) ++ " ")
-	case Chain::End => shown;
+	case Chain::End() => shown;
 
 // Two-field unions of each tag, their fields swapped on every step.
 def Swap = fn(n: Int, a: Int, b: Int, last: Pair) -> Pair =>

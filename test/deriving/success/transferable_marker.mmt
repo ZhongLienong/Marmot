@@ -18,7 +18,7 @@ def point = RoundTrip(Point(3, 4));
 def maybe = RoundTrip(MaybeValue::Just("hello"));
 def maybe_text =
     match maybe with
-        case MaybeValue::Nothing => "empty"
+        case MaybeValue::Nothing() => "empty"
         case MaybeValue::Just(value) => value
 ;
 

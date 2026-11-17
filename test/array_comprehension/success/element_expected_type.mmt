@@ -20,4 +20,4 @@ IO::PrintLine(#words as Text);
 IO::PrintLine(points[2].y as Text);
 match slots[0] with
     case Slot::Full(v) => IO::PrintLine(v as Text)
-    case Slot::Empty => IO::PrintLine("empty");
+    case Slot::Empty() => IO::PrintLine("empty");

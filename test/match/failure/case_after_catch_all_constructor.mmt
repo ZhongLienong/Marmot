@@ -13,5 +13,5 @@ type Code = Alpha | Beta;
 def Describe = fn(result : Result<Int, Code>) -> Text =>
 	match result with
 		case Result::Err(e) => "any error"
-		case Result::Err(Code::Alpha) => "alpha"
+		case Result::Err(Code::Alpha()) => "alpha"
 		case Result::Ok(n) => "ok";

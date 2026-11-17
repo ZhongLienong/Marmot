@@ -13,7 +13,7 @@ def Head = fn < T >(o: Option < Lst < T > >, fallback: T) -> T =>
         case Option::Some(l) => {
             match l with
                 case Lst::Cons(head, _) => head
-                case Lst::Nil => fallback
+                case Lst::Nil() => fallback
         }
         case Option::None() => fallback;
 

@@ -56,5 +56,5 @@ IO::PrintLine("text: " ++ greeting);
 
 match slots[1] with
 	case Slot::Occupied(k, v) => IO::PrintLine("occupied: " ++ (k as Text) ++ "/" ++ v)
-	case Slot::Empty => IO::PrintLine("empty")
+	case Slot::Empty() => IO::PrintLine("empty")
 ;

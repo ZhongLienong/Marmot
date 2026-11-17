@@ -26,13 +26,13 @@ instance Iterable<Walker>
 	def Next = fn(walker: Walker) -> Option<((Int, Shape), Walker)> =>
 		match walker.rest with
 			case Shapes::More(shape, rest) => Option::Some(((walker.index, shape), Walker(rest, walker.index + 1)))
-			case Shapes::Done => Option::None();
+			case Shapes::Done() => Option::None();
 };
 
 def Describe = fn(step: (Int, Shape)) -> Text => {
 	def (index, shape) = step;
 	def area = match shape with
-		case Shape::Dot => "a dot"
+		case Shape::Dot() => "a dot"
 		case Shape::Square(side) => "a square of area " ++ ((side * side) as Text)
 		case Shape::Box(width, height) => "a box of area " ++ ((width * height) as Text);
 	(index as Text) ++ ": " ++ area

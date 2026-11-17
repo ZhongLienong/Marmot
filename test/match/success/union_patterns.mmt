@@ -11,12 +11,12 @@ def none_val = Option::None();
 def some_val = Option::Some(8);
 
 def none_result = match none_val with
-	case Option::None => 0
+	case Option::None() => 0
 	case Option::Some(x) => x
 ;
 
 def some_result = match some_val with
-	case Option::None => 0
+	case Option::None() => 0
 	case Option::Some(x) => x
 ;
 

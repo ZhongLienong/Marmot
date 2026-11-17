@@ -16,14 +16,14 @@ type IntList = Nil | Cons(Int, IntList);
 
 def Area = fn(s: Shape) -> Int =>
 	match s with
-		case Shape::Dot => 0
+		case Shape::Dot() => 0
 		case Shape::Line(n) => n
 		case Shape::Box(w, h) => w * h
 ;
 
 def SumList = fn(l: IntList) -> Int =>
 	match l with
-		case IntList::Nil => 0
+		case IntList::Nil() => 0
 		case IntList::Cons(x, rest) => x + SumList(rest)
 ;
 

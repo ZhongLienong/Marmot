@@ -4615,7 +4615,7 @@ MarmotResult::PatternResult Parser::ParsePrimaryPattern()
 							return std::make_unique<MarmotPattern>(MarmotPattern::Constructor(resolved, std::string(resolved.m_lexeme), std::move(args), is_union));
 						}
 
-						return std::make_unique<MarmotPattern>(MarmotPattern::Constructor(resolved, std::string(resolved.m_lexeme), {}, is_union));
+						return std::unexpected(GenerateParserError("Constructor patterns require parentheses; use Name() for a constructor with no fields.", identifier));
 					}
 
 					if (resolved.m_lexeme.find(NameSeparator) != std::string::npos)

@@ -18,7 +18,7 @@ def nested_value = (4, 99, Point(2, 5));
 
 def union_result = match some_value with
 	case Option::Some(_) => 1
-	case Option::None => 0
+	case Option::None() => 0
 ;
 
 def nested_result = match nested_value with

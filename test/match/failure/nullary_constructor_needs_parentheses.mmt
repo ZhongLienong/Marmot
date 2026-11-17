@@ -1,0 +1,7 @@
+module NullaryConstructorNeedsParentheses
+
+type List = Nil | Cons(Int, List);
+
+def result = match List::Nil() with
+    case List::Nil => 0
+    case List::Cons(_, _) => 1;

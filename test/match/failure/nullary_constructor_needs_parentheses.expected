@@ -1,0 +1,6 @@
+Compilation failed :(
+Parser Error at test/match/failure/nullary_constructor_needs_parentheses.mmt:6
+  |
+6 |     case List::Nil => 0
+  |          ^^^^ Constructor patterns require parentheses; use Name() for a constructor with no fields.
+  |

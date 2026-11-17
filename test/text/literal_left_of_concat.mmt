@@ -23,7 +23,7 @@ def Collect = fn(i: Int, limit: Int, make: fn(Int) -> Text, acc: List<Text>) -> 
 
 def Print = fn(texts: List<Text>) -> Unit =>
 	match texts with
-		case List::Nil => ()
+		case List::Nil() => ()
 		case List::Cons(head, tail) => { IO::PrintLine(head); Print(tail) };
 
 Print(Collect(0, 4, Short, List::Nil()));

@@ -845,6 +845,23 @@ def result = match Option::Some(7) with
 	REQUIRE(RequireLiteral(none_case.m_expr, MarmotExpression::LiteralKind::Integer).m_token.m_lexeme == "0");
 }
 
+TEST_CASE("Parser requires parentheses on empty constructor patterns", "[parser][diagnostic]")
+{
+	for (const std::string pattern : { "Choice::Empty", "Choice::Full(Choice::Empty)", "Choice::Empty as value", "Choice::Empty | Choice::Full(_)", "EmptyRecord" })
+	{
+		CAPTURE(pattern);
+		const std::string source =
+			"module EmptyConstructorPattern\n"
+			"type Choice = Empty | Full(Choice);\n"
+			"type EmptyRecord = {};\n"
+			"def result = match Choice::Empty() with case " + pattern + " => 0;\n";
+		std::expected<MarmotTest::ParsedSnippet, CompilerError> parsed = MarmotTest::ParseSnippet(source, "EmptyConstructorPattern.mmt");
+		REQUIRE_FALSE(parsed.has_value());
+		CHECK(parsed.error().m_stage == CompilerStage::Parser);
+		CHECK(parsed.error().m_message == "Constructor patterns require parentheses; use Name() for a constructor with no fields.");
+	}
+}
+
 TEST_CASE("Parser tells a record update apart from a block", "[parser]")
 {
 	// '{' opens a block. The record-update probe scans at depth 0 for the first ';', '}'
