@@ -127,17 +127,21 @@ namespace
 				continue;
 			}
 			std::vector<MarmotIRInstruction>& instructions = function.m_blocks[block].m_instructions;
-			std::erase_if(instructions, [&](const MarmotIRInstruction& instruction)
-			{
-				const bool is_invariant = IsHoistable(instruction) && std::ranges::none_of(instruction.m_operands, [&](MarmotIRValueId operand) { return defined_inside[operand.m_index]; });
-				if (!is_invariant)
+			std::erase_if
+			(
+				instructions,
+				[&](const MarmotIRInstruction& instruction)
 				{
-					return false;
+					const bool is_invariant = IsHoistable(instruction) && std::ranges::none_of(instruction.m_operands, [&](MarmotIRValueId operand) { return defined_inside[operand.m_index]; });
+					if (!is_invariant)
+					{
+						return false;
+					}
+					defined_inside[instruction.m_result->m_index] = false;
+					hoisted.push_back(instruction);
+					return true;
 				}
-				defined_inside[instruction.m_result->m_index] = false;
-				hoisted.push_back(instruction);
-				return true;
-			});
+			);
 		}
 		std::vector<MarmotIRInstruction>& target = function.m_blocks[preheader.value()].m_instructions;
 		target.insert(target.end() - 1, std::make_move_iterator(hoisted.begin()), std::make_move_iterator(hoisted.end()));

@@ -56,7 +56,8 @@ TEST_CASE("VM executes file-backed runtime behavior inside a temporary directory
 	const std::filesystem::path data_file_path = temp_dir.Path() / "state.txt";
 	const std::filesystem::path source_file_path = temp_dir.Path() / "RuntimeFileIO.mmt";
 
-	const std::string source_code = std::format(
+	const std::string source_code = std::format
+	(
 		R"(module RuntimeFileIO
 import {{ "{}", "{}" }}
 use IO.{{IOError}}
@@ -83,7 +84,8 @@ def main = fn() -> Int => 0;
 		MarmotPathLiteral(result_module_path),
 		MarmotPathLiteral(data_file_path),
 		MarmotPathLiteral(data_file_path),
-		MarmotPathLiteral(data_file_path));
+		MarmotPathLiteral(data_file_path)
+	);
 
 	const std::expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
 		MarmotTest::ExecuteSnippet(source_code, source_file_path.string());
@@ -107,7 +109,8 @@ TEST_CASE("VM reports reading a directory as an IO error", "[runtime][vm][filesy
 	std::filesystem::create_directories(directory_path);
 	const std::filesystem::path source_file_path = temp_dir.Path() / "RuntimeDirectoryRead.mmt";
 
-	const std::string source_code = std::format(
+	const std::string source_code = std::format
+	(
 		R"(module RuntimeDirectoryRead
 import {{ "{}", "{}" }}
 use Result.{{Result}}
@@ -121,7 +124,8 @@ match IO::TryReadBinaryFile("{}") with
 		MarmotPathLiteral(io_module_path),
 		MarmotPathLiteral(result_module_path),
 		MarmotPathLiteral(directory_path),
-		MarmotPathLiteral(directory_path));
+		MarmotPathLiteral(directory_path)
+	);
 
 	const std::expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
 		MarmotTest::ExecuteSnippet(source_code, source_file_path.string());

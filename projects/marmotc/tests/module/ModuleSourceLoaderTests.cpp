@@ -15,26 +15,30 @@ TEST_CASE("Source prefetch overlaps reads within the shared job budget", "[modul
 	std::atomic<size_t> started{ 0u };
 	std::promise<void> second_started;
 	const std::shared_future<void> both = second_started.get_future().share();
-	ModuleSourceLoader loader(2u, [&](const std::string& file_path) -> ModuleSourceLoader::LoadResult
-	{
-		const size_t current = active.fetch_add(1u) + 1u;
-		size_t previous = peak.load();
-		while (previous < current && !peak.compare_exchange_weak(previous, current))
+	ModuleSourceLoader loader
+	(
+		2u,
+		[&](const std::string& file_path) -> ModuleSourceLoader::LoadResult
 		{
+			const size_t current = active.fetch_add(1u) + 1u;
+			size_t previous = peak.load();
+			while (previous < current && !peak.compare_exchange_weak(previous, current))
+			{
+			}
+			const size_t index = started.fetch_add(1u) + 1u;
+			if (index == 2u)
+			{
+				second_started.set_value();
+			}
+			const bool overlapped = both.wait_for(std::chrono::seconds(5)) == std::future_status::ready;
+			active.fetch_sub(1u);
+			if (!overlapped)
+			{
+				return std::unexpected(CompilerError::Simple(CompilerStage::Compiler, "Independent reads did not overlap."));
+			}
+			return ImportedSource(TokenStream{}, { file_path });
 		}
-		const size_t index = started.fetch_add(1u) + 1u;
-		if (index == 2u)
-		{
-			second_started.set_value();
-		}
-		const bool overlapped = both.wait_for(std::chrono::seconds(5)) == std::future_status::ready;
-		active.fetch_sub(1u);
-		if (!overlapped)
-		{
-			return std::unexpected(CompilerError::Simple(CompilerStage::Compiler, "Independent reads did not overlap."));
-		}
-		return ImportedSource(TokenStream{}, { file_path });
-	});
+	);
 	loader.Prefetch({ "First", "Second", "Third", "First" });
 	loader.Prefetch({ "First", "Second" });
 	for (const std::string& file_path : { "First", "Second", "Third" })

@@ -20,14 +20,18 @@ namespace
 TEST_CASE("Bytecode linker reports unresolved imports with importer source provenance", "[compiler][linker][diagnostics]")
 {
 	BytecodeModule importer("Importer", "Importer.mmt");
-	importer.m_imports.emplace_back(
+	importer.m_imports.emplace_back
+	(
 		"missingValue",
 		"MissingModule",
-		BytecodeModule::SourceProvenance(
+		BytecodeModule::SourceProvenance
+		(
 			4,
 			25,
 			12u,
-			std::string("def result = MissingModule::missingValue;")));
+			std::string("def result = MissingModule::missingValue;")
+		)
+	);
 
 	std::vector<BytecodeModule> modules;
 	modules.emplace_back(std::move(importer));
@@ -47,28 +51,36 @@ TEST_CASE("Bytecode linker reports unresolved imports with importer source prove
 TEST_CASE("Bytecode linker reports duplicate exports with source-aware conflict details", "[compiler][linker][diagnostics]")
 {
 	BytecodeModule first_module("Shared", "SharedA.mmt");
-	first_module.m_exports.emplace_back(
+	first_module.m_exports.emplace_back
+	(
 		"run",
 		0uz,
 		0uz,
 		BytecodeModule::SymbolType::FUNCTION,
-		BytecodeModule::SourceProvenance(
+		BytecodeModule::SourceProvenance
+		(
 			2,
 			6,
 			3u,
-			std::string("def run = fn() -> Int => 1;")));
+			std::string("def run = fn() -> Int => 1;")
+		)
+	);
 
 	BytecodeModule second_module("Shared", "SharedB.mmt");
-	second_module.m_exports.emplace_back(
+	second_module.m_exports.emplace_back
+	(
 		"run",
 		0uz,
 		0uz,
 		BytecodeModule::SymbolType::FUNCTION,
-		BytecodeModule::SourceProvenance(
+		BytecodeModule::SourceProvenance
+		(
 			5,
 			6,
 			3u,
-			std::string("def run = fn() -> Int => 2;")));
+			std::string("def run = fn() -> Int => 2;")
+		)
+	);
 
 	std::vector<BytecodeModule> modules;
 	modules.emplace_back(std::move(first_module));

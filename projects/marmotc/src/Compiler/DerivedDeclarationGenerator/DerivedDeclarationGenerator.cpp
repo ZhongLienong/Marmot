@@ -22,12 +22,15 @@ namespace
 	std::vector<MarmotType::ClassConstraint> DerivedConstraints(const std::string& class_name, const std::vector<Token>& generic_params, const std::vector<std::shared_ptr<MarmotType>>& type_args)
 	{
 		return generic_params
-			| std::views::transform([&class_name, &type_args](const Token& param)
-			{
-				std::vector<std::shared_ptr<MarmotType>> constraint_args{ MarmotType::MakeGenericType(param.m_lexeme) };
-				constraint_args.insert(constraint_args.end(), std::next(type_args.begin()), type_args.end());
-				return MarmotType::ClassConstraint(class_name, std::move(constraint_args));
-			})
+			| std::views::transform
+			(
+				[&class_name, &type_args](const Token& param)
+				{
+					std::vector<std::shared_ptr<MarmotType>> constraint_args{ MarmotType::MakeGenericType(param.m_lexeme) };
+					constraint_args.insert(constraint_args.end(), std::next(type_args.begin()), type_args.end());
+					return MarmotType::ClassConstraint(class_name, std::move(constraint_args));
+				}
+			)
 			| std::ranges::to<std::vector>();
 	}
 
@@ -416,11 +419,13 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 		for (size_t i = struct_type.m_member_types.size(); i > 0u; i -= 1u)
 		{
 			const size_t field = i - 1u;
-			body = syntax.CompareThen(
+			body = syntax.CompareThen
+			(
 				make_member_access(params[0], struct_type.m_member_names[field], static_cast<int>(field)),
 				make_member_access(params[1], struct_type.m_member_names[field], static_cast<int>(field)),
 				2 + static_cast<int>(field),
-				std::move(body));
+				std::move(body)
+			);
 		}
 
 		methods.emplace_back

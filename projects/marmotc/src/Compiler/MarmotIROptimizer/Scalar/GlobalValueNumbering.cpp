@@ -106,45 +106,49 @@ namespace
 	size_t ImmediateHash(const MarmotIRImmediate& immediate)
 	{
 		size_t hash = immediate.index();
-		std::visit([&hash](const auto& value)
-		{
-			using Immediate = std::decay_t<decltype(value)>;
-			if constexpr (std::is_same_v<Immediate, std::monostate>)
+		std::visit
+		(
+			[&hash](const auto& value)
 			{
-			}
-			else if constexpr (std::is_same_v<Immediate, int64_t> || std::is_same_v<Immediate, bool> || std::is_same_v<Immediate, std::string>)
-			{
-				CombineHash(hash, std::hash<Immediate>()(value));
-			}
-			else if constexpr (std::is_same_v<Immediate, double>)
-			{
-				CombineHash(hash, std::hash<uint64_t>()(std::bit_cast<uint64_t>(value)));
-			}
-			else if constexpr (std::is_same_v<Immediate, MarmotIRByte> || std::is_same_v<Immediate, MarmotIRWord> || std::is_same_v<Immediate, MarmotIRIndex> || std::is_same_v<Immediate, MarmotIRTag> || std::is_same_v<Immediate, MarmotIRGlobalSlot>)
-			{
-				CombineHash(hash, std::hash<decltype(value.m_value)>()(value.m_value));
-			}
-			else if constexpr (std::is_same_v<Immediate, MarmotIRUnionField>)
-			{
-				CombineHash(hash, std::hash<int>()(value.m_tag));
-				CombineHash(hash, std::hash<uint32_t>()(value.m_index));
-			}
-			else if constexpr (std::is_same_v<Immediate, MarmotIRFunctionId>)
-			{
-				CombineHash(hash, std::hash<uint32_t>()(value.m_index));
-			}
-			else if constexpr (std::is_same_v<Immediate, MarmotIRForeign>)
-			{
-				CombineHash(hash, std::hash<std::string>()(value.m_name));
-			}
-			else
-			{
-				CombineHash(hash, std::hash<int>()(value.m_ok));
-				CombineHash(hash, std::hash<int>()(value.m_err));
-				CombineHash(hash, std::hash<int>()(value.m_cancelled));
-				CombineHash(hash, std::hash<int>()(value.m_failed));
-			}
-		}, immediate);
+				using Immediate = std::decay_t<decltype(value)>;
+				if constexpr (std::is_same_v<Immediate, std::monostate>)
+				{
+				}
+				else if constexpr (std::is_same_v<Immediate, int64_t> || std::is_same_v<Immediate, bool> || std::is_same_v<Immediate, std::string>)
+				{
+					CombineHash(hash, std::hash<Immediate>()(value));
+				}
+				else if constexpr (std::is_same_v<Immediate, double>)
+				{
+					CombineHash(hash, std::hash<uint64_t>()(std::bit_cast<uint64_t>(value)));
+				}
+				else if constexpr (std::is_same_v<Immediate, MarmotIRByte> || std::is_same_v<Immediate, MarmotIRWord> || std::is_same_v<Immediate, MarmotIRIndex> || std::is_same_v<Immediate, MarmotIRTag> || std::is_same_v<Immediate, MarmotIRGlobalSlot>)
+				{
+					CombineHash(hash, std::hash<decltype(value.m_value)>()(value.m_value));
+				}
+				else if constexpr (std::is_same_v<Immediate, MarmotIRUnionField>)
+				{
+					CombineHash(hash, std::hash<int>()(value.m_tag));
+					CombineHash(hash, std::hash<uint32_t>()(value.m_index));
+				}
+				else if constexpr (std::is_same_v<Immediate, MarmotIRFunctionId>)
+				{
+					CombineHash(hash, std::hash<uint32_t>()(value.m_index));
+				}
+				else if constexpr (std::is_same_v<Immediate, MarmotIRForeign>)
+				{
+					CombineHash(hash, std::hash<std::string>()(value.m_name));
+				}
+				else
+				{
+					CombineHash(hash, std::hash<int>()(value.m_ok));
+					CombineHash(hash, std::hash<int>()(value.m_err));
+					CombineHash(hash, std::hash<int>()(value.m_cancelled));
+					CombineHash(hash, std::hash<int>()(value.m_failed));
+				}
+			},
+			immediate
+		);
 		return hash;
 	}
 

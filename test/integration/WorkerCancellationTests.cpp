@@ -34,12 +34,14 @@ namespace
 	std::string JoinImports()
 	{
 		const std::filesystem::path prelude = RepositoryRoot() / "MarmotPrelude";
-		return std::format(
+		return std::format
+		(
 			R"(import {{ "{}", "{}", "{}", "{}" }})",
 			MarmotPathLiteral(prelude / "System.mmt"),
 			MarmotPathLiteral(prelude / "IO.mmt"),
 			MarmotPathLiteral(prelude / "Concurrency.mmt"),
-			MarmotPathLiteral(prelude / "Prelude" / "Result.mmt"))
+			MarmotPathLiteral(prelude / "Prelude" / "Result.mmt")
+		)
 			+ R"(
 use Result.{Result}
 use Concurrency.{WorkerError})";
@@ -72,7 +74,8 @@ TEST_CASE("Joining a cancelled spinning worker yields a cancellation error value
 	const MarmotTest::TempDir temp_dir("marmot-worker-cancel");
 	const std::filesystem::path source_file_path = temp_dir.Path() / "WorkerCancelJoin.mmt";
 
-	const std::string source_code = std::format(
+	const std::string source_code = std::format
+	(
 		R"(module WorkerCancelJoin
 {}
 def SpinFrom = fn(i: Int) -> Int => SpinFrom(i + 1);
@@ -83,7 +86,9 @@ def cancelled = Concurrency::Cancel(w);
 def r = Concurrency::Join(w);
 {}IO::PrintLine("joiner continued");
 )",
-		JoinImports(), DESCRIBE_JOIN);
+		JoinImports(),
+		DESCRIBE_JOIN
+	);
 
 	const std::expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
 		MarmotTest::ExecuteSnippet(source_code, source_file_path.string());
@@ -100,7 +105,8 @@ TEST_CASE("Joining a cancelled tail-recursive worker yields a cancellation error
 	const MarmotTest::TempDir temp_dir("marmot-worker-cancel-tail");
 	const std::filesystem::path source_file_path = temp_dir.Path() / "WorkerCancelTailJoin.mmt";
 
-	const std::string source_code = std::format(
+	const std::string source_code = std::format
+	(
 		R"(module WorkerCancelTailJoin
 {}
 def SpinTail = fn(i: Int) -> Int => SpinTail(i + 1);
@@ -109,7 +115,9 @@ System::Sleep(50);
 def cancelled = Concurrency::Cancel(w);
 def r = Concurrency::Join(w);
 {})",
-		JoinImports(), DESCRIBE_JOIN);
+		JoinImports(),
+		DESCRIBE_JOIN
+	);
 
 	const std::expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
 		MarmotTest::ExecuteSnippet(source_code, source_file_path.string());
@@ -127,7 +135,8 @@ TEST_CASE("Joining a cancelled worker reports cancellation, not a generic failur
 
 	// The worker's WorkerCancelled code must map to WorkerError::Cancelled, not be
 	// flattened into Failed with some internal message.
-	const std::string source_code = std::format(
+	const std::string source_code = std::format
+	(
 		R"(module WorkerCancelCode
 {}
 def SpinFrom = fn(i: Int) -> Int => SpinFrom(i + 1);
@@ -137,7 +146,9 @@ System::Sleep(50);
 def cancelled = Concurrency::Cancel(w);
 def r = Concurrency::Join(w);
 {})",
-		JoinImports(), DESCRIBE_JOIN);
+		JoinImports(),
+		DESCRIBE_JOIN
+	);
 
 	const std::expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =
 		MarmotTest::ExecuteSnippet(source_code, source_file_path.string());
@@ -155,7 +166,8 @@ TEST_CASE("Cancelling a worker blocked in a sleep wakes it promptly", "[runtime]
 	const MarmotTest::TempDir temp_dir("marmot-worker-cancel-sleep");
 	const std::filesystem::path source_file_path = temp_dir.Path() / "WorkerCancelSleep.mmt";
 
-	const std::string source_code = std::format(
+	const std::string source_code = std::format
+	(
 		R"(module WorkerCancelSleep
 {}
 def SleepLong = fn(_dummy: Int) -> Int => {{
@@ -167,7 +179,9 @@ System::Sleep(300);
 def cancelled = Concurrency::Cancel(w);
 def r = Concurrency::Join(w);
 {})",
-		JoinImports(), DESCRIBE_JOIN);
+		JoinImports(),
+		DESCRIBE_JOIN
+	);
 
 	const std::chrono::steady_clock::time_point start_time = std::chrono::steady_clock::now();
 	const std::expected<MarmotTest::ExecutedSnippet, CompilerError> run_result =

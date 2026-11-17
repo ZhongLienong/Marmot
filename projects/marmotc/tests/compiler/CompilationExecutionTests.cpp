@@ -82,21 +82,26 @@ TEST_CASE("Compilation workers overlap within the job budget", "[compiler][execu
 	std::atomic<size_t> started{ 0u };
 	std::promise<void> second_started;
 	const std::shared_future<void> both = second_started.get_future().share();
-	const CompilationExecution::Results results = CompilationExecution::Run(schedule, 2u, [&](const ScheduledModule& module, const CompilationExecution::InterfaceReady&)
-	{
-		const size_t current = active.fetch_add(1u) + 1u;
-		size_t previous = peak.load();
-		while (previous < current && !peak.compare_exchange_weak(previous, current))
+	const CompilationExecution::Results results = CompilationExecution::Run
+	(
+		schedule,
+		2u,
+		[&](const ScheduledModule& module, const CompilationExecution::InterfaceReady&)
 		{
+			const size_t current = active.fetch_add(1u) + 1u;
+			size_t previous = peak.load();
+			while (previous < current && !peak.compare_exchange_weak(previous, current))
+			{
+			}
+			if (started.fetch_add(1u) + 1u == 2u)
+			{
+				second_started.set_value();
+			}
+			const bool overlapped = both.wait_for(std::chrono::seconds(5)) == std::future_status::ready;
+			active.fetch_sub(1u);
+			return overlapped ? Success(module.m_file_path) : Failure("Independent compilations did not overlap.");
 		}
-		if (started.fetch_add(1u) + 1u == 2u)
-		{
-			second_started.set_value();
-		}
-		const bool overlapped = both.wait_for(std::chrono::seconds(5)) == std::future_status::ready;
-		active.fetch_sub(1u);
-		return overlapped ? Success(module.m_file_path) : Failure("Independent compilations did not overlap.");
-	});
+	);
 	REQUIRE(results.size() == 6u);
 	for (const auto& [name, result] : results)
 	{
@@ -115,21 +120,26 @@ TEST_CASE("An importer overlaps its dependency backend even when that backend fa
 	CompilationSchedule schedule(graph);
 	std::promise<void> importer_started;
 	const std::future<void> importer = importer_started.get_future();
-	const CompilationExecution::Results results = CompilationExecution::Run(schedule, 2u, [&](const ScheduledModule& module, const CompilationExecution::InterfaceReady& publish)
-	{
-		if (module.m_file_path == "Dependency")
+	const CompilationExecution::Results results = CompilationExecution::Run
+	(
+		schedule,
+		2u,
+		[&](const ScheduledModule& module, const CompilationExecution::InterfaceReady& publish)
 		{
-			publish(module.m_file_path);
-			if (importer.wait_for(std::chrono::seconds(5)) != std::future_status::ready)
+			if (module.m_file_path == "Dependency")
 			{
-				return Failure("Importer waited for dependency completion.");
+				publish(module.m_file_path);
+				if (importer.wait_for(std::chrono::seconds(5)) != std::future_status::ready)
+				{
+					return Failure("Importer waited for dependency completion.");
+				}
+				return Failure("Backend failure after publication.");
 			}
-			return Failure("Backend failure after publication.");
+			importer_started.set_value();
+			publish(module.m_file_path);
+			return Success(module.m_file_path);
 		}
-		importer_started.set_value();
-		publish(module.m_file_path);
-		return Success(module.m_file_path);
-	});
+	);
 	REQUIRE(results.size() == 2u);
 	REQUIRE_FALSE(results.at("Dependency").has_value());
 	CHECK(results.at("Dependency").error().Rendered().find("Backend failure after publication.") != std::string::npos);
@@ -145,15 +155,20 @@ TEST_CASE("An unpublished failure blocks its importers while independent work fi
 	AddModule(graph, "IndependentImporter", { "Independent" });
 	AddModule(graph, "Main", { "Blocked", "IndependentImporter" });
 	CompilationSchedule schedule(graph);
-	const CompilationExecution::Results results = CompilationExecution::Run(schedule, 4u, [](const ScheduledModule& module, const CompilationExecution::InterfaceReady& publish)
-	{
-		if (module.m_file_path == "Broken")
+	const CompilationExecution::Results results = CompilationExecution::Run
+	(
+		schedule,
+		4u,
+		[](const ScheduledModule& module, const CompilationExecution::InterfaceReady& publish)
 		{
-			return Failure("Failure before publication.");
+			if (module.m_file_path == "Broken")
+			{
+				return Failure("Failure before publication.");
+			}
+			publish(module.m_file_path);
+			return Success(module.m_file_path);
 		}
-		publish(module.m_file_path);
-		return Success(module.m_file_path);
-	});
+	);
 	REQUIRE(results.size() == 3u);
 	CHECK_FALSE(results.at("Broken").has_value());
 	CHECK(results.at("Independent").has_value());
@@ -174,25 +189,30 @@ TEST_CASE("Concurrent diamond publications release the importer once", "[compile
 	std::atomic<size_t> importer_runs{ 0u };
 	std::promise<void> second_started;
 	const std::shared_future<void> both = second_started.get_future().share();
-	const CompilationExecution::Results results = CompilationExecution::Run(schedule, 2u, [&](const ScheduledModule& module, const CompilationExecution::InterfaceReady& publish)
-	{
-		if (module.m_file_path == "Main")
+	const CompilationExecution::Results results = CompilationExecution::Run
+	(
+		schedule,
+		2u,
+		[&](const ScheduledModule& module, const CompilationExecution::InterfaceReady& publish)
 		{
-			importer_runs.fetch_add(1u);
-			return publications.load() == 2u ? Success(module.m_file_path) : Failure("Importer ran before both publications.");
+			if (module.m_file_path == "Main")
+			{
+				importer_runs.fetch_add(1u);
+				return publications.load() == 2u ? Success(module.m_file_path) : Failure("Importer ran before both publications.");
+			}
+			if (siblings.fetch_add(1u) + 1u == 2u)
+			{
+				second_started.set_value();
+			}
+			if (both.wait_for(std::chrono::seconds(5)) != std::future_status::ready)
+			{
+				return Failure("Sibling compilations did not overlap.");
+			}
+			publications.fetch_add(1u);
+			publish(module.m_file_path);
+			return Success(module.m_file_path);
 		}
-		if (siblings.fetch_add(1u) + 1u == 2u)
-		{
-			second_started.set_value();
-		}
-		if (both.wait_for(std::chrono::seconds(5)) != std::future_status::ready)
-		{
-			return Failure("Sibling compilations did not overlap.");
-		}
-		publications.fetch_add(1u);
-		publish(module.m_file_path);
-		return Success(module.m_file_path);
-	});
+	);
 	REQUIRE(results.size() == 3u);
 	for (const auto& [name, result] : results)
 	{

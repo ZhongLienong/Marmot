@@ -106,26 +106,30 @@ namespace MarmotTest
 
 	bool Matches(const CompilerWarning& warning, const WarningExpectation& expectation, std::string* mismatch)
 	{
-		return MatchesDiagnostic(
+		return MatchesDiagnostic
+		(
 			warning,
 			expectation.m_stage,
 			expectation.m_code,
 			expectation.m_line,
 			expectation.m_message_substrings,
 			expectation.m_rendered_substrings,
-			mismatch);
+			mismatch
+		);
 	}
 
 	bool Matches(const CompilerError& error, const ErrorExpectation& expectation, std::string* mismatch)
 	{
-		return MatchesDiagnostic(
+		return MatchesDiagnostic
+		(
 			error,
 			expectation.m_stage,
 			expectation.m_code,
 			expectation.m_line,
 			expectation.m_message_substrings,
 			expectation.m_rendered_substrings,
-			mismatch);
+			mismatch
+		);
 	}
 
 	const CompilerWarning* FindWarning(const MarmotResult::CompilerWarnings& warnings, CompilerWarningCode code)

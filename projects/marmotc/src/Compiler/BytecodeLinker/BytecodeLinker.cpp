@@ -169,7 +169,8 @@ namespace
 			return std::nullopt;
 		}
 
-		return CompilerError::WithContext(
+		return CompilerError::WithContext
+		(
 			CompilerStage::BytecodeLinker,
 			message,
 			source_provenance->m_line,
@@ -178,7 +179,8 @@ namespace
 			source_provenance->m_caret_length,
 			std::nullopt,
 			ToOptionalStringView(source_provenance->m_source_line),
-			code);
+			code
+		);
 	}
 }
 
@@ -299,11 +301,13 @@ MarmotResult::VoidResult BytecodeLinker::BuildGlobalSymbolTable()
 			if (existing_it != m_global_symbol_table.end())
 			{
 				const LinkedExport& existing_export = existing_it->second;
-				const std::string message = std::format(
+				const std::string message = std::format
+				(
 					"Duplicate symbol export: {} from module {}. Previous export defined at {}.",
 					exp.m_name,
 					module.m_module_name,
-					FormatModuleOrigin(*existing_export.m_module, existing_export.m_export->m_source_provenance));
+					FormatModuleOrigin(*existing_export.m_module, existing_export.m_export->m_source_provenance)
+				);
 
 				if (std::optional<CompilerError> contextual_error = MakeContextualLinkerError(CompilerErrorCode::BytecodeLinkerDuplicateExportedSymbol, message, module, exp.m_source_provenance))
 				{
@@ -638,11 +642,13 @@ MarmotResult::VoidResult BytecodeLinker::ValidateImport(const BytecodeModule& mo
 		return {};
 	}
 
-	const std::string message_with_origin = std::format(
+	const std::string message_with_origin = std::format
+	(
 		"Unresolved import: {} from module {} (imported by {}).",
 		import.m_name,
 		import.m_from_module,
-		FormatModuleOrigin(module, import.m_source_provenance));
+		FormatModuleOrigin(module, import.m_source_provenance)
+	);
 	const std::string contextual_message = std::format("Unresolved import: {} from module {}.", import.m_name, import.m_from_module);
 
 	if (imported_module == nullptr)

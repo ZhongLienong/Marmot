@@ -105,13 +105,18 @@ TEST_CASE("A frame of more than 255 slots pushes its placeholders in several ins
 		| std::views::transform([](int index) { return std::format("v{}", index); })
 		| std::views::join_with(std::string_view(" + "))
 		| std::ranges::to<std::string>();
-	std::expected<LoweredModule, MarmotResult::CompilerDiagnostics> lowered = MarmotTest::LowerSnippetWithDiagnostics(std::format(R"(module Wide
+	std::expected<LoweredModule, MarmotResult::CompilerDiagnostics> lowered = MarmotTest::LowerSnippetWithDiagnostics(std::format
+	(
+		R"(module Wide
 foreign "MARMOT_FFI_Print" Print: fn(Text) -> Unit;
 def Total = fn(n: Int) -> Int => {{
 {}	{}
 }};
 Print(Total(1) as Text);
-)", definitions, sum));
+)",
+		definitions,
+		sum
+	));
 	REQUIRE(lowered.has_value());
 
 	BytecodeModule bytecode = RequireBytecode(lowered.value());

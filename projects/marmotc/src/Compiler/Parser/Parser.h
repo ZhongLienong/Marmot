@@ -275,24 +275,30 @@ private:
 		requires (std::is_same_v<T, Token::Name> && ...)
 	MarmotResult::ExpressionResult ParseBinary(MarmotResult::ExpressionResult(Parser::* operand)(), T... tokens)
 	{
-		return FoldWhile((this->*operand)(),
+		return FoldWhile
+		(
+			(this->*operand)(),
 			[this, ...tokens = tokens]() { return Match(tokens...); },
 			[this, operand](std::unique_ptr<MarmotExpression>&& left) -> MarmotResult::ExpressionResult
 			{
 				const Token op = Previous();
-				return (this->*operand)().and_then([&](std::unique_ptr<MarmotExpression>&& right) -> MarmotResult::ExpressionResult
-				{
-					if (std::optional<CompilerError> error = CheckOperatorMixing(op, *left))
+				return (this->*operand)().and_then
+				(
+					[&](std::unique_ptr<MarmotExpression>&& right) -> MarmotResult::ExpressionResult
 					{
-						return std::unexpected(std::move(error.value()));
+						if (std::optional<CompilerError> error = CheckOperatorMixing(op, *left))
+						{
+							return std::unexpected(std::move(error.value()));
+						}
+						if (std::optional<CompilerError> error = CheckOperatorMixing(op, *right))
+						{
+							return std::unexpected(std::move(error.value()));
+						}
+						return std::make_unique<MarmotExpression>(MarmotExpression::Binary(op, std::move(left), std::move(right)));
 					}
-					if (std::optional<CompilerError> error = CheckOperatorMixing(op, *right))
-					{
-						return std::unexpected(std::move(error.value()));
-					}
-					return std::make_unique<MarmotExpression>(MarmotExpression::Binary(op, std::move(left), std::move(right)));
-				});
-			});
+				);
+			}
+		);
 	}
 
 	template<typename Parse>
@@ -305,11 +311,14 @@ private:
 	template<typename Parse>
 	std::invoke_result_t<Parse> InScope(Parse&& parse)
 	{
-		return InContext([&]()
-		{
-			m_state.m_scopes.emplace_back();
-			return std::forward<Parse>(parse)();
-		});
+		return InContext
+		(
+			[&]()
+			{
+				m_state.m_scopes.emplace_back();
+				return std::forward<Parse>(parse)();
+			}
+		);
 	}
 
 	template<typename Parse>

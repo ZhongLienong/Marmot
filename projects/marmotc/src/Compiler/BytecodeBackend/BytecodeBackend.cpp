@@ -1116,64 +1116,71 @@ namespace
 
 		Emitted EmitConstant(const MarmotIRInstruction& constant, int line)
 		{
-			return std::visit([this, line](const auto& value) -> Emitted
-			{
-				using Immediate = std::decay_t<decltype(value)>;
-				if constexpr (std::is_same_v<Immediate, int64_t>)
+			return std::visit
+			(
+				[this, line](const auto& value) -> Emitted
 				{
-					const std::optional<OpCode> small = SmallIntOpCode(value);
-					if (small.has_value())
+					using Immediate = std::decay_t<decltype(value)>;
+					if constexpr (std::is_same_v<Immediate, int64_t>)
 					{
-						EmitByte(small.value(), line);
+						const std::optional<OpCode> small = SmallIntOpCode(value);
+						if (small.has_value())
+						{
+							EmitByte(small.value(), line);
+							return {};
+						}
+						EmitByte(OpCode::INTEGER_CONSTANT, line);
+						EmitEightBytes(static_cast<uint64_t>(value), line);
 						return {};
 					}
-					EmitByte(OpCode::INTEGER_CONSTANT, line);
-					EmitEightBytes(static_cast<uint64_t>(value), line);
-					return {};
-				}
-				else if constexpr (std::is_same_v<Immediate, double>)
-				{
-					EmitByte(OpCode::FLOAT_CONSTANT, line);
-					EmitEightBytes(std::bit_cast<uint64_t>(value), line);
-					return {};
-				}
-				else if constexpr (std::is_same_v<Immediate, bool>)
-				{
-					EmitByte(value ? OpCode::OP_TRUE : OpCode::OP_FALSE, line);
-					return {};
-				}
-				else if constexpr (std::is_same_v<Immediate, std::string>)
-				{
-					return m_backend.TextConstant(value, line)
-						.transform([this, line](int index)
-						{
-							EmitByte(OpCode::LOAD_STRING_WIDE, line);
-							EmitOperand(index, line);
-							EmitOperand(index >> SHIFT_8_BITS, line);
-						});
-				}
-				else if constexpr (std::is_same_v<Immediate, MarmotIRByte>)
-				{
-					EmitByte(OpCode::BYTE_CONSTANT, line);
-					EmitOperand(value.m_value, line);
-					return {};
-				}
-				else if constexpr (std::is_same_v<Immediate, MarmotIRWord>)
-				{
-					EmitByte(OpCode::WORD_CONSTANT, line);
-					EmitEightBytes(value.m_value, line);
-					return {};
-				}
-				else if constexpr (std::is_same_v<Immediate, std::monostate>)
-				{
-					EmitByte(OpCode::OP_UNIT, line);
-					return {};
-				}
-				else
-				{
-					throw std::logic_error("a constant with a non-constant immediate");
-				}
-			}, constant.m_immediate);
+					else if constexpr (std::is_same_v<Immediate, double>)
+					{
+						EmitByte(OpCode::FLOAT_CONSTANT, line);
+						EmitEightBytes(std::bit_cast<uint64_t>(value), line);
+						return {};
+					}
+					else if constexpr (std::is_same_v<Immediate, bool>)
+					{
+						EmitByte(value ? OpCode::OP_TRUE : OpCode::OP_FALSE, line);
+						return {};
+					}
+					else if constexpr (std::is_same_v<Immediate, std::string>)
+					{
+						return m_backend.TextConstant(value, line)
+							.transform
+							(
+								[this, line](int index)
+								{
+									EmitByte(OpCode::LOAD_STRING_WIDE, line);
+									EmitOperand(index, line);
+									EmitOperand(index >> SHIFT_8_BITS, line);
+								}
+							);
+					}
+					else if constexpr (std::is_same_v<Immediate, MarmotIRByte>)
+					{
+						EmitByte(OpCode::BYTE_CONSTANT, line);
+						EmitOperand(value.m_value, line);
+						return {};
+					}
+					else if constexpr (std::is_same_v<Immediate, MarmotIRWord>)
+					{
+						EmitByte(OpCode::WORD_CONSTANT, line);
+						EmitEightBytes(value.m_value, line);
+						return {};
+					}
+					else if constexpr (std::is_same_v<Immediate, std::monostate>)
+					{
+						EmitByte(OpCode::OP_UNIT, line);
+						return {};
+					}
+					else
+					{
+						throw std::logic_error("a constant with a non-constant immediate");
+					}
+				},
+				constant.m_immediate
+			);
 		}
 
 		Emitted Load(MarmotIRValueId value, int line)
@@ -1345,13 +1352,16 @@ namespace
 
 			return LoadAll(PushSequence(instruction), line)
 				.and_then([this, &instruction, line]() { return EmitOperation(instruction, line); })
-				.transform([this, &instruction, line]()
-				{
-					if (PushesResult(instruction))
+				.transform
+				(
+					[this, &instruction, line]()
 					{
-						Store(instruction.m_result.value(), line);
+						if (PushesResult(instruction))
+						{
+							Store(instruction.m_result.value(), line);
+						}
 					}
-				});
+				);
 		}
 
 		// A fused branch that reads its operands from their slots, so the
@@ -1407,15 +1417,18 @@ namespace
 				return {};
 			case MarmotIROp::MakeUnion:
 				return ShapeOfValues(operands, line)
-					.transform([&](uint16_t shape)
-					{
-						EmitByte(OpCode::LOCAL_UNION2, line);
-						EmitOperand(std::get<MarmotIRTag>(instruction.m_immediate).m_value, line);
-						EmitOperand(m_slots[operands[0u].m_index], line);
-						EmitOperand(m_slots[operands[1u].m_index], line);
-						EmitOperand(m_slots[instruction.m_result->m_index], line);
-						EmitShape(shape, line);
-					});
+					.transform
+					(
+						[&](uint16_t shape)
+						{
+							EmitByte(OpCode::LOCAL_UNION2, line);
+							EmitOperand(std::get<MarmotIRTag>(instruction.m_immediate).m_value, line);
+							EmitOperand(m_slots[operands[0u].m_index], line);
+							EmitOperand(m_slots[operands[1u].m_index], line);
+							EmitOperand(m_slots[instruction.m_result->m_index], line);
+							EmitShape(shape, line);
+						}
+					);
 			default:
 				throw std::logic_error(std::format("{} does not read and write locals", GetMarmotIROpInfo(instruction.m_op).m_name));
 			}
@@ -1564,20 +1577,23 @@ namespace
 				return std::unexpected(m_backend.LimitExceeded(std::format("Too many captured variables (max {})", MAX_CAPTURED_COUNT + 1), line));
 			}
 			return Procedure(function, line)
-				.transform([&](int procedure)
-				{
-					if (capture_count == 0u)
+				.transform
+				(
+					[&](int procedure)
 					{
-						EmitProcedure(OpCode::MAKE_FUNCTION_WIDE, procedure, line);
-						return;
+						if (capture_count == 0u)
+						{
+							EmitProcedure(OpCode::MAKE_FUNCTION_WIDE, procedure, line);
+							return;
+						}
+						for (size_t late = instruction.m_operands.size(); late < capture_count; late += 1u)
+						{
+							EmitByte(OpCode::OP_UNIT, line);
+						}
+						EmitProcedure(OpCode::MAKE_CLOSURE_OF, procedure, line);
+						EmitOperand(static_cast<int>(capture_count), line);
 					}
-					for (size_t late = instruction.m_operands.size(); late < capture_count; late += 1u)
-					{
-						EmitByte(OpCode::OP_UNIT, line);
-					}
-					EmitProcedure(OpCode::MAKE_CLOSURE_OF, procedure, line);
-					EmitOperand(static_cast<int>(capture_count), line);
-				});
+				);
 		}
 
 		// A union with no fields is one shared value per tag.
@@ -1591,19 +1607,22 @@ namespace
 			const size_t field_count = instruction.m_operands.size();
 			return CheckByte(field_count, "Too many union fields", line)
 				.and_then([&]() { return ShapeOfValues(instruction.m_operands, line); })
-				.transform([&](uint16_t shape)
-				{
-					if (field_count == 0u)
+				.transform
+				(
+					[&](uint16_t shape)
 					{
-						EmitByte(OpCode::LOAD_EMPTY_UNION, line);
+						if (field_count == 0u)
+						{
+							EmitByte(OpCode::LOAD_EMPTY_UNION, line);
+							EmitOperand(tag, line);
+							return;
+						}
+						EmitByte(OpCode::CONSTRUCT_UNION, line);
+						EmitOperand(static_cast<int>(field_count), line);
 						EmitOperand(tag, line);
-						return;
+						EmitShape(shape, line);
 					}
-					EmitByte(OpCode::CONSTRUCT_UNION, line);
-					EmitOperand(static_cast<int>(field_count), line);
-					EmitOperand(tag, line);
-					EmitShape(shape, line);
-				});
+				);
 		}
 
 		Emitted EmitOperation(const MarmotIRInstruction& instruction, int line)
@@ -1640,20 +1659,26 @@ namespace
 			case MarmotIROp::Call:
 				return CheckArity(operand_count, line)
 					.and_then([&]() { return Procedure(std::get<MarmotIRFunctionId>(instruction.m_immediate), line); })
-					.transform([&](int procedure)
-					{
-						EmitProcedure(OpCode::CALL_PROC_WIDE, procedure, line);
-						EmitOperand(static_cast<int>(operand_count), line);
-						RecordSafepoint(instruction);
-					});
+					.transform
+					(
+						[&](int procedure)
+						{
+							EmitProcedure(OpCode::CALL_PROC_WIDE, procedure, line);
+							EmitOperand(static_cast<int>(operand_count), line);
+							RecordSafepoint(instruction);
+						}
+					);
 			case MarmotIROp::CallGlobal:
 				return CheckArity(operand_count, line)
-					.transform([&]()
-					{
-						EmitGlobal(OpCode::CALL_GLOBAL_WIDE, m_backend.GlobalOperand(std::get<MarmotIRGlobalSlot>(instruction.m_immediate)), line);
-						EmitOperand(static_cast<int>(operand_count), line);
-						RecordSafepoint(instruction);
-					});
+					.transform
+					(
+						[&]()
+						{
+							EmitGlobal(OpCode::CALL_GLOBAL_WIDE, m_backend.GlobalOperand(std::get<MarmotIRGlobalSlot>(instruction.m_immediate)), line);
+							EmitOperand(static_cast<int>(operand_count), line);
+							RecordSafepoint(instruction);
+						}
+					);
 			case MarmotIROp::CallValue:
 				return CheckArity(operand_count - 1u, line)
 					.and_then([&]() { return EmitCallOf(OpCode::CALL, OpCode::CALL_0, operand_count - 1u, line); })
@@ -1666,13 +1691,16 @@ namespace
 				if (std::holds_alternative<MarmotIRForeign>(instruction.m_immediate))
 				{
 					return CheckArity(operand_count, line)
-						.transform([&]()
-						{
-							EmitByte(OpCode::CALL_FOREIGN_INDEXED, line);
-							EmitOperand(static_cast<int>(MarmotBuiltins::FindIndex(std::get<MarmotIRForeign>(instruction.m_immediate).m_name).value()), line);
-							EmitOperand(static_cast<int>(operand_count), line);
-							EmitOperand(ForeignReturnTag(instruction.m_type), line);
-						});
+						.transform
+						(
+							[&]()
+							{
+								EmitByte(OpCode::CALL_FOREIGN_INDEXED, line);
+								EmitOperand(static_cast<int>(MarmotBuiltins::FindIndex(std::get<MarmotIRForeign>(instruction.m_immediate).m_name).value()), line);
+								EmitOperand(static_cast<int>(operand_count), line);
+								EmitOperand(ForeignReturnTag(instruction.m_type), line);
+							}
+						);
 				}
 				const std::span<const MarmotIRValueId> arguments = std::span(instruction.m_operands).subspan(1u);
 				if (arguments.size() > MAX_NATIVE_ARITY)
@@ -1728,12 +1756,15 @@ namespace
 			case MarmotIROp::Construct:
 				return CheckByte(operand_count, "Too many struct members", line)
 					.and_then([&]() { return ShapeOfValues(instruction.m_operands, line); })
-					.transform([&](uint16_t shape)
-					{
-						EmitByte(OpCode::CONSTRUCT_STRUCT, line);
-						EmitOperand(static_cast<int>(operand_count), line);
-						EmitShape(shape, line);
-					});
+					.transform
+					(
+						[&](uint16_t shape)
+						{
+							EmitByte(OpCode::CONSTRUCT_STRUCT, line);
+							EmitOperand(static_cast<int>(operand_count), line);
+							EmitShape(shape, line);
+						}
+					);
 			case MarmotIROp::GetMember:
 				EmitByte(OpCode::GET_MEMBER, line);
 				EmitOperand(static_cast<int>(std::get<MarmotIRIndex>(instruction.m_immediate).m_value), line);
@@ -1774,13 +1805,16 @@ namespace
 				// The arguments, then the function, cross as one tuple.
 				return CheckArity(operand_count - 1u, line)
 					.and_then([&]() { return ShapeOfValues(instruction.m_operands, line); })
-					.transform([&](uint16_t shape)
-					{
-						EmitByte(OpCode::SPAWN_WORKER, line);
-						EmitOperand(static_cast<int>(operand_count - 1u), line);
-						EmitShape(shape, line);
-						EmitOperand(Kind(GenericTypes::RepresentationOf(instruction.m_type)->GetType<MarmotType::WorkerType>().m_result_type), line);
-					});
+					.transform
+					(
+						[&](uint16_t shape)
+						{
+							EmitByte(OpCode::SPAWN_WORKER, line);
+							EmitOperand(static_cast<int>(operand_count - 1u), line);
+							EmitShape(shape, line);
+							EmitOperand(Kind(GenericTypes::RepresentationOf(instruction.m_type)->GetType<MarmotType::WorkerType>().m_result_type), line);
+						}
+					);
 			case MarmotIROp::Join:
 				EmitByte(OpCode::JOIN_WORKER, line);
 				EmitOperand(Kind(GenericTypes::RepresentationOf(m_function.TypeOf(instruction.m_operands.front()))->GetType<MarmotType::WorkerType>().m_result_type), line);
@@ -1837,13 +1871,16 @@ namespace
 			const std::vector<std::pair<MarmotIRValueId, MarmotIRValueId>> moves = Moves(successor);
 			const std::vector<MarmotIRValueId> arguments = moves | std::views::keys | std::ranges::to<std::vector>();
 			return LoadAll(arguments, line)
-				.transform([this, &moves, line]()
-				{
-					for (const MarmotIRValueId parameter : moves | std::views::values | std::views::reverse)
+				.transform
+				(
+					[this, &moves, line]()
 					{
-						Store(parameter, line);
+						for (const MarmotIRValueId parameter : moves | std::views::values | std::views::reverse)
+						{
+							Store(parameter, line);
+						}
 					}
-				});
+				);
 		}
 
 		// A jump to the block laid out next is left out unless code follows it.
@@ -1956,22 +1993,28 @@ namespace
 						.and_then([&]() { return EmitJumpTo(block, if_true.m_block, true, line); });
 				}
 				return (fused.has_value() ? Emitted() : Load(instruction.m_operands.front(), line))
-					.and_then([&]() -> Emitted
-					{
-						const int when_false = fused.has_value() ? EmitFusedBranch(fused.value(), instruction.m_operands.front(), line) : EmitConditionJump(line);
-						return EmitMoves(if_true, line)
-							.and_then([&]() { return EmitJumpTo(block, if_true.m_block, false, line); })
-							.and_then([&]() { return PatchJump(when_false, m_stream.GetByteCodeSize(), line); })
-							.and_then([&]() -> Emitted
-							{
-								if (!fused.has_value())
-								{
-									EmitByte(OpCode::POP, line);
-								}
-								return EmitMoves(if_false, line);
-							})
-							.and_then([&]() { return EmitJumpTo(block, if_false.m_block, true, line); });
-					});
+					.and_then
+					(
+						[&]() -> Emitted
+						{
+							const int when_false = fused.has_value() ? EmitFusedBranch(fused.value(), instruction.m_operands.front(), line) : EmitConditionJump(line);
+							return EmitMoves(if_true, line)
+								.and_then([&]() { return EmitJumpTo(block, if_true.m_block, false, line); })
+								.and_then([&]() { return PatchJump(when_false, m_stream.GetByteCodeSize(), line); })
+								.and_then
+								(
+									[&]() -> Emitted
+									{
+										if (!fused.has_value())
+										{
+											EmitByte(OpCode::POP, line);
+										}
+										return EmitMoves(if_false, line);
+									}
+								)
+								.and_then([&]() { return EmitJumpTo(block, if_false.m_block, true, line); });
+						}
+					);
 			}
 			case MarmotIROp::Return:
 				return Load(instruction.m_operands.front(), line)
@@ -1992,27 +2035,33 @@ namespace
 			const size_t arity = instruction.m_operands.size() - (is_closure ? 1u : 0u);
 			return CheckArity(arity, line)
 				.and_then([&]() { return LoadAll(PushSequence(instruction), line); })
-				.and_then([&]() -> Emitted
-				{
-					if (std::holds_alternative<MarmotIRFunctionId>(instruction.m_immediate))
+				.and_then
+				(
+					[&]() -> Emitted
 					{
-						return Procedure(std::get<MarmotIRFunctionId>(instruction.m_immediate), line)
-							.transform([&](int procedure)
-							{
-								EmitProcedure(OpCode::MAKE_FUNCTION_WIDE, procedure, line);
-							});
+						if (std::holds_alternative<MarmotIRFunctionId>(instruction.m_immediate))
+						{
+							return Procedure(std::get<MarmotIRFunctionId>(instruction.m_immediate), line)
+								.transform([&](int procedure)
+								{
+									EmitProcedure(OpCode::MAKE_FUNCTION_WIDE, procedure, line);
+								});
+						}
+						if (std::holds_alternative<MarmotIRGlobalSlot>(instruction.m_immediate))
+						{
+							EmitGlobal(OpCode::GET_GLOBAL_WIDE, m_backend.GlobalOperand(std::get<MarmotIRGlobalSlot>(instruction.m_immediate)), line);
+						}
+						return {};
 					}
-					if (std::holds_alternative<MarmotIRGlobalSlot>(instruction.m_immediate))
+				)
+				.transform
+				(
+					[&]()
 					{
-						EmitGlobal(OpCode::GET_GLOBAL_WIDE, m_backend.GlobalOperand(std::get<MarmotIRGlobalSlot>(instruction.m_immediate)), line);
+						EmitByte(OpCode::TAIL_CALL, line);
+						EmitOperand(static_cast<int>(arity), line);
 					}
-					return {};
-				})
-				.transform([&]()
-				{
-					EmitByte(OpCode::TAIL_CALL, line);
-					EmitOperand(static_cast<int>(arity), line);
-				});
+				);
 		}
 	};
 }
@@ -2075,12 +2124,15 @@ MarmotResult::BytecodeBackendResult BytecodeBackend::Emit() &&
 		| std::ranges::to<std::vector<bool>>();
 	bytecode.m_shapes = std::move(m_shapes);
 	bytecode.m_exports = m_lowered.m_exports
-		| std::views::transform([this](const LoweredExport& exported)
-		{
-			const size_t global_index = exported.m_slot.has_value() ? static_cast<size_t>(GlobalOperand(exported.m_slot.value())) : 0uz;
-			const size_t procedure_index = exported.m_function.has_value() ? ProcedureIndex(exported.m_function.value()) : 0uz;
-			return BytecodeModule::ExportedSymbol(exported.m_name, procedure_index, global_index, exported.m_kind, MakeSourceProvenance(exported.m_token));
-		})
+		| std::views::transform
+		(
+			[this](const LoweredExport& exported)
+			{
+				const size_t global_index = exported.m_slot.has_value() ? static_cast<size_t>(GlobalOperand(exported.m_slot.value())) : 0uz;
+				const size_t procedure_index = exported.m_function.has_value() ? ProcedureIndex(exported.m_function.value()) : 0uz;
+				return BytecodeModule::ExportedSymbol(exported.m_name, procedure_index, global_index, exported.m_kind, MakeSourceProvenance(exported.m_token));
+			}
+		)
 		| std::ranges::to<std::vector>();
 	for (const auto& [library, symbols] : m_lowered.m_native_imports)
 	{

@@ -406,14 +406,20 @@ void VirtualMachine::CheckShape(std::span<const MarmotValue> values, uint16_t sh
 
 void VirtualMachine::CheckFrame(const VmOpCode* ip, const MarmotValue* sp, const MarmotValue* bp) const noexcept
 {
-	VisitFrame(ip, bp, sp, [this, ip, bp](const MarmotValue& value, bool is_pointer)
-	{
-		if (!value.AgreesWithKind(is_pointer))
+	VisitFrame
+	(
+		ip,
+		bp,
+		sp,
+		[this, ip, bp](const MarmotValue& value, bool is_pointer)
 		{
-			const int proc_index = ProcedureAt(ip);
-			KindMismatch(value, is_pointer, std::format("value {} of the frame of {} at offset {}", &value - bp, m_executable->m_procedure_names[static_cast<size_t>(proc_index)], ip - m_executable->GetBytecodeStream(proc_index)[0u]));
+			if (!value.AgreesWithKind(is_pointer))
+			{
+				const int proc_index = ProcedureAt(ip);
+				KindMismatch(value, is_pointer, std::format("value {} of the frame of {} at offset {}", &value - bp, m_executable->m_procedure_names[static_cast<size_t>(proc_index)], ip - m_executable->GetBytecodeStream(proc_index)[0u]));
+			}
 		}
-	});
+	);
 }
 #endif
 
@@ -3106,24 +3112,28 @@ bool VirtualMachine::CommitStackPages(uintptr_t fault_address) noexcept
 		std::pair<void*, size_t>(m_call_stack_region, m_call_stack_region_size),
 	};
 
-	return std::ranges::any_of(regions, [this, fault_address](const std::pair<void*, size_t>& region) -> bool
-	{
-		if (region.first == nullptr)
+	return std::ranges::any_of
+	(
+		regions,
+		[this, fault_address](const std::pair<void*, size_t>& region) -> bool
 		{
-			return false;
-		}
+			if (region.first == nullptr)
+			{
+				return false;
+			}
 
-		const uintptr_t region_begin = reinterpret_cast<uintptr_t>(region.first);
-		const uintptr_t usable_end = region_begin + region.second - m_stack_page_size;
-		if (fault_address < region_begin || fault_address >= usable_end)
-		{
-			return false;
-		}
+			const uintptr_t region_begin = reinterpret_cast<uintptr_t>(region.first);
+			const uintptr_t usable_end = region_begin + region.second - m_stack_page_size;
+			if (fault_address < region_begin || fault_address >= usable_end)
+			{
+				return false;
+			}
 
-		const uintptr_t commit_begin = fault_address & ~(static_cast<uintptr_t>(m_stack_page_size) - 1u);
-		const size_t commit_size = (std::min)(s_commit_chunk_size, static_cast<size_t>(usable_end - commit_begin));
-		return VirtualAlloc(reinterpret_cast<void*>(commit_begin), commit_size, MEM_COMMIT, PAGE_READWRITE) != nullptr;
-	});
+			const uintptr_t commit_begin = fault_address & ~(static_cast<uintptr_t>(m_stack_page_size) - 1u);
+			const size_t commit_size = (std::min)(s_commit_chunk_size, static_cast<size_t>(usable_end - commit_begin));
+			return VirtualAlloc(reinterpret_cast<void*>(commit_begin), commit_size, MEM_COMMIT, PAGE_READWRITE) != nullptr;
+		}
+	);
 }
 #endif
 
@@ -3160,12 +3170,14 @@ VirtualMachine::ExecuteResult VirtualMachine::Execute() noexcept
 	}
 
 	char message[256];
-	std::snprintf(
+	std::snprintf
+	(
 		message,
 		sizeof(message),
 		"Memory access violation - possible bytecode corruption or invalid operation (exception at %p, fault address %p).",
 		reinterpret_cast<void*>(exception_address),
-		reinterpret_cast<void*>(fault_address));
+		reinterpret_cast<void*>(fault_address)
+	);
 	static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::MemoryAccessViolation, message, GetLine())));
 	return std::unexpected(std::move(*m_last_error));
 #else

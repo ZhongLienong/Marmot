@@ -393,26 +393,30 @@ std::string RenderWarningGroupHeader(size_t warning_count, std::string_view file
 
 std::string SerializeMachineReadableError(const CompilerError& error)
 {
-	return SerializeMachineReadableDiagnostic(
+	return SerializeMachineReadableDiagnostic
+	(
 		DiagnosticSeverity::Error,
 		error.m_stage,
 		CompilerErrorCodeName(error.m_code),
 		error.m_location,
 		error.m_message,
 		error.m_suggestion,
-		error.m_related_information);
+		error.m_related_information
+	);
 }
 
 std::string SerializeMachineReadableWarningPayload(const CompilerWarning& warning)
 {
-	return SerializeMachineReadableDiagnostic(
+	return SerializeMachineReadableDiagnostic
+	(
 		DiagnosticSeverity::Warning,
 		warning.m_stage,
 		CompilerWarningCodeName(warning.m_code),
 		warning.m_location,
 		warning.m_message,
 		warning.m_suggestion,
-		warning.m_related_information);
+		warning.m_related_information
+	);
 }
 
 std::string SerializeMachineReadableWarning(const CompilerWarning& warning)

@@ -88,11 +88,14 @@ namespace
 
 	static MarmotResult::Result<ModuleImports> BuildImportContext(const ModuleCompilationInput& input)
 	{
-		return ModuleImports::Collect(input.m_dependencies).transform_error([&input](ModuleImportConflict conflict)
-		{
-			const BuildGraph::BuildNode& source = input.m_source;
-			return CompilerError::WithToken(CompilerStage::Module, conflict.m_message, source.m_import_tokens.at(conflict.m_dependency.string()), source.m_file_name, source.m_source_lines);
-		});
+		return ModuleImports::Collect(input.m_dependencies).transform_error
+		(
+			[&input](ModuleImportConflict conflict)
+			{
+				const BuildGraph::BuildNode& source = input.m_source;
+				return CompilerError::WithToken(CompilerStage::Module, conflict.m_message, source.m_import_tokens.at(conflict.m_dependency.string()), source.m_file_name, source.m_source_lines);
+			}
+		);
 	}
 
 	static MarmotResult::DiagnosticsResult<ParsedModule> ParseModule(TokenStream&& tokens, const std::string& file_path, const std::vector<std::string>& module_source_lines, const ModuleImports& import_context, const std::vector<UseImport>& use_imports, const ModuleDeclaration* module_decl)
@@ -216,16 +219,24 @@ namespace
 				return std::move(input.m_source.m_source_lines);
 			}();
 
-			MarmotResult::ReportResult<ParsedModule> parsed = run_stage("parser", CompilationTimings::Phase::Parsing, [&]()
-			{
-				const ModuleDeclaration* declaration = input.m_declaration.has_value() ? &*input.m_declaration : nullptr;
-				return ParseModule(std::move(input.m_source.m_tokens), file_path, source_lines, *imports, input.m_source.m_use_imports, declaration)
-					.transform([&warnings](ParsedModule module)
-					{
-						warnings.Append(std::move(module.m_warnings));
-						return module;
-					});
-			});
+			MarmotResult::ReportResult<ParsedModule> parsed = run_stage
+			(
+				"parser",
+				CompilationTimings::Phase::Parsing,
+				[&]()
+				{
+					const ModuleDeclaration* declaration = input.m_declaration.has_value() ? &*input.m_declaration : nullptr;
+					return ParseModule(std::move(input.m_source.m_tokens), file_path, source_lines, *imports, input.m_source.m_use_imports, declaration)
+						.transform
+						(
+							[&warnings](ParsedModule module)
+							{
+								warnings.Append(std::move(module.m_warnings));
+								return module;
+							}
+						);
+				}
+			);
 			if (!parsed.has_value())
 			{
 				return std::unexpected(std::move(parsed.error()));
@@ -239,30 +250,40 @@ namespace
 				return std::unexpected(std::move(checked.error()));
 			}
 
-			MarmotResult::ReportResult<WorkerCrossings> crossings = run_stage("static analyzer", CompilationTimings::Phase::StaticAnalysis, [&]() -> MarmotResult::Result<WorkerCrossings>
-			{
-				WorkerCrossings own = FindWorkerCrossings(checked->m_ast, imports->Crossings());
-				WorkerCrossings visible = imports->Crossings();
-				visible.insert(own.cbegin(), own.cend());
-				warnings.Append(StaticAnalyzerManager(visible).Analyze(checked->m_ast, file_path, source_lines));
-				return own;
-			});
+			MarmotResult::ReportResult<WorkerCrossings> crossings = run_stage
+			(
+				"static analyzer",
+				CompilationTimings::Phase::StaticAnalysis,
+				[&]() -> MarmotResult::Result<WorkerCrossings>
+				{
+					WorkerCrossings own = FindWorkerCrossings(checked->m_ast, imports->Crossings());
+					WorkerCrossings visible = imports->Crossings();
+					visible.insert(own.cbegin(), own.cend());
+					warnings.Append(StaticAnalyzerManager(visible).Analyze(checked->m_ast, file_path, source_lines));
+					return own;
+				}
+			);
 			if (!crossings.has_value())
 			{
 				return std::unexpected(std::move(crossings.error()));
 			}
 
 			std::string ast_text;
-			MarmotResult::ReportResult<LoweredModule> lowered = run_stage("lowering", CompilationTimings::Phase::Lowering, [&]()
-			{
-				const ModuleExports& exports = checked->m_exports;
-				const LoweringImports lowering_imports{ imports->Generics(), imports->Typeclasses() };
-				if (m_options.m_emit_ast)
+			MarmotResult::ReportResult<LoweredModule> lowered = run_stage
+			(
+				"lowering",
+				CompilationTimings::Phase::Lowering,
+				[&]()
 				{
-					ast_text = AbstractSyntaxTreePrinter(exports.ModuleName(), checked->m_ast).Print();
+					const ModuleExports& exports = checked->m_exports;
+					const LoweringImports lowering_imports{ imports->Generics(), imports->Typeclasses() };
+					if (m_options.m_emit_ast)
+					{
+						ast_text = AbstractSyntaxTreePrinter(exports.ModuleName(), checked->m_ast).Print();
+					}
+					return Lowering(checked->m_ast, file_path, source_lines, exports.ModuleName(), exports.Names(), lowering_imports).Lower();
 				}
-				return Lowering(checked->m_ast, file_path, source_lines, exports.ModuleName(), exports.Names(), lowering_imports).Lower();
-			});
+			);
 			if (!lowered.has_value())
 			{
 				return std::unexpected(std::move(lowered.error()));
@@ -282,33 +303,46 @@ namespace
 #if MARMOT_ENABLE_OPTIMIZER_STATS
 			std::string optimizer_log;
 #endif
-			MarmotResult::ReportResult<std::string> marmot_ir = run_stage("optimization", CompilationTimings::Phase::Optimization, [&]() -> MarmotResult::Result<std::string>
-			{
-				MarmotIROptimizer optimizer;
-				std::expected<void, MarmotIROptimizationFailure> optimized = optimizer.Optimize(lowered->m_module);
-				if (!optimized.has_value())
+			MarmotResult::ReportResult<std::string> marmot_ir = run_stage
+			(
+				"optimization",
+				CompilationTimings::Phase::Optimization,
+				[&]() -> MarmotResult::Result<std::string>
 				{
-					return std::unexpected(InvalidMarmotIR(lowered->m_module, optimized.error().m_violations, optimized.error().m_producer, file_path));
+					MarmotIROptimizer optimizer;
+					std::expected<void, MarmotIROptimizationFailure> optimized = optimizer.Optimize(lowered->m_module);
+					if (!optimized.has_value())
+					{
+						return std::unexpected(InvalidMarmotIR(lowered->m_module, optimized.error().m_violations, optimized.error().m_producer, file_path));
+					}
+	#if MARMOT_ENABLE_OPTIMIZER_STATS
+					optimizer_log = optimizer.Log();
+	#endif
+					return m_options.m_emit_marmot_ir ? MarmotIRPrinter(lowered->m_module).Print() : std::string();
 				}
-#if MARMOT_ENABLE_OPTIMIZER_STATS
-				optimizer_log = optimizer.Log();
-#endif
-				return m_options.m_emit_marmot_ir ? MarmotIRPrinter(lowered->m_module).Print() : std::string();
-			});
+			);
 			if (!marmot_ir.has_value())
 			{
 				return std::unexpected(std::move(marmot_ir.error()));
 			}
 
-			MarmotResult::ReportResult<BytecodeModule> bytecode = run_stage("bytecode backend", CompilationTimings::Phase::Backend, [&]()
-			{
-				LoweredModule module = std::move(lowered).value();
-				return BytecodeBackend(module, file_path, source_lines).Emit().transform([&published](BytecodeModule emitted)
+			MarmotResult::ReportResult<BytecodeModule> bytecode = run_stage
+			(
+				"bytecode backend",
+				CompilationTimings::Phase::Backend,
+				[&]()
 				{
-					emitted.m_reexports = std::move(published->m_reexports);
-					return emitted;
-				});
-			});
+					LoweredModule module = std::move(lowered).value();
+					return BytecodeBackend(module, file_path, source_lines).Emit().transform
+					(
+						[&published](BytecodeModule emitted)
+						{
+							emitted.m_reexports = std::move(published->m_reexports);
+							return emitted;
+						}
+					);
+				}
+			);
 			if (!bytecode.has_value())
 			{
 				return std::unexpected(std::move(bytecode.error()));

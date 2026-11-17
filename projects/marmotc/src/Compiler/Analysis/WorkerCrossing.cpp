@@ -102,11 +102,14 @@ namespace
 			const MarmotType::FunctionType& signature = function.m_type_data->GetType<MarmotType::FunctionType>();
 			WorkerCrossing crossing;
 			crossing.m_crossing_parameters = m_crossing_parameters
-				| std::views::filter([&signature](size_t index)
-				{
-					const std::shared_ptr<MarmotType>& parameter = signature.m_param_types[index];
-					return parameter->IsType<MarmotType::FunctionType>() || !ContainsCell(parameter);
-				})
+				| std::views::filter
+				(
+					[&signature](size_t index)
+					{
+						const std::shared_ptr<MarmotType>& parameter = signature.m_param_types[index];
+						return parameter->IsType<MarmotType::FunctionType>() || !ContainsCell(parameter);
+					}
+				)
 				| std::ranges::to<std::vector>();
 			crossing.m_returns_from_worker = returns_from_worker && !ContainsCell(signature.m_return_type);
 			return crossing;

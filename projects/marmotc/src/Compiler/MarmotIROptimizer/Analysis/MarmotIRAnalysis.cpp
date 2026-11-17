@@ -289,42 +289,46 @@ namespace MarmotIRAnalysis
 
 	std::shared_ptr<MarmotType> ConstantType(const MarmotIRImmediate& value, const std::shared_ptr<MarmotType>& fallback)
 	{
-		return std::visit([&fallback](const auto& constant) -> std::shared_ptr<MarmotType>
-		{
-			using Immediate = std::decay_t<decltype(constant)>;
-			if constexpr (std::is_same_v<Immediate, int64_t>)
+		return std::visit
+		(
+			[&fallback](const auto& constant) -> std::shared_ptr<MarmotType>
 			{
-				return MarmotIRScalarType(MarmotIRScalar::Int);
-			}
-			else if constexpr (std::is_same_v<Immediate, double>)
-			{
-				return MarmotIRScalarType(MarmotIRScalar::Float);
-			}
-			else if constexpr (std::is_same_v<Immediate, bool>)
-			{
-				return MarmotIRScalarType(MarmotIRScalar::Bool);
-			}
-			else if constexpr (std::is_same_v<Immediate, std::string>)
-			{
-				return MarmotIRScalarType(MarmotIRScalar::Text);
-			}
-			else if constexpr (std::is_same_v<Immediate, MarmotIRByte>)
-			{
-				return MarmotIRScalarType(MarmotIRScalar::Byte);
-			}
-			else if constexpr (std::is_same_v<Immediate, MarmotIRWord>)
-			{
-				return MarmotIRScalarType(MarmotIRScalar::Word);
-			}
-			else if constexpr (std::is_same_v<Immediate, std::monostate>)
-			{
-				return MarmotType::MakeLiteralType<MarmotType::UnitType>();
-			}
-			else
-			{
-				return fallback;
-			}
-		}, value);
+				using Immediate = std::decay_t<decltype(constant)>;
+				if constexpr (std::is_same_v<Immediate, int64_t>)
+				{
+					return MarmotIRScalarType(MarmotIRScalar::Int);
+				}
+				else if constexpr (std::is_same_v<Immediate, double>)
+				{
+					return MarmotIRScalarType(MarmotIRScalar::Float);
+				}
+				else if constexpr (std::is_same_v<Immediate, bool>)
+				{
+					return MarmotIRScalarType(MarmotIRScalar::Bool);
+				}
+				else if constexpr (std::is_same_v<Immediate, std::string>)
+				{
+					return MarmotIRScalarType(MarmotIRScalar::Text);
+				}
+				else if constexpr (std::is_same_v<Immediate, MarmotIRByte>)
+				{
+					return MarmotIRScalarType(MarmotIRScalar::Byte);
+				}
+				else if constexpr (std::is_same_v<Immediate, MarmotIRWord>)
+				{
+					return MarmotIRScalarType(MarmotIRScalar::Word);
+				}
+				else if constexpr (std::is_same_v<Immediate, std::monostate>)
+				{
+					return MarmotType::MakeLiteralType<MarmotType::UnitType>();
+				}
+				else
+				{
+					return fallback;
+				}
+			},
+			value
+		);
 	}
 
 	bool SameImmediate(const MarmotIRImmediate& left, const MarmotIRImmediate& right)
@@ -365,22 +369,26 @@ namespace MarmotIRAnalysis
 			{
 				return false;
 			}
-			return std::visit([](const auto& value)
-			{
-				using Immediate = std::decay_t<decltype(value)>;
-				if constexpr (std::is_same_v<Immediate, int64_t>)
+			return std::visit
+			(
+				[](const auto& value)
 				{
-					return value != 0;
-				}
-				else if constexpr (std::is_same_v<Immediate, MarmotIRByte> || std::is_same_v<Immediate, MarmotIRWord>)
-				{
-					return value.m_value != 0u;
-				}
-				else
-				{
-					return false;
-				}
-			}, divisor->m_immediate);
+					using Immediate = std::decay_t<decltype(value)>;
+					if constexpr (std::is_same_v<Immediate, int64_t>)
+					{
+						return value != 0;
+					}
+					else if constexpr (std::is_same_v<Immediate, MarmotIRByte> || std::is_same_v<Immediate, MarmotIRWord>)
+					{
+						return value.m_value != 0u;
+					}
+					else
+					{
+						return false;
+					}
+				},
+				divisor->m_immediate
+			);
 		}
 		case MarmotIREffectKind::Io:
 		case MarmotIREffectKind::Call:

@@ -40,15 +40,18 @@ TEST_CASE("Dependency snapshots stay stable during independent publications", "[
 	std::barrier phase(2);
 	bool stable = true;
 	{
-		std::jthread publisher([&]()
-		{
-			for (size_t index = 0u; index < 128u; index += 1u)
+		std::jthread publisher
+		(
+			[&]()
 			{
-				phase.arrive_and_wait();
-				const std::string name = "Sibling" + std::to_string(index);
-				registry.Publish(name + ".mmt", Interface(name));
+				for (size_t index = 0u; index < 128u; index += 1u)
+				{
+					phase.arrive_and_wait();
+					const std::string name = "Sibling" + std::to_string(index);
+					registry.Publish(name + ".mmt", Interface(name));
+				}
 			}
-		});
+		);
 		for (size_t index = 0u; index < 128u; index += 1u)
 		{
 			phase.arrive_and_wait();

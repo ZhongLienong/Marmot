@@ -282,11 +282,14 @@ Lowering::Emitted Lowering::ReserveFunction(const std::string& name, const TypeR
 Lowering::Emitted Lowering::ReserveForeign(const MarmotStatement::ForeignDefinition& foreign)
 {
 	return ForeignName(foreign)
-		.transform([this, &foreign](const std::string&)
-		{
-			const std::string& name = foreign.m_function_name.m_lexeme;
-			m_top_level_names.emplace(name, TopLevelName{ m_module.ReserveGlobal(name, TextType()), std::nullopt });
-		});
+		.transform
+		(
+			[this, &foreign](const std::string&)
+			{
+				const std::string& name = foreign.m_function_name.m_lexeme;
+				m_top_level_names.emplace(name, TopLevelName{ m_module.ReserveGlobal(name, TextType()), std::nullopt });
+			}
+		);
 }
 
 // A builtin's own name, or its library's and its symbol's. A builtin is also

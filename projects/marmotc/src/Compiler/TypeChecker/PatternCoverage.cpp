@@ -412,12 +412,15 @@ std::vector<PatternCoverage::Row> PatternCoverage::Expanded(const std::vector<Ro
 		}
 
 		const std::vector<Row> alternatives = row.front()->GetPattern<MarmotPattern::Or>().m_alternatives
-			| std::views::transform([&row](const std::unique_ptr<MarmotPattern>& alternative)
-				{
-					Row alternative_row{ Strip(alternative.get()) };
-					alternative_row.insert(alternative_row.end(), row.begin() + 1, row.end());
-					return alternative_row;
-				})
+			| std::views::transform
+			(
+				[&row](const std::unique_ptr<MarmotPattern>& alternative)
+					{
+						Row alternative_row{ Strip(alternative.get()) };
+						alternative_row.insert(alternative_row.end(), row.begin() + 1, row.end());
+						return alternative_row;
+					}
+			)
 			| std::ranges::to<std::vector>();
 		const std::vector<Row> flattened = Expanded(alternatives);
 		expanded.insert(expanded.end(), flattened.begin(), flattened.end());

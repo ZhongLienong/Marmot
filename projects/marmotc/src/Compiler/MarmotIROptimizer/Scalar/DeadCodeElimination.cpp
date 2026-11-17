@@ -251,11 +251,14 @@ namespace
 						continue;
 					}
 					std::vector<MarmotIRValueId> arguments = onward.m_arguments
-						| std::views::transform([&](MarmotIRValueId argument)
-						{
-							const std::vector<MarmotIRValueId>::const_iterator parameter = std::ranges::find(forwarding.m_parameters, argument);
-							return parameter == forwarding.m_parameters.end() ? argument : successor.m_arguments[static_cast<size_t>(std::distance(forwarding.m_parameters.begin(), parameter))];
-						})
+						| std::views::transform
+						(
+							[&](MarmotIRValueId argument)
+							{
+								const std::vector<MarmotIRValueId>::const_iterator parameter = std::ranges::find(forwarding.m_parameters, argument);
+								return parameter == forwarding.m_parameters.end() ? argument : successor.m_arguments[static_cast<size_t>(std::distance(forwarding.m_parameters.begin(), parameter))];
+							}
+						)
 						| std::ranges::to<std::vector>();
 					successor = MarmotIRSuccessor(onward.m_block, std::move(arguments));
 					changed = true;

@@ -166,20 +166,27 @@ void ShadowingPolicyDiagnostic::operator()(MarmotStatement::FunctionDefinition& 
 {
 	DefineVariable(defun.m_name);
 
-	WithGenericParameters(defun.m_generic_params, [&]()
-	{
-		InScope([&]()
+	WithGenericParameters
+	(
+		defun.m_generic_params,
+		[&]()
 		{
-			for (size_t index = 0u; index < defun.m_params.Size(); index += 1u)
-			{
-				if (defun.m_params.GeneratedBindingAt(index) == nullptr)
+			InScope
+			(
+				[&]()
 				{
-					DefineVariable(defun.m_params.SourceToken(index));
+					for (size_t index = 0u; index < defun.m_params.Size(); index += 1u)
+					{
+						if (defun.m_params.GeneratedBindingAt(index) == nullptr)
+						{
+							DefineVariable(defun.m_params.SourceToken(index));
+						}
+					}
+					VisitExpression(defun.m_body);
 				}
-			}
-			VisitExpression(defun.m_body);
-		});
-	});
+			);
+		}
+	);
 }
 
 void ShadowingPolicyDiagnostic::operator()(MarmotStatement::ForeignDefinition& foreign)
@@ -224,47 +231,60 @@ void ShadowingPolicyDiagnostic::operator()(MarmotPattern::Binding& binding)
 
 void ShadowingPolicyDiagnostic::operator()(MarmotExpression::Function& function)
 {
-	WithGenericParameters(function.m_generic_params, [&]()
-	{
-		InScope([&]()
+	WithGenericParameters
+	(
+		function.m_generic_params,
+		[&]()
 		{
-			for (size_t index = 0u; index < function.m_params.Size(); index += 1u)
-			{
-				if (function.m_params.GeneratedBindingAt(index) == nullptr)
+			InScope
+			(
+				[&]()
 				{
-					DefineVariable(function.m_params.SourceToken(index));
+					for (size_t index = 0u; index < function.m_params.Size(); index += 1u)
+					{
+						if (function.m_params.GeneratedBindingAt(index) == nullptr)
+						{
+							DefineVariable(function.m_params.SourceToken(index));
+						}
+					}
+					VisitExpression(function.m_body);
 				}
-			}
-			VisitExpression(function.m_body);
-		});
-	});
+			);
+		}
+	);
 }
 
 void ShadowingPolicyDiagnostic::operator()(MarmotExpression::Block& block)
 {
-	InScope([&]()
-	{
-		for (std::unique_ptr<MarmotStatement>& statement : block.m_stmts)
+	InScope
+	(
+		[&]()
 		{
-			VisitStatement(statement);
-		}
+			for (std::unique_ptr<MarmotStatement>& statement : block.m_stmts)
+			{
+				VisitStatement(statement);
+			}
 
-		if (block.m_final_expr.has_value())
-		{
-			VisitExpression(block.m_final_expr.value());
+			if (block.m_final_expr.has_value())
+			{
+				VisitExpression(block.m_final_expr.value());
+			}
 		}
-	});
+	);
 }
 
 void ShadowingPolicyDiagnostic::operator()(MarmotExpression::Case& case_expr)
 {
-	InScope([&]()
-	{
-		VisitPattern(case_expr.m_pattern);
-		if (case_expr.HasGuard())
+	InScope
+	(
+		[&]()
 		{
-			VisitExpression(case_expr.m_guard.value());
+			VisitPattern(case_expr.m_pattern);
+			if (case_expr.HasGuard())
+			{
+				VisitExpression(case_expr.m_guard.value());
+			}
+			VisitExpression(case_expr.m_expr);
 		}
-		VisitExpression(case_expr.m_expr);
-	});
+	);
 }

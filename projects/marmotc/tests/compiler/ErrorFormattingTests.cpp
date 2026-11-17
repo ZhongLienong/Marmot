@@ -13,7 +13,8 @@
 
 TEST_CASE("CompilerError WithContext renders source, caret, and suggestion", "[error][format]")
 {
-	const CompilerError error = CompilerError::WithContext(
+	const CompilerError error = CompilerError::WithContext
+	(
 		CompilerStage::Parser,
 		"Expected expression",
 		2,
@@ -21,7 +22,8 @@ TEST_CASE("CompilerError WithContext renders source, caret, and suggestion", "[e
 		4,
 		3u,
 		"Try adding a literal",
-		"def value = ;");
+		"def value = ;"
+	);
 
 	const std::string expected_render =
 		"Parser Error at Format.mmt:2\n"
@@ -42,14 +44,16 @@ TEST_CASE("CompilerWarning WithToken highlights the matching token span", "[warn
 		"def shadowed = value"
 	};
 
-	const CompilerWarning warning = CompilerWarning::WithToken(
+	const CompilerWarning warning = CompilerWarning::WithToken
+	(
 		CompilerStage::StaticAnalyzer,
 		"Unused local",
 		token,
 		"Warning.mmt",
 		source_lines,
 		"Prefix with '_' if intentional",
-		CompilerWarningCode::UnusedLocal);
+		CompilerWarningCode::UnusedLocal
+	);
 
 	const std::string expected_render =
 		"Static Analyzer Warning at Warning.mmt:1\n"
@@ -71,12 +75,14 @@ TEST_CASE("CompilerError WithToken uses the stored token span instead of searchi
 		"def alpha = alpha + alpha"
 	};
 
-	const CompilerError error = CompilerError::WithToken(
+	const CompilerError error = CompilerError::WithToken
+	(
 		CompilerStage::Parser,
 		"Unexpected identifier",
 		token,
 		"Span.mmt",
-		source_lines);
+		source_lines
+	);
 
 	const std::string expected_render =
 		"Parser Error at Span.mmt:1\n"
@@ -96,12 +102,14 @@ TEST_CASE("CompilerError WithToken renders a single caret for zero-length token 
 		"def value = 1"
 	};
 
-	const CompilerError error = CompilerError::WithToken(
+	const CompilerError error = CompilerError::WithToken
+	(
 		CompilerStage::Parser,
 		"Unexpected end of file",
 		token,
 		"Eof.mmt",
-		source_lines);
+		source_lines
+	);
 
 	const std::string expected_render =
 		"Parser Error at Eof.mmt:1\n"
@@ -124,7 +132,8 @@ TEST_CASE("Unlocated compiler diagnostics render under their stage header", "[er
 
 TEST_CASE("Compiler report renders grouped warnings and structured machine-readable warnings", "[compiler][warning][report]")
 {
-	CompilerWarning alpha_warning = CompilerWarning::WithContext(
+	CompilerWarning alpha_warning = CompilerWarning::WithContext
+	(
 		CompilerStage::StaticAnalyzer,
 		"Unused local",
 		3,
@@ -133,9 +142,11 @@ TEST_CASE("Compiler report renders grouped warnings and structured machine-reada
 		6u,
 		"Prefix with '_' if intentional",
 		"def unused = 1;",
-		CompilerWarningCode::UnusedLocal);
+		CompilerWarningCode::UnusedLocal
+	);
 
-	CompilerWarning second_alpha_warning = CompilerWarning::WithContext(
+	CompilerWarning second_alpha_warning = CompilerWarning::WithContext
+	(
 		CompilerStage::StaticAnalyzer,
 		"Literal shift overflows",
 		5,
@@ -144,9 +155,11 @@ TEST_CASE("Compiler report renders grouped warnings and structured machine-reada
 		6u,
 		std::nullopt,
 		"next",
-		CompilerWarningCode::IntegerOverflow);
+		CompilerWarningCode::IntegerOverflow
+	);
 
-	CompilerWarning beta_warning = CompilerWarning::WithContext(
+	CompilerWarning beta_warning = CompilerWarning::WithContext
+	(
 		CompilerStage::Parser,
 		"Shadowed name",
 		2,
@@ -155,7 +168,8 @@ TEST_CASE("Compiler report renders grouped warnings and structured machine-reada
 		4u,
 		std::nullopt,
 		"def value = value;",
-		CompilerWarningCode::NameShadowing);
+		CompilerWarningCode::NameShadowing
+	);
 
 	MarmotResult::CompilerReport report(MarmotResult::CompilerWarnings(std::vector<CompilerWarning>
 	{
@@ -185,7 +199,8 @@ TEST_CASE("Compiler report renders grouped warnings and structured machine-reada
 
 TEST_CASE("Driver renders compilation warnings and errors behind one banner", "[compiler][driver][diagnostics]")
 {
-	CompilerWarning warning = CompilerWarning::WithContext(
+	CompilerWarning warning = CompilerWarning::WithContext
+	(
 		CompilerStage::StaticAnalyzer,
 		"Unused local",
 		3,
@@ -194,10 +209,12 @@ TEST_CASE("Driver renders compilation warnings and errors behind one banner", "[
 		6u,
 		std::nullopt,
 		"def unused = 1;",
-		CompilerWarningCode::UnusedLocal);
+		CompilerWarningCode::UnusedLocal
+	);
 
 	std::vector<CompilerError> errors;
-	errors.emplace_back(CompilerError::WithContext(
+	errors.emplace_back(CompilerError::WithContext
+	(
 		CompilerStage::CodeGenerator,
 		"First lowering failure",
 		2,
@@ -206,8 +223,10 @@ TEST_CASE("Driver renders compilation warnings and errors behind one banner", "[
 		3u,
 		std::nullopt,
 		"def x = y;",
-		CompilerErrorCode::LoweringUnsupportedConstruct));
-	errors.emplace_back(CompilerError::WithContext(
+		CompilerErrorCode::LoweringUnsupportedConstruct
+	));
+	errors.emplace_back(CompilerError::WithContext
+	(
 		CompilerStage::BytecodeLinker,
 		"Second linker failure",
 		4,
@@ -216,7 +235,8 @@ TEST_CASE("Driver renders compilation warnings and errors behind one banner", "[
 		4u,
 		std::nullopt,
 		"use Missing.{run};",
-		CompilerErrorCode::BytecodeLinkerUnresolvedImport));
+		CompilerErrorCode::BytecodeLinkerUnresolvedImport
+	));
 
 	const MarmotDriver::DriverError error =
 		MarmotDriver::DriverError::Compilation(MarmotResult::CompilerReport(
@@ -238,7 +258,8 @@ TEST_CASE("Driver renders compilation warnings and errors behind one banner", "[
 
 TEST_CASE("Machine-readable errors serialize location and code metadata", "[compiler][error][report]")
 {
-	const CompilerError error = CompilerError::WithContext(
+	const CompilerError error = CompilerError::WithContext
+	(
 		CompilerStage::CodeGenerator,
 		"Unsupported lowering",
 		6,
@@ -247,7 +268,8 @@ TEST_CASE("Machine-readable errors serialize location and code metadata", "[comp
 		5u,
 		"Rewrite this expression",
 		"bad();",
-		CompilerErrorCode::LoweringUnsupportedConstruct);
+		CompilerErrorCode::LoweringUnsupportedConstruct
+	);
 
 	const std::string serialized = SerializeMachineReadableError(error);
 	CHECK(serialized.find("\"stage\":\"CodeGenerator\"") != std::string::npos);

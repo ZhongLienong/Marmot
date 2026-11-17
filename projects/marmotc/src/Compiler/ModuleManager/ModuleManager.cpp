@@ -21,14 +21,16 @@ namespace
 			| std::views::transform([&build_graph](const std::string& file_path) { return build_graph.m_module_declarations.at(file_path).ModuleName(); })
 			| std::views::join_with(std::string_view(" -> "))
 			| std::ranges::to<std::string>();
-		return CompilerError::WithToken(
+		return CompilerError::WithToken
+		(
 			CompilerStage::Module,
 			std::format("Import cycle: {} -> {}.", chain, build_graph.m_module_declarations.at(cycle.front()).ModuleName()),
 			import_token,
 			importer.m_file_name,
 			importer.m_source_lines,
 			"A module cannot import itself, directly or through the modules it imports.",
-			CompilerErrorCode::ModuleCircularDependency);
+			CompilerErrorCode::ModuleCircularDependency
+		);
 	}
 
 	std::string JoinDottedSegments(const std::vector<std::string>& segments, size_t count)
@@ -78,7 +80,8 @@ MarmotResult::VoidResult ModuleManager::GenerateBuildGraphImpl(BuildGraph& build
 			const std::string& existing_file = build_graph.m_module_name_to_file.at(module_name);
 			if (existing_file != m_main_file_name)
 			{
-				return std::unexpected(MarmotError::GenerateModuleErrorWithContext(
+				return std::unexpected(MarmotError::GenerateModuleErrorWithContext
+				(
 					CompilerErrorCode::ModuleDeclarationDuplicate,
 					std::format
 					(

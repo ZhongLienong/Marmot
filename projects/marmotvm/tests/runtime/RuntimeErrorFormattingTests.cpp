@@ -41,7 +41,8 @@ namespace
 TEST_CASE("Runtime errors render file-backed source lines", "[error][format][runtime]")
 {
 	const RuntimeError runtime_error =
-		RuntimeError(
+		RuntimeError
+		(
 			RuntimeErrorCode::IndexOutOfBounds,
 			"Index out of bounds at index: 4.",
 			RuntimeErrorLocation
@@ -49,7 +50,8 @@ TEST_CASE("Runtime errors render file-backed source lines", "[error][format][run
 				.m_file_name = "Runtime.mmt",
 				.m_line = 2,
 				.m_source_line = "def value = [1, 2][4];"
-			});
+			}
+		);
 	const std::string rendered = StripAnsiCodes(runtime_error.Rendered());
 
 	const std::string expected_render =
@@ -66,7 +68,8 @@ TEST_CASE("Runtime errors render file-backed source lines", "[error][format][run
 
 TEST_CASE("Machine-readable runtime errors serialize runtime code and stack metadata", "[runtime][error][json]")
 {
-	RuntimeError runtime_error = RuntimeError(
+	RuntimeError runtime_error = RuntimeError
+	(
 		RuntimeErrorCode::StackOverflow,
 		"Stack overflow - exceeded maximum call depth.",
 		RuntimeErrorLocation
@@ -89,7 +92,8 @@ TEST_CASE("Machine-readable runtime errors serialize runtime code and stack meta
 				},
 				.m_recursive_call_count = 12
 			}
-		});
+		}
+	);
 
 	const std::string serialized = SerializeMachineReadableRuntimeError(runtime_error);
 	CHECK(serialized.find("\"source\":\"marmot-runtime\"") != std::string::npos);

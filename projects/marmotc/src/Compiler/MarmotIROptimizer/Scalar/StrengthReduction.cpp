@@ -196,26 +196,30 @@ namespace
 			{
 				return false;
 			}
-			return std::visit([expected](const auto& immediate)
-			{
-				using Immediate = std::decay_t<decltype(immediate)>;
-				if constexpr (std::is_same_v<Immediate, int64_t>)
+			return std::visit
+			(
+				[expected](const auto& immediate)
 				{
-					return immediate == expected;
-				}
-				else if constexpr (std::is_same_v<Immediate, MarmotIRByte>)
-				{
-					return immediate.m_value == static_cast<uint8_t>(expected);
-				}
-				else if constexpr (std::is_same_v<Immediate, MarmotIRWord>)
-				{
-					return immediate.m_value == static_cast<uint64_t>(expected);
-				}
-				else
-				{
-					return false;
-				}
-			}, *constant);
+					using Immediate = std::decay_t<decltype(immediate)>;
+					if constexpr (std::is_same_v<Immediate, int64_t>)
+					{
+						return immediate == expected;
+					}
+					else if constexpr (std::is_same_v<Immediate, MarmotIRByte>)
+					{
+						return immediate.m_value == static_cast<uint8_t>(expected);
+					}
+					else if constexpr (std::is_same_v<Immediate, MarmotIRWord>)
+					{
+						return immediate.m_value == static_cast<uint64_t>(expected);
+					}
+					else
+					{
+						return false;
+					}
+				},
+				*constant
+			);
 		}
 
 		MarmotIRImmediate Zero(MarmotIRValueId value) const

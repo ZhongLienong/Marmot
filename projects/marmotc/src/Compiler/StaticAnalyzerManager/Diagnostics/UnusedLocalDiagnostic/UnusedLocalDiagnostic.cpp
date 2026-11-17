@@ -99,11 +99,14 @@ void UnusedLocalDiagnostic::operator()(MarmotStatement::FunctionDefinition& defu
 {
 	RegisterBinding(defun.m_name, defun.m_binding, MarmotAnalysis::IsIgnoredBindingName(MarmotAnalysis::DemangleDisplayName(defun.m_name.m_lexeme)));
 
-	InScope([&]()
-	{
-		RegisterParameterBindings(defun.m_params);
-		VisitExpression(defun.m_body);
-	});
+	InScope
+	(
+		[&]()
+		{
+			RegisterParameterBindings(defun.m_params);
+			VisitExpression(defun.m_body);
+		}
+	);
 }
 
 void UnusedLocalDiagnostic::operator()(MarmotStatement::ForeignDefinition& foreign)
@@ -123,38 +126,47 @@ void UnusedLocalDiagnostic::operator()(MarmotExpression::NameAccess& access)
 
 void UnusedLocalDiagnostic::operator()(MarmotExpression::Function& function)
 {
-	InScope([&]()
-	{
-		RegisterParameterBindings(function.m_params);
-		VisitExpression(function.m_body);
-	});
+	InScope
+	(
+		[&]()
+		{
+			RegisterParameterBindings(function.m_params);
+			VisitExpression(function.m_body);
+		}
+	);
 }
 
 void UnusedLocalDiagnostic::operator()(MarmotExpression::Block& block)
 {
-	InScope([&]()
-	{
-		for (std::unique_ptr<MarmotStatement>& statement : block.m_stmts)
+	InScope
+	(
+		[&]()
 		{
-			VisitStatement(statement);
-		}
+			for (std::unique_ptr<MarmotStatement>& statement : block.m_stmts)
+			{
+				VisitStatement(statement);
+			}
 
-		if (block.m_final_expr.has_value())
-		{
-			VisitExpression(block.m_final_expr.value());
+			if (block.m_final_expr.has_value())
+			{
+				VisitExpression(block.m_final_expr.value());
+			}
 		}
-	});
+	);
 }
 
 void UnusedLocalDiagnostic::operator()(MarmotExpression::Case& case_expr)
 {
-	InScope([&]()
-	{
-		VisitPattern(case_expr.m_pattern);
-		if (case_expr.HasGuard())
+	InScope
+	(
+		[&]()
 		{
-			VisitExpression(case_expr.m_guard.value());
+			VisitPattern(case_expr.m_pattern);
+			if (case_expr.HasGuard())
+			{
+				VisitExpression(case_expr.m_guard.value());
+			}
+			VisitExpression(case_expr.m_expr);
 		}
-		VisitExpression(case_expr.m_expr);
-	});
+	);
 }

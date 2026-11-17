@@ -117,11 +117,13 @@ namespace MarmotProgramLoader
 				{
 					searched += std::format("\n  {}", candidate.string());
 				}
-				return std::unexpected(std::format(
+				return std::unexpected(std::format
+				(
 					"FFI error: native library '{}' not found. Looked for:{}\nPass --library {}=<file> or --library-path <dir>, set MARMOT_LIBRARY_PATH, or run through `marmot run`.",
 					library.m_name,
 					searched,
-					library.m_name));
+					library.m_name
+				));
 			}
 
 			std::unordered_map<std::string, std::string> functions;

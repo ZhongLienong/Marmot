@@ -899,13 +899,15 @@ namespace
 		}
 		if (!invocation.m_quiet)
 		{
-			std::print(
+			std::print
+			(
 				"Built {} -> {} (procedures={}, globals={}, strings={})\n",
 				invocation.m_source_file.string(),
 				artifact_path.string(),
 				executable.GetProcedureCount(),
 				executable.GetGlobalVariableCount(),
-				executable.GetStringPool().size());
+				executable.GetStringPool().size()
+			);
 		}
 		return EXIT_SUCCESS;
 	}
@@ -1008,11 +1010,13 @@ namespace
 				CompilerJson::AppendStringField(object, "path", file.m_path.generic_string(), first_field);
 				CompilerJson::AppendBoolField(object, "changed", file.m_changed, first_field);
 				CompilerJson::AppendBoolField(object, "written", file.m_written, first_field);
-				CompilerJson::AppendStringField(
+				CompilerJson::AppendStringField
+				(
 					object,
 					"error",
 					file.m_error.has_value() ? std::optional<std::string_view>(*file.m_error) : std::nullopt,
-					first_field);
+					first_field
+				);
 				object.push_back('}');
 				files_json += object;
 			}

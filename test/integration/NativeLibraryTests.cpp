@@ -67,7 +67,8 @@ namespace
 	std::string WorkerProgram(std::string_view library)
 	{
 		const std::filesystem::path prelude = std::filesystem::path(MARMOT_REPO_ROOT) / "MarmotPrelude";
-		return std::format(
+		return std::format
+		(
 			"module Main\n"
 			"import {{ \"{}\", \"{}\", \"{}\" }}\n"
 			"use Result.{{Result}}\n"
@@ -84,7 +85,8 @@ namespace
 			std::filesystem::weakly_canonical(prelude / "IO.mmt").generic_string(),
 			std::filesystem::weakly_canonical(prelude / "Concurrency.mmt").generic_string(),
 			std::filesystem::weakly_canonical(prelude / "Prelude" / "Result.mmt").generic_string(),
-			library);
+			library
+		);
 	}
 
 	std::string LoadError(const MarmotExecutable& executable, const std::vector<std::string>& arguments = {})

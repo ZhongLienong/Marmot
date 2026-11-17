@@ -37,7 +37,8 @@ def Compute = fn() -> Int => {
 		FAIL(std::string(analyze_result.error().Rendered()));
 	}
 
-	RequireWarningMatches(
+	RequireWarningMatches
+	(
 		analyze_result->m_warnings,
 		CompilerWarningCode::UnusedLocal,
 		MarmotTest::WarningExpectation
@@ -47,7 +48,8 @@ def Compute = fn() -> Int => {
 			.m_line = 4,
 			.m_message_substrings = { "Binding 'unused' is never read." },
 			.m_rendered_substrings = { "AnalyzerUnused.mmt:4", "def unused = 2;" }
-		});
+		}
+	);
 }
 
 TEST_CASE("StaticAnalyzer warns when an inner scope shadows an outer binding", "[static-analyzer]")
@@ -69,7 +71,8 @@ def Compute = fn(value : Int) -> Int => {
 		FAIL(std::string(analyze_result.error().Rendered()));
 	}
 
-	RequireWarningMatches(
+	RequireWarningMatches
+	(
 		analyze_result->m_warnings,
 		CompilerWarningCode::NameShadowing,
 		MarmotTest::WarningExpectation
@@ -79,7 +82,8 @@ def Compute = fn(value : Int) -> Int => {
 			.m_line = 4,
 			.m_message_substrings = { "Name 'value' shadows a variable from an outer scope." },
 			.m_rendered_substrings = { "AnalyzerShadowing.mmt:4", "def value = 2;" }
-		});
+		}
+	);
 }
 
 TEST_CASE("StaticAnalyzer does not warn when a closure is returned", "[static-analyzer]")
@@ -162,7 +166,8 @@ def main = fn() -> Int => too_big + shifted;
 		FAIL(std::string(analyze_result.error().Rendered()));
 	}
 
-	RequireWarningMatches(
+	RequireWarningMatches
+	(
 		analyze_result->m_warnings,
 		CompilerWarningCode::IntegerOverflow,
 		MarmotTest::WarningExpectation
@@ -172,7 +177,8 @@ def main = fn() -> Int => too_big + shifted;
 			.m_line = 2,
 			.m_message_substrings = { "overflow" },
 			.m_rendered_substrings = { "AnalyzerOverflow.mmt:2", "9223372036854775807 + 1" }
-		});
+		}
+	);
 }
 
 TEST_CASE("StaticAnalyzer does not warn on non-literal integer arithmetic", "[static-analyzer]")

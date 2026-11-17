@@ -60,11 +60,13 @@ std::expected<void, std::string> SharedLibraryCache::LoadLibraryWithFunctions(
 		if (func_ptr == nullptr)
 		{
 			UnloadPlatformLibrary(handle);
-			return std::unexpected(std::format(
+			return std::unexpected(std::format
+			(
 				"FFI error: native library '{}' does not export '{}' ({})",
 				package_name,
 				native_name,
-				library_path.string()));
+				library_path.string()
+			));
 		}
 
 		resolved_functions.emplace(marmot_name, reinterpret_cast<VmFFIFunction>(func_ptr));

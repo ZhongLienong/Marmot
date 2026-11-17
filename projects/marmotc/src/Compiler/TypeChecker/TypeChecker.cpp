@@ -1767,11 +1767,14 @@ MarmotResult::TypeResult TypeChecker::CheckPattern(const CheckingContext& contex
 			{
 				return CheckPattern(context, *node.m_pattern, resolved_expected)
 					.and_then([&](std::shared_ptr<MarmotType>&&) { return CheckPattern(context, *node.m_binding, resolved_expected); })
-					.transform([&node, &resolved_expected](std::shared_ptr<MarmotType>&&)
-					{
-						node.m_type_data = resolved_expected;
-						return node.m_type_data;
-					});
+					.transform
+					(
+						[&node, &resolved_expected](std::shared_ptr<MarmotType>&&)
+						{
+							node.m_type_data = resolved_expected;
+							return node.m_type_data;
+						}
+					);
 			}
 			else if constexpr (std::is_same_v<Node, MarmotPattern::Record>)
 			{
@@ -2421,85 +2424,89 @@ MarmotResult::TypeCheckerResult TypeChecker::TypeCheck()
 	TypeScope imports(std::move(m_imported_types));
 	const CheckingContext context(imports);
 
-	return InScope(context, [&](const CheckingContext& context) -> MarmotResult::TypeCheckerResult
-	{
-		std::vector<CompilerError> errors;
+	return InScope
+	(
+		context,
+		[&](const CheckingContext& context) -> MarmotResult::TypeCheckerResult
+		{
+			std::vector<CompilerError> errors;
 
-		// Declarations first: a type may be named and constructed, and an
-		// instance selected, anywhere in its module, and declaring one runs
-		// nothing. An instance's method bodies are code, checked in order.
-		const std::function<bool(const std::unique_ptr<MarmotStatement>&)> is_declaration = [](const std::unique_ptr<MarmotStatement>& statement)
-			{
-				return statement->IsStatement<MarmotStatement::Class>()
-					|| statement->IsStatement<MarmotStatement::Struct>()
-					|| statement->IsStatement<MarmotStatement::Union>()
-					|| statement->IsStatement<MarmotStatement::TypeAlias>();
-			};
-		const std::function<void(MarmotResult::TypeResult&&)> collect = [&errors](MarmotResult::TypeResult&& result)
-			{
-				if (!result.has_value())
+			// Declarations first: a type may be named and constructed, and an
+			// instance selected, anywhere in its module, and declaring one runs
+			// nothing. An instance's method bodies are code, checked in order.
+			const std::function<bool(const std::unique_ptr<MarmotStatement>&)> is_declaration = [](const std::unique_ptr<MarmotStatement>& statement)
 				{
-					errors.emplace_back(std::move(result.error()));
-				}
-			};
-
-		for (std::unique_ptr<MarmotStatement>& statement : m_program_tree | std::views::filter(is_declaration))
-		{
-			collect(Evaluate(context, statement));
-		}
-		for (std::unique_ptr<MarmotStatement>& statement : m_program_tree)
-		{
-			if (statement->IsStatement<MarmotStatement::Instance>())
-			{
-				collect(RegisterInstance(context, statement->GetStatement<MarmotStatement::Instance>()));
-			}
-		}
-		if (!errors.empty())
-		{
-			return std::unexpected(MarmotResult::CompilerDiagnostics(std::move(errors)));
-		}
-
-		for (std::unique_ptr<MarmotStatement>& statement : m_program_tree | std::views::filter([&is_declaration](const std::unique_ptr<MarmotStatement>& statement) { return !is_declaration(statement); }))
-		{
-			m_used_failed_definition = false;
-			MarmotResult::TypeResult result = Evaluate(context, statement);
-			if (!result.has_value())
-			{
-				RecordFailedDefinition(*statement);
-				if (m_used_failed_definition)
+					return statement->IsStatement<MarmotStatement::Class>()
+						|| statement->IsStatement<MarmotStatement::Struct>()
+						|| statement->IsStatement<MarmotStatement::Union>()
+						|| statement->IsStatement<MarmotStatement::TypeAlias>();
+				};
+			const std::function<void(MarmotResult::TypeResult&&)> collect = [&errors](MarmotResult::TypeResult&& result)
 				{
-					continue;
-				}
-			}
-			collect(std::move(result));
-		}
+					if (!result.has_value())
+					{
+						errors.emplace_back(std::move(result.error()));
+					}
+				};
 
-		if (errors.empty())
-		{
-			if (std::optional<CompilerError> error = CheckDecidedPendingInstances(context, 0u))
+			for (std::unique_ptr<MarmotStatement>& statement : m_program_tree | std::views::filter(is_declaration))
 			{
-				errors.push_back(std::move(*error));
+				collect(Evaluate(context, statement));
 			}
-			for (const PendingInstance& undecided : m_pending_instances)
-			{
-				errors.push_back(MarmotError::GenerateTypeCheckerErrorWithContext(undecided.m_undecided_message, undecided.m_token, m_file_name, m_source_lines));
-			}
-		}
-		if (errors.empty())
-		{
 			for (std::unique_ptr<MarmotStatement>& statement : m_program_tree)
 			{
-				ResolveRecordedTypes(context, *statement);
+				if (statement->IsStatement<MarmotStatement::Instance>())
+				{
+					collect(RegisterInstance(context, statement->GetStatement<MarmotStatement::Instance>()));
+				}
 			}
-			errors = std::move(m_undecided_call_errors);
+			if (!errors.empty())
+			{
+				return std::unexpected(MarmotResult::CompilerDiagnostics(std::move(errors)));
+			}
+
+			for (std::unique_ptr<MarmotStatement>& statement : m_program_tree | std::views::filter([&is_declaration](const std::unique_ptr<MarmotStatement>& statement) { return !is_declaration(statement); }))
+			{
+				m_used_failed_definition = false;
+				MarmotResult::TypeResult result = Evaluate(context, statement);
+				if (!result.has_value())
+				{
+					RecordFailedDefinition(*statement);
+					if (m_used_failed_definition)
+					{
+						continue;
+					}
+				}
+				collect(std::move(result));
+			}
+
+			if (errors.empty())
+			{
+				if (std::optional<CompilerError> error = CheckDecidedPendingInstances(context, 0u))
+				{
+					errors.push_back(std::move(*error));
+				}
+				for (const PendingInstance& undecided : m_pending_instances)
+				{
+					errors.push_back(MarmotError::GenerateTypeCheckerErrorWithContext(undecided.m_undecided_message, undecided.m_token, m_file_name, m_source_lines));
+				}
+			}
+			if (errors.empty())
+			{
+				for (std::unique_ptr<MarmotStatement>& statement : m_program_tree)
+				{
+					ResolveRecordedTypes(context, *statement);
+				}
+				errors = std::move(m_undecided_call_errors);
+			}
+			if (errors.empty())
+			{
+				m_module_types = context.m_scope->m_names;
+				return std::move(m_program_tree);
+			}
+			return std::unexpected(MarmotResult::CompilerDiagnostics(std::move(errors)));
 		}
-		if (errors.empty())
-		{
-			m_module_types = context.m_scope->m_names;
-			return std::move(m_program_tree);
-		}
-		return std::unexpected(MarmotResult::CompilerDiagnostics(std::move(errors)));
-	});
+	);
 }
 
 void TypeChecker::ResolveRecordedTypes(const CheckingContext& context, MarmotStatement& statement)
@@ -2726,7 +2733,8 @@ TypeChecker::TypeEnvironment TypeChecker::ExtractTypeSignatures(const MarmotProg
 
 	for (const std::unique_ptr<MarmotStatement>& statement : ast)
 	{
-		std::visit(
+		std::visit
+		(
 			[&signatures, exported_symbols]<typename T>(const T& stmt) {
 				using Node = std::decay_t<T>;
 
@@ -2843,19 +2851,25 @@ MarmotResult::TypeResult TypeChecker::TypeCheckGenericLambdaDefinition(const Che
 	// Bound before the body so the lambda can recurse, and recorded as generic so
 	// each use is instantiated instead of pinned to one.
 	const std::string& name = def.m_name.m_lexeme;
-	return CheckGenericLambda(context, function, def.m_name, [this, &def, &function, &name, &context](const std::shared_ptr<MarmotType>& function_type, const std::vector<int>& parameters)
-	{
-		def.m_value->GetType() = function_type;
-		BindValue(context, def.m_name, def.m_binding, function_type);
-		if (def.m_binding.has_value())
+	return CheckGenericLambda
+	(
+		context,
+		function,
+		def.m_name,
+		[this, &def, &function, &name, &context](const std::shared_ptr<MarmotType>& function_type, const std::vector<int>& parameters)
 		{
-			context.m_scope->m_generic_functions.emplace_back( def.m_binding.value(), function.m_params.Function(), parameters);
+			def.m_value->GetType() = function_type;
+			BindValue(context, def.m_name, def.m_binding, function_type);
+			if (def.m_binding.has_value())
+			{
+				context.m_scope->m_generic_functions.emplace_back( def.m_binding.value(), function.m_params.Function(), parameters);
+			}
+			else
+			{
+				m_generic_functions.emplace(name, function.m_params.Function());
+			}
 		}
-		else
-		{
-			m_generic_functions.emplace(name, function.m_params.Function());
-		}
-	});
+	);
 }
 
 MarmotResult::TypeResult TypeChecker::CheckGenericLambda(const CheckingContext& context, MarmotExpression::Function& function, const Token& anchor, const std::function<void(const std::shared_ptr<MarmotType>&, const std::vector<int>&)>& bind)
@@ -2933,33 +2947,40 @@ MarmotResult::TypeResult TypeChecker::CheckGenericLambda(const CheckingContext& 
 		| std::views::transform([](const std::shared_ptr<MarmotType>& type) { return type->GetType<MarmotType::TypeVariable>().m_id; })
 		| std::ranges::to<std::vector>());
 
-	return InScope(context, [&](const CheckingContext& context) -> MarmotResult::TypeResult
-	{
-		for (const Token& generic_param : function.m_generic_params)
+	return InScope
+	(
+		context,
+		[&](const CheckingContext& context) -> MarmotResult::TypeResult
 		{
-			const std::string& param_name = generic_param.m_lexeme;
-			context.m_scope->m_names.emplace(param_name, freshening_context.Parameter(param_name));
-		}
-
-		BindParameters(context, function.m_params, function.m_param_types);
-
-		// Inside its own body, a recursive call is not a fresh instantiation.
-		const GenericContext generic = ForGenericParameters(context, freshening_context.Bindings(), function.m_params.Function());
-		const size_t pending_start = m_pending_instances.size();
-		return CheckFunctionBody(generic.m_context, function.m_body, function.m_return_type, function.m_constraints, function.m_function_keyword)
-			.and_then([&function, &generic, pending_start, &anchor, this](std::shared_ptr<MarmotType>&&) -> MarmotResult::TypeResult
+			for (const Token& generic_param : function.m_generic_params)
 			{
-				if (std::optional<CompilerError> error = CheckGenericParametersStayGeneric(generic.m_context, generic.m_parameters, function.m_generic_params, anchor))
-				{
-					return std::unexpected(std::move(*error));
-				}
-				if (std::optional<CompilerError> error = CheckDecidedPendingInstances(generic.m_context, pending_start))
-				{
-					return std::unexpected(std::move(*error));
-				}
-				return MarmotType::MakeUndecidedType();
-			});
-	});
+				const std::string& param_name = generic_param.m_lexeme;
+				context.m_scope->m_names.emplace(param_name, freshening_context.Parameter(param_name));
+			}
+
+			BindParameters(context, function.m_params, function.m_param_types);
+
+			// Inside its own body, a recursive call is not a fresh instantiation.
+			const GenericContext generic = ForGenericParameters(context, freshening_context.Bindings(), function.m_params.Function());
+			const size_t pending_start = m_pending_instances.size();
+			return CheckFunctionBody(generic.m_context, function.m_body, function.m_return_type, function.m_constraints, function.m_function_keyword)
+				.and_then
+				(
+					[&function, &generic, pending_start, &anchor, this](std::shared_ptr<MarmotType>&&) -> MarmotResult::TypeResult
+					{
+						if (std::optional<CompilerError> error = CheckGenericParametersStayGeneric(generic.m_context, generic.m_parameters, function.m_generic_params, anchor))
+						{
+							return std::unexpected(std::move(*error));
+						}
+						if (std::optional<CompilerError> error = CheckDecidedPendingInstances(generic.m_context, pending_start))
+						{
+							return std::unexpected(std::move(*error));
+						}
+						return MarmotType::MakeUndecidedType();
+					}
+				);
+		}
+	);
 }
 
 MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context, MarmotStatement::VariableDefinition& def)
@@ -3038,49 +3059,53 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 		BindValue(context, def.m_name, def.m_binding, def.m_value->GetType());
 		MarmotType::FunctionType& function_type_ref = def.m_value->GetType()->GetType<MarmotType::FunctionType>();
 
-		return InScope(context, [&](const CheckingContext& context) -> MarmotResult::TypeResult
-		{
-			BindParameters(context, function.m_params, function_type_ref.m_param_types);
+		return InScope
+		(
+			context,
+			[&](const CheckingContext& context) -> MarmotResult::TypeResult
+			{
+				BindParameters(context, function.m_params, function_type_ref.m_param_types);
 
-			return Evaluate(context, def.m_value)
-				.and_then
-				(
-					[&def, &function, this, &context](std::shared_ptr<MarmotType>&&) -> MarmotResult::TypeResult
-					{
-						std::shared_ptr<MarmotType> resolved_function_type = ApplySubstitution(context, def.m_value->GetType());
-						def.m_value->GetType() = resolved_function_type;
-						function.m_type_data = resolved_function_type;
-
-						if (resolved_function_type->IsType<MarmotType::FunctionType>())
+				return Evaluate(context, def.m_value)
+					.and_then
+					(
+						[&def, &function, this, &context](std::shared_ptr<MarmotType>&&) -> MarmotResult::TypeResult
 						{
-							const MarmotType::FunctionType& resolved_signature = resolved_function_type->GetType<MarmotType::FunctionType>();
-							function.m_param_types = resolved_signature.m_param_types;
-							function.m_return_type = resolved_signature.m_return_type;
-						}
+							std::shared_ptr<MarmotType> resolved_function_type = ApplySubstitution(context, def.m_value->GetType());
+							def.m_value->GetType() = resolved_function_type;
+							function.m_type_data = resolved_function_type;
 
-						if (HasTypeVariables(resolved_function_type))
-						{
-							return std::unexpected
-							(
-								MarmotError::GenerateTypeCheckerErrorWithContext
+							if (resolved_function_type->IsType<MarmotType::FunctionType>())
+							{
+								const MarmotType::FunctionType& resolved_signature = resolved_function_type->GetType<MarmotType::FunctionType>();
+								function.m_param_types = resolved_signature.m_param_types;
+								function.m_return_type = resolved_signature.m_return_type;
+							}
+
+							if (HasTypeVariables(resolved_function_type))
+							{
+								return std::unexpected
 								(
-									"Function expression type error: could not infer all lambda parameter or return types",
-									function.m_function_keyword,
-									m_file_name,
-									m_source_lines
-								)
-							);
-						}
+									MarmotError::GenerateTypeCheckerErrorWithContext
+									(
+										"Function expression type error: could not infer all lambda parameter or return types",
+										function.m_function_keyword,
+										m_file_name,
+										m_source_lines
+									)
+								);
+							}
 
-						if (std::shared_ptr<MarmotType>* binding = def.m_binding.has_value() ? FindBindingType(context, def.m_binding.value()) : FindNameType(context, def.m_name.m_lexeme))
-						{
-							*binding = resolved_function_type;
-						}
+							if (std::shared_ptr<MarmotType>* binding = def.m_binding.has_value() ? FindBindingType(context, def.m_binding.value()) : FindNameType(context, def.m_name.m_lexeme))
+							{
+								*binding = resolved_function_type;
+							}
 
-						return MarmotType::MakeUndecidedType();
-					}
-				);
-		});
+							return MarmotType::MakeUndecidedType();
+						}
+					);
+			}
+		);
 	}
 
 	// Set expected type from annotation if present
@@ -3102,7 +3127,8 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 					if (type->IsType<MarmotType::NeverType>() && !annotated_type->IsType<MarmotType::NeverType>())
 					{
 						return std::unexpected(
-							MarmotError::GenerateTypeCheckerErrorWithContext(
+							MarmotError::GenerateTypeCheckerErrorWithContext
+							(
 								"Cannot assign a never-returning expression to a variable with type " + annotated_type->DisplayString(),
 								def.m_name,
 								m_file_name,
@@ -3246,31 +3272,38 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 		m_generic_functions.emplace(defun.m_name.m_lexeme, defun.m_params.Function());
 	}
 
-	return InScope(context, [&](const CheckingContext& context) -> MarmotResult::TypeResult
-	{
-		for (const Token& generic_param : defun.m_generic_params)
+	return InScope
+	(
+		context,
+		[&](const CheckingContext& context) -> MarmotResult::TypeResult
 		{
-			const std::string& param_name = generic_param.m_lexeme;
-			context.m_scope->m_names.emplace(param_name, freshening_context.Parameter(param_name));
-		}
-		BindParameters(context, defun.m_params, defun.m_param_types);
-
-		const GenericContext generic = ForGenericParameters(context, freshening_context.Bindings(), nullptr);
-		const size_t pending_start = m_pending_instances.size();
-		return CheckFunctionBody(generic.m_context, defun.m_body, defun.m_return_type, defun.m_constraints, defun.m_name)
-			.and_then([&defun, &generic, pending_start, this](std::shared_ptr<MarmotType>&&) -> MarmotResult::TypeResult
+			for (const Token& generic_param : defun.m_generic_params)
 			{
-				if (std::optional<CompilerError> error = CheckGenericParametersStayGeneric(generic.m_context, generic.m_parameters, defun.m_generic_params, defun.m_name))
-				{
-					return std::unexpected(std::move(*error));
-				}
-				if (std::optional<CompilerError> error = CheckDecidedPendingInstances(generic.m_context, pending_start))
-				{
-					return std::unexpected(std::move(*error));
-				}
-				return defun.m_return_type;
-			});
-	});
+				const std::string& param_name = generic_param.m_lexeme;
+				context.m_scope->m_names.emplace(param_name, freshening_context.Parameter(param_name));
+			}
+			BindParameters(context, defun.m_params, defun.m_param_types);
+
+			const GenericContext generic = ForGenericParameters(context, freshening_context.Bindings(), nullptr);
+			const size_t pending_start = m_pending_instances.size();
+			return CheckFunctionBody(generic.m_context, defun.m_body, defun.m_return_type, defun.m_constraints, defun.m_name)
+				.and_then
+				(
+					[&defun, &generic, pending_start, this](std::shared_ptr<MarmotType>&&) -> MarmotResult::TypeResult
+					{
+						if (std::optional<CompilerError> error = CheckGenericParametersStayGeneric(generic.m_context, generic.m_parameters, defun.m_generic_params, defun.m_name))
+						{
+							return std::unexpected(std::move(*error));
+						}
+						if (std::optional<CompilerError> error = CheckDecidedPendingInstances(generic.m_context, pending_start))
+						{
+							return std::unexpected(std::move(*error));
+						}
+						return defun.m_return_type;
+					}
+				);
+		}
+	);
 }
 
 MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context, MarmotStatement::ForeignDefinition& foreign)
@@ -3801,24 +3834,30 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 					}
 
 					MarmotResult::TypeResult case_result = CheckPattern(scope_context, *match_case.m_pattern, resolved_arg_type)
-						.and_then([&](std::shared_ptr<MarmotType>&&) -> MarmotResult::TypeResult
-						{
-							const std::optional<CompilerError> error = CheckCaseReachable(coverage, match_case);
-							if (error.has_value())
+						.and_then
+						(
+							[&](std::shared_ptr<MarmotType>&&) -> MarmotResult::TypeResult
 							{
-								return std::unexpected(error.value());
+								const std::optional<CompilerError> error = CheckCaseReachable(coverage, match_case);
+								if (error.has_value())
+								{
+									return std::unexpected(error.value());
+								}
+								return {};
 							}
-							return {};
-						})
-						.and_then([&](std::shared_ptr<MarmotType>&&) -> MarmotResult::TypeResult
-						{
-							const std::optional<CompilerError> error = match_case.HasGuard() ? CheckCaseGuard(scope_context, match_case) : std::nullopt;
-							if (error.has_value())
+						)
+						.and_then
+						(
+							[&](std::shared_ptr<MarmotType>&&) -> MarmotResult::TypeResult
 							{
-								return std::unexpected(error.value());
+								const std::optional<CompilerError> error = match_case.HasGuard() ? CheckCaseGuard(scope_context, match_case) : std::nullopt;
+								if (error.has_value())
+								{
+									return std::unexpected(error.value());
+								}
+								return Evaluate(scope_context, match_case.m_expr);
 							}
-							return Evaluate(scope_context, match_case.m_expr);
-						});
+						);
 
 					if (!case_result.has_value())
 					{
@@ -4350,11 +4389,14 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 	if (binary.m_op.m_token_name == Token::Name::COLON_EQUAL)
 	{
 		return CheckRefAccess(context, binary.m_left, &binary.m_right, binary.m_op, "Reference write operator requires a Ref<T>")
-			.transform([&binary](const std::shared_ptr<MarmotType>&)
-			{
-				binary.m_type_data = MarmotType::MakeLiteralType<MarmotType::UnitType>();
-				return binary.m_type_data;
-			});
+			.transform
+			(
+				[&binary](const std::shared_ptr<MarmotType>&)
+				{
+					binary.m_type_data = MarmotType::MakeLiteralType<MarmotType::UnitType>();
+					return binary.m_type_data;
+				}
+			);
 	}
 
 	// A comparison's result is Bool whatever its operands are, so the type
@@ -4621,11 +4663,14 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 		MarmotResult::TypeResult result = unary.m_op.m_token_name == Token::Name::REF
 			? CheckRefNew(context, unary.m_expr)
 			: CheckRefAccess(context, unary.m_expr, nullptr, unary.m_op, "Dereference operator requires a Ref<T>");
-		return result.transform([&unary](std::shared_ptr<MarmotType> type)
-		{
-			unary.m_type_data = std::move(type);
-			return unary.m_type_data;
-		});
+		return result.transform
+		(
+			[&unary](std::shared_ptr<MarmotType> type)
+			{
+				unary.m_type_data = std::move(type);
+				return unary.m_type_data;
+			}
+		);
 	}
 
 	return Evaluate(context, unary.m_expr)
@@ -5126,14 +5171,17 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 	call.m_primitive = CalledPrimitive(context, call);
 	MarmotResult::TypeResult checked = call.m_primitive == MarmotPrimitive::Spawn ? CheckSpawnCall(context, call) : CheckCall(context, call);
 	return std::move(checked)
-		.and_then([this, pending, &context](std::shared_ptr<MarmotType>&& type) -> MarmotResult::TypeResult
-		{
-			if (std::optional<CompilerError> error = CheckDecidedPendingInstances(context, pending))
+		.and_then
+		(
+			[this, pending, &context](std::shared_ptr<MarmotType>&& type) -> MarmotResult::TypeResult
 			{
-				return std::unexpected(std::move(*error));
+				if (std::optional<CompilerError> error = CheckDecidedPendingInstances(context, pending))
+				{
+					return std::unexpected(std::move(*error));
+				}
+				return type;
 			}
-			return type;
-		});
+		);
 }
 
 // The primitive whose declaration a call's callee names. Only a name can name
@@ -5707,16 +5755,23 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 	std::vector<MarmotType::ClassConstraint> function_constraints = CollectSignatureConstraints(function.m_param_types, function.m_return_type);
 	function.m_type_data->GetType<MarmotType::FunctionType>().m_constraints = function_constraints;
 
-	return InScope(context, [&](const CheckingContext& context) -> MarmotResult::TypeResult
-	{
-		BindParameters(context, function.m_params, function.m_param_types);
+	return InScope
+	(
+		context,
+		[&](const CheckingContext& context) -> MarmotResult::TypeResult
+		{
+			BindParameters(context, function.m_params, function.m_param_types);
 
-		return CheckFunctionBody(context, function.m_body, function.m_return_type, function_constraints, function.m_function_keyword)
-			.and_then([&function, &outer_visible_type_vars, this, &context](std::shared_ptr<MarmotType>&&) -> MarmotResult::TypeResult
-			{
-				return ResolveFunctionExpressionSignature(context, function, outer_visible_type_vars);
-			});
-	});
+			return CheckFunctionBody(context, function.m_body, function.m_return_type, function_constraints, function.m_function_keyword)
+				.and_then
+				(
+					[&function, &outer_visible_type_vars, this, &context](std::shared_ptr<MarmotType>&&) -> MarmotResult::TypeResult
+					{
+						return ResolveFunctionExpressionSignature(context, function, outer_visible_type_vars);
+					}
+				);
+		}
+	);
 }
 
 // Each value moved to its field's position, which makes a named construction
@@ -5879,7 +5934,8 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 		if (!only_enclosing_type_vars_remain)
 		{
 			return std::unexpected(
-				MarmotError::GenerateTypeCheckerErrorWithContext(
+				MarmotError::GenerateTypeCheckerErrorWithContext
+				(
 					std::format("Construct expression type error: could not infer all type arguments for '{}'", actual_type_name),
 					construct.m_data_name,
 					m_file_name,
@@ -6245,39 +6301,43 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 
 MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context, MarmotExpression::Block& block)
 {
-	return InScope(context, [&](const CheckingContext& context) -> MarmotResult::TypeResult
-	{
-		for (const std::unique_ptr<MarmotStatement>& stmt : block.m_stmts)
+	return InScope
+	(
+		context,
+		[&](const CheckingContext& context) -> MarmotResult::TypeResult
 		{
-			const CheckingContext statement_context = context.WithExpectedType(std::shared_ptr<MarmotType>{});
-			MarmotResult::TypeResult result = Evaluate(statement_context, stmt);
-			if (!result.has_value())
+			for (const std::unique_ptr<MarmotStatement>& stmt : block.m_stmts)
 			{
-				return result;
+				const CheckingContext statement_context = context.WithExpectedType(std::shared_ptr<MarmotType>{});
+				MarmotResult::TypeResult result = Evaluate(statement_context, stmt);
+				if (!result.has_value())
+				{
+					return result;
+				}
+				// Note: Statement types are checked but do NOT contribute to the block's type
+				// Only the final expression (if present) determines the block type
 			}
-			// Note: Statement types are checked but do NOT contribute to the block's type
-			// Only the final expression (if present) determines the block type
-		}
 
-		if (block.m_final_expr.has_value())
-		{
-			return Evaluate(context, *block.m_final_expr)
-				.and_then
-				(
-					[&block, this, &context](std::shared_ptr<MarmotType>&& final_value) -> MarmotResult::TypeResult
-					{
-						return Unify(context, block.m_right_brace, block.m_type_data, final_value, UnifyDiagnosticMode::ExpectedActual);
-					}
-				);
-		}
+			if (block.m_final_expr.has_value())
+			{
+				return Evaluate(context, *block.m_final_expr)
+					.and_then
+					(
+						[&block, this, &context](std::shared_ptr<MarmotType>&& final_value) -> MarmotResult::TypeResult
+						{
+							return Unify(context, block.m_right_brace, block.m_type_data, final_value, UnifyDiagnosticMode::ExpectedActual);
+						}
+					);
+			}
 
-		// Blocks without final expressions have Unit type
-		if (block.m_type_data->IsType<MarmotType::UndecidedType>())
-		{
-			block.m_type_data = MarmotType::MakeLiteralType<MarmotType::UnitType>();
+			// Blocks without final expressions have Unit type
+			if (block.m_type_data->IsType<MarmotType::UndecidedType>())
+			{
+				block.m_type_data = MarmotType::MakeLiteralType<MarmotType::UnitType>();
+			}
+			return block.m_type_data;
 		}
-		return block.m_type_data;
-	});
+	);
 }
 
 

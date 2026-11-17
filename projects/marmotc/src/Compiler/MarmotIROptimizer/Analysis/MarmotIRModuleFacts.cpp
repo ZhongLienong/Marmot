@@ -31,16 +31,19 @@ MarmotIRModuleFacts::MarmotIRModuleFacts(const MarmotIRModule& module)
 					closures_made[made] += 1u;
 					std::vector<bool>& captures = bound_to_self[made];
 					const std::vector<bool> bound = std::views::zip(std::views::iota(0uz), captures)
-						| std::views::transform([&](const auto& capture)
-						{
-							const auto& [index, was_self] = capture;
-							const bool is_passed = index < instruction.m_operands.size();
-							const bool binds_self = std::ranges::any_of(block.m_instructions, [&](const MarmotIRInstruction& bind)
+						| std::views::transform
+						(
+							[&](const auto& capture)
 							{
-								return bind.m_op == MarmotIROp::BindCaptures && bind.m_operands[0u] == instruction.m_result && bind.m_operands[1u] == instruction.m_result && std::get<MarmotIRIndex>(bind.m_immediate).m_value == static_cast<uint32_t>(index);
-							});
-							return was_self && !is_passed && binds_self;
-						})
+								const auto& [index, was_self] = capture;
+								const bool is_passed = index < instruction.m_operands.size();
+								const bool binds_self = std::ranges::any_of(block.m_instructions, [&](const MarmotIRInstruction& bind)
+								{
+									return bind.m_op == MarmotIROp::BindCaptures && bind.m_operands[0u] == instruction.m_result && bind.m_operands[1u] == instruction.m_result && std::get<MarmotIRIndex>(bind.m_immediate).m_value == static_cast<uint32_t>(index);
+								});
+								return was_self && !is_passed && binds_self;
+							}
+						)
 						| std::ranges::to<std::vector>();
 					captures = bound;
 				}

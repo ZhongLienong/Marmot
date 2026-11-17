@@ -344,48 +344,54 @@ Lowering::Lowered Lowering::FunctionLowering::LowerBinary(const MarmotExpression
 	}
 
 	return Lower(*binary.m_left)
-		.and_then([this, &binary](MarmotIRValueId left)
-		{
-			return Lower(*binary.m_right)
-				.transform([left](MarmotIRValueId right) { return std::pair{ left, right }; });
-		})
-		.and_then([this, &binary, &op](std::pair<MarmotIRValueId, MarmotIRValueId> operands) -> Lowered
-		{
-			const auto [left, right] = operands;
-			if (IsDead())
+		.and_then
+		(
+			[this, &binary](MarmotIRValueId left)
 			{
-				return Placeholder(Concrete(binary.m_type_data));
+				return Lower(*binary.m_right)
+					.transform([left](MarmotIRValueId right) { return std::pair{ left, right }; });
 			}
-			if (op.m_token_name == Token::Name::COLON_EQUAL)
+		)
+		.and_then
+		(
+			[this, &binary, &op](std::pair<MarmotIRValueId, MarmotIRValueId> operands) -> Lowered
 			{
-				m_builder.AtLine(op.m_line).Emit(MarmotIROp::CellWrite, m_function.TypeOf(right), { left, right });
-				return m_builder.ConstUnit();
-			}
-			if (binary.m_uses_concatenable || binary.m_uses_equatable || binary.m_uses_orderable)
-			{
-				return LowerClassOperator(binary, left, right);
-			}
-			if (op.m_token_name == Token::Name::DOUBLE_PLUS)
-			{
-				return LowerConcat(binary, left, right);
-			}
+				const auto [left, right] = operands;
+				if (IsDead())
+				{
+					return Placeholder(Concrete(binary.m_type_data));
+				}
+				if (op.m_token_name == Token::Name::COLON_EQUAL)
+				{
+					m_builder.AtLine(op.m_line).Emit(MarmotIROp::CellWrite, m_function.TypeOf(right), { left, right });
+					return m_builder.ConstUnit();
+				}
+				if (binary.m_uses_concatenable || binary.m_uses_equatable || binary.m_uses_orderable)
+				{
+					return LowerClassOperator(binary, left, right);
+				}
+				if (op.m_token_name == Token::Name::DOUBLE_PLUS)
+				{
+					return LowerConcat(binary, left, right);
+				}
 
-			const TypeRef& operand_type = m_function.TypeOf(left);
-			const std::optional<MarmotIRScalar> scalar = ScalarOf(operand_type);
-			const std::optional<ScalarOps> ops = BinaryOps(op.m_token_name);
-			const std::optional<MarmotIROp> ir_op = (scalar.has_value() && ops.has_value()) ? SelectOp(ops.value(), scalar.value()) : std::nullopt;
-			if (!ir_op.has_value())
-			{
-				return std::unexpected(m_owner.Unsupported(std::format("'{}' on {}", op.m_lexeme, operand_type->DisplayString()), op));
-			}
+				const TypeRef& operand_type = m_function.TypeOf(left);
+				const std::optional<MarmotIRScalar> scalar = ScalarOf(operand_type);
+				const std::optional<ScalarOps> ops = BinaryOps(op.m_token_name);
+				const std::optional<MarmotIROp> ir_op = (scalar.has_value() && ops.has_value()) ? SelectOp(ops.value(), scalar.value()) : std::nullopt;
+				if (!ir_op.has_value())
+				{
+					return std::unexpected(m_owner.Unsupported(std::format("'{}' on {}", op.m_lexeme, operand_type->DisplayString()), op));
+				}
 
-			m_builder.AtLine(op.m_line);
-			if (GetMarmotIROpInfo(ir_op.value()).m_arity == MarmotIRArity::Binary)
-			{
-				return m_builder.Binary(ir_op.value(), left, right);
+				m_builder.AtLine(op.m_line);
+				if (GetMarmotIROpInfo(ir_op.value()).m_arity == MarmotIRArity::Binary)
+				{
+					return m_builder.Binary(ir_op.value(), left, right);
+				}
+				return m_builder.Emit(ir_op.value(), MarmotIRScalarType(scalar.value()), { left, right });
 			}
-			return m_builder.Emit(ir_op.value(), MarmotIRScalarType(scalar.value()), { left, right });
-		});
+		);
 }
 
 // `a && b` is `b` when `a` holds and `a` otherwise; `a || b` the other way.
@@ -393,25 +399,31 @@ Lowering::Lowered Lowering::FunctionLowering::LowerShortCircuit(const MarmotExpr
 {
 	const bool is_and = binary.m_op.m_token_name == Token::Name::DOUBLE_AMPERSAND;
 	return Lower(*binary.m_left)
-		.and_then([this, &binary, is_and](MarmotIRValueId left) -> Lowered
-		{
-			const MarmotIRBlockId right_block = NewBlock();
-			const MarmotIRBlockId join = NewBlock();
-			const MarmotIRValueId result = m_builder.AddParameter(join, MarmotIRScalarType(MarmotIRScalar::Bool));
-			const MarmotIRSuccessor evaluate_right(right_block);
-			const MarmotIRSuccessor skip_right(join, { left });
-			m_builder.AtLine(binary.m_op.m_line);
-			Branch(left, is_and ? evaluate_right : skip_right, is_and ? skip_right : evaluate_right);
+		.and_then
+		(
+			[this, &binary, is_and](MarmotIRValueId left) -> Lowered
+			{
+				const MarmotIRBlockId right_block = NewBlock();
+				const MarmotIRBlockId join = NewBlock();
+				const MarmotIRValueId result = m_builder.AddParameter(join, MarmotIRScalarType(MarmotIRScalar::Bool));
+				const MarmotIRSuccessor evaluate_right(right_block);
+				const MarmotIRSuccessor skip_right(join, { left });
+				m_builder.AtLine(binary.m_op.m_line);
+				Branch(left, is_and ? evaluate_right : skip_right, is_and ? skip_right : evaluate_right);
 
-			PositionAt(right_block);
-			return Lower(*binary.m_right)
-				.transform([this, join, result](MarmotIRValueId right)
-				{
-					Jump(join, { right });
-					PositionAt(join);
-					return result;
-				});
-		});
+				PositionAt(right_block);
+				return Lower(*binary.m_right)
+					.transform
+					(
+						[this, join, result](MarmotIRValueId right)
+						{
+							Jump(join, { right });
+							PositionAt(join);
+							return result;
+						}
+					);
+			}
+		);
 }
 
 // The operators a class provides call the instance method they resolve to,
@@ -455,11 +467,14 @@ Lowering::Lowered Lowering::FunctionLowering::LowerClassOperator(const MarmotExp
 	}
 	const MarmotIROp compare = SelectOp(BinaryOps(op.m_token_name).value(), MarmotIRScalar::Int).value();
 	return CallResolved(resolved.value(), { left, right }, argument_types, IntType(), op)
-		.transform([this, &op, compare](MarmotIRValueId ordering)
-		{
-			m_builder.AtLine(op.m_line);
-			return m_builder.Binary(compare, ordering, m_builder.ConstInt(0));
-		});
+		.transform
+		(
+			[this, &op, compare](MarmotIRValueId ordering)
+			{
+				m_builder.AtLine(op.m_line);
+				return m_builder.Binary(compare, ordering, m_builder.ConstInt(0));
+			}
+		);
 }
 
 Lowering::Lowered Lowering::FunctionLowering::LowerConcat(const MarmotExpression::Binary& binary, MarmotIRValueId left, MarmotIRValueId right)
@@ -482,53 +497,56 @@ Lowering::Lowered Lowering::FunctionLowering::LowerUnary(const MarmotExpression:
 	}
 
 	return Lower(*unary.m_expr)
-		.and_then([this, &unary, &op](MarmotIRValueId operand) -> Lowered
-		{
-			if (IsDead())
+		.and_then
+		(
+			[this, &unary, &op](MarmotIRValueId operand) -> Lowered
 			{
-				return Placeholder(Concrete(unary.m_type_data));
-			}
-			const TypeRef& operand_type = m_function.TypeOf(operand);
-			if (op.m_token_name == Token::Name::REF || op.m_token_name == Token::Name::STAR)
-			{
-				const MarmotIROp cell_op = op.m_token_name == Token::Name::REF ? MarmotIROp::CellNew : MarmotIROp::CellRead;
-				return m_builder.AtLine(op.m_line).Emit(cell_op, Concrete(unary.m_type_data), { operand });
-			}
-			if (op.m_token_name == Token::Name::HASH)
-			{
-				if (GenericTypes::RepresentationOf(operand_type)->IsType<MarmotType::ArrayType>())
+				if (IsDead())
 				{
-					return m_builder.AtLine(op.m_line).Emit(MarmotIROp::ArrayLength, IntType(), { operand });
+					return Placeholder(Concrete(unary.m_type_data));
 				}
-				return LowerCount(unary, operand);
-			}
+				const TypeRef& operand_type = m_function.TypeOf(operand);
+				if (op.m_token_name == Token::Name::REF || op.m_token_name == Token::Name::STAR)
+				{
+					const MarmotIROp cell_op = op.m_token_name == Token::Name::REF ? MarmotIROp::CellNew : MarmotIROp::CellRead;
+					return m_builder.AtLine(op.m_line).Emit(cell_op, Concrete(unary.m_type_data), { operand });
+				}
+				if (op.m_token_name == Token::Name::HASH)
+				{
+					if (GenericTypes::RepresentationOf(operand_type)->IsType<MarmotType::ArrayType>())
+					{
+						return m_builder.AtLine(op.m_line).Emit(MarmotIROp::ArrayLength, IntType(), { operand });
+					}
+					return LowerCount(unary, operand);
+				}
 
-			const std::optional<MarmotIRScalar> scalar = ScalarOf(operand_type);
-			const std::optional<MarmotIROp> ir_op = [&]() -> std::optional<MarmotIROp>
-			{
-				if (!scalar.has_value())
+				const std::optional<MarmotIRScalar> scalar = ScalarOf(operand_type);
+				const std::optional<MarmotIROp> ir_op = [&]() -> std::optional<MarmotIROp>
 				{
-					return std::nullopt;
-				}
-				using enum MarmotIROp;
-				switch (op.m_token_name)
+					if (!scalar.has_value())
+					{
+						return std::nullopt;
+					}
+					using enum MarmotIROp;
+					switch (op.m_token_name)
+					{
+					case Token::Name::SINGLE_MINUS:
+						return SelectOp(ScalarOps{ NegInt, NegFloat, std::nullopt, std::nullopt, std::nullopt, std::nullopt }, scalar.value());
+					case Token::Name::BANG:
+						return SelectOp(ScalarOps{ std::nullopt, std::nullopt, std::nullopt, std::nullopt, NotBool, std::nullopt }, scalar.value());
+					case Token::Name::TILDE:
+						return SelectOp(ScalarOps{ BitNotInt, std::nullopt, BitNotByte, BitNotWord, std::nullopt, std::nullopt }, scalar.value());
+					default:
+						return std::nullopt;
+					}
+				}();
+				if (!ir_op.has_value())
 				{
-				case Token::Name::SINGLE_MINUS:
-					return SelectOp(ScalarOps{ NegInt, NegFloat, std::nullopt, std::nullopt, std::nullopt, std::nullopt }, scalar.value());
-				case Token::Name::BANG:
-					return SelectOp(ScalarOps{ std::nullopt, std::nullopt, std::nullopt, std::nullopt, NotBool, std::nullopt }, scalar.value());
-				case Token::Name::TILDE:
-					return SelectOp(ScalarOps{ BitNotInt, std::nullopt, BitNotByte, BitNotWord, std::nullopt, std::nullopt }, scalar.value());
-				default:
-					return std::nullopt;
+					return std::unexpected(m_owner.Unsupported(std::format("'{}' on {}", op.m_lexeme, operand_type->DisplayString()), op));
 				}
-			}();
-			if (!ir_op.has_value())
-			{
-				return std::unexpected(m_owner.Unsupported(std::format("'{}' on {}", op.m_lexeme, operand_type->DisplayString()), op));
+				return m_builder.AtLine(op.m_line).Unary(ir_op.value(), operand);
 			}
-			return m_builder.AtLine(op.m_line).Unary(ir_op.value(), operand);
-		});
+		);
 }
 
 Lowering::Lowered Lowering::FunctionLowering::LowerCount(const MarmotExpression::UnaryPrefix& unary, MarmotIRValueId operand)
@@ -553,48 +571,51 @@ Lowering::Lowered Lowering::FunctionLowering::LowerAs(const MarmotExpression::As
 	const Token& keyword = as.m_as_keyword;
 	const TypeRef to_type = Concrete(as.m_to_type);
 	return Lower(*as.m_expr)
-		.and_then([this, &as, &keyword, &to_type](MarmotIRValueId value) -> Lowered
-		{
-			if (IsDead())
+		.and_then
+		(
+			[this, &as, &keyword, &to_type](MarmotIRValueId value) -> Lowered
 			{
-				return Placeholder(to_type);
-			}
+				if (IsDead())
+				{
+					return Placeholder(to_type);
+				}
 
-			const TypeRef from_type = NominalType(*as.m_expr, value);
-			const MethodResolution<std::optional<ResolvedInstanceName>> resolved = m_owner.m_resolver.ResolveConvert(m_specialization.m_methods, from_type, from_type, to_type, as.m_uses_convertable);
-			if (!resolved.has_value())
-			{
-				return std::unexpected(m_owner.ResolutionError(resolved.error(), keyword));
-			}
-			if (resolved.value().has_value())
-			{
-				return CallResolved(resolved.value().value(), { value }, { from_type }, to_type, keyword);
-			}
-			if (MarmotIRSameType(from_type, to_type))
-			{
-				return value;
-			}
+				const TypeRef from_type = NominalType(*as.m_expr, value);
+				const MethodResolution<std::optional<ResolvedInstanceName>> resolved = m_owner.m_resolver.ResolveConvert(m_specialization.m_methods, from_type, from_type, to_type, as.m_uses_convertable);
+				if (!resolved.has_value())
+				{
+					return std::unexpected(m_owner.ResolutionError(resolved.error(), keyword));
+				}
+				if (resolved.value().has_value())
+				{
+					return CallResolved(resolved.value().value(), { value }, { from_type }, to_type, keyword);
+				}
+				if (MarmotIRSameType(from_type, to_type))
+				{
+					return value;
+				}
 
-			m_builder.AtLine(keyword.m_line);
-			if (to_type->IsType<MarmotType::UnitType>())
-			{
-				return m_builder.ConstUnit();
-			}
+				m_builder.AtLine(keyword.m_line);
+				if (to_type->IsType<MarmotType::UnitType>())
+				{
+					return m_builder.ConstUnit();
+				}
 
-			const std::optional<MarmotIRScalar> from = ScalarOf(from_type);
-			const std::optional<MarmotIRScalar> to = ScalarOf(to_type);
-			if (from == MarmotIRScalar::Bool && to == MarmotIRScalar::Text)
-			{
-				return LowerBoolToText(value, keyword.m_line);
-			}
+				const std::optional<MarmotIRScalar> from = ScalarOf(from_type);
+				const std::optional<MarmotIRScalar> to = ScalarOf(to_type);
+				if (from == MarmotIRScalar::Bool && to == MarmotIRScalar::Text)
+				{
+					return LowerBoolToText(value, keyword.m_line);
+				}
 
-			const std::vector<MarmotIROp> ops = (from.has_value() && to.has_value()) ? ConversionOps(from.value(), to.value()) : std::vector<MarmotIROp>{};
-			if (ops.empty())
-			{
-				return std::unexpected(m_owner.Unsupported(std::format("a conversion from {} to {}", from_type->DisplayString(), to_type->DisplayString()), keyword));
+				const std::vector<MarmotIROp> ops = (from.has_value() && to.has_value()) ? ConversionOps(from.value(), to.value()) : std::vector<MarmotIROp>{};
+				if (ops.empty())
+				{
+					return std::unexpected(m_owner.Unsupported(std::format("a conversion from {} to {}", from_type->DisplayString(), to_type->DisplayString()), keyword));
+				}
+				return std::ranges::fold_left(ops, value, [this](MarmotIRValueId operand, MarmotIROp op) { return m_builder.Unary(op, operand); });
 			}
-			return std::ranges::fold_left(ops, value, [this](MarmotIRValueId operand, MarmotIROp op) { return m_builder.Unary(op, operand); });
-		});
+		);
 }
 
 Lowering::Lowered Lowering::FunctionLowering::LowerBoolToText(MarmotIRValueId value, int line)
@@ -658,32 +679,38 @@ Lowering::Lowered Lowering::FunctionLowering::LowerIndex(const MarmotExpression:
 	const Token& op = index.m_op;
 	const TypeRef result_type = Concrete(index.m_type_data);
 	return Lower(*index.m_arr_var)
-		.and_then([this, &index](MarmotIRValueId container)
-		{
-			return Lower(*index.m_index)
-				.transform([container](MarmotIRValueId position) { return std::pair{ container, position }; });
-		})
-		.and_then([this, &index, &op, &result_type](std::pair<MarmotIRValueId, MarmotIRValueId> operands) -> Lowered
-		{
-			const auto [container, position] = operands;
-			if (IsDead())
+		.and_then
+		(
+			[this, &index](MarmotIRValueId container)
 			{
-				return Placeholder(result_type);
+				return Lower(*index.m_index)
+					.transform([container](MarmotIRValueId position) { return std::pair{ container, position }; });
 			}
-			const TypeRef container_type = m_function.TypeOf(container);
-			if (index.m_uses_indexable)
+		)
+		.and_then
+		(
+			[this, &index, &op, &result_type](std::pair<MarmotIRValueId, MarmotIRValueId> operands) -> Lowered
 			{
-				const std::vector<TypeRef> argument_types = { NominalType(*index.m_arr_var, container), NominalType(*index.m_index, position) };
-				const MethodResolution<ResolvedInstanceName> resolved = m_owner.m_resolver.ResolveIndex(m_specialization.m_methods, argument_types[0u], argument_types[1u]);
-				if (!resolved.has_value())
+				const auto [container, position] = operands;
+				if (IsDead())
 				{
-					return std::unexpected(m_owner.ResolutionError(resolved.error(), op));
+					return Placeholder(result_type);
 				}
-				return CallResolved(resolved.value(), { container, position }, argument_types, result_type, op);
+				const TypeRef container_type = m_function.TypeOf(container);
+				if (index.m_uses_indexable)
+				{
+					const std::vector<TypeRef> argument_types = { NominalType(*index.m_arr_var, container), NominalType(*index.m_index, position) };
+					const MethodResolution<ResolvedInstanceName> resolved = m_owner.m_resolver.ResolveIndex(m_specialization.m_methods, argument_types[0u], argument_types[1u]);
+					if (!resolved.has_value())
+					{
+						return std::unexpected(m_owner.ResolutionError(resolved.error(), op));
+					}
+					return CallResolved(resolved.value(), { container, position }, argument_types, result_type, op);
+				}
+				const TypeRef& element_type = GenericTypes::RepresentationOf(container_type)->GetType<MarmotType::ArrayType>().m_element_type;
+				return m_builder.AtLine(op.m_line).Emit(MarmotIROp::ArrayGet, element_type, { container, position });
 			}
-			const TypeRef& element_type = GenericTypes::RepresentationOf(container_type)->GetType<MarmotType::ArrayType>().m_element_type;
-			return m_builder.AtLine(op.m_line).Emit(MarmotIROp::ArrayGet, element_type, { container, position });
-		});
+		);
 }
 
 Lowering::Lowered Lowering::FunctionLowering::LowerConstruct(const MarmotExpression::Construct& construct)
@@ -712,14 +739,17 @@ Lowering::Lowered Lowering::FunctionLowering::LowerRecordUpdate(const MarmotExpr
 		| std::views::transform([](const MarmotExpression::RecordUpdate::FieldUpdate& update) { return &update; })
 		| std::ranges::to<std::vector>();
 	return Lower(*record_update.m_source)
-		.and_then([&](MarmotIRValueId source) -> Lowered
-		{
-			if (IsDead())
+		.and_then
+		(
+			[&](MarmotIRValueId source) -> Lowered
 			{
-				return Placeholder(type);
+				if (IsDead())
+				{
+					return Placeholder(type);
+				}
+				return LowerUpdatedRecord(source, type, updates, 0u, line);
 			}
-			return LowerUpdatedRecord(source, type, updates, 0u, line);
-		});
+		);
 }
 
 // `source` rebuilt with each update's value at the end of its path, a record
@@ -760,16 +790,19 @@ Lowering::Lowered Lowering::FunctionLowering::LowerMemberAccess(const MarmotExpr
 {
 	const int line = member.m_member_name.m_line;
 	return Lower(*member.m_struct)
-		.transform([this, &member, line](MarmotIRValueId record)
-		{
-			if (IsDead())
+		.transform
+		(
+			[this, &member, line](MarmotIRValueId record)
 			{
-				return Placeholder(Concrete(member.m_type_data));
+				if (IsDead())
+				{
+					return Placeholder(Concrete(member.m_type_data));
+				}
+				const std::vector<TypeRef>& member_types = GenericTypes::RepresentationOf(m_function.TypeOf(record))->GetType<MarmotType::StructType>().m_member_types;
+				const uint32_t index = static_cast<uint32_t>(member.m_index);
+				return m_builder.AtLine(line).Emit(MarmotIROp::GetMember, member_types[index], { record }, MarmotIRIndex{ index });
 			}
-			const std::vector<TypeRef>& member_types = GenericTypes::RepresentationOf(m_function.TypeOf(record))->GetType<MarmotType::StructType>().m_member_types;
-			const uint32_t index = static_cast<uint32_t>(member.m_index);
-			return m_builder.AtLine(line).Emit(MarmotIROp::GetMember, member_types[index], { record }, MarmotIRIndex{ index });
-		});
+		);
 }
 
 // A range without a step steps by one.
@@ -777,24 +810,30 @@ Lowering::Lowered Lowering::FunctionLowering::LowerRange(const MarmotExpression&
 {
 	const bool is_float = range_type->GetType<MarmotType::RangeType>().m_element_type->IsType<MarmotType::FloatType>();
 	return Lower(start)
-		.and_then([&](MarmotIRValueId first) -> LoweredValues
-		{
-			const Lowered stride = step == nullptr
-				? Lowered(is_float ? m_builder.AtLine(line).ConstFloat(1.0) : m_builder.AtLine(line).ConstInt(1))
-				: Lower(*step);
-			return stride.and_then([&](MarmotIRValueId by)
+		.and_then
+		(
+			[&](MarmotIRValueId first) -> LoweredValues
 			{
-				return Lower(end).transform([first, by](MarmotIRValueId last) { return std::vector<MarmotIRValueId>{ first, by, last }; });
-			});
-		})
-		.transform([&](std::vector<MarmotIRValueId> bounds)
-		{
-			if (IsDead())
-			{
-				return Placeholder(range_type);
+				const Lowered stride = step == nullptr
+					? Lowered(is_float ? m_builder.AtLine(line).ConstFloat(1.0) : m_builder.AtLine(line).ConstInt(1))
+					: Lower(*step);
+				return stride.and_then([&](MarmotIRValueId by)
+				{
+					return Lower(end).transform([first, by](MarmotIRValueId last) { return std::vector<MarmotIRValueId>{ first, by, last }; });
+				});
 			}
-			return m_builder.AtLine(line).Emit(MarmotIROp::MakeRange, range_type, std::move(bounds));
-		});
+		)
+		.transform
+		(
+			[&](std::vector<MarmotIRValueId> bounds)
+			{
+				if (IsDead())
+				{
+					return Placeholder(range_type);
+				}
+				return m_builder.AtLine(line).Emit(MarmotIROp::MakeRange, range_type, std::move(bounds));
+			}
+		);
 }
 
 // The one argument stands for all of the function's parameters: the value
@@ -807,31 +846,37 @@ Lowering::Lowered Lowering::FunctionLowering::LowerSpawn(const MarmotExpression:
 	const MarmotExpression& function = *spawn.m_arguments[1u];
 	const size_t arity = Concrete(function.GetType())->GetType<MarmotType::FunctionType>().m_param_types.size();
 	return Lower(*spawn.m_arguments[0u])
-		.and_then([&](MarmotIRValueId argument) -> Lowered
-		{
-			std::vector<MarmotIRValueId> operands;
-			if (arity == 1u)
+		.and_then
+		(
+			[&](MarmotIRValueId argument) -> Lowered
 			{
-				operands.push_back(argument);
-			}
-			else if (arity >= 2u && !IsDead())
-			{
-				const std::vector<TypeRef>& element_types = GenericTypes::RepresentationOf(m_function.TypeOf(argument))->GetType<MarmotType::TupleType>().m_element_types;
-				for (uint32_t index = 0u; index < static_cast<uint32_t>(arity); index += 1u)
+				std::vector<MarmotIRValueId> operands;
+				if (arity == 1u)
 				{
-					operands.push_back(m_builder.AtLine(line).Emit(MarmotIROp::TupleGet, element_types[index], { argument }, MarmotIRIndex{ index }));
+					operands.push_back(argument);
 				}
-			}
-
-			return Lower(function)
-				.transform([&](MarmotIRValueId callee)
+				else if (arity >= 2u && !IsDead())
 				{
-					if (IsDead())
+					const std::vector<TypeRef>& element_types = GenericTypes::RepresentationOf(m_function.TypeOf(argument))->GetType<MarmotType::TupleType>().m_element_types;
+					for (uint32_t index = 0u; index < static_cast<uint32_t>(arity); index += 1u)
 					{
-						return Placeholder(type);
+						operands.push_back(m_builder.AtLine(line).Emit(MarmotIROp::TupleGet, element_types[index], { argument }, MarmotIRIndex{ index }));
 					}
-					operands.push_back(callee);
-					return m_builder.AtLine(line).Emit(MarmotIROp::Spawn, type, std::move(operands));
-				});
-		});
+				}
+
+				return Lower(function)
+					.transform
+					(
+						[&](MarmotIRValueId callee)
+						{
+							if (IsDead())
+							{
+								return Placeholder(type);
+							}
+							operands.push_back(callee);
+							return m_builder.AtLine(line).Emit(MarmotIROp::Spawn, type, std::move(operands));
+						}
+					);
+			}
+		);
 }

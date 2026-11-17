@@ -220,18 +220,24 @@ TypeTransform::TypeRef TypeTransform::Apply(const TypeRef& type, const Variables
 		return type;
 	}
 	Cache cache;
-	return GraphRewrite(Operation::Inference, cache, [&variables](const TypeRef& leaf)
-	{
-		if (leaf->IsType<MarmotType::TypeVariable>())
+	return GraphRewrite
+	(
+		Operation::Inference,
+		cache,
+		[&variables](const TypeRef& leaf)
 		{
-			const Variables::const_iterator binding = variables.find(leaf->GetType<MarmotType::TypeVariable>().m_id);
-			if (binding != variables.cend())
+			if (leaf->IsType<MarmotType::TypeVariable>())
 			{
-				return binding->second;
+				const Variables::const_iterator binding = variables.find(leaf->GetType<MarmotType::TypeVariable>().m_id);
+				if (binding != variables.cend())
+				{
+					return binding->second;
+				}
 			}
-		}
-		return leaf;
-	}, resolve).Apply(type);
+			return leaf;
+		},
+		resolve
+	).Apply(type);
 }
 
 TypeTransform::TypeRef TypeTransform::Specialize(const TypeRef& type, const Parameters& parameters, const ProjectionResolver& resolve)
