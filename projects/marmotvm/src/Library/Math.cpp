@@ -26,8 +26,8 @@ namespace
 
 	std::mt19937_64& GetRng()
 	{
-		static std::mt19937_64 rng(std::random_device{}());
-		return rng;
+		thread_local std::mt19937_64 s_rng(std::random_device{}());
+		return s_rng;
 	}
 }
 
@@ -187,11 +187,15 @@ extern "C"
 
 	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(RandomInt)(void** args, void* ret) noexcept
 	{
-		int64_t min_val = 0;
-		int64_t max_val = 0;
-		std::memcpy(&min_val, &args[0u], sizeof(int64_t));
-		std::memcpy(&max_val, &args[1u], sizeof(int64_t));
-		std::uniform_int_distribution<int64_t> dist(min_val, max_val);
+		int64_t minimum;
+		int64_t maximum;
+		std::memcpy(&minimum, &args[0u], sizeof(minimum));
+		std::memcpy(&maximum, &args[1u], sizeof(maximum));
+		if (minimum > maximum)
+		{
+			std::swap(minimum, maximum);
+		}
+		std::uniform_int_distribution<int64_t> dist(minimum, maximum);
 		WriteInt(ret, dist(GetRng()));
 	}
 

@@ -69,6 +69,17 @@ Expect((random_value >= 0.0) && (random_value <= 1.0), "Random should stay withi
 def random_int = Math::RandomInt(5, 9);
 Expect((random_int >= 5) && (random_int <= 9), "RandomInt should stay within the requested inclusive range");
 
+def large_bound = 4611686018427387905;
+def above_float_precision = Math::RandomInt(large_bound, large_bound + 1);
+Expect((above_float_precision >= large_bound) && (above_float_precision <= (large_bound + 1)), "RandomInt should preserve integer bounds beyond Float precision");
+
+def draw: fn(Int, Int) -> Int = Math::RandomInt;
+def max_int = 9223372036854775807;
+def min_int = -max_int - 1;
+def near_maximum = draw(max_int, max_int - 1);
+Expect((near_maximum >= (max_int - 1)) && (near_maximum <= max_int), "RandomInt should accept reversed bounds at the largest Int");
+Expect(draw(min_int, min_int) == min_int, "RandomInt should return the only value in a singleton range");
+
 def random_float = Math::RandomFloat(-2.5, -1.5);
 Expect((random_float >= -2.5) && (random_float <= -1.5), "RandomFloat should stay within the requested range");
 

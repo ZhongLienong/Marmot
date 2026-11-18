@@ -31,11 +31,8 @@ foreign "MARMOT_FFI_Sign" Sign: fn(Float) -> Float;
 foreign "MARMOT_FFI_Fmod" Fmod: fn(Float, Float) -> Float;
 foreign "MARMOT_FFI_Hypot" Hypot: fn(Float, Float) -> Float;
 foreign "MARMOT_FFI_Random" Random: fn() -> Float;
-foreign "MARMOT_FFI_RandomInt" RandomIntRaw: fn(Int, Int) -> Int;
+foreign "MARMOT_FFI_RandomInt" RandomInt: fn(Int, Int) -> Int;
 foreign "MARMOT_FFI_RandomFloat" RandomFloat: fn(Float, Float) -> Float;
-def RandomInt = fn(minimum: Int, maximum: Int) -> Int => {
-    if minimum > maximum then RandomInt(maximum, minimum) else if minimum == maximum then minimum else Floor(RandomFloat(minimum as Float, (maximum + 1) as Float)) as Int
-};
 foreign "MARMOT_FFI_ToRadians" ToRadians: fn(Float) -> Float;
 foreign "MARMOT_FFI_ToDegrees" ToDegrees: fn(Float) -> Float;
 foreign "MARMOT_FFI_IsNaN" IsNaN: fn(Float) -> Bool;
