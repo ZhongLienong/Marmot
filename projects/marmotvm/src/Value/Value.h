@@ -299,7 +299,7 @@ public:
 
 	MarmotText& Prepend(const MarmotText& other);
 
-	MarmotText Substring(int start, int end) const;
+	MarmotText Substring(MarmotInteger start, MarmotInteger end) const;
 
 	std::vector<MarmotText> Split(const MarmotText& delimiter) const;
 

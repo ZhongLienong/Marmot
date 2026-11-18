@@ -1161,12 +1161,12 @@ MarmotText& MarmotText::Prepend(const MarmotText& other)
 	return PrependBytes(other.View());
 }
 
-MarmotText MarmotText::Substring(int start, int end) const
+MarmotText MarmotText::Substring(MarmotInteger start, MarmotInteger end) const
 {
-	const int len = GetLength();
-	start = std::clamp(start, 0, len);
-	end = std::clamp(end, 0, len);
-	if (end <= start)
+	const MarmotInteger length = GetLength();
+	const int first = static_cast<int>(std::clamp(start, MarmotInteger{ 0 }, length));
+	const int last = static_cast<int>(std::clamp(end, MarmotInteger{ 0 }, length));
+	if (last <= first)
 	{
 		return MarmotText();
 	}
@@ -1176,9 +1176,9 @@ MarmotText MarmotText::Substring(int start, int end) const
 	// reading a text one code point at a time quadratic.
 	const char* source = View().data();
 	const int byte_len = GetByteLength();
-	const bool is_ascii = len == byte_len;
-	const int start_offset = is_ascii ? start : UTF8::GetByteOffsetOfCodePoint(source, byte_len, start);
-	const int end_offset = is_ascii ? end : UTF8::GetByteOffsetOfCodePoint(source, byte_len, end);
+	const bool is_ascii = length == byte_len;
+	const int start_offset = is_ascii ? first : UTF8::GetByteOffsetOfCodePoint(source, byte_len, first);
+	const int end_offset = is_ascii ? last : UTF8::GetByteOffsetOfCodePoint(source, byte_len, last);
 	std::string slice(source + start_offset, source + end_offset);
 	return MarmotText(slice.c_str());
 }

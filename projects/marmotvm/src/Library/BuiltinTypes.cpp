@@ -210,7 +210,7 @@ extern "C"
 
 	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(TextSubstring)(void** args, void* ret) noexcept
 	{
-		MarmotText substring = RequireText(args[0u]).Substring(static_cast<int>(ReadInt(args, 1u)), static_cast<int>(ReadInt(args, 2u)));
+		MarmotText substring = RequireText(args[0u]).Substring(ReadInt(args, 1u), ReadInt(args, 2u));
 		WritePointerResult(ret, AllocateCString(substring));
 	}
 
@@ -257,15 +257,16 @@ extern "C"
 	// The code point at a code-point index, or -1 past the end.
 	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(TextCodePointAt)(void** args, void* ret) noexcept
 	{
+		const MarmotText& text = RequireText(args[0u]);
 		const MarmotInteger index = ReadInt(args, 1u);
-		const MarmotText character = RequireText(args[0u]).Substring(static_cast<int>(index), static_cast<int>(index) + 1);
-		const unsigned char* bytes = reinterpret_cast<const unsigned char*>(character.View().data());
-		if ((index < 0) || character.View().empty())
+		if ((index < 0) || (index >= text.GetLength()))
 		{
 			WriteInt(ret, -1);
 			return;
 		}
 
+		const MarmotText character = text.Substring(index, index + 1);
+		const unsigned char* bytes = reinterpret_cast<const unsigned char*>(character.View().data());
 		const int length = character.GetByteLength();
 		std::uint32_t code_point = (length == 1) ? bytes[0]
 			: (length == 2) ? (bytes[0] & 0x1Fu)
