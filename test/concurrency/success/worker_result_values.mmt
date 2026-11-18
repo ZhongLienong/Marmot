@@ -1,27 +1,27 @@
 module worker_result_values
 
-import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Prelude/Result.mmt" }
+import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Prelude/Option.mmt", "../../../MarmotPrelude/Prelude/Result.mmt" }
 
 import { "../../../MarmotPrelude/IO.mmt" }
 use IO.{PrintLine}
 
 def ReturnZero = fn(ch: Channel<Int>) -> Int => {
-    ch -> 0;
+    Concurrency::Send(ch, 0);
     0
 };
 
 def ReturnFortyTwo = fn(ch: Channel<Int>) -> Int => {
-    ch -> 42;
+    Concurrency::Send(ch, 42);
     0
 };
 
 def ReturnNegative = fn(ch: Channel<Int>) -> Int => {
-    ch -> (0 - 1);
+    Concurrency::Send(ch, (0 - 1));
     0
 };
 
 def ComputeReturn = fn(ch: Channel<Int>, x: Int) -> Int => {
-    ch -> ((x * x) + 1);
+    Concurrency::Send(ch, ((x * x) + 1));
     0
 };
 
@@ -35,10 +35,10 @@ def w2 = Concurrency::Spawn(ch2, ReturnFortyTwo);
 def w3 = Concurrency::Spawn(ch3, ReturnNegative);
 def w4 = Concurrency::Spawn((ch4, 7), ComputeReturn);
 
-PrintLine("zero=" ++ ((<- ch1) as Text));
-PrintLine("fortytwo=" ++ ((<- ch2) as Text));
-PrintLine("negative=" ++ ((<- ch3) as Text));
-PrintLine("compute(7)=" ++ ((<- ch4) as Text));
+PrintLine("zero=" ++ ((Option::OptionUnwrapOrPanic(Concurrency::Receive(ch1), "Channel closed")) as Text));
+PrintLine("fortytwo=" ++ ((Option::OptionUnwrapOrPanic(Concurrency::Receive(ch2), "Channel closed")) as Text));
+PrintLine("negative=" ++ ((Option::OptionUnwrapOrPanic(Concurrency::Receive(ch3), "Channel closed")) as Text));
+PrintLine("compute(7)=" ++ ((Option::OptionUnwrapOrPanic(Concurrency::Receive(ch4), "Channel closed")) as Text));
 
 Concurrency::Close(ch1);
 Concurrency::Close(ch2);

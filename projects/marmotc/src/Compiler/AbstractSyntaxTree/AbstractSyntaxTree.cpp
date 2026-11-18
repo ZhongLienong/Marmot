@@ -212,19 +212,6 @@ MarmotExpression::UnaryPrefix::UnaryPrefix(const Token& op, std::unique_ptr<Marm
 {
 }
 
-MarmotExpression::Send::Send(const Token& arrow, std::unique_ptr<MarmotExpression>&& channel, std::unique_ptr<MarmotExpression>&& value)
-	: m_arrow(arrow),
-	m_channel(std::move(channel)),
-	m_value(std::move(value))
-{
-}
-
-MarmotExpression::Receive::Receive(const Token& arrow, std::unique_ptr<MarmotExpression>&& channel)
-	: m_arrow(arrow),
-	m_channel(std::move(channel))
-{
-}
-
 MarmotExpression::NameAccess::NameAccess(const Token& name, NameContext::Tag&& name_ctx)
 	: m_name(name),
 	m_name_ctx(std::move(name_ctx))

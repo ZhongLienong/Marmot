@@ -22,7 +22,6 @@ public:
 protected:
 	void Reset(MarmotProgramTree& program_tree) override;
 
-	void operator()(MarmotExpression::Send& send) override;
 	void operator()(MarmotExpression::Call& call) override;
 
 private:

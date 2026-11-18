@@ -1,7 +1,7 @@
 # Current `.mmc` wire format (under development)
 
 **Status: Under development; not sealed.** There is no released `.mmc` format
-version. The header currently carries numeric marker `16` so the VM can reject
+version. The header currently carries numeric marker `17` so the VM can reject
 artifacts written for a different encoding. That marker is an internal
 compatibility check, not a Marmot or `.mmc` release version. This file and its
 fixtures record current compiler/VM behavior and may change as Marmot develops.
@@ -18,7 +18,7 @@ of the file.
 | Offset | Size | Field | Current meaning |
 |---:|---:|---|---|
 | 0 | 4 | magic | ASCII `MBC` followed by `00` |
-| 4 | 4 | format marker (`u32`) | Exactly `16` |
+| 4 | 4 | format marker (`u32`) | Exactly `17` |
 | 8 | 2 | Marmot major version (`u16`) | Written from the producer version; informational to the current reader |
 | 10 | 2 | Marmot minor version (`u16`) | Informational |
 | 12 | 2 | Marmot patch version (`u16`) | Informational |
@@ -63,7 +63,7 @@ The registry generates each project's private `OpCodes.def` and `Builtins.def` w
 
 `CALL_FOREIGN_INDEXED` embeds a builtin table index; changing the table's order changes program meaning. Native foreign calls use the native-library records and a symbol name. `CALL_FOREIGN` carries how each argument is passed, which the compiler takes from the declared parameter types: two bits per argument from bit 0, `0` raw bits, `1` a C string for `Text`, `2` an array view for `Array<T>`. Its return kind is `0` raw bits, `1` a C string, `2` an array of values, `3` an array of C strings for `Array<Text>`, with bit 7 set when the array's elements are pointers, which only a builtin returning an array of values can make; `CALL_FOREIGN_INDEXED`'s return byte carries the same bit. Earlier encodings guessed each foreign-call argument's kind from the value at run time; the current encoding carries argument kinds explicitly.
 
-Each value has a kind and each aggregate a shape, so no operation has to decide from a value's bits whether it is a pointer. Instructions that build objects or send values between workers carry the needed metadata: `CREATE_ARRAY` its elements' kind; `CREATE_TUPLE`, `CONSTRUCT_STRUCT`, `CONSTRUCT_UNION` and `LOCAL_UNION2` a shape, low byte first, as their last two operands; `MAKE_CELL` and `CHANNEL_SEND` the value's kind; `SPAWN_WORKER` the shape of the tuple its arguments and function cross in, then the kind of the worker's result; and `JOIN_WORKER` the kind of the worker's value. A closure takes its procedure's captures' shape.
+Each value has a kind and each aggregate a shape, so no operation has to decide from a value's bits whether it is a pointer. Instructions that build objects or send values between workers carry the needed metadata: `CREATE_ARRAY` its elements' kind; `CREATE_TUPLE`, `CONSTRUCT_STRUCT`, `CONSTRUCT_UNION` and `LOCAL_UNION2` a shape, low byte first, as their last two operands; `MAKE_CELL` and `CHANNEL_SEND` the value's kind; `SPAWN_WORKER` the shape of the tuple its arguments and function cross in, then the kind of the worker's result; `CHANNEL_RECEIVE` the kind of its option payload; and `JOIN_WORKER` the kind of the worker's value. A closure takes its procedure's captures' shape.
 
 `JOIN_WORKER` builds the union named by its declaration in Marmot, which the compiler checks by position: member 0 holds the worker's value and member 1 why there is none, itself a union of member 0 for a cancelled worker and member 1, holding the message, for a failed one. So the VM builds tags 0 and 1 without being told them. This file format carries the name, symbols, lookup hints, concurrency policy, and optional checksum, but not native machine code.
 

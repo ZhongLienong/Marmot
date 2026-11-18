@@ -687,8 +687,6 @@ private:
 
 	MarmotResult::ExpressionResult ParseLogicalOr();
 
-	MarmotResult::ExpressionResult ParseSend();
-
 	MarmotResult::ExpressionResult ParsePipe();
 
 	// The type declared under `name` in this module or any module it imports, or

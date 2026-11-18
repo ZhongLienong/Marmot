@@ -1,6 +1,6 @@
 module channel_pipeline
 
-import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Prelude/Result.mmt" }
+import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Prelude/Option.mmt", "../../../MarmotPrelude/Prelude/Result.mmt" }
 
 import { "../../../MarmotPrelude/IO.mmt" }
 use IO.{PrintLine}
@@ -12,8 +12,8 @@ def Double = fn(in_ch: Channel<Int>, out_ch: Channel<Int>, i: Int, count: Int) -
     then ()
     else
     {
-        def val = <- in_ch;
-        out_ch -> (val * 2);
+        def val = Option::OptionUnwrapOrPanic(Concurrency::Receive(in_ch), "Channel closed");
+        Concurrency::Send(out_ch, (val * 2));
         Double(in_ch, out_ch, i + 1, count)
     };
 
@@ -22,8 +22,8 @@ def AddTen = fn(in_ch: Channel<Int>, out_ch: Channel<Int>, i: Int, count: Int) -
     then ()
     else
     {
-        def val = <- in_ch;
-        out_ch -> (val + 10);
+        def val = Option::OptionUnwrapOrPanic(Concurrency::Receive(in_ch), "Channel closed");
+        Concurrency::Send(out_ch, (val + 10));
         AddTen(in_ch, out_ch, i + 1, count)
     };
 
@@ -45,18 +45,18 @@ def ch_output : Channel<Int> = Concurrency::MakeChannel(count);
 def w1 = Concurrency::Spawn((ch_input, ch_mid, count), Stage1_Double);
 def w2 = Concurrency::Spawn((ch_mid, ch_output, count), Stage2_AddTen);
 
-ch_input -> 1;
-ch_input -> 5;
-ch_input -> 10;
-ch_input -> 0;
-ch_input -> 100;
+Concurrency::Send(ch_input, 1);
+Concurrency::Send(ch_input, 5);
+Concurrency::Send(ch_input, 10);
+Concurrency::Send(ch_input, 0);
+Concurrency::Send(ch_input, 100);
 
 def Drain = fn(source: Channel<Int>, i: Int, limit: Int) -> Unit =>
     if i >= limit
     then ()
     else
     {
-        PrintLine("out=" ++ ((<- source) as Text));
+        PrintLine("out=" ++ ((Option::OptionUnwrapOrPanic(Concurrency::Receive(source), "Channel closed")) as Text));
         Drain(source, i + 1, limit)
     };
 

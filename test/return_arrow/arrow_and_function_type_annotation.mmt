@@ -1,6 +1,6 @@
 module ArrowAndFunctionTypeAnnotation
 
-import { "../../MarmotPrelude/Concurrency.mmt" }
+import { "../../MarmotPrelude/Concurrency.mmt", "../../MarmotPrelude/Prelude/Option.mmt" }
 
 import { "../../MarmotPrelude/IO.mmt" }
 use IO.{PrintLine}
@@ -11,11 +11,11 @@ def Predicate : fn(Int) -> Bool = fn(x: Int) -> Bool => x > 0;
 
 def Apply = fn(f: fn(Int) -> Int, x: Int) -> Int => f(x);
 
-def SendOne = fn(c: Channel<Text>) -> Int => { c -> "sent"; 0 };
+def SendOne = fn(c: Channel<Text>) -> Int => { Concurrency::Send(c, "sent"); 0 };
 
 def ch : Channel<Text> = Concurrency::MakeChannel(4);
 def sent = SendOne(ch);
-PrintLine(<- ch);
+PrintLine(Option::OptionUnwrapOrPanic(Concurrency::Receive(ch), "Channel closed"));
 Concurrency::Close(ch);
 
 PrintLine(if Predicate(3) then "positive" else "not positive");

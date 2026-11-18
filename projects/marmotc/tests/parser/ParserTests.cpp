@@ -1417,25 +1417,17 @@ def predicate : fn(Int) -> Bool = fn(x: Int) -> Bool => x > 0;
 	REQUIRE(lambda.m_return_type->ToString() == "Bool");
 }
 
-TEST_CASE("Parser keeps '->' available as the channel send operator", "[parser]")
+TEST_CASE("Parser rejects channel arrow syntax", "[parser]")
 {
-	const std::string source_code =
+	const std::string send_source =
 		R"(module ArrowSend
 def Send = fn(c: Channel<Text>) -> Int => { c -> "value"; 0 };
 )";
+	CHECK_FALSE(MarmotTest::ParseSnippet(send_source, "ArrowSend.mmt").has_value());
 
-	std::expected<MarmotTest::ParsedSnippet, CompilerError> parse_result = MarmotTest::ParseSnippet(source_code, "ArrowSend.mmt");
-	if (!parse_result.has_value())
-	{
-		FAIL(std::string(parse_result.error().Rendered()));
-	}
-
-	const MarmotProgramTree& program = parse_result->m_program;
-	REQUIRE(program.size() == 1u);
-
-	const MarmotExpression::Function& send_definition = RequireFunctionBinding(program, 0u, "Send");
-	REQUIRE(send_definition.m_return_type->ToString() == "Int");
-
-	const MarmotExpression::Block& body = RequireExpression<MarmotExpression::Block>(send_definition.m_body);
-	REQUIRE(!body.m_stmts.empty());
+	const std::string receive_source =
+		R"(module ArrowReceive
+def Receive = fn(c: Channel<Text>) -> Text => <- c;
+)";
+	CHECK_FALSE(MarmotTest::ParseSnippet(receive_source, "ArrowReceive.mmt").has_value());
 }

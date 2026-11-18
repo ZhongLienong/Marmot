@@ -1,6 +1,6 @@
 module worker_compute
 
-import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Prelude/Result.mmt" }
+import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Prelude/Option.mmt", "../../../MarmotPrelude/Prelude/Result.mmt" }
 
 import { "../../../MarmotPrelude/IO.mmt" }
 use IO.{PrintLine}
@@ -11,7 +11,7 @@ def SumTo = fn(i: Int, end_val: Int) -> Int =>
     if i > end_val then 0 else i + SumTo(i + 1, end_val);
 
 def SumRange = fn(ch: Channel<Int>, start: Int, end_val: Int) -> Int => {
-    ch -> SumTo(start, end_val);
+    Concurrency::Send(ch, SumTo(start, end_val));
     0
 };
 
@@ -25,10 +25,10 @@ def w2 = Concurrency::Spawn((ch2, 251, 500), SumRange);
 def w3 = Concurrency::Spawn((ch3, 501, 750), SumRange);
 def w4 = Concurrency::Spawn((ch4, 751, 1000), SumRange);
 
-def s1 = <- ch1;
-def s2 = <- ch2;
-def s3 = <- ch3;
-def s4 = <- ch4;
+def s1 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch1), "Channel closed");
+def s2 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch2), "Channel closed");
+def s3 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch3), "Channel closed");
+def s4 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch4), "Channel closed");
 
 def total = s1 + s2 + s3 + s4;
 PrintLine("Sum 1..1000 = " ++ (total as Text));

@@ -109,8 +109,8 @@ def w = (42, 800) |> Concurrency::Spawn(ComputeRow);     // w : Worker<Int>
 def result = Concurrency::Join(w);                       // result : Result<Int, WorkerError>
 
 def ch : Channel<Int> = Concurrency::MakeChannel(10);    // ch : Channel<Int>
-ch -> 42;                                                // send: Bool (false if closed)
-def val = <- ch;                                         // receive: Int (blocks if empty)
+Concurrency::Send(ch, 42);                              // Bool
+def val = Concurrency::Receive(ch);                     // Option<Int>
 Concurrency::Close(ch);
 ```
 
@@ -129,7 +129,7 @@ Concurrency::Close(ch);
   element type from context, so annotate the binding: `def ch : Channel<Int> = ...`.
   It is ordinary Marmot, `where Transferable<T>`, over a primitive the module keeps
   to itself.
-- `->` (send) and `<-` (receive) are type-checked binary/unary operators
+- `Concurrency::Send(ch, value)` and `Concurrency::Receive(ch)` are typed calls.
 
 Auxiliary operations: `Concurrency::Close(ch)`, `Concurrency::IsDone(w)`,
 `Concurrency::Cancel(w)`. Like `Spawn` and `Join`, they are primitives declared in
@@ -166,7 +166,7 @@ with it.
 3. **Cancel**: `Concurrency::Cancel(w)` requests cooperative cancellation via
    `std::jthread::request_stop()`. The worker observes the request at
    safepoints: loop back-edges (`JUMP_BACK`), tail calls (`TAIL_CALL`), returns
-   (`RETURN`), and the return of any foreign call. A worker blocked in `ch -> v` or `<- ch` is woken
+   (`RETURN`), and the return of any foreign call. A worker blocked in `Send` or `Receive` is woken
    immediately, because channel waits take the stop token, and the builtin
    `Sleep` is interruptible for the same reason. On observing cancellation the
    worker terminates with the `WorkerCancelled` runtime error.
@@ -221,8 +221,8 @@ Channels provide typed message passing between workers:
 - `Concurrency::MakeChannel(capacity)` — creates a bounded `Channel<T>`, with `T` taken from context.
   A capacity below 1 is taken as 1: there is no unbuffered channel, so a send
   never waits for a receiver
-- `ch -> value` — sends a value (blocks if full, returns `Bool`)
-- `<- ch` — receives a value (blocks if empty, a `ChannelClosed` error if closed and empty)
+- `Concurrency::Send(ch, value)` waits for space, sends the value, and returns `true`. A closed channel returns `false`.
+- `Concurrency::Receive(ch)` waits for a message and returns `Some(value)`. Once the channel is closed and drained, it returns `None()`.
 - `Concurrency::Close(ch)` — closes the channel, unblocks all waiters
 
 There is no bounded or non-blocking receive at the language level: a receive

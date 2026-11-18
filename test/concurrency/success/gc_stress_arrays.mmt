@@ -1,6 +1,6 @@
 module gc_stress_arrays
 
-import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Prelude/Result.mmt" }
+import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Prelude/Option.mmt", "../../../MarmotPrelude/Prelude/Result.mmt" }
 
 import { "../../../MarmotPrelude/IO.mmt" }
 use IO.{PrintLine}
@@ -19,7 +19,7 @@ def BuildArrayWorker = fn(ch: Channel<Int>, size: Int) -> Int => {
     // array once: same allocation volume, but the reallocate-as-it-grows path
     // is no longer exercised.
     def arr : Array<Int> = [i * i for i in 0..1..size];
-    ch -> Total(arr, 0, 0, size);
+    Concurrency::Send(ch, Total(arr, 0, 0, size));
     0
 };
 
@@ -29,8 +29,8 @@ def ch2 : Channel<Int> = Concurrency::MakeChannel(1);
 def w1 = Concurrency::Spawn((ch1, 10000), BuildArrayWorker);
 def w2 = Concurrency::Spawn((ch2, 10000), BuildArrayWorker);
 
-def s1 = <- ch1;
-def s2 = <- ch2;
+def s1 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch1), "Channel closed");
+def s2 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch2), "Channel closed");
 
 PrintLine("s1=" ++ (s1 as Text));
 PrintLine("s2=" ++ (s2 as Text));

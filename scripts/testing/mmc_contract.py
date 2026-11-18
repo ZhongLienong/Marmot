@@ -87,7 +87,7 @@ def normalize_artifact(blob: bytes) -> bytes:
     if len(blob) < HEADER.size:
         raise ValueError("truncated .mmc header")
     magic, marker, major, minor, patch, reserved, flags, size, crc = HEADER.unpack_from(blob)
-    if magic != b"MBC\0" or marker != 16:
+    if magic != b"MBC\0" or marker != 17:
         raise ValueError("expected a current-format .mmc artifact")
     original = blob[HEADER.size:]
     if len(original) != size or zlib.crc32(original) != crc:

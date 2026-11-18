@@ -1717,7 +1717,7 @@ MarmotResult::ExpressionResult Parser::ParseUnaryLogicalBitwise()
 
 MarmotResult::ExpressionResult Parser::ParseUnaryArithmetic()
 {
-	if (Match(Token::Name::LEFT_ARROW, Token::Name::SINGLE_MINUS, Token::Name::SINGLE_PLUS))
+	if (Match(Token::Name::SINGLE_MINUS, Token::Name::SINGLE_PLUS))
 	{
 		Token& op = Previous();
 		return ParseUnaryLogicalBitwise()
@@ -1725,11 +1725,6 @@ MarmotResult::ExpressionResult Parser::ParseUnaryArithmetic()
 			(
 				[&op](std::unique_ptr<MarmotExpression>&& right) -> MarmotResult::ExpressionResult
 				{
-					if (op.m_token_name == Token::Name::LEFT_ARROW)
-					{
-						return std::make_unique<MarmotExpression>(MarmotExpression::Receive(op, std::move(right)));
-					}
-
 					// The smallest Int has no positive counterpart, so `-9223372036854775808` is one
 					// literal rather than a negation of a literal that is out of range.
 					if (op.m_token_name == Token::Name::SINGLE_MINUS && IsDecimalIntegerLiteral(*right))
@@ -2278,29 +2273,12 @@ MarmotResult::ExpressionResult Parser::ParsePrimary()
 
 MarmotResult::ExpressionResult Parser::ParseLogicalAnd()
 {
-	return ParseBinary(&Parser::ParseSend, Token::Name::DOUBLE_AMPERSAND);
+	return ParseBinary(&Parser::ParsePipe, Token::Name::DOUBLE_AMPERSAND);
 }
 
 MarmotResult::ExpressionResult Parser::ParseLogicalOr()
 {
 	return ParseBinary(&Parser::ParseLogicalAnd, Token::Name::DOUBLE_BAR);
-}
-
-MarmotResult::ExpressionResult Parser::ParseSend()
-{
-	return FoldWhile
-	(
-		ParsePipe(),
-		[this]() { return Match(Token::Name::THIN_ARROW); },
-		[this](std::unique_ptr<MarmotExpression>&& left) -> MarmotResult::ExpressionResult
-		{
-			const Token arrow = Previous();
-			return ParsePipe().transform([&](std::unique_ptr<MarmotExpression>&& right)
-			{
-				return std::make_unique<MarmotExpression>(MarmotExpression::Send(arrow, std::move(left), std::move(right)));
-			});
-		}
-	);
 }
 
 MarmotResult::ExpressionResult Parser::ParsePipe()

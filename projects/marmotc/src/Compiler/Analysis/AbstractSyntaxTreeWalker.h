@@ -53,8 +53,6 @@ protected:
 	virtual void operator()(MarmotExpression::Function& function);
 	virtual void operator()(MarmotExpression::Construct& construct);
 	virtual void operator()(MarmotExpression::RecordUpdate& record_update);
-	virtual void operator()(MarmotExpression::Send& send);
-	virtual void operator()(MarmotExpression::Receive& receive);
 	virtual void operator()(MarmotExpression::Array& array);
 	virtual void operator()(MarmotExpression::IndexAccess& array_get);
 	virtual void operator()(MarmotExpression::ArrayComprehension& comp);

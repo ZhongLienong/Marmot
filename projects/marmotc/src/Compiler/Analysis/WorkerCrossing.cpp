@@ -185,12 +185,6 @@ namespace
 			}
 		}
 
-		void operator()(MarmotExpression::Send& send) override
-		{
-			MarmotAbstractSyntaxTreeWalker::operator()(send);
-			Cross(OriginsOf(*send.m_value));
-		}
-
 	private:
 		Origins OriginsOf(MarmotExpression& expression) const
 		{
@@ -254,6 +248,7 @@ const WorkerCrossing* FindCallCrossing(const MarmotExpression::Call& call, const
 {
 	static const WorkerCrossing s_spawn{ { 0u, 1u }, false };
 	static const WorkerCrossing s_join{ {}, true };
+	static const WorkerCrossing s_send{ { 1u }, false };
 	if (call.m_primitive == MarmotPrimitive::Spawn)
 	{
 		return &s_spawn;
@@ -261,6 +256,10 @@ const WorkerCrossing* FindCallCrossing(const MarmotExpression::Call& call, const
 	if (call.m_primitive == MarmotPrimitive::Join)
 	{
 		return &s_join;
+	}
+	if (call.m_primitive == MarmotPrimitive::ChannelSend)
+	{
+		return &s_send;
 	}
 	if (!call.m_callee->IsExpression<MarmotExpression::NameAccess>())
 	{

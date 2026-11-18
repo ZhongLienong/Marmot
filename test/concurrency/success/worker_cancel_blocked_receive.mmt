@@ -1,6 +1,6 @@
 module worker_cancel_blocked_receive
 
-import { "../../../MarmotPrelude/Concurrency.mmt" }
+import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Prelude/Option.mmt" }
 
 import { "../../../MarmotPrelude/IO.mmt" }
 use IO.{PrintLine}
@@ -9,7 +9,7 @@ import { "../../../MarmotPrelude/System.mmt" }
 use System.{Sleep}
 
 def BlockOnChannel = fn(ch: Channel<Int>) -> Int => {
-    def v = <- ch;
+    def v = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch), "Channel closed");
     v
 };
 

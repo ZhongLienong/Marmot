@@ -787,7 +787,7 @@ namespace Disassembler
 			KindInstruction(output, "CHANNEL_SEND", executable, proc_index, offset);
 			break;
 		case VmOpCode::CHANNEL_RECEIVE:
-			SimpleInstruction(output, "CHANNEL_RECEIVE", offset);
+			KindInstruction(output, "CHANNEL_RECEIVE", executable, proc_index, offset);
 			break;
 		case VmOpCode::CHANNEL_CLOSE:
 			SimpleInstruction(output, "CHANNEL_CLOSE", offset);

@@ -1,0 +1,5 @@
+module ChannelSendRequiresTransferable
+
+import { "../../../MarmotPrelude/Concurrency.mmt" }
+
+def Forward = fn<T>(ch: Channel<T>, value: T) -> Bool => Concurrency::Send(ch, value);

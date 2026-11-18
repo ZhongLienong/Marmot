@@ -1,22 +1,22 @@
 module shared_bytecode
 
-import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Prelude/Result.mmt" }
+import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Prelude/Option.mmt", "../../../MarmotPrelude/Prelude/Result.mmt" }
 
 import { "../../../MarmotPrelude/IO.mmt" }
 use IO.{PrintLine}
 
 def Adder = fn(ch: Channel<Int>, a: Int, b: Int) -> Int => {
-    ch -> (a + b);
+    Concurrency::Send(ch, (a + b));
     0
 };
 
 def Multiplier = fn(ch: Channel<Int>, a: Int, b: Int) -> Int => {
-    ch -> (a * b);
+    Concurrency::Send(ch, (a * b));
     0
 };
 
 def Squarer = fn(ch: Channel<Int>, x: Int) -> Int => {
-    ch -> (x * x);
+    Concurrency::Send(ch, (x * x));
     0
 };
 
@@ -32,11 +32,11 @@ def w3 = Concurrency::Spawn((ch3, 9), Squarer);
 def w4 = Concurrency::Spawn((ch4, 100, 200), Adder);
 def w5 = Concurrency::Spawn((ch5, 11, 11), Multiplier);
 
-PrintLine("add(10,20)=" ++ ((<- ch1) as Text));
-PrintLine("mul(6,7)=" ++ ((<- ch2) as Text));
-PrintLine("sq(9)=" ++ ((<- ch3) as Text));
-PrintLine("add(100,200)=" ++ ((<- ch4) as Text));
-PrintLine("mul(11,11)=" ++ ((<- ch5) as Text));
+PrintLine("add(10,20)=" ++ ((Option::OptionUnwrapOrPanic(Concurrency::Receive(ch1), "Channel closed")) as Text));
+PrintLine("mul(6,7)=" ++ ((Option::OptionUnwrapOrPanic(Concurrency::Receive(ch2), "Channel closed")) as Text));
+PrintLine("sq(9)=" ++ ((Option::OptionUnwrapOrPanic(Concurrency::Receive(ch3), "Channel closed")) as Text));
+PrintLine("add(100,200)=" ++ ((Option::OptionUnwrapOrPanic(Concurrency::Receive(ch4), "Channel closed")) as Text));
+PrintLine("mul(11,11)=" ++ ((Option::OptionUnwrapOrPanic(Concurrency::Receive(ch5), "Channel closed")) as Text));
 
 Concurrency::Close(ch1);
 Concurrency::Close(ch2);

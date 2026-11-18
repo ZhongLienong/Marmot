@@ -270,6 +270,8 @@ private:
 
 	int ExecuteLoop() noexcept;
 
+	MarmotTraceable* EmptyUnion(int tag) noexcept;
+
 	int TerminateExecution(RuntimeError error) noexcept;
 
 	MARMOT_FORCE_INLINE MarmotValue TakeForeignResult(VmFFIReturnKind kind, uint8_t return_tag, MarmotValue result) noexcept;

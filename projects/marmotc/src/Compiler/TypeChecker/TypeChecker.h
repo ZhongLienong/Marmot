@@ -391,10 +391,6 @@ private:
 
 	MarmotResult::TypeResult operator()(const CheckingContext& context, MarmotExpression::UnaryPrefix& unary);
 
-	MarmotResult::TypeResult operator()(const CheckingContext& context, MarmotExpression::Send& send);
-
-	MarmotResult::TypeResult operator()(const CheckingContext& context, MarmotExpression::Receive& receive);
-
 	std::vector<const MarmotType::ClassConstraint*> MatchingMethodConstraints(const CheckingContext& context, const std::string& qualifier, const ClassInfo& info, const std::shared_ptr<MarmotType>& method, const std::vector<std::shared_ptr<MarmotType>>& arguments);
 
 	MarmotResult::TypeResult CheckConstrainedMethod(const CheckingContext& context, const Token& token, const ClassInfo& tc_info, const std::shared_ptr<MarmotType>& method_type, const MarmotType::ClassConstraint& constraint, std::vector<std::shared_ptr<MarmotType>>& arg_results);

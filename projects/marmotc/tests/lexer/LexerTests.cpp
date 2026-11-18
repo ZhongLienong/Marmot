@@ -58,7 +58,7 @@ TEST_CASE("Lexer recognizes the reserved vocabulary without reserving contextual
 TEST_CASE("Synthetic fixed tokens agree with source spellings and preserve their anchor", "[lexer][token]")
 {
 	const std::string source_code =
-		"-> <- => ( ) { } [ ] , . .. ; + ++ - << >> % * / | || |> ^ & && ! != = == > >= < <= : :: := ~ # "
+		"-> => ( ) { } [ ] , . .. ; + ++ - << >> % * / | || |> ^ & && ! != = == > >= < <= : :: := ~ # "
 		"Float Int Byte Word Text Bool Unit Array Never Range Worker Channel "
 		"else false for in if true def fn as import foreign case then with match "
 		"module export public private use class instance where type alias deriving";

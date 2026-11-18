@@ -220,17 +220,6 @@ void MarmotAbstractSyntaxTreeWalker::operator()(MarmotExpression::RecordUpdate& 
 	}
 }
 
-void MarmotAbstractSyntaxTreeWalker::operator()(MarmotExpression::Send& send)
-{
-	VisitExpression(send.m_channel);
-	VisitExpression(send.m_value);
-}
-
-void MarmotAbstractSyntaxTreeWalker::operator()(MarmotExpression::Receive& receive)
-{
-	VisitExpression(receive.m_channel);
-}
-
 void MarmotAbstractSyntaxTreeWalker::operator()(MarmotExpression::Array& array)
 {
 	for (std::unique_ptr<MarmotExpression>& element : array.m_elems)

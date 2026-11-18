@@ -153,13 +153,6 @@ void CellCrossesWorkerDiagnostic::WarnIfFunctionCarriesCells(MarmotExpression& v
 	}
 }
 
-void CellCrossesWorkerDiagnostic::operator()(MarmotExpression::Send& send)
-{
-	MarmotAbstractSyntaxTreeWalker::operator()(send);
-	WarnIfCell(*send.m_value, send.m_arrow);
-	WarnIfFunctionCarriesCells(*send.m_value, send.m_arrow);
-}
-
 void CellCrossesWorkerDiagnostic::operator()(MarmotExpression::Call& call)
 {
 	MarmotAbstractSyntaxTreeWalker::operator()(call);

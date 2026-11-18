@@ -3,6 +3,7 @@ module spawn_copies_reachable_globals
 import
 {
 	"../../../MarmotPrelude/Concurrency.mmt",
+	"../../../MarmotPrelude/Prelude/Option.mmt",
 	"../../../MarmotPrelude/Prelude/Result.mmt",
 	"../../../MarmotPrelude/IO.mmt"
 }
@@ -33,12 +34,12 @@ def secret = 42;
 def ReadSecret = fn() -> Int => secret;
 def RunReceived = fn(ch : Channel<fn() -> Int>) -> Int =>
 {
-	def received = <- ch;
+	def received = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch), "Channel closed");
 	received()
 };
 def functions : Channel<fn() -> Int> = Concurrency::MakeChannel(1);
 def runner = Concurrency::Spawn(functions, RunReceived);
-def sent = functions -> ReadSecret;
+def sent = Concurrency::Send(functions, ReadSecret);
 PrintLine("through a channel: " ++ (Concurrency::JoinedOrPanic(Concurrency::Join(runner)) as Text));
 
 // A global brought twice is taken once, so the worker's writes to its copy of a
@@ -52,10 +53,10 @@ def BumpCounter = fn() -> Int =>
 def BumpThenRun = fn(ch : Channel<fn() -> Int>) -> Int =>
 {
 	def first = BumpCounter();
-	def received = <- ch;
+	def received = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch), "Channel closed");
 	(first * 10) + received()
 };
 def bumps : Channel<fn() -> Int> = Concurrency::MakeChannel(1);
 def bumper = Concurrency::Spawn(bumps, BumpThenRun);
-def bump_sent = bumps -> BumpCounter;
+def bump_sent = Concurrency::Send(bumps, BumpCounter);
 PrintLine("one copy per worker: " ++ (Concurrency::JoinedOrPanic(Concurrency::Join(bumper)) as Text) ++ ", main still has " ++ (*counter as Text));

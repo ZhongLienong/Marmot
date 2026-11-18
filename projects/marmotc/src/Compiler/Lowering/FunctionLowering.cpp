@@ -25,6 +25,10 @@ namespace
 			return MarmotIROp::ChannelNew;
 		case MarmotPrimitive::ChannelClose:
 			return MarmotIROp::ChannelClose;
+		case MarmotPrimitive::ChannelSend:
+			return MarmotIROp::Send;
+		case MarmotPrimitive::ChannelReceive:
+			return MarmotIROp::Receive;
 		case MarmotPrimitive::WorkerIsDone:
 			return MarmotIROp::WorkerIsDone;
 		case MarmotPrimitive::WorkerCancel:

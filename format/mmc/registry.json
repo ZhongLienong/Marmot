@@ -1,5 +1,5 @@
 {
-  "format_marker": 16,
+  "format_marker": 17,
   "builtin_abi_version": 1,
   "opcodes": [
     {
@@ -970,8 +970,9 @@
     {
       "id": 158,
       "name": "CHANNEL_RECEIVE",
-      "length": 1,
-      "category": "Concurrency"
+      "length": 2,
+      "category": "Concurrency",
+      "description": "[op][kind] pop a channel and receive an option; kind 1 when a message is a pointer"
     },
     {
       "id": 159,

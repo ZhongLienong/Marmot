@@ -1,0 +1,12 @@
+module ChannelCallGrouping
+
+import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/IO.mmt", "../../../MarmotPrelude/Prelude/Option.mmt" }
+
+def ch: Channel<Bool> = Concurrency::MakeChannel(1);
+def sent = Concurrency::Send(ch, true && false);
+def value = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch), "Missing message");
+IO::PrintLine("sent=" ++ (sent as Text) ++ ", payload=" ++ (value as Text));
+
+def number = -2;
+// The adjacent < and - must lex separately.
+IO::PrintLine((number<-1) as Text);

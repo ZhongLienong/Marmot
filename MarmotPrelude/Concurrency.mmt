@@ -1,10 +1,11 @@
 module Concurrency
-import { "./Prelude/Result.mmt", "./Prelude/Panic.mmt", "./ArrayUtil.mmt", "./Transferable.mmt" }
+import { "./Prelude/Result.mmt", "./Prelude/Option.mmt", "./Prelude/Panic.mmt", "./ArrayUtil.mmt", "./Transferable.mmt" }
 use Result.{
     Result
 }
-public export { Spawn, Join, MakeChannel, Close, IsDone, Cancel, WorkerError, JoinedOrPanic, ParallelMap }
-// Spawn, Join, Close, IsDone and Cancel are each one instruction of the VM, declared
+use Option.{ Option }
+public export { Spawn, Join, MakeChannel, Send, Receive, Close, IsDone, Cancel, WorkerError, JoinedOrPanic, ParallelMap }
+// Spawn, Join, Send, Receive, Close, IsDone and Cancel are each one instruction of the VM, declared
 // as a `foreign` with no library whose symbol names the instruction: a primitive. A
 // primitive is called like a function, but it is not a value.
 //
@@ -24,6 +25,8 @@ foreign "MARMOT_PRIMITIVE_Join" Join: fn(Worker < T >) -> Result < T, WorkerErro
 // can go through a channel, so only such a channel can be made.
 foreign "MARMOT_PRIMITIVE_ChannelNew" ChannelNew: fn(Int) -> Channel < T >;
 def MakeChannel = fn < T >(capacity: Int) -> Channel < T > where Transferable < T > => ChannelNew(capacity);
+foreign "MARMOT_PRIMITIVE_ChannelSend" Send: fn(Channel < T >, T) -> Bool;
+foreign "MARMOT_PRIMITIVE_ChannelReceive" Receive: fn(Channel < T >) -> Option < T >;
 foreign "MARMOT_PRIMITIVE_ChannelClose" Close: fn(Channel < T >) -> Unit;
 foreign "MARMOT_PRIMITIVE_WorkerIsDone" IsDone: fn(Worker < T >) -> Bool;
 foreign "MARMOT_PRIMITIVE_WorkerCancel" Cancel: fn(Worker < T >) -> Bool;

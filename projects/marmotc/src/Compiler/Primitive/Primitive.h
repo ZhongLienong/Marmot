@@ -12,6 +12,8 @@ enum class MarmotPrimitive
 	Join,
 	ChannelNew,
 	ChannelClose,
+	ChannelSend,
+	ChannelReceive,
 	WorkerIsDone,
 	WorkerCancel,
 #define MARMOT_BINARY_OPERATOR(token, name, integer, shift) name,

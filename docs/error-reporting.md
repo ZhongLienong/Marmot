@@ -103,7 +103,6 @@ Current `RuntimeErrorCode` values:
 - `InvalidConversion`
 - `InternalFFITypeError`
 - `OutOfMemory`
-- `ChannelClosed`
 
 `RuntimeErrorCodeName(...)` provides the current string form used in rendered
 and machine-readable output.

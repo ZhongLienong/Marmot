@@ -3,7 +3,8 @@ module CellCrossesWorkerChannel
 import
 {
 	"../../../MarmotPrelude/IO.mmt",
-	"../../../MarmotPrelude/Concurrency.mmt"
+	"../../../MarmotPrelude/Concurrency.mmt",
+	"../../../MarmotPrelude/Prelude/Option.mmt"
 }
 
 // Sending a cell through a channel, or mapping over cells in parallel, copies
@@ -11,8 +12,8 @@ import
 
 def channel : Channel<Ref<Int>> = Concurrency::MakeChannel(1);
 def original = ref 5;
-channel -> original;
-def received = <- channel;
+Concurrency::Send(channel, original);
+def received = Option::OptionUnwrapOrPanic(Concurrency::Receive(channel), "Channel closed");
 received := 6;
 def changed = *received;
 

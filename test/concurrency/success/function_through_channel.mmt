@@ -3,6 +3,7 @@ module FunctionThroughChannel
 import
 {
 	"../../../MarmotPrelude/Concurrency.mmt",
+	"../../../MarmotPrelude/Prelude/Option.mmt",
 	"../../../MarmotPrelude/Prelude/Result.mmt",
 	"../../../MarmotPrelude/IO.mmt"
 }
@@ -13,17 +14,17 @@ import
 def scale = 3;
 def channel : Channel<fn(Int) -> Int> = Concurrency::MakeChannel(1);
 
-channel -> fn(n : Int) -> Int => n * scale;
-def received = <- channel;
+Concurrency::Send(channel, fn(n : Int) -> Int => n * scale);
+def received = Option::OptionUnwrapOrPanic(Concurrency::Receive(channel), "Channel closed");
 IO::PrintLine("received applies: " ++ (received(14) as Text));
 
 // And back out of a worker that was handed the channel.
 def worker = Concurrency::Spawn(channel, fn(ch : Channel<fn(Int) -> Int>) -> Int =>
 {
-	ch -> fn(n : Int) -> Int => n + 100;
+	Concurrency::Send(ch, fn(n : Int) -> Int => n + 100);
 	0
 });
-def from_worker = <- channel;
+def from_worker = Option::OptionUnwrapOrPanic(Concurrency::Receive(channel), "Channel closed");
 IO::PrintLine("from the worker: " ++ (from_worker(5) as Text));
 IO::PrintLine("joined: " ++ (Concurrency::JoinedOrPanic(Concurrency::Join(worker)) as Text));
 Concurrency::Close(channel);

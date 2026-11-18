@@ -1,14 +1,14 @@
 module channel_close_unblock
 
-import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Prelude/Result.mmt" }
+import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Prelude/Option.mmt" }
 
 import { "../../../MarmotPrelude/IO.mmt" }
 use IO.{PrintLine}
 
 def Sender = fn(ch : Channel<Text>) -> Int =>
 {
-    ch -> "first";
-    ch -> "second";
+    Concurrency::Send(ch, "first");
+    Concurrency::Send(ch, "second");
     Concurrency::Close(ch);
     0
 };
@@ -16,11 +16,13 @@ def Sender = fn(ch : Channel<Text>) -> Int =>
 def ch : Channel<Text> = Concurrency::MakeChannel(2);
 def w = Concurrency::Spawn(ch, Sender);
 
-def msg1 = <- ch;
-def msg2 = <- ch;
+def msg1 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch), "Missing first message");
+def msg2 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch), "Missing second message");
 
 PrintLine("msg1=[" ++ msg1 ++ "]");
 PrintLine("msg2=[" ++ msg2 ++ "]");
 
 def r = Concurrency::JoinedOrPanic(Concurrency::Join(w));
 PrintLine("worker_done=true");
+PrintLine("drained=" ++ (Option::OptionIsNone(Concurrency::Receive(ch)) as Text));
+PrintLine("sent_after_close=" ++ (Concurrency::Send(ch, "late") as Text));

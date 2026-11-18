@@ -180,6 +180,17 @@ namespace
 			&& error_fields[1u].size() == 1u && error_fields[1u][0u]->IsType<MarmotType::TextType>();
 	}
 
+	// The VM uses tag 0 for a closed and drained channel and tag 1 for a message.
+	bool IsReceiveOutcome(const std::shared_ptr<MarmotType>& outcome, const std::shared_ptr<MarmotType>& value)
+	{
+		if (!outcome->IsType<MarmotType::UnionType>())
+		{
+			return false;
+		}
+		const std::vector<std::vector<std::shared_ptr<MarmotType>>> fields = FieldsByTag(outcome->GetType<MarmotType::UnionType>());
+		return fields.size() == 2u && fields[0u].empty() && fields[1u].size() == 1u && *fields[1u][0u] == *value;
+	}
+
 	std::unordered_set<int> CollectTypeVariableIds(const std::shared_ptr<MarmotType>& type)
 	{
 		std::unordered_set<int> type_variable_ids;
@@ -2625,8 +2636,6 @@ void TypeChecker::ResolveRecordedTypes(const CheckingContext& context, MarmotExp
 		void operator()(MarmotExpression::Tuple& node) const { Resolve(node.m_elements); }
 		void operator()(MarmotExpression::Literal&) const {}
 		void operator()(MarmotExpression::UnaryPrefix& node) const { Resolve(node.m_expr); }
-		void operator()(MarmotExpression::Send& node) const { Resolve(node.m_channel); Resolve(node.m_value); }
-		void operator()(MarmotExpression::Receive& node) const { Resolve(node.m_channel); }
 		void operator()(MarmotExpression::NameAccess&) const {}
 
 		void operator()(MarmotExpression::Call& node) const
@@ -3345,6 +3354,11 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 		{
 			return std::unexpected(std::move(*error));
 		}
+		if (foreign.DeclaredPrimitive() == MarmotPrimitive::ChannelSend)
+		{
+			MarmotType::FunctionType& signature = foreign.m_type->GetType<MarmotType::FunctionType>();
+			signature.m_constraints.push_back(MarmotType::ClassConstraint(std::string(TRANSFERABLE_CLASS_NAME), { signature.m_param_types[1u] }));
+		}
 	}
 
 	BindValue(context, foreign.m_function_name, foreign.m_binding, foreign.m_type);
@@ -3390,6 +3404,21 @@ std::optional<CompilerError> TypeChecker::CheckPrimitiveDeclaration(const Marmot
 			return { takes_one && params[0u]->IsType<MarmotType::IntegerType>() && result->IsType<MarmotType::ChannelType>(), "fn(Int) -> Channel<T>" };
 		case MarmotPrimitive::ChannelClose:
 			return { takes_one && params[0u]->IsType<MarmotType::ChannelType>() && result->IsType<MarmotType::UnitType>(), "fn(Channel<T>) -> Unit" };
+		case MarmotPrimitive::ChannelSend:
+			return
+			{
+				params.size() == 2u && params[0u]->IsType<MarmotType::ChannelType>()
+					&& *params[0u]->GetType<MarmotType::ChannelType>().m_element_type == *params[1u]
+					&& result->IsType<MarmotType::BoolType>(),
+				"fn(Channel<T>, T) -> Bool"
+			};
+		case MarmotPrimitive::ChannelReceive:
+			return
+			{
+				takes_one && params[0u]->IsType<MarmotType::ChannelType>()
+					&& IsReceiveOutcome(result, params[0u]->GetType<MarmotType::ChannelType>().m_element_type),
+				"fn(Channel<T>) -> R, a union whose member 0 holds nothing and member 1 holds T"
+			};
 		case MarmotPrimitive::WorkerIsDone:
 		case MarmotPrimitive::WorkerCancel:
 			return { takes_one && params[0u]->IsType<MarmotType::WorkerType>() && result->IsType<MarmotType::BoolType>(), "fn(Worker<T>) -> Bool" };
@@ -4891,66 +4920,6 @@ std::optional<CompilerError> TypeChecker::CheckSpawnArgument(const CheckingConte
 	}
 
 	return std::nullopt;
-}
-
-MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context, MarmotExpression::Send& send)
-{
-	return Evaluate(context, send.m_channel)
-		.and_then
-		(
-			[this, &send, &context](std::shared_ptr<MarmotType>&& channel_type) -> MarmotResult::TypeResult
-			{
-				std::shared_ptr<MarmotType> resolved_channel_type = ApplySubstitution(context, channel_type);
-				if (!resolved_channel_type->IsType<MarmotType::ChannelType>())
-				{
-					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Send expression type error: left operand must be Channel<T>", send.m_arrow, m_file_name, m_source_lines, resolved_channel_type));
-				}
-
-				std::shared_ptr<MarmotType> element_type = resolved_channel_type->GetType<MarmotType::ChannelType>().m_element_type;
-				const CheckingContext expected_context = context.WithExpectedType(element_type);
-				return Evaluate(expected_context, send.m_value)
-					.and_then
-					(
-						[this, &send, element_type, &expected_context](std::shared_ptr<MarmotType>&& value_type) mutable -> MarmotResult::TypeResult
-						{
-							std::shared_ptr<MarmotType> actual_value_type = std::move(value_type);
-							MarmotResult::TypeResult unify_result = Unify(expected_context, send.m_arrow, actual_value_type, element_type, UnifyDiagnosticMode::ActualExpected);
-							if (!unify_result.has_value())
-							{
-								return unify_result;
-							}
-
-							std::shared_ptr<MarmotType> resolved_element_type = ApplySubstitution(expected_context, element_type);
-							if (std::optional<CompilerError> error = EnsureTransferable(expected_context, send.m_arrow, resolved_element_type))
-							{
-								return std::unexpected(std::move(*error));
-							}
-
-							send.m_type_data = MarmotType::MakeLiteralType<MarmotType::BoolType>();
-							return send.m_type_data;
-						}
-					);
-			}
-		);
-}
-
-MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context, MarmotExpression::Receive& receive)
-{
-	return Evaluate(context, receive.m_channel)
-		.and_then
-		(
-			[this, &receive, &context](std::shared_ptr<MarmotType>&& channel_type) -> MarmotResult::TypeResult
-			{
-				std::shared_ptr<MarmotType> resolved_channel_type = ApplySubstitution(context, channel_type);
-				if (!resolved_channel_type->IsType<MarmotType::ChannelType>())
-				{
-					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Receive expression type error: expected Channel<T>", receive.m_arrow, m_file_name, m_source_lines, resolved_channel_type));
-				}
-
-				receive.m_type_data = ApplySubstitution(context, resolved_channel_type->GetType<MarmotType::ChannelType>().m_element_type);
-				return receive.m_type_data;
-			}
-		);
 }
 
 std::shared_ptr<MarmotType> TypeChecker::NarrowClassMethodType(const CheckingContext& context, const std::string& class_name, const ClassInfo& class_info, const std::shared_ptr<MarmotType>& declared_method_type, const std::vector<std::shared_ptr<MarmotType>>& known_arg_types, size_t arity)

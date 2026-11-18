@@ -36,7 +36,7 @@ Whitespace separates tokens and is otherwise insignificant.
 **Type names.** `Array` `Bool` `Byte` `Channel` `Float` `Int` `Never` `Range`
 `Text` `Unit` `Word` `Worker`
 
-**Symbols.** `-> <- => ( ) { } [ ] , . .. ; + ++ - << >> % * / | || |> ^ & && !
+**Symbols.** `-> => ( ) { } [ ] , . .. ; + ++ - << >> % * / | || |> ^ & && !
 != = == > >= < <= : :: := ~ #`
 
 ## Program
@@ -144,20 +144,19 @@ Different levels may be mixed without parentheses: `a + b * c` means
 | 1 | `e as Type` |
 | 2 | `e \|\| e` |
 | 3 | `e && e` |
-| 4 | `ch -> e` (send on a channel) |
-| 5 | `e \|> e` (pipe; `\|> match ...` is allowed) |
-| 6 | `e \| e` |
-| 7 | `e ^ e` |
-| 8 | `e & e` |
-| 9 | `e == e`, `e != e` |
-| 10 | `e < e`, `e <= e`, `e > e`, `e >= e` |
-| 11 | `start..end`, `start..step..end` |
-| 12 | `e << e`, `e >> e` |
-| 13 | `e + e`, `e - e`, `e ++ e` (concatenation) |
-| 14 | `e * e`, `e / e`, `e % e` |
-| 15 | `!e`, `~e`, `#e` (length), `+e`, `-e`, `<- ch` (receive), `ref e`, `*e` (dereference) |
-| 16 | `f(args)`, `e[index]`, `e.field`, `Module::name` |
-| 17 | primary |
+| 4 | `e \|> e` (pipe; `\|> match ...` is allowed) |
+| 5 | `e \| e` |
+| 6 | `e ^ e` |
+| 7 | `e & e` |
+| 8 | `e == e`, `e != e` |
+| 9 | `e < e`, `e <= e`, `e > e`, `e >= e` |
+| 10 | `start..end`, `start..step..end` |
+| 11 | `e << e`, `e >> e` |
+| 12 | `e + e`, `e - e`, `e ++ e` (concatenation) |
+| 13 | `e * e`, `e / e`, `e % e` |
+| 14 | `!e`, `~e`, `#e` (length), `+e`, `-e`, `ref e`, `*e` (dereference) |
+| 15 | `f(args)`, `e[index]`, `e.field`, `Module::name` |
+| 16 | primary |
 
 ```
 primary      = INTEGER | FLOAT | TEXT | 'true' | 'false'
@@ -200,7 +199,7 @@ compound initializer, as in `ref (a + b)`; a write's right operand is a full
 expression, as in `counter := (*counter) + 1`.
 
 A `function` that is the right operand of `|>` is one stage of the pipeline: its
-body is parsed as a pipe operand (level 6 and tighter), so it ends before the
+body is parsed as a pipe operand (level 5 and tighter), so it ends before the
 next `|>`. `x |> fn(a) => f(a) |> g` is `g(f(x))`, and a later stage cannot name
 `a`. Any other function's body is a whole `expression`.
 

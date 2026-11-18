@@ -215,16 +215,6 @@ Lowering::Lowered Lowering::FunctionLowering::Lower(const MarmotExpression& expr
 			return m_self.LowerTuple(tuple);
 		}
 
-		Lowered operator()(const MarmotExpression::Send& send) const
-		{
-			return m_self.LowerOperation(MarmotIROp::Send, m_self.Concrete(send.m_type_data), { send.m_channel.get(), send.m_value.get() }, {}, send.m_arrow.m_line);
-		}
-
-		Lowered operator()(const MarmotExpression::Receive& receive) const
-		{
-			return m_self.LowerOperation(MarmotIROp::Receive, m_self.Concrete(receive.m_type_data), { receive.m_channel.get() }, {}, receive.m_arrow.m_line);
-		}
-
 		Lowered operator()(const MarmotExpression::Construct& construct) const
 		{
 			return m_self.LowerConstruct(construct);

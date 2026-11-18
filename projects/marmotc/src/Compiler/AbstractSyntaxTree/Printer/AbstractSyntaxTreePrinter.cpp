@@ -63,10 +63,6 @@ namespace
 
 		void operator()(const MarmotExpression::UnaryPrefix& unary, int depth = 0) const;
 
-		void operator()(const MarmotExpression::Send& send, int depth = 0) const;
-
-		void operator()(const MarmotExpression::Receive& receive, int depth = 0) const;
-
 		void operator()(const MarmotExpression::Call& call, int depth = 0) const;
 
 		void operator()(const MarmotExpression::MemberAccess& get, int depth = 0) const;
@@ -322,24 +318,6 @@ void PrintAbstractSyntaxTree::operator()(const MarmotExpression::UnaryPrefix& un
 	PrintWithIndentation(depth + 1, "Operator: " + unary.m_op.m_lexeme);
 	PrintWithIndentation(depth + 1, "Operand: ");
 	Visit(unary.m_expr, depth + 2);
-	PrintWithIndentation(depth, "}");
-}
-
-void PrintAbstractSyntaxTree::operator()(const MarmotExpression::Send& send, int depth) const
-{
-	PrintWithIndentation(depth, "Send {");
-	PrintWithIndentation(depth + 1, "Channel: ");
-	Visit(send.m_channel, depth + 2);
-	PrintWithIndentation(depth + 1, "Value: ");
-	Visit(send.m_value, depth + 2);
-	PrintWithIndentation(depth, "}");
-}
-
-void PrintAbstractSyntaxTree::operator()(const MarmotExpression::Receive& receive, int depth) const
-{
-	PrintWithIndentation(depth, "Receive {");
-	PrintWithIndentation(depth + 1, "Channel: ");
-	Visit(receive.m_channel, depth + 2);
 	PrintWithIndentation(depth, "}");
 }
 

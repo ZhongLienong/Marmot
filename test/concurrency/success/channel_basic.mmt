@@ -1,22 +1,22 @@
 module channel_basic
 
-import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Prelude/Result.mmt" }
+import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Prelude/Option.mmt", "../../../MarmotPrelude/Prelude/Result.mmt" }
 
 import { "../../../MarmotPrelude/IO.mmt" }
 use IO.{PrintLine}
 
 def Producer = fn(ch: Channel<Text>) -> Int => {
-    ch -> "message1";
-    ch -> "message2";
-    ch -> "done";
+    Concurrency::Send(ch, "message1");
+    Concurrency::Send(ch, "message2");
+    Concurrency::Send(ch, "done");
     0
 };
 
 def ch : Channel<Text> = Concurrency::MakeChannel(10);
 def w = Concurrency::Spawn(ch, Producer);
-def msg1 = <- ch;
-def msg2 = <- ch;
-def msg3 = <- ch;
+def msg1 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch), "Channel closed");
+def msg2 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch), "Channel closed");
+def msg3 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch), "Channel closed");
 PrintLine("Received: " ++ msg1 ++ ", " ++ msg2 ++ ", " ++ msg3);
 Concurrency::Close(ch);
 def r = Concurrency::JoinedOrPanic(Concurrency::Join(w));

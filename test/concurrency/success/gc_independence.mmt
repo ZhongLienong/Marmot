@@ -1,6 +1,6 @@
 module gc_independence
 
-import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Prelude/Result.mmt" }
+import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Prelude/Option.mmt", "../../../MarmotPrelude/Prelude/Result.mmt" }
 
 import { "../../../MarmotPrelude/IO.mmt" }
 use IO.{PrintLine}
@@ -25,7 +25,7 @@ def AccumulatePairs = fn(i: Int, sum: Int, count: Int) -> Int =>
     };
 
 def AllocHeavyWorker = fn(ch: Channel<Int>, count: Int) -> Int => {
-    ch -> AccumulatePairs(0, 0, count);
+    Concurrency::Send(ch, AccumulatePairs(0, 0, count));
     0
 };
 
@@ -39,10 +39,10 @@ def w2 = Concurrency::Spawn((ch2, 100000), AllocHeavyWorker);
 def w3 = Concurrency::Spawn((ch3, 100000), AllocHeavyWorker);
 def w4 = Concurrency::Spawn((ch4, 100000), AllocHeavyWorker);
 
-def s1 = <- ch1;
-def s2 = <- ch2;
-def s3 = <- ch3;
-def s4 = <- ch4;
+def s1 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch1), "Channel closed");
+def s2 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch2), "Channel closed");
+def s3 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch3), "Channel closed");
+def s4 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch4), "Channel closed");
 
 PrintLine("s1=" ++ (s1 as Text));
 PrintLine("s2=" ++ (s2 as Text));

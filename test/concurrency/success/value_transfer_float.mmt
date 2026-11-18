@@ -1,26 +1,26 @@
 module value_transfer_float
 
-import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Prelude/Result.mmt" }
+import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Prelude/Option.mmt", "../../../MarmotPrelude/Prelude/Result.mmt" }
 
 import { "../../../MarmotPrelude/IO.mmt" }
 use IO.{PrintLine}
 
 def FloatWorker = fn(ch : Channel<Float>) -> Int =>
 {
-    ch -> 3.14;
-    ch -> -0.001;
-    ch -> 0.0;
-    ch -> 100000.5;
+    Concurrency::Send(ch, 3.14);
+    Concurrency::Send(ch, -0.001);
+    Concurrency::Send(ch, 0.0);
+    Concurrency::Send(ch, 100000.5);
     0
 };
 
 def ch : Channel<Float> = Concurrency::MakeChannel(4);
 def w = Concurrency::Spawn(ch, FloatWorker);
 
-def v1 = <- ch;
-def v2 = <- ch;
-def v3 = <- ch;
-def v4 = <- ch;
+def v1 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch), "Channel closed");
+def v2 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch), "Channel closed");
+def v3 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch), "Channel closed");
+def v4 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch), "Channel closed");
 
 PrintLine("v1=" ++ (v1 as Text));
 PrintLine("v2=" ++ (v2 as Text));

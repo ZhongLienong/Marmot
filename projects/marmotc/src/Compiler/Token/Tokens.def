@@ -1,7 +1,6 @@
 // Token kind, fixed spelling (empty for source-dependent tokens), reserved keyword.
 
 MARMOT_TOKEN(THIN_ARROW, "->", false)
-MARMOT_TOKEN(LEFT_ARROW, "<-", false)
 MARMOT_TOKEN(FAT_ARROW, "=>", false)
 MARMOT_TOKEN(LEFT_PAREN, "(", false)
 MARMOT_TOKEN(RIGHT_PAREN, ")", false)

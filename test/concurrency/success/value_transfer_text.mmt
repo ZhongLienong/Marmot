@@ -1,26 +1,26 @@
 module value_transfer_text
 
-import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Prelude/Result.mmt" }
+import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Prelude/Option.mmt", "../../../MarmotPrelude/Prelude/Result.mmt" }
 
 import { "../../../MarmotPrelude/IO.mmt" }
 use IO.{PrintLine}
 
 def TextWorker = fn(ch : Channel<Text>) -> Int =>
 {
-    ch -> "hello world";
-    ch -> "";
-    ch -> "special chars: !@#$%^&*()";
-    ch -> "line1\nline2";
+    Concurrency::Send(ch, "hello world");
+    Concurrency::Send(ch, "");
+    Concurrency::Send(ch, "special chars: !@#$%^&*()");
+    Concurrency::Send(ch, "line1\nline2");
     0
 };
 
 def ch : Channel<Text> = Concurrency::MakeChannel(4);
 def w = Concurrency::Spawn(ch, TextWorker);
 
-def v1 = <- ch;
-def v2 = <- ch;
-def v3 = <- ch;
-def v4 = <- ch;
+def v1 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch), "Channel closed");
+def v2 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch), "Channel closed");
+def v3 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch), "Channel closed");
+def v4 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch), "Channel closed");
 
 PrintLine("v1=[" ++ v1 ++ "]");
 PrintLine("v2=[" ++ v2 ++ "]");

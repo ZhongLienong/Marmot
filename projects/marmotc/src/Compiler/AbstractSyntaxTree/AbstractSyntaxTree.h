@@ -457,23 +457,6 @@ public:
 		UnaryPrefix(const Token& op, std::unique_ptr<MarmotExpression>&& expr);
 	};
 
-	struct Send : BaseExpression
-	{
-		Token m_arrow;
-		std::unique_ptr<MarmotExpression> m_channel;
-		std::unique_ptr<MarmotExpression> m_value;
-
-		Send(const Token& arrow, std::unique_ptr<MarmotExpression>&& channel, std::unique_ptr<MarmotExpression>&& value);
-	};
-
-	struct Receive : BaseExpression
-	{
-		Token m_arrow;
-		std::unique_ptr<MarmotExpression> m_channel;
-
-		Receive(const Token& arrow, std::unique_ptr<MarmotExpression>&& channel);
-	};
-
 	struct NameAccess : BaseExpression
 	{
 		Token m_name;
@@ -688,7 +671,7 @@ public:
 	};
 
 private:
-	using ExpressionUnion = std::variant<As, Binary, Group, Tuple, Literal, UnaryPrefix, Send, Receive, NameAccess, Call, Function, Construct, RecordUpdate, IfElse, MemberAccess, Array, IndexAccess, ArrayComprehension, RangeBinary, RangeTernary, Block, Match, Case, For>;
+	using ExpressionUnion = std::variant<As, Binary, Group, Tuple, Literal, UnaryPrefix, NameAccess, Call, Function, Construct, RecordUpdate, IfElse, MemberAccess, Array, IndexAccess, ArrayComprehension, RangeBinary, RangeTernary, Block, Match, Case, For>;
 	ExpressionUnion m_variant;
 
 public:
@@ -747,14 +730,6 @@ public:
 			else if constexpr (std::is_same_v<T, MarmotExpression::UnaryPrefix>)
 			{
 				return node.m_expr->template Contains<Kind>();
-			}
-			else if constexpr (std::is_same_v<T, MarmotExpression::Send>)
-			{
-				return node.m_channel->template Contains<Kind>() || node.m_value->template Contains<Kind>();
-			}
-			else if constexpr (std::is_same_v<T, MarmotExpression::Receive>)
-			{
-				return node.m_channel->template Contains<Kind>();
 			}
 			else if constexpr (std::is_same_v<T, MarmotExpression::Group>)
 			{

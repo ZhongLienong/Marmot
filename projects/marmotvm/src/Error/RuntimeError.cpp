@@ -36,8 +36,6 @@ std::string_view RuntimeErrorCodeName(RuntimeErrorCode code)
 		return "InvalidConversion";
 	case RuntimeErrorCode::OutOfMemory:
 		return "OutOfMemory";
-	case RuntimeErrorCode::ChannelClosed:
-		return "ChannelClosed";
 	default:
 		return "None";
 	}
@@ -68,7 +66,6 @@ namespace
 		case RuntimeErrorCode::DivisionByZero:
 		case RuntimeErrorCode::WorkerCancelled:
 		case RuntimeErrorCode::InvalidConversion:
-		case RuntimeErrorCode::ChannelClosed:
 		default:
 			return false;
 		}

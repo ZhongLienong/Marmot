@@ -1,12 +1,12 @@
 module worker_many_spawn
 
-import { "../../../MarmotPrelude/Concurrency.mmt" }
+import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Prelude/Option.mmt" }
 
 import { "../../../MarmotPrelude/IO.mmt" }
 use IO.{PrintLine}
 
 def IdentityWorker = fn(ch: Channel<Int>, val: Int) -> Int => {
-    ch -> val;
+    Concurrency::Send(ch, val);
     0
 };
 
@@ -21,7 +21,7 @@ for i in 0..1..n
 
 // Receiving accumulates, so it becomes a tail-recursive helper.
 def Collect = fn(source: Channel<Int>, j: Int, sum: Int, limit: Int) -> Int =>
-    if j >= limit then sum else Collect(source, j + 1, sum + (<- source), limit);
+    if j >= limit then sum else Collect(source, j + 1, sum + (Option::OptionUnwrapOrPanic(Concurrency::Receive(source), "Channel closed")), limit);
 
 def sum = Collect(ch, 0, 0, n);
 

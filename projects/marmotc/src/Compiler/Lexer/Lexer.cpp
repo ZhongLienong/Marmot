@@ -603,11 +603,6 @@ MarmotResult::TokenResult Lexer::MatchGreater()
 
 MarmotResult::TokenResult Lexer::MatchLess()
 {
-	if (MatchNext('-'))
-	{
-		return MakeTokenResult(Token::Name::LEFT_ARROW);
-	}
-
 	if (MatchNext('<'))
 	{
 		return MatchLeftShift();

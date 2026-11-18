@@ -20,8 +20,7 @@ enum class RuntimeErrorCode
 	WorkerCancelled,
 	WorkerExited,
 	InvalidConversion,
-	OutOfMemory,
-	ChannelClosed
+	OutOfMemory
 };
 
 enum class RuntimeDiagnosticKind

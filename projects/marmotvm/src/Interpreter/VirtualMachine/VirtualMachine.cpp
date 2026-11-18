@@ -577,22 +577,24 @@ MARMOT_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(VmOpCode inst
 	}
 	case VmOpCode::CHANNEL_RECEIVE:
 	{
+		static constexpr int s_none_tag = 0;
+		static constexpr int s_some_tag = 1;
+		const uint16_t payload_shape = ReadByte(ip) != VmOpCode{ 0u } ? VM_FIRST_FIELD_SHAPE : VM_SCALAR_SHAPE;
 		const int channel_id = static_cast<int>(Pop().GetInteger());
-		ChannelReceiveResult received_value = ChannelRegistry::GetInstance().Receive(channel_id, m_stop_token);
+		const ChannelReceiveResult received_value = ChannelRegistry::GetInstance().Receive(channel_id, m_stop_token);
 		if (received_value.m_status == ChannelOpStatus::Cancelled)
 		{
-			m_instruction_pointer = ip;
 			static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::WorkerCancelled, "Worker cancelled.", GetLine())));
 			return false;
 		}
 		if (received_value.m_status == ChannelOpStatus::Closed)
 		{
-			m_instruction_pointer = ip;
-			static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::ChannelClosed, "Cannot receive from a closed and empty channel.", GetLine())));
-			return false;
+			Push(EmptyUnion(s_none_tag));
+			return true;
 		}
 
-		Push(ValueTransfer::Deserialize(received_value.m_value.value(), *this));
+		const MarmotValue value = ValueTransfer::Deserialize(received_value.m_value.value(), *this);
+		Push(AllocateAggregate(MarmotTraceable::TraceableType::Union, std::span<const MarmotValue>(&value, 1uz), s_some_tag, payload_shape));
 		return true;
 	}
 	case VmOpCode::CHANNEL_CLOSE:
@@ -926,6 +928,16 @@ void VirtualMachine::LocateStackOverflowAtInnermostCall() noexcept
 int VirtualMachine::IndexOutOfBounds(MarmotInteger index) noexcept
 {
 	return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::IndexOutOfBounds, std::format("Index out of bounds at index: {}.", index), GetLine()));
+}
+
+MarmotTraceable* VirtualMachine::EmptyUnion(int tag) noexcept
+{
+	MarmotTraceable*& cached = m_empty_union_cache[static_cast<size_t>(tag)];
+	if (cached == nullptr)
+	{
+		cached = AllocateAggregate(MarmotTraceable::TraceableType::Union, {}, tag, VM_SCALAR_SHAPE);
+	}
+	return cached;
 }
 
 int VirtualMachine::InvalidFloatConversion(MarmotFloat value, std::string_view destination) noexcept
@@ -2813,14 +2825,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		MARMOT_HANDLER(LOAD_EMPTY_UNION)
 		{
-			const size_t tag = static_cast<size_t>(ReadByte(ip));
-			MarmotTraceable*& cached = m_empty_union_cache[tag];
-			if (cached == nullptr)
-			{
-				cached = AllocateAggregate(MarmotTraceable::TraceableType::Union, {}, static_cast<int>(tag), VM_SCALAR_SHAPE);
-			}
-
-			Push(sp, cached);
+			Push(sp, EmptyUnion(static_cast<int>(ReadByte(ip))));
 			break;
 		}
 		MARMOT_HANDLER(MAKE_CLOSURE_OF)

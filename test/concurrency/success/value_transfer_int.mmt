@@ -1,26 +1,26 @@
 module value_transfer_int
 
-import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Prelude/Result.mmt" }
+import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Prelude/Option.mmt", "../../../MarmotPrelude/Prelude/Result.mmt" }
 
 import { "../../../MarmotPrelude/IO.mmt" }
 use IO.{PrintLine}
 
 def IntWorker = fn(ch : Channel<Int>) -> Int =>
 {
-    ch -> 42;
-    ch -> -1;
-    ch -> 0;
-    ch -> 9999999;
+    Concurrency::Send(ch, 42);
+    Concurrency::Send(ch, -1);
+    Concurrency::Send(ch, 0);
+    Concurrency::Send(ch, 9999999);
     0
 };
 
 def ch : Channel<Int> = Concurrency::MakeChannel(4);
 def w = Concurrency::Spawn(ch, IntWorker);
 
-def v1 = <- ch;
-def v2 = <- ch;
-def v3 = <- ch;
-def v4 = <- ch;
+def v1 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch), "Channel closed");
+def v2 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch), "Channel closed");
+def v3 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch), "Channel closed");
+def v4 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch), "Channel closed");
 
 PrintLine("v1=" ++ (v1 as Text));
 PrintLine("v2=" ++ (v2 as Text));

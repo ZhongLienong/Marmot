@@ -1,9 +1,10 @@
 module channel_producer_consumer
 
-import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Prelude/Result.mmt" }
+import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Prelude/Option.mmt" }
 
 import { "../../../MarmotPrelude/IO.mmt" }
 use IO.{PrintLine}
+use Option.{Option}
 
 // Defined before Producer: a worker rebuilds its globals by name, and forward
 // references do not resolve across a spawn.
@@ -12,33 +13,27 @@ def Send = fn(ch: Channel<Text>, i: Int, count: Int) -> Unit =>
     then ()
     else
     {
-        ch -> ("item-" ++ (i as Text));
+        Concurrency::Send(ch, "item-" ++ (i as Text));
         Send(ch, i + 1, count)
     };
 
 def Producer = fn(ch: Channel<Text>, count: Int) -> Int => {
     Send(ch, 0, count);
-    ch -> "DONE";
+    Concurrency::Close(ch);
     0
 };
 
 def ch : Channel<Text> = Concurrency::MakeChannel(4);
 def w = Concurrency::Spawn((ch, 5), Producer);
 
-// Receives until the sentinel and returns the count, which the loop used to
-// accumulate into `received`.
+// Closing the channel lets the consumer drain it without a sentinel.
 def Receive = fn(source: Channel<Text>, received: Int) -> Int =>
-{
-    def msg = <- source;
-    if msg == "DONE"
-    then received
-    else
-    {
-        PrintLine("Got: " ++ msg);
-        Receive(source, received + 1)
-    }
-};
+    match Concurrency::Receive(source) with
+        case Option::None() => received
+        case Option::Some(msg) => {
+            PrintLine("Got: " ++ msg);
+            Receive(source, received + 1)
+        };
 
 PrintLine("Total received: " ++ (Receive(ch, 0) as Text));
-Concurrency::Close(ch);
 def r = Concurrency::JoinedOrPanic(Concurrency::Join(w));

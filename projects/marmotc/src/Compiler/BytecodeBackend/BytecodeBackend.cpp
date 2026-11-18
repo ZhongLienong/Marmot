@@ -1828,6 +1828,7 @@ namespace
 				return {};
 			case MarmotIROp::Receive:
 				EmitByte(OpCode::CHANNEL_RECEIVE, line);
+				EmitOperand(Kind(GenericTypes::RepresentationOf(m_function.TypeOf(instruction.m_operands.front()))->GetType<MarmotType::ChannelType>().m_element_type), line);
 				return {};
 			case MarmotIROp::ChannelClose:
 				EmitByte(OpCode::CHANNEL_CLOSE, line);

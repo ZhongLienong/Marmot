@@ -1,14 +1,14 @@
 module channel_pingpong
 
-import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Prelude/Result.mmt" }
+import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Prelude/Option.mmt", "../../../MarmotPrelude/Prelude/Result.mmt" }
 
 import { "../../../MarmotPrelude/IO.mmt" }
 use IO.{PrintLine}
 
 def Ponger = fn(ch_in: Channel<Text>, ch_out: Channel<Text>) -> Int => {
-    def msg = <- ch_in;
+    def msg = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch_in), "Channel closed");
     PrintLine("Ponger received: " ++ msg);
-    ch_out -> "pong";
+    Concurrency::Send(ch_out, "pong");
     0
 };
 
@@ -17,8 +17,8 @@ def pong_ch : Channel<Text> = Concurrency::MakeChannel(1);
 
 def w = Concurrency::Spawn((ping_ch, pong_ch), Ponger);
 
-ping_ch -> "ping";
-def reply = <- pong_ch;
+Concurrency::Send(ping_ch, "ping");
+def reply = Option::OptionUnwrapOrPanic(Concurrency::Receive(pong_ch), "Channel closed");
 PrintLine("Main received: " ++ reply);
 
 Concurrency::Close(ping_ch);

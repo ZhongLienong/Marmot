@@ -1,0 +1,5 @@
+msg1=[first]
+msg2=[second]
+worker_done=true
+drained=true
+sent_after_close=false

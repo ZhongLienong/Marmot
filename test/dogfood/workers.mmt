@@ -32,17 +32,17 @@ def FoldCodes = fn(text: Text, index: Int, total: Int) -> Int =>
 
 def Serve = fn(jobs: Channel<Job>, results: Channel<Outcome>, handled: Int) -> Int =>
 {
-	def job = <- jobs;
+	def job = Option::OptionUnwrapOrPanic(Concurrency::Receive(jobs), "Channel closed");
 	if job.id < 0
 	then
 	{
-		results -> Outcome::Stop();
+		Concurrency::Send(results, Outcome::Stop());
 		handled
 	}
 	else
 	{
 		def outcome = if TextUtil::Length(job.payload) == 0 then Outcome::Rejected(job.id, "empty") else Outcome::Done(job.id, Score(job.payload));
-		results -> outcome;
+		Concurrency::Send(results, outcome);
 		Serve(jobs, results, handled + 1)
 	}
 };
@@ -62,7 +62,7 @@ def Feed = fn(index: Int) -> Unit =>
 	then ()
 	else
 	{
-		jobs -> Job(index, if (index % 7) == 0 then "" else "job-" ++ (index as Text));
+		Concurrency::Send(jobs, Job(index, if (index % 7) == 0 then "" else "job-" ++ (index as Text)));
 		Feed(index + 1)
 	};
 
@@ -71,7 +71,7 @@ def StopAll = fn(remaining: Int) -> Unit =>
 	then ()
 	else
 	{
-		jobs -> Job(-1, "");
+		Concurrency::Send(jobs, Job(-1, ""));
 		StopAll(remaining - 1)
 	};
 
@@ -80,7 +80,7 @@ def feeder = Concurrency::Spawn((), fn() -> Int => { Feed(0); StopAll(worker_cou
 def Collect = fn(stops: Int, done_sum: Int, done_count: Int, rejected: Int) -> (Int, Int, Int) =>
 	if stops == worker_count
 	then (done_sum, done_count, rejected)
-	else match <- results with
+	else match Option::OptionUnwrapOrPanic(Concurrency::Receive(results), "Channel closed") with
 		case Outcome::Done(id, score) => Collect(stops, done_sum + id + (score % 10), done_count + 1, rejected)
 		case Outcome::Rejected(_, _) => Collect(stops, done_sum, done_count, rejected + 1)
 		case Outcome::Stop() => Collect(stops + 1, done_sum, done_count, rejected);
@@ -145,12 +145,12 @@ match Concurrency::Join(spinner) with
 
 def funcs : Channel<fn(Int) -> Int> = Concurrency::MakeChannel(4);
 def offset = 17;
-funcs -> fn(x: Int) -> Int => x + offset;
-funcs -> fn(x: Int) -> Int => x * offset;
+Concurrency::Send(funcs, fn(x: Int) -> Int => x + offset);
+Concurrency::Send(funcs, fn(x: Int) -> Int => x * offset);
 def Apply = fn(channel: Channel<fn(Int) -> Int>, value: Int) -> Int =>
 {
-	def first = <- channel;
-	def second = <- channel;
+	def first = Option::OptionUnwrapOrPanic(Concurrency::Receive(channel), "Channel closed");
+	def second = Option::OptionUnwrapOrPanic(Concurrency::Receive(channel), "Channel closed");
 	second(first(value))
 };
 IO::PrintLine("applied " ++ (Concurrency::JoinedOrPanic(Concurrency::Join(Concurrency::Spawn((funcs, 3), Apply))) as Text));
@@ -162,8 +162,8 @@ def Relay = fn(input: Channel<Int>, output: Channel<Int>, rounds: Int) -> Int =>
 	then 0
 	else
 	{
-		def token = <- input;
-		output -> (token + 1);
+		def token = Option::OptionUnwrapOrPanic(Concurrency::Receive(input), "Channel closed");
+		Concurrency::Send(output, (token + 1));
 		Relay(input, output, rounds - 1)
 	};
 def relays = [Concurrency::Spawn((ring[i], ring[(i + 1) % ring_size], 50), Relay) for i in 1..1..ring_size];
@@ -172,8 +172,8 @@ def Drive = fn(token: Int, rounds: Int) -> Int =>
 	then token
 	else
 	{
-		ring[1] -> (token + 1);
-		Drive(<- ring[0], rounds - 1)
+		Concurrency::Send(ring[1], (token + 1));
+		Drive(Option::OptionUnwrapOrPanic(Concurrency::Receive(ring[0]), "Channel closed"), rounds - 1)
 	};
 IO::PrintLine("ring token " ++ (Drive(0, 50) as Text));
 def _relayed = [Concurrency::JoinedOrPanic(Concurrency::Join(r)) for r in relays];

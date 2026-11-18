@@ -1,6 +1,6 @@
 module spawn_def_bound_lambda
 
-import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Prelude/Result.mmt" }
+import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Prelude/Option.mmt", "../../../MarmotPrelude/Prelude/Result.mmt" }
 
 import { "../../../MarmotPrelude/IO.mmt" }
 use IO.{PrintLine}
@@ -10,7 +10,7 @@ def Double = fn(n: Int) -> Int => n * 2;
 def Triple = fn(n: Int) -> Int => n * 3;
 
 def SendBand = fn(ch: Channel<Text>, tag: Text) -> Int => {
-    ch -> ("band:" ++ tag);
+    Concurrency::Send(ch, ("band:" ++ tag));
     0
 };
 
@@ -21,7 +21,7 @@ PrintLine("triple=" ++ ((Concurrency::JoinedOrPanic(Concurrency::Join(w2))) as T
 
 def ch : Channel<Text> = Concurrency::MakeChannel(2);
 def w3 = Concurrency::Spawn((ch, "left"), SendBand);
-PrintLine(<- ch);
+PrintLine(Option::OptionUnwrapOrPanic(Concurrency::Receive(ch), "Channel closed"));
 Concurrency::Close(ch);
 def _r3 = Concurrency::JoinedOrPanic(Concurrency::Join(w3));
 
