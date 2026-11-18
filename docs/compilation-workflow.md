@@ -248,7 +248,7 @@ Important opcode families in the current executable format:
 - Members and stack: `GET_MEMBER`, `POP`, `PUSH_PLACEHOLDER`
 - Termination: `RETURN`, `HALT`
 
-Procedures, globals and text constants are named only in two bytes, by the `WIDE` forms, because the linker adds each module's first procedure, global and text to them. A closure is `MAKE_CLOSURE_OF`, which takes exactly the values it captures. `OpCodes.def` is the list of every opcode and its length; removing, reordering or resizing one changes `MbcFormatVersion`, and the VM refuses a `.mmc` of another version.
+Procedures, globals and text constants are named only in two bytes, by the `WIDE` forms, because the linker adds each module's first procedure, global and text to them. A closure is `MAKE_CLOSURE_OF`, which takes exactly the values it captures. `OpCodes.def` is the list of every opcode and its length; removing, reordering or resizing one changes the internal format marker, and the VM refuses a `.mmc` artifact with a different marker.
 
 ## Phase 9: Linking
 

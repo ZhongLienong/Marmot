@@ -68,7 +68,7 @@
 
         const nativeProduced = module.runMarmotBytecode(await fixture("control"));
         check(nativeProduced.success && nativeProduced.output === "large\n", "WASM VM runs the frozen native compiler fixture");
-        for (const name of ["truncated", "checksum", "old_version"]) {
+        for (const name of ["truncated", "checksum", "incompatible_marker"]) {
             const invalid = module.runMarmotBytecode(await fixture(name));
             check(!invalid.success && invalid.report.errors.length === 1, `VM rejects ${name} artifact`);
         }

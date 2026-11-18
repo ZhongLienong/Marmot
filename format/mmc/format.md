@@ -1,8 +1,10 @@
-# Current `.mmc` wire snapshot (format marker 16)
+# Current `.mmc` wire format (under development)
 
-Marmot is still in early development; there is no Marmot v16 release. `16` is
-only the current `.mmc` `format_version` value, not a language or product
-version.
+**Status: Under development; not sealed.** There is no released `.mmc` format
+version. The header currently carries numeric marker `16` so the VM can reject
+artifacts written for a different encoding. That marker is an internal
+compatibility check, not a Marmot or `.mmc` release version. This file and its
+fixtures record current compiler/VM behavior and may change as Marmot develops.
 
 This records the bytes written by the current `marmotc` and read by the current
 `marmotvm` for that format marker. It is a snapshot for keeping their
@@ -16,7 +18,7 @@ of the file.
 | Offset | Size | Field | Current meaning |
 |---:|---:|---|---|
 | 0 | 4 | magic | ASCII `MBC` followed by `00` |
-| 4 | 4 | `format_version` (`u32`) | Exactly `16` |
+| 4 | 4 | format marker (`u32`) | Exactly `16` |
 | 8 | 2 | Marmot major version (`u16`) | Written from the producer version; informational to the current reader |
 | 10 | 2 | Marmot minor version (`u16`) | Informational |
 | 12 | 2 | Marmot patch version (`u16`) | Informational |
@@ -25,7 +27,7 @@ of the file.
 | 20 | 8 | payload size (`u64`) | Number of bytes immediately after the 32-byte header |
 | 28 | 4 | payload CRC32 (`u32`) | CRC-32/IEEE of exactly those payload bytes; polynomial `0xEDB88320`, initial and final XOR `0xFFFFFFFF` |
 
-The current reader checks magic, format version, declared payload length, and CRC before decoding the payload. It rejects truncated fields while decoding, a procedure whose line-info byte counts do not sum to its bytecode byte count, a shape table that does not begin with shapes 0 and 1, and a frame map whose captures' shape is not in the table or whose safepoints are not in ascending offset order within the bytecode. It does not validate the informational version, reserved field, unknown flag bits, trailing file bytes, or bytes remaining after the parsed payload. These are observations of version 16, not permissions for new writers to add data silently.
+The current reader checks magic, format marker, declared payload length, and CRC before decoding the payload. It rejects truncated fields while decoding, a procedure whose line-info byte counts do not sum to its bytecode byte count, a shape table that does not begin with shapes 0 and 1, and a frame map whose captures' shape is not in the table or whose safepoints are not in ascending offset order within the bytecode. It does not validate the informational producer version, reserved field, unknown flag bits, trailing file bytes, or bytes remaining after the parsed payload. These are observations of the current encoding, not permissions for new writers to add data silently.
 
 ## Payload
 
@@ -53,27 +55,26 @@ Each embedded-source record is: source-path `string`; line count `u32`; then sou
 
 ## Instruction and builtin IDs
 
-[`registry-v16.json`](registry-v16.json) records the current format-16 opcode IDs, their total encoded lengths in bytes (including the opcode), and the builtin indexes with their FFI argument and return marshalling kinds. These values describe this version; later versions may reorder, add, or remove entries. An opcode is one byte. Its numeric ID is its zero-based position in the opcode list; a builtin ID is its zero-based position in the builtin list. The builtin ABI version constant is `1`, but it is not a separate field in `.mmc`.
+[`registry.json`](registry.json) records the current opcode IDs, their total encoded lengths in bytes (including the opcode), and the builtin indexes with their FFI argument and return marshalling kinds. These values describe the current encoding and may change as Marmot develops. An opcode is one byte. Its numeric ID is its zero-based position in the opcode list; a builtin ID is its zero-based position in the builtin list. The builtin ABI version constant is `1`, but it is not a separate field in `.mmc`.
 
 An instruction stream consists of its opcode byte followed by the number of operand bytes indicated by the registry. One-byte operands are unsigned unless the instruction defines an `imm8` signed immediate. Eight-byte integer and word constants use least-significant byte first; Float constants use the eight bytes of their IEEE-754 binary64 representation, least-significant byte first. Procedure and text indexes encoded in two bytes use low byte then high byte; global indexes use high byte then low byte. Two-byte jump offsets use low byte then high byte. The registry's `category` and optional `description` fields preserve the instruction grouping and operand notes previously maintained in `OpCodes.def`. These notes describe some instruction layouts; the remaining operand roles must be made explicit from the VM decoder before implementing a new writer.
 
-The registry generates each project's private `OpCodes.def` and `Builtins.def` with `python scripts/dev.py generate-mmc`. The compiler builtin table contains only names and indexes; the VM table includes its argument and return marshalling kinds. Generated files are checked in, so either CMake project can build without Python or the other project. `python scripts/dev.py generate-mmc --check` detects stale outputs without writing them. The `.mmc` gate checks generated-file freshness and agreement with the current registry, then exercises format-16 fixtures. Update the registry, generated files, format version, and fixtures together when changing the encoding.
+The registry generates each project's private `OpCodes.def` and `Builtins.def` with `python scripts/dev.py generate-mmc`. The compiler builtin table contains only names and indexes; the VM table includes its argument and return marshalling kinds. Generated files are checked in, so either CMake project can build without Python or the other project. `python scripts/dev.py generate-mmc --check` detects stale outputs without writing them. The `.mmc` gate checks generated-file freshness and agreement with the current registry, then exercises the current fixtures. Update the registry, generated files, format marker, and fixtures together when changing the encoding.
 
-`CALL_FOREIGN_INDEXED` embeds a builtin table index; changing the table's order changes program meaning. Native foreign calls use the native-library records and a symbol name. `CALL_FOREIGN` carries how each argument is passed, which the compiler takes from the declared parameter types: two bits per argument from bit 0, `0` raw bits, `1` a C string for `Text`, `2` an array view for `Array<T>`. Its return kind is `0` raw bits, `1` a C string, `2` an array of values, `3` an array of C strings for `Array<Text>`, with bit 7 set when the array's elements are pointers, which only a builtin returning an array of values can make; `CALL_FOREIGN_INDEXED`'s return byte carries the same bit. Format 14 added the argument-kind byte; format 13's `CALL_FOREIGN` guessed each argument's kind from the value at run time.
+`CALL_FOREIGN_INDEXED` embeds a builtin table index; changing the table's order changes program meaning. Native foreign calls use the native-library records and a symbol name. `CALL_FOREIGN` carries how each argument is passed, which the compiler takes from the declared parameter types: two bits per argument from bit 0, `0` raw bits, `1` a C string for `Text`, `2` an array view for `Array<T>`. Its return kind is `0` raw bits, `1` a C string, `2` an array of values, `3` an array of C strings for `Array<Text>`, with bit 7 set when the array's elements are pointers, which only a builtin returning an array of values can make; `CALL_FOREIGN_INDEXED`'s return byte carries the same bit. Earlier encodings guessed each foreign-call argument's kind from the value at run time; the current encoding carries argument kinds explicitly.
 
-Format 15 gave each value a kind and each aggregate a shape, so that nothing decides from a value's bits whether it is a pointer. The instructions that build objects or send values between workers carry them: `CREATE_ARRAY` its elements' kind; `CREATE_TUPLE`, `CONSTRUCT_STRUCT`, `CONSTRUCT_UNION` and `LOCAL_UNION2` a shape, low byte first, as their last two operands; `MAKE_CELL` and `CHANNEL_SEND` the value's kind; `SPAWN_WORKER` the shape of the tuple its arguments and function cross in, then the kind of the worker's result; and `JOIN_WORKER` the kind of the worker's value. A closure takes its procedure's captures' shape.
+Each value has a kind and each aggregate a shape, so no operation has to decide from a value's bits whether it is a pointer. Instructions that build objects or send values between workers carry the needed metadata: `CREATE_ARRAY` its elements' kind; `CREATE_TUPLE`, `CONSTRUCT_STRUCT`, `CONSTRUCT_UNION` and `LOCAL_UNION2` a shape, low byte first, as their last two operands; `MAKE_CELL` and `CHANNEL_SEND` the value's kind; `SPAWN_WORKER` the shape of the tuple its arguments and function cross in, then the kind of the worker's result; and `JOIN_WORKER` the kind of the worker's value. A closure takes its procedure's captures' shape.
 
-Format 16 took `JOIN_WORKER`'s four union tags away. The union it builds is the one its declaration in Marmot names, which the compiler checks by position: member 0 holds the worker's value and member 1 why there is none, itself a union of member 0 for a cancelled worker and member 1, holding the message, for a failed one. So the VM builds tags 0 and 1 without being told them. This file format carries the name, symbols, lookup hints, concurrency policy, and optional checksum, but not native machine code.
+`JOIN_WORKER` builds the union named by its declaration in Marmot, which the compiler checks by position: member 0 holds the worker's value and member 1 why there is none, itself a union of member 0 for a cancelled worker and member 1, holding the message, for a failed one. So the VM builds tags 0 and 1 without being told them. This file format carries the name, symbols, lookup hints, concurrency policy, and optional checksum, but not native machine code.
 
-## Version coordination
+## Marker coordination
 
-The `format_version` field identifies the encoding expected by the reader. When
-a change could make an artifact decode or execute differently, change this
-version so a reader built for another encoding rejects it rather than
-misinterpreting it. There is no requirement to preserve old opcode or builtin
-IDs, layouts, or artifacts. The compiler and VM built together must use the same
-registry. The producer's major/minor/patch header fields do not replace the
-format-version check.
+The format marker identifies the encoding expected by the reader. When a change
+could make an artifact decode or execute differently, change this marker so a
+reader built for another encoding rejects it rather than misinterpreting it.
+There is no requirement to preserve old opcode or builtin IDs, layouts, or
+artifacts. The compiler and VM built together must use the same registry. The
+producer's major/minor/patch header fields do not replace the marker check.
 
 [`fixtures.json`](fixtures.json) records the compiler commit, source files, path normalization, expected VM behavior, and derivation of invalid artifacts for the current format. The committed fixture files deliberately use repository-relative paths so they are portable. The conformance check recompiles their sources, normalizes only serialized checkout paths, compares all remaining bytes, and runs the VM on these regression fixtures. Update them when a deliberate format change changes the current output.
 

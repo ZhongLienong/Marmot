@@ -1,5 +1,5 @@
 {
-  "format_version": 16,
+  "format_marker": 16,
   "builtin_abi_version": 1,
   "opcodes": [
     {

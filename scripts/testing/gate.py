@@ -8,7 +8,7 @@ In order, stopping at the first failure:
     unit        the C++ unit tests
     docs        documentation examples are in sync and run as documented
     cli         the command-line contracts
-    mmc         frozen .mmc format and compiler/VM compatibility
+    mmc         current .mmc snapshot and compiler/VM compatibility
     format      the formatter is idempotent on the corpus
     benchmarks  every program under benchmarks/ compiles cleanly
     tool        the Rust marmot tool's tests, against the compiler just built

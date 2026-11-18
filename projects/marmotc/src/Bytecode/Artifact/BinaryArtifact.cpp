@@ -125,7 +125,7 @@ namespace
 	//
 	//  Offset  Size  Field
 	//  0       4     magic "MBC\0"
-	//  4       4     format_version u32
+	//  4       4     format marker u32
 	//  8       2     version_major u16
 	//  10      2     version_minor u16
 	//  12      2     version_patch u16
@@ -337,8 +337,8 @@ namespace MarmotBinaryArtifact
 		BinaryWriter header_writer(out);
 		// magic "MBC\0"
 		header_writer.WriteRaw(s_magic, 4u);
-		// format_version
-		header_writer.WriteU32(MbcFormatVersion);
+		// format marker
+		header_writer.WriteU32(MbcFormatMarker);
 		// marmot_version
 		header_writer.WriteU16(ver_major);
 		header_writer.WriteU16(ver_minor);

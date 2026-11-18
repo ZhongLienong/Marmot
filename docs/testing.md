@@ -184,7 +184,7 @@ Its steps, in order, are `layering`, `build`, `unit`, `mmc`, `docs`, `cli`, `for
 
 ```bash
 python scripts/dev.py check layering
-python scripts/dev.py check mmc               # frozen v16 writer and reader contract
+python scripts/dev.py check mmc               # current writer and reader snapshot
 python scripts/dev.py check docs              # --sync rewrites the mirrors
 python scripts/dev.py check cli
 python scripts/dev.py check format            # --root DIR, --enforce-clean

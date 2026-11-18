@@ -213,17 +213,17 @@ namespace VmBinaryArtifact
 			return std::unexpected("Not a Marmot bytecode artifact (bad magic).");
 		}
 
-		uint32_t format_version;
-		if (!reader.ReadU32(format_version))
+		uint32_t format_marker;
+		if (!reader.ReadU32(format_marker))
 		{
-			return std::unexpected("Truncated artifact: could not read format version.");
+			return std::unexpected("Truncated artifact: could not read format marker.");
 		}
-		if (format_version != VmMbcFormatVersion)
+		if (format_marker != VmMbcFormatMarker)
 		{
 			return std::unexpected(std::format(
-				"Bytecode artifact format version mismatch: expected {}, got {}. Rebuild the artifact.",
-				VmMbcFormatVersion,
-				format_version));
+				"Bytecode artifact format marker mismatch: expected {}, got {}. Rebuild the artifact.",
+				VmMbcFormatMarker,
+				format_marker));
 		}
 
 		// informational version fields (read but not validated)

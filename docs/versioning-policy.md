@@ -20,12 +20,15 @@ compatibility guarantee made by this repository.
 
 ## `.mmc` Format Coordination
 
-The `.mmc` format version lets the current compiler and VM agree on the encoding
-of an artifact. The current VM rejects artifacts with a different format
-version; this does not commit Marmot to reading older artifacts. When a format
-change could make an artifact decode or execute differently, update the format
-version so a mismatched reader rejects it instead of misinterpreting it. Opcode
-IDs, builtin IDs, layouts, and semantics may change in a later format version.
+The `.mmc` header carries an internal format marker so the current compiler and
+VM can agree on an artifact's encoding. The current VM rejects artifacts with a
+different marker; this does not commit Marmot to reading older artifacts. When
+a format change could make an artifact decode or execute differently, update
+the marker so a mismatched reader rejects it instead of misinterpreting it.
+Opcode IDs, builtin IDs, layouts, and semantics may change as the format
+develops. There is no released or sealed `.mmc` format version; the current
+registry and fixtures describe behavior in progress and may change with the
+implementation.
 
 ## Change Notes
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the frozen version-16 .mmc fixtures against marmotc and marmotvm."""
+"""Check the current .mmc fixtures against marmotc and marmotvm."""
 
 from __future__ import annotations
 
@@ -86,9 +86,9 @@ def normalize_artifact(blob: bytes) -> bytes:
     """Replace only serialized checkout paths, then update size and CRC."""
     if len(blob) < HEADER.size:
         raise ValueError("truncated .mmc header")
-    magic, version, major, minor, patch, reserved, flags, size, crc = HEADER.unpack_from(blob)
-    if magic != b"MBC\0" or version != 16:
-        raise ValueError("expected a version-16 .mmc artifact")
+    magic, marker, major, minor, patch, reserved, flags, size, crc = HEADER.unpack_from(blob)
+    if magic != b"MBC\0" or marker != 16:
+        raise ValueError("expected a current-format .mmc artifact")
     original = blob[HEADER.size:]
     if len(original) != size or zlib.crc32(original) != crc:
         raise ValueError("invalid original payload size or CRC")
@@ -131,7 +131,7 @@ def normalize_artifact(blob: bytes) -> bytes:
         raise ValueError(f"unparsed payload bytes at offset {payload.input.offset}")
 
     normalized = bytes(payload.output)
-    header = HEADER.pack(magic, version, major, minor, patch, reserved, flags,
+    header = HEADER.pack(magic, marker, major, minor, patch, reserved, flags,
                          len(normalized), zlib.crc32(normalized))
     return header + normalized
 
@@ -169,23 +169,23 @@ def source_registry(side: Path, *, signatures: bool) -> dict[str, object]:
 
 def check_registry() -> None:
     generate_mmc.check_generated()
-    frozen = json.loads((CONTRACT_DIR / "registry-v16.json").read_text(encoding="utf-8"))
-    for name, side, version_name in (
-        ("marmotc", REPO_ROOT / "projects/marmotc/src/Bytecode", "MbcFormatVersion"),
-        ("marmotvm", REPO_ROOT / "projects/marmotvm/src/Bytecode", "VmMbcFormatVersion"),
+    registry = json.loads((CONTRACT_DIR / "registry.json").read_text(encoding="utf-8"))
+    for name, side, marker_name in (
+        ("marmotc", REPO_ROOT / "projects/marmotc/src/Bytecode", "MbcFormatMarker"),
+        ("marmotvm", REPO_ROOT / "projects/marmotvm/src/Bytecode", "VmMbcFormatMarker"),
     ):
         expected = {
-            "builtin_abi_version": frozen["builtin_abi_version"],
-            "opcodes": [{key: opcode[key] for key in ("id", "name", "length")} for opcode in frozen["opcodes"]],
-            "builtins": frozen["builtins"] if name == "marmotvm" else
-                        [{key: builtin[key] for key in ("id", "name")} for builtin in frozen["builtins"]],
+            "builtin_abi_version": registry["builtin_abi_version"],
+            "opcodes": [{key: opcode[key] for key in ("id", "name", "length")} for opcode in registry["opcodes"]],
+            "builtins": registry["builtins"] if name == "marmotvm" else
+                        [{key: builtin[key] for key in ("id", "name")} for builtin in registry["builtins"]],
         }
         if source_registry(side, signatures=name == "marmotvm") != expected:
-            raise AssertionError(f"{name} opcode or builtin table differs from the frozen version-16 registry")
+            raise AssertionError(f"{name} opcode or builtin table differs from the checked-in registry")
         format_header = (side / "Format/Format.h").read_text(encoding="utf-8")
-        version = re.search(rf"{version_name}\s*=\s*(\d+)u", format_header)
-        if version is None or int(version.group(1)) != frozen["format_version"]:
-            raise AssertionError(f"{name} format version differs from the frozen registry")
+        marker = re.search(rf"{marker_name}\s*=\s*(\d+)u", format_header)
+        if marker is None or int(marker.group(1)) != registry["format_marker"]:
+            raise AssertionError(f"{name} format marker differs from the checked-in registry")
 
 
 def run(args: list[str]) -> subprocess.CompletedProcess[str]:
@@ -218,7 +218,7 @@ def check_valid(tree: BuildTree, fixture: dict[str, object]) -> None:
         if compiled.returncode != 0:
             raise AssertionError(f"{name}: compilation failed:\n{compiled.stdout}{compiled.stderr}")
         if normalize_artifact(fresh.read_bytes()) != baseline:
-            raise AssertionError(f"{name}: compiler output differs from frozen .mmc bytes")
+            raise AssertionError(f"{name}: compiler output differs from the checked-in .mmc snapshot")
 
     command = [str(tree.vm), "run", str(artifact)]
     if fixture.get("native_library"):
@@ -244,7 +244,7 @@ def check_invalid(tree: BuildTree, fixture: dict[str, object]) -> None:
 
 
 def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(description="Check the frozen .mmc contract and fixtures.")
+    parser = argparse.ArgumentParser(description="Check the current .mmc snapshot and fixtures.")
     add_build_arguments(parser)
     args = parser.parse_args(argv)
     tree = BuildTree.from_args(args)
@@ -256,7 +256,7 @@ def main(argv: list[str]) -> int:
         check_valid(tree, fixture)
     for fixture in manifest["invalid"]:
         check_invalid(tree, fixture)
-    print("[OK] version-16 .mmc contract")
+    print("[OK] current .mmc snapshot")
     return 0
 
 

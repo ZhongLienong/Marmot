@@ -23,7 +23,7 @@ the runtime; neither side links or includes the other. They agree through the
 |---|---|
 | `projects/marmotc/src/Bytecode` | Compiler-side opcode and builtin IDs, executable model, `.mmc` writer |
 | `projects/marmotvm/src/Bytecode` | VM-side opcode and builtin IDs, loaded-program model, `.mmc` reader and disassembler |
-| `format/mmc` | Language-neutral v16 wire snapshot and fixtures |
+| `format/mmc` | Under-development wire format snapshot and fixtures |
 | `projects/marmotc/src/Compiler` | Compiler errors, lexer, parser, type checker, static analysis, lowering, MarmotIR optimizer, bytecode backend, linker |
 | `projects/marmotvm/src` | Values, runtime errors, the interpreter, the GC, workers, the builtin FFI library and VM entry point |
 | `projects/marmot/src` | The `marmot` tool |
