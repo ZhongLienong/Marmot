@@ -62,6 +62,12 @@ std::optional<double> ParseFloatLiteral(std::string_view lexeme)
 	return value;
 }
 
+MarmotLiteral::MarmotLiteral(const Token& token, MarmotLiteralKind kind)
+	: m_token(token),
+	m_kind(kind)
+{
+}
+
 namespace
 {
 	struct TypeDataAccessor
@@ -108,12 +114,6 @@ MarmotPattern::Binding::Binding(const GeneratedBinding& binding)
 
 MarmotPattern::Wildcard::Wildcard(const Token& token)
 	: m_token(token)
-{
-}
-
-MarmotPattern::Literal::Literal(const Token& token, LiteralKind kind)
-	: m_token(token),
-	m_kind(kind)
 {
 }
 
@@ -197,12 +197,6 @@ MarmotExpression::Group::Group(std::unique_ptr<MarmotExpression>&& expr_in)
 
 MarmotExpression::Tuple::Tuple(const Token& op, std::vector<std::unique_ptr<MarmotExpression>>&& elements)
 	: m_op(op), m_elements(std::move(elements))
-{
-}
-
-MarmotExpression::Literal::Literal(const Token& token, LiteralKind kind)
-	: m_token(token),
-	m_kind(kind)
 {
 }
 

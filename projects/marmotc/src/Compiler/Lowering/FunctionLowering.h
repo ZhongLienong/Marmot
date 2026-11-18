@@ -140,7 +140,7 @@ private:
 
 	// LoweringExpressions.cpp: values.
 	Lowered Lower(const MarmotExpression& expression);
-	std::optional<MarmotIRImmediate> ConstantOf(MarmotLiteralKind kind, const std::string& lexeme) const;
+	std::optional<MarmotIRImmediate> ConstantOf(const MarmotLiteral& literal) const;
 	Lowered LowerLiteral(const MarmotExpression::Literal& literal);
 	Lowered LowerBinary(const MarmotExpression::Binary& binary);
 	Lowered LowerScalarBinary(const Token& op, MarmotIRValueId left, MarmotIRValueId right);

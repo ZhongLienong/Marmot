@@ -1654,30 +1654,12 @@ MarmotResult::TypeResult TypeChecker::CheckPattern(const CheckingContext& contex
 			}
 			else if constexpr (std::is_same_v<Node, MarmotPattern::Literal>)
 			{
-				switch (node.m_kind)
+				MarmotResult::TypeResult type = CheckLiteral(node);
+				if (!type.has_value())
 				{
-				case MarmotPattern::LiteralKind::Bool:
-					node.m_type_data = MarmotType::MakeLiteralType<MarmotType::BoolType>();
-					break;
-				case MarmotPattern::LiteralKind::Float:
-					node.m_type_data = MarmotType::MakeLiteralType<MarmotType::FloatType>();
-					break;
-				case MarmotPattern::LiteralKind::Integer:
-					node.m_type_data = MarmotType::MakeLiteralType<MarmotType::IntegerType>();
-					break;
-				case MarmotPattern::LiteralKind::Byte:
-					node.m_type_data = MarmotType::MakeLiteralType<MarmotType::ByteType>();
-					break;
-				case MarmotPattern::LiteralKind::Word:
-					node.m_type_data = MarmotType::MakeLiteralType<MarmotType::WordType>();
-					break;
-				case MarmotPattern::LiteralKind::Text:
-					node.m_type_data = MarmotType::MakeLiteralType<MarmotType::TextType>();
-					break;
-				case MarmotPattern::LiteralKind::Unit:
-					node.m_type_data = MarmotType::MakeLiteralType<MarmotType::UnitType>();
-					break;
+					return type;
 				}
+				node.m_type_data = std::move(*type);
 
 				// Literals do not take their type from where they are used, so a hex or
 				// binary literal up to 0xFF is a Byte even against an Int.
@@ -5668,33 +5650,40 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 	return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUndefinedName, "Name access expression type error: variable not found", variable.m_name, m_file_name, m_source_lines));
 }
 
-MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext&, MarmotExpression::Literal& literal)
+MarmotResult::TypeResult TypeChecker::CheckLiteral(MarmotLiteral& literal) const
 {
 	switch (literal.m_kind)
 	{
-	case MarmotExpression::LiteralKind::Text:
-		literal.m_type_data = MarmotType::MakeLiteralType<MarmotType::TextType>();
-		break;
-	case MarmotExpression::LiteralKind::Bool:
-		literal.m_type_data = MarmotType::MakeLiteralType<MarmotType::BoolType>();
-		break;
-	case MarmotExpression::LiteralKind::Float:
-		literal.m_type_data = MarmotType::MakeLiteralType<MarmotType::FloatType>();
-		break;
-	case MarmotExpression::LiteralKind::Integer:
-		literal.m_type_data = MarmotType::MakeLiteralType<MarmotType::IntegerType>();
-		break;
-	case MarmotExpression::LiteralKind::Byte:
-		literal.m_type_data = MarmotType::MakeLiteralType<MarmotType::ByteType>();
-		break;
-	case MarmotExpression::LiteralKind::Word:
-		literal.m_type_data = MarmotType::MakeLiteralType<MarmotType::WordType>();
-		break;
-	case MarmotExpression::LiteralKind::Unit:
-		literal.m_type_data = MarmotType::MakeLiteralType<MarmotType::UnitType>();
-		break;
+	case MarmotLiteralKind::Text:
+		return MarmotType::MakeLiteralType<MarmotType::TextType>();
+	case MarmotLiteralKind::Bool:
+		return MarmotType::MakeLiteralType<MarmotType::BoolType>();
+	case MarmotLiteralKind::Float:
+		literal.m_float_value = ParseFloatLiteral(literal.m_token.m_lexeme);
+		if (!literal.m_float_value.has_value())
+		{
+			return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Float literal is out of range.", literal.m_token, m_file_name, m_source_lines));
+		}
+		return MarmotType::MakeLiteralType<MarmotType::FloatType>();
+	case MarmotLiteralKind::Integer:
+		return MarmotType::MakeLiteralType<MarmotType::IntegerType>();
+	case MarmotLiteralKind::Byte:
+		return MarmotType::MakeLiteralType<MarmotType::ByteType>();
+	case MarmotLiteralKind::Word:
+		return MarmotType::MakeLiteralType<MarmotType::WordType>();
+	case MarmotLiteralKind::Unit:
+		return MarmotType::MakeLiteralType<MarmotType::UnitType>();
 	}
-	return literal.m_type_data;
+	std::unreachable();
+}
+
+MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext&, MarmotExpression::Literal& literal)
+{
+	return CheckLiteral(literal).transform([&literal](std::shared_ptr<MarmotType>&& type)
+	{
+		literal.m_type_data = std::move(type);
+		return literal.m_type_data;
+	});
 }
 
 MarmotResult::TypeResult TypeChecker::ResolveFunctionExpressionSignature(const CheckingContext& context, MarmotExpression::Function& function, const std::unordered_set<int>& outer_visible_type_vars)

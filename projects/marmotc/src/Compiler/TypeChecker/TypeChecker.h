@@ -411,6 +411,8 @@ private:
 
 	MarmotResult::TypeResult operator()(const CheckingContext& context, MarmotExpression::Literal& literal);
 
+	MarmotResult::TypeResult CheckLiteral(MarmotLiteral& literal) const;
+
 	MarmotResult::TypeResult operator()(const CheckingContext& context, MarmotExpression::Function& function);
 
 	MarmotResult::TypeResult operator()(const CheckingContext& context, MarmotExpression::Construct& construct);

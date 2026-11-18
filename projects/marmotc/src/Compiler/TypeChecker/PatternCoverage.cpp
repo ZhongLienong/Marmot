@@ -1,5 +1,4 @@
 #include <algorithm>
-#include <charconv>
 #include <format>
 #include <limits>
 #include <ranges>
@@ -664,11 +663,7 @@ std::string PatternCoverage::LiteralKey(const MarmotPattern::Literal& literal)
 			.value_or(std::string(lexeme));
 	}
 	case MarmotPattern::LiteralKind::Float:
-	{
-		double value = 0.0;
-		std::from_chars(lexeme.data(), lexeme.data() + lexeme.size(), value);
-		return std::format("{}", value);
-	}
+		return std::format("{}", literal.m_float_value.value());
 	case MarmotPattern::LiteralKind::Bool:
 	case MarmotPattern::LiteralKind::Text:
 		return std::string(lexeme);

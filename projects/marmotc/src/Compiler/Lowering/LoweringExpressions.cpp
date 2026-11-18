@@ -275,16 +275,17 @@ Lowering::Lowered Lowering::FunctionLowering::Lower(const MarmotExpression& expr
 	return std::visit(ExpressionLowering{ *this }, *expression);
 }
 
-std::optional<MarmotIRImmediate> Lowering::FunctionLowering::ConstantOf(MarmotLiteralKind kind, const std::string& lexeme) const
+std::optional<MarmotIRImmediate> Lowering::FunctionLowering::ConstantOf(const MarmotLiteral& literal) const
 {
-	switch (kind)
+	const std::string& lexeme = literal.m_token.m_lexeme;
+	switch (literal.m_kind)
 	{
 	case MarmotLiteralKind::Text:
 		return MarmotIRImmediate(lexeme);
 	case MarmotLiteralKind::Bool:
 		return MarmotIRImmediate(lexeme == Token::Spelling(Token::Name::TRUE));
 	case MarmotLiteralKind::Float:
-		return ParseFloatLiteral(lexeme).transform([](double value) { return MarmotIRImmediate(value); });
+		return MarmotIRImmediate(literal.m_float_value.value());
 	case MarmotLiteralKind::Unit:
 		return MarmotIRImmediate();
 	case MarmotLiteralKind::Integer:
@@ -307,7 +308,7 @@ std::optional<MarmotIRImmediate> Lowering::FunctionLowering::ConstantOf(MarmotLi
 Lowering::Lowered Lowering::FunctionLowering::LowerLiteral(const MarmotExpression::Literal& literal)
 {
 	const Token& token = literal.m_token;
-	const std::optional<MarmotIRImmediate> constant = ConstantOf(literal.m_kind, token.m_lexeme);
+	const std::optional<MarmotIRImmediate> constant = ConstantOf(literal);
 	if (!constant.has_value())
 	{
 		switch (literal.m_kind)
@@ -316,8 +317,10 @@ Lowering::Lowered Lowering::FunctionLowering::LowerLiteral(const MarmotExpressio
 			return std::unexpected(m_owner.Error(CompilerErrorCode::None, "Integer literal '" + token.m_lexeme + "' is out of range. Maximum value is 9223372036854775807 (2^63 - 1), minimum value is -9223372036854775808 (-2^63).", token));
 		case MarmotLiteralKind::Byte:
 			return std::unexpected(m_owner.Error(CompilerErrorCode::None, "Byte literal '" + token.m_lexeme + "' is out of range. Maximum value is 255 (0xFF).", token));
-		default:
+		case MarmotLiteralKind::Word:
 			return std::unexpected(m_owner.Error(CompilerErrorCode::None, "Word literal '" + token.m_lexeme + "' is out of range. Maximum value is 18446744073709551615 (0xFFFFFFFFFFFFFFFF).", token));
+		default:
+			std::unreachable();
 		}
 	}
 

@@ -4,6 +4,7 @@
 #include "support/CompileHelpers.h"
 #include "support/DiagnosticMatchers.h"
 
+#include <array>
 #include <expected>
 #include <string>
 #include <string_view>
@@ -35,6 +36,27 @@ namespace
 		const bool matched = MarmotTest::Matches(error, expectation, &mismatch);
 		CAPTURE(mismatch);
 		REQUIRE(matched);
+	}
+}
+
+TEST_CASE("TypeChecker rejects out-of-range Float literals in expressions and patterns", "[typechecker][literal]")
+{
+	const std::array<std::string, 2u> literals
+	{
+		"1" + std::string(309u, '0') + ".0",
+		"0." + std::string(323u, '0') + "1",
+	};
+	for (const std::string& literal : literals)
+	{
+		const std::string expression = "module FloatRange\ndef value = " + literal + ";\n";
+		const std::string pattern = "module FloatRange\ndef value = match 1.0 with case 0.0 => false case -" + literal + " => true case _ => false;\n";
+		for (const std::string* source : { &expression, &pattern })
+		{
+			const std::expected<MarmotTest::TypedSnippet, CompilerError> checked = MarmotTest::TypeCheckSnippet(*source);
+			REQUIRE_FALSE(checked.has_value());
+			CHECK(checked.error().m_stage == CompilerStage::TypeChecker);
+			CHECK(checked.error().m_message == "Float literal is out of range.");
+		}
 	}
 }
 

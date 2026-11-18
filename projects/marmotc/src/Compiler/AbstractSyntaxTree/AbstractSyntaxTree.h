@@ -38,9 +38,19 @@ std::optional<uint64_t> ParseUnsignedLiteral(std::string_view lexeme);
 // signed 64-bit integer.
 std::optional<int64_t> ParseIntegerLiteral(std::string_view lexeme);
 
-// Value of a Float literal lexeme, including an exponent and a leading sign. Nothing
-// when the lexeme is malformed.
+// Value of a Float literal lexeme. Nothing when the lexeme is malformed or its
+// value is out of range.
 std::optional<double> ParseFloatLiteral(std::string_view lexeme);
+
+struct MarmotLiteral
+{
+	Token m_token;
+	MarmotLiteralKind m_kind;
+	// Coverage and lowering use the value validated during type checking.
+	std::optional<double> m_float_value;
+
+	MarmotLiteral(const Token& token, MarmotLiteralKind kind);
+};
 
 class MarmotStatement
 {
@@ -241,12 +251,9 @@ public:
 
 	using LiteralKind = MarmotLiteralKind;
 
-	struct Literal : BasePattern
+	struct Literal : BasePattern, MarmotLiteral
 	{
-		Token m_token;
-		LiteralKind m_kind;
-
-		Literal(const Token& token, LiteralKind kind);
+		using MarmotLiteral::MarmotLiteral;
 	};
 
 	struct Tuple : BasePattern
@@ -440,12 +447,9 @@ public:
 
 	using LiteralKind = MarmotLiteralKind;
 
-	struct Literal : BaseExpression
+	struct Literal : BaseExpression, MarmotLiteral
 	{
-		Token m_token;
-		LiteralKind m_kind;
-
-		Literal(const Token& token, LiteralKind kind);
+		using MarmotLiteral::MarmotLiteral;
 	};
 
 	struct UnaryPrefix : BaseExpression

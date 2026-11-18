@@ -327,7 +327,7 @@ Lowering::Emitted Lowering::FunctionLowering::LowerPattern(const MarmotPattern& 
 			{
 				return {};
 			}
-			const std::optional<MarmotIRImmediate> constant = m_self.ConstantOf(literal.m_kind, literal.m_token.m_lexeme);
+			const std::optional<MarmotIRImmediate> constant = m_self.ConstantOf(literal);
 			if (!constant.has_value())
 			{
 				return std::unexpected(m_self.m_owner.Error(CompilerErrorCode::None, "Invalid literal in pattern '" + literal.m_token.m_lexeme + "'", literal.m_token));
