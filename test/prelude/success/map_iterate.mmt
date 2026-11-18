@@ -43,4 +43,12 @@ Expect(empty_visits == 0, "an empty map yields nothing");
 Expect(Map::Count(wide) == 80, "iteration leaves the map alone");
 Expect(Map::GetOr(wide, 40, - 1) == 400, "the map still reads after iteration");
 
+// Branch children and entries sharing a hash are visited in their stored order.
+def ordered_root = Map::MakeBranch(3, [
+    Map::MakeLeaf(0, 1, 10),
+    Map::Node::Collision(1, [Map::Entry(2, 20), Map::Entry(3, 30)])
+]);
+def ordered = Map::Entries(Map::MakeMap(ordered_root, 3));
+Expect((#ordered == 3) && (ordered[0].key == 1) && (ordered[1].key == 2) && (ordered[2].key == 3), "entries keep trie traversal order");
+
 IO::PrintLine("map_iterate: PASS");

@@ -197,7 +197,7 @@ extern "C"
 
 	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(ArraySlice)(void** args, void* ret) noexcept
 	{
-		MarmotArray sliced = RequireArray(args[0u]).Slice(static_cast<int>(ReadInt(args, 1u)), static_cast<int>(ReadInt(args, 2u)));
+		MarmotArray sliced = RequireArray(args[0u]).Slice(ReadInt(args, 1u), ReadInt(args, 2u));
 		WritePointerResult(ret, AllocateValueArray(sliced));
 	}
 

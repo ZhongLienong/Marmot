@@ -1,9 +1,10 @@
 module Map
-import { "./Bits.mmt", "../ArrayUtil.mmt", "../Countable.mmt", "../Equatable.mmt", "../Hashable.mmt", "../Iterable.mmt", "../Prelude/Option.mmt" }
+import { "./Bits.mmt", "../ArrayUtil.mmt", "../Countable.mmt", "../Equatable.mmt", "../Hashable.mmt", "../Iterable.mmt", "../Prelude/List.mmt", "../Prelude/Option.mmt" }
 public export { Entry, Node, Map, Empty, Count, IsEmpty, Get, GetOr, ContainsKey, MakeLeaf, MakeBranch, MakeMap, With, Without, Entries, Keys, Values, MapIter, IterNew }
 use Option.{
     Option
 }
+use List.{ List, ListToArray }
 type Entry < K, V > = {
     key: K,
     value: V
@@ -143,17 +144,22 @@ def ContainsKey = fn < K, V >(map: Map < K, V >, key: K) -> Bool where Hashable 
     match Get(map, key) with
         case Option::Some(_) => true
         case Option::None() => false;
-def CollectNode = fn < K, V >(node: Node < K, V >, collected: Array < Entry < K, V > >) -> Array < Entry < K, V > > =>
+def PrependEntries = fn < K, V >(entries: Array < Entry < K, V > >, index: Int, collected: List < Entry < K, V > >) -> List < Entry < K, V > > =>
+    if index < 0
+    then collected
+    else PrependEntries(entries, index - 1, List::Cons(entries[index], collected));
+// Walk children and collision entries backward so prepending preserves their order.
+def CollectNode = fn < K, V >(node: Node < K, V >, collected: List < Entry < K, V > >) -> List < Entry < K, V > > =>
     match node with
         case Node::Nothing() => collected
-        case Node::Leaf(_, leaf_key, leaf_value) => ArrayUtil::WithAppended(collected, Entry (leaf_key, leaf_value))
-        case Node::Collision(_, entries) => ArrayUtil::Concat(collected, entries)
-        case Node::Branch(_, children) => CollectChildren(children, 0, collected);
-def CollectChildren = fn < K, V >(children: Array < Node < K, V > >, index: Int, collected: Array < Entry < K, V > >) -> Array < Entry < K, V > > =>
-    if index >= ArrayUtil::Length(children)
+        case Node::Leaf(_, leaf_key, leaf_value) => List::Cons(Entry(leaf_key, leaf_value), collected)
+        case Node::Collision(_, entries) => PrependEntries(entries, #entries - 1, collected)
+        case Node::Branch(_, children) => CollectChildren(children, #children - 1, collected);
+def CollectChildren = fn < K, V >(children: Array < Node < K, V > >, index: Int, collected: List < Entry < K, V > >) -> List < Entry < K, V > > =>
+    if index < 0
     then collected
-    else CollectChildren(children, index + 1, CollectNode(children[index], collected));
-def Entries = fn < K, V >(map: Map < K, V >) -> Array < Entry < K, V > > => CollectNode(map.root, []);
+    else CollectChildren(children, index - 1, CollectNode(children[index], collected));
+def Entries = fn < K, V >(map: Map < K, V >) -> Array < Entry < K, V > > => ListToArray(CollectNode(map.root, List::Nil()));
 def Keys = fn < K, V >(map: Map < K, V >) -> Array < K > => {
     def pairs = Entries(map);
     [pairs[slot].key for slot in 0..1..ArrayUtil::Length(pairs)]

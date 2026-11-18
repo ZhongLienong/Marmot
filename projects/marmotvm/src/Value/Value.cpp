@@ -747,30 +747,30 @@ void MarmotArray::Expand(int new_capacity)
 	}
 }
 
-MarmotArray MarmotArray::Slice(int start, int end) const
+MarmotArray MarmotArray::Slice(MarmotInteger start, MarmotInteger end) const
 {
-	const int len = GetLength();
-	start = std::clamp(start, 0, len);
-	end = std::clamp(end, 0, len);
-	if (end <= start)
+	const MarmotInteger length = GetLength();
+	const int first = static_cast<int>(std::clamp(start, MarmotInteger{ 0 }, length));
+	const int last = static_cast<int>(std::clamp(end, MarmotInteger{ 0 }, length));
+	if (last <= first)
 	{
 		return MarmotArray();
 	}
 
-	const int slice_len = end - start;
+	const int slice_len = last - first;
 	const MarmotValue* source = IsShort() ? m_short.m_buffer : m_long.m_ptr;
 
 	MarmotArray result;
 	if (slice_len <= SOO_CAPACITY)
 	{
 		result.SetShortSize(slice_len);
-		std::memcpy(result.m_short.m_buffer, source + start, static_cast<size_t>(slice_len) * sizeof(MarmotValue));
+		std::memcpy(result.m_short.m_buffer, source + first, static_cast<size_t>(slice_len) * sizeof(MarmotValue));
 	}
 	else
 	{
 		result.Expand(slice_len);
 		result.m_long.m_size = slice_len;
-		std::memcpy(result.m_long.m_ptr, source + start, static_cast<size_t>(slice_len) * sizeof(MarmotValue));
+		std::memcpy(result.m_long.m_ptr, source + first, static_cast<size_t>(slice_len) * sizeof(MarmotValue));
 	}
 
 	return result;

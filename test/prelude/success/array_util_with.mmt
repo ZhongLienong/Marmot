@@ -12,6 +12,11 @@ def Show = fn(array: Array < Int >) -> Text => {
 def base = [10, 20, 30];
 def empty : Array < Int > = [];
 
+// These bounds must be clamped before they are narrowed to storage indexes.
+def whole = ArrayUtil::Slice(base, -4294967295, 2147483648);
+Expect((#whole == 3) && (whole[0] == 10) && (whole[2] == 30), "Slice clamps full-width endpoints");
+Expect(#ArrayUtil::Slice(base, 4294967297, 9223372036854775807) == 0, "Slice clamps a large start to the end");
+
 // The original must survive every operation.
 def appended = ArrayUtil::WithAppended(base, 40);
 Expect(ArrayUtil::Length(base) == 3, "WithAppended must not modify the original");
@@ -28,6 +33,8 @@ Expect(ArrayUtil::Length(inserted) == 4, "WithInserted grows by one");
 Expect((inserted[0] == 10) && (inserted[1] == 15) && (inserted[2] == 20) && (inserted[3] == 30), "WithInserted shifts the tail");
 Expect(ArrayUtil::WithInserted(base, 0, 1)[0] == 1, "WithInserted at the front");
 Expect(ArrayUtil::WithInserted(base, 3, 40)[3] == 40, "WithInserted past the last index appends");
+Expect(ArrayUtil::WithInserted(base, 4294967297, 40)[3] == 40, "WithInserted with a large positive index appends");
+Expect(ArrayUtil::WithInserted(base, -4294967295, 1)[0] == 1, "WithInserted with a large negative index prepends");
 Expect(ArrayUtil::Length(ArrayUtil::WithInserted(empty, 0, 1)) == 1, "WithInserted into empty");
 
 def removed = ArrayUtil::WithRemoved(base, 1);

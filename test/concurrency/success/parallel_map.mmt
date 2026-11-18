@@ -23,6 +23,8 @@ IO::PrintLine("squares: " ++ Show(Concurrency::ParallelMap(values, Square, 3)));
 
 // One chunk, and chunks larger than the input, are the same map.
 IO::PrintLine("one chunk: " ++ Show(Concurrency::ParallelMap(values, Square, 99)));
+IO::PrintLine("wide chunk: " ++ Show(Concurrency::ParallelMap(values, Square, 2147483648)));
+IO::PrintLine("largest chunk: " ++ Show(Concurrency::ParallelMap(values, Square, 9223372036854775807)));
 
 // The mapped function can be a closure over a local.
 def ScaleAll = fn(factor : Int) -> Array<Int> => Concurrency::ParallelMap(values, fn(n : Int) -> Int => n * factor, 2);

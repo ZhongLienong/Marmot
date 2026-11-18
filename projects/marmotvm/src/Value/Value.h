@@ -441,7 +441,7 @@ public:
 
 	void Extend(const MarmotArray& other);
 
-	MarmotArray Slice(int start, int end) const;
+	MarmotArray Slice(MarmotInteger start, MarmotInteger end) const;
 
 	MarmotArray Reverse() const;
 

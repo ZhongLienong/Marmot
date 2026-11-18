@@ -1,5 +1,7 @@
 squares: 1 4 9 16 25 36 49 
 one chunk: 1 4 9 16 25 36 49 
+wide chunk: 1 4 9 16 25 36 49
+largest chunk: 1 4 9 16 25 36 49
 scaled: 10 20 30 40 50 60 70 
 empty: []
 retyped: <1><2><3>

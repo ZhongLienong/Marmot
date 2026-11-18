@@ -43,12 +43,17 @@ def JoinedOrPanic = fn < T >(result: Result < T, WorkerError >) -> T => {
             case WorkerError::Failed(message) => Panic::Panic(message)
     }
 };
-// Joins the chunk workers in order, so the result is the input's order regardless of
-// which worker finishes first.
-def ConcatChunks = fn < T >(chunks: Array < Array < T >>, index: Int, gathered: Array < T >) -> Array < T > =>
-    if index >= ArrayUtil::Length(chunks)
-    then gathered
-    else ConcatChunks(chunks, index + 1, ArrayUtil::Concat(gathered, chunks[index]));
+// Joining adjacent chunks in halves keeps their order and copies each element
+// at most once per level. A single chunk is already the result.
+def ConcatChunks = fn < T >(chunks: Array < Array < T >>, start: Int, end: Int) -> Array < T > =>
+    if start == end
+    then []
+    else if end == start + 1
+    then chunks[start]
+    else {
+        def middle = start + ((end - start) / 2);
+        ConcatChunks(chunks, start, middle) ++ ConcatChunks(chunks, middle, end)
+    };
 // Maps `work` over `values` in parallel, one worker per chunk of `chunk_size`. This is
 // ordinary Marmot: the per-chunk worker is a lambda that captures `work` and crosses to
 // the worker with it, which is what makes a parallel map expressible in the language
@@ -56,8 +61,8 @@ def ConcatChunks = fn < T >(chunks: Array < Array < T >>, index: Int, gathered: 
 def ParallelMap = fn < A, B >(values: Array < A >, work: fn(A) -> B, chunk_size: Int) -> Array < B > where Transferable < A >, Transferable < B > => {
     def count = ArrayUtil::Length(values);
     def size = if chunk_size < 1 then 1 else chunk_size;
-    def chunk_count = (count + size - 1) / size;
+    def chunk_count = if count == 0 then 0 else 1 + ((count - 1) / size);
     def workers = [Spawn(ArrayUtil::Slice(values, index * size, (index + 1) * size), fn(chunk: Array < A >) -> Array < B > => [work(item) for item in chunk]) for index in 0..1..chunk_count];
     def chunks = [JoinedOrPanic(Join(worker)) for worker in workers];
-    ConcatChunks(chunks, 0, [])
+    ConcatChunks(chunks, 0, chunk_count)
 };
