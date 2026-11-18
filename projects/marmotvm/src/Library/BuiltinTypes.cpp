@@ -60,11 +60,6 @@ namespace
 		return RequireValueArg(args, index).GetInteger();
 	}
 
-	MarmotValue ReadValue(void** args, size_t index) noexcept
-	{
-		return RequireValueArg(args, index);
-	}
-
 	MarmotTraceable* RequireTraceable(void* handle, const char* expected_type) noexcept
 	{
 		MarmotTraceable* traceable = static_cast<MarmotTraceable*>(handle);
@@ -205,11 +200,6 @@ extern "C"
 	{
 		MarmotArray reversed = RequireArray(args[0u]).Reverse();
 		WritePointerResult(ret, AllocateValueArray(reversed));
-	}
-
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(ArrayContains)(void** args, void* ret) noexcept
-	{
-		WriteBool(ret, RequireArray(args[0u]).Contains(ReadValue(args, 1u)));
 	}
 
 	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(TextConcat)(void** args, void* ret) noexcept

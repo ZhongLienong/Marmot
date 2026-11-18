@@ -40,4 +40,8 @@ def texts = ["zero", "alpha", "beta", "gamma"];
 Expect(ArrayUtil::Length(texts) == 4, "ArrayUtil helpers should work for pointer-backed element types");
 Expect(ArrayUtil::Contains(texts, "beta"), "ArrayUtil::Contains should work with text elements");
 
+def nan = 0.0 / 0.0;
+Expect(ArrayUtil::Contains([-0.0], 0.0), "ArrayUtil::Contains should match both signs of zero");
+Expect(!ArrayUtil::Contains([nan], nan), "ArrayUtil::Contains should reject NaN equality");
+
 IO::PrintLine("prelude_array_util: PASS");

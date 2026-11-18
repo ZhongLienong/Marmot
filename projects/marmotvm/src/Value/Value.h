@@ -445,8 +445,6 @@ public:
 
 	MarmotArray Reverse() const;
 
-	bool Contains(const MarmotValue& value) const;
-
 	MARMOT_FORCE_INLINE int GetLength() const
 	{
 		return IsShort() ? GetShortSize() : m_long.m_size;

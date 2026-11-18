@@ -16,7 +16,6 @@ foreign "MARMOT_FFI_ArrayConcat" ArrayConcatInt : fn(Array<Int>, Array<Int>) -> 
 foreign "MARMOT_FFI_ArrayLength" ArrayLengthInt : fn(Array<Int>) -> Int;
 foreign "MARMOT_FFI_ArraySlice" ArraySliceInt : fn(Array<Int>, Int, Int) -> Array<Int>;
 foreign "MARMOT_FFI_ArrayReverse" ArrayReverseInt : fn(Array<Int>) -> Array<Int>;
-foreign "MARMOT_FFI_ArrayContains" ArrayContainsInt : fn(Array<Int>, Int) -> Bool;
 
 def arr = [1, 2, 3];
 if ArrayLengthInt(arr) == 3 then () else Panic::Panic("ArrayLength should report the array size");
@@ -33,13 +32,5 @@ def slice = ArraySliceInt(reversed, 1, 4);
 if ArrayLengthInt(slice) == 3 then () else Panic::Panic("ArraySlice should return the requested window");
 if slice[0] == 4 then () else Panic::Panic("ArraySlice should preserve the first sliced item");
 if slice[2] == 2 then () else Panic::Panic("ArraySlice should preserve the last sliced item");
-
-if ArrayContainsInt(slice, 3)
-then ()
-else Panic::Panic("ArrayContains should find existing values");
-
-if ArrayContainsInt(slice, 9)
-then Panic::Panic("ArrayContains should reject missing values")
-else ();
 
 IO::PrintLine("builtin_array_ffi: PASS");

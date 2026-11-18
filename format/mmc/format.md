@@ -1,7 +1,7 @@
 # Current `.mmc` wire format (under development)
 
 **Status: Under development; not sealed.** There is no released `.mmc` format
-version. The header currently carries numeric marker `17` so the VM can reject
+version. The header currently carries numeric marker `18` so the VM can reject
 artifacts written for a different encoding. That marker is an internal
 compatibility check, not a Marmot or `.mmc` release version. This file and its
 fixtures record current compiler/VM behavior and may change as Marmot develops.
@@ -18,7 +18,7 @@ of the file.
 | Offset | Size | Field | Current meaning |
 |---:|---:|---|---|
 | 0 | 4 | magic | ASCII `MBC` followed by `00` |
-| 4 | 4 | format marker (`u32`) | Exactly `17` |
+| 4 | 4 | format marker (`u32`) | Exactly `18` |
 | 8 | 2 | Marmot major version (`u16`) | Written from the producer version; informational to the current reader |
 | 10 | 2 | Marmot minor version (`u16`) | Informational |
 | 12 | 2 | Marmot patch version (`u16`) | Informational |

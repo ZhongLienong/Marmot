@@ -806,19 +806,6 @@ MarmotArray MarmotArray::Reverse() const
 	return result;
 }
 
-bool MarmotArray::Contains(const MarmotValue& value) const
-{
-	// This is a raw-value comparison for now; typeclass-driven equality comes later.
-	for (int idx = 0; idx < GetLength(); idx += 1)
-	{
-		if ((*this)[idx].GetRawBits() == value.GetRawBits())
-		{
-			return true;
-		}
-	}
-	return false;
-}
-
 void MarmotArray::AddBack(const MarmotValue& value)
 {
 	if (IsShort())

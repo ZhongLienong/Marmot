@@ -85,7 +85,6 @@ MARMOT_BUILTIN(MARMOT_FFI_ArrayConcat, MakeVmFFIArgKinds(VmFFIArgumentKind::Trac
 MARMOT_BUILTIN(MARMOT_FFI_ArrayLength, MakeVmFFIArgKinds(VmFFIArgumentKind::TraceableHandle), VmFFIReturnKind::RawValue)
 MARMOT_BUILTIN(MARMOT_FFI_ArraySlice, MakeVmFFIArgKinds(VmFFIArgumentKind::TraceableHandle, VmFFIArgumentKind::ValueHandle, VmFFIArgumentKind::ValueHandle), VmFFIReturnKind::ArrayValues)
 MARMOT_BUILTIN(MARMOT_FFI_ArrayReverse, MakeVmFFIArgKinds(VmFFIArgumentKind::TraceableHandle), VmFFIReturnKind::ArrayValues)
-MARMOT_BUILTIN(MARMOT_FFI_ArrayContains, MakeVmFFIArgKinds(VmFFIArgumentKind::TraceableHandle, VmFFIArgumentKind::ValueHandle), VmFFIReturnKind::RawValue)
 MARMOT_BUILTIN(MARMOT_FFI_TextConcat, MakeVmFFIArgKinds(VmFFIArgumentKind::TraceableHandle, VmFFIArgumentKind::TraceableHandle), VmFFIReturnKind::CString)
 MARMOT_BUILTIN(MARMOT_FFI_TextLength, MakeVmFFIArgKinds(VmFFIArgumentKind::CString), VmFFIReturnKind::RawValue)
 MARMOT_BUILTIN(MARMOT_FFI_TextSubstring, MakeVmFFIArgKinds(VmFFIArgumentKind::TraceableHandle, VmFFIArgumentKind::ValueHandle, VmFFIArgumentKind::ValueHandle), VmFFIReturnKind::CString)

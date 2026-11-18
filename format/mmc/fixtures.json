@@ -1,7 +1,7 @@
 {
-  "format_marker": 17,
-  "baseline_commit": "a86a12959b106a1e486b876c09f24d0c3d0661a6",
-  "producer": "marmotc build, Development profile, with the marker 17 channel receive change applied",
+  "format_marker": 18,
+  "baseline_commit": "825b2b641dd0d67224382d17e4611a9f0033369b",
+  "producer": "marmotc build, Development profile, with the marker 18 array membership change applied",
   "path_normalization": "Serialized paths beneath the checkout were changed to repository-relative forward-slash paths; payload size and CRC32 were recomputed. All other fields are unchanged.",
   "valid": [
     {
@@ -48,8 +48,8 @@
     },
     {
       "name": "incompatible_marker",
-      "derived_from": "minimal.mmc with format marker changed from 17 to 16",
-      "stderr_contains": "format marker mismatch: expected 17, got 16"
+      "derived_from": "minimal.mmc with format marker changed from 18 to 17",
+      "stderr_contains": "format marker mismatch: expected 18, got 17"
     }
   ]
 }

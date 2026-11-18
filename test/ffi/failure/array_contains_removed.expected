@@ -1,0 +1,6 @@
+Compilation failed :(
+Lowering Error at test/ffi/failure/array_contains_removed.mmt:3
+  |
+3 | foreign "MARMOT_FFI_ArrayContains" Contains : fn(Array<Float>, Float) -> Bool;
+  |                                    ^^^^^^^^ Unknown foreign function 'MARMOT_FFI_ArrayContains': it is not a Marmot builtin. Name the library that exports it: foreign "MARMOT_FFI_ArrayContains" ... from "library";
+  |

@@ -1,5 +1,5 @@
 {
-  "format_marker": 17,
+  "format_marker": 18,
   "builtin_abi_version": 1,
   "opcodes": [
     {
@@ -1665,15 +1665,6 @@
     },
     {
       "id": 84,
-      "name": "MARMOT_FFI_ArrayContains",
-      "arguments": [
-        "TraceableHandle",
-        "ValueHandle"
-      ],
-      "returns": "RawValue"
-    },
-    {
-      "id": 85,
       "name": "MARMOT_FFI_TextConcat",
       "arguments": [
         "TraceableHandle",
@@ -1682,7 +1673,7 @@
       "returns": "CString"
     },
     {
-      "id": 86,
+      "id": 85,
       "name": "MARMOT_FFI_TextLength",
       "arguments": [
         "CString"
@@ -1690,7 +1681,7 @@
       "returns": "RawValue"
     },
     {
-      "id": 87,
+      "id": 86,
       "name": "MARMOT_FFI_TextSubstring",
       "arguments": [
         "TraceableHandle",
@@ -1700,7 +1691,7 @@
       "returns": "CString"
     },
     {
-      "id": 88,
+      "id": 87,
       "name": "MARMOT_FFI_TextSplit",
       "arguments": [
         "TraceableHandle",
@@ -1709,7 +1700,7 @@
       "returns": "ArrayStrings"
     },
     {
-      "id": 89,
+      "id": 88,
       "name": "MARMOT_FFI_TextReverse",
       "arguments": [
         "TraceableHandle"
@@ -1717,7 +1708,7 @@
       "returns": "CString"
     },
     {
-      "id": 90,
+      "id": 89,
       "name": "MARMOT_FFI_TextContains",
       "arguments": [
         "TraceableHandle",
@@ -1726,7 +1717,7 @@
       "returns": "RawValue"
     },
     {
-      "id": 91,
+      "id": 90,
       "name": "MARMOT_FFI_TextReplace",
       "arguments": [
         "TraceableHandle",
@@ -1736,7 +1727,7 @@
       "returns": "CString"
     },
     {
-      "id": 92,
+      "id": 91,
       "name": "MARMOT_FFI_TextTrim",
       "arguments": [
         "TraceableHandle"
@@ -1744,7 +1735,7 @@
       "returns": "CString"
     },
     {
-      "id": 93,
+      "id": 92,
       "name": "MARMOT_FFI_TextFromCodePoint",
       "arguments": [
         "ValueHandle"
@@ -1752,7 +1743,7 @@
       "returns": "CString"
     },
     {
-      "id": 94,
+      "id": 93,
       "name": "MARMOT_FFI_TextCodePointAt",
       "arguments": [
         "TraceableHandle",
@@ -1761,7 +1752,7 @@
       "returns": "RawValue"
     },
     {
-      "id": 95,
+      "id": 94,
       "name": "MARMOT_FFI_TextIsInteger",
       "arguments": [
         "TraceableHandle"
@@ -1769,7 +1760,7 @@
       "returns": "RawValue"
     },
     {
-      "id": 96,
+      "id": 95,
       "name": "MARMOT_FFI_TextIsFloat",
       "arguments": [
         "TraceableHandle"
@@ -1777,7 +1768,7 @@
       "returns": "RawValue"
     },
     {
-      "id": 97,
+      "id": 96,
       "name": "MARMOT_FFI_HashText",
       "arguments": [
         "CString"
@@ -1785,19 +1776,19 @@
       "returns": "RawValue"
     },
     {
-      "id": 98,
+      "id": 97,
       "name": "MARMOT_FFI_HashFloat",
       "arguments": [],
       "returns": "RawValue"
     },
     {
-      "id": 99,
+      "id": 98,
       "name": "MARMOT_FFI_GetMonotonicNanos",
       "arguments": [],
       "returns": "RawValue"
     },
     {
-      "id": 100,
+      "id": 99,
       "name": "MARMOT_FFI_TextCompare",
       "arguments": [
         "TraceableHandle",
@@ -1806,7 +1797,7 @@
       "returns": "RawValue"
     },
     {
-      "id": 101,
+      "id": 100,
       "name": "MARMOT_FFI_ListDirectory",
       "arguments": [
         "CString"
@@ -1814,7 +1805,7 @@
       "returns": "ArrayStrings"
     },
     {
-      "id": 102,
+      "id": 101,
       "name": "MARMOT_FFI_MakeDirectory",
       "arguments": [
         "CString"
@@ -1822,7 +1813,7 @@
       "returns": "RawValue"
     },
     {
-      "id": 103,
+      "id": 102,
       "name": "MARMOT_FFI_DirectoryExists",
       "arguments": [
         "CString"
@@ -1830,7 +1821,7 @@
       "returns": "RawValue"
     },
     {
-      "id": 104,
+      "id": 103,
       "name": "MARMOT_FFI_FileChecksum",
       "arguments": [
         "CString"
@@ -1838,7 +1829,7 @@
       "returns": "CString"
     },
     {
-      "id": 105,
+      "id": 104,
       "name": "MARMOT_FFI_RunProcess",
       "arguments": [
         "TraceableHandle",
@@ -1847,13 +1838,13 @@
       "returns": "ArrayStrings"
     },
     {
-      "id": 106,
+      "id": 105,
       "name": "MARMOT_FFI_GetArguments",
       "arguments": [],
       "returns": "ArrayStrings"
     },
     {
-      "id": 107,
+      "id": 106,
       "name": "MARMOT_FFI_TextCodePoints",
       "arguments": [
         "TraceableHandle"
@@ -1861,7 +1852,7 @@
       "returns": "ArrayValues"
     },
     {
-      "id": 108,
+      "id": 107,
       "name": "MARMOT_FFI_TextFromCodePoints",
       "arguments": [
         "TraceableHandle"
