@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Bytecode/Builtins/BuiltinTable.h"
-#include "Library/MarmotStdLibExports.h"
+#include "FFI/MarmotVMFFIExports.h"
 
 #include <array>
 

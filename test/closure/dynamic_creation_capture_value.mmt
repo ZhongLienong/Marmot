@@ -2,7 +2,7 @@ module DynamicCreationCaptureValue
 
 import
 {
-	"../../MarmotPrelude/IO.mmt",
+	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
 }
 
 def makeCapture = fn(val : Int) -> fn() -> Int => fn() -> Int => val;

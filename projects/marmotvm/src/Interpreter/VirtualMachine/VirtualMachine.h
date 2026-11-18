@@ -7,7 +7,7 @@
 #include "Interpreter/Allocator/MarmotAllocator.h"
 #include "Interpreter/GarbageCollector/GarbageCollector.h"
 #include "Interpreter/Worker/Worker.h"
-#include "Library/MarmotBuiltinFFIRegistry/MarmotFFIRegistry.h"
+#include "FFI/MarmotFFIRegistry.h"
 #include "Library/DynamicFFIRegistry/DynamicFFIRegistry.h"
 
 #include <array>

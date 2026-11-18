@@ -1,8 +1,8 @@
 module worker_many_spawn
 
-import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Prelude/Option.mmt" }
+import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt" }
 
-import { "../../../MarmotPrelude/IO.mmt" }
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 use IO.{PrintLine}
 
 def IdentityWorker = fn(ch: Channel<Int>, val: Int) -> Int => {

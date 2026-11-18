@@ -4,7 +4,7 @@ module GenericCallsForeign
 // module. The call used to reach the builtin with its arguments marshalled for
 // a native library, and stopped with "Built-in FFI expected Array".
 
-import { "generic_calls_foreign_lib.mmt", "../../../MarmotPrelude/IO.mmt" }
+import { "generic_calls_foreign_lib.mmt", "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 IO::PrintLine(#GenericCallsForeignLib::Middle([1, 2, 3, 4]) as Text);
 IO::PrintLine(GenericCallsForeignLib::Middle(["a", "b", "c", "d"])[1]);

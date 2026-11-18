@@ -2,7 +2,7 @@ module NumericConstraint
 // Generic arithmetic, negation, ranges and bit operations, each allowed by the
 // where clause that names the class providing it.
 
-import { "../../../MarmotPrelude/IO.mmt", "../../../MarmotPrelude/Numeric.mmt" }
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Numeric.mmt" }
 
 def Add = fn<T>(a: T, b: T) -> Add::Output<T, T> where Add<T, T> => a + b;
 

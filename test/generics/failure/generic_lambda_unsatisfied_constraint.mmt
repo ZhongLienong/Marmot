@@ -1,6 +1,6 @@
 module GenericLambdaUnsatisfiedConstraint
 
-import { "../../../MarmotPrelude/Equatable.mmt" }
+import { "../../../projects/marmotstdlib/MarmotPrelude/Equatable.mmt" }
 
 type Opaque = { n: Int };
 def apply = fn(f: fn(Opaque) -> Bool, v: Opaque) -> Bool => f(v);

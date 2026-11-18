@@ -101,7 +101,7 @@ Most are primitives, each one instruction of the VM, which the module declares a
 works. A primitive is called like a function, but it is not a value:
 
 ```marmot-test name=multicore/concurrency_surface path=.doc_example_multicore_surface.mmt module=MulticoreConcurrencySurface
-import { "./MarmotPrelude/Concurrency.mmt", "./MarmotPrelude/Prelude/Result.mmt" }
+import { "./projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "./projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt" }
 
 def ComputeRow = fn(row: Int, width: Int) -> Int => row * width;
 

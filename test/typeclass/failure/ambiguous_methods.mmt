@@ -3,7 +3,7 @@ module AmbiguousMethods
 // Test: Ambiguous method names across multiple typeclasses
 // This should produce a compile-time error
 
-import { "../../../MarmotPrelude/IO.mmt", }
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
 class Show<T> {
     display: fn(value: T) -> Text;

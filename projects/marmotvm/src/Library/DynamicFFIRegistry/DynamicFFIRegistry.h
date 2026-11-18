@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Library/MarmotBuiltinFFIRegistry/MarmotFFIRegistry.h"
+#include "FFI/MarmotFFIRegistry.h"
 #include "Bytecode/Executable/Executable.h"
 #include "Library/SharedLibraryCache/SharedLibraryCache.h"
 

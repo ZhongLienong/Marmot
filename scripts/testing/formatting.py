@@ -16,7 +16,7 @@ formatted - controlled by `--enforce-clean`.
 Usage:
     python scripts/dev.py check format
     python scripts/dev.py check format --build Debug
-    python scripts/dev.py check format --root test --root MarmotPrelude
+    python scripts/dev.py check format --root test --root projects/marmotstdlib/MarmotPrelude
     python scripts/dev.py check format --enforce-clean
 """
 
@@ -36,7 +36,7 @@ from lib.presets import BuildTree, add_build_arguments
 
 DEFAULT_ROOTS: tuple[str, ...] = (
     "test",
-    "MarmotPrelude",
+    "projects/marmotstdlib/MarmotPrelude",
 )
 
 

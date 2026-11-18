@@ -5,7 +5,7 @@ module CountableGenericUserType
 // the lookup was an exact string key, so Countable<Bag<T>> could not
 // match Countable<Bag<Int>>.
 
-import { "../../../MarmotPrelude/IO.mmt", "../../../MarmotPrelude/Countable.mmt", }
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Countable.mmt", }
 
 type Bag < T > = {
     items: Array < T >

@@ -362,7 +362,7 @@ def scenario_marmotvm_passes_program_arguments(tree: BuildTree) -> None:
     with tempfile.TemporaryDirectory(prefix="marmot-cli-arguments-") as temp_dir_raw:
         temp_dir = Path(temp_dir_raw)
         source_path = temp_dir / "Main.mmt"
-        prelude = (REPO_ROOT / "MarmotPrelude").as_posix()
+        prelude = (REPO_ROOT / "projects" / "marmotstdlib" / "MarmotPrelude").as_posix()
         write_text(
             source_path,
             "module Main\n"

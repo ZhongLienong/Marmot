@@ -2,7 +2,7 @@ module GenericNumericCallWithText
 // The where clause is checked at the call, so a caller passing Text is told so
 // there, rather than the body failing to compile for Text.
 
-import { "../../../MarmotPrelude/Numeric.mmt" }
+import { "../../../projects/marmotstdlib/MarmotPrelude/Numeric.mmt" }
 
 def Add = fn<T>(a: T, b: T) -> T where Add<T, T>, Add::Output<T, T> ~ T => a + b;
 

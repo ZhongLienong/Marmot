@@ -2,7 +2,7 @@ module Leetcode371SumOfTwoIntegers
 
 import
 {
-	"../../MarmotPrelude/IO.mmt",
+	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
 }
 
 def GetSum = fn(a : Int, b : Int) -> Int => if b == 0 then a else GetSum(a ^ b, (a & b) << 1);

@@ -1,6 +1,6 @@
 module DerivingGenericAndRecursive
 
-import { "../../../MarmotPrelude/IO.mmt", "../../../MarmotPrelude/Equatable.mmt", "../../../MarmotPrelude/Hashable.mmt" }
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Equatable.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Hashable.mmt" }
 
 type Pair<A, B> = { first: A, second: B, tag: Int } deriving (Equatable, Hashable);
 

@@ -1,6 +1,6 @@
 module spawn_nontransferable_worker_in_generic_array
 
-import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Prelude/Result.mmt" }
+import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt" }
 
 // ParallelMap asks for Transferable<A>; an array of workers must not satisfy it
 // just because arrays are transferable.

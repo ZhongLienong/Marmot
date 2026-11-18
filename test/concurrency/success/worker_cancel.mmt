@@ -1,11 +1,11 @@
 module worker_cancel
 
-import { "../../../MarmotPrelude/Concurrency.mmt" }
+import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt" }
 
-import { "../../../MarmotPrelude/IO.mmt" }
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 use IO.{PrintLine}
 
-import { "../../../MarmotPrelude/System.mmt" }
+import { "../../../projects/marmotstdlib/MarmotPrelude/System.mmt" }
 use System.{Sleep}
 
 def LongTask = fn(dummy: Text) -> Int => {

@@ -7,7 +7,7 @@ module GenericLambdaRecursive
 
 import
 {
-	"../../../MarmotPrelude/IO.mmt"
+	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt"
 }
 
 def Depth = fn<T>(x: T, n: Int) -> Int => if n <= 0 then 0 else 1 + Depth(x, n - 1);

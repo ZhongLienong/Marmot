@@ -3,7 +3,7 @@ module GenericParamRigidBody
 // Test: Generic parameters are rigid in function bodies.
 // Expected: SHOULD FAIL - 'T' cannot be unified to 'Text' implicitly.
 
-import { "../../../MarmotPrelude/IO.mmt" }
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 def Bad = fn<T>(value: T) -> Unit =>
 {

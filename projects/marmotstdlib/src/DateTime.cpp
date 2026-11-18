@@ -1,5 +1,5 @@
-#include "Library/MarmotStdLibExports.h"
-#include "Library/FFIAllocation/FFIAllocation.h"
+#include "MarmotStdLibExports.h"
+#include "FFIAllocation/FFIAllocation.h"
 
 #include <chrono>
 #include <cstring>

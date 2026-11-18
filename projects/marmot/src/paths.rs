@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 /// being worked on rather than whichever one is installed.
 pub fn marmot_path() -> Vec<PathBuf> {
     let checkout_prelude = checkout_root()
-        .map(|root| root.join("MarmotPrelude"))
+        .map(|root| root.join("projects").join("marmotstdlib").join("MarmotPrelude"))
         .filter(|prelude| prelude.is_dir());
     let environment = std::env::var_os("MARMOT_PATH").unwrap_or_default();
     let listed = std::env::split_paths(&environment).filter(|path| !path.as_os_str().is_empty());

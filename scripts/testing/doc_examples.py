@@ -7,7 +7,7 @@ with `marmot-test`. Example:
 
 ```marmot-test name=readme/hello_world path=.doc_examples/readme/hello_world.mmt
 module Main
-import { "../MarmotPrelude/IO.mmt" }
+import { "../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 IO::PrintLine("Hello, Marmot!");
 ```
 

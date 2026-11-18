@@ -5,9 +5,9 @@ Format Marmot files and folders with this checkout's formatter.
 Rewrites the files in place; --check only reports the ones that would change.
 
 Examples:
-    python scripts/dev.py fmt MarmotPrelude
+    python scripts/dev.py fmt projects/marmotstdlib/MarmotPrelude
     python scripts/dev.py fmt test/closure/simple.mmt examples
-    python scripts/dev.py fmt --check test MarmotPrelude
+    python scripts/dev.py fmt --check test projects/marmotstdlib/MarmotPrelude
 """
 
 from __future__ import annotations

@@ -8,7 +8,7 @@ module HiddenLocalCaptureInOperandPosition
 // rejected the program. MarmotIR captures values, not frame slots, so there is
 // nothing to shift.
 
-import { "../../../MarmotPrelude/IO.mmt" }
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 def ShowF = fn(label : Text, f : fn() -> Int) -> Unit =>
 	IO::PrintLine(label ++ " " ++ (f() as Text));

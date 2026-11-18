@@ -4,7 +4,7 @@ module GenericInstanceInlineConstruction
 // type from the one instance that matches. That type held the instance's own
 // parameter T, so Box(1) was checked against Box<T> and rejected.
 
-import { "../../../MarmotPrelude/IO.mmt" }
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 class Show<T> { show: fn(value: T) -> Text; };
 

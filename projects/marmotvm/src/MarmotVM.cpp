@@ -7,7 +7,7 @@
 #include "Support/Json/Json.h"
 #include "Support/OutputCapture/OutputCapture.h"
 #include "Library/ProgramArguments/ProgramArguments.h"
-#include "Library/TextPath/TextPath.h"
+#include "MarmotNativeSupport/TextPath.h"
 #include "Loader/ProgramLoader.h"
 #include "Loader/Standalone.h"
 

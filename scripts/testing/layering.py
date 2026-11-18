@@ -26,6 +26,8 @@ from lib.host import REPO_ROOT as ROOT
 INCLUDE_ROOTS = {
     'runtime': ROOT / 'projects' / 'marmotvm' / 'src',
     'compiler': ROOT / 'projects' / 'marmotc' / 'src',
+    'stdlib': ROOT / 'projects' / 'marmotstdlib' / 'src',
+    'support': ROOT / 'projects' / 'marmotstdlib' / 'support',
 }
 
 # The compiler's driver stays outside the compiler pipeline.
@@ -36,9 +38,11 @@ DRIVER_DIRS = [
 DRIVER_FILES = [ROOT / 'projects' / 'marmotc' / 'src' / 'Marmot.cpp']
 
 ALLOWED = {
-    'runtime': {'runtime'},
+    'runtime': {'runtime', 'stdlib', 'support'},
     'compiler': {'compiler'},
     'driver': {'compiler', 'driver'},
+    'stdlib': {'stdlib', 'support'},
+    'support': {'support'},
     'web': set(),
     'vm': {'runtime', 'vm'},
 }
@@ -71,7 +75,7 @@ def component_of(path):
     for name, include_root in INCLUDE_ROOTS.items():
         if include_root in path.parents:
             return name
-    for project, component in [('marmotc', 'driver'), ('marmotvm', 'runtime')]:
+    for project, component in [('marmotc', 'driver'), ('marmotvm', 'runtime'), ('marmotstdlib', 'stdlib')]:
         if (ROOT / 'projects' / project / 'tests') in path.parents:
             return component
     if (ROOT / 'test' / 'integration') in path.parents:
@@ -94,7 +98,7 @@ def resolve(including_file, target):
 
 def main(argv: list[str]) -> int:
     sources = []
-    for folder in (ROOT / 'projects' / 'marmotvm' / 'src', ROOT / 'projects' / 'marmotc' / 'src', ROOT / 'projects' / 'web', ROOT / 'test' / 'integration', ROOT / 'projects' / 'marmotc' / 'tests', ROOT / 'projects' / 'marmotvm' / 'tests'):
+    for folder in (ROOT / 'projects' / 'marmotvm' / 'src', ROOT / 'projects' / 'marmotc' / 'src', ROOT / 'projects' / 'marmotstdlib' / 'src', ROOT / 'projects' / 'marmotstdlib' / 'support', ROOT / 'projects' / 'web', ROOT / 'test' / 'integration', ROOT / 'projects' / 'marmotc' / 'tests', ROOT / 'projects' / 'marmotvm' / 'tests'):
         for pattern in ('*.h', '*.cpp', '*.def'):
             sources.extend(folder.rglob(pattern))
 
@@ -123,7 +127,7 @@ def main(argv: list[str]) -> int:
                 f'{target_component or "unowned repository"} header "{match.group(1)}"'
             )
 
-    cmake = '\n'.join(path.read_text(encoding='utf-8') for project in ('marmotc', 'marmotvm') for path in (ROOT / 'projects' / project).rglob('*.cmake')) + '\n' + '\n'.join((ROOT / 'projects' / project / 'CMakeLists.txt').read_text(encoding='utf-8') for project in ('marmotc', 'marmotvm'))
+    cmake = '\n'.join(path.read_text(encoding='utf-8') for project in ('marmotc', 'marmotvm', 'marmotstdlib') for path in (ROOT / 'projects' / project).rglob('*.cmake')) + '\n' + '\n'.join((ROOT / 'projects' / project / 'CMakeLists.txt').read_text(encoding='utf-8') for project in ('marmotc', 'marmotvm', 'marmotstdlib'))
     if re.search(r'add_library\(\s*MarmotBytecode\b', cmake):
         violations.append('CMakeLists.txt: MarmotBytecode remains a shared target')
     links = {}
@@ -143,6 +147,8 @@ def main(argv: list[str]) -> int:
     for target, forbidden in (
         ('marmotc', {'MarmotRuntime', 'MarmotBytecode'}),
         ('marmotvm', {'MarmotCompiler', 'MarmotDriver', 'MarmotBytecode'}),
+        ('MarmotStdLib', {'MarmotRuntime', 'MarmotCompiler', 'MarmotDriver'}),
+        ('MarmotNativeSupport', {'MarmotRuntime', 'MarmotStdLib', 'MarmotCompiler', 'MarmotDriver'}),
     ):
         for dependency in reachable(target) & forbidden:
             violations.append(f'CMakeLists.txt: {target} links {dependency}')

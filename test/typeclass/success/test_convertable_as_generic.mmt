@@ -1,7 +1,7 @@
 module TestConvertableAsGeneric
 
 // Test: generic `as` works with Convertable constraints.
-import { "../../../MarmotPrelude/IO.mmt", "../../../MarmotPrelude/Convertable.mmt" }
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Convertable.mmt" }
 
 def ToText = fn<T>(value: T) -> Text where Convertable<T, Text> => {
     value as Text

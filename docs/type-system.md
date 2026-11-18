@@ -580,7 +580,7 @@ return normally, such as a panic or a function that recurses forever.
 another branch without producing a dummy value:
 
 ```marmot-test name=type-system/never_branch path=.doc_examples/type_system/never_branch.mmt module=TypeSystemNeverBranch
-import { "../../MarmotPrelude/Prelude/Panic.mmt" }
+import { "../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt" }
 
 def RequirePositive = fn(n: Int) -> Int =>
     if n > 0 then n

@@ -75,7 +75,7 @@ Every `.mmt` source file must begin with an explicit `module` declaration. Short
 module Main
 
 // Path import (relative or absolute)
-import { "../MarmotPrelude/IO.mmt" }
+import { "../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 IO::PrintLine("Hello, Marmot!");
 ```
@@ -112,7 +112,7 @@ def apply = fn<T, R>(f: fn(T) -> R, value: T) -> R => f(value);
 
 ### Control Flow
 ```marmot-test name=readme/control_flow path=.doc_examples/readme_control_flow.mmt module=ReadmeControlFlow
-import { "../MarmotPrelude/IO.mmt" }
+import { "../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 def x = 3;
 
@@ -243,7 +243,7 @@ def NextValue = fn<Iter>(iter: Iter) -> Option<(Iterable::Item<Iter>, Iter)>
 
 ### Deriving
 ```marmot-test name=readme/deriving path=.doc_examples/readme_deriving.mmt module=ReadmeDeriving
-import { "../MarmotPrelude/Equatable.mmt", "../MarmotPrelude/Hashable.mmt" }
+import { "../projects/marmotstdlib/MarmotPrelude/Equatable.mmt", "../projects/marmotstdlib/MarmotPrelude/Hashable.mmt" }
 
 type Point = {
     x: Int,
@@ -437,7 +437,7 @@ def updated_text = text ++ suffix;
 
 ## Standard Library
 
-`MarmotPrelude` is the standard-library layer that ships with the repo. The main module groups are:
+`projects/marmotstdlib/MarmotPrelude/` contains the standard-library layer that ships with the repo. The main module groups are:
 
 - **Core ADTs** - `Prelude/Option.mmt`, `Prelude/Result.mmt`, `Prelude/List.mmt`
 - **Collections** - `Collections/Map.mmt`, `Collections/Set.mmt`

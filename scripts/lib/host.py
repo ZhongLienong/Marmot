@@ -11,7 +11,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS_DIR = REPO_ROOT / "scripts"
-PRELUDE_DIR = REPO_ROOT / "MarmotPrelude"
+PRELUDE_DIR = REPO_ROOT / "projects" / "marmotstdlib" / "MarmotPrelude"
 TEST_DIR = REPO_ROOT / "test"
 TOOL_DIR = REPO_ROOT / "projects" / "marmot"
 

@@ -1,6 +1,6 @@
 module PreludeMapRead
 
-import { "../../../MarmotPrelude/Collections/Map.mmt", "../../../MarmotPrelude/IO.mmt", "../../../MarmotPrelude/Prelude/Panic.mmt" }
+import { "../../../projects/marmotstdlib/MarmotPrelude/Collections/Map.mmt", "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt" }
 
 def Expect = fn(condition: Bool, message: Text) -> Unit => if condition then () else Panic::Panic(message);
 

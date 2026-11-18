@@ -8,7 +8,7 @@ module LocalConstantPropagation
 // than rewritten, because a rewrite would test propagation through immutable
 // bindings -- which is what the two remaining cases already cover.
 
-import { "../../MarmotPrelude/IO.mmt" }
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 def propagated_literal: Int = {
     def x: Int = 40;

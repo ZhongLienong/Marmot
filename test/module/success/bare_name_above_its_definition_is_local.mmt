@@ -7,8 +7,8 @@ module BareNameAboveItsDefinitionIsLocal
 
 import
 {
-	"../../../MarmotPrelude/IO.mmt",
-	"../../../MarmotPrelude/TextUtil.mmt"
+	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
+	"../../../projects/marmotstdlib/MarmotPrelude/TextUtil.mmt"
 }
 
 def Describe = fn(text: Text) -> Text => Trim(text, "-") ++ " " ++ (Length(text) as Text);

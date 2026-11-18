@@ -1,4 +1,4 @@
-#include "Library/MarmotStdLibExports.h"
+#include "FFI/MarmotVMFFIExports.h"
 
 #include "Error/RuntimeError.h"
 #include "Value/Value.h"
@@ -187,30 +187,30 @@ namespace
 
 extern "C"
 {
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(ArrayConcat)(void** args, void* ret) noexcept
+	MARMOT_VM_FFI_API void MARMOT_FFI_FUNC(ArrayConcat)(void** args, void* ret) noexcept
 	{
 		MarmotArray concatenated = MarmotArray::Concatenate(RequireArray(args[0u]), RequireArray(args[1u]));
 		WritePointerResult(ret, AllocateValueArray(concatenated));
 	}
 
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(ArrayLength)(void** args, void* ret) noexcept
+	MARMOT_VM_FFI_API void MARMOT_FFI_FUNC(ArrayLength)(void** args, void* ret) noexcept
 	{
 		WriteInt(ret, RequireArray(args[0u]).GetLength());
 	}
 
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(ArraySlice)(void** args, void* ret) noexcept
+	MARMOT_VM_FFI_API void MARMOT_FFI_FUNC(ArraySlice)(void** args, void* ret) noexcept
 	{
 		MarmotArray sliced = RequireArray(args[0u]).Slice(ReadInt(args, 1u), ReadInt(args, 2u));
 		WritePointerResult(ret, AllocateValueArray(sliced));
 	}
 
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(ArrayReverse)(void** args, void* ret) noexcept
+	MARMOT_VM_FFI_API void MARMOT_FFI_FUNC(ArrayReverse)(void** args, void* ret) noexcept
 	{
 		MarmotArray reversed = RequireArray(args[0u]).Reverse();
 		WritePointerResult(ret, AllocateValueArray(reversed));
 	}
 
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(ArrayConcatAll)(void** args, void* ret) noexcept
+	MARMOT_VM_FFI_API void MARMOT_FFI_FUNC(ArrayConcatAll)(void** args, void* ret) noexcept
 	{
 		const MarmotArray& chunks = RequireArray(args[0u]);
 		MarmotInteger length = 0;
@@ -248,25 +248,25 @@ extern "C"
 		WritePointerResult(ret, result);
 	}
 
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(TextConcat)(void** args, void* ret) noexcept
+	MARMOT_VM_FFI_API void MARMOT_FFI_FUNC(TextConcat)(void** args, void* ret) noexcept
 	{
 		MarmotText concatenated = MarmotText::Concatenate(RequireText(args[0u]), RequireText(args[1u]));
 		WritePointerResult(ret, AllocateCString(concatenated));
 	}
 
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(TextSubstring)(void** args, void* ret) noexcept
+	MARMOT_VM_FFI_API void MARMOT_FFI_FUNC(TextSubstring)(void** args, void* ret) noexcept
 	{
 		MarmotText substring = RequireText(args[0u]).Substring(ReadInt(args, 1u), ReadInt(args, 2u));
 		WritePointerResult(ret, AllocateCString(substring));
 	}
 
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(TextSplit)(void** args, void* ret) noexcept
+	MARMOT_VM_FFI_API void MARMOT_FFI_FUNC(TextSplit)(void** args, void* ret) noexcept
 	{
 		std::vector<MarmotText> parts = RequireText(args[0u]).Split(RequireText(args[1u]));
 		WritePointerResult(ret, AllocateStringArray(parts));
 	}
 
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(TextReverse)(void** args, void* ret) noexcept
+	MARMOT_VM_FFI_API void MARMOT_FFI_FUNC(TextReverse)(void** args, void* ret) noexcept
 	{
 		MarmotText reversed = RequireText(args[0u]).Reverse();
 		WritePointerResult(ret, AllocateCString(reversed));
@@ -274,13 +274,13 @@ extern "C"
 
 	// The UTF-8 for one Unicode scalar value. The caller has checked it is one,
 	// and that it is not U+0000, which text cannot hold.
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(TextFromCodePoint)(void** args, void* ret) noexcept
+	MARMOT_VM_FFI_API void MARMOT_FFI_FUNC(TextFromCodePoint)(void** args, void* ret) noexcept
 	{
 		const std::array<MarmotInteger, 1u> code_point{ ReadInt(args, 0u) };
 		WritePointerResult(ret, AllocateCString(MarmotText::FromCodePoints(code_point)));
 	}
 
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(TextCodePoints)(void** args, void* ret) noexcept
+	MARMOT_VM_FFI_API void MARMOT_FFI_FUNC(TextCodePoints)(void** args, void* ret) noexcept
 	{
 		const std::vector<MarmotInteger> code_points = RequireText(args[0u]).CodePoints();
 		MarmotArray values(static_cast<int>(code_points.size()));
@@ -291,7 +291,7 @@ extern "C"
 		WritePointerResult(ret, AllocateValueArray(values));
 	}
 
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(TextFromCodePoints)(void** args, void* ret) noexcept
+	MARMOT_VM_FFI_API void MARMOT_FFI_FUNC(TextFromCodePoints)(void** args, void* ret) noexcept
 	{
 		const MarmotArray& values = RequireArray(args[0u]);
 		const std::vector<MarmotInteger> code_points = std::views::iota(0, values.GetLength())
@@ -301,7 +301,7 @@ extern "C"
 	}
 
 	// The code point at a code-point index, or -1 past the end.
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(TextCodePointAt)(void** args, void* ret) noexcept
+	MARMOT_VM_FFI_API void MARMOT_FFI_FUNC(TextCodePointAt)(void** args, void* ret) noexcept
 	{
 		const MarmotText& text = RequireText(args[0u]);
 		const MarmotInteger index = ReadInt(args, 1u);
@@ -325,35 +325,35 @@ extern "C"
 		WriteInt(ret, static_cast<MarmotInteger>(code_point));
 	}
 
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(TextIsInteger)(void** args, void* ret) noexcept
+	MARMOT_VM_FFI_API void MARMOT_FFI_FUNC(TextIsInteger)(void** args, void* ret) noexcept
 	{
 		WriteBool(ret, RequireText(args[0u]).ParseInteger().has_value());
 	}
 
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(TextIsFloat)(void** args, void* ret) noexcept
+	MARMOT_VM_FFI_API void MARMOT_FFI_FUNC(TextIsFloat)(void** args, void* ret) noexcept
 	{
 		WriteBool(ret, RequireText(args[0u]).ParseFloat().has_value());
 	}
 
 	// UTF-8 byte order is code point order.
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(TextCompare)(void** args, void* ret) noexcept
+	MARMOT_VM_FFI_API void MARMOT_FFI_FUNC(TextCompare)(void** args, void* ret) noexcept
 	{
 		const int order = RequireText(args[0u]).View().compare(RequireText(args[1u]).View());
 		WriteInt(ret, (order > 0) - (order < 0));
 	}
 
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(TextContains)(void** args, void* ret) noexcept
+	MARMOT_VM_FFI_API void MARMOT_FFI_FUNC(TextContains)(void** args, void* ret) noexcept
 	{
 		WriteBool(ret, RequireText(args[0u]).Contains(RequireText(args[1u])));
 	}
 
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(TextReplace)(void** args, void* ret) noexcept
+	MARMOT_VM_FFI_API void MARMOT_FFI_FUNC(TextReplace)(void** args, void* ret) noexcept
 	{
 		MarmotText replaced = RequireText(args[0u]).Replace(RequireText(args[1u]), RequireText(args[2u]));
 		WritePointerResult(ret, AllocateCString(replaced));
 	}
 
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(TextTrim)(void** args, void* ret) noexcept
+	MARMOT_VM_FFI_API void MARMOT_FFI_FUNC(TextTrim)(void** args, void* ret) noexcept
 	{
 		MarmotText trimmed = RequireText(args[0u]).Trim();
 		WritePointerResult(ret, AllocateCString(trimmed));

@@ -1,13 +1,10 @@
-#include "Support/Cancellation/Cancellation.h"
-#include "Library/MarmotStdLibExports.h"
-#include "Library/FFIAllocation/FFIAllocation.h"
-#include "Library/ProgramArguments/ProgramArguments.h"
-#include "Library/TextPath/TextPath.h"
-#include "Value/Value.h"
+#include "MarmotStdLibExports.h"
+#include "FFIAllocation/FFIAllocation.h"
+#include "MarmotNativeSupport/TextPath.h"
+#include "System.h"
 
 #include <array>
 #include <cerrno>
-#include <chrono>
 #include <cstdlib>
 #include <cstring>
 #include <expected>
@@ -329,15 +326,38 @@ namespace
 #endif
 }
 
+namespace MarmotSystem
+{
+	FFIAllocation::FFIArray* RunProcess(
+		const std::vector<std::string>& arguments,
+		std::string_view directory
+	) noexcept
+	{
+		std::error_code ec;
+		if (!directory.empty() && !std::filesystem::is_directory(TextPath::FromText(directory), ec))
+		{
+			SetLastSystemError(SystemErrorKind::InvalidDirectory, "Not a directory.");
+			return nullptr;
+		}
+
+		const std::expected<ProcessOutcome, std::string> outcome = RunToCompletion(arguments, std::string(directory));
+		if (outcome.has_value())
+		{
+			ClearLastSystemError();
+		}
+		else
+		{
+			SetLastSystemError(SystemErrorKind::Unknown, outcome.error());
+			return nullptr;
+		}
+
+		return FFIAllocation::AllocateStringArray(
+			{ std::to_string(outcome->m_exit_code), outcome->m_output, outcome->m_error });
+	}
+}
+
 extern "C"
 {
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(Exit)(void** args, void*) noexcept
-	{
-		int64_t exit_code = 0;
-		std::memcpy(&exit_code, &args[0u], sizeof(int64_t));
-		std::exit(static_cast<int>(exit_code));
-	}
-
 	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(GetEnv)(void** args, void* ret) noexcept
 	{
 		const char* var_name = reinterpret_cast<const char*>(args[0u]);
@@ -396,13 +416,6 @@ extern "C"
 		std::memcpy(ret, &ptr, sizeof(int64_t));
 	}
 
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(Sleep)(void** args, void* ret) noexcept
-	{
-		int64_t milliseconds = 0;
-		std::memcpy(&milliseconds, &args[0u], sizeof(int64_t));
-		ThreadCancellation::SleepInterruptible(std::chrono::milliseconds(milliseconds));
-		std::memset(ret, 0, sizeof(double));
-	}
 
 	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(GetCurrentDirectory)(void**, void* ret) noexcept
 	{
@@ -489,47 +502,7 @@ extern "C"
 		std::memcpy(ret, &result, sizeof(int64_t));
 	}
 
-	// The arguments reach the program exactly, with no shell between. Both
-	// outputs are read while it runs, so neither pipe fills and stops it. The
-	// result is the exit code, the output and the error output, as text.
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(RunProcess)(void** args, void* ret) noexcept
-	{
-		const MarmotArray& values = static_cast<MarmotTraceable*>(args[0u])->GetTraceable<MarmotArray>();
-		const std::vector<std::string> arguments = std::views::iota(0, values.GetLength())
-			| std::views::transform([&values](int index) { return std::string(values[index].GetPointer()->GetTraceable<MarmotText>().View()); })
-			| std::ranges::to<std::vector>();
-		const std::string directory(reinterpret_cast<const char*>(args[1u]));
 
-		std::error_code ec;
-		if (!directory.empty() && !std::filesystem::is_directory(TextPath::FromText(directory), ec))
-		{
-			SetLastSystemError(SystemErrorKind::InvalidDirectory, "Not a directory.");
-			const int64_t null_ptr = 0;
-			std::memcpy(ret, &null_ptr, sizeof(int64_t));
-			return;
-		}
-
-		const std::expected<ProcessOutcome, std::string> outcome = RunToCompletion(arguments, directory);
-		if (outcome.has_value())
-		{
-			ClearLastSystemError();
-		}
-		else
-		{
-			SetLastSystemError(SystemErrorKind::Unknown, outcome.error());
-		}
-
-		const int64_t ptr = outcome.has_value()
-			? reinterpret_cast<int64_t>(FFIAllocation::AllocateStringArray({ std::to_string(outcome->m_exit_code), outcome->m_output, outcome->m_error }))
-			: 0;
-		std::memcpy(ret, &ptr, sizeof(int64_t));
-	}
-
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(GetArguments)(void**, void* ret) noexcept
-	{
-		const int64_t ptr = reinterpret_cast<int64_t>(FFIAllocation::AllocateStringArray(ProgramArguments::Get()));
-		std::memcpy(ret, &ptr, sizeof(int64_t));
-	}
 
 	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(GetPlatform)(void**, void* ret) noexcept
 	{

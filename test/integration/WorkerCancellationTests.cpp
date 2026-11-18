@@ -33,7 +33,7 @@ namespace
 	// Result<T, WorkerError>, and the program prints what it received.
 	std::string JoinImports()
 	{
-		const std::filesystem::path prelude = RepositoryRoot() / "MarmotPrelude";
+		const std::filesystem::path prelude = RepositoryRoot() / "projects" / "marmotstdlib" / "MarmotPrelude";
 		return std::format
 		(
 			R"(import {{ "{}", "{}", "{}", "{}" }})",

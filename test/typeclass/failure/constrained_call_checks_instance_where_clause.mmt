@@ -4,7 +4,7 @@ module ConstrainedCallChecksInstanceWhereClause
 // where clause must hold too. Show<Boxed<Opaque>> was accepted although
 // Show<Opaque> has no instance.
 
-import { "../../../MarmotPrelude/IO.mmt" }
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 class Show<T> { show: fn(value: T) -> Text; };
 

@@ -1,7 +1,7 @@
 module TestSimpleChainedConversions
 
 // Test: Simple chained conversions that don't require converting TO a type variable
-import { "../../../MarmotPrelude/IO.mmt", "../../../MarmotPrelude/Convertable.mmt" }
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Convertable.mmt" }
 
 // Function that converts to Text via Int (both target types are concrete)
 def ToTextViaInt = fn<T>(value: T) -> Text

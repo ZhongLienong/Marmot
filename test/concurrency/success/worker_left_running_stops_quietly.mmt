@@ -1,8 +1,8 @@
 module worker_left_running_stops_quietly
 
-import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Prelude/Option.mmt" }
+import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt" }
 
-import { "../../../MarmotPrelude/IO.mmt" }
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 use IO.{PrintLine}
 
 // A worker still running when the program ends is stopped by the runtime. That

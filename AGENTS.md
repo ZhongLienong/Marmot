@@ -27,7 +27,7 @@ the runtime; neither side links or includes the other. They agree through the
 | `projects/marmotc/src/Compiler` | Compiler errors, lexer, parser, type checker, static analysis, lowering, MarmotIR optimizer, bytecode backend, linker |
 | `projects/marmotvm/src` | Values, runtime errors, the interpreter, the GC, workers, the builtin FFI library and VM entry point |
 | `projects/marmot/src` | The `marmot` tool |
-| `MarmotPrelude` | The prelude, written in Marmot |
+| `projects/marmotstdlib/MarmotPrelude` | The prelude, written in Marmot |
 | `test/` | The `.mmt` regression suite, with `.expected` snapshots |
 | `docs/` | The language and toolchain documentation |
 
@@ -123,7 +123,7 @@ often got wrong:
   linear: the result shares `acc`'s buffer and writes after it in place.
 
 Tests under `test/` import the prelude by relative path
-(`"../../../MarmotPrelude/IO.mmt"`). The `<IO>` form resolves through
+(`"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt"`). The `<IO>` form resolves through
 `MARMOT_PATH`, which on a developer machine may point at an installed prelude
 rather than this one.
 

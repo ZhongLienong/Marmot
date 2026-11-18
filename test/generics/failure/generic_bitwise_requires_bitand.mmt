@@ -2,6 +2,6 @@ module GenericBitwiseRequiresBitAnd
 // Numeric is not enough for the bit operators: Float has arithmetic but no
 // bits, so a generic '&' needs 'where BitAnd<T, T>'.
 
-import { "../../../MarmotPrelude/Numeric.mmt" }
+import { "../../../projects/marmotstdlib/MarmotPrelude/Numeric.mmt" }
 
 def Mask = fn<T>(value: T, mask: T) -> T where Numeric<T> => value & mask;

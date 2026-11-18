@@ -50,8 +50,8 @@ namespace
 
 TEST_CASE("VM executes file-backed runtime behavior inside a temporary directory", "[runtime][vm][filesystem]")
 {
-	const std::filesystem::path io_module_path = RepositoryRoot() / "MarmotPrelude" / "IO.mmt";
-	const std::filesystem::path result_module_path = RepositoryRoot() / "MarmotPrelude" / "Prelude" / "Result.mmt";
+	const std::filesystem::path io_module_path = RepositoryRoot() / "projects" / "marmotstdlib" / "MarmotPrelude" / "IO.mmt";
+	const std::filesystem::path result_module_path = RepositoryRoot() / "projects" / "marmotstdlib" / "MarmotPrelude" / "Prelude" / "Result.mmt";
 	const MarmotTest::TempDir temp_dir("marmot-runtime-files");
 	const std::filesystem::path data_file_path = temp_dir.Path() / "state.txt";
 	const std::filesystem::path source_file_path = temp_dir.Path() / "RuntimeFileIO.mmt";
@@ -102,8 +102,8 @@ TEST_CASE("VM reports reading a directory as an IO error", "[runtime][vm][filesy
 {
 	// Linux opens a directory as a stream that reads nothing, which read back as
 	// an empty file.
-	const std::filesystem::path io_module_path = RepositoryRoot() / "MarmotPrelude" / "IO.mmt";
-	const std::filesystem::path result_module_path = RepositoryRoot() / "MarmotPrelude" / "Prelude" / "Result.mmt";
+	const std::filesystem::path io_module_path = RepositoryRoot() / "projects" / "marmotstdlib" / "MarmotPrelude" / "IO.mmt";
+	const std::filesystem::path result_module_path = RepositoryRoot() / "projects" / "marmotstdlib" / "MarmotPrelude" / "Prelude" / "Result.mmt";
 	const MarmotTest::TempDir temp_dir("marmot-runtime-directory");
 	const std::filesystem::path directory_path = temp_dir.Path() / "folder";
 	std::filesystem::create_directories(directory_path);
@@ -137,7 +137,7 @@ match IO::TryReadBinaryFile("{}") with
 
 TEST_CASE("VM captures stderr emitted by runtime code", "[runtime][vm][stderr]")
 {
-	const std::filesystem::path io_module_path = RepositoryRoot() / "MarmotPrelude" / "IO.mmt";
+	const std::filesystem::path io_module_path = RepositoryRoot() / "projects" / "marmotstdlib" / "MarmotPrelude" / "IO.mmt";
 
 	const std::string source_code = std::format(
 		R"(module RuntimeStderr
@@ -158,7 +158,7 @@ def main = fn() -> Int => 0;
 
 TEST_CASE("VM gives a closure the same result on repeated calls inside one scope", "[runtime][vm][closure]")
 {
-	const std::filesystem::path io_module_path = RepositoryRoot() / "MarmotPrelude" / "IO.mmt";
+	const std::filesystem::path io_module_path = RepositoryRoot() / "projects" / "marmotstdlib" / "MarmotPrelude" / "IO.mmt";
 
 	const std::string source_code = std::format(
 		R"(module RuntimeClosure
@@ -191,7 +191,7 @@ def main = fn() -> Int => 0;
 
 TEST_CASE("VM executes tuple destructuring and backward ranges in-process", "[runtime][vm][aggregate]")
 {
-	const std::filesystem::path io_module_path = RepositoryRoot() / "MarmotPrelude" / "IO.mmt";
+	const std::filesystem::path io_module_path = RepositoryRoot() / "projects" / "marmotstdlib" / "MarmotPrelude" / "IO.mmt";
 
 	const std::string source_code = std::format(
 		R"(module RuntimeAggregate

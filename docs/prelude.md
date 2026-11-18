@@ -1,8 +1,8 @@
 # Marmot Prelude
 
-`MarmotPrelude/` is the standard-library layer that ships with the repository. It wraps the runtime FFI surface in Marmot-facing modules and collects the core algebraic data types, collections, and built-in helpers that ordinary programs use.
+`projects/marmotstdlib/MarmotPrelude/` is the standard-library layer that ships with the repository. It wraps the runtime FFI surface in Marmot-facing modules and collects the core algebraic data types, collections, and built-in helpers that ordinary programs use. Installed projects continue to use the conventional `MarmotPrelude/` directory name.
 
-The examples below assume a program that lives next to `MarmotPrelude/` in the repo or in a project with the same layout. If you expose top-level prelude modules on `MARMOT_PATH`, imports such as `IO`, `System`, `DateTime`, `TextUtil`, and `ArrayUtil` can also use search-path imports.
+The examples below assume the program is compiled from the repository root. If you expose top-level prelude modules on `MARMOT_PATH`, imports such as `IO`, `System`, `DateTime`, `TextUtil`, and `ArrayUtil` can also use search-path imports.
 
 Complete `.mmt` source files still need an explicit `module` declaration even when a focused snippet below omits it.
 
@@ -80,10 +80,10 @@ Migration note:
 ```marmot-test name=prelude/typed_io_system path=.doc_example_prelude_typed_io_system.mmt module=PreludeTypedIOSystem
 import
 {
-    "./MarmotPrelude/IO.mmt",
-    "./MarmotPrelude/System.mmt",
-    "./MarmotPrelude/Prelude/Option.mmt",
-    "./MarmotPrelude/Prelude/Result.mmt"
+    "./projects/marmotstdlib/MarmotPrelude/IO.mmt",
+    "./projects/marmotstdlib/MarmotPrelude/System.mmt",
+    "./projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt",
+    "./projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt"
 }
 use Option.{Option}
 use Result.{Result}
@@ -139,7 +139,7 @@ The raw foreign declarations remain module-internal implementation details and a
 `DateTime` exposes explicit local and UTC structs instead of leaving callers to reconstruct ambient parts manually.
 
 ```marmot-test name=prelude/datetime path=.doc_example_prelude_datetime.mmt module=PreludeDateTime
-import { "./MarmotPrelude/DateTime.mmt" }
+import { "./projects/marmotstdlib/MarmotPrelude/DateTime.mmt" }
 
 def local = DateTime::LocalNow();
 def utc = DateTime::UtcNow();
@@ -161,8 +161,8 @@ Public date/time entry points:
 ```marmot-test name=prelude/text_array_helpers path=.doc_example_prelude_text_array_helpers.mmt module=PreludeTextArrayHelpers
 import
 {
-    "./MarmotPrelude/TextUtil.mmt",
-    "./MarmotPrelude/ArrayUtil.mmt"
+    "./projects/marmotstdlib/MarmotPrelude/TextUtil.mmt",
+    "./projects/marmotstdlib/MarmotPrelude/ArrayUtil.mmt"
 }
 
 def words = TextUtil::Split(TextUtil::Trim("  alpha beta  "), " ");

@@ -1,11 +1,11 @@
 module worker_cancel_blocked_receive
 
-import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/Prelude/Option.mmt" }
+import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt" }
 
-import { "../../../MarmotPrelude/IO.mmt" }
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 use IO.{PrintLine}
 
-import { "../../../MarmotPrelude/System.mmt" }
+import { "../../../projects/marmotstdlib/MarmotPrelude/System.mmt" }
 use System.{Sleep}
 
 def BlockOnChannel = fn(ch: Channel<Int>) -> Int => {

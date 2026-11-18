@@ -2,8 +2,8 @@ module Fib35
 
 import
 {
-	"../MarmotPrelude/IO.mmt",
-	"../MarmotPrelude/DateTime.mmt"
+	"../projects/marmotstdlib/MarmotPrelude/IO.mmt",
+	"../projects/marmotstdlib/MarmotPrelude/DateTime.mmt"
 }
 
 def fib = fn(n : Int) -> Int => if n <= 1 then n else fib(n - 1) + fib(n - 2);

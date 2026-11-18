@@ -1,6 +1,6 @@
 module CrossModuleConstrained
 
-import { "../../../MarmotPrelude/IO.mmt", "cross_module_constrained_lib.mmt" }
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "cross_module_constrained_lib.mmt" }
 
 def boxed_int = CrossModuleConstrainedLib::MakeBoxedInt(7);
 def boxed_text = CrossModuleConstrainedLib::MakeBoxedText("hi");

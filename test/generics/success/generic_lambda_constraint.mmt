@@ -6,8 +6,8 @@ module GenericLambdaConstraint
 
 import
 {
-	"../../../MarmotPrelude/IO.mmt",
-	"../../../MarmotPrelude/Convertable.mmt"
+	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
+	"../../../projects/marmotstdlib/MarmotPrelude/Convertable.mmt"
 }
 
 def Show = fn<T>(x: T) -> Text where Convertable<T, Text> => x as Text;

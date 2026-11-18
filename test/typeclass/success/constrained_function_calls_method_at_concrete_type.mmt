@@ -5,8 +5,8 @@ module ConstrainedFunctionCallsMethodAtConcreteType
 
 import
 {
-	"../../../MarmotPrelude/IO.mmt",
-	"../../../MarmotPrelude/Equatable.mmt"
+	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
+	"../../../projects/marmotstdlib/MarmotPrelude/Equatable.mmt"
 }
 
 def Both = fn<T>(a: T, b: T, x: Int, y: Int) -> Bool where Equatable<T> => Equatable::Equals(a, b) && Equatable::Equals(x, y);

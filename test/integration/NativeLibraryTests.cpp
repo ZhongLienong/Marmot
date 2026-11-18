@@ -66,7 +66,7 @@ namespace
 	// A program that runs Answer() on a worker and prints what the join gave back.
 	std::string WorkerProgram(std::string_view library)
 	{
-		const std::filesystem::path prelude = std::filesystem::path(MARMOT_REPO_ROOT) / "MarmotPrelude";
+	const std::filesystem::path prelude = std::filesystem::path(MARMOT_REPO_ROOT) / "projects" / "marmotstdlib" / "MarmotPrelude";
 		return std::format
 		(
 			"module Main\n"

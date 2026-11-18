@@ -1,5 +1,5 @@
 module ChannelCapacityWidth
-import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/IO.mmt", "../../../MarmotPrelude/Prelude/Option.mmt" }
+import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt" }
 
 def Check = fn(capacity: Int) -> Unit => {
     def channel: Channel < Int > = Concurrency::MakeChannel(capacity);

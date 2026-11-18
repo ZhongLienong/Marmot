@@ -3,7 +3,7 @@ module ConstrainedScopeConcreteCall
 // Inside a function constrained on Show<T>, a Show call on a concrete type is
 // selected from the instances. It was rejected because no constraint names Int.
 
-import { "../../../MarmotPrelude/IO.mmt" }
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 class Show<T> { show: fn(value: T) -> Text; };
 

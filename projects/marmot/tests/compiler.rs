@@ -62,6 +62,8 @@ fn compiler() -> Option<PathBuf> {
 fn prelude() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
+        .join("projects")
+        .join("marmotstdlib")
         .join("MarmotPrelude")
 }
 

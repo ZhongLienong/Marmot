@@ -5,7 +5,7 @@ module ForeignNamedBeforeDeclaration
 // by name it would marshal an array for a native library, and the builtin
 // would stop with "Built-in FFI expected Array".
 
-import { "../../../MarmotPrelude/IO.mmt" }
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 def Middle = fn(values : Array<Int>) -> Array<Int> => Cut(values, 1, #values - 1);
 def Shout = fn(text : Text) -> Text => Upper(text) ++ "!";

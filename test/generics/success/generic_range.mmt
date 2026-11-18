@@ -4,7 +4,7 @@ module GenericRange
 // Expected: Each instantiation should get independent type variables for the range element type
 // A generic range bound is a number only where the definition says Numeric<T>.
 
-import { "../../../MarmotPrelude/Numeric.mmt" }
+import { "../../../projects/marmotstdlib/MarmotPrelude/Numeric.mmt" }
 
 def CountUp = fn<T>(start: T, step: T, end: T) -> Unit where Numeric<T> =>
 {

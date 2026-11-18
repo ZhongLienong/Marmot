@@ -1,6 +1,6 @@
 module GenericAcrossModules
 
-import { "../../../MarmotPrelude/IO.mmt", "generic_across_modules_lib.mmt" }
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "generic_across_modules_lib.mmt" }
 
 def b = GenericAcrossModulesLib::Wrap([1, 2, 3]);
 def c: GenericAcrossModulesLib::Boxed<Text> = ["a"] as GenericAcrossModulesLib::Boxed<Text>;

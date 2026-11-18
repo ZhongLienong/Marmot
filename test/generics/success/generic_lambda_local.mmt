@@ -1,6 +1,6 @@
 module GenericLambdaLocal
 
-import { "../../../MarmotPrelude/IO.mmt", "../../../MarmotPrelude/Equatable.mmt" }
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Equatable.mmt" }
 
 def apply = fn(f: fn(Int) -> Int, v: Int) -> Int => f(v);
 def ApplyG = fn<A>(f: fn(A) -> A, v: A) -> A => f(v);

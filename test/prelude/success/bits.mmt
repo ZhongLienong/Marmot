@@ -1,6 +1,6 @@
 module PreludeBits
 
-import { "../../../MarmotPrelude/Collections/Bits.mmt", "../../../MarmotPrelude/IO.mmt", "../../../MarmotPrelude/Prelude/Panic.mmt" }
+import { "../../../projects/marmotstdlib/MarmotPrelude/Collections/Bits.mmt", "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt" }
 
 def Expect = fn(condition: Bool, message: Text) -> Unit => if condition then () else Panic::Panic(message);
 

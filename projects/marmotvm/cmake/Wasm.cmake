@@ -1,6 +1,7 @@
 add_executable(marmotvm src/Wasm/Bindings.cpp)
 target_link_libraries(marmotvm PRIVATE MarmotRuntime)
-foreach(target_name IN LISTS MARMOT_LIBRARY_TARGETS ITEMS marmotvm)
+set(MARMOT_WASM_TARGETS ${MARMOT_LIBRARY_TARGETS} MarmotStdLib MarmotNativeSupport marmotvm)
+foreach(target_name IN LISTS MARMOT_WASM_TARGETS)
     target_compile_definitions(${target_name} PRIVATE MARMOT_WASM=1)
     target_compile_options(${target_name} PRIVATE
         -fexceptions

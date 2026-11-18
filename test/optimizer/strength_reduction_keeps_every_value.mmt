@@ -4,7 +4,7 @@ module StrengthReductionKeepsEveryValue
 // still computes x when that has an effect; x * 0.0 is NaN for an infinite x
 // and -0.0 for a negative one; -0.0 + 0.0 is 0.0.
 
-import { "../../MarmotPrelude/IO.mmt" }
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 def Noisy = fn(x: Int) -> Int =>
 {

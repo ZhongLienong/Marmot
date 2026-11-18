@@ -150,7 +150,7 @@ jobs:
               for suffix in ("js", "wasm"):
                   shutil.copy2(f"out/build/{project}/wasm64/out/{project}.{suffix}", site)
           prelude = site / "MarmotPrelude"
-          shutil.copytree("MarmotPrelude", prelude)
+          shutil.copytree("projects/marmotstdlib/MarmotPrelude", prelude)
           manifest = sorted(path.relative_to(prelude).as_posix() for path in prelude.rglob("*.mmt"))
           (prelude / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 

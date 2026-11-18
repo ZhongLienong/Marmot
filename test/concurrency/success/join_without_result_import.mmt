@@ -1,8 +1,8 @@
 module JoinWithoutResultImport
 
-import { "../../../MarmotPrelude/Concurrency.mmt" }
+import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt" }
 
-import { "../../../MarmotPrelude/IO.mmt" }
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 // `Concurrency::Join` evaluates to Result<T, WorkerError>, and it is declared in
 // Concurrency.mmt, which names both types itself. So a file that joins and hands the

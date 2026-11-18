@@ -1,8 +1,8 @@
-#include "Library/MarmotStdLibExports.h"
+#include "MarmotStdLibExports.h"
 
-#include "Library/FFIAllocation/FFIAllocation.h"
-#include "Library/TextPath/TextPath.h"
-#include "Support/Checksum/Checksum.h"
+#include "FFIAllocation/FFIAllocation.h"
+#include "MarmotNativeSupport/Checksum.h"
+#include "MarmotNativeSupport/TextPath.h"
 
 #include <algorithm>
 #include <cstdio>
