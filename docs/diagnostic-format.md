@@ -206,6 +206,7 @@ Current `RuntimeErrorCode` values:
 - `InternalTypeError`
 - `WorkerCancelled`
 - `WorkerExited`
+- `InvalidWorkerHandle`
 - `InvalidConversion`
 - `InternalFFITypeError`
 - `OutOfMemory`
@@ -340,6 +341,7 @@ are emitted with the same shape as the full examples above.
 | `InternalFFITypeError` | `Runtime` | `panic` | `Internal FFI type error.` |
 | `UnsupportedPlatformOperation` | `Runtime` | `error` | `Operation not supported on this platform.` |
 | `WorkerCancelled` | `Runtime` | `error` | `Worker cancelled.` |
+| `InvalidWorkerHandle` | `Runtime` | `error` | `Worker handle belongs to a different VM.` |
 | `InvalidConversion` | `Runtime` | `error` | `'abc' is not a Float.` |
 | `OutOfMemory` | `Runtime` | `panic` | `Out of memory while allocating 80 bytes (the heap is full).` |
 

@@ -6,6 +6,7 @@
 #include "Bytecode/Executable/Executable.h"
 #include "Interpreter/Allocator/MarmotAllocator.h"
 #include "Interpreter/GarbageCollector/GarbageCollector.h"
+#include "Interpreter/Worker/Worker.h"
 #include "Library/MarmotBuiltinFFIRegistry/MarmotFFIRegistry.h"
 #include "Library/DynamicFFIRegistry/DynamicFFIRegistry.h"
 
@@ -184,6 +185,7 @@ private:
 	// and one copy of a cell, per global.
 	std::vector<bool> m_installed_globals;
 	std::stop_token m_stop_token;
+	WorkerRegistry::Owner m_worker_owner;
 
 
 public:
@@ -269,6 +271,8 @@ private:
 	bool ExecuteConcurrencyInstruction(VmOpCode instruction, InstructionPointer& ip) noexcept;
 
 	int ExecuteLoop() noexcept;
+
+	bool CheckWorkerOwner(MarmotInteger handle) noexcept;
 
 	MarmotTraceable* EmptyUnion(int tag) noexcept;
 

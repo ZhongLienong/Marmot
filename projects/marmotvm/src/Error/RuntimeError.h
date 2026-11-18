@@ -19,6 +19,7 @@ enum class RuntimeErrorCode
 	UnsupportedPlatformOperation,
 	WorkerCancelled,
 	WorkerExited,
+	InvalidWorkerHandle,
 	InvalidConversion,
 	OutOfMemory
 };

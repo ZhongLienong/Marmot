@@ -1,0 +1,7 @@
+foreign cancel failed: Worker handle belongs to a different VM.
+foreign poll failed: Worker handle belongs to a different VM.
+foreign join failed: Worker handle belongs to a different VM.
+owner joined 42
+foreign poll after join failed: Worker handle belongs to a different VM.
+owner sees done=true
+nested owner joined 42

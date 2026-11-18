@@ -1,0 +1,49 @@
+module WorkerHandleOwner
+import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/IO.mmt", "../../../MarmotPrelude/Prelude/Option.mmt", "../../../MarmotPrelude/Prelude/Result.mmt" }
+
+use Concurrency.{
+    WorkerError
+}
+use Result.{
+    Result
+}
+
+def Show = fn<T>(label: Text, result: Result<T, WorkerError>) -> Unit => match result with
+    case Result::Ok(_) => IO::PrintLine(label ++ " succeeded")
+    case Result::Err(error) => match error with
+    case WorkerError::Cancelled() => IO::PrintLine(label ++ " cancelled")
+    case WorkerError::Failed(message) => IO::PrintLine(label ++ " failed: " ++ message);
+
+def Answer = fn() -> Int => 42;
+
+def WaitForAnswer = fn(source: Channel < Int >) -> Int => Option::OptionUnwrapOrPanic(Concurrency::Receive(source), "Missing answer");
+
+def answers: Channel < Int > = Concurrency::MakeChannel(1);
+
+def target = Concurrency::Spawn(answers, WaitForAnswer);
+
+def CaptureJoin = fn(worker: Worker < Int >) -> fn() -> Int => fn() -> Int => Concurrency::JoinedOrPanic(Concurrency::Join(worker));
+
+def CaptureCancel = fn(worker: Worker < Int >) -> fn() -> Bool => fn() -> Bool => Concurrency::Cancel(worker);
+
+def PollGlobal = fn() -> Bool => {
+    Concurrency::JoinedOrPanic(Concurrency::Join(Concurrency::Spawn((), Answer)));
+    Concurrency::IsDone(target)
+};
+
+Show("foreign cancel", Concurrency::Join(Concurrency::Spawn((), CaptureCancel(target))));
+Show("foreign poll", Concurrency::Join(Concurrency::Spawn((), PollGlobal)));
+Concurrency::Send(answers, 42);
+Show("foreign join", Concurrency::Join(Concurrency::Spawn((), CaptureJoin(target))));
+match Concurrency::Join(target) with
+    case Result::Ok(value) => IO::PrintLine("owner joined " ++ (value as Text))
+    case Result::Err(_) => IO::PrintLine("owner lost the result");
+Concurrency::Close(answers);
+Show("foreign poll after join", Concurrency::Join(Concurrency::Spawn((), PollGlobal)));
+IO::PrintLine("owner sees done=" ++ (Concurrency::IsDone(target) as Text));
+
+def Nested = fn() -> Int => Concurrency::JoinedOrPanic(Concurrency::Join(Concurrency::Spawn((), Answer)));
+IO::PrintLine
+(
+    "nested owner joined " ++ (Concurrency::JoinedOrPanic(Concurrency::Join(Concurrency::Spawn((), Nested))) as Text)
+);

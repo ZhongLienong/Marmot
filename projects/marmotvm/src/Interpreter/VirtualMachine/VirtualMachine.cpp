@@ -6,7 +6,6 @@
 #include "Bytecode/Scalar/IntegerArithmetic.h"
 #include "Interpreter/Channel/Channel.h"
 #include "Interpreter/ValueTransfer/ValueTransfer.h"
-#include "Interpreter/Worker/Worker.h"
 #include "Bytecode/Disassembler/Disassembler.h"
 #include "VirtualMachine.h"
 
@@ -479,6 +478,16 @@ MarmotValue VirtualMachine::MakeFunctionValue(int proc_index) noexcept
 	return closure;
 }
 
+bool VirtualMachine::CheckWorkerOwner(MarmotInteger handle) noexcept
+{
+	if (m_worker_owner.Owns(handle))
+	{
+		return true;
+	}
+	static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InvalidWorkerHandle, "Worker handle belongs to a different VM.", GetLine())));
+	return false;
+}
+
 MARMOT_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(VmOpCode instruction, InstructionPointer& ip) noexcept
 {
 #ifdef MARMOT_WASM
@@ -507,8 +516,13 @@ MARMOT_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(VmOpCode inst
 		m_value_stack_pointer -= crossing_count;
 		const MarmotValue crossing = AllocateAggregate(MarmotTraceable::TraceableType::Tuple, std::span<const MarmotValue>(m_value_stack_pointer, crossing_count), 0, crossing_shape);
 
-		const int worker_id = WorkerRegistry::GetInstance().SpawnWorker(m_owned_executable, ValueTransfer::Serialize(crossing, true, *this), result_is_pointer);
-		Push(static_cast<MarmotInteger>(worker_id));
+		const std::optional<MarmotInteger> worker_id = WorkerRegistry::GetInstance().SpawnWorker(m_worker_owner, m_owned_executable, ValueTransfer::Serialize(crossing, true, *this), result_is_pointer);
+		if (!worker_id.has_value())
+		{
+			static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InvalidWorkerHandle, "Worker handle limit reached.", GetLine())));
+			return false;
+		}
+		Push(*worker_id);
 		return true;
 	}
 	case VmOpCode::JOIN_WORKER:
@@ -524,7 +538,11 @@ MARMOT_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(VmOpCode inst
 		static constexpr int s_err_tag = 1;
 		static constexpr int s_cancelled_tag = 0;
 		static constexpr int s_failed_tag = 1;
-		const int worker_id = static_cast<int>(Pop().GetInteger());
+		const MarmotInteger worker_id = Pop().GetInteger();
+		if (!CheckWorkerOwner(worker_id))
+		{
+			return false;
+		}
 		std::expected<TransferPayload, WorkerError> worker_result = WorkerRegistry::GetInstance().JoinWorkerValue(worker_id);
 
 		MarmotValue payload;
@@ -606,14 +624,22 @@ MARMOT_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(VmOpCode inst
 	}
 	case VmOpCode::WORKER_IS_DONE:
 	{
-		const int worker_id = static_cast<int>(Pop().GetInteger());
+		const MarmotInteger worker_id = Pop().GetInteger();
+		if (!CheckWorkerOwner(worker_id))
+		{
+			return false;
+		}
 		const bool is_done = WorkerRegistry::GetInstance().IsWorkerDone(worker_id);
 		Push(is_done);
 		return true;
 	}
 	case VmOpCode::WORKER_CANCEL:
 	{
-		const int worker_id = static_cast<int>(Pop().GetInteger());
+		const MarmotInteger worker_id = Pop().GetInteger();
+		if (!CheckWorkerOwner(worker_id))
+		{
+			return false;
+		}
 		const bool cancelled = WorkerRegistry::GetInstance().CancelWorker(worker_id);
 		Push(cancelled);
 		return true;

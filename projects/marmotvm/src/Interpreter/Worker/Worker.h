@@ -1,17 +1,19 @@
 #pragma once
 
-#include "Error/RuntimeError.h"
 #include "Interpreter/ValueTransfer/ValueTransfer.h"
-#include "Interpreter/VirtualMachine/VirtualMachine.h"
 
 #include <atomic>
+#include <cstdint>
 #include <expected>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <thread>
 #include <unordered_map>
 #include <vector>
+
+class VmExecutable;
 
 // Why a worker has no value. A join tells cancellation apart from the rest, which
 // reach the joining code as their message.
@@ -59,15 +61,31 @@ private:
 class WorkerRegistry
 {
 public:
+	class Owner
+	{
+	public:
+		Owner() = default;
+		Owner(const Owner&) = delete;
+		Owner& operator=(const Owner&) = delete;
+
+		bool Owns(MarmotInteger handle) const noexcept;
+
+	private:
+		friend class WorkerRegistry;
+
+		uint32_t m_id = 0u;
+		uint32_t m_next_worker_id = 1u;
+	};
+
 	static WorkerRegistry& GetInstance();
 
-	int SpawnWorker(std::shared_ptr<const VmExecutable> executable, TransferPayload payload, bool result_is_pointer);
+	std::optional<MarmotInteger> SpawnWorker(Owner& owner, std::shared_ptr<const VmExecutable> executable, TransferPayload payload, bool result_is_pointer);
 
-	std::expected<TransferPayload, WorkerError> JoinWorkerValue(int worker_id);
+	std::expected<TransferPayload, WorkerError> JoinWorkerValue(MarmotInteger worker_id);
 
-	bool IsWorkerDone(int worker_id) const;
+	bool IsWorkerDone(MarmotInteger worker_id) const;
 
-	bool CancelWorker(int worker_id);
+	bool CancelWorker(MarmotInteger worker_id);
 
 	void Shutdown();
 
@@ -75,6 +93,6 @@ private:
 	WorkerRegistry() = default;
 
 	mutable std::mutex m_mutex;
-	std::unordered_map<int, std::unique_ptr<Worker>> m_workers;
-	int m_next_id = 1;
+	std::unordered_map<MarmotInteger, std::unique_ptr<Worker>> m_workers;
+	uint32_t m_next_owner_id = 1u;
 };

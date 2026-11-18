@@ -100,6 +100,7 @@ Current `RuntimeErrorCode` values:
 - `InternalTypeError`
 - `WorkerCancelled`
 - `WorkerExited`
+- `InvalidWorkerHandle`
 - `InvalidConversion`
 - `InternalFFITypeError`
 - `OutOfMemory`

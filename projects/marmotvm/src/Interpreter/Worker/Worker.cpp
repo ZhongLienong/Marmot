@@ -1,5 +1,6 @@
 #include "Worker.h"
 
+#include "Interpreter/VirtualMachine/VirtualMachine.h"
 #include "Support/Cancellation/Cancellation.h"
 #include "Support/Terminal/Terminal.h"
 
@@ -8,6 +9,8 @@
 
 namespace
 {
+	constexpr unsigned s_worker_id_bits = 32u;
+
 	// Installs what crossed at the spawn: the globals the worker can read, then the
 	// spawned function and its arguments. A worker used to rebuild its globals
 	// instead: it re-ran every imported module's initializer (repeating any effect,
@@ -125,21 +128,40 @@ WorkerRegistry& WorkerRegistry::GetInstance()
 	return instance;
 }
 
-int WorkerRegistry::SpawnWorker(std::shared_ptr<const VmExecutable> executable, TransferPayload payload, bool result_is_pointer)
+bool WorkerRegistry::Owner::Owns(MarmotInteger handle) const noexcept
+{
+	return m_id != 0u && (static_cast<MarmotWord>(handle) >> s_worker_id_bits) == m_id;
+}
+
+std::optional<MarmotInteger> WorkerRegistry::SpawnWorker(Owner& owner, std::shared_ptr<const VmExecutable> executable, TransferPayload payload, bool result_is_pointer)
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
-	const int worker_id = m_next_id;
-	m_next_id += 1;
+	if (owner.m_id == 0u)
+	{
+		if (m_next_owner_id == 0u)
+		{
+			return std::nullopt;
+		}
+		owner.m_id = m_next_owner_id++;
+	}
+	if (owner.m_next_worker_id == 0u)
+	{
+		return std::nullopt;
+	}
+
+	// Keep ownership in the handle so it can be checked after the worker is joined.
+	const MarmotWord owner_bits = static_cast<MarmotWord>(owner.m_id) << s_worker_id_bits;
+	const MarmotInteger worker_id = static_cast<MarmotInteger>(owner_bits | owner.m_next_worker_id++);
 	m_workers.emplace(worker_id, std::make_unique<Worker>(std::move(executable), std::move(payload), result_is_pointer));
 	return worker_id;
 }
 
-std::expected<TransferPayload, WorkerError> WorkerRegistry::JoinWorkerValue(int worker_id)
+std::expected<TransferPayload, WorkerError> WorkerRegistry::JoinWorkerValue(MarmotInteger worker_id)
 {
 	std::unique_ptr<Worker> worker;
 	{
 		std::lock_guard<std::mutex> lock(m_mutex);
-		std::unordered_map<int, std::unique_ptr<Worker>>::iterator worker_it = m_workers.find(worker_id);
+		const auto worker_it = m_workers.find(worker_id);
 		if (worker_it == m_workers.end())
 		{
 			// A worker leaves the registry when it is joined, and a handle only
@@ -154,10 +176,10 @@ std::expected<TransferPayload, WorkerError> WorkerRegistry::JoinWorkerValue(int 
 	return worker->JoinValue();
 }
 
-bool WorkerRegistry::IsWorkerDone(int worker_id) const
+bool WorkerRegistry::IsWorkerDone(MarmotInteger worker_id) const
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
-	std::unordered_map<int, std::unique_ptr<Worker>>::const_iterator worker_it = m_workers.find(worker_id);
+	const auto worker_it = m_workers.find(worker_id);
 	if (worker_it == m_workers.end())
 	{
 		return true;
@@ -165,10 +187,10 @@ bool WorkerRegistry::IsWorkerDone(int worker_id) const
 	return worker_it->second->IsDone();
 }
 
-bool WorkerRegistry::CancelWorker(int worker_id)
+bool WorkerRegistry::CancelWorker(MarmotInteger worker_id)
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
-	std::unordered_map<int, std::unique_ptr<Worker>>::iterator worker_it = m_workers.find(worker_id);
+	const auto worker_it = m_workers.find(worker_id);
 	if (worker_it == m_workers.end())
 	{
 		return false;
@@ -178,7 +200,7 @@ bool WorkerRegistry::CancelWorker(int worker_id)
 
 void WorkerRegistry::Shutdown()
 {
-	std::unordered_map<int, std::unique_ptr<Worker>> pending_workers;
+	std::unordered_map<MarmotInteger, std::unique_ptr<Worker>> pending_workers;
 	{
 		std::lock_guard<std::mutex> lock(m_mutex);
 		pending_workers = std::move(m_workers);

@@ -55,13 +55,13 @@ all cross this way.
 
 **Never transferable** (no `Transferable` instance):
 - Ranges — semantically non-portable
-- `Worker<T>` — joining from a non-owner worker is undefined
+- `Worker<T>` — its handle belongs to the VM that spawned it
 
 **Functions** (`fn(A) -> B`) are transferable: a function crosses as its procedure
-index plus a copy of the cells it captured. What a closure captured is not part of
-its type, so the captures themselves are not checked at compile time — a closure
-that captured a `Worker<T>` crosses, and the handle is meaningless on the other
-side. This is the one place transferability is not decided at compile time.
+index plus a copy of the cells it captured. The compiler checks the function's
+type at transfer sites. A copied capture or reachable global can carry a
+`Worker<T>` handle with its original owner. Using that handle with `Join`,
+`Cancel`, or `IsDone` from a different VM raises `InvalidWorkerHandle`.
 
 Transferability is checked at compile time. Attempting to spawn with a
 non-transferable argument or create a `Channel<T>` where `T` lacks a

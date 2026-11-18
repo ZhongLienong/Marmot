@@ -32,6 +32,8 @@ std::string_view RuntimeErrorCodeName(RuntimeErrorCode code)
 		return "WorkerCancelled";
 	case RuntimeErrorCode::WorkerExited:
 		return "WorkerExited";
+	case RuntimeErrorCode::InvalidWorkerHandle:
+		return "InvalidWorkerHandle";
 	case RuntimeErrorCode::InvalidConversion:
 		return "InvalidConversion";
 	case RuntimeErrorCode::OutOfMemory:
@@ -65,6 +67,7 @@ namespace
 		case RuntimeErrorCode::FFIFunctionNotFound:
 		case RuntimeErrorCode::DivisionByZero:
 		case RuntimeErrorCode::WorkerCancelled:
+		case RuntimeErrorCode::InvalidWorkerHandle:
 		case RuntimeErrorCode::InvalidConversion:
 		default:
 			return false;
