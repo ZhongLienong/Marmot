@@ -27,7 +27,7 @@ struct ChannelReceiveResult
 class Channel
 {
 public:
-	explicit Channel(int capacity);
+	explicit Channel(MarmotInteger capacity);
 
 	ChannelOpStatus Send(TransferPayload message, std::stop_token stop_token);
 
@@ -44,7 +44,7 @@ private:
 	std::condition_variable_any m_not_empty;
 	std::condition_variable_any m_not_full;
 	std::deque<TransferPayload> m_queue;
-	int m_capacity;
+	const MarmotWord m_capacity;
 	// Written under m_mutex, so the waits see it, and read without it so the
 	// registry is locked only for a channel that may need reclaiming.
 	std::atomic<bool> m_closed{ false };
@@ -55,7 +55,7 @@ class ChannelRegistry
 public:
 	static ChannelRegistry& GetInstance();
 
-	int CreateChannel(int capacity);
+	int CreateChannel(MarmotInteger capacity);
 
 	ChannelOpStatus Send(int channel_id, TransferPayload message, std::stop_token stop_token);
 

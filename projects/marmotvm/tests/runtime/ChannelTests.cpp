@@ -43,6 +43,16 @@ TEST_CASE("Blocked receive is cancelled by stop request", "[channel]")
 	REQUIRE(received.m_status == ChannelOpStatus::Cancelled);
 }
 
+TEST_CASE("A wide negative channel capacity is clamped to one", "[channel]")
+{
+	Channel channel(-4294967294ll);
+	REQUIRE(channel.Send(Message(1u), std::stop_token{}) == ChannelOpStatus::Ok);
+
+	std::stop_source stop_source;
+	stop_source.request_stop();
+	CHECK(channel.Send(Message(2u), stop_source.get_token()) == ChannelOpStatus::Cancelled);
+}
+
 TEST_CASE("Blocked send is cancelled by stop request", "[channel]")
 {
 	Channel channel(1);

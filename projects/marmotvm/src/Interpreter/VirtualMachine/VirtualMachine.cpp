@@ -572,7 +572,7 @@ MARMOT_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(VmOpCode inst
 	}
 	case VmOpCode::CHANNEL_CREATE:
 	{
-		const int capacity = static_cast<int>(Pop().GetInteger());
+		const MarmotInteger capacity = Pop().GetInteger();
 		const int channel_id = ChannelRegistry::GetInstance().CreateChannel(capacity);
 		Push(static_cast<MarmotInteger>(channel_id));
 		return true;

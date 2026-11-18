@@ -2,8 +2,8 @@
 
 #include <memory>
 
-Channel::Channel(int capacity)
-	: m_capacity(capacity > 0 ? capacity : 1)
+Channel::Channel(MarmotInteger capacity)
+	: m_capacity(static_cast<MarmotWord>(capacity > 0 ? capacity : 1))
 {
 }
 
@@ -12,7 +12,7 @@ ChannelOpStatus Channel::Send(TransferPayload message, std::stop_token stop_toke
 	std::unique_lock<std::mutex> lock(m_mutex);
 	const bool ready = m_not_full.wait(lock, stop_token, [this]()
 	{
-		return m_closed || static_cast<int>(m_queue.size()) < m_capacity;
+		return m_closed || m_queue.size() < m_capacity;
 	});
 
 	if (!ready)
@@ -79,7 +79,7 @@ ChannelRegistry& ChannelRegistry::GetInstance()
 	return instance;
 }
 
-int ChannelRegistry::CreateChannel(int capacity)
+int ChannelRegistry::CreateChannel(MarmotInteger capacity)
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
 	const int id = m_next_id;

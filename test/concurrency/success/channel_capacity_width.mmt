@@ -1,0 +1,16 @@
+module ChannelCapacityWidth
+import { "../../../MarmotPrelude/Concurrency.mmt", "../../../MarmotPrelude/IO.mmt", "../../../MarmotPrelude/Prelude/Option.mmt" }
+
+def Check = fn(capacity: Int) -> Unit => {
+    def channel: Channel < Int > = Concurrency::MakeChannel(capacity);
+    Concurrency::Send(channel, 10);
+    Concurrency::Send(channel, 20);
+    Concurrency::Close(channel);
+    def first = Option::OptionUnwrapOrPanic(Concurrency::Receive(channel), "Missing first message");
+    def second = Option::OptionUnwrapOrPanic(Concurrency::Receive(channel), "Missing second message");
+    IO::PrintLine((capacity as Text) ++ ": " ++ (first as Text) ++ ", " ++ (second as Text));
+};
+
+Check(2147483648);
+Check(4294967297);
+Check(9223372036854775807);
