@@ -412,6 +412,8 @@ private:
 
 	MARMOT_NOINLINE int IndexOutOfBounds(MarmotInteger index) noexcept;
 
+	MARMOT_NOINLINE int InvalidFloatConversion(MarmotFloat value, std::string_view destination) noexcept;
+
     void BuildGarbageCollectionRoots(GarbageCollector::GarbageCollectionRoots& roots) const noexcept;
 
 	// Calls `visit` with each value of the frame between `bp` and `end` and

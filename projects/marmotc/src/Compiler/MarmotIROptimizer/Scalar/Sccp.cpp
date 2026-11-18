@@ -1,3 +1,4 @@
+#include "Bytecode/Scalar/FloatConversion.h"
 #include "Bytecode/Scalar/IntegerArithmetic.h"
 #include "Bytecode/Scalar/Scalar.h"
 #include "Compiler/MarmotIROptimizer/Analysis/MarmotIRAnalysis.h"
@@ -70,7 +71,7 @@ namespace
 	}
 
 	// What the VM computes, for the operations whose result is the same on
-	// every machine. A division by zero, a Float out of an Int's range and
+	// every machine. A division by zero, an invalid Float conversion and
 	// the shifts and bit operations of Byte and Word, whose VM forms read
 	// their operands as another type, are left to run.
 	std::optional<MarmotIRImmediate> Fold(MarmotIROp op, const Immediates& operands)
@@ -141,13 +142,7 @@ namespace
 		case EqText: return At<std::string>(operands, 0u) == At<std::string>(operands, 1u);
 		case NeText: return At<std::string>(operands, 0u) != At<std::string>(operands, 1u);
 		case IntToFloat: return static_cast<double>(int_at(0u));
-		case FloatToInt:
-		{
-			// Past an Int's range the conversion is the machine's to choose.
-			const double value = float_at(0u);
-			const bool fits = value >= -9223372036854775808.0 && value < 9223372036854775808.0;
-			return fits ? std::optional<MarmotIRImmediate>(static_cast<int64_t>(value)) : std::nullopt;
-		}
+		case FloatToInt: return MarmotFloatConversion::ToInteger<MarmotInteger>(float_at(0u));
 		case ByteToInt: return static_cast<int64_t>(byte_at(0u));
 		case IntToByte: return Byte(static_cast<unsigned>(int_at(0u) & 0xFF));
 		case ByteToWord: return MarmotIRWord{ byte_at(0u) };
@@ -155,7 +150,9 @@ namespace
 		case WordToInt: return static_cast<int64_t>(word_at(0u));
 		case IntToWord: return MarmotIRWord{ static_cast<uint64_t>(int_at(0u)) };
 		case ByteToFloat: return static_cast<double>(byte_at(0u));
+		case FloatToByte: return MarmotFloatConversion::ToInteger<MarmotByte>(float_at(0u)).transform([](MarmotByte value) { return MarmotIRByte{ value }; });
 		case WordToFloat: return static_cast<double>(word_at(0u));
+		case FloatToWord: return MarmotFloatConversion::ToInteger<MarmotWord>(float_at(0u)).transform([](MarmotWord value) { return MarmotIRWord{ value }; });
 		// A folded Extend gives a text constant, which every load shares, so
 		// Rewrite turns an Extend of it into a Concat.
 		case Concat:

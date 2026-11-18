@@ -1,0 +1,9 @@
+error[InvalidConversion]: Float '256.0' cannot be converted to Byte.
+ --> test/as_operator/failure/float_to_byte_out_of_range.mmt:3
+  |
+3 | "256" as Float as Byte;
+  | Float '256.0' cannot be converted to Byte.
+  |
+stack trace:
+  at main [module FloatToByteOutOfRange] in test/as_operator/failure/float_to_byte_out_of_range.mmt:3
+    "256" as Float as Byte;

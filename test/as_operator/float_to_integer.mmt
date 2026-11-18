@@ -1,0 +1,19 @@
+module FloatToInteger
+import { "../../MarmotPrelude/IO.mmt" }
+
+IO::PrintLine(-12.75 as Int as Text);
+IO::PrintLine(-0.75 as Byte as Int as Text);
+IO::PrintLine(255.75 as Byte as Int as Text);
+IO::PrintLine(-0.75 as Word as Text);
+IO::PrintLine(-9223372036854775808.0 as Int as Text);
+IO::PrintLine(9223372036854774784.0 as Int as Text);
+IO::PrintLine(18446744073709549568.0 as Word as Text);
+
+// Parsing text makes the VM evaluate these casts.
+IO::PrintLine("-12.75" as Float as Int as Text);
+IO::PrintLine("-0.75" as Float as Byte as Int as Text);
+IO::PrintLine("255.75" as Float as Byte as Int as Text);
+IO::PrintLine("-0.75" as Float as Word as Text);
+IO::PrintLine("-9223372036854775808" as Float as Int as Text);
+IO::PrintLine("9223372036854774784" as Float as Int as Text);
+IO::PrintLine("18446744073709549568" as Float as Word as Text);

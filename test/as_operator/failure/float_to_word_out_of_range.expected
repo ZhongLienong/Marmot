@@ -1,0 +1,9 @@
+error[InvalidConversion]: Float '18446744073709551616.0' cannot be converted to Word.
+ --> test/as_operator/failure/float_to_word_out_of_range.mmt:3
+  |
+3 | 18446744073709551616.0 as Word;
+  | Float '18446744073709551616.0' cannot be converted to Word.
+  |
+stack trace:
+  at main [module FloatToWordOutOfRange] in test/as_operator/failure/float_to_word_out_of_range.mmt:3
+    18446744073709551616.0 as Word;

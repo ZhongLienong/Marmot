@@ -2,6 +2,7 @@
 #include "Support/Attributes/Attributes.h"
 #include "Support/Diagnostics/Diagnostics.h"
 #include "Support/Terminal/Terminal.h"
+#include "Bytecode/Scalar/FloatConversion.h"
 #include "Bytecode/Scalar/IntegerArithmetic.h"
 #include "Interpreter/Channel/Channel.h"
 #include "Interpreter/ValueTransfer/ValueTransfer.h"
@@ -927,6 +928,12 @@ int VirtualMachine::IndexOutOfBounds(MarmotInteger index) noexcept
 	return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::IndexOutOfBounds, std::format("Index out of bounds at index: {}.", index), GetLine()));
 }
 
+int VirtualMachine::InvalidFloatConversion(MarmotFloat value, std::string_view destination) noexcept
+{
+	const MarmotText text = MarmotText::FromFloat(value);
+	return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InvalidConversion, std::format("Float '{}' cannot be converted to {}.", text.View(), destination), GetLine()));
+}
+
 // What a foreign function returned, as a Marmot value: a C string or an array
 // it allocated becomes a Text or an Array, and is freed. For a function whose
 // signature returns a raw value, the call's return tag is the return kind.
@@ -1522,7 +1529,14 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		MARMOT_HANDLER(FLOAT_TO_INT)
 		{
-			Peek(sp) = static_cast<MarmotInteger>(Peek(sp).GetFloat());
+			const MarmotFloat value = Peek(sp).GetFloat();
+			const std::optional<MarmotInteger> converted = MarmotFloatConversion::ToInteger<MarmotInteger>(value);
+			if (!converted.has_value())
+			{
+				SyncMachineState(inst_ip, sp, bp, env, closure);
+				return InvalidFloatConversion(value, "Int");
+			}
+			Peek(sp) = *converted;
 			break;
 		}
 		MARMOT_HANDLER(TEXT_TO_INT)
@@ -1592,7 +1606,14 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		MARMOT_HANDLER(FLOAT_TO_BYTE)
 		{
-			Peek(sp) = static_cast<MarmotByte>(Peek(sp).GetFloat());
+			const MarmotFloat value = Peek(sp).GetFloat();
+			const std::optional<MarmotByte> converted = MarmotFloatConversion::ToInteger<MarmotByte>(value);
+			if (!converted.has_value())
+			{
+				SyncMachineState(inst_ip, sp, bp, env, closure);
+				return InvalidFloatConversion(value, "Byte");
+			}
+			Peek(sp) = *converted;
 			break;
 		}
 		MARMOT_HANDLER(WORD_TO_FLOAT)
@@ -1602,7 +1623,14 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		MARMOT_HANDLER(FLOAT_TO_WORD)
 		{
-			Peek(sp) = static_cast<MarmotWord>(Peek(sp).GetFloat());
+			const MarmotFloat value = Peek(sp).GetFloat();
+			const std::optional<MarmotWord> converted = MarmotFloatConversion::ToInteger<MarmotWord>(value);
+			if (!converted.has_value())
+			{
+				SyncMachineState(inst_ip, sp, bp, env, closure);
+				return InvalidFloatConversion(value, "Word");
+			}
+			Peek(sp) = *converted;
 			break;
 		}
 		MARMOT_HANDLER(LEFT_SHIFT)
