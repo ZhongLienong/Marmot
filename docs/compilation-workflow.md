@@ -161,7 +161,9 @@ The type checker performs:
 - typeclass resolution
 - exhaustiveness checking for `match`
 
-It also records whether some operators should lower through typeclass dispatch, including:
+Arithmetic and bitwise operators are rewritten to calls of the operation classes in `Numeric.mmt` when those classes are in scope. Infix syntax, explicit method calls and method values share method-signature checking and instance selection; primitive instance bodies specialize to scalar instructions.
+
+It also records whether other operators should lower through typeclass dispatch, including:
 
 - `as` through `Convertable<From, To>`
 - `++` through `Concatenable<T>`

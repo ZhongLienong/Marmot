@@ -1617,67 +1617,6 @@ FunctionParameters Parser::ParametersFor(std::vector<Token> names) const
 	return FunctionParameters(std::move(names), std::move(bindings), m_state.m_function);
 }
 
-std::optional<int> Parser::BinaryOperatorClass(Token::Name name)
-{
-	switch (name)
-	{
-	case Token::Name::STAR:
-	case Token::Name::SLASH:
-	case Token::Name::PERCENT:
-		return 0;
-	case Token::Name::SINGLE_PLUS:
-	case Token::Name::SINGLE_MINUS:
-		return 1;
-	case Token::Name::DOUBLE_PLUS:
-		return 2;
-	case Token::Name::LEFT_SHIFT:
-	case Token::Name::RIGHT_SHIFT:
-		return 3;
-	case Token::Name::LEFT_ANGLE:
-	case Token::Name::LESS_EQUAL:
-	case Token::Name::RIGHT_ANGLE:
-	case Token::Name::GREATER_EQUAL:
-		return 4;
-	case Token::Name::BANG_EQUAL:
-	case Token::Name::DOUBLE_EQUAL:
-		return 5;
-	case Token::Name::SINGLE_AMPERSAND:
-		return 6;
-	case Token::Name::CARET:
-		return 7;
-	case Token::Name::SINGLE_BAR:
-		return 8;
-	case Token::Name::DOUBLE_AMPERSAND:
-		return 9;
-	case Token::Name::DOUBLE_BAR:
-		return 10;
-	default:
-		return std::nullopt;
-	}
-}
-
-std::optional<CompilerError> Parser::CheckOperatorMixing(const Token& op, const MarmotExpression& operand)
-{
-	// Two operators of different precedence in one expression bind by a table the
-	// reader has to remember. Parentheses say it instead, so they are required:
-	// `a + b * c` is written `a + (b * c)`. A chain of one operator, or of operators
-	// that bind equally like `+` and `-`, needs none.
-	if (!operand.IsExpression<MarmotExpression::Binary>())
-	{
-		return std::nullopt;
-	}
-
-	const std::optional<int> outer_class = BinaryOperatorClass(op.m_token_name);
-	const Token& inner_op = operand.GetExpression<MarmotExpression::Binary>().m_op;
-	const std::optional<int> inner_class = BinaryOperatorClass(inner_op.m_token_name);
-	if (!outer_class.has_value() || !inner_class.has_value() || outer_class.value() == inner_class.value())
-	{
-		return std::nullopt;
-	}
-
-	return GenerateParserError(std::format("'{}' and '{}' do not bind equally, so mixing them needs parentheses: write the '{}' operand in its own parentheses.", op.m_lexeme, inner_op.m_lexeme, inner_op.m_lexeme), op);
-}
-
 MarmotResult::ExpressionResult Parser::ParseFactor()
 {
 	return ParseBinary(&Parser::ParseUnaryLogicalBitwise, Token::Name::STAR, Token::Name::SLASH, Token::Name::PERCENT);

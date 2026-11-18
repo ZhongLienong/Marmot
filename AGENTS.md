@@ -105,8 +105,9 @@ often got wrong:
   function does, through `if` branches, `match` arms and a block's final
   expression — runs without a new frame, whatever it calls. Any other
   recursion overflows the stack at about 500,000 calls.
-- **Mixing operators of different precedence needs parentheses**:
-  `(index >= 0) && (index < #items)`.
+- **Operators use conventional precedence**: `a + b * c` means `a + (b * c)`.
+  Parentheses override grouping. Arithmetic and bitwise overloads are the
+  operation classes exported by `MarmotPrelude/Numeric.mmt`.
 - **A bare name is local or `use`d.** Anything else is qualified —
   `Module::name`, `Module::Type`, `Module::Union::Member`. This holds for
   values, types and constructors alike.

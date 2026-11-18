@@ -14,12 +14,12 @@ instance Equatable<Point>
 
 instance Orderable<Point>
 {
-    def Compare = fn(a: Point, b: Point) -> Int => {
-        if a.x < b.x then -1 else
-        if a.x > b.x then 1 else
-        if a.y < b.y then -1 else
-        if a.y > b.y then 1 else
-        0
+    def Compare = fn(a: Point, b: Point) -> Orderable::Ordering => {
+        if a.x < b.x then Orderable::Ordering::Less() else
+        if a.x > b.x then Orderable::Ordering::Greater() else
+        if a.y < b.y then Orderable::Ordering::Less() else
+        if a.y > b.y then Orderable::Ordering::Greater() else
+        Orderable::Ordering::Equal()
     };
 };
 

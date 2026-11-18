@@ -61,13 +61,13 @@ do not promise backward compatibility.
 | Classes, instances, and associated types | Stable | `test/typeclass/`, `projects/marmotc/tests/typechecker/` | Includes associated type declarations and instance bindings. |
 | Cross-module typeclass metadata and imports | Stable | `test/typeclass/`, `test/module/` | Typeclass/import metadata survives module boundaries. |
 | Deriving: `Equatable`, `Hashable`, `Orderable`, `Convertable` (to `Text`), `Map`, `Bind`, `Unwrap` | Stable | `test/deriving/` | Structural deriving works on generic and recursive types; a generic type's instance requires the class of each type parameter. Container deriving supports focused union shapes. |
-| Operator-backed typeclass dispatch: `Convertable`, `Concatenable`, `Countable`, `Equatable`, `Orderable` | Stable | `test/typeclass/`, `test/prelude/`, `test/as_operator/` | The implementation mixes builtin lowering with constrained dispatch depending on the concrete types. |
+| Operator-backed typeclass dispatch: arithmetic and bitwise classes, `Convertable`, `Concatenable`, `Countable`, `Equatable`, `Orderable` | Stable | `test/typeclass/`, `test/prelude/`, `test/as_operator/` | The implementation mixes builtin lowering with constrained dispatch depending on the concrete types. |
 
 ## Operators
 
 | Feature | Status | Primary Coverage | Notes |
 |---------|--------|------------------|-------|
-| Arithmetic, logical, bitwise, and comparison operators | Stable | `test/expression/`, `test/typeclass/`, `projects/marmotc/tests/lexer/` | User-defined equality and ordering rely on `Equatable` and `Orderable`. |
+| Arithmetic, logical, bitwise, and comparison operators | Stable | `test/expression/`, `test/typeclass/`, `projects/marmotc/tests/lexer/` | Conventional precedence; arithmetic and bitwise overloads use operation classes with associated result types, equality uses `Equatable`, and ordering uses `Orderable`. |
 | Cast operator: `as` | Stable | `test/as_operator/`, `test/typeclass/` | Covers builtin primitive casts and constrained generic conversions. |
 | Concatenation: `++` for `Text` and `Array<T>` | Stable | `test/expression/`, `test/prelude/`, `test/typeclass/` | Constrained generic code can lower through `Concatenable<T>`. |
 | Length operator: `#` | Stable | `test/for_loop/`, `test/prelude/`, `test/hashmap/`, `test/hashset/` | Arrays are builtin; `List`, `Map`, `Set`, and generic `Countable` paths also exist. |

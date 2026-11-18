@@ -395,7 +395,11 @@ private:
 
 	MarmotResult::TypeResult operator()(const CheckingContext& context, MarmotExpression::Receive& receive);
 
-	MarmotResult::TypeResult CheckConstrainedMethodCall(const CheckingContext& context, MarmotExpression::Call& call, const ClassInfo& tc_info, const std::shared_ptr<MarmotType>& method_type, const MarmotType::ClassConstraint& constraint, std::vector<std::shared_ptr<MarmotType>>& arg_results);
+	std::vector<const MarmotType::ClassConstraint*> MatchingMethodConstraints(const CheckingContext& context, const std::string& qualifier, const ClassInfo& info, const std::shared_ptr<MarmotType>& method, const std::vector<std::shared_ptr<MarmotType>>& arguments);
+
+	MarmotResult::TypeResult CheckConstrainedMethod(const CheckingContext& context, const Token& token, const ClassInfo& tc_info, const std::shared_ptr<MarmotType>& method_type, const MarmotType::ClassConstraint& constraint, std::vector<std::shared_ptr<MarmotType>>& arg_results);
+
+	MarmotResult::TypeResult CheckInstanceMethod(const CheckingContext& context, const Token& token, const std::string& qualifier, const std::string& method_name, const ClassInfo& tc_info, const std::shared_ptr<MarmotType>& method_type, std::vector<std::shared_ptr<MarmotType>>&& arg_results);
 
 	MarmotResult::TypeResult CheckInstanceMethodCall(const CheckingContext& context, MarmotExpression::Call& call, const std::string& qualifier, const std::string& method_name, const ClassInfo& tc_info, const std::shared_ptr<MarmotType>& method_type, std::vector<std::shared_ptr<MarmotType>>&& arg_results);
 

@@ -26,12 +26,12 @@ The prelude is not only collections and IO wrappers. It also ships the public he
 
 - `Concatenable` backs `++` and currently ships concrete instances for `Text` and `Array<T>`.
 - `Convertable` exposes the generic conversion surface used by `as` in constrained code and ships the current primitive conversion instances, plus `Array<T>` to `Text`, shown as `[a, b]`, when its elements convert. A record or union can `deriving (Convertable)` to get its own conversion to `Text`.
-- `Numeric` and `Bitwise` are marker classes for generic code: a parameter is used with arithmetic and ranges only under `where Numeric<T>`, and with the bit operators only under `where Bitwise<T>`. The compiler does these operations itself, so the instances are fixed: `Int`, `Float`, `Byte` and `Word`, and `Int`, `Byte` and `Word`.
+- `Numeric.mmt` exports `Add`, `Subtract`, `Multiply`, `Divide`, `Remainder`, `Positive`, `Negate`, `BitAnd`, `BitOr`, `BitXor`, `BitNot`, `ShiftLeft` and `ShiftRight`. Their methods implement the corresponding operators, with an associated `Output` type. Instances support mixed operand types and custom results. The `Numeric<T>` marker is for primitive range bounds only.
 - `Countable` exposes the generic counting surface used by `#`. The prelude currently ships a `Text` instance; arrays and several standard collections also have direct lowering paths in the compiler/runtime.
 - `Equatable` and `Hashable` provide the comparison and hashing surface used by derived code and collections.
 - `Indexable` backs `x[i]`. It takes two type parameters, `Indexable<C, I>`, so the index type is not fixed to `Int`, and exposes an `Element` associated type. The prelude ships an `Array<T>` instance; arrays also keep a direct lowering path in the compiler, which the instance body itself relies on. `Text` has no instance yet - its element type follows from the planned newtype over `Array<Byte>`.
 - `Iterable` provides the `Item` associated type and `Next` method used by `for` loops and iterable-based comprehensions.
-- `Orderable` defines the ordering interface used by comparison operators and `ArrayUtil::Sort`. It ships instances for `Int`, `Float`, `Byte`, `Word` and `Text`, which orders by code point; instances for user-defined types come from user code.
+- `Orderable` defines the ordering interface used by comparison operators and `ArrayUtil::Sort`. `Compare` returns `Ordering`, whose variants are `Less`, `Equal`, `Greater` and `Unordered`; all relational operators return false for an unordered pair. It ships instances for `Int`, `Float`, `Byte`, `Word` and `Text`, which orders by code point; instances for user-defined types come from user code.
 - `Transferable` is the marker typeclass for values that can cross worker boundaries in the concurrency system. Whether a type is transferable follows from its structure, the same way for `where Transferable<T>` as for `Concurrency::Spawn`: all primitive types, tuples, `Array<T>`, `Channel<T>` and `Ref<T>` of transferable types, and function types are — a function crosses as its procedure index plus a copy of its captured cells, which is what lets `Concurrency::Spawn` take a function value and `ParallelMap` be written in Marmot. A closure's captures are not part of its type, so they are not checked: a closure that captured a `Worker<T>` crosses with a handle that means nothing on the other side. User-defined structs and unions can `deriving (Transferable)`. Transferability is enforced at compile time by `Concurrency::Spawn`, `Concurrency::Join`, `Concurrency::MakeChannel`, `->`, and `<-`. `Concurrency::Close`, `Concurrency::IsDone` and `Concurrency::Cancel` complete that surface.
 - `Prelude/Panic` provides `Panic::Panic`, which is used heavily by the regression tests and small examples.
 
@@ -191,7 +191,7 @@ Public array helpers:
 - `Length`, `Contains`
 - `Slice`, `Reverse`, `Copy`, `Concat`
 - `WithAppended`, `WithReplaced`, `WithInserted`, `WithRemoved`
-- `Sort` for an `Orderable` element type, and `SortBy(Array<T>, fn(T, T) -> Int)` with a comparison that returns a negative number, zero or a positive number. Both are stable: equal elements keep their order
+- `Sort` for an `Orderable` element type, and `SortBy(Array<T>, fn(T, T) -> Int)` with a comparison that returns a negative number, zero or a positive number. Both are stable: equal elements keep their order. `Sort` stops with a panic if its comparator encounters unordered values
 
 Public path helpers, in `Path`, which read `/` and `\` as separators and write `/`:
 

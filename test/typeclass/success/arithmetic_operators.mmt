@@ -1,0 +1,94 @@
+module ArithmeticOperators
+import { "../../../MarmotPrelude/IO.mmt", "../../../MarmotPrelude/Numeric.mmt" }
+
+type Vector = {
+    x: Int,
+    y: Int
+};
+
+instance Add<Vector, Vector> {
+    type Output = Vector;
+    def Add = fn(a: Vector, b: Vector) -> Vector => Vector(a.x + b.x, a.y + b.y);
+};
+
+instance Multiply<Vector, Int> {
+    type Output = Vector;
+    def Multiply = fn(a: Vector, scale: Int) -> Vector => Vector(a.x * scale, a.y * scale);
+};
+
+instance Multiply<Vector, Vector> {
+    type Output = Int;
+    def Multiply = fn(a: Vector, b: Vector) -> Int => a.x * b.x + a.y * b.y;
+};
+
+instance Negate<Vector> {
+    type Output = Vector;
+    def Negate = fn(value: Vector) -> Vector => Vector(-value.x, -value.y);
+};
+
+instance Positive<Vector> {
+    type Output = Int;
+    def Positive = fn(value: Vector) -> Int => value.x + value.y;
+};
+
+instance Multiply<Int, Vector> {
+    type Output = Vector;
+    def Multiply = fn(scale: Int, value: Vector) -> Vector => Vector(scale * value.x, scale * value.y);
+};
+
+type Flags = Word;
+
+instance BitAnd<Flags, Flags> {
+    type Output = Flags;
+    def BitAnd = fn(a: Flags, b: Flags) -> Flags => ((a as Word) & (b as Word)) as Flags;
+};
+
+instance ShiftLeft<Flags, Int> {
+    type Output = Flags;
+    def ShiftLeft = fn(value: Flags, amount: Int) -> Flags => ((value as Word) << amount) as Flags;
+};
+
+def Sum = fn<L, R>(a: L, b: R) -> Add::Output<L, R> where Add<L, R> => a + b;
+
+def Product = fn<L, R>(a: L, b: R) -> Multiply::Output<L, R> where Multiply<L, R> => Multiply::Multiply(a, b);
+
+def MethodValue = fn<L, R>(a: L, b: R) -> Add::Output<L, R> where Add<L, R> => {
+    def add: fn(L, R) -> Add::Output<L, R> = Add::Add;
+    add(a, b)
+};
+
+def a = Vector(2, 3);
+
+def b = Vector(4, 5);
+
+def result = a + b * 2;
+IO::PrintLine(result.x as Text);
+IO::PrintLine(result.y as Text);
+IO::PrintLine((a * b) as Text);
+IO::PrintLine(Sum(a, b).x as Text);
+IO::PrintLine(Product(a, 3).y as Text);
+IO::PrintLine(MethodValue(a, b).y as Text);
+IO::PrintLine((-a).x as Text);
+IO::PrintLine((+a) as Text);
+IO::PrintLine((3 * a).x as Text);
+IO::PrintLine((((12 as Word) as Flags) & ((10 as Word) as Flags)) as Word as Text);
+IO::PrintLine((((1 as Word) as Flags) << 4) as Word as Text);
+
+def add: fn(Int, Int) -> Int = Add::Add;
+
+def multiply: fn(Vector, Int) -> Vector = Multiply::Multiply;
+IO::PrintLine(add(2, 3) as Text);
+IO::PrintLine(multiply(a, 4).x as Text);
+IO::PrintLine(Add::Add(1.5, 2.5) as Text);
+IO::PrintLine(ShiftLeft::ShiftLeft(0x03, 2) as Text);
+
+def visits = ref 0;
+
+def Visit = fn(value: Int) -> Vector => {
+    visits := *visits * 10 + value;
+    Vector(value, value)
+};
+
+def evaluated = Visit(1) + Visit(2) * 3;
+IO::PrintLine(*visits as Text);
+IO::PrintLine(evaluated.x as Text);

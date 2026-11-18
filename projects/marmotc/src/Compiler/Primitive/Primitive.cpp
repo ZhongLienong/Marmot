@@ -1,4 +1,5 @@
 #include "Primitive.h"
+#include "Compiler/Operator/Operator.h"
 
 #include <algorithm>
 #include <array>
@@ -11,6 +12,17 @@ namespace
 
 std::optional<MarmotPrimitive> FindPrimitive(std::string_view symbol)
 {
+	constexpr std::string_view prefix = "MARMOT_PRIMITIVE_";
+	if (symbol.starts_with(prefix))
+	{
+		for (const MarmotOperator& op : MarmotOperators())
+		{
+			if (symbol.substr(prefix.size()) == op.m_class_name)
+			{
+				return op.m_primitive;
+			}
+		}
+	}
 	static constexpr std::array<PrimitiveSymbol, 6u> s_primitives =
 	{{
 		{ "MARMOT_PRIMITIVE_Spawn", MarmotPrimitive::Spawn },

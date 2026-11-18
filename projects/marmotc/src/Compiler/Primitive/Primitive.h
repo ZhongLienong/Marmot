@@ -14,6 +14,11 @@ enum class MarmotPrimitive
 	ChannelClose,
 	WorkerIsDone,
 	WorkerCancel,
+#define MARMOT_BINARY_OPERATOR(token, name, integer, shift) name,
+#define MARMOT_UNARY_OPERATOR(token, name, integer) name,
+#include "Compiler/Operator/Operators.def"
+#undef MARMOT_BINARY_OPERATOR
+#undef MARMOT_UNARY_OPERATOR
 };
 
 std::optional<MarmotPrimitive> FindPrimitive(std::string_view symbol);

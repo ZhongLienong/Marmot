@@ -1,0 +1,22 @@
+module OperatorCrossModule
+import { "../../../MarmotPrelude/IO.mmt", "../../../MarmotPrelude/Numeric.mmt", "./operator_library.mmt" }
+use OperatorLibrary.{
+    Box
+}
+
+def a = Box(2);
+
+def b = Box(3);
+
+def (pair, scalar) = OperatorLibrary::Both(a, b);
+IO::PrintLine(pair.value as Text);
+IO::PrintLine(scalar.value as Text);
+
+def add: fn(Box<Int>, Box<Int>) -> Box<Int> = Add::Add;
+IO::PrintLine(add(a, b).value as Text);
+IO::PrintLine((a + 4).value as Text);
+IO::PrintLine((Box(a) + Box(b)).value.value as Text);
+
+def (left, right) = OperatorLibrary::Both(2, 3);
+IO::PrintLine(left as Text);
+IO::PrintLine(right as Text);

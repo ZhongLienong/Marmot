@@ -143,6 +143,8 @@ private:
 	std::optional<MarmotIRImmediate> ConstantOf(MarmotLiteralKind kind, const std::string& lexeme) const;
 	Lowered LowerLiteral(const MarmotExpression::Literal& literal);
 	Lowered LowerBinary(const MarmotExpression::Binary& binary);
+	Lowered LowerScalarBinary(const Token& op, MarmotIRValueId left, MarmotIRValueId right);
+	Lowered LowerScalarUnary(const Token& op, MarmotIRValueId operand);
 	Lowered LowerShortCircuit(const MarmotExpression::Binary& binary);
 	Lowered LowerClassOperator(const MarmotExpression::Binary& binary, MarmotIRValueId left, MarmotIRValueId right);
 	Lowered LowerConcat(const MarmotExpression::Binary& binary, MarmotIRValueId left, MarmotIRValueId right);

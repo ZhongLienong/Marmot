@@ -1,0 +1,7 @@
+Compilation failed :(
+Type Checker Error at test/typeclass/failure/operator_wrong_output.mmt:10
+   |
+10 |     def Add = fn(a: Value, b: Value) -> Int => a.n + b.n;
+   |         ^^^ Instance declaration error: method 'Add' return type does not match class declaration
+Expected Text, but got Int
+   |

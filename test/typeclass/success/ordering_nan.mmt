@@ -1,0 +1,33 @@
+module OrderingNan
+import { "../../../MarmotPrelude/IO.mmt", "../../../MarmotPrelude/Orderable.mmt" }
+use Orderable.{
+    Ordering
+}
+
+def Compare = fn<T>(a: T, b: T) -> (Bool, Bool, Bool, Bool) where Orderable<T> => (a < b, a <= b, a > b, a >= b);
+
+def Direct = fn(a: Float, b: Float) -> (Bool, Bool, Bool, Bool) => (a < b, a <= b, a > b, a >= b);
+
+def Show = fn(values:(Bool, Bool, Bool, Bool)) -> Unit => {
+    def (lt, le, gt, ge) = values;
+    IO::PrintLine((lt as Text) ++ " " ++ (le as Text) ++ " " ++ (gt as Text) ++ " " ++ (ge as Text));
+};
+
+def Nan = fn(value: Float) -> Float => value / value;
+
+def nan = Nan(0.0);
+Show(Direct(nan, nan));
+Show(Compare(nan, nan));
+Show(Compare(nan, 1.0));
+Show(Compare(1.0, nan));
+Show(Compare(1.0, 1.0));
+Show(Compare(1.0, 2.0));
+match Orderable::Compare(nan, nan) with
+    case Ordering::Unordered() => IO::PrintLine("unordered")
+    case _ => IO::PrintLine("wrong");
+
+type Box = {
+    value: Float
+}
+deriving(Orderable);
+Show(Compare(Box(nan), Box(nan)));

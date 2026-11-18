@@ -1,8 +1,7 @@
 module Numeric
-public export { Numeric, Bitwise }
+public export { Numeric, Add, Subtract, Multiply, Divide, Remainder, BitAnd, BitOr, BitXor, ShiftLeft, ShiftRight, Positive, Negate, BitNot }
 
-// The compiler does arithmetic and ranges on these types itself. A generic
-// parameter is used as a number only where its definition says 'where Numeric<T>'.
+// Primitive range bounds; arithmetic capabilities are declared separately.
 class Numeric<T> {
 };
 
@@ -18,15 +17,389 @@ instance Numeric<Byte> {
 instance Numeric<Word> {
 };
 
-// The types '&', '|', '^', '~' and the shifts work on.
-class Bitwise<T> {
+class Add<L, R> {
+    type Output;
+    Add: fn(left: L, right: R) -> Output;
 };
 
-instance Bitwise<Int> {
+foreign "MARMOT_PRIMITIVE_Add" AddInt: fn(Int, Int) -> Int;
+
+instance Add<Int, Int> {
+    type Output = Int;
+    def Add = fn(left: Int, right: Int) -> Int => AddInt(left, right);
 };
 
-instance Bitwise<Byte> {
+foreign "MARMOT_PRIMITIVE_Add" AddFloat: fn(Float, Float) -> Float;
+
+instance Add<Float, Float> {
+    type Output = Float;
+    def Add = fn(left: Float, right: Float) -> Float => AddFloat(left, right);
 };
 
-instance Bitwise<Word> {
+foreign "MARMOT_PRIMITIVE_Add" AddByte: fn(Byte, Byte) -> Byte;
+
+instance Add<Byte, Byte> {
+    type Output = Byte;
+    def Add = fn(left: Byte, right: Byte) -> Byte => AddByte(left, right);
+};
+
+foreign "MARMOT_PRIMITIVE_Add" AddWord: fn(Word, Word) -> Word;
+
+instance Add<Word, Word> {
+    type Output = Word;
+    def Add = fn(left: Word, right: Word) -> Word => AddWord(left, right);
+};
+
+class Subtract<L, R> {
+    type Output;
+    Subtract: fn(left: L, right: R) -> Output;
+};
+
+foreign "MARMOT_PRIMITIVE_Subtract" SubtractInt: fn(Int, Int) -> Int;
+
+instance Subtract<Int, Int> {
+    type Output = Int;
+    def Subtract = fn(left: Int, right: Int) -> Int => SubtractInt(left, right);
+};
+
+foreign "MARMOT_PRIMITIVE_Subtract" SubtractFloat: fn(Float, Float) -> Float;
+
+instance Subtract<Float, Float> {
+    type Output = Float;
+    def Subtract = fn(left: Float, right: Float) -> Float => SubtractFloat(left, right);
+};
+
+foreign "MARMOT_PRIMITIVE_Subtract" SubtractByte: fn(Byte, Byte) -> Byte;
+
+instance Subtract<Byte, Byte> {
+    type Output = Byte;
+    def Subtract = fn(left: Byte, right: Byte) -> Byte => SubtractByte(left, right);
+};
+
+foreign "MARMOT_PRIMITIVE_Subtract" SubtractWord: fn(Word, Word) -> Word;
+
+instance Subtract<Word, Word> {
+    type Output = Word;
+    def Subtract = fn(left: Word, right: Word) -> Word => SubtractWord(left, right);
+};
+
+class Multiply<L, R> {
+    type Output;
+    Multiply: fn(left: L, right: R) -> Output;
+};
+
+foreign "MARMOT_PRIMITIVE_Multiply" MultiplyInt: fn(Int, Int) -> Int;
+
+instance Multiply<Int, Int> {
+    type Output = Int;
+    def Multiply = fn(left: Int, right: Int) -> Int => MultiplyInt(left, right);
+};
+
+foreign "MARMOT_PRIMITIVE_Multiply" MultiplyFloat: fn(Float, Float) -> Float;
+
+instance Multiply<Float, Float> {
+    type Output = Float;
+    def Multiply = fn(left: Float, right: Float) -> Float => MultiplyFloat(left, right);
+};
+
+foreign "MARMOT_PRIMITIVE_Multiply" MultiplyByte: fn(Byte, Byte) -> Byte;
+
+instance Multiply<Byte, Byte> {
+    type Output = Byte;
+    def Multiply = fn(left: Byte, right: Byte) -> Byte => MultiplyByte(left, right);
+};
+
+foreign "MARMOT_PRIMITIVE_Multiply" MultiplyWord: fn(Word, Word) -> Word;
+
+instance Multiply<Word, Word> {
+    type Output = Word;
+    def Multiply = fn(left: Word, right: Word) -> Word => MultiplyWord(left, right);
+};
+
+class Divide<L, R> {
+    type Output;
+    Divide: fn(left: L, right: R) -> Output;
+};
+
+foreign "MARMOT_PRIMITIVE_Divide" DivideInt: fn(Int, Int) -> Int;
+
+instance Divide<Int, Int> {
+    type Output = Int;
+    def Divide = fn(left: Int, right: Int) -> Int => DivideInt(left, right);
+};
+
+foreign "MARMOT_PRIMITIVE_Divide" DivideFloat: fn(Float, Float) -> Float;
+
+instance Divide<Float, Float> {
+    type Output = Float;
+    def Divide = fn(left: Float, right: Float) -> Float => DivideFloat(left, right);
+};
+
+foreign "MARMOT_PRIMITIVE_Divide" DivideByte: fn(Byte, Byte) -> Byte;
+
+instance Divide<Byte, Byte> {
+    type Output = Byte;
+    def Divide = fn(left: Byte, right: Byte) -> Byte => DivideByte(left, right);
+};
+
+foreign "MARMOT_PRIMITIVE_Divide" DivideWord: fn(Word, Word) -> Word;
+
+instance Divide<Word, Word> {
+    type Output = Word;
+    def Divide = fn(left: Word, right: Word) -> Word => DivideWord(left, right);
+};
+
+class Remainder<L, R> {
+    type Output;
+    Remainder: fn(left: L, right: R) -> Output;
+};
+
+foreign "MARMOT_PRIMITIVE_Remainder" RemainderInt: fn(Int, Int) -> Int;
+
+instance Remainder<Int, Int> {
+    type Output = Int;
+    def Remainder = fn(left: Int, right: Int) -> Int => RemainderInt(left, right);
+};
+
+foreign "MARMOT_PRIMITIVE_Remainder" RemainderFloat: fn(Float, Float) -> Float;
+
+instance Remainder<Float, Float> {
+    type Output = Float;
+    def Remainder = fn(left: Float, right: Float) -> Float => RemainderFloat(left, right);
+};
+
+foreign "MARMOT_PRIMITIVE_Remainder" RemainderByte: fn(Byte, Byte) -> Byte;
+
+instance Remainder<Byte, Byte> {
+    type Output = Byte;
+    def Remainder = fn(left: Byte, right: Byte) -> Byte => RemainderByte(left, right);
+};
+
+foreign "MARMOT_PRIMITIVE_Remainder" RemainderWord: fn(Word, Word) -> Word;
+
+instance Remainder<Word, Word> {
+    type Output = Word;
+    def Remainder = fn(left: Word, right: Word) -> Word => RemainderWord(left, right);
+};
+
+class BitAnd<L, R> {
+    type Output;
+    BitAnd: fn(left: L, right: R) -> Output;
+};
+
+foreign "MARMOT_PRIMITIVE_BitAnd" BitAndInt: fn(Int, Int) -> Int;
+
+instance BitAnd<Int, Int> {
+    type Output = Int;
+    def BitAnd = fn(left: Int, right: Int) -> Int => BitAndInt(left, right);
+};
+
+foreign "MARMOT_PRIMITIVE_BitAnd" BitAndByte: fn(Byte, Byte) -> Byte;
+
+instance BitAnd<Byte, Byte> {
+    type Output = Byte;
+    def BitAnd = fn(left: Byte, right: Byte) -> Byte => BitAndByte(left, right);
+};
+
+foreign "MARMOT_PRIMITIVE_BitAnd" BitAndWord: fn(Word, Word) -> Word;
+
+instance BitAnd<Word, Word> {
+    type Output = Word;
+    def BitAnd = fn(left: Word, right: Word) -> Word => BitAndWord(left, right);
+};
+
+class BitOr<L, R> {
+    type Output;
+    BitOr: fn(left: L, right: R) -> Output;
+};
+
+foreign "MARMOT_PRIMITIVE_BitOr" BitOrInt: fn(Int, Int) -> Int;
+
+instance BitOr<Int, Int> {
+    type Output = Int;
+    def BitOr = fn(left: Int, right: Int) -> Int => BitOrInt(left, right);
+};
+
+foreign "MARMOT_PRIMITIVE_BitOr" BitOrByte: fn(Byte, Byte) -> Byte;
+
+instance BitOr<Byte, Byte> {
+    type Output = Byte;
+    def BitOr = fn(left: Byte, right: Byte) -> Byte => BitOrByte(left, right);
+};
+
+foreign "MARMOT_PRIMITIVE_BitOr" BitOrWord: fn(Word, Word) -> Word;
+
+instance BitOr<Word, Word> {
+    type Output = Word;
+    def BitOr = fn(left: Word, right: Word) -> Word => BitOrWord(left, right);
+};
+
+class BitXor<L, R> {
+    type Output;
+    BitXor: fn(left: L, right: R) -> Output;
+};
+
+foreign "MARMOT_PRIMITIVE_BitXor" BitXorInt: fn(Int, Int) -> Int;
+
+instance BitXor<Int, Int> {
+    type Output = Int;
+    def BitXor = fn(left: Int, right: Int) -> Int => BitXorInt(left, right);
+};
+
+foreign "MARMOT_PRIMITIVE_BitXor" BitXorByte: fn(Byte, Byte) -> Byte;
+
+instance BitXor<Byte, Byte> {
+    type Output = Byte;
+    def BitXor = fn(left: Byte, right: Byte) -> Byte => BitXorByte(left, right);
+};
+
+foreign "MARMOT_PRIMITIVE_BitXor" BitXorWord: fn(Word, Word) -> Word;
+
+instance BitXor<Word, Word> {
+    type Output = Word;
+    def BitXor = fn(left: Word, right: Word) -> Word => BitXorWord(left, right);
+};
+
+class ShiftLeft<L, R> {
+    type Output;
+    ShiftLeft: fn(left: L, right: R) -> Output;
+};
+
+foreign "MARMOT_PRIMITIVE_ShiftLeft" ShiftLeftInt: fn(Int, Int) -> Int;
+
+instance ShiftLeft<Int, Int> {
+    type Output = Int;
+    def ShiftLeft = fn(left: Int, right: Int) -> Int => ShiftLeftInt(left, right);
+};
+
+foreign "MARMOT_PRIMITIVE_ShiftLeft" ShiftLeftByte: fn(Byte, Int) -> Byte;
+
+instance ShiftLeft<Byte, Int> {
+    type Output = Byte;
+    def ShiftLeft = fn(left: Byte, right: Int) -> Byte => ShiftLeftByte(left, right);
+};
+
+foreign "MARMOT_PRIMITIVE_ShiftLeft" ShiftLeftWord: fn(Word, Int) -> Word;
+
+instance ShiftLeft<Word, Int> {
+    type Output = Word;
+    def ShiftLeft = fn(left: Word, right: Int) -> Word => ShiftLeftWord(left, right);
+};
+
+class ShiftRight<L, R> {
+    type Output;
+    ShiftRight: fn(left: L, right: R) -> Output;
+};
+
+foreign "MARMOT_PRIMITIVE_ShiftRight" ShiftRightInt: fn(Int, Int) -> Int;
+
+instance ShiftRight<Int, Int> {
+    type Output = Int;
+    def ShiftRight = fn(left: Int, right: Int) -> Int => ShiftRightInt(left, right);
+};
+
+foreign "MARMOT_PRIMITIVE_ShiftRight" ShiftRightByte: fn(Byte, Int) -> Byte;
+
+instance ShiftRight<Byte, Int> {
+    type Output = Byte;
+    def ShiftRight = fn(left: Byte, right: Int) -> Byte => ShiftRightByte(left, right);
+};
+
+foreign "MARMOT_PRIMITIVE_ShiftRight" ShiftRightWord: fn(Word, Int) -> Word;
+
+instance ShiftRight<Word, Int> {
+    type Output = Word;
+    def ShiftRight = fn(left: Word, right: Int) -> Word => ShiftRightWord(left, right);
+};
+
+class Positive<T> {
+    type Output;
+    Positive: fn(value: T) -> Output;
+};
+
+foreign "MARMOT_PRIMITIVE_Positive" PositiveInt: fn(Int) -> Int;
+
+instance Positive<Int> {
+    type Output = Int;
+    def Positive = fn(value: Int) -> Int => PositiveInt(value);
+};
+
+foreign "MARMOT_PRIMITIVE_Positive" PositiveFloat: fn(Float) -> Float;
+
+instance Positive<Float> {
+    type Output = Float;
+    def Positive = fn(value: Float) -> Float => PositiveFloat(value);
+};
+
+foreign "MARMOT_PRIMITIVE_Positive" PositiveByte: fn(Byte) -> Byte;
+
+instance Positive<Byte> {
+    type Output = Byte;
+    def Positive = fn(value: Byte) -> Byte => PositiveByte(value);
+};
+
+foreign "MARMOT_PRIMITIVE_Positive" PositiveWord: fn(Word) -> Word;
+
+instance Positive<Word> {
+    type Output = Word;
+    def Positive = fn(value: Word) -> Word => PositiveWord(value);
+};
+
+class Negate<T> {
+    type Output;
+    Negate: fn(value: T) -> Output;
+};
+
+foreign "MARMOT_PRIMITIVE_Negate" NegateInt: fn(Int) -> Int;
+
+instance Negate<Int> {
+    type Output = Int;
+    def Negate = fn(value: Int) -> Int => NegateInt(value);
+};
+
+foreign "MARMOT_PRIMITIVE_Negate" NegateFloat: fn(Float) -> Float;
+
+instance Negate<Float> {
+    type Output = Float;
+    def Negate = fn(value: Float) -> Float => NegateFloat(value);
+};
+
+foreign "MARMOT_PRIMITIVE_Negate" NegateByte: fn(Byte) -> Byte;
+
+instance Negate<Byte> {
+    type Output = Byte;
+    def Negate = fn(value: Byte) -> Byte => NegateByte(value);
+};
+
+foreign "MARMOT_PRIMITIVE_Negate" NegateWord: fn(Word) -> Word;
+
+instance Negate<Word> {
+    type Output = Word;
+    def Negate = fn(value: Word) -> Word => NegateWord(value);
+};
+
+class BitNot<T> {
+    type Output;
+    BitNot: fn(value: T) -> Output;
+};
+
+foreign "MARMOT_PRIMITIVE_BitNot" BitNotInt: fn(Int) -> Int;
+
+instance BitNot<Int> {
+    type Output = Int;
+    def BitNot = fn(value: Int) -> Int => BitNotInt(value);
+};
+
+foreign "MARMOT_PRIMITIVE_BitNot" BitNotByte: fn(Byte) -> Byte;
+
+instance BitNot<Byte> {
+    type Output = Byte;
+    def BitNot = fn(value: Byte) -> Byte => BitNotByte(value);
+};
+
+foreign "MARMOT_PRIMITIVE_BitNot" BitNotWord: fn(Word) -> Word;
+
+instance BitNot<Word> {
+    type Output = Word;
+    def BitNot = fn(value: Word) -> Word => BitNotWord(value);
 };

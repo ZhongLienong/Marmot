@@ -1,0 +1,11 @@
+module OperatorWrongOutput
+import { "../../../MarmotPrelude/Numeric.mmt" }
+
+type Value = {
+    n: Int
+};
+
+instance Add<Value, Value> {
+    type Output = Text;
+    def Add = fn(a: Value, b: Value) -> Int => a.n + b.n;
+};

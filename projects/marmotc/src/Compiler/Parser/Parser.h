@@ -286,14 +286,6 @@ private:
 				(
 					[&](std::unique_ptr<MarmotExpression>&& right) -> MarmotResult::ExpressionResult
 					{
-						if (std::optional<CompilerError> error = CheckOperatorMixing(op, *left))
-						{
-							return std::unexpected(std::move(error.value()));
-						}
-						if (std::optional<CompilerError> error = CheckOperatorMixing(op, *right))
-						{
-							return std::unexpected(std::move(error.value()));
-						}
 						return std::make_unique<MarmotExpression>(MarmotExpression::Binary(op, std::move(left), std::move(right)));
 					}
 				);
@@ -677,13 +669,6 @@ private:
 	MarmotResult::ExpressionResult ParseAs();
 
 	MarmotResult::ExpressionResult FinishCall(std::unique_ptr<MarmotExpression>&& callee);
-
-	// Operators of different precedence bind by a table the reader has to remember,
-	// so mixing them in one expression needs parentheses instead. Returns the class
-	// an operator belongs to, or nullopt for one the rule does not cover.
-	static std::optional<int> BinaryOperatorClass(Token::Name name);
-
-	std::optional<CompilerError> CheckOperatorMixing(const Token& op, const MarmotExpression& operand);
 
 	// A parsed construction never carries explicit type arguments: `new Name<T>(...)` was the
 	// only form that could state them and it is gone. The AST node keeps the flag, because the

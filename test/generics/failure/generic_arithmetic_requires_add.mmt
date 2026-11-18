@@ -1,6 +1,6 @@
-module GenericArithmeticRequiresNumeric
+module GenericArithmeticRequiresAdd
 
-// Arithmetic on a generic parameter needs 'where Numeric<T>'. It used to be
+// Arithmetic on a generic parameter needs 'where Add<T, T>'. It used to be
 // checked only per specialization, so the error named a caller's type in the
 // middle of lowering.
 

@@ -1,4 +1,5 @@
 #include "InstanceResolver.h"
+#include "Compiler/Operator/Operator.h"
 #include "Compiler/TypeTransform/TypeTransform.h"
 #include "Compiler/Names/SpecialNames.h"
 #include "Compiler/TypeMatching/InstanceTypeMatcher.h"
@@ -61,7 +62,7 @@ std::optional<std::shared_ptr<MarmotType>> InstanceResolver::ResolveAssociatedTy
 		const TypeclassInstance::AssociatedTypes::const_iterator binding = instance.m_associated_type_bindings.find(projection.m_name);
 		if (binding != instance.m_associated_type_bindings.cend() && matcher.MatchAll(instance.m_type_args, projection.m_type_args))
 		{
-			return TypeTransform::Specialize(binding->second, matcher.Bindings());
+			return TypeTransform::Specialize(binding->second, matcher.Bindings(), [this](const MarmotType::AssociatedType& nested) { return ResolveAssociatedType(nested); });
 		}
 	}
 	return std::nullopt;
@@ -162,10 +163,10 @@ MethodResolutionMap InstanceResolver::ResolveConstraints(const std::vector<Marmo
 	return resolutions;
 }
 
-MethodResolution<std::optional<ResolvedInstanceName>> InstanceResolver::ResolveConstrainedCall(const MethodResolutionMap& resolutions, const std::string& callee_name, const std::shared_ptr<MarmotType>* first_argument_type, const std::shared_ptr<MarmotType>& return_type) const
+MethodResolution<std::optional<ResolvedInstanceName>> InstanceResolver::ResolveConstrainedCall(const MethodResolutionMap& resolutions, const std::string& callee_name, const std::vector<std::shared_ptr<MarmotType>>& argument_types, const std::shared_ptr<MarmotType>& return_type) const
 {
 	const std::vector<ResolvedMethodCandidate>& candidates = resolutions.at(callee_name);
-	if (first_argument_type == nullptr)
+	if (argument_types.empty())
 	{
 		if (candidates.size() == 1u && candidates[0u].m_resolved_name.has_value())
 		{
@@ -174,7 +175,7 @@ MethodResolution<std::optional<ResolvedInstanceName>> InstanceResolver::ResolveC
 		return std::unexpected(MethodResolutionError(CompilerErrorCode::LoweringAmbiguousMethodResolution, std::format("Ambiguous method '{}': cannot resolve a method call with no arguments.", callee_name)));
 	}
 
-	const std::string first_arg_type_name = (*first_argument_type)->ToString();
+	const std::string first_arg_type_name = argument_types.front()->ToString();
 	const std::string return_type_name = return_type->ToString();
 
 	std::vector<const ResolvedMethodCandidate*> matching = candidates
@@ -187,12 +188,14 @@ MethodResolution<std::optional<ResolvedInstanceName>> InstanceResolver::ResolveC
 		return std::nullopt;
 	}
 
-	// This tiebreaker assumes a class's second type parameter is its return type,
-	// which holds for Convertable<From, To> and not in general. Indexable<C, I>
-	// violates it: the second parameter is the index type. Dormant for Indexable
-	// today because the type checker rejects two constraints on one class that
-	// differ only in the second parameter.
-	if (matching.size() > 1u && GenericTypes::IsConcrete(return_type))
+	// Arithmetic classes identify both operands; conversion classes can instead
+	// use the expected result to distinguish their second type argument.
+	const bool binary_operator = std::ranges::any_of(MarmotOperators(), [&](const MarmotOperator& op) { return !op.m_unary && op.MethodName() == callee_name; });
+	if (binary_operator)
+	{
+		std::erase_if(matching, [&](const ResolvedMethodCandidate* candidate) { return candidate->m_second_type_name != argument_types[1u]->ToString(); });
+	}
+	if (!binary_operator && matching.size() > 1u && GenericTypes::IsConcrete(return_type))
 	{
 		std::vector<const ResolvedMethodCandidate*> matching_by_return = matching
 			| std::views::filter([&](const ResolvedMethodCandidate* candidate) { return !candidate->m_second_type_name.empty() && candidate->m_second_type_name == return_type_name; })
@@ -203,6 +206,16 @@ MethodResolution<std::optional<ResolvedInstanceName>> InstanceResolver::ResolveC
 		}
 	}
 
+	// Distinct generic constraints may select the same instance after specialization.
+	std::vector<const ResolvedMethodCandidate*> unique;
+	for (const ResolvedMethodCandidate* candidate : matching)
+	{
+		if (std::ranges::none_of(unique, [&](const ResolvedMethodCandidate* prior) { return prior->m_first_type_name == candidate->m_first_type_name && prior->m_second_type_name == candidate->m_second_type_name && prior->m_resolved_name == candidate->m_resolved_name; }))
+		{
+			unique.push_back(candidate);
+		}
+	}
+	matching = std::move(unique);
 	if (matching.size() != 1u)
 	{
 		return std::unexpected(MethodResolutionError(CompilerErrorCode::LoweringAmbiguousMethodResolution, std::format("Ambiguous method '{}': multiple constraints match argument type '{}'. Make constraints more specific.", callee_name, first_arg_type_name)));
@@ -224,20 +237,6 @@ MethodResolution<std::optional<ResolvedInstanceName>> InstanceResolver::ResolveC
 		return std::unexpected(MethodResolutionError(CompilerErrorCode::LoweringUnresolvedMethodResolution, std::format("Unresolved method '{}': no matching instance found{}.", callee_name, suffix)));
 	}
 	return selected.m_resolved_name;
-}
-
-MethodResolution<ResolvedInstanceName> InstanceResolver::ResolveConstrainedValue(const MethodResolutionMap& resolutions, const std::string& name) const
-{
-	const std::vector<ResolvedMethodCandidate>& candidates = resolutions.at(name);
-	if (candidates.size() != 1u)
-	{
-		return std::unexpected(MethodResolutionError(CompilerErrorCode::LoweringAmbiguousMethodResolution, std::format("Ambiguous method '{}': cannot use method value when multiple class constraints are in scope.", name)));
-	}
-	if (!candidates[0u].m_resolved_name.has_value())
-	{
-		return std::unexpected(MethodResolutionError(CompilerErrorCode::LoweringUnresolvedMethodResolution, std::format("Unresolved method '{}': no matching instance found.", name)));
-	}
-	return candidates[0u].m_resolved_name.value();
 }
 
 MethodResolution<std::optional<ResolvedInstanceName>> InstanceResolver::ResolveConcreteCall(const std::string& callee_name, const std::vector<std::shared_ptr<MarmotType>>& argument_types, const std::shared_ptr<MarmotType>& return_type) const

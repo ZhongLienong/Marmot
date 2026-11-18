@@ -1,0 +1,53 @@
+module OperatorPrimitives
+import { "../../../MarmotPrelude/IO.mmt", "../../../MarmotPrelude/Numeric.mmt" }
+
+IO::PrintLine(Add::Add(9223372036854775807, 1) as Text);
+IO::PrintLine(Subtract::Subtract(-9223372036854775808, 1) as Text);
+IO::PrintLine(Multiply::Multiply(7, -3) as Text);
+IO::PrintLine(Divide::Divide(-7, 3) as Text);
+IO::PrintLine(Remainder::Remainder(-7, 3) as Text);
+IO::PrintLine(Negate::Negate(-9223372036854775808) as Text);
+IO::PrintLine(Positive::Positive(-4) as Text);
+
+IO::PrintLine(Add::Add(1.25, 2.5) as Text);
+IO::PrintLine(Subtract::Subtract(1.25, 2.5) as Text);
+IO::PrintLine(Multiply::Multiply(1.5, 2.0) as Text);
+IO::PrintLine(Divide::Divide(7.5, 2.5) as Text);
+IO::PrintLine(Remainder::Remainder(7.5, 2.0) as Text);
+IO::PrintLine(Negate::Negate(1.5) as Text);
+
+IO::PrintLine(Add::Add(0xFF, 0x01) as Text);
+IO::PrintLine(Subtract::Subtract(0x00, 0x01) as Text);
+IO::PrintLine((-0x01) as Text);
+IO::PrintLine(Negate::Negate(0x01) as Text);
+IO::PrintLine(Multiply::Multiply(0x80, 0x02) as Text);
+IO::PrintLine(Divide::Divide(0xFF, 0x02) as Text);
+IO::PrintLine(Remainder::Remainder(0xFF, 0x02) as Text);
+
+def maximum = 0xFFFFFFFFFFFFFFFF;
+
+def one = 1 as Word;
+IO::PrintLine(Add::Add(maximum, one) as Text);
+IO::PrintLine(Subtract::Subtract(0 as Word, one) as Text);
+IO::PrintLine(Negate::Negate(one) as Text);
+IO::PrintLine(Multiply::Multiply(maximum, 2 as Word) as Text);
+IO::PrintLine(Divide::Divide(maximum, 2 as Word) as Text);
+IO::PrintLine(Remainder::Remainder(maximum, 2 as Word) as Text);
+
+IO::PrintLine(BitAnd::BitAnd(12, 10) as Text);
+IO::PrintLine(BitOr::BitOr(12, 10) as Text);
+IO::PrintLine(BitXor::BitXor(12, 10) as Text);
+IO::PrintLine(BitNot::BitNot(0) as Text);
+IO::PrintLine(ShiftLeft::ShiftLeft(1, 64) as Text);
+IO::PrintLine(ShiftRight::ShiftRight(-1, 64) as Text);
+IO::PrintLine(BitAnd::BitAnd(0xF0, 0x3C) as Text);
+IO::PrintLine(BitOr::BitOr(0xF0, 0x3C) as Text);
+IO::PrintLine(BitXor::BitXor(0xF0, 0x3C) as Text);
+IO::PrintLine(BitNot::BitNot(0x0F) as Text);
+IO::PrintLine(ShiftRight::ShiftRight(0xFF, 4) as Text);
+IO::PrintLine(BitAnd::BitAnd(maximum, 15 as Word) as Text);
+IO::PrintLine(BitOr::BitOr(one, 2 as Word) as Text);
+IO::PrintLine(BitXor::BitXor(maximum, one) as Text);
+IO::PrintLine(BitNot::BitNot(maximum) as Text);
+IO::PrintLine(ShiftLeft::ShiftLeft(one, 63) as Text);
+IO::PrintLine(ShiftRight::ShiftRight(maximum, 63) as Text);

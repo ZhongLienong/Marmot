@@ -1,7 +1,6 @@
-module GenericBitwiseRequiresBitwise
-
+module GenericBitwiseRequiresBitAnd
 // Numeric is not enough for the bit operators: Float has arithmetic but no
-// bits, so a generic '&' needs 'where Bitwise<T>'.
+// bits, so a generic '&' needs 'where BitAnd<T, T>'.
 
 import { "../../../MarmotPrelude/Numeric.mmt" }
 

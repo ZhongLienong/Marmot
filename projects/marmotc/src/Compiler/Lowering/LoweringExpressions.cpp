@@ -1,4 +1,5 @@
 #include "FunctionLowering.h"
+#include "Compiler/Operator/Ordering.h"
 
 #include <algorithm>
 #include <array>
@@ -375,23 +376,28 @@ Lowering::Lowered Lowering::FunctionLowering::LowerBinary(const MarmotExpression
 					return LowerConcat(binary, left, right);
 				}
 
-				const TypeRef& operand_type = m_function.TypeOf(left);
-				const std::optional<MarmotIRScalar> scalar = ScalarOf(operand_type);
-				const std::optional<ScalarOps> ops = BinaryOps(op.m_token_name);
-				const std::optional<MarmotIROp> ir_op = (scalar.has_value() && ops.has_value()) ? SelectOp(ops.value(), scalar.value()) : std::nullopt;
-				if (!ir_op.has_value())
-				{
-					return std::unexpected(m_owner.Unsupported(std::format("'{}' on {}", op.m_lexeme, operand_type->DisplayString()), op));
-				}
-
-				m_builder.AtLine(op.m_line);
-				if (GetMarmotIROpInfo(ir_op.value()).m_arity == MarmotIRArity::Binary)
-				{
-					return m_builder.Binary(ir_op.value(), left, right);
-				}
-				return m_builder.Emit(ir_op.value(), MarmotIRScalarType(scalar.value()), { left, right });
+				return LowerScalarBinary(op, left, right);
 			}
 		);
+}
+
+Lowering::Lowered Lowering::FunctionLowering::LowerScalarBinary(const Token& op, MarmotIRValueId left, MarmotIRValueId right)
+{
+	const TypeRef& operand_type = m_function.TypeOf(left);
+	const std::optional<MarmotIRScalar> scalar = ScalarOf(operand_type);
+	const std::optional<ScalarOps> ops = BinaryOps(op.m_token_name);
+	const std::optional<MarmotIROp> ir_op = (scalar.has_value() && ops.has_value()) ? SelectOp(ops.value(), scalar.value()) : std::nullopt;
+	if (!ir_op.has_value())
+	{
+		return std::unexpected(m_owner.Unsupported(std::format("'{}' on {}", op.m_lexeme, operand_type->DisplayString()), op));
+	}
+
+	m_builder.AtLine(op.m_line);
+	if (GetMarmotIROpInfo(ir_op.value()).m_arity == MarmotIRArity::Binary)
+	{
+		return m_builder.Binary(ir_op.value(), left, right);
+	}
+	return m_builder.Emit(ir_op.value(), MarmotIRScalarType(scalar.value()), { left, right });
 }
 
 // `a && b` is `b` when `a` holds and `a` otherwise; `a || b` the other way.
@@ -466,13 +472,23 @@ Lowering::Lowered Lowering::FunctionLowering::LowerClassOperator(const MarmotExp
 		return std::unexpected(m_owner.ResolutionError(resolved.error(), op));
 	}
 	const MarmotIROp compare = SelectOp(BinaryOps(op.m_token_name).value(), MarmotIRScalar::Int).value();
-	return CallResolved(resolved.value(), { left, right }, argument_types, IntType(), op)
+	return CallResolved(resolved.value(), { left, right }, argument_types, MarmotOrderingType(), op)
 		.transform
 		(
 			[this, &op, compare](MarmotIRValueId ordering)
 			{
 				m_builder.AtLine(op.m_line);
-				return m_builder.Binary(compare, ordering, m_builder.ConstInt(0));
+				const MarmotIRValueId tag = m_builder.Emit(MarmotIROp::GetTag, IntType(), { ordering });
+				const MarmotIRValueId ordered = m_builder.Binary(MarmotIROp::NeInt, tag, m_builder.ConstInt(static_cast<int>(MarmotOrdering::Unordered)));
+				const MarmotIRBlockId compare_block = NewBlock();
+				const MarmotIRBlockId join = NewBlock();
+				const MarmotIRValueId result = m_builder.AddParameter(join, MarmotIRScalarType(MarmotIRScalar::Bool));
+				Branch(ordered, MarmotIRSuccessor(compare_block), MarmotIRSuccessor(join, { m_builder.ConstBool(false) }));
+				PositionAt(compare_block);
+				const MarmotIRValueId compared = m_builder.Binary(compare, tag, m_builder.ConstInt(static_cast<int>(MarmotOrdering::Equal)));
+				Jump(join, { compared });
+				PositionAt(join);
+				return result;
 			}
 		);
 }
@@ -520,33 +536,50 @@ Lowering::Lowered Lowering::FunctionLowering::LowerUnary(const MarmotExpression:
 					return LowerCount(unary, operand);
 				}
 
-				const std::optional<MarmotIRScalar> scalar = ScalarOf(operand_type);
-				const std::optional<MarmotIROp> ir_op = [&]() -> std::optional<MarmotIROp>
-				{
-					if (!scalar.has_value())
-					{
-						return std::nullopt;
-					}
-					using enum MarmotIROp;
-					switch (op.m_token_name)
-					{
-					case Token::Name::SINGLE_MINUS:
-						return SelectOp(ScalarOps{ NegInt, NegFloat, std::nullopt, std::nullopt, std::nullopt, std::nullopt }, scalar.value());
-					case Token::Name::BANG:
-						return SelectOp(ScalarOps{ std::nullopt, std::nullopt, std::nullopt, std::nullopt, NotBool, std::nullopt }, scalar.value());
-					case Token::Name::TILDE:
-						return SelectOp(ScalarOps{ BitNotInt, std::nullopt, BitNotByte, BitNotWord, std::nullopt, std::nullopt }, scalar.value());
-					default:
-						return std::nullopt;
-					}
-				}();
-				if (!ir_op.has_value())
-				{
-					return std::unexpected(m_owner.Unsupported(std::format("'{}' on {}", op.m_lexeme, operand_type->DisplayString()), op));
-				}
-				return m_builder.AtLine(op.m_line).Unary(ir_op.value(), operand);
+				return LowerScalarUnary(op, operand);
 			}
 		);
+}
+
+Lowering::Lowered Lowering::FunctionLowering::LowerScalarUnary(const Token& op, MarmotIRValueId operand)
+{
+	if (op.m_token_name == Token::Name::SINGLE_PLUS)
+	{
+		return operand;
+	}
+	const TypeRef& operand_type = m_function.TypeOf(operand);
+	if (op.m_token_name == Token::Name::SINGLE_MINUS && (operand_type->IsType<MarmotType::ByteType>() || operand_type->IsType<MarmotType::WordType>()))
+	{
+		const bool byte = operand_type->IsType<MarmotType::ByteType>();
+		m_builder.AtLine(op.m_line);
+		const MarmotIRValueId zero = m_builder.Emit(MarmotIROp::Const, operand_type, {}, byte ? MarmotIRImmediate(MarmotIRByte{ 0u }) : MarmotIRImmediate(MarmotIRWord{ 0u }));
+		return m_builder.Binary(byte ? MarmotIROp::SubByte : MarmotIROp::SubWord, zero, operand);
+	}
+	const std::optional<MarmotIRScalar> scalar = ScalarOf(operand_type);
+	const std::optional<MarmotIROp> ir_op = [&]() -> std::optional<MarmotIROp>
+	{
+		if (!scalar.has_value())
+		{
+			return std::nullopt;
+		}
+		using enum MarmotIROp;
+		switch (op.m_token_name)
+		{
+		case Token::Name::SINGLE_MINUS:
+			return SelectOp(ScalarOps{ NegInt, NegFloat, std::nullopt, std::nullopt, std::nullopt, std::nullopt }, scalar.value());
+		case Token::Name::BANG:
+			return SelectOp(ScalarOps{ std::nullopt, std::nullopt, std::nullopt, std::nullopt, NotBool, std::nullopt }, scalar.value());
+		case Token::Name::TILDE:
+			return SelectOp(ScalarOps{ BitNotInt, std::nullopt, BitNotByte, BitNotWord, std::nullopt, std::nullopt }, scalar.value());
+		default:
+			return std::nullopt;
+		}
+	}();
+	if (!ir_op.has_value())
+	{
+		return std::unexpected(m_owner.Unsupported(std::format("'{}' on {}", op.m_lexeme, operand_type->DisplayString()), op));
+	}
+	return m_builder.AtLine(op.m_line).Unary(ir_op.value(), operand);
 }
 
 Lowering::Lowered Lowering::FunctionLowering::LowerCount(const MarmotExpression::UnaryPrefix& unary, MarmotIRValueId operand)

@@ -147,14 +147,23 @@ Custom iteration is expressed through the `Iterable` type class and its associat
 
 ## Operator Grouping
 
-Operators that do not bind equally cannot be mixed in one expression without
-parentheses. `a + b * c` is an error; write `a + (b * c)`. A chain of operators
-that bind equally needs none, so `a + b - c` and `x && y && z` are unchanged.
+Operators use the precedence and associativity in [the grammar](grammar.md#expressions).
+`a + b * c` means `a + (b * c)`; `a - b - c` means `(a - b) - c`.
+Parentheses override precedence, and comparison and Boolean operators combine
+normally: `index >= 0 && index < #items`.
 
-The classes are `*` `/` `%`; `+` `-`; `++`; `<<` `>>`; `<` `<=` `>` `>=`;
-`==` `!=`; `&`; `^`; `|`; `&&`; `||`. Concatenation is its own class, so
-`"n = " ++ (count as Text)` stays explicit about what is concatenated and what is
-arithmetic.
+Arithmetic and bitwise operators use the operation classes exported by
+`Numeric.mmt`: `Add`, `Subtract`, `Multiply`, `Divide`, `Remainder`, `BitAnd`,
+`BitOr`, `BitXor`, `ShiftLeft`, `ShiftRight`, `Positive`, `Negate` and `BitNot`.
+Binary classes take the left and right operand types; unary classes take one
+type. Each declares an associated `Output` and a method with the class's name.
+Thus `a + b` selects the same implementation as `Add::Add(a, b)`, and operands
+and results may have different types. Primitive arithmetic remains available
+without an import; importing `Numeric.mmt` makes its classes and primitive
+instances available for explicit calls, generic constraints and custom instances.
+A named method can be used as a value where its function type is known.
+Primitive instances specialize to the same scalar instructions as native syntax.
+`&&` and `||` remain Boolean operations with short-circuit evaluation.
 
 ## Algebraic Data Types
 
@@ -331,10 +340,10 @@ def ShowBox = fn<T>(box: Box<T>) -> Text => Show::show(box.value);
 
 Constraints attached to a struct or union are checked when the type is instantiated and automatically propagate when a function accepts that type.
 
-A generic parameter stands for whatever type a caller picks, so a body may not decide it. `fn<T>(x: T) -> T => 5` is rejected, because the body only works when `T` is `Int`. The same goes for treating two parameters as one type. An operator applies to a generic parameter only where a constraint names the class that provides it: `Numeric<T>` for arithmetic, unary `-` and ranges; `Bitwise<T>` for `&`, `|`, `^`, `~` and the shifted operand; `Equatable<T>`, `Orderable<T>`, `Concatenable<T>`, `Countable<T>` and `Convertable<From, To>` for `==`, `<`, `++`, `#` and `as`. A shift amount is always an `Int`. `Numeric` and `Bitwise` live in `MarmotPrelude/Numeric.mmt`. The compiler does the arithmetic itself, so their only instances are the ones it can do: `Int`, `Float`, `Byte` and `Word` for `Numeric`, and `Int`, `Byte` and `Word` for `Bitwise`.
+A generic parameter stands for whatever type a caller picks, so a body may not decide it. `fn<T>(x: T) -> T => 5` is rejected, because the body only works when `T` is `Int`. The same goes for treating two parameters as one type. An operator applies to a generic parameter only where a constraint names the class that provides it: `Add<L, R>` for `+`, `Negate<T>` for unary `-`, and the corresponding operation class for the other arithmetic and bitwise operators. `Equatable<T>`, `Orderable<T>`, `Concatenable<T>`, `Countable<T>` and `Convertable<From, To>` provide `==`, `<`, `++`, `#` and `as`. Primitive shifts take an `Int` amount. The `Numeric<T>` marker constrains primitive range bounds and has instances for `Int`, `Float`, `Byte` and `Word`; it does not imply arithmetic capabilities.
 
 ```marmot
-def Sum = fn<T>(a: T, b: T) -> T where Numeric<T> => a + b;
+def Sum = fn<L, R>(a: L, b: R) -> Add::Output<L, R> where Add<L, R> => a + b;
 ```
 
 ## Type Classes
@@ -408,7 +417,7 @@ Several operators are wired into the type checker and lowering so they can dispa
 - `++` can use `Concatenable<T>`
 - `#` can use `Countable<T>`
 - `==` and `!=` can use `Equatable<T>`
-- `<`, `<=`, `>`, and `>=` can use `Orderable<T>`
+- `<`, `<=`, `>`, and `>=` can use `Orderable<T>`. Its `Compare` method returns `Orderable::Ordering`: `Less`, `Equal`, `Greater` or `Unordered`. All four relational operators return false for `Unordered`, including NaN Float comparisons. Derived ordering propagates an unordered field comparison.
 
 Examples:
 

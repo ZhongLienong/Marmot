@@ -144,11 +144,9 @@ namespace
 	}
 }
 
-TEST_CASE("Parser requires parentheses between operators that do not bind equally", "[parser]")
+TEST_CASE("Parser applies conventional precedence and explicit grouping", "[parser]")
 {
-	// Operators of different precedence used to bind by a table the reader had to
-	// remember. Parentheses say it instead, so a chain of one operator parses as
-	// before and a mixed one is rejected.
+	// Operators at the same level associate left; parentheses override precedence.
 	const std::string source_code =
 		R"(module ParserPrecedence
 def chain = 1 + 2 - 3;
@@ -196,17 +194,13 @@ def tuple_value = (1 + 2, 3);
 	REQUIRE(RequireLiteral(tuple_first_element.m_right, MarmotExpression::LiteralKind::Integer).m_token.m_lexeme == "2");
 	REQUIRE(RequireLiteral(tuple_expr.m_elements[1u], MarmotExpression::LiteralKind::Integer).m_token.m_lexeme == "3");
 
-	// The same expression without parentheses is an error that names both operators.
-	const std::string mixed_source =
-		R"(module ParserMixed
-def mixed = 1 + 2 * 3;
-)";
+	const std::string mixed_source = "module ParserMixed\ndef mixed = 1 + 2 * 3;\n";
 	std::expected<MarmotTest::ParsedSnippet, CompilerError> mixed_result = MarmotTest::ParseSnippet(mixed_source, "ParserMixed.mmt");
-	REQUIRE_FALSE(mixed_result.has_value());
-	const std::string rendered(mixed_result.error().Rendered());
-	REQUIRE(rendered.find("do not bind equally") != std::string::npos);
-	REQUIRE(rendered.find("'+'") != std::string::npos);
-	REQUIRE(rendered.find("'*'") != std::string::npos);
+	REQUIRE(mixed_result.has_value());
+	const MarmotStatement::VariableDefinition& mixed_definition = RequireVariableDefinition(mixed_result->m_program, 0u, "mixed");
+	const MarmotExpression::Binary& addition = RequireExpression<MarmotExpression::Binary>(mixed_definition.m_value);
+	REQUIRE(addition.m_op.m_token_name == Token::Name::SINGLE_PLUS);
+	REQUIRE(RequireExpression<MarmotExpression::Binary>(addition.m_right).m_op.m_token_name == Token::Name::STAR);
 }
 
 TEST_CASE("Parser accepts nested generic closers in type contexts without affecting shift expressions", "[parser]")

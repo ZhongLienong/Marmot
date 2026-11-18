@@ -1,21 +1,33 @@
 module Orderable
-public export { Orderable }
-class Orderable < T > {
-    Compare: fn(a: T, b: T) -> Int;
+public export { Orderable, Ordering }
+
+type Ordering = Less | Equal | Greater | Unordered;
+
+class Orderable<T> {
+    Compare: fn(a: T, b: T) -> Ordering;
 };
-instance Orderable < Int > {
-    def Compare = fn(a: Int, b: Int) -> Int => if a < b then -1 else if a > b then 1 else 0;
+
+instance Orderable<Int> {
+    def Compare = fn(a: Int, b: Int) -> Ordering => if a < b then Ordering::Less() else if a > b then Ordering::Greater() else Ordering::Equal();
 };
-instance Orderable < Float > {
-    def Compare = fn(a: Float, b: Float) -> Int => if a < b then -1 else if a > b then 1 else 0;
+
+instance Orderable<Float> {
+    def Compare = fn(a: Float, b: Float) -> Ordering => if a < b then Ordering::Less() else if a > b then Ordering::Greater() else if a == b then Ordering::Equal() else Ordering::Unordered();
 };
-instance Orderable < Byte > {
-    def Compare = fn(a: Byte, b: Byte) -> Int => if a < b then -1 else if a > b then 1 else 0;
+
+instance Orderable<Byte> {
+    def Compare = fn(a: Byte, b: Byte) -> Ordering => if a < b then Ordering::Less() else if a > b then Ordering::Greater() else Ordering::Equal();
 };
-instance Orderable < Word > {
-    def Compare = fn(a: Word, b: Word) -> Int => if a < b then -1 else if a > b then 1 else 0;
+
+instance Orderable<Word> {
+    def Compare = fn(a: Word, b: Word) -> Ordering => if a < b then Ordering::Less() else if a > b then Ordering::Greater() else Ordering::Equal();
 };
+
 foreign "MARMOT_FFI_TextCompare" TextCompare: fn(Text, Text) -> Int;
-instance Orderable < Text > {
-    def Compare = fn(a: Text, b: Text) -> Int => TextCompare(a, b);
+
+instance Orderable<Text> {
+    def Compare = fn(a: Text, b: Text) -> Ordering => {
+        def order = TextCompare(a, b);
+        if order < 0 then Ordering::Less() else if order > 0 then Ordering::Greater() else Ordering::Equal()
+    };
 };

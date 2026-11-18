@@ -24,7 +24,7 @@ instance Equatable<Price>
 
 instance Orderable<Price>
 {
-	def Compare = fn(a: Price, b: Price) -> Int => (a.amount as Int) - (b.amount as Int);
+	def Compare = fn(a: Price, b: Price) -> Orderable::Ordering => Orderable::Compare(a.amount as Int, b.amount as Int);
 };
 
 def Zero = fn(currency: Currency) -> Price => Price(0 as Cents, currency);

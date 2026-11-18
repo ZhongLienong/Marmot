@@ -2,6 +2,7 @@
 #include "Compiler/TypeTransform/TypeTransform.h"
 #include "Bytecode/Format/Format.h"
 #include "Compiler/Names/SpecialNames.h"
+#include "Compiler/Operator/Ordering.h"
 
 #include <algorithm>
 #include <format>
@@ -227,7 +228,13 @@ namespace
 			return std::make_unique<MarmotExpression>(MarmotExpression::As(Token(Token::Name::AS, m_anchor), MarmotType::MakeLiteralType<MarmotType::TextType>(), std::move(value)));
 		}
 
-		// `Orderable::Compare(left, right)`, or `equal` when that is 0. The
+		std::unique_ptr<MarmotExpression> OrderingValue(MarmotOrdering value) const
+		{
+			const std::string names[] = { "Less", "Equal", "Greater", "Unordered" };
+			return std::make_unique<MarmotExpression>(MarmotExpression::Construct(Token("Ordering::" + names[static_cast<int>(value)], Token::Name::IDENTIFIER_LITERAL, m_anchor), {}, MarmotOrderingType(), true, MarmotExpression::Construct::Union{ static_cast<int>(value) }));
+		}
+
+		// `Orderable::Compare(left, right)`, or `equal` when that is Equal. The
 		// comparison is held in local `slot` on its way out.
 		std::unique_ptr<MarmotExpression> CompareThen(std::unique_ptr<MarmotExpression>&& left, std::unique_ptr<MarmotExpression>&& right, int slot, std::unique_ptr<MarmotExpression>&& equal) const
 		{
@@ -235,7 +242,7 @@ namespace
 			operands.emplace_back(std::move(left));
 			operands.emplace_back(std::move(right));
 			std::vector<std::unique_ptr<MarmotExpression>> cases;
-			cases.emplace_back(Case(std::make_unique<MarmotPattern>(MarmotPattern::Literal(Token("0", Token::Name::INTEGER_LITERAL, m_anchor), MarmotPattern::LiteralKind::Integer)), std::move(equal)));
+			cases.emplace_back(Case(ConstructorPattern("Ordering::Equal", {}), std::move(equal)));
 			const GeneratedBinding order = Local(slot);
 			cases.emplace_back(Case(BindingPattern(order), LocalName(order)));
 			return Match(QualifiedCall(std::string(ORDERABLE_CLASS_NAME), std::string(COMPARE_METHOD_NAME), std::move(operands)), std::move(cases));
@@ -415,7 +422,7 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 		std::vector<std::shared_ptr<MarmotType>> param_types{ std::shared_ptr<MarmotType>(struct_stmt.m_self_type), std::shared_ptr<MarmotType>(struct_stmt.m_self_type) };
 
 		// The first field that differs, in declaration order, decides.
-		std::unique_ptr<MarmotExpression> body = syntax.IntLiteral(0);
+		std::unique_ptr<MarmotExpression> body = syntax.OrderingValue(MarmotOrdering::Equal);
 		for (size_t i = struct_type.m_member_types.size(); i > 0u; i -= 1u)
 		{
 			const size_t field = i - 1u;
@@ -431,7 +438,7 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 		methods.emplace_back
 		(
 			Token(std::string(COMPARE_METHOD_NAME), Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name),
-			MarmotStatement::FunctionDefinition(method_token, {}, syntax.Parameters(std::move(params)), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::IntegerType>()), std::move(body), std::nullopt, {})
+			MarmotStatement::FunctionDefinition(method_token, {}, syntax.Parameters(std::move(params)), std::move(param_types), MarmotOrderingType(), std::move(body), std::nullopt, {})
 		);
 	}
 	else
@@ -627,7 +634,7 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 				{
 					if (right == left)
 					{
-						std::unique_ptr<MarmotExpression> same = syntax.IntLiteral(0);
+						std::unique_ptr<MarmotExpression> same = syntax.OrderingValue(MarmotOrdering::Equal);
 						for (size_t i = field_count; i > 0u; i -= 1u)
 						{
 							const int field = static_cast<int>(i - 1u);
@@ -643,8 +650,8 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 						wildcards.emplace_back(syntax.WildcardPattern());
 					}
 					std::unique_ptr<MarmotExpression> order = right < left
-						? syntax.IntLiteral(1)
-						: syntax.Binary(Token::Name::SINGLE_MINUS, syntax.IntLiteral(0), syntax.IntLiteral(1));
+						? syntax.OrderingValue(MarmotOrdering::Greater)
+						: syntax.OrderingValue(MarmotOrdering::Less);
 					inner_cases.emplace_back(syntax.Case(syntax.ConstructorPattern(variants[right].m_lexeme, std::move(wildcards)), std::move(order)));
 				}
 
@@ -655,7 +662,7 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 			methods.emplace_back
 			(
 				Token(std::string(COMPARE_METHOD_NAME), Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name),
-				MarmotStatement::FunctionDefinition(method_token, {}, syntax.Parameters(std::move(params)), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::IntegerType>()), std::move(body), std::nullopt, {})
+				MarmotStatement::FunctionDefinition(method_token, {}, syntax.Parameters(std::move(params)), std::move(param_types), MarmotOrderingType(), std::move(body), std::nullopt, {})
 			);
 		}
 		else

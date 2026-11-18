@@ -1,0 +1,18 @@
+module OperatorGenericConstruction
+import { "../../../MarmotPrelude/IO.mmt", "../../../MarmotPrelude/Numeric.mmt", "../../../MarmotPrelude/Equatable.mmt" }
+
+type Box<T> = {
+    value: T
+};
+
+instance Add<Box<T>, Box<T>> where Equatable<T> {
+    type Output = Bool;
+    def Add = fn(a: Box<T>, b: Box<T>) -> Bool => a.value == b.value;
+};
+
+def Infix = fn<T>(a: T, b: T) -> Bool where Add<Box<T>, Box<T>>, Add::Output<Box<T>, Box<T>> ~ Bool => Box(a) + Box(b);
+
+def Explicit = fn<T>(a: T, b: T) -> Bool where Add<Box<T>, Box<T>>, Add::Output<Box<T>, Box<T>> ~ Bool => Add::Add(Box(a), Box(b));
+
+IO::PrintLine(Infix(2, 2) as Text);
+IO::PrintLine(Explicit(2, 3) as Text);

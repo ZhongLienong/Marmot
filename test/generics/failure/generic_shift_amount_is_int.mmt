@@ -1,8 +1,7 @@
 module GenericShiftAmountIsInt
-
 // A shift amount is an Int, never a generic parameter. Shifting by one reached
 // the MarmotIR verifier as an invalid ShlInt.
 
 import { "../../../MarmotPrelude/Numeric.mmt" }
 
-def Shift = fn<T>(amount: T) -> Int where Bitwise<T> => 1 << amount;
+def Shift = fn<T>(amount: T) -> Int where Numeric<T> => 1 << amount;

@@ -135,6 +135,8 @@ Everything is an expression. A block's value is its last expression; a
 function's value is its body.
 
 Precedence, loosest first. Each level is left-associative unless noted.
+Different levels may be mixed without parentheses: `a + b * c` means
+`a + (b * c)`. Overloading changes the operation, not its precedence.
 
 | Level | Form |
 |---|---|
@@ -153,7 +155,7 @@ Precedence, loosest first. Each level is left-associative unless noted.
 | 12 | `e << e`, `e >> e` |
 | 13 | `e + e`, `e - e`, `e ++ e` (concatenation) |
 | 14 | `e * e`, `e / e`, `e % e` |
-| 15 | `!e`, `~e`, `#e` (length), `-e`, `<- ch` (receive), `ref e`, `*e` (dereference) |
+| 15 | `!e`, `~e`, `#e` (length), `+e`, `-e`, `<- ch` (receive), `ref e`, `*e` (dereference) |
 | 16 | `f(args)`, `e[index]`, `e.field`, `Module::name` |
 | 17 | primary |
 

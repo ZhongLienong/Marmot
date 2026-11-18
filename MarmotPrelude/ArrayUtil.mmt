@@ -1,5 +1,5 @@
 module ArrayUtil
-import { "./Equatable.mmt", "./Orderable.mmt", "./Prelude/List.mmt" }
+import { "./Equatable.mmt", "./Orderable.mmt", "./Prelude/List.mmt", "./Prelude/Panic.mmt" }
 public export { Length, Contains, Slice, Reverse, Copy, Concat, WithAppended, WithReplaced, WithInserted, WithRemoved, Sort, SortBy }
 use List.{
     List, ListToArray
@@ -42,4 +42,9 @@ def SortBy = fn < T >(array: Array < T >, compare: fn(T, T) -> Int) -> Array < T
         def right = SortBy(ArraySlice(array, middle, Length(array)), compare);
         ListToArray(MergeFrom(left, right, Length(left) - 1, Length(right) - 1, compare, List::Nil ()))
     };
-def Sort = fn < T >(array: Array < T >) -> Array < T > where Orderable < T > => SortBy(array, fn(a: T, b: T) -> Int => Orderable::Compare(a, b));
+def Sort = fn < T >(array: Array < T >) -> Array < T > where Orderable < T > => SortBy(array, fn(a: T, b: T) -> Int =>
+    match Orderable::Compare(a, b) with
+        case Orderable::Ordering::Less() => -1
+        case Orderable::Ordering::Equal() => 0
+        case Orderable::Ordering::Greater() => 1
+        case Orderable::Ordering::Unordered() => Panic::Panic("Cannot sort unordered values"));

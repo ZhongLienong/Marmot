@@ -18,7 +18,11 @@ type Tree = Leaf | Node(Tree, Int, Tree) deriving (Orderable);
 
 type Pair<A, B> = { first: A, second: B } deriving (Orderable);
 
-def Sign = fn(order: Int) -> Text => if order < 0 then "<" else if order > 0 then ">" else "=";
+def Sign = fn(order: Orderable::Ordering) -> Text => match order with
+    case Orderable::Ordering::Less() => "<"
+    case Orderable::Ordering::Equal() => "="
+    case Orderable::Ordering::Greater() => ">"
+    case Orderable::Ordering::Unordered() => "?";
 
 def Describe = fn(version: Version) -> Text => (version.major as Text) ++ "." ++ (version.minor as Text) ++ "-" ++ version.label;
 

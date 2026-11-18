@@ -24,13 +24,14 @@ TEST_CASE("Instance resolution retains the declaring module through constraints 
 		REQUIRE(exact.has_value());
 		CHECK(exact.value() == expected);
 		const MethodResolutionMap constraints = resolver.ResolveConstraints({ MarmotType::ClassConstraint("Echo", { integer }) }, {});
-		const MethodResolution<std::optional<ResolvedInstanceName>> call = resolver.ResolveConstrainedCall(constraints, "Echo::Copy", &integer, integer);
+		const MethodResolution<std::optional<ResolvedInstanceName>> call = resolver.ResolveConstrainedCall(constraints, "Echo::Copy", { integer }, integer);
 		REQUIRE(call.has_value());
 		REQUIRE(call->has_value());
 		CHECK(call->value() == expected);
-		const MethodResolution<ResolvedInstanceName> value = resolver.ResolveConstrainedValue(constraints, "Echo::Copy");
+		const MethodResolution<std::optional<ResolvedInstanceName>> value = resolver.ResolveConcreteCall("Echo::Copy", { integer }, integer);
 		REQUIRE(value.has_value());
-		CHECK(value.value() == expected);
+		REQUIRE(value->has_value());
+		CHECK(value->value() == expected);
 	}
 }
 
@@ -53,7 +54,7 @@ TEST_CASE("Constrained calls select instances by concrete return identity", "[lo
 				ResolvedMethodCandidate("Int", "Bool", ResolvedInstanceName("to_bool", "Origin"))
 			} }
 		};
-		const MethodResolution<std::optional<ResolvedInstanceName>> resolved = resolver.ResolveConstrainedCall(resolutions, "Convertable::Convert", &argument_type, return_type);
+		const MethodResolution<std::optional<ResolvedInstanceName>> resolved = resolver.ResolveConstrainedCall(resolutions, "Convertable::Convert", { argument_type }, return_type);
 		REQUIRE(resolved.has_value());
 		REQUIRE(resolved->has_value());
 		CHECK(resolved->value() == ResolvedInstanceName("to_result", "Origin"));
@@ -83,7 +84,7 @@ TEST_CASE("Constrained calls keep unresolved return hints ambiguous", "[lowering
 				ResolvedMethodCandidate("Int", "Text", ResolvedInstanceName("to_text", "Origin"))
 			} }
 		};
-		const MethodResolution<std::optional<ResolvedInstanceName>> resolved = resolver.ResolveConstrainedCall(resolutions, "Convertable::Convert", &argument_type, return_type);
+		const MethodResolution<std::optional<ResolvedInstanceName>> resolved = resolver.ResolveConstrainedCall(resolutions, "Convertable::Convert", { argument_type }, return_type);
 		REQUIRE_FALSE(resolved.has_value());
 		CHECK(resolved.error().m_code == CompilerErrorCode::LoweringAmbiguousMethodResolution);
 	}

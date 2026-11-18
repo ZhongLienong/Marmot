@@ -66,7 +66,7 @@ TEST_CASE("Deriving preserves each class target's generated method shape", "[par
 		{ "Transferable", "", 0u, 1u },
 		{ "Equatable", "Bool", 2u, 1u },
 		{ "Hashable", "Int", 1u, 1u },
-		{ "Orderable", "Int", 2u, 1u },
+		{ "Orderable", "Orderable::Ordering", 2u, 1u },
 		{ "Convertable", "Text", 1u, 2u }
 	};
 	for (const std::string_view declaration : { "type Sample = { value: Int }", "type Sample = Empty | Full(Int)" })

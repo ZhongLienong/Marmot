@@ -1,0 +1,7 @@
+Compilation failed :(
+Type Checker Error at test/generics/failure/generic_arithmetic_requires_add.mmt:7
+  |
+7 | def Add = fn<T>(a: T, b: T) -> T => a + b;
+  |                                       ^ Type T does not satisfy constraint Add<T, T> - no matching instance found
+  |
+  | Import MarmotPrelude/Numeric.mmt and constrain the operation used by the generic body.

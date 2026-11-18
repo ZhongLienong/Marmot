@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/generics/failure/generic_bitwise_requires_bitand.mmt:7
+  |
+7 | def Mask = fn<T>(value: T, mask: T) -> T where Numeric<T> => value & mask;
+  |                                                                    ^ Call expression type error: no matching concrete instance for 'BitAnd::BitAnd'
+  |

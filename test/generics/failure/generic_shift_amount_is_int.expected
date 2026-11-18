@@ -1,7 +1,6 @@
 Compilation failed :(
-Type Checker Error at test/generics/failure/generic_shift_amount_is_int.mmt:8
+Type Checker Error at test/generics/failure/generic_shift_amount_is_int.mmt:7
   |
-8 | def Shift = fn<T>(amount: T) -> Int where Bitwise<T> => 1 << amount;
-  |                                                           ^^ Shift operator type error: shift amount must be Int
-Expected Int, but got T
+7 | def Shift = fn<T>(amount: T) -> Int where Numeric<T> => 1 << amount;
+  |                                                           ^^ Call expression type error: no matching concrete instance for 'ShiftLeft::ShiftLeft'
   |

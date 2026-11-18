@@ -2,8 +2,7 @@ module OperatorPrecedenceParentheses
 
 import { "../../../MarmotPrelude/IO.mmt" }
 
-// What the parentheses rule still allows: a chain of operators that bind equally,
-// and any grouping written out. `+` and `-` are one class, as are `*`, `/` and `%`.
+// Parentheses override conventional precedence; each precedence level associates left.
 
 def a = 2;
 def b = 3;

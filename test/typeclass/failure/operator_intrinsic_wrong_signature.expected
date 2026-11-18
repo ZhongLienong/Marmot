@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/typeclass/failure/operator_intrinsic_wrong_signature.mmt:3
+  |
+3 | foreign "MARMOT_PRIMITIVE_Add" BadAdd: fn(Int, Float) -> Int;
+  |                                ^^^^^^ Foreign declaration error: 'BadAdd' declares the primitive "MARMOT_PRIMITIVE_Add", whose type must be a concrete numeric signature with matching operand and result types (an Int shift amount)
+  |

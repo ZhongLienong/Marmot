@@ -1,0 +1,18 @@
+module ConventionalPrecedence
+import { "../../../MarmotPrelude/IO.mmt" }
+
+IO::PrintLine((2 + 3 * 4) as Text);
+IO::PrintLine((20 - 6 / 2) as Text);
+IO::PrintLine((1 << 2 + 1) as Text);
+IO::PrintLine((2 < 3 && 3 < 4 || false) as Text);
+IO::PrintLine((1 + 2 == 3) as Text);
+
+def calls = ref 0;
+
+def Called = fn() -> Bool => {
+    calls := *calls + 1;
+    true
+};
+false && Called();
+true || Called();
+IO::PrintLine(*calls as Text);

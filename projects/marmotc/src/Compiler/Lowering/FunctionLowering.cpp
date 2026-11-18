@@ -1,6 +1,7 @@
 #include "FunctionLowering.h"
 #include "Bytecode/Builtins/BuiltinTable.h"
 #include "Compiler/Names/SpecialNames.h"
+#include "Compiler/Operator/Operator.h"
 
 #include <algorithm>
 #include <array>
@@ -28,6 +29,8 @@ namespace
 			return MarmotIROp::WorkerIsDone;
 		case MarmotPrimitive::WorkerCancel:
 			return MarmotIROp::WorkerCancel;
+		default:
+			std::unreachable();
 		}
 		std::unreachable();
 	}
@@ -199,7 +202,7 @@ Lowering::Emitted Lowering::FunctionLowering::LowerTopLevelStatement(const Marmo
 		for (const MarmotStatement::Instance::Method& instance_method : instance.m_methods)
 		{
 			const MarmotStatement::FunctionDefinition& method = instance_method.m_definition;
-			if (m_owner.IsGenericMethod(instance, method))
+			if (m_owner.m_generics.KeyIn(m_owner.m_module_name, method.m_name.m_lexeme).has_value())
 			{
 				continue;
 			}
@@ -700,16 +703,17 @@ Lowering::Lowered Lowering::FunctionLowering::LowerName(const MarmotExpression::
 
 	const std::string& lexeme = token.m_lexeme;
 	const Specialization& specialization = m_specialization;
-	if (specialization.m_methods.contains(lexeme))
+	if (m_owner.m_resolver.IsClassMethod(lexeme))
 	{
-		const MethodResolution<ResolvedInstanceName> resolved = m_owner.m_resolver.ResolveConstrainedValue(specialization.m_methods, lexeme);
+		const TypeRef type = Concrete(name.m_type_data);
+		const MarmotType::FunctionType& signature = type->GetType<MarmotType::FunctionType>();
+		const MethodResolution<std::optional<ResolvedInstanceName>> resolved = m_owner.m_resolver.ResolveConcreteCall(lexeme, signature.m_param_types, signature.m_return_type);
 		if (!resolved.has_value())
 		{
 			return std::unexpected(m_owner.ResolutionError(resolved.error(), token));
 		}
-		return LoadResolved(resolved.value(), Concrete(name.m_type_data), token);
+		return LoadResolved(resolved.value().value(), type, token);
 	}
-
 	// A generic function used as a value is its specialization for the types
 	// the value has.
 	const std::optional<std::string> generic_key = m_owner.m_top_level_names.contains(lexeme) ? std::nullopt : m_owner.m_generics.FindKey(lexeme, specialization.m_source_module);
@@ -726,10 +730,6 @@ Lowering::Lowered Lowering::FunctionLowering::LowerName(const MarmotExpression::
 	if (IsForeignFunction(name.m_type_data))
 	{
 		return LowerForeignValue(token, Concrete(name.m_type_data));
-	}
-	if (m_owner.m_resolver.IsClassMethod(lexeme))
-	{
-		return std::unexpected(m_owner.Unsupported("a class method used as a value", token));
 	}
 
 	return GlobalFor(token, Concrete(name.m_type_data))
@@ -806,6 +806,17 @@ MarmotIRGlobalSlot Lowering::FunctionLowering::ImportGlobal(const std::string& m
 
 Lowering::Lowered Lowering::FunctionLowering::LoadResolved(const ResolvedInstanceName& resolved_name, const TypeRef& type, const Token& at)
 {
+	if (const std::optional<std::string> key = m_owner.m_generics.KeyIn(resolved_name.m_declaring_module, resolved_name.m_symbol))
+	{
+		const MarmotType::FunctionType& signature = type->GetType<MarmotType::FunctionType>();
+		return Specialize(key.value(), signature.m_param_types, signature.m_return_type).transform
+		(
+			[&](MarmotIRFunctionId function)
+			{
+				return m_builder.AtLine(at.m_line).Emit(MarmotIROp::MakeClosure, ClosureType(type), {}, function, at.m_lexeme);
+			}
+		);
+	}
 	return GlobalForResolved(resolved_name, type, at)
 		.transform
 		(
@@ -858,6 +869,21 @@ Lowering::Lowered Lowering::FunctionLowering::LowerPrimitive(const MarmotExpress
 		return LowerSpawn(call);
 	}
 
+	if (const MarmotOperator* operation = PrimitiveOperator(primitive))
+	{
+		return LowerArguments(call.m_arguments).and_then
+		(
+			[&](std::vector<MarmotIRValueId> arguments) -> Lowered
+			{
+				if (IsDead())
+				{
+					return Placeholder(Concrete(call.m_type_data));
+				}
+				const Token op(operation->m_token, call.m_paren);
+				return operation->m_unary ? LowerScalarUnary(op, arguments[0u]) : LowerScalarBinary(op, arguments[0u], arguments[1u]);
+			}
+		);
+	}
 	std::vector<const MarmotExpression*> operands = call.m_arguments
 		| std::views::transform([](const std::unique_ptr<MarmotExpression>& argument) -> const MarmotExpression* { return argument.get(); })
 		| std::ranges::to<std::vector>();
@@ -1032,7 +1058,7 @@ std::expected<Lowering::FunctionLowering::Callee, CompilerError> Lowering::Funct
 	std::optional<ResolvedInstanceName> resolved;
 	if (specialization.m_methods.contains(lexeme))
 	{
-		const MethodResolution<std::optional<ResolvedInstanceName>> method = m_owner.m_resolver.ResolveConstrainedCall(specialization.m_methods, lexeme, argument_types.empty() ? nullptr : &argument_types.front(), call_type);
+		const MethodResolution<std::optional<ResolvedInstanceName>> method = m_owner.m_resolver.ResolveConstrainedCall(specialization.m_methods, lexeme, argument_types, call_type);
 		if (!method.has_value())
 		{
 			return std::unexpected(m_owner.ResolutionError(method.error(), paren));

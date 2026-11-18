@@ -80,9 +80,7 @@ public:
 
 	// A call of a method a constraint in scope provides; nothing when no
 	// constraint is on the first argument's type, a call at a concrete type.
-	MethodResolution<std::optional<ResolvedInstanceName>> ResolveConstrainedCall(const MethodResolutionMap& resolutions, const std::string& callee_name, const std::shared_ptr<MarmotType>* first_argument_type, const std::shared_ptr<MarmotType>& return_type) const;
-	// A method a constraint in scope provides, used as a value.
-	MethodResolution<ResolvedInstanceName> ResolveConstrainedValue(const MethodResolutionMap& resolutions, const std::string& name) const;
+	MethodResolution<std::optional<ResolvedInstanceName>> ResolveConstrainedCall(const MethodResolutionMap& resolutions, const std::string& callee_name, const std::vector<std::shared_ptr<MarmotType>>& argument_types, const std::shared_ptr<MarmotType>& return_type) const;
 	// A call of `Class::Method` with concrete arguments; nothing when the name
 	// is no class method.
 	MethodResolution<std::optional<ResolvedInstanceName>> ResolveConcreteCall(const std::string& callee_name, const std::vector<std::shared_ptr<MarmotType>>& argument_types, const std::shared_ptr<MarmotType>& return_type) const;

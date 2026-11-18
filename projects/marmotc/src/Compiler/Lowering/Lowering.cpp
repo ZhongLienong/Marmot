@@ -1,6 +1,7 @@
 #include "FunctionLowering.h"
 #include "Compiler/TypeTransform/TypeTransform.h"
 #include "Bytecode/Builtins/BuiltinTable.h"
+#include "Compiler/Operator/Operator.h"
 #include "Bytecode/Format/Format.h"
 #include "Compiler/Names/SpecialNames.h"
 
@@ -344,7 +345,10 @@ void Lowering::RegisterGeneric(const std::string& name, const FunctionParameters
 // for each set of argument types it is called with, as a generic is.
 bool Lowering::IsGenericMethod(const MarmotStatement::Instance& instance, const MarmotStatement::FunctionDefinition& method) const
 {
-	return !method.m_generic_params.empty() || GenericTypes::IsGenericInstanceHead(instance.m_type_args);
+	const bool intrinsic = method.m_body->IsExpression<MarmotExpression::Call>()
+		&& method.m_body->GetExpression<MarmotExpression::Call>().m_primitive.has_value()
+		&& PrimitiveOperator(method.m_body->GetExpression<MarmotExpression::Call>().m_primitive.value()) != nullptr;
+	return intrinsic || !method.m_generic_params.empty() || GenericTypes::IsGenericInstanceHead(instance.m_type_args);
 }
 
 std::vector<LoweredExport> Lowering::CollectExports() const

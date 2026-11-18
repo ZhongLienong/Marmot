@@ -35,7 +35,6 @@ constexpr std::string_view ITEM_ASSOCIATED_TYPE_NAME = "Item";
 constexpr std::string_view ITERABLE_SOME_CONSTRUCTOR_NAME = "Some";
 
 constexpr std::string_view NUMERIC_CLASS_NAME = "Numeric";
-constexpr std::string_view BITWISE_CLASS_NAME = "Bitwise";
 
 // Decided from a type's structure, not only by its instances: a value can cross
 // to another worker exactly when EnsureTransferable says so.
