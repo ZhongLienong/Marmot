@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <limits>
 #include <ranges>
 #include <string>
 #include <string_view>
@@ -104,9 +105,8 @@ namespace
 		return buffer;
 	}
 
-	FFIArray* AllocateValueArray(const MarmotArray& array) noexcept
+	FFIArray* AllocateValueArray(int length) noexcept
 	{
-		const int length = array.GetLength();
 		if (length <= 0)
 		{
 			return nullptr;
@@ -118,8 +118,6 @@ namespace
 			return nullptr;
 		}
 
-		std::memcpy(data, &array[0u], static_cast<size_t>(length) * sizeof(MarmotValue));
-
 		FFIArray* result = static_cast<FFIArray*>(std::malloc(sizeof(FFIArray)));
 		if (result == nullptr)
 		{
@@ -129,6 +127,16 @@ namespace
 
 		result->data = data;
 		result->length = length;
+		return result;
+	}
+
+	FFIArray* AllocateValueArray(const MarmotArray& array) noexcept
+	{
+		FFIArray* result = AllocateValueArray(array.GetLength());
+		if (result != nullptr)
+		{
+			std::memcpy(result->data, &array[0u], static_cast<size_t>(result->length) * sizeof(MarmotValue));
+		}
 		return result;
 	}
 
@@ -200,6 +208,44 @@ extern "C"
 	{
 		MarmotArray reversed = RequireArray(args[0u]).Reverse();
 		WritePointerResult(ret, AllocateValueArray(reversed));
+	}
+
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(ArrayConcatAll)(void** args, void* ret) noexcept
+	{
+		const MarmotArray& chunks = RequireArray(args[0u]);
+		MarmotInteger length = 0;
+		for (int index = 0; index < chunks.GetLength(); index += 1)
+		{
+			length += RequireArray(chunks[index].GetPointer()).GetLength();
+			if (length > std::numeric_limits<int>::max())
+			{
+				FatalOutOfMemory("concatenating arrays", static_cast<size_t>(length) * sizeof(MarmotValue));
+			}
+		}
+		if (length == 0)
+		{
+			WritePointerResult(ret, nullptr);
+			return;
+		}
+
+		FFIArray* result = AllocateValueArray(static_cast<int>(length));
+		if (result == nullptr)
+		{
+			FatalOutOfMemory("concatenating arrays", static_cast<size_t>(length) * sizeof(MarmotValue));
+		}
+
+		MarmotValue* destination = static_cast<MarmotValue*>(result->data);
+		for (int index = 0; index < chunks.GetLength(); index += 1)
+		{
+			const MarmotArray& chunk = RequireArray(chunks[index].GetPointer());
+			const int count = chunk.GetLength();
+			if (count > 0)
+			{
+				std::memcpy(destination, &chunk[0u], static_cast<size_t>(count) * sizeof(MarmotValue));
+				destination += count;
+			}
+		}
+		WritePointerResult(ret, result);
 	}
 
 	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(TextConcat)(void** args, void* ret) noexcept

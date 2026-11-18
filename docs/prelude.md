@@ -156,7 +156,7 @@ Public date/time entry points:
 
 ## Text and Array Helpers
 
-`TextUtil` groups the common string-style operations already available in the runtime, while `ArrayUtil` collects the ordinary array helpers. Arrays are immutable: `WithAppended`, `WithInserted`, `WithReplaced`, and `WithRemoved` return a new array with the requested change rather than mutating the original, and `Slice` and `Reverse` likewise return new arrays. Build an array up front with a comprehension or `List`, or grow one incrementally with `WithAppended` when the number of elements is small - calling it in a loop is quadratic.
+`TextUtil` groups the common string-style operations already available in the runtime, while `ArrayUtil` collects the ordinary array helpers. Arrays are immutable: `WithAppended`, `WithInserted`, `WithReplaced`, and `WithRemoved` return a new array with the requested change rather than mutating the original, and `Slice` and `Reverse` likewise return new arrays. Build an array up front with a comprehension or `List`, or use `ConcatAll` to combine existing chunks in one batch. Calling `WithAppended` in a loop is quadratic.
 
 ```marmot-test name=prelude/text_array_helpers path=.doc_example_prelude_text_array_helpers.mmt module=PreludeTextArrayHelpers
 import
@@ -189,7 +189,7 @@ Public text helpers:
 Public array helpers:
 
 - `Length`, `Contains`
-- `Slice`, `Reverse`, `Copy`, `Concat`
+- `Slice`, `Reverse`, `Copy`, `Concat`, `ConcatAll(Array<Array<T>>) -> Array<T>` (combines chunks in order)
 - `WithAppended`, `WithReplaced`, `WithInserted`, `WithRemoved`
 - `Sort` for an `Orderable` element type, and `SortBy(Array<T>, fn(T, T) -> Int)` with a comparison that returns a negative number, zero or a positive number. Both are stable: equal elements keep their order. `Sort` stops with a panic if its comparator encounters unordered values
 

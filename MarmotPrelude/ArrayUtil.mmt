@@ -1,6 +1,6 @@
 module ArrayUtil
 import { "./Equatable.mmt", "./Orderable.mmt", "./Prelude/List.mmt", "./Prelude/Panic.mmt" }
-public export { Length, Contains, Slice, Reverse, Copy, Concat, WithAppended, WithReplaced, WithInserted, WithRemoved, Sort, SortBy }
+public export { Length, Contains, Slice, Reverse, Copy, Concat, ConcatAll, WithAppended, WithReplaced, WithInserted, WithRemoved, Sort, SortBy }
 use List.{
     List, ListToArray
 }
@@ -14,8 +14,11 @@ def Contains = fn < T >(array: Array < T >, value: T) -> Bool where Equatable < 
 // in a loop was about thirty times slower, on top of being quadratic.
 foreign "MARMOT_FFI_ArraySlice" ArraySlice: fn(Array < T >, Int, Int) -> Array < T >;
 foreign "MARMOT_FFI_ArrayReverse" ArrayReverse: fn(Array < T >) -> Array < T >;
+foreign "MARMOT_FFI_ArrayConcatAll" ArrayConcatAll: fn(Array < Array < T >>) -> Array < T >;
 def Copy = fn < T >(array: Array < T >) -> Array < T > => ArraySlice(array, 0, Length(array));
 def Concat = fn < T >(first: Array < T >, second: Array < T >) -> Array < T > => first ++ second;
+def ConcatAll = fn < T >(chunks: Array < Array < T >>) -> Array < T > =>
+    if #chunks == 1 then chunks[0] else ArrayConcatAll(chunks);
 def WithAppended = fn < T >(array: Array < T >, value: T) -> Array < T > => array ++ [value];
 def WithReplaced = fn < T >(array: Array < T >, index: Int, value: T) -> Array < T > =>
     if (index < 0) || (index >= Length(array)) then Copy(array) else ArraySlice(array, 0, index) ++ [value] ++ ArraySlice(array, index + 1, Length(array));

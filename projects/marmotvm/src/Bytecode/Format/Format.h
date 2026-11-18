@@ -11,7 +11,7 @@
 // of misinterpreting it. It does not require preserving older IDs or artifacts;
 // change the marker when an encoding change could alter their meaning.
 //
-inline constexpr uint32_t VmMbcFormatMarker = 18u;
+inline constexpr uint32_t VmMbcFormatMarker = 19u;
 
 inline constexpr int VM_MAX_UNION_TAG{ UINT8_MAX };
 

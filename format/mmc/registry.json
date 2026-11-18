@@ -1,5 +1,5 @@
 {
-  "format_marker": 18,
+  "format_marker": 19,
   "builtin_abi_version": 1,
   "opcodes": [
     {
@@ -1858,6 +1858,14 @@
         "TraceableHandle"
       ],
       "returns": "CString"
+    },
+    {
+      "id": 108,
+      "name": "MARMOT_FFI_ArrayConcatAll",
+      "arguments": [
+        "TraceableHandle"
+      ],
+      "returns": "ArrayValues"
     }
   ]
 }

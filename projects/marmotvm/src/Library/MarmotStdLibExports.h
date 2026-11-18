@@ -125,6 +125,7 @@ extern "C"
 
 	// Built-in Arrays
 	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(ArrayConcat)(void** args, void* ret) noexcept;
+	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(ArrayConcatAll)(void** args, void* ret) noexcept;
 	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(ArrayLength)(void** args, void* ret) noexcept;
 	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(ArraySlice)(void** args, void* ret) noexcept;
 	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(ArrayReverse)(void** args, void* ret) noexcept;

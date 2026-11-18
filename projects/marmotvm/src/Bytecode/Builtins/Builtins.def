@@ -109,3 +109,4 @@ MARMOT_BUILTIN(MARMOT_FFI_RunProcess, MakeVmFFIArgKinds(VmFFIArgumentKind::Trace
 MARMOT_BUILTIN(MARMOT_FFI_GetArguments, {}, VmFFIReturnKind::ArrayStrings)
 MARMOT_BUILTIN(MARMOT_FFI_TextCodePoints, MakeVmFFIArgKinds(VmFFIArgumentKind::TraceableHandle), VmFFIReturnKind::ArrayValues)
 MARMOT_BUILTIN(MARMOT_FFI_TextFromCodePoints, MakeVmFFIArgKinds(VmFFIArgumentKind::TraceableHandle), VmFFIReturnKind::CString)
+MARMOT_BUILTIN(MARMOT_FFI_ArrayConcatAll, MakeVmFFIArgKinds(VmFFIArgumentKind::TraceableHandle), VmFFIReturnKind::ArrayValues)
