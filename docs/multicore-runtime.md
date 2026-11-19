@@ -5,7 +5,7 @@
 Marmot uses an **isolated-worker** concurrency model. Each worker is a full
 `VirtualMachine` instance with its own allocator, garbage collector, value
 stack, call stack, and global variables. Workers share read-only bytecode
-(`std::shared_ptr<const MarmotExecutable>`) but cannot share mutable values.
+(`std::shared_ptr<const VmExecutable>`) but cannot share mutable values.
 
 Communication between workers happens exclusively through message passing
 (typed binary-serialized values via channels).
@@ -14,12 +14,12 @@ Communication between workers happens exclusively through message passing
 
 | Component | Shared? | Notes |
 |-----------|---------|-------|
-| Bytecode (`MarmotExecutable`) | Yes (read-only) | Via `shared_ptr<const>` |
+| Bytecode (`VmExecutable`) | Yes (read-only) | Via `shared_ptr<const>` |
 | Builtin FFI table | Yes (immutable) | `constexpr` array, compile-time |
 | Dynamic FFI function pointers | Snapshot per VM | Lock-free lookup during execution |
 | Shared library handles | Yes (cache) | `SharedLibraryCache` singleton, load-time only |
-| Value stack | No | Per-VM, 10k slots |
-| Call stack | No | Per-VM, 10k slots |
+| Value stack | No | Per VM, 1,048,576 value slots |
+| Call stack | No | Per VM, 524,288 call frames |
 | Heap / Allocator | No | Per-VM `MarmotAllocator` |
 | Garbage collector | No | Per-VM, independent generational collection |
 | Global variables | No | Per-VM; a worker holds copies of the globals its code can read |
@@ -58,7 +58,7 @@ all cross this way.
 - `Worker<T>` — its handle belongs to the VM that spawned it
 
 **Functions** (`fn(A) -> B`) are transferable: a function crosses as its procedure
-index plus a copy of the cells it captured. The compiler checks the function's
+index plus a copy of its captured values. The compiler checks the function's
 type at transfer sites. A copied capture or reachable global can carry a
 `Worker<T>` handle with its original owner. Using that handle with `Join`,
 `Cancel`, or `IsDone` from a different VM raises `InvalidWorkerHandle`.
@@ -67,11 +67,10 @@ Transferability is checked at compile time. Attempting to spawn with a
 non-transferable argument or create a `Channel<T>` where `T` lacks a
 `Transferable` instance produces a constraint-failure error.
 
-Copying a closure and its captured cells is sound because v2 values, closures
-included, are immutable once built. The one exception is a `Ref<T>`, whose
-contents can change; it is copied like everything else, which is why crossing
-with one is a warning rather than a data race. The same copy carries a worker's
-globals, the spawned function itself, and any function sent through a channel.
+Once a closure is built, its captures stay fixed. If one is a `Ref<T>`, the
+receiving VM gets its own cell with a copy of the contents. The same rules
+apply to copied globals, functions passed to `Spawn`, and functions sent
+through channels.
 
 Everything that crosses at once (a spawn's function and arguments, a message, a
 join's result) is one payload, a table of the objects it reaches in which each
@@ -160,8 +159,8 @@ with it.
 2. **Join**: `Concurrency::Join(w)` blocks until the worker finishes. The worker's value is
    deserialized from its `TransferPayload` and wrapped in `Ok`; a failure or
    cancellation becomes `Err(WorkerError)` instead. `JOIN_WORKER` builds these
-   union values itself, using the constructor tags the compiler reads from the
-   `Result` and `WorkerError` declarations.
+   union values itself. The compiler checks that `Result` and `WorkerError`
+   have the layouts and constructor order the instruction expects.
 
 3. **Cancel**: `Concurrency::Cancel(w)` requests cooperative cancellation via
    `std::jthread::request_stop()`. The worker observes the request at
@@ -219,8 +218,8 @@ thread_safe = true
 Channels provide typed message passing between workers:
 
 - `Concurrency::MakeChannel(capacity)` — creates a bounded `Channel<T>`, with `T` taken from context.
-  A capacity below 1 is taken as 1: there is no unbuffered channel, so a send
-  never waits for a receiver
+  Any positive `Int` works as the capacity. Values below 1 become 1. A send
+  can proceed as soon as the buffer has space.
 - `Concurrency::Send(ch, value)` waits for space, sends the value, and returns `true`. A closed channel returns `false`.
 - `Concurrency::Receive(ch)` waits for a message and returns `Some(value)`. Once the channel is closed and drained, it returns `None()`.
 - `Concurrency::Close(ch)` — closes the channel, unblocks all waiters

@@ -26,7 +26,7 @@ with their prebuilt native libraries, from GitHub registries.
 ## Still Deferred
 
 - recording a downloaded package's registry and release in `marmot.lock`
-- automatic native builds from `native/` or `[build]`
+- automatic discovery of native build systems without a `[build].command`
 - manifest-driven export enforcement beyond normal module `public export`
 - targeted `marmot update <package>` resolution; the current command refreshes the whole graph
 - full garbage collection of every newly orphaned transitive vendored package directory
@@ -136,8 +136,8 @@ package location.
   `marmot.lock`.
 - `marmot install <package> [--version <constraint>]`
   Add a direct dependency to the active manifest, then resolve and install.
-  If `--version` is omitted, Marmot looks up the highest locally available
-  version and writes a caret constraint such as `^1.2.0`.
+  With no `--version`, Marmot finds the newest version in the local index
+  and configured registries. It writes a caret constraint such as `^1.2.0`.
 - `marmot update [package]`
   Force a fresh resolve and rewrite `marmot.lock`. The optional package name is
   currently validated, but the command still refreshes the full dependency
@@ -322,14 +322,14 @@ in the program, before loading:
 
 - matching checksum: load continues
 - checksum mismatch: load fails
-- no checksum: load continues with a warning
+- no checksum: the VM loads the library without a checksum comparison
 
 ## Native Packages At Build And Run Time
 
-The `marmot` tool resolves packages before anything compiles. In the build plan
-it lists the library of every native package the program can reach (the entry
-file's own package and any package that is itself a search path) with its path,
-`thread_safe` and checksum.
+`marmot` resolves packages before compiling. It looks for native libraries in
+the entry directory's package and in packages on the search path. For each
+library, the plan carries its name, `thread_safe` flag, and any checksum.
+`marmot` passes the library's file path to `marmotvm` at run time.
 
 1. an import resolves to an `.mmt` file on the plan's search paths
 2. a `foreign ... from "name"` declaration names a library; the compiler

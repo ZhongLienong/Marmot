@@ -47,9 +47,8 @@ native code.
 
 ### `RawValue`
 
-- The slot contains the raw Marmot value bits for scalar values.
-- This is the lowest-level form and assumes the callee understands Marmot's
-  in-memory value representation.
+- The slot holds the scalar's raw bits. Copy them from `&args[i]`. In a
+  scalar array, each element's 8-byte slot holds those same bits.
 
 ### `CString`
 
@@ -71,17 +70,19 @@ struct FFIArray
 
 - `data` points at the array's elements, one 8-byte slot of raw value bits
   each, in every build of the VM.
-- The view is borrowed; native code must not free it.
+- Treat the borrowed view and its element buffer as read-only. For non-scalar
+  elements the slots hold VM-internal handles, including for `Array<Text>`.
+  An empty array can have a null data pointer.
 
 ### `TraceableHandle`
 
-- The slot contains a `MarmotTraceable*` managed by the Marmot GC.
-- The handle is borrowed and only valid during the call.
+- The slot holds a `MarmotTraceable*` managed by the GC. Builtins borrow this
+  handle for the duration of the call.
 
 ### `ValueHandle`
 
-- The slot contains `MarmotValue*` pointing at a VM-owned value.
-- The pointee is borrowed and only valid during the call.
+- The slot holds a `MarmotValue*` pointing to a VM-owned value. Builtins
+  borrow it for the duration of the call.
 
 A native library's function gets its kinds from its `foreign` declaration's
 types, so `package.marmot` declares none: a `Text` parameter is passed as
@@ -115,8 +116,9 @@ The runtime uses `FFIReturnKind` to describe how `ret` is interpreted.
 - Native code stores an `FFIArray*` in `ret`.
 - `FFIArray::data` must point to a `malloc`ed buffer of 8-byte slots, one per
   element, holding raw value bits.
-- Marmot takes ownership of that buffer, wraps it as a Marmot array, and frees
-  the outer `FFIArray` wrapper.
+- Marmot takes ownership of the buffer and frees the outer `FFIArray` wrapper.
+  The VM copies small arrays into inline storage. In Debug it widens the
+  ABI's element slots to tagged VM values before wrapping the result.
 
 ### `ArrayStrings`
 
@@ -127,7 +129,7 @@ The runtime uses `FFIReturnKind` to describe how `ret` is interpreted.
 
 ### `Value`
 
-- Native code writes a `MarmotValue` into `ret`.
+- A builtin writes a `MarmotValue` into `ret`.
 - Ownership remains with the VM unless the returned value itself refers to
   native memory described by another return kind.
 
@@ -143,9 +145,11 @@ The runtime uses `FFIReturnKind` to describe how `ret` is interpreted.
 
 ## Threading
 
-- The current Marmot runtime is single-threaded at the VM boundary.
-- Native calls run on the VM thread.
-- No concurrent re-entry guarantee is provided for FFI packages in ABI v1.
+- A native call runs on the calling VM's thread. Workers have separate VMs
+  and can call the same library at the same time.
+- Libraries default to `thread_safe = false`. A worker fails before executing
+  if any native library imported by the program has that setting. Libraries
+  marked `thread_safe = true` must synchronize access to shared mutable state.
 
 ## Load-Time Validation
 
@@ -162,8 +166,8 @@ These checks happen before user code can call the package's native functions.
 
 Current behavior:
 
-- ABI mismatch or missing symbols fail package load with a structured module
-  error
+- An ABI mismatch is reported during package manifest validation. A missing
+  symbol is reported when the VM loads the library, before program execution.
 - access violations and divide-by-zero faults still bubble to the VM's top-level
   platform fault handlers and surface as runtime panics
 

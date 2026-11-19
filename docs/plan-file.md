@@ -5,9 +5,9 @@ plan, the compiler looks nothing up for itself: it reads no `project.marmot`,
 `package.marmot` or `marmot.lock`, and ignores `MARMOT_PATH`.
 
 ```powershell
-marmotc check --plan build/plan.json --format json
-marmotc build --plan build/plan.json -o target/Main.mmc
-marmotc build --plan build/inputs.json test/smoke.mmt -o target/test/smoke.mmc
+marmotc check --plan plan.json --format json
+marmotc build --plan plan.json -o Main.mmc
+marmotc build --plan inputs.json test/smoke.mmt -o smoke.mmc
 ```
 
 A plan with an entry replaces the source-file argument; passing both is an
@@ -36,7 +36,7 @@ use. Without a plan, `marmotc` finds `<Name>` imports through `MARMOT_PATH`
 | Member | Required | Meaning |
 |---|---|---|
 | `version` | yes | Plan format version. This compiler reads `1`. |
-| `entry` | for run, check, build | The file to compile. Absent in a plan for `test`. |
+| `entry` | when the command has no source argument | The file to compile. `marmot test` uses a shared plan without an `entry` and passes each test file as a source argument. |
 | `search_paths` | no | Directories searched, in order, for `<Name>` imports. Each must exist. |
 | `native_libraries` | no | How the libraries that source names with `from "name"` may be used (below). |
 
@@ -54,11 +54,10 @@ library paths: the run is given them (see below).
 
 Relative paths are relative to the directory containing the plan file.
 
-A plan is checked before anything compiles. Unknown members, wrong types, a
-missing entry and search paths that do not exist are all errors that name the
-offending member, for example `search_paths[1]: not a directory: ...` or
-`plan: unknown member "serach_paths"`. A misspelt input is reported rather
-than silently left out.
+The compiler checks the plan first. It names the offending member when a member
+is unknown, has the wrong type, or points to a missing search path. For example,
+`search_paths[1]: not a directory: ...` or `plan: unknown member "serach_paths"`.
+Give exactly one entry through the plan or the source-file argument.
 
 ## Native libraries
 
@@ -88,6 +87,7 @@ starts. For a library named `name` it looks for `name.dll` on Windows,
 3. the declaring module's `lib/<platform>/` directory, then the module's own
    directory, where `<platform>` is `windows/x64`, `macos` or `linux/x86_64`
 
-`marmot run` passes `--library` for the library of every package it resolved.
+`marmot run` passes `--library` for the native libraries found in the entry
+directory and package search paths.
 A library that is not found, fails to load, or lacks a symbol the program uses
 stops the run with an error before the program starts.

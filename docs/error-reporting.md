@@ -98,6 +98,7 @@ Current `RuntimeErrorCode` values:
 - `MemoryAccessViolation`
 - `DivisionByZero`
 - `InternalTypeError`
+- `UnsupportedPlatformOperation`
 - `WorkerCancelled`
 - `WorkerExited`
 - `InvalidWorkerHandle`
@@ -153,7 +154,7 @@ Parser Error at Format.mmt:2
 
 Runtime diagnostics render from `RuntimeError`:
 
-- recoverable runtime failures render as `error[Code]: ...`
+- ordinary runtime failures render as `error[Code]: ...` and stop that VM
 - panics render as `panic[Code]: ...`
 - stack traces render from structured `RuntimeStackFrame` data
 - embedded source lines are used when available, with file reads as fallback on
@@ -204,11 +205,9 @@ That ordering is tested in:
 
 ## Driver Behavior
 
-`MarmotDriver` uses the report/runtime types like this:
-
-- `CompileSourceWithReport(...)` preserves warnings and errors together
-- `RunExecutable(...)` returns `std::expected<int, RuntimeError>`
-- on successful compile-and-run, warnings are emitted before execution starts
+- `CompileSourceWithReport(...)` returns warnings and errors together
+- `MarmotProgramLoader::Run(...)` returns `std::expected<int, RuntimeError>`
+- the project tool builds with `marmotc` before launching `marmotvm`
 - on compilation failure, warnings are rendered before the final errors
 - `marmotc` prints rendered diagnostics on stderr, and keeps stdout for what a
   command produces: JSON, `--emit-ir` and `--emit-ast` dumps, the build
@@ -232,8 +231,8 @@ There are three relevant machine-readable surfaces.
 MARMOT_WARNING\t{"stage":"StaticAnalyzer", ...}
 ```
 
-This path exists mainly for legacy test harnesses that still want warnings as a
-line stream.
+The language suite and documentation test runner use this stream to check
+warning snapshots.
 
 ### Compiler JSON Payloads
 
@@ -277,8 +276,7 @@ If `MARMOT_TEST_WARNING_FORMAT=machine` is present in the environment, the
 driver prints machine-readable warning lines alongside the normal
 human-readable warning output.
 
-This is deprecated in favor of `--format json`, but remains available for the
-legacy Python test runner.
+Use `--format json` for the command's full diagnostic report.
 
 ## Practical Guidance
 

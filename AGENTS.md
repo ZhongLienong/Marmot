@@ -25,17 +25,18 @@ the runtime; neither side links or includes the other. They agree through the
 | `projects/marmotvm/src/Bytecode` | VM-side opcode and builtin IDs, loaded-program model, `.mmc` reader and disassembler |
 | `format/mmc` | Under-development wire format snapshot and fixtures |
 | `projects/marmotc/src/Compiler` | Compiler errors, lexer, parser, type checker, static analysis, lowering, MarmotIR optimizer, bytecode backend, linker |
-| `projects/marmotvm/src` | Values, runtime errors, the interpreter, the GC, workers, the builtin FFI library and VM entry point |
+| `projects/marmotvm/src` | Values, runtime errors, the interpreter, the GC, workers, builtin FFI adapters and the VM entry point |
 | `projects/marmot/src` | The `marmot` tool |
 | `projects/marmotstdlib/MarmotPrelude` | The prelude, written in Marmot |
+| `projects/marmotstdlib/src` | Native implementations of standard-library functions |
 | `test/` | The `.mmt` regression suite, with `.expected` snapshots |
 | `docs/` | The language and toolchain documentation |
 
 ## Build and test
 
-`scripts/dev.py` is the front door, the same on Windows and Linux; it loads
-MSVC's environment itself on Windows and picks a new enough GCC or Clang on
-Linux. `python scripts/dev.py` lists the commands.
+Use `scripts/dev.py` on Windows and Linux. On Windows it loads the Visual
+Studio build environment and prefers `clang-cl` when available. On Linux it
+picks a new enough GCC or Clang. Run `python scripts/dev.py` to list the commands.
 
 ```
 python scripts/dev.py build                 # marmotc and marmotvm, Dev
@@ -101,10 +102,10 @@ often got wrong:
 - **Types and instances may be declared in any order.** A type may name one
   declared below it, and two types may hold each other; generic ones that do
   use the same parameter names (`Tree<T>` and `Forest<T>`).
-- **Iteration is recursion.** A call in tail position — the last thing a
-  function does, through `if` branches, `match` arms and a block's final
-  expression — runs without a new frame, whatever it calls. Any other
-  recursion overflows the stack at about 500,000 calls.
+- **Recursion can carry loop state.** A call in tail position can reuse the
+  current frame. Tail position extends into `if` branches, `match` arms and a
+  block's final expression. With non-tail recursion, either stack can fill
+  first. The VM has 524,288 call frames and 1,048,576 value slots.
 - **Operators use conventional precedence**: `a + b * c` means `a + (b * c)`.
   Parentheses override grouping. Arithmetic and bitwise overloads are the
   operation classes exported by `MarmotPrelude/Numeric.mmt`.
@@ -151,8 +152,8 @@ Worth knowing before editing the front end, because each was a bug once:
 
 ## Gotchas
 
-- **Shell heredocs mangle backslashes.** Writing C++, Python or Marmot through
-  `bash <<'EOF'` corrupts `\n`, `\"` and `\\`. Use a file-writing tool.
+- **Shell wrappers can mangle backslashes.** Use a file-writing tool for C++,
+  Python or Marmot snippets containing escapes like `\n`, `\"` and `\\`.
 - **Some tools interpret `\uXXXX`** in file content. For a snapshot containing
   escapes, generate the file from verified program output instead of typing it.
 - `git add` exits non-zero when a pathspec includes tracked files under an

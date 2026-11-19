@@ -37,7 +37,8 @@ marmot run src/Main.mmt --format json
 Current envelope fields:
 
 - `version`: schema version. Current value is `1`.
-- `source`: always `"marmot"`.
+- `source`: `"marmot"` for the compiler and project tool, or `"marmotvm"`
+  for the VM CLI.
 - `command`: CLI command name.
 - `success`: `true` when the command succeeded.
 - `exitCode`: CLI exit code.
@@ -92,8 +93,8 @@ Also currently emitted:
 - `caret_length`: retained for existing tooling; editors should prefer
   `endLine` / `endColumn`
 
-`relatedInformation` is reserved for secondary spans such as "defined here". It
-is currently emitted as an empty array when no related locations exist.
+`relatedInformation` lists secondary locations and their messages, such as
+"defined here". With no related locations, the array is empty.
 
 ## Runtime Diagnostic Object
 
@@ -137,7 +138,7 @@ Runtime-specific fields:
 - `source`: always `"marmot-runtime"` for runtime diagnostics
 - `kind`: `"error"` or `"panic"`
 - `sourceLine`: embedded or file-backed source text for the primary location
-- `exitCode`: `1` for recoverable runtime errors, `2` for panics
+- `exitCode`: `1` for runtime errors, `2` for panics
 - `stack`: rendered stack trace data as structured frame objects
 
 Runtime stack frame fields:
@@ -165,6 +166,7 @@ Current `stage` values:
 - `Module`
 - `BytecodeLinker`
 - `Compiler`
+- `Unknown`
 - `Runtime`
 
 ## Error Codes
@@ -204,6 +206,7 @@ Current `RuntimeErrorCode` values:
 - `MemoryAccessViolation`
 - `DivisionByZero`
 - `InternalTypeError`
+- `UnsupportedPlatformOperation`
 - `WorkerCancelled`
 - `WorkerExited`
 - `InvalidWorkerHandle`
@@ -298,7 +301,7 @@ are emitted with the same shape as the full examples above.
 |------|-------|-----------------|
 | `NameShadowing` | `StaticAnalyzer` | `Binding 'count' shadows an earlier definition.` |
 | `UnusedLocal` | `StaticAnalyzer` | `Binding 'unused' is never read.` |
-| `IntegerOverflow` | `StaticAnalyzer` | `Integer literal '9999999999' overflows 'Int'.` |
+| `IntegerOverflow` | `StaticAnalyzer` | Constant integer arithmetic overflows its result type. |
 | `CellCrossesWorker` | `StaticAnalyzer` | `This reference is copied into the worker; writes on either side are not seen by the other.` |
 
 ### Compiler error codes
@@ -313,7 +316,7 @@ are emitted with the same shape as the full examples above.
 | `ModuleDeclarationDuplicate` | `Module` | `Duplicate 'module' declaration in file.` |
 | `ModuleMissingExportedSymbol` | `Module` | `Module 'A' does not export symbol 'foo'.` |
 | `TypeUndefinedName` | `TypeChecker` | `Undefined name 'frobnicate'.` |
-| `TypeUnsatisfiedConstraint` | `TypeChecker` | `Type 'T' does not satisfy constraint 'Eq T'.` |
+| `TypeUnsatisfiedConstraint` | `TypeChecker` | `Type Text does not satisfy constraint Add<Text, Int> - no matching instance found` |
 | `TypeNotCallable` | `TypeChecker` | `Value of type 'Int' is not callable.` |
 | `TypeIncorrectArity` | `TypeChecker` | `Function expects 2 argument(s) but received 3.` |
 | `TypeMismatch` | `TypeChecker` | `Expected 'Int' but got 'Text'.` |
@@ -341,6 +344,7 @@ are emitted with the same shape as the full examples above.
 | `InternalFFITypeError` | `Runtime` | `panic` | `Internal FFI type error.` |
 | `UnsupportedPlatformOperation` | `Runtime` | `error` | `Operation not supported on this platform.` |
 | `WorkerCancelled` | `Runtime` | `error` | `Worker cancelled.` |
+| `WorkerExited` | `Runtime` | `error` | `Worker exited.` This becomes a failed outcome when joined. |
 | `InvalidWorkerHandle` | `Runtime` | `error` | `Worker handle belongs to a different VM.` |
 | `InvalidConversion` | `Runtime` | `error` | `'abc' is not a Float.` |
 | `OutOfMemory` | `Runtime` | `panic` | `Out of memory while allocating 80 bytes (the heap is full).` |

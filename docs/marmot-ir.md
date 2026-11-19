@@ -25,7 +25,9 @@ Every generic specialization, instance method and lambda is its own function. Ev
 - **Every instruction but a terminator defines exactly one value.** An instruction run only for its effect, such as `GlobalSet`, defines a `Unit`.
 - **Definitions are found from the blocks.** The value table does not record where a value is defined, so a pass that moves an instruction has nothing else to update.
 - **Globals.** A global's slot is its index in the module's global table. Lowering reserves the slot of every top-level definition before it lowers any function. A global whose `m_module` names another module is imported from there: this module may read and call it, but not define or set it.
-- **Source lines.** Every instruction keeps the line it came from, including after it is inlined into another function. The backend uses it for runtime error locations.
+- **Source lines.** The VM uses instruction line numbers to locate runtime
+  errors. Each procedure's line table refers to one file, so inlining across
+  modules assigns the call site's line to the copied instructions.
 
 Functions, blocks and globals are kept in vectors, in the order lowering creates them, so output never depends on hash order.
 
@@ -70,7 +72,10 @@ A terminator ends its block and defines no value. Its successors carry their jum
 | `tailcall callee, args` | Call without a new frame: a function, a global `@slot`, or, with neither, a closure given as the first operand |
 | `unreachable` | Nothing runs here: it follows a call that returns `Never`, and ends a match's last failed test, which the type checker's exhaustiveness makes impossible |
 
-The language promises that every call in tail position runs without a new frame, so a call lowered in tail position stays a `TailCall` through every pass, including inlining.
+Marmot calls in tail position can reuse the current frame. The optimizer can
+replace a `TailCall` with a jump or inline the callee. If it inlines an ordinary
+call, it may turn a tail call from the copied body into an ordinary call. This
+lets the caller continue with the result.
 
 ## Effects
 

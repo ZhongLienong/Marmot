@@ -5,17 +5,13 @@ package workspace.
 
 ## Active Manifest
 
-The `marmot` tool looks for `project.marmot` first, walking up from the file
-it compiles (or from the current directory for project commands).
+`marmot` looks for a manifest starting in the source file's directory and
+walking up. Project commands start in the current directory. In each directory
+it checks `project.marmot` before `package.marmot`.
 
-If no project manifest exists, a package root with `package.marmot` is treated
-as the active manifest instead. In that mode:
-
-- the workspace name comes from `[package].name`
-- the entry file comes from `[package.modules].main`
-- `source_dir` defaults to `.`
-- `packages_dir` defaults to `packages`
-- `prelude_dir` defaults to `MarmotPrelude`
+The nearest workspace wins. A package workspace takes its entry file from
+`[package.modules].main`. Its source, package, and prelude directories default
+to `.`, `packages`, and `MarmotPrelude`.
 
 ## Manifest
 
@@ -42,7 +38,7 @@ timeout_ms = 30000
 
 ### Fields
 
-- `name` (optional): display name for tools
+- `name` (optional) is the project name that `marmot init` writes.
 - `entry` (optional): entry source file for tooling
 - `source_dir` (optional): source directory for project modules. When omitted,
   Marmot uses the conventional `src` directory.
@@ -143,3 +139,4 @@ This creates:
 - `src/Main.mmt`
 - `test/`
 - `packages/`
+- `.gitignore` with `/target/`, if no `.gitignore` exists

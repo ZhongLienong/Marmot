@@ -17,10 +17,12 @@ Source
   -> MarmotIROptimizer
   -> BytecodeBackend
   -> BytecodeLinker
-  -> VirtualMachine
+  -> .mmc
 ```
 
-The top-level driver preserves warnings and errors in a shared `CompilerReport`; diagnostics are rendered only at the CLI boundary. See [Error Reporting](error-reporting.md).
+`marmotvm` loads and runs the `.mmc` in a separate step. The compiler driver
+collects warnings and errors in a `CompilerReport`. See
+[Error Reporting](error-reporting.md) for how the CLI displays them.
 
 ## Phase 1: Lexical Analysis
 
@@ -42,7 +44,7 @@ Current token inventory includes:
 
 - Keywords such as `def`, `fn`, `if`, `then`, `else`, `match`, `class`, `instance`, `type`, `alias`, `deriving`, `module`, `import`, `use`, `public`, `private`, and `foreign`.
 - Type keywords such as `Int`, `Float`, `Byte`, `Word`, `Text`, `Bool`, `Unit`, `Array`, and `Never`.
-- Operators such as `++`, `|>`, `::`, `as`, `==`, `!=`, `<=`, `>=`, `<<`, `>>`, `+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `|=`, `^=`, `<<=`, and `>>=`.
+- Operators and punctuation such as `++`, `|>`, `::`, `as`, `==`, `!=`, `<=`, `>=`, `<<`, `>>`, and `:=`.
 
 ## Phase 2: Module Resolution
 
@@ -68,7 +70,9 @@ Resolution behavior:
 - Path imports are resolved relative to the importing file.
 - Duplicate module names are rejected.
 - Circular dependencies are rejected.
-- A file belongs to a native package when the build plan names one whose root is the file's directory; it may then declare that package's foreign functions. The library itself is loaded only when the program runs.
+- For a `foreign ... from "name"` declaration, the compiler records the
+  library name, the declaring module's directory, and any matching policy from
+  the build plan. The VM loads the library when the program runs.
 
 The build graph stores:
 
@@ -107,6 +111,7 @@ Current pattern variants:
 - `Tuple`
 - `Array`
 - `Constructor`
+- `As`, `Or`, `Range`, and `Record`
 
 Current expression variants:
 
@@ -116,7 +121,6 @@ Current expression variants:
 - `Tuple`
 - `Literal` (one node; `m_kind` is `Bool`, `Integer`, `Byte`, `Word`, `Float`, `Text` or `Unit`)
 - `UnaryPrefix`
-- `Send`, `Receive`
 - `NameAccess`
 - `Call`, `Function`
 - `Construct`, `RecordUpdate`
@@ -177,7 +181,11 @@ Source: `projects/marmotc/src/Compiler/StaticAnalyzerManager/`
 
 Static analysis runs after type checking and before lowering. It emits warnings without mutating the AST.
 
-Before the passes run, it finds a summary of each top-level function (`projects/marmotc/src/Compiler/Analysis/WorkerCrossing`): which parameters reach a worker, and whether the result comes back from one. The module's interface carries them, so `CellCrossesWorkerDiagnostic` warns at a call to an imported function that spawns as it does at a spawn.
+Before these passes run, `projects/marmotc/src/Compiler/Analysis/WorkerCrossing.cpp`
+summarizes each top-level function. It records which parameters reach a worker
+and whether the result came from one. The module publishes those summaries in
+its interface. `CellCrossesWorkerDiagnostic` can then warn about values passed
+to imported functions that hand them to workers.
 
 Current warning passes:
 

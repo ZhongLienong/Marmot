@@ -1,7 +1,6 @@
 # Marmot Feature Matrix
 
 This document is the tracked source of truth for the current public Marmot surface.
-Status is based on the Phase 1 audit and the repo state checked on 2026-04-04.
 
 The coverage column points at the primary automated coverage for each row. It is
 not an exhaustive list of every relevant fixture.
@@ -14,7 +13,7 @@ do not promise backward compatibility.
 
 - **Stable**: implemented on its relevant end-to-end path, documented in tracked docs, and covered by automated tests. For language syntax, that normally means the lexer/parser/typechecker/lowering/runtime path exists and at least one `test/` or `tests/` fixture exercises it.
 - **Experimental**: implemented, but still limited, early, or thinly covered compared with the rest of the language.
-- **Planned**: not implemented in the current token, AST, parser, typechecker, lowering, or runtime surface.
+- **Unimplemented**: unavailable in the current language or tooling surface.
 
 ## Type System
 
@@ -42,13 +41,13 @@ do not promise backward compatibility.
 | Binary and ternary ranges | Stable | `test/range/`, `test/for_loop/`, `projects/marmotvm/tests/runtime/` | Both `start..end` and `start..step..end` are implemented. |
 | Array comprehensions | Stable | `test/array_comprehension/`, `projects/marmotc/tests/parser/` | Supports range, array, and `Iterable` inputs. |
 | Pipe operator: `|>` and `|> match with` | Stable | `test/pipe/` | Pipe rewriting is handled in the parser. |
-| Closures and captured references | Stable | `test/closure/`, `test/cell/`, `projects/marmotvm/tests/runtime/`, `projects/marmotc/tests/static_analyzer/` | Captured locals retain the existing capture boxes. Capturing a `Ref<T>` shares that reference, so closures see writes through `:=`. |
+| Closures and captured references | Stable | `test/closure/`, `test/cell/`, `projects/marmotvm/tests/runtime/`, `projects/marmotc/tests/static_analyzer/` | Closures capture values. Capturing a `Ref<T>` shares that reference, so closures see writes through `:=`. |
 
 ## Pattern Matching
 
 | Feature | Status | Primary Coverage | Notes |
 |---------|--------|------------------|-------|
-| `match` with binding, wildcard, literal, tuple, array, and constructor patterns | Stable | `test/match/`, `projects/marmotc/tests/parser/`, `projects/marmotc/tests/typechecker/` | The current pattern inventory is six variants. |
+| `match` with binding, wildcard, literal, tuple, array, and constructor patterns | Stable | `test/match/`, `projects/marmotc/tests/parser/`, `projects/marmotc/tests/typechecker/` | Also supports named record fields, integer ranges, `as` bindings, and `\|` alternatives. |
 | Exhaustiveness checking | Stable | `test/match/`, `projects/marmotc/tests/typechecker/` | Checked through nested patterns; an error names a value no case matches. |
 
 ## Generics and Typeclasses
@@ -84,7 +83,7 @@ do not promise backward compatibility.
 | Native libraries (`foreign ... from "library"`, `package.marmot` `[ffi]`) | Experimental | `test/integration/NativeLibraryTests.cpp`, `projects/marmot/src/execution/plan/tests.rs`, `scripts/testing/cli_contracts.py` | Source names the library; the `.mmc` records it with its `thread_safe` flag and checksum. `marmotvm` finds and loads it before the program starts through `--library`, `--library-path`, `MARMOT_LIBRARY_PATH` or the declaring module's directory; `marmotc` never does. Without a prebuilt file the tool builds a missing or out-of-date one with `[build].command`. |
 | Structured compiler warnings/errors and diagnostic codes | Stable | `projects/marmotc/tests/compiler/`, `projects/marmotvm/tests/runtime/`, `test/static_analyzer/` | Warnings and errors are aggregated in `CompilerReport` instead of being printed ad hoc. |
 | Machine-readable warnings and compiler-report JSON | Stable | `projects/marmotc/tests/compiler/`, `test/static_analyzer/`, `scripts/testing/cli_contracts.py` | `*.warnings.json` fixtures exercise the warning-stream path, and CLI contract checks cover `marmotc.exe check --format json`. |
-| Static-analyzer warnings: `UnusedLocal`, `ShadowingPolicy`, `IntegerOverflow`, `CellCrossesWorker` | Stable | `projects/marmotc/tests/static_analyzer/`, `test/static_analyzer/` | Warnings are preserved even when a later compile stage fails. |
+| Static-analyzer warnings: `UnusedLocal`, `NameShadowing`, `IntegerOverflow`, `CellCrossesWorker` | Stable | `projects/marmotc/tests/static_analyzer/`, `test/static_analyzer/` | Warnings are preserved even when a later compile stage fails. |
 | Projects (`project.marmot`, `[project]` fallback, `marmot.lock`), package resolution and `marmot init` | Experimental | `projects/marmot/tests/` | The `marmot` tool's tests cover manifest lookup and precedence, resolution, vendoring, lockfiles, test discovery and scaffolding. |
 
 ## Standard Library
@@ -109,8 +108,8 @@ do not promise backward compatibility.
 | `Indexable<C, I>` typeclass | Stable | `test/typeclass/` | `x[i]` resolves through `Indexable` for any type with an instance, arrays included. Two type parameters, so a container may be indexed by something other than `Int`. |
 | Generic lambdas | Stable | `test/generics/` | `fn<T>(x: T) -> T where C<T> => e`. Bound by a `def`, at the top level or inside a body, it is specialized at each use and may capture locals. An anonymous one is a single value, whose types its context decides. A generic function used as a value is its specialization for that value's type, which must come from where it is used: `def bound = identity` needs its type written. |
 | `Transferable<T>` typeclass | Stable | `test/concurrency/` | Built-in instances for primitives, `Array<T>`, `Channel<T>`, and `Ref<T>` when their element types are transferable. References are copied across workers. Derivable for structs and unions. |
-| `deriving (Transferable)` | Stable | `test/concurrency/` | Generates field-by-field serialization for structs and tag+payload serialization for unions. |
-| Auxiliary operations: `close`, `is_done`, `cancel` | Stable | `test/concurrency/` | Parsed as normal function calls; emit dedicated opcodes. |
-| Non-blocking / bounded receive (`try_receive`, `select`, timeouts) | Not implemented | — | `try_receive(ch)` is an undefined name. |
-| Worker cancellation (`cancel`) | Stable | `test/concurrency/`, `test/integration/WorkerCancellationTests.cpp` | Cooperative: observed at loop back-edges, tail calls, returns, foreign-call returns, and blocking channel waits. Blocking stdin and third-party FFI are not interruptible. |
+| `deriving (Transferable)` | Stable | `test/concurrency/` | Generates a marker instance. Runtime transfer uses the same aggregate shapes as garbage collection. |
+| Auxiliary operations: `Concurrency::Close`, `Concurrency::IsDone`, `Concurrency::Cancel` | Stable | `test/concurrency/` | Called with ordinary call syntax and lowered to dedicated opcodes. |
+| Non-blocking receive, receive timeouts, and waiting on multiple channels | Unimplemented | — | `Concurrency::Receive` waits for a value, a closed channel, or cancellation. |
+| Worker cancellation (`Concurrency::Cancel`) | Stable | `test/concurrency/`, `test/integration/WorkerCancellationTests.cpp` | Cooperative: observed at loop back-edges, tail calls, returns, foreign-call returns, and blocking channel waits. Blocking stdin and third-party FFI are not interruptible. |
 | Isolated-worker runtime | Stable | `test/concurrency/`, `projects/marmotvm/tests/runtime/` | Per-VM isolation of heap, GC, stack, globals, and string cache. Single-threaded cost is one never-taken branch at cancellation safepoints. |

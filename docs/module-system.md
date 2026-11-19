@@ -41,7 +41,7 @@ private export { debug_helper }
 Visibility levels:
 
 - `public export`: accessible to all importers
-- `private export`: accessible only to modules that share the same namespace prefix
+- `private export`: accessible to importers with the same first namespace component
 - unexported symbols: module-internal only
 
 ### Import Forms
@@ -195,7 +195,8 @@ PrintLine("Hello");
 
 ### Privacy
 
-Private exports are visible only when the importer shares the same namespace prefix.
+To use a private export, the importer's module name must start with the same
+namespace component as the exporting module.
 
 Examples:
 
@@ -208,7 +209,7 @@ Types must be exported to be used from another module through qualified access.
 
 ```marmot
 module MyLib
-public export { PublicType, GetValue }
+public export { PublicType }
 
 type PublicType =
 {

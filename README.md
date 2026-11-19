@@ -15,7 +15,7 @@ A statically-typed functional programming language featuring algebraic data type
 - **Pipe Operator** - Functional composition with `|>`, inferred lambdas, and `|> match with`
 - **Ranges** - Elegant `start..step..end` syntax for loops
 - **Closures** - First-class functions with lexical scoping
-- **Expression-Oriented** - Everything is an expression with a value
+- **Expression-Oriented** - Blocks, conditionals, matches, and loops are expressions
 
 Current scope note: there is no `async` / `await` surface in the current language.
 
@@ -71,6 +71,9 @@ registries alone; `marmot fmt <file|dir>...` formats just those.
 Every `.mmt` source file must begin with an explicit `module` declaration. Short snippets below may omit it for brevity, but complete file examples include it.
 
 ### Hello World
+This example assumes the file is one directory below the repository root.
+In an installed project, use `import { <IO> }`.
+
 ```marmot-test name=readme/hello_world path=.doc_examples/readme_hello_world.mmt
 module Main
 
@@ -254,17 +257,22 @@ type OptionBox<T> = Empty | Full(T) deriving (Map, Bind, Unwrap);
 ```
 
 ### Module System
+
+`MyModule.mmt`:
+
 ```marmot
-// Define a module (MyModule.mmt)
 module MyModule
 public export { add, multiply }
 
 def add = fn(a: Int, b: Int) -> Int => a + b;
 def multiply = fn(a: Int, b: Int) -> Int => a * b;
 def internal = fn() -> Int => 100;  // Not exported
+```
 
-// Use in another file
-// Path import (relative or absolute)
+`Main.mmt` in the same directory:
+
+```marmot
+module Main
 import { "./MyModule.mmt" }
 
 // Or search in MARMOT_PATH (semicolon-separated on Windows, colon-separated on Unix)
@@ -286,14 +294,16 @@ PackageName/
     windows/x64/packagename.dll
 ```
 
-The `marmot` tool reads the manifests: `marmot install PackageName` adds the
-dependency, resolves it and vendors it into `packages/`, and `marmot run` hands
-the compiler a [build plan](docs/plan-file.md) with the package on the search
-path and its native library's location. Exported symbols still come from the
-module's `public export` / `private export` blocks. `marmotc` on its own reads
-no manifests: it finds `<Name>` imports through `MARMOT_PATH`, and native
-libraries through `--library-path`, `MARMOT_LIBRARY_PATH` and the declaring
-module's directory.
+`marmot install PackageName` adds the dependency to the manifest, resolves it,
+and vendors it into `packages/`. `marmot run` puts the package on the compiler's
+search path in its [build plan](docs/plan-file.md) and passes native library
+paths to the VM. The module's `public export` and `private export` blocks
+control which symbols callers can use.
+
+Without a build plan, `marmotc` resolves `<Name>` imports through `MARMOT_PATH`.
+When you run the artifact directly, `marmotvm` looks for libraries using
+`--library`, `--library-path`, `MARMOT_LIBRARY_PATH`, and the directory of the
+module that declared them.
 
 **Using a package:**
 ```bash
@@ -379,7 +389,7 @@ def answer = A(10, fn() -> Int => 1, fn() -> Int => -1, fn() -> Int => -1, fn() 
 - **Composite Types**: `Array<T>`, `Ref<T>`, tuples, structs, unions
 - **Bottom Type**: `Never`, for computations that cannot return normally
 - **Function Types**: `fn(T1, T2) -> R`
-- **Type Aliases**: `type UserId = Int;` for readable type names
+- **Type Aliases**: `alias UserId = Int;` for readable type names
 - **Generic Parameters**: Single and multiple type parameters
 - **Type Constraints**: `where` constraints on functions, structs, and unions
 - **Associated Types**: Projections such as `Iterable::Item<Iter>`
@@ -391,8 +401,7 @@ def answer = A(10, fn() -> Int => 1, fn() -> Int => -1, fn() -> Int => -1, fn() 
 
 **Integer (Int)** - 64-bit signed integer:
 - Maximum value: `9223372036854775807` (2^63 - 1)
-- Minimum value: `-9223372036854775807` (practical limit)
-- **Note**: The literal `-9223372036854775808` (INT64_MIN) causes a parser overflow and should be avoided
+- Minimum value: `-9223372036854775808` (−2^63)
 
 **Float** - Double-precision floating point:
 - Range: Approximately ±1.7E+308
@@ -504,15 +513,16 @@ library.
 
 ### FFI Function Signature
 
-All FFI functions must follow this signature:
+Export each dynamic native function as a C symbol with this signature.
 
 ```cpp
 extern "C" {
-    MARMOT_STDLIB_API void MARMOT_FFI_FunctionName(void** args, void* ret) noexcept;
+    void NativeFunction(void** args, void* ret) noexcept;
 }
 ```
 
-`ret` always points at an 8-byte return slot. `args` is a `void**`, but generic dynamic calls do not carry the richer builtin metadata from `CALL_FOREIGN_INDEXED`.
+`ret` points to an 8-byte slot. The VM uses the `foreign` declaration to decide
+what to put in each `args` slot and how to read the result.
 
 ### Type Marshalling
 
@@ -599,7 +609,9 @@ const int64_t ptr = reinterpret_cast<int64_t>(result);
 std::memcpy(ret, &ptr, sizeof(int64_t));
 ```
 
-For flat scalar arrays, each element slot should use Marmot's 8-byte runtime value layout.
+For scalar arrays, each element occupies an 8-byte slot, including in Debug
+builds. An `Array<Text>` result uses a `char**` element buffer instead. See
+[FFI ABI](docs/ffi-abi.md#return-value-marshalling) for its ownership rules.
 
 ### Memory Management Rules
 
@@ -607,7 +619,8 @@ For flat scalar arrays, each element slot should use Marmot's 8-byte runtime val
 - Do not free returned buffers after writing their pointer into `ret`; the VM takes ownership.
 - Returned arrays are wrapped through `MarmotArray::FromFFI`.
 - Short returned arrays are copied into Marmot small-object storage and their original FFI buffer is freed.
-- Longer returned arrays are adopted directly without an element copy.
+- In Dev and Release, longer scalar arrays can adopt the native element
+  buffer. Debug widens its elements into tagged values.
 - The outer `FFIArray` wrapper itself is always freed by the VM.
 - FFI code should not access the VM's garbage collector or internal runtime objects directly.
 - Return values still have to fit in the 8-byte `ret` slot.
@@ -620,7 +633,8 @@ See [Package System](docs/package-system.md) for the current manifest-driven loa
 
 `scripts/dev.py` runs every everyday task the same way on Windows and Linux;
 `python scripts/dev.py` lists its commands and `<command> --help` explains one.
-On Windows it loads the MSVC environment itself, so any terminal will do.
+On Windows it loads the Visual Studio build environment itself and prefers a
+supported `clang-cl` when available, with `cl.exe` as the fallback.
 
 ```bash
 python scripts/dev.py doctor                    # toolchain check, and what is built
@@ -668,7 +682,7 @@ checkout's compiler and runs it, with the checkout's prelude first on
 the installed tools. By hand:
 
 ```bash
-marmotc check path/to/program.mmt     # type-check only
+marmotc check path/to/program.mmt     # check without writing a .mmc
 marmotc build path/to/program.mmt    # compile to path/to/program.mmc (or -o)
 marmotvm run path/to/program.mmc      # run the compiled program
 marmotvm run path/to/program.mmc -- a b   # System::Arguments() is ["a", "b"]
@@ -676,10 +690,9 @@ marmotvm disassemble path/to/program.mmc
 ```
 
 `marmotc check|build --emit-ast` and `--emit-ir` print the checked tree and
-optimized IR. Internal diagnostics require explicit flags: `--optimizer-stats`
-for the compiler, `--opcode-metrics` and `--gc-metrics` for VM runs in Debug or
-Dev, and `--trace` in Debug. They go to stderr, including with `--format json`;
-ordinary commands print no internal metrics.
+optimized IR. Debug and Dev builds provide compiler `--optimizer-stats` and VM
+`--opcode-metrics` and `--gc-metrics`. Debug VM builds also provide `--trace`.
+These internal diagnostics go to stderr, including with `--format json`.
 
 ### Running Tests
 
@@ -712,9 +725,9 @@ marmot test --pattern recursive
 Test fixtures are file-based:
 ```bash
 # Add a new program test under test/<category>/<name>.mmt
-# Put tests under a failure/ directory when they should fail compilation
+# Put tests under a failure/ directory when compilation or execution should fail
 # Add <name>.expected to assert stdout/stderr or compile-fail diagnostic snapshots
-# Snapshot comparison strips ANSI codes and repo-root path prefixes first
+# Snapshot comparison strips ANSI codes and normalizes backslashes and repo-root paths
 # Add <name>.warnings.json to assert warning code, line, and message fragments
 ```
 
@@ -763,7 +776,9 @@ def map = fn<A, B>(list: List<A>, f: fn(A) -> B) -> List<B> =>
 ## Architecture
 
 - **Frontend**: Lexer → Module Manager → Parser → Type Checker → Static Analyzer
-- **Middle end**: Lowering to MarmotIR, a typed SSA IR in which generics are specialized → MarmotIR optimizer (constant propagation, inlining, contification, scalar replacement, GVN, loop-invariant code motion and others, run once)
+- **Middle end**. Lowering specializes generics and builds MarmotIR, a typed
+  SSA IR. The optimizer repeats its main group of passes up to eight times,
+  stopping early when a round changes nothing.
 - **Backend**: Bytecode backend → Linker
 - **Runtime**: Single `VirtualMachine` execution path with a non-moving, generational (bitmap mark-sweep) garbage collector
 
@@ -774,7 +789,7 @@ See [Runtime Architecture](docs/runtime-architecture.md) for details on VM execu
 See the [docs](docs/) folder for detailed technical documentation:
 
 - [Type System](docs/type-system.md) - Type inference, type classes, and algebraic data types
-- [Grammar](docs/grammar.md) - the language's syntax, fixed at v1
+- [Grammar](docs/grammar.md) - syntax accepted by the current compiler
 - [Prelude](docs/prelude.md) - Standard-library module map and typed wrapper examples
 - [Compilation Workflow](docs/compilation-workflow.md) - Complete pipeline from lexing to linking
 - [MarmotIR](docs/marmot-ir.md) - The compiler's typed SSA IR: structure, instructions, effects, verifier rules, optimizer passes and bytecode emission

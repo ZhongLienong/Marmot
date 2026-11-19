@@ -38,7 +38,7 @@ The current reader checks magic, format marker, declared payload length, and CRC
 | 1 | entry source file | `string` |
 | 2 | string pool | count, then that many `string` values |
 | 3 | globals | count, then for each a name `string` and a kind `u8` |
-| 4 | shapes | count, then for each a field count and that many `u32` field indexes |
+| 4 | shapes | count, then for each a pointer-field count and that many `u32` field indexes |
 | 5 | procedures | count, then the records below in index order |
 | 6 | native libraries | count, then the records below in index order |
 | 7 | embedded source files | Present only when header flag bit 0 is set; count, then the records below |
@@ -47,7 +47,26 @@ A kind is `1` for a value that is a heap object and `0` for one that is not. Not
 
 Each procedure is: name `string`; source-path `string`; bytecode byte count `u32`; exactly that many raw bytecode bytes; line-info count `u32`; then `(source line i32, byte count i32)` pairs; then its frame map. Line counts describe consecutive **bytes** in the bytecode stream, including operand bytes, not a count of logical instructions.
 
-A frame map is: slot count `u32` and one kind `u8` per frame slot, parameters first, since a slot holds values of one kind for the whole procedure; the shape of the procedure's captures, `u16`, which every closure of it takes; then a safepoint count `u32` and, in ascending offset order, for each: the bytecode offset `u32` just after an instruction a collection can start after with temporaries on the frame's operand stack, a temporary count `u32` and one kind `u8` per temporary from the bottom, and the kind `u8` of the result the instruction pushes. Every call has one, for its caller while the callee runs and once its result is pushed, as do `CONCAT_ARRAY`, `CONCAT_TEXT` and `MAKE_CELL`. A frame at `JUMP_BACK`'s target holds its slots only, and one at a callee's entry after `TAIL_CALL` its parameters only, so neither has an entry. Procedure names use `name@module`; the bootstrap procedure name begins with `$module_bootstrap$` and the main procedure name with `$main$`.
+The frame map starts with the slot count (`u32`) and one kind (`u8`) per slot,
+with parameters first. Each slot has one kind throughout the procedure.
+Next comes the captures' shape (`u16`), shared by every closure of that
+procedure. The safepoint count (`u32`) follows, then the entries in increasing
+offset order.
+
+Each entry starts with the bytecode offset (`u32`) immediately after the
+instruction. Then comes the temporary count (`u32`) and one kind (`u8`) per
+temporary, starting at the bottom of the frame's operand stack. The final
+`u8` gives the kind of the result the instruction pushes.
+
+For a non-tail Marmot call, the entry describes the caller while the callee
+runs and after the result is pushed. `CONCAT_ARRAY`, `CONCAT_TEXT` and
+`MAKE_CELL` have entries for collection after they push their results. The
+writer omits entries for foreign calls. At a `JUMP_BACK` target the frame has
+only its slots. At the callee's entry after `TAIL_CALL` it has only parameters.
+The slot map is enough in both cases.
+
+Procedure names use `name@module`. The bootstrap name begins with
+`$module_bootstrap$` and the main name with `$main$`.
 
 Each native-library record is: library-name `string`; symbol count and symbol-name strings; hint-directory count and directory-path strings; `thread_safe` `u8`; `has_checksum` `u8`; and a checksum `string` when `has_checksum` is nonzero. The current reader treats any nonzero boolean byte as true. Hint directories are serialized source-derived paths, not an address or pointer to a loaded library.
 

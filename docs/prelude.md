@@ -2,11 +2,14 @@
 
 `projects/marmotstdlib/MarmotPrelude/` is the standard-library layer that ships with the repository. It wraps the runtime FFI surface in Marmot-facing modules and collects the core algebraic data types, collections, and built-in helpers that ordinary programs use. Installed projects continue to use the conventional `MarmotPrelude/` directory name.
 
-The examples below assume the program is compiled from the repository root. If you expose top-level prelude modules on `MARMOT_PATH`, imports such as `IO`, `System`, `DateTime`, `TextUtil`, and `ArrayUtil` can also use search-path imports.
+For an example that imports from `./projects/`, put the source file at the
+repository root. If the prelude is on `MARMOT_PATH`, you can use
+`import { <IO> }` from any directory.
 
 Complete `.mmt` source files still need an explicit `module` declaration even when a focused snippet below omits it.
 
-The documented examples in this file are mirrored by `test/prelude/success/documentation_examples.mmt`.
+`test/doc_examples/` contains copies of the runnable examples.
+`test/prelude/success/documentation_examples.mmt` also tests these APIs.
 
 ## Module Map
 
@@ -29,10 +32,18 @@ The prelude is not only collections and IO wrappers. It also ships the public he
 - `Numeric.mmt` exports `Add`, `Subtract`, `Multiply`, `Divide`, `Remainder`, `Positive`, `Negate`, `BitAnd`, `BitOr`, `BitXor`, `BitNot`, `ShiftLeft` and `ShiftRight`. Their methods implement the corresponding operators, with an associated `Output` type. Instances support mixed operand types and custom results. The `Numeric<T>` marker is for primitive range bounds only.
 - `Countable` exposes the generic counting surface used by `#`. The prelude currently ships a `Text` instance; arrays and several standard collections also have direct lowering paths in the compiler/runtime.
 - `Equatable` and `Hashable` provide the comparison and hashing surface used by derived code and collections.
-- `Indexable` backs `x[i]`. It takes two type parameters, `Indexable<C, I>`, so the index type is not fixed to `Int`, and exposes an `Element` associated type. The prelude ships an `Array<T>` instance; arrays also keep a direct lowering path in the compiler, which the instance body itself relies on. `Text` has no instance yet - its element type follows from the planned newtype over `Array<Byte>`.
+- `Indexable<C, I>` backs `x[i]` and defines an `Element` associated type. The
+  prelude's instance for `Array<T>` takes an `Int` index and uses the compiler's
+  built-in array indexing. To index text by code point, use `TextUtil::CodePointAt`.
 - `Iterable` provides the `Item` associated type and `Next` method used by `for` loops and iterable-based comprehensions.
 - `Orderable` defines the ordering interface used by comparison operators and `ArrayUtil::Sort`. `Compare` returns `Ordering`, whose variants are `Less`, `Equal`, `Greater` and `Unordered`; all relational operators return false for an unordered pair. It ships instances for `Int`, `Float`, `Byte`, `Word` and `Text`, which orders by code point; instances for user-defined types come from user code.
-- `Transferable` is the marker typeclass for values that can cross worker boundaries in the concurrency system. Whether a type is transferable follows from its structure, the same way for `where Transferable<T>` as for `Concurrency::Spawn`: all primitive types, tuples, `Array<T>`, `Channel<T>` and `Ref<T>` of transferable types, and function types are — a function crosses as its procedure index plus a copy of its captured cells, which is what lets `Concurrency::Spawn` take a function value and `ParallelMap` be written in Marmot. A closure's captures are not part of its type, so they are not checked: a copied `Worker<T>` handle keeps its original owner. Using it from a different VM raises `InvalidWorkerHandle`. User-defined structs and unions can `deriving (Transferable)`. Transferability is enforced at compile time by `Concurrency::Spawn`, `Concurrency::Join`, `Concurrency::MakeChannel` and `Concurrency::Send`. `Concurrency::Close`, `Concurrency::IsDone` and `Concurrency::Cancel` complete that surface.
+- `Transferable` marks values that can cross between workers. Primitive and
+  function values qualify, as do tuples, arrays, channels, and references whose
+  element types qualify. Add `deriving (Transferable)` to a struct or union to
+  derive the marker. A function crosses with its procedure index and copies
+  of its captures. A captured `Worker<T>` keeps its original owner. Using
+  that handle from another VM raises `InvalidWorkerHandle`.
+  See [Multicore Runtime](multicore-runtime.md#value-transfer-and-the-transferable-typeclass).
 - `Prelude/Panic` provides `Panic::Panic`, which is used heavily by the regression tests and small examples.
 
 ## Sequence Pipelines
@@ -181,7 +192,7 @@ Public text helpers:
 - `Length`, `Contains`, `StartsWith`, `EndsWith`, `Substring`
 - `Split`, `Join(Array<Text>, Text) -> Text`, `Replace`, `Trim`, `Reverse`
 - `FromCodePoint(Int) -> Option<Text>`: the text of one Unicode scalar value; `None` for a surrogate, anything past U+10FFFF, and U+0000, which text cannot hold
-- `CodePointAt(Text, Int) -> Option<Int>`: the code point at a code-point index, `None` past the end
+- `CodePointAt(Text, Int) -> Option<Int>`: the code point at a zero-based code-point index, or `None` if the index is outside the text
 - `CodePoints(Text) -> Array<Int>`: every code point, in one pass. To walk a text, index this array: `CodePointAt` finds each code point from the start of the text, so calling it in a loop is quadratic
 - `FromCodePoints(Array<Int>) -> Option<Text>`: the text of those code points; `None` when one of them is not a code point `FromCodePoint` takes
 - `ParseInt(Text) -> Option<Int>`, `ParseFloat(Text) -> Option<Float>`: the number the whole text spells, or `None`. `text as Int` and `text as Float` are the same conversions, but stop the program with `InvalidConversion` when the text is not a number

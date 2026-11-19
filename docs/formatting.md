@@ -62,9 +62,8 @@ with the line that owns the brace.
 | `class`    | `class Name<T> { method: fn(value: T) -> Type; ... };`           |
 | `instance` | `instance Name<Type> { def method = fn(value: Type) -> Type => ...; };` |
 
-`import { ... }` and `export { ... }` use a single-line *inline brace*: the
-opening and closing braces stay on the same line as the directive even when the
-list grows. Inline braces never trigger indentation.
+Module directives can use inline braces, as in `import { <IO> }`, or span
+multiple lines. The formatter keeps the layout you chose.
 
 ### Line width
 
@@ -95,23 +94,14 @@ Function parameter lists and parenthesized expressions keep their existing layou
 
 ### Trailing commas
 
-- multi-line argument, parameter, record field, and array literal lists may end
-  with a trailing comma
-- the formatter preserves an existing trailing comma and does not add one when
-  it is missing
-- single-line lists never receive a trailing comma
+The formatter keeps trailing commas even when it collapses an array literal
+to one line. The grammar determines where you can add one.
 
 ### Import ordering and grouping
 
-Imports inside a single `import { ... }` block are grouped by category in this
-order, and ordered alphabetically within each group:
-
-1. `<Module>` brace-style references to package-resolved modules
-2. `"path/to/Module.mmt"` quoted relative paths
-
-A file may contain multiple `import` blocks; the formatter does not merge them,
-but it preserves blank-line separation between top-level directives so authors
-can group related imports manually.
+The formatter keeps imports in source order, even in a block that mixes
+`<Module>` imports and quoted paths. It keeps separate import blocks and
+preserves blank lines between directives.
 
 ### Match arm alignment
 
@@ -120,8 +110,7 @@ can group related imports manually.
   block
 - exactly one space appears between the pattern and `=>`, and one space between
   `=>` and the arm body
-- the trailing `;` that closes the `match` expression appears on its own
-  position immediately after the last arm
+- a terminating `;` normally follows the last arm on the same line
 
 ```marmot
 def name = match value with
@@ -130,9 +119,8 @@ def name = match value with
     case _ => 0;
 ```
 
-The formatter does **not** vertically align the `=>` arrows. Authors who want
-column alignment can add spaces by hand; the formatter will preserve them as
-long as they sit between the pattern and the arrow.
+The formatter uses one space before `=>`, even if you aligned the arrows by
+hand.
 
 ### Spacing
 
@@ -155,14 +143,15 @@ long as they sit between the pattern and the arrow.
 
 - exactly one blank line between top-level declarations (`def`, `class`,
   `instance`, `type`, `alias`, `foreign`)
-- consecutive `module`, `import`, `use`, `public`, and `private` directives
-  receive **no** blank line between them; they form a header block
+- blank lines between `module`, `import`, `use`, and export directives are
+  preserved, up to one blank line per gap
 - the formatter collapses runs of blank lines down to at most one
 
 ### String literals
 
 - text literals always use double quotes
-- escape sequences are normalized to `\\`, `\"`, `\n`, `\r`, `\t`, `\b`, `\f`
+- an unrecognized escape keeps its backslash. The formatter writes `\r` as
+  `\\r` so the two spellings decode to the same text
 
 ## Comment Rules
 

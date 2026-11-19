@@ -19,12 +19,13 @@ The notation: `X?` optional, `X*` zero or more, `X+` one or more,
 IDENTIFIER   letter or '_', then letters, digits or '_'
 INTEGER      decimal digits, or 0x / 0X hex, or 0b / 0B binary
 FLOAT        digits '.' digits
-TEXT         '"' characters '"', with \n \t \r \\ \" \0 escapes
+TEXT         '"' characters '"', with \n \t \b \f \\ \" escapes
 COMMENT      '//' to end of line, or '/*' to the first '*/' (no nesting)
 ```
 
 A file may start with a UTF-8 byte order mark, which is not part of the program.
-Whitespace separates tokens and is otherwise insignificant.
+Whitespace separates tokens outside text literals. An unrecognized escape
+keeps its backslash. For example, `\r` and `\0` each produce two characters.
 
 **Keywords.** `alias` `as` `case` `class` `def` `deriving` `else` `export`
 `false` `fn` `for` `foreign` `if` `import` `in` `instance` `match` `module`
@@ -42,34 +43,37 @@ Whitespace separates tokens and is otherwise insignificant.
 ## Program
 
 ```
-program      = module? item* ;
+program      = module item* ;
 module       = 'module' IDENTIFIER ('.' IDENTIFIER)* ;
 item         = import | use | export | declaration | expression ';' ;
 import       = 'import' '{' importPath (',' importPath)* ','? '}' ;
 importPath   = TEXT | systemName ;         // "<Name>", <Name>, or "./path.mmt"
 systemName   = '<' IDENTIFIER ('.' IDENTIFIER)* '>' ;
-use          = 'use' IDENTIFIER ('.' IDENTIFIER)* '.' '{' IDENTIFIER (',' IDENTIFIER)* '}' ;
-export       = ('public' | 'private') 'export' '{' IDENTIFIER (',' IDENTIFIER)* '}' ;
+use          = 'use' moduleName '.' '{' IDENTIFIER (',' IDENTIFIER)* ','? '}' ;
+export       = ('public' | 'private') 'export' '{' IDENTIFIER (',' IDENTIFIER)* ','? '}' ;
+moduleName   = IDENTIFIER ('.' IDENTIFIER)* ;
 ```
 
 A program is its top-level items, run in order; there is no entry function, and
 a definition named `main` is an ordinary one.
 
-An import names either a module to find on the search paths, written
-`"<Name>"`, or a file, written as a path. Importing a module lets you write
-`Module::name`; `use` is what puts a name in scope on its own.
+Write `<Name>` or `"<Name>"` to find a module on the search path. To import a
+file, put its path in quotes. After importing the module, refer to an exported
+name as `Module::name`. Use `use` to bring the bare name into scope.
 
 ## Declarations
 
 ```
 declaration  = define | typeDecl | alias | class | instance | foreign ;
 
-define       = 'def' IDENTIFIER (':' type)? '=' expression ';' ;
+define       = 'def' IDENTIFIER (':' type)? '=' expression ';'
+             | 'def' '(' IDENTIFIER (',' IDENTIFIER)+ ')' '=' expression ';' ;
 
-typeDecl     = 'type' IDENTIFIER typeParams? '=' (record | variants) deriving? ';' ;
+typeDecl     = 'type' IDENTIFIER typeParams? constraints? '='
+               (record deriving? | variants deriving? | type) ';' ;
 record       = '{' field (',' field)* ','? '}' ;
 field        = IDENTIFIER ':' type ;
-variants     = variant ('|' variant)* ;
+variants     = variant ('|' variant)+ | '|' variant ('|' variant)* ;
 variant      = IDENTIFIER ('(' type (',' type)* ')')? ;
 deriving     = 'deriving' '(' IDENTIFIER (',' IDENTIFIER)* ')' ;
              // a record derives Equatable, Hashable, Orderable, Convertable
@@ -90,8 +94,13 @@ foreign      = 'foreign' TEXT IDENTIFIER ':' type ('from' TEXT)? ';'
 
 typeParams   = '<' IDENTIFIER (',' IDENTIFIER)* '>' ;
 constraints  = 'where' constraint (',' constraint)* ;
-constraint   = IDENTIFIER '<' type (',' type)* '>' ;
+constraint   = IDENTIFIER '<' type (',' type)* '>' | projection '~' type ;
+projection   = IDENTIFIER '::' IDENTIFIER '<' type (',' type)* '>' ;
 ```
+
+A type with a representation on the right of `=` is a newtype, such as
+`type Meters = Int;`. A union with just one variant uses a leading `|`.
+Constraints on a type declaration require type parameters.
 
 A module's top-level statements run in order, and a function's body runs when
 it is called. So a function may name a top-level definition that comes after
@@ -125,14 +134,16 @@ atomType     = 'Int' | 'Float' | 'Bool' | 'Byte' | 'Word' | 'Text' | 'Unit'
              | 'Channel' '<' type '>'
              | 'Worker' '<' type '>'
              | 'Ref' '<' type '>'                         // a reference, unless Ref is a declared type
-             | IDENTIFIER ('<' type (',' type)* '>')?     // a declared type
+             | qualifiedName ('<' type (',' type)* '>')? // a declared type or projection
              | '(' type (',' type)+ ')' ;                 // a tuple
+qualifiedName = IDENTIFIER | moduleName '::' IDENTIFIER ('::' IDENTIFIER)? ;
 ```
 
 ## Expressions
 
-Everything is an expression. A block's value is its last expression; a
-function's value is its body.
+Control-flow constructs are expressions. A block's value is its final
+expression, or `Unit` when it ends with statements. A function returns the
+value of its body.
 
 Precedence, loosest first. Each level is left-associative unless noted.
 Different levels may be mixed without parentheses: `a + b * c` means
@@ -159,9 +170,8 @@ Different levels may be mixed without parentheses: `a + b * c` means
 | 16 | primary |
 
 ```
-primary      = INTEGER | FLOAT | TEXT | 'true' | 'false'
-             | IDENTIFIER
-             | IDENTIFIER ('.' IDENTIFIER)* '::' IDENTIFIER   // a module's name
+primary      = INTEGER | FLOAT | TEXT | 'true' | 'false' | '(' ')'
+             | qualifiedName
              | '(' expression ')'
              | '(' expression (',' expression)+ ')'        // a tuple
              | array | comprehension | block | function
@@ -190,7 +200,7 @@ are evaluated in the order the type declares them, as a record update's are. A
 brace after a name is a construction only when the name is a record type and
 `field =` follows it, so a block after a name is still a block. A union's
 variants hold their fields by position, so they are built only by calling.
-`for` evaluates its body for each element and has no value of its own.
+`for` evaluates its body for each element and returns `Unit`.
 
 `ref e` creates a `Ref<T>` holding `e`, `*e` reads a reference's contents,
 and `cell := value` replaces those contents and evaluates to `Unit`. These
@@ -208,12 +218,13 @@ next `|>`. `x |> fn(a) => f(a) |> g` is `g(f(x))`, and a later stage cannot name
 ```
 pattern      = alternatives ('as' IDENTIFIER)* ;          // names the whole value
 alternatives = primary ('|' primary)* ;                   // any one of them
-primary      = '_'                                        // wildcard
+primary      = '_' | '(' ')'                              // wildcard or Unit
              | number | TEXT | 'true' | 'false'
              | integer '..' integer ('..' integer)?       // the Ints a range visits
              | IDENTIFIER                                 // binds the value
-             | IDENTIFIER '(' (pattern (',' pattern)*)? ')' // a variant or record, by position
-             | IDENTIFIER '{' fieldPatterns '}'           // a record, by field name
+             | qualifiedName '(' (pattern (',' pattern)*)? ')' // a variant or record, by position
+             | qualifiedName '{' fieldPatterns '}'        // a record, by field name
+             | '(' pattern ')'                            // grouping
              | '(' pattern (',' pattern)+ ')'             // a tuple
              | '[' (element (',' element)*)? ']' ;        // an array
 element      = pattern | '..' IDENTIFIER? ;               // at most one '..'

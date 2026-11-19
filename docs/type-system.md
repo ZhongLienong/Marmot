@@ -1,6 +1,8 @@
 # Marmot Type System
 
-Marmot uses a Hindley-Milner based, nominal type system with bidirectional inference. The implementation follows Algorithm W and extends it with algebraic data types, type classes, associated types, deriving, type-definition constraints, and exhaustive pattern matching.
+Marmot's type system is nominal. The checker unifies types and uses any
+expected type to guide inference. Polymorphic definitions declare their
+type parameters explicitly.
 
 Unless a snippet explicitly shows a full file, the examples below focus on the type-system surface only. Complete `.mmt` source files still need an explicit `module` declaration.
 
@@ -26,7 +28,7 @@ The type system provides:
 | `Float` | 64-bit IEEE 754 double |
 | `Byte` | 8-bit unsigned integer |
 | `Word` | 64-bit unsigned integer |
-| `Bool` | `true` or `false`, a built-in rather than a library union — see the design spec's section 8 for the measurement behind that |
+| `Bool` | Built-in Boolean with the values `true` and `false` |
 | `Text` | UTF-8 string |
 | `Unit` | A type with one value, `()`; used when a result carries no payload |
 
@@ -230,12 +232,12 @@ type Point =
 } deriving (Equatable, Hashable);
 ```
 
-`Orderable` compares a record field by field, in the order the fields are
-declared, and the first field that differs decides. A union compares the order
-its variants are declared in first, so `Dot < Circle(9.0)` when `Dot` comes
-first, and two values of the same variant compare its fields the same way. Each
-field's type needs its own instance, and a generic type's instance requires
-`Orderable` of each type parameter.
+`Orderable` compares record fields in declaration order. The first field that
+differs decides. For unions, it compares the variants first, also in
+declaration order. If `Dot` comes first, `Shape::Dot() < Shape::Circle(9.0)`.
+For two values of the same variant, it compares their fields in order. Each
+field's type needs an `Orderable` instance, as does each type parameter of a
+generic type.
 
 ```marmot
 type Version = { major: Int, minor: Int, label: Text } deriving (Equatable, Orderable);
@@ -269,11 +271,15 @@ type Point =
 type Result = Ok(Int) | Err(Text) deriving (Transferable);
 ```
 
-`Transferable` generates field-by-field serialization for structs and tag+payload serialization for unions. All fields/variants must themselves satisfy `Transferable`. Types that cannot be transferable (ranges, `Worker<T>`) produce a compile-time constraint-failure error. Functions are transferable: one crosses as its procedure index plus a copy of its captured cells. What a closure captured is not part of its type, so those captures are not checked.
+Use `deriving (Transferable)` to generate a marker instance for a struct or
+union. Its fields or variant payloads must satisfy `Transferable`. The VM
+uses the aggregate's shape to copy it. For a function, the VM copies the
+procedure index and the captured values. The function type describes its
+parameters and result, so the checker cannot inspect captures from the type.
 
 Current support is intentionally narrow:
 
-- `Equatable`, `Hashable`, and `Transferable` are supported structural derives
+- `Equatable`, `Hashable`, `Orderable`, `Convertable` to `Text`, and `Transferable` are supported structural derives
 - `Map`, `Bind`, and `Unwrap` are supported container derives
 - Structural deriving works on generic and recursive structs and unions; the instance for `Box<T>` requires `Equatable<T>` (or `Hashable<T>`) of each type parameter
 - `Transferable` deriving works on structs and unions including recursive union shapes
@@ -477,8 +483,8 @@ and their fields, a `Bool` covers `true` and `false`, a tuple or record covers e
 combination of its fields, and `Unit` covers `()`. An `Int` is covered by the
 literals and range patterns such as `0..10` that take it, so ranges that
 together take every `Int` need no catch-all; a missing `Int` is named by the value
-nearest zero in the gap. `Float`, `Text`, `Byte` and `Word` have too many values
-to list, so a match on them, or on a field of those types, needs a case that
+nearest zero in the gap. For `Float`, `Text`, `Byte` and `Word`, exhaustiveness
+requires a case that
 takes any value there. So do arrays, unless a case uses `..`, as below.
 
 A case with a guard covers nothing, since its guard may fail. A non-exhaustive
@@ -488,8 +494,9 @@ match is an error that names values no case matches:
 Match expression type error: non-exhaustive match: no case matches Result::Ok(Option::None())
 ```
 
-An array pattern with `..` covers every length from its element count up, so
-`case []`, `case [x]` and `case [first, ..rest]` together cover every array.
+An array pattern with `..` can match any array long enough to fit the other
+elements in the pattern. Those elements still have to match. For example,
+`case []` covers the empty array and `case [first, ..rest]` covers the rest.
 
 A catch-all arm is an unguarded `case` whose pattern always matches: `case _`, a
 bare binding such as `case n`, or a tuple of those. There is no `default` keyword.
@@ -518,7 +525,7 @@ In pattern position, `_` is a wildcard that ignores the matched value and does n
 
 ## Type Inference
 
-Marmot uses Hindley-Milner inference with unification and an occurs check.
+Marmot uses unification with an occurs check to solve inference variables.
 
 ### Core Inference Flow
 

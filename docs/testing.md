@@ -42,9 +42,10 @@ Implementation tests:
 Regression tests:
 
 - place programs under `test/<category>/`
-- use `failure/` directories for compile-fail scenarios
-- add `<name>.expected` when stdout/stderr or compile-fail diagnostics must match a snapshot
-- `.expected` snapshots are compared after stripping ANSI color codes and repo-root path prefixes
+- use `failure/` directories for failures during compilation or execution
+- add `<name>.expected` when stdout/stderr or diagnostics must match a snapshot
+- before comparing `.expected` snapshots, the runner strips ANSI color codes,
+  changes backslashes to `/`, and removes repo-root path prefixes
 - add `<name>.warnings.json` when warnings need structured assertions
 - when a `.warnings.json` file is present, `marmot test` compares the emitted warning JSON against that snapshot
 - `marmot test` builds each fixture with `marmotc` into `target/` and runs it in its own `marmotvm` process, in parallel, enforcing `[test].timeout_ms` (or `--timeout-ms`) on each
@@ -165,10 +166,9 @@ REQUIRE(MarmotTest::Matches(
 a check needs first (`--no-build` skips that). `--build` picks the
 configuration, Dev by default.
 
-The browser smoke test, `projects/web/tests/smoke.html`, runs only in CI: the
-`wasm` job builds the independent compiler and VM modules with Emscripten and
-drives the page in headless Chromium through the playground adapter. It is
-separate from the native gate.
+The `wasm` CI job runs separately from the native gate. It builds the compiler
+and VM modules with Emscripten, then uses the playground adapter to run
+`projects/web/tests/smoke.html` in headless Chromium.
 
 The full gate, stopping at the first failure:
 
@@ -205,12 +205,13 @@ also executes each one; its timings are only meaningful with a Release build,
 and `python scripts/dev.py bench` measures them properly.
 
 The layering check keeps the components' dependency direction.
-The C++ code builds as three libraries: `MarmotRuntime` (`projects/marmotvm/src`, with
-its private `.mmc` reader), `MarmotCompiler` (`projects/marmotc/src`, with its private
-writer) and `MarmotDriver` (the CLI and driver under `projects/marmotc/src/Utility`,
-links Compiler). The two sides share no C++ library or header; `format/mmc/`
-holds their versioned file contract. Each library exports only its own include
-root, so most wrong includes already fail to compile; the script also checks
+`MarmotRuntime` in `projects/marmotvm/src` owns the `.mmc` reader.
+`MarmotCompiler` in `projects/marmotc/src` owns the writer. `MarmotDriver`,
+the CLI and driver library under `projects/marmotc/src/Utility`, links to the
+compiler. The runtime links `MarmotStdLib` and `MarmotNativeSupport` from
+`projects/marmotstdlib`. Compiler and VM communicate through the `.mmc` format
+documented in `format/mmc/`. Each library exports only its own include root,
+so most wrong includes already fail to compile. The script also checks
 includes and production CMake links. It also keeps the compiler pipeline (`projects/marmotc/src/Compiler`, apart
 from the driver) free of project discovery: those files may not read environment
 variables, because the compiler compiles from the `CompilationInputs` its
@@ -254,7 +255,7 @@ project build or beside an installed compiler; `MARMOTVM` selects another VM:
 
 ```powershell
 $env:MARMOTC = ".\out\build\marmotc\x64-dev\out\marmotc.exe"
-$env:MARMOT_PATH = "$PWD\MarmotPrelude"
+$env:MARMOT_PATH = "$PWD\projects\marmotstdlib\MarmotPrelude"
 marmot test
 marmot test closure
 marmot test --pattern recursive
