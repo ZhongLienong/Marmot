@@ -5,6 +5,11 @@
 <h1>Marmot browser smoke test</h1>
 <p id="status">Loading independent compiler and VM modules…</p>
 <pre id="results"></pre>
+<script>
+    const amdFactories = new Map();
+    globalThis.define = (name, dependencies, factory) => amdFactories.set(name, factory());
+    globalThis.define.amd = {};
+</script>
 <script src="/marmot.js?v=smoke"></script>
 <script>
     const status = document.getElementById("status");
@@ -21,11 +26,26 @@
         return new Uint8Array(await (await fetch(`/fixtures/${name}.mmc`)).arrayBuffer());
     }
 
+    async function checkWorker() {
+        const worker = new Worker("/smoke.worker.js?v=smoke");
+        try {
+            const result = await new Promise((resolve, reject) => {
+                worker.onmessage = ({ data }) => resolve(data);
+                worker.onerror = event => reject(new Error(event.message));
+            });
+            check(result === "ok", `Worker compiles, runs and reads VM files (${result})`);
+        } finally {
+            worker.terminate();
+        }
+    }
+
     (async () => {
-        // Use the existing site's factory options and synchronous execution API.
         const module = await createMarmotModule({
-            locateFile: path => path === "marmot.wasm" ? "/marmot.wasm?v=smoke" : path,
+            locateFile: path => `/${path}`,
         });
+        check(amdFactories.get("marmotc") === globalThis.createMarmotcModule &&
+            amdFactories.get("marmotvm") === globalThis.createMarmotvmModule &&
+            amdFactories.size === 2, "Both factories use distinct names when an AMD loader is present");
         const files = await (await fetch("/MarmotPrelude/manifest.json")).json();
         for (const file of files) {
             const segments = file.split("/");
@@ -72,6 +92,7 @@
             const invalid = module.runMarmotBytecode(await fixture(name));
             check(!invalid.success && invalid.report.errors.length === 1, `VM rejects ${name} artifact`);
         }
+        await checkWorker();
         status.textContent = "PASSED: independent browser compiler and VM";
         document.documentElement.dataset.result = "passed";
     })().catch(error => {

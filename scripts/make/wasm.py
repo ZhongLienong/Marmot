@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import shutil
 import stat
 import sys
@@ -41,6 +42,18 @@ def artifacts() -> dict[str, Path]:
         f"{project}.{suffix}": build_directory(project) / "out" / f"{project}.{suffix}"
         for project in PROJECTS for suffix in ("js", "wasm")
     }}
+
+
+def name_amd_export(project: str, path: Path) -> None:
+    # Both factories are loaded as scripts alongside Monaco's AMD loader.
+    factory = f"create{project.capitalize()}Module"
+    footer = rf'define\(\s*(?:"{project}"\s*,\s*)?\[\]\s*,\s*\(\)\s*=>\s*{factory}\s*\)\s*;\s*\Z'
+    source = path.read_text(encoding="utf-8")
+    named, count = re.subn(footer, f'define("{project}",[],()=>{factory});\n', source)
+    if count != 1:
+        raise SystemExit(f"Expected the Emscripten AMD export for {factory} in {path}")
+    if named != source:
+        path.write_text(named, encoding="utf-8", newline="\n")
 
 
 @dataclass(frozen=True)
@@ -166,11 +179,14 @@ def main(argv: list[str]) -> int:
     built = build(emscripten, args.clean)
     if built != 0:
         return built
-    missing = [name for name, path in artifacts().items() if not path.is_file()]
+    outputs = artifacts()
+    missing = [name for name, path in outputs.items() if not path.is_file()]
     if missing:
         console.fail(f"The build made no {', '.join(missing)}")
         return 1
-    console.ok(f"built independent compiler and VM modules: {', '.join(artifacts())}")
+    for project in PROJECTS:
+        name_amd_export(project, outputs[f"{project}.js"])
+    console.ok(f"built independent compiler and VM modules: {', '.join(outputs)}")
     return 0
 
 

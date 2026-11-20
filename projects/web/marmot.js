@@ -1,7 +1,8 @@
 (function () {
     "use strict";
 
-    const adapterUrl = new URL(document.currentScript.src);
+    const inWorker = typeof document === "undefined";
+    const adapterUrl = new URL(inWorker ? globalThis.location.href : document.currentScript.src);
 
     function plainResult(result) {
         return {
@@ -20,21 +21,26 @@
         return url.href;
     }
 
-    function loadFactory(name, factory, options) {
-        return new Promise((resolve, reject) => {
-            const script = document.createElement("script");
-            script.src = resourceUrl(name, options);
-            script.onload = () => {
-                const createModule = globalThis[factory];
-                script.remove();
-                resolve(createModule);
-            };
-            script.onerror = () => {
-                script.remove();
-                reject(new Error(`Failed to load ${name}`));
-            };
-            document.head.appendChild(script);
-        });
+    async function loadFactory(name, factory, options) {
+        const url = resourceUrl(name, options);
+        if (inWorker) {
+            importScripts(url);
+        } else {
+            await new Promise((resolve, reject) => {
+                const script = document.createElement("script");
+                script.src = url;
+                script.onload = () => {
+                    script.remove();
+                    resolve();
+                };
+                script.onerror = () => {
+                    script.remove();
+                    reject(new Error(`Failed to load ${name}`));
+                };
+                document.head.appendChild(script);
+            });
+        }
+        return globalThis[factory];
     }
 
     globalThis.createMarmotModule = async function (options = {}) {
@@ -55,6 +61,9 @@
                 compiler.FS_createDataFile(...args);
                 vm.FS_createDataFile(...args);
             },
+            FS_readDir: path => vm.FS.readdir(path),
+            FS_readBinaryFile: path => vm.FS.readFile(path, { encoding: "binary" }),
+            FS_unlink: path => vm.FS.unlink(path),
             compileMarmotCode: source => plainResult(compiler.compileMarmotCode(source)),
             runMarmotBytecode: bytes => plainResult(vm.runMarmotBytecode(bytes)),
             executeMarmotCode(source) {

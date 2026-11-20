@@ -14,7 +14,7 @@ target_link_options(marmotc PRIVATE
     -sALLOW_MEMORY_GROWTH=1
     -sMODULARIZE=1
     -sEXPORT_NAME=createMarmotcModule
-    -sENVIRONMENT=web
+    -sENVIRONMENT=web,worker
     -sSTACK_SIZE=5MB
     -sINITIAL_MEMORY=32MB
     -sMAXIMUM_MEMORY=2GB

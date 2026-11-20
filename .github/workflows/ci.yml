@@ -158,6 +158,7 @@ jobs:
         run: |
           cp -r out/web/site out/web/smoke
           cp projects/web/tests/smoke.html out/web/smoke/index.html
+          cp projects/web/tests/smoke.worker.js out/web/smoke/
           cp -r format/mmc/fixtures out/web/smoke/fixtures
           python -m http.server 8765 --bind 127.0.0.1 --directory out/web/smoke &
           npm install --no-save --prefix projects/web/tests playwright@1
