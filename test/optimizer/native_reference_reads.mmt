@@ -1,8 +1,8 @@
 module NativeReferenceReads
-
 import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
-def Probe = fn(c: Ref<Int>) -> Int => {
+def Probe = fn(c: Ref<Int>) -> Int =>
+{
     def before = *c;
     c := before * 2;
     def after = *c;

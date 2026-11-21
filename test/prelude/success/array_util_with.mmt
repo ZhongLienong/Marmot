@@ -1,21 +1,30 @@
 module PreludeArrayUtilWith
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/ArrayUtil.mmt", "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt" }
 
-def Expect = fn(condition: Bool, message: Text) -> Unit => if condition then () else Panic::Panic(message);
+def Expect = fn(condition: Bool, message: Text) -> Unit => if condition
+then ()
+else Panic::Panic(message);
 
-def Show = fn(array: Array < Int >) -> Text => {
-    def parts : Array < Text > = [array[i] as Text for i in 0..1..ArrayUtil::Length(array)];
-    if ArrayUtil::Length(parts) == 0 then "-" else ArrayUtil::Length(parts) as Text ++ ":" ++ parts[0] ++ ":" ++ parts[ArrayUtil::Length(parts) - 1]
+def Show = fn(array: Array<Int>) -> Text =>
+{
+    def parts: Array<Text> = [array[i] as Text for i in 0..1..ArrayUtil::Length(array)];
+    if ArrayUtil::Length(parts) == 0
+    then "-"
+    else ArrayUtil::Length(parts) as Text ++ ":" ++ parts[0] ++ ":" ++ parts[ArrayUtil::Length(parts) - 1]
 };
 
 def base = [10, 20, 30];
-def empty : Array < Int > = [];
+
+def empty: Array<Int> = [];
 
 // These bounds must be clamped before they are narrowed to storage indexes.
 def whole = ArrayUtil::Slice(base, -4294967295, 2147483648);
 Expect((#whole == 3) && (whole[0] == 10) && (whole[2] == 30), "Slice clamps full-width endpoints");
-Expect(#ArrayUtil::Slice(base, 4294967297, 9223372036854775807) == 0, "Slice clamps a large start to the end");
+Expect
+(
+    #ArrayUtil::Slice(base, 4294967297, 9223372036854775807) == 0,
+    "Slice clamps a large start to the end"
+);
 
 // The original must survive every operation.
 def appended = ArrayUtil::WithAppended(base, 40);
@@ -24,23 +33,47 @@ Expect((ArrayUtil::Length(appended) == 4) && (appended[3] == 40), "WithAppended 
 Expect(ArrayUtil::Length(ArrayUtil::WithAppended(empty, 1)) == 1, "WithAppended on empty");
 
 def replaced = ArrayUtil::WithReplaced(base, 1, 99);
-Expect((replaced[1] == 99) && (base[1] == 20), "WithReplaced replaces without touching the original");
+Expect
+(
+    (replaced[1] == 99) && (base[1] == 20),
+    "WithReplaced replaces without touching the original"
+);
 Expect(ArrayUtil::WithReplaced(base, 0, 5)[0] == 5, "WithReplaced at index 0");
 Expect(ArrayUtil::WithReplaced(base, 2, 7)[2] == 7, "WithReplaced at the last index");
 
 def inserted = ArrayUtil::WithInserted(base, 1, 15);
 Expect(ArrayUtil::Length(inserted) == 4, "WithInserted grows by one");
-Expect((inserted[0] == 10) && (inserted[1] == 15) && (inserted[2] == 20) && (inserted[3] == 30), "WithInserted shifts the tail");
+Expect
+(
+    (inserted[0] == 10) && (inserted[1] == 15) && (inserted[2] == 20) && (inserted[3] == 30),
+    "WithInserted shifts the tail"
+);
 Expect(ArrayUtil::WithInserted(base, 0, 1)[0] == 1, "WithInserted at the front");
 Expect(ArrayUtil::WithInserted(base, 3, 40)[3] == 40, "WithInserted past the last index appends");
-Expect(ArrayUtil::WithInserted(base, 4294967297, 40)[3] == 40, "WithInserted with a large positive index appends");
-Expect(ArrayUtil::WithInserted(base, -4294967295, 1)[0] == 1, "WithInserted with a large negative index prepends");
+Expect
+(
+    ArrayUtil::WithInserted(base, 4294967297, 40)[3] == 40,
+    "WithInserted with a large positive index appends"
+);
+Expect
+(
+    ArrayUtil::WithInserted(base, -4294967295, 1)[0] == 1,
+    "WithInserted with a large negative index prepends"
+);
 Expect(ArrayUtil::Length(ArrayUtil::WithInserted(empty, 0, 1)) == 1, "WithInserted into empty");
 
 def removed = ArrayUtil::WithRemoved(base, 1);
-Expect((ArrayUtil::Length(removed) == 2) && (removed[0] == 10) && (removed[1] == 30), "WithRemoved closes the gap");
+Expect
+(
+    (ArrayUtil::Length(removed) == 2) && (removed[0] == 10) && (removed[1] == 30),
+    "WithRemoved closes the gap"
+);
 Expect(ArrayUtil::Length(base) == 3, "WithRemoved must not modify the original");
-Expect(ArrayUtil::Length(ArrayUtil::WithRemoved([7], 0)) == 0, "WithRemoved of the only element gives empty");
+Expect
+(
+    ArrayUtil::Length(ArrayUtil::WithRemoved([7], 0)) == 0,
+    "WithRemoved of the only element gives empty"
+);
 Expect(ArrayUtil::Length(ArrayUtil::WithRemoved(base, 9)) == 3, "WithRemoved past the end copies");
 Expect(ArrayUtil::Length(ArrayUtil::WithRemoved(empty, 0)) == 0, "WithRemoved on empty");
 

@@ -1,15 +1,14 @@
 module DottedQualifiedAccess
-
 // A dotted module name qualifies with '::' like any other. The dots belong to
 // the module only when '::' follows them, so field access is untouched.
 
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-	"./dotted/vector.mmt"
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "./dotted/vector.mmt" }
 
-type Point = { x: Int, y: Int };
+type Point =
+{
+    x: Int,
+    y: Int
+};
 
 def p = Point(1, 2);
 

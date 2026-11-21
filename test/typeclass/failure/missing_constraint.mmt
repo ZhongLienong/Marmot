@@ -1,10 +1,10 @@
 module MissingConstraint
-
 // Test: Generic function trying to use 'as' without constraint should fail
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Convertable.mmt" }
 
 // This should fail at type checking because there's no Convertable<T, Text> constraint
-def ToTextMissingConstraint = fn<T>(value: T) -> Text => {
+def ToTextMissingConstraint = fn<T>(value: T) -> Text =>
+{
     value as Text  // ERROR: Should require Convertable<T, Text> constraint
 };
 

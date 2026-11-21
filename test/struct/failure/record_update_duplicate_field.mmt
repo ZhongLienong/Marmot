@@ -4,9 +4,14 @@ module RecordUpdateDuplicateField
 
 type Point =
 {
-	x : Int,
-	y : Int
+    x: Int,
+    y: Int
 };
 
 def p = Point(1, 2);
-def bad = { p with x = 1, x = 2 };
+
+def bad =
+{
+    p with x = 1,
+    x = 2
+};

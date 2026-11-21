@@ -1,17 +1,14 @@
 module worker_join_index_regression
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt" }
 
-import
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/ArrayUtil.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt" }
+
+use IO.
 {
-    "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/ArrayUtil.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt"
+    PrintLine
 }
 
-use IO.{PrintLine}
-
-def Answer = fn(y_start : Int, y_end : Int, width : Int, height : Int, limit : Int, samples_per_axis : Int, _view_min_r : Float, _view_min_i : Float, _view_max_r : Float, _view_max_i : Float, fractal_kind : Int, _julia_cr : Float, _julia_ci : Float) -> Array<Int> =>
+def Answer = fn(y_start: Int, y_end: Int, width: Int, height: Int, limit: Int, samples_per_axis: Int, _view_min_r: Float, _view_min_i: Float, _view_max_r: Float, _view_max_i: Float, fractal_kind: Int, _julia_cr: Float, _julia_ci: Float) -> Array<Int> =>
 {
     [y_start, y_end, width, height, limit, samples_per_axis, fractal_kind]
 };
@@ -31,49 +28,58 @@ def Run = fn() -> Unit =>
     def julia_ci = 0.0;
     def band_workers = 32;
 
-    def worker_count = if band_workers < height then band_workers else height;
+    def worker_count = if band_workers < height
+    then band_workers
+    else height;
     def base_rows = height / worker_count;
     def remainder = height % worker_count;
     // 32 bands, so WithAppended's copy is irrelevant here; the array is rebuilt
     // 32 times at up to 32 elements. Spawn order is unchanged, which is what the
     // join indices below depend on.
-    def SpawnBands = fn(workers : Array<Worker<Array<Int>>>, band_index : Int, next_row : Int) -> Array<Worker<Array<Int>>> =>
-        if band_index >= worker_count
-        then workers
-        else
-        {
-            def band_rows = if band_index < remainder then base_rows + 1 else base_rows;
-            def y_start = next_row;
-            def y_end = y_start + band_rows;
-            def immediate = Concurrency::JoinedOrPanic(Concurrency::Join(Concurrency::Spawn((0, 2, 64, 64, 32, 1, -2.5, -1.2, 1.0, 1.2, 0, 0.0, 0.0), Answer)));
-            if immediate[0] == 0
-            then ()
-            else Panic::Panic("immediate join failed");
-            def worker = Concurrency::Spawn((y_start, y_end, width, height, limit, samples_per_axis, view_min_r, view_min_i, view_max_r, view_max_i, fractal_kind, julia_cr, julia_ci), Answer);
+    def SpawnBands = fn(workers: Array < Worker < Array < Int >> >, band_index: Int, next_row: Int) -> Array < Worker < Array < Int >> > => if band_index >= worker_count
+    then workers
+    else
+    {
+        def band_rows = if band_index < remainder
+        then base_rows + 1
+        else base_rows;
+        def y_start = next_row;
+        def y_end = y_start + band_rows;
+        def immediate = Concurrency::JoinedOrPanic
+        (
+            Concurrency::Join(Concurrency::Spawn((0, 2, 64, 64, 32, 1, -2.5, -1.2, 1.0, 1.2, 0, 0.0, 0.0), Answer))
+        );
+        if immediate[0] == 0
+        then ()
+        else Panic::Panic("immediate join failed");
+        def worker = Concurrency::Spawn
+        (
+            (y_start, y_end, width, height, limit, samples_per_axis, view_min_r, view_min_i, view_max_r, view_max_i, fractal_kind, julia_cr, julia_ci),
+            Answer
+        );
 
-            SpawnBands(ArrayUtil::WithAppended(workers, worker), band_index + 1, y_end)
-        };
+        SpawnBands(ArrayUtil::WithAppended(workers, worker), band_index + 1, y_end)
+    };
 
-    def empty_workers : Array<Worker<Array<Int>>> = [];
+    def empty_workers: Array < Worker < Array < Int >> > = [];
     def workers = SpawnBands(empty_workers, 0, 0);
 
-    def JoinAll = fn(join_index : Int) -> Unit =>
-        if join_index >= #workers
+    def JoinAll = fn(join_index: Int) -> Unit => if join_index >= #workers
+    then ()
+    else
+    {
+        def result = Concurrency::JoinedOrPanic(Concurrency::Join(workers[join_index]));
+        def expected_y_start = join_index * 2;
+        def expected_y_end = expected_y_start + 2;
+        if result[0] == expected_y_start
         then ()
-        else
-        {
-            def result = Concurrency::JoinedOrPanic(Concurrency::Join(workers[join_index]));
-            def expected_y_start = join_index * 2;
-            def expected_y_end = expected_y_start + 2;
-            if result[0] == expected_y_start
-            then ()
-            else Panic::Panic("unexpected y_start at " ++ (join_index as Text));
-            if result[1] == expected_y_end
-            then ()
-            else Panic::Panic("unexpected y_end at " ++ (join_index as Text));
+        else Panic::Panic("unexpected y_start at " ++ (join_index as Text));
+        if result[1] == expected_y_end
+        then ()
+        else Panic::Panic("unexpected y_end at " ++ (join_index as Text));
 
-            JoinAll(join_index + 1)
-        };
+        JoinAll(join_index + 1)
+    };
 
     JoinAll(0);
 };

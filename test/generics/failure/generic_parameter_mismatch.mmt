@@ -1,10 +1,16 @@
 module GenericParameterMismatch
 
-type Box<T> = {
+type Box<T> =
+{
     value: T
 };
 
 def int_box = Box(1);
+
 def float_box = Box(1.0);
+
 def flag = true;
-def bad = if flag then int_box else float_box;
+
+def bad = if flag
+then int_box
+else float_box;

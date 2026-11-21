@@ -3,11 +3,13 @@ import { "./instance_metadata_origin.mmt" }
 
 public export { Select, Extra }
 
-type Extra = {
+type Extra =
+{
     value: Text
 };
 
-instance Select<Extra> {
+instance Select<Extra>
+{
     type Item = Text;
     def Get = fn(value: Extra) -> Text => value.value;
 };

@@ -1,5 +1,4 @@
 module StrengthReductionKeepsEveryValue
-
 // Test: an identity is applied only where it holds for every value. x * 0
 // still computes x when that has an effect; x * 0.0 is NaN for an infinite x
 // and -0.0 for a negative one; -0.0 + 0.0 is 0.0.
@@ -8,13 +7,14 @@ import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 def Noisy = fn(x: Int) -> Int =>
 {
-	IO::PrintLine("computed " ++ (x as Text));
-	x
+    IO::PrintLine("computed " ++ (x as Text));
+    x
 };
 
 def Times = fn(x: Float, y: Float) -> Float => x * y;
 
 def negative_zero = 0.0 * (0.0 - 1.0);
+
 def infinity = 1.0 / 0.0;
 
 IO::PrintLine((Noisy(3) * 0) as Text);

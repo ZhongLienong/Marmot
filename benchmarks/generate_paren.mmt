@@ -1,27 +1,25 @@
 module GenerateParen
+import { "../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../projects/marmotstdlib/MarmotPrelude/DateTime.mmt", "../projects/marmotstdlib/MarmotPrelude/Prelude/List.mmt" }
 
-import
+use List.
 {
-	"../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-	"../projects/marmotstdlib/MarmotPrelude/DateTime.mmt",
-	"../projects/marmotstdlib/MarmotPrelude/Prelude/List.mmt"
+    List,
+    ListLength
 }
-
-use List.{List, ListLength}
 
 // v2 port: the backtracker used to append each result to a global array and
 // `return ()` early. It now threads the results through as a cons list: each
 // call returns the list with its combinations prepended. Same search tree, same
 // text building per step.
-def BackTrack = fn(len : Int, left : Int, right : Int, acc : Text, output : List<Text>) -> List<Text> =>
+def BackTrack = fn(len: Int, left: Int, right: Int, acc: Text, output: List<Text>) -> List<Text> =>
 {
-	if left < right
-	then output
-	else if (left > len) || (right > len)
-	then output
-	else if (left == len) && (right == len)
-	then List::Cons(acc, output)
-	else BackTrack(len, left, right + 1, acc ++ ")", BackTrack(len, left + 1, right, acc ++ "(", output))
+    if left < right
+    then output
+    else if (left > len) || (right > len)
+    then output
+    else if (left == len) && (right == len)
+    then List::Cons(acc, output)
+    else BackTrack(len, left, right + 1, acc ++ ")", BackTrack(len, left + 1, right, acc ++ "(", output))
 };
 
 def start = DateTime::NowUnixMillis();
@@ -30,4 +28,7 @@ def output = BackTrack(8, 0, 0, "", List::Nil());
 
 def end = DateTime::NowUnixMillis();
 
-IO::PrintLine("Parenthesis generation (" ++ (ListLength(output) as Text) ++ " combinations) benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
+IO::PrintLine
+(
+    "Parenthesis generation (" ++ (ListLength(output) as Text) ++ " combinations) benchmark took " ++ ((end - start) as Text) ++ " milliseconds"
+);

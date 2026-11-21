@@ -1,19 +1,20 @@
 module CountableAllTypes
-
 // `#` must resolve through Countable for every type. Array keeps a
 // dedicated opcode; the other four go through their prelude instances.
 
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Collections/Map.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Collections/Set.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/List.mmt", }
 
-def array: Array < Int > = [10, 20, 30];
+def array: Array<Int> = [10, 20, 30];
 
-def empty_map: Map::Map < Text, Int > = Map::Empty();
+def empty_map: Map::Map<Text, Int> = Map::Empty();
+
 def map = Map::With(Map::With(empty_map, "a", 1), "b", 2);
 
-def empty_set: Set::Set < Int > = Set::SetEmpty();
+def empty_set: Set::Set<Int> = Set::SetEmpty();
+
 def set = Set::SetWith(Set::SetWith(Set::SetWith(Set::SetWith(empty_set, 7), 8), 9), 7);
 
-def list: List::List < Int > = List::ListFromArray([1, 2, 3, 4, 5]);
+def list: List::List<Int> = List::ListFromArray([1, 2, 3, 4, 5]);
 
 def text = "hello!";
 

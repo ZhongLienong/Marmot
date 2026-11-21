@@ -1,8 +1,10 @@
 module NestedPatternsShareAConstructor
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt", "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
-use Result.{ Result }
+use Result.
+{
+    Result
+}
 
 // Two arms may share an outer constructor when they discriminate on different
 // nested patterns. An arm only covers its whole constructor when every argument
@@ -10,12 +12,11 @@ use Result.{ Result }
 
 type Code = Alpha | Beta | Other(Int);
 
-def Describe = fn(result : Result<Int, Code>) -> Text =>
-	match result with
-		case Result::Ok(n) => "ok " ++ (n as Text)
-		case Result::Err(Code::Alpha()) => "alpha"
-		case Result::Err(Code::Beta()) => "beta"
-		case Result::Err(Code::Other(n)) => "other " ++ (n as Text);
+def Describe = fn(result: Result<Int, Code>) -> Text => match result with
+    case Result::Ok(n) => "ok " ++ (n as Text)
+    case Result::Err(Code::Alpha()) => "alpha"
+    case Result::Err(Code::Beta()) => "beta"
+    case Result::Err(Code::Other(n)) => "other " ++ (n as Text);
 
 IO::PrintLine(Describe(Result::Ok(7)));
 IO::PrintLine(Describe(Result::Err(Code::Alpha())));
@@ -23,21 +24,19 @@ IO::PrintLine(Describe(Result::Err(Code::Beta())));
 IO::PrintLine(Describe(Result::Err(Code::Other(3))));
 
 // The same, one level deeper: the nested constructor itself carries a pattern.
-def Inner = fn(result : Result<Int, Result<Int, Text>>) -> Text =>
-	match result with
-		case Result::Ok(n) => "ok " ++ (n as Text)
-		case Result::Err(Result::Ok(n)) => "err-ok " ++ (n as Text)
-		case Result::Err(Result::Err(message)) => "err-err " ++ message;
+def Inner = fn(result: Result<Int, Result<Int, Text>>) -> Text => match result with
+    case Result::Ok(n) => "ok " ++ (n as Text)
+    case Result::Err(Result::Ok(n)) => "err-ok " ++ (n as Text)
+    case Result::Err(Result::Err(message)) => "err-err " ++ message;
 
 IO::PrintLine(Inner(Result::Err(Result::Ok(1))));
 IO::PrintLine(Inner(Result::Err(Result::Err("boom"))));
 
 // A literal inside the constructor discriminates too.
-def Classify = fn(value : Result<Int, Text>) -> Text =>
-	match value with
-		case Result::Ok(0) => "zero"
-		case Result::Ok(n) => "nonzero " ++ (n as Text)
-		case Result::Err(message) => message;
+def Classify = fn(value: Result<Int, Text>) -> Text => match value with
+    case Result::Ok(0) => "zero"
+    case Result::Ok(n) => "nonzero " ++ (n as Text)
+    case Result::Err(message) => message;
 
 IO::PrintLine(Classify(Result::Ok(0)));
 IO::PrintLine(Classify(Result::Ok(5)));

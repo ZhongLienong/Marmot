@@ -1,60 +1,84 @@
 module gc_independence
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt" }
 
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
-use IO.{PrintLine}
+use IO.
+{
+    PrintLine
+}
 
 type Pair =
 {
-    A : Int,
-    B : Int,
+    A: Int,
+    B: Int,
 };
 
 // Tail recursive, so 100000 iterations do not grow the stack. Still allocates
 // one Pair per iteration -- the allocation pressure is the point of this test.
 // Defined before AllocHeavyWorker: a worker rebuilds its globals by name, and
 // forward references do not resolve across a spawn.
-def AccumulatePairs = fn(i: Int, sum: Int, count: Int) -> Int =>
-    if i >= count
-    then sum
-    else
-    {
-        def p = Pair(i, i * 2);
-        AccumulatePairs(i + 1, sum + p.A + p.B, count)
-    };
+def AccumulatePairs = fn(i: Int, sum: Int, count: Int) -> Int => if i >= count
+then sum
+else
+{
+    def p = Pair(i, i * 2);
+    AccumulatePairs(i + 1, sum + p.A + p.B, count)
+};
 
-def AllocHeavyWorker = fn(ch: Channel<Int>, count: Int) -> Int => {
+def AllocHeavyWorker = fn(ch: Channel < Int >, count: Int) -> Int =>
+{
     Concurrency::Send(ch, AccumulatePairs(0, 0, count));
     0
 };
 
-def ch1 : Channel<Int> = Concurrency::MakeChannel(1);
-def ch2 : Channel<Int> = Concurrency::MakeChannel(1);
-def ch3 : Channel<Int> = Concurrency::MakeChannel(1);
-def ch4 : Channel<Int> = Concurrency::MakeChannel(1);
+def ch1: Channel < Int > = Concurrency::MakeChannel(1);
+
+def ch2: Channel < Int > = Concurrency::MakeChannel(1);
+
+def ch3: Channel < Int > = Concurrency::MakeChannel(1);
+
+def ch4: Channel < Int > = Concurrency::MakeChannel(1);
 
 def w1 = Concurrency::Spawn((ch1, 100000), AllocHeavyWorker);
+
 def w2 = Concurrency::Spawn((ch2, 100000), AllocHeavyWorker);
+
 def w3 = Concurrency::Spawn((ch3, 100000), AllocHeavyWorker);
+
 def w4 = Concurrency::Spawn((ch4, 100000), AllocHeavyWorker);
 
 def s1 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch1), "Channel closed");
+
 def s2 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch2), "Channel closed");
+
 def s3 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch3), "Channel closed");
+
 def s4 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch4), "Channel closed");
 
 PrintLine("s1=" ++ (s1 as Text));
 PrintLine("s2=" ++ (s2 as Text));
 PrintLine("s3=" ++ (s3 as Text));
 PrintLine("s4=" ++ (s4 as Text));
-PrintLine("all_equal=" ++ (if s1 == s2 then (if s2 == s3 then (if s3 == s4 then "true" else "false") else "false") else "false"));
+PrintLine
+(
+    "all_equal=" ++ (if s1 == s2
+    then (if s2 == s3
+    then (if s3 == s4
+    then "true"
+    else "false")
+    else "false")
+    else "false")
+);
 
 Concurrency::Close(ch1);
 Concurrency::Close(ch2);
 Concurrency::Close(ch3);
 Concurrency::Close(ch4);
+
 def _r1 = Concurrency::JoinedOrPanic(Concurrency::Join(w1));
+
 def _r2 = Concurrency::JoinedOrPanic(Concurrency::Join(w2));
+
 def _r3 = Concurrency::JoinedOrPanic(Concurrency::Join(w3));
+
 def _r4 = Concurrency::JoinedOrPanic(Concurrency::Join(w4));

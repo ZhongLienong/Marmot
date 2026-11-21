@@ -1,14 +1,5 @@
 module mandelbrot
-
-import
-{
-	"../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-	"../projects/marmotstdlib/MarmotPrelude/Math.mmt",
-	"../projects/marmotstdlib/MarmotPrelude/DateTime.mmt",
-	"../projects/marmotstdlib/MarmotPrelude/Iter.mmt",
-	"../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt",
-	"../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt"
-}
+import { "../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../projects/marmotstdlib/MarmotPrelude/Math.mmt", "../projects/marmotstdlib/MarmotPrelude/DateTime.mmt", "../projects/marmotstdlib/MarmotPrelude/Iter.mmt", "../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt" }
 
 // Renders a Mandelbrot set and a Julia set to PPM files, one worker per band.
 //
@@ -19,57 +10,112 @@ import
 
 type Complex =
 {
-	Real : Float,
-	Imag : Float
+    Real: Float,
+    Imag: Float
 };
 
-def ComplexAbs = fn(value : Complex) -> Float => Math::SquareRoot((value.Real * value.Real) + (value.Imag * value.Imag));
-def ComplexAdd = fn(left : Complex, right : Complex) -> Complex => Complex(left.Real + right.Real, left.Imag + right.Imag);
-def ComplexSquare = fn(value : Complex) -> Complex => Complex((value.Real * value.Real) - (value.Imag * value.Imag), 2.0 * value.Real * value.Imag);
+def ComplexAbs = fn(value: Complex) -> Float => Math::SquareRoot((value.Real * value.Real) + (value.Imag * value.Imag));
+
+def ComplexAdd = fn(left: Complex, right: Complex) -> Complex => Complex(left.Real + right.Real, left.Imag + right.Imag);
+
+def ComplexSquare = fn(value: Complex) -> Complex => Complex((value.Real * value.Real) - (value.Imag * value.Imag), 2.0 * value.Real * value.Imag);
 
 // How many squarings it takes to escape, up to the limit.
-def EscapeCount = fn(z : Complex, c : Complex, iterations : Int, limit : Int) -> Int =>
-	if iterations >= limit
-	then limit
-	else
-	{
-		def next = ComplexAdd(ComplexSquare(z), c);
-		if ComplexAbs(next) >= 2.0 then iterations else EscapeCount(next, c, iterations + 1, limit)
-	};
+def EscapeCount = fn(z: Complex, c: Complex, iterations: Int, limit: Int) -> Int => if iterations >= limit
+then limit
+else
+{
+    def next = ComplexAdd(ComplexSquare(z), c);
+    if ComplexAbs(next) >= 2.0
+    then iterations
+    else EscapeCount(next, c, iterations + 1, limit)
+};
 
-def ColorOf = fn(iterations : Int, limit : Int) -> Text =>
-	if iterations >= limit
-	then "0 0 0\n"
-	else ((iterations * 5) % 256 as Text) ++ " " ++ ((iterations * 10) % 256 as Text) ++ " " ++ ((iterations * 15) % 256 as Text) ++ "\n";
+def ColorOf = fn(iterations: Int, limit: Int) -> Text => if iterations >= limit
+then "0 0 0\n"
+else ((iterations * 5) % 256 as Text) ++ " " ++ ((iterations * 10) % 256 as Text) ++ " " ++ ((iterations * 15) % 256 as Text) ++ "\n";
 
-def Join = fn(pieces : Array<Text>) -> Text => Iter::Fold(Iter::OfArray(pieces), "", fn(acc : Text, piece : Text) -> Text => acc ++ piece);
+def Join = fn(pieces: Array<Text>) -> Text => Iter::Fold(Iter::OfArray(pieces), "", fn(acc: Text, piece: Text) -> Text => acc ++ piece);
 
-def MandelbrotRow = fn(y : Int, width : Int, height : Int, limit : Int) -> Text =>
-	Join([ColorOf(EscapeCount(Complex(0.0, 0.0), Complex(-2.05 + ((x as Float) * 2.6 / (width as Float)), -1.2 + ((y as Float) * 2.4 / (height as Float))), 0, limit), limit) for x in 0..1..width]);
+def MandelbrotRow = fn(y: Int, width: Int, height: Int, limit: Int) -> Text => Join
+(
+    [ColorOf
+    (
+        EscapeCount
+        (
+            Complex(0.0, 0.0),
+            Complex
+            (
+                -2.05 + ((x as Float) * 2.6 / (width as Float)),
+                -1.2 + ((y as Float) * 2.4 / (height as Float))
+            ),
+            0,
+            limit
+        ),
+        limit
+    ) for x in 0..1..width]
+);
 
-def JuliaRow = fn(y : Int, width : Int, height : Int, limit : Int, c : Complex) -> Text =>
-	Join([ColorOf(EscapeCount(Complex(-2.5 + ((x as Float) / (width as Float) * 5.0), -1.2 + ((y as Float) / (height as Float) * 2.4)), c, 0, limit), limit) for x in 0..1..width]);
+def JuliaRow = fn(y: Int, width: Int, height: Int, limit: Int, c: Complex) -> Text => Join
+(
+    [ColorOf
+    (
+        EscapeCount
+        (
+            Complex
+            (
+                -2.5 + ((x as Float) / (width as Float) * 5.0),
+                -1.2 + ((y as Float) / (height as Float) * 2.4)
+            ),
+            c,
+            0,
+            limit
+        ),
+        limit
+    ) for x in 0..1..width]
+);
 
-def Header = fn(width : Int, height : Int) -> Text => "P3\n" ++ (width as Text) ++ " " ++ (height as Text) ++ "\n255\n";
+def Header = fn(width: Int, height: Int) -> Text => "P3\n" ++ (width as Text) ++ " " ++ (height as Text) ++ "\n255\n";
 
 // One worker per band of rows. The lambda captures width, height and limit, which
 // cross to the worker with it.
-def RenderMandelbrot = fn(width : Int, height : Int, limit : Int, band_height : Int) -> Text =>
-	Header(width, height) ++ Join(Concurrency::ParallelMap([y for y in 0..1..height], fn(y : Int) -> Text => MandelbrotRow(y, width, height, limit), band_height));
+def RenderMandelbrot = fn(width: Int, height: Int, limit: Int, band_height: Int) -> Text => Header(width, height) ++ Join
+(
+    Concurrency::ParallelMap
+    (
+        [y for y in 0..1..height],
+        fn(y: Int) -> Text => MandelbrotRow(y, width, height, limit),
+        band_height
+    )
+);
 
-def RenderJulia = fn(width : Int, height : Int, limit : Int, band_height : Int, c : Complex) -> Text =>
-	Header(width, height) ++ Join(Concurrency::ParallelMap([y for y in 0..1..height], fn(y : Int) -> Text => JuliaRow(y, width, height, limit, c), band_height));
+def RenderJulia = fn(width: Int, height: Int, limit: Int, band_height: Int, c: Complex) -> Text => Header(width, height) ++ Join
+(
+    Concurrency::ParallelMap
+    (
+        [y for y in 0..1..height],
+        fn(y: Int) -> Text => JuliaRow(y, width, height, limit, c),
+        band_height
+    )
+);
 
 def width = 480;
+
 def height = 270;
+
 def limit = 20;
+
 def band_height = 68;
 
 def start = DateTime::NowUnixMillis();
 
 def _wrote_mandelbrot = IO::TryWriteFile("mandelbrot.ppm", RenderMandelbrot(width, height, limit, band_height));
+
 def _wrote_julia = IO::TryWriteFile("julia.ppm", RenderJulia(width, height, limit, band_height, Complex(-0.8, 0.156)));
 
 def finish = DateTime::NowUnixMillis();
 
-IO::PrintLine("Rendered " ++ (width as Text) ++ "x" ++ (height as Text) ++ " in " ++ ((finish - start) as Text) ++ " ms");
+IO::PrintLine
+(
+    "Rendered " ++ (width as Text) ++ "x" ++ (height as Text) ++ " in " ++ ((finish - start) as Text) ++ " ms"
+);

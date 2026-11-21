@@ -4,4 +4,4 @@ module GenericLambdaAnnotated
 // Expected: rejected. The binding has no single type to annotate, because
 // its type differs at each call site.
 
-def Id : fn(Int) -> Int = fn<T>(x: T) -> T => x;
+def Id: fn(Int) -> Int = fn<T>(x: T) -> T => x;

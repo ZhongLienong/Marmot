@@ -1,5 +1,4 @@
 module CountableNoInstance
-
 // Regression guard for the miscompile that motivated removing the `#`
 // name-suffix dispatch. `MapData` is one of the names the old dispatch
 // matched exactly, and importing Map.mmt puts `MapCount` in scope, so
@@ -9,7 +8,10 @@ module CountableNoInstance
 
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Collections/Map.mmt", }
 
-type MapData = { url: Text };
+type MapData =
+{
+    url: Text
+};
 
 def value = MapData("example.com");
 IO::PrintLine(#value as Text);

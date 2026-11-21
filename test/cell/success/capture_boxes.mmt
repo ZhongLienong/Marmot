@@ -1,9 +1,5 @@
 module CellCaptureBoxes
-
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt"
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 // A user cell held in a local must read back as the cell, whether or not a
 // closure has boxed that local for capture. Capture boxes and user cells are
@@ -11,20 +7,21 @@ import
 
 def NotCaptured = fn() -> Int =>
 {
-	def c = ref 1;
-	c := (*c) + 1;
-	*c
+    def c = ref 1;
+    c := (*c) + 1;
+    *c
 };
 
 def Captured = fn() -> Int =>
 {
-	def c = ref 1;
-	def Bump = fn() -> Int => {
-		c := (*c) + 10;
-		*c
-	};
-	def after_closure = Bump();
-	(*c) + after_closure
+    def c = ref 1;
+    def Bump = fn() -> Int =>
+    {
+        c := (*c) + 10;
+        *c
+    };
+    def after_closure = Bump();
+    (*c) + after_closure
 };
 
 IO::PrintLine((NotCaptured() as Text) ++ " " ++ (Captured() as Text));

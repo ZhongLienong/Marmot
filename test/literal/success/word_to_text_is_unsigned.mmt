@@ -1,21 +1,22 @@
 module WordToTextIsUnsigned
-
 // Regression: `Word as Text` lowered to WORD_TO_INT + INT_TO_TEXT, so any Word
 // above 2^63 - 1 printed as a negative number.
 
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt"
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
-def max : Word = 0xFFFFFFFFFFFFFFFF;
-def high_bit : Word = 0x8000000000000000;
-def two : Word = 0x2 as Word;
-def radix : Word = 0x100 as Word;
+def max: Word = 0xFFFFFFFFFFFFFFFF;
+
+def high_bit: Word = 0x8000000000000000;
+
+def two: Word = 0x2 as Word;
+
+def radix: Word = 0x100 as Word;
 
 IO::PrintLine("max=" ++ (max as Text));
 IO::PrintLine("high_bit=" ++ (high_bit as Text));
 IO::PrintLine("max_over_two=" ++ ((max / two) as Text));
 IO::PrintLine("max_mod_radix=" ++ ((max % radix) as Text));
-IO::PrintLine("max_greater=" ++ (if max > two then "true" else "false"));
+IO::PrintLine("max_greater=" ++ (if max > two
+then "true"
+else "false"));
 IO::PrintLine("small=" ++ (two as Text));

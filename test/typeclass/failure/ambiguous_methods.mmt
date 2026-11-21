@@ -1,33 +1,39 @@
 module AmbiguousMethods
-
 // Test: Ambiguous method names across multiple typeclasses
 // This should produce a compile-time error
 
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
-class Show<T> {
+class Show<T>
+{
     display: fn(value: T) -> Text;
 };
 
-class Debug<T> {
+class Debug<T>
+{
     display: fn(value: T) -> Text;  // Same name as Show::display
 };
 
-instance Show<Int> {
-    def display = fn(value: Int) -> Text => {
+instance Show<Int>
+{
+    def display = fn(value: Int) -> Text =>
+    {
         "Show: " ++ (value as Text)
     };
 };
 
-instance Debug<Int> {
-    def display = fn(value: Int) -> Text => {
+instance Debug<Int>
+{
+    def display = fn(value: Int) -> Text =>
+    {
         "Debug: " ++ (value as Text)
     };
 };
 
 // ERROR: Function with BOTH constraints - which display?
 // With qualified class methods required, unqualified access is rejected.
-def print_both = fn<T>(x: T) -> Text where Show<T>, Debug<T> => {
+def print_both = fn<T>(x: T) -> Text where Show<T>, Debug<T> =>
+{
     display(x)  // Error: unqualified class method
 };
 

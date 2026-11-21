@@ -1,5 +1,4 @@
 module IndexableGenericUserType
-
 // A user-defined generic container indexed with `[]`. This is the case an
 // exact-key instance lookup cannot serve: Indexable<Bag<T>, Int> has to
 // match a request for Bag<Int> and again for Bag<Text>, which needs
@@ -7,19 +6,25 @@ module IndexableGenericUserType
 
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Indexable.mmt", }
 
-use Indexable.{ Indexable }
+use Indexable.
+{
+    Indexable
+}
 
-type Bag < T > = {
-    items: Array < T >
+type Bag<T> =
+{
+    items: Array<T>
 };
 
-instance Indexable < Bag < T >, Int > {
+instance Indexable<Bag<T>, Int>
+{
     type Element = T;
-    def Get = fn(container: Bag < T >, index: Int) -> T => container.items[index];
+    def Get = fn(container: Bag<T>, index: Int) -> T => container.items[index];
 };
 
-def ints: Bag < Int > = Bag ([10, 20, 30]);
-def texts: Bag < Text > = Bag (["a", "b"]);
+def ints: Bag<Int> = Bag([10, 20, 30]);
+
+def texts: Bag<Text> = Bag(["a", "b"]);
 
 IO::PrintLine(ints[1] as Text);
 IO::PrintLine(Indexable::Get(ints, 1) as Text);

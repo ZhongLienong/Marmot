@@ -1,17 +1,21 @@
 module worker_many_spawn
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt" }
 
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
-use IO.{PrintLine}
+use IO.
+{
+    PrintLine
+}
 
-def IdentityWorker = fn(ch: Channel<Int>, val: Int) -> Int => {
+def IdentityWorker = fn(ch: Channel < Int >, val: Int) -> Int =>
+{
     Concurrency::Send(ch, val);
     0
 };
 
 def n = 16;
-def ch : Channel<Int> = Concurrency::MakeChannel(n);
+
+def ch: Channel < Int > = Concurrency::MakeChannel(n);
 
 // Spawning is an effect, so `for` still suits it.
 for i in 0..1..n
@@ -20,14 +24,23 @@ for i in 0..1..n
 };
 
 // Receiving accumulates, so it becomes a tail-recursive helper.
-def Collect = fn(source: Channel<Int>, j: Int, sum: Int, limit: Int) -> Int =>
-    if j >= limit then sum else Collect(source, j + 1, sum + (Option::OptionUnwrapOrPanic(Concurrency::Receive(source), "Channel closed")), limit);
+def Collect = fn(source: Channel < Int >, j: Int, sum: Int, limit: Int) -> Int => if j >= limit
+then sum
+else Collect
+(
+    source,
+    j + 1,
+    sum + (Option::OptionUnwrapOrPanic(Concurrency::Receive(source), "Channel closed")),
+    limit
+);
 
 def sum = Collect(ch, 0, 0, n);
 
 PrintLine("count=" ++ (n as Text));
 PrintLine("sum=" ++ (sum as Text));
 PrintLine("expected=" ++ (((n * (n - 1)) / 2) as Text));
-PrintLine("match=" ++ (if sum == ((n * (n - 1)) / 2) then "true" else "false"));
+PrintLine("match=" ++ (if sum == ((n * (n - 1)) / 2)
+then "true"
+else "false"));
 
 Concurrency::Close(ch);

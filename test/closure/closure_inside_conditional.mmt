@@ -1,23 +1,19 @@
 module ClosureInsideConditional
-
-import
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-}
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
 // Was: a function local reassigned inside an if-branch. The branch now yields
 // the closure instead, which is what the test was really checking -- that a
 // closure created inside a conditional captures that branch's binding.
 def foo = fn() -> Int =>
 {
-	def getFunc = if true
-		then
-		{
-			def y : Int = 5;
-			fn() -> Int => y
-		}
-		else fn() -> Int => 1;
-	getFunc()
+    def getFunc = if true
+    then
+    {
+        def y: Int = 5;
+        fn() -> Int => y
+    }
+    else fn() -> Int => 1;
+    getFunc()
 };
 
 IO::PrintLine(foo() as Text);  // Should print 5

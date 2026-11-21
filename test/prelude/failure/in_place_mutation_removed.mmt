@@ -1,13 +1,9 @@
 module InPlaceMutationRemoved
-
 // Appendable, Prependable and Extendable mutated their argument in place and
 // were deleted from the prelude. This asserts the module is genuinely gone:
 // the import itself must fail to resolve, not some later use of the class.
 
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/Appendable.mmt",
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/Appendable.mmt", }
 
 def arr = [1];
 Appendable::Append(arr, 2);

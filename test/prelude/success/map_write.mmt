@@ -1,21 +1,25 @@
 module PreludeMapWrite
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/Collections/Map.mmt", "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt" }
 
-def Expect = fn(condition: Bool, message: Text) -> Unit => if condition then () else Panic::Panic(message);
+def Expect = fn(condition: Bool, message: Text) -> Unit => if condition
+then ()
+else Panic::Panic(message);
 
-def InsertRange = fn(map: Map::Map < Int, Int >, next: Int, stop: Int) -> Map::Map < Int, Int > =>
-    if next >= stop then map else InsertRange(Map::With(map, next, next * 10), next + 1, stop);
+def InsertRange = fn(map: Map::Map<Int, Int>, next: Int, stop: Int) -> Map::Map<Int, Int> => if next >= stop
+then map
+else InsertRange(Map::With(map, next, next * 10), next + 1, stop);
 
-def CheckRange = fn(map: Map::Map < Int, Int >, next: Int, stop: Int) -> Bool =>
-    if next >= stop
-    then true
-    else if Map::GetOr(map, next, - 1) == (next * 10) then CheckRange(map, next + 1, stop) else false;
+def CheckRange = fn(map: Map::Map<Int, Int>, next: Int, stop: Int) -> Bool => if next >= stop
+then true
+else if Map::GetOr(map, next, -1) == (next * 10)
+then CheckRange(map, next + 1, stop)
+else false;
 
-def empty : Map::Map < Int, Text > = Map::Empty();
+def empty: Map::Map<Int, Text> = Map::Empty();
 
 // The property the whole design rests on: inserting must not disturb the source.
 def one = Map::With(empty, 1, "one");
+
 def two = Map::With(one, 2, "two");
 Expect(Map::Count(empty) == 0, "the empty map is untouched by inserts");
 Expect(Map::Count(one) == 1, "the first map is untouched by the second insert");
@@ -30,25 +34,28 @@ Expect(Map::GetOr(replaced, 1, "?") == "uno", "replacing updates the value");
 Expect(Map::GetOr(two, 1, "?") == "one", "replacing leaves the source alone");
 
 // 1 and 33 share a chunk at depth 0 and differ at depth 1, forcing a deeper branch.
-def deep0 : Map::Map < Int, Text > = Map::Empty();
+def deep0: Map::Map<Int, Text> = Map::Empty();
+
 def deep1 = Map::With(deep0, 1, "a");
+
 def deep2 = Map::With(deep1, 33, "b");
 Expect(Map::Count(deep2) == 2, "a chunk collision still stores both");
 Expect(Map::GetOr(deep2, 1, "?") == "a", "the first key survives the split");
 Expect(Map::GetOr(deep2, 33, "?") == "b", "the second key is reachable past the split");
 
 // Enough keys to branch widely.
-def wide0 : Map::Map < Int, Int > = Map::Empty();
+def wide0: Map::Map<Int, Int> = Map::Empty();
+
 def wide = InsertRange(wide0, 0, 80);
 Expect(Map::Count(wide) == 80, "every key is counted once");
 Expect(CheckRange(wide, 0, 80), "every key reads back");
-Expect(Map::GetOr(wide, 80, - 1) == - 1, "an absent key is absent");
+Expect(Map::GetOr(wide, 80, -1) == -1, "an absent key is absent");
 
 // Removal, including collapsing back down.
 def shrunk = Map::Without(wide, 40);
 Expect(Map::Count(shrunk) == 79, "removal decrements the count");
-Expect(Map::GetOr(shrunk, 40, - 1) == - 1, "the removed key is gone");
-Expect(Map::GetOr(wide, 40, - 1) == 400, "removal leaves the source alone");
+Expect(Map::GetOr(shrunk, 40, -1) == -1, "the removed key is gone");
+Expect(Map::GetOr(wide, 40, -1) == 400, "removal leaves the source alone");
 Expect(Map::Count(Map::Without(wide, 999)) == 80, "removing an absent key is a no-op");
 
 def emptied = Map::Without(Map::Without(two, 1), 2);

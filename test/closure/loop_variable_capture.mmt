@@ -1,11 +1,5 @@
 module LoopVariableCapture
-
-import
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-	"../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt",
-	"../../projects/marmotstdlib/MarmotPrelude/Prelude/List.mmt",
-}
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt", "../../projects/marmotstdlib/MarmotPrelude/Prelude/List.mmt", }
 
 // Regression: a closure built in an array comprehension captured the loop
 // variable's single, shared cell rather than that iteration's value, so every
@@ -20,53 +14,109 @@ import
 // their own. This is the same thing a local declared inside the body already
 // got, because a block re-pushes its slot on every iteration.
 
-def Expect = fn(condition : Bool, message : Text) -> Unit =>
-	if condition then () else Panic::Panic(message);
+def Expect = fn(condition: Bool, message: Text) -> Unit => if condition
+then ()
+else Panic::Panic(message);
 
 // Range source, Int loop variable.
 def ranged = [fn() -> Int => i for i in 0..1..3];
-Expect((ranged[0]() == 0) && (ranged[1]() == 1) && (ranged[2]() == 2), "each closure over a range must see its own iteration's value");
-IO::PrintLine("range: " ++ (ranged[0]() as Text) ++ " " ++ (ranged[1]() as Text) ++ " " ++ (ranged[2]() as Text));
+Expect
+(
+    (ranged[0]() == 0) && (ranged[1]() == 1) && (ranged[2]() == 2),
+    "each closure over a range must see its own iteration's value"
+);
+IO::PrintLine
+(
+    "range: " ++ (ranged[0]() as Text) ++ " " ++ (ranged[1]() as Text) ++ " " ++ (ranged[2]() as Text)
+);
 
 // Array source, Text loop variable.
 def texts = [fn() -> Text => s for s in ["a", "b", "c"]];
-Expect((texts[0]() == "a") && (texts[1]() == "b") && (texts[2]() == "c"), "each closure over an array must see its own element");
+Expect
+(
+    (texts[0]() == "a") && (texts[1]() == "b") && (texts[2]() == "c"),
+    "each closure over an array must see its own element"
+);
 IO::PrintLine("array: " ++ texts[0]() ++ " " ++ texts[1]() ++ " " ++ texts[2]());
 
 // Iterable source.
 def listed = [fn() -> Int => x for x in List::ListIterNew(List::ListFromArray([7, 8, 9]))];
-Expect((listed[0]() == 7) && (listed[1]() == 8) && (listed[2]() == 9), "each closure over an Iterable must see its own item");
-IO::PrintLine("iterable: " ++ (listed[0]() as Text) ++ " " ++ (listed[1]() as Text) ++ " " ++ (listed[2]() as Text));
+Expect
+(
+    (listed[0]() == 7) && (listed[1]() == 8) && (listed[2]() == 9),
+    "each closure over an Iterable must see its own item"
+);
+IO::PrintLine
+(
+    "iterable: " ++ (listed[0]() as Text) ++ " " ++ (listed[1]() as Text) ++ " " ++ (listed[2]() as Text)
+);
 
 // Inside a function, alongside a captured parameter.
-def Scaled = fn(k : Int) -> Array<fn() -> Int> => [fn() -> Int => i * k for i in 0..1..3];
+def Scaled = fn(k: Int) -> Array<fn() -> Int> => [fn() -> Int => i * k for i in 0..1..3];
+
 def scaled = Scaled(10);
-Expect((scaled[0]() == 0) && (scaled[1]() == 10) && (scaled[2]() == 20), "a loop variable captured next to a parameter must still be per iteration");
-IO::PrintLine("in function: " ++ (scaled[0]() as Text) ++ " " ++ (scaled[1]() as Text) ++ " " ++ (scaled[2]() as Text));
+Expect
+(
+    (scaled[0]() == 0) && (scaled[1]() == 10) && (scaled[2]() == 20),
+    "a loop variable captured next to a parameter must still be per iteration"
+);
+IO::PrintLine
+(
+    "in function: " ++ (scaled[0]() as Text) ++ " " ++ (scaled[1]() as Text) ++ " " ++ (scaled[2]() as Text)
+);
 
 // Nested comprehensions capturing both loop variables.
 def grid = [[fn() -> Int => (i * 10) + j for j in 0..1..2] for i in 0..1..2];
-Expect((grid[0][0]() == 0) && (grid[0][1]() == 1) && (grid[1][0]() == 10) && (grid[1][1]() == 11), "nested loops must each bind their own variable per iteration");
-IO::PrintLine("nested: " ++ (grid[0][0]() as Text) ++ " " ++ (grid[0][1]() as Text) ++ " " ++ (grid[1][0]() as Text) ++ " " ++ (grid[1][1]() as Text));
+Expect
+(
+    (grid[0][0]() == 0) && (grid[0][1]() == 1) && (grid[1][0]() == 10) && (grid[1][1]() == 11),
+    "nested loops must each bind their own variable per iteration"
+);
+IO::PrintLine
+(
+    "nested: " ++ (grid[0][0]() as Text) ++ " " ++ (grid[0][1]() as Text) ++ " " ++ (grid[1][0]() as Text) ++ " " ++ (grid[1][1]() as Text)
+);
 
 // A variable from outside the loop is still shared, correctly.
 def outer = 1000;
+
 def offset = [fn() -> Int => i + outer for i in 0..1..3];
-Expect((offset[0]() == 1000) && (offset[2]() == 1002), "an outer variable captured beside the loop variable must be unaffected");
-IO::PrintLine("with outer: " ++ (offset[0]() as Text) ++ " " ++ (offset[1]() as Text) ++ " " ++ (offset[2]() as Text));
+Expect
+(
+    (offset[0]() == 1000) && (offset[2]() == 1002),
+    "an outer variable captured beside the loop variable must be unaffected"
+);
+IO::PrintLine
+(
+    "with outer: " ++ (offset[0]() as Text) ++ " " ++ (offset[1]() as Text) ++ " " ++ (offset[2]() as Text)
+);
 
 // A local declared inside the body was already correct; it must stay correct.
-def bodied = [{ def d = i * 2; fn() -> Int => d } for i in 0..1..3];
-Expect((bodied[0]() == 0) && (bodied[1]() == 2) && (bodied[2]() == 4), "a local declared inside the loop body must stay per iteration");
-IO::PrintLine("body local: " ++ (bodied[0]() as Text) ++ " " ++ (bodied[1]() as Text) ++ " " ++ (bodied[2]() as Text));
+def bodied = [
+{
+    def d = i * 2;
+    fn() -> Int => d
+}
+for i in 0..1..3];
+Expect
+(
+    (bodied[0]() == 0) && (bodied[1]() == 2) && (bodied[2]() == 4),
+    "a local declared inside the loop body must stay per iteration"
+);
+IO::PrintLine
+(
+    "body local: " ++ (bodied[0]() as Text) ++ " " ++ (bodied[1]() as Text) ++ " " ++ (bodied[2]() as Text)
+);
 
 // Boundary: only loop variables may rebind without going through their cell.
 // A recursive local closure is captured BEFORE its value is stored, so its
 // store must still write into the cell or the recursive call reads nothing.
-def Factorial = fn(n : Int) -> Int =>
+def Factorial = fn(n: Int) -> Int =>
 {
-	def fact = fn(m : Int) -> Int => if m <= 1 then 1 else m * fact(m - 1);
-	fact(n)
+    def fact = fn(m: Int) -> Int => if m <= 1
+    then 1
+    else m * fact(m - 1);
+    fact(n)
 };
 Expect(Factorial(5) == 120, "a recursive local closure must still see itself");
 IO::PrintLine("recursive local: " ++ (Factorial(5) as Text));

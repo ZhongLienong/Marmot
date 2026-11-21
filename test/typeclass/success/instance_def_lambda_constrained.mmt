@@ -1,24 +1,30 @@
 module InstanceDefLambdaConstrained
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
-class Show<T> {
+class Show<T>
+{
     show: fn(value: T) -> Text;
 };
 
-type Boxed<T> = { item: T };
+type Boxed<T> =
+{
+    item: T
+};
 
-instance Show<Int> {
+instance Show<Int>
+{
     def show = fn(value: Int) -> Text => "Int(" ++ (value as Text) ++ ")";
 };
 
 // A constrained instance whose method is written with the binding form still
 // dispatches: the instance's `where` constraints must reach the method body.
-instance Show<Boxed<T>> where Show<T> {
+instance Show<Boxed<T>> where Show<T>
+{
     def show = fn(value: Boxed<T>) -> Text => "Boxed(" ++ Show::show(value.item) ++ ")";
 };
 
 def inner = Boxed(7);
+
 def outer = Boxed(Boxed(9));
 
 IO::PrintLine(Show::show(inner));

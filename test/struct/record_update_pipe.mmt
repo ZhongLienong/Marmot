@@ -1,5 +1,4 @@
 module RecordUpdatePipe
-
 // Builder-style piping is the reason record update exists: without it there is no way to
 // produce a modified copy of a struct, so a struct cannot appear in a pipeline at all.
 //
@@ -7,34 +6,40 @@ module RecordUpdatePipe
 // function-body brace at Parser.cpp's ParseFunction, NOT through ParsePrimary, so it is a
 // separate dispatch site and needs its own coverage.
 
-import
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-}
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
 type Config =
 {
-	host : Text,
-	port : Int,
-	tls : Bool
+    host: Text,
+    port: Int,
+    tls: Bool
 };
 
-def WithPort = fn(c : Config, p : Int) -> Config => { c with port = p };
-
-def WithTls = fn(c : Config, t : Bool) -> Config => { c with tls = t };
-
-def WithHost = fn(c : Config, h : Text) -> Config => { c with host = h };
-
-def Describe = fn(c : Config) -> Text =>
+def WithPort = fn(c: Config, p: Int) -> Config =>
 {
-	c.host ++ ":" ++ (c.port as Text) ++ " tls=" ++ (if c.tls then "on" else "off")
+    c with port = p
+};
+
+def WithTls = fn(c: Config, t: Bool) -> Config =>
+{
+    c with tls = t
+};
+
+def WithHost = fn(c: Config, h: Text) -> Config =>
+{
+    c with host = h
+};
+
+def Describe = fn(c: Config) -> Text =>
+{
+    c.host ++ ":" ++ (c.port as Text) ++ " tls=" ++ (if c.tls
+    then "on"
+    else "off")
 };
 
 def base = Config("localhost", 80, false);
 
-def configured = base
-	|> WithPort(8080)
-	|> WithTls(true);
+def configured = base |> WithPort(8080) |> WithTls(true);
 
 IO::PrintLine("base: " ++ Describe(base));
 IO::PrintLine("configured: " ++ Describe(configured));
@@ -44,19 +49,25 @@ IO::PrintLine("rehosted: " ++ Describe(rehosted));
 
 // A record update in function-body position still runs through the postfix chain, so it
 // can be projected immediately - the same as it behaves in expression position.
-def PortAfterBump = fn(c : Config) -> Int => { c with port = c.port + 1 }.port;
+def PortAfterBump = fn(c: Config) -> Int =>
+{
+    c with port = c.port + 1
+}
+.port;
 
 IO::PrintLine("bumped port: " ++ (PortAfterBump(base) as Text));
 
 // The block fast path is unchanged: `fn() => {}()` must still parse the call separately
 // rather than swallowing the parens into the body.
-def unit_maker = fn() -> Unit => {};
+def unit_maker = fn() -> Unit =>
+{
+};
 unit_maker();
 
 def block_bodied = fn() -> Int =>
 {
-	def local = 3;
-	local * 3
+    def local = 3;
+    local * 3
 };
 
 IO::PrintLine("block bodied: " ++ (block_bodied() as Text));

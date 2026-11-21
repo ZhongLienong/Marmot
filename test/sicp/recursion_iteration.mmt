@@ -1,49 +1,62 @@
 module RecursionIteration
-
-import
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-}
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
 // factorial linear recursion
-def factorial_linear_recursion = fn(n : Int) -> Int => if n == 1 then 1 else n * factorial_linear_recursion(n - 1);
+def factorial_linear_recursion = fn(n: Int) -> Int => if n == 1
+then 1
+else n * factorial_linear_recursion(n - 1);
 
 // factorial iteration
-def factorial_iteration = fn(n : Int) -> Int =>
+def factorial_iteration = fn(n: Int) -> Int =>
 {
-	def fact_iter = fn(product : Int, counter : Int) -> Int => if counter > n then product else fact_iter(product * counter, counter + 1);
-	fact_iter(1, 1)
+    def fact_iter = fn(product: Int, counter: Int) -> Int => if counter > n
+    then product
+    else fact_iter(product * counter, counter + 1);
+    fact_iter(1, 1)
 };
 
 // fibonacci number tree recursion
-def fib_tree_recursion = fn(n : Int) -> Int => if n < 2 then n else fib_tree_recursion(n - 1) + fib_tree_recursion(n - 2);
+def fib_tree_recursion = fn(n: Int) -> Int => if n < 2
+then n
+else fib_tree_recursion(n - 1) + fib_tree_recursion(n - 2);
 
 // fibonacci iteration
-def fib_iteration = fn(n : Int) -> Int =>
+def fib_iteration = fn(n: Int) -> Int =>
 {
-	def fib_iter = fn(a : Int, b : Int, count : Int) -> Int => if count == 0 then b else fib_iter(a + b, a, count - 1);
-	fib_iter(1, 0, n)
+    def fib_iter = fn(a: Int, b: Int, count: Int) -> Int => if count == 0
+    then b
+    else fib_iter(a + b, a, count - 1);
+    fib_iter(1, 0, n)
 };
 
 // exercise 1.11 tree recursion
-def exercise_111_tree_recursion = fn(n : Int) -> Int => if n < 3 then n else exercise_111_tree_recursion(n - 1) + (2 * exercise_111_tree_recursion(n - 2)) + (3 * exercise_111_tree_recursion(n - 3));
+def exercise_111_tree_recursion = fn(n: Int) -> Int => if n < 3
+then n
+else exercise_111_tree_recursion(n - 1) + (2 * exercise_111_tree_recursion(n - 2)) + (3 * exercise_111_tree_recursion(n - 3));
 
 // exercise 1.11 iteration
-def exercise_111_iteration = fn(n : Int) -> Int =>
+def exercise_111_iteration = fn(n: Int) -> Int =>
 {
-	def exercise_111_iter = fn(a : Int, b : Int, c : Int, count : Int) -> Int => if count == 0 then a else exercise_111_iter(a + (2 * b) + (3 * c), a, b, count - 1);
-	if n < 3 then n else exercise_111_iter(2, 1, 0, n - 2)
+    def exercise_111_iter = fn(a: Int, b: Int, c: Int, count: Int) -> Int => if count == 0
+    then a
+    else exercise_111_iter(a + (2 * b) + (3 * c), a, b, count - 1);
+    if n < 3
+    then n
+    else exercise_111_iter(2, 1, 0, n - 2)
 };
 
 // exercise 1.12
-def pascal_triangle_elem = fn(row : Int, col : Int) -> Int => if ((col == 1) || (row == col)) then 1 else pascal_triangle_elem(row - 1, col) + pascal_triangle_elem(row - 1, col - 1);
-
-
+def pascal_triangle_elem = fn(row: Int, col: Int) -> Int => if ((col == 1) || (row == col))
+then 1
+else pascal_triangle_elem(row - 1, col) + pascal_triangle_elem(row - 1, col - 1);
 
 IO::PrintLine("fact(6) using linear recursion: " ++ (factorial_linear_recursion(6) as Text));
 IO::PrintLine("fact(6) using iteration: " ++ (factorial_iteration(6) as Text));
 IO::PrintLine("fib(10) using tree recursion: " ++ (fib_tree_recursion(10) as Text));
 IO::PrintLine("fib(10) using iteration: " ++ (fib_iteration(10) as Text));
-IO::PrintLine("exercise_111_tree_recursion(10) using tree recursion: " ++ (exercise_111_tree_recursion(10) as Text));
+IO::PrintLine
+(
+    "exercise_111_tree_recursion(10) using tree recursion: " ++ (exercise_111_tree_recursion(10) as Text)
+);
 IO::PrintLine("exercise_111_iteration(10) using iteration: " ++ (exercise_111_iteration(10) as Text));
 IO::PrintLine("exercise_112_pascal_triangle_4_3: " ++ (pascal_triangle_elem(4, 3) as Text));

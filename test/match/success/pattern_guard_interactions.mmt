@@ -1,46 +1,40 @@
 module MatchPatternGuardInteractions
-
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
 type Step = Continue(Int) | Stop(Int);
 
 def Impure = fn(n: Int) -> Bool =>
 {
-	IO::PrintLine("guard ran on " ++ (n as Text));
-	n > 0
+    IO::PrintLine("guard ran on " ++ (n as Text));
+    n > 0
 };
 
 def constant_scrutinee = match 5 with
-	case 5 if Impure(5) => "guarded five"
-	case 5 => "plain five"
-	case _ => "other"
-;
+    case 5 if Impure(5) => "guarded five"
+    case 5 => "plain five"
+    case _ => "other";
 
 IO::PrintLine("constant_scrutinee=" ++ constant_scrutinee);
 
 def CountDown = fn(s: Step, acc: Int) -> Int => match s with
-	case Step::Continue(n) if n > 0 => CountDown(Step::Continue(n - 1), acc + n)
-	case Step::Continue(_) => acc
-	case Step::Stop(n) => acc + n
-;
+    case Step::Continue(n) if n > 0 => CountDown(Step::Continue(n - 1), acc + n)
+    case Step::Continue(_) => acc
+    case Step::Stop(n) => acc + n;
 
 IO::PrintLine("count_down=" ++ (CountDown(Step::Continue(10000), 0) as Text));
 
 def nested = match Step::Continue(3) with
-	case Step::Continue(n) if (match n with case 3 => true case _ => false) => "nested guard hit"
-	case Step::Continue(_) => "nested guard missed"
-	case Step::Stop(_) => "stop"
-;
+    case Step::Continue(n) if (match n with
+        case 3 => true
+        case _ => false) => "nested guard hit"
+        case Step::Continue(_) => "nested guard missed"
+        case Step::Stop(_) => "stop";
 
 IO::PrintLine("nested=" ++ nested);
 
 def many_bindings = match (1, (2, 3), [4, 5]) with
-	case (a, (b, c), [d, e]) if (a + b + c + d + e) > 100 => 0
-	case (a, (b, c), [d, e]) if (a + b + c + d + e) > 10 => a * b * c * d * e
-	case _ => -1
-;
+            case (a, (b, c), [d, e]) if (a + b + c + d + e) > 100 => 0
+            case (a, (b, c), [d, e]) if (a + b + c + d + e) > 10 => a * b * c * d * e
+            case _ => -1;
 
 IO::PrintLine("many_bindings=" ++ (many_bindings as Text));

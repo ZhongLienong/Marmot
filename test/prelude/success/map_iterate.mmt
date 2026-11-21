@@ -1,33 +1,32 @@
 module PreludeMapIterate
+import { "../../../projects/marmotstdlib/MarmotPrelude/Collections/Map.mmt", "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Iterable.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt" }
 
-import
+use Option.
 {
-    "../../../projects/marmotstdlib/MarmotPrelude/Collections/Map.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/Iterable.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt"
+    Option
 }
 
-use Option.{ Option }
+def Expect = fn(condition: Bool, message: Text) -> Unit => if condition
+then ()
+else Panic::Panic(message);
 
-def Expect = fn(condition: Bool, message: Text) -> Unit => if condition then () else Panic::Panic(message);
-
-def InsertRange = fn(map: Map::Map < Int, Int >, next: Int, stop: Int) -> Map::Map < Int, Int > =>
-    if next >= stop then map else InsertRange(Map::With(map, next, next * 10), next + 1, stop);
+def InsertRange = fn(map: Map::Map<Int, Int>, next: Int, stop: Int) -> Map::Map<Int, Int> => if next >= stop
+then map
+else InsertRange(Map::With(map, next, next * 10), next + 1, stop);
 
 // 80 keys forces a trie more than one level deep.
-def seed : Map::Map < Int, Int > = Map::Empty();
+def seed: Map::Map<Int, Int> = Map::Empty();
+
 def wide = InsertRange(seed, 0, 80);
 
 // Every entry exactly once: sum the keys and count the visits.
-def Tally = fn(state: Map::MapIter < Int, Int >, seen: Int, keys: Int, values: Int) -> (Int, Int, Int) =>
-    match Iterable::Next(state) with
-        case Option::Some(step) => {
-            def (entry, rest) = step;
-            Tally(rest, seen + 1, keys + entry.key, values + entry.value)
-        }
-        case Option::None() => (seen, keys, values);
+def Tally = fn(state: Map::MapIter<Int, Int>, seen: Int, keys: Int, values: Int) -> (Int, Int, Int) => match Iterable::Next(state) with
+    case Option::Some(step) =>
+{
+        def (entry, rest) = step;
+        Tally(rest, seen + 1, keys + entry.key, values + entry.value)
+    }
+    case Option::None() => (seen, keys, values);
 
 def (visited, key_total, value_total) = Tally(Map::IterNew(wide), 0, 0, 0);
 
@@ -35,20 +34,27 @@ Expect(visited == 80, "iteration visits every entry exactly once");
 Expect(key_total == 3160, "every key is seen once and only once");
 Expect(value_total == 31600, "every value accompanies its key");
 
-def empty : Map::Map < Int, Int > = Map::Empty();
+def empty: Map::Map<Int, Int> = Map::Empty();
+
 def (empty_visits, empty_keys, empty_values) = Tally(Map::IterNew(empty), 0, 0, 0);
 Expect(empty_visits == 0, "an empty map yields nothing");
 
 // Iterating must not disturb the map.
 Expect(Map::Count(wide) == 80, "iteration leaves the map alone");
-Expect(Map::GetOr(wide, 40, - 1) == 400, "the map still reads after iteration");
+Expect(Map::GetOr(wide, 40, -1) == 400, "the map still reads after iteration");
 
 // Branch children and entries sharing a hash are visited in their stored order.
-def ordered_root = Map::MakeBranch(3, [
-    Map::MakeLeaf(0, 1, 10),
-    Map::Node::Collision(1, [Map::Entry(2, 20), Map::Entry(3, 30)])
-]);
+def ordered_root = Map::MakeBranch
+(
+    3,
+    [Map::MakeLeaf(0, 1, 10), Map::Node::Collision(1, [Map::Entry(2, 20), Map::Entry(3, 30)])]
+);
+
 def ordered = Map::Entries(Map::MakeMap(ordered_root, 3));
-Expect((#ordered == 3) && (ordered[0].key == 1) && (ordered[1].key == 2) && (ordered[2].key == 3), "entries keep trie traversal order");
+Expect
+(
+    (#ordered == 3) && (ordered[0].key == 1) && (ordered[1].key == 2) && (ordered[2].key == 3),
+    "entries keep trie traversal order"
+);
 
 IO::PrintLine("map_iterate: PASS");

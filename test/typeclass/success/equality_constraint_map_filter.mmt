@@ -1,48 +1,66 @@
 module EqualityConstraintMapFilter
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt" }
 
-use Option.{ Option }
+use Option.
+{
+    Option
+}
 
-class Stepper<S> {
+class Stepper<S>
+{
     type Item;
     StepAt: fn(state: S, index: Int) -> Option<Item>;
 };
 
-type Counter = { limit: Int };
+type Counter =
+{
+    limit: Int
+};
 
-instance Stepper<Counter> {
+instance Stepper<Counter>
+{
     type Item = Int;
-    def StepAt = fn(s: Counter, index: Int) -> Option<Int> =>
-        if index >= s.limit then Option::None() else Option::Some(index);
+    def StepAt = fn(s: Counter, index: Int) -> Option<Int> => if index >= s.limit
+    then Option::None()
+    else Option::Some(index);
 };
 
-type Mapped<S, A, B> = { inner: S, fun: fn(A) -> B };
+type Mapped<S, A, B> =
+{
+    inner: S,
+    fun: fn(A) -> B
+};
 
-instance Stepper<Mapped<S, A, B>> where Stepper<S>, Stepper::Item<S> ~ A {
+instance Stepper<Mapped<S, A, B>> where Stepper<S>, Stepper::Item<S> ~ A
+{
     type Item = B;
-    def StepAt = fn(m: Mapped<S, A, B>, index: Int) -> Option<B> =>
-        match Stepper::StepAt(m.inner, index) with
-            case Option::Some(v) => Option::Some(m.fun(v))
-            case Option::None() => Option::None();
+    def StepAt = fn(m: Mapped<S, A, B>, index: Int) -> Option<B> => match Stepper::StepAt(m.inner, index) with
+        case Option::Some(v) => Option::Some(m.fun(v))
+        case Option::None() => Option::None();
 };
 
-type Filtered<S, A> = { inner: S, keep: fn(A) -> Bool };
+type Filtered<S, A> =
+{
+    inner: S,
+    keep: fn(A) -> Bool
+};
 
-instance Stepper<Filtered<S, A>> where Stepper<S>, Stepper::Item<S> ~ A {
+instance Stepper<Filtered<S, A>> where Stepper<S>, Stepper::Item<S> ~ A
+{
     type Item = A;
-    def StepAt = fn(f: Filtered<S, A>, index: Int) -> Option<A> =>
-        match Stepper::StepAt(f.inner, index) with
-            case Option::Some(v) => if f.keep(v) then Option::Some(v) else Option::None()
-            case Option::None() => Option::None();
+    def StepAt = fn(f: Filtered<S, A>, index: Int) -> Option<A> => match Stepper::StepAt(f.inner, index) with
+        case Option::Some(v) => if f.keep(v)
+    then Option::Some(v)
+    else Option::None()
+        case Option::None() => Option::None();
 };
 
-def Show = fn<S>(s: S, index: Int) -> Text where Stepper<S>, Stepper::Item<S> ~ Int =>
-    match Stepper::StepAt(s, index) with
-        case Option::Some(v) => v as Text
-        case Option::None() => "-";
+def Show = fn<S>(s: S, index: Int) -> Text where Stepper<S>, Stepper::Item<S> ~ Int => match Stepper::StepAt(s, index) with
+    case Option::Some(v) => v as Text
+    case Option::None() => "-";
 
 def evens = Filtered(Counter(6), fn(x: Int) -> Bool => (x % 2) == 0);
+
 def scaled = Mapped(evens, fn(x: Int) -> Int => x * 10);
 
 IO::PrintLine(Show(scaled, 0));

@@ -1,5 +1,4 @@
 module RecordUpdateGeneric
-
 // Record update works on a generic struct, including from inside a generic function.
 //
 // A record update takes its type straight from the already-resolved source, whose member
@@ -8,29 +7,37 @@ module RecordUpdateGeneric
 // update names only the fields it changes and copies the rest, which is the point of
 // keeping it as its own node. See MarmotExpression::RecordUpdate in AbstractSyntaxTree.h.
 
-import
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-}
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
 type Bag<T> =
 {
-	items : Array<T>,
-	tag : Int
+    items: Array<T>,
+    tag: Int
 };
 
 // The record update here is inside a generic function, typed against Bag<T>.
-def WithTag = fn<T>(b : Bag<T>, t : Int) -> Bag<T> => { b with tag = t };
+def WithTag = fn<T>(b: Bag<T>, t: Int) -> Bag<T> =>
+{
+    b with tag = t
+};
 
-def WithItems = fn<T>(b : Bag<T>, xs : Array<T>) -> Bag<T> => { b with items = xs };
+def WithItems = fn<T>(b: Bag<T>, xs: Array<T>) -> Bag<T> =>
+{
+    b with items = xs
+};
 
 def ints = Bag([1, 2, 3], 7);
+
 def texts = Bag(["a", "b"], 1);
 
 def retagged_ints = WithTag(ints, 99);
+
 def retagged_texts = WithTag(texts, 42);
 
-IO::PrintLine("ints tag: " ++ (retagged_ints.tag as Text) ++ " first: " ++ (retagged_ints.items[0] as Text));
+IO::PrintLine
+(
+    "ints tag: " ++ (retagged_ints.tag as Text) ++ " first: " ++ (retagged_ints.items[0] as Text)
+);
 IO::PrintLine("texts tag: " ++ (retagged_texts.tag as Text) ++ " first: " ++ retagged_texts.items[0]);
 
 // The originals are untouched.
@@ -38,12 +45,18 @@ IO::PrintLine("ints original tag: " ++ (ints.tag as Text));
 
 // Element type is preserved through the update, so this still type-checks as Array<Int>.
 def replaced = WithItems(ints, [10, 20]);
-IO::PrintLine("replaced: " ++ (replaced.items[0] as Text) ++ "," ++ (replaced.items[1] as Text) ++ " tag " ++ (replaced.tag as Text));
+IO::PrintLine
+(
+    "replaced: " ++ (replaced.items[0] as Text) ++ "," ++ (replaced.items[1] as Text) ++ " tag " ++ (replaced.tag as Text)
+);
 
 // Piping a generic struct through generic builders.
 def piped = ints |> WithTag(5) |> WithItems([9]);
 IO::PrintLine("piped: " ++ (piped.items[0] as Text) ++ " tag " ++ (piped.tag as Text));
 
 // A record update at monomorphic call sites outside any generic function.
-def direct = { texts with tag = 3 };
+def direct =
+{
+    texts with tag = 3
+};
 IO::PrintLine("direct: " ++ direct.items[1] ++ " tag " ++ (direct.tag as Text));

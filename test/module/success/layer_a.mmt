@@ -2,9 +2,6 @@
 module LayerA
 public export { process }
 
-import
-{
-    "layer_b.mmt"
-}
+import { "layer_b.mmt" }
 
 def process = fn(x: Int) -> Int => LayerB::transform(x);

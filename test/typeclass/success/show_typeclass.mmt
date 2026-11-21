@@ -2,12 +2,15 @@
 module ShowTC
 public export { Show }
 
-class Show<T> {
+class Show<T>
+{
     show: fn(value: T) -> Text;
 };
 
-instance Show<Int> {
-    def show = fn(value: Int) -> Text => {
+instance Show<Int>
+{
+    def show = fn(value: Int) -> Text =>
+    {
         value as Text
     };
 };

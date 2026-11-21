@@ -2,12 +2,12 @@ module DeadCodeKeepsDivisionByZero
 
 def Bad = fn(x: Int) -> Int =>
 {
-	def unused = x + 1;
-	def zero = 0;
-	def a = 2;
-	def b = 3;
-	def bad = x / zero;
-	a + b
+    def unused = x + 1;
+    def zero = 0;
+    def a = 2;
+    def b = 3;
+    def bad = x / zero;
+    a + b
 };
 
 Bad(7);

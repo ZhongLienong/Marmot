@@ -1,11 +1,10 @@
 module Math.Vector
+import { "./private_export_internal.mmt" }
 
-import
+use Math.Internal.
 {
-    "./private_export_internal.mmt"
+    hidden
 }
-
-use Math.Internal.{hidden}
 
 def value = hidden();
 

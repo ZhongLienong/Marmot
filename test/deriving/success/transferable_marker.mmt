@@ -1,26 +1,27 @@
 module DerivingTransferableMarker
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 type Point =
 {
     x: Int,
     y: Int
-} deriving (Transferable);
+}
+deriving(Transferable);
 
-type MaybeValue<T> = Nothing | Just(T) deriving (Transferable);
+type MaybeValue<T> = Nothing | Just(T) deriving(Transferable);
 
-def RoundTrip = fn<T>(value: T) -> T where Transferable<T> => {
+def RoundTrip = fn<T>(value: T) -> T where Transferable<T> =>
+{
     value
 };
 
 def point = RoundTrip(Point(3, 4));
+
 def maybe = RoundTrip(MaybeValue::Just("hello"));
-def maybe_text =
-    match maybe with
-        case MaybeValue::Nothing() => "empty"
-        case MaybeValue::Just(value) => value
-;
+
+def maybe_text = match maybe with
+    case MaybeValue::Nothing() => "empty"
+    case MaybeValue::Just(value) => value;
 
 IO::PrintLine("point_x=" ++ (point.x as Text));
 IO::PrintLine("point_y=" ++ (point.y as Text));

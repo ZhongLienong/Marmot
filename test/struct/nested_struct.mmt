@@ -1,58 +1,55 @@
 module NestedStruct
-
-import
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-}
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
 type Vec3 =
 {
-	x : Float,
-	y : Float,
-	z : Float
+    x: Float,
+    y: Float,
+    z: Float
 };
 
 type Complex =
 {
-	real : Float,
-	img : Float,
+    real: Float,
+    img: Float,
 };
 
 def TestNestedStruct = fn() -> Unit =>
 {
-	type Test =
-	{
-		x : Int
-	};
+    type Test =
+    {
+        x: Int
+    };
 
-	def test = Test(1);
+    def test = Test(1);
 
-	def struct_in_closure = fn() -> Unit =>
-	{
-		type Test2 =
-		{
-			x : Int
-		};
+    def struct_in_closure = fn() -> Unit =>
+    {
+        type Test2 =
+        {
+            x: Int
+        };
 
-		fn() -> Unit =>
-		{
-			type Test3 =
-			{
-				x : Vec3,
-				y : Complex
-			};
+        fn() -> Unit =>
+        {
+            type Test3 =
+            {
+                x: Vec3,
+                y: Complex
+            };
 
-			def test3 = Test3(Vec3(1.2, 2.4, 3.2), Complex(1.12, 2.22));
+            def test3 = Test3(Vec3(1.2, 2.4, 3.2), Complex(1.12, 2.22));
 
-			IO::PrintLine(test.x as Text);
-			IO::PrintLine(test3.y.real as Text);
-		}();
+            IO::PrintLine(test.x as Text);
+            IO::PrintLine(test3.y.real as Text);
+        }
+        ();
 
-		def test2 = Test2(2);
-		IO::PrintLine(test2.x as Text)
-	};
+        def test2 = Test2(2);
+        IO::PrintLine(test2.x as Text)
+    };
 
-	struct_in_closure();
+    struct_in_closure();
 };
 
 TestNestedStruct();

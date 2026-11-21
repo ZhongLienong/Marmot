@@ -1,5 +1,4 @@
 module MemberAccessOnConstruct
-
 // A construction in the object position of a member access is not the expression the
 // surrounding context is asking about: `.x` decides the type that flows outward, the struct
 // does not. Call arguments are where this used to break, because the parameter type was
@@ -7,32 +6,29 @@ module MemberAccessOnConstruct
 // `IO::PrintLine(Point(7, 8).x as Text)` was rejected with "Expected type 'Text' but
 // got 'Point'" anchored on `Point`.
 
-import
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-}
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
 type Point =
 {
-	x : Int,
-	y : Int
+    x: Int,
+    y: Int
 };
 
 type Named =
 {
-	label : Text,
-	n : Int
+    label: Text,
+    n: Int
 };
 
 type Box =
 {
-	p : Point
+    p: Point
 };
 
 type Holder<T> =
 {
-	items : Array<T>,
-	tag : Text
+    items: Array<T>,
+    tag: Text
 };
 
 // The reported repro: an Int member converted to Text, straight into a call argument.
@@ -50,9 +46,16 @@ IO::PrintLine((Named("unconverted", 1)).label);
 IO::PrintLine("chained: " ++ ((Box(Point(3, 4))).p.x as Text));
 
 // A record update in object position.
-IO::PrintLine("record_update: " ++ ({ Point(20, 21) with y = 99 }.y as Text));
+IO::PrintLine
+(
+    "record_update: " ++ (
+    {
+        Point(20, 21) with y = 99
+    }
+    .y as Text)
+);
 
 // The expected type still reaches a construction that is itself the argument: `Holder<Int>`
 // is the only thing that can decide T here, since the empty array does not pin it.
-def holder : Holder<Int> = Holder([], "holder");
+def holder: Holder<Int> = Holder([], "holder");
 IO::PrintLine("holder: " ++ holder.tag);

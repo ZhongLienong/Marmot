@@ -1,9 +1,10 @@
 module CrossModuleConstrained
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "cross_module_constrained_lib.mmt" }
 
 def boxed_int = CrossModuleConstrainedLib::MakeBoxedInt(7);
+
 def boxed_text = CrossModuleConstrainedLib::MakeBoxedText("hi");
+
 def twice = CrossModuleConstrainedLib::MakeNested(3);
 
 IO::PrintLine(Show::show(boxed_int));

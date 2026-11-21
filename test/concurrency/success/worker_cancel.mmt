@@ -1,19 +1,26 @@
 module worker_cancel
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt" }
 
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
-use IO.{PrintLine}
+use IO.
+{
+    PrintLine
+}
 
 import { "../../../projects/marmotstdlib/MarmotPrelude/System.mmt" }
-use System.{Sleep}
+use System.
+{
+    Sleep
+}
 
-def LongTask = fn(dummy: Text) -> Int => {
+def LongTask = fn(dummy: Text) -> Int =>
+{
     Sleep(5000);
     0
 };
 
 def w = Concurrency::Spawn("x", LongTask);
+
 def cancelled = Concurrency::Cancel(w);
 if cancelled
 then PrintLine("Cancel requested: yes")

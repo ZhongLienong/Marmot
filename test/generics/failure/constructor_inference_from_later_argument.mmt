@@ -14,8 +14,8 @@ module ConstructorInferenceFromLaterArgument
 
 type Slot<K, V> = Empty | Occupied(K, V);
 
-def PrependTo = fn<T>(value : T, items : Array<T>) -> Unit => ();
+def PrependTo = fn<T>(value: T, items: Array<T>) -> Unit => ();
 
-def slots : Array<Slot<Int, Text>> = [];
+def slots: Array<Slot<Int, Text>> = [];
 
 PrependTo(Slot::Empty(), slots);

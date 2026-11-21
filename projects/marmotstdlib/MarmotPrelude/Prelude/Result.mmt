@@ -1,44 +1,61 @@
 module Result
 import { "Panic.mmt" }
 public export { Result, ResultMap, ResultBind, ResultMapError, ResultIsOk, ResultIsError, ResultUnwrap, ResultUnwrapOrElse, ResultUnwrapOrPanic }
-type Result < T, E > = Ok(T) | Err(E);
-def ResultMap = fn < A, B, E >(result: Result < A, E >, f: fn(A) -> B) -> Result < B, E > => {
+
+type Result<T, E> = Ok(T) | Err(E);
+
+def ResultMap = fn<A, B, E>(result: Result<A, E>, f: fn(A) -> B) -> Result<B, E> =>
+{
     match result with
-        case Result::Ok(value) => Result::Ok (f(value))
-        case Result::Err(err) => Result::Err (err)
+        case Result::Ok(value) => Result::Ok(f(value))
+        case Result::Err(err) => Result::Err(err)
 };
-def ResultBind = fn < A, B, E >(result: Result < A, E >, f: fn(A) -> Result < B, E >) -> Result < B, E > => {
+
+def ResultBind = fn<A, B, E>(result: Result<A, E>, f: fn(A) -> Result<B, E>) -> Result<B, E> =>
+{
     match result with
-        case Result::Ok(value) => f(value)
-        case Result::Err(err) => Result::Err (err)
+            case Result::Ok(value) => f(value)
+            case Result::Err(err) => Result::Err(err)
 };
-def ResultMapError = fn < T, E, F >(result: Result < T, E >, f: fn(E) -> F) -> Result < T, F > => {
+
+def ResultMapError = fn<T, E, F>(result: Result<T, E>, f: fn(E) -> F) -> Result<T, F> =>
+{
     match result with
-        case Result::Ok(value) => Result::Ok (value)
-        case Result::Err(err) => Result::Err (f(err))
+                case Result::Ok(value) => Result::Ok(value)
+                case Result::Err(err) => Result::Err(f(err))
 };
-def ResultIsOk = fn < T, E >(result: Result < T, E >) -> Bool => {
+
+def ResultIsOk = fn<T, E>(result: Result<T, E>) -> Bool =>
+{
     match result with
-        case Result::Ok(_) => true
-        case Result::Err(_) => false
+                    case Result::Ok(_) => true
+                    case Result::Err(_) => false
 };
-def ResultIsError = fn < T, E >(result: Result < T, E >) -> Bool => {
+
+def ResultIsError = fn<T, E>(result: Result<T, E>) -> Bool =>
+{
     match result with
-        case Result::Ok(_) => false
-        case Result::Err(_) => true
+                        case Result::Ok(_) => false
+                        case Result::Err(_) => true
 };
-def ResultUnwrap = fn < T, E >(result: Result < T, E >, default_value: T) -> T => {
+
+def ResultUnwrap = fn<T, E>(result: Result<T, E>, default_value: T) -> T =>
+{
     match result with
-        case Result::Ok(value) => value
-        case Result::Err(_) => default_value
+                            case Result::Ok(value) => value
+                            case Result::Err(_) => default_value
 };
-def ResultUnwrapOrElse = fn < T, E >(result: Result < T, E >, f: fn(E) -> T) -> T => {
+
+def ResultUnwrapOrElse = fn<T, E>(result: Result<T, E>, f: fn(E) -> T) -> T =>
+{
     match result with
-        case Result::Ok(value) => value
-        case Result::Err(err) => f(err)
+                                case Result::Ok(value) => value
+                                case Result::Err(err) => f(err)
 };
-def ResultUnwrapOrPanic = fn < T, E >(result: Result < T, E >, message: Text) -> T => {
+
+def ResultUnwrapOrPanic = fn<T, E>(result: Result<T, E>, message: Text) -> T =>
+{
     match result with
-        case Result::Ok(value) => value
-        case Result::Err(_) => Panic::Panic(message)
+                                    case Result::Ok(value) => value
+                                    case Result::Err(_) => Panic::Panic(message)
 };

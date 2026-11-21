@@ -1,24 +1,21 @@
 module GenericFunctions
-
 // Test: Generic functions
 // Expected: Should compile and allow type inference at call sites
 
-import 
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/DateTime.mmt"
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/DateTime.mmt" }
 
-def identity = fn<T>(x: T) -> T => 
+def identity = fn<T>(x: T) -> T =>
 {
     x
 };
 
 def int_result = identity(42);
+
 def text_result = identity("hello");
+
 def float_result = identity(3.14);
 
-
-def swap = fn<A, B>(x: A, y: B) -> Bool => 
+def swap = fn<A, B>(x: A, y: B) -> Bool =>
 {
     // Just test that we can use generic parameters
     true
@@ -29,4 +26,5 @@ def swap_result = swap(1, "two");
 def first = fn<T, U>(a: T, b: U) -> T => a;
 
 def first_int = first(10, "ignored");
+
 def first_text = first("kept", 99);

@@ -1,5 +1,4 @@
 module GenericConstructionInMethodArgument
-
 // The same inference as test/generics/success/generic_construction_in_call_argument.mmt,
 // but the callee is a class method rather than an ordinary generic function. The two
 // travel different paths in TypeChecker::operator()(MarmotExpression::Call&) and failed
@@ -21,30 +20,27 @@ module GenericConstructionInMethodArgument
 // reaches the no-expected-type path this test pins. The second instance is
 // what makes the index-0 candidate set ambiguous. Do not remove it.
 
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-	"../../../projects/marmotstdlib/MarmotPrelude/ArrayUtil.mmt",
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/ArrayUtil.mmt", }
 
 type Slot<K, V> = Empty | Occupied(K, V);
 
-class Collect < C, Elem >
+class Collect<C, Elem>
 {
-	Append: fn(container: C, elem: Elem) -> C;
+    Append: fn(container: C, elem: Elem) -> C;
 };
 
-instance Collect < Array < T >, T >
+instance Collect<Array<T>, T>
 {
-	def Append = fn(container: Array < T >, elem: T) -> Array < T > => ArrayUtil::WithAppended(container, elem);
+    def Append = fn(container: Array<T>, elem: T) -> Array<T> => ArrayUtil::WithAppended(container, elem);
 };
 
-instance Collect < Text, Text >
+instance Collect<Text, Text>
 {
-	def Append = fn(container: Text, elem: Text) -> Text => container ++ elem;
+    def Append = fn(container: Text, elem: Text) -> Text => container ++ elem;
 };
 
-def empty : Array<Slot<Int, Text>> = [];
+def empty: Array<Slot<Int, Text>> = [];
+
 def slots = Collect::Append(Collect::Append(empty, Slot::Empty()), Slot::Occupied(2, "two"));
 
 IO::PrintLine("slots: " ++ (#slots as Text));
@@ -55,6 +51,5 @@ def greeting = Collect::Append("hello", " world");
 IO::PrintLine("text: " ++ greeting);
 
 match slots[1] with
-	case Slot::Occupied(k, v) => IO::PrintLine("occupied: " ++ (k as Text) ++ "/" ++ v)
-	case Slot::Empty() => IO::PrintLine("empty")
-;
+    case Slot::Occupied(k, v) => IO::PrintLine("occupied: " ++ (k as Text) ++ "/" ++ v)
+    case Slot::Empty() => IO::PrintLine("empty");

@@ -1,13 +1,10 @@
 module AssociatedTypesIterable
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Iterable.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt" }
 
-import
+use Option.
 {
-    "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/Iterable.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt"
+    Option
 }
-
-use Option.{Option}
 
 type Counter =
 {
@@ -21,22 +18,24 @@ instance Iterable<Counter>
 {
     type Item = Int;
 
-    def Next = fn(counter: Counter) -> Option<(Int, Counter)> => {
+    def Next = fn(counter: Counter) -> Option<(Int, Counter)> =>
+    {
         if counter.current >= counter.end
         then Option::None()
         else Option::Some((counter.current, Counter(counter.current + 1, counter.end)))
     };
 };
 
-def NextValue = fn<Iter>(iter: Iter) -> Option<(Iterable::Item<Iter>, Iter)>
-    where Iterable<Iter> => {
+def NextValue = fn<Iter>(iter: Iter) -> Option<(Iterable::Item<Iter>, Iter)> where Iterable<Iter> =>
+{
     Iterable::Next(iter)
 };
 
 def iter = CounterNew(2);
 
 match NextValue(iter) with
-    case Option::Some(pair) => {
+    case Option::Some(pair) =>
+{
         def (value, _) = pair;
         if value == 0
         then IO::PrintLine("associated_types_iterable: PASS")

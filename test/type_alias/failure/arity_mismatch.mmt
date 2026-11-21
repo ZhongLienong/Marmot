@@ -5,9 +5,9 @@ module ArityMismatch
 
 type Box<T> =
 {
-	item: T
+    item: T
 };
 
 alias BoxAlias<T> = Box<T>;
 
-def boxed : BoxAlias<Int, Text> = Box(1);
+def boxed: BoxAlias<Int, Text> = Box(1);

@@ -1,22 +1,20 @@
 module SimpleListSum
-
-import
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-}
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
 type List = Nil | Cons(Int, List);
 
-def list_sum = fn(lst : List) -> Int =>
-	match lst with
-		case List::Nil() => 0
-		case List::Cons(x, xs) => x + list_sum(xs)
-;
+def list_sum = fn(lst: List) -> Int => match lst with
+    case List::Nil() => 0
+    case List::Cons(x, xs) => x + list_sum(xs);
 
 def list1 = List::Nil();
+
 def list2 = List::Cons(1, List::Nil());
+
 def list3 = List::Cons(1, List::Cons(2, List::Cons(3, List::Nil())));
+
 def list4 = List::Cons(0, List::Cons(0, List::Cons(0, List::Nil())));
+
 def list5 = List::Cons(10, List::Cons(-5, List::Cons(20, List::Nil())));
 
 IO::PrintLine("Expected 0, computation generated " ++ (list_sum(list1) as Text));

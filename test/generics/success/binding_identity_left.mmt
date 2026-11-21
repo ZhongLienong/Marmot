@@ -1,8 +1,8 @@
 module BindingIdentityLeft
-
 public export { Make }
 
-def Make = fn<T>(value: T) -> fn() -> T => {
+def Make = fn<T>(value: T) -> fn() -> T =>
+{
     def kept = value;
     fn() -> T => (fn() -> T => kept)()
 };

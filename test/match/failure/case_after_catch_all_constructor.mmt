@@ -1,8 +1,10 @@
 module CaseAfterCatchAllConstructor
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt" }
 
-use Result.{ Result }
+use Result.
+{
+    Result
+}
 
 type Code = Alpha | Beta;
 
@@ -10,8 +12,7 @@ type Code = Alpha | Beta;
 // still to come. The two arms are not written the same way, so only coverage,
 // not their spelling, can tell.
 
-def Describe = fn(result : Result<Int, Code>) -> Text =>
-	match result with
-		case Result::Err(e) => "any error"
-		case Result::Err(Code::Alpha()) => "alpha"
-		case Result::Ok(n) => "ok";
+def Describe = fn(result: Result<Int, Code>) -> Text => match result with
+    case Result::Err(e) => "any error"
+    case Result::Err(Code::Alpha()) => "alpha"
+    case Result::Ok(n) => "ok";

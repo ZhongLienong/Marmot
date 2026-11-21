@@ -1,12 +1,18 @@
 module RefIdentifier
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 public export { ref }
+
 def ref = fn(value: Int) -> Int => value * 2;
-def Local = fn() -> Int => {
+
+def Local = fn() -> Int =>
+{
     def value = 3;
     value + 1
 };
-type Holder = { ref: Int };
+
+type Holder =
+{
+    ref: Int
+};
 IO::PrintLine((ref(4) as Text) ++ " " ++ (Local() as Text) ++ " " ++ (Holder(5).ref as Text));

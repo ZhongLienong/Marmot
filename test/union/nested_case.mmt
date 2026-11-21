@@ -1,9 +1,5 @@
 module NestedCase
-
-import
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-}
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
 type S1 =
 {
@@ -18,6 +14,5 @@ type Inner = A | B(U1);
 def zz = Inner::A();
 
 def sssw = match z with
-	case U1::D(u) => IO::PrintLine("D")
-	case _ => IO::PrintLine("Outer default case")
-;
+    case U1::D(u) => IO::PrintLine("D")
+    case _ => IO::PrintLine("Outer default case");

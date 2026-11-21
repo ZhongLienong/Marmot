@@ -1,21 +1,17 @@
 module PreludeMathWrappers
-
-import
-{
-    "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/Math.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt"
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Math.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt" }
 
 def epsilon = 0.0001;
 
-def Expect = fn(condition: Bool, message: Text) -> Unit => {
+def Expect = fn(condition: Bool, message: Text) -> Unit =>
+{
     if condition
     then ()
     else Panic::Panic(message)
 };
 
-def ExpectApprox = fn(actual: Float, expected: Float, tolerance: Float, message: Text) -> Unit => {
+def ExpectApprox = fn(actual: Float, expected: Float, tolerance: Float, message: Text) -> Unit =>
+{
     Expect(Math::Abs(actual - expected) <= tolerance, message)
 };
 
@@ -36,7 +32,13 @@ ExpectApprox(Math::Tan(0.0), 0.0, epsilon, "Tan should compute tangent");
 ExpectApprox(Math::Asin(1.0), Math::Pi / 2.0, epsilon, "Asin should compute inverse sine");
 ExpectApprox(Math::Acos(1.0), 0.0, epsilon, "Acos should compute inverse cosine");
 ExpectApprox(Math::Atan(1.0), Math::Pi / 4.0, epsilon, "Atan should compute inverse tangent");
-ExpectApprox(Math::Atan2(1.0, 0.0), Math::Pi / 2.0, epsilon, "Atan2 should compute the quadrant-aware arc tangent");
+ExpectApprox
+(
+    Math::Atan2(1.0, 0.0),
+    Math::Pi / 2.0,
+    epsilon,
+    "Atan2 should compute the quadrant-aware arc tangent"
+);
 
 ExpectApprox(Math::Sinh(0.0), 0.0, epsilon, "Sinh should compute hyperbolic sine");
 ExpectApprox(Math::Cosh(0.0), 1.0, epsilon, "Cosh should compute hyperbolic cosine");
@@ -49,38 +51,84 @@ ExpectApprox(Math::Trunc(-3.9), -3.0, epsilon, "Trunc should drop the fractional
 
 ExpectApprox(Math::Min(2.0, 5.0), 2.0, epsilon, "Min should return the smaller value");
 ExpectApprox(Math::Max(2.0, 5.0), 5.0, epsilon, "Max should return the larger value");
-ExpectApprox(Math::Clamp(15.0, 0.0, 10.0), 10.0, epsilon, "Clamp should clamp values above the range");
+ExpectApprox
+(
+    Math::Clamp(15.0, 0.0, 10.0),
+    10.0,
+    epsilon,
+    "Clamp should clamp values above the range"
+);
 ExpectApprox(Math::Sign(-10.0), -1.0, epsilon, "Sign should return -1 for negative values");
 ExpectApprox(Math::Sign(0.0), 0.0, epsilon, "Sign should return 0 for zero");
 ExpectApprox(Math::Sign(10.0), 1.0, epsilon, "Sign should return 1 for positive values");
 ExpectApprox(Math::Fmod(7.0, 4.0), 3.0, epsilon, "Fmod should compute the floating-point remainder");
 ExpectApprox(Math::Hypot(3.0, 4.0), 5.0, epsilon, "Hypot should compute the Euclidean norm");
 
-ExpectApprox(Math::ToRadians(180.0), Math::Pi, epsilon, "ToRadians should convert degrees to radians");
-ExpectApprox(Math::ToDegrees(Math::Pi), 180.0, epsilon, "ToDegrees should convert radians to degrees");
+ExpectApprox
+(
+    Math::ToRadians(180.0),
+    Math::Pi,
+    epsilon,
+    "ToRadians should convert degrees to radians"
+);
+ExpectApprox
+(
+    Math::ToDegrees(Math::Pi),
+    180.0,
+    epsilon,
+    "ToDegrees should convert radians to degrees"
+);
 
 Expect(Math::IsNaN(Math::SquareRoot(-1.0)), "IsNaN should detect NaN values");
 Expect(Math::IsInf(Math::Log(0.0)), "IsInf should detect infinite values");
 Expect(Math::IsFinite(Math::SquareRoot(16.0)), "IsFinite should report finite values");
 
 def random_value = Math::Random();
-Expect((random_value >= 0.0) && (random_value <= 1.0), "Random should stay within the 0.0-1.0 range");
+Expect
+(
+    (random_value >= 0.0) && (random_value <= 1.0),
+    "Random should stay within the 0.0-1.0 range"
+);
 
 def random_int = Math::RandomInt(5, 9);
-Expect((random_int >= 5) && (random_int <= 9), "RandomInt should stay within the requested inclusive range");
+Expect
+(
+    (random_int >= 5) && (random_int <= 9),
+    "RandomInt should stay within the requested inclusive range"
+);
 
 def large_bound = 4611686018427387905;
+
 def above_float_precision = Math::RandomInt(large_bound, large_bound + 1);
-Expect((above_float_precision >= large_bound) && (above_float_precision <= (large_bound + 1)), "RandomInt should preserve integer bounds beyond Float precision");
+Expect
+(
+    (above_float_precision >= large_bound) && (above_float_precision <= (large_bound + 1)),
+    "RandomInt should preserve integer bounds beyond Float precision"
+);
 
 def draw: fn(Int, Int) -> Int = Math::RandomInt;
+
 def max_int = 9223372036854775807;
+
 def min_int = -max_int - 1;
+
 def near_maximum = draw(max_int, max_int - 1);
-Expect((near_maximum >= (max_int - 1)) && (near_maximum <= max_int), "RandomInt should accept reversed bounds at the largest Int");
-Expect(draw(min_int, min_int) == min_int, "RandomInt should return the only value in a singleton range");
+Expect
+(
+    (near_maximum >= (max_int - 1)) && (near_maximum <= max_int),
+    "RandomInt should accept reversed bounds at the largest Int"
+);
+Expect
+(
+    draw(min_int, min_int) == min_int,
+    "RandomInt should return the only value in a singleton range"
+);
 
 def random_float = Math::RandomFloat(-2.5, -1.5);
-Expect((random_float >= -2.5) && (random_float <= -1.5), "RandomFloat should stay within the requested range");
+Expect
+(
+    (random_float >= -2.5) && (random_float <= -1.5),
+    "RandomFloat should stay within the requested range"
+);
 
 IO::PrintLine("prelude_math_wrappers: PASS");

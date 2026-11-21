@@ -1,18 +1,25 @@
 module NestedComprehension
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
-use IO.{PrintLine}
+use IO.
+{
+    PrintLine
+}
 
 // Test nested array comprehension (Matrix creation)
 def rows = 3;
+
 def cols = 3;
+
 def matrix = [[(x * 10) + y for y in 1..1..cols] for x in 1..1..rows];
 
 PrintLine("Matrix 3x3:");
-def JoinRow = fn(row: Array < Int >, index: Int, acc: Text) -> Text =>
-    if index >= #row then acc else JoinRow(row, index + 1, acc ++ (row[index] as Text) ++ " ");
 
-for row in matrix {
+def JoinRow = fn(row: Array<Int>, index: Int, acc: Text) -> Text => if index >= #row
+then acc
+else JoinRow(row, index + 1, acc ++ (row[index] as Text) ++ " ");
+
+for row in matrix
+{
     PrintLine(JoinRow(row, 0, ""));
 };
 

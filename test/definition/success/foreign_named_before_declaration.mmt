@@ -1,5 +1,4 @@
 module ForeignNamedBeforeDeclaration
-
 // Test: a function may call a foreign function declared below it, like any
 // later definition. The call must still reach the builtin by its index: taken
 // by name it would marshal an array for a native library, and the builtin
@@ -7,10 +6,12 @@ module ForeignNamedBeforeDeclaration
 
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
-def Middle = fn(values : Array<Int>) -> Array<Int> => Cut(values, 1, #values - 1);
-def Shout = fn(text : Text) -> Text => Upper(text) ++ "!";
+def Middle = fn(values: Array<Int>) -> Array<Int> => Cut(values, 1, #values - 1);
+
+def Shout = fn(text: Text) -> Text => Upper(text) ++ "!";
 
 foreign "MARMOT_FFI_ArraySlice" Cut: fn(Array<Int>, Int, Int) -> Array<Int>;
+
 foreign "MARMOT_FFI_TextReverse" Upper: fn(Text) -> Text;
 
 IO::PrintLine(#Middle([1, 2, 3, 4, 5]) as Text);

@@ -1,33 +1,46 @@
 module worker_compute
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt" }
 
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
-use IO.{PrintLine}
+use IO.
+{
+    PrintLine
+}
 
 // Defined before SumRange: a worker rebuilds its globals by name, and forward
 // references do not resolve across a spawn.
-def SumTo = fn(i: Int, end_val: Int) -> Int =>
-    if i > end_val then 0 else i + SumTo(i + 1, end_val);
+def SumTo = fn(i: Int, end_val: Int) -> Int => if i > end_val
+then 0
+else i + SumTo(i + 1, end_val);
 
-def SumRange = fn(ch: Channel<Int>, start: Int, end_val: Int) -> Int => {
+def SumRange = fn(ch: Channel < Int >, start: Int, end_val: Int) -> Int =>
+{
     Concurrency::Send(ch, SumTo(start, end_val));
     0
 };
 
-def ch1 : Channel<Int> = Concurrency::MakeChannel(1);
-def ch2 : Channel<Int> = Concurrency::MakeChannel(1);
-def ch3 : Channel<Int> = Concurrency::MakeChannel(1);
-def ch4 : Channel<Int> = Concurrency::MakeChannel(1);
+def ch1: Channel < Int > = Concurrency::MakeChannel(1);
+
+def ch2: Channel < Int > = Concurrency::MakeChannel(1);
+
+def ch3: Channel < Int > = Concurrency::MakeChannel(1);
+
+def ch4: Channel < Int > = Concurrency::MakeChannel(1);
 
 def w1 = Concurrency::Spawn((ch1, 1, 250), SumRange);
+
 def w2 = Concurrency::Spawn((ch2, 251, 500), SumRange);
+
 def w3 = Concurrency::Spawn((ch3, 501, 750), SumRange);
+
 def w4 = Concurrency::Spawn((ch4, 751, 1000), SumRange);
 
 def s1 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch1), "Channel closed");
+
 def s2 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch2), "Channel closed");
+
 def s3 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch3), "Channel closed");
+
 def s4 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch4), "Channel closed");
 
 def total = s1 + s2 + s3 + s4;
@@ -37,7 +50,11 @@ Concurrency::Close(ch1);
 Concurrency::Close(ch2);
 Concurrency::Close(ch3);
 Concurrency::Close(ch4);
+
 def _r1 = Concurrency::JoinedOrPanic(Concurrency::Join(w1));
+
 def _r2 = Concurrency::JoinedOrPanic(Concurrency::Join(w2));
+
 def _r3 = Concurrency::JoinedOrPanic(Concurrency::Join(w3));
+
 def _r4 = Concurrency::JoinedOrPanic(Concurrency::Join(w4));

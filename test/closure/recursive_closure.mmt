@@ -1,15 +1,9 @@
 module RecursiveClosure
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
-import
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-}
-
-def makeRecursive = fn(n : Int) -> fn(Int) -> Int =>
-	if n == 0
-	then fn(x : Int) -> Int => 1
-	else fn(x : Int) -> Int => x * makeRecursive(n - 1)(x - 1)
-;
+def makeRecursive = fn(n: Int) -> fn(Int) -> Int => if n == 0
+then fn(x: Int) -> Int => 1
+else fn(x: Int) -> Int => x * makeRecursive(n - 1)(x - 1);
 
 def factorial = makeRecursive(5);
 

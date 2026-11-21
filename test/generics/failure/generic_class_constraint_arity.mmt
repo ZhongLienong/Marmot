@@ -3,10 +3,12 @@ module GenericStructConstraintArity
 // Test: Constraint type argument count mismatch
 // Expected: SHOULD FAIL - Equatable expects 1 type argument
 
-class Equatable<T> {
+class Equatable<T>
+{
     eq: fn(a: T, b: T) -> Bool;
 };
 
-type Box<T> where Equatable<T, Int> = {
+type Box<T> where Equatable<T, Int> =
+{
     value: T
 };

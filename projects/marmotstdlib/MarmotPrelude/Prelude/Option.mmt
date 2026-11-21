@@ -1,44 +1,61 @@
 module Option
 import { "Panic.mmt" }
 public export { Option, OptionMap, OptionBind, OptionIsSome, OptionIsNone, OptionOrElse, OptionUnwrap, OptionUnwrapOrElse, OptionUnwrapOrPanic }
-type Option < T > = None | Some(T);
-def OptionMap = fn < A, B >(option: Option < A >, f: fn(A) -> B) -> Option < B > => {
+
+type Option<T> = None | Some(T);
+
+def OptionMap = fn<A, B>(option: Option<A>, f: fn(A) -> B) -> Option<B> =>
+{
     match option with
-        case Option::Some(value) => Option::Some (f(value))
-        case Option::None() => Option::None ()
+        case Option::Some(value) => Option::Some(f(value))
+        case Option::None() => Option::None()
 };
-def OptionBind = fn < A, B >(option: Option < A >, f: fn(A) -> Option < B >) -> Option < B > => {
+
+def OptionBind = fn<A, B>(option: Option<A>, f: fn(A) -> Option<B>) -> Option<B> =>
+{
     match option with
-        case Option::Some(value) => f(value)
-        case Option::None() => Option::None ()
+            case Option::Some(value) => f(value)
+            case Option::None() => Option::None()
 };
-def OptionIsSome = fn < T >(option: Option < T >) -> Bool => {
+
+def OptionIsSome = fn<T>(option: Option<T>) -> Bool =>
+{
     match option with
-        case Option::Some(_) => true
-        case Option::None() => false
+                case Option::Some(_) => true
+                case Option::None() => false
 };
-def OptionIsNone = fn < T >(option: Option < T >) -> Bool => {
+
+def OptionIsNone = fn<T>(option: Option<T>) -> Bool =>
+{
     match option with
-        case Option::Some(_) => false
-        case Option::None() => true
+                    case Option::Some(_) => false
+                    case Option::None() => true
 };
-def OptionOrElse = fn < T >(option: Option < T >, f: fn() -> Option < T >) -> Option < T > => {
+
+def OptionOrElse = fn<T>(option: Option<T>, f: fn() -> Option<T>) -> Option<T> =>
+{
     match option with
-        case Option::Some(value) => Option::Some (value)
-        case Option::None() => f()
+                        case Option::Some(value) => Option::Some(value)
+                        case Option::None() => f()
 };
-def OptionUnwrap = fn < T >(option: Option < T >, default_value: T) -> T => {
+
+def OptionUnwrap = fn<T>(option: Option<T>, default_value: T) -> T =>
+{
     match option with
-        case Option::Some(value) => value
-        case Option::None() => default_value
+                            case Option::Some(value) => value
+                            case Option::None() => default_value
 };
-def OptionUnwrapOrElse = fn < T >(option: Option < T >, f: fn() -> T) -> T => {
+
+def OptionUnwrapOrElse = fn<T>(option: Option<T>, f: fn() -> T) -> T =>
+{
     match option with
-        case Option::Some(value) => value
-        case Option::None() => f()
+                                case Option::Some(value) => value
+                                case Option::None() => f()
 };
-def OptionUnwrapOrPanic = fn < T >(option: Option < T >, message: Text) -> T => {
+
+def OptionUnwrapOrPanic = fn<T>(option: Option<T>, message: Text) -> T =>
+{
     match option with
-        case Option::Some(value) => value
-        case Option::None() => Panic::Panic(message)
+                                    case Option::Some(value) => value
+                                    case Option::None() => Panic::Panic(message)
 };

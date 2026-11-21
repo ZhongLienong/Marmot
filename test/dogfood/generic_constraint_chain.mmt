@@ -1,29 +1,33 @@
 module GenericConstraintChain
-
-import
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-	"../../projects/marmotstdlib/MarmotPrelude/Equatable.mmt"
-}
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../projects/marmotstdlib/MarmotPrelude/Equatable.mmt" }
 
 // Inside a constrained generic function, the result of one constrained generic
 // call fed to another reached the code generator typed as an unresolved type
 // variable, so the inner specialization found no Equatable instance.
 
-def Same = fn<T>(value: T) -> T where Equatable<T> => if Equatable::Equals(value, value) then value else value;
+def Same = fn<T>(value: T) -> T where Equatable<T> => if Equatable::Equals(value, value)
+then value
+else value;
 
 def Twice = fn<T>(value: T) -> T where Equatable<T> => Same(Same(value));
 
 def Bound = fn<T>(value: T) -> T where Equatable<T> =>
 {
-	def once = Same(value);
-	Same(once)
+    def once = Same(value);
+    Same(once)
 };
 
-def Count = fn<T>(values: Array<T>, target: T, index: Int, found: Int) -> Int where Equatable<T> =>
-	if index >= #values
-	then found
-	else Count(values, Same(target), index + 1, if Equatable::Equals(values[index], target) then found + 1 else found);
+def Count = fn<T>(values: Array<T>, target: T, index: Int, found: Int) -> Int where Equatable<T> => if index >= #values
+then found
+else Count
+(
+    values,
+    Same(target),
+    index + 1,
+    if Equatable::Equals(values[index], target)
+    then found + 1
+    else found
+);
 
 IO::PrintLine(Twice(7) as Text);
 IO::PrintLine(Bound("text"));

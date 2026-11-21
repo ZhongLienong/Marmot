@@ -1,5 +1,4 @@
 module spawn_nontransferable_worker_argument
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt" }
 
 def Produce = fn() -> Int =>
@@ -7,10 +6,11 @@ def Produce = fn() -> Int =>
     42
 };
 
-def Rejoin = fn(worker: Worker<Int>) -> Int =>
+def Rejoin = fn(worker: Worker < Int >) -> Int =>
 {
     Concurrency::JoinedOrPanic(Concurrency::Join(worker))
 };
 
 def produced = Concurrency::Spawn((), Produce);
+
 def nested = Concurrency::Spawn(produced, Rejoin);

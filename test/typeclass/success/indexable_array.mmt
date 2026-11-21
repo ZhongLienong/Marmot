@@ -1,5 +1,4 @@
 module IndexableArray
-
 // Arrays keep the GET_ARRAY fast path in both the type checker and codegen,
 // and the prelude's Indexable<Array<T>, Int> instance must agree with it.
 // The two spellings printed next to each other are the whole point: they
@@ -7,15 +6,19 @@ module IndexableArray
 
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Indexable.mmt", }
 
-use Indexable.{ Indexable }
+use Indexable.
+{
+    Indexable
+}
 
-def numbers: Array < Int > = [7, 8, 9];
-def words: Array < Text > = ["alpha", "beta"];
+def numbers: Array<Int> = [7, 8, 9];
+
+def words: Array<Text> = ["alpha", "beta"];
 
 IO::PrintLine(numbers[2] as Text);
 IO::PrintLine(Indexable::Get(numbers, 2) as Text);
 IO::PrintLine(words[0]);
 IO::PrintLine(Indexable::Get(words, 0));
 
-def nested: Array < Array < Int >> = [[1, 2], [3, 4]];
+def nested: Array<Array<Int>> = [[1, 2], [3, 4]];
 IO::PrintLine(nested[1][0] as Text);

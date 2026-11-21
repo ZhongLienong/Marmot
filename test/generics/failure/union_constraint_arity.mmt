@@ -3,7 +3,8 @@ module UnionConstraintArity
 // Test: Constraint type argument count mismatch
 // Expected: SHOULD FAIL - Show expects 1 type argument
 
-class Show<T> {
+class Show<T>
+{
     show: fn(value: T) -> Text;
 };
 

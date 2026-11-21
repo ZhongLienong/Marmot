@@ -1,16 +1,15 @@
 module ByteWordConstantFolding
-
 // Test constant folding for Byte and Word types
 import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 // Byte constant folding tests
-def byte_add: Byte = 0x10 + 0x20;        // Should fold to 48
-def byte_mul: Byte = 0x02 * 0x03;        // Should fold to 6
-def byte_and: Byte = 0xFF & 0x0F;        // Should fold to 15
-def byte_or: Byte = 0xF0 | 0x0F;         // Should fold to 255
-def byte_xor: Byte = 0xFF ^ 0xAA;        // Should fold to 85
-def byte_sub: Byte = 0x50 - 0x10;        // Should fold to 64
-def byte_div: Byte = 0xFF / 0x03;        // Should fold to 85
+def byte_add: Byte = 0x10 + 0x20;  // Should fold to 48
+def byte_mul: Byte = 0x02 * 0x03;  // Should fold to 6
+def byte_and: Byte = 0xFF & 0x0F;  // Should fold to 15
+def byte_or: Byte = 0xF0 | 0x0F;  // Should fold to 255
+def byte_xor: Byte = 0xFF ^ 0xAA;  // Should fold to 85
+def byte_sub: Byte = 0x50 - 0x10;  // Should fold to 64
+def byte_div: Byte = 0xFF / 0x03;  // Should fold to 85
 
 IO::PrintLine("Byte constant folding tests:");
 IO::PrintLine("0x10 + 0x20 = " ++ (byte_add as Text) ++ " (expected 48)");

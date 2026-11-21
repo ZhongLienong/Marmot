@@ -1,21 +1,21 @@
 module SpawnDoesNotRerunImports
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt" }
 
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-	"./spawn_does_not_rerun_imports_lib.mmt"
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "./spawn_does_not_rerun_imports_lib.mmt" }
 
 // Each spawned worker used to re-execute every imported module's initializer, so
 // the library's "initialized" line printed once more per spawn. The workers must
 // instead start from the globals the program already has.
 
-def Scaled = fn(n : Int) -> Int => n * SpawnDoesNotRerunImportsLib::Base;
+def Scaled = fn(n: Int) -> Int => n * SpawnDoesNotRerunImportsLib::Base;
 
 def first = Concurrency::Spawn(1, Scaled);
+
 def second = Concurrency::Spawn(2, Scaled);
+
 def third = Concurrency::Spawn(3, Scaled);
 
-IO::PrintLine("results: " ++ ((Concurrency::JoinedOrPanic(Concurrency::Join(first))) as Text) ++ " " ++ ((Concurrency::JoinedOrPanic(Concurrency::Join(second))) as Text) ++ " " ++ ((Concurrency::JoinedOrPanic(Concurrency::Join(third))) as Text));
+IO::PrintLine
+(
+    "results: " ++ ((Concurrency::JoinedOrPanic(Concurrency::Join(first))) as Text) ++ " " ++ ((Concurrency::JoinedOrPanic(Concurrency::Join(second))) as Text) ++ " " ++ ((Concurrency::JoinedOrPanic(Concurrency::Join(third))) as Text)
+);

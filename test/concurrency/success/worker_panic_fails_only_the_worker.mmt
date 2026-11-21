@@ -1,31 +1,33 @@
 module WorkerPanicFailsOnlyTheWorker
+import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt", "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
-import
+use Result.
 {
-	"../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt",
-	"../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt",
-	"../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt",
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt"
+    Result
+}
+use Concurrency.
+{
+    WorkerError
 }
 
-use Result.{Result}
-use Concurrency.{WorkerError}
-
-use Result.{ Result }
+use Result.
+{
+    Result
+}
 
 // A panic inside a worker used to exit the whole process, taking the joining
 // program with it. Exiting from a worker thread would end a program the worker
 // only borrows, so the worker fails instead and the joiner receives
 // Err(Failed(...)) like any other worker failure.
 
-def Describe = fn(label : Text, result : Result<Int, WorkerError>) -> Unit =>
-	match result with
-		case Result::Ok(value) => IO::PrintLine(label ++ ": Ok(" ++ (value as Text) ++ ")")
-		case Result::Err(WorkerError::Cancelled()) => IO::PrintLine(label ++ ": Err(Cancelled)")
-		case Result::Err(WorkerError::Failed(_)) => IO::PrintLine(label ++ ": Err(Failed)");
+def Describe = fn(label: Text, result: Result<Int, WorkerError>) -> Unit => match result with
+    case Result::Ok(value) => IO::PrintLine(label ++ ": Ok(" ++ (value as Text) ++ ")")
+    case Result::Err(WorkerError::Cancelled()) => IO::PrintLine(label ++ ": Err(Cancelled)")
+    case Result::Err(WorkerError::Failed(_)) => IO::PrintLine(label ++ ": Err(Failed)");
 
-def Boom = fn(_ignored : Int) -> Int => Panic::Panic("worker panicked");
-def Double = fn(n : Int) -> Int => n * 2;
+def Boom = fn(_ignored: Int) -> Int => Panic::Panic("worker panicked");
+
+def Double = fn(n: Int) -> Int => n * 2;
 
 def panicking = Concurrency::Spawn(1, Boom);
 Describe("panicking worker", Concurrency::Join(panicking));

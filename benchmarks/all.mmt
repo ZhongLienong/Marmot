@@ -1,209 +1,234 @@
 module All
+import { "../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../projects/marmotstdlib/MarmotPrelude/DateTime.mmt", "support/Timing.mmt", "../projects/marmotstdlib/MarmotPrelude/TextUtil.mmt", "../projects/marmotstdlib/MarmotPrelude/Prelude/List.mmt" }
 
-import
+use List.
 {
-	"../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-	"../projects/marmotstdlib/MarmotPrelude/DateTime.mmt",
-	"support/Timing.mmt",
-	"../projects/marmotstdlib/MarmotPrelude/TextUtil.mmt",
-	"../projects/marmotstdlib/MarmotPrelude/Prelude/List.mmt"
+    List,
+    ListLength,
+    ListToArray
 }
-
-use List.{List, ListLength, ListToArray}
 
 // v2 port of the suite mirrored by benchmarks/reference/all.py. Loops that
 // assigned to counters are tail-recursive walks carrying them; arrays filled by
 // in-place `Appendable::Append` are built by comprehensions or cons lists. The
 // walks are top-level functions so their tail calls cannot grow the stack.
 
-def IsPrimeHelper = fn(candidate : Int, divisor : Int) -> Bool =>
+def IsPrimeHelper = fn(candidate: Int, divisor: Int) -> Bool =>
 {
-	if (divisor * divisor) > candidate
-	then true
-	else
-	{
-		if (candidate % divisor) == 0
-		then false
-		else IsPrimeHelper(candidate, divisor + 1)
-	}
+    if (divisor * divisor) > candidate
+    then true
+    else
+    {
+        if (candidate % divisor) == 0
+        then false
+        else IsPrimeHelper(candidate, divisor + 1)
+    }
 };
 
-def IsPrime = fn(n : Int) -> Bool => if n <= 1 then false else IsPrimeHelper(n, 2);
+def IsPrime = fn(n: Int) -> Bool => if n <= 1
+then false
+else IsPrimeHelper(n, 2);
 
-def CountPrimes = fn(count : Int, limit : Int, prime_count : Int) -> Int =>
-	if count >= limit
-	then prime_count
-	else CountPrimes(count + 1, limit, if IsPrime(count) then prime_count + 1 else prime_count);
+def CountPrimes = fn(count: Int, limit: Int, prime_count: Int) -> Int => if count >= limit
+then prime_count
+else CountPrimes(count + 1, limit, if IsPrime(count)
+then prime_count + 1
+else prime_count);
 
 def TestPrimeNumbers = fn() -> Unit =>
 {
-	def start = DateTime::NowMonotonicNanos();
+    def start = DateTime::NowMonotonicNanos();
 
-	def prime_count = CountPrimes(0, 100000, 0);
+    def prime_count = CountPrimes(0, 100000, 0);
 
-	def end = DateTime::NowMonotonicNanos();
+    def end = DateTime::NowMonotonicNanos();
 
-	IO::PrintLine("Prime(100000): " ++ (prime_count as Text) ++ " benchmark took " ++ Timing::ElapsedMillis(start, end) ++ " milliseconds");
+    IO::PrintLine
+    (
+        "Prime(100000): " ++ (prime_count as Text) ++ " benchmark took " ++ Timing::ElapsedMillis(start, end) ++ " milliseconds"
+    );
 };
 
-def Fib = fn(n : Int) -> Int => if n <= 1 then n else Fib(n - 1) + Fib(n - 2);
+def Fib = fn(n: Int) -> Int => if n <= 1
+then n
+else Fib(n - 1) + Fib(n - 2);
 
-def TestFib = fn(n : Int) -> Unit =>
+def TestFib = fn(n: Int) -> Unit =>
 {
-	def start = DateTime::NowMonotonicNanos();
+    def start = DateTime::NowMonotonicNanos();
 
-	def fib_n = Fib(n);
+    def fib_n = Fib(n);
 
-	def end = DateTime::NowMonotonicNanos();
+    def end = DateTime::NowMonotonicNanos();
 
-	IO::PrintLine("Fibonacci(" ++ (n as Text) ++ "): " ++ (fib_n as Text) ++ " benchmark took " ++ Timing::ElapsedMillis(start, end) ++ " milliseconds");
+    IO::PrintLine
+    (
+        "Fibonacci(" ++ (n as Text) ++ "): " ++ (fib_n as Text) ++ " benchmark took " ++ Timing::ElapsedMillis(start, end) ++ " milliseconds"
+    );
 };
 
-def AppendA = fn(count : Int, limit : Int, acc : Text) -> Text =>
-	if count >= limit then acc else AppendA(count + 1, limit, acc ++ "a");
+def AppendA = fn(count: Int, limit: Int, acc: Text) -> Text => if count >= limit
+then acc
+else AppendA(count + 1, limit, acc ++ "a");
 
 // v2 port: this used in-place `Appendable::Append` on a text, which no longer
 // exists. It now appends with `acc ++ "a"`, like benchmarks/str_concat.mmt and
 // the `test_string += "a"` in reference/all.py.
 def TestStringManipulation = fn() -> Unit =>
 {
-	def start = DateTime::NowMonotonicNanos();
+    def start = DateTime::NowMonotonicNanos();
 
-	def test_string = AppendA(0, 10000, "");
+    def test_string = AppendA(0, 10000, "");
 
-	def end = DateTime::NowMonotonicNanos();
+    def end = DateTime::NowMonotonicNanos();
 
-	IO::PrintLine("String manipulation (length " ++ (TextUtil::Length(test_string) as Text) ++ ") benchmark took " ++ Timing::ElapsedMillis(start, end) ++ " milliseconds");
+    IO::PrintLine
+    (
+        "String manipulation (length " ++ (TextUtil::Length(test_string) as Text) ++ ") benchmark took " ++ Timing::ElapsedMillis(start, end) ++ " milliseconds"
+    );
 };
 
 // v2 port: formerly appended each result into an outer array and returned early;
 // now threads the results through as a cons list. Same search tree.
-def BackTrack = fn(len : Int, left : Int, right : Int, acc : Text, output : List<Text>) -> List<Text> =>
+def BackTrack = fn(len: Int, left: Int, right: Int, acc: Text, output: List<Text>) -> List<Text> =>
 {
-	if left < right
-	then output
-	else if (left > len) || (right > len)
-	then output
-	else if (left == len) && (right == len)
-	then List::Cons(acc, output)
-	else BackTrack(len, left, right + 1, acc ++ ")", BackTrack(len, left + 1, right, acc ++ "(", output))
+    if left < right
+    then output
+    else if (left > len) || (right > len)
+    then output
+    else if (left == len) && (right == len)
+    then List::Cons(acc, output)
+    else BackTrack(len, left, right + 1, acc ++ ")", BackTrack(len, left + 1, right, acc ++ "(", output))
 };
 
-def TestParenthesisGeneration = fn(max_len : Int) -> Unit =>
+def TestParenthesisGeneration = fn(max_len: Int) -> Unit =>
 {
-	def start = DateTime::NowMonotonicNanos();
+    def start = DateTime::NowMonotonicNanos();
 
-	def output = BackTrack(max_len, 0, 0, "", List::Nil());
+    def output = BackTrack(max_len, 0, 0, "", List::Nil());
 
-	def end = DateTime::NowMonotonicNanos();
+    def end = DateTime::NowMonotonicNanos();
 
-	IO::PrintLine("Parenthesis generation (" ++ (ListLength(output) as Text) ++ " combinations) benchmark took " ++ Timing::ElapsedMillis(start, end) ++ " milliseconds");
+    IO::PrintLine
+    (
+        "Parenthesis generation (" ++ (ListLength(output) as Text) ++ " combinations) benchmark took " ++ Timing::ElapsedMillis(start, end) ++ " milliseconds"
+    );
 };
 
-def Ackermann = fn(m : Int, n : Int) -> Int =>
+def Ackermann = fn(m: Int, n: Int) -> Int =>
 {
-	if m == 0
-	then n + 1
-	else
-	{
-		if n == 0
-		then Ackermann(m - 1, 1)
-		else Ackermann(m - 1, Ackermann(m, n - 1))
-	}
+    if m == 0
+    then n + 1
+    else
+    {
+        if n == 0
+        then Ackermann(m - 1, 1)
+        else Ackermann(m - 1, Ackermann(m, n - 1))
+    }
 };
 
-def TestAckermann = fn(m : Int, n : Int) -> Unit =>
+def TestAckermann = fn(m: Int, n: Int) -> Unit =>
 {
-	def start = DateTime::NowMonotonicNanos();
+    def start = DateTime::NowMonotonicNanos();
 
-	def result = Ackermann(m, n);
+    def result = Ackermann(m, n);
 
-	def end = DateTime::NowMonotonicNanos();
+    def end = DateTime::NowMonotonicNanos();
 
-	IO::PrintLine("Ackermann(" ++ (m as Text) ++ ", " ++ (n as Text) ++ "): " ++ (result as Text) ++ " benchmark took " ++ Timing::ElapsedMillis(start, end) ++ " milliseconds");
+    IO::PrintLine
+    (
+        "Ackermann(" ++ (m as Text) ++ ", " ++ (n as Text) ++ "): " ++ (result as Text) ++ " benchmark took " ++ Timing::ElapsedMillis(start, end) ++ " milliseconds"
+    );
 };
 
 // Partitions by prepending into cons lists while walking from the last element
 // down; see benchmarks/sorting.mmt.
-def Partition = fn(arr : Array<Int>, index : Int, pivot : Int, less : List<Int>, equal : List<Int>, greater : List<Int>) -> (List<Int>, List<Int>, List<Int>) =>
-	if index < 0
-	then (less, equal, greater)
-	else
-	{
-		def value = arr[index];
-		if value < pivot
-		then Partition(arr, index - 1, pivot, List::Cons(value, less), equal, greater)
-		else if value == pivot
-		then Partition(arr, index - 1, pivot, less, List::Cons(value, equal), greater)
-		else Partition(arr, index - 1, pivot, less, equal, List::Cons(value, greater))
-	};
-
-def QuickSort = fn(arr : Array<Int>) -> Array<Int> =>
+def Partition = fn(arr: Array<Int>, index: Int, pivot: Int, less: List<Int>, equal: List<Int>, greater: List<Int>) -> (List<Int>, List<Int>, List<Int>) => if index < 0
+then (less, equal, greater)
+else
 {
-	def len = #arr;
-	if len <= 1
-	then arr
-	else
-	{
-		def (less, equal, greater) = Partition(arr, len - 1, arr[len / 2], List::Nil(), List::Nil(), List::Nil());
-		QuickSort(ListToArray(less)) ++ ListToArray(equal) ++ QuickSort(ListToArray(greater))
-	}
+    def value = arr[index];
+    if value < pivot
+    then Partition(arr, index - 1, pivot, List::Cons(value, less), equal, greater)
+    else if value == pivot
+    then Partition(arr, index - 1, pivot, less, List::Cons(value, equal), greater)
+    else Partition(arr, index - 1, pivot, less, equal, List::Cons(value, greater))
 };
 
-def TestSorting = fn(size : Int) -> Unit =>
+def QuickSort = fn(arr: Array<Int>) -> Array<Int> =>
 {
-	def start = DateTime::NowMonotonicNanos();
-
-	def test_array = [size - offset for offset in 0..1..size];
-	def sorted = QuickSort(test_array);
-
-	def end = DateTime::NowMonotonicNanos();
-
-	IO::PrintLine("QuickSort(" ++ (size as Text) ++ " elements): first=" ++ (sorted[0] as Text) ++ ", benchmark took " ++ Timing::ElapsedMillis(start, end) ++ " milliseconds");
+    def len = #arr;
+    if len <= 1
+    then arr
+    else
+    {
+        def (less, equal, greater) = Partition(arr, len - 1, arr[len / 2], List::Nil(), List::Nil(), List::Nil());
+        QuickSort(ListToArray(less)) ++ ListToArray(equal) ++ QuickSort(ListToArray(greater))
+    }
 };
 
-def BinarySearch = fn(arr : Array<Int>, target : Int, low : Int, high : Int) -> Int =>
+def TestSorting = fn(size: Int) -> Unit =>
 {
-	if low > high
-	then -1
-	else
-	{
-		def mid = low + ((high - low) / 2);
-		def mid_val = arr[mid];
+    def start = DateTime::NowMonotonicNanos();
 
-		if mid_val == target
-		then mid
-		else
-		{
-			if mid_val > target
-			then BinarySearch(arr, target, low, mid - 1)
-			else BinarySearch(arr, target, mid + 1, high)
-		}
-	}
+    def test_array = [size - offset for offset in 0..1..size];
+    def sorted = QuickSort(test_array);
+
+    def end = DateTime::NowMonotonicNanos();
+
+    IO::PrintLine
+    (
+        "QuickSort(" ++ (size as Text) ++ " elements): first=" ++ (sorted[0] as Text) ++ ", benchmark took " ++ Timing::ElapsedMillis(start, end) ++ " milliseconds"
+    );
 };
 
-def CountFound = fn(arr : Array<Int>, search : Int, searches : Int, found_count : Int) -> Int =>
+def BinarySearch = fn(arr: Array<Int>, target: Int, low: Int, high: Int) -> Int =>
 {
-	if search >= searches
-	then found_count
-	else
-	{
-		def target = (search * 7) % #arr;
-		def result = BinarySearch(arr, target, 0, #arr - 1);
-		CountFound(arr, search + 1, searches, if result != -1 then found_count + 1 else found_count)
-	}
+    if low > high
+    then -1
+    else
+    {
+        def mid = low + ((high - low) / 2);
+        def mid_val = arr[mid];
+
+        if mid_val == target
+        then mid
+        else
+        {
+            if mid_val > target
+            then BinarySearch(arr, target, low, mid - 1)
+            else BinarySearch(arr, target, mid + 1, high)
+        }
+    }
 };
 
-def TestBinarySearch = fn(array_size : Int, num_searches : Int) -> Unit =>
+def CountFound = fn(arr: Array<Int>, search: Int, searches: Int, found_count: Int) -> Int =>
 {
-	def start = DateTime::NowMonotonicNanos();
+    if search >= searches
+    then found_count
+    else
+    {
+        def target = (search * 7) % #arr;
+        def result = BinarySearch(arr, target, 0, #arr - 1);
+        CountFound(arr, search + 1, searches, if result != -1
+        then found_count + 1
+        else found_count)
+    }
+};
 
-	def sorted_array = [value for value in 0..1..array_size];
-	def found_count = CountFound(sorted_array, 0, num_searches, 0);
+def TestBinarySearch = fn(array_size: Int, num_searches: Int) -> Unit =>
+{
+    def start = DateTime::NowMonotonicNanos();
 
-	def end = DateTime::NowMonotonicNanos();
+    def sorted_array = [value for value in 0..1..array_size];
+    def found_count = CountFound(sorted_array, 0, num_searches, 0);
 
-	IO::PrintLine("Binary search (" ++ (num_searches as Text) ++ " searches in " ++ (array_size as Text) ++ " elements): " ++ (found_count as Text) ++ " found, benchmark took " ++ Timing::ElapsedMillis(start, end) ++ " milliseconds");
+    def end = DateTime::NowMonotonicNanos();
+
+    IO::PrintLine
+    (
+        "Binary search (" ++ (num_searches as Text) ++ " searches in " ++ (array_size as Text) ++ " elements): " ++ (found_count as Text) ++ " found, benchmark took " ++ Timing::ElapsedMillis(start, end) ++ " milliseconds"
+    );
 };
 
 TestFib(35);

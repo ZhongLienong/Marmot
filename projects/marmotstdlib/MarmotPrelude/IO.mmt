@@ -1,96 +1,165 @@
 module IO
 import { "./Prelude/Result.mmt", "./Transferable.mmt" }
-use Result.{
+use Result.
+{
     Result
 }
 public export { IOError, Print, PrintLine, PrintError, PrintErrorLine, ReadInput, ReadLine, FileExists, DirectoryExists, TryReadFile, TryWriteFile, TryAppendToFile, TryReadBinaryFile, TryWriteBinaryFile, TryDeleteFile, TryRenameFile, TryGetFileSize, TryListDirectory, TryMakeDirectory, TryFileChecksum }
+
 type IOError = NotFound(Text) | PermissionDenied(Text) | InvalidPath(Text) | UnknownIO(Text);
+
 foreign "MARMOT_FFI_Print" PrintRaw: fn(Text) -> Unit;
+
 foreign "MARMOT_FFI_PrintError" PrintErrorRaw: fn(Text) -> Unit;
+
 foreign "MARMOT_FFI_ReadInput" ReadInputRaw: fn() -> Text;
+
 foreign "MARMOT_FFI_ReadLine" ReadLineRaw: fn() -> Text;
+
 foreign "MARMOT_FFI_ReadFile" ReadFileRaw: fn(Text) -> Text;
+
 foreign "MARMOT_FFI_WriteFile" WriteFileRaw: fn(Text, Text) -> Bool;
+
 foreign "MARMOT_FFI_AppendToFile" AppendToFileRaw: fn(Text, Text) -> Bool;
-foreign "MARMOT_FFI_ReadBinaryFile" ReadBinaryFileRaw: fn(Text) -> Array < Byte >;
-foreign "MARMOT_FFI_WriteBinaryFile" WriteBinaryFileRaw: fn(Text, Array < Byte >) -> Bool;
+
+foreign "MARMOT_FFI_ReadBinaryFile" ReadBinaryFileRaw: fn(Text) -> Array<Byte>;
+
+foreign "MARMOT_FFI_WriteBinaryFile" WriteBinaryFileRaw: fn(Text, Array<Byte>) -> Bool;
+
 foreign "MARMOT_FFI_FileExists" FileExistsRaw: fn(Text) -> Bool;
+
 foreign "MARMOT_FFI_DeleteFile" DeleteFileRaw: fn(Text) -> Bool;
+
 foreign "MARMOT_FFI_RenameFile" RenameFileRaw: fn(Text, Text) -> Bool;
+
 foreign "MARMOT_FFI_GetFileSize" GetFileSizeRaw: fn(Text) -> Int;
-foreign "MARMOT_FFI_ListDirectory" ListDirectoryRaw: fn(Text) -> Array < Text >;
+
+foreign "MARMOT_FFI_ListDirectory" ListDirectoryRaw: fn(Text) -> Array<Text>;
+
 foreign "MARMOT_FFI_MakeDirectory" MakeDirectoryRaw: fn(Text) -> Bool;
+
 foreign "MARMOT_FFI_DirectoryExists" DirectoryExistsRaw: fn(Text) -> Bool;
+
 foreign "MARMOT_FFI_FileChecksum" FileChecksumRaw: fn(Text) -> Text;
+
 foreign "MARMOT_FFI_GetLastIOErrorKind" GetLastIOErrorKindRaw: fn() -> Int;
+
 foreign "MARMOT_FFI_GetLastIOErrorMessage" GetLastIOErrorMessageRaw: fn() -> Text;
+
 def Print = fn(text: Text) -> Unit => PrintRaw(text);
-def PrintLine = fn(text: Text) -> Unit => {
+
+def PrintLine = fn(text: Text) -> Unit =>
+{
     Print(text ++ "\n");
 };
+
 def PrintError = fn(text: Text) -> Unit => PrintErrorRaw(text);
-def PrintErrorLine = fn(text: Text) -> Unit => {
+
+def PrintErrorLine = fn(text: Text) -> Unit =>
+{
     PrintError(text ++ "\n");
 };
+
 def ReadInput = fn() -> Text => ReadInputRaw();
+
 def ReadLine = fn() -> Text => ReadLineRaw();
+
 def FileExists = fn(path: Text) -> Bool => FileExistsRaw(path);
+
 def DirectoryExists = fn(path: Text) -> Bool => DirectoryExistsRaw(path);
-def UnknownIOContext = fn(path: Text, message: Text) -> Text => {
-    if message == "" then path else path ++ ": " ++ message
+
+def UnknownIOContext = fn(path: Text, message: Text) -> Text =>
+{
+    if message == ""
+    then path
+    else path ++ ": " ++ message
 };
-def MakeIOError = fn(path: Text, error_kind: Int) -> IOError => {
+
+def MakeIOError = fn(path: Text, error_kind: Int) -> IOError =>
+{
     def message = GetLastIOErrorMessageRaw();
-    if error_kind == 1 then IOError::NotFound(path) else if error_kind == 2 then IOError::PermissionDenied(path) else if error_kind == 3 then IOError::InvalidPath(path) else IOError::UnknownIO(UnknownIOContext(path, message))
+    if error_kind == 1
+    then IOError::NotFound(path)
+    else if error_kind == 2
+    then IOError::PermissionDenied(path)
+    else if error_kind == 3
+    then IOError::InvalidPath(path)
+    else IOError::UnknownIO(UnknownIOContext(path, message))
 };
-def IOResultFromStatus = fn < T >(path: Text, value: T) -> Result < T, IOError > => {
+
+def IOResultFromStatus = fn<T>(path: Text, value: T) -> Result<T, IOError> =>
+{
     def error_kind = GetLastIOErrorKindRaw();
-    if error_kind == 0 then Result::Ok (value) else Result::Err (MakeIOError(path, error_kind))
+    if error_kind == 0
+    then Result::Ok(value)
+    else Result::Err(MakeIOError(path, error_kind))
 };
-def TryReadFile = fn(path: Text) -> Result < Text, IOError > => {
+
+def TryReadFile = fn(path: Text) -> Result<Text, IOError> =>
+{
     def content = ReadFileRaw(path);
     IOResultFromStatus(path, content)
 };
-def TryWriteFile = fn(path: Text, content: Text) -> Result < Unit, IOError > => {
+
+def TryWriteFile = fn(path: Text, content: Text) -> Result<Unit, IOError> =>
+{
     WriteFileRaw(path, content);
     IOResultFromStatus(path, ())
 };
-def TryAppendToFile = fn(path: Text, content: Text) -> Result < Unit, IOError > => {
+
+def TryAppendToFile = fn(path: Text, content: Text) -> Result<Unit, IOError> =>
+{
     AppendToFileRaw(path, content);
     IOResultFromStatus(path, ())
 };
-def TryReadBinaryFile = fn(path: Text) -> Result < Array < Byte >, IOError > => {
+
+def TryReadBinaryFile = fn(path: Text) -> Result<Array<Byte>, IOError> =>
+{
     def bytes = ReadBinaryFileRaw(path);
     IOResultFromStatus(path, bytes)
 };
-def TryWriteBinaryFile = fn(path: Text, bytes: Array < Byte >) -> Result < Unit, IOError > => {
+
+def TryWriteBinaryFile = fn(path: Text, bytes: Array<Byte>) -> Result<Unit, IOError> =>
+{
     WriteBinaryFileRaw(path, bytes);
     IOResultFromStatus(path, ())
 };
-def TryDeleteFile = fn(path: Text) -> Result < Unit, IOError > => {
+
+def TryDeleteFile = fn(path: Text) -> Result<Unit, IOError> =>
+{
     DeleteFileRaw(path);
     IOResultFromStatus(path, ())
 };
-def TryRenameFile = fn(old_path: Text, new_path: Text) -> Result < Unit, IOError > => {
+
+def TryRenameFile = fn(old_path: Text, new_path: Text) -> Result<Unit, IOError> =>
+{
     RenameFileRaw(old_path, new_path);
     IOResultFromStatus(old_path, ())
 };
-def TryGetFileSize = fn(path: Text) -> Result < Int, IOError > => {
+
+def TryGetFileSize = fn(path: Text) -> Result<Int, IOError> =>
+{
     def size = GetFileSizeRaw(path);
     IOResultFromStatus(path, size)
 };
+
 // The names in the directory, sorted, without the directory in front.
-def TryListDirectory = fn(path: Text) -> Result < Array < Text >, IOError > => {
+def TryListDirectory = fn(path: Text) -> Result<Array<Text>, IOError> =>
+{
     def names = ListDirectoryRaw(path);
     IOResultFromStatus(path, names)
 };
+
 // Makes the missing parents too. A directory already there is made.
-def TryMakeDirectory = fn(path: Text) -> Result < Unit, IOError > => {
+def TryMakeDirectory = fn(path: Text) -> Result<Unit, IOError> =>
+{
     MakeDirectoryRaw(path);
     IOResultFromStatus(path, ())
 };
+
 // `sha256:` and the file's SHA-256 in hex, the form plans and lockfiles use.
-def TryFileChecksum = fn(path: Text) -> Result < Text, IOError > => {
+def TryFileChecksum = fn(path: Text) -> Result<Text, IOError> =>
+{
     def checksum = FileChecksumRaw(path);
     IOResultFromStatus(path, checksum)
 };

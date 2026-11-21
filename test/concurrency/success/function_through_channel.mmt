@@ -1,29 +1,29 @@
 module FunctionThroughChannel
-
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt",
-	"../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt",
-	"../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt",
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt"
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt", "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 // A channel serializes what it carries, so a function travels through one the way
 // it travels to a worker: procedure index plus a copy of its captured cells.
 
 def scale = 3;
-def channel : Channel<fn(Int) -> Int> = Concurrency::MakeChannel(1);
 
-Concurrency::Send(channel, fn(n : Int) -> Int => n * scale);
+def channel: Channel < fn(Int) -> Int > = Concurrency::MakeChannel(1);
+
+Concurrency::Send(channel, fn(n: Int) -> Int => n * scale);
+
 def received = Option::OptionUnwrapOrPanic(Concurrency::Receive(channel), "Channel closed");
 IO::PrintLine("received applies: " ++ (received(14) as Text));
 
 // And back out of a worker that was handed the channel.
-def worker = Concurrency::Spawn(channel, fn(ch : Channel<fn(Int) -> Int>) -> Int =>
-{
-	Concurrency::Send(ch, fn(n : Int) -> Int => n + 100);
-	0
-});
+def worker = Concurrency::Spawn
+(
+    channel,
+    fn(ch: Channel < fn(Int) -> Int >) -> Int =>
+    {
+        Concurrency::Send(ch, fn(n: Int) -> Int => n + 100);
+        0
+    }
+);
+
 def from_worker = Option::OptionUnwrapOrPanic(Concurrency::Receive(channel), "Channel closed");
 IO::PrintLine("from the worker: " ++ (from_worker(5) as Text));
 IO::PrintLine("joined: " ++ (Concurrency::JoinedOrPanic(Concurrency::Join(worker)) as Text));

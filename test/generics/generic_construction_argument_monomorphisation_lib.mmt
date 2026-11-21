@@ -1,5 +1,4 @@
 module GenericConstructionArgumentMonomorphisationLib
-
 import { "../../projects/marmotstdlib/MarmotPrelude/ArrayUtil.mmt" }
 
 public export { Growable, AppendTo }
@@ -9,14 +8,14 @@ public export { Growable, AppendTo }
 // monomorphisation, rather than the type checker, to resolve Growable::Append's concrete
 // instance. See test/generics/success/generic_construction_argument_monomorphisation.mmt,
 // which imports this module so that the forwarder call crosses a module boundary.
-class Growable < C, Elem >
+class Growable<C, Elem>
 {
-	Append: fn(container: C, elem: Elem) -> C;
+    Append: fn(container: C, elem: Elem) -> C;
 };
 
-instance Growable < Array < T >, T >
+instance Growable<Array<T>, T>
 {
-	def Append = fn(container: Array < T >, elem: T) -> Array < T > => ArrayUtil::WithAppended(container, elem);
+    def Append = fn(container: Array<T>, elem: T) -> Array<T> => ArrayUtil::WithAppended(container, elem);
 };
 
-def AppendTo = fn<T>(items : Array<T>, value : T) -> Array<T> => Growable::Append(items, value);
+def AppendTo = fn<T>(items: Array<T>, value: T) -> Array<T> => Growable::Append(items, value);

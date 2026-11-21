@@ -1,11 +1,7 @@
 // Test: Non-exported symbols should not be accessible
 // This should FAIL to compile - trying to access internal_helper which is not exported
 module TestPrivacy
-
-import
-{
-    "../success/math_lib.mmt"
-}
+import { "../success/math_lib.mmt" }
 
 // This should fail - internal_helper is not exported by Math module
 def test_access_private = fn() -> Int => Math::internal_helper(42);

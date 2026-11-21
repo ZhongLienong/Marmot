@@ -1,24 +1,21 @@
 module NestedAndRecursion
-
-import
-{
-  "../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-}
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
 // Three levels of nesting, each capturing from the one above. The middle level
 // used to accumulate into the captured `initial`; it now derives a new binding,
 // which still requires the innermost closure to capture from a captured value.
-def createCounter = fn(initial : Int) -> fn(Int) -> fn() -> Int =>
+def createCounter = fn(initial: Int) -> fn(Int) -> fn() -> Int =>
 {
-  def counter = fn(value : Int) -> fn() -> Int =>
-  {
-    def total = initial + value;
-    fn() -> Int => total
-  };
-  counter
+    def counter = fn(value: Int) -> fn() -> Int =>
+    {
+        def total = initial + value;
+        fn() -> Int => total
+    };
+    counter
 };
 
 def counter = createCounter(5);
+
 def next = counter(3);
 
 IO::PrintLine(next() as Text);  // Should print 8

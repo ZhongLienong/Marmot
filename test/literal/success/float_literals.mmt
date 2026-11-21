@@ -1,16 +1,15 @@
 module FloatLiterals
-
-import
-{
-    <IO>
-}
+import { <IO> }
 
 IO::PrintLine("=== Float Literal Tests ===");
 
 // Simple floats
 def zero_float = 0.0;
+
 def one = 1.0;
+
 def pi_approx = 3.14159;
+
 def e_approx = 2.71828;
 
 IO::PrintLine("Zero float: " ++ (zero_float as Text));
@@ -20,6 +19,7 @@ IO::PrintLine("e (approx): " ++ (e_approx as Text));
 
 // Negative floats
 def negative_one = -1.0;
+
 def negative_pi = -3.14159;
 
 IO::PrintLine("Negative one: " ++ (negative_one as Text));
@@ -27,7 +27,9 @@ IO::PrintLine("Negative pi: " ++ (negative_pi as Text));
 
 // Small decimal values
 def small = 0.001;
+
 def tiny = 0.0000001;
+
 def very_small = 0.123456789;
 
 IO::PrintLine("Small (0.001): " ++ (small as Text));
@@ -36,6 +38,7 @@ IO::PrintLine("Very small: " ++ (very_small as Text));
 
 // Large floats
 def large = 1000000.0;
+
 def very_large = 123456789.987654321;
 
 IO::PrintLine("Large: " ++ (large as Text));
@@ -43,7 +46,9 @@ IO::PrintLine("Very large: " ++ (very_large as Text));
 
 // Float arithmetic
 def float_sum = 1.5 + 2.5 + 3.5;
+
 def float_product = 2.0 * 3.0 * 4.0;
+
 def float_division = 10.0 / 3.0;
 
 IO::PrintLine("Float sum (1.5+2.5+3.5): " ++ (float_sum as Text));
@@ -52,6 +57,7 @@ IO::PrintLine("Float division (10/3): " ++ (float_division as Text));
 
 // Scientific notation values
 def hundred = 1.0;
+
 def thousand = 10.0;
 
 IO::PrintLine("Hundred equivalent: " ++ (hundred as Text));

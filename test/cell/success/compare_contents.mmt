@@ -1,13 +1,13 @@
 module CellCompareContents
-
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt"
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 // Cells have no equality of their own; compare what they hold.
 
 def a = ref 1;
+
 def b = ref 1;
+
 def same_contents = (*a) == *b;
-IO::PrintLine(if same_contents then "true" else "false");
+IO::PrintLine(if same_contents
+then "true"
+else "false");

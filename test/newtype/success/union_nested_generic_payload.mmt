@@ -1,9 +1,5 @@
 module NewtypeUnionNestedGenericPayload
-
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt",
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt", }
 
 // Regression: a nested generic payload whose closing '>>' lexes as a single
 // RIGHT_SHIFT token used to make TypeBodyHasTopLevelBar scan past the
@@ -12,8 +8,11 @@ import
 type Result = Ok(Array<Array<Int>>) | Err(Text);
 
 def value = Result::Ok([[1, 2], [3]]);
-def is_ok = match value with
-	case Result::Ok(_) => true
-	case Result::Err(_) => false;
 
-if is_ok then () else Panic::Panic("nested generic union payload should still construct and match");
+def is_ok = match value with
+    case Result::Ok(_) => true
+    case Result::Err(_) => false;
+
+if is_ok
+then ()
+else Panic::Panic("nested generic union payload should still construct and match");

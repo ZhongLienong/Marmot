@@ -2,15 +2,25 @@ module FlexibleImportMiddle
 
 // Test: import statement in the middle of code
 
-def double = fn(x: Float) -> Float => { x * 2.0 };
+def double = fn(x: Float) -> Float =>
+{
+    x * 2.0
+};
 
 import { <IO> }
 
-def triple = fn(x: Float) -> Float => { x * 3.0 };
+def triple = fn(x: Float) -> Float =>
+{
+    x * 3.0
+};
 
-use IO.{PrintLine}
+use IO.
+{
+    PrintLine
+}
 
-def main = fn() -> Unit => {
+def main = fn() -> Unit =>
+{
     PrintLine("double(5) = " ++ (double(5.0) as Text));
     PrintLine("triple(5) = " ++ (triple(5.0) as Text));
 };

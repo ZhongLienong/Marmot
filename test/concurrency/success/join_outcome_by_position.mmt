@@ -1,5 +1,4 @@
 module JoinOutcomeByPosition
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 // The VM builds a join's result by position, not by name: member 0 holds the
@@ -8,18 +7,19 @@ import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../
 // that shape works, whatever its types and members are called.
 
 type Why = Stopped | Broke(Text);
+
 type Outcome<T, E> = Finished(T) | Missing(E);
 
-foreign "MARMOT_PRIMITIVE_Join" Await: fn(Worker<T>) -> Outcome<T, Why>;
+foreign "MARMOT_PRIMITIVE_Join" Await: fn(Worker < T >) -> Outcome<T, Why>;
 
-def Describe = fn(outcome : Outcome<Int, Why>) -> Text =>
-	match outcome with
-		case Outcome::Finished(value) => "finished with " ++ (value as Text)
-		case Outcome::Missing(Why::Stopped()) => "stopped"
-		case Outcome::Missing(Why::Broke(message)) => "broke: " ++ message;
+def Describe = fn(outcome: Outcome<Int, Why>) -> Text => match outcome with
+    case Outcome::Finished(value) => "finished with " ++ (value as Text)
+    case Outcome::Missing(Why::Stopped()) => "stopped"
+    case Outcome::Missing(Why::Broke(message)) => "broke: " ++ message;
 
-def Triple = fn(n : Int) -> Int => n * 3;
-def Divide = fn(n : Int) -> Int => 10 / n;
+def Triple = fn(n: Int) -> Int => n * 3;
+
+def Divide = fn(n: Int) -> Int => 10 / n;
 
 IO::PrintLine(Describe(Await(Concurrency::Spawn(14, Triple))));
 IO::PrintLine(Describe(Await(Concurrency::Spawn(0, Divide))));

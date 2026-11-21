@@ -1,18 +1,23 @@
 module ConstrainedInstanceNested
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
-class Show<T> {
+class Show<T>
+{
     show: fn(value: T) -> Text;
 };
 
-type Boxed<T> = { item: T };
+type Boxed<T> =
+{
+    item: T
+};
 
-instance Show<Int> {
+instance Show<Int>
+{
     def show = fn(value: Int) -> Text => "Int(" ++ (value as Text) ++ ")";
 };
 
-instance Show<Boxed<T>> where Show<T> {
+instance Show<Boxed<T>> where Show<T>
+{
     def show = fn(value: Boxed<T>) -> Text => "Boxed(" ++ Show::show(value.item) ++ ")";
 };
 

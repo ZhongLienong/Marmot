@@ -1,25 +1,43 @@
 module Hashable
 public export { Hashable }
-class Hashable < T > {
+
+class Hashable<T>
+{
     Hash: fn(value: T) -> Int;
 };
-instance Hashable < Int > {
+
+instance Hashable<Int>
+{
     def Hash = fn(value: Int) -> Int => value;
 };
-instance Hashable < Bool > {
-    def Hash = fn(value: Bool) -> Int => if value then 1 else 0;
+
+instance Hashable<Bool>
+{
+    def Hash = fn(value: Bool) -> Int => if value
+    then 1
+    else 0;
 };
-instance Hashable < Byte > {
+
+instance Hashable<Byte>
+{
     def Hash = fn(value: Byte) -> Int => value as Int;
 };
-instance Hashable < Word > {
+
+instance Hashable<Word>
+{
     def Hash = fn(value: Word) -> Int => value as Int;
 };
+
 foreign "MARMOT_FFI_HashText" HashText: fn(Text) -> Int;
-instance Hashable < Text > {
+
+instance Hashable<Text>
+{
     def Hash = fn(value: Text) -> Int => HashText(value);
 };
+
 foreign "MARMOT_FFI_HashFloat" HashFloat: fn(Float) -> Int;
-instance Hashable < Float > {
+
+instance Hashable<Float>
+{
     def Hash = fn(value: Float) -> Int => HashFloat(value);
 };

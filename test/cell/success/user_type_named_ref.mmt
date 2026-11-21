@@ -1,9 +1,13 @@
 module UserTypeNamedRef
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
-type Ref<T> = { row: Int, value: T };
+type Ref<T> =
+{
+    row: Int,
+    value: T
+};
 
-def item : Ref<Text> = Ref(3, "total");
+def item: Ref<Text> = Ref(3, "total");
+
 def native = ref item;
 IO::PrintLine(((*native).row as Text) ++ " " ++ (*native).value);

@@ -1,11 +1,13 @@
 module channel_close_unblock
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt" }
 
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
-use IO.{PrintLine}
+use IO.
+{
+    PrintLine
+}
 
-def Sender = fn(ch : Channel<Text>) -> Int =>
+def Sender = fn(ch: Channel < Text >) -> Int =>
 {
     Concurrency::Send(ch, "first");
     Concurrency::Send(ch, "second");
@@ -13,10 +15,12 @@ def Sender = fn(ch : Channel<Text>) -> Int =>
     0
 };
 
-def ch : Channel<Text> = Concurrency::MakeChannel(2);
+def ch: Channel < Text > = Concurrency::MakeChannel(2);
+
 def w = Concurrency::Spawn(ch, Sender);
 
 def msg1 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch), "Missing first message");
+
 def msg2 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch), "Missing second message");
 
 PrintLine("msg1=[" ++ msg1 ++ "]");

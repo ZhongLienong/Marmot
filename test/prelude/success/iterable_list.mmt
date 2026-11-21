@@ -1,25 +1,28 @@
 module IterableListTest
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Iterable.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/List.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt" }
 
-import
+use List.
 {
-    "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/Iterable.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/Prelude/List.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt"
+    List,
+    ListIter,
+    ListIterNew
+}
+use Option.
+{
+    Option
 }
 
-use List.{List, ListIter, ListIterNew}
-use Option.{ Option }
+def list: List<Int> = List::Cons(1, List::Cons(2, List::Cons(3, List::Nil())));
 
-def list : List<Int> = List::Cons(1, List::Cons(2, List::Cons(3, List::Nil())));
-def iter : ListIter<Int> = ListIterNew(list);
-def SumList = fn(state: ListIter<Int>, acc: Int) -> Int =>
-    match Iterable::Next(state) with
-        case Option::Some(step) => {
-            def (value, rest) = step;
-            SumList(rest, acc + value)
-        }
-        case Option::None() => acc;
+def iter: ListIter<Int> = ListIterNew(list);
+
+def SumList = fn(state: ListIter<Int>, acc: Int) -> Int => match Iterable::Next(state) with
+    case Option::Some(step) =>
+{
+        def (value, rest) = step;
+        SumList(rest, acc + value)
+    }
+    case Option::None() => acc;
 
 def total = SumList(iter, 0);
 

@@ -1,10 +1,5 @@
 module BuiltinArrayFfi
-
-import
-{
-    "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt",
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt", }
 
 // Previously also covered MARMOT_FFI_ArrayAppend and MARMOT_FFI_ArrayPop, both
 // of which mutated their argument in place and were deleted along with the
@@ -12,25 +7,44 @@ import
 // remains here is the FFI surface that returns new values or reads without
 // mutating.
 
-foreign "MARMOT_FFI_ArrayConcat" ArrayConcatInt : fn(Array<Int>, Array<Int>) -> Array<Int>;
-foreign "MARMOT_FFI_ArrayLength" ArrayLengthInt : fn(Array<Int>) -> Int;
-foreign "MARMOT_FFI_ArraySlice" ArraySliceInt : fn(Array<Int>, Int, Int) -> Array<Int>;
-foreign "MARMOT_FFI_ArrayReverse" ArrayReverseInt : fn(Array<Int>) -> Array<Int>;
+foreign "MARMOT_FFI_ArrayConcat" ArrayConcatInt: fn(Array<Int>, Array<Int>) -> Array<Int>;
+
+foreign "MARMOT_FFI_ArrayLength" ArrayLengthInt: fn(Array<Int>) -> Int;
+
+foreign "MARMOT_FFI_ArraySlice" ArraySliceInt: fn(Array<Int>, Int, Int) -> Array<Int>;
+
+foreign "MARMOT_FFI_ArrayReverse" ArrayReverseInt: fn(Array<Int>) -> Array<Int>;
 
 def arr = [1, 2, 3];
-if ArrayLengthInt(arr) == 3 then () else Panic::Panic("ArrayLength should report the array size");
+if ArrayLengthInt(arr) == 3
+then ()
+else Panic::Panic("ArrayLength should report the array size");
 
 def combined = ArrayConcatInt(arr, [4, 5]);
-if ArrayLengthInt(combined) == 5 then () else Panic::Panic("ArrayConcat should return a larger array");
-if combined[3] == 4 then () else Panic::Panic("ArrayConcat should preserve right-hand ordering");
+if ArrayLengthInt(combined) == 5
+then ()
+else Panic::Panic("ArrayConcat should return a larger array");
+if combined[3] == 4
+then ()
+else Panic::Panic("ArrayConcat should preserve right-hand ordering");
 
 def reversed = ArrayReverseInt(combined);
-if reversed[0] == 5 then () else Panic::Panic("ArrayReverse should place the last item first");
-if reversed[4] == 1 then () else Panic::Panic("ArrayReverse should place the first item last");
+if reversed[0] == 5
+then ()
+else Panic::Panic("ArrayReverse should place the last item first");
+if reversed[4] == 1
+then ()
+else Panic::Panic("ArrayReverse should place the first item last");
 
 def slice = ArraySliceInt(reversed, 1, 4);
-if ArrayLengthInt(slice) == 3 then () else Panic::Panic("ArraySlice should return the requested window");
-if slice[0] == 4 then () else Panic::Panic("ArraySlice should preserve the first sliced item");
-if slice[2] == 2 then () else Panic::Panic("ArraySlice should preserve the last sliced item");
+if ArrayLengthInt(slice) == 3
+then ()
+else Panic::Panic("ArraySlice should return the requested window");
+if slice[0] == 4
+then ()
+else Panic::Panic("ArraySlice should preserve the first sliced item");
+if slice[2] == 2
+then ()
+else Panic::Panic("ArraySlice should preserve the last sliced item");
 
 IO::PrintLine("builtin_array_ffi: PASS");

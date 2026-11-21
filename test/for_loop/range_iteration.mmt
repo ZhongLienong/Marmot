@@ -1,29 +1,31 @@
 module RangeIteration
-
 // Test that range iteration still works after array iteration changes
 
-import
-{
-    "../../projects/marmotstdlib/MarmotPrelude/IO.mmt"
-}
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
-use IO.{PrintLine}
+use IO.
+{
+    PrintLine
+}
 
 // Forward range
 PrintLine("Forward:");
-for i in 0..1..4 {
+for i in 0..1..4
+{
     PrintLine(i as Text);
 };
 
 // Backward range
 PrintLine("Backward:");
-for i in 5..-1..1 {
+for i in 5..- 1..1
+{
     PrintLine(i as Text);
 };
 
 // Float range
 PrintLine("Float:");
-for f in 0.0..0.5..2.0 {
+for f in 0.0..0.5..2.0
+{
     PrintLine(f as Text);
 };
 

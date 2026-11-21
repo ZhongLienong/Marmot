@@ -1,103 +1,111 @@
 module Iter
-
 import { "./ArrayUtil.mmt", "./Iterable.mmt", "./Prelude/Option.mmt" }
 
 public export { ArrayIter, OfArray, Mapped, Map, Filtered, Filter, Taken, Take, Fold, Count, ToArray }
 
-use Option.{ Option }
+use Option.
+{
+    Option
+}
 
 // Lazy sequence pipelines. Every stage takes its source first, so a pipeline is a
 // pipe: `values |> Iter::OfArray |> Iter::Map(Double) |> Iter::Filter(IsEven) |> Iter::ToArray`.
 // A stage is an ordinary value with an Iterable instance, so `for` and comprehensions
 // consume one directly, and nothing is evaluated until something asks for an element.
 
-type ArrayIter < T > = {
-    values: Array < T >,
+type ArrayIter<T> =
+{
+    values: Array<T>,
     index: Int
 };
 
-def OfArray = fn < T >(values: Array < T >) -> ArrayIter < T > => ArrayIter (values, 0);
+def OfArray = fn<T>(values: Array<T>) -> ArrayIter<T> => ArrayIter(values, 0);
 
-instance Iterable < ArrayIter < T >> {
+instance Iterable<ArrayIter<T>>
+{
     type Item = T;
-    def Next = fn(iter: ArrayIter < T >) -> Option < (T, ArrayIter < T >) > =>
-        if iter.index >= ArrayUtil::Length(iter.values)
-        then Option::None ()
-        else Option::Some ((iter.values[iter.index], ArrayIter (iter.values, iter.index + 1)));
+    def Next = fn(iter: ArrayIter<T>) -> Option<(T, ArrayIter<T>)> => if iter.index >= ArrayUtil::Length(iter.values)
+    then Option::None()
+    else Option::Some((iter.values[iter.index], ArrayIter(iter.values, iter.index + 1)));
 };
 
-type Mapped < S, A, B > = {
+type Mapped<S, A, B> =
+{
     inner: S,
     fun: fn(A) -> B
 };
 
-def Map = fn < S, A, B >(inner: S, fun: fn(A) -> B) -> Mapped < S, A, B > where Iterable < S >, Iterable::Item < S > ~ A => Mapped (inner, fun);
+def Map = fn<S, A, B>(inner: S, fun: fn(A) -> B) -> Mapped<S, A, B> where Iterable<S>, Iterable::Item<S> ~ A => Mapped(inner, fun);
 
-instance Iterable < Mapped < S, A, B >> where Iterable < S >, Iterable::Item < S > ~ A {
+instance Iterable<Mapped<S, A, B>> where Iterable<S>, Iterable::Item<S> ~ A
+{
     type Item = B;
-    def Next = fn(stage: Mapped < S, A, B >) -> Option < (B, Mapped < S, A, B >) > =>
-        match Iterable::Next(stage.inner) with
-            case Option::Some(step) => {
-                def (value, rest) = step;
-                Option::Some ((stage.fun(value), Mapped (rest, stage.fun)))
-            }
-            case Option::None() => Option::None ();
+    def Next = fn(stage: Mapped<S, A, B>) -> Option<(B, Mapped<S, A, B>)> => match Iterable::Next(stage.inner) with
+        case Option::Some(step) =>
+    {
+            def (value, rest) = step;
+            Option::Some((stage.fun(value), Mapped(rest, stage.fun)))
+        }
+        case Option::None() => Option::None();
 };
 
-type Filtered < S, A > = {
+type Filtered<S, A> =
+{
     inner: S,
     keep: fn(A) -> Bool
 };
 
-def Filter = fn < S, A >(inner: S, keep: fn(A) -> Bool) -> Filtered < S, A > where Iterable < S >, Iterable::Item < S > ~ A => Filtered (inner, keep);
+def Filter = fn<S, A>(inner: S, keep: fn(A) -> Bool) -> Filtered<S, A> where Iterable<S>, Iterable::Item<S> ~ A => Filtered(inner, keep);
 
 // A rejected element is skipped by recursing on the rest, so Next either yields a
 // kept element or reaches the end. The recursion lives here rather than inside the
 // instance method so the skip is an ordinary tail call.
-def NextKept = fn < S, A >(stage: Filtered < S, A >) -> Option < (A, Filtered < S, A >) > where Iterable < S >, Iterable::Item < S > ~ A =>
-    match Iterable::Next(stage.inner) with
-        case Option::Some(step) => {
-            def (value, rest) = step;
-            if stage.keep(value)
-            then Option::Some ((value, Filtered (rest, stage.keep)))
-            else NextKept(Filtered (rest, stage.keep))
-        }
-        case Option::None() => Option::None ();
+def NextKept = fn<S, A>(stage: Filtered<S, A>) -> Option<(A, Filtered<S, A>)> where Iterable<S>, Iterable::Item<S> ~ A => match Iterable::Next(stage.inner) with
+    case Option::Some(step) =>
+{
+        def (value, rest) = step;
+        if stage.keep(value)
+        then Option::Some((value, Filtered(rest, stage.keep)))
+        else NextKept(Filtered(rest, stage.keep))
+    }
+    case Option::None() => Option::None();
 
-instance Iterable < Filtered < S, A >> where Iterable < S >, Iterable::Item < S > ~ A {
+instance Iterable<Filtered<S, A>> where Iterable<S>, Iterable::Item<S> ~ A
+{
     type Item = A;
-    def Next = fn(stage: Filtered < S, A >) -> Option < (A, Filtered < S, A >) > => NextKept(stage);
+    def Next = fn(stage: Filtered<S, A>) -> Option<(A, Filtered<S, A>)> => NextKept(stage);
 };
 
-type Taken < S, A > = {
+type Taken<S, A> =
+{
     inner: S,
     remaining: Int
 };
 
-def Take = fn < S, A >(inner: S, count: Int) -> Taken < S, A > where Iterable < S >, Iterable::Item < S > ~ A => Taken (inner, count);
+def Take = fn<S, A>(inner: S, count: Int) -> Taken<S, A> where Iterable<S>, Iterable::Item<S> ~ A => Taken(inner, count);
 
-instance Iterable < Taken < S, A >> where Iterable < S >, Iterable::Item < S > ~ A {
+instance Iterable<Taken<S, A>> where Iterable<S>, Iterable::Item<S> ~ A
+{
     type Item = A;
-    def Next = fn(stage: Taken < S, A >) -> Option < (A, Taken < S, A >) > =>
-        if stage.remaining <= 0
-        then Option::None ()
-        else
-            match Iterable::Next(stage.inner) with
-                case Option::Some(step) => {
-                    def (value, rest) = step;
-                    Option::Some ((value, Taken (rest, stage.remaining - 1)))
-                }
-                case Option::None() => Option::None ();
+    def Next = fn(stage: Taken<S, A>) -> Option<(A, Taken<S, A>)> => if stage.remaining <= 0
+    then Option::None()
+    else match Iterable::Next(stage.inner) with
+        case Option::Some(step) =>
+    {
+            def (value, rest) = step;
+            Option::Some((value, Taken(rest, stage.remaining - 1)))
+        }
+        case Option::None() => Option::None();
 };
 
-def Fold = fn < S, A, B >(source: S, initial: B, step: fn(B, A) -> B) -> B where Iterable < S >, Iterable::Item < S > ~ A =>
-    match Iterable::Next(source) with
-        case Option::Some(pair) => {
-            def (value, rest) = pair;
-            Fold(rest, step(initial, value), step)
-        }
-        case Option::None() => initial;
+def Fold = fn<S, A, B>(source: S, initial: B, step: fn(B, A) -> B) -> B where Iterable<S>, Iterable::Item<S> ~ A => match Iterable::Next(source) with
+    case Option::Some(pair) =>
+{
+        def (value, rest) = pair;
+        Fold(rest, step(initial, value), step)
+    }
+    case Option::None() => initial;
 
-def Count = fn < S, A >(source: S) -> Int where Iterable < S >, Iterable::Item < S > ~ A => Fold(source, 0, fn(total: Int, _ : A) -> Int => total + 1);
+def Count = fn<S, A>(source: S) -> Int where Iterable<S>, Iterable::Item<S> ~ A => Fold(source, 0, fn(total: Int, _: A) -> Int => total + 1);
 
-def ToArray = fn < S, A >(source: S) -> Array < A > where Iterable < S >, Iterable::Item < S > ~ A => [value for value in source];
+def ToArray = fn<S, A>(source: S) -> Array<A> where Iterable<S>, Iterable::Item<S> ~ A => [value for value in source];

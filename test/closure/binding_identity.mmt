@@ -1,13 +1,15 @@
 module BindingIdentity
-
 import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
-def make = fn(base: Int) -> (fn() -> Int, fn() -> Int) => {
-    def first = {
+def make = fn(base: Int) -> (fn() -> Int, fn() -> Int) =>
+{
+    def first =
+    {
         def value = base + 1;
         fn() -> Int => (fn() -> Int => value)()
     };
-    def second = {
+    def second =
+    {
         def value = base + 2;
         fn() -> Int => (fn() -> Int => value)()
     };
@@ -20,8 +22,9 @@ IO::PrintLine(second() as Text);
 IO::PrintLine(first() as Text);
 
 type Choice = Left(Int) | Right(Int);
-def capture = fn(choice: Choice) -> fn() -> Int =>
-    match choice with case Choice::Left(value) | Choice::Right(value) => fn() -> Int => value;
+
+def capture = fn(choice: Choice) -> fn() -> Int => match choice with
+    case Choice::Left(value) | Choice::Right(value) => fn() -> Int => value;
 
 IO::PrintLine(capture(Choice::Left(21))() as Text);
 IO::PrintLine(capture(Choice::Right(34))() as Text);

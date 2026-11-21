@@ -1,16 +1,15 @@
 module IntegerLiterals
-
-import
-{
-    <IO>
-}
+import { <IO> }
 
 IO::PrintLine("=== Integer Literal Tests ===");
 
 // Positive integers
 def zero = 0;
+
 def small_positive = 42;
+
 def large_positive = 1000000;
+
 def max_int64 = 9223372036854775807;
 
 IO::PrintLine("Zero: " ++ (zero as Text));
@@ -20,7 +19,9 @@ IO::PrintLine("INT64_MAX: " ++ (max_int64 as Text));
 
 // Negative integers
 def small_negative = -1;
+
 def large_negative = -1000000;
+
 def very_large_negative = -999999999;
 
 IO::PrintLine("Small negative: " ++ (small_negative as Text));
@@ -29,9 +30,13 @@ IO::PrintLine("Very large negative: " ++ (very_large_negative as Text));
 
 // Integer arithmetic with literals
 def sum = 10 + 20 + 30;
+
 def product = 5 * 6 * 7;
+
 def difference = 100 - 42;
+
 def quotient = 100 / 4;
+
 def remainder = 17 % 5;
 
 IO::PrintLine("Sum (10+20+30): " ++ (sum as Text));
@@ -42,7 +47,9 @@ IO::PrintLine("Remainder (17%5): " ++ (remainder as Text));
 
 // Powers of two
 def power_of_2_8 = 256;
+
 def power_of_2_16 = 65536;
+
 def power_of_2_20 = 1048576;
 
 IO::PrintLine("2^8: " ++ (power_of_2_8 as Text));

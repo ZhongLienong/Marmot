@@ -1,5 +1,7 @@
 module UserModuleNamedCell
-
 import { "./cell_module.mmt", "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
-IO::PrintLine((Cell::New(1) as Text) ++ " " ++ (Cell::Get(2) as Text) ++ " " ++ (Cell::Set(3, 4) as Text));
+IO::PrintLine
+(
+    (Cell::New(1) as Text) ++ " " ++ (Cell::Get(2) as Text) ++ " " ++ (Cell::Set(3, 4) as Text)
+);

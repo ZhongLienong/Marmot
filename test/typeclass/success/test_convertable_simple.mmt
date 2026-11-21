@@ -1,23 +1,31 @@
 module TestConvertableSimple
-
 // Test Convertable class defined inline (same file)
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
-class Convertable<From, To> {
+class Convertable<From, To>
+{
     Convert: fn(value: From) -> To;
 };
 
 // Bool -> Int conversion
-instance Convertable<Bool, Int> {
-    def Convert = fn(value: Bool) -> Int => {
-        if value then 1 else 0
+instance Convertable<Bool, Int>
+{
+    def Convert = fn(value: Bool) -> Int =>
+    {
+        if value
+        then 1
+        else 0
     };
 };
 
 // Bool -> Text conversion
-instance Convertable<Bool, Text> {
-    def Convert = fn(value: Bool) -> Text => {
-        if value then "true" else "false"
+instance Convertable<Bool, Text>
+{
+    def Convert = fn(value: Bool) -> Text =>
+    {
+        if value
+        then "true"
+        else "false"
     };
 };
 

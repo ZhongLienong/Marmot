@@ -1,9 +1,5 @@
 module CellReadsAreNotFolded
-
-import
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt"
-}
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 // Every optimizer pass runs over this. A pass that treated reference reads as pure
 // could reuse the first read after a write, or drop the write because its value is
@@ -11,10 +7,10 @@ import
 
 def Probe = fn(c: Ref<Int>) -> Int =>
 {
-	def before = *c;
-	c := before * 2;
-	def after = *c;
-	before + after
+    def before = *c;
+    c := before * 2;
+    def after = *c;
+    before + after
 };
 
 def c = ref 7;

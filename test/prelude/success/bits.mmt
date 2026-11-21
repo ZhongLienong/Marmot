@@ -1,8 +1,9 @@
 module PreludeBits
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/Collections/Bits.mmt", "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt" }
 
-def Expect = fn(condition: Bool, message: Text) -> Unit => if condition then () else Panic::Panic(message);
+def Expect = fn(condition: Bool, message: Text) -> Unit => if condition
+then ()
+else Panic::Panic(message);
 
 Expect(Bits::PopCount(0) == 0, "PopCount of zero");
 Expect(Bits::PopCount(1) == 1, "PopCount of one");

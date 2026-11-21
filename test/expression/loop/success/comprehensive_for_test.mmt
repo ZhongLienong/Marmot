@@ -1,21 +1,15 @@
 module ComprehensiveForTest
-
-import
-{
-    "../../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-    "../../../../projects/marmotstdlib/MarmotPrelude/ArrayUtil.mmt",
-}
+import { "../../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../../projects/marmotstdlib/MarmotPrelude/ArrayUtil.mmt", }
 
 // Each range shape is collected by a comprehension and totalled by a recursive
 // helper. The comprehension drives the same range iteration the `for` loops used
 // to, so the six direction/step/emptiness assertions are unchanged; only the
 // accumulation moved out of the loop body.
-def SumFrom = fn(values : Array < Int >, index : Int) -> Int =>
-    if index >= ArrayUtil::Length(values)
-    then 0
-    else values[index] + SumFrom(values, index + 1);
+def SumFrom = fn(values: Array<Int>, index: Int) -> Int => if index >= ArrayUtil::Length(values)
+then 0
+else values[index] + SumFrom(values, index + 1);
 
-def Sum = fn(values : Array < Int >) -> Int => SumFrom(values, 0);
+def Sum = fn(values: Array<Int>) -> Int => SumFrom(values, 0);
 
 // Test 1: Forward iteration (positive step)
 IO::PrintLine("Test 1 - Forward 0..1..10 (expected 45):");
@@ -23,7 +17,7 @@ IO::PrintLine(Sum([i for i in 0..1..10]) as Text);
 
 // Test 2: Backward iteration (negative step)
 IO::PrintLine("Test 2 - Backward 0..-1..-10 (expected -45):");
-IO::PrintLine(Sum([i for i in 0..-1..-10]) as Text);
+IO::PrintLine(Sum([i for i in 0..- 1..- 10]) as Text);
 
 // Test 3: Forward iteration with explicit step
 IO::PrintLine("Test 3 - Forward 0..2..10 (expected 20):");
@@ -31,7 +25,7 @@ IO::PrintLine(Sum([i for i in 0..2..10]) as Text);
 
 // Test 4: Backward iteration with larger negative step
 IO::PrintLine("Test 4 - Backward 10..-2..0 (expected 30):");
-IO::PrintLine(Sum([i for i in 10..-2..0]) as Text);
+IO::PrintLine(Sum([i for i in 10..- 2..0]) as Text);
 
 // Test 5: Single iteration
 IO::PrintLine("Test 5 - Single 5..1..6 (expected 5):");
@@ -39,7 +33,7 @@ IO::PrintLine(Sum([i for i in 5..1..6]) as Text);
 
 // Test 6: Empty range (should not iterate - wrong direction)
 IO::PrintLine("Test 6 - Empty 0..1..-10 (expected 0):");
-IO::PrintLine(Sum([i for i in 0..1..-10]) as Text);
+IO::PrintLine(Sum([i for i in 0..1..- 10]) as Text);
 
 // `for` itself still runs, now in the only role it keeps: performing effects.
 IO::PrintLine("Test 7 - for as effect 0..3..10:");

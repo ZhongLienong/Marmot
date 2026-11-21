@@ -1,19 +1,26 @@
 module ModuleImport
-
 // Test importing type aliases from another module
 
-import
-{
-    "../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-    "./module_lib.mmt"
-}
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "./module_lib.mmt" }
 
-use TypeAliasLib.{UserId, Name, Position, createPoint, getUserId}
-use IO.{PrintLine}
+use TypeAliasLib.
+{
+    UserId,
+    Name,
+    Position,
+    createPoint,
+    getUserId
+}
+use IO.
+{
+    PrintLine
+}
 
 // Use imported type aliases
 def id: UserId = getUserId();
+
 def name: Name = "Alice";
+
 def pos: Position = createPoint(10.0, 20.0);
 
 PrintLine(id as Text);

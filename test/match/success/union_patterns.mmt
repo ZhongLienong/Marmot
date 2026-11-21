@@ -1,24 +1,19 @@
 module MatchUnionPatterns
-
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
 type Option = None | Some(Int);
 
 def none_val = Option::None();
+
 def some_val = Option::Some(8);
 
 def none_result = match none_val with
-	case Option::None() => 0
-	case Option::Some(x) => x
-;
+    case Option::None() => 0
+    case Option::Some(x) => x;
 
 def some_result = match some_val with
-	case Option::None() => 0
-	case Option::Some(x) => x
-;
+    case Option::None() => 0
+    case Option::Some(x) => x;
 
 IO::PrintLine("none_result=" ++ (none_result as Text));
 IO::PrintLine("some_result=" ++ (some_result as Text));

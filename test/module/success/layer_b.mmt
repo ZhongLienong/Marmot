@@ -2,9 +2,6 @@
 module LayerB
 public export { transform }
 
-import
-{
-    "layer_c.mmt"
-}
+import { "layer_c.mmt" }
 
 def transform = fn(x: Int) -> Int => LayerC::calculate(x);

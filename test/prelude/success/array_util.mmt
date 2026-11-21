@@ -1,13 +1,8 @@
 module PreludeArrayUtil
+import { "../../../projects/marmotstdlib/MarmotPrelude/ArrayUtil.mmt", "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt" }
 
-import
+def Expect = fn(condition: Bool, message: Text) -> Unit =>
 {
-    "../../../projects/marmotstdlib/MarmotPrelude/ArrayUtil.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt"
-}
-
-def Expect = fn(condition: Bool, message: Text) -> Unit => {
     if condition
     then ()
     else Panic::Panic(message)
@@ -16,9 +11,13 @@ def Expect = fn(condition: Bool, message: Text) -> Unit => {
 def numbers = [1, 2, 3, 4, 5, 6];
 
 def slice = ArrayUtil::Slice(numbers, 1, 5);
+
 def clamped_start = ArrayUtil::Slice(numbers, -3, 2);
+
 def clamped_end = ArrayUtil::Slice(numbers, 4, 99);
+
 def empty_slice = ArrayUtil::Slice(numbers, 5, 2);
+
 def reversed = ArrayUtil::Reverse(numbers);
 
 Expect(ArrayUtil::Length(numbers) == 6, "ArrayUtil::Length should report the current array size");
@@ -28,16 +27,36 @@ Expect(ArrayUtil::Length(slice) == 4, "ArrayUtil::Slice should return the reques
 Expect(slice[0] == 2, "ArrayUtil::Slice should preserve the first sliced value");
 Expect(slice[3] == 5, "ArrayUtil::Slice should preserve the last sliced value");
 Expect(ArrayUtil::Length(clamped_start) == 2, "ArrayUtil::Slice should clamp negative start bounds");
-Expect((clamped_start[0] == 1) && (clamped_start[1] == 2), "ArrayUtil::Slice should keep ordering when the start bound is clamped");
-Expect(ArrayUtil::Length(clamped_end) == 2, "ArrayUtil::Slice should clamp end bounds past the array length");
-Expect((clamped_end[0] == 5) && (clamped_end[1] == 6), "ArrayUtil::Slice should keep ordering when the end bound is clamped");
-Expect(ArrayUtil::Length(empty_slice) == 0, "ArrayUtil::Slice should return an empty array for an empty range");
+Expect
+(
+    (clamped_start[0] == 1) && (clamped_start[1] == 2),
+    "ArrayUtil::Slice should keep ordering when the start bound is clamped"
+);
+Expect
+(
+    ArrayUtil::Length(clamped_end) == 2,
+    "ArrayUtil::Slice should clamp end bounds past the array length"
+);
+Expect
+(
+    (clamped_end[0] == 5) && (clamped_end[1] == 6),
+    "ArrayUtil::Slice should keep ordering when the end bound is clamped"
+);
+Expect
+(
+    ArrayUtil::Length(empty_slice) == 0,
+    "ArrayUtil::Slice should return an empty array for an empty range"
+);
 Expect(reversed[0] == 6, "ArrayUtil::Reverse should place the last element first");
 Expect(reversed[5] == 1, "ArrayUtil::Reverse should place the first element last");
 
 def texts = ["zero", "alpha", "beta", "gamma"];
 
-Expect(ArrayUtil::Length(texts) == 4, "ArrayUtil helpers should work for pointer-backed element types");
+Expect
+(
+    ArrayUtil::Length(texts) == 4,
+    "ArrayUtil helpers should work for pointer-backed element types"
+);
 Expect(ArrayUtil::Contains(texts, "beta"), "ArrayUtil::Contains should work with text elements");
 
 def nan = 0.0 / 0.0;
@@ -46,16 +65,28 @@ Expect(!ArrayUtil::Contains([nan], nan), "ArrayUtil::Contains should reject NaN 
 
 def no_chunks: Array<Array<Int>> = [];
 Expect(#ArrayUtil::ConcatAll(no_chunks) == 0, "ConcatAll should accept no chunks");
+
 def empty_chunks: Array<Array<Int>> = [[], []];
 Expect(#ArrayUtil::ConcatAll(empty_chunks) == 0, "ConcatAll should accept all empty chunks");
+
 def joined = ArrayUtil::ConcatAll([[], [1, 2], [], [3], [4, 5, 6], []]);
-Expect((#joined == 6) && (joined[0] == 1) && (joined[2] == 3) && (joined[5] == 6), "ConcatAll should preserve order across empty and uneven chunks");
+Expect
+(
+    (#joined == 6) && (joined[0] == 1) && (joined[2] == 3) && (joined[5] == 6),
+    "ConcatAll should preserve order across empty and uneven chunks"
+);
 
 def cell = ref "final";
+
 def shared = [cell];
+
 def joined_refs = ArrayUtil::ConcatAll([shared, [ref "middle"], shared]);
 cell := "updated";
 Expect((#shared == 1) && (#joined_refs == 3), "ConcatAll should leave its input arrays alone");
-Expect((*(joined_refs[0]) == "updated") && (*(joined_refs[1]) == "middle") && (*(joined_refs[2]) == "updated"), "ConcatAll should preserve reference identity in pointer arrays");
+Expect
+(
+    (*(joined_refs[0]) == "updated") && (*(joined_refs[1]) == "middle") && (*(joined_refs[2]) == "updated"),
+    "ConcatAll should preserve reference identity in pointer arrays"
+);
 
 IO::PrintLine("prelude_array_util: PASS");

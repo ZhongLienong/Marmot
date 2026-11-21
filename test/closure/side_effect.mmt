@@ -1,24 +1,21 @@
 module SideEffect
-
-import
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-}
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
 // Previously a closure over a private mutable counter. Without assignment a
 // closure cannot hold state, so that subject no longer exists; what survives is
 // the other property the file pinned: a closure body runs when the closure is
 // called, not when it is created.
 
-def makeReporter = fn(label : Text) -> fn() -> Unit =>
+def makeReporter = fn(label: Text) -> fn() -> Unit =>
 {
-	IO::PrintLine("built " ++ label);
-	fn() -> Unit => IO::PrintLine("ran " ++ label)
+    IO::PrintLine("built " ++ label);
+    fn() -> Unit => IO::PrintLine("ran " ++ label)
 };
 
 // Both reporters are built before either is run, so the four lines interleave
 // only if creation and invocation are genuinely separate.
 def first = makeReporter("first");
+
 def second = makeReporter("second");
 
 first();

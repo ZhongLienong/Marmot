@@ -1,24 +1,20 @@
 module Exponential
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
-import
+def fast_expt = fn(x: Int, n: Int) -> Int =>
 {
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-}
+    def is_even = fn(x: Int) -> Bool => (x % 2) == 0;
 
-def fast_expt = fn(x : Int, n : Int) -> Int =>
-{
-	def is_even = fn(x : Int) -> Bool => (x % 2) == 0;
+    def fast_expt_iter = fn(acc_odd: Int, acc_even: Int, count: Int) -> Int =>
+    {
+        if count == 0
+        then acc_odd
+        else if is_even(count)
+        then fast_expt_iter(acc_odd, acc_even * acc_even, count / 2)
+        else fast_expt_iter(acc_odd * acc_even, acc_even, count - 1)
+    };
 
-	def fast_expt_iter = fn(acc_odd : Int, acc_even : Int, count : Int) -> Int =>
-	{
-		if count == 0 
-		then acc_odd
-		else if is_even(count)
-		then fast_expt_iter(acc_odd, acc_even * acc_even, count / 2)
-		else fast_expt_iter(acc_odd * acc_even, acc_even, count - 1)
-	};
-
-	fast_expt_iter(1, x, n)
+    fast_expt_iter(1, x, n)
 };
 
 IO::PrintLine("2^10 using fast exponentiation " ++ (fast_expt(2, 10) as Text));

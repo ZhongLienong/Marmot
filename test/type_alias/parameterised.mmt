@@ -1,57 +1,58 @@
 module Parameterised
-
 // Test: an alias that binds its own generic parameters.
 // Expected: the alias expands at each use site with that site's type arguments,
 // so BoxAlias<Int> and BoxAlias<Text> behave exactly as Box<Int> and Box<Text>.
 
-import
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt"
-}
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 type Box<T> =
 {
-	item: T
+    item: T
 };
 
 type Pair<A, B> =
 {
-	first: A,
-	second: B
+    first: A,
+    second: B
 };
 
 type Maybe<T> = Just(T) | Nothing;
 
 alias BoxAlias<T> = Box<T>;
+
 alias Swapped<A, B> = Pair<B, A>;
+
 alias IntKeyed<V> = Pair<Int, V>;
+
 alias Bag<T> = Array<T>;
+
 alias Perhaps<T> = Maybe<T>;
 
 // The same alias at two different instantiations.
-def boxed_int : BoxAlias<Int> = Box(1);
-def boxed_text : BoxAlias<Text> = Box("two");
+def boxed_int: BoxAlias<Int> = Box(1);
+
+def boxed_text: BoxAlias<Text> = Box("two");
 IO::PrintLine(boxed_int.item as Text);
 IO::PrintLine(boxed_text.item);
 
 // Arguments are matched to the alias's parameters by position, not to the
 // like-named parameters of the type it expands to.
-def swapped : Swapped<Int, Text> = Pair("three", 4);
+def swapped: Swapped<Int, Text> = Pair("three", 4);
 IO::PrintLine(swapped.first);
 IO::PrintLine(swapped.second as Text);
 
 // An alias may fix some of the expansion's arguments and leave the rest open.
-def keyed : IntKeyed<Text> = Pair(5, "five");
+def keyed: IntKeyed<Text> = Pair(5, "five");
 IO::PrintLine(keyed.first as Text);
 IO::PrintLine(keyed.second);
 
 // The expansion is not required to be a struct or a union.
-def bag : Bag<Int> = [6, 7, 8];
+def bag: Bag<Int> = [6, 7, 8];
 IO::PrintLine(bag[1] as Text);
 
-def perhaps : Perhaps<Int> = Maybe::Just(9);
+def perhaps: Perhaps<Int> = Maybe::Just(9);
+
 def unwrapped = match perhaps with
-	case Maybe::Just(n) => n
-	case Maybe::Nothing() => 0
-;
+    case Maybe::Just(n) => n
+    case Maybe::Nothing() => 0;
 IO::PrintLine(unwrapped as Text);

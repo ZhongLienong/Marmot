@@ -1,5 +1,4 @@
 module SpawnReadsDataGlobals
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt" }
 
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Countable.mmt" }
@@ -10,47 +9,75 @@ import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projec
 // differently inside `spawn` than when called directly -- `direct=15 worker=5`
 // for the Int case below -- with no error.
 
-type Point = { x: Int, y: Int };
+type Point =
+{
+    x: Int,
+    y: Int
+};
+
 type Shape = Circle(Int) | Square(Int);
 
-def MakeAdder = fn(amount : Int) -> fn(Int) -> Int => fn(n : Int) -> Int => n + amount;
+def MakeAdder = fn(amount: Int) -> fn(Int) -> Int => fn(n: Int) -> Int => n + amount;
 
 def base = 10;
+
 def label = "a global text long enough that small-string interning cannot hold it";
+
 def weights = [1, 2, 3, 4];
+
 def origin = Point(3, 4);
+
 def shape = Shape::Square(6);
+
 def AddHundred = MakeAdder(100);
 
 // A local recursive closure refers to itself through its own captured cell, so
 // copying this global into a worker has to handle a cycle.
-def MakeSumTo = fn(bonus : Int) -> fn(Int) -> Int =>
+def MakeSumTo = fn(bonus: Int) -> fn(Int) -> Int =>
 {
-	def SumTo = fn(n : Int) -> Int => if n <= 0 then bonus else n + SumTo(n - 1);
-	SumTo
+    def SumTo = fn(n: Int) -> Int => if n <= 0
+    then bonus
+    else n + SumTo(n - 1);
+    SumTo
 };
+
 def SumToWithBonus = MakeSumTo(1000);
 
-def UsesInt = fn(n : Int) -> Int => n + base;
-def UsesText = fn(n : Int) -> Int => n + #label;
-def UsesArray = fn(n : Int) -> Int => n + weights[0] + weights[3];
-def UsesRecord = fn(n : Int) -> Int => n + (origin.x * origin.y);
-def UsesUnion = fn(n : Int) -> Int =>
-	match shape with
-	case Shape::Circle(r) => n + r
-	case Shape::Square(s) => n + (s * s);
-def UsesCapturingClosure = fn(n : Int) -> Int => AddHundred(n);
-def UsesRecursiveClosure = fn(n : Int) -> Int => SumToWithBonus(n);
+def UsesInt = fn(n: Int) -> Int => n + base;
 
-def Report = fn(name : Text, direct : Int, worker : Int) -> Unit =>
-	IO::PrintLine(name ++ ": direct=" ++ (direct as Text) ++ " worker=" ++ (worker as Text) ++ (if direct == worker then " same" else " DIFFERENT"));
+def UsesText = fn(n: Int) -> Int => n + #label;
+
+def UsesArray = fn(n: Int) -> Int => n + weights[0] + weights[3];
+
+def UsesRecord = fn(n: Int) -> Int => n + (origin.x * origin.y);
+
+def UsesUnion = fn(n: Int) -> Int => match shape with
+    case Shape::Circle(r) => n + r
+    case Shape::Square(s) => n + (s * s);
+
+def UsesCapturingClosure = fn(n: Int) -> Int => AddHundred(n);
+
+def UsesRecursiveClosure = fn(n: Int) -> Int => SumToWithBonus(n);
+
+def Report = fn(name: Text, direct: Int, worker: Int) -> Unit => IO::PrintLine
+(
+    name ++ ": direct=" ++ (direct as Text) ++ " worker=" ++ (worker as Text) ++ (if direct == worker
+    then " same"
+    else " DIFFERENT")
+);
 
 def int_worker = Concurrency::Spawn(5, UsesInt);
+
 def text_worker = Concurrency::Spawn(5, UsesText);
+
 def array_worker = Concurrency::Spawn(5, UsesArray);
+
 def record_worker = Concurrency::Spawn(5, UsesRecord);
+
 def union_worker = Concurrency::Spawn(5, UsesUnion);
+
 def closure_worker = Concurrency::Spawn(5, UsesCapturingClosure);
+
 def recursive_worker = Concurrency::Spawn(5, UsesRecursiveClosure);
 
 Report("int", UsesInt(5), Concurrency::JoinedOrPanic(Concurrency::Join(int_worker)));
@@ -58,5 +85,15 @@ Report("text", UsesText(5), Concurrency::JoinedOrPanic(Concurrency::Join(text_wo
 Report("array", UsesArray(5), Concurrency::JoinedOrPanic(Concurrency::Join(array_worker)));
 Report("record", UsesRecord(5), Concurrency::JoinedOrPanic(Concurrency::Join(record_worker)));
 Report("union", UsesUnion(5), Concurrency::JoinedOrPanic(Concurrency::Join(union_worker)));
-Report("capturing closure", UsesCapturingClosure(5), Concurrency::JoinedOrPanic(Concurrency::Join(closure_worker)));
-Report("recursive closure", UsesRecursiveClosure(5), Concurrency::JoinedOrPanic(Concurrency::Join(recursive_worker)));
+Report
+(
+    "capturing closure",
+    UsesCapturingClosure(5),
+    Concurrency::JoinedOrPanic(Concurrency::Join(closure_worker))
+);
+Report
+(
+    "recursive closure",
+    UsesRecursiveClosure(5),
+    Concurrency::JoinedOrPanic(Concurrency::Join(recursive_worker))
+);

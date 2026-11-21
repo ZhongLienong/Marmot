@@ -1,31 +1,23 @@
 module TypeDeclarationSum
-
 // Test: `type X = A | B(T)` declares a sum.
 // Expected: it lowers onto the Union node - variants are namespaced under the
 // type name, and recursive variants can name the type.
 
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt"
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 type Shape = Dot | Line(Int) | Box(Int, Int);
 
 // Recursive: a variant naming the type being declared.
 type IntList = Nil | Cons(Int, IntList);
 
-def Area = fn(s: Shape) -> Int =>
-	match s with
-		case Shape::Dot() => 0
-		case Shape::Line(n) => n
-		case Shape::Box(w, h) => w * h
-;
+def Area = fn(s: Shape) -> Int => match s with
+    case Shape::Dot() => 0
+    case Shape::Line(n) => n
+    case Shape::Box(w, h) => w * h;
 
-def SumList = fn(l: IntList) -> Int =>
-	match l with
-		case IntList::Nil() => 0
-		case IntList::Cons(x, rest) => x + SumList(rest)
-;
+def SumList = fn(l: IntList) -> Int => match l with
+    case IntList::Nil() => 0
+    case IntList::Cons(x, rest) => x + SumList(rest);
 
 def numbers = IntList::Cons(1, IntList::Cons(2, IntList::Cons(3, IntList::Nil())));
 

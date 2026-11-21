@@ -1,5 +1,4 @@
 module LocalConstantPropagation
-
 // Six of this file's cases existed to stop constant propagation crossing an
 // assignment: a reassigned local, a closure capturing one, the evaluation order
 // of `(x = 2) + x`, a `loop` counter, a `for` accumulator, and a call that
@@ -10,21 +9,26 @@ module LocalConstantPropagation
 
 import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
-def propagated_literal: Int = {
+def propagated_literal: Int =
+{
     def x: Int = 40;
     def y: Int = x;
     y + 2
 };
 
-def chained_branch: Int = {
+def chained_branch: Int =
+{
     def flag: Bool = true;
     def copied_flag: Bool = flag;
-    if copied_flag then 10 else 20
+    if copied_flag
+    then 10
+    else 20
 };
 
 // Propagation must still not cross a function boundary: the value here is only
 // known at the call site, not in the body.
-def opaque_parameter: Int = {
+def opaque_parameter: Int =
+{
     def double = fn(n: Int) -> Int => n + n;
     def seed: Int = 21;
     double(seed)

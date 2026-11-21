@@ -2,24 +2,38 @@ module RecursiveGenericConstructsLib
 import { "../../../projects/marmotstdlib/MarmotPrelude/ArrayUtil.mmt" }
 public export { Pair, RecPlain, RecStruct }
 
-type Pair < K, V > = { k: K, v: V };
+type Pair<K, V> =
+{
+    k: K,
+    v: V
+};
 
 // n is fixed at 2 by RecPlain below and is not caller-controlled, so WithAppended's copy
 // cost is trivially bounded here - unlike a loop over a large array, which is quadratic.
-def AppendRecPlain = fn < K >(out: Array < K >, key: K, n: Int) -> Array < K > => {
-    if n <= 0 then out else AppendRecPlain(ArrayUtil::WithAppended(out, key), key, n - 1)
+def AppendRecPlain = fn<K>(out: Array<K>, key: K, n: Int) -> Array<K> =>
+{
+    if n <= 0
+    then out
+    else AppendRecPlain(ArrayUtil::WithAppended(out, key), key, n - 1)
 };
-def RecPlain = fn < K >(key: K) -> Array < K > => {
-    def out: Array < K > =[];
+
+def RecPlain = fn<K>(key: K) -> Array<K> =>
+{
+    def out: Array<K> = [];
     AppendRecPlain(out, key, 2)
 };
 
 // n is fixed at 2 by RecStruct below and is not caller-controlled, so WithAppended's copy
 // cost is trivially bounded here - unlike a loop over a large array, which is quadratic.
-def AppendRecStruct = fn < K, V >(out: Array < Pair < K, V > >, key: K, value: V, n: Int) -> Array < Pair < K, V > > => {
-    if n <= 0 then out else AppendRecStruct(ArrayUtil::WithAppended(out, Pair (key, value)), key, value, n - 1)
+def AppendRecStruct = fn<K, V>(out: Array<Pair<K, V>>, key: K, value: V, n: Int) -> Array<Pair<K, V>> =>
+{
+    if n <= 0
+    then out
+    else AppendRecStruct(ArrayUtil::WithAppended(out, Pair(key, value)), key, value, n - 1)
 };
-def RecStruct = fn < K, V >(key: K, value: V) -> Array < Pair < K, V > > => {
-    def out: Array < Pair < K, V > > =[];
+
+def RecStruct = fn<K, V>(key: K, value: V) -> Array<Pair<K, V>> =>
+{
+    def out: Array<Pair<K, V>> = [];
     AppendRecStruct(out, key, value, 2)
 };

@@ -1,7 +1,6 @@
 module DefLambdaGenericExportLib
-
 public export { Identity, Pair }
 
-def Identity = fn<T>(x : T) -> T => x;
+def Identity = fn<T>(x: T) -> T => x;
 
-def Pair = fn<T>(x : T) -> Array<T> => [x, x];
+def Pair = fn<T>(x: T) -> Array<T> => [x, x];

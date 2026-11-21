@@ -1,26 +1,38 @@
 module ConstrainedInstanceAssocType
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt" }
 
-use Option.{ Option }
+use Option.
+{
+    Option
+}
 
-class Stepper<S> {
+class Stepper<S>
+{
     type Item;
     Step: fn(state: S) -> Option<Item>;
 };
 
-type Counter = { current: Int, limit: Int };
-type Doubled<S> = { inner: S };
-
-instance Stepper<Counter> {
-    type Item = Int;
-    def Step = fn(state: Counter) -> Option<Int> =>
-        if state.current >= state.limit
-        then Option::None()
-        else Option::Some(state.current);
+type Counter =
+{
+    current: Int,
+    limit: Int
 };
 
-instance Stepper<Doubled<S>> where Stepper<S> {
+type Doubled<S> =
+{
+    inner: S
+};
+
+instance Stepper<Counter>
+{
+    type Item = Int;
+    def Step = fn(state: Counter) -> Option<Int> => if state.current >= state.limit
+    then Option::None()
+    else Option::Some(state.current);
+};
+
+instance Stepper<Doubled<S>> where Stepper<S>
+{
     type Item = Stepper::Item<S>;
     def Step = fn(state: Doubled<S>) -> Option<Stepper::Item<S>> => Stepper::Step(state.inner);
 };

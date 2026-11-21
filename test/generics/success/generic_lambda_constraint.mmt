@@ -1,14 +1,9 @@
 module GenericLambdaConstraint
-
 // Test: a where clause on a fn expression.
 // Expected: the constraint reaches specialization, so each instantiation
 // dispatches to the Convertable instance for its own type.
 
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-	"../../../projects/marmotstdlib/MarmotPrelude/Convertable.mmt"
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Convertable.mmt" }
 
 def Show = fn<T>(x: T) -> Text where Convertable<T, Text> => x as Text;
 

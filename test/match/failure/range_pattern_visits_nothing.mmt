@@ -1,15 +1,10 @@
 module RangePatternVisitsNothing
-
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt"
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 // The end is excluded, as in a range, so 5..1..5 visits nothing.
 
-def Describe = fn(n : Int) -> Text =>
-	match n with
-		case 5..1..5 => "five"
-		case _ => "other";
+def Describe = fn(n: Int) -> Text => match n with
+    case 5..1..5 => "five"
+    case _ => "other";
 
 IO::PrintLine(Describe(5));

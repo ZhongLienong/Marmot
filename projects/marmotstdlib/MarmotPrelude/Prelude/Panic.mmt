@@ -1,10 +1,14 @@
 module Panic
 public export { Panic }
+
 foreign "MARMOT_FFI_PrintError" PrintErrorRaw: fn(Text) -> Unit;
+
 foreign "MARMOT_FFI_Exit" ExitRaw: fn(Int) -> Unit;
+
 // ExitRaw terminates the process, so the self-call is never reached; it is
 // what gives the body type Never now that `loop` is gone.
-def Panic = fn(message: Text) -> Never => {
+def Panic = fn(message: Text) -> Never =>
+{
     PrintErrorRaw(message ++ "\n");
     ExitRaw(1);
     Panic(message)

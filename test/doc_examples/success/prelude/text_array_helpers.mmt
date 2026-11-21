@@ -1,17 +1,16 @@
 module PreludeTextArrayHelpers
-
-import
-{
-    "./projects/marmotstdlib/MarmotPrelude/TextUtil.mmt",
-    "./projects/marmotstdlib/MarmotPrelude/ArrayUtil.mmt"
-}
+import { "./projects/marmotstdlib/MarmotPrelude/TextUtil.mmt", "./projects/marmotstdlib/MarmotPrelude/ArrayUtil.mmt" }
 
 def words = TextUtil::Split(TextUtil::Trim("  alpha beta  "), " ");
+
 def headline = TextUtil::Replace("marmot docs", "docs", "prelude");
 
 def numbers = [1, 2, 3];
+
 def grown = ArrayUtil::WithAppended(numbers, 4);
+
 def replaced = ArrayUtil::WithReplaced(grown, 0, 9);
 
 def reversed = ArrayUtil::Reverse(replaced);
+
 def window = ArrayUtil::Slice(replaced, 1, 3);

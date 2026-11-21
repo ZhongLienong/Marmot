@@ -1,11 +1,10 @@
 module IterMapElementTypeMismatch
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/Iter.mmt" }
 
 // `Iterable::Item<S> ~ A` solves for A when A is still unknown, but it stays a
 // check when both sides are known: a stage whose function takes Text cannot sit on
 // a source of Int.
 
-def Shout = fn(word : Text) -> Text => word ++ "!";
+def Shout = fn(word: Text) -> Text => word ++ "!";
 
 def stage = [1, 2, 3] |> Iter::OfArray |> Iter::Map(Shout);

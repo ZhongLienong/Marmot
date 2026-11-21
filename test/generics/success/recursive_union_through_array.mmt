@@ -1,41 +1,40 @@
 module RecursiveUnionThroughArray
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/ArrayUtil.mmt" }
 
 // The union reaches itself through an Array rather than directly, so each
 // descent during unification rebuilds the Array node.
-type Tree < T > = Tip | Fork(T, Array < Tree >);
+type Tree<T> = Tip | Fork(T, Array<Tree>);
 
-def Depth = fn < T >(tree: Tree < T >, depth: Int) -> Int =>
-    match tree with
-        case Tree::Tip() => depth
-        case Tree::Fork(_, kids) => if #kids == 0 then depth + 1 else Depth(kids[0], depth + 1);
+def Depth = fn<T>(tree: Tree<T>, depth: Int) -> Int => match tree with
+    case Tree::Tip() => depth
+    case Tree::Fork(_, kids) => if #kids == 0
+then depth + 1
+else Depth(kids[0], depth + 1);
 
-def Width = fn < T >(tree: Tree < T >) -> Int =>
-    match tree with
-        case Tree::Tip() => 0
-        case Tree::Fork(_, kids) => #kids;
+def Width = fn<T>(tree: Tree<T>) -> Int => match tree with
+    case Tree::Tip() => 0
+    case Tree::Fork(_, kids) => #kids;
 
-def tip : Tree < Int > = Tree::Tip ();
-def leaf : Tree < Int > = Tree::Fork (1, []);
-def nested : Tree < Int > = Tree::Fork (2, [leaf, Tree::Fork (3, [tip])]);
+def tip: Tree<Int> = Tree::Tip();
+
+def leaf: Tree<Int> = Tree::Fork(1, []);
+
+def nested: Tree<Int> = Tree::Fork(2, [leaf, Tree::Fork(3, [tip])]);
 
 IO::PrintLine(Depth(tip, 0) as Text);
 IO::PrintLine(Depth(nested, 0) as Text);
 IO::PrintLine(Width(nested) as Text);
 
-def words : Tree < Text > = Tree::Fork ("a", [Tree::Fork ("b", [])]);
+def words: Tree<Text> = Tree::Fork("a", [Tree::Fork("b", [])]);
 IO::PrintLine(Depth(words, 0) as Text);
 IO::PrintLine(Width(words) as Text);
 
 // An imported generic helper applied to an array of the recursive union: this
 // is what the occurs check walked forever.
-def AddChild = fn < T >(tree: Tree < T >, child: Tree < T >) -> Tree < T > =>
-    match tree with
-        case Tree::Tip() => tree
-        case Tree::Fork(x, kids) => Tree::Fork (x, ArrayUtil::WithAppended(kids, child));
+def AddChild = fn<T>(tree: Tree<T>, child: Tree<T>) -> Tree<T> => match tree with
+    case Tree::Tip() => tree
+    case Tree::Fork(x, kids) => Tree::Fork(x, ArrayUtil::WithAppended(kids, child));
 
 def grown = AddChild(nested, tip);
 IO::PrintLine(Width(grown) as Text);
 IO::PrintLine(Width(nested) as Text);
-

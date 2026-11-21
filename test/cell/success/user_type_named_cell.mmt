@@ -1,11 +1,11 @@
 module UserTypeNamedCell
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
-import
+type Cell<T> =
 {
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt"
-}
+    row: Int,
+    value: T
+};
 
-type Cell<T> = { row: Int, value: T };
-
-def spreadsheet_cell : Cell<Text> = Cell(3, "total");
+def spreadsheet_cell: Cell<Text> = Cell(3, "total");
 IO::PrintLine((spreadsheet_cell.row as Text) ++ " " ++ spreadsheet_cell.value);

@@ -6,13 +6,13 @@ module StructConstructorAsValue
 
 type Point =
 {
-	x : Int,
-	y : Int
+    x: Int,
+    y: Int
 };
 
-def Apply = fn(f : fn(Int, Int) -> Point, a : Int, b : Int) -> Point =>
+def Apply = fn(f: fn(Int, Int) -> Point, a: Int, b: Int) -> Point =>
 {
-	f(a, b)
+    f(a, b)
 };
 
 def bad = Apply(Point, 1, 2);

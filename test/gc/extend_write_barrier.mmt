@@ -1,10 +1,5 @@
 module ExtendWriteBarrier
-
-import
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-	"../../projects/marmotstdlib/MarmotPrelude/ArrayUtil.mmt"
-}
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../projects/marmotstdlib/MarmotPrelude/ArrayUtil.mmt" }
 
 // Old-to-young write-barrier coverage for EXTEND_ARRAY, the in-place `++` the
 // code generator emits when the left operand is a fresh temporary.
@@ -27,23 +22,33 @@ import
 
 def Prefix = "a-prefix-long-enough-that-small-string-interning-cannot-hold-it-";
 
-def MakeItem = fn(i : Int) -> Text =>
+def MakeItem = fn(i: Int) -> Text =>
 {
-	def junk = [Prefix ++ (i as Text) ++ "-junk" for _ in 0..1..64];
-	if ArrayUtil::Length(junk) == 64 then Prefix ++ (i as Text) else "wrong-junk-length"
+    def junk = [Prefix ++ (i as Text) ++ "-junk" for _ in 0..1..64];
+    if ArrayUtil::Length(junk) == 64
+    then Prefix ++ (i as Text)
+    else "wrong-junk-length"
 };
 
-def CountWrong = fn(items : Array<Text>, index : Int, wrong : Int) -> Int =>
-	if index >= ArrayUtil::Length(items)
-	then wrong
-	else CountWrong(items, index + 1, if items[index] == (Prefix ++ (index as Text)) then wrong else wrong + 1);
+def CountWrong = fn(items: Array<Text>, index: Int, wrong: Int) -> Int => if index >= ArrayUtil::Length(items)
+then wrong
+else CountWrong
+(
+    items,
+    index + 1,
+    if items[index] == (Prefix ++ (index as Text))
+    then wrong
+    else wrong + 1
+);
 
 // Forces collections (promoting the pending left operand), then returns a small
 // array whose elements are all allocated after them, so they are young.
-def YoungTail = fn(count : Int) -> Array<Text> =>
+def YoungTail = fn(count: Int) -> Array<Text> =>
 {
-	def garbage = [MakeItem(i) for i in 0..1..4000];
-	if ArrayUtil::Length(garbage) == 4000 then [Prefix ++ (i as Text) for i in 1..1..count] else []
+    def garbage = [MakeItem(i) for i in 0..1..4000];
+    if ArrayUtil::Length(garbage) == 4000
+    then [Prefix ++ (i as Text) for i in 1..1..count]
+    else []
 };
 
 def items = [Prefix ++ "0"] ++ YoungTail(51);

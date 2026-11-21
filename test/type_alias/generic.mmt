@@ -1,26 +1,24 @@
 module Generic
-
 // Test: Generic type aliases
 // Expected: Type aliases with generic parameters should work
 
-import
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt"
-}
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 // Generic struct for testing
 type Pair<A, B> =
 {
-	first: A,
-	second: B
+    first: A,
+    second: B
 };
 
 // Generic type alias
 alias IntPair = Pair<Int, Int>;
+
 alias TextIntPair = Pair<Text, Int>;
 
 // Use the type aliases
 def p1: IntPair = Pair(10, 20);
+
 def p2: TextIntPair = Pair("Age", 30);
 
 IO::PrintLine(p1.first as Text);
@@ -30,9 +28,11 @@ IO::PrintLine(p2.second as Text);
 
 // Type alias for Array with concrete type
 alias IntArray = Array<Int>;
+
 alias TextArray = Array<Text>;
 
 def nums: IntArray = [100, 200, 300];
+
 def names: TextArray = ["Alice", "Bob", "Charlie"];
 
 IO::PrintLine(nums[1] as Text);

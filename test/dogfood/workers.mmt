@@ -1,179 +1,229 @@
 module Workers
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../projects/marmotstdlib/MarmotPrelude/TextUtil.mmt", "../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../projects/marmotstdlib/MarmotPrelude/Transferable.mmt", "../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt", "../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt", "../../projects/marmotstdlib/MarmotPrelude/Collections/Map.mmt", "../../projects/marmotstdlib/MarmotPrelude/Hashable.mmt", "../../projects/marmotstdlib/MarmotPrelude/Equatable.mmt" }
 
-import
+use Result.
 {
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-	"../../projects/marmotstdlib/MarmotPrelude/TextUtil.mmt",
-	"../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt",
-	"../../projects/marmotstdlib/MarmotPrelude/Transferable.mmt",
-	"../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt",
-	"../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt",
-	"../../projects/marmotstdlib/MarmotPrelude/Collections/Map.mmt",
-	"../../projects/marmotstdlib/MarmotPrelude/Hashable.mmt",
-	"../../projects/marmotstdlib/MarmotPrelude/Equatable.mmt"
+    Result
+}
+use Option.
+{
+    Option
+}
+use Concurrency.
+{
+    WorkerError
 }
 
-use Result.{ Result }
-use Option.{ Option }
-use Concurrency.{ WorkerError }
+type Job =
+{
+    id: Int,
+    payload: Text
+}
+deriving(Transferable);
 
-type Job = { id: Int, payload: Text } deriving (Transferable);
+type Outcome = Done(Int, Int) | Rejected(Int, Text) | Stop deriving(Transferable);
 
-type Outcome = Done(Int, Int) | Rejected(Int, Text) | Stop deriving (Transferable);
-
-type Tally = { word: Text, count: Int } deriving (Transferable);
+type Tally =
+{
+    word: Text,
+    count: Int
+}
+deriving(Transferable);
 
 def Score = fn(text: Text) -> Int => FoldCodes(text, 0, 0);
 
-def FoldCodes = fn(text: Text, index: Int, total: Int) -> Int =>
-	match TextUtil::CodePointAt(text, index) with
-		case Option::Some(code) => FoldCodes(text, index + 1, ((total * 31) + code) % 1000003)
-		case Option::None() => total;
+def FoldCodes = fn(text: Text, index: Int, total: Int) -> Int => match TextUtil::CodePointAt(text, index) with
+    case Option::Some(code) => FoldCodes(text, index + 1, ((total * 31) + code) % 1000003)
+    case Option::None() => total;
 
-def Serve = fn(jobs: Channel<Job>, results: Channel<Outcome>, handled: Int) -> Int =>
+def Serve = fn(jobs: Channel < Job >, results: Channel < Outcome >, handled: Int) -> Int =>
 {
-	def job = Option::OptionUnwrapOrPanic(Concurrency::Receive(jobs), "Channel closed");
-	if job.id < 0
-	then
-	{
-		Concurrency::Send(results, Outcome::Stop());
-		handled
-	}
-	else
-	{
-		def outcome = if TextUtil::Length(job.payload) == 0 then Outcome::Rejected(job.id, "empty") else Outcome::Done(job.id, Score(job.payload));
-		Concurrency::Send(results, outcome);
-		Serve(jobs, results, handled + 1)
-	}
+    def job = Option::OptionUnwrapOrPanic(Concurrency::Receive(jobs), "Channel closed");
+    if job.id < 0
+    then
+    {
+        Concurrency::Send(results, Outcome::Stop());
+        handled
+    }
+    else
+    {
+        def outcome = if TextUtil::Length(job.payload) == 0
+        then Outcome::Rejected(job.id, "empty")
+        else Outcome::Done(job.id, Score(job.payload));
+        Concurrency::Send(results, outcome);
+        Serve(jobs, results, handled + 1)
+    }
 };
 
-def SumInts = fn(values: Array<Int>, index: Int, total: Int) -> Int =>
-	if index >= #values then total else SumInts(values, index + 1, total + values[index]);
+def SumInts = fn(values: Array<Int>, index: Int, total: Int) -> Int => if index >= #values
+then total
+else SumInts(values, index + 1, total + values[index]);
 
 def worker_count = 4;
+
 def job_count = 40;
-def jobs : Channel<Job> = Concurrency::MakeChannel(8);
-def results : Channel<Outcome> = Concurrency::MakeChannel(8);
+
+def jobs: Channel < Job > = Concurrency::MakeChannel(8);
+
+def results: Channel < Outcome > = Concurrency::MakeChannel(8);
 
 def pool = [Concurrency::Spawn((jobs, results, 0), Serve) for _ in 0..1..worker_count];
 
-def Feed = fn(index: Int) -> Unit =>
-	if index >= job_count
-	then ()
-	else
-	{
-		Concurrency::Send(jobs, Job(index, if (index % 7) == 0 then "" else "job-" ++ (index as Text)));
-		Feed(index + 1)
-	};
+def Feed = fn(index: Int) -> Unit => if index >= job_count
+then ()
+else
+{
+    Concurrency::Send(jobs, Job(index, if (index % 7) == 0
+    then ""
+    else "job-" ++ (index as Text)));
+    Feed(index + 1)
+};
 
-def StopAll = fn(remaining: Int) -> Unit =>
-	if remaining == 0
-	then ()
-	else
-	{
-		Concurrency::Send(jobs, Job(-1, ""));
-		StopAll(remaining - 1)
-	};
+def StopAll = fn(remaining: Int) -> Unit => if remaining == 0
+then ()
+else
+{
+    Concurrency::Send(jobs, Job(-1, ""));
+    StopAll(remaining - 1)
+};
 
-def feeder = Concurrency::Spawn((), fn() -> Int => { Feed(0); StopAll(worker_count); 0 });
+def feeder = Concurrency::Spawn
+(
+    (),
+    fn() -> Int =>
+    {
+        Feed(0);
+        StopAll(worker_count);
+        0
+    }
+);
 
-def Collect = fn(stops: Int, done_sum: Int, done_count: Int, rejected: Int) -> (Int, Int, Int) =>
-	if stops == worker_count
-	then (done_sum, done_count, rejected)
-	else match Option::OptionUnwrapOrPanic(Concurrency::Receive(results), "Channel closed") with
-		case Outcome::Done(id, score) => Collect(stops, done_sum + id + (score % 10), done_count + 1, rejected)
-		case Outcome::Rejected(_, _) => Collect(stops, done_sum, done_count, rejected + 1)
-		case Outcome::Stop() => Collect(stops + 1, done_sum, done_count, rejected);
+def Collect = fn(stops: Int, done_sum: Int, done_count: Int, rejected: Int) -> (Int, Int, Int) => if stops == worker_count
+then (done_sum, done_count, rejected)
+else match Option::OptionUnwrapOrPanic(Concurrency::Receive(results), "Channel closed") with
+    case Outcome::Done(id, score) => Collect(stops, done_sum + id + (score % 10), done_count + 1, rejected)
+    case Outcome::Rejected(_, _) => Collect(stops, done_sum, done_count, rejected + 1)
+    case Outcome::Stop() => Collect(stops + 1, done_sum, done_count, rejected);
 
 def (sum, done, rejected) = Collect(0, 0, 0, 0);
-IO::PrintLine("done " ++ (done as Text) ++ " rejected " ++ (rejected as Text) ++ " checksum " ++ (sum as Text));
+IO::PrintLine
+(
+    "done " ++ (done as Text) ++ " rejected " ++ (rejected as Text) ++ " checksum " ++ (sum as Text)
+);
 
 def per_worker = [Concurrency::JoinedOrPanic(Concurrency::Join(w)) for w in pool];
 IO::PrintLine("handled total " ++ (SumInts(per_worker, 0, 0) as Text));
+
 def _fed = Concurrency::JoinedOrPanic(Concurrency::Join(feeder));
 
-def corpus = [
-	"the quick brown fox jumps over the lazy dog",
-	"the dog barks and the fox runs",
-	"a lazy afternoon for a lazy dog",
-	"quick quick quick said the fox"
-];
+def corpus = ["the quick brown fox jumps over the lazy dog", "the dog barks and the fox runs", "a lazy afternoon for a lazy dog", "quick quick quick said the fox"];
 
 def CountWords = fn(line: Text) -> Array<Tally> =>
 {
-	def words = TextUtil::Split(line, " ");
-	def counts = CountInto(words, 0, Map::Empty());
-	[Tally(entry.key, entry.value) for entry in Map::IterNew(counts)]
+    def words = TextUtil::Split(line, " ");
+    def counts = CountInto(words, 0, Map::Empty());
+    [Tally(entry.key, entry.value) for entry in Map::IterNew(counts)]
 };
 
-def CountInto = fn(words: Array<Text>, index: Int, counts: Map::Map<Text, Int>) -> Map::Map<Text, Int> =>
-	if index >= #words then counts else CountInto(words, index + 1, Map::With(counts, words[index], Map::GetOr(counts, words[index], 0) + 1));
+def CountInto = fn(words: Array<Text>, index: Int, counts: Map::Map<Text, Int>) -> Map::Map<Text, Int> => if index >= #words
+then counts
+else CountInto
+(
+    words,
+    index + 1,
+    Map::With(counts, words[index], Map::GetOr(counts, words[index], 0) + 1)
+);
 
-def MergeTallies = fn(parts: Array<Array<Tally>>, part: Int, index: Int, totals: Map::Map<Text, Int>) -> Map::Map<Text, Int> =>
-	if part >= #parts
-	then totals
-	else if index >= #parts[part]
-	then MergeTallies(parts, part + 1, 0, totals)
-	else
-	{
-		def tally = parts[part][index];
-		MergeTallies(parts, part, index + 1, Map::With(totals, tally.word, Map::GetOr(totals, tally.word, 0) + tally.count))
-	};
+def MergeTallies = fn(parts: Array<Array<Tally>>, part: Int, index: Int, totals: Map::Map<Text, Int>) -> Map::Map<Text, Int> => if part >= #parts
+then totals
+else if index >= #parts[part]
+then MergeTallies(parts, part + 1, 0, totals)
+else
+{
+    def tally = parts[part][index];
+    MergeTallies
+    (
+        parts,
+        part,
+        index + 1,
+        Map::With(totals, tally.word, Map::GetOr(totals, tally.word, 0) + tally.count)
+    )
+};
 
 def mapped = [Concurrency::JoinedOrPanic(Concurrency::Join(Concurrency::Spawn(line, CountWords))) for line in corpus];
+
 def totals = MergeTallies(mapped, 0, 0, Map::Empty());
-for word in ["the", "fox", "lazy", "quick", "dog", "cat"] {
-	IO::PrintLine(word ++ "=" ++ (Map::GetOr(totals, word, 0) as Text));
+for word in ["the", "fox", "lazy", "quick", "dog", "cat"]
+{
+    IO::PrintLine(word ++ "=" ++ (Map::GetOr(totals, word, 0) as Text));
 };
 
 def base = 1000;
+
 def squares = Concurrency::ParallelMap([i for i in 0..1..50], fn(x: Int) -> Int => (x * x) + base, 7);
-IO::PrintLine("parallel " ++ (#squares as Text) ++ " first " ++ (squares[0] as Text) ++ " last " ++ (squares[49] as Text));
+IO::PrintLine
+(
+    "parallel " ++ (#squares as Text) ++ " first " ++ (squares[0] as Text) ++ " last " ++ (squares[49] as Text)
+);
 
 def Explode = fn(values: Array<Int>) -> Int => values[#values];
 match Concurrency::Join(Concurrency::Spawn([1, 2, 3], Explode)) with
-	case Result::Ok(v) => IO::PrintLine("unexpected " ++ (v as Text))
-	case Result::Err(WorkerError::Failed(message)) => IO::PrintLine("failed: " ++ (if TextUtil::Contains(message, "out of bounds") then "index out of bounds" else message))
-	case Result::Err(WorkerError::Cancelled()) => IO::PrintLine("cancelled?");
+    case Result::Ok(v) => IO::PrintLine("unexpected " ++ (v as Text))
+    case Result::Err(WorkerError::Failed(message)) => IO::PrintLine
+(
+    "failed: " ++ (if TextUtil::Contains(message, "out of bounds")
+    then "index out of bounds"
+    else message)
+)
+    case Result::Err(WorkerError::Cancelled()) => IO::PrintLine("cancelled?");
 
 def Spin = fn(n: Int) -> Int => Spin(n + 1);
+
 def spinner = Concurrency::Spawn(0, Spin);
 Concurrency::Cancel(spinner);
 match Concurrency::Join(spinner) with
-	case Result::Err(WorkerError::Cancelled()) => IO::PrintLine("spinner cancelled")
-	case _ => IO::PrintLine("spinner not cancelled");
+    case Result::Err(WorkerError::Cancelled()) => IO::PrintLine("spinner cancelled")
+    case _ => IO::PrintLine("spinner not cancelled");
 
-def funcs : Channel<fn(Int) -> Int> = Concurrency::MakeChannel(4);
+def funcs: Channel < fn(Int) -> Int > = Concurrency::MakeChannel(4);
+
 def offset = 17;
 Concurrency::Send(funcs, fn(x: Int) -> Int => x + offset);
 Concurrency::Send(funcs, fn(x: Int) -> Int => x * offset);
-def Apply = fn(channel: Channel<fn(Int) -> Int>, value: Int) -> Int =>
+
+def Apply = fn(channel: Channel < fn(Int) -> Int >, value: Int) -> Int =>
 {
-	def first = Option::OptionUnwrapOrPanic(Concurrency::Receive(channel), "Channel closed");
-	def second = Option::OptionUnwrapOrPanic(Concurrency::Receive(channel), "Channel closed");
-	second(first(value))
+    def first = Option::OptionUnwrapOrPanic(Concurrency::Receive(channel), "Channel closed");
+    def second = Option::OptionUnwrapOrPanic(Concurrency::Receive(channel), "Channel closed");
+    second(first(value))
 };
-IO::PrintLine("applied " ++ (Concurrency::JoinedOrPanic(Concurrency::Join(Concurrency::Spawn((funcs, 3), Apply))) as Text));
+IO::PrintLine
+(
+    "applied " ++ (Concurrency::JoinedOrPanic(Concurrency::Join(Concurrency::Spawn((funcs, 3), Apply))) as Text)
+);
 
 def ring_size = 6;
-def ring : Array<Channel<Int>> = [Concurrency::MakeChannel(1) for _ in 0..1..ring_size];
-def Relay = fn(input: Channel<Int>, output: Channel<Int>, rounds: Int) -> Int =>
-	if rounds == 0
-	then 0
-	else
-	{
-		def token = Option::OptionUnwrapOrPanic(Concurrency::Receive(input), "Channel closed");
-		Concurrency::Send(output, (token + 1));
-		Relay(input, output, rounds - 1)
-	};
+
+def ring: Array < Channel < Int >> = [Concurrency::MakeChannel(1) for _ in 0..1..ring_size];
+
+def Relay = fn(input: Channel < Int >, output: Channel < Int >, rounds: Int) -> Int => if rounds == 0
+then 0
+else
+{
+    def token = Option::OptionUnwrapOrPanic(Concurrency::Receive(input), "Channel closed");
+    Concurrency::Send(output, (token + 1));
+    Relay(input, output, rounds - 1)
+};
+
 def relays = [Concurrency::Spawn((ring[i], ring[(i + 1) % ring_size], 50), Relay) for i in 1..1..ring_size];
-def Drive = fn(token: Int, rounds: Int) -> Int =>
-	if rounds == 0
-	then token
-	else
-	{
-		Concurrency::Send(ring[1], (token + 1));
-		Drive(Option::OptionUnwrapOrPanic(Concurrency::Receive(ring[0]), "Channel closed"), rounds - 1)
-	};
+
+def Drive = fn(token: Int, rounds: Int) -> Int => if rounds == 0
+then token
+else
+{
+    Concurrency::Send(ring[1], (token + 1));
+    Drive(Option::OptionUnwrapOrPanic(Concurrency::Receive(ring[0]), "Channel closed"), rounds - 1)
+};
 IO::PrintLine("ring token " ++ (Drive(0, 50) as Text));
+
 def _relayed = [Concurrency::JoinedOrPanic(Concurrency::Join(r)) for r in relays];

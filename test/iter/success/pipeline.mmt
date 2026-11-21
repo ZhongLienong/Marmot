@@ -1,45 +1,62 @@
 module IterPipeline
-
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/Iter.mmt",
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-	"../../../projects/marmotstdlib/MarmotPrelude/Prelude/List.mmt"
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/Iter.mmt", "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/List.mmt" }
 
 // Iter stages are lazy values with an Iterable instance, so a pipeline is written
 // with the pipe operator and consumed by ToArray, Fold, a `for` loop or a
 // comprehension. Nothing is computed until a consumer asks for an element.
 
-def Double = fn(n : Int) -> Int => n * 2;
-def IsEven = fn(n : Int) -> Bool => (n % 2) == 0;
-def Join = fn(values : Array<Int>) -> Text => Iter::Fold(Iter::OfArray(values), "", fn(acc : Text, n : Int) -> Text => acc ++ (n as Text) ++ " ");
+def Double = fn(n: Int) -> Int => n * 2;
+
+def IsEven = fn(n: Int) -> Bool => (n % 2) == 0;
+
+def Join = fn(values: Array<Int>) -> Text => Iter::Fold(Iter::OfArray(values), "", fn(acc: Text, n: Int) -> Text => acc ++ (n as Text) ++ " ");
 
 def values = [1, 2, 3, 4, 5, 6];
 
 IO::PrintLine("doubled: " ++ Join(values |> Iter::OfArray |> Iter::Map(Double) |> Iter::ToArray));
 IO::PrintLine("kept: " ++ Join(values |> Iter::OfArray |> Iter::Filter(IsEven) |> Iter::ToArray));
-IO::PrintLine("chained: " ++ Join(values |> Iter::OfArray |> Iter::Filter(IsEven) |> Iter::Map(Double) |> Iter::Take(2) |> Iter::ToArray));
+IO::PrintLine
+(
+    "chained: " ++ Join
+    (
+        values |> Iter::OfArray |> Iter::Filter(IsEven) |> Iter::Map(Double) |> Iter::Take(2) |> Iter::ToArray
+    )
+);
 
 // A stage changes the element type: Int in, Text out.
-IO::PrintLine("retyped: " ++ Iter::Fold(values |> Iter::OfArray |> Iter::Take(3) |> Iter::Map(fn(n : Int) -> Text => "<" ++ (n as Text) ++ ">"), "", fn(acc : Text, piece : Text) -> Text => acc ++ piece));
+IO::PrintLine
+(
+    "retyped: " ++ Iter::Fold
+    (
+        values |> Iter::OfArray |> Iter::Take(3) |> Iter::Map(fn(n: Int) -> Text => "<" ++ (n as Text) ++ ">"),
+        "",
+        fn(acc: Text, piece: Text) -> Text => acc ++ piece
+    )
+);
 
-IO::PrintLine("total: " ++ ((values |> Iter::OfArray |> Iter::Map(Double) |> Iter::Fold(0, fn(acc : Int, n : Int) -> Int => acc + n)) as Text));
+IO::PrintLine
+(
+    "total: " ++ ((values |> Iter::OfArray |> Iter::Map(Double) |> Iter::Fold(0, fn(acc: Int, n: Int) -> Int => acc + n)) as Text)
+);
 IO::PrintLine("count: " ++ ((values |> Iter::OfArray |> Iter::Filter(IsEven) |> Iter::Count) as Text));
 
 IO::PrintLine("taken beyond end: " ++ Join(values |> Iter::OfArray |> Iter::Take(99) |> Iter::ToArray));
 
 // Laziness is observable: a Map behind a Take runs its function only for the
 // elements the Take pulls, so this prints two lines, not six.
-def Noisy = fn(n : Int) -> Int =>
+def Noisy = fn(n: Int) -> Int =>
 {
-	IO::PrintLine("  evaluating " ++ (n as Text));
-	n
+    IO::PrintLine("  evaluating " ++ (n as Text));
+    n
 };
-IO::PrintLine("lazy: " ++ Join(values |> Iter::OfArray |> Iter::Map(Noisy) |> Iter::Take(2) |> Iter::ToArray));
+IO::PrintLine
+(
+    "lazy: " ++ Join(values |> Iter::OfArray |> Iter::Map(Noisy) |> Iter::Take(2) |> Iter::ToArray)
+);
 
-for value in values |> Iter::OfArray |> Iter::Filter(IsEven) {
-	IO::PrintLine("for: " ++ (value as Text));
+for value in values |> Iter::OfArray |> Iter::Filter(IsEven)
+{
+    IO::PrintLine("for: " ++ (value as Text));
 };
 
 def squares = [value * value for value in values |> Iter::OfArray |> Iter::Take(4)];

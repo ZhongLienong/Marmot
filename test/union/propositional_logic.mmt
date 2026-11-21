@@ -1,27 +1,16 @@
 module PropositionalLogic
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
-import
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-}
+type LogicExpr = Var(Text) | And(LogicExpr, LogicExpr) | Or(LogicExpr, LogicExpr) | Not(LogicExpr);
 
-type LogicExpr =
-    Var(Text)
-  | And(LogicExpr, LogicExpr)
-  | Or(LogicExpr, LogicExpr)
-  | Not(LogicExpr)
-;
-
-def Evaluate = fn(expr : LogicExpr, env : fn(Text) -> Bool) -> Bool =>
-    match expr with
-        case LogicExpr::Var(name) => env(name)
-        case LogicExpr::And(left, right) => Evaluate(left, env) && Evaluate(right, env)
-        case LogicExpr::Or(left, right) => Evaluate(left, env) || Evaluate(right, env)
-        case LogicExpr::Not(inner) => !Evaluate(inner, env)
-;
+def Evaluate = fn(expr: LogicExpr, env: fn(Text) -> Bool) -> Bool => match expr with
+    case LogicExpr::Var(name) => env(name)
+    case LogicExpr::And(left, right) => Evaluate(left, env) && Evaluate(right, env)
+    case LogicExpr::Or(left, right) => Evaluate(left, env) || Evaluate(right, env)
+    case LogicExpr::Not(inner) => !Evaluate(inner, env);
 
 // Helper function to print axiom/fact description and its evaluation
-def PrintAxiomEvaluation = fn(axiom_description : Text, expr_obj : LogicExpr, environment : fn(Text) -> Bool, bool_to_string_fn : fn(Bool) -> Text) -> Unit =>
+def PrintAxiomEvaluation = fn(axiom_description: Text, expr_obj: LogicExpr, environment: fn(Text) -> Bool, bool_to_string_fn: fn(Bool) -> Text) -> Unit =>
 {
     def actual_bool = Evaluate(expr_obj, environment);
     def actual_str = bool_to_string_fn(actual_bool);
@@ -29,31 +18,36 @@ def PrintAxiomEvaluation = fn(axiom_description : Text, expr_obj : LogicExpr, en
 };
 
 // Helper function to print test case results
-def PrintTestResult = fn(case_name : Text, expr_as_string : Text, expr_obj : LogicExpr, expected_bool : Bool, environment : fn(Text) -> Bool, bool_to_string_fn : fn(Bool) -> Text) -> Unit =>
+def PrintTestResult = fn(case_name: Text, expr_as_string: Text, expr_obj: LogicExpr, expected_bool: Bool, environment: fn(Text) -> Bool, bool_to_string_fn: fn(Bool) -> Text) -> Unit =>
 {
     def actual_bool = Evaluate(expr_obj, environment);
     def actual_str = bool_to_string_fn(actual_bool);
     def expected_str = bool_to_string_fn(expected_bool);
     IO::PrintLine
     (
-        case_name ++ " (" ++ expr_as_string ++ "): Evaluated: " ++ actual_str ++
-        ", Expected: " ++ expected_str ++
-        (if actual_bool && expected_bool then " (PASS)" else " (FAIL)")
+        case_name ++ " (" ++ expr_as_string ++ "): Evaluated: " ++ actual_str ++ ", Expected: " ++ expected_str ++ (if actual_bool && expected_bool
+        then " (PASS)"
+        else " (FAIL)")
     );
 };
 
 // Environment: mapping variables to boolean values
-def env = fn(name : Text) -> Bool =>
+def env = fn(name: Text) -> Bool =>
 {
-    if name == "A" then true
-    else if name == "B" then false
-    else if name == "C" then true
+    if name == "A"
+    then true
+    else if name == "B"
+    then false
+    else if name == "C"
+    then true
     // Variables like D, E, etc., are not explicitly defined, will default to false
-    else false // default false
+    else false  // default false
 };
 
 // Local helper to convert boolean to text for printing
-def bool_to_text_local : fn(Bool) -> Text = fn(b : Bool) -> Text => if b then "true" else "false";
+def bool_to_text_local: fn(Bool) -> Text = fn(b: Bool) -> Text => if b
+then "true"
+else "false";
 
 IO::PrintLine("--- Environment ---");
 IO::PrintLine("  A = " ++ bool_to_text_local(env("A")));
@@ -71,11 +65,23 @@ PrintAxiomEvaluation("Fact 2: NOT B", LogicExpr::Not(LogicExpr::Var("B")), env, 
 
 // Axiom 3: Law of Excluded Middle (for A) - Should always be true
 def axiom3_expr = LogicExpr::Or(LogicExpr::Var("A"), LogicExpr::Not(LogicExpr::Var("A")));
-PrintAxiomEvaluation("Axiom 3 (Law of Excluded Middle): A OR (NOT A)", axiom3_expr, env, bool_to_text_local);
+PrintAxiomEvaluation
+(
+    "Axiom 3 (Law of Excluded Middle): A OR (NOT A)",
+    axiom3_expr,
+    env,
+    bool_to_text_local
+);
 
 // Axiom 4: Principle of Non-Contradiction (for B) - Should always be true
 def axiom4_expr = LogicExpr::Not(LogicExpr::And(LogicExpr::Var("B"), LogicExpr::Not(LogicExpr::Var("B"))));
-PrintAxiomEvaluation("Axiom 4 (Non-Contradiction): NOT (B AND (NOT B))", axiom4_expr, env, bool_to_text_local);
+PrintAxiomEvaluation
+(
+    "Axiom 4 (Non-Contradiction): NOT (B AND (NOT B))",
+    axiom4_expr,
+    env,
+    bool_to_text_local
+);
 
 // Fact 5: A specific compound statement: (A AND C)
 def fact5_expr = LogicExpr::And(LogicExpr::Var("A"), LogicExpr::Var("C"));
@@ -83,11 +89,23 @@ PrintAxiomEvaluation("Fact 5: A AND C", fact5_expr, env, bool_to_text_local);
 
 // Fact 6: Implication: A -> B (equivalent to (NOT A) OR B)
 def fact6_expr = LogicExpr::Or(LogicExpr::Not(LogicExpr::Var("A")), LogicExpr::Var("B"));
-PrintAxiomEvaluation("Fact 6 (Implication): A -> B (i.e., (NOT A) OR B)", fact6_expr, env, bool_to_text_local);
+PrintAxiomEvaluation
+(
+    "Fact 6 (Implication): A -> B (i.e., (NOT A) OR B)",
+    fact6_expr,
+    env,
+    bool_to_text_local
+);
 
 // Fact 7: Implication: B -> C (equivalent to (NOT B) OR C)
 def fact7_expr = LogicExpr::Or(LogicExpr::Not(LogicExpr::Var("B")), LogicExpr::Var("C"));
-PrintAxiomEvaluation("Fact 7 (Implication): B -> C (i.e., (NOT B) OR C)", fact7_expr, env, bool_to_text_local);
+PrintAxiomEvaluation
+(
+    "Fact 7 (Implication): B -> C (i.e., (NOT B) OR C)",
+    fact7_expr,
+    env,
+    bool_to_text_local
+);
 
 IO::PrintLine("");
 IO::PrintLine("--- Specific Test Cases (with Expected Outcomes) ---");
@@ -125,7 +143,11 @@ def expr8 = LogicExpr::And(LogicExpr::Var("A"), LogicExpr::Var("D"));
 PrintTestResult("Test 8", "A AND D", expr8, false, env, bool_to_text_local);
 
 // Test Case 9: (A OR D) AND (C OR B)
-def expr9 = LogicExpr::And(LogicExpr::Or(LogicExpr::Var("A"), LogicExpr::Var("D")), LogicExpr::Or(LogicExpr::Var("C"), LogicExpr::Var("B")));
+def expr9 = LogicExpr::And
+(
+    LogicExpr::Or(LogicExpr::Var("A"), LogicExpr::Var("D")),
+    LogicExpr::Or(LogicExpr::Var("C"), LogicExpr::Var("B"))
+);
 PrintTestResult("Test 9", "(A OR D) AND (C OR B)", expr9, true, env, bool_to_text_local);
 
 // Test Case 10: NOT (A AND C)
@@ -134,9 +156,26 @@ PrintTestResult("Test 10", "NOT (A AND C)", expr10, false, env, bool_to_text_loc
 
 // Test Case 11: De Morgan's Law Example: NOT (A OR B) <=> (NOT A) AND (NOT B)
 def expr11_lhs = LogicExpr::Not(LogicExpr::Or(LogicExpr::Var("A"), LogicExpr::Var("B")));
-PrintTestResult("Test 11a (De Morgan LHS)", "NOT (A OR B)", expr11_lhs, false, env, bool_to_text_local);
+PrintTestResult
+(
+    "Test 11a (De Morgan LHS)",
+    "NOT (A OR B)",
+    expr11_lhs,
+    false,
+    env,
+    bool_to_text_local
+);
+
 def expr11_rhs = LogicExpr::And(LogicExpr::Not(LogicExpr::Var("A")), LogicExpr::Not(LogicExpr::Var("B")));
-PrintTestResult("Test 11b (De Morgan RHS)", "(NOT A) AND (NOT B)", expr11_rhs, false, env, bool_to_text_local);
+PrintTestResult
+(
+    "Test 11b (De Morgan RHS)",
+    "(NOT A) AND (NOT B)",
+    expr11_rhs,
+    false,
+    env,
+    bool_to_text_local
+);
 
 // Test Case 12: Variable D (undefined) in OR: B OR D
 def expr12 = LogicExpr::Or(LogicExpr::Var("B"), LogicExpr::Var("D"));

@@ -1,41 +1,38 @@
 module Sorting
+import { "../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../projects/marmotstdlib/MarmotPrelude/DateTime.mmt", "../projects/marmotstdlib/MarmotPrelude/Prelude/List.mmt" }
 
-import
+use List.
 {
-	"../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-	"../projects/marmotstdlib/MarmotPrelude/DateTime.mmt",
-	"../projects/marmotstdlib/MarmotPrelude/Prelude/List.mmt"
+    List,
+    ListToArray
 }
-
-use List.{List, ListToArray}
 
 // v2 port: the partition used to append into three arrays in place. It is now a
 // tail-recursive walk that prepends into three cons lists, each converted to an
 // array once. Walking from the last element down keeps every partition in input
 // order; the call stays in tail position so large inputs do not overflow.
-def Partition = fn(arr : Array<Int>, index : Int, pivot : Int, less : List<Int>, equal : List<Int>, greater : List<Int>) -> (List<Int>, List<Int>, List<Int>) =>
-	if index < 0
-	then (less, equal, greater)
-	else
-	{
-		def value = arr[index];
-		if value < pivot
-		then Partition(arr, index - 1, pivot, List::Cons(value, less), equal, greater)
-		else if value == pivot
-		then Partition(arr, index - 1, pivot, less, List::Cons(value, equal), greater)
-		else Partition(arr, index - 1, pivot, less, equal, List::Cons(value, greater))
-	};
-
-def QuickSort = fn(arr : Array<Int>) -> Array<Int> =>
+def Partition = fn(arr: Array<Int>, index: Int, pivot: Int, less: List<Int>, equal: List<Int>, greater: List<Int>) -> (List<Int>, List<Int>, List<Int>) => if index < 0
+then (less, equal, greater)
+else
 {
-	def len = #arr;
-	if len <= 1
-	then arr
-	else
-	{
-		def (less, equal, greater) = Partition(arr, len - 1, arr[len / 2], List::Nil(), List::Nil(), List::Nil());
-		QuickSort(ListToArray(less)) ++ ListToArray(equal) ++ QuickSort(ListToArray(greater))
-	}
+    def value = arr[index];
+    if value < pivot
+    then Partition(arr, index - 1, pivot, List::Cons(value, less), equal, greater)
+    else if value == pivot
+    then Partition(arr, index - 1, pivot, less, List::Cons(value, equal), greater)
+    else Partition(arr, index - 1, pivot, less, equal, List::Cons(value, greater))
+};
+
+def QuickSort = fn(arr: Array<Int>) -> Array<Int> =>
+{
+    def len = #arr;
+    if len <= 1
+    then arr
+    else
+    {
+        def (less, equal, greater) = Partition(arr, len - 1, arr[len / 2], List::Nil(), List::Nil(), List::Nil());
+        QuickSort(ListToArray(less)) ++ ListToArray(equal) ++ QuickSort(ListToArray(greater))
+    }
 };
 
 def start = DateTime::NowUnixMillis();
@@ -48,4 +45,7 @@ def sorted = QuickSort(test_array);
 
 def end = DateTime::NowUnixMillis();
 
-IO::PrintLine("QuickSort(5000 elements): first=" ++ (sorted[0] as Text) ++ " last=" ++ (sorted[4999] as Text) ++ ", benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
+IO::PrintLine
+(
+    "QuickSort(5000 elements): first=" ++ (sorted[0] as Text) ++ " last=" ++ (sorted[4999] as Text) ++ ", benchmark took " ++ ((end - start) as Text) ++ " milliseconds"
+);

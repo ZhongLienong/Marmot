@@ -3,8 +3,9 @@ public export { PopCount, BitAt, HasBit, SparseIndex, HashChunk, ChunkBits, Bran
 
 // Five bits per level, so 32 children and a bitmap that stays clear of the sign
 // bit of a 64-bit signed Int.
-def ChunkBits : Int = 5;
-def BranchFactor : Int = 32;
+def ChunkBits: Int = 5;
+
+def BranchFactor: Int = 32;
 
 def BitAt = fn(index: Int) -> Int => 1 << index;
 
@@ -12,7 +13,8 @@ def HasBit = fn(bitmap: Int, index: Int) -> Bool => ((bitmap >> index) & 1) == 1
 
 // Counts over a fixed 32-bit window, in parallel within the word: the bitmap
 // is read on every map access, and counting one bit per call was 32 calls.
-def PopCount = fn(value: Int) -> Int => {
+def PopCount = fn(value: Int) -> Int =>
+{
     def window = value & 0xFFFFFFFF;
     def pairs = window - ((window >> 1) & 0x55555555);
     def nibbles = (pairs & 0x33333333) + ((pairs >> 2) & 0x33333333);

@@ -5,14 +5,16 @@ module CallResultNeverDecided
 // these and then stop in the backend, unable to tell whether a T is a pointer.
 // Only the call that brings T in reports it, not `Id` around it.
 
-def Make = fn<T>(count : Int) -> Array<T> => [];
-def Id = fn<T>(value : T) -> T => value;
+def Make = fn<T>(count: Int) -> Array<T> => [];
+
+def Id = fn<T>(value: T) -> T => value;
 
 def made = Make(3);
 
-def Count = fn() -> Int => {
-	def local = Make(2);
-	0
+def Count = fn() -> Int =>
+{
+    def local = Make(2);
+    0
 };
 
 Make(1);

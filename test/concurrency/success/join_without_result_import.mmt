@@ -1,5 +1,4 @@
 module JoinWithoutResultImport
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt" }
 
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
@@ -9,9 +8,10 @@ import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 // result on, without matching on it, need not import Result.mmt. It used to be a
 // parse error, from when the parser looked `Result` up by name where the join was.
 
-def Double = fn(n : Int) -> Int => n * 2;
+def Double = fn(n: Int) -> Int => n * 2;
 
 def worker = Concurrency::Spawn(21, Double);
+
 def result = Concurrency::Join(worker);
 
 IO::PrintLine((Concurrency::JoinedOrPanic(result)) as Text);

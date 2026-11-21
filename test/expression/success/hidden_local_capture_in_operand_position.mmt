@@ -1,5 +1,4 @@
 module HiddenLocalCaptureInOperandPosition
-
 // A closure capturing a local that a match binds, with the match used as an
 // operand, captures that local's value.
 //
@@ -10,9 +9,13 @@ module HiddenLocalCaptureInOperandPosition
 
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
-def ShowF = fn(label : Text, f : fn() -> Int) -> Unit =>
-	IO::PrintLine(label ++ " " ++ (f() as Text));
+def ShowF = fn(label: Text, f: fn() -> Int) -> Unit => IO::PrintLine(label ++ " " ++ (f() as Text));
 
 def pair = (3, 4);
 
-ShowF("captured", match pair with case (a, b) => fn() -> Int => a + b);
+ShowF
+(
+    "captured",
+    match pair with
+        case (a, b) => fn() -> Int => a + b
+);

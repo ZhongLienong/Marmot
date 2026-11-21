@@ -1,22 +1,38 @@
 module PrimitivesThroughUse
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt", "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
-use Concurrency.{ MakeChannel, Spawn, Join, JoinedOrPanic, Send, Receive, Close, IsDone }
+use Concurrency.
+{
+    MakeChannel,
+    Spawn,
+    Join,
+    JoinedOrPanic,
+    Send,
+    Receive,
+    Close,
+    IsDone
+}
 
 // The concurrency primitives are declared and exported by Concurrency.mmt like
 // anything else it exports, so `use` brings them in by their bare names, and a pipe
 // fills their first argument as it does any call's.
 
-def Producer = fn(ch : Channel<Int>, n : Int) -> Int => {
-	ch |> Send(n);
-	n
+def Producer = fn(ch: Channel < Int >, n: Int) -> Int =>
+{
+    ch |> Send(n);
+    n
 };
 
-def ch : Channel<Int> = MakeChannel(2);
+def ch: Channel < Int > = MakeChannel(2);
+
 def worker = (ch, 7) |> Spawn(Producer);
+
 def received = Option::OptionUnwrapOrPanic(ch |> Receive, "Channel closed");
+
 def joined = worker |> Join;
 Close(ch);
 
-IO::PrintLine("received " ++ (received as Text) ++ ", joined " ++ (JoinedOrPanic(joined) as Text) ++ ", done " ++ (IsDone(worker) as Text));
+IO::PrintLine
+(
+    "received " ++ (received as Text) ++ ", joined " ++ (JoinedOrPanic(joined) as Text) ++ ", done " ++ (IsDone(worker) as Text)
+);

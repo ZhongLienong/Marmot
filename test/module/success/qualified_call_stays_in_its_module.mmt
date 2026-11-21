@@ -1,18 +1,10 @@
 module QualifiedCallStaysInItsModule
-
 // `TextUtil::Contains` is TextUtil's. ArrayUtil also exports a `Contains`,
 // a generic one, and a qualified call that found no generic of its own name
 // used to fall back to that bare name, run ArrayUtil's on two texts and fault.
 // A local function sharing an imported generic's name is its own as well.
 
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-	"../../../projects/marmotstdlib/MarmotPrelude/Convertable.mmt",
-	"../../../projects/marmotstdlib/MarmotPrelude/Equatable.mmt",
-	"../../../projects/marmotstdlib/MarmotPrelude/TextUtil.mmt",
-	"../../../projects/marmotstdlib/MarmotPrelude/ArrayUtil.mmt"
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Convertable.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Equatable.mmt", "../../../projects/marmotstdlib/MarmotPrelude/TextUtil.mmt", "../../../projects/marmotstdlib/MarmotPrelude/ArrayUtil.mmt" }
 
 def Slice = fn(text: Text) -> Text => "local " ++ text;
 

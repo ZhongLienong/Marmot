@@ -1,10 +1,6 @@
 // Test: Qualified access to exported symbols should work
 module TestQualified
-
-import
-{
-    "math_lib.mmt"
-}
+import { "math_lib.mmt" }
 
 // Using qualified names - should work
 def test_qualified = fn() -> Int => Math::add(Math::multiply(5, 3), 2);

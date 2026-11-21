@@ -3,7 +3,9 @@ public export { Scale, Describe }
 
 // Neither helper is exported. Both are reached only through the generics below.
 def Bump = fn(n: Int) -> Int => n + 1;
+
 def Label = fn(n: Int) -> Text => n as Text;
 
-def Scale = fn < T >(items: Array < T >, n: Int) -> Int => Bump(n) + #items;
-def Describe = fn < T >(items: Array < T >, n: Int) -> Text => Label(Bump(n) + #items);
+def Scale = fn<T>(items: Array<T>, n: Int) -> Int => Bump(n) + #items;
+
+def Describe = fn<T>(items: Array<T>, n: Int) -> Text => Label(Bump(n) + #items);

@@ -1,31 +1,29 @@
 module CellCopiedIntoWorker
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt" }
 
-import
+use Result.
 {
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-	"../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt",
-	"../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt"
+    Result
 }
-
-use Result.{ Result }
 
 // A cell that reaches a worker is copied: the worker changes its own copy, and
 // the spawning side still sees the original.
 
 def BumpTwice = fn(c: Ref<Int>) -> Int =>
 {
-	c := (*c) + 1;
-	def first = *c;
-	c := first + 1;
-	*c
+    c := (*c) + 1;
+    def first = *c;
+    c := first + 1;
+    *c
 };
 
 def main_cell = ref 100;
+
 def worker = Concurrency::Spawn(main_cell, BumpTwice);
-def worker_result =
-	match Concurrency::Join(worker) with
-		case Result::Ok(value) => value
-		case Result::Err(_) => -1;
+
+def worker_result = match Concurrency::Join(worker) with
+    case Result::Ok(value) => value
+    case Result::Err(_) => -1;
 
 IO::PrintLine("worker saw " ++ (worker_result as Text) ++ ", main still has " ++ (*main_cell as Text));
 
@@ -33,15 +31,18 @@ IO::PrintLine("worker saw " ++ (worker_result as Text) ++ ", main still has " ++
 // one copy, so a write through one is seen through the other inside the worker.
 def WriteFirstReadSecond = fn(a: Ref<Int>, b: Ref<Int>) -> Int =>
 {
-	a := 7;
-	def written = *a;
-	(*b) + written
+    a := 7;
+    def written = *a;
+    (*b) + written
 };
 
 def pair_worker = Concurrency::Spawn((main_cell, main_cell), WriteFirstReadSecond);
-def pair_result =
-	match Concurrency::Join(pair_worker) with
-		case Result::Ok(value) => value
-		case Result::Err(_) => -1;
 
-IO::PrintLine("shared inside the worker: " ++ (pair_result as Text) ++ ", main still has " ++ (*main_cell as Text));
+def pair_result = match Concurrency::Join(pair_worker) with
+    case Result::Ok(value) => value
+    case Result::Err(_) => -1;
+
+IO::PrintLine
+(
+    "shared inside the worker: " ++ (pair_result as Text) ++ ", main still has " ++ (*main_cell as Text)
+);

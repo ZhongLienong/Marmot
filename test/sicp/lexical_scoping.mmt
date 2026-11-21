@@ -1,24 +1,23 @@
 module LexicalScoping
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
-import
+def abs = fn(x: Float) -> Float => if x < 0.0
+then -x
+else x;
+
+def square = fn(x: Float) -> Float => x * x;
+
+def sqrt = fn(x: Float) -> Float =>
 {
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-}
+    def is_good_enough = fn(guess: Float) -> Bool => abs(square(guess) - x) < 0.001;
 
-def abs = fn(x : Float) -> Float => if x < 0.0 then -x else x;
-def square = fn(x : Float) -> Float => x * x;
-def sqrt = fn(x : Float) -> Float =>
-{
-	def is_good_enough = fn(guess : Float) -> Bool => abs(square(guess) - x) < 0.001;
+    def improve = fn(guess: Float) -> Float => (guess + (x / guess)) / 2.0;
 
-	def improve = fn(guess : Float) -> Float => (guess + (x / guess)) / 2.0;
+    def sqrt_iter = fn(guess: Float) -> Float => if is_good_enough(guess)
+    then guess
+    else sqrt_iter(improve(guess));
 
-	def sqrt_iter = fn(guess : Float) -> Float =>
-		if is_good_enough(guess)
-		then guess
-		else sqrt_iter(improve(guess));
-
-	sqrt_iter(1.0)
+    sqrt_iter(1.0)
 };
 
 IO::PrintLine(sqrt(2.0) as Text);

@@ -1,9 +1,5 @@
 module HeapExhausted
-
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt"
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 // Every text stays reachable from the array, so the collector frees nothing and
 // the heap runs out. That used to dereference the null slot the allocator
@@ -12,6 +8,7 @@ import
 // size does not: Debug builds have wider values.
 
 IO::PrintLine("building");
+
 def texts = [(i as Text) for i in 0..1..20000000];
 IO::PrintLine((#texts) as Text);
 IO::PrintLine("not reached");

@@ -6,9 +6,13 @@ module NewtypeCompoundRepresentation
 // (tuple, function, array) as a newtype's right-hand side without needing to
 // construct a value of the newtype itself.
 type Coordinates = (Int, Int, Int);
+
 type Transformer = fn(Int) -> Int;
+
 type Items = Array<Int>;
 
 def UseCoordinates = fn(c: Coordinates) -> Coordinates => c;
+
 def UseTransformer = fn(t: Transformer) -> Transformer => t;
+
 def UseItems = fn(items: Items) -> Items => items;

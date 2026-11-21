@@ -1,5 +1,13 @@
 module NamedConstructionUnknownField
 
-type Point = { x: Int, y: Int };
+type Point =
+{
+    x: Int,
+    y: Int
+};
 
-def point = Point { x = 1, z = 2 };
+def point = Point
+{
+    x = 1,
+    z = 2
+};

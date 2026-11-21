@@ -1,28 +1,34 @@
 module ClassInstanceConstraints
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
-class Show<T> {
+class Show<T>
+{
     show: fn(value: T) -> Text;
 };
 
-class Debug<T> {
+class Debug<T>
+{
     debug: fn(value: T) -> Text;
 };
 
-instance Show<Int> {
-    def show = fn(value: Int) -> Text => {
+instance Show<Int>
+{
+    def show = fn(value: Int) -> Text =>
+    {
         "Int(" ++ (value as Text) ++ ")"
     };
 };
 
-instance Debug<Int> {
-    def debug = fn(value: Int) -> Text => {
+instance Debug<Int>
+{
+    def debug = fn(value: Int) -> Text =>
+    {
         "Debug(" ++ (value as Text) ++ ")"
     };
 };
 
-def debug_value = fn<T>(x: T) -> Text where Debug<T> => {
+def debug_value = fn<T>(x: T) -> Text where Debug<T> =>
+{
     Debug::debug(x)
 };
 

@@ -1,7 +1,9 @@
 module ConstructorInferenceRequiresContext
 
 type Option<T> = Some(T) | None;
+
 type Result<T, E> = Ok(T) | Err(E);
 
 def unresolved_none = Option::None();
+
 def unresolved_ok = Result::Ok(1);

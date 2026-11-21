@@ -1,22 +1,27 @@
 module TypeDefinitionConstraintPropagation
 
-class Show<T> {
+class Show<T>
+{
     show: fn(value: T) -> Text;
 };
 
-type Box<T> where Show<T> = {
+type Box<T> where Show<T> =
+{
     value: T
 };
 
-instance Show<Int> {
-    def show = fn(value: Int) -> Text => {
+instance Show<Int>
+{
+    def show = fn(value: Int) -> Text =>
+    {
         value as Text
     };
 };
 
 def MakeBox = fn<T>(value: T) -> Box<T> => Box(value);
 
-def ShowBox = fn<T>(box: Box<T>) -> Text => {
+def ShowBox = fn<T>(box: Box<T>) -> Text =>
+{
     Show::show(box.value)
 };
 

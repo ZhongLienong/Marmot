@@ -1,186 +1,250 @@
 module Map
 import { "./Bits.mmt", "../ArrayUtil.mmt", "../Countable.mmt", "../Equatable.mmt", "../Hashable.mmt", "../Iterable.mmt", "../Prelude/List.mmt", "../Prelude/Option.mmt" }
 public export { Entry, Node, Map, Empty, Count, IsEmpty, Get, GetOr, ContainsKey, MakeLeaf, MakeBranch, MakeMap, With, Without, Entries, Keys, Values, MapIter, IterNew }
-use Option.{
+use Option.
+{
     Option
 }
-use List.{ List, ListToArray }
-type Entry < K, V > = {
+use List.
+{
+    List,
+    ListToArray
+}
+
+type Entry<K, V> =
+{
     key: K,
     value: V
 };
-type Node < K, V > = Nothing | Leaf(Int, K, V) | Collision(Int, Array < Entry < K, V > >) | Branch(Int, Array < Node >);
-type Map < K, V > = {
-    root: Node < K, V >,
+
+type Node<K, V> = Nothing | Leaf(Int, K, V) | Collision(Int, Array<Entry<K, V>>) | Branch(Int, Array<Node>);
+
+type Map<K, V> =
+{
+    root: Node<K, V>,
     count: Int
 };
-def MakeLeaf = fn < K, V >(hash: Int, key: K, value: V) -> Node < K, V > => Node::Leaf (hash, key, value);
-def MakeBranch = fn < K, V >(bitmap: Int, children: Array < Node < K, V > >) -> Node < K, V > => Node::Branch (bitmap, children);
-def MakeMap = fn < K, V >(root: Node < K, V >, count: Int) -> Map < K, V > => Map (root, count);
-def Empty = fn < K, V >() -> Map < K, V > => Map (Node::Nothing (), 0);
-def Count = fn < K, V >(map: Map < K, V >) -> Int => map.count;
-def IsEmpty = fn < K, V >(map: Map < K, V >) -> Bool => map.count == 0;
-def CollisionGet = fn < K, V >(entries: Array < Entry < K, V > >, key: K, index: Int) -> Option < V > where Equatable < K > =>
-    if index >= ArrayUtil::Length(entries)
-    then Option::None ()
-    else if Equatable::Equals(entries[index].key, key) then Option::Some (entries[index].value) else CollisionGet(entries, key, index + 1);
-def NodeGet = fn < K, V >(node: Node < K, V >, hash: Int, key: K, depth: Int) -> Option < V > where Equatable < K > =>
-    match node with
-        case Node::Nothing() => Option::None ()
-        case Node::Leaf(leaf_hash, leaf_key, leaf_value) =>
-            if (leaf_hash == hash) && Equatable::Equals(leaf_key, key) then Option::Some (leaf_value) else Option::None ()
-        case Node::Collision(collision_hash, entries) =>
-            if collision_hash == hash then CollisionGet(entries, key, 0) else Option::None ()
-        case Node::Branch(bitmap, children) => {
-            def chunk = Bits::HashChunk(hash, depth);
-            if Bits::HasBit(bitmap, chunk)
-            then NodeGet(children[Bits::SparseIndex(bitmap, chunk)], hash, key, depth + 1)
-            else Option::None ()
-        };
+
+def MakeLeaf = fn<K, V>(hash: Int, key: K, value: V) -> Node<K, V> => Node::Leaf(hash, key, value);
+
+def MakeBranch = fn<K, V>(bitmap: Int, children: Array<Node<K, V>>) -> Node<K, V> => Node::Branch(bitmap, children);
+
+def MakeMap = fn<K, V>(root: Node<K, V>, count: Int) -> Map<K, V> => Map(root, count);
+
+def Empty = fn<K, V>() -> Map<K, V> => Map(Node::Nothing(), 0);
+
+def Count = fn<K, V>(map: Map<K, V>) -> Int => map.count;
+
+def IsEmpty = fn<K, V>(map: Map<K, V>) -> Bool => map.count == 0;
+
+def CollisionGet = fn<K, V>(entries: Array<Entry<K, V>>, key: K, index: Int) -> Option<V> where Equatable<K> => if index >= ArrayUtil::Length(entries)
+then Option::None()
+else if Equatable::Equals(entries[index].key, key)
+then Option::Some(entries[index].value)
+else CollisionGet(entries, key, index + 1);
+
+def NodeGet = fn<K, V>(node: Node<K, V>, hash: Int, key: K, depth: Int) -> Option<V> where Equatable<K> => match node with
+    case Node::Nothing() => Option::None()
+    case Node::Leaf(leaf_hash, leaf_key, leaf_value) => if (leaf_hash == hash) && Equatable::Equals(leaf_key, key)
+then Option::Some(leaf_value)
+else Option::None()
+    case Node::Collision(collision_hash, entries) => if collision_hash == hash
+then CollisionGet(entries, key, 0)
+else Option::None()
+    case Node::Branch(bitmap, children) =>
+{
+        def chunk = Bits::HashChunk(hash, depth);
+        if Bits::HasBit(bitmap, chunk)
+        then NodeGet(children[Bits::SparseIndex(bitmap, chunk)], hash, key, depth + 1)
+        else Option::None()
+    };
+
 // The two hashes differ, and the chunks of depths 0 to 12 cover all 64 bits, so they
 // part before the chunks run out. A depth limit of 12 once cut the top four bits off
 // and filed both nodes under one bit: keys 0 and 1 << 60 could not both be found.
-def MergeNodes = fn < K, V >(node_a: Node < K, V >, hash_a: Int, node_b: Node < K, V >, hash_b: Int, depth: Int) -> Node < K, V > => {
+def MergeNodes = fn<K, V>(node_a: Node<K, V>, hash_a: Int, node_b: Node<K, V>, hash_b: Int, depth: Int) -> Node<K, V> =>
+{
     def chunk_a = Bits::HashChunk(hash_a, depth);
     def chunk_b = Bits::HashChunk(hash_b, depth);
     if chunk_a == chunk_b
-    then Node::Branch (Bits::BitAt(chunk_a), [MergeNodes(node_a, hash_a, node_b, hash_b, depth + 1)])
-    else {
+    then Node::Branch(Bits::BitAt(chunk_a), [MergeNodes(node_a, hash_a, node_b, hash_b, depth + 1)])
+    else
+    {
         def bitmap = Bits::BitAt(chunk_a) | Bits::BitAt(chunk_b);
-        if chunk_a < chunk_b then Node::Branch (bitmap, [node_a, node_b]) else Node::Branch (bitmap, [node_b, node_a])
+        if chunk_a < chunk_b
+        then Node::Branch(bitmap, [node_a, node_b])
+        else Node::Branch(bitmap, [node_b, node_a])
     }
 };
-def EntryIndexOf = fn < K, V >(entries: Array < Entry < K, V > >, key: K, index: Int) -> Int where Equatable < K > =>
-    if index >= ArrayUtil::Length(entries)
-    then - 1
-    else if Equatable::Equals(entries[index].key, key) then index else EntryIndexOf(entries, key, index + 1);
-def NodeWith = fn < K, V >(node: Node < K, V >, hash: Int, key: K, value: V, depth: Int) -> (Node < K, V >, Int) where Equatable < K > =>
-    match node with
-        case Node::Nothing() => (Node::Leaf (hash, key, value), 1)
-        case Node::Leaf(leaf_hash, leaf_key, leaf_value) =>
-            if (leaf_hash == hash) && Equatable::Equals(leaf_key, key)
-            then (Node::Leaf (hash, key, value), 0)
-            else if leaf_hash == hash
-            then (Node::Collision (hash, [Entry (leaf_key, leaf_value), Entry (key, value)]), 1)
-            else (MergeNodes(Node::Leaf (leaf_hash, leaf_key, leaf_value), leaf_hash, Node::Leaf (hash, key, value), hash, depth), 1)
-        case Node::Collision(collision_hash, entries) =>
-            if collision_hash == hash
-            then {
-                def existing = EntryIndexOf(entries, key, 0);
-                if existing < 0
-                then (Node::Collision (hash, ArrayUtil::WithAppended(entries, Entry (key, value))), 1)
-                else (Node::Collision (hash, ArrayUtil::WithReplaced(entries, existing, Entry (key, value))), 0)
-            }
-            else (MergeNodes(Node::Collision (collision_hash, entries), collision_hash, Node::Leaf (hash, key, value), hash, depth), 1)
-        case Node::Branch(bitmap, children) => {
-            def chunk = Bits::HashChunk(hash, depth);
-            def slot = Bits::SparseIndex(bitmap, chunk);
-            if Bits::HasBit(bitmap, chunk)
-            then {
-                def (child, delta) = NodeWith(children[slot], hash, key, value, depth + 1);
-                (Node::Branch (bitmap, ArrayUtil::WithReplaced(children, slot, child)), delta)
-            }
-            else (Node::Branch (bitmap | Bits::BitAt(chunk), ArrayUtil::WithInserted(children, slot, Node::Leaf (hash, key, value))), 1)
-        };
-def With = fn < K, V >(map: Map < K, V >, key: K, value: V) -> Map < K, V > where Hashable < K >, Equatable < K > => {
+
+def EntryIndexOf = fn<K, V>(entries: Array<Entry<K, V>>, key: K, index: Int) -> Int where Equatable<K> => if index >= ArrayUtil::Length(entries)
+then -1
+else if Equatable::Equals(entries[index].key, key)
+then index
+else EntryIndexOf(entries, key, index + 1);
+
+def NodeWith = fn<K, V>(node: Node<K, V>, hash: Int, key: K, value: V, depth: Int) -> (Node<K, V>, Int) where Equatable<K> => match node with
+    case Node::Nothing() => (Node::Leaf(hash, key, value), 1)
+    case Node::Leaf(leaf_hash, leaf_key, leaf_value) => if (leaf_hash == hash) && Equatable::Equals(leaf_key, key)
+then (Node::Leaf(hash, key, value), 0)
+else if leaf_hash == hash
+then (Node::Collision(hash, [Entry(leaf_key, leaf_value), Entry(key, value)]), 1)
+else (MergeNodes
+(
+    Node::Leaf(leaf_hash, leaf_key, leaf_value),
+    leaf_hash,
+    Node::Leaf(hash, key, value),
+    hash,
+    depth
+), 1)
+    case Node::Collision(collision_hash, entries) => if collision_hash == hash
+then
+{
+        def existing = EntryIndexOf(entries, key, 0);
+        if existing < 0
+        then (Node::Collision(hash, ArrayUtil::WithAppended(entries, Entry(key, value))), 1)
+        else (Node::Collision(hash, ArrayUtil::WithReplaced(entries, existing, Entry(key, value))), 0)
+    }
+else (MergeNodes
+(
+    Node::Collision(collision_hash, entries),
+    collision_hash,
+    Node::Leaf(hash, key, value),
+    hash,
+    depth
+), 1)
+    case Node::Branch(bitmap, children) =>
+{
+        def chunk = Bits::HashChunk(hash, depth);
+        def slot = Bits::SparseIndex(bitmap, chunk);
+        if Bits::HasBit(bitmap, chunk)
+        then
+        {
+            def (child, delta) = NodeWith(children[slot], hash, key, value, depth + 1);
+            (Node::Branch(bitmap, ArrayUtil::WithReplaced(children, slot, child)), delta)
+        }
+        else (Node::Branch
+        (
+            bitmap | Bits::BitAt(chunk),
+            ArrayUtil::WithInserted(children, slot, Node::Leaf(hash, key, value))
+        ), 1)
+    };
+
+def With = fn<K, V>(map: Map<K, V>, key: K, value: V) -> Map<K, V> where Hashable<K>, Equatable<K> =>
+{
     def (root, delta) = NodeWith(map.root, Hashable::Hash(key), key, value, 0);
-    Map (root, map.count + delta)
+    Map(root, map.count + delta)
 };
-def CollapseBranch = fn < K, V >(bitmap: Int, children: Array < Node < K, V > >) -> Node < K, V > =>
-    if ArrayUtil::Length(children) == 0
-    then Node::Nothing ()
-    else if ArrayUtil::Length(children) == 1
-    then {
-        match children[0] with
-            case Node::Leaf(leaf_hash, leaf_key, leaf_value) => Node::Leaf (leaf_hash, leaf_key, leaf_value)
-            case Node::Collision(collision_hash, entries) => Node::Collision (collision_hash, entries)
-            case _ => Node::Branch (bitmap, children)
-    }
-    else Node::Branch (bitmap, children);
-def NodeWithout = fn < K, V >(node: Node < K, V >, hash: Int, key: K, depth: Int) -> (Node < K, V >, Int) where Equatable < K > =>
-    match node with
-        case Node::Nothing() => (Node::Nothing (), 0)
-        case Node::Leaf(leaf_hash, leaf_key, leaf_value) =>
-            if (leaf_hash == hash) && Equatable::Equals(leaf_key, key)
-            then (Node::Nothing (), - 1)
-            else (Node::Leaf (leaf_hash, leaf_key, leaf_value), 0)
-        case Node::Collision(collision_hash, entries) =>
-            if collision_hash == hash
-            then {
+
+def CollapseBranch = fn<K, V>(bitmap: Int, children: Array<Node<K, V>>) -> Node<K, V> => if ArrayUtil::Length(children) == 0
+then Node::Nothing()
+else if ArrayUtil::Length(children) == 1
+then
+{
+    match children[0] with
+        case Node::Leaf(leaf_hash, leaf_key, leaf_value) => Node::Leaf(leaf_hash, leaf_key, leaf_value)
+        case Node::Collision(collision_hash, entries) => Node::Collision(collision_hash, entries)
+        case _ => Node::Branch(bitmap, children)
+}
+else Node::Branch(bitmap, children);
+
+def NodeWithout = fn<K, V>(node: Node<K, V>, hash: Int, key: K, depth: Int) -> (Node<K, V>, Int) where Equatable<K> => match node with
+            case Node::Nothing() => (Node::Nothing(), 0)
+            case Node::Leaf(leaf_hash, leaf_key, leaf_value) => if (leaf_hash == hash) && Equatable::Equals(leaf_key, key)
+then (Node::Nothing(), -1)
+else (Node::Leaf(leaf_hash, leaf_key, leaf_value), 0)
+            case Node::Collision(collision_hash, entries) => if collision_hash == hash
+then
+{
                 def found = EntryIndexOf(entries, key, 0);
                 if found < 0
-                then (Node::Collision (collision_hash, entries), 0)
-                else {
+                then (Node::Collision(collision_hash, entries), 0)
+                else
+                {
                     def rest = ArrayUtil::WithRemoved(entries, found);
                     if ArrayUtil::Length(rest) == 1
-                    then (Node::Leaf (collision_hash, rest[0].key, rest[0].value), - 1)
-                    else (Node::Collision (collision_hash, rest), - 1)
+                    then (Node::Leaf(collision_hash, rest[0].key, rest[0].value), -1)
+                    else (Node::Collision(collision_hash, rest), -1)
                 }
             }
-            else (Node::Collision (collision_hash, entries), 0)
-        case Node::Branch(bitmap, children) => {
-            def chunk = Bits::HashChunk(hash, depth);
-            if Bits::HasBit(bitmap, chunk)
-            then {
-                def slot = Bits::SparseIndex(bitmap, chunk);
-                def (child, delta) = NodeWithout(children[slot], hash, key, depth + 1);
-                match child with
-                    case Node::Nothing() => (CollapseBranch(bitmap ^ Bits::BitAt(chunk), ArrayUtil::WithRemoved(children, slot)), delta)
-                    case _ => (Node::Branch (bitmap, ArrayUtil::WithReplaced(children, slot, child)), delta)
-            }
-            else (Node::Branch (bitmap, children), 0)
-        };
-def Without = fn < K, V >(map: Map < K, V >, key: K) -> Map < K, V > where Hashable < K >, Equatable < K > => {
+else (Node::Collision(collision_hash, entries), 0)
+            case Node::Branch(bitmap, children) =>
+{
+                def chunk = Bits::HashChunk(hash, depth);
+                if Bits::HasBit(bitmap, chunk)
+                then
+                {
+                    def slot = Bits::SparseIndex(bitmap, chunk);
+                    def (child, delta) = NodeWithout(children[slot], hash, key, depth + 1);
+                    match child with
+                case Node::Nothing() => (CollapseBranch(bitmap ^ Bits::BitAt(chunk), ArrayUtil::WithRemoved(children, slot)), delta)
+                case _ => (Node::Branch(bitmap, ArrayUtil::WithReplaced(children, slot, child)), delta)
+                }
+                else (Node::Branch(bitmap, children), 0)
+            };
+
+def Without = fn<K, V>(map: Map<K, V>, key: K) -> Map<K, V> where Hashable<K>, Equatable<K> =>
+{
     def (root, delta) = NodeWithout(map.root, Hashable::Hash(key), key, 0);
-    Map (root, map.count + delta)
+    Map(root, map.count + delta)
 };
-def Get = fn < K, V >(map: Map < K, V >, key: K) -> Option < V > where Hashable < K >, Equatable < K > =>
-    NodeGet(map.root, Hashable::Hash(key), key, 0);
-def GetOr = fn < K, V >(map: Map < K, V >, key: K, fallback: V) -> V where Hashable < K >, Equatable < K > =>
-    match Get(map, key) with
-        case Option::Some(found) => found
-        case Option::None() => fallback;
-def ContainsKey = fn < K, V >(map: Map < K, V >, key: K) -> Bool where Hashable < K >, Equatable < K > =>
-    match Get(map, key) with
-        case Option::Some(_) => true
-        case Option::None() => false;
-def PrependEntries = fn < K, V >(entries: Array < Entry < K, V > >, index: Int, collected: List < Entry < K, V > >) -> List < Entry < K, V > > =>
-    if index < 0
-    then collected
-    else PrependEntries(entries, index - 1, List::Cons(entries[index], collected));
+
+def Get = fn<K, V>(map: Map<K, V>, key: K) -> Option<V> where Hashable<K>, Equatable<K> => NodeGet(map.root, Hashable::Hash(key), key, 0);
+
+def GetOr = fn<K, V>(map: Map<K, V>, key: K, fallback: V) -> V where Hashable<K>, Equatable<K> => match Get(map, key) with
+                    case Option::Some(found) => found
+                    case Option::None() => fallback;
+
+def ContainsKey = fn<K, V>(map: Map<K, V>, key: K) -> Bool where Hashable<K>, Equatable<K> => match Get(map, key) with
+                    case Option::Some(_) => true
+                    case Option::None() => false;
+
+def PrependEntries = fn<K, V>(entries: Array<Entry<K, V>>, index: Int, collected: List<Entry<K, V>>) -> List<Entry<K, V>> => if index < 0
+then collected
+else PrependEntries(entries, index - 1, List::Cons(entries[index], collected));
+
 // Walk children and collision entries backward so prepending preserves their order.
-def CollectNode = fn < K, V >(node: Node < K, V >, collected: List < Entry < K, V > >) -> List < Entry < K, V > > =>
-    match node with
-        case Node::Nothing() => collected
-        case Node::Leaf(_, leaf_key, leaf_value) => List::Cons(Entry(leaf_key, leaf_value), collected)
-        case Node::Collision(_, entries) => PrependEntries(entries, #entries - 1, collected)
-        case Node::Branch(_, children) => CollectChildren(children, #children - 1, collected);
-def CollectChildren = fn < K, V >(children: Array < Node < K, V > >, index: Int, collected: List < Entry < K, V > >) -> List < Entry < K, V > > =>
-    if index < 0
-    then collected
-    else CollectChildren(children, index - 1, CollectNode(children[index], collected));
-def Entries = fn < K, V >(map: Map < K, V >) -> Array < Entry < K, V > > => ListToArray(CollectNode(map.root, List::Nil()));
-def Keys = fn < K, V >(map: Map < K, V >) -> Array < K > => {
+def CollectNode = fn<K, V>(node: Node<K, V>, collected: List<Entry<K, V>>) -> List<Entry<K, V>> => match node with
+                    case Node::Nothing() => collected
+                    case Node::Leaf(_, leaf_key, leaf_value) => List::Cons(Entry(leaf_key, leaf_value), collected)
+                    case Node::Collision(_, entries) => PrependEntries(entries, #entries - 1, collected)
+                    case Node::Branch(_, children) => CollectChildren(children, #children - 1, collected);
+
+def CollectChildren = fn<K, V>(children: Array<Node<K, V>>, index: Int, collected: List<Entry<K, V>>) -> List<Entry<K, V>> => if index < 0
+then collected
+else CollectChildren(children, index - 1, CollectNode(children[index], collected));
+
+def Entries = fn<K, V>(map: Map<K, V>) -> Array<Entry<K, V>> => ListToArray(CollectNode(map.root, List::Nil()));
+
+def Keys = fn<K, V>(map: Map<K, V>) -> Array<K> =>
+{
     def pairs = Entries(map);
     [pairs[slot].key for slot in 0..1..ArrayUtil::Length(pairs)]
 };
-def Values = fn < K, V >(map: Map < K, V >) -> Array < V > => {
+
+def Values = fn<K, V>(map: Map<K, V>) -> Array<V> =>
+{
     def pairs = Entries(map);
     [pairs[slot].value for slot in 0..1..ArrayUtil::Length(pairs)]
 };
-type MapIter < K, V > = {
-    entries: Array < Entry < K, V > >,
+
+type MapIter<K, V> =
+{
+    entries: Array<Entry<K, V>>,
     index: Int
 };
-def IterNew = fn < K, V >(map: Map < K, V >) -> MapIter < K, V > => MapIter (Entries(map), 0);
-instance Iterable < MapIter < K, V >> {
-    type Item = Entry < K,
-    V >;
-    def Next = fn(iter: MapIter < K, V >) -> Option < (Entry < K, V >, MapIter < K, V >) > =>
-        if iter.index >= ArrayUtil::Length(iter.entries)
-        then Option::None ()
-        else Option::Some ((iter.entries[iter.index], MapIter (iter.entries, iter.index + 1)));
+
+def IterNew = fn<K, V>(map: Map<K, V>) -> MapIter<K, V> => MapIter(Entries(map), 0);
+
+instance Iterable<MapIter<K, V>>
+{
+    type Item = Entry<K, V>;
+    def Next = fn(iter: MapIter<K, V>) -> Option<(Entry<K, V>, MapIter<K, V>)> => if iter.index >= ArrayUtil::Length(iter.entries)
+    then Option::None()
+    else Option::Some((iter.entries[iter.index], MapIter(iter.entries, iter.index + 1)));
 };
-instance Countable < Map < K, V >> {
-    def Count = fn(map: Map < K, V >) -> Int => map.count;
+
+instance Countable<Map<K, V>>
+{
+    def Count = fn(map: Map<K, V>) -> Int => map.count;
 };

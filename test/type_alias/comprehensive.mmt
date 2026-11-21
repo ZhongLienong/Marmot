@@ -1,21 +1,21 @@
 module Comprehensive
-
 // Test: Comprehensive type alias functionality
 // Expected: Type aliases work with primitives, structs, and generic types
 
-import
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt"
-}
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 // Simple type aliases for primitive types
 alias UserId = Int;
+
 alias Name = Text;
+
 alias Score = Float;
 
 // Test simple aliases
 def user_id: UserId = 123;
+
 def name: Name = "Bob";
+
 def score: Score = 95.5;
 
 IO::PrintLine(user_id as Text);
@@ -25,8 +25,8 @@ IO::PrintLine(score as Text);
 // Type alias for struct
 type Point =
 {
-	x: Float,
-	y: Float
+    x: Float,
+    y: Float
 };
 
 alias Position = Point;
@@ -44,7 +44,7 @@ IO::PrintLine(numbers[2] as Text);
 // Type alias with function parameter type
 def apply_to_id = fn(id: UserId) -> Text =>
 {
-	"User ID: " ++ (id as Text)
+    "User ID: " ++ (id as Text)
 };
 
 IO::PrintLine(apply_to_id(user_id));

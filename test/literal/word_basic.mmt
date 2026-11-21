@@ -1,5 +1,4 @@
 module WordBasic
-
 // Basic Word Type Tests
 import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
@@ -7,11 +6,17 @@ IO::PrintLine("=== Word Basic Operations Test ===");
 
 // Arithmetic
 def w1: Word = 1000 as Word;
+
 def w2: Word = 500 as Word;
+
 def w_add: Word = w1 + w2;
+
 def w_sub: Word = w1 - w2;
+
 def w_mul: Word = (10 as Word) * (5 as Word);
+
 def w_div: Word = w1 / (4 as Word);
+
 def w_mod: Word = w1 % (7 as Word);
 
 IO::Print("Addition (1000 + 500): ");
@@ -28,25 +33,64 @@ IO::PrintLine(w_mod as Text);
 // Comparisons
 IO::PrintLine("");
 IO::PrintLine("=== Comparisons ===");
+
 def cmp1: Bool = w1 > w2;
+
 def cmp2: Bool = w1 < w2;
+
 def cmp3: Bool = w1 == (1000 as Word);
+
 def cmp4: Bool = w1 != w2;
 
 IO::Print("1000 > 500: ");
-if cmp1 then { IO::PrintLine("true"); } else { IO::PrintLine("false"); };
+if cmp1
+then
+{
+    IO::PrintLine("true");
+}
+else
+{
+    IO::PrintLine("false");
+};
 IO::Print("1000 < 500: ");
-if cmp2 then { IO::PrintLine("true"); } else { IO::PrintLine("false"); };
+if cmp2
+then
+{
+    IO::PrintLine("true");
+}
+else
+{
+    IO::PrintLine("false");
+};
 IO::Print("1000 == 1000: ");
-if cmp3 then { IO::PrintLine("true"); } else { IO::PrintLine("false"); };
+if cmp3
+then
+{
+    IO::PrintLine("true");
+}
+else
+{
+    IO::PrintLine("false");
+};
 IO::Print("1000 != 500: ");
-if cmp4 then { IO::PrintLine("true"); } else { IO::PrintLine("false"); };
+if cmp4
+then
+{
+    IO::PrintLine("true");
+}
+else
+{
+    IO::PrintLine("false");
+};
 
 // Large values
 IO::PrintLine("");
 IO::PrintLine("=== Large Values ===");
+
 def large1: Word = 1000000000 as Word;
+
 def large2: Word = 500000000 as Word;
+
 def large_add: Word = large1 + large2;
 
 IO::Print("1000000000 + 500000000: ");

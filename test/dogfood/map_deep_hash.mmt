@@ -1,20 +1,23 @@
 module MapDeepHash
-
-import
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-	"../../projects/marmotstdlib/MarmotPrelude/Collections/Map.mmt",
-	"../../projects/marmotstdlib/MarmotPrelude/Hashable.mmt",
-	"../../projects/marmotstdlib/MarmotPrelude/Equatable.mmt"
-}
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../projects/marmotstdlib/MarmotPrelude/Collections/Map.mmt", "../../projects/marmotstdlib/MarmotPrelude/Hashable.mmt", "../../projects/marmotstdlib/MarmotPrelude/Equatable.mmt" }
 
 // Two different hashes that agree on their low 60 bits: the map runs out of
 // levels before the hashes part, and every key must still be found.
 
-type Key = { id: Int };
+type Key =
+{
+    id: Int
+};
 
-instance Hashable<Key> { def Hash = fn(value: Key) -> Int => (value.id << 60) | 12345; };
-instance Equatable<Key> { def Equals = fn(a: Key, b: Key) -> Bool => a.id == b.id; };
+instance Hashable<Key>
+{
+    def Hash = fn(value: Key) -> Int => (value.id << 60) | 12345;
+};
+
+instance Equatable<Key>
+{
+    def Equals = fn(a: Key, b: Key) -> Bool => a.id == b.id;
+};
 
 def map = Map::With(Map::With(Map::With(Map::Empty(), Key(1), "one"), Key(2), "two"), Key(3), "three");
 

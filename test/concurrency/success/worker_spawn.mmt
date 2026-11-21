@@ -1,15 +1,19 @@
 module worker_spawn
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt" }
 
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
-use IO.{PrintLine}
+use IO.
+{
+    PrintLine
+}
 
-def WorkerTask = fn(msg: Text) -> Int => {
+def WorkerTask = fn(msg: Text) -> Int =>
+{
     42
 };
 
 def worker = Concurrency::Spawn("hello", WorkerTask);
+
 def result = Concurrency::JoinedOrPanic(Concurrency::Join(worker));
 
 PrintLine("Worker result: " ++ (result as Text));

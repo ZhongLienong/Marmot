@@ -1,46 +1,46 @@
 module SpawnTransfersFunctions
-
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt",
-	"../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt",
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt"
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt", "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 // A function is an ordinary transferable value: it crosses to a worker as its
 // procedure index plus a copy of whatever cells it captured. So a worker can be a
 // lambda that captured something, a function held in a parameter, or a function
 // carried inside a transferred record.
 
-def Increment = fn(value : Int) -> Int => value + 1;
+def Increment = fn(value: Int) -> Int => value + 1;
 
 // The spawned function is a lambda that captured a local.
-def ScaleBy = fn(factor : Int, value : Int) -> Int =>
+def ScaleBy = fn(factor: Int, value: Int) -> Int =>
 {
-	def worker = Concurrency::Spawn(value, fn(n : Int) -> Int => n * factor);
-	Concurrency::JoinedOrPanic(Concurrency::Join(worker))
+    def worker = Concurrency::Spawn(value, fn(n: Int) -> Int => n * factor);
+    Concurrency::JoinedOrPanic(Concurrency::Join(worker))
 };
 IO::PrintLine("captured: " ++ (ScaleBy(6, 7) as Text));
 
 // The spawned function arrives as a parameter rather than a name.
-def RunWith = fn(work : fn(Int) -> Int, value : Int) -> Int =>
+def RunWith = fn(work: fn(Int) -> Int, value: Int) -> Int =>
 {
-	def worker = Concurrency::Spawn(value, work);
-	Concurrency::JoinedOrPanic(Concurrency::Join(worker))
+    def worker = Concurrency::Spawn(value, work);
+    Concurrency::JoinedOrPanic(Concurrency::Join(worker))
 };
 IO::PrintLine("parameter: " ++ (RunWith(Increment, 41) as Text));
 
 // A function travels as data, inside the worker's argument.
-def RunCallback = fn(callback : fn(Int) -> Int) -> Int => callback(1);
+def RunCallback = fn(callback: fn(Int) -> Int) -> Int => callback(1);
+
 def callback_worker = Concurrency::Spawn(Increment, RunCallback);
 IO::PrintLine("argument: " ++ (Concurrency::JoinedOrPanic(Concurrency::Join(callback_worker)) as Text));
 
 // Including inside a record that derives Transferable.
 type Payload =
 {
-	callback: fn(Int) -> Int
-} deriving (Transferable);
+    callback: fn(Int) -> Int
+}
+deriving(Transferable);
 
-def UsePayload = fn(payload : Payload) -> Int => payload.callback(5);
+def UsePayload = fn(payload: Payload) -> Int => payload.callback(5);
+
 def payload_worker = Concurrency::Spawn(Payload(Increment), UsePayload);
-IO::PrintLine("record field: " ++ (Concurrency::JoinedOrPanic(Concurrency::Join(payload_worker)) as Text));
+IO::PrintLine
+(
+    "record field: " ++ (Concurrency::JoinedOrPanic(Concurrency::Join(payload_worker)) as Text)
+);

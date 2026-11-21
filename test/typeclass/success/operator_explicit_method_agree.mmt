@@ -1,5 +1,4 @@
 module OperatorExplicitMethodAgree
-
 // Every operator desugars to exactly one class method, so `#x` and
 // `Countable::Count(x)` - and `a ++ b` and `Concatenable::Concat(a, b)` -
 // must select the same instance in the same context. The explicit
@@ -10,18 +9,21 @@ module OperatorExplicitMethodAgree
 
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Countable.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Concatenable.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Convertable.mmt", }
 
-def Same = fn < T >(value: T) -> T => value;
+def Same = fn<T>(value: T) -> T => value;
 
-type Bag < T > = {
-    items: Array < T >
+type Bag<T> =
+{
+    items: Array<T>
 };
 
-instance Countable < Bag < T >> {
-    def Count = fn(value: Bag < T >) -> Int => #value.items;
+instance Countable<Bag<T>>
+{
+    def Count = fn(value: Bag<T>) -> Int => #value.items;
 };
 
 def text = "hello";
-def bag: Bag < Int > = Bag ([1, 2, 3]);
+
+def bag: Bag<Int> = Bag([1, 2, 3]);
 
 IO::PrintLine(#text as Text);
 IO::PrintLine(Countable::Count(text) as Text);
@@ -34,8 +36,10 @@ IO::PrintLine("a" ++ "b");
 IO::PrintLine(Concatenable::Concat("a", "b"));
 IO::PrintLine(Same(Concatenable::Concat("a", "b")));
 
-def left: Array < Int > = [1, 2];
-def right: Array < Int > = [3];
+def left: Array<Int> = [1, 2];
+
+def right: Array<Int> = [3];
+
 def joined = left ++ right;
 
 IO::PrintLine(#joined as Text);

@@ -1,12 +1,15 @@
 // Test: circular dependency A -> B -> A (should fail)
 
 module CircularA
-
 public export { FuncA }
 
 import { "circular_b.mmt" }
-use CircularB.{FuncB}
+use CircularB.
+{
+    FuncB
+}
 
-def FuncA = fn() -> Float => {
+def FuncA = fn() -> Float =>
+{
     FuncB() + 1.0
 };

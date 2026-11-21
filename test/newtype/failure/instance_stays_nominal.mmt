@@ -2,12 +2,14 @@ module InstanceLeak
 
 type Meters = Int;
 
-class Describable<T> {
-	Describe: fn(value: T) -> Int;
+class Describable<T>
+{
+    Describe: fn(value: T) -> Int;
 };
 
-instance Describable<Meters> {
-	def Describe = fn(value: Meters) -> Int => value as Int;
+instance Describable<Meters>
+{
+    def Describe = fn(value: Meters) -> Int => value as Int;
 };
 
 def leaked: Int = Describable::Describe(7);

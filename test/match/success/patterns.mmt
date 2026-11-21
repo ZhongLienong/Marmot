@@ -1,43 +1,37 @@
 module MatchPatterns
-
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
 type Point =
 {
-	x : Int,
-	y : Int
+    x: Int,
+    y: Int
 };
 
 def pair = (2, 3);
+
 def tuple_sum = match pair with
-	case (x, y) => x + y
-;
+    case (x, y) => x + y;
 
 def point = Point(4, 5);
+
 def area = match point with
-	case Point(x, y) => x * y
-;
+    case Point(x, y) => x * y;
 
 def arr = [1, 2, 3];
+
 def array_sum = match arr with
-	case [a, b, c] => a + b + c
-	case _ => 0
-;
+    case [a, b, c] => a + b + c
+    case _ => 0;
 
 def literal_match = match 3 with
-	case 1 => 10
-	case 3 => 30
-	case _ => 0
-;
+    case 1 => 10
+    case 3 => 30
+    case _ => 0;
 
 def text_match = match "hi" with
-	case "bye" => 0
-	case "hi" => 1
-	case _ => -1
-;
+    case "bye" => 0
+    case "hi" => 1
+    case _ => -1;
 
 IO::PrintLine("tuple_sum=" ++ (tuple_sum as Text));
 IO::PrintLine("area=" ++ (area as Text));

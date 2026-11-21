@@ -1,5 +1,4 @@
 module IndexableInstanceBodyIndexesArray
-
 // Guards the ArrayType fast path, which is load-bearing rather than an
 // optimization. Every Indexable instance here reaches its element by
 // indexing an array, so if either fast path is removed - TypeChecker's
@@ -9,29 +8,39 @@ module IndexableInstanceBodyIndexesArray
 
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Indexable.mmt", }
 
-use Indexable.{ Indexable }
+use Indexable.
+{
+    Indexable
+}
 
-type Row = {
-    cells: Array < Int >
+type Row =
+{
+    cells: Array<Int>
 };
 
-type Grid = {
-    rows: Array < Row >
+type Grid =
+{
+    rows: Array<Row>
 };
 
-instance Indexable < Row, Int > {
+instance Indexable<Row, Int>
+{
     type Element = Int;
     def Get = fn(container: Row, index: Int) -> Int => container.cells[index];
 };
 
-instance Indexable < Grid, Int > {
+instance Indexable<Grid, Int>
+{
     type Element = Row;
     def Get = fn(container: Grid, index: Int) -> Row => container.rows[index];
 };
 
 def first: Row = Row([1, 2, 3]);
+
 def second: Row = Row([4, 5, 6]);
-def rows: Array < Row > = [first, second];
+
+def rows: Array<Row> = [first, second];
+
 def grid: Grid = Grid(rows);
 
 IO::PrintLine(grid[0][2] as Text);

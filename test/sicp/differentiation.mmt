@@ -1,70 +1,77 @@
 module Differentiation
-
-import
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-}
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
 type Term =
 {
-	variable : Text,
-	num : Int,
-	is_var : Bool
+    variable: Text,
+    num: Int,
+    is_var: Bool
 };
 
 type Sum =
 {
-	left : Term,
-	right : Term
+    left: Term,
+    right: Term
 };
 
 type Product =
 {
-	left : Term,
-	right : Term
+    left: Term,
+    right: Term
 };
 
 type Expr =
 {
-	sum_expr : Sum,
-	prod_expr : Product,
-	is_sum : Bool,
-	error : Bool
+    sum_expr: Sum,
+    prod_expr: Product,
+    is_sum: Bool,
+    error: Bool
 };
 
-def make_variable = fn(name : Text) -> Term => Term(name, 0, true);
-def make_number = fn(num : Int) -> Term => Term("", num, false);
-def is_variable = fn(t : Term) -> Bool => t.is_var;
-def is_number = fn(t : Term) -> Bool => !t.is_var;
-def is_same_variable = fn(v1 : Term, v2 : Term) -> Bool => is_variable(v1) && is_variable(v2) && (v1.variable == v2.variable);
+def make_variable = fn(name: Text) -> Term => Term(name, 0, true);
 
-def make_sum = fn(v1 : Term, v2 : Term) -> Expr => 
+def make_number = fn(num: Int) -> Term => Term("", num, false);
+
+def is_variable = fn(t: Term) -> Bool => t.is_var;
+
+def is_number = fn(t: Term) -> Bool => !t.is_var;
+
+def is_same_variable = fn(v1: Term, v2: Term) -> Bool => is_variable(v1) && is_variable(v2) && (v1.variable == v2.variable);
+
+def make_sum = fn(v1: Term, v2: Term) -> Expr =>
 {
-	def is_sum = true;
-	def error = false;
-	Expr(Sum(v1, v2), Product(v1, v2), is_sum, error)
+    def is_sum = true;
+    def error = false;
+    Expr(Sum(v1, v2), Product(v1, v2), is_sum, error)
 };
 
-def make_product = fn(v1 : Term, v2 : Term) -> Expr => 
+def make_product = fn(v1: Term, v2: Term) -> Expr =>
 {
-	def is_sum = false;
-	def error = false;
-	Expr(Sum(v1, v2), Product(v1, v2), is_sum, error)
+    def is_sum = false;
+    def error = false;
+    Expr(Sum(v1, v2), Product(v1, v2), is_sum, error)
 };
 
-def is_sum = fn(exp : Expr) -> Bool => exp.is_sum;
-def is_product = fn(exp : Expr) -> Bool => !exp.is_sum;
-def addend = fn(exp : Expr) -> Term => exp.sum_expr.left;
-def augend = fn(exp : Expr) -> Term => exp.sum_expr.right;
-def multiplier = fn(exp : Expr) -> Term => exp.prod_expr.left;
-def multiplicand = fn(exp : Expr) -> Term => exp.prod_expr.right;
+def is_sum = fn(exp: Expr) -> Bool => exp.is_sum;
 
-def deriv = fn(t : Term, var_ : Text) -> Term =>
+def is_product = fn(exp: Expr) -> Bool => !exp.is_sum;
+
+def addend = fn(exp: Expr) -> Term => exp.sum_expr.left;
+
+def augend = fn(exp: Expr) -> Term => exp.sum_expr.right;
+
+def multiplier = fn(exp: Expr) -> Term => exp.prod_expr.left;
+
+def multiplicand = fn(exp: Expr) -> Term => exp.prod_expr.right;
+
+def deriv = fn(t: Term, var_: Text) -> Term =>
 {
     if is_number(t)
-	then make_number(0)
+    then make_number(0)
     else if is_variable(t)
-	then (if t.variable == var_ then make_number(1) else make_number(0)) // The derivative of the variable with respect to itself is 1, else it's 0
+    then (if t.variable == var_
+    then make_number(1)
+    else make_number(0))  // The derivative of the variable with respect to itself is 1, else it's 0
     else
     {
         // Handle more complex cases here (like sum or product)
@@ -74,7 +81,9 @@ def deriv = fn(t : Term, var_ : Text) -> Term =>
 };
 
 def var1 = make_variable("x");
+
 def var2 = make_number(3);
-def var3 : Expr = make_product(var1, var2);
+
+def var3: Expr = make_product(var1, var2);
 
 IO::PrintLine(deriv(var1, "x").num as Text);

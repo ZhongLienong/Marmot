@@ -1,137 +1,160 @@
 module PreludeIoSystemWrappers
-
-import
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/System.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt" }
+use IO.
 {
-    "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/System.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt"
+    IOError
 }
-use IO.{IOError}
-use Option.{Option}
-use Result.{Result}
-use System.{Platform, ProcessResult, SystemError}
+use Option.
+{
+    Option
+}
+use Result.
+{
+    Result
+}
+use System.
+{
+    Platform,
+    ProcessResult,
+    SystemError
+}
 
-def Expect = fn(condition: Bool, message: Text) -> Unit => {
+def Expect = fn(condition: Bool, message: Text) -> Unit =>
+{
     if condition
     then ()
     else Panic::Panic(message)
 };
 
-def IgnoreIOResult = fn<T>(result: Result<T, IOError>) -> Unit => {
+def IgnoreIOResult = fn<T>(result: Result<T, IOError>) -> Unit =>
+{
     match result with
         case Result::Ok(_) => ()
         case Result::Err(_) => ()
 };
 
-def ExpectIOOkUnit = fn(result: Result<Unit, IOError>, message: Text) -> Unit => {
+def ExpectIOOkUnit = fn(result: Result<Unit, IOError>, message: Text) -> Unit =>
+{
     match result with
-        case Result::Ok(_) => ()
-        case Result::Err(_) => Panic::Panic(message)
+            case Result::Ok(_) => ()
+            case Result::Err(_) => Panic::Panic(message)
 };
 
-def ExpectIOOkText = fn(result: Result<Text, IOError>, expected: Text, message: Text) -> Unit => {
+def ExpectIOOkText = fn(result: Result<Text, IOError>, expected: Text, message: Text) -> Unit =>
+{
     match result with
-        case Result::Ok(value) => Expect(value == expected, message)
-        case Result::Err(_) => Panic::Panic(message)
+                case Result::Ok(value) => Expect(value == expected, message)
+                case Result::Err(_) => Panic::Panic(message)
 };
 
-def ExpectIOOkInt = fn(result: Result<Int, IOError>, expected: Int, message: Text) -> Unit => {
+def ExpectIOOkInt = fn(result: Result<Int, IOError>, expected: Int, message: Text) -> Unit =>
+{
     match result with
-        case Result::Ok(value) => Expect(value == expected, message)
-        case Result::Err(_) => Panic::Panic(message)
+                    case Result::Ok(value) => Expect(value == expected, message)
+                    case Result::Err(_) => Panic::Panic(message)
 };
 
-def ExpectIOErrNotFound = fn<T>(result: Result<T, IOError>, message: Text) -> Unit => {
+def ExpectIOErrNotFound = fn<T>(result: Result<T, IOError>, message: Text) -> Unit =>
+{
     match result with
-        case Result::Err(err) => {
-            match err with
-                case IOError::NotFound(_) => ()
-                case _ => Panic::Panic(message)
-            ;
-        }
-        case Result::Ok(_) => Panic::Panic(message)
+                        case Result::Err(err) =>
+    {
+                            match err with
+                            case IOError::NotFound(_) => ()
+                            case _ => Panic::Panic(message);
+                        }
+                        case Result::Ok(_) => Panic::Panic(message)
 };
 
-def ExpectSystemOkUnit = fn(result: Result<Unit, SystemError>, message: Text) -> Unit => {
+def ExpectSystemOkUnit = fn(result: Result<Unit, SystemError>, message: Text) -> Unit =>
+{
     match result with
-        case Result::Ok(_) => ()
-        case Result::Err(_) => Panic::Panic(message)
+                            case Result::Ok(_) => ()
+                            case Result::Err(_) => Panic::Panic(message)
 };
 
-def ExpectSystemOkText = fn(result: Result<Text, SystemError>, message: Text) -> Text => {
+def ExpectSystemOkText = fn(result: Result<Text, SystemError>, message: Text) -> Text =>
+{
     match result with
-        case Result::Ok(value) => value
-        case Result::Err(_) => Panic::Panic(message)
+                                case Result::Ok(value) => value
+                                case Result::Err(_) => Panic::Panic(message)
 };
 
-def ExpectSystemErrInvalidDirectory = fn<T>(result: Result<T, SystemError>, message: Text) -> Unit => {
+def ExpectSystemErrInvalidDirectory = fn<T>(result: Result<T, SystemError>, message: Text) -> Unit =>
+{
     match result with
-        case Result::Err(err) => {
-            match err with
-                case SystemError::InvalidDirectory(_) => ()
-                case _ => Panic::Panic(message)
-            ;
-        }
-        case Result::Ok(_) => Panic::Panic(message)
+                                    case Result::Err(err) =>
+    {
+                                        match err with
+                                        case SystemError::InvalidDirectory(_) => ()
+                                        case _ => Panic::Panic(message);
+                                    }
+                                    case Result::Ok(_) => Panic::Panic(message)
 };
 
-def ExpectSystemRunOk = fn(result: Result<ProcessResult, SystemError>, expected_exit_code: Int, message: Text) -> Unit => {
+def ExpectSystemRunOk = fn(result: Result<ProcessResult, SystemError>, expected_exit_code: Int, message: Text) -> Unit =>
+{
     match result with
-        case Result::Ok(process_result) => Expect(process_result.exit_code == expected_exit_code, message)
-        case Result::Err(_) => Panic::Panic(message)
+                                        case Result::Ok(process_result) => Expect(process_result.exit_code == expected_exit_code, message)
+                                        case Result::Err(_) => Panic::Panic(message)
 };
 
-def ExpectSystemCommandFailed = fn(result: Result<ProcessResult, SystemError>, message: Text) -> Unit => {
+def ExpectSystemCommandFailed = fn(result: Result<ProcessResult, SystemError>, message: Text) -> Unit =>
+{
     match result with
-        case Result::Err(err) => {
-            match err with
-                case SystemError::CommandFailed(code) => Expect(code != 0, message)
-                case _ => Panic::Panic(message)
-            ;
-        }
-        case Result::Ok(_) => Panic::Panic(message)
+                                            case Result::Err(err) =>
+    {
+                                                match err with
+                                                case SystemError::CommandFailed(code) => Expect(code != 0, message)
+                                                case _ => Panic::Panic(message);
+                                            }
+                                            case Result::Ok(_) => Panic::Panic(message)
 };
 
-def ExpectSomeText = fn(result: Option<Text>, expected: Text, message: Text) -> Unit => {
+def ExpectSomeText = fn(result: Option<Text>, expected: Text, message: Text) -> Unit =>
+{
     match result with
-        case Option::Some(value) => Expect(value == expected, message)
-        case Option::None() => Panic::Panic(message)
+                                                case Option::Some(value) => Expect(value == expected, message)
+                                                case Option::None() => Panic::Panic(message)
 };
 
-def ExpectNoneText = fn(result: Option<Text>, message: Text) -> Unit => {
+def ExpectNoneText = fn(result: Option<Text>, message: Text) -> Unit =>
+{
     match result with
-        case Option::Some(_) => Panic::Panic(message)
-        case Option::None() => ()
+                                                    case Option::Some(_) => Panic::Panic(message)
+                                                    case Option::None() => ()
 };
 
-def SuccessCommand = fn(platform: Platform) -> Text =>
-    match platform with
-        case Platform::Windows() => "cmd /c exit 0"
-        case Platform::MacOS() => "sh -c 'exit 0'"
-        case Platform::Linux() => "sh -c 'exit 0'"
-        case Platform::WebAssembly() => ""
-        case Platform::Unknown(_) => ""
-    ;
+def SuccessCommand = fn(platform: Platform) -> Text => match platform with
+                                                        case Platform::Windows() => "cmd /c exit 0"
+                                                        case Platform::MacOS() => "sh -c 'exit 0'"
+                                                        case Platform::Linux() => "sh -c 'exit 0'"
+                                                        case Platform::WebAssembly() => ""
+                                                        case Platform::Unknown(_) => "";
 
-def FailureCommand = fn(platform: Platform) -> Text =>
-    match platform with
-        case Platform::Windows() => "cmd /c exit 5"
-        case Platform::MacOS() => "sh -c 'exit 5'"
-        case Platform::Linux() => "sh -c 'exit 5'"
-        case Platform::WebAssembly() => ""
-        case Platform::Unknown(_) => ""
-    ;
+def FailureCommand = fn(platform: Platform) -> Text => match platform with
+                                                        case Platform::Windows() => "cmd /c exit 5"
+                                                        case Platform::MacOS() => "sh -c 'exit 5'"
+                                                        case Platform::Linux() => "sh -c 'exit 5'"
+                                                        case Platform::WebAssembly() => ""
+                                                        case Platform::Unknown(_) => "";
 
 def suffix = System::CurrentProcessId() as Text;
+
 def file_path = "marmot_phase3_io_" ++ suffix ++ ".txt";
+
 def renamed_path = "marmot_phase3_io_" ++ suffix ++ "_renamed.txt";
+
 def empty_file_path = "marmot_phase3_io_" ++ suffix ++ "_empty.txt";
+
 def missing_file_path = "marmot_phase3_io_" ++ suffix ++ "_missing.txt";
+
 def missing_dir_path = "marmot_phase3_missing_dir_" ++ suffix;
+
 def nested_missing_file_path = missing_dir_path ++ "/child.txt";
+
 def empty_env_name = "MARMOT_PHASE3_EMPTY_" ++ suffix;
+
 def missing_env_name = "MARMOT_PHASE3_MISSING_" ++ suffix;
 
 IgnoreIOResult(IO::TryDeleteFile(file_path));
@@ -139,41 +162,110 @@ IgnoreIOResult(IO::TryDeleteFile(renamed_path));
 IgnoreIOResult(IO::TryDeleteFile(empty_file_path));
 IgnoreIOResult(IO::TryDeleteFile(missing_file_path));
 
-ExpectIOErrNotFound(IO::TryReadFile(missing_file_path), "TryReadFile should report missing files with IOError::NotFound");
-ExpectIOErrNotFound(IO::TryDeleteFile(missing_file_path), "TryDeleteFile should report missing files with IOError::NotFound");
+ExpectIOErrNotFound
+(
+    IO::TryReadFile(missing_file_path),
+    "TryReadFile should report missing files with IOError::NotFound"
+);
+ExpectIOErrNotFound
+(
+    IO::TryDeleteFile(missing_file_path),
+    "TryDeleteFile should report missing files with IOError::NotFound"
+);
 
 ExpectIOOkUnit(IO::TryWriteFile(file_path, "alpha"), "TryWriteFile should write a new file");
 ExpectIOOkText(IO::TryReadFile(file_path), "alpha", "TryReadFile should return the written text");
-ExpectIOOkUnit(IO::TryAppendToFile(file_path, "-beta"), "TryAppendToFile should append to an existing file");
+ExpectIOOkUnit
+(
+    IO::TryAppendToFile(file_path, "-beta"),
+    "TryAppendToFile should append to an existing file"
+);
 ExpectIOOkText(IO::TryReadFile(file_path), "alpha-beta", "TryReadFile should return appended text");
-ExpectIOOkInt(IO::TryGetFileSize(file_path), 10, "TryGetFileSize should report the appended file size");
-ExpectIOOkUnit(IO::TryRenameFile(file_path, renamed_path), "TryRenameFile should rename an existing file");
-ExpectIOOkText(IO::TryReadFile(renamed_path), "alpha-beta", "TryRenameFile should preserve file contents");
+ExpectIOOkInt
+(
+    IO::TryGetFileSize(file_path),
+    10,
+    "TryGetFileSize should report the appended file size"
+);
+ExpectIOOkUnit
+(
+    IO::TryRenameFile(file_path, renamed_path),
+    "TryRenameFile should rename an existing file"
+);
+ExpectIOOkText
+(
+    IO::TryReadFile(renamed_path),
+    "alpha-beta",
+    "TryRenameFile should preserve file contents"
+);
 ExpectIOOkUnit(IO::TryDeleteFile(renamed_path), "TryDeleteFile should remove an existing file");
-ExpectIOErrNotFound(IO::TryDeleteFile(renamed_path), "Deleting the same file twice should surface IOError::NotFound");
+ExpectIOErrNotFound
+(
+    IO::TryDeleteFile(renamed_path),
+    "Deleting the same file twice should surface IOError::NotFound"
+);
 
 ExpectIOOkUnit(IO::TryWriteFile(empty_file_path, ""), "TryWriteFile should allow empty files");
-ExpectIOOkText(IO::TryReadFile(empty_file_path), "", "TryReadFile should preserve empty file contents");
-ExpectIOOkInt(IO::TryGetFileSize(empty_file_path), 0, "TryGetFileSize should report zero for empty files");
-ExpectIOErrNotFound(IO::TryWriteFile(nested_missing_file_path, "x"), "Writing through a missing parent directory should return a typed IO error");
+ExpectIOOkText
+(
+    IO::TryReadFile(empty_file_path),
+    "",
+    "TryReadFile should preserve empty file contents"
+);
+ExpectIOOkInt
+(
+    IO::TryGetFileSize(empty_file_path),
+    0,
+    "TryGetFileSize should report zero for empty files"
+);
+ExpectIOErrNotFound
+(
+    IO::TryWriteFile(nested_missing_file_path, "x"),
+    "Writing through a missing parent directory should return a typed IO error"
+);
 
-def current_dir = ExpectSystemOkText(System::CurrentDirectory(), "CurrentDirectory should return the working directory");
+def current_dir = ExpectSystemOkText
+(
+    System::CurrentDirectory(),
+    "CurrentDirectory should return the working directory"
+);
 Expect(current_dir != "", "CurrentDirectory should not return empty text on success");
-ExpectSystemErrInvalidDirectory(System::TrySetCurrentDirectory(missing_dir_path), "TrySetCurrentDirectory should return InvalidDirectory for missing paths");
+ExpectSystemErrInvalidDirectory
+(
+    System::TrySetCurrentDirectory(missing_dir_path),
+    "TrySetCurrentDirectory should return InvalidDirectory for missing paths"
+);
 
 ExpectSystemOkUnit(System::SetEnv(empty_env_name, ""), "SetEnv should allow empty string values");
-ExpectSomeText(System::TryGetEnv(empty_env_name), "", "TryGetEnv should distinguish an empty value from a missing variable");
-ExpectNoneText(System::TryGetEnv(missing_env_name), "TryGetEnv should return None for missing variables");
+ExpectSomeText
+(
+    System::TryGetEnv(empty_env_name),
+    "",
+    "TryGetEnv should distinguish an empty value from a missing variable"
+);
+ExpectNoneText
+(
+    System::TryGetEnv(missing_env_name),
+    "TryGetEnv should return None for missing variables"
+);
 
 def platform = System::CurrentPlatform();
 match platform with
-    case Platform::Unknown(name) => Panic::Panic("CurrentPlatform returned an unexpected platform: " ++ name)
-    case _ => ()
-;
+                                                        case Platform::Unknown(name) => Panic::Panic("CurrentPlatform returned an unexpected platform: " ++ name)
+                                                        case _ => ();
 
 Expect(System::CurrentProcessId() > 0, "CurrentProcessId should be a positive integer");
-ExpectSystemRunOk(System::Run(SuccessCommand(platform)), 0, "Run should return Ok(ProcessResult) for a zero exit code");
-ExpectSystemCommandFailed(System::Run(FailureCommand(platform)), "Run should return CommandFailed for a non-zero exit code");
+ExpectSystemRunOk
+(
+    System::Run(SuccessCommand(platform)),
+    0,
+    "Run should return Ok(ProcessResult) for a zero exit code"
+);
+ExpectSystemCommandFailed
+(
+    System::Run(FailureCommand(platform)),
+    "Run should return CommandFailed for a non-zero exit code"
+);
 
 IgnoreIOResult(IO::TryDeleteFile(empty_file_path));
 

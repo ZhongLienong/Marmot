@@ -1,24 +1,26 @@
 module RecursiveGenericUnionNested
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt" }
 
-use Option.{ Option }
+use Option.
+{
+    Option
+}
 
-type Lst < T > = Nil | Cons(T, Lst);
+type Lst<T> = Nil | Cons(T, Lst);
 
-def Wrap = fn < T >(l: Lst < T >) -> Option < Lst < T > > => Option::Some (l);
+def Wrap = fn<T>(l: Lst<T>) -> Option<Lst<T>> => Option::Some(l);
 
-def Head = fn < T >(o: Option < Lst < T > >, fallback: T) -> T =>
-    match o with
-        case Option::Some(l) => {
-            match l with
-                case Lst::Cons(head, _) => head
-                case Lst::Nil() => fallback
-        }
+def Head = fn<T>(o: Option<Lst<T>>, fallback: T) -> T => match o with
+    case Option::Some(l) =>
+{
+        match l with
+        case Lst::Cons(head, _) => head
+        case Lst::Nil() => fallback
+    }
         case Option::None() => fallback;
 
-def nums = Lst::Cons (7, Lst::Cons (8, Lst::Nil ()));
+def nums = Lst::Cons(7, Lst::Cons(8, Lst::Nil()));
 IO::PrintLine(Head(Wrap(nums), 0) as Text);
 
-def words = Lst::Cons ("hi", Lst::Nil ());
+def words = Lst::Cons("hi", Lst::Nil());
 IO::PrintLine(Head(Wrap(words), "none"));

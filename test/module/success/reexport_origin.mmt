@@ -1,8 +1,11 @@
 module ReexportOrigin
-
 public export { Point, Shade, Double, Identity }
 
-type Point = { x: Int, y: Int };
+type Point =
+{
+    x: Int,
+    y: Int
+};
 
 type Shade = Light | Dark(Int);
 

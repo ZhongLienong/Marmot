@@ -1,21 +1,24 @@
 module FlexiblePlacement
 
-def greet = fn(name: Text) -> Text => {
+def greet = fn(name: Text) -> Text =>
+{
     "Hello, " ++ name
 };
 
-import
-{
-    <IO>
-}
+import { <IO> }
 
-def calculate = fn(x: Float) -> Float => {
+def calculate = fn(x: Float) -> Float =>
+{
     x * 2.0
 };
 
-use IO.{PrintLine}
+use IO.
+{
+    PrintLine
+}
 
-def main = fn() -> Unit => {
+def main = fn() -> Unit =>
+{
     PrintLine(greet("World"));
     PrintLine(calculate(21.0) as Text);
 };

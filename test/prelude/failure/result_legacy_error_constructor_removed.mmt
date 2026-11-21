@@ -1,6 +1,8 @@
 module ResultLegacyErrorConstructorRemoved
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt" }
-use Result.{Result}
+use Result.
+{
+    Result
+}
 
-def value : Result<Int, Text> = Result::Error("legacy");
+def value: Result<Int, Text> = Result::Error("legacy");

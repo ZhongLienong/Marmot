@@ -1,45 +1,51 @@
 module IdentityCast
-
 // Regression: `x as T` where x already has type T is a no-op and must
 // type-check without a Convertable<T, T> instance.
 
-import
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt"
-}
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 type Inner =
 {
-	v: Int
+    v: Int
 };
 
 def one = 1 as Int;
+
 def half = 0.5 as Float;
+
 def greeting = "hello" as Text;
+
 def flag = true as Bool;
+
 def small = (7 as Byte) as Byte;
+
 def wide = (9 as Word) as Word;
+
 def nothing = () as Unit;
 
-def numbers : Array<Int> = [1, 2, 3];
+def numbers: Array<Int> = [1, 2, 3];
+
 def same_numbers = numbers as Array<Int>;
 
-def items : Array<Inner> = [Inner(11), Inner(22)];
+def items: Array<Inner> = [Inner(11), Inner(22)];
+
 def same_items = items as Array<Inner>;
 
 def point = Inner(42);
+
 def same_point = point as Inner;
 
 IO::PrintLine("int=" ++ (one as Text));
 IO::PrintLine("float=" ++ (half as Text));
 IO::PrintLine("text=" ++ greeting);
-if flag then
+if flag
+then
 {
-	IO::PrintLine("bool=true");
+    IO::PrintLine("bool=true");
 }
 else
 {
-	IO::PrintLine("bool=false");
+    IO::PrintLine("bool=false");
 };
 IO::PrintLine("byte=" ++ ((small as Int) as Text));
 IO::PrintLine("word=" ++ ((wide as Int) as Text));

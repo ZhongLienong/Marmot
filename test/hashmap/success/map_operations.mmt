@@ -1,34 +1,34 @@
 module HashMapOperations
+import { "../../../projects/marmotstdlib/MarmotPrelude/Collections/Map.mmt", "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Iterable.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt" }
 
-import
+use Option.
 {
-    "../../../projects/marmotstdlib/MarmotPrelude/Collections/Map.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/Iterable.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt"
+    Option
 }
 
-use Option.{ Option }
-
-def Expect = fn(condition: Bool, message: Text) -> Unit => if condition then () else Panic::Panic(message);
+def Expect = fn(condition: Bool, message: Text) -> Unit => if condition
+then ()
+else Panic::Panic(message);
 
 // Text keys go through MARMOT_FFI_HashText, which can return a negative hash.
-def words0 : Map::Map < Text, Int > = Map::Empty();
+def words0: Map::Map<Text, Int> = Map::Empty();
+
 def words = Map::With(Map::With(Map::With(words0, "alpha", 1), "beta", 2), "gamma", 3);
 Expect(Map::Count(words) == 3, "text keys are stored");
-Expect(Map::GetOr(words, "beta", - 1) == 2, "a text key reads back");
-Expect(Map::GetOr(words, "delta", - 1) == - 1, "an absent text key is absent");
+Expect(Map::GetOr(words, "beta", -1) == 2, "a text key reads back");
+Expect(Map::GetOr(words, "delta", -1) == -1, "an absent text key is absent");
 Expect(Map::ContainsKey(words, "alpha"), "ContainsKey finds a text key");
 
 // A negative hash must still land in a valid chunk.
-def negatives0 : Map::Map < Int, Text > = Map::Empty();
-def negatives = Map::With(Map::With(negatives0, - 1, "minus one"), - 33, "minus thirty three");
-Expect(Map::GetOr(negatives, - 1, "?") == "minus one", "a negative key reads back");
-Expect(Map::GetOr(negatives, - 33, "?") == "minus thirty three", "a second negative key reads back");
+def negatives0: Map::Map<Int, Text> = Map::Empty();
+
+def negatives = Map::With(Map::With(negatives0, -1, "minus one"), -33, "minus thirty three");
+Expect(Map::GetOr(negatives, -1, "?") == "minus one", "a negative key reads back");
+Expect(Map::GetOr(negatives, -33, "?") == "minus thirty three", "a second negative key reads back");
 
 // Float keys.
-def floats0 : Map::Map < Float, Text > = Map::Empty();
+def floats0: Map::Map<Float, Text> = Map::Empty();
+
 def floats = Map::With(Map::With(floats0, 1.5, "one and a half"), 2.5, "two and a half");
 Expect(Map::GetOr(floats, 1.5, "?") == "one and a half", "a float key reads back");
 Expect(Map::GetOr(floats, 3.5, "?") == "?", "an absent float key is absent");
@@ -49,8 +49,8 @@ match Map::Get(words, "absent") with
 // Replacement and removal.
 def replaced = Map::With(words, "beta", 20);
 Expect(Map::Count(replaced) == 3, "replacing keeps the count");
-Expect(Map::GetOr(replaced, "beta", - 1) == 20, "replacing updates the value");
-Expect(Map::GetOr(words, "beta", - 1) == 2, "replacing leaves the source alone");
+Expect(Map::GetOr(replaced, "beta", -1) == 20, "replacing updates the value");
+Expect(Map::GetOr(words, "beta", -1) == 2, "replacing leaves the source alone");
 
 def removed = Map::Without(words, "beta");
 Expect(Map::Count(removed) == 2, "removal decrements");

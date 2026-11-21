@@ -4,6 +4,6 @@ module NativeArrayOfObjects
 // other than Text cannot come back from it: the collector would take the bits
 // for pointers. The library is never loaded, since the program does not compile.
 
-foreign "marmot_rows" Rows : fn() -> Array<Array<Int>> from "marmot_no_such_library";
+foreign "marmot_rows" Rows: fn() -> Array<Array<Int>> from "marmot_no_such_library";
 
 def rows = Rows();

@@ -1,11 +1,7 @@
 module MultipleVariable
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
-import
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-}
-
-def makeAdder = fn(a : Int, b : Int) -> fn(Int) -> Int => fn(x : Int) -> Int => a + b + x;
+def makeAdder = fn(a: Int, b: Int) -> fn(Int) -> Int => fn(x: Int) -> Int => a + b + x;
 
 def adder = makeAdder(3, 4);
 

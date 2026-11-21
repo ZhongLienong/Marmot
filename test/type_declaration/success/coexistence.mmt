@@ -1,5 +1,4 @@
 module TypeDeclarationCoexistence
-
 // Test: every declaration form the language still has, side by side in one file.
 // Expected: `type` dispatches on what follows the `=` - a `{` opens a record, a
 // depth-0 `|` opens a sum, and anything else is a newtype - and `alias` sits
@@ -11,12 +10,13 @@ module TypeDeclarationCoexistence
 // with `type`. Those keywords are gone, so what survives of that purpose is the
 // disambiguation among the forms that remain.
 
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt"
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
-type Point = { x: Int, y: Int };
+type Point =
+{
+    x: Int,
+    y: Int
+};
 
 type Flag = Off | On(Int);
 
@@ -30,23 +30,27 @@ alias Feet = Int;
 
 def SumPoint = fn(p: Point) -> Int => p.x + p.y;
 
-def Describe = fn(f: Flag) -> Int =>
-	match f with
-		case Flag::Off() => 0
-		case Flag::On(n) => n
-;
+def Describe = fn(f: Flag) -> Int => match f with
+    case Flag::Off() => 0
+    case Flag::On(n) => n;
 
 def TakesFeet = fn(f: Feet) -> Int => f;
 
 // A record carrying the other two nominal forms as members, to show the forms
 // compose rather than merely coexist.
-type Reading = { where_taken: Point, state: Flag, depth: Meters };
+type Reading =
+{
+    where_taken: Point,
+    state: Flag,
+    depth: Meters
+};
 
-def DescribeReading = fn(r: Reading) -> Int =>
-	SumPoint(r.where_taken) + Describe(r.state) + (r.depth as Int);
+def DescribeReading = fn(r: Reading) -> Int => SumPoint(r.where_taken) + Describe(r.state) + (r.depth as Int);
 
 def raw: Int = 12;
+
 def distance: Meters = 30 as Meters;
+
 def reading = Reading(Point(1, 2), Flag::On(5), 30 as Meters);
 
 IO::PrintLine("record=" ++ (SumPoint(Point(3, 4)) as Text));

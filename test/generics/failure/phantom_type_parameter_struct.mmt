@@ -3,7 +3,7 @@ module PhantomTypeParameterStruct
 // Test: A generic struct whose type parameter appears in no member
 // Expected: SHOULD FAIL - Marker<Int> and Marker<Text> are distinct types
 
-type Marker<T> = 
+type Marker<T> =
 {
 };
 
@@ -11,8 +11,8 @@ def make_int_marker = fn() -> Marker<Int> => Marker();
 
 def wants_text_marker = fn(m: Marker<Text>) -> Int => 1;
 
-def main = fn() -> Int => 
+def main = fn() -> Int =>
 {
-	def m = make_int_marker();
-	wants_text_marker(m)
+    def m = make_int_marker();
+    wants_text_marker(m)
 };

@@ -1,13 +1,12 @@
 module LengthOperator
-
 // Test the # length operator
 
-import
-{
-    "../../projects/marmotstdlib/MarmotPrelude/IO.mmt"
-}
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
-use IO.{PrintLine}
+use IO.
+{
+    PrintLine
+}
 
 // Basic length
 def arr = [10, 20, 30, 40, 50];
@@ -27,7 +26,8 @@ PrintLine((#nested) as Text);  // 2
 
 // Use in for loop condition
 def nums = [1, 2, 3, 4];
-for i in 0..1..(#nums) {
+for i in 0..1..(#nums)
+{
     PrintLine((nums[i]) as Text);
 };
 

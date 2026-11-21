@@ -1,11 +1,10 @@
 module SpawnArgumentNotTuple
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt" }
 
 // Concurrency::Spawn passes one argument. A function with several parameters takes
 // them as one tuple, and a bare value for such a function says so, rather than
 // reporting a mismatch between Int and a tuple type.
 
-def Add = fn(a : Int, b : Int) -> Int => a + b;
+def Add = fn(a: Int, b: Int) -> Int => a + b;
 
 def worker = Concurrency::Spawn(1, Add);

@@ -1,26 +1,28 @@
 module TestConstraintComprehensive
-
 // Test: Comprehensive test of constraint-based conversions
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Convertable.mmt" }
 
 // Generic comparison after conversion
-def CompareAsInt = fn<T1, T2>(a: T1, b: T2) -> Text
-    where Convertable<T1, Int>, Convertable<T2, Int> => {
+def CompareAsInt = fn<T1, T2>(a: T1, b: T2) -> Text where Convertable<T1, Int>, Convertable<T2, Int> =>
+{
     def a_int = a as Int;
     def b_int = b as Int;
-    if a_int == b_int then "equal" else "not equal"
+    if a_int == b_int
+    then "equal"
+    else "not equal"
 };
 
 // Generic sum after conversion
-def SumAsInt = fn<T1, T2>(a: T1, b: T2) -> Int
-    where Convertable<T1, Int>, Convertable<T2, Int> => {
+def SumAsInt = fn<T1, T2>(a: T1, b: T2) -> Int where Convertable<T1, Int>, Convertable<T2, Int> =>
+{
     def a_int = a as Int;
     def b_int = b as Int;
     a_int + b_int
 };
 
 // Generic function that formats a value with a label
-def FormatWithLabel = fn<T>(label: Text, value: T) -> Text where Convertable<T, Text> => {
+def FormatWithLabel = fn<T>(label: Text, value: T) -> Text where Convertable<T, Text> =>
+{
     label ++ ": " ++ (value as Text)
 };
 
@@ -46,19 +48,23 @@ IO::PrintLine("false vs 1: " ++ cmp3);
 
 // Test SumAsInt
 def sum1 = SumAsInt(10, 20);
+
 def sum1_text = sum1 as Text;
 IO::PrintLine("10 + 20 = " ++ sum1_text);
 
 def sum2 = SumAsInt(3.7, 4.2);
+
 def sum2_text = sum2 as Text;
 IO::PrintLine("3.7 + 4.2 (as ints) = " ++ sum2_text);
 
 def sum3 = SumAsInt(true, true);
+
 def sum3_text = sum3 as Text;
 IO::PrintLine("true + true (as ints) = " ++ sum3_text);
 
 // Mixed type sum
 def sum4 = SumAsInt(5, true);
+
 def sum4_text = sum4 as Text;
 IO::PrintLine("5 + true (as ints) = " ++ sum4_text);
 

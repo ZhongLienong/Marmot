@@ -6,8 +6,10 @@ module ArrayPopRemoved
 // so declaring it is rejected
 // at compile time instead of failing later at the call site.
 
-foreign "MARMOT_FFI_ArrayPop" Pop : fn(Array<Int>) -> Int;
+foreign "MARMOT_FFI_ArrayPop" Pop: fn(Array<Int>) -> Int;
 
 def a = [1, 2, 3];
+
 def b = a;
+
 def ignored = Pop(a);

@@ -1,20 +1,14 @@
 module ParallelMapTest
-
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt",
-	"../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt",
-	"../../../projects/marmotstdlib/MarmotPrelude/Iter.mmt",
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt"
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Iter.mmt", "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 // Concurrency::ParallelMap is written in Marmot, in Concurrency.mmt: it chunks the
 // array and spawns a lambda per chunk that captured `work`. This is the spec's last
 // completion criterion - a parallel map expressible in the language rather than
 // provided by the compiler.
 
-def Square = fn(n : Int) -> Int => n * n;
-def Show = fn(values : Array<Int>) -> Text => Iter::Fold(Iter::OfArray(values), "", fn(acc : Text, n : Int) -> Text => acc ++ (n as Text) ++ " ");
+def Square = fn(n: Int) -> Int => n * n;
+
+def Show = fn(values: Array<Int>) -> Text => Iter::Fold(Iter::OfArray(values), "", fn(acc: Text, n: Int) -> Text => acc ++ (n as Text) ++ " ");
 
 def values = [1, 2, 3, 4, 5, 6, 7];
 
@@ -27,12 +21,20 @@ IO::PrintLine("wide chunk: " ++ Show(Concurrency::ParallelMap(values, Square, 21
 IO::PrintLine("largest chunk: " ++ Show(Concurrency::ParallelMap(values, Square, 9223372036854775807)));
 
 // The mapped function can be a closure over a local.
-def ScaleAll = fn(factor : Int) -> Array<Int> => Concurrency::ParallelMap(values, fn(n : Int) -> Int => n * factor, 2);
+def ScaleAll = fn(factor: Int) -> Array<Int> => Concurrency::ParallelMap(values, fn(n: Int) -> Int => n * factor, 2);
 IO::PrintLine("scaled: " ++ Show(ScaleAll(10)));
 
 // An empty input spawns nothing.
-def empty : Array<Int> = [];
+def empty: Array<Int> = [];
 IO::PrintLine("empty: [" ++ Show(Concurrency::ParallelMap(empty, Square, 4)) ++ "]");
 
 // Text out, Int in: the element type changes across the map.
-IO::PrintLine("retyped: " ++ Iter::Fold(Iter::OfArray(Concurrency::ParallelMap([1, 2, 3], fn(n : Int) -> Text => "<" ++ (n as Text) ++ ">", 2)), "", fn(acc : Text, piece : Text) -> Text => acc ++ piece));
+IO::PrintLine
+(
+    "retyped: " ++ Iter::Fold
+    (
+        Iter::OfArray(Concurrency::ParallelMap([1, 2, 3], fn(n: Int) -> Text => "<" ++ (n as Text) ++ ">", 2)),
+        "",
+        fn(acc: Text, piece: Text) -> Text => acc ++ piece
+    )
+);

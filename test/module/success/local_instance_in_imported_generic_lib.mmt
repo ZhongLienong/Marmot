@@ -1,13 +1,18 @@
 module InstanceOriginLib
 public export { Echo, Apply, Wrapped }
 
-class Echo<T> {
+class Echo<T>
+{
     Copy: fn(value: T) -> T;
 };
 
-type Wrapped<T> = { value: T };
+type Wrapped<T> =
+{
+    value: T
+};
 
-instance Echo<Wrapped<T>> {
+instance Echo<Wrapped<T>>
+{
     def Copy = fn(value: Wrapped<T>) -> Wrapped<T> => value;
 };
 

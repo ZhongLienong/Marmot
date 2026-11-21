@@ -3,12 +3,12 @@ module NestedGenerics
 // Test: Nested generic types
 // Expected: Should compile - generics can be nested
 
-type Box<T> = 
+type Box<T> =
 {
     value: T
 };
 
-type Pair<A, B> = 
+type Pair<A, B> =
 {
     first: A,
     second: B
@@ -22,4 +22,5 @@ def nested2 = Pair(Box(10), Box(20));
 
 // Access nested values
 def inner_pair = nested1.value;
+
 def first_box = nested2.first;

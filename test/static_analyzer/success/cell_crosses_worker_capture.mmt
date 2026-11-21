@@ -1,13 +1,10 @@
 module CellCrossesWorkerCapture
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt" }
 
-import
+use Result.
 {
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-	"../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt",
-	"../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt"
+    Result
 }
-
-use Result.{ Result }
 
 // A spawned lambda that captures a cell takes a copy of it into the worker. The
 // cell the worker makes for itself inside a nested lambda never crosses, so only
@@ -15,20 +12,28 @@ use Result.{ Result }
 
 def RunWorker = fn(outer: Ref<Int>) -> Int =>
 {
-	def worker = Concurrency::Spawn((), fn() -> Int =>
-	{
-		def local = ref 1;
-		def Bump = fn() -> Int => {
-			local := (*local) + 1;
-			*local
-		};
-		outer := (*outer) + Bump();
-		*outer
-	});
-	match Concurrency::Join(worker) with
-		case Result::Ok(value) => value
-		case Result::Err(_) => -1
+    def worker = Concurrency::Spawn
+    (
+        (),
+        fn() -> Int =>
+        {
+            def local = ref 1;
+            def Bump = fn() -> Int =>
+            {
+                local := (*local) + 1;
+                *local
+            };
+            outer := (*outer) + Bump();
+            *outer
+        }
+    );
+    match Concurrency::Join(worker) with
+        case Result::Ok(value) => value
+        case Result::Err(_) => -1
 };
 
 def shared = ref 40;
-IO::PrintLine("worker got " ++ (RunWorker(shared) as Text) ++ ", caller still has " ++ (*shared as Text));
+IO::PrintLine
+(
+    "worker got " ++ (RunWorker(shared) as Text) ++ ", caller still has " ++ (*shared as Text)
+);

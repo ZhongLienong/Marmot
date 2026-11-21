@@ -10,8 +10,7 @@ foreign "MARMOT_FFI_Print" Print: fn(Text) -> Unit;
 
 def Divide = fn(total: Int, parts: Int) -> Int => total / parts;
 
-def Share = fn(total: Int, people: Int) -> Int =>
-	Divide(total, people - 1);
+def Share = fn(total: Int, people: Int) -> Int => Divide(total, people - 1);
 
 def people = 1;
 

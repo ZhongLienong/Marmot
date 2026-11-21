@@ -1,21 +1,25 @@
 module ImportedStructConstruction
-
 import { "imported_struct_construction_lib.mmt", "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
-use ImportedStructLib.{ Flat, Wrap, Pair }
+use ImportedStructLib.
+{
+    Flat,
+    Wrap,
+    Pair
+}
 
-def f : Flat = Flat (1, 2);
+def f: Flat = Flat(1, 2);
 IO::PrintLine(f.b as Text);
 
-def w : Wrap < Int > = Wrap (7);
+def w: Wrap<Int> = Wrap(7);
 IO::PrintLine(w.v as Text);
 
-def t : Wrap < Text > = Wrap ("hi");
+def t: Wrap<Text> = Wrap("hi");
 IO::PrintLine(t.v);
 
-def p : Pair < Int, Text > = Pair (9, "nine");
+def p: Pair<Int, Text> = Pair(9, "nine");
 IO::PrintLine(p.left as Text);
 IO::PrintLine(p.right);
 
-def Rewrap = fn < T >(x: Wrap < T >) -> Wrap < T > => Wrap (x.v);
+def Rewrap = fn<T>(x: Wrap<T>) -> Wrap<T> => Wrap(x.v);
 IO::PrintLine(Rewrap(w).v as Text);

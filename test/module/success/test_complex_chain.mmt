@@ -1,9 +1,5 @@
 // Test: Complex dependency chain (A -> B -> C -> D)
 module TestComplexChain
-
-import
-{
-    "layer_a.mmt"
-}
+import { "layer_a.mmt" }
 
 def main = fn() -> Int => LayerA::process(5);

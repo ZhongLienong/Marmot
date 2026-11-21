@@ -1,16 +1,19 @@
 module worker_failure_propagation
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt" }
 
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
-use IO.{PrintLine}
+use IO.
+{
+    PrintLine
+}
 
-def GoodWorker = fn(x : Int) -> Int =>
+def GoodWorker = fn(x: Int) -> Int =>
 {
     (x * 2) + 20
 };
 
 def w = Concurrency::Spawn(11, GoodWorker);
+
 def result = Concurrency::JoinedOrPanic(Concurrency::Join(w));
 PrintLine("Worker result: " ++ (result as Text));
 PrintLine("No error");

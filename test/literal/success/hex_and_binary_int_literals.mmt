@@ -1,22 +1,23 @@
 module HexAndBinaryIntLiterals
-
 // Regression: a hex or binary literal above 0xFF is an Int, and every Int path
 // read its lexeme as decimal, so `0x100` evaluated to 0. Covers code generation,
 // constant folding, strength reduction and literal patterns.
 
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt"
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
-def hex : Int = 0x100;
-def binary : Int = 0b100000000;
+def hex: Int = 0x100;
+
+def binary: Int = 0b100000000;
+
 def folded = 0x100 + 0x101;
+
 def reduced = hex * 0x100;
-def small_byte : Byte = 0b0011 + 0b0001;
+
+def small_byte: Byte = 0b0011 + 0b0001;
+
 def label = match hex with
-	case 0x100 => "pattern matched"
-	case _ => "pattern missed";
+    case 0x100 => "pattern matched"
+    case _ => "pattern missed";
 
 IO::PrintLine("hex=" ++ (hex as Text));
 IO::PrintLine("binary=" ++ (binary as Text));

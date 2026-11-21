@@ -1,42 +1,50 @@
 module TestAsComplex
-
 // Complex test cases for Convertable class with as operator
 import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
-class Convertable<From, To> {
+class Convertable<From, To>
+{
     Convert: fn(value: From) -> To;
 };
 
 // Define custom types
-type Point = {
+type Point =
+{
     x: Int,
     y: Int
 };
 
-type Vector = {
+type Vector =
+{
     dx: Float,
     dy: Float
 };
 
-type Person = {
+type Person =
+{
     name: Text,
     age: Int
 };
 
 // Test 1: Point -> Text conversion
-instance Convertable<Point, Text> {
-    def Convert = fn(p: Point) -> Text => {
+instance Convertable<Point, Text>
+{
+    def Convert = fn(p: Point) -> Text =>
+    {
         "Point(" ++ (p.x as Text) ++ ", " ++ (p.y as Text) ++ ")"
     };
 };
 
 def point = Point(10, 20);
+
 def point_text = point as Text;
 IO::PrintLine("Test 1 - Point to Text: " ++ point_text);
 
 // Test 2: Point -> Vector conversion (Int to Float)
-instance Convertable<Point, Vector> {
-    def Convert = fn(p: Point) -> Vector => {
+instance Convertable<Point, Vector>
+{
+    def Convert = fn(p: Point) -> Vector =>
+    {
         Vector((p.x as Float), (p.y as Float))
     };
 };
@@ -45,131 +53,191 @@ def vec = point as Vector;
 IO::PrintLine("Test 2 - Point to Vector: dx=" ++ (vec.dx as Text) ++ ", dy=" ++ (vec.dy as Text));
 
 // Test 3: Person -> Text conversion
-instance Convertable<Person, Text> {
-    def Convert = fn(person: Person) -> Text => {
+instance Convertable<Person, Text>
+{
+    def Convert = fn(person: Person) -> Text =>
+    {
         person.name ++ " (age " ++ (person.age as Text) ++ ")"
     };
 };
 
 def alice = Person("Alice", 30);
+
 def alice_text = alice as Text;
 IO::PrintLine("Test 3 - Person to Text: " ++ alice_text);
 
 // Test 4: Int -> Bool conversion
-instance Convertable<Int, Bool> {
-    def Convert = fn(n: Int) -> Bool => {
-        if n == 0 then false else true
+instance Convertable<Int, Bool>
+{
+    def Convert = fn(n: Int) -> Bool =>
+    {
+        if n == 0
+        then false
+        else true
     };
 };
 
 def zero_bool = 0 as Bool;
+
 def nonzero_bool = 42 as Bool;
 
-if zero_bool then {
+if zero_bool
+then
+{
     IO::PrintLine("Test 4a FAIL: 0 as Bool should be false");
-} else {
+}
+else
+{
     IO::PrintLine("Test 4a PASS: 0 as Bool = false");
 };
 
-if nonzero_bool then {
+if nonzero_bool
+then
+{
     IO::PrintLine("Test 4b PASS: 42 as Bool = true");
-} else {
+}
+else
+{
     IO::PrintLine("Test 4b FAIL: 42 as Bool should be true");
 };
 
 // Test 5: Float -> Bool conversion
-instance Convertable<Float, Bool> {
-    def Convert = fn(f: Float) -> Bool => {
-        if (f as Int) == 0 then false else true
+instance Convertable<Float, Bool>
+{
+    def Convert = fn(f: Float) -> Bool =>
+    {
+        if (f as Int) == 0
+        then false
+        else true
     };
 };
 
 def zero_float_bool = 0.0 as Bool;
+
 def nonzero_float_bool = 3.14 as Bool;
 
-if zero_float_bool then {
+if zero_float_bool
+then
+{
     IO::PrintLine("Test 5a FAIL: 0.0 as Bool should be false");
-} else {
+}
+else
+{
     IO::PrintLine("Test 5a PASS: 0.0 as Bool = false");
 };
 
-if nonzero_float_bool then {
+if nonzero_float_bool
+then
+{
     IO::PrintLine("Test 5b PASS: 3.14 as Bool = true");
-} else {
+}
+else
+{
     IO::PrintLine("Test 5b FAIL: 3.14 as Bool should be true");
 };
 
 // Test 6: Chained conversions - Float -> Int -> Bool
 def float_val = 5.7;
+
 def int_val = float_val as Int;  // Built-in conversion
 def bool_val = int_val as Bool;  // Convertable instance
 
-if bool_val then {
+if bool_val
+then
+{
     IO::PrintLine("Test 6 PASS: 5.7 -> Int -> Bool = true");
-} else {
+}
+else
+{
     IO::PrintLine("Test 6 FAIL: 5.7 -> Int -> Bool should be true");
 };
 
 // Test 7: Text -> Int -> Bool chained conversion
 def text_num = "123";
+
 def text_to_int = text_num as Int;  // Built-in
 def text_to_bool = text_to_int as Bool;  // Convertable
 
-if text_to_bool then {
+if text_to_bool
+then
+{
     IO::PrintLine("Test 7 PASS: \"123\" -> Int -> Bool = true");
-} else {
+}
+else
+{
     IO::PrintLine("Test 7 FAIL: \"123\" -> Int -> Bool should be true");
 };
 
 // Test 8: Multiple conversions from same source type
-instance Convertable<Bool, Text> {
-    def Convert = fn(b: Bool) -> Text => {
-        if b then "TRUE" else "FALSE"
+instance Convertable<Bool, Text>
+{
+    def Convert = fn(b: Bool) -> Text =>
+    {
+        if b
+        then "TRUE"
+        else "FALSE"
     };
 };
 
-instance Convertable<Bool, Int> {
-    def Convert = fn(b: Bool) -> Int => {
-        if b then 1 else 0
+instance Convertable<Bool, Int>
+{
+    def Convert = fn(b: Bool) -> Int =>
+    {
+        if b
+        then 1
+        else 0
     };
 };
 
 def bool_true = true;
+
 def bool_as_text = bool_true as Text;
+
 def bool_as_int = bool_true as Int;
 
 IO::PrintLine("Test 8 - Bool conversions: text=" ++ bool_as_text ++ ", int=" ++ (bool_as_int as Text));
 
 // Test 9: Struct with nested conversion
-type Rectangle = {
+type Rectangle =
+{
     top_left: Point,
     width: Int,
     height: Int
 };
 
-instance Convertable<Rectangle, Text> {
-    def Convert = fn(rect: Rectangle) -> Text => {
+instance Convertable<Rectangle, Text>
+{
+    def Convert = fn(rect: Rectangle) -> Text =>
+    {
         "Rectangle at " ++ (rect.top_left as Text) ++ ", size: " ++ (rect.width as Text) ++ "x" ++ (rect.height as Text)
     };
 };
 
 def rect = Rectangle(Point(5, 10), 100, 50);
+
 def rect_text = rect as Text;
 IO::PrintLine("Test 9 - Rectangle to Text: " ++ rect_text);
 
 // Test 10: Person -> Int (get age)
-instance Convertable<Person, Int> {
-    def Convert = fn(person: Person) -> Int => {
+instance Convertable<Person, Int>
+{
+    def Convert = fn(person: Person) -> Int =>
+    {
         person.age
     };
 };
 
 def bob = Person("Bob", 25);
+
 def bob_age = bob as Int;
 
-if bob_age == 25 then {
+if bob_age == 25
+then
+{
     IO::PrintLine("Test 10 PASS: Person to Int extracts age");
-} else {
+}
+else
+{
     IO::PrintLine("Test 10 FAIL: Person to Int should extract age");
 };
 

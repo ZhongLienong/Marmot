@@ -1,5 +1,4 @@
 module ComprehensionInNestedLambda
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 // A comprehension inside a lambda that is itself inside another function used to
@@ -10,48 +9,51 @@ import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 // writing the same wrong slots; the comprehension treated one of them as the result
 // array and followed it as a pointer.
 
-def RangeInNested = fn(value : Int) -> Array<Int> =>
+def RangeInNested = fn(value: Int) -> Array<Int> =>
 {
-	def inner = fn(n : Int) -> Array<Int> => [i * 2 for i in 0..1..n];
-	inner(value)
+    def inner = fn(n: Int) -> Array<Int> => [i * 2 for i in 0..1..n];
+    inner(value)
 };
 
-def ArrayInNested = fn(values : Array<Int>) -> Array<Int> =>
+def ArrayInNested = fn(values: Array<Int>) -> Array<Int> =>
 {
-	def inner = fn(chunk : Array<Int>) -> Array<Int> => [n + 1 for n in chunk];
-	inner(values)
+    def inner = fn(chunk: Array<Int>) -> Array<Int> => [n + 1 for n in chunk];
+    inner(values)
 };
 
-def DoublyNested = fn(value : Int) -> Array<Int> =>
+def DoublyNested = fn(value: Int) -> Array<Int> =>
 {
-	def middle = fn(m : Int) -> Array<Int> =>
-	{
-		def inner = fn(n : Int) -> Array<Int> => [i * i for i in 0..1..n];
-		inner(m)
-	};
-	middle(value)
+    def middle = fn(m: Int) -> Array<Int> =>
+    {
+        def inner = fn(n: Int) -> Array<Int> => [i * i for i in 0..1..n];
+        inner(m)
+    };
+    middle(value)
 };
 
 // A nested lambda holding a local before the comprehension, so the frame slots the
 // comprehension needs sit after a real local.
-def AfterALocal = fn(value : Int) -> Array<Int> =>
+def AfterALocal = fn(value: Int) -> Array<Int> =>
 {
-	def inner = fn(n : Int) -> Array<Int> =>
-	{
-		def offset = 100;
-		[i + offset for i in 0..1..n]
-	};
-	inner(value)
+    def inner = fn(n: Int) -> Array<Int> =>
+    {
+        def offset = 100;
+        [i + offset for i in 0..1..n]
+    };
+    inner(value)
 };
 
-def ForInNested = fn(value : Int) -> Int =>
+def ForInNested = fn(value: Int) -> Int =>
 {
-	def inner = fn(n : Int) -> Int =>
-	{
-		for i in 0..1..n { IO::PrintLine("  for " ++ (i as Text)); };
-		n
-	};
-	inner(value)
+    def inner = fn(n: Int) -> Int =>
+    {
+        for i in 0..1..n
+        {
+            IO::PrintLine("  for " ++ (i as Text));
+        };
+        n
+    };
+    inner(value)
 };
 
 IO::PrintLine("range: " ++ (RangeInNested(3)[2] as Text));

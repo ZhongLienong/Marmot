@@ -1,6 +1,8 @@
 module DateTime
 public export { LocalTimeParts, UtcTimeParts, NowUnixMillis, NowMonotonicNanos, TimezoneOffsetMinutes, LocalNow, UtcNow, FormatLocal }
-type LocalTimeParts = {
+
+type LocalTimeParts =
+{
     year: Int,
     month: Int,
     day: Int,
@@ -11,7 +13,9 @@ type LocalTimeParts = {
     day_of_year: Int,
     timezone_offset_minutes: Int
 };
-type UtcTimeParts = {
+
+type UtcTimeParts =
+{
     year: Int,
     month: Int,
     day: Int,
@@ -21,33 +25,82 @@ type UtcTimeParts = {
     day_of_week: Int,
     day_of_year: Int
 };
+
 foreign "MARMOT_FFI_GetTime" GetTimeRaw: fn() -> Float;
+
 foreign "MARMOT_FFI_GetMonotonicNanos" GetMonotonicNanosRaw: fn() -> Int;
+
 foreign "MARMOT_FFI_GetYear" GetYearRaw: fn() -> Int;
+
 foreign "MARMOT_FFI_GetMonth" GetMonthRaw: fn() -> Int;
+
 foreign "MARMOT_FFI_GetDay" GetDayRaw: fn() -> Int;
+
 foreign "MARMOT_FFI_GetHour" GetHourRaw: fn() -> Int;
+
 foreign "MARMOT_FFI_GetMinute" GetMinuteRaw: fn() -> Int;
+
 foreign "MARMOT_FFI_GetSecond" GetSecondRaw: fn() -> Int;
+
 foreign "MARMOT_FFI_GetDayOfWeek" GetDayOfWeekRaw: fn() -> Int;
+
 foreign "MARMOT_FFI_GetDayOfYear" GetDayOfYearRaw: fn() -> Int;
+
 foreign "MARMOT_FFI_FormatTime" FormatTimeRaw: fn(Text) -> Text;
+
 foreign "MARMOT_FFI_GetTimezoneOffset" GetTimezoneOffsetRaw: fn() -> Int;
+
 foreign "MARMOT_FFI_GetUtcYear" GetUtcYearRaw: fn() -> Int;
+
 foreign "MARMOT_FFI_GetUtcMonth" GetUtcMonthRaw: fn() -> Int;
+
 foreign "MARMOT_FFI_GetUtcDay" GetUtcDayRaw: fn() -> Int;
+
 foreign "MARMOT_FFI_GetUtcHour" GetUtcHourRaw: fn() -> Int;
+
 foreign "MARMOT_FFI_GetUtcMinute" GetUtcMinuteRaw: fn() -> Int;
+
 foreign "MARMOT_FFI_GetUtcSecond" GetUtcSecondRaw: fn() -> Int;
+
 foreign "MARMOT_FFI_GetUtcDayOfWeek" GetUtcDayOfWeekRaw: fn() -> Int;
+
 foreign "MARMOT_FFI_GetUtcDayOfYear" GetUtcDayOfYearRaw: fn() -> Int;
+
 def NowUnixMillis = fn() -> Int => GetTimeRaw() as Int;
+
 def NowMonotonicNanos = fn() -> Int => GetMonotonicNanosRaw();
+
 def TimezoneOffsetMinutes = fn() -> Int => GetTimezoneOffsetRaw();
-def LocalNow = fn() -> LocalTimeParts => {
-    LocalTimeParts(GetYearRaw(), GetMonthRaw(), GetDayRaw(), GetHourRaw(), GetMinuteRaw(), GetSecondRaw(), GetDayOfWeekRaw(), GetDayOfYearRaw(), TimezoneOffsetMinutes())
+
+def LocalNow = fn() -> LocalTimeParts =>
+{
+    LocalTimeParts
+    (
+        GetYearRaw(),
+        GetMonthRaw(),
+        GetDayRaw(),
+        GetHourRaw(),
+        GetMinuteRaw(),
+        GetSecondRaw(),
+        GetDayOfWeekRaw(),
+        GetDayOfYearRaw(),
+        TimezoneOffsetMinutes()
+    )
 };
-def UtcNow = fn() -> UtcTimeParts => {
-    UtcTimeParts(GetUtcYearRaw(), GetUtcMonthRaw(), GetUtcDayRaw(), GetUtcHourRaw(), GetUtcMinuteRaw(), GetUtcSecondRaw(), GetUtcDayOfWeekRaw(), GetUtcDayOfYearRaw())
+
+def UtcNow = fn() -> UtcTimeParts =>
+{
+    UtcTimeParts
+    (
+        GetUtcYearRaw(),
+        GetUtcMonthRaw(),
+        GetUtcDayRaw(),
+        GetUtcHourRaw(),
+        GetUtcMinuteRaw(),
+        GetUtcSecondRaw(),
+        GetUtcDayOfWeekRaw(),
+        GetUtcDayOfYearRaw()
+    )
 };
+
 def FormatLocal = fn(format: Text) -> Text => FormatTimeRaw(format);

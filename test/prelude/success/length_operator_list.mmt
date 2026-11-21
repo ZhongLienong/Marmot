@@ -1,9 +1,12 @@
 module TestPreludeLengthOperatorList
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/List.mmt" }
-use List.{List}
+use List.
+{
+    List
+}
 
 def list = List::Cons(1, List::Cons(2, List::Nil()));
+
 def len = #list;
 
 if len == 2

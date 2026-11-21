@@ -1,44 +1,73 @@
 module CanonicalizationCleanup
-
 import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 type Point =
 {
-    x : Int,
-    y : Int
+    x: Int,
+    y: Int
 };
 
 def grouped_value = fn(value: Int) -> Int => (((value)));
+
 def unary_plus_value = fn(value: Int) -> Int => +(+value);
+
 def double_negative_value = fn(value: Int) -> Int => -(-value);
+
 def double_not_value = fn(flag: Bool) -> Bool => !(!flag);
+
 def and_left_identity = fn(flag: Bool) -> Bool => true && flag;
+
 def and_right_identity = fn(flag: Bool) -> Bool => flag && true;
+
 def or_left_identity = fn(flag: Bool) -> Bool => false || flag;
+
 def or_right_identity = fn(flag: Bool) -> Bool => flag || false;
+
 def shift_identity = fn(value: Int) -> Int => value << 0;
+
 def bitor_identity = fn(value: Int) -> Int => value | 0;
+
 def xor_identity = fn(value: Int) -> Int => value ^ 0;
+
 def text_left_identity = fn(value: Text) -> Text => "" ++ value;
+
 def text_right_identity = fn(value: Text) -> Text => value ++ "";
+
 def array_left_identity = fn(values: Array<Int>) -> Array<Int> => [] ++ values;
+
 def array_right_identity = fn(values: Array<Int>) -> Array<Int> => values ++ [];
+
 def point_x = fn(point: Point) -> Int => (point as Point).x;
 
 def input_true: Bool = true;
+
 def input_false: Bool = false;
+
 def input_numbers: Array<Int> = [4, 5, 6];
+
 def input_point: Point = Point(9, 11);
 
 IO::PrintLine("grouped_value=" ++ (grouped_value(42) as Text));
 IO::PrintLine("unary_plus_value=" ++ (unary_plus_value(7) as Text));
 IO::PrintLine("double_negative_value=" ++ (double_negative_value(9) as Text));
-IO::PrintLine("double_not_true=" ++ (if double_not_value(input_true) then "true" else "false"));
-IO::PrintLine("double_not_false=" ++ (if double_not_value(input_false) then "true" else "false"));
-IO::PrintLine("and_left_false=" ++ (if and_left_identity(input_false) then "true" else "false"));
-IO::PrintLine("and_right_true=" ++ (if and_right_identity(input_true) then "true" else "false"));
-IO::PrintLine("or_left_false=" ++ (if or_left_identity(input_false) then "true" else "false"));
-IO::PrintLine("or_right_true=" ++ (if or_right_identity(input_true) then "true" else "false"));
+IO::PrintLine("double_not_true=" ++ (if double_not_value(input_true)
+then "true"
+else "false"));
+IO::PrintLine("double_not_false=" ++ (if double_not_value(input_false)
+then "true"
+else "false"));
+IO::PrintLine("and_left_false=" ++ (if and_left_identity(input_false)
+then "true"
+else "false"));
+IO::PrintLine("and_right_true=" ++ (if and_right_identity(input_true)
+then "true"
+else "false"));
+IO::PrintLine("or_left_false=" ++ (if or_left_identity(input_false)
+then "true"
+else "false"));
+IO::PrintLine("or_right_true=" ++ (if or_right_identity(input_true)
+then "true"
+else "false"));
 IO::PrintLine("shift_identity=" ++ (shift_identity(12) as Text));
 IO::PrintLine("bitor_identity=" ++ (bitor_identity(12) as Text));
 IO::PrintLine("xor_identity=" ++ (xor_identity(12) as Text));

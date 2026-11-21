@@ -1,87 +1,157 @@
 module System
 import { "./Prelude/Option.mmt", "./Prelude/Result.mmt" }
-use Option.{
+use Option.
+{
     Option
 }
-use Result.{
+use Result.
+{
     Result
 }
 public export { SystemError, Platform, ProcessResult, ProcessOutput, Exit, Sleep, TryGetEnv, SetEnv, CurrentDirectory, TrySetCurrentDirectory, Run, RunProcess, Arguments, CurrentPlatform, CurrentProcessId }
+
 type SystemError = InvalidDirectory(Text) | CommandFailed(Int) | UnknownSystem(Text);
+
 type Platform = Windows | MacOS | Linux | WebAssembly | Unknown(Text);
-type ProcessResult = {
+
+type ProcessResult =
+{
     exit_code: Int
 };
-type ProcessOutput = {
+
+type ProcessOutput =
+{
     exit_code: Int,
     stdout: Text,
     stderr: Text
 };
+
 foreign "MARMOT_FFI_Exit" ExitRaw: fn(Int) -> Unit;
+
 foreign "MARMOT_FFI_GetEnv" GetEnvRaw: fn(Text) -> Text;
+
 foreign "MARMOT_FFI_SetEnv" SetEnvRaw: fn(Text, Text) -> Bool;
+
 foreign "MARMOT_FFI_Sleep" SleepRaw: fn(Int) -> Unit;
+
 foreign "MARMOT_FFI_GetCurrentDirectory" GetCurrentDirectoryRaw: fn() -> Text;
+
 foreign "MARMOT_FFI_SetCurrentDirectory" SetCurrentDirectoryRaw: fn(Text) -> Bool;
+
 foreign "MARMOT_FFI_Execute" ExecuteRaw: fn(Text) -> Int;
-foreign "MARMOT_FFI_RunProcess" RunProcessRaw: fn(Array < Text >, Text) -> Array < Text >;
+
+foreign "MARMOT_FFI_RunProcess" RunProcessRaw: fn(Array<Text>, Text) -> Array<Text>;
+
 foreign "MARMOT_FFI_GetPlatform" GetPlatformRaw: fn() -> Text;
-foreign "MARMOT_FFI_GetArguments" GetArgumentsRaw: fn() -> Array < Text >;
+
+foreign "MARMOT_FFI_GetArguments" GetArgumentsRaw: fn() -> Array<Text>;
+
 foreign "MARMOT_FFI_GetProcessId" GetProcessIdRaw: fn() -> Int;
+
 foreign "MARMOT_FFI_GetLastSystemErrorKind" GetLastSystemErrorKindRaw: fn() -> Int;
+
 foreign "MARMOT_FFI_GetLastSystemErrorMessage" GetLastSystemErrorMessageRaw: fn() -> Text;
+
 def Exit = fn(code: Int) -> Unit => ExitRaw(code);
+
 def Sleep = fn(milliseconds: Int) -> Unit => SleepRaw(milliseconds);
-def UnknownSystemContext = fn(context: Text, message: Text) -> Text => {
-    if message == "" then context else context ++ ": " ++ message
+
+def UnknownSystemContext = fn(context: Text, message: Text) -> Text =>
+{
+    if message == ""
+    then context
+    else context ++ ": " ++ message
 };
-def MakeSystemError = fn(context: Text, error_kind: Int) -> SystemError => {
+
+def MakeSystemError = fn(context: Text, error_kind: Int) -> SystemError =>
+{
     def message = GetLastSystemErrorMessageRaw();
-    if error_kind == 2 then SystemError::InvalidDirectory(context) else SystemError::UnknownSystem(UnknownSystemContext(context, message))
+    if error_kind == 2
+    then SystemError::InvalidDirectory(context)
+    else SystemError::UnknownSystem(UnknownSystemContext(context, message))
 };
-def SystemResultFromStatus = fn < T >(context: Text, value: T) -> Result < T, SystemError > => {
+
+def SystemResultFromStatus = fn<T>(context: Text, value: T) -> Result<T, SystemError> =>
+{
     def error_kind = GetLastSystemErrorKindRaw();
-    if error_kind == 0 then Result::Ok (value) else Result::Err (MakeSystemError(context, error_kind))
+    if error_kind == 0
+    then Result::Ok(value)
+    else Result::Err(MakeSystemError(context, error_kind))
 };
-def TryGetEnv = fn(name: Text) -> Option < Text > => {
+
+def TryGetEnv = fn(name: Text) -> Option<Text> =>
+{
     def value = GetEnvRaw(name);
-    if GetLastSystemErrorKindRaw() == 0 then Option::Some (value) else Option::None ()
+    if GetLastSystemErrorKindRaw() == 0
+    then Option::Some(value)
+    else Option::None()
 };
-def SetEnv = fn(name: Text, value: Text) -> Result < Unit, SystemError > => {
+
+def SetEnv = fn(name: Text, value: Text) -> Result<Unit, SystemError> =>
+{
     SetEnvRaw(name, value);
     SystemResultFromStatus(name, ())
 };
-def CurrentDirectory = fn() -> Result < Text, SystemError > => {
+
+def CurrentDirectory = fn() -> Result<Text, SystemError> =>
+{
     def path = GetCurrentDirectoryRaw();
     SystemResultFromStatus("current directory", path)
 };
-def TrySetCurrentDirectory = fn(path: Text) -> Result < Unit, SystemError > => {
+
+def TrySetCurrentDirectory = fn(path: Text) -> Result<Unit, SystemError> =>
+{
     SetCurrentDirectoryRaw(path);
     SystemResultFromStatus(path, ())
 };
-def Run = fn(command: Text) -> Result < ProcessResult, SystemError > => {
+
+def Run = fn(command: Text) -> Result<ProcessResult, SystemError> =>
+{
     def exit_code = ExecuteRaw(command);
     def error_kind = GetLastSystemErrorKindRaw();
-    if error_kind != 0 then Result::Err (MakeSystemError(command, error_kind)) else if exit_code == 0 then Result::Ok (ProcessResult(exit_code)) else Result::Err (SystemError::CommandFailed(exit_code))
+    if error_kind != 0
+    then Result::Err(MakeSystemError(command, error_kind))
+    else if exit_code == 0
+    then Result::Ok(ProcessResult(exit_code))
+    else Result::Err(SystemError::CommandFailed(exit_code))
 };
+
 // Runs `arguments[0]`, found on PATH, with the rest as its arguments exactly:
 // there is no shell, so nothing in them is interpreted. It runs in `directory`,
 // or the current directory when that is empty, with nothing on its input. A
 // program that ran is Ok whatever its exit code, with everything it wrote.
-def RunProcess = fn(arguments: Array < Text >, directory: Text) -> Result < ProcessOutput, SystemError > =>
-    if #arguments == 0
-    then Result::Err (SystemError::UnknownSystem("RunProcess needs a program to run"))
-    else {
-        def parts = RunProcessRaw(arguments, directory);
-        def error_kind = GetLastSystemErrorKindRaw();
-        def context = if error_kind == 2 then directory else arguments[0];
-        if error_kind != 0 then Result::Err (MakeSystemError(context, error_kind)) else Result::Ok (ProcessOutput (parts[0] as Int, parts[1], parts[2]))
-    };
+def RunProcess = fn(arguments: Array<Text>, directory: Text) -> Result<ProcessOutput, SystemError> => if #arguments == 0
+then Result::Err(SystemError::UnknownSystem("RunProcess needs a program to run"))
+else
+{
+    def parts = RunProcessRaw(arguments, directory);
+    def error_kind = GetLastSystemErrorKindRaw();
+    def context = if error_kind == 2
+    then directory
+    else arguments[0];
+    if error_kind != 0
+    then Result::Err(MakeSystemError(context, error_kind))
+    else Result::Ok(ProcessOutput(parts[0] as Int, parts[1], parts[2]))
+};
+
 // What the program was started with: everything after `--` for marmotvm and
 // marmot run, everything after its name for a standalone executable.
-def Arguments = fn() -> Array < Text > => GetArgumentsRaw();
-def CurrentPlatform = fn() -> Platform => {
+def Arguments = fn() -> Array<Text> => GetArgumentsRaw();
+
+def CurrentPlatform = fn() -> Platform =>
+{
     def platform = GetPlatformRaw();
-    if platform == "Windows" then Platform::Windows() else if platform == "macOS" then Platform::MacOS() else if platform == "Linux" then Platform::Linux() else if platform == "WebAssembly" then Platform::WebAssembly() else if platform == "WebAssembly (wasm64)" then Platform::WebAssembly() else Platform::Unknown(platform)
+    if platform == "Windows"
+    then Platform::Windows()
+    else if platform == "macOS"
+    then Platform::MacOS()
+    else if platform == "Linux"
+    then Platform::Linux()
+    else if platform == "WebAssembly"
+    then Platform::WebAssembly()
+    else if platform == "WebAssembly (wasm64)"
+    then Platform::WebAssembly()
+    else Platform::Unknown(platform)
 };
+
 def CurrentProcessId = fn() -> Int => GetProcessIdRaw();

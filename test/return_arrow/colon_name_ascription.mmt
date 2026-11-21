@@ -1,11 +1,13 @@
 module ColonNameAscription
-
 // ':' still ascribes a type to a name, everywhere it ever did. The removal
 // diagnostic fires only on a ':' that follows a parameter list, so none of these
 // may reach it. This file fails if that diagnostic ever over-fires.
 
 import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
-use IO.{PrintLine}
+use IO.
+{
+    PrintLine
+}
 
 type Config =
 {
@@ -13,23 +15,27 @@ type Config =
     port: Int
 };
 
-class Show<T> {
+class Show<T>
+{
     show: fn(value: T) -> Text;
 };
 
-instance Show<Config> {
+instance Show<Config>
+{
     def show = fn(value: Config) -> Text => value.host ++ ":" ++ (value.port as Text);
 };
 
-def count : Int = 5;
+def count: Int = 5;
 
-def predicate : fn(Int) -> Bool = fn(x: Int) -> Bool => x > 0;
+def predicate: fn(Int) -> Bool = fn(x: Int) -> Bool => x > 0;
 
-def Describe = fn(config : Config, label : Text) -> Text => label ++ Show::show(config);
+def Describe = fn(config: Config, label: Text) -> Text => label ++ Show::show(config);
 
 def Inferred = fn(x: Int) => x - 1;
 
 PrintLine(count as Text);
-PrintLine(if predicate(count) then "positive" else "not positive");
+PrintLine(if predicate(count)
+then "positive"
+else "not positive");
 PrintLine(Describe(Config("localhost", 8080), "at "));
 PrintLine(Inferred(11) as Text);

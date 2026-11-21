@@ -1,12 +1,8 @@
 module GenericFunctionBoundWithType
-
 // Test: a generic function bound to a plain name whose type is written on it
 // holds the specialization for that type.
 
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt"
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 def identity = fn<T>(x: T) -> T => x;
 

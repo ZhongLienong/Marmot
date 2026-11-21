@@ -1,40 +1,44 @@
 module ArrayLiteralExpectedType
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 type Row =
 {
-	cells : Array<Int>
+    cells: Array<Int>
 };
 
 type Grid =
 {
-	rows : Array<Row>
+    rows: Array<Row>
 };
 
 type Box<T> =
 {
-	items : Array<T>
+    items: Array<T>
 };
 
 type Maybe<T> = Nothing | Just(T);
 
-def CountRows = fn(rows : Array<Row>) -> Int => #rows;
+def CountRows = fn(rows: Array<Row>) -> Int => #rows;
 
 def BuildRows = fn() -> Array<Row> => [Row([1, 2]), Row([3, 4])];
 
 def grid = Grid([Row([1, 2]), Row([3, 4])]);
-def annotated : Array<Row> = [Row([5, 6])];
-def nested : Array<Array<Row>> = [[Row([7, 8])]];
-def empty_nested : Array<Array<Int>> = [[]];
+
+def annotated: Array<Row> = [Row([5, 6])];
+
+def nested: Array<Array<Row>> = [[Row([7, 8])]];
+
+def empty_nested: Array<Array<Int>> = [[]];
+
 def boxed = Box([Row([9, 10])]);
+
 def wrapped = Maybe::Just([Row([11, 12])]);
-def lambdas : Array<fn(Int) -> Int> = [fn(a : Int) -> Int => a + 1];
+
+def lambdas: Array<fn(Int) -> Int> = [fn(a: Int) -> Int => a + 1];
 
 def wrapped_first = match wrapped with
-	case Maybe::Nothing() => 0
-	case Maybe::Just(rows) => rows[0].cells[0]
-;
+    case Maybe::Nothing() => 0
+    case Maybe::Just(rows) => rows[0].cells[0];
 
 IO::PrintLine(grid.rows[1].cells[0] as Text);
 IO::PrintLine(CountRows([Row([1, 2]), Row([3, 4])]) as Text);

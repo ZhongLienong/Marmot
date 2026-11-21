@@ -1,6 +1,8 @@
 module RefImport
-
 import { "./ref_identifier.mmt", "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
-use RefIdentifier.{ ref }
+use RefIdentifier.
+{
+    ref
+}
 
 IO::PrintLine(ref(8) as Text);

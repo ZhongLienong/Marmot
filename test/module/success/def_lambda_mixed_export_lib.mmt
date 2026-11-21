@@ -1,11 +1,10 @@
 module DefLambdaMixedExportLib
-
 public export { Double, Triple, Echo, Offset }
 
-def Double = fn(n : Int) -> Int => n * 2;
+def Double = fn(n: Int) -> Int => n * 2;
 
-def Triple = fn(n : Int) -> Int => n * 3;
+def Triple = fn(n: Int) -> Int => n * 3;
 
-def Echo = fn<T>(x : T) -> T => x;
+def Echo = fn<T>(x: T) -> T => x;
 
-def Offset : Int = 10;
+def Offset: Int = 10;

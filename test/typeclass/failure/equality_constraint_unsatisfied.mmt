@@ -1,24 +1,30 @@
 module EqualityConstraintUnsatisfied
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt" }
 
-use Option.{ Option }
+use Option.
+{
+    Option
+}
 
-class Stepper<S> {
+class Stepper<S>
+{
     type Item;
     Step: fn(state: S) -> Option<Item>;
 };
 
-type Words = { w: Text };
+type Words =
+{
+    w: Text
+};
 
-instance Stepper<Words> {
+instance Stepper<Words>
+{
     type Item = Text;
     def Step = fn(state: Words) -> Option<Text> => Option::Some(state.w);
 };
 
-def Twice = fn<S>(s: S) -> Int where Stepper<S>, Stepper::Item<S> ~ Int =>
-    match Stepper::Step(s) with
-        case Option::Some(v) => v * 2
-        case Option::None() => 0;
+def Twice = fn<S>(s: S) -> Int where Stepper<S>, Stepper::Item<S> ~ Int => match Stepper::Step(s) with
+    case Option::Some(v) => v * 2
+    case Option::None() => 0;
 
 IO::PrintLine(Twice(Words("hi")) as Text);

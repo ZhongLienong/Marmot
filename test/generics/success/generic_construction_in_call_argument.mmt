@@ -1,5 +1,4 @@
 module GenericConstructionInCallArgument
-
 // A generic construction passed as a call argument infers its type arguments from the
 // callee's parameter types; the language has no form for stating them explicitly.
 //
@@ -18,48 +17,48 @@ module GenericConstructionInCallArgument
 // test/generics/failure/constructor_inference_unowned_type_var.mmt and
 // test/generics/failure/constructor_inference_from_later_argument.mmt.
 
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-	"../../../projects/marmotstdlib/MarmotPrelude/ArrayUtil.mmt",
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/ArrayUtil.mmt", }
 
 type Slot<K, V> = Empty | Occupied(K, V);
 
 type Bag<T> =
 {
-	items : Array<T>
+    items: Array<T>
 };
 
-def AppendTo = fn<T>(items : Array<T>, value : T) -> Array<T> => ArrayUtil::WithAppended(items, value);
+def AppendTo = fn<T>(items: Array<T>, value: T) -> Array<T> => ArrayUtil::WithAppended(items, value);
 
 // The deciding argument comes first and is concrete.
-def slots : Array<Slot<Int, Text>> = [];
+def slots: Array<Slot<Int, Text>> = [];
+
 def slots_with_empty = AppendTo(slots, Slot::Empty());
+
 def slots_filled = AppendTo(slots_with_empty, Slot::Occupied(1, "one"));
 
 IO::PrintLine("slots: " ++ (#slots_filled as Text));
 
 // The same call inside a generic function, where the deciding argument is generic in the
 // enclosing definition rather than concrete.
-def FillGeneric = fn<K, V>(bucket : Array<Slot<K, V>>) -> Array<Slot<K, V>> =>
+def FillGeneric = fn<K, V>(bucket: Array<Slot<K, V>>) -> Array<Slot<K, V>> =>
 {
-	AppendTo(bucket, Slot::Empty())
+    AppendTo(bucket, Slot::Empty())
 };
 
-def texts : Array<Slot<Text, Int>> = [];
+def texts: Array<Slot<Text, Int>> = [];
+
 def texts_once = FillGeneric(texts);
 IO::PrintLine("generic: " ++ (#texts_once as Text));
+
 def texts_twice = FillGeneric(texts_once);
 IO::PrintLine("generic again: " ++ (#texts_twice as Text));
 
 // The construction is nested inside another generic instantiation in argument position.
-def bags : Array<Bag<Slot<Int, Text>>> = [];
+def bags: Array<Bag<Slot<Int, Text>>> = [];
+
 def bags_filled = AppendTo(bags, Bag([Slot::Empty()]));
 
 IO::PrintLine("bags: " ++ (#bags_filled as Text) ++ " inner " ++ (#(bags_filled[0].items) as Text));
 
 match slots_filled[1] with
-	case Slot::Occupied(k, v) => IO::PrintLine("occupied: " ++ (k as Text) ++ "/" ++ v)
-	case Slot::Empty() => IO::PrintLine("empty")
-;
+    case Slot::Occupied(k, v) => IO::PrintLine("occupied: " ++ (k as Text) ++ "/" ++ v)
+    case Slot::Empty() => IO::PrintLine("empty");

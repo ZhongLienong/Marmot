@@ -1,7 +1,9 @@
 module LocalModuleImport
-
 import { "local_module_lib.mmt" }
 
-use TestMod.{Foo}
+use TestMod.
+{
+    Foo
+}
 
 Foo();

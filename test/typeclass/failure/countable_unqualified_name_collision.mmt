@@ -1,5 +1,4 @@
 module CountableUnqualifiedNameCollision
-
 // Cheap guard, not a regression test: `SiteMap` never matched the old
 // name-suffix dispatch, because HasNameSuffix required the suffix to be
 // the whole name or to follow a `::`. This case passed before the
@@ -8,7 +7,10 @@ module CountableUnqualifiedNameCollision
 
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
-type SiteMap = { url: Text };
+type SiteMap =
+{
+    url: Text
+};
 
 def s = SiteMap("example.com");
 IO::PrintLine(#s as Text);

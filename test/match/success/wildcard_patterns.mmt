@@ -1,33 +1,27 @@
 module MatchWildcardPatterns
-
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
 type Option = None | Some(Int);
 
 type Point =
 {
-	x : Int,
-	y : Int
+    x: Int,
+    y: Int
 };
 
 def some_value = Option::Some(7);
+
 def nested_value = (4, 99, Point(2, 5));
 
 def union_result = match some_value with
-	case Option::Some(_) => 1
-	case Option::None() => 0
-;
+    case Option::Some(_) => 1
+    case Option::None() => 0;
 
 def nested_result = match nested_value with
-	case (x, _, Point(_, y)) => x + y
-;
+    case (x, _, Point(_, y)) => x + y;
 
 def catch_all_result = match true with
-	case _ => 42
-;
+    case _ => 42;
 
 IO::PrintLine("union_result=" ++ (union_result as Text));
 IO::PrintLine("nested_result=" ++ (nested_result as Text));

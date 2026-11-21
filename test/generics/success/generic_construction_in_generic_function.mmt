@@ -1,5 +1,4 @@
 module GenericConstructionInGenericFunction
-
 // Constructing a generic struct or union works inside a generic function.
 //
 // Inside a generic definition the declared types have already been freshened, so the
@@ -10,83 +9,90 @@ module GenericConstructionInGenericFunction
 // test/generics/failure/constructor_inference_requires_context.mmt and
 // test/generics/failure/constructor_inference_unowned_type_var.mmt.
 
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
 type Bag<T> =
 {
-	items : Array<T>,
-	tag : Int
+    items: Array<T>,
+    tag: Int
 };
 
 type Pair<A, B> =
 {
-	first : A,
-	second : B
+    first: A,
+    second: B
 };
 
 type Option<T> = Some(T) | None;
 
 // Expression body, no explicit type argument and no annotated local.
-def MakeBag = fn<T>(xs : Array<T>, t : Int) -> Bag<T> => Bag(xs, t);
+def MakeBag = fn<T>(xs: Array<T>, t: Int) -> Bag<T> => Bag(xs, t);
 
 // Block body.
-def MakeBagBlock = fn<T>(xs : Array<T>, t : Int) -> Bag<T> =>
+def MakeBagBlock = fn<T>(xs: Array<T>, t: Int) -> Bag<T> =>
 {
-	def b = Bag(xs, t);
-	b
+    def b = Bag(xs, t);
+    b
 };
 
 // Only one of the two type parameters comes from the enclosing function.
-def TagWith = fn<T>(value : T, label : Text) -> Pair<T, Text> => Pair(value, label);
+def TagWith = fn<T>(value: T, label: Text) -> Pair<T, Text> => Pair(value, label);
 
 // A generic union constructor whose payload pins the type parameter.
-def Wrap = fn<T>(value : T) -> Option<T> => Option::Some(value);
+def Wrap = fn<T>(value: T) -> Option<T> => Option::Some(value);
 
 // Constructing from a struct that is itself generic in T.
-def Retag = fn<T>(b : Bag<T>, t : Int) -> Bag<T> => Bag(b.items, t);
+def Retag = fn<T>(b: Bag<T>, t: Int) -> Bag<T> => Bag(b.items, t);
 
 // Nested: the type argument is itself a generic instantiation.
-def Nest = fn<T>(b : Bag<T>) -> Pair<Bag<T>, Int> => Pair(b, b.tag);
+def Nest = fn<T>(b: Bag<T>) -> Pair<Bag<T>, Int> => Pair(b, b.tag);
 
 def ints = MakeBag([1, 2, 3], 7);
+
 def texts = MakeBag(["a", "b"], 9);
 
 IO::PrintLine("ints: " ++ (ints.items[0] as Text) ++ " tag " ++ (ints.tag as Text));
 IO::PrintLine("texts: " ++ texts.items[1] ++ " tag " ++ (texts.tag as Text));
 
 def block_ints = MakeBagBlock([10, 20], 1);
+
 def block_texts = MakeBagBlock(["p"], 2);
 
 IO::PrintLine("block: " ++ (block_ints.items[1] as Text) ++ " " ++ block_texts.items[0]);
 
 def pair_int = TagWith(5, "five");
+
 def pair_text = TagWith("x", "letter");
 
-IO::PrintLine("pair: " ++ (pair_int.first as Text) ++ "/" ++ pair_int.second ++ " " ++ pair_text.first ++ "/" ++ pair_text.second);
+IO::PrintLine
+(
+    "pair: " ++ (pair_int.first as Text) ++ "/" ++ pair_int.second ++ " " ++ pair_text.first ++ "/" ++ pair_text.second
+);
 
 def some_int = Wrap(41);
+
 def some_text = Wrap("wrapped");
 
 match some_int with
-	case Option::Some(n) => IO::PrintLine("some_int: " ++ (n as Text))
-	case Option::None() => IO::PrintLine("some_int: none")
-;
+    case Option::Some(n) => IO::PrintLine("some_int: " ++ (n as Text))
+    case Option::None() => IO::PrintLine("some_int: none");
 
 match some_text with
-	case Option::Some(s) => IO::PrintLine("some_text: " ++ s)
-	case Option::None() => IO::PrintLine("some_text: none")
-;
+    case Option::Some(s) => IO::PrintLine("some_text: " ++ s)
+    case Option::None() => IO::PrintLine("some_text: none");
 
 def retagged_ints = Retag(ints, 99);
+
 def retagged_texts = Retag(texts, 42);
 
 IO::PrintLine("retagged: " ++ (retagged_ints.tag as Text) ++ " " ++ (retagged_texts.tag as Text));
 IO::PrintLine("original tag untouched: " ++ (ints.tag as Text));
 
 def nested_ints = Nest(ints);
+
 def nested_texts = Nest(texts);
 
-IO::PrintLine("nested: " ++ (nested_ints.first.items[2] as Text) ++ " " ++ nested_texts.first.items[0] ++ " " ++ (nested_ints.second as Text));
+IO::PrintLine
+(
+    "nested: " ++ (nested_ints.first.items[2] as Text) ++ " " ++ nested_texts.first.items[0] ++ " " ++ (nested_ints.second as Text)
+);

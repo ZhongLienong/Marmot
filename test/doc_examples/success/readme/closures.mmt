@@ -3,5 +3,6 @@ module ReadmeClosures
 def make_adder = fn(amount: Int) -> fn(Int) -> Int => fn(n: Int) -> Int => n + amount;
 
 def add_ten = make_adder(10);
-def first = add_ten(1);   // 11
+
+def first = add_ten(1);  // 11
 def second = add_ten(5);  // 15

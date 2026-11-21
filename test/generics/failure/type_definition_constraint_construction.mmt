@@ -1,14 +1,17 @@
 module TypeDefinitionConstraintConstruction
 
-class Show<T> {
+class Show<T>
+{
     show: fn(value: T) -> Text;
 };
 
-type Box<T> where Show<T> = {
+type Box<T> where Show<T> =
+{
     value: T
 };
 
-type Hidden = {
+type Hidden =
+{
     value: Int
 };
 

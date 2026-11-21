@@ -1,18 +1,27 @@
 module InstanceDefLambdaMethod
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
-class Describable<T> {
+class Describable<T>
+{
     type Tag;
     Describe: fn(value: T) -> Text;
     Label: fn(value: T) -> Tag;
 };
 
-type Point = { x: Int, y: Int };
-type Name = { text: Text };
+type Point =
+{
+    x: Int,
+    y: Int
+};
+
+type Name =
+{
+    text: Text
+};
 
 // Every method spelled with the `def x = fn(...)` binding form.
-instance Describable<Point> {
+instance Describable<Point>
+{
     type Tag = Int;
     def Describe = fn(value: Point) -> Text => "Point(" ++ (value.x as Text) ++ ", " ++ (value.y as Text) ++ ")";
     def Label = fn(value: Point) -> Int => value.x + value.y;
@@ -20,13 +29,15 @@ instance Describable<Point> {
 
 // A second instance of the same class, to show the binding form is not tied to one
 // instantiation and that a method body may return the associated type.
-instance Describable<Name> {
+instance Describable<Name>
+{
     type Tag = Text;
     def Describe = fn(value: Name) -> Text => "Name(" ++ value.text ++ ")";
     def Label = fn(value: Name) -> Text => value.text;
 };
 
 def origin = Point(3, 4);
+
 def caller = Name("marmot");
 
 IO::PrintLine(Describable::Describe(origin));

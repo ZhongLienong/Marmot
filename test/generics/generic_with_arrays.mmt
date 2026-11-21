@@ -3,12 +3,13 @@ module GenericWithArrays
 // Test: Generic types with arrays
 // Expected: Should compile - generics can contain arrays
 
-type Container<T> = 
+type Container<T> =
 {
     items: Array<T>
 };
 
 def int_container = Container([1, 2, 3]);
+
 def text_container = Container(["a", "b", "c"]);
 
 // Access array members

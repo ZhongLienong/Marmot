@@ -1,19 +1,20 @@
 module ConcatenableOperator
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Concatenable.mmt" }
 
-type Chunk = {
+type Chunk =
+{
     text: Text
 };
 
-instance Concatenable<Chunk> {
+instance Concatenable<Chunk>
+{
     def Concat = fn(left: Chunk, right: Chunk) -> Chunk => Chunk(left.text ++ right.text);
 };
 
-def Join = fn<T>(left: T, right: T) -> T
-    where Concatenable<T> => left ++ right;
+def Join = fn<T>(left: T, right: T) -> T where Concatenable<T> => left ++ right;
 
 def combined = Chunk("mid") ++ Chunk("ori");
+
 def joined = Join(Chunk("type"), Chunk("class"));
 
 if (combined.text == "marmot") && (joined.text == "typeclass")

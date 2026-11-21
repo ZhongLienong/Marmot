@@ -1,20 +1,16 @@
 module DynamicCreationCaptureValue
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
-import
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-}
-
-def makeCapture = fn(val : Int) -> fn() -> Int => fn() -> Int => val;
+def makeCapture = fn(val: Int) -> fn() -> Int => fn() -> Int => val;
 
 // Each closure must capture its own argument, not share one binding.
 def foo = fn() -> Unit =>
 {
-	def arr : Array<fn() -> Int> = [makeCapture(i) for i in 0..1..3];
+    def arr: Array<fn() -> Int> = [makeCapture(i) for i in 0..1..3];
 
-	IO::PrintLine(arr[0]() as Text);  // Should print 0
-	IO::PrintLine(arr[1]() as Text);  // Should print 1
-	IO::PrintLine(arr[2]() as Text);  // Should print 2
+    IO::PrintLine(arr[0]() as Text);  // Should print 0
+    IO::PrintLine(arr[1]() as Text);  // Should print 1
+    IO::PrintLine(arr[2]() as Text);  // Should print 2
 };
 
 foo();

@@ -1,23 +1,32 @@
 module ArrowAndFunctionTypeAnnotation
-
 import { "../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt" }
 
 import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
-use IO.{PrintLine}
+use IO.
+{
+    PrintLine
+}
 
 // The `->` in the annotation belongs to the function type; the `->` after the
 // parameter list is the lambda's own return position.
-def Predicate : fn(Int) -> Bool = fn(x: Int) -> Bool => x > 0;
+def Predicate: fn(Int) -> Bool = fn(x: Int) -> Bool => x > 0;
 
 def Apply = fn(f: fn(Int) -> Int, x: Int) -> Int => f(x);
 
-def SendOne = fn(c: Channel<Text>) -> Int => { Concurrency::Send(c, "sent"); 0 };
+def SendOne = fn(c: Channel < Text >) -> Int =>
+{
+    Concurrency::Send(c, "sent");
+    0
+};
 
-def ch : Channel<Text> = Concurrency::MakeChannel(4);
+def ch: Channel < Text > = Concurrency::MakeChannel(4);
+
 def sent = SendOne(ch);
 PrintLine(Option::OptionUnwrapOrPanic(Concurrency::Receive(ch), "Channel closed"));
 Concurrency::Close(ch);
 
-PrintLine(if Predicate(3) then "positive" else "not positive");
+PrintLine(if Predicate(3)
+then "positive"
+else "not positive");
 PrintLine(Apply(fn(x: Int) -> Int => x * 3, 5) as Text);
 PrintLine(sent as Text);

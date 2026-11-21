@@ -1,5 +1,4 @@
 module NewtypeCountableStaysNominal
-
 // `#` on a newtype must dispatch on the newtype's own Countable instance,
 // never on the instance that happens to match its representation. Code is a
 // newtype over Text, and Text already has a built-in Countable instance
@@ -8,18 +7,20 @@ module NewtypeCountableStaysNominal
 // this test pins - #id would silently come back as the raw Text length
 // instead of failing to compile.
 
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt",
-	"../../../projects/marmotstdlib/MarmotPrelude/Countable.mmt",
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Countable.mmt", }
 
 type Code = Text;
 
-instance Countable<Code> {
-	def Count = fn(value: Code) -> Int => (#(value as Text)) * 100;
+instance Countable<Code>
+{
+    def Count = fn(value: Code) -> Int => (#(value as Text)) * 100;
 };
 
 def id: Code = "ab" as Code;
 
-if #id == 200 then () else Panic::Panic("Countable<Code> instance should resolve nominally, not fall back to Countable<Text>'s built-in behaviour");
+if #id == 200
+then ()
+else Panic::Panic
+(
+    "Countable<Code> instance should resolve nominally, not fall back to Countable<Text>'s built-in behaviour"
+);

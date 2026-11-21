@@ -1,11 +1,13 @@
 module value_transfer_int
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt" }
 
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
-use IO.{PrintLine}
+use IO.
+{
+    PrintLine
+}
 
-def IntWorker = fn(ch : Channel<Int>) -> Int =>
+def IntWorker = fn(ch: Channel < Int >) -> Int =>
 {
     Concurrency::Send(ch, 42);
     Concurrency::Send(ch, -1);
@@ -14,12 +16,16 @@ def IntWorker = fn(ch : Channel<Int>) -> Int =>
     0
 };
 
-def ch : Channel<Int> = Concurrency::MakeChannel(4);
+def ch: Channel < Int > = Concurrency::MakeChannel(4);
+
 def w = Concurrency::Spawn(ch, IntWorker);
 
 def v1 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch), "Channel closed");
+
 def v2 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch), "Channel closed");
+
 def v3 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch), "Channel closed");
+
 def v4 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch), "Channel closed");
 
 PrintLine("v1=" ++ (v1 as Text));
@@ -29,4 +35,5 @@ PrintLine("v4=" ++ (v4 as Text));
 PrintLine("sum=" ++ ((v1 + v2 + v3 + v4) as Text));
 
 Concurrency::Close(ch);
+
 def r = Concurrency::JoinedOrPanic(Concurrency::Join(w));

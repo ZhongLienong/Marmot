@@ -1,16 +1,11 @@
 module Fib35Tailcall
+import { "../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../projects/marmotstdlib/MarmotPrelude/DateTime.mmt" }
 
-import
+def fib_tail = fn(n: Int, a: Int, b: Int) -> Int =>
 {
-	"../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-	"../projects/marmotstdlib/MarmotPrelude/DateTime.mmt"
-}
-
-def fib_tail = fn(n : Int, a : Int, b : Int) -> Int =>
-{
-	if n == 0
-	then a
-	else fib_tail(n - 1, b, a + b)
+    if n == 0
+    then a
+    else fib_tail(n - 1, b, a + b)
 };
 
 def start = DateTime::NowUnixMillis();
@@ -19,4 +14,7 @@ def fib_35 = fib_tail(35, 0, 1);
 
 def end = DateTime::NowUnixMillis();
 
-IO::PrintLine("Fibonacci(35): " ++ (fib_35 as Text) ++ " benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
+IO::PrintLine
+(
+    "Fibonacci(35): " ++ (fib_35 as Text) ++ " benchmark took " ++ ((end - start) as Text) ++ " milliseconds"
+);

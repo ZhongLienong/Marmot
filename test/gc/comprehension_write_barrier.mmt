@@ -1,10 +1,5 @@
 module ComprehensionWriteBarrier
-
-import
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-	"../../projects/marmotstdlib/MarmotPrelude/ArrayUtil.mmt"
-}
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../projects/marmotstdlib/MarmotPrelude/ArrayUtil.mmt" }
 
 // Old-to-young write-barrier coverage for ADD_BACK_ARRAY, the append a
 // comprehension performs on each element.
@@ -23,16 +18,24 @@ import
 def Prefix = "a-prefix-long-enough-that-small-string-interning-cannot-hold-it-";
 
 // Allocates garbage so collections run while the comprehension is still building.
-def MakeItem = fn(i : Int) -> Text =>
+def MakeItem = fn(i: Int) -> Text =>
 {
-	def junk = [Prefix ++ (i as Text) ++ "-junk" for _ in 0..1..64];
-	if ArrayUtil::Length(junk) == 64 then Prefix ++ (i as Text) else "wrong-junk-length"
+    def junk = [Prefix ++ (i as Text) ++ "-junk" for _ in 0..1..64];
+    if ArrayUtil::Length(junk) == 64
+    then Prefix ++ (i as Text)
+    else "wrong-junk-length"
 };
 
-def CountWrong = fn(items : Array<Text>, index : Int, wrong : Int) -> Int =>
-	if index >= ArrayUtil::Length(items)
-	then wrong
-	else CountWrong(items, index + 1, if items[index] == (Prefix ++ (index as Text)) then wrong else wrong + 1);
+def CountWrong = fn(items: Array<Text>, index: Int, wrong: Int) -> Int => if index >= ArrayUtil::Length(items)
+then wrong
+else CountWrong
+(
+    items,
+    index + 1,
+    if items[index] == (Prefix ++ (index as Text))
+    then wrong
+    else wrong + 1
+);
 
 def items = [MakeItem(i) for i in 0..1..20000];
 

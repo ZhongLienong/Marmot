@@ -1,11 +1,5 @@
 module ListLargeRoundtrip
-
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-	"../../../projects/marmotstdlib/MarmotPrelude/ArrayUtil.mmt",
-	"../../../projects/marmotstdlib/MarmotPrelude/Prelude/List.mmt",
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/ArrayUtil.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/List.mmt", }
 
 // Regression: ListFromArray built the list front-to-back, which put the
 // recursive call inside Cons and so was not a tail call -- it overflowed the
@@ -13,7 +7,9 @@ import
 // element and was quadratic: 34.6s for 40000 elements against 0.16s now.
 // 8000 is comfortably past the old stack limit while keeping the test quick.
 def N = 8000;
+
 def source = [i for i in 0..1..N];
+
 def roundtrip = List::ListToArray(List::ListFromArray(source));
 
 IO::PrintLine(ArrayUtil::Length(roundtrip) as Text);

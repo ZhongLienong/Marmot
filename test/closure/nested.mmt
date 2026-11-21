@@ -1,12 +1,8 @@
 module Nested
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
-import
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-}
-
-def x = fn(y : Int) -> fn(Int) -> fn() -> Int => fn(z : Int) -> fn() -> Int => fn() -> Int => y + z;
+def x = fn(y: Int) -> fn(Int) -> fn() -> Int => fn(z: Int) -> fn() -> Int => fn() -> Int => y + z;
 
 def f = x(5)(3);
 
-IO::PrintLine(f() as Text); // Should print 8
+IO::PrintLine(f() as Text);  // Should print 8

@@ -1,15 +1,17 @@
 module NewtypeConversion
-
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt",
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt", }
 
 type Meters = Int;
 
 def distance: Meters = 12 as Meters;
+
 def raw: Int = distance as Int;
+
 def round_tripped: Meters = raw as Meters;
 
-if raw == 12 then () else Panic::Panic("newtype to representation should preserve the value");
-if (round_tripped as Int) == 12 then () else Panic::Panic("round trip should preserve the value");
+if raw == 12
+then ()
+else Panic::Panic("newtype to representation should preserve the value");
+if (round_tripped as Int) == 12
+then ()
+else Panic::Panic("round trip should preserve the value");

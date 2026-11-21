@@ -6,4 +6,8 @@ module RecordUpdateUnion
 type Shape = Circle(Int) | Square(Int);
 
 def s = Shape::Circle(3);
-def bad = { s with Circle = 4 };
+
+def bad =
+{
+    s with Circle = 4
+};

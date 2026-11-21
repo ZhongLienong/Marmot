@@ -2,10 +2,12 @@
 module SelfContained
 public export { factorial, fibonacci }
 
-def factorial = fn(n: Int) -> Int =>
-    if n <= 1 then 1 else n * factorial(n - 1);
+def factorial = fn(n: Int) -> Int => if n <= 1
+then 1
+else n * factorial(n - 1);
 
-def fibonacci = fn(n: Int) -> Int =>
-    if n <= 1 then n else fibonacci(n - 1) + fibonacci(n - 2);
+def fibonacci = fn(n: Int) -> Int => if n <= 1
+then n
+else fibonacci(n - 1) + fibonacci(n - 2);
 
 def main = fn() -> Int => factorial(5) + fibonacci(7);

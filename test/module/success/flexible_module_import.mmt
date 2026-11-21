@@ -1,14 +1,21 @@
 module FlexibleModuleImport
-
 // Test: importing a module with flexible statement placement
 
 import { "flexible_module_lib.mmt", <IO> }
 
-use FlexMod.{Exported1, Exported2}
+use FlexMod.
+{
+    Exported1,
+    Exported2
+}
 
-use IO.{PrintLine}
+use IO.
+{
+    PrintLine
+}
 
-def main = fn() -> Unit => {
+def main = fn() -> Unit =>
+{
     PrintLine("Exported1(5) = " ++ (Exported1(5.0) as Text));
     PrintLine("Exported2(5) = " ++ (Exported2(5.0) as Text));
 };

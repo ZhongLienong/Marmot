@@ -1,12 +1,15 @@
 module StructuralDerivingRequiresFieldInstances
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/Equatable.mmt" }
 
-type Opaque = { n: Int };
+type Opaque =
+{
+    n: Int
+};
 
 type Box<T> =
 {
-    value : T
-} deriving (Equatable);
+    value: T
+}
+deriving(Equatable);
 
 def same = Box(Opaque(1)) == Box(Opaque(1));

@@ -1,15 +1,15 @@
 module NewtypeLeadingBarSum
-
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt",
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt", }
 
 // A single-variant sum now needs the explicit leading bar, which is what frees
 // the bare-name spelling for newtypes.
 type Solo = | Only(Int);
 
 def value = Solo::Only(3);
-def unwrapped = match value with case Solo::Only(inner) => inner;
 
-if unwrapped == 3 then () else Panic::Panic("leading-bar sum should still construct and match");
+def unwrapped = match value with
+    case Solo::Only(inner) => inner;
+
+if unwrapped == 3
+then ()
+else Panic::Panic("leading-bar sum should still construct and match");

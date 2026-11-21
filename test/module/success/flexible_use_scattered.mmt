@@ -1,16 +1,25 @@
 module FlexibleUseScattered
-
 // Test: use statements scattered throughout the code
 
 import { <IO> }
 
-def greet = fn(name: Text) -> Text => { "Hello, " ++ name };
+def greet = fn(name: Text) -> Text =>
+{
+    "Hello, " ++ name
+};
 
-use IO.{PrintLine}
+use IO.
+{
+    PrintLine
+}
 
-def calculate = fn(x: Float) -> Float => { (x * 2.0) + 10.0 };
+def calculate = fn(x: Float) -> Float =>
+{
+    (x * 2.0) + 10.0
+};
 
-def main = fn() -> Unit => {
+def main = fn() -> Unit =>
+{
     PrintLine(greet("Alice"));
     PrintLine("Result: " ++ (calculate(15.0) as Text));
 };

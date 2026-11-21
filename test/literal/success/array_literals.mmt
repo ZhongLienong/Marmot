@@ -1,19 +1,17 @@
 module ArrayLiterals
-
-import
-{
-    <IO>
-}
+import { <IO> }
 
 IO::PrintLine("=== Array Literal Tests ===");
 
 // Empty array
-def empty_array : Array<Int> = [];
+def empty_array: Array<Int> = [];
 IO::PrintLine("Empty array created");
 
 // Integer arrays
 def int_array_1 = [1];
+
 def int_array_3 = [1, 2, 3];
+
 def int_array_5 = [10, 20, 30, 40, 50];
 
 IO::PrintLine("Single element array: [1]");
@@ -56,8 +54,11 @@ IO::PrintLine("Unicode text array created");
 
 // Array access and modification
 def numbers = [100, 200, 300];
+
 def first = numbers[0];
+
 def second = numbers[1];
+
 def third = numbers[2];
 
 IO::PrintLine("First element: " ++ (first as Text));

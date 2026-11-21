@@ -1,17 +1,22 @@
 module spawn_def_bound_lambda_globals
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt" }
 
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
-use IO.{PrintLine}
+use IO.
+{
+    PrintLine
+}
 
 def Increment = fn(n: Int) -> Int => n + 1;
 
-def Factorial = fn(n: Int) -> Int => if n <= 1 then 1 else n * Factorial(n - 1);
+def Factorial = fn(n: Int) -> Int => if n <= 1
+then 1
+else n * Factorial(n - 1);
 
 def ScaleViaHelper = fn(n: Int) -> Int => Increment(n) * 10;
 
 def w1 = Concurrency::Spawn(5, Factorial);
+
 def w2 = Concurrency::Spawn(4, ScaleViaHelper);
 PrintLine("factorial=" ++ ((Concurrency::JoinedOrPanic(Concurrency::Join(w1))) as Text));
 PrintLine("helper=" ++ ((Concurrency::JoinedOrPanic(Concurrency::Join(w2))) as Text));

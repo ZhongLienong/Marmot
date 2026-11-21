@@ -1,12 +1,17 @@
 module worker_cancel_spin
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt" }
 
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
-use IO.{PrintLine}
+use IO.
+{
+    PrintLine
+}
 
 import { "../../../projects/marmotstdlib/MarmotPrelude/System.mmt" }
-use System.{Sleep}
+use System.
+{
+    Sleep
+}
 
 // Spins forever until cancelled. Tail recursion gives the same unbounded loop
 // the `loop` block did, without growing the stack and without assignment.
@@ -16,17 +21,18 @@ def Spin = fn(_dummy: Int) -> Int => SpinFrom(0);
 
 def w = Concurrency::Spawn(0, Spin);
 Sleep(50);
+
 def cancelled = Concurrency::Cancel(w);
+
 // Polls the global `w` rather than taking it as a parameter, so the worker
 // handle type does not have to be named.
-def WaitUntilDone = fn(attempts: Int) -> Unit =>
-    if Concurrency::IsDone(w) || (attempts >= 500)
-    then ()
-    else
-    {
-        Sleep(10);
-        WaitUntilDone(attempts + 1)
-    };
+def WaitUntilDone = fn(attempts: Int) -> Unit => if Concurrency::IsDone(w) || (attempts >= 500)
+then ()
+else
+{
+    Sleep(10);
+    WaitUntilDone(attempts + 1)
+};
 
 WaitUntilDone(0);
 if cancelled && Concurrency::IsDone(w)

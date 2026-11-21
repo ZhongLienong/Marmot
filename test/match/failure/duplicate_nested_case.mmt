@@ -1,16 +1,17 @@
 module DuplicateNestedCase
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt" }
 
-use Result.{ Result }
+use Result.
+{
+    Result
+}
 
 type Code = Alpha | Beta;
 
 // Two arms written the same way are still a duplicate, nested pattern and all.
 
-def Describe = fn(result : Result<Int, Code>) -> Text =>
-	match result with
-		case Result::Ok(n) => "ok"
-		case Result::Err(Code::Alpha()) => "alpha"
-		case Result::Err(Code::Alpha()) => "alpha again"
-		case Result::Err(Code::Beta()) => "beta";
+def Describe = fn(result: Result<Int, Code>) -> Text => match result with
+    case Result::Ok(n) => "ok"
+    case Result::Err(Code::Alpha()) => "alpha"
+    case Result::Err(Code::Alpha()) => "alpha again"
+    case Result::Err(Code::Beta()) => "beta";

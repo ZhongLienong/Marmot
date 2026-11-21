@@ -1,18 +1,15 @@
 module Reexport
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "./reexport_facade.mmt" }
 
-import
+use ReexportFacade.
 {
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-	"./reexport_facade.mmt"
+    Shade,
+    Double
 }
 
-use ReexportFacade.{Shade, Double}
-
-def Level = fn(shade: Shade) -> Int =>
-	match shade with
-	case Shade::Light() => 0
-	case Shade::Dark(level) => level
-;
+def Level = fn(shade: Shade) -> Int => match shade with
+    case Shade::Light() => 0
+    case Shade::Dark(level) => level;
 
 def Origin = fn() -> ReexportFacade::Point => ReexportFacade::Point(3, 4);
 

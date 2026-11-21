@@ -1,13 +1,8 @@
 module GenericFunctionImportedAsValue
-
 // Test: a generic function imported from another module, passed as a value,
 // is specialized in the importing module for the type it is passed at.
 
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-	"generic_function_value_library.mmt"
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "generic_function_value_library.mmt" }
 
 def apply = fn(f: fn(Int) -> Int, v: Int) -> Int => f(v);
 

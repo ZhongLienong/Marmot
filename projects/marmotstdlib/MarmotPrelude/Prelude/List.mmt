@@ -1,68 +1,98 @@
 module List
 import { "../Countable.mmt", "../Iterable.mmt", "Option.mmt" }
 public export { List, ListIter, ListIterNew, ListMap, ListLength, ListAppend, ListFilter, ListReverse, ListFold, ListFromArray, ListToArray }
-use Option.{
+use Option.
+{
     Option
 }
-type List < T > = Nil | Cons(T, List);
-type ListIter < T > = {
-    current: List < T >
+
+type List<T> = Nil | Cons(T, List);
+
+type ListIter<T> =
+{
+    current: List<T>
 };
-def ListIterNew = fn < T >(list: List < T >) -> ListIter < T > => ListIter (list);
-instance Iterable < ListIter < T >> {
+
+def ListIterNew = fn<T>(list: List<T>) -> ListIter<T> => ListIter(list);
+
+instance Iterable<ListIter<T>>
+{
     type Item = T;
-    def Next = fn(iter: ListIter < T >) -> Option < (T, ListIter < T >) > => {
+    def Next = fn(iter: ListIter<T>) -> Option<(T, ListIter<T>)> =>
+    {
         match iter.current with
-            case List::Cons(head, tail) => Option::Some ((head, ListIter (tail)))
-            case List::Nil() => Option::None ()
+            case List::Cons(head, tail) => Option::Some((head, ListIter(tail)))
+            case List::Nil() => Option::None()
     };
 };
-def ListMap = fn < A, B >(list: List < A >, f: fn(A) -> B) -> List < B > => {
+
+def ListMap = fn<A, B>(list: List<A>, f: fn(A) -> B) -> List<B> =>
+{
     match list with
-        case List::Cons(head, tail) => List::Cons (f(head), ListMap(tail, f))
-        case List::Nil() => List::Nil ()
+                case List::Cons(head, tail) => List::Cons(f(head), ListMap(tail, f))
+                case List::Nil() => List::Nil()
 };
-def ListLength = fn < T >(list: List < T >) -> Int => {
+
+def ListLength = fn<T>(list: List<T>) -> Int =>
+{
     match list with
-        case List::Cons(_, tail) => 1 + ListLength(tail)
-        case List::Nil() => 0
+                    case List::Cons(_, tail) => 1 + ListLength(tail)
+                    case List::Nil() => 0
 };
-instance Countable < List < T >> {
-    def Count = fn(value: List < T >) -> Int => ListLength(value);
+
+instance Countable<List<T>>
+{
+    def Count = fn(value: List<T>) -> Int => ListLength(value);
 };
-def ListAppend = fn < T >(left: List < T >, right: List < T >) -> List < T > => {
+
+def ListAppend = fn<T>(left: List<T>, right: List<T>) -> List<T> =>
+{
     match left with
-        case List::Nil() => right
-        case List::Cons(head, tail) => List::Cons (head, ListAppend(tail, right))
+                case List::Nil() => right
+                case List::Cons(head, tail) => List::Cons(head, ListAppend(tail, right))
 };
-def ListFilter = fn < T >(list: List < T >, predicate: fn(T) -> Bool) -> List < T > => {
+
+def ListFilter = fn<T>(list: List<T>, predicate: fn(T) -> Bool) -> List<T> =>
+{
     match list with
-        case List::Nil() => List::Nil ()
-        case List::Cons(head, tail) => {
-        def filtered_tail = ListFilter(tail, predicate);
-        if predicate(head) then List::Cons (head, filtered_tail) else filtered_tail
-    }
+                    case List::Nil() => List::Nil()
+                    case List::Cons(head, tail) =>
+    {
+                        def filtered_tail = ListFilter(tail, predicate);
+                        if predicate(head)
+                        then List::Cons(head, filtered_tail)
+                        else filtered_tail
+                    }
 };
-def ListReverseInto = fn < T >(list: List < T >, reversed: List < T >) -> List < T > => {
+
+def ListReverseInto = fn<T>(list: List<T>, reversed: List<T>) -> List<T> =>
+{
     match list with
-        case List::Cons(head, tail) => ListReverseInto(tail, List::Cons (head, reversed))
-        case List::Nil() => reversed
+                        case List::Cons(head, tail) => ListReverseInto(tail, List::Cons(head, reversed))
+                        case List::Nil() => reversed
 };
-def ListReverse = fn < T >(list: List < T >) -> List < T > => ListReverseInto(list, List::Nil ());
-def ListFold = fn < T, A >(list: List < T >, initial: A, f: fn(A, T) -> A) -> A => {
+
+def ListReverse = fn<T>(list: List<T>) -> List<T> => ListReverseInto(list, List::Nil());
+
+def ListFold = fn<T, A>(list: List<T>, initial: A, f: fn(A, T) -> A) -> A =>
+{
     match list with
-        case List::Cons(head, tail) => ListFold(tail, f(initial, head), f)
-        case List::Nil() => initial
+                            case List::Cons(head, tail) => ListFold(tail, f(initial, head), f)
+                            case List::Nil() => initial
 };
+
 // Walks the array backwards, prepending, so the recursive call is in tail
 // position and the original order is preserved. Building forwards put the call
 // inside Cons, which is not a tail call: it overflowed the stack at roughly
 // 3333 elements.
-def ListFromArrayAt = fn < T >(values: Array < T >, index: Int, acc: List < T >) -> List < T > =>
-    if index < 0 then acc else ListFromArrayAt(values, index - 1, List::Cons (values[index], acc));
-def ListFromArray = fn < T >(values: Array < T >) -> List < T > => ListFromArrayAt(values, #values - 1, List::Nil ());
+def ListFromArrayAt = fn<T>(values: Array<T>, index: Int, acc: List<T>) -> List<T> => if index < 0
+then acc
+else ListFromArrayAt(values, index - 1, List::Cons(values[index], acc));
+
+def ListFromArray = fn<T>(values: Array<T>) -> List<T> => ListFromArrayAt(values, #values - 1, List::Nil());
+
 // A comprehension over the list's own Iterable instance, which builds the array
 // in one pass. The previous WithAppended recursion copied the whole array per
 // element and was quadratic. Measured on a 40000-element list: 34589ms before,
 // 155ms after, and 4x worse for every doubling.
-def ListToArray = fn < T >(list: List < T >) -> Array < T > where Iterable < ListIter < T > > => [value for value in ListIterNew(list)];
+def ListToArray = fn<T>(list: List<T>) -> Array<T> where Iterable<ListIter<T>> => [value for value in ListIterNew(list)];

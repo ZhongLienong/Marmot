@@ -1,11 +1,13 @@
 module OperatorGenericConstruction
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Numeric.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Equatable.mmt" }
 
-type Box<T> = {
+type Box<T> =
+{
     value: T
 };
 
-instance Add<Box<T>, Box<T>> where Equatable<T> {
+instance Add<Box<T>, Box<T>> where Equatable<T>
+{
     type Output = Bool;
     def Add = fn(a: Box<T>, b: Box<T>) -> Bool => a.value == b.value;
 };

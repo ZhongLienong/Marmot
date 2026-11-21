@@ -1,24 +1,26 @@
 module LambdaInferencePipeMatch
-
 import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 type Result<T, E> = Ok(T) | Err(E);
 
-def doubler: fn(Int) -> Int = fn(x) => { x * 2 };
+def doubler: fn(Int) -> Int = fn(x) =>
+{
+    x * 2
+};
 
-def Transform = fn(value: Int) -> Result<Int, Text> => {
+def Transform = fn(value: Int) -> Result<Int, Text> =>
+{
     if value > 10
     then Result::Ok(value + 1)
     else Result::Err("too small")
 };
 
-def pipeline_result =
-    5
-    |> doubler
-    |> fn(x) => { x + 1 }
-    |> Transform
-    |> match with
-        case Result::Ok(v) => v
-        case Result::Err(_) => 0;
+def pipeline_result = 5 |> doubler |> fn(x) =>
+{
+    x + 1
+}
+|> Transform |> match with
+    case Result::Ok(v) => v
+    case Result::Err(_) => 0;
 
 IO::PrintLine("pipeline_result=" ++ (pipeline_result as Text));

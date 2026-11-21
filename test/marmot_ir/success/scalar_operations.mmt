@@ -8,9 +8,13 @@ module ScalarOperations
 foreign "MARMOT_FFI_Print" Print: fn(Text) -> Unit;
 
 def Show = fn(label: Text, value: Text) -> Unit => Print(label ++ " " ++ value ++ "\n");
+
 def Opaque = fn(n: Int) -> Int => n;
+
 def OpaqueFloat = fn(x: Float) -> Float => x;
+
 def OpaqueByte = fn(b: Byte) -> Byte => b;
+
 def OpaqueWord = fn(w: Word) -> Word => w;
 
 Show("int +", (Opaque(7) + 5) as Text);
@@ -22,7 +26,7 @@ Show("int neg", (-Opaque(9)) as Text);
 Show("int &", (Opaque(12) & 10) as Text);
 Show("int |", (Opaque(12) | 3) as Text);
 Show("int ^", (Opaque(12) ^ 5) as Text);
-Show("int ~", (~Opaque(0)) as Text);
+Show("int ~", (~ Opaque(0)) as Text);
 Show("int <<", (Opaque(1) << 10) as Text);
 Show("int >>", (Opaque(-64) >> 3) as Text);
 Show("int wraps", (Opaque(9223372036854775807) + 1) as Text);
@@ -38,15 +42,16 @@ Show("byte +", (OpaqueByte(0xFF) + 0x02) as Text);
 Show("byte -", (OpaqueByte(0x01) - 0x02) as Text);
 Show("byte *", (OpaqueByte(0x10) * 0x11) as Text);
 Show("byte /", (OpaqueByte(0xC8) / 0x07) as Text);
-Show("byte ~", (~OpaqueByte(0x0F)) as Text);
+Show("byte ~", (~ OpaqueByte(0x0F)) as Text);
 Show("byte <<", (OpaqueByte(0x81) << 1) as Text);
 
 def max_word: Word = 0xFFFFFFFFFFFFFFFF;
+
 def two_words: Word = 0x2 as Word;
 
 Show("word +", (OpaqueWord(max_word) + two_words) as Text);
 Show("word *", (OpaqueWord(4294967296 as Word) * (3 as Word)) as Text);
-Show("word ~", (~OpaqueWord(0 as Word)) as Text);
+Show("word ~", (~ OpaqueWord(0 as Word)) as Text);
 Show("word >>", (OpaqueWord(max_word) >> 60) as Text);
 
 Show("int <", (Opaque(3) < 4) as Text);

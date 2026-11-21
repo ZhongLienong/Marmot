@@ -1,54 +1,68 @@
 module StepperThreadsStateThroughTuple
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt" }
 
-use Option.{ Option }
+use Option.
+{
+    Option
+}
 
-class Stepper<S> {
+class Stepper<S>
+{
     type Item;
     Next: fn(state: S) -> Option<(Item, S)>;
 };
 
-type Counter = { current: Int, limit: Int };
+type Counter =
+{
+    current: Int,
+    limit: Int
+};
 
-instance Stepper<Counter> {
+instance Stepper<Counter>
+{
     type Item = Int;
-    def Next = fn(s: Counter) -> Option<(Int, Counter)> =>
-        if s.current >= s.limit
-        then Option::None()
-        else Option::Some((s.current, Counter(s.current + 1, s.limit)));
+    def Next = fn(s: Counter) -> Option<(Int, Counter)> => if s.current >= s.limit
+    then Option::None()
+    else Option::Some((s.current, Counter(s.current + 1, s.limit)));
 };
 
-type Mapped<S, A, B> = { inner: S, fun: fn(A) -> B };
+type Mapped<S, A, B> =
+{
+    inner: S,
+    fun: fn(A) -> B
+};
 
-instance Stepper<Mapped<S, A, B>> where Stepper<S>, Stepper::Item<S> ~ A {
+instance Stepper<Mapped<S, A, B>> where Stepper<S>, Stepper::Item<S> ~ A
+{
     type Item = B;
-    def Next = fn(m: Mapped<S, A, B>) -> Option<(B, Mapped<S, A, B>)> =>
-        match Stepper::Next(m.inner) with
-            case Option::Some(pair) => {
-                def (v, rest) = pair;
-                Option::Some((m.fun(v), Mapped(rest, m.fun)))
-            }
-            case Option::None() => Option::None();
+    def Next = fn(m: Mapped<S, A, B>) -> Option<(B, Mapped<S, A, B>)> => match Stepper::Next(m.inner) with
+        case Option::Some(pair) =>
+    {
+            def (v, rest) = pair;
+            Option::Some((m.fun(v), Mapped(rest, m.fun)))
+        }
+        case Option::None() => Option::None();
 };
 
-def Sum3 = fn<S>(s: S) -> Int where Stepper<S>, Stepper::Item<S> ~ Int =>
-    match Stepper::Next(s) with
-        case Option::Some(p1) => {
-            def (a, r1) = p1;
-            match Stepper::Next(r1) with
-                case Option::Some(p2) => {
-                    def (b, r2) = p2;
-                    match Stepper::Next(r2) with
-                        case Option::Some(p3) => {
-                            def (c, _) = p3;
-                            a + b + c
-                        }
-                        case Option::None() => a + b
-                }
-                case Option::None() => a
+def Sum3 = fn<S>(s: S) -> Int where Stepper<S>, Stepper::Item<S> ~ Int => match Stepper::Next(s) with
+    case Option::Some(p1) =>
+{
+        def (a, r1) = p1;
+        match Stepper::Next(r1) with
+        case Option::Some(p2) =>
+        {
+            def (b, r2) = p2;
+            match Stepper::Next(r2) with
+            case Option::Some(p3) =>
+            {
+                def (c, _) = p3;
+                a + b + c
+            }
+            case Option::None() => a + b
         }
-        case Option::None() => 0;
+            case Option::None() => a
+    }
+            case Option::None() => 0;
 
 def scaled = Mapped(Counter(1, 9), fn(x: Int) -> Int => x * 100);
 IO::PrintLine(Sum3(scaled) as Text);

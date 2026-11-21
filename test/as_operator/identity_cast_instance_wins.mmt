@@ -1,21 +1,17 @@
 module IdentityCastInstanceWins
-
 // A user-defined Convertable<T, T> instance still takes priority over the
 // identity no-op, so `x as T` dispatches to Convert instead of being erased.
 
-import
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt"
-}
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 class Convertable<From, To>
 {
-	Convert: fn(value: From) -> To;
+    Convert: fn(value: From) -> To;
 };
 
 instance Convertable<Text, Text>
 {
-	def Convert = fn(value: Text) -> Text => value ++ "!";
+    def Convert = fn(value: Text) -> Text => value ++ "!";
 };
 
 def shouted = "hello" as Text;

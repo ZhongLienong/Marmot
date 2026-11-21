@@ -3,6 +3,5 @@ module MatchGuardedCaseNotExhaustive
 type Result = Ok(Int) | Err(Text);
 
 def value = match Result::Ok(1) with
-	case Result::Ok(n) if n > 0 => "positive"
-	case Result::Err(e) => e
-;
+    case Result::Ok(n) if n > 0 => "positive"
+    case Result::Err(e) => e;

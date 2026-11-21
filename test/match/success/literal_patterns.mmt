@@ -1,44 +1,34 @@
 module MatchLiteralPatterns
-
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
 def bool_result = match true with
-	case false => 0
-	case true => 1
-;
+    case false => 0
+    case true => 1;
 
 def float_result = match 1.5 with
-	case 2.5 => 0
-	case 1.5 => 5
-	case _ => -1
-;
+    case 2.5 => 0
+    case 1.5 => 5
+    case _ => -1;
 
-def int_result = match -5 with
-	case -4 => 0
-	case -5 => 2
-	case _ => -1
-;
+def int_result = match - 5 with
+    case -4 => 0
+    case -5 => 2
+    case _ => -1;
 
 def byte_result = match 0x7F with
-	case 0x7E => 0
-	case 0x7F => 3
-	case _ => -1
-;
+    case 0x7E => 0
+    case 0x7F => 3
+    case _ => -1;
 
 def word_result = match 0xFFFFFFFFFFFFFFFF with
-	case 0xFFFFFFFFFFFFFFFE => 0
-	case 0xFFFFFFFFFFFFFFFF => 4
-	case _ => -1
-;
+    case 0xFFFFFFFFFFFFFFFE => 0
+    case 0xFFFFFFFFFFFFFFFF => 4
+    case _ => -1;
 
 def text_result = match "hi" with
-	case "bye" => 0
-	case "hi" => 6
-	case _ => -1
-;
+    case "bye" => 0
+    case "hi" => 6
+    case _ => -1;
 
 IO::PrintLine("bool_result=" ++ (bool_result as Text));
 IO::PrintLine("float_result=" ++ (float_result as Text));

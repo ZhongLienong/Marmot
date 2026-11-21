@@ -2,14 +2,20 @@ module GenericCallInInstanceImplLib
 import { "generic_call_in_instance_class.mmt" }
 public export { Holder, MakeHolder }
 
-type Holder < T > = { v: T };
-def MakeHolder = fn() -> Holder < Int > => Holder (9);
+type Holder<T> =
+{
+    v: T
+};
 
-def GenericPick = fn < T >(x: T, n: Int) -> Int => n;
+def MakeHolder = fn() -> Holder<Int> => Holder(9);
+
+def GenericPick = fn<T>(x: T, n: Int) -> Int => n;
+
 def PlainPick = fn(x: Int, n: Int) -> Int => n;
 
-instance Sized < Holder < Int >> {
+instance Sized<Holder<Int>>
+{
     // A generic call and a non-generic call in one expression: a wrong-arity
     // call corrupts the operand stack, so the plain call is the canary.
-    def Size = fn(h: Holder < Int >) -> Int => (GenericPick(1, 4) * 100) + PlainPick(2, 5);
+    def Size = fn(h: Holder<Int>) -> Int => (GenericPick(1, 4) * 100) + PlainPick(2, 5);
 };

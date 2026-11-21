@@ -1,18 +1,21 @@
 module TupleDestructuringStatement
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 def pair = (42, "answer");
+
 def (count, label) = pair;
 
-def main = fn() -> Int => {
+def main = fn() -> Int =>
+{
     def result = (count + 1, true);
     def (local_count, ok) = result;
 
     IO::PrintLine("global=" ++ (count as Text));
     IO::PrintLine("label=" ++ label);
     IO::PrintLine("local=" ++ (local_count as Text));
-    IO::PrintLine("flag=" ++ (if ok then "true" else "false"));
+    IO::PrintLine("flag=" ++ (if ok
+    then "true"
+    else "false"));
     0
 };
 

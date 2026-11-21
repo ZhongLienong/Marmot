@@ -2,16 +2,19 @@ module OperatorLibrary
 import { "../../../projects/marmotstdlib/MarmotPrelude/Numeric.mmt" }
 public export { Box, Both }
 
-type Box<T> = {
+type Box<T> =
+{
     value: T
 };
 
-instance Add<Box<L>, Box<R>> where Add<L, R> {
+instance Add<Box<L>, Box<R>> where Add<L, R>
+{
     type Output = Box<Add::Output<L, R>>;
     def Add = fn(a: Box<L>, b: Box<R>) -> Box<Add::Output<L, R>> => Box(a.value + b.value);
 };
 
-instance Add<Box<T>, Int> where Add<T, Int> {
+instance Add<Box<T>, Int> where Add<T, Int>
+{
     type Output = Box<Add::Output<T, Int>>;
     def Add = fn(a: Box<T>, b: Int) -> Box<Add::Output<T, Int>> => Box(a.value + b);
 };

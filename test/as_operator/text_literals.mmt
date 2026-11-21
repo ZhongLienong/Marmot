@@ -1,16 +1,15 @@
 module TextLiterals
-
-import
-{
-    <IO>
-}
+import { <IO> }
 
 IO::PrintLine("=== Text Literal Tests ===");
 
 // Empty and simple strings
 def empty = "";
+
 def single_char = "a";
+
 def word = "hello";
+
 def sentence = "The quick brown fox jumps over the lazy dog.";
 
 IO::PrintLine("Empty string: '" ++ empty ++ "'");
@@ -20,7 +19,9 @@ IO::PrintLine("Sentence: " ++ sentence);
 
 // Strings with spaces and punctuation
 def with_spaces = "  spaced  out  ";
+
 def with_punctuation = "Hello, World! How are you?";
+
 def with_numbers = "The answer is 42.";
 
 IO::PrintLine("With spaces: '" ++ with_spaces ++ "'");
@@ -29,8 +30,11 @@ IO::PrintLine("With numbers: " ++ with_numbers);
 
 // Escape sequences
 def with_newline = "Line 1\nLine 2\nLine 3";
+
 def with_tab = "Column1\tColumn2\tColumn3";
+
 def with_quote = "She said, \"Hello!\"";
+
 def with_backslash = "Path: C:\\Users\\Documents";
 
 IO::PrintLine("With newline:");
@@ -41,10 +45,15 @@ IO::PrintLine("With backslash: " ++ with_backslash);
 
 // Unicode strings
 def chinese = "你好世界";
+
 def japanese = "こんにちは世界";
+
 def korean = "안녕하세요";
+
 def russian = "Привет мир";
+
 def arabic = "مرحبا بالعالم";
+
 def greek = "Γεια σου κόσμε";
 
 IO::PrintLine("Chinese: " ++ chinese);
@@ -56,9 +65,13 @@ IO::PrintLine("Greek: " ++ greek);
 
 // Emoji and special symbols
 def emoji_faces = "😀😃😄😁😆😅🤣😂";
+
 def emoji_hearts = "❤️💛💚💙💜🖤🤍🤎";
+
 def emoji_animals = "🐶🐱🐭🐹🐰🦊🐻🐼";
+
 def symbols = "★☆♠♣♥♦•◦∘∙⋆";
+
 def math_symbols = "∑∏∫√∞≠≈≤≥";
 
 IO::PrintLine("Emoji faces: " ++ emoji_faces);
@@ -69,6 +82,7 @@ IO::PrintLine("Math symbols: " ++ math_symbols);
 
 // Mixed Unicode
 def mixed = "English + 中文 + 日本語 + Emoji 🌍";
+
 def accented = "Café, naïve, résumé, Zürich";
 
 IO::PrintLine("Mixed: " ++ mixed);
@@ -76,7 +90,9 @@ IO::PrintLine("Accented: " ++ accented);
 
 // String concatenation
 def part1 = "Hello";
+
 def part2 = "World";
+
 def combined = part1 ++ " " ++ part2 ++ "!";
 
 IO::PrintLine("Concatenated: " ++ combined);

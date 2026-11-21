@@ -1,13 +1,21 @@
 module Concatenable
 public export { Concatenable }
-class Concatenable < T > {
+
+class Concatenable<T>
+{
     Concat: fn(left: T, right: T) -> T;
 };
-foreign "MARMOT_FFI_ArrayConcat" ArrayConcat: fn(Array < T >, Array < T >) -> Array < T >;
+
+foreign "MARMOT_FFI_ArrayConcat" ArrayConcat: fn(Array<T>, Array<T>) -> Array<T>;
+
 foreign "MARMOT_FFI_TextConcat" TextConcat: fn(Text, Text) -> Text;
-instance Concatenable < Array < T >> {
-    def Concat = fn(left: Array < T >, right: Array < T >) -> Array < T > => ArrayConcat(left, right);
+
+instance Concatenable<Array<T>>
+{
+    def Concat = fn(left: Array<T>, right: Array<T>) -> Array<T> => ArrayConcat(left, right);
 };
-instance Concatenable < Text > {
+
+instance Concatenable<Text>
+{
     def Concat = fn(left: Text, right: Text) -> Text => TextConcat(left, right);
 };

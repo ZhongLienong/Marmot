@@ -2,7 +2,6 @@ module ReadmePatternMatching
 
 type Result<T, E> = Ok(T) | Err(E);
 
-def handle_result = fn(result: Result<Int, Text>) -> Text =>
-    match result with
-        case Result::Ok(value) => "Success: " ++ (value as Text)
-        case Result::Err(msg) => "Error: " ++ msg;
+def handle_result = fn(result: Result<Int, Text>) -> Text => match result with
+    case Result::Ok(value) => "Success: " ++ (value as Text)
+    case Result::Err(msg) => "Error: " ++ msg;

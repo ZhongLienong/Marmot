@@ -1,3 +1,6 @@
 module TypeSystemLambdaMissingContext
 
-def identity = fn(x) => { x };  // error: no expected function type
+def identity = fn(x) =>
+{
+    x
+};  // error: no expected function type

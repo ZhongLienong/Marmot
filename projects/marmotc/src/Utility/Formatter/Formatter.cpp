@@ -949,7 +949,15 @@ namespace
 				const bool is_record_pattern = m_record_pattern_braces.contains(index);
 				const bool inline_brace = is_record_pattern || IsInlineBraceOpen(tokens, index);
 				WriteCurrentIndent();
-				MaybeWriteSpace(token_name, false);
+				if (inline_brace)
+				{
+					MaybeWriteSpace(token_name, false);
+				}
+				else if (!m_at_line_start)
+				{
+					WriteNewline();
+					WriteCurrentIndent();
+				}
 				m_output.push_back('{');
 				m_at_line_start = false;
 				m_previous_token = token_name;
@@ -1117,11 +1125,27 @@ namespace
 				m_previous_was_unary = false;
 				m_previous_was_type_bracket = false;
 				return;
+			case TokenName::THEN:
+			case TokenName::ELSE:
+				if (!m_at_line_start)
+				{
+					WriteNewline();
+				}
+				WriteCurrentIndent();
+				m_output += TokenText(token);
+				m_output.push_back(' ');
+				m_at_line_start = false;
+				m_previous_token = token_name;
+				m_last_code_token = token_name;
+				m_previous_was_unary = false;
+				m_previous_was_type_bracket = false;
+				return;
 			case TokenName::WITH:
 				WriteTokenText(token);
 				if (next_token == TokenName::CASE)
 				{
-					m_match_contexts.push_back(MatchContext{ m_indent + 1, m_paren_depth, m_bracket_depth, m_block_depth });
+					const int base_indent = m_match_contexts.empty() ? m_indent : m_match_contexts.back().m_indent;
+					m_match_contexts.push_back(MatchContext{ base_indent + 1, m_paren_depth, m_bracket_depth, m_block_depth });
 					WriteNewline();
 				}
 				return;

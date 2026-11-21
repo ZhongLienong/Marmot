@@ -1,7 +1,9 @@
 module SimpleModuleImport
-
 import { "simple_module_lib.mmt" }
 
-use TestModule.{Foo}
+use TestModule.
+{
+    Foo
+}
 
 Foo();

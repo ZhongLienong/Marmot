@@ -1,22 +1,19 @@
 module CallParenthesisedLambda
-
 // Test: a lambda called where it is written, inside parentheses. The type the
 // context expects is the call's result: an if-branch that must be Text was
 // checked against the lambda itself, and rejected it as "not Text".
 
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt"
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
-def Describe = fn(k : Int) -> Text => if k == 0 then "zero" else (fn(j : Int) -> Text => "next is " ++ ((j + 1) as Text))(k);
+def Describe = fn(k: Int) -> Text => if k == 0
+then "zero"
+else (fn(j: Int) -> Text => "next is " ++ ((j + 1) as Text))(k);
 
-def Inferred = fn(k : Int) -> Int => match k with
-	case 0 => 0
-	case _ => (fn(j) => j * 2)(k)
-;
+def Inferred = fn(k: Int) -> Int => match k with
+    case 0 => 0
+    case _ => (fn(j) => j * 2)(k);
 
-def top : Int = (fn(j : Int) -> Int => j + 1)(41);
+def top: Int = (fn(j: Int) -> Int => j + 1)(41);
 
 IO::PrintLine(Describe(0));
 IO::PrintLine(Describe(4));

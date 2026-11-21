@@ -1,21 +1,28 @@
 module channel_spawn_syntax
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt" }
 
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
-use IO.{PrintLine}
+use IO.
+{
+    PrintLine
+}
 
-def Producer = fn(ch: Channel<Text>) -> Int => {
+def Producer = fn(ch: Channel < Text >) -> Int =>
+{
     Concurrency::Send(ch, "left");
     Concurrency::Send(ch, "right");
     Concurrency::Close(ch);
     7
 };
 
-def ch : Channel<Text> = Concurrency::MakeChannel(2);
+def ch: Channel < Text > = Concurrency::MakeChannel(2);
+
 def worker = Concurrency::Spawn(ch, Producer);
+
 def first = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch), "Channel closed");
+
 def second = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch), "Channel closed");
+
 def result = Concurrency::JoinedOrPanic(Concurrency::Join(worker));
 
 PrintLine(first ++ "," ++ second ++ "," ++ (result as Text));

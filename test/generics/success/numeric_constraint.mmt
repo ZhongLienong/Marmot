@@ -8,9 +8,12 @@ def Add = fn<T>(a: T, b: T) -> Add::Output<T, T> where Add<T, T> => a + b;
 
 def Negate = fn<T>(value: T) -> Negate::Output<T> where Negate<T> => -value;
 
-def SumRange = fn<T>(start: T, step: T, end: T, total: T) -> T where Numeric<T>, Add<T, T>, Add::Output<T, T> ~ T => {
+def SumRange = fn<T>(start: T, step: T, end: T, total: T) -> T where Numeric<T>, Add<T, T>, Add::Output<T, T> ~ T =>
+{
     def values = [x for x in start..step..end];
-    if #values == 0 then total else total + values[0]
+    if #values == 0
+    then total
+    else total + values[0]
 };
 
 def Mask = fn<T>(value: T, mask: T) -> T where BitAnd<T, T>, BitAnd::Output<T, T> ~ T, BitXor<T, T>, BitXor::Output<T, T> ~ T, BitOr<T, T>, BitOr::Output<T, T> ~ T => (value & mask) | (value ^ value);

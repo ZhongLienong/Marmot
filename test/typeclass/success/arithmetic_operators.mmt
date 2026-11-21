@@ -1,49 +1,58 @@
 module ArithmeticOperators
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Numeric.mmt" }
 
-type Vector = {
+type Vector =
+{
     x: Int,
     y: Int
 };
 
-instance Add<Vector, Vector> {
+instance Add<Vector, Vector>
+{
     type Output = Vector;
     def Add = fn(a: Vector, b: Vector) -> Vector => Vector(a.x + b.x, a.y + b.y);
 };
 
-instance Multiply<Vector, Int> {
+instance Multiply<Vector, Int>
+{
     type Output = Vector;
     def Multiply = fn(a: Vector, scale: Int) -> Vector => Vector(a.x * scale, a.y * scale);
 };
 
-instance Multiply<Vector, Vector> {
+instance Multiply<Vector, Vector>
+{
     type Output = Int;
     def Multiply = fn(a: Vector, b: Vector) -> Int => a.x * b.x + a.y * b.y;
 };
 
-instance Negate<Vector> {
+instance Negate<Vector>
+{
     type Output = Vector;
     def Negate = fn(value: Vector) -> Vector => Vector(-value.x, -value.y);
 };
 
-instance Positive<Vector> {
+instance Positive<Vector>
+{
     type Output = Int;
     def Positive = fn(value: Vector) -> Int => value.x + value.y;
 };
 
-instance Multiply<Int, Vector> {
+instance Multiply<Int, Vector>
+{
     type Output = Vector;
     def Multiply = fn(scale: Int, value: Vector) -> Vector => Vector(scale * value.x, scale * value.y);
 };
 
 type Flags = Word;
 
-instance BitAnd<Flags, Flags> {
+instance BitAnd<Flags, Flags>
+{
     type Output = Flags;
     def BitAnd = fn(a: Flags, b: Flags) -> Flags => ((a as Word) & (b as Word)) as Flags;
 };
 
-instance ShiftLeft<Flags, Int> {
+instance ShiftLeft<Flags, Int>
+{
     type Output = Flags;
     def ShiftLeft = fn(value: Flags, amount: Int) -> Flags => ((value as Word) << amount) as Flags;
 };
@@ -52,7 +61,8 @@ def Sum = fn<L, R>(a: L, b: R) -> Add::Output<L, R> where Add<L, R> => a + b;
 
 def Product = fn<L, R>(a: L, b: R) -> Multiply::Output<L, R> where Multiply<L, R> => Multiply::Multiply(a, b);
 
-def MethodValue = fn<L, R>(a: L, b: R) -> Add::Output<L, R> where Add<L, R> => {
+def MethodValue = fn<L, R>(a: L, b: R) -> Add::Output<L, R> where Add<L, R> =>
+{
     def add: fn(L, R) -> Add::Output<L, R> = Add::Add;
     add(a, b)
 };
@@ -84,7 +94,8 @@ IO::PrintLine(ShiftLeft::ShiftLeft(0x03, 2) as Text);
 
 def visits = ref 0;
 
-def Visit = fn(value: Int) -> Vector => {
+def Visit = fn(value: Int) -> Vector =>
+{
     visits := *visits * 10 + value;
     Vector(value, value)
 };

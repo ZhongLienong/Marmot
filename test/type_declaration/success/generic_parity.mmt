@@ -1,36 +1,62 @@
 module TypeDeclarationGenericParity
-
 // Test: generic parameters, `where` constraints and `deriving` behave identically
 // across the record, sum and newtype bodies of `type`, because all three share one
 // prologue parser and differ only in the body that follows the `=`.
 
-import
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Equatable.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Hashable.mmt" }
+
+type Pair<A, B> =
 {
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-	"../../../projects/marmotstdlib/MarmotPrelude/Equatable.mmt",
-	"../../../projects/marmotstdlib/MarmotPrelude/Hashable.mmt"
+    first: A,
+    second: B
+};
+
+type Boxed<T> = Empty | Full(T) deriving(Map, Bind, Unwrap);
+
+type Tagged =
+{
+    label: Int,
+    weight: Int
 }
+deriving(Equatable, Hashable);
 
-type Pair<A, B> = { first: A, second: B };
-
-type Boxed<T> = Empty | Full(T) deriving (Map, Bind, Unwrap);
-
-type Tagged = { label: Int, weight: Int } deriving (Equatable, Hashable);
-
-def HashValue = fn<T>(value: T) -> Int where Hashable<T> => {
-	Hashable::Hash(value)
+def HashValue = fn<T>(value: T) -> Int where Hashable<T> =>
+{
+    Hashable::Hash(value)
 };
 
 def pair = Pair(10, "ten");
-def mapped = BoxedMap(Boxed::Full(5), fn(x) => { x + 1 });
-def bound = BoxedBind(mapped, fn(x) => { Boxed::Full(x * 2) });
+
+def mapped = BoxedMap
+(
+    Boxed::Full(5),
+    fn(x) =>
+    {
+        x + 1
+    }
+);
+
+def bound = BoxedBind
+(
+    mapped,
+    fn(x) =>
+    {
+        Boxed::Full(x * 2)
+    }
+);
+
 def unwrapped = BoxedUnwrap(bound, 0);
 
 def t1 = Tagged(1, 2);
+
 def t2 = Tagged(1, 2);
 
 IO::PrintLine("pair_first=" ++ (pair.first as Text));
 IO::PrintLine("pair_second=" ++ pair.second);
 IO::PrintLine("unwrapped=" ++ (unwrapped as Text));
-IO::PrintLine("derived_eq=" ++ (if t1 == t2 then "true" else "false"));
-IO::PrintLine("derived_hash_same=" ++ (if HashValue(t1) == HashValue(t2) then "true" else "false"));
+IO::PrintLine("derived_eq=" ++ (if t1 == t2
+then "true"
+else "false"));
+IO::PrintLine("derived_hash_same=" ++ (if HashValue(t1) == HashValue(t2)
+then "true"
+else "false"));

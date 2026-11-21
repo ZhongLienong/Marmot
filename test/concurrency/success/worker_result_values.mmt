@@ -1,50 +1,78 @@
 module worker_result_values
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt" }
 
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
-use IO.{PrintLine}
+use IO.
+{
+    PrintLine
+}
 
-def ReturnZero = fn(ch: Channel<Int>) -> Int => {
+def ReturnZero = fn(ch: Channel < Int >) -> Int =>
+{
     Concurrency::Send(ch, 0);
     0
 };
 
-def ReturnFortyTwo = fn(ch: Channel<Int>) -> Int => {
+def ReturnFortyTwo = fn(ch: Channel < Int >) -> Int =>
+{
     Concurrency::Send(ch, 42);
     0
 };
 
-def ReturnNegative = fn(ch: Channel<Int>) -> Int => {
+def ReturnNegative = fn(ch: Channel < Int >) -> Int =>
+{
     Concurrency::Send(ch, (0 - 1));
     0
 };
 
-def ComputeReturn = fn(ch: Channel<Int>, x: Int) -> Int => {
+def ComputeReturn = fn(ch: Channel < Int >, x: Int) -> Int =>
+{
     Concurrency::Send(ch, ((x * x) + 1));
     0
 };
 
-def ch1 : Channel<Int> = Concurrency::MakeChannel(1);
-def ch2 : Channel<Int> = Concurrency::MakeChannel(1);
-def ch3 : Channel<Int> = Concurrency::MakeChannel(1);
-def ch4 : Channel<Int> = Concurrency::MakeChannel(1);
+def ch1: Channel < Int > = Concurrency::MakeChannel(1);
+
+def ch2: Channel < Int > = Concurrency::MakeChannel(1);
+
+def ch3: Channel < Int > = Concurrency::MakeChannel(1);
+
+def ch4: Channel < Int > = Concurrency::MakeChannel(1);
 
 def w1 = Concurrency::Spawn(ch1, ReturnZero);
+
 def w2 = Concurrency::Spawn(ch2, ReturnFortyTwo);
+
 def w3 = Concurrency::Spawn(ch3, ReturnNegative);
+
 def w4 = Concurrency::Spawn((ch4, 7), ComputeReturn);
 
-PrintLine("zero=" ++ ((Option::OptionUnwrapOrPanic(Concurrency::Receive(ch1), "Channel closed")) as Text));
-PrintLine("fortytwo=" ++ ((Option::OptionUnwrapOrPanic(Concurrency::Receive(ch2), "Channel closed")) as Text));
-PrintLine("negative=" ++ ((Option::OptionUnwrapOrPanic(Concurrency::Receive(ch3), "Channel closed")) as Text));
-PrintLine("compute(7)=" ++ ((Option::OptionUnwrapOrPanic(Concurrency::Receive(ch4), "Channel closed")) as Text));
+PrintLine
+(
+    "zero=" ++ ((Option::OptionUnwrapOrPanic(Concurrency::Receive(ch1), "Channel closed")) as Text)
+);
+PrintLine
+(
+    "fortytwo=" ++ ((Option::OptionUnwrapOrPanic(Concurrency::Receive(ch2), "Channel closed")) as Text)
+);
+PrintLine
+(
+    "negative=" ++ ((Option::OptionUnwrapOrPanic(Concurrency::Receive(ch3), "Channel closed")) as Text)
+);
+PrintLine
+(
+    "compute(7)=" ++ ((Option::OptionUnwrapOrPanic(Concurrency::Receive(ch4), "Channel closed")) as Text)
+);
 
 Concurrency::Close(ch1);
 Concurrency::Close(ch2);
 Concurrency::Close(ch3);
 Concurrency::Close(ch4);
+
 def _r1 = Concurrency::JoinedOrPanic(Concurrency::Join(w1));
+
 def _r2 = Concurrency::JoinedOrPanic(Concurrency::Join(w2));
+
 def _r3 = Concurrency::JoinedOrPanic(Concurrency::Join(w3));
+
 def _r4 = Concurrency::JoinedOrPanic(Concurrency::Join(w4));

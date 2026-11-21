@@ -1,5 +1,4 @@
 module IntegerWrapping
-
 // Test: Int arithmetic wraps in two's complement, the same whether the
 // optimizer folds an expression or the VM computes it. `Opaque` hides a value
 // from the folder. The overflowing quotient, minimum / -1, used to trap in
@@ -7,15 +6,14 @@ module IntegerWrapping
 // was rewritten to a shift and a mask, which round a negative number the
 // wrong way.
 
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt"
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
-def Opaque = fn(n : Int) -> Int => n;
-def Show = fn(label : Text, folded : Int, computed : Int) -> Unit => IO::PrintLine(label ++ " " ++ (folded as Text) ++ " " ++ (computed as Text));
+def Opaque = fn(n: Int) -> Int => n;
+
+def Show = fn(label: Text, folded: Int, computed: Int) -> Unit => IO::PrintLine(label ++ " " ++ (folded as Text) ++ " " ++ (computed as Text));
 
 def maximum = 9223372036854775807;
+
 def minimum = -9223372036854775807 - 1;
 
 Show("max+1", 9223372036854775807 + 1, Opaque(maximum) + Opaque(1));

@@ -1,53 +1,50 @@
 module TupleDefinitionOfMatch
-
 // Regression: `def (x, y) = match ...` inside a function did not reserve the
 // bindings' stack slots before evaluating the match, whose hidden locals are
 // numbered after them, so the program crashed with a memory access violation.
 
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt"
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 type Op = Leaf | One(Int) | Two(Int, Int);
 
 def Describe = fn(op: Op) -> (Int, Text) =>
 {
-	def (arity, label) =
-		match op with
-			case Op::Two(a, b) => (2, "two " ++ ((a + b) as Text))
-			case Op::One(a) => (1, "one " ++ (a as Text))
-			case Op::Leaf() => (0, "leaf");
-	(arity * 10, label)
+    def (arity, label) = match op with
+        case Op::Two(a, b) => (2, "two " ++ ((a + b) as Text))
+        case Op::One(a) => (1, "one " ++ (a as Text))
+        case Op::Leaf() => (0, "leaf");
+    (arity * 10, label)
 };
 
 // Recursion through a destructured match with a block arm, followed by a tuple
 // built from comprehensions.
 def Visit = fn(ops: Array<Op>, v: Int, order: Array<Int>) -> (Int, Array<Int>) =>
 {
-	def (count, after) =
-		match ops[v] with
-			case Op::Two(a, b) =>
-			{
-				def (count_a, order_a) = Visit(ops, a, order);
-				def (count_b, order_b) = Visit(ops, b, order_a);
-				(count_a + count_b, order_b)
-			}
-			case Op::One(a) => Visit(ops, a, order)
-			case Op::Leaf() => (0, order);
-	def (doubled, squared) = ([n * 2 for n in after], [n * n for n in after]);
-	(count + 1 + (#doubled) - (#squared), after ++ [v])
+    def (count, after) = match ops[v] with
+        case Op::Two(a, b) =>
+    {
+            def (count_a, order_a) = Visit(ops, a, order);
+            def (count_b, order_b) = Visit(ops, b, order_a);
+            (count_a + count_b, order_b)
+        }
+        case Op::One(a) => Visit(ops, a, order)
+        case Op::Leaf() => (0, order);
+    def (doubled, squared) = ([n * 2 for n in after], [n * n for n in after]);
+    (count + 1 + (#doubled) - (#squared), after ++ [v])
 };
 
 def (arity, label) = Describe(Op::Two(3, 4));
 IO::PrintLine((arity as Text) ++ " " ++ label);
 
 def ops = [Op::Leaf(), Op::Leaf(), Op::Two(0, 1), Op::One(2)];
-def (count, order) = Visit(ops, 3, []);
-IO::PrintLine("count=" ++ (count as Text) ++ " order_length=" ++ ((#order) as Text) ++ " last=" ++ (order[3] as Text));
 
-def (top_arity, top_label) =
-	match Op::One(9) with
-		case Op::One(a) => (a, "top")
-		case _ => (0, "other");
+def (count, order) = Visit(ops, 3, []);
+IO::PrintLine
+(
+    "count=" ++ (count as Text) ++ " order_length=" ++ ((#order) as Text) ++ " last=" ++ (order[3] as Text)
+);
+
+def (top_arity, top_label) = match Op::One(9) with
+    case Op::One(a) => (a, "top")
+    case _ => (0, "other");
 IO::PrintLine((top_arity as Text) ++ " " ++ top_label);

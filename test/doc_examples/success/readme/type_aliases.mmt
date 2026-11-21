@@ -2,13 +2,20 @@ module ReadmeTypeAliases
 
 // An alias is transparent: UserId and Int are the same type.
 alias UserId = Int;
+
 alias Name = Text;
 
 def user_id: UserId = 42;
+
 def user_name: Name = "Alice";
 
 // Aliases abbreviate any type expression, generic ones included.
-type Pair<A, B> = { first: A, second: B };
+type Pair<A, B> =
+{
+    first: A,
+    second: B
+};
+
 alias IntPair = Pair<Int, Int>;
 
 def coords: IntPair = Pair(1, 2);
@@ -18,4 +25,5 @@ def coords: IntPair = Pair(1, 2);
 type Meters = Int;
 
 def distance: Meters = 12 as Meters;
+
 def raw: Int = distance as Int;

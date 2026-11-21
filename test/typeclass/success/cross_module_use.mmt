@@ -1,11 +1,11 @@
 module CrossModuleUse
-
 // Test: Import class from another module and use it
 
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "./show_typeclass.mmt" }
 
 // Define a constrained generic function using the imported typeclass
-def display = fn<T>(value: T) -> Text where Show<T> => {
+def display = fn<T>(value: T) -> Text where Show<T> =>
+{
     Show::show(value)
 };
 

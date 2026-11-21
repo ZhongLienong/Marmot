@@ -1,49 +1,48 @@
 module ConstructorWithoutNew
-
 // Calling the constructor is how a struct is built: `Point(1, 2)` parses to a
 // MarmotExpression::Construct node. This was one of two spellings, pinned here against a
 // `new Point(1, 2)` that had to agree with it; `new` is gone and this is the only form.
 
-import
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-}
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
 type Point =
 {
-	x : Int,
-	y : Int
+    x: Int,
+    y: Int
 };
 
 type Bag<T> =
 {
-	items : Array<T>,
-	extra : T
+    items: Array<T>,
+    extra: T
 };
 
 type Wrapper =
 {
-	inner : Point,
-	label : Text
+    inner: Point,
+    label: Text
 };
 
 // The constructor is monomorphised per construction site, so it is not a value; a lambda
 // is how you pass one around, and the lambda body uses the bare spelling.
-def make : fn(Int, Int) -> Point = fn(a, b) => { Point(a, b) };
-
-def MakeBagInner = fn<T>(items : Array<T>, extra : T) -> Bag<T> =>
+def make: fn(Int, Int) -> Point = fn(a, b) =>
 {
-	Bag(items, extra)
+    Point(a, b)
 };
 
-def MakeBag = fn<T>(items : Array<T>, extra : T) -> Bag<T> =>
+def MakeBagInner = fn<T>(items: Array<T>, extra: T) -> Bag<T> =>
 {
-	MakeBagInner(items, extra)
+    Bag(items, extra)
 };
 
-def ShowPoint = fn(p : Point) -> Text =>
+def MakeBag = fn<T>(items: Array<T>, extra: T) -> Bag<T> =>
 {
-	(p.x as Text) ++ "," ++ (p.y as Text)
+    MakeBagInner(items, extra)
+};
+
+def ShowPoint = fn(p: Point) -> Text =>
+{
+    (p.x as Text) ++ "," ++ (p.y as Text)
 };
 
 def bare = Point(1, 2);
@@ -75,5 +74,8 @@ IO::PrintLine("through_lambda: " ++ ShowPoint(through_lambda));
 
 // A record update over a bare construction, to show the node is the same one the rest of
 // the pipeline already understands.
-def updated = { Point(20, 21) with y = 99 };
+def updated =
+{
+    Point(20, 21) with y = 99
+};
 IO::PrintLine("updated: " ++ ShowPoint(updated));

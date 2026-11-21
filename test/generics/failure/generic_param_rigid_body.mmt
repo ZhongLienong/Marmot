@@ -1,5 +1,4 @@
 module GenericParamRigidBody
-
 // Test: Generic parameters are rigid in function bodies.
 // Expected: SHOULD FAIL - 'T' cannot be unified to 'Text' implicitly.
 
@@ -12,4 +11,3 @@ def Bad = fn<T>(value: T) -> Unit =>
 
 // Call the function to trigger the type error
 def result = Bad(42);
-

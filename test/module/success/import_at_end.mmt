@@ -2,13 +2,20 @@ module ImportAtEnd
 
 // Test: import statement at the very end
 
-def helper = fn(x: Float) -> Float => { x * 2.0 };
+def helper = fn(x: Float) -> Float =>
+{
+    x * 2.0
+};
 
-def main = fn() -> Unit => {
+def main = fn() -> Unit =>
+{
     PrintLine("Result: " ++ (helper(10.0) as Text));
 };
 
 main();
 
 import { <IO> }
-use IO.{PrintLine}
+use IO.
+{
+    PrintLine
+}

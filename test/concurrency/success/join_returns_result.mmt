@@ -1,34 +1,34 @@
 module JoinReturnsResult
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/System.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt" }
 
-import
+use Result.
 {
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-	"../../../projects/marmotstdlib/MarmotPrelude/System.mmt",
-	"../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt",
-	"../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt"
+    Result
 }
-
-use Result.{Result}
-use Concurrency.{WorkerError}
+use Concurrency.
+{
+    WorkerError
+}
 
 // `Concurrency::Join(w)` evaluates to Result<Int, WorkerError>. A worker that fails or is
 // cancelled used to terminate the joining program with the worker's error; now
 // the joiner receives Err(...) and carries on, which is what worker isolation is
 // for.
 
-def Double = fn(n : Int) -> Int => n * 2;
-// A runtime error inside the worker: index 7 of a three-element array.
-def Fail = fn(n : Int) -> Int => [1, 2, 3][n];
-def SpinFrom = fn(i : Int) -> Int => SpinFrom(i + 1);
-def Spin = fn(_start : Int) -> Int => SpinFrom(0);
+def Double = fn(n: Int) -> Int => n * 2;
 
-def Describe = fn(label : Text, result : Result<Int, WorkerError>) -> Unit =>
-	match result with
-	case Result::Ok(value) => IO::PrintLine(label ++ ": Ok(" ++ (value as Text) ++ ")")
-	case Result::Err(error) =>
-		match error with
-		case WorkerError::Cancelled() => IO::PrintLine(label ++ ": Err(Cancelled)")
-		case WorkerError::Failed(message) => IO::PrintLine(label ++ ": Err(Failed: " ++ message ++ ")");
+// A runtime error inside the worker: index 7 of a three-element array.
+def Fail = fn(n: Int) -> Int => [1, 2, 3][n];
+
+def SpinFrom = fn(i: Int) -> Int => SpinFrom(i + 1);
+
+def Spin = fn(_start: Int) -> Int => SpinFrom(0);
+
+def Describe = fn(label: Text, result: Result<Int, WorkerError>) -> Unit => match result with
+    case Result::Ok(value) => IO::PrintLine(label ++ ": Ok(" ++ (value as Text) ++ ")")
+    case Result::Err(error) => match error with
+        case WorkerError::Cancelled() => IO::PrintLine(label ++ ": Err(Cancelled)")
+        case WorkerError::Failed(message) => IO::PrintLine(label ++ ": Err(Failed: " ++ message ++ ")");
 
 def succeeding = Concurrency::Spawn(21, Double);
 Describe("succeeding", Concurrency::Join(succeeding));
@@ -38,9 +38,15 @@ Describe("failing", Concurrency::Join(failing));
 
 def spinning = Concurrency::Spawn(0, Spin);
 System::Sleep(20);
+
 def cancelled = Concurrency::Cancel(spinning);
 Describe("cancelled", Concurrency::Join(spinning));
 
 // Still running after two workers went wrong.
-IO::PrintLine("joiner still running; cancel returned " ++ (if cancelled then "true" else "false"));
-IO::PrintLine("JoinedOrPanic: " ++ (Concurrency::JoinedOrPanic(Concurrency::Join(Concurrency::Spawn(50, Double))) as Text));
+IO::PrintLine("joiner still running; cancel returned " ++ (if cancelled
+then "true"
+else "false"));
+IO::PrintLine
+(
+    "JoinedOrPanic: " ++ (Concurrency::JoinedOrPanic(Concurrency::Join(Concurrency::Spawn(50, Double))) as Text)
+);

@@ -1,22 +1,51 @@
 module PreludeHelpers
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/List.mmt" }
 
-import
+use IO.
 {
-    "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/Prelude/List.mmt"
+    PrintLine
 }
-
-use IO.{PrintLine}
-use Option.{Option, OptionMap, OptionBind, OptionIsSome, OptionIsNone, OptionOrElse, OptionUnwrap, OptionUnwrapOrElse, OptionUnwrapOrPanic}
-use Result.{Result, ResultMap, ResultBind, ResultMapError, ResultIsOk, ResultIsError, ResultUnwrap, ResultUnwrapOrElse, ResultUnwrapOrPanic}
-use List.{List, ListMap, ListLength, ListAppend, ListFilter, ListReverse, ListFold, ListFromArray, ListToArray}
+use Option.
+{
+    Option,
+    OptionMap,
+    OptionBind,
+    OptionIsSome,
+    OptionIsNone,
+    OptionOrElse,
+    OptionUnwrap,
+    OptionUnwrapOrElse,
+    OptionUnwrapOrPanic
+}
+use Result.
+{
+    Result,
+    ResultMap,
+    ResultBind,
+    ResultMapError,
+    ResultIsOk,
+    ResultIsError,
+    ResultUnwrap,
+    ResultUnwrapOrElse,
+    ResultUnwrapOrPanic
+}
+use List.
+{
+    List,
+    ListMap,
+    ListLength,
+    ListAppend,
+    ListFilter,
+    ListReverse,
+    ListFold,
+    ListFromArray,
+    ListToArray
+}
 
 def inc = fn(x: Int) -> Int => x + 1;
 
-def to_some = fn(x: Int) -> Option<Int> => {
+def to_some = fn(x: Int) -> Option<Int> =>
+{
     if x > 0
     then Option::Some(x + 10)
     else Option::None()
@@ -24,114 +53,208 @@ def to_some = fn(x: Int) -> Option<Int> => {
 
 def is_even = fn(x: Int) -> Bool => (x % 2) == 0;
 
-def Expect = fn(condition: Bool, message: Text) -> Unit => {
+def Expect = fn(condition: Bool, message: Text) -> Unit =>
+{
     if condition
     then ()
     else Panic::Panic(message)
 };
 
-def ExpectSomeInt = fn(option: Option<Int>, expected: Int, message: Text) -> Unit => {
+def ExpectSomeInt = fn(option: Option<Int>, expected: Int, message: Text) -> Unit =>
+{
     match option with
         case Option::Some(value) => Expect(value == expected, message)
         case Option::None() => Panic::Panic(message)
 };
 
-def ExpectOkInt = fn(result: Result<Int, Text>, expected: Int, message: Text) -> Unit => {
+def ExpectOkInt = fn(result: Result<Int, Text>, expected: Int, message: Text) -> Unit =>
+{
     match result with
-        case Result::Ok(value) => Expect(value == expected, message)
-        case Result::Err(_) => Panic::Panic(message)
+            case Result::Ok(value) => Expect(value == expected, message)
+            case Result::Err(_) => Panic::Panic(message)
 };
 
-def ExpectErrText = fn(result: Result<Int, Text>, expected: Text, message: Text) -> Unit => {
+def ExpectErrText = fn(result: Result<Int, Text>, expected: Text, message: Text) -> Unit =>
+{
     match result with
-        case Result::Ok(_) => Panic::Panic(message)
-        case Result::Err(err) => Expect(err == expected, message)
+                case Result::Ok(_) => Panic::Panic(message)
+                case Result::Err(err) => Expect(err == expected, message)
 };
 
-def opt_value : Option<Int> = Option::Some(1);
-def empty_option : Option<Int> = Option::None();
+def opt_value: Option<Int> = Option::Some(1);
+
+def empty_option: Option<Int> = Option::None();
 
 ExpectSomeInt(OptionMap(opt_value, inc), 2, "OptionMap should transform a present value");
 ExpectSomeInt(OptionBind(opt_value, to_some), 11, "OptionBind should flatten the mapped option");
 Expect(OptionUnwrap(empty_option, 5) == 5, "OptionUnwrap should return the default for None");
-Expect(OptionUnwrapOrPanic(opt_value, "unexpected None") == 1, "OptionUnwrapOrPanic should return the present value");
+Expect
+(
+    OptionUnwrapOrPanic(opt_value, "unexpected None") == 1,
+    "OptionUnwrapOrPanic should return the present value"
+);
 Expect(OptionIsSome(opt_value), "OptionIsSome should report true for Some");
 Expect(!OptionIsSome(empty_option), "OptionIsSome should report false for None");
 Expect(OptionIsNone(empty_option), "OptionIsNone should report true for None");
 Expect(!OptionIsNone(opt_value), "OptionIsNone should report false for Some");
 
-def option_default = fn() -> Int => {
+def option_default = fn() -> Int =>
+{
     IO::PrintLine("option_default ran");
     9
 };
 
-Expect(OptionUnwrapOrElse(opt_value, option_default) == 1, "OptionUnwrapOrElse should preserve Some values");
-Expect(OptionUnwrapOrElse(empty_option, option_default) == 9, "OptionUnwrapOrElse should compute the fallback for None");
+Expect
+(
+    OptionUnwrapOrElse(opt_value, option_default) == 1,
+    "OptionUnwrapOrElse should preserve Some values"
+);
+Expect
+(
+    OptionUnwrapOrElse(empty_option, option_default) == 9,
+    "OptionUnwrapOrElse should compute the fallback for None"
+);
 
-def option_fallback = fn() -> Option<Int> => {
+def option_fallback = fn() -> Option<Int> =>
+{
     IO::PrintLine("option_fallback ran");
     Option::Some(12)
 };
 
-ExpectSomeInt(OptionOrElse(opt_value, option_fallback), 1, "OptionOrElse should preserve Some values");
-ExpectSomeInt(OptionOrElse(empty_option, option_fallback), 12, "OptionOrElse should use the fallback for None");
+ExpectSomeInt
+(
+    OptionOrElse(opt_value, option_fallback),
+    1,
+    "OptionOrElse should preserve Some values"
+);
+ExpectSomeInt
+(
+    OptionOrElse(empty_option, option_fallback),
+    12,
+    "OptionOrElse should use the fallback for None"
+);
 
-def ok_value : Result<Int, Text> = Result::Ok(7);
-def err_value : Result<Int, Text> = Result::Err("nope");
+def ok_value: Result<Int, Text> = Result::Ok(7);
+
+def err_value: Result<Int, Text> = Result::Err("nope");
 
 ExpectOkInt(ResultMap(ok_value, inc), 8, "ResultMap should transform Ok values");
-ExpectErrText(ResultBind(err_value, fn(x: Int) -> Result<Int, Text> => Result::Ok(x + 1)), "nope", "ResultBind should preserve Err values");
+ExpectErrText
+(
+    ResultBind(err_value, fn(x: Int) -> Result<Int, Text> => Result::Ok(x + 1)),
+    "nope",
+    "ResultBind should preserve Err values"
+);
 Expect(ResultUnwrap(err_value, 42) == 42, "ResultUnwrap should return the default for Err");
-Expect(ResultUnwrapOrPanic(ok_value, "unexpected error") == 7, "ResultUnwrapOrPanic should return the Ok value");
+Expect
+(
+    ResultUnwrapOrPanic(ok_value, "unexpected error") == 7,
+    "ResultUnwrapOrPanic should return the Ok value"
+);
 Expect(ResultIsOk(ok_value), "ResultIsOk should report true for Ok");
 Expect(!ResultIsOk(err_value), "ResultIsOk should report false for Err");
 Expect(ResultIsError(err_value), "ResultIsError should report true for Err");
 Expect(!ResultIsError(ok_value), "ResultIsError should report false for Ok");
 
-def map_error = fn(message: Text) -> Text => {
+def map_error = fn(message: Text) -> Text =>
+{
     IO::PrintLine("map_error ran");
     "wrapped: " ++ message
 };
 
 ExpectOkInt(ResultMapError(ok_value, map_error), 7, "ResultMapError should preserve Ok values");
-ExpectErrText(ResultMapError(err_value, map_error), "wrapped: nope", "ResultMapError should transform Err values");
+ExpectErrText
+(
+    ResultMapError(err_value, map_error),
+    "wrapped: nope",
+    "ResultMapError should transform Err values"
+);
 
-def unwrap_error = fn(message: Text) -> Int => {
+def unwrap_error = fn(message: Text) -> Int =>
+{
     IO::PrintLine("unwrap_error ran");
     if message == "nope"
     then 4
     else 0
 };
 
-Expect(ResultUnwrapOrElse(ok_value, unwrap_error) == 7, "ResultUnwrapOrElse should preserve Ok values");
-Expect(ResultUnwrapOrElse(err_value, unwrap_error) == 4, "ResultUnwrapOrElse should compute the fallback from Err");
+Expect
+(
+    ResultUnwrapOrElse(ok_value, unwrap_error) == 7,
+    "ResultUnwrapOrElse should preserve Ok values"
+);
+Expect
+(
+    ResultUnwrapOrElse(err_value, unwrap_error) == 4,
+    "ResultUnwrapOrElse should compute the fallback from Err"
+);
 
-def list1 : List<Int> = List::Cons(1, List::Cons(2, List::Cons(3, List::Nil())));
+def list1: List<Int> = List::Cons(1, List::Cons(2, List::Cons(3, List::Nil())));
+
 def list2 = ListMap(list1, inc);
+
 def list3 = ListAppend(list1, list2);
+
 def list4 = ListFilter(list3, is_even);
+
 def list2_values = ListToArray(list2);
+
 def list4_values = ListToArray(list4);
 
 Expect(ListLength(list4) == 3, "ListFilter should keep only the matching values");
-Expect((#list2_values == 3) && (list2_values[0] == 2) && (list2_values[1] == 3) && (list2_values[2] == 4), "ListMap should preserve order while transforming elements");
-Expect((#list4_values == 3) && (list4_values[0] == 2) && (list4_values[1] == 2) && (list4_values[2] == 4), "ListToArray should preserve the filtered order");
+Expect
+(
+    (#list2_values == 3) && (list2_values[0] == 2) && (list2_values[1] == 3) && (list2_values[2] == 4),
+    "ListMap should preserve order while transforming elements"
+);
+Expect
+(
+    (#list4_values == 3) && (list4_values[0] == 2) && (list4_values[1] == 2) && (list4_values[2] == 4),
+    "ListToArray should preserve the filtered order"
+);
 
 def reversed_values = ListToArray(ListReverse(list1));
-Expect((#reversed_values == 3) && (reversed_values[0] == 3) && (reversed_values[1] == 2) && (reversed_values[2] == 1), "ListReverse should invert element order");
+Expect
+(
+    (#reversed_values == 3) && (reversed_values[0] == 3) && (reversed_values[1] == 2) && (reversed_values[2] == 1),
+    "ListReverse should invert element order"
+);
 
-Expect(ListFold(list1, 0, fn(total: Int, value: Int) -> Int => total + value) == 6, "ListFold should accumulate values from left to right");
+Expect
+(
+    ListFold(list1, 0, fn(total: Int, value: Int) -> Int => total + value) == 6,
+    "ListFold should accumulate values from left to right"
+);
+
 // Arguments are unified left to right, so a construction in the first argument is checked
 // while the callee's own type parameter is still free. Bind it under an annotation instead.
-def empty_list : List<Int> = List::Nil();
-Expect(ListFold(empty_list, 5, fn(total: Int, value: Int) -> Int => total + value) == 5, "ListFold should return the initial value for an empty list");
+def empty_list: List<Int> = List::Nil();
+Expect
+(
+    ListFold(empty_list, 5, fn(total: Int, value: Int) -> Int => total + value) == 5,
+    "ListFold should return the initial value for an empty list"
+);
 
 def from_array_values = ListFromArray([4, 5, 6]);
-def from_array_roundtrip = ListToArray(from_array_values);
-Expect(ListLength(from_array_values) == 3, "ListFromArray should create one list node per array element");
-Expect((#from_array_roundtrip == 3) && (from_array_roundtrip[0] == 4) && (from_array_roundtrip[1] == 5) && (from_array_roundtrip[2] == 6), "ListFromArray and ListToArray should round-trip array ordering");
 
-def even_sum = ListFold(ListFilter(ListFromArray([1, 2, 3, 4, 5]), is_even), 0, fn(total: Int, value: Int) -> Int => total + value);
+def from_array_roundtrip = ListToArray(from_array_values);
+Expect
+(
+    ListLength(from_array_values) == 3,
+    "ListFromArray should create one list node per array element"
+);
+Expect
+(
+    (#from_array_roundtrip == 3) && (from_array_roundtrip[0] == 4) && (from_array_roundtrip[1] == 5) && (from_array_roundtrip[2] == 6),
+    "ListFromArray and ListToArray should round-trip array ordering"
+);
+
+def even_sum = ListFold
+(
+    ListFilter(ListFromArray([1, 2, 3, 4, 5]), is_even),
+    0,
+    fn(total: Int, value: Int) -> Int => total + value
+);
 Expect(even_sum == 6, "The new List helpers should compose for ordinary data-processing code");
 
 PrintLine("prelude_helpers: PASS");

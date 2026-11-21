@@ -1,19 +1,17 @@
 module HashSetOperations
+import { "../../../projects/marmotstdlib/MarmotPrelude/Collections/Set.mmt", "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Iterable.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt" }
 
-import
+use Option.
 {
-    "../../../projects/marmotstdlib/MarmotPrelude/Collections/Set.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/Iterable.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt"
+    Option
 }
 
-use Option.{ Option }
+def Expect = fn(condition: Bool, message: Text) -> Unit => if condition
+then ()
+else Panic::Panic(message);
 
-def Expect = fn(condition: Bool, message: Text) -> Unit => if condition then () else Panic::Panic(message);
+def words0: Set::Set<Text> = Set::SetEmpty();
 
-def words0 : Set::Set < Text > = Set::SetEmpty();
 def words = Set::SetWith(Set::SetWith(Set::SetWith(words0, "alpha"), "beta"), "alpha");
 Expect(Set::SetCount(words) == 2, "a repeated value is stored once");
 Expect(Set::SetHas(words, "alpha"), "a text value is found");
@@ -21,10 +19,11 @@ Expect(!Set::SetHas(words, "gamma"), "an absent text value is absent");
 Expect(#Set::SetToArray(words) == 2, "SetToArray returns every value once");
 Expect(#words == 2, "Countable resolves for a set");
 
-def negatives0 : Set::Set < Int > = Set::SetEmpty();
-def negatives = Set::SetWith(Set::SetWith(negatives0, - 1), - 33);
-Expect(Set::SetHas(negatives, - 1), "a negative value is found");
-Expect(Set::SetHas(negatives, - 33), "a second negative value is found");
+def negatives0: Set::Set<Int> = Set::SetEmpty();
+
+def negatives = Set::SetWith(Set::SetWith(negatives0, -1), -33);
+Expect(Set::SetHas(negatives, -1), "a negative value is found");
+Expect(Set::SetHas(negatives, -33), "a second negative value is found");
 
 def removed = Set::SetWithout(words, "alpha");
 Expect(Set::SetCount(removed) == 1, "removal decrements");
@@ -32,13 +31,13 @@ Expect(!Set::SetHas(removed, "alpha"), "the removed value is gone");
 Expect(Set::SetHas(words, "alpha"), "removal leaves the source alone");
 Expect(Set::SetCount(Set::SetWithout(words, "absent")) == 2, "removing an absent value is a no-op");
 
-def CountValues = fn(state: Set::SetIter < Text >, acc: Int) -> Int =>
-    match Iterable::Next(state) with
-        case Option::Some(step) => {
-            def (_, rest) = step;
-            CountValues(rest, acc + 1)
-        }
-        case Option::None() => acc;
+def CountValues = fn(state: Set::SetIter<Text>, acc: Int) -> Int => match Iterable::Next(state) with
+    case Option::Some(step) =>
+{
+        def (_, rest) = step;
+        CountValues(rest, acc + 1)
+    }
+    case Option::None() => acc;
 
 def seen = CountValues(Set::SetIterNew(words), 0);
 Expect(seen == 2, "iteration visits every value exactly once");

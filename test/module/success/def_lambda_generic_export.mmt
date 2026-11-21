@@ -1,10 +1,5 @@
 module DefLambdaGenericExport
-
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-	"./def_lambda_generic_export_lib.mmt"
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "./def_lambda_generic_export_lib.mmt" }
 
 IO::PrintLine(DefLambdaGenericExportLib::Identity(7) as Text);
 IO::PrintLine(DefLambdaGenericExportLib::Identity("seven"));

@@ -1,14 +1,9 @@
 module OrPatternBindingTypesDiffer
-
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt"
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 type Shape = Line(Int) | Label(Text);
 
-def Describe = fn(shape : Shape) -> Int =>
-	match shape with
-		case Shape::Line(value) | Shape::Label(value) => 1;
+def Describe = fn(shape: Shape) -> Int => match shape with
+    case Shape::Line(value) | Shape::Label(value) => 1;
 
 IO::PrintLine(Describe(Shape::Line(1)) as Text);

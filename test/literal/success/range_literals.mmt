@@ -1,71 +1,84 @@
 module RangeLiterals
-
-import
-{
-    <IO>
-}
+import { <IO> }
 
 IO::PrintLine("=== Range Literal Tests ===");
 
 // Basic ranges with positive step
 def range_0_to_10 = 0..1..10;
+
 def range_1_to_5 = 1..1..5;
+
 def range_0_to_100 = 0..10..100;
 
-def SumArray = fn(values: Array < Int >, index: Int, acc: Int) -> Int =>
-    if index >= #values then acc else SumArray(values, index + 1, acc + values[index]);
-def SumFloatArray = fn(values: Array < Float >, index: Int, acc: Float) -> Float =>
-    if index >= #values then acc else SumFloatArray(values, index + 1, acc + values[index]);
+def SumArray = fn(values: Array<Int>, index: Int, acc: Int) -> Int => if index >= #values
+then acc
+else SumArray(values, index + 1, acc + values[index]);
+
+def SumFloatArray = fn(values: Array<Float>, index: Int, acc: Float) -> Float => if index >= #values
+then acc
+else SumFloatArray(values, index + 1, acc + values[index]);
 IO::PrintLine("Testing range 0..1..10");
+
 def sum1 = SumArray([i for i in range_0_to_10], 0, 0);
 IO::PrintLine("Sum of 0..1..10: " ++ (sum1 as Text));
 
 IO::PrintLine("Testing range 1..1..5");
+
 def sum2 = SumArray([i for i in range_1_to_5], 0, 0);
 IO::PrintLine("Sum of 1..1..5: " ++ (sum2 as Text));
 
 // Ranges with larger steps
 def range_0_to_20_by_2 = 0..2..20;
+
 def range_0_to_30_by_3 = 0..3..30;
+
 def range_0_to_50_by_5 = 0..5..50;
 
 IO::PrintLine("Testing range 0..2..20 (evens)");
+
 def sum3 = SumArray([i for i in range_0_to_20_by_2], 0, 0);
 IO::PrintLine("Sum of 0..2..20: " ++ (sum3 as Text));
 
 IO::PrintLine("Testing range 0..5..50");
+
 def sum4 = SumArray([i for i in range_0_to_50_by_5], 0, 0);
 IO::PrintLine("Sum of 0..5..50: " ++ (sum4 as Text));
 
 // Backward ranges (negative step)
-def range_10_to_0 = 10..-1..0;
-def range_20_to_0_by_2 = 20..-2..0;
+def range_10_to_0 = 10..- 1..0;
+
+def range_20_to_0_by_2 = 20..- 2..0;
 
 IO::PrintLine("Testing range 10..-1..0 (backward)");
+
 def sum5 = SumArray([i for i in range_10_to_0], 0, 0);
 IO::PrintLine("Sum of 10..-1..0: " ++ (sum5 as Text));
 
 // Single element range
 def range_single = 5..1..6;
 IO::PrintLine("Testing single element range 5..1..6");
+
 def sum6 = SumArray([i for i in range_single], 0, 0);
 IO::PrintLine("Sum of 5..1..6: " ++ (sum6 as Text));
 
 // Large range
 def range_large = 0..1..1000;
 IO::PrintLine("Testing large range 0..1..1000");
+
 def count = #[i for i in range_large];
 IO::PrintLine("Count in 0..1..1000: " ++ (count as Text));
 
 // Negative ranges
 def range_negative = -10..1..10;
 IO::PrintLine("Testing negative range -10..1..10");
+
 def sum7 = SumArray([i for i in range_negative], 0, 0);
 IO::PrintLine("Sum of -10..1..10: " ++ (sum7 as Text));
 
 // Float ranges (if supported)
 def range_float = 0.0..0.5..5.0;
 IO::PrintLine("Testing float range 0.0..0.5..5.0");
+
 def sum8 = SumFloatArray([i for i in range_float], 0, 0.0);
 IO::PrintLine("Sum of float range: " ++ (sum8 as Text));
 

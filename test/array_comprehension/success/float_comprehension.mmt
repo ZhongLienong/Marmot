@@ -1,18 +1,22 @@
 module FloatComprehension
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
-use IO.{PrintLine}
+use IO.
+{
+    PrintLine
+}
 
 // Test float range comprehension
 def floats = [x * 0.5 for x in 0.0..1.0..4.0];
 PrintLine("Floats:");
-for f in floats {
+for f in floats
+{
     PrintLine(f as Text);
 };
 
 // Test float with complex step
 def precise = [x for x in 0.0..0.1..0.5];
 PrintLine("Precise steps:");
-for p in precise {
+for p in precise
+{
     PrintLine(p as Text);
 };

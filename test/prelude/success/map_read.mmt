@@ -1,17 +1,19 @@
 module PreludeMapRead
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/Collections/Map.mmt", "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt" }
 
-def Expect = fn(condition: Bool, message: Text) -> Unit => if condition then () else Panic::Panic(message);
+def Expect = fn(condition: Bool, message: Text) -> Unit => if condition
+then ()
+else Panic::Panic(message);
 
 // Built by hand: read paths are exercised before anything can construct a trie.
-def empty : Map::Map < Int, Text > = Map::Empty();
+def empty: Map::Map<Int, Text> = Map::Empty();
 Expect(Map::Count(empty) == 0, "Empty has no entries");
 Expect(Map::IsEmpty(empty), "Empty is empty");
 Expect(!Map::ContainsKey(empty, 1), "Empty contains nothing");
 
-def leaf : Map::Node < Int, Text > = Map::MakeLeaf(5, 5, "five");
-def one : Map::Map < Int, Text > = Map::MakeMap(leaf, 1);
+def leaf: Map::Node<Int, Text> = Map::MakeLeaf(5, 5, "five");
+
+def one: Map::Map<Int, Text> = Map::MakeMap(leaf, 1);
 Expect(Map::Count(one) == 1, "Count reads the stored count");
 Expect(Map::ContainsKey(one, 5), "Contains finds the leaf");
 Expect(!Map::ContainsKey(one, 6), "Contains rejects a missing key");
@@ -19,15 +21,18 @@ Expect(Map::GetOr(one, 5, "?") == "five", "GetOr returns the value");
 Expect(Map::GetOr(one, 6, "?") == "?", "GetOr falls back");
 
 // A branch holding two leaves, whose hashes differ in the low five bits.
-def leafA : Map::Node < Int, Text > = Map::MakeLeaf(1, 1, "one");
-def leafB : Map::Node < Int, Text > = Map::MakeLeaf(2, 2, "two");
-def branch : Map::Node < Int, Text > = Map::MakeBranch(6, [leafA, leafB]);
-def two : Map::Map < Int, Text > = Map::MakeMap(branch, 2);
+def leafA: Map::Node<Int, Text> = Map::MakeLeaf(1, 1, "one");
+
+def leafB: Map::Node<Int, Text> = Map::MakeLeaf(2, 2, "two");
+
+def branch: Map::Node<Int, Text> = Map::MakeBranch(6, [leafA, leafB]);
+
+def two: Map::Map<Int, Text> = Map::MakeMap(branch, 2);
 Expect(Map::GetOr(two, 1, "?") == "one", "Branch resolves the first child");
 Expect(Map::GetOr(two, 2, "?") == "two", "Branch resolves the second child");
 Expect(Map::GetOr(two, 3, "?") == "?", "Branch rejects an absent chunk");
 
-def words : Map::Map < Text, Int > = Map::Empty();
+def words: Map::Map<Text, Int> = Map::Empty();
 Expect(!Map::ContainsKey(words, "k"), "Empty works at another instantiation");
 
 IO::PrintLine("map_read: PASS");

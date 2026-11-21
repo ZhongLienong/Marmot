@@ -1,9 +1,4 @@
 module ReexportHidden
-
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-	"./reexport_hidden_facade.mmt"
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "./reexport_hidden_facade.mmt" }
 
 IO::PrintLine(Hidden.Facade::Answer() as Text);

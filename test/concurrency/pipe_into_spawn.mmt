@@ -1,47 +1,43 @@
 module PipeIntoSpawn
-
 import { "../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt" }
 
 // Concurrency::Spawn takes the value to pass first, so a pipe fills it:
 // `x |> Concurrency::Spawn(F)` is `Concurrency::Spawn(x, F)`. A callee with several
 // parameters takes them as one tuple, which the spawn spreads across them.
 
-import
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-}
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
-def Compute = fn(a : Int, b : Int) -> Int =>
+def Compute = fn(a: Int, b: Int) -> Int =>
 {
-	a + b
+    a + b
 };
 
-def Subtract = fn(a : Int, b : Int) -> Int =>
+def Subtract = fn(a: Int, b: Int) -> Int =>
 {
-	a - b
+    a - b
 };
 
-def Triple = fn(n : Int) -> Int =>
+def Triple = fn(n: Int) -> Int =>
 {
-	n * 3
+    n * 3
 };
 
 def Main = fn() -> Unit =>
 {
-	def piped = (1, 2) |> Concurrency::Spawn(Compute);
-	IO::PrintLine("piped: " ++ (Concurrency::JoinedOrPanic(piped |> Concurrency::Join) as Text));
+    def piped = (1, 2) |> Concurrency::Spawn(Compute);
+    IO::PrintLine("piped: " ++ (Concurrency::JoinedOrPanic(piped |> Concurrency::Join) as Text));
 
-	// The tuple is spread in order, so a non-commutative callee shows the order.
-	def ordered = (10, 3) |> Concurrency::Spawn(Subtract);
-	IO::PrintLine("ordered: " ++ (Concurrency::JoinedOrPanic(ordered |> Concurrency::Join) as Text));
+    // The tuple is spread in order, so a non-commutative callee shows the order.
+    def ordered = (10, 3) |> Concurrency::Spawn(Subtract);
+    IO::PrintLine("ordered: " ++ (Concurrency::JoinedOrPanic(ordered |> Concurrency::Join) as Text));
 
-	// A spawn is an ordinary pipeline stage: it can be piped into from a call.
-	def chained = (4 |> Triple, 1) |> Concurrency::Spawn(Compute);
-	IO::PrintLine("chained: " ++ (Concurrency::JoinedOrPanic(chained |> Concurrency::Join) as Text));
+    // A spawn is an ordinary pipeline stage: it can be piped into from a call.
+    def chained = (4 |> Triple, 1) |> Concurrency::Spawn(Compute);
+    IO::PrintLine("chained: " ++ (Concurrency::JoinedOrPanic(chained |> Concurrency::Join) as Text));
 
-	// A single-parameter callee takes the piped value as its only argument.
-	def only = 7 |> Concurrency::Spawn(Triple);
-	IO::PrintLine("only: " ++ (Concurrency::JoinedOrPanic(only |> Concurrency::Join) as Text))
+    // A single-parameter callee takes the piped value as its only argument.
+    def only = 7 |> Concurrency::Spawn(Triple);
+    IO::PrintLine("only: " ++ (Concurrency::JoinedOrPanic(only |> Concurrency::Join) as Text))
 };
 
 Main();

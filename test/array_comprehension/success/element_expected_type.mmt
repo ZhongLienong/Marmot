@@ -1,19 +1,23 @@
 module ComprehensionElementExpectedType
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
-type Slot < T > = Empty | Full(T);
-type Point = { x: Int, y: Int };
+type Slot<T> = Empty | Full(T);
+
+type Point =
+{
+    x: Int,
+    y: Int
+};
 
 // The element is a construction that can only infer its arguments from the
 // annotation's element type, not from the array type.
-def slots : Array < Slot < Int > > = [Slot::Empty () for index in 0..1..3];
+def slots: Array<Slot<Int>> = [Slot::Empty() for index in 0..1..3];
 
-def points : Array < Point > = [Point (index, index * 2) for index in 0..1..3];
+def points: Array<Point> = [Point(index, index * 2) for index in 0..1..3];
 
-def MakeSlots = fn < T >(count: Int) -> Array < Slot < T > > => [Slot::Empty () for index in 0..1..count];
+def MakeSlots = fn<T>(count: Int) -> Array<Slot<T>> => [Slot::Empty() for index in 0..1..count];
 
-def words : Array < Slot < Text > > = MakeSlots(2);
+def words: Array<Slot<Text>> = MakeSlots(2);
 
 IO::PrintLine(#slots as Text);
 IO::PrintLine(#words as Text);

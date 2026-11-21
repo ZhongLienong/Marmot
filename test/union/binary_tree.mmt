@@ -1,37 +1,30 @@
 module BinaryTree
-
-import
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-}
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
 type Tree = Leaf(Int) | Node(Tree, Tree);
 
-def TreeSum = fn(tree : Tree) -> Int =>
-	match tree with
-		case Tree::Leaf(value) => value
-		case Tree::Node(left, right) => TreeSum(left) + TreeSum(right)
-	;
-def TreeHeight = fn(tree : Tree) -> Int =>
+def TreeSum = fn(tree: Tree) -> Int => match tree with
+    case Tree::Leaf(value) => value
+    case Tree::Node(left, right) => TreeSum(left) + TreeSum(right);
+
+def TreeHeight = fn(tree: Tree) -> Int =>
 {
-	def max = fn(a : Int, b : Int) -> Int => if a > b then a else b;
-	match tree with
-		case Tree::Leaf(_) => 1
-		case Tree::Node(left, right) => 1 + max(TreeHeight(left), TreeHeight(right))
+    def max = fn(a: Int, b: Int) -> Int => if a > b
+    then a
+    else b;
+    match tree with
+        case Tree::Leaf(_) => 1
+        case Tree::Node(left, right) => 1 + max(TreeHeight(left), TreeHeight(right))
 };
 
 def tree1 = Tree::Node(Tree::Leaf(2), Tree::Leaf(3));
+
 def tree2 = Tree::Node(Tree::Node(Tree::Leaf(1), Tree::Leaf(4)), Tree::Leaf(5));
-def tree3 = Tree::Node
-(
-	Tree::Node
-	(
-		Tree::Node(Tree::Leaf(1), Tree::Leaf(1)),
-		Tree::Leaf(2)
-	),
-	Tree::Leaf(3)
-);
+
+def tree3 = Tree::Node(Tree::Node(Tree::Node(Tree::Leaf(1), Tree::Leaf(1)), Tree::Leaf(2)), Tree::Leaf(3));
+
 def tree4 = Tree::Node(Tree::Leaf(0), Tree::Node(Tree::Leaf(0), Tree::Leaf(0)));
+
 def tree5 = Tree::Leaf(42);
 
 // sum

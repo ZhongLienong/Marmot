@@ -1,10 +1,14 @@
 module Indexable
 public export { Indexable }
-class Indexable < C, I > {
+
+class Indexable<C, I>
+{
     type Element;
     Get: fn(container: C, index: I) -> Element;
 };
-instance Indexable < Array < T >, Int > {
+
+instance Indexable<Array<T>, Int>
+{
     type Element = T;
-    def Get = fn(container: Array < T >, index: Int) -> T => container[index];
+    def Get = fn(container: Array<T>, index: Int) -> T => container[index];
 };

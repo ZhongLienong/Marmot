@@ -1,17 +1,11 @@
 module PatternConstructorNotInScope
-
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-	"../../module/success/shapes_lib.mmt"
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../module/success/shapes_lib.mmt" }
 
 // A pattern reaches a constructor by the rule an expression does: qualified, or
 // through a `use`. Importing the module does not put its union in scope.
 
-def Level = fn(shade: ShapesLib::Shade) -> Int =>
-	match shade with
-		case Shade::Light() => 0
-		case Shade::Dark(level) => level;
+def Level = fn(shade: ShapesLib::Shade) -> Int => match shade with
+    case Shade::Light() => 0
+    case Shade::Dark(level) => level;
 
 IO::PrintLine(Level(ShapesLib::Shade::Dark(7)) as Text);

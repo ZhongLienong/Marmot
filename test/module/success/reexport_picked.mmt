@@ -1,9 +1,4 @@
 module ReexportPicked
-
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-	"./reexport_picked_lib.mmt"
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "./reexport_picked_lib.mmt" }
 
 IO::PrintLine(ReexportPickedLib::Shared() as Text);

@@ -1,13 +1,19 @@
 module SystemImportMultiple
-
 // Test: multiple system imports
 
 import { <IO>, <Math> }
 
-use IO.{PrintLine}
-use Math.{SquareRoot}
+use IO.
+{
+    PrintLine
+}
+use Math.
+{
+    SquareRoot
+}
 
-def main = fn() -> Unit => {
+def main = fn() -> Unit =>
+{
     PrintLine("sqrt(16) = " ++ (SquareRoot(16.0) as Text));
 };
 

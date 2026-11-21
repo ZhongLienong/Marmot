@@ -1,10 +1,15 @@
 module Concurrency
 import { "./Prelude/Result.mmt", "./Prelude/Option.mmt", "./Prelude/Panic.mmt", "./ArrayUtil.mmt", "./Transferable.mmt" }
-use Result.{
+use Result.
+{
     Result
 }
-use Option.{ Option }
+use Option.
+{
+    Option
+}
 public export { Spawn, Join, MakeChannel, Send, Receive, Close, IsDone, Cancel, WorkerError, JoinedOrPanic, ParallelMap }
+
 // Spawn, Join, Send, Receive, Close, IsDone and Cancel are each one instruction of the VM, declared
 // as a `foreign` with no library whose symbol names the instruction: a primitive. A
 // primitive is called like a function, but it is not a value.
@@ -14,44 +19,66 @@ public export { Spawn, Join, MakeChannel, Send, Receive, Close, IsDone, Cancel, 
 // `()` for none, so a value can be piped in: `(ch, 5) |> Concurrency::Spawn(Producer)`.
 // The type written here is the one-parameter case, and the compiler checks the others.
 foreign "MARMOT_PRIMITIVE_Spawn" Spawn: fn(A, fn(A) -> R) -> Worker < R >;
+
 // Join(w) waits for the worker. A cancelled or failed worker is an ordinary value the
 // joining code can inspect and recover from, rather than an error that stops it. The
 // VM builds the result by position, so the compiler checks that Result's first member
 // holds the value and its second a WorkerError, and that WorkerError's first member
 // holds nothing and its second the worker's error message.
-foreign "MARMOT_PRIMITIVE_Join" Join: fn(Worker < T >) -> Result < T, WorkerError >;
+foreign "MARMOT_PRIMITIVE_Join" Join: fn(Worker < T >) -> Result<T, WorkerError>;
+
 // MakeChannel(capacity) takes its element type from where it is bound:
 // `def ch : Channel<Int> = Concurrency::MakeChannel(4);`. Only a transferable value
 // can go through a channel, so only such a channel can be made.
 foreign "MARMOT_PRIMITIVE_ChannelNew" ChannelNew: fn(Int) -> Channel < T >;
-def MakeChannel = fn < T >(capacity: Int) -> Channel < T > where Transferable < T > => ChannelNew(capacity);
+
+def MakeChannel = fn<T>(capacity: Int) -> Channel < T > where Transferable<T> => ChannelNew(capacity);
+
 foreign "MARMOT_PRIMITIVE_ChannelSend" Send: fn(Channel < T >, T) -> Bool;
-foreign "MARMOT_PRIMITIVE_ChannelReceive" Receive: fn(Channel < T >) -> Option < T >;
+
+foreign "MARMOT_PRIMITIVE_ChannelReceive" Receive: fn(Channel < T >) -> Option<T>;
+
 foreign "MARMOT_PRIMITIVE_ChannelClose" Close: fn(Channel < T >) -> Unit;
+
 foreign "MARMOT_PRIMITIVE_WorkerIsDone" IsDone: fn(Worker < T >) -> Bool;
+
 foreign "MARMOT_PRIMITIVE_WorkerCancel" Cancel: fn(Worker < T >) -> Bool;
+
 // What Join reports when a worker does not produce its value.
 type WorkerError = Cancelled | Failed(Text);
+
 // For code that treats a worker failure as fatal, which is what joining itself did
 // before it returned a Result.
-def JoinedOrPanic = fn < T >(result: Result < T, WorkerError >) -> T => {
+def JoinedOrPanic = fn<T>(result: Result<T, WorkerError>) -> T =>
+{
     match result with
         case Result::Ok(value) => value
-        case Result::Err(error) => {
-        match error with
+        case Result::Err(error) =>
+    {
+            match error with
             case WorkerError::Cancelled() => Panic::Panic("Worker cancelled.")
             case WorkerError::Failed(message) => Panic::Panic(message)
-    }
+        }
 };
+
 // Maps `work` over `values` in parallel, one worker per chunk of `chunk_size`. This is
 // ordinary Marmot: the per-chunk worker is a lambda that captures `work` and crosses to
 // the worker with it, which is what makes a parallel map expressible in the language
 // rather than something the compiler has to provide.
-def ParallelMap = fn < A, B >(values: Array < A >, work: fn(A) -> B, chunk_size: Int) -> Array < B > where Transferable < A >, Transferable < B > => {
+def ParallelMap = fn<A, B>(values: Array<A>, work: fn(A) -> B, chunk_size: Int) -> Array<B> where Transferable<A>, Transferable<B> =>
+{
     def count = ArrayUtil::Length(values);
-    def size = if chunk_size < 1 then 1 else chunk_size;
-    def chunk_count = if count == 0 then 0 else 1 + ((count - 1) / size);
-    def workers = [Spawn(ArrayUtil::Slice(values, index * size, (index + 1) * size), fn(chunk: Array < A >) -> Array < B > => [work(item) for item in chunk]) for index in 0..1..chunk_count];
+    def size = if chunk_size < 1
+    then 1
+    else chunk_size;
+    def chunk_count = if count == 0
+    then 0
+    else 1 + ((count - 1) / size);
+    def workers = [Spawn
+    (
+        ArrayUtil::Slice(values, index * size, (index + 1) * size),
+        fn(chunk: Array<A>) -> Array<B> => [work(item) for item in chunk]
+    ) for index in 0..1..chunk_count];
     def chunks = [JoinedOrPanic(Join(worker)) for worker in workers];
     ArrayUtil::ConcatAll(chunks)
 };

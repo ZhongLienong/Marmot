@@ -1,19 +1,17 @@
 module Basic
-
 // Test: Basic type alias functionality
 // Expected: Type aliases should work as synonyms for existing types
 
-import
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt"
-}
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 // Simple type alias
 alias UserId = Int;
+
 alias Name = Text;
 
 // Use the type aliases
 def user_id: UserId = 42;
+
 def name: Name = "Alice";
 
 IO::PrintLine(user_id as Text);

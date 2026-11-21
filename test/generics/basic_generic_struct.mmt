@@ -1,25 +1,23 @@
 module BasicGenericStruct
-
 // Test: Basic generic struct with single type parameter
 // Expected: Should compile and allow different instantiations
 
-import 
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-	"../../projects/marmotstdlib/MarmotPrelude/DateTime.mmt"
-}
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../projects/marmotstdlib/MarmotPrelude/DateTime.mmt" }
 
-type Box<T> = 
+type Box<T> =
 {
     value: T
 };
 
 // Different instantiations with different types
 def int_box = Box(42);
+
 def text_box = Box("hello");
+
 def float_box = Box(3.14);
+
 def bool_box = Box(true);
 
 // Access members
-IO::PrintLine(int_box.value as Text); // Should print 42
-IO::PrintLine(text_box.value); // Should print hello
+IO::PrintLine(int_box.value as Text);  // Should print 42
+IO::PrintLine(text_box.value);  // Should print hello

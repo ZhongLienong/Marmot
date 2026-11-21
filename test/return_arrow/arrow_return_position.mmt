@@ -1,13 +1,16 @@
 module ArrowReturnPosition
-
 import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
-use IO.{PrintLine}
+use IO.
+{
+    PrintLine
+}
 
 def Twice = fn(x: Int) -> Int => x * 2;
 
 def Add = fn(a: Int, b: Int) -> Int => a + b;
 
-def Nested = fn(x: Int) -> Int => {
+def Nested = fn(x: Int) -> Int =>
+{
     def inner = fn(y: Int) -> Int => y + 1;
     inner(x)
 };

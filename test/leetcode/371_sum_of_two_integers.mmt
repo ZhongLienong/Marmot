@@ -1,10 +1,8 @@
 module Leetcode371SumOfTwoIntegers
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
-import
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-}
-
-def GetSum = fn(a : Int, b : Int) -> Int => if b == 0 then a else GetSum(a ^ b, (a & b) << 1);
+def GetSum = fn(a: Int, b: Int) -> Int => if b == 0
+then a
+else GetSum(a ^ b, (a & b) << 1);
 
 IO::PrintLine(GetSum(20, 22) as Text);

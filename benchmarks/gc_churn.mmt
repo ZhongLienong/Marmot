@@ -1,14 +1,12 @@
 module GCChurn
+import { "../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../projects/marmotstdlib/MarmotPrelude/DateTime.mmt", "support/Timing.mmt", "../projects/marmotstdlib/MarmotPrelude/Prelude/List.mmt" }
 
-import
+use List.
 {
-	"../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-	"../projects/marmotstdlib/MarmotPrelude/DateTime.mmt",
-	"support/Timing.mmt",
-	"../projects/marmotstdlib/MarmotPrelude/Prelude/List.mmt"
+    List,
+    ListReverse,
+    ListToArray
 }
-
-use List.{List, ListReverse, ListToArray}
 
 // v2 port. What is preserved: a long-lived keeper of ~300,000 distinct texts
 // that every collection must account for, and a churn phase of 800,000
@@ -23,38 +21,50 @@ use List.{List, ListReverse, ListToArray}
 // writes, from comprehension appends and in-place `++`, are covered by
 // test/gc/comprehension_write_barrier and test/gc/extend_write_barrier.)
 
-def Churn = fn(i : Int, limit : Int, fresh : List<Text>) -> List<Text> =>
+def Churn = fn(i: Int, limit: Int, fresh: List<Text>) -> List<Text> =>
 {
-	if i >= limit
-	then fresh
-	else
-	{
-		// Four texts plus the array holding them, formerly four in-place Appends.
-		def first = "churn-" ++ (i as Text);
-		def second = first ++ "-x";
-		def third = second ++ "-y";
-		def scratch = [first, second, third, third ++ "-z"];
+    if i >= limit
+    then fresh
+    else
+    {
+        // Four texts plus the array holding them, formerly four in-place Appends.
+        def first = "churn-" ++ (i as Text);
+        def second = first ++ "-x";
+        def third = second ++ "-y";
+        def scratch = [first, second, third, third ++ "-z"];
 
-		Churn(i + 1, limit, if (i % 1000) == 0 then List::Cons("fresh-" ++ (i as Text) ++ "-" ++ scratch[3], fresh) else fresh)
-	}
+        Churn
+        (
+            i + 1,
+            limit,
+            if (i % 1000) == 0
+            then List::Cons("fresh-" ++ (i as Text) ++ "-" ++ scratch[3], fresh)
+            else fresh
+        )
+    }
 };
 
 def Main = fn() -> Unit =>
 {
-	def start = DateTime::NowMonotonicNanos();
+    def start = DateTime::NowMonotonicNanos();
 
-	def pad = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-keeper-record-payload-";
-	def keeper = [pad ++ (k as Text) for k in 0..1..300000];
+    def pad = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-keeper-record-payload-";
+    def keeper = [pad ++ (k as Text) for k in 0..1..300000];
 
-	// The churn wrote fresh text number n into keeper[n % 300000]; n stays below
-	// 800, so each write lands in a distinct slot.
-	def fresh = ListToArray(ListReverse(Churn(0, 800000, List::Nil())));
-	def final_keeper = [if slot < #fresh then fresh[slot] else keeper[slot] for slot in 0..1..(#keeper)];
+    // The churn wrote fresh text number n into keeper[n % 300000]; n stays below
+    // 800, so each write lands in a distinct slot.
+    def fresh = ListToArray(ListReverse(Churn(0, 800000, List::Nil())));
+    def final_keeper = [if slot < #fresh
+    then fresh[slot]
+    else keeper[slot] for slot in 0..1..(#keeper)];
 
-	def end = DateTime::NowMonotonicNanos();
+    def end = DateTime::NowMonotonicNanos();
 
-	IO::PrintLine("GC churn benchmark took " ++ Timing::ElapsedMillis(start, end) ++ " milliseconds");
-	IO::PrintLine("checksum: keeper_len=" ++ ((#final_keeper) as Text) ++ " keeper[0]=" ++ final_keeper[0] ++ " keeper[299999]=" ++ final_keeper[299999]);
+    IO::PrintLine("GC churn benchmark took " ++ Timing::ElapsedMillis(start, end) ++ " milliseconds");
+    IO::PrintLine
+    (
+        "checksum: keeper_len=" ++ ((#final_keeper) as Text) ++ " keeper[0]=" ++ final_keeper[0] ++ " keeper[299999]=" ++ final_keeper[299999]
+    );
 };
 
 Main();

@@ -1,16 +1,19 @@
 module OperatorPrecedenceParentheses
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 // Parentheses override conventional precedence; each precedence level associates left.
 
 def a = 2;
+
 def b = 3;
+
 def c = 4;
 
 IO::PrintLine("chain: " ++ ((a + b - c) as Text));
 IO::PrintLine("factors: " ++ ((a * b / c) as Text));
 IO::PrintLine("grouped: " ++ ((a + (b * c)) as Text));
 IO::PrintLine("nested: " ++ (((a + b) * (c - a)) as Text));
-IO::PrintLine("comparisons: " ++ (if (a < b) && (b < c) then "ordered" else "unordered"));
+IO::PrintLine("comparisons: " ++ (if (a < b) && (b < c)
+then "ordered"
+else "unordered"));
 IO::PrintLine("unary: " ++ ((-a + b) as Text));

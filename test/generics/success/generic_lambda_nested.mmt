@@ -1,17 +1,13 @@
 module GenericLambdaNested
-
 // Test: a generic lambda bound inside a function body is specialized at each
 // use, like a top-level one.
 
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt"
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 def outer = fn() -> Unit =>
 {
-	def Id = fn<T>(x: T) -> T => x;
-	IO::PrintLine(Id(1) as Text);
+    def Id = fn<T>(x: T) -> T => x;
+    IO::PrintLine(Id(1) as Text);
 };
 
 outer();

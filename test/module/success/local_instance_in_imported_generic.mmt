@@ -1,21 +1,41 @@
 module InstanceOrigin
 import { "local_instance_in_imported_generic_lib.mmt" }
+
 foreign "MARMOT_FFI_Print" Print: fn(Text) -> Unit;
 
-type Box<T> = { value: T };
+type Box<T> =
+{
+    value: T
+};
 
-instance Echo<Box<T>> {
+instance Echo<Box<T>>
+{
     def Copy = fn(value: Box<T>) -> Box<T> => value;
 };
 
-instance Echo<Int> {
+instance Echo<Int>
+{
     def Copy = fn(value: Int) -> Int => value + 1;
 };
 
 def direct = Echo::Copy(Box(7));
+
 def indirect = InstanceOriginLib::Apply(Box(8));
+
 def concrete = InstanceOriginLib::Apply(9);
+
 def imported_direct = Echo::Copy(InstanceOriginLib::Wrapped(11));
+
 def imported_indirect = InstanceOriginLib::Apply(InstanceOriginLib::Wrapped(12));
-Print(if ((direct.value == 7) && (indirect.value == 8)) && (concrete == 10) then "ok\n" else "wrong\n");
-Print(if (imported_direct.value == 11) && (imported_indirect.value == 12) then "imported ok\n" else "wrong\n");
+Print
+(
+    if ((direct.value == 7) && (indirect.value == 8)) && (concrete == 10)
+    then "ok\n"
+    else "wrong\n"
+);
+Print
+(
+    if (imported_direct.value == 11) && (imported_indirect.value == 12)
+    then "imported ok\n"
+    else "wrong\n"
+);

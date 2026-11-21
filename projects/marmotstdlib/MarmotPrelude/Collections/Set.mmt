@@ -1,39 +1,53 @@
 module Set
 import { "./Map.mmt", "../ArrayUtil.mmt", "../Countable.mmt", "../Equatable.mmt", "../Hashable.mmt", "../Iterable.mmt", "../Prelude/Option.mmt" }
 public export { Set, SetEmpty, SetCount, SetIsEmpty, SetWith, SetWithout, SetHas, SetToArray, SetIter, SetIterNew }
-use Option.{
+use Option.
+{
     Option
 }
+
 // Its own type rather than an alias for Map<T, Unit>: spec section 5 wants a
 // Set's Hashable instance not to collapse into the map's.
-type Set < T > = {
-    entries: Map::Map < T, Unit >
+type Set<T> =
+{
+    entries: Map::Map<T, Unit>
 };
-def SetEmpty = fn < T >() -> Set < T > => Set (Map::Empty());
-def SetCount = fn < T >(set: Set < T >) -> Int => Map::Count(set.entries);
-def SetIsEmpty = fn < T >(set: Set < T >) -> Bool => Map::IsEmpty(set.entries);
-def SetWith = fn < T >(set: Set < T >, value: T) -> Set < T > where Hashable < T >, Equatable < T > =>
-    Set (Map::With(set.entries, value, ()));
-def SetWithout = fn < T >(set: Set < T >, value: T) -> Set < T > where Hashable < T >, Equatable < T > =>
-    Set (Map::Without(set.entries, value));
-def SetHas = fn < T >(set: Set < T >, value: T) -> Bool where Hashable < T >, Equatable < T > =>
-    Map::ContainsKey(set.entries, value);
-def SetToArray = fn < T >(set: Set < T >) -> Array < T > => {
+
+def SetEmpty = fn<T>() -> Set<T> => Set(Map::Empty());
+
+def SetCount = fn<T>(set: Set<T>) -> Int => Map::Count(set.entries);
+
+def SetIsEmpty = fn<T>(set: Set<T>) -> Bool => Map::IsEmpty(set.entries);
+
+def SetWith = fn<T>(set: Set<T>, value: T) -> Set<T> where Hashable<T>, Equatable<T> => Set(Map::With(set.entries, value, ()));
+
+def SetWithout = fn<T>(set: Set<T>, value: T) -> Set<T> where Hashable<T>, Equatable<T> => Set(Map::Without(set.entries, value));
+
+def SetHas = fn<T>(set: Set<T>, value: T) -> Bool where Hashable<T>, Equatable<T> => Map::ContainsKey(set.entries, value);
+
+def SetToArray = fn<T>(set: Set<T>) -> Array<T> =>
+{
     def pairs = Map::Entries(set.entries);
     [pairs[slot].key for slot in 0..1..ArrayUtil::Length(pairs)]
 };
-type SetIter < T > = {
-    values: Array < T >,
+
+type SetIter<T> =
+{
+    values: Array<T>,
     index: Int
 };
-def SetIterNew = fn < T >(set: Set < T >) -> SetIter < T > => SetIter (SetToArray(set), 0);
-instance Iterable < SetIter < T >> {
+
+def SetIterNew = fn<T>(set: Set<T>) -> SetIter<T> => SetIter(SetToArray(set), 0);
+
+instance Iterable<SetIter<T>>
+{
     type Item = T;
-    def Next = fn(iter: SetIter < T >) -> Option < (T, SetIter < T >) > =>
-        if iter.index >= ArrayUtil::Length(iter.values)
-        then Option::None ()
-        else Option::Some ((iter.values[iter.index], SetIter (iter.values, iter.index + 1)));
+    def Next = fn(iter: SetIter<T>) -> Option<(T, SetIter<T>)> => if iter.index >= ArrayUtil::Length(iter.values)
+    then Option::None()
+    else Option::Some((iter.values[iter.index], SetIter(iter.values, iter.index + 1)));
 };
-instance Countable < Set < T >> {
-    def Count = fn(set: Set < T >) -> Int => Map::Count(set.entries);
+
+instance Countable<Set<T>>
+{
+    def Count = fn(set: Set<T>) -> Int => Map::Count(set.entries);
 };

@@ -1,14 +1,10 @@
 // Test: Importing from multiple modules
 module TestMultiple
-
-import
-{
-    "math_lib.mmt",
-    "string_utils.mmt"
-}
+import { "math_lib.mmt", "string_utils.mmt" }
 
 // Access symbols from different modules
-def test_multiple = fn() -> Int => {
+def test_multiple = fn() -> Int =>
+{
     def math_result = Math::add(5, 3);
     def utils_result = StringUtils::double(10);
     Math::multiply(math_result, utils_result)

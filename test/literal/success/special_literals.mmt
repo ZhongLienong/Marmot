@@ -1,9 +1,5 @@
 module SpecialLiterals
-
-import
-{
-    <IO>
-}
+import { <IO> }
 
 IO::PrintLine("=== Special Literal Tests ===");
 
@@ -13,9 +9,12 @@ IO::PrintLine("Unit literal: ()");
 
 // Zero values
 def zero_int = 0;
+
 def zero_float = 0.0;
+
 def empty_text = "";
-def empty_array : Array<Int> = [];
+
+def empty_array: Array<Int> = [];
 
 IO::PrintLine("Zero integer: " ++ (zero_int as Text));
 IO::PrintLine("Zero float: " ++ (zero_float as Text));
@@ -24,8 +23,11 @@ IO::PrintLine("Empty array: []");
 
 // Large integer values
 def large_1 = 255;
+
 def large_2 = 32767;
+
 def large_3 = 2147483647;
+
 def large_4 = 9223372036854775807;
 
 IO::PrintLine("Large value (255): " ++ (large_1 as Text));
@@ -34,8 +36,11 @@ IO::PrintLine("INT32_MAX (2147483647): " ++ (large_3 as Text));
 IO::PrintLine("INT64_MAX (9223372036854775807): " ++ (large_4 as Text));
 
 def negative_1 = -128;
+
 def negative_2 = -32768;
+
 def negative_3 = -1000000;
+
 def negative_4 = -999999999;
 
 IO::PrintLine("Negative (-128): " ++ (negative_1 as Text));
@@ -45,8 +50,11 @@ IO::PrintLine("Negative (-999999999): " ++ (negative_4 as Text));
 
 // Special float values
 def one_float = 1.0;
+
 def minus_one_float = -1.0;
+
 def small_positive = 0.000001;
+
 def small_negative = -0.000001;
 
 IO::PrintLine("One (1.0): " ++ (one_float as Text));
@@ -56,7 +64,9 @@ IO::PrintLine("Small negative: " ++ (small_negative as Text));
 
 // Binary-like values
 def binary_like_8 = 255;
+
 def binary_like_16 = 65535;
+
 def binary_like_32 = 4294967295;
 
 IO::PrintLine("0xFF equivalent (255): " ++ (binary_like_8 as Text));
@@ -65,11 +75,17 @@ IO::PrintLine("0xFFFFFFFF equivalent: " ++ (binary_like_32 as Text));
 
 // Single character texts
 def char_a = "a";
+
 def char_z = "Z";
+
 def char_0 = "0";
+
 def char_9 = "9";
+
 def char_space = " ";
+
 def char_newline = "\n";
+
 def char_tab = "\t";
 
 IO::PrintLine("Single char 'a': " ++ char_a);
@@ -81,8 +97,11 @@ IO::PrintLine("Special chars created (newline, tab)");
 
 // Whitespace strings
 def only_spaces = "     ";
+
 def only_tabs = "\t\t\t";
+
 def only_newlines = "\n\n\n";
+
 def mixed_whitespace = " \t\n \t\n ";
 
 IO::PrintLine("Only spaces length: 5");
@@ -90,7 +109,9 @@ IO::PrintLine("Whitespace strings created");
 
 // Repeated character patterns
 def repeated_a = "aaaa";
+
 def repeated_1 = "1111";
+
 def repeated_zero = "0000";
 
 IO::PrintLine("Repeated 'a': " ++ repeated_a);
@@ -99,6 +120,7 @@ IO::PrintLine("Repeated '0': " ++ repeated_zero);
 
 // Palindromic values
 def palindrome_int = 12321;
+
 def palindrome_text = "racecar";
 
 IO::PrintLine("Palindrome int (12321): " ++ (palindrome_int as Text));
@@ -106,8 +128,11 @@ IO::PrintLine("Palindrome text: " ++ palindrome_text);
 
 // Powers and multiples
 def square_5 = 25;
+
 def square_10 = 100;
+
 def cube_5 = 125;
+
 def cube_10 = 1000;
 
 IO::PrintLine("5^2 (25): " ++ (square_5 as Text));

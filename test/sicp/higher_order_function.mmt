@@ -1,39 +1,34 @@
 module HigherOrderFunction
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
-import
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-}
+def cube = fn(x: Float) -> Float => x * x * x;
 
-def cube = fn(x : Float) -> Float => x * x * x;
-
-
-def accumulate = fn(combiner : fn(Float, Float) -> Float, null_value : Float, term : fn(Float) -> Float, a : Float, next : fn(Float) -> Float, b : Float) -> Float =>
+def accumulate = fn(combiner: fn(Float, Float) -> Float, null_value: Float, term: fn(Float) -> Float, a: Float, next: fn(Float) -> Float, b: Float) -> Float =>
 {
     if a > b
     then null_value
     else combiner(term(a), accumulate(combiner, null_value, term, next(a), next, b))
 };
 
-def sum = fn(term : fn(Float) -> Float, a : Float, next : fn(Float) -> Float, b : Float) -> Float => accumulate(fn(a : Float, b : Float) -> Float => a + b, 0.0, term, a, next, b);
+def sum = fn(term: fn(Float) -> Float, a: Float, next: fn(Float) -> Float, b: Float) -> Float => accumulate(fn(a: Float, b: Float) -> Float => a + b, 0.0, term, a, next, b);
 
-def integral = fn(f : fn(Float) -> Float, a : Float, b : Float, dx : Float) -> Float =>
+def integral = fn(f: fn(Float) -> Float, a: Float, b: Float, dx: Float) -> Float =>
 {
-    def add_dx = fn(x : Float) -> Float => x + dx;
+    def add_dx = fn(x: Float) -> Float => x + dx;
 
     sum(f, a + (dx / 2.0), add_dx, b) * dx
 };
 
-def simpson = fn(f : fn(Float) -> Float, a : Float, b : Float, n : Int) -> Float =>
+def simpson = fn(f: fn(Float) -> Float, a: Float, b: Float, n: Int) -> Float =>
 {
-    def inc = fn(k : Float) -> Float => k + 1.0;
-    def aux_fun = fn(h : Float) -> Float =>
+    def inc = fn(k: Float) -> Float => k + 1.0;
+    def aux_fun = fn(h: Float) -> Float =>
     {
-        def y = fn(k : Float) -> Float =>
+        def y = fn(k: Float) -> Float =>
         {
             if (k == 0.0) || (k == (n as Float))
             then f(a + (k * h))
-            else if (k % 2.0) == 0.0 
+            else if (k % 2.0) == 0.0
             then 2.0 * f(a + (k * h))
             else 4.0 * f(a + (k * h))
         };

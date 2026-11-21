@@ -1,119 +1,134 @@
 module TextOperations
-
-import
-{
-	"../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-	"../projects/marmotstdlib/MarmotPrelude/DateTime.mmt",
-	"../projects/marmotstdlib/MarmotPrelude/TextUtil.mmt"
-}
+import { "../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../projects/marmotstdlib/MarmotPrelude/DateTime.mmt", "../projects/marmotstdlib/MarmotPrelude/TextUtil.mmt" }
 
 // v2 port: every loop that assigned to an accumulator is a tail-recursive walk
 // carrying it. Walks that append with `acc ++ piece` still copy the accumulated
 // text on every step, which is what the concatenation tests have always measured.
 
-def AppendRepeated = fn(i : Int, limit : Int, piece : Text, acc : Text) -> Text =>
-	if i >= limit then acc else AppendRepeated(i + 1, limit, piece, acc ++ piece);
+def AppendRepeated = fn(i: Int, limit: Int, piece: Text, acc: Text) -> Text => if i >= limit
+then acc
+else AppendRepeated(i + 1, limit, piece, acc ++ piece);
 
 // Joins parts[low..high) by halves, so each character is copied O(log n) times.
-def JoinRange = fn(parts : Array<Text>, low : Int, high : Int) -> Text =>
+def JoinRange = fn(parts: Array<Text>, low: Int, high: Int) -> Text =>
 {
-	if (high - low) <= 0
-	then ""
-	else if (high - low) == 1
-	then parts[low]
-	else
-	{
-		def mid = low + ((high - low) / 2);
-		JoinRange(parts, low, mid) ++ JoinRange(parts, mid, high)
-	}
+    if (high - low) <= 0
+    then ""
+    else if (high - low) == 1
+    then parts[low]
+    else
+    {
+        def mid = low + ((high - low) / 2);
+        JoinRange(parts, low, mid) ++ JoinRange(parts, mid, high)
+    }
 };
 
-def TestTextConcatenation = fn(iterations : Int) -> Unit =>
+def TestTextConcatenation = fn(iterations: Int) -> Unit =>
 {
-	def start = DateTime::NowUnixMillis();
+    def start = DateTime::NowUnixMillis();
 
-	def result = AppendRepeated(0, iterations, "x", "");
+    def result = AppendRepeated(0, iterations, "x", "");
 
-	def end = DateTime::NowUnixMillis();
+    def end = DateTime::NowUnixMillis();
 
-	IO::PrintLine("Text concatenation (" ++ (iterations as Text) ++ " iterations, length " ++ (TextUtil::Length(result) as Text) ++ "): " ++ ((end - start) as Text) ++ " ms");
+    IO::PrintLine
+    (
+        "Text concatenation (" ++ (iterations as Text) ++ " iterations, length " ++ (TextUtil::Length(result) as Text) ++ "): " ++ ((end - start) as Text) ++ " ms"
+    );
 };
 
 // v2 port: this measured in-place `Appendable::Append` on a text, which no longer
 // exists. The idiomatic v2 way to build a long text from many pieces is to make
 // the pieces with a comprehension and join them by halves.
-def TestTextAppend = fn(iterations : Int) -> Unit =>
+def TestTextAppend = fn(iterations: Int) -> Unit =>
 {
-	def start = DateTime::NowUnixMillis();
+    def start = DateTime::NowUnixMillis();
 
-	def pieces = ["x" for _ in 0..1..iterations];
-	def result = JoinRange(pieces, 0, iterations);
+    def pieces = ["x" for _ in 0..1..iterations];
+    def result = JoinRange(pieces, 0, iterations);
 
-	def end = DateTime::NowUnixMillis();
+    def end = DateTime::NowUnixMillis();
 
-	IO::PrintLine("Text append via comprehension and join (" ++ (iterations as Text) ++ " iterations, length " ++ (TextUtil::Length(result) as Text) ++ "): " ++ ((end - start) as Text) ++ " ms");
+    IO::PrintLine
+    (
+        "Text append via comprehension and join (" ++ (iterations as Text) ++ " iterations, length " ++ (TextUtil::Length(result) as Text) ++ "): " ++ ((end - start) as Text) ++ " ms"
+    );
 };
 
-def BuildGreeting = fn(i : Int, limit : Int, acc : Text) -> Text =>
-	if i >= limit then acc else BuildGreeting(i + 1, limit, acc ++ "Hello" ++ " " ++ "World" ++ " " ++ (i as Text));
+def BuildGreeting = fn(i: Int, limit: Int, acc: Text) -> Text => if i >= limit
+then acc
+else BuildGreeting(i + 1, limit, acc ++ "Hello" ++ " " ++ "World" ++ " " ++ (i as Text));
 
-def TestTextBuilding = fn(iterations : Int) -> Unit =>
+def TestTextBuilding = fn(iterations: Int) -> Unit =>
 {
-	def start = DateTime::NowUnixMillis();
+    def start = DateTime::NowUnixMillis();
 
-	def result = BuildGreeting(0, iterations, "");
+    def result = BuildGreeting(0, iterations, "");
 
-	def end = DateTime::NowUnixMillis();
+    def end = DateTime::NowUnixMillis();
 
-	IO::PrintLine("Text building (" ++ (iterations as Text) ++ " iterations, length " ++ (TextUtil::Length(result) as Text) ++ "): " ++ ((end - start) as Text) ++ " ms");
+    IO::PrintLine
+    (
+        "Text building (" ++ (iterations as Text) ++ " iterations, length " ++ (TextUtil::Length(result) as Text) ++ "): " ++ ((end - start) as Text) ++ " ms"
+    );
 };
 
 // Carries the most recent conversion so each step's text is used.
-def ConvertAll = fn(i : Int, limit : Int, last : Text) -> Text =>
-	if i >= limit then last else ConvertAll(i + 1, limit, i as Text);
+def ConvertAll = fn(i: Int, limit: Int, last: Text) -> Text => if i >= limit
+then last
+else ConvertAll(i + 1, limit, i as Text);
 
-def TestTextConversion = fn(iterations : Int) -> Unit =>
+def TestTextConversion = fn(iterations: Int) -> Unit =>
 {
-	def start = DateTime::NowUnixMillis();
+    def start = DateTime::NowUnixMillis();
 
-	def last = ConvertAll(0, iterations, "");
+    def last = ConvertAll(0, iterations, "");
 
-	def end = DateTime::NowUnixMillis();
+    def end = DateTime::NowUnixMillis();
 
-	IO::PrintLine("Int to Text conversion (" ++ (iterations as Text) ++ " iterations, last " ++ last ++ "): " ++ ((end - start) as Text) ++ " ms");
+    IO::PrintLine
+    (
+        "Int to Text conversion (" ++ (iterations as Text) ++ " iterations, last " ++ last ++ "): " ++ ((end - start) as Text) ++ " ms"
+    );
 };
 
 def TestLargeTextConcatenation = fn() -> Unit =>
 {
-	def start = DateTime::NowUnixMillis();
+    def start = DateTime::NowUnixMillis();
 
-	def result = AppendRepeated(0, 1000, "Lorem ipsum dolor sit amet, consectetur adipiscing elit. ", "");
+    def result = AppendRepeated(0, 1000, "Lorem ipsum dolor sit amet, consectetur adipiscing elit. ", "");
 
-	def end = DateTime::NowUnixMillis();
+    def end = DateTime::NowUnixMillis();
 
-	IO::PrintLine("Large text chunk concatenation (1000 chunks, length " ++ (TextUtil::Length(result) as Text) ++ "): " ++ ((end - start) as Text) ++ " ms");
+    IO::PrintLine
+    (
+        "Large text chunk concatenation (1000 chunks, length " ++ (TextUtil::Length(result) as Text) ++ "): " ++ ((end - start) as Text) ++ " ms"
+    );
 };
 
-def BuildIterations = fn(i : Int, limit : Int, acc : Text) -> Text =>
+def BuildIterations = fn(i: Int, limit: Int, acc: Text) -> Text =>
 {
-	if i >= limit
-	then acc
-	else
-	{
-		def temp = "Iteration: " ++ (i as Text);
-		BuildIterations(i + 1, limit, acc ++ temp ++ ", ")
-	}
+    if i >= limit
+    then acc
+    else
+    {
+        def temp = "Iteration: " ++ (i as Text);
+        BuildIterations(i + 1, limit, acc ++ temp ++ ", ")
+    }
 };
 
 def TestNestedTextOperations = fn() -> Unit =>
 {
-	def start = DateTime::NowUnixMillis();
+    def start = DateTime::NowUnixMillis();
 
-	def result = BuildIterations(0, 500, "");
+    def result = BuildIterations(0, 500, "");
 
-	def end = DateTime::NowUnixMillis();
+    def end = DateTime::NowUnixMillis();
 
-	IO::PrintLine("Nested text operations (500 iterations, length " ++ (TextUtil::Length(result) as Text) ++ "): " ++ ((end - start) as Text) ++ " ms");
+    IO::PrintLine
+    (
+        "Nested text operations (500 iterations, length " ++ (TextUtil::Length(result) as Text) ++ "): " ++ ((end - start) as Text) ++ " ms"
+    );
 };
 
 TestTextConcatenation(10000);

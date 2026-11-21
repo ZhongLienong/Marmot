@@ -1,9 +1,11 @@
 module gc_stress_arrays
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt" }
 
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
-use IO.{PrintLine}
+use IO.
+{
+    PrintLine
+}
 
 // Total is tail recursive, so 10000 iterations do not grow the stack. The
 // array itself is now built by a comprehension in a single allocation; the
@@ -11,32 +13,41 @@ use IO.{PrintLine}
 // is no longer covered.
 // Defined before BuildArrayWorker: a worker rebuilds its globals by name, and
 // forward references do not resolve across a spawn.
-def Total = fn(arr: Array<Int>, j: Int, sum: Int, size: Int) -> Int =>
-    if j >= size then sum else Total(arr, j + 1, sum + arr[j], size);
+def Total = fn(arr: Array<Int>, j: Int, sum: Int, size: Int) -> Int => if j >= size
+then sum
+else Total(arr, j + 1, sum + arr[j], size);
 
-def BuildArrayWorker = fn(ch: Channel<Int>, size: Int) -> Int => {
+def BuildArrayWorker = fn(ch: Channel < Int >, size: Int) -> Int =>
+{
     // Was built by repeated in-place Append. A comprehension allocates the
     // array once: same allocation volume, but the reallocate-as-it-grows path
     // is no longer exercised.
-    def arr : Array<Int> = [i * i for i in 0..1..size];
+    def arr: Array<Int> = [i * i for i in 0..1..size];
     Concurrency::Send(ch, Total(arr, 0, 0, size));
     0
 };
 
-def ch1 : Channel<Int> = Concurrency::MakeChannel(1);
-def ch2 : Channel<Int> = Concurrency::MakeChannel(1);
+def ch1: Channel < Int > = Concurrency::MakeChannel(1);
+
+def ch2: Channel < Int > = Concurrency::MakeChannel(1);
 
 def w1 = Concurrency::Spawn((ch1, 10000), BuildArrayWorker);
+
 def w2 = Concurrency::Spawn((ch2, 10000), BuildArrayWorker);
 
 def s1 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch1), "Channel closed");
+
 def s2 = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch2), "Channel closed");
 
 PrintLine("s1=" ++ (s1 as Text));
 PrintLine("s2=" ++ (s2 as Text));
-PrintLine("match=" ++ (if s1 == s2 then "true" else "false"));
+PrintLine("match=" ++ (if s1 == s2
+then "true"
+else "false"));
 
 Concurrency::Close(ch1);
 Concurrency::Close(ch2);
+
 def _r1 = Concurrency::JoinedOrPanic(Concurrency::Join(w1));
+
 def _r2 = Concurrency::JoinedOrPanic(Concurrency::Join(w2));

@@ -1,9 +1,5 @@
 module TupleLiterals
-
-import
-{
-    <IO>
-}
+import { <IO> }
 
 IO::PrintLine("=== Tuple Literal Tests ===");
 
@@ -13,8 +9,11 @@ IO::PrintLine("Unit/empty tuple: ()");
 
 // Pair tuples
 def int_pair = (1, 2);
+
 def float_pair = (3.14, 2.71);
+
 def text_pair = ("hello", "world");
+
 def bool_pair = (true, false);
 
 IO::PrintLine("Integer pair: (1, 2)");
@@ -24,6 +23,7 @@ IO::PrintLine("Boolean pair: (true, false)");
 
 // Triple tuples
 def int_triple = (1, 2, 3);
+
 def mixed_triple = (42, "answer", true);
 
 IO::PrintLine("Integer triple: (1, 2, 3)");
@@ -31,6 +31,7 @@ IO::PrintLine("Mixed triple: (42, answer, true)");
 
 // Larger tuples
 def quadruple = (1, 2, 3, 4);
+
 def quintuple = (10, 20, 30, 40, 50);
 
 IO::PrintLine("Quadruple: (1, 2, 3, 4)");
@@ -45,6 +46,7 @@ IO::PrintLine("3D coordinate: (10.5, 20.3, -5.7)");
 
 // Nested tuples
 def nested_pair = ((1, 2), (3, 4));
+
 def nested_mixed = ((10, "ten"), (20, "twenty"));
 
 IO::PrintLine("Nested pair tuple created");

@@ -1,10 +1,5 @@
 module HiddenLocalsInOperandPosition
-
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-	"../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt",
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt", }
 
 // Regression: `match`, `for` and array comprehensions declare hidden locals on
 // the value stack (a match value slot, pattern bindings, a loop variable and
@@ -18,55 +13,103 @@ import
 // wrong answer when it was a number: `100 + (match v with case 2 => 20 ...)`
 // evaluated to 22. Blocks already had this fixed; these three constructs did not.
 
-def Expect = fn(condition : Bool, message : Text) -> Unit =>
-	if condition then () else Panic::Panic(message);
+def Expect = fn(condition: Bool, message: Text) -> Unit => if condition
+then ()
+else Panic::Panic(message);
 
-def Echo = fn(label : Text, n : Int) -> Text => label ++ "=" ++ (n as Text);
-def EchoTwo = fn(first : Text, second : Text, n : Int) -> Text => first ++ second ++ "=" ++ (n as Text);
-def EchoUnit = fn(label : Text, _ignored : Unit) -> Text => label;
-def EchoArray = fn(label : Text, xs : Array<Int>) -> Text => label ++ "=" ++ (xs[0] as Text) ++ "," ++ (xs[2] as Text);
+def Echo = fn(label: Text, n: Int) -> Text => label ++ "=" ++ (n as Text);
+
+def EchoTwo = fn(first: Text, second: Text, n: Int) -> Text => first ++ second ++ "=" ++ (n as Text);
+
+def EchoUnit = fn(label: Text, _ignored: Unit) -> Text => label;
+
+def EchoArray = fn(label: Text, xs: Array<Int>) -> Text => label ++ "=" ++ (xs[0] as Text) ++ "," ++ (xs[2] as Text);
 
 def v = 2;
+
 def pair = (3, 4);
 
 // Right-hand operand of a binary operator. This was the silent wrong answer.
-def sum = 100 + (match v with case 1 => 10 case 2 => 20 case _ => 99);
+def sum = 100 + (match v with
+    case 1 => 10
+    case 2 => 20
+    case _ => 99);
 Expect(sum == 120, "a match as the right operand of + must not overwrite the left operand");
 IO::PrintLine("binary right operand: " ++ (sum as Text));
 
 // A later call argument.
-def matched = Echo("match", match v with case 1 => 10 case 2 => 20 case _ => 99);
+def matched = Echo
+(
+    "match",
+    match v with
+        case 1 => 10
+        case 2 => 20
+        case _ => 99
+);
 Expect(matched == "match=20", "a match as a later argument must not overwrite the earlier argument");
 IO::PrintLine(matched);
 
 // Pattern-bound locals are hidden locals too.
-def destructured = Echo("tuple", match pair with case (a, b) => a + b);
+def destructured = Echo
+(
+    "tuple",
+    match pair with
+            case (a, b) => a + b
+);
 Expect(destructured == "tuple=7", "pattern-bound locals must not overwrite an earlier argument");
 IO::PrintLine(destructured);
 
 // Two operands pending, so every write used to land two slots low.
-def two = EchoTwo("a", "b", match v with case 2 => 20 case _ => 0);
+def two = EchoTwo
+(
+    "a",
+    "b",
+    match v with
+                case 2 => 20
+                case _ => 0
+);
 Expect(two == "ab=20", "a match must not overwrite either of two earlier arguments");
 IO::PrintLine(two);
 
 // A for loop as a later argument.
-def looped = EchoUnit("for", for i in 0..1..3 { () });
+def looped = EchoUnit
+(
+    "for",
+    for i in 0..1..3
+    {
+                    ()
+                }
+);
 Expect(looped == "for", "a for loop as a later argument must not overwrite the earlier argument");
 IO::PrintLine(looped);
 
 // A comprehension over a range as a later argument.
 def ranged = EchoArray("range", [i * 10 for i in 0..1..3]);
-Expect(ranged == "range=0,20", "a range comprehension as a later argument must not overwrite the earlier argument");
+Expect
+(
+    ranged == "range=0,20",
+    "a range comprehension as a later argument must not overwrite the earlier argument"
+);
 IO::PrintLine(ranged);
 
 // A comprehension over an array as a later argument.
 def arrayed = EchoArray("array", [x + 1 for x in [7, 8, 9]]);
-Expect(arrayed == "array=8,10", "an array comprehension as a later argument must not overwrite the earlier argument");
+Expect
+(
+    arrayed == "array=8,10",
+    "an array comprehension as a later argument must not overwrite the earlier argument"
+);
 IO::PrintLine(arrayed);
 
 // Nested: a match inside a comprehension, with the comprehension itself a later
 // argument and the match also a right-hand operand. Both shifts must compose.
-def nested = EchoArray("nested", [1 + (match x with case 1 => 10 case _ => 0) for x in [1, 2, 1]]);
+def nested = EchoArray
+(
+    "nested",
+    [1 + (match x with
+                    case 1 => 10
+                    case _ => 0) for x in [1, 2, 1]]
+);
 Expect(nested == "nested=11,11", "nested hidden-local constructs in operand position must compose");
 IO::PrintLine(nested);
 

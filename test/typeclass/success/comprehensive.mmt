@@ -1,42 +1,51 @@
 module Comprehensive
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
 // Define multiple typeclasses
-class Show<T> {
+class Show<T>
+{
     show: fn(value: T) -> Text;
 };
 
-class Debug<T> {
+class Debug<T>
+{
     debug: fn(value: T) -> Text;
 };
 
 // Multiple instances for Show
-instance Show<Int> {
-    def show = fn(value: Int) -> Text => {
+instance Show<Int>
+{
+    def show = fn(value: Int) -> Text =>
+    {
         "Int(" ++ (value as Text) ++ ")"
     };
 };
 
-instance Show<Float> {
-    def show = fn(value: Float) -> Text => {
+instance Show<Float>
+{
+    def show = fn(value: Float) -> Text =>
+    {
         "Float(" ++ (value as Text) ++ ")"
     };
 };
 
 // Instance for Debug
-instance Debug<Int> {
-    def debug = fn(value: Int) -> Text => {
+instance Debug<Int>
+{
+    def debug = fn(value: Int) -> Text =>
+    {
         "[DEBUG] " ++ (value as Text)
     };
 };
 
 // Constrained generic functions
-def print_value = fn<T>(x: T) -> Text where Show<T> => {
+def print_value = fn<T>(x: T) -> Text where Show<T> =>
+{
     Show::show(x)
 };
 
-def debug_value = fn<T>(x: T) -> Text where Debug<T> => {
+def debug_value = fn<T>(x: T) -> Text where Debug<T> =>
+{
     Debug::debug(x)
 };
 

@@ -4,12 +4,14 @@ type Meters = Int;
 
 type Seconds = Int;
 
-class Describable<T> {
-	Describe: fn(value: T) -> Int;
+class Describable<T>
+{
+    Describe: fn(value: T) -> Int;
 };
 
-instance Describable<Meters> {
-	def Describe = fn(value: Meters) -> Int => value as Int;
+instance Describable<Meters>
+{
+    def Describe = fn(value: Meters) -> Int => value as Int;
 };
 
 def elapsed: Seconds = 7 as Seconds;

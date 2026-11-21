@@ -1,18 +1,21 @@
 module CellCounter
-
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt"
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 def counter = ref 0;
 counter := (*counter) + 1;
+
 def first = *counter;
 counter := (*counter) + 1;
+
 def second = *counter;
-def annotated : Ref<Text> = ref "start";
+
+def annotated: Ref<Text> = ref "start";
 annotated := "end";
+
 def replaced = *annotated;
 
-IO::PrintLine("first=" ++ (first as Text) ++ " second=" ++ (second as Text) ++ " now=" ++ (*counter as Text));
+IO::PrintLine
+(
+    "first=" ++ (first as Text) ++ " second=" ++ (second as Text) ++ " now=" ++ (*counter as Text)
+);
 IO::PrintLine("replaced=" ++ replaced ++ " text=" ++ (*annotated));

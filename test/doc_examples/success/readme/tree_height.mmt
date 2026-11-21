@@ -2,13 +2,13 @@ module ReadmeTreeHeight
 
 type Tree<T> = Leaf(T) | Node(Tree<T>, Tree<T>);
 
-def height = fn<T>(tree: Tree<T>) -> Int =>
-    match tree with
-        case Tree::Leaf(_) => 1
-        case Tree::Node(left, right) => {
-            def left_height = height(left);
-            def right_height = height(right);
-            1 + (if left_height > right_height
-                 then left_height
-                 else right_height)
-        };
+def height = fn<T>(tree: Tree<T>) -> Int => match tree with
+    case Tree::Leaf(_) => 1
+    case Tree::Node(left, right) =>
+{
+        def left_height = height(left);
+        def right_height = height(right);
+        1 + (if left_height > right_height
+        then left_height
+        else right_height)
+    };

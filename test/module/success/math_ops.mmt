@@ -2,10 +2,7 @@
 module MathOps
 public export { compute, square }
 
-import
-{
-    "math_lib.mmt"
-}
+import { "math_lib.mmt" }
 
 // Uses functions from math_lib internally
 def compute = fn(x: Int) -> Int => Math::add(Math::multiply(x, x), x);

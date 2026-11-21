@@ -1,43 +1,50 @@
 module NestedGenericTokenSplit
-
 // Test: a '>>' that closes two generic levels at once.
 // The parser splits such a token by inserting into the token stream while the
 // enclosing parse frames still hold Token& into it, so the stream must keep every
 // Token at a stable address.
 // Expected: every form below parses and runs, whatever construct encloses it.
 
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt"
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 def InFunctionExpression = fn() -> Int =>
 {
-	def xs : Array<Array<Int>> = [[1], [2], [3]];
-	#xs
+    def xs: Array<Array<Int>> = [[1], [2], [3]];
+    #xs
 };
 
 def InIfWithinFunction = fn() -> Int =>
 {
-	if 1 == 1
-	then { def xs : Array<Array<Int>> = [[1], [2]]; #xs }
-	else 0
+    if 1 == 1
+    then
+    {
+        def xs: Array<Array<Int>> = [[1], [2]];
+        #xs
+    }
+    else 0
 };
 
 def InThreeLevels = fn() -> Int =>
 {
-	def xs : Array<Array<Array<Int>>> = [[[7], [8], [9], [10]]];
-	#xs[0]
+    def xs: Array<Array<Array<Int>>> = [[[7], [8], [9], [10]]];
+    #xs[0]
 };
 
-def in_top_level_if : Int = if 1 == 1
-	then { def xs : Array<Array<Int>> = [[1], [2], [3], [4], [5]]; #xs }
-	else 0;
+def in_top_level_if: Int = if 1 == 1
+then
+{
+    def xs: Array<Array<Int>> = [[1], [2], [3], [4], [5]];
+    #xs
+}
+else 0;
 
-def in_match : Int = match 1 with
-	case 1 => { def xs : Array<Array<Int>> = [[1], [2], [3], [4], [5], [6]]; #xs }
-	case _ => 0
-;
+def in_match: Int = match 1 with
+    case 1 =>
+{
+        def xs: Array<Array<Int>> = [[1], [2], [3], [4], [5], [6]];
+        #xs
+    }
+    case _ => 0;
 
 IO::PrintLine("fn=" ++ (InFunctionExpression() as Text));
 IO::PrintLine("if_in_function=" ++ (InIfWithinFunction() as Text));

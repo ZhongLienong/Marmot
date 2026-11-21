@@ -1,38 +1,41 @@
 module EmptyVariantSharing
-
 import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt" }
 
-use Option.{ Option }
+use Option.
+{
+    Option
+}
 
 // A union variant with no fields is nothing but its tag, so it loads one shared
 // value instead of allocating. Sharing is invisible: the value still matches, still
 // compares, and still works after many of them have been made.
 
-def Describe = fn(value : Option<Int>) -> Text =>
-	match value with
-		case Option::Some(n) => "some " ++ (n as Text)
-		case Option::None() => "none";
+def Describe = fn(value: Option<Int>) -> Text => match value with
+    case Option::Some(n) => "some " ++ (n as Text)
+    case Option::None() => "none";
 
-def first : Option<Int> = Option::None();
-def second : Option<Int> = Option::None();
+def first: Option<Int> = Option::None();
+
+def second: Option<Int> = Option::None();
 
 IO::PrintLine("first: " ++ Describe(first));
 IO::PrintLine("second: " ++ Describe(second));
 IO::PrintLine("some: " ++ Describe(Option::Some(7)));
 
 // Many of them, interleaved with allocation, so a collection runs in between.
-def Count = fn(index : Int, limit : Int, total : Int) -> Int =>
-	if index >= limit
-	then total
-	else
-	{
-		def value : Option<Int> = if (index % 3) == 0 then Option::None() else Option::Some(index);
-		def filler = [index, index + 1, index + 2];
-		def step = match value with
-			case Option::None() => filler[0] - filler[0] + 1
-			case Option::Some(_) => 0;
-		Count(index + 1, limit, total + step)
-	};
+def Count = fn(index: Int, limit: Int, total: Int) -> Int => if index >= limit
+then total
+else
+{
+    def value: Option<Int> = if (index % 3) == 0
+    then Option::None()
+    else Option::Some(index);
+    def filler = [index, index + 1, index + 2];
+    def step = match value with
+        case Option::None() => filler[0] - filler[0] + 1
+        case Option::Some(_) => 0;
+    Count(index + 1, limit, total + step)
+};
 
 IO::PrintLine("nones in 3000: " ++ (Count(0, 3000, 0) as Text));
 
@@ -40,10 +43,9 @@ IO::PrintLine("nones in 3000: " ++ (Count(0, 3000, 0) as Text));
 // safe because a value's type is settled at compile time.
 type Signal = Stop | Go(Int);
 
-def ReadSignal = fn(signal : Signal) -> Text =>
-	match signal with
-		case Signal::Stop() => "stop"
-		case Signal::Go(n) => "go " ++ (n as Text);
+def ReadSignal = fn(signal: Signal) -> Text => match signal with
+    case Signal::Stop() => "stop"
+    case Signal::Go(n) => "go " ++ (n as Text);
 
 IO::PrintLine("signal: " ++ ReadSignal(Signal::Stop()) ++ " then " ++ ReadSignal(Signal::Go(2)));
 IO::PrintLine("still none: " ++ Describe(first));

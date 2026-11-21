@@ -1,79 +1,76 @@
 module PipeIntoConstruct
-
 // A construction parses to a `Construct` node, not a `Call`, so the pipe has to prepend the
 // piped value into the construction's own argument list. Wrapping it as `Construct(...)(x)`
 // instead reported an arity error at the construction site, which made a struct or a union
 // variant the one shape that could not appear in a pipeline.
 
-import
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-}
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
 type Point =
 {
-	x : Int,
-	y : Int
+    x: Int,
+    y: Int
 };
 
 type Bag<T> =
 {
-	count : Int,
-	items : Array<T>
+    count: Int,
+    items: Array<T>
 };
 
 type Cell<T> =
 {
-	value : T,
-	tag : Int
+    value: T,
+    tag: Int
 };
 
 type Labelled =
 {
-	point : Point,
-	label : Text
+    point: Point,
+    label: Text
 };
 
 type Opt<T> = Some(T) | None;
 
 type Shape = Circle(Int) | Rect(Int, Int);
 
-def ShowPoint = fn(p : Point) -> Text =>
+def ShowPoint = fn(p: Point) -> Text =>
 {
-	"(" ++ (p.x as Text) ++ ", " ++ (p.y as Text) ++ ")"
+    "(" ++ (p.x as Text) ++ ", " ++ (p.y as Text) ++ ")"
 };
 
-def ShowOpt = fn(o : Opt<Int>) -> Text =>
+def ShowOpt = fn(o: Opt<Int>) -> Text =>
 {
-	match o with
-	case Opt::Some(v) => "some " ++ (v as Text)
-	case Opt::None() => "none"
+    match o with
+        case Opt::Some(v) => "some " ++ (v as Text)
+        case Opt::None() => "none"
 };
 
-def Area = fn(s : Shape) -> Int =>
+def Area = fn(s: Shape) -> Int =>
 {
-	match s with
-	case Shape::Circle(r) => r * r * 3
-	case Shape::Rect(w, h) => w * h
+    match s with
+            case Shape::Circle(r) => r * r * 3
+            case Shape::Rect(w, h) => w * h
 };
 
-def WithLabel = fn(p : Point, label : Text) -> Labelled =>
+def WithLabel = fn(p: Point, label: Text) -> Labelled =>
 {
-	Labelled(p, label)
+    Labelled(p, label)
 };
 
-def ShowLabelled = fn(l : Labelled) -> Text =>
+def ShowLabelled = fn(l: Labelled) -> Text =>
 {
-	l.label ++ " " ++ ShowPoint(l.point)
+    l.label ++ " " ++ ShowPoint(l.point)
 };
 
-def Double = fn(n : Int) -> Int =>
+def Double = fn(n: Int) -> Int =>
 {
-	n * 2
+    n * 2
 };
 
 // The piped value becomes the first constructor argument, in both spellings.
 def bare = 2 |> Point(1);
+
 def keyword = 2 |> Point(1);
 IO::PrintLine("bare: " ++ ShowPoint(bare));
 IO::PrintLine("keyword: " ++ ShowPoint(keyword));
@@ -84,6 +81,7 @@ IO::PrintLine("ordered: " ++ ShowPoint(1 |> Point(2)));
 // Union variants, qualified, in both spellings. The variant tag is decided at parse time,
 // so prepending an argument must leave it alone.
 def piped_some = 5 |> Opt::Some();
+
 def piped_some_keyword = 6 |> Opt::Some();
 IO::PrintLine("piped_some: " ++ ShowOpt(piped_some));
 IO::PrintLine("piped_some_keyword: " ++ ShowOpt(piped_some_keyword));
@@ -115,9 +113,9 @@ IO::PrintLine("chained: " ++ ShowPoint(3 |> Double |> Point(9)));
 
 // Inside a generic function body the declared types are already freshened, so a piped
 // construction has to infer against the freshened parameter rather than a stale one.
-def WrapIt = fn<T>(v : T) -> Cell<T> =>
+def WrapIt = fn<T>(v: T) -> Cell<T> =>
 {
-	v |> Cell(7)
+    v |> Cell(7)
 };
 
 IO::PrintLine("wrapped text: " ++ WrapIt("abc").value);

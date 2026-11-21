@@ -1,21 +1,26 @@
 module TupleElementExpectedType
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
-type Point = { x: Int, y: Int };
+type Point =
+{
+    x: Int,
+    y: Int
+};
 
-def Annotated : (Int, Point) = (1, Point(2, 3));
+def Annotated:(Int, Point) = (1, Point(2, 3));
 
-def Nested : (Point, (Int, Point)) = (Point(4, 5), (6, Point(7, 8)));
+def Nested:(Point, (Int, Point)) = (Point(4, 5), (6, Point(7, 8)));
 
 def Returned = fn() -> (Text, Point) => ("p", Point(9, 10));
 
 def (label, corner) = Returned();
 
 def (first, inner) = Nested;
+
 def (n, deep) = inner;
 
-def InArray : Array<(Int, Point)> = [(11, Point(12, 13))];
+def InArray: Array<(Int, Point)> = [(11, Point(12, 13))];
+
 def (idx, boxed) = InArray[0];
 
 def (one, pt) = Annotated;

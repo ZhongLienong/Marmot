@@ -1,31 +1,65 @@
 module OperandPositionBlock
-
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
 def a = 10;
-def w = a + { def q = a + 1; q * 2 };
-def v = (a + { def q = a + 2; q }) * { def r = a - 8; r + 1 };
-def deep = a + (a * { def x = a + 1; def y = x + a; { def z = y - x; z + y } });
+
+def w = a +
+{
+    def q = a + 1;
+    q * 2
+};
+
+def v = (a +
+{
+    def q = a + 2;
+    q
+}
+) *
+{
+    def r = a - 8;
+    r + 1
+};
+
+def deep = a + (a *
+{
+    def x = a + 1;
+    def y = x + a;
+    {
+        def z = y - x;
+        z + y
+    }
+}
+);
 
 def Limit = 3;
 
 // The accumulating `loop` became a recursive helper. What the file is about --
 // a block sitting in operand position -- is preserved at every site, including
 // the one that used to be the compound-assignment operand.
-def Accumulate = fn(i : Int, w_local : Int, n : Int) -> Int =>
-	if i >= Limit
-	then 0
-	else (w_local + { def t = i + n; t * 2 }) + Accumulate(i + 1, w_local, n);
-
-def Work = fn(n : Int) -> Int =>
+def Accumulate = fn(i: Int, w_local: Int, n: Int) -> Int => if i >= Limit
+then 0
+else (w_local +
 {
-	def base = n * 2;
-	def w_local = base + { def q = n + 1; q * 2 };
-	def acc = Accumulate(0, w_local, n);
-	acc + (base * { def m = n - 5; m + Limit })
+    def t = i + n;
+    t * 2
+}
+) + Accumulate(i + 1, w_local, n);
+
+def Work = fn(n: Int) -> Int =>
+{
+    def base = n * 2;
+    def w_local = base +
+    {
+        def q = n + 1;
+        q * 2
+    };
+    def acc = Accumulate(0, w_local, n);
+    acc + (base *
+    {
+        def m = n - 5;
+        m + Limit
+    }
+    )
 };
 
 IO::PrintLine(w as Text);

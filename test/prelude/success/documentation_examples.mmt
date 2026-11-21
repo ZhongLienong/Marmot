@@ -1,125 +1,187 @@
 module PreludeDocumentationExamples
-
-import
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/System.mmt", "../../../projects/marmotstdlib/MarmotPrelude/DateTime.mmt", "../../../projects/marmotstdlib/MarmotPrelude/TextUtil.mmt", "../../../projects/marmotstdlib/MarmotPrelude/ArrayUtil.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt" }
+use IO.
 {
-    "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/System.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/DateTime.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/TextUtil.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/ArrayUtil.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt"
+    IOError
 }
-use IO.{IOError}
-use Option.{Option}
-use Result.{Result}
-use System.{Platform}
+use Option.
+{
+    Option
+}
+use Result.
+{
+    Result
+}
+use System.
+{
+    Platform
+}
 
-def Expect = fn(condition: Bool, message: Text) -> Unit => {
+def Expect = fn(condition: Bool, message: Text) -> Unit =>
+{
     if condition
     then ()
     else Panic::Panic(message)
 };
 
-def ExpectOkUnit = fn<T, E>(result: Result<T, E>, message: Text) -> Unit => {
+def ExpectOkUnit = fn<T, E>(result: Result<T, E>, message: Text) -> Unit =>
+{
     match result with
         case Result::Ok(_) => ()
         case Result::Err(_) => Panic::Panic(message)
 };
 
-def IgnoreIOResult = fn<T>(result: Result<T, IOError>) -> Unit => {
+def IgnoreIOResult = fn<T>(result: Result<T, IOError>) -> Unit =>
+{
     match result with
-        case Result::Ok(_) => ()
-        case Result::Err(_) => ()
+            case Result::Ok(_) => ()
+            case Result::Err(_) => ()
 };
 
 def suffix = System::CurrentProcessId() as Text;
+
 def config_path = "marmot_phase8_doc_" ++ suffix ++ ".txt";
+
 def env_name = "MARMOT_PHASE8_DOC_" ++ suffix;
 
 IgnoreIOResult(IO::TryDeleteFile(config_path));
 
-ExpectOkUnit(IO::TryWriteFile(config_path, "release=1"), "The documentation IO example should be able to create a config file");
+ExpectOkUnit
+(
+    IO::TryWriteFile(config_path, "release=1"),
+    "The documentation IO example should be able to create a config file"
+);
 
-def config_text =
-    match IO::TryReadFile(config_path) with
-        case Result::Ok(contents) => contents
-        case Result::Err(_) => Panic::Panic("The documentation IO example should be able to read back the config file")
-    ;
+def config_text = match IO::TryReadFile(config_path) with
+                case Result::Ok(contents) => contents
+                case Result::Err(_) => Panic::Panic("The documentation IO example should be able to read back the config file");
 
 Expect(config_text == "release=1", "The documented IO example should preserve the file contents");
 
-ExpectOkUnit(System::SetEnv(env_name, "docs-cache"), "The documentation System example should be able to set an environment variable");
+ExpectOkUnit
+(
+    System::SetEnv(env_name, "docs-cache"),
+    "The documentation System example should be able to set an environment variable"
+);
 
-def cache_dir =
-    match System::TryGetEnv(env_name) with
-        case Option::Some(path) => path
-        case Option::None() => Panic::Panic("The documented System example should be able to read back the configured environment variable")
-    ;
+def cache_dir = match System::TryGetEnv(env_name) with
+                case Option::Some(path) => path
+                case Option::None() => Panic::Panic
+(
+    "The documented System example should be able to read back the configured environment variable"
+);
 
-Expect(cache_dir == "docs-cache", "The documented System example should preserve the configured environment value");
+Expect
+(
+    cache_dir == "docs-cache",
+    "The documented System example should preserve the configured environment value"
+);
 
-def missing_cache_dir =
-    match System::TryGetEnv(env_name ++ "_MISSING") with
-        case Option::Some(_) => ".unexpected"
-        case Option::None() => ".marmot-cache"
-    ;
+def missing_cache_dir = match System::TryGetEnv(env_name ++ "_MISSING") with
+                case Option::Some(_) => ".unexpected"
+                case Option::None() => ".marmot-cache";
 
-Expect(missing_cache_dir == ".marmot-cache", "The documented Option example should allow a fallback path");
+Expect
+(
+    missing_cache_dir == ".marmot-cache",
+    "The documented Option example should allow a fallback path"
+);
 
-def platform_name =
-    match System::CurrentPlatform() with
-        case Platform::Windows() => "windows"
-        case Platform::MacOS() => "macos"
-        case Platform::Linux() => "linux"
-        case Platform::WebAssembly() => "webassembly"
-        case Platform::Unknown(name) => name
-    ;
+def platform_name = match System::CurrentPlatform() with
+                case Platform::Windows() => "windows"
+                case Platform::MacOS() => "macos"
+                case Platform::Linux() => "linux"
+                case Platform::WebAssembly() => "webassembly"
+                case Platform::Unknown(name) => name;
 
-Expect(platform_name != "", "The documented platform example should always produce a non-empty label");
+Expect
+(
+    platform_name != "",
+    "The documented platform example should always produce a non-empty label"
+);
 
 def local = DateTime::LocalNow();
+
 def utc = DateTime::UtcNow();
+
 def timestamp = DateTime::NowUnixMillis();
+
 def formatted_year = DateTime::FormatLocal("%Y");
 
 Expect(timestamp > 0, "The documented DateTime example should produce a positive Unix timestamp");
-Expect((local.year >= 1970) && (local.year <= 9999), "The documented DateTime example should expose a plausible local year");
-Expect((utc.year >= 1970) && (utc.year <= 9999), "The documented DateTime example should expose a plausible UTC year");
-Expect(formatted_year == (local.year as Text), "The documented DateTime example should format the local year");
+Expect
+(
+    (local.year >= 1970) && (local.year <= 9999),
+    "The documented DateTime example should expose a plausible local year"
+);
+Expect
+(
+    (utc.year >= 1970) && (utc.year <= 9999),
+    "The documented DateTime example should expose a plausible UTC year"
+);
+Expect
+(
+    formatted_year == (local.year as Text),
+    "The documented DateTime example should format the local year"
+);
 
 def words = TextUtil::Split(TextUtil::Trim("  alpha beta  "), " ");
+
 def headline = TextUtil::Replace("marmot docs", "docs", "prelude");
 
 Expect(#words == 2, "The documented TextUtil example should split the trimmed text into two words");
-Expect((words[0] == "alpha") && (words[1] == "beta"), "The documented TextUtil example should preserve word ordering");
-Expect(headline == "marmot prelude", "The documented TextUtil example should replace the requested substring");
+Expect
+(
+    (words[0] == "alpha") && (words[1] == "beta"),
+    "The documented TextUtil example should preserve word ordering"
+);
+Expect
+(
+    headline == "marmot prelude",
+    "The documented TextUtil example should replace the requested substring"
+);
 
 def numbers = [1, 2, 3];
+
 def grown = ArrayUtil::WithAppended(numbers, 4);
+
 def replaced = ArrayUtil::WithReplaced(grown, 0, 9);
 
 def reversed = ArrayUtil::Reverse(replaced);
+
 def window = ArrayUtil::Slice(replaced, 1, 3);
 
-Expect((#grown == 4) && (grown[3] == 4), "The documented ArrayUtil example should grow the array by one element");
+Expect
+(
+    (#grown == 4) && (grown[3] == 4),
+    "The documented ArrayUtil example should grow the array by one element"
+);
 Expect(#numbers == 3, "The documented ArrayUtil example should leave the original array untouched");
 Expect(replaced[0] == 9, "The documented ArrayUtil example should replace the first element");
-Expect((reversed[0] == 4) && (reversed[3] == 9), "The documented ArrayUtil example should reverse the array order");
-Expect((ArrayUtil::Length(window) == 2) && (window[0] == 2) && (window[1] == 3), "The documented ArrayUtil example should preserve the requested slice");
+Expect
+(
+    (reversed[0] == 4) && (reversed[3] == 9),
+    "The documented ArrayUtil example should reverse the array order"
+);
+Expect
+(
+    (ArrayUtil::Length(window) == 2) && (window[0] == 2) && (window[1] == 3),
+    "The documented ArrayUtil example should preserve the requested slice"
+);
 
 // A construction takes its type arguments from its own arguments or from an annotation on
 // the binding it flows into. A match scrutinee supplies neither, so bind it first.
-def documented_result : Result<Int, Text> = Result::Ok(7);
+def documented_result: Result<Int, Text> = Result::Ok(7);
 
-def result_message =
-    match documented_result with
-        case Result::Ok(value) => "ok:" ++ (value as Text)
-        case Result::Err(message) => message
-    ;
+def result_message = match documented_result with
+                case Result::Ok(value) => "ok:" ++ (value as Text)
+                case Result::Err(message) => message;
 
-Expect(result_message == "ok:7", "The documented Result example should use the canonical Ok/Err constructors");
+Expect
+(
+    result_message == "ok:7",
+    "The documented Result example should use the canonical Ok/Err constructors"
+);
 
 IgnoreIOResult(IO::TryDeleteFile(config_path));
 

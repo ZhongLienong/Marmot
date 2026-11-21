@@ -1,18 +1,11 @@
 module BuiltinTypeOperationsTypeclasses
-
-import
-{
-    "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/Concatenable.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt"
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Concatenable.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt" }
 
 // Previously also covered Appendable, Prependable and Extendable. Those three
 // mutated their argument in place and were removed from the language; what
 // remains here is Concatenable, which returns a new value and is unaffected.
 
-def ConcatPair = fn<T>(left: T, right: T) -> T
-    where Concatenable<T> => left ++ right;
+def ConcatPair = fn<T>(left: T, right: T) -> T where Concatenable<T> => left ++ right;
 
 def arr = [1, 2, 3, 4, 5, 6];
 

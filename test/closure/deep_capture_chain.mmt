@@ -1,9 +1,5 @@
 module DeepCaptureChain
-
-import
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-}
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
 // Replaces man_or_boy.mmt. Knuth's Man-or-Boy test turns on a nested closure
 // mutating its enclosing scope's parameter between calls, which an immutable
@@ -13,16 +9,18 @@ import
 // What it exercised that is still expressible: closures capturing at several
 // depths at once, passed as arguments and re-entered recursively.
 
-def level = fn(depth : Int, base : Int) -> fn(Int) -> Int =>
+def level = fn(depth: Int, base: Int) -> fn(Int) -> Int =>
 {
-	def here = base + depth;
-	fn(extra : Int) -> Int => here + extra
+    def here = base + depth;
+    fn(extra: Int) -> Int => here + extra
 };
 
 // Each returned closure keeps its own `here`, so a later one cannot disturb an
 // earlier one.
 def first = level(1, 100);
+
 def second = level(2, 200);
+
 def third = level(3, 300);
 
 IO::PrintLine(first(0) as Text);
@@ -32,7 +30,8 @@ IO::PrintLine(first(7) as Text);
 
 // A recursive walk that carries closures through the recursion, so captures
 // survive several frames.
-def walk = fn(n : Int, acc : fn(Int) -> Int) -> Int =>
-	if n <= 0 then acc(0) else walk(n - 1, acc);
+def walk = fn(n: Int, acc: fn(Int) -> Int) -> Int => if n <= 0
+then acc(0)
+else walk(n - 1, acc);
 
 IO::PrintLine(walk(5, second) as Text);

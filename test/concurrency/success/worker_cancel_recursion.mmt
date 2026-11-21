@@ -1,27 +1,37 @@
 module worker_cancel_recursion
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt" }
-use Result.{ Result }
+use Result.
+{
+    Result
+}
 
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
-use IO.{PrintLine}
+use IO.
+{
+    PrintLine
+}
 
 import { "../../../projects/marmotstdlib/MarmotPrelude/System.mmt" }
-use System.{Sleep}
+use System.
+{
+    Sleep
+}
 
 // Neither call is a tail call and nothing loops, so only a return can notice
 // the cancellation. Left to finish, this takes seconds.
-def Fib = fn(n: Int) -> Int => if n < 2 then n else Fib(n - 1) + Fib(n - 2);
+def Fib = fn(n: Int) -> Int => if n < 2
+then n
+else Fib(n - 1) + Fib(n - 2);
 
 def w = Concurrency::Spawn(40, Fib);
 Sleep(50);
+
 def cancelled = Concurrency::Cancel(w);
-def outcome =
-    match Concurrency::Join(w) with
-        case Result::Ok(value) => "finished with " ++ (value as Text)
-        case Result::Err(error) =>
-            match error with
-                case Concurrency::WorkerError::Cancelled() => "cancelled"
-                case Concurrency::WorkerError::Failed(message) => "failed: " ++ message;
+
+def outcome = match Concurrency::Join(w) with
+    case Result::Ok(value) => "finished with " ++ (value as Text)
+    case Result::Err(error) => match error with
+        case Concurrency::WorkerError::Cancelled() => "cancelled"
+        case Concurrency::WorkerError::Failed(message) => "failed: " ++ message;
 
 PrintLine("cancel requested: " ++ (cancelled as Text) ++ ", worker " ++ outcome);

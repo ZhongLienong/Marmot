@@ -1,28 +1,18 @@
 module FuncMember
-
-import
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-}
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
 type FunStruct =
 {
-	num : Int,
-	no_op : fn(Int) -> Int,
-	inc : fn() -> Unit,
-	plus : fn(Int) -> Int,
+    num: Int,
+    no_op: fn(Int) -> Int,
+    inc: fn() -> Unit,
+    plus: fn(Int) -> Int,
 };
 
 type Fib =
 {
-	n : Int,
-	calc : fn(Int) -> Int
+    n: Int,
+    calc: fn(Int) -> Int
 };
 
-def s = FunStruct
-(
-	0, 
-	fn(x : Int) -> Int => x,
-	fn() -> Unit => (),
-	fn(x : Int) -> Int => x + x
-);
+def s = FunStruct(0, fn(x: Int) -> Int => x, fn() -> Unit => (), fn(x: Int) -> Int => x + x);

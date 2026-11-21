@@ -4,9 +4,13 @@ module RecordUpdateUnknownField
 
 type Point =
 {
-	x : Int,
-	y : Int
+    x: Int,
+    y: Int
 };
 
 def p = Point(1, 2);
-def bad = { p with z = 3 };
+
+def bad =
+{
+    p with z = 3
+};

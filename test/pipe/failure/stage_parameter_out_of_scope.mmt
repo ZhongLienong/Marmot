@@ -1,9 +1,5 @@
 module StageParameterOutOfScope
-
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt"
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 // A lambda stage ends before the next `|>`, so a later stage cannot see its
 // parameter. To use both, write the stages in one body.

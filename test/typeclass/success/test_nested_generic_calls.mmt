@@ -1,19 +1,20 @@
 module TestNestedGenericCalls
-
 // Test: Nested generic function calls with constraints
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Convertable.mmt" }
 
-def ToText = fn<T>(value: T) -> Text where Convertable<T, Text> => {
+def ToText = fn<T>(value: T) -> Text where Convertable<T, Text> =>
+{
     value as Text
 };
 
-def ToInt = fn<T>(value: T) -> Int where Convertable<T, Int> => {
+def ToInt = fn<T>(value: T) -> Int where Convertable<T, Int> =>
+{
     value as Int
 };
 
 // Function that uses other generic functions
-def ProcessValue = fn<T>(value: T) -> Text
-    where Convertable<T, Text>, Convertable<T, Int> => {
+def ProcessValue = fn<T>(value: T) -> Text where Convertable<T, Text>, Convertable<T, Int> =>
+{
     def text_repr = ToText(value);
     def int_repr = ToInt(value);
     def int_as_text = ToText(int_repr);

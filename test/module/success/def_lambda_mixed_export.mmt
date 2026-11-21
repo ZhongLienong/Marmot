@@ -1,10 +1,5 @@
 module DefLambdaMixedExport
-
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-	"./def_lambda_mixed_export_lib.mmt"
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "./def_lambda_mixed_export_lib.mmt" }
 
 IO::PrintLine(DefLambdaMixedExportLib::Double(4) as Text);
 IO::PrintLine(DefLambdaMixedExportLib::Triple(4) as Text);

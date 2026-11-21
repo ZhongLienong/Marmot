@@ -1,18 +1,19 @@
 module TypeDeclarationRecord
-
 // Test: `type X = { ... }` declares a record.
 // Expected: it lowers onto the Struct node the rest of the pipeline already knew -
 // same constructor name, same member access, same record-update support.
 
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt"
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
-type Point = { x: Int, y: Int };
+type Point =
+{
+    x: Int,
+    y: Int
+};
 
 // The type name is the constructor; a single-variant record does not repeat it.
 def origin = Point(0, 0);
+
 def moved = Point(3, 4);
 
 def SumOf = fn(p: Point) -> Int => p.x + p.y;
@@ -20,7 +21,10 @@ def SumOf = fn(p: Point) -> Int => p.x + p.y;
 // A record-update brace over a `type`-declared record. This is the collision the
 // design had to rule out: `{` after `=` in a declaration and `{` opening a record
 // update are parsed on entirely separate paths, so both spellings coexist.
-def shifted = { moved with x = 10 };
+def shifted =
+{
+    moved with x = 10
+};
 
 IO::PrintLine("origin=" ++ (SumOf(origin) as Text));
 IO::PrintLine("moved=" ++ (SumOf(moved) as Text));

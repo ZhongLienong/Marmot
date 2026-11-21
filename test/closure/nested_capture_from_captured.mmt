@@ -1,18 +1,14 @@
 module NestedCaptureFromCaptured
-
-import
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-}
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
 // The returned closure captures `value` from the enclosing scope, and also calls
 // `child`, which captured the same binding. Both must see it.
-def make_parent = fn(seed : Int) -> fn() -> Int =>
+def make_parent = fn(seed: Int) -> fn() -> Int =>
 {
-	def value = seed;
-	def child = fn() -> Int => value + 1;
+    def value = seed;
+    def child = fn() -> Int => value + 1;
 
-	fn() -> Int => child() + value
+    fn() -> Int => child() + value
 };
 
 def parent = make_parent(10);

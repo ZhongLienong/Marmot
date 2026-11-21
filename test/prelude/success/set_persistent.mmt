@@ -1,27 +1,26 @@
 module PreludeSetPersistent
+import { "../../../projects/marmotstdlib/MarmotPrelude/Collections/Set.mmt", "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Iterable.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt" }
 
-import
+use Option.
 {
-    "../../../projects/marmotstdlib/MarmotPrelude/Collections/Set.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/Iterable.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt"
+    Option
 }
 
-use Option.{ Option }
+def Expect = fn(condition: Bool, message: Text) -> Unit => if condition
+then ()
+else Panic::Panic(message);
 
-def Expect = fn(condition: Bool, message: Text) -> Unit => if condition then () else Panic::Panic(message);
+def AddRange = fn(set: Set::Set<Int>, next: Int, stop: Int) -> Set::Set<Int> => if next >= stop
+then set
+else AddRange(Set::SetWith(set, next), next + 1, stop);
 
-def AddRange = fn(set: Set::Set < Int >, next: Int, stop: Int) -> Set::Set < Int > =>
-    if next >= stop then set else AddRange(Set::SetWith(set, next), next + 1, stop);
-
-def seed : Set::Set < Int > = Set::SetEmpty();
+def seed: Set::Set<Int> = Set::SetEmpty();
 Expect(Set::SetCount(seed) == 0, "a new set is empty");
 Expect(Set::SetIsEmpty(seed), "a new set reports empty");
 Expect(!Set::SetHas(seed, 1), "a new set holds nothing");
 
 def one = Set::SetWith(seed, 1);
+
 def two = Set::SetWith(one, 2);
 Expect(Set::SetCount(seed) == 0, "adding does not disturb the source");
 Expect(Set::SetCount(one) == 1, "the first set keeps its size");
@@ -41,13 +40,13 @@ Expect(Set::SetCount(shrunk) == 79, "removal decrements");
 Expect(!Set::SetHas(shrunk, 40), "the removed value is gone");
 Expect(Set::SetHas(wide, 40), "removal leaves the source alone");
 
-def Tally = fn(state: Set::SetIter < Int >, seen: Int, sum: Int) -> (Int, Int) =>
-    match Iterable::Next(state) with
-        case Option::Some(step) => {
-            def (value, rest) = step;
-            Tally(rest, seen + 1, sum + value)
-        }
-        case Option::None() => (seen, sum);
+def Tally = fn(state: Set::SetIter<Int>, seen: Int, sum: Int) -> (Int, Int) => match Iterable::Next(state) with
+    case Option::Some(step) =>
+{
+        def (value, rest) = step;
+        Tally(rest, seen + 1, sum + value)
+    }
+    case Option::None() => (seen, sum);
 
 def (visited, total) = Tally(Set::SetIterNew(wide), 0, 0);
 Expect(visited == 80, "iteration visits every value exactly once");

@@ -1,18 +1,13 @@
 module MatchPatternGuards
-
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
 type Result = Ok(Int) | Err(Text);
 
 def Classify = fn(r: Result) -> Text => match r with
-	case Result::Ok(n) if n > 100 => "large"
-	case Result::Ok(n) if n > 0 => "small"
-	case Result::Ok(_) => "zero or below"
-	case Result::Err(e) => e
-;
+    case Result::Ok(n) if n > 100 => "large"
+    case Result::Ok(n) if n > 0 => "small"
+    case Result::Ok(_) => "zero or below"
+    case Result::Err(e) => e;
 
 IO::PrintLine(Classify(Result::Ok(500)));
 IO::PrintLine(Classify(Result::Ok(7)));
@@ -21,34 +16,30 @@ IO::PrintLine(Classify(Result::Ok(-3)));
 IO::PrintLine(Classify(Result::Err("boom")));
 
 def statement_level = match Result::Ok(42) with
-	case Result::Ok(n) if (n % 2) == 1 => "odd"
-	case Result::Ok(n) if (n % 2) == 0 => "even"
-	case Result::Ok(_) => "unreachable"
-	case Result::Err(_) => "error"
-;
+    case Result::Ok(n) if (n % 2) == 1 => "odd"
+    case Result::Ok(n) if (n % 2) == 0 => "even"
+    case Result::Ok(_) => "unreachable"
+    case Result::Err(_) => "error";
 
 IO::PrintLine("statement_level=" ++ statement_level);
 
 def guard_on_binding = match 17 with
-	case n if n > 20 => "big"
-	case n if n > 10 => "medium"
-	case _ => "small"
-;
+    case n if n > 20 => "big"
+    case n if n > 10 => "medium"
+    case _ => "small";
 
 IO::PrintLine("guard_on_binding=" ++ guard_on_binding);
 
 def guard_on_tuple = match (3, 4) with
-	case (a, b) if (a + b) > 100 => 0
-	case (a, b) if (a + b) > 5 => a + b
-	case _ => -1
-;
+    case (a, b) if (a + b) > 100 => 0
+    case (a, b) if (a + b) > 5 => a + b
+    case _ => -1;
 
 IO::PrintLine("guard_on_tuple=" ++ (guard_on_tuple as Text));
 
 def guard_falls_to_default = match true with
-	case true if 1 > 2 => "impossible"
-	case false => "false branch"
-	case _ => "fell through"
-;
+    case true if 1 > 2 => "impossible"
+    case false => "false branch"
+    case _ => "fell through";
 
 IO::PrintLine("guard_falls_to_default=" ++ guard_falls_to_default);

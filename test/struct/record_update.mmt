@@ -1,78 +1,111 @@
 module RecordUpdate
-
 // `{ source with field = value, ... }` produces a copy of `source` with those fields
 // replaced. Every right-hand side is evaluated against the ORIGINAL record, so a
 // multi-field update moves between two valid states without passing through an
 // invalid one.
 
-import
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-}
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
 type Point =
 {
-	x : Int,
-	y : Int,
-	label : Text
+    x: Int,
+    y: Int,
+    label: Text
 };
 
 def origin = Point(1, 2, "origin");
 
 // This statement-position update goes through ParsePrimary.
-def moved = { origin with x = 5 };
+def moved =
+{
+    origin with x = 5
+};
 
 IO::PrintLine("origin: " ++ (origin.x as Text) ++ "," ++ (origin.y as Text) ++ "," ++ origin.label);
 IO::PrintLine("moved: " ++ (moved.x as Text) ++ "," ++ (moved.y as Text) ++ "," ++ moved.label);
 
 // Fields may be written in any order; the copy is still built in declared order.
-def relabelled = { origin with label = "renamed", y = 42 };
-IO::PrintLine("relabelled: " ++ (relabelled.x as Text) ++ "," ++ (relabelled.y as Text) ++ "," ++ relabelled.label);
+def relabelled =
+{
+    origin with label = "renamed",
+    y = 42
+};
+IO::PrintLine
+(
+    "relabelled: " ++ (relabelled.x as Text) ++ "," ++ (relabelled.y as Text) ++ "," ++ relabelled.label
+);
 
 // Simultaneous, not sequential: this swaps rather than leaving both fields equal.
-def swapped = { origin with x = origin.y, y = origin.x };
+def swapped =
+{
+    origin with x = origin.y,
+    y = origin.x
+};
 IO::PrintLine("swapped: " ++ (swapped.x as Text) ++ "," ++ (swapped.y as Text));
 
 // The source is untouched by any of the above.
-IO::PrintLine("origin still: " ++ (origin.x as Text) ++ "," ++ (origin.y as Text) ++ "," ++ origin.label);
+IO::PrintLine
+(
+    "origin still: " ++ (origin.x as Text) ++ "," ++ (origin.y as Text) ++ "," ++ origin.label
+);
 
 // A record update is a value, so it can be projected straight away.
-IO::PrintLine("projected: " ++ ({ origin with x = 77 }.x as Text));
+IO::PrintLine
+(
+    "projected: " ++ (
+    {
+        origin with x = 77
+    }
+    .x as Text)
+);
 
 // Nesting works: a record update may be the source of another.
-def twice = { { origin with x = 10 } with y = 20 };
+def twice =
+{
+    {
+        origin with x = 10
+    }
+    with y = 20
+};
 IO::PrintLine("twice: " ++ (twice.x as Text) ++ "," ++ (twice.y as Text));
 
 // A struct with several preserved fields exercises the stack discipline: the source
 // has to stay on top rather than under the fields.
 type Wide =
 {
-	a : Int,
-	b : Int,
-	c : Int,
-	d : Int,
-	e : Int
+    a: Int,
+    b: Int,
+    c: Int,
+    d: Int,
+    e: Int
 };
 
 def wide = Wide(1, 2, 3, 4, 5);
-def wide_updated = { wide with c = 30 };
-IO::PrintLine("wide: " ++ (wide_updated.a as Text) ++ (wide_updated.b as Text) ++ (wide_updated.c as Text) ++ (wide_updated.d as Text) ++ (wide_updated.e as Text));
+
+def wide_updated =
+{
+    wide with c = 30
+};
+IO::PrintLine
+(
+    "wide: " ++ (wide_updated.a as Text) ++ (wide_updated.b as Text) ++ (wide_updated.c as Text) ++ (wide_updated.d as Text) ++ (wide_updated.e as Text)
+);
 
 // Blocks are unaffected: a block whose first statement is an expression is still a
 // block, and a block containing a bare `match ... with` still parses as a block.
 type Opt = Some(Int) | None;
 
-def Unwrap = fn(o : Opt) -> Int =>
+def Unwrap = fn(o: Opt) -> Int =>
 {
-	match o with
-	case Opt::Some(v) => v
-	case Opt::None() => 0
+    match o with
+        case Opt::Some(v) => v
+        case Opt::None() => 0
 };
 
 def block_value =
 {
-	def a = origin.x;
-	a + 100
+    def a = origin.x;
+    a + 100
 };
 
 IO::PrintLine("block: " ++ (block_value as Text));

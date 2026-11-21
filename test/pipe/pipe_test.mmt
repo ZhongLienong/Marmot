@@ -1,254 +1,221 @@
 module PipeTest
-
 // Comprehensive pipe operator test
 
-import
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-}
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
 type Point =
 {
-	x : Int,
-	y : Int
+    x: Int,
+    y: Int
 };
 
 // Basic arithmetic operations
-def Add = fn(a : Int, b : Int) -> Int =>
+def Add = fn(a: Int, b: Int) -> Int =>
 {
-	a + b
+    a + b
 };
 
-def Multiply = fn(a : Int, b : Int) -> Int =>
+def Multiply = fn(a: Int, b: Int) -> Int =>
 {
-	a * b
+    a * b
 };
 
-def Subtract = fn(a : Int, b : Int) -> Int =>
+def Subtract = fn(a: Int, b: Int) -> Int =>
 {
-	a - b
+    a - b
 };
 
-def Divide = fn(a : Int, b : Int) -> Int =>
+def Divide = fn(a: Int, b: Int) -> Int =>
 {
-	a / b
+    a / b
 };
 
-def Square = fn(n : Int) -> Int =>
+def Square = fn(n: Int) -> Int =>
 {
-	n * n
+    n * n
 };
 
-def Cube = fn(n : Int) -> Int =>
+def Cube = fn(n: Int) -> Int =>
 {
-	n * n * n
+    n * n * n
 };
 
-def Negate = fn(n : Int) -> Int =>
+def Negate = fn(n: Int) -> Int =>
 {
-	0 - n
+    0 - n
 };
 
-def Abs = fn(n : Int) -> Int =>
+def Abs = fn(n: Int) -> Int =>
 {
-	if n < 0 then 0 - n else n
+    if n < 0
+    then 0 - n
+    else n
 };
 
-def Mod = fn(a : Int, b : Int) -> Int =>
+def Mod = fn(a: Int, b: Int) -> Int =>
 {
-	a % b
+    a % b
 };
 
 // Text operations
-def IntToText = fn(n : Int) -> Text =>
+def IntToText = fn(n: Int) -> Text =>
 {
-	n as Text
+    n as Text
 };
 
-def Concat = fn(prefix : Text, suffix : Text) -> Text =>
+def Concat = fn(prefix: Text, suffix: Text) -> Text =>
 {
-	prefix ++ suffix
+    prefix ++ suffix
 };
 
-def AddPrefix = fn(n : Int, prefix : Text) -> Text =>
+def AddPrefix = fn(n: Int, prefix: Text) -> Text =>
 {
-	prefix ++ (n as Text)
+    prefix ++ (n as Text)
 };
 
 // Point operations
-def MakePoint = fn(px : Int, py : Int) -> Point =>
+def MakePoint = fn(px: Int, py: Int) -> Point =>
 {
-	Point(px, py)
+    Point(px, py)
 };
 
-def GetX = fn(p : Point) -> Int =>
+def GetX = fn(p: Point) -> Int =>
 {
-	p.x
+    p.x
 };
 
-def GetY = fn(p : Point) -> Int =>
+def GetY = fn(p: Point) -> Int =>
 {
-	p.y
+    p.y
 };
 
-def ManhattanDistance = fn(p : Point) -> Int =>
+def ManhattanDistance = fn(p: Point) -> Int =>
 {
-	Abs(p.x) + Abs(p.y)
+    Abs(p.x) + Abs(p.y)
 };
 
-def ScalePoint = fn(p : Point, factor : Int) -> Point =>
+def ScalePoint = fn(p: Point, factor: Int) -> Point =>
 {
-	Point(p.x * factor, p.y * factor)
+    Point(p.x * factor, p.y * factor)
 };
-
 
 def Main = fn() -> Unit =>
 {
-	IO::PrintLine("=== Pipe Operator Comprehensive Test ===");
-	IO::PrintLine("");
+    IO::PrintLine("=== Pipe Operator Comprehensive Test ===");
+    IO::PrintLine("");
 
-	// Test 1: Simple chaining with multiple operations
-	IO::PrintLine("Test 1: Complex arithmetic pipeline");
-	def result1 = 5
-		|> Square
-		|> Add(10)
-		|> Multiply(2)
-		|> Subtract(20);
-	// 5 -> 25 -> 35 -> 70 -> 50
-	IO::PrintLine("5 |> Square |> Add(10) |> Multiply(2) |> Subtract(20) = " ++ (result1 as Text));
-	IO::PrintLine("Expected: 50");
-	IO::PrintLine("");
+    // Test 1: Simple chaining with multiple operations
+    IO::PrintLine("Test 1: Complex arithmetic pipeline");
+    def result1 = 5 |> Square |> Add(10) |> Multiply(2) |> Subtract(20);
+    // 5 -> 25 -> 35 -> 70 -> 50
+    IO::PrintLine("5 |> Square |> Add(10) |> Multiply(2) |> Subtract(20) = " ++ (result1 as Text));
+    IO::PrintLine("Expected: 50");
+    IO::PrintLine("");
 
-	// Test 2: Pipe with negation
-	IO::PrintLine("Test 2: Pipeline with negation");
-	def result2 = 10
-		|> Square
-		|> Negate
-		|> Add(150);
-	// 10 -> 100 -> -100 -> 50
-	IO::PrintLine("10 |> Square |> Negate |> Add(150) = " ++ (result2 as Text));
-	IO::PrintLine("Expected: 50");
-	IO::PrintLine("");
+    // Test 2: Pipe with negation
+    IO::PrintLine("Test 2: Pipeline with negation");
+    def result2 = 10 |> Square |> Negate |> Add(150);
+    // 10 -> 100 -> -100 -> 50
+    IO::PrintLine("10 |> Square |> Negate |> Add(150) = " ++ (result2 as Text));
+    IO::PrintLine("Expected: 50");
+    IO::PrintLine("");
 
-	// Test 3: Struct creation and manipulation pipeline
-	IO::PrintLine("Test 3: Struct pipeline");
-	def result3 = 3
-		|> MakePoint(4)
-		|> ManhattanDistance;
-	// 3 -> Point{x:3, y:4} -> 7
-	IO::PrintLine("3 |> MakePoint(4) |> ManhattanDistance = " ++ (result3 as Text));
-	IO::PrintLine("Expected: 7");
-	IO::PrintLine("");
+    // Test 3: Struct creation and manipulation pipeline
+    IO::PrintLine("Test 3: Struct pipeline");
+    def result3 = 3 |> MakePoint(4) |> ManhattanDistance;
+    // 3 -> Point{x:3, y:4} -> 7
+    IO::PrintLine("3 |> MakePoint(4) |> ManhattanDistance = " ++ (result3 as Text));
+    IO::PrintLine("Expected: 7");
+    IO::PrintLine("");
 
-	// Test 4: Struct scaling pipeline
-	IO::PrintLine("Test 4: Struct scaling pipeline");
-	def result4 = 2
-		|> MakePoint(3)
-		|> ScalePoint(5)
-		|> GetX;
-	// 2 -> Point{x:2, y:3} -> Point{x:10, y:15} -> 10
-	IO::PrintLine("2 |> MakePoint(3) |> ScalePoint(5) |> GetX = " ++ (result4 as Text));
-	IO::PrintLine("Expected: 10");
-	IO::PrintLine("");
+    // Test 4: Struct scaling pipeline
+    IO::PrintLine("Test 4: Struct scaling pipeline");
+    def result4 = 2 |> MakePoint(3) |> ScalePoint(5) |> GetX;
+    // 2 -> Point{x:2, y:3} -> Point{x:10, y:15} -> 10
+    IO::PrintLine("2 |> MakePoint(3) |> ScalePoint(5) |> GetX = " ++ (result4 as Text));
+    IO::PrintLine("Expected: 10");
+    IO::PrintLine("");
 
-	// Test 5: Lambda in pipe
-	IO::PrintLine("Test 5: Lambda in pipeline");
-	def triple = fn(x : Int) -> Int => { x * 3 };
-	def result5 = 7
-		|> triple
-		|> Add(1)
-		|> Square;
-	// 7 -> 21 -> 22 -> 484
-	IO::PrintLine("7 |> triple |> Add(1) |> Square = " ++ (result5 as Text));
-	IO::PrintLine("Expected: 484");
-	IO::PrintLine("");
+    // Test 5: Lambda in pipe
+    IO::PrintLine("Test 5: Lambda in pipeline");
+    def triple = fn(x: Int) -> Int =>
+    {
+        x * 3
+    };
+    def result5 = 7 |> triple |> Add(1) |> Square;
+    // 7 -> 21 -> 22 -> 484
+    IO::PrintLine("7 |> triple |> Add(1) |> Square = " ++ (result5 as Text));
+    IO::PrintLine("Expected: 484");
+    IO::PrintLine("");
 
-	// Test 6: Nested expressions with pipe
-	IO::PrintLine("Test 6: Nested expressions with pipe");
-	def result6 = (2 |> Square) + (3 |> Square);
-	// (2 -> 4) + (3 -> 9) = 13
-	IO::PrintLine("(2 |> Square) + (3 |> Square) = " ++ (result6 as Text));
-	IO::PrintLine("Expected: 13");
-	IO::PrintLine("");
+    // Test 6: Nested expressions with pipe
+    IO::PrintLine("Test 6: Nested expressions with pipe");
+    def result6 = (2 |> Square) + (3 |> Square);
+    // (2 -> 4) + (3 -> 9) = 13
+    IO::PrintLine("(2 |> Square) + (3 |> Square) = " ++ (result6 as Text));
+    IO::PrintLine("Expected: 13");
+    IO::PrintLine("");
 
-	// Test 7: Long pipeline
-	IO::PrintLine("Test 7: Extended pipeline");
-	def result7 = 1
-		|> Add(1)
-		|> Add(1)
-		|> Add(1)
-		|> Add(1)
-		|> Add(1)
-		|> Multiply(10)
-		|> Subtract(10)
-		|> Square;
-	// 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 60 -> 50 -> 2500
-	IO::PrintLine("1 |> Add(1) x5 |> Multiply(10) |> Subtract(10) |> Square = " ++ (result7 as Text));
-	IO::PrintLine("Expected: 2500");
-	IO::PrintLine("");
+    // Test 7: Long pipeline
+    IO::PrintLine("Test 7: Extended pipeline");
+    def result7 = 1 |> Add(1) |> Add(1) |> Add(1) |> Add(1) |> Add(1) |> Multiply(10) |> Subtract(10) |> Square;
+    // 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 60 -> 50 -> 2500
+    IO::PrintLine("1 |> Add(1) x5 |> Multiply(10) |> Subtract(10) |> Square = " ++ (result7 as Text));
+    IO::PrintLine("Expected: 2500");
+    IO::PrintLine("");
 
-	// Test 8: Mixed operations
-	IO::PrintLine("Test 8: Pipe in expression context");
-	def val1 = 10;
-	def val2 = 20;
-	def result8 = (val1 |> Square) * (val2 |> Add(5));
-	// (10 -> 100) * (20 -> 25) = 2500
-	IO::PrintLine("(val1 |> Square) * (val2 |> Add(5)) where val1=10, val2=20 = " ++ (result8 as Text));
-	IO::PrintLine("Expected: 2500");
-	IO::PrintLine("");
+    // Test 8: Mixed operations
+    IO::PrintLine("Test 8: Pipe in expression context");
+    def val1 = 10;
+    def val2 = 20;
+    def result8 = (val1 |> Square) * (val2 |> Add(5));
+    // (10 -> 100) * (20 -> 25) = 2500
+    IO::PrintLine("(val1 |> Square) * (val2 |> Add(5)) where val1=10, val2=20 = " ++ (result8 as Text));
+    IO::PrintLine("Expected: 2500");
+    IO::PrintLine("");
 
-	// Test 9: Type transformation pipeline
-	IO::PrintLine("Test 9: Type transformation pipeline (Int -> Text)");
-	def result9 = 42
-		|> Square
-		|> IntToText
-		|> Concat(" is the result");
-	// 42 -> 1764 -> "1764" -> "1764 is the result"
-	IO::PrintLine("42 |> Square |> IntToText |> Concat(\" is the result\") = " ++ result9);
-	IO::PrintLine("Expected: 1764 is the result");
-	IO::PrintLine("");
+    // Test 9: Type transformation pipeline
+    IO::PrintLine("Test 9: Type transformation pipeline (Int -> Text)");
+    def result9 = 42 |> Square |> IntToText |> Concat(" is the result");
+    // 42 -> 1764 -> "1764" -> "1764 is the result"
+    IO::PrintLine("42 |> Square |> IntToText |> Concat(\" is the result\") = " ++ result9);
+    IO::PrintLine("Expected: 1764 is the result");
+    IO::PrintLine("");
 
-	// Test 10: Pipe with modulo
-	IO::PrintLine("Test 10: Pipeline with modulo");
-	def result10 = 100
-		|> Add(23)
-		|> Mod(10);
-	// 100 -> 123 -> 3
-	IO::PrintLine("100 |> Add(23) |> Mod(10) = " ++ (result10 as Text));
-	IO::PrintLine("Expected: 3");
-	IO::PrintLine("");
+    // Test 10: Pipe with modulo
+    IO::PrintLine("Test 10: Pipeline with modulo");
+    def result10 = 100 |> Add(23) |> Mod(10);
+    // 100 -> 123 -> 3
+    IO::PrintLine("100 |> Add(23) |> Mod(10) = " ++ (result10 as Text));
+    IO::PrintLine("Expected: 3");
+    IO::PrintLine("");
 
-	// Test 11: Cube and division pipeline
-	IO::PrintLine("Test 11: Cube and division pipeline");
-	def result11 = 12
-		|> Cube
-		|> Divide(144);
-	// 12 -> 1728 -> 12
-	IO::PrintLine("12 |> Cube |> Divide(144) = " ++ (result11 as Text));
-	IO::PrintLine("Expected: 12");
-	IO::PrintLine("");
+    // Test 11: Cube and division pipeline
+    IO::PrintLine("Test 11: Cube and division pipeline");
+    def result11 = 12 |> Cube |> Divide(144);
+    // 12 -> 1728 -> 12
+    IO::PrintLine("12 |> Cube |> Divide(144) = " ++ (result11 as Text));
+    IO::PrintLine("Expected: 12");
+    IO::PrintLine("");
 
-	// Test 12: Complex nested pipe expression
-	IO::PrintLine("Test 12: Complex nested pipe expression");
-	def result12 = ((3 |> Square) + (4 |> Square)) |> Abs;
-	// ((3 -> 9) + (4 -> 16)) -> 25 -> 25
-	IO::PrintLine("((3 |> Square) + (4 |> Square)) |> Abs = " ++ (result12 as Text));
-	IO::PrintLine("Expected: 25");
-	IO::PrintLine("");
+    // Test 12: Complex nested pipe expression
+    IO::PrintLine("Test 12: Complex nested pipe expression");
+    def result12 = ((3 |> Square) + (4 |> Square)) |> Abs;
+    // ((3 -> 9) + (4 -> 16)) -> 25 -> 25
+    IO::PrintLine("((3 |> Square) + (4 |> Square)) |> Abs = " ++ (result12 as Text));
+    IO::PrintLine("Expected: 25");
+    IO::PrintLine("");
 
-	// Test 13: Negative number pipeline
-	IO::PrintLine("Test 13: Negative number pipeline");
-	def result13 = 0 - 5
-		|> Abs
-		|> Multiply(3)
-		|> Subtract(5);
-	// -5 -> 5 -> 15 -> 10
-	IO::PrintLine("-5 |> Abs |> Multiply(3) |> Subtract(5) = " ++ (result13 as Text));
-	IO::PrintLine("Expected: 10");
-	IO::PrintLine("");
+    // Test 13: Negative number pipeline
+    IO::PrintLine("Test 13: Negative number pipeline");
+    def result13 = 0 - 5 |> Abs |> Multiply(3) |> Subtract(5);
+    // -5 -> 5 -> 15 -> 10
+    IO::PrintLine("-5 |> Abs |> Multiply(3) |> Subtract(5) = " ++ (result13 as Text));
+    IO::PrintLine("Expected: 10");
+    IO::PrintLine("");
 
-	IO::PrintLine("=== All Tests Complete ===");
-	()
+    IO::PrintLine("=== All Tests Complete ===");
+    ()
 };
 
 Main();

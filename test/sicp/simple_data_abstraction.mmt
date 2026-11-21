@@ -1,92 +1,94 @@
 module SimpleDataAbstraction
-
-import
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-}
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
 type Point =
 {
-	x : Float,
-	y : Float,
+    x: Float,
+    y: Float,
 };
 
 type LineSegment =
 {
-	start : Point,
-	end : Point,
+    start: Point,
+    end: Point,
 };
 
 type Rectangle =
 {
-	width : LineSegment,
-	height : LineSegment,
+    width: LineSegment,
+    height: LineSegment,
 };
 
-def abs = fn(x : Float) -> Float => if x < 0.0 then -x else x;
+def abs = fn(x: Float) -> Float => if x < 0.0
+then -x
+else x;
 
-def make_point = fn(x : Float, y : Float) -> Point => Point(x, y);
+def make_point = fn(x: Float, y: Float) -> Point => Point(x, y);
 
-def x_point = fn(pt : Point) -> Float => pt.x;
-def y_point = fn(pt : Point) -> Float => pt.y;
+def x_point = fn(pt: Point) -> Float => pt.x;
 
-def print_point = fn(pt : Point) -> Unit => IO::PrintLine("(" ++ (x_point(pt) as Text) ++ ", " ++ (y_point(pt) as Text) ++ ")");
+def y_point = fn(pt: Point) -> Float => pt.y;
 
-def make_segment = fn(start : Point, end : Point) -> LineSegment => LineSegment(start, end);
+def print_point = fn(pt: Point) -> Unit => IO::PrintLine("(" ++ (x_point(pt) as Text) ++ ", " ++ (y_point(pt) as Text) ++ ")");
 
-def start_segment = fn(seg : LineSegment) -> Point => seg.start;
+def make_segment = fn(start: Point, end: Point) -> LineSegment => LineSegment(start, end);
 
-def end_segment = fn(seg : LineSegment) -> Point => seg.end;
+def start_segment = fn(seg: LineSegment) -> Point => seg.start;
 
-def midpoint_segment = fn(seg : LineSegment) -> Point =>
+def end_segment = fn(seg: LineSegment) -> Point => seg.end;
+
+def midpoint_segment = fn(seg: LineSegment) -> Point =>
 {
-	def start_pt = start_segment(seg);
-	def end_pt = end_segment(seg);
-	def x_diff = x_point(end_pt) - x_point(start_pt);
-	def y_diff = y_point(end_pt) - y_point(start_pt);
-	make_point(x_point(start_pt) + (x_diff / 2.0), y_point(start_pt) + (y_diff / 2.0))
+    def start_pt = start_segment(seg);
+    def end_pt = end_segment(seg);
+    def x_diff = x_point(end_pt) - x_point(start_pt);
+    def y_diff = y_point(end_pt) - y_point(start_pt);
+    make_point(x_point(start_pt) + (x_diff / 2.0), y_point(start_pt) + (y_diff / 2.0))
 };
 
-def make_rect = fn(top_left : Point, bottom_right : Point) -> Rectangle =>
+def make_rect = fn(top_left: Point, bottom_right: Point) -> Rectangle =>
 {
-	def bottom_left = make_point(x_point(top_left), y_point(bottom_right));
-	def top_right = make_point(-x_point(bottom_right), y_point(top_left));
-	Rectangle(make_segment(top_left, top_right), make_segment(top_left, bottom_left))
+    def bottom_left = make_point(x_point(top_left), y_point(bottom_right));
+    def top_right = make_point(-x_point(bottom_right), y_point(top_left));
+    Rectangle(make_segment(top_left, top_right), make_segment(top_left, bottom_left))
 };
 
-def width_rect = fn(rect : Rectangle) -> Float =>
+def width_rect = fn(rect: Rectangle) -> Float =>
 {
-	abs(x_point(end_segment(rect.width)) - x_point(start_segment(rect.width)))
+    abs(x_point(end_segment(rect.width)) - x_point(start_segment(rect.width)))
 };
 
-def height_rect = fn(rect : Rectangle) -> Float =>
+def height_rect = fn(rect: Rectangle) -> Float =>
 {
-	abs(y_point(end_segment(rect.height)) - y_point(start_segment(rect.width)))
+    abs(y_point(end_segment(rect.height)) - y_point(start_segment(rect.width)))
 };
 
-def perimeter_rect = fn(rect : Rectangle) -> Float =>
+def perimeter_rect = fn(rect: Rectangle) -> Float =>
 {
-	abs((2.0 * width_rect(rect)) + (2.0 * height_rect(rect)))
+    abs((2.0 * width_rect(rect)) + (2.0 * height_rect(rect)))
 };
 
-def pair = fn(x : Int, y : Int) -> fn(fn(Int, Int) -> Int) -> Int =>
+def pair = fn(x: Int, y: Int) -> fn(fn(Int, Int) -> Int) -> Int =>
 {
-	fn(f : fn(Int, Int) -> Int) -> Int => f(x, y)
+    fn(f: fn(Int, Int) -> Int) -> Int => f(x, y)
 };
 
-def head = fn(z : fn(fn(Int, Int) -> Int) -> Int) -> Int =>
+def head = fn(z: fn(fn(Int, Int) -> Int) -> Int) -> Int =>
 {
-    z(fn(x : Int, y : Int) -> Int => x)
+    z(fn(x: Int, y: Int) -> Int => x)
 };
 
-def tail = fn(z : fn(fn(Int, Int) -> Int) -> Int) -> Int =>
+def tail = fn(z: fn(fn(Int, Int) -> Int) -> Int) -> Int =>
 {
-    z(fn(x : Int, y : Int) -> Int => y)
+    z(fn(x: Int, y: Int) -> Int => y)
 };
 
 def start_pt = make_point(0.0, 0.0);
+
 def end_pt = make_point(2.12312, 4.312312);
+
 def line_segment = make_segment(start_pt, end_pt);
+
 def midpoint = midpoint_segment(line_segment);
 
 IO::PrintLine("Finding midpoint");
@@ -97,6 +99,7 @@ IO::PrintLine("Finding perimeter");
 IO::PrintLine(perimeter_rect(rect) as Text);
 
 IO::PrintLine("Constructing church-encoding pair (1, 2)");
+
 def church_encoding_pair = pair(1, 2);
 IO::PrintLine("Accessing head: " ++ (head(church_encoding_pair) as Text));
 IO::PrintLine("Accessing tail: " ++ (tail(church_encoding_pair) as Text));

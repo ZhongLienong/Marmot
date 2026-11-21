@@ -1,9 +1,5 @@
 module FloatFolding
-
-import
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt"
-}
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 // A folded Float must be the value the program would compute at run time. The
 // folder wrote its result back as a literal with std::to_string, six decimals,
@@ -12,8 +8,11 @@ import
 def Id = fn(x: Float) -> Float => x;
 
 def epsilon = 0.0000001 * 1.0;
+
 def planck = 6.62607015 / 1000000000.0;
+
 def sum = 0.1 + 0.2;
+
 def third = 1.0 / 3.0;
 
 IO::PrintLine((epsilon == (Id(0.0000001) * 1.0)) as Text);

@@ -1,13 +1,9 @@
 module GenericLambda
-
 // Test: type parameters on a fn expression bound to a top-level name.
 // Expected: each call site is instantiated separately, so one binding
 // serves both Int and Text without pinning to the first use.
 
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt"
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 def Id = fn<T>(x: T) -> T => x;
 

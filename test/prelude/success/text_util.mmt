@@ -1,49 +1,104 @@
 module PreludeTextUtil
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/TextUtil.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt" }
 
-import
+def Expect = fn(condition: Bool, message: Text) -> Unit =>
 {
-    "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/TextUtil.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt"
-}
-
-def Expect = fn(condition: Bool, message: Text) -> Unit => {
     if condition
     then ()
     else Panic::Panic(message)
 };
 
 def split = TextUtil::Split("alpha--beta--", "--");
+
 def split_code_points = TextUtil::Split("go", "");
 
 Expect(TextUtil::Length("hello world") == 11, "TextUtil::Length should count code points");
-Expect(TextUtil::Contains("hello world", "lo wo"), "TextUtil::Contains should find existing substrings");
-Expect(!TextUtil::Contains("hello world", "zzz"), "TextUtil::Contains should reject missing substrings");
-Expect(TextUtil::Substring("abcdef", 1, 4) == "bcd", "TextUtil::Substring should use [start, end) semantics");
-Expect(TextUtil::Substring("abcdef", -3, 99) == "abcdef", "TextUtil::Substring should clamp out-of-range bounds");
-Expect(TextUtil::Substring("aé中", 1, 4294967296) == "é中", "TextUtil::Substring should clamp a large end to the text length");
-Expect(TextUtil::Substring("aé中", -4294967295, 2) == "aé", "TextUtil::Substring should clamp a large negative start to zero");
-Expect(TextUtil::Substring("aé中", 4294967297, 3) == "", "TextUtil::Substring should clamp a large start to the text length");
-Expect(Option::OptionIsNone(TextUtil::CodePointAt("aé中", 4294967297)), "TextUtil::CodePointAt should reject an index that wraps to a valid code point at 32 bits");
-Expect(Option::OptionIsNone(TextUtil::CodePointAt("aé中", 9223372036854775807)), "TextUtil::CodePointAt should reject the largest Int index");
+Expect
+(
+    TextUtil::Contains("hello world", "lo wo"),
+    "TextUtil::Contains should find existing substrings"
+);
+Expect
+(
+    !TextUtil::Contains("hello world", "zzz"),
+    "TextUtil::Contains should reject missing substrings"
+);
+Expect
+(
+    TextUtil::Substring("abcdef", 1, 4) == "bcd",
+    "TextUtil::Substring should use [start, end) semantics"
+);
+Expect
+(
+    TextUtil::Substring("abcdef", -3, 99) == "abcdef",
+    "TextUtil::Substring should clamp out-of-range bounds"
+);
+Expect
+(
+    TextUtil::Substring("aé中", 1, 4294967296) == "é中",
+    "TextUtil::Substring should clamp a large end to the text length"
+);
+Expect
+(
+    TextUtil::Substring("aé中", -4294967295, 2) == "aé",
+    "TextUtil::Substring should clamp a large negative start to zero"
+);
+Expect
+(
+    TextUtil::Substring("aé中", 4294967297, 3) == "",
+    "TextUtil::Substring should clamp a large start to the text length"
+);
+Expect
+(
+    Option::OptionIsNone(TextUtil::CodePointAt("aé中", 4294967297)),
+    "TextUtil::CodePointAt should reject an index that wraps to a valid code point at 32 bits"
+);
+Expect
+(
+    Option::OptionIsNone(TextUtil::CodePointAt("aé中", 9223372036854775807)),
+    "TextUtil::CodePointAt should reject the largest Int index"
+);
 Expect(#split == 3, "TextUtil::Split should preserve trailing empty fields");
 Expect(split[0] == "alpha", "TextUtil::Split should preserve the first segment");
 Expect(split[1] == "beta", "TextUtil::Split should preserve the middle segment");
 Expect(split[2] == "", "TextUtil::Split should preserve the trailing empty segment");
-Expect(#split_code_points == 2, "TextUtil::Split should split into code points when the delimiter is empty");
-Expect((split_code_points[0] == "g") && (split_code_points[1] == "o"), "TextUtil::Split should preserve per-character ordering for an empty delimiter");
-Expect(TextUtil::Replace("one two one", "one", "1") == "1 two 1", "TextUtil::Replace should replace every match");
+Expect
+(
+    #split_code_points == 2,
+    "TextUtil::Split should split into code points when the delimiter is empty"
+);
+Expect
+(
+    (split_code_points[0] == "g") && (split_code_points[1] == "o"),
+    "TextUtil::Split should preserve per-character ordering for an empty delimiter"
+);
+Expect
+(
+    TextUtil::Replace("one two one", "one", "1") == "1 two 1",
+    "TextUtil::Replace should replace every match"
+);
 Expect(TextUtil::Trim(" \t hi \n") == "hi", "TextUtil::Trim should strip ASCII edge whitespace");
 Expect(TextUtil::Reverse("stressed") == "desserts", "TextUtil::Reverse should reverse the text");
 Expect(TextUtil::StartsWith("src/main.cc", "src/"), "TextUtil::StartsWith should accept a prefix");
 Expect(TextUtil::StartsWith("src", ""), "TextUtil::StartsWith should accept the empty prefix");
-Expect(!TextUtil::StartsWith("src", "src/main"), "TextUtil::StartsWith should reject a prefix longer than the text");
+Expect
+(
+    !TextUtil::StartsWith("src", "src/main"),
+    "TextUtil::StartsWith should reject a prefix longer than the text"
+);
 Expect(TextUtil::EndsWith("main.cc", ".cc"), "TextUtil::EndsWith should accept a suffix");
 Expect(TextUtil::EndsWith("main.cc", ""), "TextUtil::EndsWith should accept the empty suffix");
-Expect(!TextUtil::EndsWith("cc", "main.cc"), "TextUtil::EndsWith should reject a suffix longer than the text");
+Expect
+(
+    !TextUtil::EndsWith("cc", "main.cc"),
+    "TextUtil::EndsWith should reject a suffix longer than the text"
+);
 Expect(TextUtil::EndsWith("naïve", "ïve"), "TextUtil::EndsWith should count code points");
-Expect(TextUtil::Join(["a", "b", "c"], ", ") == "a, b, c", "TextUtil::Join should put the delimiter between pieces");
+Expect
+(
+    TextUtil::Join(["a", "b", "c"], ", ") == "a, b, c",
+    "TextUtil::Join should put the delimiter between pieces"
+);
 Expect(TextUtil::Join([], ",") == "", "TextUtil::Join of no pieces should be empty");
 Expect(TextUtil::Join(["only"], ",") == "only", "TextUtil::Join of one piece should be that piece");
 Expect(TextUtil::Join(split, "--") == "alpha--beta--", "TextUtil::Join should undo TextUtil::Split");

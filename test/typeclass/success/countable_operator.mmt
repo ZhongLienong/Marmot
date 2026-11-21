@@ -1,16 +1,18 @@
 module TestCountableOperator
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Countable.mmt" }
 
-type Box = {
+type Box =
+{
     values: Array<Int>
 };
 
-instance Countable<Box> {
+instance Countable<Box>
+{
     def Count = fn(box: Box) -> Int => #box.values;
 };
 
 def box = Box([1, 2, 3, 4]);
+
 def len = #box;
 
 if len == 4

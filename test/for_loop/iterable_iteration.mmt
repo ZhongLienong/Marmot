@@ -1,13 +1,10 @@
 module IterableIteration
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../projects/marmotstdlib/MarmotPrelude/Iterable.mmt", "../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt" }
 
-import
+use Option.
 {
-    "../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-    "../../projects/marmotstdlib/MarmotPrelude/Iterable.mmt",
-    "../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt"
+    Option
 }
-
-use Option.{Option}
 
 type Counter =
 {
@@ -20,7 +17,8 @@ def CounterNew = fn(end: Int) -> Counter => Counter(0, end);
 instance Iterable<Counter>
 {
     type Item = Int;
-    def Next = fn(counter: Counter) -> Option<(Int, Counter)> => {
+    def Next = fn(counter: Counter) -> Option<(Int, Counter)> =>
+    {
         if counter.current >= counter.end
         then Option::None()
         else Option::Some((counter.current, Counter(counter.current + 1, counter.end)))
@@ -29,13 +27,13 @@ instance Iterable<Counter>
 
 def iter = CounterNew(4);
 
-def SumIter = fn(state: Counter, acc: Int) -> Int =>
-    match Iterable::Next(state) with
-        case Option::Some(step) => {
-            def (value, rest) = step;
-            SumIter(rest, acc + value)
-        }
-        case Option::None() => acc;
+def SumIter = fn(state: Counter, acc: Int) -> Int => match Iterable::Next(state) with
+    case Option::Some(step) =>
+{
+        def (value, rest) = step;
+        SumIter(rest, acc + value)
+    }
+    case Option::None() => acc;
 
 def total = SumIter(iter, 0);
 

@@ -1,13 +1,8 @@
 module MatchBoolExhaustiveWithoutDefault
-
-import
-{
-    "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
 def result = match true with
     case false => 0
-    case true => 1
-;
+    case true => 1;
 
 IO::PrintLine("result=" ++ (result as Text));

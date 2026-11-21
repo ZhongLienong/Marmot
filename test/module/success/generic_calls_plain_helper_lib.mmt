@@ -1,5 +1,8 @@
 module GenericCallsPlainHelperLib
 public export { Bump, CallsBump, Describe }
+
 def Bump = fn(n: Int) -> Int => n + 1;
+
 def Describe = fn(n: Int) -> Text => n as Text;
-def CallsBump = fn < T >(items: Array < T >, n: Int) -> Text => Describe(Bump(n) + #items);
+
+def CallsBump = fn<T>(items: Array<T>, n: Int) -> Text => Describe(Bump(n) + #items);

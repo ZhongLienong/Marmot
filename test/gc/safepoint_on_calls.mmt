@@ -1,9 +1,5 @@
 module SafepointOnCalls
-
-import
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt"
-}
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 // Each loop below keeps a few bytes live and makes over a gigabyte of garbage,
 // more than the allocator's whole region. Neither reaches a JUMP_BACK: the
@@ -14,29 +10,40 @@ import
 
 type Chain = End | Link(Int, Int, Int, Int, Int, Int, Int, Int, Chain);
 
-def Head = fn(chain : Chain) -> Int =>
+def Head = fn(chain: Chain) -> Int =>
 {
-	match chain with
-		case Chain::Link(head, _, _, _, _, _, _, _, _) => head
-		case Chain::End() => 0
+    match chain with
+        case Chain::Link(head, _, _, _, _, _, _, _, _) => head
+        case Chain::End() => 0
 };
 
-def Pair = fn(first : Int, second : Int) -> Chain => Chain::Link(first, first, first, first, first, first, first, first, Chain::Link(second, second, second, second, second, second, second, second, Chain::End()));
+def Pair = fn(first: Int, second: Int) -> Chain => Chain::Link
+(
+    first,
+    first,
+    first,
+    first,
+    first,
+    first,
+    first,
+    first,
+    Chain::Link(second, second, second, second, second, second, second, second, Chain::End())
+);
 
-def Step : fn(Int, Chain, Int, fn(Int, Chain, Int) -> Int) -> Int = fn(n : Int, carried : Chain, acc : Int, next : fn(Int, Chain, Int) -> Int) -> Int =>
+def Step: fn(Int, Chain, Int, fn(Int, Chain, Int) -> Int) -> Int = fn(n: Int, carried: Chain, acc: Int, next: fn(Int, Chain, Int) -> Int) -> Int =>
 {
-	if n == 0
-	then acc
-	else next(n - 1, Pair(n, acc), (acc + Head(carried)) % 1000003)
+    if n == 0
+    then acc
+    else next(n - 1, Pair(n, acc), (acc + Head(carried)) % 1000003)
 };
 
-def Bounce : fn(Int, Chain, Int) -> Int = fn(n : Int, carried : Chain, acc : Int) -> Int => Step(n, carried, acc, Bounce);
+def Bounce: fn(Int, Chain, Int) -> Int = fn(n: Int, carried: Chain, acc: Int) -> Int => Step(n, carried, acc, Bounce);
 
-def Tree = fn(n : Int, seed : Chain) -> Int =>
+def Tree = fn(n: Int, seed: Chain) -> Int =>
 {
-	if n < 2
-	then Head(seed)
-	else (Tree(n - 1, Chain::Link(n, n, n, n, n, n, n, n, seed)) + Tree(n - 2, Pair(n + 1, n))) % 1000003
+    if n < 2
+    then Head(seed)
+    else (Tree(n - 1, Chain::Link(n, n, n, n, n, n, n, n, seed)) + Tree(n - 2, Pair(n + 1, n))) % 1000003
 };
 
 IO::PrintLine(Bounce(8000000, Chain::End(), 0) as Text);

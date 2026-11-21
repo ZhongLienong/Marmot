@@ -1,5 +1,4 @@
 module NewtypeIterableStaysNominal
-
 // `for` and unary `#` were the two sites where iter_type was briefly
 // (wrongly) erased during implementation, leaking into MatchInstanceTypeArg
 // and EmitIterableNextCall. This pins the `for`/Iterable half of that fix:
@@ -9,59 +8,63 @@ module NewtypeIterableStaysNominal
 // instance lookup, the loop below would silently sum Counter's raw values
 // (0 + 1 + 2 = 3) instead of Ticker's (1 + 11 + 21 = 33).
 
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/Iterable.mmt",
-	"../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt",
-	"../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt",
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/Iterable.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt", }
 
-use Option.{Option}
+use Option.
+{
+    Option
+}
 
 type Counter =
 {
-	current: Int,
-	end: Int
+    current: Int,
+    end: Int
 };
 
 instance Iterable<Counter>
 {
-	type Item = Int;
-	def Next = fn(counter: Counter) -> Option<(Int, Counter)> => {
-		if counter.current >= counter.end
-		then Option::None()
-		else Option::Some((counter.current, Counter(counter.current + 1, counter.end)))
-	};
+    type Item = Int;
+    def Next = fn(counter: Counter) -> Option<(Int, Counter)> =>
+    {
+        if counter.current >= counter.end
+        then Option::None()
+        else Option::Some((counter.current, Counter(counter.current + 1, counter.end)))
+    };
 };
 
 type Ticker = Counter;
 
 instance Iterable<Ticker>
 {
-	type Item = Int;
-	def Next = fn(ticker: Ticker) -> Option<(Int, Ticker)> => {
-		def counter: Counter = ticker as Counter;
-		if counter.current >= counter.end
-		then Option::None()
-		else Option::Some(((counter.current * 10) + 1, (Counter(counter.current + 1, counter.end) as Ticker)))
-	};
+    type Item = Int;
+    def Next = fn(ticker: Ticker) -> Option<(Int, Ticker)> =>
+    {
+        def counter: Counter = ticker as Counter;
+        if counter.current >= counter.end
+        then Option::None()
+        else Option::Some(((counter.current * 10) + 1, (Counter(counter.current + 1, counter.end) as Ticker)))
+    };
 };
 
-def TickerNew = fn(end: Int) -> Ticker => {
-	def counter: Counter = Counter(0, end);
-	counter as Ticker
+def TickerNew = fn(end: Int) -> Ticker =>
+{
+    def counter: Counter = Counter(0, end);
+    counter as Ticker
 };
 
-def SumTicker = fn(state: Ticker, acc: Int) -> Int =>
-	match Iterable::Next(state) with
-		case Option::Some(step) => {
-			def (value, rest) = step;
-			SumTicker(rest, acc + value)
-		}
-		case Option::None() => acc;
+def SumTicker = fn(state: Ticker, acc: Int) -> Int => match Iterable::Next(state) with
+    case Option::Some(step) =>
+{
+        def (value, rest) = step;
+        SumTicker(rest, acc + value)
+    }
+    case Option::None() => acc;
 
 def total = SumTicker(TickerNew(3), 0);
 
 if total == 33
 then ()
-else Panic::Panic("Iterable<Ticker> instance should resolve nominally, not fall back to Iterable<Counter>'s behaviour");
+else Panic::Panic
+(
+    "Iterable<Ticker> instance should resolve nominally, not fall back to Iterable<Counter>'s behaviour"
+);

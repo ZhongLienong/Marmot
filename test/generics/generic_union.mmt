@@ -7,21 +7,22 @@ type Option<T> = Some(T) | None;
 
 // Create different Option instances
 def some_int = Option::Some(42);
+
 def some_text = Option::Some("hello");
-def none_val : Option<Int> = Option::None();
+
+def none_val: Option<Int> = Option::None();
 
 // Pattern match on generic union
 def result = match some_int with
     case Option::Some(x) => x
-    case Option::None() => 0
-;
+    case Option::None() => 0;
 
 type Result<T, E> = Ok(T) | Err(E);
 
-def success : Result<Int, Text> = Result::Ok(100);
-def failure : Result<Int, Text> = Result::Err("error message");
+def success: Result<Int, Text> = Result::Ok(100);
+
+def failure: Result<Int, Text> = Result::Err("error message");
 
 def value = match success with
     case Result::Ok(v) => v
-    case Result::Err(e) => 0
-;
+    case Result::Err(e) => 0;

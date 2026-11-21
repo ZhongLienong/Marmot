@@ -1,34 +1,58 @@
 module DerivingBasic
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Equatable.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Hashable.mmt" }
 
 type Point =
 {
     x: Int,
     y: Int
-} deriving (Equatable, Hashable);
+}
+deriving(Equatable, Hashable);
 
-type OptionBox<T> = Empty | Full(T) deriving (Map, Bind, Unwrap);
+type OptionBox<T> = Empty | Full(T) deriving(Map, Bind, Unwrap);
 
-def HashValue = fn<T>(value: T) -> Int where Hashable<T> => {
+def HashValue = fn<T>(value: T) -> Int where Hashable<T> =>
+{
     Hashable::Hash(value)
 };
 
-def mapped = OptionBoxMap(OptionBox::Full(5), fn(x) => { x + 1 });
-def bound = OptionBoxBind(mapped, fn(x) => {
-    if x > 5
-    then OptionBox::Full(x * 2)
-    else OptionBox::Empty()
-});
+def mapped = OptionBoxMap
+(
+    OptionBox::Full(5),
+    fn(x) =>
+    {
+        x + 1
+    }
+);
+
+def bound = OptionBoxBind
+(
+    mapped,
+    fn(x) =>
+    {
+        if x > 5
+        then OptionBox::Full(x * 2)
+        else OptionBox::Empty()
+    }
+);
+
 def unwrapped = OptionBoxUnwrap(bound, 0);
 
 def p1 = Point(1, 2);
+
 def p2 = Point(1, 2);
+
 def p3 = Point(2, 3);
+
 def point_hash_same = HashValue(p1) == HashValue(p2);
 
-IO::PrintLine("derived_eq_same=" ++ (if p1 == p2 then "true" else "false"));
-IO::PrintLine("derived_eq_diff=" ++ (if p1 == p3 then "true" else "false"));
-IO::PrintLine("derived_hash_same=" ++ (if point_hash_same then "true" else "false"));
+IO::PrintLine("derived_eq_same=" ++ (if p1 == p2
+then "true"
+else "false"));
+IO::PrintLine("derived_eq_diff=" ++ (if p1 == p3
+then "true"
+else "false"));
+IO::PrintLine("derived_hash_same=" ++ (if point_hash_same
+then "true"
+else "false"));
 IO::PrintLine("derived_hash_value=" ++ (HashValue(p1) as Text));
 IO::PrintLine("derived_unwrap=" ++ (unwrapped as Text));

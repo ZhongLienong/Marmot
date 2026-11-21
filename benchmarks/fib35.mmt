@@ -1,12 +1,9 @@
 module Fib35
+import { "../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../projects/marmotstdlib/MarmotPrelude/DateTime.mmt" }
 
-import
-{
-	"../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-	"../projects/marmotstdlib/MarmotPrelude/DateTime.mmt"
-}
-
-def fib = fn(n : Int) -> Int => if n <= 1 then n else fib(n - 1) + fib(n - 2);
+def fib = fn(n: Int) -> Int => if n <= 1
+then n
+else fib(n - 1) + fib(n - 2);
 
 def start = DateTime::NowUnixMillis();
 
@@ -14,4 +11,7 @@ def fib_35 = fib(35);
 
 def end = DateTime::NowUnixMillis();
 
-IO::PrintLine("Fibonacci(35): " ++ (fib_35 as Text) ++ " benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
+IO::PrintLine
+(
+    "Fibonacci(35): " ++ (fib_35 as Text) ++ " benchmark took " ++ ((end - start) as Text) ++ " milliseconds"
+);

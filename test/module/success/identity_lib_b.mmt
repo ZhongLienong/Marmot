@@ -1,14 +1,16 @@
 module IdentityLibB
-
 // The same spelling, a different type.
 
 import { "./describe_class.mmt" }
 
 public export { Wrap, Describe }
 
-type Wrap = { value: Int };
+type Wrap =
+{
+    value: Int
+};
 
 instance Describe<Wrap>
 {
-	def describe = fn(value: Wrap) -> Text => "B";
+    def describe = fn(value: Wrap) -> Text => "B";
 };

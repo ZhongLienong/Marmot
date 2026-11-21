@@ -1,16 +1,14 @@
 module GenericLambdaRecursive
-
 // Test: a generic lambda referring to itself.
 // Expected: the name is bound before the body is checked, so the recursive
 // call resolves, and it stays generic rather than being pinned to the type
 // of the first recursive use.
 
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt"
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
-def Depth = fn<T>(x: T, n: Int) -> Int => if n <= 0 then 0 else 1 + Depth(x, n - 1);
+def Depth = fn<T>(x: T, n: Int) -> Int => if n <= 0
+then 0
+else 1 + Depth(x, n - 1);
 
 IO::PrintLine(Depth("a", 3) as Text);
 IO::PrintLine(Depth(7, 5) as Text);

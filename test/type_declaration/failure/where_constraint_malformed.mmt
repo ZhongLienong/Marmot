@@ -1,7 +1,6 @@
 module WhereConstraintMalformed
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/Equatable.mmt" }
 
 // The error is in the second constraint, and is reported there rather than as
 // a missing '=>' after the first.
-def Same = fn<T>(left: T, right: T) -> Bool where Equatable<T>, Equatable<T => Equatable::Equals(left, right);
+def Same = fn<T>(left: T, right: T) -> Bool where Equatable<T>, Equatable < T => Equatable::Equals(left, right);

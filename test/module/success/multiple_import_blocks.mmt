@@ -1,24 +1,32 @@
 module MultipleImportBlocks
-
 // Test: multiple separate import blocks
 
 import { <IO> }
 
-use IO.{PrintLine}
+use IO.
+{
+    PrintLine
+}
 
-def first = fn() -> Unit => {
+def first = fn() -> Unit =>
+{
     PrintLine("First function");
 };
 
 import { <Math> }
 
-use Math.{SquareRoot}
+use Math.
+{
+    SquareRoot
+}
 
-def second = fn() -> Unit => {
+def second = fn() -> Unit =>
+{
     PrintLine("SquareRoot(4) = " ++ (SquareRoot(4.0) as Text));
 };
 
-def main = fn() -> Unit => {
+def main = fn() -> Unit =>
+{
     first();
     second();
 };

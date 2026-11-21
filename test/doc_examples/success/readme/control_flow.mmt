@@ -1,30 +1,35 @@
 module ReadmeControlFlow
-
 import { "../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 def x = 3;
 
 // If-else expression
-def result = if x > 0 then "positive" else "non-positive";
+def result = if x > 0
+then "positive"
+else "non-positive";
 
 // For loop with ranges
-for i in 0..1..10 {
+for i in 0..1..10
+{
     IO::PrintLine(i as Text);
 };
 
 // For loop with arrays
 def names = ["Alice", "Bob", "Charlie"];
-for name in names {
+for name in names
+{
     IO::PrintLine(name);
 };
 
 // Array length operator
 def arr = [1, 2, 3, 4, 5];
+
 def len = #arr;  // 5
 
 // A loop that carries state is a named recursive helper: there is no `loop`,
 // `break` or assignment to reach for.
-def SumTo = fn(count: Int, limit: Int, total: Int) -> Int =>
-    if count >= limit then total else SumTo(count + 1, limit, total + count);
+def SumTo = fn(count: Int, limit: Int, total: Int) -> Int => if count >= limit
+then total
+else SumTo(count + 1, limit, total + count);
 
 def sum = SumTo(0, 10, 0);  // 45

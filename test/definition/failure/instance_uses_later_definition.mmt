@@ -1,10 +1,5 @@
 module InstanceUsesLaterDefinition
-
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-	"../../../projects/marmotstdlib/MarmotPrelude/Equatable.mmt"
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Equatable.mmt" }
 
 // An instance's methods are checked as if they ran where the instance is
 // declared. A statement anywhere in the module can reach them through the class
@@ -12,11 +7,14 @@ import
 // check can follow, so what they use must already be defined above the instance.
 // A plain function may name a later definition; an instance method may not.
 
-type Box = { value: Int };
+type Box =
+{
+    value: Int
+};
 
 instance Equatable<Box>
 {
-	def Equals = fn(a: Box, b: Box) -> Bool => SameValue(a, b);
+    def Equals = fn(a: Box, b: Box) -> Bool => SameValue(a, b);
 };
 
 def SameValue = fn(a: Box, b: Box) -> Bool => a.value == b.value;

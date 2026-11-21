@@ -1,20 +1,20 @@
 module NewtypeTypeclassInstance
-
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt",
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt", }
 
 type Meters = Int;
 
-class Describable<T> {
-	Describe: fn(value: T) -> Int;
+class Describable<T>
+{
+    Describe: fn(value: T) -> Int;
 };
 
-instance Describable<Meters> {
-	def Describe = fn(value: Meters) -> Int => value as Int;
+instance Describable<Meters>
+{
+    def Describe = fn(value: Meters) -> Int => value as Int;
 };
 
 def distance: Meters = 7 as Meters;
 
-if Describable::Describe(distance) == 7 then () else Panic::Panic("instance on the newtype should resolve");
+if Describable::Describe(distance) == 7
+then ()
+else Panic::Panic("instance on the newtype should resolve");

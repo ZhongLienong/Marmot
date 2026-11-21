@@ -1,5 +1,4 @@
 module ConcatDoesNotMutateAliases
-
 // This pins the alias-safety of the EXTEND_TEXT / EXTEND_ARRAY in-place
 // optimisation in CodeGenerator.cpp (IsFreshConcatTemporary), which is the
 // last in-place write path left in the VM after in-place mutation
@@ -36,11 +35,7 @@ module ConcatDoesNotMutateAliases
 // compile-time constants) so the case genuinely exercises the runtime
 // in-place path.
 
-import
-{
-	"../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-	"../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt"
-}
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt" }
 
 // --- Text ---
 
@@ -48,7 +43,9 @@ import
 // literal, so this was never routed through EXTEND_TEXT in the first place -
 // this case pins that it stays that way.
 def t1_a = "p1";
+
 def t1_b = t1_a;
+
 def t1_c = t1_a ++ "!";
 if t1_b == "p1"
 then ()
@@ -60,10 +57,14 @@ else Panic::Panic("Text case 1: the ++ result itself must be correct");
 
 // Case 2: alias of a concat result. t2_b is bound to that result before the
 // second concat runs.
-def t2_src : Array<Text> = ["q"];
+def t2_src: Array<Text> = ["q"];
+
 def t2_rt = t2_src[0];
+
 def t2_a = "p" ++ t2_rt;
+
 def t2_b = t2_a;
+
 def t2_c = t2_a ++ "z";
 if t2_b == "pq"
 then ()
@@ -76,9 +77,12 @@ else Panic::Panic("Text case 2: the second ++ result itself must be correct");
 // Case 3: a nested concat whose inner result is also bound. The inner
 // concat's result is itself a fresh temporary, so the outer concat extends
 // it in place; that must not reach back into the named inner binding.
-def t3_src : Array<Text> = ["q"];
+def t3_src: Array<Text> = ["q"];
+
 def t3_rt = t3_src[0];
+
 def t3_inner = "p" ++ t3_rt;
+
 def t3_outer = (t3_inner ++ "r") ++ "s";
 if t3_inner == "pq"
 then ()
@@ -92,20 +96,30 @@ else Panic::Panic("Text case 3: the outer ++ result itself must be correct");
 // result is not syntactically fresh, so this must dispatch through
 // CONCAT_TEXT regardless of what Id's body does with its argument.
 def Id = fn(t: Text) -> Text => t;
-def t4_src : Array<Text> = ["p"];
+
+def t4_src: Array<Text> = ["p"];
+
 def t4_a = t4_src[0];
+
 def t4_c = Id(t4_a) ++ "y";
 if t4_a == "p"
 then ()
-else Panic::Panic("Text case 4: a binding passed through an identity function must not be mutated by a ++ on the call result");
+else Panic::Panic
+(
+    "Text case 4: a binding passed through an identity function must not be mutated by a ++ on the call result"
+);
 
 // Case 5: through a closure capture, called after the concat runs. If the
 // concat had mutated the captured value in place, the closure would observe
 // the mutation despite being called afterward with no reassignment anywhere.
-def t5_src : Array<Text> = ["p"];
+def t5_src: Array<Text> = ["p"];
+
 def t5_a = t5_src[0];
+
 def t5_closure = fn() -> Text => t5_a;
+
 def t5_c = t5_a ++ "y";
+
 def t5_seen = t5_closure();
 if t5_seen == "p"
 then ()
@@ -118,19 +132,27 @@ else Panic::Panic("Text case 5: a closure capturing a binding must see it unchan
 // routed through an array index, as in cases 2 and 3, so
 // `"shared" ++ t6_suffix` is not two literal operands and is not folded to
 // the single literal "shared-x" at compile time.
-def t6_suffix_src : Array<Text> = ["-x"];
+def t6_suffix_src: Array<Text> = ["-x"];
+
 def t6_suffix = t6_suffix_src[0];
+
 def t6_a = "shared";
+
 def t6_b = "shared" ++ t6_suffix;
 if t6_a == "shared"
 then ()
-else Panic::Panic("Text case 6: a separate occurrence of the same literal text must not be mutated by extending another occurrence");
+else Panic::Panic
+(
+    "Text case 6: a separate occurrence of the same literal text must not be mutated by extending another occurrence"
+);
 
 // --- Array ---
 
 // Case 1: a plain alias.
 def a1 = [1];
+
 def a1b = a1;
+
 def a1c = a1 ++ [2];
 if (#a1b == 1) && (a1b[0] == 1)
 then ()
@@ -144,7 +166,9 @@ else Panic::Panic("Array case 1: the ++ result itself must be correct");
 // (there is no compile-time evaluation rule for them), so `[1] ++ [2]`
 // genuinely reaches codegen as a Binary node with a fresh left operand.
 def a2 = [1] ++ [2];
+
 def a2b = a2;
+
 def a2c = a2 ++ [3];
 if (#a2b == 2) && (a2b[0] == 1) && (a2b[1] == 2)
 then ()
@@ -156,6 +180,7 @@ else Panic::Panic("Array case 2: the second ++ result itself must be correct");
 
 // Case 3: a nested concat whose inner result is also bound.
 def a3_inner = [1] ++ [2];
+
 def a3_outer = (a3_inner ++ [3]) ++ [4];
 if (#a3_inner == 2) && (a3_inner[0] == 1) && (a3_inner[1] == 2)
 then ()
@@ -167,20 +192,31 @@ else Panic::Panic("Array case 3: the outer ++ result itself must be correct");
 
 // Case 4: through a function that returns its argument unchanged.
 def IdArr = fn(x: Array<Int>) -> Array<Int> => x;
+
 def a4 = [1];
+
 def a4c = IdArr(a4) ++ [2];
 if (#a4 == 1) && (a4[0] == 1)
 then ()
-else Panic::Panic("Array case 4: a binding passed through an identity function must not be mutated by a ++ on the call result");
+else Panic::Panic
+(
+    "Array case 4: a binding passed through an identity function must not be mutated by a ++ on the call result"
+);
 
 // Case 5: through a closure capture, called after the concat runs.
 def a5 = [1];
+
 def a5closure = fn() -> Array<Int> => a5;
+
 def a5c = a5 ++ [2];
+
 def a5seen = a5closure();
 if (#a5seen == 1) && (a5seen[0] == 1)
 then ()
-else Panic::Panic("Array case 5: a closure capturing a binding must see it unchanged after a ++ on that binding");
+else Panic::Panic
+(
+    "Array case 5: a closure capturing a binding must see it unchanged after a ++ on that binding"
+);
 
 // Case 6a: the same array literal shape spelled twice in source. Like Text
 // case 6, this tests a DIFFERENT property from the rest of the file: that
@@ -190,19 +226,27 @@ else Panic::Panic("Array case 5: a closure capturing a binding must see it uncha
 // fresh either way, so this case cannot by itself catch a classifier bug -
 // only a would-be interning bug in array literal construction.
 def a6_same1 = [9, 9];
+
 def a6_same2 = [9, 9] ++ [8];
 if (#a6_same1 == 2) && (a6_same1[0] == 9) && (a6_same1[1] == 9)
 then ()
-else Panic::Panic("Array case 6a: a separate occurrence of the same literal array must not be mutated by extending another occurrence");
+else Panic::Panic
+(
+    "Array case 6a: a separate occurrence of the same literal array must not be mutated by extending another occurrence"
+);
 
 // Case 6b: an array comprehension is also treated as fresh by
 // IsFreshConcatTemporary. Bind it, then nest it as the left of a further
 // concat, and check the bound name is unaffected.
 def a6_inner = [i for i in 0..1..3];
+
 def a6_outer = (a6_inner ++ [99]) ++ [100];
 if (#a6_inner == 3) && (a6_inner[0] == 0) && (a6_inner[1] == 1) && (a6_inner[2] == 2)
 then ()
-else Panic::Panic("Array case 6b: a named comprehension result must not be mutated by a later concat built on top of it");
+else Panic::Panic
+(
+    "Array case 6b: a named comprehension result must not be mutated by a later concat built on top of it"
+);
 
 if (#a6_outer == 5) && (a6_outer[3] == 99) && (a6_outer[4] == 100)
 then ()

@@ -1,18 +1,20 @@
 module WorkerHandleOwner
 import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt" }
 
-use Concurrency.{
+use Concurrency.
+{
     WorkerError
 }
-use Result.{
+use Result.
+{
     Result
 }
 
 def Show = fn<T>(label: Text, result: Result<T, WorkerError>) -> Unit => match result with
     case Result::Ok(_) => IO::PrintLine(label ++ " succeeded")
     case Result::Err(error) => match error with
-    case WorkerError::Cancelled() => IO::PrintLine(label ++ " cancelled")
-    case WorkerError::Failed(message) => IO::PrintLine(label ++ " failed: " ++ message);
+        case WorkerError::Cancelled() => IO::PrintLine(label ++ " cancelled")
+        case WorkerError::Failed(message) => IO::PrintLine(label ++ " failed: " ++ message);
 
 def Answer = fn() -> Int => 42;
 
@@ -26,7 +28,8 @@ def CaptureJoin = fn(worker: Worker < Int >) -> fn() -> Int => fn() -> Int => Co
 
 def CaptureCancel = fn(worker: Worker < Int >) -> fn() -> Bool => fn() -> Bool => Concurrency::Cancel(worker);
 
-def PollGlobal = fn() -> Bool => {
+def PollGlobal = fn() -> Bool =>
+{
     Concurrency::JoinedOrPanic(Concurrency::Join(Concurrency::Spawn((), Answer)));
     Concurrency::IsDone(target)
 };

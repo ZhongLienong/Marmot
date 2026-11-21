@@ -1,14 +1,11 @@
 module BooleanLiterals
-
-import
-{
-    <IO>
-}
+import { <IO> }
 
 IO::PrintLine("=== Boolean Literal Tests ===");
 
 // Basic boolean values
 def true_val = true;
+
 def false_val = false;
 
 IO::PrintLine("True literal created");
@@ -16,8 +13,11 @@ IO::PrintLine("False literal created");
 
 // Boolean operations
 def and_true_true = true && true;
+
 def and_true_false = true && false;
+
 def and_false_true = false && true;
+
 def and_false_false = false && false;
 
 IO::PrintLine("Boolean AND operations completed");
@@ -26,8 +26,11 @@ IO::PrintLine("true && false = false");
 IO::PrintLine("false && false = false");
 
 def or_true_true = true || true;
+
 def or_true_false = true || false;
+
 def or_false_true = false || true;
+
 def or_false_false = false || false;
 
 IO::PrintLine("Boolean OR operations completed");
@@ -37,6 +40,7 @@ IO::PrintLine("false || false = false");
 
 // Boolean negation
 def not_true = !true;
+
 def not_false = !false;
 
 IO::PrintLine("Boolean NOT operations completed");
@@ -44,10 +48,15 @@ IO::PrintLine("!true = false, !false = true");
 
 // Comparisons producing booleans
 def equals = 5 == 5;
+
 def not_equals = 5 != 3;
+
 def less_than = 3 < 7;
+
 def less_equal = 5 <= 5;
+
 def greater_than = 10 > 2;
+
 def greater_equal = 8 >= 8;
 
 IO::PrintLine("Comparison operations completed");
@@ -60,7 +69,9 @@ IO::PrintLine("8 >= 8: true");
 
 // Complex boolean expressions
 def complex1 = (true && false) || (true && true);
+
 def complex2 = !(false || false) && true;
+
 def complex3 = (5 > 3) && (10 < 20) && (7 == 7);
 
 IO::PrintLine("Complex boolean expressions completed");

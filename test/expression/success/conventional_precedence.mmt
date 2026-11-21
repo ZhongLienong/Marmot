@@ -9,7 +9,8 @@ IO::PrintLine((1 + 2 == 3) as Text);
 
 def calls = ref 0;
 
-def Called = fn() -> Bool => {
+def Called = fn() -> Bool =>
+{
     calls := *calls + 1;
     true
 };

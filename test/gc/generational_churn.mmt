@@ -1,59 +1,58 @@
 module GenerationalChurn
+import { "../../projects/marmotstdlib/MarmotPrelude/ArrayUtil.mmt", "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../projects/marmotstdlib/MarmotPrelude/Prelude/List.mmt", "../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt" }
 
-import
+use List.
 {
-	"../../projects/marmotstdlib/MarmotPrelude/ArrayUtil.mmt",
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-	"../../projects/marmotstdlib/MarmotPrelude/Prelude/List.mmt",
-	"../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt"
+    List
 }
-
-use List.{List}
 
 def Main = fn() -> Unit =>
 {
-	// Was: a long-lived `keeper` array receiving young pointers by in-place
-	// Append, which is what made this an old-to-young write-barrier test. No
-	// expression can write into an existing object any more, so this file no
-	// longer covers the barrier. The runtime still makes such writes on its own
-	// behalf, and those are covered instead by comprehension_write_barrier.mmt
-	// (ADD_BACK_ARRAY) and extend_write_barrier.mmt (EXTEND_ARRAY). What remains
-	// here is the allocation churn and the promotion of a structure that
-	// survives the whole run.
-	//
-	// Cons is O(1), so the accumulation stays linear; the list is converted once
-	// at the end. Churn's recursive call is in tail position, so 32000 iterations
-	// do not grow the stack (well past the ~3333-frame limit for non-tail
-	// recursion in this language).
-	def Churn = fn(i : Int, limit : Int, keeper : List<Text>) -> List<Text> =>
-		if i >= limit
-		then keeper
-		else
-		{
-			def base = "churn-" ++ (i as Text);
-			def scratch : Array<Text> = [base, base ++ "-x", base ++ "-x-y", base ++ "-x-y-z"];
+    // Was: a long-lived `keeper` array receiving young pointers by in-place
+    // Append, which is what made this an old-to-young write-barrier test. No
+    // expression can write into an existing object any more, so this file no
+    // longer covers the barrier. The runtime still makes such writes on its own
+    // behalf, and those are covered instead by comprehension_write_barrier.mmt
+    // (ADD_BACK_ARRAY) and extend_write_barrier.mmt (EXTEND_ARRAY). What remains
+    // here is the allocation churn and the promotion of a structure that
+    // survives the whole run.
+    //
+    // Cons is O(1), so the accumulation stays linear; the list is converted once
+    // at the end. Churn's recursive call is in tail position, so 32000 iterations
+    // do not grow the stack (well past the ~3333-frame limit for non-tail
+    // recursion in this language).
+    def Churn = fn(i: Int, limit: Int, keeper: List<Text>) -> List<Text> => if i >= limit
+    then keeper
+    else
+    {
+        def base = "churn-" ++ (i as Text);
+        def scratch: Array<Text> = [base, base ++ "-x", base ++ "-x-y", base ++ "-x-y-z"];
 
-			// Reads `scratch`, so the four strings cannot be eliminated as dead; the
-			// allocation is the entire point of this test, and an unread binding would
-			// let the optimizer delete it, so the file would pass while measuring
-			// nothing. The 4 below must track the length of the `scratch` literal
-			// above; if that ever changes without updating this check, fail loudly
-			// here instead of failing silently later.
-			def churned = ArrayUtil::Length(scratch);
-			if churned == 4 then () else Panic::Panic("scratch should hold four strings; update this check if that changes");
+        // Reads `scratch`, so the four strings cannot be eliminated as dead; the
+        // allocation is the entire point of this test, and an unread binding would
+        // let the optimizer delete it, so the file would pass while measuring
+        // nothing. The 4 below must track the length of the `scratch` literal
+        // above; if that ever changes without updating this check, fail loudly
+        // here instead of failing silently later.
+        def churned = ArrayUtil::Length(scratch);
+        if churned == 4
+        then ()
+        else Panic::Panic("scratch should hold four strings; update this check if that changes");
 
-			Churn(i + 1, limit, if (i % 1000) == 0 then List::Cons("fresh-" ++ (i as Text), keeper) else keeper)
-		};
+        Churn(i + 1, limit, if (i % 1000) == 0
+        then List::Cons("fresh-" ++ (i as Text), keeper)
+        else keeper)
+    };
 
-	def keeper = ArrayUtil::Reverse(List::ListToArray(Churn(0, 32000, List::Nil())));
+    def keeper = ArrayUtil::Reverse(List::ListToArray(Churn(0, 32000, List::Nil())));
 
-	for item in keeper
-	{
-		IO::PrintLine(item);
-	};
+    for item in keeper
+    {
+        IO::PrintLine(item);
+    };
 
-	IO::PrintLine(keeper[ArrayUtil::Length(keeper) - 1]);
-	IO::PrintLine(ArrayUtil::Length(keeper) as Text);
+    IO::PrintLine(keeper[ArrayUtil::Length(keeper) - 1]);
+    IO::PrintLine(ArrayUtil::Length(keeper) as Text);
 };
 
 Main();

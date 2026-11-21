@@ -1,5 +1,4 @@
 module CountableGenericUserType
-
 // A user-defined generic container with a Countable instance. Before `#`
 // resolved through the generic instance matchers this failed outright:
 // the lookup was an exact string key, so Countable<Bag<T>> could not
@@ -7,16 +6,19 @@ module CountableGenericUserType
 
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Countable.mmt", }
 
-type Bag < T > = {
-    items: Array < T >
+type Bag<T> =
+{
+    items: Array<T>
 };
 
-instance Countable < Bag < T >> {
-    def Count = fn(value: Bag < T >) -> Int => #value.items;
+instance Countable<Bag<T>>
+{
+    def Count = fn(value: Bag<T>) -> Int => #value.items;
 };
 
-def ints: Bag < Int > = Bag ([1, 2, 3]);
-def texts: Bag < Text > = Bag (["a", "b"]);
+def ints: Bag<Int> = Bag([1, 2, 3]);
+
+def texts: Bag<Text> = Bag(["a", "b"]);
 
 IO::PrintLine(#ints as Text);
 IO::PrintLine(#texts as Text);

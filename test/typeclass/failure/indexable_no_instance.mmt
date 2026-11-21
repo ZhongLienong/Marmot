@@ -1,5 +1,4 @@
 module IndexableNoInstance
-
 // `[]` used to reject every non-array operand with a message about arrays.
 // It now reports the missing typeclass instead, and must name Indexable
 // along with both type arguments. Text deliberately has no instance: its
@@ -8,7 +7,10 @@ module IndexableNoInstance
 
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Indexable.mmt", }
 
-use Indexable.{ Indexable }
+use Indexable.
+{
+    Indexable
+}
 
 def t: Text = "abc";
 IO::PrintLine(t[0] as Text);

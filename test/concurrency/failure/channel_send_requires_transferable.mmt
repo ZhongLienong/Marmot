@@ -1,5 +1,4 @@
 module ChannelSendRequiresTransferable
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt" }
 
-def Forward = fn<T>(ch: Channel<T>, value: T) -> Bool => Concurrency::Send(ch, value);
+def Forward = fn<T>(ch: Channel < T >, value: T) -> Bool => Concurrency::Send(ch, value);

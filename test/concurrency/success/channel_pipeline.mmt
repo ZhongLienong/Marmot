@@ -1,48 +1,54 @@
 module channel_pipeline
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt" }
 
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
-use IO.{PrintLine}
+use IO.
+{
+    PrintLine
+}
 
 // Defined before the stages: a worker rebuilds its globals by name, and forward
 // references do not resolve across a spawn.
-def Double = fn(in_ch: Channel<Int>, out_ch: Channel<Int>, i: Int, count: Int) -> Unit =>
-    if i >= count
-    then ()
-    else
-    {
-        def val = Option::OptionUnwrapOrPanic(Concurrency::Receive(in_ch), "Channel closed");
-        Concurrency::Send(out_ch, (val * 2));
-        Double(in_ch, out_ch, i + 1, count)
-    };
+def Double = fn(in_ch: Channel < Int >, out_ch: Channel < Int >, i: Int, count: Int) -> Unit => if i >= count
+then ()
+else
+{
+    def val = Option::OptionUnwrapOrPanic(Concurrency::Receive(in_ch), "Channel closed");
+    Concurrency::Send(out_ch, (val * 2));
+    Double(in_ch, out_ch, i + 1, count)
+};
 
-def AddTen = fn(in_ch: Channel<Int>, out_ch: Channel<Int>, i: Int, count: Int) -> Unit =>
-    if i >= count
-    then ()
-    else
-    {
-        def val = Option::OptionUnwrapOrPanic(Concurrency::Receive(in_ch), "Channel closed");
-        Concurrency::Send(out_ch, (val + 10));
-        AddTen(in_ch, out_ch, i + 1, count)
-    };
+def AddTen = fn(in_ch: Channel < Int >, out_ch: Channel < Int >, i: Int, count: Int) -> Unit => if i >= count
+then ()
+else
+{
+    def val = Option::OptionUnwrapOrPanic(Concurrency::Receive(in_ch), "Channel closed");
+    Concurrency::Send(out_ch, (val + 10));
+    AddTen(in_ch, out_ch, i + 1, count)
+};
 
-def Stage1_Double = fn(in_ch: Channel<Int>, out_ch: Channel<Int>, count: Int) -> Int => {
+def Stage1_Double = fn(in_ch: Channel < Int >, out_ch: Channel < Int >, count: Int) -> Int =>
+{
     Double(in_ch, out_ch, 0, count);
     0
 };
 
-def Stage2_AddTen = fn(in_ch: Channel<Int>, out_ch: Channel<Int>, count: Int) -> Int => {
+def Stage2_AddTen = fn(in_ch: Channel < Int >, out_ch: Channel < Int >, count: Int) -> Int =>
+{
     AddTen(in_ch, out_ch, 0, count);
     0
 };
 
 def count = 5;
-def ch_input : Channel<Int> = Concurrency::MakeChannel(count);
-def ch_mid : Channel<Int> = Concurrency::MakeChannel(count);
-def ch_output : Channel<Int> = Concurrency::MakeChannel(count);
+
+def ch_input: Channel < Int > = Concurrency::MakeChannel(count);
+
+def ch_mid: Channel < Int > = Concurrency::MakeChannel(count);
+
+def ch_output: Channel < Int > = Concurrency::MakeChannel(count);
 
 def w1 = Concurrency::Spawn((ch_input, ch_mid, count), Stage1_Double);
+
 def w2 = Concurrency::Spawn((ch_mid, ch_output, count), Stage2_AddTen);
 
 Concurrency::Send(ch_input, 1);
@@ -51,19 +57,23 @@ Concurrency::Send(ch_input, 10);
 Concurrency::Send(ch_input, 0);
 Concurrency::Send(ch_input, 100);
 
-def Drain = fn(source: Channel<Int>, i: Int, limit: Int) -> Unit =>
-    if i >= limit
-    then ()
-    else
-    {
-        PrintLine("out=" ++ ((Option::OptionUnwrapOrPanic(Concurrency::Receive(source), "Channel closed")) as Text));
-        Drain(source, i + 1, limit)
-    };
+def Drain = fn(source: Channel < Int >, i: Int, limit: Int) -> Unit => if i >= limit
+then ()
+else
+{
+    PrintLine
+    (
+        "out=" ++ ((Option::OptionUnwrapOrPanic(Concurrency::Receive(source), "Channel closed")) as Text)
+    );
+    Drain(source, i + 1, limit)
+};
 
 Drain(ch_output, 0, count);
 
 Concurrency::Close(ch_input);
 Concurrency::Close(ch_mid);
 Concurrency::Close(ch_output);
+
 def _r1 = Concurrency::JoinedOrPanic(Concurrency::Join(w1));
+
 def _r2 = Concurrency::JoinedOrPanic(Concurrency::Join(w2));

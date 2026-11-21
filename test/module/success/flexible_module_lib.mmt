@@ -1,10 +1,19 @@
 // Test: module declaration stays in the file preamble while exports remain flexible
 module FlexMod
 
-def helper = fn(x: Float) -> Float => { x + 1.0 };
+def helper = fn(x: Float) -> Float =>
+{
+    x + 1.0
+};
 
-def Exported1 = fn(x: Float) -> Float => { helper(x) * 2.0 };
+def Exported1 = fn(x: Float) -> Float =>
+{
+    helper(x) * 2.0
+};
 
 public export { Exported1, Exported2 }
 
-def Exported2 = fn(x: Float) -> Float => { helper(x) * 3.0 };
+def Exported2 = fn(x: Float) -> Float =>
+{
+    helper(x) * 3.0
+};

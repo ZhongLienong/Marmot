@@ -1,33 +1,32 @@
 module TailCallDefBinding
-
 // Test: a self-recursive tail call in a function bound with `def Name = fn(...)`.
 // The sums assert depth rather than completion: without the tail call the stack
 // overflows at roughly 500,000 frames, far short of the 2,000,000 counted here.
 // Expected: every binding below is optimised, whether it is bound at module level,
 // bound locally inside another function, or tail-called from a match arm.
 
-import
-{
-	"../../projects/marmotstdlib/MarmotPrelude/IO.mmt"
-}
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
-def CountDownBinding = fn(n : Int, acc : Int) -> Int =>
+def CountDownBinding = fn(n: Int, acc: Int) -> Int =>
 {
-	if n <= 0 then acc else CountDownBinding(n - 1, acc + n)
+    if n <= 0
+    then acc
+    else CountDownBinding(n - 1, acc + n)
 };
 
-def CountDownInMatch = fn(n : Int, acc : Int) -> Int => match n <= 0 with
-	case true => acc
-	case _ => CountDownInMatch(n - 1, acc + n)
-;
+def CountDownInMatch = fn(n: Int, acc: Int) -> Int => match n <= 0 with
+    case true => acc
+    case _ => CountDownInMatch(n - 1, acc + n);
 
 def OuterHoldingLocalBinding = fn() -> Int =>
 {
-	def CountDownLocal = fn(n : Int, acc : Int) -> Int =>
-	{
-		if n <= 0 then acc else CountDownLocal(n - 1, acc + n)
-	};
-	CountDownLocal(2000000, 0)
+    def CountDownLocal = fn(n: Int, acc: Int) -> Int =>
+    {
+        if n <= 0
+        then acc
+        else CountDownLocal(n - 1, acc + n)
+    };
+    CountDownLocal(2000000, 0)
 };
 
 IO::PrintLine("binding=" ++ (CountDownBinding(2000000, 0) as Text));

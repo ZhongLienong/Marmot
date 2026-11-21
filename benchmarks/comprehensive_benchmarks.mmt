@@ -1,14 +1,11 @@
 module ComprehensiveBenchmarks
+import { "../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../projects/marmotstdlib/MarmotPrelude/DateTime.mmt", "../projects/marmotstdlib/MarmotPrelude/TextUtil.mmt", "../projects/marmotstdlib/MarmotPrelude/Prelude/List.mmt" }
 
-import
+use List.
 {
-	"../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-	"../projects/marmotstdlib/MarmotPrelude/DateTime.mmt",
-	"../projects/marmotstdlib/MarmotPrelude/TextUtil.mmt",
-	"../projects/marmotstdlib/MarmotPrelude/Prelude/List.mmt"
+    List,
+    ListToArray
 }
-
-use List.{List, ListToArray}
 
 // v2 port: loops that assigned to an accumulator are tail-recursive walks
 // carrying it; arrays that were filled by in-place `Appendable::Append` are built
@@ -17,139 +14,176 @@ use List.{List, ListToArray}
 // still copy the accumulated value on every step, which is what the
 // concatenation tests have always measured.
 
-def AppendText = fn(i : Int, limit : Int, piece : Text, acc : Text) -> Text =>
-	if i >= limit then acc else AppendText(i + 1, limit, piece, acc ++ piece);
+def AppendText = fn(i: Int, limit: Int, piece: Text, acc: Text) -> Text => if i >= limit
+then acc
+else AppendText(i + 1, limit, piece, acc ++ piece);
 
-def BuildGreeting = fn(i : Int, limit : Int, acc : Text) -> Text =>
-	if i >= limit then acc else BuildGreeting(i + 1, limit, acc ++ "Hello" ++ " " ++ "World" ++ " " ++ (i as Text));
+def BuildGreeting = fn(i: Int, limit: Int, acc: Text) -> Text => if i >= limit
+then acc
+else BuildGreeting(i + 1, limit, acc ++ "Hello" ++ " " ++ "World" ++ " " ++ (i as Text));
 
 // Joins parts[low..high) by halves, so each character is copied O(log n) times.
-def JoinRange = fn(parts : Array<Text>, low : Int, high : Int) -> Text =>
+def JoinRange = fn(parts: Array<Text>, low: Int, high: Int) -> Text =>
 {
-	if (high - low) <= 0
-	then ""
-	else if (high - low) == 1
-	then parts[low]
-	else
-	{
-		def mid = low + ((high - low) / 2);
-		JoinRange(parts, low, mid) ++ JoinRange(parts, mid, high)
-	}
+    if (high - low) <= 0
+    then ""
+    else if (high - low) == 1
+    then parts[low]
+    else
+    {
+        def mid = low + ((high - low) / 2);
+        JoinRange(parts, low, mid) ++ JoinRange(parts, mid, high)
+    }
 };
 
-def AppendEach = fn(i : Int, limit : Int, acc : Array<Int>) -> Array<Int> =>
-	if i >= limit then acc else AppendEach(i + 1, limit, acc ++ [i]);
+def AppendEach = fn(i: Int, limit: Int, acc: Array<Int>) -> Array<Int> => if i >= limit
+then acc
+else AppendEach(i + 1, limit, acc ++ [i]);
 
-def SumAccesses = fn(arr : Array<Int>, j : Int, accesses : Int, sum : Int) -> Int =>
-	if j >= accesses then sum else SumAccesses(arr, j + 1, accesses, sum + arr[j % #arr]);
+def SumAccesses = fn(arr: Array<Int>, j: Int, accesses: Int, sum: Int) -> Int => if j >= accesses
+then sum
+else SumAccesses(arr, j + 1, accesses, sum + arr[j % #arr]);
 
-def SumFrom = fn(arr : Array<Int>, j : Int, sum : Int) -> Int =>
-	if j >= #arr then sum else SumFrom(arr, j + 1, sum + arr[j]);
+def SumFrom = fn(arr: Array<Int>, j: Int, sum: Int) -> Int => if j >= #arr
+then sum
+else SumFrom(arr, j + 1, sum + arr[j]);
 
 // Walks from the last element down and prepends, so the kept elements stay in
 // input order and the call stays in tail position.
-def KeepEven = fn(arr : Array<Int>, index : Int, kept : List<Int>) -> List<Int> =>
+def KeepEven = fn(arr: Array<Int>, index: Int, kept: List<Int>) -> List<Int> =>
 {
-	if index < 0
-	then kept
-	else
-	{
-		def value = arr[index];
-		KeepEven(arr, index - 1, if (value % 2) == 0 then List::Cons(value, kept) else kept)
-	}
+    if index < 0
+    then kept
+    else
+    {
+        def value = arr[index];
+        KeepEven(arr, index - 1, if (value % 2) == 0
+        then List::Cons(value, kept)
+        else kept)
+    }
 };
 
-def TestTextConcatenation = fn(iterations : Int) -> Unit =>
+def TestTextConcatenation = fn(iterations: Int) -> Unit =>
 {
-	def start = DateTime::NowUnixMillis();
-	def result = AppendText(0, iterations, "x", "");
-	def end = DateTime::NowUnixMillis();
-	IO::PrintLine("Text concatenation (" ++ (iterations as Text) ++ " iterations, length " ++ (TextUtil::Length(result) as Text) ++ "): " ++ ((end - start) as Text) ++ " ms");
+    def start = DateTime::NowUnixMillis();
+    def result = AppendText(0, iterations, "x", "");
+    def end = DateTime::NowUnixMillis();
+    IO::PrintLine
+    (
+        "Text concatenation (" ++ (iterations as Text) ++ " iterations, length " ++ (TextUtil::Length(result) as Text) ++ "): " ++ ((end - start) as Text) ++ " ms"
+    );
 };
 
 // v2 port: this measured in-place `Appendable::Append` on a text, which no longer
 // exists. The v2 way is to make the pieces with a comprehension and join them by halves.
-def TestTextAppend = fn(iterations : Int) -> Unit =>
+def TestTextAppend = fn(iterations: Int) -> Unit =>
 {
-	def start = DateTime::NowUnixMillis();
-	def pieces = ["x" for _ in 0..1..iterations];
-	def result = JoinRange(pieces, 0, iterations);
-	def end = DateTime::NowUnixMillis();
-	IO::PrintLine("Text append via comprehension and join (" ++ (iterations as Text) ++ " iterations, length " ++ (TextUtil::Length(result) as Text) ++ "): " ++ ((end - start) as Text) ++ " ms");
+    def start = DateTime::NowUnixMillis();
+    def pieces = ["x" for _ in 0..1..iterations];
+    def result = JoinRange(pieces, 0, iterations);
+    def end = DateTime::NowUnixMillis();
+    IO::PrintLine
+    (
+        "Text append via comprehension and join (" ++ (iterations as Text) ++ " iterations, length " ++ (TextUtil::Length(result) as Text) ++ "): " ++ ((end - start) as Text) ++ " ms"
+    );
 };
 
-def TestTextBuilding = fn(iterations : Int) -> Unit =>
+def TestTextBuilding = fn(iterations: Int) -> Unit =>
 {
-	def start = DateTime::NowUnixMillis();
-	def result = BuildGreeting(0, iterations, "");
-	def end = DateTime::NowUnixMillis();
-	IO::PrintLine("Text building (" ++ (iterations as Text) ++ " iterations, length " ++ (TextUtil::Length(result) as Text) ++ "): " ++ ((end - start) as Text) ++ " ms");
+    def start = DateTime::NowUnixMillis();
+    def result = BuildGreeting(0, iterations, "");
+    def end = DateTime::NowUnixMillis();
+    IO::PrintLine
+    (
+        "Text building (" ++ (iterations as Text) ++ " iterations, length " ++ (TextUtil::Length(result) as Text) ++ "): " ++ ((end - start) as Text) ++ " ms"
+    );
 };
 
 // v2 port: this measured in-place `Appendable::Append`, which no longer exists.
 // A comprehension is the v2 way to build an array of known size.
-def TestArrayAppend = fn(size : Int) -> Unit =>
+def TestArrayAppend = fn(size: Int) -> Unit =>
 {
-	def start = DateTime::NowUnixMillis();
-	def arr = [value for value in 0..1..size];
-	def end = DateTime::NowUnixMillis();
-	IO::PrintLine("Array build via comprehension (" ++ ((#arr) as Text) ++ " elements): " ++ ((end - start) as Text) ++ " ms");
+    def start = DateTime::NowUnixMillis();
+    def arr = [value for value in 0..1..size];
+    def end = DateTime::NowUnixMillis();
+    IO::PrintLine
+    (
+        "Array build via comprehension (" ++ ((#arr) as Text) ++ " elements): " ++ ((end - start) as Text) ++ " ms"
+    );
 };
 
-def TestArrayConcatenation = fn(size : Int) -> Unit =>
+def TestArrayConcatenation = fn(size: Int) -> Unit =>
 {
-	def start = DateTime::NowUnixMillis();
-	def arr = AppendEach(0, size, []);
-	def end = DateTime::NowUnixMillis();
-	IO::PrintLine("Array concatenation (" ++ ((#arr) as Text) ++ " elements): " ++ ((end - start) as Text) ++ " ms");
+    def start = DateTime::NowUnixMillis();
+    def arr = AppendEach(0, size, []);
+    def end = DateTime::NowUnixMillis();
+    IO::PrintLine
+    (
+        "Array concatenation (" ++ ((#arr) as Text) ++ " elements): " ++ ((end - start) as Text) ++ " ms"
+    );
 };
 
-def TestArrayAccess = fn(size : Int, num_accesses : Int) -> Unit =>
+def TestArrayAccess = fn(size: Int, num_accesses: Int) -> Unit =>
 {
-	def arr = [value for value in 0..1..size];
+    def arr = [value for value in 0..1..size];
 
-	def start = DateTime::NowUnixMillis();
-	def sum = SumAccesses(arr, 0, num_accesses, 0);
-	def end = DateTime::NowUnixMillis();
-	IO::PrintLine("Array access (" ++ (num_accesses as Text) ++ " accesses, sum=" ++ (sum as Text) ++ "): " ++ ((end - start) as Text) ++ " ms");
+    def start = DateTime::NowUnixMillis();
+    def sum = SumAccesses(arr, 0, num_accesses, 0);
+    def end = DateTime::NowUnixMillis();
+    IO::PrintLine
+    (
+        "Array access (" ++ (num_accesses as Text) ++ " accesses, sum=" ++ (sum as Text) ++ "): " ++ ((end - start) as Text) ++ " ms"
+    );
 };
 
-def TestArrayIteration = fn(size : Int) -> Unit =>
+def TestArrayIteration = fn(size: Int) -> Unit =>
 {
-	def arr = [value for value in 0..1..size];
+    def arr = [value for value in 0..1..size];
 
-	def start = DateTime::NowUnixMillis();
-	def sum = SumFrom(arr, 0, 0);
-	def end = DateTime::NowUnixMillis();
-	IO::PrintLine("Array iteration (" ++ (size as Text) ++ " elements, sum=" ++ (sum as Text) ++ "): " ++ ((end - start) as Text) ++ " ms");
+    def start = DateTime::NowUnixMillis();
+    def sum = SumFrom(arr, 0, 0);
+    def end = DateTime::NowUnixMillis();
+    IO::PrintLine
+    (
+        "Array iteration (" ++ (size as Text) ++ " elements, sum=" ++ (sum as Text) ++ "): " ++ ((end - start) as Text) ++ " ms"
+    );
 };
 
 // v2 port: formerly filled by in-place Append; built by a comprehension now.
-def TestArrayOfText = fn(size : Int) -> Unit =>
+def TestArrayOfText = fn(size: Int) -> Unit =>
 {
-	def start = DateTime::NowUnixMillis();
-	def arr = ["Item " ++ (value as Text) for value in 0..1..size];
-	def end = DateTime::NowUnixMillis();
-	IO::PrintLine("Array of Text (" ++ ((#arr) as Text) ++ " elements): " ++ ((end - start) as Text) ++ " ms");
+    def start = DateTime::NowUnixMillis();
+    def arr = ["Item " ++ (value as Text) for value in 0..1..size];
+    def end = DateTime::NowUnixMillis();
+    IO::PrintLine
+    (
+        "Array of Text (" ++ ((#arr) as Text) ++ " elements): " ++ ((end - start) as Text) ++ " ms"
+    );
 };
 
 // v2 port: formerly nested loops with in-place Append; a nested comprehension now.
-def TestNestedArrays = fn(outer_size : Int, inner_size : Int) -> Unit =>
+def TestNestedArrays = fn(outer_size: Int, inner_size: Int) -> Unit =>
 {
-	def start = DateTime::NowUnixMillis();
-	def outer = [[(row * inner_size) + column for column in 0..1..inner_size] for row in 0..1..outer_size];
-	def end = DateTime::NowUnixMillis();
-	IO::PrintLine("Nested arrays (" ++ (outer_size as Text) ++ "x" ++ (inner_size as Text) ++ ", last " ++ (outer[outer_size - 1][inner_size - 1] as Text) ++ "): " ++ ((end - start) as Text) ++ " ms");
+    def start = DateTime::NowUnixMillis();
+    def outer = [[(row * inner_size) + column for column in 0..1..inner_size] for row in 0..1..outer_size];
+    def end = DateTime::NowUnixMillis();
+    IO::PrintLine
+    (
+        "Nested arrays (" ++ (outer_size as Text) ++ "x" ++ (inner_size as Text) ++ ", last " ++ (outer[outer_size - 1][inner_size - 1] as Text) ++ "): " ++ ((end - start) as Text) ++ " ms"
+    );
 };
 
-def TestArrayFilter = fn(size : Int) -> Unit =>
+def TestArrayFilter = fn(size: Int) -> Unit =>
 {
-	def arr = [value for value in 0..1..size];
+    def arr = [value for value in 0..1..size];
 
-	def start = DateTime::NowUnixMillis();
-	def filtered = ListToArray(KeepEven(arr, size - 1, List::Nil()));
-	def end = DateTime::NowUnixMillis();
-	IO::PrintLine("Array filter (even from " ++ (size as Text) ++ " elements, kept " ++ ((#filtered) as Text) ++ "): " ++ ((end - start) as Text) ++ " ms");
+    def start = DateTime::NowUnixMillis();
+    def filtered = ListToArray(KeepEven(arr, size - 1, List::Nil()));
+    def end = DateTime::NowUnixMillis();
+    IO::PrintLine
+    (
+        "Array filter (even from " ++ (size as Text) ++ " elements, kept " ++ ((#filtered) as Text) ++ "): " ++ ((end - start) as Text) ++ " ms"
+    );
 };
 
 IO::PrintLine("=== MarmotText Benchmarks ===");

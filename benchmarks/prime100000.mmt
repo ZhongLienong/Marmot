@@ -1,33 +1,31 @@
 module Prime100000
+import { "../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../projects/marmotstdlib/MarmotPrelude/DateTime.mmt" }
 
-import
+def IsPrime = fn(n: Int) -> Bool =>
 {
-	"../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-	"../projects/marmotstdlib/MarmotPrelude/DateTime.mmt"
-}
-
-def IsPrime = fn(n : Int) -> Bool =>
-{
-	def IsPrimeHelper = fn(candidate : Int, divisor : Int) -> Bool =>
-	{
-		if (divisor * divisor) > candidate
-		then true
-		else
-		{
-			if (candidate % divisor) == 0
-			then false
-			else IsPrimeHelper(candidate, divisor + 1)
-		}
-	};
-	if n <= 1 then false else IsPrimeHelper(n, 2)
+    def IsPrimeHelper = fn(candidate: Int, divisor: Int) -> Bool =>
+    {
+        if (divisor * divisor) > candidate
+        then true
+        else
+        {
+            if (candidate % divisor) == 0
+            then false
+            else IsPrimeHelper(candidate, divisor + 1)
+        }
+    };
+    if n <= 1
+    then false
+    else IsPrimeHelper(n, 2)
 };
 
 // The counter loop is a tail-recursive walk carrying the count, the v2
 // replacement for a `loop` that assigned to two locals.
-def CountPrimes = fn(count : Int, limit : Int, prime_count : Int) -> Int =>
-	if count >= limit
-	then prime_count
-	else CountPrimes(count + 1, limit, if IsPrime(count) then prime_count + 1 else prime_count);
+def CountPrimes = fn(count: Int, limit: Int, prime_count: Int) -> Int => if count >= limit
+then prime_count
+else CountPrimes(count + 1, limit, if IsPrime(count)
+then prime_count + 1
+else prime_count);
 
 def start = DateTime::NowUnixMillis();
 
@@ -35,4 +33,7 @@ def prime_count = CountPrimes(0, 100000, 0);
 
 def end = DateTime::NowUnixMillis();
 
-IO::PrintLine("Prime(100000): " ++ (prime_count as Text) ++ " benchmark took " ++ ((end - start) as Text) ++ " milliseconds");
+IO::PrintLine
+(
+    "Prime(100000): " ++ (prime_count as Text) ++ " benchmark took " ++ ((end - start) as Text) ++ " milliseconds"
+);

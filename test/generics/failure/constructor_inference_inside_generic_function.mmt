@@ -6,17 +6,17 @@ module ConstructorInferenceInsideGenericFunction
 
 type Bag<T> =
 {
-	items : Array<T>,
-	tag : Int
+    items: Array<T>,
+    tag: Int
 };
 
 type Option<T> = Some(T) | None;
 
-def Hold = fn<T>(xs : Array<T>) -> Bag<T> =>
+def Hold = fn<T>(xs: Array<T>) -> Bag<T> =>
 {
-	def owned = Bag(xs, 0);
-	def unowned = Option::None();
-	owned
+    def owned = Bag(xs, 0);
+    def unowned = Option::None();
+    owned
 };
 
 def held = Hold([1, 2]);

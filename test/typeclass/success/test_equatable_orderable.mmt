@@ -1,8 +1,8 @@
 module TestEquatableOrderable
-
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Equatable.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Orderable.mmt" }
 
-type Point = {
+type Point =
+{
     x: Int,
     y: Int
 };
@@ -14,30 +14,54 @@ instance Equatable<Point>
 
 instance Orderable<Point>
 {
-    def Compare = fn(a: Point, b: Point) -> Orderable::Ordering => {
-        if a.x < b.x then Orderable::Ordering::Less() else
-        if a.x > b.x then Orderable::Ordering::Greater() else
-        if a.y < b.y then Orderable::Ordering::Less() else
-        if a.y > b.y then Orderable::Ordering::Greater() else
-        Orderable::Ordering::Equal()
+    def Compare = fn(a: Point, b: Point) -> Orderable::Ordering =>
+    {
+        if a.x < b.x
+        then Orderable::Ordering::Less()
+        else if a.x > b.x
+        then Orderable::Ordering::Greater()
+        else if a.y < b.y
+        then Orderable::Ordering::Less()
+        else if a.y > b.y
+        then Orderable::Ordering::Greater()
+        else Orderable::Ordering::Equal()
     };
 };
 
 def p1 = Point(1, 2);
+
 def p2 = Point(1, 2);
+
 def p3 = Point(2, 3);
+
 def p4 = Point(1, 3);
 
 IO::PrintLine("Testing Equatable:");
-IO::PrintLine("p1 == p2: " ++ (if p1 == p2 then "true" else "false"));
-IO::PrintLine("p1 == p3: " ++ (if p1 == p3 then "true" else "false"));
-IO::PrintLine("p1 != p3: " ++ (if p1 != p3 then "true" else "false"));
+IO::PrintLine("p1 == p2: " ++ (if p1 == p2
+then "true"
+else "false"));
+IO::PrintLine("p1 == p3: " ++ (if p1 == p3
+then "true"
+else "false"));
+IO::PrintLine("p1 != p3: " ++ (if p1 != p3
+then "true"
+else "false"));
 
 IO::PrintLine("Testing Orderable:");
-IO::PrintLine("p1 < p3: " ++ (if p1 < p3 then "true" else "false"));
-IO::PrintLine("p3 > p1: " ++ (if p3 > p1 then "true" else "false"));
-IO::PrintLine("p1 <= p2: " ++ (if p1 <= p2 then "true" else "false"));
-IO::PrintLine("p1 >= p2: " ++ (if p1 >= p2 then "true" else "false"));
-IO::PrintLine("p1 < p4: " ++ (if p1 < p4 then "true" else "false"));
+IO::PrintLine("p1 < p3: " ++ (if p1 < p3
+then "true"
+else "false"));
+IO::PrintLine("p3 > p1: " ++ (if p3 > p1
+then "true"
+else "false"));
+IO::PrintLine("p1 <= p2: " ++ (if p1 <= p2
+then "true"
+else "false"));
+IO::PrintLine("p1 >= p2: " ++ (if p1 >= p2
+then "true"
+else "false"));
+IO::PrintLine("p1 < p4: " ++ (if p1 < p4
+then "true"
+else "false"));
 
 IO::PrintLine("test_equatable_orderable: PASS");

@@ -1,28 +1,33 @@
 module MethodDispatch
-
 // Method dispatch test
 // Tests: constrained generic functions, instance method resolution
 
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
 
-class Show<T> {
+class Show<T>
+{
     show: fn(value: T) -> Text;
 };
 
-instance Show<Int> {
-    def show = fn(value: Int) -> Text => {
+instance Show<Int>
+{
+    def show = fn(value: Int) -> Text =>
+    {
         value as Text
     };
 };
 
-instance Show<Float> {
-    def show = fn(value: Float) -> Text => {
+instance Show<Float>
+{
+    def show = fn(value: Float) -> Text =>
+    {
         value as Text
     };
 };
 
 // Generic function with constraint - should dispatch to correct instance
-def display = fn<T>(value: T) -> Text where Show<T> => {
+def display = fn<T>(value: T) -> Text where Show<T> =>
+{
     Show::show(value)
 };
 
