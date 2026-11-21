@@ -32,7 +32,7 @@ def BuildInWorker = fn(count: Int) -> List => Build(count, List::Nil());
 def returned = Concurrency::JoinedOrPanic(Concurrency::Join(Concurrency::Spawn(length, BuildInWorker)));
 PrintLine("result: " ++ (Sum(returned, 0) as Text));
 
-def ch: Channel < List > = Concurrency::MakeChannel(1);
+def ch: Channel<List> = Concurrency::MakeChannel(1);
 
 def sent = Concurrency::Send(ch, Build(length, List::Nil()));
 PrintLine

@@ -7,7 +7,7 @@ use IO.
     PrintLine
 }
 
-def Producer = fn(ch: Channel < Text >) -> Int =>
+def Producer = fn(ch: Channel<Text>) -> Int =>
 {
     Concurrency::Send(ch, "left");
     Concurrency::Send(ch, "right");
@@ -15,7 +15,7 @@ def Producer = fn(ch: Channel < Text >) -> Int =>
     7
 };
 
-def ch: Channel < Text > = Concurrency::MakeChannel(2);
+def ch: Channel<Text> = Concurrency::MakeChannel(2);
 
 def worker = Concurrency::Spawn(ch, Producer);
 

@@ -7,37 +7,37 @@ use IO.
     PrintLine
 }
 
-def ReturnZero = fn(ch: Channel < Int >) -> Int =>
+def ReturnZero = fn(ch: Channel<Int>) -> Int =>
 {
     Concurrency::Send(ch, 0);
     0
 };
 
-def ReturnFortyTwo = fn(ch: Channel < Int >) -> Int =>
+def ReturnFortyTwo = fn(ch: Channel<Int>) -> Int =>
 {
     Concurrency::Send(ch, 42);
     0
 };
 
-def ReturnNegative = fn(ch: Channel < Int >) -> Int =>
+def ReturnNegative = fn(ch: Channel<Int>) -> Int =>
 {
     Concurrency::Send(ch, (0 - 1));
     0
 };
 
-def ComputeReturn = fn(ch: Channel < Int >, x: Int) -> Int =>
+def ComputeReturn = fn(ch: Channel<Int>, x: Int) -> Int =>
 {
     Concurrency::Send(ch, ((x * x) + 1));
     0
 };
 
-def ch1: Channel < Int > = Concurrency::MakeChannel(1);
+def ch1: Channel<Int> = Concurrency::MakeChannel(1);
 
-def ch2: Channel < Int > = Concurrency::MakeChannel(1);
+def ch2: Channel<Int> = Concurrency::MakeChannel(1);
 
-def ch3: Channel < Int > = Concurrency::MakeChannel(1);
+def ch3: Channel<Int> = Concurrency::MakeChannel(1);
 
-def ch4: Channel < Int > = Concurrency::MakeChannel(1);
+def ch4: Channel<Int> = Concurrency::MakeChannel(1);
 
 def w1 = Concurrency::Spawn(ch1, ReturnZero);
 

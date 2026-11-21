@@ -7,7 +7,7 @@ use IO.
     PrintLine
 }
 
-def Ponger = fn(ch_in: Channel < Text >, ch_out: Channel < Text >) -> Int =>
+def Ponger = fn(ch_in: Channel<Text>, ch_out: Channel<Text>) -> Int =>
 {
     def msg = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch_in), "Channel closed");
     PrintLine("Ponger received: " ++ msg);
@@ -15,9 +15,9 @@ def Ponger = fn(ch_in: Channel < Text >, ch_out: Channel < Text >) -> Int =>
     0
 };
 
-def ping_ch: Channel < Text > = Concurrency::MakeChannel(1);
+def ping_ch: Channel<Text> = Concurrency::MakeChannel(1);
 
-def pong_ch: Channel < Text > = Concurrency::MakeChannel(1);
+def pong_ch: Channel<Text> = Concurrency::MakeChannel(1);
 
 def w = Concurrency::Spawn((ping_ch, pong_ch), Ponger);
 

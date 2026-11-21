@@ -6,7 +6,7 @@ def Produce = fn() -> Int =>
     42
 };
 
-def Rejoin = fn(worker: Worker < Int >) -> Int =>
+def Rejoin = fn(worker: Worker<Int>) -> Int =>
 {
     Concurrency::JoinedOrPanic(Concurrency::Join(worker))
 };

@@ -7,7 +7,7 @@ use IO.
     PrintLine
 }
 
-def TextWorker = fn(ch: Channel < Text >) -> Int =>
+def TextWorker = fn(ch: Channel<Text>) -> Int =>
 {
     Concurrency::Send(ch, "hello world");
     Concurrency::Send(ch, "");
@@ -16,7 +16,7 @@ def TextWorker = fn(ch: Channel < Text >) -> Int =>
     0
 };
 
-def ch: Channel < Text > = Concurrency::MakeChannel(4);
+def ch: Channel<Text> = Concurrency::MakeChannel(4);
 
 def w = Concurrency::Spawn(ch, TextWorker);
 

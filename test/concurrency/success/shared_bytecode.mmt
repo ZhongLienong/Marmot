@@ -7,33 +7,33 @@ use IO.
     PrintLine
 }
 
-def Adder = fn(ch: Channel < Int >, a: Int, b: Int) -> Int =>
+def Adder = fn(ch: Channel<Int>, a: Int, b: Int) -> Int =>
 {
     Concurrency::Send(ch, (a + b));
     0
 };
 
-def Multiplier = fn(ch: Channel < Int >, a: Int, b: Int) -> Int =>
+def Multiplier = fn(ch: Channel<Int>, a: Int, b: Int) -> Int =>
 {
     Concurrency::Send(ch, (a * b));
     0
 };
 
-def Squarer = fn(ch: Channel < Int >, x: Int) -> Int =>
+def Squarer = fn(ch: Channel<Int>, x: Int) -> Int =>
 {
     Concurrency::Send(ch, (x * x));
     0
 };
 
-def ch1: Channel < Int > = Concurrency::MakeChannel(1);
+def ch1: Channel<Int> = Concurrency::MakeChannel(1);
 
-def ch2: Channel < Int > = Concurrency::MakeChannel(1);
+def ch2: Channel<Int> = Concurrency::MakeChannel(1);
 
-def ch3: Channel < Int > = Concurrency::MakeChannel(1);
+def ch3: Channel<Int> = Concurrency::MakeChannel(1);
 
-def ch4: Channel < Int > = Concurrency::MakeChannel(1);
+def ch4: Channel<Int> = Concurrency::MakeChannel(1);
 
-def ch5: Channel < Int > = Concurrency::MakeChannel(1);
+def ch5: Channel<Int> = Concurrency::MakeChannel(1);
 
 def w1 = Concurrency::Spawn((ch1, 10, 20), Adder);
 

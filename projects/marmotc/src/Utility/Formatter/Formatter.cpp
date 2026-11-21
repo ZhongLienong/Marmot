@@ -267,6 +267,8 @@ namespace
 		case TokenName::BOOL:
 		case TokenName::UNIT:
 		case TokenName::NEVER:
+		case TokenName::WORKER:
+		case TokenName::CHANNEL_TYPE:
 			return true;
 		case TokenName::IDENTIFIER_LITERAL:
 			return !token.m_lexeme.empty() && std::isupper(static_cast<unsigned char>(token.m_lexeme[0u])) != 0;

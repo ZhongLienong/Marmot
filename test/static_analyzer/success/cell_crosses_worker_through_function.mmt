@@ -8,12 +8,12 @@ import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projec
 def ReadCell = fn(cell: Ref<Int>) -> Int => *cell;
 
 // Generic: the cell only shows up at the call, which warns.
-def StartWith = fn<T>(value: T, work: fn(T) -> Int) -> Worker < Int > where Transferable<T> => Concurrency::Spawn(value, work);
+def StartWith = fn<T>(value: T, work: fn(T) -> Int) -> Worker<Int> where Transferable<T> => Concurrency::Spawn(value, work);
 
 def through_generic = Concurrency::JoinedOrPanic(Concurrency::Join(StartWith(ref 3, ReadCell)));
 
 // The cell is in the parameter's type, so the spawn inside warns and the call does not.
-def StartReading = fn(cell: Ref<Int>) -> Worker < Int > => Concurrency::Spawn(cell, ReadCell);
+def StartReading = fn(cell: Ref<Int>) -> Worker<Int> => Concurrency::Spawn(cell, ReadCell);
 
 def through_typed = Concurrency::JoinedOrPanic(Concurrency::Join(StartReading(ref 4)));
 

@@ -17,7 +17,7 @@ def Total = fn(arr: Array<Int>, j: Int, sum: Int, size: Int) -> Int => if j >= s
 then sum
 else Total(arr, j + 1, sum + arr[j], size);
 
-def BuildArrayWorker = fn(ch: Channel < Int >, size: Int) -> Int =>
+def BuildArrayWorker = fn(ch: Channel<Int>, size: Int) -> Int =>
 {
     // Was built by repeated in-place Append. A comprehension allocates the
     // array once: same allocation volume, but the reallocate-as-it-grows path
@@ -27,9 +27,9 @@ def BuildArrayWorker = fn(ch: Channel < Int >, size: Int) -> Int =>
     0
 };
 
-def ch1: Channel < Int > = Concurrency::MakeChannel(1);
+def ch1: Channel<Int> = Concurrency::MakeChannel(1);
 
-def ch2: Channel < Int > = Concurrency::MakeChannel(1);
+def ch2: Channel<Int> = Concurrency::MakeChannel(1);
 
 def w1 = Concurrency::Spawn((ch1, 10000), BuildArrayWorker);
 

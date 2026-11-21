@@ -9,7 +9,7 @@ def Produce = fn() -> Int =>
     42
 };
 
-def JoinFirst = fn(workers: Array < Worker < Int >>) -> Int =>
+def JoinFirst = fn(workers: Array<Worker<Int>>) -> Int =>
 {
     Concurrency::JoinedOrPanic(Concurrency::Join(workers[0]))
 };

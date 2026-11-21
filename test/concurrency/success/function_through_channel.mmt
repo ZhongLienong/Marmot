@@ -6,7 +6,7 @@ import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../
 
 def scale = 3;
 
-def channel: Channel < fn(Int) -> Int > = Concurrency::MakeChannel(1);
+def channel: Channel<fn(Int) -> Int> = Concurrency::MakeChannel(1);
 
 Concurrency::Send(channel, fn(n: Int) -> Int => n * scale);
 
@@ -17,7 +17,7 @@ IO::PrintLine("received applies: " ++ (received(14) as Text));
 def worker = Concurrency::Spawn
 (
     channel,
-    fn(ch: Channel < fn(Int) -> Int >) -> Int =>
+    fn(ch: Channel<fn(Int) -> Int>) -> Int =>
     {
         Concurrency::Send(ch, fn(n: Int) -> Int => n + 100);
         0

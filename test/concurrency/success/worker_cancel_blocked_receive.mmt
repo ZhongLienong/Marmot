@@ -13,13 +13,13 @@ use System.
     Sleep
 }
 
-def BlockOnChannel = fn(ch: Channel < Int >) -> Int =>
+def BlockOnChannel = fn(ch: Channel<Int>) -> Int =>
 {
     def v = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch), "Channel closed");
     v
 };
 
-def ch: Channel < Int > = Concurrency::MakeChannel(1);
+def ch: Channel<Int> = Concurrency::MakeChannel(1);
 
 def w = Concurrency::Spawn(ch, BlockOnChannel);
 Sleep(50);

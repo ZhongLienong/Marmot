@@ -36,7 +36,7 @@ def Run = fn() -> Unit =>
     // 32 bands, so WithAppended's copy is irrelevant here; the array is rebuilt
     // 32 times at up to 32 elements. Spawn order is unchanged, which is what the
     // join indices below depend on.
-    def SpawnBands = fn(workers: Array < Worker < Array < Int >> >, band_index: Int, next_row: Int) -> Array < Worker < Array < Int >> > => if band_index >= worker_count
+    def SpawnBands = fn(workers: Array<Worker<Array<Int>>>, band_index: Int, next_row: Int) -> Array<Worker<Array<Int>>> => if band_index >= worker_count
     then workers
     else
     {
@@ -61,7 +61,7 @@ def Run = fn() -> Unit =>
         SpawnBands(ArrayUtil::WithAppended(workers, worker), band_index + 1, y_end)
     };
 
-    def empty_workers: Array < Worker < Array < Int >> > = [];
+    def empty_workers: Array<Worker<Array<Int>>> = [];
     def workers = SpawnBands(empty_workers, 0, 0);
 
     def JoinAll = fn(join_index: Int) -> Unit => if join_index >= #workers

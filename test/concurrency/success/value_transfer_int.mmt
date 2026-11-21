@@ -7,7 +7,7 @@ use IO.
     PrintLine
 }
 
-def IntWorker = fn(ch: Channel < Int >) -> Int =>
+def IntWorker = fn(ch: Channel<Int>) -> Int =>
 {
     Concurrency::Send(ch, 42);
     Concurrency::Send(ch, -1);
@@ -16,7 +16,7 @@ def IntWorker = fn(ch: Channel < Int >) -> Int =>
     0
 };
 
-def ch: Channel < Int > = Concurrency::MakeChannel(4);
+def ch: Channel<Int> = Concurrency::MakeChannel(4);
 
 def w = Concurrency::Spawn(ch, IntWorker);
 

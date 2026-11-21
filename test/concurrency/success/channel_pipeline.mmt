@@ -9,7 +9,7 @@ use IO.
 
 // Defined before the stages: a worker rebuilds its globals by name, and forward
 // references do not resolve across a spawn.
-def Double = fn(in_ch: Channel < Int >, out_ch: Channel < Int >, i: Int, count: Int) -> Unit => if i >= count
+def Double = fn(in_ch: Channel<Int>, out_ch: Channel<Int>, i: Int, count: Int) -> Unit => if i >= count
 then ()
 else
 {
@@ -18,7 +18,7 @@ else
     Double(in_ch, out_ch, i + 1, count)
 };
 
-def AddTen = fn(in_ch: Channel < Int >, out_ch: Channel < Int >, i: Int, count: Int) -> Unit => if i >= count
+def AddTen = fn(in_ch: Channel<Int>, out_ch: Channel<Int>, i: Int, count: Int) -> Unit => if i >= count
 then ()
 else
 {
@@ -27,13 +27,13 @@ else
     AddTen(in_ch, out_ch, i + 1, count)
 };
 
-def Stage1_Double = fn(in_ch: Channel < Int >, out_ch: Channel < Int >, count: Int) -> Int =>
+def Stage1_Double = fn(in_ch: Channel<Int>, out_ch: Channel<Int>, count: Int) -> Int =>
 {
     Double(in_ch, out_ch, 0, count);
     0
 };
 
-def Stage2_AddTen = fn(in_ch: Channel < Int >, out_ch: Channel < Int >, count: Int) -> Int =>
+def Stage2_AddTen = fn(in_ch: Channel<Int>, out_ch: Channel<Int>, count: Int) -> Int =>
 {
     AddTen(in_ch, out_ch, 0, count);
     0
@@ -41,11 +41,11 @@ def Stage2_AddTen = fn(in_ch: Channel < Int >, out_ch: Channel < Int >, count: I
 
 def count = 5;
 
-def ch_input: Channel < Int > = Concurrency::MakeChannel(count);
+def ch_input: Channel<Int> = Concurrency::MakeChannel(count);
 
-def ch_mid: Channel < Int > = Concurrency::MakeChannel(count);
+def ch_mid: Channel<Int> = Concurrency::MakeChannel(count);
 
-def ch_output: Channel < Int > = Concurrency::MakeChannel(count);
+def ch_output: Channel<Int> = Concurrency::MakeChannel(count);
 
 def w1 = Concurrency::Spawn((ch_input, ch_mid, count), Stage1_Double);
 
@@ -57,7 +57,7 @@ Concurrency::Send(ch_input, 10);
 Concurrency::Send(ch_input, 0);
 Concurrency::Send(ch_input, 100);
 
-def Drain = fn(source: Channel < Int >, i: Int, limit: Int) -> Unit => if i >= limit
+def Drain = fn(source: Channel<Int>, i: Int, limit: Int) -> Unit => if i >= limit
 then ()
 else
 {

@@ -3,7 +3,7 @@ import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../
 
 def Check = fn(capacity: Int) -> Unit =>
 {
-    def channel: Channel < Int > = Concurrency::MakeChannel(capacity);
+    def channel: Channel<Int> = Concurrency::MakeChannel(capacity);
     Concurrency::Send(channel, 10);
     Concurrency::Send(channel, 20);
     Concurrency::Close(channel);

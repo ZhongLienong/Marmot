@@ -36,7 +36,7 @@ def FoldCodes = fn(text: Text, index: Int, total: Int) -> Int => match TextUtil:
     case Option::Some(code) => FoldCodes(text, index + 1, ((total * 31) + code) % 1000003)
     case Option::None() => total;
 
-def Serve = fn(jobs: Channel < Job >, results: Channel < Outcome >, handled: Int) -> Int =>
+def Serve = fn(jobs: Channel<Job>, results: Channel<Outcome>, handled: Int) -> Int =>
 {
     def job = Option::OptionUnwrapOrPanic(Concurrency::Receive(jobs), "Channel closed");
     if job.id < 0
@@ -63,9 +63,9 @@ def worker_count = 4;
 
 def job_count = 40;
 
-def jobs: Channel < Job > = Concurrency::MakeChannel(8);
+def jobs: Channel<Job> = Concurrency::MakeChannel(8);
 
-def results: Channel < Outcome > = Concurrency::MakeChannel(8);
+def results: Channel<Outcome> = Concurrency::MakeChannel(8);
 
 def pool = [Concurrency::Spawn((jobs, results, 0), Serve) for _ in 0..1..worker_count];
 
@@ -185,13 +185,13 @@ match Concurrency::Join(spinner) with
     case Result::Err(WorkerError::Cancelled()) => IO::PrintLine("spinner cancelled")
     case _ => IO::PrintLine("spinner not cancelled");
 
-def funcs: Channel < fn(Int) -> Int > = Concurrency::MakeChannel(4);
+def funcs: Channel<fn(Int) -> Int> = Concurrency::MakeChannel(4);
 
 def offset = 17;
 Concurrency::Send(funcs, fn(x: Int) -> Int => x + offset);
 Concurrency::Send(funcs, fn(x: Int) -> Int => x * offset);
 
-def Apply = fn(channel: Channel < fn(Int) -> Int >, value: Int) -> Int =>
+def Apply = fn(channel: Channel<fn(Int) -> Int>, value: Int) -> Int =>
 {
     def first = Option::OptionUnwrapOrPanic(Concurrency::Receive(channel), "Channel closed");
     def second = Option::OptionUnwrapOrPanic(Concurrency::Receive(channel), "Channel closed");
@@ -204,9 +204,9 @@ IO::PrintLine
 
 def ring_size = 6;
 
-def ring: Array < Channel < Int >> = [Concurrency::MakeChannel(1) for _ in 0..1..ring_size];
+def ring: Array<Channel<Int>> = [Concurrency::MakeChannel(1) for _ in 0..1..ring_size];
 
-def Relay = fn(input: Channel < Int >, output: Channel < Int >, rounds: Int) -> Int => if rounds == 0
+def Relay = fn(input: Channel<Int>, output: Channel<Int>, rounds: Int) -> Int => if rounds == 0
 then 0
 else
 {

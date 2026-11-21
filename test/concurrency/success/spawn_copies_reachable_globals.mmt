@@ -41,13 +41,13 @@ def secret = 42;
 
 def ReadSecret = fn() -> Int => secret;
 
-def RunReceived = fn(ch: Channel < fn() -> Int >) -> Int =>
+def RunReceived = fn(ch: Channel<fn() -> Int>) -> Int =>
 {
     def received = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch), "Channel closed");
     received()
 };
 
-def functions: Channel < fn() -> Int > = Concurrency::MakeChannel(1);
+def functions: Channel<fn() -> Int> = Concurrency::MakeChannel(1);
 
 def runner = Concurrency::Spawn(functions, RunReceived);
 
@@ -64,14 +64,14 @@ def BumpCounter = fn() -> Int =>
     *counter
 };
 
-def BumpThenRun = fn(ch: Channel < fn() -> Int >) -> Int =>
+def BumpThenRun = fn(ch: Channel<fn() -> Int>) -> Int =>
 {
     def first = BumpCounter();
     def received = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch), "Channel closed");
     (first * 10) + received()
 };
 
-def bumps: Channel < fn() -> Int > = Concurrency::MakeChannel(1);
+def bumps: Channel<fn() -> Int> = Concurrency::MakeChannel(1);
 
 def bumper = Concurrency::Spawn(bumps, BumpThenRun);
 

@@ -7,7 +7,7 @@ use IO.
     PrintLine
 }
 
-def FloatWorker = fn(ch: Channel < Float >) -> Int =>
+def FloatWorker = fn(ch: Channel<Float>) -> Int =>
 {
     Concurrency::Send(ch, 3.14);
     Concurrency::Send(ch, -0.001);
@@ -16,7 +16,7 @@ def FloatWorker = fn(ch: Channel < Float >) -> Int =>
     0
 };
 
-def ch: Channel < Float > = Concurrency::MakeChannel(4);
+def ch: Channel<Float> = Concurrency::MakeChannel(4);
 
 def w = Concurrency::Spawn(ch, FloatWorker);
 

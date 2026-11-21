@@ -7,7 +7,7 @@ use IO.
     PrintLine
 }
 
-def Sender = fn(ch: Channel < Text >) -> Int =>
+def Sender = fn(ch: Channel<Text>) -> Int =>
 {
     Concurrency::Send(ch, "first");
     Concurrency::Send(ch, "second");
@@ -15,7 +15,7 @@ def Sender = fn(ch: Channel < Text >) -> Int =>
     0
 };
 
-def ch: Channel < Text > = Concurrency::MakeChannel(2);
+def ch: Channel<Text> = Concurrency::MakeChannel(2);
 
 def w = Concurrency::Spawn(ch, Sender);
 

@@ -4,7 +4,7 @@ import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projec
 // Sending a cell through a channel, or mapping over cells in parallel, copies
 // each cell into the worker that handles it.
 
-def channel: Channel < Ref < Int >> = Concurrency::MakeChannel(1);
+def channel: Channel<Ref<Int>> = Concurrency::MakeChannel(1);
 
 def original = ref 5;
 Concurrency::Send(channel, original);

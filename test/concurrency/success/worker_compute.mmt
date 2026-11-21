@@ -13,19 +13,19 @@ def SumTo = fn(i: Int, end_val: Int) -> Int => if i > end_val
 then 0
 else i + SumTo(i + 1, end_val);
 
-def SumRange = fn(ch: Channel < Int >, start: Int, end_val: Int) -> Int =>
+def SumRange = fn(ch: Channel<Int>, start: Int, end_val: Int) -> Int =>
 {
     Concurrency::Send(ch, SumTo(start, end_val));
     0
 };
 
-def ch1: Channel < Int > = Concurrency::MakeChannel(1);
+def ch1: Channel<Int> = Concurrency::MakeChannel(1);
 
-def ch2: Channel < Int > = Concurrency::MakeChannel(1);
+def ch2: Channel<Int> = Concurrency::MakeChannel(1);
 
-def ch3: Channel < Int > = Concurrency::MakeChannel(1);
+def ch3: Channel<Int> = Concurrency::MakeChannel(1);
 
-def ch4: Channel < Int > = Concurrency::MakeChannel(1);
+def ch4: Channel<Int> = Concurrency::MakeChannel(1);
 
 def w1 = Concurrency::Spawn((ch1, 1, 250), SumRange);
 

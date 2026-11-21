@@ -25,19 +25,19 @@ else
     AccumulatePairs(i + 1, sum + p.A + p.B, count)
 };
 
-def AllocHeavyWorker = fn(ch: Channel < Int >, count: Int) -> Int =>
+def AllocHeavyWorker = fn(ch: Channel<Int>, count: Int) -> Int =>
 {
     Concurrency::Send(ch, AccumulatePairs(0, 0, count));
     0
 };
 
-def ch1: Channel < Int > = Concurrency::MakeChannel(1);
+def ch1: Channel<Int> = Concurrency::MakeChannel(1);
 
-def ch2: Channel < Int > = Concurrency::MakeChannel(1);
+def ch2: Channel<Int> = Concurrency::MakeChannel(1);
 
-def ch3: Channel < Int > = Concurrency::MakeChannel(1);
+def ch3: Channel<Int> = Concurrency::MakeChannel(1);
 
-def ch4: Channel < Int > = Concurrency::MakeChannel(1);
+def ch4: Channel<Int> = Concurrency::MakeChannel(1);
 
 def w1 = Concurrency::Spawn((ch1, 100000), AllocHeavyWorker);
 

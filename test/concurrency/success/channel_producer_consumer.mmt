@@ -13,7 +13,7 @@ use Option.
 
 // Defined before Producer: a worker rebuilds its globals by name, and forward
 // references do not resolve across a spawn.
-def Send = fn(ch: Channel < Text >, i: Int, count: Int) -> Unit => if i >= count
+def Send = fn(ch: Channel<Text>, i: Int, count: Int) -> Unit => if i >= count
 then ()
 else
 {
@@ -21,19 +21,19 @@ else
     Send(ch, i + 1, count)
 };
 
-def Producer = fn(ch: Channel < Text >, count: Int) -> Int =>
+def Producer = fn(ch: Channel<Text>, count: Int) -> Int =>
 {
     Send(ch, 0, count);
     Concurrency::Close(ch);
     0
 };
 
-def ch: Channel < Text > = Concurrency::MakeChannel(4);
+def ch: Channel<Text> = Concurrency::MakeChannel(4);
 
 def w = Concurrency::Spawn((ch, 5), Producer);
 
 // Closing the channel lets the consumer drain it without a sentinel.
-def Receive = fn(source: Channel < Text >, received: Int) -> Int => match Concurrency::Receive(source) with
+def Receive = fn(source: Channel<Text>, received: Int) -> Int => match Concurrency::Receive(source) with
     case Option::None() => received
     case Option::Some(msg) =>
 {

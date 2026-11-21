@@ -11,7 +11,7 @@ def Double = fn(n: Int) -> Int => n * 2;
 
 def Triple = fn(n: Int) -> Int => n * 3;
 
-def SendBand = fn(ch: Channel < Text >, tag: Text) -> Int =>
+def SendBand = fn(ch: Channel<Text>, tag: Text) -> Int =>
 {
     Concurrency::Send(ch, ("band:" ++ tag));
     0
@@ -23,7 +23,7 @@ def w2 = Concurrency::Spawn(14, Triple);
 PrintLine("double=" ++ ((Concurrency::JoinedOrPanic(Concurrency::Join(w1))) as Text));
 PrintLine("triple=" ++ ((Concurrency::JoinedOrPanic(Concurrency::Join(w2))) as Text));
 
-def ch: Channel < Text > = Concurrency::MakeChannel(2);
+def ch: Channel<Text> = Concurrency::MakeChannel(2);
 
 def w3 = Concurrency::Spawn((ch, "left"), SendBand);
 PrintLine(Option::OptionUnwrapOrPanic(Concurrency::Receive(ch), "Channel closed"));
