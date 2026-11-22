@@ -4,7 +4,7 @@ module Superinstructions
 // slots directly. Each line changes if the instruction takes the wrong
 // branch, tag, field or slot.
 
-foreign "MARMOT_FFI_Print" Print: fn(Text) -> Unit;
+foreign "MARMOT_FFI_Print" Print: fn(Text) -> Unit from "marmotstdlib";
 
 type Shape = Dot | Line(Int) | Box(Int, Int);
 

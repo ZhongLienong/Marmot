@@ -5,7 +5,7 @@ module TailCalls
 // as a value. Each recurses a million times, twice the depth at which a call
 // that took a frame would overflow the stack.
 
-foreign "MARMOT_FFI_Print" Print: fn(Text) -> Unit;
+foreign "MARMOT_FFI_Print" Print: fn(Text) -> Unit from "marmotstdlib";
 
 def PrintLine = fn(text: Text) -> Unit => Print(text ++ "\n");
 

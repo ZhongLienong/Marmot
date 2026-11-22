@@ -261,16 +261,23 @@ namespace
 	}
 
 	// How a native library receives each argument, two bits apiece from the
-	// first: raw bits, a C string, or a view of an array's elements.
+	// first: raw bits, a C string, or a view of scalar or C string elements.
 	uint8_t ForeignArgumentKinds(const MarmotIRFunction& function, std::span<const MarmotIRValueId> arguments)
 	{
 		// zip with iota rather than enumerate, which Emscripten's libc++ lacks.
 		return std::ranges::fold_left(std::views::zip(std::views::iota(0), arguments), uint8_t{ 0u }, [&function](uint8_t kinds, const std::tuple<int, const MarmotIRValueId&>& argument)
 		{
 			const TypeRef& type = function.TypeOf(std::get<1>(argument));
-			const uint8_t kind = type->IsType<MarmotType::TextType>() ? MmcWire::FFI_ARGUMENT_C_STRING
-				: type->IsType<MarmotType::ArrayType>() ? MmcWire::FFI_ARGUMENT_ARRAY_VIEW
-				: MmcWire::FFI_ARGUMENT_RAW_VALUE;
+			uint8_t kind = MmcWire::FFI_ARGUMENT_RAW_VALUE;
+			if (type->IsType<MarmotType::TextType>())
+			{
+				kind = MmcWire::FFI_ARGUMENT_C_STRING;
+			}
+			else if (type->IsType<MarmotType::ArrayType>())
+			{
+				kind = ElementType(type)->IsType<MarmotType::TextType>()
+					? MmcWire::FFI_ARGUMENT_ARRAY_STRINGS : MmcWire::FFI_ARGUMENT_ARRAY_VIEW;
+			}
 			return static_cast<uint8_t>(kinds | (kind << (MmcWire::FFI_ARGUMENT_BITS * std::get<0>(argument))));
 		});
 	}

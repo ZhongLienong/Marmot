@@ -37,7 +37,7 @@ namespace
 	{
 		return std::format(
 			"module Main\n"
-			"foreign \"MARMOT_FFI_Print\" Print : fn(Text) -> Unit;\n"
+			"foreign \"MARMOT_FFI_Print\" Print : fn(Text) -> Unit from \"marmotstdlib\";\n"
 			"foreign \"{}\"\n"
 			"{{\n"
 			"\t\"marmot_test_add\" Add : fn(Int, Int) -> Int;\n"
@@ -103,7 +103,7 @@ TEST_CASE("A foreign function from a native library runs when found through the 
 	const MarmotTest::TempProject project({ MarmotTest::TempProjectFile("Main.mmt", AddingProgram("marmot_test_native")) });
 	MarmotExecutable executable = Compile(project, "Main.mmt");
 
-	REQUIRE(executable.GetNativeLibraries().size() == 1u);
+	REQUIRE(executable.GetNativeLibraries().size() == 2u);
 	CHECK(executable.GetNativeLibraries()[0u].m_name == "marmot_test_native");
 	CHECK(executable.GetNativeLibraries()[0u].m_symbols == std::vector<std::string>{ "marmot_test_add", "marmot_test_answer" });
 
@@ -173,7 +173,8 @@ TEST_CASE("Only the libraries a program imports decide whether it may spawn work
 	std::filesystem::copy_file(TestLibraryFile("marmot_test_native"), project.Root() / PlatformFileName("marmot_test_native_unsafe"));
 	std::filesystem::copy_file(TestLibraryFile("marmot_test_native"), project.Root() / PlatformFileName("marmot_test_native_safe"));
 
-	MarmotExecutable unsafe = Compile(project, "Unsafe.mmt");
+	MarmotExecutable unsafe = Compile(project, "Unsafe.mmt",
+		CompilationInputs().WithNativeLibraryPolicies({ { "marmotstdlib", NativeLibraryPolicy{ .m_thread_safe = true } } }));
 	const std::string refused = Run(std::move(unsafe));
 	CHECK(refused.find("native libraries are not declared thread_safe: 'marmot_test_native_unsafe'") != std::string::npos);
 
@@ -181,7 +182,9 @@ TEST_CASE("Only the libraries a program imports decide whether it may spawn work
 	MarmotExecutable safe = Compile(
 		project,
 		"Safe.mmt",
-		CompilationInputs().WithNativeLibraryPolicies({ { "marmot_test_native_safe", NativeLibraryPolicy{ .m_thread_safe = true } } }));
+		CompilationInputs().WithNativeLibraryPolicies({
+			{ "marmot_test_native_safe", NativeLibraryPolicy{ .m_thread_safe = true } },
+			{ "marmotstdlib", NativeLibraryPolicy{ .m_thread_safe = true } } }));
 	REQUIRE(safe.GetNativeLibraries()[0u].m_policy.m_thread_safe);
 	CHECK(Run(std::move(safe)) == "ok 42\n");
 }
@@ -202,7 +205,7 @@ TEST_CASE("A native function receives and returns each argument as its declared 
 	const MarmotTest::TempProject project({ MarmotTest::TempProjectFile(
 		"Main.mmt",
 		"module Main\n"
-		"foreign \"MARMOT_FFI_Print\" Print : fn(Text) -> Unit;\n"
+		"foreign \"MARMOT_FFI_Print\" Print : fn(Text) -> Unit from \"marmotstdlib\";\n"
 		"foreign \"marmot_test_native\"\n"
 		"{\n"
 		"\t\"marmot_test_length\" Length : fn(Text) -> Int;\n"
@@ -210,11 +213,13 @@ TEST_CASE("A native function receives and returns each argument as its declared 
 		"\t\"marmot_test_shout\" Shout : fn(Text) -> Text;\n"
 		"\t\"marmot_test_words\" Words : fn() -> Array<Text>;\n"
 		"\t\"marmot_test_count\" Count : fn(Int) -> Array<Int>;\n"
+		"\t\"marmot_test_text_bytes\" TextBytes : fn(Array<Text>) -> Int;\n"
+		"\t\"marmot_test_freed\" Freed : fn() -> Int;\n"
 		"}\n"
 		"def empty: Array<Int> = [];\n"
 		"def words = Words();\n"
-		"Print(Shout(\"hey\") ++ \" \" ++ (Length(\"four\") as Text) ++ \" \" ++ (Sum([1, 2, 39]) as Text) ++ \" \" ++ (Sum(empty) as Text) ++ \" \" ++ words[0] ++ \" \" ++ words[1] ++ \" \" ++ (Sum(Count(4)) as Text));\n") });
-	CHECK(Run(Compile(project, "Main.mmt"), { "--library-path", MARMOT_TEST_NATIVE_DIR }) == "hey! 4 42 0 up down 6");
+		"Print(Shout(\"hey\") ++ \" \" ++ (Length(\"four\") as Text) ++ \" \" ++ (Sum([1, 2, 39]) as Text) ++ \" \" ++ (Sum(empty) as Text) ++ \" \" ++ words[0] ++ \" \" ++ words[1] ++ \" \" ++ (Sum(Count(4)) as Text) ++ \" \" ++ (TextBytes(words) as Text) ++ \" \" ++ (Freed() as Text));\n") });
+	CHECK(Run(Compile(project, "Main.mmt"), { "--library-path", MARMOT_TEST_NATIVE_DIR }) == "hey! 4 42 0 up down 6 6 3");
 }
 
 TEST_CASE("A native function takes at most four arguments", "[ffi][native]")
@@ -227,4 +232,35 @@ TEST_CASE("A native function takes at most four arguments", "[ffi][native]")
 	const MarmotDriver::CompileFileWithReportResult compiled = MarmotDriver::CompileFileWithReport(project.Path("Main.mmt"), CompilationInputs());
 	REQUIRE_FALSE(compiled.has_value());
 	CHECK(compiled.error().Rendered().find("Too many arguments to a native function (max 4)") != std::string::npos);
+}
+
+TEST_CASE("Loading a native library requires its result deallocator", "[ffi][native]")
+{
+	const MarmotTest::TempProject project({ MarmotTest::TempProjectFile(
+		"Main.mmt",
+		"module Main\n"
+		"foreign \"marmot_test_answer\" Answer: fn() -> Int from \"probe\";\n"
+		"Answer();\n") });
+	const MarmotExecutable executable = Compile(project, "Main.mmt");
+	const std::filesystem::path library = TestLibraryFile("marmot_test_no_free_result");
+	const std::string error = LoadError(executable, { "--library", "probe=" + library.string() });
+	CHECK(error.find("native library 'probe' does not export 'MARMOT_FFI_FreeResult'") != std::string::npos);
+}
+
+TEST_CASE("Pure prelude collections run without the reference native library", "[ffi][native]")
+{
+	const std::filesystem::path prelude = std::filesystem::path(MARMOT_REPO_ROOT) / "projects/marmotstdlib/MarmotPrelude";
+	const std::string source = std::format(
+		"module Main\n"
+		"import {{ \"{}\", \"{}\" }}\n"
+		"foreign \"MARMOT_FFI_Exit\" Exit: fn(Int) -> Unit;\n"
+		"def empty: Map::Map<Text, Int> = Map::Empty();\n"
+		"def map = Map::With(empty, \"key\", 42);\n"
+		"if Map::GetOr(map, \"key\", 0) == 42 then () else Exit(1);\n",
+		(prelude / "Collections/Map.mmt").generic_string(),
+		(prelude / "Hashable.mmt").generic_string());
+	const MarmotTest::TempProject project({ MarmotTest::TempProjectFile("Main.mmt", source) });
+	const MarmotExecutable executable = Compile(project, "Main.mmt");
+	CHECK(executable.GetNativeLibraries().empty());
+	CHECK(Run(executable, { "--library", "marmotstdlib=" + project.Path("missing.dll").string() }).empty());
 }

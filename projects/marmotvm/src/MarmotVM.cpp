@@ -329,6 +329,17 @@ namespace
 		{
 			locations.m_search_paths.push_back(directory);
 		}
+		if (const auto executable_path = MarmotStandalone::CurrentExecutablePath())
+		{
+			const std::filesystem::path bin = executable_path->parent_path();
+			locations.m_search_paths.push_back(bin);
+			const std::filesystem::path preset = bin.parent_path();
+			const std::filesystem::path project = preset.parent_path();
+			if (project.filename() == "marmotvm")
+			{
+				locations.m_search_paths.push_back(project.parent_path() / "marmotstdlib" / preset.filename() / "out");
+			}
+		}
 		const std::expected<void, std::string> loaded = MarmotProgramLoader::LoadNativeLibraries(program.value(), locations);
 		if (!loaded.has_value())
 		{

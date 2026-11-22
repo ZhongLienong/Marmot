@@ -1,6 +1,6 @@
 module MmcNative
 
-foreign "MARMOT_FFI_Print" PrintRaw: fn(Text) -> Unit;
+foreign "MARMOT_FFI_Print" PrintRaw: fn(Text) -> Unit from "marmotstdlib";
 
 foreign "marmot_test_answer" Answer: fn() -> Int from "marmot_test_native";
 

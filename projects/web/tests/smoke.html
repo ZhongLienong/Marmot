@@ -83,11 +83,11 @@
         check(runtime.error.includes("def missing = xs[4];"), "Runtime diagnostics use source embedded in .mmc bytes");
         const again = module.executeMarmotCode(source);
         check(again.success && again.output === "browser hello\n", "Execution recovers after compiler and runtime errors");
-        const errorOutput = module.executeMarmotCode('module Stderr\nforeign "MARMOT_FFI_PrintError" PrintError : fn(Text) -> Unit;\nPrintError("stderr test\\n");');
+        const errorOutput = module.executeMarmotCode('module Stderr\nimport { <IO> }\nIO::PrintErrorLine("stderr test");');
         check(errorOutput.success && errorOutput.output === "" && errorOutput.error === "stderr test\n", "Program stderr is captured separately from stdout");
 
         const nativeProduced = module.runMarmotBytecode(await fixture("control"));
-        check(nativeProduced.success && nativeProduced.output === "large\n", "WASM VM runs the frozen native compiler fixture");
+        check(nativeProduced.success && nativeProduced.output === "" && nativeProduced.error === "large\n", "WASM VM runs the frozen native compiler fixture");
         for (const name of ["truncated", "checksum", "incompatible_marker"]) {
             const invalid = module.runMarmotBytecode(await fixture(name));
             check(!invalid.success && invalid.report.errors.length === 1, `VM rejects ${name} artifact`);

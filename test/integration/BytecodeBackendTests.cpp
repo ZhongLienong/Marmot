@@ -45,7 +45,7 @@ namespace
 	}
 
 	// Links one module on its own and runs it, as the VM would.
-	std::string RunModule(BytecodeModule&& module)
+	MarmotTest::CapturedOutput RunModule(BytecodeModule&& module)
 	{
 		const std::string name = module.m_module_name;
 		std::vector<BytecodeModule> modules;
@@ -58,21 +58,19 @@ namespace
 
 		const std::pair<int, MarmotTest::CapturedOutput> run = MarmotTest::RunExecutable(linked.value());
 		REQUIRE(run.first == 0);
-		return run.second.m_stdout;
+		return run.second;
 	}
 }
 
 TEST_CASE("The backend moves a jump's arguments into its target's parameters all at once", "[marmot_ir][backend]")
 {
 	MarmotIRModule module("Swap");
-	const MarmotIRGlobalSlot print = module.ReserveGlobal("Print", ScalarType(MarmotIRScalar::Text));
 	MarmotIRFunction function(std::string(MmcWire::MAIN_PROCEDURE_PREFIX), MarmotType::MakeLiteralType<MarmotType::UnitType>());
 	MarmotIRBuilder builder(function);
 	const MarmotIRBlockId loop = builder.CreateBlock();
 	const MarmotIRBlockId body = builder.CreateBlock();
 	const MarmotIRBlockId done = builder.CreateBlock();
 
-	builder.Emit(MarmotIROp::GlobalDefine, MarmotType::MakeLiteralType<MarmotType::UnitType>(), { builder.ConstText("MARMOT_FFI_Print") }, print);
 	builder.Jump(loop, { builder.ConstText("a"), builder.ConstText("b"), builder.ConstInt(3) });
 
 	const MarmotIRValueId first = builder.AddParameter(loop, ScalarType(MarmotIRScalar::Text), "first");
@@ -83,7 +81,7 @@ TEST_CASE("The backend moves a jump's arguments into its target's parameters all
 
 	builder.PositionAt(body);
 	const MarmotIRValueId pair = builder.Emit(MarmotIROp::Concat, ScalarType(MarmotIRScalar::Text), { first, second });
-	builder.Emit(MarmotIROp::CallForeign, MarmotType::MakeLiteralType<MarmotType::UnitType>(), { builder.Emit(MarmotIROp::Concat, ScalarType(MarmotIRScalar::Text), { pair, builder.ConstText(" ") }) }, MarmotIRForeign{ "MARMOT_FFI_Print" });
+	builder.Emit(MarmotIROp::CallForeign, MarmotType::MakeLiteralType<MarmotType::UnitType>(), { builder.Emit(MarmotIROp::Concat, ScalarType(MarmotIRScalar::Text), { pair, builder.ConstText(" ") }) }, MarmotIRForeign{ "MARMOT_FFI_ReportPanic" });
 	builder.Jump(loop, { second, first, builder.Binary(MarmotIROp::SubInt, count, builder.ConstInt(1)) });
 
 	builder.PositionAt(done).Return(builder.ConstUnit());
@@ -91,7 +89,7 @@ TEST_CASE("The backend moves a jump's arguments into its target's parameters all
 	REQUIRE(MarmotIRVerifier(module).Verify().empty());
 
 	const LoweredModule lowered(std::move(module));
-	CHECK(RunModule(RequireBytecode(lowered)) == "ab ba ab ");
+	CHECK(RunModule(RequireBytecode(lowered)).m_stderr == "ab ba ab ");
 }
 
 TEST_CASE("A frame of more than 255 slots pushes its placeholders in several instructions", "[marmot_ir][backend]")
@@ -108,7 +106,7 @@ TEST_CASE("A frame of more than 255 slots pushes its placeholders in several ins
 	std::expected<LoweredModule, MarmotResult::CompilerDiagnostics> lowered = MarmotTest::LowerSnippetWithDiagnostics(std::format
 	(
 		R"(module Wide
-foreign "MARMOT_FFI_Print" Print: fn(Text) -> Unit;
+foreign "MARMOT_FFI_Print" Print: fn(Text) -> Unit from "marmotstdlib";
 def Total = fn(n: Int) -> Int => {{
 {}	{}
 }};
@@ -126,5 +124,5 @@ Print(Total(1) as Text);
 	CHECK(static_cast<int>(total.ReadByteCode(1)) == 255);
 	REQUIRE(total.ReadByteCode(2) == OpCode::PUSH_PLACEHOLDER);
 	CHECK(static_cast<int>(total.ReadByteCode(3)) > 0);
-	CHECK(RunModule(std::move(bytecode)) == std::to_string(s_count + s_count * (s_count - 1) / 2));
+	CHECK(RunModule(std::move(bytecode)).m_stdout == std::to_string(s_count + s_count * (s_count - 1) / 2));
 }

@@ -140,20 +140,20 @@ bb5(%6: Text):
 TEST_CASE("Lowering calls a builtin foreign function by name", "[marmot_ir][lowering]")
 {
 	const LoweredModule lowered = RequireLowered(R"(module Foreign
-foreign "MARMOT_FFI_Print" Print: fn(Text) -> Unit;
-Print("hi");
+foreign "MARMOT_FFI_ReportPanic" Report: fn(Text) -> Unit;
+Report("hi");
 )");
 
 	CHECK(MarmotIRPrinter(lowered.m_module).Print() == R"(module Foreign
-global @0 Print: Text
+global @0 Report: Text
 top-level $main$
 
 fn $main$() -> Unit
 bb0:
-  %0: Text = Const "MARMOT_FFI_Print"
+  %0: Text = Const "MARMOT_FFI_ReportPanic"
   %1: Unit = GlobalDefine @0, %0  !io
   %2: Text = Const "hi"
-  %3: Unit = CallForeign foreign "MARMOT_FFI_Print", %2  !io
+  %3: Unit = CallForeign foreign "MARMOT_FFI_ReportPanic", %2  !io
   %4: Unit = Const
   return %4
 )");
@@ -275,7 +275,7 @@ def Scale = fn(n: Int) -> Int => n * factor;
 )"),
 		MarmotTest::TempProjectFile("Main.mmt", R"(module Main
 import { "./Lib.mmt" }
-foreign "MARMOT_FFI_Print" Print: fn(Text) -> Unit;
+foreign "MARMOT_FFI_Print" Print: fn(Text) -> Unit from "marmotstdlib";
 Print((Lib::Scale(Lib::factor) as Text) ++ "\n");
 )")
 	});

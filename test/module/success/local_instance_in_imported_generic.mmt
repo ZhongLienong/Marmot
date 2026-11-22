@@ -1,7 +1,7 @@
 module InstanceOrigin
 import { "local_instance_in_imported_generic_lib.mmt" }
 
-foreign "MARMOT_FFI_Print" Print: fn(Text) -> Unit;
+foreign "MARMOT_FFI_Print" Print: fn(Text) -> Unit from "marmotstdlib";
 
 type Box<T> =
 {

@@ -281,24 +281,15 @@ fn a_failing_native_build_stops_the_plan_with_its_output() {
 }
 
 #[test]
-fn a_package_without_ffi_or_with_another_abi_is_not_native() {
+fn a_package_without_ffi_is_not_native() {
     let tree = TempTree::new(&[
         ("app/Main.mmt", "module Main\n"),
         ("plain/package.marmot", &package("Plain", "1.0.0", &[])),
-        (
-            "old/package.marmot",
-            &(package("Old", "1.0.0", &[])
-                + "\n[ffi]\nenabled = true\nlibrary_name = \"old\"\nabi_version = 2\n"),
-        ),
     ]);
 
-    let plan = plan_for(
-        &tree,
-        "app/Main.mmt",
-        &[tree.path("plain"), tree.path("old")],
-    );
+    let plan = plan_for(&tree, "app/Main.mmt", &[tree.path("plain")]);
 
-    assert_eq!(plan.search_paths.len(), 2);
+    assert_eq!(plan.search_paths.len(), 1);
     assert!(plan.native_libraries.is_empty());
 }
 

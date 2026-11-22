@@ -84,8 +84,6 @@ endif()
 option(MARMOT_BUILD_TESTS "Build Marmot implementation unit tests" ${MARMOT_BUILD_TESTS_DEFAULT})
 
 if(MSVC)
-    # Debug takes the shared runtime (/MDd): each static debug runtime has its own
-    # heap, and the VM frees the buffers a native library returns.
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:DebugDLL>" CACHE STRING "Use static MSVC runtime (/MT), shared in Debug (/MDd)" FORCE)
 endif()
 
@@ -169,13 +167,11 @@ function(marmot_configure_target target_name)
     )
 endfunction()
 
-add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../marmotstdlib" "${CMAKE_BINARY_DIR}/marmotstdlib")
-
 file(GLOB_RECURSE MARMOT_RUNTIME_SOURCES CONFIGURE_DEPENDS "src/*.cpp")
 list(FILTER MARMOT_RUNTIME_SOURCES EXCLUDE REGEX "/src/(MarmotVM.cpp$|Wasm/)")
 add_library(MarmotRuntime STATIC ${MARMOT_RUNTIME_SOURCES})
-target_include_directories(MarmotRuntime PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_link_libraries(MarmotRuntime PRIVATE MarmotStdLib picosha2 yyjson ZLIB::ZLIBSTATIC)
+target_include_directories(MarmotRuntime PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(MarmotRuntime PRIVATE picosha2 yyjson ZLIB::ZLIBSTATIC)
 set(MARMOT_LIBRARY_TARGETS MarmotRuntime)
 if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     set_source_files_properties(src/Interpreter/VirtualMachine/VirtualMachine.cpp PROPERTIES COMPILE_OPTIONS "/GL-")
@@ -189,7 +185,7 @@ endif()
 if(NOT EMSCRIPTEN)
     add_executable(marmotvm src/MarmotVM.cpp)
     target_link_libraries(marmotvm PRIVATE MarmotRuntime CLI11::CLI11 yyjson)
-    set(MARMOT_NATIVE_COMPILE_TARGETS ${MARMOT_LIBRARY_TARGETS} MarmotStdLib marmotvm)
+    set(MARMOT_NATIVE_COMPILE_TARGETS ${MARMOT_LIBRARY_TARGETS} marmotvm)
     set(MARMOT_NATIVE_LINK_TARGETS marmotvm)
     include(cmake/CompilerWarnings.cmake)
     marmot_compiler_warnings(MarmotRuntime)

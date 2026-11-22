@@ -5,7 +5,7 @@ module DivisionByZeroInFunction
 // The function is small enough that an optimizer may inline it; the line it
 // reports must not change when one does.
 
-foreign "MARMOT_FFI_Print" Print: fn(Text) -> Unit;
+foreign "MARMOT_FFI_Print" Print: fn(Text) -> Unit from "marmotstdlib";
 
 def Divide = fn(total: Int, parts: Int) -> Int => total / parts;
 

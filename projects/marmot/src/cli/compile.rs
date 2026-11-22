@@ -25,8 +25,10 @@ pub(super) fn execute(
             })?
         }
     };
-    let (plan, warnings) = plan::make_plan(&entry, &paths::marmot_path(), version)?;
+    let (mut plan, warnings) = plan::make_plan(&entry, &paths::marmot_path(), version)?;
     print_warnings(&warnings);
+    let vm = toolchain::find_vm(options.marmotvm.as_deref(), compiler);
+    plan.add_stdlib(&vm, compiler)?;
 
     if kind == CommandKind::Plan {
         return match &options.output {
@@ -47,7 +49,6 @@ pub(super) fn execute(
         .map_err(|error| format!("cannot write {}: {error}", plan_file.path().display()))?;
 
     if kind == CommandKind::Run {
-        let vm = toolchain::find_vm(options.marmotvm.as_deref(), compiler);
         return run::run(&run::RunRequest {
             plan: &plan,
             plan_file: plan_file.path(),
@@ -78,7 +79,6 @@ pub(super) fn execute(
     }
 
     if options.executable {
-        let vm = toolchain::find_vm(options.marmotvm.as_deref(), compiler);
         let output = options
             .output
             .clone()

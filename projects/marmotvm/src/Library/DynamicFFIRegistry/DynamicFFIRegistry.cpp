@@ -5,24 +5,14 @@
 #include <string_view>
 
 DynamicFFIRegistry::DynamicFFIRegistry()
+	: m_functions(SharedLibraryCache::GetInstance().SnapshotAllFunctions())
 {
-	SnapshotFromCache();
 }
 
-void DynamicFFIRegistry::SnapshotFromCache()
+const VmNativeFunction* DynamicFFIRegistry::FindFunction(std::string_view function_name) const
 {
-	m_functions = SharedLibraryCache::GetInstance().SnapshotAllFunctions();
-}
-
-std::optional<VmFFIFunction> DynamicFFIRegistry::FindFunction(std::string_view function_name) const
-{
-	const std::unordered_map<std::string, VmFFIFunction>::const_iterator it = m_functions.find(std::string(function_name));
-	if (it != m_functions.end())
-	{
-		return it->second;
-	}
-
-	return std::nullopt;
+	const auto it = m_functions.find(std::string(function_name));
+	return it == m_functions.end() ? nullptr : &it->second;
 }
 
 std::expected<void, std::string> DynamicFFIRegistry::ValidateWorkerSafety(const std::vector<VmNativeLibraryImport>& libraries)
@@ -31,16 +21,18 @@ std::expected<void, std::string> DynamicFFIRegistry::ValidateWorkerSafety(const 
 	library_names.reserve(libraries.size());
 	for (const VmNativeLibraryImport& library : libraries)
 	{
-		library_names.push_back(library.m_name);
+		if (!library.m_policy.m_thread_safe)
+		{
+			library_names.push_back(library.m_name);
+		}
 	}
 
-	const std::vector<std::string> non_thread_safe = SharedLibraryCache::GetInstance().GetNonThreadSafeLibraries(library_names);
-	if (non_thread_safe.empty())
+	if (library_names.empty())
 	{
 		return {};
 	}
 
-	const std::string package_list = non_thread_safe
+	const std::string package_list = library_names
 		| std::views::transform([](const std::string& library_name) { return std::format("'{}'", library_name); })
 		| std::views::join_with(std::string_view(", "))
 		| std::ranges::to<std::string>();

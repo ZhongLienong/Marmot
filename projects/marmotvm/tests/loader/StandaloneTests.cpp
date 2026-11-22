@@ -108,10 +108,13 @@ TEST_CASE("Standalone native libraries have file names confined to the extractio
 {
 	for (const std::string& file_name : { std::string("../escape.dll"), std::string("/escape.dll"), std::string("lib test.bin") })
 	{
-		std::string payload = Payload("native", 1u);
+		std::string payload = Payload("native", 2u);
 		AppendBlob(payload, "marmot_test_native");
 		AppendBlob(payload, file_name);
 		AppendBlob(payload, "library");
+		AppendBlob(payload, "marmotstdlib");
+		AppendBlob(payload, "marmotstdlib.bin");
+		AppendBlob(payload, "standard library");
 		const std::expected<std::optional<MarmotStandalone::Package>, std::string> package = Read(Image(payload));
 		if (file_name == "lib test.bin")
 		{

@@ -5,6 +5,7 @@ Build Marmot: the compiler, the VM, the unit tests and the project tool.
 Targets:
     compiler    marmotc
     vm          marmotvm
+    stdlib      marmotstdlib
     unit        the project unit tests and subprocess integration tests
     tool        the Rust marmot tool, with cargo
     all         everything above
@@ -29,7 +30,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from lib import cargo
 from lib.presets import BuildTree, UNIT_TARGETS, add_build_arguments
 
-CMAKE_TARGETS = {"compiler": ["marmotc"], "vm": ["marmotvm"], "unit": [*UNIT_TARGETS, "marmotc", "marmotvm"]}
+CMAKE_TARGETS = {"compiler": ["marmotc"], "vm": ["marmotvm"], "stdlib": ["marmotstdlib"],
+                 "unit": [*UNIT_TARGETS, "marmotc", "marmotvm", "marmotstdlib"]}
 TARGETS = [*CMAKE_TARGETS, "tool", "all"]
 
 
@@ -37,14 +39,14 @@ def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="Build the compiler, VM, unit tests or project tool.")
     add_build_arguments(parser)
     parser.add_argument("targets", nargs="*", metavar="TARGET",
-                        help=f"What to build: {', '.join(TARGETS)} (default: compiler vm).")
+                        help=f"What to build: {', '.join(TARGETS)} (default: compiler vm stdlib).")
     parser.add_argument("--debug-tool", action="store_true", help="Build the marmot tool without --release.")
     args = parser.parse_args(argv)
 
     unknown = [target for target in args.targets if target not in TARGETS]
     if unknown:
         parser.error(f"unknown target {', '.join(unknown)}; choose from {', '.join(TARGETS)}")
-    requested = args.targets or ["compiler", "vm"]
+    requested = args.targets or ["compiler", "vm", "stdlib"]
     chosen = [*CMAKE_TARGETS, "tool"] if "all" in requested else requested
     cmake_targets = [item for target in chosen if target in CMAKE_TARGETS for item in CMAKE_TARGETS[target]]
     if cmake_targets:

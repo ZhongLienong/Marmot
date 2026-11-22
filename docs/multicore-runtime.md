@@ -201,7 +201,6 @@ Dynamic FFI libraries declare thread safety in `package.marmot`:
 ```toml
 [ffi]
 enabled = true
-abi_version = 1
 thread_safe = true
 ```
 

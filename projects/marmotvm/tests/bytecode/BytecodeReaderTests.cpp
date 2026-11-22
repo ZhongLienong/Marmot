@@ -44,9 +44,11 @@ TEST_CASE("The reader preserves embedded source metadata and native imports", "[
 	REQUIRE(native.has_value());
 	CHECK(embedded->FindSourceLines(embedded->GetProcedureSourcePath(0)) != nullptr);
 	CHECK(minimal->FindSourceLines(minimal->GetProcedureSourcePath(0)) == nullptr);
-	REQUIRE(native->GetNativeLibraries().size() == 1u);
+	REQUIRE(native->GetNativeLibraries().size() == 2u);
 	CHECK(native->GetNativeLibraries()[0u].m_name == "marmot_test_native");
 	CHECK(native->GetNativeLibraries()[0u].m_symbols == std::vector<std::string>{ "marmot_test_answer" });
+	CHECK(native->GetNativeLibraries()[1u].m_name == "marmotstdlib");
+	CHECK(native->GetNativeLibraries()[1u].m_symbols == std::vector<std::string>{ "MARMOT_FFI_Print" });
 }
 
 TEST_CASE("The reader rejects incompatible and corrupted artifacts", "[bytecode-artifact]")
@@ -54,7 +56,7 @@ TEST_CASE("The reader rejects incompatible and corrupted artifacts", "[bytecode-
 	const std::array<std::pair<std::string_view, std::string_view>, 3u> invalid = {{
 		{ "truncated", "Truncated artifact" },
 		{ "checksum", "CRC32 mismatch" },
-		{ "incompatible_marker", "format marker mismatch: expected 19, got 18" }
+		{ "incompatible_marker", "format marker mismatch: expected 20, got 19" }
 	}};
 	for (const std::pair<std::string_view, std::string_view>& fixture : invalid)
 	{
@@ -79,7 +81,7 @@ TEST_CASE("The VM runs artifacts with and without embedded sources", "[bytecode-
 	const MarmotUtility::CapturedOutput output = capture.Stop();
 	REQUIRE(executed.has_value());
 	CHECK(executed.value() == 0);
-	CHECK(output.m_stdout == "large\n");
+	CHECK(output.m_stderr == "large\n");
 	std::expected<VmExecutable, std::string> embedded = VmBinaryArtifact::ReadExecutableFromFile(Fixture("embedded_error"));
 	REQUIRE(embedded.has_value());
 	const std::expected<int, RuntimeError> failed = MarmotProgramLoader::Run(std::move(embedded).value());

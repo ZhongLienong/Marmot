@@ -98,7 +98,7 @@ def normalize_artifact(blob: bytes) -> bytes:
     if len(blob) < HEADER.size:
         raise ValueError("truncated .mmc header")
     magic, marker, major, minor, patch, reserved, flags, size, crc = HEADER.unpack_from(blob)
-    if magic != b"MBC\0" or marker != 19:
+    if magic != b"MBC\0" or marker != 20:
         raise ValueError("expected a current-format .mmc artifact")
     original = blob[HEADER.size:]
     if len(original) != size or zlib.crc32(original) != crc:
@@ -150,7 +150,6 @@ def normalize_artifact(blob: bytes) -> bytes:
 def source_registry(side: Path, *, signatures: bool) -> dict[str, object]:
     opcode_source = (side / "Executable/OpCodes.def").read_text(encoding="utf-8")
     builtin_source = (side / "Builtins/Builtins.def").read_text(encoding="utf-8")
-    builtin_header = (side / "Builtins/BuiltinTable.h").read_text(encoding="utf-8")
     opcodes = [
         {"id": index, "name": name, "length": int(length)}
         for index, (name, length) in enumerate(re.findall(r"^MARMOT_OPCODE\((\w+),\s*(\d+)\)", opcode_source, re.MULTILINE))
@@ -171,11 +170,7 @@ def source_registry(side: Path, *, signatures: bool) -> dict[str, object]:
             "arguments": re.findall(r"(?:Vm)?FFIArgumentKind::(\w+)", arguments),
             "returns": re.fullmatch(r"\s*(?:Vm)?FFIReturnKind::(\w+)\s*", result).group(1),
         })
-    abi_version = re.search(r"ABI_VERSION\s*=\s*(\d+)", builtin_header)
-    if abi_version is None:
-        raise AssertionError("builtin ABI version is missing")
-    return {"builtin_abi_version": int(abi_version.group(1)),
-            "opcodes": opcodes, "builtins": builtins}
+    return {"opcodes": opcodes, "builtins": builtins}
 
 
 def check_registry() -> None:
@@ -194,7 +189,6 @@ def check_registry() -> None:
         ("marmotvm", REPO_ROOT / "projects/marmotvm/src/Bytecode"),
     ):
         expected = {
-            "builtin_abi_version": registry["builtin_abi_version"],
             "opcodes": [{key: opcode[key] for key in ("id", "name", "length")} for opcode in registry["opcodes"]],
             "builtins": registry["builtins"] if name == "marmotvm" else
                         [{key: builtin[key] for key in ("id", "name")} for builtin in registry["builtins"]],
@@ -243,6 +237,8 @@ def check_valid(tree: BuildTree, fixture: dict[str, object]) -> None:
         raise AssertionError(f"{name}: exit {executed.returncode}, expected {fixture['exit_code']}:\n{executed.stdout}{executed.stderr}")
     if "stdout" in fixture and executed.stdout != fixture["stdout"]:
         raise AssertionError(f"{name}: stdout differs: {executed.stdout!r}")
+    if "stderr" in fixture and executed.stderr != fixture["stderr"]:
+        raise AssertionError(f"{name}: stderr differs: {executed.stderr!r}")
     for expected in fixture.get("stdout_contains", []):
         if expected not in executed.stdout:
             raise AssertionError(f"{name}: stdout does not contain {expected!r}")

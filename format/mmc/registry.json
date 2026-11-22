@@ -1,6 +1,5 @@
 {
-  "format_marker": 19,
-  "builtin_abi_version": 1,
+  "format_marker": 20,
   "wire": {
     "magic": [77, 66, 67, 0],
     "header_size": 32,
@@ -27,7 +26,8 @@
       "argument_kinds": {
         "raw_value": 0,
         "c_string": 1,
-        "array_view": 2
+        "array_view": 2,
+        "array_strings": 3
       },
       "return_kind_mask": 127,
       "pointer_elements_flag": 128,
@@ -1156,523 +1156,18 @@
   "builtins": [
     {
       "id": 0,
-      "name": "MARMOT_FFI_Print",
-      "arguments": [
-        "CString"
-      ],
-      "returns": "RawValue"
-    },
-    {
-      "id": 1,
-      "name": "MARMOT_FFI_PrintError",
-      "arguments": [
-        "CString"
-      ],
-      "returns": "RawValue"
-    },
-    {
-      "id": 2,
-      "name": "MARMOT_FFI_ReadInput",
-      "arguments": [],
-      "returns": "CString"
-    },
-    {
-      "id": 3,
-      "name": "MARMOT_FFI_ReadLine",
-      "arguments": [],
-      "returns": "CString"
-    },
-    {
-      "id": 4,
-      "name": "MARMOT_FFI_ReadFile",
-      "arguments": [
-        "CString"
-      ],
-      "returns": "CString"
-    },
-    {
-      "id": 5,
-      "name": "MARMOT_FFI_WriteFile",
-      "arguments": [
-        "CString",
-        "CString"
-      ],
-      "returns": "RawValue"
-    },
-    {
-      "id": 6,
-      "name": "MARMOT_FFI_AppendToFile",
-      "arguments": [
-        "CString",
-        "CString"
-      ],
-      "returns": "RawValue"
-    },
-    {
-      "id": 7,
-      "name": "MARMOT_FFI_ReadBinaryFile",
-      "arguments": [
-        "CString"
-      ],
-      "returns": "ArrayValues"
-    },
-    {
-      "id": 8,
-      "name": "MARMOT_FFI_WriteBinaryFile",
-      "arguments": [
-        "CString",
-        "ArrayView"
-      ],
-      "returns": "RawValue"
-    },
-    {
-      "id": 9,
-      "name": "MARMOT_FFI_FileExists",
-      "arguments": [
-        "CString"
-      ],
-      "returns": "RawValue"
-    },
-    {
-      "id": 10,
-      "name": "MARMOT_FFI_DeleteFile",
-      "arguments": [
-        "CString"
-      ],
-      "returns": "RawValue"
-    },
-    {
-      "id": 11,
-      "name": "MARMOT_FFI_RenameFile",
-      "arguments": [
-        "CString",
-        "CString"
-      ],
-      "returns": "RawValue"
-    },
-    {
-      "id": 12,
-      "name": "MARMOT_FFI_GetFileSize",
-      "arguments": [
-        "CString"
-      ],
-      "returns": "RawValue"
-    },
-    {
-      "id": 13,
-      "name": "MARMOT_FFI_GetLastIOErrorKind",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 14,
-      "name": "MARMOT_FFI_GetLastIOErrorMessage",
-      "arguments": [],
-      "returns": "CString"
-    },
-    {
-      "id": 15,
-      "name": "MARMOT_FFI_SquareRoot",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 16,
-      "name": "MARMOT_FFI_Abs",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 17,
-      "name": "MARMOT_FFI_Pow",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 18,
-      "name": "MARMOT_FFI_Exp",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 19,
-      "name": "MARMOT_FFI_Log",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 20,
-      "name": "MARMOT_FFI_Log10",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 21,
-      "name": "MARMOT_FFI_Log2",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 22,
-      "name": "MARMOT_FFI_Sin",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 23,
-      "name": "MARMOT_FFI_Cos",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 24,
-      "name": "MARMOT_FFI_Tan",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 25,
-      "name": "MARMOT_FFI_Asin",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 26,
-      "name": "MARMOT_FFI_Acos",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 27,
-      "name": "MARMOT_FFI_Atan",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 28,
-      "name": "MARMOT_FFI_Atan2",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 29,
-      "name": "MARMOT_FFI_Sinh",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 30,
-      "name": "MARMOT_FFI_Cosh",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 31,
-      "name": "MARMOT_FFI_Tanh",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 32,
-      "name": "MARMOT_FFI_Floor",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 33,
-      "name": "MARMOT_FFI_Ceil",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 34,
-      "name": "MARMOT_FFI_Round",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 35,
-      "name": "MARMOT_FFI_Trunc",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 36,
-      "name": "MARMOT_FFI_Min",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 37,
-      "name": "MARMOT_FFI_Max",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 38,
-      "name": "MARMOT_FFI_Clamp",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 39,
-      "name": "MARMOT_FFI_Sign",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 40,
-      "name": "MARMOT_FFI_Fmod",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 41,
-      "name": "MARMOT_FFI_Hypot",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 42,
-      "name": "MARMOT_FFI_Random",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 43,
-      "name": "MARMOT_FFI_RandomInt",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 44,
-      "name": "MARMOT_FFI_RandomFloat",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 45,
-      "name": "MARMOT_FFI_ToRadians",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 46,
-      "name": "MARMOT_FFI_ToDegrees",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 47,
-      "name": "MARMOT_FFI_IsNaN",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 48,
-      "name": "MARMOT_FFI_IsInf",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 49,
-      "name": "MARMOT_FFI_IsFinite",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 50,
-      "name": "MARMOT_FFI_GetTime",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 51,
-      "name": "MARMOT_FFI_GetYear",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 52,
-      "name": "MARMOT_FFI_GetMonth",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 53,
-      "name": "MARMOT_FFI_GetDay",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 54,
-      "name": "MARMOT_FFI_GetHour",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 55,
-      "name": "MARMOT_FFI_GetMinute",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 56,
-      "name": "MARMOT_FFI_GetSecond",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 57,
-      "name": "MARMOT_FFI_GetDayOfWeek",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 58,
-      "name": "MARMOT_FFI_GetDayOfYear",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 59,
-      "name": "MARMOT_FFI_FormatTime",
-      "arguments": [
-        "CString"
-      ],
-      "returns": "CString"
-    },
-    {
-      "id": 60,
-      "name": "MARMOT_FFI_GetTimezoneOffset",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 61,
-      "name": "MARMOT_FFI_GetUtcYear",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 62,
-      "name": "MARMOT_FFI_GetUtcMonth",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 63,
-      "name": "MARMOT_FFI_GetUtcDay",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 64,
-      "name": "MARMOT_FFI_GetUtcHour",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 65,
-      "name": "MARMOT_FFI_GetUtcMinute",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 66,
-      "name": "MARMOT_FFI_GetUtcSecond",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 67,
-      "name": "MARMOT_FFI_GetUtcDayOfWeek",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 68,
-      "name": "MARMOT_FFI_GetUtcDayOfYear",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 69,
       "name": "MARMOT_FFI_Exit",
       "arguments": [],
       "returns": "RawValue"
     },
     {
-      "id": 70,
-      "name": "MARMOT_FFI_GetEnv",
-      "arguments": [
-        "CString"
-      ],
-      "returns": "CString"
-    },
-    {
-      "id": 71,
-      "name": "MARMOT_FFI_SetEnv",
-      "arguments": [
-        "CString",
-        "CString"
-      ],
-      "returns": "RawValue"
-    },
-    {
-      "id": 72,
+      "id": 1,
       "name": "MARMOT_FFI_Sleep",
       "arguments": [],
       "returns": "RawValue"
     },
     {
-      "id": 73,
-      "name": "MARMOT_FFI_GetCurrentDirectory",
-      "arguments": [],
-      "returns": "CString"
-    },
-    {
-      "id": 74,
-      "name": "MARMOT_FFI_SetCurrentDirectory",
-      "arguments": [
-        "CString"
-      ],
-      "returns": "RawValue"
-    },
-    {
-      "id": 75,
-      "name": "MARMOT_FFI_Execute",
-      "arguments": [
-        "CString"
-      ],
-      "returns": "RawValue"
-    },
-    {
-      "id": 76,
-      "name": "MARMOT_FFI_GetPlatform",
-      "arguments": [],
-      "returns": "CString"
-    },
-    {
-      "id": 77,
-      "name": "MARMOT_FFI_GetProcessId",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 78,
-      "name": "MARMOT_FFI_GetLastSystemErrorKind",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 79,
-      "name": "MARMOT_FFI_GetLastSystemErrorMessage",
-      "arguments": [],
-      "returns": "CString"
-    },
-    {
-      "id": 80,
+      "id": 2,
       "name": "MARMOT_FFI_ArrayConcat",
       "arguments": [
         "TraceableHandle",
@@ -1681,7 +1176,7 @@
       "returns": "ArrayValues"
     },
     {
-      "id": 81,
+      "id": 3,
       "name": "MARMOT_FFI_ArrayLength",
       "arguments": [
         "TraceableHandle"
@@ -1689,7 +1184,7 @@
       "returns": "RawValue"
     },
     {
-      "id": 82,
+      "id": 4,
       "name": "MARMOT_FFI_ArraySlice",
       "arguments": [
         "TraceableHandle",
@@ -1699,7 +1194,7 @@
       "returns": "ArrayValues"
     },
     {
-      "id": 83,
+      "id": 5,
       "name": "MARMOT_FFI_ArrayReverse",
       "arguments": [
         "TraceableHandle"
@@ -1707,7 +1202,7 @@
       "returns": "ArrayValues"
     },
     {
-      "id": 84,
+      "id": 6,
       "name": "MARMOT_FFI_TextConcat",
       "arguments": [
         "TraceableHandle",
@@ -1716,15 +1211,15 @@
       "returns": "CString"
     },
     {
-      "id": 85,
+      "id": 7,
       "name": "MARMOT_FFI_TextLength",
       "arguments": [
-        "CString"
+        "TraceableHandle"
       ],
       "returns": "RawValue"
     },
     {
-      "id": 86,
+      "id": 8,
       "name": "MARMOT_FFI_TextSubstring",
       "arguments": [
         "TraceableHandle",
@@ -1734,7 +1229,7 @@
       "returns": "CString"
     },
     {
-      "id": 87,
+      "id": 9,
       "name": "MARMOT_FFI_TextSplit",
       "arguments": [
         "TraceableHandle",
@@ -1743,7 +1238,7 @@
       "returns": "ArrayStrings"
     },
     {
-      "id": 88,
+      "id": 10,
       "name": "MARMOT_FFI_TextReverse",
       "arguments": [
         "TraceableHandle"
@@ -1751,7 +1246,7 @@
       "returns": "CString"
     },
     {
-      "id": 89,
+      "id": 11,
       "name": "MARMOT_FFI_TextContains",
       "arguments": [
         "TraceableHandle",
@@ -1760,7 +1255,7 @@
       "returns": "RawValue"
     },
     {
-      "id": 90,
+      "id": 12,
       "name": "MARMOT_FFI_TextReplace",
       "arguments": [
         "TraceableHandle",
@@ -1770,7 +1265,7 @@
       "returns": "CString"
     },
     {
-      "id": 91,
+      "id": 13,
       "name": "MARMOT_FFI_TextTrim",
       "arguments": [
         "TraceableHandle"
@@ -1778,7 +1273,7 @@
       "returns": "CString"
     },
     {
-      "id": 92,
+      "id": 14,
       "name": "MARMOT_FFI_TextFromCodePoint",
       "arguments": [
         "ValueHandle"
@@ -1786,7 +1281,7 @@
       "returns": "CString"
     },
     {
-      "id": 93,
+      "id": 15,
       "name": "MARMOT_FFI_TextCodePointAt",
       "arguments": [
         "TraceableHandle",
@@ -1795,7 +1290,7 @@
       "returns": "RawValue"
     },
     {
-      "id": 94,
+      "id": 16,
       "name": "MARMOT_FFI_TextIsInteger",
       "arguments": [
         "TraceableHandle"
@@ -1803,7 +1298,7 @@
       "returns": "RawValue"
     },
     {
-      "id": 95,
+      "id": 17,
       "name": "MARMOT_FFI_TextIsFloat",
       "arguments": [
         "TraceableHandle"
@@ -1811,27 +1306,21 @@
       "returns": "RawValue"
     },
     {
-      "id": 96,
+      "id": 18,
       "name": "MARMOT_FFI_HashText",
       "arguments": [
-        "CString"
+        "TraceableHandle"
       ],
       "returns": "RawValue"
     },
     {
-      "id": 97,
+      "id": 19,
       "name": "MARMOT_FFI_HashFloat",
       "arguments": [],
       "returns": "RawValue"
     },
     {
-      "id": 98,
-      "name": "MARMOT_FFI_GetMonotonicNanos",
-      "arguments": [],
-      "returns": "RawValue"
-    },
-    {
-      "id": 99,
+      "id": 20,
       "name": "MARMOT_FFI_TextCompare",
       "arguments": [
         "TraceableHandle",
@@ -1840,54 +1329,13 @@
       "returns": "RawValue"
     },
     {
-      "id": 100,
-      "name": "MARMOT_FFI_ListDirectory",
-      "arguments": [
-        "CString"
-      ],
-      "returns": "ArrayStrings"
-    },
-    {
-      "id": 101,
-      "name": "MARMOT_FFI_MakeDirectory",
-      "arguments": [
-        "CString"
-      ],
-      "returns": "RawValue"
-    },
-    {
-      "id": 102,
-      "name": "MARMOT_FFI_DirectoryExists",
-      "arguments": [
-        "CString"
-      ],
-      "returns": "RawValue"
-    },
-    {
-      "id": 103,
-      "name": "MARMOT_FFI_FileChecksum",
-      "arguments": [
-        "CString"
-      ],
-      "returns": "CString"
-    },
-    {
-      "id": 104,
-      "name": "MARMOT_FFI_RunProcess",
-      "arguments": [
-        "TraceableHandle",
-        "CString"
-      ],
-      "returns": "ArrayStrings"
-    },
-    {
-      "id": 105,
+      "id": 21,
       "name": "MARMOT_FFI_GetArguments",
       "arguments": [],
       "returns": "ArrayStrings"
     },
     {
-      "id": 106,
+      "id": 22,
       "name": "MARMOT_FFI_TextCodePoints",
       "arguments": [
         "TraceableHandle"
@@ -1895,7 +1343,7 @@
       "returns": "ArrayValues"
     },
     {
-      "id": 107,
+      "id": 23,
       "name": "MARMOT_FFI_TextFromCodePoints",
       "arguments": [
         "TraceableHandle"
@@ -1903,12 +1351,20 @@
       "returns": "CString"
     },
     {
-      "id": 108,
+      "id": 24,
       "name": "MARMOT_FFI_ArrayConcatAll",
       "arguments": [
         "TraceableHandle"
       ],
       "returns": "ArrayValues"
+    },
+    {
+      "id": 25,
+      "name": "MARMOT_FFI_ReportPanic",
+      "arguments": [
+        "TraceableHandle"
+      ],
+      "returns": "RawValue"
     }
   ]
 }

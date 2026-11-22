@@ -81,8 +81,12 @@ namespace MarmotProgramLoader
 		SharedLibraryCache& cache = SharedLibraryCache::GetInstance();
 		for (const VmNativeLibraryImport& library : executable.GetNativeLibraries())
 		{
-			if (cache.IsLibraryLoaded(library.m_name))
+			if (const auto hosted = cache.LoadHostLibrary(library.m_name, library.m_symbols))
 			{
+				if (!hosted->has_value())
+				{
+					return std::unexpected(hosted->error());
+				}
 				continue;
 			}
 
@@ -93,14 +97,17 @@ namespace MarmotProgramLoader
 			{
 				candidates.push_back(file->second);
 			}
-			for (const std::filesystem::path& directory : locations.m_search_paths)
+			else
 			{
-				candidates.push_back(directory / file_name);
-			}
-			for (const std::string& directory : library.m_hint_directories)
-			{
-				candidates.push_back(std::filesystem::path(directory) / platform_directory / file_name);
-				candidates.push_back(std::filesystem::path(directory) / file_name);
+				for (const std::filesystem::path& directory : locations.m_search_paths)
+				{
+					candidates.push_back(directory / file_name);
+				}
+				for (const std::string& directory : library.m_hint_directories)
+				{
+					candidates.push_back(std::filesystem::path(directory) / platform_directory / file_name);
+					candidates.push_back(std::filesystem::path(directory) / file_name);
+				}
 			}
 
 			const std::vector<std::filesystem::path>::const_iterator found = std::ranges::find_if(
@@ -126,12 +133,6 @@ namespace MarmotProgramLoader
 				));
 			}
 
-			std::unordered_map<std::string, std::string> functions;
-			for (const std::string& symbol : library.m_symbols)
-			{
-				functions.emplace(library.m_name + VM_NATIVE_SYMBOL_SEPARATOR + symbol, symbol);
-			}
-
 			std::optional<std::string_view> expected_checksum = std::nullopt;
 			if (library.m_policy.m_checksum.has_value())
 			{
@@ -139,7 +140,7 @@ namespace MarmotProgramLoader
 			}
 
 			const std::expected<void, std::string> load_result =
-				cache.LoadLibraryWithFunctions(*found, library.m_name, functions, library.m_policy.m_thread_safe, expected_checksum);
+				cache.LoadLibraryWithFunctions(*found, library.m_name, library.m_symbols, expected_checksum);
 			if (!load_result.has_value())
 			{
 				return std::unexpected(load_result.error());

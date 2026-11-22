@@ -84,10 +84,23 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python scripts/dev.py gate --build ${{ matrix.build }} --verbose
 
-      # Extracts the archive and runs a program with it before writing it.
-      - name: Package
+      # The packager smoke-tests the toolchain bundle before publishing it.
+      - name: Package toolchain and SDK
         if: matrix.build == 'Release'
-        run: python scripts/dev.py package
+        run: python scripts/dev.py package --build Release --no-build
+
+      - name: Check the packaged C99 SDK
+        if: matrix.build == 'Release' && runner.os == 'Linux'
+        shell: bash
+        run: |
+          sdk="$RUNNER_TEMP/marmot-ffi-sdk"
+          python -m zipfile -e out/package/marmot-ffi-sdk.zip "$sdk"
+          cmake -S "$sdk/ffi/example" -B "$sdk/build" -G Ninja
+          cmake --build "$sdk/build"
+
+          bin=out/package/marmot-linux-x64/bin
+          "$bin/marmotc" build "$sdk/ffi/example/Main.mmt" -o "$sdk/Main.mmc" --quiet
+          "$bin/marmotvm" run "$sdk/Main.mmc" --library "marmot_ffi_example=$sdk/build/libmarmot_ffi_example.so"
 
       # The setup script changes the user's environment, which only a runner's
       # can take unattended. Windows PowerShell, as the package's README runs it.
@@ -105,6 +118,16 @@ jobs:
         with:
           name: marmot-${{ matrix.platform }}-x64
           path: out/package/marmot-${{ matrix.platform }}-x64.${{ runner.os == 'Windows' && 'zip' || 'tar.gz' }}
+          if-no-files-found: error
+          retention-days: 14
+
+      # The standalone SDK contains platform-independent sources.
+      - uses: actions/upload-artifact@v4
+        if: matrix.build == 'Release' && runner.os == 'Linux'
+        with:
+          name: marmot-ffi-sdk
+          path: out/package/marmot-ffi-sdk.zip
+          if-no-files-found: error
           retention-days: 14
 
 
@@ -131,26 +154,28 @@ jobs:
           version: 6.0.11
           actions-cache-folder: emsdk-cache
 
-      - name: Build
+      - name: Build browser bundle
         run: python scripts/dev.py wasm
 
-      # The layout of the website's public folder: the modules, the adapter, and
-      # the prelude with the manifest the adapter loads it from.
+      # Stage the generated modules and the prelude used by the browser bundle.
       - name: Stage site
         shell: python
         run: |
           import json
           import shutil
+          import sys
           from pathlib import Path
+
+          sys.path.insert(0, "scripts")
+          from lib.host import PRELUDE_DIR
+          from make.wasm import artifacts
 
           site = Path("out/web/site")
           site.mkdir(parents=True)
-          shutil.copy2("projects/web/marmot.js", site)
-          for project in ("marmotc", "marmotvm"):
-              for suffix in ("js", "wasm"):
-                  shutil.copy2(f"out/build/{project}/wasm64/out/{project}.{suffix}", site)
+          for name, path in artifacts().items():
+              shutil.copy2(path, site / name)
           prelude = site / "MarmotPrelude"
-          shutil.copytree("projects/marmotstdlib/MarmotPrelude", prelude)
+          shutil.copytree(PRELUDE_DIR, prelude)
           manifest = sorted(path.relative_to(prelude).as_posix() for path in prelude.rglob("*.mmt"))
           (prelude / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 

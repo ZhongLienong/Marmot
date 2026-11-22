@@ -1,4 +1,4 @@
-"""Check that the C++ compiler and VM use only their own code.
+"""Check that each production project uses its own source tree.
 
     runtime   -> runtime
     compiler  -> compiler
@@ -21,13 +21,16 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from lib.host import REPO_ROOT as ROOT
+from lib.host import FFI_SPEC_DIR, REPO_ROOT as ROOT
 
 INCLUDE_ROOTS = {
     'runtime': ROOT / 'projects' / 'marmotvm' / 'src',
     'compiler': ROOT / 'projects' / 'marmotc' / 'src',
     'stdlib': ROOT / 'projects' / 'marmotstdlib' / 'src',
     'support': ROOT / 'projects' / 'marmotstdlib' / 'support',
+    'vm_sdk': ROOT / 'projects' / 'marmotvm' / 'include',
+    'stdlib_sdk': ROOT / 'projects' / 'marmotstdlib' / 'include',
+    'ffi_spec': FFI_SPEC_DIR / 'include',
 }
 
 # The compiler's driver stays outside the compiler pipeline.
@@ -38,24 +41,18 @@ DRIVER_DIRS = [
 DRIVER_FILES = [ROOT / 'projects' / 'marmotc' / 'src' / 'Marmot.cpp']
 
 ALLOWED = {
-    'runtime': {'runtime'},
+    'runtime': {'runtime', 'vm_sdk'},
     'compiler': {'compiler'},
     'driver': {'compiler', 'driver'},
-    'stdlib': {'stdlib', 'support'},
+    'native_tests': {'ffi_spec'},
+    'stdlib': {'stdlib', 'support', 'stdlib_sdk'},
     'support': {'support'},
     'web': set(),
-    'vm': {'runtime', 'vm'},
+    'web_host': {'runtime', 'vm_sdk'},
+    'vm': {'runtime', 'vm', 'vm_sdk'},
 }
 
-# The static builtin bridge predates the named standard-library FFI in phase 1.2.
-STDLIB_BRIDGE_INCLUDES = {
-    ('projects/marmotvm/src/FFI/FFIAdapters.cpp', 'FFIAllocation/FFIAllocation.h'),
-    ('projects/marmotvm/src/FFI/FFIAdapters.cpp', 'System.h'),
-    ('projects/marmotvm/src/FFI/MarmotVMFFIExports.h', 'FFIAllocation/FFIAllocation.h'),
-    ('projects/marmotvm/src/FFI/MarmotVMFFIExports.h', 'MarmotStdLibExports.h'),
-}
-
-INCLUDE = re.compile(r'^\s*#\s*include\s+"([^"]+)"', re.MULTILINE)
+INCLUDE = re.compile(r'^\s*#\s*include\s+[<"]([^>"]+)[>"]', re.MULTILINE)
 
 PIPELINE_DIR = ROOT / 'projects' / 'marmotc' / 'src' / 'Compiler'
 ENVIRONMENT_READ = re.compile(r'\b(getenv|_dupenv_s|_wgetenv|secure_getenv)\s*\(')
@@ -78,6 +75,8 @@ def component_of(path):
     path = path.resolve()
     if path in DRIVER_FILES or any(directory in path.parents for directory in DRIVER_DIRS):
         return 'driver'
+    if path == ROOT / 'projects' / 'web' / 'WasmStdlib.cpp':
+        return 'web_host'
     if (ROOT / 'projects' / 'web') in path.parents:
         return 'web'
     for name, include_root in INCLUDE_ROOTS.items():
@@ -86,6 +85,8 @@ def component_of(path):
     for project, component in [('marmotc', 'driver'), ('marmotvm', 'runtime'), ('marmotstdlib', 'stdlib')]:
         if (ROOT / 'projects' / project / 'tests') in path.parents:
             return component
+    if (ROOT / 'test' / 'integration' / 'native') in path.parents:
+        return 'native_tests'
     if (ROOT / 'test' / 'integration') in path.parents:
         return 'driver'
     return None
@@ -129,8 +130,6 @@ def main(argv: list[str]) -> int:
             target_component = component_of(resolved)
             if target_component in ALLOWED[source_component]:
                 continue
-            if target_component == 'stdlib' and (relative, header) in STDLIB_BRIDGE_INCLUDES:
-                continue
             if target_component is None and not resolved.resolve().is_relative_to(ROOT.resolve()):
                 continue
             line = text.count('\n', 0, match.start()) + 1
@@ -139,31 +138,26 @@ def main(argv: list[str]) -> int:
                 f'{target_component or "unowned repository"} header "{header}"'
             )
 
-    cmake = '\n'.join(path.read_text(encoding='utf-8') for project in ('marmotc', 'marmotvm', 'marmotstdlib') for path in (ROOT / 'projects' / project).rglob('*.cmake')) + '\n' + '\n'.join((ROOT / 'projects' / project / 'CMakeLists.txt').read_text(encoding='utf-8') for project in ('marmotc', 'marmotvm', 'marmotstdlib'))
+    projects = ('marmotc', 'marmotvm', 'marmotstdlib')
+    production = {}
+    for project in projects:
+        directory = ROOT / 'projects' / project
+        files = [directory / 'CMakeLists.txt', *directory.joinpath('cmake').glob('*.cmake')]
+        production[project] = '\n'.join(path.read_text(encoding='utf-8') for path in files
+                                        if path.name != 'UnitTests.cmake')
+    cmake = '\n'.join(production.values())
     if re.search(r'add_library\(\s*MarmotBytecode\b', cmake):
         violations.append('CMakeLists.txt: MarmotBytecode remains a shared target')
-    links = {}
-    for match in re.finditer(r'target_link_libraries\(\s*(\w+)\s+([^)]*)\)', cmake, re.DOTALL):
-        links.setdefault(match.group(1), set()).update(
-            token for token in match.group(2).split()
-            if token not in {'PUBLIC', 'PRIVATE', 'INTERFACE'}
-        )
-
-    def reachable(target: str, visited: set[str] | None = None) -> set[str]:
-        visited = set() if visited is None else visited
-        for dependency in links.get(target, set()) - visited:
-            visited.add(dependency)
-            visited.update(reachable(dependency, visited))
-        return visited
-
-    for target, forbidden in (
-        ('marmotc', {'MarmotRuntime', 'MarmotBytecode'}),
-        ('marmotvm', {'MarmotCompiler', 'MarmotDriver', 'MarmotBytecode', 'MarmotNativeSupport'}),
-        ('MarmotRuntime', {'MarmotNativeSupport'}),
-        ('MarmotStdLib', {'MarmotRuntime', 'MarmotCompiler', 'MarmotDriver'}),
-    ):
-        for dependency in reachable(target) & forbidden:
-            violations.append(f'CMakeLists.txt: {target} links {dependency}')
+    targets = {target: project for project, source in production.items()
+               for target in re.findall(r'\badd_(?:library|executable)\(\s*(\w+)', source)}
+    for project, source in production.items():
+        sibling_path = r'(?:\.\./|projects/)(?:' + '|'.join(set(projects) - {project}) + r')(?=[/\s"])'
+        if re.search(sibling_path, source):
+            violations.append(f'{project}: production CMake references a sibling source tree')
+        for link in re.finditer(r'\btarget_link_libraries\(\s*(\w+)\s+([^)]*)\)', source):
+            for dependency in re.findall(r'\b\w+\b', link.group(2)):
+                if targets.get(dependency, project) != project or dependency in {'MarmotNativeSupport', 'MarmotBytecode'}:
+                    violations.append(f'{project}: {link.group(1)} links {dependency}')
 
     web = ROOT / 'projects' / 'web'
     if any(web.rglob('CMakeLists.txt')) or any(web.rglob('*.cmake')):

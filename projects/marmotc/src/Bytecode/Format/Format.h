@@ -11,7 +11,7 @@
 namespace MmcWire
 {
 	inline constexpr std::array<uint8_t, 4u> MAGIC{ 0x4Du, 0x42u, 0x43u, 0x00u };
-	inline constexpr uint32_t FORMAT_MARKER = 19u;
+	inline constexpr uint32_t FORMAT_MARKER = 20u;
 	inline constexpr std::size_t HEADER_SIZE = 32u;
 	inline constexpr std::size_t MAGIC_OFFSET = 0u;
 	inline constexpr std::size_t FORMAT_MARKER_OFFSET = 4u;
@@ -35,6 +35,7 @@ namespace MmcWire
 	inline constexpr uint8_t FFI_ARGUMENT_RAW_VALUE = 0u;
 	inline constexpr uint8_t FFI_ARGUMENT_C_STRING = 1u;
 	inline constexpr uint8_t FFI_ARGUMENT_ARRAY_VIEW = 2u;
+	inline constexpr uint8_t FFI_ARGUMENT_ARRAY_STRINGS = 3u;
 	inline constexpr uint8_t FFI_RETURN_RAW_VALUE = 0u;
 	inline constexpr uint8_t FFI_RETURN_C_STRING = 1u;
 	inline constexpr uint8_t FFI_RETURN_ARRAY_VALUES = 2u;

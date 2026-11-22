@@ -1,6 +1,6 @@
 module InstanceMethodNames
 
-foreign "MARMOT_FFI_Print" Print: fn(Text) -> Unit;
+foreign "MARMOT_FFI_Print" Print: fn(Text) -> Unit from "marmotstdlib";
 
 // Recovering a method name by searching for "_Echo" truncates Call_Echo.
 class Echo<T>

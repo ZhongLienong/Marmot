@@ -3,6 +3,7 @@
 #include "FFIAllocation/FFIAllocation.h"
 #include "Checksum.h"
 #include "TextPath.h"
+#include "ProcessState.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -16,6 +17,11 @@
 #include <string>
 #include <system_error>
 #include <vector>
+
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
 
 namespace
 {
@@ -36,9 +42,32 @@ namespace
 
 	using FFIAllocation::AllocateString;
 	using FFIAllocation::AllocateStringArray;
-	using FFIAllocation::FFIArray;
 
 	thread_local IOErrorState s_last_io_error{};
+	std::mutex s_input_mutex;
+
+#ifdef _WIN32
+	void WriteStandardStream(DWORD stream, const char* text)
+	{
+		// Each statically linked CRT owns its descriptors. The current process
+		// handle also sees redirection installed by the VM after loading us.
+		const HANDLE handle = GetStdHandle(stream);
+		DWORD written = 0;
+		DWORD mode = 0;
+		if (GetConsoleMode(handle, &mode) != 0)
+		{
+			const int size = MultiByteToWideChar(CP_UTF8, 0u, text, -1, nullptr, 0);
+			if (size > 1)
+			{
+				std::wstring wide(static_cast<size_t>(size), L'\0');
+				MultiByteToWideChar(CP_UTF8, 0u, text, -1, wide.data(), size);
+				WriteConsoleW(handle, wide.data(), static_cast<DWORD>(size - 1), &written, nullptr);
+			}
+			return;
+		}
+		WriteFile(handle, text, static_cast<DWORD>(std::strlen(text)), &written, nullptr);
+	}
+#endif
 
 	void ClearLastIOError()
 	{
@@ -169,13 +198,15 @@ namespace
 
 extern "C"
 {
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(Print)(void** args, void* ret) noexcept
+	MARMOT_FFI_EXPORT void MARMOT_FFI_CALL MARMOT_FFI_FUNC(Print)(void** args, void* ret) noexcept
 	{
 		const char* str = reinterpret_cast<const char*>(args[0u]);
 
 		#ifdef __EMSCRIPTEN__
 		std::cout << str;
 		std::cout.flush();
+		#elif defined(_WIN32)
+		WriteStandardStream(STD_OUTPUT_HANDLE, str);
 		#else
 		std::printf("%s", str);
 		std::fflush(stdout);
@@ -184,13 +215,15 @@ extern "C"
 		std::memset(ret, 0, sizeof(double));
 	}
 
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(PrintError)(void** args, void* ret) noexcept
+	MARMOT_FFI_EXPORT void MARMOT_FFI_CALL MARMOT_FFI_FUNC(PrintError)(void** args, void* ret) noexcept
 	{
 		const char* str = reinterpret_cast<const char*>(args[0u]);
 
 		#ifdef __EMSCRIPTEN__
 		std::cerr << str;
 		std::cerr.flush();
+		#elif defined(_WIN32)
+		WriteStandardStream(STD_ERROR_HANDLE, str);
 		#else
 		std::fprintf(stderr, "%s", str);
 		std::fflush(stderr);
@@ -199,8 +232,9 @@ extern "C"
 		std::memset(ret, 0, sizeof(double));
 	}
 
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(ReadInput)(void**, void* ret) noexcept
+	MARMOT_FFI_EXPORT void MARMOT_FFI_CALL MARMOT_FFI_FUNC(ReadInput)(void**, void* ret) noexcept
 	{
+		const std::lock_guard<std::mutex> lock(s_input_mutex);
 		std::ostringstream buffer;
 		buffer << std::cin.rdbuf();
 		char* result = AllocateString(buffer.str());
@@ -209,8 +243,9 @@ extern "C"
 		std::memcpy(ret, &ptr, sizeof(double));
 	}
 
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(ReadLine)(void**, void* ret) noexcept
+	MARMOT_FFI_EXPORT void MARMOT_FFI_CALL MARMOT_FFI_FUNC(ReadLine)(void**, void* ret) noexcept
 	{
+		const std::lock_guard<std::mutex> lock(s_input_mutex);
 		std::string line;
 		if (std::getline(std::cin, line))
 		{
@@ -226,8 +261,9 @@ extern "C"
 		}
 	}
 
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(ReadFile)(void** args, void* ret) noexcept
+	MARMOT_FFI_EXPORT void MARMOT_FFI_CALL MARMOT_FFI_FUNC(ReadFile)(void** args, void* ret) noexcept
 	{
+		const std::shared_lock<std::shared_mutex> lock(MarmotProcessState::s_mutex);
 		const char* file_path = reinterpret_cast<const char*>(args[0u]);
 		const std::filesystem::path path = TextPath::FromText(file_path);
 
@@ -259,8 +295,9 @@ extern "C"
 		std::memcpy(ret, &ptr, sizeof(double));
 	}
 
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(WriteFile)(void** args, void* ret) noexcept
+	MARMOT_FFI_EXPORT void MARMOT_FFI_CALL MARMOT_FFI_FUNC(WriteFile)(void** args, void* ret) noexcept
 	{
+		const std::shared_lock<std::shared_mutex> lock(MarmotProcessState::s_mutex);
 		const char* file_name = reinterpret_cast<const char*>(args[0u]);
 		const char* text = reinterpret_cast<const char*>(args[1u]);
 		const std::filesystem::path path = TextPath::FromText(file_name);
@@ -289,8 +326,9 @@ extern "C"
 		*reinterpret_cast<bool*>(ret) = success;
 	}
 
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(AppendToFile)(void** args, void* ret) noexcept
+	MARMOT_FFI_EXPORT void MARMOT_FFI_CALL MARMOT_FFI_FUNC(AppendToFile)(void** args, void* ret) noexcept
 	{
+		const std::shared_lock<std::shared_mutex> lock(MarmotProcessState::s_mutex);
 		const char* file_name = reinterpret_cast<const char*>(args[0u]);
 		const char* text = reinterpret_cast<const char*>(args[1u]);
 		const std::filesystem::path path = TextPath::FromText(file_name);
@@ -319,8 +357,9 @@ extern "C"
 		*reinterpret_cast<bool*>(ret) = success;
 	}
 
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(ReadBinaryFile)(void** args, void* ret) noexcept
+	MARMOT_FFI_EXPORT void MARMOT_FFI_CALL MARMOT_FFI_FUNC(ReadBinaryFile)(void** args, void* ret) noexcept
 	{
+		const std::shared_lock<std::shared_mutex> lock(MarmotProcessState::s_mutex);
 		const char* file_path = reinterpret_cast<const char*>(args[0u]);
 		const std::filesystem::path path = TextPath::FromText(file_path);
 
@@ -381,7 +420,7 @@ extern "C"
 			std::memcpy(&array_data[i], &value, sizeof(double));
 		}
 
-		FFIArray* result = static_cast<FFIArray*>(std::malloc(sizeof(FFIArray)));
+		MarmotFFIArray* result = static_cast<MarmotFFIArray*>(std::malloc(sizeof(MarmotFFIArray)));
 		if (result == nullptr)
 		{
 			std::free(array_data);
@@ -399,16 +438,11 @@ extern "C"
 		std::memcpy(ret, &ptr, sizeof(int64_t));
 	}
 
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(WriteBinaryFile)(void** args, void* ret) noexcept
+	MARMOT_FFI_EXPORT void MARMOT_FFI_CALL MARMOT_FFI_FUNC(WriteBinaryFile)(void** args, void* ret) noexcept
 	{
-		struct ArrayArgument
-		{
-			void* data;
-			int length;
-		};
-
+		const std::shared_lock<std::shared_mutex> lock(MarmotProcessState::s_mutex);
 		const char* file_name = reinterpret_cast<const char*>(args[0u]);
-		ArrayArgument* array_arg = reinterpret_cast<ArrayArgument*>(args[1u]);
+		const auto* array_arg = static_cast<const MarmotFFIArray*>(args[1u]);
 		if (array_arg == nullptr || array_arg->length < 0)
 		{
 			SetLastIOError(IOErrorKind::Unknown, "Invalid binary array argument.");
@@ -434,13 +468,11 @@ extern "C"
 
 		if (array_arg->length > 0)
 		{
-			double* array_data = reinterpret_cast<double*>(array_arg->data);
+			const auto* array_data = static_cast<const uint64_t*>(array_arg->data);
 			std::vector<char> buffer(static_cast<size_t>(array_arg->length));
 			for (int i = 0; i < array_arg->length; i += 1)
 			{
-				int64_t byte_value = 0;
-				std::memcpy(&byte_value, &array_data[i], sizeof(double));
-				buffer[static_cast<size_t>(i)] = static_cast<char>(byte_value & 0xFF);
+				buffer[static_cast<size_t>(i)] = static_cast<char>(array_data[i] & 0xFFu);
 			}
 			file.write(buffer.data(), static_cast<std::streamsize>(array_arg->length));
 		}
@@ -460,8 +492,9 @@ extern "C"
 		*reinterpret_cast<bool*>(ret) = success;
 	}
 
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(FileExists)(void** args, void* ret) noexcept
+	MARMOT_FFI_EXPORT void MARMOT_FFI_CALL MARMOT_FFI_FUNC(FileExists)(void** args, void* ret) noexcept
 	{
+		const std::shared_lock<std::shared_mutex> lock(MarmotProcessState::s_mutex);
 		const char* file_path = reinterpret_cast<const char*>(args[0u]);
 		std::error_code ec;
 		const bool exists = std::filesystem::exists(TextPath::FromText(file_path), ec);
@@ -471,8 +504,9 @@ extern "C"
 		*reinterpret_cast<bool*>(ret) = exists;
 	}
 
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(DeleteFile)(void** args, void* ret) noexcept
+	MARMOT_FFI_EXPORT void MARMOT_FFI_CALL MARMOT_FFI_FUNC(DeleteFile)(void** args, void* ret) noexcept
 	{
+		const std::shared_lock<std::shared_mutex> lock(MarmotProcessState::s_mutex);
 		const char* file_path = reinterpret_cast<const char*>(args[0u]);
 		std::error_code ec;
 		const bool success = std::filesystem::remove(TextPath::FromText(file_path), ec);
@@ -486,8 +520,9 @@ extern "C"
 		*reinterpret_cast<bool*>(ret) = success && !ec;
 	}
 
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(RenameFile)(void** args, void* ret) noexcept
+	MARMOT_FFI_EXPORT void MARMOT_FFI_CALL MARMOT_FFI_FUNC(RenameFile)(void** args, void* ret) noexcept
 	{
+		const std::shared_lock<std::shared_mutex> lock(MarmotProcessState::s_mutex);
 		const char* old_path = reinterpret_cast<const char*>(args[0u]);
 		const char* new_path = reinterpret_cast<const char*>(args[1u]);
 		std::error_code ec;
@@ -498,8 +533,9 @@ extern "C"
 		*reinterpret_cast<bool*>(ret) = !ec;
 	}
 
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(GetFileSize)(void** args, void* ret) noexcept
+	MARMOT_FFI_EXPORT void MARMOT_FFI_CALL MARMOT_FFI_FUNC(GetFileSize)(void** args, void* ret) noexcept
 	{
+		const std::shared_lock<std::shared_mutex> lock(MarmotProcessState::s_mutex);
 		const char* file_path = reinterpret_cast<const char*>(args[0u]);
 		std::error_code ec;
 		const std::uintmax_t size = std::filesystem::file_size(TextPath::FromText(file_path), ec);
@@ -510,8 +546,9 @@ extern "C"
 	}
 
 	// Sorted, so a listing is the same on every machine.
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(ListDirectory)(void** args, void* ret) noexcept
+	MARMOT_FFI_EXPORT void MARMOT_FFI_CALL MARMOT_FFI_FUNC(ListDirectory)(void** args, void* ret) noexcept
 	{
+		const std::shared_lock<std::shared_mutex> lock(MarmotProcessState::s_mutex);
 		const char* directory_path = reinterpret_cast<const char*>(args[0u]);
 		std::error_code ec;
 		std::vector<std::string> names;
@@ -527,8 +564,9 @@ extern "C"
 	}
 
 	// Makes the missing parents too. A directory already there is made.
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(MakeDirectory)(void** args, void* ret) noexcept
+	MARMOT_FFI_EXPORT void MARMOT_FFI_CALL MARMOT_FFI_FUNC(MakeDirectory)(void** args, void* ret) noexcept
 	{
+		const std::shared_lock<std::shared_mutex> lock(MarmotProcessState::s_mutex);
 		const char* directory_path = reinterpret_cast<const char*>(args[0u]);
 		std::error_code ec;
 		std::filesystem::create_directories(TextPath::FromText(directory_path), ec);
@@ -538,8 +576,9 @@ extern "C"
 		*reinterpret_cast<bool*>(ret) = !ec;
 	}
 
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(DirectoryExists)(void** args, void* ret) noexcept
+	MARMOT_FFI_EXPORT void MARMOT_FFI_CALL MARMOT_FFI_FUNC(DirectoryExists)(void** args, void* ret) noexcept
 	{
+		const std::shared_lock<std::shared_mutex> lock(MarmotProcessState::s_mutex);
 		const char* directory_path = reinterpret_cast<const char*>(args[0u]);
 		std::error_code ec;
 		const bool exists = std::filesystem::is_directory(TextPath::FromText(directory_path), ec);
@@ -549,8 +588,9 @@ extern "C"
 		*reinterpret_cast<bool*>(ret) = exists;
 	}
 
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(FileChecksum)(void** args, void* ret) noexcept
+	MARMOT_FFI_EXPORT void MARMOT_FFI_CALL MARMOT_FFI_FUNC(FileChecksum)(void** args, void* ret) noexcept
 	{
+		const std::shared_lock<std::shared_mutex> lock(MarmotProcessState::s_mutex);
 		const std::filesystem::path path = TextPath::FromText(reinterpret_cast<const char*>(args[0u]));
 		// Linux opens a directory as a stream that reads nothing.
 		const std::expected<std::string, std::string> checksum = std::filesystem::is_directory(path)
@@ -570,13 +610,13 @@ extern "C"
 		std::memcpy(ret, &ptr, sizeof(int64_t));
 	}
 
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(GetLastIOErrorKind)(void**, void* ret) noexcept
+	MARMOT_FFI_EXPORT void MARMOT_FFI_CALL MARMOT_FFI_FUNC(GetLastIOErrorKind)(void**, void* ret) noexcept
 	{
 		const int64_t result = static_cast<int64_t>(s_last_io_error.m_kind);
 		std::memcpy(ret, &result, sizeof(int64_t));
 	}
 
-	MARMOT_STDLIB_API void MARMOT_FFI_FUNC(GetLastIOErrorMessage)(void**, void* ret) noexcept
+	MARMOT_FFI_EXPORT void MARMOT_FFI_CALL MARMOT_FFI_FUNC(GetLastIOErrorMessage)(void**, void* ret) noexcept
 	{
 		char* result = AllocateString(s_last_io_error.m_message);
 		const int64_t ptr = reinterpret_cast<int64_t>(result);

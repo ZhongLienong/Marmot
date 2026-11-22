@@ -39,6 +39,25 @@ impl Plan {
     pub(crate) fn to_json(&self) -> String {
         serde_json::to_string_pretty(self).expect("a plan always serialises") + "\n"
     }
+
+    pub(crate) fn add_stdlib(&mut self, vm: &Path, compiler: &Path) -> Result<(), String> {
+        if self
+            .native_libraries
+            .iter()
+            .any(|library| library.name == "marmotstdlib")
+        {
+            return Err("'marmotstdlib' is reserved for the toolchain's standard library".into());
+        }
+        if let Some(path) = super::toolchain::find_stdlib(vm, compiler) {
+            self.native_libraries.push(PlanNativeLibrary {
+                name: "marmotstdlib".into(),
+                path: paths::display(&paths::absolute(&path)),
+                thread_safe: true,
+                checksum: None,
+            });
+        }
+        Ok(())
+    }
 }
 
 /// The native libraries of the packages a program compiled from these

@@ -118,12 +118,6 @@ private:
     static constexpr size_t s_call_stack_size = 1uz << 19;
     static constexpr int s_max_stack_trace_depth = 20;
 
-    struct FFIArrayArgument
-    {
-        void* data;
-        int length;
-    };
-
 	// Hot Pointers (cache-line aligned for the dispatch loop)
 	alignas(s_cache_line_size) InstructionPointer m_instruction_pointer = nullptr;
 	ValueStackPointer m_value_stack_pointer = nullptr;
@@ -162,7 +156,9 @@ private:
     DynamicFFIRegistry m_dynamic_ffi_registry;
     std::array<void*, UINT8_MAX> m_ffi_args{};
     std::array<MarmotValue, UINT8_MAX> m_ffi_value_args{};
-    std::vector<FFIArrayArgument> m_ffi_array_args;
+    std::array<MarmotFFIArray, VM_FFI_MAX_ARITY> m_ffi_array_args{};
+    std::array<std::vector<MarmotWord>, VM_FFI_MAX_ARITY> m_ffi_scalar_arrays;
+    std::array<std::vector<const char*>, VM_FFI_MAX_ARITY> m_ffi_string_arrays;
 
     // Cold Caches & Results
 	std::vector<MarmotTraceable*> m_static_closure_cache;
@@ -279,12 +275,10 @@ private:
 	int TerminateExecution(RuntimeError error) noexcept;
 
 	MARMOT_FORCE_INLINE MarmotValue TakeForeignResult(VmFFIReturnKind kind, uint8_t return_tag, MarmotValue result) noexcept;
+	MarmotValue TakeNativeResult(uint8_t return_tag, MarmotWord bits, MarmotFFIFreeResultFn free_result) noexcept;
 
 	MARMOT_FORCE_INLINE void PassForeignArgument(VmFFIArgumentKind kind, size_t index, MarmotValue argument) noexcept;
 
-#if MARMOT_DEBUG_FULL
-	void CallNativeWithSlots(VmFFIFunction proc, uint8_t return_kind, MarmotValue& result) noexcept;
-#endif
 
 #ifdef _WIN32
 	int ExecuteLoopWithStructuredExceptionHandling(uintptr_t& exception_code, uintptr_t& exception_address, uintptr_t& fault_address, bool& captured) noexcept;

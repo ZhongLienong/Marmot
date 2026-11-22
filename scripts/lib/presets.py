@@ -9,10 +9,10 @@ from pathlib import Path
 from typing import Any
 
 from lib import toolchain
-from lib.host import REPO_ROOT, executable, preset_family
+from lib.host import REPO_ROOT, executable, preset_family, shared_library
 
 BUILD_TYPES = ["Debug", "Dev", "Release"]
-PROJECTS = ("marmotc", "marmotvm")
+PROJECTS = ("marmotc", "marmotvm", "marmotstdlib")
 UNIT_TARGETS = ("MarmotcUnitTests", "MarmotvmUnitTests", "MarmotIntegrationTests")
 
 
@@ -96,6 +96,10 @@ class BuildTree:
         return self.projects[1].binary_dir / "out" / executable("marmotvm")
 
     @property
+    def stdlib(self) -> Path:
+        return self.projects[2].binary_dir / "out" / shared_library("marmotstdlib")
+
+    @property
     def unit_tests(self) -> tuple[Path, ...]:
         return (self.out_dir / executable(UNIT_TARGETS[0]),
                 self.projects[1].binary_dir / "out" / executable(UNIT_TARGETS[1]))
@@ -116,9 +120,11 @@ class BuildTree:
         return 0
 
     def build(self, targets: list[str]) -> int:
+        owners = {"marmotc": "marmotc", "MarmotcUnitTests": "marmotc", "MarmotIntegrationTests": "marmotc",
+                  "marmotvm": "marmotvm", "MarmotvmUnitTests": "marmotvm", "marmotstdlib": "marmotstdlib"}
         for project in self.projects:
             chosen = list(dict.fromkeys(target for target in targets
-                          if (target in {"marmotvm", "MarmotvmUnitTests"}) == (project.project == "marmotvm")))
+                                        if owners[target] == project.project))
             if not chosen:
                 continue
             tests = any(target in UNIT_TARGETS for target in chosen)

@@ -25,8 +25,10 @@ pub(super) fn execute(
         None => (current.clone(), current.join("test"), 30_000),
     };
 
-    let (plan, warnings) = plan::inputs_plan(&root, &paths::marmot_path(), version)?;
+    let (mut plan, warnings) = plan::inputs_plan(&root, &paths::marmot_path(), version)?;
     print_warnings(&warnings);
+    let vm = toolchain::find_vm(options.marmotvm.as_deref(), compiler);
+    plan.add_stdlib(&vm, compiler)?;
     let plan_file = TemporaryFile::new(
         std::env::temp_dir().join(format!("marmot-plan-{}.json", std::process::id())),
     );
@@ -52,7 +54,6 @@ pub(super) fn execute(
         }
     };
 
-    let vm = toolchain::find_vm(options.marmotvm.as_deref(), compiler);
     let timeout = std::time::Duration::from_millis(
         options
             .timeout_ms

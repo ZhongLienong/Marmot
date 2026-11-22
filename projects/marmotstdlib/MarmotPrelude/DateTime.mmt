@@ -26,45 +26,45 @@ type UtcTimeParts =
     day_of_year: Int
 };
 
-foreign "MARMOT_FFI_GetTime" GetTimeRaw: fn() -> Float;
+foreign "MARMOT_FFI_GetTime" GetTimeRaw: fn() -> Float from "marmotstdlib";
 
-foreign "MARMOT_FFI_GetMonotonicNanos" GetMonotonicNanosRaw: fn() -> Int;
+foreign "MARMOT_FFI_GetMonotonicNanos" GetMonotonicNanosRaw: fn() -> Int from "marmotstdlib";
 
-foreign "MARMOT_FFI_GetYear" GetYearRaw: fn() -> Int;
+foreign "MARMOT_FFI_GetYear" GetYearRaw: fn() -> Int from "marmotstdlib";
 
-foreign "MARMOT_FFI_GetMonth" GetMonthRaw: fn() -> Int;
+foreign "MARMOT_FFI_GetMonth" GetMonthRaw: fn() -> Int from "marmotstdlib";
 
-foreign "MARMOT_FFI_GetDay" GetDayRaw: fn() -> Int;
+foreign "MARMOT_FFI_GetDay" GetDayRaw: fn() -> Int from "marmotstdlib";
 
-foreign "MARMOT_FFI_GetHour" GetHourRaw: fn() -> Int;
+foreign "MARMOT_FFI_GetHour" GetHourRaw: fn() -> Int from "marmotstdlib";
 
-foreign "MARMOT_FFI_GetMinute" GetMinuteRaw: fn() -> Int;
+foreign "MARMOT_FFI_GetMinute" GetMinuteRaw: fn() -> Int from "marmotstdlib";
 
-foreign "MARMOT_FFI_GetSecond" GetSecondRaw: fn() -> Int;
+foreign "MARMOT_FFI_GetSecond" GetSecondRaw: fn() -> Int from "marmotstdlib";
 
-foreign "MARMOT_FFI_GetDayOfWeek" GetDayOfWeekRaw: fn() -> Int;
+foreign "MARMOT_FFI_GetDayOfWeek" GetDayOfWeekRaw: fn() -> Int from "marmotstdlib";
 
-foreign "MARMOT_FFI_GetDayOfYear" GetDayOfYearRaw: fn() -> Int;
+foreign "MARMOT_FFI_GetDayOfYear" GetDayOfYearRaw: fn() -> Int from "marmotstdlib";
 
-foreign "MARMOT_FFI_FormatTime" FormatTimeRaw: fn(Text) -> Text;
+foreign "MARMOT_FFI_FormatTime" FormatTimeRaw: fn(Text) -> Text from "marmotstdlib";
 
-foreign "MARMOT_FFI_GetTimezoneOffset" GetTimezoneOffsetRaw: fn() -> Int;
+foreign "MARMOT_FFI_GetTimezoneOffset" GetTimezoneOffsetRaw: fn() -> Int from "marmotstdlib";
 
-foreign "MARMOT_FFI_GetUtcYear" GetUtcYearRaw: fn() -> Int;
+foreign "MARMOT_FFI_GetUtcYear" GetUtcYearRaw: fn() -> Int from "marmotstdlib";
 
-foreign "MARMOT_FFI_GetUtcMonth" GetUtcMonthRaw: fn() -> Int;
+foreign "MARMOT_FFI_GetUtcMonth" GetUtcMonthRaw: fn() -> Int from "marmotstdlib";
 
-foreign "MARMOT_FFI_GetUtcDay" GetUtcDayRaw: fn() -> Int;
+foreign "MARMOT_FFI_GetUtcDay" GetUtcDayRaw: fn() -> Int from "marmotstdlib";
 
-foreign "MARMOT_FFI_GetUtcHour" GetUtcHourRaw: fn() -> Int;
+foreign "MARMOT_FFI_GetUtcHour" GetUtcHourRaw: fn() -> Int from "marmotstdlib";
 
-foreign "MARMOT_FFI_GetUtcMinute" GetUtcMinuteRaw: fn() -> Int;
+foreign "MARMOT_FFI_GetUtcMinute" GetUtcMinuteRaw: fn() -> Int from "marmotstdlib";
 
-foreign "MARMOT_FFI_GetUtcSecond" GetUtcSecondRaw: fn() -> Int;
+foreign "MARMOT_FFI_GetUtcSecond" GetUtcSecondRaw: fn() -> Int from "marmotstdlib";
 
-foreign "MARMOT_FFI_GetUtcDayOfWeek" GetUtcDayOfWeekRaw: fn() -> Int;
+foreign "MARMOT_FFI_GetUtcDayOfWeek" GetUtcDayOfWeekRaw: fn() -> Int from "marmotstdlib";
 
-foreign "MARMOT_FFI_GetUtcDayOfYear" GetUtcDayOfYearRaw: fn() -> Int;
+foreign "MARMOT_FFI_GetUtcDayOfYear" GetUtcDayOfYearRaw: fn() -> Int from "marmotstdlib";
 
 def NowUnixMillis = fn() -> Int => GetTimeRaw() as Int;
 

@@ -12,6 +12,7 @@ fn launch(program: &Path, directory: &Path, args: &[&str]) -> Output {
         .current_dir(directory)
         .env_remove("MARMOTC")
         .env_remove("MARMOTVM")
+        .env_remove("MARMOTSTDLIB")
         .env_remove("MARMOT_PATH")
         .env_remove("MARMOT_LIBRARY_PATH")
         .env("PATH", "")
@@ -33,7 +34,7 @@ fn only_the_executable_is_needed_after_deployment() {
     assert_eq!(payload["artifact"]["kind"], "executable");
     assert_eq!(
         payload["artifact"]["nativeLibraries"],
-        serde_json::json!([])
+        serde_json::json!(["marmotstdlib"])
     );
     assert_eq!(
         Path::new(payload["artifact"]["path"].as_str().unwrap()),

@@ -1,7 +1,7 @@
 module Panic
 public export { Panic }
 
-foreign "MARMOT_FFI_PrintError" PrintErrorRaw: fn(Text) -> Unit;
+foreign "MARMOT_FFI_ReportPanic" ReportPanic: fn(Text) -> Unit;
 
 foreign "MARMOT_FFI_Exit" ExitRaw: fn(Int) -> Unit;
 
@@ -9,7 +9,7 @@ foreign "MARMOT_FFI_Exit" ExitRaw: fn(Int) -> Unit;
 // what gives the body type Never now that `loop` is gone.
 def Panic = fn(message: Text) -> Never =>
 {
-    PrintErrorRaw(message ++ "\n");
+    ReportPanic(message ++ "\n");
     ExitRaw(1);
     Panic(message)
 };

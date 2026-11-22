@@ -8,43 +8,43 @@ public export { IOError, Print, PrintLine, PrintError, PrintErrorLine, ReadInput
 
 type IOError = NotFound(Text) | PermissionDenied(Text) | InvalidPath(Text) | UnknownIO(Text);
 
-foreign "MARMOT_FFI_Print" PrintRaw: fn(Text) -> Unit;
+foreign "MARMOT_FFI_Print" PrintRaw: fn(Text) -> Unit from "marmotstdlib";
 
-foreign "MARMOT_FFI_PrintError" PrintErrorRaw: fn(Text) -> Unit;
+foreign "MARMOT_FFI_PrintError" PrintErrorRaw: fn(Text) -> Unit from "marmotstdlib";
 
-foreign "MARMOT_FFI_ReadInput" ReadInputRaw: fn() -> Text;
+foreign "MARMOT_FFI_ReadInput" ReadInputRaw: fn() -> Text from "marmotstdlib";
 
-foreign "MARMOT_FFI_ReadLine" ReadLineRaw: fn() -> Text;
+foreign "MARMOT_FFI_ReadLine" ReadLineRaw: fn() -> Text from "marmotstdlib";
 
-foreign "MARMOT_FFI_ReadFile" ReadFileRaw: fn(Text) -> Text;
+foreign "MARMOT_FFI_ReadFile" ReadFileRaw: fn(Text) -> Text from "marmotstdlib";
 
-foreign "MARMOT_FFI_WriteFile" WriteFileRaw: fn(Text, Text) -> Bool;
+foreign "MARMOT_FFI_WriteFile" WriteFileRaw: fn(Text, Text) -> Bool from "marmotstdlib";
 
-foreign "MARMOT_FFI_AppendToFile" AppendToFileRaw: fn(Text, Text) -> Bool;
+foreign "MARMOT_FFI_AppendToFile" AppendToFileRaw: fn(Text, Text) -> Bool from "marmotstdlib";
 
-foreign "MARMOT_FFI_ReadBinaryFile" ReadBinaryFileRaw: fn(Text) -> Array<Byte>;
+foreign "MARMOT_FFI_ReadBinaryFile" ReadBinaryFileRaw: fn(Text) -> Array<Byte> from "marmotstdlib";
 
-foreign "MARMOT_FFI_WriteBinaryFile" WriteBinaryFileRaw: fn(Text, Array<Byte>) -> Bool;
+foreign "MARMOT_FFI_WriteBinaryFile" WriteBinaryFileRaw: fn(Text, Array<Byte>) -> Bool from "marmotstdlib";
 
-foreign "MARMOT_FFI_FileExists" FileExistsRaw: fn(Text) -> Bool;
+foreign "MARMOT_FFI_FileExists" FileExistsRaw: fn(Text) -> Bool from "marmotstdlib";
 
-foreign "MARMOT_FFI_DeleteFile" DeleteFileRaw: fn(Text) -> Bool;
+foreign "MARMOT_FFI_DeleteFile" DeleteFileRaw: fn(Text) -> Bool from "marmotstdlib";
 
-foreign "MARMOT_FFI_RenameFile" RenameFileRaw: fn(Text, Text) -> Bool;
+foreign "MARMOT_FFI_RenameFile" RenameFileRaw: fn(Text, Text) -> Bool from "marmotstdlib";
 
-foreign "MARMOT_FFI_GetFileSize" GetFileSizeRaw: fn(Text) -> Int;
+foreign "MARMOT_FFI_GetFileSize" GetFileSizeRaw: fn(Text) -> Int from "marmotstdlib";
 
-foreign "MARMOT_FFI_ListDirectory" ListDirectoryRaw: fn(Text) -> Array<Text>;
+foreign "MARMOT_FFI_ListDirectory" ListDirectoryRaw: fn(Text) -> Array<Text> from "marmotstdlib";
 
-foreign "MARMOT_FFI_MakeDirectory" MakeDirectoryRaw: fn(Text) -> Bool;
+foreign "MARMOT_FFI_MakeDirectory" MakeDirectoryRaw: fn(Text) -> Bool from "marmotstdlib";
 
-foreign "MARMOT_FFI_DirectoryExists" DirectoryExistsRaw: fn(Text) -> Bool;
+foreign "MARMOT_FFI_DirectoryExists" DirectoryExistsRaw: fn(Text) -> Bool from "marmotstdlib";
 
-foreign "MARMOT_FFI_FileChecksum" FileChecksumRaw: fn(Text) -> Text;
+foreign "MARMOT_FFI_FileChecksum" FileChecksumRaw: fn(Text) -> Text from "marmotstdlib";
 
-foreign "MARMOT_FFI_GetLastIOErrorKind" GetLastIOErrorKindRaw: fn() -> Int;
+foreign "MARMOT_FFI_GetLastIOErrorKind" GetLastIOErrorKindRaw: fn() -> Int from "marmotstdlib";
 
-foreign "MARMOT_FFI_GetLastIOErrorMessage" GetLastIOErrorMessageRaw: fn() -> Text;
+foreign "MARMOT_FFI_GetLastIOErrorMessage" GetLastIOErrorMessageRaw: fn() -> Text from "marmotstdlib";
 
 def Print = fn(text: Text) -> Unit => PrintRaw(text);
 

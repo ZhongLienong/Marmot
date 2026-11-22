@@ -33,8 +33,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from install import layout
 from install.layout import InstallLayout
 from lib import cargo, console
-from lib.program import vm_beside
-from lib.host import IS_WINDOWS, PRELUDE_DIR, executable
+from lib.program import stdlib_beside, vm_beside
+from lib.host import FFI_SPEC_DIR, IS_WINDOWS, PRELUDE_DIR, shared_library
 from lib.presets import BuildTree, add_build_arguments, newest_built
 
 
@@ -51,7 +51,7 @@ def chosen_compiler(args: argparse.Namespace) -> Path:
 
 def rebuild(args: argparse.Namespace) -> int:
     tree = BuildTree.select(args.build or "Release", args.preset)
-    built = tree.build(["marmotc", "marmotvm"])
+    built = tree.build(["marmotc", "marmotvm", "marmotstdlib"])
     if built != 0 or not cargo.is_available():
         return built
     return cargo.build(release=True)
@@ -59,11 +59,11 @@ def rebuild(args: argparse.Namespace) -> int:
 
 def copy_binaries(target: InstallLayout, compiler: Path, vm: Path) -> None:
     target.bin_dir.mkdir(parents=True, exist_ok=True)
-    for binary in (compiler, vm):
+    for binary, name in ((compiler, compiler.name), (vm, vm.name), (stdlib_beside(vm), shared_library("marmotstdlib"))):
         if not binary.is_file():
             raise SystemExit(f"{binary} is not built.")
-        shutil.copy2(binary, target.bin_dir / binary.name)
-        print(f"  {binary.name:<14} from {binary}")
+        shutil.copy2(binary, target.bin_dir / name)
+        print(f"  {name:<14} from {binary}")
 
     tool = cargo.newest_binary()
     if tool is None:
@@ -82,6 +82,10 @@ def copy_prelude(target: InstallLayout) -> None:
         shutil.rmtree(target.prelude_dir)
     shutil.copytree(PRELUDE_DIR, target.prelude_dir)
     print(f"  MarmotPrelude  to {target.prelude_dir}")
+
+
+def copy_ffi_sdk(target: InstallLayout) -> None:
+    shutil.copytree(FFI_SPEC_DIR, target.root / "sdk" / "ffi", dirs_exist_ok=True)
 
 
 def write_env_script(target: InstallLayout, with_binaries: bool) -> None:
@@ -135,6 +139,7 @@ def main(argv: list[str]) -> int:
         compiler = chosen_compiler(args)
         vm = Path(args.marmotvm).expanduser().resolve() if args.marmotvm else vm_beside(compiler)
         copy_binaries(target, compiler, vm)
+        copy_ffi_sdk(target)
     copy_prelude(target)
     marker = {"schema_version": 1, "installed_by": "scripts/install/install.py", "scope": args.scope,
               "prelude_dir": str(target.prelude_dir), "bin_dir": str(target.bin_dir)}

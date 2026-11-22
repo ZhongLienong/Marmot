@@ -12,6 +12,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS_DIR = REPO_ROOT / "scripts"
 PRELUDE_DIR = REPO_ROOT / "projects" / "marmotstdlib" / "MarmotPrelude"
+FFI_SPEC_DIR = REPO_ROOT / "format" / "ffi"
 TEST_DIR = REPO_ROOT / "test"
 TOOL_DIR = REPO_ROOT / "projects" / "marmot"
 
@@ -21,6 +22,11 @@ IS_LINUX = sys.platform.startswith("linux")
 
 def executable(stem: str) -> str:
     return stem + (".exe" if IS_WINDOWS else "")
+
+def shared_library(stem: str) -> str:
+    if IS_WINDOWS:
+        return stem + ".dll"
+    return "lib" + stem + (".dylib" if sys.platform == "darwin" else ".so")
 
 
 def preset_family() -> str:

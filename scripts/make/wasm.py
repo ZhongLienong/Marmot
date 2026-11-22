@@ -143,12 +143,18 @@ def build_project(emscripten: Emscripten, project: str, clean: bool) -> int:
     stale = cached is not None and (cached != emscripten.toolchain_file.resolve() or cached_path(directory, "CMAKE_HOME_DIRECTORY:INTERNAL") != source.resolve())
     if stale:
         console.note(f"{directory} has a different toolchain or source directory; reconfiguring")
-    if cached is None or stale:
+    if cached is None or stale or project == "marmotvm":
         generator = ["-G", "Ninja"] if shutil.which("ninja", path=emscripten.environment.get("PATH")) else []
         fresh = ["--fresh"] if stale else []
+        host = []
+        if project == "marmotvm":
+            host = [
+                f"-DMARMOT_WASM_HOST_SOURCE={ADAPTER.with_name('WasmStdlib.cpp')}",
+                f"-DMARMOT_WASM_HOST_LIBRARY={build_directory('marmotstdlib') / 'out' / 'libmarmotstdlib.a'}",
+            ]
         configured = toolchain.run(
             [emscripten.emcmake, "cmake", *fresh, "-S", str(source), "-B", str(directory), *generator,
-             "-DCMAKE_BUILD_TYPE=Release", "-DMARMOT_BUILD_TESTS=OFF"],
+             "-DCMAKE_BUILD_TYPE=Release", "-DMARMOT_BUILD_TESTS=OFF", *host],
             environment=emscripten.environment,
         )
         if configured != 0:
@@ -157,7 +163,7 @@ def build_project(emscripten: Emscripten, project: str, clean: bool) -> int:
 
 
 def build(emscripten: Emscripten, clean: bool) -> int:
-    for project in PROJECTS:
+    for project in ("marmotstdlib", *PROJECTS):
         status = build_project(emscripten, project, clean)
         if status != 0:
             return status

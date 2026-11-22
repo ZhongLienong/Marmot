@@ -50,7 +50,7 @@ namespace
 TEST_CASE("A program of scalars, branches and tail calls prints what it computes", "[marmot_ir][lowering][backend]")
 {
 	const std::expected<MarmotTest::ExecutedSnippet, CompilerError> executed = MarmotTest::ExecuteSnippet(R"(module Parity
-foreign "MARMOT_FFI_Print" Print: fn(Text) -> Unit;
+foreign "MARMOT_FFI_Print" Print: fn(Text) -> Unit from "marmotstdlib";
 def Fib = fn(n: Int, a: Int, b: Int) -> Int => if n == 0 then a else Fib(n - 1, b, a + b);
 def Show = fn(label: Text, value: Int) -> Unit => Print(label ++ "=" ++ (value as Text) ++ "\n");
 def Pick = fn(flag: Bool) -> Text => if flag then "yes" else "no";

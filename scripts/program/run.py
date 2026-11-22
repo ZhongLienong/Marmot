@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from lib.host import checkout_environment
 from lib.presets import BuildTree, add_build_arguments
+from lib.program import checkout_build_plan, stdlib_override
 
 
 def main(argv: list[str]) -> int:
@@ -46,11 +47,12 @@ def main(argv: list[str]) -> int:
 
     with tempfile.TemporaryDirectory(prefix="marmot-run-") as directory:
         program = args.output if args.output else str(Path(directory) / (Path(args.file).stem + ".mmc"))
-        build = [compiler, "build", args.file, "-o", program, "--quiet", *(["--embed-sources"] if args.embed_sources else [])]
+        plan = checkout_build_plan(Path(directory) / "plan.json", Path.cwd(), environment)
+        build = [compiler, "build", args.file, "-o", program, "--quiet", *plan, *(["--embed-sources"] if args.embed_sources else [])]
         built = subprocess.run(build, env=environment, check=False)
         if built.returncode != 0:
             return built.returncode
-        return subprocess.run([str(tree.vm), "run", program, *program_arguments], env=environment, check=False).returncode
+        return subprocess.run([str(tree.vm), "run", program, *stdlib_override(environment), *program_arguments], env=environment, check=False).returncode
 
 
 if __name__ == "__main__":

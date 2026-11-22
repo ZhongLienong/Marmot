@@ -19,7 +19,6 @@ with their prebuilt native libraries, from GitHub registries.
 - `marmot.lock` generation and reuse
 - package source checksum recording in the lockfile
 - checksum verification for selected prebuilt native libraries
-- FFI ABI version validation through `package.marmot` `[ffi].abi_version`
 - CLI package commands: `marmot install`, `marmot update`, `marmot remove`, `marmot list`
 - import-triggered dynamic FFI loading for resolved packages
 
@@ -209,7 +208,6 @@ Recognized fields:
 
 - `enabled`
 - `library_name`
-- `abi_version`
 - `thread_safe`
 
 `library_name` is the name the package's source uses for its library:
@@ -224,8 +222,6 @@ library.
 
 Current validation:
 
-- `abi_version` must be a positive integer
-- enabled packages must target the current runtime ABI version
 - the symbols a program declares are looked up in the loaded library before it
   runs
 - at compile time, a `foreign "Name"` declaration without `from` must name a

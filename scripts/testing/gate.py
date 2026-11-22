@@ -57,7 +57,7 @@ def build_everything(tree: BuildTree) -> int:
         configured = tree.configure(with_unit_tests=True)
         if configured != 0:
             return configured
-    return tree.build(["marmotc", "marmotvm", *UNIT_TARGETS])
+    return tree.build(["marmotc", "marmotvm", "marmotstdlib", *UNIT_TARGETS])
 
 
 def steps(args: argparse.Namespace, tree: BuildTree) -> dict[str, Callable[[], int]]:

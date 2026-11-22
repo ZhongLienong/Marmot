@@ -1,7 +1,7 @@
 module T0Results
 
 // The module prefix must resemble an inference variable to expose the regression.
-foreign "MARMOT_FFI_Print" Print: fn(Text) -> Unit;
+foreign "MARMOT_FFI_Print" Print: fn(Text) -> Unit from "marmotstdlib";
 
 class Convertable<From, To>
 {

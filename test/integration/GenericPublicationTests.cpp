@@ -35,7 +35,7 @@ def Value = fn() -> Text => Shared::Make("shared");
 )"),
 		MarmotTest::TempProjectFile("Main.mmt", R"(module Main
 import { "Left.mmt", "Right.mmt" }
-foreign "MARMOT_FFI_Print" Print: fn(Text) -> Unit;
+foreign "MARMOT_FFI_Print" Print: fn(Text) -> Unit from "marmotstdlib";
 Print((Left::Value() as Text) ++ ":" ++ Right::Value() ++ "\n");
 )")
 	});

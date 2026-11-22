@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import json
+import os
 import subprocess
 import tempfile
-import os
 from pathlib import Path
+
+from lib.host import shared_library
 
 
 def vm_beside(compiler: Path) -> Path:
@@ -15,6 +18,26 @@ def vm_beside(compiler: Path) -> Path:
     if compiler.parent.parent.parent.name == "marmotc":
         return compiler.parent.parent.parent.parent / "marmotvm" / compiler.parent.parent.name / "out" / ("marmotvm" + compiler.suffix)
     return compiler.with_name("marmotvm" + compiler.suffix)
+
+
+def stdlib_beside(vm: Path) -> Path:
+    if os.environ.get("MARMOTSTDLIB"):
+        return Path(os.environ["MARMOTSTDLIB"])
+    name = shared_library("marmotstdlib")
+    project = vm.parent.parent.parent
+    if project.name == "marmotvm":
+        return project.parent / "marmotstdlib" / vm.parent.parent.name / "out" / name
+    return vm.with_name(name)
+
+def checkout_build_plan(path: Path, cwd: Path, env: dict[str, str]) -> list[str]:
+    searches = [str((cwd / entry).resolve()) for entry in env.get("MARMOT_PATH", "").split(os.pathsep) if entry]
+    plan = {"version": 1, "search_paths": searches,
+            "native_libraries": [{"name": "marmotstdlib", "thread_safe": True}]}
+    path.write_text(json.dumps(plan), encoding="utf-8")
+    return ["--plan", str(path)]
+
+def stdlib_override(env: dict[str, str]) -> list[str]:
+    return ["--library", f"marmotstdlib={env['MARMOTSTDLIB']}"] if env.get("MARMOTSTDLIB") else []
 
 
 def build_and_run(
@@ -38,8 +61,11 @@ def build_and_run(
         program = Path(directory) / (Path(source).stem + ".mmc")
         options = dict(capture_output=True, text=True, encoding="utf-8", errors="replace",
                        timeout=timeout, cwd=cwd, env=env, check=False)
-        built = subprocess.run([str(compiler), "build", source, "-o", str(program), "--quiet", *(compiler_args or [])], **options)
+        arguments = compiler_args or []
+        if "--plan" not in arguments:
+            arguments = [*arguments, *checkout_build_plan(Path(directory) / "plan.json", cwd, env)]
+        built = subprocess.run([str(compiler), "build", source, "-o", str(program), "--quiet", *arguments], **options)
         if built.returncode != 0:
             return built
-        ran = subprocess.run([str(vm_beside(compiler)), "run", str(program), *(program_args or [])], **options)
+        ran = subprocess.run([str(vm_beside(compiler)), "run", str(program), *stdlib_override(env), *(program_args or [])], **options)
         return subprocess.CompletedProcess(ran.args, ran.returncode, built.stdout + built.stderr + ran.stdout, ran.stderr)

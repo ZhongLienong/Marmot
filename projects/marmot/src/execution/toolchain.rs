@@ -127,6 +127,47 @@ pub(crate) fn find_vm(explicit: Option<&Path>, compiler: &Path) -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("marmotvm"))
 }
 
+pub(crate) fn find_stdlib(vm: &Path, compiler: &Path) -> Option<PathBuf> {
+    if let Some(path) = std::env::var_os("MARMOTSTDLIB").filter(|value| !value.is_empty()) {
+        return Some(PathBuf::from(path));
+    }
+    let name = format!(
+        "{}marmotstdlib{}",
+        std::env::consts::DLL_PREFIX,
+        std::env::consts::DLL_SUFFIX
+    );
+    let matching_build = |binary: &Path, project_name: &str| {
+        let preset = binary.parent()?.parent()?;
+        let project = preset.parent()?;
+        if project.file_name()? != project_name {
+            return None;
+        }
+        Some(
+            project
+                .parent()?
+                .join("marmotstdlib")
+                .join(preset.file_name()?)
+                .join("out"),
+        )
+    };
+    let tool = std::env::current_exe().ok();
+    matching_build(vm, "marmotvm")
+        .into_iter()
+        .chain(matching_build(compiler, "marmotc"))
+        .chain(
+            [
+                vm.parent(),
+                compiler.parent(),
+                tool.as_deref().and_then(Path::parent),
+            ]
+            .into_iter()
+            .flatten()
+            .map(Path::to_path_buf),
+        )
+        .map(|directory| directory.join(&name))
+        .find(|candidate| candidate.is_file())
+}
+
 pub(crate) fn run_compiler(mut command: Command, compiler: &Path) -> Result<ExitCode, String> {
     let status = command
         .status()

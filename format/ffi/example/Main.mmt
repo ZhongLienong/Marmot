@@ -1,0 +1,11 @@
+module Main
+
+foreign "marmot_example_count" Count: fn(Array<Text>) -> Int from "marmot_ffi_example";
+
+foreign "marmot_example_copy" Copy: fn(Text) -> Text from "marmot_ffi_example";
+
+foreign "MARMOT_FFI_Exit" Exit: fn(Int) -> Unit;
+
+if (Count(["hello", " world"]) == 11) && (Copy("hello") == "hello")
+then ()
+else Exit(1);

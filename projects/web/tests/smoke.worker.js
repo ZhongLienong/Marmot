@@ -5,7 +5,7 @@ importScripts(`/marmot.js${self.location.search}`);
     module.FS_createPath("/", "frames", true, true);
     const result = module.executeMarmotCode(`
 module WorkerSmoke
-foreign "MARMOT_FFI_WriteBinaryFile" WriteBinaryFile: fn(Text, Array<Byte>) -> Bool;
+foreign "MARMOT_FFI_WriteBinaryFile" WriteBinaryFile: fn(Text, Array<Byte>) -> Bool from "marmotstdlib";
 WriteBinaryFile("/frames/1.rgba", [1 as Byte, 2 as Byte, 3 as Byte, 255 as Byte]);
 `);
     if (!result.success) {

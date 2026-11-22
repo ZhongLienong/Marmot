@@ -293,7 +293,7 @@ bb0(w: Int):
 TEST_CASE("Inlining keeps a call in tail position a tail call", "[marmot_ir][optimizer]")
 {
 	const MarmotIRModule module = Optimize<InliningPass, DeadCodeEliminationPass>(R"(module TailInline
-foreign "MARMOT_FFI_Print" Print: fn(Text) -> Unit;
+foreign "MARMOT_FFI_Print" Print: fn(Text) -> Unit from "marmotstdlib";
 def Report = fn(x: Int) -> Int => { Print(x as Text); x };
 def Double = fn(x: Int) -> Int => Report(x * 2);
 def Twice = fn(x: Int) -> Int => Double(x + 1);
@@ -459,7 +459,7 @@ Pick(3);
 TEST_CASE("KnownConstructorThreading leaves a block that does more than look", "[marmot_ir][optimizer]")
 {
 	constexpr std::string_view source = R"(module Effect
-foreign "MARMOT_FFI_Print" Print: fn(Text) -> Unit;
+foreign "MARMOT_FFI_Print" Print: fn(Text) -> Unit from "marmotstdlib";
 type Opt = None | Some(Int);
 def Pick = fn(n: Int) -> Int => {
 	def o = if n > 0 then Opt::Some(n) else Opt::None();
@@ -543,7 +543,7 @@ bb3:
 TEST_CASE("ParameterUnboxing leaves a struct the loop passes on whole", "[marmot_ir][optimizer]")
 {
 	constexpr std::string_view source = R"(module Escape
-foreign "MARMOT_FFI_Print" Print: fn(Text) -> Unit;
+foreign "MARMOT_FFI_Print" Print: fn(Text) -> Unit from "marmotstdlib";
 type Cursor = { at: Int, total: Int };
 def Report = fn(c: Cursor) -> Unit => Print(c.at as Text);
 def Walk = fn(c: Cursor, n: Int) -> Int => {

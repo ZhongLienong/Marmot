@@ -7,10 +7,6 @@ use toml_edit::{DocumentMut, Item, TableLike, Value};
 pub(crate) const PROJECT_MANIFEST: &str = "project.marmot";
 pub(crate) const PACKAGE_MANIFEST: &str = "package.marmot";
 
-/// The FFI ABI the runtime implements; a package built for another one does
-/// not load (`MarmotBuiltins::ABI_VERSION`).
-const FFI_ABI_VERSION: i64 = 1;
-
 /// The active manifest for a source file: the nearest `project.marmot` above
 /// it, or a `package.marmot` with a `[package]` table.
 #[derive(Debug, Clone)]
@@ -269,21 +265,6 @@ fn native_library(
     };
     if !ffi.get("enabled").and_then(Item::as_bool).unwrap_or(false) {
         return Ok(None);
-    }
-
-    let abi_version = ffi
-        .get("abi_version")
-        .and_then(Item::as_integer)
-        .unwrap_or(1);
-    if abi_version <= 0 {
-        return Err(format!(
-            "Invalid [ffi].abi_version '{abi_version}'. Expected a positive integer."
-        ));
-    }
-    if abi_version != FFI_ABI_VERSION {
-        return Err(format!(
-            "Package '{name}' targets FFI ABI v{abi_version}, but this Marmot runtime supports FFI ABI v{FFI_ABI_VERSION}."
-        ));
     }
 
     let prebuilt = data

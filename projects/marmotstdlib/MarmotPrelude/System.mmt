@@ -28,29 +28,29 @@ type ProcessOutput =
 
 foreign "MARMOT_FFI_Exit" ExitRaw: fn(Int) -> Unit;
 
-foreign "MARMOT_FFI_GetEnv" GetEnvRaw: fn(Text) -> Text;
+foreign "MARMOT_FFI_GetEnv" GetEnvRaw: fn(Text) -> Text from "marmotstdlib";
 
-foreign "MARMOT_FFI_SetEnv" SetEnvRaw: fn(Text, Text) -> Bool;
+foreign "MARMOT_FFI_SetEnv" SetEnvRaw: fn(Text, Text) -> Bool from "marmotstdlib";
 
 foreign "MARMOT_FFI_Sleep" SleepRaw: fn(Int) -> Unit;
 
-foreign "MARMOT_FFI_GetCurrentDirectory" GetCurrentDirectoryRaw: fn() -> Text;
+foreign "MARMOT_FFI_GetCurrentDirectory" GetCurrentDirectoryRaw: fn() -> Text from "marmotstdlib";
 
-foreign "MARMOT_FFI_SetCurrentDirectory" SetCurrentDirectoryRaw: fn(Text) -> Bool;
+foreign "MARMOT_FFI_SetCurrentDirectory" SetCurrentDirectoryRaw: fn(Text) -> Bool from "marmotstdlib";
 
-foreign "MARMOT_FFI_Execute" ExecuteRaw: fn(Text) -> Int;
+foreign "MARMOT_FFI_Execute" ExecuteRaw: fn(Text) -> Int from "marmotstdlib";
 
-foreign "MARMOT_FFI_RunProcess" RunProcessRaw: fn(Array<Text>, Text) -> Array<Text>;
+foreign "MARMOT_FFI_RunProcess" RunProcessRaw: fn(Array<Text>, Text) -> Array<Text> from "marmotstdlib";
 
-foreign "MARMOT_FFI_GetPlatform" GetPlatformRaw: fn() -> Text;
+foreign "MARMOT_FFI_GetPlatform" GetPlatformRaw: fn() -> Text from "marmotstdlib";
 
 foreign "MARMOT_FFI_GetArguments" GetArgumentsRaw: fn() -> Array<Text>;
 
-foreign "MARMOT_FFI_GetProcessId" GetProcessIdRaw: fn() -> Int;
+foreign "MARMOT_FFI_GetProcessId" GetProcessIdRaw: fn() -> Int from "marmotstdlib";
 
-foreign "MARMOT_FFI_GetLastSystemErrorKind" GetLastSystemErrorKindRaw: fn() -> Int;
+foreign "MARMOT_FFI_GetLastSystemErrorKind" GetLastSystemErrorKindRaw: fn() -> Int from "marmotstdlib";
 
-foreign "MARMOT_FFI_GetLastSystemErrorMessage" GetLastSystemErrorMessageRaw: fn() -> Text;
+foreign "MARMOT_FFI_GetLastSystemErrorMessage" GetLastSystemErrorMessageRaw: fn() -> Text from "marmotstdlib";
 
 def Exit = fn(code: Int) -> Unit => ExitRaw(code);
 

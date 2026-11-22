@@ -1,7 +1,7 @@
 module LoweringFunctionOwnership
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
-foreign "MARMOT_FFI_Print" Print: fn(Text) -> Unit;
+foreign "MARMOT_FFI_Print" Print: fn(Text) -> Unit from "marmotstdlib";
 
 def Identity = fn<T>(value: T) -> T => value;
 

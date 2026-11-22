@@ -1,0 +1,42 @@
+module Main
+
+import
+{
+    "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt",
+    "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
+    "../../../projects/marmotstdlib/MarmotPrelude/Math.mmt",
+    "../../../projects/marmotstdlib/MarmotPrelude/System.mmt",
+    "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt",
+    "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt",
+}
+use Result.{Result}
+
+foreign "MARMOT_FFI_ReadFile" Read: fn(Text) -> Text from "marmotstdlib";
+foreign "MARMOT_FFI_GetLastIOErrorKind" LastError: fn() -> Int from "marmotstdlib";
+
+def Work = fn(shouldFail: Bool) -> Text =>
+{
+    def path = if shouldFail
+        then "marmot-missing-worker-file-2bc407"
+        else "test/concurrency/success/stdlib_worker_errors.mmt";
+    Read(path);
+    System::SetEnv("MARMOT_STDLIB_WORKER_TEST", "value");
+    def directorySet = match System::TrySetCurrentDirectory(".") with
+        case Result::Ok(_) => true
+        case Result::Err(_) => false;
+    System::Sleep(20);
+    def value = match System::TryGetEnv("MARMOT_STDLIB_WORKER_TEST") with
+        case Option::Option::Some(text) => text == "value"
+        case Option::Option::None() => false;
+    (LastError() as Text) ++ ":" ++ ((directorySet && value) as Text) ++ ":" ++ (Math::SquareRoot(81.0) as Text)
+};
+
+def Show = fn(result: Result<Text, Concurrency::WorkerError>) -> Unit =>
+    match result with
+    case Result::Ok(message) => IO::PrintLine(message)
+    case Result::Err(_) => IO::PrintLine("failed");
+
+def first = Concurrency::Spawn(true, Work);
+def second = Concurrency::Spawn(false, Work);
+Show(Concurrency::Join(first));
+Show(Concurrency::Join(second));

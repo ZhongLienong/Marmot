@@ -7,11 +7,12 @@
 #include <string_view>
 
 #include "Bytecode/Format/Format.h"
+#include "marmot/MarmotFFI.h"
 
 // VM-side builtin IDs and signatures in .mmc order. The compiler keeps its
-// own table; the v14 registry check requires both tables to agree.
+// own table; the registry check requires both tables to agree.
 
-using VmFFIFunction = void(*)(void** args, void* ret);
+using VmFFIFunction = MarmotFFIFn;
 
 constexpr size_t VM_FFI_MAX_ARITY = 4u;
 
@@ -20,6 +21,7 @@ enum class VmFFIArgumentKind : uint8_t
 	RawValue = MmcWire::FFI_ARGUMENT_RAW_VALUE,
 	CString = MmcWire::FFI_ARGUMENT_C_STRING,
 	ArrayView = MmcWire::FFI_ARGUMENT_ARRAY_VIEW,
+	ArrayStrings = MmcWire::FFI_ARGUMENT_ARRAY_STRINGS,
 	TraceableHandle,
 	ValueHandle
 };
@@ -64,7 +66,6 @@ private:
 	};
 
 public:
-	static constexpr int ABI_VERSION = 1;
 	static constexpr size_t COUNT = s_signatures.size();
 
 	static constexpr std::optional<size_t> FindIndex(std::string_view name)

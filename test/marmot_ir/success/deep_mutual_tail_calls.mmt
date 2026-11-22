@@ -4,7 +4,7 @@ module DeepMutualTailCalls
 // without a new frame for each call, as the language promises every tail call
 // does, whichever function it calls.
 
-foreign "MARMOT_FFI_Print" Print: fn(Text) -> Unit;
+foreign "MARMOT_FFI_Print" Print: fn(Text) -> Unit from "marmotstdlib";
 
 def IsEven = fn(n: Int) -> Bool => if n == 0
 then true

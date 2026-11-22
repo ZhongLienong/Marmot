@@ -1,11 +1,12 @@
 #include "SharedLibraryCache.h"
+#include "Bytecode/Executable/Executable.h"
 #include "Support/Checksum.h"
 
 #ifdef _WIN32
 	#define WIN32_LEAN_AND_MEAN
 	#include <windows.h>
 	#undef LoadLibrary
-#else
+#elif !defined(__EMSCRIPTEN__)
 	#include <dlfcn.h>
 #endif
 
@@ -17,124 +18,103 @@ SharedLibraryCache& SharedLibraryCache::GetInstance()
 	return instance;
 }
 
-std::expected<void, std::string> SharedLibraryCache::LoadLibraryWithFunctions(
-	const std::filesystem::path& library_path,
-	const std::string& package_name,
-	const std::unordered_map<std::string, std::string>& function_mappings,
-	bool thread_safe,
-	std::optional<std::string_view> expected_checksum)
+namespace
 {
-	std::lock_guard<std::mutex> lock(m_mutex);
-
-	if (m_libraries.contains(package_name))
+	template <typename Resolver>
+	std::expected<std::unordered_map<std::string, VmNativeFunction>, std::string> BindSymbols(
+		const std::string& name, const std::vector<std::string>& symbols,
+		MarmotFFIFreeResultFn free_result, const std::shared_ptr<void>& library, Resolver resolve)
 	{
-		return std::unexpected(std::format("FFI error: package '{}' already has a loaded native library.", package_name));
-	}
-
-	if (!std::filesystem::exists(library_path))
-	{
-		return std::unexpected(std::format("FFI error: library file not found: {}", library_path.string()));
-	}
-
-	const std::expected<void, std::string> checksum_result = VerifyLibraryChecksum(library_path, expected_checksum);
-	if (!checksum_result.has_value())
-	{
-		return std::unexpected(checksum_result.error());
-	}
-
-	const std::expected<void*, std::string> load_result = LoadPlatformLibrary(library_path);
-	if (!load_result.has_value())
-	{
-		return std::unexpected(load_result.error());
-	}
-
-	void* handle = load_result.value();
-	std::unordered_map<std::string, VmFFIFunction> resolved_functions;
-
-	for (const std::pair<const std::string, std::string>& func_pair : function_mappings)
-	{
-		const std::string& marmot_name = func_pair.first;
-		const std::string& native_name = func_pair.second;
-
-		void* func_ptr = GetPlatformFunction(handle, native_name);
-		if (func_ptr == nullptr)
+		if (free_result == nullptr)
 		{
-			UnloadPlatformLibrary(handle);
-			return std::unexpected(std::format
-			(
-				"FFI error: native library '{}' does not export '{}' ({})",
-				package_name,
-				native_name,
-				library_path.string()
-			));
+			return std::unexpected(std::format("FFI error: native library '{}' does not export 'MARMOT_FFI_FreeResult'.", name));
 		}
 
-		resolved_functions.emplace(marmot_name, reinterpret_cast<VmFFIFunction>(func_ptr));
+		std::unordered_map<std::string, VmNativeFunction> functions;
+		for (const std::string& symbol : symbols)
+		{
+			MarmotFFIFn call = resolve(symbol);
+			if (call == nullptr)
+			{
+				return std::unexpected(std::format("FFI error: native library '{}' does not export '{}'.", name, symbol));
+			}
+			functions.emplace(name + VM_NATIVE_SYMBOL_SEPARATOR + symbol, VmNativeFunction{call, free_result, library});
+		}
+		return functions;
+	}
+}
+
+std::expected<void, std::string> SharedLibraryCache::LoadLibraryWithFunctions(
+	const std::filesystem::path& library_path,
+	const std::string& name,
+	const std::vector<std::string>& symbols,
+	std::optional<std::string_view> expected_checksum)
+{
+	const auto checksum = VerifyLibraryChecksum(library_path, expected_checksum);
+	if (!checksum.has_value())
+	{
+		return std::unexpected(checksum.error());
 	}
 
-	SharedLibraryEntry entry;
-	entry.m_handle = handle;
-	entry.m_package_name = package_name;
-	entry.m_path = library_path;
-	entry.m_thread_safe = thread_safe;
-	entry.m_functions = std::move(resolved_functions);
-	m_libraries.emplace(package_name, std::move(entry));
+	const auto loaded = LoadPlatformLibrary(library_path);
+	if (!loaded.has_value())
+	{
+		return std::unexpected(loaded.error());
+	}
 
+	const std::shared_ptr<void> handle(loaded.value(), UnloadPlatformLibrary);
+	const auto free_result = reinterpret_cast<MarmotFFIFreeResultFn>(GetPlatformFunction(handle.get(), "MARMOT_FFI_FreeResult"));
+	auto bound = BindSymbols(name, symbols, free_result, handle, [&handle](const std::string& symbol)
+	{
+		return reinterpret_cast<MarmotFFIFn>(GetPlatformFunction(handle.get(), symbol));
+	});
+	if (!bound.has_value())
+	{
+		return std::unexpected(bound.error());
+	}
+	std::lock_guard<std::mutex> lock(m_mutex);
+	for (const auto& [key, function] : bound.value())
+	{
+		m_functions.insert_or_assign(key, function);
+	}
 	return {};
 }
 
-bool SharedLibraryCache::IsLibraryLoaded(const std::string& package_name) const
+void SharedLibraryCache::RegisterHostLibrary(std::string name, MarmotFFIFreeResultFn free_result, HostSymbolResolver resolve)
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
-	return m_libraries.contains(package_name);
+	m_host_libraries.emplace(std::move(name), HostLibrary{free_result, resolve});
 }
 
-std::unordered_map<std::string, VmFFIFunction> SharedLibraryCache::SnapshotAllFunctions() const
+std::optional<std::expected<void, std::string>> SharedLibraryCache::LoadHostLibrary(
+	const std::string& name, const std::vector<std::string>& symbols)
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
-	std::unordered_map<std::string, VmFFIFunction> snapshot;
-	for (const std::pair<const std::string, SharedLibraryEntry>& lib : m_libraries)
+	const auto found = m_host_libraries.find(name);
+	if (found == m_host_libraries.end())
 	{
-		for (const std::pair<const std::string, VmFFIFunction>& func : lib.second.m_functions)
-		{
-			snapshot.emplace(func.first, func.second);
-		}
+		return std::nullopt;
 	}
-	return snapshot;
+	const HostLibrary& host = found->second;
+	auto bound = BindSymbols(name, symbols, host.m_free_result, {}, host.m_resolve);
+	if (!bound.has_value())
+	{
+		return std::unexpected(bound.error());
+	}
+	m_functions.merge(bound.value());
+	return std::expected<void, std::string>{};
 }
 
-std::vector<std::string> SharedLibraryCache::GetNonThreadSafeLibraries(const std::vector<std::string>& library_names) const
+std::unordered_map<std::string, VmNativeFunction> SharedLibraryCache::SnapshotAllFunctions() const
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
-	std::vector<std::string> result;
-	for (const std::string& name : library_names)
-	{
-		const std::unordered_map<std::string, SharedLibraryEntry>::const_iterator it = m_libraries.find(name);
-		if (it != m_libraries.end() && !it->second.m_thread_safe)
-		{
-			result.push_back(name);
-		}
-	}
-	return result;
+	return m_functions;
 }
 
 void SharedLibraryCache::Clear()
 {
 	std::lock_guard<std::mutex> lock(m_mutex);
-	for (const std::pair<const std::string, SharedLibraryEntry>& lib : m_libraries)
-	{
-		UnloadPlatformLibrary(lib.second.m_handle);
-	}
-	m_libraries.clear();
-}
-
-SharedLibraryCache::~SharedLibraryCache()
-{
-	std::lock_guard<std::mutex> lock(m_mutex);
-	for (const std::pair<const std::string, SharedLibraryEntry>& lib : m_libraries)
-	{
-		UnloadPlatformLibrary(lib.second.m_handle);
-	}
+	m_functions.clear();
 }
 
 std::expected<void*, std::string> SharedLibraryCache::LoadPlatformLibrary(const std::filesystem::path& path)
@@ -147,6 +127,8 @@ std::expected<void*, std::string> SharedLibraryCache::LoadPlatformLibrary(const 
 		return std::unexpected(std::format("FFI error: failed to load library '{}' (Windows error {}).", path.string(), error));
 	}
 	return handle;
+#elif defined(__EMSCRIPTEN__)
+	return std::unexpected(std::format("FFI error: browser host has not registered native library file '{}'.", path.string()));
 #else
 	void* handle = dlopen(path.c_str(), RTLD_LAZY | RTLD_LOCAL);
 	if (!handle)
@@ -166,7 +148,7 @@ void SharedLibraryCache::UnloadPlatformLibrary(void* handle)
 
 #ifdef _WIN32
 	FreeLibrary(static_cast<HMODULE>(handle));
-#else
+#elif !defined(__EMSCRIPTEN__)
 	dlclose(handle);
 #endif
 }
@@ -180,6 +162,8 @@ void* SharedLibraryCache::GetPlatformFunction(void* library_handle, const std::s
 
 #ifdef _WIN32
 	return reinterpret_cast<void*>(GetProcAddress(static_cast<HMODULE>(library_handle), function_name.c_str()));
+#elif defined(__EMSCRIPTEN__)
+	return nullptr;
 #else
 	return dlsym(library_handle, function_name.c_str());
 #endif

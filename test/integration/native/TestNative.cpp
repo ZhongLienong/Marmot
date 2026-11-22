@@ -6,19 +6,64 @@
 #include <cstdlib>
 #include <cstring>
 
-#if defined(_WIN32)
-#define MARMOT_TEST_NATIVE_API extern "C" __declspec(dllexport)
-#else
-#define MARMOT_TEST_NATIVE_API extern "C" __attribute__((visibility("default")))
+#define MARMOT_FFI_IMPLEMENTATION
+#include <marmot/MarmotFFI.h>
+
+#include <atomic>
+
+namespace
+{
+	std::atomic<int64_t> s_freed_results = 0;
+	char s_up[] = "up";
+	char s_down[] = "down";
+	char* s_words[] = { s_up, s_down };
+	MarmotFFIArray s_words_array{ s_words, 2 };
+}
+
+#ifndef MARMOT_TEST_NO_FREE_RESULT
+MARMOT_FFI_EXPORT void MARMOT_FFI_CALL MARMOT_FFI_FreeResult(uint8_t kind, void* ptr)
+{
+	s_freed_results += 1;
+	if (kind == MARMOT_FFI_RETURN_ARRAY_STRINGS && ptr == &s_words_array)
+	{
+		// This result uses storage only this library can release. Overwrite it
+		// so clients also have to copy the strings before the deallocation call.
+		s_up[0] = 'X';
+		return;
+	}
+	if (kind == MARMOT_FFI_RETURN_ARRAY_VALUES)
+	{
+		std::free(static_cast<MarmotFFIArray*>(ptr)->data);
+	}
+	std::free(ptr);
+}
 #endif
 
-MARMOT_TEST_NATIVE_API void marmot_test_answer(void**, void* ret) noexcept
+extern "C" MARMOT_FFI_EXPORT void MARMOT_FFI_CALL marmot_test_freed(void**, void* ret)
+{
+	const int64_t freed = s_freed_results.load();
+	std::memcpy(ret, &freed, sizeof(freed));
+}
+
+extern "C" MARMOT_FFI_EXPORT void MARMOT_FFI_CALL marmot_test_text_bytes(void** args, void* ret)
+{
+	const MarmotFFIArray& array = *static_cast<const MarmotFFIArray*>(args[0]);
+	const auto* strings = static_cast<const char* const*>(array.data);
+	int64_t bytes = 0;
+	for (int32_t index = 0; index < array.length; index += 1)
+	{
+		bytes += static_cast<int64_t>(std::strlen(strings[index]));
+	}
+	std::memcpy(ret, &bytes, sizeof(bytes));
+}
+
+extern "C" MARMOT_FFI_EXPORT void MARMOT_FFI_CALL marmot_test_answer(void**, void* ret) noexcept
 {
 	const int64_t answer = 42;
 	std::memcpy(ret, &answer, sizeof(answer));
 }
 
-MARMOT_TEST_NATIVE_API void marmot_test_add(void** args, void* ret) noexcept
+extern "C" MARMOT_FFI_EXPORT void MARMOT_FFI_CALL marmot_test_add(void** args, void* ret) noexcept
 {
 	int64_t left = 0;
 	int64_t right = 0;
@@ -28,21 +73,15 @@ MARMOT_TEST_NATIVE_API void marmot_test_add(void** args, void* ret) noexcept
 	std::memcpy(ret, &sum, sizeof(sum));
 }
 
-struct MarmotTestArray
-{
-	void* data;
-	int length;
-};
-
-MARMOT_TEST_NATIVE_API void marmot_test_length(void** args, void* ret) noexcept
+extern "C" MARMOT_FFI_EXPORT void MARMOT_FFI_CALL marmot_test_length(void** args, void* ret) noexcept
 {
 	const int64_t length = static_cast<int64_t>(std::strlen(static_cast<const char*>(args[0])));
 	std::memcpy(ret, &length, sizeof(length));
 }
 
-MARMOT_TEST_NATIVE_API void marmot_test_sum(void** args, void* ret) noexcept
+extern "C" MARMOT_FFI_EXPORT void MARMOT_FFI_CALL marmot_test_sum(void** args, void* ret) noexcept
 {
-	const MarmotTestArray* array = static_cast<const MarmotTestArray*>(args[0]);
+	const MarmotFFIArray* array = static_cast<const MarmotFFIArray*>(args[0]);
 	const int64_t* values = static_cast<const int64_t*>(array->data);
 	int64_t sum = 0;
 	for (int index = 0; index < array->length; index += 1)
@@ -52,7 +91,7 @@ MARMOT_TEST_NATIVE_API void marmot_test_sum(void** args, void* ret) noexcept
 	std::memcpy(ret, &sum, sizeof(sum));
 }
 
-MARMOT_TEST_NATIVE_API void marmot_test_count(void** args, void* ret) noexcept
+extern "C" MARMOT_FFI_EXPORT void MARMOT_FFI_CALL marmot_test_count(void** args, void* ret) noexcept
 {
 	int64_t count = 0;
 	std::memcpy(&count, &args[0], sizeof(count));
@@ -61,13 +100,13 @@ MARMOT_TEST_NATIVE_API void marmot_test_count(void** args, void* ret) noexcept
 	{
 		values[index] = index;
 	}
-	MarmotTestArray* array = static_cast<MarmotTestArray*>(std::malloc(sizeof(MarmotTestArray)));
+	MarmotFFIArray* array = static_cast<MarmotFFIArray*>(std::malloc(sizeof(MarmotFFIArray)));
 	array->data = values;
 	array->length = static_cast<int>(count);
 	std::memcpy(ret, &array, sizeof(array));
 }
 
-MARMOT_TEST_NATIVE_API void marmot_test_shout(void** args, void* ret) noexcept
+extern "C" MARMOT_FFI_EXPORT void MARMOT_FFI_CALL marmot_test_shout(void** args, void* ret) noexcept
 {
 	const char* text = static_cast<const char*>(args[0]);
 	const size_t length = std::strlen(text);
@@ -78,15 +117,9 @@ MARMOT_TEST_NATIVE_API void marmot_test_shout(void** args, void* ret) noexcept
 	std::memcpy(ret, &result, sizeof(result));
 }
 
-MARMOT_TEST_NATIVE_API void marmot_test_words(void**, void* ret) noexcept
+extern "C" MARMOT_FFI_EXPORT void MARMOT_FFI_CALL marmot_test_words(void**, void* ret) noexcept
 {
-	char** words = static_cast<char**>(std::malloc(2u * sizeof(char*)));
-	words[0] = static_cast<char*>(std::malloc(3u));
-	std::memcpy(words[0], "up", 3u);
-	words[1] = static_cast<char*>(std::malloc(5u));
-	std::memcpy(words[1], "down", 5u);
-	MarmotTestArray* array = static_cast<MarmotTestArray*>(std::malloc(sizeof(MarmotTestArray)));
-	array->data = words;
-	array->length = 2;
+	s_up[0] = 'u';
+	MarmotFFIArray* array = &s_words_array;
 	std::memcpy(ret, &array, sizeof(array));
 }

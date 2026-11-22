@@ -317,7 +317,9 @@ namespace MarmotTest
 	{
 		SourceFixture source(std::move(source_code), std::move(file_name));
 
-		MarmotResult::CompilationResult compile_result = MarmotDriver::CompileSourceWithReport(std::string(source.SourceCode()), source.FileName(), MarmotDriver::EnvironmentCompilationInputs());
+		MarmotResult::CompilationResult compile_result = MarmotDriver::CompileSourceWithReport(
+			std::string(source.SourceCode()), source.FileName(),
+			MarmotDriver::EnvironmentCompilationInputs().WithNativeLibraryPolicies({ { "marmotstdlib", NativeLibraryPolicy{ .m_thread_safe = true } } }));
 		if (!compile_result.has_value())
 		{
 			// Execution helpers keep a single-error surface for legacy tests; compile-time

@@ -139,6 +139,26 @@ fn vm(compiler: &Path) -> PathBuf {
         })
 }
 
+fn stdlib_name() -> String {
+    format!(
+        "{}marmotstdlib{}",
+        std::env::consts::DLL_PREFIX,
+        std::env::consts::DLL_SUFFIX
+    )
+}
+
+fn stdlib(compiler: &Path) -> PathBuf {
+    let vm = vm(compiler);
+    let preset = vm.parent().unwrap().parent().unwrap();
+    let project = preset.parent().unwrap();
+    if project.file_name().is_some_and(|name| name == "marmotvm") {
+        project.parent().unwrap().join("marmotstdlib")
+            .join(preset.file_name().unwrap()).join("out").join(stdlib_name())
+    } else {
+        vm.with_file_name(stdlib_name())
+    }
+}
+
 fn marmotc(compiler: &Path, directory: &Path, args: &[&str]) -> Output {
     run(compiler, directory, args, compiler)
 }
@@ -354,15 +374,19 @@ fn run_check_build_and_the_plan_handoff() {
     let suffix = std::env::consts::EXE_SUFFIX;
     let independent_compiler = project.path(&format!("build/marmotc/dev/out/marmotc{suffix}"));
     let independent_vm = project.path(&format!("build/marmotvm/dev/out/marmotvm{suffix}"));
+    let independent_stdlib = project.path(&format!("build/marmotstdlib/dev/out/{}", stdlib_name()));
     std::fs::create_dir_all(independent_compiler.parent().unwrap()).unwrap();
     std::fs::create_dir_all(independent_vm.parent().unwrap()).unwrap();
+    std::fs::create_dir_all(independent_stdlib.parent().unwrap()).unwrap();
     std::fs::copy(&compiler, &independent_compiler).unwrap();
     std::fs::copy(vm(&compiler), independent_vm).unwrap();
+    std::fs::copy(stdlib(&compiler), independent_stdlib).unwrap();
     let discovered = Command::new(env!("CARGO_BIN_EXE_marmot"))
         .args(["run", "--rebuild"])
         .current_dir(&project.0)
         .env("MARMOTC", independent_compiler)
         .env_remove("MARMOTVM")
+        .env_remove("MARMOTSTDLIB")
         .env("MARMOT_PATH", prelude())
         .output()
         .unwrap();
@@ -411,17 +435,19 @@ fn an_installed_tool_uses_its_siblings_and_installed_prelude() {
     std::fs::copy(env!("CARGO_BIN_EXE_marmot"), &tool).unwrap();
     std::fs::copy(&compiler, bin.join(format!("marmotc{suffix}"))).unwrap();
     std::fs::copy(vm(&compiler), bin.join(format!("marmotvm{suffix}"))).unwrap();
+    std::fs::copy(stdlib(&compiler), bin.join(stdlib_name())).unwrap();
     project.write(
         "install/MarmotPrelude/Installed.mmt",
         "module Installed\npublic export { Value }\ndef Value = 42;\n",
     );
-    project.write("Main.mmt", "module Main\nimport { <Installed> }\nforeign \"MARMOT_FFI_Print\" Print : fn(Text) -> Unit;\nPrint(Installed::Value as Text);\n");
+    project.write("Main.mmt", "module Main\nimport { <Installed> }\nforeign \"MARMOT_FFI_Print\" Print : fn(Text) -> Unit from \"marmotstdlib\";\nPrint(Installed::Value as Text);\n");
     let invoke = |command| {
         Command::new(&tool)
             .args([command, "Main.mmt"])
             .current_dir(&project.0)
             .env_remove("MARMOTC")
             .env_remove("MARMOTVM")
+            .env_remove("MARMOTSTDLIB")
             .env("MARMOT_PATH", project.path("install/MarmotPrelude"))
             .output()
             .unwrap()

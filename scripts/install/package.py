@@ -24,10 +24,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from install.install import copy_prelude
+from install.install import copy_ffi_sdk, copy_prelude
 from install.layout import InstallLayout
 from lib import cargo, console
-from lib.host import IS_WINDOWS, REPO_ROOT
+from lib.host import FFI_SPEC_DIR, IS_WINDOWS, REPO_ROOT
 from lib.presets import BuildTree, add_build_arguments
 
 PACKAGE_DIR = REPO_ROOT / "out" / "package"
@@ -40,9 +40,10 @@ def stage(tree: BuildTree, target: InstallLayout) -> None:
     if target.root.exists():
         shutil.rmtree(target.root)
     target.bin_dir.mkdir(parents=True)
-    for binary in (tree.require_compiler(), tree.vm, cargo.binary("release")):
+    for binary in (tree.require_compiler(), tree.vm, tree.stdlib, cargo.binary("release")):
         shutil.copy2(binary, target.bin_dir / binary.name)
     copy_prelude(target)
+    copy_ffi_sdk(target)
     for template in (SETUP_SCRIPT, "README.md"):
         shutil.copy2(TEMPLATE_DIR / template, target.root / template)
 
@@ -55,7 +56,8 @@ def smoke_test(archive: Path, name: str) -> bool:
         shutil.unpack_archive(archive, scratch)
         root = Path(scratch) / name
         (root / "Hello.mmt").write_text(HELLO, encoding="utf-8")
-        environment = {key: value for key, value in os.environ.items() if key != "MARMOT_PATH"}
+        environment = {key: value for key, value in os.environ.items()
+                       if key not in {"MARMOT_PATH", "MARMOTSTDLIB", "MARMOTC", "MARMOTVM"}}
         if IS_WINDOWS:
             environment["MARMOT_PATH"] = str(root / "MarmotPrelude")
             environment["PATH"] = str(root / "bin") + os.pathsep + environment.get("PATH", "")
@@ -88,6 +90,10 @@ def main(argv: list[str]) -> int:
         return 1
 
     console.ok(f"packaged {archive}")
+    sdk_archive = shutil.make_archive(
+        str(PACKAGE_DIR / "marmot-ffi-sdk"), "zip", FFI_SPEC_DIR.parent, FFI_SPEC_DIR.name
+    )
+    console.ok(f"packaged {sdk_archive}")
     return 0
 
 

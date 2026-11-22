@@ -27,7 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from lib import console
 from lib.presets import BuildTree, UNIT_TARGETS as TEST_BINARIES
 
-COMPILER_AND_VM = ["marmotc", "marmotvm"]
+COMPILER_AND_VM = ["marmotc", "marmotvm", "marmotstdlib"]
 UNIT_TARGETS = [*TEST_BINARIES, *COMPILER_AND_VM]
 
 

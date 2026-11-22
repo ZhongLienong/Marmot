@@ -1,7 +1,7 @@
 {
-  "format_marker": 19,
-  "baseline_commit": "153b960cc84df1f2226ddc0f4085a313d826e889",
-  "producer": "marmotc build, Development profile, with the marker 19 array concatenation change applied",
+  "format_marker": 20,
+  "baseline_commit": "eab937dd930350041c718c7d2c84dfeb596e4ef7",
+  "producer": "marmotc build, Development profile, with the marker 20 native extension cutover",
   "path_normalization": "Serialized paths beneath the checkout were changed to repository-relative forward-slash paths; payload size and CRC32 were recomputed. All other fields are unchanged.",
   "valid": [
     {
@@ -14,7 +14,8 @@
       "name": "control",
       "source": "format/mmc/sources/control.mmt",
       "exit_code": 0,
-      "stdout": "large\n"
+      "stdout": "",
+      "stderr": "large\n"
     },
     {
       "name": "embedded_error",
@@ -24,7 +25,7 @@
       "stdout_contains": [
         "error[IndexOutOfBounds]",
         "def missing = values[4];",
-        "format/mmc/sources/embedded_error.mmt:4"
+        "format/mmc/sources/embedded_error.mmt:5"
       ]
     },
     {
@@ -48,8 +49,8 @@
     },
     {
       "name": "incompatible_marker",
-      "derived_from": "minimal.mmc with format marker changed from 19 to 18",
-      "stderr_contains": "format marker mismatch: expected 19, got 18"
+      "derived_from": "minimal.mmc with format marker changed from 20 to 19",
+      "stderr_contains": "format marker mismatch: expected 20, got 19"
     }
   ]
 }

@@ -18,7 +18,6 @@ private:
 	};
 
 public:
-	static constexpr int ABI_VERSION = 1;
 	static constexpr size_t COUNT = s_names.size();
 
 	static constexpr std::optional<size_t> FindIndex(std::string_view name)

@@ -43,7 +43,7 @@ TEST_CASE("Lowering rejects a foreign name that is neither builtin nor package-d
 {
 	const std::string source =
 		R"(module ForeignTypo
-foreign "MARMOT_FFI_Print" Print : fn(Text) -> Unit;
+foreign "MARMOT_FFI_ReportPanic" Report : fn(Text) -> Unit;
 foreign "MARMOT_FFI_PrintLin" PrintTypo : fn(Text) -> Unit;
 )";
 
@@ -71,7 +71,7 @@ foreign "marmot_image"
 	"image_read_info" ReadInfo : fn(Text) -> Array<Int>;
 	"image_version" Version : fn() -> Int;
 }
-foreign "MARMOT_FFI_Print" Print : fn(Text) -> Unit;
+foreign "MARMOT_FFI_ReportPanic" Report : fn(Text) -> Unit;
 foreign "helper" Helper : fn() -> Int from "other";
 )";
 
