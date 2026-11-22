@@ -1,4 +1,4 @@
-#include "MarmotNativeSupport/TextPath.h"
+#include "TextPath.h"
 
 namespace TextPath
 {

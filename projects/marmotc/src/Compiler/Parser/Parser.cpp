@@ -2392,7 +2392,7 @@ bool Parser::ProbeRecordUpdate()
 		offset += 1;
 
 		// Safety limit to prevent infinite loop
-		if (offset > MAX_ARRAY_SIZE)
+		if (offset > MmcWire::MAX_ARRAY_SIZE)
 		{
 			return false;
 		}
@@ -2670,7 +2670,7 @@ Parser::ArrayComprehensionProbe Parser::ProbeArrayComprehension()
 		offset += 1;
 
 		// Safety limit to prevent infinite loop
-		if (offset > MAX_ARRAY_SIZE)
+		if (offset > MmcWire::MAX_ARRAY_SIZE)
 		{
 			return {};
 		}
@@ -2924,7 +2924,7 @@ Parser::ParsedTypeResult Parser::WithTypeDeclarationHeader(std::string_view noun
 					return std::unexpected(GenerateParserError(std::string(capitalized_noun) + " constraints require at least one type parameter."s, header.m_name));
 				}
 
-				std::expected<std::vector<MarmotType::ClassConstraint>, CompilerError> constraints_result = ParseClassConstraints(header.m_name);
+				std::expected<std::vector<MarmotType::ClassConstraint>, CompilerError> constraints_result = ParseClassConstraints();
 				if (!constraints_result.has_value())
 				{
 					return std::unexpected(constraints_result.error());
@@ -3143,7 +3143,7 @@ Parser::ParsedTypeResult Parser::ParseUnionBody(TypeDeclarationHeader&& header)
 bool Parser::TypeBodyHasTopLevelBar()
 {
 	// Bounded scan from the current token to the depth-0 ';' that ends the
-	// declaration, capped by MAX_ARRAY_SIZE and bailing out as soon as any
+	// declaration, capped by MmcWire::MAX_ARRAY_SIZE and bailing out as soon as any
 	// depth counter would go negative, following the ProbeArrayComprehension
 	// and ProbeRecordUpdate precedent: unlike those, this scan has no closing
 	// delimiter of its own to bound it, so both guards are needed to keep a
@@ -3223,7 +3223,7 @@ bool Parser::TypeBodyHasTopLevelBar()
 			return true;
 		}
 
-		if (offset > MAX_ARRAY_SIZE)
+		if (offset > MmcWire::MAX_ARRAY_SIZE)
 		{
 			return false;
 		}
@@ -3724,7 +3724,7 @@ MarmotResult::StatementResult Parser::ParseInstanceDeclaration()
 			std::vector<MarmotType::ClassConstraint> constraints;
 			if (Match(Token::Name::WHERE))
 			{
-				std::expected<std::vector<MarmotType::ClassConstraint>, CompilerError> constraints_result = ParseClassConstraints(typeclass_name);
+				std::expected<std::vector<MarmotType::ClassConstraint>, CompilerError> constraints_result = ParseClassConstraints();
 				if (!constraints_result.has_value())
 				{
 					return std::unexpected(constraints_result.error());
@@ -4173,7 +4173,7 @@ MarmotResult::ExpressionResult Parser::ParseFunctionExpression()
 					std::vector<MarmotType::ClassConstraint> constraints;
 					if (Match(Token::Name::WHERE))
 					{
-						std::expected<std::vector<MarmotType::ClassConstraint>, CompilerError> constraints_result = ParseClassConstraints(keyword);
+						std::expected<std::vector<MarmotType::ClassConstraint>, CompilerError> constraints_result = ParseClassConstraints();
 						if (!constraints_result.has_value())
 						{
 							return std::unexpected(constraints_result.error());
@@ -5338,7 +5338,7 @@ void Parser::PushActiveConstraints(const std::vector<MarmotType::ClassConstraint
 	}
 }
 
-std::expected<std::vector<MarmotType::ClassConstraint>, CompilerError> Parser::ParseClassConstraints(const Token& context_token)
+std::expected<std::vector<MarmotType::ClassConstraint>, CompilerError> Parser::ParseClassConstraints()
 {
 	// An equality constraint reads 'Class::Assoc<S> ~ Type'. The '::' one token
 	// past the leading identifier is what distinguishes it from a class

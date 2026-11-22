@@ -62,7 +62,7 @@ std::vector<std::string> TypeclassMetadata::InstanceMethods() const
 	{
 		for (const std::string& method : instance.m_methods)
 		{
-			names.push_back(instance.m_declaring_module.empty() ? method : method + ModuleSeparator + instance.m_declaring_module);
+			names.push_back(instance.m_declaring_module.empty() ? method : method + MmcWire::MODULE_SEPARATOR + instance.m_declaring_module);
 		}
 	}
 	return names;

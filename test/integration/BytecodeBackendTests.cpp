@@ -66,7 +66,7 @@ TEST_CASE("The backend moves a jump's arguments into its target's parameters all
 {
 	MarmotIRModule module("Swap");
 	const MarmotIRGlobalSlot print = module.ReserveGlobal("Print", ScalarType(MarmotIRScalar::Text));
-	MarmotIRFunction function(std::string(MAIN_PROCEDURE_PREFIX), MarmotType::MakeLiteralType<MarmotType::UnitType>());
+	MarmotIRFunction function(std::string(MmcWire::MAIN_PROCEDURE_PREFIX), MarmotType::MakeLiteralType<MarmotType::UnitType>());
 	MarmotIRBuilder builder(function);
 	const MarmotIRBlockId loop = builder.CreateBlock();
 	const MarmotIRBlockId body = builder.CreateBlock();

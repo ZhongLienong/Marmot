@@ -1,6 +1,49 @@
 {
   "format_marker": 19,
   "builtin_abi_version": 1,
+  "wire": {
+    "magic": [77, 66, 67, 0],
+    "header_size": 32,
+    "header_offsets": {
+      "magic": 0,
+      "format_marker": 4,
+      "version_major": 8,
+      "version_minor": 10,
+      "version_patch": 12,
+      "reserved": 14,
+      "flags": 16,
+      "payload_size": 20,
+      "payload_crc32": 28
+    },
+    "source_files_embedded_flag": 1,
+    "crc32": {
+      "polynomial": 3988292384,
+      "initial": 4294967295,
+      "final_xor": 4294967295
+    },
+    "call_foreign": {
+      "argument_bits": 2,
+      "argument_mask": 3,
+      "argument_kinds": {
+        "raw_value": 0,
+        "c_string": 1,
+        "array_view": 2
+      },
+      "return_kind_mask": 127,
+      "pointer_elements_flag": 128,
+      "return_kinds": {
+        "raw_value": 0,
+        "c_string": 1,
+        "array_values": 2,
+        "array_strings": 3
+      }
+    },
+    "max_union_tag": 255,
+    "max_array_size": 16777215,
+    "module_separator": "@",
+    "main_procedure_prefix": "$main$",
+    "module_bootstrap_prefix": "$module_bootstrap$"
+  },
   "opcodes": [
     {
       "id": 0,

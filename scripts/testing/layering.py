@@ -38,13 +38,21 @@ DRIVER_DIRS = [
 DRIVER_FILES = [ROOT / 'projects' / 'marmotc' / 'src' / 'Marmot.cpp']
 
 ALLOWED = {
-    'runtime': {'runtime', 'stdlib', 'support'},
+    'runtime': {'runtime'},
     'compiler': {'compiler'},
     'driver': {'compiler', 'driver'},
     'stdlib': {'stdlib', 'support'},
     'support': {'support'},
     'web': set(),
     'vm': {'runtime', 'vm'},
+}
+
+# The static builtin bridge predates the named standard-library FFI in phase 1.2.
+STDLIB_BRIDGE_INCLUDES = {
+    ('projects/marmotvm/src/FFI/FFIAdapters.cpp', 'FFIAllocation/FFIAllocation.h'),
+    ('projects/marmotvm/src/FFI/FFIAdapters.cpp', 'System.h'),
+    ('projects/marmotvm/src/FFI/MarmotVMFFIExports.h', 'FFIAllocation/FFIAllocation.h'),
+    ('projects/marmotvm/src/FFI/MarmotVMFFIExports.h', 'MarmotStdLibExports.h'),
 }
 
 INCLUDE = re.compile(r'^\s*#\s*include\s+"([^"]+)"', re.MULTILINE)
@@ -112,19 +120,23 @@ def main(argv: list[str]) -> int:
             continue
         text = source.read_text(encoding='utf-8', errors='replace')
         violations.extend(pipeline_violations(source, text))
+        relative = source.relative_to(ROOT).as_posix()
         for match in INCLUDE.finditer(text):
-            resolved = resolve(source, match.group(1))
+            header = match.group(1)
+            resolved = resolve(source, header)
             if resolved is None:
                 continue
             target_component = component_of(resolved)
             if target_component in ALLOWED[source_component]:
                 continue
+            if target_component == 'stdlib' and (relative, header) in STDLIB_BRIDGE_INCLUDES:
+                continue
             if target_component is None and not resolved.resolve().is_relative_to(ROOT.resolve()):
                 continue
             line = text.count('\n', 0, match.start()) + 1
             violations.append(
-                f'{source.relative_to(ROOT).as_posix()}:{line}: {source_component} includes '
-                f'{target_component or "unowned repository"} header "{match.group(1)}"'
+                f'{relative}:{line}: {source_component} includes '
+                f'{target_component or "unowned repository"} header "{header}"'
             )
 
     cmake = '\n'.join(path.read_text(encoding='utf-8') for project in ('marmotc', 'marmotvm', 'marmotstdlib') for path in (ROOT / 'projects' / project).rglob('*.cmake')) + '\n' + '\n'.join((ROOT / 'projects' / project / 'CMakeLists.txt').read_text(encoding='utf-8') for project in ('marmotc', 'marmotvm', 'marmotstdlib'))
@@ -146,9 +158,9 @@ def main(argv: list[str]) -> int:
 
     for target, forbidden in (
         ('marmotc', {'MarmotRuntime', 'MarmotBytecode'}),
-        ('marmotvm', {'MarmotCompiler', 'MarmotDriver', 'MarmotBytecode'}),
+        ('marmotvm', {'MarmotCompiler', 'MarmotDriver', 'MarmotBytecode', 'MarmotNativeSupport'}),
+        ('MarmotRuntime', {'MarmotNativeSupport'}),
         ('MarmotStdLib', {'MarmotRuntime', 'MarmotCompiler', 'MarmotDriver'}),
-        ('MarmotNativeSupport', {'MarmotRuntime', 'MarmotStdLib', 'MarmotCompiler', 'MarmotDriver'}),
     ):
         for dependency in reachable(target) & forbidden:
             violations.append(f'CMakeLists.txt: {target} links {dependency}')

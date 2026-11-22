@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <charconv>
 #include <cstdio>
-#include <cstdlib>
 #include <expected>
 #include <filesystem>
 #include <fstream>
@@ -16,19 +15,15 @@
 #include <utility>
 #include <vector>
 
-#ifdef _WIN32
-#include <io.h>
-#else
-#include <unistd.h>
-#endif
-
 #include "Utility/Diagnostics/Diagnostics.h"
 #include "Bytecode/Artifact/BinaryArtifact.h"
 #include "Compiler/Json/Json.h"
-#include "Compiler/Terminal/Terminal.h"
+#include "Support/Terminal/Terminal.h"
 #include "Utility/BuildPlan/BuildPlan.h"
 #include "Utility/Driver/MarmotDriver.h"
 #include "Utility/Formatter/Formatter.h"
+
+#include <CLI/CLI.hpp>
 
 namespace
 {
@@ -85,34 +80,11 @@ namespace
 		CommandHandler m_handler;
 	};
 
-	[[nodiscard]] std::string_view Environment(const char* name)
-	{
-		const char* value = std::getenv(name);
-		return value == nullptr ? std::string_view() : std::string_view(value);
-	}
-
-	// Diagnostics go to stderr, so they are coloured when it is a terminal.
-	// NO_COLOR turns colour off and CLICOLOR_FORCE on, NO_COLOR first.
-	[[nodiscard]] bool DiagnosticsColored()
-	{
-		if (!Environment("NO_COLOR").empty())
-		{
-			return false;
-		}
-		if (!Environment("CLICOLOR_FORCE").empty() && Environment("CLICOLOR_FORCE") != "0")
-		{
-			return true;
-		}
-#ifdef _WIN32
-		return _isatty(_fileno(stderr)) != 0;
-#else
-		return isatty(fileno(stderr)) != 0;
-#endif
-	}
+	const std::vector<CommandSpec>& CommandTable();
 
 	void PrintCliError(std::string_view message)
 	{
-		std::print(stderr, "{}{}{}\n", CompilerTerminal::Code(CompilerTerminal::Color::RED), message, CompilerTerminal::Code(CompilerTerminal::Color::RESET));
+		std::print(stderr, "{}{}{}\n", MarmotTerminal::Code(MarmotTerminal::Color::RED), message, MarmotTerminal::Code(MarmotTerminal::Color::RESET));
 	}
 
 	[[nodiscard]] std::string CommandHelp(std::string_view command_name)
@@ -251,46 +223,6 @@ namespace
 		return std::nullopt;
 	}
 
-	[[nodiscard]] bool ParseFormatValue(const std::vector<std::string_view>& args, size_t& index, OutputFormat& format, std::string& error)
-	{
-		if (index + 1u >= args.size())
-		{
-			error = "Missing value for --format.";
-			return false;
-		}
-
-		const std::string_view format_value = args[index + 1u];
-		if (format_value != "json")
-		{
-			error = std::format("Unknown format: {}", format_value);
-			return false;
-		}
-
-		format = OutputFormat::Json;
-		index += 1u;
-		return true;
-	}
-
-	// Reads the value of --plan at args[index + 1].
-	[[nodiscard]] bool ParsePlanValue(const std::vector<std::string_view>& args, size_t& index, std::optional<std::filesystem::path>& plan_file, std::string& error)
-	{
-		if (index + 1u >= args.size())
-		{
-			error = "Missing value for --plan.";
-			return false;
-		}
-
-		if (plan_file.has_value())
-		{
-			error = "Only one --plan is allowed.";
-			return false;
-		}
-
-		plan_file = std::filesystem::path(args[index + 1u]);
-		index += 1u;
-		return true;
-	}
-
 	// A plan names its own entry, so it replaces the source-file argument.
 	[[nodiscard]] std::expected<void, std::string> ApplyPlan(Invocation& invocation, const std::optional<std::filesystem::path>& plan_file, std::string_view command)
 	{
@@ -330,329 +262,194 @@ namespace
 		return {};
 	}
 
-	[[nodiscard]] std::expected<size_t, std::string> ParseJobs(const std::vector<std::string_view>& args, size_t& index)
+	[[nodiscard]] std::string UnknownCommand(std::string_view command)
 	{
-		if (index + 1u >= args.size())
+		if (command == "run" || command == "test" || command.ends_with(".mmt") || command.ends_with(".mmc"))
 		{
-			return std::unexpected("Missing value for --jobs.");
+			return std::format(
+				"marmotc compiles and never runs a program. Run one with `marmot {} <file>`, or build it with `marmotc build` and run the .mmc with marmotvm.",
+				command == "test" ? "test" : "run");
 		}
-
-		const std::string_view value = args[++index];
-		size_t jobs = 0u;
-		const std::from_chars_result parsed = std::from_chars(value.data(), value.data() + value.size(), jobs);
-		if (parsed.ec != std::errc{} || parsed.ptr != value.data() + value.size() || jobs == 0u)
-		{
-			return std::unexpected("--jobs requires a positive integer.");
-		}
-		return jobs;
-	}
-
-	// check and build share their options; build adds where its output goes.
-	[[nodiscard]] ParseResult ParseCompile(CommandKind kind, const std::vector<std::string_view>& args)
-	{
-		const std::string_view command = kind == CommandKind::Check ? "check" : "build";
-		const bool is_build = kind == CommandKind::Build;
-		Invocation invocation;
-		invocation.m_kind = kind;
-		std::optional<std::filesystem::path> plan_file = std::nullopt;
-
-		for (size_t index = 0u; index < args.size(); index += 1u)
-		{
-			const std::string_view arg = args[index];
-			if (arg == "-h" || arg == "--help")
-			{
-				invocation.m_show_help = true;
-				continue;
-			}
-
-			if (arg == "--plan")
-			{
-				std::string error;
-				if (!ParsePlanValue(args, index, plan_file, error))
-				{
-					return std::unexpected(error);
-				}
-				continue;
-			}
-
-			if (is_build && arg == "--embed-sources")
-			{
-				invocation.m_embed_sources = true;
-				continue;
-			}
-
-			if (is_build && arg == "--quiet")
-			{
-				invocation.m_quiet = true;
-				continue;
-			}
-
-			if (is_build && (arg == "-o" || arg == "--output"))
-			{
-				if (index + 1u >= args.size())
-				{
-					return std::unexpected(std::format("Missing value for {}.", arg));
-				}
-				index += 1u;
-				invocation.m_output_path = std::filesystem::path(args[index]);
-				continue;
-			}
-
-			if (is_build && arg == "--deps")
-			{
-				if (index + 1u >= args.size())
-				{
-					return std::unexpected("Missing value for --deps.");
-				}
-				index += 1u;
-				invocation.m_deps_path = std::filesystem::path(args[index]);
-				continue;
-			}
-
-			if (arg == "--jobs")
-			{
-				std::expected<size_t, std::string> jobs = ParseJobs(args, index);
-				if (!jobs.has_value())
-				{
-					return std::unexpected(std::move(jobs.error()));
-				}
-				invocation.m_jobs = jobs.value();
-				continue;
-			}
-
-			if (arg == "--timings")
-			{
-				invocation.m_timings = true;
-				continue;
-			}
-
-			if (arg == "--optimizer-stats")
-			{
-#if MARMOT_ENABLE_OPTIMIZER_STATS
-				invocation.m_optimizer_stats = true;
-				continue;
-#else
-				return std::unexpected("--optimizer-stats requires a Debug or Dev build.");
-#endif
-			}
-
-			if (arg == "--emit-ir")
-			{
-				invocation.m_emit_ir = true;
-				continue;
-			}
-
-			if (arg == "--emit-ast")
-			{
-				invocation.m_emit_ast = true;
-				continue;
-			}
-
-			if (arg == "--format")
-			{
-				std::string error;
-				if (!ParseFormatValue(args, index, invocation.m_format, error))
-				{
-					return std::unexpected(error);
-				}
-				continue;
-			}
-
-			if (!arg.empty() && arg.front() == '-')
-			{
-				return std::unexpected(std::format("Unknown option: {}", arg));
-			}
-
-			if (!invocation.m_source_file.empty())
-			{
-				return std::unexpected(std::format("Only one source file is allowed for {}.", command));
-			}
-
-			invocation.m_source_file = std::filesystem::path(arg);
-		}
-
-		const std::expected<void, std::string> plan_result = ApplyPlan(invocation, plan_file, command);
-		if (!plan_result.has_value())
-		{
-			return std::unexpected(plan_result.error());
-		}
-
-		return invocation;
-	}
-
-	[[nodiscard]] ParseResult ParseFmt(const std::vector<std::string_view>& args)
-	{
-		Invocation invocation;
-		invocation.m_kind = CommandKind::Fmt;
-
-		for (size_t index = 0u; index < args.size(); index += 1u)
-		{
-			const std::string_view arg = args[index];
-			if (arg == "-h" || arg == "--help")
-			{
-				invocation.m_show_help = true;
-				continue;
-			}
-
-			if (arg == "-w" || arg == "--write")
-			{
-				invocation.m_fmt_write = true;
-				continue;
-			}
-
-			if (arg == "--check")
-			{
-				invocation.m_fmt_check = true;
-				continue;
-			}
-
-			if (arg == "--format")
-			{
-				std::string error;
-				if (!ParseFormatValue(args, index, invocation.m_format, error))
-				{
-					return std::unexpected(error);
-				}
-				continue;
-			}
-
-			if (!arg.empty() && arg.front() == '-')
-			{
-				return std::unexpected(std::format("Unknown option: {}", arg));
-			}
-
-			invocation.m_fmt_paths.emplace_back(arg);
-		}
-
-		if (!invocation.m_show_help && invocation.m_fmt_paths.empty())
-		{
-			return std::unexpected("Missing file or directory for fmt.");
-		}
-
-		return invocation;
+		const std::optional<std::string_view> suggestion = SuggestCommand(command);
+		return suggestion ? std::format("Unknown command: {}. Did you mean `{}`?", command, *suggestion) : std::format("Unknown command: {}", command);
 	}
 
 	[[nodiscard]] ParseResult ParseInvocation(int argc, char* argv[])
 	{
-		if (argc < 2)
-		{
-			return Invocation{ CommandKind::Overview };
-		}
+		Invocation invocation;
+		std::vector<std::string> formats;
+		std::string plan;
+		std::string output;
+		std::string deps;
+		std::vector<std::string> jobs;
+		std::string help_topic;
+		std::vector<std::string> sources;
+		std::vector<std::string> format_paths;
+		bool version = false;
+		bool overview_help = false;
 
-		std::vector<std::string_view> args;
-		args.reserve(static_cast<size_t>(argc - 1));
-		for (int index = 1; index < argc; index += 1)
-		{
-			args.emplace_back(argv[index]);
-		}
+		CLI::App app;
+		app.set_help_flag();
+		app.require_subcommand(0, 1);
+		app.add_flag("-h,--help", overview_help);
+		app.add_flag("--version", version);
+		std::vector<std::string> global_formats;
+		app.add_option("--format", global_formats)->expected(1)->take_all();
 
-		OutputFormat global_format = OutputFormat::Text;
-		size_t offset = 0u;
-		for (; offset < args.size(); offset += 1u)
+		CLI::App* check = app.add_subcommand("check");
+		CLI::App* build = app.add_subcommand("build");
+		CLI::App* fmt = app.add_subcommand("fmt");
+		CLI::App* help = app.add_subcommand("help");
+		help->add_option("topic", help_topic);
+		for (CLI::App* command : { check, build, fmt })
 		{
-			if (args[offset] == "--format")
+			command->add_flag("-h,--help", invocation.m_show_help);
+			command->add_option("--format", formats)->expected(1)->take_all();
+		}
+		for (CLI::App* command : { check, build })
+		{
+			command->add_option("source", sources);
+			command->add_option("--plan", plan);
+			command->add_option("--jobs", jobs)->expected(1)->take_all();
+			command->add_flag("--timings", invocation.m_timings);
+			command->add_flag("--optimizer-stats", invocation.m_optimizer_stats);
+			command->add_flag("--emit-ir", invocation.m_emit_ir);
+			command->add_flag("--emit-ast", invocation.m_emit_ast);
+		}
+		CLI::Option* output_option = build->add_option("-o,--output", output)->take_last();
+		CLI::Option* deps_option = build->add_option("--deps", deps)->take_last();
+		build->add_flag("--embed-sources", invocation.m_embed_sources);
+		build->add_flag("--quiet", invocation.m_quiet);
+		fmt->add_option("paths", format_paths);
+		fmt->add_flag("-w,--write", invocation.m_fmt_write);
+		fmt->add_flag("--check", invocation.m_fmt_check);
+
+		try
+		{
+			app.parse(argc, argv);
+		}
+		catch (const CLI::ExtrasError& error)
+		{
+			const std::vector<std::string> extras = app.remaining(true);
+			if (extras.empty())
 			{
-				std::string error;
-				if (!ParseFormatValue(args, offset, global_format, error))
+				return std::unexpected(error.what());
+			}
+			const std::string& extra = extras.front();
+			return std::unexpected(extra.starts_with('-') ? "Unknown option: " + extra : UnknownCommand(extra));
+		}
+		catch (const CLI::ArgumentMismatch& error)
+		{
+			const std::string_view message = error.what();
+			for (std::string_view option : { "--jobs", "--plan", "--format", "--output", "--deps" })
+			{
+				if (message.starts_with(option) && message.find("missing") != std::string_view::npos)
 				{
-					return std::unexpected(error);
+					return std::unexpected(std::format("Missing value for {}.", option));
 				}
-				continue;
 			}
-
-			break;
+			if (message.starts_with("--plan"))
+			{
+				return std::unexpected("Only one --plan is allowed.");
+			}
+			return std::unexpected(error.what());
+		}
+		catch (const CLI::ParseError& error)
+		{
+			return std::unexpected(error.what());
 		}
 
-		if (offset >= args.size())
+		for (const std::vector<std::string>* values : { &global_formats, &formats })
 		{
-			return std::unexpected("Missing command after global flags.");
+			for (const std::string& format : *values)
+			{
+				if (format != "json")
+				{
+					return std::unexpected("Unknown format: " + format);
+				}
+			}
 		}
-
-		const std::string_view head = args[offset];
-		const std::vector<std::string_view> rest(args.begin() + static_cast<std::ptrdiff_t>(offset + 1u), args.end());
-
-		if (head == "-h" || head == "--help")
+		invocation.m_format = global_formats.empty() && formats.empty() ? OutputFormat::Text : OutputFormat::Json;
+		if (overview_help || version)
 		{
-			return Invocation{ CommandKind::Overview, global_format, true };
-		}
-
-		if (head == "--version")
-		{
-			return Invocation{ CommandKind::Version, global_format };
-		}
-
-		if (head == "help")
-		{
-			if (rest.empty())
-			{
-				return Invocation{ CommandKind::Overview, global_format, true };
-			}
-
-			Invocation invocation;
-			if (rest[0] == "check")
-			{
-				invocation.m_kind = CommandKind::Check;
-			}
-			else if (rest[0] == "build")
-			{
-				invocation.m_kind = CommandKind::Build;
-			}
-			else if (rest[0] == "fmt")
-			{
-				invocation.m_kind = CommandKind::Fmt;
-			}
-			else
-			{
-				return std::unexpected(std::format("Unknown help topic: {}", rest[0]));
-			}
-
-			invocation.m_show_help = true;
-			invocation.m_format = global_format;
+			invocation.m_show_help = overview_help;
+			invocation.m_kind = version ? CommandKind::Version : CommandKind::Overview;
 			return invocation;
 		}
 
-		ParseResult parsed;
-		if (head == "check")
+		if (*help)
 		{
-			parsed = ParseCompile(CommandKind::Check, rest);
-		}
-		else if (head == "build")
-		{
-			parsed = ParseCompile(CommandKind::Build, rest);
-		}
-		else if (head == "fmt")
-		{
-			parsed = ParseFmt(rest);
-		}
-		else
-		{
-			if (!head.empty() && head.front() == '-')
+			invocation.m_show_help = true;
+			const std::vector<CommandSpec>& commands = CommandTable();
+			const auto topic = std::ranges::find(commands, help_topic, &CommandSpec::m_name);
+			if (!help_topic.empty() && topic == commands.end())
 			{
-				return std::unexpected(std::format("Unknown option: {}", head));
+				return std::unexpected("Unknown help topic: " + help_topic);
+			}
+			if (topic != commands.end())
+			{
+				invocation.m_kind = topic->m_kind;
+			}
+		}
+		else if (*fmt)
+		{
+			invocation.m_kind = CommandKind::Fmt;
+			invocation.m_fmt_paths.assign(format_paths.begin(), format_paths.end());
+			if (!invocation.m_show_help && invocation.m_fmt_paths.empty())
+			{
+				return std::unexpected("Missing file or directory for fmt.");
+			}
+		}
+		else if (*check || *build)
+		{
+			const bool is_build = static_cast<bool>(*build);
+			invocation.m_kind = is_build ? CommandKind::Build : CommandKind::Check;
+			const std::string_view command = is_build ? "build" : "check";
+			if (sources.size() > 1u)
+			{
+				return std::unexpected(std::format("Only one source file is allowed for {}.", command));
+			}
+			if (!sources.empty())
+			{
+				invocation.m_source_file = sources.front();
+			}
+			if (output_option->count() != 0u)
+			{
+				invocation.m_output_path = output;
+			}
+			if (deps_option->count() != 0u)
+			{
+				invocation.m_deps_path = deps;
 			}
 
-			if (head == "run" || head == "test" || head.ends_with(".mmt") || head.ends_with(".mmc"))
+			const CLI::App* compile = is_build ? build : check;
+			for (const std::string& value : jobs)
 			{
-				return std::unexpected(std::format(
-					"marmotc compiles and never runs a program. Run one with `marmot {} <file>`, or build it with `marmotc build` and run the .mmc with marmotvm.",
-					head == "test" ? "test" : "run"));
+				size_t count = 0;
+				const std::from_chars_result number = std::from_chars(value.data(), value.data() + value.size(), count);
+				if (number.ec != std::errc{} || number.ptr != value.data() + value.size() || count == 0u)
+				{
+					return std::unexpected("--jobs requires a positive integer.");
+				}
+				invocation.m_jobs = count;
 			}
-
-			const std::optional<std::string_view> suggestion = SuggestCommand(head);
-			return std::unexpected(suggestion.has_value()
-				? std::format("Unknown command: {}. Did you mean `{}`?", head, suggestion.value())
-				: std::format("Unknown command: {}", head));
+#if !MARMOT_ENABLE_OPTIMIZER_STATS
+			if (invocation.m_optimizer_stats)
+			{
+				return std::unexpected("--optimizer-stats requires a Debug or Dev build.");
+			}
+#endif
+			const std::optional<std::filesystem::path> plan_file = compile->count("--plan") != 0u
+				? std::optional<std::filesystem::path>(plan)
+				: std::nullopt;
+			if (const std::expected<void, std::string> applied = ApplyPlan(invocation, plan_file, command); !applied)
+			{
+				return std::unexpected(applied.error());
+			}
 		}
-
-		if (!parsed.has_value())
+		else if (!global_formats.empty())
 		{
-			return parsed;
-		}
-
-		Invocation invocation = parsed.value();
-		if (global_format == OutputFormat::Json)
-		{
-			invocation.m_format = global_format;
+			return std::unexpected("Missing command after global flags.");
 		}
 
 		if (invocation.m_emit_ir && invocation.m_format == OutputFormat::Json)
@@ -677,22 +474,21 @@ namespace
 		std::optional<std::string_view> report_json = std::nullopt)
 	{
 		const std::string resolved_report_json = report_json.has_value() ? std::string(*report_json) : report.MachineReadableJson();
-		std::string payload = "{";
-		bool first_field = true;
-		CompilerJson::AppendNumberField(payload, "version", 1, first_field);
-		CompilerJson::AppendStringField(payload, "source", "marmot", first_field);
-		CompilerJson::AppendStringField(payload, "command", command, first_field);
-		CompilerJson::AppendBoolField(payload, "success", success, first_field);
-		CompilerJson::AppendNumberField(payload, "exitCode", exit_code, first_field);
-		CompilerJson::AppendStringField(payload, "stdout", stdout_text, first_field);
-		CompilerJson::AppendStringField(payload, "stderr", stderr_text, first_field);
-		CompilerJson::AppendRawField(payload, "report", resolved_report_json, first_field);
+		MarmotJson::Document payload;
+		payload.AddNumberField("version", 1);
+		payload.AddStringField("source", "marmot");
+		payload.AddStringField("command", command);
+		payload.AddBoolField("success", success);
+		payload.AddNumberField("exitCode", exit_code);
+		payload.AddStringField("stdout", stdout_text);
+		payload.AddStringField("stderr", stderr_text);
+		payload.AddRawField("report", resolved_report_json);
 		if (artifact_json.has_value())
 		{
-			CompilerJson::AppendRawField(payload, "artifact", *artifact_json, first_field);
+			payload.AddRawField("artifact", *artifact_json);
 		}
-		payload.push_back('}');
-		return payload;
+
+		return payload.Write();
 	}
 
 	int HandleOverview(const Invocation&)
@@ -705,15 +501,14 @@ namespace
 	{
 		if (invocation.m_format == OutputFormat::Json)
 		{
-			std::string payload = "{";
-			bool first_field = true;
-			CompilerJson::AppendNumberField(payload, "version", 1, first_field);
-			CompilerJson::AppendStringField(payload, "source", "marmot", first_field);
-			CompilerJson::AppendStringField(payload, "command", "version", first_field);
-			CompilerJson::AppendBoolField(payload, "success", true, first_field);
-			CompilerJson::AppendStringField(payload, "marmotVersion", MARMOT_VERSION_STRING, first_field);
-			payload.push_back('}');
-			std::print("{}", payload);
+			MarmotJson::Document payload;
+			payload.AddNumberField("version", 1);
+			payload.AddStringField("source", "marmot");
+			payload.AddStringField("command", "version");
+			payload.AddBoolField("success", true);
+			payload.AddStringField("marmotVersion", MARMOT_VERSION_STRING);
+
+			std::print("{}", payload.Write());
 		}
 		else
 		{
@@ -869,26 +664,19 @@ namespace
 
 		if (invocation.m_format == OutputFormat::Json)
 		{
-			std::string artifact_json = "{";
-			bool first_field = true;
-			CompilerJson::AppendStringField(artifact_json, "path", artifact_path.generic_string(), first_field);
-			CompilerJson::AppendStringField(artifact_json, "entryFile", invocation.m_source_file.generic_string(), first_field);
-			CompilerJson::AppendNumberField(artifact_json, "procedureCount", executable.GetProcedureCount(), first_field);
-			CompilerJson::AppendNumberField(artifact_json, "globalCount", executable.GetGlobalVariableCount(), first_field);
-			CompilerJson::AppendNumberField(artifact_json, "stringCount", static_cast<int>(executable.GetStringPool().size()), first_field);
-			std::string native_libraries = "[";
+			MarmotJson::Document artifact_json;
+			artifact_json.AddStringField("path", artifact_path.generic_string());
+			artifact_json.AddStringField("entryFile", invocation.m_source_file.generic_string());
+			artifact_json.AddNumberField("procedureCount", executable.GetProcedureCount());
+			artifact_json.AddNumberField("globalCount", executable.GetGlobalVariableCount());
+			artifact_json.AddNumberField("stringCount", static_cast<int>(executable.GetStringPool().size()));
+			MarmotJson::Document native_libraries = MarmotJson::Document::Array();
 			for (const NativeLibraryImport& library : executable.GetNativeLibraries())
 			{
-				if (native_libraries.size() > 1u)
-				{
-					native_libraries.push_back(',');
-				}
-				native_libraries += "\"" + CompilerJson::EscapeString(library.m_name) + "\"";
+				native_libraries.AppendString(library.m_name);
 			}
-			native_libraries.push_back(']');
-			CompilerJson::AppendRawField(artifact_json, "nativeLibraries", native_libraries, first_field);
-			artifact_json.push_back('}');
-			std::print("{}", CommandJson("build", true, compiled_program.Report(), EXIT_SUCCESS, {}, {}, artifact_json));
+			artifact_json.AddField("nativeLibraries", native_libraries);
+			std::print("{}", CommandJson("build", true, compiled_program.Report(), EXIT_SUCCESS, {}, {}, artifact_json.Write()));
 			return EXIT_SUCCESS;
 		}
 
@@ -967,16 +755,15 @@ namespace
 
 			if (invocation.m_format == OutputFormat::Json)
 			{
-				std::string payload = "{";
-				bool first_field = true;
-				CompilerJson::AppendNumberField(payload, "version", 1, first_field);
-				CompilerJson::AppendStringField(payload, "source", "marmot", first_field);
-				CompilerJson::AppendStringField(payload, "command", "fmt", first_field);
-				CompilerJson::AppendBoolField(payload, "success", true, first_field);
-				CompilerJson::AppendStringField(payload, "target", first_path.generic_string(), first_field);
-				CompilerJson::AppendStringField(payload, "formattedText", format_result.value(), first_field);
-				payload.push_back('}');
-				std::print("{}", payload);
+				MarmotJson::Document payload;
+				payload.AddNumberField("version", 1);
+				payload.AddStringField("source", "marmot");
+				payload.AddStringField("command", "fmt");
+				payload.AddBoolField("success", true);
+				payload.AddStringField("target", first_path.generic_string());
+				payload.AddStringField("formattedText", format_result.value());
+
+				std::print("{}", payload.Write());
 			}
 			else
 			{
@@ -996,43 +783,27 @@ namespace
 
 		if (invocation.m_format == OutputFormat::Json)
 		{
-			std::string files_json = "[";
-			for (size_t index = 0u; index < result.m_files.size(); index += 1u)
+			MarmotJson::Document files_json = MarmotJson::Document::Array();
+			for (const MarmotFormatter::FileResult& file : result.m_files)
 			{
-				if (index > 0u)
-				{
-					files_json.push_back(',');
-				}
-
-				const MarmotFormatter::FileResult& file = result.m_files[index];
-				std::string object = "{";
-				bool first_field = true;
-				CompilerJson::AppendStringField(object, "path", file.m_path.generic_string(), first_field);
-				CompilerJson::AppendBoolField(object, "changed", file.m_changed, first_field);
-				CompilerJson::AppendBoolField(object, "written", file.m_written, first_field);
-				CompilerJson::AppendStringField
-				(
-					object,
-					"error",
-					file.m_error.has_value() ? std::optional<std::string_view>(*file.m_error) : std::nullopt,
-					first_field
-				);
-				object.push_back('}');
-				files_json += object;
+				MarmotJson::Document object;
+				object.AddStringField("path", file.m_path.generic_string());
+				object.AddBoolField("changed", file.m_changed);
+				object.AddBoolField("written", file.m_written);
+				object.AddStringField("error", file.m_error.has_value() ? std::optional<std::string_view>(*file.m_error) : std::nullopt);
+				files_json.Append(object);
 			}
-			files_json.push_back(']');
 
-			std::string payload = "{";
-			bool first_field = true;
-			CompilerJson::AppendNumberField(payload, "version", 1, first_field);
-			CompilerJson::AppendStringField(payload, "source", "marmot", first_field);
-			CompilerJson::AppendStringField(payload, "command", "fmt", first_field);
-			CompilerJson::AppendBoolField(payload, "success", !result.HasErrors() && (!invocation.m_fmt_check || !result.HasChanges()), first_field);
-			CompilerJson::AppendNumberField(payload, "changedCount", result.ChangedCount(), first_field);
-			CompilerJson::AppendNumberField(payload, "errorCount", result.ErrorCount(), first_field);
-			CompilerJson::AppendRawField(payload, "files", files_json, first_field);
-			payload.push_back('}');
-			std::print("{}", payload);
+			MarmotJson::Document payload;
+			payload.AddNumberField("version", 1);
+			payload.AddStringField("source", "marmot");
+			payload.AddStringField("command", "fmt");
+			payload.AddBoolField("success", !result.HasErrors() && (!invocation.m_fmt_check || !result.HasChanges()));
+			payload.AddNumberField("changedCount", result.ChangedCount());
+			payload.AddNumberField("errorCount", result.ErrorCount());
+			payload.AddField("files", files_json);
+
+			std::print("{}", payload.Write());
 		}
 		else
 		{
@@ -1116,7 +887,7 @@ namespace MarmotCLI
 {
 	int Run(int argc, char* argv[])
 	{
-		CompilerTerminal::SetColorEnabled(DiagnosticsColored());
+		MarmotTerminal::SetColorEnabled(MarmotTerminal::ShouldUseColor(stderr));
 		const ParseResult parse_result = ParseInvocation(argc, argv);
 		if (!parse_result.has_value())
 		{

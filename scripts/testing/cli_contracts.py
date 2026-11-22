@@ -244,6 +244,12 @@ def scenario_version_output_format(tree: BuildTree) -> None:
         re.fullmatch(r"marmotc \d+\.\d+\.\d+\s*", completed.stdout) is not None,
         f"Unexpected version output:\n{completed.stdout}",
     )
+    structured = run_marmot(tree, ["--format", "json", "--version"])
+    assert_condition(parse_command_json("version_output_format", structured)["command"] == "version",
+                     f"Expected a version report:\n{structured.stdout}{structured.stderr}")
+    invalid = run_marmot(tree, ["--format", "invalid", "--format", "json", "--version"])
+    assert_condition(invalid.returncode != 0 and "Unknown format: invalid" in invalid.stderr,
+                     f"Expected the first invalid format to be rejected:\n{invalid.stdout}{invalid.stderr}")
 
 
 def scenario_help_lists_new_commands(tree: BuildTree) -> None:
@@ -348,6 +354,14 @@ def scenario_marmotvm_runs_what_marmotc_built(tree: BuildTree) -> None:
         assert_condition(payload.get("source") == "marmotvm" and payload.get("command") == "run", f"Unexpected payload: {payload}")
         assert_condition(payload.get("success") is True, f"Expected run success payload, got {payload}")
         assert_condition(report["errors"] == [], f"Expected no run errors, got: {report['errors']}")
+
+        disassemble = ["disassemble", str(program)]
+        captured = run_vm(tree, disassemble, env_overrides={"NO_COLOR": None, "CLICOLOR_FORCE": None})
+        assert_condition(captured.returncode == 0 and "\x1b[" not in captured.stdout, f"Captured disassembly should be plain text:\n{captured.stdout}{captured.stderr}")
+        forced = run_vm(tree, disassemble, env_overrides={"NO_COLOR": None, "CLICOLOR_FORCE": "1"})
+        assert_condition(forced.returncode == 0 and "\x1b[" in forced.stdout, f"CLICOLOR_FORCE should colour disassembly:\n{forced.stdout}{forced.stderr}")
+        refused = run_vm(tree, disassemble, env_overrides={"NO_COLOR": "1", "CLICOLOR_FORCE": "1"})
+        assert_condition(refused.returncode == 0 and refused.stdout == captured.stdout, f"NO_COLOR should win over CLICOLOR_FORCE:\n{refused.stdout}{refused.stderr}")
 
         # A runtime error is the run's report and its exit status.
         write_text(source_path, "module Main\ndef xs = [1];\ndef x = xs[5];\n")

@@ -17,12 +17,9 @@
 
 namespace
 {
-	namespace Terminal = RuntimeTerminal;
+	namespace Terminal = MarmotTerminal;
 
 	constexpr int address_width = 6;
-	constexpr int instr_width = 25;
-	constexpr int operand_width = 12;
-	constexpr int comment_width = 30;
 
 	void SimpleInstruction(std::FILE* output, std::string_view name, int& offset)
 	{

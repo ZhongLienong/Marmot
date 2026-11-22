@@ -31,7 +31,7 @@ namespace
 	{
 		for (size_t index = 0u; index < executable.m_procedure_names.size(); index += 1u)
 		{
-			if (std::string(executable.m_procedure_names[index]).starts_with(MAIN_PROCEDURE_PREFIX))
+			if (std::string(executable.m_procedure_names[index]).starts_with(MmcWire::MAIN_PROCEDURE_PREFIX))
 			{
 				return static_cast<int>(index);
 			}

@@ -1,6 +1,6 @@
 #include "Terminal.h"
 
-#include <cstdio>
+#include <atomic>
 #include <cstdlib>
 #include <utility>
 
@@ -12,29 +12,47 @@
 
 namespace
 {
+	std::atomic<bool> s_color_enabled = false;
+
 	std::string_view Environment(const char* name)
 	{
 		const char* value = std::getenv(name);
 		return value == nullptr ? std::string_view() : std::string_view(value);
 	}
-
-	bool StdoutIsTerminal()
-	{
-#ifdef _WIN32
-		return _isatty(_fileno(stdout)) != 0;
-#else
-		return isatty(fileno(stdout)) != 0;
-#endif
-	}
 }
 
-namespace RuntimeTerminal
+namespace MarmotTerminal
 {
+	bool ShouldUseColor(std::FILE* output)
+	{
+		if (!Environment("NO_COLOR").empty())
+		{
+			return false;
+		}
+		const std::string_view force = Environment("CLICOLOR_FORCE");
+		if (!force.empty() && force != "0")
+		{
+			return true;
+		}
+		if (Environment("TERM") == "dumb")
+		{
+			return false;
+		}
+#ifdef _WIN32
+		return _isatty(_fileno(output)) != 0;
+#else
+		return isatty(fileno(output)) != 0;
+#endif
+	}
+
+	void SetColorEnabled(bool enabled)
+	{
+		s_color_enabled.store(enabled);
+	}
+
 	bool ColorEnabled()
 	{
-		static const bool s_enabled = Environment("NO_COLOR").empty()
-			&& ((!Environment("CLICOLOR_FORCE").empty() && Environment("CLICOLOR_FORCE") != "0") || StdoutIsTerminal());
-		return s_enabled;
+		return s_color_enabled.load();
 	}
 
 	std::string_view Code(Color color)
@@ -52,6 +70,8 @@ namespace RuntimeTerminal
 			return "\033[1m";
 		case Color::RED:
 			return "\033[31m";
+		case Color::YELLOW:
+			return "\033[33m";
 		case Color::BLUE:
 			return "\033[34m";
 		case Color::WHITE:

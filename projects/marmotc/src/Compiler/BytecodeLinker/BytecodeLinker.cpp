@@ -244,7 +244,7 @@ MarmotResult::BytecodeLinkerResult BytecodeLinker::Link()
 	m_global_procedure_source_paths.insert(m_global_procedure_source_paths.begin(), EntrySourcePathForModule(m_modules, m_entry_module_name));
 
 	// Create bootstrap name with entry module context for debugging
-	std::string bootstrap_name = std::format("{}@{}", MODULE_BOOTSTRAP_PREFIX, m_entry_module_name);
+	std::string bootstrap_name = std::format("{}@{}", MmcWire::MODULE_BOOTSTRAP_PREFIX, m_entry_module_name);
 	m_global_procedure_names.insert(m_global_procedure_names.begin(), std::move(bootstrap_name));
 
 	PatchBootstrapOffsets();
@@ -488,7 +488,7 @@ void BytecodeLinker::ConcatenateBytecode()
 
 					// A specialization of an imported generic is named for the module it came from.
 					const std::string& proc_name = module.m_procedure_names[proc_index];
-					const std::unordered_map<std::string, std::string>::const_iterator owner = source_path_by_module.find(proc_name.substr(proc_name.rfind(ModuleSeparator) + 1u));
+					const std::unordered_map<std::string, std::string>::const_iterator owner = source_path_by_module.find(proc_name.substr(proc_name.rfind(MmcWire::MODULE_SEPARATOR) + 1u));
 					m_global_procedure_source_paths.emplace_back(owner != source_path_by_module.cend() ? owner->second : module.m_source_path.string());
 					m_global_procedures.push_back(std::move(procedure));
 				}

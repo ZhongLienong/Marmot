@@ -800,7 +800,7 @@ def main = fn() -> Int => 0;
 	const MarmotExecutable& executable = compile_result.value();
 	CHECK(std::filesystem::path(executable.GetFileName()).filename() == "EntryPoint.mmt");
 	REQUIRE_FALSE(executable.m_procedure_names.empty());
-	CHECK(std::string(executable.m_procedure_names[0u].c_str()) == std::format("{}@{}", MODULE_BOOTSTRAP_PREFIX, "App.Main"));
+	CHECK(std::string(executable.m_procedure_names[0u].c_str()) == std::format("{}@{}", MmcWire::MODULE_BOOTSTRAP_PREFIX, "App.Main"));
 }
 
 TEST_CASE("Parser builds constructor and wildcard match patterns without brittle tree snapshots", "[parser]")

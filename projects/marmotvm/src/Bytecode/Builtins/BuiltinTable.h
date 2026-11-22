@@ -6,6 +6,8 @@
 #include <optional>
 #include <string_view>
 
+#include "Bytecode/Format/Format.h"
+
 // VM-side builtin IDs and signatures in .mmc order. The compiler keeps its
 // own table; the v14 registry check requires both tables to agree.
 
@@ -15,22 +17,19 @@ constexpr size_t VM_FFI_MAX_ARITY = 4u;
 
 enum class VmFFIArgumentKind : uint8_t
 {
-	RawValue = 0,
-	CString,
-	ArrayView,
+	RawValue = MmcWire::FFI_ARGUMENT_RAW_VALUE,
+	CString = MmcWire::FFI_ARGUMENT_C_STRING,
+	ArrayView = MmcWire::FFI_ARGUMENT_ARRAY_VIEW,
 	TraceableHandle,
 	ValueHandle
 };
 
-// Set in a foreign call's return tag when the array it returns holds pointers.
-inline constexpr uint8_t VM_POINTER_ELEMENTS_TAG = 0x80u;
-
 enum class VmFFIReturnKind : uint8_t
 {
-	RawValue = 0,
-	CString,
-	ArrayValues,
-	ArrayStrings,
+	RawValue = MmcWire::FFI_RETURN_RAW_VALUE,
+	CString = MmcWire::FFI_RETURN_C_STRING,
+	ArrayValues = MmcWire::FFI_RETURN_ARRAY_VALUES,
+	ArrayStrings = MmcWire::FFI_RETURN_ARRAY_STRINGS,
 	Value
 };
 

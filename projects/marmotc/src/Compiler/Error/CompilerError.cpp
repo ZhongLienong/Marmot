@@ -1,6 +1,7 @@
 #include "CompilerError.h"
 #include "Compiler/Json/Json.h"
-#include "Compiler/Terminal/Terminal.h"
+#include "Compiler/Result/Result.h"
+#include "Support/Terminal/Terminal.h"
 #include <algorithm>
 #include <filesystem>
 #include <ranges>
@@ -157,37 +158,31 @@ namespace
 		return stage == CompilerStage::Unknown ? std::string(kind) : std::format("{} {}", StageDisplayName(stage), kind);
 	}
 
-	CompilerTerminal::Color DiagnosticAccentColor(DiagnosticSeverity severity)
+	MarmotTerminal::Color DiagnosticAccentColor(DiagnosticSeverity severity)
 	{
 		return severity == DiagnosticSeverity::Error
-			? CompilerTerminal::Color::BRIGHT_RED
-			: CompilerTerminal::Color::BRIGHT_YELLOW;
+			? MarmotTerminal::Color::BRIGHT_RED
+			: MarmotTerminal::Color::BRIGHT_YELLOW;
 	}
 
-	std::string RenderLabeledLine(CompilerTerminal::Color label_color, CompilerTerminal::Color message_color, std::string_view label, std::string_view message)
+	std::string RenderLabeledLine(MarmotTerminal::Color label_color, MarmotTerminal::Color message_color, std::string_view label, std::string_view message)
 	{
 		std::ostringstream oss;
-		oss << CompilerTerminal::Code(label_color);
+		oss << MarmotTerminal::Code(label_color);
 		oss << "[" << label << "] ";
-		oss << CompilerTerminal::Code(message_color);
+		oss << MarmotTerminal::Code(message_color);
 		oss << message;
-		oss << CompilerTerminal::Code(CompilerTerminal::Color::RESET);
+		oss << MarmotTerminal::Code(MarmotTerminal::Color::RESET);
 		return oss.str();
 	}
 
-	std::string SerializeRelatedInformation(const std::vector<CompilerRelatedInformation>& related_information)
+	MarmotJson::Document SerializeRelatedInformation(const std::vector<CompilerRelatedInformation>& related_information)
 	{
-		std::string serialized = "[";
+		MarmotJson::Document serialized = MarmotJson::Document::Array();
 		for (size_t index = 0u; index < related_information.size(); index += 1u)
 		{
-			if (index > 0u)
-			{
-				serialized.push_back(',');
-			}
-
 			const CompilerRelatedInformation& item = related_information[index];
-			std::string object = "{";
-			bool first_field = true;
+			MarmotJson::Document object;
 			const std::optional<std::string> normalized_file =
 				item.m_location.m_file_name.empty() ? std::nullopt : std::optional<std::string>(NormalizeDiagnosticPath(item.m_location.m_file_name));
 			const std::optional<std::string_view> file =
@@ -202,17 +197,16 @@ namespace
 				end_column = *item.m_location.m_column + static_cast<int>(std::max(item.m_location.m_caret_length.value_or(size_t(1u)), size_t(1u)));
 			}
 
-			CompilerJson::AppendStringField(object, "message", item.m_message, first_field);
-			CompilerJson::AppendStringField(object, "file", file, first_field);
-			CompilerJson::AppendNumberField(object, "line", line, first_field);
-			CompilerJson::AppendNumberField(object, "column", item.m_location.m_column, first_field);
-			CompilerJson::AppendNumberField(object, "endLine", end_line, first_field);
-			CompilerJson::AppendNumberField(object, "endColumn", end_column, first_field);
-			object.push_back('}');
-			serialized += object;
+			object.AddStringField("message", item.m_message);
+			object.AddStringField("file", file);
+			object.AddNumberField("line", line);
+			object.AddNumberField("column", item.m_location.m_column);
+			object.AddNumberField("endLine", end_line);
+			object.AddNumberField("endColumn", end_column);
+
+			serialized.Append(object);
 		}
 
-		serialized.push_back(']');
 		return serialized;
 	}
 
@@ -225,8 +219,7 @@ namespace
 		const std::optional<std::string>& suggestion,
 		const std::vector<CompilerRelatedInformation>& related_information)
 	{
-		std::string serialized = "{";
-		bool first_field = true;
+		MarmotJson::Document serialized;
 
 		std::optional<std::string_view> file = std::nullopt;
 		std::optional<std::string> normalized_file_storage = std::nullopt;
@@ -257,21 +250,21 @@ namespace
 		const std::optional<std::string_view> serialized_suggestion =
 			suggestion.has_value() ? std::optional<std::string_view>(*suggestion) : std::optional<std::string_view>(std::nullopt);
 
-		CompilerJson::AppendStringField(serialized, "source", "marmot", first_field);
-		CompilerJson::AppendStringField(serialized, "severity", severity == DiagnosticSeverity::Error ? "error" : "warning", first_field);
-		CompilerJson::AppendStringField(serialized, "stage", CompilerStageName(stage), first_field);
-		CompilerJson::AppendStringField(serialized, "code", code_name, first_field);
-		CompilerJson::AppendStringField(serialized, "message", message, first_field);
-		CompilerJson::AppendStringField(serialized, "file", file, first_field);
-		CompilerJson::AppendNumberField(serialized, "line", line, first_field);
-		CompilerJson::AppendNumberField(serialized, "column", column, first_field);
-		CompilerJson::AppendNumberField(serialized, "endLine", end_line, first_field);
-		CompilerJson::AppendNumberField(serialized, "endColumn", end_column, first_field);
-		CompilerJson::AppendNumberField(serialized, "caret_length", caret_length, first_field);
-		CompilerJson::AppendStringField(serialized, "suggestion", serialized_suggestion, first_field);
-		CompilerJson::AppendRawField(serialized, "relatedInformation", SerializeRelatedInformation(related_information), first_field);
-		serialized.push_back('}');
-		return serialized;
+		serialized.AddStringField("source", "marmot");
+		serialized.AddStringField("severity", severity == DiagnosticSeverity::Error ? "error" : "warning");
+		serialized.AddStringField("stage", CompilerStageName(stage));
+		serialized.AddStringField("code", code_name);
+		serialized.AddStringField("message", message);
+		serialized.AddStringField("file", file);
+		serialized.AddNumberField("line", line);
+		serialized.AddNumberField("column", column);
+		serialized.AddNumberField("endLine", end_line);
+		serialized.AddNumberField("endColumn", end_column);
+		serialized.AddNumberField("caret_length", caret_length);
+		serialized.AddStringField("suggestion", serialized_suggestion);
+		serialized.AddField("relatedInformation", SerializeRelatedInformation(related_information));
+
+		return serialized.Write();
 	}
 
 	// Spaces up to `column`, except a tab where the source line has one and
@@ -296,20 +289,20 @@ namespace
 		DiagnosticSeverity severity)
 	{
 		std::ostringstream oss;
-		oss << CompilerTerminal::Code(CompilerTerminal::Color::BOLD);
-		oss << CompilerTerminal::Code(DiagnosticAccentColor(severity));
+		oss << MarmotTerminal::Code(MarmotTerminal::Color::BOLD);
+		oss << MarmotTerminal::Code(DiagnosticAccentColor(severity));
 		oss << StageLabel(stage, severity);
-		oss << CompilerTerminal::Code(CompilerTerminal::Color::RESET);
+		oss << MarmotTerminal::Code(MarmotTerminal::Color::RESET);
 		if (location.has_value())
 		{
 			oss << " at ";
-			oss << CompilerTerminal::Code(CompilerTerminal::Color::BRIGHT_CYAN);
+			oss << MarmotTerminal::Code(MarmotTerminal::Color::BRIGHT_CYAN);
 			oss << location->m_file_name;
 			if (location->m_line > 0)
 			{
 				oss << ":" << location->m_line;
 			}
-			oss << CompilerTerminal::Code(CompilerTerminal::Color::RESET);
+			oss << MarmotTerminal::Code(MarmotTerminal::Color::RESET);
 		}
 		oss << "\n";
 
@@ -320,7 +313,7 @@ namespace
 			const std::string line_num_str = std::to_string(resolved_location.m_line);
 			const int gutter_width = static_cast<int>(line_num_str.length()) + 1;
 
-			oss << CompilerTerminal::Code(CompilerTerminal::Color::BLUE);
+			oss << MarmotTerminal::Code(MarmotTerminal::Color::BLUE);
 			for (int i = 0; i < gutter_width; i += 1)
 			{
 				oss << " ";
@@ -328,16 +321,16 @@ namespace
 			oss << "|\n";
 
 			oss << line_num_str << " |";
-			oss << CompilerTerminal::Code(CompilerTerminal::Color::RESET);
+			oss << MarmotTerminal::Code(MarmotTerminal::Color::RESET);
 			oss << " " << source_line << "\n";
 
-			oss << CompilerTerminal::Code(CompilerTerminal::Color::BLUE);
+			oss << MarmotTerminal::Code(MarmotTerminal::Color::BLUE);
 			for (int i = 0; i < gutter_width; i += 1)
 			{
 				oss << " ";
 			}
 			oss << "|";
-			oss << CompilerTerminal::Code(DiagnosticAccentColor(severity));
+			oss << MarmotTerminal::Code(DiagnosticAccentColor(severity));
 
 			if (resolved_location.m_column.has_value())
 			{
@@ -356,14 +349,14 @@ namespace
 				oss << " " << message;
 			}
 
-			oss << CompilerTerminal::Code(CompilerTerminal::Color::RESET) << "\n";
+			oss << MarmotTerminal::Code(MarmotTerminal::Color::RESET) << "\n";
 
-			oss << CompilerTerminal::Code(CompilerTerminal::Color::BLUE);
+			oss << MarmotTerminal::Code(MarmotTerminal::Color::BLUE);
 			for (int i = 0; i < gutter_width; i += 1)
 			{
 				oss << " ";
 			}
-			oss << "|" << CompilerTerminal::Code(CompilerTerminal::Color::RESET) << "\n";
+			oss << "|" << MarmotTerminal::Code(MarmotTerminal::Color::RESET) << "\n";
 		}
 		else
 		{
@@ -372,10 +365,10 @@ namespace
 
 		if (suggestion.has_value())
 		{
-			oss << CompilerTerminal::Code(CompilerTerminal::Color::YELLOW);
+			oss << MarmotTerminal::Code(MarmotTerminal::Color::YELLOW);
 			oss << "  | ";
 			oss << *suggestion;
-			oss << CompilerTerminal::Code(CompilerTerminal::Color::RESET) << "\n";
+			oss << MarmotTerminal::Code(MarmotTerminal::Color::RESET) << "\n";
 		}
 
 		return oss.str();
@@ -388,7 +381,7 @@ std::string RenderWarningGroupHeader(size_t warning_count, std::string_view file
 	const std::string summary = file_path.empty()
 		? std::format("{} warning(s)\n", warning_count)
 		: std::format("{} warning(s) in {}\n", warning_count, std::filesystem::path(file_path).filename().string());
-	return RenderLabeledLine(CompilerTerminal::Color::YELLOW, CompilerTerminal::Color::WHITE, "warning", summary);
+	return RenderLabeledLine(MarmotTerminal::Color::YELLOW, MarmotTerminal::Color::WHITE, "warning", summary);
 }
 
 std::string SerializeMachineReadableError(const CompilerError& error)
@@ -644,4 +637,31 @@ CompilerError MarmotError::GenerateModuleErrorWithContext(std::string_view messa
 CompilerError MarmotError::GenerateModuleErrorWithContext(CompilerErrorCode code, std::string_view message, int line, std::string_view file_name, std::optional<std::string_view> suggestion)
 {
 	return CompilerError::WithContext(CompilerStage::Module, message, line, file_name, std::nullopt, std::nullopt, suggestion, std::nullopt, code);
+}
+
+std::string MarmotResult::CompilerReport::MachineReadableJson() const
+{
+	MarmotJson::Document diagnostics = MarmotJson::Document::Array();
+	MarmotJson::Document warnings = MarmotJson::Document::Array();
+	MarmotJson::Document errors = MarmotJson::Document::Array();
+	for (const CompilerWarning& warning : m_warnings.m_items)
+	{
+		const std::string payload = SerializeMachineReadableWarningPayload(warning);
+		diagnostics.AppendRaw(payload);
+		warnings.AppendRaw(payload);
+	}
+	for (const CompilerError& error : m_errors.m_items)
+	{
+		const std::string payload = SerializeMachineReadableError(error);
+		diagnostics.AppendRaw(payload);
+		errors.AppendRaw(payload);
+	}
+
+	MarmotJson::Document report;
+	report.AddNumberField("version", 1);
+	report.AddStringField("source", "marmot");
+	report.AddField("diagnostics", diagnostics);
+	report.AddField("warnings", warnings);
+	report.AddField("errors", errors);
+	return report.Write();
 }

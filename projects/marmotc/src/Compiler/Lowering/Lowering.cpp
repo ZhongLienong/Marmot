@@ -77,7 +77,7 @@ Lowering::Lowering(MarmotProgramTree& program, std::string_view file_name, const
 MarmotResult::DiagnosticsResult<LoweredModule> Lowering::Lower() &&
 {
 	const Specialization& module_context = m_specializations.front();
-	const MarmotIRFunctionId top_level = NewFunction(std::string(MAIN_PROCEDURE_PREFIX), UnitType(), module_context);
+	const MarmotIRFunctionId top_level = NewFunction(std::string(MmcWire::MAIN_PROCEDURE_PREFIX), UnitType(), module_context);
 	m_module.m_top_level = top_level;
 
 	std::vector<CompilerError> reservation_errors = ReserveTopLevelNames();

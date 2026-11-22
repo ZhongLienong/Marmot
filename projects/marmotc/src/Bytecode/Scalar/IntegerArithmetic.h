@@ -5,8 +5,7 @@
 #include <type_traits>
 
 // Int arithmetic wraps in two's complement. Signed overflow is undefined in
-// C++, so the constant folder goes through the unsigned type. Its result must
-// agree with the VM's independent implementation.
+// C++, so perform arithmetic through the corresponding unsigned type.
 namespace MarmotIntegerArithmetic
 {
 	using Signed = int64_t;

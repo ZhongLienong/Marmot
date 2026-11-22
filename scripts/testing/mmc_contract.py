@@ -21,7 +21,18 @@ from make import generate_mmc
 
 
 CONTRACT_DIR = REPO_ROOT / "format" / "mmc"
-HEADER = struct.Struct("<4sIHHHHIQI")
+HEADER_FIELDS = {
+    "magic": "4s",
+    "format_marker": "I",
+    "version_major": "H",
+    "version_minor": "H",
+    "version_patch": "H",
+    "reserved": "H",
+    "flags": "I",
+    "payload_size": "Q",
+    "payload_crc32": "I",
+}
+HEADER = struct.Struct("<" + "".join(HEADER_FIELDS.values()))
 
 
 class Cursor:
@@ -170,9 +181,17 @@ def source_registry(side: Path, *, signatures: bool) -> dict[str, object]:
 def check_registry() -> None:
     generate_mmc.check_generated()
     registry = json.loads((CONTRACT_DIR / "registry.json").read_text(encoding="utf-8"))
-    for name, side, marker_name in (
-        ("marmotc", REPO_ROOT / "projects/marmotc/src/Bytecode", "MbcFormatMarker"),
-        ("marmotvm", REPO_ROOT / "projects/marmotvm/src/Bytecode", "VmMbcFormatMarker"),
+    wire = registry["wire"]
+    header_format = "<"
+    offsets = {}
+    for field, encoding in HEADER_FIELDS.items():
+        offsets[field] = struct.calcsize(header_format)
+        header_format += encoding
+    if wire["header_size"] != HEADER.size or wire["header_offsets"] != offsets:
+        raise AssertionError(".mmc wire registry differs from the fixture header layout")
+    for name, side in (
+        ("marmotc", REPO_ROOT / "projects/marmotc/src/Bytecode"),
+        ("marmotvm", REPO_ROOT / "projects/marmotvm/src/Bytecode"),
     ):
         expected = {
             "builtin_abi_version": registry["builtin_abi_version"],
@@ -182,10 +201,6 @@ def check_registry() -> None:
         }
         if source_registry(side, signatures=name == "marmotvm") != expected:
             raise AssertionError(f"{name} opcode or builtin table differs from the checked-in registry")
-        format_header = (side / "Format/Format.h").read_text(encoding="utf-8")
-        marker = re.search(rf"{marker_name}\s*=\s*(\d+)u", format_header)
-        if marker is None or int(marker.group(1)) != registry["format_marker"]:
-            raise AssertionError(f"{name} format marker differs from the checked-in registry")
 
 
 def run(args: list[str]) -> subprocess.CompletedProcess[str]:

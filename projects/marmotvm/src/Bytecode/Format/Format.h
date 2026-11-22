@@ -1,24 +1,48 @@
+// Generated from format/mmc/registry.json. Do not edit.
+// Regenerate: python scripts/dev.py generate-mmc
+
 #pragma once
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
 #include <string_view>
 
-// What marmotc writes and marmotvm reads must agree on besides the opcodes and
-// the builtin table.
+namespace MmcWire
+{
+	inline constexpr std::array<uint8_t, 4u> MAGIC{ 0x4Du, 0x42u, 0x43u, 0x00u };
+	inline constexpr uint32_t FORMAT_MARKER = 19u;
+	inline constexpr std::size_t HEADER_SIZE = 32u;
+	inline constexpr std::size_t MAGIC_OFFSET = 0u;
+	inline constexpr std::size_t FORMAT_MARKER_OFFSET = 4u;
+	inline constexpr std::size_t VERSION_MAJOR_OFFSET = 8u;
+	inline constexpr std::size_t VERSION_MINOR_OFFSET = 10u;
+	inline constexpr std::size_t VERSION_PATCH_OFFSET = 12u;
+	inline constexpr std::size_t RESERVED_OFFSET = 14u;
+	inline constexpr std::size_t FLAGS_OFFSET = 16u;
+	inline constexpr std::size_t PAYLOAD_SIZE_OFFSET = 20u;
+	inline constexpr std::size_t PAYLOAD_CRC32_OFFSET = 28u;
+	inline constexpr uint32_t SOURCE_FILES_EMBEDDED_FLAG = 1u;
 
-// Serialized artifacts use opcode and builtin positions as IDs. This marker
-// lets the VM reject an artifact built against a different encoding instead
-// of misinterpreting it. It does not require preserving older IDs or artifacts;
-// change the marker when an encoding change could alter their meaning.
-//
-inline constexpr uint32_t VmMbcFormatMarker = 19u;
+	inline constexpr uint32_t CRC32_POLYNOMIAL = 0xEDB88320u;
+	inline constexpr uint32_t CRC32_INITIAL = 0xFFFFFFFFu;
+	inline constexpr uint32_t CRC32_FINAL_XOR = 0xFFFFFFFFu;
 
-inline constexpr int VM_MAX_UNION_TAG{ UINT8_MAX };
+	inline constexpr int FFI_ARGUMENT_BITS = 2;
+	inline constexpr uint8_t FFI_ARGUMENT_MASK = 0x03u;
+	inline constexpr uint8_t FFI_RETURN_KIND_MASK = 0x7Fu;
+	inline constexpr uint8_t FFI_POINTER_ELEMENTS_FLAG = 0x80u;
+	inline constexpr uint8_t FFI_ARGUMENT_RAW_VALUE = 0u;
+	inline constexpr uint8_t FFI_ARGUMENT_C_STRING = 1u;
+	inline constexpr uint8_t FFI_ARGUMENT_ARRAY_VIEW = 2u;
+	inline constexpr uint8_t FFI_RETURN_RAW_VALUE = 0u;
+	inline constexpr uint8_t FFI_RETURN_C_STRING = 1u;
+	inline constexpr uint8_t FFI_RETURN_ARRAY_VALUES = 2u;
+	inline constexpr uint8_t FFI_RETURN_ARRAY_STRINGS = 3u;
 
-inline constexpr int VM_MAX_ARRAY_SIZE{ ((UINT16_MAX << 8) | 0xffff) };
-
-// A procedure is named `name@module`, and the runtime splits it to name stack
-// frames.
-constexpr char VmModuleSeparator = '@';
-constexpr std::string_view VM_MAIN_PROCEDURE_PREFIX = "$main$";
-constexpr std::string_view VM_MODULE_BOOTSTRAP_PREFIX = "$module_bootstrap$";
+	inline constexpr int MAX_UNION_TAG = 255;
+	inline constexpr int MAX_ARRAY_SIZE = 16777215;
+	inline constexpr char MODULE_SEPARATOR = '@';
+	inline constexpr std::string_view MAIN_PROCEDURE_PREFIX = "$main$";
+	inline constexpr std::string_view MODULE_BOOTSTRAP_PREFIX = "$module_bootstrap$";
+}

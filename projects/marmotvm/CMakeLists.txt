@@ -99,6 +99,44 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${MARMOT_OUTPUT_DIR}")
 # External Dependencies
 # ============================================================================
 include(FetchContent)
+if(MSVC AND NOT DEFINED CMAKE_C_COMPILER AND "$ENV{CC}" STREQUAL "")
+    set(CMAKE_C_COMPILER "${CMAKE_CXX_COMPILER}")
+endif()
+enable_language(C)
+
+set(YYJSON_INSTALL OFF)
+set(ZLIB_BUILD_SHARED OFF)
+set(ZLIB_BUILD_TESTING OFF)
+set(ZLIB_BUILD_MINIZIP OFF)
+set(ZLIB_INSTALL OFF)
+FetchContent_Declare(yyjson
+    URL https://codeload.github.com/ibireme/yyjson/tar.gz/8b4a38dc994a110abaec8a400615567bd996105f
+    URL_HASH SHA256=94e9c90f8f12d8329f2c0756782d21e5c278729023cd2c5fe47e323a35947ed6
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+)
+FetchContent_Declare(zlib
+    URL https://codeload.github.com/madler/zlib/tar.gz/99623ef7097352da7993ba614161fd6a311e046e
+    URL_HASH SHA256=f0d590dd90243a12f551ee13359bf6c634249c55b316fa2b7dbecabe7ae9a904
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+)
+FetchContent_Declare(picosha2
+    URL https://codeload.github.com/okdshin/PicoSHA2/tar.gz/161cb3fc4170fa7a3eca9e582cebd27cc4d1fe29
+    URL_HASH SHA256=6cf473a00c98298d3ddee0aed853e3c799791f49dbc01c996ea46cb248e85802
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+)
+FetchContent_MakeAvailable(yyjson zlib picosha2)
+
+if(EMSCRIPTEN)
+    target_compile_options(yyjson PRIVATE -sMEMORY64=1)
+    target_compile_options(zlibstatic PRIVATE -sMEMORY64=1)
+else()
+    FetchContent_Declare(CLI11
+        URL https://codeload.github.com/CLIUtils/CLI11/tar.gz/37bb6edc5317e99af72ef48405e65d9ca5218861
+        URL_HASH SHA256=62ecd3cd7e8ce36506ea8c19e20554a933c82f45d6a75a39cc8778e0c5170a66
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    )
+    FetchContent_MakeAvailable(CLI11)
+endif()
 
 if(MARMOT_BUILD_TESTS AND NOT EMSCRIPTEN)
     enable_testing()
@@ -137,7 +175,7 @@ file(GLOB_RECURSE MARMOT_RUNTIME_SOURCES CONFIGURE_DEPENDS "src/*.cpp")
 list(FILTER MARMOT_RUNTIME_SOURCES EXCLUDE REGEX "/src/(MarmotVM.cpp$|Wasm/)")
 add_library(MarmotRuntime STATIC ${MARMOT_RUNTIME_SOURCES})
 target_include_directories(MarmotRuntime PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_link_libraries(MarmotRuntime PUBLIC MarmotStdLib MarmotNativeSupport)
+target_link_libraries(MarmotRuntime PRIVATE MarmotStdLib picosha2 yyjson ZLIB::ZLIBSTATIC)
 set(MARMOT_LIBRARY_TARGETS MarmotRuntime)
 if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     set_source_files_properties(src/Interpreter/VirtualMachine/VirtualMachine.cpp PROPERTIES COMPILE_OPTIONS "/GL-")
@@ -150,9 +188,20 @@ if(UNIX)
 endif()
 if(NOT EMSCRIPTEN)
     add_executable(marmotvm src/MarmotVM.cpp)
-    target_link_libraries(marmotvm PRIVATE MarmotRuntime)
-    set(MARMOT_NATIVE_COMPILE_TARGETS ${MARMOT_LIBRARY_TARGETS} MarmotStdLib MarmotNativeSupport marmotvm)
+    target_link_libraries(marmotvm PRIVATE MarmotRuntime CLI11::CLI11 yyjson)
+    set(MARMOT_NATIVE_COMPILE_TARGETS ${MARMOT_LIBRARY_TARGETS} MarmotStdLib marmotvm)
     set(MARMOT_NATIVE_LINK_TARGETS marmotvm)
+    include(cmake/CompilerWarnings.cmake)
+    marmot_compiler_warnings(MarmotRuntime)
+    marmot_compiler_warnings(marmotvm)
+    if(MSVC AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+        include(CheckCXXCompilerFlag)
+        check_cxx_compiler_flag("-Wnontrivial-memcall" MARMOT_HAS_NONTRIVIAL_MEMCALL_WARNING)
+        if(MARMOT_HAS_NONTRIVIAL_MEMCALL_WARNING)
+            # Keep warnings visible for the existing array and text storage copies.
+            set_source_files_properties(src/Value/Value.cpp PROPERTIES COMPILE_OPTIONS "-Wno-error=nontrivial-memcall")
+        endif()
+    endif()
     foreach(target_name IN LISTS MARMOT_NATIVE_COMPILE_TARGETS)
         target_compile_definitions(${target_name} PUBLIC
             $<$<CONFIG:Release>:NDEBUG>
@@ -179,7 +228,6 @@ if(NOT EMSCRIPTEN)
             target_compile_options(${target_name} PRIVATE
             /GR-            # Disable RTTI
             /permissive-    # Standards-conformant mode
-            /W4             # Warning level 4
             /EHsc           # Enable exception handling
             /bigobj         # Allow large object files
 

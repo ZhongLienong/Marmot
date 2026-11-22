@@ -74,19 +74,13 @@ namespace
 		}
 	}
 
-	std::string SerializeRuntimeStack(const std::vector<RuntimeStackFrame>& stack)
+	MarmotJson::Document SerializeRuntimeStack(const std::vector<RuntimeStackFrame>& stack)
 	{
-		std::string serialized = "[";
+		MarmotJson::Document serialized = MarmotJson::Document::Array();
 		for (size_t index = 0u; index < stack.size(); index += 1u)
 		{
-			if (index > 0u)
-			{
-				serialized.push_back(',');
-			}
-
 			const RuntimeStackFrame& frame = stack[index];
-			std::string object = "{";
-			bool first_field = true;
+			MarmotJson::Document object;
 			std::optional<std::string> normalized_file_storage = std::nullopt;
 			std::optional<std::string_view> file = std::nullopt;
 			if (!frame.m_location.m_file_name.empty())
@@ -107,27 +101,25 @@ namespace
 					? std::optional<std::string_view>(*frame.m_location.m_source_line)
 					: std::nullopt;
 
-			RuntimeJson::AppendStringField(object, "procedure", frame.m_procedure_name, first_field);
-			RuntimeJson::AppendStringField(object, "module", frame.m_module_name.empty() ? std::optional<std::string_view>(std::nullopt) : std::optional<std::string_view>(frame.m_module_name), first_field);
-			RuntimeJson::AppendStringField(object, "file", file, first_field);
-			RuntimeJson::AppendNumberField(object, "line", line, first_field);
-			RuntimeJson::AppendNumberField(object, "column", frame.m_location.m_column, first_field);
-			RuntimeJson::AppendNumberField(object, "endLine", end_line, first_field);
-			RuntimeJson::AppendNumberField(object, "endColumn", end_column, first_field);
-			RuntimeJson::AppendStringField(object, "sourceLine", source_line, first_field);
-			RuntimeJson::AppendNumberField(object, "recursiveCount", frame.m_recursive_call_count, first_field);
-			object.push_back('}');
-			serialized += object;
+			object.AddStringField("procedure", frame.m_procedure_name);
+			object.AddStringField("module", frame.m_module_name.empty() ? std::optional<std::string_view>(std::nullopt) : std::optional<std::string_view>(frame.m_module_name));
+			object.AddStringField("file", file);
+			object.AddNumberField("line", line);
+			object.AddNumberField("column", frame.m_location.m_column);
+			object.AddNumberField("endLine", end_line);
+			object.AddNumberField("endColumn", end_column);
+			object.AddStringField("sourceLine", source_line);
+			object.AddNumberField("recursiveCount", frame.m_recursive_call_count);
+
+			serialized.Append(object);
 		}
 
-		serialized.push_back(']');
 		return serialized;
 	}
 
 	std::string SerializeMachineReadableRuntimeDiagnostic(const RuntimeError& error)
 	{
-		std::string serialized = "{";
-		bool first_field = true;
+		MarmotJson::Document serialized;
 
 		std::optional<std::string_view> file = std::nullopt;
 		std::optional<std::string> normalized_file_storage = std::nullopt;
@@ -160,23 +152,23 @@ namespace
 			}
 		}
 
-		RuntimeJson::AppendStringField(serialized, "source", "marmot-runtime", first_field);
-		RuntimeJson::AppendStringField(serialized, "severity", "error", first_field);
-		RuntimeJson::AppendStringField(serialized, "stage", "Runtime", first_field);
-		RuntimeJson::AppendStringField(serialized, "code", RuntimeErrorCodeName(error.m_code), first_field);
-		RuntimeJson::AppendStringField(serialized, "kind", error.m_kind == RuntimeDiagnosticKind::Panic ? "panic" : "error", first_field);
-		RuntimeJson::AppendStringField(serialized, "message", error.m_message, first_field);
-		RuntimeJson::AppendStringField(serialized, "file", file, first_field);
-		RuntimeJson::AppendNumberField(serialized, "line", line, first_field);
-		RuntimeJson::AppendNumberField(serialized, "column", column, first_field);
-		RuntimeJson::AppendNumberField(serialized, "endLine", end_line, first_field);
-		RuntimeJson::AppendNumberField(serialized, "endColumn", end_column, first_field);
-		RuntimeJson::AppendNumberField(serialized, "caret_length", caret_length, first_field);
-		RuntimeJson::AppendStringField(serialized, "sourceLine", source_line, first_field);
-		RuntimeJson::AppendNumberField(serialized, "exitCode", error.ExitCode(), first_field);
-		RuntimeJson::AppendRawField(serialized, "stack", SerializeRuntimeStack(error.m_stack), first_field);
-		serialized.push_back('}');
-		return serialized;
+		serialized.AddStringField("source", "marmot-runtime");
+		serialized.AddStringField("severity", "error");
+		serialized.AddStringField("stage", "Runtime");
+		serialized.AddStringField("code", RuntimeErrorCodeName(error.m_code));
+		serialized.AddStringField("kind", error.m_kind == RuntimeDiagnosticKind::Panic ? "panic" : "error");
+		serialized.AddStringField("message", error.m_message);
+		serialized.AddStringField("file", file);
+		serialized.AddNumberField("line", line);
+		serialized.AddNumberField("column", column);
+		serialized.AddNumberField("endLine", end_line);
+		serialized.AddNumberField("endColumn", end_column);
+		serialized.AddNumberField("caret_length", caret_length);
+		serialized.AddStringField("sourceLine", source_line);
+		serialized.AddNumberField("exitCode", error.ExitCode());
+		serialized.AddField("stack", SerializeRuntimeStack(error.m_stack));
+
+		return serialized.Write();
 	}
 
 	std::string RenderRuntimeDiagnostic(const RuntimeError& error)
@@ -184,18 +176,18 @@ namespace
 		std::ostringstream oss;
 		const bool is_panic = error.m_kind == RuntimeDiagnosticKind::Panic;
 
-		oss << RuntimeTerminal::Code(RuntimeTerminal::Color::BOLD);
-		oss << RuntimeTerminal::Code(RuntimeTerminal::Color::BRIGHT_RED);
+		oss << MarmotTerminal::Code(MarmotTerminal::Color::BOLD);
+		oss << MarmotTerminal::Code(MarmotTerminal::Color::BRIGHT_RED);
 		oss << (is_panic ? "panic" : "error");
 		if (error.m_code != RuntimeErrorCode::None)
 		{
 			oss << "[" << RuntimeErrorCodeName(error.m_code) << "]";
 		}
-		oss << RuntimeTerminal::Code(RuntimeTerminal::Color::RESET);
+		oss << MarmotTerminal::Code(MarmotTerminal::Color::RESET);
 		oss << ": ";
-		oss << RuntimeTerminal::Code(RuntimeTerminal::Color::BRIGHT_WHITE);
+		oss << MarmotTerminal::Code(MarmotTerminal::Color::BRIGHT_WHITE);
 		oss << error.m_message;
-		oss << RuntimeTerminal::Code(RuntimeTerminal::Color::RESET) << "\n";
+		oss << MarmotTerminal::Code(MarmotTerminal::Color::RESET) << "\n";
 
 		if (error.m_location.has_value())
 		{
@@ -206,9 +198,9 @@ namespace
 			if (has_file || has_line)
 			{
 				oss << " ";
-				oss << RuntimeTerminal::Code(RuntimeTerminal::Color::BRIGHT_CYAN);
+				oss << MarmotTerminal::Code(MarmotTerminal::Color::BRIGHT_CYAN);
 				oss << "-->";
-				oss << RuntimeTerminal::Code(RuntimeTerminal::Color::RESET);
+				oss << MarmotTerminal::Code(MarmotTerminal::Color::RESET);
 				oss << " ";
 				if (has_file)
 				{
@@ -235,25 +227,25 @@ namespace
 				const std::string line_number = std::to_string(location.m_line);
 				const int gutter_width = static_cast<int>(line_number.size()) + 1;
 
-				oss << RuntimeTerminal::Code(RuntimeTerminal::Color::BLUE);
+				oss << MarmotTerminal::Code(MarmotTerminal::Color::BLUE);
 				for (int index = 0; index < gutter_width; index += 1)
 				{
 					oss << " ";
 				}
-				oss << "|" << RuntimeTerminal::Code(RuntimeTerminal::Color::RESET) << "\n";
+				oss << "|" << MarmotTerminal::Code(MarmotTerminal::Color::RESET) << "\n";
 
 				oss << line_number;
 				oss << " | ";
 				oss << source_text;
 				oss << "\n";
 
-				oss << RuntimeTerminal::Code(RuntimeTerminal::Color::BLUE);
+				oss << MarmotTerminal::Code(MarmotTerminal::Color::BLUE);
 				for (int index = 0; index < gutter_width; index += 1)
 				{
 					oss << " ";
 				}
 				oss << "|";
-				oss << RuntimeTerminal::Code(RuntimeTerminal::Color::BRIGHT_RED);
+				oss << MarmotTerminal::Code(MarmotTerminal::Color::BRIGHT_RED);
 				if (location.m_column.has_value())
 				{
 					oss << " ";
@@ -271,14 +263,14 @@ namespace
 				{
 					oss << " " << error.m_message;
 				}
-				oss << RuntimeTerminal::Code(RuntimeTerminal::Color::RESET) << "\n";
+				oss << MarmotTerminal::Code(MarmotTerminal::Color::RESET) << "\n";
 
-				oss << RuntimeTerminal::Code(RuntimeTerminal::Color::BLUE);
+				oss << MarmotTerminal::Code(MarmotTerminal::Color::BLUE);
 				for (int index = 0; index < gutter_width; index += 1)
 				{
 					oss << " ";
 				}
-				oss << "|" << RuntimeTerminal::Code(RuntimeTerminal::Color::RESET) << "\n";
+				oss << "|" << MarmotTerminal::Code(MarmotTerminal::Color::RESET) << "\n";
 			}
 		}
 
@@ -288,9 +280,9 @@ namespace
 			for (const RuntimeStackFrame& frame : error.m_stack)
 			{
 				oss << "  at ";
-				oss << RuntimeTerminal::Code(RuntimeTerminal::Color::BRIGHT_YELLOW);
+				oss << MarmotTerminal::Code(MarmotTerminal::Color::BRIGHT_YELLOW);
 				oss << frame.m_procedure_name;
-				oss << RuntimeTerminal::Code(RuntimeTerminal::Color::RESET);
+				oss << MarmotTerminal::Code(MarmotTerminal::Color::RESET);
 
 				if (!frame.m_module_name.empty())
 				{

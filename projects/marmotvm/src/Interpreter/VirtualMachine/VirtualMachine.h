@@ -168,7 +168,7 @@ private:
 	std::vector<MarmotTraceable*> m_static_closure_cache;
 	// A union variant with no fields carries nothing but its tag, and v2 values are
 	// immutable, so every occurrence of one can be the same object.
-	std::array<MarmotTraceable*, static_cast<size_t>(VM_MAX_UNION_TAG) + 1u> m_empty_union_cache{};
+	std::array<MarmotTraceable*, static_cast<size_t>(MmcWire::MAX_UNION_TAG) + 1u> m_empty_union_cache{};
     std::unordered_map<std::string_view, MarmotTraceable*> m_small_string_pool;
 
     void* m_value_stack_region = nullptr;

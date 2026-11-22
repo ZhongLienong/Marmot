@@ -1,5 +1,5 @@
 #include "Utility/Diagnostics/Diagnostics.h"
-#include "Compiler/Terminal/Terminal.h"
+#include "Support/Terminal/Terminal.h"
 #include "Compiler/Source/Source.h"
 #include "Compiler.h"
 #include "Compiler/BuildGraph/BuildGraph.h"

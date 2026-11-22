@@ -766,7 +766,7 @@ private:
 
 	MarmotResult::StatementResult ParseForeignDeclaration(const Token& foreign_name, const std::optional<std::string>& block_library);
 
-	std::expected<std::vector<MarmotType::ClassConstraint>, CompilerError> ParseClassConstraints(const Token& context_token);
+	std::expected<std::vector<MarmotType::ClassConstraint>, CompilerError> ParseClassConstraints();
 
 	void PushActiveConstraints(const std::vector<MarmotType::ClassConstraint>& constraints);
 

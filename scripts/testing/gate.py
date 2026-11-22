@@ -3,6 +3,7 @@
 The full gate: everything that must pass before a commit.
 
 In order, stopping at the first failure:
+    generate-mmc  checked-in .mmc headers and tables match the registry
     layering    the compiler and VM use only their own C++ code
     build       marmotc, marmotvm and the project unit tests and subprocess integration tests
     unit        the C++ unit tests
@@ -34,9 +35,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from lib import console
 from lib.host import BUILD_ARTIFACTS, REPO_ROOT, remove_artifacts
 from lib.presets import BuildTree, UNIT_TARGETS, add_build_arguments
+from make import generate_mmc
 from testing import benchmarks, cli_contracts, doc_examples, formatting, language, layering, mmc_contract, tool, unit
 
-STEPS = ["layering", "build", "unit", "mmc", "docs", "cli", "format", "benchmarks", "tool", "language"]
+STEPS = ["generate-mmc", "layering", "build", "unit", "mmc", "docs", "cli", "format", "benchmarks", "tool", "language"]
 
 
 # What a step stopped part way can leave behind: build output, extracted doc
@@ -62,6 +64,7 @@ def steps(args: argparse.Namespace, tree: BuildTree) -> dict[str, Callable[[], i
     common = tree_arguments(args)
     verbose = ["--verbose"] if args.verbose else []
     return {
+        "generate-mmc": lambda: generate_mmc.main(["--check"]),
         "layering": lambda: layering.main([]),
         "build": lambda: build_everything(tree),
         "unit": lambda: unit.main(common),

@@ -79,6 +79,17 @@ TEST_CASE("JSON reader errors name the line and column", "[json]")
 	CHECK(document.error() == "line 3, column 3: duplicate member \"a\"");
 }
 
+TEST_CASE("JSON reader locates a repeated escaped key inside an object", "[json]")
+{
+	const std::expected<CompilerJson::JsonValue, std::string> document = CompilerJson::Parse(
+		R"({"a": 1, "outer": {
+  "a": "text with an escaped \" and a colon:",
+  "\u0061": 2
+}})");
+	REQUIRE_FALSE(document.has_value());
+	CHECK(document.error() == "line 3, column 3: duplicate member \"a\"");
+}
+
 TEST_CASE("JSON reader bounds nesting depth", "[json]")
 {
 	const std::string deep = std::string(1000u, '[') + std::string(1000u, ']');

@@ -1,7 +1,6 @@
 #pragma once
 
 #include <algorithm>
-#include <concepts>
 #include <expected>
 #include <iterator>
 #include <memory>
@@ -86,29 +85,6 @@ namespace MarmotResult
 			return rendered;
 		}
 
-		[[nodiscard]] std::string MachineReadableJson() const
-		{
-			std::string serialized = "[";
-			for (size_t index = 0u; index < m_items.size(); index += 1u)
-			{
-				if (index > 0u)
-				{
-					serialized.push_back(',');
-				}
-
-				if constexpr (std::same_as<Diagnostic, CompilerWarning>)
-				{
-					serialized += SerializeMachineReadableWarningPayload(m_items[index]);
-				}
-				else
-				{
-					serialized += SerializeMachineReadableError(m_items[index]);
-				}
-			}
-
-			serialized.push_back(']');
-			return serialized;
-		}
 	};
 
 	using CompilerWarnings = DiagnosticList<CompilerWarning>;
@@ -210,35 +186,7 @@ namespace MarmotResult
 			return serialized;
 		}
 
-		[[nodiscard]] std::string MachineReadableJson() const
-		{
-			std::string diagnostics = "[";
-			for (size_t index = 0u; index < m_warnings.m_items.size(); index += 1u)
-			{
-				if (index > 0u)
-				{
-					diagnostics.push_back(',');
-				}
-
-				diagnostics += SerializeMachineReadableWarningPayload(m_warnings.m_items[index]);
-			}
-
-			for (size_t index = 0u; index < m_errors.m_items.size(); index += 1u)
-			{
-				if (!m_warnings.Empty() || index > 0u)
-				{
-					diagnostics.push_back(',');
-				}
-
-				diagnostics += SerializeMachineReadableError(m_errors.m_items[index]);
-			}
-
-			diagnostics.push_back(']');
-
-			return std::string("{\"version\":1,\"source\":\"marmot\",\"diagnostics\":") + diagnostics +
-				",\"warnings\":" + m_warnings.MachineReadableJson() +
-				",\"errors\":" + m_errors.MachineReadableJson() + "}";
-		}
+		[[nodiscard]] std::string MachineReadableJson() const;
 	};
 
 	template<typename ValueType>

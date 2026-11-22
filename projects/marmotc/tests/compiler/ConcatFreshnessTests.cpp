@@ -24,7 +24,7 @@ namespace
 	{
 		for (std::size_t index = 0u; index < module.m_procedure_names.size(); index += 1u)
 		{
-			if (module.m_procedure_names[index].starts_with(MAIN_PROCEDURE_PREFIX))
+			if (module.m_procedure_names[index].starts_with(MmcWire::MAIN_PROCEDURE_PREFIX))
 			{
 				return index;
 			}

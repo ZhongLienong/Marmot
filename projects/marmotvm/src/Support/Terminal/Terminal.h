@@ -6,13 +6,14 @@
 #include <string>
 #include <string_view>
 
-namespace RuntimeTerminal
+namespace MarmotTerminal
 {
 	enum class Color
 	{
 		RESET,
 		BOLD,
 		RED,
+		YELLOW,
 		BLUE,
 		WHITE,
 		CYAN,
@@ -23,11 +24,9 @@ namespace RuntimeTerminal
 		DARK_GRAY,
 	};
 
-	// Runtime errors go to stdout, so they are coloured when it is a terminal.
-	// NO_COLOR turns colour off and CLICOLOR_FORCE on, NO_COLOR first.
+	[[nodiscard]] bool ShouldUseColor(std::FILE* output);
+	void SetColorEnabled(bool enabled);
 	[[nodiscard]] bool ColorEnabled();
-
-	// The escape code for `color`, or nothing when colour is off.
 	[[nodiscard]] std::string_view Code(Color color);
 
 	template<Color color>

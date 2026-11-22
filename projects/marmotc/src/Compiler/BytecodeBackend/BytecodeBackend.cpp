@@ -249,15 +249,15 @@ namespace
 	{
 		if (type->IsType<MarmotType::TextType>())
 		{
-			return 1u;
+			return MmcWire::FFI_RETURN_C_STRING;
 		}
 		if (type->IsType<MarmotType::ArrayType>())
 		{
 			const TypeRef& element = type->GetType<MarmotType::ArrayType>().m_element_type;
-			const uint8_t kind = element->IsType<MarmotType::TextType>() ? 3u : 2u;
-			return IsPointer(element) ? static_cast<uint8_t>(kind | 0x80u) : kind;
+			const uint8_t kind = element->IsType<MarmotType::TextType>() ? MmcWire::FFI_RETURN_ARRAY_STRINGS : MmcWire::FFI_RETURN_ARRAY_VALUES;
+			return IsPointer(element) ? static_cast<uint8_t>(kind | MmcWire::FFI_POINTER_ELEMENTS_FLAG) : kind;
 		}
-		return 0u;
+		return MmcWire::FFI_RETURN_RAW_VALUE;
 	}
 
 	// How a native library receives each argument, two bits apiece from the
@@ -268,8 +268,10 @@ namespace
 		return std::ranges::fold_left(std::views::zip(std::views::iota(0), arguments), uint8_t{ 0u }, [&function](uint8_t kinds, const std::tuple<int, const MarmotIRValueId&>& argument)
 		{
 			const TypeRef& type = function.TypeOf(std::get<1>(argument));
-			const uint8_t kind = type->IsType<MarmotType::TextType>() ? 1u : type->IsType<MarmotType::ArrayType>() ? 2u : 0u;
-			return static_cast<uint8_t>(kinds | (kind << (2 * std::get<0>(argument))));
+			const uint8_t kind = type->IsType<MarmotType::TextType>() ? MmcWire::FFI_ARGUMENT_C_STRING
+				: type->IsType<MarmotType::ArrayType>() ? MmcWire::FFI_ARGUMENT_ARRAY_VIEW
+				: MmcWire::FFI_ARGUMENT_RAW_VALUE;
+			return static_cast<uint8_t>(kinds | (kind << (MmcWire::FFI_ARGUMENT_BITS * std::get<0>(argument))));
 		});
 	}
 
@@ -832,7 +834,7 @@ namespace
 				return std::nullopt;
 			}
 			const int64_t constant = std::get<int64_t>(definition->m_immediate);
-			return constant >= 0 && constant <= MAX_UNION_TAG ? std::optional(static_cast<uint8_t>(constant)) : std::nullopt;
+			return constant >= 0 && constant <= MmcWire::MAX_UNION_TAG ? std::optional(static_cast<uint8_t>(constant)) : std::nullopt;
 		}
 
 		// Two values in slots share one when neither is live where the other
@@ -1387,7 +1389,7 @@ namespace
 			case MarmotIROp::ArrayAppend:
 				return IsByteLocal(operands[0u]) && IsByteLocal(operands[1u]) && IsInSlot(instruction.m_result.value()) && m_slots[instruction.m_result->m_index] == m_slots[operands[0u].m_index];
 			case MarmotIROp::MakeUnion:
-				return operands.size() == 2u && std::get<MarmotIRTag>(instruction.m_immediate).m_value <= MAX_UNION_TAG && IsByteLocal(operands[0u]) && IsByteLocal(operands[1u]) && IsByteLocal(instruction.m_result.value());
+				return operands.size() == 2u && std::get<MarmotIRTag>(instruction.m_immediate).m_value <= MmcWire::MAX_UNION_TAG && IsByteLocal(operands[0u]) && IsByteLocal(operands[1u]) && IsByteLocal(instruction.m_result.value());
 			default:
 				return false;
 			}
@@ -1554,9 +1556,9 @@ namespace
 
 		Emitted EmitCount(OpCode op, size_t count, int line)
 		{
-			if (count > static_cast<size_t>(MAX_ARRAY_SIZE))
+			if (count > static_cast<size_t>(MmcWire::MAX_ARRAY_SIZE))
 			{
-				return std::unexpected(m_backend.LimitExceeded(std::format("Too many elements (max {})", MAX_ARRAY_SIZE + 1), line));
+				return std::unexpected(m_backend.LimitExceeded(std::format("Too many elements (max {})", MmcWire::MAX_ARRAY_SIZE + 1), line));
 			}
 			EmitByte(op, line);
 			EmitOperand(static_cast<int>(count), line);
@@ -1600,9 +1602,9 @@ namespace
 		Emitted EmitMakeUnion(const MarmotIRInstruction& instruction, int line)
 		{
 			const int tag = std::get<MarmotIRTag>(instruction.m_immediate).m_value;
-			if (tag > MAX_UNION_TAG)
+			if (tag > MmcWire::MAX_UNION_TAG)
 			{
-				return std::unexpected(m_backend.LimitExceeded(std::format("Union tag too large (max {})", MAX_UNION_TAG + 1), line));
+				return std::unexpected(m_backend.LimitExceeded(std::format("Union tag too large (max {})", MmcWire::MAX_UNION_TAG + 1), line));
 			}
 			const size_t field_count = instruction.m_operands.size();
 			return CheckByte(field_count, "Too many union fields", line)

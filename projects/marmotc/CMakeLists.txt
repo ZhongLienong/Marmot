@@ -99,6 +99,39 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${MARMOT_OUTPUT_DIR}")
 # External Dependencies
 # ============================================================================
 include(FetchContent)
+if(MSVC AND NOT DEFINED CMAKE_C_COMPILER AND "$ENV{CC}" STREQUAL "")
+    set(CMAKE_C_COMPILER "${CMAKE_CXX_COMPILER}")
+endif()
+enable_language(C)
+
+set(YYJSON_INSTALL OFF)
+set(ZLIB_BUILD_SHARED OFF)
+set(ZLIB_BUILD_TESTING OFF)
+set(ZLIB_BUILD_MINIZIP OFF)
+set(ZLIB_INSTALL OFF)
+FetchContent_Declare(yyjson
+    URL https://codeload.github.com/ibireme/yyjson/tar.gz/8b4a38dc994a110abaec8a400615567bd996105f
+    URL_HASH SHA256=94e9c90f8f12d8329f2c0756782d21e5c278729023cd2c5fe47e323a35947ed6
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+)
+FetchContent_Declare(zlib
+    URL https://codeload.github.com/madler/zlib/tar.gz/99623ef7097352da7993ba614161fd6a311e046e
+    URL_HASH SHA256=f0d590dd90243a12f551ee13359bf6c634249c55b316fa2b7dbecabe7ae9a904
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+)
+FetchContent_MakeAvailable(yyjson zlib)
+
+if(EMSCRIPTEN)
+    target_compile_options(yyjson PRIVATE -sMEMORY64=1)
+    target_compile_options(zlibstatic PRIVATE -sMEMORY64=1)
+else()
+    FetchContent_Declare(CLI11
+        URL https://codeload.github.com/CLIUtils/CLI11/tar.gz/37bb6edc5317e99af72ef48405e65d9ca5218861
+        URL_HASH SHA256=62ecd3cd7e8ce36506ea8c19e20554a933c82f45d6a75a39cc8778e0c5170a66
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    )
+    FetchContent_MakeAvailable(CLI11)
+endif()
 
 if(MARMOT_BUILD_TESTS AND NOT EMSCRIPTEN)
     enable_testing()
@@ -119,14 +152,18 @@ function(marmot_configure_target target_name)
     )
 endfunction()
 
-file(GLOB_RECURSE MARMOT_COMPILER_SOURCES CONFIGURE_DEPENDS "src/Bytecode/*.cpp" "src/Compiler/*.cpp" "src/Utility/*.cpp")
+file(GLOB_RECURSE MARMOT_COMPILER_SOURCES CONFIGURE_DEPENDS "src/Bytecode/*.cpp" "src/Compiler/*.cpp" "src/Support/*.cpp" "src/Utility/*.cpp")
 file(GLOB_RECURSE MARMOT_DRIVER_SOURCES CONFIGURE_DEPENDS "src/Utility/CLI/*.cpp" "src/Utility/Driver/*.cpp")
 list(FILTER MARMOT_COMPILER_SOURCES EXCLUDE REGEX "/src/Utility/(CLI|Driver)/")
 add_library(MarmotCompiler STATIC ${MARMOT_COMPILER_SOURCES})
 target_include_directories(MarmotCompiler PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
-add_library(MarmotDriver STATIC ${MARMOT_DRIVER_SOURCES})
-target_link_libraries(MarmotDriver PUBLIC MarmotCompiler)
-set(MARMOT_LIBRARY_TARGETS MarmotCompiler MarmotDriver)
+target_link_libraries(MarmotCompiler PRIVATE yyjson ZLIB::ZLIBSTATIC)
+set(MARMOT_LIBRARY_TARGETS MarmotCompiler)
+if(NOT EMSCRIPTEN)
+    add_library(MarmotDriver STATIC ${MARMOT_DRIVER_SOURCES})
+    target_link_libraries(MarmotDriver PUBLIC MarmotCompiler PRIVATE CLI11::CLI11 yyjson)
+    list(APPEND MARMOT_LIBRARY_TARGETS MarmotDriver)
+endif()
 foreach(target_name IN LISTS MARMOT_LIBRARY_TARGETS)
     marmot_configure_target(${target_name})
 endforeach()
@@ -138,7 +175,9 @@ if(NOT EMSCRIPTEN)
     target_link_libraries(marmotc PRIVATE MarmotDriver)
     set(MARMOT_NATIVE_COMPILE_TARGETS ${MARMOT_LIBRARY_TARGETS} marmotc)
     set(MARMOT_NATIVE_LINK_TARGETS marmotc)
+    include(cmake/CompilerWarnings.cmake)
     foreach(target_name IN LISTS MARMOT_NATIVE_COMPILE_TARGETS)
+        marmot_compiler_warnings(${target_name})
         target_compile_definitions(${target_name} PUBLIC
             $<$<CONFIG:Release>:NDEBUG>
         )
@@ -164,7 +203,6 @@ if(NOT EMSCRIPTEN)
             target_compile_options(${target_name} PRIVATE
             /GR-            # Disable RTTI
             /permissive-    # Standards-conformant mode
-            /W4             # Warning level 4
             /EHsc           # Enable exception handling
             /bigobj         # Allow large object files
 

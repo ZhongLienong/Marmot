@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate project-private C++ tables from the language-neutral .mmc registry."""
+"""Generate project-private C++ headers and tables from the language-neutral .mmc registry."""
 
 from __future__ import annotations
 
@@ -60,15 +60,62 @@ def vm_builtins(registry: dict) -> str:
     return BANNER + "\n".join(lines) + "\n"
 
 
+def format_header(registry: dict) -> str:
+    wire = registry["wire"]
+    magic = ", ".join(f"0x{byte:02X}u" for byte in wire["magic"])
+    offsets = "\n".join(f"\tinline constexpr std::size_t {name.upper()}_OFFSET = {offset}u;"
+                        for name, offset in wire["header_offsets"].items())
+    crc32 = wire["crc32"]
+    foreign = wire["call_foreign"]
+    kinds = "\n".join(f"\tinline constexpr uint8_t FFI_{direction}_{name.upper()} = {kind}u;"
+                      for direction in ("ARGUMENT", "RETURN")
+                      for name, kind in foreign[f"{direction.lower()}_kinds"].items())
+    return BANNER + f"""#pragma once
+
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <string_view>
+
+namespace MmcWire
+{{
+	inline constexpr std::array<uint8_t, {len(wire["magic"])}u> MAGIC{{ {magic} }};
+	inline constexpr uint32_t FORMAT_MARKER = {registry["format_marker"]}u;
+	inline constexpr std::size_t HEADER_SIZE = {wire["header_size"]}u;
+{offsets}
+	inline constexpr uint32_t SOURCE_FILES_EMBEDDED_FLAG = {wire["source_files_embedded_flag"]}u;
+
+	inline constexpr uint32_t CRC32_POLYNOMIAL = 0x{crc32["polynomial"]:08X}u;
+	inline constexpr uint32_t CRC32_INITIAL = 0x{crc32["initial"]:08X}u;
+	inline constexpr uint32_t CRC32_FINAL_XOR = 0x{crc32["final_xor"]:08X}u;
+
+	inline constexpr int FFI_ARGUMENT_BITS = {foreign["argument_bits"]};
+	inline constexpr uint8_t FFI_ARGUMENT_MASK = 0x{foreign["argument_mask"]:02X}u;
+	inline constexpr uint8_t FFI_RETURN_KIND_MASK = 0x{foreign["return_kind_mask"]:02X}u;
+	inline constexpr uint8_t FFI_POINTER_ELEMENTS_FLAG = 0x{foreign["pointer_elements_flag"]:02X}u;
+{kinds}
+
+	inline constexpr int MAX_UNION_TAG = {wire["max_union_tag"]};
+	inline constexpr int MAX_ARRAY_SIZE = {wire["max_array_size"]};
+	inline constexpr char MODULE_SEPARATOR = {wire["module_separator"]!r};
+	inline constexpr std::string_view MAIN_PROCEDURE_PREFIX = {json.dumps(wire["main_procedure_prefix"])};
+	inline constexpr std::string_view MODULE_BOOTSTRAP_PREFIX = {json.dumps(wire["module_bootstrap_prefix"])};
+}}
+"""
+
+
 def generated_files(registry: dict) -> dict[Path, str]:
     compiler = REPO_ROOT / "projects" / "marmotc" / "src" / "Bytecode"
     vm = REPO_ROOT / "projects" / "marmotvm" / "src" / "Bytecode"
     instructions = opcodes(registry)
+    header = format_header(registry)
     return {
         compiler / "Executable" / "OpCodes.def": instructions,
         compiler / "Builtins" / "Builtins.def": compiler_builtins(registry),
+        compiler / "Format" / "Format.h": header,
         vm / "Executable" / "OpCodes.def": instructions,
         vm / "Builtins" / "Builtins.def": vm_builtins(registry),
+        vm / "Format" / "Format.h": header,
     }
 
 
@@ -81,7 +128,7 @@ def check_generated() -> None:
     stale = stale_files(generated_files(load_registry()))
     if stale:
         names = ", ".join(path.relative_to(REPO_ROOT).as_posix() for path in stale)
-        raise AssertionError(f"Stale .mmc tables: {names}. Run python scripts/dev.py generate-mmc")
+        raise AssertionError(f"Stale .mmc headers or tables: {names}. Run python scripts/dev.py generate-mmc")
 
 
 def main(argv: list[str]) -> int:
@@ -96,12 +143,12 @@ def main(argv: list[str]) -> int:
         if stale:
             print("Run python scripts/dev.py generate-mmc")
             return 1
-        print("Generated .mmc tables are up to date.")
+        print("Generated .mmc headers and tables are up to date.")
         return 0
     for path in stale:
         path.write_text(files[path], encoding="utf-8", newline="\n")
         print(f"Generated: {path.relative_to(REPO_ROOT).as_posix()}")
-    print("Generated .mmc tables are up to date.")
+    print("Generated .mmc headers and tables are up to date.")
     return 0
 
 

@@ -144,7 +144,7 @@ namespace
 	ProcedureDisplayName ParseProcedureName(const std::string& raw_name) noexcept
 	{
 		const std::string_view raw_view(raw_name);
-		const size_t separator_index = raw_view.rfind(VmModuleSeparator);
+		const size_t separator_index = raw_view.rfind(MmcWire::MODULE_SEPARATOR);
 
 		std::string_view display_name = raw_view;
 		std::string_view module_name;
@@ -154,8 +154,8 @@ namespace
 			module_name = raw_view.substr(separator_index + 1u);
 		}
 
-		const bool is_module_bootstrap = display_name.starts_with(VM_MODULE_BOOTSTRAP_PREFIX);
-		if (display_name.starts_with(VM_MAIN_PROCEDURE_PREFIX))
+		const bool is_module_bootstrap = display_name.starts_with(MmcWire::MODULE_BOOTSTRAP_PREFIX);
+		if (display_name.starts_with(MmcWire::MAIN_PROCEDURE_PREFIX))
 		{
 			display_name = "main";
 		}
@@ -985,7 +985,7 @@ MARMOT_FORCE_INLINE MarmotValue VirtualMachine::TakeForeignResult(VmFFIReturnKin
 
 	if (kind == VmFFIReturnKind::RawValue)
 	{
-		kind = static_cast<VmFFIReturnKind>(return_tag & ~VM_POINTER_ELEMENTS_TAG);
+		kind = static_cast<VmFFIReturnKind>(return_tag & MmcWire::FFI_RETURN_KIND_MASK);
 	}
 
 	switch (kind)
@@ -1004,7 +1004,7 @@ MARMOT_FORCE_INLINE MarmotValue VirtualMachine::TakeForeignResult(VmFFIReturnKin
 	case VmFFIReturnKind::ArrayValues:
 	{
 		FFIArray* ffi_array = reinterpret_cast<FFIArray*>(result.GetInteger());
-		const bool holds_pointers = (return_tag & VM_POINTER_ELEMENTS_TAG) != 0u;
+		const bool holds_pointers = (return_tag & MmcWire::FFI_POINTER_ELEMENTS_FLAG) != 0u;
 		if (ffi_array == nullptr)
 		{
 			return AllocateArray(MarmotArray(), holds_pointers);
@@ -1060,7 +1060,7 @@ void VirtualMachine::CallNativeWithSlots(VmFFIFunction proc, uint8_t return_kind
 	proc(m_ffi_args.data(), reinterpret_cast<void*>(&result));
 
 	FFIArrayArgument* array = reinterpret_cast<FFIArrayArgument*>(result.GetInteger());
-	if (static_cast<VmFFIReturnKind>(return_kind & ~VM_POINTER_ELEMENTS_TAG) != VmFFIReturnKind::ArrayValues || array == nullptr || array->length <= 0)
+	if (static_cast<VmFFIReturnKind>(return_kind & MmcWire::FFI_RETURN_KIND_MASK) != VmFFIReturnKind::ArrayValues || array == nullptr || array->length <= 0)
 	{
 		return;
 	}
@@ -2636,7 +2636,9 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			for (int i = arity - 1; i >= 0; i -= 1)
 			{
-				PassForeignArgument(static_cast<VmFFIArgumentKind>((argument_kinds >> (2 * i)) & 3u), static_cast<size_t>(i), Pop(sp));
+				const int shift = MmcWire::FFI_ARGUMENT_BITS * i;
+				const VmFFIArgumentKind kind = static_cast<VmFFIArgumentKind>((argument_kinds >> shift) & MmcWire::FFI_ARGUMENT_MASK);
+				PassForeignArgument(kind, static_cast<size_t>(i), Pop(sp));
 			}
 
 			MarmotValue return_val;

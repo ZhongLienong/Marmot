@@ -1,0 +1,12 @@
+function(marmot_compiler_warnings target_name)
+    if(MSVC)
+        target_compile_options(${target_name} PRIVATE /W4 /WX)
+        target_compile_definitions(${target_name} PRIVATE _CRT_SECURE_NO_WARNINGS)
+    elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+        target_compile_options(${target_name} PRIVATE -Wall -Wextra)
+    endif()
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+        # Designated initializers use implicit initialization for omitted members.
+        target_compile_options(${target_name} PRIVATE -Wno-missing-field-initializers)
+    endif()
+endfunction()

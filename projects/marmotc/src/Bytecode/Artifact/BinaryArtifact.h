@@ -9,8 +9,6 @@
 
 namespace MarmotBinaryArtifact
 {
-	static constexpr uint8_t s_magic[4] = { 'M', 'B', 'C', '\0' };
-
 	[[nodiscard]] std::expected<void, std::string> WriteExecutable(
 		const MarmotExecutable& executable,
 		std::ostream& out,

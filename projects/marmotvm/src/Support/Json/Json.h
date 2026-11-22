@@ -1,115 +1,142 @@
 #pragma once
 
+#include <concepts>
+#include <cstdlib>
+#include <memory>
+#include <new>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <type_traits>
 
-namespace RuntimeJson
+#include <yyjson.h>
+
+namespace MarmotJson
 {
-	[[nodiscard]] inline std::string EscapeString(std::string_view value)
+	class Document
 	{
-		std::string escaped;
-		escaped.reserve(value.size());
-
-		for (const unsigned char ch : value)
+	public:
+		explicit Document(bool array = false)
+			: m_document(yyjson_mut_doc_new(nullptr), yyjson_mut_doc_free)
 		{
-			switch (ch)
+			if (!m_document)
 			{
-			case '\"':
-				escaped += "\\\"";
-				break;
-			case '\\':
-				escaped += "\\\\";
-				break;
-			case '\b':
-				escaped += "\\b";
-				break;
-			case '\f':
-				escaped += "\\f";
-				break;
-			case '\n':
-				escaped += "\\n";
-				break;
-			case '\r':
-				escaped += "\\r";
-				break;
-			case '\t':
-				escaped += "\\t";
-				break;
-			default:
-				if (ch < 0x20u)
-				{
-					escaped += "\\u00";
-					constexpr char hex_digits[] = "0123456789ABCDEF";
-					escaped.push_back(hex_digits[(ch >> 4) & 0x0Fu]);
-					escaped.push_back(hex_digits[ch & 0x0Fu]);
-				}
-				else
-				{
-					escaped.push_back(static_cast<char>(ch));
-				}
-				break;
+				throw std::bad_alloc();
+			}
+			m_root = array ? yyjson_mut_arr(m_document.get()) : yyjson_mut_obj(m_document.get());
+			if (m_root == nullptr)
+			{
+				throw std::bad_alloc();
+			}
+			yyjson_mut_doc_set_root(m_document.get(), m_root);
+		}
+
+		[[nodiscard]] static Document Array()
+		{
+			return Document(true);
+		}
+
+		void AddStringField(std::string_view name, std::optional<std::string_view> value)
+		{
+			AddField(name, value ? String(*value) : yyjson_mut_null(m_document.get()));
+		}
+
+		void AddBoolField(std::string_view name, bool value)
+		{
+			AddField(name, yyjson_mut_bool(m_document.get(), value));
+		}
+
+		template<std::integral Number>
+		void AddNumberField(std::string_view name, std::optional<Number> value)
+		{
+			if (value)
+			{
+				AddNumberField(name, *value);
+			}
+			else
+			{
+				AddField(name, yyjson_mut_null(m_document.get()));
 			}
 		}
 
-		return escaped;
-	}
-
-	inline void AppendFieldPrefix(std::string& out, std::string_view key, bool& first_field)
-	{
-		if (!first_field)
+		template<std::integral Number>
+		void AddNumberField(std::string_view name, Number value)
 		{
-			out.push_back(',');
-		}
-		first_field = false;
-
-		out.push_back('\"');
-		out += key;
-		out += "\":";
-	}
-
-	inline void AppendRawField(std::string& out, std::string_view key, std::string_view raw_json, bool& first_field)
-	{
-		AppendFieldPrefix(out, key, first_field);
-		out += raw_json;
-	}
-
-	inline void AppendBoolField(std::string& out, std::string_view key, bool value, bool& first_field)
-	{
-		AppendFieldPrefix(out, key, first_field);
-		out += value ? "true" : "false";
-	}
-
-	inline void AppendStringField(std::string& out, std::string_view key, std::optional<std::string_view> value, bool& first_field)
-	{
-		AppendFieldPrefix(out, key, first_field);
-		if (!value.has_value())
-		{
-			out += "null";
-			return;
+			if constexpr (std::is_signed_v<Number>)
+			{
+				AddField(name, yyjson_mut_sint(m_document.get(), value));
+			}
+			else
+			{
+				AddField(name, yyjson_mut_uint(m_document.get(), value));
+			}
 		}
 
-		out.push_back('\"');
-		out += EscapeString(*value);
-		out.push_back('\"');
-	}
-
-	template <typename NumberType>
-	inline void AppendNumberField(std::string& out, std::string_view key, std::optional<NumberType> value, bool& first_field)
-	{
-		AppendFieldPrefix(out, key, first_field);
-		if (!value.has_value())
+		void AddRawField(std::string_view name, std::string_view json)
 		{
-			out += "null";
-			return;
+			AddField(name, Raw(json));
 		}
 
-		out += std::to_string(*value);
-	}
+		void AddField(std::string_view name, const Document& value)
+		{
+			AddField(name, yyjson_mut_val_mut_copy(m_document.get(), value.m_root));
+		}
 
-	template <typename NumberType>
-	inline void AppendNumberField(std::string& out, std::string_view key, NumberType value, bool& first_field)
-	{
-		AppendNumberField(out, key, std::optional<NumberType>(value), first_field);
-	}
+		void Append(const Document& value)
+		{
+			Append(yyjson_mut_val_mut_copy(m_document.get(), value.m_root));
+		}
+
+		void AppendString(std::string_view value)
+		{
+			Append(String(value));
+		}
+
+		void AppendRaw(std::string_view json)
+		{
+			Append(Raw(json));
+		}
+
+		[[nodiscard]] std::string Write() const
+		{
+			size_t size = 0;
+			const std::unique_ptr<char, decltype(&std::free)> text(
+				yyjson_mut_write(m_document.get(), YYJSON_WRITE_ALLOW_INVALID_UNICODE | YYJSON_WRITE_ESCAPE_UNICODE, &size), std::free);
+			if (!text)
+			{
+				throw std::bad_alloc();
+			}
+			return std::string(text.get(), size);
+		}
+
+	private:
+		std::unique_ptr<yyjson_mut_doc, decltype(&yyjson_mut_doc_free)> m_document;
+		yyjson_mut_val* m_root;
+
+		[[nodiscard]] yyjson_mut_val* String(std::string_view value)
+		{
+			return yyjson_mut_strncpy(m_document.get(), value.empty() ? "" : value.data(), value.size());
+		}
+
+		[[nodiscard]] yyjson_mut_val* Raw(std::string_view json)
+		{
+			return yyjson_mut_rawncpy(m_document.get(), json.data(), json.size());
+		}
+
+		void AddField(std::string_view name, yyjson_mut_val* value)
+		{
+			if (!yyjson_mut_obj_add(m_root, String(name), value))
+			{
+				throw std::bad_alloc();
+			}
+		}
+
+		void Append(yyjson_mut_val* value)
+		{
+			if (!yyjson_mut_arr_append(m_root, value))
+			{
+				throw std::bad_alloc();
+			}
+		}
+	};
 }

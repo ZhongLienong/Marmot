@@ -43,7 +43,7 @@ class Command:
 COMMANDS: dict[str, Command] = {
     "doctor": Command("make.doctor", "check the toolchain and show what is built", "Build"),
     "configure": Command("make.configure", "(re)configure a CMake build tree", "Build"),
-    "generate-mmc": Command("make.generate_mmc", "generate private .mmc tables, or --check them", "Build"),
+    "generate-mmc": Command("make.generate_mmc", "generate private .mmc headers and tables, or --check them", "Build"),
     "build": Command("make.compile", "build compiler, vm, unit, tool or all", "Build"),
     "clean": Command("make.clean", "delete a build tree, or --all build output", "Build"),
     "wasm": Command("make.wasm", "build for WebAssembly", "Build"),
@@ -76,11 +76,11 @@ def usage() -> str:
     lines = [__doc__.strip(), ""]
     groups: dict[str, list[str]] = {}
     for name, command in COMMANDS.items():
-        groups.setdefault(command.group, []).append(f"  {name:<11}{command.summary}")
+        groups.setdefault(command.group, []).append(f"  {name:<15}{command.summary}")
     for group, entries in groups.items():
         lines += [f"{console.Color.BOLD}{group}{console.Color.RESET}", *entries, ""]
     lines.append(f"{console.Color.BOLD}Checks{console.Color.RESET} (dev.py check <name>)")
-    lines += [f"  {name:<11}{check.summary}" for name, check in CHECKS.items()]
+    lines += [f"  {name:<15}{check.summary}" for name, check in CHECKS.items()]
     return "\n".join(lines)
 
 

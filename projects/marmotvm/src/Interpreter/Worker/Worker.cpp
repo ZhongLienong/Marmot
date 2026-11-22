@@ -56,7 +56,7 @@ Worker::~Worker()
 		m_thread.join();
 		if (!m_outcome.has_value() && !(stopped_here && m_outcome.error().m_cancelled))
 		{
-			RuntimeTerminal::Print<RuntimeTerminal::Color::RED>(stderr, std::format("[Worker] Unjoined worker error: {}\n", m_outcome.error().m_message));
+			MarmotTerminal::Print<MarmotTerminal::Color::RED>(stderr, std::format("[Worker] Unjoined worker error: {}\n", m_outcome.error().m_message));
 		}
 	}
 }

@@ -8,41 +8,12 @@
 #include <string>
 #include <string_view>
 
+#include <zlib.h>
+
 #include "Bytecode/Format/Format.h"
 
 namespace
 {
-	// -------------------------------------------------------------------------
-	// CRC32 (IEEE 802.3 polynomial, standard zlib/gzip variant)
-	// -------------------------------------------------------------------------
-
-	[[nodiscard]] constexpr std::array<uint32_t, 256u> BuildCrc32Table() noexcept
-	{
-		std::array<uint32_t, 256u> table{};
-		for (uint32_t index = 0u; index < 256u; index += 1u)
-		{
-			uint32_t crc = index;
-			for (int bit = 0; bit < 8; bit += 1)
-			{
-				crc = (crc & 1u) ? ((crc >> 1) ^ 0xEDB88320u) : (crc >> 1);
-			}
-			table[index] = crc;
-		}
-		return table;
-	}
-
-	static constexpr std::array<uint32_t, 256u> s_crc32_table = BuildCrc32Table();
-
-	[[nodiscard]] uint32_t Crc32(const uint8_t* data, size_t size) noexcept
-	{
-		uint32_t crc = 0xFFFFFFFFu;
-		for (size_t index = 0u; index < size; index += 1u)
-		{
-			crc = (crc >> 8) ^ s_crc32_table[(crc ^ data[index]) & 0xFFu];
-		}
-		return crc ^ 0xFFFFFFFFu;
-	}
-
 	class BinaryWriter
 	{
 		std::ostream& m_out;
@@ -120,23 +91,6 @@ namespace
 			return m_out.good();
 		}
 	};
-	// -------------------------------------------------------------------------
-	// Header layout (32 bytes, all fields little-endian)
-	//
-	//  Offset  Size  Field
-	//  0       4     magic "MBC\0"
-	//  4       4     format marker u32
-	//  8       2     version_major u16
-	//  10      2     version_minor u16
-	//  12      2     version_patch u16
-	//  14      2     _reserved u16 (0)
-	//  16      4     flags u32  (bit 0: source_files_embedded)
-	//  20      8     payload_size u64
-	//  28      4     payload_crc32 u32
-	// -------------------------------------------------------------------------
-
-	static constexpr uint32_t k_flag_embed_sources = 1u << 0;
-
 	void WritePayload(BinaryWriter& writer, const MarmotExecutable& executable, bool embed_sources)
 	{
 		// file_name
@@ -308,9 +262,7 @@ namespace MarmotBinaryArtifact
 
 		const std::string payload_str = payload_buf.str();
 		const uint64_t payload_size = static_cast<uint64_t>(payload_str.size());
-		const uint32_t payload_crc = Crc32(
-			reinterpret_cast<const uint8_t*>(payload_str.data()),
-			payload_str.size());
+		const uint32_t payload_crc = static_cast<uint32_t>(crc32_z(0, reinterpret_cast<const Bytef*>(payload_str.data()), payload_str.size()));
 
 		// Parse version string "major.minor.patch"
 		uint16_t ver_major = 1u;
@@ -332,13 +284,12 @@ namespace MarmotBinaryArtifact
 			}
 		}
 
-		const uint32_t flags = embed_sources ? k_flag_embed_sources : 0u;
+		const uint32_t flags = embed_sources ? MmcWire::SOURCE_FILES_EMBEDDED_FLAG : 0u;
 
 		BinaryWriter header_writer(out);
-		// magic "MBC\0"
-		header_writer.WriteRaw(s_magic, 4u);
+		header_writer.WriteRaw(MmcWire::MAGIC.data(), MmcWire::MAGIC.size());
 		// format marker
-		header_writer.WriteU32(MbcFormatMarker);
+		header_writer.WriteU32(MmcWire::FORMAT_MARKER);
 		// marmot_version
 		header_writer.WriteU16(ver_major);
 		header_writer.WriteU16(ver_minor);

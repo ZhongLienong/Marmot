@@ -11,41 +11,12 @@
 #include <string>
 #include <string_view>
 
+#include <zlib.h>
+
 #include "Bytecode/Format/Format.h"
 
 namespace
 {
-	// -------------------------------------------------------------------------
-	// CRC32 (IEEE 802.3 polynomial, standard zlib/gzip variant)
-	// -------------------------------------------------------------------------
-
-	[[nodiscard]] constexpr std::array<uint32_t, 256u> BuildCrc32Table() noexcept
-	{
-		std::array<uint32_t, 256u> table{};
-		for (uint32_t index = 0u; index < 256u; index += 1u)
-		{
-			uint32_t crc = index;
-			for (int bit = 0; bit < 8; bit += 1)
-			{
-				crc = (crc & 1u) ? ((crc >> 1) ^ 0xEDB88320u) : (crc >> 1);
-			}
-			table[index] = crc;
-		}
-		return table;
-	}
-
-	static constexpr std::array<uint32_t, 256u> s_crc32_table = BuildCrc32Table();
-
-	[[nodiscard]] uint32_t Crc32(const uint8_t* data, size_t size) noexcept
-	{
-		uint32_t crc = 0xFFFFFFFFu;
-		for (size_t index = 0u; index < size; index += 1u)
-		{
-			crc = (crc >> 8) ^ s_crc32_table[(crc ^ data[index]) & 0xFFu];
-		}
-		return crc ^ 0xFFFFFFFFu;
-	}
-
 	class BinaryReader
 	{
 		std::istream& m_in;
@@ -141,8 +112,6 @@ namespace
 		}
 
 	};
-	static constexpr uint32_t k_flag_embed_sources = 1u << 0;
-
 	std::expected<VmFrameMap, std::string> ReadFrameMap(BinaryReader& reader, uint32_t proc_index, uint32_t bytecode_size, uint32_t shape_count)
 	{
 		VmFrameMap frame;
@@ -203,12 +172,12 @@ namespace VmBinaryArtifact
 		BinaryReader reader(in);
 
 		// Read and validate header
-		uint8_t magic[4];
-		if (!reader.ReadRaw(magic, 4u))
+		std::array<uint8_t, MmcWire::MAGIC.size()> magic{};
+		if (!reader.ReadRaw(magic.data(), magic.size()))
 		{
 			return std::unexpected("Truncated artifact: could not read magic.");
 		}
-		if (magic[0] != s_magic[0] || magic[1] != s_magic[1] || magic[2] != s_magic[2] || magic[3] != s_magic[3])
+		if (magic != MmcWire::MAGIC)
 		{
 			return std::unexpected("Not a Marmot bytecode artifact (bad magic).");
 		}
@@ -218,20 +187,17 @@ namespace VmBinaryArtifact
 		{
 			return std::unexpected("Truncated artifact: could not read format marker.");
 		}
-		if (format_marker != VmMbcFormatMarker)
+		if (format_marker != MmcWire::FORMAT_MARKER)
 		{
 			return std::unexpected(std::format(
 				"Bytecode artifact format marker mismatch: expected {}, got {}. Rebuild the artifact.",
-				VmMbcFormatMarker,
+				MmcWire::FORMAT_MARKER,
 				format_marker));
 		}
 
 		// informational version fields (read but not validated)
-		uint16_t ver_major;
-		uint16_t ver_minor;
-		uint16_t ver_patch;
-		uint16_t reserved;
-		if (!reader.ReadU16(ver_major) || !reader.ReadU16(ver_minor) || !reader.ReadU16(ver_patch) || !reader.ReadU16(reserved))
+		std::array<uint8_t, MmcWire::FLAGS_OFFSET - MmcWire::VERSION_MAJOR_OFFSET> version{};
+		if (!reader.ReadRaw(version.data(), version.size()))
 		{
 			return std::unexpected("Truncated artifact: could not read version fields.");
 		}
@@ -264,9 +230,7 @@ namespace VmBinaryArtifact
 		}
 
 		// Validate CRC32
-		const uint32_t actual_crc = Crc32(
-			reinterpret_cast<const uint8_t*>(payload.data()),
-			payload.size());
+		const uint32_t actual_crc = static_cast<uint32_t>(crc32_z(0, reinterpret_cast<const Bytef*>(payload.data()), payload.size()));
 		if (actual_crc != expected_crc)
 		{
 			return std::unexpected("Bytecode artifact is corrupt (CRC32 mismatch).");
@@ -506,7 +470,7 @@ namespace VmBinaryArtifact
 		executable.AttachNativeLibraries(std::move(native_libraries));
 
 		// source_files (optional, only when flag bit 0 is set)
-		if (flags & k_flag_embed_sources)
+		if (flags & MmcWire::SOURCE_FILES_EMBEDDED_FLAG)
 		{
 			uint32_t source_file_count;
 			if (!payload_reader.ReadU32(source_file_count))

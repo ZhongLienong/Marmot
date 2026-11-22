@@ -6,15 +6,18 @@
 #include "Error/RuntimeError.h"
 #include "Support/Json/Json.h"
 #include "Support/OutputCapture/OutputCapture.h"
+#include "Support/Terminal/Terminal.h"
 #include "Library/ProgramArguments/ProgramArguments.h"
-#include "MarmotNativeSupport/TextPath.h"
+#include "Support/TextPath.h"
 #include "Loader/ProgramLoader.h"
 #include "Loader/Standalone.h"
 
+#include <algorithm>
 #include <cstdlib>
 #include <expected>
 #include <filesystem>
 #include <format>
+#include <iterator>
 #include <optional>
 #include <print>
 #include <ranges>
@@ -22,6 +25,8 @@
 #include <string>
 #include <string_view>
 #include <vector>
+
+#include <CLI/CLI.hpp>
 
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
@@ -96,119 +101,120 @@ namespace
 #endif
 	}
 
-	// The value after the option at `index`, which moves past it.
-	[[nodiscard]] std::optional<std::string_view> TakeValue(std::span<const std::string> arguments, size_t& index)
-	{
-		if (index + 1u >= arguments.size())
-		{
-			return std::nullopt;
-		}
-		index += 1u;
-		return std::string_view(arguments[index]);
-	}
-
 	[[nodiscard]] std::expected<Invocation, std::string> Parse(std::span<const std::string> arguments)
 	{
 		Invocation invocation;
-		for (size_t index = 0u; index < arguments.size(); index += 1u)
-		{
-			const std::string_view arg = arguments[index];
+		std::string command;
+		std::vector<std::string> formats;
+		std::vector<std::string> programs;
+		std::vector<std::string> library_paths;
+		std::vector<std::string> libraries;
 
-			if (arg == "--")
+		const auto separator = std::ranges::find(arguments, "--");
+		if (separator != arguments.end())
+		{
+			invocation.m_program_arguments.assign(separator + 1, arguments.end());
+		}
+		// CLI11 consumes vectors from the back.
+		std::vector<std::string> options(std::make_reverse_iterator(separator), std::make_reverse_iterator(arguments.begin()));
+
+		CLI::App app;
+		app.set_help_flag();
+		app.add_flag("-h,--help", invocation.m_show_help);
+		app.add_flag("--version", invocation.m_show_version);
+		app.add_flag("--standalone-version", invocation.m_standalone_version);
+		app.add_flag("--trace", invocation.m_trace);
+		app.add_flag("--opcode-metrics", invocation.m_opcode_metrics);
+		app.add_flag("--gc-metrics", invocation.m_gc_metrics);
+		app.add_option("--format", formats)->expected(1)->take_all();
+		app.add_option("--library-path", library_paths)->expected(1)->take_all();
+		app.add_option("--library", libraries)->expected(1)->take_all();
+		app.add_option("command", command);
+		app.add_option("program", programs);
+
+		try
+		{
+			app.parse(options);
+		}
+		catch (const CLI::ExtrasError& error)
+		{
+			const std::vector<std::string> extras = app.remaining();
+			return std::unexpected(extras.empty() ? std::string(error.what()) : "Unknown option: " + extras.front());
+		}
+		catch (const CLI::ArgumentMismatch& error)
+		{
+			const std::string_view message = error.what();
+			if (message.starts_with("--library-path"))
 			{
-				invocation.m_program_arguments.assign(arguments.begin() + static_cast<std::ptrdiff_t>(index) + 1, arguments.end());
-				break;
+				return std::unexpected("Missing value for --library-path.");
 			}
-			if (arg == "-h" || arg == "--help")
+			if (message.starts_with("--library"))
 			{
-				invocation.m_show_help = true;
+				return std::unexpected("--library takes <name>=<file>.");
 			}
-			else if (arg == "--version")
+			if (message.starts_with("--format"))
 			{
-				invocation.m_show_version = true;
+				return std::unexpected("--format takes 'json'.");
 			}
-			else if (arg == "--standalone-version")
-			{
-				invocation.m_standalone_version = true;
-			}
-			else if (arg == "--trace")
-			{
-#if MARMOT_ENABLE_EXECUTION_TRACE
-				invocation.m_trace = true;
-#else
-				return std::unexpected("--trace requires a Debug build.");
+			return std::unexpected(error.what());
+		}
+		catch (const CLI::ParseError& error)
+		{
+			return std::unexpected(error.what());
+		}
+
+#if !MARMOT_ENABLE_EXECUTION_TRACE
+		if (invocation.m_trace)
+		{
+			return std::unexpected("--trace requires a Debug build.");
+		}
 #endif
-			}
-			else if (arg == "--opcode-metrics" || arg == "--gc-metrics")
-			{
-#if MARMOT_ENABLE_OPCODE_METRICS
-				if (arg == "--opcode-metrics")
-				{
-					invocation.m_opcode_metrics = true;
-				}
-				else
-				{
-					invocation.m_gc_metrics = true;
-				}
-#else
-				return std::unexpected(std::format("{} requires a Debug or Dev build.", arg));
+#if !MARMOT_ENABLE_OPCODE_METRICS
+		if (invocation.m_opcode_metrics || invocation.m_gc_metrics)
+		{
+			return std::unexpected(std::format("{} requires a Debug or Dev build.", invocation.m_opcode_metrics ? "--opcode-metrics" : "--gc-metrics"));
+		}
 #endif
-			}
-			else if (arg == "--format")
+		if (!std::ranges::all_of(formats, [](const std::string& format) { return format == "json"; }))
+		{
+			return std::unexpected("--format takes 'json'.");
+		}
+		invocation.m_json = !formats.empty();
+
+		for (const std::string& directory : library_paths)
+		{
+			invocation.m_locations.m_search_paths.emplace_back(TextPath::FromText(directory));
+		}
+		for (std::string_view library : libraries)
+		{
+			const size_t equals = library.find('=');
+			if (equals == std::string_view::npos || equals == 0u || equals + 1u == library.size())
 			{
-				const std::optional<std::string_view> value = TakeValue(arguments, index);
-				if (!value.has_value() || value.value() != "json")
-				{
-					return std::unexpected("--format takes 'json'.");
-				}
-				invocation.m_json = true;
+				return std::unexpected("--library takes <name>=<file>.");
 			}
-			else if (arg == "--library-path")
-			{
-				const std::optional<std::string_view> value = TakeValue(arguments, index);
-				if (!value.has_value())
-				{
-					return std::unexpected("Missing value for --library-path.");
-				}
-				invocation.m_locations.m_search_paths.emplace_back(TextPath::FromText(value.value()));
-			}
-			else if (arg == "--library")
-			{
-				const std::optional<std::string_view> value = TakeValue(arguments, index);
-				const size_t equals = value.has_value() ? value->find('=') : std::string_view::npos;
-				if (equals == std::string_view::npos || equals == 0u || equals + 1u == value->size())
-				{
-					return std::unexpected("--library takes <name>=<file>.");
-				}
-				invocation.m_locations.m_files.insert_or_assign(std::string(value->substr(0u, equals)), TextPath::FromText(value->substr(equals + 1u)));
-			}
-			else if (!arg.empty() && arg.front() == '-')
-			{
-				return std::unexpected(std::format("Unknown option: {}", arg));
-			}
-			else if (!invocation.m_command.has_value())
-			{
-				if (arg == "run")
-				{
-					invocation.m_command = CommandKind::Run;
-				}
-				else if (arg == "disassemble")
-				{
-					invocation.m_command = CommandKind::Disassemble;
-				}
-				else
-				{
-					return std::unexpected(std::format("Unknown command: {}. Use run or disassemble.", arg));
-				}
-			}
-			else if (!invocation.m_program.empty())
-			{
-				return std::unexpected("marmotvm runs one program.");
-			}
-			else
-			{
-				invocation.m_program = TextPath::FromText(arg);
-			}
+			invocation.m_locations.m_files.insert_or_assign(std::string(library.substr(0u, equals)), TextPath::FromText(library.substr(equals + 1u)));
+		}
+
+		if (command == "run")
+		{
+			invocation.m_command = CommandKind::Run;
+		}
+		else if (command == "disassemble")
+		{
+			invocation.m_command = CommandKind::Disassemble;
+		}
+		else if (!command.empty())
+		{
+			return std::unexpected(std::format("Unknown command: {}. Use run or disassemble.", command));
+		}
+
+		if (programs.size() > 1u)
+		{
+			return std::unexpected("marmotvm runs one program.");
+		}
+		if (!programs.empty())
+		{
+			invocation.m_program = TextPath::FromText(programs.front());
 		}
 
 		if (invocation.m_show_help || invocation.m_show_version || invocation.m_standalone_version)
@@ -234,26 +240,35 @@ namespace
 
 	// The same shape as marmotc's reports: one diagnostic, as both the only
 	// diagnostic and the only error.
-	[[nodiscard]] std::string ReportJson(const std::optional<std::string>& error_json)
+	[[nodiscard]] MarmotJson::Document ReportJson(const std::optional<std::string>& error_json)
 	{
-		const std::string errors = error_json.has_value() ? "[" + error_json.value() + "]" : "[]";
-		return "{\"version\":1,\"source\":\"marmot\",\"diagnostics\":" + errors + ",\"warnings\":[],\"errors\":" + errors + "}";
+		MarmotJson::Document errors = MarmotJson::Document::Array();
+		if (error_json)
+		{
+			errors.AppendRaw(*error_json);
+		}
+		MarmotJson::Document report;
+		report.AddNumberField("version", 1);
+		report.AddStringField("source", "marmot");
+		report.AddField("diagnostics", errors);
+		report.AddField("warnings", MarmotJson::Document::Array());
+		report.AddField("errors", errors);
+		return report;
 	}
 
 	[[nodiscard]] std::string RunJson(bool success, int exit_code, std::string_view stdout_text, std::string_view stderr_text, const std::optional<std::string>& error_json)
 	{
-		std::string payload = "{";
-		bool first_field = true;
-		RuntimeJson::AppendNumberField(payload, "version", 1, first_field);
-		RuntimeJson::AppendStringField(payload, "source", "marmotvm", first_field);
-		RuntimeJson::AppendStringField(payload, "command", "run", first_field);
-		RuntimeJson::AppendBoolField(payload, "success", success, first_field);
-		RuntimeJson::AppendNumberField(payload, "exitCode", exit_code, first_field);
-		RuntimeJson::AppendStringField(payload, "stdout", stdout_text, first_field);
-		RuntimeJson::AppendStringField(payload, "stderr", stderr_text, first_field);
-		RuntimeJson::AppendRawField(payload, "report", ReportJson(error_json), first_field);
-		payload.push_back('}');
-		return payload;
+		MarmotJson::Document payload;
+		payload.AddNumberField("version", 1);
+		payload.AddStringField("source", "marmotvm");
+		payload.AddStringField("command", "run");
+		payload.AddBoolField("success", success);
+		payload.AddNumberField("exitCode", exit_code);
+		payload.AddStringField("stdout", stdout_text);
+		payload.AddStringField("stderr", stderr_text);
+		payload.AddField("report", ReportJson(error_json));
+
+		return payload.Write();
 	}
 
 	// The same fields as marmotc's diagnostics, reported as a Module error.
@@ -261,23 +276,22 @@ namespace
 	{
 		const std::optional<std::string_view> no_text = std::nullopt;
 		const std::optional<int> no_number = std::nullopt;
-		std::string payload = "{";
-		bool first_field = true;
-		RuntimeJson::AppendStringField(payload, "source", "marmot", first_field);
-		RuntimeJson::AppendStringField(payload, "severity", "error", first_field);
-		RuntimeJson::AppendStringField(payload, "stage", "Module", first_field);
-		RuntimeJson::AppendStringField(payload, "code", "None", first_field);
-		RuntimeJson::AppendStringField(payload, "message", message, first_field);
-		RuntimeJson::AppendStringField(payload, "file", no_text, first_field);
-		RuntimeJson::AppendNumberField(payload, "line", no_number, first_field);
-		RuntimeJson::AppendNumberField(payload, "column", no_number, first_field);
-		RuntimeJson::AppendNumberField(payload, "endLine", no_number, first_field);
-		RuntimeJson::AppendNumberField(payload, "endColumn", no_number, first_field);
-		RuntimeJson::AppendNumberField(payload, "caret_length", no_number, first_field);
-		RuntimeJson::AppendStringField(payload, "suggestion", no_text, first_field);
-		RuntimeJson::AppendRawField(payload, "relatedInformation", "[]", first_field);
-		payload.push_back('}');
-		return payload;
+		MarmotJson::Document payload;
+		payload.AddStringField("source", "marmot");
+		payload.AddStringField("severity", "error");
+		payload.AddStringField("stage", "Module");
+		payload.AddStringField("code", "None");
+		payload.AddStringField("message", message);
+		payload.AddStringField("file", no_text);
+		payload.AddNumberField("line", no_number);
+		payload.AddNumberField("column", no_number);
+		payload.AddNumberField("endLine", no_number);
+		payload.AddNumberField("endColumn", no_number);
+		payload.AddNumberField("caret_length", no_number);
+		payload.AddStringField("suggestion", no_text);
+		payload.AddField("relatedInformation", MarmotJson::Document::Array());
+
+		return payload.Write();
 	}
 
 	// A program that cannot start: unreadable, or a native library did not load.
@@ -349,6 +363,7 @@ namespace
 
 int main(int argc, char* argv[])
 {
+	MarmotTerminal::SetColorEnabled(MarmotTerminal::ShouldUseColor(stdout));
 	std::vector<std::string> arguments = Utf8Arguments(argc, argv);
 	std::expected<std::optional<MarmotStandalone::Package>, std::string> embedded =
 		MarmotStandalone::ReadCurrentExecutable();
@@ -395,9 +410,10 @@ int main(int argc, char* argv[])
 			return EXIT_FAILURE;
 		}
 		const std::u8string utf8_path = path->generic_u8string();
-		std::print("{{\"version\":{},\"executable\":\"{}\"}}\n",
-			MarmotStandalone::s_format_version,
-			RuntimeJson::EscapeString(std::string(utf8_path.begin(), utf8_path.end())));
+		MarmotJson::Document payload;
+		payload.AddNumberField("version", MarmotStandalone::s_format_version);
+		payload.AddStringField("executable", std::string(utf8_path.begin(), utf8_path.end()));
+		std::print("{}\n", payload.Write());
 		return EXIT_SUCCESS;
 	}
 
