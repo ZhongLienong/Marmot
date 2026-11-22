@@ -245,12 +245,12 @@ void GarbageCollector::ClearRememberedSet() noexcept
 
 void GarbageCollector::CollectNow(const GarbageCollectionRoots& roots, MarmotAllocator& allocator, CollectionKind kind)
 {
+#if MARMOT_DEBUG_INFO
 	// Captured before any ClearRememberedSet() call in this function (the Major-path clear
 	// below, or the Minor-path clear after sweep) so the debug telemetry below reports the
 	// remembered-set size that was actually traced, not zero.
 	const size_t remembered_count = m_remembered_set.size();
 
-#if MARMOT_DEBUG_INFO
 	const bool emit_gc_diagnostics = RuntimeDiagnostics::GcMetricsEnabled();
 	using Clock = std::chrono::high_resolution_clock;
 	using TimePoint = Clock::time_point;
