@@ -421,6 +421,39 @@ namespace
 		return previous->m_token_name == TokenName::IMPORT || previous->m_token_name == TokenName::EXPORT;
 	}
 
+	[[nodiscard]] std::unordered_set<size_t> FindRecordTypeBraces(const std::vector<Token>& tokens)
+	{
+		std::unordered_set<size_t> braces;
+		for (size_t index = 0u; index < tokens.size(); index += 1u)
+		{
+			if (tokens[index].m_token_name != TokenName::LEFT_BRACE)
+			{
+				continue;
+			}
+
+			const Token* previous = PreviousNonCommentToken(tokens, index);
+			if (previous == nullptr || previous->m_token_name != TokenName::SINGLE_EQUAL)
+			{
+				continue;
+			}
+
+			for (size_t cursor = index; cursor > 0u; cursor -= 1u)
+			{
+				const TokenName name = tokens[cursor - 1u].m_token_name;
+				if (name == TokenName::TYPE || name == TokenName::ALIAS)
+				{
+					braces.insert(index);
+					break;
+				}
+				if (name == TokenName::SINGLE_SEMICOLON || IsTopLevelStart(name))
+				{
+					break;
+				}
+			}
+		}
+		return braces;
+	}
+
 	[[nodiscard]] bool IsCallParenthesis(const std::vector<Token>& tokens, size_t index, const std::unordered_set<size_t>& type_brackets)
 	{
 		const Token* previous = PreviousNonCommentToken(tokens, index);
@@ -506,6 +539,7 @@ namespace
 		bool m_previous_was_type_bracket = false;
 		std::unordered_set<size_t> m_type_brackets;
 		std::unordered_set<size_t> m_record_pattern_braces;
+		std::unordered_set<size_t> m_record_type_braces;
 		std::unordered_map<size_t, size_t> m_call_closers;
 		// Type-argument brackets open around the current token: a comma inside them
 		// separates type arguments, never record fields.
@@ -519,6 +553,7 @@ namespace
 		{
 			m_type_brackets = FindTypeArgumentBrackets(tokens);
 			m_record_pattern_braces = FindRecordPatternBraces(tokens);
+			m_record_type_braces = FindRecordTypeBraces(tokens);
 			m_call_closers = FindCallParentheses(tokens, m_type_brackets);
 			for (size_t index = 0u; index < tokens.size(); index += 1u)
 			{
@@ -950,12 +985,18 @@ namespace
 			{
 				const bool is_record_pattern = m_record_pattern_braces.contains(index);
 				const bool inline_brace = is_record_pattern || IsInlineBraceOpen(tokens, index);
+				const bool starts_block_inline = m_record_type_braces.contains(index)
+					|| (m_previous_token.has_value() && *m_previous_token == TokenName::FAT_ARROW);
 				WriteCurrentIndent();
 				if (inline_brace)
 				{
 					MaybeWriteSpace(token_name, false);
 				}
-				else if (!m_at_line_start)
+				else if (starts_block_inline && !m_output.empty() && m_output.back() != ' ')
+				{
+					m_output.push_back(' ');
+				}
+				else if (!m_at_line_start && !starts_block_inline)
 				{
 					WriteNewline();
 					WriteCurrentIndent();
@@ -1129,18 +1170,8 @@ namespace
 				return;
 			case TokenName::THEN:
 			case TokenName::ELSE:
-				if (!m_at_line_start)
-				{
-					WriteNewline();
-				}
-				WriteCurrentIndent();
-				m_output += TokenText(token);
+				WriteTokenText(token);
 				m_output.push_back(' ');
-				m_at_line_start = false;
-				m_previous_token = token_name;
-				m_last_code_token = token_name;
-				m_previous_was_unary = false;
-				m_previous_was_type_bracket = false;
 				return;
 			case TokenName::WITH:
 				WriteTokenText(token);

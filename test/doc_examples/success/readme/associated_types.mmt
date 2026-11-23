@@ -4,10 +4,10 @@ type Option<T> = None | Some(T);
 
 // Next yields the item and the rest of the sequence, so an iterator is a value
 // rather than something that advances in place.
-class Iterable<Iter>
-{
+class Iterable<Iter> {
     type Item;
     Next: fn(iter: Iter) -> Option<(Item, Iter)>;
 };
 
-def NextValue = fn<Iter>(iter: Iter) -> Option<(Iterable::Item<Iter>, Iter)> where Iterable<Iter> => Iterable::Next(iter);
+def NextValue = fn<Iter>(iter: Iter) -> Option<(Iterable::Item<Iter>, Iter)>
+    where Iterable<Iter> => Iterable::Next(iter);

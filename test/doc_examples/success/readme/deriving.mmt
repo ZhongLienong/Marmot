@@ -1,11 +1,10 @@
 module ReadmeDeriving
+
 import { "../projects/marmotstdlib/MarmotPrelude/Equatable.mmt", "../projects/marmotstdlib/MarmotPrelude/Hashable.mmt" }
 
-type Point =
-{
+type Point = {
     x: Int,
     y: Int
-}
-deriving(Equatable, Hashable);
+} deriving (Equatable, Hashable);
 
-type OptionBox<T> = Empty | Full(T) deriving(Map, Bind, Unwrap);
+type OptionBox<T> = Empty | Full(T) deriving (Map, Bind, Unwrap);

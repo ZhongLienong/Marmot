@@ -1,14 +1,12 @@
 module ReadmeTypeclasses
 
 // Define a typeclass
-class Show<T>
-{
+class Show<T> {
     show: fn(value: T) -> Text;
 };
 
 // Implement for Int
-instance Show<Int>
-{
+instance Show<Int> {
     def show = fn(value: Int) -> Text => value as Text;
 };
 

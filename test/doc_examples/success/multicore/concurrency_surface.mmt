@@ -1,12 +1,13 @@
 module MulticoreConcurrencySurface
+
 import { "./projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "./projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt" }
 
 def ComputeRow = fn(row: Int, width: Int) -> Int => row * width;
 
-def w = (42, 800) |> Concurrency::Spawn(ComputeRow);  // w : Worker<Int>
-def result = Concurrency::Join(w);  // result : Result<Int, WorkerError>
+def w = (42, 800) |> Concurrency::Spawn(ComputeRow);     // w : Worker<Int>
+def result = Concurrency::Join(w);                       // result : Result<Int, WorkerError>
 
-def ch: Channel<Int> = Concurrency::MakeChannel(10);  // ch : Channel<Int>
-Concurrency::Send(ch, 42);  // Bool
-def val = Concurrency::Receive(ch);  // Option<Int>
+def ch : Channel<Int> = Concurrency::MakeChannel(10);    // ch : Channel<Int>
+Concurrency::Send(ch, 42);                              // Bool
+def val = Concurrency::Receive(ch);                     // Option<Int>
 Concurrency::Close(ch);

@@ -5,7 +5,5 @@ type Option<T> = None | Some(T);
 type List<T> = Cons(T, List<T>) | Nil;
 
 def maybe_value = Option::Some(42);
-
-def empty_value: Option<Int> = Option::None();
-
-def empty_list: List<Int> = List::Nil();
+def empty_value : Option<Int> = Option::None();
+def empty_list : List<Int> = List::Nil();

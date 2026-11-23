@@ -638,7 +638,7 @@ def scenario_profile_features(tree: BuildTree) -> None:
     fixtures = REPO_ROOT / "format" / "mmc" / "fixtures"
     control = str(fixtures / "control.mmc")
     ordinary = run_vm(tree, ["run", control])
-    assert_condition(ordinary.returncode == 0 and ordinary.stdout == "large\n" and ordinary.stderr == "",
+    assert_condition(ordinary.returncode == 0 and ordinary.stdout == "" and ordinary.stderr == "large\n",
                      f"Ordinary execution must print only program output: {ordinary}")
 
     # Inspect FFI metadata without loading the library or executing its code.
@@ -668,7 +668,7 @@ def scenario_profile_features(tree: BuildTree) -> None:
             structured = run_vm(tree, ["run", control, flag, "--format", "json"])
             payload = json.loads(structured.stdout)
             assert_condition(structured.returncode == 0 and marker in structured.stderr and
-                             payload["stdout"] == ordinary.stdout and payload["stderr"] == "",
+                             payload["stdout"] == ordinary.stdout and payload["stderr"] == ordinary.stderr,
                              f"{flag} must leave JSON program output clean: {structured}")
         else:
             assert_condition(requested.returncode != 0 and "requires a" in requested.stderr,

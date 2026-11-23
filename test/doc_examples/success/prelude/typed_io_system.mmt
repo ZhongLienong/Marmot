@@ -1,29 +1,33 @@
 module PreludeTypedIOSystem
-import { "./projects/marmotstdlib/MarmotPrelude/IO.mmt", "./projects/marmotstdlib/MarmotPrelude/System.mmt", "./projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt", "./projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt" }
-use Option.
-{
-    Option
-}
-use Result.
-{
-    Result
-}
-use System.
-{
-    Platform
-}
 
-def config_text = match IO::TryReadFile("app.conf") with
-    case Result::Ok(contents) => contents
-    case Result::Err(_) => "release=debug";
+import
+{
+    "./projects/marmotstdlib/MarmotPrelude/IO.mmt",
+    "./projects/marmotstdlib/MarmotPrelude/System.mmt",
+    "./projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt",
+    "./projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt"
+}
+use Option.{Option}
+use Result.{Result}
+use System.{Platform}
 
-def cache_dir = match System::TryGetEnv("MARMOT_CACHE_DIR") with
-    case Option::Some(path) => path
-    case Option::None() => ".marmot-cache";
+def config_text =
+    match IO::TryReadFile("app.conf") with
+        case Result::Ok(contents) => contents
+        case Result::Err(_) => "release=debug"
+    ;
 
-def platform_name = match System::CurrentPlatform() with
-    case Platform::Windows() => "windows"
-    case Platform::MacOS() => "macos"
-    case Platform::Linux() => "linux"
-    case Platform::WebAssembly() => "webassembly"
-    case Platform::Unknown(name) => name;
+def cache_dir =
+    match System::TryGetEnv("MARMOT_CACHE_DIR") with
+        case Option::Some(path) => path
+        case Option::None() => ".marmot-cache"
+    ;
+
+def platform_name =
+    match System::CurrentPlatform() with
+        case Platform::Windows() => "windows"
+        case Platform::MacOS() => "macos"
+        case Platform::Linux() => "linux"
+        case Platform::WebAssembly() => "webassembly"
+        case Platform::Unknown(name) => name
+    ;

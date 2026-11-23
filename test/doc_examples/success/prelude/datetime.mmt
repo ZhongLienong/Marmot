@@ -1,12 +1,9 @@
 module PreludeDateTime
+
 import { "./projects/marmotstdlib/MarmotPrelude/DateTime.mmt" }
 
 def local = DateTime::LocalNow();
-
 def utc = DateTime::UtcNow();
-
 def timestamp = DateTime::NowUnixMillis();
-
 def formatted = DateTime::FormatLocal("%Y-%m-%d %H:%M:%S");
-
 def offset = local.timezone_offset_minutes;

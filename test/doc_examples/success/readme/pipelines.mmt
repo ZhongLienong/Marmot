@@ -1,20 +1,19 @@
 module ReadmePipelines
 
 def double = fn(x: Int) -> Int => x * 2;
-
 type Result<T, E> = Ok(T) | Err(E);
 
-def transform = fn(value: Int) -> Result<Int, Text> =>
-{
+def transform = fn(value: Int) -> Result<Int, Text> => {
     if value > 10
     then Result::Ok(value + 1)
     else Result::Err("too small")
 };
 
-def result = 5 |> double |> fn(x) =>
-{
-    x + 1
-}
-|> transform |> match with
-    case Result::Ok(value) => value
-    case Result::Err(_) => 0;
+def result =
+    5
+    |> double
+    |> fn(x) => { x + 1 }
+    |> transform
+    |> match with
+        case Result::Ok(value) => value
+        case Result::Err(_) => 0;

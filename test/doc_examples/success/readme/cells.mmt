@@ -1,11 +1,9 @@
 module ReadmeCells
 
-def counter = ref 0;  // Ref<Int>
-def Next = fn() -> Int =>
-{
+def counter = ref 0;                                        // Ref<Int>
+def Next = fn() -> Int => {
     counter := (*counter) + 1;
     *counter
 };
-
-def first = Next();  // 1
+def first = Next();   // 1
 def second = Next();  // 2
