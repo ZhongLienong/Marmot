@@ -2897,12 +2897,12 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 			else
 			{
-				MarmotTraceable* closure = AllocateClosure(proc_index, {});
+				MarmotTraceable* new_closure = AllocateClosure(proc_index, {});
 				if (cache_index < m_static_closure_cache.size())
 				{
-					m_static_closure_cache[cache_index] = closure;
+					m_static_closure_cache[cache_index] = new_closure;
 				}
-				Push(sp, closure);
+				Push(sp, new_closure);
 			}
 
 			break;
