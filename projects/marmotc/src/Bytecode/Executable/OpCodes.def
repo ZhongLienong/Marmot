@@ -153,7 +153,7 @@ MARMOT_OPCODE(CALL_1, 1)
 MARMOT_OPCODE(CALL_2, 1)
 MARMOT_OPCODE(CALL_3, 1)
 MARMOT_OPCODE(CALL_PROC_WIDE, 4) // [op][proc_lo][proc_hi][arity]
-MARMOT_OPCODE(CALL_GLOBAL_WIDE, 4) // [op][global_hi][global_lo][arity]
+MARMOT_OPCODE(CALL_GLOBAL_WIDE, 4) // [op][global_lo][global_hi][arity]
 MARMOT_OPCODE(TAIL_CALL, 2)
 
 // Data
@@ -167,16 +167,16 @@ MARMOT_OPCODE(MAKE_FUNCTION_WIDE, 3) // [op][proc_lo][proc_hi]
 MARMOT_OPCODE(MAKE_CLOSURE_OF, 4) // [op][proc_lo][proc_hi][count] pop count values, push a closure over them
 MARMOT_OPCODE(SET_CAPTURE, 2) // [op][index] pop a value and a closure, store the value at index
 MARMOT_OPCODE(GET_CELL, 2) // [op][index] push the running closure's capture at index
-MARMOT_OPCODE(GET_CELL_WIDE, 3)
+MARMOT_OPCODE(GET_CELL_WIDE, 3) // [op][capture_lo][capture_hi]
 
 // Variables
-MARMOT_OPCODE(DEFINE_GLOBAL_WIDE, 3)
-MARMOT_OPCODE(GET_GLOBAL_WIDE, 3)
-MARMOT_OPCODE(SET_GLOBAL_WIDE, 3)
+MARMOT_OPCODE(DEFINE_GLOBAL_WIDE, 3) // [op][global_lo][global_hi]
+MARMOT_OPCODE(GET_GLOBAL_WIDE, 3) // [op][global_lo][global_hi]
+MARMOT_OPCODE(SET_GLOBAL_WIDE, 3) // [op][global_lo][global_hi]
 MARMOT_OPCODE(GET_LOCAL, 2)
 MARMOT_OPCODE(SET_LOCAL, 2)
-MARMOT_OPCODE(GET_LOCAL_WIDE, 3)
-MARMOT_OPCODE(SET_LOCAL_WIDE, 3)
+MARMOT_OPCODE(GET_LOCAL_WIDE, 3) // [op][local_lo][local_hi]
+MARMOT_OPCODE(SET_LOCAL_WIDE, 3) // [op][local_lo][local_hi]
 
 // Ref<T>
 MARMOT_OPCODE(MAKE_CELL, 2) // [op][kind] replace a value with a Ref holding it; kind 1 when the value is a pointer

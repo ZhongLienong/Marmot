@@ -8,6 +8,7 @@
 #include "Compiler/MarmotIR/Verifier/MarmotIRVerifier.h"
 #include "support/CompileHelpers.h"
 
+#include <algorithm>
 #include <format>
 #include <ranges>
 #include <string>
@@ -128,6 +129,60 @@ def two = One() + 1;
 	CHECK(bytecode.m_procedure_names == std::vector<std::string>{ "$main$@Names", "One@Names" });
 	CHECK(bytecode.m_global_variables == std::vector<std::string>{ "One", "two" });
 	CHECK(Opcodes(bytecode.m_procedures[0u]).back() == OpCode::RETURN);
+}
+
+TEST_CASE("Linked procedures list the globals read through recursive calls and new closures", "[marmot_ir][backend][linker]")
+{
+	std::string source = "module References\n";
+	for (int index = 0; index < 258; index += 1)
+	{
+		source += std::format("def padding{} = 0;\n", index);
+	}
+	source += R"(
+def left = 12;
+def right = 5;
+def Even = fn(n: Int) -> Int => if n == 0 then right + left + left else Odd(n - 1) + 1;
+def Odd = fn(n: Int) -> Int => if n == 0 then 0 else Even(n - 1) + 1;
+def MakeReader = fn(n: Int) -> fn() -> Int => fn() -> Int => n + left;
+)";
+	std::expected<LoweredModule, MarmotResult::CompilerDiagnostics> lowered = MarmotTest::LowerSnippetWithDiagnostics(std::move(source));
+	REQUIRE(lowered.has_value());
+	std::vector<BytecodeModule> modules;
+	modules.push_back(RequireBytecode(lowered.value()));
+	MarmotResult::BytecodeLinkerResult result = BytecodeLinker(std::move(modules), "References").Link();
+	REQUIRE(result.has_value());
+	const MarmotExecutable& executable = result.value();
+	REQUIRE(executable.GetGlobalVariable(258) == "left");
+	REQUIRE(executable.GetGlobalVariable(259) == "right");
+
+	for (const std::string_view name : { "Even@References", "Odd@References", "MakeReader@References" })
+	{
+		CAPTURE(name);
+		const std::vector<std::string>::const_iterator procedure_name = std::ranges::find(executable.m_procedure_names, name);
+		REQUIRE(procedure_name != executable.m_procedure_names.end());
+		const BytecodeStream& procedure = executable.GetBytecodeStream(static_cast<int>(procedure_name - executable.m_procedure_names.begin()));
+		if (name == "MakeReader@References")
+		{
+			CHECK(procedure.GetReferencedGlobals() == std::vector<uint16_t>{ 258u });
+		}
+		else
+		{
+			CHECK(procedure.GetReferencedGlobals() == std::vector<uint16_t>{ 258u, 259u });
+		}
+		if (name == "Even@References")
+		{
+			std::vector<uint8_t> global_operands;
+			for (int offset = 0; offset < procedure.GetByteCodeSize(); offset += OpCodeTable::Length(procedure.ReadByteCode(offset)))
+			{
+				if (procedure.ReadByteCode(offset) == OpCode::GET_GLOBAL_WIDE)
+				{
+					global_operands.push_back(static_cast<uint8_t>(procedure.ReadByteCode(offset + 1)));
+					global_operands.push_back(static_cast<uint8_t>(procedure.ReadByteCode(offset + 2)));
+				}
+			}
+			CHECK(global_operands == std::vector<uint8_t>{ 3u, 1u, 2u, 1u, 2u, 1u });
+		}
+	}
 }
 
 // Built by hand, so its shape is exactly this: each iteration

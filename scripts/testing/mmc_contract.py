@@ -125,6 +125,7 @@ def normalize_artifact(blob: bytes) -> bytes:
             payload.u32()  # offset
             payload.raw(payload.u32())  # temporary kinds
             payload.u8()  # result kind
+        payload.raw(payload.u32() * 2)  # referenced globals
     for _ in range(payload.u32()):  # native libraries
         payload.string()  # library name
         for _ in range(payload.u32()):

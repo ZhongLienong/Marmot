@@ -137,11 +137,14 @@ namespace
 		Terminal::Print(output, formated_str.str());
 	}
 
+	int ReadWideOperand(const VmExecutable& executable, int proc_index, int at)
+	{
+		return static_cast<int>(executable.ReadByteCode(at, proc_index)) | (static_cast<int>(executable.ReadByteCode(at + 1, proc_index)) << 8);
+	}
+
 	void GlobalVariableWideInstruction(std::FILE* output, std::string_view name, const VmExecutable& executable, int proc_index, int& offset)
 	{
-		int high_byte = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
-		int low_byte = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
-		int operand = (high_byte << 8) | low_byte;
+		const int operand = ReadWideOperand(executable, proc_index, offset + 1);
 		offset += 3;
 		std::ostringstream formated_str;
 
@@ -154,9 +157,7 @@ namespace
 
 	void LocalOrCellVariableWideInstruction(std::FILE* output, std::string_view name, const VmExecutable& executable, int proc_index, int& offset)
 	{
-		int high_byte = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
-		int low_byte = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
-		int operand = (high_byte << 8) | low_byte;
+		const int operand = ReadWideOperand(executable, proc_index, offset + 1);
 		offset += 3;
 		std::ostringstream formated_str;
 
@@ -165,11 +166,6 @@ namespace
 		formated_str << "  " << Terminal::Colored<Terminal::Color::DARK_GRAY>("// offset " + std::to_string(operand));
 		formated_str << '\n';
 		Terminal::Print(output, formated_str.str());
-	}
-
-	int ShapeOperand(const VmExecutable& executable, int proc_index, int at)
-	{
-		return static_cast<int>(executable.ReadByteCode(at, proc_index)) | (static_cast<int>(executable.ReadByteCode(at + 1, proc_index)) << 8);
 	}
 
 	std::string_view KindName(int kind)
@@ -186,7 +182,7 @@ namespace
 			(static_cast<int>(executable.ReadByteCode(offset + 3, proc_index)) << 16);
 		const std::string trailer = is_array
 			? std::format("elements {}", KindName(static_cast<int>(executable.ReadByteCode(offset + 4, proc_index))))
-			: std::format("shape {}", ShapeOperand(executable, proc_index, offset + 4));
+			: std::format("shape {}", ReadWideOperand(executable, proc_index, offset + 4));
 		offset += is_array ? 5 : 6;
 		std::ostringstream formated_str;
 
@@ -236,9 +232,7 @@ namespace
 
 	void CallGlobalWideInstruction(std::FILE* output, std::string_view name, const VmExecutable& executable, int proc_index, int& offset)
 	{
-		int high_byte = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
-		int low_byte = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
-		int global_index = (high_byte << 8) | low_byte;
+		const int global_index = ReadWideOperand(executable, proc_index, offset + 1);
 		int arity = static_cast<int>(executable.ReadByteCode(offset + 3, proc_index));
 		offset += 4;
 		std::ostringstream formated_str;
@@ -315,7 +309,7 @@ namespace
 	void ConstructStructInstruction(std::FILE* output, std::string_view name, const VmExecutable& executable, int proc_index, int& offset)
 	{
 		int operand = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
-		const int shape = ShapeOperand(executable, proc_index, offset + 2);
+		const int shape = ReadWideOperand(executable, proc_index, offset + 2);
 		offset += 4;
 		std::ostringstream formated_str;
 
@@ -330,7 +324,7 @@ namespace
 	{
 		int size = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
 		int tag = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
-		const int shape = ShapeOperand(executable, proc_index, offset + 3);
+		const int shape = ReadWideOperand(executable, proc_index, offset + 3);
 		offset += 5;
 		std::ostringstream formated_str;
 
@@ -345,7 +339,7 @@ namespace
 	void SpawnWorkerInstruction(std::FILE* output, std::string_view name, const VmExecutable& executable, int proc_index, int& offset)
 	{
 		const int arg_count = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
-		const int shape = ShapeOperand(executable, proc_index, offset + 2);
+		const int shape = ReadWideOperand(executable, proc_index, offset + 2);
 		const int result_kind = static_cast<int>(executable.ReadByteCode(offset + 4, proc_index));
 
 		std::ostringstream formatted_str;
@@ -915,7 +909,7 @@ namespace Disassembler
 			const int first = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
 			const int second = static_cast<int>(executable.ReadByteCode(offset + 3, proc_index));
 			const int target_index = static_cast<int>(executable.ReadByteCode(offset + 4, proc_index));
-			const int shape = ShapeOperand(executable, proc_index, offset + 5);
+			const int shape = ReadWideOperand(executable, proc_index, offset + 5);
 			Terminal::Print(output, std::string(Terminal::Colored<Terminal::Color::BRIGHT_WHITE>("LOCAL_UNION2")) + " tag=" + std::to_string(tag) + " first=" + std::to_string(first) + " second=" + std::to_string(second) + " target=" + std::to_string(target_index) + " shape=" + std::to_string(shape) + "\n");
 			offset += 7;
 			break;

@@ -53,13 +53,15 @@ TEST_CASE("The reader preserves embedded source metadata and native imports", "[
 
 TEST_CASE("The reader rejects incompatible and corrupted artifacts", "[bytecode-artifact]")
 {
-	const std::array<std::pair<std::string_view, std::string_view>, 3u> invalid = {{
+	const std::array<std::pair<std::string_view, std::string_view>, 4u> invalid = {{
 		{ "truncated", "Truncated artifact" },
 		{ "checksum", "CRC32 mismatch" },
-		{ "incompatible_marker", "format marker mismatch: expected 21, got 20" }
+		{ "incompatible_marker", "format marker mismatch: expected 22, got 21" },
+		{ "invalid_referenced_global", "referenced global 0 of procedure 0 is malformed" }
 	}};
 	for (const std::pair<std::string_view, std::string_view>& fixture : invalid)
 	{
+		CAPTURE(fixture.first);
 		const std::expected<VmExecutable, std::string> loaded = VmBinaryArtifact::ReadExecutableFromFile(Fixture(fixture.first));
 		REQUIRE_FALSE(loaded.has_value());
 		CHECK(loaded.error().find(fixture.second) != std::string::npos);
@@ -76,6 +78,9 @@ TEST_CASE("The VM runs artifacts with and without embedded sources", "[bytecode-
 
 	std::expected<VmExecutable, std::string> control = VmBinaryArtifact::ReadExecutableFromFile(Fixture("control"));
 	REQUIRE(control.has_value());
+	const std::vector<uint16_t>& referenced_globals = control->GetBytecodeStream(0).GetReferencedGlobals();
+	REQUIRE(referenced_globals.size() == 1u);
+	CHECK(control->GetGlobalVariable(referenced_globals.front()) == "labels");
 	MarmotUtility::OutputCapture capture;
 	const std::expected<int, RuntimeError> executed = MarmotProgramLoader::Run(std::move(control).value());
 	const MarmotUtility::CapturedOutput output = capture.Stop();

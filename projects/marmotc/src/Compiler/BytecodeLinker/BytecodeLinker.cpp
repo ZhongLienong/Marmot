@@ -9,6 +9,7 @@
 #include <format>
 #include <numeric>
 #include <ranges>
+#include <utility>
 
 namespace
 {
@@ -31,21 +32,6 @@ namespace
 		}
 
 		return std::string(entry_module_name);
-	}
-
-	int ReadWideOperand(const BytecodeStream& procedure, int offset)
-	{
-		const int high_byte = static_cast<int>(procedure.ReadByteCode(offset + 1));
-		const int low_byte = static_cast<int>(procedure.ReadByteCode(offset + 2));
-		return (high_byte << SHIFT_8_BITS) | low_byte;
-	}
-
-	void WriteWideOperand(BytecodeStream& procedure, int offset, int value)
-	{
-		const int high_byte = (value >> SHIFT_8_BITS) & BYTE_MASK;
-		const int low_byte = value & BYTE_MASK;
-		procedure.SetByteCode(offset + 1, static_cast<OpCode>(high_byte));
-		procedure.SetByteCode(offset + 2, static_cast<OpCode>(low_byte));
 	}
 
 	int ReadShortOperandLE(const BytecodeStream& procedure, int offset)
@@ -88,6 +74,7 @@ namespace
 		stream.AddByteCode(OpCode::MAKE_FUNCTION_WIDE, 0);
 		stream.AddByteCode(static_cast<OpCode>(procedure & BYTE_MASK), 0);
 		stream.AddByteCode(static_cast<OpCode>((procedure >> SHIFT_8_BITS) & BYTE_MASK), 0);
+		stream.GetReferencedProcedures().push_back(static_cast<uint16_t>(procedure));
 	}
 
 	void AddModuleInitializer(BytecodeStream& bootstrap, const BytecodeModule& module, const std::unordered_map<std::string, size_t>& module_base_procedure_indices)
@@ -111,14 +98,6 @@ namespace
 	bool HasWideProcedureOperand(OpCode opcode)
 	{
 		return opcode == OpCode::MAKE_CLOSURE_OF || opcode == OpCode::CALL_PROC_WIDE || opcode == OpCode::MAKE_FUNCTION_WIDE;
-	}
-
-	void ShiftWideProcedure(BytecodeStream& procedure, int offset, int shift)
-	{
-		const int old_index = static_cast<int>(procedure.ReadByteCode(offset + 1)) | (static_cast<int>(procedure.ReadByteCode(offset + 2)) << 8);
-		const int new_index = old_index + shift;
-		procedure.SetByteCode(offset + 1, static_cast<OpCode>(new_index & 0xFF));
-		procedure.SetByteCode(offset + 2, static_cast<OpCode>((new_index >> 8) & 0xFF));
 	}
 
 	std::string DiagnosticFileName(const BytecodeModule& module)
@@ -208,6 +187,14 @@ MarmotResult::BytecodeLinkerResult BytecodeLinker::Link()
 	}
 	MergeFunctionNames();
 	MergeGlobalVariables();
+	if (m_global_procedure_names.size() > UINT16_MAX)
+	{
+		return std::unexpected(CompilerError::Simple(CompilerStage::BytecodeLinker, std::format("Too many procedures in the program (max {} including bootstrap)", UINT16_MAX + 1), CompilerErrorCode::CodeGeneratorLimitExceeded));
+	}
+	if (m_global_variables.size() > static_cast<size_t>(UINT16_MAX) + 1uz)
+	{
+		return std::unexpected(CompilerError::Simple(CompilerStage::BytecodeLinker, std::format("Too many globals in the program (max {})", UINT16_MAX + 1), CompilerErrorCode::CodeGeneratorLimitExceeded));
+	}
 	for (const BytecodeModule& module : m_modules)
 	{
 		for (const auto& [file_name, source_lines] : module.m_source_files)
@@ -247,9 +234,8 @@ MarmotResult::BytecodeLinkerResult BytecodeLinker::Link()
 	std::string bootstrap_name = std::format("{}@{}", MmcWire::MODULE_BOOTSTRAP_PREFIX, m_entry_module_name);
 	m_global_procedure_names.insert(m_global_procedure_names.begin(), std::move(bootstrap_name));
 
-	PatchBootstrapOffsets();
-
 	m_global_procedures[0u] = BuildBootstrapProcedure();
+	PopulateReferencedGlobals();
 
 	MarmotExecutable executable;
 	executable.AttachProcedures(std::move(m_global_procedures));
@@ -484,7 +470,7 @@ void BytecodeLinker::ConcatenateBytecode()
 				[this, &module, &source_path_by_module, module_proc_base_offset, module_global_base_offset, &import_resolved_indices, &string_mapping, &shape_mapping](size_t proc_index)
 				{
 					BytecodeStream& procedure = module.m_procedures[proc_index];
-					PatchProcedure(procedure, module_proc_base_offset, module_global_base_offset, import_resolved_indices, string_mapping, shape_mapping);
+					PatchProcedure(procedure, module_proc_base_offset + 1uz, module_global_base_offset, import_resolved_indices, string_mapping, shape_mapping);
 
 					// A specialization of an imported generic is named for the module it came from.
 					const std::string& proc_name = module.m_procedure_names[proc_index];
@@ -497,30 +483,46 @@ void BytecodeLinker::ConcatenateBytecode()
 	);
 }
 
-void BytecodeLinker::PatchBootstrapOffsets()
+void BytecodeLinker::PopulateReferencedGlobals()
 {
-	std::ranges::for_each
-	(
-		std::views::iota(1u, m_global_procedures.size()),
-		[this](size_t proc_idx)
+	std::vector<std::vector<size_t>> dependents(m_global_procedures.size());
+	std::vector<std::vector<size_t>> users(m_global_variables.size());
+	for (size_t proc_index = 0uz; proc_index < m_global_procedures.size(); proc_index += 1uz)
+	{
+		BytecodeStream& procedure = m_global_procedures[proc_index];
+		for (const uint16_t target : std::exchange(procedure.GetReferencedProcedures(), {}))
 		{
-			BytecodeStream& procedure = m_global_procedures[proc_idx];
-			int bytecode_size = procedure.GetByteCodeSize();
-
-			for (int offset = 0; offset < bytecode_size; )
+			if (dependents[target].empty() || dependents[target].back() != proc_index)
 			{
-				OpCode opcode = procedure.ReadByteCode(offset);
-				int advance = OpCodeTable::Length(opcode);
-
-				if (HasWideProcedureOperand(opcode))
-				{
-					ShiftWideProcedure(procedure, offset, 1);
-				}
-
-				offset += advance;
+				dependents[target].push_back(proc_index);
 			}
 		}
-	);
+		for (const uint16_t global : std::exchange(procedure.GetReferencedGlobals(), {}))
+		{
+			if (users[global].empty() || users[global].back() != proc_index)
+			{
+				users[global].push_back(proc_index);
+			}
+		}
+	}
+
+	// Visit the dependents of each global's direct users. The last index appended
+	// doubles as a visited mark, so cycles terminate and each table is sorted.
+	for (size_t global = 0uz; global < users.size(); global += 1uz)
+	{
+		std::vector<size_t> pending = std::move(users[global]);
+		while (!pending.empty())
+		{
+			const size_t proc_index = pending.back();
+			pending.pop_back();
+			std::vector<uint16_t>& globals = m_global_procedures[proc_index].GetReferencedGlobals();
+			if (globals.empty() || globals.back() != global)
+			{
+				globals.push_back(static_cast<uint16_t>(global));
+				pending.append_range(dependents[proc_index]);
+			}
+		}
+	}
 }
 
 BytecodeStream BytecodeLinker::BuildBootstrapProcedure() const
@@ -555,16 +557,6 @@ const BytecodeModule* BytecodeLinker::FindModule(const std::string& module_name)
 std::string BytecodeLinker::MakeSymbolKey(const std::string& module_name, const std::string& symbol_name) const
 {
 	return module_name + std::string(NameSeparator) + symbol_name;
-}
-
-bool BytecodeLinker::IsImportIndex(int global_index) const
-{
-	return global_index >= IMPORT_PLACEHOLDER_BASE;
-}
-
-size_t BytecodeLinker::ConvertImportIndex(int global_index) const
-{
-	return static_cast<size_t>(global_index - IMPORT_PLACEHOLDER_BASE);
 }
 
 size_t BytecodeLinker::MergeString(const std::string& str)
@@ -733,6 +725,26 @@ void BytecodeLinker::PatchProcedure(
 	const int bytecode_size = procedure.GetByteCodeSize();
 	const int proc_base_offset = static_cast<int>(module_proc_base_offset);
 	const int global_base_offset = static_cast<int>(module_global_base_offset);
+	const auto resolve_global = [global_base_offset, &import_resolved_indices](int index) -> int
+	{
+		if (index >= IMPORT_PLACEHOLDER_BASE)
+		{
+			const size_t import_index = static_cast<size_t>(index - IMPORT_PLACEHOLDER_BASE);
+			if (import_index < import_resolved_indices.size())
+			{
+				return static_cast<int>(import_resolved_indices[import_index]);
+			}
+		}
+		return index + global_base_offset;
+	};
+	for (uint16_t& global : procedure.GetReferencedGlobals())
+	{
+		global = static_cast<uint16_t>(resolve_global(global));
+	}
+	for (uint16_t& target : procedure.GetReferencedProcedures())
+	{
+		target = static_cast<uint16_t>(target + proc_base_offset);
+	}
 
 	for (int offset = 0; offset < bytecode_size; )
 	{
@@ -747,7 +759,7 @@ void BytecodeLinker::PatchProcedure(
 
 		if (HasWideProcedureOperand(opcode))
 		{
-			ShiftWideProcedure(procedure, offset, proc_base_offset);
+			WriteShortOperandLE(procedure, offset, ReadShortOperandLE(procedure, offset) + proc_base_offset);
 		}
 		else if (opcode == OpCode::LOAD_STRING_WIDE)
 		{
@@ -765,22 +777,7 @@ void BytecodeLinker::PatchProcedure(
 			opcode == OpCode::CALL_GLOBAL_WIDE
 		)
 		{
-			const int old_global_index = ReadWideOperand(procedure, offset);
-
-			if (IsImportIndex(old_global_index))
-			{
-				const size_t import_array_index = ConvertImportIndex(old_global_index);
-				if (import_array_index < import_resolved_indices.size())
-				{
-					const size_t resolved_index = import_resolved_indices[import_array_index];
-					WriteWideOperand(procedure, offset, static_cast<int>(resolved_index));
-				}
-			}
-			else
-			{
-				const int new_global_index = old_global_index + global_base_offset;
-				WriteWideOperand(procedure, offset, new_global_index);
-			}
+			WriteShortOperandLE(procedure, offset, resolve_global(ReadShortOperandLE(procedure, offset)));
 		}
 
 		offset += advance;

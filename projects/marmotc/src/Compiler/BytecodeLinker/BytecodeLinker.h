@@ -66,7 +66,7 @@ private:
 
 	void ConcatenateBytecode();
 
-	void PatchBootstrapOffsets();
+	void PopulateReferencedGlobals();
 
 	BytecodeStream BuildBootstrapProcedure() const;
 
@@ -74,9 +74,6 @@ private:
 
 	std::string MakeSymbolKey(const std::string& module_name, const std::string& symbol_name) const;
 
-	bool IsImportIndex(int global_index) const;
-
-	size_t ConvertImportIndex(int global_index) const;
 
 	size_t MergeString(const std::string& str);
 

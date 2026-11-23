@@ -400,7 +400,23 @@ namespace VmBinaryArtifact
 				return std::unexpected(frame.error());
 			}
 
-			procedures.emplace_back(std::move(bytecode), std::move(line_info), std::move(frame).value());
+			uint32_t reference_count;
+			if (!payload_reader.ReadU32(reference_count) || reference_count > global_count)
+			{
+				return std::unexpected(std::format("Corrupt artifact: invalid referenced global count for procedure {}.", proc_index));
+			}
+			std::vector<uint16_t> referenced_globals;
+			for (uint32_t index = 0u; index < reference_count; index += 1u)
+			{
+				uint16_t global;
+				if (!payload_reader.ReadU16(global) || global >= global_count || (!referenced_globals.empty() && global <= referenced_globals.back()))
+				{
+					return std::unexpected(std::format("Corrupt artifact: referenced global {} of procedure {} is malformed.", index, proc_index));
+				}
+				referenced_globals.push_back(global);
+			}
+
+			procedures.emplace_back(std::move(bytecode), std::move(line_info), std::move(frame).value(), std::move(referenced_globals));
 			procedure_names.push_back(std::move(proc_name));
 			procedure_source_paths.push_back(std::move(source_path));
 		}

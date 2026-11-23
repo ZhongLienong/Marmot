@@ -1,7 +1,7 @@
 # Current `.mmc` wire format (under development)
 
 **Status: Under development; not sealed.** There is no released `.mmc` format
-version. The header currently carries numeric marker `21` so the VM can reject
+version. The header currently carries numeric marker `22` so the VM can reject
 artifacts written for a different encoding. That marker is an internal
 compatibility check, not a Marmot or `.mmc` release version. This file and its
 fixtures record current compiler/VM behavior and may change as Marmot develops.
@@ -18,7 +18,7 @@ of the file.
 | Offset | Size | Field | Current meaning |
 |---:|---:|---|---|
 | 0 | 4 | magic | ASCII `MBC` followed by `00` |
-| 4 | 4 | format marker (`u32`) | Exactly `21` |
+| 4 | 4 | format marker (`u32`) | Exactly `22` |
 | 8 | 2 | Marmot major version (`u16`) | Written from the producer version; informational to the current reader |
 | 10 | 2 | Marmot minor version (`u16`) | Informational |
 | 12 | 2 | Marmot patch version (`u16`) | Informational |
@@ -27,7 +27,7 @@ of the file.
 | 20 | 8 | payload size (`u64`) | Number of bytes immediately after the 32-byte header |
 | 28 | 4 | payload CRC32 (`u32`) | CRC-32/IEEE of exactly those payload bytes; polynomial `0xEDB88320`, initial and final XOR `0xFFFFFFFF` |
 
-The current reader checks magic, format marker, declared payload length, and CRC before decoding the payload. It rejects truncated fields while decoding, a procedure whose line-info byte counts do not sum to its bytecode byte count, a shape table that does not begin with shapes 0 and 1, and a frame map whose captures' shape is not in the table or whose safepoints are not in ascending offset order within the bytecode. It does not validate the informational producer version, reserved field, unknown flag bits, trailing file bytes, or bytes remaining after the parsed payload. These are observations of the current encoding, not permissions for new writers to add data silently.
+The current reader checks magic, format marker, declared payload length, and CRC before decoding the payload. It rejects truncated fields while decoding, a procedure whose line-info byte counts do not sum to its bytecode byte count, a shape table that does not begin with shapes 0 and 1, and a frame map whose captures' shape is not in the table or whose safepoints are not in ascending offset order within the bytecode. It also rejects referenced global indices outside the global table or out of strictly ascending order. It does not validate the informational producer version, reserved field, unknown flag bits, trailing file bytes, or bytes remaining after the parsed payload. These are observations of the current encoding, not permissions for new writers to add data silently.
 
 ## Payload
 
@@ -45,7 +45,7 @@ The current reader checks magic, format marker, declared payload length, and CRC
 
 A kind is `1` for a value that is a heap object and `0` for one that is not. Nothing in the VM decides it from a value's bits. A shape lists the fields of a tuple, struct, union or closure that hold pointers, in ascending order. Shape 0 lists none and shape 1 only field 0, in every program; the reader rejects a table that does not begin with those two.
 
-Each procedure is: name `string`; source-path `string`; bytecode byte count `u32`; exactly that many raw bytecode bytes; line-info count `u32`; then `(source line i32, byte count i32)` pairs; then its frame map. Line counts describe consecutive **bytes** in the bytecode stream, including operand bytes, not a count of logical instructions.
+Each procedure is: name `string`; source-path `string`; bytecode byte count `u32`; exactly that many raw bytecode bytes; line-info count `u32`; then `(source line i32, byte count i32)` pairs; then its frame map and `referenced_globals` table. Line counts describe consecutive **bytes** in the bytecode stream, including operand bytes, not a count of logical instructions.
 
 The frame map starts with the slot count (`u32`) and one kind (`u8`) per slot,
 with parameters first. Each slot has one kind throughout the procedure.
@@ -65,6 +65,13 @@ writer omits entries for intrinsic and foreign calls. At a `JUMP_BACK` target th
 only its slots. At the callee's entry after `TAIL_CALL` it has only parameters.
 The slot map is enough in both cases.
 
+The `referenced_globals` table follows the frame map. It starts with a `u32`
+count followed by that many `u16` global indices in strictly ascending order.
+It lists globals read by `GET_GLOBAL_WIDE` or called by `CALL_GLOBAL_WIDE`
+in the procedure and in any procedure reachable through `CALL_PROC_WIDE`,
+`MAKE_FUNCTION_WIDE`, or `MAKE_CLOSURE_OF`. Worker transfer copies the values
+of those globals and follows the same tables for closures found in those values.
+
 Procedure names use `name@module`. The bootstrap name begins with
 `$module_bootstrap$` and the main name with `$main$`.
 
@@ -76,7 +83,7 @@ Each embedded-source record is: source-path `string`; line count `u32`; then sou
 
 [`registry.json`](registry.json) records the current opcode IDs, their total encoded lengths in bytes (including the opcode), and the VM intrinsic IDs with their Marmot parameter and result types. These values describe the current encoding and may change as Marmot develops. An opcode is one byte. Its numeric ID is its zero-based position in the opcode list; an intrinsic ID is its zero-based position in the intrinsic list.
 
-An instruction stream consists of its opcode byte followed by the number of operand bytes indicated by the registry. One-byte operands are unsigned unless the instruction defines an `imm8` signed immediate. Eight-byte integer and word constants use least-significant byte first; Float constants use the eight bytes of their IEEE-754 binary64 representation, least-significant byte first. Procedure and text indexes encoded in two bytes use low byte then high byte; global indexes use high byte then low byte. Two-byte jump offsets use low byte then high byte. The registry's `category` and optional `description` fields preserve the instruction grouping and operand notes previously maintained in `OpCodes.def`. These notes describe some instruction layouts; the remaining operand roles must be made explicit from the VM decoder before implementing a new writer.
+An instruction stream consists of its opcode byte followed by the number of operand bytes indicated by the registry. One-byte operands are unsigned unless the instruction defines an `imm8` signed immediate. Eight-byte integer and word constants use least-significant byte first; Float constants use the eight bytes of their IEEE-754 binary64 representation, least-significant byte first. All multi-byte integer operands are little-endian, including global, local, capture, procedure, and text indices and jump offsets. The registry's `category` and optional `description` fields preserve the instruction grouping and operand notes previously maintained in `OpCodes.def`. These notes describe some instruction layouts; the remaining operand roles must be made explicit from the VM decoder before implementing a new writer.
 
 The registry generates each project's private `OpCodes.def` and `Intrinsics.def` with `python scripts/dev.py generate-mmc`. Generated files are checked in, so either CMake project can build without Python or the other project. `python scripts/dev.py generate-mmc --check` detects stale outputs without writing them. The `.mmc` gate checks generated-file freshness and agreement with the current registry, then exercises the current fixtures. Update the registry, generated files, format marker, and fixtures together when changing the encoding.
 

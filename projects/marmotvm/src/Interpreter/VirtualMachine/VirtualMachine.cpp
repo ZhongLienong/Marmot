@@ -2670,9 +2670,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		MARMOT_HANDLER(CALL_GLOBAL_WIDE)
 		{
-			int high_byte = static_cast<int>(ReadByte(ip));
-			int low_byte = static_cast<int>(ReadByte(ip));
-			int global_idx = (high_byte << 8) | low_byte;
+			const int global_idx = ReadShort(ip);
 			int arity = static_cast<int>(ReadByte(ip));
 			MarmotValue callable = (*m_global_vars)[global_idx];
 
@@ -2866,9 +2864,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 		MARMOT_HANDLER(DEFINE_GLOBAL_WIDE)
 		{
 			MarmotValue value = Pop(sp);
-			int high_byte = static_cast<int>(ReadByte(ip));
-			int low_byte = static_cast<int>(ReadByte(ip));
-			int global_idx = (high_byte << 8) | low_byte;
+			const int global_idx = ReadShort(ip);
 #if MARMOT_DEBUG_FULL
 			CheckKind(value, m_executable->IsGlobalPointer(global_idx), m_executable->GetGlobalVariable(global_idx));
 #endif
@@ -2878,17 +2874,13 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		MARMOT_HANDLER(GET_GLOBAL_WIDE)
 		{
-			int high_byte = static_cast<int>(ReadByte(ip));
-			int low_byte = static_cast<int>(ReadByte(ip));
-			int global_idx = (high_byte << 8) | low_byte;
+			const int global_idx = ReadShort(ip);
 			Push(sp, (*m_global_vars)[global_idx]);
 			break;
 		}
 		MARMOT_HANDLER(SET_GLOBAL_WIDE)
 		{
-			int high_byte = static_cast<int>(ReadByte(ip));
-			int low_byte = static_cast<int>(ReadByte(ip));
-			int global_idx = (high_byte << 8) | low_byte;
+			const int global_idx = ReadShort(ip);
 #if MARMOT_DEBUG_FULL
 			CheckKind(Peek(sp), m_executable->IsGlobalPointer(global_idx), m_executable->GetGlobalVariable(global_idx));
 #endif
@@ -2898,25 +2890,19 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		MARMOT_HANDLER(GET_LOCAL_WIDE)
 		{
-			int high_byte = static_cast<int>(ReadByte(ip));
-			int low_byte = static_cast<int>(ReadByte(ip));
-			int offset = (high_byte << 8) | low_byte;
+			const int offset = ReadShort(ip);
 			Push(sp, *(bp + offset));
 			break;
 		}
 		MARMOT_HANDLER(SET_LOCAL_WIDE)
 		{
-			int high_byte = static_cast<int>(ReadByte(ip));
-			int low_byte = static_cast<int>(ReadByte(ip));
-			int offset = (high_byte << 8) | low_byte;
+			const int offset = ReadShort(ip);
 			*(bp + offset) = Peek(sp);
 			break;
 		}
 		MARMOT_HANDLER(GET_CELL_WIDE)
 		{
-			int high_byte = static_cast<int>(ReadByte(ip));
-			int low_byte = static_cast<int>(ReadByte(ip));
-			int offset = (high_byte << 8) | low_byte;
+			const int offset = ReadShort(ip);
 			Push(sp, env[offset]);
 			break;
 		}

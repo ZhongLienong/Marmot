@@ -90,7 +90,7 @@ class VmBytecodeStream
 public:
 	using const_iterator = std::vector<VmOpCode>::const_iterator;
 
-	VmBytecodeStream(std::vector<VmOpCode>&& bytecode, std::vector<std::pair<int, int>>&& line_info, VmFrameMap&& frame);
+	VmBytecodeStream(std::vector<VmOpCode>&& bytecode, std::vector<std::pair<int, int>>&& line_info, VmFrameMap&& frame, std::vector<uint16_t>&& referenced_globals);
 
 	const_iterator cbegin() const;
 	const_iterator cend() const;
@@ -99,12 +99,14 @@ private:
 	std::vector<VmOpCode> m_bytecode;
 	std::vector<std::pair<int, int>> m_line_info; // Pair of line number and count of consecutive instructions
 	VmFrameMap m_frame;
+	std::vector<uint16_t> m_referenced_globals;
 
 public:
 
 	VmOpCode ReadByteCode(int index) const;
 
 	const VmFrameMap& GetFrameMap() const;
+	const std::vector<uint16_t>& GetReferencedGlobals() const;
 
 	int GetByteCodeSize() const;
 

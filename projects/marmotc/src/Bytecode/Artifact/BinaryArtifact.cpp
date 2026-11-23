@@ -173,6 +173,13 @@ namespace
 				}
 				writer.WriteU8(safepoint.m_result_is_pointer ? 1u : 0u);
 			}
+
+			const std::vector<uint16_t>& referenced_globals = executable.GetBytecodeStream(proc_index).GetReferencedGlobals();
+			writer.WriteU32(static_cast<uint32_t>(referenced_globals.size()));
+			for (const uint16_t global : referenced_globals)
+			{
+				writer.WriteU16(global);
+			}
 		}
 
 		// native_libraries: name, symbols, hint directories, thread_safe, checksum

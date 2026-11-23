@@ -23,9 +23,8 @@ namespace
 	// as the zero it is. An object gets its index when first
 	// reached and is copied later, from a worklist, so a cycle (a recursive local
 	// closure captures itself) is an index pointing back. A copied closure brings
-	// its procedure, whose bytecode names the globals it reads and the procedures
-	// it calls or makes closures of; those are followed in turn, so the payload
-	// carries every global the functions in it can reach, and no other.
+	// its procedure's referenced globals. Copying their values can reach more
+	// closures, whose globals are copied in turn.
 	class PayloadWriter
 	{
 	public:
@@ -46,14 +45,11 @@ namespace
 
 		void ReachGlobal(int global_index);
 
-		void ScanProcedure(int proc_index);
-
 		VirtualMachine& m_source_vm;
 		TransferPayload m_payload;
 		std::unordered_map<MarmotTraceable*, MarmotWord> m_object_indices;
 		std::vector<std::pair<MarmotTraceable*, size_t>> m_pending_objects;
 		std::unordered_set<int> m_reached_procedures;
-		std::vector<int> m_pending_procedures;
 		std::unordered_set<int> m_reached_globals;
 	};
 
@@ -65,18 +61,11 @@ namespace
 	std::expected<TransferPayload, std::string_view> PayloadWriter::Write(MarmotValue value, bool is_pointer) &&
 	{
 		m_payload.m_root = Reference(value, is_pointer);
-		while (CopyPendingObjects())
+		if (!CopyPendingObjects())
 		{
-			if (m_pending_procedures.empty())
-			{
-				return std::move(m_payload);
-			}
-			const int proc_index = m_pending_procedures.back();
-			m_pending_procedures.pop_back();
-			ScanProcedure(proc_index);
+			return std::unexpected("References cannot cross worker boundaries.");
 		}
-
-		return std::unexpected("References cannot cross worker boundaries.");
+		return std::move(m_payload);
 	}
 
 	SerializedValue PayloadWriter::Reference(MarmotValue value, bool is_pointer)
@@ -195,7 +184,10 @@ namespace
 	{
 		if (m_reached_procedures.insert(proc_index).second)
 		{
-			m_pending_procedures.push_back(proc_index);
+			for (const uint16_t global : m_source_vm.GetExecutable().GetBytecodeStream(proc_index).GetReferencedGlobals())
+			{
+				ReachGlobal(global);
+			}
 		}
 	}
 
@@ -204,40 +196,6 @@ namespace
 		if (m_reached_globals.insert(global_index).second)
 		{
 			m_payload.m_globals.push_back(SerializedGlobal{ global_index, Reference(m_source_vm.GetGlobalValue(global_index), m_source_vm.GetExecutable().IsGlobalPointer(global_index)) });
-		}
-	}
-
-	// A global's index is written high byte first, a procedure's low byte first.
-	void PayloadWriter::ScanProcedure(int proc_index)
-	{
-		const VmBytecodeStream& bytecode = m_source_vm.GetExecutable().GetBytecodeStream(proc_index);
-		const auto operand = [&bytecode](int offset) -> int
-		{
-			return static_cast<int>(bytecode.ReadByteCode(offset));
-		};
-
-		for (int offset = 0; offset < bytecode.GetByteCodeSize(); offset += VmOpCodeTable::Length(bytecode.ReadByteCode(offset)))
-		{
-			switch (bytecode.ReadByteCode(offset))
-			{
-			case VmOpCode::GET_GLOBAL_WIDE:
-			case VmOpCode::CALL_GLOBAL_WIDE:
-			{
-				ReachGlobal((operand(offset + 1) << 8) | operand(offset + 2));
-				break;
-			}
-			case VmOpCode::CALL_PROC_WIDE:
-			case VmOpCode::MAKE_FUNCTION_WIDE:
-			case VmOpCode::MAKE_CLOSURE_OF:
-			{
-				ReachProcedure(operand(offset + 1) | (operand(offset + 2) << 8));
-				break;
-			}
-			default:
-			{
-				break;
-			}
-			}
 		}
 	}
 

@@ -2,8 +2,8 @@ module MmcControl
 
 foreign "MARMOT_FFI_ReportPanic" Report: fn(Text) -> Unit;
 
-def Label = fn(value: Int) -> Text => if value > 2
-then "large"
-else "small";
+def labels = ["small", "large"];
+
+def Label = fn(value: Int) -> Text => if value > 2 then labels[1] else labels[0];
 
 Report(Label(3) ++ "\n");

@@ -89,6 +89,21 @@ FrameMap& BytecodeStream::GetFrameMap()
 	return m_frame;
 }
 
+const std::vector<uint16_t>& BytecodeStream::GetReferencedGlobals() const
+{
+	return m_referenced_globals;
+}
+
+std::vector<uint16_t>& BytecodeStream::GetReferencedGlobals()
+{
+	return m_referenced_globals;
+}
+
+std::vector<uint16_t>& BytecodeStream::GetReferencedProcedures()
+{
+	return m_referenced_procedures;
+}
+
 int MarmotExecutable::AddGlobalVariable(std::string&& name, bool is_pointer)
 {
 	m_globals.emplace_back(std::move(name));

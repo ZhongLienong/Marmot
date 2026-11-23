@@ -9,16 +9,22 @@ const VmFrameMap::Safepoint* VmFrameMap::FindSafepoint(int offset) const
 	return found != m_safepoints.cend() && found->m_offset == offset ? &*found : nullptr;
 }
 
-VmBytecodeStream::VmBytecodeStream(std::vector<VmOpCode>&& bytecode, std::vector<std::pair<int, int>>&& line_info, VmFrameMap&& frame)
+VmBytecodeStream::VmBytecodeStream(std::vector<VmOpCode>&& bytecode, std::vector<std::pair<int, int>>&& line_info, VmFrameMap&& frame, std::vector<uint16_t>&& referenced_globals)
 	: m_bytecode(std::move(bytecode)),
 	  m_line_info(std::move(line_info)),
-	  m_frame(std::move(frame))
+	  m_frame(std::move(frame)),
+	  m_referenced_globals(std::move(referenced_globals))
 {
 }
 
 const VmFrameMap& VmBytecodeStream::GetFrameMap() const
 {
 	return m_frame;
+}
+
+const std::vector<uint16_t>& VmBytecodeStream::GetReferencedGlobals() const
+{
+	return m_referenced_globals;
 }
 
 VmBytecodeStream::const_iterator VmBytecodeStream::cbegin() const

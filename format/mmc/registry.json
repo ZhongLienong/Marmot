@@ -1,5 +1,5 @@
 {
-  "format_marker": 21,
+  "format_marker": 22,
   "wire": {
     "magic": [77, 66, 67, 0],
     "header_size": 32,
@@ -830,7 +830,7 @@
       "name": "CALL_GLOBAL_WIDE",
       "length": 4,
       "category": "Calls. CALL_0 to CALL_3 stay in order: the arity is the distance from CALL_0.",
-      "description": "[op][global_hi][global_lo][arity]"
+      "description": "[op][global_lo][global_hi][arity]"
     },
     {
       "id": 130,
@@ -896,25 +896,29 @@
       "id": 139,
       "name": "GET_CELL_WIDE",
       "length": 3,
-      "category": "Functions and closures. A closure holds exactly the values it captures."
+      "category": "Functions and closures. A closure holds exactly the values it captures.",
+      "description": "[op][capture_lo][capture_hi]"
     },
     {
       "id": 140,
       "name": "DEFINE_GLOBAL_WIDE",
       "length": 3,
-      "category": "Variables"
+      "category": "Variables",
+      "description": "[op][global_lo][global_hi]"
     },
     {
       "id": 141,
       "name": "GET_GLOBAL_WIDE",
       "length": 3,
-      "category": "Variables"
+      "category": "Variables",
+      "description": "[op][global_lo][global_hi]"
     },
     {
       "id": 142,
       "name": "SET_GLOBAL_WIDE",
       "length": 3,
-      "category": "Variables"
+      "category": "Variables",
+      "description": "[op][global_lo][global_hi]"
     },
     {
       "id": 143,
@@ -932,13 +936,15 @@
       "id": 145,
       "name": "GET_LOCAL_WIDE",
       "length": 3,
-      "category": "Variables"
+      "category": "Variables",
+      "description": "[op][local_lo][local_hi]"
     },
     {
       "id": 146,
       "name": "SET_LOCAL_WIDE",
       "length": 3,
-      "category": "Variables"
+      "category": "Variables",
+      "description": "[op][local_lo][local_hi]"
     },
     {
       "id": 147,

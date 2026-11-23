@@ -46,7 +46,7 @@ TEST_CASE("The disassembler reads each instruction's length from OpCodes.def", "
 		// names the first global, string or procedure.
 		std::vector<VmOpCode> bytecode(static_cast<size_t>(length), static_cast<VmOpCode>(0));
 		bytecode[0u] = opcode;
-		VmBytecodeStream procedure(std::move(bytecode), std::vector<std::pair<int, int>>{ { 1, length } }, VmFrameMap{});
+		VmBytecodeStream procedure(std::move(bytecode), std::vector<std::pair<int, int>>{ { 1, length } }, VmFrameMap{}, {});
 
 		VmExecutable executable;
 		static_cast<void>(executable.AddGlobalVariable(std::string("global"), false));

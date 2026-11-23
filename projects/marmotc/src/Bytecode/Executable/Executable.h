@@ -103,6 +103,8 @@ private:
 	std::vector<OpCode> m_bytecode;
 	std::vector<std::pair<int, int>> m_line_info; // Pair of line number and count of consecutive instructions
 	FrameMap m_frame;
+	std::vector<uint16_t> m_referenced_globals;
+	std::vector<uint16_t> m_referenced_procedures;
 
 public:
 
@@ -121,6 +123,9 @@ public:
 	const FrameMap& GetFrameMap() const;
 
 	FrameMap& GetFrameMap();
+	const std::vector<uint16_t>& GetReferencedGlobals() const;
+	std::vector<uint16_t>& GetReferencedGlobals();
+	std::vector<uint16_t>& GetReferencedProcedures();
 
 };
 

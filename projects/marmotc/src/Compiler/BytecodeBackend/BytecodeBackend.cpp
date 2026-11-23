@@ -1091,7 +1091,13 @@ namespace
 			m_stream.AddByteCode(static_cast<OpCode>(value & BYTE_MASK), line);
 		}
 
-		// An index of a local or a capture, in one byte or, wide, in two, high first.
+		void EmitWideOperand(int value, int line)
+		{
+			EmitOperand(value, line);
+			EmitOperand(value >> SHIFT_8_BITS, line);
+		}
+
+		// An index of a local or a capture, in one byte or, wide, in two.
 		void EmitVariable(OpCode op, int index, int line)
 		{
 			if (index <= MAX_LOCAL_VARIABLES)
@@ -1101,17 +1107,18 @@ namespace
 				return;
 			}
 			EmitByte(WideOpCode(op), line);
-			EmitOperand(index >> SHIFT_8_BITS, line);
-			EmitOperand(index, line);
+			EmitWideOperand(index, line);
 		}
 
-		// A global's index is always two bytes, high first: the linker adds the
-		// module's first global to it, which may pass 255.
+		// The linker can resolve a global's index to a slot above 255.
 		void EmitGlobal(OpCode op, int index, int line)
 		{
 			EmitByte(op, line);
-			EmitOperand(index >> SHIFT_8_BITS, line);
-			EmitOperand(index, line);
+			EmitWideOperand(index, line);
+			if (op == OpCode::GET_GLOBAL_WIDE || op == OpCode::CALL_GLOBAL_WIDE)
+			{
+				m_stream.GetReferencedGlobals().push_back(static_cast<uint16_t>(index));
+			}
 		}
 
 		void EmitEightBytes(uint64_t value, int line)
@@ -1511,8 +1518,8 @@ namespace
 		void EmitProcedure(OpCode op, int procedure, int line)
 		{
 			EmitByte(op, line);
-			EmitOperand(procedure, line);
-			EmitOperand(procedure >> SHIFT_8_BITS, line);
+			EmitWideOperand(procedure, line);
+			m_stream.GetReferencedProcedures().push_back(static_cast<uint16_t>(procedure));
 		}
 
 		Emitted EmitCallOf(OpCode op, OpCode first_fixed, size_t arity, int line)
