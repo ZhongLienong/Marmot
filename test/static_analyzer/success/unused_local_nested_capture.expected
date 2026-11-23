@@ -1,0 +1,6 @@
+[warning] 1 warning(s) in unused_local_nested_capture.mmt
+Static Analyzer Warning at test/static_analyzer/success/unused_local_nested_capture.mmt:9
+  |
+9 |     def ignored = 0;
+  |         ^^^^^^^ Binding 'ignored' is never read.
+  |

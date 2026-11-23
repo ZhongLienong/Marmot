@@ -1,6 +1,6 @@
 Compilation failed :(
 Parser Error at test/deriving/failure/bind_deriving_rejects_multi_value_variants.mmt:3
   |
-3 | type PairBox<T> = Empty | Pair(T, T) deriving (Bind);
+3 | type PairBox<T> = Empty | Pair(T, T) deriving(Bind);
   |      ^^^^^^^ Bind deriving requires variants to contain at most one direct field of the first type parameter.
   |

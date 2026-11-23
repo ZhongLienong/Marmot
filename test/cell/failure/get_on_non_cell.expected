@@ -1,6 +1,6 @@
 Compilation failed :(
-Type Checker Error at test/cell/failure/get_on_non_cell.mmt:9
+Type Checker Error at test/cell/failure/get_on_non_cell.mmt:5
   |
-9 | def v = (*5);
+5 | def v = (*5);
   |          ^ Dereference operator requires a Ref<T>
   |

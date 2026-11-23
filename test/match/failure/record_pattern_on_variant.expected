@@ -1,6 +1,6 @@
 Compilation failed :(
-Parser Error at test/match/failure/record_pattern_on_variant.mmt:15
+Parser Error at test/match/failure/record_pattern_on_variant.mmt:10
    |
-15 | 		case Shape::Circle { radius = r } => r
-   | 		                   ^ A variant's fields have no names; match it with Name(...).
+10 |     case Shape::Circle { radius = r } => r
+   |                        ^ A variant's fields have no names; match it with Name(...).
    |

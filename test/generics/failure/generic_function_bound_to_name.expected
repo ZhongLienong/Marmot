@@ -1,6 +1,6 @@
 Compilation failed :(
-Type Checker Error at test/generics/failure/generic_function_bound_to_name.mmt:14
+Type Checker Error at test/generics/failure/generic_function_bound_to_name.mmt:10
    |
-14 | def bound = identity;
+10 | def bound = identity;
    |             ^^^^^^^^ Name access expression type error: could not infer which types 'identity' is used at; pass it where a function type is expected, or write the type on the definition that holds it
    |

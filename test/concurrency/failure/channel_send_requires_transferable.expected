@@ -1,7 +1,7 @@
 Compilation failed :(
-Type Checker Error at test/concurrency/failure/channel_send_requires_transferable.mmt:5
+Type Checker Error at test/concurrency/failure/channel_send_requires_transferable.mmt:4
   |
-5 | def Forward = fn<T>(ch: Channel<T>, value: T) -> Bool => Concurrency::Send(ch, value);
+4 | def Forward = fn<T>(ch: Channel<T>, value: T) -> Bool => Concurrency::Send(ch, value);
   |                                                                                     ^ Type T does not satisfy constraint Transferable<T> - no matching instance found
   |
   | Add a 'where Transferable<T>' constraint or import an instance.

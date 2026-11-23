@@ -1,6 +1,6 @@
 Compilation failed :(
 Lowering Error at test/ffi/failure/array_pop_removed.mmt:9
   |
-9 | foreign "MARMOT_FFI_ArrayPop" Pop : fn(Array<Int>) -> Int;
+9 | foreign "MARMOT_FFI_ArrayPop" Pop: fn(Array<Int>) -> Int;
   |                               ^^^ Unknown foreign function 'MARMOT_FFI_ArrayPop': it is not a Marmot builtin. Name the library that exports it: foreign "MARMOT_FFI_ArrayPop" ... from "library";
   |

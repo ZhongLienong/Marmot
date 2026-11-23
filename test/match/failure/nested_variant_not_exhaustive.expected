@@ -1,6 +1,6 @@
 Compilation failed :(
-Type Checker Error at test/match/failure/nested_variant_not_exhaustive.mmt:18
+Type Checker Error at test/match/failure/nested_variant_not_exhaustive.mmt:17
    |
-18 | 	match result with
-   | 	^^^^^ Match expression type error: non-exhaustive match: no case matches Result::Ok(Option::None())
+17 | def Describe = fn(result: Result<Option<Int>, Text>) -> Text => match result with
+   |                                                                 ^^^^^ Match expression type error: non-exhaustive match: no case matches Result::Ok(Option::None())
    |

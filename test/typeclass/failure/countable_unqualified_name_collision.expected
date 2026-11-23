@@ -1,7 +1,7 @@
 Compilation failed :(
-Type Checker Error at test/typeclass/failure/countable_unqualified_name_collision.mmt:14
+Type Checker Error at test/typeclass/failure/countable_unqualified_name_collision.mmt:16
    |
-14 | IO::PrintLine(#s as Text);
+16 | IO::PrintLine(#s as Text);
    |               ^ Type SiteMap does not satisfy constraint Countable<SiteMap> - no matching instance found
    |
   | Import MarmotPrelude/Countable.mmt, which declares Countable, and define 'instance Countable<SiteMap>'.

@@ -1,11 +1,11 @@
 error[InvalidConversion]: Float 'nan' cannot be converted to Int.
- --> test/as_operator/failure/float_to_int_nan.mmt:4
+ --> test/as_operator/failure/float_to_int_nan.mmt:5
   |
-4 |     (0.0 / 0.0) as Int;
+5 |     (0.0 / 0.0) as Int;
   | Float 'nan' cannot be converted to Int.
   |
 stack trace:
-  at Check [module FloatToIntNaN] in test/as_operator/failure/float_to_int_nan.mmt:4
+  at Check [module FloatToIntNaN] in test/as_operator/failure/float_to_int_nan.mmt:5
         (0.0 / 0.0) as Int;
-  at main [module FloatToIntNaN] in test/as_operator/failure/float_to_int_nan.mmt:8
+  at main [module FloatToIntNaN] in test/as_operator/failure/float_to_int_nan.mmt:9
     Check();

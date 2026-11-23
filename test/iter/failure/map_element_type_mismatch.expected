@@ -1,6 +1,6 @@
-Compilation failed :( 
-Type Checker Error at test/iter/failure/map_element_type_mismatch.mmt:11
+Compilation failed :(
+Type Checker Error at test/iter/failure/map_element_type_mismatch.mmt:10
    |
-11 | def stage = [1, 2, 3] |> Iter::OfArray |> Iter::Map(Shout);
+10 | def stage = [1, 2, 3] |> Iter::OfArray |> Iter::Map(Shout);
    |                                                          ^ Equality constraint is not satisfied: 'Iterable::Item<ArrayIter<Int>>' resolves to 'Int', not 'Text'
    |

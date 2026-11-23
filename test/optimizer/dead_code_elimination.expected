@@ -1,12 +1,12 @@
 [warning] 2 warning(s) in dead_code_elimination.mmt
-Static Analyzer Warning at test/optimizer/dead_code_elimination.mmt:12
+Static Analyzer Warning at test/optimizer/dead_code_elimination.mmt:13
    |
-12 |     def y: Int = x + 4;
+13 |     def y: Int = x + 4;
    |         ^ Binding 'y' is never read.
    |
-Static Analyzer Warning at test/optimizer/dead_code_elimination.mmt:23
+Static Analyzer Warning at test/optimizer/dead_code_elimination.mmt:26
    |
-23 |     def x: Int = print_and_return(1);
+26 |     def x: Int = print_and_return(1);
    |         ^ Binding 'x' is never read.
    |
 effect=1

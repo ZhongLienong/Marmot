@@ -1,22 +1,22 @@
 [warning] 5 warning(s) in semantics.mmt
-Static Analyzer Warning at test/dogfood/semantics.mmt:85
+Static Analyzer Warning at test/dogfood/semantics.mmt:99
    |
-85 | def Shadow = fn(x: Int) -> Int =>
+99 | def Shadow = fn(x: Int) -> Int =>
    |                 ^ Name 'x' shadows a variable from an outer scope.
    |
-Static Analyzer Warning at test/dogfood/semantics.mmt:88
+Static Analyzer Warning at test/dogfood/semantics.mmt:104
+    |
+104 |         def x = y * 10;
+    |             ^ Name 'x' shadows a variable from an outer scope.
+    |
+Static Analyzer Warning at test/dogfood/semantics.mmt:26
    |
-88 | 	def z = { def x = y * 10; x + 1 };
-   | 	              ^ Name 'x' shadows a variable from an outer scope.
-   |
-Static Analyzer Warning at test/dogfood/semantics.mmt:27
-   |
-27 | def Ignore = fn(a: Int, b: Int) -> Int => 7;
+26 | def Ignore = fn(a: Int, b: Int) -> Int => 7;
    |                 ^ Binding 'a' is never read.
    |
-Static Analyzer Warning at test/dogfood/semantics.mmt:27
+Static Analyzer Warning at test/dogfood/semantics.mmt:26
    |
-27 | def Ignore = fn(a: Int, b: Int) -> Int => 7;
+26 | def Ignore = fn(a: Int, b: Int) -> Int => 7;
    |                         ^ Binding 'b' is never read.
    |
 Static Analyzer Warning at test/dogfood/semantics.mmt:28

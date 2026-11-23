@@ -1,6 +1,6 @@
 Compilation failed :(
-Parser Error at test/typeclass/failure/instance_def_lambda_requires_fn.mmt:10
+Parser Error at test/typeclass/failure/instance_def_lambda_requires_fn.mmt:12
    |
-10 |     def show = 42;
+12 |     def show = 42;
    |                ^^ Expected 'fn' after '=' in an instance method binding.
    |

@@ -1,0 +1,17 @@
+Compilation failed :(
+[warning] 1 warning(s) in warning_then_codegen_failure.mmt
+Static Analyzer Warning at test/static_analyzer/failure/warning_then_codegen_failure.mmt:15
+   |
+15 |     def unused = 2;
+   |         ^^^^^^ Binding 'unused' is never read.
+   |
+Lowering Error at test/static_analyzer/failure/warning_then_codegen_failure.mmt:8
+  |
+8 | foreign "MARMOT_FFI_ReadPairA" ReadPairA: fn() -> Pair;
+  |                                ^^^^^^^^^ Unsupported return type for foreign function
+  |
+Lowering Error at test/static_analyzer/failure/warning_then_codegen_failure.mmt:10
+   |
+10 | foreign "MARMOT_FFI_ReadPairB" ReadPairB: fn() -> Pair;
+   |                                ^^^^^^^^^ Unsupported return type for foreign function
+   |

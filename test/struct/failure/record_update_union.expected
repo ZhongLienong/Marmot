@@ -1,7 +1,7 @@
 Compilation failed :(
-Type Checker Error at test/struct/failure/record_update_union.mmt:9
-  |
-9 | def bad = { s with Circle = 4 };
-  |                    ^^^^^^ Record update expression type error: not a record
-  |
+Type Checker Error at test/struct/failure/record_update_union.mmt:12
+   |
+12 |     s with Circle = 4
+   |            ^^^^^^ Record update expression type error: not a record
+   |
   | 'Shape' is a union, whose variants' fields have no names; match on it and construct the variant instead

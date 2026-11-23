@@ -1,7 +1,7 @@
 [warning] 2 warning(s) in cell_crosses_worker_channel.mmt
-Static Analyzer Warning at test/static_analyzer/success/cell_crosses_worker_channel.mmt:15
+Static Analyzer Warning at test/static_analyzer/success/cell_crosses_worker_channel.mmt:10
    |
-15 | Concurrency::Send(channel, original);
+10 | Concurrency::Send(channel, original);
    | ^^^^^^^^^^^ This reference is copied into the worker; writes on either side are not seen by the other.
    |
 Static Analyzer Warning at test/static_analyzer/success/cell_crosses_worker_channel.mmt:25

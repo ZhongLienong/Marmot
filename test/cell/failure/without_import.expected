@@ -1,6 +1,6 @@
-Compilation failed :( 
-Parser Error at test/cell/failure/without_import.mmt:9
+Compilation failed :(
+Parser Error at test/cell/failure/without_import.mmt:5
   |
-9 | def c = Cell::New(1);
+5 | def c = Cell::New(1);
   |         ^^^^ Module 'Cell' not found.
   |

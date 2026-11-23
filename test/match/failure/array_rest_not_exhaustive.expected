@@ -1,6 +1,6 @@
 Compilation failed :(
-Type Checker Error at test/match/failure/array_rest_not_exhaustive.mmt:16
+Type Checker Error at test/match/failure/array_rest_not_exhaustive.mmt:13
    |
-16 | 	match values with
-   | 	^^^^^ Match expression type error: non-exhaustive match: no case matches [Option::Some(_), .., Option::None()]
+13 | def Describe = fn(values: Array<Option<Int>>) -> Int => match values with
+   |                                                         ^^^^^ Match expression type error: non-exhaustive match: no case matches [Option::Some(_), .., Option::None()]
    |

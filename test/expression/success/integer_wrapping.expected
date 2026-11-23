@@ -1,27 +1,27 @@
 [warning] 5 warning(s) in integer_wrapping.mmt
-Static Analyzer Warning at test/expression/success/integer_wrapping.mmt:21
+Static Analyzer Warning at test/expression/success/integer_wrapping.mmt:19
    |
-21 | Show("max+1", 9223372036854775807 + 1, Opaque(maximum) + Opaque(1));
+19 | Show("max+1", 9223372036854775807 + 1, Opaque(maximum) + Opaque(1));
    |                                   ^ Literal integer addition overflows Int.
    |
-Static Analyzer Warning at test/expression/success/integer_wrapping.mmt:23
+Static Analyzer Warning at test/expression/success/integer_wrapping.mmt:21
    |
-23 | Show("max*2", 9223372036854775807 * 2, Opaque(maximum) * Opaque(2));
+21 | Show("max*2", 9223372036854775807 * 2, Opaque(maximum) * Opaque(2));
    |                                   ^ Literal integer multiplication overflows Int.
    |
-Static Analyzer Warning at test/expression/success/integer_wrapping.mmt:29
+Static Analyzer Warning at test/expression/success/integer_wrapping.mmt:27
    |
-29 | Show("1<<63", 1 << 63, Opaque(1) << Opaque(63));
+27 | Show("1<<63", 1 << 63, Opaque(1) << Opaque(63));
+   |                 ^^ Literal left shift overflows Int or exceeds the Int bit width.
+   |
+Static Analyzer Warning at test/expression/success/integer_wrapping.mmt:28
+   |
+28 | Show("1<<64", 1 << 64, Opaque(1) << Opaque(64));
    |                 ^^ Literal left shift overflows Int or exceeds the Int bit width.
    |
 Static Analyzer Warning at test/expression/success/integer_wrapping.mmt:30
    |
-30 | Show("1<<64", 1 << 64, Opaque(1) << Opaque(64));
-   |                 ^^ Literal left shift overflows Int or exceeds the Int bit width.
-   |
-Static Analyzer Warning at test/expression/success/integer_wrapping.mmt:32
-   |
-32 | Show("1<<-1", 1 << -1, Opaque(1) << Opaque(-1));
+30 | Show("1<<-1", 1 << -1, Opaque(1) << Opaque(-1));
    |                 ^^ Literal left shift overflows Int or exceeds the Int bit width.
    |
 max+1 -9223372036854775808 -9223372036854775808

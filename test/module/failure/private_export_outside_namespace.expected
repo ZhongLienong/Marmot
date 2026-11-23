@@ -1,6 +1,6 @@
 Compilation failed :(
-Parser Error at test/module/failure/private_export_outside_namespace.mmt:10
-   |
-10 | def value = hidden();
-   |             ^^^^^^ Symbol 'hidden' is private to module 'Math.Internal' and is not accessible from current namespace 'App'.
-   |
+Parser Error at test/module/failure/private_export_outside_namespace.mmt:9
+  |
+9 | def value = hidden();
+  |             ^^^^^^ Symbol 'hidden' is private to module 'Math.Internal' and is not accessible from current namespace 'App'.
+  |

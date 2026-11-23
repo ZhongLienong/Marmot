@@ -1,6 +1,6 @@
 Compilation failed :(
-Parser Error at test/definition/failure/foreign_used_before_it_runs.mmt:6
+Parser Error at test/definition/failure/foreign_used_before_it_runs.mmt:5
   |
-6 | IO::PrintLine(#Cut([1, 2, 3], 0, 1) as Text);
-  |                ^^^ 'Cut' is used here before its definition on line 8 has run. Move the definition above this.
+5 | IO::PrintLine(#Cut([1, 2, 3], 0, 1) as Text);
+  |                ^^^ 'Cut' is used here before its definition on line 7 has run. Move the definition above this.
   |

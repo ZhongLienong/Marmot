@@ -1,6 +1,6 @@
 Compilation failed :(
-Type Checker Error at test/concurrency/failure/make_channel_requires_element_type.mmt:9
+Type Checker Error at test/concurrency/failure/make_channel_requires_element_type.mmt:8
   |
-9 | def ch = Concurrency::MakeChannel(4);
+8 | def ch = Concurrency::MakeChannel(4);
   |                                    ^ Call expression type error: could not infer the type this call's Transferable constraint is on; write the type on the definition that holds the result
   |

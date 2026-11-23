@@ -1,6 +1,6 @@
 Compilation failed :(
-Module Error at test/prelude/failure/in_place_mutation_removed.mmt:9
+Module Error at test/prelude/failure/in_place_mutation_removed.mmt:6
   |
-9 | 	"../../../projects/marmotstdlib/MarmotPrelude/Appendable.mmt",
-  | 	^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Could not resolve import: ../../../projects/marmotstdlib/MarmotPrelude/Appendable.mmt
+6 | import { "../../../projects/marmotstdlib/MarmotPrelude/Appendable.mmt", }
+  |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Could not resolve import: ../../../projects/marmotstdlib/MarmotPrelude/Appendable.mmt
   |

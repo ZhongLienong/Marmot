@@ -1,6 +1,6 @@
 Compilation failed :(
-Type Checker Error at test/newtype/failure/instance_not_shared_across_newtypes.mmt:17
+Type Checker Error at test/newtype/failure/instance_not_shared_across_newtypes.mmt:19
    |
-17 | def result: Int = Describable::Describe(elapsed);
+19 | def result: Int = Describable::Describe(elapsed);
    |                                                ^ Call expression type error: no matching concrete instance for 'Describable::Describe'
    |

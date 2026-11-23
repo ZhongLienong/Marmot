@@ -1,6 +1,6 @@
 Compilation failed :(
-Type Checker Error at test/cell/failure/set_wrong_element_type.mmt:10
-   |
-10 | c := "no";
-   |   ^^ Type mismatch between 'Int' and 'Text'
-   |
+Type Checker Error at test/cell/failure/set_wrong_element_type.mmt:6
+  |
+6 | c := "no";
+  |   ^^ Type mismatch between 'Int' and 'Text'
+  |

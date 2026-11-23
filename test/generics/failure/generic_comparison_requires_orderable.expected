@@ -1,7 +1,7 @@
 Compilation failed :(
-Type Checker Error at test/generics/failure/generic_comparison_requires_orderable.mmt:8
-  |
-8 | def Less = fn<T>(a: T, b: T) -> Bool => a < b;
-  |                                           ^ Type T does not satisfy constraint Orderable<T> - no matching instance found
-  |
+Type Checker Error at test/generics/failure/generic_comparison_requires_orderable.mmt:11
+   |
+11 | def Less = fn<T>(a: T, b: T) -> Bool => a < b;
+   |                                           ^ Type T does not satisfy constraint Orderable<T> - no matching instance found
+   |
   | 'T' is a generic parameter. Import MarmotPrelude/Orderable.mmt, which declares Orderable, and say 'where Orderable<T>' on the definition.

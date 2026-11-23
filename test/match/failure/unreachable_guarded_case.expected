@@ -1,6 +1,6 @@
 Compilation failed :(
-Type Checker Error at test/match/failure/unreachable_guarded_case.mmt:17
+Type Checker Error at test/match/failure/unreachable_guarded_case.mmt:14
    |
-17 | 		case Option::Some(n) if n > 0 => "positive"
-   | 		^^^^ The cases above already match every value this one does, so it can never run.
+14 |     case Option::Some(n) if n > 0 => "positive"
+   |     ^^^^ The cases above already match every value this one does, so it can never run.
    |

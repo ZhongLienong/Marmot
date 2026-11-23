@@ -1,6 +1,6 @@
 Compilation failed :(
 Parser Error at test/type_alias/failure/missing_type_arguments.mmt:13
    |
-13 | def boxed : BoxAlias = Box(1);
-   |             ^^^^^^^^ Type argument count mismatch for alias 'BoxAlias': expected 1, got 0
+13 | def boxed: BoxAlias = Box(1);
+   |            ^^^^^^^^ Type argument count mismatch for alias 'BoxAlias': expected 1, got 0
    |

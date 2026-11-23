@@ -1,6 +1,6 @@
 Compilation failed :(
 Parser Error at test/type_alias/failure/arity_mismatch.mmt:13
    |
-13 | def boxed : BoxAlias<Int, Text> = Box(1);
-   |             ^^^^^^^^ Type argument count mismatch for alias 'BoxAlias': expected 1, got 2
+13 | def boxed: BoxAlias<Int, Text> = Box(1);
+   |            ^^^^^^^^ Type argument count mismatch for alias 'BoxAlias': expected 1, got 2
    |

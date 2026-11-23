@@ -1,6 +1,6 @@
 Compilation failed :(
-Parser Error at test/module/failure/test_privacy.mmt:11
-   |
-11 | def test_access_private = fn() -> Int => Math::internal_helper(42);
-   |                                          ^^^^ Symbol 'internal_helper' is not exported by module 'Math'.
-   |
+Parser Error at test/module/failure/test_privacy.mmt:7
+  |
+7 | def test_access_private = fn() -> Int => Math::internal_helper(42);
+  |                                          ^^^^ Symbol 'internal_helper' is not exported by module 'Math'.
+  |

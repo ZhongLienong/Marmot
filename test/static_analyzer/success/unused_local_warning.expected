@@ -1,0 +1,6 @@
+[warning] 1 warning(s) in unused_local_warning.mmt
+Static Analyzer Warning at test/static_analyzer/success/unused_local_warning.mmt:6
+  |
+6 |     def unused = 2;
+  |         ^^^^^^ Binding 'unused' is never read.
+  |

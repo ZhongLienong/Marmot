@@ -1,6 +1,6 @@
 Compilation failed :(
 Type Checker Error at test/generics/failure/generic_lambda_annotated.mmt:7
   |
-7 | def Id : fn(Int) -> Int = fn<T>(x: T) -> T => x;
-  |                           ^^ Function expression type error: a generic lambda cannot carry a type annotation, because its type differs at each call site
+7 | def Id: fn(Int) -> Int = fn<T>(x: T) -> T => x;
+  |                          ^^ Function expression type error: a generic lambda cannot carry a type annotation, because its type differs at each call site
   |

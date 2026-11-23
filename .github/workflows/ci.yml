@@ -73,6 +73,10 @@ jobs:
           echo "CXX=g++-14" >> "$GITHUB_ENV"
           echo "CMAKE_CXX_COMPILER_LAUNCHER=ccache" >> "$GITHUB_ENV"
 
+      - name: Use MSVC
+        if: runner.os == 'Windows'
+        run: echo "CXX=cl" >> $env:GITHUB_ENV
+
       - name: Toolchain
         run: python scripts/dev.py doctor
 

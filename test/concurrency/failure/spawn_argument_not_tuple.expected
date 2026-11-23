@@ -1,7 +1,7 @@
-Compilation failed :( 
-Type Checker Error at test/concurrency/failure/spawn_argument_not_tuple.mmt:11
+Compilation failed :(
+Type Checker Error at test/concurrency/failure/spawn_argument_not_tuple.mmt:10
    |
-11 | def worker = Concurrency::Spawn(1, Add);
+10 | def worker = Concurrency::Spawn(1, Add);
    |              ^^^^^^^^^^^ Spawn expression type error: the spawned function takes 2 parameters, so pass them to Concurrency::Spawn as one 2-element tuple
 Expected (Int, Int), but got Int
    |

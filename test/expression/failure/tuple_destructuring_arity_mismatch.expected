@@ -1,6 +1,6 @@
 Compilation failed :(
-Type Checker Error at test/expression/failure/tuple_destructuring_arity_mismatch.mmt:4
+Type Checker Error at test/expression/failure/tuple_destructuring_arity_mismatch.mmt:5
   |
-4 | def (left, right) = triple;
+5 | def (left, right) = triple;
   |      ^^^^ DefineTuple statement type error: tuple pattern has 2 bindings but tuple has 3 elements
   |

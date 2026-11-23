@@ -1,6 +1,6 @@
 Compilation failed :(
-Parser Error at test/pipe/failure/stage_parameter_out_of_scope.mmt:11
-   |
-11 | def total = 5 |> fn(first: Int) -> Int => first + 1 |> fn(second: Int) -> Int => first + second;
-   |                                                                                  ^^^^^ Undefined name.
-   |
+Parser Error at test/pipe/failure/stage_parameter_out_of_scope.mmt:7
+  |
+7 | def total = 5 |> fn(first: Int) -> Int => first + 1 |> fn(second: Int) -> Int => first + second;
+  |                                                                                  ^^^^^ Undefined name.
+  |

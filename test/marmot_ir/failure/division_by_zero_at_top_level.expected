@@ -1,9 +1,9 @@
 error[DivisionByZero]: Division by zero.
- --> test/marmot_ir/failure/division_by_zero_at_top_level.mmt:10
+ --> test/marmot_ir/failure/division_by_zero_at_top_level.mmt:11
    |
-10 | def remainder = total %
+11 | def remainder = total % Opaque(0);
    | Division by zero.
    |
 stack trace:
-  at main [module DivisionByZeroAtTopLevel] in test/marmot_ir/failure/division_by_zero_at_top_level.mmt:10
-    def remainder = total %
+  at main [module DivisionByZeroAtTopLevel] in test/marmot_ir/failure/division_by_zero_at_top_level.mmt:11
+    def remainder = total % Opaque(0);

@@ -64,6 +64,10 @@ def check_ninja() -> bool:
 def check_compiler() -> bool:
     chosen = os.environ.get("CXX")
     if chosen:
+        if IS_WINDOWS and Path(chosen).stem.lower() == "cl":
+            if toolchain.find_program(chosen, toolchain.msvc_environment()) is not None:
+                console.ok(f"C++ compiler: CXX={chosen} (MSVC)")
+                return True
         if toolchain.supports_cxx23_library(chosen):
             console.ok(f"C++ compiler: CXX={chosen}")
             return True

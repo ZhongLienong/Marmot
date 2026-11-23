@@ -1,6 +1,6 @@
 Compilation failed :(
-Parser Error at test/struct/failure/record_update_duplicate_field.mmt:12
+Parser Error at test/struct/failure/record_update_duplicate_field.mmt:16
    |
-12 | def bad = { p with x = 1, x = 2 };
-   |                           ^ Field 'x' is assigned more than once in this record update.
+16 |     x = 2
+   |     ^ Field 'x' is assigned more than once in this record update.
    |

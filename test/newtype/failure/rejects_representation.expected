@@ -1,6 +1,6 @@
 Compilation failed :(
-Type Checker Error at test/newtype/failure/rejects_representation.mmt:8
+Type Checker Error at test/newtype/failure/rejects_representation.mmt:9
   |
-8 | def result: Int = TakesMeters(raw);
+9 | def result: Int = TakesMeters(raw);
   |                                  ^ Expected type 'Meters' but got 'Int'
   |

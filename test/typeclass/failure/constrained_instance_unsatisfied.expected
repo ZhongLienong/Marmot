@@ -1,6 +1,6 @@
 Compilation failed :(
-Type Checker Error at test/typeclass/failure/constrained_instance_unsatisfied.mmt:18
+Type Checker Error at test/typeclass/failure/constrained_instance_unsatisfied.mmt:25
    |
-18 | IO::PrintLine(Show::show(bad));
+25 | IO::PrintLine(Show::show(bad));
    |                             ^ Type Opaque does not satisfy constraint Show<Opaque> - no matching instance found
    |

@@ -1,6 +1,6 @@
 Compilation failed :(
-Type Checker Error at test/struct/failure/record_update_type_mismatch.mmt:12
+Type Checker Error at test/struct/failure/record_update_type_mismatch.mmt:15
    |
-12 | def bad = { p with x = "not an int" };
-   |                    ^ Expected type 'Int' but got 'Text'
+15 |     p with x = "not an int"
+   |            ^ Expected type 'Int' but got 'Text'
    |

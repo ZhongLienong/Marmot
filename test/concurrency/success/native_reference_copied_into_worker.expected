@@ -4,10 +4,10 @@ Static Analyzer Warning at test/concurrency/success/native_reference_copied_into
 16 | def worker = Concurrency::Spawn((original, original), WriteFirstReadSecond);
    |              ^^^^^^^^^^^ This reference is copied into the worker; writes on either side are not seen by the other.
    |
-Static Analyzer Warning at test/concurrency/success/native_reference_copied_into_worker.mmt:26
+Static Analyzer Warning at test/concurrency/success/native_reference_copied_into_worker.mmt:32
    |
-26 |         local := (*local) + 1;
-   |         ^^^^^ This reference is copied into the worker; writes on either side are not seen by the other.
+32 |             local := (*local) + 1;
+   |             ^^^^^ This reference is copied into the worker; writes on either side are not seen by the other.
    |
 7 100
 21

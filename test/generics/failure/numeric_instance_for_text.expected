@@ -1,6 +1,6 @@
 Compilation failed :(
-Type Checker Error at test/generics/failure/numeric_instance_for_text.mmt:8
+Type Checker Error at test/generics/failure/numeric_instance_for_text.mmt:7
   |
-8 | instance Numeric<Text> {
+7 | instance Numeric<Text>
   |          ^^^^^^^ Instance declaration error: primitive ranges require Int, Float, Byte or Word, so there is no Numeric<Text>
   |

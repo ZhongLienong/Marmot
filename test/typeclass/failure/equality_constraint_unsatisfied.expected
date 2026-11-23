@@ -1,6 +1,6 @@
 Compilation failed :(
-Type Checker Error at test/typeclass/failure/equality_constraint_unsatisfied.mmt:24
+Type Checker Error at test/typeclass/failure/equality_constraint_unsatisfied.mmt:30
    |
-24 | IO::PrintLine(Twice(Words("hi")) as Text);
+30 | IO::PrintLine(Twice(Words("hi")) as Text);
    |                                ^ Equality constraint is not satisfied: 'Stepper::Item<Words>' resolves to 'Text', not 'Int'
    |

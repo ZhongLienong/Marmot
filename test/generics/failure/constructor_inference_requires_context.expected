@@ -1,11 +1,11 @@
 Compilation failed :(
-Type Checker Error at test/generics/failure/constructor_inference_requires_context.mmt:6
-  |
-6 | def unresolved_none = Option::None();
-  |                       ^^^^^^ Construct expression type error: could not infer all type arguments for 'Option'
-  |
 Type Checker Error at test/generics/failure/constructor_inference_requires_context.mmt:7
   |
-7 | def unresolved_ok = Result::Ok(1);
+7 | def unresolved_none = Option::None();
+  |                       ^^^^^^ Construct expression type error: could not infer all type arguments for 'Option'
+  |
+Type Checker Error at test/generics/failure/constructor_inference_requires_context.mmt:9
+  |
+9 | def unresolved_ok = Result::Ok(1);
   |                     ^^^^^^ Construct expression type error: could not infer all type arguments for 'Result'
   |
