@@ -519,7 +519,8 @@ void BytecodeLinker::PopulateReferencedGlobals()
 			if (globals.empty() || globals.back() != global)
 			{
 				globals.push_back(static_cast<uint16_t>(global));
-				pending.append_range(dependents[proc_index]);
+				const std::vector<size_t>& procedure_dependents = dependents[proc_index];
+				pending.insert(pending.end(), procedure_dependents.begin(), procedure_dependents.end());
 			}
 		}
 	}
