@@ -1,0 +1,33 @@
+module IntrinsicsWithoutStdlib
+import { "../../../projects/marmotstdlib/MarmotPrelude/ArrayUtil.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt", "../../../projects/marmotstdlib/MarmotPrelude/TextUtil.mmt" }
+use Result.
+{
+    Result
+}
+use Concurrency.
+{
+    WorkerError
+}
+
+foreign "MARMOT_FFI_Exit" Exit: fn(Int) -> Unit;
+
+foreign "MARMOT_FFI_Sleep" Sleep: fn(Int) -> Unit;
+
+def SplitAndReverse = fn(text: Text) -> Array<Text> => {
+    Sleep(0);
+    def empty: Array<Array<Text>> = [];
+    def words = TextUtil::Split(text, "/");
+    ArrayUtil::ConcatAll([ArrayUtil::ConcatAll(empty), ArrayUtil::Reverse(words)])
+};
+
+def words = Concurrency::JoinedOrPanic(Concurrency::Join(Concurrency::Spawn("marmot/café", SplitAndReverse)));
+if (#words == 2) && ((words[0] == "café") && (words[1] == "marmot")) then () else Panic::Panic("worker returned the wrong text array");
+
+def Stop = fn(code: Int) -> Int => {
+    Exit(code);
+    0
+};
+
+match Concurrency::Join(Concurrency::Spawn(7, Stop)) with
+    case Result::Err(WorkerError::Failed(_)) => ()
+    case _ => Panic::Panic("worker Exit did not produce a worker failure");

@@ -1,6 +1,6 @@
 #include "FunctionLowering.h"
 #include "Compiler/TypeTransform/TypeTransform.h"
-#include "Bytecode/Builtins/BuiltinTable.h"
+#include "Bytecode/Intrinsics/IntrinsicTable.h"
 #include "Compiler/Operator/Operator.h"
 #include "Bytecode/Format/Format.h"
 #include "Compiler/Names/SpecialNames.h"
@@ -52,11 +52,10 @@ LoweredModule::LoweredModule(MarmotIRModule module)
 {
 }
 
-Lowering::Specialization::Specialization(GenericTypes::TypeEnvironment types, MethodResolutionMap methods, std::optional<std::string> source_module, std::shared_ptr<const ForeignIndices> foreign_indices)
+Lowering::Specialization::Specialization(GenericTypes::TypeEnvironment types, MethodResolutionMap methods, std::optional<std::string> source_module)
 	: m_types(std::move(types)),
 	m_methods(std::move(methods)),
-	m_source_module(std::move(source_module)),
-	m_foreign_indices(std::move(foreign_indices))
+	m_source_module(std::move(source_module))
 {
 }
 
@@ -67,11 +66,10 @@ Lowering::Lowering(MarmotProgramTree& program, std::string_view file_name, const
 	m_module_name(module_name),
 	m_export_symbols(export_symbols),
 	m_module(module_name),
-	m_foreign_indices(std::make_shared<ForeignIndices>()),
 	m_generics(module_name, imports.m_generic_functions),
 	m_resolver(imports.m_typeclasses)
 {
-	m_specializations.emplace_back(GenericTypes::TypeEnvironment{}, MethodResolutionMap{}, std::nullopt, m_foreign_indices);
+	m_specializations.emplace_back(GenericTypes::TypeEnvironment{}, MethodResolutionMap{}, std::nullopt);
 }
 
 MarmotResult::DiagnosticsResult<LoweredModule> Lowering::Lower() &&
@@ -293,13 +291,11 @@ Lowering::Emitted Lowering::ReserveForeign(const MarmotStatement::ForeignDefinit
 		);
 }
 
-// A builtin's own name, or its library's and its symbol's. A builtin is also
-// recorded by the name the module declares it as, so a call of it is one by
-// index.
 std::expected<std::string, CompilerError> Lowering::ForeignName(const MarmotStatement::ForeignDefinition& foreign)
 {
 	const Token& name = foreign.m_function_name;
-	const TypeRef& return_type = foreign.m_type->GetType<MarmotType::FunctionType>().m_return_type;
+	const MarmotType::FunctionType& signature = foreign.m_type->GetType<MarmotType::FunctionType>();
+	const TypeRef& return_type = signature.m_return_type;
 	const bool is_supported_return = return_type->IsType<MarmotType::IntegerType>() || return_type->IsType<MarmotType::FloatType>() || return_type->IsType<MarmotType::BoolType>() || return_type->IsType<MarmotType::UnitType>() || return_type->IsType<MarmotType::TextType>() || return_type->IsType<MarmotType::ArrayType>() || return_type->IsType<MarmotType::ByteType>() || return_type->IsType<MarmotType::WordType>();
 	if (!is_supported_return)
 	{
@@ -307,8 +303,7 @@ std::expected<std::string, CompilerError> Lowering::ForeignName(const MarmotStat
 	}
 
 	// Native code builds an array out of bits, so it can return one of texts or of
-	// scalars; one of other objects would hand the VM bits to take as pointers. A
-	// builtin can return any array, since it copies the VM's own values.
+	// scalars; one of other objects would hand the VM bits to take as pointers.
 	if (foreign.m_library.has_value() && return_type->IsType<MarmotType::ArrayType>())
 	{
 		const TypeRef& element = return_type->GetType<MarmotType::ArrayType>().m_element_type;
@@ -324,12 +319,46 @@ std::expected<std::string, CompilerError> Lowering::ForeignName(const MarmotStat
 		return foreign.m_library.value() + NATIVE_SYMBOL_SEPARATOR + foreign.m_foreign_name;
 	}
 
-	const std::optional<size_t> builtin = MarmotBuiltins::FindIndex(foreign.m_foreign_name);
-	if (!builtin.has_value())
+	if (!signature.m_intrinsic.has_value())
 	{
 		return std::unexpected(Error(CompilerErrorCode::LoweringUnknownForeignFunction, std::format("Unknown foreign function '{}': it is not a Marmot builtin. Name the library that exports it: foreign \"{}\" ... from \"library\";", foreign.m_foreign_name, foreign.m_foreign_name), name));
 	}
-	m_foreign_indices->insert_or_assign(name.m_lexeme, builtin.value());
+	const MarmotIntrinsicSignature& intrinsic = MarmotIntrinsics::At(signature.m_intrinsic.value());
+	const MarmotType* element_type = nullptr;
+	const auto matches = [&element_type](const TypeRef& actual, std::string_view expected)
+	{
+		constexpr std::string_view array_prefix = "Array<";
+		const MarmotType* type = actual.get();
+		while (expected.starts_with(array_prefix))
+		{
+			if (!type->IsType<MarmotType::ArrayType>())
+			{
+				return false;
+			}
+			type = type->GetType<MarmotType::ArrayType>().m_element_type.get();
+			expected.remove_prefix(array_prefix.size());
+			expected.remove_suffix(1u);
+		}
+		if (expected == "T")
+		{
+			if (element_type == nullptr)
+			{
+				element_type = type;
+			}
+			return *type == *element_type;
+		}
+		return type->ToString() == expected;
+	};
+	bool matches_signature = signature.m_param_types.size() == intrinsic.m_parameters.size();
+	for (size_t index = 0; matches_signature && index < intrinsic.m_parameters.size(); index += 1u)
+	{
+		matches_signature = matches(signature.m_param_types[index], intrinsic.m_parameters[index]);
+	}
+	if (!matches_signature || !matches(return_type, intrinsic.m_result))
+	{
+		const std::string parameters = intrinsic.m_parameters | std::views::join_with(std::string_view(", ")) | std::ranges::to<std::string>();
+		return std::unexpected(Error(CompilerErrorCode::LoweringUnsupportedConstruct, std::format("Intrinsic '{}' requires fn({}) -> {}", intrinsic.m_name, parameters, intrinsic.m_result), name));
+	}
 	return foreign.m_foreign_name;
 }
 
@@ -337,7 +366,7 @@ std::expected<std::string, CompilerError> Lowering::ForeignName(const MarmotStat
 // modules that import it specialize too.
 void Lowering::RegisterGeneric(const std::string& name, const FunctionParameters& params, const std::vector<TypeRef>& param_types, const std::vector<Token>& generic_params, const std::vector<MarmotType::ClassConstraint>& constraints, const TypeRef& return_type, std::unique_ptr<MarmotExpression>& body)
 {
-	m_generics.Add(name, GenericFunctionInfo(name, params, param_types, generic_params, constraints, return_type, std::shared_ptr<const MarmotExpression>(std::move(body)), m_module_name, m_foreign_indices));
+	m_generics.Add(name, GenericFunctionInfo(name, params, param_types, generic_params, constraints, return_type, std::shared_ptr<const MarmotExpression>(std::move(body)), m_module_name));
 }
 
 // Every value in MarmotIR has one type, so a method of an instance whose head

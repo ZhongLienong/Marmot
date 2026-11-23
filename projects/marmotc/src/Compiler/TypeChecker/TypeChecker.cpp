@@ -5570,6 +5570,19 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 		? local_generic != nullptr && std::ranges::contains(context.m_assumptions->m_defining_generic_functions, local_generic->m_function)
 		: m_generic_functions.contains(variable.m_name.m_lexeme) && std::ranges::contains(context.m_assumptions->m_defining_generic_functions, m_generic_functions.at(variable.m_name.m_lexeme));
 	const bool is_value = use == NameUse::Value;
+	const auto freshen_name = [this, &variable, is_value](const std::shared_ptr<MarmotType>& type)
+	{
+		std::shared_ptr<MarmotType> fresh = Freshen(type);
+		if (type->IsType<MarmotType::FunctionType>())
+		{
+			variable.m_intrinsic = type->GetType<MarmotType::FunctionType>().m_intrinsic;
+			if (is_value && variable.m_intrinsic.has_value())
+			{
+				fresh->GetType<MarmotType::FunctionType>().m_is_foreign = false;
+			}
+		}
+		return fresh;
+	};
 	if (is_value && binding != nullptr && (*binding)->IsType<MarmotType::FunctionType>() && (*binding)->GetType<MarmotType::FunctionType>().m_primitive.has_value())
 	{
 		return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(std::format("Name access expression type error: '{}' is a primitive, an instruction rather than a function, so it can only be called", variable.m_name.m_lexeme), variable.m_name, m_file_name, m_source_lines));
@@ -5594,7 +5607,7 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 			|| (identity == nullptr && variable.m_name.m_lexeme.find(NameSeparator) != std::string::npos)
 			|| (binding->get()->IsType<MarmotType::FunctionType>() && binding->get()->GetType<MarmotType::FunctionType>().m_is_foreign))
 		{
-			variable.m_type_data = Freshen(*binding);
+			variable.m_type_data = freshen_name(*binding);
 			if (is_value && variable.m_type_data->IsType<MarmotType::FunctionType>() && !CollectTypeVariableIds(variable.m_type_data).empty())
 			{
 				return use_as_value();
@@ -5631,7 +5644,7 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 	const TypeEnvironment::const_iterator later = m_later_definitions.find(variable.m_name.m_lexeme);
 	if (later != m_later_definitions.cend())
 	{
-		variable.m_type_data = Freshen(later->second);
+		variable.m_type_data = freshen_name(later->second);
 		return variable.m_type_data;
 	}
 

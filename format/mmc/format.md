@@ -1,7 +1,7 @@
 # Current `.mmc` wire format (under development)
 
 **Status: Under development; not sealed.** There is no released `.mmc` format
-version. The header currently carries numeric marker `20` so the VM can reject
+version. The header currently carries numeric marker `21` so the VM can reject
 artifacts written for a different encoding. That marker is an internal
 compatibility check, not a Marmot or `.mmc` release version. This file and its
 fixtures record current compiler/VM behavior and may change as Marmot develops.
@@ -18,7 +18,7 @@ of the file.
 | Offset | Size | Field | Current meaning |
 |---:|---:|---|---|
 | 0 | 4 | magic | ASCII `MBC` followed by `00` |
-| 4 | 4 | format marker (`u32`) | Exactly `20` |
+| 4 | 4 | format marker (`u32`) | Exactly `21` |
 | 8 | 2 | Marmot major version (`u16`) | Written from the producer version; informational to the current reader |
 | 10 | 2 | Marmot minor version (`u16`) | Informational |
 | 12 | 2 | Marmot patch version (`u16`) | Informational |
@@ -61,7 +61,7 @@ temporary, starting at the bottom of the frame's operand stack. The final
 For a non-tail Marmot call, the entry describes the caller while the callee
 runs and after the result is pushed. `CONCAT_ARRAY`, `CONCAT_TEXT` and
 `MAKE_CELL` have entries for collection after they push their results. The
-writer omits entries for foreign calls. At a `JUMP_BACK` target the frame has
+writer omits entries for intrinsic and foreign calls. At a `JUMP_BACK` target the frame has
 only its slots. At the callee's entry after `TAIL_CALL` it has only parameters.
 The slot map is enough in both cases.
 
@@ -72,15 +72,17 @@ Each native-library record is: library-name `string`; symbol count and symbol-na
 
 Each embedded-source record is: source-path `string`; line count `u32`; then source-line strings split at LF. The LF is omitted; a preceding CR from CRLF input can remain in the stored line. The writer includes distinct procedure source paths for which it has source lines, in first-seen procedure order. Source files are optional; line-info and procedure source paths are present even when sources are not embedded.
 
-## Instruction and builtin IDs
+## Instruction and intrinsic IDs
 
-[`registry.json`](registry.json) records the current opcode IDs, their total encoded lengths in bytes (including the opcode), and the builtin indexes with their FFI argument and return marshalling kinds. These values describe the current encoding and may change as Marmot develops. An opcode is one byte. Its numeric ID is its zero-based position in the opcode list; a builtin ID is its zero-based position in the builtin list.
+[`registry.json`](registry.json) records the current opcode IDs, their total encoded lengths in bytes (including the opcode), and the VM intrinsic IDs with their Marmot parameter and result types. These values describe the current encoding and may change as Marmot develops. An opcode is one byte. Its numeric ID is its zero-based position in the opcode list; an intrinsic ID is its zero-based position in the intrinsic list.
 
 An instruction stream consists of its opcode byte followed by the number of operand bytes indicated by the registry. One-byte operands are unsigned unless the instruction defines an `imm8` signed immediate. Eight-byte integer and word constants use least-significant byte first; Float constants use the eight bytes of their IEEE-754 binary64 representation, least-significant byte first. Procedure and text indexes encoded in two bytes use low byte then high byte; global indexes use high byte then low byte. Two-byte jump offsets use low byte then high byte. The registry's `category` and optional `description` fields preserve the instruction grouping and operand notes previously maintained in `OpCodes.def`. These notes describe some instruction layouts; the remaining operand roles must be made explicit from the VM decoder before implementing a new writer.
 
-The registry generates each project's private `OpCodes.def` and `Builtins.def` with `python scripts/dev.py generate-mmc`. The compiler builtin table contains only names and indexes; the VM table includes its argument and return marshalling kinds. Generated files are checked in, so either CMake project can build without Python or the other project. `python scripts/dev.py generate-mmc --check` detects stale outputs without writing them. The `.mmc` gate checks generated-file freshness and agreement with the current registry, then exercises the current fixtures. Update the registry, generated files, format marker, and fixtures together when changing the encoding.
+The registry generates each project's private `OpCodes.def` and `Intrinsics.def` with `python scripts/dev.py generate-mmc`. Generated files are checked in, so either CMake project can build without Python or the other project. `python scripts/dev.py generate-mmc --check` detects stale outputs without writing them. The `.mmc` gate checks generated-file freshness and agreement with the current registry, then exercises the current fixtures. Update the registry, generated files, format marker, and fixtures together when changing the encoding.
 
-`CALL_FOREIGN_INDEXED` embeds a VM builtin table index. Native foreign calls use the native-library records and a symbol name. `CALL_FOREIGN` encodes each argument in two bits starting at bit 0. Kind `0` passes raw bits, `1` passes a C string for `Text`, `2` passes an array of scalar slots, and `3` passes an array of C strings for `Array<Text>`. Return kind `0` carries raw bits, `1` a C string, `2` an array of values, and `3` an array of C strings. Bit 7 marks arrays of VM pointers for the collector, including managed texts. `CALL_FOREIGN_INDEXED` uses the same return tag. The [native extension ABI](../ffi/ABI.md) defines the separate calling and ownership contract.
+`CALL_INTRINSIC` has two one-byte operands. The first is the intrinsic ID, whose signature gives the number of arguments. The second is 1 for array results holding VM pointers and 0 otherwise. The instruction replaces its arguments with one result.
+
+Native foreign calls use the native-library records and a symbol name. `CALL_FOREIGN` encodes each argument in two bits starting at bit 0. Kind `0` passes raw bits, `1` passes a C string for `Text`, `2` passes an array of scalar slots, and `3` passes an array of C strings for `Array<Text>`. Return kind `0` carries raw bits, `1` a C string, `2` an array of values, and `3` an array of C strings. Bit 7 marks arrays of VM pointers for the collector, including managed texts. The [native extension ABI](../ffi/ABI.md) defines the separate calling and ownership contract.
 
 Each value has a kind and each aggregate a shape, so no operation has to decide from a value's bits whether it is a pointer. Instructions that build objects or send values between workers carry the needed metadata: `CREATE_ARRAY` its elements' kind; `CREATE_TUPLE`, `CONSTRUCT_STRUCT`, `CONSTRUCT_UNION` and `LOCAL_UNION2` a shape, low byte first, as their last two operands; `MAKE_CELL` and `CHANNEL_SEND` the value's kind; `SPAWN_WORKER` the shape of the tuple its arguments and function cross in, then the kind of the worker's result; `CHANNEL_RECEIVE` the kind of its option payload; and `JOIN_WORKER` the kind of the worker's value. A closure takes its procedure's captures' shape.
 
@@ -91,7 +93,7 @@ Each value has a kind and each aggregate a shape, so no operation has to decide 
 The format marker identifies the encoding expected by the reader. When a change
 could make an artifact decode or execute differently, change this marker so a
 reader built for another encoding rejects it rather than misinterpreting it.
-There is no requirement to preserve old opcode or builtin IDs, layouts, or
+There is no requirement to preserve old opcode or intrinsic IDs, layouts, or
 artifacts. The compiler and VM built together must use the same registry. The
 producer's major/minor/patch header fields do not replace the marker check.
 

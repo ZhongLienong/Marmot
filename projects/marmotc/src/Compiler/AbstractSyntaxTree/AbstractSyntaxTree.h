@@ -465,6 +465,7 @@ public:
 	{
 		Token m_name;
 		NameContext::Tag m_name_ctx;
+		std::optional<size_t> m_intrinsic;
 
 		NameAccess(const Token& name, NameContext::Tag&& name_ctx);
 		explicit NameAccess(const GeneratedBinding& binding);

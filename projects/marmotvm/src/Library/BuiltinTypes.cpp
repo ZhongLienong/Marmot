@@ -1,311 +1,152 @@
-#include "FFI/MarmotVMFFIExports.h"
+#include "Bytecode/Intrinsics/IntrinsicTable.h"
 
-#include "Error/RuntimeError.h"
-#include "Value/Value.h"
+#include "Interpreter/VirtualMachine/VirtualMachine.h"
 #include "Library/ProgramArguments/ProgramArguments.h"
+#include "Support/Cancellation/Cancellation.h"
 
-#include <array>
 #include <algorithm>
-#include <cstdio>
+#include <array>
+#include <chrono>
 #include <cstdlib>
-#include <cstring>
-#include <limits>
+#include <functional>
 #include <iostream>
+#include <limits>
 #include <ranges>
-#include <string>
-#include <string_view>
-#include <vector>
+#include <utility>
 
 namespace
 {
-	[[noreturn]] void AbortRuntime(std::string_view message) noexcept
+	const MarmotArray& Array(const MarmotValue& value) noexcept
 	{
-		const RuntimeError runtime_error(RuntimeErrorCode::InternalFFITypeError, message);
-		const std::string rendered(runtime_error.Rendered());
-		std::fputs(rendered.c_str(), stderr);
-		std::fputc('\n', stderr);
-		std::fflush(stderr);
-		std::exit(EXIT_FAILURE);
+		return value.GetPointer()->GetTraceable<MarmotArray>();
 	}
 
-	void WriteBool(void* ret, bool value) noexcept
+	const MarmotText& Text(const MarmotValue& value) noexcept
 	{
-		*static_cast<MarmotValue*>(ret) = MarmotValue(value);
-	}
-
-	void WriteInt(void* ret, MarmotInteger value) noexcept
-	{
-		*static_cast<MarmotValue*>(ret) = MarmotValue(value);
-	}
-
-	void WritePointerResult(void* ret, const void* pointer) noexcept
-	{
-		*static_cast<MarmotValue*>(ret) = static_cast<MarmotInteger>(reinterpret_cast<int64_t>(pointer));
-	}
-
-	const MarmotValue& RequireValueArg(void** args, size_t index) noexcept
-	{
-		MarmotValue* value = static_cast<MarmotValue*>(args[index]);
-		if (value == nullptr)
-		{
-			AbortRuntime("Built-in FFI expected value argument.");
-		}
-		return *value;
-	}
-
-	MarmotInteger ReadInt(void** args, size_t index) noexcept
-	{
-		return RequireValueArg(args, index).GetInteger();
-	}
-
-	MarmotTraceable* RequireTraceable(void* handle, const char* expected_type) noexcept
-	{
-		MarmotTraceable* traceable = static_cast<MarmotTraceable*>(handle);
-		if (traceable == nullptr)
-		{
-			AbortRuntime(std::string("Built-in FFI expected ") + expected_type + ".");
-		}
-		return traceable;
-	}
-
-	MarmotArray& RequireArray(void* handle) noexcept
-	{
-		MarmotTraceable* traceable = RequireTraceable(handle, "Array");
-		if (!traceable->IsTraceable<MarmotArray>())
-		{
-			AbortRuntime("Built-in FFI expected Array.");
-		}
-		return traceable->GetTraceable<MarmotArray>();
-	}
-
-	MarmotText& RequireText(void* handle) noexcept
-	{
-		MarmotTraceable* traceable = RequireTraceable(handle, "Text");
-		if (!traceable->IsTraceable<MarmotText>())
-		{
-			AbortRuntime("Built-in FFI expected Text.");
-		}
-		return traceable->GetTraceable<MarmotText>();
-	}
-
-	char* AllocateCString(const MarmotText& text) noexcept
-	{
-		const int byte_len = text.GetByteLength();
-		char* buffer = static_cast<char*>(std::malloc(static_cast<size_t>(byte_len) + 1u));
-		if (buffer == nullptr)
-		{
-			return nullptr;
-		}
-
-		std::memcpy(buffer, text.View().data(), static_cast<size_t>(byte_len));
-		buffer[byte_len] = '\0';
-		return buffer;
-	}
-
-	MarmotFFIArray* AllocateValueArray(int length) noexcept
-	{
-		if (length <= 0)
-		{
-			return nullptr;
-		}
-
-		MarmotValue* data = static_cast<MarmotValue*>(std::malloc(static_cast<size_t>(length) * sizeof(MarmotValue)));
-		if (data == nullptr)
-		{
-			return nullptr;
-		}
-
-		MarmotFFIArray* result = static_cast<MarmotFFIArray*>(std::malloc(sizeof(MarmotFFIArray)));
-		if (result == nullptr)
-		{
-			std::free(data);
-			return nullptr;
-		}
-
-		result->data = data;
-		result->length = length;
-		return result;
-	}
-
-	MarmotFFIArray* AllocateValueArray(const MarmotArray& array) noexcept
-	{
-		MarmotFFIArray* result = AllocateValueArray(array.GetLength());
-		if (result != nullptr)
-		{
-			std::memcpy(result->data, &array[0u], static_cast<size_t>(result->length) * sizeof(MarmotValue));
-		}
-		return result;
-	}
-
-	MarmotFFIArray* AllocateStringArray(const std::vector<MarmotText>& values) noexcept
-	{
-		if (values.empty())
-		{
-			return nullptr;
-		}
-
-		char** data = static_cast<char**>(std::malloc(values.size() * sizeof(char*)));
-		if (data == nullptr)
-		{
-			return nullptr;
-		}
-
-		size_t initialized = 0u;
-		for (; initialized < values.size(); initialized += 1u)
-		{
-			data[initialized] = AllocateCString(values[initialized]);
-			if (data[initialized] == nullptr)
-			{
-				for (size_t idx = 0u; idx < initialized; idx += 1u)
-				{
-					std::free(data[idx]);
-				}
-				std::free(data);
-				return nullptr;
-			}
-		}
-
-		MarmotFFIArray* result = static_cast<MarmotFFIArray*>(std::malloc(sizeof(MarmotFFIArray)));
-		if (result == nullptr)
-		{
-			for (size_t idx = 0u; idx < values.size(); idx += 1u)
-			{
-				std::free(data[idx]);
-			}
-			std::free(data);
-			return nullptr;
-		}
-
-		result->data = data;
-		result->length = static_cast<int>(values.size());
-		return result;
+		return value.GetPointer()->GetTraceable<MarmotText>();
 	}
 }
 
-extern "C"
+namespace VmIntrinsics
 {
-	void MARMOT_FFI_FUNC(ArrayConcat)(void** args, void* ret) noexcept
+	MarmotValue Exit(VirtualMachine&, std::span<const MarmotValue> args, bool) noexcept
 	{
-		MarmotArray concatenated = MarmotArray::Concatenate(RequireArray(args[0u]), RequireArray(args[1u]));
-		WritePointerResult(ret, AllocateValueArray(concatenated));
+		std::exit(static_cast<int>(args[0u].GetInteger()));
 	}
 
-	void MARMOT_FFI_FUNC(ArrayLength)(void** args, void* ret) noexcept
+	MarmotValue Sleep(VirtualMachine&, std::span<const MarmotValue> args, bool) noexcept
 	{
-		WriteInt(ret, RequireArray(args[0u]).GetLength());
+		ThreadCancellation::SleepInterruptible(std::chrono::milliseconds(args[0u].GetInteger()));
+		return {};
 	}
 
-	void MARMOT_FFI_FUNC(ArraySlice)(void** args, void* ret) noexcept
+	MarmotValue ArrayConcat(VirtualMachine& vm, std::span<const MarmotValue> args, bool holds_pointers) noexcept
 	{
-		MarmotArray sliced = RequireArray(args[0u]).Slice(ReadInt(args, 1u), ReadInt(args, 2u));
-		WritePointerResult(ret, AllocateValueArray(sliced));
+		return vm.AllocateArray(MarmotArray::Concatenate(Array(args[0u]), Array(args[1u])), holds_pointers);
 	}
 
-	void MARMOT_FFI_FUNC(ArrayReverse)(void** args, void* ret) noexcept
+	MarmotValue ArrayLength(VirtualMachine&, std::span<const MarmotValue> args, bool) noexcept
 	{
-		MarmotArray reversed = RequireArray(args[0u]).Reverse();
-		WritePointerResult(ret, AllocateValueArray(reversed));
+		return static_cast<MarmotInteger>(Array(args[0u]).GetLength());
 	}
 
-	void MARMOT_FFI_FUNC(ArrayConcatAll)(void** args, void* ret) noexcept
+	MarmotValue ArraySlice(VirtualMachine& vm, std::span<const MarmotValue> args, bool holds_pointers) noexcept
 	{
-		const MarmotArray& chunks = RequireArray(args[0u]);
+		return vm.AllocateArray(Array(args[0u]).Slice(args[1u].GetInteger(), args[2u].GetInteger()), holds_pointers);
+	}
+
+	MarmotValue ArrayReverse(VirtualMachine& vm, std::span<const MarmotValue> args, bool holds_pointers) noexcept
+	{
+		return vm.AllocateArray(Array(args[0u]).Reverse(), holds_pointers);
+	}
+
+	MarmotValue ArrayConcatAll(VirtualMachine& vm, std::span<const MarmotValue> args, bool holds_pointers) noexcept
+	{
+		const MarmotArray& chunks = Array(args[0u]);
 		MarmotInteger length = 0;
 		for (int index = 0; index < chunks.GetLength(); index += 1)
 		{
-			length += RequireArray(chunks[index].GetPointer()).GetLength();
+			length += Array(chunks[index]).GetLength();
 			if (length > std::numeric_limits<int>::max())
 			{
 				FatalOutOfMemory("concatenating arrays", static_cast<size_t>(length) * sizeof(MarmotValue));
 			}
 		}
-		if (length == 0)
-		{
-			WritePointerResult(ret, nullptr);
-			return;
-		}
 
-		MarmotFFIArray* result = AllocateValueArray(static_cast<int>(length));
-		if (result == nullptr)
-		{
-			FatalOutOfMemory("concatenating arrays", static_cast<size_t>(length) * sizeof(MarmotValue));
-		}
-
-		MarmotValue* destination = static_cast<MarmotValue*>(result->data);
+		MarmotArray result(static_cast<int>(length));
+		int destination = 0;
 		for (int index = 0; index < chunks.GetLength(); index += 1)
 		{
-			const MarmotArray& chunk = RequireArray(chunks[index].GetPointer());
-			const int count = chunk.GetLength();
-			if (count > 0)
+			const MarmotArray& chunk = Array(chunks[index]);
+			if (chunk.GetLength() > 0)
 			{
-				std::memcpy(destination, &chunk[0u], static_cast<size_t>(count) * sizeof(MarmotValue));
-				destination += count;
+				std::ranges::copy_n(&chunk[0], chunk.GetLength(), &result[destination]);
+				destination += chunk.GetLength();
 			}
 		}
-		WritePointerResult(ret, result);
+		return vm.AllocateArray(std::move(result), holds_pointers);
 	}
 
-	void MARMOT_FFI_FUNC(TextConcat)(void** args, void* ret) noexcept
+	MarmotValue TextConcat(VirtualMachine& vm, std::span<const MarmotValue> args, bool) noexcept
 	{
-		MarmotText concatenated = MarmotText::Concatenate(RequireText(args[0u]), RequireText(args[1u]));
-		WritePointerResult(ret, AllocateCString(concatenated));
+		return vm.AllocateTraceable(MarmotText::Concatenate(Text(args[0u]), Text(args[1u])));
 	}
 
-	void MARMOT_FFI_FUNC(TextSubstring)(void** args, void* ret) noexcept
+	MarmotValue TextSubstring(VirtualMachine& vm, std::span<const MarmotValue> args, bool) noexcept
 	{
-		MarmotText substring = RequireText(args[0u]).Substring(ReadInt(args, 1u), ReadInt(args, 2u));
-		WritePointerResult(ret, AllocateCString(substring));
+		return vm.AllocateTraceable(Text(args[0u]).Substring(args[1u].GetInteger(), args[2u].GetInteger()));
 	}
 
-	void MARMOT_FFI_FUNC(TextSplit)(void** args, void* ret) noexcept
+	MarmotValue TextSplit(VirtualMachine& vm, std::span<const MarmotValue> args, bool) noexcept
 	{
-		std::vector<MarmotText> parts = RequireText(args[0u]).Split(RequireText(args[1u]));
-		WritePointerResult(ret, AllocateStringArray(parts));
+		std::vector<MarmotText> parts = Text(args[0u]).Split(Text(args[1u]));
+		MarmotArray result(static_cast<int>(parts.size()));
+		for (int index = 0; index < result.GetLength(); index += 1)
+		{
+			result[index] = vm.AllocateTraceable(std::move(parts[static_cast<size_t>(index)]));
+		}
+		return vm.AllocateArray(std::move(result), true);
 	}
 
-	void MARMOT_FFI_FUNC(TextReverse)(void** args, void* ret) noexcept
+	MarmotValue TextReverse(VirtualMachine& vm, std::span<const MarmotValue> args, bool) noexcept
 	{
-		MarmotText reversed = RequireText(args[0u]).Reverse();
-		WritePointerResult(ret, AllocateCString(reversed));
+		return vm.AllocateTraceable(Text(args[0u]).Reverse());
 	}
 
-	// The UTF-8 for one Unicode scalar value. The caller has checked it is one,
-	// and that it is not U+0000, which text cannot hold.
-	void MARMOT_FFI_FUNC(TextFromCodePoint)(void** args, void* ret) noexcept
+	MarmotValue TextFromCodePoint(VirtualMachine& vm, std::span<const MarmotValue> args, bool) noexcept
 	{
-		const std::array<MarmotInteger, 1u> code_point{ ReadInt(args, 0u) };
-		WritePointerResult(ret, AllocateCString(MarmotText::FromCodePoints(code_point)));
+		const std::array<MarmotInteger, 1u> code_point{ args[0u].GetInteger() };
+		return vm.AllocateTraceable(MarmotText::FromCodePoints(code_point));
 	}
 
-	void MARMOT_FFI_FUNC(TextCodePoints)(void** args, void* ret) noexcept
+	MarmotValue TextCodePoints(VirtualMachine& vm, std::span<const MarmotValue> args, bool) noexcept
 	{
-		const std::vector<MarmotInteger> code_points = RequireText(args[0u]).CodePoints();
+		const std::vector<MarmotInteger> code_points = Text(args[0u]).CodePoints();
 		MarmotArray values(static_cast<int>(code_points.size()));
 		for (int index = 0; index < values.GetLength(); index += 1)
 		{
 			values[index] = MarmotValue(code_points[static_cast<size_t>(index)]);
 		}
-		WritePointerResult(ret, AllocateValueArray(values));
+		return vm.AllocateArray(std::move(values), false);
 	}
 
-	void MARMOT_FFI_FUNC(TextFromCodePoints)(void** args, void* ret) noexcept
+	MarmotValue TextFromCodePoints(VirtualMachine& vm, std::span<const MarmotValue> args, bool) noexcept
 	{
-		const MarmotArray& values = RequireArray(args[0u]);
+		const MarmotArray& values = Array(args[0u]);
 		const std::vector<MarmotInteger> code_points = std::views::iota(0, values.GetLength())
 			| std::views::transform([&values](int index) { return values[index].GetInteger(); })
 			| std::ranges::to<std::vector>();
-		WritePointerResult(ret, AllocateCString(MarmotText::FromCodePoints(code_points)));
+		return vm.AllocateTraceable(MarmotText::FromCodePoints(code_points));
 	}
 
 	// The code point at a code-point index, or -1 past the end.
-	void MARMOT_FFI_FUNC(TextCodePointAt)(void** args, void* ret) noexcept
+	MarmotValue TextCodePointAt(VirtualMachine&, std::span<const MarmotValue> args, bool) noexcept
 	{
-		const MarmotText& text = RequireText(args[0u]);
-		const MarmotInteger index = ReadInt(args, 1u);
+		const MarmotText& text = Text(args[0u]);
+		const MarmotInteger index = args[1u].GetInteger();
 		if ((index < 0) || (index >= text.GetLength()))
 		{
-			WriteInt(ret, -1);
-			return;
+			return MarmotInteger{ -1 };
 		}
 
 		const MarmotText character = text.Substring(index, index + 1);
@@ -319,71 +160,70 @@ extern "C"
 		{
 			code_point = (code_point << 6u) | (bytes[continuation] & 0x3Fu);
 		}
-		WriteInt(ret, static_cast<MarmotInteger>(code_point));
+		return static_cast<MarmotInteger>(code_point);
 	}
 
-	void MARMOT_FFI_FUNC(TextIsInteger)(void** args, void* ret) noexcept
+	MarmotValue TextIsInteger(VirtualMachine&, std::span<const MarmotValue> args, bool) noexcept
 	{
-		WriteBool(ret, RequireText(args[0u]).ParseInteger().has_value());
+		return Text(args[0u]).ParseInteger().has_value();
 	}
 
-	void MARMOT_FFI_FUNC(TextIsFloat)(void** args, void* ret) noexcept
+	MarmotValue TextIsFloat(VirtualMachine&, std::span<const MarmotValue> args, bool) noexcept
 	{
-		WriteBool(ret, RequireText(args[0u]).ParseFloat().has_value());
+		return Text(args[0u]).ParseFloat().has_value();
 	}
 
 	// UTF-8 byte order is code point order.
-	void MARMOT_FFI_FUNC(TextCompare)(void** args, void* ret) noexcept
+	MarmotValue TextCompare(VirtualMachine&, std::span<const MarmotValue> args, bool) noexcept
 	{
-		const int order = RequireText(args[0u]).View().compare(RequireText(args[1u]).View());
-		WriteInt(ret, (order > 0) - (order < 0));
+		const int order = Text(args[0u]).View().compare(Text(args[1u]).View());
+		return static_cast<MarmotInteger>((order > 0) - (order < 0));
 	}
 
-	void MARMOT_FFI_FUNC(TextContains)(void** args, void* ret) noexcept
+	MarmotValue TextContains(VirtualMachine&, std::span<const MarmotValue> args, bool) noexcept
 	{
-		WriteBool(ret, RequireText(args[0u]).Contains(RequireText(args[1u])));
+		return Text(args[0u]).Contains(Text(args[1u]));
 	}
 
-	void MARMOT_FFI_FUNC(TextReplace)(void** args, void* ret) noexcept
+	MarmotValue TextReplace(VirtualMachine& vm, std::span<const MarmotValue> args, bool) noexcept
 	{
-		MarmotText replaced = RequireText(args[0u]).Replace(RequireText(args[1u]), RequireText(args[2u]));
-		WritePointerResult(ret, AllocateCString(replaced));
+		return vm.AllocateTraceable(Text(args[0u]).Replace(Text(args[1u]), Text(args[2u])));
 	}
 
-	void MARMOT_FFI_FUNC(TextTrim)(void** args, void* ret) noexcept
+	MarmotValue TextTrim(VirtualMachine& vm, std::span<const MarmotValue> args, bool) noexcept
 	{
-		MarmotText trimmed = RequireText(args[0u]).Trim();
-		WritePointerResult(ret, AllocateCString(trimmed));
+		return vm.AllocateTraceable(Text(args[0u]).Trim());
 	}
 
-	void MARMOT_FFI_FUNC(GetArguments)(void**, void* ret) noexcept
+	MarmotValue GetArguments(VirtualMachine& vm, std::span<const MarmotValue>, bool) noexcept
 	{
 		const std::vector<std::string>& arguments = ProgramArguments::Get();
-		std::vector<MarmotText> texts;
-		texts.reserve(arguments.size());
-		std::ranges::transform(arguments, std::back_inserter(texts), [](const std::string& argument) { return MarmotText(argument.c_str()); });
-		WritePointerResult(ret, AllocateStringArray(texts));
+		MarmotArray result(static_cast<int>(arguments.size()));
+		for (int index = 0; index < result.GetLength(); index += 1)
+		{
+			result[index] = vm.AllocateTraceable(MarmotText(arguments[static_cast<size_t>(index)].c_str()));
+		}
+		return vm.AllocateArray(std::move(result), true);
 	}
 
-	void MARMOT_FFI_FUNC(TextLength)(void** args, void* ret) noexcept
+	MarmotValue TextLength(VirtualMachine&, std::span<const MarmotValue> args, bool) noexcept
 	{
-		WriteInt(ret, RequireText(args[0u]).GetLength());
+		return static_cast<MarmotInteger>(Text(args[0u]).GetLength());
 	}
 
-	void MARMOT_FFI_FUNC(HashText)(void** args, void* ret) noexcept
+	MarmotValue HashText(VirtualMachine&, std::span<const MarmotValue> args, bool) noexcept
 	{
-		WriteInt(ret, static_cast<MarmotInteger>(std::hash<std::string_view>{}(RequireText(args[0u]).View())));
+		return static_cast<MarmotInteger>(std::hash<std::string_view>{}(Text(args[0u]).View()));
 	}
 
-	void MARMOT_FFI_FUNC(HashFloat)(void** args, void* ret) noexcept
+	MarmotValue HashFloat(VirtualMachine&, std::span<const MarmotValue> args, bool) noexcept
 	{
-		double value = 0.0;
-		std::memcpy(&value, &args[0u], sizeof(value));
-		WriteInt(ret, static_cast<MarmotInteger>(std::hash<double>{}(value)));
+		return static_cast<MarmotInteger>(std::hash<MarmotFloat>{}(args[0u].GetFloat()));
 	}
 
-	void MARMOT_FFI_FUNC(ReportPanic)(void** args, void*) noexcept
+	MarmotValue ReportPanic(VirtualMachine&, std::span<const MarmotValue> args, bool) noexcept
 	{
-		std::cerr << RequireText(args[0u]).View();
+		std::cerr << Text(args[0u]).View();
+		return {};
 	}
 }

@@ -927,41 +927,6 @@ MarmotArray MarmotArray::Concatenate(const MarmotArray& a, const MarmotArray& b)
 	return result;
 }
 
-MarmotArray MarmotArray::FromFFI(MarmotValue* ffi_allocated_data, int length)
-{
-	MarmotArray result;
-	if (ffi_allocated_data == nullptr || length <= 0)
-	{
-		std::free(ffi_allocated_data);
-		return result;
-	}
-
-	if (length <= SOO_CAPACITY)
-	{
-		result.SetShortSize(length);
-		std::memcpy(result.m_short.m_buffer, ffi_allocated_data, static_cast<size_t>(length) * sizeof(MarmotValue));
-	}
-	else
-	{
-		// Copy instead of adopting: the FFI buffer came from the CRT heap and
-		// must not enter the pooled free lists.
-		size_t bytes = static_cast<size_t>(length) * sizeof(MarmotValue);
-		result.m_long.m_ptr = static_cast<MarmotValue*>(AllocateValueBuffer(bytes));
-		if (!result.m_long.m_ptr)
-		{
-			FatalOutOfMemory("MarmotArray::FromFFI", bytes);
-		}
-		std::memcpy(result.m_long.m_ptr, ffi_allocated_data, static_cast<size_t>(length) * sizeof(MarmotValue));
-		result.m_long.m_size = length;
-		result.m_long.m_capacity = static_cast<int>(bytes / sizeof(MarmotValue));
-		result.m_long.m_flag = 0;
-		result.m_short.m_size_flag = 0;
-	}
-
-	std::free(ffi_allocated_data);
-	return result;
-}
-
 MarmotIntRange::MarmotIntRange(MarmotInteger start, MarmotInteger end, MarmotInteger step)
 	: m_start(start), m_end(end), m_step(step)
 {
@@ -1423,20 +1388,6 @@ MarmotText MarmotText::Concatenate(const MarmotText& a, const MarmotText& b)
 {
 	MarmotText result(a);
 	result.AppendBytes(b.View(), b.IsShort() ? -1 : b.m_long.m_length_cache);
-	return result;
-}
-
-MarmotText MarmotText::FromFFI(char* ffi_allocated_string)
-{
-	// Copy instead of adopting: the FFI buffer came from the CRT heap and must
-	// not enter the pooled free lists.
-	if (!ffi_allocated_string)
-	{
-		return MarmotText();
-	}
-
-	MarmotText result(ffi_allocated_string);
-	std::free(ffi_allocated_string);
 	return result;
 }
 

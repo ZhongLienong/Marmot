@@ -338,8 +338,6 @@ public:
 
 	static MarmotText Concatenate(const MarmotText& a, const MarmotText& b);
 
-	static MarmotText FromFFI(char* ffi_allocated_string);
-
 	size_t GetOwnedBytes() const;
 
 private:
@@ -453,8 +451,6 @@ public:
 	size_t GetCapacity() const;
 
 	static MarmotArray Concatenate(const MarmotArray& a, const MarmotArray& b);
-
-	static MarmotArray FromFFI(MarmotValue* ffi_allocated_data, int length);
 
 private:
 	void Expand(int new_capacity);

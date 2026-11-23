@@ -121,7 +121,7 @@ private:
 	Lowered LowerName(const MarmotExpression::NameAccess& name);
 	bool IsForeignFunction(const TypeRef& type) const;
 	bool IsForeignDeclaration(const std::string& name);
-	Lowered LowerForeignValue(const Token& name, const TypeRef& type);
+	Lowered LowerForeignValue(const MarmotExpression::NameAccess& declaration, const TypeRef& type);
 	std::expected<MarmotIRGlobalSlot, CompilerError> GlobalFor(const Token& name, const TypeRef& type);
 	std::expected<MarmotIRGlobalSlot, CompilerError> GlobalForResolved(const ResolvedInstanceName& resolved_name, const TypeRef& type, const Token& at);
 	MarmotIRGlobalSlot ImportGlobal(const std::string& module, const std::string& symbol, const TypeRef& type, const Token& at);

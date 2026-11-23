@@ -132,6 +132,7 @@ public:
 		// On a primitive's declared type only. A primitive can only be called, by
 		// the name of its declaration, so no copy of this type needs it.
 		std::optional<MarmotPrimitive> m_primitive;
+		std::optional<size_t> m_intrinsic;
 	};
 
 	struct StructType

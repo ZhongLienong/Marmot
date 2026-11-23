@@ -1,5 +1,5 @@
 {
-  "format_marker": 20,
+  "format_marker": 21,
   "wire": {
     "magic": [77, 66, 67, 0],
     "header_size": 32,
@@ -783,9 +783,10 @@
     },
     {
       "id": 122,
-      "name": "CALL_FOREIGN_INDEXED",
-      "length": 4,
-      "category": "Calls. CALL_0 to CALL_3 stay in order: the arity is the distance from CALL_0."
+      "name": "CALL_INTRINSIC",
+      "length": 3,
+      "category": "Calls. CALL_0 to CALL_3 stay in order: the arity is the distance from CALL_0.",
+      "description": "[op][intrinsic ID][array pointer elements] call a VM intrinsic; its signature gives the arity"
     },
     {
       "id": 123,
@@ -1153,218 +1154,224 @@
       "description": "[op][tag][first][second][target][shape lo][shape hi] target = a union of the two locals with the tag and shape"
     }
   ],
-  "builtins": [
+  "intrinsics": [
     {
       "id": 0,
       "name": "MARMOT_FFI_Exit",
-      "arguments": [],
-      "returns": "RawValue"
+      "arguments": [
+        "Int"
+      ],
+      "returns": "Unit"
     },
     {
       "id": 1,
       "name": "MARMOT_FFI_Sleep",
-      "arguments": [],
-      "returns": "RawValue"
+      "arguments": [
+        "Int"
+      ],
+      "returns": "Unit"
     },
     {
       "id": 2,
       "name": "MARMOT_FFI_ArrayConcat",
       "arguments": [
-        "TraceableHandle",
-        "TraceableHandle"
+        "Array<T>",
+        "Array<T>"
       ],
-      "returns": "ArrayValues"
+      "returns": "Array<T>"
     },
     {
       "id": 3,
       "name": "MARMOT_FFI_ArrayLength",
       "arguments": [
-        "TraceableHandle"
+        "Array<T>"
       ],
-      "returns": "RawValue"
+      "returns": "Int"
     },
     {
       "id": 4,
       "name": "MARMOT_FFI_ArraySlice",
       "arguments": [
-        "TraceableHandle",
-        "ValueHandle",
-        "ValueHandle"
+        "Array<T>",
+        "Int",
+        "Int"
       ],
-      "returns": "ArrayValues"
+      "returns": "Array<T>"
     },
     {
       "id": 5,
       "name": "MARMOT_FFI_ArrayReverse",
       "arguments": [
-        "TraceableHandle"
+        "Array<T>"
       ],
-      "returns": "ArrayValues"
+      "returns": "Array<T>"
     },
     {
       "id": 6,
       "name": "MARMOT_FFI_TextConcat",
       "arguments": [
-        "TraceableHandle",
-        "TraceableHandle"
+        "Text",
+        "Text"
       ],
-      "returns": "CString"
+      "returns": "Text"
     },
     {
       "id": 7,
       "name": "MARMOT_FFI_TextLength",
       "arguments": [
-        "TraceableHandle"
+        "Text"
       ],
-      "returns": "RawValue"
+      "returns": "Int"
     },
     {
       "id": 8,
       "name": "MARMOT_FFI_TextSubstring",
       "arguments": [
-        "TraceableHandle",
-        "ValueHandle",
-        "ValueHandle"
+        "Text",
+        "Int",
+        "Int"
       ],
-      "returns": "CString"
+      "returns": "Text"
     },
     {
       "id": 9,
       "name": "MARMOT_FFI_TextSplit",
       "arguments": [
-        "TraceableHandle",
-        "TraceableHandle"
+        "Text",
+        "Text"
       ],
-      "returns": "ArrayStrings"
+      "returns": "Array<Text>"
     },
     {
       "id": 10,
       "name": "MARMOT_FFI_TextReverse",
       "arguments": [
-        "TraceableHandle"
+        "Text"
       ],
-      "returns": "CString"
+      "returns": "Text"
     },
     {
       "id": 11,
       "name": "MARMOT_FFI_TextContains",
       "arguments": [
-        "TraceableHandle",
-        "TraceableHandle"
+        "Text",
+        "Text"
       ],
-      "returns": "RawValue"
+      "returns": "Bool"
     },
     {
       "id": 12,
       "name": "MARMOT_FFI_TextReplace",
       "arguments": [
-        "TraceableHandle",
-        "TraceableHandle",
-        "TraceableHandle"
+        "Text",
+        "Text",
+        "Text"
       ],
-      "returns": "CString"
+      "returns": "Text"
     },
     {
       "id": 13,
       "name": "MARMOT_FFI_TextTrim",
       "arguments": [
-        "TraceableHandle"
+        "Text"
       ],
-      "returns": "CString"
+      "returns": "Text"
     },
     {
       "id": 14,
       "name": "MARMOT_FFI_TextFromCodePoint",
       "arguments": [
-        "ValueHandle"
+        "Int"
       ],
-      "returns": "CString"
+      "returns": "Text"
     },
     {
       "id": 15,
       "name": "MARMOT_FFI_TextCodePointAt",
       "arguments": [
-        "TraceableHandle",
-        "ValueHandle"
+        "Text",
+        "Int"
       ],
-      "returns": "RawValue"
+      "returns": "Int"
     },
     {
       "id": 16,
       "name": "MARMOT_FFI_TextIsInteger",
       "arguments": [
-        "TraceableHandle"
+        "Text"
       ],
-      "returns": "RawValue"
+      "returns": "Bool"
     },
     {
       "id": 17,
       "name": "MARMOT_FFI_TextIsFloat",
       "arguments": [
-        "TraceableHandle"
+        "Text"
       ],
-      "returns": "RawValue"
+      "returns": "Bool"
     },
     {
       "id": 18,
       "name": "MARMOT_FFI_HashText",
       "arguments": [
-        "TraceableHandle"
+        "Text"
       ],
-      "returns": "RawValue"
+      "returns": "Int"
     },
     {
       "id": 19,
       "name": "MARMOT_FFI_HashFloat",
-      "arguments": [],
-      "returns": "RawValue"
+      "arguments": [
+        "Float"
+      ],
+      "returns": "Int"
     },
     {
       "id": 20,
       "name": "MARMOT_FFI_TextCompare",
       "arguments": [
-        "TraceableHandle",
-        "TraceableHandle"
+        "Text",
+        "Text"
       ],
-      "returns": "RawValue"
+      "returns": "Int"
     },
     {
       "id": 21,
       "name": "MARMOT_FFI_GetArguments",
       "arguments": [],
-      "returns": "ArrayStrings"
+      "returns": "Array<Text>"
     },
     {
       "id": 22,
       "name": "MARMOT_FFI_TextCodePoints",
       "arguments": [
-        "TraceableHandle"
+        "Text"
       ],
-      "returns": "ArrayValues"
+      "returns": "Array<Int>"
     },
     {
       "id": 23,
       "name": "MARMOT_FFI_TextFromCodePoints",
       "arguments": [
-        "TraceableHandle"
+        "Array<Int>"
       ],
-      "returns": "CString"
+      "returns": "Text"
     },
     {
       "id": 24,
       "name": "MARMOT_FFI_ArrayConcatAll",
       "arguments": [
-        "TraceableHandle"
+        "Array<Array<T>>"
       ],
-      "returns": "ArrayValues"
+      "returns": "Array<T>"
     },
     {
       "id": 25,
       "name": "MARMOT_FFI_ReportPanic",
       "arguments": [
-        "TraceableHandle"
+        "Text"
       ],
-      "returns": "RawValue"
+      "returns": "Unit"
     }
   ]
 }

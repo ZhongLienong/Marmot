@@ -56,7 +56,7 @@ TEST_CASE("The reader rejects incompatible and corrupted artifacts", "[bytecode-
 	const std::array<std::pair<std::string_view, std::string_view>, 3u> invalid = {{
 		{ "truncated", "Truncated artifact" },
 		{ "checksum", "CRC32 mismatch" },
-		{ "incompatible_marker", "format marker mismatch: expected 20, got 19" }
+		{ "incompatible_marker", "format marker mismatch: expected 21, got 20" }
 	}};
 	for (const std::pair<std::string_view, std::string_view>& fixture : invalid)
 	{

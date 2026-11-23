@@ -1,5 +1,5 @@
 #include "BytecodeBackend.h"
-#include "Bytecode/Builtins/BuiltinTable.h"
+#include "Bytecode/Intrinsics/IntrinsicTable.h"
 #include "Bytecode/Format/Format.h"
 #include "Compiler/Constant/Constant.h"
 #include "Compiler/Lowering/GenericTypes.h"
@@ -243,8 +243,7 @@ namespace
 
 	// What a foreign call's result is, so the VM knows how to take it back:
 	// raw bits, a C string, an array of values or an array of C strings, with bit
-	// 7 set for an array whose elements are pointers. A builtin that returns an
-	// array of values may return one of texts or other objects.
+	// 7 set for an array whose elements are pointers.
 	uint8_t ForeignReturnTag(const TypeRef& type)
 	{
 		if (type->IsType<MarmotType::TextType>())
@@ -1694,22 +1693,13 @@ namespace
 					.transform([&]() { RecordSafepoint(instruction); });
 			case MarmotIROp::CallForeign:
 			{
-				// A builtin is called by its index; a native library's function
-				// by the name its first operand holds, with how each argument is
-				// passed.
-				if (std::holds_alternative<MarmotIRForeign>(instruction.m_immediate))
+				if (const MarmotIRForeign* intrinsic = std::get_if<MarmotIRForeign>(&instruction.m_immediate))
 				{
-					return CheckArity(operand_count, line)
-						.transform
-						(
-							[&]()
-							{
-								EmitByte(OpCode::CALL_FOREIGN_INDEXED, line);
-								EmitOperand(static_cast<int>(MarmotBuiltins::FindIndex(std::get<MarmotIRForeign>(instruction.m_immediate).m_name).value()), line);
-								EmitOperand(static_cast<int>(operand_count), line);
-								EmitOperand(ForeignReturnTag(instruction.m_type), line);
-							}
-						);
+					const bool holds_pointers = instruction.m_type->IsType<MarmotType::ArrayType>() && IsPointer(ElementType(instruction.m_type));
+					EmitByte(OpCode::CALL_INTRINSIC, line);
+					EmitOperand(static_cast<int>(MarmotIntrinsics::FindIndex(intrinsic->m_name).value()), line);
+					EmitOperand(holds_pointers ? 1 : 0, line);
+					return {};
 				}
 				const std::span<const MarmotIRValueId> arguments = std::span(instruction.m_operands).subspan(1u);
 				if (arguments.size() > MAX_NATIVE_ARITY)

@@ -10,7 +10,7 @@
 
 #include "Bytecode/Executable/Executable.h"
 #include "Bytecode/Scalar/Scalar.h"
-#include "Bytecode/Builtins/BuiltinTable.h"
+#include "Bytecode/Intrinsics/IntrinsicTable.h"
 #include "Disassembler.h"
 #include "Support/Terminal/Terminal.h"
 
@@ -271,27 +271,19 @@ namespace
 		Terminal::Print(output, formated_str.str());
 	}
 
-	void CallForeignIndexedInstruction(std::FILE* output, std::string_view name, const VmExecutable& executable, int proc_index, int& offset)
+	void CallIntrinsicInstruction(std::FILE* output, const VmExecutable& executable, int proc_index, int& offset)
 	{
-		int ffi_index = static_cast<int>(executable.ReadByteCode(offset + 1, proc_index));
-		int arity = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
-		int return_type = static_cast<int>(executable.ReadByteCode(offset + 3, proc_index));
-		offset += 4;
-		std::ostringstream formated_str;
+		const size_t id = static_cast<size_t>(executable.ReadByteCode(offset + 1, proc_index));
+		const int holds_pointers = static_cast<int>(executable.ReadByteCode(offset + 2, proc_index));
+		offset += 3;
 
-		formated_str << Terminal::Colored<Terminal::Color::BRIGHT_WHITE>(std::string(name));
-		formated_str << " " << Terminal::Colored<Terminal::Color::CYAN>(std::to_string(ffi_index));
-		formated_str << " " << Terminal::Colored<Terminal::Color::CYAN>(std::to_string(arity));
-		formated_str << " " << Terminal::Colored<Terminal::Color::CYAN>(std::to_string(return_type));
-
-		std::string ffi_name = (static_cast<size_t>(ffi_index) < VmBuiltins::COUNT)
-			? std::string(VmBuiltins::At(static_cast<size_t>(ffi_index)).m_name)
-			: "unknown";
-		std::string return_type_str = (return_type == 0) ? "primitive" : (return_type == 1) ? "text" : (return_type == 2) ? "array" : (return_type == 3) ? "text array" : "unknown";
-
-		formated_str << "  " << Terminal::Colored<Terminal::Color::DARK_GRAY>("// " + ffi_name + ", params: " + std::to_string(arity) + ", return: " + return_type_str);
-		formated_str << '\n';
-		Terminal::Print(output, formated_str.str());
+		const std::string_view name = id < VmIntrinsics::TABLE.size() ? VmIntrinsics::TABLE[id].m_name : "unknown";
+		std::ostringstream formatted;
+		formatted << Terminal::Colored<Terminal::Color::BRIGHT_WHITE>("CALL_INTRINSIC");
+		formatted << " " << Terminal::Colored<Terminal::Color::CYAN>(std::to_string(id));
+		formatted << " " << Terminal::Colored<Terminal::Color::CYAN>(std::to_string(holds_pointers));
+		formatted << "  " << Terminal::Colored<Terminal::Color::DARK_GRAY>("// " + std::string(name)) << '\n';
+		Terminal::Print(output, formatted.str());
 	}
 
 	void MemberInstruction(std::FILE* output, std::string_view name, const VmExecutable& executable, int proc_index, int& offset)
@@ -974,8 +966,8 @@ namespace Disassembler
 		case VmOpCode::CALL_FOREIGN:
 			CallForeignInstruction(output, "CALL_FOREIGN", executable, proc_index, offset);
 			break;
-		case VmOpCode::CALL_FOREIGN_INDEXED:
-			CallForeignIndexedInstruction(output, "CALL_FOREIGN_INDEXED", executable, proc_index, offset);
+		case VmOpCode::CALL_INTRINSIC:
+			CallIntrinsicInstruction(output, executable, proc_index, offset);
 			break;
 		case VmOpCode::CALL:
 			CallInstruction(output, "CALL", executable, proc_index, offset);

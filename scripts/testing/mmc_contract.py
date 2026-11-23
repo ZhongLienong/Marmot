@@ -21,6 +21,7 @@ from make import generate_mmc
 
 
 CONTRACT_DIR = REPO_ROOT / "format" / "mmc"
+FORMAT_MARKER = generate_mmc.load_registry()["format_marker"]
 HEADER_FIELDS = {
     "magic": "4s",
     "format_marker": "I",
@@ -98,7 +99,7 @@ def normalize_artifact(blob: bytes) -> bytes:
     if len(blob) < HEADER.size:
         raise ValueError("truncated .mmc header")
     magic, marker, major, minor, patch, reserved, flags, size, crc = HEADER.unpack_from(blob)
-    if magic != b"MBC\0" or marker != 20:
+    if magic != b"MBC\0" or marker != FORMAT_MARKER:
         raise ValueError("expected a current-format .mmc artifact")
     original = blob[HEADER.size:]
     if len(original) != size or zlib.crc32(original) != crc:
@@ -147,30 +148,23 @@ def normalize_artifact(blob: bytes) -> bytes:
     return header + normalized
 
 
-def source_registry(side: Path, *, signatures: bool) -> dict[str, object]:
+def source_registry(side: Path) -> dict[str, object]:
     opcode_source = (side / "Executable/OpCodes.def").read_text(encoding="utf-8")
-    builtin_source = (side / "Builtins/Builtins.def").read_text(encoding="utf-8")
+    intrinsic_source = (side / "Intrinsics/Intrinsics.def").read_text(encoding="utf-8")
     opcodes = [
         {"id": index, "name": name, "length": int(length)}
         for index, (name, length) in enumerate(re.findall(r"^MARMOT_OPCODE\((\w+),\s*(\d+)\)", opcode_source, re.MULTILINE))
     ]
-    builtins = []
-    for line in builtin_source.splitlines():
-        if not line.startswith("MARMOT_BUILTIN("):
-            continue
-        body = line.removeprefix("MARMOT_BUILTIN(").removesuffix(")")
-        if not signatures:
-            builtins.append({"id": len(builtins), "name": body.strip()})
-            continue
-        name, remainder = body.split(",", 1)
-        arguments, result = remainder.rsplit(",", 1)
-        builtins.append({
-            "id": len(builtins),
-            "name": name.strip(),
-            "arguments": re.findall(r"(?:Vm)?FFIArgumentKind::(\w+)", arguments),
-            "returns": re.fullmatch(r"\s*(?:Vm)?FFIReturnKind::(\w+)\s*", result).group(1),
+    intrinsics = []
+    for name, types in re.findall(r"^MARMOT_INTRINSIC\((\w+), ([^\n]+)\)$", intrinsic_source, re.MULTILINE):
+        result, *arguments = json.loads(f"[{types}]")
+        intrinsics.append({
+            "id": len(intrinsics),
+            "name": f"MARMOT_FFI_{name}",
+            "arguments": arguments,
+            "returns": result,
         })
-    return {"opcodes": opcodes, "builtins": builtins}
+    return {"opcodes": opcodes, "intrinsics": intrinsics}
 
 
 def check_registry() -> None:
@@ -190,11 +184,10 @@ def check_registry() -> None:
     ):
         expected = {
             "opcodes": [{key: opcode[key] for key in ("id", "name", "length")} for opcode in registry["opcodes"]],
-            "builtins": registry["builtins"] if name == "marmotvm" else
-                        [{key: builtin[key] for key in ("id", "name")} for builtin in registry["builtins"]],
+            "intrinsics": registry["intrinsics"],
         }
-        if source_registry(side, signatures=name == "marmotvm") != expected:
-            raise AssertionError(f"{name} opcode or builtin table differs from the checked-in registry")
+        if source_registry(side) != expected:
+            raise AssertionError(f"{name} opcode or intrinsic table differs from the checked-in registry")
 
 
 def run(args: list[str]) -> subprocess.CompletedProcess[str]:
@@ -263,6 +256,8 @@ def main(argv: list[str]) -> int:
         raise SystemExit(f"{tree.vm} is not built")
     manifest = json.loads((CONTRACT_DIR / "fixtures.json").read_text(encoding="utf-8"))
     check_registry()
+    if manifest["format_marker"] != FORMAT_MARKER:
+        raise AssertionError(".mmc fixture marker differs from the checked-in registry")
     for fixture in manifest["valid"]:
         check_valid(tree, fixture)
     for fixture in manifest["invalid"]:

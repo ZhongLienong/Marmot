@@ -15,7 +15,7 @@ Communication between workers happens exclusively through message passing
 | Component | Shared? | Notes |
 |-----------|---------|-------|
 | Bytecode (`VmExecutable`) | Yes (read-only) | Via `shared_ptr<const>` |
-| Builtin FFI table | Yes (immutable) | `constexpr` array, compile-time |
+| VM intrinsic table | Yes (immutable) | `constexpr` array, compile-time |
 | Dynamic FFI function pointers | Snapshot per VM | Lock-free lookup during execution |
 | Shared library handles | Yes (cache) | `SharedLibraryCache` singleton, load-time only |
 | Value stack | No | Per VM, 1,048,576 value slots |

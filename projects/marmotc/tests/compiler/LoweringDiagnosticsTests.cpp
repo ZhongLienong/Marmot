@@ -61,6 +61,21 @@ foreign "MARMOT_FFI_PrintLin" PrintTypo : fn(Text) -> Unit;
 	RequireErrorMatches(bytecode_result.error().m_items[0u], expectation);
 }
 
+TEST_CASE("Intrinsic declarations must match their VM signatures", "[compiler][lowering][diagnostics][ffi]")
+{
+	const std::string source =
+		R"(module BadIntrinsics
+foreign "MARMOT_FFI_HashFloat" Hash : fn() -> Int;
+foreign "MARMOT_FFI_ArraySlice" Slice : fn(Array<Int>, Int, Int) -> Array<Text>;
+)";
+
+	const auto result = MarmotTest::GenerateBytecodeSnippetWithDiagnostics(source, "BadIntrinsics.mmt");
+	REQUIRE_FALSE(result.has_value());
+	REQUIRE(result.error().Size() == 2u);
+	CHECK(result.error().m_items[0u].m_message == "Intrinsic 'MARMOT_FFI_HashFloat' requires fn(Float) -> Int");
+	CHECK(result.error().m_items[1u].m_message == "Intrinsic 'MARMOT_FFI_ArraySlice' requires fn(Array<T>, Int, Int) -> Array<T>");
+}
+
 TEST_CASE("The backend records the native libraries that foreign declarations name", "[compiler][backend][ffi]")
 {
 	const std::string source =

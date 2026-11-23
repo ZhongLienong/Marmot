@@ -1,5 +1,5 @@
 module GenericCallsForeignLib
-public export { Middle }
+public export { Middle, ArraySlice }
 
 foreign "MARMOT_FFI_ArraySlice" ArraySlice: fn(Array<T>, Int, Int) -> Array<T>;
 

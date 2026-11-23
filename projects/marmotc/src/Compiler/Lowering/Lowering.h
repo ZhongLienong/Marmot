@@ -75,7 +75,6 @@ private:
 	using Lowered = std::expected<MarmotIRValueId, CompilerError>;
 	using Emitted = std::expected<void, CompilerError>;
 	using LoweredValues = std::expected<std::vector<MarmotIRValueId>, CompilerError>;
-	using ForeignIndices = std::unordered_map<std::string, size_t>;
 
 	// What a function's body is lowered against. A specialization substitutes
 	// its type arguments, resolves the class methods its constraints provide,
@@ -86,9 +85,8 @@ private:
 		GenericTypes::TypeEnvironment m_types;
 		MethodResolutionMap m_methods;
 		std::optional<std::string> m_source_module;
-		std::shared_ptr<const ForeignIndices> m_foreign_indices;
 
-		Specialization(GenericTypes::TypeEnvironment types, MethodResolutionMap methods, std::optional<std::string> source_module, std::shared_ptr<const ForeignIndices> foreign_indices);
+		Specialization(GenericTypes::TypeEnvironment types, MethodResolutionMap methods, std::optional<std::string> source_module);
 	};
 
 	class FunctionLowering;
@@ -119,9 +117,6 @@ private:
 	std::unordered_map<std::string, TopLevelName> m_top_level_names;
 	std::unordered_map<std::string, MarmotIRGlobalSlot> m_import_slots;
 	std::vector<LoweredImport> m_import_tokens;
-	// This module's builtin foreign functions, by the name it declares them
-	// as. Shared with the generics it exports, whose bodies may call them.
-	std::shared_ptr<ForeignIndices> m_foreign_indices;
 	std::map<std::string, std::set<std::string>> m_native_imports;
 	GenericFunctionTable m_generics;
 	InstanceResolver m_resolver;

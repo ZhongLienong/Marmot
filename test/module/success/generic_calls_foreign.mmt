@@ -1,9 +1,10 @@
 module GenericCallsForeign
-// A generic that calls a builtin foreign function, specialized in another
-// module. The call used to reach the builtin with its arguments marshalled for
-// a native library, and stopped with "Built-in FFI expected Array".
+// An intrinsic called through an imported generic or taken as a function value.
 
 import { "generic_calls_foreign_lib.mmt", "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 IO::PrintLine(#GenericCallsForeignLib::Middle([1, 2, 3, 4]) as Text);
-IO::PrintLine(GenericCallsForeignLib::Middle(["a", "b", "c", "d"])[1]);
+
+def slice: fn(Array<Text>, Int, Int) -> Array<Text> = GenericCallsForeignLib::ArraySlice;
+def middle = GenericCallsForeignLib::Middle(["a", "b", "c", "d"]);
+IO::PrintLine(slice(GenericCallsForeignLib::ArraySlice(middle, 0, 2), 1, 2)[0]);

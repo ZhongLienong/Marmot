@@ -1,4 +1,5 @@
 #include "Bytecode/Format/Format.h"
+#include "Bytecode/Intrinsics/IntrinsicTable.h"
 #include "Support/Attributes/Attributes.h"
 #include "Support/Diagnostics/Diagnostics.h"
 #include "Support/Terminal/Terminal.h"
@@ -972,68 +973,6 @@ int VirtualMachine::InvalidFloatConversion(MarmotFloat value, std::string_view d
 	return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InvalidConversion, std::format("Float '{}' cannot be converted to {}.", text.View(), destination), GetLine()));
 }
 
-// What a foreign function returned, as a Marmot value: a C string or an array
-// it allocated becomes a Text or an Array, and is freed. For a function whose
-// signature returns a raw value, the call's return tag is the return kind.
-MARMOT_FORCE_INLINE MarmotValue VirtualMachine::TakeForeignResult(VmFFIReturnKind kind, uint8_t return_tag, MarmotValue result) noexcept
-{
-	if (kind == VmFFIReturnKind::RawValue)
-	{
-		kind = static_cast<VmFFIReturnKind>(return_tag & MmcWire::FFI_RETURN_KIND_MASK);
-	}
-
-	switch (kind)
-	{
-	case VmFFIReturnKind::CString:
-	{
-		char* ffi_string = reinterpret_cast<char*>(result.GetInteger());
-		if (ffi_string == nullptr)
-		{
-			return AllocateTraceable(MarmotText(""));
-		}
-		MarmotTraceable* text = AllocateTraceable(MarmotText(ffi_string));
-		std::free(ffi_string);
-		return text;
-	}
-	case VmFFIReturnKind::ArrayValues:
-	{
-		MarmotFFIArray* ffi_array = reinterpret_cast<MarmotFFIArray*>(result.GetInteger());
-		const bool holds_pointers = (return_tag & MmcWire::FFI_POINTER_ELEMENTS_FLAG) != 0u;
-		if (ffi_array == nullptr)
-		{
-			return AllocateArray(MarmotArray(), holds_pointers);
-		}
-		MarmotTraceable* array = AllocateArray(MarmotArray::FromFFI(static_cast<MarmotValue*>(ffi_array->data), ffi_array->length), holds_pointers);
-		std::free(ffi_array);
-		return array;
-	}
-	case VmFFIReturnKind::ArrayStrings:
-	{
-		MarmotFFIArray* ffi_array = reinterpret_cast<MarmotFFIArray*>(result.GetInteger());
-		if (ffi_array == nullptr)
-		{
-			return AllocateArray(MarmotArray(), true);
-		}
-		char** ffi_strings = static_cast<char**>(ffi_array->data);
-		const int length = ffi_array->length;
-		MarmotArray wrapped_array(length);
-		for (int idx = 0; idx < length; idx += 1)
-		{
-			char* ffi_string = ffi_strings[idx];
-			wrapped_array[idx] = AllocateTraceable(MarmotText(ffi_string != nullptr ? ffi_string : ""));
-			std::free(ffi_string);
-		}
-		std::free(ffi_strings);
-		std::free(ffi_array);
-		return AllocateArray(std::move(wrapped_array), true);
-	}
-	case VmFFIReturnKind::RawValue:
-	case VmFFIReturnKind::Value:
-		return result;
-	}
-	std::unreachable();
-}
-
 // The result stays in the library's allocator until the VM has copied it.
 MarmotValue VirtualMachine::TakeNativeResult(uint8_t return_tag, MarmotWord bits, MarmotFFIFreeResultFn free_result) noexcept
 {
@@ -1075,16 +1014,14 @@ MarmotValue VirtualMachine::TakeNativeResult(uint8_t return_tag, MarmotWord bits
 	return AllocateArray(std::move(copy), false);
 }
 
-// An argument's kind comes from its parameter's type, so a text, an array or a
-// handle is the object its kind says.
-MARMOT_FORCE_INLINE void VirtualMachine::PassForeignArgument(VmFFIArgumentKind kind, size_t index, MarmotValue argument) noexcept
+MARMOT_FORCE_INLINE void VirtualMachine::PassForeignArgument(uint8_t kind, size_t index, MarmotValue argument) noexcept
 {
 	MarmotTraceable* pointer = argument.GetPointer();
 #if MARMOT_DEBUG_FULL
-	const bool is_array = kind == VmFFIArgumentKind::ArrayView || kind == VmFFIArgumentKind::ArrayStrings;
-	const bool is_object = kind == VmFFIArgumentKind::CString || is_array || kind == VmFFIArgumentKind::TraceableHandle;
+	const bool is_array = kind == MmcWire::FFI_ARGUMENT_ARRAY_VIEW || kind == MmcWire::FFI_ARGUMENT_ARRAY_STRINGS;
+	const bool is_object = kind == MmcWire::FFI_ARGUMENT_C_STRING || is_array;
 	const bool is_its_kind = !is_object || (pointer != nullptr
-		&& (kind != VmFFIArgumentKind::CString || pointer->IsTraceable<MarmotText>())
+		&& (kind != MmcWire::FFI_ARGUMENT_C_STRING || pointer->IsTraceable<MarmotText>())
 		&& (!is_array || pointer->IsTraceable<MarmotArray>()));
 	if (!is_its_kind)
 	{
@@ -1093,10 +1030,10 @@ MARMOT_FORCE_INLINE void VirtualMachine::PassForeignArgument(VmFFIArgumentKind k
 #endif
 	switch (kind)
 	{
-	case VmFFIArgumentKind::CString:
+	case MmcWire::FFI_ARGUMENT_C_STRING:
 		m_ffi_args[index] = (void*)pointer->GetTraceable<MarmotText>().CString();
 		break;
-	case VmFFIArgumentKind::ArrayView:
+	case MmcWire::FFI_ARGUMENT_ARRAY_VIEW:
 	{
 		const MarmotArray& array = pointer->GetTraceable<MarmotArray>();
 		std::vector<MarmotWord>& slots = m_ffi_scalar_arrays[index];
@@ -1109,7 +1046,7 @@ MARMOT_FORCE_INLINE void VirtualMachine::PassForeignArgument(VmFFIArgumentKind k
 		m_ffi_args[index] = &m_ffi_array_args[index];
 		break;
 	}
-	case VmFFIArgumentKind::ArrayStrings:
+	case MmcWire::FFI_ARGUMENT_ARRAY_STRINGS:
 	{
 		const MarmotArray& array = pointer->GetTraceable<MarmotArray>();
 		std::vector<const char*>& strings = m_ffi_string_arrays[index];
@@ -1122,14 +1059,7 @@ MARMOT_FORCE_INLINE void VirtualMachine::PassForeignArgument(VmFFIArgumentKind k
 		m_ffi_args[index] = &m_ffi_array_args[index];
 		break;
 	}
-	case VmFFIArgumentKind::TraceableHandle:
-		m_ffi_args[index] = pointer;
-		break;
-	case VmFFIArgumentKind::ValueHandle:
-		m_ffi_value_args[index] = argument;
-		m_ffi_args[index] = &m_ffi_value_args[index];
-		break;
-	case VmFFIArgumentKind::RawValue:
+	case MmcWire::FFI_ARGUMENT_RAW_VALUE:
 		m_ffi_args[index] = reinterpret_cast<void*>(static_cast<uintptr_t>(argument.GetRawBits()));
 		break;
 	}
@@ -2617,46 +2547,23 @@ int VirtualMachine::ExecuteLoop() noexcept
 			}
 #endif
 
-			MarmotText& foreign_function_name_ref = foreign_function_name.GetPointer()->GetTraceable<MarmotText>();
-
-			const std::string_view name = foreign_function_name_ref.View();
-			const std::optional<size_t> builtin = VmBuiltins::FindIndex(name);
-			if (builtin.has_value())
+			const std::string_view name = foreign_function_name.GetPointer()->GetTraceable<MarmotText>().View();
+			const VmNativeFunction* function = m_dynamic_ffi_registry.FindFunction(name);
+			if (function == nullptr)
 			{
-				if (m_is_worker && builtin.value() == VmBuiltins::ExitIndex())
-				{
-					SyncMachineState(ip, sp, bp, env, closure);
-					return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::WorkerExited, "Worker exited. Exiting the process from a worker would end the whole program, so the worker fails instead and the joiner receives Err(Failed(...)). A panic inside a worker takes this path.", GetLine()));
-				}
-
-				const VmBuiltinSignature& signature = VmBuiltins::At(builtin.value());
-				for (int i = arity - 1; i >= 0; i -= 1)
-				{
-					PassForeignArgument(signature.m_arg_kinds[static_cast<size_t>(i)], static_cast<size_t>(i), Pop(sp));
-				}
-				MarmotValue result;
-				BUILTIN_FUNCTIONS[builtin.value()](m_ffi_args.data(), &result);
-				Push(sp, TakeForeignResult(signature.m_return_kind, return_type, result));
+				SyncMachineState(ip, sp, bp, env, closure);
+				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::FFIFunctionNotFound, std::format("Failed to load foreign function '{}'.", name), GetLine()));
 			}
-			else
+
+			for (int i = arity - 1; i >= 0; i -= 1)
 			{
-				const VmNativeFunction* function = m_dynamic_ffi_registry.FindFunction(name);
-				if (function == nullptr)
-				{
-					SyncMachineState(ip, sp, bp, env, closure);
-					return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::FFIFunctionNotFound, std::format("Failed to load foreign function '{}'.", name), GetLine()));
-				}
-
-				for (int i = arity - 1; i >= 0; i -= 1)
-				{
-					const int shift = MmcWire::FFI_ARGUMENT_BITS * i;
-					const VmFFIArgumentKind kind = static_cast<VmFFIArgumentKind>((argument_kinds >> shift) & MmcWire::FFI_ARGUMENT_MASK);
-					PassForeignArgument(kind, static_cast<size_t>(i), Pop(sp));
-				}
-				MarmotWord result = 0;
-				function->m_call(m_ffi_args.data(), &result);
-				Push(sp, TakeNativeResult(return_type, result, function->m_free_result));
+				const int shift = MmcWire::FFI_ARGUMENT_BITS * i;
+				const uint8_t kind = (argument_kinds >> shift) & MmcWire::FFI_ARGUMENT_MASK;
+				PassForeignArgument(kind, static_cast<size_t>(i), Pop(sp));
 			}
+			MarmotWord result = 0;
+			function->m_call(m_ffi_args.data(), &result);
+			Push(sp, TakeNativeResult(return_type, result, function->m_free_result));
 
 			if (IsCancellationRequested()) [[unlikely]]
 			{
@@ -2666,30 +2573,20 @@ int VirtualMachine::ExecuteLoop() noexcept
 
 			break;
 		}
-		MARMOT_HANDLER(CALL_FOREIGN_INDEXED)
+		MARMOT_HANDLER(CALL_INTRINSIC)
 		{
-			uint8_t ffi_index = static_cast<uint8_t>(ReadByte(ip));
-			int arity = static_cast<int>(ReadByte(ip));
-			uint8_t return_type = static_cast<uint8_t>(ReadByte(ip));
-
-			if (m_is_worker && static_cast<size_t>(ffi_index) == VmBuiltins::ExitIndex())
+			const uint8_t intrinsic_id = static_cast<uint8_t>(ReadByte(ip));
+			const bool holds_pointers = static_cast<uint8_t>(ReadByte(ip)) != 0u;
+			if (m_is_worker && intrinsic_id == static_cast<uint8_t>(VmIntrinsics::Id::Exit))
 			{
 				SyncMachineState(ip, sp, bp, env, closure);
 				return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::WorkerExited, "Worker exited. Exiting the process from a worker would end the whole program, so the worker fails instead and the joiner receives Err(Failed(...)). A panic inside a worker takes this path.", GetLine()));
 			}
 
-			const VmBuiltinSignature& signature = VmBuiltins::At(ffi_index);
-			VmFFIFunction proc = BUILTIN_FUNCTIONS[ffi_index];
-
-			for (int i = arity - 1; i >= 0; i -= 1)
-			{
-				PassForeignArgument(signature.m_arg_kinds[static_cast<size_t>(i)], static_cast<size_t>(i), Pop(sp));
-			}
-
-			MarmotValue return_val;
-			proc(m_ffi_args.data(), reinterpret_cast<void*>(&return_val));
-
-			Push(sp, TakeForeignResult(signature.m_return_kind, return_type, return_val));
+			const VmIntrinsics::Intrinsic& intrinsic = VmIntrinsics::TABLE[intrinsic_id];
+			sp -= intrinsic.m_arity;
+			const MarmotValue result = intrinsic.m_call(*this, std::span<const MarmotValue>(sp, intrinsic.m_arity), holds_pointers);
+			Push(sp, result);
 
 			if (IsCancellationRequested()) [[unlikely]]
 			{

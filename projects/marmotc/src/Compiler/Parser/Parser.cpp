@@ -12,6 +12,7 @@
 #include "Compiler/DerivedDeclarationGenerator/DerivedDeclarationGenerator.h"
 #include "Compiler/Lexer/Lexer.h"
 #include "Parser.h"
+#include "Bytecode/Intrinsics/IntrinsicTable.h"
 #include "Compiler/TypeTransform/TypeTransform.h"
 
 using namespace std::string_literals;
@@ -4022,7 +4023,9 @@ MarmotResult::StatementResult Parser::ParseForeignDeclaration(const Token& forei
 																	{
 																		if (!library.has_value())
 																		{
-																			type->GetType<MarmotType::FunctionType>().m_primitive = FindPrimitive(foreign_name.m_lexeme);
+																			MarmotType::FunctionType& signature = type->GetType<MarmotType::FunctionType>();
+																			signature.m_primitive = FindPrimitive(foreign_name.m_lexeme);
+																			signature.m_intrinsic = MarmotIntrinsics::FindIndex(foreign_name.m_lexeme);
 																		}
 																		return std::make_unique<MarmotStatement>(MarmotStatement::ForeignDefinition(function_name, foreign_name.m_lexeme, std::move(type), std::move(binding), std::move(library)));
 																	}

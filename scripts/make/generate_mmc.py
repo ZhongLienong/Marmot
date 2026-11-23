@@ -19,7 +19,7 @@ BANNER = "// Generated from format/mmc/registry.json. Do not edit.\n// Regenerat
 
 def load_registry() -> dict:
     registry = json.loads(REGISTRY.read_text(encoding="utf-8"))
-    for table in ("opcodes", "builtins"):
+    for table in ("opcodes", "intrinsics"):
         entries = registry[table]
         if [entry["id"] for entry in entries] != list(range(len(entries))):
             raise ValueError(f"{table}: IDs must be consecutive and listed in encoding order")
@@ -28,6 +28,8 @@ def load_registry() -> dict:
             raise ValueError(f"{table}: names must be unique")
     if len(registry["opcodes"]) > 256 or any(entry["length"] < 1 for entry in registry["opcodes"]):
         raise ValueError("opcodes must fit in one byte and have positive instruction lengths")
+    if len(registry["intrinsics"]) > 256:
+        raise ValueError("intrinsic IDs must fit in one byte")
     return registry
 
 
@@ -47,16 +49,12 @@ def opcodes(registry: dict) -> str:
     return BANNER + "\n".join(lines) + "\n"
 
 
-def compiler_builtins(registry: dict) -> str:
-    return BANNER + "\n".join(f'MARMOT_BUILTIN({builtin["name"]})' for builtin in registry["builtins"]) + "\n"
-
-
-def vm_builtins(registry: dict) -> str:
+def intrinsics(registry: dict) -> str:
     lines = []
-    for builtin in registry["builtins"]:
-        arguments = ", ".join("VmFFIArgumentKind::" + kind for kind in builtin["arguments"])
-        kinds = f"MakeVmFFIArgKinds({arguments})" if arguments else "{}"
-        lines.append(f'MARMOT_BUILTIN({builtin["name"]}, {kinds}, VmFFIReturnKind::{builtin["returns"]})')
+    for intrinsic in registry["intrinsics"]:
+        name = intrinsic["name"].removeprefix("MARMOT_FFI_")
+        types = ", ".join(json.dumps(kind) for kind in (intrinsic["returns"], *intrinsic["arguments"]))
+        lines.append(f"MARMOT_INTRINSIC({name}, {types})")
     return BANNER + "\n".join(lines) + "\n"
 
 
@@ -108,13 +106,14 @@ def generated_files(registry: dict) -> dict[Path, str]:
     compiler = REPO_ROOT / "projects" / "marmotc" / "src" / "Bytecode"
     vm = REPO_ROOT / "projects" / "marmotvm" / "src" / "Bytecode"
     instructions = opcodes(registry)
+    intrinsic_table = intrinsics(registry)
     header = format_header(registry)
     return {
         compiler / "Executable" / "OpCodes.def": instructions,
-        compiler / "Builtins" / "Builtins.def": compiler_builtins(registry),
+        compiler / "Intrinsics" / "Intrinsics.def": intrinsic_table,
         compiler / "Format" / "Format.h": header,
         vm / "Executable" / "OpCodes.def": instructions,
-        vm / "Builtins" / "Builtins.def": vm_builtins(registry),
+        vm / "Intrinsics" / "Intrinsics.def": intrinsic_table,
         vm / "Format" / "Format.h": header,
     }
 

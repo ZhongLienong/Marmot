@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Bytecode/Builtins/BuiltinTable.h"
+#include "marmot/MarmotFFI.h"
 
 #include <expected>
 #include <filesystem>

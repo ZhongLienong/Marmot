@@ -107,8 +107,9 @@ namespace
 				node.m_param_types = map_all(original.m_param_types);
 				node.m_return_type = map(original.m_return_type);
 				node.m_constraints = MarmotType::MapConstraints(original.m_constraints, map);
-				// Primitive identity belongs to the declaration, never a rebuilt function type.
+				// These identities belong to the declaration.
 				node.m_primitive.reset();
+				node.m_intrinsic.reset();
 			}
 			else if constexpr (std::is_same_v<Node, MarmotType::AssociatedType>)
 			{

@@ -78,7 +78,7 @@ do not promise backward compatibility.
 |---------|--------|------------------|-------|
 | Modules, path imports, system imports, `use`, exports, privacy, and qualified access | Stable | `test/module/`, `projects/marmotc/tests/module/`, `projects/marmotc/tests/parser/` | `module` must be first; import/use/export blocks can appear later and be scattered. |
 | Module diagnostics: circular imports, unresolved imports, missing exports, duplicate modules | Stable | `test/module/`, `projects/marmotc/tests/module/`, `projects/marmotc/tests/compiler/` | The compiler emits specific error codes for these cases. |
-| `foreign` declarations and builtin runtime FFI (`CALL_FOREIGN_INDEXED`) | Stable | `test/ffi/`, `test/prelude/` | This is the richer built-in FFI path backed by the `Builtins.def` table. |
+| `foreign` declarations and VM intrinsics (`CALL_INTRINSIC`) | Stable | `test/ffi/`, `test/prelude/` | Intrinsics use the `Intrinsics.def` table and operate on VM values. |
 | Dynamic package FFI (`CALL_FOREIGN`) | Experimental | `test/integration/NativeLibraryTests.cpp`, `format/mmc/fixtures/native.mmc` | Each argument's and the result's marshalling kind comes from the `foreign` declaration's types (`Text` as a C string, `Array<T>` as an array view, an `Array<Text>` result as C strings); see [FFI ABI](ffi-abi.md). A native function takes at most four arguments. |
 | Native libraries (`foreign ... from "library"`, `package.marmot` `[ffi]`) | Experimental | `test/integration/NativeLibraryTests.cpp`, `projects/marmot/src/execution/plan/tests.rs`, `scripts/testing/cli_contracts.py` | Source names the library; the `.mmc` records it with its `thread_safe` flag and checksum. `marmotvm` finds and loads it before the program starts through `--library`, `--library-path`, `MARMOT_LIBRARY_PATH` or the declaring module's directory; `marmotc` never does. Without a prebuilt file the tool builds a missing or out-of-date one with `[build].command`. |
 | Structured compiler warnings/errors and diagnostic codes | Stable | `projects/marmotc/tests/compiler/`, `projects/marmotvm/tests/runtime/`, `test/static_analyzer/` | Warnings and errors are aggregated in `CompilerReport` instead of being printed ad hoc. |
@@ -92,7 +92,7 @@ do not promise backward compatibility.
 |---------|--------|------------------|-------|
 | Prelude ADTs: `Option`, `Result`, `List` | Stable | `test/prelude/`, `test/match/` | These are the core public prelude data types. |
 | Typed `IO`, `System`, and `DateTime` wrappers | Stable | `test/prelude/` | The public surface prefers `Option` and `Result` wrappers over sentinel values. |
-| `TextUtil`, `ArrayUtil`, `Path`, and `Math` helpers | Stable | `test/prelude/`, `test/ffi/` | These sit above the lower-level builtin FFI helpers. |
+| `TextUtil`, `ArrayUtil`, `Path`, and `Math` helpers | Stable | `test/prelude/`, `test/ffi/` | Text and array helpers use VM intrinsics. Native system and math functions use `marmotstdlib`. |
 | `Collections/Map` and `Collections/Set` | Stable | `test/hashmap/`, `test/hashset/` | Persistent: `With` and `Without` return a new collection. Keys rely on `Hashable` and `Equatable`. |
 | Helper/typeclass modules: `Concatenable`, `Convertable`, `Countable`, `Equatable`, `Hashable`, `Iterable`, `Orderable`, `Prelude/Panic` | Stable | `test/prelude/`, `test/typeclass/`, `test/hashmap/`, `test/hashset/` | Some modules mostly define reusable class surfaces and expect user code to supply instances. |
 

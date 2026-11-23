@@ -1,7 +1,7 @@
 {
-  "format_marker": 20,
-  "baseline_commit": "eab937dd930350041c718c7d2c84dfeb596e4ef7",
-  "producer": "marmotc build, Development profile, with the marker 20 native extension cutover",
+  "format_marker": 21,
+  "baseline_commit": "188f8b173313e1e3f9d6e80b71ec9f3c01454f40",
+  "producer": "marmotc build, Development profile, with the marker 21 VM intrinsic encoding",
   "path_normalization": "Serialized paths beneath the checkout were changed to repository-relative forward-slash paths; payload size and CRC32 were recomputed. All other fields are unchanged.",
   "valid": [
     {
@@ -49,8 +49,8 @@
     },
     {
       "name": "incompatible_marker",
-      "derived_from": "minimal.mmc with format marker changed from 20 to 19",
-      "stderr_contains": "format marker mismatch: expected 20, got 19"
+      "derived_from": "minimal.mmc with format marker changed from 21 to 20",
+      "stderr_contains": "format marker mismatch: expected 21, got 20"
     }
   ]
 }

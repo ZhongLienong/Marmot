@@ -7,7 +7,6 @@
 #include "Interpreter/Allocator/MarmotAllocator.h"
 #include "Interpreter/GarbageCollector/GarbageCollector.h"
 #include "Interpreter/Worker/Worker.h"
-#include "FFI/MarmotFFIRegistry.h"
 #include "Library/DynamicFFIRegistry/DynamicFFIRegistry.h"
 
 #include <array>
@@ -154,11 +153,11 @@ private:
 
     // FFI State
     DynamicFFIRegistry m_dynamic_ffi_registry;
-    std::array<void*, UINT8_MAX> m_ffi_args{};
-    std::array<MarmotValue, UINT8_MAX> m_ffi_value_args{};
-    std::array<MarmotFFIArray, VM_FFI_MAX_ARITY> m_ffi_array_args{};
-    std::array<std::vector<MarmotWord>, VM_FFI_MAX_ARITY> m_ffi_scalar_arrays;
-    std::array<std::vector<const char*>, VM_FFI_MAX_ARITY> m_ffi_string_arrays;
+    static constexpr size_t s_native_max_arity = 8u / MmcWire::FFI_ARGUMENT_BITS;
+    std::array<void*, s_native_max_arity> m_ffi_args{};
+    std::array<MarmotFFIArray, s_native_max_arity> m_ffi_array_args{};
+    std::array<std::vector<MarmotWord>, s_native_max_arity> m_ffi_scalar_arrays;
+    std::array<std::vector<const char*>, s_native_max_arity> m_ffi_string_arrays;
 
     // Cold Caches & Results
 	std::vector<MarmotTraceable*> m_static_closure_cache;
@@ -274,10 +273,9 @@ private:
 
 	int TerminateExecution(RuntimeError error) noexcept;
 
-	MARMOT_FORCE_INLINE MarmotValue TakeForeignResult(VmFFIReturnKind kind, uint8_t return_tag, MarmotValue result) noexcept;
 	MarmotValue TakeNativeResult(uint8_t return_tag, MarmotWord bits, MarmotFFIFreeResultFn free_result) noexcept;
 
-	MARMOT_FORCE_INLINE void PassForeignArgument(VmFFIArgumentKind kind, size_t index, MarmotValue argument) noexcept;
+	MARMOT_FORCE_INLINE void PassForeignArgument(uint8_t kind, size_t index, MarmotValue argument) noexcept;
 
 
 #ifdef _WIN32

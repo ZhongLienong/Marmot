@@ -1,5 +1,5 @@
 #include "FunctionLowering.h"
-#include "Bytecode/Builtins/BuiltinTable.h"
+#include "Bytecode/Intrinsics/IntrinsicTable.h"
 #include "Compiler/Names/SpecialNames.h"
 #include "Compiler/Operator/Operator.h"
 
@@ -543,7 +543,7 @@ Lowering::Lowered Lowering::FunctionLowering::LowerGenericLambda(const MarmotExp
 		std::vector<ResolvedMethodCandidate>& existing = methods[method];
 		existing.insert(existing.end(), std::make_move_iterator(candidates.begin()), std::make_move_iterator(candidates.end()));
 	}
-	const Specialization& specialization = m_owner.m_specializations.emplace_back(std::move(types), std::move(methods), m_specialization.m_source_module, m_specialization.m_foreign_indices);
+	const Specialization& specialization = m_owner.m_specializations.emplace_back(std::move(types), std::move(methods), m_specialization.m_source_module);
 
 	const TypeRef closure_type = ClosureType(type);
 	const MarmotType::FunctionType& signature = closure_type->GetType<MarmotType::FunctionType>();
@@ -625,9 +625,8 @@ std::expected<MarmotIRFunctionId, CompilerError> Lowering::FunctionLowering::Spe
 
 	const bool is_foreign = !info.m_defining_module.empty() && info.m_defining_module != m_owner.m_module_name;
 	const std::optional<std::string> source_module = is_foreign ? std::optional<std::string>(info.m_defining_module) : std::nullopt;
-	const std::shared_ptr<const ForeignIndices> foreign_indices = is_foreign ? info.m_builtin_foreign_indices : m_owner.m_foreign_indices;
 	MethodResolutionMap methods = m_owner.m_resolver.ResolveConstraints(info.m_constraints, types);
-	const Specialization& specialization = m_owner.m_specializations.emplace_back(std::move(types), std::move(methods), source_module, foreign_indices);
+	const Specialization& specialization = m_owner.m_specializations.emplace_back(std::move(types), std::move(methods), source_module);
 
 	const MarmotIRFunctionId id = m_owner.NewFunction(signature, return_type, specialization);
 	m_owner.m_specialized_functions.emplace(cache_key, id);
@@ -654,8 +653,9 @@ bool Lowering::FunctionLowering::IsForeignDeclaration(const std::string& name)
 }
 
 // A foreign function used as a value is a function that calls it.
-Lowering::Lowered Lowering::FunctionLowering::LowerForeignValue(const Token& name, const TypeRef& type)
+Lowering::Lowered Lowering::FunctionLowering::LowerForeignValue(const MarmotExpression::NameAccess& declaration, const TypeRef& type)
 {
+	const Token& name = declaration.m_name;
 	const TypeRef closure_type = ClosureType(type);
 	const MarmotType::FunctionType& signature = closure_type->GetType<MarmotType::FunctionType>();
 	const MarmotIRFunctionId id = m_owner.NewFunction(std::format("foreign {}", name.m_lexeme), signature.m_return_type, m_specialization);
@@ -667,29 +667,33 @@ Lowering::Lowered Lowering::FunctionLowering::LowerForeignValue(const Token& nam
 	}
 
 	child.m_builder.AtLine(name.m_line);
-	const ForeignIndices::const_iterator builtin = m_specialization.m_foreign_indices->find(name.m_lexeme);
-	const Emitted lowered = builtin != m_specialization.m_foreign_indices->cend()
-		? Emitted()
-		: child.GlobalFor(name, TextType()).transform([&child, &arguments](MarmotIRGlobalSlot slot)
+	MarmotIRImmediate target;
+	if (declaration.m_intrinsic.has_value())
+	{
+		target = MarmotIRForeign{ std::string(MarmotIntrinsics::At(declaration.m_intrinsic.value()).m_name) };
+	}
+	else
+	{
+		const std::expected<MarmotIRGlobalSlot, CompilerError> slot = child.GlobalFor(name, TextType());
+		if (!slot.has_value())
 		{
-			arguments.insert(arguments.begin(), child.m_builder.Emit(MarmotIROp::GlobalGet, TextType(), {}, slot));
-		});
-	if (lowered.has_value())
-	{
-		const MarmotIRImmediate foreign = builtin != m_specialization.m_foreign_indices->cend() ? MarmotIRImmediate(MarmotIRForeign{ std::string(MarmotBuiltins::At(builtin->second)) }) : MarmotIRImmediate();
-		const MarmotIRValueId result = child.m_builder.Emit(MarmotIROp::CallForeign, signature.m_return_type, std::move(arguments), foreign);
-		child.m_builder.Return(result);
+			return std::unexpected(slot.error());
+		}
+		arguments.insert(arguments.begin(), child.m_builder.Emit(MarmotIROp::GlobalGet, TextType(), {}, slot.value()));
 	}
-	if (!lowered.has_value())
-	{
-		return std::unexpected(lowered.error());
-	}
+	const MarmotIRValueId result = child.m_builder.Emit(MarmotIROp::CallForeign, signature.m_return_type, std::move(arguments), target);
+	child.m_builder.Return(result);
 	return MakeClosure(child, closure_type, name.m_line);
 }
 
 Lowering::Lowered Lowering::FunctionLowering::LowerName(const MarmotExpression::NameAccess& name)
 {
 	const Token& token = name.m_name;
+	if (name.m_intrinsic.has_value())
+	{
+		return LowerForeignValue(name, Concrete(name.m_type_data));
+	}
+
 	const bool is_local = std::holds_alternative<MarmotExpression::NameContext::Local>(name.m_name_ctx);
 	if (is_local || std::holds_alternative<MarmotExpression::NameContext::Cell>(name.m_name_ctx))
 	{
@@ -733,7 +737,7 @@ Lowering::Lowered Lowering::FunctionLowering::LowerName(const MarmotExpression::
 	}
 	if (IsForeignFunction(name.m_type_data))
 	{
-		return LowerForeignValue(token, Concrete(name.m_type_data));
+		return LowerForeignValue(name, Concrete(name.m_type_data));
 	}
 
 	return GlobalFor(token, Concrete(name.m_type_data))
@@ -1012,8 +1016,8 @@ MarmotIRValueId Lowering::FunctionLowering::EmitCall(const Callee& callee, std::
 	return result;
 }
 
-// What a call runs: a builtin foreign function by name, another foreign one by
-// the name its global holds, the specialization of a generic, the instance
+// What a call runs: an intrinsic by ID, a native function by the name its
+// global holds, the specialization of a generic, the instance
 // method a class method resolves to, this module's function, a global, or the
 // closure its callee evaluates to, after the arguments.
 std::expected<Lowering::FunctionLowering::Callee, CompilerError> Lowering::FunctionLowering::ResolveCallee(const MarmotExpression::Call& call, const std::vector<MarmotIRValueId>& arguments, const TypeRef& call_type)
@@ -1022,16 +1026,12 @@ std::expected<Lowering::FunctionLowering::Callee, CompilerError> Lowering::Funct
 	const Specialization& specialization = m_specialization;
 	const Token& paren = call.m_paren;
 
-	// A foreign function is called by the name it is looked up by: a builtin
-	// by index, any other by the name its declaration holds. A value that only
-	// has a foreign function's type holds the closure that calls one.
 	if (call.m_is_foreign)
 	{
 		const MarmotExpression::NameAccess& foreign = call.m_callee->GetExpression<MarmotExpression::NameAccess>();
-		const ForeignIndices::const_iterator builtin = specialization.m_foreign_indices->find(foreign.m_name.m_lexeme);
-		if (builtin != specialization.m_foreign_indices->cend())
+		if (foreign.m_intrinsic.has_value())
 		{
-			return Callee{ MarmotIRForeign{ std::string(MarmotBuiltins::At(builtin->second)) }, std::nullopt };
+			return Callee{ MarmotIRForeign{ std::string(MarmotIntrinsics::At(foreign.m_intrinsic.value()).m_name) }, std::nullopt };
 		}
 		if (name != nullptr && IsForeignDeclaration(name->m_name.m_lexeme))
 		{

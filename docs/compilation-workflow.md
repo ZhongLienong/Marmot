@@ -248,7 +248,7 @@ Important opcode families in the current executable format:
 - Control flow: `JUMP_IF_FALSE`, `JUMP`, `JUMP_BACK`, fused compare-and-branch opcodes such as `IF_INTEGER_LESS` and `IF_FLOAT_GREATER_EQUAL`
 - Local-operand superinstructions: `ADD_LOCAL_INT`, `STEP_LOCAL`, `PUSH_LOCAL_SUB_INT`, `IF_LOCAL_LE_INT`, `IF_LOCAL_LT_INT`, `IF_LOCAL_GE_LOCAL`, `IF_LOCAL_LT_LOCAL`, `IF_LOCAL_EQ_LOCAL`, `IF_LOCAL_TAG_NOT`, `LOCAL_UNION_FIELD`, `LOCAL_ARRAY_GET`, `LOCAL_UNION2`, `APPEND_LOCAL`, `GET_LOCAL2`, `STORE_LOCAL`
 - Pattern matching: `GET_TAG`, `GET_UNION_FIELD`
-- Calls: `CALL_FOREIGN`, `CALL_FOREIGN_INDEXED`, `CALL`, `CALL_0` through `CALL_3`, `CALL_PROC_WIDE`, `CALL_GLOBAL_WIDE`, `TAIL_CALL`
+- Calls: `CALL_FOREIGN`, `CALL_INTRINSIC`, `CALL`, `CALL_0` through `CALL_3`, `CALL_PROC_WIDE`, `CALL_GLOBAL_WIDE`, `TAIL_CALL`
 - Data construction: `CONSTRUCT_STRUCT`, `CONSTRUCT_UNION`
 - Closures and functions: `MAKE_FUNCTION_WIDE`, `MAKE_CLOSURE_OF`, `SET_CAPTURE`, `GET_CELL`, `GET_CELL_WIDE`
 - Variables: `DEFINE_GLOBAL_WIDE`, `GET_GLOBAL_WIDE`, `SET_GLOBAL_WIDE`, `GET_LOCAL`, `SET_LOCAL`, `GET_LOCAL_WIDE`, `SET_LOCAL_WIDE`
@@ -295,12 +295,12 @@ Current behavior:
 
 ## FFI Notes
 
-The runtime has two FFI call paths:
+The runtime uses two instructions for `foreign` declarations:
 
-- `CALL_FOREIGN_INDEXED` for built-in runtime FFI entries declared in `Builtins.def`
+- `CALL_INTRINSIC` for VM intrinsics declared in `Intrinsics.def`
 - `CALL_FOREIGN` for dynamically loaded functions, including package-provided libraries
 
-The indexed path carries explicit argument and return metadata such as `CString`, `ArrayView`, `TraceableHandle`, `ValueHandle`, `ArrayValues`, and `ArrayStrings`. The dynamic path takes the same kinds for `Text` and arrays, chosen from the `foreign` declaration's types; see [FFI ABI](ffi-abi.md).
+`CALL_INTRINSIC` operates on VM values and uses the registry signature for its arity. `CALL_FOREIGN` uses the declaration's types to marshal scalars, text, and arrays according to the [FFI ABI](ffi-abi.md).
 
 ## Diagnostics and Reporting
 
