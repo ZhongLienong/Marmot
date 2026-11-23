@@ -17,7 +17,7 @@ class MarmotIntrinsics
 {
 private:
 #define MARMOT_INTRINSIC(name, result, ...) \
-	inline static constexpr auto s_types_##name = std::to_array<std::string_view>({result __VA_OPT__(,) __VA_ARGS__});
+	inline static constexpr auto s_types_##name = std::to_array<std::string_view>({result, __VA_ARGS__});
 #include "Bytecode/Intrinsics/Intrinsics.def"
 #undef MARMOT_INTRINSIC
 

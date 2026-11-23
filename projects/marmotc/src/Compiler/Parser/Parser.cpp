@@ -3987,13 +3987,13 @@ MarmotResult::StatementResult Parser::ParseForeignDeclaration(const Token& forei
 									[&foreign_name, &function_name, &block_library, this](Token&& name) ->MarmotResult::StatementResult
 									{
 										std::optional<BindingId> binding = RegisterLocalBinding(name.m_lexeme);
-										constexpr bool is_foreign = true;
 										return InScope
 										(
 											[&]() -> MarmotResult::StatementResult
 											{
 												m_state.m_allow_implicit_generic_params = true;
 
+												constexpr bool is_foreign = true;
 												return ParseType(is_foreign)
 													.and_then
 													(
