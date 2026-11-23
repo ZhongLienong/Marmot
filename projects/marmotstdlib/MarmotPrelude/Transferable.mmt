@@ -40,8 +40,3 @@ instance Transferable<Never>
 instance Transferable<Array<T>> where Transferable<T>
 {
 };
-
-// A reference crosses to a worker as a copy; the CellCrossesWorker warning says so.
-instance Transferable<Ref<T>> where Transferable<T>
-{
-};

@@ -22,7 +22,7 @@ public:
 	const std::string& ModuleName() const;
 	const ModuleInterface::ExportSet& Names() const;
 	void RecordInferredTypes(const TypeEnvironment& inferred);
-	std::expected<PublishedModuleInterface, CompilerError> Publish(LoweredModule& lowered, const ModuleImports& imports, std::span<const UseImport> use_imports, WorkerCrossings crossings, const std::vector<std::string>& source_lines) &&;
+	std::expected<PublishedModuleInterface, CompilerError> Publish(LoweredModule& lowered, const ModuleImports& imports, std::span<const UseImport> use_imports, const std::vector<std::string>& source_lines) &&;
 
 private:
 	std::string m_module_name;

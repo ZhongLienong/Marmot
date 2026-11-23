@@ -149,9 +149,10 @@ namespace
 			}
 			else if constexpr (std::is_same_v<Type, MarmotType::FunctionType>)
 			{
+				const std::string prefix = type_variant.m_is_transferable ? "transferable fn" : "fn";
 				if (type_variant.m_param_types.empty())
 				{
-					return "fn() -> "s + stringify(*type_variant.m_return_type);
+					return prefix + "() -> "s + stringify(*type_variant.m_return_type);
 				}
 
 				std::vector<std::string> param_strings;
@@ -162,7 +163,7 @@ namespace
 					[this](const TypePtr& param_type) { return stringify(*param_type); }
 				);
 
-				return "fn("s + std::accumulate(std::next(param_strings.begin()), param_strings.end(), param_strings.front(), join_with_comma) + ") -> "s + stringify(*type_variant.m_return_type);
+				return prefix + "("s + std::accumulate(std::next(param_strings.begin()), param_strings.end(), param_strings.front(), join_with_comma) + ") -> "s + stringify(*type_variant.m_return_type);
 			}
 			else if constexpr (std::is_same_v<Type, MarmotType::StructType>)
 			{
@@ -347,7 +348,7 @@ struct MarmotType::TypeEqualityVisitor
 		}
 		else if constexpr (std::is_same_v<TypeA, MarmotType::FunctionType>)
 		{
-			return std::ranges::equal
+			return a.m_is_transferable == b.m_is_transferable && std::ranges::equal
 			(
 				a.m_param_types,
 				b.m_param_types,
@@ -543,7 +544,7 @@ std::shared_ptr<MarmotType> MarmotType::MakeWorkerType(const std::shared_ptr<Mar
 
 std::shared_ptr<MarmotType> MarmotType::MakeChannelType(const std::shared_ptr<MarmotType>& element_type)
 {
-	return std::make_shared<MarmotType>(MarmotTypeUnion(ChannelType{.m_element_type = element_type}));
+	return std::make_shared<MarmotType>(MarmotTypeUnion(ChannelType{.m_element_type = WithTransferableFunction(element_type)}));
 }
 
 std::shared_ptr<MarmotType> MarmotType::MakeCellType(const std::shared_ptr<MarmotType>& element_type)
@@ -564,6 +565,19 @@ std::shared_ptr<MarmotType> MarmotType::MakeTupleType(std::vector<std::shared_pt
 std::shared_ptr<MarmotType> MarmotType::MakeFunctionType(const std::vector<std::shared_ptr<MarmotType>>& param_types, std::shared_ptr<MarmotType>&& return_type, bool is_foreign)
 {
 	return std::make_shared<MarmotType>(MarmotTypeUnion(FunctionType{.m_param_types = param_types, .m_return_type = return_type, .m_constraints = {}, .m_is_foreign = is_foreign}));
+}
+
+std::shared_ptr<MarmotType> MarmotType::WithTransferableFunction(const std::shared_ptr<MarmotType>& type)
+{
+	const FunctionType* function = std::get_if<FunctionType>(&type->m_type);
+	if (function == nullptr || function->m_is_transferable)
+	{
+		return type;
+	}
+
+	FunctionType transferable = *function;
+	transferable.m_is_transferable = true;
+	return std::make_shared<MarmotType>(std::move(transferable));
 }
 
 std::shared_ptr<MarmotType> MarmotType::MakeStructType(const std::string& name, const std::string& module_name, std::vector<std::shared_ptr<MarmotType>>&& member_types, std::vector<std::string>&& member_names, std::vector<std::string>&& generic_params)

@@ -28,6 +28,8 @@ public:
 	enum class UnifyDiagnosticMode
 	{
 		Symmetric,
+		CommonType,
+		ReferenceWrite,
 		ActualExpected,
 		ExpectedActual
 	};
@@ -218,7 +220,7 @@ private:
 
 	MarmotResult::TypeResult Evaluate(const CheckingContext& context, const std::unique_ptr<MarmotExpression>& expression, NameUse use = NameUse::Value);
 
-	MarmotResult::TypeResult CheckRefNew(const CheckingContext& context, const std::unique_ptr<MarmotExpression>& value);
+	MarmotResult::TypeResult CheckRefNew(const CheckingContext& context, const Token& token, const std::unique_ptr<MarmotExpression>& value);
 
 	MarmotResult::TypeResult CheckRefAccess(const CheckingContext& context, const std::unique_ptr<MarmotExpression>& cell, const std::unique_ptr<MarmotExpression>* value, const Token& token, std::string_view error_message);
 
@@ -279,7 +281,9 @@ private:
 	// Checks the body once for any choice of the generic parameters. `bind` is
 	// given the generic type and its own variables before the body, so a named
 	// lambda can call itself.
-	MarmotResult::TypeResult CheckGenericLambda(const CheckingContext& context, MarmotExpression::Function& function, const Token& anchor, const std::function<void(const std::shared_ptr<MarmotType>&, const std::vector<int>&)>& bind);
+	MarmotResult::TypeResult CheckGenericLambda(const CheckingContext& context, MarmotExpression::Function& function, const Token& anchor, const BindingId& self, const std::function<void(const std::shared_ptr<MarmotType>&, const std::vector<int>&)>& bind);
+
+	MarmotResult::TypeResult CheckLambda(const CheckingContext& context, MarmotExpression::Function& function, const BindingId& self);
 
 	// `type` with each of `parameters` replaced by a fresh variable, and every
 	// other variable, an enclosing definition's, kept.
@@ -350,7 +354,7 @@ private:
 
 	MarmotResult::TypeResult Unify(const CheckingContext& context, const Token& token, const std::shared_ptr<MarmotType>& left, const std::shared_ptr<MarmotType>& right, UnifyDiagnosticMode diagnostic_mode = UnifyDiagnosticMode::Symmetric);
 
-	MarmotResult::TypeResult UnifyTypeArguments(const CheckingContext& context, const Token& token, std::vector<std::shared_ptr<MarmotType>>& left, std::vector<std::shared_ptr<MarmotType>>& right, UnifyDiagnosticMode diagnostic_mode);
+	MarmotResult::TypeResult UnifyTypeArguments(const CheckingContext& context, const Token& token, std::vector<std::shared_ptr<MarmotType>>& left, std::vector<std::shared_ptr<MarmotType>>& right);
 
 	MarmotResult::TypeResult operator()(const CheckingContext& context, MarmotStatement::ExpressionStatement& simple);
 
@@ -451,5 +455,7 @@ private:
 
 	std::optional<CompilerError> EnsureTransferable(const CheckingContext& context, const Token& token, const std::shared_ptr<MarmotType>& type);
 
-	std::optional<CompilerError> EnsureTransferable(const CheckingContext& context, const Token& token, const std::shared_ptr<MarmotType>& type, std::unordered_set<const MarmotType*>& visited);
+	void InferCaptureTransferability(const CheckingContext& context, MarmotExpression::Function& function, const BindingId& self);
+
+	std::optional<CompilerError> EnsureTransferable(const CheckingContext& context, const Token& token, const std::shared_ptr<MarmotType>& type, std::unordered_set<std::shared_ptr<MarmotType>>& visited);
 };

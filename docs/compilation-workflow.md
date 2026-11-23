@@ -181,17 +181,10 @@ Source: `projects/marmotc/src/Compiler/StaticAnalyzerManager/`
 
 Static analysis runs after type checking and before lowering. It emits warnings without mutating the AST.
 
-Before these passes run, `projects/marmotc/src/Compiler/Analysis/WorkerCrossing.cpp`
-summarizes each top-level function. It records which parameters reach a worker
-and whether the result came from one. The module publishes those summaries in
-its interface. `CellCrossesWorkerDiagnostic` can then warn about values passed
-to imported functions that hand them to workers.
-
 Current warning passes:
 
 - `UnusedLocalDiagnostic`
 - `ShadowingPolicyDiagnostic`
-- `CellCrossesWorkerDiagnostic`
 - `IntegerOverflowDiagnostic`
 
 Warnings remain structured as `CompilerWarning` values and are appended to the compile-wide report.

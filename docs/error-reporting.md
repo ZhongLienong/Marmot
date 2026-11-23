@@ -85,7 +85,6 @@ Current `CompilerWarningCode` values:
 - `NameShadowing`
 - `UnusedLocal`
 - `IntegerOverflow`
-- `CellCrossesWorker`
 
 ### Runtime Error Codes
 
@@ -102,6 +101,7 @@ Current `RuntimeErrorCode` values:
 - `WorkerCancelled`
 - `WorkerExited`
 - `InvalidWorkerHandle`
+- `InvalidWorkerTransfer`
 - `InvalidConversion`
 - `InternalFFITypeError`
 - `OutOfMemory`

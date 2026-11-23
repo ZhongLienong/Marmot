@@ -98,8 +98,6 @@ std::string_view CompilerWarningCodeName(CompilerWarningCode code)
 		return "NameShadowing";
 	case CompilerWarningCode::UnusedLocal:
 		return "UnusedLocal";
-	case CompilerWarningCode::CellCrossesWorker:
-		return "CellCrossesWorker";
 	case CompilerWarningCode::IntegerOverflow:
 		return "IntegerOverflow";
 	case CompilerWarningCode::None:

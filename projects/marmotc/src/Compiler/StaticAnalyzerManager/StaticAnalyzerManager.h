@@ -1,6 +1,5 @@
 #pragma once
 
-#include "Compiler/Analysis/WorkerCrossing.h"
 #include "Compiler/StaticAnalyzerManager/Diagnostics/BaseDiagnosticPass/BaseDiagnosticPass.h"
 
 #include <memory>
@@ -9,7 +8,7 @@
 class StaticAnalyzerManager
 {
 public:
-	explicit StaticAnalyzerManager(const WorkerCrossings& crossings);
+	StaticAnalyzerManager();
 
 	std::vector<CompilerWarning> Analyze(MarmotProgramTree& program_tree, std::string_view file_name, const std::vector<std::string>& source_lines);
 

@@ -1,0 +1,4 @@
+module ChannelSendRef
+import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt" }
+
+def SendRef = fn(channel: Channel<Ref<Int>>, value: Ref<Int>) -> Bool => Concurrency::Send(channel, value);

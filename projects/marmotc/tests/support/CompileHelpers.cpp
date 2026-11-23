@@ -285,8 +285,7 @@ namespace MarmotTest
 		}
 
 		TypedSnippet typed = std::move(typed_result.value());
-		const WorkerCrossings crossings = FindWorkerCrossings(typed.m_program, {});
-		std::vector<CompilerWarning> warnings = StaticAnalyzerManager(crossings).Analyze(typed.m_program, typed.m_source.FileName(), typed.m_source.SourceLines());
+		std::vector<CompilerWarning> warnings = StaticAnalyzerManager().Analyze(typed.m_program, typed.m_source.FileName(), typed.m_source.SourceLines());
 		return AnalyzedSnippet(std::move(typed.m_source), std::move(typed.m_program), std::move(warnings));
 	}
 

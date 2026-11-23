@@ -129,6 +129,7 @@ public:
 		std::shared_ptr<MarmotType> m_return_type;
 		std::vector<ClassConstraint> m_constraints;
 		bool m_is_foreign = false;
+		bool m_is_transferable = false;
 		// On a primitive's declared type only. A primitive can only be called, by
 		// the name of its declaration, so no copy of this type needs it.
 		std::optional<MarmotPrimitive> m_primitive;
@@ -255,6 +256,7 @@ public:
 	static std::shared_ptr<MarmotType> MakeRangeType(const std::shared_ptr<MarmotType>& element_type);
 	static std::shared_ptr<MarmotType> MakeTupleType(std::vector<std::shared_ptr<MarmotType>>&& element_types);
 	static std::shared_ptr<MarmotType> MakeFunctionType(const std::vector<std::shared_ptr<MarmotType>>& param_types, std::shared_ptr<MarmotType>&& return_type, bool is_foreign = false);
+	static std::shared_ptr<MarmotType> WithTransferableFunction(const std::shared_ptr<MarmotType>& type);
 	static std::shared_ptr<MarmotType> MakeStructType(const std::string& name, const std::string& module_name, std::vector<std::shared_ptr<MarmotType>>&& member_types, std::vector<std::string>&& member_names, std::vector<std::string>&& generic_params = {});
 	static std::shared_ptr<MarmotType> MakeUnionType(const std::string& name, const std::string& module_name, std::vector<std::string>&& generic_params = {});
 	static std::shared_ptr<MarmotType> MakeNewType(const std::string& name, const std::string& module_name, const std::shared_ptr<MarmotType>& representation, std::vector<std::string>&& generic_params = {});

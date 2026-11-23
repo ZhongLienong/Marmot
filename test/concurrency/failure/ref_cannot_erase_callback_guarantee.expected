@@ -1,0 +1,6 @@
+Compilation failed :( 
+Type Checker Error at test/concurrency/failure/ref_cannot_erase_callback_guarantee.mmt:9
+  |
+9 | Replace(callback, ref 10);
+  |                         ^ Type mismatch between 'transferable fn() -> Int' and 'fn() -> Int'
+  |

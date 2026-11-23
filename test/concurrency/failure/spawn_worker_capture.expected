@@ -1,0 +1,7 @@
+Compilation failed :( 
+Type Checker Error at test/concurrency/failure/spawn_worker_capture.mmt:8
+  |
+8 | Concurrency::Spawn((), Capture(worker));
+  | ^^^^^^^^^^^ Type fn() -> Bool does not satisfy constraint Transferable<fn() -> Bool> - no matching instance found
+  |
+  | A function crossing a worker boundary must have transferable captures. Use a Transferable constraint for callback parameters.

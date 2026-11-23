@@ -1,0 +1,8 @@
+module ChannelSendNontransferableClosure
+import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt" }
+
+type Payload = {
+    value: Int
+};
+
+def Send = fn(channel: Channel<fn() -> Int>, payload: Payload) -> Bool => Concurrency::Send(channel, fn() -> Int => payload.value);

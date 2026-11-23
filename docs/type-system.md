@@ -273,9 +273,10 @@ type Result = Ok(Int) | Err(Text) deriving (Transferable);
 
 Use `deriving (Transferable)` to generate a marker instance for a struct or
 union. Its fields or variant payloads must satisfy `Transferable`. The VM
-uses the aggregate's shape to copy it. For a function, the VM copies the
-procedure index and the captured values. The function type describes its
-parameters and result, so the checker cannot inspect captures from the type.
+uses the aggregate's shape to copy it. The compiler infers whether a function
+is transferable from its captures, and functions with no captures qualify.
+A function that passes a callback to a worker can require transferable captures
+with a `where Transferable<fn(A) -> B>` constraint on the callback signature.
 
 Current support is intentionally narrow:
 

@@ -1,0 +1,7 @@
+Compilation failed :( 
+Type Checker Error at test/concurrency/failure/spawn_nontransferable_struct_capture.mmt:10
+   |
+10 |     Concurrency::Spawn((), read)
+   |     ^^^^^^^^^^^ Type fn() -> Int does not satisfy constraint Transferable<fn() -> Int> - no matching instance found
+   |
+  | A function crossing a worker boundary must have transferable captures. Use a Transferable constraint for callback parameters.

@@ -2,7 +2,9 @@
 
 #include "Value/Value.h"
 
+#include <expected>
 #include <string>
+#include <string_view>
 #include <vector>
 #include <variant>
 
@@ -53,15 +55,7 @@ struct SerializedObject
 		MarmotFloat m_step = 0.0;
 	};
 
-	// A user Ref<T>, copied: two references to one cell in one payload arrive as
-	// two references to one copy.
-	struct MutableCell
-	{
-		SerializedValue m_value;
-		bool m_holds_pointer = false;
-	};
-
-	using Variant = std::variant<Text, Array, Aggregate, IntRange, FloatRange, MutableCell>;
+	using Variant = std::variant<Text, Array, Aggregate, IntRange, FloatRange>;
 
 	Variant m_data;
 };
@@ -87,7 +81,7 @@ class ValueTransfer
 {
 public:
 	// A value of the kind `is_pointer` says, which the compiler decided.
-	static TransferPayload Serialize(MarmotValue value, bool is_pointer, VirtualMachine& source_vm);
+	static std::expected<TransferPayload, std::string_view> Serialize(MarmotValue value, bool is_pointer, VirtualMachine& source_vm);
 
 	// The payload's value, rebuilt in `target_vm`'s heap. Its globals are offered
 	// to `target_vm`, which keeps the ones it does not have yet.

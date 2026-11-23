@@ -65,7 +65,7 @@ def JoinedOrPanic = fn<T>(result: Result<T, WorkerError>) -> T =>
 // ordinary Marmot: the per-chunk worker is a lambda that captures `work` and crosses to
 // the worker with it, which is what makes a parallel map expressible in the language
 // rather than something the compiler has to provide.
-def ParallelMap = fn<A, B>(values: Array<A>, work: fn(A) -> B, chunk_size: Int) -> Array<B> where Transferable<A>, Transferable<B> =>
+def ParallelMap = fn<A, B>(values: Array<A>, work: fn(A) -> B, chunk_size: Int) -> Array<B> where Transferable<A>, Transferable<B>, Transferable<fn(A) -> B> =>
 {
     def count = ArrayUtil::Length(values);
     def size = if chunk_size < 1

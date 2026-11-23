@@ -39,7 +39,6 @@ public:
 	const TypeEnvironment& Types() const;
 	const TypeclassMetadataMap& Typeclasses() const;
 	const GenericFunctionTable::Functions& Generics() const;
-	const WorkerCrossings& Crossings() const;
 
 private:
 	std::unordered_map<std::string, ModuleInterface::SymbolTable> m_symbols;
@@ -47,5 +46,4 @@ private:
 	TypeEnvironment m_types;
 	TypeclassMetadataMap m_typeclasses;
 	GenericFunctionTable::Functions m_generics;
-	WorkerCrossings m_crossings;
 };

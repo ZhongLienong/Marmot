@@ -12,7 +12,7 @@ type Complex =
 {
     Real: Float,
     Imag: Float
-};
+} deriving (Transferable);
 
 def ComplexAbs = fn(value: Complex) -> Float => Math::SquareRoot((value.Real * value.Real) + (value.Imag * value.Imag));
 

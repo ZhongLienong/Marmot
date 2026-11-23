@@ -1,0 +1,9 @@
+module SpawnRefCapture
+import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt" }
+
+def Start = fn(value: Int) -> Worker<Int> => {
+    def cell = ref value;
+    Concurrency::Spawn((), fn() -> Int => *cell)
+};
+
+Start(10);

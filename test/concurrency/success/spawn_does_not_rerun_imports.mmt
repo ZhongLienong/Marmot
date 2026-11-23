@@ -9,7 +9,7 @@ import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "./spawn_does_no
 
 def Scaled = fn(n: Int) -> Int => n * SpawnDoesNotRerunImportsLib::Base;
 
-def first = Concurrency::Spawn(1, Scaled);
+def first = Concurrency::Spawn(1, SpawnDoesNotRerunImportsLib::Scale);
 
 def second = Concurrency::Spawn(2, Scaled);
 

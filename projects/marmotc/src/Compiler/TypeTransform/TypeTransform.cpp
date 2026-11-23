@@ -89,10 +89,16 @@ namespace
 				return children | std::views::transform(map) | std::ranges::to<std::vector>();
 			};
 
-			if constexpr (std::is_same_v<Node, MarmotType::ArrayType> || std::is_same_v<Node, MarmotType::RangeType>
-				|| std::is_same_v<Node, MarmotType::ChannelType> || std::is_same_v<Node, MarmotType::CellType>)
+			if constexpr (std::is_same_v<Node, MarmotType::ArrayType> || std::is_same_v<Node, MarmotType::RangeType> || std::is_same_v<Node, MarmotType::CellType>)
 			{
 				node.m_element_type = map(original.m_element_type);
+			}
+			else if constexpr (std::is_same_v<Node, MarmotType::ChannelType>)
+			{
+				// Send checks the payload, so a function received from a channel
+				// always carries the same guarantee as the function that was sent.
+				node.m_element_type = MarmotType::WithTransferableFunction(map(original.m_element_type));
+				changed = changed || node.m_element_type != original.m_element_type;
 			}
 			else if constexpr (std::is_same_v<Node, MarmotType::WorkerType>)
 			{

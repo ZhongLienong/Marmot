@@ -13,7 +13,7 @@ namespace
 {
 	std::shared_ptr<const ModuleInterface> Interface(const std::string& name)
 	{
-		return std::make_shared<const ModuleInterface>(ModuleInterface(name, name + ".mmt", {}, {}, {}, {}, {}));
+		return std::make_shared<const ModuleInterface>(ModuleInterface(name, name + ".mmt", {}, {}, {}, {}));
 	}
 }
 

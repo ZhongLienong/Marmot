@@ -54,7 +54,7 @@ void ModuleExports::RecordInferredTypes(const TypeEnvironment& inferred)
 	}
 }
 
-std::expected<PublishedModuleInterface, CompilerError> ModuleExports::Publish(LoweredModule& lowered, const ModuleImports& imports, std::span<const UseImport> use_imports, WorkerCrossings crossings, const std::vector<std::string>& source_lines) &&
+std::expected<PublishedModuleInterface, CompilerError> ModuleExports::Publish(LoweredModule& lowered, const ModuleImports& imports, std::span<const UseImport> use_imports, const std::vector<std::string>& source_lines) &&
 {
 	std::unordered_set<std::string> defined;
 	for (const LoweredExport& exported : lowered.m_exports)
@@ -95,6 +95,6 @@ std::expected<PublishedModuleInterface, CompilerError> ModuleExports::Publish(Lo
 			: std::format("Symbol '{}' is re-exported by module '{}', but '{}' and '{}' both export it. Write 'use {}.{{{}}}' to say which one.", name, m_module_name, origins.front(), origins[1u], origins.front(), name);
 		return std::unexpected(CompilerError::WithToken(CompilerStage::Module, message, exported.m_token, m_file_path.string(), source_lines, std::nullopt, CompilerErrorCode::ModuleMissingExportedSymbol));
 	}
-	published.m_interface = std::make_shared<const ModuleInterface>(m_module_name, m_file_path, std::move(m_symbols), std::move(m_types), std::move(m_typeclasses), std::move(lowered.m_generic_functions), std::move(crossings));
+	published.m_interface = std::make_shared<const ModuleInterface>(m_module_name, m_file_path, std::move(m_symbols), std::move(m_types), std::move(m_typeclasses), std::move(lowered.m_generic_functions));
 	return published;
 }

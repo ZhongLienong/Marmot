@@ -21,8 +21,8 @@ TEST_CASE("Imported access and re-export candidates share namespace visibility",
 		.WithExport("Shared", VisibilityLevel::Private);
 	const std::vector<std::shared_ptr<const ModuleInterface>> dependencies
 	{
-		std::make_shared<const ModuleInterface>("Library.Zulu", "Zulu.mmt", symbols, ModuleInterface::TypeEnvironment(), TypeclassMetadataMap(), GenericFunctionTable::Functions(), WorkerCrossings()),
-		std::make_shared<const ModuleInterface>("Library.Alpha", "Alpha.mmt", symbols, ModuleInterface::TypeEnvironment(), TypeclassMetadataMap(), GenericFunctionTable::Functions(), WorkerCrossings())
+		std::make_shared<const ModuleInterface>("Library.Zulu", "Zulu.mmt", symbols, ModuleInterface::TypeEnvironment(), TypeclassMetadataMap(), GenericFunctionTable::Functions()),
+		std::make_shared<const ModuleInterface>("Library.Alpha", "Alpha.mmt", symbols, ModuleInterface::TypeEnvironment(), TypeclassMetadataMap(), GenericFunctionTable::Functions())
 	};
 	const std::expected<ModuleImports, ModuleImportConflict> imports = ModuleImports::Collect(dependencies);
 	REQUIRE(imports.has_value());
@@ -53,7 +53,7 @@ def Copy = fn<T>(value: T) -> T => value;
 		.WithExport("Copy", VisibilityLevel::Public);
 	const std::vector<std::shared_ptr<const ModuleInterface>> dependencies
 	{
-		std::make_shared<const ModuleInterface>("Origin", "Origin.mmt", symbols, ModuleInterface::TypeEnvironment{ { "Point", point } }, TypeclassMetadataMap(), std::move(origin->m_generic_functions), WorkerCrossings())
+		std::make_shared<const ModuleInterface>("Origin", "Origin.mmt", symbols, ModuleInterface::TypeEnvironment{ { "Point", point } }, TypeclassMetadataMap(), std::move(origin->m_generic_functions))
 	};
 	const std::expected<ModuleImports, ModuleImportConflict> imports = ModuleImports::Collect(dependencies);
 	REQUIRE(imports.has_value());
@@ -63,7 +63,7 @@ def Copy = fn<T>(value: T) -> T => value;
 	const TypeRef integer = MarmotType::MakeLiteralType<MarmotType::IntegerType>();
 	exports.RecordInferredTypes({ { "Inferred", integer }, { "Hidden", integer } });
 	LoweredModule lowered(MarmotIRModule("Facade"));
-	std::expected<PublishedModuleInterface, CompilerError> published = std::move(exports).Publish(lowered, imports.value(), {}, {}, {});
+	std::expected<PublishedModuleInterface, CompilerError> published = std::move(exports).Publish(lowered, imports.value(), {}, {});
 	REQUIRE(published.has_value());
 	CHECK(published->m_reexports == std::unordered_map<std::string, std::string>{ { "Point", "Origin" }, { "Copy", "Origin" } });
 	CHECK(published->m_interface->m_type_signatures.at("Point") == point);
@@ -88,7 +88,7 @@ TEST_CASE("Publication reports the first invalid export in source order", "[modu
 	ModuleExports exports(&declaration, "Facade.mmt", {}, {});
 	LoweredModule lowered(MarmotIRModule("Facade"));
 	const ModuleImports imports;
-	const std::expected<PublishedModuleInterface, CompilerError> published = std::move(exports).Publish(lowered, imports, {}, {}, {});
+	const std::expected<PublishedModuleInterface, CompilerError> published = std::move(exports).Publish(lowered, imports, {}, {});
 	REQUIRE_FALSE(published.has_value());
 	CHECK(published.error().m_code == CompilerErrorCode::ModuleMissingExportedSymbol);
 	REQUIRE(published.error().m_location.has_value());

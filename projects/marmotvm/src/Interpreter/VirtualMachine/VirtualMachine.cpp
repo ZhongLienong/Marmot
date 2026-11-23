@@ -505,19 +505,19 @@ MARMOT_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(VmOpCode inst
 		const bool result_is_pointer = ReadByte(ip) != VmOpCode{ 0u };
 
 		// The function is an ordinary value on the stack, above its arguments, and
-		// crosses to the worker like any other transferred value: its procedure index
-		// plus a copy of whatever cells it captured. The arguments and the function
-		// cross as one tuple, so an object reached twice (a cell passed twice, or
-		// captured and also passed) arrives as one copy rather than two. The payload
-		// also carries the globals the worker's code can read, copied here on the
-		// spawning thread because this heap is not safe to read from another one.
-		// Globals are only ever defined once, so the copy is exactly what the spawned
-		// function would see if it were called directly.
+		// crosses with its captures and arguments in one payload. Serialization also
+		// follows the globals it can read, before the worker starts with its own heap.
 		const size_t crossing_count = static_cast<size_t>(arg_count) + 1uz;
 		m_value_stack_pointer -= crossing_count;
 		const MarmotValue crossing = AllocateAggregate(MarmotTraceable::TraceableType::Tuple, std::span<const MarmotValue>(m_value_stack_pointer, crossing_count), 0, crossing_shape);
 
-		const std::optional<MarmotInteger> worker_id = WorkerRegistry::GetInstance().SpawnWorker(m_worker_owner, m_owned_executable, ValueTransfer::Serialize(crossing, true, *this), result_is_pointer);
+		std::expected<TransferPayload, std::string_view> payload = ValueTransfer::Serialize(crossing, true, *this);
+		if (!payload.has_value())
+		{
+			static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InvalidWorkerTransfer, payload.error(), GetLine())));
+			return false;
+		}
+		const std::optional<MarmotInteger> worker_id = WorkerRegistry::GetInstance().SpawnWorker(m_worker_owner, m_owned_executable, std::move(*payload), result_is_pointer);
 		if (!worker_id.has_value())
 		{
 			static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InvalidWorkerHandle, "Worker handle limit reached.", GetLine())));
@@ -583,7 +583,13 @@ MARMOT_NOINLINE bool VirtualMachine::ExecuteConcurrencyInstruction(VmOpCode inst
 		const bool value_is_pointer = ReadByte(ip) != VmOpCode{ 0u };
 		MarmotValue value = Pop();
 		const int channel_id = static_cast<int>(Pop().GetInteger());
-		const ChannelOpStatus send_status = ChannelRegistry::GetInstance().Send(channel_id, ValueTransfer::Serialize(value, value_is_pointer, *this), m_stop_token);
+		std::expected<TransferPayload, std::string_view> payload = ValueTransfer::Serialize(value, value_is_pointer, *this);
+		if (!payload.has_value())
+		{
+			static_cast<void>(TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InvalidWorkerTransfer, payload.error(), GetLine())));
+			return false;
+		}
+		const ChannelOpStatus send_status = ChannelRegistry::GetInstance().Send(channel_id, std::move(*payload), m_stop_token);
 		if (send_status == ChannelOpStatus::Cancelled)
 		{
 			m_instruction_pointer = ip;

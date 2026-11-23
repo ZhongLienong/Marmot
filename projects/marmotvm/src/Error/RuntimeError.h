@@ -20,6 +20,7 @@ enum class RuntimeErrorCode
 	WorkerCancelled,
 	WorkerExited,
 	InvalidWorkerHandle,
+	InvalidWorkerTransfer,
 	InvalidConversion,
 	OutOfMemory
 };

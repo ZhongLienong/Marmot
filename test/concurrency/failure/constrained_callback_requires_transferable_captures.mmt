@@ -1,0 +1,9 @@
+module ConstrainedCallbackRequiresTransferableCaptures
+import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Transferable.mmt" }
+
+def Start = fn(cell: Ref<Int>) -> Array<Int> => Concurrency::ParallelMap([1, 2], fn(value: Int) -> Int => value + (*cell), 1);
+
+def ReplaceCallback = fn(work: fn(Int) -> Int, cell: Ref<Int>) -> Worker<Int> where Transferable<fn(Int) -> Int> => {
+    def value = work(5);
+    Concurrency::Spawn(value, fn(n: Int) -> Int => n + (*cell))
+};

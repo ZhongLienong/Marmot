@@ -34,6 +34,8 @@ std::string_view RuntimeErrorCodeName(RuntimeErrorCode code)
 		return "WorkerExited";
 	case RuntimeErrorCode::InvalidWorkerHandle:
 		return "InvalidWorkerHandle";
+	case RuntimeErrorCode::InvalidWorkerTransfer:
+		return "InvalidWorkerTransfer";
 	case RuntimeErrorCode::InvalidConversion:
 		return "InvalidConversion";
 	case RuntimeErrorCode::OutOfMemory:
@@ -68,6 +70,7 @@ namespace
 		case RuntimeErrorCode::DivisionByZero:
 		case RuntimeErrorCode::WorkerCancelled:
 		case RuntimeErrorCode::InvalidWorkerHandle:
+		case RuntimeErrorCode::InvalidWorkerTransfer:
 		case RuntimeErrorCode::InvalidConversion:
 		default:
 			return false;

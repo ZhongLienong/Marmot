@@ -1,0 +1,6 @@
+Compilation failed :( 
+Type Checker Error at test/concurrency/failure/channel_send_nontransferable_closure.mmt:8
+  |
+8 | def Send = fn(channel: Channel<fn() -> Int>, payload: Payload) -> Bool => Concurrency::Send(channel, fn() -> Int => payload.value);
+  |                                                                                                                                  ^ Expected type 'transferable fn() -> Int' but got 'fn() -> Int'
+  |

@@ -1,0 +1,8 @@
+module SpawnWorkerCapture
+import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt" }
+
+def Capture = fn(worker: Worker<Int>) -> fn() -> Bool => fn() -> Bool => Concurrency::Cancel(worker);
+
+def worker = Concurrency::Spawn((), fn() -> Int => 42);
+
+Concurrency::Spawn((), Capture(worker));

@@ -1,0 +1,7 @@
+Compilation failed :( 
+Type Checker Error at test/concurrency/failure/channel_send_ref.mmt:4
+  |
+4 | def SendRef = fn(channel: Channel<Ref<Int>>, value: Ref<Int>) -> Bool => Concurrency::Send(channel, value);
+  |                                                                                                          ^ Type Ref<Int> does not satisfy constraint Transferable<Ref<Int>> - no matching instance found
+  |
+  | Send the referenced value or create a new reference in the worker.

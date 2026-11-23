@@ -1,6 +1,5 @@
 #include "StaticAnalyzerManager.h"
 
-#include "Compiler/StaticAnalyzerManager/Diagnostics/CellCrossesWorkerDiagnostic/CellCrossesWorkerDiagnostic.h"
 #include "Compiler/StaticAnalyzerManager/Diagnostics/IntegerOverflowDiagnostic/IntegerOverflowDiagnostic.h"
 #include "Compiler/StaticAnalyzerManager/Diagnostics/ShadowingPolicyDiagnostic/ShadowingPolicyDiagnostic.h"
 #include "Compiler/StaticAnalyzerManager/Diagnostics/UnusedLocalDiagnostic/UnusedLocalDiagnostic.h"
@@ -8,11 +7,10 @@
 #include <algorithm>
 #include <iterator>
 
-StaticAnalyzerManager::StaticAnalyzerManager(const WorkerCrossings& crossings)
+StaticAnalyzerManager::StaticAnalyzerManager()
 {
 	m_passes.emplace_back(std::make_unique<ShadowingPolicyDiagnostic>());
 	m_passes.emplace_back(std::make_unique<UnusedLocalDiagnostic>());
-	m_passes.emplace_back(std::make_unique<CellCrossesWorkerDiagnostic>(crossings));
 	m_passes.emplace_back(std::make_unique<IntegerOverflowDiagnostic>());
 }
 

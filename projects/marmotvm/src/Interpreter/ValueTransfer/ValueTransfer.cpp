@@ -18,7 +18,7 @@ namespace
 	};
 
 	// Copies values out of one VM's heap, each by the kind the compiler gave it: an
-	// array's or a cell's flag, an aggregate's shape, a global's kind. A pointer
+	// array's flag, an aggregate's shape, a global's kind. A pointer
 	// that is null, a global not defined yet or a capture not bound yet, crosses
 	// as the zero it is. An object gets its index when first
 	// reached and is copied later, from a worklist, so a cycle (a recursive local
@@ -31,16 +31,16 @@ namespace
 	public:
 		explicit PayloadWriter(VirtualMachine& source_vm);
 
-		TransferPayload Write(MarmotValue value, bool is_pointer) &&;
+		std::expected<TransferPayload, std::string_view> Write(MarmotValue value, bool is_pointer) &&;
 
 	private:
 		SerializedValue Reference(MarmotValue value, bool is_pointer);
 
 		std::vector<SerializedValue> ReferenceAll(std::span<const MarmotValue> values, std::span<const uint32_t> pointer_fields);
 
-		SerializedObject Copy(MarmotTraceable* source);
+		std::optional<SerializedObject> Copy(MarmotTraceable* source);
 
-		void CopyPendingObjects();
+		bool CopyPendingObjects();
 
 		void ReachProcedure(int proc_index);
 
@@ -62,19 +62,21 @@ namespace
 	{
 	}
 
-	TransferPayload PayloadWriter::Write(MarmotValue value, bool is_pointer) &&
+	std::expected<TransferPayload, std::string_view> PayloadWriter::Write(MarmotValue value, bool is_pointer) &&
 	{
 		m_payload.m_root = Reference(value, is_pointer);
-		CopyPendingObjects();
-		while (!m_pending_procedures.empty())
+		while (CopyPendingObjects())
 		{
+			if (m_pending_procedures.empty())
+			{
+				return std::move(m_payload);
+			}
 			const int proc_index = m_pending_procedures.back();
 			m_pending_procedures.pop_back();
 			ScanProcedure(proc_index);
-			CopyPendingObjects();
 		}
 
-		return std::move(m_payload);
+		return std::unexpected("References cannot cross worker boundaries.");
 	}
 
 	SerializedValue PayloadWriter::Reference(MarmotValue value, bool is_pointer)
@@ -108,18 +110,23 @@ namespace
 		return references;
 	}
 
-	void PayloadWriter::CopyPendingObjects()
+	bool PayloadWriter::CopyPendingObjects()
 	{
 		while (!m_pending_objects.empty())
 		{
 			const auto [source, index] = m_pending_objects.back();
 			m_pending_objects.pop_back();
-			SerializedObject copy = Copy(source);
-			m_payload.m_objects[index] = std::move(copy);
+			std::optional<SerializedObject> copy = Copy(source);
+			if (!copy.has_value())
+			{
+				return false;
+			}
+			m_payload.m_objects[index] = std::move(*copy);
 		}
+		return true;
 	}
 
-	SerializedObject PayloadWriter::Copy(MarmotTraceable* source)
+	std::optional<SerializedObject> PayloadWriter::Copy(MarmotTraceable* source)
 	{
 		switch (source->GetType())
 		{
@@ -142,8 +149,6 @@ namespace
 				}
 			};
 		}
-		// A closure is immutable once built (v2 has no assignment), so a structural
-		// copy is the same value.
 		case MarmotTraceable::TraceableType::Tuple:
 		case MarmotTraceable::TraceableType::Struct:
 		case MarmotTraceable::TraceableType::Union:
@@ -179,7 +184,7 @@ namespace
 		}
 		case MarmotTraceable::TraceableType::MutableCell:
 		{
-			return SerializedObject{ SerializedObject::MutableCell{ Reference(source->GetTraceable<MarmotMutableCell>().m_value, source->HoldsPointers()), source->HoldsPointers() } };
+			return std::nullopt;
 		}
 		}
 
@@ -269,10 +274,6 @@ namespace
 				[&target_vm](const SerializedObject::FloatRange& range) -> MarmotTraceable*
 				{
 					return target_vm.AllocateTraceable(MarmotFloatRange(range.m_start, range.m_end, range.m_step));
-				},
-				[&target_vm](const SerializedObject::MutableCell& cell) -> MarmotTraceable*
-				{
-					return target_vm.AllocateCell(MarmotValue(), cell.m_holds_pointer);
 				}
 			},
 			object.m_data
@@ -281,7 +282,7 @@ namespace
 }
 
 // Most messages are a number or a flag, which need none of the writer's tables.
-TransferPayload ValueTransfer::Serialize(MarmotValue value, bool is_pointer, VirtualMachine& source_vm)
+std::expected<TransferPayload, std::string_view> ValueTransfer::Serialize(MarmotValue value, bool is_pointer, VirtualMachine& source_vm)
 {
 	if (!is_pointer)
 	{
@@ -321,10 +322,6 @@ MarmotValue ValueTransfer::Deserialize(const TransferPayload& payload, VirtualMa
 				[transferred, &resolve](const SerializedObject::Aggregate& aggregate)
 				{
 					std::ranges::transform(aggregate.m_values, transferred->GetValues(), resolve);
-				},
-				[transferred, &resolve](const SerializedObject::MutableCell& cell)
-				{
-					transferred->GetTraceable<MarmotMutableCell>().m_value = resolve(cell.m_value);
 				},
 				[](const auto&)
 				{

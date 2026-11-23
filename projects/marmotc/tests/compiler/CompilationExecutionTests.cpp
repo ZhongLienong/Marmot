@@ -23,7 +23,7 @@ namespace
 
 	MarmotResult::CompiledModuleReportResult Success(const std::string& name)
 	{
-		return CompiledModule(std::make_shared<const ModuleInterface>(ModuleInterface(name, name, {}, {}, {}, {}, {})));
+		return CompiledModule(std::make_shared<const ModuleInterface>(ModuleInterface(name, name, {}, {}, {}, {})));
 	}
 
 	MarmotResult::CompiledModuleReportResult Failure(const std::string& message)

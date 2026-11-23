@@ -250,22 +250,19 @@ namespace
 				return std::unexpected(std::move(checked.error()));
 			}
 
-			MarmotResult::ReportResult<WorkerCrossings> crossings = run_stage
+			MarmotResult::ReportResult<void> analyzed = run_stage
 			(
 				"static analyzer",
 				CompilationTimings::Phase::StaticAnalysis,
-				[&]() -> MarmotResult::Result<WorkerCrossings>
+				[&]() -> MarmotResult::Result<void>
 				{
-					WorkerCrossings own = FindWorkerCrossings(checked->m_ast, imports->Crossings());
-					WorkerCrossings visible = imports->Crossings();
-					visible.insert(own.cbegin(), own.cend());
-					warnings.Append(StaticAnalyzerManager(visible).Analyze(checked->m_ast, file_path, source_lines));
-					return own;
+					warnings.Append(StaticAnalyzerManager().Analyze(checked->m_ast, file_path, source_lines));
+					return {};
 				}
 			);
-			if (!crossings.has_value())
+			if (!analyzed.has_value())
 			{
-				return std::unexpected(std::move(crossings.error()));
+				return std::unexpected(std::move(analyzed.error()));
 			}
 
 			std::string ast_text;
@@ -291,7 +288,7 @@ namespace
 
 			MarmotResult::ReportResult<PublishedModuleInterface> published = run_stage("module interface", CompilationTimings::Phase::Interface, [&]()
 			{
-				return std::move(checked->m_exports).Publish(*lowered, *imports, input.m_source.m_use_imports, std::move(crossings).value(), source_lines);
+				return std::move(checked->m_exports).Publish(*lowered, *imports, input.m_source.m_use_imports, source_lines);
 			});
 			if (!published.has_value())
 			{

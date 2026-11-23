@@ -1,0 +1,10 @@
+module WorkerRejectsReachableGlobalRef
+import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt" }
+
+def cells = [ref 10];
+
+def Read = fn() -> Int => *cells[0];
+
+def Forward = fn() -> Int => Read();
+
+Concurrency::Spawn((), Forward);

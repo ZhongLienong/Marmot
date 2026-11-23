@@ -59,7 +59,6 @@ enum class CompilerWarningCode
 	NameShadowing,
 	UnusedLocal,
 	IntegerOverflow,
-	CellCrossesWorker
 };
 
 struct CompilerErrorLocation

@@ -1,0 +1,12 @@
+Compilation failed :( 
+Type Checker Error at test/concurrency/failure/constrained_callback_requires_transferable_captures.mmt:4
+  |
+4 | def Start = fn(cell: Ref<Int>) -> Array<Int> => Concurrency::ParallelMap([1, 2], fn(value: Int) -> Int => value + (*cell), 1);
+  |                                                                                                                             ^ Expected type 'transferable fn(Int) -> Int' but got 'fn(Int) -> Int'
+  |
+Type Checker Error at test/concurrency/failure/constrained_callback_requires_transferable_captures.mmt:8
+  |
+8 |     Concurrency::Spawn(value, fn(n: Int) -> Int => n + (*cell))
+  |     ^^^^^^^^^^^ Type fn(Int) -> Int does not satisfy constraint Transferable<fn(Int) -> Int> - no matching instance found
+  |
+  | A function crossing a worker boundary must have transferable captures. Use a Transferable constraint for callback parameters.

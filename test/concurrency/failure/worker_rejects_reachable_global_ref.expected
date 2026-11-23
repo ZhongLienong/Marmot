@@ -1,0 +1,9 @@
+error[InvalidWorkerTransfer]: References cannot cross worker boundaries.
+ --> test/concurrency/failure/worker_rejects_reachable_global_ref.mmt:10
+   |
+10 | Concurrency::Spawn((), Forward);
+   | References cannot cross worker boundaries.
+   |
+stack trace:
+  at main [module WorkerRejectsReachableGlobalRef] in test/concurrency/failure/worker_rejects_reachable_global_ref.mmt:10
+    Concurrency::Spawn((), Forward);

@@ -9,7 +9,7 @@ use IO.
 // A worker is given the globals its code can read, not all of them. A function
 // that reaches a worker later, through a channel, brings the globals it reads.
 
-def unused = [index for index in 0..1..100000];
+def unused = ref 0;
 
 // Reached through a global's value: ApplyTable reads `table`, which holds
 // AddOffset, which reads `offset`.
@@ -53,30 +53,3 @@ def runner = Concurrency::Spawn(functions, RunReceived);
 
 def sent = Concurrency::Send(functions, ReadSecret);
 PrintLine("through a channel: " ++ (Concurrency::JoinedOrPanic(Concurrency::Join(runner)) as Text));
-
-// A global brought twice is taken once, so the worker's writes to its copy of a
-// cell are what a function that arrives later sees.
-def counter = ref 0;
-
-def BumpCounter = fn() -> Int =>
-{
-    counter := (*counter) + 1;
-    *counter
-};
-
-def BumpThenRun = fn(ch: Channel<fn() -> Int>) -> Int =>
-{
-    def first = BumpCounter();
-    def received = Option::OptionUnwrapOrPanic(Concurrency::Receive(ch), "Channel closed");
-    (first * 10) + received()
-};
-
-def bumps: Channel<fn() -> Int> = Concurrency::MakeChannel(1);
-
-def bumper = Concurrency::Spawn(bumps, BumpThenRun);
-
-def bump_sent = Concurrency::Send(bumps, BumpCounter);
-PrintLine
-(
-    "one copy per worker: " ++ (Concurrency::JoinedOrPanic(Concurrency::Join(bumper)) as Text) ++ ", main still has " ++ (*counter as Text)
-);

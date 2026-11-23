@@ -1,10 +1,12 @@
 module SpawnDoesNotRerunImportsLib
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
-public export { Base }
+public export { Base, Scale }
 
 // A visible effect at module initialization. It must run once per program,
 // not once more inside every spawned worker.
 IO::PrintLine("SpawnDoesNotRerunImportsLib initialized");
 
 def Base: Int = 7;
+
+def Scale = fn(value: Int) -> Int => value * Base;

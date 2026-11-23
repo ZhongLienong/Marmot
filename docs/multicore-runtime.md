@@ -39,44 +39,35 @@ all cross this way.
 - `Text` — new allocation in target VM, bytes copied
 - `Array<T>` where `Transferable<T>` — new allocation, elements recursively transferred
 - `Channel<T>` where `Transferable<T>` — handle copy (process-wide registry index)
-- `Ref<T>` where `Transferable<T>` — **copied**: the worker gets its own cell, so
-  writes on either side are not seen by the other. The compiler warns
-  (`CellCrossesWorker`) wherever a cell is passed to `Spawn`, sent through a
-  channel, or passed to a function that hands that parameter to a worker, as
-  `ParallelMap` does its values; wherever a function that crosses captures one
-  or reads one as a global, itself or through a function of the same module it
-  calls; and wherever one comes back from a worker, through `Join` or a function
-  built on it. Which parameters a function hands across is found from its body,
-  across modules.
 
 **Derivable for user types**:
 - Structs and unions can `deriving (Transferable)` if all fields/variants satisfy `Transferable`
 - Tuples are transferable if all element types satisfy `Transferable`
 
 **Never transferable** (no `Transferable` instance):
+- `Ref<T>` — a reference belongs to the VM that allocated it
 - Ranges — semantically non-portable
 - `Worker<T>` — its handle belongs to the VM that spawned it
 
-**Functions** (`fn(A) -> B`) are transferable: a function crosses as its procedure
-index plus a copy of its captured values. The compiler checks the function's
-type at transfer sites. A copied capture or reachable global can carry a
-`Worker<T>` handle with its original owner. Using that handle with `Join`,
-`Cancel`, or `IsDone` from a different VM raises `InvalidWorkerHandle`.
+**Functions** cross as a procedure index and a copy of their captured values.
+The compiler infers transferability when every capture is transferable,
+including for functions with no captures. A `where Transferable<fn(A) -> B>`
+constraint requires transferable captures for callback parameters of that
+signature. A `Channel<fn(A) -> B>` accepts only transferable functions.
 
 Transferability is checked at compile time. Attempting to spawn with a
 non-transferable argument or create a `Channel<T>` where `T` lacks a
 `Transferable` instance produces a constraint-failure error.
 
-Once a closure is built, its captures stay fixed. If one is a `Ref<T>`, the
-receiving VM gets its own cell with a copy of the contents. The same rules
-apply to copied globals, functions passed to `Spawn`, and functions sent
-through channels.
+The VM also checks the values it serializes. A reference reached through a
+global or supplied by older bytecode causes `InvalidWorkerTransfer` during
+`Spawn` or `Send`. If a worker reaches a reference while serializing its result,
+`Join` reports `Err(WorkerError::Failed(...))`.
 
 Everything that crosses at once (a spawn's function and arguments, a message, a
 join's result) is one payload, a table of the objects it reaches in which each
 object is copied once and refers to the others by index. An object reached twice
-arrives as one copy, `Concurrency::Spawn((c, c), F)` gives the worker one cell,
-not two, and a cycle is an index pointing back. Copying runs from a worklist in
+arrives as one copy, and a cycle is an index pointing back. Copying runs from a worklist in
 both directions, so a structure of any depth, such as a long linked list, takes
 no native stack. Each value crosses as the kind the compiler gave it, a
 value's by its type, an array's elements by the array's flag and an
@@ -88,9 +79,9 @@ it reads and the procedures it calls or makes closures of, and follows those in
 turn, along with the closures inside each global it copies. A worker therefore
 starts with the globals its own code can read and no others, and a function
 that reaches it later, through a channel or a join, brings the ones it reads. A
-worker takes a global the first time a payload brings it and keeps that copy,
-so a cell held in a global is one cell for the whole worker; the VM that ran
-the program's initializers already holds every global and takes none.
+worker takes a global the first time a payload brings it and keeps that copy.
+Using a worker handle reached through a global from a different VM raises
+`InvalidWorkerHandle`.
 
 ## Concurrency Functions
 

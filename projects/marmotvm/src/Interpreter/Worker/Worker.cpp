@@ -98,7 +98,8 @@ std::expected<TransferPayload, WorkerError> Worker::Run(std::stop_token stop_tok
 		return std::unexpected(WorkerError{ execution_result.error().m_code == RuntimeErrorCode::WorkerCancelled, std::string(execution_result.error().m_message) });
 	}
 
-	return ValueTransfer::Serialize(worker_vm.PeekValue(), m_result_is_pointer, worker_vm);
+	return ValueTransfer::Serialize(worker_vm.PeekValue(), m_result_is_pointer, worker_vm)
+		.transform_error([](std::string_view message) { return WorkerError{ false, std::string(message) }; });
 }
 
 std::expected<TransferPayload, WorkerError> Worker::JoinValue()

@@ -2,13 +2,13 @@ module FunctionThroughChannel
 import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt", "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
 // A channel serializes what it carries, so a function travels through one the way
-// it travels to a worker: procedure index plus a copy of its captured cells.
+// it travels to a worker: procedure index plus a copy of its captured values.
 
-def scale = 3;
+def SendScaled = fn(ch: Channel<fn(Int) -> Int>, scale: Int) -> Bool => Concurrency::Send(ch, fn(n: Int) -> Int => n * scale);
 
 def channel: Channel<fn(Int) -> Int> = Concurrency::MakeChannel(1);
 
-Concurrency::Send(channel, fn(n: Int) -> Int => n * scale);
+SendScaled(channel, 3);
 
 def received = Option::OptionUnwrapOrPanic(Concurrency::Receive(channel), "Channel closed");
 IO::PrintLine("received applies: " ++ (received(14) as Text));

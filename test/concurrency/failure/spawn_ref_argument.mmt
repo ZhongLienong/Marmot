@@ -1,0 +1,6 @@
+module SpawnRefArgument
+import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt" }
+
+def Read = fn(cell: Ref<Int>) -> Int => *cell;
+
+Concurrency::Spawn(ref 10, Read);

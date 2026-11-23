@@ -75,7 +75,9 @@ bool InstanceTypeMatcher::Match(const TypeRef& pattern, const TypeRef& concrete)
 		}
 		const MarmotType::FunctionType& pattern_function = pattern->GetType<MarmotType::FunctionType>();
 		const MarmotType::FunctionType& concrete_function = concrete->GetType<MarmotType::FunctionType>();
-		return MatchAll(pattern_function.m_param_types, concrete_function.m_param_types) && Match(pattern_function.m_return_type, concrete_function.m_return_type);
+		return pattern_function.m_is_transferable == concrete_function.m_is_transferable
+			&& MatchAll(pattern_function.m_param_types, concrete_function.m_param_types)
+			&& Match(pattern_function.m_return_type, concrete_function.m_return_type);
 	}
 	if (pattern->IsType<MarmotType::StructType>())
 	{

@@ -24,9 +24,9 @@ def answers: Channel<Int> = Concurrency::MakeChannel(1);
 
 def target = Concurrency::Spawn(answers, WaitForAnswer);
 
-def CaptureJoin = fn(worker: Worker<Int>) -> fn() -> Int => fn() -> Int => Concurrency::JoinedOrPanic(Concurrency::Join(worker));
+def JoinGlobal = fn() -> Int => Concurrency::JoinedOrPanic(Concurrency::Join(target));
 
-def CaptureCancel = fn(worker: Worker<Int>) -> fn() -> Bool => fn() -> Bool => Concurrency::Cancel(worker);
+def CancelGlobal = fn() -> Bool => Concurrency::Cancel(target);
 
 def PollGlobal = fn() -> Bool =>
 {
@@ -34,10 +34,10 @@ def PollGlobal = fn() -> Bool =>
     Concurrency::IsDone(target)
 };
 
-Show("foreign cancel", Concurrency::Join(Concurrency::Spawn((), CaptureCancel(target))));
+Show("foreign cancel", Concurrency::Join(Concurrency::Spawn((), CancelGlobal)));
 Show("foreign poll", Concurrency::Join(Concurrency::Spawn((), PollGlobal)));
 Concurrency::Send(answers, 42);
-Show("foreign join", Concurrency::Join(Concurrency::Spawn((), CaptureJoin(target))));
+Show("foreign join", Concurrency::Join(Concurrency::Spawn((), JoinGlobal)));
 match Concurrency::Join(target) with
     case Result::Ok(value) => IO::PrintLine("owner joined " ++ (value as Text))
     case Result::Err(_) => IO::PrintLine("owner lost the result");

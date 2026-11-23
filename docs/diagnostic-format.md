@@ -210,6 +210,7 @@ Current `RuntimeErrorCode` values:
 - `WorkerCancelled`
 - `WorkerExited`
 - `InvalidWorkerHandle`
+- `InvalidWorkerTransfer`
 - `InvalidConversion`
 - `InternalFFITypeError`
 - `OutOfMemory`
@@ -222,7 +223,6 @@ Current `CompilerWarningCode` values:
 - `NameShadowing`
 - `UnusedLocal`
 - `IntegerOverflow`
-- `CellCrossesWorker`
 
 ## Examples by Severity
 
@@ -302,7 +302,6 @@ are emitted with the same shape as the full examples above.
 | `NameShadowing` | `StaticAnalyzer` | `Binding 'count' shadows an earlier definition.` |
 | `UnusedLocal` | `StaticAnalyzer` | `Binding 'unused' is never read.` |
 | `IntegerOverflow` | `StaticAnalyzer` | Constant integer arithmetic overflows its result type. |
-| `CellCrossesWorker` | `StaticAnalyzer` | `This reference is copied into the worker; writes on either side are not seen by the other.` |
 
 ### Compiler error codes
 
@@ -346,6 +345,7 @@ are emitted with the same shape as the full examples above.
 | `WorkerCancelled` | `Runtime` | `error` | `Worker cancelled.` |
 | `WorkerExited` | `Runtime` | `error` | `Worker exited.` This becomes a failed outcome when joined. |
 | `InvalidWorkerHandle` | `Runtime` | `error` | `Worker handle belongs to a different VM.` |
+| `InvalidWorkerTransfer` | `Runtime` | `error` | `References cannot cross worker boundaries.` |
 | `InvalidConversion` | `Runtime` | `error` | `'abc' is not a Float.` |
 | `OutOfMemory` | `Runtime` | `panic` | `Out of memory while allocating 80 bytes (the heap is full).` |
 

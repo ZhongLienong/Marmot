@@ -159,7 +159,7 @@ def result = doubler(21);
 	REQUIRE(lambda.m_param_types[0u]->IsType<MarmotType::IntegerType>());
 	REQUIRE(lambda.m_return_type->IsType<MarmotType::IntegerType>());
 	REQUIRE(doubler_definition->m_value->GetType()->IsType<MarmotType::FunctionType>());
-	REQUIRE(doubler_definition->m_value->GetType()->ToString() == "fn(Int) -> Int");
+	REQUIRE(doubler_definition->m_value->GetType()->ToString() == "transferable fn(Int) -> Int");
 
 	const MarmotStatement::VariableDefinition* result_definition = FindVariableDefinition(typecheck_result->m_program, "result");
 	REQUIRE(result_definition != nullptr);

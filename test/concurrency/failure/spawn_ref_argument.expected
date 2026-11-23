@@ -1,0 +1,7 @@
+Compilation failed :( 
+Type Checker Error at test/concurrency/failure/spawn_ref_argument.mmt:6
+  |
+6 | Concurrency::Spawn(ref 10, Read);
+  | ^^^^^^^^^^^ Type Ref<Int> does not satisfy constraint Transferable<Ref<Int>> - no matching instance found
+  |
+  | Send the referenced value or create a new reference in the worker.

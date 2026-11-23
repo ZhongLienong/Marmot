@@ -1,0 +1,10 @@
+module RefCannotEraseCallbackGuarantee
+import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt" }
+
+def Replace = fn(slot: Ref<fn() -> Int>, cell: Ref<Int>) -> Unit => {
+    slot := fn() -> Int => *cell;
+};
+
+def callback = ref(fn() -> Int => 0);
+Replace(callback, ref 10);
+Concurrency::Spawn((), *callback);

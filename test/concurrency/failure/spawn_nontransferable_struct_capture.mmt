@@ -1,0 +1,13 @@
+module SpawnNontransferableStructCapture
+import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt" }
+
+type Payload = {
+    value: Int
+};
+
+def Start = fn(payload: Payload) -> Worker<Int> => {
+    def read: fn() -> Int = fn() -> Int => payload.value;
+    Concurrency::Spawn((), read)
+};
+
+Start(Payload(10));
