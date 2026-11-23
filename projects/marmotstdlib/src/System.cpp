@@ -6,10 +6,11 @@
 #include <cerrno>
 #include <cstdlib>
 #include <cstring>
-#include <expected>
 #include <filesystem>
+#include <memory>
 #include <string>
 #include <system_error>
+#include <utility>
 #include <vector>
 
 #ifdef _WIN32
@@ -23,7 +24,7 @@
 #endif
 
 #ifndef __EMSCRIPTEN__
-#include <reproc/run.h>
+#include <reproc/drain.h>
 #endif
 
 namespace
@@ -45,6 +46,7 @@ namespace
 	using FFIAllocation::AllocateString;
 
 	thread_local SystemErrorState s_last_system_error{};
+	std::mutex s_execute_mutex;
 
 	void ClearLastSystemError()
 	{
@@ -89,34 +91,31 @@ namespace
 	}
 #endif
 
-	struct ProcessOutcome
+	MarmotFFIArray* RunProcess(const std::vector<const char*>& argv, const char* directory) noexcept
 	{
-		int m_exit_code = 0;
-		std::string m_output;
-		std::string m_error;
-	};
-
-#if defined(__EMSCRIPTEN__)
-	std::expected<ProcessOutcome, std::string> RunToCompletion(const std::vector<std::string>&, const std::string&)
-	{
-		return std::unexpected(std::string("WebAssembly cannot start a process."));
-	}
-#else
-	std::expected<ProcessOutcome, std::string> RunToCompletion(const std::vector<std::string>& arguments, const std::string& directory)
-	{
-		std::vector<const char*> argv;
-		argv.reserve(arguments.size() + 1u);
-		for (const std::string& argument : arguments)
+		std::shared_lock<std::shared_mutex> lock(MarmotProcessState::s_mutex);
+		std::error_code ec;
+		if (*directory != '\0' && !std::filesystem::is_directory(TextPath::FromText(directory), ec))
 		{
-			argv.push_back(argument.c_str());
+			SetLastSystemError(SystemErrorKind::InvalidDirectory, "Not a directory.");
+			return nullptr;
 		}
-		argv.push_back(nullptr);
 
+#ifdef __EMSCRIPTEN__
+		static_cast<void>(argv);
+		SetLastSystemError(SystemErrorKind::Unknown, "WebAssembly cannot start a process.");
+		return nullptr;
+#else
 		reproc_options options{};
-		options.working_directory = directory.empty() ? nullptr : directory.c_str();
+		options.working_directory = *directory == '\0' ? nullptr : directory;
 		options.redirect.in.type = REPROC_REDIRECT_DISCARD;
 		options.redirect.out.type = REPROC_REDIRECT_PIPE;
 		options.redirect.err.type = REPROC_REDIRECT_PIPE;
+
+		const std::unique_ptr<reproc_t, decltype(&reproc_destroy)> process(reproc_new(), reproc_destroy);
+		int status = process ? reproc_start(process.get(), argv.data(), options) : REPROC_ENOMEM;
+		// The child inherits the environment and directory at launch.
+		lock.unlock();
 
 		const auto append = [](REPROC_STREAM, const uint8_t* bytes, size_t size, void* target) -> int
 		{
@@ -127,43 +126,25 @@ namespace
 			return 0;
 		};
 
-		ProcessOutcome outcome;
-		const int status = reproc_run_ex(argv.data(), options, { append, &outcome.m_output }, { append, &outcome.m_error });
+		std::string output;
+		std::string error;
+		if (status >= 0)
+		{
+			status = reproc_drain(process.get(), { append, &output }, { append, &error });
+		}
+		if (status >= 0)
+		{
+			status = reproc_stop(process.get(), options.stop);
+		}
 		if (status < 0)
 		{
-			return std::unexpected(std::string(reproc_strerror(status)));
+			SetLastSystemError(SystemErrorKind::Unknown, reproc_strerror(status));
+			return nullptr;
 		}
 
-		outcome.m_exit_code = status;
-		return outcome;
-	}
+		ClearLastSystemError();
+		return FFIAllocation::AllocateStringArray({ std::to_string(status), std::move(output), std::move(error) });
 #endif
-
-	MarmotFFIArray* RunProcess(
-		const std::vector<std::string>& arguments,
-		std::string_view directory
-	) noexcept
-	{
-		std::error_code ec;
-		if (!directory.empty() && !std::filesystem::is_directory(TextPath::FromText(directory), ec))
-		{
-			SetLastSystemError(SystemErrorKind::InvalidDirectory, "Not a directory.");
-			return nullptr;
-		}
-
-		const std::expected<ProcessOutcome, std::string> outcome = RunToCompletion(arguments, std::string(directory));
-		if (outcome.has_value())
-		{
-			ClearLastSystemError();
-		}
-		else
-		{
-			SetLastSystemError(SystemErrorKind::Unknown, outcome.error());
-			return nullptr;
-		}
-
-		return FFIAllocation::AllocateStringArray(
-			{ std::to_string(outcome->m_exit_code), outcome->m_output, outcome->m_error });
 	}
 }
 
@@ -171,16 +152,16 @@ extern "C"
 {
 	MARMOT_FFI_EXPORT void MARMOT_FFI_CALL MARMOT_FFI_FUNC(RunProcess)(void** args, void* ret) noexcept
 	{
-		const std::shared_lock<std::shared_mutex> lock(MarmotProcessState::s_mutex);
 		const MarmotFFIArray& array = *static_cast<const MarmotFFIArray*>(args[0u]);
 		const char* const* data = static_cast<const char* const*>(array.data);
-		std::vector<std::string> arguments;
-		arguments.reserve(static_cast<size_t>(array.length));
+		std::vector<const char*> argv;
+		argv.reserve(static_cast<size_t>(array.length) + 1u);
 		for (int32_t index = 0; index < array.length; index += 1)
 		{
-			arguments.emplace_back(data[index]);
+			argv.push_back(data[index]);
 		}
-		MarmotFFIArray* result = RunProcess(arguments, static_cast<const char*>(args[1u]));
+		argv.push_back(nullptr);
+		MarmotFFIArray* result = RunProcess(argv, static_cast<const char*>(args[1u]));
 		std::memcpy(ret, &result, sizeof(result));
 	}
 
@@ -306,6 +287,8 @@ extern "C"
 
 	MARMOT_FFI_EXPORT void MARMOT_FFI_CALL MARMOT_FFI_FUNC(Execute)(void** args, void* ret) noexcept
 	{
+		// Concurrent system() calls can interfere with each other's signal handling.
+		const std::lock_guard<std::mutex> execute_lock(s_execute_mutex);
 		const std::shared_lock<std::shared_mutex> lock(MarmotProcessState::s_mutex);
 		const char* command = reinterpret_cast<const char*>(args[0u]);
 #ifdef _WIN32

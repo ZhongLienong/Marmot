@@ -1,42 +1,65 @@
 module Main
-
-import
-{
-    "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/Math.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/System.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt",
-    "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt",
-}
-use Result.{Result}
+import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../../projects/marmotstdlib/MarmotPrelude/DateTime.mmt", "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Math.mmt", "../../../projects/marmotstdlib/MarmotPrelude/System.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt", }
 
 foreign "MARMOT_FFI_ReadFile" Read: fn(Text) -> Text from "marmotstdlib";
-foreign "MARMOT_FFI_GetLastIOErrorKind" LastError: fn() -> Int from "marmotstdlib";
 
-def Work = fn(shouldFail: Bool) -> Text =>
-{
-    def path = if shouldFail
-        then "marmot-missing-worker-file-2bc407"
-        else "test/concurrency/success/stdlib_worker_errors.mmt";
-    Read(path);
-    System::SetEnv("MARMOT_STDLIB_WORKER_TEST", "value");
-    def directorySet = match System::TrySetCurrentDirectory(".") with
-        case Result::Ok(_) => true
-        case Result::Err(_) => false;
-    System::Sleep(20);
-    def value = match System::TryGetEnv("MARMOT_STDLIB_WORKER_TEST") with
-        case Option::Option::Some(text) => text == "value"
-        case Option::Option::None() => false;
-    (LastError() as Text) ++ ":" ++ ((directorySet && value) as Text) ++ ":" ++ (Math::SquareRoot(81.0) as Text)
+foreign "MARMOT_FFI_GetLastIOErrorKind" LastIOError: fn() -> Int from "marmotstdlib";
+
+foreign "MARMOT_FFI_GetLastIOErrorMessage" IOMessage: fn() -> Text from "marmotstdlib";
+
+foreign "MARMOT_FFI_GetEnv" GetEnv: fn(Text) -> Text from "marmotstdlib";
+
+foreign "MARMOT_FFI_GetLastSystemErrorKind" LastSystemError: fn() -> Int from "marmotstdlib";
+
+foreign "MARMOT_FFI_GetLastSystemErrorMessage" SystemMessage: fn() -> Text from "marmotstdlib";
+
+foreign "MARMOT_FFI_Execute" Execute: fn(Text) -> Int from "marmotstdlib";
+
+def present = "MARMOT_STDLIB_WORKER_TEST";
+
+def absent = "MARMOT_STDLIB_WORKER_MISSING_2BC407";
+
+def file = "test/concurrency/success/stdlib_worker_errors.mmt";
+
+def Work = fn(shouldFail: Bool, ready: Channel<Bool>, check: Channel<Bool>) -> Bool => {
+    Read(if shouldFail then "marmot-missing-worker-file-2bc407" else file);
+    def value = GetEnv(if shouldFail then absent else present);
+    Concurrency::Send(ready, true);
+    Concurrency::Receive(check);
+    def number = Math::RandomInt(5, 9);
+    def utc = DateTime::UtcNow();
+    def local = DateTime::FormatLocal("%Y");
+    def io = if shouldFail then (LastIOError() == 1) && (IOMessage() != "") else (LastIOError() == 0) && (IOMessage() == "");
+    def system = if shouldFail then (LastSystemError() == 1) && (SystemMessage() == absent) else (LastSystemError() == 0) && (SystemMessage() == "");
+    def expectedValue = if shouldFail then "" else "value";
+    def code = if shouldFail then 5 else 0;
+    def command = match System::CurrentPlatform() with
+        case System::Platform::Windows() => "cmd /c exit " ++ (code as Text)
+        case _ => "exit " ++ (code as Text);
+    def exitCode = Execute(command);
+    def randomInRange = (number >= 5) && (number <= 9);
+    def validDates = (utc.month >= 1) && (utc.month <= 12) && (local != "");
+    io && system && (value == expectedValue) && randomInRange && validDates && (exitCode == code)
 };
 
-def Show = fn(result: Result<Text, Concurrency::WorkerError>) -> Unit =>
-    match result with
-    case Result::Ok(message) => IO::PrintLine(message)
-    case Result::Err(_) => IO::PrintLine("failed");
+Result::ResultUnwrapOrPanic(System::SetEnv(present, "value"), "Set worker test environment");
+Read(file);
 
-def first = Concurrency::Spawn(true, Work);
-def second = Concurrency::Spawn(false, Work);
-Show(Concurrency::Join(first));
-Show(Concurrency::Join(second));
+def ready: Channel<Bool> = Concurrency::MakeChannel(2);
+
+def check: Channel<Bool> = Concurrency::MakeChannel(2);
+
+def first = Concurrency::Spawn((true, ready, check), Work);
+
+def second = Concurrency::Spawn((false, ready, check), Work);
+
+// Both workers set their error state before either reads it back.
+Concurrency::Receive(ready);
+Concurrency::Receive(ready);
+Concurrency::Send(check, true);
+Concurrency::Send(check, true);
+
+def failed = Concurrency::JoinedOrPanic(Concurrency::Join(first));
+
+def succeeded = Concurrency::JoinedOrPanic(Concurrency::Join(second));
+if failed && succeeded && (LastIOError() == 0) && (LastSystemError() == 0) then IO::PrintLine("stdlib worker errors: PASS") else Panic::Panic("Standard-library errors and results must stay local to each worker");

@@ -1,0 +1,67 @@
+module StdlibWorkerProcessState
+import { "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt", "../../../projects/marmotstdlib/MarmotPrelude/DateTime.mmt", "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/System.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Option.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Result.mmt", }
+use Result.
+{
+    Result
+}
+use System.
+{
+    Platform
+}
+
+def script = "import os, pathlib, sys, time\n" ++ "ready, release = map(pathlib.Path, sys.argv[1:])\n" ++ "ready.touch()\n" ++ "deadline = time.monotonic() + 5\n" ++ "while not release.exists():\n" ++ "    if time.monotonic() >= deadline: sys.exit(1)\n" ++ "    time.sleep(0.01)\n" ++ "print(os.environ['MARMOT_WORKER_CHILD_STATE'], pathlib.Path.cwd().name, end='')";
+
+def RunChild = fn(ready: Text, release: Text, root: Text) -> Bool => {
+    def python = match System::CurrentPlatform() with
+        case Platform::Windows() => "python"
+        case _ => "python3";
+    def inherited = match System::RunProcess([python, "-c", script, ready, release], "") with
+        case Result::Ok(output) => (output.exit_code == 0) && (output.stdout == "before success")
+        case Result::Err(_) => false;
+    def environment = Option::OptionUnwrapOrPanic(System::TryGetEnv("MARMOT_WORKER_CHILD_STATE"), "Read worker environment");
+    def directory = Result::ResultUnwrapOrPanic(System::CurrentDirectory(), "Read worker working directory");
+    inherited && (environment == "after") && (directory == root)
+};
+
+def WaitForFile = fn(path: Text, deadline: Int) -> Bool => if IO::FileExists(path) then true else if DateTime::NowMonotonicNanos() >= deadline then false else
+{
+    System::Sleep(10);
+    WaitForFile(path, deadline)
+};
+
+def root = Result::ResultUnwrapOrPanic(System::CurrentDirectory(), "Get test directory");
+
+def filename = root ++ "/.stdlib-worker-process-" ++ (System::CurrentProcessId() as Text);
+
+def ready = filename ++ "-ready";
+
+def release = filename ++ "-release";
+Result::ResultUnwrapOrPanic
+(
+    System::SetEnv("MARMOT_WORKER_CHILD_STATE", "before"),
+    "Set initial environment"
+);
+Result::ResultUnwrapOrPanic
+(
+    System::TrySetCurrentDirectory("test/concurrency/success"),
+    "Set initial directory"
+);
+
+def worker = Concurrency::Spawn((ready, release, root), RunChild);
+
+def started = WaitForFile(ready, DateTime::NowMonotonicNanos() + 5000000000);
+
+def env = System::SetEnv("MARMOT_WORKER_CHILD_STATE", "after");
+
+def directory = System::TrySetCurrentDirectory(root);
+
+def released = IO::TryWriteFile(release, "");
+
+def child = Concurrency::JoinedOrPanic(Concurrency::Join(worker));
+IO::TryDeleteFile(ready);
+IO::TryDeleteFile(release);
+
+Result::ResultUnwrapOrPanic(env, "Change the environment while the worker waits for its child");
+Result::ResultUnwrapOrPanic(directory, "Restore the working directory while the worker waits for its child");
+Result::ResultUnwrapOrPanic(released, "Release the child");
+if started && child then IO::PrintLine("stdlib worker process state: PASS") else Panic::Panic("The child must keep its launch environment and directory while the parent changes them");

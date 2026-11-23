@@ -34,6 +34,8 @@ namespace
 
 	std::tm GetUtcTime()
 	{
+		// Even gmtime_r can initialize libc's time zone state from the environment.
+		const std::shared_lock<std::shared_mutex> lock(MarmotProcessState::s_mutex);
 		const std::time_t now = std::time(nullptr);
 		std::tm utc_tm{};
 #ifdef _MSC_VER

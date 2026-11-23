@@ -3,8 +3,10 @@
 #include <mutex>
 #include <shared_mutex>
 
-// Environment and working directory are process-wide. Hold a shared lock
-// through operations that use them and an exclusive lock to change them.
+// All workers share one environment and working directory. Setters take an
+// exclusive lock. Readers hold a shared lock for the whole operation, including
+// copying getenv results, resolving relative paths, and launching a child.
+// Consecutive calls can observe different process state.
 namespace MarmotProcessState
 {
 	inline std::shared_mutex s_mutex;
