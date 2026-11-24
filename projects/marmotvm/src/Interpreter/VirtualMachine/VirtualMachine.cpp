@@ -958,8 +958,9 @@ void VirtualMachine::LocateStackOverflowAtInnermostCall() noexcept
 	m_instruction_pointer = m_call_stack_pointer->m_return_ip;
 }
 
-int VirtualMachine::IndexOutOfBounds(MarmotInteger index) noexcept
+int VirtualMachine::IndexOutOfBounds(MarmotInteger index, InstructionPointer ip, ValueStackPointer sp, ValueStackPointer bp, MarmotValue* env, MarmotTraceable* closure) noexcept
 {
+	SyncMachineState(ip, sp, bp, env, closure);
 	return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::IndexOutOfBounds, std::format("Index out of bounds at index: {}.", index), GetLine()));
 }
 
@@ -1375,44 +1376,34 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		MARMOT_HANDLER(GET_ARRAY)
 		{
-			MarmotValue& index = *(sp - 1);
+			const MarmotInteger index = (sp - 1)->GetInteger();
 			MarmotValue* arr_slot = sp - 2;
 			MarmotValue arr = *arr_slot;
 			MarmotArray& arr_ref = arr.GetPointer()->GetTraceable<MarmotArray>();
-			m_instruction_pointer = inst_ip;
 
-			int return_code = CheckIndexBounds(index, static_cast<MarmotInteger>(arr_ref.GetLength()));
-			if (return_code != 0)
+			if (IsIndexOutOfBounds(index, arr_ref.GetLength())) [[unlikely]]
 			{
-				m_value_stack_pointer = arr_slot;
-				m_value_stack_base_pointer = bp;
-				m_curr_environment = env;
-				return return_code;
+				return IndexOutOfBounds(index, inst_ip, arr_slot, bp, env, closure);
 			}
 
-			*arr_slot = arr_ref[static_cast<int>(index.GetInteger())];
+			*arr_slot = arr_ref[static_cast<int>(index)];
 			sp = arr_slot + 1;
 
 			break;
 		}
 		MARMOT_HANDLER(GET_TUPLE)
 		{
-			MarmotValue& index = *(sp - 1);
+			const MarmotInteger index = (sp - 1)->GetInteger();
 			MarmotValue* tuple_slot = sp - 2;
 			MarmotValue tuple_value = *tuple_slot;
 			MarmotTraceable* tuple_ref = tuple_value.GetPointer();
-			m_instruction_pointer = inst_ip;
 
-			int return_code = CheckIndexBounds(index, static_cast<MarmotInteger>(tuple_ref->GetLength()));
-			if (return_code != 0)
+			if (IsIndexOutOfBounds(index, tuple_ref->GetLength())) [[unlikely]]
 			{
-				m_value_stack_pointer = tuple_slot;
-				m_value_stack_base_pointer = bp;
-				m_curr_environment = env;
-				return return_code;
+				return IndexOutOfBounds(index, inst_ip, tuple_slot, bp, env, closure);
 			}
 
-			*tuple_slot = tuple_ref->GetValues()[static_cast<size_t>(index.GetInteger())];
+			*tuple_slot = tuple_ref->GetValues()[static_cast<size_t>(index)];
 			sp = tuple_slot + 1;
 
 			break;
@@ -2091,20 +2082,15 @@ int VirtualMachine::ExecuteLoop() noexcept
 		MARMOT_HANDLER(LOCAL_ARRAY_GET)
 		{
 			MarmotArray& arr_ref = (bp + static_cast<int>(ReadByte(ip)))->GetPointer()->GetTraceable<MarmotArray>();
-			MarmotValue& index = *(bp + static_cast<int>(ReadByte(ip)));
+			const MarmotInteger index = (bp + static_cast<int>(ReadByte(ip)))->GetInteger();
 			int target_index = static_cast<int>(ReadByte(ip));
-			m_instruction_pointer = inst_ip;
 
-			int return_code = CheckIndexBounds(index, static_cast<MarmotInteger>(arr_ref.GetLength()));
-			if (return_code != 0)
+			if (IsIndexOutOfBounds(index, arr_ref.GetLength())) [[unlikely]]
 			{
-				m_value_stack_pointer = sp;
-				m_value_stack_base_pointer = bp;
-				m_curr_environment = env;
-				return return_code;
+				return IndexOutOfBounds(index, inst_ip, sp, bp, env, closure);
 			}
 
-			*(bp + target_index) = arr_ref[static_cast<int>(index.GetInteger())];
+			*(bp + target_index) = arr_ref[static_cast<int>(index)];
 			break;
 		}
 		MARMOT_HANDLER(LOCAL_UNION2)

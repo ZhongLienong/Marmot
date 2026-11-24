@@ -396,19 +396,13 @@ private:
         ++sp;
     }
 
-	// Inline, since the out-of-line call cost more than the comparison; only
-	// the error is outlined.
-	MARMOT_FORCE_INLINE int CheckIndexBounds(const MarmotValue index, MarmotInteger size) noexcept
+	static MARMOT_FORCE_INLINE bool IsIndexOutOfBounds(MarmotInteger index, int size) noexcept
 	{
-		const MarmotInteger at = index.GetInteger();
-		if (at < 0ll || at >= size) [[unlikely]]
-		{
-			return IndexOutOfBounds(at);
-		}
-		return 0;
+		// Lengths are nonnegative, so negative indices also fail the unsigned comparison.
+		return static_cast<MarmotWord>(index) >= static_cast<MarmotWord>(size);
 	}
 
-	MARMOT_NOINLINE int IndexOutOfBounds(MarmotInteger index) noexcept;
+	MARMOT_NOINLINE int IndexOutOfBounds(MarmotInteger index, InstructionPointer ip, ValueStackPointer sp, ValueStackPointer bp, MarmotValue* env, MarmotTraceable* closure) noexcept;
 
 	MARMOT_NOINLINE int InvalidFloatConversion(MarmotFloat value, std::string_view destination) noexcept;
 
