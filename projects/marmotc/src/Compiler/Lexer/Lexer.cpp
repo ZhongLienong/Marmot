@@ -6,6 +6,46 @@
 
 using namespace std::string_literals;
 
+namespace
+{
+	unsigned HexDigitValue(char digit)
+	{
+		if (digit >= '0' && digit <= '9')
+		{
+			return static_cast<unsigned>(digit - '0');
+		}
+		return static_cast<unsigned>((digit | 0x20) - 'a' + 10);
+	}
+
+	void AppendUtf8(std::string& text, unsigned scalar)
+	{
+		const auto append = [&text](unsigned byte) { text += static_cast<char>(byte); };
+		if (scalar <= 0x7F)
+		{
+			append(scalar);
+			return;
+		}
+		if (scalar <= 0x7FF)
+		{
+			append(0xC0 | (scalar >> 6));
+		}
+		else
+		{
+			if (scalar <= 0xFFFF)
+			{
+				append(0xE0 | (scalar >> 12));
+			}
+			else
+			{
+				append(0xF0 | (scalar >> 18));
+				append(0x80 | ((scalar >> 12) & 0x3F));
+			}
+			append(0x80 | ((scalar >> 6) & 0x3F));
+		}
+		append(0x80 | (scalar & 0x3F));
+	}
+}
+
 template<typename Predicate>
 int Lexer::ConsumeWhile(Predicate&& pred)
 {
@@ -230,8 +270,9 @@ MarmotResult::VoidResult Lexer::SkipWhitespaceAndComments()
 	}
 }
 
-MarmotResult::TokenResult Lexer::MatchStringRecursive(std::string&& acc)
+MarmotResult::TokenResult Lexer::MatchString()
 {
+	std::string text;
 	while (true)
 	{
 		if (IsAtEnd(0))
@@ -242,66 +283,80 @@ MarmotResult::TokenResult Lexer::MatchStringRecursive(std::string&& acc)
 		if (LookAhead(0) == '"')
 		{
 			Advance();
-			return MakeToken(Token::Name::TEXT_LITERAL, std::move(acc));
+			return MakeToken(Token::Name::TEXT_LITERAL, std::move(text));
 		}
 
 		if (LookAhead(0) == '\n')
 		{
 			AdvanceLine();
-			acc += '\n';
+			text += '\n';
 			continue;
 		}
 
-		if (LookAhead(0) == '\\' && !IsAtEnd(1))
+		if (LookAhead(0) != '\\' || IsAtEnd(1))
 		{
-			const char escape_char = LookAhead(1);
-			char escaped_value;
-			bool add_backslash = false;
-
-			switch (escape_char)
-			{
-			case 't':
-				escaped_value = '\t';
-				break;
-			case 'n':
-				escaped_value = '\n';
-				break;
-			case 'b':
-				escaped_value = '\b';
-				break;
-			case 'f':
-				escaped_value = '\f';
-				break;
-			case '"':
-				escaped_value = '"';
-				break;
-			case '\\':
-				escaped_value = '\\';
-				break;
-			default:
-				add_backslash = true;
-				escaped_value = escape_char;
-				break;
-			}
-
-			if (add_backslash)
-			{
-				acc += '\\';
-			}
-			acc += escaped_value;
-
-			Advance(); // Skip the backslash
-			Advance(); // Skip the escape character
+			text += Advance();
 			continue;
 		}
 
-		acc += Advance();
-	}
-}
+		const int column = CurrentColumn();
+		const auto invalid_escape = [this, column](std::string_view message) -> MarmotResult::TokenResult
+		{
+			return std::unexpected(MarmotError::GenerateLexerErrorWithContext(message, m_cursor.m_line, column, m_source.m_file_name, m_source.m_lines));
+		};
+		Advance();
+		const char escape = Advance();
 
-MarmotResult::TokenResult Lexer::MatchString()
-{
-	return MatchStringRecursive(std::string{});
+		switch (escape)
+		{
+		case 't': text += '\t'; break;
+		case 'n': text += '\n'; break;
+		case 'b': text += '\b'; break;
+		case 'f': text += '\f'; break;
+		case 'r': text += '\r'; break;
+		case '0': text += '\0'; break;
+		case '"': text += '"'; break;
+		case '\\': text += '\\'; break;
+		case 'x':
+		{
+			if (!IsHexDigit(LookAhead(0)) || !IsHexDigit(LookAhead(1)))
+			{
+				return invalid_escape("Expected two hexadecimal digits after '\\x'.");
+			}
+			const unsigned high = HexDigitValue(Advance());
+			text += static_cast<char>((high << 4) | HexDigitValue(Advance()));
+			break;
+		}
+		case 'u':
+		{
+			if (!MatchNext('{') || !IsHexDigit(LookAhead(0)))
+			{
+				return invalid_escape("Expected a Unicode escape of the form '\\u{...}'.");
+			}
+			unsigned scalar = 0;
+			while (IsHexDigit(LookAhead(0)))
+			{
+				scalar = (scalar << 4) | HexDigitValue(Advance());
+				if (scalar > 0x10FFFF)
+				{
+					return invalid_escape("Unicode escape is outside the Unicode scalar range.");
+				}
+			}
+			if (!MatchNext('}'))
+			{
+				return invalid_escape("Expected '}' after the Unicode escape.");
+			}
+			if (scalar >= 0xD800 && scalar <= 0xDFFF)
+			{
+				return invalid_escape("Unicode escape is outside the Unicode scalar range.");
+			}
+			AppendUtf8(text, scalar);
+			break;
+		}
+		default:
+			return invalid_escape("Unknown string escape.");
+		}
+	}
 }
 
 MarmotResult::TokenResult Lexer::MatchNumber()

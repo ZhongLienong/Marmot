@@ -231,29 +231,7 @@ namespace
 		const std::string& lexeme = expr.GetExpression<MarmotExpression::Literal>().m_token.m_lexeme;
 		return !lexeme.empty()
 			&& std::isdigit(static_cast<unsigned char>(lexeme[0u])) != 0
-			&& !(lexeme.size() >= 2u && lexeme[0u] == '0' && (lexeme[1u] == 'x' || lexeme[1u] == 'X' || lexeme[1u] == 'b' || lexeme[1u] == 'B'));
-	}
-
-	std::unique_ptr<MarmotPattern> MakeNumericLiteralPattern(Token token)
-	{
-		const std::string& lexeme = token.m_lexeme;
-		if (lexeme.size() >= 3u && lexeme[0u] == '0' && (lexeme[1u] == 'x' || lexeme[1u] == 'X' || lexeme[1u] == 'b' || lexeme[1u] == 'B'))
-		{
-			// A lexeme too large for 64 bits is classified as Word; code generation reports it.
-			const uint64_t value = ParseUnsignedLiteral(lexeme).value_or(std::numeric_limits<uint64_t>::max());
-
-			if (value <= 0xFF)
-			{
-				return std::make_unique<MarmotPattern>(MarmotPattern::Literal(token, MarmotPattern::LiteralKind::Byte));
-			}
-			if (value <= static_cast<uint64_t>(std::numeric_limits<int64_t>::max()))
-			{
-				return std::make_unique<MarmotPattern>(MarmotPattern::Literal(token, MarmotPattern::LiteralKind::Integer));
-			}
-			return std::make_unique<MarmotPattern>(MarmotPattern::Literal(token, MarmotPattern::LiteralKind::Word));
-		}
-
-		return std::make_unique<MarmotPattern>(MarmotPattern::Literal(token, MarmotPattern::LiteralKind::Integer));
+			&& !IsPrefixedIntegerLiteral(lexeme);
 	}
 
 }
@@ -741,7 +719,7 @@ void Parser::CollectTopLevelNames()
 		const Token::Name name = it->m_token_name;
 		if (in_tuple_definition)
 		{
-			if (name == Token::Name::IDENTIFIER_LITERAL)
+			if (name == Token::Name::IDENTIFIER_LITERAL && !it->IsDiscard())
 			{
 				m_state.m_top_level_names.insert(it->m_lexeme);
 			}
@@ -772,7 +750,7 @@ void Parser::CollectTopLevelNames()
 		else if ((depth == 0) && (name == Token::Name::DEF) && (std::next(it) != end))
 		{
 			const Token& following = *std::next(it);
-			if (following.m_token_name == Token::Name::IDENTIFIER_LITERAL)
+			if (following.m_token_name == Token::Name::IDENTIFIER_LITERAL && !following.IsDiscard())
 			{
 				m_state.m_top_level_names.insert(following.m_lexeme);
 			}
@@ -1596,9 +1574,18 @@ MarmotResult::TokenResult Parser::DefineName(Token& name, bool is_variable)
 	return name;
 }
 
+MarmotResult::TokenResult Parser::DefineBinding(Token& name)
+{
+	if (name.IsDiscard())
+	{
+		return name;
+	}
+	return DefineName(name, true);
+}
+
 std::optional<BindingId> Parser::RegisterLocalBinding(const std::string& name)
 {
-	if (IsAtGlobalScope())
+	if (IsAtGlobalScope() || name == "_")
 	{
 		return std::nullopt;
 	}
@@ -1613,7 +1600,7 @@ FunctionParameters Parser::ParametersFor(std::vector<Token> names) const
 	bindings.reserve(names.size());
 	for (const Token& name : names)
 	{
-		bindings.push_back(m_state.m_scopes.back().m_variables.at(name.m_lexeme));
+		bindings.push_back(name.IsDiscard() ? nullptr : m_state.m_scopes.back().m_variables.at(name.m_lexeme));
 	}
 	return FunctionParameters(std::move(names), std::move(bindings), m_state.m_function);
 }
@@ -2034,6 +2021,10 @@ MarmotResult::ExpressionResult Parser::ParsePrimary()
 	}
 	else if (Match(Token::Name::IDENTIFIER_LITERAL))
 	{
+		if (Previous().IsDiscard())
+		{
+			return std::unexpected(GenerateParserError("'_' discards a value and cannot be read.", Previous()));
+		}
 		return MatchNameResolution()
 			.and_then
 			(
@@ -2152,36 +2143,12 @@ MarmotResult::ExpressionResult Parser::ParsePrimary()
 	else if (Match(Token::Name::INTEGER_LITERAL))
 	{
 		Token& token = Previous();
-		const std::string& lexeme = token.m_lexeme;
-
-		// Check if it's a hex or binary literal
-		if (lexeme.size() >= 3 && lexeme[0u] == '0' && (lexeme[1u] == 'x' || lexeme[1u] == 'X' || lexeme[1u] == 'b' || lexeme[1u] == 'B'))
+		std::unique_ptr<MarmotExpression> literal = std::make_unique<MarmotExpression>(MarmotExpression::Literal(token, MarmotExpression::LiteralKind::Integer));
+		if (IsPrefixedIntegerLiteral(token.m_lexeme))
 		{
-			// A lexeme too large for 64 bits is classified as Word; code generation reports it.
-			const uint64_t value = ParseUnsignedLiteral(lexeme).value_or(std::numeric_limits<uint64_t>::max());
-
-			// Determine type based on value
-			if (value <= 0xFF)
-			{
-				// Fits in Byte (0-255)
-				return std::make_unique<MarmotExpression>(MarmotExpression::Literal(token, MarmotExpression::LiteralKind::Byte));
-			}
-			else if (value <= static_cast<uint64_t>(std::numeric_limits<int64_t>::max()))
-			{
-				// Fits in signed Int
-				return std::make_unique<MarmotExpression>(MarmotExpression::Literal(token, MarmotExpression::LiteralKind::Integer));
-			}
-			else
-			{
-				// Needs Word (unsigned 64-bit)
-				return std::make_unique<MarmotExpression>(MarmotExpression::Literal(token, MarmotExpression::LiteralKind::Word));
-			}
+			return literal;
 		}
-		else
-		{
-			// Decimal literal - an Integer literal
-			return RejectExponent(std::make_unique<MarmotExpression>(MarmotExpression::Literal(token, MarmotExpression::LiteralKind::Integer)));
-		}
+		return RejectExponent(std::move(literal));
 	}
 	else if (Match(Token::Name::TEXT_LITERAL))
 	{
@@ -2572,9 +2539,7 @@ MarmotResult::ExpressionResult Parser::ParseForExpression()
 				(
 					[&]() -> MarmotResult::ExpressionResult
 					{
-						std::string var_name(loop_variable.m_lexeme);
-						std::optional<BindingId> binding = RegisterLocalBinding(var_name);
-						const BindingId loop_binding = binding.value();
+						const BindingId loop_binding = RegisterLocalBinding(loop_variable.m_lexeme).value_or(nullptr);
 
 						return ParseExpression()
 							.and_then
@@ -2689,7 +2654,7 @@ MarmotResult::ExpressionResult Parser::ParseArrayComprehension(Token& bracket, c
 			Token loop_variable = Peek(probe.m_loop_variable_offset.value());
 
 			// The transform is parsed first, so its loop binding must already exist.
-			loop_binding = RegisterLocalBinding(std::string(loop_variable.m_lexeme)).value();
+			loop_binding = RegisterLocalBinding(loop_variable.m_lexeme).value_or(nullptr);
 		}
 
 		return ParseExpression()
@@ -2724,11 +2689,6 @@ MarmotResult::ExpressionResult Parser::ParseArrayComprehension(Token& bracket, c
 									return std::unexpected(GenerateParserError("Expected ']' after array comprehension.", Peek(0)));
 								}
 
-								if (loop_binding < 0)
-								{
-									return std::unexpected(GenerateParserError("Internal error: array comprehension loop binding was not initialized.", actual_loop_var));
-								}
-
 								std::unique_ptr<MarmotExpression> comp_expr = std::make_unique<MarmotExpression>(MarmotExpression::ArrayComprehension(bracket, actual_loop_var, in_keyword, std::move(transform_expr), std::move(range)));
 
 								MarmotExpression::ArrayComprehension& comp_ref = comp_expr->GetExpression<MarmotExpression::ArrayComprehension>();
@@ -2759,9 +2719,7 @@ MarmotResult::StatementResult Parser::ParseDefineStatement()
 			}
 
 			Token var_name = std::move(name_result.value());
-			constexpr bool is_variable = true;
-
-			MarmotResult::TokenResult defined_name_result = DefineName(var_name, is_variable);
+			MarmotResult::TokenResult defined_name_result = DefineBinding(var_name);
 			if (!defined_name_result)
 			{
 				return std::unexpected(defined_name_result.error());
@@ -2791,7 +2749,10 @@ MarmotResult::StatementResult Parser::ParseDefineStatement()
 									{
 										for (const Token& name : names)
 										{
-											m_state.m_pending_definitions.emplace_back(name.m_lexeme, m_state.m_function);
+											if (!name.IsDiscard())
+											{
+												m_state.m_pending_definitions.emplace_back(name.m_lexeme, m_state.m_function);
+											}
 										}
 
 										return ParseExpression()
@@ -2823,8 +2784,7 @@ MarmotResult::StatementResult Parser::ParseDefineStatement()
 		(
 			[this](Token&& var_name) -> MarmotResult::StatementResult
 			{
-				constexpr bool is_variable = true;
-				return DefineName(var_name, is_variable)
+				return DefineBinding(var_name)
 					.and_then
 					(
 						[this](Token&& define_name) -> MarmotResult::StatementResult
@@ -2842,7 +2802,10 @@ MarmotResult::StatementResult Parser::ParseDefineStatement()
 												(
 													[&]() -> MarmotResult::StatementResult
 													{
-														m_state.m_pending_definitions.emplace_back(define_name.m_lexeme, m_state.m_function);
+														if (!define_name.IsDiscard())
+														{
+															m_state.m_pending_definitions.emplace_back(define_name.m_lexeme, m_state.m_function);
+														}
 														return ParseExpression()
 															.and_then
 															(
@@ -4292,7 +4255,7 @@ MarmotResult::PatternResult Parser::ParsePattern()
 		[this](std::unique_ptr<MarmotPattern>&& pattern) -> MarmotResult::PatternResult
 		{
 			const Token as = Previous();
-			if (!Match(Token::Name::IDENTIFIER_LITERAL) || Previous().m_lexeme == "_")
+			if (!Match(Token::Name::IDENTIFIER_LITERAL) || Previous().IsDiscard())
 			{
 				return std::unexpected(GenerateParserError("Expected a name after 'as' in a pattern.", as));
 			}
@@ -4478,7 +4441,7 @@ MarmotResult::PatternResult Parser::ParsePrimaryPattern()
 	if (Match(Token::Name::IDENTIFIER_LITERAL))
 	{
 		Token identifier = Previous();
-		if (identifier.m_lexeme == "_")
+		if (identifier.IsDiscard())
 		{
 			return std::make_unique<MarmotPattern>(MarmotPattern::Wildcard(identifier));
 		}
@@ -4573,7 +4536,7 @@ MarmotResult::PatternResult Parser::ParseNumericLiteralPattern()
 	{
 		Token literal = Previous();
 		literal.m_lexeme = sign + literal.m_lexeme;
-		return MakeNumericLiteralPattern(std::move(literal));
+		return std::make_unique<MarmotPattern>(MarmotPattern::Literal(literal, MarmotPattern::LiteralKind::Integer));
 	}
 	return std::unexpected(GenerateParserError("Expected numeric literal in pattern.", Peek(0)));
 }
@@ -4688,7 +4651,7 @@ MarmotResult::PatternResult Parser::ParseArrayRest(Token&& dots)
 	}
 
 	Token name = Previous();
-	if (name.m_lexeme == "_")
+	if (name.IsDiscard())
 	{
 		return std::make_unique<MarmotPattern>(MarmotPattern::Wildcard(name));
 	}
@@ -5496,7 +5459,7 @@ MarmotResult::FunctionParamsResult Parser::ParseFunctionParameters(bool allow_in
 					(
 						[this, allow_inferred_types](Token&& param_name) -> MarmotResult::FunctionParamResult
 						{
-							return DefineName(param_name, true)
+							return DefineBinding(param_name)
 								.and_then
 								(
 									[this, allow_inferred_types](Token&& param_name) -> MarmotResult::FunctionParamResult

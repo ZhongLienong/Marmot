@@ -155,7 +155,7 @@ Lowering::Emitted Lowering::ReserveTopLevelName(MarmotStatement& statement)
 
 		Emitted operator()(MarmotStatement::VariableDefinition& definition) const
 		{
-			if (definition.m_is_elided)
+			if (definition.m_is_elided || definition.m_name.IsDiscard())
 			{
 				return {};
 			}
@@ -181,6 +181,10 @@ Lowering::Emitted Lowering::ReserveTopLevelName(MarmotStatement& statement)
 			const std::vector<TypeRef>& element_types = GenericTypes::RepresentationOf(definition.m_value->GetType())->GetType<MarmotType::TupleType>().m_element_types;
 			for (size_t index = 0u; index < definition.m_names.size(); index += 1u)
 			{
+				if (definition.m_names[index].IsDiscard())
+				{
+					continue;
+				}
 				const std::string& name = definition.m_names[index].m_lexeme;
 				m_self.m_top_level_names.emplace(name, TopLevelName{ m_self.m_module.ReserveGlobal(name, element_types[index]), std::nullopt });
 			}
@@ -297,7 +301,7 @@ std::expected<std::string, CompilerError> Lowering::ForeignName(const MarmotStat
 	const MarmotType::FunctionType& signature = foreign.m_type->GetType<MarmotType::FunctionType>();
 	const TypeRef& return_type = signature.m_return_type;
 	const bool is_supported_return = return_type->IsType<MarmotType::IntegerType>() || return_type->IsType<MarmotType::FloatType>() || return_type->IsType<MarmotType::BoolType>() || return_type->IsType<MarmotType::UnitType>() || return_type->IsType<MarmotType::TextType>() || return_type->IsType<MarmotType::ArrayType>() || return_type->IsType<MarmotType::ByteType>() || return_type->IsType<MarmotType::WordType>();
-	if (!is_supported_return)
+	if (!is_supported_return && !(signature.m_intrinsic.has_value() && return_type->IsType<MarmotType::NeverType>()))
 	{
 		return std::unexpected(Error(CompilerErrorCode::LoweringUnsupportedConstruct, "Unsupported return type for foreign function", name));
 	}
@@ -399,7 +403,11 @@ std::vector<LoweredExport> Lowering::CollectExports() const
 	{
 		if (statement->IsStatement<MarmotStatement::VariableDefinition>())
 		{
-			export_name(statement->GetStatement<MarmotStatement::VariableDefinition>().m_name, BytecodeModule::SymbolType::GLOBAL_VARIABLE);
+			const Token& name = statement->GetStatement<MarmotStatement::VariableDefinition>().m_name;
+			if (!name.IsDiscard())
+			{
+				export_name(name, BytecodeModule::SymbolType::GLOBAL_VARIABLE);
+			}
 		}
 		else if (statement->IsStatement<MarmotStatement::ForeignDefinition>() && !statement->GetStatement<MarmotStatement::ForeignDefinition>().DeclaredPrimitive().has_value())
 		{

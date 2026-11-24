@@ -1,0 +1,5 @@
+module CStringArrayContainingNul
+
+foreign "MARMOT_FFI_RunProcess" RunProcess: fn(Array<Text>, Text) -> Array<Text> from "marmotstdlib";
+
+RunProcess(["marmot-unused-program", "before\0after"], "");

@@ -29,13 +29,13 @@ The type system provides:
 | `Byte` | 8-bit unsigned integer |
 | `Word` | 64-bit unsigned integer |
 | `Bool` | Built-in Boolean with the values `true` and `false` |
-| `Text` | UTF-8 string |
+| `Text` | UTF-8 text that can also hold raw bytes |
 | `Unit` | A type with one value, `()`; used when a result carries no payload |
 
-A decimal integer literal is an `Int`. A hex or binary literal is a `Byte` up to
-`0xFF`, an `Int` above it, and a `Word` past the largest `Int`, so `0x0F` is a
-`Byte` and `0x100` an `Int`; a smaller `Word` is written with `as Word`. Literals do not take their type from where
-they are used: to mask an `Int`, write `value & 255` or `value & (0xFF as Int)`.
+A decimal integer literal is an `Int`. A hex or binary literal takes the
+expected `Int`, `Word`, or `Byte` type if its value fits. Without such a
+context it defaults to `Int` when it fits and to `Word` above the largest
+`Int`. For example, `value & 0xFF` uses an `Int` mask if `value` is an `Int`.
 
 Integer arithmetic wraps: `Int` in two's complement, `Byte` and `Word` modulo
 2^8 and 2^64, so `9223372036854775807 + 1` is `-9223372036854775808`. Division
@@ -522,7 +522,9 @@ def pipeline_result =
 ```
 
 This is equivalent to matching on the result of the previous pipeline stage.
-In pattern position, `_` is a wildcard that ignores the matched value and does not bind a local. Outside patterns, `_` remains a valid identifier.
+In a `match` pattern, `_` ignores the matched value. Function parameters, `def`
+bindings, and loop binders can also use `_` to discard values. Each discard
+introduces no name, and `def _ = expression;` evaluates its initializer.
 
 ## Type Inference
 

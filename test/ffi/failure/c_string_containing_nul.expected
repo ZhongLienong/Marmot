@@ -1,0 +1,9 @@
+error[InvalidConversion]: Cannot pass foreign argument 1 as a C string because it contains a NUL byte.
+ --> test/ffi/failure/c_string_containing_nul.mmt:5
+  |
+5 | GetEnv("before/0after");
+  | Cannot pass foreign argument 1 as a C string because it contains a NUL byte.
+  |
+stack trace:
+  at main [module CStringContainingNul] in test/ffi/failure/c_string_containing_nul.mmt:5
+    GetEnv("before/0after");

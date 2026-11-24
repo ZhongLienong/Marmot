@@ -1,0 +1,6 @@
+Compilation failed :(
+Parser Error at test/definition/failure/discard_is_not_a_name.mmt:5
+  |
+5 | def Read = fn(_: Int) -> Int => _;
+  |                                 ^ '_' discards a value and cannot be read.
+  |

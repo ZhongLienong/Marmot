@@ -126,6 +126,22 @@ TEST_CASE("Lexer tokenizes literal variants and decodes string escapes", "[lexer
 	CHECK(tokens[12].m_lexeme == "line\n\t\"\\q");
 }
 
+TEST_CASE("Text escapes preserve bytes and reject malformed sequences", "[lexer]")
+{
+	const std::expected<MarmotTest::LexedSnippet, CompilerError> escaped =
+		MarmotTest::LexSnippet(R"("\r\0\x41\u{A2}\u{20AC}\u{1F600}\u{10FFFF}")");
+	REQUIRE(escaped.has_value());
+	CHECK(escaped->m_tokens[0].m_lexeme == std::string("\r\0" "A\xC2\xA2\xE2\x82\xAC\xF0\x9F\x98\x80\xF4\x8F\xBF\xBF", 16));
+
+	for (const std::string_view source : { R"("\q")", R"("\x0")", R"("\u{}")", R"("\u{123")", R"("\u{D800}")", R"("\u{110000}")" })
+	{
+		const std::expected<MarmotTest::LexedSnippet, CompilerError> invalid = MarmotTest::LexSnippet(std::string(source));
+		REQUIRE_FALSE(invalid.has_value());
+		REQUIRE(invalid.error().m_location.has_value());
+		CHECK(invalid.error().m_location->m_column == 1);
+	}
+}
+
 TEST_CASE("Lexer skips comments and preserves token line numbers", "[lexer]")
 {
 	const std::string source_code =

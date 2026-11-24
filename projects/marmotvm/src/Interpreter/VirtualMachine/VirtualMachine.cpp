@@ -1020,7 +1020,7 @@ MarmotValue VirtualMachine::TakeNativeResult(uint8_t return_tag, MarmotWord bits
 	return AllocateArray(std::move(copy), false);
 }
 
-MARMOT_FORCE_INLINE void VirtualMachine::PassForeignArgument(uint8_t kind, size_t index, MarmotValue argument) noexcept
+MARMOT_FORCE_INLINE bool VirtualMachine::PassForeignArgument(uint8_t kind, size_t index, MarmotValue argument) noexcept
 {
 	MarmotTraceable* pointer = argument.GetPointer();
 #if MARMOT_DEBUG_FULL
@@ -1038,7 +1038,7 @@ MARMOT_FORCE_INLINE void VirtualMachine::PassForeignArgument(uint8_t kind, size_
 	{
 	case MmcWire::FFI_ARGUMENT_C_STRING:
 		m_ffi_args[index] = (void*)pointer->GetTraceable<MarmotText>().CString();
-		break;
+		return m_ffi_args[index] != nullptr;
 	case MmcWire::FFI_ARGUMENT_ARRAY_VIEW:
 	{
 		const MarmotArray& array = pointer->GetTraceable<MarmotArray>();
@@ -1060,6 +1060,10 @@ MARMOT_FORCE_INLINE void VirtualMachine::PassForeignArgument(uint8_t kind, size_
 		for (int element = 0; element < array.GetLength(); element += 1)
 		{
 			strings[element] = array[element].GetPointer()->GetTraceable<MarmotText>().CString();
+			if (strings[element] == nullptr)
+			{
+				return false;
+			}
 		}
 		m_ffi_array_args[index] = MarmotFFIArray{strings.data(), array.GetLength()};
 		m_ffi_args[index] = &m_ffi_array_args[index];
@@ -1069,6 +1073,7 @@ MARMOT_FORCE_INLINE void VirtualMachine::PassForeignArgument(uint8_t kind, size_
 		m_ffi_args[index] = reinterpret_cast<void*>(static_cast<uintptr_t>(argument.GetRawBits()));
 		break;
 	}
+	return true;
 }
 
 void VirtualMachine::BuildGarbageCollectionRoots(GarbageCollector::GarbageCollectionRoots& roots) const noexcept
@@ -1265,7 +1270,7 @@ int VirtualMachine::ExecuteLoop() noexcept
 				{
 					m_string_literal_cache.resize(index + 1, nullptr);
 				}
-				m_string_literal_cache[index] = AllocateTraceable(MarmotText(m_executable->GetStringPool()[index].data()));
+				m_string_literal_cache[index] = AllocateTraceable(MarmotText(m_executable->GetStringPool()[index]));
 			}
 			// Shared by every load: lowering never extends a text literal in place.
 			Push(sp, m_string_literal_cache[index]);
@@ -2565,7 +2570,11 @@ int VirtualMachine::ExecuteLoop() noexcept
 			{
 				const int shift = MmcWire::FFI_ARGUMENT_BITS * i;
 				const uint8_t kind = (argument_kinds >> shift) & MmcWire::FFI_ARGUMENT_MASK;
-				PassForeignArgument(kind, static_cast<size_t>(i), Pop(sp));
+				if (!PassForeignArgument(kind, static_cast<size_t>(i), Pop(sp)))
+				{
+					SyncMachineState(ip, sp, bp, env, closure);
+					return TerminateExecution(GenerateRuntimeError(RuntimeErrorCode::InvalidConversion, std::format("Cannot pass foreign argument {} as a C string because it contains a NUL byte.", i + 1), GetLine()));
+				}
 			}
 			MarmotWord result = 0;
 			function->m_call(m_ffi_args.data(), &result);

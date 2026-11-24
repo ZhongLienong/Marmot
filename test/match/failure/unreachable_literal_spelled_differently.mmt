@@ -1,8 +1,8 @@
 module UnreachableLiteralSpelledDifferently
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
-// 0x100 is 256, so the second case matches nothing the first does not. (A hex
-// literal up to 0xFF is a Byte, so this one is past it to stay an Int.)
+// Both spellings describe the same Int, so the second case matches nothing
+// the first does not.
 
 def Describe = fn(n: Int) -> Text => match n with
     case 256 => "two hundred fifty-six"

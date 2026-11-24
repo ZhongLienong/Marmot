@@ -36,7 +36,7 @@ void UnusedLocalDiagnostic::FinishScope(const Scope& scope)
 
 void UnusedLocalDiagnostic::RegisterBinding(const Token& token, const std::optional<BindingId>& binding, bool suppressed)
 {
-	if (!binding.has_value())
+	if (!binding.has_value() || !binding.value())
 	{
 		return;
 	}

@@ -1,0 +1,5 @@
+module CStringContainingNul
+
+foreign "MARMOT_FFI_GetEnv" GetEnv: fn(Text) -> Text from "marmotstdlib";
+
+GetEnv("before\0after");

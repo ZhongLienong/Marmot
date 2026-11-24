@@ -150,8 +150,8 @@ hand.
 ### String literals
 
 - text literals always use double quotes
-- an unrecognized escape keeps its backslash. The formatter writes `\r` as
-  `\\r` so the two spellings decode to the same text
+- the formatter writes control characters and raw bytes outside valid UTF-8 as
+  escapes such as `\r`, `\0`, and `\xFF`. Unknown escapes are lexer errors
 
 ## Comment Rules
 

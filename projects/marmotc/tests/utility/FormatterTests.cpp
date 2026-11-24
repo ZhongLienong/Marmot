@@ -60,6 +60,14 @@ TEST_CASE("Formatter is idempotent for comment-bearing files", "[formatter]")
 	RequireIdempotent(source_code, "FormatterIdempotent.mmt");
 }
 
+TEST_CASE("Formatter round-trips NUL, carriage returns and raw bytes in text", "[formatter]")
+{
+	const std::string_view source = R"(def text = "\x00\u{D}\xFF";)";
+	const std::string formatted = FormatOrFail(source, "Escapes.mmt");
+	CHECK(formatted.contains(R"("\0\r\xFF")"));
+	RequireIdempotent(source, "Escapes.mmt");
+}
+
 TEST_CASE("Formatter distinguishes dereference from multiplication", "[formatter][reference]")
 {
 	const std::string source_code =

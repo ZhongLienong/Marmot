@@ -1,0 +1,31 @@
+module ContextualIntegerLiterals
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Numeric.mmt" }
+
+def defaulted = 0xFF + 0b1;
+
+def Mask = fn(value: Int) -> Int => value & 0xFF;
+
+def ReadByte = fn(value: Byte) -> Text => match value with
+    case 0xFF => "byte"
+    case _ => "other";
+
+def ReadInt = fn(value: Int) -> Text => match value with
+    case 0xFF => "int"
+    case -0xFF => "negative int"
+    case _ => "other";
+
+def ReadWord = fn(value: Word) -> Text => match (0b11 & value) with
+    case 0b11 => "word"
+    case _ => "other";
+
+def Shift = fn(value: Byte) -> Byte => value << 0x2;
+
+IO::PrintLine(defaulted as Text);
+IO::PrintLine(Mask(1000) as Text);
+IO::PrintLine(ReadByte(0b11111111));
+IO::PrintLine(ReadInt(0xFF));
+IO::PrintLine(ReadInt(-0xFF));
+IO::PrintLine(ReadWord(0xFF));
+IO::PrintLine(Shift(0x40) as Text);
+IO::PrintLine((0b1111 & 0xFFFFFFFFFFFFFFFF) as Text);
+IO::PrintLine((0xFFFFFFFFFFFFFFFF & 0b1111) as Text);

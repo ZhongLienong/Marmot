@@ -199,8 +199,8 @@ Run(3);
 TEST_CASE("Nothing is lowered to run after a call that returns Never", "[marmot_ir][lowering][never]")
 {
 	const LoweredModule lowered = RequireLowered(R"(module Stops
-foreign "MARMOT_FFI_Exit" ExitRaw: fn(Int) -> Unit;
-def Stop = fn(code: Int) -> Never => Stop(code);
+foreign "MARMOT_FFI_Exit" ExitRaw: fn(Int) -> Never;
+def Stop = fn(code: Int) -> Never => ExitRaw(code);
 def Check = fn(n: Int) -> Int => {
 	def checked = if n < 0 then Stop(1) else n;
 	checked + 1

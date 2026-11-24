@@ -9,7 +9,7 @@ use Concurrency.
     WorkerError
 }
 
-foreign "MARMOT_FFI_Exit" Exit: fn(Int) -> Unit;
+foreign "MARMOT_FFI_Exit" Exit: fn(Int) -> Never;
 
 foreign "MARMOT_FFI_Sleep" Sleep: fn(Int) -> Unit;
 
@@ -24,8 +24,8 @@ def words = Concurrency::JoinedOrPanic(Concurrency::Join(Concurrency::Spawn("mar
 if (#words == 2) && ((words[0] == "café") && (words[1] == "marmot")) then () else Panic::Panic("worker returned the wrong text array");
 
 def Stop = fn(code: Int) -> Int => {
-    Exit(code);
-    0
+    def exit = Exit;
+    exit(code)
 };
 
 match Concurrency::Join(Concurrency::Spawn(7, Stop)) with

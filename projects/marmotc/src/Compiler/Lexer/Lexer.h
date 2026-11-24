@@ -165,7 +165,6 @@ private:
 	template<typename Predicate>
 	int ConsumeWhile(Predicate&& pred);
 
-	MarmotResult::TokenResult MatchStringRecursive(std::string&& acc);
 
 	MarmotResult::VoidResult SkipLineComment();
 

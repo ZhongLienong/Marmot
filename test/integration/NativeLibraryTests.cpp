@@ -253,7 +253,7 @@ TEST_CASE("Pure prelude collections run without the reference native library", "
 	const std::string source = std::format(
 		"module Main\n"
 		"import {{ \"{}\", \"{}\" }}\n"
-		"foreign \"MARMOT_FFI_Exit\" Exit: fn(Int) -> Unit;\n"
+		"foreign \"MARMOT_FFI_Exit\" Exit: fn(Int) -> Never;\n"
 		"def empty: Map::Map<Text, Int> = Map::Empty();\n"
 		"def map = Map::With(empty, \"key\", 42);\n"
 		"if Map::GetOr(map, \"key\", 0) == 42 then () else Exit(1);\n",

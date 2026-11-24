@@ -3,6 +3,12 @@
 #include <charconv>
 #include <limits>
 
+bool IsPrefixedIntegerLiteral(std::string_view lexeme)
+{
+	return lexeme.size() >= 3u && lexeme[0u] == '0'
+		&& (lexeme[1u] == 'x' || lexeme[1u] == 'X' || lexeme[1u] == 'b' || lexeme[1u] == 'B');
+}
+
 std::optional<uint64_t> ParseUnsignedLiteral(std::string_view lexeme)
 {
 	int base = 10;
@@ -29,25 +35,19 @@ std::optional<uint64_t> ParseUnsignedLiteral(std::string_view lexeme)
 
 std::optional<int64_t> ParseIntegerLiteral(std::string_view lexeme)
 {
-	if (!lexeme.empty() && lexeme[0u] == '-')
-	{
-		int64_t value = 0;
-		const std::from_chars_result result = std::from_chars(lexeme.data(), lexeme.data() + lexeme.size(), value);
-		if (result.ec != std::errc() || result.ptr != lexeme.data() + lexeme.size())
-		{
-			return std::nullopt;
-		}
-
-		return value;
-	}
-
-	const std::optional<uint64_t> value = ParseUnsignedLiteral(lexeme);
-	if (!value.has_value() || value.value() > static_cast<uint64_t>(std::numeric_limits<int64_t>::max()))
+	const bool negative = lexeme.starts_with('-');
+	const std::optional<uint64_t> value = ParseUnsignedLiteral(negative ? lexeme.substr(1u) : lexeme);
+	constexpr uint64_t max_positive = static_cast<uint64_t>(std::numeric_limits<int64_t>::max());
+	if (!value.has_value() || value.value() > max_positive + negative)
 	{
 		return std::nullopt;
 	}
-
-	return static_cast<int64_t>(value.value());
+	if (value.value() > max_positive)
+	{
+		return std::numeric_limits<int64_t>::min();
+	}
+	const int64_t magnitude = static_cast<int64_t>(value.value());
+	return negative ? -magnitude : magnitude;
 }
 
 std::optional<double> ParseFloatLiteral(std::string_view lexeme)

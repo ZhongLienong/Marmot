@@ -110,12 +110,45 @@ namespace
 		return nullptr;
 	}
 
+	[[nodiscard]] size_t Utf8SequenceLength(std::string_view value)
+	{
+		const unsigned char first = static_cast<unsigned char>(value.front());
+		const size_t length = first < 0xC2 ? 0u : first <= 0xDF ? 2u : first <= 0xEF ? 3u : first <= 0xF4 ? 4u : 0u;
+		if (length == 0u || length > value.size())
+		{
+			return 0u;
+		}
+		const unsigned char second = static_cast<unsigned char>(value[1u]);
+		if ((first == 0xE0 && second < 0xA0) || (first == 0xED && second > 0x9F)
+			|| (first == 0xF0 && second < 0x90) || (first == 0xF4 && second > 0x8F))
+		{
+			return 0u;
+		}
+		for (const unsigned char byte : value.substr(1u, length - 1u))
+		{
+			if (byte < 0x80 || byte > 0xBF)
+			{
+				return 0u;
+			}
+		}
+		return length;
+	}
+
 	[[nodiscard]] std::string QuoteTextLiteral(std::string_view value)
 	{
 		std::string quoted;
 		quoted.push_back('"');
-		for (const char ch : value)
+		while (!value.empty())
 		{
+			const unsigned char ch = static_cast<unsigned char>(value.front());
+			const size_t utf8_length = ch >= 0x80 ? Utf8SequenceLength(value) : 0u;
+			if (utf8_length != 0u)
+			{
+				quoted.append(value.substr(0u, utf8_length));
+				value.remove_prefix(utf8_length);
+				continue;
+			}
+
 			switch (ch)
 			{
 			case '\\':
@@ -139,10 +172,21 @@ namespace
 			case '\f':
 				quoted += "\\f";
 				break;
+			case '\0':
+				quoted += "\\0";
+				break;
 			default:
-				quoted.push_back(ch);
+				if (ch < 0x20 || ch >= 0x7F)
+				{
+					quoted += std::format("\\x{:02X}", ch);
+				}
+				else
+				{
+					quoted.push_back(static_cast<char>(ch));
+				}
 				break;
 			}
+			value.remove_prefix(1u);
 		}
 		quoted.push_back('"');
 		return quoted;

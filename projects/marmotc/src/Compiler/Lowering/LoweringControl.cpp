@@ -594,7 +594,10 @@ std::expected<std::vector<MarmotIRValueId>, CompilerError> Lowering::FunctionLow
 		next_iterator = m_builder.Emit(MarmotIROp::TupleGet, pair_types[1u], { payload }, MarmotIRIndex{ 1u });
 	}
 
-	DefineLocal(loop_variable, element);
+	if (loop_variable)
+	{
+		DefineLocal(loop_variable, element);
+	}
 	std::expected<std::vector<MarmotIRValueId>, CompilerError> updated = body(header_carried);
 	if (!updated.has_value())
 	{

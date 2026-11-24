@@ -1,0 +1,20 @@
+module TextEscapes
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Prelude/Panic.mmt", "../../../projects/marmotstdlib/MarmotPrelude/TextUtil.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Concurrency.mmt" }
+
+def escaped = "A\0B\r€😀";
+
+def Check = fn(condition: Bool) -> Unit => if condition then () else Panic::Panic("Text did not preserve the escaped bytes");
+
+def Echo = fn(text: Text) -> Text => text;
+
+Check(escaped == ("A\0B\r" ++ "€😀"));
+Check(TextUtil::Length(escaped) == 6);
+Check("a\0b" != "a");
+Check(TextUtil::Substring(escaped, 1, 3) == "\0B");
+Check(TextUtil::Reverse("a\0b") == "b\0a");
+Check(TextUtil::Split("a\0b,c", ",")[0] == "a\0b");
+Check(TextUtil::Replace("a+b", "+", "\0") == "a\0b");
+Check(TextUtil::Trim(" \0b ") == "\0b");
+Check(TextUtil::Substring("x\xF0", 1, 2) == "\xF0");
+Check(Concurrency::JoinedOrPanic(Concurrency::Join(Concurrency::Spawn(escaped, Echo))) == escaped);
+IO::PrintLine("Text escapes preserved");

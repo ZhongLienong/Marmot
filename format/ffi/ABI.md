@@ -51,6 +51,9 @@ eight-byte slot owned by the VM.
 | 2 | Pointer to a `MarmotFFIArray` containing eight-byte scalar slots |
 | 3 | Pointer to a `MarmotFFIArray` containing `const char*` entries for `Array<Text>` |
 
+The VM rejects embedded NUL bytes in C-string arguments, including individual
+strings in `Array<Text>`, with `InvalidConversion`.
+
 `MarmotFFIArray` contains `void* data` followed by `int32_t length`, with
 the platform's natural struct padding. `length` counts elements. An empty
 array may have a null data pointer. Arrays containing other Marmot objects

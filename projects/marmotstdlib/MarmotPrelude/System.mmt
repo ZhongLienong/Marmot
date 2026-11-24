@@ -26,7 +26,7 @@ type ProcessOutput =
     stderr: Text
 };
 
-foreign "MARMOT_FFI_Exit" ExitRaw: fn(Int) -> Unit;
+foreign "MARMOT_FFI_Exit" ExitRaw: fn(Int) -> Never;
 
 foreign "MARMOT_FFI_GetEnv" GetEnvRaw: fn(Text) -> Text from "marmotstdlib";
 
@@ -52,7 +52,7 @@ foreign "MARMOT_FFI_GetLastSystemErrorKind" GetLastSystemErrorKindRaw: fn() -> I
 
 foreign "MARMOT_FFI_GetLastSystemErrorMessage" GetLastSystemErrorMessageRaw: fn() -> Text from "marmotstdlib";
 
-def Exit = fn(code: Int) -> Unit => ExitRaw(code);
+def Exit = fn(code: Int) -> Never => ExitRaw(code);
 
 def Sleep = fn(milliseconds: Int) -> Unit => SleepRaw(milliseconds);
 

@@ -207,7 +207,7 @@ namespace
 			{
 				[&target_vm](const SerializedObject::Text& text) -> MarmotTraceable*
 				{
-					return target_vm.AllocateTraceable(MarmotText(text.m_text.c_str()));
+					return target_vm.AllocateTraceable(MarmotText(text.m_text));
 				},
 				[&target_vm](const SerializedObject::Array& array) -> MarmotTraceable*
 				{

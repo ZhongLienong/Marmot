@@ -32,6 +32,7 @@ enum class MarmotLiteralKind
 // Value of an Integer, Byte or Word literal lexeme: decimal, `0x` hexadecimal or `0b`
 // binary. Nothing when the lexeme is malformed or does not fit in 64 unsigned bits.
 std::optional<uint64_t> ParseUnsignedLiteral(std::string_view lexeme);
+bool IsPrefixedIntegerLiteral(std::string_view lexeme);
 
 // Value of an Integer literal lexeme. Also accepts a leading '-', which the parser
 // writes for a negative literal pattern. Nothing when the value does not fit in a

@@ -255,6 +255,7 @@ public:
 	MarmotText();
 
 	MarmotText(const char* str);
+	explicit MarmotText(std::string_view text);
 
 	MarmotText(const MarmotText& other);
 
@@ -281,6 +282,7 @@ public:
 
 	// The text's bytes followed by a NUL, for what reads a C string: a
 	// foreign function, a C API.
+	// Returns null if the Text cannot be passed as a NUL-terminated string.
 	const char* CString();
 
 	MarmotText& Pop();

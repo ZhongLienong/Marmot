@@ -141,7 +141,7 @@ Public system entry points:
 - `RunProcess(arguments, directory) -> Result<ProcessOutput, SystemError>`: runs `arguments[0]` from `PATH` with the rest passed exactly, no shell, in `directory` (the current one when empty) with nothing on its input. A program that ran is `Ok` whatever its `exit_code`, with its `stdout` and `stderr` kept apart
 - `Arguments() -> Array<Text>`: what the program was started with. `marmotvm run`, `marmot run` and `dev.py run` give it everything after `--`; a standalone executable gives it everything after its name
 - `CurrentPlatform`, `CurrentProcessId`
-- `Exit`, `Sleep`
+- `Exit(code: Int) -> Never`, `Sleep`
 
 The raw foreign declarations remain module-internal implementation details and are not the public API to build against.
 

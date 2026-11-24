@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/literal/failure/prefixed_literal_out_of_byte_range.mmt:3
+  |
+3 | def oversized: Byte = 0x100;
+  |                       ^^^^^ Integer literal is out of range for Byte (0 to 255).
+  |

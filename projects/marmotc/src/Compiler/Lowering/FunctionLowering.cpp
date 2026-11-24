@@ -235,6 +235,10 @@ Lowering::Emitted Lowering::FunctionLowering::LowerTopLevelStatement(const Marmo
 	}
 
 	const MarmotStatement::VariableDefinition& definition = statement.GetStatement<MarmotStatement::VariableDefinition>();
+	if (definition.m_name.IsDiscard())
+	{
+		return LowerLocalDefinition(definition);
+	}
 	if (definition.m_is_elided)
 	{
 		return {};
@@ -346,6 +350,10 @@ Lowering::Emitted Lowering::FunctionLowering::LowerStatement(const MarmotStateme
 
 Lowering::Emitted Lowering::FunctionLowering::LowerLocalDefinition(const MarmotStatement::VariableDefinition& definition)
 {
+	if (definition.m_name.IsDiscard())
+	{
+		return Lower(*definition.m_value).transform([](MarmotIRValueId) {});
+	}
 	if (definition.m_is_elided)
 	{
 		return {};
@@ -378,6 +386,10 @@ Lowering::Emitted Lowering::FunctionLowering::LowerTupleDefinition(const MarmotS
 				m_builder.AtLine(line);
 				for (size_t index = 0u; index < definition.m_names.size(); index += 1u)
 				{
+					if (definition.m_names[index].IsDiscard())
+					{
+						continue;
+					}
 					const MarmotIRValueId element = is_dead
 						? Placeholder(UnitType())
 						: m_builder.Emit(MarmotIROp::TupleGet, GenericTypes::RepresentationOf(m_function.TypeOf(tuple))->GetType<MarmotType::TupleType>().m_element_types[index], { tuple }, MarmotIRIndex{ static_cast<uint32_t>(index) }, definition.m_names[index].m_lexeme);
@@ -452,7 +464,10 @@ Lowering::Emitted Lowering::FunctionLowering::LowerBody(const std::vector<TypeRe
 	for (size_t index = 0u; index < params.Size(); index += 1u)
 	{
 		const MarmotIRValueId parameter = m_builder.AddParameter(MarmotIRFunction::s_entry_block, param_types[index], params.DisplayName(index));
-		m_locals.emplace(params.BindingAt(index), parameter);
+		if (const BindingId& binding = params.BindingAt(index))
+		{
+			m_locals.emplace(binding, parameter);
+		}
 	}
 	return LowerReturn(body);
 }
@@ -682,7 +697,14 @@ Lowering::Lowered Lowering::FunctionLowering::LowerForeignValue(const MarmotExpr
 		arguments.insert(arguments.begin(), child.m_builder.Emit(MarmotIROp::GlobalGet, TextType(), {}, slot.value()));
 	}
 	const MarmotIRValueId result = child.m_builder.Emit(MarmotIROp::CallForeign, signature.m_return_type, std::move(arguments), target);
-	child.m_builder.Return(result);
+	if (IsNever(signature.m_return_type))
+	{
+		child.m_builder.Unreachable();
+	}
+	else
+	{
+		child.m_builder.Return(result);
+	}
 	return MakeClosure(child, closure_type, name.m_line);
 }
 

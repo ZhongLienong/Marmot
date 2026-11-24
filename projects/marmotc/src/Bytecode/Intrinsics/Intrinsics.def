@@ -1,7 +1,7 @@
 // Generated from format/mmc/registry.json. Do not edit.
 // Regenerate: python scripts/dev.py generate-mmc
 
-MARMOT_INTRINSIC(Exit, "Unit", "Int")
+MARMOT_INTRINSIC(Exit, "Never", "Int")
 MARMOT_INTRINSIC(Sleep, "Unit", "Int")
 MARMOT_INTRINSIC(ArrayConcat, "Array<T>", "Array<T>", "Array<T>")
 MARMOT_INTRINSIC(ArrayLength, "Int", "Array<T>")

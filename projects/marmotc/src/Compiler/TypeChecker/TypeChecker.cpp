@@ -1,7 +1,9 @@
 #include <algorithm>
+#include <array>
 #include <format>
 #include <functional>
 #include <iterator>
+#include <limits>
 #include <ranges>
 #include <unordered_set>
 #include <type_traits>
@@ -23,6 +25,24 @@ namespace
 {
 	template <typename>
 	inline constexpr bool AlwaysFalse = false;
+
+	const MarmotLiteral* ContextualInteger(const MarmotExpression& expression)
+	{
+		const MarmotExpression* operand = &expression;
+		while (operand->IsExpression<MarmotExpression::Group>())
+		{
+			operand = operand->GetExpression<MarmotExpression::Group>().m_expr_in.get();
+		}
+		if (operand->IsLiteral(MarmotLiteralKind::Integer))
+		{
+			const MarmotLiteral& literal = operand->GetExpression<MarmotExpression::Literal>();
+			if (IsPrefixedIntegerLiteral(literal.m_token.m_lexeme))
+			{
+				return &literal;
+			}
+		}
+		return nullptr;
+	}
 
 	void ApplyTransferableParameterConstraints(MarmotType::FunctionType& signature)
 	{
@@ -1573,12 +1593,19 @@ void TypeChecker::BindParameters(const CheckingContext& context, const FunctionP
 {
 	for (size_t index = 0u; index < parameters.Size(); index += 1u)
 	{
-		context.m_scope->m_bindings.emplace(parameters.BindingAt(index), types[index]);
+		if (const BindingId& binding = parameters.BindingAt(index))
+		{
+			context.m_scope->m_bindings.emplace(binding, types[index]);
+		}
 	}
 }
 
 void TypeChecker::BindValue(const CheckingContext& context, const Token& name, const std::optional<BindingId>& binding, std::shared_ptr<MarmotType> type)
 {
+	if (name.IsDiscard())
+	{
+		return;
+	}
 	if (binding.has_value())
 	{
 		context.m_scope->m_bindings.insert_or_assign(binding.value(), std::move(type));
@@ -1739,19 +1766,13 @@ MarmotResult::TypeResult TypeChecker::CheckPattern(const CheckingContext& contex
 			}
 			else if constexpr (std::is_same_v<Node, MarmotPattern::Literal>)
 			{
-				MarmotResult::TypeResult type = CheckLiteral(node);
+				MarmotResult::TypeResult type = CheckLiteral(node, resolved_expected);
 				if (!type.has_value())
 				{
 					return type;
 				}
 				node.m_type_data = std::move(*type);
 
-				// Literals do not take their type from where they are used, so a hex or
-				// binary literal up to 0xFF is a Byte even against an Int.
-				if (node.m_kind == MarmotPattern::LiteralKind::Byte && resolved_expected->IsType<MarmotType::IntegerType>())
-				{
-					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, std::format("Pattern type error: '{}' is a Byte, since a hex or binary literal up to 0xFF is one; write {} to match an Int", node.m_token.m_lexeme, ParseUnsignedLiteral(node.m_token.m_lexeme).value()), node.m_token, m_file_name, m_source_lines));
-				}
 				return Unify(context, node.m_token, node.m_type_data, resolved_expected, UnifyDiagnosticMode::ActualExpected)
 					.and_then([&node](std::shared_ptr<MarmotType>&&) -> MarmotResult::TypeResult { return node.m_type_data; });
 			}
@@ -2459,6 +2480,10 @@ void TypeChecker::CollectLaterDefinitions()
 		if (statement->IsStatement<MarmotStatement::VariableDefinition>())
 		{
 			const MarmotStatement::VariableDefinition& def = statement->GetStatement<MarmotStatement::VariableDefinition>();
+			if (def.m_name.IsDiscard())
+			{
+				continue;
+			}
 			if (def.m_annotated_type.has_value())
 			{
 				m_later_definitions[def.m_name.m_lexeme] = GlobalAnnotation(def);
@@ -2491,7 +2516,10 @@ void TypeChecker::CollectLaterDefinitions()
 		{
 			for (const Token& name : statement->GetStatement<MarmotStatement::TupleDefinition>().m_names)
 			{
-				m_later_unannotated.insert(name.m_lexeme);
+				if (!name.IsDiscard())
+				{
+					m_later_unannotated.insert(name.m_lexeme);
+				}
 			}
 		}
 	}
@@ -2512,13 +2540,20 @@ void TypeChecker::RecordFailedDefinition(const MarmotStatement& statement)
 {
 	if (statement.IsStatement<MarmotStatement::VariableDefinition>())
 	{
-		m_failed_definitions.insert(statement.GetStatement<MarmotStatement::VariableDefinition>().m_name.m_lexeme);
+		const Token& name = statement.GetStatement<MarmotStatement::VariableDefinition>().m_name;
+		if (!name.IsDiscard())
+		{
+			m_failed_definitions.insert(name.m_lexeme);
+		}
 	}
 	else if (statement.IsStatement<MarmotStatement::TupleDefinition>())
 	{
 		for (const Token& name : statement.GetStatement<MarmotStatement::TupleDefinition>().m_names)
 		{
-			m_failed_definitions.insert(name.m_lexeme);
+			if (!name.IsDiscard())
+			{
+				m_failed_definitions.insert(name.m_lexeme);
+			}
 		}
 	}
 }
@@ -2890,7 +2925,7 @@ TypeChecker::TypeEnvironment TypeChecker::ExtractTypeSignatures(const MarmotProg
 				}
 				else if constexpr (std::is_same_v<Node, MarmotStatement::VariableDefinition>)
 				{
-					if (exported_symbols == nullptr || exported_symbols->contains(stmt.m_name.m_lexeme))
+					if (!stmt.m_name.IsDiscard() && (exported_symbols == nullptr || exported_symbols->contains(stmt.m_name.m_lexeme)))
 					{
 						if (stmt.m_annotated_type.has_value())
 						{
@@ -3133,6 +3168,17 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 	if (def.m_annotated_type.has_value())
 	{
 		def.m_annotated_type = InstantiateWrittenType(context, def.m_annotated_type.value());
+	}
+
+	if (def.m_name.IsDiscard())
+	{
+		const CheckingContext initializer_context = context.WithExpectedType(def.m_annotated_type.value_or(nullptr));
+		MarmotResult::TypeResult value = Evaluate(initializer_context, def.m_value);
+		if (value.has_value() && def.m_annotated_type.has_value())
+		{
+			return Unify(initializer_context, def.m_name, def.m_annotated_type.value(), value.value(), UnifyDiagnosticMode::ExpectedActual);
+		}
+		return value;
 	}
 
 	// Special handling for functions (scope management required)
@@ -4476,38 +4522,6 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 		);
 }
 
-// A hex or binary literal up to 0xFF is a Byte: it is how a Byte is written.
-// Beside an Int, the plain mismatch reads as a mistake in the other operand.
-std::optional<CompilerError> TypeChecker::ByteLiteralBesideInt(const CheckingContext& context, const MarmotExpression::Binary& binary, const std::shared_ptr<MarmotType>& left_type, const std::shared_ptr<MarmotType>& right_type)
-{
-	const std::shared_ptr<MarmotType> resolved_left = ApplySubstitution(context, left_type);
-	const std::shared_ptr<MarmotType> resolved_right = ApplySubstitution(context, right_type);
-	const std::function<const MarmotExpression::Literal*(const std::unique_ptr<MarmotExpression>&, const std::shared_ptr<MarmotType>&)> byte_literal_facing_int =
-		[](const std::unique_ptr<MarmotExpression>& operand, const std::shared_ptr<MarmotType>& other_type) -> const MarmotExpression::Literal*
-		{
-			if (!other_type->IsType<MarmotType::IntegerType>() || !operand->IsExpression<MarmotExpression::Literal>())
-			{
-				return nullptr;
-			}
-
-			const MarmotExpression::Literal& literal = operand->GetExpression<MarmotExpression::Literal>();
-			return literal.m_kind == MarmotExpression::LiteralKind::Byte ? &literal : nullptr;
-		};
-
-	const MarmotExpression::Literal* literal = byte_literal_facing_int(binary.m_left, resolved_right);
-	if (literal == nullptr)
-	{
-		literal = byte_literal_facing_int(binary.m_right, resolved_left);
-	}
-	if (literal == nullptr)
-	{
-		return std::nullopt;
-	}
-
-	const std::string& lexeme = literal->m_token.m_lexeme;
-	return MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeMismatch, std::format("'{0}' is a Byte: a hex or binary literal up to 0xFF is how a Byte is written. For an Int here, write {1}, or {0} as Int.", lexeme, ParseUnsignedLiteral(lexeme).value()), literal->m_token, m_file_name, m_source_lines);
-}
-
 MarmotResult::TypeResult TypeChecker::CheckRefNew(const CheckingContext& context, const Token& token, const std::unique_ptr<MarmotExpression>& value)
 {
 	std::shared_ptr<MarmotType> expected_element = nullptr;
@@ -4590,30 +4604,69 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 			);
 	}
 
-	// A comparison's result is Bool whatever its operands are, so the type
-	// demanded of it says nothing about them: `C(1) == C(2)` where a Bool is
-	// expected was checked as if C(1) had to be a Bool.
-	const Token::Name op_name = binary.m_op.m_token_name;
-	const bool compares = op_name == Token::Name::DOUBLE_EQUAL || op_name == Token::Name::BANG_EQUAL
-		|| op_name == Token::Name::LEFT_ANGLE || op_name == Token::Name::LESS_EQUAL
-		|| op_name == Token::Name::RIGHT_ANGLE || op_name == Token::Name::GREATER_EQUAL;
-	const CheckingContext operand_context = compares ? context.WithExpectedType(nullptr) : context;
+	return CheckBinaryOperands(context, binary.m_op.m_token_name, binary.m_left, binary.m_right)
+		.and_then([&](BinaryOperandTypes&& operands)
+		{
+			return CheckBinaryOperator(context, binary, operands[0u], operands[1u]);
+		});
+}
 
-	return Evaluate(operand_context, binary.m_left)
-		.and_then
-		(
-			[&binary, this, &operand_context](std::shared_ptr<MarmotType>&& left_type) -> MarmotResult::TypeResult
-			{
-				return Evaluate(operand_context, binary.m_right)
-					.and_then
-					(
-						[&left_type, &binary, this, &operand_context](std::shared_ptr<MarmotType>&& right_type) -> MarmotResult::TypeResult
-						{
-							return CheckBinaryOperator(operand_context, binary, left_type, right_type);
-						}
-					);
-			}
-		);
+std::expected<TypeChecker::BinaryOperandTypes, CompilerError> TypeChecker::CheckBinaryOperands(
+	const CheckingContext& context, Token::Name op,
+	const std::unique_ptr<MarmotExpression>& left, const std::unique_ptr<MarmotExpression>& right)
+{
+	// Comparisons return Bool independently of their operand types. Shifts
+	// always take an Int amount, regardless of the type being shifted.
+	const bool compares = op == Token::Name::DOUBLE_EQUAL || op == Token::Name::BANG_EQUAL
+		|| op == Token::Name::LEFT_ANGLE || op == Token::Name::LESS_EQUAL
+		|| op == Token::Name::RIGHT_ANGLE || op == Token::Name::GREATER_EQUAL;
+	const CheckingContext operand_context = compares ? context.WithExpectedType(nullptr) : context;
+	const bool shifts = op == Token::Name::LEFT_SHIFT || op == Token::Name::RIGHT_SHIFT;
+	const MarmotLiteral* left_literal = ContextualInteger(*left);
+	const MarmotLiteral* right_literal = ContextualInteger(*right);
+	const auto needs_word = [](const MarmotLiteral& literal)
+	{
+		return ParseUnsignedLiteral(literal.m_token.m_lexeme).value_or(std::numeric_limits<uint64_t>::max())
+			> static_cast<uint64_t>(std::numeric_limits<int64_t>::max());
+	};
+
+	// Let the fixed operand, or a literal that requires Word, establish the type.
+	const bool right_first = !shifts && left_literal != nullptr
+		&& (right_literal == nullptr || (needs_word(*right_literal) && !needs_word(*left_literal)));
+	const std::unique_ptr<MarmotExpression>& first = right_first ? right : left;
+	const std::unique_ptr<MarmotExpression>& second = right_first ? left : right;
+	MarmotResult::TypeResult first_type = Evaluate(operand_context, first);
+	if (!first_type.has_value())
+	{
+		return std::unexpected(std::move(first_type.error()));
+	}
+
+	std::shared_ptr<MarmotType> expected = operand_context.m_expected_expr_type;
+	if (shifts)
+	{
+		expected = MarmotType::MakeLiteralType<MarmotType::IntegerType>();
+	}
+	else if (right_first || right_literal != nullptr)
+	{
+		const std::shared_ptr<MarmotType> peer = ApplySubstitution(context, first_type.value());
+		if (peer->IsType<MarmotType::IntegerType>() || peer->IsType<MarmotType::WordType>() || peer->IsType<MarmotType::ByteType>())
+		{
+			expected = peer;
+		}
+	}
+
+	MarmotResult::TypeResult second_type = Evaluate(operand_context.WithExpectedType(std::move(expected)), second);
+	if (!second_type.has_value())
+	{
+		return std::unexpected(std::move(second_type.error()));
+	}
+
+	BinaryOperandTypes types{ std::move(first_type.value()), std::move(second_type.value()) };
+	if (right_first)
+	{
+		std::swap(types[0u], types[1u]);
+	}
+	return types;
 }
 
 // The class an operand must belong to for an operator to apply. A generic
@@ -4679,11 +4732,6 @@ MarmotResult::TypeResult TypeChecker::CheckBinaryOperator(const CheckingContext&
 
 		binary.m_type_data = left_type;
 		return binary.m_type_data;
-	}
-
-	if (std::optional<CompilerError> byte_literal_error = ByteLiteralBesideInt(context, binary, left_type, right_type))
-	{
-		return std::unexpected(std::move(byte_literal_error.value()));
 	}
 
 	MarmotResult::TypeResult unified = Unify(context, op, left_type, right_type);
@@ -5437,6 +5485,26 @@ MarmotResult::TypeResult TypeChecker::CheckCall(const CheckingContext& context, 
 				if (method_it != tc_info.m_method_types.cend())
 				{
 					std::vector<std::shared_ptr<MarmotType>> arg_results;
+					const size_t arity = call.m_arguments.size();
+					if (arity == 2u && FindOperator(call.m_paren.m_token_name, false) != nullptr
+						&& (ContextualInteger(*call.m_arguments[0u]) != nullptr || ContextualInteger(*call.m_arguments[1u]) != nullptr))
+					{
+						std::expected<BinaryOperandTypes, CompilerError> operands = CheckBinaryOperands(context, call.m_paren.m_token_name, call.m_arguments[0u], call.m_arguments[1u]);
+						if (!operands.has_value())
+						{
+							return std::unexpected(std::move(operands.error()));
+						}
+						arg_results = { std::move((*operands)[0u]), std::move((*operands)[1u]) };
+					}
+					else if (arity == 1u && FindOperator(call.m_paren.m_token_name, true) != nullptr && ContextualInteger(*call.m_arguments[0u]) != nullptr)
+					{
+						MarmotResult::TypeResult operand = Evaluate(context, call.m_arguments[0u]);
+						if (!operand.has_value())
+						{
+							return operand;
+						}
+						arg_results.push_back(std::move(operand.value()));
+					}
 					const std::vector<const MarmotType::ClassConstraint*> matching_constraints = context.m_assumptions->m_constraints
 						| std::views::filter([&qualifier](const MarmotType::ClassConstraint& constraint) { return constraint.m_class_name == qualifier; })
 						| std::views::transform([](const MarmotType::ClassConstraint& constraint) { return &constraint; })
@@ -5445,7 +5513,7 @@ MarmotResult::TypeResult TypeChecker::CheckCall(const CheckingContext& context, 
 					if (!matching_constraints.empty())
 					{
 						arg_results.reserve(call.m_arguments.size());
-						for (std::unique_ptr<MarmotExpression>& call_arg : call.m_arguments)
+						for (std::unique_ptr<MarmotExpression>& call_arg : call.m_arguments | std::views::drop(arg_results.size()))
 						{
 							MarmotResult::TypeResult arg_result = Evaluate(context.WithExpectedType(nullptr), call_arg);
 							if (!arg_result.has_value())
@@ -5795,8 +5863,32 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 	return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(CompilerErrorCode::TypeUndefinedName, "Name access expression type error: variable not found", variable.m_name, m_file_name, m_source_lines));
 }
 
-MarmotResult::TypeResult TypeChecker::CheckLiteral(MarmotLiteral& literal) const
+MarmotResult::TypeResult TypeChecker::CheckLiteral(MarmotLiteral& literal, const std::shared_ptr<MarmotType>& expected) const
 {
+	if (literal.m_kind == MarmotLiteralKind::Integer && IsPrefixedIntegerLiteral(literal.m_token.m_lexeme))
+	{
+		const std::optional<uint64_t> value = ParseUnsignedLiteral(literal.m_token.m_lexeme);
+		constexpr uint64_t max_int = static_cast<uint64_t>(std::numeric_limits<int64_t>::max());
+		if (expected != nullptr && expected->IsType<MarmotType::ByteType>())
+		{
+			if (value.value_or(max_int) > 0xFF)
+			{
+				return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Integer literal is out of range for Byte (0 to 255).", literal.m_token, m_file_name, m_source_lines));
+			}
+			literal.m_kind = MarmotLiteralKind::Byte;
+		}
+		else if (expected != nullptr && expected->IsType<MarmotType::IntegerType>())
+		{
+			if (value.value_or(std::numeric_limits<uint64_t>::max()) > max_int)
+			{
+				return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Integer literal is out of range for Int.", literal.m_token, m_file_name, m_source_lines));
+			}
+		}
+		else if ((expected != nullptr && expected->IsType<MarmotType::WordType>()) || !value.has_value() || value.value() > max_int)
+		{
+			literal.m_kind = MarmotLiteralKind::Word;
+		}
+	}
 	switch (literal.m_kind)
 	{
 	case MarmotLiteralKind::Text:
@@ -5822,9 +5914,12 @@ MarmotResult::TypeResult TypeChecker::CheckLiteral(MarmotLiteral& literal) const
 	std::unreachable();
 }
 
-MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext&, MarmotExpression::Literal& literal)
+MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context, MarmotExpression::Literal& literal)
 {
-	return CheckLiteral(literal).transform([&literal](std::shared_ptr<MarmotType>&& type)
+	const std::shared_ptr<MarmotType> expected = context.m_expected_expr_type != nullptr
+		? ApplySubstitution(context, context.m_expected_expr_type)
+		: nullptr;
+	return CheckLiteral(literal, expected).transform([&literal](std::shared_ptr<MarmotType>&& type)
 	{
 		literal.m_type_data = std::move(type);
 		return literal.m_type_data;

@@ -16,13 +16,23 @@ IO::PrintLine(Divide::Divide(7.5, 2.5) as Text);
 IO::PrintLine(Remainder::Remainder(7.5, 2.0) as Text);
 IO::PrintLine(Negate::Negate(1.5) as Text);
 
-IO::PrintLine(Add::Add(0xFF, 0x01) as Text);
-IO::PrintLine(Subtract::Subtract(0x00, 0x01) as Text);
-IO::PrintLine((-0x01) as Text);
-IO::PrintLine(Negate::Negate(0x01) as Text);
-IO::PrintLine(Multiply::Multiply(0x80, 0x02) as Text);
-IO::PrintLine(Divide::Divide(0xFF, 0x02) as Text);
-IO::PrintLine(Remainder::Remainder(0xFF, 0x02) as Text);
+def byte_max: Byte = 0xFF;
+
+def byte_zero: Byte = 0x00;
+
+def byte_one: Byte = 0x01;
+
+def byte_high_bit: Byte = 0x80;
+
+def byte_negated: Byte = -0x01;
+
+IO::PrintLine(Add::Add(byte_max, 0x01) as Text);
+IO::PrintLine(Subtract::Subtract(byte_zero, 0x01) as Text);
+IO::PrintLine(byte_negated as Text);
+IO::PrintLine(Negate::Negate(byte_one) as Text);
+IO::PrintLine(Multiply::Multiply(byte_high_bit, 0x02) as Text);
+IO::PrintLine(Divide::Divide(byte_max, 0x02) as Text);
+IO::PrintLine(Remainder::Remainder(byte_max, 0x02) as Text);
 
 def maximum = 0xFFFFFFFFFFFFFFFF;
 
@@ -40,11 +50,16 @@ IO::PrintLine(BitXor::BitXor(12, 10) as Text);
 IO::PrintLine(BitNot::BitNot(0) as Text);
 IO::PrintLine(ShiftLeft::ShiftLeft(1, 64) as Text);
 IO::PrintLine(ShiftRight::ShiftRight(-1, 64) as Text);
-IO::PrintLine(BitAnd::BitAnd(0xF0, 0x3C) as Text);
-IO::PrintLine(BitOr::BitOr(0xF0, 0x3C) as Text);
-IO::PrintLine(BitXor::BitXor(0xF0, 0x3C) as Text);
-IO::PrintLine(BitNot::BitNot(0x0F) as Text);
-IO::PrintLine(ShiftRight::ShiftRight(0xFF, 4) as Text);
+
+def byte_mask: Byte = 0xF0;
+
+def byte_low_nibble: Byte = 0x0F;
+
+IO::PrintLine(BitAnd::BitAnd(byte_mask, 0x3C) as Text);
+IO::PrintLine(BitOr::BitOr(byte_mask, 0x3C) as Text);
+IO::PrintLine(BitXor::BitXor(byte_mask, 0x3C) as Text);
+IO::PrintLine(BitNot::BitNot(byte_low_nibble) as Text);
+IO::PrintLine(ShiftRight::ShiftRight(byte_max, 4) as Text);
 IO::PrintLine(BitAnd::BitAnd(maximum, 15 as Word) as Text);
 IO::PrintLine(BitOr::BitOr(one, 2 as Word) as Text);
 IO::PrintLine(BitXor::BitXor(maximum, one) as Text);

@@ -35,6 +35,8 @@ struct Token
 	static std::string_view Spelling(Name token_name);
 	static std::optional<Name> KeywordName(std::string_view spelling);
 	static bool IsKeyword(Name token_name);
+
+	bool IsDiscard() const { return m_token_name == Name::IDENTIFIER_LITERAL && m_lexeme == "_"; }
 };
 
 // Tokens are held indirectly so that every Token keeps a stable address for the

@@ -49,6 +49,10 @@ ShadowingPolicyDiagnostic::Scope::Scope(Scope* parent)
 
 void ShadowingPolicyDiagnostic::DefineVariable(const Token& token)
 {
+	if (token.IsDiscard())
+	{
+		return;
+	}
 	const std::vector<std::string_view> kinds = CollectShadowKinds(token.m_lexeme);
 	if (!kinds.empty())
 	{

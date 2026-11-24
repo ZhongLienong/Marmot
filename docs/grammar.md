@@ -19,13 +19,14 @@ The notation: `X?` optional, `X*` zero or more, `X+` one or more,
 IDENTIFIER   letter or '_', then letters, digits or '_'
 INTEGER      decimal digits, or 0x / 0X hex, or 0b / 0B binary
 FLOAT        digits '.' digits
-TEXT         '"' characters '"', with \n \t \b \f \\ \" escapes
+TEXT         '"' characters '"', with \n \r \t \b \f \0 \\ \" \xNN \u{...} escapes
 COMMENT      '//' to end of line, or '/*' to the first '*/' (no nesting)
 ```
 
 A file may start with a UTF-8 byte order mark, which is not part of the program.
-Whitespace separates tokens outside text literals. An unrecognized escape
-keeps its backslash. For example, `\r` and `\0` each produce two characters.
+Whitespace separates tokens outside text literals. `\xNN` inserts one byte
+from two hexadecimal digits. `\u{...}` encodes a Unicode scalar value in
+UTF-8. Unknown and malformed escapes are lexer errors.
 
 **Keywords.** `alias` `as` `case` `class` `def` `deriving` `else` `export`
 `false` `fn` `for` `foreign` `if` `import` `in` `instance` `match` `module`
@@ -66,8 +67,9 @@ name as `Module::name`. Use `use` to bring the bare name into scope.
 ```
 declaration  = define | typeDecl | alias | class | instance | foreign ;
 
-define       = 'def' IDENTIFIER (':' type)? '=' expression ';'
-             | 'def' '(' IDENTIFIER (',' IDENTIFIER)+ ')' '=' expression ';' ;
+define       = 'def' binder (':' type)? '=' expression ';'
+             | 'def' '(' binder (',' binder)+ ')' '=' expression ';' ;
+binder       = IDENTIFIER | '_' ;
 
 typeDecl     = 'type' IDENTIFIER typeParams? constraints? '='
                (record deriving? | variants deriving? | type) ';' ;
@@ -178,13 +180,13 @@ primary      = INTEGER | FLOAT | TEXT | 'true' | 'false' | '(' ')'
              | if | match | for | recordUpdate | construct ;
 
 array        = '[' (expression (',' expression)* ','?)? ']' ;
-comprehension= '[' expression 'for' IDENTIFIER 'in' expression ']' ;
+comprehension= '[' expression 'for' binder 'in' expression ']' ;
 block        = '{' item* expression? '}' ;
 function     = 'fn' typeParams? '(' (param (',' param)*)? ')'
                ('->' type)? constraints? '=>' expression ;
-param        = IDENTIFIER (':' type)? ;
+param        = binder (':' type)? ;
 if           = 'if' expression 'then' expression 'else' expression ;
-for          = 'for' IDENTIFIER 'in' expression block ;
+for          = 'for' binder 'in' expression block ;
 recordUpdate = '{' expression 'with' fieldSet (',' fieldSet)* '}' ;
 fieldSet     = IDENTIFIER ('.' IDENTIFIER)* '=' expression ;
 construct    = (IDENTIFIER ('.' IDENTIFIER)* '::')? IDENTIFIER       // a record type

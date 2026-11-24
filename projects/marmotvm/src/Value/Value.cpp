@@ -141,30 +141,32 @@ namespace UTF8
 		return (static_cast<unsigned char>(byte) & 0xC0u) == 0x80u;
 	}
 
-	int GetCharacterByteCount(const char* str)
+	int GetCharacterByteCount(const char* str, int remaining)
 	{
-		unsigned char first_byte = static_cast<unsigned char>(*str);
-
-		if ((first_byte & 0x80u) == 0x00u)
+		const unsigned char first = static_cast<unsigned char>(str[0]);
+		if (first < 0xC2 || first > 0xF4)
 		{
-			return 1; // ASCII: 0xxxxxxx
+			return 1;
 		}
-		else if ((first_byte & 0xE0u) == 0xC0u)
+		const int length = first <= 0xDF ? 2 : first <= 0xEF ? 3 : 4;
+		if (length > remaining)
 		{
-			return 2; // 110xxxxx
+			return 1;
 		}
-		else if ((first_byte & 0xF0u) == 0xE0u)
+		const unsigned char second = static_cast<unsigned char>(str[1]);
+		if ((first == 0xE0 && second < 0xA0) || (first == 0xED && second > 0x9F)
+			|| (first == 0xF0 && second < 0x90) || (first == 0xF4 && second > 0x8F))
 		{
-			return 3; // 1110xxxx
+			return 1;
 		}
-		else if ((first_byte & 0xF8u) == 0xF0u)
+		for (int index = 1; index < length; index += 1)
 		{
-			return 4; // 11110xxx
+			if (!IsContinuationByte(str[index]))
+			{
+				return 1;
+			}
 		}
-		else
-		{
-			return 1; // Invalid UTF-8, treat as single byte
-		}
+		return length;
 	}
 
 	void Append(std::string& encoded, std::uint32_t code_point)
@@ -198,7 +200,7 @@ namespace UTF8
 		int count = 0;
 		for (int i = 0; i < byte_length;)
 		{
-			int char_bytes = GetCharacterByteCount(str + i);
+			const int char_bytes = GetCharacterByteCount(str + i, byte_length - i);
 			count += 1;
 			i += char_bytes;
 		}
@@ -211,7 +213,7 @@ namespace UTF8
 		int offset = 0;
 		while (offset < byte_length && count < code_point_index)
 		{
-			int char_bytes = GetCharacterByteCount(str + offset);
+			const int char_bytes = GetCharacterByteCount(str + offset, byte_length - offset);
 			offset += char_bytes;
 			count += 1;
 		}
@@ -226,11 +228,11 @@ namespace UTF8
 		}
 
 		int offset = current_offset - 1;
-		while (offset > 0 && IsContinuationByte(str[offset]))
+		while (offset > 0 && current_offset - offset < 4 && IsContinuationByte(str[offset]))
 		{
 			offset -= 1;
 		}
-		return offset;
+		return GetCharacterByteCount(str + offset, current_offset - offset) == current_offset - offset ? offset : current_offset - 1;
 	}
 }
 
@@ -982,6 +984,12 @@ MarmotText::MarmotText(const char* str)
 	}
 }
 
+MarmotText::MarmotText(std::string_view text)
+	: MarmotText()
+{
+	AppendBytes(text, -1);
+}
+
 MarmotText::MarmotText(const MarmotText& other)
 {
 	std::memcpy(this, &other, sizeof(MarmotText));
@@ -1144,8 +1152,7 @@ MarmotText MarmotText::Substring(MarmotInteger start, MarmotInteger end) const
 	const bool is_ascii = length == byte_len;
 	const int start_offset = is_ascii ? first : UTF8::GetByteOffsetOfCodePoint(source, byte_len, first);
 	const int end_offset = is_ascii ? last : UTF8::GetByteOffsetOfCodePoint(source, byte_len, last);
-	std::string slice(source + start_offset, source + end_offset);
-	return MarmotText(slice.c_str());
+	return MarmotText(std::string_view(source + start_offset, static_cast<size_t>(end_offset - start_offset)));
 }
 
 std::vector<MarmotText> MarmotText::Split(const MarmotText& delimiter) const
@@ -1164,9 +1171,9 @@ std::vector<MarmotText> MarmotText::Split(const MarmotText& delimiter) const
 
 		for (size_t offset = 0u; offset < source.size();)
 		{
-			const int char_bytes = UTF8::GetCharacterByteCount(source.data() + offset);
-			parts.emplace_back(std::string(source.substr(offset, static_cast<size_t>(char_bytes))).c_str());
-			offset += static_cast<size_t>(char_bytes);
+			const size_t char_bytes = static_cast<size_t>(UTF8::GetCharacterByteCount(source.data() + offset, static_cast<int>(source.size() - offset)));
+			parts.emplace_back(source.substr(offset, char_bytes));
+			offset += char_bytes;
 		}
 		return parts;
 	}
@@ -1177,11 +1184,11 @@ std::vector<MarmotText> MarmotText::Split(const MarmotText& delimiter) const
 		const size_t found = source.find(needle, start);
 		if (found == std::string_view::npos)
 		{
-			parts.emplace_back(std::string(source.substr(start)).c_str());
+			parts.emplace_back(source.substr(start));
 			return parts;
 		}
 
-		parts.emplace_back(std::string(source.substr(start, found - start)).c_str());
+		parts.emplace_back(source.substr(start, found - start));
 		start = found + needle.size();
 	}
 }
@@ -1200,7 +1207,7 @@ MarmotText MarmotText::Reverse() const
 		end = start;
 	}
 
-	return MarmotText(reversed.c_str());
+	return MarmotText(reversed);
 }
 
 std::vector<MarmotInteger> MarmotText::CodePoints() const
@@ -1209,13 +1216,13 @@ std::vector<MarmotInteger> MarmotText::CodePoints() const
 	std::vector<MarmotInteger> code_points;
 	for (size_t offset = 0u; offset < bytes.size();)
 	{
-		const size_t length = static_cast<size_t>(UTF8::GetCharacterByteCount(bytes.data() + offset));
+		const size_t length = static_cast<size_t>(UTF8::GetCharacterByteCount(bytes.data() + offset, static_cast<int>(bytes.size() - offset)));
 		const unsigned char lead = static_cast<unsigned char>(bytes[offset]);
 		std::uint32_t code_point = (length == 1u) ? lead
 			: (length == 2u) ? (lead & 0x1Fu)
 			: (length == 3u) ? (lead & 0x0Fu)
 			: (lead & 0x07u);
-		for (size_t continuation = 1u; (continuation < length) && (offset + continuation < bytes.size()); continuation += 1u)
+		for (size_t continuation = 1u; continuation < length; continuation += 1u)
 		{
 			code_point = (code_point << 6u) | (static_cast<unsigned char>(bytes[offset + continuation]) & 0x3Fu);
 		}
@@ -1268,7 +1275,7 @@ MarmotText MarmotText::Replace(const MarmotText& old_value, const MarmotText& ne
 		start = found + needle.size();
 	}
 
-	return MarmotText(replaced.c_str());
+	return MarmotText(replaced);
 }
 
 MarmotText MarmotText::Trim() const
@@ -1286,7 +1293,7 @@ MarmotText MarmotText::Trim() const
 		end -= 1u;
 	}
 
-	return MarmotText(std::string(source.substr(start, end - start)).c_str());
+	return MarmotText(source.substr(start, end - start));
 }
 
 char MarmotText::operator[](int index) const
@@ -1393,6 +1400,10 @@ MarmotText MarmotText::Concatenate(const MarmotText& a, const MarmotText& b)
 
 const char* MarmotText::CString()
 {
+	if (View().find('\0') != std::string_view::npos)
+	{
+		return nullptr;
+	}
 	if (!IsShort() && m_long.m_size != GetBuffer().m_written)
 	{
 		Reallocate(m_long.m_size);
@@ -1482,7 +1493,10 @@ MarmotText& MarmotText::AppendBytes(std::string_view bytes, int length)
 	m_long.m_ptr[new_size] = '\0';
 	m_long.m_size = new_size;
 	GetBuffer().m_written = new_size;
-	m_long.m_length_cache = (m_long.m_length_cache == -1 || length == -1) ? -1 : m_long.m_length_cache + length;
+	// A continuation byte can complete a UTF-8 sequence across the join.
+	m_long.m_length_cache = (m_long.m_length_cache == -1 || length == -1 || UTF8::IsContinuationByte(bytes.front()))
+		? -1
+		: m_long.m_length_cache + length;
 	return *this;
 }
 

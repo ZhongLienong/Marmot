@@ -377,7 +377,8 @@ private:
 
 	MarmotResult::TypeResult RegisterInstance(const CheckingContext& context, MarmotStatement::Instance& instance_stmt);
 
-	std::optional<CompilerError> ByteLiteralBesideInt(const CheckingContext& context, const MarmotExpression::Binary& binary, const std::shared_ptr<MarmotType>& left_type, const std::shared_ptr<MarmotType>& right_type);
+	using BinaryOperandTypes = std::array<std::shared_ptr<MarmotType>, 2u>;
+	std::expected<BinaryOperandTypes, CompilerError> CheckBinaryOperands(const CheckingContext& context, Token::Name op, const std::unique_ptr<MarmotExpression>& left, const std::unique_ptr<MarmotExpression>& right);
 
 	MarmotResult::TypeResult operator()(const CheckingContext& context, MarmotStatement::TypeAlias& type_alias);
 
@@ -415,7 +416,7 @@ private:
 
 	MarmotResult::TypeResult operator()(const CheckingContext& context, MarmotExpression::Literal& literal);
 
-	MarmotResult::TypeResult CheckLiteral(MarmotLiteral& literal) const;
+	MarmotResult::TypeResult CheckLiteral(MarmotLiteral& literal, const std::shared_ptr<MarmotType>& expected) const;
 
 	MarmotResult::TypeResult operator()(const CheckingContext& context, MarmotExpression::Function& function);
 

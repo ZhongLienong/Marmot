@@ -1167,7 +1167,7 @@
       "arguments": [
         "Int"
       ],
-      "returns": "Unit"
+      "returns": "Never"
     },
     {
       "id": 1,

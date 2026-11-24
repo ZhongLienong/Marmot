@@ -1,9 +1,0 @@
-module MatchWildcardIdentifierOutsidePattern
-import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", }
-
-def _ = 9;
-
-def result = match (1, 2) with
-    case (_, value) => _ + value;
-
-IO::PrintLine("wildcard_identifier_result=" ++ (result as Text));

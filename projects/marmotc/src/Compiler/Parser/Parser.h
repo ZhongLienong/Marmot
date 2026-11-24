@@ -626,6 +626,7 @@ private:
 	std::string Mangle(std::string_view name);
 
 	MarmotResult::TokenResult DefineName(Token& name, bool is_variable);
+	MarmotResult::TokenResult DefineBinding(Token& name);
 
 	std::optional<BindingId> RegisterLocalBinding(const std::string& name);
 

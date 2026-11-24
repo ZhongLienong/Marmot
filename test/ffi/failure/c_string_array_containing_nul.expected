@@ -1,0 +1,9 @@
+error[InvalidConversion]: Cannot pass foreign argument 1 as a C string because it contains a NUL byte.
+ --> test/ffi/failure/c_string_array_containing_nul.mmt:5
+  |
+5 | RunProcess(["marmot-unused-program", "before/0after"], "");
+  | Cannot pass foreign argument 1 as a C string because it contains a NUL byte.
+  |
+stack trace:
+  at main [module CStringArrayContainingNul] in test/ffi/failure/c_string_array_containing_nul.mmt:5
+    RunProcess(["marmot-unused-program", "before/0after"], "");

@@ -275,7 +275,7 @@ private:
 
 	MarmotValue TakeNativeResult(uint8_t return_tag, MarmotWord bits, MarmotFFIFreeResultFn free_result) noexcept;
 
-	MARMOT_FORCE_INLINE void PassForeignArgument(uint8_t kind, size_t index, MarmotValue argument) noexcept;
+	MARMOT_FORCE_INLINE bool PassForeignArgument(uint8_t kind, size_t index, MarmotValue argument) noexcept;
 
 
 #ifdef _WIN32

@@ -1,0 +1,22 @@
+module DiscardBindings
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
+
+def _ = IO::PrintLine("first");
+
+def _: Unit = IO::PrintLine("second");
+
+def (_, kept, _) = (1, 2, 3);
+
+def Choose = fn(_: Text, value: Int, _: Bool) -> Int => {
+    def _ = IO::PrintLine("local");
+    def (_, local, _) = (1, value, 3);
+    match (kept, local) with
+        case (_, result) => result
+};
+
+IO::PrintLine(Choose("ignored", 7, true) as Text);
+
+for _ in 0..1
+{
+    IO::PrintLine("loop");
+};
