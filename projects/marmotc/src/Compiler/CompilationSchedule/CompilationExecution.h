@@ -1,11 +1,17 @@
 #pragma once
 
 #include "Compiler/CompilationSchedule/CompilationSchedule.h"
+#include "Compiler/Module/CompiledModule.h"
 #include "Compiler/Result/Result.h"
 
 #include <functional>
 #include <string>
 #include <unordered_map>
+
+namespace MarmotResult
+{
+	using CompiledModuleReportResult = ReportResult<CompiledModule>;
+}
 
 namespace CompilationExecution
 {

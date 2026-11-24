@@ -7,7 +7,7 @@
 #include <vector>
 
 #include "Compiler/CompilationInputs/CompilationInputs.h"
-#include "Compiler/Result/Result.h"
+#include "Compiler/Result/CompilationResult.h"
 #include "Utility/BuildPlan/BuildPlan.h"
 
 namespace MarmotDriver

@@ -11,6 +11,11 @@
 #include <unordered_map>
 #include <vector>
 
+namespace MarmotResult
+{
+	using BytecodeLinkerResult = Result<MarmotExecutable>;
+}
+
 class BytecodeLinker
 {
 private:

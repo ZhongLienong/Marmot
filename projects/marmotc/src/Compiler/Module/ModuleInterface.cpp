@@ -2,7 +2,7 @@
 
 #include <utility>
 
-ModuleInterface::ModuleInterface(std::string module_name, std::filesystem::path file_path, SymbolTable symbols, TypeEnvironment type_signatures, TypeclassMetadataMap typeclass_metadata, GenericFunctionTable::Functions generic_functions)
+ModuleInterface::ModuleInterface(std::string module_name, std::filesystem::path file_path, SymbolTable symbols, TypeEnvironment type_signatures, TypeclassMetadataMap typeclass_metadata, GenericFunctions generic_functions)
 	: m_module_name(std::move(module_name)),
 	m_file_path(std::move(file_path)),
 	m_symbols(std::move(symbols)),

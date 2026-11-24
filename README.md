@@ -25,9 +25,9 @@ Current scope note: there is no `async` / `await` surface in the current languag
 
 From the repository root, on Windows or Linux:
 ```bash
-python scripts/dev.py doctor               # check the toolchain
-python scripts/dev.py install --rebuild    # build Release and the marmot tool, then install
-python scripts/dev.py uninstall
+python scripts/make/doctor.py                      # check the toolchain
+python scripts/install/install.py --rebuild       # build Release and the marmot tool, then install
+python scripts/install/uninstall.py
 ```
 
 `install` copies `marmotc`, `marmotvm`, the `marmot` tool and the prelude. On
@@ -631,17 +631,17 @@ See [Package System](docs/package-system.md) for the current manifest-driven loa
 
 ### Building Marmot
 
-`scripts/dev.py` runs every everyday task the same way on Windows and Linux;
+`scripts/dev.py` builds Marmot and runs the CI gate on Windows and Linux.
 `python scripts/dev.py` lists its commands and `<command> --help` explains one.
 On Windows it loads the Visual Studio build environment itself and prefers a
 supported `clang-cl` when available, with `cl.exe` as the fallback.
 
 ```bash
-python scripts/dev.py doctor                    # toolchain check, and what is built
+python scripts/make/doctor.py                    # toolchain check, and what is built
 python scripts/dev.py build                     # marmotc and marmotvm (Dev)
 python scripts/dev.py build all --build Release # plus the unit tests and the marmot tool
 python scripts/dev.py configure --fresh         # reconfigure, e.g. after changing CXX
-python scripts/dev.py clean
+python scripts/make/clean.py
 ```
 
 Underneath are CMake presets: `x64-debug`, `x64-dev`, and `x64-release`
@@ -676,10 +676,11 @@ folder. The adapter keeps the playground's `createMarmotModule` and
 
 ### Running Programs
 
-`python scripts/dev.py run path/to/program.mmt` builds a program with the
-checkout's compiler and runs it, with the checkout's prelude first on
-`MARMOT_PATH`; `--check` only type-checks it. `marmot run` does the same with
-the installed tools. By hand:
+`marmot run path/to/program.mmt` builds and runs a program. Use `marmot check`
+to type-check it and `marmot fmt --write` to format explicit files or directories.
+To use the checkout's tool from Cargo, run
+`cargo run --quiet --manifest-path projects/marmot/Cargo.toml -- run path/to/program.mmt`.
+To call the compiler and VM directly:
 
 ```bash
 marmotc check path/to/program.mmt     # check without writing a .mmc
@@ -701,18 +702,15 @@ usage, and every check.
 
 ```bash
 python scripts/dev.py gate                      # everything a commit must pass
-python scripts/dev.py test                      # the language suite under test/
-python scripts/dev.py test --category closure
-python scripts/dev.py test --test closure/simple.mmt
-python scripts/dev.py unit --tag "[runtime]"    # the C++ unit tests
-python scripts/dev.py snapshot closure/new_test.mmt
+python scripts/testing/unit.py --tag "[runtime]"    # the C++ unit tests
+python scripts/testing/snapshot.py closure/new_test.mmt
 ```
 
 Debug and Dev builds include the unit tests. Release builds leave them
 out unless configured with them (`dev.py configure --build Release --unit-tests`;
 `dev.py gate --build Release` does that itself).
 
-The `marmot` tool runs the language suite too, from the repository root, with
+The `marmot` tool runs the language suite from the repository root, with
 `MARMOTC` naming the compiler (`marmotvm` is found in the matching project build
 or beside an installed compiler) and `MARMOT_PATH`
 the prelude:

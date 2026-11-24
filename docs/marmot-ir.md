@@ -206,4 +206,4 @@ Procedures and globals are named in two bytes (`CALL_PROC_WIDE`, `MAKE_FUNCTION_
 
 `marmotc check` and `marmotc build` accept `--emit-ir`, which is listed in the per-command help in every profile. It prints each module's MarmotIR, after optimization, in the textual form above, in link order. It cannot be combined with `--format json`.
 
-`test/marmot_ir/` holds the language tests written for MarmotIR, and `python scripts/dev.py bench --compare old/out/marmotc --every` times two compilers against each other on every file in `benchmarks/`.
+`test/marmot_ir/` holds the language tests written for MarmotIR, and `python scripts/bench/bench.py --compare old/out/marmotc --every` times two compilers against each other on every file in `benchmarks/`.

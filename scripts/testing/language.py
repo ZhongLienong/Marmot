@@ -4,11 +4,11 @@ The language suite: every .mmt under test/, run by `marmot test` against this
 checkout's compiler and VM. docs/testing.md says what passing means.
 
 Usage:
-    python scripts/dev.py test                          # every test
-    python scripts/dev.py test --category closure       # tests whose path contains 'closure'
-    python scripts/dev.py test --pattern loop           # file names containing 'loop'
-    python scripts/dev.py test --test closure/simple    # one test
-    python scripts/dev.py test --build Debug            # another build
+    python scripts/testing/language.py                          # every test
+    python scripts/testing/language.py --category closure       # tests whose path contains 'closure'
+    python scripts/testing/language.py --pattern loop           # file names containing 'loop'
+    python scripts/testing/language.py --test closure/simple    # one test
+    python scripts/testing/language.py --build Debug            # another build
 """
 
 from __future__ import annotations

@@ -78,7 +78,7 @@ jobs:
         run: echo "CXX=cl" >> $env:GITHUB_ENV
 
       - name: Toolchain
-        run: python scripts/dev.py doctor
+        run: python scripts/make/doctor.py
 
       # The package tests query the GitHub API. Unauthenticated requests share a
       # 60-an-hour limit per IP, which hosted runners exhaust; the job's token
@@ -91,7 +91,7 @@ jobs:
       # The packager smoke-tests the toolchain bundle before publishing it.
       - name: Package toolchain and SDK
         if: matrix.build == 'Release'
-        run: python scripts/dev.py package --build Release --no-build
+        run: python scripts/install/package.py --build Release
 
       - name: Check the packaged C99 SDK
         if: matrix.build == 'Release' && runner.os == 'Linux'

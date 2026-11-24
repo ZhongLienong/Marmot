@@ -4,7 +4,7 @@
 #include "Compiler/CompilationInputs/CompilationInputs.h"
 #include "Compiler/Lowering/Lowering.h"
 #include "Compiler/Module/Module.h"
-#include "Compiler/Result/Result.h"
+#include "Compiler/Result/CompilationResult.h"
 #include "Compiler/Token/Token.h"
 #include "support/OutputCapture.h"
 #include "support/SourceFixture.h"

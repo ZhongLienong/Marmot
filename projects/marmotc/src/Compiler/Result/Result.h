@@ -11,9 +11,6 @@
 
 #include "Compiler/Error/CompilerError.h"
 #include "Compiler/AbstractSyntaxTree/AbstractSyntaxTree.h"
-#include "Compiler/BytecodeModule/BytecodeModule.h"
-#include "Compiler/Module/CompiledModule.h"
-#include "Compiler/BuildGraph/BuildGraph.h"
 
 namespace MarmotResult
 {
@@ -192,36 +189,6 @@ namespace MarmotResult
 	template<typename ValueType>
 	using ReportResult = std::expected<ValueType, CompilerReport>;
 
-	struct CompiledProgram
-	{
-		MarmotExecutable m_executable;
-		CompilerReport m_report;
-		// Every file the program was compiled from, sorted: the entry and every
-		// module it reached. What a build depends on.
-		std::vector<std::string> m_source_files;
-		// Each module's MarmotIR as text, in link order, when --emit-ir asked.
-		std::vector<std::string> m_marmot_ir;
-		// Each module's checked syntax tree as text, in link order, when --emit-ast asked.
-		std::vector<std::string> m_ast;
-
-		CompiledProgram(MarmotExecutable executable, CompilerReport report = {}, std::vector<std::string> source_files = {})
-			: m_executable(std::move(executable)),
-			m_report(std::move(report)),
-			m_source_files(std::move(source_files))
-		{
-		}
-
-		[[nodiscard]] const CompilerReport& Report() const
-		{
-			return m_report;
-		}
-
-		[[nodiscard]] MarmotExecutable TakeExecutable() &&
-		{
-			return std::move(m_executable);
-		}
-	};
-
 	template<typename ValueType>
 	using Result = std::expected<ValueType, CompilerError>;
 
@@ -233,8 +200,6 @@ namespace MarmotResult
 	using FunctionParamResult = Result<std::pair<Token, std::shared_ptr<MarmotType>>>;
 	using FunctionParamsResult = Result<std::vector<std::pair<Token, std::shared_ptr<MarmotType>>>>;
 	using LexerResult = Result<TokenStream>;
-	using ModuleManagerResult = Result<BuildGraph>;
-	using BytecodeLinkerResult = Result<MarmotExecutable>;
 	using ExpressionResult = Result<std::unique_ptr<MarmotExpression>>;
 	using PatternResult = Result<std::unique_ptr<MarmotPattern>>;
 	using StatementResult = Result<std::unique_ptr<MarmotStatement>>;
@@ -242,10 +207,6 @@ namespace MarmotResult
 	using TypeResult = Result<std::shared_ptr<MarmotType>>;
 	using TypeListResult = Result<std::vector<std::shared_ptr<MarmotType>>>;
 	using TypeCheckerResult = DiagnosticsResult<MarmotProgramTree>;
-	using BytecodeBackendResult = DiagnosticsResult<BytecodeModule>;
-	using CompiledModuleReportResult = ReportResult<CompiledModule>;
-	using CompilerResult = DiagnosticsResult<MarmotExecutable>;
-	using CompilationResult = ReportResult<CompiledProgram>;
 
 	using VoidResult = Result<void>;
 }

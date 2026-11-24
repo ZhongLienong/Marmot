@@ -11,6 +11,11 @@
 #include <unordered_map>
 #include <vector>
 
+namespace MarmotResult
+{
+	using BytecodeBackendResult = DiagnosticsResult<BytecodeModule>;
+}
+
 // A lowered module to bytecode, for the linker.
 // The module's top-level function is procedure 0 and every other function
 // follows in order. A value that crosses a block edge or is used twice lives

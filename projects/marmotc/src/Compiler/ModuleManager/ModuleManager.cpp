@@ -9,6 +9,7 @@
 #include <format>
 #include <algorithm>
 #include <ranges>
+#include <unordered_set>
 
 using namespace std::string_literals;
 

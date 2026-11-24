@@ -148,7 +148,7 @@ std::vector<std::string> ModuleImports::ReexportOrigins(std::string_view importe
 	return origins;
 }
 
-void ModuleImports::Reexport(const std::string& symbol_name, const std::string& origin, TypeEnvironment& types, GenericFunctionTable::Functions& generics) const
+void ModuleImports::Reexport(const std::string& symbol_name, const std::string& origin, TypeEnvironment& types, GenericFunctions& generics) const
 {
 	const std::string member_prefix = symbol_name + NameSeparator.data();
 	for (const auto& [name, type] : m_types_by_module.at(origin))
@@ -158,7 +158,7 @@ void ModuleImports::Reexport(const std::string& symbol_name, const std::string& 
 			types[name] = type;
 		}
 	}
-	const GenericFunctionTable::Functions::const_iterator generic = m_generics.find(origin + NameSeparator.data() + symbol_name);
+	const GenericFunctions::const_iterator generic = m_generics.find(origin + NameSeparator.data() + symbol_name);
 	if (generic != m_generics.cend())
 	{
 		generics[symbol_name] = generic->second;
@@ -180,7 +180,7 @@ const TypeclassMetadataMap& ModuleImports::Typeclasses() const
 	return m_typeclasses;
 }
 
-const GenericFunctionTable::Functions& ModuleImports::Generics() const
+const GenericFunctions& ModuleImports::Generics() const
 {
 	return m_generics;
 }

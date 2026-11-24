@@ -1,8 +1,7 @@
 #pragma once
 
 #include "Compiler/CompilationInputs/CompilationInputs.h"
-#include "Compiler/Module/CompiledModule.h"
-#include "Compiler/Result/Result.h"
+#include "Compiler/Result/CompilationResult.h"
 #include <string>
 #include <vector>
 

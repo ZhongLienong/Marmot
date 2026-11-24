@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "Compiler/Token/Token.h"
@@ -36,3 +37,5 @@ struct GenericFunctionInfo
 		}
 	}
 };
+
+using GenericFunctions = std::unordered_map<std::string, GenericFunctionInfo>;

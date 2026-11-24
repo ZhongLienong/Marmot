@@ -41,15 +41,15 @@ picks a new enough GCC or Clang. Run `python scripts/dev.py` to list the command
 ```
 python scripts/dev.py build                 # marmotc and marmotvm, Dev
 python scripts/dev.py gate                  # the full gate
-python scripts/dev.py test --category module
-python scripts/dev.py run scratch.mmt
+marmot test module/
+marmot run scratch.mmt
 ```
 
-The gate is what "green" means here: layering, the build, C++ unit tests, the
+The gate is what "green" means here: generated .mmc tables, layering, the build, C++ unit tests, the
 `.mmc` contract, doc examples, CLI contracts, formatting, benchmarks, the
 tool's cargo tests and the language suite, stopping at the first failure.
 `--skip` and `--only` take step
-names. Commands that need a build bring it up to date first.
+names. Build first when invoking checks that need the toolchain directly.
 
 The language suite through the tool, in about thirteen seconds:
 
@@ -59,8 +59,8 @@ cargo run --quiet --manifest-path projects/marmot/Cargo.toml -- test module/    
 ```
 
 The scripts are grouped by purpose under `scripts/`: `make/` (doctor, configure,
-build, clean, wasm), `testing/` (the gate and each check), `program/` (run,
-fmt), `bench/`, `install/`, with shared helpers in `lib/`. Each runs on its own
+build, clean, wasm), `testing/` (the gate and each check),
+`bench/`, `install/`, with shared helpers in `lib/`. Each runs on its own
 too, e.g. `python scripts/testing/language.py --category closure`.
 
 On Linux the sources need GCC 14+ or Clang 19+ (GCC 13 has no `<print>`, and
@@ -162,11 +162,11 @@ Worth knowing before editing the front end, because each was a bug once:
 - A developer's `MARMOT_PATH` usually points at the installed prelude in
   `AppData\Local\Marmot`. A debug build of `marmot` prefers its own checkout's
   compiler and prelude; an installed one uses whatever was last installed.
-  Reinstall with `python scripts/dev.py install --rebuild`.
+  Reinstall with `python scripts/install/install.py --rebuild`.
 - Adding a `RuntimeErrorCode` means touching `projects/marmotvm/src/Error/RuntimeError.{h,cpp}` and the
   lists in `docs/diagnostic-format.md` and `docs/error-reporting.md`.
 - Doc examples marked `marmot-test` are mirrored into `test/doc_examples/`. After
-  editing one, run `python scripts/dev.py check docs --sync`.
+  editing one, run `python scripts/testing/doc_examples.py --sync`.
 
 ## Finding bugs
 

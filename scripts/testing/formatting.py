@@ -14,10 +14,10 @@ runs `marmotc fmt <root> --check` to enforce that the corpus is already
 formatted - controlled by `--enforce-clean`.
 
 Usage:
-    python scripts/dev.py check format
-    python scripts/dev.py check format --build Debug
-    python scripts/dev.py check format --root test --root projects/marmotstdlib/MarmotPrelude
-    python scripts/dev.py check format --enforce-clean
+    python scripts/testing/formatting.py
+    python scripts/testing/formatting.py --build Debug
+    python scripts/testing/formatting.py --root test --root projects/marmotstdlib/MarmotPrelude
+    python scripts/testing/formatting.py --enforce-clean
 """
 
 from __future__ import annotations

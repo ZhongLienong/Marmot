@@ -4,7 +4,7 @@ Run the Rust marmot tool's tests: its unit tests, and end-to-end runs against
 this checkout's compiler (given to them as MARMOTC).
 
 Example:
-    python scripts/dev.py check tool
+    python scripts/testing/tool.py
 """
 
 from __future__ import annotations

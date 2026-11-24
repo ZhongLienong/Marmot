@@ -12,11 +12,11 @@ built last. The default install dir is %LOCALAPPDATA%\\Marmot on Windows and
 ~/.local/share/marmot elsewhere.
 
 Examples:
-    python scripts/dev.py install
-    python scripts/dev.py install --build Release --rebuild
-    python scripts/dev.py install --prelude-only
-    python scripts/dev.py install --install-dir ~/opt/marmot
-    python scripts/dev.py install --scope machine        # Windows, as Administrator
+    python scripts/install/install.py
+    python scripts/install/install.py --build Release --rebuild
+    python scripts/install/install.py --prelude-only
+    python scripts/install/install.py --install-dir ~/opt/marmot
+    python scripts/install/install.py --scope machine        # Windows, as Administrator
 """
 
 from __future__ import annotations

@@ -152,24 +152,128 @@ function(marmot_configure_target target_name)
     )
 endfunction()
 
-file(GLOB_RECURSE MARMOT_COMPILER_SOURCES CONFIGURE_DEPENDS "src/Bytecode/*.cpp" "src/Compiler/*.cpp" "src/Support/*.cpp" "src/Utility/*.cpp")
-file(GLOB_RECURSE MARMOT_DRIVER_SOURCES CONFIGURE_DEPENDS "src/Utility/CLI/*.cpp" "src/Utility/Driver/*.cpp")
-list(FILTER MARMOT_COMPILER_SOURCES EXCLUDE REGEX "/src/Utility/(CLI|Driver)/")
-add_library(MarmotCompiler STATIC ${MARMOT_COMPILER_SOURCES})
-target_include_directories(MarmotCompiler PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_link_libraries(MarmotCompiler PRIVATE yyjson ZLIB::ZLIBSTATIC)
-set(MARMOT_LIBRARY_TARGETS MarmotCompiler)
+add_library(MarmotSyntax STATIC
+    src/Compiler/AbstractSyntaxTree/AbstractSyntaxTree.cpp
+    src/Compiler/AbstractSyntaxTree/BindingIdentity.cpp
+    src/Compiler/AbstractSyntaxTree/FunctionParameters.cpp
+    src/Compiler/AbstractSyntaxTree/GeneratedBinding.cpp
+    src/Compiler/AbstractSyntaxTree/Printer/AbstractSyntaxTreePrinter.cpp
+    src/Compiler/AbstractSyntaxTree/Type.cpp
+    src/Compiler/DerivedDeclarationGenerator/DerivedDeclarationGenerator.cpp
+    src/Compiler/Error/CompilerError.cpp
+    src/Compiler/Error/CompilerErrorContext.cpp
+    src/Compiler/Lexer/Lexer.cpp
+    src/Compiler/Module/Module.cpp
+    src/Compiler/Module/ModuleImports.cpp
+    src/Compiler/Module/ModuleInterface.cpp
+    src/Compiler/Module/TypeclassMetadata.cpp
+    src/Compiler/Operator/Operator.cpp
+    src/Compiler/Operator/Ordering.cpp
+    src/Compiler/Parser/ParseDecl.cpp
+    src/Compiler/Parser/ParseExpr.cpp
+    src/Compiler/Parser/ParseModule.cpp
+    src/Compiler/Parser/ParsePattern.cpp
+    src/Compiler/Parser/ParseType.cpp
+    src/Compiler/Primitive/Primitive.cpp
+    src/Compiler/Source/Source.cpp
+    src/Compiler/Token/Token.cpp
+    src/Compiler/TypeTransform/TypeTransform.cpp
+    src/Support/Terminal/Terminal.cpp
+)
+target_include_directories(MarmotSyntax PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(MarmotSyntax PRIVATE yyjson)
+
+add_library(MarmotFmt STATIC src/Utility/Formatter/Formatter.cpp)
+target_link_libraries(MarmotFmt PUBLIC MarmotSyntax)
+
+add_library(MarmotSema STATIC
+    src/Compiler/Analysis/AbstractSyntaxTreeWalker.cpp
+    src/Compiler/Analysis/SharedAnalysis.cpp
+    src/Compiler/BuildGraph/BuildGraph.cpp
+    src/Compiler/CompilationInputs/CompilationInputs.cpp
+    src/Compiler/ImportResolver/ImportResolver.cpp
+    src/Compiler/ModuleManager/ModuleManager.cpp
+    src/Compiler/ModuleManager/ModuleSourceLoader.cpp
+    src/Compiler/StaticAnalyzerManager/Diagnostics/BaseDiagnosticPass/BaseDiagnosticPass.cpp
+    src/Compiler/StaticAnalyzerManager/Diagnostics/IntegerOverflowDiagnostic/IntegerOverflowDiagnostic.cpp
+    src/Compiler/StaticAnalyzerManager/Diagnostics/ShadowingPolicyDiagnostic/ShadowingPolicyDiagnostic.cpp
+    src/Compiler/StaticAnalyzerManager/Diagnostics/UnusedLocalDiagnostic/UnusedLocalDiagnostic.cpp
+    src/Compiler/StaticAnalyzerManager/StaticAnalyzerManager.cpp
+    src/Compiler/TypeChecker/CheckDecl.cpp
+    src/Compiler/TypeChecker/CheckExpr.cpp
+    src/Compiler/TypeChecker/PatternCoverage.cpp
+    src/Compiler/TypeChecker/PatternExhaustiveness.cpp
+    src/Compiler/TypeChecker/TraitSolver.cpp
+    src/Compiler/TypeMatching/InstanceTypeMatcher.cpp
+)
+target_link_libraries(MarmotSema PUBLIC MarmotSyntax)
+
+add_library(MarmotIR STATIC
+    src/Compiler/Lowering/FunctionLowering.cpp
+    src/Compiler/Lowering/GenericFunctionTable.cpp
+    src/Compiler/Lowering/GenericTypes.cpp
+    src/Compiler/Lowering/InstanceResolver.cpp
+    src/Compiler/Lowering/Lowering.cpp
+    src/Compiler/Lowering/LoweringControl.cpp
+    src/Compiler/Lowering/LoweringExpressions.cpp
+    src/Compiler/MarmotIR/Builder/MarmotIRBuilder.cpp
+    src/Compiler/MarmotIR/MarmotIR.cpp
+    src/Compiler/MarmotIR/Printer/MarmotIRPrinter.cpp
+    src/Compiler/MarmotIR/Verifier/MarmotIRVerifier.cpp
+    src/Compiler/MarmotIROptimizer/Analysis/MarmotIRAnalysis.cpp
+    src/Compiler/MarmotIROptimizer/Analysis/MarmotIRModuleFacts.cpp
+    src/Compiler/MarmotIROptimizer/Interprocedural/ClosureConversion.cpp
+    src/Compiler/MarmotIROptimizer/Interprocedural/Contification.cpp
+    src/Compiler/MarmotIROptimizer/Interprocedural/Inlining.cpp
+    src/Compiler/MarmotIROptimizer/Interprocedural/MarmotIRBodyCopy.cpp
+    src/Compiler/MarmotIROptimizer/MarmotIROptimizer.cpp
+    src/Compiler/MarmotIROptimizer/Scalar/DeadCodeElimination.cpp
+    src/Compiler/MarmotIROptimizer/Scalar/GlobalValueNumbering.cpp
+    src/Compiler/MarmotIROptimizer/Scalar/KnownConstructorThreading.cpp
+    src/Compiler/MarmotIROptimizer/Scalar/LoopInvariantCodeMotion.cpp
+    src/Compiler/MarmotIROptimizer/Scalar/ParameterUnboxing.cpp
+    src/Compiler/MarmotIROptimizer/Scalar/ScalarReplacement.cpp
+    src/Compiler/MarmotIROptimizer/Scalar/Sccp.cpp
+    src/Compiler/MarmotIROptimizer/Scalar/SelfTailCall.cpp
+    src/Compiler/MarmotIROptimizer/Scalar/StrengthReduction.cpp
+    src/Utility/Diagnostics/Diagnostics.cpp
+)
+target_link_libraries(MarmotIR PUBLIC MarmotSema)
+
+add_library(MarmotCodegen STATIC
+    src/Bytecode/Artifact/BinaryArtifact.cpp
+    src/Bytecode/Executable/Executable.cpp
+    src/Compiler/BytecodeBackend/BytecodeBackend.cpp
+    src/Compiler/BytecodeLinker/BytecodeLinker.cpp
+    src/Compiler/BytecodeModule/BytecodeModule.cpp
+    src/Compiler/Module/CompiledModule.cpp
+)
+target_link_libraries(MarmotCodegen PUBLIC MarmotIR PRIVATE ZLIB::ZLIBSTATIC)
+
+add_library(MarmotCompiler STATIC
+    src/Compiler/CompilationSchedule/CompilationExecution.cpp
+    src/Compiler/CompilationSchedule/CompilationSchedule.cpp
+    src/Compiler/CompilationTimings/CompilationTimings.cpp
+    src/Compiler/Compiler.cpp
+    src/Compiler/Module/ModuleExports.cpp
+    src/Compiler/Module/ModuleInterfaceRegistry.cpp
+)
+target_link_libraries(MarmotCompiler PUBLIC MarmotCodegen)
+
+set(MARMOT_LIBRARY_TARGETS MarmotSyntax MarmotFmt MarmotSema MarmotIR MarmotCodegen MarmotCompiler)
 if(NOT EMSCRIPTEN)
-    add_library(MarmotDriver STATIC ${MARMOT_DRIVER_SOURCES})
-    target_link_libraries(MarmotDriver PUBLIC MarmotCompiler PRIVATE CLI11::CLI11 yyjson)
+    add_library(MarmotDriver STATIC
+        src/Compiler/Json/JsonReader.cpp
+        src/Utility/BuildPlan/BuildPlan.cpp
+        src/Utility/CLI/CLI.cpp
+        src/Utility/Driver/MarmotDriver.cpp
+    )
+    target_link_libraries(MarmotDriver PUBLIC MarmotCompiler MarmotFmt PRIVATE CLI11::CLI11 yyjson)
     list(APPEND MARMOT_LIBRARY_TARGETS MarmotDriver)
 endif()
 foreach(target_name IN LISTS MARMOT_LIBRARY_TARGETS)
     marmot_configure_target(${target_name})
 endforeach()
-if(UNIX)
-    target_link_libraries(MarmotCompiler PUBLIC ${CMAKE_DL_LIBS})
-endif()
 if(NOT EMSCRIPTEN)
     add_executable(marmotc src/Marmot.cpp)
     target_link_libraries(marmotc PRIVATE MarmotDriver)

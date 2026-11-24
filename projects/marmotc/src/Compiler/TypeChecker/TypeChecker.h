@@ -66,6 +66,18 @@ private:
 		explicit TypeScope(TypeEnvironment names);
 	};
 
+	static void ApplyTransferableParameterConstraints(MarmotType::FunctionType& signature);
+	static std::string ConstructorKey(const std::string& module_name, const std::string& constructor_name);
+	static bool HasTypeVariables(const std::shared_ptr<MarmotType>& type);
+	static std::unordered_set<int> CollectTypeVariableIds(const std::shared_ptr<MarmotType>& type);
+	static const std::string& ConstrainedClassName(const MarmotType::ClassConstraint& constraint);
+	static void AppendUniqueConstraint(std::vector<MarmotType::ClassConstraint>& constraints, MarmotType::ClassConstraint&& constraint);
+	static std::vector<MarmotType::ClassConstraint> CollectSignatureConstraints(
+		const std::vector<std::shared_ptr<MarmotType>>& param_types,
+		const std::shared_ptr<MarmotType>& return_type);
+
+	static std::shared_ptr<MarmotType> MakeGlobalFunctionType(const std::vector<std::shared_ptr<MarmotType>>& parameters, const std::shared_ptr<MarmotType>& result, const std::vector<MarmotType::ClassConstraint>& constraints);
+
 	struct CheckingAssumptions
 	{
 		std::vector<MarmotType::ClassConstraint> m_constraints;

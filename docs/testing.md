@@ -49,8 +49,8 @@ Regression tests:
 - add `<name>.warnings.json` when warnings need structured assertions
 - when a `.warnings.json` file is present, `marmot test` compares the emitted warning JSON against that snapshot
 - `marmot test` builds each fixture with `marmotc` into `target/` and runs it in its own `marmotvm` process, in parallel, enforcing `[test].timeout_ms` (or `--timeout-ms`) on each
-- `python scripts/dev.py test` runs `marmot test` against this checkout's build; it needs cargo
-- `python scripts/dev.py snapshot <test>` writes a test's `.expected` (and `.warnings.json`, when it has one or with `--warnings`) from its current output; `--force` rewrites existing ones. Read the diff before committing: a snapshot rewritten to match a regression hides it
+- `python scripts/testing/language.py` runs `marmot test` against this checkout's build; it needs cargo
+- `python scripts/testing/snapshot.py <test>` writes a test's `.expected` (and `.warnings.json`, when it has one or with `--warnings`) from its current output; `--force` rewrites existing ones. Read the diff before committing: a snapshot rewritten to match a regression hides it
 - CLI contract checks that do not fit the plain `test/<category>/*.mmt` model run through `scripts/testing/cli_contracts.py`
 
 `<name>.warnings.json` fixtures use one ordered JSON array whose entries mirror the machine-readable warning objects emitted by the CLI diagnostic schema:
@@ -82,7 +82,7 @@ Documentation examples:
 - runnable Markdown examples use fenced blocks whose info string starts with `marmot-test`
 - `scripts/testing/doc_examples.py` extracts those fences, verifies their mirrors under `test/doc_examples/`, and compiles them from repo-aware temporary paths
 - the tracked mirrors under `test/doc_examples/` are sync targets for review; the language suite does not execute them directly
-- `python scripts/dev.py check docs --sync` rewrites current mirrors and removes orphaned mirror artifacts that no longer correspond to any `marmot-test` fence
+- `python scripts/testing/doc_examples.py --sync` rewrites current mirrors and removes orphaned mirror artifacts that no longer correspond to any `marmot-test` fence
 - use `name=<category>/<example>` for the stable mirror path under `test/doc_examples/<kind>/`
 - use `path=<repo-relative-temp-file>` for the actual extraction target used during compilation
 - use `module=<ModuleName>` when the snippet intentionally omits the required `module` declaration
@@ -179,17 +179,18 @@ python scripts/dev.py gate --skip unit tool
 python scripts/dev.py gate --only docs cli format
 ```
 
-Its steps, in order, are `layering`, `build`, `unit`, `mmc`, `docs`, `cli`, `format`,
-`benchmarks`, `tool` and `language`. Each check also runs alone:
+Its steps, in order, are `generate-mmc`, `layering`, `build`, `unit`, `mmc`,
+`docs`, `cli`, `format`, `benchmarks`, `tool` and `language`. After building,
+you can also run individual checks directly.
 
 ```bash
-python scripts/dev.py check layering
-python scripts/dev.py check mmc               # current writer and reader snapshot
-python scripts/dev.py check docs              # --sync rewrites the mirrors
-python scripts/dev.py check cli
-python scripts/dev.py check format            # --root DIR, --enforce-clean
-python scripts/dev.py check benchmarks        # --run executes them too
-python scripts/dev.py check tool              # the marmot tool's cargo tests
+python scripts/testing/layering.py
+python scripts/testing/mmc_contract.py   # current writer and reader snapshot
+python scripts/testing/doc_examples.py   # --sync rewrites the mirrors
+python scripts/testing/cli_contracts.py
+python scripts/testing/formatting.py     # --root DIR, --enforce-clean
+python scripts/testing/benchmarks.py     # --run executes them too
+python scripts/testing/tool.py           # the marmot tool's cargo tests
 ```
 
 The format check verifies that `marmotc fmt` is idempotent across the test
@@ -202,11 +203,11 @@ on each one and fails on any compile error or warning, so a language change
 cannot leave them uncompilable unnoticed (it did once: every benchmark stopped
 compiling when v2 removed `loop`, assignment and in-place `Appendable`). `--run`
 also executes each one; its timings are only meaningful with a Release build,
-and `python scripts/dev.py bench` measures them properly.
+and `python scripts/bench/bench.py` measures them properly.
 
 The layering check keeps the components' dependency direction.
 `MarmotRuntime` in `projects/marmotvm/src` owns the `.mmc` reader.
-`MarmotCompiler` in `projects/marmotc/src` owns the writer. `MarmotDriver`,
+`MarmotCodegen` in `projects/marmotc/src` owns the writer. `MarmotDriver`,
 the CLI and driver library under `projects/marmotc/src/Utility`, links to the
 compiler. The runtime links `MarmotStdLib` and `MarmotNativeSupport` from
 `projects/marmotstdlib`. Compiler and VM communicate through the `.mmc` format
@@ -220,10 +221,10 @@ caller passes. It needs no build, and the gate runs it first.
 Run the implementation tests:
 
 ```bash
-python scripts/dev.py unit                        # every suite, through CTest
-python scripts/dev.py unit --regex TypeChecker    # CTest names
-python scripts/dev.py unit --tag "[runtime]"      # Catch2 tags
-python scripts/dev.py unit --tag "[module][import]" --build Debug
+python scripts/testing/unit.py                        # every suite, through CTest
+python scripts/testing/unit.py --regex TypeChecker    # CTest names
+python scripts/testing/unit.py --tag "[runtime]"      # Catch2 tags
+python scripts/testing/unit.py --tag "[module][import]" --build Debug
 ```
 
 Release builds leave `MARMOT_BUILD_TESTS` off by default;
@@ -242,11 +243,11 @@ ctest --preset linux-debug
 Run the file-based regression suite:
 
 ```bash
-python scripts/dev.py test
-python scripts/dev.py test --category closure
-python scripts/dev.py test --category static_analyzer --build Debug
-python scripts/dev.py test --pattern recursive
-python scripts/dev.py test --test closure/simple.mmt
+python scripts/testing/language.py
+python scripts/testing/language.py --category closure
+python scripts/testing/language.py --category static_analyzer --build Debug
+python scripts/testing/language.py --pattern recursive
+python scripts/testing/language.py --test closure/simple.mmt
 ```
 
 The marmot tool runs it too, from the repository root, with `MARMOTC` naming

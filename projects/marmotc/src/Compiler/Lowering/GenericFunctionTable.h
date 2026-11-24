@@ -1,30 +1,26 @@
 #pragma once
 
-#include "Compiler/Lowering/GenericFunctionInfo.h"
+#include "Compiler/Module/GenericFunctionInfo.h"
 
 #include <optional>
 #include <string>
-#include <unordered_map>
 
 // Every generic function a module may specialize: its own, keyed by bare name,
 // and every one its imports provide, keyed `Module::name`, so a name never
 // reaches a generic of another module that happens to share it.
 class GenericFunctionTable
 {
-public:
-	using Functions = std::unordered_map<std::string, GenericFunctionInfo>;
-
 private:
 	std::string m_module_name;
-	Functions m_functions;
+	GenericFunctions m_functions;
 
 public:
-	GenericFunctionTable(std::string module_name, Functions imported);
+	GenericFunctionTable(std::string module_name, GenericFunctions imported);
 
 	void Add(const std::string& name, GenericFunctionInfo info);
 	bool Contains(const std::string& key) const;
 	const GenericFunctionInfo& At(const std::string& key) const;
-	Functions TakeAll() &&;
+	GenericFunctions TakeAll() &&;
 
 	std::optional<std::string> KeyIn(const std::string& module_name, const std::string& symbol_name) const;
 

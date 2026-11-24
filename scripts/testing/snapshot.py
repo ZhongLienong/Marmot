@@ -9,9 +9,9 @@ the diff before committing it: a snapshot rewritten to match a regression hides
 the regression.
 
 Examples:
-    python scripts/dev.py snapshot closure/simple.mmt
-    python scripts/dev.py snapshot test/closure/simple.mmt --force
-    python scripts/dev.py snapshot static_analyzer/success/unused_local_warning.mmt --warnings
+    python scripts/testing/snapshot.py closure/simple.mmt
+    python scripts/testing/snapshot.py test/closure/simple.mmt --force
+    python scripts/testing/snapshot.py static_analyzer/success/unused_local_warning.mmt --warnings
 """
 
 from __future__ import annotations

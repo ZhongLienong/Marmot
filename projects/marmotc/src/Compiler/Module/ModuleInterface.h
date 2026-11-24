@@ -2,7 +2,7 @@
 
 #include "Compiler/Module/Module.h"
 #include "Compiler/Module/TypeclassMetadata.h"
-#include "Compiler/Lowering/GenericFunctionTable.h"
+#include "Compiler/Module/GenericFunctionInfo.h"
 
 #include <filesystem>
 #include <memory>
@@ -39,7 +39,7 @@ struct ModuleInterface
 	SymbolTable m_symbols;
 	TypeEnvironment m_type_signatures;
 	TypeclassMetadataMap m_typeclass_metadata;
-	GenericFunctionTable::Functions m_generic_functions;
+	GenericFunctions m_generic_functions;
 
-	ModuleInterface(std::string module_name, std::filesystem::path file_path, SymbolTable symbols, TypeEnvironment type_signatures, TypeclassMetadataMap typeclass_metadata, GenericFunctionTable::Functions generic_functions);
+	ModuleInterface(std::string module_name, std::filesystem::path file_path, SymbolTable symbols, TypeEnvironment type_signatures, TypeclassMetadataMap typeclass_metadata, GenericFunctions generic_functions);
 };

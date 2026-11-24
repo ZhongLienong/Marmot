@@ -7,7 +7,7 @@ or MSVC on Windows; GCC 14+ or Clang 19+ on Linux). Optional: cargo for the
 marmot tool, Emscripten for the WebAssembly build.
 
 Example:
-    python scripts/dev.py doctor
+    python scripts/make/doctor.py
 """
 
 from __future__ import annotations

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Package this checkout's build for this platform: marmotc, marmotvm, the marmot
-tool and the prelude, in the layout `dev.py install` writes, with a setup script
+tool and the prelude, in the layout `scripts/install/install.py` writes, with a setup script
 that puts the extracted folder on PATH and MARMOT_PATH.
 
 The archive is out/package/marmot-<platform>-x64.zip on Windows and .tar.gz
@@ -9,7 +9,7 @@ elsewhere, which keeps the binaries executable. It is extracted and run once
 before it is reported, so a package that does not work is not written.
 
 Example:
-    python scripts/dev.py package
+    python scripts/install/package.py
 """
 
 from __future__ import annotations

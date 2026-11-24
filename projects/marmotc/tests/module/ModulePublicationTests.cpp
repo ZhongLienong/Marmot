@@ -21,8 +21,8 @@ TEST_CASE("Imported access and re-export candidates share namespace visibility",
 		.WithExport("Shared", VisibilityLevel::Private);
 	const std::vector<std::shared_ptr<const ModuleInterface>> dependencies
 	{
-		std::make_shared<const ModuleInterface>("Library.Zulu", "Zulu.mmt", symbols, ModuleInterface::TypeEnvironment(), TypeclassMetadataMap(), GenericFunctionTable::Functions()),
-		std::make_shared<const ModuleInterface>("Library.Alpha", "Alpha.mmt", symbols, ModuleInterface::TypeEnvironment(), TypeclassMetadataMap(), GenericFunctionTable::Functions())
+		std::make_shared<const ModuleInterface>("Library.Zulu", "Zulu.mmt", symbols, ModuleInterface::TypeEnvironment(), TypeclassMetadataMap(), GenericFunctions()),
+		std::make_shared<const ModuleInterface>("Library.Alpha", "Alpha.mmt", symbols, ModuleInterface::TypeEnvironment(), TypeclassMetadataMap(), GenericFunctions())
 	};
 	const std::expected<ModuleImports, ModuleImportConflict> imports = ModuleImports::Collect(dependencies);
 	REQUIRE(imports.has_value());

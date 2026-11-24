@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Compiler/BuildGraph/BuildGraph.h"
 #include "Compiler/CompilationInputs/CompilationInputs.h"
 #include "Compiler/Module/Module.h"
 #include "Compiler/Result/Result.h"
@@ -9,6 +10,11 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+namespace MarmotResult
+{
+	using ModuleManagerResult = Result<BuildGraph>;
+}
 
 class ModuleSourceLoader;
 

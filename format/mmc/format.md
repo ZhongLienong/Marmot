@@ -106,4 +106,4 @@ producer's major/minor/patch header fields do not replace the marker check.
 
 [`fixtures.json`](fixtures.json) records the compiler commit, source files, path normalization, expected VM behavior, and derivation of invalid artifacts for the current format. The committed fixture files deliberately use repository-relative paths so they are portable. The conformance check recompiles their sources, normalizes only serialized checkout paths, compares all remaining bytes, and runs the VM on these regression fixtures. Update them when a deliberate format change changes the current output.
 
-Run the check with `python scripts/dev.py check mmc`; it also runs as the `mmc` step of `python scripts/dev.py gate`.
+Run the check with `python scripts/testing/mmc_contract.py`; it also runs as the `mmc` step of `python scripts/dev.py gate`.

@@ -7,9 +7,9 @@ the install's env.sh, which goes with the files; the line sourcing it from the
 shell profile is left for you to delete.
 
 Examples:
-    python scripts/dev.py uninstall
-    python scripts/dev.py uninstall --keep-files
-    python scripts/dev.py uninstall --install-dir ~/opt/marmot
+    python scripts/install/uninstall.py
+    python scripts/install/uninstall.py --keep-files
+    python scripts/install/uninstall.py --install-dir ~/opt/marmot
 """
 
 from __future__ import annotations

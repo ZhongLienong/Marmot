@@ -239,7 +239,7 @@ def sync_check_or_update(root: Path, examples: list[DocExample], sync: bool) -> 
         if target_path.exists() is False:
             errors.append(
                 f"Missing mirrored doc example: {target_path}. "
-                "Run python scripts/dev.py check docs --sync after updating docs."
+                "Run python scripts/testing/doc_examples.py --sync after updating docs."
             )
             continue
 
@@ -247,7 +247,7 @@ def sync_check_or_update(root: Path, examples: list[DocExample], sync: bool) -> 
         if actual_text != expected_text:
             errors.append(
                 f"Stale mirrored doc example: {target_path}. "
-                "Run python scripts/dev.py check docs --sync after updating docs."
+                "Run python scripts/testing/doc_examples.py --sync after updating docs."
             )
 
     orphaned_artifacts = find_orphaned_artifacts(root, examples)
@@ -260,7 +260,7 @@ def sync_check_or_update(root: Path, examples: list[DocExample], sync: bool) -> 
     for path in orphaned_artifacts:
         errors.append(
             f"Orphaned doc example artifact: {path}. "
-            "Run python scripts/dev.py check docs --sync after updating docs."
+            "Run python scripts/testing/doc_examples.py --sync after updating docs."
         )
 
     return errors

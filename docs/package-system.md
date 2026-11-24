@@ -77,8 +77,8 @@ and a released version newer than any on disk wins. Other commands that resolve
 afresh ask only about packages no directory on disk satisfies. The chosen
 release is downloaded into the global cache as `<Name>-<version>/`, each asset
 checked against the sha256 digest GitHub recorded for it, and then vendored like
-any other package. Downloads use `curl`; set `GITHUB_TOKEN` to raise GitHub's
-API rate limit.
+any other package. The tool downloads packages over HTTPS. Set
+`GITHUB_TOKEN` to raise GitHub's API rate limit.
 
 On Windows the global cache root is `%LOCALAPPDATA%/Marmot/cache` when
 available. On other systems Marmot falls back to `~/.marmot/cache`.

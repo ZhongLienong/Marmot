@@ -1,5 +1,5 @@
 # Puts this folder's Marmot on the user's PATH and its prelude on MARMOT_PATH, as
-# `dev.py install` does: each is appended unless it is there already, and the
+# `scripts/install/install.py` does: each is appended unless it is there already, and the
 # variable keeps its registry type. Run it again after moving the folder.
 $ErrorActionPreference = 'Stop'
 $environmentKey = 'HKCU:\Environment'

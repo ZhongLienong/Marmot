@@ -621,6 +621,13 @@ private:
 
 	MarmotResult::TokenListResult ParseGenericParameters(std::vector<std::shared_ptr<MarmotType>>* out_types = nullptr);
 
+	struct ParamSplit
+	{
+		std::vector<Token> m_params;
+		std::vector<std::shared_ptr<MarmotType>> m_types;
+	};
+
+	static ParamSplit SplitParamTuples(std::vector<std::pair<Token, std::shared_ptr<MarmotType>>>&& tuples);
 	MarmotResult::FunctionParamsResult ParseFunctionParameters(bool allow_inferred_types = false);
 
 	std::string Mangle(std::string_view name);

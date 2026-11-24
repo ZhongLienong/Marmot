@@ -1,7 +1,7 @@
 #include "GenericFunctionTable.h"
 #include "Compiler/Names/SpecialNames.h"
 
-GenericFunctionTable::GenericFunctionTable(std::string module_name, Functions imported)
+GenericFunctionTable::GenericFunctionTable(std::string module_name, GenericFunctions imported)
 	: m_module_name(std::move(module_name)),
 	m_functions(std::move(imported))
 {
@@ -22,7 +22,7 @@ const GenericFunctionInfo& GenericFunctionTable::At(const std::string& key) cons
 	return m_functions.at(key);
 }
 
-GenericFunctionTable::Functions GenericFunctionTable::TakeAll() &&
+GenericFunctions GenericFunctionTable::TakeAll() &&
 {
 	return std::move(m_functions);
 }

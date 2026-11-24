@@ -3,8 +3,12 @@ use super::version::{Constraint, Version};
 use crate::checksum;
 use serde_json::Value;
 use std::collections::BTreeMap;
+use std::fs::File;
+use std::io;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use ureq::tls::{RootCerts, TlsConfig};
+use ureq::typestate::WithoutBody;
+use ureq::{Agent, RequestBuilder};
 
 pub(crate) const DEFAULT_REGISTRY: &str = "https://github.com/ZhongLienong/marmot-packages";
 
@@ -26,6 +30,7 @@ pub(crate) struct Registries {
     repositories: Vec<String>,
     cache: PathBuf,
     lookup: Lookup,
+    http: Agent,
     /// Released versions per package name, newest first, each with the index
     /// of the repository that released it.
     released: BTreeMap<String, Vec<(Version, usize)>>,
@@ -57,44 +62,31 @@ fn tagged_version(reference: &str, name: &str) -> Option<Version> {
         .and_then(|text| Version::parse(text).ok())
 }
 
-fn curl(arguments: &[&str]) -> Result<Vec<u8>, String> {
-    let mut command = Command::new("curl");
-    command.args(["--fail", "--silent", "--show-error", "--location"]);
-    if let Some(token) = std::env::var("GITHUB_TOKEN")
-        .ok()
-        .filter(|token| !token.is_empty())
+fn registry_request(http: &Agent, url: &str) -> RequestBuilder<WithoutBody> {
+    let request = http.get(url);
+    if (url.starts_with("https://api.github.com/") || url.starts_with("https://github.com/"))
+        && let Ok(token) = std::env::var("GITHUB_TOKEN")
+        && !token.is_empty()
     {
-        command.args(["--header", &format!("Authorization: Bearer {token}")]);
+        return request.header("Authorization", format!("Bearer {token}"));
     }
-    let output = command
-        .args(arguments)
-        .output()
-        .map_err(|error| format!("Failed to run curl: {error}"))?;
-    if !output.status.success() {
-        return Err(format!(
-            "curl {} failed: {}",
-            arguments.last().unwrap_or(&""),
-            String::from_utf8_lossy(&output.stderr).trim()
-        ));
-    }
-    Ok(output.stdout)
+    request
 }
 
-fn github_api(path: &str) -> Result<Value, String> {
-    let body = curl(&[
-        "--header",
-        "Accept: application/vnd.github+json",
-        "--header",
-        "X-GitHub-Api-Version: 2022-11-28",
-        &format!("https://api.github.com/{path}"),
-    ])?;
-    serde_json::from_slice(&body)
+fn github_api(http: &Agent, path: &str) -> Result<Value, String> {
+    let url = format!("https://api.github.com/{path}");
+    let response = registry_request(http, &url)
+        .header("Accept", "application/vnd.github+json")
+        .header("X-GitHub-Api-Version", "2022-11-28")
+        .call()
+        .map_err(|error| format!("GitHub request for {path} failed: {error}"))?;
+    serde_json::from_reader(response.into_body().into_reader())
         .map_err(|error| format!("GitHub returned unreadable JSON for {path}: {error}"))
 }
 
 /// Downloads a release asset to `target` and checks it against the sha256
 /// digest GitHub recorded when it was uploaded.
-fn download(asset: &Value, target: &Path) -> Result<(), String> {
+fn download(http: &Agent, asset: &Value, target: &Path) -> Result<(), String> {
     let field = |key: &str| {
         asset
             .get(key)
@@ -106,7 +98,15 @@ fn download(asset: &Value, target: &Path) -> Result<(), String> {
         field("browser_download_url")?,
         field("digest")?,
     );
-    curl(&["--output", &target.to_string_lossy(), url])?;
+    let response = registry_request(http, url)
+        .call()
+        .map_err(|error| format!("Failed to download release asset '{name}': {error}"))?;
+    {
+        let mut archive = File::create(target)
+            .map_err(|error| format!("Failed to create '{}': {error}", target.display()))?;
+        io::copy(&mut response.into_body().into_reader(), &mut archive)
+            .map_err(|error| format!("Failed to write release asset '{name}': {error}"))?;
+    }
     let actual = checksum::file(target)?;
     if actual != digest {
         return Err(format!(
@@ -141,6 +141,16 @@ impl Registries {
                 .collect::<Result<_, _>>()?,
             cache,
             lookup,
+            http: Agent::config_builder()
+                .https_only(true)
+                .user_agent(concat!("marmot/", env!("CARGO_PKG_VERSION")))
+                .tls_config(
+                    TlsConfig::builder()
+                        .root_certs(RootCerts::PlatformVerifier)
+                        .build(),
+                )
+                .build()
+                .into(),
             released: BTreeMap::new(),
         })
     }
@@ -153,9 +163,10 @@ impl Registries {
         if !self.released.contains_key(name) {
             let mut versions = Vec::new();
             for (priority, repository) in self.repositories.iter().enumerate() {
-                let references = github_api(&format!(
-                    "repos/{repository}/git/matching-refs/tags/{name}-v"
-                ))?;
+                let references = github_api(
+                    &self.http,
+                    &format!("repos/{repository}/git/matching-refs/tags/{name}-v"),
+                )?;
                 versions.extend(
                     references
                         .as_array()
@@ -211,7 +222,10 @@ impl Registries {
         let repository = &self.repositories[priority];
         let tag = format!("{name}-v{version}");
         eprintln!("Downloading {name} {version} from github.com/{repository}");
-        let release = github_api(&format!("repos/{repository}/releases/tags/{tag}"))?;
+        let release = github_api(
+            &self.http,
+            &format!("repos/{repository}/releases/tags/{tag}"),
+        )?;
 
         // Unpacked one level below the cache root, a partial download is
         // never mistaken for a package by the index.
@@ -227,6 +241,7 @@ impl Registries {
         let install = |asset_name: &str| -> Result<(), String> {
             let archive = partial.join(asset_name);
             download(
+                &self.http,
                 asset(&release, asset_name).ok_or_else(|| {
                     format!("Release {tag} in github.com/{repository} has no asset '{asset_name}'.")
                 })?,
@@ -266,6 +281,9 @@ impl Registries {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::{BufRead, BufReader, Write};
+    use std::net::TcpListener;
+    use std::time::Duration;
 
     #[test]
     fn registries_are_github_repositories() {
@@ -297,6 +315,57 @@ mod tests {
         assert_eq!(version("refs/tags/Image-vnext"), None);
         assert_eq!(version("refs/tags/ImageTools-v1.0.0"), None);
         assert_eq!(version("refs/heads/Image-v1.0.0"), None);
+    }
+
+    #[test]
+    fn a_release_download_follows_redirects_and_preserves_archive_bytes() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/download", listener.local_addr().unwrap());
+        let contents = b"archive\0\xff\r\n";
+        let server = std::thread::spawn(move || {
+            let redirect = b"HTTP/1.1 302 Found\r\nLocation: /asset\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                contents.len()
+            );
+            for (headers, body) in [
+                (redirect.as_slice(), &[][..]),
+                (response.as_bytes(), contents.as_slice()),
+            ] {
+                let (mut stream, _) = listener.accept().unwrap();
+                stream
+                    .set_read_timeout(Some(Duration::from_secs(5)))
+                    .unwrap();
+                let mut reader = BufReader::new(&mut stream);
+                let mut line = String::new();
+                loop {
+                    assert!(reader.read_line(&mut line).unwrap() > 0);
+                    if line == "\r\n" {
+                        break;
+                    }
+                    line.clear();
+                }
+                stream.write_all(headers).unwrap();
+                stream.write_all(body).unwrap();
+            }
+        });
+        let tree = crate::test_support::TempTree::new(&[]);
+        let expected = tree.path("expected");
+        std::fs::write(&expected, contents).unwrap();
+        let asset = serde_json::json!({
+            "name": "Lib-1.0.0.tar.gz",
+            "browser_download_url": url,
+            "digest": checksum::file(&expected).unwrap(),
+        });
+        let http: Agent = Agent::config_builder()
+            .proxy(None)
+            .timeout_global(Some(Duration::from_secs(5)))
+            .build()
+            .into();
+        let archive = tree.path("Lib-1.0.0.tar.gz");
+        download(&http, &asset, &archive).unwrap();
+        assert_eq!(std::fs::read(&archive).unwrap(), contents);
+        server.join().unwrap();
     }
 
     #[test]

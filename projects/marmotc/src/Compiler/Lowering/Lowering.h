@@ -49,7 +49,7 @@ struct LoweredModule
 	MarmotIRModule m_module;
 	std::vector<LoweredExport> m_exports;
 	std::vector<LoweredImport> m_imports;
-	GenericFunctionTable::Functions m_generic_functions;
+	GenericFunctions m_generic_functions;
 	std::map<std::string, std::set<std::string>> m_native_imports;
 
 	explicit LoweredModule(MarmotIRModule module);
@@ -58,7 +58,7 @@ struct LoweredModule
 // What lowering must know about the modules this one imports.
 struct LoweringImports
 {
-	GenericFunctionTable::Functions m_generic_functions;
+	GenericFunctions m_generic_functions;
 	TypeclassMetadataMap m_typeclasses;
 };
 

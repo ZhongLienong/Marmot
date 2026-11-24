@@ -6,9 +6,9 @@ By default every test runs through CTest; --tag runs the Catch2 binary directly
 with a tag expression, and --regex narrows CTest to matching names.
 
 Examples:
-    python scripts/dev.py unit
-    python scripts/dev.py unit --tag "[runtime]"
-    python scripts/dev.py unit --regex TypeChecker
+    python scripts/testing/unit.py
+    python scripts/testing/unit.py --tag "[runtime]"
+    python scripts/testing/unit.py --regex TypeChecker
 """
 
 from __future__ import annotations

@@ -6,9 +6,9 @@ By default the build tree of --build/--preset goes; --all takes every CMake
 build tree, the WebAssembly build and the marmot tool's cargo target.
 
 Examples:
-    python scripts/dev.py clean
-    python scripts/dev.py clean --build Release
-    python scripts/dev.py clean --all
+    python scripts/make/clean.py
+    python scripts/make/clean.py --build Release
+    python scripts/make/clean.py --all
 """
 
 from __future__ import annotations

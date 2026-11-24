@@ -7,11 +7,11 @@ both equally: two compilers, each run with its matching marmotvm. To keep a
 baseline, copy both projects' executables into one folder before changing sources.
 
 Usage:
-    python scripts/dev.py bench                         # the Release build
-    python scripts/dev.py bench --runs 7                # more samples
-    python scripts/dev.py bench --compare old/out/marmotc
-    python scripts/dev.py bench --exe path/to/marmotc
-    python scripts/dev.py bench --every                 # every file in benchmarks/
+    python scripts/bench/bench.py                         # the Release build
+    python scripts/bench/bench.py --runs 7                # more samples
+    python scripts/bench/bench.py --compare old/out/marmotc
+    python scripts/bench/bench.py --exe path/to/marmotc
+    python scripts/bench/bench.py --every                 # every file in benchmarks/
 """
 
 from __future__ import annotations

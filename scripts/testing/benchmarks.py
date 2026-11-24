@@ -10,8 +10,8 @@ compiling unnoticed when the language dropped `loop`, assignment and in-place
 executing) on each one and fails on any compile error or warning.
 
 Examples:
-    python scripts/dev.py check benchmarks
-    python scripts/dev.py check benchmarks --build Release --run
+    python scripts/testing/benchmarks.py
+    python scripts/testing/benchmarks.py --build Release --run
 """
 
 from __future__ import annotations
