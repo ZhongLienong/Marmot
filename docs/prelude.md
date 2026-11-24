@@ -21,7 +21,7 @@ Complete `.mmt` source files still need an explicit `module` declaration even wh
 - `Iter.mmt` provides lazy sequence pipelines over any `Iterable`. See [Sequence Pipelines](#sequence-pipelines).
 - `Prelude/Panic.mmt` contains the simple panic helper used by many tests and examples.
 - References are part of the language: `Ref<T>` and the `ref`, `*` and `:=` forms need no import. See [References](type-system.md#references).
-- `Concurrency.mmt` declares the primitives `Spawn`, `Join`, `Close`, `IsDone` and `Cancel`, each one VM instruction declared as a `foreign` with no library; `MakeChannel`, written in Marmot over a private primitive with `where Transferable<T>`; `WorkerError` (`Cancelled | Failed(Text)`), the error half of the `Result<T, WorkerError>` that `Concurrency::Join` evaluates to; `JoinedOrPanic` for code that treats a worker failure as fatal; and `ParallelMap`, written in Marmot over `Spawn` and `Join`. The VM builds `Join`'s result by position, so the compiler checks its declaration: `Result`'s first member holds the value and its second the `WorkerError`, whose first member holds nothing and second the worker's error message.
+- `Concurrency.mmt` exports the VM primitives `Spawn`, `Send`, `Close`, `IsDone`, and `Cancel`. `MakeChannel` is a Marmot function over a private primitive with `where Transferable<T>`. `Join` and `Receive` are Marmot functions that construct `Result<T, WorkerError>` and `Option<T>` from private primitive outcomes. `WorkerError` has `Cancelled` and `Failed(Text)` variants. `JoinedOrPanic` treats worker failure as fatal, and `ParallelMap` maps over chunks using `Spawn` and `Join`.
 
 ## Helper and Typeclass Modules
 

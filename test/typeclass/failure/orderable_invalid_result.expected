@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/typeclass/failure/orderable_invalid_result.mmt:19
+   |
+19 | Box(1) < Box(2);
+   |        ^ Orderable::Compare must return a union with exactly the payload-free constructors Less, Equal, Greater, and Unordered.
+   |

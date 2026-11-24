@@ -1,0 +1,19 @@
+module OrderableInvalidResult
+
+type Outcome = Less | Equal | Greater | Unordered(Text);
+
+class Orderable<T>
+{
+    Compare: fn(a: T, b: T) -> Outcome;
+};
+
+type Box = {
+    value: Int
+};
+
+instance Orderable<Box>
+{
+    def Compare = fn(a: Box, b: Box) -> Outcome => Outcome::Equal();
+};
+
+Box(1) < Box(2);

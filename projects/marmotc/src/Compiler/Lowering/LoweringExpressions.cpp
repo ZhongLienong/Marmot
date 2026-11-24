@@ -360,7 +360,7 @@ Lowering::Lowered Lowering::FunctionLowering::LowerBinary(const MarmotExpression
 					m_builder.AtLine(op.m_line).Emit(MarmotIROp::CellWrite, m_function.TypeOf(right), { left, right });
 					return m_builder.ConstUnit();
 				}
-				if (binary.m_uses_concatenable || binary.m_uses_equatable || binary.m_uses_orderable)
+				if (binary.m_uses_concatenable || binary.m_uses_equatable || binary.m_ordering.has_value())
 				{
 					return LowerClassOperator(binary, left, right);
 				}
@@ -464,22 +464,29 @@ Lowering::Lowered Lowering::FunctionLowering::LowerClassOperator(const MarmotExp
 	{
 		return std::unexpected(m_owner.ResolutionError(resolved.error(), op));
 	}
-	const MarmotIROp compare = SelectOp(BinaryOps(op.m_token_name).value(), MarmotIRScalar::Int).value();
-	return CallResolved(resolved.value(), { left, right }, argument_types, MarmotOrderingType(), op)
+	const OrderingType& ordering = binary.m_ordering.value();
+	const bool is_less = op.m_token_name == Token::Name::LEFT_ANGLE || op.m_token_name == Token::Name::LESS_EQUAL;
+	const bool includes_equal = op.m_token_name == Token::Name::LESS_EQUAL || op.m_token_name == Token::Name::GREATER_EQUAL;
+	return CallResolved(resolved.value(), { left, right }, argument_types, ordering.m_type, op)
 		.transform
 		(
-			[this, &op, compare](MarmotIRValueId ordering)
+			[this, &op, &ordering, is_less, includes_equal](MarmotIRValueId value)
 			{
 				m_builder.AtLine(op.m_line);
-				const MarmotIRValueId tag = m_builder.Emit(MarmotIROp::GetTag, IntType(), { ordering });
-				const MarmotIRValueId ordered = m_builder.Binary(MarmotIROp::NeInt, tag, m_builder.ConstInt(static_cast<int>(MarmotOrdering::Unordered)));
-				const MarmotIRBlockId compare_block = NewBlock();
+				const MarmotIRValueId tag = m_builder.Emit(MarmotIROp::GetTag, IntType(), { value });
+				const int expected = ordering.Tag(is_less ? MarmotOrdering::Less : MarmotOrdering::Greater);
+				const MarmotIRValueId matches = m_builder.Binary(MarmotIROp::EqInt, tag, m_builder.ConstInt(expected));
+				if (!includes_equal)
+				{
+					return matches;
+				}
+				const MarmotIRBlockId check_equal = NewBlock();
 				const MarmotIRBlockId join = NewBlock();
 				const MarmotIRValueId result = m_builder.AddParameter(join, MarmotIRScalarType(MarmotIRScalar::Bool));
-				Branch(ordered, MarmotIRSuccessor(compare_block), MarmotIRSuccessor(join, { m_builder.ConstBool(false) }));
-				PositionAt(compare_block);
-				const MarmotIRValueId compared = m_builder.Binary(compare, tag, m_builder.ConstInt(static_cast<int>(MarmotOrdering::Equal)));
-				Jump(join, { compared });
+				Branch(matches, MarmotIRSuccessor(join, { m_builder.ConstBool(true) }), MarmotIRSuccessor(check_equal));
+				PositionAt(check_equal);
+				const MarmotIRValueId equal = m_builder.Binary(MarmotIROp::EqInt, tag, m_builder.ConstInt(ordering.Tag(MarmotOrdering::Equal)));
+				Jump(join, { equal });
 				PositionAt(join);
 				return result;
 			}

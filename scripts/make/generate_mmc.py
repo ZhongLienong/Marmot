@@ -15,6 +15,7 @@ from lib.host import REPO_ROOT
 
 REGISTRY = REPO_ROOT / "format" / "mmc" / "registry.json"
 BANNER = "// Generated from format/mmc/registry.json. Do not edit.\n// Regenerate: python scripts/dev.py generate-mmc\n\n"
+OPERAND_BYTES = {"i8": 1, "u8": 1, "u16le": 2, "u24le": 3, "i64le": 8, "u64le": 8, "f64le": 8}
 
 
 def load_registry() -> dict:
@@ -30,7 +31,35 @@ def load_registry() -> dict:
         raise ValueError("opcodes must fit in one byte and have positive instruction lengths")
     if len(registry["intrinsics"]) > 256:
         raise ValueError("intrinsic IDs must fit in one byte")
+    for opcode in registry["opcodes"]:
+        check_opcode_layout(opcode)
     return registry
+
+
+def check_opcode_layout(opcode: dict) -> None:
+    name = opcode["name"]
+    length = 1
+    operands = set()
+    for operand in opcode["operands"]:
+        field = operand["name"]
+        if field in operands or operand["encoding"] not in OPERAND_BYTES:
+            raise ValueError(f"{name}: invalid or duplicate operand {field}")
+        operands.add(field)
+        length += OPERAND_BYTES[operand["encoding"]]
+    if length != opcode["length"]:
+        raise ValueError(f"{name}: operands give length {length}, expected {opcode['length']}")
+
+    counts = operands | ({"intrinsic_arity"} if name == "CALL_INTRINSIC" else set())
+    for side in ("stack_before", "stack_after"):
+        if not isinstance(opcode[side], list):
+            raise ValueError(f"{name}: {side} must be a list")
+        for entry in opcode[side]:
+            if any(not isinstance(entry.get(key), str) or not entry[key] for key in ("name", "type")):
+                raise ValueError(f"{name}: {side} entries need a name and type")
+            count = entry.get("count", 1)
+            valid_count = count in counts if isinstance(count, str) else type(count) is int and count >= 0
+            if not valid_count:
+                raise ValueError(f"{name}: {side} has invalid count {count!r}")
 
 
 def opcodes(registry: dict) -> str:

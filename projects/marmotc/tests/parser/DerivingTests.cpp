@@ -66,7 +66,7 @@ TEST_CASE("Deriving preserves each class target's generated method shape", "[par
 		{ "Transferable", "", 0u, 1u },
 		{ "Equatable", "Bool", 2u, 1u },
 		{ "Hashable", "Int", 1u, 1u },
-		{ "Orderable", "Orderable::Ordering", 2u, 1u },
+		{ "Orderable", "DeriveTargets::Outcome", 2u, 1u },
 		{ "Convertable", "Text", 1u, 2u }
 	};
 	for (const std::string_view declaration : { "type Sample = { value: Int }", "type Sample = Empty | Full(Int)" })
@@ -75,10 +75,17 @@ TEST_CASE("Deriving preserves each class target's generated method shape", "[par
 		{
 			INFO(declaration);
 			INFO(target);
-			const std::string source = std::format("module DeriveTargets\n{} deriving ({});\n", declaration, target);
+			const bool orders = target == "Orderable";
+			std::string source = std::format("module DeriveTargets\n{} deriving ({});\n", declaration, target);
+			if (orders)
+			{
+				source += R"(class Orderable<T> { Compare: fn(a: T, b: T) -> Outcome; };
+type Outcome = Unordered | Greater | Equal | Less;
+)";
+			}
 			const std::expected<MarmotTest::ParsedSnippet, CompilerError> parsed = MarmotTest::ParseSnippet(source);
 			REQUIRE(parsed.has_value());
-			REQUIRE(parsed->m_program.size() == 2u);
+			REQUIRE(parsed->m_program.size() == (orders ? 4u : 2u));
 			REQUIRE(parsed->m_program[1]->IsStatement<MarmotStatement::Instance>());
 			const MarmotStatement::Instance& instance = parsed->m_program[1]->GetStatement<MarmotStatement::Instance>();
 			CHECK(instance.m_class_name.m_lexeme == target);

@@ -10,7 +10,7 @@ use Option.
 }
 public export { Spawn, Join, MakeChannel, Send, Receive, Close, IsDone, Cancel, WorkerError, JoinedOrPanic, ParallelMap }
 
-// Spawn, Join, Send, Receive, Close, IsDone and Cancel are each one instruction of the VM, declared
+// Spawn, Send, Close, IsDone and Cancel are each one instruction of the VM, declared
 // as a `foreign` with no library whose symbol names the instruction: a primitive. A
 // primitive is called like a function, but it is not a value.
 //
@@ -20,12 +20,24 @@ public export { Spawn, Join, MakeChannel, Send, Receive, Close, IsDone, Cancel, 
 // The type written here is the one-parameter case, and the compiler checks the others.
 foreign "MARMOT_PRIMITIVE_Spawn" Spawn: fn(A, fn(A) -> R) -> Worker<R>;
 
-// Join(w) waits for the worker. A cancelled or failed worker is an ordinary value the
-// joining code can inspect and recover from, rather than an error that stops it. The
-// VM builds the result by position, so the compiler checks that Result's first member
-// holds the value and its second a WorkerError, and that WorkerError's first member
-// holds nothing and its second the worker's error message.
-foreign "MARMOT_PRIMITIVE_Join" Join: fn(Worker<T>) -> Result<T, WorkerError>;
+// The worker opcodes assign tags by position. Keep that order in the private unions.
+type JoinFailure = Cancelled | Failed(Text);
+
+type JoinOutcome<T> = Completed(T) | Rejected(JoinFailure);
+
+type ReceiveOutcome<T> = Drained | Received(T);
+
+foreign "MARMOT_PRIMITIVE_Join" JoinRaw: fn(Worker<T>) -> JoinOutcome<T>;
+
+foreign "MARMOT_PRIMITIVE_ChannelReceive" ReceiveRaw: fn(Channel<T>) -> ReceiveOutcome<T>;
+
+// What Join reports when a worker does not produce its value.
+type WorkerError = Cancelled | Failed(Text);
+
+def Join = fn<T>(worker: Worker<T>) -> Result<T, WorkerError> => match JoinRaw(worker) with
+    case JoinOutcome::Completed(value) => Result::Ok(value)
+    case JoinOutcome::Rejected(JoinFailure::Cancelled()) => Result::Err(WorkerError::Cancelled())
+    case JoinOutcome::Rejected(JoinFailure::Failed(message)) => Result::Err(WorkerError::Failed(message));
 
 // MakeChannel(capacity) takes its element type from where it is bound:
 // `def ch : Channel<Int> = Concurrency::MakeChannel(4);`. Only a transferable value
@@ -36,16 +48,15 @@ def MakeChannel = fn<T>(capacity: Int) -> Channel<T> where Transferable<T> => Ch
 
 foreign "MARMOT_PRIMITIVE_ChannelSend" Send: fn(Channel<T>, T) -> Bool;
 
-foreign "MARMOT_PRIMITIVE_ChannelReceive" Receive: fn(Channel<T>) -> Option<T>;
+def Receive = fn<T>(channel: Channel<T>) -> Option<T> => match ReceiveRaw(channel) with
+    case ReceiveOutcome::Drained() => Option::None()
+    case ReceiveOutcome::Received(value) => Option::Some(value);
 
 foreign "MARMOT_PRIMITIVE_ChannelClose" Close: fn(Channel<T>) -> Unit;
 
 foreign "MARMOT_PRIMITIVE_WorkerIsDone" IsDone: fn(Worker<T>) -> Bool;
 
 foreign "MARMOT_PRIMITIVE_WorkerCancel" Cancel: fn(Worker<T>) -> Bool;
-
-// What Join reports when a worker does not produce its value.
-type WorkerError = Cancelled | Failed(Text);
 
 // For code that treats a worker failure as fatal, which is what joining itself did
 // before it returned a Result.

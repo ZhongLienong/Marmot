@@ -1,0 +1,9 @@
+minimum / -1: -9223372036854775808 / -9223372036854775808
+minimum % -1: 0 / 0
+1 << 64: 0 / 0
+minimum >> 130: -1 / -1
+signed zero: -0.0 / -0.0 (round trip: true)
+reciprocal of signed zero: -inf / -inf (round trip: true)
+NaN: nan / nan (round trip: true)
+subnormal: 1e-310 / 1e-310 (round trip: true)
+inexact sum: 0.30000000000000004 / 0.30000000000000004 (round trip: true)

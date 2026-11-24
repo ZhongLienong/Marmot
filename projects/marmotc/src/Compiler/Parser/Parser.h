@@ -10,6 +10,7 @@
 
 #include "Compiler/Error/CompilerError.h"
 #include "Compiler/AbstractSyntaxTree/AbstractSyntaxTree.h"
+#include "Compiler/DerivedDeclarationGenerator/DerivedDeclarationGenerator.h"
 #include "Compiler/Module/ModuleImports.h"
 #include "Compiler/Module/Module.h"
 #include "Compiler/Result/Result.h"
@@ -216,7 +217,13 @@ private:
 	ParseContext m_context;
 	ParseState m_state;
 	std::vector<CompilerWarning> m_warnings;
-	std::queue<std::unique_ptr<MarmotStatement>> m_pending_statements;
+	struct DeferredOrderingDerivation
+	{
+		DerivedDeclarationGenerator m_generator;
+		Token m_target;
+	};
+	using PendingStatement = std::variant<std::unique_ptr<MarmotStatement>, DeferredOrderingDerivation>;
+	std::queue<PendingStatement> m_pending_statements;
 	// By name: a module's top-level type names are unique.
 	std::unordered_map<std::string, std::shared_ptr<MarmotType>> m_predeclared_types;
 	// Registered, and not declared yet.
@@ -781,6 +788,7 @@ private:
 	std::expected<std::vector<Token>, CompilerError> ParseDerivingTargets(const Token& context_token);
 
 	void RegisterSyntheticInstanceMetadata(const std::string& class_name, const std::vector<std::shared_ptr<MarmotType>>& type_args, const std::vector<MarmotType::ClassConstraint>& constraints, const std::vector<std::string>& mangled_method_names);
+	MarmotResult::StatementResult GenerateDerivedStatement(const DerivedDeclarationGenerator& generator, const OrderingType* ordering);
 
 	template<typename Declaration>
 	std::expected<void, CompilerError> QueueDerivedStatements(const Declaration& declaration, const std::vector<Token>& deriving_targets);

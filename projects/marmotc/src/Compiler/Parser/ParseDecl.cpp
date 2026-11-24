@@ -1,7 +1,6 @@
 #include "Parser.h"
 #include "Bytecode/Format/Format.h"
 #include "Bytecode/Intrinsics/IntrinsicTable.h"
-#include "Compiler/DerivedDeclarationGenerator/DerivedDeclarationGenerator.h"
 #include "Compiler/Names/SpecialNames.h"
 #include <algorithm>
 #include <format>
@@ -1494,6 +1493,24 @@ void Parser::RegisterSyntheticInstanceMetadata(const std::string& class_name, co
 	}
 }
 
+MarmotResult::StatementResult Parser::GenerateDerivedStatement(const DerivedDeclarationGenerator& generator, const OrderingType* ordering)
+{
+	std::expected<std::unique_ptr<MarmotStatement>, DerivedDeclarationError> generated = generator.Generate(ordering);
+	if (!generated.has_value())
+	{
+		return std::unexpected(GenerateParserError(std::move(generated.error().m_message), generated.error().m_token));
+	}
+	if (generated.value()->IsStatement<MarmotStatement::Instance>())
+	{
+		const MarmotStatement::Instance& instance = generated.value()->GetStatement<MarmotStatement::Instance>();
+		std::vector<std::string> methods = instance.m_methods
+			| std::views::transform([](const MarmotStatement::Instance::Method& method) { return method.m_definition.m_name.m_lexeme; })
+			| std::ranges::to<std::vector<std::string>>();
+		RegisterSyntheticInstanceMetadata(instance.m_class_name.m_lexeme, instance.m_type_args, instance.m_constraints, methods);
+	}
+	return std::move(generated.value());
+}
+
 template<typename Declaration>
 std::expected<void, CompilerError> Parser::QueueDerivedStatements(const Declaration& declaration, const std::vector<Token>& deriving_targets)
 {
@@ -1516,18 +1533,15 @@ std::expected<void, CompilerError> Parser::QueueDerivedStatements(const Declarat
 				return std::unexpected(std::move(registered.error()));
 			}
 		}
-		std::expected<std::unique_ptr<MarmotStatement>, DerivedDeclarationError> generated = derivation->Generate();
+		if (target.m_lexeme == ORDERABLE_CLASS_NAME)
+		{
+			m_pending_statements.emplace(DeferredOrderingDerivation{ std::move(derivation.value()), target });
+			continue;
+		}
+		MarmotResult::StatementResult generated = GenerateDerivedStatement(derivation.value(), nullptr);
 		if (!generated.has_value())
 		{
-			return std::unexpected(GenerateParserError(std::move(generated.error().m_message), generated.error().m_token));
-		}
-		if (generated.value()->IsStatement<MarmotStatement::Instance>())
-		{
-			const MarmotStatement::Instance& instance = generated.value()->GetStatement<MarmotStatement::Instance>();
-			std::vector<std::string> methods = instance.m_methods
-				| std::views::transform([](const MarmotStatement::Instance::Method& method) { return method.m_definition.m_name.m_lexeme; })
-				| std::ranges::to<std::vector<std::string>>();
-			RegisterSyntheticInstanceMetadata(instance.m_class_name.m_lexeme, instance.m_type_args, instance.m_constraints, methods);
+			return std::unexpected(std::move(generated.error()));
 		}
 		m_pending_statements.push(std::move(generated.value()));
 	}

@@ -1,0 +1,61 @@
+module ScalarConformance
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
+
+// The call gives the VM the same input without exposing it to constant folding.
+def RuntimeInt = fn(value: Int) -> Int => value;
+
+def RuntimeFloat = fn(value: Float) -> Float => value;
+
+def ShowInt = fn(label: Text, folded: Int, runtime: Int) -> Unit => IO::PrintLine(label ++ ": " ++ (folded as Text) ++ " / " ++ (runtime as Text));
+
+def ShowFloat = fn(label: Text, folded: Float, runtime: Float) -> Unit => {
+    def folded_text = folded as Text;
+    def runtime_text = runtime as Text;
+    def folded_round_trip = (folded_text as Float) as Text;
+    def runtime_round_trip = (runtime_text as Float) as Text;
+    def round_trips = (folded_round_trip == folded_text) && (runtime_round_trip == runtime_text);
+    IO::PrintLine
+    (
+        label ++ ": " ++ folded_text ++ " / " ++ runtime_text ++ " (round trip: " ++ (round_trips as Text) ++ ")"
+    );
+};
+
+ShowInt
+(
+    "minimum / -1",
+    -9223372036854775808 / -1,
+    RuntimeInt(-9223372036854775808) / RuntimeInt(-1)
+);
+ShowInt
+(
+    "minimum % -1",
+    -9223372036854775808 % -1,
+    RuntimeInt(-9223372036854775808) % RuntimeInt(-1)
+);
+ShowInt("1 << 64", 1 << (63 + 1), RuntimeInt(1) << RuntimeInt(64));
+ShowInt
+(
+    "minimum >> 130",
+    -9223372036854775808 >> 130,
+    RuntimeInt(-9223372036854775808) >> RuntimeInt(130)
+);
+
+ShowFloat("signed zero", -0.0, -RuntimeFloat(0.0));
+ShowFloat("reciprocal of signed zero", 1.0 / -0.0, RuntimeFloat(1.0) / -RuntimeFloat(0.0));
+ShowFloat("NaN", 0.0 / 0.0, RuntimeFloat(0.0) / RuntimeFloat(0.0));
+
+// Squaring 10^-155 produces a nonzero subnormal binary64 value.
+ShowFloat
+(
+    "subnormal",
+    0.00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001 * 0.00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001,
+    RuntimeFloat
+    (
+        0.00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001
+    ) * RuntimeFloat
+    (
+        0.00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001
+    )
+);
+
+ShowFloat("inexact sum", 0.1 + 0.2, RuntimeFloat(0.1) + RuntimeFloat(0.2));

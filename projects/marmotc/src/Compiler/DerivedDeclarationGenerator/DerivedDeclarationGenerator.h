@@ -45,8 +45,8 @@ private:
 	static std::optional<Operation> ResolveOperation(std::string_view name);
 	static bool IsContainer(Operation operation);
 
-	StatementResult Generate(const MarmotStatement::Struct& declaration) const;
-	StatementResult Generate(const MarmotStatement::Union& declaration) const;
+	StatementResult Generate(const MarmotStatement::Struct& declaration, const OrderingType* ordering) const;
+	StatementResult Generate(const MarmotStatement::Union& declaration, const OrderingType* ordering) const;
 
 public:
 	static std::expected<DerivedDeclarationGenerator, DerivedDeclarationError> Prepare(const MarmotStatement::Struct& declaration, const Token& target);
@@ -55,5 +55,5 @@ public:
 	// Registration precedes body validation, so name collisions keep their
 	// diagnostic priority. The parser may qualify the name as it registers it.
 	Token* NameToReserve();
-	StatementResult Generate() const;
+	StatementResult Generate(const OrderingType* ordering) const;
 };

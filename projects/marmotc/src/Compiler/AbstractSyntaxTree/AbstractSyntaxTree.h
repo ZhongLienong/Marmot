@@ -14,6 +14,7 @@
 #include "Compiler/Token/Token.h"
 #include "Compiler/AbstractSyntaxTree/FunctionParameters.h"
 #include "Compiler/AbstractSyntaxTree/GeneratedBinding.h"
+#include "Compiler/Operator/Ordering.h"
 #include "Type.h"
 
 class MarmotExpression;
@@ -426,7 +427,7 @@ public:
 		std::unique_ptr<MarmotExpression> m_right;
 		bool m_uses_concatenable = false; // True if using Concatenable typeclass for ++
 		bool m_uses_equatable = false;   // True if using Equatable typeclass for == or !=
-		bool m_uses_orderable = false;   // True if using Orderable typeclass for <, >, <=, >=
+		std::optional<OrderingType> m_ordering;
 
 		Binary(const Token& op, std::unique_ptr<MarmotExpression>&& left, std::unique_ptr<MarmotExpression>&& right);
 	};

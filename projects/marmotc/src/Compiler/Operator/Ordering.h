@@ -2,6 +2,9 @@
 
 #include "Compiler/AbstractSyntaxTree/Type.h"
 
+#include <array>
+#include <optional>
+
 enum class MarmotOrdering
 {
 	Less,
@@ -10,4 +13,14 @@ enum class MarmotOrdering
 	Unordered
 };
 
-std::shared_ptr<MarmotType> MarmotOrderingType();
+struct OrderingType
+{
+	std::shared_ptr<MarmotType> m_type;
+	std::array<int, 4u> m_tags;
+
+	static constexpr std::string_view s_required_result = "Orderable::Compare must return a union with exactly the payload-free constructors Less, Equal, Greater, and Unordered.";
+
+	static std::optional<OrderingType> Resolve(const std::unordered_map<std::string, std::shared_ptr<MarmotType>>& methods);
+	std::string ConstructorName(MarmotOrdering value) const;
+	int Tag(MarmotOrdering value) const;
+};

@@ -722,13 +722,23 @@ FunctionParameters Parser::ParametersFor(std::vector<Token> names) const
 MarmotResult::ParserResult Parser::Parse()
 {
 	MarmotProgramTree programTree;
+	std::vector<std::pair<size_t, DeferredOrderingDerivation>> deferred_ordering;
 	CollectTopLevelNames();
 
 	while (!IsAtEnd() || !m_pending_statements.empty())
 	{
 		if (!m_pending_statements.empty())
 		{
-			programTree.emplace_back(std::move(m_pending_statements.front()));
+			PendingStatement& pending = m_pending_statements.front();
+			if (auto* statement = std::get_if<std::unique_ptr<MarmotStatement>>(&pending))
+			{
+				programTree.emplace_back(std::move(*statement));
+			}
+			else
+			{
+				deferred_ordering.emplace_back(programTree.size(), std::move(std::get<DeferredOrderingDerivation>(pending)));
+				programTree.emplace_back();
+			}
 			m_pending_statements.pop();
 			continue;
 		}
@@ -752,6 +762,31 @@ MarmotResult::ParserResult Parser::Parse()
 	if (std::optional<CompilerError> instantiation_error = FillDeferredInstantiations())
 	{
 		return std::unexpected(MarmotResult::CompilerDiagnostics(std::move(instantiation_error.value())));
+	}
+
+	// A derived instance can precede the class and its result union.
+	if (!deferred_ordering.empty())
+	{
+		const Token& target = deferred_ordering.front().second.m_target;
+		const auto methods = m_state.m_typeclass_method_types.find(target.m_lexeme);
+		if (methods == m_state.m_typeclass_method_types.end())
+		{
+			return std::unexpected(MarmotResult::CompilerDiagnostics(GenerateParserError("Deriving Orderable requires a visible Orderable class.", target)));
+		}
+		const std::optional<OrderingType> ordering = OrderingType::Resolve(methods->second);
+		if (!ordering.has_value())
+		{
+			return std::unexpected(MarmotResult::CompilerDiagnostics(GenerateParserError(std::string(OrderingType::s_required_result), target)));
+		}
+		for (const auto& [index, derivation] : deferred_ordering)
+		{
+			MarmotResult::StatementResult generated = GenerateDerivedStatement(derivation.m_generator, &*ordering);
+			if (!generated.has_value())
+			{
+				return std::unexpected(MarmotResult::CompilerDiagnostics(std::move(generated.error())));
+			}
+			programTree[index] = std::move(generated.value());
+		}
 	}
 
 	if (std::optional<CompilerError> order_error = CheckDefinitionOrder())

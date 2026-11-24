@@ -980,7 +980,11 @@ MarmotResult::TypeResult TypeChecker::CheckBinaryOperator(const CheckingContext&
 			{
 				return std::unexpected(std::move(*error));
 			}
-			binary.m_uses_orderable = true;
+			binary.m_ordering = OrderingType::Resolve(m_classes.at(std::string(ORDERABLE_CLASS_NAME)).m_method_types);
+			if (!binary.m_ordering.has_value())
+			{
+				return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext(std::string(OrderingType::s_required_result), op, m_file_name, m_source_lines));
+			}
 		}
 
 		binary.m_type_data = MarmotType::MakeLiteralType<MarmotType::BoolType>();

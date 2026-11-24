@@ -119,10 +119,10 @@ Concurrency::Close(ch);
   element type from context, so annotate the binding: `def ch : Channel<Int> = ...`.
   It is ordinary Marmot, `where Transferable<T>`, over a primitive the module keeps
   to itself.
-- `Concurrency::Send(ch, value)` and `Concurrency::Receive(ch)` are typed calls.
+- `Concurrency::Send(ch, value)` is a primitive. `Concurrency::Receive(ch)` wraps a private primitive and returns `Option<T>`.
 
 Auxiliary operations: `Concurrency::Close(ch)`, `Concurrency::IsDone(w)`,
-`Concurrency::Cancel(w)`. Like `Spawn` and `Join`, they are primitives declared in
+`Concurrency::Cancel(w)`. Like `Spawn`, they are primitives declared in
 `Concurrency.mmt`.
 
 `Concurrency::ParallelMap(values, work, chunk_size)` maps `work` over `values` one

@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shutil
 import struct
 import subprocess
 import sys
@@ -15,7 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from lib.host import REPO_ROOT, checkout_environment
+from lib.host import PRELUDE_DIR, REPO_ROOT, TEST_DIR, checkout_environment, write_text
 from lib.presets import BuildTree, add_build_arguments
 from make import generate_mmc
 
@@ -248,6 +249,57 @@ def check_invalid(tree: BuildTree, fixture: dict[str, object]) -> None:
     print(f"[OK] {name}: VM rejection")
 
 
+def check_public_union_order(tree: BuildTree) -> None:
+    declarations = {
+        "Prelude/Option.mmt": "Option",
+        "Prelude/Result.mmt": "Result",
+        "Concurrency.mmt": "WorkerError",
+        "Orderable.mmt": "Ordering",
+    }
+    fixtures = (
+        "concurrency/success/join_returns_result.mmt",
+        "concurrency/success/channel_close_unblock.mmt",
+        "iter/success/pipeline.mmt",
+        "typeclass/success/ordering_nan.mmt",
+        "deriving/success/orderable.mmt",
+    )
+    with tempfile.TemporaryDirectory(prefix="marmot-prelude-order-") as directory:
+        root = Path(directory)
+        prelude = root / "prelude"
+        shutil.copytree(PRELUDE_DIR, prelude)
+        for relative, name in declarations.items():
+            path = prelude / relative
+            source = path.read_text(encoding="utf-8")
+            declaration = re.search(rf"(?m)^type {name}(?:<[^>]+>)?\s*=\s*([^;]+);", source)
+            if declaration is None:
+                raise AssertionError(f"Missing type declaration for {name} in {relative}")
+            variants = re.split(r"\s*\|\s*", declaration[1].strip())
+            if len(variants) < 2:
+                raise AssertionError(f"Expected multiple variants of {name} in {relative}")
+            start, end = declaration.span(1)
+            write_text(path, source[:start] + " | ".join(reversed(variants)) + source[end:])
+
+        plan = root / "plan.json"
+        write_text(plan, json.dumps({"version": 1, "search_paths": [], "native_libraries": [
+            {"name": "marmotstdlib", "thread_safe": True},
+        ]}))
+        for relative in fixtures:
+            original = TEST_DIR / relative
+            source = root / original.name
+            artifact = source.with_suffix(".mmc")
+            write_text(source, original.read_text(encoding="utf-8").replace(
+                "../../../projects/marmotstdlib/MarmotPrelude/", "./prelude/"))
+            compiled = run([str(tree.require_compiler()), "build", str(source), "--plan", str(plan),
+                            "-o", str(artifact), "--quiet"])
+            if compiled.returncode != 0:
+                raise AssertionError(f"{relative}: reordered prelude failed to compile:\n{compiled.stdout}{compiled.stderr}")
+            executed = run([str(tree.vm), "run", str(artifact), "--library", f"marmotstdlib={tree.stdlib}"])
+            expected = original.with_suffix(".expected").read_text(encoding="utf-8")
+            if executed.returncode != 0 or executed.stdout != expected:
+                raise AssertionError(f"{relative}: reordered prelude changed the result:\n{executed.stdout}{executed.stderr}")
+    print("[OK] reordered prelude: worker results, channels, iteration, and comparison")
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="Check the current .mmc snapshot and fixtures.")
     add_build_arguments(parser)
@@ -263,6 +315,7 @@ def main(argv: list[str]) -> int:
         check_valid(tree, fixture)
     for fixture in manifest["invalid"]:
         check_invalid(tree, fixture)
+    check_public_union_order(tree)
     print("[OK] current .mmc snapshot")
     return 0
 

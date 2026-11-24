@@ -49,1115 +49,2482 @@
       "id": 0,
       "name": "LOAD_STRING_WIDE",
       "length": 3,
-      "category": "Constants and literals"
+      "category": "Constants and literals",
+      "operands": [
+        {"name": "text_index", "encoding": "u16le"}
+      ],
+      "stack_before": [],
+      "stack_after": [
+        {"name": "value", "type": "Text"}
+      ]
     },
     {
       "id": 1,
       "name": "INTEGER_CONSTANT",
       "length": 9,
-      "category": "Constants and literals"
+      "category": "Constants and literals",
+      "operands": [
+        {"name": "value", "encoding": "i64le"}
+      ],
+      "stack_before": [],
+      "stack_after": [
+        {"name": "value", "type": "Int"}
+      ]
     },
     {
       "id": 2,
       "name": "FLOAT_CONSTANT",
       "length": 9,
-      "category": "Constants and literals"
+      "category": "Constants and literals",
+      "operands": [
+        {"name": "value", "encoding": "f64le"}
+      ],
+      "stack_before": [],
+      "stack_after": [
+        {"name": "value", "type": "Float"}
+      ]
     },
     {
       "id": 3,
       "name": "BYTE_CONSTANT",
       "length": 2,
-      "category": "Constants and literals"
+      "category": "Constants and literals",
+      "operands": [
+        {"name": "value", "encoding": "u8"}
+      ],
+      "stack_before": [],
+      "stack_after": [
+        {"name": "value", "type": "Byte"}
+      ]
     },
     {
       "id": 4,
       "name": "WORD_CONSTANT",
       "length": 9,
-      "category": "Constants and literals"
+      "category": "Constants and literals",
+      "operands": [
+        {"name": "value", "encoding": "u64le"}
+      ],
+      "stack_before": [],
+      "stack_after": [
+        {"name": "value", "type": "Word"}
+      ]
     },
     {
       "id": 5,
       "name": "OP_UNIT",
       "length": 1,
-      "category": "Constants and literals"
+      "category": "Constants and literals",
+      "operands": [],
+      "stack_before": [],
+      "stack_after": [
+        {"name": "value", "type": "Unit"}
+      ]
     },
     {
       "id": 6,
       "name": "OP_TRUE",
       "length": 1,
-      "category": "Constants and literals"
+      "category": "Constants and literals",
+      "operands": [],
+      "stack_before": [],
+      "stack_after": [
+        {"name": "value", "type": "Bool"}
+      ]
     },
     {
       "id": 7,
       "name": "OP_FALSE",
       "length": 1,
-      "category": "Constants and literals"
+      "category": "Constants and literals",
+      "operands": [],
+      "stack_before": [],
+      "stack_after": [
+        {"name": "value", "type": "Bool"}
+      ]
     },
     {
       "id": 8,
       "name": "INT_MINUS_1",
       "length": 1,
-      "category": "Constants and literals"
+      "category": "Constants and literals",
+      "operands": [],
+      "stack_before": [],
+      "stack_after": [
+        {"name": "value", "type": "Int"}
+      ]
     },
     {
       "id": 9,
       "name": "INT_0",
       "length": 1,
-      "category": "Constants and literals"
+      "category": "Constants and literals",
+      "operands": [],
+      "stack_before": [],
+      "stack_after": [
+        {"name": "value", "type": "Int"}
+      ]
     },
     {
       "id": 10,
       "name": "INT_1",
       "length": 1,
-      "category": "Constants and literals"
+      "category": "Constants and literals",
+      "operands": [],
+      "stack_before": [],
+      "stack_after": [
+        {"name": "value", "type": "Int"}
+      ]
     },
     {
       "id": 11,
       "name": "INT_2",
       "length": 1,
-      "category": "Constants and literals"
+      "category": "Constants and literals",
+      "operands": [],
+      "stack_before": [],
+      "stack_after": [
+        {"name": "value", "type": "Int"}
+      ]
     },
     {
       "id": 12,
       "name": "INT_3",
       "length": 1,
-      "category": "Constants and literals"
+      "category": "Constants and literals",
+      "operands": [],
+      "stack_before": [],
+      "stack_after": [
+        {"name": "value", "type": "Int"}
+      ]
     },
     {
       "id": 13,
       "name": "INT_4",
       "length": 1,
-      "category": "Constants and literals"
+      "category": "Constants and literals",
+      "operands": [],
+      "stack_before": [],
+      "stack_after": [
+        {"name": "value", "type": "Int"}
+      ]
     },
     {
       "id": 14,
       "name": "INT_5",
       "length": 1,
-      "category": "Constants and literals"
+      "category": "Constants and literals",
+      "operands": [],
+      "stack_before": [],
+      "stack_after": [
+        {"name": "value", "type": "Int"}
+      ]
     },
     {
       "id": 15,
       "name": "INT_10",
       "length": 1,
-      "category": "Constants and literals"
+      "category": "Constants and literals",
+      "operands": [],
+      "stack_before": [],
+      "stack_after": [
+        {"name": "value", "type": "Int"}
+      ]
     },
     {
       "id": 16,
       "name": "CREATE_ARRAY",
       "length": 5,
       "category": "Arrays and tuples",
-      "description": "[op][count lo][count mid][count hi][kind] pop count values into a new array; kind 1 when its elements are pointers"
+      "description": "[op][count lo][count mid][count hi][kind] pop count values into a new array; kind 1 when its elements are pointers",
+      "operands": [
+        {"name": "count", "encoding": "u24le"},
+        {"name": "element_kind", "encoding": "u8"}
+      ],
+      "stack_before": [
+        {"name": "elements", "type": "T", "count": "count"}
+      ],
+      "stack_after": [
+        {"name": "array", "type": "Array<T>"}
+      ]
     },
     {
       "id": 17,
       "name": "CREATE_TUPLE",
       "length": 6,
       "category": "Arrays and tuples",
-      "description": "[op][count lo][count mid][count hi][shape lo][shape hi] pop count values into a tuple of that shape"
+      "description": "[op][count lo][count mid][count hi][shape lo][shape hi] pop count values into a tuple of that shape",
+      "operands": [
+        {"name": "count", "encoding": "u24le"},
+        {"name": "shape", "encoding": "u16le"}
+      ],
+      "stack_before": [
+        {"name": "fields", "type": "Value", "count": "count"}
+      ],
+      "stack_after": [
+        {"name": "tuple", "type": "Tuple"}
+      ]
     },
     {
       "id": 18,
       "name": "GET_ARRAY",
       "length": 1,
-      "category": "Arrays and tuples"
+      "category": "Arrays and tuples",
+      "operands": [],
+      "stack_before": [
+        {"name": "array", "type": "Array<T>"},
+        {"name": "index", "type": "Int"}
+      ],
+      "stack_after": [
+        {"name": "element", "type": "T"}
+      ]
     },
     {
       "id": 19,
       "name": "GET_TUPLE",
       "length": 1,
-      "category": "Arrays and tuples"
+      "category": "Arrays and tuples",
+      "operands": [],
+      "stack_before": [
+        {"name": "tuple", "type": "Tuple"},
+        {"name": "index", "type": "Int"}
+      ],
+      "stack_after": [
+        {"name": "field", "type": "Value"}
+      ]
     },
     {
       "id": 20,
       "name": "ADD_BACK_ARRAY",
       "length": 1,
-      "category": "Arrays and tuples"
+      "category": "Arrays and tuples",
+      "operands": [],
+      "stack_before": [
+        {"name": "array", "type": "Array<T>"},
+        {"name": "element", "type": "T"}
+      ],
+      "stack_after": [
+        {"name": "array", "type": "Array<T>"}
+      ]
     },
     {
       "id": 21,
       "name": "GET_ARRAY_LENGTH",
       "length": 1,
-      "category": "Arrays and tuples"
+      "category": "Arrays and tuples",
+      "operands": [],
+      "stack_before": [
+        {"name": "array", "type": "Array<T>"}
+      ],
+      "stack_after": [
+        {"name": "length", "type": "Int"}
+      ]
     },
     {
       "id": 22,
       "name": "CREATE_INT_RANGE",
       "length": 1,
-      "category": "Ranges"
+      "category": "Ranges",
+      "operands": [],
+      "stack_before": [
+        {"name": "start", "type": "Int"},
+        {"name": "step", "type": "Int"},
+        {"name": "end", "type": "Int"}
+      ],
+      "stack_after": [
+        {"name": "range", "type": "Range<Int>"}
+      ]
     },
     {
       "id": 23,
       "name": "CREATE_FLOAT_RANGE",
       "length": 1,
-      "category": "Ranges"
+      "category": "Ranges",
+      "operands": [],
+      "stack_before": [
+        {"name": "start", "type": "Float"},
+        {"name": "step", "type": "Float"},
+        {"name": "end", "type": "Float"}
+      ],
+      "stack_after": [
+        {"name": "range", "type": "Range<Float>"}
+      ]
     },
     {
       "id": 24,
       "name": "GET_RANGE_START",
       "length": 1,
-      "category": "Ranges"
+      "category": "Ranges",
+      "operands": [],
+      "stack_before": [
+        {"name": "range", "type": "Range<T>"}
+      ],
+      "stack_after": [
+        {"name": "start", "type": "T"}
+      ]
     },
     {
       "id": 25,
       "name": "GET_RANGE_END",
       "length": 1,
-      "category": "Ranges"
+      "category": "Ranges",
+      "operands": [],
+      "stack_before": [
+        {"name": "range", "type": "Range<T>"}
+      ],
+      "stack_after": [
+        {"name": "end", "type": "T"}
+      ]
     },
     {
       "id": 26,
       "name": "GET_RANGE_STEP",
       "length": 1,
-      "category": "Ranges"
+      "category": "Ranges",
+      "operands": [],
+      "stack_before": [
+        {"name": "range", "type": "Range<T>"}
+      ],
+      "stack_after": [
+        {"name": "step", "type": "T"}
+      ]
     },
     {
       "id": 27,
       "name": "INT_TO_FLOAT",
       "length": 1,
-      "category": "Conversions"
+      "category": "Conversions",
+      "operands": [],
+      "stack_before": [
+        {"name": "value", "type": "Int"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Float"}
+      ]
     },
     {
       "id": 28,
       "name": "TEXT_TO_FLOAT",
       "length": 1,
-      "category": "Conversions"
+      "category": "Conversions",
+      "operands": [],
+      "stack_before": [
+        {"name": "value", "type": "Text"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Float"}
+      ]
     },
     {
       "id": 29,
       "name": "FLOAT_TO_INT",
       "length": 1,
-      "category": "Conversions"
+      "category": "Conversions",
+      "operands": [],
+      "stack_before": [
+        {"name": "value", "type": "Float"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Int"}
+      ]
     },
     {
       "id": 30,
       "name": "TEXT_TO_INT",
       "length": 1,
-      "category": "Conversions"
+      "category": "Conversions",
+      "operands": [],
+      "stack_before": [
+        {"name": "value", "type": "Text"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Int"}
+      ]
     },
     {
       "id": 31,
       "name": "FLOAT_TO_TEXT",
       "length": 1,
-      "category": "Conversions"
+      "category": "Conversions",
+      "operands": [],
+      "stack_before": [
+        {"name": "value", "type": "Float"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Text"}
+      ]
     },
     {
       "id": 32,
       "name": "INT_TO_TEXT",
       "length": 1,
-      "category": "Conversions"
+      "category": "Conversions",
+      "operands": [],
+      "stack_before": [
+        {"name": "value", "type": "Int"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Text"}
+      ]
     },
     {
       "id": 33,
       "name": "WORD_TO_TEXT",
       "length": 1,
-      "category": "Conversions"
+      "category": "Conversions",
+      "operands": [],
+      "stack_before": [
+        {"name": "value", "type": "Word"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Text"}
+      ]
     },
     {
       "id": 34,
       "name": "BYTE_TO_INT",
       "length": 1,
-      "category": "Conversions"
+      "category": "Conversions",
+      "operands": [],
+      "stack_before": [
+        {"name": "value", "type": "Byte"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Int"}
+      ]
     },
     {
       "id": 35,
       "name": "INT_TO_BYTE",
       "length": 1,
-      "category": "Conversions"
+      "category": "Conversions",
+      "operands": [],
+      "stack_before": [
+        {"name": "value", "type": "Int"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Byte"}
+      ]
     },
     {
       "id": 36,
       "name": "BYTE_TO_WORD",
       "length": 1,
-      "category": "Conversions"
+      "category": "Conversions",
+      "operands": [],
+      "stack_before": [
+        {"name": "value", "type": "Byte"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Word"}
+      ]
     },
     {
       "id": 37,
       "name": "WORD_TO_BYTE",
       "length": 1,
-      "category": "Conversions"
+      "category": "Conversions",
+      "operands": [],
+      "stack_before": [
+        {"name": "value", "type": "Word"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Byte"}
+      ]
     },
     {
       "id": 38,
       "name": "WORD_TO_INT",
       "length": 1,
-      "category": "Conversions"
+      "category": "Conversions",
+      "operands": [],
+      "stack_before": [
+        {"name": "value", "type": "Word"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Int"}
+      ]
     },
     {
       "id": 39,
       "name": "INT_TO_WORD",
       "length": 1,
-      "category": "Conversions"
+      "category": "Conversions",
+      "operands": [],
+      "stack_before": [
+        {"name": "value", "type": "Int"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Word"}
+      ]
     },
     {
       "id": 40,
       "name": "BYTE_TO_FLOAT",
       "length": 1,
-      "category": "Conversions"
+      "category": "Conversions",
+      "operands": [],
+      "stack_before": [
+        {"name": "value", "type": "Byte"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Float"}
+      ]
     },
     {
       "id": 41,
       "name": "FLOAT_TO_BYTE",
       "length": 1,
-      "category": "Conversions"
+      "category": "Conversions",
+      "operands": [],
+      "stack_before": [
+        {"name": "value", "type": "Float"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Byte"}
+      ]
     },
     {
       "id": 42,
       "name": "WORD_TO_FLOAT",
       "length": 1,
-      "category": "Conversions"
+      "category": "Conversions",
+      "operands": [],
+      "stack_before": [
+        {"name": "value", "type": "Word"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Float"}
+      ]
     },
     {
       "id": 43,
       "name": "FLOAT_TO_WORD",
       "length": 1,
-      "category": "Conversions"
+      "category": "Conversions",
+      "operands": [],
+      "stack_before": [
+        {"name": "value", "type": "Float"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Word"}
+      ]
     },
     {
       "id": 44,
       "name": "LEFT_SHIFT",
       "length": 1,
-      "category": "Bit operations"
+      "category": "Bit operations",
+      "operands": [],
+      "stack_before": [
+        {"name": "value", "type": "Int"},
+        {"name": "amount", "type": "Int"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Int"}
+      ]
     },
     {
       "id": 45,
       "name": "RIGHT_SHIFT",
       "length": 1,
-      "category": "Bit operations"
+      "category": "Bit operations",
+      "operands": [],
+      "stack_before": [
+        {"name": "value", "type": "Int"},
+        {"name": "amount", "type": "Int"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Int"}
+      ]
     },
     {
       "id": 46,
       "name": "LEFT_SHIFT_BYTE",
       "length": 1,
-      "category": "Bit operations"
+      "category": "Bit operations",
+      "operands": [],
+      "stack_before": [
+        {"name": "value", "type": "Byte"},
+        {"name": "amount", "type": "Int"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Byte"}
+      ]
     },
     {
       "id": 47,
       "name": "RIGHT_SHIFT_BYTE",
       "length": 1,
-      "category": "Bit operations"
+      "category": "Bit operations",
+      "operands": [],
+      "stack_before": [
+        {"name": "value", "type": "Byte"},
+        {"name": "amount", "type": "Int"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Byte"}
+      ]
     },
     {
       "id": 48,
       "name": "LEFT_SHIFT_WORD",
       "length": 1,
-      "category": "Bit operations"
+      "category": "Bit operations",
+      "operands": [],
+      "stack_before": [
+        {"name": "value", "type": "Word"},
+        {"name": "amount", "type": "Int"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Word"}
+      ]
     },
     {
       "id": 49,
       "name": "RIGHT_SHIFT_WORD",
       "length": 1,
-      "category": "Bit operations"
+      "category": "Bit operations",
+      "operands": [],
+      "stack_before": [
+        {"name": "value", "type": "Word"},
+        {"name": "amount", "type": "Int"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Word"}
+      ]
     },
     {
       "id": 50,
       "name": "BITWISE_AND",
       "length": 1,
-      "category": "Bit operations"
+      "category": "Bit operations",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "T"},
+        {"name": "right", "type": "T"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "T"}
+      ]
     },
     {
       "id": 51,
       "name": "BITWISE_OR",
       "length": 1,
-      "category": "Bit operations"
+      "category": "Bit operations",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "T"},
+        {"name": "right", "type": "T"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "T"}
+      ]
     },
     {
       "id": 52,
       "name": "BITWISE_XOR",
       "length": 1,
-      "category": "Bit operations"
+      "category": "Bit operations",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "T"},
+        {"name": "right", "type": "T"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "T"}
+      ]
     },
     {
       "id": 53,
       "name": "BITWISE_NOT",
       "length": 1,
-      "category": "Bit operations"
+      "category": "Bit operations",
+      "operands": [],
+      "stack_before": [
+        {"name": "value", "type": "T"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "T"}
+      ]
     },
     {
       "id": 54,
       "name": "ADD_FLOAT",
       "length": 1,
-      "category": "Arithmetic"
+      "category": "Arithmetic",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Float"},
+        {"name": "right", "type": "Float"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Float"}
+      ]
     },
     {
       "id": 55,
       "name": "SUBTRACT_FLOAT",
       "length": 1,
-      "category": "Arithmetic"
+      "category": "Arithmetic",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Float"},
+        {"name": "right", "type": "Float"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Float"}
+      ]
     },
     {
       "id": 56,
       "name": "MULTIPLY_FLOAT",
       "length": 1,
-      "category": "Arithmetic"
+      "category": "Arithmetic",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Float"},
+        {"name": "right", "type": "Float"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Float"}
+      ]
     },
     {
       "id": 57,
       "name": "DIVIDE_FLOAT",
       "length": 1,
-      "category": "Arithmetic"
+      "category": "Arithmetic",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Float"},
+        {"name": "right", "type": "Float"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Float"}
+      ]
     },
     {
       "id": 58,
       "name": "MODULO_FLOAT",
       "length": 1,
-      "category": "Arithmetic"
+      "category": "Arithmetic",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Float"},
+        {"name": "right", "type": "Float"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Float"}
+      ]
     },
     {
       "id": 59,
       "name": "ADD_INTEGER",
       "length": 1,
-      "category": "Arithmetic"
+      "category": "Arithmetic",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Int"},
+        {"name": "right", "type": "Int"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Int"}
+      ]
     },
     {
       "id": 60,
       "name": "SUBTRACT_INTEGER",
       "length": 1,
-      "category": "Arithmetic"
+      "category": "Arithmetic",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Int"},
+        {"name": "right", "type": "Int"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Int"}
+      ]
     },
     {
       "id": 61,
       "name": "MULTIPLY_INTEGER",
       "length": 1,
-      "category": "Arithmetic"
+      "category": "Arithmetic",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Int"},
+        {"name": "right", "type": "Int"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Int"}
+      ]
     },
     {
       "id": 62,
       "name": "DIVIDE_INTEGER",
       "length": 1,
-      "category": "Arithmetic"
+      "category": "Arithmetic",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Int"},
+        {"name": "right", "type": "Int"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Int"}
+      ]
     },
     {
       "id": 63,
       "name": "MODULO_INTEGER",
       "length": 1,
-      "category": "Arithmetic"
+      "category": "Arithmetic",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Int"},
+        {"name": "right", "type": "Int"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Int"}
+      ]
     },
     {
       "id": 64,
       "name": "ADD_BYTE",
       "length": 1,
-      "category": "Arithmetic"
+      "category": "Arithmetic",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Byte"},
+        {"name": "right", "type": "Byte"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Byte"}
+      ]
     },
     {
       "id": 65,
       "name": "SUBTRACT_BYTE",
       "length": 1,
-      "category": "Arithmetic"
+      "category": "Arithmetic",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Byte"},
+        {"name": "right", "type": "Byte"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Byte"}
+      ]
     },
     {
       "id": 66,
       "name": "MULTIPLY_BYTE",
       "length": 1,
-      "category": "Arithmetic"
+      "category": "Arithmetic",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Byte"},
+        {"name": "right", "type": "Byte"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Byte"}
+      ]
     },
     {
       "id": 67,
       "name": "DIVIDE_BYTE",
       "length": 1,
-      "category": "Arithmetic"
+      "category": "Arithmetic",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Byte"},
+        {"name": "right", "type": "Byte"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Byte"}
+      ]
     },
     {
       "id": 68,
       "name": "MODULO_BYTE",
       "length": 1,
-      "category": "Arithmetic"
+      "category": "Arithmetic",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Byte"},
+        {"name": "right", "type": "Byte"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Byte"}
+      ]
     },
     {
       "id": 69,
       "name": "ADD_WORD",
       "length": 1,
-      "category": "Arithmetic"
+      "category": "Arithmetic",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Word"},
+        {"name": "right", "type": "Word"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Word"}
+      ]
     },
     {
       "id": 70,
       "name": "SUBTRACT_WORD",
       "length": 1,
-      "category": "Arithmetic"
+      "category": "Arithmetic",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Word"},
+        {"name": "right", "type": "Word"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Word"}
+      ]
     },
     {
       "id": 71,
       "name": "MULTIPLY_WORD",
       "length": 1,
-      "category": "Arithmetic"
+      "category": "Arithmetic",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Word"},
+        {"name": "right", "type": "Word"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Word"}
+      ]
     },
     {
       "id": 72,
       "name": "DIVIDE_WORD",
       "length": 1,
-      "category": "Arithmetic"
+      "category": "Arithmetic",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Word"},
+        {"name": "right", "type": "Word"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Word"}
+      ]
     },
     {
       "id": 73,
       "name": "MODULO_WORD",
       "length": 1,
-      "category": "Arithmetic"
+      "category": "Arithmetic",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Word"},
+        {"name": "right", "type": "Word"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Word"}
+      ]
     },
     {
       "id": 74,
       "name": "CONCAT_ARRAY",
       "length": 1,
-      "category": "Concatenation"
+      "category": "Concatenation",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Array<T>"},
+        {"name": "right", "type": "Array<T>"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Array<T>"}
+      ]
     },
     {
       "id": 75,
       "name": "CONCAT_TEXT",
       "length": 1,
-      "category": "Concatenation"
+      "category": "Concatenation",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Text"},
+        {"name": "right", "type": "Text"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Text"}
+      ]
     },
     {
       "id": 76,
       "name": "EQUAL_FLOAT",
       "length": 1,
-      "category": "Comparison"
+      "category": "Comparison",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Float"},
+        {"name": "right", "type": "Float"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Bool"}
+      ]
     },
     {
       "id": 77,
       "name": "NOT_EQUAL_FLOAT",
       "length": 1,
-      "category": "Comparison"
+      "category": "Comparison",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Float"},
+        {"name": "right", "type": "Float"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Bool"}
+      ]
     },
     {
       "id": 78,
       "name": "GREATER_FLOAT",
       "length": 1,
-      "category": "Comparison"
+      "category": "Comparison",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Float"},
+        {"name": "right", "type": "Float"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Bool"}
+      ]
     },
     {
       "id": 79,
       "name": "GREATER_EQUAL_FLOAT",
       "length": 1,
-      "category": "Comparison"
+      "category": "Comparison",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Float"},
+        {"name": "right", "type": "Float"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Bool"}
+      ]
     },
     {
       "id": 80,
       "name": "LESS_FLOAT",
       "length": 1,
-      "category": "Comparison"
+      "category": "Comparison",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Float"},
+        {"name": "right", "type": "Float"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Bool"}
+      ]
     },
     {
       "id": 81,
       "name": "LESS_EQUAL_FLOAT",
       "length": 1,
-      "category": "Comparison"
+      "category": "Comparison",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Float"},
+        {"name": "right", "type": "Float"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Bool"}
+      ]
     },
     {
       "id": 82,
       "name": "EQUAL_INTEGER",
       "length": 1,
-      "category": "Comparison"
+      "category": "Comparison",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Int"},
+        {"name": "right", "type": "Int"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Bool"}
+      ]
     },
     {
       "id": 83,
       "name": "NOT_EQUAL_INTEGER",
       "length": 1,
-      "category": "Comparison"
+      "category": "Comparison",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Int"},
+        {"name": "right", "type": "Int"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Bool"}
+      ]
     },
     {
       "id": 84,
       "name": "GREATER_INTEGER",
       "length": 1,
-      "category": "Comparison"
+      "category": "Comparison",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Int"},
+        {"name": "right", "type": "Int"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Bool"}
+      ]
     },
     {
       "id": 85,
       "name": "GREATER_EQUAL_INTEGER",
       "length": 1,
-      "category": "Comparison"
+      "category": "Comparison",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Int"},
+        {"name": "right", "type": "Int"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Bool"}
+      ]
     },
     {
       "id": 86,
       "name": "LESS_INTEGER",
       "length": 1,
-      "category": "Comparison"
+      "category": "Comparison",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Int"},
+        {"name": "right", "type": "Int"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Bool"}
+      ]
     },
     {
       "id": 87,
       "name": "LESS_EQUAL_INTEGER",
       "length": 1,
-      "category": "Comparison"
+      "category": "Comparison",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Int"},
+        {"name": "right", "type": "Int"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Bool"}
+      ]
     },
     {
       "id": 88,
       "name": "EQUAL_BYTE",
       "length": 1,
-      "category": "Comparison"
+      "category": "Comparison",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Byte"},
+        {"name": "right", "type": "Byte"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Bool"}
+      ]
     },
     {
       "id": 89,
       "name": "NOT_EQUAL_BYTE",
       "length": 1,
-      "category": "Comparison"
+      "category": "Comparison",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Byte"},
+        {"name": "right", "type": "Byte"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Bool"}
+      ]
     },
     {
       "id": 90,
       "name": "GREATER_BYTE",
       "length": 1,
-      "category": "Comparison"
+      "category": "Comparison",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Byte"},
+        {"name": "right", "type": "Byte"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Bool"}
+      ]
     },
     {
       "id": 91,
       "name": "GREATER_EQUAL_BYTE",
       "length": 1,
-      "category": "Comparison"
+      "category": "Comparison",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Byte"},
+        {"name": "right", "type": "Byte"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Bool"}
+      ]
     },
     {
       "id": 92,
       "name": "LESS_BYTE",
       "length": 1,
-      "category": "Comparison"
+      "category": "Comparison",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Byte"},
+        {"name": "right", "type": "Byte"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Bool"}
+      ]
     },
     {
       "id": 93,
       "name": "LESS_EQUAL_BYTE",
       "length": 1,
-      "category": "Comparison"
+      "category": "Comparison",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Byte"},
+        {"name": "right", "type": "Byte"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Bool"}
+      ]
     },
     {
       "id": 94,
       "name": "EQUAL_WORD",
       "length": 1,
-      "category": "Comparison"
+      "category": "Comparison",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Word"},
+        {"name": "right", "type": "Word"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Bool"}
+      ]
     },
     {
       "id": 95,
       "name": "NOT_EQUAL_WORD",
       "length": 1,
-      "category": "Comparison"
+      "category": "Comparison",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Word"},
+        {"name": "right", "type": "Word"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Bool"}
+      ]
     },
     {
       "id": 96,
       "name": "GREATER_WORD",
       "length": 1,
-      "category": "Comparison"
+      "category": "Comparison",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Word"},
+        {"name": "right", "type": "Word"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Bool"}
+      ]
     },
     {
       "id": 97,
       "name": "GREATER_EQUAL_WORD",
       "length": 1,
-      "category": "Comparison"
+      "category": "Comparison",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Word"},
+        {"name": "right", "type": "Word"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Bool"}
+      ]
     },
     {
       "id": 98,
       "name": "LESS_WORD",
       "length": 1,
-      "category": "Comparison"
+      "category": "Comparison",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Word"},
+        {"name": "right", "type": "Word"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Bool"}
+      ]
     },
     {
       "id": 99,
       "name": "LESS_EQUAL_WORD",
       "length": 1,
-      "category": "Comparison"
+      "category": "Comparison",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Word"},
+        {"name": "right", "type": "Word"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Bool"}
+      ]
     },
     {
       "id": 100,
       "name": "EQUAL_TEXT",
       "length": 1,
-      "category": "Comparison"
+      "category": "Comparison",
+      "operands": [],
+      "stack_before": [
+        {"name": "left", "type": "Text"},
+        {"name": "right", "type": "Text"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Bool"}
+      ]
     },
     {
       "id": 101,
       "name": "NOT",
       "length": 1,
-      "category": "Logical and unary"
+      "category": "Logical and unary",
+      "operands": [],
+      "stack_before": [
+        {"name": "value", "type": "Bool"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Bool"}
+      ]
     },
     {
       "id": 102,
       "name": "NEGATE_FLOAT",
       "length": 1,
-      "category": "Logical and unary"
+      "category": "Logical and unary",
+      "operands": [],
+      "stack_before": [
+        {"name": "value", "type": "Float"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Float"}
+      ]
     },
     {
       "id": 103,
       "name": "NEGATE_INTEGER",
       "length": 1,
-      "category": "Logical and unary"
+      "category": "Logical and unary",
+      "operands": [],
+      "stack_before": [
+        {"name": "value", "type": "Int"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Int"}
+      ]
     },
     {
       "id": 104,
       "name": "JUMP_IF_FALSE",
       "length": 3,
-      "category": "Control flow"
+      "category": "Control flow",
+      "operands": [
+        {"name": "forward_offset", "encoding": "u16le"}
+      ],
+      "stack_before": [
+        {"name": "condition", "type": "Bool"}
+      ],
+      "stack_after": [
+        {"name": "condition", "type": "Bool"}
+      ]
     },
     {
       "id": 105,
       "name": "JUMP",
       "length": 3,
-      "category": "Control flow"
+      "category": "Control flow",
+      "operands": [
+        {"name": "forward_offset", "encoding": "u16le"}
+      ],
+      "stack_before": [],
+      "stack_after": []
     },
     {
       "id": 106,
       "name": "JUMP_BACK",
       "length": 3,
-      "category": "Control flow"
+      "category": "Control flow",
+      "operands": [
+        {"name": "backward_offset", "encoding": "u16le"}
+      ],
+      "stack_before": [],
+      "stack_after": []
     },
     {
       "id": 107,
       "name": "IF_INTEGER_LESS",
       "length": 3,
-      "category": "Control flow"
+      "category": "Control flow",
+      "operands": [
+        {"name": "forward_offset", "encoding": "u16le"}
+      ],
+      "stack_before": [
+        {"name": "left", "type": "Int"},
+        {"name": "right", "type": "Int"}
+      ],
+      "stack_after": []
     },
     {
       "id": 108,
       "name": "IF_INTEGER_LESS_EQUAL",
       "length": 3,
-      "category": "Control flow"
+      "category": "Control flow",
+      "operands": [
+        {"name": "forward_offset", "encoding": "u16le"}
+      ],
+      "stack_before": [
+        {"name": "left", "type": "Int"},
+        {"name": "right", "type": "Int"}
+      ],
+      "stack_after": []
     },
     {
       "id": 109,
       "name": "IF_INTEGER_GREATER",
       "length": 3,
-      "category": "Control flow"
+      "category": "Control flow",
+      "operands": [
+        {"name": "forward_offset", "encoding": "u16le"}
+      ],
+      "stack_before": [
+        {"name": "left", "type": "Int"},
+        {"name": "right", "type": "Int"}
+      ],
+      "stack_after": []
     },
     {
       "id": 110,
       "name": "IF_INTEGER_GREATER_EQUAL",
       "length": 3,
-      "category": "Control flow"
+      "category": "Control flow",
+      "operands": [
+        {"name": "forward_offset", "encoding": "u16le"}
+      ],
+      "stack_before": [
+        {"name": "left", "type": "Int"},
+        {"name": "right", "type": "Int"}
+      ],
+      "stack_after": []
     },
     {
       "id": 111,
       "name": "IF_INTEGER_EQUAL",
       "length": 3,
-      "category": "Control flow"
+      "category": "Control flow",
+      "operands": [
+        {"name": "forward_offset", "encoding": "u16le"}
+      ],
+      "stack_before": [
+        {"name": "left", "type": "Int"},
+        {"name": "right", "type": "Int"}
+      ],
+      "stack_after": []
     },
     {
       "id": 112,
       "name": "IF_INTEGER_NOT_EQUAL",
       "length": 3,
-      "category": "Control flow"
+      "category": "Control flow",
+      "operands": [
+        {"name": "forward_offset", "encoding": "u16le"}
+      ],
+      "stack_before": [
+        {"name": "left", "type": "Int"},
+        {"name": "right", "type": "Int"}
+      ],
+      "stack_after": []
     },
     {
       "id": 113,
       "name": "IF_FLOAT_LESS",
       "length": 3,
-      "category": "Control flow"
+      "category": "Control flow",
+      "operands": [
+        {"name": "forward_offset", "encoding": "u16le"}
+      ],
+      "stack_before": [
+        {"name": "left", "type": "Float"},
+        {"name": "right", "type": "Float"}
+      ],
+      "stack_after": []
     },
     {
       "id": 114,
       "name": "IF_FLOAT_LESS_EQUAL",
       "length": 3,
-      "category": "Control flow"
+      "category": "Control flow",
+      "operands": [
+        {"name": "forward_offset", "encoding": "u16le"}
+      ],
+      "stack_before": [
+        {"name": "left", "type": "Float"},
+        {"name": "right", "type": "Float"}
+      ],
+      "stack_after": []
     },
     {
       "id": 115,
       "name": "IF_FLOAT_GREATER",
       "length": 3,
-      "category": "Control flow"
+      "category": "Control flow",
+      "operands": [
+        {"name": "forward_offset", "encoding": "u16le"}
+      ],
+      "stack_before": [
+        {"name": "left", "type": "Float"},
+        {"name": "right", "type": "Float"}
+      ],
+      "stack_after": []
     },
     {
       "id": 116,
       "name": "IF_FLOAT_GREATER_EQUAL",
       "length": 3,
-      "category": "Control flow"
+      "category": "Control flow",
+      "operands": [
+        {"name": "forward_offset", "encoding": "u16le"}
+      ],
+      "stack_before": [
+        {"name": "left", "type": "Float"},
+        {"name": "right", "type": "Float"}
+      ],
+      "stack_after": []
     },
     {
       "id": 117,
       "name": "IF_FLOAT_EQUAL",
       "length": 3,
-      "category": "Control flow"
+      "category": "Control flow",
+      "operands": [
+        {"name": "forward_offset", "encoding": "u16le"}
+      ],
+      "stack_before": [
+        {"name": "left", "type": "Float"},
+        {"name": "right", "type": "Float"}
+      ],
+      "stack_after": []
     },
     {
       "id": 118,
       "name": "IF_FLOAT_NOT_EQUAL",
       "length": 3,
-      "category": "Control flow"
+      "category": "Control flow",
+      "operands": [
+        {"name": "forward_offset", "encoding": "u16le"}
+      ],
+      "stack_before": [
+        {"name": "left", "type": "Float"},
+        {"name": "right", "type": "Float"}
+      ],
+      "stack_after": []
     },
     {
       "id": 119,
       "name": "GET_TAG",
       "length": 1,
-      "category": "Unions"
+      "category": "Unions",
+      "operands": [],
+      "stack_before": [
+        {"name": "union", "type": "Union"}
+      ],
+      "stack_after": [
+        {"name": "tag", "type": "Int"}
+      ]
     },
     {
       "id": 120,
       "name": "GET_UNION_FIELD",
       "length": 2,
       "category": "Unions",
-      "description": "[op][index] replace a union with its field at index"
+      "description": "[op][index] replace a union with its field at index",
+      "operands": [
+        {"name": "field_index", "encoding": "u8"}
+      ],
+      "stack_before": [
+        {"name": "union", "type": "Union"}
+      ],
+      "stack_after": [
+        {"name": "field", "type": "Value"}
+      ]
     },
     {
       "id": 121,
       "name": "CALL_FOREIGN",
       "length": 4,
       "category": "Calls. CALL_0 to CALL_3 stay in order: the arity is the distance from CALL_0.",
-      "description": "[op][arity][return kind][argument kinds] pop the function's name, then arity arguments; argument i's kind is bits 2i and 2i+1"
+      "description": "[op][arity][return kind][argument kinds] pop the function's name, then arity arguments; argument i's kind is bits 2i and 2i+1",
+      "operands": [
+        {"name": "arity", "encoding": "u8"},
+        {"name": "return_kind", "encoding": "u8"},
+        {"name": "argument_kinds", "encoding": "u8"}
+      ],
+      "stack_before": [
+        {"name": "arguments", "type": "Value", "count": "arity"},
+        {"name": "function_name", "type": "Text"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Value"}
+      ]
     },
     {
       "id": 122,
       "name": "CALL_INTRINSIC",
       "length": 3,
       "category": "Calls. CALL_0 to CALL_3 stay in order: the arity is the distance from CALL_0.",
-      "description": "[op][intrinsic ID][array pointer elements] call a VM intrinsic; its signature gives the arity"
+      "description": "[op][intrinsic ID][array pointer elements] call a VM intrinsic; its signature gives the arity",
+      "operands": [
+        {"name": "intrinsic_id", "encoding": "u8"},
+        {"name": "array_pointer_elements", "encoding": "u8"}
+      ],
+      "stack_before": [
+        {"name": "arguments", "type": "Value", "count": "intrinsic_arity"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Value"}
+      ]
     },
     {
       "id": 123,
       "name": "CALL",
       "length": 2,
-      "category": "Calls. CALL_0 to CALL_3 stay in order: the arity is the distance from CALL_0."
+      "category": "Calls. CALL_0 to CALL_3 stay in order: the arity is the distance from CALL_0.",
+      "operands": [
+        {"name": "arity", "encoding": "u8"}
+      ],
+      "stack_before": [
+        {"name": "arguments", "type": "Value", "count": "arity"},
+        {"name": "callable", "type": "Function"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Value"}
+      ]
     },
     {
       "id": 124,
       "name": "CALL_0",
       "length": 1,
-      "category": "Calls. CALL_0 to CALL_3 stay in order: the arity is the distance from CALL_0."
+      "category": "Calls. CALL_0 to CALL_3 stay in order: the arity is the distance from CALL_0.",
+      "operands": [],
+      "stack_before": [
+        {"name": "callable", "type": "Function"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Value"}
+      ]
     },
     {
       "id": 125,
       "name": "CALL_1",
       "length": 1,
-      "category": "Calls. CALL_0 to CALL_3 stay in order: the arity is the distance from CALL_0."
+      "category": "Calls. CALL_0 to CALL_3 stay in order: the arity is the distance from CALL_0.",
+      "operands": [],
+      "stack_before": [
+        {"name": "arguments", "type": "Value", "count": 1},
+        {"name": "callable", "type": "Function"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Value"}
+      ]
     },
     {
       "id": 126,
       "name": "CALL_2",
       "length": 1,
-      "category": "Calls. CALL_0 to CALL_3 stay in order: the arity is the distance from CALL_0."
+      "category": "Calls. CALL_0 to CALL_3 stay in order: the arity is the distance from CALL_0.",
+      "operands": [],
+      "stack_before": [
+        {"name": "arguments", "type": "Value", "count": 2},
+        {"name": "callable", "type": "Function"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Value"}
+      ]
     },
     {
       "id": 127,
       "name": "CALL_3",
       "length": 1,
-      "category": "Calls. CALL_0 to CALL_3 stay in order: the arity is the distance from CALL_0."
+      "category": "Calls. CALL_0 to CALL_3 stay in order: the arity is the distance from CALL_0.",
+      "operands": [],
+      "stack_before": [
+        {"name": "arguments", "type": "Value", "count": 3},
+        {"name": "callable", "type": "Function"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Value"}
+      ]
     },
     {
       "id": 128,
       "name": "CALL_PROC_WIDE",
       "length": 4,
       "category": "Calls. CALL_0 to CALL_3 stay in order: the arity is the distance from CALL_0.",
-      "description": "[op][proc_lo][proc_hi][arity]"
+      "description": "[op][proc_lo][proc_hi][arity]",
+      "operands": [
+        {"name": "procedure_index", "encoding": "u16le"},
+        {"name": "arity", "encoding": "u8"}
+      ],
+      "stack_before": [
+        {"name": "arguments", "type": "Value", "count": "arity"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Value"}
+      ]
     },
     {
       "id": 129,
       "name": "CALL_GLOBAL_WIDE",
       "length": 4,
       "category": "Calls. CALL_0 to CALL_3 stay in order: the arity is the distance from CALL_0.",
-      "description": "[op][global_lo][global_hi][arity]"
+      "description": "[op][global_lo][global_hi][arity]",
+      "operands": [
+        {"name": "global_index", "encoding": "u16le"},
+        {"name": "arity", "encoding": "u8"}
+      ],
+      "stack_before": [
+        {"name": "arguments", "type": "Value", "count": "arity"}
+      ],
+      "stack_after": [
+        {"name": "result", "type": "Value"}
+      ]
     },
     {
       "id": 130,
       "name": "TAIL_CALL",
       "length": 2,
-      "category": "Calls. CALL_0 to CALL_3 stay in order: the arity is the distance from CALL_0."
+      "category": "Calls. CALL_0 to CALL_3 stay in order: the arity is the distance from CALL_0.",
+      "operands": [
+        {"name": "arity", "encoding": "u8"}
+      ],
+      "stack_before": [
+        {"name": "arguments", "type": "Value", "count": "arity"},
+        {"name": "callable", "type": "Function"}
+      ],
+      "stack_after": [
+        {"name": "parameters", "type": "Value", "count": "arity"}
+      ]
     },
     {
       "id": 131,
       "name": "CONSTRUCT_STRUCT",
       "length": 4,
       "category": "Data",
-      "description": "[op][size][shape lo][shape hi] pop size fields into a struct of that shape"
+      "description": "[op][size][shape lo][shape hi] pop size fields into a struct of that shape",
+      "operands": [
+        {"name": "count", "encoding": "u8"},
+        {"name": "shape", "encoding": "u16le"}
+      ],
+      "stack_before": [
+        {"name": "fields", "type": "Value", "count": "count"}
+      ],
+      "stack_after": [
+        {"name": "record", "type": "Struct"}
+      ]
     },
     {
       "id": 132,
       "name": "CONSTRUCT_UNION",
       "length": 5,
       "category": "Data",
-      "description": "[op][size][tag][shape lo][shape hi] pop size fields, push a union of them with the tag and shape"
+      "description": "[op][size][tag][shape lo][shape hi] pop size fields, push a union of them with the tag and shape",
+      "operands": [
+        {"name": "count", "encoding": "u8"},
+        {"name": "tag", "encoding": "u8"},
+        {"name": "shape", "encoding": "u16le"}
+      ],
+      "stack_before": [
+        {"name": "fields", "type": "Value", "count": "count"}
+      ],
+      "stack_after": [
+        {"name": "union", "type": "Union"}
+      ]
     },
     {
       "id": 133,
       "name": "LOAD_EMPTY_UNION",
       "length": 2,
-      "category": "Data"
+      "category": "Data",
+      "operands": [
+        {"name": "tag", "encoding": "u8"}
+      ],
+      "stack_before": [],
+      "stack_after": [
+        {"name": "union", "type": "Union"}
+      ]
     },
     {
       "id": 134,
       "name": "GET_MEMBER",
       "length": 2,
-      "category": "Data"
+      "category": "Data",
+      "operands": [
+        {"name": "field_index", "encoding": "u8"}
+      ],
+      "stack_before": [
+        {"name": "aggregate", "type": "Aggregate"}
+      ],
+      "stack_after": [
+        {"name": "field", "type": "Value"}
+      ]
     },
     {
       "id": 135,
       "name": "MAKE_FUNCTION_WIDE",
       "length": 3,
       "category": "Functions and closures. A closure holds exactly the values it captures.",
-      "description": "[op][proc_lo][proc_hi]"
+      "description": "[op][proc_lo][proc_hi]",
+      "operands": [
+        {"name": "procedure_index", "encoding": "u16le"}
+      ],
+      "stack_before": [],
+      "stack_after": [
+        {"name": "callable", "type": "Function"}
+      ]
     },
     {
       "id": 136,
       "name": "MAKE_CLOSURE_OF",
       "length": 4,
       "category": "Functions and closures. A closure holds exactly the values it captures.",
-      "description": "[op][proc_lo][proc_hi][count] pop count values, push a closure over them"
+      "description": "[op][proc_lo][proc_hi][count] pop count values, push a closure over them",
+      "operands": [
+        {"name": "procedure_index", "encoding": "u16le"},
+        {"name": "count", "encoding": "u8"}
+      ],
+      "stack_before": [
+        {"name": "captures", "type": "Value", "count": "count"}
+      ],
+      "stack_after": [
+        {"name": "callable", "type": "Function"}
+      ]
     },
     {
       "id": 137,
       "name": "SET_CAPTURE",
       "length": 2,
       "category": "Functions and closures. A closure holds exactly the values it captures.",
-      "description": "[op][index] pop a value and a closure, store the value at index"
+      "description": "[op][index] pop a value and a closure, store the value at index",
+      "operands": [
+        {"name": "capture_index", "encoding": "u8"}
+      ],
+      "stack_before": [
+        {"name": "closure", "type": "Function"},
+        {"name": "value", "type": "Value"}
+      ],
+      "stack_after": []
     },
     {
       "id": 138,
       "name": "GET_CELL",
       "length": 2,
       "category": "Functions and closures. A closure holds exactly the values it captures.",
-      "description": "[op][index] push the running closure's capture at index"
+      "description": "[op][index] push the running closure's capture at index",
+      "operands": [
+        {"name": "capture_index", "encoding": "u8"}
+      ],
+      "stack_before": [],
+      "stack_after": [
+        {"name": "capture", "type": "Value"}
+      ]
     },
     {
       "id": 139,
       "name": "GET_CELL_WIDE",
       "length": 3,
       "category": "Functions and closures. A closure holds exactly the values it captures.",
-      "description": "[op][capture_lo][capture_hi]"
+      "description": "[op][capture_lo][capture_hi]",
+      "operands": [
+        {"name": "capture_index", "encoding": "u16le"}
+      ],
+      "stack_before": [],
+      "stack_after": [
+        {"name": "capture", "type": "Value"}
+      ]
     },
     {
       "id": 140,
       "name": "DEFINE_GLOBAL_WIDE",
       "length": 3,
       "category": "Variables",
-      "description": "[op][global_lo][global_hi]"
+      "description": "[op][global_lo][global_hi]",
+      "operands": [
+        {"name": "global_index", "encoding": "u16le"}
+      ],
+      "stack_before": [
+        {"name": "value", "type": "Value"}
+      ],
+      "stack_after": []
     },
     {
       "id": 141,
       "name": "GET_GLOBAL_WIDE",
       "length": 3,
       "category": "Variables",
-      "description": "[op][global_lo][global_hi]"
+      "description": "[op][global_lo][global_hi]",
+      "operands": [
+        {"name": "global_index", "encoding": "u16le"}
+      ],
+      "stack_before": [],
+      "stack_after": [
+        {"name": "global", "type": "Value"}
+      ]
     },
     {
       "id": 142,
       "name": "SET_GLOBAL_WIDE",
       "length": 3,
       "category": "Variables",
-      "description": "[op][global_lo][global_hi]"
+      "description": "[op][global_lo][global_hi]",
+      "operands": [
+        {"name": "global_index", "encoding": "u16le"}
+      ],
+      "stack_before": [
+        {"name": "value", "type": "Value"}
+      ],
+      "stack_after": [
+        {"name": "value", "type": "Value"}
+      ]
     },
     {
       "id": 143,
       "name": "GET_LOCAL",
       "length": 2,
-      "category": "Variables"
+      "category": "Variables",
+      "operands": [
+        {"name": "local_index", "encoding": "u8"}
+      ],
+      "stack_before": [],
+      "stack_after": [
+        {"name": "local", "type": "Value"}
+      ]
     },
     {
       "id": 144,
       "name": "SET_LOCAL",
       "length": 2,
-      "category": "Variables"
+      "category": "Variables",
+      "operands": [
+        {"name": "local_index", "encoding": "u8"}
+      ],
+      "stack_before": [
+        {"name": "value", "type": "Value"}
+      ],
+      "stack_after": [
+        {"name": "value", "type": "Value"}
+      ]
     },
     {
       "id": 145,
       "name": "GET_LOCAL_WIDE",
       "length": 3,
       "category": "Variables",
-      "description": "[op][local_lo][local_hi]"
+      "description": "[op][local_lo][local_hi]",
+      "operands": [
+        {"name": "local_index", "encoding": "u16le"}
+      ],
+      "stack_before": [],
+      "stack_after": [
+        {"name": "local", "type": "Value"}
+      ]
     },
     {
       "id": 146,
       "name": "SET_LOCAL_WIDE",
       "length": 3,
       "category": "Variables",
-      "description": "[op][local_lo][local_hi]"
+      "description": "[op][local_lo][local_hi]",
+      "operands": [
+        {"name": "local_index", "encoding": "u16le"}
+      ],
+      "stack_before": [
+        {"name": "value", "type": "Value"}
+      ],
+      "stack_after": [
+        {"name": "value", "type": "Value"}
+      ]
     },
     {
       "id": 147,
       "name": "MAKE_CELL",
       "length": 2,
       "category": "Ref<T>",
-      "description": "[op][kind] replace a value with a Ref holding it; kind 1 when the value is a pointer"
+      "description": "[op][kind] replace a value with a Ref holding it; kind 1 when the value is a pointer",
+      "operands": [
+        {"name": "value_kind", "encoding": "u8"}
+      ],
+      "stack_before": [
+        {"name": "value", "type": "T"}
+      ],
+      "stack_after": [
+        {"name": "cell", "type": "Ref<T>"}
+      ]
     },
     {
       "id": 148,
       "name": "READ_CELL",
       "length": 1,
-      "category": "Ref<T>"
+      "category": "Ref<T>",
+      "operands": [],
+      "stack_before": [
+        {"name": "cell", "type": "Ref<T>"}
+      ],
+      "stack_after": [
+        {"name": "value", "type": "T"}
+      ]
     },
     {
       "id": 149,
       "name": "WRITE_CELL",
       "length": 1,
-      "category": "Ref<T>"
+      "category": "Ref<T>",
+      "operands": [],
+      "stack_before": [
+        {"name": "cell", "type": "Ref<T>"},
+        {"name": "value", "type": "T"}
+      ],
+      "stack_after": [
+        {"name": "value", "type": "T"}
+      ]
     },
     {
       "id": 150,
       "name": "POP",
       "length": 1,
-      "category": "Stack"
+      "category": "Stack",
+      "operands": [],
+      "stack_before": [
+        {"name": "value", "type": "Value"}
+      ],
+      "stack_after": []
     },
     {
       "id": 151,
       "name": "PUSH_PLACEHOLDER",
       "length": 2,
       "category": "Stack",
-      "description": "[op][count] push count placeholders, the frame's slots past its parameters"
+      "description": "[op][count] push count placeholders, the frame's slots past its parameters",
+      "operands": [
+        {"name": "count", "encoding": "u8"}
+      ],
+      "stack_before": [],
+      "stack_after": [
+        {"name": "slots", "type": "Placeholder", "count": "count"}
+      ]
     },
     {
       "id": 152,
       "name": "RETURN",
       "length": 1,
-      "category": "Return"
+      "category": "Return",
+      "operands": [],
+      "stack_before": [
+        {"name": "result", "type": "Value"}
+      ],
+      "stack_after": []
     },
     {
       "id": 153,
       "name": "HALT",
       "length": 1,
-      "category": "Return"
+      "category": "Return",
+      "operands": [],
+      "stack_before": [],
+      "stack_after": []
     },
     {
       "id": 154,
       "name": "SPAWN_WORKER",
       "length": 5,
       "category": "Concurrency",
-      "description": "[op][arity][shape lo][shape hi][result kind] pop the function and arity arguments, which cross as one tuple of that shape; result kind 1 when the worker's result is a pointer"
+      "description": "[op][arity][shape lo][shape hi][result kind] pop the function and arity arguments, which cross as one tuple of that shape; result kind 1 when the worker's result is a pointer",
+      "operands": [
+        {"name": "arity", "encoding": "u8"},
+        {"name": "crossing_shape", "encoding": "u16le"},
+        {"name": "result_kind", "encoding": "u8"}
+      ],
+      "stack_before": [
+        {"name": "arguments", "type": "Value", "count": "arity"},
+        {"name": "callable", "type": "Function"}
+      ],
+      "stack_after": [
+        {"name": "worker", "type": "Worker<T>"}
+      ]
     },
     {
       "id": 155,
       "name": "JOIN_WORKER",
       "length": 2,
       "category": "Concurrency",
-      "description": "[op][value kind] builds the outcome union: member 0 holding the value, or member 1 holding an error union whose member 0 is cancellation and member 1 failure with its message; value kind 1 when the value is a pointer"
+      "description": "[op][value kind] builds the outcome union: member 0 holding the value, or member 1 holding an error union whose member 0 is cancellation and member 1 failure with its message; value kind 1 when the value is a pointer",
+      "operands": [
+        {"name": "value_kind", "encoding": "u8"}
+      ],
+      "stack_before": [
+        {"name": "worker", "type": "Worker<T>"}
+      ],
+      "stack_after": [
+        {"name": "outcome", "type": "Union"}
+      ]
     },
     {
       "id": 156,
       "name": "CHANNEL_CREATE",
       "length": 1,
-      "category": "Concurrency"
+      "category": "Concurrency",
+      "operands": [],
+      "stack_before": [
+        {"name": "capacity", "type": "Int"}
+      ],
+      "stack_after": [
+        {"name": "channel", "type": "Channel<T>"}
+      ]
     },
     {
       "id": 157,
       "name": "CHANNEL_SEND",
       "length": 2,
       "category": "Concurrency",
-      "description": "[op][kind] pop a value and a channel and send it; kind 1 when the value is a pointer"
+      "description": "[op][kind] pop a value and a channel and send it; kind 1 when the value is a pointer",
+      "operands": [
+        {"name": "value_kind", "encoding": "u8"}
+      ],
+      "stack_before": [
+        {"name": "channel", "type": "Channel<T>"},
+        {"name": "value", "type": "T"}
+      ],
+      "stack_after": [
+        {"name": "sent", "type": "Bool"}
+      ]
     },
     {
       "id": 158,
       "name": "CHANNEL_RECEIVE",
       "length": 2,
       "category": "Concurrency",
-      "description": "[op][kind] pop a channel and receive an option; kind 1 when a message is a pointer"
+      "description": "[op][kind] pop a channel and receive an option; kind 1 when a message is a pointer",
+      "operands": [
+        {"name": "value_kind", "encoding": "u8"}
+      ],
+      "stack_before": [
+        {"name": "channel", "type": "Channel<T>"}
+      ],
+      "stack_after": [
+        {"name": "outcome", "type": "Union"}
+      ]
     },
     {
       "id": 159,
       "name": "CHANNEL_CLOSE",
       "length": 1,
-      "category": "Concurrency"
+      "category": "Concurrency",
+      "operands": [],
+      "stack_before": [
+        {"name": "channel", "type": "Channel<T>"}
+      ],
+      "stack_after": [
+        {"name": "value", "type": "Unit"}
+      ]
     },
     {
       "id": 160,
       "name": "WORKER_IS_DONE",
       "length": 1,
-      "category": "Concurrency"
+      "category": "Concurrency",
+      "operands": [],
+      "stack_before": [
+        {"name": "worker", "type": "Worker<T>"}
+      ],
+      "stack_after": [
+        {"name": "done", "type": "Bool"}
+      ]
     },
     {
       "id": 161,
       "name": "WORKER_CANCEL",
       "length": 1,
-      "category": "Concurrency"
+      "category": "Concurrency",
+      "operands": [],
+      "stack_before": [
+        {"name": "worker", "type": "Worker<T>"}
+      ],
+      "stack_after": [
+        {"name": "cancel_requested", "type": "Bool"}
+      ]
     },
     {
       "id": 162,
       "name": "EXTEND_ARRAY",
       "length": 1,
-      "category": "In-place concatenation"
+      "category": "In-place concatenation",
+      "operands": [],
+      "stack_before": [
+        {"name": "array", "type": "Array<T>"},
+        {"name": "suffix", "type": "Array<T>"}
+      ],
+      "stack_after": [
+        {"name": "array", "type": "Array<T>"}
+      ]
     },
     {
       "id": 163,
       "name": "EXTEND_TEXT",
       "length": 1,
-      "category": "In-place concatenation"
+      "category": "In-place concatenation",
+      "operands": [],
+      "stack_before": [
+        {"name": "text", "type": "Text"},
+        {"name": "suffix", "type": "Text"}
+      ],
+      "stack_after": [
+        {"name": "text", "type": "Text"}
+      ]
     },
     {
       "id": 164,
       "name": "ADD_LOCAL_INT",
       "length": 3,
       "category": "Local-operand superinstructions",
-      "description": "[op][local][imm8] local += imm, push the result"
+      "description": "[op][local][imm8] local += imm, push the result",
+      "operands": [
+        {"name": "local_index", "encoding": "u8"},
+        {"name": "imm8", "encoding": "i8"}
+      ],
+      "stack_before": [],
+      "stack_after": [
+        {"name": "result", "type": "Int"}
+      ]
     },
     {
       "id": 165,
       "name": "PUSH_LOCAL_SUB_INT",
       "length": 3,
       "category": "Local-operand superinstructions",
-      "description": "[op][local][imm8] push local - imm"
+      "description": "[op][local][imm8] push local - imm",
+      "operands": [
+        {"name": "local_index", "encoding": "u8"},
+        {"name": "imm8", "encoding": "i8"}
+      ],
+      "stack_before": [],
+      "stack_after": [
+        {"name": "result", "type": "Int"}
+      ]
     },
     {
       "id": 166,
       "name": "IF_LOCAL_LE_INT",
       "length": 5,
       "category": "Local-operand superinstructions",
-      "description": "[op][local][imm8][off_lo][off_hi] jump if !(local <= imm)"
+      "description": "[op][local][imm8][off_lo][off_hi] jump if !(local <= imm)",
+      "operands": [
+        {"name": "local_index", "encoding": "u8"},
+        {"name": "imm8", "encoding": "i8"},
+        {"name": "forward_offset", "encoding": "u16le"}
+      ],
+      "stack_before": [],
+      "stack_after": []
     },
     {
       "id": 167,
       "name": "IF_LOCAL_GE_LOCAL",
       "length": 5,
       "category": "Local-operand superinstructions",
-      "description": "[op][left][right][off_lo][off_hi] jump if !(left >= right)"
+      "description": "[op][left][right][off_lo][off_hi] jump if !(left >= right)",
+      "operands": [
+        {"name": "left_local", "encoding": "u8"},
+        {"name": "right_local", "encoding": "u8"},
+        {"name": "forward_offset", "encoding": "u16le"}
+      ],
+      "stack_before": [],
+      "stack_after": []
     },
     {
       "id": 168,
       "name": "GET_LOCAL2",
       "length": 3,
       "category": "Local-operand superinstructions",
-      "description": "[op][first][second] push two locals"
+      "description": "[op][first][second] push two locals",
+      "operands": [
+        {"name": "first_local", "encoding": "u8"},
+        {"name": "second_local", "encoding": "u8"}
+      ],
+      "stack_before": [],
+      "stack_after": [
+        {"name": "first", "type": "Value"},
+        {"name": "second", "type": "Value"}
+      ]
     },
     {
       "id": 169,
       "name": "STORE_LOCAL",
       "length": 2,
       "category": "Local-operand superinstructions",
-      "description": "[op][local] pop a value into local"
+      "description": "[op][local] pop a value into local",
+      "operands": [
+        {"name": "local_index", "encoding": "u8"}
+      ],
+      "stack_before": [
+        {"name": "value", "type": "Value"}
+      ],
+      "stack_after": []
     },
     {
       "id": 170,
       "name": "IF_LOCAL_TAG_NOT",
       "length": 5,
       "category": "Local-operand superinstructions",
-      "description": "[op][local][tag][off_lo][off_hi] jump if local's union tag != tag"
+      "description": "[op][local][tag][off_lo][off_hi] jump if local's union tag != tag",
+      "operands": [
+        {"name": "local_index", "encoding": "u8"},
+        {"name": "tag", "encoding": "u8"},
+        {"name": "forward_offset", "encoding": "u16le"}
+      ],
+      "stack_before": [],
+      "stack_after": []
     },
     {
       "id": 171,
       "name": "LOCAL_UNION_FIELD",
       "length": 4,
       "category": "Local-operand superinstructions",
-      "description": "[op][union][index][target] target = the field at index of the union in local union"
+      "description": "[op][union][index][target] target = the field at index of the union in local union",
+      "operands": [
+        {"name": "union_local", "encoding": "u8"},
+        {"name": "field_index", "encoding": "u8"},
+        {"name": "target_local", "encoding": "u8"}
+      ],
+      "stack_before": [],
+      "stack_after": []
     },
     {
       "id": 172,
       "name": "IF_LOCAL_LT_INT",
       "length": 5,
       "category": "Local-operand superinstructions",
-      "description": "[op][local][imm8][off_lo][off_hi] jump if !(local < imm)"
+      "description": "[op][local][imm8][off_lo][off_hi] jump if !(local < imm)",
+      "operands": [
+        {"name": "local_index", "encoding": "u8"},
+        {"name": "imm8", "encoding": "i8"},
+        {"name": "forward_offset", "encoding": "u16le"}
+      ],
+      "stack_before": [],
+      "stack_after": []
     },
     {
       "id": 173,
       "name": "IF_LOCAL_LT_LOCAL",
       "length": 5,
       "category": "Local-operand superinstructions",
-      "description": "[op][left][right][off_lo][off_hi] jump if !(left < right)"
+      "description": "[op][left][right][off_lo][off_hi] jump if !(left < right)",
+      "operands": [
+        {"name": "left_local", "encoding": "u8"},
+        {"name": "right_local", "encoding": "u8"},
+        {"name": "forward_offset", "encoding": "u16le"}
+      ],
+      "stack_before": [],
+      "stack_after": []
     },
     {
       "id": 174,
       "name": "IF_LOCAL_EQ_LOCAL",
       "length": 5,
       "category": "Local-operand superinstructions",
-      "description": "[op][left][right][off_lo][off_hi] jump if !(left == right)"
+      "description": "[op][left][right][off_lo][off_hi] jump if !(left == right)",
+      "operands": [
+        {"name": "left_local", "encoding": "u8"},
+        {"name": "right_local", "encoding": "u8"},
+        {"name": "forward_offset", "encoding": "u16le"}
+      ],
+      "stack_before": [],
+      "stack_after": []
     },
     {
       "id": 175,
       "name": "STEP_LOCAL",
       "length": 3,
       "category": "Local-operand superinstructions",
-      "description": "[op][local][imm8] local += imm"
+      "description": "[op][local][imm8] local += imm",
+      "operands": [
+        {"name": "local_index", "encoding": "u8"},
+        {"name": "imm8", "encoding": "i8"}
+      ],
+      "stack_before": [],
+      "stack_after": []
     },
     {
       "id": 176,
       "name": "LOCAL_ARRAY_GET",
       "length": 4,
       "category": "Local-operand superinstructions",
-      "description": "[op][array][index][target] target = array[index]"
+      "description": "[op][array][index][target] target = array[index]",
+      "operands": [
+        {"name": "array_local", "encoding": "u8"},
+        {"name": "index_local", "encoding": "u8"},
+        {"name": "target_local", "encoding": "u8"}
+      ],
+      "stack_before": [],
+      "stack_after": []
     },
     {
       "id": 177,
       "name": "APPEND_LOCAL",
       "length": 3,
       "category": "Local-operand superinstructions",
-      "description": "[op][array][value] append value to the array in local array"
+      "description": "[op][array][value] append value to the array in local array",
+      "operands": [
+        {"name": "array_local", "encoding": "u8"},
+        {"name": "value_local", "encoding": "u8"}
+      ],
+      "stack_before": [],
+      "stack_after": []
     },
     {
       "id": 178,
       "name": "LOCAL_UNION2",
       "length": 7,
       "category": "Local-operand superinstructions",
-      "description": "[op][tag][first][second][target][shape lo][shape hi] target = a union of the two locals with the tag and shape"
+      "description": "[op][tag][first][second][target][shape lo][shape hi] target = a union of the two locals with the tag and shape",
+      "operands": [
+        {"name": "tag", "encoding": "u8"},
+        {"name": "first_local", "encoding": "u8"},
+        {"name": "second_local", "encoding": "u8"},
+        {"name": "target_local", "encoding": "u8"},
+        {"name": "shape", "encoding": "u16le"}
+      ],
+      "stack_before": [],
+      "stack_after": []
     }
   ],
   "intrinsics": [
