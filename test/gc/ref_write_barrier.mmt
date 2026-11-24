@@ -1,0 +1,21 @@
+module RefWriteBarrier
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
+
+def Churn = fn(index: Int, total: Int) -> Int => if index >= 100000 then total else
+{
+    def scratch = [index, index + 1, index + 2, index + 3];
+    Churn(index + 1, total + scratch[index % 4])
+};
+
+// Return from the write so its frame no longer roots the new array.
+def Store = fn(cell: Ref<Array<Int>>) -> Unit => cell := [41, 42, 43, 44];
+
+def kept = ref[0, 0, 0, 0];
+
+// Promote the Ref before writing an array reachable only through it.
+IO::PrintLine(Churn(0, 0) as Text);
+Store(kept);
+
+// Churn the same allocation size through another minor collection before reading it.
+IO::PrintLine(Churn(0, 0) as Text);
+IO::PrintLine((*kept)[2] as Text);

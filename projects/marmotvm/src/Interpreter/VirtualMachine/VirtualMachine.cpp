@@ -1420,13 +1420,17 @@ int VirtualMachine::ExecuteLoop() noexcept
 		MARMOT_HANDLER(ADD_BACK_ARRAY)
 		{
 			MarmotValue val = Pop(sp);
-			MarmotValue& arr = Peek(sp);
+			MarmotTraceable* arr = Peek(sp).GetPointer();
+			const bool holds_pointers = arr->HoldsPointers();
 
 #if MARMOT_DEBUG_FULL
-			CheckKind(val, arr.GetPointer()->HoldsPointers(), "an array appended to");
+			CheckKind(val, holds_pointers, "an array appended to");
 #endif
-			m_gc.WriteBarrier(arr.GetPointer());
-			MarmotArray& arr_ref = arr.GetPointer()->GetTraceable<MarmotArray>();
+			if (holds_pointers)
+			{
+				m_gc.WriteBarrier(arr);
+			}
+			MarmotArray& arr_ref = arr->GetTraceable<MarmotArray>();
 			arr_ref.AddBack(val);
 
 			break;
@@ -1932,18 +1936,22 @@ int VirtualMachine::ExecuteLoop() noexcept
 		}
 		MARMOT_HANDLER(EXTEND_ARRAY)
 		{
-			MarmotValue right = Pop(sp);
-			MarmotValue& left = Peek(sp);
+			MarmotTraceable* right = Pop(sp).GetPointer();
+			MarmotTraceable* left = Peek(sp).GetPointer();
+			const bool holds_pointers = left->HoldsPointers();
 
 #if MARMOT_DEBUG_FULL
-			if (left.GetPointer()->HoldsPointers() != right.GetPointer()->HoldsPointers())
+			if (holds_pointers != right->HoldsPointers())
 			{
-				std::println(stderr, "internal error: an array of {} is extended with one of {}.", left.GetPointer()->HoldsPointers() ? "pointers" : "scalars", right.GetPointer()->HoldsPointers() ? "pointers" : "scalars");
+				std::println(stderr, "internal error: an array of {} is extended with one of {}.", holds_pointers ? "pointers" : "scalars", right->HoldsPointers() ? "pointers" : "scalars");
 				std::abort();
 			}
 #endif
-			m_gc.WriteBarrier(left.GetPointer());
-			left.GetPointer()->GetTraceable<MarmotArray>().Extend(right.GetPointer()->GetTraceable<MarmotArray>());
+			if (holds_pointers)
+			{
+				m_gc.WriteBarrier(left);
+			}
+			left->GetTraceable<MarmotArray>().Extend(right->GetTraceable<MarmotArray>());
 
 			break;
 		}
@@ -2113,11 +2121,15 @@ int VirtualMachine::ExecuteLoop() noexcept
 		{
 			MarmotTraceable* arr = (bp + static_cast<int>(ReadByte(ip)))->GetPointer();
 			MarmotValue val = *(bp + static_cast<int>(ReadByte(ip)));
+			const bool holds_pointers = arr->HoldsPointers();
 
 #if MARMOT_DEBUG_FULL
-			CheckKind(val, arr->HoldsPointers(), "an array appended to");
+			CheckKind(val, holds_pointers, "an array appended to");
 #endif
-			m_gc.WriteBarrier(arr);
+			if (holds_pointers)
+			{
+				m_gc.WriteBarrier(arr);
+			}
 			arr->GetTraceable<MarmotArray>().AddBack(val);
 			break;
 		}
@@ -2862,10 +2874,14 @@ int VirtualMachine::ExecuteLoop() noexcept
 		{
 			MarmotValue value = Pop(sp);
 			MarmotTraceable* cell = Pop(sp).GetPointer();
+			const bool holds_pointers = cell->HoldsPointers();
 #if MARMOT_DEBUG_FULL
-			CheckKind(value, cell->HoldsPointers(), "a Ref written");
+			CheckKind(value, holds_pointers, "a Ref written");
 #endif
-			m_gc.WriteBarrier(cell);
+			if (holds_pointers)
+			{
+				m_gc.WriteBarrier(cell);
+			}
 			cell->GetTraceable<MarmotMutableCell>().m_value = value;
 			Push(sp, value);
 			break;
