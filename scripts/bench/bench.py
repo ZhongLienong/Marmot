@@ -17,6 +17,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import os
 import re
 from dataclasses import dataclass
 import statistics
@@ -30,7 +31,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from lib.host import REPO_ROOT as ROOT
 from lib.host import checkout_environment
 from lib.presets import BuildTree, add_build_arguments
-from lib.program import vm_beside
+from lib.program import checkout_build_plan, vm_beside
 
 WORKLOADS = [
     ROOT / "benchmarks" / "all.mmt",
@@ -48,7 +49,7 @@ def every_workload() -> list[Path]:
     """The files in benchmarks/ that print a timing."""
     def prints_timing(path: Path) -> bool:
         source = path.read_text(encoding="utf-8")
-        return "milliseconds" in source or ' ms")' in source
+        return "milliseconds" in source or '" ms"' in source
     return sorted(path for path in (ROOT / "benchmarks").glob("*.mmt") if prints_timing(path))
 
 
@@ -56,17 +57,30 @@ def run_workload(exe: Path, workload: Path, prefix: bool) -> dict[str, float]:
     # marmotc builds the workload; the matching marmotvm runs what is measured.
     environment = checkout_environment()
     with tempfile.TemporaryDirectory(prefix="marmot-bench-") as directory:
-        program = Path(directory) / (workload.stem + ".mmc")
-        subprocess.run([str(exe), "build", str(workload), "-o", str(program), "--quiet"],
+        scratch = Path(directory)
+        program = scratch / (workload.stem + ".mmc")
+        plan = checkout_build_plan(scratch / "plan.json", ROOT, environment)
+        subprocess.run([str(exe), "build", str(workload), "-o", str(program), "--quiet", *plan],
                        cwd=ROOT, env=environment, timeout=600, check=True, capture_output=True)
+        library_path = environment.get("MARMOT_LIBRARY_PATH")
+        if library_path:
+            environment["MARMOT_LIBRARY_PATH"] = os.pathsep.join(
+                str(ROOT / entry) for entry in library_path.split(os.pathsep) if entry
+            )
+        vm = vm_beside(exe)
+        if vm.parent != Path("."):
+            vm = ROOT / vm
+        # Some workloads write files relative to the VM's working directory.
         proc = subprocess.run(
-            [str(vm_beside(exe)), "run", str(program)],
+            [str(vm), "run", str(program)],
             capture_output=True,
             text=True,
-            cwd=ROOT,
+            cwd=directory,
             env=environment,
             timeout=600,
         )
+    if proc.returncode != 0:
+        sys.exit(f"{workload.name}: benchmark failed (exit={proc.returncode})\n{proc.stdout}\n{proc.stderr}")
     results = {}
     for match in [*RESULT_PATTERN.finditer(proc.stdout), *MS_PATTERN.finditer(proc.stdout)]:
         label = re.sub(r"\x1b\[[0-9;]*m", "", match.group(1)).strip()
