@@ -1,6 +1,7 @@
 mod checksum;
 mod cli;
 mod execution;
+mod lsp;
 mod paths;
 mod project;
 

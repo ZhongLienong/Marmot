@@ -21,6 +21,8 @@ struct ImportedSource
 	ImportedSource(TokenStream tokens, std::vector<std::string> source_lines);
 };
 
+class CompilationInputs;
+
 class ModuleSourceLoader
 {
 public:
@@ -28,7 +30,7 @@ public:
 	using LoadResult = std::expected<ImportedSource, std::variant<OpenFailure, CompilerError>>;
 	using Reader = std::function<LoadResult(const std::string&)>;
 
-	explicit ModuleSourceLoader(size_t jobs);
+	ModuleSourceLoader(size_t jobs, const CompilationInputs& inputs);
 	ModuleSourceLoader(size_t jobs, Reader reader);
 	~ModuleSourceLoader();
 	ModuleSourceLoader(const ModuleSourceLoader&) = delete;
@@ -51,6 +53,7 @@ private:
 	std::vector<std::jthread> m_workers;
 
 	static LoadResult Read(const std::string& file_path);
+	static LoadResult Lex(std::string source, const std::string& file_path);
 	std::optional<LoadTask> TakeReady();
 	LoadResult Await(std::future<LoadResult> result);
 	void WorkerLoop();

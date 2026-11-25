@@ -46,8 +46,12 @@ namespace
 		return error;
 	}
 
-	[[nodiscard]] std::expected<std::string, MarmotDriver::DriverError> ReadSourceFile(const std::filesystem::path& file_path)
+	[[nodiscard]] std::expected<std::string, MarmotDriver::DriverError> ReadSourceFile(const std::filesystem::path& file_path, const CompilationInputs& inputs)
 	{
+		if (const std::string* overlay = inputs.SourceOverlay(file_path); overlay != nullptr)
+		{
+			return *overlay;
+		}
 		// Linux opens a directory as a stream that reads nothing.
 		std::ifstream file(file_path, std::ios::binary);
 		if (std::filesystem::is_directory(file_path) || !file.is_open())
@@ -117,7 +121,7 @@ namespace MarmotDriver
 
 	CompileFileWithReportResult CompileFileWithReport(const std::filesystem::path& file_path, CompilationInputs inputs)
 	{
-		std::expected<std::string, DriverError> source_result = ReadSourceFile(file_path);
+		std::expected<std::string, DriverError> source_result = ReadSourceFile(file_path, inputs);
 		if (!source_result.has_value())
 		{
 			return std::unexpected(std::move(source_result.error()));
@@ -130,5 +134,15 @@ namespace MarmotDriver
 		}
 
 		return std::move(compile_result).value();
+	}
+
+	MarmotResult::CompilerReport AnalyzeFile(const std::filesystem::path& file_path, CompilationInputs inputs)
+	{
+		std::expected<std::string, DriverError> source = ReadSourceFile(file_path, inputs);
+		if (!source)
+		{
+			return std::move(source.error().m_report);
+		}
+		return Compiler(std::move(source).value(), file_path.string(), std::move(inputs)).Analyze();
 	}
 }

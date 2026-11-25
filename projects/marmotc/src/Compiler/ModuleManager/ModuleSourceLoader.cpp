@@ -1,6 +1,8 @@
 #include "ModuleSourceLoader.h"
 
+#include "Compiler/CompilationInputs/CompilationInputs.h"
 #include "Compiler/Lexer/Lexer.h"
+#include "Compiler/Source/Source.h"
 
 #include <algorithm>
 #include <chrono>
@@ -15,8 +17,12 @@ ImportedSource::ImportedSource(TokenStream tokens, std::vector<std::string> sour
 {
 }
 
-ModuleSourceLoader::ModuleSourceLoader(size_t jobs)
-	: ModuleSourceLoader(jobs, Read)
+ModuleSourceLoader::ModuleSourceLoader(size_t jobs, const CompilationInputs& inputs)
+	: ModuleSourceLoader(jobs, [&inputs](const std::string& file_path)
+	{
+		const std::string* overlay = inputs.SourceOverlay(file_path);
+		return overlay == nullptr ? Read(file_path) : Lex(*overlay, file_path);
+	})
 {
 }
 
@@ -53,7 +59,12 @@ ModuleSourceLoader::LoadResult ModuleSourceLoader::Read(const std::string& file_
 	}
 	std::ostringstream buffer;
 	buffer << file.rdbuf();
-	std::string source = buffer.str();
+	return Lex(std::move(buffer).str(), file_path);
+}
+
+ModuleSourceLoader::LoadResult ModuleSourceLoader::Lex(std::string source, const std::string& file_path)
+{
+	MarmotSource::RemoveByteOrderMark(source);
 	std::vector<std::string> source_lines;
 	std::istringstream stream(source);
 	std::string line;

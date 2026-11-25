@@ -35,4 +35,5 @@ namespace MarmotDriver
 	[[nodiscard]] CompileFileWithReportResult CompileFileWithReport(const std::filesystem::path& file_path);
 	// Compiles with exactly `inputs` (a build plan's).
 	[[nodiscard]] CompileFileWithReportResult CompileFileWithReport(const std::filesystem::path& file_path, CompilationInputs inputs);
+	[[nodiscard]] MarmotResult::CompilerReport AnalyzeFile(const std::filesystem::path& file_path, CompilationInputs inputs);
 }

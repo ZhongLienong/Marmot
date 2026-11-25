@@ -1,6 +1,24 @@
 #include "CompilationInputs.h"
 
+#include <algorithm>
 #include <utility>
+
+namespace
+{
+	std::string SourcePathKey(const std::filesystem::path& path)
+	{
+		std::error_code error;
+		std::filesystem::path canonical = std::filesystem::weakly_canonical(path, error);
+		std::string key = (error ? path.lexically_normal() : canonical).generic_string();
+#ifdef _WIN32
+		std::ranges::transform(key, key.begin(), [](char ch)
+		{
+			return ch >= 'A' && ch <= 'Z' ? static_cast<char>(ch + ('a' - 'A')) : ch;
+		});
+#endif
+		return key;
+	}
+}
 
 CompilationInputs CompilationInputs::WithSearchPaths(const std::vector<std::filesystem::path>& search_paths) &&
 {
@@ -28,6 +46,27 @@ CompilationInputs CompilationInputs::WithSearchPaths(const std::vector<std::file
 const std::vector<std::filesystem::path>& CompilationInputs::SearchPaths() const
 {
 	return m_search_paths;
+}
+
+CompilationInputs CompilationInputs::WithSourceOverlays(SourceOverlays overlays) &&
+{
+	SourceOverlays canonical;
+	for (auto& [file_path, text] : overlays)
+	{
+		canonical.insert_or_assign(SourcePathKey(file_path), std::move(text));
+	}
+	m_source_overlays = std::make_shared<const SourceOverlays>(std::move(canonical));
+	return std::move(*this);
+}
+
+const std::string* CompilationInputs::SourceOverlay(const std::filesystem::path& file_path) const
+{
+	if (!m_source_overlays)
+	{
+		return nullptr;
+	}
+	const SourceOverlays::const_iterator found = m_source_overlays->find(SourcePathKey(file_path));
+	return found == m_source_overlays->end() ? nullptr : &found->second;
 }
 
 CompilationInputs CompilationInputs::WithNativeLibraryPolicies(std::unordered_map<std::string, NativeLibraryPolicy> policies) &&

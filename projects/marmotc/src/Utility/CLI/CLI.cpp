@@ -7,9 +7,11 @@
 #include <filesystem>
 #include <fstream>
 #include <format>
+#include <iostream>
 #include <iterator>
 #include <optional>
 #include <print>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -18,6 +20,7 @@
 #include "Utility/Diagnostics/Diagnostics.h"
 #include "Bytecode/Artifact/BinaryArtifact.h"
 #include "Compiler/Json/Json.h"
+#include "Compiler/Json/JsonReader.h"
 #include "Support/Terminal/Terminal.h"
 #include "Utility/BuildPlan/BuildPlan.h"
 #include "Utility/Driver/MarmotDriver.h"
@@ -38,6 +41,7 @@ namespace
 		Overview,
 		Version,
 		Check,
+		Analyze,
 		Build,
 		Fmt
 	};
@@ -136,6 +140,15 @@ namespace
 				"  marmotc build --plan build/plan.json\n";
 		}
 
+		if (command_name == "analyze")
+		{
+			return
+				"Usage: marmotc analyze < request.json\n"
+				"Read a build plan and editor buffers as JSON and return diagnostics as JSON.\n"
+				"The request has a 'plan' with an entry and a 'sources' object mapping\n"
+				"absolute file paths to their current text.\n";
+		}
+
 		if (command_name == "fmt")
 		{
 			return
@@ -158,6 +171,7 @@ namespace
 			"  marmotc <command> [options]\n\n"
 			"Commands:\n"
 			"  check    Type-check a source file without executing it\n"
+			"  analyze  Analyze editor buffers and report diagnostics as JSON\n"
 			"  build    Compile a source file to a .mmc program\n"
 			"  fmt      Format one file or a directory of .mmt files\n"
 			"  help     Show general or per-command help\n\n"
@@ -297,11 +311,12 @@ namespace
 		app.add_option("--format", global_formats)->expected(1)->take_all();
 
 		CLI::App* check = app.add_subcommand("check");
+		CLI::App* analyze = app.add_subcommand("analyze");
 		CLI::App* build = app.add_subcommand("build");
 		CLI::App* fmt = app.add_subcommand("fmt");
 		CLI::App* help = app.add_subcommand("help");
 		help->add_option("topic", help_topic);
-		for (CLI::App* command : { check, build, fmt })
+		for (CLI::App* command : { check, analyze, build, fmt })
 		{
 			command->add_flag("-h,--help", invocation.m_show_help);
 			command->add_option("--format", formats)->expected(1)->take_all();
@@ -399,6 +414,10 @@ namespace
 			{
 				return std::unexpected("Missing file or directory for fmt.");
 			}
+		}
+		else if (*analyze)
+		{
+			invocation.m_kind = CommandKind::Analyze;
 		}
 		else if (*check || *build)
 		{
@@ -578,6 +597,68 @@ namespace
 		}
 
 		return EXIT_SUCCESS;
+	}
+
+	[[nodiscard]] std::expected<BuildPlan, std::string> ReadAnalysisRequest()
+	{
+		std::ostringstream input;
+		input << std::cin.rdbuf();
+		const std::expected<CompilerJson::JsonValue, std::string> request = CompilerJson::Parse(input.str());
+		if (!request)
+		{
+			return std::unexpected(request.error());
+		}
+
+		const CompilerJson::JsonValue* plan_value = request->Find("plan");
+		const CompilerJson::JsonValue* sources = request->Find("sources");
+		if (plan_value == nullptr || sources == nullptr || !sources->IsObject())
+		{
+			return std::unexpected("Expected an analysis request with a plan and a sources object.");
+		}
+
+		std::expected<BuildPlan, std::string> plan = MarmotBuildPlan::Parse(*plan_value, std::filesystem::current_path());
+		if (!plan)
+		{
+			return std::unexpected(plan.error());
+		}
+		if (!plan->m_entry)
+		{
+			return std::unexpected("The analysis plan must name an entry.");
+		}
+
+		CompilationInputs::SourceOverlays overlays;
+		for (const auto& [file_path, text] : sources->AsObject())
+		{
+			if (!std::filesystem::path(file_path).is_absolute() || !text.IsString())
+			{
+				return std::unexpected("Analysis sources must map absolute file paths to strings.");
+			}
+			overlays.emplace(file_path, text.AsString());
+		}
+		plan->m_inputs = std::move(plan->m_inputs).WithSourceOverlays(std::move(overlays));
+		return plan;
+	}
+
+	int HandleAnalyze(const Invocation& invocation)
+	{
+		if (invocation.m_show_help)
+		{
+			std::print("{}", CommandHelp("analyze"));
+			return EXIT_SUCCESS;
+		}
+
+		std::expected<BuildPlan, std::string> plan = ReadAnalysisRequest();
+		if (!plan)
+		{
+			PrintCliError(plan.error());
+			return EXIT_FAILURE;
+		}
+
+		const MarmotResult::CompilerReport report = MarmotDriver::AnalyzeFile(*plan->m_entry, std::move(plan->m_inputs));
+		const bool success = report.m_errors.Empty();
+		const int exit_code = success ? EXIT_SUCCESS : EXIT_FAILURE;
+		std::print("{}", CommandJson("analyze", success, report, exit_code));
+		return exit_code;
 	}
 
 	int HandleBuild(const Invocation& invocation)
@@ -849,6 +930,7 @@ namespace
 		static const std::vector<CommandSpec> table
 		{
 			{ "check", "Type-check a source file without executing it", CommandKind::Check, &HandleCheck },
+			{ "analyze", "Analyze editor buffers and report diagnostics as JSON", CommandKind::Analyze, &HandleAnalyze },
 			{ "build", "Compile a source file and report bytecode stats", CommandKind::Build, &HandleBuild },
 			{ "fmt", "Format one file or a directory of .mmt files", CommandKind::Fmt, &HandleFmt }
 		};

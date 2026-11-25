@@ -189,7 +189,11 @@ namespace MarmotBuildPlan
 			return std::unexpected(document.error());
 		}
 
-		const JsonValue& root = document.value();
+		return Parse(document.value(), base_directory);
+	}
+
+	std::expected<BuildPlan, std::string> Parse(const JsonValue& root, const std::filesystem::path& base_directory)
+	{
 		if (!root.IsObject())
 		{
 			return std::unexpected(std::format("the plan must be a JSON object, found {}", root.KindName()));

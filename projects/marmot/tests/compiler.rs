@@ -10,6 +10,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+mod lsp;
+
 #[cfg(any(target_os = "windows", target_os = "linux"))]
 mod standalone;
 
@@ -663,11 +665,7 @@ fn fmt_is_the_compilers() {
     assert!(!checked.status.success());
 
     succeeded(&marmot(&compiler, &project.0, &["fmt", "Main.mmt", "-w"]));
-    succeeded(&marmot(
-        &compiler,
-        &project.0,
-        &["fmt", "Main.mmt", "--check"],
-    ));
+    succeeded(&marmot(&compiler, &project.0, &["fmt", "Main.mmt", "--check"]));
 }
 
 #[test]
@@ -726,7 +724,11 @@ fn fmt_uses_symmetrical_parentheses_for_large_calls() {
     assert!(formatted.contains("def result = Apply\n(\n    fn(value: Int) -> Int => {\n"));
     assert!(formatted.contains("    },\n    2\n);\n"));
     assert!(formatted.contains("def small = Apply(fn(value: Int) -> Int => value + 1, 2);"));
-    succeeded(&marmot(&compiler, &project.0, &["fmt", "Main.mmt", "--check"]));
+    succeeded(&marmot(
+        &compiler,
+        &project.0,
+        &["fmt", "Main.mmt", "--check"],
+    ));
     succeeded(&marmot(&compiler, &project.0, &["check", "Main.mmt"]));
 }
 

@@ -11,6 +11,7 @@ Commands:
                         passing it what follows --; an unchanged program is
                         not built again
   check [file]          Type-check without running
+  lsp                   Run the Marmot language server on stdio
   build [file]          Compile to a .mmc artifact; with --executable, produce
                         a standalone executable for this platform
   plan [file]           Print the build plan instead of compiling
@@ -62,6 +63,7 @@ Options:
 pub(crate) enum CommandKind {
     Run,
     Check,
+    Lsp,
     Build,
     Plan,
     Install,
@@ -78,6 +80,7 @@ impl CommandKind {
         match name {
             "run" => Some(CommandKind::Run),
             "check" => Some(CommandKind::Check),
+            "lsp" => Some(CommandKind::Lsp),
             "build" => Some(CommandKind::Build),
             "plan" => Some(CommandKind::Plan),
             "install" => Some(CommandKind::Install),
@@ -95,6 +98,7 @@ impl CommandKind {
         match self {
             CommandKind::Run => "run",
             CommandKind::Check => "check",
+            CommandKind::Lsp => "lsp",
             CommandKind::Build => "build",
             CommandKind::Plan => "plan",
             CommandKind::Install => "install",
@@ -231,7 +235,9 @@ pub(crate) fn parse_options(kind: CommandKind, args: &[String]) -> Result<Option
             _ if arg.starts_with('-') => {
                 return Err(format!("unknown option for {}: {arg}", kind.name()));
             }
-            _ if options.argument.is_some() || kind == CommandKind::List => {
+            _ if options.argument.is_some()
+                || matches!(kind, CommandKind::List | CommandKind::Lsp) =>
+            {
                 return Err(format!("too many arguments for {}", kind.name()));
             }
             _ => options.argument = Some(arg.to_string()),

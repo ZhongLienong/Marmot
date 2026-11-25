@@ -13,6 +13,8 @@ pub(crate) enum Mode {
     /// Use the lockfile when it still matches the manifest and every locked
     /// package is present; otherwise resolve afresh.
     PreferLockfile,
+    /// Use installed dependencies without updating the project or registry.
+    ReadOnly,
     /// Always resolve afresh.
     ForceRefresh,
 }
@@ -87,6 +89,7 @@ fn index(
     let lookup = match mode {
         Mode::ForceRefresh => Lookup::Always,
         Mode::PreferLockfile => Lookup::WhenMissing,
+        Mode::ReadOnly => unreachable!("read-only planning never builds a package index"),
     };
     let registries = Registries::new(&workspace.registries, global_cache_directory(), lookup)?;
     Ok(Index::scan(&index_roots(workspace, environment), compiler)?.with_registries(registries))
@@ -195,7 +198,7 @@ pub(crate) fn prepare(
     let manifest_checksum = checksum::file(&workspace.manifest_path)?;
 
     let mut warnings = Vec::new();
-    if mode == Mode::PreferLockfile
+    if mode != Mode::ForceRefresh
         && let Some(lock) = lockfile::read(&workspace.root, compiler)
     {
         warnings = lock.warnings.clone();
@@ -207,6 +210,19 @@ pub(crate) fn prepare(
                 lockfile_path,
             });
         }
+    }
+
+    if mode == Mode::ReadOnly {
+        if !workspace.dependencies.is_empty() {
+            return Err("Project dependencies need to be installed. Run 'marmot install'.".into());
+        }
+        let graph = Graph::default();
+        return Ok(Environment {
+            search_paths: search_paths(workspace, &graph, environment),
+            graph,
+            warnings,
+            lockfile_path,
+        });
     }
 
     let mut index = index(workspace, mode, environment, compiler)?;

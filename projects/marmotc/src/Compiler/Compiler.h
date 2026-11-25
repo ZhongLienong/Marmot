@@ -21,5 +21,6 @@ public:
 	Compiler(std::string&& source_code, std::string&& file_name, CompilationInputs inputs = {});
 
 	MarmotResult::CompilationResult CompileWithReport();
+	MarmotResult::CompilerReport Analyze();
 	MarmotResult::CompilerResult Compile();
 };

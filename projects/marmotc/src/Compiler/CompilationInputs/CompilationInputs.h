@@ -3,6 +3,7 @@
 #include "Bytecode/Executable/Executable.h"
 
 #include <filesystem>
+#include <memory>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -15,9 +16,13 @@
 // file compiled on its own) resolves these.
 class CompilationInputs
 {
+public:
+	using SourceOverlays = std::unordered_map<std::string, std::string>;
+
 private:
 	std::vector<std::filesystem::path> m_search_paths;
 	std::unordered_map<std::string, NativeLibraryPolicy> m_native_library_policies;
+	std::shared_ptr<const SourceOverlays> m_source_overlays;
 	bool m_emit_marmot_ir = false;
 	bool m_emit_ast = false;
 	std::optional<size_t> m_jobs;
@@ -29,6 +34,10 @@ public:
 	CompilationInputs WithSearchPaths(const std::vector<std::filesystem::path>& search_paths) &&;
 
 	const std::vector<std::filesystem::path>& SearchPaths() const;
+
+	// Immutable editor buffers shared by the import readers.
+	CompilationInputs WithSourceOverlays(SourceOverlays overlays) &&;
+	const std::string* SourceOverlay(const std::filesystem::path& file_path) const;
 
 	// Recorded in the program for each library it names; a library without one
 	// is not thread-safe and has no checksum.

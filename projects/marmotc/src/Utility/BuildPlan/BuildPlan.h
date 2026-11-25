@@ -10,6 +10,8 @@
 #include <unordered_map>
 #include <vector>
 
+namespace CompilerJson { class JsonValue; }
+
 // A build plan names everything a compile needs, so the compiler does no
 // discovery of its own: no manifests, no lockfile, no MARMOT_PATH. The marmot
 // tool resolves a project and writes one; `marmotc check|build --plan FILE`
@@ -44,6 +46,7 @@ namespace MarmotBuildPlan
 {
 	// `base_directory` resolves the plan's relative paths.
 	[[nodiscard]] std::expected<BuildPlan, std::string> Parse(std::string_view json, const std::filesystem::path& base_directory);
+	[[nodiscard]] std::expected<BuildPlan, std::string> Parse(const CompilerJson::JsonValue& root, const std::filesystem::path& base_directory);
 
 	[[nodiscard]] std::expected<BuildPlan, std::string> ReadFile(const std::filesystem::path& plan_path);
 }

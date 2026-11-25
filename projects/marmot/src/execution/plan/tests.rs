@@ -1,4 +1,4 @@
-use super::{Plan, PlanNativeLibrary, make_plan};
+use super::{Plan, PlanNativeLibrary, analysis_plan, make_plan};
 use crate::paths;
 use crate::test_support::{TempTree, compiler, package, project};
 use std::path::{Path, PathBuf};
@@ -95,6 +95,27 @@ fn resolving_installs_packages_and_orders_the_search_paths() {
     // The lockfile is current, so a second plan reads it and writes nothing.
     let again = plan_for(&tree, "src/Main.mmt", &[tree.path("env"), tree.path("src")]);
     assert_eq!(again, plan);
+    assert_eq!(tree.read("marmot.lock"), lock);
+}
+
+#[test]
+fn analysis_uses_installed_dependencies_without_preparing_them() {
+    let tree = TempTree::new(&[
+        ("project.marmot", &project(&[("Lib", "^1.0.0")])),
+        ("src/Main.mmt", "module Main\n"),
+        ("registry/Lib/package.marmot", &package("Lib", "1.0.0", &[])),
+        ("registry/Lib/Lib.mmt", "module Lib\n"),
+    ]);
+    let entry = tree.path("src/Main.mmt");
+    let missing = analysis_plan(&entry, &[], &compiler()).unwrap_err();
+    assert!(missing.contains("marmot install"));
+    assert!(!tree.path("marmot.lock").exists());
+    assert!(!tree.path("packages").exists());
+
+    let installed = plan_for(&tree, "src/Main.mmt", &[]);
+    let lock = tree.read("marmot.lock");
+    let (analysis, _) = analysis_plan(&entry, &[], &compiler()).unwrap();
+    assert_eq!(analysis.search_paths, installed.search_paths);
     assert_eq!(tree.read("marmot.lock"), lock);
 }
 

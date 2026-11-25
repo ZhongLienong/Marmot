@@ -17,6 +17,7 @@ pub(crate) fn execute(kind: CommandKind, options: Options) -> Result<ExitCode, S
         CommandKind::Run | CommandKind::Check | CommandKind::Build | CommandKind::Plan => {
             compile::execute(kind, &options, &compiler, &version)
         }
+        CommandKind::Lsp => crate::lsp::run(compiler, version),
         CommandKind::Install => packages::install(&options, &version).map(|()| ExitCode::SUCCESS),
         CommandKind::Update => packages::update(&options, &version).map(|()| ExitCode::SUCCESS),
         CommandKind::Remove => packages::remove(&options, &version).map(|()| ExitCode::SUCCESS),

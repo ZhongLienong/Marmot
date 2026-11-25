@@ -217,11 +217,11 @@ fn inputs(
     directory: &Path,
     environment: &[PathBuf],
     compiler: &Version,
+    mode: Mode,
 ) -> Result<(Vec<PathBuf>, Vec<String>), String> {
     match manifest::find_workspace(directory)? {
         Some(workspace) => {
-            let prepared =
-                packages::prepare(&workspace, Mode::PreferLockfile, environment, compiler)?;
+            let prepared = packages::prepare(&workspace, mode, environment, compiler)?;
             Ok((prepared.search_paths, prepared.warnings))
         }
         None => {
@@ -240,11 +240,16 @@ fn assemble(
     search_paths: Vec<PathBuf>,
     compiler: &Version,
     warnings: &mut Vec<String>,
+    mode: Mode,
 ) -> Result<Plan, String> {
     Ok(Plan {
         version: PLAN_VERSION,
         entry: entry.map(paths::display),
-        native_libraries: native_libraries(directory, &search_paths, compiler, warnings)?,
+        native_libraries: if mode == Mode::ReadOnly {
+            Vec::new()
+        } else {
+            native_libraries(directory, &search_paths, compiler, warnings)?
+        },
         search_paths: search_paths
             .iter()
             .map(|path| paths::display(path))
@@ -258,18 +263,36 @@ pub(crate) fn make_plan(
     environment: &[PathBuf],
     compiler: &Version,
 ) -> Result<(Plan, Vec<String>), String> {
+    entry_plan(entry, environment, compiler, Mode::PreferLockfile)
+}
+
+pub(crate) fn analysis_plan(
+    entry: &Path,
+    environment: &[PathBuf],
+    compiler: &Version,
+) -> Result<(Plan, Vec<String>), String> {
+    entry_plan(entry, environment, compiler, Mode::ReadOnly)
+}
+
+fn entry_plan(
+    entry: &Path,
+    environment: &[PathBuf],
+    compiler: &Version,
+    mode: Mode,
+) -> Result<(Plan, Vec<String>), String> {
     let entry = paths::absolute(entry);
     if !entry.is_file() {
         return Err(format!("no such file: {}", entry.display()));
     }
     let entry_directory = entry.parent().map(Path::to_path_buf).unwrap_or_default();
-    let (search_paths, mut warnings) = inputs(&entry_directory, environment, compiler)?;
+    let (search_paths, mut warnings) = inputs(&entry_directory, environment, compiler, mode)?;
     let plan = assemble(
         Some(&entry),
         &entry_directory,
         search_paths,
         compiler,
         &mut warnings,
+        mode,
     )?;
     Ok((plan, warnings))
 }
@@ -281,8 +304,16 @@ pub(crate) fn inputs_plan(
     compiler: &Version,
 ) -> Result<(Plan, Vec<String>), String> {
     let directory = paths::absolute(directory);
-    let (search_paths, mut warnings) = inputs(&directory, environment, compiler)?;
-    let plan = assemble(None, &directory, search_paths, compiler, &mut warnings)?;
+    let (search_paths, mut warnings) =
+        inputs(&directory, environment, compiler, Mode::PreferLockfile)?;
+    let plan = assemble(
+        None,
+        &directory,
+        search_paths,
+        compiler,
+        &mut warnings,
+        Mode::PreferLockfile,
+    )?;
     Ok((plan, warnings))
 }
 

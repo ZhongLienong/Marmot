@@ -51,7 +51,7 @@ ModuleManager::ModuleManager(TokenStream&& main_file_tokens, std::string_view ma
 MarmotResult::ModuleManagerResult ModuleManager::GenerateBuildGraph()
 {
 	BuildGraph build_graph;
-	ModuleSourceLoader source_loader(m_inputs.Jobs().value_or(std::max(1u, std::thread::hardware_concurrency())));
+	ModuleSourceLoader source_loader(m_inputs.Jobs().value_or(std::max(1u, std::thread::hardware_concurrency())), m_inputs);
 	DiscoveryState discovery;
 	MarmotResult::VoidResult result = GenerateBuildGraphImpl(build_graph, source_loader, discovery);
 	if (!result.has_value())

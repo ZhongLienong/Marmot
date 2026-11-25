@@ -37,6 +37,8 @@
 
 namespace
 {
+	enum class CompilationMode { Build, Analysis };
+
 	struct ParsedModule
 	{
 		MarmotProgramTree m_ast;
@@ -60,12 +62,14 @@ namespace
 
 	struct ModuleCompilationOptions
 	{
+		bool m_emit_bytecode;
 		bool m_emit_marmot_ir;
 		bool m_emit_ast;
 		CompilationTimings& m_timings;
 
-		ModuleCompilationOptions(const CompilationInputs& inputs, CompilationTimings& timings)
-			: m_emit_marmot_ir(inputs.EmitsMarmotIR()),
+		ModuleCompilationOptions(const CompilationInputs& inputs, CompilationTimings& timings, CompilationMode mode)
+			: m_emit_bytecode(mode == CompilationMode::Build),
+			m_emit_marmot_ir(inputs.EmitsMarmotIR()),
 			m_emit_ast(inputs.EmitsAst()),
 			m_timings(timings)
 		{
@@ -173,8 +177,8 @@ namespace
 	class ModuleCompiler
 	{
 	public:
-		ModuleCompiler(const CompilationInputs& inputs, CompilationTimings& timings)
-			: m_options(inputs, timings)
+		ModuleCompiler(const CompilationInputs& inputs, CompilationTimings& timings, CompilationMode mode)
+			: m_options(inputs, timings, mode)
 		{
 		}
 
@@ -296,6 +300,10 @@ namespace
 			}
 			// Importers need the interface, not this module's completed backend.
 			publish(published->m_interface);
+			if (!m_options.m_emit_bytecode)
+			{
+				return CompiledModule(std::move(published->m_interface)).WithWarnings(std::move(warnings).TakeAll());
+			}
 
 #if MARMOT_ENABLE_OPTIMIZER_STATS
 			std::string optimizer_log;
@@ -426,7 +434,7 @@ namespace
 
 	// Keep compiling eligible modules after failures so worker timing cannot
 	// change which diagnostics are collected.
-	static CompilationExecution::Results CompileModules(BuildGraph& build_graph, CompilationSchedule& schedule, const CompilationInputs& inputs, CompilationTimings& timings)
+	static CompilationExecution::Results CompileModules(BuildGraph& build_graph, CompilationSchedule& schedule, const CompilationInputs& inputs, CompilationTimings& timings, CompilationMode mode)
 	{
 		CompilationTimings::Timer timer(timings, CompilationTimings::Phase::Modules);
 #ifndef __EMSCRIPTEN__
@@ -436,7 +444,7 @@ namespace
 #endif
 		timings.SetWorkerCount(worker_count);
 		ModuleInterfaceRegistry interfaces(schedule.m_all_modules.size());
-		ModuleCompiler compiler(inputs, timings);
+		ModuleCompiler compiler(inputs, timings, mode);
 		return CompilationExecution::Run(schedule, worker_count, [&build_graph, &interfaces, &compiler, &timings](const ScheduledModule& module, const InterfaceReady& interface_ready)
 		{
 			CompilationTimings::ModuleTimer timer(timings);
@@ -444,7 +452,7 @@ namespace
 		});
 	}
 
-	static BuildGraphArtifacts CollectBytecodeModules(const CompilationSchedule& schedule, std::unordered_map<std::string, CompiledModule>& compiled_modules)
+	static BuildGraphArtifacts CollectArtifacts(const CompilationSchedule& schedule, std::unordered_map<std::string, CompiledModule>& compiled_modules, CompilationMode mode)
 	{
 		BuildGraphArtifacts artifacts;
 		artifacts.m_bytecode_modules.reserve(schedule.m_all_modules.size());
@@ -460,13 +468,16 @@ namespace
 			{
 				artifacts.m_ast.push_back(compiled_module.Ast());
 			}
-			artifacts.m_bytecode_modules.emplace_back(std::move(compiled_module).TakeBytecode());
+			if (mode == CompilationMode::Build)
+			{
+				artifacts.m_bytecode_modules.emplace_back(std::move(compiled_module).TakeBytecode());
+			}
 		}
 
 		return artifacts;
 	}
 
-	static MarmotResult::ReportResult<BuildGraphArtifacts> CompileBuildGraph(BuildGraph&& build_graph, const CompilationInputs& inputs, CompilationTimings& timings)
+	static MarmotResult::ReportResult<BuildGraphArtifacts> CompileBuildGraph(BuildGraph&& build_graph, const CompilationInputs& inputs, CompilationTimings& timings, CompilationMode mode)
 	{
 		CompilationSchedule schedule = [&]()
 		{
@@ -476,7 +487,7 @@ namespace
 		const size_t total_modules = schedule.m_all_modules.size();
 		std::unordered_map<std::string, CompiledModule> compiled_modules;
 		compiled_modules.reserve(total_modules);
-		CompilationExecution::Results results = CompileModules(build_graph, schedule, inputs, timings);
+		CompilationExecution::Results results = CompileModules(build_graph, schedule, inputs, timings, mode);
 		ModuleFailures failures;
 		for (auto& [file_path, result] : results)
 		{
@@ -494,7 +505,24 @@ namespace
 			return std::unexpected(CollectFailureReport(schedule, compiled_modules, std::move(failures)));
 		}
 
-		return CollectBytecodeModules(schedule, compiled_modules);
+		return CollectArtifacts(schedule, compiled_modules, mode);
+	}
+
+	static MarmotResult::ReportResult<BuildGraph> Discover(std::string source, const std::string& file_name, const std::vector<std::string>& source_lines, const CompilationInputs& inputs, CompilationTimings& timings)
+	{
+		MarmotResult::LexerResult tokens = [&]()
+		{
+			CompilationTimings::Timer timer(timings, CompilationTimings::Phase::Lexing);
+			return Lexer(std::move(source), file_name).Lex();
+		}();
+		if (!tokens)
+		{
+			return std::unexpected(MarmotResult::CompilerReport(std::move(tokens.error())));
+		}
+
+		CompilationTimings::Timer timer(timings, CompilationTimings::Phase::Discovery);
+		return ModuleManager(std::move(tokens).value(), file_name, source_lines, inputs).GenerateBuildGraph()
+			.transform_error([](CompilerError error) { return MarmotResult::CompilerReport(std::move(error)); });
 	}
 
 	static std::string ResolveEntryModuleName(const BuildGraph& build_graph, const std::string& entry_file_name)
@@ -555,24 +583,10 @@ MarmotResult::CompilationResult Compiler::CompileWithReport()
 MarmotResult::CompilationResult Compiler::CompileWithTimings(CompilationTimings& timings)
 {
 	CompilationTimings::Timer total(timings, CompilationTimings::Phase::Total);
-	MarmotResult::LexerResult lex_result = [&]()
-	{
-		CompilationTimings::Timer timer(timings, CompilationTimings::Phase::Lexing);
-		return Lexer(std::move(m_source_code), m_file_name).Lex();
-	}();
-	if (!lex_result.has_value())
-	{
-		return std::unexpected(MarmotResult::CompilerReport(std::move(lex_result.error())));
-	}
-
-	MarmotResult::ModuleManagerResult build_graph_result = [&]()
-	{
-		CompilationTimings::Timer timer(timings, CompilationTimings::Phase::Discovery);
-		return ModuleManager(std::move(lex_result.value()), m_file_name, m_source_lines, m_inputs).GenerateBuildGraph();
-	}();
+	MarmotResult::ReportResult<BuildGraph> build_graph_result = Discover(std::move(m_source_code), m_file_name, m_source_lines, m_inputs, timings);
 	if (!build_graph_result.has_value())
 	{
-		return std::unexpected(MarmotResult::CompilerReport(std::move(build_graph_result.error())));
+		return std::unexpected(std::move(build_graph_result.error()));
 	}
 
 	BuildGraph build_graph = std::move(build_graph_result.value());
@@ -586,7 +600,7 @@ MarmotResult::CompilationResult Compiler::CompileWithTimings(CompilationTimings&
 	}
 	std::ranges::sort(source_files);
 
-	MarmotResult::ReportResult<BuildGraphArtifacts> bytecode_result = CompileBuildGraph(std::move(build_graph), m_inputs, timings);
+	MarmotResult::ReportResult<BuildGraphArtifacts> bytecode_result = CompileBuildGraph(std::move(build_graph), m_inputs, timings, CompilationMode::Build);
 	if (!bytecode_result.has_value())
 	{
 		return std::unexpected(std::move(bytecode_result.error()));
@@ -620,6 +634,22 @@ MarmotResult::CompilationResult Compiler::CompileWithTimings(CompilationTimings&
 	}
 
 	return linked;
+}
+
+MarmotResult::CompilerReport Compiler::Analyze()
+{
+	CompilationTimings timings(false);
+	MarmotResult::ReportResult<BuildGraphArtifacts> result =
+		Discover(std::move(m_source_code), m_file_name, m_source_lines, m_inputs, timings)
+			.and_then([&](BuildGraph&& graph)
+			{
+				return CompileBuildGraph(std::move(graph), m_inputs, timings, CompilationMode::Analysis);
+			});
+	if (!result)
+	{
+		return std::move(result.error());
+	}
+	return MarmotResult::CompilerReport(std::move(result->m_warnings));
 }
 
 MarmotResult::CompilerResult Compiler::Compile()
