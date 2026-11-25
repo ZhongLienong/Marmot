@@ -188,7 +188,7 @@ namespace
 			}
 			else
 			{
-				return m_operation == Operation::Instantiation ? std::make_shared<MarmotType>(node) : type;
+				changed = m_operation == Operation::Instantiation;
 			}
 			return changed ? std::make_shared<MarmotType>(std::move(node)) : type;
 		}
