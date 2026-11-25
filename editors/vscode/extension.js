@@ -8,6 +8,7 @@ const { LanguageClient } = require("vscode-languageclient/node");
 
 const execFile = promisify(childProcess.execFile);
 const marmotFile = { language: "marmot", scheme: "file" };
+const missingToolMessage = "Marmot could not find the project tool. Set marmot.executablePath or add marmot to PATH.";
 let stopLanguageClients;
 
 function executableFor(resource) {
@@ -32,12 +33,11 @@ async function formatText(executable, cwd, text) {
     }
 }
 
-function runMarmot(resource, cwd, folder, file) {
-    const args = file ? ["run", file] : ["run"];
+function executeMarmotTask(resource, cwd, folder, name, args) {
     const task = new vscode.Task(
-        { type: "marmot", target: file ?? cwd },
+        { type: "marmot", command: args[0], target: args[1] ?? cwd },
         folder ?? vscode.TaskScope.Global,
-        file ? "Run " + path.basename(file) : "Run Project",
+        name,
         "Marmot",
         new vscode.ProcessExecution(executableFor(resource), args, { cwd })
     );
@@ -63,17 +63,17 @@ async function runFile(resource) {
 
     const file = document.uri.fsPath;
     const folder = vscode.workspace.getWorkspaceFolder(document.uri);
-    return runMarmot(document.uri, path.dirname(file), folder, file);
+    return executeMarmotTask(document.uri, path.dirname(file), folder, "Run " + path.basename(file), ["run", file]);
 }
 
-async function runProject() {
+async function executeProjectTask(name, command) {
     if (!vscode.workspace.isTrusted) {
         return;
     }
 
     const folders = vscode.workspace.workspaceFolders ?? [];
     if (folders.length === 0) {
-        vscode.window.showWarningMessage("Open a Marmot project folder to run it.");
+        vscode.window.showWarningMessage("Open a Marmot project folder first.");
         return;
     }
 
@@ -86,11 +86,48 @@ async function runProject() {
         return;
     }
     if (folder.uri.scheme !== "file") {
-        vscode.window.showWarningMessage("Open a local Marmot project folder to run it.");
+        vscode.window.showWarningMessage("Choose a local Marmot project folder.");
         return;
     }
 
-    return runMarmot(folder.uri, folder.uri.fsPath, folder);
+    return executeMarmotTask(folder.uri, folder.uri.fsPath, folder, name, [command]);
+}
+
+async function createProject(output) {
+    if (!vscode.workspace.isTrusted) {
+        return;
+    }
+
+    const selection = await vscode.window.showOpenDialog({
+        title: "Choose a folder for the Marmot project",
+        openLabel: "Create Project Here",
+        canSelectFiles: false,
+        canSelectFolders: true
+    });
+    const folder = selection?.[0];
+    if (!folder) {
+        return;
+    }
+    if (folder.scheme !== "file") {
+        vscode.window.showWarningMessage("Choose a local folder to create a Marmot project.");
+        return;
+    }
+
+    try {
+        await execFile(executableFor(folder), ["init", folder.fsPath], { windowsHide: true });
+    } catch (error) {
+        const detail = error.stderr?.trim() || error.message;
+        output.appendLine("Marmot project creation failed for " + folder.fsPath);
+        output.appendLine(detail);
+        vscode.window.showErrorMessage(error.code === "ENOENT" ? missingToolMessage : detail);
+        return;
+    }
+
+    const choice = await vscode.window.showInformationMessage("Marmot project created.", "Open Project");
+    if (choice === "Open Project") {
+        const forceNewWindow = Boolean(vscode.workspace.workspaceFile || vscode.workspace.workspaceFolders?.length);
+        return vscode.commands.executeCommand("vscode.openFolder", folder, { forceNewWindow });
+    }
 }
 
 function activate(context) {
@@ -172,9 +209,7 @@ function activate(context) {
             return;
         }
         reportedFailures.add(executable);
-        const message = error?.code === "ENOENT"
-            ? "Marmot could not find the project tool. Set marmot.executablePath or add marmot to PATH."
-            : fallback;
+        const message = error?.code === "ENOENT" ? missingToolMessage : fallback;
         vscode.window.showWarningMessage(message, "Show Output").then((choice) => {
             if (choice === "Show Output") {
                 output.show();
@@ -258,8 +293,10 @@ function activate(context) {
             [{ language: "marmot", scheme: "file" }, { language: "marmot", scheme: "untitled" }],
             { provideDocumentFormattingEdits }
         ),
+        vscode.commands.registerCommand("marmot.createProject", () => createProject(output)),
         vscode.commands.registerCommand("marmot.runFile", runFile),
-        vscode.commands.registerCommand("marmot.runProject", runProject),
+        vscode.commands.registerCommand("marmot.runProject", () => executeProjectTask("Run Project", "run")),
+        vscode.commands.registerCommand("marmot.testProject", () => executeProjectTask("Test Project", "test")),
         vscode.commands.registerCommand("marmot.showSuggestion", (suggestion) => {
             vscode.window.showInformationMessage(suggestion);
         })

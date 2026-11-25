@@ -81,6 +81,7 @@ namespace
 	{
 		MarmotProgramTree m_ast;
 		ModuleExports m_exports;
+		std::unordered_map<int, std::string> m_generic_parameter_names;
 	};
 
 	struct BuildGraphArtifacts
@@ -89,7 +90,7 @@ namespace
 		std::vector<std::string> m_marmot_ir;
 		std::vector<std::string> m_ast;
 		MarmotResult::CompilerWarnings m_warnings;
-		std::vector<DefinitionLink> m_definitions;
+		EditorSymbols m_symbols;
 	};
 
 	static MarmotResult::Result<ModuleImports> BuildImportContext(const ModuleCompilationInput& input)
@@ -144,7 +145,7 @@ namespace
 		}
 
 		parsed.m_exports.RecordInferredTypes(type_checker.ModuleTypes());
-		return TypeCheckedModule{ std::move(typecheck_result.value()), std::move(parsed.m_exports) };
+		return TypeCheckedModule{ std::move(typecheck_result.value()), std::move(parsed.m_exports), std::move(type_checker).TakeGenericParameterNames() };
 	}
 
 	// A violation is the compiler's bug, not the program's, so every one is
@@ -224,6 +225,7 @@ namespace
 				CompilationTimings::Timer timer(m_options.m_timings, CompilationTimings::Phase::SourceLines);
 				return std::move(input.m_source.m_source_lines);
 			}();
+			const std::vector<int> doc_comment_lines = std::move(input.m_source.m_tokens).TakeDocCommentLines();
 
 			MarmotResult::ReportResult<ParsedModule> parsed = run_stage
 			(
@@ -274,7 +276,7 @@ namespace
 			std::optional<ModuleDefinitions> definitions;
 			if (!m_options.m_emit_bytecode)
 			{
-				definitions = ModuleDefinitions::Collect(checked->m_ast, checked->m_exports.ModuleName());
+				definitions = ModuleDefinitions::Collect(checked->m_ast, checked->m_exports.ModuleName(), checked->m_generic_parameter_names, doc_comment_lines);
 			}
 
 			std::string ast_text;
@@ -463,7 +465,7 @@ namespace
 		});
 	}
 
-	static std::vector<DefinitionLink> CollectDefinitions(const CompilationSchedule& schedule, std::unordered_map<std::string, CompiledModule>& compiled_modules, const std::string& entry)
+	static EditorSymbols CollectEditorSymbols(const CompilationSchedule& schedule, std::unordered_map<std::string, CompiledModule>& compiled_modules, const std::string& entry)
 	{
 		GlobalDeclarations globals;
 		ModuleDefinitions entry_definitions;
@@ -495,7 +497,7 @@ namespace
 				links.push_back({ std::move(reference), declaration->second });
 			}
 		}
-		return links;
+		return { std::move(links), std::move(entry_definitions.m_types) };
 	}
 
 	static BuildGraphArtifacts CollectArtifacts(const CompilationSchedule& schedule, std::unordered_map<std::string, CompiledModule>& compiled_modules, const std::string* analysis_entry)
@@ -521,7 +523,7 @@ namespace
 		}
 		if (analysis_entry != nullptr)
 		{
-			artifacts.m_definitions = CollectDefinitions(schedule, compiled_modules, *analysis_entry);
+			artifacts.m_symbols = CollectEditorSymbols(schedule, compiled_modules, *analysis_entry);
 		}
 
 		return artifacts;
@@ -700,7 +702,7 @@ EditorAnalysis Compiler::Analyze()
 	{
 		return { std::move(result.error()), {} };
 	}
-	return { MarmotResult::CompilerReport(std::move(result->m_warnings)), std::move(result->m_definitions) };
+	return { MarmotResult::CompilerReport(std::move(result->m_warnings)), std::move(result->m_symbols) };
 }
 
 MarmotResult::CompilerResult Compiler::Compile()

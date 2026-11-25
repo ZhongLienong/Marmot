@@ -19,39 +19,59 @@ pub(super) struct Document {
 pub(super) type Documents = BTreeMap<String, Document>;
 pub(super) type Diagnostics = BTreeMap<String, Vec<Value>>;
 
-pub(super) struct Definitions {
-    entries: BTreeMap<String, Vec<CompilerDefinition>>,
+pub(super) struct Symbols {
+    entries: BTreeMap<String, DocumentSymbols>,
     files: HashMap<String, Source>,
 }
 
-impl Definitions {
-    pub(super) fn at(&mut self, uri: &str, text: &str, line: u32, character: usize) -> Value {
-        let Some(definitions) = self.entries.get(uri) else {
-            return Value::Null;
+impl Symbols {
+    pub(super) fn definition(
+        &mut self,
+        uri: &str,
+        text: &str,
+        line: u32,
+        character: usize,
+    ) -> Option<Value> {
+        let position = (line + 1, byte_column(text, line, character)?);
+        let declaration = &self.entries.get(uri)?.declaration(position)?.span;
+        let source = source_for(&mut self.files, &declaration.file)?;
+        Some(json!({ "uri": source.uri, "range": declaration.range(&source.text) }))
+    }
+
+    pub(super) fn hover(
+        &mut self,
+        uri: &str,
+        text: &str,
+        line: u32,
+        character: usize,
+    ) -> Option<Value> {
+        let position = (line + 1, byte_column(text, line, character)?);
+        let entry = self.entries.get(uri)?;
+        let symbol = entry
+            .types
+            .iter()
+            .find(|symbol| symbol.span.contains(position))?;
+        let documentation = if let Some(line) = symbol.documentation_line {
+            Some((&symbol.span, line))
+        } else {
+            entry
+                .declaration(position)
+                .and_then(|declaration| Some((&declaration.span, declaration.documentation_line?)))
         };
-        let Some(column) = byte_column(text, line, character) else {
-            return Value::Null;
-        };
-        let position = (line + 1, column);
-        let Some(definition) = definitions.iter().find(|definition| {
-            let reference = &definition.reference;
-            (reference.line, reference.column) <= position
-                && position < (reference.end_line, reference.end_column)
-        }) else {
-            return Value::Null;
-        };
-        let declaration = &definition.declaration;
-        let Some(source) = source_for(&mut self.files, &declaration.file) else {
-            return Value::Null;
-        };
-        let range = CompilerLocation {
-            line: Some(declaration.line),
-            column: Some(declaration.column),
-            end_line: Some(declaration.end_line),
-            end_column: Some(declaration.end_column),
-            ..CompilerLocation::default()
-        };
-        json!({ "uri": source.uri, "range": range.range(&source.text) })
+        let mut value = symbol.type_name.clone();
+        if let Some((declaration, first_line)) = documentation
+            && let Some(source) = source_for(&mut self.files, &declaration.file)
+        {
+            let comment = doc_comment(&source.text, first_line, declaration.line);
+            if !comment.is_empty() {
+                value.push_str("\n\n");
+                value.push_str(&comment);
+            }
+        }
+        Some(json!({
+            "contents": { "kind": "plaintext", "value": value },
+            "range": symbol.span.range(text)
+        }))
     }
 }
 
@@ -70,7 +90,7 @@ impl Compiler {
         }
     }
 
-    pub(super) fn analyze(&self, documents: &Documents) -> (Diagnostics, Definitions) {
+    pub(super) fn analyze(&self, documents: &Documents) -> (Diagnostics, Symbols) {
         let mut files = HashMap::new();
         let mut overlays = BTreeMap::new();
         for (uri, document) in documents {
@@ -89,7 +109,7 @@ impl Compiler {
         for (uri, document) in documents {
             match self.analyze_entry(&document.path, &overlays) {
                 Ok(response) => {
-                    entries.insert(uri.clone(), response.definitions);
+                    entries.insert(uri.clone(), response.symbols);
                     for diagnostic in response.report.diagnostics {
                         let (uri, value) = diagnostic.into_lsp(document, uri, &mut files);
                         let diagnostics = result.entry(uri).or_default();
@@ -108,7 +128,7 @@ impl Compiler {
                 }
             }
         }
-        (result, Definitions { entries, files })
+        (result, Symbols { entries, files })
     }
 
     fn analyze_entry(
@@ -167,17 +187,61 @@ fn source_for<'a>(files: &'a mut HashMap<String, Source>, file: &Path) -> Option
     }))
 }
 
+fn doc_comment(text: &str, first_line: u32, declaration_line: u32) -> String {
+    text.lines()
+        .skip(first_line as usize - 1)
+        .take((declaration_line - first_line) as usize)
+        .filter_map(|line| line.trim_start().strip_prefix("///"))
+        .map(|comment| comment.strip_prefix(' ').unwrap_or(comment))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 #[derive(Deserialize)]
 struct AnalysisResponse {
     report: Report,
+    #[serde(flatten)]
+    symbols: DocumentSymbols,
+}
+
+#[derive(Deserialize)]
+struct DocumentSymbols {
     #[serde(default)]
     definitions: Vec<CompilerDefinition>,
+    #[serde(default)]
+    types: Vec<CompilerType>,
+}
+
+impl DocumentSymbols {
+    fn declaration(&self, position: (u32, usize)) -> Option<&CompilerDeclaration> {
+        self.definitions
+            .iter()
+            .find(|definition| definition.reference.contains(position))
+            .map(|definition| &definition.declaration)
+    }
 }
 
 #[derive(Deserialize)]
 struct CompilerDefinition {
     reference: CompilerSpan,
-    declaration: CompilerSpan,
+    declaration: CompilerDeclaration,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CompilerDeclaration {
+    #[serde(flatten)]
+    span: CompilerSpan,
+    documentation_line: Option<u32>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CompilerType {
+    span: CompilerSpan,
+    #[serde(rename = "type")]
+    type_name: String,
+    documentation_line: Option<u32>,
 }
 
 #[derive(Deserialize)]
@@ -188,6 +252,23 @@ struct CompilerSpan {
     column: usize,
     end_line: u32,
     end_column: usize,
+}
+
+impl CompilerSpan {
+    fn contains(&self, position: (u32, usize)) -> bool {
+        (self.line, self.column) <= position && position < (self.end_line, self.end_column)
+    }
+
+    fn range(&self, text: &str) -> Value {
+        CompilerLocation {
+            line: Some(self.line),
+            column: Some(self.column),
+            end_line: Some(self.end_line),
+            end_column: Some(self.end_column),
+            ..CompilerLocation::default()
+        }
+        .range(text)
+    }
 }
 
 #[derive(Deserialize)]

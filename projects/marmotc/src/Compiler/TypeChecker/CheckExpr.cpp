@@ -237,7 +237,7 @@ void TypeChecker::CheckCallTypeDecided(const MarmotExpression::Call& call)
 	}
 	const bool is_undecided = std::ranges::any_of(CollectTypeVariableIds(call.m_type_data), [this, &argument_variables](int id)
 	{
-		return !m_generic_parameter_ids.contains(id) && !argument_variables.contains(id);
+		return !m_generic_parameter_names.contains(id) && !argument_variables.contains(id);
 	});
 	if (!is_undecided)
 	{

@@ -84,6 +84,7 @@ Token::Token(Name token_name, const Token& anchor) noexcept
 }
 
 TokenStream::TokenStream(const TokenStream& other)
+	: m_doc_comment_lines(other.m_doc_comment_lines)
 {
 	m_tokens.reserve(other.m_tokens.size());
 	for (const std::unique_ptr<Token>& token : other.m_tokens)
@@ -103,6 +104,7 @@ TokenStream& TokenStream::operator=(const TokenStream& other)
 			copied.emplace_back(std::make_unique<Token>(*token));
 		}
 		m_tokens = std::move(copied);
+		m_doc_comment_lines = other.m_doc_comment_lines;
 	}
 	return *this;
 }
@@ -141,6 +143,16 @@ Token& TokenStream::operator[](int index) const
 int TokenStream::Size() const 
 { 
 	return static_cast<int>(m_tokens.size()); 
+}
+
+void TokenStream::SetDocCommentLines(std::vector<int> lines)
+{
+	m_doc_comment_lines = std::move(lines);
+}
+
+std::vector<int> TokenStream::TakeDocCommentLines() &&
+{
+	return std::move(m_doc_comment_lines);
 }
 
 void TokenStream::Insert(TokenStream::iterator iter, TokenStream&& tokens)

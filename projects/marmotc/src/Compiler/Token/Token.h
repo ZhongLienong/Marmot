@@ -160,6 +160,7 @@ private:
 	};
 
 	Storage m_tokens;
+	std::vector<int> m_doc_comment_lines;
 
 public:
 	using iterator = BasicIterator<Storage::iterator, Token&, Token*>;
@@ -188,6 +189,8 @@ public:
 	Token& operator[](int index) const;
 
 	int Size() const;
+	void SetDocCommentLines(std::vector<int> lines);
+	std::vector<int> TakeDocCommentLines() &&;
 
 	void Insert(iterator iter, TokenStream&& tokens);
 

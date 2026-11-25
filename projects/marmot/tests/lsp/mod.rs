@@ -47,6 +47,7 @@ impl LanguageServer {
         );
         assert_eq!(capabilities["capabilities"]["positionEncoding"], "utf-16");
         assert_eq!(capabilities["capabilities"]["definitionProvider"], true);
+        assert_eq!(capabilities["capabilities"]["hoverProvider"], true);
         server.notify("initialized", json!({}));
         server
     }
@@ -280,6 +281,128 @@ fn lsp_definitions_follow_unsaved_imports_and_local_bindings() {
         }),
     );
     assert_eq!(result, location(&helper_uri, 4, 19, 24));
+    assert_eq!(project.read("src/Helper.mmt"), helper);
+    server.shutdown();
+}
+
+#[test]
+fn lsp_hover_shows_checked_types_and_declaration_comments() {
+    let Some(compiler) = compiler() else { return };
+    let project = Project::new("lsp-hover");
+    let main = concat!(
+        "module Main\n",
+        "import { <Helper>, <Facade> }\n",
+        "use Helper.{value}\n",
+        "def result = (\"\u{1f600}\", Facade::value, Helper::Echo(value));\n",
+        "def local_result = {\n",
+        "    /// A local binding.\n",
+        "    def value = [item for item in 0..2];\n",
+        "    value\n",
+        "};\n",
+        "/// A detached comment.\n",
+        "\n",
+        "def (first, second) = (true, \"text\");\n",
+        "def sample = \"A multiline string\n",
+        "/// This is part of the string\";\n",
+        "/// Actual documentation.\n",
+        "def documented = 7;\n",
+    );
+    let helper = concat!(
+        "module Helper\n",
+        "public export { value, Echo }\n",
+        "/// The original value.\n",
+        "///\n",
+        "/// A second paragraph.\n",
+        "def value = 7;\n",
+        "// An implementation comment.\n",
+        "def Echo = fn<Item>(input: Item) -> Item => input;\n",
+    );
+    let facade = "module Facade\npublic export { value }\nimport { <Helper> }\n";
+    project.write("project.marmot", "[project]\nentry = \"src/Main.mmt\"\n");
+    project.write("src/Main.mmt", main);
+    project.write("src/Helper.mmt", helper);
+    project.write("src/Facade.mmt", facade);
+    let main_uri = Url::from_file_path(project.path("src/Main.mmt"))
+        .unwrap()
+        .to_string();
+    let helper_uri = Url::from_file_path(project.path("src/Helper.mmt"))
+        .unwrap()
+        .to_string();
+
+    let mut server = LanguageServer::start(&compiler, &project.0);
+    server.open(&main_uri, main);
+    let hover = |server: &mut LanguageServer, uri: &str, line: u32, character: usize| {
+        server.request(
+            3,
+            "textDocument/hover",
+            json!({
+                "textDocument": { "uri": uri },
+                "position": { "line": line, "character": character }
+            }),
+        )
+    };
+    let imported = main
+        .lines()
+        .nth(3)
+        .unwrap()
+        .split_once("Facade::value")
+        .unwrap()
+        .0;
+    let start = imported.encode_utf16().count();
+    assert_eq!(
+        hover(&mut server, &main_uri, 3, start + 9),
+        json!({
+            "contents": {
+                "kind": "plaintext",
+                "value": "Int\n\nThe original value.\n\nA second paragraph."
+            },
+            "range": {
+                "start": { "line": 3, "character": start },
+                "end": { "line": 3, "character": start + "Facade::value".len() }
+            }
+        })
+    );
+    assert_eq!(
+        hover(
+            &mut server,
+            &main_uri,
+            3,
+            start + "Facade::value, Helper::".len()
+        )["contents"]["value"],
+        "transferable fn(Int) -> Int"
+    );
+    for (line, character, expected) in [
+        (6, 9, "Array<Int>\n\nA local binding."),
+        (7, 4, "Array<Int>\n\nA local binding."),
+        (6, 26, "Int"),
+        (11, 5, "Bool"),
+        (11, 12, "Text"),
+        (15, 4, "Int\n\nActual documentation."),
+    ] {
+        assert_eq!(
+            hover(&mut server, &main_uri, line, character)["contents"]["value"],
+            expected
+        );
+    }
+    assert_eq!(hover(&mut server, &main_uri, 5, 8), Value::Null);
+
+    server.open(&helper_uri, helper);
+    assert_eq!(
+        hover(&mut server, &helper_uri, 7, 4)["contents"]["value"],
+        "transferable fn(Item) -> Item"
+    );
+    assert_eq!(
+        hover(&mut server, &helper_uri, 7, 20)["contents"]["value"],
+        "Item"
+    );
+    let unsaved = helper
+        .replace("The original value.", "The edited value.")
+        .replace("def value = 7;", "def value = \"changed\";");
+    server.change(&helper_uri, 2, &unsaved);
+    assert_eq!(
+        hover(&mut server, &main_uri, 3, start + 9)["contents"]["value"],
+        "Text\n\nThe edited value.\n\nA second paragraph."
+    );
     assert_eq!(project.read("src/Helper.mmt"), helper);
     server.shutdown();
 }

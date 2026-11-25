@@ -194,7 +194,7 @@ private:
 	std::vector<PendingInstance> m_pending_instances;
 	// Generic parameter identities survive their checking contexts so final
 	// inference validation can distinguish them from undecided call variables.
-	std::unordered_set<int> m_generic_parameter_ids;
+	std::unordered_map<int, std::string> m_generic_parameter_names;
 	// Calls whose result type nothing decided, found once the module is checked.
 	std::vector<CompilerError> m_undecided_call_errors;
 	std::string m_file_name;
@@ -222,6 +222,7 @@ public:
 	// successful TypeCheck(). A name whose type only inference knows - an
 	// un-annotated `def` - has one here and nowhere else.
 	[[nodiscard]] const TypeEnvironment& ModuleTypes() const noexcept;
+	[[nodiscard]] std::unordered_map<int, std::string> TakeGenericParameterNames() &&;
 
 	// Extract type signatures from parsed AST (for parallel type checking)
 	static TypeEnvironment ExtractTypeSignatures(const MarmotProgramTree& ast, const std::unordered_set<std::string>* exported_symbols = nullptr);

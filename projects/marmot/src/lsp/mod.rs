@@ -1,7 +1,7 @@
 mod analysis;
 
 use crate::project::version::Version;
-use analysis::{Definitions, Diagnostics, Document, Documents};
+use analysis::{Diagnostics, Document, Documents, Symbols};
 use crossbeam_channel::{after, never, select_biased, unbounded};
 use lsp_server::{Connection, ErrorCode, Message, Notification, RequestId, Response};
 use serde::Deserialize;
@@ -21,7 +21,8 @@ pub(crate) fn run(compiler: PathBuf, version: Version) -> Result<ExitCode, Strin
         .initialize(json!({
             "positionEncoding": "utf-16",
             "textDocumentSync": { "openClose": true, "change": 1, "save": true },
-            "definitionProvider": true
+            "definitionProvider": true,
+            "hoverProvider": true
         }))
         .map_err(|error| error.to_string())?;
     let status = serve(
@@ -39,9 +40,9 @@ fn serve(connection: &Connection, compiler: Arc<analysis::Compiler>) -> Result<E
     let mut generation = 0;
     let mut deadline: Option<Instant> = None;
     let mut running = false;
-    let mut definitions: Option<Definitions> = None;
-    let mut pending: Vec<DefinitionRequest> = Vec::new();
-    let (send_result, results) = unbounded::<(u64, (Diagnostics, Definitions))>();
+    let mut symbols: Option<Symbols> = None;
+    let mut pending: Vec<PositionRequest> = Vec::new();
+    let (send_result, results) = unbounded::<(u64, (Diagnostics, Symbols))>();
 
     loop {
         let timer = match deadline {
@@ -56,11 +57,15 @@ fn serve(connection: &Connection, compiler: Arc<analysis::Compiler>) -> Result<E
                         if connection.handle_shutdown(&request).map_err(|error| error.to_string())? {
                             return Ok(ExitCode::SUCCESS);
                         }
-                        if request.method != "textDocument/definition" {
-                            respond(connection, Response::new_err(request.id, ErrorCode::MethodNotFound as i32, request.method))?;
-                            continue;
-                        }
-                        let params = match serde_json::from_value::<DefinitionParams>(request.params) {
+                        let kind = match request.method.as_str() {
+                            "textDocument/definition" => PositionRequestKind::Definition,
+                            "textDocument/hover" => PositionRequestKind::Hover,
+                            _ => {
+                                respond(connection, Response::new_err(request.id, ErrorCode::MethodNotFound as i32, request.method))?;
+                                continue;
+                            }
+                        };
+                        let params = match serde_json::from_value::<PositionParams>(request.params) {
                             Ok(params) => params,
                             Err(error) => {
                                 respond(connection, Response::new_err(request.id, ErrorCode::InvalidParams as i32, error.to_string()))?;
@@ -71,9 +76,9 @@ fn serve(connection: &Connection, compiler: Arc<analysis::Compiler>) -> Result<E
                             respond(connection, Response::new_ok(request.id, Value::Null))?;
                             continue;
                         };
-                        let query = DefinitionRequest { id: request.id, params, text: Arc::clone(&document.text) };
-                        if let Some(definitions) = &mut definitions {
-                            respond(connection, query.resolve(&documents, definitions))?;
+                        let query = PositionRequest { id: request.id, kind, params, text: Arc::clone(&document.text) };
+                        if let Some(symbols) = &mut symbols {
+                            respond(connection, query.resolve(&documents, symbols))?;
                         } else {
                             pending.push(query);
                             deadline = Some(Instant::now());
@@ -93,7 +98,7 @@ fn serve(connection: &Connection, compiler: Arc<analysis::Compiler>) -> Result<E
                     Ok(Message::Notification(notification)) => {
                         if update_documents(&mut documents, notification) {
                             generation += 1;
-                            definitions = None;
+                            symbols = None;
                             let delay = if pending.is_empty() { EDIT_DELAY } else { Duration::ZERO };
                             deadline = Some(Instant::now() + delay);
                         }
@@ -103,14 +108,14 @@ fn serve(connection: &Connection, compiler: Arc<analysis::Compiler>) -> Result<E
                 }
             }
             recv(results) -> result => {
-                let (checked_generation, (diagnostics, mut checked_definitions)) = result.map_err(|error| error.to_string())?;
+                let (checked_generation, (diagnostics, mut checked_symbols)) = result.map_err(|error| error.to_string())?;
                 running = false;
                 if checked_generation == generation {
                     deadline = None;
                     for query in pending.drain(..) {
-                        respond(connection, query.resolve(&documents, &mut checked_definitions))?;
+                        respond(connection, query.resolve(&documents, &mut checked_symbols))?;
                     }
-                    definitions = Some(checked_definitions);
+                    symbols = Some(checked_symbols);
                     publish(connection, &documents, &mut published, diagnostics)?;
                 }
             }
@@ -137,7 +142,7 @@ fn respond(connection: &Connection, response: Response) -> Result<(), String> {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct DefinitionParams {
+struct PositionParams {
     text_document: TextDocument,
     position: Position,
 }
@@ -153,14 +158,20 @@ struct CancelParams {
     id: RequestId,
 }
 
-struct DefinitionRequest {
+enum PositionRequestKind {
+    Definition,
+    Hover,
+}
+
+struct PositionRequest {
     id: RequestId,
-    params: DefinitionParams,
+    kind: PositionRequestKind,
+    params: PositionParams,
     text: Arc<str>,
 }
 
-impl DefinitionRequest {
-    fn resolve(self, documents: &Documents, definitions: &mut Definitions) -> Response {
+impl PositionRequest {
+    fn resolve(self, documents: &Documents, symbols: &mut Symbols) -> Response {
         let uri = self.params.text_document.uri;
         if !documents
             .get(&uri)
@@ -172,11 +183,14 @@ impl DefinitionRequest {
                 "Document changed".into(),
             );
         }
-        let position = self.params.position;
-        Response::new_ok(
-            self.id,
-            definitions.at(&uri, &self.text, position.line, position.character),
-        )
+        let Position { line, character } = self.params.position;
+        let result = match self.kind {
+            PositionRequestKind::Definition => {
+                symbols.definition(&uri, &self.text, line, character)
+            }
+            PositionRequestKind::Hover => symbols.hover(&uri, &self.text, line, character),
+        };
+        Response::new_ok(self.id, result)
     }
 }
 

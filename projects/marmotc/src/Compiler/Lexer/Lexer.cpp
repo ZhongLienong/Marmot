@@ -244,6 +244,12 @@ MarmotResult::VoidResult Lexer::SkipWhitespaceAndComments()
 					return {};
 				}
 
+				if (LookAhead(2) == '/' && std::string_view(m_source.m_code)
+					.substr(m_cursor.m_line_start, CurrentColumn()).find_first_not_of(" \t\r") == std::string_view::npos)
+				{
+					m_doc_comment_lines.push_back(m_cursor.m_line);
+				}
+
 				Advance(); // '/'
 				Advance(); // '/'
 				return SkipLineComment()
@@ -794,6 +800,7 @@ MarmotResult::LexerResult Lexer::LexRecursive(LexState state)
 		state.m_tokens.AddToken(MakeEndOfFileToken());
 	}
 
+	state.m_tokens.SetDocCommentLines(std::move(m_doc_comment_lines));
 	return std::move(state.m_tokens);
 }
 

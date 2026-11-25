@@ -44,6 +44,7 @@ private:
 	Source m_source;
 	Cursor m_cursor;
 	Options m_options;
+	std::vector<int> m_doc_comment_lines;
 
 public:
 

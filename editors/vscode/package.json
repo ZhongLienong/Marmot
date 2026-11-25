@@ -1,7 +1,7 @@
 {
   "name": "marmot-lang",
   "displayName": "Marmot Language Support",
-  "description": "Syntax highlighting, formatting, live diagnostics, and run commands for Marmot.",
+  "description": "Syntax highlighting, formatting, live diagnostics, and commands to create, run, and test Marmot projects.",
   "version": "0.4.0",
   "publisher": "marmot",
   "repository": {
@@ -25,7 +25,7 @@
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": "limited",
-      "description": "Formatting, diagnostics, and run commands use the Marmot project tool and require Workspace Trust.",
+      "description": "Formatting, diagnostics, and project commands use the Marmot project tool and require Workspace Trust.",
       "restrictedConfigurations": [
         "marmot.executablePath"
       ]
@@ -54,6 +54,12 @@
     ],
     "commands": [
       {
+        "command": "marmot.createProject",
+        "title": "Create Project",
+        "category": "Marmot",
+        "enablement": "isWorkspaceTrusted && processExecutionSupported"
+      },
+      {
         "command": "marmot.runFile",
         "title": "Run File",
         "category": "Marmot",
@@ -63,6 +69,12 @@
       {
         "command": "marmot.runProject",
         "title": "Run Project",
+        "category": "Marmot",
+        "enablement": "isWorkspaceTrusted && processExecutionSupported"
+      },
+      {
+        "command": "marmot.testProject",
+        "title": "Test Project",
         "category": "Marmot",
         "enablement": "isWorkspaceTrusted && processExecutionSupported"
       }
@@ -75,6 +87,10 @@
         },
         {
           "command": "marmot.runProject",
+          "when": "workspaceFolderCount > 0"
+        },
+        {
+          "command": "marmot.testProject",
           "when": "workspaceFolderCount > 0"
         }
       ],

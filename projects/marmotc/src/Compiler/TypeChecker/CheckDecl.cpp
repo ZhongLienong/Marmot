@@ -177,7 +177,7 @@ TypeChecker::GenericContext TypeChecker::ForGenericParameters(const CheckingCont
 		{
 			const int id = type->GetType<MarmotType::TypeVariable>().m_id;
 			own_parameters.emplace_back(id, name);
-			m_generic_parameter_ids.insert(id);
+			m_generic_parameter_names.emplace(id, name);
 		}
 	}
 	std::ranges::sort(own_parameters, {}, &std::pair<int, std::string>::second);
@@ -426,6 +426,11 @@ TypeChecker::TypeChecker(
 const TypeChecker::TypeEnvironment& TypeChecker::ModuleTypes() const noexcept
 {
 	return m_module_types;
+}
+
+std::unordered_map<int, std::string> TypeChecker::TakeGenericParameterNames() &&
+{
+	return std::move(m_generic_parameter_names);
 }
 
 namespace
