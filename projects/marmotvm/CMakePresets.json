@@ -7,6 +7,9 @@
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/../../out/build/marmotvm/${presetName}",
       "installDir": "${sourceDir}/../../out/install/marmotvm/${presetName}",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      },
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
@@ -47,6 +50,9 @@
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/../../out/build/marmotvm/${presetName}",
       "installDir": "${sourceDir}/../../out/install/marmotvm/${presetName}",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      },
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",

@@ -7,6 +7,9 @@
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/../../out/build/marmotstdlib/${presetName}",
       "installDir": "${sourceDir}/../../out/install/marmotstdlib/${presetName}",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      },
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
@@ -47,6 +50,9 @@
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/../../out/build/marmotstdlib/${presetName}",
       "installDir": "${sourceDir}/../../out/install/marmotstdlib/${presetName}",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      },
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
