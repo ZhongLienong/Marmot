@@ -19,6 +19,42 @@ pub(super) struct Document {
 pub(super) type Documents = BTreeMap<String, Document>;
 pub(super) type Diagnostics = BTreeMap<String, Vec<Value>>;
 
+pub(super) struct Definitions {
+    entries: BTreeMap<String, Vec<CompilerDefinition>>,
+    files: HashMap<String, Source>,
+}
+
+impl Definitions {
+    pub(super) fn at(&mut self, uri: &str, text: &str, line: u32, character: usize) -> Value {
+        let Some(definitions) = self.entries.get(uri) else {
+            return Value::Null;
+        };
+        let Some(column) = byte_column(text, line, character) else {
+            return Value::Null;
+        };
+        let position = (line + 1, column);
+        let Some(definition) = definitions.iter().find(|definition| {
+            let reference = &definition.reference;
+            (reference.line, reference.column) <= position
+                && position < (reference.end_line, reference.end_column)
+        }) else {
+            return Value::Null;
+        };
+        let declaration = &definition.declaration;
+        let Some(source) = source_for(&mut self.files, &declaration.file) else {
+            return Value::Null;
+        };
+        let range = CompilerLocation {
+            line: Some(declaration.line),
+            column: Some(declaration.column),
+            end_line: Some(declaration.end_line),
+            end_column: Some(declaration.end_column),
+            ..CompilerLocation::default()
+        };
+        json!({ "uri": source.uri, "range": range.range(&source.text) })
+    }
+}
+
 pub(super) struct Compiler {
     executable: PathBuf,
     version: Version,
@@ -34,7 +70,7 @@ impl Compiler {
         }
     }
 
-    pub(super) fn check(&self, documents: &Documents) -> Diagnostics {
+    pub(super) fn analyze(&self, documents: &Documents) -> (Diagnostics, Definitions) {
         let mut files = HashMap::new();
         let mut overlays = BTreeMap::new();
         for (uri, document) in documents {
@@ -49,10 +85,12 @@ impl Compiler {
         }
 
         let mut result = Diagnostics::new();
+        let mut entries = BTreeMap::new();
         for (uri, document) in documents {
-            match self.check_entry(&document.path, &overlays) {
-                Ok(report) => {
-                    for diagnostic in report.diagnostics {
+            match self.analyze_entry(&document.path, &overlays) {
+                Ok(response) => {
+                    entries.insert(uri.clone(), response.definitions);
+                    for diagnostic in response.report.diagnostics {
                         let (uri, value) = diagnostic.into_lsp(document, uri, &mut files);
                         let diagnostics = result.entry(uri).or_default();
                         if !diagnostics.contains(&value) {
@@ -70,14 +108,14 @@ impl Compiler {
                 }
             }
         }
-        result
+        (result, Definitions { entries, files })
     }
 
-    fn check_entry(
+    fn analyze_entry(
         &self,
         entry: &Path,
         sources: &BTreeMap<String, &str>,
-    ) -> Result<Report, String> {
+    ) -> Result<AnalysisResponse, String> {
         #[derive(Serialize)]
         struct AnalysisRequest<'a> {
             plan: plan::Plan,
@@ -111,7 +149,7 @@ impl Compiler {
                 }
             })?;
         written.map_err(|error| format!("Cannot send analysis request: {error}"))?;
-        Ok(response.report)
+        Ok(response)
     }
 }
 
@@ -132,6 +170,24 @@ fn source_for<'a>(files: &'a mut HashMap<String, Source>, file: &Path) -> Option
 #[derive(Deserialize)]
 struct AnalysisResponse {
     report: Report,
+    #[serde(default)]
+    definitions: Vec<CompilerDefinition>,
+}
+
+#[derive(Deserialize)]
+struct CompilerDefinition {
+    reference: CompilerSpan,
+    declaration: CompilerSpan,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CompilerSpan {
+    file: PathBuf,
+    line: u32,
+    column: usize,
+    end_line: u32,
+    end_column: usize,
 }
 
 #[derive(Deserialize)]
@@ -180,6 +236,18 @@ fn utf16_column(text: &str, line: u32, byte: usize) -> usize {
         byte -= 1;
     }
     line[..byte].encode_utf16().count()
+}
+
+fn byte_column(text: &str, line: u32, character: usize) -> Option<usize> {
+    let line = text.lines().nth(line as usize)?;
+    let mut utf16 = 0;
+    for (byte, ch) in line.char_indices() {
+        if utf16 == character {
+            return Some(byte);
+        }
+        utf16 += ch.len_utf16();
+    }
+    (utf16 == character).then_some(line.len())
 }
 
 #[derive(Deserialize)]

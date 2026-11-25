@@ -46,6 +46,7 @@ impl LanguageServer {
             1
         );
         assert_eq!(capabilities["capabilities"]["positionEncoding"], "utf-16");
+        assert_eq!(capabilities["capabilities"]["definitionProvider"], true);
         server.notify("initialized", json!({}));
         server
     }
@@ -55,8 +56,13 @@ impl LanguageServer {
         Message::from(Request::new(id.clone(), method.into(), params))
             .write(&mut self.input)
             .unwrap();
-        let Message::Response(response) = self.read() else {
-            panic!("expected response to {method}");
+        let response = loop {
+            match self.read() {
+                Message::Response(response) => break response,
+                Message::Notification(notification)
+                    if notification.method == "textDocument/publishDiagnostics" => {}
+                message => panic!("expected response to {method}, received {message:?}"),
+            }
         };
         assert_eq!(response.id, id);
         assert!(response.error.is_none(), "{:?}", response.error);
@@ -195,5 +201,85 @@ fn lsp_checks_unsaved_imports_and_clears_versioned_utf16_diagnostics() {
     );
     assert_eq!(project.read("src/Helper.mmt"), helper);
     assert!(!project.path("marmot.lock").exists());
+    server.shutdown();
+}
+
+#[test]
+fn lsp_definitions_follow_unsaved_imports_and_local_bindings() {
+    let Some(compiler) = compiler() else { return };
+    let project = Project::new("lsp-definitions");
+    let main = concat!(
+        "module Main\n",
+        "import { <Helper>, <Facade> }\n",
+        "use Helper.{value}\n",
+        "def answer = (\"caf\u{e9} \u{1f600}\", Helper::value);\n",
+        "def from_use = value;\n",
+        "def reexported = Facade::value;\n",
+        "def result = {\n",
+        "    def item = 1;\n",
+        "    def nested = {\n",
+        "        def item = 2;\n",
+        "        def read = fn() -> Int => item;\n",
+        "        read()\n",
+        "    };\n",
+        "    (item, nested)\n",
+        "};\n",
+    );
+    let helper = "module Helper\npublic export { value }\n\ndef value = 1;\n";
+    let moved_helper =
+        "module Helper\npublic export { value }\n\n\ndef _ = \"x\u{1f600}\"; def value = 2;\n";
+    let facade = "module Facade\npublic export { value }\nimport { <Helper> }\n";
+    project.write("project.marmot", "[project]\nentry = \"src/Main.mmt\"\n");
+    project.write("src/Main.mmt", main);
+    project.write("src/Helper.mmt", helper);
+    project.write("src/Facade.mmt", facade);
+    let main_uri = Url::from_file_path(project.path("src/Main.mmt"))
+        .unwrap()
+        .to_string();
+    let helper_uri = Url::from_file_path(project.path("src/Helper.mmt"))
+        .unwrap()
+        .to_string();
+
+    let mut server = LanguageServer::start(&compiler, &project.0);
+    server.open(&main_uri, main);
+    let mut definition = |id, line, character| {
+        server.request(
+            id,
+            "textDocument/definition",
+            json!({
+                "textDocument": { "uri": main_uri },
+                "position": { "line": line, "character": character }
+            }),
+        )
+    };
+    let location = |uri: &str, line, start, end| {
+        json!({
+            "uri": uri,
+            "range": {
+                "start": { "line": line, "character": start },
+                "end": { "line": line, "character": end }
+            }
+        })
+    };
+    let original = location(&helper_uri, 3, 4, 9);
+    assert_eq!(definition(3, 3, 34), original);
+    assert_eq!(definition(4, 4, 16), original);
+    assert_eq!(definition(5, 5, 27), original);
+    assert_eq!(definition(6, 10, 35), location(&main_uri, 9, 12, 16));
+    assert_eq!(definition(7, 13, 6), location(&main_uri, 7, 8, 12));
+    assert_eq!(definition(8, 6, 0), Value::Null);
+
+    server.open(&helper_uri, helper);
+    server.change(&helper_uri, 2, moved_helper);
+    let result = server.request(
+        9,
+        "textDocument/definition",
+        json!({
+            "textDocument": { "uri": main_uri },
+            "position": { "line": 3, "character": 34 }
+        }),
+    );
+    assert_eq!(result, location(&helper_uri, 4, 19, 24));
+    assert_eq!(project.read("src/Helper.mmt"), helper);
     server.shutdown();
 }

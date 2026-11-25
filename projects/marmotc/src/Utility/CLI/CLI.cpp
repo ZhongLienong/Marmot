@@ -490,9 +490,8 @@ namespace
 		std::string_view stdout_text = {},
 		std::string_view stderr_text = {},
 		std::optional<std::string_view> artifact_json = std::nullopt,
-		std::optional<std::string_view> report_json = std::nullopt)
+		const MarmotJson::Document* definitions = nullptr)
 	{
-		const std::string resolved_report_json = report_json.has_value() ? std::string(*report_json) : report.MachineReadableJson();
 		MarmotJson::Document payload;
 		payload.AddNumberField("version", 1);
 		payload.AddStringField("source", "marmot");
@@ -501,10 +500,14 @@ namespace
 		payload.AddNumberField("exitCode", exit_code);
 		payload.AddStringField("stdout", stdout_text);
 		payload.AddStringField("stderr", stderr_text);
-		payload.AddRawField("report", resolved_report_json);
+		payload.AddRawField("report", report.MachineReadableJson());
 		if (artifact_json.has_value())
 		{
 			payload.AddRawField("artifact", *artifact_json);
+		}
+		if (definitions != nullptr)
+		{
+			payload.AddField("definitions", *definitions);
 		}
 
 		return payload.Write();
@@ -639,6 +642,17 @@ namespace
 		return plan;
 	}
 
+	MarmotJson::Document SourceSpanJson(const SourceSpan& span)
+	{
+		MarmotJson::Document result;
+		result.AddStringField("file", span.m_file);
+		result.AddNumberField("line", span.m_start.m_line);
+		result.AddNumberField("column", span.m_start.m_column);
+		result.AddNumberField("endLine", span.m_end.m_line);
+		result.AddNumberField("endColumn", span.m_end.m_column);
+		return result;
+	}
+
 	int HandleAnalyze(const Invocation& invocation)
 	{
 		if (invocation.m_show_help)
@@ -654,10 +668,18 @@ namespace
 			return EXIT_FAILURE;
 		}
 
-		const MarmotResult::CompilerReport report = MarmotDriver::AnalyzeFile(*plan->m_entry, std::move(plan->m_inputs));
-		const bool success = report.m_errors.Empty();
+		const EditorAnalysis analysis = MarmotDriver::AnalyzeFile(*plan->m_entry, std::move(plan->m_inputs));
+		MarmotJson::Document definitions = MarmotJson::Document::Array();
+		for (const DefinitionLink& link : analysis.m_definitions)
+		{
+			MarmotJson::Document item;
+			item.AddField("reference", SourceSpanJson(link.m_reference));
+			item.AddField("declaration", SourceSpanJson(link.m_declaration));
+			definitions.Append(item);
+		}
+		const bool success = analysis.m_report.m_errors.Empty();
 		const int exit_code = success ? EXIT_SUCCESS : EXIT_FAILURE;
-		std::print("{}", CommandJson("analyze", success, report, exit_code));
+		std::print("{}", CommandJson("analyze", success, analysis.m_report, exit_code, {}, {}, std::nullopt, &definitions));
 		return exit_code;
 	}
 

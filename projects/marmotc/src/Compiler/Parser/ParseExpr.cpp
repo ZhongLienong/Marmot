@@ -147,17 +147,17 @@ MarmotResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 		if (IsGlobalName(found_scope_it))
 		{
 			RecordTopLevelReference(name_token);
-			return std::make_unique<MarmotExpression>(MarmotExpression::NameAccess(name_token, MarmotExpression::NameContext::Global()));
+			return std::make_unique<MarmotExpression>(MarmotExpression::NameAccess(name_token, MarmotExpression::NameContext::Global(), &name_token));
 		}
 		// Local
 		else if (IsLocalName(find_result))
 		{
-			return std::make_unique<MarmotExpression>(MarmotExpression::NameAccess(name_token, MarmotExpression::NameContext::Local(find_result->second)));
+			return std::make_unique<MarmotExpression>(MarmotExpression::NameAccess(name_token, MarmotExpression::NameContext::Local(find_result->second), &name_token));
 		}
 		// Cell
 		else
 		{
-			return std::make_unique<MarmotExpression>(MarmotExpression::NameAccess(name_token, MarmotExpression::NameContext::Cell(find_result->second)));
+			return std::make_unique<MarmotExpression>(MarmotExpression::NameAccess(name_token, MarmotExpression::NameContext::Cell(find_result->second), &name_token));
 		}
 	}
 
@@ -165,7 +165,7 @@ MarmotResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 	if (m_state.m_top_level_names.contains(lookup_name))
 	{
 		RecordTopLevelReference(name_token);
-		return std::make_unique<MarmotExpression>(MarmotExpression::NameAccess(name_token, MarmotExpression::NameContext::Global()));
+		return std::make_unique<MarmotExpression>(MarmotExpression::NameAccess(name_token, MarmotExpression::NameContext::Global(), &name_token));
 	}
 
 	// Not found in local scopes - check imported modules (for bare imports)
@@ -183,7 +183,7 @@ MarmotResult::ExpressionResult Parser::ResolveQualifiedName(const Token& name_to
 		{
 			Token qualified_token = name_token;
 			qualified_token.m_lexeme = imported_module_name + NameSeparator.data() + lookup_name;
-			return std::make_unique<MarmotExpression>(MarmotExpression::NameAccess(qualified_token, MarmotExpression::NameContext::Global()));
+			return std::make_unique<MarmotExpression>(MarmotExpression::NameAccess(qualified_token, MarmotExpression::NameContext::Global(), &name_token));
 		}
 
 		return std::unexpected(GenerateParserError(BuildImportedSymbolAccessError(imported_module_name, lookup_name, access), name_token));
@@ -773,7 +773,7 @@ MarmotResult::ExpressionResult Parser::ParsePrimary()
 						if (access == ImportedSymbolAccess::Accessible)
 						{
 							// Keep the fully qualified name so lowering can identify imports
-							return std::make_unique<MarmotExpression>(MarmotExpression::NameAccess(variable, MarmotExpression::NameContext::Global()));
+							return std::make_unique<MarmotExpression>(MarmotExpression::NameAccess(variable, MarmotExpression::NameContext::Global(), &Previous()));
 						}
 
 						return std::unexpected(GenerateParserError(BuildImportedSymbolAccessError(qualifier, symbol_name, access), variable));

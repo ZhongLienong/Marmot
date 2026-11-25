@@ -73,3 +73,14 @@ CompiledModule CompiledModule::WithAst(std::string ast) &&
 	m_ast = std::move(ast);
 	return std::move(*this);
 }
+
+CompiledModule CompiledModule::WithDefinitions(ModuleDefinitions definitions) &&
+{
+	m_definitions.emplace(std::move(definitions));
+	return std::move(*this);
+}
+
+ModuleDefinitions CompiledModule::TakeDefinitions() &&
+{
+	return std::move(m_definitions).value();
+}

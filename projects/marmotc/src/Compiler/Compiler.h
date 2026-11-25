@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Compiler/Analysis/DefinitionAnalysis.h"
 #include "Compiler/CompilationInputs/CompilationInputs.h"
 #include "Compiler/Result/CompilationResult.h"
 #include <string>
@@ -21,6 +22,6 @@ public:
 	Compiler(std::string&& source_code, std::string&& file_name, CompilationInputs inputs = {});
 
 	MarmotResult::CompilationResult CompileWithReport();
-	MarmotResult::CompilerReport Analyze();
+	EditorAnalysis Analyze();
 	MarmotResult::CompilerResult Compile();
 };

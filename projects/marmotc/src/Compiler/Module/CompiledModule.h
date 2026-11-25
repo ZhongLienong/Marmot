@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Compiler/Analysis/DefinitionAnalysis.h"
 #include "Compiler/Error/CompilerError.h"
 #include "Compiler/BytecodeModule/BytecodeModule.h"
 #include "Compiler/Module/ModuleInterface.h"
@@ -46,10 +47,15 @@ struct CompiledModule
 
 	[[nodiscard]] CompiledModule WithAst(std::string ast) &&;
 
+	[[nodiscard]] CompiledModule WithDefinitions(ModuleDefinitions definitions) &&;
+
+	[[nodiscard]] ModuleDefinitions TakeDefinitions() &&;
+
 private:
 	std::shared_ptr<const ModuleInterface> m_interface;
 	std::vector<CompilerWarning> m_warnings;
 	std::optional<BytecodeModule> m_bytecode;        // Per-module bytecode for incremental compilation
 	std::string m_marmot_ir;
 	std::string m_ast;
+	std::optional<ModuleDefinitions> m_definitions;
 };

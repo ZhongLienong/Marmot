@@ -206,10 +206,17 @@ MarmotExpression::UnaryPrefix::UnaryPrefix(const Token& op, std::unique_ptr<Marm
 {
 }
 
-MarmotExpression::NameAccess::NameAccess(const Token& name, NameContext::Tag&& name_ctx)
+MarmotExpression::NameAccess::NameAccess(const Token& name, NameContext::Tag&& name_ctx, const Token* value_reference_end)
 	: m_name(name),
 	m_name_ctx(std::move(name_ctx))
 {
+	if (value_reference_end != nullptr)
+	{
+		m_value_reference_end = MarmotSource::Position{
+			value_reference_end->m_line,
+			static_cast<size_t>(value_reference_end->m_column.value()) + value_reference_end->m_source_length.value()
+		};
+	}
 }
 
 MarmotExpression::NameAccess::NameAccess(const GeneratedBinding& binding)

@@ -188,6 +188,7 @@ target_link_libraries(MarmotFmt PUBLIC MarmotSyntax)
 
 add_library(MarmotSema STATIC
     src/Compiler/Analysis/AbstractSyntaxTreeWalker.cpp
+    src/Compiler/Analysis/DefinitionAnalysis.cpp
     src/Compiler/Analysis/SharedAnalysis.cpp
     src/Compiler/BuildGraph/BuildGraph.cpp
     src/Compiler/CompilationInputs/CompilationInputs.cpp

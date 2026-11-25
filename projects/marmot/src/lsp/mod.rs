@@ -1,11 +1,11 @@
 mod analysis;
 
 use crate::project::version::Version;
-use analysis::{Diagnostics, Document, Documents};
+use analysis::{Definitions, Diagnostics, Document, Documents};
 use crossbeam_channel::{after, never, select_biased, unbounded};
-use lsp_server::{Connection, ErrorCode, Message, Notification, Response};
+use lsp_server::{Connection, ErrorCode, Message, Notification, RequestId, Response};
 use serde::Deserialize;
-use serde_json::json;
+use serde_json::{Value, json};
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -20,7 +20,8 @@ pub(crate) fn run(compiler: PathBuf, version: Version) -> Result<ExitCode, Strin
     connection
         .initialize(json!({
             "positionEncoding": "utf-16",
-            "textDocumentSync": { "openClose": true, "change": 1, "save": true }
+            "textDocumentSync": { "openClose": true, "change": 1, "save": true },
+            "definitionProvider": true
         }))
         .map_err(|error| error.to_string())?;
     let status = serve(
@@ -38,7 +39,9 @@ fn serve(connection: &Connection, compiler: Arc<analysis::Compiler>) -> Result<E
     let mut generation = 0;
     let mut deadline: Option<Instant> = None;
     let mut running = false;
-    let (send_result, results) = unbounded::<(u64, Diagnostics)>();
+    let mut definitions: Option<Definitions> = None;
+    let mut pending: Vec<DefinitionRequest> = Vec::new();
+    let (send_result, results) = unbounded::<(u64, (Diagnostics, Definitions))>();
 
     loop {
         let timer = match deadline {
@@ -53,16 +56,46 @@ fn serve(connection: &Connection, compiler: Arc<analysis::Compiler>) -> Result<E
                         if connection.handle_shutdown(&request).map_err(|error| error.to_string())? {
                             return Ok(ExitCode::SUCCESS);
                         }
-                        let response = Response::new_err(request.id, ErrorCode::MethodNotFound as i32, request.method);
-                        connection.sender.send(response.into()).map_err(|error| error.to_string())?;
+                        if request.method != "textDocument/definition" {
+                            respond(connection, Response::new_err(request.id, ErrorCode::MethodNotFound as i32, request.method))?;
+                            continue;
+                        }
+                        let params = match serde_json::from_value::<DefinitionParams>(request.params) {
+                            Ok(params) => params,
+                            Err(error) => {
+                                respond(connection, Response::new_err(request.id, ErrorCode::InvalidParams as i32, error.to_string()))?;
+                                continue;
+                            }
+                        };
+                        let Some(document) = documents.get(&params.text_document.uri) else {
+                            respond(connection, Response::new_ok(request.id, Value::Null))?;
+                            continue;
+                        };
+                        let query = DefinitionRequest { id: request.id, params, text: Arc::clone(&document.text) };
+                        if let Some(definitions) = &mut definitions {
+                            respond(connection, query.resolve(&documents, definitions))?;
+                        } else {
+                            pending.push(query);
+                            deadline = Some(Instant::now());
+                        }
                     }
                     Ok(Message::Notification(notification)) if notification.method == "exit" => {
                         return Ok(ExitCode::FAILURE);
                     }
+                    Ok(Message::Notification(notification)) if notification.method == "$/cancelRequest" => {
+                        if let Ok(CancelParams { id }) = serde_json::from_value(notification.params)
+                            && let Some(index) = pending.iter().position(|query| query.id == id)
+                        {
+                            pending.remove(index);
+                            respond(connection, Response::new_err(id, ErrorCode::RequestCanceled as i32, "Request canceled".into()))?;
+                        }
+                    }
                     Ok(Message::Notification(notification)) => {
                         if update_documents(&mut documents, notification) {
                             generation += 1;
-                            deadline = Some(Instant::now() + EDIT_DELAY);
+                            definitions = None;
+                            let delay = if pending.is_empty() { EDIT_DELAY } else { Duration::ZERO };
+                            deadline = Some(Instant::now() + delay);
                         }
                     }
                     Ok(Message::Response(_)) => {}
@@ -70,9 +103,14 @@ fn serve(connection: &Connection, compiler: Arc<analysis::Compiler>) -> Result<E
                 }
             }
             recv(results) -> result => {
-                let (checked_generation, diagnostics) = result.map_err(|error| error.to_string())?;
+                let (checked_generation, (diagnostics, mut checked_definitions)) = result.map_err(|error| error.to_string())?;
                 running = false;
                 if checked_generation == generation {
+                    deadline = None;
+                    for query in pending.drain(..) {
+                        respond(connection, query.resolve(&documents, &mut checked_definitions))?;
+                    }
+                    definitions = Some(checked_definitions);
                     publish(connection, &documents, &mut published, diagnostics)?;
                 }
             }
@@ -83,10 +121,62 @@ fn serve(connection: &Connection, compiler: Arc<analysis::Compiler>) -> Result<E
                 let send_result = send_result.clone();
                 running = true;
                 std::thread::spawn(move || {
-                    let _ = send_result.send((generation, compiler.check(&snapshot)));
+                    let _ = send_result.send((generation, compiler.analyze(&snapshot)));
                 });
             }
         }
+    }
+}
+
+fn respond(connection: &Connection, response: Response) -> Result<(), String> {
+    connection
+        .sender
+        .send(response.into())
+        .map_err(|error| error.to_string())
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DefinitionParams {
+    text_document: TextDocument,
+    position: Position,
+}
+
+#[derive(Deserialize)]
+struct Position {
+    line: u32,
+    character: usize,
+}
+
+#[derive(Deserialize)]
+struct CancelParams {
+    id: RequestId,
+}
+
+struct DefinitionRequest {
+    id: RequestId,
+    params: DefinitionParams,
+    text: Arc<str>,
+}
+
+impl DefinitionRequest {
+    fn resolve(self, documents: &Documents, definitions: &mut Definitions) -> Response {
+        let uri = self.params.text_document.uri;
+        if !documents
+            .get(&uri)
+            .is_some_and(|document| Arc::ptr_eq(&document.text, &self.text))
+        {
+            return Response::new_err(
+                self.id,
+                ErrorCode::ContentModified as i32,
+                "Document changed".into(),
+            );
+        }
+        let position = self.params.position;
+        Response::new_ok(
+            self.id,
+            definitions.at(&uri, &self.text, position.line, position.character),
+        )
     }
 }
 

@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "Compiler/Token/Token.h"
+#include "Compiler/Source/Source.h"
 #include "Compiler/AbstractSyntaxTree/FunctionParameters.h"
 #include "Compiler/AbstractSyntaxTree/GeneratedBinding.h"
 #include "Compiler/Operator/Ordering.h"
@@ -468,8 +469,9 @@ public:
 		Token m_name;
 		NameContext::Tag m_name_ctx;
 		std::optional<size_t> m_intrinsic;
+		std::optional<MarmotSource::Position> m_value_reference_end;
 
-		NameAccess(const Token& name, NameContext::Tag&& name_ctx);
+		NameAccess(const Token& name, NameContext::Tag&& name_ctx, const Token* value_reference_end = nullptr);
 		explicit NameAccess(const GeneratedBinding& binding);
 	};
 

@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 
+#include "Compiler/Analysis/DefinitionAnalysis.h"
 #include "Compiler/CompilationInputs/CompilationInputs.h"
 #include "Compiler/Result/CompilationResult.h"
 #include "Utility/BuildPlan/BuildPlan.h"
@@ -35,5 +36,5 @@ namespace MarmotDriver
 	[[nodiscard]] CompileFileWithReportResult CompileFileWithReport(const std::filesystem::path& file_path);
 	// Compiles with exactly `inputs` (a build plan's).
 	[[nodiscard]] CompileFileWithReportResult CompileFileWithReport(const std::filesystem::path& file_path, CompilationInputs inputs);
-	[[nodiscard]] MarmotResult::CompilerReport AnalyzeFile(const std::filesystem::path& file_path, CompilationInputs inputs);
+	[[nodiscard]] EditorAnalysis AnalyzeFile(const std::filesystem::path& file_path, CompilationInputs inputs);
 }

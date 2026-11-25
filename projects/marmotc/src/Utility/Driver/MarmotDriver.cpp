@@ -136,12 +136,12 @@ namespace MarmotDriver
 		return std::move(compile_result).value();
 	}
 
-	MarmotResult::CompilerReport AnalyzeFile(const std::filesystem::path& file_path, CompilationInputs inputs)
+	EditorAnalysis AnalyzeFile(const std::filesystem::path& file_path, CompilationInputs inputs)
 	{
 		std::expected<std::string, DriverError> source = ReadSourceFile(file_path, inputs);
 		if (!source)
 		{
-			return std::move(source.error().m_report);
+			return { std::move(source.error().m_report), {} };
 		}
 		return Compiler(std::move(source).value(), file_path.string(), std::move(inputs)).Analyze();
 	}
