@@ -1,78 +1,117 @@
 module Math
 public export { Pi, E, Tau, SquareRoot, Abs, Pow, Exp, Log, Log10, Log2, Sin, Cos, Tan, Asin, Acos, Atan, Atan2, Sinh, Cosh, Tanh, Floor, Ceil, Round, Trunc, Min, Max, Clamp, Sign, Fmod, Hypot, Random, RandomInt, RandomFloat, ToRadians, ToDegrees, IsNaN, IsInf, IsFinite }
 
+// The ratio of a circle's circumference to its diameter.
 def Pi: Float = 3.14159265358979323846;
 
+// Euler's number, the base of the natural logarithm.
 def E: Float = 2.71828182845904523536;
 
+// One full turn in radians, equal to 2 * Pi.
 def Tau: Float = 6.28318530717958647692;
 
+// Returns the nonnegative square root. A negative input yields NaN.
 foreign "MARMOT_FFI_SquareRoot" SquareRoot: fn(Float) -> Float from "marmotstdlib";
 
+// Returns the absolute value of a Float.
 foreign "MARMOT_FFI_Abs" Abs: fn(Float) -> Float from "marmotstdlib";
 
+// Raises the first argument to the power of the second.
 foreign "MARMOT_FFI_Pow" Pow: fn(Float, Float) -> Float from "marmotstdlib";
 
+// Raises E to the given power.
 foreign "MARMOT_FFI_Exp" Exp: fn(Float) -> Float from "marmotstdlib";
 
+// Returns the natural logarithm.
 foreign "MARMOT_FFI_Log" Log: fn(Float) -> Float from "marmotstdlib";
 
+// Returns the base-10 logarithm.
 foreign "MARMOT_FFI_Log10" Log10: fn(Float) -> Float from "marmotstdlib";
 
+// Returns the base-2 logarithm.
 foreign "MARMOT_FFI_Log2" Log2: fn(Float) -> Float from "marmotstdlib";
 
+// Returns the sine of an angle in radians.
 foreign "MARMOT_FFI_Sin" Sin: fn(Float) -> Float from "marmotstdlib";
 
+// Returns the cosine of an angle in radians.
 foreign "MARMOT_FFI_Cos" Cos: fn(Float) -> Float from "marmotstdlib";
 
+// Returns the tangent of an angle in radians.
 foreign "MARMOT_FFI_Tan" Tan: fn(Float) -> Float from "marmotstdlib";
 
+// Returns the principal arcsine in radians, between -Pi/2 and Pi/2.
 foreign "MARMOT_FFI_Asin" Asin: fn(Float) -> Float from "marmotstdlib";
 
+// Returns the principal arccosine in radians, between 0 and Pi.
 foreign "MARMOT_FFI_Acos" Acos: fn(Float) -> Float from "marmotstdlib";
 
+// Returns the principal arctangent in radians, between -Pi/2 and Pi/2.
 foreign "MARMOT_FFI_Atan" Atan: fn(Float) -> Float from "marmotstdlib";
 
+// Takes y first and x second and returns the angle in radians in the correct quadrant.
 foreign "MARMOT_FFI_Atan2" Atan2: fn(Float, Float) -> Float from "marmotstdlib";
 
+// Returns the hyperbolic sine.
 foreign "MARMOT_FFI_Sinh" Sinh: fn(Float) -> Float from "marmotstdlib";
 
+// Returns the hyperbolic cosine.
 foreign "MARMOT_FFI_Cosh" Cosh: fn(Float) -> Float from "marmotstdlib";
 
+// Returns the hyperbolic tangent.
 foreign "MARMOT_FFI_Tanh" Tanh: fn(Float) -> Float from "marmotstdlib";
 
+// Rounds toward negative infinity and returns a Float.
 foreign "MARMOT_FFI_Floor" Floor: fn(Float) -> Float from "marmotstdlib";
 
+// Rounds toward positive infinity and returns a Float.
 foreign "MARMOT_FFI_Ceil" Ceil: fn(Float) -> Float from "marmotstdlib";
 
+// Rounds to the nearest integer as a Float, with halfway cases away from zero.
 foreign "MARMOT_FFI_Round" Round: fn(Float) -> Float from "marmotstdlib";
 
+// Drops the fractional part toward zero and returns a Float.
 foreign "MARMOT_FFI_Trunc" Trunc: fn(Float) -> Float from "marmotstdlib";
 
+// Returns the smaller operand when ordered, otherwise the first.
 foreign "MARMOT_FFI_Min" Min: fn(Float, Float) -> Float from "marmotstdlib";
 
+// Returns the larger operand when ordered, otherwise the first.
 foreign "MARMOT_FFI_Max" Max: fn(Float, Float) -> Float from "marmotstdlib";
 
+// Takes value, minimum, and maximum in that order. The minimum must be at most the maximum.
 foreign "MARMOT_FFI_Clamp" Clamp: fn(Float, Float, Float) -> Float from "marmotstdlib";
 
+// Returns 1.0 for positive values, -1.0 for negative values, and 0.0 for zero or NaN.
 foreign "MARMOT_FFI_Sign" Sign: fn(Float) -> Float from "marmotstdlib";
 
+// Returns the floating-point remainder with the sign of the dividend.
 foreign "MARMOT_FFI_Fmod" Fmod: fn(Float, Float) -> Float from "marmotstdlib";
 
+// Returns the length of the vector (x, y) while avoiding undue intermediate overflow.
 foreign "MARMOT_FFI_Hypot" Hypot: fn(Float, Float) -> Float from "marmotstdlib";
 
+// Draws a uniform pseudorandom Float from [0, 1).
 foreign "MARMOT_FFI_Random" Random: fn() -> Float from "marmotstdlib";
 
+// Draws a uniform pseudorandom Int with both endpoints inclusive. Reversed bounds are
+// swapped.
 foreign "MARMOT_FFI_RandomInt" RandomInt: fn(Int, Int) -> Int from "marmotstdlib";
 
+// Draws a uniform pseudorandom Float from [minimum, maximum), given finite ordered bounds.
 foreign "MARMOT_FFI_RandomFloat" RandomFloat: fn(Float, Float) -> Float from "marmotstdlib";
 
+// Converts an angle from degrees to radians.
 foreign "MARMOT_FFI_ToRadians" ToRadians: fn(Float) -> Float from "marmotstdlib";
 
+// Converts an angle from radians to degrees.
 foreign "MARMOT_FFI_ToDegrees" ToDegrees: fn(Float) -> Float from "marmotstdlib";
 
+// Tests whether the value is NaN.
 foreign "MARMOT_FFI_IsNaN" IsNaN: fn(Float) -> Bool from "marmotstdlib";
 
+// Tests whether the value is positive or negative infinity.
 foreign "MARMOT_FFI_IsInf" IsInf: fn(Float) -> Bool from "marmotstdlib";
 
+// Tests whether the value is a finite number.
 foreign "MARMOT_FFI_IsFinite" IsFinite: fn(Float) -> Bool from "marmotstdlib";

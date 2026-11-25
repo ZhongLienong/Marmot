@@ -34,6 +34,7 @@ foreign "MARMOT_PRIMITIVE_ChannelReceive" ReceiveRaw: fn(Channel<T>) -> ReceiveO
 // What Join reports when a worker does not produce its value.
 type WorkerError = Cancelled | Failed(Text);
 
+// Waits for the worker to finish and returns its result, cancellation, or failure message.
 def Join = fn<T>(worker: Worker<T>) -> Result<T, WorkerError> => match JoinRaw(worker) with
     case JoinOutcome::Completed(value) => Result::Ok(value)
     case JoinOutcome::Rejected(JoinFailure::Cancelled()) => Result::Err(WorkerError::Cancelled())
@@ -44,18 +45,25 @@ def Join = fn<T>(worker: Worker<T>) -> Result<T, WorkerError> => match JoinRaw(w
 // can go through a channel, so only such a channel can be made.
 foreign "MARMOT_PRIMITIVE_ChannelNew" ChannelNew: fn(Int) -> Channel<T>;
 
+// Creates a bounded channel for transferable values. Capacities below 1 become 1.
 def MakeChannel = fn<T>(capacity: Int) -> Channel<T> where Transferable<T> => ChannelNew(capacity);
 
+// Waits for space and sends the value. Returns false if the channel is closed.
 foreign "MARMOT_PRIMITIVE_ChannelSend" Send: fn(Channel<T>, T) -> Bool;
 
+// Waits for a value and returns None after the channel is closed and drained.
 def Receive = fn<T>(channel: Channel<T>) -> Option<T> => match ReceiveRaw(channel) with
     case ReceiveOutcome::Drained() => Option::None()
     case ReceiveOutcome::Received(value) => Option::Some(value);
 
+// Closes the channel and wakes blocked senders and receivers. Buffered values can still be
+// received.
 foreign "MARMOT_PRIMITIVE_ChannelClose" Close: fn(Channel<T>) -> Unit;
 
+// Checks whether the worker has finished without blocking.
 foreign "MARMOT_PRIMITIVE_WorkerIsDone" IsDone: fn(Worker<T>) -> Bool;
 
+// Requests cooperative cancellation and reports whether a new request was made.
 foreign "MARMOT_PRIMITIVE_WorkerCancel" Cancel: fn(Worker<T>) -> Bool;
 
 // For code that treats a worker failure as fatal, which is what joining itself did
@@ -78,18 +86,23 @@ def JoinedOrPanic = fn<T>(result: Result<T, WorkerError>) -> T =>
 // rather than something the compiler has to provide.
 def ParallelMap = fn<A, B>(values: Array<A>, work: fn(A) -> B, chunk_size: Int) -> Array<B> where Transferable<A>, Transferable<B>, Transferable<fn(A) -> B> =>
 {
+    // Use the input length to compute how many workers to spawn.
     def count = ArrayUtil::Length(values);
+    // Clamp the chunk size to keep the division and slice stride positive.
     def size = if chunk_size < 1
     then 1
     else chunk_size;
+    // Round up to include a final partial chunk, with no worker for empty input.
     def chunk_count = if count == 0
     then 0
     else 1 + ((count - 1) / size);
+    // Launch every chunk before waiting for any result.
     def workers = [Spawn
     (
         ArrayUtil::Slice(values, index * size, (index + 1) * size),
         fn(chunk: Array<A>) -> Array<B> => [work(item) for item in chunk]
     ) for index in 0..1..chunk_count];
+    // Join in input chunk order so the result preserves the order of the input.
     def chunks = [JoinedOrPanic(Join(worker)) for worker in workers];
     ArrayUtil::ConcatAll(chunks)
 };

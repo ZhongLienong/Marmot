@@ -19,7 +19,7 @@ namespace
 	}
 
 	// Each type parameter in the derived class, with the instance's type
-	// arguments after the first: Convertable<T, Text> for Convertable<P, Text>.
+	// arguments after the first: Convertible<T, Text> for Convertible<P, Text>.
 	std::vector<MarmotType::ClassConstraint> DerivedConstraints(const std::string& class_name, const std::vector<Token>& generic_params, const std::vector<std::shared_ptr<MarmotType>>& type_args)
 	{
 		return generic_params
@@ -271,7 +271,7 @@ std::optional<DerivedDeclarationGenerator::Operation> DerivedDeclarationGenerato
 		{ EQUATABLE_CLASS_NAME, Operation::Equatable },
 		{ HASHABLE_CLASS_NAME, Operation::Hashable },
 		{ ORDERABLE_CLASS_NAME, Operation::Orderable },
-		{ CONVERTABLE_CLASS_NAME, Operation::Convertable },
+		{ CONVERTIBLE_CLASS_NAME, Operation::Convertible },
 		{ TRANSFERABLE_CLASS_NAME, Operation::Transferable },
 		{ MAP_DERIVING_NAME, Operation::Map },
 		{ BIND_DERIVING_NAME, Operation::Bind },
@@ -348,7 +348,7 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 	};
 
 	std::vector<std::shared_ptr<MarmotType>> type_args{ std::shared_ptr<MarmotType>(struct_stmt.m_self_type) };
-	if (m_operation == Operation::Convertable)
+	if (m_operation == Operation::Convertible)
 	{
 		type_args.emplace_back(MarmotType::MakeLiteralType<MarmotType::TextType>());
 	}
@@ -388,7 +388,7 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 			MarmotStatement::FunctionDefinition(method_token, {}, syntax.Parameters(std::move(params)), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::BoolType>()), std::move(body), std::nullopt, {})
 		);
 	}
-	else if (m_operation == Operation::Convertable)
+	else if (m_operation == Operation::Convertible)
 	{
 		const std::string mangled_name = MarmotType::MangleInstanceMethodName(std::string(CONVERT_METHOD_NAME), derive_target.m_lexeme, type_args);
 		Token method_token(mangled_name, Token::Name::IDENTIFIER_LITERAL, struct_stmt.m_name);
@@ -507,7 +507,7 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 	if (!IsContainer(m_operation))
 	{
 		std::vector<std::shared_ptr<MarmotType>> type_args{ std::shared_ptr<MarmotType>(union_stmt.m_self_type) };
-		if (m_operation == Operation::Convertable)
+		if (m_operation == Operation::Convertible)
 		{
 			type_args.emplace_back(MarmotType::MakeLiteralType<MarmotType::TextType>());
 		}
@@ -573,7 +573,7 @@ DerivedDeclarationGenerator::StatementResult DerivedDeclarationGenerator::Genera
 				MarmotStatement::FunctionDefinition(method_token, {}, syntax.Parameters(std::move(params)), std::move(param_types), std::shared_ptr<MarmotType>(MarmotType::MakeLiteralType<MarmotType::BoolType>()), std::move(body), std::nullopt, {})
 			);
 		}
-		else if (m_operation == Operation::Convertable)
+		else if (m_operation == Operation::Convertible)
 		{
 			const std::string mangled_name = MarmotType::MangleInstanceMethodName(std::string(CONVERT_METHOD_NAME), derive_target.m_lexeme, type_args);
 			Token method_token(mangled_name, Token::Name::IDENTIFIER_LITERAL, union_stmt.m_name);

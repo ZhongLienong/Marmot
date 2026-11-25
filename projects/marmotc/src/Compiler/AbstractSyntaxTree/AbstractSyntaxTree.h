@@ -416,7 +416,7 @@ public:
 		Token m_as_keyword;
 		std::shared_ptr<MarmotType> m_to_type;
 		std::unique_ptr<MarmotExpression> m_expr;
-		bool m_uses_convertable = false;
+		bool m_uses_convertible = false;
 
 		As(const Token& as_keyword, std::shared_ptr<MarmotType> to_type, std::unique_ptr<MarmotExpression>&& expr);
 	};

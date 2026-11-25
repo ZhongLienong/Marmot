@@ -1,0 +1,10 @@
+module ConvertibleAmbiguousWithoutExpectedType
+// The expected type is a tie-breaker for concrete instance selection, not
+// a filter. Convertible is the class that genuinely needs it: every
+// Convertible<Int, _> instance accepts an Int argument, so with no
+// expected type to break the tie the call must stay ambiguous rather
+// than silently pick one.
+
+import { "../../../projects/marmotstdlib/MarmotPrelude/Convertible.mmt", }
+
+def value = Convertible::Convert(7);

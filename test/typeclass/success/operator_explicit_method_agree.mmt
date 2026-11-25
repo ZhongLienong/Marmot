@@ -5,9 +5,9 @@ module OperatorExplicitMethodAgree
 // spelling used to fail wherever the ambient expected type was not the
 // method's return type: inside an `as` operand, or as an argument to a
 // generic function. Instance selection is argument-directed; the
-// expected type only breaks ties, which is what `Convertable` needs.
+// expected type only breaks ties, which is what `Convertible` needs.
 
-import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Countable.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Concatenable.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Convertable.mmt", }
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Countable.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Concatenable.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Convertible.mmt", }
 
 def Same = fn<T>(value: T) -> T => value;
 
@@ -45,6 +45,6 @@ def joined = left ++ right;
 IO::PrintLine(#joined as Text);
 IO::PrintLine(Countable::Count(Concatenable::Concat(left, right)) as Text);
 
-def converted: Text = Convertable::Convert(7);
+def converted: Text = Convertible::Convert(7);
 IO::PrintLine(converted);
 IO::PrintLine(7 as Text);

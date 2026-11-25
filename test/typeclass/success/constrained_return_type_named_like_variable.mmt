@@ -3,7 +3,7 @@ module T0Results
 // The module prefix must resemble an inference variable to expose the regression.
 foreign "MARMOT_FFI_Print" Print: fn(Text) -> Unit from "marmotstdlib";
 
-class Convertable<From, To>
+class Convertible<From, To>
 {
     Convert: fn(value: From) -> To;
 };
@@ -13,17 +13,17 @@ type Box =
     value: Int
 };
 
-instance Convertable<Int, Box>
+instance Convertible<Int, Box>
 {
     def Convert = fn(value: Int) -> Box => Box(value);
 };
 
-instance Convertable<Int, Text>
+instance Convertible<Int, Text>
 {
     def Convert = fn(value: Int) -> Text => "text";
 };
 
-def Make = fn<T, U>(value: T, _other: U) -> Box where Convertable<T, Box>, Convertable<U, Text> => Convertable::Convert(value);
+def Make = fn<T, U>(value: T, _other: U) -> Box where Convertible<T, Box>, Convertible<U, Text> => Convertible::Convert(value);
 
 def actual = Make(7, 8);
 Print(if actual.value == 7

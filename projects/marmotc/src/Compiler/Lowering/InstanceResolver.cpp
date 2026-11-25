@@ -488,15 +488,15 @@ MethodResolution<ResolvedInstanceName> InstanceResolver::ResolveIndex(const Meth
 	return std::unexpected(MethodResolutionError(CompilerErrorCode::None, std::format("Indexable instance method '{}' not found", MarmotType::MangleInstanceMethodName(std::string(GET_METHOD_NAME), std::string(INDEXABLE_CLASS_NAME), { container_type }))));
 }
 
-MethodResolution<std::optional<ResolvedInstanceName>> InstanceResolver::ResolveConvert(const MethodResolutionMap& resolutions, const std::shared_ptr<MarmotType>& concrete_from_type, const std::shared_ptr<MarmotType>& from_type, const std::shared_ptr<MarmotType>& to_type, bool uses_convertable) const
+MethodResolution<std::optional<ResolvedInstanceName>> InstanceResolver::ResolveConvert(const MethodResolutionMap& resolutions, const std::shared_ptr<MarmotType>& concrete_from_type, const std::shared_ptr<MarmotType>& from_type, const std::shared_ptr<MarmotType>& to_type, bool uses_convertible) const
 {
 	const bool has_type_variable = from_type->IsType<MarmotType::TypeVariable>() || to_type->IsType<MarmotType::TypeVariable>();
-	if (!uses_convertable && !has_type_variable)
+	if (!uses_convertible && !has_type_variable)
 	{
 		return std::nullopt;
 	}
 
-	const std::vector<ResolvedMethodCandidate>* candidates = FindCandidates(resolutions, CONVERTABLE_CLASS_NAME, CONVERT_METHOD_NAME);
+	const std::vector<ResolvedMethodCandidate>* candidates = FindCandidates(resolutions, CONVERTIBLE_CLASS_NAME, CONVERT_METHOD_NAME);
 	if (candidates != nullptr)
 	{
 		const std::string from_type_name = concrete_from_type->ToString();
@@ -517,32 +517,32 @@ MethodResolution<std::optional<ResolvedInstanceName>> InstanceResolver::ResolveC
 	const bool is_newtype_erased = GenericTypes::IsNewTypeErasedConversion(from_type, to_type);
 	if (has_type_variable)
 	{
-		if (uses_convertable && !is_newtype_erased)
+		if (uses_convertible && !is_newtype_erased)
 		{
-			return std::unexpected(MethodResolutionError(CompilerErrorCode::None, "Cannot resolve Convertable instance for type variables outside of specialization context"));
+			return std::unexpected(MethodResolutionError(CompilerErrorCode::None, "Cannot resolve Convertible instance for type variables outside of specialization context"));
 		}
 		return std::nullopt;
 	}
 
-	const std::string mangled_name = MarmotType::MangleInstanceMethodName(std::string(CONVERT_METHOD_NAME), std::string(CONVERTABLE_CLASS_NAME), { from_type, to_type });
-	const std::optional<ResolvedInstanceName> exact = ResolveInstanceName(std::string(CONVERTABLE_CLASS_NAME), mangled_name);
+	const std::string mangled_name = MarmotType::MangleInstanceMethodName(std::string(CONVERT_METHOD_NAME), std::string(CONVERTIBLE_CLASS_NAME), { from_type, to_type });
+	const std::optional<ResolvedInstanceName> exact = ResolveInstanceName(std::string(CONVERTIBLE_CLASS_NAME), mangled_name);
 	if (exact.has_value())
 	{
 		return exact;
 	}
 
-	const MethodResolution<std::optional<ResolvedInstanceName>> matched = MatchSingleInstance(std::string(CONVERTABLE_CLASS_NAME), std::string(CONVERT_METHOD_NAME), [&](const std::vector<TypeRef>& candidate_args)
+	const MethodResolution<std::optional<ResolvedInstanceName>> matched = MatchSingleInstance(std::string(CONVERTIBLE_CLASS_NAME), std::string(CONVERT_METHOD_NAME), [&](const std::vector<TypeRef>& candidate_args)
 	{
 		InstanceTypeMatcher matcher;
 		return candidate_args.size() == 2u && matcher.Match(candidate_args[0u], from_type) && matcher.Match(candidate_args[1u], to_type);
-	}, std::format("Convertable instance method resolution is ambiguous for types '{}' -> '{}'", from_type->DisplayString(), to_type->DisplayString()));
+	}, std::format("Convertible instance method resolution is ambiguous for types '{}' -> '{}'", from_type->DisplayString(), to_type->DisplayString()));
 	if (!matched.has_value() || matched.value().has_value())
 	{
 		return matched;
 	}
-	if (uses_convertable && !is_newtype_erased)
+	if (uses_convertible && !is_newtype_erased)
 	{
-		return std::unexpected(MethodResolutionError(CompilerErrorCode::None, std::format("Convertable instance method '{}' not found", mangled_name)));
+		return std::unexpected(MethodResolutionError(CompilerErrorCode::None, std::format("Convertible instance method '{}' not found", mangled_name)));
 	}
 	return std::nullopt;
 }

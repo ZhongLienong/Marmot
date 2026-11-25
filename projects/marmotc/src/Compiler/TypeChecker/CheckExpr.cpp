@@ -663,15 +663,15 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 				// has bound casts as its type, and a generic instance is found.
 				const std::shared_ptr<MarmotType> from_type = ApplySubstitution(operand_context, expr_type);
 				const std::shared_ptr<MarmotType> to_type = ApplySubstitution(operand_context, as.m_to_type);
-				const MarmotType::ClassConstraint conversion(std::string(CONVERTABLE_CLASS_NAME), { from_type, to_type });
-				const bool has_convertable_instance = !FindMatchingInstances(conversion.m_class_name, conversion.m_type_args).empty();
-				const bool has_convertable_constraint = !has_convertable_instance && IsSatisfiedByActiveConstraint(operand_context, conversion);
+				const MarmotType::ClassConstraint conversion(std::string(CONVERTIBLE_CLASS_NAME), { from_type, to_type });
+				const bool has_convertible_instance = !FindMatchingInstances(conversion.m_class_name, conversion.m_type_args).empty();
+				const bool has_convertible_constraint = !has_convertible_instance && IsSatisfiedByActiveConstraint(operand_context, conversion);
 
 				// Check if this is a built-in conversion
 				bool is_builtin_conversion = false;
 				if (to_type->IsType<MarmotType::StructType>() && from_type->IsType<MarmotType::StructType>())
 				{
-					if (!has_convertable_instance && !has_convertable_constraint)
+					if (!has_convertible_instance && !has_convertible_constraint)
 					{
 						const MarmotType::StructType& from_struct_type = from_type->GetType<MarmotType::StructType>();
 						const MarmotType::StructType& to_struct_type = to_type->GetType<MarmotType::StructType>();
@@ -690,7 +690,7 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 						is_builtin_conversion = true;
 					}
 				}
-				else if (to_type->IsType<MarmotType::StructType>() && !has_convertable_instance && !has_convertable_constraint)
+				else if (to_type->IsType<MarmotType::StructType>() && !has_convertible_instance && !has_convertible_constraint)
 				{
 					return std::unexpected(MarmotError::GenerateTypeCheckerErrorWithContext("Type cast expression type error: cannot cast to struct type", as.m_as_keyword, m_file_name, m_source_lines, from_type, to_type));
 				}
@@ -719,25 +719,25 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext& context,
 					is_builtin_conversion = true;
 				}
 
-				// `x as T` where x already has type T is a no-op, so it needs no Convertable instance.
+				// `x as T` where x already has type T is a no-op, so it needs no Convertible instance.
 				const bool is_identity_conversion = *from_type == *to_type;
 
-				// Verify that either Convertable instance exists, constraint exists, or it's a built-in conversion
-				if (!has_convertable_instance && !has_convertable_constraint && !is_builtin_conversion && !is_identity_conversion)
+				// Verify that either Convertible instance exists, constraint exists, or it's a built-in conversion
+				if (!has_convertible_instance && !has_convertible_constraint && !is_builtin_conversion && !is_identity_conversion)
 				{
-					MarmotType::ClassConstraint constraint(std::string(CONVERTABLE_CLASS_NAME), { from_type, to_type });
-					const std::string suggestion = std::format("Define 'instance Convertable<{}, {}>' to enable this conversion.", from_type->DisplayString(), to_type->DisplayString());
+					MarmotType::ClassConstraint constraint(std::string(CONVERTIBLE_CLASS_NAME), { from_type, to_type });
+					const std::string suggestion = std::format("Define 'instance Convertible<{}, {}>' to enable this conversion.", from_type->DisplayString(), to_type->DisplayString());
 					return std::unexpected(MakeConstraintFailureError(operand_context, as.m_as_keyword, constraint, suggestion));
 				}
 
 				as.m_type_data = to_type;
 
-				// Prefer built-in code generation for concrete built-in casts so Convertable
+				// Prefer built-in code generation for concrete built-in casts so Convertible
 				// instances can implement Convert via `as` without recursing back into themselves.
-				// Constraints still require Convertable dispatch because the concrete conversion
+				// Constraints still require Convertible dispatch because the concrete conversion
 				// is only known during specialization.
-				as.m_uses_convertable = has_convertable_constraint || (has_convertable_instance && !is_builtin_conversion);
-				if (has_convertable_instance && !is_builtin_conversion)
+				as.m_uses_convertible = has_convertible_constraint || (has_convertible_instance && !is_builtin_conversion);
+				if (has_convertible_instance && !is_builtin_conversion)
 				{
 					if (std::optional<CompilerError> error = CheckConstraintHolds(operand_context, as.m_as_keyword, conversion, 0u))
 					{

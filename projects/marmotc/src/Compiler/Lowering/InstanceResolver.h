@@ -95,7 +95,7 @@ public:
 	// Nothing when the conversion is a builtin one or erases a newtype. A
 	// constraint in scope is looked up by `concrete_from_type`, the operand's
 	// type once the specialization being emitted substitutes it.
-	MethodResolution<std::optional<ResolvedInstanceName>> ResolveConvert(const MethodResolutionMap& resolutions, const std::shared_ptr<MarmotType>& concrete_from_type, const std::shared_ptr<MarmotType>& from_type, const std::shared_ptr<MarmotType>& to_type, bool uses_convertable) const;
+	MethodResolution<std::optional<ResolvedInstanceName>> ResolveConvert(const MethodResolutionMap& resolutions, const std::shared_ptr<MarmotType>& concrete_from_type, const std::shared_ptr<MarmotType>& from_type, const std::shared_ptr<MarmotType>& to_type, bool uses_convertible) const;
 	MethodResolution<ResolvedInstanceName> ResolveIterableNext(const MethodResolutionMap& resolutions, const std::shared_ptr<MarmotType>& iterator_type, const std::shared_ptr<MarmotType>& item_type) const;
 
 private:

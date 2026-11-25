@@ -1829,7 +1829,7 @@ MarmotResult::TypeResult TypeChecker::CheckInstanceMethod(const CheckingContext&
 		// Selection is argument-directed, exactly as the operator spellings are.
 		// The expected type only breaks ties between instances the arguments
 		// already accept, which is what return-type-directed classes such as
-		// Convertable need. Applying it as a filter rejected every instance of
+		// Convertible need. Applying it as a filter rejected every instance of
 		// a class whose method returns a fixed type.
 		bool matches_expected_type = false;
 		if (context.m_expected_expr_type != nullptr)

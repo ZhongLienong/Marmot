@@ -1,0 +1,6 @@
+Compilation failed :(
+Type Checker Error at test/typeclass/failure/convertible_ambiguous_without_expected_type.mmt:10
+   |
+10 | def value = Convertible::Convert(7);
+   |                                   ^ Call expression type error: ambiguous concrete instance for 'Convertible::Convert'
+   |

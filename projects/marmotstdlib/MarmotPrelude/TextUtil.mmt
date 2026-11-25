@@ -32,40 +32,59 @@ foreign "MARMOT_FFI_TextIsInteger" TextIsIntegerRaw: fn(Text) -> Bool;
 
 foreign "MARMOT_FFI_TextIsFloat" TextIsFloatRaw: fn(Text) -> Bool;
 
+// Returns the number of code points in the text.
 def Length = fn(text: Text) -> Int => TextLengthRaw(text);
 
+// Tests whether the text contains substring. The empty substring always matches.
 def Contains = fn(text: Text, substring: Text) -> Bool => TextContainsRaw(text, substring);
 
+// Returns the half-open range [start, end) in code points, clamping both indices to the
+// text bounds.
 def Substring = fn(text: Text, start: Int, end: Int) -> Text => TextSubstringRaw(text, start, end);
 
+// Tests for an exact prefix. The empty prefix always matches.
 def StartsWith = fn(text: Text, prefix: Text) -> Bool => Substring(text, 0, Length(prefix)) == prefix;
 
+// Tests for an exact suffix. The empty suffix always matches.
 def EndsWith = fn(text: Text, suffix: Text) -> Bool => Substring(text, Length(text) - Length(suffix), Length(text)) == suffix;
 
+// Splits on an exact delimiter and preserves empty fields. An empty delimiter splits into
+// code points, with one empty field for empty input.
 def Split = fn(text: Text, delimiter: Text) -> Array<Text> => TextSplitRaw(text, delimiter);
 
+// Appends the pieces from index, inserting the delimiter before each one.
 def JoinFrom = fn(pieces: Array<Text>, delimiter: Text, index: Int, joined: Text) -> Text => if index >= #pieces
 then joined
 else JoinFrom(pieces, delimiter, index + 1, joined ++ delimiter ++ pieces[index]);
 
+// Joins the pieces with a delimiter between them. No pieces yield empty text.
 def Join = fn(pieces: Array<Text>, delimiter: Text) -> Text => if #pieces == 0
 then ""
 else JoinFrom(pieces, delimiter, 1, pieces[0]);
 
+// Replaces nonoverlapping occurrences of target. An empty target leaves the text unchanged.
 def Replace = fn(text: Text, target: Text, replacement: Text) -> Text => TextReplaceRaw(text, target, replacement);
 
+// Removes leading and trailing whitespace recognized by the native byte-wise whitespace
+// test.
 def Trim = fn(text: Text) -> Text => TextTrimRaw(text);
 
+// Reverses the order of code points.
 def Reverse = fn(text: Text) -> Text => TextReverseRaw(text);
 
+// Checks whether a code point is a Unicode scalar that Text can hold, excluding U+0000.
 def IsScalarValue = fn(code_point: Int) -> Bool => ((code_point >= 1) && (code_point <= 0x10FFFF)) && ((code_point < 0xD800) || (code_point > 0xDFFF));
 
+// Encodes one Unicode scalar value. Returns None for U+0000, surrogates, or values outside
+// the Unicode range.
 def FromCodePoint = fn(code_point: Int) -> Option<Text> => if IsScalarValue(code_point)
 then Option::Some(TextFromCodePointRaw(code_point))
 else Option::None();
 
+// Returns the code point at a zero-based index, or None if the index is out of range.
 def CodePointAt = fn(text: Text, index: Int) -> Option<Int> =>
 {
+    // The intrinsic uses a negative value to signal an out-of-range index.
     def code_point = TextCodePointAtRaw(text, index);
     if code_point < 0
     then Option::None()
@@ -76,6 +95,7 @@ def CodePointAt = fn(text: Text, index: Int) -> Option<Int> =>
 // in a loop, which finds each code point from the start of the text.
 def CodePoints = fn(text: Text) -> Array<Int> => TextCodePointsRaw(text);
 
+// Checks each remaining code point before passing the array to the encoder.
 def AreScalarValuesFrom = fn(code_points: Array<Int>, index: Int) -> Bool => if index >= #code_points
 then true
 else if IsScalarValue(code_points[index])
@@ -87,10 +107,12 @@ def FromCodePoints = fn(code_points: Array<Int>) -> Option<Text> => if AreScalar
 then Option::Some(TextFromCodePointsRaw(code_points))
 else Option::None();
 
+// Parses the entire text as an Int, returning None if it is invalid or out of range.
 def ParseInt = fn(text: Text) -> Option<Int> => if TextIsIntegerRaw(text)
 then Option::Some(text as Int)
 else Option::None();
 
+// Parses the entire text as a Float, returning None if the conversion fails.
 def ParseFloat = fn(text: Text) -> Option<Float> => if TextIsFloatRaw(text)
 then Option::Some(text as Float)
 else Option::None();

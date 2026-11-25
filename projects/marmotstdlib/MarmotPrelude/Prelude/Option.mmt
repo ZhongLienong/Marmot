@@ -4,6 +4,7 @@ public export { Option, OptionMap, OptionBind, OptionIsSome, OptionIsNone, Optio
 
 type Option<T> = None | Some(T);
 
+// Transforms a Some value and passes through None.
 def OptionMap = fn<A, B>(option: Option<A>, f: fn(A) -> B) -> Option<B> =>
 {
     match option with
@@ -11,6 +12,7 @@ def OptionMap = fn<A, B>(option: Option<A>, f: fn(A) -> B) -> Option<B> =>
         case Option::None() => Option::None()
 };
 
+// Runs an Option-returning function for Some and passes through None.
 def OptionBind = fn<A, B>(option: Option<A>, f: fn(A) -> Option<B>) -> Option<B> =>
 {
     match option with
@@ -18,6 +20,7 @@ def OptionBind = fn<A, B>(option: Option<A>, f: fn(A) -> Option<B>) -> Option<B>
             case Option::None() => Option::None()
 };
 
+// Tests whether a value is present.
 def OptionIsSome = fn<T>(option: Option<T>) -> Bool =>
 {
     match option with
@@ -25,6 +28,7 @@ def OptionIsSome = fn<T>(option: Option<T>) -> Bool =>
                 case Option::None() => false
 };
 
+// Tests whether a value is absent.
 def OptionIsNone = fn<T>(option: Option<T>) -> Bool =>
 {
     match option with
@@ -32,6 +36,7 @@ def OptionIsNone = fn<T>(option: Option<T>) -> Bool =>
                     case Option::None() => true
 };
 
+// Keeps Some and calls the fallback only for None. The fallback can also return None.
 def OptionOrElse = fn<T>(option: Option<T>, f: fn() -> Option<T>) -> Option<T> =>
 {
     match option with
@@ -39,6 +44,7 @@ def OptionOrElse = fn<T>(option: Option<T>, f: fn() -> Option<T>) -> Option<T> =
                         case Option::None() => f()
 };
 
+// Returns the Some value or the supplied default.
 def OptionUnwrap = fn<T>(option: Option<T>, default_value: T) -> T =>
 {
     match option with
@@ -46,6 +52,7 @@ def OptionUnwrap = fn<T>(option: Option<T>, default_value: T) -> T =>
                             case Option::None() => default_value
 };
 
+// Returns the Some value or computes the default only for None.
 def OptionUnwrapOrElse = fn<T>(option: Option<T>, f: fn() -> T) -> T =>
 {
     match option with
@@ -53,6 +60,7 @@ def OptionUnwrapOrElse = fn<T>(option: Option<T>, f: fn() -> T) -> T =>
                                 case Option::None() => f()
 };
 
+// Returns the Some value or panics with message for None.
 def OptionUnwrapOrPanic = fn<T>(option: Option<T>, message: Text) -> T =>
 {
     match option with

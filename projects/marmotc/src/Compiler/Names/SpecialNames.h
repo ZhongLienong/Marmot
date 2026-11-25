@@ -11,7 +11,7 @@ constexpr char INTERNAL_NAME_PREFIX = '$';
 // identity in a program: a module can neither declare a class of a name it imports
 // nor import two different classes of one name. So this table is the one place the
 // compiler names a library declaration.
-constexpr std::string_view CONVERTABLE_CLASS_NAME = "Convertable";
+constexpr std::string_view CONVERTIBLE_CLASS_NAME = "Convertible";
 constexpr std::string_view CONVERT_METHOD_NAME = "Convert";
 
 constexpr std::string_view EQUATABLE_CLASS_NAME = "Equatable";

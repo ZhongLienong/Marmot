@@ -19,11 +19,13 @@ type ArrayIter<T> =
     index: Int
 };
 
+// Starts an iterator at the first array element.
 def OfArray = fn<T>(values: Array<T>) -> ArrayIter<T> => ArrayIter(values, 0);
 
 instance Iterable<ArrayIter<T>>
 {
     type Item = T;
+    // Yields the current array element and advances the index, or returns None at the end.
     def Next = fn(iter: ArrayIter<T>) -> Option<(T, ArrayIter<T>)> => if iter.index >= ArrayUtil::Length(iter.values)
     then Option::None()
     else Option::Some((iter.values[iter.index], ArrayIter(iter.values, iter.index + 1)));
@@ -35,14 +37,18 @@ type Mapped<S, A, B> =
     fun: fn(A) -> B
 };
 
+// Creates a stage that applies fun as each source element is consumed.
 def Map = fn<S, A, B>(inner: S, fun: fn(A) -> B) -> Mapped<S, A, B> where Iterable<S>, Iterable::Item<S> ~ A => Mapped(inner, fun);
 
 instance Iterable<Mapped<S, A, B>> where Iterable<S>, Iterable::Item<S> ~ A
 {
     type Item = B;
+    // Applies the mapping to one source item and carries the function to the next stage
+    // state.
     def Next = fn(stage: Mapped<S, A, B>) -> Option<(B, Mapped<S, A, B>)> => match Iterable::Next(stage.inner) with
         case Option::Some(step) =>
     {
+            // Use the yielded item now and save the remaining source for the next call.
             def (value, rest) = step;
             Option::Some((stage.fun(value), Mapped(rest, stage.fun)))
         }
@@ -55,6 +61,7 @@ type Filtered<S, A> =
     keep: fn(A) -> Bool
 };
 
+// Creates a stage that yields only elements accepted by keep.
 def Filter = fn<S, A>(inner: S, keep: fn(A) -> Bool) -> Filtered<S, A> where Iterable<S>, Iterable::Item<S> ~ A => Filtered(inner, keep);
 
 // A rejected element is skipped by recursing on the rest, so Next either yields a
@@ -63,6 +70,7 @@ def Filter = fn<S, A>(inner: S, keep: fn(A) -> Bool) -> Filtered<S, A> where Ite
 def NextKept = fn<S, A>(stage: Filtered<S, A>) -> Option<(A, Filtered<S, A>)> where Iterable<S>, Iterable::Item<S> ~ A => match Iterable::Next(stage.inner) with
     case Option::Some(step) =>
 {
+        // Advance to the remaining source even when the predicate rejects this item.
         def (value, rest) = step;
         if stage.keep(value)
         then Option::Some((value, Filtered(rest, stage.keep)))
@@ -73,6 +81,7 @@ def NextKept = fn<S, A>(stage: Filtered<S, A>) -> Option<(A, Filtered<S, A>)> wh
 instance Iterable<Filtered<S, A>> where Iterable<S>, Iterable::Item<S> ~ A
 {
     type Item = A;
+    // Finds the next accepted element or returns None when the source is exhausted.
     def Next = fn(stage: Filtered<S, A>) -> Option<(A, Filtered<S, A>)> => NextKept(stage);
 };
 
@@ -82,30 +91,38 @@ type Taken<S, A> =
     remaining: Int
 };
 
+// Creates a stage with at most count elements. A nonpositive count yields an empty
+// sequence.
 def Take = fn<S, A>(inner: S, count: Int) -> Taken<S, A> where Iterable<S>, Iterable::Item<S> ~ A => Taken(inner, count);
 
 instance Iterable<Taken<S, A>> where Iterable<S>, Iterable::Item<S> ~ A
 {
     type Item = A;
+    // Stops at the requested limit without pulling another source item.
     def Next = fn(stage: Taken<S, A>) -> Option<(A, Taken<S, A>)> => if stage.remaining <= 0
     then Option::None()
     else match Iterable::Next(stage.inner) with
         case Option::Some(step) =>
     {
+            // Save the remaining source so this item is yielded only once per traversal.
             def (value, rest) = step;
             Option::Some((value, Taken(rest, stage.remaining - 1)))
         }
         case Option::None() => Option::None();
 };
 
+// Consumes the sequence in order, passing the accumulated value first to step.
 def Fold = fn<S, A, B>(source: S, initial: B, step: fn(B, A) -> B) -> B where Iterable<S>, Iterable::Item<S> ~ A => match Iterable::Next(source) with
     case Option::Some(pair) =>
 {
+        // Apply one fold step before continuing with the remaining source.
         def (value, rest) = pair;
         Fold(rest, step(initial, value), step)
     }
     case Option::None() => initial;
 
+// Consumes the sequence to count the elements it yields.
 def Count = fn<S, A>(source: S) -> Int where Iterable<S>, Iterable::Item<S> ~ A => Fold(source, 0, fn(total: Int, _: A) -> Int => total + 1);
 
+// Consumes the sequence and collects its elements in traversal order.
 def ToArray = fn<S, A>(source: S) -> Array<A> where Iterable<S>, Iterable::Item<S> ~ A => [value for value in source];

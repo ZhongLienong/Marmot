@@ -169,7 +169,7 @@ Arithmetic and bitwise operators are rewritten to calls of the operation classes
 
 It also records whether other operators should lower through typeclass dispatch, including:
 
-- `as` through `Convertable<From, To>`
+- `as` through `Convertible<From, To>`
 - `++` through `Concatenable<T>`
 - `#` through `Countable<T>`
 - `==` and `!=` through `Equatable<T>`

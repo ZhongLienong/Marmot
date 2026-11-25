@@ -78,7 +78,7 @@ field        = IDENTIFIER ':' type ;
 variants     = variant ('|' variant)+ | '|' variant ('|' variant)* ;
 variant      = IDENTIFIER ('(' type (',' type)* ')')? ;
 deriving     = 'deriving' '(' IDENTIFIER (',' IDENTIFIER)* ')' ;
-             // a record derives Equatable, Hashable, Orderable, Convertable
+             // a record derives Equatable, Hashable, Orderable, Convertible
              // or Transferable;
              // a union those, plus Map, Bind and Unwrap
 

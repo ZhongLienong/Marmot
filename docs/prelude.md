@@ -17,7 +17,7 @@ Complete `.mmt` source files still need an explicit `module` declaration even wh
 - `Collections/Map.mmt` and `Collections/Set.mmt` provide persistent hash-based collections: `Map::With` adds a key or replaces its value and returns a new map, `Map::Without` removes one, and `Set::SetWith` of a value already present changes nothing.
 - `IO.mmt`, `System.mmt`, and `DateTime.mmt` are the effectful modules. Their public surface favors `Option` and `Result` wrappers rather than sentinel return values.
 - `TextUtil.mmt`, `ArrayUtil.mmt`, `Path.mmt`, and `Math.mmt` provide the common text, array, path, and numeric helpers that sit above the raw runtime builtins.
-- `Concatenable.mmt`, `Convertable.mmt`, `Countable.mmt`, `Equatable.mmt`, `Hashable.mmt`, `Indexable.mmt`, `Iterable.mmt`, `Numeric.mmt`, `Orderable.mmt`, and `Transferable.mmt` expose the helper and typeclass surface used by operators, collections, and concurrency.
+- `Concatenable.mmt`, `Convertible.mmt`, `Countable.mmt`, `Equatable.mmt`, `Hashable.mmt`, `Indexable.mmt`, `Iterable.mmt`, `Numeric.mmt`, `Orderable.mmt`, and `Transferable.mmt` expose the helper and typeclass surface used by operators, collections, and concurrency.
 - `Iter.mmt` provides lazy sequence pipelines over any `Iterable`. See [Sequence Pipelines](#sequence-pipelines).
 - `Prelude/Panic.mmt` contains the simple panic helper used by many tests and examples.
 - References are part of the language: `Ref<T>` and the `ref`, `*` and `:=` forms need no import. See [References](type-system.md#references).
@@ -28,7 +28,7 @@ Complete `.mmt` source files still need an explicit `module` declaration even wh
 The prelude is not only collections and IO wrappers. It also ships the public helper/typeclass modules that the compiler and standard data structures lean on:
 
 - `Concatenable` backs `++` and currently ships concrete instances for `Text` and `Array<T>`.
-- `Convertable` exposes the generic conversion surface used by `as` in constrained code and ships the current primitive conversion instances, plus `Array<T>` to `Text`, shown as `[a, b]`, when its elements convert. A record or union can `deriving (Convertable)` to get its own conversion to `Text`.
+- `Convertible` exposes the generic conversion surface used by `as` in constrained code and ships the current primitive conversion instances, plus `Array<T>` to `Text`, shown as `[a, b]`, when its elements convert. A record or union can `deriving (Convertible)` to get its own conversion to `Text`.
 - `Numeric.mmt` exports `Add`, `Subtract`, `Multiply`, `Divide`, `Remainder`, `Positive`, `Negate`, `BitAnd`, `BitOr`, `BitXor`, `BitNot`, `ShiftLeft` and `ShiftRight`. Their methods implement the corresponding operators, with an associated `Output` type. Instances support mixed operand types and custom results. The `Numeric<T>` marker is for primitive range bounds only.
 - `Countable` exposes the generic counting surface used by `#`. The prelude currently ships a `Text` instance; arrays and several standard collections also have direct lowering paths in the compiler/runtime.
 - `Equatable` and `Hashable` provide the comparison and hashing surface used by derived code and collections.

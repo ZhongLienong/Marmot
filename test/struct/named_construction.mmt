@@ -1,5 +1,5 @@
 module NamedConstruction
-import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../projects/marmotstdlib/MarmotPrelude/Convertable.mmt", "../../projects/marmotstdlib/MarmotPrelude/Equatable.mmt", "../../projects/marmotstdlib/MarmotPrelude/Collections/Map.mmt" }
+import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../projects/marmotstdlib/MarmotPrelude/Convertible.mmt", "../../projects/marmotstdlib/MarmotPrelude/Equatable.mmt", "../../projects/marmotstdlib/MarmotPrelude/Collections/Map.mmt" }
 
 // `Point { x = 1, y = 2 }` names each field once, in any order, and is the
 // same value `Point(1, 2)` is. The fields are evaluated in the order the type
@@ -10,20 +10,20 @@ type Point =
     x: Int,
     y: Int
 }
-deriving(Convertable, Equatable);
+deriving(Convertible, Equatable);
 
 type Box<T> =
 {
     value: T
 }
-deriving(Convertable);
+deriving(Convertible);
 
 type Segment =
 {
     from: Point,
     to: Point
 }
-deriving(Convertable);
+deriving(Convertible);
 
 def Trace = fn(label: Text, value: Int) -> Int =>
 {

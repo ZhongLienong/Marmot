@@ -4,6 +4,7 @@ public export { Result, ResultMap, ResultBind, ResultMapError, ResultIsOk, Resul
 
 type Result<T, E> = Ok(T) | Err(E);
 
+// Transforms the Ok value and preserves an Err as-is.
 def ResultMap = fn<A, B, E>(result: Result<A, E>, f: fn(A) -> B) -> Result<B, E> =>
 {
     match result with
@@ -11,6 +12,7 @@ def ResultMap = fn<A, B, E>(result: Result<A, E>, f: fn(A) -> B) -> Result<B, E>
         case Result::Err(err) => Result::Err(err)
 };
 
+// Runs a Result-returning function for Ok and preserves an Err as-is.
 def ResultBind = fn<A, B, E>(result: Result<A, E>, f: fn(A) -> Result<B, E>) -> Result<B, E> =>
 {
     match result with
@@ -18,6 +20,7 @@ def ResultBind = fn<A, B, E>(result: Result<A, E>, f: fn(A) -> Result<B, E>) -> 
             case Result::Err(err) => Result::Err(err)
 };
 
+// Transforms the Err value and preserves an Ok as-is.
 def ResultMapError = fn<T, E, F>(result: Result<T, E>, f: fn(E) -> F) -> Result<T, F> =>
 {
     match result with
@@ -25,6 +28,7 @@ def ResultMapError = fn<T, E, F>(result: Result<T, E>, f: fn(E) -> F) -> Result<
                 case Result::Err(err) => Result::Err(f(err))
 };
 
+// Tests whether the result is Ok.
 def ResultIsOk = fn<T, E>(result: Result<T, E>) -> Bool =>
 {
     match result with
@@ -32,6 +36,7 @@ def ResultIsOk = fn<T, E>(result: Result<T, E>) -> Bool =>
                     case Result::Err(_) => false
 };
 
+// Tests whether the result is Err.
 def ResultIsError = fn<T, E>(result: Result<T, E>) -> Bool =>
 {
     match result with
@@ -39,6 +44,7 @@ def ResultIsError = fn<T, E>(result: Result<T, E>) -> Bool =>
                         case Result::Err(_) => true
 };
 
+// Returns the Ok value or the supplied default for Err.
 def ResultUnwrap = fn<T, E>(result: Result<T, E>, default_value: T) -> T =>
 {
     match result with
@@ -46,6 +52,7 @@ def ResultUnwrap = fn<T, E>(result: Result<T, E>, default_value: T) -> T =>
                             case Result::Err(_) => default_value
 };
 
+// Returns the Ok value or computes a fallback from the Err value.
 def ResultUnwrapOrElse = fn<T, E>(result: Result<T, E>, f: fn(E) -> T) -> T =>
 {
     match result with
@@ -53,6 +60,7 @@ def ResultUnwrapOrElse = fn<T, E>(result: Result<T, E>, f: fn(E) -> T) -> T =>
                                 case Result::Err(err) => f(err)
 };
 
+// Returns the Ok value or panics with the supplied message for Err.
 def ResultUnwrapOrPanic = fn<T, E>(result: Result<T, E>, message: Text) -> T =>
 {
     match result with

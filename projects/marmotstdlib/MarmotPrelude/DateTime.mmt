@@ -66,12 +66,17 @@ foreign "MARMOT_FFI_GetUtcDayOfWeek" GetUtcDayOfWeekRaw: fn() -> Int from "marmo
 
 foreign "MARMOT_FFI_GetUtcDayOfYear" GetUtcDayOfYearRaw: fn() -> Int from "marmotstdlib";
 
+// Returns wall-clock milliseconds since the Unix epoch.
 def NowUnixMillis = fn() -> Int => GetTimeRaw() as Int;
 
+// Returns nanoseconds from a monotonic clock for measuring elapsed time between readings.
 def NowMonotonicNanos = fn() -> Int => GetMonotonicNanosRaw();
 
+// Returns the current local time offset from UTC in minutes.
 def TimezoneOffsetMinutes = fn() -> Int => GetTimezoneOffsetRaw();
 
+// Reads local calendar and clock fields separately. Sunday is 0 and January 1 is day 1 of
+// the year.
 def LocalNow = fn() -> LocalTimeParts =>
 {
     LocalTimeParts
@@ -88,6 +93,8 @@ def LocalNow = fn() -> LocalTimeParts =>
     )
 };
 
+// Reads UTC calendar and clock fields separately. Sunday is 0 and January 1 is day 1 of the
+// year.
 def UtcNow = fn() -> UtcTimeParts =>
 {
     UtcTimeParts
@@ -103,4 +110,5 @@ def UtcNow = fn() -> UtcTimeParts =>
     )
 };
 
+// Formats the current local time using strftime-style directives.
 def FormatLocal = fn(format: Text) -> Text => FormatTimeRaw(format);

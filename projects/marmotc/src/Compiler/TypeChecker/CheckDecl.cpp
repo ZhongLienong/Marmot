@@ -1656,7 +1656,7 @@ MarmotResult::TypeResult TypeChecker::operator()(const CheckingContext&, MarmotS
 
 void TypeChecker::RegisterIdentityConversion(const std::shared_ptr<MarmotType>& from_type, const std::shared_ptr<MarmotType>& to_type)
 {
-	InstanceKey conversion_key{ std::string(CONVERTABLE_CLASS_NAME), { from_type->ToString(), to_type->ToString() } };
+	InstanceKey conversion_key{ std::string(CONVERTIBLE_CLASS_NAME), { from_type->ToString(), to_type->ToString() } };
 	if (m_instances.contains(conversion_key))
 	{
 		return;
@@ -1666,6 +1666,6 @@ void TypeChecker::RegisterIdentityConversion(const std::shared_ptr<MarmotType>& 
 	m_instances.emplace
 	(
 		std::move(conversion_key),
-		InstanceInfo(std::string(CONVERTABLE_CLASS_NAME), std::move(type_args), {}, {}, {}, true)
+		InstanceInfo(std::string(CONVERTIBLE_CLASS_NAME), std::move(type_args), {}, {}, {}, true)
 	);
 }

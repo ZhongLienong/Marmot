@@ -8,11 +8,13 @@ class Hashable<T>
 
 instance Hashable<Int>
 {
+    // Uses the integer itself as its hash.
     def Hash = fn(value: Int) -> Int => value;
 };
 
 instance Hashable<Bool>
 {
+    // Hashes true as 1 and false as 0.
     def Hash = fn(value: Bool) -> Int => if value
     then 1
     else 0;
@@ -20,11 +22,13 @@ instance Hashable<Bool>
 
 instance Hashable<Byte>
 {
+    // Widens the unsigned byte to an Int for hashing.
     def Hash = fn(value: Byte) -> Int => value as Int;
 };
 
 instance Hashable<Word>
 {
+    // Uses the word's bits as the signed hash.
     def Hash = fn(value: Word) -> Int => value as Int;
 };
 
@@ -32,6 +36,7 @@ foreign "MARMOT_FFI_HashText" HashText: fn(Text) -> Int;
 
 instance Hashable<Text>
 {
+    // Hashes the contents of the text.
     def Hash = fn(value: Text) -> Int => HashText(value);
 };
 
@@ -39,5 +44,6 @@ foreign "MARMOT_FFI_HashFloat" HashFloat: fn(Float) -> Int;
 
 instance Hashable<Float>
 {
+    // Uses the VM's floating-point hash, which gives equal hashes for both signed zeros.
     def Hash = fn(value: Float) -> Int => HashFloat(value);
 };

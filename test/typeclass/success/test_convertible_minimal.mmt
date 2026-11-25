@@ -1,14 +1,14 @@
-module TestConvertableMinimal
-// Minimal test of Convertable class - just verify it compiles and runs
+module TestConvertibleMinimal
+// Minimal test of Convertible class - just verify it compiles and runs
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
-class Convertable<From, To>
+class Convertible<From, To>
 {
     Convert: fn(value: From) -> To;
 };
 
 // Bool -> Int conversion
-instance Convertable<Bool, Int>
+instance Convertible<Bool, Int>
 {
     def Convert = fn(value: Bool) -> Int =>
     {
@@ -18,9 +18,9 @@ instance Convertable<Bool, Int>
     };
 };
 
-def BoolToInt = fn<T>(value: T) -> Int where Convertable<T, Int> =>
+def BoolToInt = fn<T>(value: T) -> Int where Convertible<T, Int> =>
 {
-    Convertable::Convert(value)
+    Convertible::Convert(value)
 };
 
 // Just test that it works
@@ -39,4 +39,4 @@ else
     IO::PrintLine("Bool->Int conversion: FAILED");
 };
 
-IO::PrintLine("test_convertable_minimal: PASS");
+IO::PrintLine("test_convertible_minimal: PASS");

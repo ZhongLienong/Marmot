@@ -1,7 +1,7 @@
-module DerivingConvertable
-import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Convertable.mmt" }
+module DerivingConvertible
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Convertible.mmt" }
 
-// Deriving Convertable gives `as Text`: a record as it is written with names,
+// Deriving Convertible gives `as Text`: a record as it is written with names,
 // a variant as it is written with its union, and every field as its own
 // `as Text` gives it.
 
@@ -11,18 +11,18 @@ type Version =
     minor: Int,
     label: Text
 }
-deriving(Convertable);
+deriving(Convertible);
 
-type Shape = Dot | Circle(Float) | Box(Int, Int) deriving(Convertable);
+type Shape = Dot | Circle(Float) | Box(Int, Int) deriving(Convertible);
 
-type Tree = Leaf | Node(Tree, Int, Tree) deriving(Convertable);
+type Tree = Leaf | Node(Tree, Int, Tree) deriving(Convertible);
 
 type Pair<A, B> =
 {
     first: A,
     second: B
 }
-deriving(Convertable);
+deriving(Convertible);
 
 type Release =
 {
@@ -31,7 +31,7 @@ type Release =
     ready: Bool,
     flags: Byte
 }
-deriving(Convertable);
+deriving(Convertible);
 
 IO::PrintLine(Version(1, 2, "beta") as Text);
 IO::PrintLine(Shape::Dot() as Text);

@@ -1,8 +1,8 @@
 module TestAsComplex
-// Complex test cases for Convertable class with as operator
+// Complex test cases for Convertible class with as operator
 import { "../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
-class Convertable<From, To>
+class Convertible<From, To>
 {
     Convert: fn(value: From) -> To;
 };
@@ -27,7 +27,7 @@ type Person =
 };
 
 // Test 1: Point -> Text conversion
-instance Convertable<Point, Text>
+instance Convertible<Point, Text>
 {
     def Convert = fn(p: Point) -> Text =>
     {
@@ -41,7 +41,7 @@ def point_text = point as Text;
 IO::PrintLine("Test 1 - Point to Text: " ++ point_text);
 
 // Test 2: Point -> Vector conversion (Int to Float)
-instance Convertable<Point, Vector>
+instance Convertible<Point, Vector>
 {
     def Convert = fn(p: Point) -> Vector =>
     {
@@ -53,7 +53,7 @@ def vec = point as Vector;
 IO::PrintLine("Test 2 - Point to Vector: dx=" ++ (vec.dx as Text) ++ ", dy=" ++ (vec.dy as Text));
 
 // Test 3: Person -> Text conversion
-instance Convertable<Person, Text>
+instance Convertible<Person, Text>
 {
     def Convert = fn(person: Person) -> Text =>
     {
@@ -67,7 +67,7 @@ def alice_text = alice as Text;
 IO::PrintLine("Test 3 - Person to Text: " ++ alice_text);
 
 // Test 4: Int -> Bool conversion
-instance Convertable<Int, Bool>
+instance Convertible<Int, Bool>
 {
     def Convert = fn(n: Int) -> Bool =>
     {
@@ -102,7 +102,7 @@ else
 };
 
 // Test 5: Float -> Bool conversion
-instance Convertable<Float, Bool>
+instance Convertible<Float, Bool>
 {
     def Convert = fn(f: Float) -> Bool =>
     {
@@ -140,7 +140,7 @@ else
 def float_val = 5.7;
 
 def int_val = float_val as Int;  // Built-in conversion
-def bool_val = int_val as Bool;  // Convertable instance
+def bool_val = int_val as Bool;  // Convertible instance
 
 if bool_val
 then
@@ -156,7 +156,7 @@ else
 def text_num = "123";
 
 def text_to_int = text_num as Int;  // Built-in
-def text_to_bool = text_to_int as Bool;  // Convertable
+def text_to_bool = text_to_int as Bool;  // Convertible
 
 if text_to_bool
 then
@@ -169,7 +169,7 @@ else
 };
 
 // Test 8: Multiple conversions from same source type
-instance Convertable<Bool, Text>
+instance Convertible<Bool, Text>
 {
     def Convert = fn(b: Bool) -> Text =>
     {
@@ -179,7 +179,7 @@ instance Convertable<Bool, Text>
     };
 };
 
-instance Convertable<Bool, Int>
+instance Convertible<Bool, Int>
 {
     def Convert = fn(b: Bool) -> Int =>
     {
@@ -205,7 +205,7 @@ type Rectangle =
     height: Int
 };
 
-instance Convertable<Rectangle, Text>
+instance Convertible<Rectangle, Text>
 {
     def Convert = fn(rect: Rectangle) -> Text =>
     {
@@ -219,7 +219,7 @@ def rect_text = rect as Text;
 IO::PrintLine("Test 9 - Rectangle to Text: " ++ rect_text);
 
 // Test 10: Person -> Int (get age)
-instance Convertable<Person, Int>
+instance Convertible<Person, Int>
 {
     def Convert = fn(person: Person) -> Int =>
     {

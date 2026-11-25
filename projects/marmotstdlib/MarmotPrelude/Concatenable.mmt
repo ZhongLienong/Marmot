@@ -12,10 +12,12 @@ foreign "MARMOT_FFI_TextConcat" TextConcat: fn(Text, Text) -> Text;
 
 instance Concatenable<Array<T>>
 {
+    // Implements ++ for arrays by joining their elements in left-to-right order.
     def Concat = fn(left: Array<T>, right: Array<T>) -> Array<T> => ArrayConcat(left, right);
 };
 
 instance Concatenable<Text>
 {
+    // Implements ++ for text by appending the right operand to the left.
     def Concat = fn(left: Text, right: Text) -> Text => TextConcat(left, right);
 };

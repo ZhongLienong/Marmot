@@ -1,9 +1,9 @@
 module TestConstraintTwoTypeParams
 // Test: Generic function with two type parameters
-import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Convertable.mmt" }
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Convertible.mmt" }
 
 // Generic function with two constrained type parameters
-def ProcessTwo = fn<T1, T2>(a: T1, b: T2) -> Text where Convertable<T1, Text>, Convertable<T2, Text> =>
+def ProcessTwo = fn<T1, T2>(a: T1, b: T2) -> Text where Convertible<T1, Text>, Convertible<T2, Text> =>
 {
     def a_text = a as Text;
     def b_text = b as Text;
@@ -11,7 +11,7 @@ def ProcessTwo = fn<T1, T2>(a: T1, b: T2) -> Text where Convertable<T1, Text>, C
 };
 
 // Function with one type parameter used multiple times
-def Duplicate = fn<T>(value: T) -> Text where Convertable<T, Text> =>
+def Duplicate = fn<T>(value: T) -> Text where Convertible<T, Text> =>
 {
     def text_val = value as Text;
     text_val ++ " and " ++ text_val

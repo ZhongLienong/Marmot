@@ -49,12 +49,12 @@ TEST_CASE("Constrained calls select instances by concrete return identity", "[lo
 		INFO(return_type->ToString());
 		const MethodResolutionMap resolutions
 		{
-			{ "Convertable::Convert", {
+			{ "Convertible::Convert", {
 				ResolvedMethodCandidate("Int", return_type->ToString(), ResolvedInstanceName("to_result", "Origin")),
 				ResolvedMethodCandidate("Int", "Bool", ResolvedInstanceName("to_bool", "Origin"))
 			} }
 		};
-		const MethodResolution<std::optional<ResolvedInstanceName>> resolved = resolver.ResolveConstrainedCall(resolutions, "Convertable::Convert", { argument_type }, return_type);
+		const MethodResolution<std::optional<ResolvedInstanceName>> resolved = resolver.ResolveConstrainedCall(resolutions, "Convertible::Convert", { argument_type }, return_type);
 		REQUIRE(resolved.has_value());
 		REQUIRE(resolved->has_value());
 		CHECK(resolved->value() == ResolvedInstanceName("to_result", "Origin"));
@@ -79,12 +79,12 @@ TEST_CASE("Constrained calls keep unresolved return hints ambiguous", "[lowering
 		INFO(return_type->ToString());
 		const MethodResolutionMap resolutions
 		{
-			{ "Convertable::Convert", {
+			{ "Convertible::Convert", {
 				ResolvedMethodCandidate("Int", return_type->ToString(), std::nullopt),
 				ResolvedMethodCandidate("Int", "Text", ResolvedInstanceName("to_text", "Origin"))
 			} }
 		};
-		const MethodResolution<std::optional<ResolvedInstanceName>> resolved = resolver.ResolveConstrainedCall(resolutions, "Convertable::Convert", { argument_type }, return_type);
+		const MethodResolution<std::optional<ResolvedInstanceName>> resolved = resolver.ResolveConstrainedCall(resolutions, "Convertible::Convert", { argument_type }, return_type);
 		REQUIRE_FALSE(resolved.has_value());
 		CHECK(resolved.error().m_code == CompilerErrorCode::LoweringAmbiguousMethodResolution);
 	}

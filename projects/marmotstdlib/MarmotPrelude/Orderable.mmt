@@ -10,6 +10,7 @@ class Orderable<T>
 
 instance Orderable<Int>
 {
+    // Orders signed integers by numeric value.
     def Compare = fn(a: Int, b: Int) -> Ordering => if a < b
     then Ordering::Less()
     else if a > b
@@ -19,6 +20,7 @@ instance Orderable<Int>
 
 instance Orderable<Float>
 {
+    // Orders floats by numeric value, returning Unordered if either value is NaN.
     def Compare = fn(a: Float, b: Float) -> Ordering => if a < b
     then Ordering::Less()
     else if a > b
@@ -30,6 +32,7 @@ instance Orderable<Float>
 
 instance Orderable<Byte>
 {
+    // Orders bytes by unsigned numeric value.
     def Compare = fn(a: Byte, b: Byte) -> Ordering => if a < b
     then Ordering::Less()
     else if a > b
@@ -39,6 +42,7 @@ instance Orderable<Byte>
 
 instance Orderable<Word>
 {
+    // Orders words by unsigned numeric value.
     def Compare = fn(a: Word, b: Word) -> Ordering => if a < b
     then Ordering::Less()
     else if a > b
@@ -50,8 +54,10 @@ foreign "MARMOT_FFI_TextCompare" TextCompare: fn(Text, Text) -> Int;
 
 instance Orderable<Text>
 {
+    // Orders text lexicographically by Unicode code point.
     def Compare = fn(a: Text, b: Text) -> Ordering =>
     {
+        // Use the sign of the native UTF-8 comparison to select the ordering.
         def order = TextCompare(a, b);
         if order < 0
         then Ordering::Less()

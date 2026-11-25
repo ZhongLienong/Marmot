@@ -7,14 +7,17 @@ use List.
     ListToArray
 }
 
+// Returns the number of elements.
 def Length = fn<T>(array: Array<T>) -> Int => #array;
 
+// Searches from index and stops at the first equal element.
 def ContainsFrom = fn<T>(array: Array<T>, value: T, index: Int) -> Bool where Equatable<T> => if index >= Length(array)
 then false
 else if Equatable::Equals(array[index], value)
 then true
 else ContainsFrom(array, value, index + 1);
 
+// Tests membership using the element type's Equatable instance.
 def Contains = fn<T>(array: Array<T>, value: T) -> Bool where Equatable<T> => ContainsFrom(array, value, 0);
 
 // The copies are the runtime's: element by element in Marmot, WithAppended
@@ -25,28 +28,40 @@ foreign "MARMOT_FFI_ArrayReverse" ArrayReverse: fn(Array<T>) -> Array<T>;
 
 foreign "MARMOT_FFI_ArrayConcatAll" ArrayConcatAll: fn(Array<Array<T>>) -> Array<T>;
 
+// Copies the array while retaining the same element values.
 def Copy = fn<T>(array: Array<T>) -> Array<T> => ArraySlice(array, 0, Length(array));
 
+// Returns the first array's elements followed by the second's.
 def Concat = fn<T>(first: Array<T>, second: Array<T>) -> Array<T> => first ++ second;
 
+// Joins chunks in order in one batch. An empty input yields an empty array.
 def ConcatAll = fn<T>(chunks: Array<Array<T>>) -> Array<T> => if #chunks == 1
 then chunks[0]
 else ArrayConcatAll(chunks);
 
+// Returns a copy with value at the end. Repeated appends copy the growing array.
 def WithAppended = fn<T>(array: Array<T>, value: T) -> Array<T> => array ++ [value];
 
+// Returns a copy with the element at index replaced. An out-of-range index yields a copy of
+// the input.
 def WithReplaced = fn<T>(array: Array<T>, index: Int, value: T) -> Array<T> => if (index < 0) || (index >= Length(array))
 then Copy(array)
 else ArraySlice(array, 0, index) ++ [value] ++ ArraySlice(array, index + 1, Length(array));
 
+// Inserts before index. An index below zero prepends and an index at or beyond the length
+// appends.
 def WithInserted = fn<T>(array: Array<T>, index: Int, value: T) -> Array<T> => ArraySlice(array, 0, index) ++ [value] ++ ArraySlice(array, index, Length(array));
 
+// Returns a copy with the element at index removed. An out-of-range index yields a copy of
+// the input.
 def WithRemoved = fn<T>(array: Array<T>, index: Int) -> Array<T> => if (index < 0) || (index >= Length(array))
 then Copy(array)
 else ArraySlice(array, 0, index) ++ ArraySlice(array, index + 1, Length(array));
 
+// Copies the half-open range [start, end), clamping both indices to the array bounds.
 def Slice = fn<T>(array: Array<T>, start: Int, end: Int) -> Array<T> => ArraySlice(array, start, end);
 
+// Copies the elements in reverse order.
 def Reverse = fn<T>(array: Array<T>) -> Array<T> => ArrayReverse(array);
 
 // Merges from the back, prepending, so the list comes out in order with the
@@ -58,16 +73,22 @@ else if (j < 0) || ((i >= 0) && (compare(left[i], right[j]) > 0))
 then MergeFrom(left, right, i - 1, j, compare, List::Cons(left[i], merged))
 else MergeFrom(left, right, i, j - 1, compare, List::Cons(right[j], merged));
 
+// Sorts stably. A negative comparison puts the first argument first, zero keeps input
+// order, and a positive comparison puts the second first.
 def SortBy = fn<T>(array: Array<T>, compare: fn(T, T) -> Int) -> Array<T> => if Length(array) <= 1
 then array
 else
 {
+    // Split the array into two runs before merging.
     def middle = Length(array) / 2;
+    // Keep the earlier run on the left so the merge can preserve ties.
     def left = SortBy(ArraySlice(array, 0, middle), compare);
+    // Sort the later run independently before merging.
     def right = SortBy(ArraySlice(array, middle, Length(array)), compare);
     ListToArray(MergeFrom(left, right, Length(left) - 1, Length(right) - 1, compare, List::Nil()))
 };
 
+// Sorts stably using Orderable. Panics if a comparison returns Unordered.
 def Sort = fn<T>(array: Array<T>) -> Array<T> where Orderable<T> => SortBy
 (
     array,

@@ -1,14 +1,14 @@
-module TestConvertableSimple
-// Test Convertable class defined inline (same file)
+module TestConvertibleSimple
+// Test Convertible class defined inline (same file)
 import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt" }
 
-class Convertable<From, To>
+class Convertible<From, To>
 {
     Convert: fn(value: From) -> To;
 };
 
 // Bool -> Int conversion
-instance Convertable<Bool, Int>
+instance Convertible<Bool, Int>
 {
     def Convert = fn(value: Bool) -> Int =>
     {
@@ -19,7 +19,7 @@ instance Convertable<Bool, Int>
 };
 
 // Bool -> Text conversion
-instance Convertable<Bool, Text>
+instance Convertible<Bool, Text>
 {
     def Convert = fn(value: Bool) -> Text =>
     {
@@ -37,4 +37,4 @@ IO::PrintLine("false->Int: " ++ ((false as Int) as Text));
 IO::PrintLine("true->Text: " ++ (true as Text));
 IO::PrintLine("false->Text: " ++ (false as Text));
 
-IO::PrintLine("test_convertable_simple: PASS");
+IO::PrintLine("test_convertible_simple: PASS");

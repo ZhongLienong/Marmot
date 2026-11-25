@@ -13,11 +13,13 @@ type ListIter<T> =
     current: List<T>
 };
 
+// Starts an iterator at the head of the list.
 def ListIterNew = fn<T>(list: List<T>) -> ListIter<T> => ListIter(list);
 
 instance Iterable<ListIter<T>>
 {
     type Item = T;
+    // Yields the head and an iterator over the tail, or None for an empty list.
     def Next = fn(iter: ListIter<T>) -> Option<(T, ListIter<T>)> =>
     {
         match iter.current with
@@ -26,6 +28,7 @@ instance Iterable<ListIter<T>>
     };
 };
 
+// Applies f from head to tail and returns the transformed values in input order.
 def ListMap = fn<A, B>(list: List<A>, f: fn(A) -> B) -> List<B> =>
 {
     match list with
@@ -33,6 +36,7 @@ def ListMap = fn<A, B>(list: List<A>, f: fn(A) -> B) -> List<B> =>
                 case List::Nil() => List::Nil()
 };
 
+// Counts nodes by walking the list.
 def ListLength = fn<T>(list: List<T>) -> Int =>
 {
     match list with
@@ -42,9 +46,11 @@ def ListLength = fn<T>(list: List<T>) -> Int =>
 
 instance Countable<List<T>>
 {
+    // Supplies the list length for Countable.
     def Count = fn(value: List<T>) -> Int => ListLength(value);
 };
 
+// Copies the left list's nodes and shares the right list as their tail.
 def ListAppend = fn<T>(left: List<T>, right: List<T>) -> List<T> =>
 {
     match left with
@@ -52,12 +58,15 @@ def ListAppend = fn<T>(left: List<T>, right: List<T>) -> List<T> =>
                 case List::Cons(head, tail) => List::Cons(head, ListAppend(tail, right))
 };
 
+// Keeps matching values in input order. Calls the predicate from tail to head.
 def ListFilter = fn<T>(list: List<T>, predicate: fn(T) -> Bool) -> List<T> =>
 {
     match list with
                     case List::Nil() => List::Nil()
                     case List::Cons(head, tail) =>
     {
+                        // Build the filtered tail before deciding whether to retain this
+                        // node.
                         def filtered_tail = ListFilter(tail, predicate);
                         if predicate(head)
                         then List::Cons(head, filtered_tail)
@@ -65,6 +74,7 @@ def ListFilter = fn<T>(list: List<T>, predicate: fn(T) -> Bool) -> List<T> =>
                     }
 };
 
+// Moves the remaining elements onto the front of the accumulator in tail position.
 def ListReverseInto = fn<T>(list: List<T>, reversed: List<T>) -> List<T> =>
 {
     match list with
@@ -72,8 +82,10 @@ def ListReverseInto = fn<T>(list: List<T>, reversed: List<T>) -> List<T> =>
                         case List::Nil() => reversed
 };
 
+// Returns the elements in reverse order.
 def ListReverse = fn<T>(list: List<T>) -> List<T> => ListReverseInto(list, List::Nil());
 
+// Combines elements from head to tail, passing the accumulator as the first argument to f.
 def ListFold = fn<T, A>(list: List<T>, initial: A, f: fn(A, T) -> A) -> A =>
 {
     match list with
@@ -89,6 +101,7 @@ def ListFromArrayAt = fn<T>(values: Array<T>, index: Int, acc: List<T>) -> List<
 then acc
 else ListFromArrayAt(values, index - 1, List::Cons(values[index], acc));
 
+// Builds a list with elements in the same order as the array.
 def ListFromArray = fn<T>(values: Array<T>) -> List<T> => ListFromArrayAt(values, #values - 1, List::Nil());
 
 // A comprehension over the list's own Iterable instance, which builds the array

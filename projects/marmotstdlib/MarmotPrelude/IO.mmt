@@ -46,28 +46,38 @@ foreign "MARMOT_FFI_GetLastIOErrorKind" GetLastIOErrorKindRaw: fn() -> Int from 
 
 foreign "MARMOT_FFI_GetLastIOErrorMessage" GetLastIOErrorMessageRaw: fn() -> Text from "marmotstdlib";
 
+// Writes text to standard output without adding a newline.
 def Print = fn(text: Text) -> Unit => PrintRaw(text);
 
+// Writes text followed by a newline to standard output.
 def PrintLine = fn(text: Text) -> Unit =>
 {
     Print(text ++ "\n");
 };
 
+// Writes text to standard error without adding a newline.
 def PrintError = fn(text: Text) -> Unit => PrintErrorRaw(text);
 
+// Writes text followed by a newline to standard error.
 def PrintErrorLine = fn(text: Text) -> Unit =>
 {
     PrintError(text ++ "\n");
 };
 
+// Reads the remaining standard input through end of file.
 def ReadInput = fn() -> Text => ReadInputRaw();
 
+// Reads one line from standard input without its line feed. A blank line and end of file
+// both yield empty text.
 def ReadLine = fn() -> Text => ReadLineRaw();
 
+// Tests whether the path exists. Directories also count and lookup errors return false.
 def FileExists = fn(path: Text) -> Bool => FileExistsRaw(path);
 
+// Tests whether the path resolves to a directory. Lookup errors return false.
 def DirectoryExists = fn(path: Text) -> Bool => DirectoryExistsRaw(path);
 
+// Adds the native error message when one is available.
 def UnknownIOContext = fn(path: Text, message: Text) -> Text =>
 {
     if message == ""
@@ -75,8 +85,10 @@ def UnknownIOContext = fn(path: Text, message: Text) -> Text =>
     else path ++ ": " ++ message
 };
 
+// Maps a native I/O status to a typed error and keeps the path for context.
 def MakeIOError = fn(path: Text, error_kind: Int) -> IOError =>
 {
+    // Keep the native message available for errors without a dedicated variant.
     def message = GetLastIOErrorMessageRaw();
     if error_kind == 1
     then IOError::NotFound(path)
@@ -87,58 +99,71 @@ def MakeIOError = fn(path: Text, error_kind: Int) -> IOError =>
     else IOError::UnknownIO(UnknownIOContext(path, message))
 };
 
+// Reads the preceding native I/O status to choose between the supplied value and an error.
 def IOResultFromStatus = fn<T>(path: Text, value: T) -> Result<T, IOError> =>
 {
+    // Read the status before any other native I/O operation can replace it.
     def error_kind = GetLastIOErrorKindRaw();
     if error_kind == 0
     then Result::Ok(value)
     else Result::Err(MakeIOError(path, error_kind))
 };
 
+// Reads a whole file as Text. Use TryReadBinaryFile for arbitrary bytes.
 def TryReadFile = fn(path: Text) -> Result<Text, IOError> =>
 {
+    // Read before checking the status, since an empty file is also a valid result.
     def content = ReadFileRaw(path);
     IOResultFromStatus(path, content)
 };
 
+// Writes text, creating the file or replacing its contents.
 def TryWriteFile = fn(path: Text, content: Text) -> Result<Unit, IOError> =>
 {
     WriteFileRaw(path, content);
     IOResultFromStatus(path, ())
 };
 
+// Appends text, creating the file if needed.
 def TryAppendToFile = fn(path: Text, content: Text) -> Result<Unit, IOError> =>
 {
     AppendToFileRaw(path, content);
     IOResultFromStatus(path, ())
 };
 
+// Reads a whole file as bytes.
 def TryReadBinaryFile = fn(path: Text) -> Result<Array<Byte>, IOError> =>
 {
+    // Read before checking the status, since an empty byte array is also valid.
     def bytes = ReadBinaryFileRaw(path);
     IOResultFromStatus(path, bytes)
 };
 
+// Writes bytes, creating the file or replacing its contents.
 def TryWriteBinaryFile = fn(path: Text, bytes: Array<Byte>) -> Result<Unit, IOError> =>
 {
     WriteBinaryFileRaw(path, bytes);
     IOResultFromStatus(path, ())
 };
 
+// Removes one file, symlink, or empty directory. An absent path is an error.
 def TryDeleteFile = fn(path: Text) -> Result<Unit, IOError> =>
 {
     DeleteFileRaw(path);
     IOResultFromStatus(path, ())
 };
 
+// Renames or moves the entry at old_path to new_path.
 def TryRenameFile = fn(old_path: Text, new_path: Text) -> Result<Unit, IOError> =>
 {
     RenameFileRaw(old_path, new_path);
     IOResultFromStatus(old_path, ())
 };
 
+// Returns the file size in bytes.
 def TryGetFileSize = fn(path: Text) -> Result<Int, IOError> =>
 {
+    // Read the size before checking the status so a failure becomes a typed error.
     def size = GetFileSizeRaw(path);
     IOResultFromStatus(path, size)
 };
@@ -146,6 +171,8 @@ def TryGetFileSize = fn(path: Text) -> Result<Int, IOError> =>
 // The names in the directory, sorted, without the directory in front.
 def TryListDirectory = fn(path: Text) -> Result<Array<Text>, IOError> =>
 {
+    // Read the listing before checking the native status so an empty directory is a
+    // success.
     def names = ListDirectoryRaw(path);
     IOResultFromStatus(path, names)
 };
@@ -160,6 +187,8 @@ def TryMakeDirectory = fn(path: Text) -> Result<Unit, IOError> =>
 // `sha256:` and the file's SHA-256 in hex, the form plans and lockfiles use.
 def TryFileChecksum = fn(path: Text) -> Result<Text, IOError> =>
 {
+    // Compute the digest before checking the native status so a failure becomes a typed
+    // error.
     def checksum = FileChecksumRaw(path);
     IOResultFromStatus(path, checksum)
 };

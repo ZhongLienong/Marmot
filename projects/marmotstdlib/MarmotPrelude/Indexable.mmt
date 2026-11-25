@@ -10,5 +10,7 @@ class Indexable<C, I>
 instance Indexable<Array<T>, Int>
 {
     type Element = T;
+    // Reads the array element at a zero-based index. An out-of-range index raises a runtime
+    // error.
     def Get = fn(container: Array<T>, index: Int) -> T => container[index];
 };

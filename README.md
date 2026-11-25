@@ -393,7 +393,7 @@ def answer = A(10, fn() -> Int => 1, fn() -> Int => -1, fn() -> Int => -1, fn() 
 - **Generic Parameters**: Single and multiple type parameters
 - **Type Constraints**: `where` constraints on functions, structs, and unions
 - **Associated Types**: Projections such as `Iterable::Item<Iter>`
-- **Deriving**: `Equatable`, `Hashable`, `Orderable`, `Convertable` (to `Text`), `Map`, `Bind`, and `Unwrap`
+- **Deriving**: `Equatable`, `Hashable`, `Orderable`, `Convertible` (to `Text`), `Map`, `Bind`, and `Unwrap`
 - **Type Inference**: Automatic type deduction for instantiation, constructors, and context-aware lambdas
 - **Tuple Destructuring**: `def (x, y) = pair;`
 
@@ -417,7 +417,7 @@ def answer = A(10, fn() -> Int => 1, fn() -> Int => -1, fn() -> Int => -1, fn() 
 - **Comparison**: `==`, `!=`, `<`, `>`, `<=`, `>=`, with typeclass dispatch for user-defined types through `Equatable<T>` and `Orderable<T>`
 - **Logical**: `&&`, `||`, `!`
 - **Bitwise**: `&`, `|`, `^`, `<<`, `>>`
-- **Casts**: `as`, with builtin primitive conversions and constrained dispatch through `Convertable<From, To>`
+- **Casts**: `as`, with builtin primitive conversions and constrained dispatch through `Convertible<From, To>`
 - **Concatenation**: `++` for `Text` and `Array<T>`, with constrained dispatch through `Concatenable<T>`
 - **Pipe**: `|>` (function composition)
 - **Length**: `#` for arrays and other countable shapes, with constrained dispatch through `Countable<T>`
@@ -453,7 +453,7 @@ def updated_text = text ++ suffix;
 - **Effects** - `IO.mmt`, `System.mmt`, `DateTime.mmt`
 - **Built-in helpers** - `TextUtil.mmt`, `ArrayUtil.mmt`, `Path.mmt`, `Math.mmt`
 - **Shared state** - native `Ref<T>` with `ref`, `*` and `:=`
-- **Helper / typeclass modules** - `Concatenable`, `Convertable`, `Countable`, `Equatable`, `Hashable`, `Iterable`, `Orderable`, `Prelude/Panic`
+- **Helper / typeclass modules** - `Concatenable`, `Convertible`, `Countable`, `Equatable`, `Hashable`, `Iterable`, `Orderable`, `Prelude/Panic`
 
 The public IO and system surface now prefers typed wrappers over sentinel values. Common entry points include:
 

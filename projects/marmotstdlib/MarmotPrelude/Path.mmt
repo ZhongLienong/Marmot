@@ -6,21 +6,29 @@ public export { Join, Directory, FileName, Extension }
 // which Windows also accepts.
 def Separated = fn(path: Text) -> Text => TextUtil::Replace(path, "\\", "/");
 
+// Joins directory and name, inserting / as needed. An empty directory or a name starting
+// with either separator yields name unchanged.
 def Join = fn(directory: Text, name: Text) -> Text => if (directory == "") || TextUtil::StartsWith(Separated(name), "/")
 then name
 else if TextUtil::EndsWith(Separated(directory), "/")
 then directory ++ name
 else directory ++ "/" ++ name;
 
+// Returns the last component after either separator. A trailing separator gives empty text.
 def FileName = fn(path: Text) -> Text =>
 {
+    // Normalize separators before splitting so mixed separators work too.
     def parts = TextUtil::Split(Separated(path), "/");
     parts[#parts - 1]
 };
 
+// Returns the portion before the final separator using the input's separators. A bare name
+// gives empty text.
 def Directory = fn(path: Text) -> Text =>
 {
+    // Count code points so the cut works for multibyte names.
     def cut = TextUtil::Length(path) - TextUtil::Length(FileName(path)) - 1;
+    // Keep the initial separator when the last component is directly below the root.
     def end = if cut == 0
     then 1
     else cut;
@@ -29,8 +37,11 @@ def Directory = fn(path: Text) -> Text =>
     else TextUtil::Substring(path, 0, end)
 };
 
+// Returns the part of the file name after its last dot, without the dot. A sole leading dot
+// gives an empty extension.
 def Extension = fn(path: Text) -> Text =>
 {
+    // Inspect the file name alone so dots in directory names do not count.
     def parts = TextUtil::Split(FileName(path), ".");
     if (#parts < 2) || ((#parts == 2) && (parts[0] == ""))
     then ""

@@ -1,0 +1,28 @@
+module TestConvertibleBasic
+// Test basic Convertible class functionality
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Convertible.mmt" }
+
+// Test using Convert in a constrained generic function
+def ConvertAndShow = fn<From>(value: From) -> Text where Convertible<From, Int>, Convertible<Int, Text> =>
+{
+    def converted = Convertible::Convert(value);
+    Convertible::Convert(converted)
+};
+
+// Test Bool -> Int -> Text
+def result1 = ConvertAndShow(true);
+IO::PrintLine("true->Int->Text: " ++ result1);
+
+def result2 = ConvertAndShow(false);
+IO::PrintLine("false->Int->Text: " ++ result2);
+
+// Test using the existing "as" operator (which should eventually use Convertible)
+def int_val = 42;
+IO::PrintLine("Int->Text (as): " ++ (int_val as Text));
+
+def bool_val = true;
+IO::PrintLine("Bool->Int (as): " ++ ((if bool_val
+then 1
+else 0) as Text));
+
+IO::PrintLine("test_convertible_basic: PASS");

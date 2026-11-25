@@ -1,9 +1,9 @@
 module TestMultipleConstraints
 // Test: Generic function with multiple constraints
-import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Convertable.mmt" }
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Convertible.mmt" }
 
 // Function that requires conversion from T to both Text and Int
-def ConvertToTextAndInt = fn<T>(value: T) -> Text where Convertable<T, Text>, Convertable<T, Int> =>
+def ConvertToTextAndInt = fn<T>(value: T) -> Text where Convertible<T, Text>, Convertible<T, Int> =>
 {
     def as_text = value as Text;
     def as_int = value as Int;

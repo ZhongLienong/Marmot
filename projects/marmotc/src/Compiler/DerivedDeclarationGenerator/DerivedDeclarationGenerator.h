@@ -25,7 +25,7 @@ private:
 		Equatable,
 		Hashable,
 		Orderable,
-		Convertable,
+		Convertible,
 		Transferable,
 		Map,
 		Bind,

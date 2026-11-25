@@ -52,10 +52,14 @@ foreign "MARMOT_FFI_GetLastSystemErrorKind" GetLastSystemErrorKindRaw: fn() -> I
 
 foreign "MARMOT_FFI_GetLastSystemErrorMessage" GetLastSystemErrorMessageRaw: fn() -> Text from "marmotstdlib";
 
+// Stops execution with the given exit code. In a worker this fails the worker.
 def Exit = fn(code: Int) -> Never => ExitRaw(code);
 
+// Suspends the calling thread for the requested milliseconds. Worker cancellation
+// interrupts the wait.
 def Sleep = fn(milliseconds: Int) -> Unit => SleepRaw(milliseconds);
 
+// Adds the native error message when one is available.
 def UnknownSystemContext = fn(context: Text, message: Text) -> Text =>
 {
     if message == ""
@@ -63,51 +67,66 @@ def UnknownSystemContext = fn(context: Text, message: Text) -> Text =>
     else context ++ ": " ++ message
 };
 
+// Maps a native system status to a typed error with the operation's context.
 def MakeSystemError = fn(context: Text, error_kind: Int) -> SystemError =>
 {
+    // Keep the native message available for errors without a dedicated variant.
     def message = GetLastSystemErrorMessageRaw();
     if error_kind == 2
     then SystemError::InvalidDirectory(context)
     else SystemError::UnknownSystem(UnknownSystemContext(context, message))
 };
 
+// Reads the preceding native system status to choose between the supplied value and an
+// error.
 def SystemResultFromStatus = fn<T>(context: Text, value: T) -> Result<T, SystemError> =>
 {
+    // Read the status before any other native system operation can replace it.
     def error_kind = GetLastSystemErrorKindRaw();
     if error_kind == 0
     then Result::Ok(value)
     else Result::Err(MakeSystemError(context, error_kind))
 };
 
+// Returns the process environment variable's value, or None on lookup failure. A set but
+// empty variable yields Some with empty text.
 def TryGetEnv = fn(name: Text) -> Option<Text> =>
 {
+    // Look up the value first so the status can distinguish absence from an empty value.
     def value = GetEnvRaw(name);
     if GetLastSystemErrorKindRaw() == 0
     then Option::Some(value)
     else Option::None()
 };
 
+// Sets a process environment variable and returns any error from the platform.
 def SetEnv = fn(name: Text, value: Text) -> Result<Unit, SystemError> =>
 {
     SetEnvRaw(name, value);
     SystemResultFromStatus(name, ())
 };
 
+// Returns the process's working directory or an error.
 def CurrentDirectory = fn() -> Result<Text, SystemError> =>
 {
+    // Get the path before checking the status so a failure becomes a typed error.
     def path = GetCurrentDirectoryRaw();
     SystemResultFromStatus("current directory", path)
 };
 
+// Changes the process-wide working directory or returns an error.
 def TrySetCurrentDirectory = fn(path: Text) -> Result<Unit, SystemError> =>
 {
     SetCurrentDirectoryRaw(path);
     SystemResultFromStatus(path, ())
 };
 
+// Runs a shell command. A nonzero exit code yields CommandFailed.
 def Run = fn(command: Text) -> Result<ProcessResult, SystemError> =>
 {
+    // Run the command before reading its native status.
     def exit_code = ExecuteRaw(command);
+    // Separate failure to invoke the command from a command that exited nonzero.
     def error_kind = GetLastSystemErrorKindRaw();
     if error_kind != 0
     then Result::Err(MakeSystemError(command, error_kind))
@@ -124,8 +143,12 @@ def RunProcess = fn(arguments: Array<Text>, directory: Text) -> Result<ProcessOu
 then Result::Err(SystemError::UnknownSystem("RunProcess needs a program to run"))
 else
 {
+    // On success the native result carries the exit code, stdout, and stderr in that order.
     def parts = RunProcessRaw(arguments, directory);
+    // Check the status before indexing the native result.
     def error_kind = GetLastSystemErrorKindRaw();
+    // Use the working directory for directory errors and the program name for other
+    // failures.
     def context = if error_kind == 2
     then directory
     else arguments[0];
@@ -138,8 +161,10 @@ else
 // marmot run, everything after its name for a standalone executable.
 def Arguments = fn() -> Array<Text> => GetArgumentsRaw();
 
+// Returns the host platform, retaining the native name for an unrecognized platform.
 def CurrentPlatform = fn() -> Platform =>
 {
+    // Map both native WebAssembly names to the same public variant.
     def platform = GetPlatformRaw();
     if platform == "Windows"
     then Platform::Windows()
@@ -154,4 +179,5 @@ def CurrentPlatform = fn() -> Platform =>
     else Platform::Unknown(platform)
 };
 
+// Returns the ID of the current process.
 def CurrentProcessId = fn() -> Int => GetProcessIdRaw();

@@ -59,8 +59,8 @@ do not promise backward compatibility.
 | Constructor inference and context-sensitive lambda typing | Stable | `test/generics/`, `test/pipe/` | The type checker uses bidirectional context here. |
 | Classes, instances, and associated types | Stable | `test/typeclass/`, `projects/marmotc/tests/typechecker/` | Includes associated type declarations and instance bindings. |
 | Cross-module typeclass metadata and imports | Stable | `test/typeclass/`, `test/module/` | Typeclass/import metadata survives module boundaries. |
-| Deriving: `Equatable`, `Hashable`, `Orderable`, `Convertable` (to `Text`), `Map`, `Bind`, `Unwrap` | Stable | `test/deriving/` | Structural deriving works on generic and recursive types; a generic type's instance requires the class of each type parameter. Container deriving supports focused union shapes. |
-| Operator-backed typeclass dispatch: arithmetic and bitwise classes, `Convertable`, `Concatenable`, `Countable`, `Equatable`, `Orderable` | Stable | `test/typeclass/`, `test/prelude/`, `test/as_operator/` | The implementation mixes builtin lowering with constrained dispatch depending on the concrete types. |
+| Deriving: `Equatable`, `Hashable`, `Orderable`, `Convertible` (to `Text`), `Map`, `Bind`, `Unwrap` | Stable | `test/deriving/` | Structural deriving works on generic and recursive types; a generic type's instance requires the class of each type parameter. Container deriving supports focused union shapes. |
+| Operator-backed typeclass dispatch: arithmetic and bitwise classes, `Convertible`, `Concatenable`, `Countable`, `Equatable`, `Orderable` | Stable | `test/typeclass/`, `test/prelude/`, `test/as_operator/` | The implementation mixes builtin lowering with constrained dispatch depending on the concrete types. |
 
 ## Operators
 
@@ -94,7 +94,7 @@ do not promise backward compatibility.
 | Typed `IO`, `System`, and `DateTime` wrappers | Stable | `test/prelude/` | The public surface prefers `Option` and `Result` wrappers over sentinel values. |
 | `TextUtil`, `ArrayUtil`, `Path`, and `Math` helpers | Stable | `test/prelude/`, `test/ffi/` | Text and array helpers use VM intrinsics. Native system and math functions use `marmotstdlib`. |
 | `Collections/Map` and `Collections/Set` | Stable | `test/hashmap/`, `test/hashset/` | Persistent: `With` and `Without` return a new collection. Keys rely on `Hashable` and `Equatable`. |
-| Helper/typeclass modules: `Concatenable`, `Convertable`, `Countable`, `Equatable`, `Hashable`, `Iterable`, `Orderable`, `Prelude/Panic` | Stable | `test/prelude/`, `test/typeclass/`, `test/hashmap/`, `test/hashset/` | Some modules mostly define reusable class surfaces and expect user code to supply instances. |
+| Helper/typeclass modules: `Concatenable`, `Convertible`, `Countable`, `Equatable`, `Hashable`, `Iterable`, `Orderable`, `Prelude/Panic` | Stable | `test/prelude/`, `test/typeclass/`, `test/hashmap/`, `test/hashset/` | Some modules mostly define reusable class surfaces and expect user code to supply instances. |
 
 ## Concurrency
 

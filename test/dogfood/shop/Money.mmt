@@ -1,5 +1,5 @@
 module Shop.Money
-import { "../../../projects/marmotstdlib/MarmotPrelude/Equatable.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Hashable.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Orderable.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Convertable.mmt" }
+import { "../../../projects/marmotstdlib/MarmotPrelude/Equatable.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Hashable.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Orderable.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Convertible.mmt" }
 
 public export { Cents, Currency, Price, FromUnits, Add, Scale, Format, Zero }
 private export { RoundHalfUp }
@@ -60,7 +60,7 @@ def Format = fn(price: Price) -> Text =>
         case _ => sign ++ ((magnitude / 100) as Text) ++ "." ++ Pad(magnitude % 100) ++ " " ++ Symbol(price.currency)
 };
 
-instance Convertable<Price, Text>
+instance Convertible<Price, Text>
 {
     def Convert = fn(price: Price) -> Text => Format(price);
 };

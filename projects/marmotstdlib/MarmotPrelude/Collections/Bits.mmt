@@ -5,19 +5,26 @@ public export { PopCount, BitAt, HasBit, SparseIndex, HashChunk, ChunkBits, Bran
 // bit of a 64-bit signed Int.
 def ChunkBits: Int = 5;
 
+// The number of possible branch slots for a five-bit hash chunk.
 def BranchFactor: Int = 32;
 
+// Builds a bitmap mask with only the requested bit set.
 def BitAt = fn(index: Int) -> Int => 1 << index;
 
+// Tests whether the requested branch slot is occupied.
 def HasBit = fn(bitmap: Int, index: Int) -> Bool => ((bitmap >> index) & 1) == 1;
 
 // Counts over a fixed 32-bit window, in parallel within the word: the bitmap
 // is read on every map access, and counting one bit per call was 32 calls.
 def PopCount = fn(value: Int) -> Int =>
 {
+    // Discard the high bits so they cannot contribute to the 32-bit count.
     def window = value & 0xFFFFFFFF;
+    // Store the count for each pair in its two-bit field.
     def pairs = window - ((window >> 1) & 0x55555555);
+    // Combine neighboring pair counts into four-bit fields.
     def nibbles = (pairs & 0x33333333) + ((pairs >> 2) & 0x33333333);
+    // Combine the nibble counts within each byte before summing across bytes.
     def bytes = (nibbles + (nibbles >> 4)) & 0x0F0F0F0F;
     ((bytes * 0x01010101) >> 24) & 255
 };
@@ -25,4 +32,5 @@ def PopCount = fn(value: Int) -> Int =>
 // Where a child sits in the sparse array: the number of occupied slots below it.
 def SparseIndex = fn(bitmap: Int, index: Int) -> Int => PopCount(bitmap & (BitAt(index) - 1));
 
+// Extracts the five hash bits used at the given trie depth.
 def HashChunk = fn(hash: Int, depth: Int) -> Int => (hash >> (depth * ChunkBits)) & (BranchFactor - 1);

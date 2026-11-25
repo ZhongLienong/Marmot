@@ -243,13 +243,13 @@ generic type.
 type Version = { major: Int, minor: Int, label: Text } deriving (Equatable, Orderable);
 ```
 
-`Convertable` derives the conversion to `Text`, so `value as Text` shows the
+`Convertible` derives the conversion to `Text`, so `value as Text` shows the
 value as it is written: a record with its field names, `Version { major = 1,
 minor = 2, label = beta }`, and a variant with its union, `Shape::Box(3, 4)`.
 Each field shows as its own `as Text` gives it, so a text field is not quoted,
 and its type needs a conversion to `Text`: the built-in types have one, an
 array has one when its elements do, and a generic type's instance requires
-`Convertable<T, Text>` of each type parameter.
+`Convertible<T, Text>` of each type parameter.
 
 Container deriving on unions:
 
@@ -280,7 +280,7 @@ with a `where Transferable<fn(A) -> B>` constraint on the callback signature.
 
 Current support is intentionally narrow:
 
-- `Equatable`, `Hashable`, `Orderable`, `Convertable` to `Text`, and `Transferable` are supported structural derives
+- `Equatable`, `Hashable`, `Orderable`, `Convertible` to `Text`, and `Transferable` are supported structural derives
 - `Map`, `Bind`, and `Unwrap` are supported container derives
 - Structural deriving works on generic and recursive structs and unions; the instance for `Box<T>` requires `Equatable<T>` (or `Hashable<T>`) of each type parameter
 - `Transferable` deriving works on structs and unions including recursive union shapes
@@ -347,7 +347,7 @@ def ShowBox = fn<T>(box: Box<T>) -> Text => Show::show(box.value);
 
 Constraints attached to a struct or union are checked when the type is instantiated and automatically propagate when a function accepts that type.
 
-A generic parameter stands for whatever type a caller picks, so a body may not decide it. `fn<T>(x: T) -> T => 5` is rejected, because the body only works when `T` is `Int`. The same goes for treating two parameters as one type. An operator applies to a generic parameter only where a constraint names the class that provides it: `Add<L, R>` for `+`, `Negate<T>` for unary `-`, and the corresponding operation class for the other arithmetic and bitwise operators. `Equatable<T>`, `Orderable<T>`, `Concatenable<T>`, `Countable<T>` and `Convertable<From, To>` provide `==`, `<`, `++`, `#` and `as`. Primitive shifts take an `Int` amount. The `Numeric<T>` marker constrains primitive range bounds and has instances for `Int`, `Float`, `Byte` and `Word`; it does not imply arithmetic capabilities.
+A generic parameter stands for whatever type a caller picks, so a body may not decide it. `fn<T>(x: T) -> T => 5` is rejected, because the body only works when `T` is `Int`. The same goes for treating two parameters as one type. An operator applies to a generic parameter only where a constraint names the class that provides it: `Add<L, R>` for `+`, `Negate<T>` for unary `-`, and the corresponding operation class for the other arithmetic and bitwise operators. `Equatable<T>`, `Orderable<T>`, `Concatenable<T>`, `Countable<T>` and `Convertible<From, To>` provide `==`, `<`, `++`, `#` and `as`. Primitive shifts take an `Int` amount. The `Numeric<T>` marker constrains primitive range bounds and has instances for `Int`, `Float`, `Byte` and `Word`; it does not imply arithmetic capabilities.
 
 ```marmot
 def Sum = fn<L, R>(a: L, b: R) -> Add::Output<L, R> where Add<L, R> => a + b;
@@ -420,7 +420,7 @@ Associated types are especially useful when one type parameter logically determi
 
 Several operators are wired into the type checker and lowering so they can dispatch through type classes when the operands are not handled entirely as builtins.
 
-- `as` can use `Convertable<From, To>`
+- `as` can use `Convertible<From, To>`
 - `++` can use `Concatenable<T>`
 - `#` can use `Countable<T>`
 - `==` and `!=` can use `Equatable<T>`
@@ -430,7 +430,7 @@ Examples:
 
 ```marmot
 def ConvertIt = fn<From, To>(value: From) -> To
-    where Convertable<From, To> => {
+    where Convertible<From, To> => {
     value as To
 };
 
@@ -442,14 +442,14 @@ def Join = fn<T>(left: T, right: T) -> T
 
 The current implementation mixes direct builtin lowering with these hooks:
 
-- `as` prefers direct builtin casts for concrete primitive conversions, but generic and constrained code can lower through `Convertable`
+- `as` prefers direct builtin casts for concrete primitive conversions, but generic and constrained code can lower through `Convertible`
 - `++` is builtin for `Text` and `Array<T>`, and can also lower through `Concatenable`
 - `#` is builtin for arrays, has specialized lowering for prelude `List`, `Map`, and `Set` shapes, and otherwise falls back to `Countable`
 - equality and ordering use builtin lowering for the primitive cases and typeclass dispatch for user-defined cases
 
 The shipped prelude provides the following related modules:
 
-- `Convertable`
+- `Convertible`
 - `Concatenable`
 - `Countable`
 - `Equatable`

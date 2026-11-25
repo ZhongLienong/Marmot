@@ -13,20 +13,28 @@ type Set<T> =
     entries: Map::Map<T, Unit>
 };
 
+// Creates an empty set.
 def SetEmpty = fn<T>() -> Set<T> => Set(Map::Empty());
 
+// Returns the number of distinct elements in constant time.
 def SetCount = fn<T>(set: Set<T>) -> Int => Map::Count(set.entries);
 
+// Tests whether the set contains any elements.
 def SetIsEmpty = fn<T>(set: Set<T>) -> Bool => Map::IsEmpty(set.entries);
 
+// Returns a set containing value, which counts once even if it was already present.
 def SetWith = fn<T>(set: Set<T>, value: T) -> Set<T> where Hashable<T>, Equatable<T> => Set(Map::With(set.entries, value, ()));
 
+// Returns a set without value. An absent value leaves membership unchanged.
 def SetWithout = fn<T>(set: Set<T>, value: T) -> Set<T> where Hashable<T>, Equatable<T> => Set(Map::Without(set.entries, value));
 
+// Tests membership using Hashable and Equatable.
 def SetHas = fn<T>(set: Set<T>, value: T) -> Bool where Hashable<T>, Equatable<T> => Map::ContainsKey(set.entries, value);
 
+// Returns the elements in the backing map's trie order.
 def SetToArray = fn<T>(set: Set<T>) -> Array<T> =>
 {
+    // Read the backing map entries, whose keys are the set elements.
     def pairs = Map::Entries(set.entries);
     [pairs[slot].key for slot in 0..1..ArrayUtil::Length(pairs)]
 };
@@ -37,11 +45,13 @@ type SetIter<T> =
     index: Int
 };
 
+// Materializes the elements and starts an iterator at the first one.
 def SetIterNew = fn<T>(set: Set<T>) -> SetIter<T> => SetIter(SetToArray(set), 0);
 
 instance Iterable<SetIter<T>>
 {
     type Item = T;
+    // Yields the current element and an iterator at the next position, or None at the end.
     def Next = fn(iter: SetIter<T>) -> Option<(T, SetIter<T>)> => if iter.index >= ArrayUtil::Length(iter.values)
     then Option::None()
     else Option::Some((iter.values[iter.index], SetIter(iter.values, iter.index + 1)));
@@ -49,5 +59,6 @@ instance Iterable<SetIter<T>>
 
 instance Countable<Set<T>>
 {
+    // Supplies the number of distinct elements for Countable.
     def Count = fn(set: Set<T>) -> Int => Map::Count(set.entries);
 };

@@ -5,6 +5,8 @@ foreign "MARMOT_FFI_ReportPanic" ReportPanic: fn(Text) -> Unit;
 
 foreign "MARMOT_FFI_Exit" ExitRaw: fn(Int) -> Never;
 
+// Writes the message and a newline to standard error, then exits with code 1. In a worker
+// this fails the worker.
 def Panic = fn(message: Text) -> Never => {
     ReportPanic(message ++ "\n");
     ExitRaw(1)

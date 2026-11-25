@@ -33,6 +33,7 @@ foreign "MARMOT_PRIMITIVE_Add" AddInt: fn(Int, Int) -> Int;
 instance Add<Int, Int>
 {
     type Output = Int;
+    // Adds two signed integers with 64-bit wraparound.
     def Add = fn(left: Int, right: Int) -> Int => AddInt(left, right);
 };
 
@@ -41,6 +42,7 @@ foreign "MARMOT_PRIMITIVE_Add" AddFloat: fn(Float, Float) -> Float;
 instance Add<Float, Float>
 {
     type Output = Float;
+    // Adds two floating-point values.
     def Add = fn(left: Float, right: Float) -> Float => AddFloat(left, right);
 };
 
@@ -49,6 +51,7 @@ foreign "MARMOT_PRIMITIVE_Add" AddByte: fn(Byte, Byte) -> Byte;
 instance Add<Byte, Byte>
 {
     type Output = Byte;
+    // Adds two bytes with 8-bit wraparound.
     def Add = fn(left: Byte, right: Byte) -> Byte => AddByte(left, right);
 };
 
@@ -57,6 +60,7 @@ foreign "MARMOT_PRIMITIVE_Add" AddWord: fn(Word, Word) -> Word;
 instance Add<Word, Word>
 {
     type Output = Word;
+    // Adds two words with 64-bit wraparound.
     def Add = fn(left: Word, right: Word) -> Word => AddWord(left, right);
 };
 
@@ -71,6 +75,7 @@ foreign "MARMOT_PRIMITIVE_Subtract" SubtractInt: fn(Int, Int) -> Int;
 instance Subtract<Int, Int>
 {
     type Output = Int;
+    // Subtracts right from left with signed 64-bit wraparound.
     def Subtract = fn(left: Int, right: Int) -> Int => SubtractInt(left, right);
 };
 
@@ -79,6 +84,7 @@ foreign "MARMOT_PRIMITIVE_Subtract" SubtractFloat: fn(Float, Float) -> Float;
 instance Subtract<Float, Float>
 {
     type Output = Float;
+    // Subtracts the second float from the first.
     def Subtract = fn(left: Float, right: Float) -> Float => SubtractFloat(left, right);
 };
 
@@ -87,6 +93,7 @@ foreign "MARMOT_PRIMITIVE_Subtract" SubtractByte: fn(Byte, Byte) -> Byte;
 instance Subtract<Byte, Byte>
 {
     type Output = Byte;
+    // Subtracts right from left with 8-bit wraparound.
     def Subtract = fn(left: Byte, right: Byte) -> Byte => SubtractByte(left, right);
 };
 
@@ -95,6 +102,7 @@ foreign "MARMOT_PRIMITIVE_Subtract" SubtractWord: fn(Word, Word) -> Word;
 instance Subtract<Word, Word>
 {
     type Output = Word;
+    // Subtracts right from left with unsigned 64-bit wraparound.
     def Subtract = fn(left: Word, right: Word) -> Word => SubtractWord(left, right);
 };
 
@@ -109,6 +117,7 @@ foreign "MARMOT_PRIMITIVE_Multiply" MultiplyInt: fn(Int, Int) -> Int;
 instance Multiply<Int, Int>
 {
     type Output = Int;
+    // Multiplies two signed integers with 64-bit wraparound.
     def Multiply = fn(left: Int, right: Int) -> Int => MultiplyInt(left, right);
 };
 
@@ -117,6 +126,7 @@ foreign "MARMOT_PRIMITIVE_Multiply" MultiplyFloat: fn(Float, Float) -> Float;
 instance Multiply<Float, Float>
 {
     type Output = Float;
+    // Multiplies two floating-point values.
     def Multiply = fn(left: Float, right: Float) -> Float => MultiplyFloat(left, right);
 };
 
@@ -125,6 +135,7 @@ foreign "MARMOT_PRIMITIVE_Multiply" MultiplyByte: fn(Byte, Byte) -> Byte;
 instance Multiply<Byte, Byte>
 {
     type Output = Byte;
+    // Multiplies two bytes with 8-bit wraparound.
     def Multiply = fn(left: Byte, right: Byte) -> Byte => MultiplyByte(left, right);
 };
 
@@ -133,6 +144,7 @@ foreign "MARMOT_PRIMITIVE_Multiply" MultiplyWord: fn(Word, Word) -> Word;
 instance Multiply<Word, Word>
 {
     type Output = Word;
+    // Multiplies two words with 64-bit wraparound.
     def Multiply = fn(left: Word, right: Word) -> Word => MultiplyWord(left, right);
 };
 
@@ -147,6 +159,8 @@ foreign "MARMOT_PRIMITIVE_Divide" DivideInt: fn(Int, Int) -> Int;
 instance Divide<Int, Int>
 {
     type Output = Int;
+    // Divides signed integers, truncating toward zero. A zero divisor raises a runtime
+    // error.
     def Divide = fn(left: Int, right: Int) -> Int => DivideInt(left, right);
 };
 
@@ -155,6 +169,7 @@ foreign "MARMOT_PRIMITIVE_Divide" DivideFloat: fn(Float, Float) -> Float;
 instance Divide<Float, Float>
 {
     type Output = Float;
+    // Divides the first float by the second.
     def Divide = fn(left: Float, right: Float) -> Float => DivideFloat(left, right);
 };
 
@@ -163,6 +178,8 @@ foreign "MARMOT_PRIMITIVE_Divide" DivideByte: fn(Byte, Byte) -> Byte;
 instance Divide<Byte, Byte>
 {
     type Output = Byte;
+    // Returns the whole quotient of unsigned byte division. A zero divisor raises a runtime
+    // error.
     def Divide = fn(left: Byte, right: Byte) -> Byte => DivideByte(left, right);
 };
 
@@ -171,6 +188,8 @@ foreign "MARMOT_PRIMITIVE_Divide" DivideWord: fn(Word, Word) -> Word;
 instance Divide<Word, Word>
 {
     type Output = Word;
+    // Returns the whole quotient of unsigned word division. A zero divisor raises a runtime
+    // error.
     def Divide = fn(left: Word, right: Word) -> Word => DivideWord(left, right);
 };
 
@@ -185,6 +204,8 @@ foreign "MARMOT_PRIMITIVE_Remainder" RemainderInt: fn(Int, Int) -> Int;
 instance Remainder<Int, Int>
 {
     type Output = Int;
+    // Returns the signed remainder after division toward zero. A zero divisor raises a
+    // runtime error.
     def Remainder = fn(left: Int, right: Int) -> Int => RemainderInt(left, right);
 };
 
@@ -193,6 +214,7 @@ foreign "MARMOT_PRIMITIVE_Remainder" RemainderFloat: fn(Float, Float) -> Float;
 instance Remainder<Float, Float>
 {
     type Output = Float;
+    // Returns the floating-point remainder from a quotient truncated toward zero.
     def Remainder = fn(left: Float, right: Float) -> Float => RemainderFloat(left, right);
 };
 
@@ -201,6 +223,8 @@ foreign "MARMOT_PRIMITIVE_Remainder" RemainderByte: fn(Byte, Byte) -> Byte;
 instance Remainder<Byte, Byte>
 {
     type Output = Byte;
+    // Returns the remainder of unsigned byte division. A zero divisor raises a runtime
+    // error.
     def Remainder = fn(left: Byte, right: Byte) -> Byte => RemainderByte(left, right);
 };
 
@@ -209,6 +233,8 @@ foreign "MARMOT_PRIMITIVE_Remainder" RemainderWord: fn(Word, Word) -> Word;
 instance Remainder<Word, Word>
 {
     type Output = Word;
+    // Returns the remainder of unsigned word division. A zero divisor raises a runtime
+    // error.
     def Remainder = fn(left: Word, right: Word) -> Word => RemainderWord(left, right);
 };
 
@@ -223,6 +249,7 @@ foreign "MARMOT_PRIMITIVE_BitAnd" BitAndInt: fn(Int, Int) -> Int;
 instance BitAnd<Int, Int>
 {
     type Output = Int;
+    // Keeps bits set in both signed integer operands.
     def BitAnd = fn(left: Int, right: Int) -> Int => BitAndInt(left, right);
 };
 
@@ -231,6 +258,7 @@ foreign "MARMOT_PRIMITIVE_BitAnd" BitAndByte: fn(Byte, Byte) -> Byte;
 instance BitAnd<Byte, Byte>
 {
     type Output = Byte;
+    // Keeps bits set in both byte operands.
     def BitAnd = fn(left: Byte, right: Byte) -> Byte => BitAndByte(left, right);
 };
 
@@ -239,6 +267,7 @@ foreign "MARMOT_PRIMITIVE_BitAnd" BitAndWord: fn(Word, Word) -> Word;
 instance BitAnd<Word, Word>
 {
     type Output = Word;
+    // Keeps bits set in both word operands.
     def BitAnd = fn(left: Word, right: Word) -> Word => BitAndWord(left, right);
 };
 
@@ -253,6 +282,7 @@ foreign "MARMOT_PRIMITIVE_BitOr" BitOrInt: fn(Int, Int) -> Int;
 instance BitOr<Int, Int>
 {
     type Output = Int;
+    // Sets bits present in either signed integer operand.
     def BitOr = fn(left: Int, right: Int) -> Int => BitOrInt(left, right);
 };
 
@@ -261,6 +291,7 @@ foreign "MARMOT_PRIMITIVE_BitOr" BitOrByte: fn(Byte, Byte) -> Byte;
 instance BitOr<Byte, Byte>
 {
     type Output = Byte;
+    // Sets bits present in either byte operand.
     def BitOr = fn(left: Byte, right: Byte) -> Byte => BitOrByte(left, right);
 };
 
@@ -269,6 +300,7 @@ foreign "MARMOT_PRIMITIVE_BitOr" BitOrWord: fn(Word, Word) -> Word;
 instance BitOr<Word, Word>
 {
     type Output = Word;
+    // Sets bits present in either word operand.
     def BitOr = fn(left: Word, right: Word) -> Word => BitOrWord(left, right);
 };
 
@@ -283,6 +315,7 @@ foreign "MARMOT_PRIMITIVE_BitXor" BitXorInt: fn(Int, Int) -> Int;
 instance BitXor<Int, Int>
 {
     type Output = Int;
+    // Sets bits that differ between the signed integer operands.
     def BitXor = fn(left: Int, right: Int) -> Int => BitXorInt(left, right);
 };
 
@@ -291,6 +324,7 @@ foreign "MARMOT_PRIMITIVE_BitXor" BitXorByte: fn(Byte, Byte) -> Byte;
 instance BitXor<Byte, Byte>
 {
     type Output = Byte;
+    // Sets bits that differ between the byte operands.
     def BitXor = fn(left: Byte, right: Byte) -> Byte => BitXorByte(left, right);
 };
 
@@ -299,6 +333,7 @@ foreign "MARMOT_PRIMITIVE_BitXor" BitXorWord: fn(Word, Word) -> Word;
 instance BitXor<Word, Word>
 {
     type Output = Word;
+    // Sets bits that differ between the word operands.
     def BitXor = fn(left: Word, right: Word) -> Word => BitXorWord(left, right);
 };
 
@@ -313,6 +348,7 @@ foreign "MARMOT_PRIMITIVE_ShiftLeft" ShiftLeftInt: fn(Int, Int) -> Int;
 instance ShiftLeft<Int, Int>
 {
     type Output = Int;
+    // Shifts the bits left, discarding bits that leave the 64-bit value.
     def ShiftLeft = fn(left: Int, right: Int) -> Int => ShiftLeftInt(left, right);
 };
 
@@ -321,6 +357,7 @@ foreign "MARMOT_PRIMITIVE_ShiftLeft" ShiftLeftByte: fn(Byte, Int) -> Byte;
 instance ShiftLeft<Byte, Int>
 {
     type Output = Byte;
+    // Shifts the bits left, discarding bits that leave the byte.
     def ShiftLeft = fn(left: Byte, right: Int) -> Byte => ShiftLeftByte(left, right);
 };
 
@@ -329,6 +366,7 @@ foreign "MARMOT_PRIMITIVE_ShiftLeft" ShiftLeftWord: fn(Word, Int) -> Word;
 instance ShiftLeft<Word, Int>
 {
     type Output = Word;
+    // Shifts the bits left, discarding bits that leave the word.
     def ShiftLeft = fn(left: Word, right: Int) -> Word => ShiftLeftWord(left, right);
 };
 
@@ -343,6 +381,7 @@ foreign "MARMOT_PRIMITIVE_ShiftRight" ShiftRightInt: fn(Int, Int) -> Int;
 instance ShiftRight<Int, Int>
 {
     type Output = Int;
+    // Shifts right with sign extension.
     def ShiftRight = fn(left: Int, right: Int) -> Int => ShiftRightInt(left, right);
 };
 
@@ -351,6 +390,7 @@ foreign "MARMOT_PRIMITIVE_ShiftRight" ShiftRightByte: fn(Byte, Int) -> Byte;
 instance ShiftRight<Byte, Int>
 {
     type Output = Byte;
+    // Shifts the byte right, filling the high bits with zero.
     def ShiftRight = fn(left: Byte, right: Int) -> Byte => ShiftRightByte(left, right);
 };
 
@@ -359,6 +399,7 @@ foreign "MARMOT_PRIMITIVE_ShiftRight" ShiftRightWord: fn(Word, Int) -> Word;
 instance ShiftRight<Word, Int>
 {
     type Output = Word;
+    // Shifts the word right, filling the high bits with zero.
     def ShiftRight = fn(left: Word, right: Int) -> Word => ShiftRightWord(left, right);
 };
 
@@ -373,6 +414,7 @@ foreign "MARMOT_PRIMITIVE_Positive" PositiveInt: fn(Int) -> Int;
 instance Positive<Int>
 {
     type Output = Int;
+    // Implements unary + for Int and keeps the value unchanged.
     def Positive = fn(value: Int) -> Int => PositiveInt(value);
 };
 
@@ -381,6 +423,7 @@ foreign "MARMOT_PRIMITIVE_Positive" PositiveFloat: fn(Float) -> Float;
 instance Positive<Float>
 {
     type Output = Float;
+    // Implements unary + for Float and keeps the value unchanged.
     def Positive = fn(value: Float) -> Float => PositiveFloat(value);
 };
 
@@ -389,6 +432,7 @@ foreign "MARMOT_PRIMITIVE_Positive" PositiveByte: fn(Byte) -> Byte;
 instance Positive<Byte>
 {
     type Output = Byte;
+    // Implements unary + for Byte and keeps the value unchanged.
     def Positive = fn(value: Byte) -> Byte => PositiveByte(value);
 };
 
@@ -397,6 +441,7 @@ foreign "MARMOT_PRIMITIVE_Positive" PositiveWord: fn(Word) -> Word;
 instance Positive<Word>
 {
     type Output = Word;
+    // Implements unary + for Word and keeps the value unchanged.
     def Positive = fn(value: Word) -> Word => PositiveWord(value);
 };
 
@@ -411,6 +456,7 @@ foreign "MARMOT_PRIMITIVE_Negate" NegateInt: fn(Int) -> Int;
 instance Negate<Int>
 {
     type Output = Int;
+    // Negates an Int with 64-bit wraparound.
     def Negate = fn(value: Int) -> Int => NegateInt(value);
 };
 
@@ -419,6 +465,7 @@ foreign "MARMOT_PRIMITIVE_Negate" NegateFloat: fn(Float) -> Float;
 instance Negate<Float>
 {
     type Output = Float;
+    // Reverses the sign of the floating-point value.
     def Negate = fn(value: Float) -> Float => NegateFloat(value);
 };
 
@@ -427,6 +474,7 @@ foreign "MARMOT_PRIMITIVE_Negate" NegateByte: fn(Byte) -> Byte;
 instance Negate<Byte>
 {
     type Output = Byte;
+    // Returns the additive inverse modulo 256.
     def Negate = fn(value: Byte) -> Byte => NegateByte(value);
 };
 
@@ -435,6 +483,7 @@ foreign "MARMOT_PRIMITIVE_Negate" NegateWord: fn(Word) -> Word;
 instance Negate<Word>
 {
     type Output = Word;
+    // Returns the additive inverse modulo 2^64.
     def Negate = fn(value: Word) -> Word => NegateWord(value);
 };
 
@@ -449,6 +498,7 @@ foreign "MARMOT_PRIMITIVE_BitNot" BitNotInt: fn(Int) -> Int;
 instance BitNot<Int>
 {
     type Output = Int;
+    // Flips every bit of the signed integer.
     def BitNot = fn(value: Int) -> Int => BitNotInt(value);
 };
 
@@ -457,6 +507,7 @@ foreign "MARMOT_PRIMITIVE_BitNot" BitNotByte: fn(Byte) -> Byte;
 instance BitNot<Byte>
 {
     type Output = Byte;
+    // Flips all eight bits of the byte.
     def BitNot = fn(value: Byte) -> Byte => BitNotByte(value);
 };
 
@@ -465,5 +516,6 @@ foreign "MARMOT_PRIMITIVE_BitNot" BitNotWord: fn(Word) -> Word;
 instance BitNot<Word>
 {
     type Output = Word;
+    // Flips all 64 bits of the word.
     def BitNot = fn(value: Word) -> Word => BitNotWord(value);
 };

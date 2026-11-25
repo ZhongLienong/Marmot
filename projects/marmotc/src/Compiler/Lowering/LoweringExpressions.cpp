@@ -614,7 +614,7 @@ Lowering::Lowered Lowering::FunctionLowering::LowerAs(const MarmotExpression::As
 				}
 
 				const TypeRef from_type = NominalType(*as.m_expr, value);
-				const MethodResolution<std::optional<ResolvedInstanceName>> resolved = m_owner.m_resolver.ResolveConvert(m_specialization.m_methods, from_type, from_type, to_type, as.m_uses_convertable);
+				const MethodResolution<std::optional<ResolvedInstanceName>> resolved = m_owner.m_resolver.ResolveConvert(m_specialization.m_methods, from_type, from_type, to_type, as.m_uses_convertible);
 				if (!resolved.has_value())
 				{
 					return std::unexpected(m_owner.ResolutionError(resolved.error(), keyword));

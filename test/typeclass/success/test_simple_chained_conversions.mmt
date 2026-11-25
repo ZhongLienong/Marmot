@@ -1,16 +1,16 @@
 module TestSimpleChainedConversions
 // Test: Simple chained conversions that don't require converting TO a type variable
-import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Convertable.mmt" }
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Convertible.mmt" }
 
 // Function that converts to Text via Int (both target types are concrete)
-def ToTextViaInt = fn<T>(value: T) -> Text where Convertable<T, Int>, Convertable<Int, Text> =>
+def ToTextViaInt = fn<T>(value: T) -> Text where Convertible<T, Int>, Convertible<Int, Text> =>
 {
     def as_int = value as Int;
     as_int as Text
 };
 
 // Function that performs multiple chained conversions to concrete types
-def ComplexChain = fn<T>(value: T) -> Text where Convertable<T, Int>, Convertable<Int, Float>, Convertable<Float, Text> =>
+def ComplexChain = fn<T>(value: T) -> Text where Convertible<T, Int>, Convertible<Int, Float>, Convertible<Float, Text> =>
 {
     def as_int = value as Int;
     def as_float = as_int as Float;

@@ -1,19 +1,19 @@
 module UnsatisfiableConstraint
 // Test: Call to generic function with type that doesn't have required instance
-import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Convertable.mmt" }
+import { "../../../projects/marmotstdlib/MarmotPrelude/IO.mmt", "../../../projects/marmotstdlib/MarmotPrelude/Convertible.mmt" }
 
 type CustomType =
 {
     value: Int
 };
 
-def ToText = fn<T>(value: T) -> Text where Convertable<T, Text> =>
+def ToText = fn<T>(value: T) -> Text where Convertible<T, Text> =>
 {
     value as Text
 };
 
-// This should fail because there's no Convertable<CustomType, Text> instance
+// This should fail because there's no Convertible<CustomType, Text> instance
 def custom = CustomType(42);
 
-def result = ToText(custom);  // ERROR: No Convertable instance for CustomType
+def result = ToText(custom);  // ERROR: No Convertible instance for CustomType
 IO::PrintLine(result);

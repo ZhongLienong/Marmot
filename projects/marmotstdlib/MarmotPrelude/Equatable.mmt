@@ -8,30 +8,37 @@ class Equatable<T>
 
 instance Equatable<Int>
 {
+    // Compares signed integer values for equality.
     def Equals = fn(a: Int, b: Int) -> Bool => a == b;
 };
 
 instance Equatable<Float>
 {
+    // Uses floating-point equality. Signed zeros compare equal and NaN never compares
+    // equal.
     def Equals = fn(a: Float, b: Float) -> Bool => a == b;
 };
 
 instance Equatable<Text>
 {
+    // Compares the text contents byte for byte.
     def Equals = fn(a: Text, b: Text) -> Bool => a == b;
 };
 
 instance Equatable<Bool>
 {
+    // Compares the boolean values.
     def Equals = fn(a: Bool, b: Bool) -> Bool => a == b;
 };
 
 instance Equatable<Byte>
 {
+    // Compares unsigned 8-bit values for equality.
     def Equals = fn(a: Byte, b: Byte) -> Bool => a == b;
 };
 
 instance Equatable<Word>
 {
+    // Compares unsigned 64-bit values for equality.
     def Equals = fn(a: Word, b: Word) -> Bool => a == b;
 };

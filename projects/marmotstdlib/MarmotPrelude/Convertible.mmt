@@ -1,0 +1,130 @@
+module Convertible
+public export { Convertible }
+
+class Convertible<From, To>
+{
+    Convert: fn(value: From) -> To;
+};
+
+instance Convertible<Int, Float>
+{
+    // Converts to Float, which can round integers too large to represent exactly.
+    def Convert = fn(value: Int) -> Float => value as Float;
+};
+
+instance Convertible<Int, Text>
+{
+    // Formats the integer as decimal text.
+    def Convert = fn(value: Int) -> Text => value as Text;
+};
+
+instance Convertible<Int, Bool>
+{
+    // Treats zero as false and every other integer as true.
+    def Convert = fn(value: Int) -> Bool => if value == 0
+    then false
+    else true;
+};
+
+instance Convertible<Int, Int>
+{
+    // Returns the original Int for a same-type conversion.
+    def Convert = fn(value: Int) -> Int => value;
+};
+
+instance Convertible<Float, Int>
+{
+    // Truncates toward zero and raises InvalidConversion if the value cannot be converted
+    // to Int.
+    def Convert = fn(value: Float) -> Int => value as Int;
+};
+
+instance Convertible<Float, Text>
+{
+    // Formats the float with enough precision to round-trip. Whole numbers keep a decimal
+    // point.
+    def Convert = fn(value: Float) -> Text => value as Text;
+};
+
+instance Convertible<Float, Bool>
+{
+    // Treats either signed zero as false and all other float values as true.
+    def Convert = fn(value: Float) -> Bool => if value == 0.0
+    then false
+    else true;
+};
+
+instance Convertible<Float, Float>
+{
+    // Returns the original Float for a same-type conversion.
+    def Convert = fn(value: Float) -> Float => value;
+};
+
+instance Convertible<Text, Int>
+{
+    // Parses the whole text as Int or raises InvalidConversion.
+    def Convert = fn(value: Text) -> Int => value as Int;
+};
+
+instance Convertible<Text, Float>
+{
+    // Parses the whole text as Float or raises InvalidConversion.
+    def Convert = fn(value: Text) -> Float => value as Float;
+};
+
+instance Convertible<Text, Text>
+{
+    // Returns the original Text for a same-type conversion.
+    def Convert = fn(value: Text) -> Text => value;
+};
+
+instance Convertible<Bool, Int>
+{
+    // Converts true to 1 and false to 0.
+    def Convert = fn(value: Bool) -> Int => if value
+    then 1
+    else 0;
+};
+
+instance Convertible<Bool, Float>
+{
+    // Converts true to 1.0 and false to 0.0.
+    def Convert = fn(value: Bool) -> Float => if value
+    then 1.0
+    else 0.0;
+};
+
+instance Convertible<Bool, Text>
+{
+    // Formats the boolean as lowercase true or false.
+    def Convert = fn(value: Bool) -> Text => if value
+    then "true"
+    else "false";
+};
+
+instance Convertible<Bool, Bool>
+{
+    // Returns the original Bool for a same-type conversion.
+    def Convert = fn(value: Bool) -> Bool => value;
+};
+
+// Formats the remaining elements into the accumulator, using a separator after the first
+// element.
+def ShownElementsFrom = fn<T>(values: Array<T>, index: Int, shown: Text) -> Text where Convertible<T, Text> => if index >= #values
+then shown
+else ShownElementsFrom
+(
+    values,
+    index + 1,
+    (if index == 0
+    then shown
+    else shown ++ ", ") ++ (values[index] as Text)
+);
+
+// `[a, b]`, each element as its own `as Text` gives it.
+instance Convertible<Array<T>, Text> where Convertible<T, Text>
+{
+    // Formats the array in brackets with comma-space separators, using each element's Text
+    // conversion.
+    def Convert = fn(value: Array<T>) -> Text => "[" ++ ShownElementsFrom(value, 0, "") ++ "]";
+};
