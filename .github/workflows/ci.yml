@@ -88,8 +88,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python scripts/dev.py gate --build ${{ matrix.build }} --verbose
 
-      # The packager smoke-tests the toolchain bundle before publishing it.
-      - name: Package toolchain and SDK
+      # The packager creates and runs a project with the bundled marmot tool.
+      - name: Package and smoke-test the toolchain and SDK
         if: matrix.build == 'Release'
         run: python scripts/install/package.py --build Release
 

@@ -33,7 +33,6 @@ from lib.presets import BuildTree, add_build_arguments
 PACKAGE_DIR = REPO_ROOT / "out" / "package"
 TEMPLATE_DIR = Path(__file__).resolve().parent / "package_files"
 SETUP_SCRIPT = "install.ps1" if IS_WINDOWS else "install.sh"
-HELLO = 'module Hello\nimport { <IO> }\nIO::PrintLine("hello from the package");\n'
 
 
 def stage(tree: BuildTree, target: InstallLayout) -> None:
@@ -48,26 +47,26 @@ def stage(tree: BuildTree, target: InstallLayout) -> None:
         shutil.copy2(TEMPLATE_DIR / template, target.root / template)
 
 
-# Runs a program with the extracted package alone: the Linux setup script's
+# Creates and runs a project with the extracted package alone: the Linux setup script's
 # env.sh, or on Windows the variables its setup script would set, which are not
 # set here because that would change this machine's user environment.
 def smoke_test(archive: Path, name: str) -> bool:
     with tempfile.TemporaryDirectory() as scratch:
         shutil.unpack_archive(archive, scratch)
         root = Path(scratch) / name
-        (root / "Hello.mmt").write_text(HELLO, encoding="utf-8")
         environment = {key: value for key, value in os.environ.items()
                        if key not in {"MARMOT_PATH", "MARMOTSTDLIB", "MARMOTC", "MARMOTVM"}}
         if IS_WINDOWS:
             environment["MARMOT_PATH"] = str(root / "MarmotPrelude")
             environment["PATH"] = str(root / "bin") + os.pathsep + environment.get("PATH", "")
-            command = "marmot --version && marmotc build Hello.mmt -o Hello.mmc && marmotvm run Hello.mmc"
+            command = r".\bin\marmot.exe init SmokeTest && cd SmokeTest && ..\bin\marmot.exe run"
             completed = subprocess.run(command, shell=True, cwd=root, env=environment, capture_output=True, text=True)
         else:
-            command = "./install.sh > /dev/null && . ./env.sh && marmot --version && marmotc build Hello.mmt -o Hello.mmc && marmotvm run Hello.mmc"
+            command = ("./install.sh > /dev/null && . ./env.sh && "
+                       "./bin/marmot init SmokeTest && cd SmokeTest && ../bin/marmot run")
             completed = subprocess.run(["sh", "-c", command], cwd=root, env=environment, capture_output=True, text=True)
-    if completed.returncode != 0 or "hello from the package" not in completed.stdout:
-        console.fail(f"the extracted package did not run a program:\n{completed.stdout}{completed.stderr}")
+    if completed.returncode != 0 or "Hello from SmokeTest" not in completed.stdout:
+        console.fail(f"the extracted package did not create and run a project:\n{completed.stdout}{completed.stderr}")
         return False
     return True
 
