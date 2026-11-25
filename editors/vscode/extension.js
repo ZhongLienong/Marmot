@@ -1,6 +1,33 @@
 const vscode = require("vscode");
 const childProcess = require("child_process");
+const fs = require("fs/promises");
+const os = require("os");
 const path = require("path");
+const { promisify } = require("util");
+
+const execFile = promisify(childProcess.execFile);
+
+function executableFor(resource) {
+    return vscode.workspace.getConfiguration("marmot", resource).get("executablePath") || "marmot";
+}
+
+async function formatText(executable, cwd, text) {
+    // The formatter takes a file. Stage the editor buffer so it also sees unsaved edits.
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), "marmot-format-"));
+    const input = path.join(directory, "buffer.mmt");
+    try {
+        await fs.writeFile(input, text, "utf8");
+        const { stdout } = await execFile(executable, ["fmt", input, "--format", "json"], { cwd, maxBuffer: Infinity });
+        const report = JSON.parse(stdout);
+        if (typeof report?.formattedText !== "string") {
+            throw new Error("Expected formattedText in the Marmot formatter response.");
+        }
+        return report.formattedText;
+    } finally {
+        await fs.rm(input, { force: true });
+        await fs.rmdir(directory);
+    }
+}
 
 function pathKey(file) {
     const normalized = path.normalize(file);
@@ -93,11 +120,122 @@ class SuggestionCodeActionProvider {
     }
 }
 
+function runMarmot(resource, cwd, folder, file) {
+    const args = file ? ["run", file] : ["run"];
+    const task = new vscode.Task(
+        { type: "marmot", target: file ?? cwd },
+        folder ?? vscode.TaskScope.Global,
+        file ? "Run " + path.basename(file) : "Run Project",
+        "Marmot",
+        new vscode.ProcessExecution(executableFor(resource), args, { cwd })
+    );
+    task.presentationOptions = { focus: true, reveal: vscode.TaskRevealKind.Always };
+    return vscode.tasks.executeTask(task);
+}
+
+async function runFile(resource) {
+    if (!vscode.workspace.isTrusted) {
+        return;
+    }
+
+    const document = resource instanceof vscode.Uri
+        ? await vscode.workspace.openTextDocument(resource)
+        : vscode.window.activeTextEditor?.document;
+    if (document?.languageId !== "marmot" || document.uri.scheme !== "file") {
+        vscode.window.showWarningMessage("Open a saved Marmot file to run it.");
+        return;
+    }
+    if (document.isDirty && !(await document.save())) {
+        return;
+    }
+
+    const file = document.uri.fsPath;
+    const folder = vscode.workspace.getWorkspaceFolder(document.uri);
+    return runMarmot(document.uri, path.dirname(file), folder, file);
+}
+
+async function runProject() {
+    if (!vscode.workspace.isTrusted) {
+        return;
+    }
+
+    const folders = vscode.workspace.workspaceFolders ?? [];
+    if (folders.length === 0) {
+        vscode.window.showWarningMessage("Open a Marmot project folder to run it.");
+        return;
+    }
+
+    const resource = vscode.window.activeTextEditor?.document.uri;
+    const activeFolder = resource && vscode.workspace.getWorkspaceFolder(resource);
+    const folder = activeFolder ?? (folders.length === 1
+        ? folders[0]
+        : await vscode.window.showWorkspaceFolderPick({ placeHolder: "Select a Marmot project folder" }));
+    if (!folder) {
+        return;
+    }
+    if (folder.uri.scheme !== "file") {
+        vscode.window.showWarningMessage("Open a local Marmot project folder to run it.");
+        return;
+    }
+
+    return runMarmot(folder.uri, folder.uri.fsPath, folder);
+}
+
 function activate(context) {
     const collection = vscode.languages.createDiagnosticCollection("marmot");
     const output = vscode.window.createOutputChannel("Marmot");
     const pending = new Map();
     const reportedFailures = new Set();
+
+    function reportToolFailure(executable, error, fallback) {
+        if (reportedFailures.has(executable)) {
+            return;
+        }
+        reportedFailures.add(executable);
+        const message = error?.code === "ENOENT"
+            ? "Marmot could not find the project tool. Set marmot.executablePath or add marmot to PATH."
+            : fallback;
+        vscode.window.showWarningMessage(message, "Show Output").then((choice) => {
+            if (choice === "Show Output") {
+                output.show();
+            }
+        });
+    }
+
+    async function provideDocumentFormattingEdits(document, _options, token) {
+        const version = document.version;
+        const isCurrent = () => !token.isCancellationRequested && !document.isClosed && document.version === version;
+        if (!vscode.workspace.isTrusted || !isCurrent()) {
+            return [];
+        }
+
+        const executable = executableFor(document.uri);
+        const cwd = document.uri.scheme === "file" ? path.dirname(document.fileName) : undefined;
+        const text = document.getText();
+        let formatted;
+        try {
+            formatted = await formatText(executable, cwd, text);
+        } catch (error) {
+            if (isCurrent()) {
+                output.appendLine("Marmot format failed for " + document.fileName);
+                output.appendLine(error.stderr?.trim() || error.message);
+                reportToolFailure(executable, error, "Marmot could not format the document.");
+            }
+            return [];
+        }
+        if (!isCurrent()) {
+            return [];
+        }
+
+        const eol = document.eol === vscode.EndOfLine.CRLF ? "\r\n" : "\n";
+        formatted = formatted.replace(/\r?\n/g, eol);
+        if (formatted === text) {
+            return [];
+        }
+
+        const range = new vscode.Range(document.positionAt(0), document.positionAt(text.length));
+        return [vscode.TextEdit.replace(range, formatted)];
+    }
 
     function cancelCheck(key) {
         const check = pending.get(key);
@@ -116,8 +254,7 @@ function activate(context) {
             return;
         }
 
-        const config = vscode.workspace.getConfiguration("marmot", document.uri);
-        const executable = config.get("executablePath") || "marmot";
+        const executable = executableFor(document.uri);
         const cwd = path.dirname(document.fileName);
         const version = document.version;
         const check = new AbortController();
@@ -142,17 +279,7 @@ function activate(context) {
                     collection.delete(document.uri);
                     output.appendLine("Marmot check failed for " + document.fileName);
                     output.appendLine(stderr.trim() || error?.message || "Expected a JSON diagnostic report.");
-                    if (!reportedFailures.has(executable)) {
-                        reportedFailures.add(executable);
-                        const message = error?.code === "ENOENT"
-                            ? "Marmot could not find the project tool. Set marmot.executablePath or add marmot to PATH."
-                            : "Marmot could not check the file.";
-                        vscode.window.showWarningMessage(message, "Show Output").then((choice) => {
-                            if (choice === "Show Output") {
-                                output.show();
-                            }
-                        });
-                    }
+                    reportToolFailure(executable, error, "Marmot could not check the file.");
                     return;
                 }
 
@@ -196,6 +323,12 @@ function activate(context) {
             new SuggestionCodeActionProvider(),
             { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] }
         ),
+        vscode.languages.registerDocumentFormattingEditProvider(
+            [{ language: "marmot", scheme: "file" }, { language: "marmot", scheme: "untitled" }],
+            { provideDocumentFormattingEdits }
+        ),
+        vscode.commands.registerCommand("marmot.runFile", runFile),
+        vscode.commands.registerCommand("marmot.runProject", runProject),
         vscode.commands.registerCommand("marmot.showSuggestion", (suggestion) => {
             vscode.window.showInformationMessage(suggestion);
         })

@@ -1,8 +1,8 @@
 {
   "name": "marmot-lang",
   "displayName": "Marmot Language Support",
-  "description": "Syntax highlighting and compiler diagnostics for Marmot.",
-  "version": "0.1.0",
+  "description": "Syntax highlighting, formatting, compiler diagnostics, and run commands for Marmot.",
+  "version": "0.3.0",
   "publisher": "marmot",
   "repository": {
     "type": "git",
@@ -24,7 +24,7 @@
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": "limited",
-      "description": "Diagnostics run the Marmot project tool and require Workspace Trust.",
+      "description": "Formatting, diagnostics, and run commands use the Marmot project tool and require Workspace Trust.",
       "restrictedConfigurations": [
         "marmot.executablePath"
       ]
@@ -51,6 +51,40 @@
         "path": "./syntaxes/marmot.tmLanguage.json"
       }
     ],
+    "commands": [
+      {
+        "command": "marmot.runFile",
+        "title": "Run File",
+        "category": "Marmot",
+        "icon": "$(play)",
+        "enablement": "isWorkspaceTrusted && processExecutionSupported"
+      },
+      {
+        "command": "marmot.runProject",
+        "title": "Run Project",
+        "category": "Marmot",
+        "enablement": "isWorkspaceTrusted && processExecutionSupported"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "marmot.runFile",
+          "when": "resourceLangId == marmot && resourceScheme == file"
+        },
+        {
+          "command": "marmot.runProject",
+          "when": "workspaceFolderCount > 0"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "marmot.runFile",
+          "when": "resourceLangId == marmot && resourceScheme == file && isWorkspaceTrusted && processExecutionSupported",
+          "group": "navigation"
+        }
+      ]
+    },
     "configuration": {
       "title": "Marmot",
       "properties": {
